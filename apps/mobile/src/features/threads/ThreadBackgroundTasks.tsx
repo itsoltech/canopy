@@ -34,10 +34,12 @@ export function TaskRow({
   entry,
   threadId,
   disabled,
+  compact = false,
 }: {
   entry: ui.TimelineItem;
   threadId: string;
   disabled: boolean;
+  compact?: boolean;
 }) {
   const c = useColors();
   const { client } = useSession();
@@ -77,7 +79,7 @@ export function TaskRow({
 
   return (
     <View style={{ gap: 6, borderBottomWidth: 1, borderColor: c.line, paddingBottom: 8 }}>
-      <Text numberOfLines={3} style={[styles.body, { color: c.text }]}>
+      <Text numberOfLines={compact ? 2 : 3} style={[compact ? styles.overlay : styles.body, { color: c.text }]}>
         {task.description || task.command || "Background task"}
       </Text>
       <Text style={[styles.meta, { color: c.muted }]}>

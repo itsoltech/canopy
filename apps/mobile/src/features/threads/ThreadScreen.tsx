@@ -237,7 +237,7 @@ export function ThreadScreen({ id }: { id: string }) {
             onLatest={atBottom ? undefined : composer.showLatest}
             overlay={<ThreadSuggestions state={state} />}
             accessory={<ThreadStatus state={state} />}
-            tray={<ThreadTray state={state} compact={composer.compact} onGoal={() => setSheet("goal")} />}
+            tray={<ThreadTray state={state} onGoal={() => setSheet("goal")} />}
           >
             <ThreadComposer state={state} composer={composer} />
           </FloatingComposer>

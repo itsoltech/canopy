@@ -11,9 +11,9 @@ import { SubagentsPanel } from "./SubagentsPanel";
 
 /**
  * The thread's tray in web order (goal, subagents, queue, then what waits for you, nearest the input). Without any
- * of them, or without an input (imported history), there is none. A folded composer folds the panels too.
+ * of them, or without an input (imported history), there is none. Only headers participate in layout.
  */
-export function ThreadTray({ state, compact, onGoal }: { state: ThreadState; compact: boolean; onGoal: () => void }) {
+export function ThreadTray({ state, onGoal }: { state: ThreadState; onGoal: () => void }) {
   const settings = useAppearance();
   const { thread, snapshot, queue, requests } = state;
   const goal = showsGoal(snapshot?.goal, state.dismissedGoals) ? snapshot?.goal : undefined;
@@ -39,10 +39,9 @@ export function ThreadTray({ state, compact, onGoal }: { state: ThreadState; com
           onDismiss={() => state.dismissGoal(goal.id)}
         />
       ) : null}
-      <SubagentsPanel subagents={state.activeSubagents} compact={compact} />
+      <SubagentsPanel subagents={state.activeSubagents} />
       <QueuePanel
         queue={queue}
-        compact={compact}
         disabled={disabled}
         delivery={delivery}
         onDelivery={(runningDelivery) =>

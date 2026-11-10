@@ -1034,8 +1034,10 @@ więc boki dochodzą do prostej górnej krawędzi pola, a jego obramowanie zamyk
 w web: cel, subagenci, kolejka, a najbliżej pola to, co czeka na odpowiedź. Każdy panel ma
 nagłówek `TrayHeader` (40 dp, cel dotyku 48 dp, tekst 14, ikona 16, chevron 12) i linię nad sobą;
 obramowanie stosu przykrywa pierwszą. Bez paneli zasobnika nie ma; nie ma go też przy historii
-importu (bez pola). Za wysoki stos przewija się we własnym `ScrollView`, bez zamykania klawiatury.
-Zwinięty kompozytor zwija też treść paneli; nagłówki zostają. Nad zasobnikiem są wiersze statusu
+importu (bez pola). W układzie zostają tylko nagłówki; dotknięcie subagentów lub kolejki otwiera
+osobną nakładkę rosnącą w górę nad historią. Rozwinięcie nie zmienia wysokości zasobnika,
+rezerwy feedu ani jego scrolla. Nagłówki działają także przy zwiniętym kompozytorze.
+Nad zasobnikiem są wiersze statusu
 („Syncing…”, sekrety, „Sending…”, błąd wysyłki, komputer offline) i chip zadań w tle.
 Wiersze statusu i zasobnik leżą na tle kompozytora z własnym wygaszeniem 32 dp, poza pomiarem
 pola. Ich wysokość wchodzi do rezerwy pod ostatnią wiadomością tylko na końcu feedu
@@ -1046,11 +1048,12 @@ Zasobnik wchodzi i wychodzi przez `rise`, wiersze kolejki dodatkowo przez `layou
 Panel subagentów (`SubagentsPanel`, web: `SubagentsPanel`) pokazuje tylko pracujących
 i czekających na odpowiedź (`subagentsOf` z `@canopy/domain/subagents`). Nagłówek liczy tylko
 aktywnych („2 subagents working · 1 needs you”, ten sam `subagentSummary` co web) i pokazuje ikony
-ich dostawców. Rozwinięcie (accordion `Expand`, chevron `useTween`) pokazuje wiersz na subagenta:
+ich dostawców. Rozwinięcie (nakładka `AnchoredOverlay`, chevron `useTween`) pokazuje wiersz na subagenta:
 kropka stanu, tytuł, etykieta stanu i pierwsza linia ostatniej wiadomości. Dotknięcie otwiera
 wątek z historią i możliwością dalszej wiadomości. Zakończeni znikają z zasobnika; pełna linia
-(„N finished”, „Previous subagents”) jest w szczegółach wątku. Preferencja urządzenia
-`subagentsExpanded` zapamiętuje rozwinięcie (domyślnie Off).
+(„N finished”, „Previous subagents”) jest w szczegółach wątku. Otwarcie jest lokalnym stanem
+panelu, bez zapisu preferencji urządzenia i bez aktualizacji całego feedu. Kolejka również
+zaczyna od samego nagłówka. Chip zadań otwiera ten sam rodzaj nakładki z akcjami i podglądem wyjścia.
 
 Szczegóły wątku pokazują linię subagentów z webowym grupowaniem z `@canopy/domain/subagents`:
 przy „Keep finished subagents in the list” = Off zakończeni, także archiwalni, są pod rozwijanym
@@ -1107,6 +1110,22 @@ ruchu od razu). Wzmianki działają jak w web:
 `/` komendy, `$` skille i pluginy z `ListMentionCatalog` (raz na zakres), `@` pliki
 (`SearchFiles`) i `#` wątki (`SearchThreads`) pokazują listę nad kompozytorem, a wybór wstawia
 plakietkę w miejsce wpisanego zapytania (`features/composer/useMentionSuggestions.ts`).
+Listy sugestii w wątku (także bocznym), New thread i czacie bota oraz rozwinięcia zasobnika
+korzystają z `ui/AnchoredOverlay`. `ScreenFrame` ma host portalu w tym samym natywnym oknie;
+otwarcie nie przenosi fokusu pola do nowego `Modal` i nie zamyka klawiatury. Pomiar kotwicy
+na wątku UI śledzi klawiaturę, przewijanie i obrót. Powierzchnia jest nieprzezroczysta, ma
+obramowanie i delikatny cień. Wysokość wynika z treści, z limitem 40% widocznego viewportu,
+dostępnego miejsca nad kotwicą i 320 dp (sugestie: 280 dp). Treść przewija się wewnątrz,
+z widocznym natywnym wskaźnikiem i stałym prawym gutterem 12 dp, bez zmiany szerokości wierszy.
+Dotknięcie poza nakładką jest konsumowane i ją zamyka. Zamykają ją też przycisk Close,
+gest w dół (po powrocie listy na początek), accessibility escape i Android Back. Gdy IME
+przechwyci Back, zamknięcie klawiatury zamyka również nakładkę. Panele zasobnika izolują
+czytnik ekranu i przy zamknięciu przywracają fokus nagłówka; sugestie zachowują dostęp do pola.
+Wejście/wyjście skaluje od dolnej krawędzi przez `fast`/`quick`; ograniczenie ruchu pomija animację.
+Przy widocznej wysokości poniżej 320 dp po odjęciu nagłówka `ComposerViewport` chwilowo
+pokazuje jednoliniowe pole i chowa toolbar, pozostawiając miejsce na listę nad nim. Nie zależy
+to od otwarcia nakładki. Formularz tworzenia wątku bocznego pozostaje osobnym arkuszem
+bez listy sugestii; po utworzeniu korzysta ze wspólnego ekranu wątku.
 Menu akcji wątku ma „New side thread” (ten sam projekt, worker, folder, agent i model; opcjonalnie
 historia wątku głównego; full access przechodzi w full auto) oraz „Set a goal…” / „Replace the
 goal…” poza Grokiem i wątkami gatewaya. Cel jest pierwszym panelem zasobnika (web: `GoalBar`):
@@ -1150,8 +1169,8 @@ Edycja dotykająca plakietki usuwa ją w całości razem z plikiem; tekst wpisan
 trafia za nią. Pole tekstowe nie pokazuje postępu, dlatego pliki wysyłane lub odrzucone mają
 nad tekstem chip ze stanem i przyciskiem Remove; zapisany plik ma już tylko plakietkę. Wysłana
 wiadomość pokazuje plakietki w tych samych miejscach (`Turn.mentions`), a chipy tylko dla plików
-spoza tekstu. Kolejka jest panelem zasobnika (web: `QueuePanel`), domyślnie rozwiniętym:
-nagłówek „N queued”, wiersz na własną wiadomość użytkownika w kolejności startu (reguły
+spoza tekstu. Kolejka ma stały nagłówek „N queued” w zasobniku (web: `QueuePanel`),
+a po dotknięciu pokazuje nakładkę z wierszem na własną wiadomość użytkownika w kolejności startu (reguły
 `@canopy/domain/queue` wspólne z web), tekst w jednej linii z nazwami plakietek, ostrzeżenie,
 gdy steer nie wszedł do tury, oraz akcje: Steer (`SteerQueuedTurn`, tylko gdy tura trwa, także
 z plikami), Delete (`DeleteQueuedTurn`, toast z „Undo” przez 8 sekund, `RestoreQueuedTurn`)
@@ -1162,8 +1181,8 @@ z tymi samymi plakietkami (`EditQueuedTurn` z `mentions_complete`, linia „‹n
 message when you save.”). Zmiany widać od razu (`useQueue`: lokalna kolejność, ukryte usunięte
 i wysterowane); odpowiedź gatewaya trafia do snapshotu, a odmowa przywraca stan i mówi
 dlaczego w toaście. Chip „N running in background” (web: `BackgroundTasksChip`) stoi nad
-zasobnikiem przy lewej krawędzi, gdy działają zadania w tle wątku; otwiera arkusz z działającymi
-zadaniami (status, „Show full output”, „Stop task”), który zamyka się razem z ostatnim. Settings → Threads edytuje
+zasobnikiem przy lewej krawędzi, gdy działają zadania w tle wątku; otwiera nakładkę z działającymi
+zadaniami (status, „Show full output”, „Stop task”), która zamyka się razem z ostatnim. Settings → Threads edytuje
 domyślny workspace, agenta i uprawnienia.
 Są tworzenie wątku, rename/archive/unread, wyszukiwanie treści, zwinięta praca/narzędzia,
 subagents i panel worker/cwd/model/status/schedules/lineage/connectors.

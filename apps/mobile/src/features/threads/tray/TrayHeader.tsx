@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject, ComponentRef } from "react";
 import { Pressable, View } from "react-native";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import type { IconName } from "@canopy/ui/icons";
@@ -21,23 +21,26 @@ export function TrayHeader({
   disabled = false,
   children,
   trailing,
+  triggerRef,
 }: {
   label: string;
   onPress: () => void;
-  /** An accordion's state; sheets have none. */
+  /** A popover's state; sheets have none. */
   expanded?: boolean;
-  /** `panel` unfolds in place; `sheet` opens a sheet. */
+  /** `panel` opens above the header; `sheet` opens a sheet. */
   opens?: "panel" | "sheet";
   disabled?: boolean;
   children: ReactNode;
   /** Actions beside the header (outside its button). */
   trailing?: ReactNode;
+  triggerRef?: RefObject<ComponentRef<typeof View> | null>;
 }) {
   const c = useColors();
 
   return (
     <View style={{ flexDirection: "row", alignItems: "center", minHeight: TRAY_ROW, paddingRight: trailing ? 4 : 0 }}>
       <Pressable
+        ref={triggerRef}
         accessibilityRole="button"
         accessibilityLabel={label}
         accessibilityState={{ expanded, disabled }}

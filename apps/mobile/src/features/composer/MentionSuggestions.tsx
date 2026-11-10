@@ -1,6 +1,6 @@
-import { Pressable, ScrollView, Text, View } from "react-native";
-import Animated from "react-native-reanimated";
-import { useMotion, useReducedMotion } from "../../ui/motion";
+import { useState } from "react";
+import { Pressable, Text, View } from "react-native";
+import { AnchoredOverlay } from "../../ui/AnchoredOverlay";
 import { Skeleton } from "../../ui/Skeleton";
 import type { ui } from "@canopy/contracts";
 import { Icon } from "../../ui/Icon";
@@ -49,7 +49,14 @@ export function MentionSuggestions({
   if (!trigger) return null;
 
   return (
-    <MentionOptions options={options} loading={loading} error={error} empty={emptyText[trigger.char]} onPick={onPick} />
+    <MentionOptions
+      queryKey={`${trigger.char}:${trigger.query}`}
+      options={options}
+      loading={loading}
+      error={error}
+      empty={emptyText[trigger.char]}
+      onPick={onPick}
+    />
   );
 }
 
@@ -60,88 +67,79 @@ export function MentionOptions({
   error,
   empty,
   onPick,
+  queryKey,
 }: {
   options: readonly MentionOption[];
   loading: boolean;
   error?: string | undefined;
   empty: string;
   onPick: (option: MentionOption) => void;
+  queryKey: string;
 }) {
   const c = useColors();
-  const { pop } = useMotion();
-  const reduced = useReducedMotion();
+  const [dismissedQuery, setDismissedQuery] = useState<string>();
 
   return (
-    <Animated.View
-      entering={reduced ? undefined : pop.entering}
-      exiting={reduced ? undefined : pop.exiting}
-      accessibilityLabel="Suggestions"
-      style={{
-        maxHeight: 240,
-        flexShrink: 1,
-        minHeight: 0,
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: c.line,
-        backgroundColor: c.overlay,
-        overflow: "hidden",
-      }}
+    <AnchoredOverlay
+      visible={dismissedQuery !== queryKey}
+      onClose={() => setDismissedQuery(queryKey)}
+      label="Suggestions"
+      modal={false}
+      maxHeight={280}
     >
-      <ScrollView keyboardShouldPersistTaps="always" keyboardDismissMode="none" contentContainerStyle={{ padding: 4 }}>
-        {options.map((option, index) => (
-          <View key={option.key}>
-            {option.group !== options[index - 1]?.group ? (
-              <Text
-                accessibilityRole="header"
-                style={[
-                  styles.overlayHeading,
-                  { color: c.faint, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 2 },
-                ]}
-              >
-                {option.group}
-              </Text>
-            ) : null}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={[option.title, option.detail].filter(Boolean).join(", ")}
-              disabled={loading}
-              onPress={() => onPick(option)}
-              style={({ pressed }) => [
-                styles.row,
-                {
-                  minHeight: 44,
-                  paddingHorizontal: 12,
-                  gap: 10,
-                  borderRadius: 10,
-                  backgroundColor: pressed ? c.inset : "transparent",
-                },
+      {options.map((option, index) => (
+        <View key={option.key}>
+          {option.group !== options[index - 1]?.group ? (
+            <Text
+              accessibilityRole="header"
+              style={[
+                styles.overlayHeading,
+                { color: c.faint, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 2 },
               ]}
             >
-              <Icon name={iconOf(option)} size={16} color={c.muted} />
-              <Text numberOfLines={1} style={[styles.overlay, { color: c.text, flexShrink: 1 }]}>
-                {option.title}
+              {option.group}
+            </Text>
+          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={[option.title, option.detail].filter(Boolean).join(", ")}
+            disabled={loading}
+            onPress={() => onPick(option)}
+            style={({ pressed }) => [
+              styles.row,
+              {
+                minHeight: 44,
+                paddingHorizontal: 12,
+                gap: 10,
+                borderRadius: 10,
+                backgroundColor: pressed ? c.inset : "transparent",
+              },
+            ]}
+          >
+            <Icon name={iconOf(option)} size={16} color={c.muted} />
+            <Text numberOfLines={1} style={[styles.overlay, { color: c.text, flexShrink: 1 }]}>
+              {option.title}
+            </Text>
+            {option.detail ? (
+              <Text numberOfLines={1} style={[styles.overlayMeta, { color: c.muted, flex: 1 }]}>
+                {option.detail}
               </Text>
-              {option.detail ? (
-                <Text numberOfLines={1} style={[styles.overlayMeta, { color: c.muted, flex: 1 }]}>
-                  {option.detail}
-                </Text>
-              ) : null}
-            </Pressable>
-          </View>
-        ))}
-        {!options.length && (
-          <View style={[styles.row, { minHeight: 44, paddingHorizontal: 12 }]}>
-            {loading ? (
-              <>
-                <Skeleton style={{ width: 16, height: 16 }} />
-                <Skeleton style={{ width: "70%", height: 16 }} />
-              </>
-            ) : (
-              <Text style={[styles.overlayMeta, { color: error ? c.danger : c.muted, flex: 1 }]}>{error || empty}</Text>
-            )}
-          </View>
-        )}
-      </ScrollView>
-    </Animated.View>
+            ) : null}
+          </Pressable>
+        </View>
+      ))}
+      {!options.length && (
+        <View style={[styles.row, { minHeight: 44, paddingHorizontal: 12 }]}>
+          {loading ? (
+            <>
+              <Skeleton style={{ width: 16, height: 16 }} />
+              <Skeleton style={{ width: "70%", height: 16 }} />
+            </>
+          ) : (
+            <Text style={[styles.overlayMeta, { color: error ? c.danger : c.muted, flex: 1 }]}>{error || empty}</Text>
+          )}
+        </View>
+      )}
+    </AnchoredOverlay>
   );
 }

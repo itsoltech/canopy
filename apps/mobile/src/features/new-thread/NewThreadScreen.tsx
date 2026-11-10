@@ -21,6 +21,7 @@ import { useNewThread } from "./useNewThread";
 import { WorkerPickerSheet } from "./WorkerPickerSheet";
 import { WorkspacePills } from "./WorkspacePickers";
 import { MentionSuggestions } from "../composer/MentionSuggestions";
+import { ComposerViewport } from "../composer/ComposerViewport";
 import { SkeletonScope } from "../../ui/Skeleton";
 import { useProjectDetails } from "../computers/project-details";
 
@@ -51,45 +52,49 @@ export function NewThreadScreen() {
             <Text style={[styles.title, { color: c.text, textAlign: "center", marginBottom: 16 }]}>
               What should we work on?
             </Text>
-            <MentionSuggestions
-              scope={state.mentionScope}
-              trigger={message.trigger}
-              onPick={(option) => message.pickMention(option.mention)}
-            />
             <SkeletonScope loading={state.initialLoading}>
               <PasteTarget draft={message.files}>
-                <ComposerBox
-                  text={message.value.text}
-                  onChange={message.setText}
-                  badges={message.badges}
-                  triggers
-                  onSend={() => void state.create()}
-                  disabled={state.initialLoading || Boolean(blocker)}
-                  busy={state.busy}
-                  files={message.files.ids.length}
-                  label="Task for the agent"
-                  top={<AttachmentChips files={message.files.files} onRemove={message.remove} />}
-                  attachment={<AttachButton draft={message.files} disabled={state.busy} />}
-                  controls={
-                    <>
-                      {selected && (
-                        <ComposerPill
-                          icon="cpu-chip"
-                          leading={<ProviderIcon provider={selected.provider} />}
-                          title={selected.name}
-                          onPress={() => setPicker("model")}
-                        />
-                      )}
-                      {selected?.efforts.length ? (
-                        <ComposerPill
-                          icon="light-bulb"
-                          title={effortLabel(effort)}
-                          onPress={() => setPicker("effort")}
-                        />
-                      ) : null}
-                    </>
-                  }
-                />
+                <ComposerViewport>
+                  <View>
+                    <MentionSuggestions
+                      scope={state.mentionScope}
+                      trigger={message.trigger}
+                      onPick={(option) => message.pickMention(option.mention)}
+                    />
+                    <ComposerBox
+                      text={message.value.text}
+                      onChange={message.setText}
+                      badges={message.badges}
+                      triggers
+                      onSend={() => void state.create()}
+                      disabled={state.initialLoading || Boolean(blocker)}
+                      busy={state.busy}
+                      files={message.files.ids.length}
+                      label="Task for the agent"
+                      top={<AttachmentChips files={message.files.files} onRemove={message.remove} />}
+                      attachment={<AttachButton draft={message.files} disabled={state.busy} />}
+                      controls={
+                        <>
+                          {selected && (
+                            <ComposerPill
+                              icon="cpu-chip"
+                              leading={<ProviderIcon provider={selected.provider} />}
+                              title={selected.name}
+                              onPress={() => setPicker("model")}
+                            />
+                          )}
+                          {selected?.efforts.length ? (
+                            <ComposerPill
+                              icon="light-bulb"
+                              title={effortLabel(effort)}
+                              onPress={() => setPicker("effort")}
+                            />
+                          ) : null}
+                        </>
+                      }
+                    />
+                  </View>
+                </ComposerViewport>
               </PasteTarget>
               <View style={[styles.row, { justifyContent: "space-between", paddingHorizontal: 6, flexWrap: "wrap" }]}>
                 <View style={[styles.row, { gap: 0, flexShrink: 1 }]}>

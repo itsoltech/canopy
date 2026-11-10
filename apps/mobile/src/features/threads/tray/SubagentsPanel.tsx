@@ -1,3 +1,4 @@
+import { useRef, useState, type ComponentRef } from "react";
 import { Pressable, Text, View } from "react-native";
 import { router } from "expo-router";
 import { palette } from "@canopy/ui";
@@ -5,24 +6,23 @@ import { subagentLook, subagentSummary, type Subagent } from "@canopy/domain/sub
 import { firstLine } from "@canopy/domain/first-line";
 import { StatusDot } from "../../../ui/Badge";
 import { Icon } from "../../../ui/Icon";
-import { Expand } from "../../../ui/MotionViews";
+import { AnchoredOverlay } from "../../../ui/AnchoredOverlay";
 import { ProviderIcon } from "../../../ui/ProviderIcon";
 import { font, styles, useColors } from "../../../ui/theme";
 import { useTone } from "../../../ui/tone";
-import { useDevicePreferences } from "../../settings/device-preferences";
 import { TrayPanel } from "./ComposerTray";
 import { TrayHeader, TrayIcon } from "./TrayHeader";
 
 /**
  * The thread's working subagents in the tray (web: SubagentsPanel): one line that sums active work ("2 subagents
  * working · 1 needs you") with their providers, unfolding into a row per subagent that opens its thread. Finished
- * subagents leave it; thread details keep the whole lineage. The open state is this phone's preference.
+ * subagents leave it; thread details keep the whole lineage. Expansion is local to this popover.
  */
-export function SubagentsPanel({ subagents, compact }: { subagents: readonly Subagent[]; compact: boolean }) {
+export function SubagentsPanel({ subagents }: { subagents: readonly Subagent[] }) {
   const c = useColors();
-  const device = useDevicePreferences();
-  const open = device.values.subagentsExpanded === "on";
-  const expanded = open && !compact;
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<ComponentRef<typeof View>>(null);
+  const expanded = open;
   const summary = subagentSummary(subagents);
   const providers = [...new Set(subagents.map((s) => s.thread.provider))];
 
@@ -30,38 +30,41 @@ export function SubagentsPanel({ subagents, compact }: { subagents: readonly Sub
 
   return (
     <TrayPanel>
-      <TrayHeader
-        label={summary}
-        expanded={expanded}
-        onPress={() => device.set("subagentsExpanded", expanded ? "off" : "on")}
+      <AnchoredOverlay
+        visible={expanded}
+        onClose={() => setOpen(false)}
+        label="Subagents"
+        triggerRef={triggerRef}
+        anchor={
+          <TrayHeader triggerRef={triggerRef} label={summary} expanded={expanded} onPress={() => setOpen(!expanded)}>
+            <TrayIcon name="sparkles" color={c.dark ? palette.violet[400] : palette.violet[500]} />
+            <Text
+              numberOfLines={1}
+              accessibilityLiveRegion="polite"
+              style={[styles.meta, { flex: 1, minWidth: 0, color: c.soft, fontVariant: ["tabular-nums"] }]}
+            >
+              {summary}
+            </Text>
+            <View style={[styles.row, { gap: 4, opacity: 0.7 }]} accessibilityElementsHidden>
+              {providers.map((provider) => (
+                <ProviderIcon key={provider} provider={provider} />
+              ))}
+            </View>
+          </TrayHeader>
+        }
       >
-        <TrayIcon name="sparkles" color={c.dark ? palette.violet[400] : palette.violet[500]} />
-        <Text
-          numberOfLines={1}
-          accessibilityLiveRegion="polite"
-          style={[styles.meta, { flex: 1, minWidth: 0, color: c.soft, fontVariant: ["tabular-nums"] }]}
-        >
-          {summary}
-        </Text>
-        <View style={[styles.row, { gap: 4, opacity: 0.7 }]} accessibilityElementsHidden>
-          {providers.map((provider) => (
-            <ProviderIcon key={provider} provider={provider} />
-          ))}
-        </View>
-      </TrayHeader>
-      <Expand open={expanded}>
         <View style={{ paddingVertical: 4 }}>
           {subagents.map((subagent) => (
-            <SubagentRow key={subagent.thread.id} subagent={subagent} />
+            <SubagentRow key={subagent.thread.id} subagent={subagent} onOpen={() => setOpen(false)} />
           ))}
         </View>
-      </Expand>
+      </AnchoredOverlay>
     </TrayPanel>
   );
 }
 
 /** One subagent (web: SubagentRow): its state, title and the start of its last message; a tap opens its thread. */
-function SubagentRow({ subagent }: { subagent: Subagent }) {
+function SubagentRow({ subagent, onOpen }: { subagent: Subagent; onOpen: () => void }) {
   const c = useColors();
   const look = subagentLook(subagent.state);
   const tone = useTone(look.tone);
@@ -72,7 +75,10 @@ function SubagentRow({ subagent }: { subagent: Subagent }) {
     <Pressable
       accessibilityRole="link"
       accessibilityLabel={`${thread.title || "Subagent"}, ${look.label}`}
-      onPress={() => router.push({ pathname: "/thread/[id]", params: { id: thread.id } })}
+      onPress={() => {
+        onOpen();
+        router.push({ pathname: "/thread/[id]", params: { id: thread.id } });
+      }}
       style={({ pressed }) => ({
         minHeight: 48,
         justifyContent: "center",
