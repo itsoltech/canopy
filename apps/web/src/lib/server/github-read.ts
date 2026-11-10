@@ -7,6 +7,11 @@ export async function githubRead(api: ReturnType<typeof gateway>, operation: str
   const options = { timeoutMs: 120_000 };
 
   switch (operation) {
+    case "review-draft":
+      return encode(
+        github.PullRequestReviewDraftSchema,
+        await api.getPullRequestReviewDraft(await readMessage(request, github.PullRequestPageRequestSchema), options),
+      );
     case "timeline":
       return encode(
         github.PullRequestTimelinePageSchema,

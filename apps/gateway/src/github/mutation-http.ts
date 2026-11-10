@@ -49,7 +49,7 @@ export function mutationInput(scope: MutationScope, r: github.PullRequestMutatio
 }
 
 /** Share the read queue and budget; no transaction spans network I/O and no write is replayed. */
-export async function mutationQueue<T>(scope: MutationScope, use: () => Promise<T>) {
+export async function mutationQueue<T>(scope: MutationScope, use: (renew: () => Promise<void>) => Promise<T>) {
   const { accounts } = scope.prs;
   const { run, http } = accounts;
   const user = scope.access.row.github_user_id;
@@ -78,7 +78,13 @@ export async function mutationQueue<T>(scope: MutationScope, use: () => Promise<
     // Reserve the preflight and mutation cost before sending, including lost responses.
     await run((s) => s.budgetRecord(user, "graphql", { cost: 2, failed: false }, http.now()));
 
-    return await use();
+    return await use(async () => {
+      if (!(await run((s) => s.apiRenew(lease))).length)
+        throw new ConnectError(
+          "Review verification expired. Refresh and check the comments before sending.",
+          Code.FailedPrecondition,
+        );
+    });
   } finally {
     await run((s) => s.apiRelease(lease));
   }

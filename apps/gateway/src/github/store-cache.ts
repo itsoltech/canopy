@@ -140,5 +140,8 @@ export function githubCache(sql: SqlClient.SqlClient) {
       ),
     apiRelease: (lease: string) =>
       sql`UPDATE github_api_slots SET github_user_id=NULL,lease_id=NULL,lease_until=NULL WHERE lease_id=${lease}::uuid`,
+    apiRenew: (lease: string) =>
+      sql`UPDATE github_api_slots SET lease_until=now()+interval '60 seconds'
+      WHERE lease_id=${lease}::uuid AND lease_until>now() RETURNING slot`,
   };
 }

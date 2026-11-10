@@ -2,6 +2,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import type { github } from "@canopy/contracts";
+import { reviewParameters } from "./review-mutation.ts";
 
 export interface MutationRow {
   owner_user_id: string;
@@ -23,6 +24,7 @@ export interface MutationRow {
   upstream_id: string;
   detail: string;
   viewer_viewed_state: string;
+  parameters: ReturnType<typeof reviewParameters>;
 }
 
 export const uncertainDetail = "Couldn't confirm. Check on GitHub";
@@ -43,6 +45,7 @@ export function githubMutationsStore(sql: SqlClient.SqlClient) {
         confirmationId: r.confirmation_id,
         outcome,
         upstreamId: r.upstream_id,
+        parameters: r.parameters,
       })}::jsonb)`;
 
   const get = (owner: string, id: string) =>
@@ -72,9 +75,9 @@ export function githubMutationsStore(sql: SqlClient.SqlClient) {
         Effect.gen(function* () {
           const rows = yield* sql<MutationRow>`INSERT INTO github_mutation_receipts
           (owner_user_id,request_id,account_id,pull_request_id,client_binding,fingerprint,action,access_revision,mapping_revision,
-          head_sha,expected_state,resource_id,path,confirmation_id)
+          head_sha,expected_state,resource_id,path,confirmation_id,parameters)
           VALUES (${owner}::uuid,${r.clientRequestId}::uuid,${r.accountId}::uuid,${r.pullRequestId}::uuid,${client},${fingerprint},
-          ${r.action},${r.accessRevision}::bigint,${mapping}::bigint,${r.headSha},${r.expectedState},${r.resourceId},${r.path},${Bun.randomUUIDv7()}::uuid)
+          ${r.action},${r.accessRevision}::bigint,${mapping}::bigint,${r.headSha},${r.expectedState},${r.resourceId},${r.path},${Bun.randomUUIDv7()}::uuid,${JSON.stringify(reviewParameters(r))}::jsonb)
           ON CONFLICT DO NOTHING RETURNING *`;
 
           if (rows[0]) yield* audit(rows[0], "prepared");
@@ -88,7 +91,7 @@ export function githubMutationsStore(sql: SqlClient.SqlClient) {
           const rows =
             yield* sql<MutationRow>`UPDATE github_mutation_receipts m SET state='in_flight',lease_until=now()+interval '60 seconds',updated_at=now()
         WHERE m.owner_user_id=${r.owner_user_id}::uuid AND m.request_id=${r.request_id}::uuid AND m.state='prepared'
-        AND m.expires_at>now() AND (m.action<>'delete_comment' OR m.confirmation_id::text=${confirmation})
+        AND m.expires_at>now() AND (m.action NOT IN ('delete_comment','discard_review') OR m.confirmation_id::text=${confirmation})
         AND EXISTS(SELECT 1 FROM github_accounts a JOIN github_repository_accounts ra ON ra.owner_user_id=a.owner_user_id AND ra.account_id=a.id
           JOIN github_pull_requests p ON p.owner_user_id=ra.owner_user_id AND p.repository_id=ra.repository_id
           WHERE a.owner_user_id=m.owner_user_id AND a.id=m.account_id AND a.revision=m.access_revision AND a.status='connected'
@@ -112,7 +115,8 @@ export function githubMutationsStore(sql: SqlClient.SqlClient) {
           // Invalidate only this PR's mutable pages. Immutable patches keep their cache.
           yield* sql`UPDATE github_pr_cache SET expires_at=now(),etag='',generation=generation+1
           WHERE owner_user_id=${r.owner_user_id}::uuid AND account_id=${r.account_id}::uuid
-          AND (cache_key LIKE ${`viewed:${r.pull_request_id}:%`}
+          AND (cache_key LIKE ${`viewed:${r.pull_request_id}:%`} OR cache_key=${`pending-header:${r.pull_request_id}`}
+          OR cache_key LIKE (SELECT 'pending:'||repository_id||':'||number||':%' FROM github_pull_requests WHERE owner_user_id=${r.owner_user_id}::uuid AND id=${r.pull_request_id}::uuid)
           OR cache_key LIKE (SELECT 'timeline:'||repository_id||':'||number||':%' FROM github_pull_requests WHERE owner_user_id=${r.owner_user_id}::uuid AND id=${r.pull_request_id}::uuid)
           OR cache_key LIKE (SELECT 'reviews:'||repository_id||':'||number||':%' FROM github_pull_requests WHERE owner_user_id=${r.owner_user_id}::uuid AND id=${r.pull_request_id}::uuid))`;
 

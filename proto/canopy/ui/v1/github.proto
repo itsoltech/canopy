@@ -258,6 +258,34 @@ message PullRequestReviewThread {
   repeated PullRequestTimelineEntry comments = 6;
   string replies_cursor = 7;
   string sha = 8;
+  string side = 9;
+  uint32 start_line = 10;
+  string start_side = 11;
+  uint32 original_line = 12;
+  uint32 original_start_line = 13;
+  bool viewer_can_resolve = 14;
+  bool viewer_can_unresolve = 15;
+}
+message PullRequestReviewComment {
+  PullRequestTimelineEntry comment = 1;
+  string path = 2;
+  string side = 3;
+  uint32 line = 4;
+  string start_side = 5;
+  uint32 start_line = 6;
+  bool outdated = 7;
+}
+// Private to the selected GitHub account. Every page must be read before submitting.
+message PullRequestReviewDraft {
+  string id = 1;
+  string sha = 2;
+  string body = 3;
+  uint32 total_count = 4;
+  repeated PullRequestReviewComment comments = 5;
+  PullRequestPageInfo page = 6;
+  // A digest of this page, including its head and review identity.
+  string revision = 7;
+  bool viewer_is_author = 8;
 }
 message PullRequestReviewThreadsPage {
   repeated PullRequestReviewThread threads = 1;
@@ -362,7 +390,8 @@ message PullRequestMutationRequest {
   uint64 access_revision = 4;
   string head_sha = 5;
   string expected_state = 6;
-  // create_comment, reply, update_comment, delete_comment, viewed.
+  // create_comment, reply, update_comment, delete_comment, viewed,
+  // add_review_comment, submit_review, discard_review, resolve_thread.
   string action = 7;
   string resource_id = 8;
   // issue or review for comment edits/deletions.
@@ -372,6 +401,19 @@ message PullRequestMutationRequest {
   bool viewed = 12;
   string confirmation_id = 13;
   string client_binding = 14;
+  string side = 15;
+  uint32 line = 16;
+  string start_side = 17;
+  uint32 start_line = 18;
+  string commit_sha = 19;
+  uint32 source_page = 20;
+  bool single_comment = 21;
+  // COMMENT, APPROVE, REQUEST_CHANGES.
+  string verdict = 22;
+  // Ordered page digests from the complete pending review.
+  string review_revision = 23;
+  bool acknowledge_outdated = 24;
+  bool resolved = 25;
 }
 message PullRequestMutationRequestRef {
   string pull_request_id = 1;

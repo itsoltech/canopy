@@ -24,6 +24,10 @@ export const mutations: MutationApi = {
   updatePullRequestComment: (r) => mutate("update-comment", r),
   deletePullRequestComment: (r) => mutate("delete-comment", r),
   setPullRequestFileViewed: (r) => mutate("viewed", r),
+  addPullRequestReviewComment: (r) => mutate("add-review-comment", r),
+  submitPullRequestReview: (r) => mutate("submit-review", r),
+  discardPullRequestReview: (r) => mutate("discard-review", r),
+  setPullRequestReviewThreadResolved: (r) => mutate("resolve-thread", r),
 };
 
 export const page = async <D extends DescMessage>(

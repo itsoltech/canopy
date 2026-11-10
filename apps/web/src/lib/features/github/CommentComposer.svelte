@@ -70,7 +70,7 @@
 
     if (receipt.state === "succeeded") {
       body = "";
-      invalidations.publish(ref?.id ?? "");
+      invalidations.publish(commentKind === "review" || action === "reply" ? `${ref?.id}:reviews` : (ref?.id ?? ""));
       ondone?.();
     }
   }
@@ -104,6 +104,8 @@
       aria-label={resourceId ? "Reply or edit comment" : "Comment"}
       placeholder="Write a comment in Markdown…"
       rows={4}
+      resize={false}
+      class="field-sizing-content max-h-80 min-h-28"
       bind:value={body}
       disabled={busy || uncertain}
     />{/if}

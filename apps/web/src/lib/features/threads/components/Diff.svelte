@@ -4,6 +4,7 @@
   import type { LanguageId } from "#lib/shared/ui/code/languages.ts";
   import Button from "#lib/shared/ui/Button.svelte";
   import { devicePreferences as device } from "#lib/features/settings/device-preferences.svelte.ts";
+  import type { DiffReview } from "#lib/shared/ui/code/diff-review.ts";
 
   /** Unified diff in a scrolling code surface, its code highlighted in `lang` (`DiffLines`). Other attributes go on the surface. */
   let {
@@ -12,6 +13,7 @@
     lang,
     toolbar = true,
     bounded = true,
+    review,
     class: className,
     ...rest
   }: {
@@ -20,6 +22,7 @@
     lang?: LanguageId | undefined;
     toolbar?: boolean;
     bounded?: boolean;
+    review?: DiffReview | undefined;
     class?: ClassValue;
   } & Omit<HTMLAttributes<HTMLDivElement>, "class"> = $props();
 </script>
@@ -49,5 +52,5 @@
   role="region"
   aria-label={label}
 >
-  <DiffLines {diff} {lang} />
+  <DiffLines {diff} {lang} {review} />
 </div>

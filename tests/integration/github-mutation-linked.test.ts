@@ -7,6 +7,7 @@ import {
   GITHUB_ACCOUNTS,
   GITHUB_PR,
   GITHUB_COMMENTS,
+  GITHUB_REVIEW,
   REMOTE_THREADS,
   THREAD_MIRROR,
   qualifyId,
@@ -17,12 +18,13 @@ import { linkedComputers } from "./support/computers.ts";
 import { startTestGateway, eventually, failure, type TestGateway } from "./support/gateway.ts";
 import { linkedRead } from "./support/github-read.ts";
 import { githubBrowser } from "./support/github-pr.ts";
-import { mutationFixture } from "./support/github-mutations.ts";
+import { reviewFixture } from "./support/github-review.ts";
+import { reviewRevision } from "@canopy/domain/github-review";
 
 test.skipIf(!dockerAvailable)(
   "linked home binds mutations, qualifies confirmation IDs and refuses offline replay",
   async () => {
-    const fixture = mutationFixture();
+    const fixture = reviewFixture();
     const a = await startTestGateway({ role: "desktop", github: { ...fixture.options, clientId: "", slug: "" } });
     const b = await startTestGateway({ role: "desktop", github: fixture.options });
 
@@ -39,6 +41,7 @@ test.skipIf(!dockerAvailable)(
           GITHUB_ACCOUNTS,
           GITHUB_PR,
           GITHUB_COMMENTS,
+          GITHUB_REVIEW,
         ],
         serve: remoteServe(uiHandlers(gw.core), gw.core),
       });
@@ -80,6 +83,36 @@ test.skipIf(!dockerAvailable)(
         (await a.api.deletePullRequestComment({ ...remove, confirmationId: prepared.confirmationId }, browser)).state,
       ).toBe("succeeded");
 
+      expect(
+        (
+          await a.api.addPullRequestReviewComment(
+            mutationRequest(snapshot, crypto.randomUUID(), "add_review_comment", {
+              body: "Linked inline",
+              path: "src/safe.ts",
+              side: "LEFT",
+              line: 9,
+              commitSha: snapshot.summary!.headSha,
+              sourcePage: 1,
+            }),
+            browser,
+          )
+        ).state,
+      ).toBe("succeeded");
+      const draft = await a.api.getPullRequestReviewDraft({ pullRequestId: id, refresh: true }, browser);
+      expect(draft.totalCount).toBe(1);
+
+      const discard = mutationRequest(snapshot, crypto.randomUUID(), "discard_review", {
+        resourceId: draft.id,
+        reviewRevision: reviewRevision([draft]),
+      });
+
+      const confirmation = await a.api.preparePullRequestMutation(discard, browser);
+      expect(confirmation.confirmationId).toContain("~");
+      expect(
+        (await a.api.discardPullRequestReview({ ...discard, confirmationId: confirmation.confirmationId }, browser))
+          .state,
+      ).toBe("succeeded");
+
       const aRows = await la.store.query<{ count: string }>(
         "SELECT count(*)::text AS count FROM github_mutation_receipts",
       );
@@ -109,6 +142,7 @@ test.skipIf(!dockerAvailable)(
       );
       await eventually(async () => la.reachable().includes(lb.hello().nodeId), Boolean);
       expect(fixture.writes).toBe(before);
+      expect((await a.api.getPullRequestReviewDraft({ pullRequestId: id, refresh: true }, browser)).id).toBe("");
       expect(
         (await a.api.getPullRequestMutation({ pullRequestId: id, clientRequestId: r.clientRequestId }, browser)).state,
       ).toBe("succeeded");

@@ -3,7 +3,8 @@
   import type { ClassValue } from "svelte/elements";
   import { fileLook } from "@canopy/domain/github-read";
   import { safeHref } from "@canopy/domain/markdown";
-  import Diff from "#lib/features/threads/components/Diff.svelte";
+  import ReviewDiff from "./ReviewDiff.svelte";
+  import type { ReviewDraft } from "./review-draft.svelte.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -15,6 +16,8 @@
   let {
     file,
     snapshot,
+    draft,
+    historical,
     stale,
     onstate,
     onsettled,
@@ -30,6 +33,8 @@
   }: {
     file: github.PullRequestFile;
     snapshot: github.PullRequestSnapshot;
+    draft: ReviewDraft;
+    historical: boolean;
     stale: boolean;
     onstate: (path: string, state: string) => void;
     onsettled: () => Promise<void>;
@@ -53,7 +58,7 @@
   <div
     class={[
       "grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-1 border-b border-zinc-950/5 bg-surface dark:border-white/10",
-      active && "sticky top-12 z-20",
+      active && "sticky top-26 z-20",
     ]}
     style:padding-left={`${Math.min(depth, 6) * 12}px`}
   >
@@ -87,7 +92,7 @@
       {#if busy}<p role="status" class="text-sm text-zinc-500 sm:text-xs">Loading patch…</p>{/if}
       {#if error}<p role="alert" class="text-sm text-rose-700 sm:text-xs dark:text-rose-400">{error}</p>
         <Button variant="ghost" size="sm" onclick={onopen}>Retry</Button>{/if}
-      {#if patch?.patch}<Diff diff={patch.patch} label={file.path} toolbar={false} bounded={false} />{/if}
+      {#if patch?.patch}<ReviewDiff {patch} {file} {snapshot} {draft} {historical} />{/if}
       {#if !busy && !error && !patch?.patch}<div
           class="flex min-w-0 items-center justify-between gap-2 rounded-md bg-zinc-500/5 px-3 py-2 text-sm text-zinc-500 sm:text-xs dark:text-zinc-400"
         >

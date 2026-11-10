@@ -4,7 +4,15 @@ import { Code, ConnectError } from "@connectrpc/connect";
 
 import { bots, computerLink as link, ui } from "@canopy/contracts";
 import { REMOTE_BOTS, REMOTE_BOT_COMPOSER } from "@canopy/domain/computers";
-import { GITHUB_ACCOUNTS, GITHUB_PR, GITHUB_COMMENTS } from "@canopy/domain/computers";
+import { GITHUB_ACCOUNTS, GITHUB_PR, GITHUB_COMMENTS, GITHUB_REVIEW } from "@canopy/domain/computers";
+
+export const GITHUB_REVIEW_METHODS = new Set([
+  "GetPullRequestReviewDraft",
+  "AddPullRequestReviewComment",
+  "SubmitPullRequestReview",
+  "DiscardPullRequestReview",
+  "SetPullRequestReviewThreadResolved",
+]);
 
 export const GITHUB_MUTATION_METHODS = new Set([
   "PreparePullRequestMutation",
@@ -50,6 +58,8 @@ export const GITHUB_METHODS = new Set([
 ]);
 
 export function botFeature(method: { name: string }, request: Message): string | undefined {
+  if (GITHUB_REVIEW_METHODS.has(method.name)) return GITHUB_REVIEW;
+
   if (GITHUB_MUTATION_METHODS.has(method.name)) return GITHUB_COMMENTS;
 
   if (GITHUB_METHODS.has(method.name)) return GITHUB_ACCOUNTS;
@@ -74,6 +84,7 @@ export const SERVED = new Set([
   ...GITHUB_METHODS,
   ...GITHUB_PR_METHODS,
   ...GITHUB_MUTATION_METHODS,
+  ...GITHUB_REVIEW_METHODS,
   "GetOverview",
   "WatchOverview",
   "ListThreads",

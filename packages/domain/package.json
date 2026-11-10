@@ -9,6 +9,8 @@
     "./github-read": "./src/github-read.ts",
     "./github-watch": "./src/github-watch.ts",
     "./github-mutations": "./src/github-mutations.ts",
+    "./github-review": "./src/github-review.ts",
+    "./diff-anchors": "./src/diff-anchors.ts",
     "./github-comment-drafts": "./src/github-comment-drafts.ts",
     "./device-view": "./src/device-view.ts",
     "./coalesce": "./src/coalesce.ts",

@@ -11,6 +11,8 @@ import { StatusIcon } from "./StatusIcon";
 import { ActivityHeader } from "./ActivityHeader";
 import { CommentComposer } from "./CommentComposer";
 import { CommentActions } from "./CommentActions";
+import { ThreadResolution } from "./ThreadResolution";
+import { anchorLabel } from "@canopy/domain/github-review";
 
 export function ReviewThread({
   id,
@@ -90,7 +92,7 @@ export function ReviewThread({
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
         <Icon name="code-bracket" />
         <Text numberOfLines={1} ellipsizeMode="middle" style={[type.mono, { flex: 1, color: c.text }]}>
-          {data.path}:{data.line || "…"}
+          {data.path} · {anchorLabel(data)}
         </Text>
         <StatusIcon
           name={data.resolved ? "check-circle" : "chat-bubble-left"}
@@ -126,6 +128,7 @@ export function ReviewThread({
         />
       )}
       <CommentComposer key={`${snapshot.accountId}:${thread.id}`} snapshot={snapshot} resourceId={thread.id} />
+      <ThreadResolution key={`${snapshot.accountId}:${thread.id}:resolve`} snapshot={snapshot} thread={data} />
     </View>
   );
 }

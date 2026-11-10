@@ -57,7 +57,8 @@ export function CommentComposer({
 
     if (result?.state === "succeeded") {
       setBody("");
-      invalidations.publish(snapshot.summary?.ref?.id ?? "");
+      const id = snapshot.summary?.ref?.id ?? "";
+      invalidations.publish(commentKind === "review" || request.action === "reply" ? `${id}:reviews` : id);
       onDone?.();
     }
   }

@@ -9,6 +9,7 @@
     uncertainMutation,
   } from "@canopy/domain/github-mutations";
   import ChoiceControl from "#lib/shared/ui/ChoiceControl.svelte";
+  import Icon from "#lib/shared/ui/Icon.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import { mutations } from "./api.ts";
   import { mutationRefused } from "./mutation-errors.ts";
@@ -38,7 +39,7 @@
     online = $state(true);
 
   const checked = $derived(optimistic ?? file.viewerViewedState === "VIEWED");
-  const label = $derived(file.viewerViewedState === "DISMISSED" ? "Changed since you viewed" : "Viewed");
+  const label = "Viewed";
 
   $effect(() => {
     void file;
@@ -94,7 +95,12 @@
     class="col-start-2 row-start-1 flex min-h-11 cursor-pointer items-center justify-end gap-2 sm:min-h-10"
     title={label}
   >
-    <span class="hidden w-14 text-right sm:inline">{busy ? "Saving…" : "Viewed"}</span>
+    <span class="flex w-4 items-center justify-center">
+      {#if busy}<Icon name="arrow-path" label="Saving…" />
+      {:else if file.viewerViewedState === "DISMISSED"}<span {@attach tooltip("Changed since you viewed this file")}>
+          <Icon name="clock" label="Changed since you viewed this file" class="text-amber-700 dark:text-amber-400" />
+        </span>{/if}
+    </span>
     <span {@attach tooltip(`${label} · ${file.path}`)}
       ><ChoiceControl
         name="viewed"
@@ -105,11 +111,6 @@
       /></span
     >
   </label>
-  {#if file.viewerViewedState === "DISMISSED"}<p
-      class="col-span-full pb-2 text-right text-amber-700 dark:text-amber-400"
-    >
-      Changed since you viewed
-    </p>{/if}
   {#if error}<p role="status" class="col-span-full pb-2 text-right text-rose-700 dark:text-rose-400">
       {error}
       {#if uncertain}<a

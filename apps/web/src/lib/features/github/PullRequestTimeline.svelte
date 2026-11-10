@@ -61,14 +61,26 @@
     const target = pages;
     untrack(() => void target.read());
 
-    return invalidations.subscribe(id, () => void target.invalidate());
+    const unsubscribe = invalidations.subscribe(id, () => void target.invalidate());
+    const reviewUnsubscribe = invalidations.subscribe(`${id}:reviews`, () => void target.invalidate());
+
+    return () => {
+      unsubscribe();
+      reviewUnsubscribe();
+    };
   });
 
   $effect(() => {
     const target = reviews;
     untrack(() => void target.read());
 
-    return invalidations.subscribe(id, () => void target.invalidate());
+    const unsubscribe = invalidations.subscribe(id, () => void target.invalidate());
+    const reviewUnsubscribe = invalidations.subscribe(`${id}:reviews`, () => void target.invalidate());
+
+    return () => {
+      unsubscribe();
+      reviewUnsubscribe();
+    };
   });
 
   async function more() {

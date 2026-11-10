@@ -53,6 +53,7 @@ export function readFixture(
     variables: Schema.JsonObject,
     user: number,
   ) => Response | undefined | Promise<Response | undefined>,
+  rest?: (request: Request, user: number) => Response | undefined,
 ) {
   const fixture = githubPrFixture();
   let head = readHead;
@@ -145,6 +146,9 @@ export function readFixture(
     const url = new URL(request.url);
     const key = url.pathname;
     counts.set(key, (counts.get(key) ?? 0) + 1);
+    const extra = rest?.(request, user);
+
+    if (extra) return extra;
 
     if (key === "/graphql")
       return (async () => {

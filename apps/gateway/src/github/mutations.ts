@@ -11,8 +11,20 @@ import { mutationScope, preflight, type MutationScope } from "./mutation-preflig
 import { mutationDocument, mutationQueue, mutationInput, mutationBudget } from "./mutation-http.ts";
 import { uncertainDetail, type MutationRow } from "./store-mutations.ts";
 import { viewedFiles } from "./viewed.ts";
+import { validateReview, reviewMutation, reviewParameters } from "./review-mutation.ts";
+import { verifyReviewAnchor, reviewPreflight } from "./review-preflight.ts";
 
-const actions = ["create_comment", "reply", "update_comment", "delete_comment", "viewed"];
+const actions = [
+  "create_comment",
+  "reply",
+  "update_comment",
+  "delete_comment",
+  "viewed",
+  "add_review_comment",
+  "submit_review",
+  "discard_review",
+  "resolve_thread",
+];
 
 const result = Schema.Struct({
   data: Schema.NullOr(
@@ -25,6 +37,8 @@ const result = Schema.Struct({
           pullRequestReviewComment: Schema.optional(Schema.Struct({ id: Schema.String })),
           clientMutationId: Schema.optional(Schema.NullOr(Schema.String)),
           pullRequest: Schema.optional(Schema.Struct({ id: Schema.String })),
+          pullRequestReview: Schema.optional(Schema.Struct({ id: Schema.String })),
+          thread: Schema.optional(Schema.Struct({ id: Schema.String })),
         }),
       ),
     }),
@@ -46,6 +60,8 @@ export function mutationReceipt(r: MutationRow) {
 }
 
 function validate(r: github.PullRequestMutationRequest) {
+  validateReview(r);
+
   if (!uuid(r.pullRequestId) || !uuid(r.accountId) || !uuid(r.clientRequestId))
     throw new ConnectError("Pull request not found", Code.NotFound);
 
@@ -56,7 +72,10 @@ function validate(r: github.PullRequestMutationRequest) {
   )
     throw new ConnectError("Refresh this pull request before sending.", Code.InvalidArgument);
 
-  if (["reply", "update_comment", "delete_comment"].includes(r.action) && !/^[A-Za-z0-9_=-]{1,256}$/.test(r.resourceId))
+  if (
+    ["reply", "update_comment", "delete_comment", "resolve_thread", "discard_review"].includes(r.action) &&
+    !/^[A-Za-z0-9_=-]{1,256}$/.test(r.resourceId)
+  )
     throw new ConnectError("Comment not found", Code.NotFound);
 
   if (["update_comment", "delete_comment"].includes(r.action) && !["issue", "review"].includes(r.commentKind))
@@ -68,7 +87,10 @@ function validate(r: github.PullRequestMutationRequest) {
   )
     throw new ConnectError("Write a comment of up to 64 KiB.", Code.InvalidArgument);
 
-  if (r.action === "viewed" && (!r.path || r.path.length > 4096 || [...r.path].some((c) => c.charCodeAt(0) < 32)))
+  if (
+    ["viewed", "add_review_comment"].includes(r.action) &&
+    (!r.path || r.path.length > 4096 || [...r.path].some((c) => c.charCodeAt(0) < 32))
+  )
     throw new ConnectError("File not found", Code.NotFound);
 }
 
@@ -101,6 +123,7 @@ export class GitHubMutations {
         r.body,
         r.path,
         r.viewed,
+        reviewParameters(r),
       ]),
     );
 
@@ -115,6 +138,8 @@ export class GitHubMutations {
     try {
       const scope = await mutationScope(this.prs, r);
 
+      if (r.action === "add_review_comment") await verifyReviewAnchor(scope, r);
+
       if (r.action === "viewed") {
         const snapshot = await this.prs.load(scope.pr.repository_name, scope.pr.number, true);
         const files = await viewedFiles(this.prs, scope.access.row, scope.pr, r.headSha, snapshot.baseSha, true);
@@ -122,12 +147,14 @@ export class GitHubMutations {
         if (!files.states.has(r.path)) throw new ConnectError("File not found in this pull request", Code.NotFound);
       }
 
-      return await mutationQueue(scope, async () => {
+      return await mutationQueue(scope, async (renew) => {
         // A second click may have waited behind the first network call.
         row = await read();
 
         if (row && row.state !== "prepared") return mutationReceipt(row);
         await preflight(scope, r, scope.access);
+        await reviewPreflight(scope, r, renew);
+        await renew();
         row = (
           await accounts.run((s) => s.mutationPrepare(accounts.owner, client, r, fingerprint, scope.mapping.revision))
         )[0];
@@ -159,14 +186,16 @@ export class GitHubMutations {
       detail = uncertainDetail;
 
     try {
-      const input = mutationInput(scope, r);
+      const review = reviewMutation(scope, r);
+      const input = review?.input ?? mutationInput(scope, r);
 
       const query =
-        r.action === "viewed"
+        review?.query ??
+        (r.action === "viewed"
           ? r.viewed
             ? `mutation CanopyMarkViewed($input:MarkFileAsViewedInput!){result:markFileAsViewed(input:$input){pullRequest{id}}}`
             : `mutation CanopyUnmarkViewed($input:UnmarkFileAsViewedInput!){result:unmarkFileAsViewed(input:$input){pullRequest{id}}}`
-          : mutationDocument(r.action, r.commentKind);
+          : mutationDocument(r.action, r.commentKind));
 
       // Deliberately bypass authorized(): even its 401 refresh retry must never replay a write.
       const response = await accounts.http.detailed(
@@ -192,6 +221,8 @@ export class GitHubMutations {
           payload.comment?.id ??
           payload.issueComment?.id ??
           payload.pullRequestReviewComment?.id ??
+          payload.pullRequestReview?.id ??
+          payload.thread?.id ??
           payload.pullRequest?.id ??
           payload.clientMutationId ??
           "";

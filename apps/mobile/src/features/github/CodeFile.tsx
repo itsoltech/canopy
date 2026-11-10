@@ -4,12 +4,48 @@ import type { github } from "@canopy/contracts";
 import { fileLook } from "@canopy/domain/github-read";
 import { safeHref } from "@canopy/domain/markdown";
 import { Icon } from "../../ui/Icon";
-import { Diff } from "../../ui/Diff";
+import { ReviewDiff } from "./ReviewDiff";
+import type { ReviewDraft } from "./useReviewDraft";
 import { Button, Notice } from "../../ui/components";
 import { useColors, useTypography } from "../../ui/theme";
 import { IconAction } from "./IconAction";
 import { toast } from "../../ui/Toast";
 import { toneColor } from "./presentation";
+
+export function CodeFolder({
+  depth,
+  name,
+  open,
+  onPress,
+}: {
+  depth: number;
+  name: string;
+  open: boolean;
+  onPress: () => void;
+}) {
+  const c = useColors(),
+    type = useTypography();
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ expanded: open }}
+      onPress={onPress}
+      style={{
+        flexDirection: "row",
+        minHeight: 44,
+        alignItems: "center",
+        gap: 8,
+        backgroundColor: c.background,
+        paddingLeft: Math.min(depth, 6) * 12,
+      }}
+    >
+      <Icon name={open ? "chevron-down" : "chevron-right"} />
+      <Icon name="folder" />
+      <Text style={[type.meta, { color: c.text }]}>{name}</Text>
+    </Pressable>
+  );
+}
 
 export function CodeFileHeader({
   file,
@@ -73,12 +109,18 @@ export function CodeFileDiff({
   busy,
   error,
   onRetry,
+  snapshot,
+  draft,
+  historical,
 }: {
   file: github.PullRequestFile;
   patch: github.PullRequestDiff | undefined;
   busy: boolean;
   error: string;
   onRetry: () => void;
+  snapshot: github.PullRequestSnapshot;
+  draft: ReviewDraft;
+  historical: boolean;
 }) {
   const c = useColors();
   const type = useTypography();
@@ -94,7 +136,14 @@ export function CodeFileDiff({
         </>
       )}
       {patch?.patch ? (
-        <Diff diff={patch.patch} label={file.path} bare toolbar={false} />
+        <ReviewDiff
+          key={`${file.path}:${patch.page?.headSha}`}
+          patch={patch}
+          file={file}
+          snapshot={snapshot}
+          draft={draft}
+          historical={historical}
+        />
       ) : (
         !busy &&
         !error && (

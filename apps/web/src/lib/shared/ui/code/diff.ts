@@ -1,4 +1,5 @@
 import { languageOfPath, type LanguageId } from "./languages.ts";
+import { diffAnchors, type DiffAnchor } from "@canopy/domain/diff-anchors";
 
 export type DiffLineKind = "add" | "del" | "ctx" | "hunk" | "file";
 
@@ -9,6 +10,7 @@ export interface DiffLine {
   readonly code: string;
   /** Index of the line's code in its side (`DiffSides`): the new side for add and ctx, the old for del. */
   readonly at: number;
+  readonly anchor?: DiffAnchor | undefined;
 }
 
 export interface DiffSides {
@@ -52,7 +54,13 @@ export function parseDiff(diff: string): DiffSides {
       return { text, kind: "ctx", code, at: next.push(code) - 1 };
     });
 
-  return { lines, next: next.join("\n"), old: old.join("\n") };
+  const anchors = diffAnchors(diff);
+
+  return {
+    lines: lines.map((line, index) => ({ ...line, anchor: anchors[index] })),
+    next: next.join("\n"),
+    old: old.join("\n"),
+  };
 }
 
 /** The language of the file a diff names in its `+++ b/…` (or `--- a/…`) header. */

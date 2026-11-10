@@ -29,6 +29,12 @@ export interface MutationApi {
   updatePullRequestComment: (r: github.PullRequestMutationRequest) => Promise<github.PullRequestMutationReceipt>;
   deletePullRequestComment: (r: github.PullRequestMutationRequest) => Promise<github.PullRequestMutationReceipt>;
   setPullRequestFileViewed: (r: github.PullRequestMutationRequest) => Promise<github.PullRequestMutationReceipt>;
+  addPullRequestReviewComment: (r: github.PullRequestMutationRequest) => Promise<github.PullRequestMutationReceipt>;
+  submitPullRequestReview: (r: github.PullRequestMutationRequest) => Promise<github.PullRequestMutationReceipt>;
+  discardPullRequestReview: (r: github.PullRequestMutationRequest) => Promise<github.PullRequestMutationReceipt>;
+  setPullRequestReviewThreadResolved: (
+    r: github.PullRequestMutationRequest,
+  ) => Promise<github.PullRequestMutationReceipt>;
 }
 
 /** A lost UI response permits only a receipt lookup. Reconnect never invokes a mutation. */
@@ -36,6 +42,7 @@ export async function sendMutation(
   api: MutationApi,
   request: github.PullRequestMutationRequest,
   isRefusal: (cause: unknown) => boolean = () => false,
+  refusalDetail: (cause: unknown) => string = () => "",
 ) {
   try {
     switch (request.action) {
@@ -49,6 +56,14 @@ export async function sendMutation(
         return await api.deletePullRequestComment(request);
       case "viewed":
         return await api.setPullRequestFileViewed(request);
+      case "add_review_comment":
+        return await api.addPullRequestReviewComment(request);
+      case "submit_review":
+        return await api.submitPullRequestReview(request);
+      case "discard_review":
+        return await api.discardPullRequestReview(request);
+      case "resolve_thread":
+        return await api.setPullRequestReviewThreadResolved(request);
       default:
         throw new Error("Unsupported pull request mutation");
     }
@@ -66,7 +81,7 @@ export async function sendMutation(
         action: request.action,
         state: isRefusal(cause) ? "failed" : "uncertain",
         detail: isRefusal(cause)
-          ? "Could not save this change. Refresh and check repository access."
+          ? refusalDetail(cause) || "Could not save this change. Refresh and check repository access."
           : uncertainMutation,
       });
     }

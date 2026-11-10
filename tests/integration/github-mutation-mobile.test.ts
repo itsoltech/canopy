@@ -10,12 +10,13 @@ import { routedMobileClient } from "../../apps/mobile/src/api/routes.ts";
 import { nodePinnedTransport } from "./support/phone.ts";
 import { SERVICE_TOKEN, startTestGateway, failure } from "./support/gateway.ts";
 import { linkedRead } from "./support/github-read.ts";
-import { mutationFixture } from "./support/github-mutations.ts";
+import { reviewFixture } from "./support/github-review.ts";
+import { reviewRevision } from "@canopy/domain/github-review";
 
 test.skipIf(!dockerAvailable)(
   "two pinned mobile devices mutate explicitly and read GitHub Viewed; revocation blocks writes",
   async () => {
-    const fixture = mutationFixture(),
+    const fixture = reviewFixture(),
       gw = await startTestGateway({ github: fixture.options });
 
     const network = new NetworkAccess({
@@ -86,6 +87,35 @@ test.skipIf(!dockerAvailable)(
       expect(
         (await ios.api.listPullRequestFiles({ pullRequestId: pr, refresh: true })).files[0]?.viewerViewedState,
       ).toBe("UNVIEWED");
+
+      const inline = mutationRequest(snapshot, crypto.randomUUID(), "add_review_comment", {
+        body: "Phone range",
+        path: "src/safe.ts",
+        side: "RIGHT",
+        line: 10,
+        startSide: "RIGHT",
+        startLine: 8,
+        commitSha: snapshot.summary!.headSha,
+        sourcePage: 1,
+      });
+
+      expect((await ios.api.addPullRequestReviewComment(inline)).state).toBe("succeeded");
+      const pending = await android.api.getPullRequestReviewDraft({ pullRequestId: pr, refresh: true });
+      expect(pending.totalCount).toBe(1);
+      expect(pending.comments[0]).toMatchObject({ side: "RIGHT", startLine: 8, line: 10 });
+      expect(
+        (
+          await android.api.submitPullRequestReview(
+            mutationRequest(snapshot, crypto.randomUUID(), "submit_review", {
+              resourceId: pending.id,
+              reviewRevision: reviewRevision([pending]),
+              verdict: "APPROVE",
+              body: "Reviewed on another phone",
+            }),
+          )
+        ).state,
+      ).toBe("succeeded");
+      expect((await ios.api.getPullRequestReviewDraft({ pullRequestId: pr, refresh: true })).id).toBe("");
       await gw.api.revokeMobileDevice({ id: ios.id });
       const before = fixture.writes;
       expect(
@@ -96,6 +126,9 @@ test.skipIf(!dockerAvailable)(
         ),
       ).toContain("Invalid or revoked");
       expect(fixture.writes).toBe(before);
+      expect(
+        await failure(ios.api.addPullRequestReviewComment({ ...inline, clientRequestId: crypto.randomUUID() })),
+      ).toContain("Invalid or revoked");
     } finally {
       unmount();
       await network.close();

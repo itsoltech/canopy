@@ -1,16 +1,17 @@
 import { useState, type ReactNode } from "react";
-import { Pressable, SectionList, Text, View } from "react-native";
+import { SectionList, Text, View } from "react-native";
 import type { github } from "@canopy/contracts";
 import { fileRows } from "@canopy/domain/github-read";
 import { useContentPadding } from "../../ui/ScreenFrame";
 import { useColors, useTypography } from "../../ui/theme";
-import { Icon } from "../../ui/Icon";
 import { useCodeRead } from "./useCodeRead";
 import { PageControls } from "./PageControls";
 import { CodeToolbar, CommitFilter } from "./CodeToolbar";
-import { CodeFileHeader, CodeFileDiff } from "./CodeFile";
+import { CodeFileHeader, CodeFileDiff, CodeFolder } from "./CodeFile";
 import { ViewedCheckbox } from "./ViewedCheckbox";
 import { useViewedCount } from "./useViewedCount";
+import { useReviewDraft } from "./useReviewDraft";
+import { ReviewBar } from "./ReviewBar";
 
 export function PullRequestCode({ snapshot, header }: { snapshot: github.PullRequestSnapshot; header: ReactNode }) {
   const c = useColors();
@@ -23,9 +24,11 @@ export function PullRequestCode({ snapshot, header }: { snapshot: github.PullReq
   const files = pages.current?.files ?? [];
   const rows = fileRows(files, tree, collapsed);
   const viewed = useViewedCount(pages.current);
+  const draft = useReviewDraft(snapshot);
 
   return (
     <>
+      <ReviewBar snapshot={snapshot} draft={draft} />
       <SectionList
         sections={rows.map((row) => ({
           ...row,
@@ -54,9 +57,10 @@ export function PullRequestCode({ snapshot, header }: { snapshot: github.PullReq
         }
         renderSectionHeader={({ section }) =>
           section.kind === "folder" ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ expanded: !collapsed.has(section.key) }}
+            <CodeFolder
+              depth={section.depth}
+              name={section.name}
+              open={!collapsed.has(section.key)}
               onPress={() =>
                 setCollapsed((previous) => {
                   const next = new Set(previous);
@@ -66,19 +70,7 @@ export function PullRequestCode({ snapshot, header }: { snapshot: github.PullReq
                   return next;
                 })
               }
-              style={{
-                flexDirection: "row",
-                minHeight: 44,
-                alignItems: "center",
-                gap: 8,
-                backgroundColor: c.background,
-                paddingLeft: Math.min(section.depth, 6) * 12,
-              }}
-            >
-              <Icon name={collapsed.has(section.key) ? "chevron-right" : "chevron-down"} />
-              <Icon name="folder" />
-              <Text style={[type.meta, { color: c.text }]}>{section.name}</Text>
-            </Pressable>
+            />
           ) : (
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: c.background }}>
               <View style={{ flex: 1, minWidth: 0 }}>
@@ -100,7 +92,16 @@ export function PullRequestCode({ snapshot, header }: { snapshot: github.PullReq
           )
         }
         renderItem={({ item }) => (
-          <CodeFileDiff file={item} patch={patch} busy={busy} error={error} onRetry={() => void open(item)} />
+          <CodeFileDiff
+            file={item}
+            patch={patch}
+            busy={busy}
+            error={error}
+            onRetry={() => void open(item)}
+            snapshot={snapshot}
+            draft={draft}
+            historical={!!commitSha}
+          />
         )}
         ListFooterComponent={
           <PageControls

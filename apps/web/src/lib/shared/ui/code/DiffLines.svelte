@@ -6,13 +6,21 @@
   import DiffLine from "./DiffLine.svelte";
   import { Highlight } from "./highlight.svelte.ts";
   import type { LanguageId } from "./languages.ts";
+  import type { DiffReview } from "./diff-review.ts";
 
   let {
     diff,
     lang,
     streaming = false,
     class: className,
-  }: { diff: string; lang?: LanguageId | undefined; streaming?: boolean; class?: ClassValue } = $props();
+    review,
+  }: {
+    diff: string;
+    lang?: LanguageId | undefined;
+    streaming?: boolean;
+    class?: ClassValue;
+    review?: DiffReview | undefined;
+  } = $props();
 
   const parsed = $derived(parseDiff(diff));
   const language = $derived(lang ?? languageOfDiff(diff));
@@ -40,17 +48,26 @@
     <div class="diff-split" aria-label="Side-by-side diff: original left, updated right">
       {#each rows as row, index (index)}
         {#if row.full}<div class="col-span-2 text-zinc-500"><DiffLine line={row.full} {old} {next} {streaming} /></div>
-        {:else}<DiffLine line={row.left} {old} {next} {streaming} /><DiffLine
+        {:else}<DiffLine line={row.left} {old} {next} {streaming} {review} side="LEFT" /><DiffLine
             line={row.right}
             {old}
             {next}
             {streaming}
+            {review}
+            side="RIGHT"
           />{/if}
+        {#if review?.editor && review.editorAfter !== undefined && (row.left?.anchor?.index === review.editorAfter || row.right?.anchor?.index === review.editorAfter)}
+          <div class="col-span-2 min-w-0 font-sans whitespace-normal">{@render review.editor()}</div>
+        {/if}
       {/each}
     </div>
   {:else}
     <div class="inline-block min-w-full">
-      {#each lines as line, index (index)}<DiffLine {line} {old} {next} {streaming} />{/each}
+      {#each lines as line, index (index)}<DiffLine {line} {old} {next} {streaming} {review} />
+        {#if review?.editor && review.editorAfter !== undefined && line.anchor?.index === review.editorAfter}
+          <div class="min-w-0 font-sans whitespace-normal">{@render review.editor()}</div>
+        {/if}
+      {/each}
     </div>
   {/if}
 </div>
