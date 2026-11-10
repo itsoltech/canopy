@@ -115,6 +115,31 @@ function benchmarkApi() {
   );
 }
 
+async function waitForRestore(api: ReturnType<typeof benchmarkApi>) {
+  const deadline = Date.now() + 30_000;
+
+  while ((await api.getComputerDiagnostics({ limit: 1 })).restoring) {
+    host?.assertQuiet();
+
+    if (Date.now() > deadline) throw new Error("Background restore did not complete");
+    await Bun.sleep(10);
+  }
+}
+
+async function recordAffinity(gateway: number, worker: number, pair: number, on: boolean) {
+  console.info(
+    JSON.stringify({
+      phase: "affinity",
+      series: pair,
+      attempt,
+      on,
+      gateway: (await command(["taskset", "-pc", String(gateway)])).trim(),
+      worker: (await command(["taskset", "-pc", String(worker)])).trim(),
+      postgres: (await command(["docker", "inspect", "--format", "{{.HostConfig.CpusetCpus}}", name])).trim(),
+    }),
+  );
+}
+
 async function run(on: boolean, index: number) {
   const database = `diagnostics_${index}_${Number(on)}_${attempt}`;
   await command(["docker", "exec", name, "createdb", "-U", "postgres", database]);
@@ -141,16 +166,11 @@ async function run(on: boolean, index: number) {
     CANOPY_BENCH_WORKER_CREDENTIAL: seed.worker.credential,
   });
 
+  await recordAffinity(active.pid, worker.pid, index + 1, on);
+
   const api = benchmarkApi();
 
-  const readyDeadline = Date.now() + 30_000;
-
-  while ((await api.getComputerDiagnostics({ limit: 1 })).restoring) {
-    host?.assertQuiet();
-
-    if (Date.now() > readyDeadline) throw new Error("Background restore did not complete");
-    await Bun.sleep(10);
-  }
+  await waitForRestore(api);
 
   console.info(
     JSON.stringify({ phase: "background_restore", series: index + 1, attempt, on, ...(await active.run("sample")) }),
@@ -242,6 +262,7 @@ async function run(on: boolean, index: number) {
   if (on && process.env["CANOPY_BENCH_HISTORY"] === "1") {
     for (let restart = 0; restart < 3; restart++) {
       active = await diagnosticsProcess(env);
+      await waitForRestore(benchmarkApi());
       console.info(
         JSON.stringify({ phase: "restart", series: index + 1, attempt, on, restart, ...(await active.run("sample")) }),
       );
@@ -301,7 +322,7 @@ try {
         let completed = false;
 
         try {
-          await Bun.sleep(5000);
+          await Bun.sleep(30_000);
           host.assertQuiet();
 
           for (const on of process.env["CANOPY_BENCH_CHURN"] === "1"

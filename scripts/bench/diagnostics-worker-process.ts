@@ -55,6 +55,7 @@ export async function diagnosticsWorker(env: Record<string, string | undefined>)
     });
 
   return {
+    pid: child.pid,
     run,
     async close() {
       if (child.exitCode !== null || child.signalCode !== null) return;
