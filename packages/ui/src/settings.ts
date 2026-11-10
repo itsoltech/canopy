@@ -21,8 +21,8 @@ export const settingsSections: readonly SettingsSection[] = [
     href: "/settings/diagnostics",
     label: "Diagnostics",
     icon: "signal",
-    group: "Connections",
-    keywords: "sync progress remaining records errors failures linked computers",
+    group: "General",
+    keywords: "performance health rpc calls network latency rtt history findings computers sync progress remaining records errors failures linked computers",
   },
   {
     href: "/settings/general",

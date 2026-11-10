@@ -15,6 +15,27 @@ import { coreBroadcastGoal } from "./core-goals.ts";
 import { offerWorkerRoutes } from "../network/workers.ts";
 import { coreGitHeads } from "../worktrees/heads.ts";
 import { coreNameBranchAfterTurn } from "../worktrees/branch-naming.ts";
+import { createWorkerLink } from "../worker-link/index.ts";
+import { workerJournalWelcome } from "./bot-harness.ts";
+
+export function createCoreWorkerLink(core: GatewayCore) {
+  return createWorkerLink({
+    onMessage: (connection, message) => core.diagnostics.workerMessage(connection, message),
+    observeCommand: (kind) => core.diagnostics.command(kind),
+    diagnosticsEnabled: () => core.diagnostics.collector.enabled,
+    authenticate: (credential) => coreRun(core, (s) => s.authenticateWorker(credential)),
+    welcome: (workerId, hello) => workerJournalWelcome(core, workerId, hello.journalId),
+    config: async (workerId) => (await coreRun(core, (s) => s.workerConfig(workerId))) ?? undefined,
+    onConnected: (connection) =>
+      coreServe(core, connection).catch((cause: unknown) => {
+        coreLog(
+          core,
+          `worker ${connection.workerId} session failed: ${cause instanceof Error ? cause.message : "initialization failed"}`,
+        );
+        connection.close();
+      }),
+  });
+}
 
 // ------------------------------------------------------------------ workers
 

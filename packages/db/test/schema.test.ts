@@ -140,6 +140,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "126_thread_sync_time",
       "127_github_repository_access",
       "128_thread_panel_cache",
+      "116_diagnostics",
     ]);
   }, 60_000);
 

@@ -14,6 +14,7 @@ import { ScheduleSettings } from "./ScheduleSettings";
 import { WorktreeSettings } from "./WorktreeSettings";
 import { SettingsLayout } from "./SettingsLayout";
 import { GeneralSettings } from "./GeneralSettings";
+import { DiagnosticsSettings } from "./DiagnosticsSettings";
 import { KeybindingSettings } from "./KeybindingSettings";
 import { DiffSettings } from "./DiffSettings";
 import { NetworkSettings } from "./NetworkSettings";
@@ -69,6 +70,7 @@ export default function SettingsScreen() {
             <WhatsNewSettings />
           </>
         )}
+        {section === "diagnostics" && <DiagnosticsSettings />}
         {section === "keybindings" && <KeybindingSettings />}
         {section === "diffs" && <DiffSettings />}
         {section === "appearance" && <AppearanceSettings />}

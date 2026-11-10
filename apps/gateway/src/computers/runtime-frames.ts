@@ -25,6 +25,9 @@ import { exchangeConfigSharing, receiveConfigSharing } from "./runtime-config.ts
 import { RESTART_PRESENCE } from "@canopy/domain/computer-presence";
 import { linkFailure } from "./link-session.ts";
 import { wireHello } from "./hello.ts";
+import { HeartbeatEcho } from "@canopy/domain/diagnostics";
+import { registered } from "../diagnostics/registry.ts";
+import { receiveDiagnosticsInvalidation } from "../diagnostics/invalidation.ts";
 
 export async function computersReceive(
   hostContext: LinkedComputers,
@@ -34,7 +37,22 @@ export async function computersReceive(
 ) {
   const body = frame.body;
 
-  if (body.case === "heartbeat" && connection.ready) return computersHeartbeat(hostContext, nodeId, connection);
+  if (body.case === "diagnosticsInvalidated" && connection.ready && connection.capabilities?.has("diagnostics_v1"))
+    return receiveDiagnosticsInvalidation(hostContext, nodeId, body.value);
+
+  if (body.case === "heartbeatEcho" && connection.ready) {
+    connection.echo?.receive(body.value.sequence);
+
+    return;
+  }
+
+  if (body.case === "heartbeat" && connection.ready) {
+    if (body.value.echoSequence && connection.echo)
+      connection.send({ body: { case: "heartbeatEcho", value: { sequence: body.value.echoSequence } } });
+    hostContext.options.core?.diagnostics.link(nodeId, "computer")?.heartbeat();
+
+    return computersHeartbeat(hostContext, nodeId, connection);
+  }
 
   if (body.case === "remoteRequest" || body.case === "remoteResponse" || body.case === "remoteCancel") {
     // Only after a handshake with a common protocol; the peer was verified then and unlink closes the stream.
@@ -268,6 +286,9 @@ async function receiveHandshake(
   await hostContext[computersState].routes.announce(nodeId, hello.addresses.map(linkAddress));
   connection.protocol = protocol;
   connection.capabilities = new Set(hello.capabilities);
+
+  if (hello.capabilities.includes("diagnostics_v1") && local.capabilities.includes("diagnostics_v1"))
+    connection.echo ??= new HeartbeatEcho();
   hostContext[computersState].capabilities.set(nodeId, hello.capabilities);
   hostContext[computersState].names.set(nodeId, peer.display_name || hello.name);
 
@@ -279,6 +300,7 @@ async function receiveHandshake(
         computersServeRemote(hostContext, nodeId, connection, method, request, signal, route),
       name: () => hostContext[computersState].names.get(nodeId) ?? "The other computer",
       allowed: async () => Boolean(await hostContext.store.peer(nodeId)),
+      observe: (method) => hostContext.options.core?.diagnostics.collector.start(registered(method, "home").id),
     });
 
   // Queue the welcome before callers or mirror subscriptions can use this link.

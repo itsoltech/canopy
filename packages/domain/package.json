@@ -42,6 +42,7 @@
     "./provider-accounts": "./src/provider-accounts.ts",
     "./update-checks": "./src/update-checks.ts",
     "./computers": "./src/computers.ts",
+    "./diagnostics": "./src/diagnostics/index.ts",
     "./thread-mirror": "./src/thread-mirror.ts",
     "./thread-sync": "./src/thread-sync.ts",
     "./thread-sync-display": "./src/thread-sync-display.ts",

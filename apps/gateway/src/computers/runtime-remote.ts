@@ -88,6 +88,7 @@ export async function computersComputerMessage(hostContext: LinkedComputers, pee
     result.viaNodeId = peer.via_node_id;
     result.viaName = via?.display_name || via?.name || "the relay";
     result.relayOrigin = peer.relay_role === "origin";
+    result.diagnosticsGrantEligible = peer.relay_role === "origin" || peer.relay_role === "both";
 
     if (!computersRelayChannel(hostContext, peer.via_node_id)) {
       result.status = via?.status === "connected" ? "unreachable" : via?.status || "unreachable";
@@ -209,10 +210,12 @@ export const computersRemoteMethods: ComputersRemoteMethods = {
 
       if (!remote || !this.canCall(nodeId)) throw await this.unavailable(nodeId);
 
-      const feature =
-        method.name === "CallAgentBus"
-          ? AGENT_BUS
-          : (botFeature(method, request) ?? (method.name === "WatchThreadMirror" ? THREAD_MIRROR : REMOTE_THREADS));
+      let feature =
+        botFeature(method, request) ?? (method.name === "WatchThreadMirror" ? THREAD_MIRROR : REMOTE_THREADS);
+
+      if (method.name === "ReadDiagnosticsSnapshot") feature = "diagnostics_v1";
+
+      if (method.name === "CallAgentBus") feature = AGENT_BUS;
 
       if (!this.hello().capabilities.includes(feature) || !indirect.capabilities.includes(feature))
         throw new ConnectError("The linked computer needs an update for this action", Code.FailedPrecondition);

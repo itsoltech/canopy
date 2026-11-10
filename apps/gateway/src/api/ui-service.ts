@@ -23,6 +23,7 @@ import { pullRequestHandlers } from "./ui-pull-requests.ts";
 import { githubReadHandlers } from "./ui-github-read.ts";
 import { githubMutationHandlers } from "./ui-github-mutations.ts";
 import { threadPanelHandlers } from "./ui-thread-panel.ts";
+import { diagnosticsHandlers } from "./ui-diagnostics.ts";
 
 export { toConnectError } from "./ui-errors.ts";
 
@@ -68,6 +69,7 @@ function withFeedNudges(core: GatewayCore, handlers: UiHandlers): UiHandlers {
 /** This computer's own GatewayService. Thin: validation and state live in the core and the store. */
 export function uiHandlers(core: GatewayCore): UiHandlers {
   return withFeedNudges(core, {
+    ...diagnosticsHandlers(core),
     ...agentEnvironmentHandlers(core),
     ...computersHandlers(core),
     ...workersHandlers(core),

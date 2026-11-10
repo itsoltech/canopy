@@ -98,10 +98,11 @@ export async function* computersServeRemote(
   if (!target) throw new ConnectError("Relay targets must be direct partners (one hop)", Code.PermissionDenied);
   const callback = relayCallback(method, request);
 
-  const feature =
-    method.name === "CallAgentBus"
-      ? AGENT_BUS
-      : (botFeature(method, request) ?? (method.name === "WatchThreadMirror" ? THREAD_MIRROR : REMOTE_THREADS));
+  let feature = botFeature(method, request) ?? (method.name === "WatchThreadMirror" ? THREAD_MIRROR : REMOTE_THREADS);
+
+  if (method.name === "ReadDiagnosticsSnapshot") feature = "diagnostics_v1";
+
+  if (method.name === "CallAgentBus") feature = AGENT_BUS;
 
   if (!connection.capabilities?.has(feature) || !hostContext.capabilities(target.node_id).includes(feature))
     throw new ConnectError("All computers need an update for this linked action", Code.FailedPrecondition);
@@ -132,6 +133,33 @@ export async function* computersServeHome(
   request: Message,
   signal: AbortSignal,
 ): AsyncGenerator<Message> {
+  if (method.name === "ReadDiagnosticsSnapshot") {
+    if (
+      !hostContext.options.core ||
+      !hostContext.hello().capabilities.includes("diagnostics_v1") ||
+      !connection.capabilities?.has("diagnostics_v1")
+    )
+      throw new ConnectError("Update to see diagnostics", Code.Unimplemented);
+    const origin = hostContext.relay.entries.get(nodeId);
+
+    if (origin) {
+      const grant = await hostContext.store.query(
+        "SELECT 1 FROM diagnostics_grants WHERE owner_user_id=$1::uuid AND origin_computer_id=$2 AND via_node_id=$3",
+        [hostContext.store.owner, nodeId, origin.via_node_id],
+      );
+
+      if (!grant.length) throw new ConnectError("Diagnostics are not shared with this computer", Code.PermissionDenied);
+    }
+
+    const input = linkedMessage(ui.ComputerDiagnosticsRequestSchema, request);
+
+    if (input.computerId)
+      throw new ConnectError("Diagnostics reads are local to the receiving home", Code.PermissionDenied);
+    yield hostContext.options.core.diagnostics.local(input);
+
+    return;
+  }
+
   if (method.name === "GetConfigBlob") {
     yield* serveConfigBlob(hostContext, nodeId, connection, linkedMessage(link.ConfigBlobRequestSchema, request));
 

@@ -6,6 +6,7 @@ import {
   createContextKey,
   createContextValues,
   type ConnectRouter,
+  type Interceptor,
 } from "@connectrpc/connect";
 import { connectNodeAdapter, createGrpcTransport } from "@connectrpc/connect-node";
 import { computerLink as link } from "@canopy/contracts";
@@ -121,9 +122,10 @@ export function linkClient(address: string, certificate: string, identity: LinkI
 
 /** The link service on the network access listener (network/listener.ts). Only computers that
  * present a certificate reach it, over TLS 1.3. */
-export function linkHandler(routes: (router: ConnectRouter) => void): Handler {
+export function linkHandler(routes: (router: ConnectRouter) => void, interceptors: Interceptor[] = []): Handler {
   const adapter = connectNodeAdapter({
     routes,
+    interceptors,
     readMaxBytes: 64 * 1024,
     writeMaxBytes: 64 * 1024,
     contextValues: (request) => {

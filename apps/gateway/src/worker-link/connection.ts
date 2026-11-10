@@ -11,6 +11,7 @@ import {
 } from "@canopy/contracts";
 import { AsyncChannel } from "@canopy/transport";
 import { gatewayMessage, type GatewayPayloadInit } from "./messages.ts";
+import type { RpcObservation } from "../diagnostics/collector.ts";
 
 type KindInit = NonNullable<MessageInitShape<typeof CommandSchema>["kind"]>;
 
@@ -23,6 +24,7 @@ interface PendingCommand {
   reject(cause: unknown): void;
   timer: Timer;
   progress?: (progress: CloneProgress) => void;
+  observation: RpcObservation | undefined;
 }
 
 /** One live WorkerLinkService.Connect stream, seen from the gateway. */
@@ -40,7 +42,12 @@ export class WorkerConnection {
   readonly #pending = new Map<string, PendingCommand>();
   #markClosed!: () => void;
 
-  constructor(workerId: string, hello: Hello, outbound: AsyncChannel<GatewayMessage>) {
+  constructor(
+    workerId: string,
+    hello: Hello,
+    outbound: AsyncChannel<GatewayMessage>,
+    readonly observeCommand?: (kind: string) => RpcObservation | undefined,
+  ) {
     this.workerId = workerId;
     this.hello = hello;
     this.networkRouteStatus = hello.networkRouteStatus;
@@ -69,20 +76,23 @@ export class WorkerConnection {
     const existing = this.#pending.get(commandId);
 
     if (existing) return existing.promise;
+    const observation = this.observeCommand?.(command.case);
     const { promise, resolve, reject } = Promise.withResolvers<CommandResult>();
 
     const timer = setTimeout(() => {
       this.#pending.delete(commandId);
+      observation?.finish(Code.DeadlineExceeded);
       reject(new ConnectError(`command ${commandId} timed out`, Code.DeadlineExceeded));
     }, timeoutMs);
 
-    this.#pending.set(commandId, { promise, resolve, reject, timer, ...(progress && { progress }) });
+    this.#pending.set(commandId, { promise, resolve, reject, timer, observation, ...(progress && { progress }) });
 
     try {
       this.send({ case: "command", value: create(CommandSchema, { commandId, kind: command }) });
     } catch (error) {
       clearTimeout(timer);
       this.#pending.delete(commandId);
+      observation?.finish(ConnectError.from(error).code);
       reject(error);
     }
 
@@ -109,6 +119,7 @@ export class WorkerConnection {
       if (pending) {
         clearTimeout(pending.timer);
         this.#pending.delete(message.payload.value.commandId);
+        pending.observation?.finish(message.payload.value.ok ? 0 : Code.Unknown);
         pending.resolve(message.payload.value);
 
         return;
@@ -130,6 +141,7 @@ export class WorkerConnection {
 
     for (const pending of this.#pending.values()) {
       clearTimeout(pending.timer);
+      pending.observation?.finish(Code.Unavailable);
       pending.reject(reason);
     }
 

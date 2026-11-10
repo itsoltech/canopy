@@ -19,8 +19,11 @@ import { Routes, type RouteRow } from "./routes.ts";
 import { LanDiscovery, type LanTransportFactory } from "./lan.ts";
 
 import type { NetworkAccess } from "../network/network.ts";
+import type { HeartbeatEcho } from "@canopy/domain/diagnostics";
 
 export type Connection = {
+  echo?: HeartbeatEcho;
+  echoReportedAt?: number;
   send: (frame: MessageInitShape<typeof link.LinkFrameSchema>) => void;
   write: (frame: MessageInitShape<typeof link.LinkFrameSchema>, signal: AbortSignal) => Promise<void>;
   close: (reason?: ConnectError) => void;

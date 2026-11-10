@@ -142,7 +142,7 @@ const server = await startGrpcServer({
     workerRoutes(core, router);
     uiRoutes(core)(router);
   },
-  interceptors: [serviceTokenAuth(serviceToken, core.mobile)],
+  interceptors: [core.diagnostics.interceptor, serviceTokenAuth(serviceToken, core.mobile)],
   host: env["CANOPY_HOST"] ?? "0.0.0.0",
   port: Number(env["CANOPY_PORT"] ?? 7443),
   health: () => ({ healthy: core.updates.service.verdict().healthy, version: CANOPY_VERSION }),
@@ -152,6 +152,8 @@ const server = await startGrpcServer({
 console.info(`gateway ${CANOPY_VERSION} listening on ${server.url}`);
 
 core.scheduler.start();
+
+void core.diagnostics.start();
 
 const maintenance = new DatabaseMaintenance(runtime, userId);
 
@@ -185,6 +187,7 @@ async function stop(presence = "shutting_down") {
   core.backgroundTasks.stop();
   await core.bots.stop();
   await core.link.shutdown();
+  await core.diagnostics.stop();
   await server.close();
   await runtime.dispose();
 }

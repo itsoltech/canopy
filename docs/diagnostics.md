@@ -1,6 +1,6 @@
 # Diagnostyka wydajności
 
-Status: **zaakceptowany 2026-11-10, jeszcze niewdrożony**. Dokumentacyjny PR #495
+Status: **zaakceptowany 2026-11-10; implementacja etapu 1 w draft PR**. Dokumentacyjny PR #495
 jest podstawą stosu diagnostyki i zostanie scalony razem z nim (§10).
 Settings → Diagnostics ma pomóc
 właścicielowi ustalić, co spowalnia Canopy i co zrobić dalej. Jeden ekran pokazuje
@@ -58,7 +58,8 @@ nie etykietą mnożoną przez wątek, projekt, model, adres i każdy kod błędu
 Kody mają stałą tablicę liczników. Nigdy nie tworzymy serii z tekstu wejścia.
 
 **Okna:** 1 min / 15 min / 1 h / 24 h. Pierścienie mają 12 slotów po 5 s,
-15 po 1 min i 96 po 15 min. Aktualizacja dotyka trzech bieżących slotów;
+60 po 1 min i 96 po 15 min. Widok 15 min wybiera 15 minutowych slotów,
+a widok 1 h wybiera 60. Aktualizacja dotyka trzech bieżących slotów;
 odczyt scala histogramy. Obejmuje bieżący slot i poprzednie sloty danego pierścienia:
 granica jest zaokrąglona, a odpowiedź podaje rzeczywiste `window_start/end` i rozdzielczość.
 Okno 1 h scala 60 minutowych rollupów z §5, z bieżącą nieutrwaloną częścią,
@@ -323,6 +324,7 @@ Nowe, zwykłe zalogowane tabele (proponowane nazwy):
 |---|---|
 | `diagnostics_rollups` | `(owner_user_id, computer_id, resolution, bucket_start)`; jeden blob z procesami domu na minutę/godzinę. Do 64 KiB payloadu na rekord, 4320 minut i 720 godzin na komputer; sesje/restarty nie tworzą osobnych wierszy. Indeks klucza obsługuje zakres czasu i pruning. |
 | `diagnostics_state` | `(owner_user_id, computer_id)`; do 64 KiB stanu lokalnych procesów/findings, reset epoch i watermarków. Cache partnera przechowuje wyłącznie ostatni overview do 16 KiB, findings i oryginalny czas próbki, do 32 partnerów/512 KiB; nie ich historię. |
+| `diagnostics_peer_cache` | Osobna tabela ostatnich overview: `(owner_user_id, computer_id)`, do 16 KiB na partnera. Oddzielenie pozwala zachować limit 64 KiB stanu domu i 512 KiB cache. FK do partnera usuwa cache przy unlink; trwały tombstone odwołania blokuje spóźniony snapshot. |
 
 Wszystkie odczyty, UPSERT-y i pruning wymagają owner/computer scope po autoryzacji.
 Maks. 64 procesy w utrwalonym podsumowaniu domu; większy zestaw ma jawne niepełne
@@ -379,6 +381,17 @@ Restart workera nie kasuje jego utrwalonych okien na gatewayu; nowa sesja dodaje
 wyłącznie nowe dane. Przy przyszłych N instancjach gatewaya wpisy procesów i
 watermarki muszą być scalane bez nadpisywania cudzych danych; brak instancji daje
 niepełne pokrycie, także po przełączeniu load balancera. Nie uśredniamy percentyli.
+
+Implementacja etapu 1 rozdziela odtworzone kubełki od bieżących w ramach wspólnego
+budżetu pamięci: odczyt je scala, ale zapis nowej sesji nigdy nie utrwala ponownie
+historii poprzedniej. Raporty RTT mają osobne checkpointy sesji nadawcy, zapisane
+atomowo z agregatem sesji odbiorcy. Dwie ostatnie sesje na łącze mieszczą się w
+ograniczonym stanie deduplikacji także przy reconnect w tej samej minucie.
+
+Publiczny interceptor nie ma hooka istniejących zakodowanych bajtów protobuf:
+rozmiary tych RPC pozostają `Not measured`. Wewnętrzne linked RPC wykorzystują
+bajty istniejącego encode/decode. Zasoby procesu, DB/pool, eksport, logi i tracing
+pozostają w kolejnych etapach; karta etapu 1 oznacza CPU jako `Not measured`.
 
 **Budżet zapisu wliczony w <1% rdzenia i brak regresji p95:** obejmuje serializację,
 SQL, dodatkowy CPU PostgreSQL, odtwarzanie, downsampling, pruning i autovacuum.
