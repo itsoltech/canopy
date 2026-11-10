@@ -254,6 +254,11 @@ użycie jest względne, z pełną angielską datą w tooltipie i wybranym zegare
 Na telefonie natywnym wiersz otwiera arkusz dostępu, menu — arkusz akcji; zmiana
 nazwy i pełna data pozostają w arkuszu. Katalog dodawania kont zawija kompaktowe
 przyciski do dostępnej szerokości. Zmiana układu nie zmienia autoryzacji ani grantów.
+Hover i aktywny stan obejmują całą szerokość wiersza, razem z menu. Na wąskim
+ekranie nazwa zajmuje osobną linię, druga łączy stan z dostawcą, a trzecia — czas
+użycia i dostęp. Bieżący komputer nie jest powtarzany w każdym wierszu telefonu.
+Web i aplikacja natywna współdzielą zaokrąglanie czasu: 59,5 minuty przechodzi
+w godzinę, a 23,5 godziny — w dzień, także w skróconym zapisie.
 Kontrolki korzystają z istniejącego kitu; wybór wielokrotny jest listą custom.
 Sekcja Connections bota pokazuje konta z grantów; `@` ma grupę Connectors i chip
 „GitHub · work”. Gateway waliduje wzmiankę względem grantu i dodaje wskazanie

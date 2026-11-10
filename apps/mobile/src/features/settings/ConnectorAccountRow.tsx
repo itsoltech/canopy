@@ -1,8 +1,9 @@
 import type { connectors } from "@canopy/contracts";
-import { connectorAccessSummary, connectorStatus, formatAge } from "@canopy/domain/format";
+import { connectorAccessSummary, connectorStatus, formatRelative } from "@canopy/domain/format";
 import { Pressable, Text, View } from "react-native";
 import { IconButton } from "../../ui/components";
 import { Icon } from "../../ui/Icon";
+import { StatusDot } from "../../ui/Badge";
 import { font, useColors, useTypography } from "../../ui/theme";
 
 export function ConnectorAccountRow({
@@ -20,14 +21,17 @@ export function ConnectorAccountRow({
 }) {
   const c = useColors();
   const type = useTypography();
-  const color = account.status === "connected" ? c.success : account.status === "error" ? c.danger : c.warning;
-  const lastUsed = account.lastUsedAt ? `Last used ${formatAge(account.lastUsedAt, now)}` : "Not used yet";
+  const tone = account.status === "connected" ? "emerald" : account.status === "error" ? "rose" : "amber";
+
+  const lastUsed = account.lastUsedAt
+    ? `Last used ${formatRelative(account.lastUsedAt, now, "short")}`
+    : "Not used yet";
 
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${account.name}, ${provider}. ${connectorStatus(account.status)}. This computer. ${lastUsed}. ${connectorAccessSummary(account)}`}
+        accessibilityLabel={`${account.name}. ${connectorStatus(account.status)}, ${provider}. ${lastUsed}. ${connectorAccessSummary(account)}`}
         accessibilityHint="Edit access"
         onPress={onPress}
         style={({ pressed }) => [
@@ -45,22 +49,23 @@ export function ConnectorAccountRow({
       >
         <Icon name="link" />
         <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-          <View style={{ flexDirection: "row", alignItems: "baseline", gap: 8 }}>
-            <Text numberOfLines={1} style={[type.chrome, { flex: 1, fontFamily: font.medium, color: c.text }]}>
-              {account.name}
+          <Text numberOfLines={1} style={[type.chrome, { fontFamily: font.medium, color: c.text }]}>
+            {account.name}
+          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <StatusDot tone={tone} />
+            <Text numberOfLines={1} style={[type.meta, { color: c.text }]}>
+              {connectorStatus(account.status)}
             </Text>
-            <Text numberOfLines={1} style={[type.meta, { maxWidth: "40%", color: c.muted }]}>
-              {provider}
+            <Text numberOfLines={1} style={[type.meta, { flex: 1, minWidth: 0, color: c.muted }]}>
+              · {provider}
             </Text>
           </View>
-          <Text numberOfLines={1} style={[type.meta, { color }]}>
-            {connectorStatus(account.status)} · This computer
-          </Text>
           <View style={{ flexDirection: "row", alignItems: "baseline", gap: 8 }}>
-            <Text numberOfLines={1} style={[type.meta, { flex: 1, color: c.muted }]}>
+            <Text numberOfLines={1} style={[type.meta, { color: c.muted }]}>
               {lastUsed}
             </Text>
-            <Text numberOfLines={1} style={[type.meta, { maxWidth: "60%", color: c.muted }]}>
+            <Text numberOfLines={1} style={[type.meta, { flex: 1, minWidth: 0, color: c.muted }]}>
               {connectorAccessSummary(account)}
             </Text>
           </View>

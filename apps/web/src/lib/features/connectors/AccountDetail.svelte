@@ -56,6 +56,7 @@
   let deleting = $state(false);
   let renaming = $state(false);
   let accessOpen = $state(false);
+  let actionsOpen = $state(false);
   let previous = untrack(() => account);
 
   // Follow received changes without discarding an edit the user has started here.
@@ -132,7 +133,10 @@
 </script>
 
 <section aria-label="{type.name} · {account.name}" class={["@container min-w-0", className]}>
-  <div class="flex min-w-0 items-center gap-2 px-3">
+  <div
+    data-active={accessOpen || actionsOpen}
+    class="flex min-w-0 items-center gap-2 px-3 focus-within:bg-zinc-950/3 hover:bg-zinc-950/3 data-[active=true]:bg-zinc-950/3 dark:focus-within:bg-white/4 dark:hover:bg-white/4 dark:data-[active=true]:bg-white/4"
+  >
     <AccountSummary
       {account}
       {type}
@@ -140,7 +144,7 @@
       testing={busy === "test"}
       onclick={() => (accessOpen = !accessOpen)}
     />
-    <DropdownMenu label="Account actions" placement="bottom-end" sheet>
+    <DropdownMenu bind:open={actionsOpen} label="Account actions" placement="bottom-end" sheet>
       {#snippet trigger(props)}
         <IconButton icon="ellipsis-horizontal" label="Actions for {account.name}" {...props} />
       {/snippet}

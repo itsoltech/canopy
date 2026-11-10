@@ -3,6 +3,7 @@ import { timestampDate, type Timestamp } from "@bufbuild/protobuf/wkt";
 export {
   dayKey,
   formatAge,
+  formatRelative,
   formatBytes,
   formatCount,
   formatDuration,
@@ -14,8 +15,6 @@ export { basename } from "@canopy/domain/humanize";
 
 import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
 
-const relative = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
-
 /** The 12/24-hour clock of General → Time format, for any formatter that shows a time. */
 export function clockOptions(): Intl.DateTimeFormatOptions {
   const format = devicePreferences.values.timeFormat;
@@ -24,21 +23,6 @@ export function clockOptions(): Intl.DateTimeFormatOptions {
 }
 
 const date = new Intl.DateTimeFormat("en", { dateStyle: "medium" });
-
-/** "5 minutes ago"; `now` is passed in so callers can tick it. */
-export function formatRelative(timestamp: Timestamp | undefined, now = Date.now()): string {
-  if (!timestamp) return "";
-  const diff = (timestampDate(timestamp).getTime() - now) / 1000;
-  const abs = Math.abs(diff);
-
-  if (abs < 45) return "just now";
-
-  if (abs < 3600) return relative.format(Math.round(diff / 60), "minute");
-
-  if (abs < 86400) return relative.format(Math.round(diff / 3600), "hour");
-
-  return relative.format(Math.round(diff / 86400), "day");
-}
 
 export const formatLocalDateTime = (value: Date, timeZone?: string): string =>
   new Intl.DateTimeFormat(undefined, {
