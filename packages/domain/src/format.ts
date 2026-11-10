@@ -1,6 +1,8 @@
 /** Numbers and spans of time as the timeline shows them, the same on every client. */
 import { timestampDate, type Timestamp } from "@bufbuild/protobuf/wkt";
 
+export { connectorStatus, connectorAccessSummary } from "./connector-display.ts";
+
 /** Calendar day in the device's local time, shared by thread timeline projections. */
 export function dayKey(timestamp: Timestamp | undefined): string {
   if (!timestamp) return "";

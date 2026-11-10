@@ -51,6 +51,14 @@ export const formatLocalDateTime = (value: Date, timeZone?: string): string =>
 export const formatDateTime = (timestamp: Timestamp | undefined, timeZone?: string): string =>
   timestamp ? formatLocalDateTime(timestampDate(timestamp), timeZone) : "";
 
+/** English date text with the device's selected clock and local time zone. */
+export const formatEnglishDateTime = (timestamp: Timestamp | undefined): string =>
+  timestamp
+    ? new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short", ...clockOptions() }).format(
+        timestampDate(timestamp),
+      )
+    : "";
+
 export const formatTime = (timestamp: Timestamp | undefined, timeZone?: string): string =>
   timestamp
     ? new Intl.DateTimeFormat(undefined, {

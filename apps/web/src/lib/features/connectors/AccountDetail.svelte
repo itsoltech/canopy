@@ -1,7 +1,6 @@
 <script lang="ts">
   import { connectors, type ConnectorTool } from "@canopy/contracts";
   import { untrack } from "svelte";
-  import { formatDateTime } from "#lib/shared/format.ts";
   import type { ClassValue } from "svelte/elements";
   import { requestJson } from "#lib/shared/http.ts";
   import type { JsonObject } from "#lib/shared/json.ts";
@@ -13,12 +12,16 @@
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
   import Field from "#lib/shared/ui/Field.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
-  import ConnectorIcon from "./ConnectorIcon.svelte";
+  import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
+  import MenuItem from "#lib/shared/ui/MenuItem.svelte";
+  import MenuSeparator from "#lib/shared/ui/MenuSeparator.svelte";
+  import IconButton from "#lib/shared/ui/IconButton.svelte";
+  import { expand } from "#lib/shared/ui/motion.ts";
+  import AccountSummary from "./AccountSummary.svelte";
   import AccessPicker from "./AccessPicker.svelte";
   import ToolCatalog from "./ToolCatalog.svelte";
   import ConnectAccountDialog from "./ConnectAccountDialog.svelte";
   import ConnectionError from "./ConnectionError.svelte";
-  import { accountStatus } from "./api.ts";
 
   let {
     account,
@@ -51,6 +54,8 @@
   let reconnecting = $state(false);
   let disconnecting = $state(false);
   let deleting = $state(false);
+  let renaming = $state(false);
+  let accessOpen = $state(false);
   let previous = untrack(() => account);
 
   // Follow received changes without discarding an edit the user has started here.
@@ -114,6 +119,7 @@
 
         onupdate(updated);
         disconnecting = false;
+        renaming = false;
       }
     } catch (cause) {
       error = cause instanceof Error ? cause.message : "Could not update this account.";
@@ -125,81 +131,93 @@
   }
 </script>
 
-<section
-  aria-label="{type.name} · {account.name}"
-  class={["grid min-w-0 gap-5 rounded-xl border border-zinc-950/10 p-4 sm:p-5 dark:border-white/10", className]}
->
-  <div class="flex flex-wrap items-start justify-between gap-3">
-    <div class="grid min-w-0 gap-1 text-base/6 sm:text-sm/6">
-      <p class="flex min-w-0 items-center gap-2 font-medium">
-        <ConnectorIcon type={type.id} /><span class="truncate">{type.name} · {account.name}</span>
-      </p>
-      <div class="grid gap-1">
-        <p class="text-zinc-500 dark:text-zinc-400">This computer</p>
-        <p
-          role="status"
-          class={account.status === "connected"
-            ? "text-emerald-700 dark:text-emerald-400"
-            : "text-amber-700 dark:text-amber-400"}
-        >
-          {accountStatus(account.status)}
-        </p>
-        <p class="text-zinc-500 dark:text-zinc-400">Last used: {formatDateTime(account.lastUsedAt) || "Not yet"}</p>
-      </div>
-    </div>
-    <div class="flex flex-wrap gap-2">
-      <Button
-        size="sm"
-        loading={busy === "test"}
+<section aria-label="{type.name} · {account.name}" class={["@container min-w-0", className]}>
+  <div class="flex min-w-0 items-center gap-2 px-3">
+    <AccountSummary
+      {account}
+      {type}
+      expanded={accessOpen}
+      testing={busy === "test"}
+      onclick={() => (accessOpen = !accessOpen)}
+    />
+    <DropdownMenu label="Account actions" placement="bottom-end" sheet>
+      {#snippet trigger(props)}
+        <IconButton icon="ellipsis-horizontal" label="Actions for {account.name}" {...props} />
+      {/snippet}
+      <MenuItem
         disabled={!!busy || account.status === "disconnected" || account.status === "needs_reconnect"}
-        onclick={() => run("test")}>Test</Button
-      ><Button size="sm" disabled={!!busy} onclick={() => (reconnecting = true)}>Reconnect</Button><Button
-        size="sm"
-        disabled={!!busy || account.status === "disconnected"}
-        onclick={() => (disconnecting = true)}>Disconnect</Button
-      ><Button size="sm" variant="danger" disabled={!!busy} onclick={() => (deleting = true)}>Delete…</Button>
-    </div>
-  </div>
-  <div class="flex flex-wrap items-end gap-2">
-    <div class="min-w-0 flex-1">
-      <Field label="Account name"><Input bind:value={name} maxlength={80} disabled={!!busy} /></Field>
-    </div>
-    <div class="pb-px">
-      <Button
-        size="sm"
-        disabled={!!busy || !name.trim() || name === account.name}
-        loading={busy === "rename"}
-        onclick={() => run("rename")}>Rename</Button
+        onselect={() => void run("test")}>Test</MenuItem
       >
-    </div>
-  </div>
-  <Disclosure summaryClass="py-1 text-base/6 sm:text-sm/6">
-    {#snippet summary()}Access · {account.allWorkers ? "All workers" : `${account.workerIds.length} workers`} · {account.allBots
-        ? "All bots"
-        : `${account.botIds.length} bots`}{/snippet}
-    <div class="grid gap-5 pt-4">
-      <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-        Only these workers and bots can use this account. Threads also follow their permission mode.
-      </p>
-      <AccessPicker
-        label="Workers"
-        options={workers}
-        bind:all={allWorkers}
-        bind:selected={workerIds}
+      <MenuItem disabled={!!busy} onselect={() => (reconnecting = true)}>Reconnect</MenuItem>
+      <MenuItem
         disabled={!!busy}
-      />
-      <AccessPicker label="Bots" options={bots} bind:all={allBots} bind:selected={botIds} disabled={!!busy} />
-      <div>
-        <Button size="sm" loading={busy === "access"} disabled={!!busy} onclick={() => run("access")}
-          >Save access</Button
-        >
+        onselect={() => {
+          name = account.name;
+          error = "";
+          renaming = true;
+        }}>Rename…</MenuItem
+      >
+      <MenuItem onselect={() => (accessOpen = !accessOpen)}>Edit access</MenuItem>
+      <MenuSeparator />
+      <MenuItem disabled={!!busy || account.status === "disconnected"} onselect={() => (disconnecting = true)}
+        >Disconnect</MenuItem
+      >
+      <MenuItem danger disabled={!!busy} onselect={() => (deleting = true)}>Delete…</MenuItem>
+    </DropdownMenu>
+  </div>
+  {#if accessOpen}
+    <div transition:expand={{ instantReduced: true }}>
+      <div class="grid gap-4 border-t border-zinc-950/5 p-3 dark:border-white/8">
+        <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+          Only these workers and bots can use this account. Threads also follow their permission mode.
+        </p>
+        <AccessPicker
+          label="Workers"
+          options={workers}
+          bind:all={allWorkers}
+          bind:selected={workerIds}
+          disabled={!!busy}
+        />
+        <AccessPicker label="Bots" options={bots} bind:all={allBots} bind:selected={botIds} disabled={!!busy} />
+        <div>
+          <Button size="sm" loading={busy === "access"} disabled={!!busy} onclick={() => run("access")}
+            >Save access</Button
+          >
+        </div>
       </div>
     </div>
-  </Disclosure>
-  {#if tools && account.status === "connected"}<ToolCatalog {tools} />{/if}
-  {#if account.status === "error" && account.error}<ConnectionError error={account.error} />{/if}
-  {#if error}<Alert tone="error">{error}</Alert>{/if}
+  {/if}
+  {#if tools && account.status === "connected"}
+    {@const verified = tools}
+    <Disclosure class="px-3 pb-3 text-base/5 sm:text-sm/5" summaryClass="py-1">
+      {#snippet summary()}Connection verified · {verified.length} {verified.length === 1 ? "tool" : "tools"}{/snippet}
+      <ToolCatalog tools={verified} />
+    </Disclosure>
+  {/if}
+  {#if account.status === "error" && account.error}<ConnectionError error={account.error} class="mx-3 mb-3" />{/if}
+  {#if error && !renaming}<Alert tone="error" class="mx-3 mb-3">{error}</Alert>{/if}
 </section>
+<Dialog bind:open={renaming} title="Rename account" dismissible={!busy}>
+  <form
+    class="grid gap-4"
+    onsubmit={(event) => {
+      event.preventDefault();
+      if (name.trim() && name !== account.name) void run("rename");
+    }}
+  >
+    <Field label="Account name"><Input name="accountName" bind:value={name} maxlength={80} disabled={!!busy} /></Field>
+    {#if error}<Alert tone="error">{error}</Alert>{/if}
+    <DialogActions>
+      <Button disabled={!!busy} onclick={() => (renaming = false)}>Cancel</Button>
+      <Button
+        type="submit"
+        variant="primary"
+        loading={busy === "rename"}
+        disabled={!!busy || !name.trim() || name === account.name}>Rename</Button
+      >
+    </DialogActions>
+  </form>
+</Dialog>
 {#if reconnecting}<ConnectAccountDialog
     bind:open={reconnecting}
     {type}

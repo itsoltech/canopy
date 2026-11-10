@@ -246,6 +246,14 @@ po awarii nie powoduje automatycznego powtórzenia zapisu.
 
 Settings → Connectors pokazuje katalog, nazwane konta, stan, ostatnie użycie,
 test z listą narzędzi, rename, reconnect, disconnect oraz dostęp workerów/botów.
+Konta są zwartymi wierszami jednej listy z separatorami. Menu wiersza zawiera Test,
+Reconnect, Rename…, Edit access, Disconnect i Delete…. Kliknięcie wiersza rozwija
+edytor dostępu; zmiana nazwy otwiera osobny dialog. Wynik testu pozostaje pod
+wierszem, a lista narzędzi i szczegóły błędu są rozwijane na żądanie. Ostatnie
+użycie jest względne, z pełną angielską datą w tooltipie i wybranym zegarem 12/24 h.
+Na telefonie natywnym wiersz otwiera arkusz dostępu, menu — arkusz akcji; zmiana
+nazwy i pełna data pozostają w arkuszu. Katalog dodawania kont zawija kompaktowe
+przyciski do dostępnej szerokości. Zmiana układu nie zmienia autoryzacji ani grantów.
 Kontrolki korzystają z istniejącego kitu; wybór wielokrotny jest listą custom.
 Sekcja Connections bota pokazuje konta z grantów; `@` ma grupę Connectors i chip
 „GitHub · work”. Gateway waliduje wzmiankę względem grantu i dodaje wskazanie
