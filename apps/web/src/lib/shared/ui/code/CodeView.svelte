@@ -17,6 +17,7 @@
     label,
     start,
     max = 24,
+    fill = false,
     quoteKind,
     class: className,
   }: {
@@ -25,6 +26,8 @@
     label: string;
     start?: number | undefined;
     max?: number;
+    /** Fills its container (a file viewer) instead of stopping at 32rem. */
+    fill?: boolean;
     quoteKind?: string | undefined;
     class?: ClassValue;
   } = $props();
@@ -47,7 +50,10 @@
 <div class={["grid min-w-0 gap-1", className]}>
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
   <div
-    class="flex max-h-[32rem] code-surface rounded-lg bg-zinc-950/2.5 focus-ring dark:bg-white/5"
+    class={[
+      "flex code-surface rounded-lg bg-zinc-950/2.5 focus-ring dark:bg-white/5",
+      fill ? "min-h-full" : "max-h-[32rem]",
+    ]}
     tabindex="0"
     role="region"
     aria-label={label}
@@ -59,7 +65,9 @@
         class="w-(--gutter) shrink-0 py-3 pr-2 pl-3 text-right text-zinc-400 select-none dark:text-zinc-500"
         style:--gutter={gutter}>{Array.from({ length: shownCount }, (_, i) => start + i).join("\n")}</pre>
     {/if}
+    <!-- data-select-content: Mod+A in a reading dialog selects this, never the line numbers (select-all.ts). -->
     <pre
+      data-select-content
       data-quote-kind={quoteKind}
       data-quote-lang={lang}
       class={["flex-1 py-3 pr-3 text-zinc-800 dark:text-zinc-200", start === undefined && "pl-3"]}><CodeLines
