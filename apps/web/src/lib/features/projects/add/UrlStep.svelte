@@ -32,6 +32,12 @@
   let value = $state(untrack(() => initial));
   let error = $state<string>();
   let touched = $state(false);
+  const result = $derived(remoteUrl(source, value));
+
+  function submit() {
+    if ("error" in result) error = result.error;
+    else oncontinue(value.trim(), result.url);
+  }
 
   $effect(() => {
     if (!touched && initial) value = initial;
@@ -44,10 +50,7 @@
 
     if (event.key === "Enter") {
       event.preventDefault();
-      const result = remoteUrl(source, value);
-
-      if ("error" in result) error = result.error;
-      else oncontinue(value.trim(), result.url);
+      submit();
 
       return;
     }
@@ -59,7 +62,7 @@
   }
 </script>
 
-<StepHeader {onback} {onclose}>
+<StepHeader {onback} {onclose} onsubmit={submit} disabledReason={"error" in result ? result.error : undefined}>
   <input
     bind:this={input}
     bind:value

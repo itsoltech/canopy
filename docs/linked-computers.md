@@ -127,6 +127,10 @@ offline wyłączone z powodem), źródło i katalog. Źródła: **New project** 
 ostatniego separatora to katalog, reszta filtruje wpisy; `/` wchodzi głębiej, `..` cofa, strzałki
 wybierają, Enter otwiera wybrany wpis, a bez wybranego wpisu (oraz zawsze z Mod+Enter) wykonuje akcję.
 Klon i nowy projekt wybierają w tej samej przeglądarce katalog nadrzędny, a ostatni segment to nazwa.
+Każdy krok ma w nagłówku widoczny przycisk akcji z `↵` (np. **Continue**, **Clone project**),
+klikalne **Close** i powrót **Back**, gdy dostępny. Niepoprawne dane wyłączają akcję z powodem w tooltipie,
+a praca zastępuje `↵` spinnerem bez zmiany szerokości przycisku. Pola ustępują miejsca
+przyciskom na wąskim ekranie; cele dotykowe mają co najmniej 44 px.
 
 `GatewayService.AddProject` jest na liście `SERVED`: kwalifikowany `worker_id` trasuje wywołanie
 do domu workera (etap 2), a dom wykonuje je własnym handlerem jako właściciel. Limit trasowanego
@@ -185,6 +189,8 @@ są widoczne w dialogu. Po sukcesie workspace pojawia się na liście i w wyborz
 Źródło **Copy from …** kopiuje wybrane pliki istniejącego workspace'u także
 przez połączone komputery. Wybór plików, sekrety, limity i trwałość:
 [workspace-copy.md](workspace-copy.md).
+Web używa tego samego nagłówka kroków co **Add project**, także dla wyboru plików
+i potwierdzenia sekretów. Mobile ma jawne przyciski akcji w formularzach i arkuszu kopiowania.
 
 `AddProject.project_id` (5) jawnie wskazuje istniejący projekt właściciela. Gateway sprawdza projekt,
 workera i brak workspace'u na tym workerze **przed** operacją na dysku. Wspólny projekt przechodzi

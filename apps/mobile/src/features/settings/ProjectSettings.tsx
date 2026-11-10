@@ -164,7 +164,7 @@ function AddProject({ onSaved, resource }: { onSaved: () => void; resource: Proj
       {workerId && presence(worker).online && <DirectoryBrowser workerId={workerId} value={path} onChange={setPath} />}
       <Button
         variant="primary"
-        title="Add project"
+        title={kind === "directory" ? "Add project" : kind === "init" ? "Create project" : "Clone project"}
         busy={resource.busy}
         disabled={
           !workerId ||

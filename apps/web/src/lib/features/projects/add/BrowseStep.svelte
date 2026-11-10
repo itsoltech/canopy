@@ -11,10 +11,8 @@
   import PaletteFooter from "#lib/features/commands/PaletteFooter.svelte";
   import PaletteOption from "#lib/features/commands/PaletteOption.svelte";
   import { pathSeparator } from "#lib/features/overview/workers.ts";
-  import Button from "#lib/shared/ui/Button.svelte";
-  import Kbd from "#lib/shared/ui/Kbd.svelte";
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
-  import { ACTION_LABELS, BUSY_LABELS, browseTarget, type BrowseMode } from "./add-project-flow.ts";
+  import { ACTION_LABELS, browseTarget, type BrowseMode } from "./add-project-flow.ts";
   import { directoryText, matching, parsePath, tidyText, upText, type PathStyle } from "./browse-path.ts";
   import { DirectoryListing } from "./directory-listing.svelte.ts";
   import StepHeader from "./StepHeader.svelte";
@@ -154,7 +152,17 @@
   }
 </script>
 
-<StepHeader {onback} {onclose}>
+<StepHeader
+  {onback}
+  {onclose}
+  onsubmit={submit}
+  actionLabel={label}
+  {busy}
+  modifiedEnter={active >= 0}
+  disabledReason={ready
+    ? undefined
+    : listingError || notice || (listing.loading ? "Reading directories…" : "Choose an existing directory.")}
+>
   <input
     bind:this={input}
     value={text}
@@ -177,12 +185,6 @@
     {onkeydown}
     class={[paletteInputClass, "font-mono text-sm/6 sm:text-[0.8125rem]/6"]}
   />
-  {#snippet action()}
-    <Button size="sm" variant={ready ? "primary" : "secondary"} disabled={!ready} loading={busy} onclick={submit}>
-      {busy ? BUSY_LABELS[mode] : label}
-      {#if !busy}<Kbd hotkey={active >= 0 ? "Mod+Enter" : "Enter"} class={ready ? "text-white/75!" : undefined} />{/if}
-    </Button>
-  {/snippet}
 </StepHeader>
 
 {#if busy && mode === "clone"}

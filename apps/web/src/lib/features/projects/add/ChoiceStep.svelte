@@ -48,6 +48,12 @@
     return index >= 0 ? index : shown.findIndex((c) => !c.disabled);
   });
 
+  const selected = $derived(shown[activeIndex]);
+
+  function submit() {
+    if (selected && !selected.disabled) onchoose(selected.value);
+  }
+
   $effect(() => input?.focus());
 
   function onkeydown(event: KeyboardEvent) {
@@ -64,9 +70,7 @@
 
     if (event.key === "Enter") {
       event.preventDefault();
-      const choice = shown[activeIndex];
-
-      if (choice && !choice.disabled) onchoose(choice.value);
+      submit();
 
       return;
     }
@@ -78,7 +82,12 @@
   }
 </script>
 
-<StepHeader {onback} {onclose}>
+<StepHeader
+  {onback}
+  {onclose}
+  onsubmit={submit}
+  disabledReason={!selected || selected.disabled ? "Choose an available option." : undefined}
+>
   <input
     bind:this={input}
     bind:value={query}
