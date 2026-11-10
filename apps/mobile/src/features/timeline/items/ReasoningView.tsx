@@ -6,6 +6,7 @@ import { useAnchoredToggle } from "../../../ui/feed-anchor";
 import { Markdown } from "../../../ui/markdown";
 import { font, styles, useColors } from "../../../ui/theme";
 import { Chevron } from "../../../ui/MotionViews";
+import { Icon } from "../../../ui/Icon";
 import { QuoteAction } from "../../quotes/QuoteAction";
 
 /** Reasoning, folded: the first line of the summary as a preview, the rest on demand (web: ReasoningView). */
@@ -33,25 +34,28 @@ export function ReasoningView({ reasoning, streaming }: { reasoning: Reasoning; 
         style={({ pressed }) => [
           styles.row,
           {
-            minHeight: 40,
-            marginHorizontal: -6,
-            paddingHorizontal: 6,
+            minHeight: 44,
+            paddingHorizontal: 8,
             borderRadius: 6,
             backgroundColor: pressed ? c.well : "transparent",
           },
         ]}
       >
         <Chevron open={open} color={c.faint} />
-        {streaming ? (
-          <LiveText style={[styles.work, label]}>Thinking</LiveText>
-        ) : (
-          <Text style={[styles.work, label]}>Thought</Text>
-        )}
-        {preview ? (
-          <Text numberOfLines={1} style={[styles.work, { flex: 1, color: c.muted }]}>
-            {preview}
-          </Text>
-        ) : null}
+        <Icon name="light-bulb" color={c.icon} />
+        <View style={{ width: 64, flexShrink: 0 }}>
+          {streaming ? (
+            <LiveText style={[styles.work, label]}>Thinking</LiveText>
+          ) : (
+            <Text style={[styles.work, label]}>Thought</Text>
+          )}
+        </View>
+        <Text
+          numberOfLines={1}
+          style={[styles.work, { flex: 1, minWidth: 0, color: c.muted, fontFamily: font.regularItalic }]}
+        >
+          {preview}
+        </Text>
       </Pressable>
       {open && (
         <View

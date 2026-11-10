@@ -160,6 +160,8 @@
         label={row.label}
         open={row.open}
         running={row.running}
+        icon={row.icon}
+        status={row.status}
         ontoggle={() => ongroup(row.key.replace(/^history:[^:]+:/, ""), row.key)}
       />
     </div>

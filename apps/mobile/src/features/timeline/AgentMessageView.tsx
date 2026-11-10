@@ -7,17 +7,11 @@ import { useColors } from "../../ui/theme";
 import { CopyAction } from "../viewers/copy-action";
 import { QuoteAction } from "../quotes/QuoteAction";
 
-/** Agent text as markdown; commentary (thinking aloud while working) is quieter than answers (web: AgentMessageView). */
+/** Agent prose stays primary reading content, inside work folds and in the answer slot (web: AgentMessageView). */
 export function AgentMessageView({ message, streaming }: { message: AgentMessage; streaming: boolean }) {
-  const c = useColors();
-  const commentary = message.phase === "commentary";
-
   return (
-    <View
-      accessibilityState={{ busy: streaming }}
-      style={commentary ? { borderLeftWidth: 2, borderColor: c.rule, paddingLeft: 12 } : undefined}
-    >
-      <Markdown text={message.text} color={commentary ? c.muted : undefined} />
+    <View accessibilityState={{ busy: streaming }}>
+      <Markdown text={message.text} />
       {streaming && <Caret />}
       {!streaming && message.text.trim() ? (
         <View style={{ flexDirection: "row", gap: 8, minHeight: 32 }}>

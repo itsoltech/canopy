@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Reasoning } from "@canopy/contracts";
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
+  import Icon from "#lib/shared/ui/Icon.svelte";
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
   import { swap } from "#lib/shared/ui/motion.ts";
   import { LineReveal } from "#lib/shared/ui/streaming/line-reveal.svelte.ts";
@@ -26,16 +27,17 @@
 
 {#if hasBody || streaming}
   <Disclosure
+    class="density-work"
     remember="reasoning"
-    summaryClass="-mx-1.5 px-1.5 py-1 text-base/6 hover:bg-zinc-950/2.5 sm:text-sm/6 dark:hover:bg-white/5"
+    summaryClass="px-2 py-2.5 text-base/6 text-zinc-600 hover:bg-zinc-950/2.5 sm:py-1 sm:text-sm/5 dark:text-zinc-400 dark:hover:bg-white/5"
   >
     {#snippet summary()}
       <span class="flex min-w-0 gap-2">
-        {#key streaming}<span
-            class={["shrink-0 font-medium", streaming ? "shimmer" : "text-zinc-500 dark:text-zinc-400"]}
-            in:swap>{streaming ? "Thinking" : "Thought"}</span
+        <span class="flex h-lh shrink-0 items-center"><Icon name="light-bulb" /></span>
+        {#key streaming}<span class={["w-16 shrink-0 font-medium", streaming && "shimmer"]} in:swap
+            >{streaming ? "Thinking" : "Thought"}</span
           >{/key}
-        {#if preview}<span class="truncate text-zinc-500 dark:text-zinc-400">{preview}</span>{/if}
+        <span class="min-w-0 truncate italic">{preview}</span>
       </span>
     {/snippet}
     <div

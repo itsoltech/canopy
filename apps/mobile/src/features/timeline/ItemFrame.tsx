@@ -8,6 +8,7 @@ import { styles, useColors } from "../../ui/theme";
 import { useTone } from "../../ui/tone";
 import { ItemStatusIcon } from "./ItemStatusIcon";
 import { Chevron } from "../../ui/MotionViews";
+import { activityHeader, activitySurface } from "./activity-header";
 
 /** The nested items of the item a frame shows (web: item-context.ts); a frame shows them inside its details. */
 export const ItemChildren = createContext<ReactNode>(undefined);
@@ -48,7 +49,7 @@ export function ItemFrame({
   const violet = useTone("violet").dot;
   const rose = useTone("rose").dot;
 
-  const iconColor = tone === "violet" ? violet : tone === "rose" || status === ItemStatus.FAILED ? rose : c.faint;
+  const iconColor = tone === "violet" ? violet : tone === "rose" || status === ItemStatus.FAILED ? rose : c.icon;
   const body = Boolean(children || nested);
 
   // The disclosure chevron leads an expandable row (web: Disclosure); a row without details keeps its place empty.
@@ -68,7 +69,7 @@ export function ItemFrame({
     </View>
   );
 
-  if (!body) return <View style={{ paddingVertical: 8, paddingLeft: 24 }}>{row}</View>;
+  if (!body) return <View style={[activityHeader.row, activitySurface(status, c), { paddingLeft: 32 }]}>{row}</View>;
 
   return (
     <View>
@@ -78,15 +79,12 @@ export function ItemFrame({
           accessibilityLabel={label}
           accessibilityState={{ expanded: open }}
           onPress={() => toggle(header.current, () => setOpen(!open))}
-          style={({ pressed }) => ({
-            minHeight: 40,
-            justifyContent: "center",
-            paddingVertical: 8,
-            marginHorizontal: -6,
-            paddingHorizontal: 6,
-            borderRadius: 6,
-            backgroundColor: pressed ? c.well : "transparent",
-          })}
+          style={({ pressed }) => [
+            activityHeader.row,
+            activitySurface(status, c),
+            { justifyContent: "center" },
+            pressed && { backgroundColor: c.pressed },
+          ]}
         >
           {row}
         </Pressable>

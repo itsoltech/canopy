@@ -1,4 +1,5 @@
 import { ItemStatus, type Item } from "@canopy/contracts";
+import type { IconName } from "@canopy/ui/icons";
 import { describeTool } from "./tools/registry.ts";
 
 /**
@@ -95,22 +96,61 @@ const VERBS = {
   item: ["Updated", "item", "items"],
 } satisfies Record<Activity, readonly [string, string, string]>;
 
-/** A run of consecutive tools as one header: "Read 1 file and ran 5 commands". */
-export function groupSummary(items: readonly Item[]): string {
+const ACTIVITY_ICONS: Record<Activity, IconName> = {
+  read: "document-text",
+  command: "command-line",
+  edit: "pencil-square",
+  search: "magnifying-glass",
+  tool: "wrench",
+  "agent call": "user-group",
+  subagent: "user-group",
+  "background task": "command-line",
+  item: "queue-list",
+};
+
+const STATUS_PRIORITY: readonly ItemStatus[] = [
+  ItemStatus.FAILED,
+  ItemStatus.DECLINED,
+  ItemStatus.INTERRUPTED,
+  ItemStatus.IN_PROGRESS,
+  ItemStatus.COMPLETED,
+];
+
+export interface WorkGroupSummary {
+  label: string;
+  icon: IconName;
+  status: ItemStatus;
+}
+
+/** A run's label, kind icon and most important status, sharing one pass through tool descriptions. */
+export function groupSummary(items: readonly Item[]): WorkGroupSummary {
   const counts = new Map<Activity, number>();
+  let first: Activity = "item";
+  let priority = STATUS_PRIORITY.length - 1;
 
   for (const item of items) {
     const kind = activity(item);
+
+    if (!counts.size) first = kind;
     counts.set(kind, (counts.get(kind) ?? 0) + 1);
+    const rank = STATUS_PRIORITY.indexOf(item.status);
+
+    if (rank >= 0) priority = Math.min(priority, rank);
   }
 
-  return [...counts]
+  const label = [...counts]
     .map(([kind, n], i) => {
       const [verb, one, many] = VERBS[kind];
 
       return `${i ? verb.toLowerCase() : verb} ${n} ${n === 1 ? one : many}`;
     })
     .join(" and ");
+
+  return {
+    label,
+    icon: counts.size === 1 ? ACTIVITY_ICONS[first] : "queue-list",
+    status: STATUS_PRIORITY[priority] ?? ItemStatus.COMPLETED,
+  };
 }
 
 /**
