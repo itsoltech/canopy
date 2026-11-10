@@ -1,6 +1,13 @@
 import { Text, View } from "react-native";
 import type { ui } from "@canopy/contracts";
-import { findingText, freshness, health, measured, diagnosticsFindings } from "@canopy/domain/diagnostics";
+import {
+  findingText,
+  freshness,
+  health,
+  measured,
+  diagnosticsFindings,
+  diagnosticsStatus,
+} from "@canopy/domain/diagnostics";
 import { SettingsGroup, SettingsRow } from "./SettingsGroup";
 import { Button } from "../../ui/components";
 import { styles, useColors } from "../../ui/theme";
@@ -11,7 +18,7 @@ export function DiagnosticsComputer({ computer, onSelect }: { computer: ui.Compu
   return (
     <SettingsGroup
       title={computer.name}
-      description={`${computer.status} · ${computer.appVersion || "Version unknown"}`}
+      description={`${diagnosticsStatus(computer.status)} · ${computer.appVersion || "Version unknown"}`}
     >
       <SettingsRow title={health(computer)} description={freshness(computer)} />
       {computer.droppedSamples ? (
@@ -29,7 +36,9 @@ export function DiagnosticsComputer({ computer, onSelect }: { computer: ui.Compu
         />
       ))}
       {computer.gaps.length ? (
-        <Text style={[styles.workMeta, { color: c.muted }]}>No data during {computer.gaps.length} periods.</Text>
+        <Text style={[styles.workMeta, { color: c.muted }]}>
+          No data during {computer.gaps.length} {computer.gaps.length === 1 ? "period" : "periods"}.
+        </Text>
       ) : null}
       {!["saved", "restoring", "not_started", ""].includes(computer.persistenceStatus) ? (
         <Text style={[styles.workMeta, { color: c.muted }]}>

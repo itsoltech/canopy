@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ui } from "@canopy/contracts";
-  import { freshness, health, measured } from "@canopy/domain/diagnostics";
+  import { freshness, health, measured, diagnosticsStatus } from "@canopy/domain/diagnostics";
   import SettingsCard from "#lib/shared/ui/SettingsCard.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
 
@@ -13,7 +13,9 @@
     <div class="flex min-w-0 flex-wrap items-start justify-between gap-3">
       <div class="min-w-0">
         <h3 class="font-medium wrap-anywhere">{computer.name}</h3>
-        <p class="text-sm text-muted capitalize">{computer.status} · {computer.appVersion || "Version unknown"}</p>
+        <p class="text-sm text-muted">
+          {diagnosticsStatus(computer.status)} · {computer.appVersion || "Version unknown"}
+        </p>
       </div>
       <span
         class={[

@@ -153,6 +153,25 @@ export function health(computer: ui.ComputerDiagnostics) {
   return "No issues found";
 }
 
+export function diagnosticsStatus(status: string) {
+  switch (status) {
+    case "online":
+      return "Online";
+    case "offline":
+      return "Offline";
+    case "stale":
+      return "Stale";
+    case "loading":
+      return "Loading";
+    case "unsupported":
+      return "Unsupported";
+    case "not_permitted":
+      return "Not permitted";
+    default:
+      return "Not enough data";
+  }
+}
+
 export function freshness(computer: ui.ComputerDiagnostics) {
   if (!computer.sampledAtMs) return "No saved snapshot";
   const age = computer.sampleAgeMs / 1000;
