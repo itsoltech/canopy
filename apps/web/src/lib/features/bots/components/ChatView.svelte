@@ -231,6 +231,17 @@
 
   const toEnd = (behavior: ScrollBehavior = "instant") => log?.scrollTo({ top: log.scrollHeight, behavior });
 
+  // The measured inset changes the log's padding without resizing its messages. Keep the latest message
+  // above a growing editor or safe area, while preserving the position of readers scrolling back.
+  $effect(() => {
+    void composerHeight;
+
+    if (untrack(() => following))
+      void tick().then(() => {
+        if (following) toEnd();
+      });
+  });
+
   // Whatever grows the conversation (a message, a card, the status line, a long answer) keeps the end in
   // view while you are there.
   $effect(() => {
@@ -384,7 +395,7 @@
     <div
       bind:this={composerRegion}
       bind:clientHeight={composerHeight}
-      class="absolute inset-x-0 bottom-0 z-10 mx-auto w-full max-w-(--bot-chat-width) px-3 pt-1 pb-[max(--spacing(3),env(safe-area-inset-bottom))] sm:px-6 sm:pb-4"
+      class="absolute inset-x-0 bottom-0 z-10 mx-auto w-full max-w-(--bot-chat-width) px-3 pt-1 composer-bottom sm:px-6"
     >
       {#if archived && conversation.archived}
         {@render archived()}

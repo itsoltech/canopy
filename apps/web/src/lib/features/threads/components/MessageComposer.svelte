@@ -261,7 +261,22 @@
     {/snippet}
     {#snippet meta()}
       <ComposerContextRow>
-        {#snippet computerControl()}<WorkerHoverCard {worker} {note} class="max-w-full" />{/snippet}
+        {#snippet computerControl()}
+          <!-- Delivery feedback shares the location slot so it never adds a blank row below the composer. -->
+          <div class="relative w-full min-w-0">
+            <div class:invisible={Boolean(deliveryStatus)}>
+              <WorkerHoverCard {worker} {note} class="max-w-full" />
+            </div>
+            <p
+              class="absolute inset-0 flex min-w-0 items-center"
+              class:pointer-events-none={!deliveryStatus}
+              title={deliveryStatus}
+              aria-hidden="true"
+            >
+              <span class="truncate">{deliveryStatus ?? ""}</span>
+            </p>
+          </div>
+        {/snippet}
         {#snippet permissionControl()}
           <fieldset disabled={disabled || sending} class="contents">
             <PermissionPicker value={mode} onselect={(next) => void pickMode(next)} />
@@ -270,13 +285,7 @@
       </ComposerContextRow>
     {/snippet}
   </ComposerBox>
-  <p
-    class="min-h-5 truncate text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
-    title={deliveryStatus}
-    role="status"
-    aria-atomic="true"
-  >
-    {deliveryStatus ?? ""}
-  </p>
+  <!-- Keep announcements mounted even when the metadata folds in the compact composer. -->
+  <p class="sr-only" role="status" aria-atomic="true">{deliveryStatus ?? ""}</p>
 </form>
 <AccountConfigNotices section="composer" />

@@ -663,7 +663,7 @@
     <div class="mx-auto max-w-(--chat-width) px-4 sm:px-6" {onkeydown}>
       <div
         bind:this={footerElement}
-        class="pointer-events-auto relative pb-[max(--spacing(3),env(safe-area-inset-bottom))]"
+        class="pointer-events-auto relative composer-bottom"
         onfocusin={() => scrollIntent.reset()}
         onbeforeinput={() => scrollIntent.reset()}
       >

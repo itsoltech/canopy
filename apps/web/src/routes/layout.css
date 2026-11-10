@@ -20,6 +20,11 @@
  */
 @custom-variant macos (&:where([data-canopy-platform="darwin"] *));
 @custom-variant desktop (&:where([data-canopy-platform] *));
+/* One bottom inset for thread, bot and group composers, including standalone web/PWA safe areas. */
+@utility composer-bottom {
+  padding-bottom: max(--spacing(2), env(safe-area-inset-bottom));
+}
+
 /* Registered length: floating.ts reads the resolved CSS pixels, including zoom calculations. */
 @property --window-safe-top {
   syntax: "<length>";
