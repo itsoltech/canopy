@@ -1062,6 +1062,14 @@ są wspólne z web (`@canopy/domain/goals`: `goalLook`, `goalActions`, `goalPend
 Codex przyjmuje budżet tokenów (`SetGoal`).
 Settings → Connectors i panel wątku pokazują status kont jak web; konto z błędem testu
 ma jego komunikat i „Show details” z technicznym opisem.
+
+Synchronizacja wątku zastępuje znak projektu w nagłówku ikoną `arrow-path`, bez nowego
+wiersza nad kompozytorem ani przesunięcia tytułu lub przycisków. Krótsze niż 500 ms
+odświeżenia nie pokazują ikony. Obrót trwa 2 s, a ograniczenie ruchu pozostawia
+statyczny glif; wejście i wyjście używają przenikania `quick`. Etykieta dostępności
+„Syncing…” jest ogłaszana dopiero po 2 s nieprzerwanego stanu. Pozostałe noty nad
+kompozytorem i informacja o niedostępnym komputerze zachowują własne miejsca.
+
 New thread to jeden ekran jak w web: kompozytor z modelem, effort i plikami, pod nim projekt,
 worker (offline z notą, która blokuje wysyłkę) i uprawnienia. Wartości startowe biorą domyślne
 projektu nad Settings → Threads, potem ostatnio użyte (`features/new-thread/placement.ts`).

@@ -35,6 +35,15 @@ jawne klasy koloru nadal mają pierwszeństwo. Przełącznik Thread details uży
 `layout-sidebar-right`, czyli obrysu okna z prawym panelem. `view-columns` używa tego
 samego glifu w komendach i aplikacji mobilnej; `sidebar` używa `layout-sidebar`.
 
+## Synchronizacja wątku
+
+Nagłówek wątku pokazuje synchronizację ikoną `arrow-path` w istniejącym miejscu znaku
+projektu; nazwa projektu, tytuł i przyciski nie przesuwają się. Ikona zastępuje znak
+po 500 ms nieprzerwanej synchronizacji i przenika z powrotem po przejściu do `live`.
+Obrót trwa 2 s według tokenów ruchu; przy ograniczonym ruchu ikona pozostaje nieruchoma.
+Etykieta dostępności to „Syncing…”, a region statusu ogłasza ją dopiero po 2 s.
+Stan komputera poza siecią ma osobną notę, bez ikony synchronizacji.
+
 ## Ruch formularzy
 
 Otwarcie `Dialog` / arkusza / `Popover` animuje wyłącznie kontener według tokenów

@@ -15,7 +15,6 @@ import { DropZone } from "../attachments/FileIntake";
 import { useOverview } from "../../state/overview";
 import { ThreadHeader } from "./ThreadHeader";
 import { ThreadTimeline } from "./ThreadTimeline";
-import { ThreadSyncStatus } from "./ThreadSyncStatus";
 import { ConnectionBanner } from "../navigation/ConnectionStatus";
 import { useFollowingList } from "../../ui/useFollowingList";
 import { useMessageDraft } from "../composer/useMessageDraft";
@@ -209,6 +208,7 @@ export function ThreadScreen({ id }: { id: string }) {
           <ThreadHeader
             history={state.history}
             snapshot={snapshot}
+            syncing={Boolean(snapshot && !state.home.away && state.stream.connection !== "live")}
             thread={thread}
             project={projects.find((p) => p.id === thread?.projectId)}
             turns={turns}
@@ -248,13 +248,12 @@ export function ThreadScreen({ id }: { id: string }) {
   );
 }
 
-/** What floats above the tray: sync, secrets, sending and delivery notes, and running background tasks. */
+/** What floats above the tray: secrets, sending and delivery notes, and running background tasks. */
 function ThreadStatus({ state }: { state: ThreadState }) {
   const { home, error } = state;
 
   return (
     <>
-      <ThreadSyncStatus state={state} />
       <ThreadRequests state={state} />
       {state.busy ? (
         <Notice>{state.waiting ? `Still waiting for ${home.name || "this computer"}…` : "Sending…"}</Notice>
