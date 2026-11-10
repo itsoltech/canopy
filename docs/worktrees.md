@@ -223,7 +223,9 @@ Capability `worktree_lifecycle` dodaje nietrwałe `ScanWorktrees` (213) i `Revea
 oraz trwałe `RemoveWorktree` (214). Starszy worker z samym `worktrees` nadal tworzy worktree,
 ale do ich zarządzania UI prosi o aktualizację. Skan zwraca gałąź, ahead/behind (upstream albo baza),
 liczbę zmienionych plików (również untracked/ignored), niewypchnięte commity, stan merged/unchanged,
-HEAD i czas lokalnej aktywności. Błąd skanu blokuje usunięcie.
+HEAD i czas lokalnej aktywności. Skan omija cache wyników procesów git, także bez fetch:
+podgląd sprzątania od razu uwzględnia dodanie lub usunięcie zmian lokalnych poza Canopy.
+Błąd skanu blokuje usunięcie.
 
 ### Położenie
 
