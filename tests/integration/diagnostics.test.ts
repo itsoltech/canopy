@@ -10,6 +10,7 @@ import { linkedComputers } from "./support/computers.ts";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
 import { methodId } from "../../apps/gateway/src/diagnostics/registry.ts";
 import { linkedMessage } from "../../apps/gateway/src/computers/remote.ts";
+import { rpcSnapshot } from "../../apps/gateway/src/diagnostics/snapshot.ts";
 
 const rejectedCode = (promise: Promise<object>) =>
   promise.then(
@@ -100,13 +101,24 @@ describe.skipIf(!dockerAvailable)("owner diagnostics over real gRPC and one rela
     a.core.diagnostics.collector.tick();
     const snapshot = a.core.diagnostics.local(create(ui.ComputerDiagnosticsRequestSchema, { limit: 384 }), true);
     const capabilities = snapshot.calls.find((call) => call.method.endsWith("/GetClientCapabilities"));
+    const rejected = snapshot.calls.find((call) => call.method.endsWith("/GetComputerDiagnostics"));
     const stream = snapshot.calls.find((call) => call.method.endsWith("/WatchOverview"));
     expect(capabilities?.started).toBeGreaterThan(0n);
     expect(capabilities?.durationMs?.samples).toBe(capabilities?.completed);
+    expect(rejected?.started).toBe(1n);
+    expect(rejected?.completed).toBe(1n);
+    expect(rejected?.codes[Code.NotFound]).toBe(1n);
     await ready(
       () => !a.core.diagnostics.collector.active.get(methodId("rpc:canopy.ui.v1.GatewayService/WatchOverview"))?.size,
     );
     expect(stream?.stream).toBe(true);
+
+    const closed = rpcSnapshot(a.core.diagnostics.collector, 15).calls.find((call) =>
+      call.method.endsWith("/WatchOverview"),
+    );
+
+    expect(closed?.completed).toBe(1n);
+    expect(closed?.codes[Code.Canceled]).toBe(1n);
     expect(toJsonString(ui.ComputerDiagnosticsSchema, snapshot)).not.toContain("private-prompt-and-path");
     const denied = createClient(ui.GatewayService, createGrpcTransport({ baseUrl: a.grpcUrl }));
     expect(await rejectedCode(denied.getDiagnostics({}))).toBe(Code.Unauthenticated);
