@@ -16,3 +16,5 @@ export * from "./gen/canopy/ui/v1/desktop_pb.ts";
 export * from "./gen/canopy/ui/v1/cli_import_pb.ts";
 
 export * from "./gen/canopy/ui/v1/attachments_pb.ts";
+
+export * from "./gen/canopy/ui/v1/workspace_copy_pb.ts";

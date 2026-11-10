@@ -17,6 +17,7 @@ import { workersHandlers } from "./ui-workers.ts";
 import { agentEnvironmentHandlers } from "./ui-agent-environment.ts";
 import { worktreesHandlers } from "./ui-worktrees.ts";
 import { importsHandlers } from "./ui-imports.ts";
+import { workspaceCopyHandlers } from "./ui-workspace-copy.ts";
 
 export { toConnectError } from "./ui-errors.ts";
 
@@ -76,5 +77,6 @@ export function uiHandlers(core: GatewayCore): UiHandlers {
     ...queueHandlers(core),
     ...worktreesHandlers(core),
     ...importsHandlers(core),
+    ...workspaceCopyHandlers(core),
   });
 }

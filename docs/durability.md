@@ -1,5 +1,10 @@
 # Trwałość, graceful shutdown i aktualizacje w trakcie działania
 
+Kopia workspace'u używa nietrwałych porcji i receiptów tożsamości katalogów
+na workerze. Restart sprząta częściowy transfer, zachowując katalog po rename
+do finalizacji. Treści nie trafiają do journalu ani PostgreSQL.
+Szczegóły: [workspace-copy.md](workspace-copy.md).
+
 Boty mają odrębną kolejkę `bot_turns` i checkpoint pętli narzędzi w PostgreSQL.
 Lease z tokenem blokuje zapis starego wykonawcy; platformowe efekty i wyniki są
 atomowe. MCP przerwane awarią wraca jako `interrupted`, bez ponowienia.

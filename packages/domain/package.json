@@ -35,6 +35,7 @@
     "./linked-snapshot": "./src/linked-snapshot.ts",
     "./projects": "./src/projects.ts",
     "./workspace-sources": "./src/workspace-sources.ts",
+    "./workspace-copy": "./src/workspace-copy.ts",
     "./clone-url": "./src/clone-url.ts",
     "./git-heads": "./src/git-heads.ts",
     "./json": "./src/json.ts",

@@ -6,6 +6,8 @@ export * from "./gen/canopy/worker/v1/agent_environment_pb.ts";
 
 export * from "./gen/canopy/worker/v1/cli_import_pb.ts";
 
+export * from "./gen/canopy/worker/v1/workspace_copy_pb.ts";
+
 // UI API (gateway <-> browser). Namespaced to keep worker and UI names apart (Thread, Worker, ...).
 export * as ui from "./ui.ts";
 

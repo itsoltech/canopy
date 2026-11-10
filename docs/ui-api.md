@@ -308,7 +308,12 @@ w wywołaniach trasowanych i zbiera workspace'y partnerów w jednym projekcie. I
 zachowują kwalifikator komputera. Ustawienia worktree z workerem zapisuje jego dom; edycja jest trasowana.
 Settings → Projects i strona projektu używają `ConfigNotice` oraz Restore; sekcja „Workspaces” pokazuje
 nazwę workera i komputera w zwartych wierszach, kopiowanie ścieżki i menu edycji/usunięcia także dla partnera.
-„Add workspace” otwiera wybór workera, istniejącego katalogu lub klonu; mobile używa arkusza.
+„Add workspace” otwiera wybór workera, istniejącego katalogu, klonu lub kopii
+workspace'u; mobile używa arkusza. `GetWorkspaceCopyManifest` zwraca drzewo
+bez treści; `CopyWorkspace` strumieniuje postęp. BFF udostępnia
+`GET /api/workspaces/{id}/copy-manifest` i `POST /api/workspaces/copy` (NDJSON).
+Wewnętrzne `WorkspaceCopySource` i `WorkspaceCopyTarget` sprawdzają właściciela
+we właściwym domu. Szczegóły: [workspace-copy.md](workspace-copy.md).
 `UpdateWorkspace` i `RemoveWorkspace` trasują kwalifikowane id do domu workspace'u.
 Opis: „A new thread runs in one of these directories on the project's workers.”.
 API i UI 0050 zostały usunięte. Dawne deklaracje protobuf zostają zarezerwowane; `GetSharedConfig`

@@ -80,6 +80,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
           ? [
               REMOTE_THREADS,
               "project_workspaces",
+              "workspace_copy_v1",
               REMOTE_BRANCH_SWITCH,
               "remote_worktrees",
               THREAD_MIRROR,

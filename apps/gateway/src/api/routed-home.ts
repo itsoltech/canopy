@@ -236,6 +236,12 @@ async function* send(
   signal: AbortSignal,
 ): AsyncGenerator<Message> {
   const outbound = clone(method.input, request);
+
+  if (
+    ["GetWorkspaceCopyManifest", "WorkspaceCopySource", "WorkspaceCopyTarget"].includes(method.name) &&
+    !computers.capabilities(nodeId).includes("workspace_copy_v1")
+  )
+    throw new ConnectError("Update this computer to copy files", Code.FailedPrecondition);
   await carryAttachments(core, nodeId, method, outbound, signal);
   const ids = await ConfigIds.for(core, nodeId);
 
@@ -246,8 +252,11 @@ async function* send(
   )
     throw new ConnectError("Update Canopy on the linked computer to add workspaces there.", Code.FailedPrecondition);
 
-  if (method.name === "AddProject") {
-    const projectId = linkedMessage(ui.AddProjectRequestSchema, outbound).projectId;
+  if (method.name === "AddProject" || method.name === "WorkspaceCopyTarget") {
+    const projectId =
+      method.name === "AddProject"
+        ? linkedMessage(ui.AddProjectRequestSchema, outbound).projectId
+        : linkedMessage(ui.WorkspaceCopyTargetRequestSchema, outbound).projectId;
 
     if (projectId && !splitId(projectId).node && !(await ids.projects()).known.has(projectId))
       throw new ConnectError(

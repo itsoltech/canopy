@@ -1,0 +1,56 @@
+syntax = "proto3";
+package canopy.ui.v1;
+import "canopy/worker/v1/workspace_copy.proto";
+
+message GetWorkspaceCopyManifestRequest { string workspace_id = 1; }
+message GetWorkspaceCopyManifestResponse {
+  canopy.worker.v1.WorkspaceCopyManifest manifest = 1;
+}
+// Orchestrated at the client-facing gateway; references can belong to different computers.
+message CopyWorkspaceRequest {
+  string source_ref = 1;
+  string target_ref = 2;
+  string project_ref = 3;
+  string manifest_token = 4;
+  repeated string paths = 5;
+  repeated string confirmed_secrets = 6;
+  string parent_path = 7;
+  string name = 8;
+  string transfer_key = 9;
+}
+message WorkspaceCopyProgress {
+  uint64 bytes = 1;
+  uint64 total_bytes = 2;
+  uint32 files = 3;
+  uint32 total_files = 4;
+  string current_file = 5;
+  string status = 6;
+  string workspace_ref = 7;
+  uint32 skipped = 8;
+}
+// Internal coordination over the same owner-authenticated linked-computer routes.
+// The source home binds a manifest token to an owned workspace before authorizing reads.
+message WorkspaceCopySourceRequest {
+  string workspace_id = 1;
+  string token = 2;
+  repeated string paths = 3;
+  repeated string confirmed_secrets = 4;
+  bool authorize = 5;
+  canopy.worker.v1.WorkspaceCopyRead read = 6;
+  bool release = 7;
+}
+message WorkspaceCopySourceResponse {
+  repeated canopy.worker.v1.WorkspaceCopyEntry entries = 1;
+  canopy.worker.v1.WorkspaceCopyChunk chunk = 2;
+  uint32 skipped = 3;
+}
+message WorkspaceCopyTargetRequest {
+  string worker_id = 1;
+  string project_id = 2;
+  string source_ref = 3;
+  canopy.worker.v1.WorkspaceCopyOperation operation = 4;
+}
+message WorkspaceCopyTargetResponse {
+  string directory = 1;
+  string workspace_ref = 2;
+}

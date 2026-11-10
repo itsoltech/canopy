@@ -351,6 +351,7 @@ while (!stopping.signal.aborted) {
           // provisional_branches: RenameWorktreeBranch.provisional keeps pushed or switched branches.
           "provisional_branches",
           "project_sources",
+          "workspace_copy_v1",
           // cli_import_v1: Settings → Import reads the device's CLI homes on request (docs/import.md).
           "cli_import_v1",
           // cli_import_library_v1: the scan also lists settings and library items, and reads them on request.

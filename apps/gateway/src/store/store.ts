@@ -14,6 +14,7 @@ import { outboxStore, type OutboxStore } from "./outbox.ts";
 import { interactionStore, type InteractionStore } from "./interactions-store.ts";
 import { worktreeStore, type WorktreeStore } from "./worktrees.ts";
 import { worktreeLifecycleStore } from "./worktree-lifecycle.ts";
+import { workspaceCopyStore } from "./workspace-copy.ts";
 
 /**
  * Gateway data access (PostgreSQL). One service, grouped by concern; every query casts uuid
@@ -46,7 +47,8 @@ export class GatewayStore extends Context.Service<
     InteractionStore &
     WorktreeStore &
     ReturnType<typeof worktreeLifecycleStore> &
-    ThreadLifecycle
+    ThreadLifecycle &
+    ReturnType<typeof workspaceCopyStore>
 >()("canopy/gateway/GatewayStore") {
   static readonly layer = (secretsKey: Buffer) =>
     Layer.effect(
@@ -69,6 +71,7 @@ export class GatewayStore extends Context.Service<
           ...interactionStore(sql, () => store),
           ...worktreeStore(sql),
           ...worktreeLifecycleStore(sql),
+          ...workspaceCopyStore(sql),
         };
 
         return GatewayStore.of(store);

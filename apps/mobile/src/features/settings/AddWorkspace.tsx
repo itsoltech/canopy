@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ScrollView } from "react-native";
 import { ConnectError } from "@connectrpc/connect";
 import type { ui } from "@canopy/contracts";
 import { workspaceDirectoryName, workspaceParent } from "@canopy/domain/workspace-sources";
@@ -10,17 +11,17 @@ import { DirectoryBrowser } from "./DirectoryBrowser";
 import { useWorkerLabel, useWorkerPresence } from "../computers/presence";
 import { useWorkspaceSource } from "./workspace-source";
 import { WorkspaceCloneFields } from "./WorkspaceCloneFields";
+import { WorkspaceCopy } from "./WorkspaceCopy";
+import { WorkspaceSourceChoice } from "./WorkspaceSourceChoice";
 
-/** Existing directory and clone share a destination. A later copy source can join this source choice. */
-export function AddWorkspace({
-  project,
-  onSaved,
-  onBusy,
-}: {
+interface AddWorkspaceProps {
   project: ui.Project;
   onSaved: () => void;
   onBusy: (busy: boolean) => void;
-}) {
+}
+
+/** All sources share the same project and destination worker. */
+export function AddWorkspace({ project, onSaved, onBusy }: AddWorkspaceProps) {
   const { workers, projects } = useOverview();
   const { client } = useSession();
   const presence = useWorkerPresence();
@@ -34,6 +35,7 @@ export function AddWorkspace({
   const [error, setError] = useState("");
   const worker = workers.find((w) => w.id === workerId);
   const available = presence(worker).online && !project.workspaces.some((w) => w.workerId === workerId);
+  const copySource = project.workspaces.find((w) => source === `copy:${w.id}`);
 
   async function add() {
     if (!client || busy || !available) return;
@@ -67,8 +69,27 @@ export function AddWorkspace({
     }
   }
 
+  if (worker && copySource)
+    return (
+      <WorkspaceCopy
+        project={project}
+        worker={worker}
+        workspace={copySource}
+        initialParent={path}
+        initialName={name}
+        onBusy={onBusy}
+        onSaved={onSaved}
+        onBack={() => setSource("directory")}
+      />
+    );
+
   return (
-    <>
+    <ScrollView
+      keyboardShouldPersistTaps="handled"
+      contentInsetAdjustmentBehavior="never"
+      automaticallyAdjustContentInsets={false}
+      contentContainerStyle={{ padding: 20, gap: 16, width: "100%", maxWidth: 600, alignSelf: "center" }}
+    >
       <SettingChoice
         title="Worker"
         value={workerId}
@@ -93,19 +114,13 @@ export function AddWorkspace({
       />
       {worker && (
         <>
-          <SettingChoice
-            title="Source"
-            value={source}
-            onChange={setSource}
-            options={[
-              { value: "directory", label: "Existing directory", disabled: busy },
-              {
-                value: "clone",
-                label: "Clone repository",
-                disabled: busy || !worker.projectSources,
-                description: worker.projectSources ? undefined : "Update Canopy on this worker to clone.",
-              },
-            ]}
+          <WorkspaceSourceChoice
+            worker={worker}
+            workers={workers}
+            project={project}
+            source={source}
+            setSource={setSource}
+            busy={busy}
           />
           {source === "clone" && (
             <WorkspaceCloneFields worker={worker} url={url} name={name} busy={busy} setUrl={setUrl} setName={setName} />
@@ -128,6 +143,6 @@ export function AddWorkspace({
         }
         onPress={() => void add()}
       />
-    </>
+    </ScrollView>
   );
 }

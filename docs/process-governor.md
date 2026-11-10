@@ -8,6 +8,7 @@ sites przechodzą przez współdzielony pakiet `@canopy/process-governor`.
 
 | Miejsce | Wyzwalacz i możliwa multiplikacja | Ochrona |
 | --- | --- | --- |
+| worker `workspace-copy` | Lista plików i końcowe `git fsck`; porcje plików nie uruchamiają procesów. | Git przez wspólny governor; najwyżej cztery podglądy i dwa cele. Gateway: dwie kopie, jedna potwierdzana porcja 128 KiB i 8 MiB/s na kopię. Asynchroniczne I/O nie blokuje pętli streamingu wątków. |
 | worker `git/git.ts` | Ref picker, tworzenie/rename, status i cleanup. `scanWorktree` wykonuje kilkanaście odczytów plus detekcję merged: do kilkudziesięciu git/worktree. 50 worktree oznacza setki–tysiące procesów na pełny skan, nawet jeśli pojedyncza pętla jest sekwencyjna. Niezależne żądania UI i cleanup mogą się nakładać. | git ≤4, wspólna kolejka, single-flight odczytów, TTL 1 s. Usuwanie działa w `freshGit`: bez cache i bez łączenia z wcześniejszym skanem. Mutacje unieważniają cache przed i po zakończeniu. |
 | worker `runtime/git-commands.ts` | Reveal folderu na kliknięcie; status per target. | utility ≤2 / 5 s; skany harmonogramu mają priorytet background przenoszony w addytywnym polu proto. |
 | gateway `worktrees/cleanup-schedule.ts` | Start, reconnect, co godzinę. Obecny single-flight per worker/global zapobiega części nakładania; różne workery nadal pracują równolegle. | Priorytet background, odrzucanie przeterminowanych oczekujących procesów; brak cache dla końcowej walidacji usunięcia. |

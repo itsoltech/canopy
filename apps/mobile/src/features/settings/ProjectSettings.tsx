@@ -89,7 +89,12 @@ export function ProjectSettings() {
       <Sheet title="Add project" visible={adding} onClose={() => setAdding(false)}>
         {adding && <AddProject resource={resource} onSaved={() => setAdding(false)} />}
       </Sheet>
-      <Sheet title="Add workspace" visible={!!editing} onClose={() => !addingWorkspace && setEditing(undefined)}>
+      <Sheet
+        title="Add workspace"
+        visible={!!editing}
+        scroll={false}
+        onClose={() => !addingWorkspace && setEditing(undefined)}
+      >
         {editing && (
           <AddWorkspace project={editing} onBusy={setAddingWorkspace} onSaved={() => setEditing(undefined)} />
         )}

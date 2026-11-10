@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ScrollView } from "react-native";
+import { ScrollView, View } from "react-native";
 import { Overlay } from "./Overlay";
 import { SheetDragArea } from "./SheetDragArea";
 import { ContentInsets, PaneInsets } from "./ScreenFrame";
@@ -13,26 +13,32 @@ export function SheetSurface({
   label,
   header,
   children,
+  scroll = true,
 }: {
   visible: boolean;
   onClose: () => void;
   label: string;
   header: ReactNode;
   children: ReactNode;
+  scroll?: boolean;
 }) {
   return (
     <Overlay visible={visible} onClose={onClose} label={label} fullHeight>
       <PaneInsets.Provider value={contentInsets}>
         <ContentInsets.Provider value={contentInsets}>
           <SheetDragArea>{header}</SheetDragArea>
-          <ScrollView
-            keyboardShouldPersistTaps="handled"
-            contentInsetAdjustmentBehavior="never"
-            automaticallyAdjustContentInsets={false}
-            contentContainerStyle={{ padding: 20, gap: 16, width: "100%", maxWidth: 600, alignSelf: "center" }}
-          >
-            {children}
-          </ScrollView>
+          {scroll ? (
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              contentInsetAdjustmentBehavior="never"
+              automaticallyAdjustContentInsets={false}
+              contentContainerStyle={{ padding: 20, gap: 16, width: "100%", maxWidth: 600, alignSelf: "center" }}
+            >
+              {children}
+            </ScrollView>
+          ) : (
+            <View style={{ flex: 1, minHeight: 0 }}>{children}</View>
+          )}
         </ContentInsets.Provider>
       </PaneInsets.Provider>
     </Overlay>

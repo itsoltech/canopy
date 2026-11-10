@@ -73,6 +73,13 @@ z nazwą certyfikatu. Peer Node w testach jest bundlowany przez
 
 ## Cykl życia połączenia
 
+Capability `workspace_copy_v1` dodaje nietrwałe `Command.workspace_copy` (221)
+i wynik o tym samym numerze: scan/read/prepare/write/finish/cancel/release.
+Potwierdzane porcje 128 KiB, SHA-256 i ograniczenia współbieżności chronią
+strumienie wątków. Komendy i wyniki z plikami omijają outbox i journal.
+`WORKER_LINK_PROTOCOL` i UpdateService nie zmieniają się.
+Kontrakt i bezpieczeństwo: [workspace-copy.md](workspace-copy.md).
+
 Capability `network_route_migration` dodaje `NetworkRoutes` (adresy + pełny pin) i `NetworkRouteStatus`.
 Gateway wysyła trasy po połączeniu, przy zmianie Network access oraz przy heartbeat; starsze workery
 nie dostają tych ramek. `WorkerLinkService.ProbeNetworkRoute` sprawdza credential i zgodność worker_id

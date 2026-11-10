@@ -12,6 +12,7 @@ export async function workspaceWorker(
   gateway: Awaited<ReturnType<typeof startTestGateway>>,
   dir: string,
   name = "Second worker",
+  copy = true,
 ) {
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "auth.json"), JSON.stringify({ tokens: { access_token: "fixture" } }));
@@ -47,7 +48,13 @@ export async function workspaceWorker(
       workerId: worker.workerId,
       host: { os: process.platform },
       homeDirectory: dir,
-      capabilities: ["workspace_origin", "workspace_clone_source", "project_sources", "worktrees"],
+      capabilities: [
+        "workspace_origin",
+        "workspace_clone_source",
+        "project_sources",
+        "worktrees",
+        ...(copy ? ["workspace_copy_v1"] : []),
+      ],
       ...(await runtime.runPromise(journalHello())),
     },
   });
