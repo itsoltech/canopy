@@ -4,6 +4,7 @@ import { ui } from "@canopy/contracts";
 import { gt, valid } from "semver";
 import { createHash } from "node:crypto";
 import type { DesktopUpdateStatus } from "@canopy/ui/desktop";
+import { UpdateInstallError } from "./update-install.ts";
 
 export interface RemoteUpdateBoundary {
   status(): DesktopUpdateStatus;
@@ -225,8 +226,12 @@ export class RemoteAppUpdate {
       await this.publish().catch(() => {});
       this.stop();
       this.boundary.restart();
-    } catch {
-      await this.fail("Could not confirm the desktop worker is idle. Retry the update.");
+    } catch (error) {
+      await this.fail(
+        error instanceof UpdateInstallError
+          ? error.message
+          : "Could not confirm the desktop worker is idle. Retry the update.",
+      );
     } finally {
       this.polling = false;
     }

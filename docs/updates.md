@@ -242,6 +242,21 @@ pracy przez własnego workera i czeka na zakończenie tur, generacji i zadań w 
 Workers pokazuje „Will restart after the current turns”; **Restart now…** otwiera
 potwierdzenie przerwania pracy. Force wymaga id tego samego oczekującego żądania.
 Restart instaluje cały bundle, uruchamia aplikację i odtwarza połączenie.
+Na Windows aktualizacja lokalna oraz zlecona przez gateway lub połączony komputer
+korzystają z tego samego cichego instalatora NSIS: bez kreatora i kliknięć użytkownika,
+z automatycznym ponownym uruchomieniem Canopy oraz usług. Instalacja dla bieżącego
+użytkownika zachowuje wybrany wcześniej katalog i nie wymaga UAC. Pierwsza instalacja
+nadal używa kreatora z wyborem katalogu.
+
+Instalacje dla wszystkich użytkowników (np. w Program Files) mogą wymagać zgody
+administratora nawet przy `/S`. Przed zatrzymaniem usług desktop odrzuca aktualizację,
+jeśli wykryje maszynowy wpis NSIS, `isAdminRightsRequired` pobranej paczki lub brak
+zapisu w katalogu aplikacji. Lokalnie pokazuje komunikat, a zdalnie raportuje `failed`
+z przyczyną i zaleceniem instalacji dla bieżącego użytkownika. Nie uruchamia instalatora
+czekającego na UAC. Taką instalację trzeba zaktualizować ręcznie z uprawnieniami
+administratora albo zastąpić instalacją dla bieżącego użytkownika. Nieudany odczyt
+uprawnień także blokuje restart; działające usługi pozostają dostępne.
+
 Jeżeli podczas oczekiwania na idle pobrano nowszą paczkę, desktop przed restartem
 kończy bieżące sprawdzanie/pobieranie, blokuje następne i raportuje faktyczny cel instalacji.
 Poświadczenie workera pozostaje osobne; worker nigdy nie wymienia sidecarów.
@@ -259,7 +274,9 @@ zdalne odtwarzanie, zachowując plik i możliwość uruchomienia aplikacji.
 Tryb lokalny nie otwiera tego strumienia; połączone komputery używają osobnego kanału
 aplikacji z dołączonym gatewayem ([niżej](#połączone-komputery)).
 `canopy.update.v1` nie zmienia się. Integracja gateway ↔ desktop zastępuje updater
-na jego granicy; rzeczywisty podpis, instalację i restart trzeba sprawdzić na macOS.
+na jego granicy; rzeczywisty podpis, instalację i restart trzeba sprawdzić na macOS
+oraz Windows. Po ponownym uruchomieniu Windows ten sam journal zgłasza nową wersję
+i `succeeded`, jeżeli odpowiada zapisanemu celowi.
 
 Gateway i worker używają jednej wersji aplikacji z `CANOPY_VERSION` (wstrzykiwanej
 podczas kompilacji; bez niej `0.0.0-dev`). `--version` wypisuje tę wersję bez

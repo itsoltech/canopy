@@ -35,6 +35,7 @@ interface Options {
   changed(): void;
   checking?(): void;
   downloaded(): void;
+  beforeInstall?(): void;
 }
 
 /** Owns a serialized check/download and a single, non-persistent downgrade grant. */
@@ -203,7 +204,20 @@ export class UpdateController {
     this.installing = true;
     await this.operation;
 
-    if (this.state.phase === "downloaded" && this.state.stagedVersion) return true;
+    if (this.state.phase === "downloaded" && this.state.stagedVersion) {
+      try {
+        this.options.beforeInstall?.();
+
+        return true;
+      } catch (error) {
+        this.installing = false;
+        this.publish({
+          error: error instanceof Error ? error.message : "Could not prepare the app update. Retry on this computer.",
+        });
+        throw error;
+      }
+    }
+
     this.installing = false;
 
     return false;

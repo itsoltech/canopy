@@ -1,5 +1,6 @@
 import { app, dialog, Notification, powerMonitor, type MenuItemConstructorOptions } from "electron";
-import { createAppUpdater } from "./app-updater.ts";
+import { checkAppUpdateInstall, createAppUpdater } from "./app-updater.ts";
+import { installAppUpdate } from "./update-install.ts";
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { desktopIdentity, type DesktopChannel } from "./identity.ts";
@@ -76,6 +77,7 @@ export class DesktopUpdates {
         prepare: (channel, downgrade, signal) => this.prepare(channel, downgrade, signal),
         changed: this.changed,
         checking: () => this.schedule.save(this.schedule.minutes, Date.now()),
+        beforeInstall: () => checkAppUpdateInstall(this.stagedUpdater),
         downloaded: () => {
           this.stagedUpdater = this.updater;
 
@@ -143,7 +145,14 @@ export class DesktopUpdates {
     return this.status();
   }
   async restartIfReady() {
-    if (await this.prepareRestart()) this.restartPrepared();
+    try {
+      if (await this.prepareRestart()) this.restartPrepared();
+    } catch (error) {
+      dialog.showErrorBox(
+        "Update needs attention",
+        error instanceof Error ? error.message : "Could not prepare the app update. Retry on this computer.",
+      );
+    }
   }
   async prepareRestart() {
     return (await this.control.prepareInstall()) ? this.status() : undefined;
@@ -230,7 +239,7 @@ export class DesktopUpdates {
     this.stagedUpdater.once("error", failed);
 
     try {
-      this.stagedUpdater.quitAndInstall(false, true);
+      installAppUpdate(this.stagedUpdater);
     } catch {
       this.stagedUpdater.removeListener("error", failed);
       failed();
