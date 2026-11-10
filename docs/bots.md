@@ -15,6 +15,13 @@ odsłania po 100 starszych wpisów z już posiadanego snapshotu, zachowując kot
 przewijania. Zmiana stanu na żywo zachowuje zamontowany widok i pozycję historii.
 Wymiany odświeżają przyrost po otwarciu, powrocie do okna i co 5 s widocznego okna.
 
+Wspólna projekcja `domain/bot-chat` scala wiadomości, pytania i zgody w kolejności
+czasu utworzenia **przed** wyborem okna. Dotyczy to także zgód przekazanych
+z wątków uruchomionych przez bota. Rozstrzygnięcie zgody nie zmienia jej miejsca.
+Starsze karty nie mogą wypchnąć nowszych wiadomości użytkownika ani odpowiedzi
+bota i rutyn z początkowego widoku. Samo sortowanie w `layoutChat` jest za późne:
+otrzymuje ono już wybrane okno.
+
 Mobile utrwala oba rodzaje widoków w prywatnym cache aplikacji: osobny od wątków
 budżet 16 widoków / 32 MiB na dysku (8 MiB na wpis), 6 widoków / 16 MiB w pamięci.
 Odczyt dysku poprzedza watch, aby wysłany kursor miał dokładną lokalną bazę. Unpair,

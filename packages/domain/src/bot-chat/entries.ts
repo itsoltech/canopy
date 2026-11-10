@@ -1,6 +1,6 @@
 import { timestampDate, type Timestamp } from "@bufbuild/protobuf/wkt";
 import { Provider, type bots } from "@canopy/contracts";
-import type { ApprovalView, BotView, ChatEntry, QuestionView } from "./model.ts";
+import { entryAt, type ApprovalView, type BotView, type ChatEntry, type QuestionView } from "./model.ts";
 
 /** A bot's chat (bots.BotConversation) as chat entries and participants (model.ts), for every client. */
 
@@ -114,7 +114,8 @@ export function botEntries(snapshot: bots.BotConversation): ChatEntry[] {
       message: { id: `stream:${botId}`, at: dateOf(last?.createdAt), senderId: botId, text: snapshot.streamingText },
     });
 
-  return entries;
+  // Clients select the latest window before layoutChat runs. Cards arrive separately from messages.
+  return entries.sort((a, b) => entryAt(a).getTime() - entryAt(b).getTime());
 }
 
 function questionView(a: bots.BotApproval): QuestionView {
