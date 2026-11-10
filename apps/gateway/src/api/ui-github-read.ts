@@ -4,6 +4,7 @@ import { readScope } from "../github/read-scope.ts";
 import { timeline } from "../github/timeline-query.ts";
 import { reviewThreads } from "../github/review-threads.ts";
 import { reviewDraft } from "../github/review-draft.ts";
+import { metadataPage } from "../github/metadata.ts";
 import { checks, jobs } from "../github/checks.ts";
 import { jobLog } from "../github/job-logs.ts";
 import { commits, files, diff } from "../github/files.ts";
@@ -19,6 +20,7 @@ export function githubReadHandlers(
   | "listPullRequestTimeline"
   | "listPullRequestReviewThreads"
   | "getPullRequestReviewDraft"
+  | "getPullRequestMetadata"
   | "listPullRequestChecks"
   | "listPullRequestCheckJobs"
   | "getPullRequestJobLog"
@@ -44,6 +46,7 @@ export function githubReadHandlers(
     listPullRequestTimeline: (r) => read(r, "timeline", timeline),
     listPullRequestReviewThreads: (r) => read(r, "reviews", reviewThreads),
     getPullRequestReviewDraft: (r) => read(r, "pending", reviewDraft),
+    getPullRequestMetadata: (r) => read(r, "metadata", metadataPage),
     listPullRequestChecks: (r) => read(r, "checks", checks),
     listPullRequestCheckJobs: (r) => read(r, "jobs", jobs),
     getPullRequestJobLog: (r) => read(r, "log", jobLog),

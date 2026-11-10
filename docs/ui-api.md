@@ -181,6 +181,11 @@ od widoczności UI; restart gatewaya wznawia bezpiecznie niewygasłe próby. Wyb
 otrzymuje żądania przez bezpośrednie łącze `github_accounts_v1`, bez synchronizacji sekretów.
 Inline `ConnectGitHub` zgłasza sukces tylko do odświeżenia odczytu, bez wykonania mutacji.
 Disconnect usuwa lokalne poświadczenia; pełne revoke użytkownik wykonuje na GitHub.
+Edycja metadanych PR korzysta z `GetPullRequestMetadata`, `UpdatePullRequestDetails`,
+`RequestPullRequestReviewers`, `SetPullRequestAssignees` i `SetPullRequestLabels` oraz capability
+`github_pr_metadata_v1`. Klient wysyła rewizję i ID, nigdy endpoint ani poświadczenie.
+Każda zmiana wymaga Apply; konflikt pokazuje porównanie i odświeżenie, a wynik uncertain
+nie jest odtwarzany po utracie połączenia. Odczyt i zapis podlegają owner-scoping domu PR.
 Szczegóły i zakres kolejnych etapów: [GitHub](github.md).
 
 ## Connectors

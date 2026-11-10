@@ -8,7 +8,8 @@ i Viewed synchronizowane z GitHub, ze wspólnym preflightem, receiptami i audyte
 Etap 6 dodaje inline comments i zakresy LEFT/RIGHT, pending review ze wszystkimi
 trzema werdyktami oraz resolve/unresolve. Etap 7 dodaje tworzenie PR z gałęzi wątku,
 ready/draft, merge trzema metodami, kolejkę scalania, auto-merge, update branch i close/reopen.
-Pozostałe zapisy pozostają zakresem etapów 8–9.
+Etap 8 dodaje edycję tytułu/opisu, reviewerów (osoby i zespoły), assignees i istniejących labels.
+Sterowanie CI pozostaje zakresem etapu 9.
 Decyzje ustalone po przeglądzie: oficjalna GitHub App Canopy organizacji `itsoltech`, device flow,
 wygasające tokeny użytkownika w domu wątku, pełny zakres zapisów opisany poniżej i Viewed
 synchronizowane z GitHub. Implementacja jako jeden stos PR według §11.
@@ -546,6 +547,22 @@ związanego z klientem, kontem, pełnym head/base SHA i parametrami. Enqueue, up
 i enable auto-merge pokazują przyjęcie zlecenia, a ich wynik odświeża zwykły odczyt GitHub.
 
 ## 6. Proto i API UI
+
+Metadane negocjują `github_pr_metadata_v1`. `GetPullRequestMetadata` zwraca świeżą rewizję
+tytułu/opisu oraz pełnych zbiorów przypisań i stronicowany katalog wyboru. Request/re-request/remove
+używa osobnych ID użytkowników i zespołów; gateway sprawdza repozytorium etykiety, organizację
+i dostęp zespołu do repo oraz przynależność osoby. Autor PR jest wykluczony z reviewerów.
+Brak Members: read ogranicza katalog do współpracowników repo i pokazuje przyczynę w pickerze.
+Assignees i labels wymagają Issues: write. Nie ma tworzenia etykiet ani zapisów workera/bota.
+
+Wszystkie edytory web/desktop/mobile mają jawne **Apply**, lokalny szkic, optymistyczną prezentację
+i rollback. Preflight porównuje rewizję z bieżącym odczytem; konflikt zachowuje szkic i pokazuje
+zmieniony fragment obok wersji GitHub, z jawnym **Refresh fields**. Zapis REST jest pojedynczy,
+bez retry, a odczyt po zapisie sprawdza wynik. GitHub nie udostępnia atomowego compare-and-swap
+dla tych pól; preflight ogranicza okno wyścigu, ale go nie usuwa. Rozbieżność po zapisie lub utrata
+odpowiedzi pozostaje `uncertain`, bez automatycznego ponowienia. Receipty i audyt wykorzystują
+istniejący store; parametr strukturalny zawiera rewizję/ID/tryb review, bez tytułu/opisu i sekretów.
+Etap nie dodaje migracji.
 
 Rozszerzamy istniejący **`canopy.ui.v1.GatewayService`**, z wiadomościami w nowym
 `proto/canopy/ui/v1/github.proto`. To domena w istniejącej usłudze, nie drugi serwer API.

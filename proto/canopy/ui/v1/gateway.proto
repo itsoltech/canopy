@@ -60,6 +60,11 @@ service GatewayService {
   rpc SetPullRequestAutoMerge(PullRequestMutationRequest) returns (PullRequestMutationReceipt);
   rpc UpdatePullRequestBranch(PullRequestMutationRequest) returns (PullRequestMutationReceipt);
   rpc SetPullRequestOpen(PullRequestMutationRequest) returns (PullRequestMutationReceipt);
+  rpc GetPullRequestMetadata(PullRequestPageRequest) returns (PullRequestMetadataPage);
+  rpc UpdatePullRequestDetails(PullRequestMutationRequest) returns (PullRequestMutationReceipt);
+  rpc RequestPullRequestReviewers(PullRequestMutationRequest) returns (PullRequestMutationReceipt);
+  rpc SetPullRequestAssignees(PullRequestMutationRequest) returns (PullRequestMutationReceipt);
+  rpc SetPullRequestLabels(PullRequestMutationRequest) returns (PullRequestMutationReceipt);
   rpc GetGitHubUpdateAccount(GitHubAccountsRequest) returns (GitHubUpdateAccountResponse);
   rpc SetGitHubUpdateAccount(GitHubUpdateAccountRequest) returns (GitHubUpdateAccountResponse);
   rpc ListGitHubAccounts(GitHubAccountsRequest) returns (GitHubAccountsResponse);

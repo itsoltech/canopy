@@ -63,6 +63,10 @@ export async function githubMutation(
       "auto-merge",
       "update-branch",
       "set-open",
+      "update-details",
+      "request-reviewers",
+      "set-assignees",
+      "set-labels",
     ].includes(operation)
   )
     return undefined;
@@ -70,6 +74,14 @@ export async function githubMutation(
 
   async function run() {
     switch (operation) {
+      case "update-details":
+        return api.updatePullRequestDetails(r, options);
+      case "request-reviewers":
+        return api.requestPullRequestReviewers(r, options);
+      case "set-assignees":
+        return api.setPullRequestAssignees(r, options);
+      case "set-labels":
+        return api.setPullRequestLabels(r, options);
       case "create-pr":
         return api.createPullRequest(r, options);
       case "set-draft":

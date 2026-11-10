@@ -5,6 +5,7 @@ import type { github } from "@canopy/contracts";
 import { reviewParameters } from "./review-mutation.ts";
 import { lifecycleParameters } from "./lifecycle.ts";
 import { githubCreateStore } from "./store-create.ts";
+import { metadataParameters } from "./metadata-mutation.ts";
 
 export interface MutationRow {
   owner_user_id: string;
@@ -30,7 +31,9 @@ export interface MutationRow {
   upstream_id: string;
   detail: string;
   viewer_viewed_state: string;
-  parameters: ReturnType<typeof reviewParameters> & ReturnType<typeof lifecycleParameters>;
+  parameters: ReturnType<typeof reviewParameters> &
+    ReturnType<typeof lifecycleParameters> &
+    ReturnType<typeof metadataParameters>;
 }
 
 export const uncertainDetail = "Couldn't confirm. Check on GitHub";
@@ -84,7 +87,7 @@ export function githubMutationsStore(sql: SqlClient.SqlClient) {
           (owner_user_id,request_id,account_id,pull_request_id,client_binding,fingerprint,action,access_revision,mapping_revision,
           head_sha,expected_state,resource_id,path,confirmation_id,parameters)
           VALUES (${owner}::uuid,${r.clientRequestId}::uuid,${r.accountId}::uuid,${r.pullRequestId}::uuid,${client},${fingerprint},
-          ${r.action},${r.accessRevision}::bigint,${mapping}::bigint,${r.headSha},${r.expectedState},${r.resourceId},${r.path},${Bun.randomUUIDv7()}::uuid,${JSON.stringify({ ...reviewParameters(r), ...lifecycleParameters(r) })}::jsonb)
+          ${r.action},${r.accessRevision}::bigint,${mapping}::bigint,${r.headSha},${r.expectedState},${r.resourceId},${r.path},${Bun.randomUUIDv7()}::uuid,${JSON.stringify({ ...reviewParameters(r), ...lifecycleParameters(r), ...metadataParameters(r) })}::jsonb)
           ON CONFLICT DO NOTHING RETURNING *`;
 
           if (rows[0]) yield* audit(rows[0], "prepared");

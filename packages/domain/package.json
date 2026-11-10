@@ -9,6 +9,7 @@
     "./github-read": "./src/github-read.ts",
     "./github-watch": "./src/github-watch.ts",
     "./github-mutations": "./src/github-mutations.ts",
+    "./github-metadata": "./src/github-metadata.ts",
     "./github-review": "./src/github-review.ts",
     "./github-lifecycle": "./src/github-lifecycle.ts",
     "./github-lifecycle-display": "./src/github-lifecycle-display.ts",

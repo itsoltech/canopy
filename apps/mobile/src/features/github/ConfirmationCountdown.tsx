@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Text, View } from "react-native";
+import { Text } from "react-native";
 import { timestampDate, type Timestamp } from "@bufbuild/protobuf/wkt";
 import { useColors, useTypography } from "../../ui/theme";
 
@@ -18,16 +18,8 @@ export function ConfirmationCountdown({ expiresAt }: { expiresAt?: Timestamp }) 
   }, []);
 
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-      <Text style={[type.meta, { flex: 1, color: c.muted }]}>
-        {remaining ? "Confirm within 60 s" : "Confirmation expired"}
-      </Text>
-      <Text
-        accessible={false}
-        style={[type.meta, { width: 44, color: c.muted, textAlign: "right", fontVariant: ["tabular-nums"] }]}
-      >
-        {remaining} s
-      </Text>
-    </View>
+    <Text style={[type.meta, { minHeight: 20, minWidth: 160, color: c.muted, fontVariant: ["tabular-nums"] }]}>
+      {remaining ? `Confirm within ${remaining} s` : "Confirmation expired"}
+    </Text>
   );
 }

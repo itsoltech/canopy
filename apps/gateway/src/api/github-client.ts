@@ -53,6 +53,10 @@ export function bindGitHubRequest(method: DescMethod, request: Message, context:
       "SetPullRequestAutoMerge",
       "UpdatePullRequestBranch",
       "SetPullRequestOpen",
+      "UpdatePullRequestDetails",
+      "RequestPullRequestReviewers",
+      "SetPullRequestAssignees",
+      "SetPullRequestLabels",
     ].includes(method.name)
   )
     return;

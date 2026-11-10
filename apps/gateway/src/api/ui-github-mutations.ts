@@ -30,6 +30,10 @@ export function githubMutationHandlers(
   | "setPullRequestAutoMerge"
   | "updatePullRequestBranch"
   | "setPullRequestOpen"
+  | "updatePullRequestDetails"
+  | "requestPullRequestReviewers"
+  | "setPullRequestAssignees"
+  | "setPullRequestLabels"
 > {
   const action =
     (expected: string) =>
@@ -74,6 +78,10 @@ export function githubMutationHandlers(
     setPullRequestAutoMerge: action("auto_merge"),
     updatePullRequestBranch: action("update_branch"),
     setPullRequestOpen: action("set_open"),
+    updatePullRequestDetails: action("update_details"),
+    requestPullRequestReviewers: action("request_reviewers"),
+    setPullRequestAssignees: action("set_assignees"),
+    setPullRequestLabels: action("set_labels"),
     createPullRequestComment: action("create_comment"),
     replyPullRequestReviewThread: action("reply"),
     updatePullRequestComment: action("update_comment"),

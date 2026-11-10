@@ -5,9 +5,13 @@ import { PullRequestLabels } from "./PullRequestLabels";
 import { PullRequestPeople } from "./PullRequestPeople";
 import { Markdown } from "../../ui/markdown/Markdown";
 import { useColors, useTypography } from "../../ui/theme";
+import { useState } from "react";
+import { MetadataEdit } from "./MetadataEdit";
 
 export function PullRequestSummary({ snapshot }: { snapshot: github.PullRequestSnapshot }) {
   const c = useColors();
+  const [metadata, setMetadata] = useState<github.PullRequestMetadata>();
+  const body = metadata?.body ?? snapshot.body;
   const type = useTypography();
 
   return (
@@ -19,8 +23,9 @@ export function PullRequestSummary({ snapshot }: { snapshot: github.PullRequestS
         <Text accessibilityRole="header" style={[type.meta, { color: c.muted }]}>
           Description
         </Text>
-        {snapshot.body ? (
-          <Markdown text={snapshot.body} />
+        <MetadataEdit snapshot={snapshot} kind="description" onDisplay={setMetadata} />
+        {body ? (
+          <Markdown text={body} />
         ) : (
           <Text style={[type.small, { color: c.muted }]}>No description provided</Text>
         )}

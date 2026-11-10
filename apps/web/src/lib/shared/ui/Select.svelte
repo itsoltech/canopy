@@ -218,7 +218,7 @@
         onkeydown={keyboard}
         text={selected?.label ?? placeholder}
         leadingIcon={selected?.icon}
-        icon="chevron-up-down"
+        icon={inline ? "chevron-down" : "chevron-up-down"}
       />
     {/snippet}
     <ul
