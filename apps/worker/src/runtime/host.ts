@@ -326,6 +326,7 @@ export class WorkerHost {
         ...(output.importedSessionId && { importedSessionId: output.importedSessionId }),
         ...(output.importLibraryContent && { importLibraryContent: output.importLibraryContent }),
         ...(output.importSecret && { importSecret: output.importSecret }),
+        ...(output.file && { file: output.file }),
       };
 
       if (!NOT_REMEMBERED.has(command.kind.case)) await this.#remember(result);
