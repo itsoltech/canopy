@@ -68,7 +68,6 @@ export const SERVED = new Set([
   "CleanupWorktrees",
   "RemoveWorktree",
   "RevealWorktree",
-  "RevealThreadDirectory",
   "WatchThreadMirror",
   "WatchConfig",
   "GetConfigBlob",

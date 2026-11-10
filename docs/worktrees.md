@@ -271,7 +271,10 @@ gdzie indziej decyduje kod wyjścia openera.
 otwiera tak samo katalog wątku: `RevealThreadDirectory` sprawdza właściciela i aktywny wątek, a gateway
 wysyła nietrwałą komendę `RevealPath` (capability `reveal_path`) z `threads.cwd`; worker wymaga
 bezwzględnego, istniejącego katalogu. Starszy worker dostaje prośbę o aktualizację, offline — o połączenie.
-Wątek połączonego komputera otwiera folder na komputerze swojego domu.
+Akcja jest widoczna tylko wtedy, gdy folder leży na komputerze, który go pokazuje: aplikacja desktop ma własny
+gateway (tryb lokalny), wątek nie pochodzi z połączonego komputera, a jego worker to wbudowany worker
+aplikacji (`Worker.desktop_bundled`). Inaczej folder otworzyłby się na innej maszynie. Gateway nie przekazuje
+`RevealThreadDirectory` połączonym komputerom.
 
 ## Nazwy gałęzi
 

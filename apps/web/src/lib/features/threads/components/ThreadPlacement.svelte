@@ -7,6 +7,8 @@
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import { toast } from "#lib/shared/ui/toast.svelte.ts";
   import { revealThreadDirectory } from "../api.ts";
+  import { onThisComputer } from "../thread-actions.ts";
+  import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
   import TruncatedText from "#lib/shared/ui/TruncatedText.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
@@ -24,7 +26,12 @@
   const path = $derived(placementPath(thread.cwd, worker?.homeDirectory));
   let revealing = $state(false);
 
-  /** The worker's computer opens the directory in its file manager. */
+  const capabilities = useGatewayCapabilities();
+
+  // Only a folder on this computer opens here; another machine's would open on that machine.
+  const local = $derived(onThisComputer(thread, worker, capabilities?.ownGateway ?? false));
+
+  /** This computer's file manager opens the directory. */
   async function reveal() {
     revealing = true;
 
@@ -55,7 +62,13 @@
       <div
         class="flex shrink-0 items-center pointer-fine:opacity-0 pointer-fine:group-focus-within/path:opacity-100 pointer-fine:group-hover/path:opacity-100"
       >
-        <IconButton icon="folder-open" label="Open folder" size="sm" loading={revealing} onclick={reveal} />
+        {#if local}<IconButton
+            icon="folder-open"
+            label="Open folder"
+            size="sm"
+            loading={revealing}
+            onclick={reveal}
+          />{/if}
         <CopyButton text={thread.cwd} label="Copy working directory" />
       </div>
     {/snippet}

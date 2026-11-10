@@ -30,6 +30,8 @@ export function threadActions(
   pinned: boolean,
   readOnly = false,
   linkedComputers = false,
+  /** The thread's folder is on the computer showing it (onThisComputer): only then can it open there. */
+  local = false,
 ): ThreadAction[] {
   if (thread.deletedAt) return [];
   const archived = thread.status === "archived";
@@ -52,8 +54,10 @@ export function threadActions(
       icon: "chat-bubble-left",
       group: 1,
     },
-    // The worker's computer opens the thread's directory (worktree or checkout) in its file manager.
-    ...(thread.cwd ? [{ id: "reveal" as const, label: "Open folder", icon: "folder" as const, group: 2 }] : []),
+    // This computer's file manager opens the thread's directory (worktree or checkout).
+    ...(local && thread.cwd
+      ? [{ id: "reveal" as const, label: "Open folder", icon: "folder" as const, group: 2 }]
+      : []),
     { id: "filter", label: `Filter by ${projectName}`, icon: "bars-3", group: 2 },
     { id: "settings", label: "Project settings", icon: "cog-6-tooth", group: 2 },
     // Stage 8: only this computer's own main threads; side threads move with their parent.
@@ -71,3 +75,11 @@ export function threadActions(
 
   return readOnly ? actions.map((action) => ({ ...action, disabled: true })) : actions;
 }
+
+/**
+ * The thread's folder and files are on the computer showing it: the desktop app runs its own gateway (local
+ * mode) and the thread's worker is that app's bundled worker. A linked computer's thread, another enrolled
+ * worker or a browser elsewhere would open the folder on a different machine.
+ */
+export const onThisComputer = (thread: ui.Thread, worker: ui.Worker | undefined, ownGateway: boolean): boolean =>
+  ownGateway && !thread.nodeId && worker?.desktopBundled === true && !worker.nodeId;

@@ -32,6 +32,7 @@ interface WorkerListRow {
     workspaceCopy?: boolean;
     cliImport?: boolean;
     branchSwitch?: boolean;
+    desktopBundled?: boolean;
   };
   last_seen_at: Date | null;
   revoked_at: Date | null;
@@ -66,6 +67,7 @@ function listedWorker(r: WorkerListRow, online: ReadonlySet<string>) {
     workspaceCopy: r.capabilities?.workspaceCopy === true,
     cliImport: r.capabilities?.cliImport === true,
     branchSwitch: r.capabilities?.branchSwitch === true,
+    desktopBundled: r.capabilities?.desktopBundled === true,
     configVersion: r.config_version ? BigInt(r.config_version) : 0n,
     appliedVersion: r.applied_version ? BigInt(r.applied_version) : 0n,
     configIssues: report?.issues ?? [],
