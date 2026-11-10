@@ -66,6 +66,7 @@ function endFields(status: string | undefined, finished: TurnFinished) {
 
 export class ThreadState {
   #snapshot: ui.ThreadSnapshot | undefined;
+  readonly #entryPositions = new Map<string, number>();
   readonly history = new ThreadHistory(
     this,
     () => this.#snapshot,
@@ -193,6 +194,10 @@ export class ThreadState {
               ]
             : [];
         });
+        this.#entryPositions.clear();
+        this.entries.forEach((entry, index) => {
+          if (!entry.inherited && !this.#entryPositions.has(entry.id)) this.#entryPositions.set(entry.id, index);
+        });
         this.notices = snapshot.notices.flatMap((n) =>
           n.notice ? [{ seq: n.seq, turnId: n.turnId, notice: n.notice, at: n.occurredAt }] : [],
         );
@@ -317,7 +322,7 @@ export class ThreadState {
 
     if (!id) return;
     // Live events are the thread's own; an inherited item may share its id with the source's copy.
-    const index = this.entries.findIndex((e) => e.id === id && !e.inherited);
+    const index = this.#entryPositions.get(id) ?? -1;
     const next = reduceItem(index >= 0 ? this.entries[index]?.item : undefined, body);
 
     if (!next) return;
@@ -340,7 +345,11 @@ export class ThreadState {
           : previous?.completedAt,
     };
 
-    this.entries = index >= 0 ? this.entries.with(index, entry) : [...this.entries, entry];
+    if (index >= 0) this.entries = this.entries.with(index, entry);
+    else {
+      this.#entryPositions.set(id, this.entries.length);
+      this.entries = [...this.entries, entry];
+    }
   }
 
   /**

@@ -86,6 +86,14 @@ wiarygodnie odtworzyć z samej liczby zdarzeń `Animation` w cudzym śladzie.
 
 ### Strumieniowanie osi czasu
 
+- Wyszukiwanie itemu po id w reducerze i `ThreadState` korzysta z indeksu pozycji,
+  nie z liniowego `findIndex` przy każdej delcie. Dopisanie aktualizuje jeden wpis;
+  snapshot, prepend historii, usunięcie lub zmiana kolejności odbudowują indeks.
+  Item odziedziczony nie zajmuje klucza itemu własnego o tym samym id. Indeks jest
+  pomocniczy i nie trafia do snapshotu ani protokołu. Przy rozgałęzieniu redukcji
+  ze starszego snapshotu nie wolno użyć mapy rozszerzonej przez nowszą gałąź.
+  Kopiowanie tablicy i dalsze projekcje nadal mają koszt liniowy — sam lookup O(1)
+  nie oznacza stałego kosztu całego handlera.
 - Wyjście tekstowe dziel na niezmienne fragmenty zakończone pełną linią.
   `CodeBlock` utrzymuje grupy po 32 linie; dopisanie zmienia tylko ostatnią grupę
   lub dodaje nową. Fragmenty zachowują dokładną konkatenację tekstu, tabulatory,
@@ -109,6 +117,11 @@ wiarygodnie odtworzyć z samej liczby zdarzeń `Animation` w cudzym śladzie.
   którego rodzic potrzebuje wysokości treści. Zachowaj obserwator wzrostu i semantykę
   intencji czytelnika: każde porównanie obejmuje odstęp od końca i dryf kotwicy.
   `content-visibility` z przybliżoną wysokością nie zastępuje tych sprawdzeń.
+- `Paint` korzenia `#document` z clipem viewportu nie wskazuje źródła invalidacji
+  ani nie dowodzi odmalowania każdego piksela. Nie sumuj zagnieżdżonych czasów
+  węzłów z czasem korzenia. Analizuj też `PrePaint`, `Layerize` i `Commit` oraz
+  inne panele na tej samej stronie, zanim dodasz warstwy lub kolejne ograniczenia
+  paint w osi czasu. Koszt obserwacji widoczności też należy do budżetu klatki.
 - Porównuj co najmniej trzy naprzemienne pary przed/po, po dwie minuty każda,
   z identycznym fixture i przypisaniem CPU. Na współdzielonym hoście rejestruj
   `/proc/loadavg` i `vmstat` przed próbą oraz przez całe nagranie. Odrzuć i powtórz
