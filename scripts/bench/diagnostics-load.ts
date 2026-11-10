@@ -11,35 +11,29 @@ export type DiagnosticsPhase =
   | "pool_contention";
 
 /** Fixed offered load with actual gRPC cancellation, reconnects and backpressured watches. */
-export async function diagnosticsLoad(
+export async function diagnosticsLoad<Measurement>(
   api: Client<typeof ui.GatewayService>,
   thread: string,
   phase: DiagnosticsPhase,
   duration: number,
   reconnect: () => Promise<object>,
   sample: () => Promise<object>,
+  begin: () => Promise<Measurement>,
 ) {
   const latencies: number[] = [];
   const workload = { updates: 0, overviewReads: 0, detailReads: 0, reconnects: 0, openedWatches: 0 };
+  const abort = new AbortController();
+  const { watches, watchOpenP95Ms } = await warmWatches(api, thread, phase, abort.signal);
+  workload.openedWatches += watches.length;
+  const measurement = await begin();
   const until = performance.now() + duration;
 
   if (phase === "idle") {
     while (performance.now() < until) await Bun.sleep(Math.max(0, Math.min(1000, until - performance.now())));
 
-    return { latencies, ...workload };
+    return { latencies, measurement, watchOpenP95Ms, ...workload };
   }
 
-  const abort = new AbortController();
-
-  const watches =
-    phase === "slow_reader"
-      ? Array.from({ length: 8 }, () =>
-          api.watchThread({ threadId: thread }, { signal: abort.signal })[Symbol.asyncIterator](),
-        )
-      : [];
-
-  await Promise.all(watches.map((watch) => watch.next()));
-  workload.openedWatches += watches.length;
   let changes = 0;
 
   const extra = (async () => {
@@ -112,5 +106,32 @@ export async function diagnosticsLoad(
     await Promise.all(watches.map((watch) => watch.return?.().catch(() => undefined)));
   }
 
-  return { latencies, ...workload };
+  return { latencies, measurement, watchOpenP95Ms, ...workload };
+}
+
+/** Exclude initial transcript transfer and its warm-up from the steady offered-load interval. */
+async function warmWatches(
+  api: Client<typeof ui.GatewayService>,
+  thread: string,
+  phase: DiagnosticsPhase,
+  signal: AbortSignal,
+) {
+  const watches =
+    phase === "slow_reader"
+      ? Array.from({ length: 8 }, () => api.watchThread({ threadId: thread }, { signal })[Symbol.asyncIterator]())
+      : [];
+
+  const opening: number[] = [];
+  await Promise.all(
+    watches.map(async (watch) => {
+      const start = performance.now();
+      await watch.next();
+      opening.push(performance.now() - start);
+    }),
+  );
+  opening.sort((a, b) => a - b);
+
+  if (watches.length) await Bun.sleep(5000);
+
+  return { watches, watchOpenP95Ms: opening[Math.max(0, Math.ceil(opening.length * 0.95) - 1)] ?? null };
 }

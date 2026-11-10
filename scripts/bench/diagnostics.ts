@@ -127,19 +127,26 @@ async function run(on: boolean, index: number) {
           : ["idle", "steady"];
 
   for (const phase of phases) {
-    await checkpoint(database);
-    const beforePg = await pgCounters();
-    const before = await active.run("begin");
-    await worker.run("begin");
-    const finishContention = await diagnosticsContention(name, database, phase, api, seed.thread);
-
-    const { latencies, ...workload } = await diagnosticsLoad(
+    const {
+      latencies,
+      measurement: { beforePg, before, finishContention },
+      ...workload
+    } = await diagnosticsLoad(
       api,
       seed.thread,
       phase,
       phase === "idle" ? idleMs : loadMs,
       () => worker!.run("reconnect"),
       () => active!.run("sample"),
+      async () => {
+        await checkpoint(database);
+        const beforePg = await pgCounters();
+        const before = await active!.run("begin");
+        await worker!.run("begin");
+        const finishContention = await diagnosticsContention(name, database, phase, api, seed.thread);
+
+        return { beforePg, before, finishContention };
+      },
     );
 
     const contention = await finishContention?.();

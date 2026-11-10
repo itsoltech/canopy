@@ -42,7 +42,15 @@ await core.diagnostics.start();
 const restoreMs = performance.now() - restoredAt;
 const restoredCpu = process.cpuUsage(restoreCpu);
 const restoreCpuMicros = restoredCpu.user + restoredCpu.system;
-const startupPeakRss = process.resourceUsage().maxRSS * 1024;
+
+// Linux rusage can include memory inherited before exec; VmHWM belongs to this process image.
+const startupPeakRss =
+  process.platform === "linux"
+    ? Number((await Bun.file("/proc/self/status").text()).match(/^VmHWM:\s+(\d+)/m)?.[1] ?? 0) * 1024
+    : process.resourceUsage().maxRSS * 1024;
+
+if (!startupPeakRss) throw new Error("Startup RSS high-water mark unavailable");
+
 const maintenance = new DatabaseMaintenance(runtime, owner);
 
 maintenance.start();
