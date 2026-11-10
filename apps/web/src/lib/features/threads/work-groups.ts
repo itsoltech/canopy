@@ -140,8 +140,13 @@ export function foldTurns(
 
   for (const row of rows) if (row.kind === "item") indexTasks(row.node);
   const turns = new Map<string, ui.Turn>();
+  const ends = new Map<string, TimelineRow>();
 
-  for (const row of rows) if (row.kind === "turn-start" || row.kind === "turn-end") turns.set(row.turn.id, row.turn);
+  for (const row of rows) {
+    if (row.kind === "turn-start" || row.kind === "turn-end") turns.set(row.turn.id, row.turn);
+
+    if (row.kind === "turn-end") ends.set(row.turn.id, row);
+  }
 
   const inputs = new Set(
     rows.flatMap((r) => (r.kind === "input" || (r.kind === "item" && r.inputOf) ? [turnIdOf(r)] : [])),
@@ -181,11 +186,6 @@ export function foldTurns(
       out.push({ kind: "row", row, work: false });
 
       if (!fold || (row.kind === "turn-start" && inputs.has(turnId))) continue;
-    } else if (row.kind === "turn-end") {
-      if (placed.has(turnId)) {
-        out.push({ kind: "row", row, work: false });
-        continue;
-      }
     }
 
     if (placed.has(turnId)) continue;
@@ -196,7 +196,10 @@ export function foldTurns(
     for (let index = 0; index < fold.segments.length; index++)
       out.push(...segmentRows(fold, index, isOpen, groupOpen, tasksBySource));
 
-    if (row.kind === "turn-end") out.push({ kind: "row", row, work: false });
+    // The body is grouped here even when old items arrive after a newer turn. Its footer belongs here too.
+    const end = ends.get(turnId);
+
+    if (end) out.push({ kind: "row", row: end, work: false });
   }
 
   return out;

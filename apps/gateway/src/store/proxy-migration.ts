@@ -28,7 +28,7 @@ export function migrateProxies(sql: SqlClient.SqlClient, key: Buffer, fallbackOw
       const id = Bun.randomUUIDv7();
       yield* sql`INSERT INTO proxies (id, owner_user_id, name, kind, base_url, secret_id, fingerprint, codex, worker_scoped)
       VALUES (${id}::uuid, ${owner}::uuid, ${name.slice(0, 80) || "Migrated proxy"}, 'cliproxyapi', ${root}, ${ref?.secretRef ?? null}::uuid,
-        ${fingerprint}, ${JSON.stringify(proxyOptions("cliproxyapi"))}::jsonb, ${workerScoped})`;
+        ${fingerprint}, ${JSON.stringify(proxyOptions())}::jsonb, ${workerScoped})`;
       yield* records.audit(owner, id, "proxy.migrated");
 
       return id;

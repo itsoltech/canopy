@@ -47,6 +47,7 @@
     "./import-url": "./src/import-url.ts",
     "./import-name": "./src/import-name.ts",
     "./notice-preview": "./src/notice-preview.ts",
+    "./notice-presentation": "./src/notice-presentation.ts",
     "./oauth-return": "./src/oauth-return.ts",
     "./agent-environment": "./src/agent-environment.ts",
     "./skill-artifact": "./src/skill-artifact.ts",

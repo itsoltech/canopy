@@ -32,7 +32,7 @@
   let baseUrl = $state(untrack(() => proxy?.baseUrl ?? ""));
   let secret = $state("");
   let action = $state<KeyAction>(untrack(() => (proxy?.secretSet ? "keep" : "replace")));
-  let websockets = $state(untrack(() => proxy?.codex?.supportsWebsockets ?? true));
+  let websockets = $state(untrack(() => proxy?.codex?.supportsWebsockets ?? false));
 
   let headers = $state(
     untrack(() =>
@@ -95,7 +95,7 @@
           () => kind,
           (value) => {
             kind = value;
-            websockets = value === "cliproxyapi";
+            websockets = false;
           }
         }
       /></Field
@@ -129,7 +129,7 @@
           name="proxy-websockets"
           bind:checked={websockets}
           label="Supports WebSockets"
-          description="Enable when the upstream supports Codex Responses over WebSockets."
+          description="Use HTTP streaming unless the proxy supports Codex WebSocket interruptions."
         />
         <Field
           label="Extra headers"

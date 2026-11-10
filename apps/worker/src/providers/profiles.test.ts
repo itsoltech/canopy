@@ -138,6 +138,8 @@ describe("codexAppServerLaunch", () => {
       'model_providers.canopy_cliproxy.env_key="CANOPY_CLIPROXY_API_KEY"',
       "-c",
       "model_providers.canopy_cliproxy.requires_openai_auth=false",
+      "-c",
+      "model_providers.canopy_cliproxy.supports_websockets=false",
     ]);
     expect(launch.env["CANOPY_CLIPROXY_API_KEY"]).toBe("sk-proxy");
     expect(launch.command.join(" ")).not.toContain("sk-proxy");

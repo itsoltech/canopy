@@ -55,6 +55,51 @@ describe.skipIf(!dockerAvailable)("reusable proxies across the gateway and worke
     await gw?.close();
   });
 
+  test("new proxy connections use HTTP streaming unless WebSockets are explicitly enabled", async () => {
+    const saved = (
+      await gw.api.saveProxy({
+        name: "HTTP streaming",
+        kind: "cliproxyapi",
+        baseUrl: "https://stream.example",
+        secret: SECRET,
+      })
+    ).proxy!;
+
+    expect(saved.codex?.supportsWebsockets).toBe(false);
+    await gw.api.saveProviderInstance({
+      harness: Provider.CODEX,
+      id: "http-stream",
+      create: true,
+      label: "HTTP streaming",
+      kind: ProviderProfileKind.CLIPROXYAPI,
+      proxyId: saved.id,
+      allWorkers: true,
+    });
+
+    const wire = await eventually(
+      async () => gw.worker.configs.at(-1)!,
+      (c) => c.profiles.some((p) => p.id === "http-stream"),
+    );
+
+    const applied = applyWorkerConfig(wire, {
+      which: (name) => `/fixture/${name}`,
+      version: () => "1.0.70",
+      realDirectory: (p) => p,
+    });
+
+    if (!applied.applied) throw new Error("Worker rejected HTTP proxy configuration");
+    const profile = applied.config.profiles.find((p) => p.config.id === "http-stream")!.resolved!;
+    expect(codexAppServerLaunch([profile], {}).command).toContain(
+      "model_providers.canopy_http_stream.supports_websockets=false",
+    );
+
+    const updated = (
+      await gw.api.saveProxy({ id: saved.id, name: "Renamed", kind: saved.kind, baseUrl: saved.baseUrl })
+    ).proxy!;
+
+    expect(updated.codex?.supportsWebsockets).toBe(false);
+  });
+
   test("one encrypted proxy resolves to Claude, Codex and Grok mappings without credentials in UI, reports, files or argv", async () => {
     proxy = (
       await gw.api.saveProxy({

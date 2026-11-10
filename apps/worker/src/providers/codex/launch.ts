@@ -60,7 +60,8 @@ export function codexAppServerLaunch(
       // Sent as `Authorization: Bearer $KEY`. The key goes through env, never argv.
       env_key: keyEnv,
       requires_openai_auth: false,
-      ...(profile.codex && { supports_websockets: profile.codex.supportsWebsockets }),
+      // HTTP/SSE avoids proxy control-frame races; WebSockets require an explicit capability choice.
+      supports_websockets: profile.codex?.supportsWebsockets ?? false,
     } satisfies Record<string, string | boolean>;
 
     for (const [key, value] of Object.entries(settings)) {

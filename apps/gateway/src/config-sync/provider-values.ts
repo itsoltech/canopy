@@ -206,7 +206,6 @@ export function proxyColumns(values: Values, current: ProxyRow | undefined) {
     const baseUrl = proxyRoot(String(values["baseUrl"] ?? current?.base_url ?? ""));
 
     const codex: ProxyOptions = proxyOptions(
-      kind,
       values["codex"] === undefined ? current?.codex : codexOptions(values["codex"]),
     );
 

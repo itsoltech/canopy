@@ -217,7 +217,11 @@ export const applySideEffects = (sql: SqlClient.SqlClient, threadId: string, seq
         const status = threadStatus(body.value.status);
 
         if (status)
-          yield* sql`UPDATE threads SET status = ${status} WHERE id = ${threadId}::uuid AND status NOT IN ('archived', 'creating')`;
+          yield* sql`UPDATE threads SET status = ${status}
+            WHERE id = ${threadId}::uuid AND status NOT IN ('archived', 'creating')
+              AND (${status} <> 'idle' OR NOT EXISTS (
+                SELECT 1 FROM turns r WHERE r.thread_id = ${threadId}::uuid AND r.status = 'running'
+              ))`;
 
         return;
       }

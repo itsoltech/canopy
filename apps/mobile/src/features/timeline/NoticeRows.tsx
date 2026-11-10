@@ -1,11 +1,13 @@
+import { useState } from "react";
 import { Text, View } from "react-native";
 import { ItemStatus, NoticeLevel, type Notice } from "@canopy/contracts";
 import { backgroundHeadline, backgroundOutcome, backgroundTitle } from "@canopy/domain/background-tasks";
-import { humanizeEnum } from "@canopy/domain/humanize";
+import { noticePresentation } from "@canopy/domain/notice-presentation";
 import { Icon } from "../../ui/Icon";
 import { font, styles, useColors } from "../../ui/theme";
 import { useTone } from "../../ui/tone";
 import { useTimelineDirectory } from "./directory";
+import { CodeBlock, MoreButton } from "./CodeBlock";
 
 /** Platform or provider notice (rate limit, retry, restart, provider error) (web: NoticeRow). */
 export function NoticeRow({ notice }: { notice: Notice }) {
@@ -15,6 +17,8 @@ export function NoticeRow({ notice }: { notice: Notice }) {
   const error = notice.level === NoticeLevel.ERROR;
   const warning = notice.level === NoticeLevel.WARNING;
   const look = error ? rose : warning ? amber : { background: c.well, text: c.soft };
+  const presentation = noticePresentation(notice);
+  const [open, setOpen] = useState(false);
 
   return (
     <View
@@ -36,9 +40,19 @@ export function NoticeRow({ notice }: { notice: Notice }) {
           color={look.text}
         />
       </View>
-      <Text selectable style={[styles.body, { flex: 1, color: look.text }]}>
-        {notice.message || humanizeEnum(notice.code)}
-      </Text>
+      <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+        <Text selectable style={[styles.body, { color: look.text }]}>
+          {presentation.message}
+        </Text>
+        {presentation.details ? (
+          <>
+            <MoreButton expanded={open} onPress={() => setOpen(!open)}>
+              Show details
+            </MoreButton>
+            {open && <CodeBlock text={presentation.details} label="Error details" />}
+          </>
+        ) : null}
+      </View>
     </View>
   );
 }
