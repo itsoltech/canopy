@@ -76,7 +76,7 @@ export async function diagnosticsWrites(env: Record<string, string | undefined>)
             started: 1n,
             completed: 1n,
             codes: [1n],
-            duration: { indices: [40], counts: [1n], sum: 1, max: 1 },
+            duration: { indices: [41], counts: [1n], sum: 1, max: 1 },
           },
         ],
         coverage: [{ startMs: BigInt(at), endMs: BigInt(at + 60_000) }],

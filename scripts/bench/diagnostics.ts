@@ -50,6 +50,19 @@ function assertRunning() {
   host?.assertQuiet();
 }
 
+async function closeProcesses() {
+  const currentWorker = worker;
+  const currentGateway = active;
+  worker = undefined;
+  active = undefined;
+
+  try {
+    await currentWorker?.close();
+  } finally {
+    await currentGateway?.close();
+  }
+}
+
 function selectedPhases(): DiagnosticsPhase[] {
   if (process.env["CANOPY_BENCH_RESOURCES"] === "1") return ["idle"];
 
@@ -364,12 +377,12 @@ try {
           if (!host.signal.aborted) throw error;
           console.info(JSON.stringify({ phase: "discarded", pair: index + 1, attempt, reason: "host noise" }));
         } finally {
-          await worker?.close();
-          worker = undefined;
-          await active?.close();
-          active = undefined;
-          accepted = await host.stop(completed);
-          host = undefined;
+          try {
+            await closeProcesses();
+          } finally {
+            accepted = await host.stop(completed);
+            host = undefined;
+          }
         }
 
         if (accepted) break;
@@ -378,12 +391,8 @@ try {
       if (!accepted) throw new Error("Three host-noise rejections: a quiet measurement window is unavailable");
     }
 } finally {
-  if (worker) {
-    await worker.close();
-  }
-
   try {
-    await active?.close();
+    await closeProcesses();
   } finally {
     await command(["docker", "rm", "-f", "-v", name]);
   }
