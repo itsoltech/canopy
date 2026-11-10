@@ -122,6 +122,29 @@ Po sukcesie Ready wskazuje dokładnie nową paczkę, a po błędzie wraca poprze
 z krótkim „Update failed. Check again to retry.”. Restart instaluje wtedy zachowaną paczkę.
 Szczegóły cache i przekazania ZIP do Squirrel: [desktop.md](desktop.md#automatyczne-aktualizacje-desktopu).
 
+Ręczne i zdalne sprawdzenia dołączają do bieżącego sprawdzania lub pobierania:
+czekają na tę samą próbę, a raport aplikacji nadal pokazuje jej faktyczny etap
+i postęp. Zajętość updatera nie jest błędem aktualizacji. Zmiany kanału czekają
+na bieżącą próbę i wykonują się kolejno; potwierdzenie downgrade'u nadal obowiązuje.
+Przygotowanie feedu i sprawdzenie metadanych mają po 60 s limitu. Pobieranie ma
+limit 30 min oraz 90 s bez przyrostu liczby pobranych bajtów. Timeout anuluje
+żądanie, zwalnia blokadę i pokazuje powód z możliwością ponowienia.
+Przerwany updater jest zastępowany nowym, z osobnym katalogiem pobierania:
+spóźnione odpowiedzi, zdarzenia i sprzątanie plików nie zmieniają kolejnej próby.
+Poprzednia gotowa paczka zachowuje własny updater do instalacji.
+Na macOS zatwierdzanie feedu Squirrel jest szeregowane między próbami, a restart
+ponownie ustawia feed gotowej paczki. Stary zapis błędu wynikającego wyłącznie
+z zajętości pozostaje w journalu, ale raport partnera pokazuje bieżący stan updatera;
+rzeczywiste błędy instalacji nadal są raportowane jako Failed.
+
+`suspend` zatrzymuje timer automatycznych sprawdzeń. `resume` i `unlock-screen`
+scalają odzyskiwanie w jedno wywołanie po 5 s; kolejny sen je anuluje.
+Próba bez postępu dłużej niż jej limit jest anulowana i ponawiana w ramach
+tej samej obietnicy, więc zdalny instalator czeka na rzeczywisty wynik.
+Jeśli timeout zdążył zakończyć próbę przed obsługą wznowienia, automatyczne
+sprawdzanie ponawia ją raz. Never wyłącza to ponowienie. Zdrowa próba nie jest
+przerywana; po obsłudze wznowienia wraca zwykły harmonogram.
+
 Ten sam popover zawiera centrum gatewaya, workerów binarnych, CLI i sparowanych
 zdalnych desktopów. Wersja serwerowa UI pokazuje centrum bez własnej aplikacji.
 Odnośniki prowadzą do Settings → Workers oraz App updates. Gateway/workery i

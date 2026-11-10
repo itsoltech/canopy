@@ -532,6 +532,11 @@ w katalogu; przez pośrednika plakietki też stają się tekstem.
 
 #### Aktualizacje aplikacji partnera
 
+Po wznowieniu aplikacja partnera odzyskuje przeterminowane sprawdzanie lub
+pobieranie i raportuje bieżący etap tym samym kanałem sterowania. Zdalne żądanie
+aktualizacji dołącza do aktywnej próby zamiast zapisywać Failed z powodem zajętości.
+Limity i reguły ponowienia opisuje [updates.md](updates.md).
+
 Capability **`remote_app_update`** dodaje `ComputerUpdateService` (`GetComputerUpdates`,
 `RequestComputerUpdate`) do listy `SERVED`, wyłącznie na bezpośrednim łączu; relay ich nie
 przenosi. A pokazuje wersję i stan aplikacji B, jego workery i CLI, prosi B o aktualizację,

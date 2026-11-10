@@ -216,6 +216,7 @@ async function localFeeds() {
     const phases: string[] = [];
 
     const controller = new UpdateController(updater, {
+      recover: () => updater,
       version,
       buildChannel,
       channel: settings.read(buildChannel),
@@ -484,6 +485,7 @@ test("an incomplete desktop publication stays visible at the updater boundary in
   const publishing = "0.2.0-nightly.33 is not ready for macOS yet. Check again in a few minutes.";
 
   const controller = new UpdateController(updater, {
+    recover: () => updater,
     version: "0.2.0-nightly.32",
     buildChannel: "nightly",
     channel: "nightly",
@@ -553,16 +555,18 @@ test.skipIf(process.platform !== "linux")(
 
       const { controller, updater, settings } = fixture("0.6.0-nightly.2", "nightly", () => confirmation);
       const switching = controller.setChannel("stable");
-      await expect(controller.setChannel("beta")).rejects.toThrow("Wait");
-      expect(() => controller.checkRemote()).toThrow("Wait");
-      await controller.check();
+      const queued = controller.setChannel("beta");
+      const checking = controller.checkRemote();
       expect(updater.downloads).toHaveLength(0);
       expect(settings.read("nightly")).toBe("nightly");
       answer(true);
       await switching;
+      await queued;
+      await checking;
 
       // The next launch reads a preference, never a stored downgrade authorization.
       const restored = new UpdateController(updater, {
+        recover: () => updater,
         version: "0.6.0-nightly.2",
         buildChannel: "nightly",
         channel: settings.read("nightly"),
@@ -573,7 +577,7 @@ test.skipIf(process.platform !== "linux")(
         downloaded() {},
       });
 
-      expect(restored.status().channel).toBe("stable");
+      expect(restored.status().channel).toBe("beta");
       expect(updater.allowDowngrade).toBe(false);
     } finally {
       await server.stop(true);

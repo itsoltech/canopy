@@ -1,4 +1,4 @@
-import { app, dialog, Notification, type MenuItemConstructorOptions } from "electron";
+import { app, dialog, Notification, powerMonitor, type MenuItemConstructorOptions } from "electron";
 import { createAppUpdater } from "./app-updater.ts";
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
@@ -19,7 +19,25 @@ export class DesktopUpdates {
   }
   private readonly identity = desktopIdentity();
   private readonly feed = new DesktopUpdateFeed();
-  private readonly updater = createAppUpdater();
+  private updater = createAppUpdater();
+  private stagedUpdater = this.updater;
+  private wakeTimer: ReturnType<typeof setTimeout> | undefined;
+  private readonly sleep = () => {
+    clearTimeout(this.wakeTimer);
+    this.timer.stop();
+  };
+  private readonly wake = () => {
+    clearTimeout(this.wakeTimer);
+    this.wakeTimer = setTimeout(() => {
+      this.wakeTimer = undefined;
+
+      if (this.enabled)
+        void this.control
+          .resume()
+          .finally(() => this.reschedule())
+          .catch(() => {});
+    }, 5000);
+  };
 
   constructor(
     private readonly changed: () => void,
@@ -34,6 +52,12 @@ export class DesktopUpdates {
         version: app.getVersion(),
         buildChannel: this.identity.channel,
         channel: settings.read(this.identity.channel),
+        recover: () => {
+          this.updater = createAppUpdater(true);
+          this.updater.logger = null;
+
+          return this.updater;
+        },
         save: (channel) => settings.write(channel),
         confirmDowngrade: async (channel) =>
           (
@@ -49,10 +73,12 @@ export class DesktopUpdates {
               noLink: true,
             })
           ).response === 1,
-        prepare: (channel, downgrade) => this.prepare(channel, downgrade),
+        prepare: (channel, downgrade, signal) => this.prepare(channel, downgrade, signal),
         changed: this.changed,
         checking: () => this.schedule.save(this.schedule.minutes, Date.now()),
         downloaded: () => {
+          this.stagedUpdater = this.updater;
+
           if (!Notification.isSupported()) return;
 
           const notice = new Notification({
@@ -172,6 +198,9 @@ export class DesktopUpdates {
 
     this.control.enable();
     this.enabled = true;
+    powerMonitor.on("suspend", this.sleep);
+    powerMonitor.on("resume", this.wake);
+    powerMonitor.on("unlock-screen", this.wake);
     this.control.setAutomaticUpdates(this.schedule.minutes !== 0);
     this.reschedule();
   }
@@ -179,6 +208,10 @@ export class DesktopUpdates {
   stop() {
     this.enabled = false;
     this.timer.stop();
+    clearTimeout(this.wakeTimer);
+    powerMonitor.removeListener("suspend", this.sleep);
+    powerMonitor.removeListener("resume", this.wake);
+    powerMonitor.removeListener("unlock-screen", this.wake);
   }
   install() {
     if (this.status().phase !== "downloaded") return;
@@ -194,22 +227,24 @@ export class DesktopUpdates {
       app.quit();
     };
 
-    this.updater.once("error", failed);
+    this.stagedUpdater.once("error", failed);
 
     try {
-      this.updater.quitAndInstall(false, true);
+      this.stagedUpdater.quitAndInstall(false, true);
     } catch {
-      this.updater.removeListener("error", failed);
+      this.stagedUpdater.removeListener("error", failed);
       failed();
     }
   }
 
-  private async prepare(channel: DesktopChannel, allowDowngrade: boolean) {
-    const result = await this.feed.resolve(channel, allowDowngrade);
+  private async prepare(channel: DesktopChannel, allowDowngrade: boolean, signal: AbortSignal) {
+    const updater = this.updater;
+    const result = await this.feed.resolve(channel, allowDowngrade, signal);
+    signal.throwIfAborted();
     const { release, feed } = result;
 
     if (!release) return { available: false, releases: result.releases, publishing: result.publishing };
-    this.updater.setFeedURL({
+    updater.setFeedURL({
       provider: "generic",
       url: `https://github.com/itsoltech/canopy/releases/download/${encodeURIComponent(release.tag_name)}/`,
       channel: feed,
