@@ -163,7 +163,8 @@ describe.skipIf(!dockerAvailable)("route status of two linked gateways", () => {
     await a.api.updateNetworkAccess({ action: "set_enabled", enabled: false });
 
     try {
-      await restart("a");
+      // Disabling the listener already rotates the link; the restart helper would turn it back on.
+      expect(la.options.network.listening).toBe(false);
       await online();
       await eventually(async () => {
         const onA = await peer(a);
