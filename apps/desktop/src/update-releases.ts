@@ -6,7 +6,7 @@ export interface DesktopRelease {
   tag_name: string;
   draft: boolean;
   prerelease: boolean;
-  assets: { name: string }[];
+  assets: readonly { name: string }[];
   body?: string | null;
 }
 

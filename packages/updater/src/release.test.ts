@@ -86,7 +86,7 @@ describe("release channels against GitHub fixtures", () => {
     });
 
     servers.push(server);
-    const source = new ReleaseSource({ baseUrl: server.url.href, allowHttpForTests: true });
+    const source = new ReleaseSource({ baseUrl: server.url.href, allowHttpForTests: true, cacheMs: 0 });
     expect((await source.resolve("stable")).version).toBe("2.0.0");
     expect((await source.resolve("latest")).version).toBe("2.0.0");
     expect((await source.resolve("beta")).version).toBe("2.1.0-beta.10");
@@ -112,6 +112,7 @@ describe("release channels against GitHub fixtures", () => {
     await expect(source.resolve("stable")).rejects.toThrow("HTTPS");
 
     const mismatch = new ReleaseSource({
+      indexUrl: false,
       fetch: async (input) =>
         Response.json(
           String(input).includes("/releases/")
@@ -134,6 +135,7 @@ describe("release channels against GitHub fixtures", () => {
     await expect(mismatch.resolve("v1.2.3")).rejects.toThrow("differ");
 
     const disguised = new ReleaseSource({
+      indexUrl: false,
       fetch: async () => Response.json({ tag_name: "v1.2.3", prerelease: true, assets: [] }),
     });
 

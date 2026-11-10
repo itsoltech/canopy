@@ -1,4 +1,6 @@
 import { isJsonArray, isJsonObject, type JsonObject, type JsonValue } from "@canopy/domain/json";
+import { ReleaseCatalog, releaseCatalog, type CatalogRelease } from "@canopy/domain/release/catalog";
+import { ReleaseHttp, ReleaseHttpError, secureReleaseUrl } from "@canopy/domain/release/http";
 
 export type InstallKind = "binary" | "docker" | "source" | "desktop";
 
@@ -25,15 +27,12 @@ export type ReleaseManifest = {
 export interface ReleaseSourceOptions {
   /** GitHub API repository URL, or explicit mirror/test endpoint with the same layout. */
   baseUrl?: string;
+  indexUrl?: string | false;
+  now?: () => number;
+  cacheMs?: number;
   /** Deliberate test-only escape hatch; production callers never set this from the environment. */
   allowHttpForTests?: boolean;
   fetch?: (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
-}
-
-class ReleaseHttpError extends Error {
-  constructor(readonly status: number) {
-    super(`Release server returned HTTP ${status}`);
-  }
 }
 
 const SEMVER =
@@ -92,20 +91,7 @@ export function compareVersions(a: string, b: string): number {
   return 0;
 }
 
-export function secureUrl(value: string, allowHttpForTests = false): URL {
-  const url = new URL(value);
-
-  if (
-    (url.protocol !== "https:" && !(allowHttpForTests && url.protocol === "http:")) ||
-    url.username ||
-    url.password ||
-    url.hash
-  ) {
-    throw new Error("Release downloads require HTTPS without embedded credentials");
-  }
-
-  return url;
-}
+export const secureUrl = secureReleaseUrl;
 
 /** Manual redirect handling prevents HTTPS -> HTTP redirects from bypassing validation. */
 export async function releaseFetch(url: string, options: ReleaseSourceOptions = {}): Promise<Response> {
@@ -197,46 +183,8 @@ function isReleaseAsset(a: JsonValue): a is JsonObject & ReleaseAsset {
   );
 }
 
-type GithubRelease = {
-  tag_name: string;
-  draft?: boolean;
-  prerelease?: boolean;
-  assets?: { name: string; browser_download_url: string }[];
-};
-
-function isGithubRelease(release: JsonValue): release is JsonObject & GithubRelease {
-  if (!isJsonObject(release)) return false;
-  const assets = release["assets"];
-
-  return (
-    isText(release["tag_name"]) &&
-    isOptionalFlag(release["draft"]) &&
-    isOptionalFlag(release["prerelease"]) &&
-    (assets === undefined ||
-      (isJsonArray(assets) &&
-        assets.every((asset) => isJsonObject(asset) && isText(asset["name"]) && isText(asset["browser_download_url"]))))
-  );
-}
-
-/** GitHub's release JSON, checked for the fields the channel resolution reads. */
-async function githubRelease(response: Response): Promise<GithubRelease> {
-  const release = await jsonBody(response);
-
-  if (!isGithubRelease(release)) throw new Error("Invalid release response");
-
-  return release;
-}
-
-async function jsonBody(response: Response): Promise<JsonValue> {
-  return JSON.parse(await response.text());
-}
-
 function isText(value: JsonValue | undefined): value is string {
   return typeof value === "string";
-}
-
-function isOptionalFlag(value: JsonValue | undefined): value is boolean | undefined {
-  return value === undefined || typeof value === "boolean";
 }
 
 function isPositiveInteger(value: JsonValue | undefined): value is number {
@@ -246,12 +194,22 @@ function isPositiveInteger(value: JsonValue | undefined): value is number {
 export class ReleaseSource {
   readonly options: ReleaseSourceOptions;
   readonly baseUrl: string;
+  readonly catalog: ReleaseCatalog;
+  private readonly manifests = new Map<string, Promise<ReleaseManifest>>();
   constructor(options: ReleaseSourceOptions = {}) {
     this.options = options;
     this.baseUrl = secureUrl(
       options.baseUrl ?? "https://api.github.com/repos/itsoltech/canopy",
       options.allowHttpForTests,
     ).href.replace(/\/$/, "");
+    this.catalog = Object.keys(options).length
+      ? new ReleaseCatalog({
+          baseUrl: options.baseUrl ? this.baseUrl : undefined,
+          indexUrl: options.indexUrl,
+          now: options.now,
+          http: new ReleaseHttp(options),
+        })
+      : releaseCatalog;
   }
   async resolve(channel: string, accept?: (manifest: ReleaseManifest) => boolean): Promise<ReleaseManifest> {
     channel = normalizeChannel(channel);
@@ -266,35 +224,20 @@ export class ReleaseSource {
       return manifest;
     }
 
-    const candidates: GithubRelease[] = [];
+    const candidates = (await this.catalog.releases()).filter((release) => {
+      const version = release.tag_name.replace(/^v/, "");
+      const match = SEMVER.exec(version);
 
-    for (let page = 1; ; page++) {
-      const batch = await jsonBody(
-        await releaseFetch(`${this.baseUrl}/releases?per_page=100&page=${page}`, this.options),
-      );
+      // Drafts are staged before publication; older incomplete releases may also lack manifest.json.
+      if (!match || release.draft || !release.assets?.some((asset) => asset.name === "manifest.json")) return false;
+      const stable = !release.prerelease && !match[4];
 
-      if (!isJsonArray(batch) || !batch.every(isGithubRelease)) throw new Error("Invalid releases response");
-      candidates.push(
-        ...batch.filter((release) => {
-          const version = release.tag_name.replace(/^v/, "");
-          const match = SEMVER.exec(version);
+      if (channel === "nightly") return true;
 
-          // Drafts are staged before publication; older incomplete releases may also lack manifest.json.
-          if (!match || release.draft || !release.assets?.some((asset) => asset.name === "manifest.json")) return false;
-          const stable = !release.prerelease && !match[4];
+      if (channel === "beta") return stable || (release.prerelease && /^beta\.\d+$/.test(match[4] ?? ""));
 
-          if (channel === "nightly") return true;
-
-          if (channel === "beta") return stable || (release.prerelease && /^beta\.\d+$/.test(match[4] ?? ""));
-
-          return stable && (channel === "stable" || version.startsWith(`${channel.slice(1)}.`));
-        }),
-      );
-
-      if (batch.length < 100) break;
-
-      if (page >= 100) throw new Error("Release list exceeds pagination limit");
-    }
+      return stable && (channel === "stable" || version.startsWith(`${channel.slice(1)}.`));
+    });
 
     candidates.sort((a, b) => compareVersions(b.tag_name.replace(/^v/, ""), a.tag_name.replace(/^v/, "")));
 
@@ -307,13 +250,13 @@ export class ReleaseSource {
     throw new Error(accept ? "No compatible release for this channel" : "No release for this channel");
   }
   async #exact(version: string, stableOnly: boolean): Promise<ReleaseManifest> {
-    let release: GithubRelease;
+    let release: CatalogRelease;
 
     try {
-      release = await githubRelease(await releaseFetch(`${this.baseUrl}/releases/tags/v${version}`, this.options));
+      release = await this.catalog.tag(`v${version}`);
     } catch (error) {
       if (!(error instanceof ReleaseHttpError) || error.status !== 404) throw error;
-      release = await githubRelease(await releaseFetch(`${this.baseUrl}/releases/tags/${version}`, this.options));
+      release = await this.catalog.tag(version);
     }
 
     if (release.draft || (stableOnly && release.prerelease)) throw new Error("No release for this channel");
@@ -322,7 +265,21 @@ export class ReleaseSource {
 
     return this.#manifest(release);
   }
-  async #manifest(release: GithubRelease): Promise<ReleaseManifest> {
+  #manifest(release: CatalogRelease): Promise<ReleaseManifest> {
+    const key = release.tag_name;
+    let pending = this.manifests.get(key);
+
+    if (!pending) {
+      pending = this.#readManifest(release).catch((error: Error) => {
+        this.manifests.delete(key);
+        throw error;
+      });
+      this.manifests.set(key, pending);
+    }
+
+    return pending;
+  }
+  async #readManifest(release: CatalogRelease): Promise<ReleaseManifest> {
     const asset = release.assets?.find((a) => a.name === "manifest.json");
 
     if (!asset) throw new Error("Release has no manifest.json");

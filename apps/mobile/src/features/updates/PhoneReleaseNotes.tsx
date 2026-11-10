@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Linking, Text, View } from "react-native";
 import * as Updates from "expo-updates";
-import { isString, parseObject, str } from "@canopy/domain/json";
+import { isString } from "@canopy/domain/json";
+import { releaseCatalog } from "@canopy/domain/release/catalog";
 import { releaseChannel } from "@canopy/domain/release/version";
 import { Button } from "../../ui/components";
 import { Markdown } from "../../ui/markdown";
@@ -36,18 +37,13 @@ function ReleaseBody({ version }: { version?: string }) {
     const controller = new AbortController();
     let cancelled = false;
     const timer = setTimeout(() => controller.abort(), 20_000);
-    void fetch(`https://api.github.com/repos/itsoltech/canopy/releases/tags/v${encodeURIComponent(version)}`, {
-      headers: { Accept: "application/vnd.github+json" },
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Release unavailable");
-        const release = parseObject(await response.text());
-
-        if (str(release.tag_name) !== `v${version}` || release.draft === true) throw new Error("Release mismatch");
+    void releaseCatalog
+      .tag(`v${version}`)
+      .then((release) => {
+        if (release.tag_name !== `v${version}` || release.draft) throw new Error("Release mismatch");
 
         if (!controller.signal.aborted) {
-          setBody(str(release.body));
+          setBody(release.body ?? "");
           setError("");
         }
       })

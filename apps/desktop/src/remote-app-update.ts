@@ -25,7 +25,11 @@ const updater = (update: DesktopUpdateStatus) => ({
   updaterPhase: update.phase,
   updaterVersion: update.updateVersion ?? "",
   updaterProgress: update.phase === "downloading" ? Math.max(0, Math.min(100, update.progress ?? 0)) : 0,
-  updaterError: (update.error || (update.phase === "error" ? update.message : "")).slice(0, 1000),
+  updaterError: (
+    update.error ||
+    (update.retryAt ? update.publishing || update.message : "") ||
+    (update.phase === "error" ? update.message : "")
+  ).slice(0, 1000),
 });
 
 /** Main-process policy around the normal updater. The file survives lost replies and app restarts. */

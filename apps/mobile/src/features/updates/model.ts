@@ -1,6 +1,6 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { cliUpdateActionable } from "@canopy/domain/release/update-actions";
+import { cliUpdateActionable, appCheckPause } from "@canopy/domain/release/update-actions";
 
 export type UpdateRequest = MessageInitShape<typeof ui.ManageUpdatesRequestSchema>;
 
@@ -20,6 +20,7 @@ export const updateLabel = (state = "") =>
     rolled_back: "Rolled back",
     succeeded: "Updated",
     idle: "Up to date",
+    paused: "Checks paused",
     running: "Updating…",
     managed_externally: "Managed externally",
     ahead: "Newer than gateway",
@@ -35,6 +36,8 @@ export function updateHomes(snapshot: ui.UpdatesSnapshot) {
 }
 
 export function appPhase(app: ui.UpdatesSnapshot["app"]) {
+  if (appCheckPause(app)) return "paused";
+
   return updateBusy(app?.phase) || app?.phase === "failed" ? app?.phase : app?.updaterPhase || app?.phase;
 }
 
@@ -78,6 +81,7 @@ export function computerAction(computer: ui.ComputerUpdate): UpdateRequest | und
     computer.presence !== "connected" ||
     !app?.connected ||
     app.disabledReason ||
+    !!appCheckPause(app) ||
     updateBusy(app.phase) ||
     updateBusy(app.updaterPhase)
   )

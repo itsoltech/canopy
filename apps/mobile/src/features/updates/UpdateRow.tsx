@@ -1,6 +1,7 @@
 import { Text, View, type StyleProp, type ViewStyle } from "react-native";
 import type { ReactNode } from "react";
 import { updateCheckLabel } from "@canopy/domain/computer-presence";
+import { isRateLimitMessage } from "@canopy/domain/release/http";
 import { Badge } from "../../ui/Badge";
 import { IconButton } from "../../ui/Button";
 import { ProgressBar } from "../../ui/ProgressBar";
@@ -73,7 +74,14 @@ export function UpdateRow({
       {progress !== undefined && (
         <ProgressBar done={BigInt(Math.round(progress))} total={100n} label={`${name}: ${status}`} />
       )}
-      {reason && <UpdateDetails text={reason} />}
+      {reason &&
+        (isRateLimitMessage(reason) ? (
+          <Text accessibilityLiveRegion="polite" style={[styles.overlayMeta, { color: c.muted }]}>
+            {reason}
+          </Text>
+        ) : (
+          <UpdateDetails text={reason} />
+        ))}
       {children}
     </View>
   );

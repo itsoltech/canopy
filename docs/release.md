@@ -326,6 +326,7 @@ plan ─┬─ checks ───────────────────�
 | `images` | ten sam build z cache, push wyłącznie niezmiennego `vX.Y.Z` (SBOM) | po `release` i `images-build` | obraz `vX.Y.Z` |
 | `publish-server` | binaria, `checksums.txt`, `manifest.json` na drafcie | po `checks`, `release`, `binaries`, `smoke`, `images`; grupa `release-publish-<ref>` | nic publicznego |
 | `publish-desktop` | instalatory, blockmapy, scalone feedy, nowe `checksums.txt`/`manifest.json`; weryfikacja, publikacja, aliasy obrazów | po `publish-server` i sukcesie wymaganych celów desktop; ta sama grupa publikacji | kompletny release |
+| `release-index` | współdzielony workflow Pages: aktualna strona i indeks wszystkich publicznych wydań | po sukcesie `publish-desktop` | atomowy snapshot CDN |
 | `stop-builds` | `gh run cancel` własnego przebiegu | checki czerwone albo `release` bez wydania/anulowany | — |
 | `nightly-hygiene`, `backmerge` | jak wcześniej | po `publish-desktop`; brak wydania pomija oba | — |
 
@@ -374,6 +375,22 @@ commity zbiera następny cykl godzinowy lub dispatch, nie sam push.
    nowszą wersję (adnotacja `org.opencontainers.image.version` indeksu) zostaje. `publish-desktop`
    jest serializowany per gałąź, więc dwa przebiegi nie cofną aliasu. Poprawka starszej linii stable
    przesuwa `vX.Y`, ale nie `latest`/`stable`. Aliasy zmieniają się dopiero po publikacji release.
+
+Po sukcesie `publish-desktop` job `release-index` wywołuje `.github/workflows/pages.yml`.
+Skrypt `scripts/release-index.ts` pobiera wszystkie strony Releases przez uwierzytelnione
+`gh` z `GITHUB_TOKEN` joba. Zapisuje `dist/site/releases/v1.json` (`schema: 1`): tagi,
+prerelease, daty publikacji, notatki i nazwy/URL-e assetów. Pomija drafty, wydania bez
+manifestu/sum oraz pliki w stanie innym niż `uploaded`; wymaga obecności właśnie
+opublikowanego tagu. Waliduje wynik tym samym dekoderem co klient przed uploadem Pages.
+Weryfikacja rozmiarów i hashy oraz kompletności platform nadal odbywa się w
+`release-upload.ts` **przed** upublicznieniem release; indeks jest tylko listą.
+
+Pages wdraża stronę i indeks jednym artefaktem, serializowanym wspólną grupą `pages`
+dla wszystkich kanałów i zwykłych zmian strony. Strona/skrypty pochodzą z bieżącego `dev`,
+żeby wydanie starszej linii stable nie cofnęło strony OAuth. Zwykłe wdrożenie Pages
+również odtwarza indeks z publicznych wydań, więc go nie usuwa. Awaria generowania
+lub wdrożenia zachowuje poprzedni snapshot. Repo musi mieć Pages w trybie GitHub Actions;
+workflow nie zmienia ustawień repozytorium. Klienci nie dostają tokena.
 
 Klient sprawdzający kanał w dowolnej chwili widzi poprzedni release albo nowy z kompletem plików.
 Dotyczy to również resolvera gatewaya/workera, instalacji workera i pobrań dokładnego tagu;

@@ -9,6 +9,7 @@
   import { cliActions } from "./cli-tools.svelte.ts";
   import type { UpdatesState } from "./updates.svelte.ts";
   import { updateIndicator } from "./update-indicator.ts";
+  import { isRateLimitMessage } from "@canopy/domain/release/http";
 
   let {
     updates,
@@ -79,7 +80,15 @@
       />{/if}
   </header>
   <div class="min-h-0 scroll-py-1 overflow-y-auto overscroll-contain px-3 py-1">
-    {#if error}<p class="break-anywhere py-2 text-xs/5 text-rose-600 dark:text-rose-400" role="status">{error}</p>{/if}
+    {#if error}<p
+        class={[
+          "break-anywhere py-2 text-xs/5",
+          isRateLimitMessage(error) ? "text-muted" : "text-rose-600 dark:text-rose-400",
+        ]}
+        role="status"
+      >
+        {error}
+      </p>{/if}
     {#if run && run.state !== "succeeded"}
       <div class="border-b border-divider py-2 text-xs/5">
         <p role="status">

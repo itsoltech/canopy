@@ -1,6 +1,8 @@
 import { Text, View } from "react-native";
 import type { ui } from "@canopy/contracts";
 import { presenceLabel } from "@canopy/domain/computer-presence";
+import { appCheckPause } from "@canopy/domain/release/update-actions";
+import { isRateLimitMessage } from "@canopy/domain/release/http";
 import { presenceTime } from "../computers/presence";
 import { styles, useColors } from "../../ui/theme";
 import { UpdateRow } from "./UpdateRow";
@@ -35,9 +37,10 @@ export function UpdateRows({ snapshot, pending, manage }: Props) {
           checkedAt={app?.lastCheckedAtMs ?? 0}
           status={app?.updaterPhase === "downloaded" ? "Ready" : updateLabel(appPhase(app))}
           busy={updateBusy(app?.phase) || updateBusy(app?.updaterPhase)}
-          failed={app?.phase === "failed" || app?.updaterPhase === "error"}
+          failed={!appCheckPause(app) && (app?.phase === "failed" || app?.updaterPhase === "error")}
           progress={app?.updaterPhase === "downloading" ? app.updaterProgress : undefined}
           reason={
+            appCheckPause(app) ||
             app?.reason ||
             app?.updaterError ||
             "Includes this computer's gateway and worker. Update this app on its computer."
@@ -53,15 +56,21 @@ export function UpdateRows({ snapshot, pending, manage }: Props) {
               ? "Failed"
               : gatewayBusy
                 ? updateLabel(snapshot.gatewayState)
-                : snapshot.gatewayUpdateAvailable
-                  ? "Available"
-                  : snapshot.checkError || !snapshot.availableVersion
-                    ? "Not checked"
-                    : "Up to date"
+                : isRateLimitMessage(snapshot.checkError)
+                  ? "Checks paused"
+                  : snapshot.gatewayUpdateAvailable
+                    ? "Available"
+                    : snapshot.checkError || !snapshot.availableVersion
+                      ? "Not checked"
+                      : "Up to date"
           }
           failed={failed}
           busy={gatewayBusy}
-          reason={snapshot.departure?.reason || snapshot.gatewayReason || snapshot.checkError}
+          reason={
+            !failed && isRateLimitMessage(snapshot.checkError)
+              ? snapshot.checkError
+              : snapshot.departure?.reason || snapshot.gatewayReason || snapshot.checkError
+          }
           action={
             snapshot.gatewayInstallKind === "binary" && !gatewayBusy && (snapshot.gatewayUpdateAvailable || failed)
               ? {
@@ -102,7 +111,7 @@ function ComputerRow({
   const departure = computer.updates?.departure;
 
   const failed =
-    app?.phase === "failed" ||
+    (!appCheckPause(app) && app?.phase === "failed") ||
     app?.updaterPhase === "error" ||
     (["failed", "rolled_back"].includes(departure?.state ?? "") &&
       !busy &&
@@ -127,15 +136,19 @@ function ComputerRow({
               ? updateLabel(appPhase(app))
               : app?.ready
                 ? "Ready"
-                : request
-                  ? "Available"
-                  : computer.remoteUpdate
-                    ? "Up to date"
-                    : "Manual update"
+                : appCheckPause(app)
+                  ? "Checks paused"
+                  : request
+                    ? "Available"
+                    : computer.remoteUpdate
+                      ? "Up to date"
+                      : "Manual update"
       }
       busy={busy}
       failed={failed}
-      reason={departure?.reason || app?.reason || app?.updaterError || computer.reason}
+      reason={
+        (!failed && appCheckPause(app)) || departure?.reason || app?.reason || app?.updaterError || computer.reason
+      }
       progress={
         app?.phase === "downloading"
           ? app.progress

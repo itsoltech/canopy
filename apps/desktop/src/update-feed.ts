@@ -1,44 +1,14 @@
-import { app } from "electron";
 import { gt, valid } from "semver";
+import { releaseCatalog, type ReleaseCatalog } from "@canopy/domain/release/catalog";
 import type { DesktopChannel } from "./identity.ts";
-import {
-  channelFeed,
-  channelReleases,
-  isDesktopRelease,
-  newestRelease,
-  releaseNotes,
-  type DesktopRelease,
-} from "./update-releases.ts";
+import { channelFeed, channelReleases, newestRelease, releaseNotes } from "./update-releases.ts";
 
-/** Public GitHub metadata stays in main; windows share a short cache, including incomplete publications. */
+/** Windows and remote checks share one catalog; peers never create another metadata client. */
 export class DesktopUpdateFeed {
-  private cached?: { at: number; releases: DesktopRelease[] };
-
-  private async releases(signal: AbortSignal) {
-    if (this.cached && Date.now() - this.cached.at < 60_000) return this.cached.releases;
-    const releases: DesktopRelease[] = [];
-
-    for (let page = 1; page <= 10; page++) {
-      const response = await fetch(`https://api.github.com/repos/itsoltech/canopy/releases?per_page=100&page=${page}`, {
-        headers: { Accept: "application/vnd.github+json", "User-Agent": `canopy/${app.getVersion()}` },
-        signal: AbortSignal.any([signal, AbortSignal.timeout(20_000)]),
-      });
-
-      if (!response.ok) throw new Error("Release feed unavailable");
-      const batch: unknown = await response.json();
-
-      if (!Array.isArray(batch) || !batch.every(isDesktopRelease)) throw new Error("Invalid release feed");
-      releases.push(...batch);
-
-      if (batch.length < 100) {
-        this.cached = { at: Date.now(), releases };
-
-        return releases;
-      }
-    }
-
-    throw new Error("Release history is too large to load completely");
-  }
+  constructor(
+    private readonly version: () => string,
+    private readonly catalog: ReleaseCatalog = releaseCatalog,
+  ) {}
 
   async resolve(channel: DesktopChannel, allowDowngrade: boolean, signal: AbortSignal) {
     const suffix =
@@ -50,8 +20,10 @@ export class DesktopUpdateFeed {
 
     const feed = channelFeed(channel);
     const feedFile = `${feed}${suffix}.yml`;
-    const releases = await this.releases(signal);
-    const current = app.getVersion();
+    signal.throwIfAborted();
+    const releases = await this.catalog.releases();
+    signal.throwIfAborted();
+    const current = this.version();
     const release = newestRelease(releases, current, channel, feedFile, allowDowngrade);
     const latest = channelReleases(releases, channel)[0];
     const platform = process.platform === "darwin" ? "macOS" : process.platform === "win32" ? "Windows" : "Linux";

@@ -15,6 +15,7 @@
   import TextLink from "#lib/shared/ui/TextLink.svelte";
   import { listedWorkers, updatesAvailable } from "./compact-updates.ts";
   import { updateIndicator } from "./update-indicator.ts";
+  import { isRateLimitMessage } from "@canopy/domain/release/http";
 
   let {
     class: className,
@@ -106,7 +107,9 @@
     </div>
   </div>
   {#if updates.error || snapshot?.checkError}<div class="p-3">
-      <Alert tone="error">{updates.error || snapshot?.checkError}</Alert>
+      <Alert tone={isRateLimitMessage(updates.error || snapshot?.checkError || "") ? "info" : "error"}
+        >{updates.error || snapshot?.checkError}</Alert
+      >
     </div>{/if}
   {#if snapshot}
     {#if snapshot.gatewayBundled}<p class="px-3 py-2 text-sm/5 text-pretty text-muted">
