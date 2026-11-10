@@ -3,6 +3,36 @@ import { ui } from "@canopy/contracts";
 import { Aggregate, mergeCoverage, percentiles } from "@canopy/domain/diagnostics";
 import { Code, ConnectError } from "@connectrpc/connect";
 import type { RpcCollector } from "./collector.ts";
+import type { Slot } from "./buckets.ts";
+
+const historicalViews = new WeakMap<RpcCollector, { key: string; values: Map<number, Aggregate> }>();
+
+/** One historical view per collector, bounded by the existing descriptor and link limits. */
+function historyView(collector: RpcCollector, slots: readonly Slot[], minutes: number, start: number) {
+  const key = `${minutes}:${start}:${collector.historyRevision}`;
+  const previous = historicalViews.get(collector);
+
+  if (previous?.key === key) return [previous.values];
+
+  if (previous) collector.budget.used -= previous.values.size * 4096;
+  historicalViews.delete(collector);
+  const ids = new Set(slots.flatMap((slot) => [...slot.series.keys()]));
+
+  // Under pressure preserve the read by merging directly, without retaining another allocation.
+  if (!collector.budget.reserve(ids.size * 4096)) return slots.map((slot) => slot.series);
+  const values = new Map<number, Aggregate>();
+
+  for (const slot of slots)
+    for (const [id, value] of slot.series) {
+      const aggregate = values.get(id) ?? new Aggregate(true);
+      aggregate.merge(value);
+      values.set(id, aggregate);
+    }
+
+  historicalViews.set(collector, { key, values });
+
+  return [values];
+}
 
 export function windowMinutes(value: number) {
   if (!value) return 15;
@@ -22,20 +52,23 @@ export function rpcSnapshot(collector: RpcCollector, minutes: number) {
   if (minutes === 1440) ring = collector.quarters;
   const start = Math.floor(now / ring.width) * ring.width - (minutes * 60_000 - ring.width);
   const slots = ring.between(start, now + 1);
+  const sources: ReadonlyMap<number, Aggregate>[] = slots.map((slot) => slot.series);
 
   if (minutes !== 1) {
     const history = minutes === 1440 ? collector.historyQuarters : collector.historyMinutes;
-    slots.push(...history.between(start, now + 1));
+    const historical = history.between(start, now + 1);
+    sources.unshift(...historyView(collector, historical, minutes, start));
+    slots.push(...historical);
   }
 
   const coverage = mergeCoverage(slots.flatMap((slot) => slot.coverage));
   const observedSeconds = coverage.reduce((sum, value) => sum + Number(value.endMs - value.startMs) / 1000, 0);
   const aggregates = new Map<number, Aggregate>();
 
-  for (const slot of slots)
-    for (const [id, value] of slot.series) {
+  for (const source of sources)
+    for (const [id, value] of source) {
       const aggregate = aggregates.get(id) ?? new Aggregate(true);
-      aggregate.merge(value.snapshot(id));
+      aggregate.merge(value);
       aggregates.set(id, aggregate);
     }
 

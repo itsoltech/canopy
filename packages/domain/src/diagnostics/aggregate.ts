@@ -51,7 +51,7 @@ export class Aggregate {
     });
   }
 
-  merge(value: ui.DiagnosticsAggregate) {
+  merge(value: ui.DiagnosticsAggregate | Aggregate) {
     this.started = addCount(this.started, value.started);
     this.completed = addCount(this.completed, value.completed);
 

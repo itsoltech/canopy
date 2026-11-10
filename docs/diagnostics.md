@@ -394,6 +394,13 @@ luki pokrycia; zapis w DB pozostaje pod pełną retencją. Raporty RTT mają oso
 atomowo z agregatem sesji odbiorcy. Dwie ostatnie sesje na łącze mieszczą się w
 ograniczonym stanie deduplikacji także przy reconnect w tej samej minucie.
 
+Odczyt scala agregaty w pamięci bez pośrednich kopii protobuf. Każdy kolektor
+współdzieli najwyżej jeden wyliczony widok historyczny, ograniczony liczbą
+deskryptorów; zmiana okna, odtworzenie lub wygaśnięcie historii go unieważnia.
+Bajty tego widoku rezerwujemy we wspólnym budżecie kolektora; brak miejsca
+oznacza scalenie bez cache, bez pomijania danych odpowiedzi.
+Bieżące liczniki i gauges są dodawane od nowa, bez modyfikowania tego widoku.
+
 Publiczny interceptor nie ma hooka istniejących zakodowanych bajtów protobuf:
 rozmiary tych RPC pozostają `Not measured`. Wewnętrzne linked RPC wykorzystują
 bajty istniejącego encode/decode. Zasoby procesu, DB/pool, eksport, logi i tracing

@@ -17,6 +17,7 @@ export class RpcCollector {
   readonly historyMinutes: Buckets;
   readonly historyQuarters: Buckets;
   readonly active = new Map<number, Map<number, number>>();
+  historyRevision = 0;
   readonly session = Bun.randomUUIDv7();
   readonly startedAt: number;
   #lastMono: number;
@@ -140,8 +141,11 @@ export class RpcCollector {
       for (const ring of [this.short, this.minutes, this.quarters]) ring.cover(this.#lastUtc, utc);
     this.#lastMono = mono;
     this.#lastUtc = utc;
+    const before = this.budget.used;
     this.historyMinutes.expire(Math.floor(utc / 60_000) * 60_000 - 3_540_000);
     this.historyQuarters.expire(Math.floor(utc / 900_000) * 900_000 - 85_500_000);
+
+    if (this.budget.used !== before) this.historyRevision++;
   }
 
   restore(process: ui.DiagnosticsProcess, at: number) {
@@ -155,6 +159,7 @@ export class RpcCollector {
     // Historical sessions participate in reads, never in this session's persisted minute.
     if (at >= this.startedAt - 3_600_000) this.#restoreHistory(this.historyMinutes, safe, at);
     this.#restoreHistory(this.historyQuarters, safe, at);
+    this.historyRevision++;
   }
 
   #restoreHistory(ring: Buckets, process: ui.DiagnosticsProcess, at: number) {

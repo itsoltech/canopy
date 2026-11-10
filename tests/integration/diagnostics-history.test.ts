@@ -181,12 +181,15 @@ describe.skipIf(!dockerAvailable)("diagnostics durability and bounded retention"
     const writer = new DiagnosticsPersistence(storage, live, host);
     await writer.start();
     expect(budget.dropped).toBeGreaterThan(0);
-    expect(rpcSnapshot(live, 15).calls[0]?.started).toBeGreaterThan(0n);
+    const historical = rpcSnapshot(live, 15).calls[0]!.started;
+    expect(historical).toBeGreaterThan(0n);
     const call = live.start(method.id);
     expect(call).toBeDefined();
     now += 5000;
     live.tick();
     call!.finish();
+    expect(rpcSnapshot(live, 15).calls[0]?.started).toBe(historical + 1n);
+    expect(rpcSnapshot(live, 15).calls[0]?.started).toBe(historical + 1n);
     await writer.flush(true);
     expect(writer.status).toBe("saved");
 
@@ -204,6 +207,7 @@ describe.skipIf(!dockerAvailable)("diagnostics durability and bounded retention"
     expect(live.historyMinutes.slots.every((slot) => !slot)).toBe(true);
     expect(live.historyQuarters.slots.every((slot) => !slot)).toBe(true);
     expect(budget.used).toBeLessThan(allocated);
+    expect(rpcSnapshot(live, 15).calls).toEqual([]);
     await query("DELETE FROM diagnostics_state WHERE owner_user_id=$1::uuid AND computer_id='restore-budget'", [
       gateway.userId,
     ]);

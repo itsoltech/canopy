@@ -14,7 +14,10 @@ export async function diagnosticsProcess(env: Record<string, string | undefined>
 
   const pending = new Map<number, { resolve(value: BenchStats): void; reject(cause: Error): void }>();
 
-  const child = Bun.spawn([process.execPath, `${import.meta.dir}/diagnostics-entry.ts`], {
+  const profileDirectory = env["CANOPY_BENCH_PROFILE_DIR"];
+  const profile = profileDirectory ? ["--cpu-prof", "--cpu-prof-md", `--cpu-prof-dir=${profileDirectory}`] : [];
+
+  const child = Bun.spawn([process.execPath, ...profile, `${import.meta.dir}/diagnostics-entry.ts`], {
     env,
     stdout: "ignore",
     stderr: "inherit",

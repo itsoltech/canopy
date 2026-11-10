@@ -48,25 +48,36 @@ export class Histogram {
     this.max = Math.max(this.max, value);
   }
 
-  merge(other: ui.DiagnosticsHistogram) {
-    for (let at = 0; at < other.indices.length; at++) {
-      const index = other.indices[at]!;
+  merge(other: ui.DiagnosticsHistogram | Histogram) {
+    if (other instanceof Histogram) {
+      for (let index = 0; index < Math.min(this.counts.length, other.counts.length); index++) {
+        const count = other.counts[index]!;
 
-      if (index >= this.counts.length) continue;
-
-      if (this.counts instanceof BigUint64Array) {
-        const count = this.counts[index]! + (other.counts[at] ?? 0n);
-        this.incomplete ||= count > MAX_COUNT;
-        this.counts[index] = count > MAX_COUNT ? MAX_COUNT : count;
-      } else {
-        const count = this.counts[index]! + Number(other.counts[at] ?? 0n);
-        this.incomplete ||= count > MAX_BUCKET;
-        this.counts[index] = Math.min(MAX_BUCKET, count);
+        if (count) this.#add(index, BigInt(count));
       }
-    }
+
+      this.incomplete ||= other.incomplete;
+    } else
+      for (let at = 0; at < other.indices.length; at++) {
+        const index = other.indices[at]!;
+
+        if (index < this.counts.length) this.#add(index, other.counts[at] ?? 0n);
+      }
 
     this.sum = Math.min(Number.MAX_VALUE, this.sum + other.sum);
     this.max = Math.max(this.max, other.max);
+  }
+
+  #add(index: number, value: bigint) {
+    if (this.counts instanceof BigUint64Array) {
+      const count = this.counts[index]! + value;
+      this.incomplete ||= count > MAX_COUNT;
+      this.counts[index] = count > MAX_COUNT ? MAX_COUNT : count;
+    } else {
+      const count = this.counts[index]! + Number(value);
+      this.incomplete ||= count > MAX_BUCKET;
+      this.counts[index] = Math.min(MAX_BUCKET, count);
+    }
   }
 
   snapshot() {
