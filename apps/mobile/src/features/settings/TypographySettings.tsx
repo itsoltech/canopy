@@ -2,20 +2,18 @@ import { View } from "react-native";
 import { Markdown } from "../../ui/markdown";
 import { SettingsGroup } from "./SettingsGroup";
 import { DeviceChoiceRow } from "./DeviceChoiceRow";
+import { mobileFontOptions } from "./mobile-fonts";
 
 export function TypographySettings() {
   return (
     <View style={{ gap: 24 }}>
-      <SettingsGroup title="Typography" description="This device · Fonts use the listed local fallbacks.">
+      <SettingsGroup title="Typography" description="This device · Choose from built-in fonts.">
         <DeviceChoiceRow
           preference="interfaceFont"
           title="Interface font"
           description="Set the typeface for navigation, controls and messages."
-          options={[
-            { value: "canopy", label: "Canopy (Inter)" },
-            { value: "system", label: "System sans" },
-            { value: "serif", label: "Charter / Georgia" },
-          ]}
+          options={mobileFontOptions("interface")}
+          search="Search fonts"
         />
         <DeviceChoiceRow
           preference="interfaceSize"
@@ -27,11 +25,8 @@ export function TypographySettings() {
           preference="monoFont"
           title="Monospace font"
           description="Set the typeface for code, diffs and terminal output."
-          options={[
-            { value: "system", label: "System monospace" },
-            { value: "menlo", label: "Menlo / Liberation Mono" },
-            { value: "consolas", label: "Consolas / Liberation Mono" },
-          ]}
+          options={mobileFontOptions("mono")}
+          search="Search fonts"
         />
         <DeviceChoiceRow
           preference="monoSize"

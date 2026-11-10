@@ -1,9 +1,10 @@
-import { Platform, StyleSheet } from "react-native";
+import { StyleSheet } from "react-native";
 import { contextType, palette, typography } from "@canopy/ui";
 import { neutralSteps, themes, themeVariables, type ThemeName } from "@canopy/ui/themes";
 import { useAppearance } from "../state/appearance";
 import { themeOf } from "../features/settings/appearance";
 import { useDevicePreferences } from "../features/settings/device-preferences";
+import { mobileFontFamily } from "../features/settings/mobile-fonts";
 
 export function colorsFor(dark: boolean, theme: ThemeName = "birch") {
   const v = themeVariables(theme, dark ? "dark" : "light");
@@ -93,18 +94,8 @@ export function useTypography() {
   const { values } = useDevicePreferences();
   const scale = Number(values.interfaceSize) / 14;
 
-  const family =
-    values.interfaceFont === "serif"
-      ? Platform.OS === "ios"
-        ? "Georgia"
-        : "serif"
-      : values.interfaceFont === "system"
-        ? Platform.OS === "ios"
-          ? "System"
-          : "sans-serif"
-        : font.regular;
-
-  const mono = Platform.OS === "ios" ? (values.monoFont === "consolas" ? "Courier" : "Menlo") : "monospace";
+  const family = mobileFontFamily(values.interfaceFont, "interface");
+  const mono = mobileFontFamily(values.monoFont, "mono");
 
   return {
     body: {

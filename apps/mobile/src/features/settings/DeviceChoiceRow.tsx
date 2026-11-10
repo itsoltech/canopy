@@ -3,17 +3,20 @@ import { ResetSetting } from "./ResetSetting";
 import { SettingChoice } from "./SettingsGroup";
 import { deviceDefaults, useDevicePreferences, type DeviceKey } from "./device-preferences";
 import { SkeletonScope } from "../../ui/Skeleton";
+import type { PickerOption } from "../../ui/Picker";
 
 export function DeviceChoiceRow({
   preference,
   title,
   description,
   options,
+  search,
 }: {
   preference: DeviceKey;
   title: string;
   description: string;
-  options: { value: string; label: string }[];
+  options: PickerOption<string>[];
+  search?: string;
 }) {
   const device = useDevicePreferences();
 
@@ -25,6 +28,7 @@ export function DeviceChoiceRow({
           description={description}
           value={device.values[preference]}
           options={options}
+          search={search}
           disabled={!device.loaded}
           onChange={(value) => device.set(preference, value)}
           accessory={

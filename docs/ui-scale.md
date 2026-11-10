@@ -88,6 +88,17 @@ Na telefonie nakładki z `sheet` otwierają się jako dolny arkusz. Zostają prz
 
 ## Zasady
 
+- Typography zapisuje na urządzeniu osobno font interfejsu i monospace. Presety są na początku
+  wyszukiwanego pickera; „Show installed fonts” odczytuje rodziny dopiero po kliknięciu.
+  Lista jest wirtualizowana: DOM zawiera widoczne wiersze i mały bufor, a podgląd własnym
+  fontem pojawia się dopiero w widocznym obszarze. W pickerze monospace rodziny mają oznaczenie
+  „Monospace” lub „Proportional”, ustalane porównaniem szerokości znaków.
+  Wpisana nazwa ma podgląd i sprawdzenie obecności (`document.fonts.check` oraz pomiar canvas).
+  Safari i Firefox korzystają z tej drogi bez dostępu do listy. Brak fontu zachowuje wybór,
+  używa dotychczasowego stosu fallbacków i pokazuje stan w Settings. Nazwy są cytowane
+  i escapowane przed ustawieniem `--font-sans` lub `--font-mono`. Rozmiary i wysokości
+  wierszy pozostają na skali; reset ma stale zarezerwowane miejsce.
+
 - Nie wpisuj rozmiarów w pikselach ani `text-[…]` dla tekstu interfejsu. Użyj stopnia
   (`text-base sm:text-sm`, `text-sm sm:text-xs`) albo tokenu (`--type-*`, `--icon-*`,
   `--control-*`), jeśli komponent ma własny styl.

@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import * as SecureStore from "expo-secure-store";
 import { DeviceViewPreferences, deviceViewDefaults, type DeviceViewValues } from "@canopy/domain/device-view";
+import { mobileFontFamilies } from "./mobile-fonts";
 
 // Device preferences never enter account settings or overwrite another client's choices.
 export const deviceChoices = {
@@ -113,11 +114,27 @@ function useDeviceView() {
 
 const isKey = (key: string): key is DeviceKey => Object.hasOwn(deviceChoices, key);
 
+function validChoice(key: DeviceKey, value: string): boolean {
+  if (key === "interfaceFont" || key === "monoFont") {
+    const local = mobileFontFamilies.find((font) => value === `local:${font.family}`);
+
+    if (local && (key !== "monoFont" || local.mono)) return true;
+  }
+
+  return deviceChoices[key].some((option) => option === value);
+}
+
 function isSavedPreferences(value: unknown): value is Partial<Record<DeviceKey, string>> {
   return (
     !!value &&
     typeof value === "object" &&
-    Object.entries(value).every(([key, choice]) => isKey(key) && deviceChoices[key].some((option) => option === choice))
+    Object.entries(value).every(
+      ([key, choice]) =>
+        isKey(key) &&
+        (deviceChoices[key].some((option) => option === choice) ||
+          ((key === "interfaceFont" || key === "monoFont") &&
+            mobileFontFamilies.some((font) => choice === `local:${font.family}` && (key !== "monoFont" || font.mono)))),
+    )
   );
 }
 
@@ -130,7 +147,7 @@ function readPreferences(raw: string | null): Record<DeviceKey, string> {
   if (!isSavedPreferences(entries)) return result;
 
   for (const [key, value] of Object.entries(entries)) {
-    if (isKey(key) && value !== undefined) result[key] = value;
+    if (isKey(key) && value !== undefined && validChoice(key, value)) result[key] = value;
   }
 
   return result;
@@ -186,7 +203,7 @@ function useDeviceState() {
     loaded,
     error: error || view.viewError,
     set(key: DeviceKey, value: string) {
-      if (loaded && deviceChoices[key].some((choice) => choice === value)) save({ ...current.current, [key]: value });
+      if (loaded && validChoice(key, value)) save({ ...current.current, [key]: value });
     },
     reset(keys: readonly DeviceKey[]) {
       if (!loaded) return;

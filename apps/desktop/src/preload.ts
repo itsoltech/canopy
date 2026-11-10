@@ -25,6 +25,7 @@ function subscribe<T>(channel: string, listener: (data: T) => void) {
 }
 
 const bridge: DesktopBridge = {
+  listFonts: () => ipcRenderer.invoke("canopy:fonts"),
   history: {
     read: (key) => ipcRenderer.invoke("canopy:history-read", key),
     write: (generation, key, bytes) => ipcRenderer.invoke("canopy:history-write", generation, key, bytes),

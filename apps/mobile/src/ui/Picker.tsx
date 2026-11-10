@@ -11,6 +11,8 @@ import { Skeleton } from "./Skeleton";
 export interface PickerOption<T> {
   value: T;
   label: string;
+  /** Local typography choices preview in their own face. */
+  fontFamily?: string;
   description?: string;
   icon?: IconName;
   /** Replaces the icon (provider logo, project mark). */
@@ -184,7 +186,11 @@ function PickerRow<T>({
         <View style={[styles.row, { gap: 6 }]}>
           <Text
             numberOfLines={option.wrapLabel ? undefined : 1}
-            style={[styles.overlay, { color: tone ?? c.strong, flexShrink: 1 }]}
+            style={[
+              styles.overlay,
+              { color: tone ?? c.strong, flexShrink: 1 },
+              option.fontFamily ? { fontFamily: option.fontFamily } : undefined,
+            ]}
           >
             {option.label}
           </Text>

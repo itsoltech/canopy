@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, nativeImage, powerMonitor, Tray } from "electron";
-import { monitorPower } from "./power-events.ts";
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron";
+import { monitorPower } from "./power-events.ts";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { stopController } from "./runtime/process.ts";
 import { join, resolve } from "node:path";
@@ -21,7 +21,7 @@ import { QuitGuard } from "./quit-guard.ts";
 import { systemQuitClock } from "./quit-machine.ts";
 import { quitKeyEvent } from "./quit-key-event.ts";
 import { isQuitShortcut, QuitSettings } from "./quit-settings.ts";
-import { windowState, registerWindowPreferencesIpc } from "./window-chrome.ts";
+import { registerWindowPreferencesIpc } from "./window-chrome.ts";
 import { updateDesktopMenus } from "./desktop-menu.ts";
 import { AppRoutes } from "./app-routes.ts";
 import { registerAppRouteIpc, showAppRoute } from "./app-route-ipc.ts";
@@ -31,6 +31,7 @@ import { DocumentPolicy } from "./document-policy.ts";
 import type { RemoteAppUpdate } from "./remote-app-update.ts";
 import { acceptRemoteUpdate, remoteAppUpdate, registerUpdateIpc } from "./update-ipc.ts";
 import { desktopHistory, registerHistoryIpc } from "./history-ipc.ts";
+import { registerFontsIpc } from "./fonts-ipc.ts";
 import { startupFailure } from "./startup-error.ts";
 
 const identity = desktopIdentity();
@@ -352,6 +353,7 @@ function startController() {
 }
 
 function registerIpc() {
+  registerFontsIpc(authorize, () => status.webUrl);
   registerHistoryIpc(history, authorize, () => status.phase === "running" && !status.needsPairing);
   registerWindowPreferencesIpc(authorize, iconPath);
   registerAppRouteIpc(appRoutes, authorize, () => window);
@@ -359,11 +361,6 @@ function registerIpc() {
     authorize(event);
 
     return status;
-  });
-  ipcMain.handle("canopy:window-state", (event) => {
-    authorize(event);
-
-    return windowState(BrowserWindow.fromWebContents(event.sender)!);
   });
   ipcMain.handle("canopy:settings", (event) => {
     authorize(event);

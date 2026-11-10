@@ -1,5 +1,6 @@
 <script lang="ts">
   import DeviceChoiceRow from "./DeviceChoiceRow.svelte";
+  import FontPicker from "./FontPicker.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
   import Diff from "#lib/features/threads/components/Diff.svelte";
@@ -12,33 +13,15 @@
     '--- a/settings.ts\n+++ b/settings.ts\n@@ -1,2 +1,2 @@\n-const theme = "light";\n+const theme = "system";\n export { theme };';
 </script>
 
-<SettingsGroup title="Typography" description="This device · Fonts use the listed local fallbacks.">
-  <DeviceChoiceRow
-    preference="interfaceFont"
-    title="Interface font"
-    description="Set the typeface for navigation, controls and messages."
-    options={[
-      { value: "canopy", label: "Canopy (Inter)" },
-      { value: "system", label: "System sans" },
-      { value: "serif", label: "Charter / Georgia" },
-    ]}
-  />
+<SettingsGroup title="Typography" description="This device · Unavailable fonts use local fallbacks.">
+  <FontPicker kind="interface" />
   <DeviceChoiceRow
     preference="interfaceSize"
     title="Interface size"
     description="Scale interface text from the desktop base size."
     options={[12, 14, 16, 18].map((v) => ({ value: String(v), label: `${v} px` }))}
   />
-  <DeviceChoiceRow
-    preference="monoFont"
-    title="Monospace font"
-    description="Set the typeface for code, diffs and terminal output."
-    options={[
-      { value: "system", label: "System monospace" },
-      { value: "menlo", label: "Menlo / Liberation Mono" },
-      { value: "consolas", label: "Consolas / Liberation Mono" },
-    ]}
-  />
+  <FontPicker kind="mono" />
   <DeviceChoiceRow
     preference="monoSize"
     title="Monospace size"

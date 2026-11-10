@@ -4,6 +4,19 @@
  */
 const ALLOWED = new Set(["clipboard-sanitized-write", "notifications"]);
 
+/** Fonts belong to the application UI, never the setup page or an embedded origin. */
+export function allowedFontAccess(url: string, appOrigin: string | undefined, mainFrame = true): boolean {
+  if (!appOrigin || !mainFrame) return false;
+
+  try {
+    const requested = new URL(url);
+
+    return requested.origin !== "null" && requested.origin === new URL(appOrigin).origin;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Window permissions: only the allowed ones, and only from the app's own pages (setup and web UI).
  * Clipboard reads, media and the rest stay denied.

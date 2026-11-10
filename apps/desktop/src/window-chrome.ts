@@ -7,6 +7,11 @@ import { registerNotifications } from "./notifications.ts";
 export function registerWindowPreferencesIpc(authorize: (event: IpcMainInvokeEvent) => void, iconPath: string): void {
   registerAppearanceIpc(authorize);
   registerNotifications(authorize, iconPath);
+  ipcMain.handle("canopy:window-state", (event) => {
+    authorize(event);
+
+    return windowState(BrowserWindow.fromWebContents(event.sender)!);
+  });
   ipcMain.handle("canopy:window-control", (event, control: string) => {
     authorize(event);
     const target = BrowserWindow.fromWebContents(event.sender);
