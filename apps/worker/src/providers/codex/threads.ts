@@ -178,6 +178,7 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
         [...ctx.byPlatform.values()].some(
           (entry) =>
             entry.pendingTurns.length > 0 ||
+            entry.recordingNotifications ||
             [...entry.codexToPlatform.keys()].some((turn) => !entry.finishedTurns.has(turn)),
         ),
       failure: () => ctx.failure,

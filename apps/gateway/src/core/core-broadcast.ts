@@ -9,6 +9,7 @@ import { corePublishDeliveries } from "./core-messages.ts";
 import { coreWorkers } from "./core-providers.ts";
 import { coreUiThread } from "./core-titles.ts";
 import { decorateOrigins } from "./workspace-origins.ts";
+import { threadDiagnostic } from "./thread-diagnostics.ts";
 
 export async function coreBroadcastThread(hostContext: GatewayCore, threadId: string): Promise<void> {
   const thread = coreUiThread(hostContext, await coreRun(hostContext, (s) => s.thread(threadId, true, true)));
@@ -16,10 +17,23 @@ export async function coreBroadcastThread(hostContext: GatewayCore, threadId: st
   hostContext.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "thread", value: thread } }));
 }
 
-export async function coreBroadcastTurn(hostContext: GatewayCore, threadId: string, turnId: string): Promise<void> {
+export async function coreBroadcastTurn(
+  hostContext: GatewayCore,
+  threadId: string,
+  turnId: string,
+  phase?: "started" | "finished",
+): Promise<void> {
   const turn = (await coreRun(hostContext, (s) => s.turnsOf(threadId, [turnId])))[0];
 
   if (!turn) return;
+
+  if (phase)
+    threadDiagnostic(hostContext, phase === "started" ? "turn_started" : "turn_finished", {
+      threadId,
+      turnId,
+      source: turn.trigger,
+      status: phase === "started" ? "running" : turn.status,
+    });
   hostContext.hub.publishThread(
     threadId,
     create(ui.ThreadUpdateSchema, { change: { case: "turn", value: toUiTurn(turn) } }),

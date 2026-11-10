@@ -80,7 +80,7 @@ export class SteerStore extends Context.Service<
     ofThread(threadId: string): Fx<readonly SteerRow[]>;
     accepted(id: string): Fx<SteerRow>;
     failed(id: string, reason: string): Fx<SteerRow>;
-    /** Steers that did not join their turn (dropped) and still wait for their fallback. */
+    /** Undelivered steers whose turn ended, including those without a worker's dropped notice. */
     dropped(threadId: string): Fx<string[]>;
     /**
      * The steer becomes the next turn (with the reason it did not join the running one). Idempotent: a steer
@@ -162,9 +162,11 @@ export class SteerStore extends Context.Service<
         dropped: (threadId) =>
           sql<{
             id: string;
-          }>`SELECT id FROM turn_steers WHERE thread_id = ${threadId}::uuid AND status = 'dropped' ORDER BY created_at`.pipe(
-            Effect.map((rows) => rows.map((r) => r.id)),
-          ),
+          }>`SELECT s.id FROM turn_steers s JOIN turns u ON u.id = s.turn_id
+              WHERE s.thread_id = ${threadId}::uuid
+                AND (s.status = 'dropped' OR (s.status IN ('pending', 'accepted')
+                  AND u.status IN ('completed', 'interrupted', 'failed', 'cancelled')))
+              ORDER BY s.created_at, s.id`.pipe(Effect.map((rows) => rows.map((r) => r.id))),
 
         queue: (id, reason) =>
           sql.withTransaction(

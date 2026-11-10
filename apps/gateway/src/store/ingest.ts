@@ -147,6 +147,8 @@ export class Ingest extends Context.Service<
                        AND NOT EXISTS (SELECT 1 FROM thread_items b
                                         WHERE b.thread_id = i.thread_id AND b.type = 'background_task' AND b.status = 'in_progress'
                                           AND b.content->'backgroundTask'->>'sourceItemId' = i.item_id))
+         OR EXISTS (SELECT 1 FROM turn_steers s JOIN turns u ON u.id = s.turn_id
+                     WHERE s.thread_id = t.id AND s.status IN ('pending', 'accepted', 'dropped') AND u.status = ANY(${ENDED}::text[]))
          OR EXISTS (SELECT 1 FROM interaction_requests q JOIN turns u ON u.id = q.turn_id
                      WHERE q.thread_id = t.id AND q.status = 'pending' AND q.question_call_id IS NULL AND u.status = ANY(${ENDED}::text[])))
        ORDER BY t.id`;

@@ -45,7 +45,7 @@ export async function coreEndLostTurns(
 
   for (const { threadId, turnId } of turns) {
     coreLog(hostContext, `turn ${turnId} of thread ${threadId} ended: ${input.reason}`);
-    await coreBroadcastTurn(hostContext, threadId, turnId);
+    await coreBroadcastTurn(hostContext, threadId, turnId, "finished");
 
     for (const steer of await coreSteers(hostContext, (s) => s.ofThread(threadId)))
       if (steer.turn_id === turnId && steer.status === "dropped") await corePublishSteer(hostContext, steer.id);
@@ -90,12 +90,13 @@ export async function coreSettle(
     await corePublishInteraction(hostContext, interaction);
   }
 
-  const changed = settled.stored.length > 0 || expired.length > 0 || settled.threadChanged;
+  const undelivered = await coreSteers(hostContext, (s) => s.dropped(threadId));
+  const changed = settled.stored.length > 0 || expired.length > 0 || settled.threadChanged || undelivered.length > 0;
 
   if (changed)
     coreLog(
       hostContext,
-      `thread ${threadId} settled: ${settled.stored.length} item(s), ${expired.length} interaction(s)${settled.threadChanged ? ", idle again" : ""} (${reason})`,
+      `thread ${threadId} settled: ${settled.stored.length} item(s), ${expired.length} interaction(s), ${undelivered.length} undelivered steer(s)${settled.threadChanged ? ", idle again" : ""} (${reason})`,
     );
 
   if (changed && options.publishThread !== false) {

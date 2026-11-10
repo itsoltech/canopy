@@ -7,6 +7,7 @@ import { codexUserInput } from "./input.ts";
 import { CodexThreadError, fail, type CodexThreadContext } from "./thread-types.ts";
 import type { threadSessions } from "./thread-sessions.ts";
 import type { threadTurnSettings } from "./thread-catalog.ts";
+import { threadEvents } from "./thread-events.ts";
 
 export function threadTurns(
   ctx: CodexThreadContext,
@@ -14,6 +15,7 @@ export function threadTurns(
   turnSettings: ReturnType<typeof threadTurnSettings>,
 ) {
   const { codex, connectorCatalog, byPlatform } = ctx;
+  const { record } = threadEvents(ctx);
 
   return {
     startTurn: Effect.fn("CodexThreads.startTurn")(function* (
@@ -41,20 +43,23 @@ export function threadTurns(
         })
         .pipe(
           Effect.mapError(fail(spec.threadId, "turn/start")),
-          Effect.tapError(() => Effect.sync(() => entry.pendingTurns.splice(entry.pendingTurns.indexOf(turnId), 1))),
+          Effect.tap((response) =>
+            Effect.sync(() => {
+              const codexTurn = response.turn.id;
+              entry.commandTurns.add(codexTurn);
+              entry.codexToPlatform.set(codexTurn, turnId);
+              entry.platformToCodex.set(turnId, codexTurn);
+            }),
+          ),
+          Effect.ensuring(
+            Effect.gen(function* () {
+              entry.pendingTurns.splice(entry.pendingTurns.indexOf(turnId), 1);
+              yield* record(entry).pipe(Effect.ignore);
+            }),
+          ),
         );
 
-      const codexTurn = response.turn.id;
-
-      if (!entry.codexToPlatform.has(codexTurn)) {
-        // The response won the race against turn/started: bind now and drop the pending slot.
-        entry.pendingTurns.splice(entry.pendingTurns.indexOf(turnId), 1);
-        entry.commandTurns.add(codexTurn);
-        entry.codexToPlatform.set(codexTurn, turnId);
-        entry.platformToCodex.set(turnId, codexTurn);
-      }
-
-      return codexTurn;
+      return response.turn.id;
     }),
 
     interrupt: Effect.fn("CodexThreads.interrupt")(function* (threadId: string, turnId: string) {

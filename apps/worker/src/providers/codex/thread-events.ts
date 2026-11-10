@@ -6,6 +6,7 @@ import { reconcileTurn } from "../reconcile.ts";
 
 import type { Entry, CodexThreadContext } from "./thread-types.ts";
 import { withUserMentions } from "./thread-registry.ts";
+import { warnLateEvent } from "./late-events.ts";
 
 export function threadEvents(ctx: CodexThreadContext) {
   const { options, journal } = ctx;
@@ -52,8 +53,9 @@ export function threadEvents(ctx: CodexThreadContext) {
       return items;
     });
 
-  const record = (entry: Entry, notification: ServerNotification) =>
+  const recordNotification = (entry: Entry, notification: ServerNotification) =>
     Effect.gen(function* () {
+      warnLateEvent(ctx, entry, notification);
       const notifications = [...(yield* fromRollout(entry, notification)), notification];
 
       if (notification.method === "turn/completed") entry.finishedTurns.add(notification.params.turn.id);
@@ -86,6 +88,34 @@ export function threadEvents(ctx: CodexThreadContext) {
           ),
       );
     });
+
+  // A provider wake-up may precede the notification for a requested turn. Only the RPC response
+  // identifies the requested turn; preserve notification order until that binding is known.
+  const record = (entry: Entry, notification?: ServerNotification) =>
+    Effect.acquireUseRelease(
+      Effect.sync(() => {
+        entry.recordingNotifications = true;
+      }),
+      () =>
+        Effect.gen(function* () {
+          if (notification) entry.pendingNotifications.push(notification);
+
+          if (entry.pendingTurns.length > 0) return [];
+          const pending = entry.pendingNotifications.splice(0);
+
+          const recorded = yield* Effect.forEach(pending, (next) =>
+            recordNotification(entry, next).pipe(Effect.orElseSucceed(() => [])),
+          );
+
+          return recorded.flat();
+        }),
+      () =>
+        Effect.sync(() => {
+          entry.recordingNotifications = false;
+
+          if (!notification) options.onActivitySettled?.();
+        }),
+    ).pipe(entry.recording.withPermit);
 
   return { record };
 }

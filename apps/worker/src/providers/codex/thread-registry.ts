@@ -1,4 +1,5 @@
 import type { Mention } from "@canopy/contracts";
+import { Semaphore } from "effect";
 import type { ThreadEventInit } from "../../journal/index.ts";
 import { CodexEventMapper } from "./mapping.ts";
 import { RolloutTail } from "./rollout.ts";
@@ -29,15 +30,6 @@ export function registerThread(
       const known = codexToPlatform.get(codexTurn);
 
       if (known) return known;
-      const pending = pendingTurns.shift();
-
-      if (pending) {
-        commandTurns.add(codexTurn);
-        bind(codexTurn, pending);
-
-        return pending;
-      }
-
       const providerTurn = Bun.randomUUIDv7(); // e.g. goal continuation started by Codex
       bind(codexTurn, providerTurn);
 
@@ -54,6 +46,10 @@ export function registerThread(
     codexId,
     mapper,
     pendingTurns,
+    pendingNotifications: [],
+    recording: Semaphore.makeUnsafe(1),
+    recordingNotifications: false,
+    warnedLateTurns: new Set(),
     codexToPlatform,
     platformToCodex,
     commandTurns,
