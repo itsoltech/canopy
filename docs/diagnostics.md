@@ -1,6 +1,8 @@
 # Diagnostyka wydajności
 
-Status: **projekt do decyzji**, bez implementacji. Settings → Diagnostics ma pomóc
+Status: **zaakceptowany 2026-11-10, jeszcze niewdrożony**. Dokumentacyjny PR #495
+jest podstawą stosu diagnostyki i zostanie scalony razem z nim (§10).
+Settings → Diagnostics ma pomóc
 właścicielowi ustalić, co spowalnia Canopy i co zrobić dalej. Jeden ekran pokazuje
 lokalny komputer i **wszystkie połączone komputery**, ich gatewaye, workery i łącza.
 Telefon widzi ten sam zbiór przez sparowany gateway; nie łączy się osobno z każdym domem.
@@ -21,8 +23,10 @@ Powiązane: [architektura](architecture.md), [protokół](protocol.md), [UI API]
 - Brak zewnętrznej telemetrii i automatycznego wysyłania raportów. Dane pozostają
   w procesach i gatewayach właściciela oraz jego uwierzytelnionych klientach.
   Eksport i przekazanie raportu agentowi są osobnymi, jawnymi akcjami.
-- Domyślnie agregaty w pamięci, bez tabeli metryk i zapisów na każde RPC.
-  Szczegółowe próbki tylko po czasowym włączeniu na wskazanym komputerze.
+- Agregaty zbieramy w pamięci i utrwalamy lekkimi partiami w bazie domowego gatewaya
+  od etapu 1: minuty przez 72 h, godziny przez 30 dni, bez zapisów na każde RPC.
+  Budżet narzutu obejmuje zapis i retencję. Szczegółowe próbki tylko po czasowym
+  włączeniu na wskazanym komputerze; nie są utrwalane.
 - Zbieranie logów obejmuje wyłącznie zarejestrowane źródła Canopy. Nie pobiera
   transkryptów, katalogów projektów, konfiguracji sekretów ani dowolnych plików.
 
@@ -53,10 +57,12 @@ kierunek i autoryzowany właściciel. Id komputera/procesu jest zakresem kolekto
 nie etykietą mnożoną przez wątek, projekt, model, adres i każdy kod błędu.
 Kody mają stałą tablicę liczników. Nigdy nie tworzymy serii z tekstu wejścia.
 
-**Okna:** 1 min / 15 min / 24 h. Pierścienie mają 12 slotów po 5 s,
+**Okna:** 1 min / 15 min / 1 h / 24 h. Pierścienie mają 12 slotów po 5 s,
 15 po 1 min i 96 po 15 min. Aktualizacja dotyka trzech bieżących slotów;
 odczyt scala histogramy. Obejmuje bieżący slot i poprzednie sloty danego pierścienia:
 granica jest zaokrąglona, a odpowiedź podaje rzeczywiste `window_start/end` i rozdzielczość.
+Okno 1 h scala 60 minutowych rollupów z §5, z bieżącą nieutrwaloną częścią,
+w ograniczonym cache; nie wymaga czwartego pierścienia ani odczytu SQL na każdy tick.
 UI nie obiecuje dowolnego dokładnego zakresu historycznego.
 
 Histogram czasu ma 128 stałych kubełków: granice `1 µs × 2^(i/4)`,
@@ -71,13 +77,14 @@ Budżet całej diagnostyki: **64 MiB na gateway, 16 MiB na worker,
 2 MiB na BFF/klienta**. Gateway dopuszcza do 384 pełnych serii, worker do 64;
 rezerwujemy serie metod z deskryptorów przed rodzinami opcjonalnymi. Jeden histogram
 128 × uint32 × 123 sloty to około 62 KiB; sumy, błędy, rozmiary, cache partnerów
-i tracing muszą zmieścić się w całościowym limicie, sprawdzanym przy alokacji.
+i tracing, bufory zapisu/odtworzenia i cache okna 1 h muszą zmieścić się
+w całościowym limicie, sprawdzanym przy alokacji.
 Brak miejsca ogranicza szczegóły i zwiększa `dropped_series/samples`, nie zatrzymuje RPC.
 Nie tworzymy macierzy worker × wszystkie metody: workery mają osobne ograniczone podsumowania.
 Przekroczenie liczby metod po rozbudowie kontraktu wymaga zmiany budżetu lub schematu,
 nie cichego usunięcia metryk metody. Odczyty są stronicowane.
-BFF i klienci trzymają tylko agregaty bieżącej partii, do wysłania; pełne trzy
-okna ich danych utrzymuje gateway. Limit 2 MiB nie zakłada lokalnej historii 24 h.
+BFF i klienci trzymają tylko agregaty bieżącej partii, do wysłania; okna i trwałą
+historię ich danych utrzymuje gateway. Limit 2 MiB nie zakłada lokalnej historii 24 h.
 
 Hot path wykonuje tylko odczyt zegara i aktualizację liczb, bez synchronicznego
 I/O, logowania na sukces, serializacji do liczenia rozmiaru i procesów pomocniczych.
@@ -103,7 +110,7 @@ To czas całej obsługi komendy (także kolejki/git/harness), nie RTT sieci.
 
 | Metryka | Dokładna definicja |
 |---|---|
-| `started`, `completed`, `calls/min` | Próby wejścia do handlera, zakończenia i `60 × started / observed_seconds` w wybranym oknie. Retry liczy się jako nowa próba. Odpowiedź podaje oba liczniki i czas pokrycia od startu/resetu. |
+| `started`, `completed`, `calls/min` | Próby wejścia do handlera, zakończenia i `60 × started / observed_seconds` w wybranym oknie. Retry liczy się jako nowa próba. Odpowiedź podaje oba liczniki i rzeczywiste pokrycie, także odtworzone po restarcie; downtime nie jest czasem obserwacji. |
 | `duration_ms` p50/p95/p99/max | Unary: wejście wrappera → rozstrzygnięcie handlera z wynikiem/błędem, łącznie z lokalnym oczekiwaniem i routowaniem. Nie obejmuje całego transferu do klienta; to osobny pomiar BFF/klienta. Histogram dotyczy zakończonych prób, także błędów; UI może filtrować wynik, jeśli istnieje osobna seria. |
 | `errors_by_code`, `error_ratio` | Ostateczny kod Connect/gRPC z wyjątku lub końca generatora; OK osobno. Udział błędów = nie-OK / zakończone. Oczekiwane `Canceled` i planowy drain są widoczne, ale wyłączone z reguły awarii. Nieznany kod trafia do `Unknown`, bez message. |
 | `in_flight` | Rozpoczęte minus zakończone teraz; zwolnienie dokładnie raz także po abort, błędzie generatora i zerwaniu transportu. Oprócz wartości bieżącej zapisujemy maksimum slotu. |
@@ -144,13 +151,17 @@ można wskazać współwystępowanie, nie „przyczynę”. Nie odejmujemy p95 S
 
 Worker wysyła agregat przez istniejący WorkerLink najwyżej co 30 s, do 32 KiB,
 bez journala, outboxa i wymogu trwałego ACK. Numer sesji i sekwencja partii
-zapobiegają podwójnemu scaleniu; utrata partii daje lukę pokrycia, nigdy replay
-transkryptu. Pobranie szczegółów odwołuje się do kolektora workera, bez wykonywania
+zapobiegają podwójnemu scaleniu, także po odtworzeniu gatewaya (§5). Gateway
+utrwala odebrane agregaty; worker nie ma bazy ani osobnego trwałego magazynu metryk.
+Utrata nieodebranej partii daje lukę pokrycia, nigdy replay transkryptu.
+Szczegóły łączą zapisane okna z aktualnym agregatem workera, bez wykonywania
 komend git lub modelu. Starszy worker nadal działa, lecz nie ma nowego pomiaru RTT.
 
 ### 3.4 Połączone komputery i wspólny obraz
 
-Każdy dom utrzymuje własne agregaty gatewaya i swoich workerów. Lokalny gateway
+Każdy dom utrzymuje i zapisuje własne agregaty gatewaya i swoich workerów (§5).
+Po restarcie udostępnia odtworzone okna i findings tymi samymi trasami.
+Lokalny gateway
 buduje katalog z własnego komputera i autoryzowanych komputerów znanych przez
 `GetComputers`, obecność, bezpośrednie linki oraz istniejące trasy onward (maks. jeden relay).
 Nie odkrywa sam obcych gatewayów. Wszystkie te komputery mają kartę, także offline,
@@ -176,7 +187,7 @@ zachowując wszystkie karty i informację o braku zachowanego snapshotu.
 
 Overview domu ma limit 16 KiB, pełna strona metod 64 KiB; łączny budżet zwykłego
 odświeżania 64 KiB/s na gateway, do 256 KiB cache szczegółów na komputer.
-Przesyłamy gotowe agregaty trzech okien i najwyżej 96 punktów trendu, nie wszystkie
+Przesyłamy gotowe agregaty wybranego okna i najwyżej 96 punktów trendu, nie wszystkie
 wewnętrzne sloty ani per-call samples. Przy braku zmiany rewizji wystarcza `not_modified`.
 Budżet obejmuje relay; po wyczerpaniu odkładamy odczyt, nie zagęszczamy timerów.
 Dom scala sloty raz na rewizję (najwyżej co 5 s) i współdzieli wynik wszystkim
@@ -189,7 +200,8 @@ Odbiorca zapisuje własny monotoniczny czas odbioru; wiek pokazuje jako wiek
 do zgodności zegarów. Po 90 s overview jest `Stale`, po utracie połączenia
 `Offline` z ostatnim snapshotem i „Last updated 2 min ago”. Offline nie jest zerowym
 ruchem ani zdrowiem. Bez capability: „Update to see diagnostics”. Unlink usuwa
-cache, zgody i aktywne zadania; restart odbiorcy może oznaczać brak starego snapshotu (§5).
+cache, zgody i aktywne zadania. Ograniczony zapis ostatniego overview (§5) pozwala
+pokazać offline partnera również po restarcie odbiorcy, zawsze z pierwotną świeżością.
 
 **Metryki łącza:** RTT i jitter mierzone echo w już wysyłanym heartbeat, jak
 u workera, przy capability obu stron; czas zestawienia trasy pozostaje osobno.
@@ -256,33 +268,130 @@ Stan karty wynika z najpoważniejszego aktywnego finding; brak pokrycia daje
 Reguły przeliczamy co minutę. Wejście zwykle po trzech kolejnych ocenach,
 wyjście po pięciu ocenach poniżej 70% progu; dla CPU/dysku osobne progi powrotu
 70% i >15% lub >3 GiB. Zmiana severity zachowuje to samo id finding.
-Brak świeżych próbek zawiesza ocenę, nie rozwiązuje problemu. Po starcie/reset
-zbieramy wymagane pokrycie, minimum trzy minuty; dla okna 15 min wymagamy co
+Brak świeżych próbek zawiesza ocenę, nie rozwiązuje problemu. Po pierwszym starcie/reset
+zbieramy wymagane pokrycie, minimum trzy minuty; odtworzenie uwzględnia zapisaną
+historię i wymaga świeżych ocen (§5.3). Dla okna 15 min wymagamy co
 najmniej 10 min obserwacji. p99 przy n<1000 pozostaje liczbą o małej próbie,
 z takim oznaczeniem i bez samodzielnej eskalacji. Planowy drain, sen, zmiana
 trasy i legacy revalidation nie uruchamiają alarmu sieci. Deduplikacja per reguła/
 komputer/łącze, bez toastu na każdy tick i bez systemowych powiadomień w tym zakresie.
 
-## 5. Pamięć, retencja i restart
+## 5. Trwałe agregaty, retencja i restart
 
-**Decyzja: bez persystencji metryk w pierwszym stosie.** Każdy proces utrzymuje
-ograniczone okna, gateway dodatkowo ostatnie snapshoty partnerów. Restart/reset
-czyści jego obserwacje; UI podaje „Collected since …” i luki. Po restarcie odbiorcy
-offline komputer pozostaje w katalogu, ale może mieć „No saved diagnostics”.
-To jawny koszt niższego narzutu i braku konkurencji o pulę DB, zgodny z utratą
-wyłącznie pomocniczej telemetrii, nigdy stanu wykonania z `durability.md`.
-Obecny runtime ma jeden proces gatewaya na dom. Przy przyszłych N instancjach
-każdy wynik zachowuje id sesji/instancji; bez kompletnego zbioru nie pokazujemy
-go jako sumy gatewaya. Wspólny odczyt musi scalić histogramy wszystkich instancji
-albo jawnie podać niepełne pokrycie, także po przełączeniu load balancera.
+**Decyzja: persystencja od etapu 1.** Każdy proces nadal zbiera metryki w pamięci;
+tylko domowy gateway zapisuje je do PostgreSQL. Dotyczy to także agregatów workerów
+przesłanych przez WorkerLink oraz później BFF/klientów. Każdy dom zapisuje własne
+dane; odbiorca linked czyta jego trwałe okna przez istniejące trasy, bez kopiowania
+historii do luster. Nie utrwalamy pojedynczych wywołań, payloadów ani spanów.
 
-Opcję minutowych snapshotów na 24–72 h odkładamy. Przy 256 seriach i 1 KiB/min
-na serię to około 360 MiB/dobę/komputer przed indeksami/WAL; nie jest „tanim”
-domyślnym zapisem. Jeżeli restart okaże się realnym problemem, osobny projekt
-ograniczy rekordy/bajty i częstotliwość, zachowa owner scoping i użyje joba
-`maintenance/job.ts` z partiami jak `database-retention.md`. Nowa migracja ma numer
-najwyższy+1, bez edycji zastosowanych migracji, z aktualizacją
-`packages/db/test/schema.test.ts`. Ten dokument nie rezerwuje numeru migracji.
+### 5.1 Format i zapis poza obsługą RPC
+
+Minutowy rollup zawiera per proces: zamknięte id serii, liczniki i sumy,
+niezerowe pary indeks kubełka/liczność z histogramów §3, max, ważone czasem zasoby,
+zakresy pokrycia i luki. Wersjonowany binarny `bytea` używa słownika id i varintów,
+bez powtarzania nazw metod w każdym rekordzie, JSON-u per próbka i nowych granic
+kubełków. Wszystkie kubełki dają się odtworzyć, także zerowe; nie zapisujemy samych
+percentyli. Liczniki po scaleniu mają co najmniej 64 bity, z kontrolą przepełnienia.
+Id procesu jest stabilne, sesja zmienia się przy restarcie; reset epoch jest trwały.
+
+Gateway raz na minutę zamraża partię i zapisuje **jednym wielowierszowym UPSERT-em**
+rollupy i ostatnie findings/stan (np. przez CTE w jednej transakcji). Łączy procesy
+w tej samej partii: najwyżej jeden cykliczny zapis na minutę na proces, zwykle
+jeden na cały dom; przy braku zmian rzadziej. Serializacja i SQL są poza hot path,
+z oddawaniem event loop, jedną operacją zapisu naraz i timeoutami jak maintenance.
+Zapis cache partnerów dołączamy do partii najwyżej co 5 min, tylko przy zmianie;
+maintenance i jawny reset są oddzielnymi, ograniczonymi operacjami.
+Stan findings zawiera id reguły, severity, wartości, pokrycie i stan histerezy,
+bez swobodnego tekstu błędu. Kontrola deduplikacji partii workerów/klientów jest
+zapisywana atomowo z ich agregatami. Retry zastępuje tę samą wersję kubełka,
+nie dodaje ponownie liczników; bieżąca minuta i zapis nigdy nie są sumowane dwa razy.
+
+Przy błędzie SQL dane pozostają w ograniczonych buforach pamięci; następna minuta
+ponawia zapis bez blokowania RPC i bez ciasnej pętli retry. Bufor zaległych minut
+ma limit 4 MiB w budżecie gatewaya; po jego wyczerpaniu najstarsze niezapisane
+minuty tracą trwałość, z jawnym `persistence_gap`. Pierścienie live nadal działają.
+Odpowiedź niesie `persisted_through`, `pending_minutes` i błąd jako zamknięty kod.
+Graceful shutdown próbuje opróżnić partię w istniejącym limicie drain; crash może
+utracić ostatnią nieutrwaloną minutę i trwającą partię, a przy awarii DB więcej. UI pokazuje
+faktyczną lukę; diagnostyka nie zmienia gwarancji journala/ACK z `durability.md`.
+
+### 5.2 Tabele, ograniczenia i sprzątanie
+
+Nowe, zwykłe zalogowane tabele (proponowane nazwy):
+
+| Tabela | Klucz i ograniczenie |
+|---|---|
+| `diagnostics_rollups` | `(owner_user_id, computer_id, resolution, bucket_start)`; jeden blob z procesami domu na minutę/godzinę. Do 64 KiB payloadu na rekord, 4320 minut i 720 godzin na komputer; sesje/restarty nie tworzą osobnych wierszy. Indeks klucza obsługuje zakres czasu i pruning. |
+| `diagnostics_state` | `(owner_user_id, computer_id)`; do 64 KiB stanu lokalnych procesów/findings, reset epoch i watermarków. Cache partnera przechowuje wyłącznie ostatni overview do 16 KiB, findings i oryginalny czas próbki, do 32 partnerów/512 KiB; nie ich historię. |
+
+Wszystkie odczyty, UPSERT-y i pruning wymagają owner/computer scope po autoryzacji.
+Maks. 64 procesy w utrwalonym podsumowaniu domu; większy zestaw ma jawne niepełne
+pokrycie. Kwota 64 KiB dotyczy całego komputera, nie każdej serii/procesu.
+Najpierw pomijamy opcjonalne szczegóły; przekroczenie nadal potrzebnego payloadu
+oznacza `persistence_gap/dropped_series`, nigdy ciche zniknięcie metody ani wzrost
+limitu. Rozmiar i liczba wierszy są sprawdzane pod blokadą stanu domu przed zapisem;
+gdy pruning nie nadąża, odraczamy nowy zapis zamiast przekraczać kwotę.
+Nie mnożymy stanu przez stare sesje i epoki; usunięte procesy wygasają z retencją,
+a revoke/unlink usuwa cache partnera także z DB.
+
+**Retencja: 1 min przez 72 h, 1 h przez 30 dni.** Maintenance scala zakończoną
+godzinę z minut: sumuje kubełki/liczniki, bierze max, waży zasoby czasem i zachowuje
+pokrycie. Rollup zastępuje poprzedni wynik, nie dopisuje do niego tych samych minut;
+spóźniona minuta unieważnia checkpoint danej godziny. Minut nie usuwa się
+przed zapisaniem rollupu godzinowego lub jawnym oznaczeniem luki przy limicie.
+Odczyt wybiera jedną rozdzielczość dla danego odcinka, bez podwójnego naliczania.
+Godziny starsze niż 72 h służą dłuższej historii/API; widoki 15 min/1 h/24 h nadal
+korzystają z minut. Latest findings to zastępowany stan, nie rosnąca historia.
+
+Rozszerzamy `apps/gateway/src/maintenance/{job,prune}.ts` według
+[database-retention.md](database-retention.md): trwały checkpoint, `SKIP LOCKED`,
+do 256 rekordów na tabelę/partię, lock timeout 100 ms, statement timeout 1000 ms,
+bez I/O poza DB w transakcji. Downsampling ma osobno ograniczony koszt dekodowania
+jednej godziny i korzysta z tego samego harmonogramu; rollback ponawia całą partię.
+Migracje addytywne w `packages/db/src/migrations/`: numer najwyższy+1 **w chwili
+implementacji**, bez edycji zastosowanych, z aktualizacją
+`packages/db/test/schema.test.ts`. Nie rezerwujemy numeru w projekcie.
+
+Szacunek per komputer, łącznie gateway/workery/BFF: przy średnio **16 KiB/min**
+i takim samym rozmiarze godziny, 4320 + 720 rekordów zajmuje około **79 MiB**
+payloadu; z metadanymi/indeksami planujemy około **100–160 MiB**. To założenie
+do sprawdzenia na liczbie aktywnych serii i procesów, nie gwarancja kompresji.
+Przy limicie 64 KiB jest to **315 MiB** payloadu, kwota logiczna z metadanymi
+**320 MiB/komputer**, planowany budżet tabel/TOAST/indeksów **512 MiB/komputer**
+po autovacuum. MVCC/WAL są mierzone osobno; pruning nie obiecuje natychmiastowego
+zmniejszenia pliku. Cache partnerów nie mnoży kosztu historii przez liczbę domów.
+
+### 5.3 Odtworzenie i koszt
+
+Po restarcie gateway w tle odczytuje bieżącą epoch, stan findings i ostatnie 24 h
+minut, stronicując/dekodując w budżecie pamięci, a potem zasila pierścienie i cache.
+Odtwarzanie jest jednokrotne i współdzielone, nie wykonywane na każde otwarcie UI;
+RPC aplikacji nie czekają. Widoki **15 min / 1 h / 24 h** kontynuują zapisaną historię,
+z rzeczywistą luką między ostatnim pokrytym pomiarem a wznowieniem procesu.
+`Restoring diagnostics` odróżnia brak załadowania od braku danych. Minutowa historia
+nie udaje rozdzielczości 5 s; widok 1 min zbiera ją ponownie live. Odtworzone gauges
+są oznaczone jako historyczne, nigdy jako aktywne streamy/procesy. Histereza wymaga
+nowych świeżych ocen, downtime nie jest oceną „Healthy”. Czas próbki i zakresy UTC
+są trwałe; po utracie monotonicznego zegara wiek wyliczamy z UTC z oznaczeniem
+niepewności/przestawienia zegara, bez udawania świeżości przy samym odczycie DB.
+
+Restart workera nie kasuje jego utrwalonych okien na gatewayu; nowa sesja dodaje
+wyłącznie nowe dane. Przy przyszłych N instancjach gatewaya wpisy procesów i
+watermarki muszą być scalane bez nadpisywania cudzych danych; brak instancji daje
+niepełne pokrycie, także po przełączeniu load balancera. Nie uśredniamy percentyli.
+
+**Budżet zapisu wliczony w <1% rdzenia i brak regresji p95:** obejmuje serializację,
+SQL, dodatkowy CPU PostgreSQL, odtwarzanie, downsampling, pruning i autovacuum.
+Docelowo ≤32 MiB WAL/h i ≤64 MiB zapisu I/O/h na komputer (I/O raportowane także
+oddzielnie od WAL), przy payloadzie nowych minut ≤3,75 MiB/h. Budżet WAL/I/O
+obejmuje również stan/findings, retry, zapis cache partnerów i maintenance.
+W izolowanym stosie (§10)
+porównujemy diagnostykę off/on, także pełną retencję i zaległości po awarii;
+mierzymy różnicę CPU gatewaya/PostgreSQL, WAL bytes i zapisane bajty procesu/dysku
+na godzinę, rozmiar tabel/indeksów, pool wait oraz p95 RPC. Koszt startu mierzymy
+oddzielnie z czasem odtworzenia i szczytem RSS/I/O, bez amortyzowania regresji p95.
+Przekroczenie wymaga poprawy lub jawnego ograniczenia szczegółów/częstotliwości,
+z zachowaniem pokrycia i wymogu trwałości; nie przenosimy zapisu do obsługi RPC.
 
 Logi mają oddzielną ograniczoną rotację (§7); nie są magazynem per-call metrics.
 Tymczasowe pliki eksportu mają TTL 15 min i limit z §7, są usuwane po anulowaniu,
@@ -299,7 +408,7 @@ granicę; nowa publiczna usługa wymagałaby jawnego rozszerzenia auth.
 | RPC/protokół | Zakres |
 |---|---|
 | `GetDiagnostics` | Zsumowany lokalny widok kart, findings i znaczników świeżości; lokalne dane + cache, nigdy blokujące gather do wszystkich partnerów. |
-| `GetComputerDiagnostics` | Wskazany komputer/worker, okno i strona metod/SQL/zasobów; `revision/not_modified`, coverage, missing/dropped. Zdalny wariant zwraca wyłącznie dane domu. |
+| `GetComputerDiagnostics` | Wskazany komputer/worker, okno i strona metod/SQL/zasobów; `revision/not_modified`, coverage, missing/dropped. Łączy utrwalone rollupy z bieżącymi danymi bez duplikacji; podaje resolution, gaps, stan odtwarzania i watermark persystencji. Zdalny wariant zwraca wyłącznie dane domu, także odtworzone po restarcie. |
 | `SubmitDiagnostics` | Ograniczone agregaty BFF/klienta; owner z auth, bez swobodnych etykiet i tekstów. Worker raportuje oddzielnie przez addytywną wiadomość WorkerLink. |
 | `ResetDiagnostics`, `StartDiagnosticsTrace`, `StopDiagnosticsTrace`, `ReadDiagnosticsTrace` | Sterowanie i odczyt próbek wyłącznie jawnie wybranego domu/workera, epoch i lease, autoryzacja ponownie u celu. Żadnego domyślnego resetu/tracingu wszystkich komputerów i żadnego relay tych metod. |
 | `StartLogCollection`, `GetLogCollection`, `ReadLogCollection`, `CancelLogCollection` | Owner-scoped zadanie zbiorcze i postęp/manifest; odczyt ZIP jako bounded server stream chunków. Wewnętrzna capability `diagnostics_logs_v1` umożliwia domowi wyeksportowanie tylko swoich źródeł. Retry wskazanych nieudanych komputerów jest nową autoryzowaną próbą. |
@@ -434,8 +543,10 @@ zasoby całego procesu i logi wymagają właściciela/admina tego zasobu. Partne
 widzi własny dozwolony dom lub jawnie udostępnioną diagnostykę/logi; nie dostaje
 całego katalogu i snapshotów innych partnerów. Osobne grants `diagnostics_read`
 i `diagnostics_logs` dla onward są sprawdzane na domu, odwoływalne i audytowane.
-Ich trwały zapis może wymagać migracji najwyższy+1 i testu schema; nie jest
-persystencją metryk. Revoke/unlink przerywa stream i unieważnia download.
+Ich trwały zapis może wymagać dodatkowej migracji najwyższy+1 i testu schema.
+Te same uprawnienia obowiązują historyczne rollupy i findings; DB nie rozszerza
+dostępu partnera. Revoke/unlink przerywa stream, unieważnia download i usuwa cache
+partnera z pamięci i DB. Własna historia domu nadal podlega jego retencji.
 
 **Redakcja:** metryki zawierają tylko liczby i zamknięte identyfikatory definicji.
 Nazwa metody pochodzi wyłącznie z lokalnego deskryptora, nie z tekstu remote request;
@@ -478,8 +589,10 @@ Przekazywanie bajtów wymaga przejścia lokalnego filtra; błąd redakcji kończ
   krótki manifest tekstowy dla agenta, bez automatycznego rozpakowania/wykonania.
 - **Reset counters**: wybrany komputer/proces, nowa epoch i czas początku.
   Nie zeruje live gauges, trwałego journala/outboxa ani statystyk procesu governora
-  używanych przez runtime; resetuje tylko bazę/okna diagnostyki. Stare odpowiedzi
-  po epoch są ignorowane; offline reset nie jest kolejkowany.
+  używanych przez runtime; resetuje tylko bazę/okna diagnostyki. Gateway utrwala
+  nową epoch przed potwierdzeniem; restart nie przywraca starych liczników/findings.
+  Stare odpowiedzi po epoch są ignorowane, stare rollupy sprząta retention;
+  offline reset nie jest kolejkowany.
 - **Start deeper tracing**: wybrany komputer, 1/5/10 min, domyślnie 5,
   maks. 10 min i jedna lease. Maks. 1% wywołań, 100 próbek/s, 2000 spanów/4 MiB,
   ring w pamięci, automatyczne off po deadline, restart i ręczne **Stop tracing**.
@@ -510,7 +623,7 @@ jest lokalnym stanem widoku, nie synchronizowaną preferencją konta.
 
 | Obszar | Zachowanie |
 |---|---|
-| Overview | Karty wszystkich komputerów: gateway, workery, linki, status kolorem **i tekstem**, ostatnia aktualizacja, top finding, CPU i RTT. Filtr komputera oraz `1 min / 15 min / 24 h` (domyślnie 15 min). Offline zachowuje ostatnie liczby jako nieaktualne; `Update to see diagnostics` zamiast pustej zielonej karty. |
+| Overview | Karty wszystkich komputerów: gateway, workery, linki, status kolorem **i tekstem**, ostatnia aktualizacja, top finding, CPU i RTT. Filtr komputera oraz `1 min / 15 min / 1 h / 24 h` (domyślnie 15 min). Historia 15 min/1 h/24 h przetrwa restart, przerwy mają jawne oznaczenie. Offline zachowuje ostatnie liczby jako nieaktualne; `Update to see diagnostics` zamiast pustej zielonej karty. |
 | Findings | Najpierw critical/warning, potem info; max 5 na początku, rozwinięcie reszty. Wartość, okno, prosty powód i zalecana akcja; techniczne dowody pod `Show details`. Wspólny finding pary linku ma obie obserwacje. |
 | RPC i DB | Sekcja `Calls`, tabela sortowana po calls/min, p50/p95/p99/max, błędach i in-flight, z nazwą metody i komputerem. Grupowanie per dom, bez sumowania warstw BFF/home/transport. W drill-down `RPC details`, streamy oddzielnie, kody i payload sizes; top 10 rodzin SQL i pool wait. Na telefonie wybór sortowania i karty wierszy zamiast tabeli szerszej niż ekran. |
 | Linki/zasoby/trendy | RTT/jitter, backlog/lag, reconnect/resubscribe, CPU/RSS/dysk. Małe sparklines: do 96 punktów, widoczna jednostka, min/max/ostatnia wartość tekstem; przerwa w danych jest przerwą linii. Brak pomiaru ≠ 0. Szczegóły komputera/workerów zachowują filtr i czas, dostępne z każdej karty. |
@@ -533,6 +646,9 @@ Stany: pierwszy odczyt jako istniejący skeleton; zero ruchu: **No calls yet** �
 „Use Canopy to collect performance data.”; za mała próba: **Not enough data**;
 cisza przy dobrym pokryciu: **No issues found**; błąd: „Could not refresh diagnostics.
 Retry to get the latest data.” z **Retry** i zachowaniem poprzednich danych.
+Odtwarzanie: **Restoring diagnostics**, luka: **No data during this period**,
+zaległy zapis: **History could not be saved. Live data is still available.**
+Snapshot z DB nie dostaje nowego czasu próbki tylko dlatego, że został wczytany.
 Brak workerów nie ukrywa gatewaya. Brak logu (`initdb` nie działał, zewnętrzny
 Postgres) nie generuje fałszywej awarii, ale pozostaje w manifeście pokrycia.
 Wyłączony Network access nie jest sugestią włączenia go tylko dla lokalnych metryk.
@@ -545,18 +661,20 @@ Każdy etap UI robi audyt §8 copy i ręczny przegląd jasny/ciemny, desktop/wą
 telefon, długie nazwy i małe/duże liczby, overlay/scroll/sticky bez szczelin.
 Nie dodajemy testów komponentów ani Playwright.
 
-## 10. Realizacja: jeden stos sześciu PR-ów
+## 10. Realizacja: PR dokumentacji i sześć etapów implementacji
 
 Rozmiary S/M/L oznaczają odpowiednio jedną powierzchnię, kilka powiązanych modułów
-lub zmianę przekrojową; nie są deklaracją liczby godzin. Każdy etap jest kompletną,
+lub zmianę przekrojową; XL oznacza rozszerzony etap przekrojowy z trwałością.
+Nie są deklaracją liczby godzin. Każdy etap jest kompletną,
 testowalną funkcją, z UI **web/desktop i mobile w tym samym etapie**.
-Każdy branch bazuje na poprzednim; dolny na aktualnym `dev`. Całość pozostaje
+**PR dokumentacji #495 jest dolnym PR-em stosu**, bazuje na `dev`; etap 1 bazuje
+na jego branchu `docs/diagnostics`, a każdy następny na poprzednim. Całość pozostaje
 draftem do ukończenia i weryfikacji stosu, potem merge razem przez `gh stack`
 zgodnie z `AGENTS.md`, nigdy pojedynczy niegotowy etap do `dev`.
 
 | Etap | Zakres, rozmiar i zależność | Dowód zakończenia |
 |---|---|---|
-| 1. Wspólny overview + RPC + RTT | **L**, baza `dev`: kolektor RPC, heartbeat echo workerów i komputerów, owner-scoped odczyty/capability/grants, shared-query, cache/freshness, karty wszystkich domów, RPC table/drill-down, 1/15/24 h, findings link/RPC. Direct i dozwolony onward, unsupported/offline. **Pierwsza wartość już tutaj**, bez otwierania Settings na każdym komputerze. | Integracja gRPC dwóch gatewayów i workerów, plus trzeciego przez relay: histogram/count/stream cleanup, deduplikacja, brak recursive gather, owner denial/revoke, offline cache, starsze wersje, RTT vs heartbeat, limity i narzut; migracja grants jeśli potrzebna. Ręcznie te same dane na trzech klientach. |
+| 1. Wspólny overview + RPC + RTT + trwałość | **XL**, po PR #495: kolektor RPC, heartbeat echo workerów i komputerów, owner-scoped odczyty/capability/grants, shared-query, cache/freshness, karty wszystkich domów, RPC table/drill-down, 1 min/15 min/1 h/24 h, findings link/RPC. Minutowy zapis rollupów i findings, odtworzenie, 72 h/30 dni, downsampling/pruning i cache offline (§5). Direct i dozwolony onward, unsupported/offline. **Pierwsza wartość już tutaj**, dla wszystkich linked komputerów i po restarcie. | Integracja gRPC dwóch gatewayów i workerów, plus trzeciego przez relay: histogram/count/stream cleanup, deduplikacja, brak recursive gather, owner denial/revoke, starsze wersje, RTT vs heartbeat. Test migracji tabel i grants/schema; restart gatewaya/workera i offline cache, ciągłość okien/findings z rzeczywistą luką, retry po awarii DB bez podwójnego naliczania, atomowy watermark. Retencja 72 h/30 dni, downsampling, kwoty i rollback/concurrent pruning. Pomiar kosztu zapisu CPU/WAL/I/O, odtworzenia i p95 on/off. Ręcznie te same dane na trzech klientach. |
 | 2. Gateway/DB/governor | **M**, po 1: event loop, zasoby, SQL families/pool waits i powiązanie RPC, ingest/outbox/watch/fan-out/queue, governor wait/admission, kolejne findings i szczegóły. | Integracja gRPC przy obciążeniu ingest i wolnym odbiorcy, zachowane ACK/durability, owner-scoped SQL, błędy reserve/execute i release. Porównanie DB2/concurrent i process-governor z kolektorem on/off, bez EXPLAIN w produkcji. |
 | 3. Workery i synchronizacja | **M**, po 2: journal/redelivery, harness TTFT/turn, git, dysk, mirror lag i resubscribe reasons, oba końce finding linku, szczegóły wszystkich workerów. | Gateway↔worker: reconnect/drain/restart, redelivery bez podwójnego naliczania, luki/mirror commit, symulowana wolna sieć, bez dodatkowych probes. Harness adaptery na deterministycznych CLI, brak prompt/path w wynikach, reuse #386 i #409–#411. |
 | 4. Klienci i raport/agent | **M**, po 3: agregaty BFF, sampled web/desktop/mobile timings, eksport JSON/Markdown, wybór placement i utworzenie zwykłego wątku, reset epoch. | Integracja auth, rate/size/schema, stara sekwencja/epoch, unpair/revoke, redakcja, załącznik na właściwym domu i idempotentne utworzenie. Benchmarki #413–#419 z oddzieleniem JS od native; ręczny copy audit i parity. |
@@ -569,7 +687,11 @@ naprzemiennie minimum trzy serie po rozgrzewce. Idle (10 min), steady load/sync,
 reconnect i wolny odbiorca; procesy osobno jak sync-process fixture.
 Raport: różnica CPU w punktach procentowych jednego rdzenia (<1 pp), CPU-sekundy/
 RPC, RSS/heap, event-loop p99/max, p95 RPC i otwarcia wątku, przepustowość,
-bajty na łączu i liczba alokowanych serii. Baseline idle bliski zeru nie nadaje się
+bajty na łączu i liczba alokowanych serii. Od etapu 1 także CPU PostgreSQL,
+WAL bytes/h, I/O bytes/h, wielkość rollupów/tabel/indeksów, liczba zapisów/min,
+koszt downsamplingu/pruningu/autovacuum i odtworzenia. Pełną retencję testujemy
+na syntetycznej historii 30 dni, także przy awarii zapisu i konkurencji o pulę.
+Baseline idle bliski zeru nie nadaje się
 na mianownik względnego „1%”. Brak rosnącej pamięci po wypełnieniu pierścieni
 sprawdzamy również w przebiegu 30 min z churnem klientów/partnerów.
 
@@ -588,15 +710,18 @@ w tym integracyjnych, oraz kontrola czystości katalogu tymczasowego) i build we
 (`bun run --filter @canopy/web build`). Benchmarki uruchamiamy w izolowanych
 stosach na własnych portach; ich artefakty nie trafiają do repo.
 
-## 11. Otwarte decyzje dla maintainera
+## 11. Decyzje maintainera — zaakceptowane 2026-11-10
 
-| Pytanie | Zalecana odpowiedź |
+Wszystkie wcześniejsze rekomendacje przyjęto. Jedyna zmiana: metryki mają
+przetrwać restart dzięki lekkiej persystencji z §5, dostarczanej w etapie 1.
+
+| Obszar | Przyjęta decyzja |
 |---|---|
-| Diagnostics czy Performance? | **Diagnostics**, w General; obejmuje także sieć, świeżość i logi. |
-| Historia po restarcie? | Bez persystencji metryk w pierwszym stosie; jawne luki. Wrócić do ograniczonych snapshotów dopiero po pomiarze rzeczywistej potrzeby/kosztu. |
-| Dokładność percentyli a pamięć? | Stałe 128 kubełków (~19% kwantyzacji) i jawny max/pokrycie; jeśli to za mało do decyzji o optymalizacji, zwiększyć precyzję dopiero po pomiarze budżetu 64/16 MiB. |
-| Zgoda na dane partnerów/onward? | Bezpośredni partner tego samego właściciela ma odczyt diagnostyki; logi tylko na jawną akcję ownera. Onward wymaga osobnych, odwoływalnych grants read/logs od domu. Brak grant nie ukrywa karty komputera. |
-| Domyślny zakres logów i prywatność? | 1 h, wszystkie komputery, 2/12/96 MiB przed kompresją, 100 MiB ZIP, redakcja home On, bez opcji eksportu sekretów. 6/24 h tylko w ramach dostępnej rotacji. |
-| Zewnętrzny PostgreSQL i logi systemowe? | Brak automatycznego dostępu administracyjnego. Lokalny adapter jawnie udostępnionych logów i manifest `not_available`, jeśli operator go nie skonfigurował; rotację operator potwierdza osobno. |
-| ZIP dla agenta większy niż limit attachment? | Nie zwiększać globalnego limitu; mniejszy zakres/wybór komputerów i tekstowy manifest. Agent otrzymuje załącznik wyłącznie po podglądzie właściciela. |
-| Aktywne sondy providerów? | Odłożyć; istniejący ruch i oznaczenie niepewności wystarczą do pierwszej wersji. Tracing maks. 10 min per jawnie wybrany komputer, nigdy automatycznie na wszystkich. |
+| Nazwa | **Diagnostics**, w General; obejmuje także sieć, świeżość i logi. |
+| Historia po restarcie | **Trwała od etapu 1**: kompaktowe histogramy/liczniki i ostatnie findings, batch najwyżej raz/min/proces w domowym gatewayu. Minuty 72 h, godziny 30 dni, kwoty i pruning z §5; worker bez DB. Okna 15 min/1 h/24 h kontynuują historię z oznaczoną faktyczną luką. Koszt zapisu w budżecie narzutu. |
+| Dokładność percentyli a pamięć | Stałe 128 kubełków (~19% kwantyzacji) i jawny max/pokrycie; jeśli to za mało do decyzji o optymalizacji, zwiększyć precyzję dopiero po pomiarze budżetu 64/16 MiB. |
+| Dane partnerów/onward | Bezpośredni partner tego samego właściciela ma odczyt diagnostyki; logi tylko na jawną akcję ownera. Onward wymaga osobnych, odwoływalnych grants read/logs od domu. Brak grant nie ukrywa karty komputera. |
+| Domyślny zakres logów i prywatność | 1 h, wszystkie komputery, 2/12/96 MiB przed kompresją, 100 MiB ZIP, redakcja home On, bez opcji eksportu sekretów. 6/24 h tylko w ramach dostępnej rotacji. |
+| Zewnętrzny PostgreSQL i logi systemowe | Brak automatycznego dostępu administracyjnego. Lokalny adapter jawnie udostępnionych logów i manifest `not_available`, jeśli operator go nie skonfigurował; rotację operator potwierdza osobno. |
+| ZIP większy niż limit attachment | Nie zwiększać globalnego limitu; mniejszy zakres/wybór komputerów i tekstowy manifest. Agent otrzymuje załącznik wyłącznie po podglądzie właściciela. |
+| Aktywne sondy providerów | Odłożone; istniejący ruch i oznaczenie niepewności wystarczą do pierwszej wersji. Tracing maks. 10 min per jawnie wybrany komputer, nigdy automatycznie na wszystkich. |
