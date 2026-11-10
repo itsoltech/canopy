@@ -1,7 +1,50 @@
-/* Dense list text uses existing scale steps; menus and previews keep their own density scopes. */
+/* Sidebar controls are one step above compact chrome; overlays keep their own scope. */
+.sidebar-scale {
+  --text-base: var(--type-touch);
+  --text-sm: var(--type-standard);
+  --text-xs: var(--type-sidebar-meta);
+}
+
+/* Row titles and captions each grow by 1px; rem keeps Interface size in control. */
 .sidebar-row {
-  --text-base: var(--type-standard);
-  --text-sm: var(--type-caption);
+  --text-base: var(--type-compact-touch);
+  --text-sm: var(--type-compact);
+  --text-xs: var(--type-sidebar-meta);
+}
+
+.sidebar-row [data-project-mark],
+.sidebar-project-choice [data-project-mark],
+.sidebar-row-activity {
+  width: 1.25rem;
+  height: 1.25rem;
+  font-size: var(--type-sidebar-mark);
+}
+
+.sidebar-row-activity svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.sidebar-row-activity-small {
+  width: var(--icon-standard);
+  height: var(--icon-standard);
+}
+
+.sidebar-row-avatar,
+.sidebar-row-avatar > span {
+  width: 2.75rem;
+  height: 2.75rem;
+}
+
+.sidebar-section-label {
+  font-size: var(--type-standard);
+  padding-block: 0.5rem;
+}
+
+@media (width >= 40rem) {
+  .sidebar-section-label {
+    padding-block: 0.25rem;
+  }
 }
 
 /* Status swaps stay inside the reserved slot and inherit the row's caption size. */

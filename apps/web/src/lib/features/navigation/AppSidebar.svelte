@@ -1,4 +1,5 @@
 <script lang="ts">
+  import "./sidebar-rows.css";
   import { page } from "$app/state";
   import LiveBotsNav from "#lib/features/bots/components/LiveBotsNav.svelte";
   import { botList } from "#lib/features/bots/bot-list.svelte.ts";
@@ -54,7 +55,7 @@
 </script>
 
 <!-- Compact chrome (docs/ui-scale.md): text one step below the pages beside it. -->
-<div class="density-chrome flex h-full flex-col">
+<div class="density-chrome sidebar-scale flex h-full flex-col">
   <SidebarHeader>
     {#if section === "threads"}
       <a href="/" class={iconLink} aria-label="New thread" title="New thread">
@@ -88,16 +89,18 @@
         autocomplete="off"
         class="min-w-0 flex-1 bg-transparent text-base/6 text-zinc-950 placeholder:text-zinc-500 focus:outline-none sm:text-sm/6 dark:text-white dark:placeholder:text-zinc-400 [&::-webkit-search-cancel-button]:appearance-none"
       />
-      {#if queries[section]}
-        <button
-          type="button"
-          aria-label="Clear search"
-          onclick={() => (queries[section] = "")}
-          class="-my-1 -mr-1 grid size-6 shrink-0 place-items-center rounded-md text-zinc-400 focus-ring hover:bg-zinc-950/5 hover:text-zinc-700 dark:text-zinc-500 dark:hover:bg-white/5 dark:hover:text-zinc-200"
-        >
-          <Icon name="x-mark" class="size-3.5" />
-        </button>
-      {/if}
+      <span class="flex size-6 shrink-0 items-center justify-center">
+        {#if queries[section]}
+          <button
+            type="button"
+            aria-label="Clear search"
+            onclick={() => (queries[section] = "")}
+            class="-my-1 -mr-1 grid size-6 shrink-0 place-items-center rounded-md text-zinc-400 focus-ring hover:bg-zinc-950/5 hover:text-zinc-700 dark:text-zinc-500 dark:hover:bg-white/5 dark:hover:text-zinc-200"
+          >
+            <Icon name="x-mark" class="size-3.5" />
+          </button>
+        {/if}
+      </span>
     </label>
     {#if section === "threads"}
       <SidebarProjectFilter />

@@ -60,7 +60,7 @@
         {#if selected.length}<span class="min-w-3 tabular-nums">{count}</span>{/if}
       </button>
     {/snippet}
-    <div class="grid gap-1">
+    <div class="sidebar-scale grid gap-1">
       <SearchField
         name="project-search"
         label="Search projects"

@@ -133,7 +133,7 @@
         {...via === "button" ? anchorOnly(menu) : {}}
         class={[
           "pointer-events-none absolute right-1.5 flex rounded-lg bg-white opacity-0 shadow-xs ring-1 ring-zinc-950/10 group-focus-within/row:pointer-events-auto group-focus-within/row:opacity-100 group-hover/row:pointer-events-auto group-hover/row:opacity-100 has-aria-[expanded=true]:pointer-events-auto has-aria-[expanded=true]:opacity-100 dark:bg-zinc-800 dark:shadow-none dark:ring-white/10 pointer-coarse:hidden",
-          compact ? "top-1 sm:top-0.5" : "top-1.5",
+          compact ? "top-1.5 sm:top-1" : "top-2",
         ]}
       >
         <IconButton

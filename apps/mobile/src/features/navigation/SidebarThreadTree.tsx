@@ -12,6 +12,7 @@ import { Icon } from "../../ui/Icon";
 import { SidebarThread, age } from "./SidebarThread";
 import { useComputerHome } from "../computers/presence";
 import { SidebarUnread } from "./SidebarUnread";
+import { useSidebarTypography } from "./sidebar-scale";
 
 /** One tree owns its side rows and attention, including when the same tree is pinned or archived. */
 export function SidebarThreadTree({
@@ -32,6 +33,7 @@ export function SidebarThreadTree({
   archived?: boolean;
 }) {
   const { sides, subagentsNeedingInput } = sidebarChildren(sideThreads, rootIds);
+  const type = useSidebarTypography();
   const openTree = current && (isSide(current) ? current.parentThreadId : current.id);
   const [expanded, setExpanded] = useState<boolean>();
   const [previousOpen, setPreviousOpen] = useState(false);
@@ -56,8 +58,8 @@ export function SidebarThreadTree({
             onPress={() => setExpanded(!open)}
             style={[styles.row, { minHeight: 48, gap: 4, paddingHorizontal: 8 }]}
           >
-            <Chevron open={open} size={14} />
-            <Text numberOfLines={1} style={[styles.chromeMeta, { flexShrink: 1, color: c.muted }]}>
+            <Chevron open={open} size={16} />
+            <Text numberOfLines={1} style={[type.meta, { flexShrink: 1, color: c.muted }]}>
               {sides.active.length
                 ? `${sides.active.length} side ${sides.active.length === 1 ? "thread" : "threads"}`
                 : "Side threads"}
@@ -76,8 +78,8 @@ export function SidebarThreadTree({
                     onPress={() => setPreviousOpen(!previousOpen)}
                     style={[styles.row, { minHeight: 48, gap: 4, paddingHorizontal: 8 }]}
                   >
-                    <Chevron open={previousOpen} size={14} />
-                    <Text numberOfLines={1} style={[styles.chromeMeta, { flexShrink: 1, color: c.muted }]}>
+                    <Chevron open={previousOpen} size={16} />
+                    <Text numberOfLines={1} style={[type.meta, { flexShrink: 1, color: c.muted }]}>
                       Previous agents · {sides.previous.length}
                     </Text>
                   </Pressable>
@@ -98,6 +100,7 @@ export function SidebarThreadTree({
 
 function SidebarSideThread({ thread, previous = false }: { thread: ui.Thread; previous?: boolean }) {
   const c = useColors();
+  const type = useSidebarTypography();
   const home = useComputerHome(thread.nodeId);
   const layout = useLayout();
   const pathname = usePathname();
@@ -160,13 +163,13 @@ function SidebarSideThread({ thread, previous = false }: { thread: ui.Thread; pr
                 ? "square-2-stack"
                 : "arrow-turn-down-right"
         }
-        size={14}
+        size={16}
         color={tone}
       />
-      <Text numberOfLines={1} style={[styles.chrome, { flex: 1, minWidth: 0, color: c.body }]}>
+      <Text numberOfLines={1} style={[type.title, { flex: 1, minWidth: 0, color: c.body }]}>
         {thread.title || "Untitled thread"}
       </Text>
-      <Text numberOfLines={1} style={[styles.chromeMeta, { width: 96, textAlign: "right", color: tone }]}>
+      <Text numberOfLines={1} style={[type.meta, { width: 96, textAlign: "right", color: tone }]}>
         {label}
       </Text>
       <SidebarUnread unread={thread.markedUnread} />

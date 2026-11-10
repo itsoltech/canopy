@@ -17,6 +17,8 @@
   --type-compact: 0.8125rem; /* 13px: compact primary on desktop, compact secondary on phones */
   --type-caption: 0.75rem; /* 12px: standard secondary on desktop, tooltips, compact chrome rows */
   --type-meta: 0.71875rem; /* 11.5px: compact secondary and section headers on desktop */
+  --type-sidebar-meta: 0.78125rem; /* 12.5px: sidebar row captions on desktop */
+  --type-sidebar-mark: 0.625rem; /* 10px: initials in sidebar project marks */
   --icon-standard: 1rem; /* 16px: standard rows and controls, overlays on phones */
   --icon-compact: 0.875rem; /* 14px: overlay rows and controls on desktop */
   --icon-dense: 0.75rem; /* 12px: rows set in captions (composer context row) */

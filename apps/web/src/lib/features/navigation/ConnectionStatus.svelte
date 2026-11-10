@@ -29,9 +29,9 @@
 <!-- The live region stays mounted while quiet, so a later reconnect is still announced. -->
 <p class={["flex items-center text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400", className]} role="status">
   {#if !(quietWhenLive && connection === "live")}
-    <span class="flex min-w-32 items-center justify-end gap-2 sm:min-w-28">
+    <span class="flex w-32 max-w-full min-w-0 items-center justify-end gap-2 sm:w-28">
       <StatusDot tone={look.tone} active={connection === "reconnecting"} />
-      {look.label}
+      <span class="truncate">{look.label}</span>
     </span>
   {/if}
 </p>
