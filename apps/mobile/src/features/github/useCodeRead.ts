@@ -14,7 +14,7 @@ export function useCodeRead(snapshot: github.PullRequestSnapshot) {
   const [patch, setPatch] = useState<github.PullRequestDiff>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const generation = useRef(0);
+  const generation = useRef({ value: 0 });
 
   const pages = usePages(
     useCallback(
@@ -33,20 +33,28 @@ export function useCodeRead(snapshot: github.PullRequestSnapshot) {
     id,
   );
 
-  useEffect(() => {
-    generation.current++;
+  const currentPage = pages.current;
+  const [source, setSource] = useState(currentPage);
+
+  if (source !== currentPage) {
+    setSource(currentPage);
     setSelected(undefined);
     setPatch(undefined);
     setBusy(false);
     setError("");
+  }
+
+  useEffect(() => {
+    const serial = generation.current;
+    serial.value++;
 
     return () => {
-      generation.current++;
+      serial.value++;
     };
-  }, [pages.current]);
+  }, [currentPage]);
 
   async function open(file: github.PullRequestFile, force = true) {
-    const version = ++generation.current;
+    const version = ++generation.current.value;
     setSelected(file);
     setPatch(undefined);
     setError("");
@@ -65,11 +73,12 @@ export function useCodeRead(snapshot: github.PullRequestSnapshot) {
         resourceId: String(file.sourcePage),
       });
 
-      if (version === generation.current) setPatch(result);
+      if (version === generation.current.value) setPatch(result);
     } catch {
-      if (version === generation.current) setError("Changes updated or unavailable. Refresh the files, then retry.");
+      if (version === generation.current.value)
+        setError("Changes updated or unavailable. Refresh the files, then retry.");
     } finally {
-      if (version === generation.current) setBusy(false);
+      if (version === generation.current.value) setBusy(false);
     }
   }
 
@@ -80,7 +89,7 @@ export function useCodeRead(snapshot: github.PullRequestSnapshot) {
       return;
     }
 
-    generation.current++;
+    generation.current.value++;
     setSelected(undefined);
     setPatch(undefined);
     setBusy(false);

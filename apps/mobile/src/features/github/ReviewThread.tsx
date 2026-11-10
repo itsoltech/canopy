@@ -19,18 +19,25 @@ export function ReviewThread({ id, thread }: { id: string; thread: github.PullRe
   const [visible, setVisible] = useState(3);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const generation = useRef(0);
+  const [source, setSource] = useState(thread);
+  const generation = useRef({ value: 0 });
   const comments = [...history.flatMap((page) => page.comments), ...data.comments];
-  useEffect(() => {
-    generation.current++;
+
+  if (source !== thread) {
+    setSource(thread);
     setData(thread);
     setHistory([]);
     setVisible(3);
     setError("");
     setBusy(false);
+  }
+
+  useEffect(() => {
+    const serial = generation.current;
+    serial.value++;
 
     return () => {
-      generation.current++;
+      serial.value++;
     };
   }, [thread]);
 
@@ -44,7 +51,7 @@ export function ReviewThread({ id, thread }: { id: string; thread: github.PullRe
     }
 
     setBusy(true);
-    const version = generation.current;
+    const version = generation.current.value;
 
     try {
       const result = await client!.api.listPullRequestReviewThreads({
@@ -53,16 +60,16 @@ export function ReviewThread({ id, thread }: { id: string; thread: github.PullRe
         cursor: data.repliesCursor,
       });
 
-      if (version === generation.current && result.threads[0]) {
+      if (version === generation.current.value && result.threads[0]) {
         setHistory([...history, data]);
         setData(result.threads[0]);
         setVisible(comments.length + result.threads[0].comments.length);
         setError("");
       }
     } catch {
-      if (version === generation.current) setError("Could not load replies. Refresh, then retry.");
+      if (version === generation.current.value) setError("Could not load replies. Refresh, then retry.");
     } finally {
-      if (version === generation.current) setBusy(false);
+      if (version === generation.current.value) setBusy(false);
     }
   }
 
