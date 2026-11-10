@@ -84,6 +84,39 @@ Znaczniki trace mają częstotliwość ekranu (np. 120 Hz); rAF nie jest pomiare
 prezentacji kompozytora. Liczby aktywnych elementów i `will-change` nie dają się
 wiarygodnie odtworzyć z samej liczby zdarzeń `Animation` w cudzym śladzie.
 
+### Strumieniowanie osi czasu
+
+- Wyjście tekstowe dziel na niezmienne fragmenty zakończone pełną linią.
+  `CodeBlock` utrzymuje grupy po 32 linie; dopisanie zmienia tylko ostatnią grupę
+  lub dodaje nową. Fragmenty zachowują dokładną konkatenację tekstu, tabulatory,
+  puste linie, zaznaczenie i pełny zakres przewijania. Nie zastępuj tego ucinaniem
+  danych ani szacowaniem szerokości znaków Unicode. Przy zamianie lub skróceniu
+  tekstu odbuduj fragmenty. Bez trybu końcówki nie rozbijaj ponownie całego wyjścia
+  na linie w `OutputBlock`.
+- Markdown może ponownie parsować tylko ostatni blok wraz z końcowymi odstępami,
+  kiedy wcześniejsze bloki są niezależne. Lista, tabela, cytat, nagłówek setext
+  i otwarty blok kodu nadal mogą zmienić postać. Składnia odnośników referencyjnych,
+  normalizacja CR, edycja i zmiana opcji wymagają pełnego parsera. Późna definicja
+  odnośnika może zmienić tokeny wcześniejszego bloku mimo niezmienionego `raw`.
+  Testuj zgodność ze zwykłym lexerem na każdej granicy dopisywanego tekstu.
+- Zachowuj tożsamość niezmienionych wierszy. Projekcje `key`/`group` są czystymi
+  funkcjami niezmiennych danych; zmiana funkcji wymaga ponownego sprawdzenia.
+  Mapa kluczy służy do uzgadniania zmienionej kolejności, nie do ponownej alokacji
+  całej historii po każdej delcie. W Svelte sprawdzaj aktualizacje propsów wierszy
+  licznikami w osobnej próbie diagnostycznej, poza nagraniem porównawczym.
+- Kontener scrolla o ustalonej wysokości i istniejącym przycinaniu może izolować
+  rozmiar, layout i paint przez `contain: strict`. Nie stosuj tej reguły do elementu,
+  którego rodzic potrzebuje wysokości treści. Zachowaj obserwator wzrostu i semantykę
+  intencji czytelnika: każde porównanie obejmuje odstęp od końca i dryf kotwicy.
+  `content-visibility` z przybliżoną wysokością nie zastępuje tych sprawdzeń.
+- Porównuj co najmniej trzy naprzemienne pary przed/po, po dwie minuty każda,
+  z identycznym fixture i przypisaniem CPU. Na współdzielonym hoście rejestruj
+  `/proc/loadavg` i `vmstat` przed próbą oraz przez całe nagranie. Odrzuć i powtórz
+  próbę z przeciążeniem lub intensywnym swapem; `taskset` ogranicza powinowactwo,
+  ale nie rezerwuje rdzeni przed innymi procesami. Nie uruchamiaj wtedy buildów,
+  testów ani analizatora śladów. Raportuj również paint ms/s, dostarczone ticki
+  i pamięć; wynik eksploracyjny przy obciążonym hoście nie potwierdza celu wydajności.
+
 Otwórz `/dev/long-thread?turns=1000&inherited=0` w jednej przeglądarce na swoim
 BFF. Trasa używa produkcyjnych komponentów osi czasu, ale dane dostarcza fixture,
 bez pobierania historii z gatewaya. Nie mierzy więc czasu bazy ani sieci.

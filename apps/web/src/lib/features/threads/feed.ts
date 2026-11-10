@@ -105,7 +105,7 @@ export const feedEstimate = (group: string): number => ESTIMATES.get(group.repla
  * delta re-renders only the row it touches.
  */
 export class FeedBuilder {
-  #rows = new Map<string, FeedRow>();
+  #rows: FeedRow[] = [];
   readonly #nodes = new WeakMap<TimelineEntry, ItemNode>();
   readonly #prefix = new FeedPrefix();
   readonly #stable = new WeakMap<FeedRow, FeedRow>();
@@ -163,16 +163,26 @@ export class FeedBuilder {
 
     const marked = markFoldEnds(next);
     const previous = this.#rows;
-    this.#rows = new Map();
+    let byKey: Map<string, FeedRow> | undefined;
 
-    return marked.map((row) => {
-      const old = previous.get(row.key);
-      const kept = this.#stable.get(row) ?? (old && sameRow(old, row) ? old : row);
+    this.#rows = marked.map((row, index) => {
+      const known = this.#stable.get(row);
+
+      if (known) return known;
+      let old: FeedRow | undefined = previous[index];
+
+      if (old?.key !== row.key) {
+        byKey ??= new Map(previous.map((entry) => [entry.key, entry]));
+        old = byKey.get(row.key);
+      }
+
+      const kept = old && sameRow(old, row) ? old : row;
       this.#stable.set(row, kept);
-      this.#rows.set(row.key, kept);
 
       return kept;
     });
+
+    return this.#rows;
   }
 }
 

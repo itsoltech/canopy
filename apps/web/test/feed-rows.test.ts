@@ -3,7 +3,7 @@ import { FeedRows } from "../src/lib/shared/ui/virtual/feed-rows.ts";
 import { SizeIndex } from "../src/lib/shared/ui/virtual/size-index.ts";
 
 test("streamed content keeps structural indexes stable; prepend, removal, reorder and group changes invalidate", () => {
-  const structure = new FeedRows();
+  const structure = new FeedRows<{ id: string; group: string; text?: string }>();
   const key = (row: { id: string }) => row.id;
   const group = (row: { group: string }) => row.group;
 
@@ -27,5 +27,6 @@ test("streamed content keeps structural indexes stable; prepend, removal, reorde
   index.setRows(prepended);
   expect(index.offset(2)).toBe(160);
   expect(structure.update([...rows].reverse(), key, group).map((row) => row.key)).toEqual(["b", "a"]);
+  expect(structure.update(rows, key, () => "changed").map((row) => row.group)).toEqual(["changed", "changed"]);
   expect(structure.update([], key, group)).toEqual([]);
 });
