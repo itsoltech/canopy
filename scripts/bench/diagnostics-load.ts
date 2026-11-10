@@ -20,12 +20,13 @@ export async function diagnosticsLoad(
   sample: () => Promise<object>,
 ) {
   const latencies: number[] = [];
+  const workload = { updates: 0, overviewReads: 0, detailReads: 0, reconnects: 0, openedWatches: 0 };
   const until = performance.now() + duration;
 
   if (phase === "idle") {
     while (performance.now() < until) await Bun.sleep(Math.max(0, Math.min(1000, until - performance.now())));
 
-    return { latencies };
+    return { latencies, ...workload };
   }
 
   const abort = new AbortController();
@@ -38,6 +39,7 @@ export async function diagnosticsLoad(
       : [];
 
   await Promise.all(watches.map((watch) => watch.next()));
+  workload.openedWatches += watches.length;
 
   const extra = (async () => {
     let nextReconnect = performance.now() + 5000;
@@ -47,18 +49,23 @@ export async function diagnosticsLoad(
     let changes = 0;
 
     while (performance.now() < until) {
+      const started = performance.now();
+
       if (process.env["CANOPY_BENCH_VIEW"] === "1" && performance.now() >= nextOverview) {
         await api.getDiagnostics({ windowMinutes: 15 });
+        workload.overviewReads++;
         nextOverview = performance.now() + 5000;
       }
 
       if (process.env["CANOPY_BENCH_VIEW"] === "1" && performance.now() >= nextDetails) {
         await api.getComputerDiagnostics({ windowMinutes: 15, limit: 32, sortBy: "p95", callKind: "unary" });
+        workload.detailReads++;
         nextDetails = performance.now() + 10_000;
       }
 
       if ((phase === "reconnect" || phase === "churn") && performance.now() >= nextReconnect) {
         await reconnect();
+        workload.reconnects++;
         nextReconnect = performance.now() + 5000;
       }
 
@@ -66,6 +73,7 @@ export async function diagnosticsLoad(
         const cancel = new AbortController();
         const watch = api.watchOverview({}, { signal: cancel.signal })[Symbol.asyncIterator]();
         await watch.next();
+        workload.openedWatches++;
         cancel.abort();
         await watch.return?.();
 
@@ -75,8 +83,12 @@ export async function diagnosticsLoad(
         }
       }
 
-      if (phase === "slow_reader") await api.updateThread({ threadId: thread, title: `Synthetic change ${++changes}` });
-      await Bun.sleep(phase === "slow_reader" ? 50 : 200);
+      if (phase === "slow_reader") {
+        await api.updateThread({ threadId: thread, title: `Synthetic change ${++changes}` });
+        workload.updates++;
+      }
+
+      await Bun.sleep(Math.max(0, (phase === "slow_reader" ? 50 : 200) - (performance.now() - started)));
     }
   })();
 
@@ -97,5 +109,5 @@ export async function diagnosticsLoad(
     await Promise.all(watches.map((watch) => watch.return?.().catch(() => undefined)));
   }
 
-  return { latencies };
+  return { latencies, ...workload };
 }

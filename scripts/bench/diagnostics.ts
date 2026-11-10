@@ -126,7 +126,7 @@ async function run(on: boolean, index: number) {
     await worker.run("begin");
     const finishContention = await diagnosticsContention(name, database, phase, api, seed.thread);
 
-    const { latencies } = await diagnosticsLoad(
+    const { latencies, ...workload } = await diagnosticsLoad(
       api,
       seed.thread,
       phase,
@@ -158,6 +158,7 @@ async function run(on: boolean, index: number) {
         writesPerHour: (after.writes - before.writes) / hours,
         rpcP95Ms: latencies[Math.max(0, Math.ceil(latencies.length * 0.95) - 1)] ?? null,
         calls: latencies.length,
+        ...workload,
       }),
     );
   }
