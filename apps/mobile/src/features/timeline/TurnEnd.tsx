@@ -10,6 +10,10 @@ import { useTone } from "../../ui/tone";
 import { FailureNotice } from "./FailureNotice";
 import { CopyAction } from "../viewers/copy-action";
 import { ForkAction } from "./ForkAction";
+import { QuoteAction } from "../quotes/QuoteAction";
+
+// Real 48 dp cells keep neighboring icon centers a full touch target apart.
+const answerAction = { width: 48, height: 48 };
 
 const REASONS = new Map([
   ["user", "by you"],
@@ -83,9 +87,10 @@ export function TurnDetails({ turn, answer }: { turn: ui.Turn; answer: string })
   const duration = took !== undefined && took >= 0 ? formatDuration(took) : "";
 
   return (
-    <View accessibilityLabel="Turn details" style={[styles.row, { minHeight: 40, gap: 8 }]}>
-      {answer ? <CopyAction text={answer} label="Copy answer" /> : null}
-      <ForkAction turn={turn} />
+    <View accessibilityLabel="Turn details" style={[styles.row, { minHeight: 48, marginLeft: -16 }]}>
+      {answer.trim() ? <CopyAction text={answer} label="Copy answer" style={answerAction} /> : null}
+      {answer.trim() ? <QuoteAction text={answer} kind="agent_message" style={answerAction} /> : null}
+      <ForkAction turn={turn} style={answerAction} />
       <Text
         accessibilityLabel={duration ? `Time the turn ran: ${duration}` : undefined}
         style={[styles.meta, { minHeight: styles.meta.lineHeight, color: c.muted, fontVariant: ["tabular-nums"] }]}

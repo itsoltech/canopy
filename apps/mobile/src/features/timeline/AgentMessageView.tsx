@@ -1,25 +1,23 @@
 import { useEffect, useState } from "react";
-import { Animated, View } from "react-native";
+import { Animated, Pressable } from "react-native";
 import type { AgentMessage } from "@canopy/contracts";
 import { Markdown } from "../../ui/markdown";
 import { useReducedMotion } from "../../ui/motion";
 import { useColors } from "../../ui/theme";
-import { CopyAction } from "../viewers/copy-action";
-import { QuoteAction } from "../quotes/QuoteAction";
+import { useMessageActions } from "./useMessageActions";
 
 /** Agent prose stays primary reading content, inside work folds and in the answer slot (web: AgentMessageView). */
 export function AgentMessageView({ message, streaming }: { message: AgentMessage; streaming: boolean }) {
+  const actions = useMessageActions(message.text, "agent_message", !streaming);
+
   return (
-    <View accessibilityState={{ busy: streaming }}>
-      <Markdown text={message.text} />
-      {streaming && <Caret />}
-      {!streaming && message.text.trim() ? (
-        <View style={{ flexDirection: "row", gap: 8, minHeight: 32 }}>
-          <CopyAction text={message.text} label="Copy message" />
-          <QuoteAction text={message.text} kind="agent_message" />
-        </View>
-      ) : null}
-    </View>
+    <>
+      <Pressable {...actions.trigger} accessibilityState={{ busy: streaming }}>
+        <Markdown text={message.text} selectable={!actions.available} />
+        {streaming && <Caret />}
+      </Pressable>
+      {actions.menu}
+    </>
   );
 }
 

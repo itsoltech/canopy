@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Alert } from "react-native";
+import { Alert, type StyleProp, type ViewStyle } from "react-native";
 import { Provider, type ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { useLayout } from "../../state/layout";
@@ -7,7 +7,7 @@ import { IconButton } from "../../ui/Button";
 import { useTimelineDirectory } from "./directory";
 
 /** Same CreateThread fork request and eligibility as the web. The gateway derives settings and enforces access. */
-export function ForkAction({ turn }: { turn: ui.Turn }) {
+export function ForkAction({ turn, style }: { turn: ui.Turn; style?: StyleProp<ViewStyle> }) {
   const { client } = useSession();
   const directory = useTimelineDirectory();
   const layout = useLayout();
@@ -42,6 +42,13 @@ export function ForkAction({ turn }: { turn: ui.Turn }) {
   }
 
   return available ? (
-    <IconButton icon="git-fork" label="Fork from here" size="sm" busy={busy} onPress={() => void fork()} />
+    <IconButton
+      icon="git-fork"
+      label="Fork from here"
+      size="sm"
+      style={style}
+      busy={busy}
+      onPress={() => void fork()}
+    />
   ) : null;
 }
