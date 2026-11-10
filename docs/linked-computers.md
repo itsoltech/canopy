@@ -134,7 +134,7 @@ przyciskom na wąskim ekranie; cele dotykowe mają co najmniej 44 px.
 
 `GatewayService.AddProject` jest na liście `SERVED`: kwalifikowany `worker_id` trasuje wywołanie
 do domu workera (etap 2), a dom wykonuje je własnym handlerem jako właściciel. Limit trasowanego
-wywołania to 6 min (zamiast 30 s), bo klon czeka na git. Nic nie jest kolejkowane: offline worker
+wywołania to 61 min (zamiast 30 s), bo klon czeka na git. Nic nie jest kolejkowane: offline worker
 albo niedostępny partner daje natychmiastowy błąd. Dom:
 
 1. sprawdza, że worker należy do właściciela i jest online;
@@ -157,10 +157,26 @@ Komendy są nietrwałe (bez outboxa i journala, `NOT_REMEMBERED`). Nowy katalog 
 segmentem (bez `/`, `\`, `.`, `..`) w istniejącym, bezwzględnym katalogu nadrzędnym po `realpath`.
 Worker tworzy go sam (`mkdir` zawodzi, jeśli istnieje, także jako symlink), więc sprzątanie po
 nieudanym git usuwa wyłącznie jego własny katalog. Git biegnie przez process governor (rodzaj `git`):
-`git init` z limitem 15 s, `git clone -- <url> <nazwa>` z limitem 5 min, bez shella i promptów,
+`git init` z limitem 15 s, `git clone --progress -- <url> <nazwa>` z limitem 2 min bez postępu
+i 60 min łącznie, bez shella i promptów,
 z `GIT_ALLOW_PROTOCOL=https:http:ssh:git:file` (bez `ext::` i `fd::`). Istniejący katalog podlega tym
 samym regułom co `ListDirectory` (ścieżka bezwzględna, istniejący katalog, uprawnienia użytkownika OS
 workera); przeglądarka startuje w katalogu domowym workera.
+
+Nowy worker ogłasza dodatkowo `git_clone_progress_v1` (`Worker.clone_progress`, 809).
+Web/desktop i mobile pokazują w obu przepływach klonowania (projekt i workspace) fazę, procent,
+transfer i szybkość, pasek postępu oraz rozwijany log Git. Pole logu ma stałą wysokość,
+automatyczne przewijanie i zarezerwowane miejsce na scrollbar; napływ linii nie przesuwa kontrolek.
+Błąd zachowuje log oraz **Retry**. **Cancel** przerywa strumień i kończy git na workerze,
+razem z jego procesami potomnymi, po czym sprząta częściowy katalog. Starszy worker zachowuje
+nieoznaczony postęp bez Cancel; nie otrzymuje nieobsługiwanych komend.
+
+`GatewayService.CloneProject(AddProjectRequest)` opakowuje tę samą walidację i zapis co `AddProject`.
+Strumień `CloneProjectUpdate` niesie nietrwały `CloneProgress`, a na końcu `AddProjectResponse`.
+Metoda jest w `SERVED`, oba gatewaye negocjują `git_clone_progress_v1`; kwalifikowany `worker_id`
+prowadzi postęp i anulowanie do domu workera. Reguły właściciela, aliasów projektu i Share configuration
+są identyczne dla unary i streamingu. Starszy partner nie ogłasza nowego pola workera, więc UI używa
+dotychczasowego `AddProject`. Przepływ **Copy workspace** przenosi pliki i nie klonuje z remote.
 
 Poświadczenia: URL z danymi logowania (`https://user:token@…`) jest odrzucany, zanim trafi do git,
 `.git/config` albo logów; błędy git zastępują URL-e znacznikiem `[remote URL]`. Klon używa własnego
@@ -172,6 +188,11 @@ Testy: `tests/integration/add-project.test.ts` (dwa gatewaye, rzeczywisty Worker
 istniejący katalog, klon z lokalnego bare repo przez `file://`, `git init`, dołączenie po origin,
 odmowa ścieżek względnych, `..`, symlinku i istniejącej nazwy, URL z poświadczeniami, cudzy worker
 i worker offline bez kolejki). Bez testów UI.
+
+`clone-progress.test.ts` sprawdza rzeczywisty kanał gRPC z lokalnym bare repo i fixture Git:
+kolejność i throttling, stall, Cancel i zabijanie potomków, sprzątanie, brak credentiali,
+starszego workera, retry i właściciela. `clone-progress-linked.test.ts` sprawdza postęp
+i anulowanie między dwoma gatewayami. Każdy plik uruchamiamy oddzielnie.
 
 ### Workspace istniejącego projektu na kolejnym workerze
 

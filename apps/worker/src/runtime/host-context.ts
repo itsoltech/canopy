@@ -14,6 +14,7 @@ import { TaskCommands } from "./task-commands.ts";
 import { TextGeneration } from "./text-generation.ts";
 import { CommandHandlers } from "./command-handlers.ts";
 import { GitCommands } from "./git-commands.ts";
+import { CloneCommands } from "./clone-commands.ts";
 import { BranchCommands } from "./branch-commands.ts";
 import { BotTurns } from "../bots/runtime.ts";
 
@@ -58,11 +59,11 @@ export type HostOperations = HostHooks &
   Pick<TaskCommands, "setGoal" | "stopTask" | "unloadThread"> &
   Pick<TextGeneration, "generateText"> &
   Pick<BotTurns, "runBotTurn" | "interruptBotTurn" | "closeBots"> &
+  Pick<CloneCommands, "cloneRepository" | "cancelCloneRepository" | "closeClones"> &
   Pick<
     GitCommands,
     | "readWorkspaceOrigin"
     | "initRepository"
-    | "cloneRepository"
     | "listGitRefs"
     | "createWorktree"
     | "renameWorktreeBranch"
@@ -91,6 +92,7 @@ export class HostContext {
     const bots = new BotTurns(this);
     const commands = new CommandHandlers(this);
     const gitCommands = new GitCommands(this);
+    const clones = new CloneCommands(this);
     const branches = new BranchCommands(this);
     this.ops = {
       ...hooks,
@@ -150,7 +152,9 @@ export class HostContext {
       listGitRefs: gitCommands.listGitRefs.bind(gitCommands),
       readWorkspaceOrigin: gitCommands.readWorkspaceOrigin.bind(gitCommands),
       initRepository: gitCommands.initRepository.bind(gitCommands),
-      cloneRepository: gitCommands.cloneRepository.bind(gitCommands),
+      cloneRepository: clones.cloneRepository.bind(clones),
+      cancelCloneRepository: clones.cancelCloneRepository.bind(clones),
+      closeClones: clones.closeClones.bind(clones),
       createWorktree: gitCommands.createWorktree.bind(gitCommands),
       renameWorktreeBranch: gitCommands.renameWorktreeBranch.bind(gitCommands),
       scanWorktrees: gitCommands.scanWorktrees.bind(gitCommands),

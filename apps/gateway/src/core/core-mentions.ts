@@ -6,6 +6,7 @@ import {
   Provider,
   ui,
   type CommandResult,
+  type CloneProgress,
   type Mention,
   type MentionCatalog,
 } from "@canopy/contracts";
@@ -76,6 +77,7 @@ export async function coreWorkerQuery(
   workerId: string,
   kind: CommandInit,
   timeoutMs: number,
+  options?: { commandId: string; progress: (progress: CloneProgress) => void },
 ): Promise<CommandResult> {
   const connection = hostContext.link.connections.get(workerId);
 
@@ -87,7 +89,7 @@ export async function coreWorkerQuery(
     throw new UnavailableError(`${worker?.name || "the worker"} is offline`);
   }
 
-  const result = await connection.sendCommand(kind, timeoutMs);
+  const result = await connection.sendCommand(kind, timeoutMs, options?.commandId, options?.progress);
 
   if (!result.ok) {
     if (kind.case === "cloneRepository" && result.errorCode === "CLONE_AUTH_FAILED") {

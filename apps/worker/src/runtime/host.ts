@@ -69,6 +69,7 @@ const NOT_REMEMBERED: ReadonlySet<Command["kind"]["case"]> = new Set([
   "readWorkspaceOrigin",
   "initRepository",
   "cloneRepository",
+  "cancelCloneRepository",
   "workspaceCopy",
   "switchThreadBranch",
   "listGitRefs",
@@ -187,7 +188,10 @@ export class WorkerHost {
   }
 
   detach(link: GatewayLink): void {
-    if (this.#ctx.state.link === link) this.#ctx.state.link = undefined;
+    if (this.#ctx.state.link === link) {
+      this.#ctx.state.link = undefined;
+      void this.#ctx.ops.closeClones();
+    }
 
     // The redelivered StartTurn asks again on the next link.
     for (const [id, fetch] of this.#ctx.state.fetches) {
@@ -359,6 +363,7 @@ export class WorkerHost {
   }
 
   async close(): Promise<void> {
+    await this.#ctx.ops.closeClones();
     await this.#copies.close();
     this.#ctx.state.closing = true;
 

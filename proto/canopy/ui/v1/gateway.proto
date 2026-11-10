@@ -137,6 +137,8 @@ service GatewayService {
   // Katalog na workerze (istniejący, nowy z git init albo klon) jako workspace: dołącza do projektu
   // o tym samym git origin albo tworzy nowy projekt. Trasowane do domu workera.
   rpc AddProject(AddProjectRequest) returns (AddProjectResponse);
+  // Same owner-scoped operation; ending the stream cancels an unfinished capable worker clone.
+  rpc CloneProject(AddProjectRequest) returns (stream CloneProjectUpdate);
   rpc GetWorkspaceCopyManifest(GetWorkspaceCopyManifestRequest) returns (GetWorkspaceCopyManifestResponse);
   rpc CopyWorkspace(CopyWorkspaceRequest) returns (stream WorkspaceCopyProgress);
   rpc WorkspaceCopySource(WorkspaceCopySourceRequest) returns (WorkspaceCopySourceResponse);
@@ -448,6 +450,7 @@ message Worker {
   bool worktrees = 804;
   // Worker tworzy katalogi nowych projektów i klony (capability "project_sources").
   bool project_sources = 805;
+  bool clone_progress = 809;
   bool workspace_copy = 860;
   // Wbudowany worker aplikacji desktop w trybie lokalnym (capability desktop_bundled): działa na komputerze,
   // na którym działa gateway; tylko wtedy desktop otwiera jego foldery i pliki w systemie.
@@ -968,6 +971,11 @@ message AddProjectResponse {
   Workspace workspace = 2;
   // Dołączony do istniejącego projektu o tym samym git origin.
   bool attached = 3;
+}
+
+message CloneProjectUpdate {
+  canopy.worker.v1.CloneProgress progress = 1;
+  AddProjectResponse result = 2;
 }
 
 // ---------- Wątki ----------

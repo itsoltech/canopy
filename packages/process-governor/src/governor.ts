@@ -17,6 +17,8 @@ export interface ProcessPolicy {
   key?: string;
   ttlMs?: number;
   maxQueueMs?: number;
+  /** Cancels a queued, unshared operation before admission. */
+  signal?: AbortSignal;
 }
 
 export class ProcessBusyError extends Error {
@@ -30,6 +32,7 @@ interface Waiting {
   start(): void;
   reject(error: Error): void;
   timer: ReturnType<typeof setTimeout>;
+  cleanup(): void;
 }
 
 export const PROCESS_LIMITS: Readonly<Record<ProcessKind, number>> = {
@@ -163,6 +166,8 @@ export class ProcessGovernor {
 
   #enqueue<T>(policy: ProcessPolicy, operation: () => Promise<T>): Promise<T> {
     return new Promise<T>((resolve, reject) => {
+      policy.signal?.throwIfAborted();
+
       const start = () => {
         const release = this.reserve(policy.kind);
         void Promise.resolve().then(operation).then(resolve, reject).finally(release);
@@ -197,21 +202,26 @@ export class ProcessGovernor {
           () => this.#drop(wait),
           policy.maxQueueMs ?? (policy.priority === "background" ? 5_000 : 30_000),
         ),
+        cleanup: () => policy.signal?.removeEventListener("abort", abort),
       };
 
+      const abort = () => this.#drop(wait, new Error("The queued process was cancelled."));
+
       this.#queue.push(wait);
+      policy.signal?.addEventListener("abort", abort, { once: true });
       this.#drain();
     });
   }
 
-  #drop(wait: Waiting): void {
+  #drop(wait: Waiting, error: Error = new ProcessBusyError()): void {
     const index = this.#queue.indexOf(wait);
 
     if (index < 0) return;
     this.#queue.splice(index, 1);
     clearTimeout(wait.timer);
+    wait.cleanup();
     this.#dropped++;
-    wait.reject(new ProcessBusyError());
+    wait.reject(error);
   }
 
   #drain(): void {
@@ -224,6 +234,7 @@ export class ProcessGovernor {
       if (index < 0) return;
       const wait = this.#queue.splice(index, 1)[0]!;
       clearTimeout(wait.timer);
+      wait.cleanup();
       wait.start();
     }
   }

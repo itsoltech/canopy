@@ -36,7 +36,9 @@ export class CommandHandlers {
 
     if (kind.case === "initRepository") return this.ctx.ops.initRepository(kind);
 
-    if (kind.case === "cloneRepository") return this.ctx.ops.cloneRepository(kind);
+    if (kind.case === "cloneRepository") return this.ctx.ops.cloneRepository(kind, command.commandId);
+
+    if (kind.case === "cancelCloneRepository") return this.ctx.ops.cancelCloneRepository(kind.value.commandId);
 
     if (kind.case === "createWorktree") return this.ctx.ops.createWorktree(kind);
 

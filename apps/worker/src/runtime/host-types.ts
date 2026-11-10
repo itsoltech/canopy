@@ -55,6 +55,8 @@ export interface CommandOutput {
 }
 
 export interface WorkerHostOptions {
+  /** Integration fixtures can shorten clone deadlines without changing production limits. */
+  readonly cloneTimeouts?: { stallTimeoutMs?: number; overallTimeoutMs?: number };
   /** Tests can shorten the production two-minute shell deadline. */
   readonly shellTimeoutMs?: number;
   readonly runtime: ManagedRuntime.ManagedRuntime<Journal, unknown>;

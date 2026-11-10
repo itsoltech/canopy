@@ -42,6 +42,8 @@ export interface ProcessInput {
   timeoutMs?: number;
   maxBytes?: number;
   signal?: AbortSignal;
+  /** A streaming consumer owns stderr retention; stdout remains bounded by maxBytes. */
+  onStderr?: (chunk: Buffer) => void;
 }
 
 export interface ProcessResult {
@@ -130,7 +132,10 @@ function capture(input: ProcessInput): Promise<ProcessResult> {
     const timer = setTimeout(stop, input.timeoutMs ?? 15_000);
     input.signal?.addEventListener("abort", stop, { once: true });
     child.stdout.on("data", (chunk: Buffer) => append(stdout, chunk));
-    child.stderr.on("data", (chunk: Buffer) => append(stderr, chunk));
+    child.stderr.on("data", (chunk: Buffer) => {
+      if (input.onStderr) input.onStderr(chunk);
+      else append(stderr, chunk);
+    });
     // A CLI may exit without consuming stdin (EPIPE is not an uncaught process error).
     child.stdin.on("error", () => {});
     child.stdin.end(input.input);

@@ -13,6 +13,7 @@ export async function workspaceWorker(
   dir: string,
   name = "Second worker",
   copy = true,
+  clone: { progress?: boolean; stallTimeoutMs?: number; overallTimeoutMs?: number } = {},
 ) {
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "auth.json"), JSON.stringify({ tokens: { access_token: "fixture" } }));
@@ -35,6 +36,10 @@ export async function workspaceWorker(
   const runtime = ManagedRuntime.make(Journal.layer(join(dir, "journal.db")));
 
   const host = new WorkerHost({
+    cloneTimeouts: {
+      ...(clone.stallTimeoutMs !== undefined && { stallTimeoutMs: clone.stallTimeoutMs }),
+      ...(clone.overallTimeoutMs !== undefined && { overallTimeoutMs: clone.overallTimeoutMs }),
+    },
     runtime,
     dataDir: dir,
     clientVersion: "test",
@@ -52,6 +57,7 @@ export async function workspaceWorker(
         "workspace_origin",
         "workspace_clone_source",
         "project_sources",
+        ...(clone.progress ? ["git_clone_progress_v1"] : []),
         "worktrees",
         "workspace_copy_v1",
         ...(copy ? ["workspace_copy_scope_v2"] : []),

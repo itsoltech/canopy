@@ -31,10 +31,24 @@ starszy worker jej nie wysyła; `WORKER_LINK_PROTOCOL` pozostaje 1. Szczegóły:
 Nietrwałe `InitRepository` (`Command.init_repository = 217`) i `CloneRepository`
 (`Command.clone_repository = 218`), capability `project_sources`: nowy katalog `name` (jeden segment)
 w istniejącym bezwzględnym `parent_path`, potem `git init` albo `git clone` z `url` przez process
-governor (limity 15 s i 5 min). Wynik: rzeczywista ścieżka w `CommandResult.directory_path` (6).
+governor (init: 15 s; clone: 2 min bez postępu i 60 min łącznie). Wynik: rzeczywista ścieżka w `CommandResult.directory_path` (6).
 URL z poświadczeniami jest odrzucany; klon używa logowania git urządzenia. Bez outboxa i journala;
 starszy worker nie dostaje komend, `WORKER_LINK_PROTOCOL` pozostaje 1.
 [Reguły i bezpieczeństwo](linked-computers.md#dodawanie-projektu-na-dowolnym-komputerze).
+
+Addytywna capability `git_clone_progress_v1` włącza `CloneRepository.report_progress` (4),
+`WorkerMessage.clone_progress` (841) i `Command.cancel_clone_repository` (226, ID komendy klonowania).
+Postęp zawiera rosnący `sequence`, fazę, opcjonalny procent/liczniki/bajty/szybkość oraz snapshot
+ostatnich 30 linii stderr. Git działa z `--progress`, parser rozpoznaje także aktualizacje CR i checkout.
+Worker wysyła najwyżej jedną ramkę co 250 ms; końcowy flush respektuje to samo okno i poprzedza wynik.
+Powtórzenie tych samych liczników nie przedłuża limitu bezczynności. Limit całości to 60 min,
+gateway czeka 60 min 15 s, klient/połączony gateway 61 min. Cancel zabija własną grupę procesów git,
+czeka na koniec i usuwa tylko utworzony przez tę komendę katalog (sprawdza tożsamość katalogu).
+Zerwanie łącza workera i zamknięcie workera również kończy nietrwałe klonowanie.
+Log nie trafia do bazy, journala ani outboxa. Worker usuwa sekwencje terminala, znaki sterujące,
+URL-e i rozpoznawalne dane logowania; linia ma maks. 500 znaków, wejście bez separatorów też jest ograniczone.
+Starszy worker nie otrzymuje flagi ani Cancel; UI pozostaje bez procentu i logu.
+`WORKER_LINK_PROTOCOL` nadal wynosi 1; zamrożone `update/v1` pozostaje bez zmian.
 
 Capability `bot_harness_v1` dodaje trwałe `RunBotTurn` i `InterruptBotTurn`.
 Bot używa istniejących `ThreadEvent` i ACK (thread_id = bot_id), przechowywanych

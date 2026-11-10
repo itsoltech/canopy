@@ -3,11 +3,10 @@ import { create } from "@bufbuild/protobuf";
 import { Provider, ui } from "@canopy/contracts";
 import { useOverview } from "../../state/overview";
 import { useAppearance } from "../../state/appearance";
-import { Button, Field, Notice, Sheet } from "../../ui/components";
+import { Button, Sheet } from "../../ui/components";
 import { SettingsGroup, SettingsRow, SettingChoice } from "./SettingsGroup";
 import { SettingsTextInput } from "./SettingsTextInput";
 import { ResourceState, useSettingsResource } from "./resource";
-import { DirectoryBrowser } from "./DirectoryBrowser";
 import { DefaultModels } from "./SettingsModels";
 import { DefaultResets } from "./DefaultResets";
 import { SelectField } from "../../ui/Picker";
@@ -15,11 +14,11 @@ import { PermissionPickerSheet, permissionLabel } from "../threads/permissions";
 import { SkeletonScope } from "../../ui/Skeleton";
 import { SettingsSkeletonGroups } from "./SettingsSkeleton";
 import { useWorkerOptions } from "../computers/worker-options";
-import { useWorkerPresence } from "../computers/presence";
 import { useProjectDetails } from "../computers/project-details";
 import { projectAwayReason } from "@canopy/domain/linked-snapshot";
 import { AddWorkspace } from "./AddWorkspace";
 import { WorkspaceRow } from "./WorkspaceRow";
+import { AddProject } from "./AddProject";
 
 type ProjectResource = ReturnType<typeof useSettingsResource<ui.GetSettingsResponse>>;
 
@@ -28,6 +27,7 @@ export function ProjectSettings() {
   const details = useProjectDetails();
   const resource = useSettingsResource("GetSettings", (api) => api.getSettings({}));
   const [adding, setAdding] = useState(false);
+  const [addingProject, setAddingProject] = useState(false);
   const [editing, setEditing] = useState<ui.Project>();
   const [addingWorkspace, setAddingWorkspace] = useState(false);
 
@@ -87,8 +87,8 @@ export function ProjectSettings() {
             )}
           </SettingsGroup>
         ))}
-      <Sheet title="Add project" visible={adding} onClose={() => setAdding(false)}>
-        {adding && <AddProject resource={resource} onSaved={() => setAdding(false)} />}
+      <Sheet title="Add project" visible={adding} onClose={() => !addingProject && setAdding(false)}>
+        {adding && <AddProject onBusy={setAddingProject} onSaved={() => setAdding(false)} />}
       </Sheet>
       <Sheet
         title="Add workspace"
@@ -100,89 +100,6 @@ export function ProjectSettings() {
           <AddWorkspace project={editing} onBusy={setAddingWorkspace} onSaved={() => setEditing(undefined)} />
         )}
       </Sheet>
-    </ResourceState>
-  );
-}
-
-function AddProject({ onSaved, resource }: { onSaved: () => void; resource: ProjectResource }) {
-  const { workers } = useOverview();
-  const presence = useWorkerPresence();
-  const workerOptions = useWorkerOptions();
-  const [workerId, setWorker] = useState(workers[0]?.id ?? "");
-  const [kind, setKind] = useState("directory");
-  const [path, setPath] = useState("");
-  const [name, setName] = useState("");
-  const [url, setUrl] = useState("");
-  const worker = workers.find((w) => w.id === workerId);
-
-  const repository = url
-    .trim()
-    .replace(/^https:\/\/github\.com\//i, "")
-    .replace(/\.git$/i, "");
-
-  const cloneUrl =
-    kind === "github" && /^[\w.-]+\/[\w.-]+$/.test(repository) ? `https://github.com/${repository}.git` : url.trim();
-
-  return (
-    <ResourceState resource={resource}>
-      <SettingChoice title="Worker" value={workerId} onChange={setWorker} options={workerOptions(workers)} />
-      <SettingChoice
-        title="Source"
-        value={kind}
-        onChange={setKind}
-        options={[
-          { value: "directory", label: "Existing directory" },
-          { value: "init", label: "New project", disabled: !worker?.projectSources },
-          { value: "clone", label: "Git URL", disabled: !worker?.projectSources },
-          { value: "github", label: "GitHub repository", disabled: !worker?.projectSources },
-        ]}
-      />
-      {(kind === "clone" || kind === "github") && (
-        <>
-          <Field
-            label={kind === "github" ? "GitHub repository" : "Git URL"}
-            value={url}
-            onChangeText={setUrl}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          <Notice>
-            {worker?.name || "This computer"} clones with its own Git sign-in. Private repositories need access there.
-          </Notice>
-        </>
-      )}
-      {kind !== "directory" && <Field label="Directory name" value={name} onChangeText={setName} />}
-      {workerId && presence(worker).online && <DirectoryBrowser workerId={workerId} value={path} onChange={setPath} />}
-      <Button
-        variant="primary"
-        title={kind === "directory" ? "Add project" : kind === "init" ? "Create project" : "Clone project"}
-        busy={resource.busy}
-        disabled={
-          !workerId ||
-          !presence(worker).online ||
-          !path ||
-          (kind !== "directory" && (!name.trim() || !worker?.projectSources)) ||
-          (kind === "github" && !/^[\w.-]+\/[\w.-]+$/.test(repository)) ||
-          (kind === "clone" && !/^(?:[\w.-]+@[\w.-]+:\S+|(?:https?|ssh|git|file):\/\/\S+)$/i.test(cloneUrl))
-        }
-        onPress={() =>
-          void resource
-            .run((api) =>
-              api.addProject({
-                workerId,
-                source:
-                  kind === "directory"
-                    ? { case: "directoryPath", value: path }
-                    : kind === "init"
-                      ? { case: "init", value: { parentPath: path, name } }
-                      : { case: "clone", value: { parentPath: path, name, url: cloneUrl } },
-              }),
-            )
-            .then((r) => {
-              if (r) onSaved();
-            })
-        }
-      />
     </ResourceState>
   );
 }

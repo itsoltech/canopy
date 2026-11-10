@@ -44,7 +44,7 @@ export interface GitResult {
   readonly stderr: string;
 }
 
-const ENV = {
+export const GIT_ENV = {
   GIT_TERMINAL_PROMPT: "0",
   GIT_ASKPASS: "",
   SSH_ASKPASS: "",
@@ -96,7 +96,7 @@ export async function git(
   const command = {
     argv: ["git", ...args],
     cwd,
-    env: { ...process.env, ...ENV, ...input?.env },
+    env: { ...process.env, ...GIT_ENV, ...input?.env },
     timeoutMs,
     ...(signal && { signal }),
     ...(input?.text !== undefined && { input: input.text }),

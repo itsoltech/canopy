@@ -70,6 +70,8 @@ message WorkerMessage {
     AgentEnvironmentReport agent_environment = 820;
     // Bieżąca gałąź checkoutów wątków (capability "git_heads", docs/worktrees.md).
     GitHeads git_heads = 840;
+    // Transient, capability git_clone_progress_v1; never journaled.
+    CloneProgress clone_progress = 841;
   }
 }
 
@@ -405,6 +407,7 @@ message Command {
     FileRequest open_file = 223;
     WriteFile write_file = 224;
     FileRequest delete_file = 225;
+    CancelCloneRepository cancel_clone_repository = 226;
     // CLI dostawców (sekcja na końcu pliku). Nietrwała: nigdy z outboxa.
     InstallCli install_cli = 800;
     // Nietrwałe metadane konta; capability provider_account_status, bez journala/outboxa.
@@ -711,6 +714,26 @@ message CloneRepository {
   string parent_path = 1;
   string name = 2;
   string url = 3;
+  // Only requested when git_clone_progress_v1 was advertised.
+  bool report_progress = 4;
+}
+
+message CancelCloneRepository {
+  string command_id = 1;
+}
+
+// Bounded snapshot of one clone, at most four updates per second, including its final flush.
+message CloneProgress {
+  string command_id = 1;
+  uint32 sequence = 2;
+  string phase = 3;
+  optional uint32 percent = 4;
+  optional uint32 completed = 5;
+  optional uint32 total = 6;
+  optional double bytes = 7;
+  optional double bytes_per_second = 8;
+  // Last 30 sanitized lines, each at most 500 characters. Never persisted.
+  repeated string lines = 9;
 }
 
 // Wyłącznie metadane do wyświetlenia. Bez tokenów, kluczy, org ID i surowych błędów.

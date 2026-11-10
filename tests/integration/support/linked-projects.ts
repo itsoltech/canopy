@@ -8,7 +8,7 @@ import { eventually } from "./gateway.ts";
 import { worktreeFixture } from "./worktrees.ts";
 
 /** Two desktop homes, real Git origin reads over gRPC, and isolated provider stand-ins. */
-export async function linkedProjectFixture(dir: string, options: { shared?: boolean } = {}) {
+export async function linkedProjectFixture(dir: string, options: { shared?: boolean; cloneProgress?: boolean } = {}) {
   mkdirSync(join(dir, "a"));
   mkdirSync(join(dir, "b"));
 
@@ -20,6 +20,7 @@ export async function linkedProjectFixture(dir: string, options: { shared?: bool
   const b = await worktreeFixture(join(dir, "b"), {
     role: "desktop",
     originUrl: "https://github.com/itsoltech/pinpoint/",
+    ...(options.cloneProgress && { capabilities: ["git_clone_progress_v1"] }),
   });
 
   const connect = (fixture: typeof a) =>
@@ -29,7 +30,16 @@ export async function linkedProjectFixture(dir: string, options: { shared?: bool
       heartbeatMs: 100,
       ...(options.shared
         ? { core: fixture.gw.core, shared: sharedHost(fixture.gw.core, uiHandlers(fixture.gw.core)) }
-        : { capabilities: ["presence", "unlink", REMOTE_THREADS, THREAD_MIRROR, "project_workspaces"] }),
+        : {
+            capabilities: [
+              "presence",
+              "unlink",
+              REMOTE_THREADS,
+              THREAD_MIRROR,
+              "project_workspaces",
+              ...(options.cloneProgress ? ["git_clone_progress_v1"] : []),
+            ],
+          }),
       serve: remoteServe(uiHandlers(fixture.gw.core), fixture.gw.core),
     });
 
