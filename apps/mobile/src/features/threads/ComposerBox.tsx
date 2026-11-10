@@ -26,30 +26,7 @@ export interface ComposerBadges {
   tone?: (mention: Mention) => BadgeTone;
 }
 
-export function ComposerBox({
-  text,
-  onChange,
-  onSend,
-  onAlternate,
-  primary = "steer",
-  onStop,
-  running = false,
-  stopWhileRunning = false,
-  disabled,
-  busy,
-  controls,
-  compact = false,
-  inline = false,
-  onExpand,
-  placeholder = "Ask anything…",
-  top,
-  files = 0,
-  label = "Message to your agent",
-  badges,
-  triggers = false,
-  shellCommands = true,
-  canSend = true,
-}: {
+interface ComposerBoxProps {
   text: string;
   onChange: (text: string) => void;
   onSend: () => void;
@@ -61,6 +38,8 @@ export function ComposerBox({
   stopWhileRunning?: boolean;
   disabled?: boolean;
   busy?: boolean;
+  /** Pinned before the field in inline mode, or to the toolbar's left edge. */
+  attachment?: ReactNode;
   controls?: ReactNode;
   compact?: boolean;
   /** Bot chats keep their one-row pill when expanded; long drafts still grow. */
@@ -78,7 +57,33 @@ export function ComposerBox({
   /** Bot chats treat leading exclamation marks as ordinary text. */
   shellCommands?: boolean;
   canSend?: boolean;
-}) {
+}
+
+export function ComposerBox({
+  text,
+  onChange,
+  onSend,
+  onAlternate,
+  primary = "steer",
+  onStop,
+  running = false,
+  stopWhileRunning = false,
+  disabled,
+  busy,
+  attachment,
+  controls,
+  compact = false,
+  inline = false,
+  onExpand,
+  placeholder = "Ask anything…",
+  top,
+  files = 0,
+  label = "Message to your agent",
+  badges,
+  triggers = false,
+  shellCommands = true,
+  canSend = true,
+}: ComposerBoxProps) {
   const c = useColors();
   const empty = !text.trim() && files === 0;
   // A leading "!" runs the text as a shell command on the worker when it is delivered (docs/ui-api.md).
@@ -108,7 +113,7 @@ export function ComposerBox({
       }}
     >
       {top}
-      {inline && controls ? <View style={{ paddingLeft: 4 }}>{controls}</View> : null}
+      {inline && attachment ? <View style={{ paddingLeft: 4, flexShrink: 0 }}>{attachment}</View> : null}
 
       <ComposerInput
         text={text}
@@ -126,6 +131,7 @@ export function ComposerBox({
           <ComposerControls
             shell={shell}
             files={files}
+            attachment={attachment}
             sendWidth={running && !empty && onAlternate ? SPLIT_SEND_WIDTH + 14 : 60}
           >
             {controls}
@@ -160,26 +166,38 @@ export function ComposerBox({
 function ComposerControls({
   shell,
   files,
+  attachment,
   sendWidth,
   children,
 }: {
   shell: boolean;
   files: number;
+  attachment: ReactNode;
   sendWidth: number;
   children: ReactNode;
 }) {
   const c = useColors();
+  const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   const room = useTween(sendWidth);
   const slot = useAnimatedStyle(() => ({ paddingRight: room.get() }));
 
   return (
-    <Animated.View style={[styles.row, { minHeight: composerGeometry.toolbar, padding: 10, paddingLeft: 12 }, slot]}>
+    <Animated.View
+      style={[styles.row, { minHeight: composerGeometry.toolbar, padding: 10, paddingLeft: 12, gap: 4 }, slot]}
+    >
+      {!shell && attachment ? <View style={{ flexShrink: 0 }}>{attachment}</View> : null}
       <ScrollView
+        ref={scroll}
         horizontal
+        alwaysBounceHorizontal={false}
+        bounces={false}
         showsHorizontalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={[styles.row, { flexGrow: 1, justifyContent: "flex-end", gap: 4, paddingRight: 4 }]}
-        style={{ flex: 1 }}
+        // Keep effort beside Send as the catalog loads or the available width changes.
+        onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: false })}
+        onLayout={() => scroll.current?.scrollToEnd({ animated: false })}
+        contentContainerStyle={[styles.row, { flexGrow: 1, justifyContent: "flex-end", gap: 4 }]}
+        style={{ flex: 1, minWidth: 0, marginRight: 4 }}
       >
         {shell ? (
           <Text numberOfLines={2} style={[styles.caption, { color: c.danger, flexShrink: 1 }]}>
@@ -204,7 +222,7 @@ function ComposerInput({
   badges,
   triggers,
 }: Pick<
-  Parameters<typeof ComposerBox>[0],
+  ComposerBoxProps,
   "text" | "onChange" | "busy" | "inline" | "onExpand" | "placeholder" | "label" | "badges" | "triggers"
 >) {
   const c = useColors();

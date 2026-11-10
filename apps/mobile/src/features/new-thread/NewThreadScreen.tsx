@@ -69,9 +69,9 @@ export function NewThreadScreen() {
                   files={message.files.ids.length}
                   label="Task for the agent"
                   top={<AttachmentChips files={message.files.files} onRemove={message.remove} />}
+                  attachment={<AttachButton draft={message.files} disabled={state.busy} />}
                   controls={
                     <>
-                      <AttachButton draft={message.files} disabled={state.busy} />
                       {selected && (
                         <ComposerPill
                           icon="cpu-chip"

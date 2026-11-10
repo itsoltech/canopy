@@ -76,7 +76,8 @@ export function MessageComposer({
           busy={busy}
           files={message.files.ids.length + quotes.quotes.length}
           top={<ComposerAttachments message={message} quotes={quotes} />}
-          controls={<ComposerControls state={state} thread={thread} message={message} disabled={disabled || busy} />}
+          attachment={<AttachButton draft={message.files} disabled={disabled || busy} />}
+          controls={<ComposerControls state={state} thread={thread} />}
         />
       </PasteTarget>
       {/* Only this secondary row gives its height to the field while writing. */}
@@ -112,20 +113,15 @@ export function MessageComposer({
 function ComposerControls({
   state,
   thread,
-  message,
-  disabled,
 }: {
   state: ReturnType<typeof useComposerSettings>;
   thread: ui.Thread | undefined;
-  message: MessageDraft;
-  disabled: boolean;
 }) {
   const { setPicker, current, effort } = state;
   const effortLabel = useEffortLabel();
 
   return (
     <>
-      <AttachButton draft={message.files} disabled={disabled} />
       <ComposerPill
         icon="cpu-chip"
         leading={thread ? <ProviderIcon provider={thread.provider} /> : undefined}
