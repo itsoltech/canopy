@@ -40,13 +40,13 @@ export async function diagnosticsLoad(
 
   await Promise.all(watches.map((watch) => watch.next()));
   workload.openedWatches += watches.length;
+  let changes = 0;
 
   const extra = (async () => {
     let nextReconnect = performance.now() + 5000;
     let nextSample = performance.now() + 60_000;
     let nextOverview = performance.now();
     let nextDetails = performance.now();
-    let changes = 0;
 
     while (performance.now() < until) {
       const started = performance.now();
@@ -83,12 +83,7 @@ export async function diagnosticsLoad(
         }
       }
 
-      if (phase === "slow_reader") {
-        await api.updateThread({ threadId: thread, title: `Synthetic change ${++changes}` });
-        workload.updates++;
-      }
-
-      await Bun.sleep(Math.max(0, (phase === "slow_reader" ? 50 : 200) - (performance.now() - started)));
+      await Bun.sleep(Math.max(0, 200 - (performance.now() - started)));
     }
   })();
 
@@ -100,6 +95,14 @@ export async function diagnosticsLoad(
           const start = performance.now();
           await api.getThread({ threadId: thread });
           latencies.push(performance.now() - start);
+          await Bun.sleep(Math.max(0, 200 - (performance.now() - start)));
+        }
+      }),
+      ...Array.from({ length: phase === "slow_reader" ? 4 : 0 }, async () => {
+        while (performance.now() < until) {
+          const start = performance.now();
+          await api.updateThread({ threadId: thread, title: `Synthetic change ${++changes}` });
+          workload.updates++;
           await Bun.sleep(Math.max(0, 200 - (performance.now() - start)));
         }
       }),
