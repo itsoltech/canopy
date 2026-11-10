@@ -34,6 +34,8 @@ services:
       CANOPY_DEV_USER_EMAIL: ${CANOPY_DEV_USER_EMAIL:-dev@localhost}
       CANOPY_NETWORK_PORT: ${CANOPY_NETWORK_PORT:-24443}
       CANOPY_OAUTH_REDIRECT_URL: ${CANOPY_OAUTH_REDIRECT_URL:-}
+      CANOPY_GITHUB_APP_CLIENT_ID: ${CANOPY_GITHUB_APP_CLIENT_ID-Iv23liqSybfDzvusCyjP}
+      CANOPY_GITHUB_APP_SLUG: ${CANOPY_GITHUB_APP_SLUG-canopy-by-it-sol}
     ports:
       # Bootstrap/compatibility: WorkerLink + Enrollment + frozen UpdateService remain here.
       - "${GATEWAY_BIND:-127.0.0.1}:${GATEWAY_PORT:-7443}:7443"

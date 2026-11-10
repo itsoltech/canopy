@@ -14,6 +14,7 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { ComputerStore, type PeerRow } from "./store.ts";
 import { linkedMessage, SERVED, UPDATE_METHODS, WORKER_SETTINGS } from "./remote.ts";
+import { GITHUB_METHODS } from "./remote-policy.ts";
 
 // Configuration (which can contain credentials) is deliberately absent, even when
 // every participant supports stage 4. Routes and relay itself are never inherited.
@@ -31,7 +32,11 @@ const FEATURES = new Set([
 export const RELAY_METHODS = new Set(
   [...SERVED].filter(
     (name) =>
-      name !== "WatchConfig" && name !== "GetConfigBlob" && !WORKER_SETTINGS.has(name) && !UPDATE_METHODS.has(name),
+      name !== "WatchConfig" &&
+      name !== "GetConfigBlob" &&
+      !WORKER_SETTINGS.has(name) &&
+      !UPDATE_METHODS.has(name) &&
+      !GITHUB_METHODS.has(name),
   ),
 );
 

@@ -22,6 +22,7 @@ import { WorkerSettings } from "./WorkerSettings";
 import { ComputerSettings } from "./ComputerSettings";
 import { ProxySettings } from "./ProxySettings";
 import { ConnectorSettings } from "./ConnectorSettings";
+import { GitHubSettings } from "./GitHubSettings";
 import { ProviderSettings } from "./ProviderSettings";
 import { AgentEnvironmentSettings } from "./AgentEnvironmentSettings";
 import { ImportSettings } from "./ImportSettings";
@@ -76,6 +77,7 @@ export default function SettingsScreen() {
         {section === "computers" && <ComputerSettings />}
         {section === "proxies" && <ProxySettings />}
         {section === "connectors" && <ConnectorSettings />}
+        {section === "github" && <GitHubSettings />}
         {section === "providers" && <ProviderSettings />}
         {section === "agent-environment" && <AgentEnvironmentSettings />}
         {section === "import" && <ImportSettings />}

@@ -34,6 +34,7 @@ import { auditHomeAction, receiveHomeAction } from "./routed-execution.ts";
 import { executionLists } from "./routed-execution-lists.ts";
 import { linkedManageUpdates } from "./routed-updates.ts";
 import { linkedWrite } from "../computers/write-diagnostics.ts";
+import { bindGitHubRequest } from "./github-client.ts";
 
 export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
   // SAFETY: Each entry is invoked with the request decoded by its own GatewayService method descriptor.
@@ -64,6 +65,7 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
     handlers[method.localName] =
       method.methodKind === "unary"
         ? async (input, context) => {
+            bindGitHubRequest(method, input, context);
             const request = redirected(core, method, input);
             const node = target(method, request);
 
@@ -230,7 +232,7 @@ export function remoteServe(local: UiHandlers, core?: GatewayCore): RemoteServe 
 
     const context = createHandlerContext({
       requestSignal: signal,
-      requestHeader: new Headers(),
+      requestHeader: new Headers(peerNodeId ? { "canopy-linked-peer": peerNodeId } : {}),
       responseHeader: new Headers(),
       responseTrailer: new Headers(),
       method,

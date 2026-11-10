@@ -237,7 +237,7 @@ export const computersRemoteMethods: ComputersRemoteMethods = {
     if (feature && (!this.hello().capabilities.includes(feature) || !this.capabilities(nodeId).includes(feature))) {
       const peer = await this.store.peer(nodeId);
       throw new ConnectError(
-        `${peer?.display_name || peer?.name || "The other computer"} needs an update for linked bots and agents`,
+        `${peer?.display_name || peer?.name || "The other computer"} needs an update for this action`,
         Code.FailedPrecondition,
       );
     }

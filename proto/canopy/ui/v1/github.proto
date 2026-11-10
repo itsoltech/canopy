@@ -1,0 +1,90 @@
+syntax = "proto3";
+package canopy.ui.v1;
+import "google/protobuf/timestamp.proto";
+
+// All credentials and the OAuth device_code remain encrypted at the home gateway.
+message GitHubAccount {
+  string id = 1;
+  string github_user_id = 2;
+  string login = 3;
+  string host = 4;
+  string auth_kind = 5;
+  string status = 6;
+  uint64 revision = 7;
+  string connector_account_id = 8;
+  google.protobuf.Timestamp catalog_verified_at = 9;
+}
+message GitHubAccountsRequest {
+  // Empty = this computer; otherwise the home marker qualified by the computer.
+  string home_id = 1;
+}
+message GitHubPatCandidate {
+  string connector_account_id = 1;
+  string name = 2;
+}
+message GitHubAccountsResponse {
+  bool configured = 1;
+  string install_url = 2;
+  repeated GitHubAccount accounts = 3;
+  repeated GitHubPatCandidate pat_candidates = 4;
+}
+message BeginGitHubDeviceAuthRequest {
+  string home_id = 1;
+  string client_request_id = 2;
+  // Internal binding supplied by authenticated BFF/Connect routing, never returned.
+  string client_binding = 3;
+}
+message GitHubDeviceAuthRequest {
+  string attempt_id = 1;
+  string client_binding = 2;
+}
+message GitHubDeviceAuth {
+  string id = 1;
+  string state = 2;
+  string user_code = 3;
+  string verification_uri = 4;
+  google.protobuf.Timestamp expires_at = 5;
+  uint32 interval_seconds = 6;
+  string account_id = 7;
+}
+message GitHubDeviceAuthResponse {
+  bool configured = 1;
+  GitHubDeviceAuth attempt = 2;
+}
+message GitHubAccountRequest { string account_id = 1; }
+message GitHubAccountResponse { GitHubAccount account = 1; }
+message UseGitHubPatRequest {
+  string connector_account_id = 1;
+  string home_id = 2;
+}
+message GitHubCatalogueRequest {
+  string account_id = 1;
+  string installation_id = 2;
+  uint32 page = 3;
+  bool refresh = 4;
+}
+message GitHubInstallation {
+  string installation_id = 1;
+  string login = 2;
+  string account_type = 3;
+  string repository_selection = 4;
+  bool suspended = 5;
+  map<string, string> permissions = 6;
+  string manage_url = 7;
+  google.protobuf.Timestamp verified_at = 8;
+}
+message GitHubInstallationsResponse {
+  repeated GitHubInstallation installations = 1;
+  uint32 next_page = 2;
+  string detail = 3;
+}
+message GitHubRepository {
+  string repository_id = 1;
+  string full_name = 2;
+  bool private = 3;
+  map<string, bool> permissions = 4;
+}
+message GitHubRepositoriesResponse {
+  repeated GitHubRepository repositories = 1;
+  uint32 next_page = 2;
+}

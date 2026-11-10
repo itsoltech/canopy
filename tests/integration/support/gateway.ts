@@ -549,6 +549,7 @@ export async function startTestGateway(
     skillSources?: GatewayCoreOptions["skillSources"];
     cliLatest?: GatewayCoreOptions["cliLatest"];
     updates?: GatewayCoreOptions["updates"];
+    github?: GatewayCoreOptions["github"];
     attachmentLimits?: AttachmentLimits;
     backgroundGraceMs?: number;
     botModel?: BotModel;
@@ -627,6 +628,7 @@ export async function startTestGateway(
     }),
     ...(options.cliLatest && { cliLatest: options.cliLatest }),
     ...(options.updates && { updates: options.updates }),
+    ...(options.github && { github: options.github }),
     ...(options.secretTtlMs !== undefined && { secretTtlMs: options.secretTtlMs }),
     ...(options.watchProbeMs !== undefined && { watchProbeMs: options.watchProbeMs }),
     ...(options.botModel && { botModel: options.botModel }),

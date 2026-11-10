@@ -10,6 +10,7 @@ import { COMPUTER_LINK_PROTOCOL, MIN_COMPUTER_LINK_PROTOCOL } from "@canopy/doma
 
 import {
   AGENT_BUS,
+  GITHUB_ACCOUNTS,
   CONFIG_SYNC,
   LAN_ROUTES,
   MOVE_ITEMS,
@@ -83,6 +84,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
               "git_clone_progress_v1",
               "workspace_copy_v1",
               "workspace_copy_scope_v2",
+              GITHUB_ACCOUNTS,
               REMOTE_BRANCH_SWITCH,
               "remote_worktrees",
               THREAD_MIRROR,

@@ -96,6 +96,13 @@ export const settingsSections: readonly SettingsSection[] = [
     keywords: "import claude code codex grok cli sessions history resume migrate",
   },
   {
+    href: "/settings/github",
+    label: "GitHub",
+    icon: "link",
+    group: "Connections",
+    keywords: "github account device code app installations repositories personal access token",
+  },
+  {
     href: "/settings/connectors",
     label: "Connectors",
     icon: "link",
