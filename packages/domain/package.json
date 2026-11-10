@@ -39,6 +39,7 @@
     "./workspace-copy": "./src/workspace-copy.ts",
     "./clone-url": "./src/clone-url.ts",
     "./git-heads": "./src/git-heads.ts",
+    "./thread-files": "./src/thread-files.ts",
     "./json": "./src/json.ts",
     "./import-url": "./src/import-url.ts",
     "./import-name": "./src/import-name.ts",

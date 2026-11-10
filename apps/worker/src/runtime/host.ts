@@ -77,6 +77,11 @@ const NOT_REMEMBERED: ReadonlySet<Command["kind"]["case"]> = new Set([
   "scanWorktrees",
   "revealWorktree",
   "revealPath",
+  // Explicit owner actions on one file: answered once, never redelivered.
+  "readFile",
+  "openFile",
+  "writeFile",
+  "deleteFile",
   "scanImportSources",
   "readImportPage",
   "readImportLibraryItem",
@@ -321,6 +326,7 @@ export class WorkerHost {
         ...(output.importedSessionId && { importedSessionId: output.importedSessionId }),
         ...(output.importLibraryContent && { importLibraryContent: output.importLibraryContent }),
         ...(output.importSecret && { importSecret: output.importSecret }),
+        ...(output.file && { file: output.file }),
       };
 
       if (!NOT_REMEMBERED.has(command.kind.case)) await this.#remember(result);
