@@ -1,3 +1,5 @@
+import { ConnectionRecovery, type RecoverySnapshot } from "@canopy/domain/connection-recovery";
+
 export interface LiveSourceHandlers {
   /** Compute a fresh checkpoint on every retry. */
   readonly url?: () => string;
@@ -6,6 +8,7 @@ export interface LiveSourceHandlers {
   readonly onmessage: (data: string) => void;
   readonly ondrop?: () => void;
   readonly onfailure?: () => void;
+  readonly onstatus?: (state: RecoverySnapshot) => void;
 }
 
 /** A resync was refused by a linked computer; the local gateway answered. */
@@ -17,7 +20,10 @@ export interface LiveSourceEnvironment {
   readonly online: () => boolean;
   readonly random: () => number;
   readonly schedule: (run: () => void, delay: number) => () => void;
-  readonly listen: (event: "focus" | "online" | "offline" | "visibilitychange", run: () => void) => () => void;
+  readonly listen: (
+    event: "focus" | "online" | "offline" | "visibilitychange" | "canopy:reconnect",
+    run: () => void,
+  ) => () => void;
 }
 
 const browser: LiveSourceEnvironment = {
@@ -38,10 +44,6 @@ const browser: LiveSourceEnvironment = {
   },
 };
 
-export function retryDelay(attempt: number, random: number): number {
-  return Math.round(Math.min(15_000, 1000 * 2 ** Math.min(attempt, 4)) * (0.75 + 0.25 * random));
-}
-
 /** Own retries even for CONNECTING: browser retry policies differ after HTTP errors and proxy restarts. */
 export function liveSource(url: string, handlers: LiveSourceHandlers, environment = browser): () => void {
   let source: EventSource | undefined;
@@ -51,8 +53,28 @@ export function liveSource(url: string, handlers: LiveSourceHandlers, environmen
   let cancelFailure: (() => void) | undefined;
   let stopped = false;
   let opens = 0;
-  let attempt = 0;
+  const recovery = new ConnectionRecovery();
   let ready = false;
+  let computerAway = false;
+
+  const publish = () => {
+    const state = recovery.snapshot;
+    handlers.onstatus?.(state);
+
+    if (state.status === "unavailable") handlers.onfailure?.();
+  };
+
+  const watchFailure = () => {
+    if (cancelFailure || recovery.unavailableAt === undefined || recovery.snapshot.status === "unavailable") return;
+    cancelFailure = environment.schedule(
+      () => {
+        cancelFailure = undefined;
+        recovery.check();
+        publish();
+      },
+      Math.max(0, (recovery.unavailableAt ?? Date.now()) - Date.now()),
+    );
+  };
 
   const close = () => {
     connection?.abort();
@@ -66,13 +88,18 @@ export function liveSource(url: string, handlers: LiveSourceHandlers, environmen
   const retry = (away = false) => {
     if (stopped || cancelRetry) return;
     close();
+    computerAway = away;
 
     if (away) {
       cancelFailure?.();
       cancelFailure = undefined;
+      recovery.succeeded();
+      publish();
     } else {
       handlers.ondrop?.();
-      cancelFailure ??= environment.schedule(() => handlers.onfailure?.(), 12_000);
+      recovery.failed(Date.now(), environment.random());
+      publish();
+      watchFailure();
     }
 
     if (environment.hidden() || !environment.online()) return;
@@ -81,7 +108,7 @@ export function liveSource(url: string, handlers: LiveSourceHandlers, environmen
         cancelRetry = undefined;
         open();
       },
-      retryDelay(attempt++, environment.random()),
+      Math.max(0, (recovery.snapshot.retryAt ?? Date.now() + 1000) - Date.now()),
     );
   };
 
@@ -92,55 +119,35 @@ export function liveSource(url: string, handlers: LiveSourceHandlers, environmen
 
   const open = () => {
     if (stopped || environment.hidden() || !environment.online()) return;
+
+    if (!computerAway) recovery.begin();
+    publish();
+    watchFailure();
     const current = environment.source(handlers.url?.() ?? url);
     const abort = new AbortController();
     source = current;
     connection = abort;
     const active = () => !stopped && !abort.signal.aborted && source === current;
     heartbeat();
-    // HTTP 200 alone proves nothing: the gateway may be down behind the BFF.
-    current.addEventListener("ready", () => {
-      if (!active() || ready) return;
-      ready = true;
-      heartbeat();
-
-      const opened = async () => {
+    attachSource(current, {
+      active,
+      heartbeat,
+      retry,
+      onmessage: handlers.onmessage,
+      onready: async () => {
+        if (ready) return;
+        ready = true;
+        heartbeat();
         await handlers.onopen?.(opens++ > 0, abort.signal);
 
         if (active()) {
-          attempt = 0;
+          recovery.succeeded();
+          publish();
           cancelFailure?.();
           cancelFailure = undefined;
         }
-      };
-
-      void opened().catch((cause: unknown) => {
-        if (active()) retry(cause instanceof ComputerAway);
-      });
+      },
     });
-    current.addEventListener("heartbeat", () => {
-      if (active()) heartbeat();
-    });
-    current.onerror = () => {
-      if (active()) retry();
-    };
-
-    current.addEventListener("failure", () => {
-      if (active()) retry();
-    });
-    current.addEventListener("away", () => {
-      if (active()) retry(true);
-    });
-    current.onmessage = (message) => {
-      if (!active()) return;
-      heartbeat();
-
-      try {
-        handlers.onmessage(message.data);
-      } catch {
-        retry();
-      }
-    };
   };
 
   const resume = () => {
@@ -157,14 +164,13 @@ export function liveSource(url: string, handlers: LiveSourceHandlers, environmen
     }
 
     if (source) return;
+    recovery.resetBackoff();
     cancelRetry?.();
     cancelRetry = undefined;
     open();
   };
 
-  const unsubscribe = (["focus", "online", "offline", "visibilitychange"] as const).map((event) =>
-    environment.listen(event, resume),
-  );
+  const unsubscribe = listenRecovery(environment, resume, close);
 
   open();
 
@@ -175,5 +181,56 @@ export function liveSource(url: string, handlers: LiveSourceHandlers, environmen
     close();
 
     for (const off of unsubscribe) off();
+  };
+}
+
+function listenRecovery(environment: LiveSourceEnvironment, resume: () => void, close: () => void) {
+  return (["focus", "online", "offline", "visibilitychange", "canopy:reconnect"] as const).map((event) =>
+    environment.listen(event, () => {
+      if (event === "canopy:reconnect") close();
+      resume();
+    }),
+  );
+}
+
+/** HTTP 200 alone proves nothing: only ready plus a completed resync confirms availability. */
+function attachSource(
+  source: EventSource,
+  handlers: {
+    active: () => boolean;
+    heartbeat: () => void;
+    retry: (away?: boolean) => void;
+    onready: () => Promise<void>;
+    onmessage: (data: string) => void;
+  },
+) {
+  source.addEventListener("ready", () => {
+    if (!handlers.active()) return;
+    void handlers.onready().catch((cause: unknown) => {
+      if (handlers.active()) handlers.retry(cause instanceof ComputerAway);
+    });
+  });
+  source.addEventListener("heartbeat", () => {
+    if (handlers.active()) handlers.heartbeat();
+  });
+
+  const failed = () => {
+    if (handlers.active()) handlers.retry();
+  };
+
+  source.onerror = failed;
+  source.addEventListener("failure", failed);
+  source.addEventListener("away", () => {
+    if (handlers.active()) handlers.retry(true);
+  });
+  source.onmessage = (message) => {
+    if (!handlers.active()) return;
+    handlers.heartbeat();
+
+    try {
+      handlers.onmessage(message.data);
+    } catch {
+      handlers.retry();
+    }
   };
 }

@@ -1,4 +1,5 @@
 import { gatewayOrigin } from "./client";
+import { ConnectionRecovery } from "@canopy/domain/connection-recovery";
 import { RouteDiagnostics, routeKind, type RouteOutcome } from "./route-diagnostics";
 import { FAILED_FOR, raceRoutes } from "./route-race";
 import { probeRoute } from "./route-probe";
@@ -20,6 +21,8 @@ export class RouteSelector {
   #controller = new AbortController();
   #lastAddress: string | undefined;
   #unsaved: boolean;
+  readonly #recovery = new ConnectionRecovery();
+  #failure: Error | undefined;
 
   constructor(
     readonly saved: MobileConnection,
@@ -44,6 +47,9 @@ export class RouteSelector {
     signal?.throwIfAborted();
 
     if (this.#chosen) return this.#chosen;
+
+    // Independent streams and unary reads share the failed race's cooldown, not just its in-flight promise.
+    if (this.#failure && Date.now() < (this.#recovery.snapshot.retryAt ?? 0)) throw this.#failure;
     const generation = this.generation;
     const preferred = this.planned() ? this.#lastAddress : undefined;
 
@@ -70,6 +76,14 @@ export class RouteSelector {
         }
 
         return route;
+      })
+      .catch((cause: Error) => {
+        if (generation === this.generation && !this.planned()) {
+          this.#failure = cause;
+          this.diagnostics.update({ retryAt: this.#recovery.failed().retryAt });
+        }
+
+        throw cause;
       })
       .finally(() => {
         if (generation === this.generation) this.#racing = undefined;
@@ -100,6 +114,10 @@ export class RouteSelector {
   /** Headers and stream chunks/heartbeats are health evidence only for the still-current selection. */
   succeeded(route: SelectedRoute) {
     if (this.#chosen !== route) return false;
+    this.#recovery.succeeded();
+    this.#failure = undefined;
+
+    if (this.diagnostics.snapshot().retryAt !== undefined) this.diagnostics.update({ retryAt: undefined });
     this.failed.delete(route.address);
     const changed = this.#unsaved || this.#lastAddress !== route.address;
     this.#unsaved = false;
@@ -134,6 +152,8 @@ export class RouteSelector {
     this.#controller = new AbortController();
     this.#racing = undefined;
     this.#chosen = undefined;
+    this.#failure = undefined;
+    this.#recovery.resetBackoff();
     this.failed.clear();
     this.addresses = addresses;
 

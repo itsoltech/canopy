@@ -17,6 +17,7 @@ export interface RouteResult {
   elapsedMs?: number;
   checkedAt?: number;
   phase?: "probe" | "request";
+  checking?: boolean;
 }
 
 export interface RouteSnapshot {
@@ -25,6 +26,7 @@ export interface RouteSnapshot {
   lastRace?: readonly RouteResult[] | undefined;
   active?: string | undefined;
   pending: boolean;
+  retryAt?: number | undefined;
 }
 
 export function routeKind(address: string) {
@@ -117,6 +119,16 @@ export class RouteDiagnostics {
   }
 
   result(address: string, outcome: RouteOutcome, started: number, phase: "probe" | "request" = "probe") {
+    if (outcome === "probing") {
+      this.update({
+        routes: this.#snapshot.routes.map((route) =>
+          route.address === address ? { ...route, checking: true } : route,
+        ),
+      });
+
+      return { address, kind: routeKind(address), outcome, phase };
+    }
+
     const result: RouteResult = {
       address,
       kind: routeKind(address),
@@ -137,15 +149,19 @@ export class RouteDiagnostics {
     this.update({
       active,
       pending: false,
-      lastRace: undefined,
-      routes: addresses.map(
-        (address) =>
-          this.#snapshot.routes.find((route) => route.address === address) ?? {
-            address,
-            kind: routeKind(address),
-            outcome: "unchecked",
-          },
-      ),
+      retryAt: undefined,
+      lastRace: this.#snapshot.lastRace?.filter((route) => addresses.includes(route.address)),
+      routes: addresses.map((address) => {
+        const previous = this.#snapshot.routes.find((route) => route.address === address);
+
+        return {
+          ...previous,
+          address,
+          kind: routeKind(address),
+          checking: false,
+          outcome: previous?.outcome ?? "unchecked",
+        };
+      }),
     });
   }
 }

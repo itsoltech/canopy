@@ -4,6 +4,7 @@ import { decode } from "#lib/shared/wire.ts";
 import { ComputerAway, liveSource } from "#lib/shared/live-source.ts";
 import { bodyJson, isJsonObject } from "#lib/shared/json.ts";
 import { computerName } from "@canopy/domain/computer-presence";
+import type { RecoverySnapshot, RecoveryStatus } from "@canopy/domain/connection-recovery";
 import {
   retainProjects,
   retainLinkedRows,
@@ -16,7 +17,7 @@ import {
 import { projectChoices } from "@canopy/domain/projects";
 
 /** live: stream open and in sync; reconnecting: dropped, retrying; unavailable: the gateway does not answer. */
-export type OverviewConnection = "live" | "reconnecting" | "unavailable";
+export type OverviewConnection = RecoveryStatus;
 
 /**
  * Workers, projects and the active thread index, kept live by the overview SSE stream.
@@ -37,6 +38,7 @@ export class OverviewState {
   ownProjects = $derived(this.projects.filter((p) => !p.nodeId));
   #deleted = new Set<string>();
   connection = $state<OverviewConnection>("reconnecting");
+  recovery = $state.raw<RecoverySnapshot>({ status: "reconnecting", retrying: false, retryAt: undefined });
   /**
    * Domains the open stream pushes completely (`OverviewUpdate.feeds`): their readers stop polling. Empty while
    * the stream is down or the gateway is older.
@@ -245,6 +247,10 @@ export class OverviewState {
     let pending: ui.OverviewUpdate[] | undefined;
 
     return liveSource("/api/overview/events", {
+      onstatus: (state) => {
+        this.recovery = state;
+        this.connection = state.status;
+      },
       // A supplied seed is fresh on the first open; otherwise fetch it, and always resync after a gap.
       onopen: async (reconnected, signal) => {
         if (!reconnected && this.#synced) this.connection = "live";

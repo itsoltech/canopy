@@ -31,7 +31,6 @@
   import { queries } from "#lib/shared/queries.svelte.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Drawer from "#lib/shared/ui/Drawer.svelte";
-  import GrowIn from "#lib/shared/ui/GrowIn.svelte";
   import Toaster from "#lib/shared/ui/Toaster.svelte";
   import BotSettingsHost from "#lib/features/bots/settings/BotSettingsHost.svelte";
   import BotMoveHost from "#lib/features/bots/components/BotMoveHost.svelte";
@@ -242,19 +241,19 @@
   </Drawer>
 
   <div
-    class="flex min-h-0 min-w-0 flex-1 flex-col"
-    data-window-offset={overview.connection === "unavailable" || !ready || Boolean(page.error) || undefined}
+    class="relative flex min-h-0 min-w-0 flex-1 flex-col"
+    data-window-offset={!ready || Boolean(page.error) || undefined}
   >
-    {#if overview.connection === "unavailable" || !ready || page.error}
+    {#if !ready || page.error}
       <!-- Keep banners, loading and error content below a static native title strip. -->
       <div class="hidden h-12 shrink-0 desktop:block" data-window-drag></div>
     {/if}
     {#if overview.connection === "unavailable"}
-      <GrowIn
-        ><Alert tone="warning" banner
+      <div class="absolute inset-x-0 top-12 z-10 bg-surface">
+        <Alert tone="warning" banner
           >The gateway is not responding. Showing the last known state; retrying automatically.</Alert
-        ></GrowIn
-      >
+        >
+      </div>
     {/if}
     <main class="min-h-0 flex-1">
       <!-- A settings page loaded on its own shows in the settings dialog, until it goes over the new thread. -->
