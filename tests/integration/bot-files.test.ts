@@ -145,7 +145,17 @@ describe.skipIf(!dockerAvailable)("bot files and forwarding", () => {
       (await f.read(bot.id)).messages.some((m) => m.kind === "event" && m.text.includes(`Sent ${file.name} to`)),
     ).toBe(true);
     await f.tool(bot.id, "list_attachments");
-    expect((await f.settled(bot.id)).messages.at(-1)?.text).toContain(file.id);
+
+    // The forwarded thread's completion can append a separate FIXTURE_OK reply after the listing.
+    const listing = await eventually(
+      async () =>
+        (await f.read(bot.id)).messages.find(
+          (m) => m.senderId === bot.id && m.text.startsWith("TOOL_RESULT:") && m.text.includes(file.id),
+        ),
+      Boolean,
+    );
+
+    expect(listing?.text).toContain(file.id);
     expect((await f.gw.api.getAttachment({ attachmentId: file.id })).attachment?.id).toBe(file.id);
   }, 25_000);
 
