@@ -39,7 +39,8 @@
 >
   {#if onreact}<IconButton icon="face-smile" label="React" size="sm" onclick={onreact} />{/if}
   {#if onreply}<IconButton icon="arrow-uturn-left" label="Reply" size="sm" onclick={onreply} />{/if}
-  {#if text}<CopyButton {text} label="Copy text" />{/if}
+  <!-- Reserve Copy's slot before the first streamed character arrives. -->
+  {#if text !== undefined}<CopyButton {text} label="Copy text" class={text ? undefined : "invisible"} />{/if}
   {#if more.length > 0}
     <DropdownMenu label="More actions" placement="bottom-end">
       {#snippet trigger(props)}

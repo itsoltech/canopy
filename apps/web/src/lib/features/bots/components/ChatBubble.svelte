@@ -11,6 +11,7 @@
   import { fullDateLabel, timeLabel } from "../chat-timeline.ts";
   import { contextMenu } from "../context-menu.ts";
   import { mentionRanges, structuredMentionRanges } from "../mentions.ts";
+  import { retainStreamWidth } from "../stream-width.ts";
   import type { ChatMessageView, ParticipantView } from "@canopy/domain/bot-chat";
   import ActionItems from "./ActionItems.svelte";
   import BotChip from "./BotChip.svelte";
@@ -77,6 +78,9 @@
 
   const end = $derived(side === "end");
 
+  // botEntries gives the transient reply a separate id; settlement mounts a fresh, content-sized bubble.
+  const streaming = $derived(message.id.startsWith("stream:"));
+
   const mentions = $derived(
     (mine
       ? [
@@ -112,7 +116,8 @@
   {#if message.replyTo}
     <p
       class={[
-        "flex max-w-[min(85%,32rem)] items-center gap-1.5 px-3 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400",
+        "flex items-center gap-1.5 px-3 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400",
+        mine ? "max-w-[min(85%,var(--chat-user-bubble-width))]" : "max-w-(--chat-bubble-width)",
         end && "flex-row-reverse",
       ]}
     >
@@ -122,13 +127,14 @@
       >
     </p>
   {/if}
-  <div class={["flex max-w-full items-center gap-1", end && "flex-row-reverse"]}>
+  <div class={["flex max-w-full min-w-0 items-center gap-1", !mine && "w-full", end && "flex-row-reverse"]}>
     <DropdownMenu label="Message actions" bind:open={touchMenuOpen} placement={end ? "bottom-end" : "bottom-start"}>
       {#snippet trigger(props)}
         <div
           {...anchorOnly(props)}
           class={[
-            "max-w-[min(100%,36rem)] min-w-0 px-4 py-2 wrap-anywhere select-text",
+            "min-w-[var(--chat-stream-width,0px)] px-4 py-2 wrap-anywhere select-text",
+            mine ? "max-w-[min(100%,var(--chat-user-bubble-width))]" : "w-fit max-w-(--chat-bubble-width)",
             corners,
             mine
               ? "bg-zinc-900 text-base/6 whitespace-pre-wrap text-white [--bot-chip-dark-target:black] [--bot-chip-light-target:white] sm:text-sm/6 dark:bg-zinc-100 dark:text-zinc-950"
@@ -138,6 +144,7 @@
           title={fullDateLabel(message.at)}
           data-quote-item={message.id}
           data-quote-thread={conversationId}
+          {@attach streaming ? retainStreamWidth : undefined}
           {@attach contextMenu(() => {
             if (matchMedia("(pointer: coarse)").matches) touchMenuOpen = true;
           })}
@@ -156,6 +163,7 @@
             >
               <Markdown
                 text={message.text}
+                class="min-w-0 [&_blockquote]:max-w-(--chat-prose-width) [&_ol]:max-w-(--chat-prose-width) [&_p]:max-w-(--chat-prose-width) [&_ul]:max-w-(--chat-prose-width)"
                 elements={mentions.length > 0 ? { ranges: mentions, render: mention } : undefined}
               />
             </div>{/if}
