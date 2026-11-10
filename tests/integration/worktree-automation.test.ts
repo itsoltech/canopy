@@ -33,19 +33,6 @@ describe.skipIf(!dockerAvailable)("automation worktrees over gRPC", () => {
     await f?.close();
   });
 
-  // threadReady can report idle while the automation's queued turn or command is still outstanding.
-  const settled = async (thread: ui.Thread) => {
-    const entry = await eventually(
-      () => f.entry(thread.worktree!.id),
-      (entry) => !entry.busy && entry.status !== undefined,
-    );
-
-    expect(entry.busy).toBe(false);
-    expect(entry.status).toBeDefined();
-
-    return entry;
-  };
-
   const spawn = async (parent: ui.Thread, extra: JsonObject = {}, callId?: string) => {
     const result = await f.callTool(
       parent.id,
@@ -203,7 +190,7 @@ describe.skipIf(!dockerAvailable)("automation worktrees over gRPC", () => {
 
     await f.settings({ defaultMode: ui.WorkspaceMode.NEW_WORKTREE });
     const isolated = await runBot({});
-    await settled(isolated);
+    await f.settled(isolated);
     expect(readFileSync(join(isolated.cwd, "worker-started.txt"), "utf8")).toBe(isolated.cwd);
     const inherited = await runBot({ workspace_mode: "inherit_parent", parent_thread_id: isolated.id });
     expect([inherited.cwd, inherited.worktree?.id]).toEqual([isolated.cwd, isolated.worktree!.id]);
@@ -215,7 +202,8 @@ describe.skipIf(!dockerAvailable)("automation worktrees over gRPC", () => {
   test("automation trees participate in deleted-thread cleanup and foreign source threads are refused", async () => {
     const parent = await f.tree();
     const child = await spawn(parent, { workspace_mode: "new_worktree" });
-    expect((await settled(child)).status?.dirtyFiles).toBe(1);
+    await f.settled(child);
+    expect((await f.entry(child.worktree!.id)).status?.dirtyFiles).toBe(1);
     rmSync(join(child.cwd, "worker-started.txt"));
     await f.gw.api.deleteThread({ threadId: child.id });
     await f.settings({ cleanupDeletedThreads: true });
@@ -266,7 +254,7 @@ describe.skipIf(!dockerAvailable)("automation worktrees over gRPC", () => {
 
   test("settled scheduled threads can be cleaned up and unknown linked computers are refused", async () => {
     const thread = await fire(await schedule({ workspaceMode: ui.WorkspaceMode.NEW_WORKTREE }));
-    await settled(thread);
+    await f.settled(thread);
     rmSync(join(thread.cwd, "worker-started.txt"));
     await f.gw.api.setThreadArchived({ threadId: thread.id, archived: true });
     await f.settings({ cleanupSettled: true, cleanupDeletedThreads: false });

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Provider, ui } from "@canopy/contracts";
-import { qualifyId, REMOTE_WORKTREES, REMOTE_BRANCH_SWITCH } from "@canopy/domain/computers";
+import { qualifyId, splitId, REMOTE_WORKTREES, REMOTE_BRANCH_SWITCH } from "@canopy/domain/computers";
 import { dockerAvailable } from "@canopy/db/testing";
 import { remoteServe, uiHandlers } from "@canopy/gateway/api";
 import { tempDir } from "@canopy/testing";
@@ -76,10 +76,8 @@ describe.skipIf(!dockerAvailable)("external worktrees on a linked computer", () 
 
     expect(thread.cwd).toBe(external);
     expect(thread.worktree?.external).toBe(true);
-    await eventually(
-      () => caller.api.getThread({ threadId: thread.id }),
-      (r) => r.thread?.status === "idle",
-    );
+    const local = (await home.gw.api.getThread({ threadId: splitId(thread.id).id })).thread!;
+    await home.settled(local);
     expect(readFileSync(join(external, "worker-started.txt"), "utf8")).toBe(external);
     const entries = (await caller.api.listWorktrees({ workerId: q(home.workerId) })).entries;
     expect(entries.find((entry) => entry.worktree?.id === tree.id)?.worktree?.external).toBe(true);

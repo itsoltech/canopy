@@ -72,10 +72,7 @@ describe.skipIf(!dockerAvailable)("worktree lifecycle over gRPC", () => {
       })
     ).thread!;
 
-    await eventually(
-      () => f.gw.api.getThread({ threadId: shared.id }),
-      (r) => r.thread?.status === "idle",
-    );
+    await f.settled(shared);
     rmSync(join(t.cwd, "worker-started.txt"));
     await f.settings({ cleanupDeletedThreads: true });
     await f.gw.api.deleteThread({ threadId: t.id });
