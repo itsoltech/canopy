@@ -309,8 +309,10 @@ nie dodaje ponownie liczników; bieżąca minuta i zapis nigdy nie są sumowane 
 
 Przy błędzie SQL dane pozostają w ograniczonych buforach pamięci; następna minuta
 ponawia zapis bez blokowania RPC i bez ciasnej pętli retry. Bufor zaległych minut
-ma limit 4 MiB w budżecie gatewaya; po jego wyczerpaniu najstarsze niezapisane
-minuty tracą trwałość, z jawnym `persistence_gap`. Pierścienie live nadal działają.
+ma limit 4 MiB i obejmuje najwyżej 60 slotów minutowych w budżecie gatewaya.
+Po przekroczeniu pamięci lub wieku najstarsze niezapisane minuty tracą trwałość,
+z jawnym `persistence_gap`. Nie odtwarzamy zaległych minut po ich downsamplingu
+i usunięciu przez retencję. Pierścienie live nadal działają.
 Odpowiedź niesie `persisted_through`, `pending_minutes` i błąd jako zamknięty kod.
 Graceful shutdown próbuje opróżnić partię w istniejącym limicie drain; crash może
 utracić ostatnią nieutrwaloną minutę i trwającą partię, a przy awarii DB więcej. UI pokazuje

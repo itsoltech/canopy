@@ -54,7 +54,7 @@ export class DiagnosticsStore {
     while (true) {
       const rows = await this.query<{ bucket_start: Date; payload: Uint8Array }>(
         `SELECT bucket_start,payload FROM diagnostics_rollups WHERE owner_user_id=$1::uuid AND computer_id=$2
-         AND resolution=60 AND bucket_start>to_timestamp($3/1000.0) ORDER BY bucket_start LIMIT 64`,
+         AND resolution=60 AND bucket_start>to_timestamp($3/1000.0) ORDER BY bucket_start LIMIT 8`,
         [this.owner, this.computer, after],
       );
 
@@ -63,7 +63,7 @@ export class DiagnosticsStore {
         yield { at: after, rollup: decodeRollup(row.payload) };
       }
 
-      if (rows.length < 64) return;
+      if (rows.length < 8) return;
       await new Promise<void>((resolve) => setImmediate(resolve));
     }
   }

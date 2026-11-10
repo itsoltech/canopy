@@ -8,6 +8,7 @@ import { SheetDragArea } from "./SheetDragArea";
 import { font, styles, useColors, useTypography, type Colors } from "./theme";
 import { Skeleton } from "./Skeleton";
 import { StatusDot } from "./Badge";
+import { useMinimumTouchTarget } from "./density";
 
 export interface PickerOption<T> {
   value: T;
@@ -164,6 +165,7 @@ function PickerRow<T>({
 }) {
   const c = useColors();
   const tone = toneColor(c, option.tone);
+  const touchTarget = useMinimumTouchTarget();
 
   return (
     <Pressable
@@ -174,7 +176,7 @@ function PickerRow<T>({
       onPress={onPress}
       style={({ pressed }) => ({
         // Web: a listbox option. Touch rows stay 44 dp; the check, not a fill, marks the choice.
-        minHeight: 44,
+        minHeight: touchTarget,
         flexDirection: "row",
         alignItems: "center",
         gap: 8,
@@ -291,6 +293,7 @@ export function SelectField({
   hideLabel?: boolean;
 }) {
   const c = useColors();
+  const touchTarget = useMinimumTouchTarget();
   const type = useTypography();
 
   return (
@@ -306,7 +309,7 @@ export function SelectField({
           style={({ pressed }) => [
             styles.row,
             {
-              minHeight: 44,
+              minHeight: touchTarget,
               paddingVertical: 8,
               paddingHorizontal: 12,
               borderRadius: 8,

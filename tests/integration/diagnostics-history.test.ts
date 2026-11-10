@@ -14,6 +14,7 @@ import { pruneDiagnostics } from "../../apps/gateway/src/maintenance/diagnostics
 import { rpcSnapshot } from "../../apps/gateway/src/diagnostics/snapshot.ts";
 import { LinkDiagnostics } from "../../apps/gateway/src/diagnostics/links.ts";
 import { BucketBudget } from "../../apps/gateway/src/diagnostics/buckets.ts";
+import { Findings } from "../../apps/gateway/src/diagnostics/findings.ts";
 
 describe.skipIf(!dockerAvailable)("diagnostics durability and bounded retention", () => {
   let gateway: TestGateway;
@@ -119,6 +120,78 @@ describe.skipIf(!dockerAvailable)("diagnostics durability and bounded retention"
 
     const short = await gateway.api.getComputerDiagnostics({ windowMinutes: 1 });
     expect(short.calls.find((value) => value.method === method.name)).toBeUndefined();
+  });
+
+  test("expires failed batches before they can recreate pruned minute history", async () => {
+    let now = Math.floor(Date.now() / 60_000) * 60_000;
+    const storage = new DiagnosticsStore(gateway.runtime, gateway.userId, "expired-retry");
+    const clock = { utc: () => now, monotonic: () => now };
+    const live = new RpcCollector([method], clock);
+    const writer = new DiagnosticsPersistence(storage, live, host);
+    await writer.start();
+    live.start(method.id)!.finish();
+    live.tick();
+    const at = now;
+    const process = live.rollup(at)!;
+    writer.pending.set(at, { minute: { at, processes: [process] }, bytes: 0 });
+    now += 3_660_000;
+    live.start(method.id)!.finish();
+    live.tick();
+    await writer.flush(true);
+    expect(writer.status).toBe("persistence_gap");
+    expect((await storage.state())?.persistenceGap).toBe(true);
+
+    const rows = await storage.query<{ bucket_start: Date }>(
+      "SELECT bucket_start FROM diagnostics_rollups WHERE owner_user_id=$1::uuid AND computer_id='expired-retry'",
+      [gateway.userId],
+    );
+
+    expect(rows.some((row) => new Date(row.bucket_start).getTime() === at)).toBe(false);
+    await query("DELETE FROM diagnostics_state WHERE owner_user_id=$1::uuid AND computer_id='expired-retry'", [
+      gateway.userId,
+    ]);
+  });
+
+  test("restored overflow samples mark only the affected percentile ranks", async () => {
+    const storage = new DiagnosticsStore(gateway.runtime, gateway.userId, "overflow");
+    const state = create(ui.DiagnosticsStateSchema, { schemaVersion: 1 });
+    await storage.initialize(state);
+    const at = Math.floor(Date.now() / 60_000) * 60_000;
+    await storage.write(
+      [
+        {
+          at,
+          processes: [
+            create(ui.DiagnosticsProcessSchema, {
+              processId: "gateway",
+              session: "overflow",
+              sequence: 1n,
+              series: [
+                {
+                  methodId: method.id,
+                  started: 100n,
+                  completed: 100n,
+                  duration: { indices: [20, 129], counts: [98n, 2n], sum: 1e9, max: 5e8 },
+                  requestBytes: { indices: [31], counts: [100n], sum: 5e11, max: 5e9 },
+                },
+              ],
+            }),
+          ],
+        },
+      ],
+      state,
+    );
+    const restored = new RpcCollector([method]);
+    await new DiagnosticsPersistence(storage, restored, host).start();
+    const call = rpcSnapshot(restored, 15).calls[0]!;
+    expect(call.durationMs?.overflow).toBe(true);
+    expect(call.durationMs?.overflowQuantiles).toBe(4);
+    expect(call.durationMs?.max).toBe(5e8);
+    expect(call.requestBytes?.overflowQuantiles).toBe(7);
+    expect(call.requestBytes?.p95).toBe(2 ** 30);
+    await query("DELETE FROM diagnostics_state WHERE owner_user_id=$1::uuid AND computer_id='overflow'", [
+      gateway.userId,
+    ]);
   });
 
   test("compacts an hour without double counting, respects owner scope and rolls pruning back", async () => {
@@ -241,6 +314,88 @@ describe.skipIf(!dockerAvailable)("diagnostics durability and bounded retention"
     expect(rpcSnapshot(third, 1440).calls[0]?.durationMs?.samples).toBe(2n);
     expect(third.rollup(at)).toBeUndefined();
     await query("DELETE FROM diagnostics_state WHERE owner_user_id=$1::uuid AND computer_id='same-minute'", [
+      gateway.userId,
+    ]);
+  });
+
+  test("concurrent writers and pruning preserve each session exactly once", async () => {
+    const storage = new DiagnosticsStore(gateway.runtime, gateway.userId, "concurrent");
+    const state = create(ui.DiagnosticsStateSchema, { schemaVersion: 1 });
+    await storage.initialize(state);
+    const at = Math.floor(Date.now() / 3_600_000) * 3_600_000 - 3_600_000;
+
+    const minutes = ["one", "two", "three"].map((session) => [
+      {
+        at,
+        processes: [
+          create(ui.DiagnosticsProcessSchema, {
+            processId: "gateway",
+            session,
+            sequence: 1n,
+            series: [{ methodId: method.id, started: 1n, completed: 1n }],
+          }),
+        ],
+      },
+    ]);
+
+    await Promise.all(minutes.map((value) => storage.write(value, state)));
+    await Promise.all([
+      storage.write(minutes[0]!, state),
+      gateway.runtime.runPromise(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+
+          return yield* sql.withTransaction(pruneDiagnostics(sql, gateway.userId));
+        }),
+      ),
+    ]);
+
+    const minute = await storage.query<{ payload: Uint8Array }>(
+      "SELECT payload FROM diagnostics_rollups WHERE owner_user_id=$1::uuid AND computer_id='concurrent' AND resolution=60",
+      [gateway.userId],
+    );
+
+    expect(decodeRollup(minute[0]!.payload).processes.reduce((n, p) => n + p.series[0]!.started, 0n)).toBe(3n);
+    await query("DELETE FROM diagnostics_state WHERE owner_user_id=$1::uuid AND computer_id='concurrent'", [
+      gateway.userId,
+    ]);
+  });
+
+  test("restored findings suspend downtime and require fresh recovery evidence", async () => {
+    const storage = new DiagnosticsStore(gateway.runtime, gateway.userId, "findings");
+
+    const saved = create(ui.DiagnosticsStateSchema, {
+      schemaVersion: 1,
+      findings: [
+        {
+          ruleId: "rpc_slow",
+          subject: `rpc:${method.name}`,
+          active: true,
+          severity: "warning",
+          entering: 3,
+        },
+      ],
+    });
+
+    await storage.initialize(saved);
+    const findings = new Findings();
+    findings.restore((await storage.state())!.findings);
+    expect(findings.snapshot()[0]?.suspended).toBe(true);
+
+    const healthy = create(ui.ComputerDiagnosticsSchema, {
+      observedSeconds: 900,
+      calls: [{ layer: "rpc", method: method.name, completed: 100n, durationMs: { samples: 100n, p95: 5 } }],
+    });
+
+    findings.evaluate(healthy, create(ui.ComputerDiagnosticsSchema));
+    expect(findings.snapshot()[0]?.suspended).toBe(true);
+
+    for (let minute = 0; minute < 4; minute++) findings.evaluate(healthy, healthy);
+    expect(findings.snapshot()[0]?.active).toBe(true);
+    expect(findings.snapshot()[0]?.suspended).toBe(false);
+    findings.evaluate(healthy, healthy);
+    expect(findings.snapshot()).toEqual([]);
+    await query("DELETE FROM diagnostics_state WHERE owner_user_id=$1::uuid AND computer_id='findings'", [
       gateway.userId,
     ]);
   });

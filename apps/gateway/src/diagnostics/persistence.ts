@@ -124,10 +124,13 @@ export class DiagnosticsPersistence {
       this.#queuedThrough = at;
     }
 
-    while (this.#pendingBytes > PENDING_BYTES && this.pending.size) {
+    // Retry only within the live minute ring. Never recreate minutes already downsampled/pruned.
+    while (this.pending.size) {
       const first = this.pending.keys().next().value;
 
       if (first === undefined) break;
+
+      if (this.#pendingBytes <= PENDING_BYTES && first >= current - 3_540_000) break;
       this.#pendingBytes -= this.pending.get(first)!.bytes;
       this.pending.delete(first);
       this.#lost = true;

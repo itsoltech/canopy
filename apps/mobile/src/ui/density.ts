@@ -12,3 +12,7 @@ export const useSettingsDensity = () => useContext(SettingsDensity);
 export const CompactControls = createContext(false);
 
 export const useCompactControls = () => useContext(CompactControls);
+
+/** Some settings flows require a larger native touch target without changing overlay typography. */
+export const MinimumTouchTarget = createContext(44);
+export const useMinimumTouchTarget = () => useContext(MinimumTouchTarget);

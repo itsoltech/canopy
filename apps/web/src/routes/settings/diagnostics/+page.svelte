@@ -38,7 +38,7 @@
 </script>
 
 <svelte:head><title>Diagnostics · Settings · {applicationName}</title></svelte:head>
-<div class="grid min-w-0 gap-6">
+<div class="grid min-w-0 grid-cols-1 gap-6">
   <SettingsGroup title="Diagnostics" description="Check performance across your computers." cards>
     {#snippet actions()}<div class="w-28">
         <Select
@@ -69,7 +69,7 @@
       </div>
     {/if}
     {#if overview.data}
-      <div class="grid min-w-0 gap-3 xl:grid-cols-2">
+      <div class="grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-2">
         {#each overview.data.computers as item (item.computerId)}<ComputerHealth
             computer={item}
             selected={selected === item.computerId}

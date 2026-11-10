@@ -103,14 +103,16 @@ export function measured(
   quantile: "p50" | "p95" | "p99" | "max" = "p95",
 ) {
   return value?.samples
-    ? `${value.overflow && quantile !== "max" ? "≥ " : ""}${duration(value[quantile])}`
+    ? `${value.overflowQuantiles & { p50: 1, p95: 2, p99: 4, max: 0 }[quantile] ? "≥ " : ""}${duration(value[quantile])}`
     : "Not measured";
 }
 
 export function bytes(value: ui.DiagnosticsPercentiles | undefined) {
   if (!value?.samples) return "Not measured";
 
-  return value.p95 < 1024 ? `${value.p95.toFixed(0)} B` : `${(value.p95 / 1024).toFixed(1)} KiB`;
+  const prefix = value.overflowQuantiles & 2 ? "≥ " : "";
+
+  return `${prefix}${value.p95 < 1024 ? `${value.p95.toFixed(0)} B` : `${(value.p95 / 1024).toFixed(1)} KiB`}`;
 }
 
 export function byteRate(value: ui.DiagnosticsPercentiles | undefined, seconds: number) {
@@ -140,7 +142,12 @@ export function health(computer: ui.ComputerDiagnostics) {
 
   if (computer.findings.some((finding) => !finding.suspended)) return "Check findings";
 
-  if (computer.observedSeconds < 600 || computer.droppedSamples || computer.status !== "online")
+  if (
+    computer.observedSeconds < 600 ||
+    computer.droppedSamples ||
+    computer.status !== "online" ||
+    computer.findings.some((finding) => finding.suspended)
+  )
     return "Not enough data";
 
   return "No issues found";
@@ -151,6 +158,18 @@ export function freshness(computer: ui.ComputerDiagnostics) {
   const age = computer.sampleAgeMs / 1000;
 
   return `Updated ${age < 60 ? `${Math.floor(age)} s` : `${Math.floor(age / 60)} min`} ago${computer.status === "online" ? "" : " · Last known data"}${computer.ageUncertain ? " · Age is approximate" : ""}`;
+}
+
+export function diagnosticsUnavailable(computer: ui.ComputerDiagnostics): [string, string] {
+  if (computer.status === "unsupported")
+    return ["Update to see diagnostics", "Update this computer to collect performance data."];
+
+  if (computer.status === "not_permitted") return ["Not permitted", "Allow diagnostics access on this computer."];
+
+  if (computer.status === "offline")
+    return ["No saved call details", "Reconnect this computer to collect performance data."];
+
+  return ["Loading diagnostics…", "Waiting for this computer’s snapshot."];
 }
 
 export function findingText(finding: ui.DiagnosticsFinding) {

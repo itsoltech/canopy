@@ -4,6 +4,9 @@ import { createGrpcTransport } from "@connectrpc/connect-node";
 import { ui } from "@canopy/contracts";
 import { diagnosticsProcess } from "./diagnostics-process.ts";
 import { seedClient } from "./seed-client.ts";
+import { diagnosticsWorker } from "./diagnostics-worker-process.ts";
+import { seedDiagnosticsHistory } from "./seed-diagnostics-history.ts";
+import { diagnosticsLoad, type DiagnosticsPhase } from "./diagnostics-load.ts";
 
 /** Isolated, durable PostgreSQL. Defaults implement the three alternating ten-minute idle series. */
 const forbidden = new Set([17443, 5180, 8444, 17444, 17445, 3000, 7443, 7432, 4443, 7444, 5291, 8081]);
@@ -24,7 +27,7 @@ const password = randomBytes(24).toString("hex");
 const token = randomBytes(32).toString("hex");
 const key = randomBytes(32).toString("base64");
 let active: Awaited<ReturnType<typeof diagnosticsProcess>> | undefined;
-let worker: ReturnType<typeof Bun.spawn> | undefined;
+let worker: Awaited<ReturnType<typeof diagnosticsWorker>> | undefined;
 
 async function command(args: string[], env = process.env) {
   const child = Bun.spawn(args, { env, stdout: "pipe", stderr: "inherit" });
@@ -59,17 +62,15 @@ async function run(on: boolean, index: number) {
   };
 
   const seed = await seedClient(env);
+
+  if (process.env["CANOPY_BENCH_HISTORY"] === "1")
+    console.info(JSON.stringify({ history: await seedDiagnosticsHistory(env) }));
   active = await diagnosticsProcess(env);
-  worker = Bun.spawn([process.execPath, `${import.meta.dir}/diagnostics-worker.ts`], {
-    env: {
-      ...env,
-      CANOPY_BENCH_GATEWAY_URL: `http://127.0.0.1:${gatewayPort}`,
-      CANOPY_BENCH_WORKER_ID: seed.worker.workerId,
-      CANOPY_BENCH_WORKER_CREDENTIAL: seed.worker.credential,
-    },
-    stdout: "ignore",
-    stderr: "inherit",
-    ipc() {},
+  worker = await diagnosticsWorker({
+    ...env,
+    CANOPY_BENCH_GATEWAY_URL: `http://127.0.0.1:${gatewayPort}`,
+    CANOPY_BENCH_WORKER_ID: seed.worker.workerId,
+    CANOPY_BENCH_WORKER_CREDENTIAL: seed.worker.credential,
   });
 
   const api = createClient(
@@ -90,29 +91,29 @@ async function run(on: boolean, index: number) {
   for (let count = 0; count < 300; count++) await api.getThread({ threadId: seed.thread });
   await Bun.sleep(5000);
 
-  for (const phase of ["idle", "steady"] as const) {
+  const phases: DiagnosticsPhase[] =
+    process.env["CANOPY_BENCH_CHURN"] === "1"
+      ? ["churn"]
+      : process.env["CANOPY_BENCH_EXTRA_PHASES"] === "1"
+        ? ["reconnect", "slow_reader"]
+        : ["idle", "steady"];
+
+  for (const phase of phases) {
     const beforePg = await pgCounters();
     const before = await active.run("begin");
-    const latencies: number[] = [];
-    const until = performance.now() + (phase === "idle" ? idleMs : loadMs);
+    await worker.run("begin");
 
-    if (phase === "idle") {
-      while (performance.now() < until) await Bun.sleep(Math.min(1000, until - performance.now()));
-    } else {
-      // Fixed offered load: 20 real application reads/s, four independent client lanes.
-      await Promise.all(
-        Array.from({ length: 4 }, async () => {
-          while (performance.now() < until) {
-            const start = performance.now();
-            await api.getThread({ threadId: seed.thread });
-            latencies.push(performance.now() - start);
-            await Bun.sleep(Math.max(0, 200 - (performance.now() - start)));
-          }
-        }),
-      );
-    }
+    const { latencies } = await diagnosticsLoad(
+      api,
+      seed.thread,
+      phase,
+      phase === "idle" ? idleMs : loadMs,
+      () => worker!.run("reconnect"),
+      () => active!.run("sample"),
+    );
 
     const after = await active.run("end");
+    const workerStats = await worker.run("end");
     const afterPg = await pgCounters();
     latencies.sort((a, b) => a - b);
     const hours = after.elapsedMs / 3_600_000;
@@ -122,6 +123,7 @@ async function run(on: boolean, index: number) {
         on,
         phase,
         ...after,
+        worker: { ...workerStats, cpuPercent: workerStats.cpuMicros / workerStats.elapsedMs / 10 },
         cpuPercent: after.cpuMicros / after.elapsedMs / 10,
         pgCpuPercent: (afterPg.cpuMicros - beforePg.cpuMicros) / after.elapsedMs / 10,
         ioBytesPerHour: (afterPg.writeBytes - beforePg.writeBytes) / hours,
@@ -134,11 +136,19 @@ async function run(on: boolean, index: number) {
     );
   }
 
-  worker.send({ stop: true });
-  await worker.exited;
+  await worker.close();
   worker = undefined;
   await active.close();
   active = undefined;
+
+  if (on && process.env["CANOPY_BENCH_HISTORY"] === "1") {
+    for (let restart = 0; restart < 3; restart++) {
+      active = await diagnosticsProcess(env);
+      console.info(JSON.stringify({ phase: "restart", restart, ...(await active.run("sample")) }));
+      await active.close();
+      active = undefined;
+    }
+  }
 }
 
 try {
@@ -177,12 +187,12 @@ try {
   );
 
   for (let index = 0; index < series; index++) {
-    for (const on of index % 2 ? [true, false] : [false, true]) await run(on, index);
+    for (const on of process.env["CANOPY_BENCH_CHURN"] === "1" ? [true] : index % 2 ? [true, false] : [false, true])
+      await run(on, index);
   }
 } finally {
   if (worker) {
-    worker.kill("SIGTERM");
-    await worker.exited;
+    await worker.close();
   }
 
   try {

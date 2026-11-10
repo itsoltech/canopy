@@ -67,6 +67,8 @@ message DiagnosticsPercentiles {
   uint64 samples = 5;
   bool overflow = 6;
   double sum = 7;
+  // Bits 0/1/2 identify p50/p95/p99 ranks in the overflow bucket.
+  uint32 overflow_quantiles = 8;
 }
 message DiagnosticsCall {
   string method = 1;

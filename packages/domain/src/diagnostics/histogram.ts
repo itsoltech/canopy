@@ -102,7 +102,9 @@ export function percentiles(histograms: readonly ui.DiagnosticsHistogram[], size
 
   const samples = counts.reduce((sum, n) => addCount(sum, n), 0n);
 
-  const quantile = (q: bigint) => {
+  let overflowQuantiles = 0;
+
+  const quantile = (q: bigint, bit: number) => {
     let rank = (q * samples + 99n) / 100n;
 
     if (!samples) return 0;
@@ -110,19 +112,30 @@ export function percentiles(histograms: readonly ui.DiagnosticsHistogram[], size
     for (let index = 0; index < counts.length; index++) {
       rank -= counts[index]!;
 
-      if (rank <= 0n) return sizes ? 2 ** index : index ? 0.001 * 2 ** ((Math.min(128, index) - 1) / 4) : 0.001;
+      if (rank <= 0n) {
+        const overflow = index === counts.length - 1;
+
+        if (overflow) overflowQuantiles |= bit;
+
+        return sizes
+          ? 2 ** (overflow ? index - 1 : index)
+          : index
+            ? 0.001 * 2 ** ((Math.min(128, index) - 1) / 4)
+            : 0.001;
+      }
     }
 
     return max;
   };
 
   return create(ui.DiagnosticsPercentilesSchema, {
-    p50: quantile(50n),
-    p95: quantile(95n),
-    p99: quantile(99n),
+    p50: quantile(50n, 1),
+    p95: quantile(95n, 2),
+    p99: quantile(99n, 4),
     max,
     sum,
     samples: BigInt(samples),
     overflow: Boolean(counts[counts.length - 1]),
+    overflowQuantiles,
   });
 }

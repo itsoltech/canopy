@@ -9,7 +9,7 @@
 </script>
 
 <SettingsCard>
-  <div class="grid min-w-0 gap-3 p-4">
+  <div class="grid min-w-0 grid-cols-1 gap-3 p-4">
     <div class="flex min-w-0 flex-wrap items-start justify-between gap-3">
       <div class="min-w-0">
         <h3 class="font-medium wrap-anywhere">{computer.name}</h3>
@@ -18,7 +18,9 @@
       <span
         class={[
           "shrink-0 rounded-full px-2 py-1 text-xs",
-          computer.findings.length ? "bg-amber-500/10 text-amber-700 dark:text-amber-300" : "bg-zinc-500/10 text-muted",
+          computer.findings.some((finding) => !finding.suspended)
+            ? "bg-amber-500/10 text-amber-700 dark:text-amber-300"
+            : "bg-zinc-500/10 text-muted",
         ]}
       >
         {health(computer)}

@@ -61,11 +61,24 @@ async function stats() {
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
 
-      return (yield* sql<{ wal: string; bytes: string; rows: string; writes: string }>`SELECT
+      return (yield* sql<{
+        wal: string;
+        bytes: string;
+        rows: string;
+        writes: string;
+        table_bytes: string;
+        index_bytes: string;
+        dead_tuples: string;
+        autovacuums: string;
+      }>`SELECT
       (SELECT wal_bytes::text FROM pg_stat_wal) AS wal,
       (SELECT coalesce(sum(octet_length(payload)),0)::text FROM diagnostics_rollups) AS bytes,
       (SELECT count(*)::text FROM diagnostics_rollups) AS rows,
-      (SELECT coalesce(sum(n_tup_ins+n_tup_upd),0)::text FROM pg_stat_user_tables WHERE relname LIKE 'diagnostics_%') AS writes`)[0]!;
+      (SELECT coalesce(sum(n_tup_ins+n_tup_upd),0)::text FROM pg_stat_user_tables WHERE relname LIKE 'diagnostics_%') AS writes,
+      (SELECT coalesce(sum(pg_table_size(relid)),0)::text FROM pg_stat_user_tables WHERE relname LIKE 'diagnostics_%') AS table_bytes,
+      (SELECT coalesce(sum(pg_indexes_size(relid)),0)::text FROM pg_stat_user_tables WHERE relname LIKE 'diagnostics_%') AS index_bytes,
+      (SELECT coalesce(sum(n_dead_tup),0)::text FROM pg_stat_user_tables WHERE relname LIKE 'diagnostics_%') AS dead_tuples,
+      (SELECT coalesce(sum(autovacuum_count),0)::text FROM pg_stat_user_tables WHERE relname LIKE 'diagnostics_%') AS autovacuums`)[0]!;
     }),
   );
 
@@ -83,6 +96,10 @@ async function stats() {
     allocatedBytes: core.diagnostics.collector.budget.used + core.diagnostics.linkBudget.used,
     dropped: core.diagnostics.collector.budget.dropped + core.diagnostics.linkBudget.dropped,
     restoreMs,
+    tableBytes: Number(db.table_bytes),
+    indexBytes: Number(db.index_bytes),
+    deadTuples: Number(db.dead_tuples),
+    autovacuumCount: Number(db.autovacuums),
   };
 }
 

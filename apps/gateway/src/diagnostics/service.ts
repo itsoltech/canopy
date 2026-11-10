@@ -32,6 +32,7 @@ export class Diagnostics {
   #workers: readonly { id: string; name: string; supported: boolean }[] = [];
   #workersAt = 0;
   #workersLoading = false;
+  #workersLimited = false;
   #cacheSavedAt = 0;
 
   constructor(
@@ -185,6 +186,7 @@ export class Diagnostics {
 
     const revision = `${this.collector.session}:${Math.floor(cached.at / 5000)}:${minutes}:${request.offset}:${request.sortBy}:${request.callKind}:${request.methodKeys.join(",")}`;
     const computer = this.core.computers;
+    const links = this.#links(minutes);
 
     const result = create(ui.ComputerDiagnosticsSchema, {
       ...own,
@@ -201,13 +203,13 @@ export class Diagnostics {
       persistedThroughMs: BigInt(this.persistence?.persistedThrough ?? 0),
       pendingMinutes: this.persistence?.pending.size ?? 0,
       persistenceStatus: this.persistence?.status ?? "not_started",
-      links: this.#links(minutes),
+      links: links.values,
       findings: this.findings.snapshot(),
       totalMethods: calls.length,
       nextOffset: request.offset + limit < calls.length ? request.offset + limit : 0,
       revision,
       notModified: request.revision === revision,
-      droppedSamples: BigInt(this.collector.budget.dropped + this.linkBudget.dropped),
+      droppedSamples: BigInt(this.collector.budget.dropped + this.linkBudget.dropped + links.dropped),
       detailsAvailable: !request.overviewOnly,
       windowMinutes: minutes,
     });
@@ -217,6 +219,7 @@ export class Diagnostics {
 
   #links(minutes: number) {
     const result: ui.DiagnosticsLink[] = [];
+    let dropped = Number(this.#workersLimited);
 
     const workers = new Map(this.#workers.map((worker) => [worker.id, worker]));
 
@@ -232,6 +235,18 @@ export class Diagnostics {
 
       if (link)
         result.push(link.snapshot(minutes, worker.name, worker.supported, this.core.link.connections.has(worker.id)));
+      else {
+        dropped++;
+        result.push(
+          create(ui.DiagnosticsLinkSchema, {
+            targetId: worker.id,
+            kind: "worker",
+            name: worker.name,
+            supported: worker.supported,
+            online: this.core.link.connections.has(worker.id),
+          }),
+        );
+      }
     }
 
     for (const peer of this.peers.peers) {
@@ -246,9 +261,21 @@ export class Diagnostics {
             this.core.computers?.canCall(peer.node_id) ?? false,
           ),
         );
+      else {
+        dropped++;
+        result.push(
+          create(ui.DiagnosticsLinkSchema, {
+            targetId: peer.node_id,
+            kind: "computer",
+            name: peer.display_name || peer.name,
+            supported: peer.capabilities.includes("diagnostics_v1"),
+            online: this.core.computers?.canCall(peer.node_id) ?? false,
+          }),
+        );
+      }
     }
 
-    return result;
+    return { values: result, dropped };
   }
 
   async overview(request: ui.DiagnosticsRequest) {
@@ -316,9 +343,11 @@ export class Diagnostics {
         supported: boolean;
       }>(
         `SELECT id,name,coalesce((capabilities->>'diagnosticsV1')::boolean,false) AS supported FROM workers
-         WHERE owner_user_id=$1::uuid AND archived_at IS NULL AND revoked_at IS NULL ORDER BY name LIMIT 256`,
+         WHERE owner_user_id=$1::uuid AND archived_at IS NULL AND revoked_at IS NULL ORDER BY name LIMIT 257`,
         [this.options.userId],
       );
+      this.#workersLimited = this.#workers.length > 256;
+      this.#workers = this.#workers.slice(0, 256);
       this.#workersAt = Date.now();
     } catch {
       /* Keep the last owner-scoped catalog during a database outage. */

@@ -10,6 +10,7 @@ import {
   errorCount,
   grpcCodes,
   measured,
+  diagnosticsUnavailable,
 } from "@canopy/domain/diagnostics";
 import { SettingsGroup, SettingsRow } from "./SettingsGroup";
 import { styles, useColors } from "../../ui/theme";
@@ -29,7 +30,9 @@ export function DiagnosticsCalls({
       title="Calls"
       description={`${computer.name} · ${computer.totalMethods} methods · ${computer.resolutionSeconds} s resolution`}
     >
-      {!calls.length ? (
+      {!computer.detailsAvailable ? (
+        <SettingsRow title={diagnosticsUnavailable(computer)[0]} description={diagnosticsUnavailable(computer)[1]} />
+      ) : !calls.length ? (
         <SettingsRow title="No calls yet" description="Use Canopy to collect performance data." />
       ) : null}
       {calls.map((call) => (

@@ -15,6 +15,7 @@ import { DiagnosticsComputer, DiagnosticsFindings } from "./DiagnosticsComputer"
 import { DiagnosticsCalls } from "./DiagnosticsCalls";
 import { DiagnosticsGrants } from "./DiagnosticsGrants";
 import { Button } from "../../ui/components";
+import { MinimumTouchTarget } from "../../ui/density";
 
 export function DiagnosticsSettings() {
   const [range, setRange] = useState("15");
@@ -80,62 +81,64 @@ export function DiagnosticsSettings() {
   );
 
   return (
-    <ResourceState resource={overview}>
-      <SettingsGroup title="Diagnostics" description="Check performance across your computers.">
-        <SettingChoice
-          title="Time range"
-          value={range}
-          options={diagnosticsRanges}
-          onChange={(value) => {
-            setRange(value);
-            setOffset(0);
-          }}
-        />
-        {overview.data ? (
+    <MinimumTouchTarget.Provider value={48}>
+      <ResourceState resource={overview}>
+        <SettingsGroup title="Diagnostics" description="Check performance across your computers.">
           <SettingChoice
-            title="Computer"
-            value={computer}
-            options={overview.data.computers.map((item) => ({ value: item.computerId, label: item.name }))}
-            onChange={select}
-          />
-        ) : null}
-      </SettingsGroup>
-      {overview.data?.computers.map((item) => (
-        <DiagnosticsComputer key={item.computerId} computer={item} onSelect={() => select(item.computerId)} />
-      ))}
-      {overview.data ? (
-        <DiagnosticsFindings
-          computers={overview.data.computers}
-          expanded={expanded}
-          onExpand={() => setExpanded(!expanded)}
-        />
-      ) : null}
-      <ResourceState resource={detail}>
-        <SettingsGroup>
-          <SettingChoice title="Sort calls" value={sort} options={diagnosticsSorts} onChange={chooseSort} />
-          <SettingChoice
-            title="Call type"
-            value={kind}
-            options={diagnosticsKinds}
+            title="Time range"
+            value={range}
+            options={diagnosticsRanges}
             onChange={(value) => {
-              setKind(value);
+              setRange(value);
               setOffset(0);
             }}
           />
+          {overview.data ? (
+            <SettingChoice
+              title="Computer"
+              value={computer}
+              options={overview.data.computers.map((item) => ({ value: item.computerId, label: item.name }))}
+              onChange={select}
+            />
+          ) : null}
         </SettingsGroup>
-        {data ? <DiagnosticsCalls calls={calls} computer={data} /> : null}
-        {offset || data?.nextOffset ? (
-          <SettingsActions>
-            <View style={{ minHeight: 48, justifyContent: "center" }}>
-              <Button title="Previous" disabled={!offset} onPress={() => setOffset(Math.max(0, offset - 32))} />
-            </View>
-            <View style={{ minHeight: 48, justifyContent: "center" }}>
-              <Button title="Next" disabled={!data?.nextOffset} onPress={() => setOffset(data?.nextOffset ?? 0)} />
-            </View>
-          </SettingsActions>
+        {overview.data?.computers.map((item) => (
+          <DiagnosticsComputer key={item.computerId} computer={item} onSelect={() => select(item.computerId)} />
+        ))}
+        {overview.data ? (
+          <DiagnosticsFindings
+            computers={overview.data.computers}
+            expanded={expanded}
+            onExpand={() => setExpanded(!expanded)}
+          />
         ) : null}
+        <ResourceState resource={detail}>
+          <SettingsGroup>
+            <SettingChoice title="Sort calls" value={sort} options={diagnosticsSorts} onChange={chooseSort} />
+            <SettingChoice
+              title="Call type"
+              value={kind}
+              options={diagnosticsKinds}
+              onChange={(value) => {
+                setKind(value);
+                setOffset(0);
+              }}
+            />
+          </SettingsGroup>
+          {data ? <DiagnosticsCalls calls={calls} computer={data} /> : null}
+          {offset || data?.nextOffset ? (
+            <SettingsActions>
+              <View style={{ minHeight: 48, justifyContent: "center" }}>
+                <Button title="Previous" disabled={!offset} onPress={() => setOffset(Math.max(0, offset - 32))} />
+              </View>
+              <View style={{ minHeight: 48, justifyContent: "center" }}>
+                <Button title="Next" disabled={!data?.nextOffset} onPress={() => setOffset(data?.nextOffset ?? 0)} />
+              </View>
+            </SettingsActions>
+          ) : null}
+        </ResourceState>
+        <DiagnosticsGrants />
       </ResourceState>
-      <DiagnosticsGrants />
-    </ResourceState>
+    </MinimumTouchTarget.Provider>
   );
 }
