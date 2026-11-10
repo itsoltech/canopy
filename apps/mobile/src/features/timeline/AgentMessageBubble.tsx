@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, Text, View, type PressableProps } from "react-native";
 import { firstLine } from "@canopy/domain/first-line";
 import { Icon } from "../../ui/Icon";
 import { styles, useTypography } from "../../ui/theme";
@@ -16,12 +16,14 @@ export function AgentMessageBubble({
   label = "Show the whole message",
   dim = false,
   children,
+  actions,
 }: {
   text: string;
   rich?: boolean;
   label?: string;
   dim?: boolean;
   children: ReactNode;
+  actions?: PressableProps;
 }) {
   const type = useTypography();
   const violet = useTone("violet");
@@ -31,11 +33,12 @@ export function AgentMessageBubble({
 
   return (
     <Pressable
-      // Folded, the whole bubble opens the message; open, only the chevron folds it, so the text stays selectable.
-      disabled={!folds || expanded}
-      onPress={() => setExpanded(true)}
+      {...actions}
+      // Folded, tapping opens the message; open, only the chevron folds it. Long press works in either state.
+      disabled={!actions?.onLongPress && (!folds || expanded)}
+      onPress={folds && !expanded ? () => setExpanded(true) : undefined}
       accessibilityRole={folds && !expanded ? "button" : undefined}
-      accessibilityLabel={folds && !expanded ? `${label}: ${line.text}` : undefined}
+      accessibilityLabel={folds && !expanded ? `${label}: ${line.text}` : actions?.accessibilityLabel}
       style={{
         maxWidth: "85%",
         flexDirection: "row",

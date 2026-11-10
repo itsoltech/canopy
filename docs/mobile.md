@@ -943,9 +943,18 @@ odczyt do 8 MiB; większa treść wyjaśnia limit i prosi o mniejszy fragment.
 Lista wirtualizuje fragmenty do 4096 znaków, także pojedyncze bardzo długie linie.
 Wynik, diff i bloki kodu mają akcję kopiowania.
 Pełny diff korzysta z tych samych preferencji układu, kolorów, białych znaków i zawijania
-co podgląd. Kopiowanie wiadomości jest dostępne przy wiadomościach ludzi i agentów;
-stopka zakończonej tury kopiuje ostatnią odpowiedź i pozwala na „Fork from here” przez
-`CreateThread`, z identycznymi warunkami dostępności jak web. Fork otwiera nowy wątek.
+co podgląd. Przytrzymanie wiadomości człowieka otwiera „Copy message”, a ukończonej
+wiadomości agenta „Copy message” i „Quote passage” w arkuszu „Message actions”. Tę samą
+akcję udostępnia czytnik ekranu. Wiadomości pośrednie we foldzie nie mają rzędów ikon.
+Końcowa odpowiedź ma jeden rząd: „Copy answer”, „Quote passage”, „Fork from here” i czas
+tury. Przytrzymanie działa też na niej. Ikony mają etykiety dostępności, kopiowanie zmienia
+ikonę na check i ogłasza „Copied”, a cele dotyku mają 48 dp. Cytat ze stopki zachowuje
+identyfikator ostatniej wiadomości oraz wątek źródłowy; arkusz akcji zamyka się przed
+otwarciem edytora cytatu. Kopiowanie pozostaje dostępne w historii tylko do odczytu,
+cytowanie i fork zachowują dotychczasowe warunki dostępności. „Fork from here” używa
+`CreateThread`, z identycznymi warunkami dostępności jak web, i otwiera nowy wątek.
+Treść wiadomości z menu nie konkuruje z natywnym zaznaczaniem; pełne przeglądarki
+zachowują zaznaczanie tekstu.
 Obrazy i bloby odziedziczonych tur są odczytywane przez ich wątek źródłowy.
 
 Plakietka załącznika otwiera wspólną przeglądarkę: obrazy jako miniatury i pełny ekran,

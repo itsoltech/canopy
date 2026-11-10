@@ -16,6 +16,7 @@ import { TurnStart } from "./TurnStart";
 import { segmentsOf, summarize, timestampMs, turnBody, workRows, type BodyRow, type WorkRow } from "./turn-plan";
 import { STEERED, UserMessageView } from "./UserMessageView";
 import { WorkFold, WorkGroup } from "./WorkFold";
+import { QuoteItem } from "../quotes/QuoteAction";
 
 /** What a turn looks up beyond its own items: the thread's notices and steers, its tasks and provider. */
 export interface TurnContext {
@@ -151,8 +152,8 @@ export function TimelineTurn({
 
   const segments = segmentsOf(turn, body, open);
   const hasInput = Boolean(turn.inputText || turn.messageText || turn.attachments.length || turn.quotes.length);
-  const lastAnswer = entries.findLast((entry) => entry.item?.content.case === "agentMessage")?.item?.content;
-  const answerText = lastAnswer?.case === "agentMessage" ? lastAnswer.value.text : "";
+  const lastAnswer = entries.findLast((entry) => entry.item?.content.case === "agentMessage")?.item;
+  const answerText = lastAnswer?.content.case === "agentMessage" ? lastAnswer.content.value.text : "";
 
   const answerEnd = (at: number | undefined) => {
     const row = at === undefined ? undefined : body[at];
@@ -217,9 +218,11 @@ export function TimelineTurn({
           );
         })}
         {ended && (
-          <View style={{ gap: 4 }}>
+          <View style={{ gap: 4, marginTop: answerText.trim() && turn.status === "completed" ? -12 : 0 }}>
             <TurnEnd turn={turn} provider={context.provider} />
-            <TurnDetails turn={turn} answer={answerText} />
+            <QuoteItem.Provider value={lastAnswer?.itemId ?? ""}>
+              <TurnDetails turn={turn} answer={answerText} />
+            </QuoteItem.Provider>
           </View>
         )}
       </View>

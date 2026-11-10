@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { MentionKind, type Mention, type ui } from "@canopy/contracts";
 import { hasPlatformNote } from "@canopy/domain/platform";
 import { withoutIds } from "@canopy/domain/humanize";
@@ -15,7 +15,7 @@ import { SenderLabel } from "./SenderLabel";
 import { MessageAttachments } from "../attachments/MessageAttachments";
 import { AttachmentViewer } from "../attachments/AttachmentViewer";
 import { MessageQuotes } from "../quotes/MessageQuotes";
-import { CopyAction } from "../viewers/copy-action";
+import { useMessageActions } from "./useMessageActions";
 
 /** A line above a message: what happens to it (queued, steering into the turn, steered) (web: MessageNote). */
 export interface MessageNote {
@@ -67,6 +67,7 @@ export function UserMessageView({
   const placed = new Set(mentions.flatMap((m) => (m.kind === MentionKind.ATTACHMENT ? [m.name] : [])));
   const loose = attachments.filter((a) => a.kind === "image" || !placed.has(a.id));
   const body = !mentions.length && hasPlatformNote(text) ? withoutIds(text) : text;
+  const actions = useMessageActions(body, undefined, !pending);
   const color = note?.tone === "amber" ? amber : agent ? violet : c.muted;
 
   const icon =
@@ -102,11 +103,17 @@ export function UserMessageView({
       ) : null}
       {loose.length > 0 && <MessageAttachments files={loose} pending={pending} />}
       {hasContent && agent ? (
-        <AgentMessageBubble text={body || quotes[0]?.text || ""} rich={!!quotes.length} dim={pending}>
+        <AgentMessageBubble
+          text={body || quotes[0]?.text || ""}
+          rich={!!quotes.length}
+          dim={pending}
+          actions={actions.trigger}
+        >
           <AgentText text={body} mentions={mentions} quotes={quotes} onAttachment={onAttachment} />
         </AgentMessageBubble>
       ) : hasContent ? (
-        <View
+        <Pressable
+          {...actions.trigger}
           style={{
             maxWidth: "85%",
             paddingHorizontal: 16,
@@ -118,9 +125,9 @@ export function UserMessageView({
           }}
         >
           <MessageBody text={body} mentions={mentions} quotes={quotes} onAttachment={onAttachment} color={c.text} />
-        </View>
+        </Pressable>
       ) : null}
-      {!pending && body.trim() ? <CopyAction text={body} label="Copy message" /> : null}
+      {actions.menu}
       {selected && <AttachmentViewer file={selected} onClose={() => setSelected(undefined)} />}
     </View>
   );
@@ -139,7 +146,13 @@ function MessageBody({ text, mentions, quotes, color, onAttachment }: MessageBod
     <View style={{ gap: 8 }}>
       {quotes.length ? <MessageQuotes quotes={quotes} /> : null}
       {text.trim() ? (
-        <Markdown text={text} breaks color={color} elements={mentionElements(text, mentions, onAttachment)} />
+        <Markdown
+          text={text}
+          breaks
+          color={color}
+          selectable={false}
+          elements={mentionElements(text, mentions, onAttachment)}
+        />
       ) : null}
     </View>
   );
