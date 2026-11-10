@@ -6,6 +6,7 @@ import { dockerAvailable } from "@canopy/db/testing";
 import { applyThreadUpdate } from "@canopy/domain/thread-snapshot";
 import { remoteServe, uiHandlers } from "@canopy/gateway/api";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
+import { linkedMessage } from "../../apps/gateway/src/computers/remote.ts";
 import { linkedComputers } from "./support/computers.ts";
 import { eventually, failure, startTestGateway, watchUntil, type TestGateway } from "./support/gateway.ts";
 
@@ -205,37 +206,57 @@ describe.skipIf(!dockerAvailable)("incremental mirrors over two real gateway lin
     ).thread!.id;
 
     await caughtUp();
+    const base = await la.mirror.read(node, liveThread);
+
+    if (!base) throw new Error("Thread mirror is missing before the cursor handoff");
     const abort = new AbortController();
 
-    const stream = a.api
-      .watchThread(
-        { threadId: qualifyId(liveThread, node) },
-        {
-          signal: AbortSignal.any([abort.signal, AbortSignal.timeout(10_000)]),
-        },
+    // Observe one home subscription: the gateway supervisor legitimately reopens it on a newer watch_cursor.
+    // Keep liveness/coalescing enabled and cross a revision heartbeat without mixing in a recovery RPC.
+    const stream = la
+      .remote(
+        node,
+        ui.GatewayService.method.watchThread,
+        create(ui.WatchThreadRequestSchema, {
+          threadId: liveThread,
+          mirrorCursor: base.cursor,
+          incremental: true,
+          watchLiveness: true,
+          watchCoalesce: true,
+        }),
+        AbortSignal.any([abort.signal, AbortSignal.timeout(10_000)]),
       )
       [Symbol.asyncIterator]();
 
     try {
-      expect((await stream.next()).value?.syncing).toBe(true);
-      expect((await stream.next()).value?.syncing).toBe(false);
+      const initial = await stream.next();
+
+      if (!initial.value) throw new Error("Home stream ended before the cursor handoff");
+      expect(linkedMessage(ui.ThreadUpdateSchema, initial.value).change).toMatchObject({
+        case: "delta",
+        value: { baseCursor: base.cursor, snapshot: { thread: { id: liveThread }, items: [] } },
+      });
       await b.api.sendMessage({ threadId: liveThread, text: "new live turn", clientRequestId: crypto.randomUUID() });
       const updates: ui.ThreadUpdate[] = [];
+      let completed = false;
+      let revised = false;
 
-      for (;;) {
+      while (!completed || !revised) {
         const next = await stream.next();
 
-        if (!next.value) throw new Error("Live stream ended before the turn finished");
-        updates.push(next.value);
+        if (!next.value) throw new Error("Home stream ended before the completed turn and revision heartbeat");
+        const update = linkedMessage(ui.ThreadUpdateSchema, next.value);
 
-        if (next.value.change.case === "turn" && next.value.change.value.status === "completed") break;
+        updates.push(update);
+        completed ||= update.change.case === "turn" && update.change.value.status === "completed";
+        revised ||= !!update.watchCursor && update.watchCursor !== base.cursor;
       }
 
       expect(updates.some((u) => u.change.case === "event")).toBe(true);
       expect(updates.some((u) => u.change.case === "snapshot" || u.change.case === "delta")).toBe(false);
     } finally {
       abort.abort();
-      await stream.return?.();
+      await stream.return(undefined);
     }
 
     await caughtUp();

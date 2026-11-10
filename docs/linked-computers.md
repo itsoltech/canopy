@@ -1073,6 +1073,10 @@ i sprawdza ich brak w zapisanej binarnej projekcji partnera.
 `thread-mirror-deltas.test.ts` sprawdza na 3000 itemów ograniczony transfer przy otwarciu
 i publikacji, edycje/usunięcia, nieaktualną kopię, reconnect, przerwaną deltę, brak bazy,
 lukę, zmianę epoki i starsze końce łącza. Nie dodaje testów UI.
+Test przejścia z kursora na zdarzenia live obserwuje pojedynczy `WatchThread` domu przez
+rzeczywiste łącze: czeka na początkową deltę, zakończenie tury i nowszy `watch_cursor`,
+sprawdzając brak kolejnego snapshotu lub delty. Ponowne RPC nadzorcy po zmianie rewizji
+jest prawidłową rewalidacją, objętą osobno przez `linked-thread-liveness.test.ts`.
 `schema.test.ts` obejmuje migracje 0049 i 0088.
 
 ## Konkretny protokół etapu 4
