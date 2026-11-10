@@ -250,7 +250,7 @@ export class Diagnostics {
     }
 
     for (const peer of this.peers.peers) {
-      const link = this.links.get(`computer:${peer.node_id}`);
+      const link = this.link(peer.node_id, "computer");
 
       if (link)
         result.push(

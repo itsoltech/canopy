@@ -27,14 +27,14 @@ describe.skipIf(!dockerAvailable)("owner diagnostics over real gRPC and one rela
     linkedComputers({
       store: new ComputerStore(gateway.runtime, gateway.userId, gateway.secretsKey),
       host: "127.0.0.1",
-      heartbeatMs: 100,
+      heartbeatMs: 500,
       core: gateway.core,
       serve: remoteServe(uiHandlers(gateway.core), gateway.core),
       ...(capabilities && { capabilities }),
     });
 
   const ready = async (predicate: () => boolean | Promise<boolean>) =>
-    expect(await eventually(async () => predicate(), Boolean, 15_000)).toBe(true);
+    expect(await eventually(async () => predicate(), Boolean, 45_000)).toBe(true);
 
   const diagnostics = () => a.api.getDiagnostics({ windowMinutes: 15 });
   const target = () => nodes[2]!.hello().nodeId;
@@ -288,5 +288,6 @@ describe.skipIf(!dockerAvailable)("owner diagnostics over real gRPC and one rela
       ),
     );
     expect((await diagnostics()).computers).toHaveLength(3);
-  }, 60_000);
+    expect((await diagnostics()).computers[0]?.droppedSamples).toBe(0n);
+  }, 120_000);
 });

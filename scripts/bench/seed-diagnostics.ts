@@ -11,6 +11,7 @@ import { RPC_METHODS } from "../../apps/gateway/src/diagnostics/registry.ts";
 /** Synthetic metrics only; the owning client-stack has just created this disposable database. */
 export async function seedDiagnostics(env: Readonly<Record<string, string | undefined>>) {
   const runtime = gatewayRuntime(env);
+  const quiet = env["CANOPY_BENCH_DIAGNOSTICS_QUIET"] === "1";
 
   try {
     const owner = await ensureDevUser(runtime, "dev@localhost");
@@ -44,15 +45,15 @@ export async function seedDiagnostics(env: Readonly<Record<string, string | unde
     const methods = RPC_METHODS.filter((method) => !method.stream).slice(0, 80);
     const duration = new Histogram();
 
-    for (let index = 0; index < 200; index++) duration.record(index < 180 ? 10 : 1800);
+    for (let index = 0; index < 200; index++) duration.record(quiet || index < 180 ? 10 : 1800);
 
     const series = methods.map((method) =>
       create(ui.DiagnosticsAggregateSchema, {
         methodId: method.id,
         started: 200n,
         completed: 200n,
-        slow: 20n,
-        codes: [190n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 10n],
+        slow: quiet ? 0n : 20n,
+        codes: [quiet ? 200n : 190n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, quiet ? 0n : 10n],
         duration: duration.snapshot(),
       }),
     );
@@ -61,19 +62,21 @@ export async function seedDiagnostics(env: Readonly<Record<string, string | unde
       schemaVersion: 1,
       epoch: crypto.randomUUID(),
       persistedThroughMs: BigInt(at),
-      findings: [
-        {
-          ruleId: "rpc_slow",
-          subject: `rpc:${methods[0]!.name}`,
-          severity: "warning",
-          active: true,
-          value: 1800,
-          threshold: 1000,
-          samples: 3000n,
-          observedSeconds: 900,
-          entering: 3,
-        },
-      ],
+      findings: quiet
+        ? []
+        : [
+            {
+              ruleId: "rpc_slow",
+              subject: `rpc:${methods[0]!.name}`,
+              severity: "warning",
+              active: true,
+              value: 1800,
+              threshold: 1000,
+              samples: 3000n,
+              observedSeconds: 900,
+              entering: 3,
+            },
+          ],
       peerOverviews: [
         {
           computerId: offline.nodeId,

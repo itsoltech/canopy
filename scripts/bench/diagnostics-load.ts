@@ -1,7 +1,14 @@
 import type { Client } from "@connectrpc/connect";
 import { ui } from "@canopy/contracts";
 
-export type DiagnosticsPhase = "idle" | "steady" | "reconnect" | "slow_reader" | "churn";
+export type DiagnosticsPhase =
+  | "idle"
+  | "steady"
+  | "reconnect"
+  | "slow_reader"
+  | "churn"
+  | "write_failure"
+  | "pool_contention";
 
 /** Fixed offered load with actual gRPC cancellation, reconnects and backpressured watches. */
 export async function diagnosticsLoad(

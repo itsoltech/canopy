@@ -7,6 +7,7 @@ import { seedClient } from "./seed-client.ts";
 import { diagnosticsWorker } from "./diagnostics-worker-process.ts";
 import { seedDiagnosticsHistory } from "./seed-diagnostics-history.ts";
 import { diagnosticsLoad, type DiagnosticsPhase } from "./diagnostics-load.ts";
+import { diagnosticsContention } from "./diagnostics-contention.ts";
 
 /** Isolated, durable PostgreSQL. Defaults implement the three alternating ten-minute idle series. */
 const forbidden = new Set([17443, 5180, 8444, 17444, 17445, 3000, 7443, 7432, 4443, 7444, 5291, 8081]);
@@ -22,6 +23,10 @@ if (
 const idleMs = Number(process.env["CANOPY_BENCH_IDLE_MS"] ?? 600_000);
 const loadMs = Number(process.env["CANOPY_BENCH_LOAD_MS"] ?? 120_000);
 const series = Number(process.env["CANOPY_BENCH_SERIES"] ?? 3);
+
+if (process.env["CANOPY_BENCH_CONTENTION"] === "1" && loadMs < 140_000)
+  throw new Error("Contention phases need 70 seconds of locking and at least 70 seconds of recovery");
+
 const name = `canopy-diagnostics-bench-${process.pid}`;
 const password = randomBytes(24).toString("hex");
 const token = randomBytes(32).toString("hex");
@@ -92,16 +97,19 @@ async function run(on: boolean, index: number) {
   await Bun.sleep(5000);
 
   const phases: DiagnosticsPhase[] =
-    process.env["CANOPY_BENCH_CHURN"] === "1"
-      ? ["churn"]
-      : process.env["CANOPY_BENCH_EXTRA_PHASES"] === "1"
-        ? ["reconnect", "slow_reader"]
-        : ["idle", "steady"];
+    process.env["CANOPY_BENCH_CONTENTION"] === "1"
+      ? ["write_failure", "pool_contention"]
+      : process.env["CANOPY_BENCH_CHURN"] === "1"
+        ? ["churn"]
+        : process.env["CANOPY_BENCH_EXTRA_PHASES"] === "1"
+          ? ["reconnect", "slow_reader"]
+          : ["idle", "steady"];
 
   for (const phase of phases) {
     const beforePg = await pgCounters();
     const before = await active.run("begin");
     await worker.run("begin");
+    const finishContention = await diagnosticsContention(name, database, phase, api, seed.thread);
 
     const { latencies } = await diagnosticsLoad(
       api,
@@ -111,6 +119,8 @@ async function run(on: boolean, index: number) {
       () => worker!.run("reconnect"),
       () => active!.run("sample"),
     );
+
+    const contention = await finishContention?.();
 
     const after = await active.run("end");
     const workerStats = await worker.run("end");
@@ -122,6 +132,7 @@ async function run(on: boolean, index: number) {
         series: index + 1,
         on,
         phase,
+        contention,
         ...after,
         worker: { ...workerStats, cpuPercent: workerStats.cpuMicros / workerStats.elapsedMs / 10 },
         cpuPercent: after.cpuMicros / after.elapsedMs / 10,
