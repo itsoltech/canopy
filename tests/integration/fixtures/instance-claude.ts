@@ -43,6 +43,26 @@ async function turn(text: string): Promise<void> {
     model: "fixture-model",
     cwd: process.cwd(),
   });
+
+  if (text.split("\n\nCurrent input:\n").at(-1)?.includes("STOP_REPLY")) {
+    const stream = (event: JsonObject) =>
+      send({ type: "stream_event", session_id: session, uuid: crypto.randomUUID(), event, parent_tool_use_id: null });
+
+    stream({
+      type: "message_start",
+      message: {
+        id: "partial",
+        type: "message",
+        role: "assistant",
+        content: [],
+        model: "fixture-model",
+        usage: { input_tokens: 1, output_tokens: 0 },
+      },
+    });
+    stream({ type: "content_block_start", index: 0, content_block: { type: "text", text: "" } });
+    stream({ type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "Partial reply" } });
+  }
+
   await releaseProbe(text);
   const failure = process.env["BOT_TRACE"] ? botFailure(text) : undefined;
 

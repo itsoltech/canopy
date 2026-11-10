@@ -217,6 +217,7 @@ function codexBotProgram(ctx: BotHarnessContext, launch: CodexAppServerLaunch) {
 }
 
 export async function runCodexBot(ctx: BotHarnessContext): Promise<void> {
+  ctx.signal.throwIfAborted();
   const exit = await Effect.runPromiseExit(codexBotProgram(ctx, await botCodexLaunch(ctx)), { signal: ctx.signal });
 
   if (Exit.isFailure(exit)) throw Cause.squash(exit.cause);

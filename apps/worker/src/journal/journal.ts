@@ -199,11 +199,17 @@ function open(path: string): Database {
 
 function botAdmission(db: Database, append: (botId: string, event: ThreadEventInit) => ThreadEvent) {
   const select = db.query("SELECT command_id FROM processed_commands WHERE command_id = ?");
+  const interrupted = db.query("SELECT turn_id FROM turn_interrupts WHERE thread_id = ? AND turn_id = ?");
   const insert = db.query("INSERT INTO processed_commands (command_id, result, processed_at) VALUES (?, ?, ?)");
 
   return db.transaction((commandId: string, botId: string, turnId: string) => {
     if (select.get(commandId)) return undefined;
-    const event = append(botId, { turnId, body: { case: "turnStarted", value: {} } });
+
+    // Cancellation can overtake a replayed run command after reconnecting.
+    const event = interrupted.get(botId, turnId)
+      ? undefined
+      : append(botId, { turnId, body: { case: "turnStarted", value: {} } });
+
     insert.run(
       commandId,
       toBinary(CommandResultSchema, create(CommandResultSchema, { commandId, ok: true })),

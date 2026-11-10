@@ -52,6 +52,9 @@
     retrying = false,
     policy,
     sending = false,
+    running = false,
+    stopping = false,
+    onstop,
     composerDraft,
     composerDisabledReason,
     exchangeHref,
@@ -87,6 +90,9 @@
     retrying?: boolean;
     policy?: ApprovalPolicy | undefined;
     sending?: boolean;
+    running?: boolean;
+    stopping?: boolean;
+    onstop?: (() => void) | undefined;
     composerDraft?: BotComposerDraft | undefined;
     /** Set when you cannot write right now (e.g. the bot is unavailable); shown in the box. */
     composerDisabledReason?: string | undefined;
@@ -405,6 +411,9 @@
           {quoteKey}
           placeholder={conversation.bots.length === 1 ? `Message ${conversation.bots[0]!.name}` : "Message"}
           sending={sending || composerDraft?.sending}
+          {running}
+          {stopping}
+          onstop={composerDisabledReason ? undefined : onstop}
           files={composerDraft?.files}
           durable={Boolean(composerDraft)}
           disabled={Boolean(composerDisabledReason) || Boolean(composerDraft && !composerDraft.loaded)}

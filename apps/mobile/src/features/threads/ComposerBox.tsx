@@ -33,6 +33,7 @@ export function ComposerBox({
   primary = "steer",
   onStop,
   running = false,
+  stopWhileRunning = false,
   disabled,
   busy,
   controls,
@@ -55,6 +56,8 @@ export function ComposerBox({
   primary?: "steer" | "queue";
   onStop?: () => void;
   running?: boolean;
+  /** Bot replies keep Stop reachable while the next message is being drafted. */
+  stopWhileRunning?: boolean;
   disabled?: boolean;
   busy?: boolean;
   controls?: ReactNode;
@@ -80,7 +83,7 @@ export function ComposerBox({
   // A leading "!" runs the text as a shell command on the worker when it is delivered (docs/ui-api.md).
   const shell = shellCommands && text.startsWith("!");
   const shellIssue = shell && (text.trim() === "!" || files > 0);
-  const stop = running && empty && Boolean(onStop);
+  const stop = running && (empty || stopWhileRunning) && Boolean(onStop);
   const unavailable = disabled || busy || (!stop && (empty || !canSend)) || shellIssue;
   const composerMotion = useComposerMotion();
   const { progress } = composerMotion;

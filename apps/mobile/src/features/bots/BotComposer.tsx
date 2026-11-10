@@ -11,6 +11,7 @@ export function BotComposer({
   compact,
   disabled,
   running,
+  stopping,
   onExpand,
   onStop,
 }: {
@@ -19,6 +20,7 @@ export function BotComposer({
   compact: boolean;
   disabled: boolean;
   running: boolean;
+  stopping: boolean;
   onExpand: () => void;
   onStop: () => void;
 }) {
@@ -46,9 +48,10 @@ export function BotComposer({
           label="Message to your bot"
           onSend={() => void message.send()}
           running={running}
+          stopWhileRunning
           onStop={onStop}
-          disabled={disabled || !message.loaded}
-          busy={busy}
+          disabled={disabled || (!running && !message.loaded)}
+          busy={busy || stopping}
         />
       </PasteTarget>
     </>

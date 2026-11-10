@@ -41,6 +41,10 @@ Bot używa istniejących `ThreadEvent` i ACK (thread_id = bot_id), przechowywany
 oddzielnie od wątków projektowych. `AgentToolCall.bot_id` kieruje MCP do wykonawców
 botów w gateway; gateway sprawdza właściciela, przypięcie workera, turę i zgody.
 Starsze workery nie dostają tych komend. [Projekt i trwałość](bots-harness.md).
+`InterruptBotTurn` jest zapisywane razem z zatrzymaniem tury w outboxie gatewaya;
+worker potwierdza komendę po zamknięciu jej harnessu. Gateway odrzuca spóźnioną treść
+i przed kolejną komendą tej rozmowy czeka na ACK przerwania. Nie zmienia to pól
+proto ani `WORKER_LINK_PROTOCOL`. [Semantyka Stop](bots.md#zatrzymanie-odpowiedzi).
 
 ## Założenia
 

@@ -81,6 +81,7 @@ export function recordProbe(harness: string, event: string, session = "", provid
 }
 
 export async function releaseProbe(text: string): Promise<void> {
+  text = text.split("\n\nCurrent input:\n").at(-1) ?? text;
   const label = text.match(/HOLD:([a-z0-9-]+)/)?.[1];
   const trace = process.env["INSTANCE_TRACE"];
 

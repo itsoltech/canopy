@@ -10,6 +10,7 @@ import { BotHarnessFailure, type BotHarnessContext } from "./types.ts";
 /** ACP owns inference; the only tools exposed by the curated agent are Canopy MCP. */
 export async function runGrokBot(ctx: BotHarnessContext): Promise<void> {
   const { input, session, signal } = ctx;
+  signal.throwIfAborted();
 
   const launch = grokLaunch({
     dataDir: session.home,
@@ -32,6 +33,8 @@ export async function runGrokBot(ctx: BotHarnessContext): Promise<void> {
 
   const cancel = () => {
     if (id) void client.cancel(id).catch(() => undefined);
+    // ACP cancellation is a notification: a wedged provider may never finish its prompt stream.
+    void client.dispose();
   };
 
   signal.addEventListener("abort", cancel, { once: true });

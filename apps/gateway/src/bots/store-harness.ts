@@ -34,6 +34,25 @@ const recordCursor = (sql: SqlClient.SqlClient, worker: string, journal: string,
     VALUES(${worker}::uuid,${journal},${bot}::uuid,${seq}) ON CONFLICT(worker_id,journal_id,bot_id)
     DO UPDATE SET last_seq=greatest(bot_harness_cursors.last_seq,excluded.last_seq)`;
 
+const interruptPending = (sql: SqlClient.SqlClient, workerId: string, botId: string) =>
+  sql<{ payload: Uint8Array }>`SELECT payload FROM worker_commands WHERE worker_id = ${workerId}::uuid
+    AND kind = 'interruptBotTurn' AND status IN ('pending','delivered') AND expires_at > now()`.pipe(
+    Effect.map((rows) =>
+      rows.some((row) => {
+        const command = fromBinary(CommandSchema, row.payload);
+
+        return command.kind.case === "interruptBotTurn" && command.kind.value.threadId === botId;
+      }),
+    ),
+  );
+
+const commandFailure = (sql: SqlClient.SqlClient, id: string) =>
+  sql<{
+    result: JsonValue;
+  }>`SELECT c.result FROM bot_harness_turns h JOIN worker_commands c ON c.id = h.command_id WHERE h.turn_id = ${id}::uuid AND c.status = 'failed'`.pipe(
+    Effect.map((r) => r[0]?.result),
+  );
+
 /** Bot events use the worker journal, with independent storage and owner/worker checks. */
 export function botHarnessStore(sql: SqlClient.SqlClient, access: BotAccess) {
   return {
@@ -62,6 +81,7 @@ export function botHarnessStore(sql: SqlClient.SqlClient, access: BotAccess) {
       ),
     harnessTurn: (id: string) =>
       sql<HarnessTurnRow>`SELECT * FROM bot_harness_turns WHERE turn_id = ${id}::uuid`.pipe(Effect.map((r) => r[0])),
+    harnessInterruptPending: (workerId: string, botId: string) => interruptPending(sql, workerId, botId),
     harnessCommand: (turn: BotTurn, workerId: string, command: Command) =>
       sql.withTransaction(
         Effect.gen(function* () {
@@ -78,12 +98,7 @@ export function botHarnessStore(sql: SqlClient.SqlClient, access: BotAccess) {
           return command;
         }),
       ),
-    harnessCommandFailure: (id: string) =>
-      sql<{
-        result: JsonValue;
-      }>`SELECT c.result FROM bot_harness_turns h JOIN worker_commands c ON c.id = h.command_id WHERE h.turn_id = ${id}::uuid AND c.status = 'failed'`.pipe(
-        Effect.map((r) => r[0]?.result),
-      ),
+    harnessCommandFailure: (id: string) => commandFailure(sql, id),
     harnessDispatchable: (id: string) =>
       sql`SELECT h.turn_id FROM bot_harness_turns h JOIN bot_turns t ON t.id = h.turn_id JOIN bots b ON b.id = h.bot_id
         WHERE h.command_id = ${id}::uuid AND t.status IN ('queued','running','waiting') AND h.outcome IS NULL

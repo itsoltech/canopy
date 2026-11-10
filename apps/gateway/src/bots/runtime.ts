@@ -25,6 +25,7 @@ export interface BotRuntimeOptions {
   connectors: ConnectorsRuntime;
   model?: BotModel;
   harness?: BotModel;
+  deliverInterrupt?: (workerId: string) => Promise<void>;
   now?: () => Date;
   platform: (turn: BotTurn, call: StoredCall) => Promise<ToolResult>;
   describeTool?: (tool: ToolSpec, args: JsonObject) => Promise<string>;
@@ -379,9 +380,11 @@ export class BotsRuntime {
     return turnId;
   }
   async interrupt(id: string) {
-    await this.run((s) => s.interrupt(this.#options.userId, id));
+    const stopped = await this.run((s) => s.interrupt(this.#options.userId, id));
 
-    for (const task of this.#active.values()) if (task.turn.bot_id === id) task.abort.abort();
+    for (const task of this.#active.values()) if (task.turn.id === stopped?.turnId) task.abort.abort();
+
+    if (stopped?.workerId) await this.#options.deliverInterrupt?.(stopped.workerId);
   }
   async *watch(
     id: string,

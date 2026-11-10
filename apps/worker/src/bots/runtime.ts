@@ -34,6 +34,34 @@ export class BotTurns {
   readonly #active = new Map<string, { abort: AbortController; done: Promise<void> }>();
   constructor(readonly ctx: HostContext) {}
   async runBotTurn(input: RunBotTurn, commandId: string): Promise<CommandOutput> {
+    const key = `${input.botId}/${input.turnId}`;
+
+    if (this.#active.has(key)) return {};
+
+    if ([...this.#active.keys()].some((k) => k.startsWith(`${input.botId}/`)))
+      throw new CommandError("BUSY", "Bot already has an active turn", false);
+    const abort = new AbortController();
+    const closed = Promise.withResolvers<void>();
+    // Reserve before the first await: Stop may arrive while journal admission or images are loading.
+    this.#active.set(key, { abort, done: closed.promise });
+
+    try {
+      return await this.#start(input, commandId, abort, () => {
+        this.#active.delete(key);
+        closed.resolve();
+      });
+    } catch (error) {
+      this.#active.delete(key);
+      closed.resolve();
+      throw error;
+    }
+  }
+  async #start(
+    input: RunBotTurn,
+    commandId: string,
+    abort: AbortController,
+    closed: () => void,
+  ): Promise<CommandOutput> {
     if (this.ctx.state.closing) throw new CommandError("WORKER_DRAINING", "worker is stopping", false);
     const config = this.ctx.state.config;
 
@@ -51,12 +79,6 @@ export class BotTurns {
         "Bot provider instance is unavailable on this worker",
         true,
       );
-    const key = `${input.botId}/${input.turnId}`;
-
-    if (this.#active.has(key)) return {};
-
-    if ([...this.#active.keys()].some((k) => k.startsWith(`${input.botId}/`)))
-      throw new CommandError("BUSY", "Bot already has an active turn", false);
     const runtime = profile.runtime ?? {};
 
     const sourceHome = runtime.ownLogin
@@ -68,8 +90,6 @@ export class BotTurns {
       sourceHome,
       linkLogin: profile.kind === "native" && (runtime.ownLogin === true || config[provider].linkDeviceLogin),
     });
-
-    const abort = new AbortController();
 
     const record = async (event: ThreadEventInit) => {
       const saved = await this.ctx.state.options.runtime.runPromise(
@@ -99,6 +119,7 @@ export class BotTurns {
 
       if (!started) {
         bus.close();
+        closed();
 
         return {};
       }
@@ -129,7 +150,7 @@ export class BotTurns {
         ),
     };
 
-    const done = Match.value(provider)
+    void Match.value(provider)
       .pipe(
         Match.when("claude", () => runClaudeBot(context)),
         Match.when("codex", () => runCodexBot(context)),
@@ -137,49 +158,48 @@ export class BotTurns {
         Match.exhaustive,
       )
       .then(
-        () => record({ body: { case: "turnFinished", value: { outcome: TurnOutcome.COMPLETED } } }),
-        async (error) => {
-          const open = (await this.ctx.state.options.runtime.runPromise(Journal.use((j) => j.openTurns()))).find(
-            (t) => t.turnId === input.turnId && t.threadId === input.botId,
-          );
-
-          if (!open) return;
-
-          // Use the same transcript readers and end codes as project thread turns.
-          const transcript = await readHarnessRecord(open);
-
-          const reconciled = reconcileEvents(open, transcript, {
-            outcome: abort.signal.aborted ? TurnOutcome.INTERRUPTED : TurnOutcome.FAILED,
-            source: abort.signal.aborted ? TurnEndSource.SYSTEM : TurnEndSource.HARNESS,
-            reason: abort.signal.aborted
-              ? "Bot turn interrupted"
-              : error instanceof Error
-                ? error.message
-                : "Bot harness could not finish this turn",
-            errorCode: abort.signal.aborted
-              ? ""
-              : error instanceof BotHarnessFailure
-                ? error.code
-                : classifyFailure(error instanceof Error ? error.message : ""),
-          });
-
-          for (const event of reconciled) await record(event);
-        },
+        () =>
+          record({
+            body: {
+              case: "turnFinished",
+              value: { outcome: abort.signal.aborted ? TurnOutcome.INTERRUPTED : TurnOutcome.COMPLETED },
+            },
+          }),
+        (error) =>
+          this.#failed(input, abort.signal.aborted, record, error instanceof Error ? error : new Error(String(error))),
       )
       .catch(() => this.ctx.ops.log("bots: harness journal failed"))
       .finally(() => {
         abort.abort();
         bus.close();
-        this.#active.delete(key);
+        closed();
       });
-
-    this.#active.set(key, { abort, done });
 
     return {};
   }
+  async #failed(input: RunBotTurn, aborted: boolean, record: (event: ThreadEventInit) => Promise<void>, error: Error) {
+    const open = (await this.ctx.state.options.runtime.runPromise(Journal.use((j) => j.openTurns()))).find(
+      (t) => t.turnId === input.turnId && t.threadId === input.botId,
+    );
+
+    if (!open) return;
+    // Use the same transcript readers and end codes as project thread turns.
+    const transcript = await readHarnessRecord(open);
+
+    const reconciled = reconcileEvents(open, transcript, {
+      outcome: aborted ? TurnOutcome.INTERRUPTED : TurnOutcome.FAILED,
+      source: aborted ? TurnEndSource.SYSTEM : TurnEndSource.HARNESS,
+      reason: aborted ? "Bot turn interrupted" : error.message,
+      errorCode: aborted ? "" : error instanceof BotHarnessFailure ? error.code : classifyFailure(error.message),
+    });
+
+    for (const event of reconciled) await record(event);
+  }
   async interruptBotTurn(input: { threadId: string; turnId: string }): Promise<CommandOutput> {
     await this.ctx.state.options.runtime.runPromise(Journal.use((j) => j.noteInterrupt(input.threadId, input.turnId)));
-    this.#active.get(`${input.threadId}/${input.turnId}`)?.abort.abort();
+    const active = this.#active.get(`${input.threadId}/${input.turnId}`);
+    active?.abort.abort();
+    await active?.done;
 
     return {};
   }

@@ -401,6 +401,30 @@ Limit wykonawczy fazy 1: cztery tury na instancję gateway, 32 rundy narzędzi n
 dalszej pracy; obecnie dostawca może odrzucić zbyt długą historię. UI otrzymuje całe
 wiadomości po zapisaniu; status jest aktualizowany podczas generacji i narzędzi.
 
+### Zatrzymanie odpowiedzi
+
+W web/desktop i mobile przycisk wysyłki zmienia się w **Stop** podczas odpowiedzi,
+także gdy użytkownik pisze już następny szkic. `InterruptBot` działa na komputerze
+macierzystym bota i sprawdza właściciela. Zatrzymuje jedną bieżącą widoczną turę
+(także czekającą na workera lub zgodę); bez uruchomionej tury wybiera najstarszą
+oczekującą wiadomość. Nie czyści pozostałej kolejki, przyszłych rutyn ani pobudek.
+Ukryte wykonanie rutyny nie jest odpowiedzią czatu; Stop obejmuje je tylko wtedy,
+gdy czekająca zgoda lub pytanie pokazały je użytkownikowi.
+
+Gateway w jednej transakcji unieważnia lease, wygasza karty tej tury, zachowuje
+odebrany fragment odpowiedzi z wpisem **Stopped by you** i zapisuje polecenie
+przerwania w trwałym outboxie. Wynik harnessu staje się terminalny: spóźnione zdarzenia
+są potwierdzane, lecz nie zmieniają treści ani nie wywołują narzędzi. Wykonanych
+wcześniej efektów Stop nie cofa. Kolejną wiadomość można wysłać od razu; jej harness
+rusza po potwierdzeniu zamknięcia poprzedniego procesu przez workera.
+
+Polecenie czeka także przy rozłączonym workerze i przeżywa restart gatewaya.
+Po połączeniu worker przerywa izolowany harness Claude/Codex/Grok przed ACK.
+Journal zapamiętuje przerwanie, które wyprzedziło uruchomienie; restart workera
+zamyka otwarte tury przez standardowe odtwarzanie. Stan zakończonej przez Stop
+odpowiedzi nie wraca do „Typing…”. Nie zmienia to protokołu ani capability
+`bot_harness_v1`; starsze workery nadal otrzymują istniejące `InterruptBotTurn`.
+
 ## 4. Narzędzia, uprawnienia i status
 
 Bot działa w imieniu właściciela. Listy i odczyty filtrują właściciela; tworzenie wątku
@@ -946,6 +970,12 @@ i portów istniejącego stosu. Sekrety ładowane wyłącznie z pliku poza repozy
   `apps/worker/src/bots/{isolation,grok-transcript}.test.ts` przechwytują schematy
   rzeczywistych CLI i sprawdzają natywny transkrypt Groka bez zewnętrznej inferencji.
   `tools/direct-inference.test.ts` chroni źródła przed ponownym dodaniem HTTP inferencji.
+  `bots-stop.test.ts` sprawdza Stop dla trzech fake harnessów, częściową odpowiedź,
+  zamknięcie procesu, kolejną/kolejkowaną wiadomość, spóźnione zdarzenia, izolację
+  właściciela oraz Stop offline z restartem gatewaya i workera. `linked-agents.test.ts`
+  obejmuje Stop wysłany z innego komputera do domu bota.
+  `bot-adapters-stop.test.ts` sprawdza zamknięcie blokującego CLI przed zakończeniem
+  adaptera oraz brak ponownego uruchomienia z już anulowanym sygnałem.
 - Integracyjne: `tests/integration/bots.test.ts`, prawdziwy PostgreSQL, skryptowany
   model i worker, lokalny serwer HTTP MCP wyłącznie w teście. Tworzenie i deduplikacja,
   wznowienie generacji, przerwane MCP bez powtórzenia, zgody/odrzucenie/pytania z opcjami,

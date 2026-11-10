@@ -4,6 +4,7 @@ import { CommandSchema, CommandResultSchema, TurnOutcome } from "@canopy/contrac
 import { classifyFailure, ProviderFailure } from "@canopy/domain";
 import { botImageInput } from "./bot-images.ts";
 import { BotStore } from "../bots/store.ts";
+import type { HarnessTurnRow } from "../bots/store-harness.ts";
 import type { BotTurn, ModelInput, ModelReply } from "../bots/types.ts";
 import { coreState } from "./core-context.ts";
 import { coreWorkers } from "./core-providers.ts";
@@ -73,6 +74,25 @@ async function botWorker(core: GatewayCore, input: ModelInput, turn: BotTurn, wo
   return workerId;
 }
 
+async function waitForBotInterrupt(core: GatewayCore, input: ModelInput, workerId: string, botId: string) {
+  // Across gateways, worker ACK means the previous harness has closed before the next one starts.
+  while (await core.bots.run((s) => s.harnessInterruptPending(workerId, botId))) {
+    input.signal.throwIfAborted();
+    await Bun.sleep(100);
+  }
+}
+
+function harnessReply(job: HarnessTurnRow): ModelReply {
+  if (job.outcome !== TurnOutcome.COMPLETED)
+    throw new ProviderFailure(
+      classifyFailure(job.reason, job.error_class || job.error_code || "HARNESS_ERROR"),
+      "Bot harness could not finish this turn",
+      "harness",
+    );
+
+  return { text: job.text, calls: [] };
+}
+
 /** A model call attaches to a durable worker command, including after a gateway restart. */
 export async function runBotHarness(core: GatewayCore, input: ModelInput): Promise<ModelReply> {
   const turn = input.turn;
@@ -84,6 +104,7 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
   core.bots.waiting(turn.id, false);
 
   if (!job) {
+    await waitForBotInterrupt(core, input, workerId, turn.bot_id);
     const connection = core.link.connections.get(workerId);
 
     if (connection?.isOpen && !connection.hello.capabilities.includes("bot_harness_v1"))
@@ -149,16 +170,7 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
       input.signal.throwIfAborted();
       job = await run((s) => s.harnessTurn(turn.id));
 
-      if (job?.outcome !== null && job?.outcome !== undefined) {
-        if (job.outcome !== TurnOutcome.COMPLETED)
-          throw new ProviderFailure(
-            classifyFailure(job.reason, job.error_class || job.error_code || "HARNESS_ERROR"),
-            "Bot harness could not finish this turn",
-            "harness",
-          );
-
-        return { text: job.text, calls: [] };
-      }
+      if (job?.outcome !== null && job?.outcome !== undefined) return harnessReply(job);
 
       const failure = await run((s) => s.harnessCommandFailure(turn.id));
 
@@ -204,8 +216,10 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
       await Bun.sleep(250);
     }
   } finally {
-    if (input.signal.aborted && !core.bots.stopping)
-      void coreDispatch(
+    job = await run((s) => s.harnessTurn(turn.id));
+
+    if (input.signal.aborted && !core.bots.stopping && job?.outcome !== TurnOutcome.INTERRUPTED)
+      await coreDispatch(
         core,
         workerId,
         { kind: { case: "interruptBotTurn", value: { threadId: turn.bot_id, turnId: turn.id } } },

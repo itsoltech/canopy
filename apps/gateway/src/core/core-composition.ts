@@ -9,7 +9,7 @@ import { BotsRuntime } from "../bots/runtime.ts";
 import { botPlatform, describeBotTool, prepareBotTool } from "../bots/platform.ts";
 import { GatewayUpdates } from "../updates/runtime.ts";
 import { UpdatePersistence } from "../updates/persistence.ts";
-import { coreDeliver } from "./core-commands.ts";
+import { coreDeliver, coreRedeliver } from "./core-commands.ts";
 import { coreState, type GatewayCoreOptions } from "./core-context.ts";
 import { coreStartThread } from "./core-threads.ts";
 import { coreAnswer, corePublishInteraction } from "./core-interactions.ts";
@@ -32,6 +32,7 @@ export function createCoreBots(core: GatewayCore, options: GatewayCoreOptions): 
     draining: () => core.updates?.draining ?? false,
     connectors: core.connectors,
     harness: (input) => runBotHarness(core, input),
+    deliverInterrupt: (workerId) => coreRedeliver(core, workerId),
     ...(options.botClock && { now: options.botClock }),
     ...(options.botModel && { model: options.botModel }),
     ...(options.log && { log: options.log }),
