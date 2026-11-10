@@ -31,7 +31,7 @@ export function KeybindingSettings() {
           <SettingsGroup key={group} title={group}>
             {entries.map((command) => (
               <SettingsRow key={command.id} title={command.title} description={`When: ${command.when}.`}>
-                <Text selectable style={[styles.caption, { color: c.muted, fontFamily: "monospace" }]}>
+                <Text style={[styles.caption, { color: c.muted, fontFamily: "monospace" }]}>
                   {command.defaults.join(" · ") || "Unassigned"}
                 </Text>
               </SettingsRow>

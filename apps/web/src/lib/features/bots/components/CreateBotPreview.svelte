@@ -31,7 +31,7 @@
       size="lg"
     />
     <div class="grid min-w-0 gap-0.5">
-      <p class="font-medium wrap-anywhere text-zinc-950 dark:text-white">{proposal.name}</p>
+      <p class="font-medium wrap-anywhere text-zinc-950 select-text dark:text-white">{proposal.name}</p>
       <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
         A new bot in Canopy, with its own conversation.
       </p>
@@ -40,7 +40,7 @@
   <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-base/6 sm:text-sm/6">
     {#each details as detail (detail.label)}
       <dt class="font-medium text-zinc-800 dark:text-zinc-200">{detail.label}</dt>
-      <dd class="min-w-0 wrap-anywhere text-zinc-600 dark:text-zinc-400">{detail.value}</dd>
+      <dd class="min-w-0 wrap-anywhere text-zinc-600 select-text dark:text-zinc-400">{detail.value}</dd>
     {/each}
   </dl>
   <div class="grid min-w-0 gap-2">
@@ -53,7 +53,7 @@
       role="region"
       aria-labelledby="{id}-instructions"
       tabindex="0"
-      class="max-h-48 overflow-y-auto overscroll-contain rounded-xl bg-zinc-950/3 p-3 text-base/6 wrap-anywhere whitespace-pre-wrap text-zinc-700 focus-ring sm:text-sm/6 dark:bg-white/5 dark:text-zinc-300"
+      class="max-h-48 overflow-y-auto overscroll-contain rounded-xl bg-zinc-950/3 p-3 text-base/6 wrap-anywhere whitespace-pre-wrap text-zinc-700 focus-ring select-text sm:text-sm/6 dark:bg-white/5 dark:text-zinc-300"
     >
       {proposal.instructions || "No additional instructions."}
     </div>

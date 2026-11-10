@@ -93,20 +93,20 @@
   <dl class="grid min-w-0 gap-3 text-base/6 sm:text-sm/6">
     <div>
       <dt class="text-zinc-500 dark:text-zinc-400">Version</dt>
-      <dd class="text-zinc-950 dark:text-white">
+      <dd class="text-zinc-950 select-text dark:text-white">
         {computer.appVersion ||
           "Not connected yet"}{#if !computer.viaNodeId}{` · Link ${computer.minProtocol}–${computer.maxProtocol}`}{/if}
       </dd>
     </div>
     {#if !computer.viaNodeId}<div class="min-w-0">
         <dt class="text-zinc-500 dark:text-zinc-400">Certificate fingerprint · SHA-256</dt>
-        <dd class="font-mono break-all text-zinc-700 dark:text-zinc-300">
+        <dd class="font-mono break-all text-zinc-700 select-text dark:text-zinc-300">
           {computer.fingerprint.match(/.{1,4}/g)?.join(" ")}
         </dd>
       </div>{/if}
     {#if self}<div class="min-w-0">
         <dt class="text-zinc-500 dark:text-zinc-400">Addresses</dt>
-        <dd class="break-all text-zinc-700 dark:text-zinc-300">
+        <dd class="break-all text-zinc-700 select-text dark:text-zinc-300">
           {computer.addresses.join(" · ") || "Listener is off or no address is advertised."}
         </dd>
       </div>{/if}

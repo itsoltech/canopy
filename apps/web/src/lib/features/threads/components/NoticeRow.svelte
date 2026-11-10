@@ -31,7 +31,7 @@
     />
   </span>
   <!-- The machine code (e.g. rate_limit) stays in the tooltip; the message says it in words. -->
-  <p class="min-w-0 break-words" title={notice.notice.code ? `Code: ${notice.notice.code}` : undefined}>
+  <p class="min-w-0 break-words select-text" title={notice.notice.code ? `Code: ${notice.notice.code}` : undefined}>
     {notice.notice.message || humanizeEnum(notice.notice.code)}
   </p>
 </div>

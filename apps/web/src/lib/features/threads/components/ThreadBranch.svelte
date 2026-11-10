@@ -82,9 +82,14 @@
 
 {#snippet value()}
   <PanelField icon="git-fork" label="Branch">
-    <p class="font-mono text-sm/5 wrap-anywhere sm:text-xs/5">{head ? headLabel(head) : "Unknown branch"}</p>
+    <p class="font-mono text-sm/5 wrap-anywhere select-text sm:text-xs/5">
+      {head ? headLabel(head) : "Unknown branch"}
+    </p>
     {#if thread.worktree?.baseRef}<p class="flex min-w-0 gap-1 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
-        <span class="shrink-0">from</span><MiddleTruncatedText text={thread.worktree.baseRef} class="font-mono" />
+        <span class="shrink-0">from</span><MiddleTruncatedText
+          text={thread.worktree.baseRef}
+          class="font-mono select-text"
+        />
       </p>{/if}
     {#snippet aside()}
       <Icon name={busy ? "arrow-path" : "chevron-down"} class={["shrink-0", busy && "motion-safe:animate-spin"]} />

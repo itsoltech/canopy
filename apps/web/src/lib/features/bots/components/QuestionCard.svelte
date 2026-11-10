@@ -52,7 +52,7 @@
   <div class="flex items-start gap-2 px-3 pt-2.5 pb-2 text-base/6 sm:text-sm/6">
     <Icon name="question-mark-circle" class="h-lh shrink-0 text-sky-500 dark:text-sky-400" />
     <RequestHeader expiresAt={question.expiresAt} pending={!answered}>
-      <h3 id="{id}-prompt" class="font-medium text-pretty wrap-anywhere text-zinc-950 dark:text-white">
+      <h3 id="{id}-prompt" class="font-medium text-pretty wrap-anywhere text-zinc-950 select-text dark:text-white">
         {question.prompt}
       </h3>
     </RequestHeader>
@@ -118,7 +118,7 @@
   {/if}
   {#if question.answer && !question.answer.optionId && !question.answer.skipped && question.answer.text}
     <p
-      class="mx-3 mb-1 rounded-xl bg-zinc-950/4 px-3 py-2 text-base/6 whitespace-pre-wrap text-zinc-800 sm:text-sm/6 dark:bg-white/5 dark:text-zinc-200"
+      class="mx-3 mb-1 rounded-xl bg-zinc-950/4 px-3 py-2 text-base/6 whitespace-pre-wrap text-zinc-800 select-text sm:text-sm/6 dark:bg-white/5 dark:text-zinc-200"
     >
       <span class="sr-only">Your answer: </span>{question.answer.text}
     </p>

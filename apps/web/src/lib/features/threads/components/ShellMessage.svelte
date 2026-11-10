@@ -60,7 +60,9 @@
     </div>
     <pre
       class="min-w-0 font-mono text-base/6 wrap-anywhere whitespace-pre-wrap text-zinc-950 sm:text-sm/6 dark:text-zinc-100">{command}</pre>
-    {#if failureReason}<p class="text-sm/5 text-rose-700 sm:text-xs/5 dark:text-rose-300">{failureReason}</p>{/if}
+    {#if failureReason}<p class="text-sm/5 text-rose-700 select-text sm:text-xs/5 dark:text-rose-300">
+        {failureReason}
+      </p>{/if}
     {#if result && !running}
       {#if result.output}
         {#if !expanded}<pre

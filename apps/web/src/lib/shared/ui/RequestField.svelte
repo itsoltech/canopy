@@ -18,5 +18,5 @@
 
 <div class={["grid min-w-0 gap-x-3 gap-y-1", !stacked && "grid-cols-[minmax(0,7rem)_minmax(0,1fr)]", className]}>
   <dt class="min-w-0 font-medium wrap-anywhere text-zinc-900 dark:text-zinc-100">{label}</dt>
-  <dd class="min-w-0 wrap-anywhere text-zinc-700 dark:text-zinc-300">{@render children()}</dd>
+  <dd class="min-w-0 wrap-anywhere text-zinc-700 select-text dark:text-zinc-300">{@render children()}</dd>
 </div>

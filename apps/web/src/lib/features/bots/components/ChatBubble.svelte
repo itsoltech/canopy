@@ -122,7 +122,7 @@
       ]}
     >
       <Icon name="arrow-uturn-left" class="size-3.5 shrink-0 fill-zinc-400 dark:fill-zinc-500" />
-      <span class="min-w-0 truncate"
+      <span class="min-w-0 truncate select-text"
         ><span class="font-medium">{replyToName ?? "Reply"}</span>: {message.replyTo.excerpt}</span
       >
     </p>

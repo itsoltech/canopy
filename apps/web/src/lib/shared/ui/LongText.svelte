@@ -28,7 +28,7 @@
 <div class={["grid gap-1", className]}>
   <div
     class={[
-      "min-w-0 text-base/6 text-pretty text-zinc-700 sm:text-sm/6 dark:text-zinc-300",
+      "min-w-0 text-base/6 text-pretty text-zinc-700 select-text sm:text-sm/6 dark:text-zinc-300",
       clamp && "max-h-(--clamp) overflow-hidden mask-b-from-60%",
     ]}
     style:--clamp={clamp ? `${lines * 1.5}rem` : undefined}

@@ -8,7 +8,7 @@
 
 <span
   class={[
-    "min-w-0 truncate px-2 text-sm/5 text-zinc-500 sm:text-(length:--type-compact)/5 dark:text-zinc-400",
+    "min-w-0 truncate px-2 text-sm/5 text-zinc-500 select-none sm:text-(length:--type-compact)/5 dark:text-zinc-400",
     className,
   ]}>{@render children()}</span
 >

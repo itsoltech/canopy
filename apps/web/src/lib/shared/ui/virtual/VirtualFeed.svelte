@@ -614,6 +614,18 @@
     onkeydown={(event) => {
       if (event.defaultPrevented || (event.target as Element).closest("textarea, input, select, [contenteditable]"))
         return;
+      if (
+        list &&
+        (event.ctrlKey || event.metaKey) &&
+        !event.altKey &&
+        !event.shiftKey &&
+        event.key.toLowerCase() === "a"
+      ) {
+        event.preventDefault();
+        getSelection()?.selectAllChildren(list);
+
+        return;
+      }
       if (["PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown", " "].includes(event.key)) readerGesture();
     }}
   >

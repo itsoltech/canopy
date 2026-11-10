@@ -64,11 +64,11 @@
   </span>
 {/snippet}
 
-<div class="density-work text-base/6 sm:text-sm/5">
+<div class="density-work text-base/6 select-none sm:text-sm/5">
   {#if children || nested()}
     <Disclosure bind:open remember="frame" grid class={activitySurface} summaryClass={activityHeader}>
       {#snippet summary()}{@render row()}{/snippet}
-      <div class={activityBody}>
+      <div class={[activityBody, "select-text"]}>
         {@render children?.()}
         {#if nested()}<div class="grid gap-1 border-l-2 border-zinc-950/5 pl-3 dark:border-white/10">
             {@render nested()?.()}

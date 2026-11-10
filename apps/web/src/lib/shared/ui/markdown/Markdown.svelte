@@ -55,7 +55,7 @@
 
 <div
   class={[
-    "grid gap-3 text-base/7 text-pretty break-words text-zinc-800 sm:text-sm/6 dark:text-zinc-200",
+    "grid gap-3 text-base/7 text-pretty break-words text-zinc-800 select-text sm:text-sm/6 dark:text-zinc-200",
     streaming && "t-stream",
     className,
   ]}
