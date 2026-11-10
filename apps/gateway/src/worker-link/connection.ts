@@ -3,6 +3,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import {
   CommandSchema,
   type CommandResult,
+  type CloneProgress,
   type GatewayMessage,
   type Hello,
   type WorkerMessage,
@@ -21,6 +22,7 @@ interface PendingCommand {
   resolve(result: CommandResult): void;
   reject(cause: unknown): void;
   timer: Timer;
+  progress?: (progress: CloneProgress) => void;
 }
 
 /** One live WorkerLinkService.Connect stream, seen from the gateway. */
@@ -58,7 +60,12 @@ export class WorkerConnection {
   }
 
   /** Sends a command, preserving its durable outbox id on retries. Concurrent retries share the acknowledgement. */
-  sendCommand(command: CommandInit, timeoutMs = 10_000, commandId = Bun.randomUUIDv7()): Promise<CommandResult> {
+  sendCommand(
+    command: CommandInit,
+    timeoutMs = 10_000,
+    commandId = Bun.randomUUIDv7(),
+    progress?: (progress: CloneProgress) => void,
+  ): Promise<CommandResult> {
     const existing = this.#pending.get(commandId);
 
     if (existing) return existing.promise;
@@ -69,7 +76,7 @@ export class WorkerConnection {
       reject(new ConnectError(`command ${commandId} timed out`, Code.DeadlineExceeded));
     }, timeoutMs);
 
-    this.#pending.set(commandId, { promise, resolve, reject, timer });
+    this.#pending.set(commandId, { promise, resolve, reject, timer, ...(progress && { progress }) });
 
     try {
       this.send({ case: "command", value: create(CommandSchema, { commandId, kind: command }) });
@@ -90,6 +97,12 @@ export class WorkerConnection {
 
   /** @internal Called by the service for every inbound message. */
   deliver(message: WorkerMessage): void {
+    if (message.payload.case === "cloneProgress") {
+      this.#pending.get(message.payload.value.commandId)?.progress?.(message.payload.value);
+
+      return;
+    }
+
     if (message.payload.case === "commandResult") {
       const pending = this.#pending.get(message.payload.value.commandId);
 

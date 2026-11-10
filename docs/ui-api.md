@@ -268,12 +268,20 @@ każdym cicho komputery z jego workspace'ami. Stronę ustawień otwiera tylko pr
 komputerze; projekt wyłącznie partnera nie jest linkiem.
 Reguły niejednoznaczności i zgodność: [linked-computers.md](linked-computers.md#tożsamość-projektu-według-git-origin).
 
-`AddProject` (BFF: `POST /api/projects`, body = `AddProjectRequest` w protobuf JSON, limit 6 min 15 s)
+`AddProject` (BFF: `POST /api/projects`, body = `AddProjectRequest` w protobuf JSON, limit 61 min)
 dodaje katalog workera jako workspace: `directory_path` (istniejący katalog), `init`
 (`parent_path` + `name`: nowy katalog i `git init`) albo `clone` (`parent_path`, `name`, `url`).
 Odpowiedź: `project`, `workspace` i `attached` (katalog dołączył do projektu o tym samym git origin).
 Opcjonalne `project_id` (5) dołącza katalog do jawnie wybranego projektu właściciela; projekt i worker
 są sprawdzane przed klonem, a drugi workspace tego projektu na tym samym workerze jest odrzucany.
+`CloneProject(AddProjectRequest)` (BFF: `POST /api/projects/clone`, NDJSON, limit 61 min)
+wykonuje to samo owner-scoped dodanie projektu/workspace'u i strumieniuje `CloneProjectUpdate`:
+`progress` z fazą, opcjonalnym procentem/licznikami/transferem i ostatnimi oczyszczonymi liniami Git,
+potem `result` z `AddProjectResponse`. Web/desktop i mobile używają go dla `Worker.clone_progress`;
+starszy worker zachowuje `AddProject` i stan nieoznaczony. Przerwanie strumienia anuluje git na workerze,
+także przez linked computers; błąd w UI zachowuje log i Retry. Bufor gatewaya mieści 8 snapshotów,
+wolny odbiorca kończy wyłącznie swoją operację. Log pozostaje nietrwały.
+
 `GetWorkspaceCloneSource(workspace_id)` (BFF: `GET /api/workspaces/{id}/clone-source`) zwraca edytowalny,
 pozbawiony poświadczeń URL origin, odczytany na workerze źródłowym. Brak/niebezpieczny origin daje pusty URL.
 Odczyt jest tylko na żądanie, bez przechowywania URL w overview lub lustrze.

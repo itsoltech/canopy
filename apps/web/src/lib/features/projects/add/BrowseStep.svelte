@@ -16,6 +16,8 @@
   import { directoryText, matching, parsePath, tidyText, upText, type PathStyle } from "./browse-path.ts";
   import { DirectoryListing } from "./directory-listing.svelte.ts";
   import StepHeader from "./StepHeader.svelte";
+  import CloneProgress from "./CloneProgress.svelte";
+  import type { CloneProjectState } from "./clone-project.svelte.ts";
 
   /**
    * Browses a worker's directories from a typed path (`~/GIT/pin`): the part up to the last separator is the
@@ -31,6 +33,7 @@
     actionLabel,
     busy = false,
     error,
+    clone,
     onsubmit,
     onback,
     onclose,
@@ -43,13 +46,14 @@
     actionLabel?: string;
     busy?: boolean;
     error?: string | undefined;
+    clone?: CloneProjectState;
     onsubmit: (target: { dir: string; name: string }) => void;
     onback: () => void;
     onclose: () => void;
   } = $props();
 
   const id = $props.id();
-  const label = $derived(actionLabel ?? ACTION_LABELS[mode]);
+  const label = $derived(mode === "clone" && error ? "Retry" : (actionLabel ?? ACTION_LABELS[mode]));
   const listing = untrack(() => new DirectoryListing(worker.id));
   let input = $state<HTMLInputElement>();
   let text = $state("");
@@ -187,10 +191,16 @@
   />
 </StepHeader>
 
-{#if busy && mode === "clone"}
-  <p role="status" class="px-4 py-2 text-sm/5 text-zinc-500 dark:text-zinc-400">
-    Cloning on {worker.name}… This stops after 5 minutes.
-  </p>
+{#if mode === "clone" && clone?.attempted}
+  <CloneProgress
+    progress={clone.progress}
+    {busy}
+    worker={worker.name}
+    failed={Boolean(error)}
+    capable={worker.cloneProgress}
+    oncancel={worker.cloneProgress ? () => clone?.cancel() : undefined}
+    class="px-4 py-2"
+  />
 {/if}
 
 <p id="{id}-status" class="sr-only" role="status">{listingError ?? notice}</p>

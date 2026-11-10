@@ -3,7 +3,7 @@ import { create, fromJson, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { ConfigAppliedSchema, Provider, ui, type Hello } from "@canopy/contracts";
 import { Effect } from "effect";
-import { workerLinkCompatible } from "@canopy/domain/release/protocol";
+import { CLONE_PROGRESS_CAPABILITY, workerLinkCompatible } from "@canopy/domain/release/protocol";
 import type { SqlClient } from "effect/sql";
 import { one, type Fx } from "./errors.ts";
 
@@ -29,6 +29,7 @@ interface WorkerListRow {
     homeDirectory?: string;
     worktreesRoot?: string;
     projectSources?: boolean;
+    cloneProgress?: boolean;
     workspaceCopy?: boolean;
     cliImport?: boolean;
     branchSwitch?: boolean;
@@ -64,6 +65,7 @@ function listedWorker(r: WorkerListRow, online: ReadonlySet<string>) {
     worktrees: Boolean(r.capabilities?.worktreesRoot),
     worktreesRoot: r.capabilities?.worktreesRoot ?? "",
     projectSources: r.capabilities?.projectSources === true,
+    cloneProgress: r.capabilities?.cloneProgress === true,
     workspaceCopy: r.capabilities?.workspaceCopy === true,
     cliImport: r.capabilities?.cliImport === true,
     branchSwitch: r.capabilities?.branchSwitch === true,
@@ -118,6 +120,7 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
           worktreesRoot: hello.capabilities.includes("worktrees") ? hello.worktreesRoot : "",
           // New project directories and clones (InitRepository, CloneRepository).
           projectSources: hello.capabilities.includes("project_sources"),
+          cloneProgress: hello.capabilities.includes(CLONE_PROGRESS_CAPABILITY),
           workspaceCopy: hello.capabilities.includes("workspace_copy_scope_v2"),
           // Threads, settings and libraries of the device's CLIs (docs/import.md).
           cliImport: hello.capabilities.includes("cli_import_v1"),
@@ -161,6 +164,7 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
                        jsonb_build_object('hostname',w.capabilities->'hostname','homeDirectory',w.capabilities->'homeDirectory',
                          'worktreesRoot',w.capabilities->'worktreesRoot','projectSources',w.capabilities->'projectSources',
                          'workspaceCopy',w.capabilities->'workspaceCopy',
+                         'cloneProgress',w.capabilities->'cloneProgress',
                          'cliImport',w.capabilities->'cliImport','branchSwitch',w.capabilities->'branchSwitch') AS capabilities, w.last_seen_at, w.revoked_at,
                        coalesce(c.profile_names,'{}'::jsonb) AS profile_names,
                        c.version AS config_version, c.applied_version, c.apply_report

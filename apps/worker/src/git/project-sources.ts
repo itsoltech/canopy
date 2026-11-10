@@ -9,10 +9,7 @@ import { safeCloneUrl } from "@canopy/domain/clone-url";
  * single path segment, so nothing is written outside the parent, and an existing name (also a symlink) is refused.
  */
 
-export const CLONE_TIMEOUT_MS = 5 * 60_000;
-
-/** Transports git may use for a clone; `ext::` and `fd::` (command execution) stay blocked. */
-const ALLOWED_PROTOCOLS = "https:http:ssh:git:file";
+export { cloneRepository, CLONE_TIMEOUT_MS } from "./clone.ts";
 
 /**
  * Creates the new directory and returns it with its real parent; throws when either is not allowed. Created here
@@ -72,39 +69,6 @@ export async function initRepository(parentPath: string, name: string): Promise<
     if (!result.ok) throw new GitError("INIT_FAILED", gitMessage(result.stderr));
   } catch (error) {
     rmSync(target, { recursive: true, force: true });
-    throw error;
-  }
-
-  return realpathSync(target);
-}
-
-/** `git clone` into a new directory; whatever a failed or timed-out clone left is removed. */
-export async function cloneRepository(parentPath: string, name: string, url: string): Promise<string> {
-  const remote = cloneUrl(url);
-  const { parent, target } = newDirectory(parentPath, name);
-
-  try {
-    const result = await git(parent, ["clone", "-q", "--", remote, name], CLONE_TIMEOUT_MS, {
-      env: { GIT_ALLOW_PROTOCOL: ALLOWED_PROTOCOLS },
-    });
-
-    if (!result.ok) {
-      if (
-        /authentication failed|permission denied|could not read (?:username|password)|terminal prompts disabled|repository not found|access denied|publickey/i.test(
-          result.stderr,
-        )
-      )
-        throw new GitError("CLONE_AUTH_FAILED", "Git sign-in is required.");
-      throw new GitError(
-        "CLONE_FAILED",
-        "Could not clone the repository. Check the Git URL and connection, then retry.",
-      );
-    }
-  } catch (error) {
-    rmSync(target, { recursive: true, force: true });
-
-    if (error instanceof GitError && error.code === "GIT_TIMEOUT")
-      throw new GitError("CLONE_TIMEOUT", "Cloning stopped after 5 minutes. Check the connection and retry.");
     throw error;
   }
 

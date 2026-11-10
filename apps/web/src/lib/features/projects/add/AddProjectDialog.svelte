@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from "svelte";
   import { goto } from "$app/navigation";
   import { ui } from "@canopy/contracts";
   import { workerPresence } from "#lib/features/computers/computers.ts";
@@ -29,6 +30,9 @@
   import ChoiceStep from "./ChoiceStep.svelte";
   import UrlStep from "./UrlStep.svelte";
   import CopyWorkspaceStep from "./CopyWorkspaceStep.svelte";
+  import { CloneProjectState } from "./clone-project.svelte.ts";
+  import { create } from "@bufbuild/protobuf";
+  import { CLONE_RPC_TIMEOUT_MS } from "@canopy/domain/clone-progress";
 
   /**
    * Add project (docs/linked-computers.md, "Dodawanie projektu na dowolnym komputerze"): a keyboard-first dialog
@@ -40,6 +44,10 @@
 
   const overview = useOverview();
   const capabilities = useGatewayCapabilities();
+  const clone = new CloneProjectState();
+
+  onDestroy(() => clone.cancel());
+
   let dialog = $state<HTMLDialogElement>();
   let stack = $state.raw<(Step | CopyStep)[]>([{ kind: "worker" }]);
   let copySource = $state<ui.Workspace>();
@@ -128,6 +136,7 @@
       dialog.showModal();
       cloneUrl = "";
       cloneUrlChosen = false;
+      clone.reset();
 
       if (flow.project) void readCloneUrl(flow.project);
     }
@@ -164,6 +173,7 @@
     if (stack.length < 2 || busy) return;
     direction = -1;
     error = undefined;
+    clone.reset();
     stack = stack.slice(0, -1);
   }
 
@@ -201,15 +211,22 @@
     error = undefined;
 
     try {
-      const response = decode(
-        ui.AddProjectResponseSchema,
-        await requestJson(
-          "POST",
-          "/api/projects",
-          { ...addRequest(worker, browseMode(source), target, url), projectId: flow.project?.id },
-          6.5 * 60_000,
-        ),
-      );
+      const request = { ...addRequest(worker, browseMode(source), target, url), projectId: flow.project?.id };
+
+      const response =
+        browseMode(source) === "clone"
+          ? await clone.run(
+              create(ui.AddProjectRequestSchema, {
+                workerId: worker.id,
+                projectId: flow.project?.id ?? "",
+                source: { case: "clone", value: { parentPath: target.dir, name: target.name, url } },
+              }),
+              worker.cloneProgress,
+            )
+          : decode(
+              ui.AddProjectResponseSchema,
+              await requestJson("POST", "/api/projects", request, CLONE_RPC_TIMEOUT_MS),
+            );
 
       const project = response.project;
       const name = (project && overview.projectChoice(project.id)?.name) ?? project?.name ?? "the project";
@@ -223,7 +240,11 @@
       if (flow.openProject && local) await goto(`/settings/projects/${encodeURIComponent(local)}`);
     } catch (cause) {
       busy = false;
-      error = cause instanceof Error ? cause.message : String(cause);
+      error = clone.cancelled
+        ? "Cloning cancelled. Retry when ready."
+        : cause instanceof Error
+          ? cause.message
+          : String(cause);
     }
   }
 </script>
@@ -297,6 +318,7 @@
             parent={flow.project ? workspaceParent(worker, overview.projects) : ""}
             {busy}
             {error}
+            {clone}
             onsubmit={(target) =>
               source === "copy" && copySource
                 ? push({ kind: "copy", worker, workspace: copySource, parent: target.dir, name: target.name })

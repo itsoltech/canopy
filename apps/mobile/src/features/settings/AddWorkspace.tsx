@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { ScrollView } from "react-native";
-import { ConnectError } from "@connectrpc/connect";
-import type { ui } from "@canopy/contracts";
+import { create } from "@bufbuild/protobuf";
+import { ui } from "@canopy/contracts";
 import { workspaceDirectoryName, workspaceParent } from "@canopy/domain/workspace-sources";
 import { useOverview } from "../../state/overview";
-import { useSession } from "../../state/session";
 import { Button, Notice } from "../../ui/components";
 import { SettingChoice } from "./SettingsGroup";
 import { DirectoryBrowser } from "./DirectoryBrowser";
@@ -14,6 +13,8 @@ import { useWorkspaceSource } from "./workspace-source";
 import { WorkspaceCloneFields } from "./WorkspaceCloneFields";
 import { WorkspaceCopy } from "./WorkspaceCopy";
 import { WorkspaceSourceChoice } from "./WorkspaceSourceChoice";
+import { useAddProject } from "./use-add-project";
+import { CloneProgress } from "./CloneProgress";
 
 interface AddWorkspaceProps {
   project: ui.Project;
@@ -24,7 +25,6 @@ interface AddWorkspaceProps {
 /** All sources share the same project and destination worker. */
 export function AddWorkspace({ project, onSaved, onBusy }: AddWorkspaceProps) {
   const { workers, projects } = useOverview();
-  const { client } = useSession();
   const presence = useWorkerPresence();
   const workerOptions = useWorkerOptions();
   const [workerId, setWorkerId] = useState("");
@@ -32,42 +32,25 @@ export function AddWorkspace({ project, onSaved, onBusy }: AddWorkspaceProps) {
   const [path, setPath] = useState("");
   const [name, setName] = useState(workspaceDirectoryName(project.workspaces[0]?.rootPath || project.name));
   const { url, setUrl } = useWorkspaceSource(project);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const action = useAddProject(onSaved, onBusy);
+  const { busy, error } = action;
   const worker = workers.find((w) => w.id === workerId);
   const available = presence(worker).online && !project.workspaces.some((w) => w.workerId === workerId);
   const copySource = project.workspaces.find((w) => source === `copy:${w.id}`);
 
   async function add() {
-    if (!client || busy || !available) return;
-    setBusy(true);
-    onBusy(true);
-    setError("");
-
-    try {
-      await client.api.addProject(
-        {
-          projectId: project.id,
-          workerId,
-          source:
-            source === "directory"
-              ? { case: "directoryPath", value: path }
-              : { case: "clone", value: { parentPath: path, name, url } },
-        },
-        { timeoutMs: 6 * 60_000 + 15_000 },
-      );
-      onBusy(false);
-      onSaved();
-    } catch (cause) {
-      setError(
-        cause instanceof ConnectError
-          ? cause.rawMessage
-          : "Could not add the workspace. Check the connection and retry.",
-      );
-    } finally {
-      setBusy(false);
-      onBusy(false);
-    }
+    if (busy || !available) return;
+    await action.add(
+      create(ui.AddProjectRequestSchema, {
+        projectId: project.id,
+        workerId,
+        source:
+          source === "directory"
+            ? { case: "directoryPath", value: path }
+            : { case: "clone", value: { parentPath: path, name, url } },
+      }),
+      worker?.cloneProgress ?? false,
+    );
   }
 
   if (worker && copySource)
@@ -98,7 +81,7 @@ export function AddWorkspace({ project, onSaved, onBusy }: AddWorkspaceProps) {
           setWorkerId(id);
           const next = workers.find((w) => w.id === id);
           setPath(next ? workspaceParent(next, projects) : "");
-          setError("");
+          action.reset();
         }}
         options={workerOptions(workers.filter((w) => !w.revokedAt)).map((option) => {
           const existing = project.workspaces.some((ws) => ws.workerId === option.value);
@@ -117,7 +100,10 @@ export function AddWorkspace({ project, onSaved, onBusy }: AddWorkspaceProps) {
             workers={workers}
             project={project}
             source={source}
-            setSource={setSource}
+            setSource={(value) => {
+              setSource(value);
+              action.reset();
+            }}
             busy={busy}
           />
           {source === "clone" && (
@@ -126,15 +112,20 @@ export function AddWorkspace({ project, onSaved, onBusy }: AddWorkspaceProps) {
           {!busy && <DirectoryBrowser key={workerId} workerId={workerId} value={path} onChange={setPath} />}
         </>
       )}
-      {busy && (
-        <Notice>
-          {source === "clone" ? `Cloning on ${worker?.name}… This stops after 5 minutes.` : "Adding workspace…"}
-        </Notice>
+      {source === "clone" && action.attempted && (
+        <CloneProgress
+          capable={worker?.cloneProgress ?? false}
+          progress={action.progress}
+          busy={busy}
+          failed={!!error}
+          onCancel={worker?.cloneProgress ? action.cancel : undefined}
+        />
       )}
+      {busy && source !== "clone" && <Notice>Adding workspace…</Notice>}
       {!!error && <Notice error>{error}</Notice>}
       <Button
         variant="primary"
-        title={source === "clone" ? "Clone workspace" : "Add workspace"}
+        title={error ? "Retry" : source === "clone" ? "Clone workspace" : "Add workspace"}
         busy={busy}
         disabled={
           !available || !path || (source === "clone" && (!worker?.projectSources || !name.trim() || !url.trim()))

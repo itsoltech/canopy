@@ -45,6 +45,7 @@ export const SERVED = new Set([
   "ListModels",
   "ListDirectory",
   "AddProject",
+  "CloneProject",
   "GetWorkspaceCloneSource",
   "GetWorkspaceCopyManifest",
   "WorkspaceCopySource",

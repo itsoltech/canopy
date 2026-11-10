@@ -12,9 +12,9 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { configLock } from "../config-sync/persistence.ts";
 import { safeCloneUrl } from "@canopy/domain/clone-url";
+import { coreCloneRepository, type CloneObserver } from "./core-clone.ts";
 
-/** A clone may take minutes; the worker stops git at 5 minutes, the gateway waits a little longer. */
-export const CLONE_COMMAND_TIMEOUT_MS = 5 * 60_000 + 15_000;
+export { CLONE_COMMAND_TIMEOUT_MS } from "@canopy/domain/clone-progress";
 
 const PROJECT_SOURCES = "project_sources";
 const adding = new WeakMap<GatewayCore, Set<string>>();
@@ -32,7 +32,11 @@ const directoryName = (path: string) =>
  * reaches this through the routed `AddProject` call, so it always runs at the worker's home, owner-scoped.
  * A directory whose git origin matches exactly one project here joins it instead of creating a duplicate.
  */
-export async function coreAddProject(core: GatewayCore, request: ui.AddProjectRequest): Promise<ui.AddProjectResponse> {
+export async function coreAddProject(
+  core: GatewayCore,
+  request: ui.AddProjectRequest,
+  observer?: CloneObserver,
+): Promise<ui.AddProjectResponse> {
   const key = `${request.projectId}:${request.workerId}`;
   const active = adding.get(core) ?? new Set<string>();
 
@@ -42,13 +46,17 @@ export async function coreAddProject(core: GatewayCore, request: ui.AddProjectRe
   active.add(key);
 
   try {
-    return await addProject(core, request);
+    return await addProject(core, request, observer);
   } finally {
     active.delete(key);
   }
 }
 
-async function addProject(core: GatewayCore, request: ui.AddProjectRequest): Promise<ui.AddProjectResponse> {
+async function addProject(
+  core: GatewayCore,
+  request: ui.AddProjectRequest,
+  observer?: CloneObserver,
+): Promise<ui.AddProjectResponse> {
   const selected = request.projectId
     ? (await core.overview()).projects.find((p) => p.id === request.projectId)
     : undefined;
@@ -84,23 +92,25 @@ async function addProject(core: GatewayCore, request: ui.AddProjectRequest): Pro
 
   if (!isAbsolutePath(requested, style(requested))) throw new InvalidError("Choose an absolute directory path");
 
-  const directory =
-    source.case === "directoryPath"
-      ? (await coreWorkerQuery(core, worker.id, { case: "listDirectory", value: { path: source.value } }, 15_000))
-          .directoryPath || source.value
-      : (
-          await coreWorkerQuery(
-            core,
-            worker.id,
-            source.case === "init"
-              ? { case: "initRepository", value: { parentPath: source.value.parentPath, name: source.value.name } }
-              : {
-                  case: "cloneRepository",
-                  value: { parentPath: source.value.parentPath, name: source.value.name, url: source.value.url },
-                },
-            source.case === "clone" ? CLONE_COMMAND_TIMEOUT_MS : 30_000,
-          )
-        ).directoryPath;
+  let directory: string;
+
+  if (source.case === "directoryPath")
+    directory =
+      (await coreWorkerQuery(core, worker.id, { case: "listDirectory", value: { path: source.value } }, 15_000))
+        .directoryPath || source.value;
+  else if (source.case === "clone") directory = await coreCloneRepository(core, worker.id, source.value, observer);
+  else
+    directory = (
+      await coreWorkerQuery(
+        core,
+        worker.id,
+        {
+          case: "initRepository",
+          value: { parentPath: source.value.parentPath, name: source.value.name },
+        },
+        30_000,
+      )
+    ).directoryPath;
 
   const origin = connection.hello.capabilities.includes("workspace_origin")
     ? await coreWorkerQuery(core, worker.id, { case: "readWorkspaceOrigin", value: { repoPath: directory } }, 5_000)
@@ -109,6 +119,7 @@ async function addProject(core: GatewayCore, request: ui.AddProjectRequest): Pro
     : "";
 
   return core[coreState].actions.transaction(async () => {
+    observer?.signal.throwIfAborted();
     const userId = core[coreState].options.userId;
     await core[coreState].actions.run(Effect.flatMap(SqlClient.SqlClient, (sql) => configLock(sql, userId)));
     const projects = (await core.overview()).projects.filter((p) => p.kind !== "scratch");

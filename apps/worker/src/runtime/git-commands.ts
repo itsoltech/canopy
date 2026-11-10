@@ -17,7 +17,7 @@ import { CommandError, type CommandOutput } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
 import { workspaceOrigin } from "../git/origin.ts";
 import { revealInFileManager } from "./reveal.ts";
-import { cloneRepository, initRepository } from "../git/project-sources.ts";
+import { initRepository } from "../git/project-sources.ts";
 import { WorktreeDiscovery, withKnownPaths } from "../git/discovery.ts";
 
 /** Git worktrees (docs/worktrees.md): refs of a workspace, new worktrees and their branch names. */
@@ -34,12 +34,6 @@ export class GitCommands {
 
   async initRepository(kind: Extract<Command["kind"], { case: "initRepository" }>): Promise<CommandOutput> {
     return { directoryPath: await gitStep(() => initRepository(kind.value.parentPath, kind.value.name)) };
-  }
-
-  async cloneRepository(kind: Extract<Command["kind"], { case: "cloneRepository" }>): Promise<CommandOutput> {
-    return {
-      directoryPath: await gitStep(() => cloneRepository(kind.value.parentPath, kind.value.name, kind.value.url)),
-    };
   }
 
   /** The managed root of new worktrees without a configured location. */

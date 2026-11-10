@@ -240,6 +240,9 @@ async function* send(
 ): AsyncGenerator<Message> {
   const outbound = clone(method.input, request);
 
+  if (method.name === "CloneProject" && !computers.capabilities(nodeId).includes("git_clone_progress_v1"))
+    throw new ConnectError("Update Canopy on the linked computer to see clone progress.", Code.FailedPrecondition);
+
   if (
     ["GetWorkspaceCopyManifest", "WorkspaceCopySource", "WorkspaceCopyTarget"].includes(method.name) &&
     !computers.capabilities(nodeId).includes("workspace_copy_scope_v2")
@@ -249,15 +252,15 @@ async function* send(
   const ids = await ConfigIds.for(core, nodeId);
 
   if (
-    method.name === "AddProject" &&
+    (method.name === "AddProject" || method.name === "CloneProject") &&
     linkedMessage(ui.AddProjectRequestSchema, outbound).projectId &&
     !computers.capabilities(nodeId).includes("project_workspaces")
   )
     throw new ConnectError("Update Canopy on the linked computer to add workspaces there.", Code.FailedPrecondition);
 
-  if (method.name === "AddProject" || method.name === "WorkspaceCopyTarget") {
+  if (method.name === "AddProject" || method.name === "CloneProject" || method.name === "WorkspaceCopyTarget") {
     const projectId =
-      method.name === "AddProject"
+      method.name === "AddProject" || method.name === "CloneProject"
         ? linkedMessage(ui.AddProjectRequestSchema, outbound).projectId
         : linkedMessage(ui.WorkspaceCopyTargetRequestSchema, outbound).projectId;
 

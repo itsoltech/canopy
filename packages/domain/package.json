@@ -38,6 +38,7 @@
     "./worker-choices": "./src/worker-choices.ts",
     "./workspace-copy": "./src/workspace-copy.ts",
     "./clone-url": "./src/clone-url.ts",
+    "./clone-progress": "./src/clone-progress.ts",
     "./git-heads": "./src/git-heads.ts",
     "./thread-files": "./src/thread-files.ts",
     "./json": "./src/json.ts",
