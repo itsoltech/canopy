@@ -7,7 +7,15 @@
    * Forced-colors intentionally restores the OS control for high-contrast accessibility. */
   type Props = Omit<HTMLInputAttributes, "class" | "type"> & { type?: "checkbox" | "radio"; class?: ClassValue };
 
-  let { type = "checkbox", class: className, checked = $bindable(false), onchange, ...rest }: Props = $props();
+  let {
+    type = "checkbox",
+    class: className,
+    checked = $bindable(false),
+    indeterminate = false,
+    onchange,
+    ...rest
+  }: Props = $props();
+
   let input: HTMLInputElement;
 
   // Overlays (docs/ui-scale.md): 18px on touch screens, 14px from `sm`.
@@ -29,12 +37,13 @@
     {type}
     {...rest}
     {checked}
+    {indeterminate}
     onchange={(event) => {
       checked = event.currentTarget.checked;
       onchange?.(event);
     }}
     class={[
-      "col-start-1 row-start-1 size-full appearance-none border border-zinc-300 bg-white checked:border-brand-600 checked:bg-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:opacity-50 dark:border-white/15 dark:bg-white/5 dark:checked:border-brand-500 dark:checked:bg-brand-500 forced-colors:appearance-auto",
+      "col-start-1 row-start-1 size-full appearance-none border border-zinc-300 bg-white checked:border-brand-600 checked:bg-brand-600 indeterminate:border-brand-600 indeterminate:bg-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:opacity-50 dark:border-white/15 dark:bg-white/5 dark:checked:border-brand-500 dark:checked:bg-brand-500 dark:indeterminate:border-brand-500 dark:indeterminate:bg-brand-500 forced-colors:appearance-auto",
       type === "radio" ? "rounded-full" : "rounded-sm",
     ]}
   />
@@ -46,10 +55,15 @@
     <svg
       viewBox="0 0 14 14"
       fill="none"
-      class="pointer-events-none col-start-1 row-start-1 size-7/8 self-center justify-self-center stroke-on-control group-not-has-checked:opacity-0 group-has-disabled:opacity-60 forced-colors:hidden"
+      class="pointer-events-none col-start-1 row-start-1 size-7/8 self-center justify-self-center stroke-on-control group-not-has-checked:group-not-has-[:indeterminate]:opacity-0 group-has-disabled:opacity-60 forced-colors:hidden"
       aria-hidden="true"
     >
-      <path d="M3 8L6 11L11 3.5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+      <path
+        d={indeterminate ? "M3 7H11" : "M3 8L6 11L11 3.5"}
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
     </svg>
   {/if}
   <TouchTarget />

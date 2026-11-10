@@ -6,6 +6,7 @@ import "canopy/ui/v1/attachments.proto";
 import "google/protobuf/empty.proto";
 
 package canopy.ui.v1;
+import "canopy/ui/v1/workspace_copy.proto";
 
 import "google/protobuf/timestamp.proto";
 import "canopy/worker/v1/worker_link.proto";
@@ -136,6 +137,10 @@ service GatewayService {
   // Katalog na workerze (istniejący, nowy z git init albo klon) jako workspace: dołącza do projektu
   // o tym samym git origin albo tworzy nowy projekt. Trasowane do domu workera.
   rpc AddProject(AddProjectRequest) returns (AddProjectResponse);
+  rpc GetWorkspaceCopyManifest(GetWorkspaceCopyManifestRequest) returns (GetWorkspaceCopyManifestResponse);
+  rpc CopyWorkspace(CopyWorkspaceRequest) returns (stream WorkspaceCopyProgress);
+  rpc WorkspaceCopySource(WorkspaceCopySourceRequest) returns (WorkspaceCopySourceResponse);
+  rpc WorkspaceCopyTarget(WorkspaceCopyTargetRequest) returns (WorkspaceCopyTargetResponse);
   // Credential-free clone URL of an owner-scoped workspace's origin, read on its worker.
   rpc GetWorkspaceCloneSource(GetWorkspaceCloneSourceRequest) returns (GetWorkspaceCloneSourceResponse);
 
@@ -436,6 +441,7 @@ message Worker {
   bool worktrees = 804;
   // Worker tworzy katalogi nowych projektów i klony (capability "project_sources").
   bool project_sources = 805;
+  bool workspace_copy = 860;
   // Domyślny folder nowych worktree zgłoszony przez workera (Hello.worktrees_root); pusty = brak worktrees.
   string worktrees_root = 806;
   // Worker importuje dane CLI (capability "cli_import_v1", docs/import.md).

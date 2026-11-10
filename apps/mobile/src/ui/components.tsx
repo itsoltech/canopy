@@ -83,16 +83,19 @@ export function Sheet({
   visible,
   onClose,
   children,
+  scroll = true,
 }: {
   title: string;
   visible: boolean;
   onClose: () => void;
   children: ReactNode;
+  scroll?: boolean;
 }) {
   const c = useColors();
 
   return (
     <SheetSurface
+      scroll={scroll}
       visible={visible}
       label={title}
       onClose={onClose}

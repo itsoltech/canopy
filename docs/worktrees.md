@@ -1,5 +1,9 @@
 # Worktrees (git)
 
+Kopiowanie workspace'u na nowy worker tworzy samodzielny checkout także ze
+źródłowego linked worktree'u. Wybór plików i ograniczenia Git:
+[workspace-copy.md](workspace-copy.md).
+
 Status: **etapy 1–3 zaimplementowane** (2026-11-04). Etap 1: ustawienia (Creation, Branches,
 domyślny tryb), operacje git na workerze (refy, tworzenie worktree z bazy, start z remote, nazwy gałęzi
 z semantycznym prefiksem), pickery w kompozytorze nowego wątku i wyświetlanie worktree wątku. Etap 2:

@@ -30,6 +30,7 @@ export type DirectoryEntryInit = MessageInitShape<typeof DirectoryEntrySchema>;
 export type ProfileModelsInit = MessageInitShape<typeof ProfileModelsSchema>;
 
 export interface CommandOutput {
+  readonly workspaceCopy?: MessageInitShape<typeof CommandResultSchema>["workspaceCopy"];
   readonly switchedHead?: MessageInitShape<typeof CommandResultSchema>["switchedHead"];
   readonly workspaceOrigin?: string;
   readonly workspaceCloneUrl?: string;

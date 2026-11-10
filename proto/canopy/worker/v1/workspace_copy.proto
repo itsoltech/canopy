@@ -1,0 +1,65 @@
+syntax = "proto3";
+package canopy.worker.v1;
+
+// Transient, owner initiated file transfer. Never journal, log or put these messages in an outbox.
+message WorkspaceCopyEntry {
+  string path = 1;
+  uint64 size = 2;
+  uint32 mode = 3;
+  string symlink = 4;
+  bool directory = 5;
+  bool ignored = 6;
+  bool included = 7;
+  bool secret = 8;
+  bool metadata = 9;
+  string blocked = 10;
+}
+
+message WorkspaceCopyManifest {
+  string token = 1;
+  repeated WorkspaceCopyEntry entries = 2;
+  uint64 bytes = 3;
+  uint32 files = 4;
+}
+
+message WorkspaceCopyScan { string root_path = 1; }
+message WorkspaceCopyRead {
+  string token = 1;
+  string path = 2;
+  uint64 offset = 3;
+}
+message WorkspaceCopyPrepare {
+  string token = 1;
+  string parent_path = 2;
+  string name = 3;
+  repeated WorkspaceCopyEntry entries = 4;
+  uint64 bytes = 5;
+}
+message WorkspaceCopyChunk {
+  string token = 1;
+  string path = 2;
+  uint64 offset = 3;
+  bytes data = 4;
+  bool last = 5;
+  string sha256 = 6;
+}
+message WorkspaceCopyFinish {
+  string token = 1;
+  string sha256 = 2;
+}
+message WorkspaceCopyOperation {
+  oneof action {
+    WorkspaceCopyScan scan = 1;
+    WorkspaceCopyRead read = 2;
+    WorkspaceCopyPrepare prepare = 3;
+    WorkspaceCopyChunk write = 4;
+    WorkspaceCopyFinish finish = 5;
+    string cancel = 6;
+    string release = 7;
+  }
+}
+message WorkspaceCopyResult {
+  WorkspaceCopyManifest manifest = 1;
+  WorkspaceCopyChunk chunk = 2;
+  string directory = 3;
+}

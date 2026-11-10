@@ -29,6 +29,7 @@ interface WorkerListRow {
     homeDirectory?: string;
     worktreesRoot?: string;
     projectSources?: boolean;
+    workspaceCopy?: boolean;
     cliImport?: boolean;
     branchSwitch?: boolean;
   };
@@ -62,6 +63,7 @@ function listedWorker(r: WorkerListRow, online: ReadonlySet<string>) {
     worktrees: Boolean(r.capabilities?.worktreesRoot),
     worktreesRoot: r.capabilities?.worktreesRoot ?? "",
     projectSources: r.capabilities?.projectSources === true,
+    workspaceCopy: r.capabilities?.workspaceCopy === true,
     cliImport: r.capabilities?.cliImport === true,
     branchSwitch: r.capabilities?.branchSwitch === true,
     configVersion: r.config_version ? BigInt(r.config_version) : 0n,
@@ -114,6 +116,7 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
           worktreesRoot: hello.capabilities.includes("worktrees") ? hello.worktreesRoot : "",
           // New project directories and clones (InitRepository, CloneRepository).
           projectSources: hello.capabilities.includes("project_sources"),
+          workspaceCopy: hello.capabilities.includes("workspace_copy_v1"),
           // Threads, settings and libraries of the device's CLIs (docs/import.md).
           cliImport: hello.capabilities.includes("cli_import_v1"),
           branchSwitch: hello.capabilities.includes("git_branch_switch_v1"),
@@ -155,6 +158,7 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
                 SELECT w.id, w.name, w.os, w.version,
                        jsonb_build_object('hostname',w.capabilities->'hostname','homeDirectory',w.capabilities->'homeDirectory',
                          'worktreesRoot',w.capabilities->'worktreesRoot','projectSources',w.capabilities->'projectSources',
+                         'workspaceCopy',w.capabilities->'workspaceCopy',
                          'cliImport',w.capabilities->'cliImport','branchSwitch',w.capabilities->'branchSwitch') AS capabilities, w.last_seen_at, w.revoked_at,
                        coalesce(c.profile_names,'{}'::jsonb) AS profile_names,
                        c.version AS config_version, c.applied_version, c.apply_report

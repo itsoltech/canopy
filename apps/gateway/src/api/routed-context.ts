@@ -35,6 +35,8 @@ export const READS = new Set([
   "ListModels",
   "ListDirectory",
   "GetWorkspaceCloneSource",
+  "GetWorkspaceCopyManifest",
+  "WorkspaceCopySource",
   "GetAttachment",
   "GetThreadBlob",
   "ListMentionCatalog",

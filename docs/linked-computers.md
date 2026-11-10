@@ -182,7 +182,9 @@ Workery już przypisane do projektu mają stan **Already added**, a niedostępne
 Klon podpowiada edytowalny URL `origin` istniejącego workspace'u, nazwę jego katalogu i katalog nadrzędny
 innego projektu na docelowym workerze (albo jego home). Klon kończy się po najwyżej 5 min; błędy i postęp
 są widoczne w dialogu. Po sukcesie workspace pojawia się na liście i w wyborze workera nowego wątku.
-Kopiowanie plików między workspace'ami pozostaje osobnym źródłem do dodania w przyszłości.
+Źródło **Copy from …** kopiuje wybrane pliki istniejącego workspace'u także
+przez połączone komputery. Wybór plików, sekrety, limity i trwałość:
+[workspace-copy.md](workspace-copy.md).
 
 `AddProject.project_id` (5) jawnie wskazuje istniejący projekt właściciela. Gateway sprawdza projekt,
 workera i brak workspace'u na tym workerze **przed** operacją na dysku. Wspólny projekt przechodzi

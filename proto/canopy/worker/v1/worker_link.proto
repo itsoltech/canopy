@@ -7,6 +7,7 @@ package canopy.worker.v1;
 import "google/protobuf/timestamp.proto";
 import "canopy/worker/v1/agent_environment.proto";
 import "canopy/worker/v1/cli_import.proto";
+import "canopy/worker/v1/workspace_copy.proto";
 
 // Jednorazowa rejestracja nowego workera tokenem z UI.
 service WorkerEnrollmentService {
@@ -396,6 +397,8 @@ message Command {
     SwitchThreadBranch switch_thread_branch = 219;
     // Capability reveal_path; otwiera katalog menedżerem plików na komputerze workera. Nietrwała.
     RevealPath reveal_path = 220;
+    // Capability workspace_copy_v1. Transient, including all file bytes and results.
+    WorkspaceCopyOperation workspace_copy = 221;
     // CLI dostawców (sekcja na końcu pliku). Nietrwała: nigdy z outboxa.
     InstallCli install_cli = 800;
     // Nietrwałe metadane konta; capability provider_account_status, bez journala/outboxa.
@@ -660,6 +663,7 @@ message CommandResult {
   string workspace_origin = 216;
   // Credential-free clone URL; only requested by GetWorkspaceCloneSource, never persisted.
   string workspace_clone_url = 220;
+  WorkspaceCopyResult workspace_copy = 221;
   ThreadGitHead switched_head = 219;
   ProviderAccountsReport provider_accounts = 810;
   // Wynik ScanImportSources (docs/import.md).

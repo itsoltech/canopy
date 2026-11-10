@@ -30,6 +30,7 @@ import { HostContext } from "./host-context.ts";
 import { HeadTracker } from "../git/heads.ts";
 import { recoverShellInputs } from "./shell-input.ts";
 import { UpdateCheckTimer } from "@canopy/domain/update-checks";
+import { WorkspaceCopies } from "../workspace-copy/index.ts";
 
 export type { WorkerHostOptions } from "./host-types.ts";
 /**
@@ -68,6 +69,7 @@ const NOT_REMEMBERED: ReadonlySet<Command["kind"]["case"]> = new Set([
   "readWorkspaceOrigin",
   "initRepository",
   "cloneRepository",
+  "workspaceCopy",
   "switchThreadBranch",
   "listGitRefs",
   "createWorktree",
@@ -85,6 +87,7 @@ const NOT_REMEMBERED: ReadonlySet<Command["kind"]["case"]> = new Set([
 ]);
 
 export class WorkerHost {
+  readonly #copies: WorkspaceCopies;
   readonly #cliChecks: UpdateCheckTimer;
   readonly #commands = new Map<string, Promise<CommandResultInit | undefined>>();
   readonly secrets: ThreadSecretFiles;
@@ -105,6 +108,7 @@ export class WorkerHost {
     return this.#ctx.state.config;
   }
   constructor(options: WorkerHostOptions) {
+    this.#copies = new WorkspaceCopies(options.dataDir);
     this.#cliChecks = new UpdateCheckTimer(options.cliCheckClock);
     const state = new HostState(options);
     this.#ctx = new HostContext(state, {
@@ -284,11 +288,19 @@ export class WorkerHost {
     try {
       // A CLI being installed: its new work waits for the install to end (docs/provider-cli.md).
       if (provider) await this.#ctx.state.cli.settled(provider);
-      const output = await this.#ctx.ops.execute(command);
+
+      if (command.kind.case === "workspaceCopy" && command.kind.value.action.case === "scan")
+        this.#ctx.ops.checkCwd(command.kind.value.action.value.rootPath);
+
+      const output =
+        command.kind.case === "workspaceCopy"
+          ? { workspaceCopy: await this.#copies.execute(command.kind.value) }
+          : await this.#ctx.ops.execute(command);
 
       const result: CommandResultInit = {
         commandId: command.commandId,
         ok: true,
+        ...(output.workspaceCopy && { workspaceCopy: output.workspaceCopy }),
         ...(output.entries && { entries: output.entries }),
         ...(output.directoryPath && { directoryPath: output.directoryPath }),
         ...(output.models && { models: output.models }),
@@ -341,6 +353,7 @@ export class WorkerHost {
   }
 
   async close(): Promise<void> {
+    await this.#copies.close();
     this.#ctx.state.closing = true;
 
     for (const run of this.#ctx.state.shellRuns.values()) run.controller.abort("worker_shutdown");

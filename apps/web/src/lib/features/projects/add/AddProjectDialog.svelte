@@ -19,6 +19,7 @@
     type SourceChoice,
     type SourceKind,
     type Step,
+    type CopyStep,
   } from "./add-project-flow.ts";
   import type { AddProjectState } from "./add-project.svelte.ts";
   import BrowseStep from "./BrowseStep.svelte";
@@ -26,6 +27,7 @@
   import { workspaceParent, workspaceDirectoryName } from "@canopy/domain/workspace-sources";
   import ChoiceStep from "./ChoiceStep.svelte";
   import UrlStep from "./UrlStep.svelte";
+  import CopyWorkspaceStep from "./CopyWorkspaceStep.svelte";
 
   /**
    * Add project (docs/linked-computers.md, "Dodawanie projektu na dowolnym komputerze"): a keyboard-first dialog
@@ -38,7 +40,8 @@
   const overview = useOverview();
   const capabilities = useGatewayCapabilities();
   let dialog = $state<HTMLDialogElement>();
-  let stack = $state.raw<Step[]>([{ kind: "worker" }]);
+  let stack = $state.raw<(Step | CopyStep)[]>([{ kind: "worker" }]);
+  let copySource = $state<ui.Workspace>();
   let direction = $state(1);
   let busy = $state(false);
   let error = $state<string>();
@@ -48,7 +51,7 @@
   let cloneUrl = $state("");
   let cloneUrlChosen = $state(false);
 
-  const step = $derived<Step>(stack.at(-1) ?? { kind: "worker" });
+  const step = $derived<Step | CopyStep>(stack.at(-1) ?? { kind: "worker" });
   const computerOf = (worker: ui.Worker) => overview.machine(worker.nodeId) ?? "This computer";
 
   const workerChoices = $derived<Choice<ui.Worker>[]>(
@@ -78,21 +81,44 @@
       }),
   );
 
-  const sourceChoices = (worker: ui.Worker): Choice<SourceChoice>[] =>
-    SOURCES.filter((source) => !flow.project || source.kind === "directory" || source.kind === "url").map((source) => ({
-      key: source.kind,
-      value: source,
-      title: flow.project && source.kind === "url" ? "Clone repository" : source.title,
-      detail:
-        source.creates && !worker.projectSources
-          ? `Update Canopy on ${computerOf(worker)} to use this`
-          : source.kind === "directory" && worker.nodeId
-            ? `Browse a directory on ${computerOf(worker)}`
-            : source.detail,
-      icon: source.icon,
-      mark: source.mark,
-      disabled: source.creates && !worker.projectSources,
-    }));
+  const sourceChoices = (worker: ui.Worker): Choice<SourceChoice>[] => [
+    ...SOURCES.filter((source) => !flow.project || source.kind === "directory" || source.kind === "url").map(
+      (source) => ({
+        key: source.kind,
+        value: source,
+        title: flow.project && source.kind === "url" ? "Clone repository" : source.title,
+        detail:
+          source.creates && !worker.projectSources
+            ? `Update Canopy on ${computerOf(worker)} to use this`
+            : source.kind === "directory" && worker.nodeId
+              ? `Browse a directory on ${computerOf(worker)}`
+              : source.detail,
+        icon: source.icon,
+        mark: source.mark,
+        disabled: source.creates && !worker.projectSources,
+      }),
+    ),
+    ...(flow.project
+      ? (overview.projectChoice(flow.project.id)?.workspaces ?? flow.project.workspaces).map((workspace) => {
+          const from = overview.worker(workspace.workerId);
+          const online = from && workerPresence(from, overview.computer(from.nodeId)).online;
+
+          return {
+            key: `copy:${workspace.id}`,
+            value: { kind: "copy" as const, title: "Copy workspace", detail: "", creates: true, workspace },
+            title: `Copy from ${from?.name || workspace.label || "workspace"}`,
+            detail:
+              !worker.workspaceCopy || !from?.workspaceCopy
+                ? "Update this worker to copy files"
+                : !online
+                  ? "Start the source worker to copy files"
+                  : workspace.rootPath,
+            disabled: !worker.workspaceCopy || !from?.workspaceCopy || !online,
+            icon: "folder-open" as const,
+          };
+        })
+      : []),
+  ];
 
   $effect(() => {
     if (!dialog) return;
@@ -133,7 +159,7 @@
     if (!busy) flow.open = false;
   };
 
-  function push(next: Step) {
+  function push(next: Step | CopyStep) {
     direction = 1;
     error = undefined;
     stack = [...stack, next];
@@ -146,7 +172,9 @@
     stack = stack.slice(0, -1);
   }
 
-  function chooseSource(worker: ui.Worker, source: SourceKind) {
+  function chooseSource(worker: ui.Worker, choice: SourceChoice) {
+    const source = choice.kind;
+    copySource = choice.workspace;
     push(
       source === "url" || source === "github"
         ? { kind: "remote", worker, source }
@@ -236,7 +264,7 @@
             label="Sources on {worker.name}"
             placeholder="Search sources…"
             choices={sourceChoices(worker)}
-            onchoose={(source) => chooseSource(worker, source.kind)}
+            onchoose={(source) => chooseSource(worker, source)}
             onback={back}
             onclose={close}
           />
@@ -259,7 +287,13 @@
           <BrowseStep
             {worker}
             mode={browseMode(source)}
-            actionLabel={flow.project ? (source === "directory" ? "Add workspace" : "Clone workspace") : undefined}
+            actionLabel={flow.project
+              ? source === "copy"
+                ? "Choose files"
+                : source === "directory"
+                  ? "Add workspace"
+                  : "Clone workspace"
+              : undefined}
             name={flow.project
               ? workspaceDirectoryName(flow.project.workspaces[0]?.rootPath || flow.project.name)
               : remote
@@ -268,7 +302,21 @@
             parent={flow.project ? workspaceParent(worker, overview.projects) : ""}
             {busy}
             {error}
-            onsubmit={(target) => add(worker, source, remote, target)}
+            onsubmit={(target) =>
+              source === "copy" && copySource
+                ? push({ kind: "copy", worker, workspace: copySource, parent: target.dir, name: target.name })
+                : add(worker, source, remote, target)}
+            onback={back}
+            onclose={close}
+          />
+        {:else if step.kind === "copy" && flow.project}
+          <CopyWorkspaceStep
+            project={flow.project}
+            worker={step.worker}
+            workspace={step.workspace}
+            parent={step.parent}
+            name={step.name}
+            onbusy={(value) => (busy = value)}
             onback={back}
             onclose={close}
           />

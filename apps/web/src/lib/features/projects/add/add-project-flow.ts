@@ -2,7 +2,7 @@ import type { ui } from "@canopy/contracts";
 import type { IconName } from "#lib/shared/ui/icons.ts";
 
 /** Where the new workspace comes from (docs/linked-computers.md, "Dodawanie projektu na dowolnym komputerze"). */
-export type SourceKind = "directory" | "init" | "url" | "github";
+export type SourceKind = "directory" | "init" | "url" | "github" | "copy";
 
 export interface SourceChoice {
   readonly kind: SourceKind;
@@ -13,6 +13,7 @@ export interface SourceChoice {
   readonly mark?: string;
   /** Needs a worker that creates directories and clones (`Worker.project_sources`). */
   readonly creates: boolean;
+  readonly workspace?: ui.Workspace;
 }
 
 export const SOURCES: readonly SourceChoice[] = [
@@ -50,10 +51,19 @@ export type Step =
   | { readonly kind: "remote"; readonly worker: ui.Worker; readonly source: SourceKind }
   | { readonly kind: "browse"; readonly worker: ui.Worker; readonly source: SourceKind; readonly remote: string };
 
-/** What the browser adds: the open directory itself, or a new directory in it. */
-export type BrowseMode = "add" | "create" | "clone";
+// Copy keeps its source separate from the destination worker and directory.
+export type CopyStep = {
+  readonly kind: "copy";
+  readonly worker: ui.Worker;
+  readonly workspace: ui.Workspace;
+  readonly parent: string;
+  readonly name: string;
+};
 
-const MODES = { directory: "add", init: "create", url: "clone", github: "clone" } satisfies Record<
+/** What the browser adds: the open directory itself, or a new directory in it. */
+export type BrowseMode = "add" | "create" | "clone" | "copy";
+
+const MODES = { directory: "add", init: "create", url: "clone", github: "clone", copy: "copy" } satisfies Record<
   SourceKind,
   BrowseMode
 >;
@@ -64,12 +74,14 @@ export const ACTION_LABELS: Record<BrowseMode, string> = {
   add: "Add directory",
   create: "Create project",
   clone: "Clone project",
+  copy: "Choose files",
 };
 
 export const BUSY_LABELS: Record<BrowseMode, string> = {
   add: "Adding…",
   create: "Creating…",
   clone: "Cloning…",
+  copy: "Copying…",
 };
 
 const GITHUB_REPO = /^[\w.-]+\/[\w.-]+$/;
