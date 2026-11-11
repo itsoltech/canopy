@@ -1,9 +1,13 @@
 import { ThreadCache } from "@canopy/domain/thread-cache";
 import { ui } from "@canopy/contracts";
-import { loadHistory, saveHistory } from "../desktop/history.ts";
+import { loadHistory, removeHistory, saveHistory } from "../desktop/history.ts";
 
 /** SPA memory, with private Electron persistence when the preload bridge is available. */
 class ClientThreadCache extends ThreadCache {
+  forget(id: string) {
+    super.delete(id);
+    removeHistory(`thread_${id}`);
+  }
   async load(id: string) {
     const cached = this.get(id) ?? (await loadHistory(ui.ThreadSnapshotSchema, `thread_${id}`));
 

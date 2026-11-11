@@ -77,6 +77,7 @@
   import type { PageProps } from "./$types";
   import ThreadComposerSlot from "#lib/features/threads/components/ThreadComposerSlot.svelte";
   import ThreadSyncStatus from "#lib/features/threads/components/ThreadSyncStatus.svelte";
+  import ThreadWatchNotice from "#lib/features/threads/components/ThreadWatchNotice.svelte";
   import ThreadMenuItems from "#lib/features/threads/components/ThreadMenuItems.svelte";
   import ThreadSearch from "#lib/features/threads/components/ThreadSearch.svelte";
   import MenuItem from "#lib/shared/ui/MenuItem.svelte";
@@ -532,7 +533,9 @@
               ? "/settings/threads"
               : `/settings/projects/${project.id}`
             : undefined}
-          >{#snippet mark()}{#key thread.id}<ThreadSyncStatus syncing={!away && view.connection !== "live"}>
+          >{#snippet mark()}{#key thread.id}<ThreadSyncStatus
+                syncing={!away && !view.failure && view.connection !== "live"}
+              >
                 <ProjectMark name={project?.name ?? "?"} kind={project?.kind} />
               </ThreadSyncStatus>{/key}{/snippet}{project?.name ?? "Project"}</Crumb
         >
@@ -581,9 +584,7 @@
     {#if thread?.status === "failed" && thread.statusDetail}
       <Alert tone="error" banner title="The thread failed">{thread.statusDetail}</Alert>
     {/if}
-    {#if !away && view.connection === "reconnecting" && overview.connection !== "unavailable"}
-      <Alert tone="info" banner>{view.failure ?? "Reconnecting to live updates…"}</Alert>
-    {/if}
+    <ThreadWatchNotice {view} />
 
     <div class="relative min-h-0 flex-1 md:pl-9" bind:this={feedRegion}>
       {#key threadId}

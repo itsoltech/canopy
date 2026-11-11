@@ -29,12 +29,14 @@ export function useStream<T>(
   watch: ((signal: AbortSignal) => AsyncIterable<T>) | null,
   receive: (value: T) => void | boolean,
   key: string,
+  threadFailure?: (error: ConnectError) => { retry: boolean; issue: string },
 ) {
   const { active, online, epoch, expired, client } = useSession();
   const { planned } = useGatewayDeparture();
   const start = useEffectEvent((signal: AbortSignal) => watch!(signal));
   const onReceive = useEffectEvent(receive);
   const onExpired = useEffectEvent(expired);
+  const onThreadFailure = useEffectEvent((error: ConnectError) => threadFailure?.(error));
   const recovery = useMemo(() => new ConnectionRecovery(), [key, client]);
   const [state, setState] = useState<StreamStatus>({ key: "", connection: "connecting", retrying: false });
   const [attempt, setAttempt] = useState(0);
@@ -52,6 +54,7 @@ export function useStream<T>(
       const { status, ...activity } = recovery.snapshot;
       setState((current) => ({
         detail: current.key === subscriptionKey ? current.detail : undefined,
+        issue: current.key === subscriptionKey ? current.issue : undefined,
         key: subscriptionKey,
         connection: status,
         ...activity,
@@ -80,7 +83,11 @@ export function useStream<T>(
       receive: (value) => {
         const live = onReceive(value) !== false;
 
-        if (live) recovery.succeeded();
+        if (live) {
+          recovery.succeeded();
+          setState((current) => ({ ...current, issue: undefined }));
+        }
+
         publish();
 
         if (!live && recovery.snapshot.status !== "unavailable")
@@ -94,6 +101,14 @@ export function useStream<T>(
           void onExpired();
 
           return false;
+        }
+
+        const scoped = onThreadFailure(error);
+
+        if (scoped) {
+          setState((current) => ({ ...current, key: subscriptionKey, issue: scoped.issue, connection: "error" }));
+
+          return scoped.retry;
         }
 
         if ([Code.NotFound, Code.PermissionDenied, Code.InvalidArgument].includes(code)) {
@@ -134,7 +149,9 @@ export function useStream<T>(
       : planned && state.connection === "unavailable"
         ? "reconnecting"
         : current
-          ? state.connection
+          ? threadFailure && state.issue
+            ? "error"
+            : state.connection
           : recovery.snapshot.status === "unavailable"
             ? "unavailable"
             : "connecting";

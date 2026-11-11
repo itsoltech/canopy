@@ -58,6 +58,15 @@ export class ThreadMirror {
     const ranged = await readRangeMirror(this.store, node, thread, history);
 
     if (ranged) return ranged;
+
+    if (history?.bounded) {
+      const threadHeader = await this.thread(node, thread);
+
+      if (!threadHeader) return undefined;
+
+      return { snapshot: create(ui.ThreadSnapshotSchema, { thread: threadHeader }), cursor: "" };
+    }
+
     const saved = await this.store.runtime.runPromise(readMirrorSnapshot(this.store.owner, node, thread));
 
     if (saved) qualify(ui.ThreadSnapshotSchema, saved.snapshot, node);

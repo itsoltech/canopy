@@ -2,7 +2,7 @@ import { ui } from "@canopy/contracts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 
-export type ThreadHistoryQuery = { bounded?: boolean } & Pick<
+export type ThreadHistoryQuery = { bounded?: boolean; beforeItemId?: string } & Pick<
   ui.WatchThreadRequest,
   "pageSize" | "beforeTurnId" | "targetItemId" | "historyVersion" | "fromTurnId"
 >;

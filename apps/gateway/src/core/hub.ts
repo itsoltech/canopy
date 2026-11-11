@@ -17,7 +17,21 @@ const limits = {
 export class Hub {
   constructor(readonly defer?: (action: () => void) => boolean) {}
   readonly #threads = new Map<string, Set<AsyncChannel<ui.ThreadUpdate>>>();
+  readonly #threadObservers = new Map<string, Set<(update: ui.ThreadUpdate) => void>>();
   readonly #overview = new Set<AsyncChannel<ui.OverviewUpdate>>();
+
+  /** Sequence readers only need invalidation and controls, without a transcript queue or serialization. */
+  observeThread(threadId: string, notify: (update: ui.ThreadUpdate) => void) {
+    const observers = this.#threadObservers.get(threadId) ?? new Set();
+    observers.add(notify);
+    this.#threadObservers.set(threadId, observers);
+
+    return () => {
+      observers.delete(notify);
+
+      if (!observers.size && this.#threadObservers.get(threadId) === observers) this.#threadObservers.delete(threadId);
+    };
+  }
 
   subscribeThread(threadId: string) {
     const channel = new AsyncChannel<ui.ThreadUpdate>(limits);
@@ -55,6 +69,7 @@ export class Hub {
   publishThread(threadId: string, update: ui.ThreadUpdate): void {
     if (this.defer?.(() => this.publishThread(threadId, update))) return;
 
+    for (const notify of this.#threadObservers.get(threadId) ?? []) notify(update);
     const channels = this.#threads.get(threadId);
 
     if (!channels?.size) return;

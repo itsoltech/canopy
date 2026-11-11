@@ -1203,9 +1203,17 @@ message WatchThreadRequest {
   bool watch_liveness = 808;
   // Internal linked token coalescing, only with thread_watch_coalesce on both peers.
   bool watch_coalesce = 810;
+  // Bounded window plus the per-thread replication sequence. Never a full snapshot.
+  bool sequence = 811;
+  ThreadSyncCursor sync_cursor = 812;
+  string before_item_id = 813;
 }
 
 message ThreadSnapshot {
+  ThreadSyncCursor sync_cursor = 811;
+  // Item keyset paging also covers a single very large turn and unattached items.
+  string history_before_item_id = 812;
+  bool history_items_has_more = 813;
   // Owner journal checkpoint read atomically with history. Empty on older gateways.
   string cursor = 800;
   string history_before_turn_id = 803;
@@ -1241,6 +1249,7 @@ message ThreadEventUpdate {
 }
 
 message ThreadUpdate {
+  ThreadSyncStatus sync_status = 814;
   // The snapshot is a local mirror; the home's current state is still pending.
   bool syncing = 800;
   // Internal idle heartbeat: current durable owner journal, independent of live fan-out.
@@ -1259,7 +1268,24 @@ message ThreadUpdate {
     ThreadSecret secret = 500;
     // Internal response to mirror_cursor. Routed gateways reconstruct the UI snapshot.
     ThreadSnapshotDelta delta = 801;
+    ThreadSyncBatch batch = 811;
+    ThreadControls controls = 815;
   }
+}
+
+message ThreadControls {
+  repeated Schedule schedules = 1;
+  repeated ThreadSecret secrets = 2;
+}
+message ThreadSyncStatus {
+  uint64 applied_seq = 1;
+  uint64 head_seq = 2;
+  uint64 remaining = 3;
+  bool caught_up = 4;
+  // Sanitized classification; empty means no thread-specific failure.
+  string reason = 5;
+  string computer_name = 6;
+  bool retryable = 7;
 }
 
 // Items and turns are upserts plus tombstones. Other snapshot fields replace metadata;

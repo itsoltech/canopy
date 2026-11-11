@@ -44,6 +44,7 @@ function useTimelineData(state: ThreadState) {
     readOnly: state.home.away || !thread || Boolean(thread.archivedAt || thread.deletedAt),
     thread: (id) => threads.find((t) => t.id === id) ?? (id === thread?.id ? thread : undefined),
     item: (id) => items.get(id),
+    content: (id) => snapshot?.items.find((entry) => entry.item?.itemId === id)?.contentRef,
     delivery: (callId) => snapshot?.busDeliveries.find((d) => d.callId === callId),
     queuedFallback: (turnId) => snapshot?.steers.find((s) => s.status === "queued" && s.queuedTurnId === turnId),
   };
@@ -102,9 +103,12 @@ export function ThreadTimeline({
           // Inverted: the footer is the top of the feed, the header sits under the latest turn.
           ListFooterComponent={
             <View style={{ gap: 16, paddingBottom: 16 }}>
-              <HistoryFooter hasMore={snapshot?.historyHasMore} history={state.history} />
+              <HistoryFooter
+                hasMore={snapshot?.historyHasMore || snapshot?.historyItemsHasMore}
+                history={state.history}
+              />
               {!snapshot && <ConversationSkeleton />}
-              {snapshot && !turns.length && <Notice>This thread is ready for your first message.</Notice>}
+              {snapshot?.thread && !turns.length && <Notice>This thread is ready for your first message.</Notice>}
             </View>
           }
           // A turn that arrives (a sent or queued message) fades in; one that only scrolls into view does not, and

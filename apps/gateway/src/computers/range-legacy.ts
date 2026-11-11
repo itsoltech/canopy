@@ -48,9 +48,15 @@ export function prepareRangeLegacy(sql: SqlClient.SqlClient, store: Pick<Compute
           if (record.value.case === "item") record.value.value.contentRef = record.content;
         }
 
-        yield* sql`INSERT INTO thread_replication_seed_entities(thread_id,kind,entity_id,payload)
-          VALUES(${thread}::uuid,${kind},${entity.id},${toBinary(ui.ThreadSyncRecordSchema, record)})
-          ON CONFLICT(thread_id,kind,entity_id) DO UPDATE SET payload=excluded.payload`;
+        let turnId = "";
+
+        if (entity.value.case === "item") turnId = entity.value.value.turnId;
+
+        if (entity.value.case === "turn") turnId = entity.value.value.id;
+
+        yield* sql`INSERT INTO thread_replication_seed_entities(thread_id,kind,entity_id,payload,turn_id,position)
+          VALUES(${thread}::uuid,${kind},${entity.id},${toBinary(ui.ThreadSyncRecordSchema, record)},${turnId},${entity.position})
+          ON CONFLICT(thread_id,kind,entity_id) DO UPDATE SET payload=excluded.payload,turn_id=excluded.turn_id,position=excluded.position`;
         yield* sql`SELECT thread_replication_enqueue(${thread}::uuid,${kind},${entity.id})`;
       }
     }

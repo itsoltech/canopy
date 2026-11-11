@@ -1,6 +1,7 @@
 import type { JsonValue } from "@bufbuild/protobuf";
 import { syncMetrics, syncCpu, syncCpuMicros } from "@canopy/transport";
 import { computerFailure } from "./gateway-errors.ts";
+import { ConnectError } from "@connectrpc/connect";
 
 const SSE_BUFFER_BYTES = 1024 * 1024;
 
@@ -64,10 +65,12 @@ export function sseResponse<T>(
           }
         } catch (cause) {
           if (!upstream.signal.aborted) {
-            if (computerFailure(cause)) send("event: away\ndata: {}\n\n");
+            const code = ConnectError.from(cause).code;
+
+            if (computerFailure(cause)) send(`event: away\ndata: ${JSON.stringify({ code, computer: true })}\n\n`);
             else {
-              console.error("event stream failed", cause);
-              send(`event: failure\ndata: ${JSON.stringify({ message: "stream interrupted" })}\n\n`);
+              console.warn("Event stream failed", { code });
+              send(`event: failure\ndata: ${JSON.stringify({ code, computer: false })}\n\n`);
             }
           }
         } finally {

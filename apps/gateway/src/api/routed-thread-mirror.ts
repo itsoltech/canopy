@@ -40,9 +40,11 @@ export async function* mirrorFirst(
 
   const input = linkedMessage(ui.WatchThreadRequestSchema, request);
 
+  if (input.sequence) return false;
+
   // A UI with its own base resumes directly at the home; a cold UI still gets the mirror first.
   if (input.incremental && input.cursor && !input.pageSize) return false;
-  const held = await computers.mirror.read(nodeId, threadId);
+  const held = await computers.mirror.read(nodeId, threadId, input.sequence ? { ...input, bounded: true } : undefined);
   const snapshot = held?.snapshot;
 
   if (!held || !snapshot?.thread) return false;
@@ -91,9 +93,11 @@ export async function* mirrorFirst(
 }
 
 function mirroredPage(snapshot: ui.ThreadSnapshot, input: ui.WatchThreadRequest, cursor: string) {
-  const value = threadHistory(create(ui.ThreadSnapshotSchema, { ...snapshot, cursor }), input);
+  const cached = create(ui.ThreadSnapshotSchema, { ...snapshot, cursor });
+  const value = input.sequence ? cached : threadHistory(cached, input);
 
   const unchanged =
+    !input.sequence &&
     !!cursor &&
     input.incremental &&
     input.cursor === cursor &&
@@ -125,13 +129,14 @@ export async function* offlineThread(
       : linkedMessage(ui.WatchThreadRequestSchema, request).threadId,
   ).id;
 
-  const held = await computers.mirror.read(nodeId, threadId);
+  const input = method.name === "WatchThread" ? linkedMessage(ui.WatchThreadRequestSchema, request) : undefined;
+  const held = await computers.mirror.read(nodeId, threadId, input?.sequence ? { ...input, bounded: true } : undefined);
   const snapshot = held?.snapshot;
 
-  if (!snapshot?.thread)
+  if (!snapshot?.thread && method.name === "GetThread")
     throw new ConnectError("This thread has not been synced yet. Connect its computer to read it.", Code.Unavailable);
 
-  if (method.name === "GetThread") yield create(ui.GetThreadResponseSchema, { thread: snapshot.thread });
+  if (method.name === "GetThread") yield create(ui.GetThreadResponseSchema, { thread: snapshot?.thread });
   else {
     const changes = new AsyncChannel<void>();
 
@@ -144,8 +149,19 @@ export async function* offlineThread(
 
     try {
       const input = linkedMessage(ui.WatchThreadRequestSchema, request);
-      const cursor = input.pageSize && held ? `offline:${held.cursor}` : snapshot.cursor;
-      yield mirroredPage(snapshot, input, cursor);
+      const cursor = !input.sequence && input.pageSize && held ? `offline:${held.cursor}` : (snapshot?.cursor ?? "");
+
+      const update = snapshot?.thread
+        ? mirroredPage(snapshot, input, cursor)
+        : create(ui.ThreadUpdateSchema, { syncing: true });
+
+      const computer = await computers.computer(nodeId);
+      update.syncStatus = create(ui.ThreadSyncStatusSchema, {
+        reason: "computer_unreachable",
+        computerName: computer?.displayName || computer?.name || "The other computer",
+        retryable: true,
+      });
+      yield update;
 
       if (!signal.aborted && !computers.reachable().includes(nodeId))
         for await (const _ of changes) {

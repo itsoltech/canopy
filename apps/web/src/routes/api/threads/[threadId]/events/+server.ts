@@ -4,22 +4,32 @@ import { gateway } from "#lib/server/gateway.ts";
 import { sseResponse } from "#lib/server/sse.ts";
 import { encode } from "#lib/shared/wire.ts";
 import type { RequestHandler } from "./$types";
+import { create } from "@bufbuild/protobuf";
 
 /**
- * One thread as SSE: a snapshot first, then live changes. After a reconnect (EventSource does it
- * automatically) the browser receives a fresh snapshot, so it never has to replay gaps itself. Text
- * deltas go out merged per line (`coalesceDeltas`), not per token.
+ * A bounded recent window, then sequence batches. Reconnects resume the applied checkpoint.
  */
 export const GET: RequestHandler = async ({ request, params, url }) => {
+  const cursor = (url.searchParams.get("cursor") ?? "").slice(0, 128);
+  const parsed = /^range:([a-f0-9-]{36}):(\d{1,20})$/.exec(cursor);
+  const seq = parsed && BigInt(parsed[2]!) <= 18446744073709551615n ? parsed : null;
+
   return sseResponse(
     request,
     async function* (signal) {
-      await gateway().getThread({ threadId: params.threadId }, { signal });
       yield* coalesceDeltas(
         gateway().watchThread(
           {
             threadId: params.threadId,
-            pageSize: 24,
+            pageSize: url.searchParams.get("smaller") === "1" ? 8 : 24,
+            sequence: true,
+            ...(seq && {
+              syncCursor: create(ui.ThreadSyncCursorSchema, {
+                threadId: params.threadId,
+                epoch: seq[1]!,
+                appliedSeq: BigInt(seq[2]!),
+              }),
+            }),
             incremental: url.searchParams.get("incremental") === "1",
             cursor: (url.searchParams.get("cursor") ?? "").slice(0, 128),
             fromTurnId: (url.searchParams.get("from") ?? "").slice(0, 128),

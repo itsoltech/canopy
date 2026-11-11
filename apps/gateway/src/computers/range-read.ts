@@ -5,6 +5,9 @@ import { SqlClient } from "effect/sql";
 import type { ThreadHistoryQuery } from "../store/thread-window.ts";
 import type { ComputerStore } from "./store.ts";
 import { qualify } from "./remote.ts";
+import { appendClientWindow } from "./range-window-records.ts";
+
+export { appendRecord } from "./range-record.ts";
 
 type Row = { payload: Uint8Array };
 
@@ -61,10 +64,11 @@ function readRangeWindow(
     const snapshot = create(ui.ThreadSnapshotSchema, {
       cursor: `range:${state.epoch}:${state.applied}`,
       historyVersion: state.epoch,
+      syncCursor: { threadId: thread, epoch: state.epoch, appliedSeq: BigInt(state.applied) },
+      historyReset: !!history?.historyVersion && history.historyVersion !== state.epoch,
     });
 
-    for (const record of metadata) appendRecord(snapshot, record);
-    const before = history?.beforeTurnId?.split("~")[0] ?? "";
+    const before = !snapshot.historyReset ? (history?.beforeTurnId?.split("~")[0] ?? "") : "";
     const limit = Math.min(history?.pageSize || 24, 100);
 
     const turns = records(
@@ -79,8 +83,6 @@ function readRangeWindow(
 
     snapshot.historyHasMore = turns.length > limit;
 
-    for (const record of turns.slice(0, limit).reverse()) appendRecord(snapshot, record);
-
     const queued = records(
       yield* sql.unsafe<Row>(
         `SELECT payload FROM thread_range_entities WHERE owner_user_id=$1::uuid AND origin_node_id=$2 AND thread_id=$3::uuid
@@ -89,55 +91,55 @@ function readRangeWindow(
       ),
     );
 
-    for (const record of queued) appendRecord(snapshot, record);
-    const ids = snapshot.turns.map((turn) => turn.id);
+    const beforeItem = !snapshot.historyReset ? (history?.beforeItemId?.split("~")[0] ?? "") : "";
+    const itemLimit = Math.min(128, limit * 6);
 
     const items = records(
       yield* sql.unsafe<Row>(
-        `WITH recent AS (SELECT payload,ordinal FROM thread_range_entities WHERE owner_user_id=$1::uuid AND origin_node_id=$2
-      AND thread_id=$3::uuid AND epoch=$4::uuid AND kind='item' AND (turn_id=ANY($5::text[]) OR turn_id='')
-      ORDER BY ordinal DESC LIMIT 512), bounded AS (SELECT payload,ordinal,sum(octet_length(payload)) OVER(ORDER BY ordinal DESC) AS bytes FROM recent)
-    SELECT payload FROM bounded WHERE bytes<=524288 ORDER BY ordinal`,
-        [...params, ids],
+        `WITH eligible AS (SELECT payload,ordinal,entity_key FROM thread_range_entities WHERE owner_user_id=$1::uuid AND origin_node_id=$2
+      AND thread_id=$3::uuid AND epoch=$4::uuid AND kind='item'), recent AS (
+      SELECT * FROM eligible WHERE (ordinal,entity_key)<coalesce((SELECT (ordinal,entity_key) FROM eligible
+      WHERE entity_key IN ('item:' || $5,'legacy_item:' || $5) LIMIT 1),ROW(9223372036854775807,''::text))
+      ORDER BY ordinal DESC,entity_key DESC LIMIT $6), bounded AS (SELECT payload,ordinal,entity_key,
+      sum(octet_length(payload)) OVER(ORDER BY ordinal DESC,entity_key DESC) AS bytes FROM recent)
+    SELECT payload FROM bounded WHERE bytes<=393216 ORDER BY ordinal DESC,entity_key DESC`,
+        [...params, beforeItem, itemLimit + 1],
       ),
     );
 
-    for (const record of items) appendRecord(snapshot, record);
-    snapshot.historyBeforeTurnId = snapshot.turns.find((turn) => turn.status !== "queued")?.id ?? "";
+    const oldestItem = items.slice(0, itemLimit).at(-1);
+    snapshot.historyItemsHasMore = oldestItem
+      ? (yield* sql.unsafe<{ more: boolean }>(
+          `SELECT EXISTS(
+      SELECT 1 FROM thread_range_entities WHERE owner_user_id=$1::uuid AND origin_node_id=$2 AND thread_id=$3::uuid
+      AND epoch=$4::uuid AND kind='item' AND (ordinal,entity_key)<($5::bigint,$6)) AS more`,
+          [...params, oldestItem.position.toString(), oldestItem.key],
+        ))[0]!.more
+      : false;
+
+    const missingTurns = items.flatMap((record) =>
+      record.value.case === "item" && record.value.value.turnId ? [record.value.value.turnId] : [],
+    );
+
+    const supporting = records(
+      yield* sql.unsafe<Row>(
+        `SELECT payload FROM thread_range_entities
+      WHERE owner_user_id=$1::uuid AND origin_node_id=$2 AND thread_id=$3::uuid AND epoch=$4::uuid
+      AND kind='turn' AND turn_id=ANY($5::text[]) ORDER BY ordinal`,
+        [...params, missingTurns],
+      ),
+    );
+
+    appendClientWindow(
+      snapshot,
+      [...metadata, ...turns.slice(0, limit), ...queued, ...items.slice(0, itemLimit), ...supporting],
+      turns.slice(0, limit).flatMap((record) => (record.value.case === "turn" ? [record.value.value.id] : [])),
+    );
+    snapshot.historyBeforeTurnId ||= before;
+    snapshot.historyBeforeItemId ||= beforeItem;
     snapshot.lastSeq = snapshot.thread?.lastSeq ?? 0n;
     qualify(ui.ThreadSnapshotSchema, snapshot, node);
 
     return { snapshot, cursor: snapshot.cursor };
   });
-}
-
-export function appendRecord(snapshot: ui.ThreadSnapshot, record: ui.ThreadSyncRecord) {
-  const value = record.value;
-
-  switch (value.case) {
-    case "thread":
-      snapshot.thread = value.value;
-      break;
-    case "turn":
-      snapshot.turns.push(value.value);
-      break;
-    case "item":
-      snapshot.items.push(value.value);
-      break;
-    case "notice":
-      snapshot.notices.push(value.value);
-      break;
-    case "interaction":
-      snapshot.interactions.push(value.value);
-      break;
-    case "goal":
-      snapshot.goal = value.value;
-      break;
-    case "steer":
-      snapshot.steers.push(value.value);
-      break;
-    case "busDelivery":
-      snapshot.busDeliveries.push(value.value);
-      break;
-  }
 }

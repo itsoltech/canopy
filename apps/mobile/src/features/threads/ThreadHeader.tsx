@@ -84,7 +84,7 @@ export function ThreadHeader({
         items={snapshot?.items ?? []}
         onClose={() => setSheet(null)}
         history={history}
-        hasMore={snapshot?.historyHasMore ?? false}
+        hasMore={Boolean(snapshot?.historyHasMore || snapshot?.historyItemsHasMore)}
       />
     </>
   );

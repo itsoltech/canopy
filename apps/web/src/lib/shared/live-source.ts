@@ -1,4 +1,5 @@
 import { ConnectionRecovery, type RecoverySnapshot } from "@canopy/domain/connection-recovery";
+import { readThreadWatchFailure, type ThreadWatchFailure } from "@canopy/domain/thread-watch-recovery";
 
 export interface LiveSourceHandlers {
   /** Compute a fresh checkpoint on every retry. */
@@ -8,6 +9,7 @@ export interface LiveSourceHandlers {
   readonly onmessage: (data: string) => void;
   readonly ondrop?: () => void;
   readonly onfailure?: () => void;
+  readonly onerror?: (failure: ThreadWatchFailure) => boolean;
   readonly onstatus?: (state: RecoverySnapshot) => void;
 }
 
@@ -65,15 +67,10 @@ export function liveSource(url: string, handlers: LiveSourceHandlers, environmen
   };
 
   const watchFailure = () => {
-    if (cancelFailure || recovery.unavailableAt === undefined || recovery.snapshot.status === "unavailable") return;
-    cancelFailure = environment.schedule(
-      () => {
-        cancelFailure = undefined;
-        recovery.check();
-        publish();
-      },
-      Math.max(0, (recovery.unavailableAt ?? Date.now()) - Date.now()),
-    );
+    cancelFailure ??= watchAvailability(recovery, environment, () => {
+      cancelFailure = undefined;
+      publish();
+    });
   };
 
   const close = () => {
@@ -83,6 +80,13 @@ export function liveSource(url: string, handlers: LiveSourceHandlers, environmen
     ready = false;
     cancelWatchdog?.();
     cancelWatchdog = undefined;
+  };
+
+  const stop = () => {
+    stopped = true;
+    cancelFailure?.();
+    cancelRetry?.();
+    close();
   };
 
   const retry = (away = false) => {
@@ -134,6 +138,8 @@ export function liveSource(url: string, handlers: LiveSourceHandlers, environmen
       heartbeat,
       retry,
       onmessage: handlers.onmessage,
+      onerror: handlers.onerror,
+      stop,
       onready: async () => {
         if (ready) return;
         ready = true;
@@ -175,13 +181,22 @@ export function liveSource(url: string, handlers: LiveSourceHandlers, environmen
   open();
 
   return () => {
-    stopped = true;
-    cancelFailure?.();
-    cancelRetry?.();
-    close();
+    stop();
 
     for (const off of unsubscribe) off();
   };
+}
+
+function watchAvailability(recovery: ConnectionRecovery, environment: LiveSourceEnvironment, publish: () => void) {
+  if (recovery.unavailableAt === undefined || recovery.snapshot.status === "unavailable") return undefined;
+
+  return environment.schedule(
+    () => {
+      recovery.check();
+      publish();
+    },
+    Math.max(0, recovery.unavailableAt - Date.now()),
+  );
 }
 
 function listenRecovery(environment: LiveSourceEnvironment, resume: () => void, close: () => void) {
@@ -202,6 +217,8 @@ function attachSource(
     retry: (away?: boolean) => void;
     onready: () => Promise<void>;
     onmessage: (data: string) => void;
+    onerror: LiveSourceHandlers["onerror"];
+    stop: () => void;
   },
 ) {
   source.addEventListener("ready", () => {
@@ -214,14 +231,17 @@ function attachSource(
     if (handlers.active()) handlers.heartbeat();
   });
 
-  const failed = () => {
-    if (handlers.active()) handlers.retry();
+  const failed = (failure: ThreadWatchFailure) => {
+    if (!handlers.active()) return;
+
+    if (handlers.onerror?.(failure) === false) handlers.stop();
+    else handlers.retry(failure.computer);
   };
 
-  source.onerror = failed;
-  source.addEventListener("failure", failed);
+  source.onerror = () => failed({ code: 14 });
+  source.addEventListener("failure", (event) => failed(readThreadWatchFailure(event.data)));
   source.addEventListener("away", () => {
-    if (handlers.active()) handlers.retry(true);
+    failed({ code: 14, computer: true });
   });
   source.onmessage = (message) => {
     if (!handlers.active()) return;
@@ -230,7 +250,7 @@ function attachSource(
     try {
       handlers.onmessage(message.data);
     } catch {
-      handlers.retry();
+      failed({ code: 15 });
     }
   };
 }

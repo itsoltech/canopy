@@ -24,7 +24,7 @@ import type { TimelineEntry, TimelineNotice, TurnResult } from "./thread-types.t
 export type { TimelineEntry, TimelineNotice, TurnResult } from "./thread-types.ts";
 
 /** connecting: first snapshot pending; live: stream open; reconnecting: dropped, EventSource retries. */
-export type Connection = "connecting" | "syncing" | "live" | "reconnecting";
+export type Connection = "connecting" | "syncing" | "live" | "reconnecting" | "error";
 
 /**
  * Client state of one thread, fed by the SSE stream of WatchThread.
@@ -71,7 +71,9 @@ export class ThreadState {
     this,
     () => this.#snapshot,
     () => {
-      if (this.#snapshot) this.#snapshot = { ...this.#snapshot, cursor: "" };
+      if (this.#snapshot) this.#snapshot = { ...this.#snapshot, cursor: "", syncCursor: undefined };
+
+      if (this.thread) threadCache.forget(this.thread.id);
     },
   );
   hasMore = $state(false);
@@ -96,6 +98,7 @@ export class ThreadState {
   /** The snapshot arrived at least once. */
   loaded = $state(false);
   failure = $state<string | undefined>(undefined);
+  syncStatus = $state.raw<ui.ThreadSyncStatus | undefined>(undefined);
 
   readonly pending = $derived(this.interactions.filter((i) => i.status === "pending"));
   readonly upcomingSchedules = $derived(this.schedules.filter((s) => !isFinished(s)));
@@ -146,10 +149,11 @@ export class ThreadState {
 
   apply(update: ui.ThreadUpdate): void {
     this.#snapshot = applyThreadUpdate(this.#snapshot, update);
-    this.hasMore = this.#snapshot.historyHasMore;
+    this.hasMore = this.#snapshot.historyHasMore || this.#snapshot.historyItemsHasMore;
 
-    const change =
-      update.change.case === "delta" ? { case: "snapshot" as const, value: this.#snapshot } : update.change;
+    const change = ["snapshot", "delta", "batch", "controls"].includes(update.change.case ?? "")
+      ? { case: "snapshot" as const, value: this.#snapshot }
+      : update.change;
 
     switch (change.case) {
       case "snapshot": {
@@ -175,6 +179,7 @@ export class ThreadState {
             previous.turnId === i.turnId &&
             previous.firstSeq === i.firstSeq &&
             previous.inherited === i.inherited &&
+            previous.contentRef?.sha256 === i.contentRef?.sha256 &&
             previous.completedAt === completedAt
           )
             return [previous];
@@ -184,6 +189,7 @@ export class ThreadState {
                 {
                   id: i.item.itemId,
                   item: i.item,
+                  contentRef: i.contentRef,
                   turnId: i.turnId,
                   firstSeq: i.firstSeq,
                   inherited: i.inherited,
@@ -399,7 +405,7 @@ export class ThreadState {
     return () => {
       disconnect();
 
-      if (this.#snapshot?.thread) threadCache.set(this.#snapshot);
+      if (this.#snapshot?.thread && this.#snapshot.cursor) threadCache.set(this.#snapshot);
     };
   }
 }
