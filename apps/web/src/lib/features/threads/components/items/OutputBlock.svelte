@@ -39,7 +39,7 @@
 
   const directory = useThreadDirectory();
   const text = $derived(reveal.text);
-  const lines = $derived(text.replace(/\n$/, "").split("\n"));
+  const lines = $derived(tail === undefined ? [] : text.replace(/\n$/, "").split("\n"));
   const cut = $derived(tail !== undefined && lines.length > tail);
 
   // Remembered while the row is scrolled out of a virtual list.

@@ -4,6 +4,7 @@ import { timestampFromMs } from "@bufbuild/protobuf/wkt";
 import { ItemSchema, ItemStatus, NoticeSchema, ui } from "@canopy/contracts";
 import { FeedPrefix } from "../src/lib/features/threads/feed-prefix.ts";
 import type { FeedInput, FeedRow } from "../src/lib/features/threads/feed.ts";
+import { FeedBuilder } from "../src/lib/features/threads/feed.ts";
 import { buildTimeline } from "../src/lib/features/threads/timeline.ts";
 import type { TimelineEntry } from "../src/lib/features/threads/thread-types.ts";
 
@@ -130,4 +131,25 @@ test("interleaved, nested and background work across the boundary stays on the f
     expect(visited).toEqual([2]);
     expect(actual).toEqual(build(state));
   }
+});
+
+test("feed reconciliation retains untouched rows across deltas and reordered history", () => {
+  const builder = new FeedBuilder();
+  const state = input();
+  const first = builder.build(state);
+  const delta = { ...state, entries: [state.entries[0]!, entry("live", "b", 2n)] };
+  const next = builder.build(delta);
+  expect(next).toEqual(new FeedBuilder().build(delta));
+
+  for (const row of first.filter((row) => !row.key.includes("b") && !row.key.includes("live")))
+    expect(next.find((candidate) => candidate.key === row.key)).toBe(row);
+
+  for (const variant of [
+    { ...delta, openWork: new Set(["a", "b"]) },
+    { ...delta, turns: [turn("older", 0), ...delta.turns], entries: [entry("older", "older", 0n), ...delta.entries] },
+    { ...delta, turns: [turn("b", 1, "running"), turn("a", 2)] },
+    { ...delta, entries: [], turns: [] },
+    state,
+  ])
+    expect(builder.build(variant)).toEqual(new FeedBuilder().build(variant));
 });

@@ -10,6 +10,22 @@ const upsert = <T>(rows: T[], value: T, key: (row: T) => string) => [
   value,
 ];
 
+const itemPositions = new WeakMap<ui.TimelineItem[], Map<string, number>>();
+
+function ownItemPositions(items: ui.TimelineItem[]): Map<string, number> {
+  const cached = itemPositions.get(items);
+
+  if (cached) return cached;
+  const positions = new Map<string, number>();
+
+  items.forEach((entry, index) => {
+    if (entry.item && !entry.inherited && !positions.has(entry.item.itemId)) positions.set(entry.item.itemId, index);
+  });
+  itemPositions.set(items, positions);
+
+  return positions;
+}
+
 /** Keep the last atomic checkpoint during live events; reopening replays projected upserts since it. */
 export function applyThreadUpdate(state: ui.ThreadSnapshot | undefined, update: ui.ThreadUpdate): ui.ThreadSnapshot {
   const change = update.change;
@@ -71,9 +87,12 @@ function applyEvent(previous: ui.ThreadSnapshot, change: ui.ThreadEventUpdate): 
     };
 
   const id = eventItemId(body);
-  const index = previous.items.findIndex((i) => i.item?.itemId === id && !i.inherited);
+
+  if (!id) return { ...previous, lastSeq: seq };
+  const positions = ownItemPositions(previous.items);
+  const index = positions.get(id) ?? -1;
   const old = previous.items[index];
-  const item = id ? reduceItem(old?.item, body) : undefined;
+  const item = reduceItem(old?.item, body);
 
   if (!item) return { ...previous, lastSeq: seq };
 
@@ -90,8 +109,15 @@ function applyEvent(previous: ui.ThreadSnapshot, change: ui.ThreadEventUpdate): 
 
   const items = [...previous.items];
 
-  if (index < 0) items.push(entry);
-  else items[index] = entry;
+  // Transfer ownership before extending the index. Replaying an older snapshot (or
+  // branching from it) rebuilds its own map instead of seeing a later append.
+  itemPositions.delete(previous.items);
+
+  if (index < 0) {
+    positions.set(id, items.length);
+    items.push(entry);
+  } else items[index] = entry;
+  itemPositions.set(items, positions);
 
   return { ...previous, items, lastSeq: seq };
 }

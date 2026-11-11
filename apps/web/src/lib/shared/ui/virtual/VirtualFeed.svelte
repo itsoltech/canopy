@@ -126,7 +126,7 @@
   /** The first row at the top of the viewport and its distance from the top edge. */
   let anchor: FeedAnchor | undefined;
 
-  const structure = new FeedRows();
+  const structure = new FeedRows<T>();
   const sized = $derived(structure.update(rows, key, group));
   const positions = $derived(new Map(sized.map((r, i) => [r.key, i])));
 
@@ -595,12 +595,14 @@
 </script>
 
 <div class="relative h-full">
+  <!-- The viewport already has a fixed height and clips overflow. Size/layout/paint containment
+       prevents growing descendants from invalidating the surrounding application layout. -->
   <!-- The labelled, focusable scroll region supports native scrolling keys. -->
   <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
   <div
     bind:this={scroller}
     {id}
-    class="relative h-full scroll-pt-2 scroll-pb-(--feed-footer) scroll-stable overflow-y-auto overscroll-contain [overflow-anchor:none] focus-visible:outline-none"
+    class="relative h-full scroll-pt-2 scroll-pb-(--feed-footer) scroll-stable overflow-y-auto overscroll-contain [contain:strict] [overflow-anchor:none] focus-visible:outline-none"
     style:--feed-footer="{footerHeight}px"
     role="region"
     aria-label={label}

@@ -1,11 +1,9 @@
 <script lang="ts">
-  import type { Token } from "marked";
   import type { ClassValue } from "svelte/elements";
   import { LineReveal } from "../streaming/line-reveal.svelte.ts";
   import MarkdownBlocks from "./MarkdownBlocks.svelte";
   import { provideInlineElements, withSentinels, type InlineElements } from "./inline-elements.ts";
-  import { lexMarkdown } from "@canopy/domain/markdown";
-  import { shareTokens } from "./tokens.ts";
+  import { StreamingTokens } from "./streaming-tokens.ts";
 
   /**
    * Markdown from agents, rendered from marked's token tree by Svelte components. Nothing is
@@ -15,7 +13,8 @@
    * `breaks`: preserve prose whitespace, including single line breaks, spaces and tabs (people and bus messages).
    *
    * `streaming`: the text is still arriving. It shows line by line (`LineReveal`), is parsed again only
-   * when a line is revealed, and only blocks that changed render again (`shareTokens`); each new block,
+   * when a line is revealed, re-lexing the last block when earlier blocks are independent
+   * (`StreamingTokens`); unchanged tokens retain their identity. Each new block,
    * list item, table row and code line resolves in (motion.css `t-stream`).
    *
    * `elements`: the caller's inline elements over ranges of `text` (mention chips; inline-elements.ts).
@@ -49,8 +48,8 @@
     () => streaming,
   );
 
-  let previous: Token[] = [];
-  const tokens = $derived((previous = shareTokens(previous, lexMarkdown(reveal.text, breaks))));
+  const parser = new StreamingTokens();
+  const tokens = $derived(parser.update(reveal.text, breaks));
 </script>
 
 <div
