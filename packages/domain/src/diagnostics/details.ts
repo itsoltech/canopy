@@ -33,12 +33,25 @@ export function metricRows(measure: ui.DiagnosticsMeasure): [string, string][] {
 
   if (definition.kind === "counter") return [["Count", measure.events.toString()]];
   const format = (value: number) => metricValue(value, definition.unit);
+  const current: [string, string] = [measure.historical ? "Last known" : "Latest", format(measure.last)];
+
+  if (measure.metricId === 6) return [current];
 
   return [
-    [measure.historical ? "Last known" : "Latest", format(measure.last)],
+    current,
     ["Mean / max", `${measure.observedSeconds ? format(measure.mean) : "Not measured"} / ${format(measure.max)}`],
-    ["Time observed", `${measure.observedSeconds.toFixed(0)} s`],
   ];
+}
+
+export function groupObserved(computer: ui.ComputerDiagnostics, group: MetricDefinition["group"]) {
+  const seconds = Math.max(
+    0,
+    ...computer.gatewayMeasures
+      .filter((value) => METRIC_DEFINITIONS.get(value.metricId)?.group === group)
+      .map((value) => value.observedSeconds),
+  );
+
+  return seconds ? `Observed ${Math.floor(seconds / 60)} min` : "Not measured";
 }
 
 export function cpuSummary(computer: ui.ComputerDiagnostics) {
@@ -69,12 +82,12 @@ export function databaseCoverage(computer: ui.ComputerDiagnostics) {
   const other = computer.gatewayMeasures.find((value) => value.metricId === 10)?.events ?? 0n;
 
   return total
-    ? `${((100 * Number(total - other)) / Number(total)).toFixed(1)}% of ${total} queries have a named family. The rest are other.`
+    ? `${((100 * Number(total - other)) / Number(total)).toFixed(1)}% of ${total} queries have a named family.`
     : "Query family coverage: not measured.";
 }
 
 export const histogramHelp =
-  "Percentiles use fixed histogram buckets with up to 19% quantization. Max is exact. p99 below 1,000 samples has a small sample.";
+  "Percentiles are bucket estimates bounded by observed values; p99 needs at least 1,000 samples.";
 
 export const databaseHelp =
   "Up to 10 families, sorted by execute p95. Reserve includes waiting for a connection; execute includes decoding; release measures returning it. Transaction time overlaps these phases. Percentiles cannot be subtracted or added.";

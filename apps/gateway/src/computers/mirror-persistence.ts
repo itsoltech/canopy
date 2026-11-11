@@ -10,6 +10,7 @@ import type { ComputerStore } from "./store.ts";
 import { applyThreadDelta } from "@canopy/domain/thread-mirror";
 import { mismatch } from "./mirror.ts";
 import { readMirrorSnapshot } from "./mirror-snapshot.ts";
+import { queryFamily, queryRpc } from "../diagnostics/query-context.ts";
 
 export type State = { cursor: string; generation: string; overview: Uint8Array | null; subscription_id: string };
 
@@ -31,7 +32,7 @@ export const registerMirrorGeneration = (owner: string, node: string, generation
         return true;
       }),
     );
-  });
+  }).pipe(queryFamily("mirrors.write"));
 
 export async function commitMirrorUpdate(
   runtime: ComputerStore["runtime"],
@@ -110,6 +111,6 @@ export async function commitMirrorUpdate(
           return true;
         }),
       );
-    }),
+    }).pipe(queryFamily("mirrors.write"), queryRpc),
   );
 }

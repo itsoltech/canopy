@@ -19,6 +19,7 @@ export class Histogram {
   readonly counts: bigint[] = [];
   sum = 0;
   max = 0;
+  min = Infinity;
   incomplete = false;
 
   constructor(
@@ -40,6 +41,7 @@ export class Histogram {
 
     this.sum = Math.min(Number.MAX_VALUE, this.sum + value);
     this.max = Math.max(this.max, value);
+    this.min = Math.min(this.min, value);
   }
 
   merge(other: ui.DiagnosticsHistogram | Histogram) {
@@ -53,6 +55,8 @@ export class Histogram {
 
     this.sum = Math.min(Number.MAX_VALUE, this.sum + other.sum);
     this.max = Math.max(this.max, other.max);
+
+    if (other.counts.some((count) => count > 0n)) this.min = Math.min(this.min, other.min ?? 0);
   }
 
   #add(index: number, value: bigint) {
@@ -102,6 +106,7 @@ export class Histogram {
       counts: this.counts.slice(),
       sum: this.sum,
       max: this.max,
+      min: Number.isFinite(this.min) ? this.min : undefined,
     });
   }
 }
@@ -110,10 +115,13 @@ export class Histogram {
 export function percentiles(histograms: readonly ui.DiagnosticsHistogram[], sizes = false) {
   const counts = new BigUint64Array(sizes ? 32 : 130);
   let max = 0;
+  let min = Infinity;
   let sum = 0;
 
   for (const histogram of histograms) {
     max = Math.max(max, histogram.max);
+
+    if (histogram.counts.some((count) => count > 0n)) min = Math.min(min, histogram.min ?? 0);
     sum = Math.min(Number.MAX_VALUE, sum + histogram.sum);
 
     for (let at = 0; at < histogram.indices.length; at++) {
@@ -140,11 +148,13 @@ export function percentiles(histograms: readonly ui.DiagnosticsHistogram[], size
 
         if (overflow) overflowQuantiles |= bit;
 
-        return sizes
+        const boundary = sizes
           ? 2 ** (overflow ? index - 1 : index)
           : index
             ? 0.001 * 2 ** ((Math.min(128, index) - 1) / 4)
             : 0.001;
+
+        return Math.max(Math.min(min, max), Math.min(max, boundary));
       }
     }
 

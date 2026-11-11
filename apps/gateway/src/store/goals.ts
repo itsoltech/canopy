@@ -5,6 +5,7 @@ import { goalStatusAfterFailure, goalStatusFromHarness, isFinished, type GoalSta
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import { NotFound, type TurnRow } from "./store.ts";
+import { queryMethods } from "../diagnostics/query-context.ts";
 
 /**
  * Goals of the harness (docs/goals.md): the harness drives them, the gateway records what it reports
@@ -183,7 +184,7 @@ export class GoalStore extends Context.Service<
           Effect.flatMap((rows) => (rows[0] ? Effect.succeed(rows[0]) : Effect.fail(new NotFound("goal not found")))),
         );
 
-      return GoalStore.of({
+      const store = GoalStore.of({
         latest: (threadId) => latestGoal(sql, threadId),
         goal,
         create: ({ threadId, objective, tokenBudget, userId }) =>
@@ -247,6 +248,8 @@ export class GoalStore extends Context.Service<
               FROM turns WHERE thread_id = ${threadId}::uuid
             RETURNING *`.pipe(Effect.map((rows) => rows[0]!)),
       });
+
+      return queryMethods("goals.store", store);
     }),
   );
 }

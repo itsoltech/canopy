@@ -2,6 +2,7 @@ import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
+import { queryMethods } from "../diagnostics/query-context.ts";
 import { Invalid, NotFound } from "./store.ts";
 
 /**
@@ -102,7 +103,7 @@ export class AttachmentStore extends Context.Service<
         return Effect.succeed({ data: new Uint8Array(row.data), mimeType: row.mime_type });
       };
 
-      return AttachmentStore.of({
+      const store = AttachmentStore.of({
         putBlob,
 
         create: (input) =>
@@ -221,6 +222,8 @@ export class AttachmentStore extends Context.Service<
             Effect.map((rows) => ({ root: rows[0]?.root ?? "", os: rows[0]?.os ?? "" })),
           ),
       });
+
+      return queryMethods("attachments.store", store);
     }),
   );
 }

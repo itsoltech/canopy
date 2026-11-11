@@ -3,7 +3,7 @@ import { SqlClient, type SqlError } from "effect/sql";
 import type { SteerRow } from "./steers.ts";
 import { Invalid, NotFound, type TurnRow } from "./store.ts";
 import { DISPATCHED } from "./turn-select.ts";
-import { queryFamily } from "../diagnostics/query-context.ts";
+import { queryFamily, queryMethods } from "../diagnostics/query-context.ts";
 
 /**
  * The queue a user manages (docs/ui-api.md, "Kolejka"): queued turns waiting behind the running one.
@@ -273,7 +273,7 @@ export class QueueStore extends Context.Service<
           ),
       };
 
-      return QueueStore.of(store);
+      return QueueStore.of(queryMethods("turns.store", store));
     }),
   );
 }

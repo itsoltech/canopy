@@ -2,6 +2,7 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { pruneGitHubCache } from "../github/prune-cache.ts";
 import { pruneDiagnostics } from "./diagnostics.ts";
+import { queryFamily } from "../diagnostics/query-context.ts";
 
 const BATCH = 256;
 
@@ -58,7 +59,7 @@ export const pruneDatabase = (owner: string) =>
         return touched;
       }),
     );
-  });
+  }).pipe(queryFamily("retention.prune"));
 
 const pruneHarness = (sql: SqlClient.SqlClient, owner: string) =>
   Effect.gen(function* () {

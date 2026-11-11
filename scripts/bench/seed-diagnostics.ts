@@ -43,7 +43,7 @@ export async function seedDiagnostics(env: Readonly<Record<string, string | unde
         ],
       );
     const at = Math.floor(Date.now() / 60_000) * 60_000;
-    const methods = RPC_METHODS.filter((method) => !method.stream).slice(0, 80);
+    const methods = RPC_METHODS.filter((method) => !method.stream).slice(0, 12);
     const duration = new Histogram();
 
     for (let index = 0; index < 200; index++) duration.record(quiet || index < 180 ? 10 : 1800);

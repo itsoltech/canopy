@@ -143,9 +143,14 @@ describe.skipIf(!dockerAvailable)("gateway diagnostics preserve durable, private
       { id: 2 },
       { id: 3 },
     ]);
-    expect(snapshot().database.find((family) => family.family === "commands.write")?.transactionErrors).toBeGreaterThan(
-      0n,
-    );
+
+    const errors = gateway.core.diagnostics.collector
+      .rollup(Math.floor(Date.now() / 60_000) * 60_000)
+      ?.measures.find(
+        (measure) => measure.metricId === databaseMetric("commands.write", "transaction") && !measure.rpcMethodId,
+      )?.errors;
+
+    expect(errors).toBeGreaterThan(0n);
   });
 
   test("failed reservation and release preserve errors, cleanup and bounded labels", async () => {
@@ -195,6 +200,34 @@ describe.skipIf(!dockerAvailable)("gateway diagnostics preserve durable, private
     expect(toJsonString(ui.ComputerDiagnosticsSchema, snapshot())).not.toContain(secret);
     expect((await query<{ alive: number }>("SELECT 1 AS alive"))[0]?.alive).toBe(1);
   });
+
+  test("steady RPC fixture labels at least 95 percent of database executions", async () => {
+    const before = snapshot();
+
+    const count = (value: ui.ComputerDiagnostics, id: number) =>
+      value.gatewayMeasures.find((measure) => measure.metricId === id)?.events ?? 0n;
+
+    for (let cycle = 0; cycle < 20; cycle++) {
+      await gateway.api.getThread({ threadId: thread });
+      await gateway.api.getOverview({});
+      await gateway.api.getSettings({});
+      await gateway.api.listThreads({});
+      await gateway.api.listModels({});
+      await gateway.api.getUpdates({});
+      await gateway.api.listBots({});
+      await gateway.api.listGitHubAccounts({});
+      await gateway.api.getComputerDiagnostics({ windowMinutes: 15 });
+    }
+
+    const after = snapshot();
+    const total = count(after, 11) - count(before, 11);
+    const other = count(after, 10) - count(before, 10);
+    console.info(
+      `Steady SQL coverage: ${total - other}/${total} named (${((100 * Number(total - other)) / Number(total)).toFixed(2)}%), ${other} other`,
+    );
+    expect(total).toBeGreaterThan(100n);
+    expect(Number(total - other) / Number(total)).toBeGreaterThanOrEqual(0.95);
+  }, 60_000);
 
   test("ingest remains durable while a receiver falls behind and metrics reveal queue pressure", async () => {
     const abort = new AbortController();
@@ -296,7 +329,7 @@ describe.skipIf(!dockerAvailable)("gateway diagnostics preserve durable, private
     const partial = new Measure(() => false);
     partial.timing(100, true, at);
     const process = source.rollup(at)!;
-    process.measures.push(partial.snapshot(databaseMetric("queue.read", "execute")));
+    process.measures.push(partial.snapshot(databaseMetric("queue.read", "execute"), method.id));
     const store = new DiagnosticsStore(gateway.runtime, gateway.userId, "local");
     const state = create(ui.DiagnosticsStateSchema, { schemaVersion: 1, epoch: crypto.randomUUID() });
     await store.write([{ at, processes: [process] }], state);
@@ -329,7 +362,11 @@ describe.skipIf(!dockerAvailable)("gateway diagnostics preserve durable, private
 
       expect(family?.executeMs?.samples).toBe(1n);
       expect(family?.executeMs?.max).toBe(42);
-      const incomplete = value.database.find((row) => row.family === "queue.read");
+
+      const incomplete = value.calls
+        .find((row) => row.method === method.name)
+        ?.database.find((row) => row.family === "queue.read");
+
       expect(incomplete?.executeErrors).toBe(1n);
       expect(incomplete?.incomplete).toBe(true);
       expect(incomplete?.executeMs?.samples).toBe(0n);

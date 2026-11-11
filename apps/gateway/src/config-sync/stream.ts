@@ -5,6 +5,7 @@ import { setTimeout } from "node:timers/promises";
 import { type ConfigSync } from "./engine.ts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
+import { queryFamily, queryRpc } from "../diagnostics/query-context.ts";
 import { wireItem } from "./merge.ts";
 import { SCHEMAS } from "./receive.ts";
 import { outgoingSecrets } from "./secrets.ts";
@@ -41,7 +42,10 @@ export async function* watchConfig(sync: ConfigSync, cursor: string, signal: Abo
 
       // Secret values are decrypted for this batch only and exist nowhere else in plain form.
       const secrets = await sync.store.runtime.runPromise(
-        Effect.flatMap(SqlClient.SqlClient, (sql) => outgoingSecrets(sql, sync.store.owner, sync.store.key, rows)),
+        Effect.flatMap(SqlClient.SqlClient, (sql) => outgoingSecrets(sql, sync.store.owner, sync.store.key, rows)).pipe(
+          queryFamily("settings.store"),
+          queryRpc,
+        ),
       );
 
       yield create(link.ConfigUpdateSchema, {

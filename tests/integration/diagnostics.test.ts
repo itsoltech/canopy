@@ -164,6 +164,16 @@ describe.skipIf(!dockerAvailable)("owner diagnostics over real gRPC and one rela
         rtt: create(ui.DiagnosticsHistogramSchema, { indices: [130], counts: [100n] }),
       },
     });
+
+    for (const min of [NaN, Infinity, -1, 2])
+      a.worker.link.send({
+        case: "diagnostics",
+        value: {
+          ...report,
+          sequence: 2n,
+          rtt: create(ui.DiagnosticsHistogramSchema, { indices: [80], counts: [10n], sum: 10, max: 1, min }),
+        },
+      });
     await a.api.getClientCapabilities({});
     expect(a.core.diagnostics.links.get(`worker:${a.workerId}`)!.watermark.sequence).toBe(1n);
   });

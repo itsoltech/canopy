@@ -16,6 +16,7 @@ import { interactionStore, type InteractionStore } from "./interactions-store.ts
 import { worktreeStore, type WorktreeStore } from "./worktrees.ts";
 import { worktreeLifecycleStore } from "./worktree-lifecycle.ts";
 import { workspaceCopyStore } from "./workspace-copy.ts";
+import { queryMethods } from "../diagnostics/query-context.ts";
 
 /**
  * Gateway data access (PostgreSQL). One service, grouped by concern; every query casts uuid
@@ -61,22 +62,34 @@ export class GatewayStore extends Context.Service<
         const sql = yield* SqlClient.SqlClient;
 
         const store: GatewayStore["Service"] = {
-          connectors: connectorStore(sql, secretsKey),
-          github: githubStore(sql, secretsKey),
-          ...threadSecretsStore(sql, secretsKey),
-          ...threadLifecycle(sql, (input) => store.enqueueCommand(input)),
-          ...workerStore(sql),
-          ...workerConfigStore(sql, secretsKey),
-          ...projectStore(sql),
-          ...threadCreation(sql, () => store),
-          ...threadStore(sql),
-          ...turnStore(sql),
-          ...threadSnapshot(sql, () => store),
-          ...outboxStore(sql),
-          ...interactionStore(sql, () => store),
-          ...worktreeStore(sql),
-          ...worktreeLifecycleStore(sql),
-          ...workspaceCopyStore(sql),
+          connectors: queryMethods("connectors.store", connectorStore(sql, secretsKey)),
+          github: queryMethods("github.accounts", githubStore(sql, secretsKey)),
+          ...queryMethods("secrets.store", threadSecretsStore(sql, secretsKey)),
+          ...queryMethods(
+            "threads.lifecycle",
+            threadLifecycle(sql, (input) => store.enqueueCommand(input)),
+          ),
+          ...queryMethods("workers.store", workerStore(sql)),
+          ...queryMethods("settings.store", workerConfigStore(sql, secretsKey)),
+          ...queryMethods("projects.store", projectStore(sql)),
+          ...queryMethods(
+            "threads.create",
+            threadCreation(sql, () => store),
+          ),
+          ...queryMethods("threads.metadata", threadStore(sql)),
+          ...queryMethods("turns.store", turnStore(sql)),
+          ...queryMethods(
+            "events.history",
+            threadSnapshot(sql, () => store),
+          ),
+          ...queryMethods("commands.write", outboxStore(sql)),
+          ...queryMethods(
+            "interactions.store",
+            interactionStore(sql, () => store),
+          ),
+          ...queryMethods("worktrees.store", worktreeStore(sql)),
+          ...queryMethods("worktrees.store", worktreeLifecycleStore(sql)),
+          ...queryMethods("worktrees.store", workspaceCopyStore(sql)),
         };
 
         return GatewayStore.of(store);

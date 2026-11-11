@@ -7,6 +7,7 @@ import { isUniqueViolation } from "./agent-bus.ts";
 import { NotFound } from "./store.ts";
 import { configLock, configSettingsChanged } from "../config-sync/persistence.ts";
 import { recordProjects } from "../config-sync/project-records.ts";
+import { queryMethods } from "../diagnostics/query-context.ts";
 
 /**
  * User and project settings (docs/ui-api.md): stored by the gateway, the browser only reads and writes
@@ -282,7 +283,7 @@ export class SettingsStore extends Context.Service<
           ),
       };
 
-      return SettingsStore.of(store);
+      return SettingsStore.of(queryMethods("settings.store", store));
     }),
   );
 }

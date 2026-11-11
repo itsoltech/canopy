@@ -136,7 +136,7 @@ właściciela. Metryki nie zmieniają kontraktu ani auth zamrożonego `update/v1
 | Metryka | Definicja i miejsce |
 |---|---|
 | Event-loop lag | Dodatnie opóźnienie wywołania timera względem monotonicznego terminu; histogram ms i max, bez odtwarzania pominiętych ticków. Wzorzec pomiaru w `tests/integration/support/sync-process-entry.ts` używa `monitorEventLoopDelay`; rozdzielczość produkcyjna 20 ms, zgodność Bun sprawdzana w benchmarku. Suspend oznacza lukę, nie serię fikcyjnych próbek. |
-| CPU/pamięć | `Δ(user+system CPU µs) / Δwall µs × 100%`, gdzie 100% = jeden rdzeń; RSS, heap used/total w bajtach, uptime procesu. Ostatnia, średnia ważona czasem i max w oknie; brak pomiaru pamięci harnessów nie oznacza całego kosztu hosta. |
+| CPU/pamięć | `Δ(user+system CPU µs) / Δwall µs × 100%`, gdzie 100% = jeden rdzeń; RSS, heap used/total w bajtach, uptime procesu. Ostatnia, średnia ważona czasem i max w oknie; uptime pokazuje tylko ostatnią wartość. Pokrycie czasowe raz w nagłówku grupy. Brak pomiaru pamięci harnessów nie oznacza całego kosztu hosta. |
 | SQL i pula | `gateway/runtime.ts`: reserve od żądania połączenia do jego otrzymania, także zestawienie; execute od wysłania przez zarezerwowany driver do zakończenia/dekodowania. Liczba, błędy, p50/p95/p99/max per stała rodzina, np. `thread.page`, `watch.revision`, `commands.pending`. Czas transakcji osobno; nie sumować zagnieżdżonych czasów jako kosztu niezależnego. Oczekujący reserve i zajęte połączenia jako gauges. Top 10 według p95 lub sumy czasu z liczbą próbek. |
 | Ingest i kolejki | `core/core-workers.ts`, `store/ingest.ts`, `core/core-commands.ts`: odebrane, czekające, rozpoczęte i zatwierdzone eventy, ms od odbioru do commitu/ACK; głębokość i wiek najstarszego oczekującego eventu/komendy. Obserwować istniejące enqueue/dequeue i ograniczone odczyty outboxa, bez pełnych COUNT/skanów na każdy tick; szacunek ma znacznik jakości. |
 | Subskrypcje/fan-out | `core/hub.ts`, `core/thread-watch-revisions.ts`, `computers/runtime-mirrors.ts`: liczba watchy wątków/overview/luster, liczba wspólnych odczytów rewizji/min, publikacje i próby dostarczenia/min, odbiorcy/publikację, maksimum kolejki w wiadomościach/bajtach i overflow. Liczniki bez id wątków. |
@@ -145,6 +145,9 @@ właściciela. Metryki nie zmieniają kontraktu ani auth zamrożonego `update/v1
 Rodziny SQL nadaje kod magazynu; nie fingerprintujemy dowolnego SQL w hot path.
 Nieznane zapytanie to `other`, a pokrycie rodzin jest jawne. Nie pobieramy
 produkcyjnego `pg_stat_statements`, tekstu SQL, parametrów ani planów automatycznie.
+Wspólne granice magazynów przypisują rodziny także zagnieżdżonym helperom;
+szczegółowa etykieta wewnętrznego call site ma pierwszeństwo. Fixture stałego
+ruchu gRPC wymaga co najmniej 95% sklasyfikowanych wykonań.
 Powiązanie RPC → rodzina DB wymaga kontekstu lokalnego wywołania; bez niego
 można wskazać współwystępowanie, nie „przyczynę”. Nie odejmujemy p95 SQL od p95 RPC.
 
@@ -155,6 +158,10 @@ w istniejących payloadach rollupów. Kontekst rodziny jest referencją Effect,
 a kontekst lokalnego RPC trafia do niej na granicy wykonania; streamy linked
 przekazują kontekst także podczas iteracji. Zapisane identyfikatory metryk są
 liczbowe i stabilne (`packages/domain/src/diagnostics/metrics.ts`).
+Histogramy zapisują opcjonalne minimum i maksimum; wspólny helper ogranicza
+każdy percentyl do tych granic, także dla underflow/overflow. Starsze rollupy bez
+minimum używają dolnej granicy 0. Dodatkowy skalar mieści się w niezmienionych
+limitach: rezerwacja agregatu wynosi 1600 B, histogramu pojedynczej metryki 144 B.
 Pula korzysta z oryginalnego PgClient i jego rezerwacji, z osobnym zakresem
 finalizacji do pomiaru rzeczywistego release; transakcje zachowują savepointy
 i rollback po błędzie COMMIT. Liczniki faz mogą się różnić: transakcja może
@@ -479,7 +486,7 @@ atomowo z agregatem sesji odbiorcy. Dwie ostatnie sesje na łącze mieszczą si�
 ograniczonym stanie deduplikacji także przy reconnect w tej samej minucie.
 
 Odczyt scala agregaty w pamięci bez pośrednich kopii protobuf. Sumy zamkniętych
-minut są aktualizowane dodaniem nowego i odjęciem wygasłego slotu; dokładne max
+minut są aktualizowane dodaniem nowego i odjęciem wygasłego slotu; dokładne min/max
 odświeżamy z pozostałych slotów raz na minutę. Odtworzenie lub saturacja wymusza
 ponowne scalenie, bo odjęcie nasyconego licznika nie odtworzyłoby danych.
 Bieżące liczniki i gauges są dodawane od nowa, bez modyfikowania sumy.

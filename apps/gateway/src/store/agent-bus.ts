@@ -5,6 +5,7 @@ import { busCallStore, type BusCallStore } from "./bus-calls.ts";
 import { busThreadStore, type BusThreadStore } from "./bus-threads.ts";
 import { busScheduleStore, type BusScheduleStore } from "./bus-schedules.ts";
 import { busDeliveryStore, type BusDeliveryStore } from "./bus-deliveries.ts";
+import { queryMethods } from "../diagnostics/query-context.ts";
 
 /**
  * Agent bus persistence (docs/agent-bus.md): the facts `authorizeBusCall` decides on, and the writes of
@@ -42,11 +43,11 @@ export class AgentBusStore extends Context.Service<
       const sql = yield* SqlClient.SqlClient;
 
       return AgentBusStore.of({
-        ...questionStore(sql),
-        ...busCallStore(sql),
-        ...busThreadStore(sql),
-        ...busScheduleStore(sql),
-        ...busDeliveryStore(sql),
+        ...queryMethods("interactions.store", questionStore(sql)),
+        ...queryMethods("agents.store", busCallStore(sql)),
+        ...queryMethods("agents.store", busThreadStore(sql)),
+        ...queryMethods("agents.store", busScheduleStore(sql)),
+        ...queryMethods("agents.store", busDeliveryStore(sql)),
       });
     }),
   );

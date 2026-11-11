@@ -17,14 +17,14 @@ export class Measure {
   constructor(readonly reserve?: (bytes: number) => boolean) {}
 
   get bytes() {
-    return 256 + (this.histogram ? 128 + this.histogram.indices.length * 48 : 0);
+    return 256 + (this.histogram ? 144 + this.histogram.indices.length * 48 : 0);
   }
 
   timing(value: number, error: boolean, at: number) {
     this.counter(1, error, at);
 
     if (!this.histogram) {
-      if (this.reserve && !this.reserve(128)) {
+      if (this.reserve && !this.reserve(144)) {
         this.incomplete = true;
 
         return;
@@ -55,7 +55,7 @@ export class Measure {
   merge(value: ui.DiagnosticsMeasureAggregate | Measure) {
     if (value.histogram) {
       if (!this.histogram) {
-        if (this.reserve && !this.reserve(128)) {
+        if (this.reserve && !this.reserve(144)) {
           this.incomplete = true;
         } else this.histogram = new Histogram(false, true, this.reserve);
       }

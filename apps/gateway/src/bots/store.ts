@@ -12,6 +12,7 @@ import { botRules } from "./store-rules.ts";
 import { botThreadApprovals } from "./thread-approvals.ts";
 import { botExchange } from "./store-exchange.ts";
 import { botDrafts } from "./drafts.ts";
+import { queryMethods } from "../diagnostics/query-context.ts";
 
 export {
   botConfiguration,
@@ -25,7 +26,8 @@ export {
 function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
   const access = botAccess(sql, key);
   const config = botConfig(sql, access);
-  const queue = botQueue(sql, access);
+  const { routines, ...methods } = botQueue(sql, access);
+  const queue = { ...queryMethods("bots.queue", methods), routines: queryMethods("bots.queue", routines) };
   const core = { ...access, ...config, ...queue };
 
   return {
@@ -54,7 +56,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     ...botThreadApprovals(sql),
     ...botWakeups(sql, core),
     ...botDeliveries(sql, core),
-    ...botHarnessStore(sql, core),
+    ...queryMethods("bots.harness", botHarnessStore(sql, core)),
   };
 }
 
@@ -63,7 +65,7 @@ export class BotStore extends Context.Service<BotStore, ReturnType<typeof makeSt
     Layer.effect(
       BotStore,
       Effect.gen(function* () {
-        return makeStore(yield* SqlClient.SqlClient, key);
+        return queryMethods("bots.store", makeStore(yield* SqlClient.SqlClient, key));
       }),
     );
 }

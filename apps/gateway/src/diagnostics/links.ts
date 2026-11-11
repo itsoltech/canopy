@@ -79,6 +79,8 @@ export class LinkDiagnostics {
         histogram.counts.some((count) => count > 0xffff_ffffn) ||
         !Number.isFinite(histogram.sum) ||
         !Number.isFinite(histogram.max) ||
+        (histogram.min !== undefined &&
+          (!Number.isFinite(histogram.min) || histogram.min < 0 || histogram.min > histogram.max)) ||
         histogram.sum < 0 ||
         histogram.max < 0
       )

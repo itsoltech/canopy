@@ -29,7 +29,7 @@ export class BucketBudget {
 }
 
 const SLOT_BYTES = 2048;
-const AGGREGATE_BYTES = 1536;
+const AGGREGATE_BYTES = 1600;
 
 function slotBytes(slot: Slot) {
   let bytes = SLOT_BYTES;
@@ -158,7 +158,7 @@ export class Buckets {
           sum +
           (slot?.measures?.has(measureKey(value.metricId, value.rpcMethodId))
             ? 0
-            : 384 + (value.histogram?.indices.length ?? 0) * 48),
+            : 400 + (value.histogram?.indices.length ?? 0) * 48),
         0,
       )
     );

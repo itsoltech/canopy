@@ -7,6 +7,7 @@ message DiagnosticsHistogram {
   repeated uint64 counts = 2;
   double sum = 3;
   double max = 4;
+  optional double min = 5; // Absent in older rollups; lower bound is then unknown.
 }
 message DiagnosticsAggregate {
   uint32 method_id = 1;

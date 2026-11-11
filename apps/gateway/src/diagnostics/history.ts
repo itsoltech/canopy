@@ -84,7 +84,7 @@ export class DiagnosticsHistory {
           let value = slot.series.get(series.methodId);
 
           if (!value) {
-            if (!budget.reserve(1536)) continue;
+            if (!budget.reserve(1600)) continue;
             value = new Aggregate(true, (bytes) => budget.reserve(bytes));
             slot.series.set(series.methodId, value);
           }

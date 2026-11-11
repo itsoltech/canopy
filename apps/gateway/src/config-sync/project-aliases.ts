@@ -4,6 +4,7 @@ import { splitId } from "@canopy/domain/computers";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { mapIds } from "../computers/remote-ids.ts";
+import { queryFamily } from "../diagnostics/query-context.ts";
 
 export type ProjectIds = {
   toGlobal(id: string): string;
@@ -31,7 +32,7 @@ export function projectIds(sql: SqlClient.SqlClient, owner: string) {
       known: new Set([...locals.keys(), ...globals.keys(), ...alias.keys()]),
       local: new Set(globals.keys()),
     };
-  });
+  }).pipe(queryFamily("settings.store"));
 }
 
 /** Only project references are shared. Workspaces, workers and worktrees always keep their computer suffix. */

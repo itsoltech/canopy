@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { Text, View, Pressable } from "react-native";
+import { Text, View } from "react-native";
 import type { ui } from "@canopy/contracts";
 import {
   METRIC_DEFINITIONS,
@@ -10,8 +9,10 @@ import {
   histogramHelp,
   measured,
   databaseCoverage,
+  groupObserved,
 } from "@canopy/domain/diagnostics";
 import { SettingsGroup, SettingsRow } from "./SettingsGroup";
+import { SettingsDisclosure } from "./SettingsDisclosure";
 import { styles, useColors } from "../../ui/theme";
 
 function EvidenceRows({ rows }: { rows: [string, string][] }) {
@@ -36,7 +37,6 @@ export function DiagnosticsDatabase({
   families: ui.DiagnosticsDatabaseFamily[];
   linked?: boolean;
 }) {
-  const [selected, setSelected] = useState("");
   const c = useColors();
 
   return (
@@ -55,30 +55,21 @@ export function DiagnosticsDatabase({
         <Text style={[styles.workMeta, { color: c.muted }]}>No measured query families in this window.</Text>
       ) : null}
       {families.map((family) => (
-        <View key={family.family} style={{ gap: 8 }}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ expanded: selected === family.family }}
-            onPress={() => setSelected(selected === family.family ? "" : family.family)}
-            style={{ minHeight: 48, justifyContent: "center", gap: 4 }}
-          >
-            <Text style={[styles.chrome, { color: c.text }]}>{family.family}</Text>
-            <Text style={[styles.workMeta, { color: c.muted }]}>
-              Execute p95 {measured(family.executeMs)} · {String(family.executeMs?.samples ?? 0n)} samples
-            </Text>
-          </Pressable>
+        <SettingsDisclosure
+          key={family.family}
+          title={`${family.family} · execute p95 ${measured(family.executeMs)} · ${family.executeMs?.samples ?? 0n} samples`}
+        >
           {family.incomplete ? (
             <Text style={[styles.workMeta, { color: c.muted }]}>Some measurements are missing.</Text>
           ) : null}
-          {selected === family.family ? <EvidenceRows rows={databaseRows(family)} /> : null}
-        </View>
+          <EvidenceRows rows={databaseRows(family)} />
+        </SettingsDisclosure>
       ))}
     </View>
   );
 }
 
 export function DiagnosticsMetrics({ computer }: { computer: ui.ComputerDiagnostics }) {
-  const [expanded, setExpanded] = useState("process");
   const c = useColors();
 
   if (!computer.detailsAvailable) return null;
@@ -89,38 +80,28 @@ export function DiagnosticsMetrics({ computer }: { computer: ui.ComputerDiagnost
         <SettingsRow title="Update this computer to measure gateway health." />
       ) : (
         <>
-          <Text style={[styles.workMeta, { color: c.muted }]}>
-            {histogramHelp} Last known values describe their sample time, including restored history.
-          </Text>
+          <Text style={[styles.workMeta, { color: c.muted }]}>{histogramHelp}</Text>
           {metricGroups.map((group) => (
-            <View key={group.id} style={{ gap: 12 }}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityState={{ expanded: expanded === group.id }}
-                onPress={() => setExpanded(expanded === group.id ? "" : group.id)}
-                style={{ minHeight: 48, justifyContent: "center" }}
-              >
-                <Text style={[styles.chrome, { color: c.text }]}>{group.title}</Text>
-              </Pressable>
-              {expanded === group.id
-                ? computer.gatewayMeasures
-                    .filter((value) => METRIC_DEFINITIONS.get(value.metricId)?.group === group.id)
-                    .map((measure) => (
-                      <View key={measure.metricId} style={{ gap: 8 }}>
-                        <Text style={[styles.chrome, { color: c.text }]}>
-                          {METRIC_DEFINITIONS.get(measure.metricId)?.name}
-                          {METRIC_DEFINITIONS.get(measure.metricId)?.approximate
-                            ? " · Estimate from last page read"
-                            : ""}
-                        </Text>
-                        <EvidenceRows rows={metricRows(measure)} />
-                        {measure.incomplete ? (
-                          <Text style={[styles.workMeta, { color: c.muted }]}>Some measurements are missing.</Text>
-                        ) : null}
-                      </View>
-                    ))
-                : null}
-            </View>
+            <SettingsDisclosure
+              key={group.id}
+              title={`${group.title} · ${groupObserved(computer, group.id)}`}
+              initiallyOpen={group.id === "process"}
+            >
+              {computer.gatewayMeasures
+                .filter((value) => METRIC_DEFINITIONS.get(value.metricId)?.group === group.id)
+                .map((measure) => (
+                  <View key={measure.metricId} style={{ gap: 8 }}>
+                    <Text style={[styles.chrome, { color: c.text }]}>
+                      {METRIC_DEFINITIONS.get(measure.metricId)?.name}
+                      {METRIC_DEFINITIONS.get(measure.metricId)?.approximate ? " · Estimate from last page read" : ""}
+                    </Text>
+                    <EvidenceRows rows={metricRows(measure)} />
+                    {measure.incomplete ? (
+                      <Text style={[styles.workMeta, { color: c.muted }]}>Some measurements are missing.</Text>
+                    ) : null}
+                  </View>
+                ))}
+            </SettingsDisclosure>
           ))}
           <Text style={[styles.workMeta, { color: c.muted }]}>{databaseCoverage(computer)}</Text>
           <DiagnosticsDatabase families={computer.database} />

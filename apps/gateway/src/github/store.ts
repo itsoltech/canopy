@@ -12,6 +12,7 @@ import { githubPollingStore } from "./store-polling.ts";
 import { githubMutationsStore } from "./store-mutations.ts";
 import { githubRepositoryAccess } from "./store-repository-access.ts";
 import { githubCitations } from "./store-citations.ts";
+import { queryMethods } from "../diagnostics/query-context.ts";
 
 export function githubStore(sql: SqlClient.SqlClient, key: Buffer) {
   const seal = (value: TokenPair) => encryptSecret(key, JSON.stringify(value));
@@ -97,10 +98,10 @@ export function githubStore(sql: SqlClient.SqlClient, key: Buffer) {
       ),
     ...githubAttempts(sql, key, saveAccount, audit),
     ...githubCatalogue(sql),
-    ...githubCache(sql),
-    ...githubPullRequests(sql),
-    ...githubRepositoryAccess(sql),
-    ...githubCitations(sql),
+    ...queryMethods("github.cache", githubCache(sql)),
+    ...queryMethods("github.pull_requests", githubPullRequests(sql)),
+    ...queryMethods("github.cache", githubRepositoryAccess(sql)),
+    ...queryMethods("github.pull_requests", githubCitations(sql)),
     ...githubDetectionStore(sql),
   };
 }

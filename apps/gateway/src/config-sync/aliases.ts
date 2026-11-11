@@ -4,6 +4,7 @@ import { Effect, Predicate } from "effect";
 import { type SqlClient, type SqlError } from "effect/sql";
 import { harnessOf } from "../store/instance-config.ts";
 import { mapIds } from "../computers/remote-ids.ts";
+import { queryFamily } from "../diagnostics/query-context.ts";
 
 /**
  * Instance ids in calls between linked computers (docs/linked-computers.md, "Rekord, klucze i id"). Each computer
@@ -43,14 +44,14 @@ export function instanceIds(sql: SqlClient.SqlClient, owner: string): Effect.Eff
     const slug = (id: string) => id.slice(id.indexOf(":") + 1);
 
     return {
-      toGlobal: (harness, id) => slug(global.get(`${harness}:${id}`) ?? `${harness}:${id}`),
-      toLocal: (harness, id) => {
+      toGlobal: (harness: string, id: string) => slug(global.get(`${harness}:${id}`) ?? `${harness}:${id}`),
+      toLocal: (harness: string, id: string) => {
         const key = `${harness}:${id}`;
 
         return local.get(alias.get(key) ?? key) ?? id;
       },
     };
-  });
+  }).pipe(queryFamily("settings.store"));
 }
 
 /** The harness a message's instance id belongs to, from its sibling `provider` field (enum or name). */

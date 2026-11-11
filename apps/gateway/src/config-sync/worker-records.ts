@@ -6,6 +6,7 @@ import { instanceIds } from "./aliases.ts";
 import { configLock, emptyRecord, equalValue, type ConfigRow } from "./persistence.ts";
 import { saveRecords } from "./record-batches.ts";
 import { projectIds } from "./project-aliases.ts";
+import { queryFamily } from "../diagnostics/query-context.ts";
 
 /**
  * Worker records (docs/linked-computers.md, "Rekordy workerów i edycja zdalna"). Only the worker's home writes
@@ -42,7 +43,7 @@ export function globalIds(sql: SqlClient.SqlClient, owner: string, kind: string)
       toGlobal: (id: string) => alias.get(id) ?? globals.get(id) ?? id,
       toLocal: (id: string) => locals.get(alias.get(id) ?? id) ?? id,
     };
-  });
+  }).pipe(queryFamily("settings.store"));
 }
 
 const Overrides = Schema.Struct({

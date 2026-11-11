@@ -6,9 +6,11 @@
     metricRows,
     histogramHelp,
     databaseCoverage,
+    groupObserved,
   } from "@canopy/domain/diagnostics";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SettingsCard from "#lib/shared/ui/SettingsCard.svelte";
+  import Disclosure from "#lib/shared/ui/Disclosure.svelte";
   import DatabaseFamilies from "./DatabaseFamilies.svelte";
 
   let { computer }: { computer: ui.ComputerDiagnostics } = $props();
@@ -19,13 +21,16 @@
     {#if !computer.gatewayMeasuresSupported}
       <SettingsCard><p class="p-4 text-sm text-muted">Update this computer to measure gateway health.</p></SettingsCard>
     {:else}
-      <p class="text-sm text-muted">
-        {histogramHelp} Last known values describe their sample time, including restored history.
-      </p>
+      <p class="text-sm text-muted">{histogramHelp}</p>
       {#each metricGroups as group (group.id)}
         <SettingsCard>
-          <details class="min-w-0 p-4" open={group.id === "process"}>
-            <summary class="cursor-pointer font-medium">{group.title}</summary>
+          <Disclosure class="min-w-0 p-4" open={group.id === "process"}>
+            {#snippet summary()}
+              <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                <h3 class="font-medium">{group.title}</h3>
+                <span class="text-sm text-muted">{groupObserved(computer, group.id)}</span>
+              </div>
+            {/snippet}
             <div class="mt-4 grid min-w-0 gap-4 sm:grid-cols-2">
               {#each computer.gatewayMeasures.filter((value) => METRIC_DEFINITIONS.get(value.metricId)?.group === group.id) as measure (measure.metricId)}
                 <div class="min-w-0 text-sm">
@@ -47,7 +52,7 @@
                 </div>
               {:else}<p class="text-sm text-muted">Not measured in this window.</p>{/each}
             </div>
-          </details>
+          </Disclosure>
         </SettingsCard>
       {/each}
       <SettingsCard

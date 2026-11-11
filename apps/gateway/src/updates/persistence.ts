@@ -3,6 +3,7 @@ import { update } from "@canopy/contracts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import type { CoreRuntime } from "../core/core.ts";
+import { queryFamily, queryRpc } from "../diagnostics/query-context.ts";
 
 export interface WorkerUpdateRow {
   id: string;
@@ -38,7 +39,7 @@ export class UpdatePersistence {
         const rows = yield* sql<{ role: string }>`SELECT role FROM users WHERE id = ${userId}::uuid`;
 
         return rows[0]?.role === "admin";
-      }),
+      }).pipe(queryFamily("updates.store"), queryRpc),
     );
   }
   async channel(): Promise<string | undefined> {
@@ -53,7 +54,7 @@ export class UpdatePersistence {
         }>`SELECT settings->>'updateChannel' AS channel FROM user_settings WHERE user_id = ${userId}::uuid`;
 
         return rows[0]?.channel ?? undefined;
-      }),
+      }).pipe(queryFamily("updates.store"), queryRpc),
     );
   }
   async setChannel(channel: string): Promise<void> {
@@ -63,7 +64,7 @@ export class UpdatePersistence {
         const sql = yield* SqlClient.SqlClient;
         yield* sql`INSERT INTO user_settings (user_id, settings, version) VALUES (${userId}::uuid, ${JSON.stringify({ updateChannel: channel })}::jsonb, 1)
         ON CONFLICT (user_id) DO UPDATE SET settings = user_settings.settings || EXCLUDED.settings, version = user_settings.version + 1, updated_at = now()`;
-      }),
+      }).pipe(queryFamily("updates.store"), queryRpc),
     );
   }
   async workers(includeCommands = true): Promise<WorkerUpdateRow[]> {
@@ -99,7 +100,7 @@ export class UpdatePersistence {
             command: fromJson(update.UpdateCommandSchema, r.capabilities.updateCommand),
           }),
         }));
-      }),
+      }).pipe(queryFamily("updates.store"), queryRpc),
     );
   }
   async hello(workerId: string, hello: update.CheckRequest): Promise<void> {
@@ -115,7 +116,7 @@ export class UpdatePersistence {
         yield* sql`UPDATE workers SET version = ${hello.version}, os = ${hello.os}, arch = ${hello.arch},
         capabilities = jsonb_set(capabilities, '{update}', coalesce(capabilities->'update', '{}'::jsonb) || ${JSON.stringify(status)}::jsonb), last_seen_at = now()
         WHERE id = ${workerId}::uuid AND revoked_at IS NULL AND archived_at IS NULL`;
-      }),
+      }).pipe(queryFamily("updates.store"), queryRpc),
     );
   }
   async saveCommand(workerId: string, command: update.UpdateCommand): Promise<void> {
@@ -128,7 +129,7 @@ export class UpdatePersistence {
         WHERE id = ${workerId}::uuid AND revoked_at IS NULL AND archived_at IS NULL AND (owner_user_id = ${userId}::uuid OR owner_user_id IS NULL)`;
         yield* sql`INSERT INTO audit_log (id, actor_user_id, action, target_type, target_id, details)
         VALUES (${Bun.randomUUIDv7()}::uuid, ${userId}::uuid, 'worker.update', 'worker', ${workerId}::uuid, ${JSON.stringify({ version: command.version, force: command.force, allowDowngrade: command.allowDowngrade })}::jsonb)`;
-      }),
+      }).pipe(queryFamily("updates.store"), queryRpc),
     );
   }
   async report(workerId: string, report: update.ReportRequest): Promise<void> {
@@ -138,7 +139,7 @@ export class UpdatePersistence {
         const sql = yield* SqlClient.SqlClient;
         yield* sql`UPDATE workers SET capabilities = jsonb_set(capabilities, '{update}', coalesce(capabilities->'update', '{}'::jsonb) || ${status}::jsonb)
         WHERE id = ${workerId}::uuid AND revoked_at IS NULL AND archived_at IS NULL AND capabilities->'updateCommand'->>'id' = ${report.commandId}`;
-      }),
+      }).pipe(queryFamily("updates.store"), queryRpc),
     );
   }
 }

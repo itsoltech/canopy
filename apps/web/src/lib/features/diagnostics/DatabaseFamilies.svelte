@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { ui } from "@canopy/contracts";
   import { databaseRows, databaseHelp, measured } from "@canopy/domain/diagnostics";
+  import Disclosure from "#lib/shared/ui/Disclosure.svelte";
 
   let { families, linked = false }: { families: ui.DiagnosticsDatabaseFamily[]; linked?: boolean } = $props();
 </script>
@@ -14,10 +15,10 @@
     </p>{/if}
   {#if !families.length}<p class="text-muted">No measured query families in this window.</p>{/if}
   {#each families as family (family.family)}
-    <details class="border-border min-w-0 rounded-lg border p-3">
-      <summary class="cursor-pointer wrap-anywhere"
-        >{family.family} · execute p95 {measured(family.executeMs)} · {family.executeMs?.samples ?? 0n} samples</summary
-      >
+    <Disclosure class="border-border min-w-0 rounded-lg border p-3" summaryClass="wrap-anywhere">
+      {#snippet summary()}
+        {family.family} · execute p95 {measured(family.executeMs)} · {family.executeMs?.samples ?? 0n} samples
+      {/snippet}
       {#if family.incomplete}<p class="mt-2 text-muted">Some measurements are missing.</p>{/if}
       <dl class="mt-3 grid gap-2 tabular-nums">
         {#each databaseRows(family) as [label, value] (label)}
@@ -27,6 +28,6 @@
           </div>
         {/each}
       </dl>
-    </details>
+    </Disclosure>
   {/each}
 </div>

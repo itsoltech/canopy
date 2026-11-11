@@ -6,7 +6,7 @@ import { settleThread, stuckThread } from "./ingest-settle.ts";
 import { applyShellInput } from "./shell-input.ts";
 import { storageEvent } from "./event-text.ts";
 import { dataErrorCode, quarantineEvent } from "./event-quarantine.ts";
-import { queryFamily } from "../diagnostics/query-context.ts";
+import { queryFamily, queryMethods } from "../diagnostics/query-context.ts";
 
 /**
  * Writes worker events into the thread timeline (docs/transcript.md, "Zapis po stronie gateway").
@@ -132,12 +132,13 @@ export class Ingest extends Context.Service<
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
 
-      return Ingest.of({
-        settle: Effect.fn("Ingest.settle")((threadId: string, reason: string, options?: { staleSeconds?: number }) =>
-          settleThread(sql, threadId, reason, options?.staleSeconds ?? 0),
-        ),
-        unsettledThreads: Effect.fn("Ingest.unsettledThreads")(function* (staleSeconds: number) {
-          const rows = yield* sql<{ id: string }>`
+      return Ingest.of(
+        queryMethods("ingest.events", {
+          settle: Effect.fn("Ingest.settle")((threadId: string, reason: string, options?: { staleSeconds?: number }) =>
+            settleThread(sql, threadId, reason, options?.staleSeconds ?? 0),
+          ),
+          unsettledThreads: Effect.fn("Ingest.unsettledThreads")(function* (staleSeconds: number) {
+            const rows = yield* sql<{ id: string }>`
       SELECT t.id FROM threads t
        WHERE t.archived_at IS NULL AND (
          ${stuckThread(sql, staleSeconds)}
@@ -154,53 +155,54 @@ export class Ingest extends Context.Service<
                      WHERE q.thread_id = t.id AND q.status = 'pending' AND q.question_call_id IS NULL AND u.status = ANY(${ENDED}::text[])))
        ORDER BY t.id`;
 
-          return rows.map((r) => r.id);
-        }),
-        ingest: Effect.fn("Ingest.ingest")(function* (
-          workerId: string,
-          journalId: string,
-          events: readonly ThreadEvent[],
-        ) {
-          const byThread = new Map<string, ThreadEvent[]>();
+            return rows.map((r) => r.id);
+          }),
+          ingest: Effect.fn("Ingest.ingest")(function* (
+            workerId: string,
+            journalId: string,
+            events: readonly ThreadEvent[],
+          ) {
+            const byThread = new Map<string, ThreadEvent[]>();
 
-          for (const event of [...events].sort((a, b) =>
-            a.journalSeq < b.journalSeq ? -1 : a.journalSeq > b.journalSeq ? 1 : 0,
-          )) {
-            const group = byThread.get(event.threadId) ?? [];
-            group.push(event);
-            byThread.set(event.threadId, group);
-          }
-
-          const acks = new Map<string, bigint>();
-          const stored: StoredEvent[] = [];
-          const unknownThreads: string[] = [];
-          const failedThreads: { threadId: string; error: SqlError.SqlError }[] = [];
-
-          for (const [threadId, threadEvents] of byThread) {
-            // Isolate data exceptions; other failures keep the thread unacked for redelivery.
-            const result = yield* ingestThread(sql, workerId, journalId, threadId, threadEvents).pipe(
-              Effect.catchTag("SqlError", (error) =>
-                dataErrorCode(error)
-                  ? isolateDataErrors(sql, workerId, journalId, threadId, threadEvents)
-                  : Effect.fail(error),
-              ),
-              Effect.catchTag("SqlError", (error) => Effect.sync(() => void failedThreads.push({ threadId, error }))),
-            );
-
-            if (result === undefined && failedThreads.some((f) => f.threadId === threadId)) continue;
-
-            if (!result) {
-              unknownThreads.push(threadId);
-              continue;
+            for (const event of [...events].sort((a, b) =>
+              a.journalSeq < b.journalSeq ? -1 : a.journalSeq > b.journalSeq ? 1 : 0,
+            )) {
+              const group = byThread.get(event.threadId) ?? [];
+              group.push(event);
+              byThread.set(event.threadId, group);
             }
 
-            acks.set(threadId, result.ack);
-            stored.push(...result.stored);
-          }
+            const acks = new Map<string, bigint>();
+            const stored: StoredEvent[] = [];
+            const unknownThreads: string[] = [];
+            const failedThreads: { threadId: string; error: SqlError.SqlError }[] = [];
 
-          return { acks, stored, unknownThreads, failedThreads };
-        }, queryFamily("ingest.events")),
-      });
+            for (const [threadId, threadEvents] of byThread) {
+              // Isolate data exceptions; other failures keep the thread unacked for redelivery.
+              const result = yield* ingestThread(sql, workerId, journalId, threadId, threadEvents).pipe(
+                Effect.catchTag("SqlError", (error) =>
+                  dataErrorCode(error)
+                    ? isolateDataErrors(sql, workerId, journalId, threadId, threadEvents)
+                    : Effect.fail(error),
+                ),
+                Effect.catchTag("SqlError", (error) => Effect.sync(() => void failedThreads.push({ threadId, error }))),
+              );
+
+              if (result === undefined && failedThreads.some((f) => f.threadId === threadId)) continue;
+
+              if (!result) {
+                unknownThreads.push(threadId);
+                continue;
+              }
+
+              acks.set(threadId, result.ack);
+              stored.push(...result.stored);
+            }
+
+            return { acks, stored, unknownThreads, failedThreads };
+          }, queryFamily("ingest.events")),
+        }),
+      );
     }),
   );
 }
