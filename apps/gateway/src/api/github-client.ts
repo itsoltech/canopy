@@ -42,6 +42,10 @@ export function bindGitHubRequest(method: DescMethod, request: Message, context:
       "UpdatePullRequestComment",
       "DeletePullRequestComment",
       "SetPullRequestFileViewed",
+      "AddPullRequestReviewComment",
+      "SubmitPullRequestReview",
+      "DiscardPullRequestReview",
+      "SetPullRequestReviewThreadResolved",
     ].includes(method.name)
   )
     return;

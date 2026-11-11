@@ -18,7 +18,18 @@ export async function githubMutation(
     );
 
   if (
-    !["prepare-mutation", "create-comment", "reply", "update-comment", "delete-comment", "viewed"].includes(operation)
+    ![
+      "prepare-mutation",
+      "create-comment",
+      "reply",
+      "update-comment",
+      "delete-comment",
+      "viewed",
+      "add-review-comment",
+      "submit-review",
+      "discard-review",
+      "resolve-thread",
+    ].includes(operation)
   )
     return undefined;
   const r = await readMessage(request, github.PullRequestMutationRequestSchema);
@@ -35,6 +46,14 @@ export async function githubMutation(
         return api.updatePullRequestComment(r, options);
       case "delete-comment":
         return api.deletePullRequestComment(r, options);
+      case "add-review-comment":
+        return api.addPullRequestReviewComment(r, options);
+      case "submit-review":
+        return api.submitPullRequestReview(r, options);
+      case "discard-review":
+        return api.discardPullRequestReview(r, options);
+      case "resolve-thread":
+        return api.setPullRequestReviewThreadResolved(r, options);
       default:
         return api.setPullRequestFileViewed(r, options);
     }

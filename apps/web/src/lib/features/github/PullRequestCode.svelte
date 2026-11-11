@@ -11,6 +11,8 @@
   import PageControls from "./PageControls.svelte";
   import * as api from "./api.ts";
   import { invalidations } from "./invalidations.ts";
+  import { ReviewDraft } from "./review-draft.svelte.ts";
+  import ReviewBar from "./ReviewBar.svelte";
 
   let { snapshot, class: className }: { snapshot: github.PullRequestSnapshot; class?: ClassValue } = $props();
   let commit = $state("");
@@ -25,6 +27,18 @@
   const id = $derived(snapshot.summary?.ref?.id ?? "");
   const headSha = $derived(snapshot.summary?.headSha ?? "");
   const baseSha = $derived(snapshot.baseSha);
+  const draft = $derived(new ReviewDraft(id, headSha));
+
+  $effect(() => {
+    const target = draft;
+    untrack(() => void target.read());
+    const unsubscribe = invalidations.subscribe(`${id}:reviews`, () => void target.read());
+
+    return () => {
+      unsubscribe();
+      target.close();
+    };
+  });
 
   const base = $derived(
     create(github.PullRequestPageRequestSchema, {
@@ -80,9 +94,14 @@
   ]);
 
   $effect(() => {
-    void pages.current;
+    const current = pages.current;
     viewedChanges = new Map();
-    untrack(close);
+    untrack(() => {
+      const file = current?.files.find((f) => f.path === selected?.path);
+
+      if (!file || (patch && patch.page?.headSha !== current?.page?.headSha)) close();
+      else selected = file;
+    });
   });
 
   $effect(() => {
@@ -94,7 +113,7 @@
       void target.read();
     });
 
-    return invalidations.subscribe(id, () => void target.invalidate());
+    return invalidations.subscribe(id, () => void target.invalidate(true));
   });
 
   $effect(() => {
@@ -106,9 +125,13 @@
 
   $effect(() => {
     const target = pages;
+    const review = draft;
 
     const refresh = () => {
-      if (document.visibilityState === "visible" && navigator.onLine) void target.read(false, true);
+      if (document.visibilityState === "visible" && navigator.onLine) {
+        void target.read(false, true);
+        void review.read();
+      }
     };
 
     const timer = setInterval(refresh, 60_000);
@@ -157,6 +180,7 @@
 </script>
 
 <section aria-label="Code" class={["min-w-0", className]}>
+  <ReviewBar {snapshot} {draft} />
   <CodeToolbar
     bind:commit
     bind:tree
@@ -188,6 +212,8 @@
       {:else}<CodeFile
           file={row.file}
           {snapshot}
+          {draft}
+          historical={!!commit}
           stale={!!pages.current?.page?.stale}
           onstate={(path, state) => (viewedChanges = new Map(viewedChanges).set(path, state))}
           onsettled={() => pages.read(false, true)}

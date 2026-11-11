@@ -47,7 +47,8 @@ export function CommentActions({
         confirm: "Delete comment",
         action: () =>
           void send("delete_comment", {}, { ...r, confirmationId: value.confirmationId }).then((result) => {
-            if (result?.state === "succeeded") invalidations.publish(r.pullRequestId);
+            if (result?.state === "succeeded")
+              invalidations.publish(kind === "review" ? `${r.pullRequestId}:reviews` : r.pullRequestId);
           }),
       });
     } catch {

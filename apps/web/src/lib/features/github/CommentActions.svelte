@@ -68,7 +68,8 @@
     busy = false;
     deleting = false;
 
-    if (receipt.state === "succeeded") invalidations.publish(prepared.pullRequestId);
+    if (receipt.state === "succeeded")
+      invalidations.publish(kind === "review" ? `${prepared.pullRequestId}:reviews` : prepared.pullRequestId);
   }
 </script>
 

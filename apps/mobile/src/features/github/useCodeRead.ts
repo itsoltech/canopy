@@ -24,6 +24,8 @@ export function useCodeRead(snapshot: github.PullRequestSnapshot) {
       [client, id, headSha, baseSha, commitSha],
     ),
     id,
+    "",
+    true,
   );
 
   const commits = usePages(
@@ -40,10 +42,14 @@ export function useCodeRead(snapshot: github.PullRequestSnapshot) {
 
   if (source !== currentPage) {
     setSource(currentPage);
-    setSelected(undefined);
-    setPatch(undefined);
-    setBusy(false);
-    setError("");
+    const file = currentPage?.files.find((f) => f.path === selected?.path);
+
+    if (!file || (patch && patch.page?.headSha !== currentPage?.page?.headSha)) {
+      setSelected(undefined);
+      setPatch(undefined);
+      setBusy(false);
+      setError("");
+    } else setSelected(file);
   }
 
   useEffect(() => {

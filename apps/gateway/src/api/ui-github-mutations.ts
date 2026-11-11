@@ -14,6 +14,10 @@ export function githubMutationHandlers(
   | "updatePullRequestComment"
   | "deletePullRequestComment"
   | "setPullRequestFileViewed"
+  | "addPullRequestReviewComment"
+  | "submitPullRequestReview"
+  | "discardPullRequestReview"
+  | "setPullRequestReviewThreadResolved"
 > {
   const action =
     (expected: string) =>
@@ -35,5 +39,9 @@ export function githubMutationHandlers(
     updatePullRequestComment: action("update_comment"),
     deletePullRequestComment: action("delete_comment"),
     setPullRequestFileViewed: action("viewed"),
+    addPullRequestReviewComment: action("add_review_comment"),
+    submitPullRequestReview: action("submit_review"),
+    discardPullRequestReview: action("discard_review"),
+    setPullRequestReviewThreadResolved: action("resolve_thread"),
   };
 }

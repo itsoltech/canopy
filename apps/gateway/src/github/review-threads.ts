@@ -15,6 +15,8 @@ const comment = Schema.Struct({
   originalCommit: Schema.NullOr(Schema.Struct({ oid: Schema.String })),
   viewerCanUpdate: Schema.optional(Schema.Boolean),
   viewerCanDelete: Schema.optional(Schema.Boolean),
+  viewerDidAuthor: Schema.optional(Schema.Boolean),
+  state: Schema.optional(Schema.String),
 });
 
 const thread = Schema.Struct({
@@ -23,6 +25,13 @@ const thread = Schema.Struct({
   line: Schema.NullOr(Schema.Number),
   isResolved: Schema.Boolean,
   isOutdated: Schema.Boolean,
+  diffSide: Schema.optional(Schema.String),
+  startLine: Schema.optional(Schema.NullOr(Schema.Number)),
+  startDiffSide: Schema.optional(Schema.NullOr(Schema.String)),
+  originalLine: Schema.optional(Schema.NullOr(Schema.Number)),
+  originalStartLine: Schema.optional(Schema.NullOr(Schema.Number)),
+  viewerCanResolve: Schema.optional(Schema.Boolean),
+  viewerCanUnresolve: Schema.optional(Schema.Boolean),
   pullRequest: Schema.Struct({ id: Schema.String }),
   comments: Schema.Struct({ nodes: Schema.Array(comment), pageInfo: graphPage }),
 });
@@ -47,8 +56,9 @@ const envelope = Schema.Struct({
   ),
 });
 
-const fields = `id path line isResolved isOutdated pullRequest{id}
-comments(first:50,after:$reply){pageInfo{hasNextPage endCursor} nodes{id body url createdAt author{login} originalCommit{oid} viewerCanUpdate viewerCanDelete}}`;
+const fields = `id path line isResolved isOutdated diffSide startLine startDiffSide originalLine originalStartLine
+viewerCanResolve viewerCanUnresolve pullRequest{id}
+comments(first:50,after:$reply){pageInfo{hasNextPage endCursor} nodes{id body url createdAt author{login} originalCommit{oid} state viewerDidAuthor viewerCanUpdate viewerCanDelete}}`;
 
 export const REVIEW_THREADS_QUERY = `query CanopyReviewThreads($owner:String!,$name:String!,$number:Int!,$after:String,$reply:String){
 rateLimit{cost remaining resetAt} repository(owner:$owner,name:$name){pullRequest(number:$number){id
@@ -84,16 +94,24 @@ export async function reviewThreads(scope: ReadScope) {
           threads: nodes.map((n) => ({
             id: n.id,
             path: n.path,
-            line: n.line ?? 0,
+            line: n.line ?? n.originalLine ?? 0,
             resolved: n.isResolved,
             outdated: n.isOutdated,
+            side: n.diffSide ?? "",
+            startLine: n.startLine ?? n.originalStartLine ?? 0,
+            startSide: n.startDiffSide ?? n.diffSide ?? "",
+            originalLine: n.originalLine ?? 0,
+            originalStartLine: n.originalStartLine ?? 0,
+            viewerCanResolve: n.viewerCanResolve ?? false,
+            viewerCanUnresolve: n.viewerCanUnresolve ?? false,
             sha: n.comments.nodes[0]?.originalCommit?.oid ?? "",
             comments: n.comments.nodes.map((c) => ({
               id: c.id,
               author: c.author?.login ?? "Deleted user",
               body: c.body,
-              viewerCanUpdate: c.viewerCanUpdate ?? false,
-              viewerCanDelete: c.viewerCanDelete ?? false,
+              viewerCanUpdate: !!c.viewerDidAuthor && !!c.viewerCanUpdate,
+              viewerCanDelete: !!c.viewerDidAuthor && !!c.viewerCanDelete,
+              state: c.state ?? "",
               url: c.url,
               sha: c.originalCommit?.oid ?? "",
               createdAt: timestampFromDate(new Date(c.createdAt)),

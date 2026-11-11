@@ -16,6 +16,8 @@ const target = Schema.Struct({
   author: Schema.optional(Schema.NullOr(Schema.Struct({ databaseId: Schema.optional(Schema.NullOr(Schema.Number)) }))),
   viewerCanUpdate: Schema.optional(Schema.Boolean),
   viewerCanDelete: Schema.optional(Schema.Boolean),
+  viewerCanResolve: Schema.optional(Schema.Boolean),
+  viewerCanUnresolve: Schema.optional(Schema.Boolean),
 });
 
 const envelope = Schema.Struct({
@@ -43,7 +45,7 @@ rateLimit{cost remaining resetAt} repository(owner:$owner,name:$name){databaseId
 pullRequest(number:$number){id headRefOid state isDraft}} node(id:$resource){__typename id
 ... on IssueComment{pullRequest{id} author{... on User{databaseId}} viewerCanUpdate viewerCanDelete}
 ... on PullRequestReviewComment{pullRequest{id} author{... on User{databaseId}} viewerCanUpdate viewerCanDelete}
-... on PullRequestReviewThread{pullRequest{id}}}}`;
+... on PullRequestReviewThread{pullRequest{id} viewerCanResolve viewerCanUnresolve}}}`;
 
 export async function mutationScope(prs: GitHubPullRequests, r: github.PullRequestMutationRequest) {
   const { accounts, repositories } = prs;
@@ -124,25 +126,30 @@ export async function preflight(scope: MutationScope, r: github.PullRequestMutat
   )
     throw new ConnectError("Pull request changed. Refresh before sending.", Code.FailedPrecondition);
 
-  if (!["create_comment", "viewed"].includes(r.action)) {
+  if (!["create_comment", "viewed", "add_review_comment", "submit_review", "discard_review"].includes(r.action)) {
     const n = data.node;
 
-    const kind =
-      r.action === "reply"
-        ? "PullRequestReviewThread"
-        : r.commentKind === "issue"
-          ? "IssueComment"
-          : "PullRequestReviewComment";
+    const kind = ["reply", "resolve_thread"].includes(r.action)
+      ? "PullRequestReviewThread"
+      : r.commentKind === "issue"
+        ? "IssueComment"
+        : "PullRequestReviewComment";
 
     if (!n || n.id !== r.resourceId || n.__typename !== kind || (n.issue?.id ?? n.pullRequest?.id) !== pr.id)
       throw new ConnectError("Comment or review thread not found", Code.NotFound);
 
     if (
-      r.action !== "reply" &&
+      !["reply", "resolve_thread"].includes(r.action) &&
       (String(n.author?.databaseId) !== access.row.github_user_id ||
         !(r.action === "delete_comment" ? n.viewerCanDelete : n.viewerCanUpdate))
     )
       throw new ConnectError("Comment not found", Code.NotFound);
+
+    if (r.action === "resolve_thread" && !(r.resolved ? n.viewerCanResolve : n.viewerCanUnresolve))
+      throw new ConnectError(
+        "GitHub does not allow changing this conversation. Check repository permissions.",
+        Code.PermissionDenied,
+      );
   }
 
   const current = await scope.prs.repositories.selected(scope.pr.repository_name);

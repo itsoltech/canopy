@@ -28,7 +28,12 @@ const fields = Schema.Struct({
 
 export const fixturePath = fixtureFilePath;
 
-export function mutationFixture() {
+export function mutationFixture(
+  hooks: {
+    graph?: Parameters<typeof readFixture>[0];
+    rest?: Parameters<typeof readFixture>[1];
+  } = {},
+) {
   let head = readHead;
   let allowed = true;
   let reject = false;
@@ -76,7 +81,10 @@ export function mutationFixture() {
     },
   });
 
-  const fixture = readFixture((query, variables, user) => {
+  const fixture = readFixture(async (query, variables, user) => {
+    const extra = await hooks.graph?.(query, variables, user);
+
+    if (extra) return extra;
     const v = Schema.decodeUnknownSync(fields)(variables);
 
     const result = (value: Schema.JsonObject) =>
@@ -192,7 +200,7 @@ export function mutationFixture() {
     comments.set(id, { id, body: input.body ?? "", user, review, pr: "PR_fixture_42" });
 
     return result({ result: { [review ? "comment" : "node"]: { id } } });
-  });
+  }, hooks.rest);
 
   const original = fixture.options.fetch!;
 

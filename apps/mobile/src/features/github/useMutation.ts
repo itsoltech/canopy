@@ -35,7 +35,14 @@ export function useMutation(snapshot: github.PullRequestSnapshot, initial?: gith
 
     try {
       const request = prepared ?? mutationRequest(snapshot, Crypto.randomUUID(), action, fields);
-      const result = await sendMutation(client.api, request, mutationRefused);
+
+      const result = await sendMutation(
+        client.api,
+        request,
+        mutationRefused,
+        (cause) => ConnectError.from(cause).rawMessage,
+      );
+
       setReceipt(result);
 
       return result;

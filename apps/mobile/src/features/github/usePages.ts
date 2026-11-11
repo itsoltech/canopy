@@ -5,6 +5,8 @@ import { invalidations } from "./invalidations";
 export function usePages<T extends { page?: github.PullRequestPageInfo }>(
   load: (cursor: string, refresh: boolean) => Promise<T>,
   id = "",
+  secondaryId = "",
+  retainOnInvalidation = false,
 ) {
   const [pages, setPages] = useState<T[]>([]);
   const [index, setIndex] = useState(0);
@@ -20,6 +22,10 @@ export function usePages<T extends { page?: github.PullRequestPageInfo }>(
   };
 
   useEffect(() => (id ? invalidations.subscribe(id, () => latest.current()) : undefined), [id]);
+  useEffect(
+    () => (secondaryId ? invalidations.subscribe(secondaryId, () => latest.current()) : undefined),
+    [secondaryId],
+  );
 
   useEffect(() => {
     const version = ++generation.current;
@@ -56,7 +62,7 @@ export function usePages<T extends { page?: github.PullRequestPageInfo }>(
     setError("");
 
     if (reset) {
-      setPages([]);
+      setPages(retainOnInvalidation && pages[index] ? [pages[index]] : []);
       setIndex(0);
     }
 

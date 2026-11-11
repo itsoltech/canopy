@@ -5,7 +5,8 @@ powiązania ręczne i automatyczne oraz Summary. Etap 4 dodaje pełny odczyt:
 Timeline, review threads, checki/jobs/logi i Code, polling, kontekst composera
 oraz fallback aktualizacji. Etap 5 dodaje jawne komentarze (post/reply/edit/delete)
 i Viewed synchronizowane z GitHub, ze wspólnym preflightem, receiptami i audytem.
-Pozostałe zapisy do GitHub pozostają zakresem etapów 6–9.
+Etap 6 dodaje inline comments i zakresy LEFT/RIGHT, pending review ze wszystkimi
+trzema werdyktami oraz resolve/unresolve. Pozostałe zapisy pozostają zakresem etapów 7–9.
 Decyzje ustalone po przeglądzie: oficjalna GitHub App Canopy organizacji `itsoltech`, device flow,
 wygasające tokeny użytkownika w domu wątku, pełny zakres zapisów opisany poniżej i Viewed
 synchronizowane z GitHub. Implementacja jako jeden stos PR według §11.
@@ -320,6 +321,9 @@ konkretnej niepotwierdzonej operacji. Identyczna treść komentarza również te
 Migracja `0117_github_mutations.sql` dodaje receipty oraz wspólne tempo zapisów.
 Numer jest kolejnym po bazie stosu; jeżeli diagnostyka wprowadzi swoją migrację
 wcześniej, niezaaplikowane migracje stosu wymagają ponownej numeracji przed merge.
+Migracja `0118_github_reviews.sql` rozszerza ten sam receipt i audyt o parametry
+kotwicy, werdyktu oraz rewizji review; nie zapisuje treści komentarza w audycie.
+Jej numer również wymaga sprawdzenia na podstawie stosu przed merge.
 
 ### Polling bez webhooków
 
@@ -569,6 +573,14 @@ Etap 5 ogłasza węższą capability `github_pr_comments_v1` dla siedmiu RPC
 preflight/receipt/comment/Viewed. Nie ogłasza jeszcze `github_pr_write_v1`, która
 oznacza kompletny zakres zapisów. Allowlista linked computers wymaga tej węższej
 capability; workery i boty nie mają dostępu do mutacji przez GatewayService.
+Etap 6 dodaje osobne `github_pr_review_v1`: prywatny pending review i pięć RPC
+inline/submit/discard/resolve. Nadal nie ogłasza kompletnego `github_pr_write_v1`.
+Gateway odczytuje własny pending review konta, stronicuje komentarze po 50 i przed
+submit/discard ponownie weryfikuje wszystkie strony, ich digest, liczbę i aktualny head.
+Zmiana review na innym urządzeniu wymaga odświeżenia; push wymaga ponownego
+przeglądu i jawnego potwierdzenia outdated anchors. Dzierżawa kolejki jest odnawiana
+podczas paginacji. Własny PR dopuszcza tylko Comment; uprawnienia i właściciel
+docelowego review/thread/comment są sprawdzane w gatewayu przed zapisem do GitHub.
 
 Timeline pobiera ostatnie 50 zdarzeń (`last/before`), pokazuje je od najnowszych i doczytuje starsze.
 Normalizuje otwarcie/zamknięcie/merge/reopen, commity, komentarze, review, zmiany reviewerów,
@@ -813,6 +825,8 @@ podczas doczytywania. Filtry i wybór commitu są arkuszami/pickerami, nie mały
 Diff domyślnie Stacked; Side by side pozostaje dostępne także na telefonie, z przewijaniem
 poziomym, a na tablecie wykorzystuje szerokość. Jest wrap, whitespace, drzewo, Viewed,
 komentarze, odpowiedzi i wszystkie trzy akcje composera z tymi samymi limitami.
+Natywny diff montuje najwyżej 100 oryginalnie numerowanych wierszy na stronę;
+wybór zakresu zachowuje kotwicę przy przejściu między stronami.
 
 | Funkcja v1 | Telefon i tablet |
 | --- | --- |

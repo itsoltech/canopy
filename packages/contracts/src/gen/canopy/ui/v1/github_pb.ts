@@ -14,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/ui/v1/github.proto.
  */
 export const file_canopy_ui_v1_github: GenFile = /*@__PURE__*/
-  fileDesc("ChljYW5vcHkvdWkvdjEvZ2l0aHViLnByb3RvEgxjYW5vcHkudWkudjEikgIKDUdpdEh1YkFjY291bnQSCgoCaWQYASABKAkSFgoOZ2l0aHViX3VzZXJfaWQYAiABKAkSDQoFbG9naW4YAyABKAkSDAoEaG9zdBgEIAEoCRIRCglhdXRoX2tpbmQYBSABKAkSDgoGc3RhdHVzGAYgASgJEhAKCHJldmlzaW9uGAcgASgEEhwKFGNvbm5lY3Rvcl9hY2NvdW50X2lkGAggASgJEjcKE2NhdGFsb2dfdmVyaWZpZWRfYXQYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhoKEmluc3RhbGxhdGlvbl9jb3VudBgKIAEoDRIYChByZXBvc2l0b3J5X2NvdW50GAsgASgNIigKFUdpdEh1YkFjY291bnRzUmVxdWVzdBIPCgdob21lX2lkGAEgASgJIkAKEkdpdEh1YlBhdENhbmRpZGF0ZRIcChRjb25uZWN0b3JfYWNjb3VudF9pZBgBIAEoCRIMCgRuYW1lGAIgASgJIqoBChZHaXRIdWJBY2NvdW50c1Jlc3BvbnNlEhIKCmNvbmZpZ3VyZWQYASABKAgSEwoLaW5zdGFsbF91cmwYAiABKAkSLQoIYWNjb3VudHMYAyADKAsyGy5jYW5vcHkudWkudjEuR2l0SHViQWNjb3VudBI4Cg5wYXRfY2FuZGlkYXRlcxgEIAMoCzIgLmNhbm9weS51aS52MS5HaXRIdWJQYXRDYW5kaWRhdGUiYgocQmVnaW5HaXRIdWJEZXZpY2VBdXRoUmVxdWVzdBIPCgdob21lX2lkGAEgASgJEhkKEWNsaWVudF9yZXF1ZXN0X2lkGAIgASgJEhYKDmNsaWVudF9iaW5kaW5nGAMgASgJIkUKF0dpdEh1YkRldmljZUF1dGhSZXF1ZXN0EhIKCmF0dGVtcHRfaWQYASABKAkSFgoOY2xpZW50X2JpbmRpbmcYAiABKAkiuAEKEEdpdEh1YkRldmljZUF1dGgSCgoCaWQYASABKAkSDQoFc3RhdGUYAiABKAkSEQoJdXNlcl9jb2RlGAMgASgJEhgKEHZlcmlmaWNhdGlvbl91cmkYBCABKAkSLgoKZXhwaXJlc19hdBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASGAoQaW50ZXJ2YWxfc2Vjb25kcxgGIAEoDRISCgphY2NvdW50X2lkGAcgASgJIl8KGEdpdEh1YkRldmljZUF1dGhSZXNwb25zZRISCgpjb25maWd1cmVkGAEgASgIEi8KB2F0dGVtcHQYAiABKAsyHi5jYW5vcHkudWkudjEuR2l0SHViRGV2aWNlQXV0aCIqChRHaXRIdWJBY2NvdW50UmVxdWVzdBISCgphY2NvdW50X2lkGAEgASgJIkUKFUdpdEh1YkFjY291bnRSZXNwb25zZRIsCgdhY2NvdW50GAEgASgLMhsuY2Fub3B5LnVpLnYxLkdpdEh1YkFjY291bnQiRAoTVXNlR2l0SHViUGF0UmVxdWVzdBIcChRjb25uZWN0b3JfYWNjb3VudF9pZBgBIAEoCRIPCgdob21lX2lkGAIgASgJImQKFkdpdEh1YkNhdGFsb2d1ZVJlcXVlc3QSEgoKYWNjb3VudF9pZBgBIAEoCRIXCg9pbnN0YWxsYXRpb25faWQYAiABKAkSDAoEcGFnZRgDIAEoDRIPCgdyZWZyZXNoGAQgASgIIsQCChJHaXRIdWJJbnN0YWxsYXRpb24SFwoPaW5zdGFsbGF0aW9uX2lkGAEgASgJEg0KBWxvZ2luGAIgASgJEhQKDGFjY291bnRfdHlwZRgDIAEoCRIcChRyZXBvc2l0b3J5X3NlbGVjdGlvbhgEIAEoCRIRCglzdXNwZW5kZWQYBSABKAgSRgoLcGVybWlzc2lvbnMYBiADKAsyMS5jYW5vcHkudWkudjEuR2l0SHViSW5zdGFsbGF0aW9uLlBlcm1pc3Npb25zRW50cnkSEgoKbWFuYWdlX3VybBgHIAEoCRIvCgt2ZXJpZmllZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAaMgoQUGVybWlzc2lvbnNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIqgBChtHaXRIdWJJbnN0YWxsYXRpb25zUmVzcG9uc2USNwoNaW5zdGFsbGF0aW9ucxgBIAMoCzIgLmNhbm9weS51aS52MS5HaXRIdWJJbnN0YWxsYXRpb24SEQoJbmV4dF9wYWdlGAIgASgNEg4KBmRldGFpbBgDIAEoCRITCgt0b3RhbF9jb3VudBgEIAEoDRIYChByZXBvc2l0b3J5X2NvdW50GAUgASgNIscBChBHaXRIdWJSZXBvc2l0b3J5EhUKDXJlcG9zaXRvcnlfaWQYASABKAkSEQoJZnVsbF9uYW1lGAIgASgJEg8KB3ByaXZhdGUYAyABKAgSRAoLcGVybWlzc2lvbnMYBCADKAsyLy5jYW5vcHkudWkudjEuR2l0SHViUmVwb3NpdG9yeS5QZXJtaXNzaW9uc0VudHJ5GjIKEFBlcm1pc3Npb25zRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgIOgI4ASJ6ChpHaXRIdWJSZXBvc2l0b3JpZXNSZXNwb25zZRI0CgxyZXBvc2l0b3JpZXMYASADKAsyHi5jYW5vcHkudWkudjEuR2l0SHViUmVwb3NpdG9yeRIRCgluZXh0X3BhZ2UYAiABKA0SEwoLdG90YWxfY291bnQYAyABKA0iSgoeR2l0SHViUmVwb3NpdG9yeUFjY291bnRSZXF1ZXN0Eg8KB2hvbWVfaWQYASABKAkSFwoPcmVwb3NpdG9yeV9uYW1lGAIgASgJIqgBCh9HaXRIdWJSZXBvc2l0b3J5QWNjb3VudFJlc3BvbnNlEhUKDXJlcG9zaXRvcnlfaWQYASABKAkSFwoPcmVwb3NpdG9yeV9uYW1lGAIgASgJEhIKCmFjY291bnRfaWQYAyABKAkSEAoIcmV2aXNpb24YBCABKAQSLwoKY2FuZGlkYXRlcxgFIAMoCzIbLmNhbm9weS51aS52MS5HaXRIdWJBY2NvdW50InwKIVNldEdpdEh1YlJlcG9zaXRvcnlBY2NvdW50UmVxdWVzdBIPCgdob21lX2lkGAEgASgJEhcKD3JlcG9zaXRvcnlfbmFtZRgCIAEoCRISCgphY2NvdW50X2lkGAMgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAQgASgEInsKDlB1bGxSZXF1ZXN0UmVmEgoKAmlkGAEgASgJEgwKBGhvc3QYAiABKAkSFQoNcmVwb3NpdG9yeV9pZBgDIAEoCRIXCg9yZXBvc2l0b3J5X25hbWUYBCABKAkSDgoGbnVtYmVyGAUgASgNEg8KB25vZGVfaWQYBiABKAki/AEKElB1bGxSZXF1ZXN0U3VtbWFyeRIpCgNyZWYYASABKAsyHC5jYW5vcHkudWkudjEuUHVsbFJlcXVlc3RSZWYSDQoFdGl0bGUYAiABKAkSDQoFc3RhdGUYAyABKAkSEAoIaGVhZF9zaGEYBCABKAkSFAoMY2hlY2tzX3N0YXRlGAUgASgJEhQKDGNoZWNrc19jb3VudBgGIAEoDRIuCgp1cGRhdGVkX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIvCgt2ZXJpZmllZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAikQEKEFB1bGxSZXF1ZXN0Q2hlY2sSDAoEbmFtZRgBIAEoCRINCgVzdGF0ZRgCIAEoCRIQCghwcm92aWRlchgDIAEoCRILCgN1cmwYBCABKAkSEAoIaGVhZF9zaGEYBSABKAkSDwoHbm9kZV9pZBgGIAEoCRIOCgZydW5faWQYByABKAkSDgoGb3V0cHV0GAggASgJIjMKE1B1bGxSZXF1ZXN0UmV2aWV3ZXISDQoFbG9naW4YASABKAkSDQoFc3RhdGUYAiABKAkiLwoQUHVsbFJlcXVlc3RMYWJlbBIMCgRuYW1lGAEgASgJEg0KBWNvbG9yGAIgASgJIsMEChNQdWxsUmVxdWVzdFNuYXBzaG90EjEKB3N1bW1hcnkYASABKAsyIC5jYW5vcHkudWkudjEuUHVsbFJlcXVlc3RTdW1tYXJ5Eg4KBmF1dGhvchgCIAEoCRIMCgRib2R5GAMgASgJEhAKCGJhc2VfcmVmGAQgASgJEhAKCGhlYWRfcmVmGAUgASgJEhAKCGJhc2Vfc2hhGAYgASgJEg0KBWZpbGVzGAcgASgNEhEKCWFkZGl0aW9ucxgIIAEoDRIRCglkZWxldGlvbnMYCSABKA0SNAoJcmV2aWV3ZXJzGAogAygLMiEuY2Fub3B5LnVpLnYxLlB1bGxSZXF1ZXN0UmV2aWV3ZXISDgoGbGFiZWxzGAsgAygJEi4KBmNoZWNrcxgMIAMoCzIeLmNhbm9weS51aS52MS5QdWxsUmVxdWVzdENoZWNrEhQKDGNvbXBsZXRlbmVzcxgNIAEoCRINCgVzdGFsZRgOIAEoCBIOCgZkZXRhaWwYDyABKAkSEgoKYWNjb3VudF9pZBgQIAEoCRIXCg9hY2Nlc3NfcmV2aXNpb24YESABKAQSEQoJYXNzaWduZWVzGBIgAygJEjUKDWxhYmVsX2RldGFpbHMYEyADKAsyHi5jYW5vcHkudWkudjEuUHVsbFJlcXVlc3RMYWJlbBIaChJoZWFkX3JlcG9zaXRvcnlfaWQYFCABKAkSHAoUaGVhZF9yZXBvc2l0b3J5X25hbWUYFSABKAkSFAoMdmlld2VyX2xvZ2luGBYgASgJIq4BCg9QdWxsUmVxdWVzdExpbmsSMQoHc3VtbWFyeRgBIAEoCzIgLmNhbm9weS51aS52MS5QdWxsUmVxdWVzdFN1bW1hcnkSDgoGc291cmNlGAIgASgJEi4KCmNyZWF0ZWRfYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhYKDmN1cnJlbnRfYnJhbmNoGAQgASgIEhAKCGV2aWRlbmNlGAUgASgJIi4KGVRocmVhZFB1bGxSZXF1ZXN0c1JlcXVlc3QSEQoJdGhyZWFkX2lkGAEgASgJInsKGlRocmVhZFB1bGxSZXF1ZXN0c1Jlc3BvbnNlEiwKBWxpbmtzGAEgAygLMh0uY2Fub3B5LnVpLnYxLlB1bGxSZXF1ZXN0TGluaxIQCghyZXZpc2lvbhgCIAEoBBINCgVzdGFsZRgDIAEoCBIOCgZkZXRhaWwYBCABKAkiWQocTGlua1RocmVhZFB1bGxSZXF1ZXN0UmVxdWVzdBIRCgl0aHJlYWRfaWQYASABKAkSCwoDdXJsGAIgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAMgASgEImcKHlVubGlua1RocmVhZFB1bGxSZXF1ZXN0UmVxdWVzdBIRCgl0aHJlYWRfaWQYASABKAkSFwoPcHVsbF9yZXF1ZXN0X2lkGAIgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAMgASgEIj4KElB1bGxSZXF1ZXN0UmVxdWVzdBIXCg9wdWxsX3JlcXVlc3RfaWQYASABKAkSDwoHcmVmcmVzaBgCIAEoCCLhAQoWUHVsbFJlcXVlc3RQYWdlUmVxdWVzdBIXCg9wdWxsX3JlcXVlc3RfaWQYASABKAkSDgoGY3Vyc29yGAIgASgJEgwKBGtpbmQYAyABKAkSDgoGYXV0aG9yGAQgASgJEhQKDG9sZGVzdF9maXJzdBgFIAEoCBIQCghoZWFkX3NoYRgGIAEoCRIQCghiYXNlX3NoYRgHIAEoCRISCgpjb21taXRfc2hhGAggASgJEhMKC3Jlc291cmNlX2lkGAkgASgJEgwKBHBhdGgYCiABKAkSDwoHcmVmcmVzaBgLIAEoCCLGAQoTUHVsbFJlcXVlc3RQYWdlSW5mbxITCgtuZXh0X2N1cnNvchgBIAEoCRIQCghoZWFkX3NoYRgCIAEoCRIQCghiYXNlX3NoYRgDIAEoCRIUCgxjb21wbGV0ZW5lc3MYBCABKAkSDgoGZGV0YWlsGAUgASgJEi8KC3ZlcmlmaWVkX2F0GAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBINCgVzdGFsZRgHIAEoCBIQCghzbmFwc2hvdBgIIAEoCSLhAQoYUHVsbFJlcXVlc3RUaW1lbGluZUVudHJ5EgoKAmlkGAEgASgJEg4KBmF1dGhvchgCIAEoCRIMCgRib2R5GAMgASgJEgsKA3VybBgEIAEoCRIuCgpjcmVhdGVkX2F0GAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBINCgVzdGF0ZRgGIAEoCRILCgNzaGEYByABKAkSDAoEa2luZBgIIAEoCRIZChF2aWV3ZXJfY2FuX3VwZGF0ZRgJIAEoCBIZChF2aWV3ZXJfY2FuX2RlbGV0ZRgKIAEoCCKMAgoXUHVsbFJlcXVlc3RUaW1lbGluZUl0ZW0SOQoHY29tbWVudBgBIAEoCzImLmNhbm9weS51aS52MS5QdWxsUmVxdWVzdFRpbWVsaW5lRW50cnlIABI4CgZyZXZpZXcYAiABKAsyJi5jYW5vcHkudWkudjEuUHVsbFJlcXVlc3RUaW1lbGluZUVudHJ5SAASOAoGY29tbWl0GAMgASgLMiYuY2Fub3B5LnVpLnYxLlB1bGxSZXF1ZXN0VGltZWxpbmVFbnRyeUgAEjcKBWV2ZW50GAQgASgLMiYuY2Fub3B5LnVpLnYxLlB1bGxSZXF1ZXN0VGltZWxpbmVFbnRyeUgAQgkKB2NvbnRlbnQigAEKF1B1bGxSZXF1ZXN0VGltZWxpbmVQYWdlEjQKBWl0ZW1zGAEgAygLMiUuY2Fub3B5LnVpLnYxLlB1bGxSZXF1ZXN0VGltZWxpbmVJdGVtEi8KBHBhZ2UYAiABKAsyIS5jYW5vcHkudWkudjEuUHVsbFJlcXVlc3RQYWdlSW5mbyLEAQoXUHVsbFJlcXVlc3RSZXZpZXdUaHJlYWQSCgoCaWQYASABKAkSDAoEcGF0aBgCIAEoCRIMCgRsaW5lGAMgASgNEhAKCHJlc29sdmVkGAQgASgIEhAKCG91dGRhdGVkGAUgASgIEjgKCGNvbW1lbnRzGAYgAygLMiYuY2Fub3B5LnVpLnYxLlB1bGxSZXF1ZXN0VGltZWxpbmVFbnRyeRIWCg5yZXBsaWVzX2N1cnNvchgHIAEoCRILCgNzaGEYCCABKAkihwEKHFB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFkc1BhZ2USNgoHdGhyZWFkcxgBIAMoCzIlLmNhbm9weS51aS52MS5QdWxsUmVxdWVzdFJldmlld1RocmVhZBIvCgRwYWdlGAIgASgLMiEuY2Fub3B5LnVpLnYxLlB1bGxSZXF1ZXN0UGFnZUluZm8ieAoVUHVsbFJlcXVlc3RDaGVja3NQYWdlEi4KBmNoZWNrcxgBIAMoCzIeLmNhbm9weS51aS52MS5QdWxsUmVxdWVzdENoZWNrEi8KBHBhZ2UYAiABKAsyIS5jYW5vcHkudWkudjEuUHVsbFJlcXVlc3RQYWdlSW5mbyJ5Cg5QdWxsUmVxdWVzdEpvYhIKCgJpZBgBIAEoCRIOCgZydW5faWQYAiABKAkSDwoHYXR0ZW1wdBgDIAEoDRIMCgRuYW1lGAQgASgJEg0KBXN0YXRlGAUgASgJEgsKA3VybBgGIAEoCRIQCghoZWFkX3NoYRgHIAEoCSJyChNQdWxsUmVxdWVzdEpvYnNQYWdlEioKBGpvYnMYASADKAsyHC5jYW5vcHkudWkudjEuUHVsbFJlcXVlc3RKb2ISLwoEcGFnZRgCIAEoCzIhLmNhbm9weS51aS52MS5QdWxsUmVxdWVzdFBhZ2VJbmZvIn0KFVB1bGxSZXF1ZXN0Sm9iTG9nUGFnZRIMCgR0ZXh0GAEgASgJEhIKCmZpcnN0X2xpbmUYAiABKA0SEQoJdHJ1bmNhdGVkGAMgASgIEi8KBHBhZ2UYBCABKAsyIS5jYW5vcHkudWkudjEuUHVsbFJlcXVlc3RQYWdlSW5mbyK/AQoPUHVsbFJlcXVlc3RGaWxlEgwKBHBhdGgYASABKAkSFQoNcHJldmlvdXNfcGF0aBgCIAEoCRINCgVzdGF0ZRgDIAEoCRIRCglhZGRpdGlvbnMYBCABKA0SEQoJZGVsZXRpb25zGAUgASgNEhMKC3BhdGNoX3N0YXRlGAYgASgJEgsKA3VybBgHIAEoCRITCgtzb3VyY2VfcGFnZRgIIAEoDRIbChN2aWV3ZXJfdmlld2VkX3N0YXRlGAkgASgJIroBChRQdWxsUmVxdWVzdEZpbGVzUGFnZRIsCgVmaWxlcxgBIAMoCzIdLmNhbm9weS51aS52MS5QdWxsUmVxdWVzdEZpbGUSLwoEcGFnZRgCIAEoCzIhLmNhbm9weS51aS52MS5QdWxsUmVxdWVzdFBhZ2VJbmZvEhQKDHZpZXdlZF9jb3VudBgDIAEoDRIUCgx2aWV3ZWRfdG90YWwYBCABKA0SFwoPdmlld2VkX2NvbXBsZXRlGAUgASgIIn4KD1B1bGxSZXF1ZXN0RGlmZhIrCgRmaWxlGAEgASgLMh0uY2Fub3B5LnVpLnYxLlB1bGxSZXF1ZXN0RmlsZRINCgVwYXRjaBgCIAEoCRIvCgRwYWdlGAMgASgLMiEuY2Fub3B5LnVpLnYxLlB1bGxSZXF1ZXN0UGFnZUluZm8iQQoRUHVsbFJlcXVlc3RDb21taXQSCwoDc2hhGAEgASgJEg8KB3N1YmplY3QYAiABKAkSDgoGYXV0aG9yGAMgASgJInsKFlB1bGxSZXF1ZXN0Q29tbWl0c1BhZ2USMAoHY29tbWl0cxgBIAMoCzIfLmNhbm9weS51aS52MS5QdWxsUmVxdWVzdENvbW1pdBIvCgRwYWdlGAIgASgLMiEuY2Fub3B5LnVpLnYxLlB1bGxSZXF1ZXN0UGFnZUluZm8iWAoXV2F0Y2hQdWxsUmVxdWVzdFJlcXVlc3QSFwoPcHVsbF9yZXF1ZXN0X2lkGAEgASgJEhAKCHJldmlzaW9uGAIgASgJEhIKCnZpc2liaWxpdHkYAyABKAkifAoRUHVsbFJlcXVlc3RVcGRhdGUSMwoIc25hcHNob3QYASABKAsyIS5jYW5vcHkudWkudjEuUHVsbFJlcXVlc3RTbmFwc2hvdBIQCghyZXZpc2lvbhgCIAEoCRITCgtpbnZhbGlkYXRlZBgDIAMoCRILCgNnYXAYBCABKAgiggEKIFByZXBhcmVQdWxsUmVxdWVzdENvbnRleHRSZXF1ZXN0EhcKD3B1bGxfcmVxdWVzdF9pZBgBIAEoCRIRCgl0aHJlYWRfaWQYAiABKAkSDgoGYWN0aW9uGAMgASgJEg0KBXBhdGhzGAQgAygJEhMKC2ZpbmRpbmdfaWRzGAUgAygJImkKGlB1bGxSZXF1ZXN0Q29udGV4dFJlc3BvbnNlEiwKCmF0dGFjaG1lbnQYASABKAsyGC5jYW5vcHkudWkudjEuQXR0YWNobWVudBIOCgZwcm9tcHQYAiABKAkSDQoFc2NvcGUYAyABKAkiUgoaR2l0SHViVXBkYXRlQWNjb3VudFJlcXVlc3QSDwoHaG9tZV9pZBgBIAEoCRISCgphY2NvdW50X2lkGAIgASgJEg8KB2VuYWJsZWQYAyABKAgiQgobR2l0SHViVXBkYXRlQWNjb3VudFJlc3BvbnNlEhIKCmFjY291bnRfaWQYASABKAkSDwoHZW5hYmxlZBgCIAEoCCK/AgoaUHVsbFJlcXVlc3RNdXRhdGlvblJlcXVlc3QSFwoPcHVsbF9yZXF1ZXN0X2lkGAEgASgJEhkKEWNsaWVudF9yZXF1ZXN0X2lkGAIgASgJEhIKCmFjY291bnRfaWQYAyABKAkSFwoPYWNjZXNzX3JldmlzaW9uGAQgASgEEhAKCGhlYWRfc2hhGAUgASgJEhYKDmV4cGVjdGVkX3N0YXRlGAYgASgJEg4KBmFjdGlvbhgHIAEoCRITCgtyZXNvdXJjZV9pZBgIIAEoCRIUCgxjb21tZW50X2tpbmQYCSABKAkSDAoEYm9keRgKIAEoCRIMCgRwYXRoGAsgASgJEg4KBnZpZXdlZBgMIAEoCBIXCg9jb25maXJtYXRpb25faWQYDSABKAkSFgoOY2xpZW50X2JpbmRpbmcYDiABKAkiawodUHVsbFJlcXVlc3RNdXRhdGlvblJlcXVlc3RSZWYSFwoPcHVsbF9yZXF1ZXN0X2lkGAEgASgJEhkKEWNsaWVudF9yZXF1ZXN0X2lkGAIgASgJEhYKDmNsaWVudF9iaW5kaW5nGAMgASgJIuEBChpQdWxsUmVxdWVzdE11dGF0aW9uUmVjZWlwdBIZChFjbGllbnRfcmVxdWVzdF9pZBgBIAEoCRINCgVzdGF0ZRgCIAEoCRIOCgZhY3Rpb24YAyABKAkSDgoGZGV0YWlsGAQgASgJEhMKC3Vwc3RyZWFtX2lkGAUgASgJEhcKD2NvbmZpcm1hdGlvbl9pZBgGIAEoCRIuCgpleHBpcmVzX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIbChN2aWV3ZXJfdmlld2VkX3N0YXRlGAggASgJYgZwcm90bzM", [file_google_protobuf_timestamp, file_canopy_ui_v1_attachments]);
+  fileDesc("ChljYW5vcHkvdWkvdjEvZ2l0aHViLnByb3RvEgxjYW5vcHkudWkudjEikgIKDUdpdEh1YkFjY291bnQSCgoCaWQYASABKAkSFgoOZ2l0aHViX3VzZXJfaWQYAiABKAkSDQoFbG9naW4YAyABKAkSDAoEaG9zdBgEIAEoCRIRCglhdXRoX2tpbmQYBSABKAkSDgoGc3RhdHVzGAYgASgJEhAKCHJldmlzaW9uGAcgASgEEhwKFGNvbm5lY3Rvcl9hY2NvdW50X2lkGAggASgJEjcKE2NhdGFsb2dfdmVyaWZpZWRfYXQYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhoKEmluc3RhbGxhdGlvbl9jb3VudBgKIAEoDRIYChByZXBvc2l0b3J5X2NvdW50GAsgASgNIigKFUdpdEh1YkFjY291bnRzUmVxdWVzdBIPCgdob21lX2lkGAEgASgJIkAKEkdpdEh1YlBhdENhbmRpZGF0ZRIcChRjb25uZWN0b3JfYWNjb3VudF9pZBgBIAEoCRIMCgRuYW1lGAIgASgJIqoBChZHaXRIdWJBY2NvdW50c1Jlc3BvbnNlEhIKCmNvbmZpZ3VyZWQYASABKAgSEwoLaW5zdGFsbF91cmwYAiABKAkSLQoIYWNjb3VudHMYAyADKAsyGy5jYW5vcHkudWkudjEuR2l0SHViQWNjb3VudBI4Cg5wYXRfY2FuZGlkYXRlcxgEIAMoCzIgLmNhbm9weS51aS52MS5HaXRIdWJQYXRDYW5kaWRhdGUiYgocQmVnaW5HaXRIdWJEZXZpY2VBdXRoUmVxdWVzdBIPCgdob21lX2lkGAEgASgJEhkKEWNsaWVudF9yZXF1ZXN0X2lkGAIgASgJEhYKDmNsaWVudF9iaW5kaW5nGAMgASgJIkUKF0dpdEh1YkRldmljZUF1dGhSZXF1ZXN0EhIKCmF0dGVtcHRfaWQYASABKAkSFgoOY2xpZW50X2JpbmRpbmcYAiABKAkiuAEKEEdpdEh1YkRldmljZUF1dGgSCgoCaWQYASABKAkSDQoFc3RhdGUYAiABKAkSEQoJdXNlcl9jb2RlGAMgASgJEhgKEHZlcmlmaWNhdGlvbl91cmkYBCABKAkSLgoKZXhwaXJlc19hdBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASGAoQaW50ZXJ2YWxfc2Vjb25kcxgGIAEoDRISCgphY2NvdW50X2lkGAcgASgJIl8KGEdpdEh1YkRldmljZUF1dGhSZXNwb25zZRISCgpjb25maWd1cmVkGAEgASgIEi8KB2F0dGVtcHQYAiABKAsyHi5jYW5vcHkudWkudjEuR2l0SHViRGV2aWNlQXV0aCIqChRHaXRIdWJBY2NvdW50UmVxdWVzdBISCgphY2NvdW50X2lkGAEgASgJIkUKFUdpdEh1YkFjY291bnRSZXNwb25zZRIsCgdhY2NvdW50GAEgASgLMhsuY2Fub3B5LnVpLnYxLkdpdEh1YkFjY291bnQiRAoTVXNlR2l0SHViUGF0UmVxdWVzdBIcChRjb25uZWN0b3JfYWNjb3VudF9pZBgBIAEoCRIPCgdob21lX2lkGAIgASgJImQKFkdpdEh1YkNhdGFsb2d1ZVJlcXVlc3QSEgoKYWNjb3VudF9pZBgBIAEoCRIXCg9pbnN0YWxsYXRpb25faWQYAiABKAkSDAoEcGFnZRgDIAEoDRIPCgdyZWZyZXNoGAQgASgIIsQCChJHaXRIdWJJbnN0YWxsYXRpb24SFwoPaW5zdGFsbGF0aW9uX2lkGAEgASgJEg0KBWxvZ2luGAIgASgJEhQKDGFjY291bnRfdHlwZRgDIAEoCRIcChRyZXBvc2l0b3J5X3NlbGVjdGlvbhgEIAEoCRIRCglzdXNwZW5kZWQYBSABKAgSRgoLcGVybWlzc2lvbnMYBiADKAsyMS5jYW5vcHkudWkudjEuR2l0SHViSW5zdGFsbGF0aW9uLlBlcm1pc3Npb25zRW50cnkSEgoKbWFuYWdlX3VybBgHIAEoCRIvCgt2ZXJpZmllZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAaMgoQUGVybWlzc2lvbnNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIqgBChtHaXRIdWJJbnN0YWxsYXRpb25zUmVzcG9uc2USNwoNaW5zdGFsbGF0aW9ucxgBIAMoCzIgLmNhbm9weS51aS52MS5HaXRIdWJJbnN0YWxsYXRpb24SEQoJbmV4dF9wYWdlGAIgASgNEg4KBmRldGFpbBgDIAEoCRITCgt0b3RhbF9jb3VudBgEIAEoDRIYChByZXBvc2l0b3J5X2NvdW50GAUgASgNIscBChBHaXRIdWJSZXBvc2l0b3J5EhUKDXJlcG9zaXRvcnlfaWQYASABKAkSEQoJZnVsbF9uYW1lGAIgASgJEg8KB3ByaXZhdGUYAyABKAgSRAoLcGVybWlzc2lvbnMYBCADKAsyLy5jYW5vcHkudWkudjEuR2l0SHViUmVwb3NpdG9yeS5QZXJtaXNzaW9uc0VudHJ5GjIKEFBlcm1pc3Npb25zRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgIOgI4ASJ6ChpHaXRIdWJSZXBvc2l0b3JpZXNSZXNwb25zZRI0CgxyZXBvc2l0b3JpZXMYASADKAsyHi5jYW5vcHkudWkudjEuR2l0SHViUmVwb3NpdG9yeRIRCgluZXh0X3BhZ2UYAiABKA0SEwoLdG90YWxfY291bnQYAyABKA0iSgoeR2l0SHViUmVwb3NpdG9yeUFjY291bnRSZXF1ZXN0Eg8KB2hvbWVfaWQYASABKAkSFwoPcmVwb3NpdG9yeV9uYW1lGAIgASgJIqgBCh9HaXRIdWJSZXBvc2l0b3J5QWNjb3VudFJlc3BvbnNlEhUKDXJlcG9zaXRvcnlfaWQYASABKAkSFwoPcmVwb3NpdG9yeV9uYW1lGAIgASgJEhIKCmFjY291bnRfaWQYAyABKAkSEAoIcmV2aXNpb24YBCABKAQSLwoKY2FuZGlkYXRlcxgFIAMoCzIbLmNhbm9weS51aS52MS5HaXRIdWJBY2NvdW50InwKIVNldEdpdEh1YlJlcG9zaXRvcnlBY2NvdW50UmVxdWVzdBIPCgdob21lX2lkGAEgASgJEhcKD3JlcG9zaXRvcnlfbmFtZRgCIAEoCRISCgphY2NvdW50X2lkGAMgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAQgASgEInsKDlB1bGxSZXF1ZXN0UmVmEgoKAmlkGAEgASgJEgwKBGhvc3QYAiABKAkSFQoNcmVwb3NpdG9yeV9pZBgDIAEoCRIXCg9yZXBvc2l0b3J5X25hbWUYBCABKAkSDgoGbnVtYmVyGAUgASgNEg8KB25vZGVfaWQYBiABKAki/AEKElB1bGxSZXF1ZXN0U3VtbWFyeRIpCgNyZWYYASABKAsyHC5jYW5vcHkudWkudjEuUHVsbFJlcXVlc3RSZWYSDQoFdGl0bGUYAiABKAkSDQoFc3RhdGUYAyABKAkSEAoIaGVhZF9zaGEYBCABKAkSFAoMY2hlY2tzX3N0YXRlGAUgASgJEhQKDGNoZWNrc19jb3VudBgGIAEoDRIuCgp1cGRhdGVkX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIvCgt2ZXJpZmllZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAikQEKEFB1bGxSZXF1ZXN0Q2hlY2sSDAoEbmFtZRgBIAEoCRINCgVzdGF0ZRgCIAEoCRIQCghwcm92aWRlchgDIAEoCRILCgN1cmwYBCABKAkSEAoIaGVhZF9zaGEYBSABKAkSDwoHbm9kZV9pZBgGIAEoCRIOCgZydW5faWQYByABKAkSDgoGb3V0cHV0GAggASgJIjMKE1B1bGxSZXF1ZXN0UmV2aWV3ZXISDQoFbG9naW4YASABKAkSDQoFc3RhdGUYAiABKAkiLwoQUHVsbFJlcXVlc3RMYWJlbBIMCgRuYW1lGAEgASgJEg0KBWNvbG9yGAIgASgJIsMEChNQdWxsUmVxdWVzdFNuYXBzaG90EjEKB3N1bW1hcnkYASABKAsyIC5jYW5vcHkudWkudjEuUHVsbFJlcXVlc3RTdW1tYXJ5Eg4KBmF1dGhvchgCIAEoCRIMCgRib2R5GAMgASgJEhAKCGJhc2VfcmVmGAQgASgJEhAKCGhlYWRfcmVmGAUgASgJEhAKCGJhc2Vfc2hhGAYgASgJEg0KBWZpbGVzGAcgASgNEhEKCWFkZGl0aW9ucxgIIAEoDRIRCglkZWxldGlvbnMYCSABKA0SNAoJcmV2aWV3ZXJzGAogAygLMiEuY2Fub3B5LnVpLnYxLlB1bGxSZXF1ZXN0UmV2aWV3ZXISDgoGbGFiZWxzGAsgAygJEi4KBmNoZWNrcxgMIAMoCzIeLmNhbm9weS51aS52MS5QdWxsUmVxdWVzdENoZWNrEhQKDGNvbXBsZXRlbmVzcxgNIAEoCRINCgVzdGFsZRgOIAEoCBIOCgZkZXRhaWwYDyABKAkSEgoKYWNjb3VudF9pZBgQIAEoCRIXCg9hY2Nlc3NfcmV2aXNpb24YESABKAQSEQoJYXNzaWduZWVzGBIgAygJEjUKDWxhYmVsX2RldGFpbHMYEyADKAsyHi5jYW5vcHkudWkudjEuUHVsbFJlcXVlc3RMYWJlbBIaChJoZWFkX3JlcG9zaXRvcnlfaWQYFCABKAkSHAoUaGVhZF9yZXBvc2l0b3J5X25hbWUYFSABKAkSFAoMdmlld2VyX2xvZ2luGBYgASgJIq4BCg9QdWxsUmVxdWVzdExpbmsSMQoHc3VtbWFyeRgBIAEoCzIgLmNhbm9weS51aS52MS5QdWxsUmVxdWVzdFN1bW1hcnkSDgoGc291cmNlGAIgASgJEi4KCmNyZWF0ZWRfYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhYKDmN1cnJlbnRfYnJhbmNoGAQgASgIEhAKCGV2aWRlbmNlGAUgASgJIi4KGVRocmVhZFB1bGxSZXF1ZXN0c1JlcXVlc3QSEQoJdGhyZWFkX2lkGAEgASgJInsKGlRocmVhZFB1bGxSZXF1ZXN0c1Jlc3BvbnNlEiwKBWxpbmtzGAEgAygLMh0uY2Fub3B5LnVpLnYxLlB1bGxSZXF1ZXN0TGluaxIQCghyZXZpc2lvbhgCIAEoBBINCgVzdGFsZRgDIAEoCBIOCgZkZXRhaWwYBCABKAkiWQocTGlua1RocmVhZFB1bGxSZXF1ZXN0UmVxdWVzdBIRCgl0aHJlYWRfaWQYASABKAkSCwoDdXJsGAIgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAMgASgEImcKHlVubGlua1RocmVhZFB1bGxSZXF1ZXN0UmVxdWVzdBIRCgl0aHJlYWRfaWQYASABKAkSFwoPcHVsbF9yZXF1ZXN0X2lkGAIgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAMgASgEIj4KElB1bGxSZXF1ZXN0UmVxdWVzdBIXCg9wdWxsX3JlcXVlc3RfaWQYASABKAkSDwoHcmVmcmVzaBgCIAEoCCLhAQoWUHVsbFJlcXVlc3RQYWdlUmVxdWVzdBIXCg9wdWxsX3JlcXVlc3RfaWQYASABKAkSDgoGY3Vyc29yGAIgASgJEgwKBGtpbmQYAyABKAkSDgoGYXV0aG9yGAQgASgJEhQKDG9sZGVzdF9maXJzdBgFIAEoCBIQCghoZWFkX3NoYRgGIAEoCRIQCghiYXNlX3NoYRgHIAEoCRISCgpjb21taXRfc2hhGAggASgJEhMKC3Jlc291cmNlX2lkGAkgASgJEgwKBHBhdGgYCiABKAkSDwoHcmVmcmVzaBgLIAEoCCLGAQoTUHVsbFJlcXVlc3RQYWdlSW5mbxITCgtuZXh0X2N1cnNvchgBIAEoCRIQCghoZWFkX3NoYRgCIAEoCRIQCghiYXNlX3NoYRgDIAEoCRIUCgxjb21wbGV0ZW5lc3MYBCABKAkSDgoGZGV0YWlsGAUgASgJEi8KC3ZlcmlmaWVkX2F0GAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBINCgVzdGFsZRgHIAEoCBIQCghzbmFwc2hvdBgIIAEoCSLhAQoYUHVsbFJlcXVlc3RUaW1lbGluZUVudHJ5EgoKAmlkGAEgASgJEg4KBmF1dGhvchgCIAEoCRIMCgRib2R5GAMgASgJEgsKA3VybBgEIAEoCRIuCgpjcmVhdGVkX2F0GAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBINCgVzdGF0ZRgGIAEoCRILCgNzaGEYByABKAkSDAoEa2luZBgIIAEoCRIZChF2aWV3ZXJfY2FuX3VwZGF0ZRgJIAEoCBIZChF2aWV3ZXJfY2FuX2RlbGV0ZRgKIAEoCCKMAgoXUHVsbFJlcXVlc3RUaW1lbGluZUl0ZW0SOQoHY29tbWVudBgBIAEoCzImLmNhbm9weS51aS52MS5QdWxsUmVxdWVzdFRpbWVsaW5lRW50cnlIABI4CgZyZXZpZXcYAiABKAsyJi5jYW5vcHkudWkudjEuUHVsbFJlcXVlc3RUaW1lbGluZUVudHJ5SAASOAoGY29tbWl0GAMgASgLMiYuY2Fub3B5LnVpLnYxLlB1bGxSZXF1ZXN0VGltZWxpbmVFbnRyeUgAEjcKBWV2ZW50GAQgASgLMiYuY2Fub3B5LnVpLnYxLlB1bGxSZXF1ZXN0VGltZWxpbmVFbnRyeUgAQgkKB2NvbnRlbnQigAEKF1B1bGxSZXF1ZXN0VGltZWxpbmVQYWdlEjQKBWl0ZW1zGAEgAygLMiUuY2Fub3B5LnVpLnYxLlB1bGxSZXF1ZXN0VGltZWxpbmVJdGVtEi8KBHBhZ2UYAiABKAsyIS5jYW5vcHkudWkudjEuUHVsbFJlcXVlc3RQYWdlSW5mbyLoAgoXUHVsbFJlcXVlc3RSZXZpZXdUaHJlYWQSCgoCaWQYASABKAkSDAoEcGF0aBgCIAEoCRIMCgRsaW5lGAMgASgNEhAKCHJlc29sdmVkGAQgASgIEhAKCG91dGRhdGVkGAUgASgIEjgKCGNvbW1lbnRzGAYgAygLMiYuY2Fub3B5LnVpLnYxLlB1bGxSZXF1ZXN0VGltZWxpbmVFbnRyeRIWCg5yZXBsaWVzX2N1cnNvchgHIAEoCRILCgNzaGEYCCABKAkSDAoEc2lkZRgJIAEoCRISCgpzdGFydF9saW5lGAogASgNEhIKCnN0YXJ0X3NpZGUYCyABKAkSFQoNb3JpZ2luYWxfbGluZRgMIAEoDRIbChNvcmlnaW5hbF9zdGFydF9saW5lGA0gASgNEhoKEnZpZXdlcl9jYW5fcmVzb2x2ZRgOIAEoCBIcChR2aWV3ZXJfY2FuX3VucmVzb2x2ZRgPIAEoCCK3AQoYUHVsbFJlcXVlc3RSZXZpZXdDb21tZW50EjcKB2NvbW1lbnQYASABKAsyJi5jYW5vcHkudWkudjEuUHVsbFJlcXVlc3RUaW1lbGluZUVudHJ5EgwKBHBhdGgYAiABKAkSDAoEc2lkZRgDIAEoCRIMCgRsaW5lGAQgASgNEhIKCnN0YXJ0X3NpZGUYBSABKAkSEgoKc3RhcnRfbGluZRgGIAEoDRIQCghvdXRkYXRlZBgHIAEoCCLrAQoWUHVsbFJlcXVlc3RSZXZpZXdEcmFmdBIKCgJpZBgBIAEoCRILCgNzaGEYAiABKAkSDAoEYm9keRgDIAEoCRITCgt0b3RhbF9jb3VudBgEIAEoDRI4Cghjb21tZW50cxgFIAMoCzImLmNhbm9weS51aS52MS5QdWxsUmVxdWVzdFJldmlld0NvbW1lbnQSLwoEcGFnZRgGIAEoCzIhLmNhbm9weS51aS52MS5QdWxsUmVxdWVzdFBhZ2VJbmZvEhAKCHJldmlzaW9uGAcgASgJEhgKEHZpZXdlcl9pc19hdXRob3IYCCABKAgihwEKHFB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFkc1BhZ2USNgoHdGhyZWFkcxgBIAMoCzIlLmNhbm9weS51aS52MS5QdWxsUmVxdWVzdFJldmlld1RocmVhZBIvCgRwYWdlGAIgASgLMiEuY2Fub3B5LnVpLnYxLlB1bGxSZXF1ZXN0UGFnZUluZm8ieAoVUHVsbFJlcXVlc3RDaGVja3NQYWdlEi4KBmNoZWNrcxgBIAMoCzIeLmNhbm9weS51aS52MS5QdWxsUmVxdWVzdENoZWNrEi8KBHBhZ2UYAiABKAsyIS5jYW5vcHkudWkudjEuUHVsbFJlcXVlc3RQYWdlSW5mbyJ5Cg5QdWxsUmVxdWVzdEpvYhIKCgJpZBgBIAEoCRIOCgZydW5faWQYAiABKAkSDwoHYXR0ZW1wdBgDIAEoDRIMCgRuYW1lGAQgASgJEg0KBXN0YXRlGAUgASgJEgsKA3VybBgGIAEoCRIQCghoZWFkX3NoYRgHIAEoCSJyChNQdWxsUmVxdWVzdEpvYnNQYWdlEioKBGpvYnMYASADKAsyHC5jYW5vcHkudWkudjEuUHVsbFJlcXVlc3RKb2ISLwoEcGFnZRgCIAEoCzIhLmNhbm9weS51aS52MS5QdWxsUmVxdWVzdFBhZ2VJbmZvIn0KFVB1bGxSZXF1ZXN0Sm9iTG9nUGFnZRIMCgR0ZXh0GAEgASgJEhIKCmZpcnN0X2xpbmUYAiABKA0SEQoJdHJ1bmNhdGVkGAMgASgIEi8KBHBhZ2UYBCABKAsyIS5jYW5vcHkudWkudjEuUHVsbFJlcXVlc3RQYWdlSW5mbyK/AQoPUHVsbFJlcXVlc3RGaWxlEgwKBHBhdGgYASABKAkSFQoNcHJldmlvdXNfcGF0aBgCIAEoCRINCgVzdGF0ZRgDIAEoCRIRCglhZGRpdGlvbnMYBCABKA0SEQoJZGVsZXRpb25zGAUgASgNEhMKC3BhdGNoX3N0YXRlGAYgASgJEgsKA3VybBgHIAEoCRITCgtzb3VyY2VfcGFnZRgIIAEoDRIbChN2aWV3ZXJfdmlld2VkX3N0YXRlGAkgASgJIroBChRQdWxsUmVxdWVzdEZpbGVzUGFnZRIsCgVmaWxlcxgBIAMoCzIdLmNhbm9weS51aS52MS5QdWxsUmVxdWVzdEZpbGUSLwoEcGFnZRgCIAEoCzIhLmNhbm9weS51aS52MS5QdWxsUmVxdWVzdFBhZ2VJbmZvEhQKDHZpZXdlZF9jb3VudBgDIAEoDRIUCgx2aWV3ZWRfdG90YWwYBCABKA0SFwoPdmlld2VkX2NvbXBsZXRlGAUgASgIIn4KD1B1bGxSZXF1ZXN0RGlmZhIrCgRmaWxlGAEgASgLMh0uY2Fub3B5LnVpLnYxLlB1bGxSZXF1ZXN0RmlsZRINCgVwYXRjaBgCIAEoCRIvCgRwYWdlGAMgASgLMiEuY2Fub3B5LnVpLnYxLlB1bGxSZXF1ZXN0UGFnZUluZm8iQQoRUHVsbFJlcXVlc3RDb21taXQSCwoDc2hhGAEgASgJEg8KB3N1YmplY3QYAiABKAkSDgoGYXV0aG9yGAMgASgJInsKFlB1bGxSZXF1ZXN0Q29tbWl0c1BhZ2USMAoHY29tbWl0cxgBIAMoCzIfLmNhbm9weS51aS52MS5QdWxsUmVxdWVzdENvbW1pdBIvCgRwYWdlGAIgASgLMiEuY2Fub3B5LnVpLnYxLlB1bGxSZXF1ZXN0UGFnZUluZm8iWAoXV2F0Y2hQdWxsUmVxdWVzdFJlcXVlc3QSFwoPcHVsbF9yZXF1ZXN0X2lkGAEgASgJEhAKCHJldmlzaW9uGAIgASgJEhIKCnZpc2liaWxpdHkYAyABKAkifAoRUHVsbFJlcXVlc3RVcGRhdGUSMwoIc25hcHNob3QYASABKAsyIS5jYW5vcHkudWkudjEuUHVsbFJlcXVlc3RTbmFwc2hvdBIQCghyZXZpc2lvbhgCIAEoCRITCgtpbnZhbGlkYXRlZBgDIAMoCRILCgNnYXAYBCABKAgiggEKIFByZXBhcmVQdWxsUmVxdWVzdENvbnRleHRSZXF1ZXN0EhcKD3B1bGxfcmVxdWVzdF9pZBgBIAEoCRIRCgl0aHJlYWRfaWQYAiABKAkSDgoGYWN0aW9uGAMgASgJEg0KBXBhdGhzGAQgAygJEhMKC2ZpbmRpbmdfaWRzGAUgAygJImkKGlB1bGxSZXF1ZXN0Q29udGV4dFJlc3BvbnNlEiwKCmF0dGFjaG1lbnQYASABKAsyGC5jYW5vcHkudWkudjEuQXR0YWNobWVudBIOCgZwcm9tcHQYAiABKAkSDQoFc2NvcGUYAyABKAkiUgoaR2l0SHViVXBkYXRlQWNjb3VudFJlcXVlc3QSDwoHaG9tZV9pZBgBIAEoCRISCgphY2NvdW50X2lkGAIgASgJEg8KB2VuYWJsZWQYAyABKAgiQgobR2l0SHViVXBkYXRlQWNjb3VudFJlc3BvbnNlEhIKCmFjY291bnRfaWQYASABKAkSDwoHZW5hYmxlZBgCIAEoCCKeBAoaUHVsbFJlcXVlc3RNdXRhdGlvblJlcXVlc3QSFwoPcHVsbF9yZXF1ZXN0X2lkGAEgASgJEhkKEWNsaWVudF9yZXF1ZXN0X2lkGAIgASgJEhIKCmFjY291bnRfaWQYAyABKAkSFwoPYWNjZXNzX3JldmlzaW9uGAQgASgEEhAKCGhlYWRfc2hhGAUgASgJEhYKDmV4cGVjdGVkX3N0YXRlGAYgASgJEg4KBmFjdGlvbhgHIAEoCRITCgtyZXNvdXJjZV9pZBgIIAEoCRIUCgxjb21tZW50X2tpbmQYCSABKAkSDAoEYm9keRgKIAEoCRIMCgRwYXRoGAsgASgJEg4KBnZpZXdlZBgMIAEoCBIXCg9jb25maXJtYXRpb25faWQYDSABKAkSFgoOY2xpZW50X2JpbmRpbmcYDiABKAkSDAoEc2lkZRgPIAEoCRIMCgRsaW5lGBAgASgNEhIKCnN0YXJ0X3NpZGUYESABKAkSEgoKc3RhcnRfbGluZRgSIAEoDRISCgpjb21taXRfc2hhGBMgASgJEhMKC3NvdXJjZV9wYWdlGBQgASgNEhYKDnNpbmdsZV9jb21tZW50GBUgASgIEg8KB3ZlcmRpY3QYFiABKAkSFwoPcmV2aWV3X3JldmlzaW9uGBcgASgJEhwKFGFja25vd2xlZGdlX291dGRhdGVkGBggASgIEhAKCHJlc29sdmVkGBkgASgIImsKHVB1bGxSZXF1ZXN0TXV0YXRpb25SZXF1ZXN0UmVmEhcKD3B1bGxfcmVxdWVzdF9pZBgBIAEoCRIZChFjbGllbnRfcmVxdWVzdF9pZBgCIAEoCRIWCg5jbGllbnRfYmluZGluZxgDIAEoCSLhAQoaUHVsbFJlcXVlc3RNdXRhdGlvblJlY2VpcHQSGQoRY2xpZW50X3JlcXVlc3RfaWQYASABKAkSDQoFc3RhdGUYAiABKAkSDgoGYWN0aW9uGAMgASgJEg4KBmRldGFpbBgEIAEoCRITCgt1cHN0cmVhbV9pZBgFIAEoCRIXCg9jb25maXJtYXRpb25faWQYBiABKAkSLgoKZXhwaXJlc19hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASGwoTdmlld2VyX3ZpZXdlZF9zdGF0ZRgIIAEoCWIGcHJvdG8z", [file_google_protobuf_timestamp, file_canopy_ui_v1_attachments]);
 
 /**
  * All credentials and the OAuth device_code remain encrypted at the home gateway.
@@ -1368,6 +1368,41 @@ export type PullRequestReviewThread = Message<"canopy.ui.v1.PullRequestReviewThr
    * @generated from field: string sha = 8;
    */
   sha: string;
+
+  /**
+   * @generated from field: string side = 9;
+   */
+  side: string;
+
+  /**
+   * @generated from field: uint32 start_line = 10;
+   */
+  startLine: number;
+
+  /**
+   * @generated from field: string start_side = 11;
+   */
+  startSide: string;
+
+  /**
+   * @generated from field: uint32 original_line = 12;
+   */
+  originalLine: number;
+
+  /**
+   * @generated from field: uint32 original_start_line = 13;
+   */
+  originalStartLine: number;
+
+  /**
+   * @generated from field: bool viewer_can_resolve = 14;
+   */
+  viewerCanResolve: boolean;
+
+  /**
+   * @generated from field: bool viewer_can_unresolve = 15;
+   */
+  viewerCanUnresolve: boolean;
 };
 
 /**
@@ -1376,6 +1411,109 @@ export type PullRequestReviewThread = Message<"canopy.ui.v1.PullRequestReviewThr
  */
 export const PullRequestReviewThreadSchema: GenMessage<PullRequestReviewThread> = /*@__PURE__*/
   messageDesc(file_canopy_ui_v1_github, 36);
+
+/**
+ * @generated from message canopy.ui.v1.PullRequestReviewComment
+ */
+export type PullRequestReviewComment = Message<"canopy.ui.v1.PullRequestReviewComment"> & {
+  /**
+   * @generated from field: canopy.ui.v1.PullRequestTimelineEntry comment = 1;
+   */
+  comment?: PullRequestTimelineEntry | undefined;
+
+  /**
+   * @generated from field: string path = 2;
+   */
+  path: string;
+
+  /**
+   * @generated from field: string side = 3;
+   */
+  side: string;
+
+  /**
+   * @generated from field: uint32 line = 4;
+   */
+  line: number;
+
+  /**
+   * @generated from field: string start_side = 5;
+   */
+  startSide: string;
+
+  /**
+   * @generated from field: uint32 start_line = 6;
+   */
+  startLine: number;
+
+  /**
+   * @generated from field: bool outdated = 7;
+   */
+  outdated: boolean;
+};
+
+/**
+ * Describes the message canopy.ui.v1.PullRequestReviewComment.
+ * Use `create(PullRequestReviewCommentSchema)` to create a new message.
+ */
+export const PullRequestReviewCommentSchema: GenMessage<PullRequestReviewComment> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_github, 37);
+
+/**
+ * Private to the selected GitHub account. Every page must be read before submitting.
+ *
+ * @generated from message canopy.ui.v1.PullRequestReviewDraft
+ */
+export type PullRequestReviewDraft = Message<"canopy.ui.v1.PullRequestReviewDraft"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string sha = 2;
+   */
+  sha: string;
+
+  /**
+   * @generated from field: string body = 3;
+   */
+  body: string;
+
+  /**
+   * @generated from field: uint32 total_count = 4;
+   */
+  totalCount: number;
+
+  /**
+   * @generated from field: repeated canopy.ui.v1.PullRequestReviewComment comments = 5;
+   */
+  comments: PullRequestReviewComment[];
+
+  /**
+   * @generated from field: canopy.ui.v1.PullRequestPageInfo page = 6;
+   */
+  page?: PullRequestPageInfo | undefined;
+
+  /**
+   * A digest of this page, including its head and review identity.
+   *
+   * @generated from field: string revision = 7;
+   */
+  revision: string;
+
+  /**
+   * @generated from field: bool viewer_is_author = 8;
+   */
+  viewerIsAuthor: boolean;
+};
+
+/**
+ * Describes the message canopy.ui.v1.PullRequestReviewDraft.
+ * Use `create(PullRequestReviewDraftSchema)` to create a new message.
+ */
+export const PullRequestReviewDraftSchema: GenMessage<PullRequestReviewDraft> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_github, 38);
 
 /**
  * @generated from message canopy.ui.v1.PullRequestReviewThreadsPage
@@ -1397,7 +1535,7 @@ export type PullRequestReviewThreadsPage = Message<"canopy.ui.v1.PullRequestRevi
  * Use `create(PullRequestReviewThreadsPageSchema)` to create a new message.
  */
 export const PullRequestReviewThreadsPageSchema: GenMessage<PullRequestReviewThreadsPage> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_github, 37);
+  messageDesc(file_canopy_ui_v1_github, 39);
 
 /**
  * @generated from message canopy.ui.v1.PullRequestChecksPage
@@ -1419,7 +1557,7 @@ export type PullRequestChecksPage = Message<"canopy.ui.v1.PullRequestChecksPage"
  * Use `create(PullRequestChecksPageSchema)` to create a new message.
  */
 export const PullRequestChecksPageSchema: GenMessage<PullRequestChecksPage> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_github, 38);
+  messageDesc(file_canopy_ui_v1_github, 40);
 
 /**
  * @generated from message canopy.ui.v1.PullRequestJob
@@ -1466,7 +1604,7 @@ export type PullRequestJob = Message<"canopy.ui.v1.PullRequestJob"> & {
  * Use `create(PullRequestJobSchema)` to create a new message.
  */
 export const PullRequestJobSchema: GenMessage<PullRequestJob> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_github, 39);
+  messageDesc(file_canopy_ui_v1_github, 41);
 
 /**
  * @generated from message canopy.ui.v1.PullRequestJobsPage
@@ -1488,7 +1626,7 @@ export type PullRequestJobsPage = Message<"canopy.ui.v1.PullRequestJobsPage"> & 
  * Use `create(PullRequestJobsPageSchema)` to create a new message.
  */
 export const PullRequestJobsPageSchema: GenMessage<PullRequestJobsPage> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_github, 40);
+  messageDesc(file_canopy_ui_v1_github, 42);
 
 /**
  * @generated from message canopy.ui.v1.PullRequestJobLogPage
@@ -1520,7 +1658,7 @@ export type PullRequestJobLogPage = Message<"canopy.ui.v1.PullRequestJobLogPage"
  * Use `create(PullRequestJobLogPageSchema)` to create a new message.
  */
 export const PullRequestJobLogPageSchema: GenMessage<PullRequestJobLogPage> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_github, 41);
+  messageDesc(file_canopy_ui_v1_github, 43);
 
 /**
  * @generated from message canopy.ui.v1.PullRequestFile
@@ -1579,7 +1717,7 @@ export type PullRequestFile = Message<"canopy.ui.v1.PullRequestFile"> & {
  * Use `create(PullRequestFileSchema)` to create a new message.
  */
 export const PullRequestFileSchema: GenMessage<PullRequestFile> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_github, 42);
+  messageDesc(file_canopy_ui_v1_github, 44);
 
 /**
  * @generated from message canopy.ui.v1.PullRequestFilesPage
@@ -1616,7 +1754,7 @@ export type PullRequestFilesPage = Message<"canopy.ui.v1.PullRequestFilesPage"> 
  * Use `create(PullRequestFilesPageSchema)` to create a new message.
  */
 export const PullRequestFilesPageSchema: GenMessage<PullRequestFilesPage> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_github, 43);
+  messageDesc(file_canopy_ui_v1_github, 45);
 
 /**
  * @generated from message canopy.ui.v1.PullRequestDiff
@@ -1643,7 +1781,7 @@ export type PullRequestDiff = Message<"canopy.ui.v1.PullRequestDiff"> & {
  * Use `create(PullRequestDiffSchema)` to create a new message.
  */
 export const PullRequestDiffSchema: GenMessage<PullRequestDiff> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_github, 44);
+  messageDesc(file_canopy_ui_v1_github, 46);
 
 /**
  * @generated from message canopy.ui.v1.PullRequestCommit
@@ -1670,7 +1808,7 @@ export type PullRequestCommit = Message<"canopy.ui.v1.PullRequestCommit"> & {
  * Use `create(PullRequestCommitSchema)` to create a new message.
  */
 export const PullRequestCommitSchema: GenMessage<PullRequestCommit> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_github, 45);
+  messageDesc(file_canopy_ui_v1_github, 47);
 
 /**
  * @generated from message canopy.ui.v1.PullRequestCommitsPage
@@ -1692,7 +1830,7 @@ export type PullRequestCommitsPage = Message<"canopy.ui.v1.PullRequestCommitsPag
  * Use `create(PullRequestCommitsPageSchema)` to create a new message.
  */
 export const PullRequestCommitsPageSchema: GenMessage<PullRequestCommitsPage> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_github, 46);
+  messageDesc(file_canopy_ui_v1_github, 48);
 
 /**
  * @generated from message canopy.ui.v1.WatchPullRequestRequest
@@ -1721,7 +1859,7 @@ export type WatchPullRequestRequest = Message<"canopy.ui.v1.WatchPullRequestRequ
  * Use `create(WatchPullRequestRequestSchema)` to create a new message.
  */
 export const WatchPullRequestRequestSchema: GenMessage<WatchPullRequestRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_github, 47);
+  messageDesc(file_canopy_ui_v1_github, 49);
 
 /**
  * @generated from message canopy.ui.v1.PullRequestUpdate
@@ -1753,7 +1891,7 @@ export type PullRequestUpdate = Message<"canopy.ui.v1.PullRequestUpdate"> & {
  * Use `create(PullRequestUpdateSchema)` to create a new message.
  */
 export const PullRequestUpdateSchema: GenMessage<PullRequestUpdate> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_github, 48);
+  messageDesc(file_canopy_ui_v1_github, 50);
 
 /**
  * @generated from message canopy.ui.v1.PreparePullRequestContextRequest
@@ -1792,7 +1930,7 @@ export type PreparePullRequestContextRequest = Message<"canopy.ui.v1.PreparePull
  * Use `create(PreparePullRequestContextRequestSchema)` to create a new message.
  */
 export const PreparePullRequestContextRequestSchema: GenMessage<PreparePullRequestContextRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_github, 49);
+  messageDesc(file_canopy_ui_v1_github, 51);
 
 /**
  * @generated from message canopy.ui.v1.PullRequestContextResponse
@@ -1819,7 +1957,7 @@ export type PullRequestContextResponse = Message<"canopy.ui.v1.PullRequestContex
  * Use `create(PullRequestContextResponseSchema)` to create a new message.
  */
 export const PullRequestContextResponseSchema: GenMessage<PullRequestContextResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_github, 50);
+  messageDesc(file_canopy_ui_v1_github, 52);
 
 /**
  * @generated from message canopy.ui.v1.GitHubUpdateAccountRequest
@@ -1846,7 +1984,7 @@ export type GitHubUpdateAccountRequest = Message<"canopy.ui.v1.GitHubUpdateAccou
  * Use `create(GitHubUpdateAccountRequestSchema)` to create a new message.
  */
 export const GitHubUpdateAccountRequestSchema: GenMessage<GitHubUpdateAccountRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_github, 51);
+  messageDesc(file_canopy_ui_v1_github, 53);
 
 /**
  * @generated from message canopy.ui.v1.GitHubUpdateAccountResponse
@@ -1868,7 +2006,7 @@ export type GitHubUpdateAccountResponse = Message<"canopy.ui.v1.GitHubUpdateAcco
  * Use `create(GitHubUpdateAccountResponseSchema)` to create a new message.
  */
 export const GitHubUpdateAccountResponseSchema: GenMessage<GitHubUpdateAccountResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_github, 52);
+  messageDesc(file_canopy_ui_v1_github, 54);
 
 /**
  * No client-provided actor, endpoint or GraphQL. Bindings are replaced by authenticated routing.
@@ -1907,7 +2045,8 @@ export type PullRequestMutationRequest = Message<"canopy.ui.v1.PullRequestMutati
   expectedState: string;
 
   /**
-   * create_comment, reply, update_comment, delete_comment, viewed.
+   * create_comment, reply, update_comment, delete_comment, viewed,
+   * add_review_comment, submit_review, discard_review, resolve_thread.
    *
    * @generated from field: string action = 7;
    */
@@ -1949,6 +2088,65 @@ export type PullRequestMutationRequest = Message<"canopy.ui.v1.PullRequestMutati
    * @generated from field: string client_binding = 14;
    */
   clientBinding: string;
+
+  /**
+   * @generated from field: string side = 15;
+   */
+  side: string;
+
+  /**
+   * @generated from field: uint32 line = 16;
+   */
+  line: number;
+
+  /**
+   * @generated from field: string start_side = 17;
+   */
+  startSide: string;
+
+  /**
+   * @generated from field: uint32 start_line = 18;
+   */
+  startLine: number;
+
+  /**
+   * @generated from field: string commit_sha = 19;
+   */
+  commitSha: string;
+
+  /**
+   * @generated from field: uint32 source_page = 20;
+   */
+  sourcePage: number;
+
+  /**
+   * @generated from field: bool single_comment = 21;
+   */
+  singleComment: boolean;
+
+  /**
+   * COMMENT, APPROVE, REQUEST_CHANGES.
+   *
+   * @generated from field: string verdict = 22;
+   */
+  verdict: string;
+
+  /**
+   * Ordered page digests from the complete pending review.
+   *
+   * @generated from field: string review_revision = 23;
+   */
+  reviewRevision: string;
+
+  /**
+   * @generated from field: bool acknowledge_outdated = 24;
+   */
+  acknowledgeOutdated: boolean;
+
+  /**
+   * @generated from field: bool resolved = 25;
+   */
+  resolved: boolean;
 };
 
 /**
@@ -1956,7 +2154,7 @@ export type PullRequestMutationRequest = Message<"canopy.ui.v1.PullRequestMutati
  * Use `create(PullRequestMutationRequestSchema)` to create a new message.
  */
 export const PullRequestMutationRequestSchema: GenMessage<PullRequestMutationRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_github, 53);
+  messageDesc(file_canopy_ui_v1_github, 55);
 
 /**
  * @generated from message canopy.ui.v1.PullRequestMutationRequestRef
@@ -1983,7 +2181,7 @@ export type PullRequestMutationRequestRef = Message<"canopy.ui.v1.PullRequestMut
  * Use `create(PullRequestMutationRequestRefSchema)` to create a new message.
  */
 export const PullRequestMutationRequestRefSchema: GenMessage<PullRequestMutationRequestRef> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_github, 54);
+  messageDesc(file_canopy_ui_v1_github, 56);
 
 /**
  * @generated from message canopy.ui.v1.PullRequestMutationReceipt
@@ -2035,5 +2233,5 @@ export type PullRequestMutationReceipt = Message<"canopy.ui.v1.PullRequestMutati
  * Use `create(PullRequestMutationReceiptSchema)` to create a new message.
  */
 export const PullRequestMutationReceiptSchema: GenMessage<PullRequestMutationReceipt> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_github, 55);
+  messageDesc(file_canopy_ui_v1_github, 57);
 

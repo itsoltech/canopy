@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { Text, View } from "react-native";
+import { View } from "react-native";
 import type { github } from "@canopy/contracts";
 import { mutationUnconfirmed } from "@canopy/domain/github-mutations";
 import { Checkbox } from "../../ui/Checkbox";
 import { Notice } from "../../ui/components";
-import { useColors, useTypography } from "../../ui/theme";
+import { StatusIcon } from "./StatusIcon";
 import { useMutation } from "./useMutation";
 import { OpenMutationSource } from "./OpenMutationSource";
 
@@ -31,9 +31,6 @@ export function ViewedCheckbox({
     clear();
   }
 
-  const c = useColors(),
-    type = useTypography();
-
   const uncertain = receipt && mutationUnconfirmed(receipt);
 
   async function toggle(viewed: boolean) {
@@ -48,16 +45,23 @@ export function ViewedCheckbox({
   }
 
   return (
-    <View style={{ gap: 4, width: 108 }}>
-      <Checkbox
-        label={busy ? "Saving…" : "Viewed"}
-        checked={optimistic ?? file.viewerViewedState === "VIEWED"}
-        disabled={busy || !online || stale || snapshot.stale || !file.viewerViewedState || !!uncertain}
-        onChange={(v) => void toggle(v)}
-      />
-      {file.viewerViewedState === "DISMISSED" && (
-        <Text style={[type.meta, { color: c.muted }]}>Changed since you viewed</Text>
-      )}
+    <View style={{ gap: 4, width: 64 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <Checkbox
+          label="Viewed"
+          hideLabel
+          checked={optimistic ?? file.viewerViewedState === "VIEWED"}
+          disabled={busy || !online || stale || snapshot.stale || !file.viewerViewedState || !!uncertain}
+          onChange={(v) => void toggle(v)}
+        />
+        <View style={{ width: 20 }}>
+          {busy ? (
+            <StatusIcon name="clock" label="Saving…" />
+          ) : file.viewerViewedState === "DISMISSED" ? (
+            <StatusIcon name="arrow-path" label="Changed since you viewed" />
+          ) : null}
+        </View>
+      </View>
       {!!receipt?.detail && <Notice error>{receipt.detail}</Notice>}
       {uncertain && <OpenMutationSource snapshot={snapshot} />}
     </View>

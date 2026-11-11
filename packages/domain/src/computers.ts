@@ -10,6 +10,7 @@ export const REMOTE_THREADS = "remote_threads";
 export const GITHUB_ACCOUNTS = "github_accounts_v1";
 export const GITHUB_PR = "github_pr_v1";
 export const GITHUB_COMMENTS = "github_pr_comments_v1";
+export const GITHUB_REVIEW = "github_pr_review_v1";
 
 /** Routing-only marker for account lists and sign-in before an account exists. */
 export const GITHUB_HOME = "00000000-0000-4000-8000-000000000001";

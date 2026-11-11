@@ -12,10 +12,10 @@ export class PullRequestPages<T extends { page?: github.PullRequestPageInfo }> {
   get current() {
     return this.pages[this.index];
   }
-  invalidate() {
+  invalidate(retainCurrent = false) {
     this.#request++;
     this.busy = false;
-    this.pages = [];
+    this.pages = retainCurrent && this.current ? [this.current] : [];
     this.index = 0;
 
     return this.read(false, true);

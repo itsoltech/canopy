@@ -12,12 +12,14 @@ export function Checkbox({
   checked,
   onChange,
   disabled,
+  hideLabel = false,
 }: {
   label: string;
   description?: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
   disabled?: boolean;
+  hideLabel?: boolean;
 }) {
   const c = useColors();
   const type = useTypography();
@@ -48,10 +50,12 @@ export function Checkbox({
           {checked ? <Icon name="check" size={16} color={c.onControl} /> : null}
         </View>
       </View>
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={[type.body, { fontFamily: font.medium, color: c.text }]}>{label}</Text>
-        {description ? <Text style={[type.body, { color: c.muted }]}>{description}</Text> : null}
-      </View>
+      {!hideLabel && (
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={[type.body, { fontFamily: font.medium, color: c.text }]}>{label}</Text>
+          {description ? <Text style={[type.body, { color: c.muted }]}>{description}</Text> : null}
+        </View>
+      )}
     </Pressable>
   );
 }

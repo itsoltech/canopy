@@ -13,23 +13,8 @@ import { IconAction } from "./IconAction";
 import type { github } from "@canopy/contracts";
 import { CommentComposer } from "./CommentComposer";
 
-export function PullRequestTimeline({
-  id,
-  snapshot,
-  header,
-}: {
-  id: string;
-  snapshot: github.PullRequestSnapshot;
-  header: ReactNode;
-}) {
+function useTimelineRead(id: string, kind: string, oldestFirst: boolean) {
   const { client } = useSession();
-  const padding = useContentPadding();
-  const c = useColors();
-  const type = useTypography();
-  const [kind, setKind] = useState("");
-  const [oldestFirst, setOldest] = useState(false);
-  const [picker, setPicker] = useState(false);
-  const includeThreads = !kind || kind === "review";
 
   const pages = usePages(
     useCallback(
@@ -38,6 +23,7 @@ export function PullRequestTimeline({
       [client, id, kind, oldestFirst],
     ),
     id,
+    `${id}:reviews`,
   );
 
   const reviews = usePages(
@@ -47,7 +33,31 @@ export function PullRequestTimeline({
       [client, id],
     ),
     id,
+    `${id}:reviews`,
   );
+
+  return { pages, reviews };
+}
+
+export function PullRequestTimeline({
+  id,
+  snapshot,
+  header,
+}: {
+  id: string;
+  snapshot: github.PullRequestSnapshot;
+  header: ReactNode;
+}) {
+  const padding = useContentPadding(),
+    c = useColors(),
+    type = useTypography();
+
+  const [kind, setKind] = useState(""),
+    [oldestFirst, setOldest] = useState(false),
+    [picker, setPicker] = useState(false);
+
+  const includeThreads = !kind || kind === "review";
+  const { pages, reviews } = useTimelineRead(id, kind, oldestFirst);
 
   const rows = pullRequestActivity(
     pages.pages.flatMap((p) => p.items),

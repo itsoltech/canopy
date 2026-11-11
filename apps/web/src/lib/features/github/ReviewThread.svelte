@@ -12,6 +12,8 @@
   import { reviewerLook } from "@canopy/domain/github-pr";
   import CommentComposer from "./CommentComposer.svelte";
   import CommentActions from "./CommentActions.svelte";
+  import ThreadResolution from "./ThreadResolution.svelte";
+  import { anchorLabel } from "@canopy/domain/github-review";
 
   let {
     id,
@@ -90,7 +92,9 @@
 >
   <div class="flex min-w-0 items-center gap-2 text-sm/5 sm:text-xs/5">
     <Icon name="code-bracket" />
-    <p class="min-w-0 flex-1 truncate font-mono" title={data.path}>{data.path}:{data.line || "…"}</p>
+    <p class="min-w-0 flex-1 truncate font-mono" title={`${data.path} · ${anchorLabel(data)}`}>
+      {data.path} · {anchorLabel(data)}
+    </p>
     <span {@attach tooltip(data.resolved ? "Resolved" : "Unresolved")}
       ><Icon
         name={data.resolved ? "check-circle" : "chat-bubble-left"}
@@ -124,4 +128,5 @@
       >{/if}
   </div>
   {#key `${snapshot.accountId}:${thread.id}`}<CommentComposer {snapshot} resourceId={thread.id} />{/key}
+  {#key `${snapshot.accountId}:${thread.id}:resolve`}<ThreadResolution {snapshot} thread={data} />{/key}
 </div>
