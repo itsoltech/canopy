@@ -20,6 +20,10 @@ export const pruneDatabase = (owner: string) =>
         if (!claimed.length) return 0;
         let touched = 0;
 
+        touched += (yield* sql`DELETE FROM github_device_auth WHERE id IN (
+          SELECT id FROM github_device_auth WHERE owner_user_id=${owner}::uuid AND expires_at<now()-interval '24 hours'
+          ORDER BY expires_at LIMIT ${BATCH} FOR UPDATE SKIP LOCKED) RETURNING id`).length;
+
         touched += (yield* sql`DELETE FROM computer_thread_changes WHERE (owner_user_id,revision) IN (
       SELECT c.owner_user_id,c.revision FROM computer_thread_changes c JOIN computer_thread_clock h USING(owner_user_id)
       WHERE c.owner_user_id=${owner}::uuid AND c.revision<=h.revision-10000

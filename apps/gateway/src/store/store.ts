@@ -3,6 +3,7 @@ import { SqlClient } from "effect/sql";
 import { threadLifecycle, type ThreadLifecycle } from "./thread-lifecycle.ts";
 import { threadSecretsStore, type ThreadSecretsStore } from "./thread-secrets.ts";
 import { connectorStore } from "../connectors/store.ts";
+import { githubStore } from "../github/store.ts";
 import { workerStore, type WorkerStore } from "./workers-store.ts";
 import { workerConfigStore, type WorkerConfigStore } from "./worker-config-store.ts";
 import { projectStore, type ProjectStore } from "./projects-store.ts";
@@ -37,7 +38,10 @@ export {
 
 export class GatewayStore extends Context.Service<
   GatewayStore,
-  ThreadSecretsStore & { connectors: ReturnType<typeof connectorStore> } & WorkerStore &
+  ThreadSecretsStore & {
+    connectors: ReturnType<typeof connectorStore>;
+    github: ReturnType<typeof githubStore>;
+  } & WorkerStore &
     WorkerConfigStore &
     ProjectStore &
     ThreadStore &
@@ -58,6 +62,7 @@ export class GatewayStore extends Context.Service<
 
         const store: GatewayStore["Service"] = {
           connectors: connectorStore(sql, secretsKey),
+          github: githubStore(sql, secretsKey),
           ...threadSecretsStore(sql, secretsKey),
           ...threadLifecycle(sql, (input) => store.enqueueCommand(input)),
           ...workerStore(sql),

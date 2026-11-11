@@ -165,6 +165,24 @@ bez sekretów. `mobile_routes` (764) przekazuje aktualne adresy i ten sam pin.
 Revoke kończy otwarte streamy w procesie gatewaya. Starsze parowania wymagają ponownego QR.
 [Transport, model uprawnień, development builds i dokładne komendy](mobile.md).
 
+## Konto GitHub
+
+Settings → GitHub na web/desktop i mobile korzysta z ośmiu RPC opisanych w
+`proto/canopy/ui/v1/github.proto`: konta, start/status/cancel device flow,
+disconnect, jawny wybór istniejącego PAT i stronicowane instalacje/repozytoria.
+Web używa POST `/api/github/{accounts,begin,status,cancel,disconnect,pat,installations,repositories}`.
+Odpowiedzi mają `Cache-Control: no-store`; sesję próby wiąże cookie HttpOnly BFF,
+które nie jest poświadczeniem GitHub. Mobile używa swojego odwoływalnego tokenu urządzenia.
+
+`configured=false` oznacza brak publicznej konfiguracji GitHub App, bez błędu całego widoku.
+Kod użytkownika jest kopiowalny, a link otwiera tylko `https://github.com/login/device`.
+`device_code`, access/refresh tokeny i zaszyfrowane rekordy nie są DTO. Anulowanie nie zależy
+od widoczności UI; restart gatewaya wznawia bezpiecznie niewygasłe próby. Wybrany dom konta
+otrzymuje żądania przez bezpośrednie łącze `github_accounts_v1`, bez synchronizacji sekretów.
+Inline `ConnectGitHub` zgłasza sukces tylko do odświeżenia odczytu, bez wykonania mutacji.
+Disconnect usuwa lokalne poświadczenia; pełne revoke użytkownik wykonuje na GitHub.
+Szczegóły i zakres kolejnych etapów: [GitHub](github.md).
+
 ## Connectors
 
 Strona odczytuje `/api/connectors` (lokalne rekordy) oraz `/api/bots` (lista z domów).

@@ -101,6 +101,14 @@ Wszystkie zmienne opisuje [`deploy/.env.example`](../deploy/.env.example). `CANO
 szyfruje klucze providerów i tokeny konektorów w bazie — zachowaj kopię; jego utrata oznacza
 ponowne wpisanie sekretów. Gateway przy starcie wykonuje migracje (`CANOPY_MIGRATE=0` wyłącza).
 
+Logowanie kont GitHub w Settings → GitHub domyślnie używa oficjalnej aplikacji
+**Canopy by IT SOL**. Opcjonalne, publiczne `CANOPY_GITHUB_APP_CLIENT_ID`
+i `CANOPY_GITHUB_APP_SLUG` w środowisku gatewaya nadpisują te wartości dla forków.
+Compose przekazuje je z `.env`; jawnie puste wartości wyłączają device flow i dają spokojny
+stan braku konfiguracji. Nie istnieje client secret ani private key. Tokeny użytkowników i próby device flow
+są szyfrowane tym samym `CANOPY_SECRETS_KEY`, wyłącznie w gatewayu konta.
+Rejestrację aplikacji i zakres device flow opisuje [github.md](github.md#2-github-app-i-konta).
+
 `CANOPY_DATABASE_INDEX_MODE=concurrent` włącza budowanie zarejestrowanych indeksów
 wydajnościowych po migracji schematu przez `CREATE INDEX CONCURRENTLY`. Domyślne
 `blocking` zachowuje szybsze zwykłe budowanie dla desktopu i małych baz. Tryb online

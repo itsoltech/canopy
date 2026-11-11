@@ -9,6 +9,7 @@ const sections = {
   "/bots": ["ListBots", "GetBot", "SendBotMessage"],
   "/settings/providers": ["ListProviderInstances", "SaveProviderInstance"],
   "/settings/connectors": ["ListConnectors", "SaveConnectorAccount"],
+  "/settings/github": ["ListGitHubAccounts", "BeginGitHubDeviceAuth"],
   "/settings/workers": ["GetWorkerSetup", "CreateWorkerEnrollment"],
   "/settings/network": ["GetNetworkAccess", "UpdateNetworkAccess"],
   "/settings/mobile": ["GetMobileDevices", "CreateDesktopPairing"],

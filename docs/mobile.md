@@ -602,6 +602,17 @@ działającego OTA ustala wiersz Updates; manifesty i historię grup pokazuje EA
 
 ## Interfejs zgodny z web
 
+Settings → GitHub ma tę samą obsługę kont co web/desktop: wybór domu, device flow
+z kopiowaniem kodu i otwarciem zweryfikowanego adresu, stany oczekiwania/sukcesu/
+wygaśnięcia/odmowy/anulowania, katalog instalacji i repozytoriów, Install Canopy,
+Manage repositories, jawny wybór PAT z Connectors oraz Disconnect z potwierdzeniem.
+`features/github/ConnectGitHub` nadaje się do osadzenia przy późniejszych operacjach PR;
+sukces logowania niczego nie publikuje. SecureStore zachowuje wyłącznie identyfikatory
+próby/żądania przypisane do parowania i domu, bez kodu urządzenia ani tokenów GitHub.
+AppState wstrzymuje odpytywanie w tle; powrót odświeża stan i katalog.
+Zmiana używa już obecnych Clipboard, Linking, Crypto i SecureStore; nie zmienia
+konfiguracji natywnej ani zależności. [Projekt i kontrakty](github.md).
+
 Panel bota pozwala wstrzymać/włączyć i usunąć rutynę oraz anulować przypomnienie.
 Usunięcie rutyny wymaga potwierdzenia. Akcje są dostępne wyłącznie przy aktywnym
 odczycie rozmowy i dostępnym domu. Menu bota (przycisk lub długie przytrzymanie

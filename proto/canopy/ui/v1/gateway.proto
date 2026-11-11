@@ -19,8 +19,17 @@ import "canopy/ui/v1/network.proto";
 import "canopy/ui/v1/agent_environment.proto";
 import "canopy/ui/v1/desktop.proto";
 import "canopy/ui/v1/cli_import.proto";
+import "canopy/ui/v1/github.proto";
 
 service GatewayService {
+  rpc ListGitHubAccounts(GitHubAccountsRequest) returns (GitHubAccountsResponse);
+  rpc BeginGitHubDeviceAuth(BeginGitHubDeviceAuthRequest) returns (GitHubDeviceAuthResponse);
+  rpc GetGitHubDeviceAuth(GitHubDeviceAuthRequest) returns (GitHubDeviceAuthResponse);
+  rpc CancelGitHubDeviceAuth(GitHubDeviceAuthRequest) returns (GitHubDeviceAuthResponse);
+  rpc DisconnectGitHubAccount(GitHubAccountRequest) returns (GitHubAccountResponse);
+  rpc UseGitHubPat(UseGitHubPatRequest) returns (GitHubAccountResponse);
+  rpc ListGitHubInstallations(GitHubCatalogueRequest) returns (GitHubInstallationsResponse);
+  rpc ListGitHubRepositories(GitHubCatalogueRequest) returns (GitHubRepositoriesResponse);
   rpc GetAgentEnvironment(AgentEnvironmentRequest) returns (AgentEnvironmentSnapshot);
   rpc SaveInstructionDocument(SaveInstructionDocumentRequest) returns (AgentEnvironmentSnapshot);
   rpc DeleteInstructionDocument(DeleteInstructionDocumentRequest) returns (AgentEnvironmentSnapshot);

@@ -1,6 +1,7 @@
 # Konto GitHub i pull requesty
 
-Status: **zaakceptowany**, 2026-11-10. Funkcja nie jest jeszcze zaimplementowana.
+Status: **zaakceptowany**, 2026-11-10. Etap 1 w stosie implementuje konta;
+obsługa PR z kolejnych etapów nie jest jeszcze dostępna.
 Decyzje ustalone po przeglądzie: oficjalna GitHub App Canopy organizacji `itsoltech`, device flow,
 wygasające tokeny użytkownika w domu wątku, pełny zakres zapisów opisany poniżej i Viewed
 synchronizowane z GitHub. Implementacja jako jeden stos PR według §11.
@@ -61,7 +62,13 @@ Brak instalacji pokazuje **Install Canopy**/**Manage repositories**, bez automat
 PAT działa dopiero po jawnym wyborze właściciela.
 [Zasady tokenów użytkownika](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app).
 
-| Uprawnienie repozytorium | v1 | Uzasadnienie |
+Oficjalna aplikacja **Canopy by IT SOL** jest zarejestrowana i zainstalowana w `itsoltech`:
+App ID **`5696311`**, slug **`canopy-by-it-sol`**,
+[strona aplikacji](https://github.com/apps/canopy-by-it-sol),
+publiczny Client ID **`Iv23liqSybfDzvusCyjP`**. Webhook jest nieaktywny, bez zdarzeń.
+Nie istnieje client secret ani private key i ten przepływ nigdy ich nie używa.
+
+| Uprawnienie repozytorium | Przyznane | Uzasadnienie i etap użycia |
 | --- | --- | --- |
 | Metadata | Read, obowiązkowe | Tożsamość repozytorium i dostęp instalacji |
 | Pull requests | Read and write | Create, ready/draft, close/reopen, tytuł/opis, reviews/inline/resolve, request/re-request użytkowników i zespołów, Viewed oraz auto-merge |
@@ -70,16 +77,33 @@ PAT działa dopiero po jawnym wyborze właściciela.
 | Actions | Read and write | Odczyt runs/jobs/logów, ponowienie joba, nieudanych jobów lub całego run oraz cancel run |
 | Checks | Read | Check runs/suites, output i adnotacje, także od zewnętrznych dostawców |
 | Commit statuses | Read | Starsze statusy commitów, uzupełniające check runs |
+| Merge queues (`merge_queues`) | Read and write | Etap 7: scalanie w repozytoriach wymagających kolejki; bez omijania queue lub branch protection |
+| Deployments (`deployments`) | Read | Statusy wdrożeń i preview links przy checkach. Przyznane dla przyszłych funkcji; nieużywane do czasu implementacji |
+| Environments (`environments`) | Read | Nazwy i powiązania środowisk dla statusów wdrożeń i preview links. Przyznane dla przyszłych funkcji; nieużywane do czasu implementacji |
+| Code scanning alerts (`security_events`) | Read | Findings code scanning jako dodatkowe źródło dla Fix findings. Przyznane dla przyszłych funkcji; nieużywane do czasu implementacji |
+| Dependabot alerts (`vulnerability_alerts`) | Read | Findings Dependabot jako dodatkowe źródło dla Fix findings. Przyznane dla przyszłych funkcji; nieużywane do czasu implementacji |
+| Discussions (`discussions`) | Read and write | Przyszła obsługa dyskusji repozytorium. Przyznane dla przyszłych funkcji; nieużywane do czasu implementacji |
+
+| Uprawnienie organizacji | Przyznane | Uzasadnienie i etap użycia |
+| --- | --- | --- |
+| Members (`members`) | Read | Etap 8: pickery osób i zespołów dla reviewerów; później podpowiedzi wzmianek. Bez zmiany członkostwa lub zespołów |
+| Projects (`organization_projects`) | Read and write | Przyszła obsługa tablic Projects. Przyznane dla przyszłych funkcji; nieużywane do czasu implementacji |
+
+Account permissions: **brak**. Przyznane prawa nie rozszerzają allowlisty operacji Canopy.
+Etap 1 korzysta tylko z tożsamości użytkownika i katalogu instalacji/repozytoriów;
+nie odczytuje członków, wdrożeń, środowisk, alertów, dyskusji ani Projects i niczego nimi nie zapisuje.
 
 **Contents: write zwiększa ryzyko kradzieży tokenu:** technicznie pozwala modyfikować kod
 w wybranych repozytoriach. Canopy nie wykonuje nim git push ani zapisu plików/refów przez API;
 allowlista dopuszcza tylko serwerowe merge i update branch. Te akcje zmieniają historię na GitHub,
 nie lokalny checkout. Nie pobieramy Workflows: write, Administration ani uprawnień do e-mail.
 Checks: write nie jest potrzebne i nie daje prawa do ponawiania dowolnego zewnętrznego CI.
-Bez uprawnień organizacyjnych: reviewerów proponujemy z PR/historii oraz jawnego loginu lub
+Members: read pozwoli etapowi 8 uzupełnić pickery reviewerów o osoby i zespoły organizacji.
+Bez tego prawa, również dla PAT, pozostają podpowiedzi z PR/historii oraz jawny login lub
 `org/team-slug`; REST request reviewers przyjmuje slug, a GitHub sprawdza dostęp zespołu.
-Nie budujemy katalogu wszystkich członków i zespołów wymagającego Members: read.
-Minimalne prawa dotyczą całego v1; faktycznie dostępne akcje nadal wynikają z praw użytkownika,
+Zakres v1 nie obejmuje osobnych funkcji Discussions, Projects ani dodatkowych źródeł alertów
+i wdrożeń; ich nadane uprawnienia pozostają niewykorzystane do osobnej implementacji.
+Faktycznie dostępne akcje nadal wynikają z praw użytkownika,
 instalacji i repo. Brak Actions lub Contents w PAT wyłącza odpowiednie akcje z wyjaśnieniem.
 [Komentarze i wymagane prawa](https://docs.github.com/en/rest/issues/comments#create-an-issue-comment),
 [merge i update branch](https://docs.github.com/en/rest/pulls/pulls),
@@ -144,6 +168,16 @@ Własny endpoint MCP i jego dowolne nagłówki nie są źródłem tokenu do GitH
 
 ### Połączone komputery
 
+Etap kont negocjuje osobne `github_accounts_v1`, bez przedwczesnego ogłaszania
+`github_pr_v1` lub `github_pr_write_v1`. Wyłącznie osiem RPC kont z `github.proto`
+przechodzi przez bezpośrednie łącze: lista, start/status/cancel device flow,
+disconnect, wybór PAT oraz katalog instalacji/repozytoriów. Konto i próba otrzymują
+kwalifikowany identyfikator domu. Lista i start przed utworzeniem konta używają
+kwalifikowanego znacznika `GITHUB_HOME`; znacznik służy tylko do routingu.
+Próba z partnera wiąże skrót uwierzytelnionego klienta także z tożsamością partnera.
+RPC kont nie przechodzą przez relay i nie trafiają do wspólnej konfiguracji.
+Udostępnianie odczytów PR przez pośrednika pozostaje zakresem późniejszych etapów.
+
 **Domem konta jest gateway obsługujący wątek.** Konto na A nie udziela samo dostępu B.
 UI na A może przeprowadzić device flow na B przez uwierzytelnione łącze; kod urządzenia,
 token i refresh pozostają na B. Alternatywnie użytkownik loguje się niezależnie na każdym domu.
@@ -165,34 +199,36 @@ Nowe `github_accounts` **nie są** rekordami `connector` ani `oauth_app` wspóln
 PAT fallback zachowuje dotychczasowe zasady swojego konektora; moduł PR korzysta z lokalnej
 kopii i nigdy nie dodaje kolejnego kanału kopiowania sekretów.
 
-### Czynności maintenera przed implementacją auth
+### Konfiguracja zarejestrowanej aplikacji i pilotaż maintenera
 
-Rejestracja:
+Stan rejestracji potwierdzony przez maintenera: **Canopy by IT SOL**, App ID `5696311`,
+slug `canopy-by-it-sol`, instalacja w `itsoltech`, uprawnienia z tabel powyżej.
+Webhook pozostaje nieaktywny, bez zdarzeń; Account permissions pozostają puste.
 
-1. Na GitHub otworzyć `itsoltech` → Settings → Developer settings → GitHub Apps → New GitHub App,
-   używając konta właściciela organizacji albo uprawnionego app managera.
-2. Ustawić nazwę **Canopy** (jeśli zajęta: **Canopy GitHub**), opis i Homepage URL
-   `https://github.com/itsoltech/canopy`; zapisać otrzymany slug instalacji.
-3. Zaznaczyć **Enable Device Flow** i pozostawić **Expire user authorization tokens**.
+Kontrola ustawień w GitHub → Settings → Developer settings → GitHub Apps → Canopy by IT SOL:
+
+1. Potwierdzić **Enable Device Flow** i **Expire user authorization tokens**.
    Nie zaznaczać **Request user authorization (OAuth) during installation**; używamy osobnej autoryzacji.
-4. Pozostawić Callback URL i Setup URL puste, wyłączyć **Active** w sekcji Webhook.
+2. Pozostawić Callback URL i Setup URL puste oraz **Active** w sekcji Webhook wyłączone.
    Nie wybierać zdarzeń: lokalne gatewaye nie mają publicznego odbiornika.
-5. W Repository permissions ustawić **Pull requests, Contents, Issues, Actions: Read and write**,
-   **Checks, Commit statuses: Read-only**, **Metadata: Read-only** (obowiązkowe); pozostałe prawa,
-   w tym Organization permissions, pozostawić wyłączone. Instalacja: **Any account**, aby użytkownicy
-   mogli wskazać własne organizacje i repozytoria. Utworzyć aplikację.
+3. Porównać Repository i Organization permissions z tabelami powyżej. Instalacja **Any account**
+   pozwala użytkownikom wskazać własne organizacje i repozytoria; każda organizacja zatwierdza własną instalację.
 
 Konfiguracja i pilotaż:
 
-1. Zapisać **Client ID**, App ID i slug. Client ID jest publiczny, App ID nie zastępuje go w OAuth.
-   Proponowana konfiguracja gatewaya: `CANOPY_GITHUB_APP_CLIENT_ID` i `CANOPY_GITHUB_APP_SLUG`;
-   oficjalna dystrybucja dostaje publiczne wartości jako domyślne dopiero w PR implementacyjnym.
-2. Nie generować client secret ani private key dla tego przepływu. Ewentualne sekrety administracyjne
-   trzymać poza repozytorium i binariami. Nie wpisywać tokenów użytkowników do konfiguracji procesu.
-3. Zainstalować aplikację na wybranym repozytorium testowym przez stronę instalacji aplikacji.
+1. Oficjalna dystrybucja ma wbudowane publiczne Client ID `Iv23liqSybfDzvusCyjP` i slug
+   `canopy-by-it-sol`. `CANOPY_GITHUB_APP_CLIENT_ID` i `CANOPY_GITHUB_APP_SLUG` nadpisują je
+   dla forków; jawnie puste wartości dają stan braku konfiguracji. App ID nie zastępuje Client ID w OAuth.
+2. Nie generować client secret ani private key: nie istnieją dla tego przepływu.
+   Nie wpisywać tokenów użytkowników do konfiguracji procesu.
+3. Potwierdzić dostęp do wybranego repozytorium testowego w istniejącej instalacji `itsoltech` przez stronę aplikacji.
    Druga organizacja wymaga akceptacji jej administratora; zanotować ten stan w UX instalacji.
 4. Po wdrożeniu warstwy auth zalogować konto testowe device flow i sprawdzić instalacje,
-   odświeżenie, Disconnect i revoke. To test opt-in z autoryzacją, bez tokenów w logach.
+   odświeżenie, Disconnect i revoke. Test opt-in uruchamia maintener z root:
+   `CANOPY_LIVE=1 bun test tests/integration/github-accounts.live.test.ts`.
+   Wypisuje wyłącznie URL weryfikacji i publiczny kod użytkownika, po czym czeka na jego ręczne wpisanie
+   w przeglądarce, do zakończenia lub expiry (około 15 min). Wymaga lokalnego PostgreSQL testowego;
+   nie pokazuje tokenów i odłącza konto testowe po odczycie katalogu. Pełne revoke wykonuje maintener na GitHub.
 5. Przy każdej późniejszej zmianie permissions uzyskać zgodę instalacji przed włączeniem akcji.
    Maintener zarządza rejestracją aplikacji; właściciel gatewaya zarządza swoimi kontami.
 
@@ -542,8 +578,10 @@ nie udają uniwersalnego sterowania każdym dostawcą Checks API.
 
 BFF `apps/web/src/routes/api/github/**` używa tych samych protobuf JSON/SSE i reguł origin co
 pozostałe API; nie podaje tokenu do przeglądarki. Mobile wywołuje te RPC istniejącym przypiętym
-Connect (`apps/mobile/src/api/pinned.ts`). Nowe metody dopisujemy jawnie do allowlist urządzeń
-i linked computers; nie otwieramy całego GatewayService. Starszy dom pokazuje **Update this computer**,
+Connect (`apps/mobile/src/api/pinned.ts`). Urządzenia mają istniejący, odwoływalny zakres UI
+właściciela, a każda usługa egzekwuje owner scoping; obecna architektura nie ma osobnej
+allowlisty metod urządzeń. Nowe metody dopisujemy jawnie do allowlisty linked computers.
+Nie poszerzamy uwierzytelnienia ani zakresu urządzeń. Starszy dom pokazuje **Update this computer**,
 bez awaryjnego odpytywania GitHub przez przeglądarkę. Przez pośrednika przekazujemy wyłącznie
 przecinające się capability i istniejące zgody udostępniania; nie dodajemy dodatkowego hopa.
 
@@ -828,6 +866,35 @@ hashy/podpisów, mirrora i zamrożonego `update/v1`.
 
 ## 11. Wdrożenie jako stos PR
 
+Etap 1 ma publiczne wartości domyślne oficjalnej aplikacji Canopy by IT SOL.
+Konfiguracja `CANOPY_GITHUB_APP_CLIENT_ID` i `CANOPY_GITHUB_APP_SLUG` opcjonalnie je nadpisuje.
+Jawnie pusta lub nieprawidłowa wartość jednej z nich daje
+`configured=false` i spokojny stan Settings → GitHub; jawny fallback PAT pozostaje dostępny.
+Web/desktop wiąże próbę z sesją HttpOnly BFF lub tożsamością sparowanego klienta;
+mobile z tożsamością sparowanego urządzenia. Klienci zapamiętują tylko identyfikatory
+próby/żądania, a gateway przechowuje zaszyfrowany `device_code`. Wygasłe próby tracą kod,
+historia prób jest usuwana 24 h po terminie ważności. Niepewna wymiana po utracie dzierżawy
+kończy próbę i wymaga nowego kodu, zamiast ponawiać wymianę.
+
+PAT wskazuje lokalny oficjalny konektor GitHub z metodą `headers` i jego rewizję;
+zmiana lub odłączenie konektora wymaga ponownego jawnego wyboru. Tożsamość jest sprawdzana
+przez `/user`, bez kopiowania poświadczenia. Jedno konto `(owner, host, GitHub user ID, dom)`
+może zmienić wybraną metodę dostępu; ponowny wybór nie tworzy drugiego konta tej samej osoby.
+Przypisanie repozytorium, sprawdzanie praw PAT per repo oraz wspólny klient/cache/budżet
+z §3 są zakresem etapu 2. Katalog etapu 1 ma atomowy snapshot, stronicowanie,
+odświeżanie single-flight, TTL 15 min i cooldown po niepowodzeniu.
+
+Settings → GitHub pokazuje konta w jednej zwartej liście: avatar z inicjałami jako fallback,
+login, metodę i stan dostępu oraz liczbę instalacji i repozytoriów. Liczniki obejmują cały
+katalog właściciela danego konta, niezależnie od stronicowania. Akcje konta są w menu
+(na mobile w arkuszu akcji); odłączenie wymaga potwierdzenia. Instalacje rozwijają się
+wewnątrz konta ze wspólnym ruchem accordion. **Manage repositories** i **Install on another
+account** są w menu wiersza. Repozytoria pokazują domyślnie 5 pozycji, **Show all N** rozwija
+przewijaną listę, a powyżej 10 dostępne jest wyszukiwanie po całym katalogu instalacji.
+Pełna nazwa jest dostępna mimo skrócenia środka; Private/Public pozostaje dyskretną etykietą.
+Po połączeniu konta akcja **Connect another account** jest drugorzędna; stan pusty zachowuje
+główne **Connect GitHub**. Web/desktop i mobile mają tę samą strukturę i akcje.
+
 **Ustalono jeden stos obejmujący etapy 1–9.** Podstawą stosu jest dokumentacyjny
 PR [#485](https://github.com/itsoltech/canopy/pull/485): gałąź `docs/github-integration` celująca w `dev`.
 Etap 1 bazuje na `docs/github-integration`, każdy następny na poprzednim (`gh stack`, `github/gh-stack`).
@@ -848,7 +915,7 @@ a w pojedynczym stosie gałęzie pozostają liniowe. Mutacje PR w GitHub dochodz
 | 5. Komentarze i Viewed | Wspólny preflight, trwałe receipty/audyt/uncertain; post/reply/edit/delete własnych komentarzy i synchronizacja Viewed z GitHub | L, 1800–2600; po 4 | gRPC/security: obcy PR/comment, cofnięcie praw, dwa kliknięcia, awaria po HTTP i brak replay; GitHub VIEWED/UNVIEWED/DISMISSED, rollback, offline i dwa urządzenia/konta; migracja receiptów |
 | 6. Pełne review | Inline i zakresy unified/split, pending review/submit Comment/Approve/Request changes, resolve/unresolve i własne edycje/usunięcia | XL, 2500–3500; po 5 | gRPC/security kotwic LEFT/RIGHT/range/SHA i obcych review/thread ID, pending z innego urządzenia, paginacja, push przed submit, autor PR, restart/uncertain oraz deny worker/bot |
 | 7. Lifecycle | Create z gałęzi i szkicem agenta, auto-link, ready/draft, merge/squash/rebase, auto-merge on/off, update branch, close/reopen | XL, 3500–5000; po 5–6 | gRPC create/link crash i duplikat/tombstone; confirmation binding/expiry, push/zmiana konta po preflight, protection/queue/metody, fork head permissions, accepted/uncertain/restart; model nie wywołuje mutacji |
-| 8. Metadane | Tytuł/opis, request/re-request user/team, assignees i istniejące labels, jawne Apply we wszystkich klientach | L, 1200–1800; po 5–7 | gRPC owner/repo/user/team ID, brak Members scope, powiadomienia, obca etykieta, konflikt edycji, revoke, receipty i niepewny wynik |
+| 8. Metadane | Tytuł/opis, request/re-request user/team, assignees i istniejące labels, jawne Apply we wszystkich klientach | L, 1200–1800; po 5–7 | gRPC owner/repo/user/team ID, pickery Members i fallback bez tego scope, powiadomienia, obca etykieta, konflikt edycji, revoke, receipty i niepewny wynik |
 | 9. Sterowanie CI | Re-run failed/all/job i cancel run na bazie logów z etapu 4; końcowe domknięcie zapisów, dokumentacji i parytetu | L, 1800–2800; po 4–8 | gRPC/security obcego run/job/attempt/SHA, confirmation cancel, job dependencies, accepted ≠ done, brak dispatch/debug/force-cancel, restart/uncertain; pełne migracje/security/linked, p95 i macierz wszystkich akcji mobile |
 
 Każdy etap utrzymuje zgodność i pionową funkcję w swojej gałęzi. Infrastruktura etapu 1

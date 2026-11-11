@@ -9,6 +9,7 @@ import botComposer from "./0102_bot_composer.sql" with { type: "text" };
 import configFieldAncestry from "./0110_config_field_ancestry.sql" with { type: "text" };
 import workerEventQuarantine from "./0111_worker_event_quarantine.sql" with { type: "text" };
 import workspaceCopy from "./0112_workspace_copy.sql" with { type: "text" };
+import githubAccounts from "./0113_github_accounts.sql" with { type: "text" };
 import botViewDelta from "./0091_bot_view_delta.sql" with { type: "text" };
 import workerConfig from "./0002_worker_config.sql" with { type: "text" };
 import gatewayRuntime from "./0003_gateway_runtime.sql" with { type: "text" };
@@ -238,6 +239,7 @@ export const migrations = Migrator.fromRecord({
   "0110_config_field_ancestry": sqlFile(configFieldAncestry),
   "0111_worker_event_quarantine": sqlFile(workerEventQuarantine),
   "0112_workspace_copy": sqlFile(workspaceCopy),
+  "0113_github_accounts": sqlFile(githubAccounts),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

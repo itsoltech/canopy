@@ -1,4 +1,5 @@
 import { CliImports } from "../imports/index.ts";
+import { GitHubAccounts } from "../github/service.ts";
 import { create } from "@bufbuild/protobuf";
 import { createCoreBots, createCoreBus, createCoreScheduler, createCoreUpdates } from "./core-composition.ts";
 import { ui } from "@canopy/contracts";
@@ -185,6 +186,7 @@ export class GatewayCore {
   readonly environment: AgentEnvironment;
 
   readonly connectors: ConnectorsRuntime;
+  readonly github: GitHubAccounts;
 
   readonly secrets: ThreadSecrets;
 
@@ -244,6 +246,7 @@ export class GatewayCore {
       userId: options.userId,
       interaction: (interaction) => corePublishInteraction(this, interaction),
     });
+    this.github = new GitHubAccounts(options.runtime, options.userId, options.github);
     this.bots = createCoreBots(this, options);
     this.link = createWorkerLink({
       authenticate: (credential) => coreRun(this, (s) => s.authenticateWorker(credential)),

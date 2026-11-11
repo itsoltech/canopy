@@ -5,6 +5,12 @@
  * the gateway: it strips the suffix and forwards the call to that computer over the pinned link.
  */
 export const REMOTE_THREADS = "remote_threads";
+
+/** Account auth only. PR read/write capabilities wait for their complete stages. */
+export const GITHUB_ACCOUNTS = "github_accounts_v1";
+
+/** Routing-only marker for account lists and sign-in before an account exists. */
+export const GITHUB_HOME = "00000000-0000-4000-8000-000000000001";
 export const REMOTE_WORKTREES = "remote_worktrees";
 export const REMOTE_BRANCH_SWITCH = "remote_branch_switch_v1";
 export const THREAD_MIRROR = "thread_mirror";

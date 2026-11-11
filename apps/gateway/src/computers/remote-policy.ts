@@ -4,8 +4,21 @@ import { Code, ConnectError } from "@connectrpc/connect";
 
 import { bots, computerLink as link, ui } from "@canopy/contracts";
 import { REMOTE_BOTS, REMOTE_BOT_COMPOSER } from "@canopy/domain/computers";
+import { GITHUB_ACCOUNTS } from "@canopy/domain/computers";
+
+export const GITHUB_METHODS = new Set([
+  "ListGitHubAccounts",
+  "BeginGitHubDeviceAuth",
+  "GetGitHubDeviceAuth",
+  "CancelGitHubDeviceAuth",
+  "DisconnectGitHubAccount",
+  "UseGitHubPat",
+  "ListGitHubInstallations",
+  "ListGitHubRepositories",
+]);
 
 export function botFeature(method: { name: string }, request: Message): string | undefined {
+  if (GITHUB_METHODS.has(method.name)) return GITHUB_ACCOUNTS;
   const send = method.name === "SendBotMessage" ? linkedMessage(bots.SendBotMessageRequestSchema, request) : undefined;
 
   if (
@@ -19,9 +32,10 @@ export function botFeature(method: { name: string }, request: Message): string |
   return BOT_METHODS.has(method.name) ? REMOTE_BOTS : undefined;
 }
 
-/** Explicit home operations for threads and bots, plus capability-gated internal services.
- * Credential and connector administration are never exposed through this allowlist. */
+/** Explicit home operations, plus capability-gated internal services.
+ * GitHub account DTOs contain no credentials; generic credential and connector administration stays local. */
 export const SERVED = new Set([
+  ...GITHUB_METHODS,
   "GetOverview",
   "WatchOverview",
   "ListThreads",
