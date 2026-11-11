@@ -17,7 +17,8 @@ if [[ -n $(ss -H -ltn '( sport = :18191 or sport = :18192 )') ]]; then
   printf '%s\n' 'Benchmark ports 18191/18192 are occupied; do not stop another stack.' >&2
   exit 1
 fi
-command -v bun docker taskset vmstat git jq ss >/dev/null
+command -v bun taskset vmstat git jq ss systemd-run systemctl >/dev/null
+source scripts/bench/diagnostics-scope.sh
 mkdir -p -- "$task_output"
 git rev-parse HEAD >"$task_output/head.txt"
 bun --version >"$task_output/bun-version.txt"
@@ -53,5 +54,5 @@ printf '%s\n' "Revision: $(cat "$task_output/head.txt")" "Evidence: $task_output
 printf '%s\n' 'Order: AB / BA / AB (A=stage 3 off, B=on; stages 1 and 2 on throughout).'
 printf '%s\n' 'Worker load: real journal, ACK/replay, deterministic ACP turns and git; no inference.'
 printf '%s\n' 'Workload: 72 minutes; approximately 75 minutes with preflight and startup, longer after rejected pairs.'
-exec "${task_priority[@]}" taskset -c "${CANOPY_DIAGNOSTICS_DRIVER_CPU:-1}" bun scripts/bench/diagnostics.ts \
+diagnostics_scope "${task_priority[@]}" taskset -c "${CANOPY_DIAGNOSTICS_DRIVER_CPU:-1}" bun scripts/bench/diagnostics.ts \
   >"$task_output/results.jsonl" 2>"$task_output/stderr.log"
