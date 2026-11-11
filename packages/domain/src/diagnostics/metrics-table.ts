@@ -51,12 +51,11 @@ export function metricsTableRows(measures: readonly ui.DiagnosticsMeasure[]) {
     return [
       {
         id: measure.metricId,
-        name: definition.unit === "%" ? `${definition.name} (% of one core)` : definition.name,
+        name: definition.name,
         description: definition.unit === "%" ? `${definition.name} (% of one core)` : definition.name,
         last: measure.events ? format(measure.last) : "—",
         mean: uptime ? "" : measure.observedSeconds ? format(measure.mean) : "—",
         max: uptime ? "" : measure.events ? format(measure.max) : "—",
-        historical: measure.historical,
         incomplete: measure.incomplete,
         approximate: definition.approximate ?? false,
       },

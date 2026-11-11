@@ -22,19 +22,21 @@
       <tbody class="divide-y divide-zinc-950/5 dark:divide-white/8">
         {#each rows as row (row.id)}
           <tr>
-            <th scope="row" class="truncate py-1 text-left font-normal" title={row.description}>
+            <th
+              scope="row"
+              class="truncate py-1 text-left font-normal"
+              title={row.description}
+              aria-label={row.description}
+            >
               {row.name}{row.incomplete ? " *" : ""}{row.approximate ? " ≈" : ""}
             </th>
-            <td class="py-1 pl-2 text-right whitespace-nowrap" title={row.historical ? "Last known" : undefined}>
-              {row.last}{row.historical ? " †" : ""}
-            </td>
+            <td class="py-1 pl-2 text-right whitespace-nowrap">{row.last}</td>
             <td class="py-1 pl-2 text-right whitespace-nowrap">{row.mean}</td>
             <td class="py-1 pl-2 text-right whitespace-nowrap">{row.max}</td>
           </tr>
         {/each}
       </tbody>
     </table>
-    {#if rows.some((row) => row.historical)}<p class="mt-1 text-sm text-muted sm:text-xs">† Last known.</p>{/if}
     {#if rows.some((row) => row.incomplete)}<p class="mt-1 text-sm text-muted sm:text-xs">
         * Some measurements are missing.
       </p>{/if}

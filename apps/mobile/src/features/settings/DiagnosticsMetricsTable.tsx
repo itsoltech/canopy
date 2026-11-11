@@ -39,11 +39,10 @@ export function DiagnosticsMetricsTable({ measures }: { measures: readonly ui.Di
           </Text>
           <Text
             numberOfLines={1}
-            accessibilityLabel={`${row.historical ? "Last known" : "Last"}: ${row.last}`}
+            accessibilityLabel={`Last: ${row.last}`}
             style={[styles.workMeta, table.value, { color: c.text }]}
           >
             {row.last}
-            {row.historical ? " †" : ""}
           </Text>
           <Text numberOfLines={1} style={[styles.workMeta, table.value, { color: c.text }]}>
             {row.mean}
@@ -53,9 +52,6 @@ export function DiagnosticsMetricsTable({ measures }: { measures: readonly ui.Di
           </Text>
         </View>
       ))}
-      {rows.some((row) => row.historical) ? (
-        <Text style={[styles.workMeta, { color: c.muted }]}>† Last known.</Text>
-      ) : null}
       {rows.some((row) => row.incomplete) ? (
         <Text style={[styles.workMeta, { color: c.muted }]}>* Some measurements are missing.</Text>
       ) : null}
