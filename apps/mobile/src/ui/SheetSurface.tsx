@@ -14,6 +14,7 @@ export function SheetSurface({
   header,
   children,
   scroll = true,
+  footer,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -21,6 +22,7 @@ export function SheetSurface({
   header: ReactNode;
   children: ReactNode;
   scroll?: boolean;
+  footer?: ReactNode;
 }) {
   return (
     <Overlay visible={visible} onClose={onClose} label={label} fullHeight>
@@ -39,6 +41,7 @@ export function SheetSurface({
           ) : (
             <View style={{ flex: 1, minHeight: 0 }}>{children}</View>
           )}
+          {footer}
         </ContentInsets.Provider>
       </PaneInsets.Provider>
     </Overlay>

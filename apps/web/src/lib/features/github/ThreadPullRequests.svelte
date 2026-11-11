@@ -7,6 +7,7 @@
   import { expand } from "#lib/shared/ui/motion.ts";
   import { formatTime } from "#lib/shared/format.ts";
   import LinkPullRequest from "./LinkPullRequest.svelte";
+  import CreatePullRequest from "./CreatePullRequest.svelte";
   import PullRequestState from "./PullRequestState.svelte";
   import * as api from "./api.ts";
   import PanelRow from "#lib/features/threads/components/PanelRow.svelte";
@@ -18,6 +19,7 @@
   let { thread, class: className }: { thread: ui.Thread; class?: ClassValue } = $props();
   let expanded = $state(false);
   let linking = $state(false);
+  let creating = $state(false);
   let error = $state("");
 
   const read = $derived(
@@ -92,6 +94,12 @@
   <PanelRow icon={linking ? "x-mark" : "plus"} disabled={data?.stale} onclick={() => (linking = !linking)}
     >{linking ? "Cancel" : "Link pull request"}</PanelRow
   >
+  {#if !links.some((link) => link.currentBranch)}<PanelRow
+      icon="git-fork"
+      disabled={data?.stale}
+      onclick={() => (creating = true)}>Create pull request</PanelRow
+    >{/if}
+  <CreatePullRequest threadId={thread.id} bind:open={creating} oncreated={() => void read.reload()} />
   {#if linking}<div transition:expand>
       <LinkPullRequest
         threadId={thread.id}

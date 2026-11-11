@@ -6,7 +6,9 @@ Timeline, review threads, checki/jobs/logi i Code, polling, kontekst composera
 oraz fallback aktualizacji. Etap 5 dodaje jawne komentarze (post/reply/edit/delete)
 i Viewed synchronizowane z GitHub, ze wspólnym preflightem, receiptami i audytem.
 Etap 6 dodaje inline comments i zakresy LEFT/RIGHT, pending review ze wszystkimi
-trzema werdyktami oraz resolve/unresolve. Pozostałe zapisy pozostają zakresem etapów 7–9.
+trzema werdyktami oraz resolve/unresolve. Etap 7 dodaje tworzenie PR z gałęzi wątku,
+ready/draft, merge trzema metodami, kolejkę scalania, auto-merge, update branch i close/reopen.
+Pozostałe zapisy pozostają zakresem etapów 8–9.
 Decyzje ustalone po przeglądzie: oficjalna GitHub App Canopy organizacji `itsoltech`, device flow,
 wygasające tokeny użytkownika w domu wątku, pełny zakres zapisów opisany poniżej i Viewed
 synchronizowane z GitHub. Implementacja jako jeden stos PR według §11.
@@ -518,9 +520,11 @@ Dotychczasowy dowód MCP, niezależne sprawdzenia git i ochrona lokalnych zmian 
 Jawne **Create pull request** odczytuje ten sam kontekst git i wymaga opublikowanej head branch.
 Użytkownik wybiera base repo/branch, head repo/ref, konto i draft/ready; Canopy nie wykonuje
 push ani tworzenia forka w tle. Brak opublikowanego SHA kieruje do zwykłego przepływu pracy z git.
-**Draft with agent** przygotowuje edytowalną prośbę w composerze i ograniczony załącznik
-z repo/ref/SHA, listą commitów i wybranymi diffami (limity §7); dopiero Send uruchamia turę.
-Wynik modelu jest propozycją tytułu i Markdown opisu, importowaną do formularza, nie żądaniem API.
+**Draft with agent** po jawnym kliknięciu uruchamia jedną zwykłą turę wątku z ograniczonym
+załącznikiem repo/ref/SHA, listą commitów i wybranymi diffami (limity §7). Formularz pokazuje
+stan ładowania i wypełnia pola tytułu oraz opisu wyłącznie zweryfikowaną odpowiedzią tej tury.
+Wynik modelu jest propozycją tekstu, nie żądaniem API. Utrata odpowiedzi nie ponawia wysłania;
+użytkownik sprawdza wynik w wątku. Opis ma wspólny z komentarzami edytor Markdown i podgląd.
 Użytkownik ogląda i edytuje całą treść oraz cel, potem osobno klika **Create pull request**.
 Zmiana repo/ref/SHA unieważnia wcześniejsze sprawdzenie formularza; model nie ustala konta ani praw.
 Formularz ogranicza tytuł do 256 znaków, opis do 64 KiB i respektuje dodatkowe limity GitHub;
@@ -531,6 +535,15 @@ evidence=`product_create` dla źródłowego wątku. Awaria lokalnego linku po ut
 uruchamia read-only reconcile po upstream ID, bez ponownego create. Konflikt „PR already exists”
 proponuje link do zweryfikowanego PR i respektuje tombstone; nie tworzy duplikatu ani nie odpina
 innych PR. Utrata odpowiedzi create pozostaje uncertain do rozstrzygnięcia, także po restarcie.
+
+Implementacja lifecycle negocjuje `github_pr_lifecycle_v1`. Migracja `0119_github_lifecycle`
+rozszerza wspólny receipt o wątek, repozytorium i potwierdzony upstream ID nowego PR oraz stan
+`accepted`. Numer należy zweryfikować przed scaleniem stosu, jeżeli równolegle dochodzą migracje.
+Po trwałym zapisaniu upstream ID ponowne otwarcie formularza sprawdza tylko receipt i odczytuje PR;
+lokalny link jest transakcyjny i zachowuje tombstone. Brak odpowiedzi bez takiego dowodu nigdy
+nie wywołuje drugiego create. Wszystkie akcje lifecycle wymagają potwierdzenia ważnego 60 s,
+związanego z klientem, kontem, pełnym head/base SHA i parametrami. Enqueue, update branch
+i enable auto-merge pokazują przyjęcie zlecenia, a ich wynik odświeża zwykły odczyt GitHub.
 
 ## 6. Proto i API UI
 

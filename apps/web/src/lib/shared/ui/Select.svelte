@@ -29,6 +29,7 @@
     name?: string;
     required?: boolean;
     placeholder?: string;
+    inline?: boolean;
   };
 
   let {
@@ -39,6 +40,7 @@
     name,
     required,
     placeholder = "Choose…",
+    inline = false,
     disabled,
     form,
     id: explicitId,
@@ -201,6 +203,7 @@
         {...props}
         {...rest}
         title={selected?.tooltip ?? rest.title}
+        {inline}
         bind:element={button}
         {id}
         {disabled}

@@ -84,12 +84,14 @@ export function Sheet({
   onClose,
   children,
   scroll = true,
+  footer,
 }: {
   title: string;
   visible: boolean;
   onClose: () => void;
   children: ReactNode;
   scroll?: boolean;
+  footer?: ReactNode;
 }) {
   const c = useColors();
 
@@ -99,6 +101,13 @@ export function Sheet({
       visible={visible}
       label={title}
       onClose={onClose}
+      footer={
+        footer && (
+          <View style={{ padding: 16, gap: 12, borderTopWidth: 1, borderColor: c.line, backgroundColor: c.surface }}>
+            {footer}
+          </View>
+        )
+      }
       header={
         <View style={[styles.row, { paddingLeft: 20, paddingRight: 12, paddingTop: 16, paddingBottom: 4 }]}>
           <Text accessibilityRole="header" numberOfLines={2} style={[styles.heading, { flex: 1, color: c.text }]}>

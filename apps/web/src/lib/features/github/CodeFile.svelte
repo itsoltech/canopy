@@ -88,7 +88,7 @@
         />{/if}
     </div>
   </div>
-  {#if active}<div class="grid min-w-0 gap-2 py-2">
+  {#if active}<div class="grid min-w-0 gap-2 pb-2">
       {#if busy}<p role="status" class="text-sm text-zinc-500 sm:text-xs">Loading patch…</p>{/if}
       {#if error}<p role="alert" class="text-sm text-rose-700 sm:text-xs dark:text-rose-400">{error}</p>
         <Button variant="ghost" size="sm" onclick={onopen}>Retry</Button>{/if}

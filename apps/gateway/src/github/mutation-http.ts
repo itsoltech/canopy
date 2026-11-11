@@ -2,9 +2,16 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { Option, Schema } from "effect";
 import type { MutationScope } from "./mutation-preflight.ts";
 import type { github } from "@canopy/contracts";
+import type { GitHubPullRequests } from "./pull-requests.ts";
+import type { AccessToken } from "./access.ts";
+
+export interface MutationAccess {
+  prs: GitHubPullRequests;
+  access: AccessToken;
+}
 
 /** Each request already reserved one point. Record measured cost and upstream limits. */
-export async function mutationBudget(scope: MutationScope, value: Schema.JsonObject | null, headers: Headers) {
+export async function mutationBudget(scope: MutationAccess, value: Schema.JsonObject | null, headers: Headers) {
   const parsed = Schema.decodeUnknownOption(
     Schema.Struct({
       data: Schema.Struct({
@@ -49,7 +56,7 @@ export function mutationInput(scope: MutationScope, r: github.PullRequestMutatio
 }
 
 /** Share the read queue and budget; no transaction spans network I/O and no write is replayed. */
-export async function mutationQueue<T>(scope: MutationScope, use: (renew: () => Promise<void>) => Promise<T>) {
+export async function mutationQueue<T>(scope: MutationAccess, use: (renew: () => Promise<void>) => Promise<T>) {
   const { accounts } = scope.prs;
   const { run, http } = accounts;
   const user = scope.access.row.github_user_id;

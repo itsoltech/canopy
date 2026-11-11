@@ -14,9 +14,20 @@
     leadingIcon?: IconName | undefined;
     element?: HTMLButtonElement | undefined;
     class?: ClassValue;
+    inline?: boolean;
   };
 
-  let { text, icon, leadingIcon, element = $bindable(), class: className, title, ...rest }: Props = $props();
+  let {
+    text,
+    icon,
+    leadingIcon,
+    inline = false,
+    element = $bindable(),
+    class: className,
+    title,
+    ...rest
+  }: Props = $props();
+
   const field = useField();
 </script>
 
@@ -29,7 +40,14 @@
   aria-describedby={rest["aria-describedby"] ?? field?.describedBy}
   aria-invalid={rest["aria-invalid"] ?? (field?.invalid || undefined)}
   {@attach tooltip(title ?? undefined)}
-  class={[controlClasses, "ui-control relative flex items-center gap-2 text-left pointer-coarse:min-h-12", className]}
+  class={[
+    inline
+      ? "rounded px-1 py-1 text-brand-600 focus-ring hover:bg-zinc-950/5 disabled:opacity-40 dark:text-brand-400 dark:hover:bg-white/5"
+      : controlClasses,
+    "ui-control relative flex items-center gap-2 text-left",
+    !inline && "pointer-coarse:min-h-12",
+    className,
+  ]}
 >
   {#if leadingIcon}<Icon name={leadingIcon} />{/if}
   <span class="min-w-0 flex-1 truncate">{text}</span>

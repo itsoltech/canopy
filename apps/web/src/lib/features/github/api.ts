@@ -3,6 +3,7 @@ import { toJson, type DescMessage, type MessageShape } from "@bufbuild/protobuf"
 import { requestJson, type JsonBody } from "#lib/shared/http.ts";
 import { decode } from "#lib/shared/wire.ts";
 import type { MutationApi } from "@canopy/domain/github-mutations";
+import { importPullRequestDraft } from "@canopy/domain/github-lifecycle";
 
 const post = (operation: string, body: JsonBody) => requestJson("POST", `/api/github/${operation}`, body, 125_000);
 
@@ -13,6 +14,13 @@ const mutate = async (operation: string, r: github.PullRequestMutationRequest) =
   );
 
 export const mutations: MutationApi = {
+  createPullRequest: (r) => mutate("create-pr", r),
+  setPullRequestDraft: (r) => mutate("set-draft", r),
+  mergePullRequest: (r) => mutate("merge", r),
+  setPullRequestQueue: (r) => mutate("queue", r),
+  setPullRequestAutoMerge: (r) => mutate("auto-merge", r),
+  updatePullRequestBranch: (r) => mutate("update-branch", r),
+  setPullRequestOpen: (r) => mutate("set-open", r),
   preparePullRequestMutation: (r) => mutate("prepare-mutation", r),
   getPullRequestMutation: async (r) =>
     decode(
@@ -29,6 +37,23 @@ export const mutations: MutationApi = {
   discardPullRequestReview: (r) => mutate("discard-review", r),
   setPullRequestReviewThreadResolved: (r) => mutate("resolve-thread", r),
 };
+
+export const createContext = async (r: github.PullRequestCreateContextRequest) =>
+  decode(
+    github.PullRequestCreateContextSchema,
+    await post("create-context", toJson(github.PullRequestCreateContextRequestSchema, r)),
+  );
+
+export const draftContext = async (r: github.PullRequestCreateContextRequest) =>
+  decode(
+    github.PullRequestContextResponseSchema,
+    await post("draft-context", toJson(github.PullRequestCreateContextRequestSchema, r)),
+  );
+
+export const agentDraft = async (r: github.PullRequestCreateContextRequest) =>
+  importPullRequestDraft(
+    JSON.stringify(await post("agent-draft", toJson(github.PullRequestCreateContextRequestSchema, r))),
+  );
 
 export const page = async <D extends DescMessage>(
   operation: string,

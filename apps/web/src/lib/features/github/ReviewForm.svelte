@@ -13,7 +13,7 @@
   import Dialog from "#lib/shared/ui/Dialog.svelte";
   import DialogActions from "#lib/shared/ui/DialogActions.svelte";
   import Textarea from "#lib/shared/ui/Textarea.svelte";
-  import Select from "#lib/shared/ui/Select.svelte";
+  import SegmentedChoice from "#lib/shared/ui/SegmentedChoice.svelte";
   import Checkbox from "#lib/shared/ui/Checkbox.svelte";
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
   import { mutations } from "./api.ts";
@@ -147,7 +147,7 @@
       class="field-sizing-content max-h-80 min-h-28"
       disabled={busy || uncertain}
     />{/if}
-  <Select name="review-verdict" aria-label="Review verdict" {options} bind:value={verdict} disabled={blocked} />
+  <SegmentedChoice label="Review verdict" {options} bind:value={verdict} disabled={blocked} class="flex-wrap" />
   {#if own}<p class="text-sm text-zinc-500 dark:text-zinc-400">
       GitHub does not allow you to approve or request changes on your own pull request. Choose Comment.
     </p>{/if}

@@ -1,15 +1,14 @@
 import { useState } from "react";
 import { Text, View } from "react-native";
 import type { github } from "@canopy/contracts";
-import { mutationUnconfirmed } from "@canopy/domain/github-mutations";
-import { Button, Field, Notice } from "../../ui/components";
-import { Markdown } from "../../ui/markdown/Markdown";
+import { mutationUnconfirmed, mutationRequest } from "@canopy/domain/github-mutations";
+import { Button, Notice } from "../../ui/components";
+import { MarkdownEditor } from "../../ui/MarkdownEditor";
 import { useColors, useTypography } from "../../ui/theme";
 import { useMutation } from "./useMutation";
 import { invalidations } from "./invalidations";
 import { OpenMutationSource } from "./OpenMutationSource";
 import { commentDrafts } from "./comment-drafts";
-import { mutationRequest } from "@canopy/domain/github-mutations";
 import * as Crypto from "expo-crypto";
 
 export function CommentComposer({
@@ -28,7 +27,6 @@ export function CommentComposer({
   const key = commentDrafts.key(snapshot, resourceId, commentKind);
   const [saved] = useState(() => commentDrafts.read(key, initial));
   const [body, setBody] = useState(saved.body);
-  const [preview, setPreview] = useState(false);
   const { send, receipt, busy, online, clear } = useMutation(snapshot, saved.receipt);
 
   const c = useColors(),
@@ -69,28 +67,17 @@ export function CommentComposer({
         <Text numberOfLines={2} style={[type.meta, { flex: 1, color: c.muted }]}>
           {snapshot.viewerLogin} · {snapshot.summary?.ref?.repositoryName} #{snapshot.summary?.ref?.number}
         </Text>
-        <Button title={preview ? "Write" : "Preview"} variant="ghost" size="sm" onPress={() => setPreview(!preview)} />
       </View>
-      {preview ? (
-        body ? (
-          <Markdown text={body} />
-        ) : (
-          <Text style={[type.body, { color: c.muted }]}>Nothing to preview</Text>
-        )
-      ) : (
-        <Field
-          label={resourceId ? "Reply or edit comment" : "Comment"}
-          value={body}
-          onChangeText={(text) => {
-            setBody(text);
-            commentDrafts.save(key, text, receipt);
-          }}
-          multiline
-          placeholder="Write a comment in Markdown…"
-          editable={!busy && !uncertain}
-          style={{ minHeight: 112, textAlignVertical: "top" }}
-        />
-      )}
+      <MarkdownEditor
+        label={resourceId ? "Reply or edit comment" : "Comment"}
+        value={body}
+        onChange={(text) => {
+          setBody(text);
+          commentDrafts.save(key, text, receipt);
+        }}
+        placeholder="Write a comment in Markdown…"
+        disabled={busy || !!uncertain}
+      />
       {!!receipt?.detail && <Notice error={receipt.state === "failed"}>{receipt.detail}</Notice>}
       {uncertain && <OpenMutationSource snapshot={snapshot} />}
       {(!online || snapshot.stale) && <Notice>Connect and refresh before sending. Your draft stays here.</Notice>}

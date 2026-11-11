@@ -2,9 +2,8 @@ import { useState } from "react";
 import { Text, View } from "react-native";
 import type { github } from "@canopy/contracts";
 import { uncertainMutation } from "@canopy/domain/github-mutations";
-import { Button, Field, Notice } from "../../ui/components";
+import { Button, Field, Notice, Segmented } from "../../ui/components";
 import { Checkbox } from "../../ui/Checkbox";
-import { PickerSheet } from "../../ui/Picker";
 import { Markdown } from "../../ui/markdown/Markdown";
 import { useColors, useTypography } from "../../ui/theme";
 import { PendingComments } from "./PendingComments";
@@ -26,8 +25,7 @@ export function ReviewForm({
   const c = useColors(),
     type = useTypography();
 
-  const [preview, setPreview] = useState(false),
-    [picker, setPicker] = useState(false);
+  const [preview, setPreview] = useState(false);
 
   return (
     <View style={{ gap: 12 }}>
@@ -50,21 +48,10 @@ export function ReviewForm({
           onChangeText={f.changeBody}
         />
       )}
-      <Button
-        title={f.options.find((o) => o.value === f.verdict)?.label ?? "Comment"}
-        disabled={f.blocked}
-        onPress={() => setPicker(true)}
-      />
-      <PickerSheet
-        title="Review verdict"
-        visible={picker}
+      <Segmented
         value={f.verdict}
-        onClose={() => setPicker(false)}
-        sections={[{ options: f.options }]}
-        onSelect={(value) => {
-          f.setVerdict(value);
-          setPicker(false);
-        }}
+        options={f.options.map((o) => ({ ...o, disabled: f.blocked || o.disabled }))}
+        onChange={f.setVerdict}
       />
       {f.own && (
         <Notice>

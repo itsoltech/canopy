@@ -12,6 +12,7 @@ import { useMutation } from "./useMutation";
 import { commentDrafts } from "./comment-drafts";
 import { invalidations } from "./invalidations";
 import { OpenMutationSource } from "./OpenMutationSource";
+import { toast } from "../../ui/Toast";
 import type { ReviewDraft } from "./useReviewDraft";
 
 export function ReviewCommentComposer({
@@ -80,8 +81,12 @@ export function ReviewCommentComposer({
 
   return (
     <View style={{ gap: 12 }}>
-      <Text style={[type.mono, { color: c.text }]}>
-        {file.path} · {anchorLabel(range)} · {sha.slice(0, 7)}
+      <Text
+        style={[type.mono, { color: c.text }]}
+        onLongPress={() => toast(sha.slice(0, 7))}
+        accessibilityHint={`Commit ${sha.slice(0, 7)}`}
+      >
+        {file.path} · {anchorLabel(range)}
       </Text>
       <Text style={[type.meta, { color: c.muted }]}>
         {snapshot.viewerLogin} · {snapshot.summary?.ref?.repositoryName} #{snapshot.summary?.ref?.number}
@@ -110,7 +115,6 @@ export function ReviewCommentComposer({
       {(!online || snapshot.stale || sha !== snapshot.summary?.headSha) && (
         <Notice>Connect and open the current changes before sending. Your draft stays here.</Notice>
       )}
-      {!!draft.pendingId && <Notice>A pending review exists. Add this comment to it, then submit the review.</Notice>}
       {!!draft.error && <Notice error>{draft.error}</Notice>}
       <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", gap: 8 }}>
         <Button title={preview ? "Write" : "Preview"} variant="ghost" onPress={() => setPreview(!preview)} />

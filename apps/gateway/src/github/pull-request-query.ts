@@ -3,6 +3,7 @@ import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { github } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Option, Schema } from "effect";
+import { LIFECYCLE_FIELDS, LIFECYCLE_REPOSITORY_FIELDS, snapshotLifecycle } from "./lifecycle-state.ts";
 
 const person = Schema.NullOr(Schema.Struct({ login: Schema.String }));
 const page = Schema.Struct({ hasNextPage: Schema.Boolean });
@@ -99,10 +100,11 @@ const Envelope = Schema.Struct({
 
 export const SUMMARY_QUERY = `query CanopyPullRequest($owner:String!,$name:String!,$number:Int!){
   rateLimit { cost remaining resetAt }
-  repository(owner:$owner,name:$name){ databaseId pullRequest(number:$number){
+  repository(owner:$owner,name:$name){ databaseId viewerPermission ${LIFECYCLE_REPOSITORY_FIELDS} pullRequest(number:$number){
     id number title state isDraft body author{login} updatedAt createdAt
     baseRefName headRefName baseRefOid headRefOid changedFiles additions deletions
     headRepository{databaseId nameWithOwner}
+    ${LIFECYCLE_FIELDS}
     labels(first:100){nodes{name color} pageInfo{hasNextPage}}
     assignees(first:100){nodes{login} pageInfo{hasNextPage}}
     reviewRequests(first:100){nodes{requestedReviewer{... on User{login} ... on Team{name slug}}} pageInfo{hasNextPage}}
@@ -186,6 +188,7 @@ export function summarySnapshot(
       verifiedAt: timestampFromDate(new Date(now)),
     },
     author: pr.author?.login ?? "Deleted user",
+    lifecycle: snapshotLifecycle(value),
     body: pr.body ?? previous?.body ?? "",
     baseRef: pr.baseRefName,
     headRef: pr.headRefName,

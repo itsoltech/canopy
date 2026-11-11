@@ -53,7 +53,7 @@ export function readFixture(
     variables: Schema.JsonObject,
     user: number,
   ) => Response | undefined | Promise<Response | undefined>,
-  rest?: (request: Request, user: number) => Response | undefined,
+  rest?: (request: Request, user: number) => Response | undefined | Promise<Response>,
 ) {
   const fixture = githubPrFixture();
   let head = readHead;
