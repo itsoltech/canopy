@@ -19,9 +19,13 @@ export async function monitorHost(pair: number, attempt: number) {
   const bytesPerPage = await pageSize();
   const abort = new AbortController();
   const violations: { kind: string; value: string }[] = [];
+  let activity: Promise<void> | undefined;
 
   const reject = (kind: string, value: string) => {
     if (violations.length < 20) violations.push({ kind, value });
+
+    // Capture once at rejection, outside accepted recordings. Never include argv or environment values.
+    if (!abort.signal.aborted) activity = rejectedProcesses(pair, attempt, kind);
     abort.abort();
   };
 
@@ -82,6 +86,7 @@ export async function monitorHost(pair: number, attempt: number) {
       vmstat.kill("SIGTERM");
       await reading;
       await vmstat.exited;
+      await activity;
       const after = await swapCounters();
 
       swap.cumulative((after.output - before.output) * bytesPerPage);
@@ -109,4 +114,22 @@ export async function monitorHost(pair: number, attempt: number) {
       return accepted;
     },
   };
+}
+
+async function rejectedProcesses(pair: number, attempt: number, reason: string) {
+  const atMs = Date.now();
+
+  try {
+    const child = Bun.spawn(["ps", "-eo", "pid,ppid,etimes,pcpu,rss,comm", "--sort=-rss"], {
+      stdout: "pipe",
+      stderr: "ignore",
+    });
+
+    const processes = (await new Response(child.stdout).text()).slice(0, 65536);
+    const exitCode = await child.exited;
+
+    console.info(JSON.stringify({ phase: "host_processes", pair, attempt, atMs, reason, exitCode, processes }));
+  } catch {
+    console.info(JSON.stringify({ phase: "host_processes", pair, attempt, atMs, reason, unavailable: true }));
+  }
 }

@@ -217,6 +217,9 @@ Bramki hosta etapu 2 dopuszczają odczyty starych stron swapu: swap-in odrzuca
 parę dopiero przy ≥4 MiB/s przez trzy kolejne sekundy. Swap-out nadal odrzuca
 przy ≥128 KiB/s w dowolnej próbce lub ≥1 MiB na parę, a load powyżej liczby CPU
 także unieważnia parę. Każda próbka i sumy są zapisywane, również poniżej progów.
+Pierwsze naruszenie zapisuje też PID/PPID, wiek, CPU, RSS i nazwę aktywnych
+procesów z `ps`, bez argumentów ani środowiska. Ten odczyt dotyczy wyłącznie
+odrzuconej pary i nie obciąża przyjętych nagrań.
 Etap 1 zachowuje wcześniejsze bramki. Kryteria narzutu: mediana delty CPU <1 pp,
 RPC p95 bez regresji powyżej max(1 ms, 10% wartości bazowej), odczyt 24 h <50 ms,
 synchroniczne odtworzenie CPU <100 ms. Po profilowaniu cel etapu 2 jest ostrzejszy:

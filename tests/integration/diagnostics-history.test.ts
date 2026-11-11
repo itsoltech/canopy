@@ -274,6 +274,16 @@ describe.skipIf(!dockerAvailable)("diagnostics durability and bounded retention"
   });
 
   test("compacts an hour without double counting, respects owner scope and rolls pruning back", async () => {
+    await new DiagnosticsStore(gateway.runtime, gateway.userId, "prune-retention").initialize(
+      create(ui.DiagnosticsStateSchema, { schemaVersion: 1 }),
+    );
+
+    const rows = () =>
+      query<{ resolution: number; payload: Uint8Array; bucket_start: Date }>(
+        "SELECT resolution,payload,bucket_start FROM diagnostics_rollups WHERE owner_user_id=$1::uuid AND computer_id='prune-retention'",
+        [gateway.userId],
+      );
+
     const payload = encodeRollup([
       create(ui.DiagnosticsProcessSchema, {
         processId: "gateway",
@@ -292,7 +302,7 @@ describe.skipIf(!dockerAvailable)("diagnostics durability and bounded retention"
 
     await query(
       `INSERT INTO diagnostics_rollups(owner_user_id,computer_id,resolution,bucket_start,payload)
-      SELECT $1::uuid,'local',60,date_trunc('hour',now()-interval '4 days')+n*interval '1 minute',$2 FROM generate_series(0,59) n`,
+      SELECT $1::uuid,'prune-retention',60,date_trunc('hour',now()-interval '4 days')+n*interval '1 minute',$2 FROM generate_series(0,59) n`,
       [gateway.userId, payload],
     );
     await gateway.runtime.runPromise(
@@ -309,9 +319,7 @@ describe.skipIf(!dockerAvailable)("diagnostics durability and bounded retention"
           .pipe(Effect.catch(() => Effect.void));
       }),
     );
-    expect(
-      (await query<{ n: number }>("SELECT count(*)::int n FROM diagnostics_rollups WHERE resolution=3600"))[0]?.n,
-    ).toBe(0);
+    expect((await rows()).filter((row) => row.resolution === 3600)).toHaveLength(0);
 
     const prune = (owner: string) =>
       gateway.runtime.runPromise(
@@ -323,47 +331,27 @@ describe.skipIf(!dockerAvailable)("diagnostics durability and bounded retention"
       );
 
     await prune(crypto.randomUUID());
-    expect(
-      (
-        await query<{ n: number }>(
-          "SELECT count(*)::int n FROM diagnostics_rollups WHERE resolution=60 AND bucket_start<now()-interval '2 hours'",
-        )
-      )[0]?.n,
-    ).toBe(60);
+    expect((await rows()).filter((row) => row.resolution === 60)).toHaveLength(60);
     await prune(gateway.userId);
 
-    const hour = (
-      await query<{ payload: Uint8Array }>("SELECT payload FROM diagnostics_rollups WHERE resolution=3600")
-    )[0]!;
+    const hour = (await rows()).find((row) => row.resolution === 3600)!;
 
     expect(decodeRollup(hour.payload).processes[0]!.series[0]!.started).toBe(60n);
     await prune(gateway.userId);
     expect(
-      decodeRollup(
-        (await query<{ payload: Uint8Array }>("SELECT payload FROM diagnostics_rollups WHERE resolution=3600"))[0]!
-          .payload,
-      ).processes[0]!.series[0]!.started,
+      decodeRollup((await rows()).find((row) => row.resolution === 3600)!.payload).processes[0]!.series[0]!.started,
     ).toBe(60n);
-    expect(
-      (
-        await query<{ n: number }>(
-          "SELECT count(*)::int n FROM diagnostics_rollups WHERE resolution=60 AND bucket_start<now()-interval '2 hours'",
-        )
-      )[0]?.n,
-    ).toBe(0);
+    expect((await rows()).filter((row) => row.resolution === 60)).toHaveLength(0);
     await query(
       `INSERT INTO diagnostics_rollups(owner_user_id,computer_id,resolution,bucket_start,payload,compacted)
-      VALUES($1::uuid,'local',3600,date_trunc('hour',now()-interval '31 days'),$2,true)`,
+      VALUES($1::uuid,'prune-retention',3600,date_trunc('hour',now()-interval '31 days'),$2,true)`,
       [gateway.userId, payload],
     );
     await prune(gateway.userId);
-    expect(
-      (
-        await query<{ n: number }>(
-          "SELECT count(*)::int n FROM diagnostics_rollups WHERE bucket_start<now()-interval '30 days'",
-        )
-      )[0]?.n,
-    ).toBe(0);
+    expect((await rows()).filter((row) => row.bucket_start.getTime() < Date.now() - 30 * 86_400_000)).toHaveLength(0);
+    await query("DELETE FROM diagnostics_state WHERE owner_user_id=$1::uuid AND computer_id='prune-retention'", [
+      gateway.userId,
+    ]);
   });
 
   test("restarting inside a minute never persists restored observations as a new session", async () => {
