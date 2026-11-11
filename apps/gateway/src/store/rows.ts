@@ -4,6 +4,9 @@ import type { StoredQuote } from "./quotes.ts";
 import type { StoredMentions } from "../core/mentions.ts";
 
 export interface ThreadRow {
+  newest_pull_request?: JsonValue | null;
+  pull_request_count?: number;
+  pull_request_revision?: bigint;
   project_kind?: string;
   id: string;
   project_id: string;

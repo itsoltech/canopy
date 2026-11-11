@@ -1,13 +1,20 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
 
-  let { userId, login, class: className }: { userId: string; login: string; class?: ClassValue } = $props();
+  let {
+    userId,
+    login,
+    compact = false,
+    class: className,
+  }: { userId: string; login: string; compact?: boolean; class?: ClassValue } = $props();
+
   let failed = $state(false);
 </script>
 
 <span
   class={[
-    "relative grid size-8 shrink-0 place-items-center overflow-hidden rounded-full bg-zinc-500/10 text-sm font-medium text-zinc-500 dark:text-zinc-400",
+    "relative grid shrink-0 place-items-center overflow-hidden rounded-full bg-zinc-500/10 font-medium text-zinc-500 ring-1 ring-zinc-950/5 ring-inset dark:text-zinc-400 dark:ring-white/10",
+    compact ? "size-5 text-xs" : "size-8 text-sm",
     className,
   ]}
   aria-hidden="true"

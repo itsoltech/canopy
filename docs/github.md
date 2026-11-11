@@ -1,7 +1,8 @@
 # Konto GitHub i pull requesty
 
 Status: **zaakceptowany**, 2026-11-10. Etap 1 w stosie implementuje konta;
-obsługa PR z kolejnych etapów nie jest jeszcze dostępna.
+etap 2 dodaje ręczne powiązania PR i Summary tylko do odczytu.
+Pozostałe funkcje PR z kolejnych etapów nie są jeszcze dostępne.
 Decyzje ustalone po przeglądzie: oficjalna GitHub App Canopy organizacji `itsoltech`, device flow,
 wygasające tokeny użytkownika w domu wątku, pełny zakres zapisów opisany poniżej i Viewed
 synchronizowane z GitHub. Implementacja jako jeden stos PR według §11.
@@ -235,6 +236,23 @@ Konfiguracja i pilotaż:
 [Rejestracja GitHub App](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app).
 
 ## 3. Klient gatewaya, cache i koszt
+
+Etap 2 udostępnia ręczne link/unlink i read-only Summary na web/desktop oraz mobile.
+Katalog instalacji i odczyty PR używają jednego klienta REST/GraphQL, dzierżaw SQL i budżetu.
+Summary zawiera najwyżej pierwsze 100 elementów każdego źródła; `partial` jawnie wskazuje
+niepełny wynik i odsyła na GitHub. Pełna paginacja, watch/polling i rozbudowane metryki
+pozostają w etapie 4. PostgreSQL weryfikuje każdy odczyt, a LRU RAM do 32 MiB
+ogranicza ponowne parsowanie tej samej generacji JSON. Retencja 30 dni i limit 100 MiB
+dotyczą już trwałego cache etapu 2.
+Bez autodetekcji etapu 3 panel porządkuje ręcznie powiązane PR według daty utworzenia PR,
+nie daty linku; wyróżnianie bieżącej gałęzi dojdzie razem z dowodami autodetekcji.
+
+Test live odczytu Summary jest opt-in: z katalogu głównego uruchom
+`CANOPY_LIVE=1 bun test tests/integration/github-pull-requests.live.test.ts`.
+Wypisany publiczny kod device flow trzeba zatwierdzić kontem mającym dostęp do
+`itsoltech/canopy` w instalacji Canopy. `CANOPY_LIVE_GITHUB_PR` wybiera numer PR (domyślnie 485).
+Test tworzy lokalny wątek i link, czyta istniejący PR, a na końcu odłącza lokalne konto;
+nie wykonuje zapisów do GitHub. Zwykłe testy używają wyłącznie kontrolowanego HTTP na loopback.
 
 Nowy moduł domeny `apps/gateway/src/github/` grupuje adapter auth, klienta, store, poller
 i projekcje; nie tworzymy osobnego procesu, brokera wiadomości ani usługi poświadczeń.
@@ -591,8 +609,11 @@ Pokazane materiały referencyjne przedstawiają neutralny układ: listę PR pod 
 osobny widok z nagłówkiem i trzema zakładkami, a także menu akcji przy danym PR.
 Przenosimy przepływ, korzystając z istniejących paneli, nawigacji i komponentów Canopy.
 Obecny `features/navigation/AppShell.svelte` organizuje widoki trasami, bez ogólnego paska
-kart dokumentów. PR dostaje własny adres i zakładki w tym widoku; nie budujemy przy okazji
-nowego systemu okien. Powrót do wątku zachowuje jego szkic i pozycję przewijania.
+kart dokumentów. PR otwiera się w istniejącej prawej kolumnie wątku na desktopie,
+a na wąskim ekranie w arkuszu; parametr `pr` adresu wątku pozwala wrócić do tego panelu.
+Rozmowa, szkic i pozycja przewijania pozostają zamontowane. Mobile używa pushed screen.
+Nie budujemy nowego systemu okien. Etap 2 pokazuje tylko segment Summary;
+Timeline i Code pojawią się z implementacją ich etapów w tym samym pasku.
 
 1. **Panel wątku.** Pod `ThreadPlacement`/Branch lista **Pull requests**: tytuł, repo gdy potrzebne,
    `#number`, stan i checki. Domyślnie najnowszy PR bieżącej gałęzi według utworzenia;
@@ -601,7 +622,7 @@ nowego systemu okien. Powrót do wątku zachowuje jego szkic i pozycję przewija
    formularz dla gałęzi wątku (§5). Pusty wynik nie jest błędem auth.
 2. **Nagłówek PR.** Repo, numer, tytuł, autor, updated time, `base ← head`, liczba plików, +/−,
    stan Open/Merged/Closed/Draft. `gh pr checkout N` jest kopiowalnym tekstem; dopisek określa repo.
-   Kopiowanie nie uruchamia komendy ani nie zmienia lokalnej gałęzi. Długi tytuł zawija się;
+   Kopiowanie nie uruchamia komendy ani nie zmienia lokalnej gałęzi. Długi tytuł ma dwie linie;
    po przewinięciu nagłówek jest kompaktowy, ale zachowuje stan i nawigację.
 3. **Summary.** Reviewers, assignees i labels z edycją według praw, opis Markdown, checki i komentarze.
    Checki pokazują queued/in progress/success/failure/cancelled/skipped/neutral/timed out,

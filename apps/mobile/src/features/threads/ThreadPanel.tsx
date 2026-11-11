@@ -14,6 +14,7 @@ import { SecretGrants } from "./ThreadSecrets";
 import { useComputerHome } from "../computers/presence";
 import { useSession } from "../../state/session";
 import { openSettingsSection } from "../settings/navigation";
+import { ThreadPullRequests } from "../github/ThreadPullRequests";
 
 export function PanelRow({
   title,
@@ -98,6 +99,7 @@ export function ThreadPanel({
             />
             <ThreadPlacement thread={thread} onClose={onClose} />
           </View>
+          {visible && <ThreadPullRequests thread={thread} onClose={onClose} />}
           {visible && <SecretGrants secrets={snapshot?.secrets ?? []} disabled={home.away || !online} />}
           {snapshot && <ThreadSchedules snapshot={snapshot} onClose={onClose} />}
           {snapshot && <ThreadBackgroundTasks snapshot={snapshot} disabled={home.away || !online} />}

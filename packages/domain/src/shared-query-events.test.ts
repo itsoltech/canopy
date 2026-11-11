@@ -26,6 +26,29 @@ async function watched(keys: string[]) {
 }
 
 describe("overview events and shared reads", () => {
+  test("a home resnapshot drops private PR content and a late pre-revoke response cannot restore it", async () => {
+    const queries = new QueryCache();
+    const pending = Promise.withResolvers<string | null>();
+    const key = "GetPullRequest:pr~home";
+    let reads = 0;
+
+    const stop = queries.watch(
+      key,
+      () => (++reads === 1 ? pending.promise : Promise.resolve(null)),
+      () => {},
+    );
+
+    queries.set(key, "private summary before revoke");
+    new OverviewInvalidation(queries).apply(
+      update({ case: "computerSnapshot", value: create(ui.LinkedComputerSnapshotSchema, { nodeId: "home" }) }),
+    );
+    expect(queries.snapshot(key).data).toBeUndefined();
+    pending.resolve("late private summary");
+    await Bun.sleep(20);
+    expect(queries.snapshot(key).data).toBeNull();
+    stop();
+    queries.dispose();
+  });
   test("a broadcast repeating every worker unchanged reads nothing; a changed report reads the library once", async () => {
     const { reads, invalidation } = await watched(["GetAgentEnvironment", "ListWorkerRecords"]);
     const workers = Array.from({ length: 8 }, (_, n) => worker(`w${n}`));

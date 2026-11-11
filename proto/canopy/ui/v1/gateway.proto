@@ -22,6 +22,13 @@ import "canopy/ui/v1/cli_import.proto";
 import "canopy/ui/v1/github.proto";
 
 service GatewayService {
+  rpc GetGitHubRepositoryAccount(GitHubRepositoryAccountRequest) returns (GitHubRepositoryAccountResponse);
+  rpc SetGitHubRepositoryAccount(SetGitHubRepositoryAccountRequest) returns (GitHubRepositoryAccountResponse);
+  rpc ListThreadPullRequests(ThreadPullRequestsRequest) returns (ThreadPullRequestsResponse);
+  rpc LinkThreadPullRequest(LinkThreadPullRequestRequest) returns (ThreadPullRequestsResponse);
+  rpc UnlinkThreadPullRequest(UnlinkThreadPullRequestRequest) returns (ThreadPullRequestsResponse);
+  rpc GetPullRequest(PullRequestRequest) returns (PullRequestSnapshot);
+  rpc RefreshPullRequest(PullRequestRequest) returns (PullRequestSnapshot);
   rpc ListGitHubAccounts(GitHubAccountsRequest) returns (GitHubAccountsResponse);
   rpc BeginGitHubDeviceAuth(BeginGitHubDeviceAuthRequest) returns (GitHubDeviceAuthResponse);
   rpc GetGitHubDeviceAuth(GitHubDeviceAuthRequest) returns (GitHubDeviceAuthResponse);
@@ -612,6 +619,10 @@ message Thread {
   // Wybory ostatniej własnej tury użytkownika, niezależnie od strony historii.
   // Brak przed pierwszą turą; pomija shell, wycofane wejścia i tury agentów.
   ComposerTurnChoices last_user_turn_choices = 1020;
+  // Small, credential-free projection, also carried by the thread mirror.
+  PullRequestSummary newest_pull_request = 1030;
+  uint32 pull_request_count = 1031;
+  uint64 pull_request_revision = 1032;
 }
 
 message ComposerTurnChoices {

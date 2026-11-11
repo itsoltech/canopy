@@ -7,6 +7,7 @@
   import { goto } from "$app/navigation";
   import { contributeCommands } from "#lib/features/commands/commands.svelte.ts";
   import { threadCommands } from "#lib/features/threads/thread-commands.ts";
+  import { composerAvailability } from "#lib/features/threads/thread-availability.ts";
   import GoalBar from "#lib/features/goals/GoalBar.svelte";
   import GoalDialog from "#lib/features/goals/GoalDialog.svelte";
   import CiteLayer from "#lib/features/quotes/CiteLayer.svelte";
@@ -33,6 +34,9 @@
   import ThreadModelDialog from "#lib/features/threads/components/ThreadModelDialog.svelte";
   import ThreadPermissionsDialog from "#lib/features/threads/components/ThreadPermissionsDialog.svelte";
   import ThreadPanel from "#lib/features/threads/components/ThreadPanel.svelte";
+  import PullRequestPanel from "#lib/features/github/PullRequestPanel.svelte";
+  import ThreadPullRequestSheet from "#lib/features/github/ThreadPullRequestSheet.svelte";
+  import { closePullRequest as closePr, toggleThreadPanel } from "#lib/features/github/thread-panel.ts";
   import ThreadTitleActions from "#lib/features/threads/components/ThreadTitleActions.svelte";
   import QueuePanel from "#lib/features/threads/queue/QueuePanel.svelte";
   import { QueueState } from "#lib/features/threads/queue/queue-state.svelte.ts";
@@ -274,27 +278,14 @@
     });
   });
 
-  const composerNote = $derived.by(() => {
-    if (!thread) return undefined;
-
-    if (thread.status === "failed") return "This thread failed to start and cannot take messages.";
-
-    if (thread.status === "archived") return "This thread is archived.";
-
-    if (away) return "Read only until it is connected again.";
-
-    if (worker && !worker.online)
-      return `${worker.name} is offline. Messages wait and are delivered when it reconnects.`;
-
-    if (thread.status === "creating") return "The thread is starting on the worker. Messages run once it is ready.";
-
-    return undefined;
-  });
+  const composerNote = $derived(composerAvailability(thread, worker, Boolean(away)));
 
   // Context panel: beside the chat on wide screens (saved on this device), a sheet
   // on narrow ones.
-  const panelOpen = $derived(!device.view.threadPanelCollapsed);
+  const selectedPr = $derived(page.url.searchParams.get("pr") ?? "");
+  const panelOpen = $derived(Boolean(selectedPr) || !device.view.threadPanelCollapsed);
   let panelSheet = $state(false);
+
   let worktreeDialog = $state(false);
 
   function manageWorktree() {
@@ -302,10 +293,7 @@
     worktreeDialog = true;
   }
 
-  function togglePanel() {
-    if (matchMedia("(min-width: 80rem)").matches) device.setView({ threadPanelCollapsed: panelOpen });
-    else panelSheet = true;
-  }
+  const togglePanel = () => toggleThreadPanel(panelOpen, () => (panelSheet = true));
 
   const canBranch = $derived(!away && Boolean(tree && thread && thread.status !== "archived"));
 
@@ -530,7 +518,7 @@
      the page loads) and eases it open or shut (motion.css `t-panel-column`). -->
 <div
   class="t-panel-column flex h-full xl:grid xl:grid-cols-[minmax(0,1fr)_var(--panel-width)] xl:grid-rows-1"
-  style:--panel-width={panelOpen ? "20rem" : "0rem"}
+  style:--panel-width={selectedPr ? "min(36rem, 48vw)" : panelOpen ? "20rem" : "0rem"}
   data-collapsed={!panelOpen || undefined}
   data-window-side-panel={panelOpen ? "xl" : undefined}
 >
@@ -783,41 +771,49 @@
        its content never re-wraps; a closed panel is inert. -->
   <aside
     class="relative min-w-0 overflow-hidden max-xl:hidden"
-    aria-label="Thread details"
+    aria-label={selectedPr ? "Pull request" : "Thread details"}
     inert={!panelOpen}
     data-collapsed={!panelOpen || undefined}
   >
-    <div class="t-panel absolute inset-y-0 left-0 flex w-80 flex-col">
+    <div
+      class="t-panel absolute inset-y-0 left-0 flex flex-col"
+      style:width={selectedPr ? "min(36rem, 48vw)" : "20rem"}
+    >
       <!-- The 48px title strip keeps the panel's content clear of the window controls on every desktop platform. -->
       <div class="hidden desktop:block" data-window-end>
         {#if thread}<ThreadTitleActions {thread} titlebar />{:else}<div class="h-12" data-window-drag></div>{/if}
       </div>
-      <div class="min-h-0 flex-1 scroll-stable-both overflow-y-auto px-1 py-3">
-        <!-- What the overview already knows (worker, model, status, lineage) shows at once; usage and tasks fill in. -->
-        {#if thread && tree}
-          <ThreadPanel
-            windowTitlebar
-            onworktree={manageWorktree}
-            {thread}
-            {tree}
-            {worker}
-            schedules={view.upcomingSchedules}
-            backgroundTasks={allBackgroundTasks}
-            items={itemsById}
-            onbackground={openOutput}
-            onschedule={canSchedule ? openSchedule : undefined}
-            onschedulechange={(schedule) => view.upsertSchedule(schedule)}
-            secrets={view.secrets}
-            onsecretchange={(secret) => view.upsertSecret(secret)}
-            onnewside={canBranch ? openSide : undefined}
-          />
-        {:else}
-          <Skeleton class="h-72 rounded-2xl" />
-        {/if}
-      </div>
+      {#if selectedPr}<PullRequestPanel id={selectedPr} {threadId} onclose={closePr} />{:else}<div
+          class="min-h-0 flex-1 scroll-stable-both overflow-y-auto px-1 py-3"
+        >
+          <!-- What the overview already knows (worker, model, status, lineage) shows at once; usage and tasks fill in. -->
+          {#if thread && tree}
+            <ThreadPanel
+              windowTitlebar
+              onworktree={manageWorktree}
+              {thread}
+              {tree}
+              {worker}
+              schedules={view.upcomingSchedules}
+              backgroundTasks={allBackgroundTasks}
+              items={itemsById}
+              onbackground={openOutput}
+              onschedule={canSchedule ? openSchedule : undefined}
+              onschedulechange={(schedule) => view.upsertSchedule(schedule)}
+              secrets={view.secrets}
+              onsecretchange={(secret) => view.upsertSecret(secret)}
+              onnewside={canBranch ? openSide : undefined}
+            />
+          {:else}
+            <Skeleton class="h-72 rounded-2xl" />
+          {/if}
+        </div>
+      {/if}
     </div>
   </aside>
 </div>
+
+{#if selectedPr}<ThreadPullRequestSheet id={selectedPr} {threadId} onclose={closePr} />{/if}
 
 {#if thread?.worktree}
   <Dialog bind:open={worktreeDialog} title="Worktree" size="lg">
@@ -826,7 +822,7 @@
 {/if}
 
 {#if thread && tree}
-  <Dialog bind:open={panelSheet} title="Thread details">
+  <Dialog bind:open={() => panelSheet && !selectedPr, (open) => (panelSheet = open)} title="Thread details">
     <ThreadPanel
       onworktree={manageWorktree}
       {thread}

@@ -9,6 +9,7 @@ import {
   REMOTE_THREADS,
   REMOTE_BRANCH_SWITCH,
   THREAD_MIRROR,
+  GITHUB_PR,
 } from "@canopy/domain/computers";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
@@ -26,6 +27,7 @@ const FEATURES = new Set([
   REMOTE_BOTS,
   REMOTE_BOT_COMPOSER,
   AGENT_BUS,
+  GITHUB_PR,
 ]);
 
 // Configuration, worker settings and app updates never cross a relay (docs/linked-computers.md, "Udostępnianie per łącze").
