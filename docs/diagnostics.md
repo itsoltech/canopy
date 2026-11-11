@@ -198,6 +198,21 @@ cztery sloty i kolejka, bez nakładających się burstów. Narzut tej pracy jest
 w obu członach pary; liczba prób/błędów trafia do artefaktów pomiaru.
 Nagrania rozpoczynają się dopiero po potwierdzeniu spokojnego okna przez maintainera.
 
+Skrócony protokół etapu 2 uruchamia jedna komenda:
+`bash scripts/bench/diagnostics-stage2.sh`. Trzy przyjęte pary mają kolejność
+AB / BA / AB (ABBA + AB), gdzie A wyłącza wyłącznie etap 2, a B go włącza.
+Idle trwa 3 min, każda z sześciu pozostałych faz 90 s, łącznie 72 min obciążenia;
+z preflightem, rozgrzewką i uruchomieniem około 75 min, dłużej po odrzuceniu pary.
+Blokady w fazach write/pool pozostają 70 s; okno obserwacji powrotu do normy
+jest krótsze (20 s), więc retry po następnym rolloverze może wypaść poza fazą.
+Pełny test durability/restart sprawdza odtworzenie niezależnie od tego pomiaru.
+Bramki hosta i kryteria narzutu nie zmieniają się: mediana delty CPU <1 pp,
+RPC p95 bez regresji powyżej max(1 ms, 10% wartości bazowej), odczyt 24 h <50 ms,
+synchroniczne odtworzenie CPU <100 ms. Pamięć etapu 2 mieści się w dotychczasowych
+rezerwacjach; przyrost RSS/VmHWM oraz każdą parę należy pokazać osobno, bez
+uznawania szumu za dodatkowy budżet. Skrypt wymaga czystego commita, zapisuje
+HEAD i zachowuje odrzucone próby; po trzech odrzuceniach tej samej pary kończy pracę.
+
 ### 3.3 Worker i jakość sieci
 
 | Metryka | Definicja i granica |

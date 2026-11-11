@@ -11,7 +11,7 @@ import { diagnosticsContention } from "./diagnostics-contention.ts";
 import { monitorHost } from "./diagnostics-host.ts";
 import { diagnosticsStorage, diagnosticsWrites } from "./diagnostics-storage.ts";
 
-/** Isolated, durable PostgreSQL. Five AB/BA pairs; host-noise failures invalidate the entire pair. */
+/** Isolated PostgreSQL and alternating AB/BA pairs; host noise invalidates the entire pair. */
 const forbidden = new Set([17443, 5180, 8444, 17444, 17445, 3000, 7443, 7432, 4443, 7444, 5291, 8081]);
 const pgPort = Number(process.env["CANOPY_BENCH_PG_PORT"] ?? 18191);
 const gatewayPort = Number(process.env["CANOPY_BENCH_GATEWAY_PORT"] ?? 18192);
@@ -25,12 +25,14 @@ if (
 const idleMs = Number(process.env["CANOPY_BENCH_IDLE_MS"] ?? 600_000);
 const loadMs = Number(process.env["CANOPY_BENCH_LOAD_MS"] ?? 120_000);
 const series = Number(process.env["CANOPY_BENCH_SERIES"] ?? 5);
+const short = process.env["CANOPY_BENCH_STAGE"] === "2" && process.env["CANOPY_BENCH_SHORT"] === "1";
+const minimumContentionMs = short ? 90_000 : 140_000;
 
 if (
   (process.env["CANOPY_BENCH_CONTENTION"] === "1" || process.env["CANOPY_BENCH_ALL_PHASES"] === "1") &&
-  loadMs < 140_000
+  loadMs < minimumContentionMs
 )
-  throw new Error("Contention phases need 70 seconds of locking and at least 70 seconds of recovery");
+  throw new Error(`Contention phases need at least ${minimumContentionMs / 1000} seconds`);
 
 const name = `canopy-diagnostics-bench-${process.pid}`;
 const password = randomBytes(24).toString("hex");
