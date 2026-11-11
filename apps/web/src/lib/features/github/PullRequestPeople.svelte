@@ -7,6 +7,7 @@
   import { toneClasses } from "./presentation.ts";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import MetadataEdit from "./MetadataEdit.svelte";
+  import ReRequestReview from "./ReRequestReview.svelte";
 
   let { snapshot, class: className }: { snapshot: github.PullRequestSnapshot; class?: ClassValue } = $props();
   let reviewerDisplay = $state<github.PullRequestMetadata>();
@@ -14,7 +15,7 @@
 
   const reviewers = $derived(
     reviewerDisplay
-      ? reviewerDisplay.reviewers.map((r) => ({ login: r.name, state: "requested" }))
+      ? reviewerDisplay.reviewers.map((r) => ({ login: r.name, state: "requested", nodeId: r.id }))
       : snapshot.reviewers,
   );
 
@@ -34,11 +35,16 @@
     {#each reviewers as reviewer, i (`${reviewer.login}:${i}`)}
       {@const look = reviewerLook(reviewer.state)}
       <div class="flex min-h-8 min-w-0 items-center gap-2">
-        <GitHubAvatar userId="" login={reviewer.login} compact />
+        {#if reviewer.login.includes("/")}<Icon name="user-group" label="Team" />{:else}<GitHubAvatar
+            userId=""
+            login={reviewer.login}
+            compact
+          />{/if}
         <p class="min-w-0 flex-1 truncate" title={reviewer.login}>{reviewer.login}</p>
         <div {@attach tooltip(look.label)} class={["flex shrink-0 items-center gap-1.5", toneClasses[look.tone]]}>
           <Icon name={look.icon} label={look.label} tone="inherit" />
         </div>
+        {#if reviewer.nodeId && reviewer.state !== "requested"}<ReRequestReview {snapshot} id={reviewer.nodeId} />{/if}
       </div>
     {/each}
   </section>

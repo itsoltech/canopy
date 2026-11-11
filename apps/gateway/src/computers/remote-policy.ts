@@ -2,7 +2,7 @@ import { isMessage, type DescMessage, type Message, type MessageShape } from "@b
 
 import { Code, ConnectError } from "@connectrpc/connect";
 
-import { bots, computerLink as link, ui } from "@canopy/contracts";
+import { bots, github, computerLink as link, ui } from "@canopy/contracts";
 import { REMOTE_BOTS, REMOTE_BOT_COMPOSER } from "@canopy/domain/computers";
 import {
   GITHUB_ACCOUNTS,
@@ -11,6 +11,7 @@ import {
   GITHUB_REVIEW,
   GITHUB_LIFECYCLE,
   GITHUB_METADATA,
+  GITHUB_WRITE,
 } from "@canopy/domain/computers";
 
 export const GITHUB_METADATA_METHODS = new Set([
@@ -85,6 +86,14 @@ export const GITHUB_METHODS = new Set([
 ]);
 
 export function botFeature(method: { name: string }, request: Message): string | undefined {
+  if (["RerunPullRequestChecks", "CancelPullRequestCheckRun"].includes(method.name)) return GITHUB_WRITE;
+
+  if (
+    method.name === "PreparePullRequestMutation" &&
+    ["rerun_checks", "cancel_run"].includes(linkedMessage(github.PullRequestMutationRequestSchema, request).action)
+  )
+    return GITHUB_WRITE;
+
   if (GITHUB_METADATA_METHODS.has(method.name)) return GITHUB_METADATA;
 
   if (GITHUB_LIFECYCLE_METHODS.has(method.name)) return GITHUB_LIFECYCLE;
@@ -112,6 +121,8 @@ export function botFeature(method: { name: string }, request: Message): string |
 /** Explicit home operations, plus capability-gated internal services.
  * GitHub account DTOs contain no credentials; generic credential and connector administration stays local. */
 export const SERVED = new Set([
+  "RerunPullRequestChecks",
+  "CancelPullRequestCheckRun",
   ...GITHUB_METADATA_METHODS,
   ...GITHUB_LIFECYCLE_METHODS,
   ...GITHUB_METHODS,

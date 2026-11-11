@@ -10,12 +10,16 @@ export function IconAction({
   selected,
   onPress,
   style,
+  disabled = false,
+  hint,
 }: {
   icon: IconName;
   label: string;
   selected?: boolean;
   onPress: () => void;
   style?: StyleProp<ViewStyle>;
+  disabled?: boolean;
+  hint?: string;
 }) {
   const c = useColors();
 
@@ -23,9 +27,10 @@ export function IconAction({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={selected === undefined ? undefined : { selected }}
-      onPress={onPress}
-      onLongPress={() => toast(label)}
+      accessibilityState={{ disabled, selected: selected ?? false }}
+      accessibilityHint={hint}
+      onPress={() => (disabled ? toast(hint || label) : onPress())}
+      onLongPress={() => toast(hint || label)}
       hitSlop={6}
       style={({ pressed }) => [
         {
@@ -34,6 +39,7 @@ export function IconAction({
           alignItems: "center",
           justifyContent: "center",
           borderRadius: 6,
+          opacity: disabled ? 0.5 : 1,
           backgroundColor: pressed || selected ? c.pressed : "transparent",
         },
         style,

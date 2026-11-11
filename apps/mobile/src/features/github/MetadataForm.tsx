@@ -3,7 +3,6 @@ import type { github } from "@canopy/contracts";
 import { metadataComparison, metadataField, type MetadataKind } from "@canopy/domain/github-metadata";
 import { Button, Field, Notice } from "../../ui/components";
 import { MarkdownEditor } from "../../ui/MarkdownEditor";
-import { Segmented } from "../../ui/Segmented";
 import { useColors, useTypography } from "../../ui/theme";
 import type { useMetadataEditor } from "./useMetadataEditor";
 import { MetadataChoices } from "./MetadataChoices";
@@ -51,19 +50,14 @@ export function MetadataForm({
             <>
               {kind === "reviewers" && (
                 <>
-                  <Segmented
-                    value={f.reviewerAction}
-                    options={[
-                      { value: "request", label: "Request", disabled: blocked },
-                      { value: "re_request", label: "Re-request", disabled: blocked },
-                      { value: "remove", label: "Remove", disabled: blocked },
-                    ]}
-                    onChange={(reviewerAction) => editor?.reviewAction(reviewerAction)}
-                  />
-                  <Notice>Requesting a review notifies them.</Notice>
+                  <Notice>
+                    Checked reviewers receive a request. Uncheck to remove a request. Apply notifies new reviewers.
+                  </Notice>
                 </>
               )}
               <MetadataChoices
+                kind={kind}
+                snapshot={snapshot}
                 options={f.options}
                 ids={f.ids}
                 disabled={blocked}
@@ -100,12 +94,7 @@ export function MetadataForm({
           size="sm"
           variant="primary"
           busy={f.busy}
-          disabled={
-            blocked ||
-            !f.current?.actions.includes(field) ||
-            (kind === "title" && !f.title.trim()) ||
-            (kind === "reviewers" && !f.ids.length)
-          }
+          disabled={blocked || !f.current?.actions.includes(field) || (kind === "title" && !f.title.trim())}
           onPress={onApply}
         />
       </View>

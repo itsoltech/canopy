@@ -65,6 +65,8 @@ service GatewayService {
   rpc RequestPullRequestReviewers(PullRequestMutationRequest) returns (PullRequestMutationReceipt);
   rpc SetPullRequestAssignees(PullRequestMutationRequest) returns (PullRequestMutationReceipt);
   rpc SetPullRequestLabels(PullRequestMutationRequest) returns (PullRequestMutationReceipt);
+  rpc RerunPullRequestChecks(PullRequestMutationRequest) returns (PullRequestMutationReceipt);
+  rpc CancelPullRequestCheckRun(PullRequestMutationRequest) returns (PullRequestMutationReceipt);
   rpc GetGitHubUpdateAccount(GitHubAccountsRequest) returns (GitHubUpdateAccountResponse);
   rpc SetGitHubUpdateAccount(GitHubUpdateAccountRequest) returns (GitHubUpdateAccountResponse);
   rpc ListGitHubAccounts(GitHubAccountsRequest) returns (GitHubAccountsResponse);

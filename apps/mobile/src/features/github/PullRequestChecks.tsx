@@ -9,6 +9,7 @@ import { Button } from "../../ui/components";
 import { usePages } from "./usePages";
 import { PageStatus } from "./PageStatus";
 import { PullRequestCheckRow } from "./PullRequestCheckRow";
+import { CiActions } from "./CiActions";
 
 export function PullRequestChecks({ snapshot }: { snapshot: github.PullRequestSnapshot }) {
   const { client } = useSession();
@@ -25,9 +26,12 @@ export function PullRequestChecks({ snapshot }: { snapshot: github.PullRequestSn
       [client, id, headSha],
     ),
     id,
+    "",
+    true,
   );
 
   const checks = sortedChecks(pages.pages.length ? pages.pages.flatMap((p) => p.checks) : snapshot.checks);
+  const runs = [...new Set(checks.map((check) => check.runId).filter(Boolean))];
 
   async function more() {
     if (visible < checks.length) setVisible(checks.length);
@@ -50,8 +54,15 @@ export function PullRequestChecks({ snapshot }: { snapshot: github.PullRequestSn
         </Text>
         <Text style={[type.meta, { color: c.muted }]}>on {headSha.slice(0, 7)}</Text>
       </View>
-      {checks.slice(0, visible).map((check, i) => (
-        <PullRequestCheckRow key={`${check.nodeId}:${check.name}:${i}`} id={id} check={check} />
+      {checks.slice(0, visible).map((check) => (
+        <PullRequestCheckRow
+          key={check.nodeId || `${check.runId}:${check.provider}:${check.name}`}
+          snapshot={snapshot}
+          check={check}
+        />
+      ))}
+      {runs.map((runId) => (
+        <CiActions key={runId} snapshot={snapshot} runId={runId} state="unknown" dialog />
       ))}
       {(visible < checks.length || !!pages.current?.page?.nextCursor) && (
         <Button

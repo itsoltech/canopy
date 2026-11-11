@@ -115,6 +115,29 @@ export class GitHubPullRequests {
           snapshot.viewerLogin = row.login;
           snapshot.accessRevision = BigInt(row.revision);
 
+          const permission = Schema.decodeUnknownSync(
+            Schema.Struct({
+              data: Schema.NullOr(
+                Schema.Struct({
+                  repository: Schema.NullOr(
+                    Schema.Struct({ viewerPermission: Schema.optional(Schema.NullOr(Schema.String)) }),
+                  ),
+                }),
+              ),
+            }),
+          )(value).data?.repository?.viewerPermission;
+
+          const installations =
+            row.auth_kind === "device"
+              ? await run((s) => s.mutationPermission(owner, row.id, mapping.repository_id))
+              : [];
+
+          snapshot.ciBlockingReason = !["ADMIN", "MAINTAIN", "WRITE"].includes(permission ?? "")
+            ? "This account cannot control CI. Check repository access."
+            : row.auth_kind === "device" && !installations.some((i) => i.permissions["actions"] === "write")
+              ? "Actions write permission is missing. Manage repository access."
+              : "";
+
           return Schema.decodeUnknownSync(Schema.JsonObject)(toJson(github.PullRequestSnapshotSchema, snapshot));
         },
       };

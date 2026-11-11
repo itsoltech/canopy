@@ -13,7 +13,6 @@ const idle: MetadataState = {
   title: "",
   body: "",
   ids: [],
-  reviewerAction: "request",
   options: [],
   next: "",
   detail: "",

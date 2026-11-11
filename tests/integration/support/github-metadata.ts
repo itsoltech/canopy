@@ -50,6 +50,7 @@ export function metadataFixture() {
     body: state.body,
     viewerCanUpdate: true,
     author: { id: "USER_AUTHOR", login: "pr-author" },
+    latestReviews: { nodes: [{ author: { id: "USER_REVIEWER", login: "reviewer" }, state: "APPROVED" }], pageInfo },
     reviewRequests: { nodes: reviewers(), pageInfo },
     assignees: { nodes: state.assignees.map((id) => ({ id, login: person(id).login })), pageInfo },
     labels: {

@@ -11,8 +11,15 @@ import { useColors, useTypography } from "../../ui/theme";
 import { PullRequestJobs } from "./PullRequestJobs";
 import { toneColor } from "./presentation";
 import { toast } from "../../ui/Toast";
+import { CiActions } from "./CiActions";
 
-export function PullRequestCheckRow({ id, check }: { id: string; check: github.PullRequestCheck }) {
+export function PullRequestCheckRow({
+  snapshot,
+  check,
+}: {
+  snapshot: github.PullRequestSnapshot;
+  check: github.PullRequestCheck;
+}) {
   const c = useColors();
   const type = useTypography();
   const look = checkLook(check.state);
@@ -20,35 +27,40 @@ export function PullRequestCheckRow({ id, check }: { id: string; check: github.P
 
   return (
     <View style={{ gap: 8 }}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${check.name}, ${check.provider}, ${look.label}`}
-        accessibilityState={{ expanded: open }}
-        onPress={() => setOpen(!open)}
-        onLongPress={() => toast(look.label)}
-        style={({ pressed }) => ({
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 8,
-          minHeight: 48,
-          backgroundColor: pressed ? c.pressed : undefined,
-        })}
-      >
-        <Icon name={look.icon} color={toneColor(c, look.tone)} label={look.label} />
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text numberOfLines={2} style={[type.small, { color: c.text }]}>
-            {check.name}
-          </Text>
-          <Text numberOfLines={1} style={[type.meta, { color: c.muted }]}>
-            {check.provider}
-          </Text>
-        </View>
-        <Icon name={open ? "chevron-down" : "chevron-right"} />
-      </Pressable>
+      <View style={{ flexDirection: "row", alignItems: "center" }}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${check.name}, ${check.provider}, ${look.label}`}
+          accessibilityState={{ expanded: open }}
+          onPress={() => setOpen(!open)}
+          onLongPress={() => toast(look.label)}
+          style={({ pressed }) => ({
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 8,
+            flex: 1,
+            minWidth: 0,
+            minHeight: 48,
+            backgroundColor: pressed ? c.pressed : undefined,
+          })}
+        >
+          <Icon name={look.icon} color={toneColor(c, look.tone)} label={look.label} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text numberOfLines={2} style={[type.small, { color: c.text }]}>
+              {check.name}
+            </Text>
+            <Text numberOfLines={1} style={[type.meta, { color: c.muted }]}>
+              {check.provider}
+            </Text>
+          </View>
+          <Icon name={open ? "chevron-down" : "chevron-right"} />
+        </Pressable>
+        <CiActions snapshot={snapshot} runId={check.runId} state={check.state} name={check.name} />
+      </View>
       {open && (
         <>
           {check.runId ? (
-            <PullRequestJobs id={id} runId={check.runId} />
+            <PullRequestJobs snapshot={snapshot} runId={check.runId} />
           ) : (
             !!check.output && <Markdown text={check.output} />
           )}

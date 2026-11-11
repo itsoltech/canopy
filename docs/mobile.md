@@ -606,12 +606,19 @@ Settings → GitHub ma tę samą obsługę kont co web/desktop: wybór domu, dev
 z kopiowaniem kodu i otwarciem zweryfikowanego adresu, stany oczekiwania/sukcesu/
 wygaśnięcia/odmowy/anulowania, katalog instalacji i repozytoriów, Install Canopy,
 Manage repositories, jawny wybór PAT z Connectors oraz Disconnect z potwierdzeniem.
-`features/github/ConnectGitHub` nadaje się do osadzenia przy późniejszych operacjach PR;
+`features/github/ConnectGitHub` jest osadzone także przy operacjach PR;
 sukces logowania niczego nie publikuje. SecureStore zachowuje wyłącznie identyfikatory
 próby/żądania przypisane do parowania i domu, bez kodu urządzenia ani tokenów GitHub.
 AppState wstrzymuje odpytywanie w tle; powrót odświeża stan i katalog.
 Zmiana używa już obecnych Clipboard, Linking, Crypto i SecureStore; nie zmienia
 konfiguracji natywnej ani zależności. [Projekt i kontrakty](github.md).
+
+Summary, Timeline, Code, review, lifecycle i metadane PR używają tych samych kontraktów co web.
+Picker reviewerów oblicza różnicę zaznaczonych requestów; re-request jest osobną ikoną.
+Checki, jobs i nagłówek logu mają ikonowe akcje re-run failed/all/job i cancel run.
+Arkusz pokazuje run/attempt/SHA, skutki dla zależnych jobów i deploymentów oraz potwierdzenie cancel.
+Accepted oznacza przyjęcie zlecenia; watch/polling dostarcza stan queued/in-progress.
+Wyłączona akcja wyjaśnia brak praw lub zewnętrznego dostawcę CI. Utrata połączenia nie kolejkuje zapisu.
 
 Panel bota pozwala wstrzymać/włączyć i usunąć rutynę oraz anulować przypomnienie.
 Usunięcie rutyny wymaga potwierdzenia. Akcje są dostępne wyłącznie przy aktywnym

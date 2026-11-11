@@ -327,6 +327,78 @@ describe.skipIf(!dockerAvailable)("GitHub metadata ownership, conflicts and dura
     }
   }, 30_000);
 
+  test("checked reviewer selection applies only its diff and re-request is an explicit separate write", async () => {
+    fixture.state.reviewers = ["USER_REVIEWER"];
+
+    const api = {
+      ...gw.api,
+      requestPullRequestReviewers: (r: github.PullRequestMutationRequest) =>
+        gw.api.requestPullRequestReviewers(r, browser),
+      getPullRequestMutation: (r: github.PullRequestMutationRequestRef) => gw.api.getPullRequestMutation(r, browser),
+    };
+
+    const editor = new GitHubMetadataEditor(
+      "reviewers",
+      api,
+      snapshot,
+      () => crypto.randomUUID(),
+      () => false,
+      (e) => ConnectError.from(e).rawMessage,
+    );
+
+    await editor.load();
+    expect(editor.state.ids).toEqual(["USER_REVIEWER"]);
+    const before = fixture.state.writes;
+    expect(await editor.apply()).toBe(true);
+    expect(fixture.state.writes).toBe(before);
+    await editor.load();
+    editor.toggle("USER_REVIEWER");
+    editor.toggle("USER_MEMBER");
+    editor.toggle("TEAM_REPO");
+    // Expire Summary before the intermediate read, independently of background watch timing.
+    fixture.advance(61_000);
+    expect(await editor.apply()).toBe(true);
+    expect(fixture.state.reviewers.toSorted()).toEqual(["TEAM_REPO", "USER_MEMBER"]);
+    expect(fixture.state.writes - before).toBe(2);
+    expect(await editor.reRequest("USER_REVIEWER")).toBe(true);
+    expect(editor.state.ids).toContain("USER_REVIEWER");
+    expect(fixture.state.writes - before).toBe(3);
+  }, 30_000);
+
+  test("a partially acknowledged reviewer diff stops on uncertainty without adding or replaying requests", async () => {
+    fixture.state.reviewers = ["USER_REVIEWER"];
+
+    const api = {
+      ...gw.api,
+      requestPullRequestReviewers: (r: github.PullRequestMutationRequest) =>
+        gw.api.requestPullRequestReviewers(r, browser),
+      getPullRequestMutation: (r: github.PullRequestMutationRequestRef) => gw.api.getPullRequestMutation(r, browser),
+    };
+
+    const editor = new GitHubMetadataEditor(
+      "reviewers",
+      api,
+      snapshot,
+      () => crypto.randomUUID(),
+      () => false,
+      (e) => ConnectError.from(e).rawMessage,
+    );
+
+    await editor.load();
+    editor.toggle("USER_REVIEWER");
+    editor.toggle("USER_MEMBER");
+    const before = fixture.state.writes;
+    fixture.state.lost = true;
+    expect(await editor.apply()).toBe(false);
+    expect(editor.state.receipt?.state).toBe("uncertain");
+    expect(fixture.state.reviewers).toEqual([]);
+    expect(await editor.apply()).toBe(false);
+    expect(fixture.state.writes - before).toBe(1);
+    await editor.load(true);
+    expect(editor.state.ids).toEqual([]);
+    expect(fixture.state.writes - before).toBe(1);
+  }, 30_000);
+
   test("disconnect between preparation and Apply revokes the intent", async () => {
     const r = await request("set_assignees", { metadataIds: ["USER_REVIEWER"] });
     await gw.api.preparePullRequestMutation(r, browser);

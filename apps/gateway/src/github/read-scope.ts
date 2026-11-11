@@ -20,7 +20,8 @@ export async function readScope(prs: GitHubPullRequests, request: github.PullReq
 
   if (!uuid(request.pullRequestId)) throw new ConnectError("Pull request not found", Code.NotFound);
   const pr = await accounts.run((s) => s.prOwned(accounts.owner, request.pullRequestId));
-  const snapshot = await prs.load(pr.repository_name, pr.number);
+  // Explicit refresh must wait for an expired Summary, including between mutation and receipt inspection.
+  const snapshot = await prs.load(pr.repository_name, pr.number, false, false, request.refresh);
   const { mapping, row } = await repositories.selected(pr.repository_name);
   const access = await accounts.access.token(row.id);
 

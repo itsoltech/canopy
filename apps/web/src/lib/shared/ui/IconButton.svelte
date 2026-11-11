@@ -19,8 +19,11 @@
     loading?: boolean;
     /** Icon colour (`text-*`), e.g. an amber star. */
     iconClass?: ClassValue;
-    /** Tooltip placement, shortcut hint, … (its text is always `label`). */
+    /** Tooltip placement, shortcut hint, … */
     tooltipOptions?: TooltipOptions;
+    /** Override the tooltip; empty when an enclosing element supplies a disabled reason. */
+    tooltipText?: string;
+    "aria-description"?: string | undefined;
     class?: ClassValue;
   };
 
@@ -34,6 +37,7 @@
     disabled,
     iconClass,
     tooltipOptions,
+    tooltipText,
     class: className,
     ...rest
   }: Props = $props();
@@ -49,7 +53,7 @@
   disabled={disabled || loading}
   aria-busy={loading || undefined}
   {...rest}
-  {@attach tooltip(label, tooltipOptions)}
+  {@attach tooltip(tooltipText ?? label, tooltipOptions)}
 >
   {#if loading}<Spinner />{:else}<Icon
       name={icon}

@@ -8,7 +8,6 @@
   import Input from "#lib/shared/ui/Input.svelte";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
   import MarkdownEditor from "#lib/shared/ui/MarkdownEditor.svelte";
-  import SegmentedChoice from "#lib/shared/ui/SegmentedChoice.svelte";
   import MetadataChoices from "./MetadataChoices.svelte";
   import MetadataConflict from "./MetadataConflict.svelte";
   import { metadataEditor } from "./metadata-editors.ts";
@@ -113,18 +112,17 @@
               disabled={blocked}
             />{/if}
         {:else}
-          {#if kind === "reviewers"}<SegmentedChoice
-              label="Review request"
-              options={[
-                { value: "request", label: "Request" },
-                { value: "re_request", label: "Re-request" },
-                { value: "remove", label: "Remove" },
-              ]}
-              bind:value={() => f.reviewerAction, (reviewerAction) => editor.reviewAction(reviewerAction)}
-              disabled={blocked}
-            />
-            <p class="text-sm text-zinc-500 dark:text-zinc-400">Requesting a review notifies them.</p>{/if}
-          <MetadataChoices options={f.options} ids={f.ids} disabled={blocked} ontoggle={(id) => editor.toggle(id)} />
+          {#if kind === "reviewers"}<p class="text-sm text-zinc-500 dark:text-zinc-400">
+              Checked reviewers receive a request. Uncheck to remove a request. Apply notifies new reviewers.
+            </p>{/if}
+          <MetadataChoices
+            {kind}
+            {snapshot}
+            options={f.options}
+            ids={f.ids}
+            disabled={blocked}
+            ontoggle={(id) => editor.toggle(id)}
+          />
           {#if f.next}<Button size="sm" loading={f.busy} onclick={() => void editor.more()}>Load more choices</Button
             >{/if}
         {/if}
@@ -153,10 +151,7 @@
           size="sm"
           variant="primary"
           loading={f.busy}
-          disabled={blocked ||
-            !f.current?.actions.includes(field) ||
-            (kind === "title" && !f.title.trim()) ||
-            (kind === "reviewers" && !f.ids.length)}
+          disabled={blocked || !f.current?.actions.includes(field) || (kind === "title" && !f.title.trim())}
           onclick={() => void apply()}>Apply</Button
         >
       </div>
