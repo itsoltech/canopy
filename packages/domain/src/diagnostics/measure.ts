@@ -11,10 +11,14 @@ export class Measure {
   weight = 0;
   max = 0;
   last = 0;
-  sampledAtMs = 0n;
+  #sampledAtMs: number | bigint = 0;
   incomplete = false;
 
   constructor(readonly reserve?: (bytes: number) => boolean) {}
+
+  get sampledAtMs() {
+    return BigInt(this.#sampledAtMs);
+  }
 
   get bytes() {
     return 256 + (this.histogram ? 144 + this.histogram.indices.length * 48 : 0);
@@ -39,7 +43,7 @@ export class Measure {
   counter(count: number, error: boolean, at: number) {
     this.events = addCount(this.events, BigInt(count));
     this.errors = addCount(this.errors, error ? BigInt(count) : 0n);
-    this.sampledAtMs = BigInt(Math.floor(at));
+    this.#sampledAtMs = Math.floor(at);
     this.incomplete ||= this.events === MAX_COUNT || this.errors === MAX_COUNT;
   }
 
@@ -47,7 +51,7 @@ export class Measure {
     this.#weight(value * weight, weight);
     this.max = Math.max(this.max, value);
     this.last = value;
-    this.sampledAtMs = BigInt(Math.floor(at));
+    this.#sampledAtMs = Math.floor(at);
     this.events = addCount(this.events);
     this.incomplete ||= this.events === MAX_COUNT;
   }
@@ -70,7 +74,7 @@ export class Measure {
 
     if (value.sampledAtMs >= this.sampledAtMs) {
       this.last = value.last;
-      this.sampledAtMs = value.sampledAtMs;
+      this.#sampledAtMs = value.sampledAtMs;
     }
 
     this.incomplete ||=

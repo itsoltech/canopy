@@ -7,7 +7,7 @@ import type { CoreRuntime } from "../core/core-context.ts";
 
 /** Numeric hooks only. No operation identities or arguments cross this boundary. */
 export class ProcessDiagnostics {
-  #timer: ReturnType<typeof setTimeout> | undefined;
+  #timer: ReturnType<typeof setInterval> | undefined;
   #stopGovernor: (() => void) | undefined;
   #cpu = process.cpuUsage();
   #sampled = performance.now();
@@ -35,17 +35,14 @@ export class ProcessDiagnostics {
         event === "wait" || event === "execution" ? elapsed : 1,
       );
     });
-    this.#loop();
-  }
-
-  #loop() {
     this.#expected = performance.now() + 20;
-    this.#timer = setTimeout(() => {
-      const lag = Math.max(0, performance.now() - this.#expected);
+    this.#timer = setInterval(() => {
+      const now = performance.now();
+      const lag = Math.max(0, now - this.#expected);
+      this.#expected = now + 20;
 
       // Suspend and long scheduling gaps do not become invented loop samples.
       if (lag < 10_000) this.collector.measure(1, lag);
-      this.#loop();
     }, 20);
     this.#timer.unref();
   }
@@ -91,7 +88,7 @@ export class ProcessDiagnostics {
   }
 
   stop() {
-    clearTimeout(this.#timer);
+    clearInterval(this.#timer);
     this.#timer = undefined;
     this.#stopGovernor?.();
     const db = databaseMonitor(this.runtime);

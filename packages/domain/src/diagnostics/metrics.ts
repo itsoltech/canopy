@@ -93,8 +93,10 @@ export const DATABASE_PHASES = ["reserve", "execute", "release", "transaction"] 
 
 export type DatabasePhase = (typeof DATABASE_PHASES)[number];
 
+const DATABASE_IDS = new Map<DatabaseFamily, number>(DATABASE_FAMILIES.map((family) => [family.name, family.id]));
+
 export function databaseMetric(family: DatabaseFamily, phase: DatabasePhase) {
-  return 1000 + DATABASE_FAMILIES.find((value) => value.name === family)!.id * 8 + DATABASE_PHASES.indexOf(phase);
+  return 1000 + DATABASE_IDS.get(family)! * 8 + DATABASE_PHASES.indexOf(phase);
 }
 
 export const GOVERNOR_KINDS = ["git", "probe", "install", "utility", "harness", "supervisor"] as const;

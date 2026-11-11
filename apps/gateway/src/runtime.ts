@@ -1,4 +1,4 @@
-import { PgClient } from "@effect/sql-pg";
+import { PgClient, PgPool } from "@effect/sql-pg";
 import { migrate, migrateOnline } from "@canopy/db";
 import { Effect, Layer, ManagedRuntime, Redacted } from "effect";
 import { DatabaseMonitor, bindDatabaseMonitor, observedSql } from "./diagnostics/database.ts";
@@ -26,12 +26,14 @@ export function gatewayRuntime(
   const url = env["CANOPY_DATABASE_URL"];
 
   if (!url) throw new Error("CANOPY_DATABASE_URL is not set, e.g. postgres://canopy:...@127.0.0.1:5432/canopy");
-  const database = PgClient.layer({ url: Redacted.make(url), applicationName: "canopy-gateway" });
+  const databaseConfig = { url: Redacted.make(url), applicationName: "canopy-gateway" };
   const secretsKey = loadSecretsKey(env);
   const monitor = new DatabaseMonitor();
 
   const measured =
-    options.databaseDiagnostics === false ? database : observedSql(monitor).pipe(Layer.provideMerge(database));
+    options.databaseDiagnostics === false
+      ? PgClient.layer(databaseConfig)
+      : observedSql(monitor).pipe(Layer.provideMerge(Layer.effect(PgPool.PgPool, PgPool.make(databaseConfig))));
 
   const runtime = ManagedRuntime.make(gatewayServices(secretsKey).pipe(Layer.provideMerge(measured)));
   bindDatabaseMonitor(runtime, monitor);

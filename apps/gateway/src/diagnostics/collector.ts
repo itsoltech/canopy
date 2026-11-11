@@ -6,7 +6,6 @@ import {
   METRIC_DEFINITIONS,
   metricOf,
   rpcOf,
-  type Measure,
   type Histogram,
 } from "@canopy/domain/diagnostics";
 import { BucketBudget, Buckets } from "./buckets.ts";
@@ -148,21 +147,23 @@ export class RpcCollector {
     if (!definition || (rpc && !this.methods.has(rpc))) return;
     const at = this.#lastUtc + this.clock.monotonic() - this.#lastMono;
 
-    const record = (measure: Measure) => {
-      if (definition.kind === "timing") measure.timing(value, error, at);
-      else if (definition.kind === "counter") measure.counter(Math.floor(value), error, at);
-      else measure.gauge(value, weight, at);
-    };
-
     for (const ring of this.#rings) {
       const global = ring.measure(at, id);
 
-      if (global) record(global);
+      if (global) {
+        if (definition.kind === "timing") global.timing(value, error, at);
+        else if (definition.kind === "counter") global.counter(Math.floor(value), error, at);
+        else global.gauge(value, weight, at);
+      }
 
       if (rpc) {
         const associated = ring.measure(at, id, rpc);
 
-        if (associated) record(associated);
+        if (associated) {
+          if (definition.kind === "timing") associated.timing(value, error, at);
+          else if (definition.kind === "counter") associated.counter(Math.floor(value), error, at);
+          else associated.gauge(value, weight, at);
+        }
       }
     }
   }

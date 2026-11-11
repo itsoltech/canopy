@@ -50,9 +50,9 @@ export async function diagnosticsProcess(env: Record<string, string | undefined>
   });
   await ready;
 
-  const run = (action: BenchCommand["action"]) =>
+  const run = (action: BenchCommand["action"], phase?: string) =>
     new Promise<BenchStats>((resolve, reject) => {
-      const request = { id: ++id, action };
+      const request = { id: ++id, action, phase };
       pending.set(request.id, { resolve, reject });
       child.send(request);
     });

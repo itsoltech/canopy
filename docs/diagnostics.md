@@ -213,12 +213,35 @@ z preflightem, rozgrzewką i uruchomieniem około 75 min, dłużej po odrzuceniu
 Blokady w fazach write/pool pozostają 70 s; okno obserwacji powrotu do normy
 jest krótsze (20 s), więc retry po następnym rolloverze może wypaść poza fazą.
 Pełny test durability/restart sprawdza odtworzenie niezależnie od tego pomiaru.
-Bramki hosta i kryteria narzutu nie zmieniają się: mediana delty CPU <1 pp,
+Bramki hosta etapu 2 dopuszczają odczyty starych stron swapu: swap-in odrzuca
+parę dopiero przy ≥4 MiB/s przez trzy kolejne sekundy. Swap-out nadal odrzuca
+przy ≥128 KiB/s w dowolnej próbce lub ≥1 MiB na parę, a load powyżej liczby CPU
+także unieważnia parę. Każda próbka i sumy są zapisywane, również poniżej progów.
+Etap 1 zachowuje wcześniejsze bramki. Kryteria narzutu: mediana delty CPU <1 pp,
 RPC p95 bez regresji powyżej max(1 ms, 10% wartości bazowej), odczyt 24 h <50 ms,
-synchroniczne odtworzenie CPU <100 ms. Pamięć etapu 2 mieści się w dotychczasowych
+synchroniczne odtworzenie CPU <100 ms. Po profilowaniu cel etapu 2 jest ostrzejszy:
+delta CPU <0,5 pp i RPC p95 <0,5 ms, a zatrzymany heap po pełnym GC różni się
+od samego etapu 1 o najwyżej około 2 MiB w fazach governor i slow receiver.
+Profilowanie jest osobnym przebiegiem: `CANOPY_BENCH_SMOKE=1`,
+`CANOPY_BENCH_STAGE=2`, `CANOPY_BENCH_FORENSICS_DIR` oraz
+`CANOPY_BENCH_FORENSIC_PHASE=steady|slow_reader|governor` wybierają fazę.
+JSC próbuje stos co 1 ms tylko podczas fazy; po fazie zapisujemy statystyki
+przed/po pełnym GC, liczby typów obiektów i heap snapshot w prywatnym katalogu.
+Artefakty mogą zawierać syntetyczne dane i poświadczenia prywatnej bazy testowej;
+nie trafiają do repo ani logów. Launcher końcowy usuwa te flagi: profile, snapshoty
+i wymuszone GC nie uczestniczą w trzech parach akceptacyjnych.
+Pamięć etapu 2 mieści się w dotychczasowych
 rezerwacjach; przyrost RSS/VmHWM oraz każdą parę należy pokazać osobno, bez
 uznawania szumu za dodatkowy budżet. Skrypt wymaga czystego commita, zapisuje
 HEAD i zachowuje odrzucone próby; po trzech odrzuceniach tej samej pary kończy pracę.
+
+Zwykłe zapytania korzystają z natywnego `PgPool.use`, bez osobnego scope'u
+i finalizera na zapytanie. Transakcje i strumienie nadal rezerwują sesję;
+rollback, savepoint i błąd COMMIT zachowują semantykę sterownika.
+Wrappery fizycznych połączeń są w WeakMap, z rezerwacją 4 KiB w istniejącym
+budżecie kolektora dla domyślnej puli dziesięciu sesji. Nie ma rekordów per
+zapytanie, watch ani admission. Próbkowanie event loop używa jednego interwału
+20 ms zamiast tworzyć kolejny timer i closure przy każdej próbce.
 
 ### 3.3 Worker i jakość sieci
 

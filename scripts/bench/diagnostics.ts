@@ -66,6 +66,14 @@ async function closeProcesses() {
 }
 
 function selectedPhases(): DiagnosticsPhase[] {
+  const forensicPhase = process.env["CANOPY_BENCH_FORENSIC_PHASE"];
+
+  if (process.env["CANOPY_BENCH_FORENSICS_DIR"] && forensicPhase) {
+    if (forensicPhase === "steady" || forensicPhase === "slow_reader" || forensicPhase === "governor")
+      return [forensicPhase];
+    throw new Error("Choose steady, slow_reader or governor for forensic evidence");
+  }
+
   if (process.env["CANOPY_BENCH_RESOURCES"] === "1") return ["idle"];
 
   if (process.env["CANOPY_BENCH_ALL_PHASES"] === "1")
@@ -236,9 +244,7 @@ async function run(on: boolean, index: number) {
   for (let count = 0; count < 300; count++) await api.getThread({ threadId: seed.thread });
   await Bun.sleep(5000);
 
-  const phases = selectedPhases();
-
-  for (const phase of phases) {
+  for (const phase of selectedPhases()) {
     assertRunning();
 
     const {
@@ -255,7 +261,7 @@ async function run(on: boolean, index: number) {
       async () => {
         await checkpoint(database);
         const beforePg = await pgCounters();
-        const before = await active!.run("begin");
+        const before = await active!.run("begin", phase);
 
         if (phase === "governor") await active!.run("governor");
         await worker!.run("begin");
@@ -301,6 +307,8 @@ async function run(on: boolean, index: number) {
       }),
     );
     assertRunning();
+
+    await forensicHeap();
   }
 
   await resourceHeap("idle_heap_gc", on, index + 1);
@@ -334,6 +342,10 @@ async function run(on: boolean, index: number) {
 
   if (on && process.env["CANOPY_BENCH_RESOURCES"] === "1")
     console.info(JSON.stringify({ phase: "write_accounting", ...(await diagnosticsWrites(env)) }));
+}
+
+async function forensicHeap() {
+  if (process.env["CANOPY_BENCH_FORENSICS_DIR"]) await active?.run("heap");
 }
 
 try {

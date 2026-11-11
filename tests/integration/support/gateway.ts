@@ -565,15 +565,15 @@ export async function startTestGateway(
 ): Promise<TestGateway> {
   const pg = options.storage?.pg ?? (await startPostgres({ migrated: true }));
   const secretsKey = options.storage?.secretsKey ?? randomBytes(32);
+  const monitor = options.diagnostics ? new DatabaseMonitor() : undefined;
+  const database = monitor ? observedSql(monitor).pipe(Layer.provideMerge(pg.poolLayer)) : pg.layer;
   const auditDirectory = process.env["CANOPY_SQL_AUDIT_DIR"];
 
   const audit = auditDirectory
-    ? await (await import("../../../scripts/bench/test-audit.ts")).testAudit(pg.layer, auditDirectory)
+    ? await (await import("../../../scripts/bench/test-audit.ts")).testAudit(database, auditDirectory)
     : undefined;
 
-  const monitor = options.diagnostics ? new DatabaseMonitor() : undefined;
-  const database = audit?.layer ?? pg.layer;
-  const measured = monitor ? observedSql(monitor).pipe(Layer.provideMerge(database)) : database;
+  const measured = audit?.layer ?? database;
 
   const runtime: TestRuntime = ManagedRuntime.make(
     Layer.mergeAll(

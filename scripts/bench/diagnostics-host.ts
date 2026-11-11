@@ -25,7 +25,7 @@ export async function monitorHost(pair: number, attempt: number) {
     abort.abort();
   };
 
-  const swap = new SwapGate(reject);
+  const swap = new SwapGate(reject, process.env["CANOPY_BENCH_STAGE"] === "2");
 
   if (Number(loadavg.split(" ")[0]) > cpuCount) reject("load", loadavg);
   console.info(
@@ -100,7 +100,8 @@ export async function monitorHost(pair: number, attempt: number) {
           swapOutBytes: (after.output - before.output) * bytesPerPage,
           peakSwapInKiBPerSec: swap.peakInputKiB,
           peakSwapOutKiBPerSec: swap.peakOutputKiB,
-          longestSwapIn128KiBRun: swap.longestInput,
+          swapInSustainedThresholdKiBPerSec: swap.sustainedInputKiB,
+          longestSwapInThresholdRun: swap.longestInput,
           violations,
         }),
       );

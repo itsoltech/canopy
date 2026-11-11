@@ -9,6 +9,7 @@ import { gatewayRuntime, ensureDevUser } from "../../apps/gateway/src/runtime.ts
 import { DatabaseMaintenance } from "../../apps/gateway/src/maintenance/job.ts";
 import { BenchCommand } from "./diagnostics-protocol.ts";
 import { DiagnosticsGovernorWorkload } from "./diagnostics-governor.ts";
+import { DiagnosticsForensics } from "./diagnostics-forensics.ts";
 
 const gatewayDiagnosticsEnabled =
   process.env["CANOPY_BENCH_STAGE"] === "2" && process.env["CANOPY_BENCH_DIAGNOSTICS"] === "1";
@@ -26,6 +27,7 @@ const core = new GatewayCore({
 });
 
 const governorWorkload = new DiagnosticsGovernorWorkload();
+const forensics = new DiagnosticsForensics();
 
 const token = process.env["CANOPY_UI_SERVICE_TOKEN"];
 
@@ -151,12 +153,15 @@ async function execute(command: BenchCommand) {
 
   if (command.action === "end" || command.action === "stop") await governorWorkload.stop();
 
+  if (command.action === "heap") await forensics.heap();
+
   if (command.action === "gc") {
     if (process.env["CANOPY_BENCH_RESOURCES"] !== "1") throw new Error("GC is resource-only");
     Bun.gc(true);
   }
 
   if (command.action === "begin") {
+    forensics.begin(command.phase);
     lag.reset();
     lag.enable();
     cpu = process.cpuUsage();
@@ -164,6 +169,8 @@ async function execute(command: BenchCommand) {
   }
 
   const value = await stats();
+
+  if (command.action === "end" || command.action === "stop") await forensics.end();
 
   if (command.action === "end") lag.disable();
 

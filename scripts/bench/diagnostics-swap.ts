@@ -5,17 +5,24 @@ export class SwapGate {
   consecutiveInput = 0;
   longestInput = 0;
 
-  constructor(readonly reject: (kind: string, value: string) => void) {}
+  constructor(
+    readonly reject: (kind: string, value: string) => void,
+    readonly stage2 = false,
+  ) {}
+
+  get sustainedInputKiB() {
+    return this.stage2 ? 4096 : 128;
+  }
 
   sample(inputKiB: number, outputKiB: number) {
     this.peakInputKiB = Math.max(this.peakInputKiB, inputKiB);
     this.peakOutputKiB = Math.max(this.peakOutputKiB, outputKiB);
-    this.consecutiveInput = inputKiB >= 128 ? this.consecutiveInput + 1 : 0;
+    this.consecutiveInput = inputKiB >= this.sustainedInputKiB ? this.consecutiveInput + 1 : 0;
     this.longestInput = Math.max(this.longestInput, this.consecutiveInput);
 
     if (outputKiB >= 128) this.reject("swap_out_rate", String(outputKiB));
 
-    if (inputKiB >= 1024) this.reject("swap_in_rate", String(inputKiB));
+    if (!this.stage2 && inputKiB >= 1024) this.reject("swap_in_rate", String(inputKiB));
 
     if (this.consecutiveInput >= 3) this.reject("swap_in_sustained", String(this.consecutiveInput));
   }

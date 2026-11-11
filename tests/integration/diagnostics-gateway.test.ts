@@ -2,12 +2,12 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create, toJsonString } from "@bufbuild/protobuf";
 import { Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
-import { Effect, Exit } from "effect";
-import { PgClient } from "@effect/sql-pg";
-import { SqlClient } from "effect/sql";
+import { Effect, Exit, Stream } from "effect";
+import { SqlClient, type SqlConnection } from "effect/sql";
 import { ProcessGovernor, PROCESS_LIMITS } from "@canopy/process-governor";
 import { databaseMetric, governorMetric, Measure } from "@canopy/domain/diagnostics";
 import { observedReserve, databaseMonitor } from "../../apps/gateway/src/diagnostics/database.ts";
+import { observedBorrow } from "../../apps/gateway/src/diagnostics/database-borrow.ts";
 import { queryFamily } from "../../apps/gateway/src/diagnostics/query-context.ts";
 import { rpcSnapshot } from "../../apps/gateway/src/diagnostics/snapshot.ts";
 import { RpcCollector } from "../../apps/gateway/src/diagnostics/collector.ts";
@@ -166,10 +166,10 @@ describe.skipIf(!dockerAvailable)("gateway diagnostics preserve durable, private
 
     const released = await gateway.runtime.runPromise(
       Effect.gen(function* () {
-        const pg = yield* PgClient.PgClient;
+        const sql = yield* SqlClient.SqlClient;
 
         const acquire = Effect.gen(function* () {
-          const connection = yield* pg.reserve;
+          const connection = yield* sql.reserve;
           yield* Effect.addFinalizer(() => Effect.die(new Error(secret)));
 
           return connection;
@@ -199,6 +199,107 @@ describe.skipIf(!dockerAvailable)("gateway diagnostics preserve durable, private
     expect(monitor.waiting).toBe(0);
     expect(toJsonString(ui.ComputerDiagnosticsSchema, snapshot())).not.toContain(secret);
     expect((await query<{ alive: number }>("SELECT 1 AS alive"))[0]?.alive).toBe(1);
+  });
+
+  test("borrowed statements close leases on acquisition, work, cancellation and release failures", async () => {
+    const monitor = databaseMonitor(gateway.runtime)!;
+    await gateway.runtime.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+        const reserve = sql.reserve;
+
+        const lease =
+          (acquire: SqlConnection.Acquirer): SqlConnection.Borrower =>
+          (work) =>
+            Effect.scoped(Effect.flatMap(acquire, work));
+
+        const failed = yield* Effect.exit(
+          observedBorrow(lease(Effect.die(new Error(secret))), monitor)(() => Effect.void),
+        );
+
+        expect(Exit.isFailure(failed)).toBe(true);
+
+        const releaseFailure = Effect.gen(function* () {
+          const connection = yield* reserve;
+          yield* Effect.addFinalizer(() => Effect.die(new Error(secret)));
+
+          return connection;
+        });
+
+        const released = yield* Effect.exit(observedBorrow(lease(releaseFailure), monitor)(() => Effect.void));
+        expect(Exit.isFailure(released)).toBe(true);
+
+        const thrown = yield* Effect.exit(
+          observedBorrow(
+            lease(reserve),
+            monitor,
+          )((): Effect.Effect<void> => {
+            throw new Error(secret);
+          }),
+        );
+
+        expect(Exit.isFailure(thrown)).toBe(true);
+
+        const cancelled = yield* Effect.exit(
+          observedBorrow(lease(reserve), monitor)(() => Effect.never).pipe(Effect.timeout("20 millis")),
+        );
+
+        expect(Exit.isFailure(cancelled)).toBe(true);
+      }).pipe(queryFamily("threads.metadata")),
+    );
+    expect(monitor.waiting).toBe(0);
+    expect(monitor.occupied).toBe(0);
+    const measures = gateway.core.diagnostics.collector.rollup(Math.floor(Date.now() / 60_000) * 60_000)!.measures;
+    expect(measures.find((row) => row.metricId === databaseMetric("threads.metadata", "reserve"))?.errors).toBe(1n);
+    expect(measures.find((row) => row.metricId === databaseMetric("threads.metadata", "release"))?.errors).toBe(1n);
+    expect(toJsonString(ui.ComputerDiagnosticsSchema, snapshot())).not.toContain(secret);
+    expect((await query<{ alive: number }>("SELECT 1 AS alive"))[0]?.alive).toBe(1);
+  });
+
+  test("native result modes, stream pins and after-commit callbacks preserve transaction semantics", async () => {
+    await gateway.runtime.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+        const select = sql<{ value: number }>`SELECT 7::integer AS value`;
+        expect(yield* select.values).toEqual([[7]]);
+        expect(yield* select.valuesUnprepared).toEqual([[7]]);
+        expect(yield* select.unprepared).toEqual([{ value: 7 }]);
+        expect(yield* select.withoutTransform).toEqual([{ value: 7 }]);
+        expect(yield* Stream.runCollect(select.stream)).toEqual([{ value: 7 }]);
+        expect(yield* select.raw).toMatchObject({ command: "SELECT", rows: [{ value: 7 }] });
+        yield* sql`CREATE TABLE diagnostic_commit (id integer PRIMARY KEY)`;
+        const committed: number[] = [];
+        yield* sql.withTransaction(
+          Effect.gen(function* () {
+            yield* sql`INSERT INTO diagnostic_commit VALUES (1)`;
+            yield* sql.afterCommit(
+              Effect.gen(function* () {
+                const rows = yield* sql<{ id: number }>`SELECT id FROM diagnostic_commit`;
+                committed.push(...rows.map((row) => row.id));
+              }).pipe(Effect.orDie),
+            );
+          }),
+        );
+        expect(committed).toEqual([1]);
+
+        const aborted = yield* Effect.exit(
+          sql.withTransaction(
+            Effect.gen(function* () {
+              yield* sql`INSERT INTO diagnostic_commit VALUES (2)`;
+              yield* Effect.ignore(sql`INSERT INTO diagnostic_commit VALUES (2)`);
+              yield* sql.afterCommit(Effect.sync(() => committed.push(2)));
+            }),
+          ),
+        );
+
+        expect(Exit.isFailure(aborted)).toBe(true);
+        expect(committed).toEqual([1]);
+        expect(yield* sql`SELECT id FROM diagnostic_commit ORDER BY id`).toEqual([{ id: 1 }]);
+      }).pipe(queryFamily("threads.metadata")),
+    );
+    const monitor = databaseMonitor(gateway.runtime)!;
+    expect(monitor.waiting).toBe(0);
+    expect(monitor.occupied).toBe(0);
   });
 
   test("steady RPC fixture labels at least 95 percent of database executions", async () => {

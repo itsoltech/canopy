@@ -6,7 +6,9 @@ export const MAX_COUNT = 0xffff_ffff_ffff_ffffn;
 const MAX_BUCKET = 0xffff_ffff;
 
 export function addCount(left: bigint, right = 1n) {
-  return left + right > MAX_COUNT ? MAX_COUNT : left + right;
+  const next = left + right;
+
+  return next > MAX_COUNT ? MAX_COUNT : next;
 }
 
 export function addCounter(left: number, right = 1) {

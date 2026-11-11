@@ -1,10 +1,22 @@
-import { PgClient } from "@effect/sql-pg";
-import { ManagedRuntime, Redacted } from "effect";
+import { PgClient, PgPool } from "@effect/sql-pg";
+import { Layer, ManagedRuntime, Redacted } from "effect";
 import { SQL } from "bun";
 import { migrate } from "./migrations/index.ts";
 
 export const testDatabase = (port: number, database: string) =>
   PgClient.layer({ host: "127.0.0.1", port, database, username: "postgres", password: Redacted.make("test") });
+
+export const testDatabasePool = (port: number, database: string) =>
+  Layer.effect(
+    PgPool.PgPool,
+    PgPool.make({
+      host: "127.0.0.1",
+      port,
+      database,
+      username: "postgres",
+      password: Redacted.make("test"),
+    }),
+  );
 
 export const testAdmin = (port: number) =>
   new SQL({ hostname: "127.0.0.1", port, database: "postgres", username: "postgres", password: "test", max: 1 });
