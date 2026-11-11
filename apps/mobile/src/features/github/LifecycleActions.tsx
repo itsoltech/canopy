@@ -34,7 +34,7 @@ export function LifecycleActions({
         {["open", "draft"].includes(snapshot.summary?.state ?? "") && (
           <Button
             size="sm"
-            variant="primary"
+            variant={f.blocked || !f.actions.includes(f.primary) ? "secondary" : "primary"}
             title={lifecycleLabel(f.primary)}
             hint={life.blockingReasons.join(" ")}
             disabled={f.blocked || !f.actions.includes(f.primary)}

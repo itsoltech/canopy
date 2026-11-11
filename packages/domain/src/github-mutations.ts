@@ -23,6 +23,10 @@ export function mutationRequest(
 }
 
 export interface MutationApi {
+  updatePullRequestDetails: (r: github.PullRequestMutationRequest) => Promise<github.PullRequestMutationReceipt>;
+  requestPullRequestReviewers: (r: github.PullRequestMutationRequest) => Promise<github.PullRequestMutationReceipt>;
+  setPullRequestAssignees: (r: github.PullRequestMutationRequest) => Promise<github.PullRequestMutationReceipt>;
+  setPullRequestLabels: (r: github.PullRequestMutationRequest) => Promise<github.PullRequestMutationReceipt>;
   createPullRequest: (r: github.PullRequestMutationRequest) => Promise<github.PullRequestMutationReceipt>;
   setPullRequestDraft: (r: github.PullRequestMutationRequest) => Promise<github.PullRequestMutationReceipt>;
   mergePullRequest: (r: github.PullRequestMutationRequest) => Promise<github.PullRequestMutationReceipt>;
@@ -54,6 +58,14 @@ export async function sendMutation(
 ) {
   try {
     switch (request.action) {
+      case "update_details":
+        return await api.updatePullRequestDetails(request);
+      case "request_reviewers":
+        return await api.requestPullRequestReviewers(request);
+      case "set_assignees":
+        return await api.setPullRequestAssignees(request);
+      case "set_labels":
+        return await api.setPullRequestLabels(request);
       case "create_pr":
         return await api.createPullRequest(request);
       case "set_draft":

@@ -82,6 +82,8 @@ export class GitHubHttp {
 
     if (response.status === 304) return { status: 304, headers, value: null };
 
+    if (response.status === 204) return { status: 204, headers, value: {} };
+
     if (!response.ok) {
       const message = await bodyText(response).catch(() => "");
       const retry = Number(response.headers.get("retry-after"));

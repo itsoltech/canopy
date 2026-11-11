@@ -4,7 +4,22 @@ import { Code, ConnectError } from "@connectrpc/connect";
 
 import { bots, computerLink as link, ui } from "@canopy/contracts";
 import { REMOTE_BOTS, REMOTE_BOT_COMPOSER } from "@canopy/domain/computers";
-import { GITHUB_ACCOUNTS, GITHUB_PR, GITHUB_COMMENTS, GITHUB_REVIEW, GITHUB_LIFECYCLE } from "@canopy/domain/computers";
+import {
+  GITHUB_ACCOUNTS,
+  GITHUB_PR,
+  GITHUB_COMMENTS,
+  GITHUB_REVIEW,
+  GITHUB_LIFECYCLE,
+  GITHUB_METADATA,
+} from "@canopy/domain/computers";
+
+export const GITHUB_METADATA_METHODS = new Set([
+  "GetPullRequestMetadata",
+  "UpdatePullRequestDetails",
+  "RequestPullRequestReviewers",
+  "SetPullRequestAssignees",
+  "SetPullRequestLabels",
+]);
 
 export const GITHUB_LIFECYCLE_METHODS = new Set([
   "GetPullRequestCreateContext",
@@ -70,6 +85,8 @@ export const GITHUB_METHODS = new Set([
 ]);
 
 export function botFeature(method: { name: string }, request: Message): string | undefined {
+  if (GITHUB_METADATA_METHODS.has(method.name)) return GITHUB_METADATA;
+
   if (GITHUB_LIFECYCLE_METHODS.has(method.name)) return GITHUB_LIFECYCLE;
 
   if (GITHUB_REVIEW_METHODS.has(method.name)) return GITHUB_REVIEW;
@@ -95,6 +112,7 @@ export function botFeature(method: { name: string }, request: Message): string |
 /** Explicit home operations, plus capability-gated internal services.
  * GitHub account DTOs contain no credentials; generic credential and connector administration stays local. */
 export const SERVED = new Set([
+  ...GITHUB_METADATA_METHODS,
   ...GITHUB_LIFECYCLE_METHODS,
   ...GITHUB_METHODS,
   ...GITHUB_PR_METHODS,

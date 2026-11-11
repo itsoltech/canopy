@@ -119,7 +119,7 @@
         <span {@attach tooltip(life.blockingReasons.join(" "))}
           ><Button
             size="sm"
-            variant="primary"
+            variant={blocked || !actions.includes(primary) ? "secondary" : "primary"}
             disabled={blocked || !actions.includes(primary)}
             onclick={() => choose(primary)}>{lifecycleLabel(primary)}</Button
           ></span
@@ -221,9 +221,9 @@
       <Textarea
         name="merge-body"
         aria-label="Commit body"
-        rows={5}
+        rows={1}
         resize={false}
-        class="field-sizing-content max-h-80 min-h-28"
+        class="[field-sizing:content] max-h-80 min-h-28"
         bind:value={body}
         oninput={() => (prepared = undefined)}
         disabled={busy}

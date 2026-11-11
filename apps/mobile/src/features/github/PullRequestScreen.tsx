@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useState } from "react";
 import { router } from "expo-router";
 import { ScrollView, Text, View } from "react-native";
 import type { github } from "@canopy/contracts";
@@ -16,6 +16,7 @@ import { PullRequestTimeline } from "./PullRequestTimeline";
 import { usePullRequestWatch } from "./usePullRequestWatch";
 import { putContext } from "./context-draft";
 import { CommentComposer } from "./CommentComposer";
+import { invalidations } from "./invalidations";
 
 export function PullRequestScreen({ id, threadId }: { id: string; threadId?: string }) {
   const { client, queries, online } = useSession();
@@ -93,6 +94,9 @@ export function PullRequestScreen({ id, threadId }: { id: string; threadId?: str
       setBusy(false);
     }
   }
+
+  const onMetadata = useEffectEvent(() => void refresh());
+  useEffect(() => invalidations.subscribe(`${id}:metadata`, onMetadata), [id]);
 
   async function prepare(action: string) {
     if (!client || !threadId || busy) return;

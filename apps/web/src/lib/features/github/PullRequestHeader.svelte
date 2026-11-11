@@ -13,6 +13,7 @@
   import PullRequestState from "./PullRequestState.svelte";
   import { toast } from "#lib/shared/ui/toast.svelte.ts";
   import LifecycleActions from "./LifecycleActions.svelte";
+  import MetadataEdit from "./MetadataEdit.svelte";
 
   let {
     snapshot,
@@ -33,6 +34,7 @@
   } = $props();
 
   const pr = $derived(snapshot.summary);
+  let metadataTitle = $state<string>();
   const ref = $derived(pr?.ref);
   const age = $derived(formatAge(pr?.updatedAt, clock.now));
   const url = $derived(`https://github.com/${ref?.repositoryName}/pull/${ref?.number}`);
@@ -90,7 +92,20 @@
     </DropdownMenu>
     {#if onclose}<IconButton icon="x-mark" label="Close pull request" size="sm" onclick={onclose} />{/if}
   </div>
-  <h2 class="line-clamp-2 text-lg font-semibold text-zinc-950 dark:text-white" title={pr?.title}>{pr?.title}</h2>
+  <div class="relative min-w-0">
+    <h2
+      class="line-clamp-2 pr-10 text-lg font-semibold text-zinc-950 dark:text-white"
+      title={metadataTitle ?? pr?.title}
+    >
+      {metadataTitle ?? pr?.title}
+    </h2>
+    {#key `${snapshot.accountId}:${snapshot.accessRevision}:${ref?.id}`}<MetadataEdit
+        {snapshot}
+        kind="title"
+        ondisplay={(value) => (metadataTitle = value?.title)}
+        class="[&>button]:absolute [&>button]:top-0 [&>button]:right-0"
+      />{/key}
+  </div>
   <div class="flex min-w-0 items-center gap-2 text-sm/5 sm:text-xs/5">
     <GitHubAvatar userId="" login={snapshot.author} compact />
     <p class="min-w-0 truncate" title={snapshot.author}>{snapshot.author}</p>

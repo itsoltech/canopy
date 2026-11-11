@@ -9,6 +9,8 @@ import { GitHubAvatar } from "./GitHubAvatar";
 import { GitHubActions } from "./GitHubActions";
 import { PullRequestStatus } from "./PullRequestStatus";
 import { LifecycleActions } from "./LifecycleActions";
+import { useState } from "react";
+import { MetadataEdit } from "./MetadataEdit";
 
 export function PullRequestHeader({
   snapshot,
@@ -26,6 +28,7 @@ export function PullRequestHeader({
   oncontext?: ((action: string) => void) | undefined;
 }) {
   const c = useColors();
+  const [metadata, setMetadata] = useState<github.PullRequestMetadata>();
   const type = useTypography();
   const pr = snapshot.summary;
   const ref = pr?.ref;
@@ -85,8 +88,9 @@ export function PullRequestHeader({
         numberOfLines={2}
         style={[type.body, { fontFamily: font.semibold, color: c.text }]}
       >
-        {pr?.title}
+        {metadata?.title ?? pr?.title}
       </Text>
+      <MetadataEdit snapshot={snapshot} kind="title" onDisplay={setMetadata} />
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
         <GitHubAvatar login={snapshot.author} userId="" compact />
         <Text numberOfLines={1} style={[type.meta, { flex: 1, color: c.text }]}>

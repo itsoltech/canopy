@@ -14,6 +14,10 @@ const mutate = async (operation: string, r: github.PullRequestMutationRequest) =
   );
 
 export const mutations: MutationApi = {
+  updatePullRequestDetails: (r) => mutate("update-details", r),
+  requestPullRequestReviewers: (r) => mutate("request-reviewers", r),
+  setPullRequestAssignees: (r) => mutate("set-assignees", r),
+  setPullRequestLabels: (r) => mutate("set-labels", r),
   createPullRequest: (r) => mutate("create-pr", r),
   setPullRequestDraft: (r) => mutate("set-draft", r),
   mergePullRequest: (r) => mutate("merge", r),

@@ -466,6 +466,11 @@ message PullRequestMutationRequest {
   string base_ref = 34;
   bool draft = 35;
   bool maintainer_can_modify = 36;
+  // Metadata revision from GetPullRequestMetadata. Never a client timestamp.
+  string metadata_revision = 37;
+  repeated string metadata_ids = 38;
+  // request, re_request or remove for reviewers.
+  string reviewer_action = 39;
 }
 message PullRequestMutationRequestRef {
   string pull_request_id = 1;
@@ -484,4 +489,29 @@ message PullRequestMutationReceipt {
   string viewer_viewed_state = 8;
   PullRequestRef created_pull_request = 9;
   PullRequestRef existing_pull_request = 10;
+}
+
+// IDs are upstream node IDs; names and colours are presentation only.
+message PullRequestMetadataOption {
+  string id = 1;
+  string name = 2;
+  string kind = 3;
+  string color = 4;
+  // Numeric GitHub user ID, used only for an avatar URL.
+  string user_id = 5;
+}
+message PullRequestMetadata {
+  string title = 1;
+  string body = 2;
+  string revision = 3;
+  repeated PullRequestMetadataOption reviewers = 4;
+  repeated PullRequestMetadataOption assignees = 5;
+  repeated PullRequestMetadataOption labels = 6;
+  repeated string actions = 7;
+}
+message PullRequestMetadataPage {
+  PullRequestMetadata metadata = 1;
+  repeated PullRequestMetadataOption options = 2;
+  PullRequestPageInfo page = 3;
+  bool members_available = 4;
 }

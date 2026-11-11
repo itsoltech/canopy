@@ -13,6 +13,7 @@
 </script>
 
 <p class="flex h-5 items-center gap-2 text-sm text-zinc-500">
-  <span>{remaining ? "Confirm within 60 s" : "Confirmation expired"}</span>
-  <span class="inline-block w-10 shrink-0 text-right text-xs tabular-nums" aria-hidden="true">{remaining} s</span>
+  {#if remaining}<span>Confirm within</span><span class="w-10 shrink-0 tabular-nums">{remaining} s</span>{:else}<span
+      >Confirmation expired</span
+    >{/if}
 </p>

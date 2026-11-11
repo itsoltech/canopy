@@ -14,6 +14,15 @@ import { viewedFiles } from "./viewed.ts";
 import { validateReview, reviewMutation, reviewParameters } from "./review-mutation.ts";
 import { verifyReviewAnchor, reviewPreflight } from "./review-preflight.ts";
 import {
+  metadataActions,
+  metadataParameters,
+  validateMetadata,
+  metadataPreflight,
+  metadataMutation,
+  freshMetadata,
+  metadataMatches,
+} from "./metadata-mutation.ts";
+import {
   lifecycleActions,
   lifecycleParameters,
   validateLifecycle,
@@ -32,6 +41,7 @@ const actions = [
   "discard_review",
   "resolve_thread",
   ...lifecycleActions,
+  ...metadataActions,
 ];
 
 const result = Schema.Struct({
@@ -77,6 +87,7 @@ export function mutationReceipt(r: MutationRow) {
 function validate(r: github.PullRequestMutationRequest) {
   validateReview(r);
   validateLifecycle(r);
+  validateMetadata(r);
 
   if (!uuid(r.pullRequestId) || !uuid(r.accountId) || !uuid(r.clientRequestId))
     throw new ConnectError("Pull request not found", Code.NotFound);
@@ -147,6 +158,7 @@ export class GitHubMutations {
         reviewParameters(r),
         lifecycleParameters(r),
         r.title,
+        metadataParameters(r),
       ]),
     );
 
@@ -179,6 +191,7 @@ export class GitHubMutations {
         await reviewPreflight(scope, r, renew);
 
         if (lifecycleActions.includes(r.action)) await lifecyclePreflight(scope, r);
+        const selected = metadataActions.includes(r.action) ? await metadataPreflight(scope, r, renew) : [];
         await renew();
         row = (
           await accounts.run((s) => s.mutationPrepare(accounts.owner, client, r, fingerprint, scope.mapping.revision))
@@ -196,14 +209,19 @@ export class GitHubMutations {
             Code.FailedPrecondition,
           );
 
-        return this.send(scope, r, claimed);
+        return this.send(scope, r, claimed, selected);
       });
     } catch (cause) {
       await accounts.run((s) => s.mutationDenied(accounts.owner, client, r.pullRequestId, r.clientRequestId, r.action));
       throw githubFailure(cause);
     }
   }
-  private async send(scope: MutationScope, r: github.PullRequestMutationRequest, row: MutationRow) {
+  private async send(
+    scope: MutationScope,
+    r: github.PullRequestMutationRequest,
+    row: MutationRow,
+    selected: Array<{ name: string; kind: string }>,
+  ) {
     const { accounts } = this.prs;
 
     let state = "uncertain",
@@ -213,6 +231,7 @@ export class GitHubMutations {
     try {
       const review = reviewMutation(scope, r);
       const lifecycle = lifecycleActions.includes(r.action) ? lifecycleMutation(scope, r) : undefined;
+      const metadata = metadataActions.includes(r.action) ? metadataMutation(scope, r, selected) : undefined;
       const input = review?.input ?? mutationInput(scope, r);
 
       const query =
@@ -225,21 +244,39 @@ export class GitHubMutations {
 
       // Deliberately bypass authorized(): even its 401 refresh retry must never replay a write.
       const response = await accounts.http.detailed(
-        lifecycle?.path ?? "/graphql",
+        metadata?.path ?? lifecycle?.path ?? "/graphql",
         {
-          method: lifecycle?.method ?? "POST",
+          method: metadata?.method ?? lifecycle?.method ?? "POST",
           headers: { Authorization: `Bearer ${scope.access.token}`, "Content-Type": "application/json" },
           body: JSON.stringify(
-            lifecycle?.body ?? {
-              query,
-              variables: { input: { ...input, clientMutationId: r.clientRequestId } },
-            },
+            metadata?.body ??
+              lifecycle?.body ?? {
+                query,
+                variables: { input: { ...input, clientMutationId: r.clientRequestId } },
+              },
           ),
         },
         [scope.access.token, ...(scope.access.secrets ?? [])],
       );
 
       await mutationBudget(scope, response.value, response.headers);
+
+      if (metadata) {
+        try {
+          const current = await freshMetadata(scope);
+          state = metadataMatches(current.view, r) ? "succeeded" : "uncertain";
+        } catch {
+          // A failed verification cannot undo an acknowledged upstream write.
+          state = "uncertain";
+        }
+
+        upstream = scope.pr.node_id;
+        detail = state === "succeeded" ? "" : "These fields changed during saving. Compare changes, then refresh.";
+        const saved = await accounts.run((s) => s.mutationFinish(row, state, upstream, detail));
+        this.prs.client.memory.clear();
+
+        return mutationReceipt(saved);
+      }
 
       if (r.action === "merge") {
         const merged = Schema.decodeUnknownSync(

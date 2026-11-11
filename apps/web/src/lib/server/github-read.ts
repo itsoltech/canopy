@@ -7,6 +7,11 @@ export async function githubRead(api: ReturnType<typeof gateway>, operation: str
   const options = { timeoutMs: 120_000 };
 
   switch (operation) {
+    case "metadata":
+      return encode(
+        github.PullRequestMetadataPageSchema,
+        await api.getPullRequestMetadata(await readMessage(request, github.PullRequestPageRequestSchema), options),
+      );
     case "review-draft":
       return encode(
         github.PullRequestReviewDraftSchema,

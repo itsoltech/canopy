@@ -116,6 +116,8 @@
     }
   }
 
+  $effect(() => invalidations.subscribe(`${id}:metadata`, () => void refresh()));
+
   async function unlink() {
     if (!threadId || busy) return;
     busy = true;
