@@ -6,8 +6,11 @@ import type { CoreRuntime } from "../core/core.ts";
 import { decodeRollup, encodeRollup, MAX_PAYLOAD, replaceProcesses, mergeWatermarks } from "./rollup.ts";
 import { downsampleWrite, type RollupRow } from "./downsample.ts";
 import { queryFamily, queryRpc } from "./query-context.ts";
+import { pendingState } from "./pending.ts";
 
 export type StoredMinute = { at: number; processes: ui.DiagnosticsProcess[] };
+
+export type EncodedMinute = { at: number; payload: Uint8Array };
 
 export class DiagnosticsStore {
   constructor(
@@ -72,7 +75,7 @@ export class DiagnosticsStore {
   }
 
   /** State, dedupe watermarks and all queued minutes commit in one statement under the home lock. */
-  write(minutes: StoredMinute[], state: ui.DiagnosticsState) {
+  write(minutes: (StoredMinute | EncodedMinute)[], state: ui.DiagnosticsState) {
     const { owner, computer } = this;
 
     return this.runtime.runPromise(
@@ -88,6 +91,12 @@ export class DiagnosticsStore {
           WHERE owner_user_id=${owner}::uuid AND computer_id=${computer} FOR UPDATE`;
 
             const previous = locked[0] ? fromBinary(ui.DiagnosticsStateSchema, locked[0].payload) : undefined;
+
+            const submitted = pendingState(
+              minutes.filter((minute): minute is EncodedMinute => "payload" in minute),
+              create(ui.DiagnosticsStateSchema, state),
+            );
+
             const payloads: Uint8Array[] = [];
             let additions = 0;
 
@@ -96,9 +105,15 @@ export class DiagnosticsStore {
             WHERE owner_user_id=${owner}::uuid AND computer_id=${computer} AND resolution=60
               AND bucket_start=${new Date(minute.at)}`;
 
+              const old = existing[0] ? decodeRollup(existing[0].payload) : undefined;
+
+              const incoming =
+                "payload" in minute ? decodeRollup(minute.payload) : { processes: minute.processes, incomplete: false };
+
               payloads.push(
                 encodeRollup(
-                  replaceProcesses(existing[0] ? decodeRollup(existing[0].payload).processes : [], minute.processes),
+                  replaceProcesses(old?.processes ?? [], incoming.processes),
+                  Boolean(old?.incomplete || incoming.incomplete),
                 ),
               );
 
@@ -106,12 +121,12 @@ export class DiagnosticsStore {
             }
 
             const next = create(ui.DiagnosticsStateSchema, {
-              ...state,
+              ...submitted,
               persistedThroughMs:
-                previous && previous.persistedThroughMs > state.persistedThroughMs
+                previous && previous.persistedThroughMs > submitted.persistedThroughMs
                   ? previous.persistedThroughMs
-                  : state.persistedThroughMs,
-              watermarks: mergeWatermarks(previous?.watermarks ?? [], state.watermarks),
+                  : submitted.persistedThroughMs,
+              watermarks: mergeWatermarks(previous?.watermarks ?? [], submitted.watermarks),
             });
 
             const bytes = toBinary(
@@ -144,7 +159,7 @@ export class DiagnosticsStore {
 
             const [first, ...rest] = rows;
 
-            if (!first) return;
+            if (!first) return next;
             yield* sql`WITH saved AS (
           INSERT INTO diagnostics_rollups ${sql.insert([first, ...rest])}
           ON CONFLICT (owner_user_id,computer_id,resolution,bucket_start) DO UPDATE
@@ -175,6 +190,8 @@ export class DiagnosticsStore {
           SELECT ${owner}::uuid,${computer},${bytes},to_timestamp(${Number(next.persistedThroughMs)}/1000.0)
           WHERE EXISTS(SELECT 1 FROM saved)
           ON CONFLICT(owner_user_id,computer_id) DO UPDATE SET payload=EXCLUDED.payload,persisted_through=EXCLUDED.persisted_through`;
+
+            return next;
           }),
         );
       }).pipe(queryFamily("diagnostics.write")),

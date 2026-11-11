@@ -31,11 +31,12 @@ export function decodeRollup(bytes: Uint8Array) {
   return value;
 }
 
-export function encodeRollup(processes: ui.DiagnosticsProcess[]) {
+export function encodeRollup(processes: ui.DiagnosticsProcess[], incomplete = false) {
   if (processes.length > 64) throw new Error("Diagnostics process budget exceeded");
 
   const rollup = create(ui.DiagnosticsRollupSchema, {
     schemaVersion: 1,
+    incomplete,
     processes: processes.map((value) =>
       create(ui.DiagnosticsProcessSchema, { ...value, measures: [...value.measures] }),
     ),
@@ -50,12 +51,20 @@ export function encodeRollup(processes: ui.DiagnosticsProcess[]) {
     bytes = toBinary(ui.DiagnosticsRollupSchema, rollup);
   }
 
-  while (bytes.length > MAX_PAYLOAD && rollup.processes.some((value) => value.measures.length)) {
-    rollup.processes.findLast((value) => value.measures.length)!.measures.pop();
-    bytes = toBinary(ui.DiagnosticsRollupSchema, rollup);
+  let upperBound = bytes.length;
+
+  while (upperBound > MAX_PAYLOAD && rollup.processes.some((value) => value.measures.length)) {
+    const removed = rollup.processes.findLast((value) => value.measures.length)!.measures.pop()!;
+    // Removing a repeated message can only shrink its enclosing length prefix as well.
+    upperBound -= toBinary(
+      ui.DiagnosticsProcessSchema,
+      create(ui.DiagnosticsProcessSchema, { measures: [removed] }),
+    ).length;
   }
 
-  if (bytes.length > MAX_PAYLOAD) throw new Error("Diagnostics persistence budget exceeded");
+  if (upperBound > MAX_PAYLOAD) throw new Error("Diagnostics persistence budget exceeded");
+
+  if (upperBound !== bytes.length) bytes = toBinary(ui.DiagnosticsRollupSchema, rollup);
 
   return bytes;
 }

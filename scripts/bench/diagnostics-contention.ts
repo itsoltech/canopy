@@ -8,6 +8,7 @@ export async function diagnosticsContention(
   phase: string,
   api: Client<typeof ui.GatewayService>,
   thread: string,
+  evidence?: (point: string) => Promise<object>,
 ) {
   if (phase !== "write_failure" && phase !== "pool_contention") return;
 
@@ -28,6 +29,8 @@ export async function diagnosticsContention(
     phase === "write_failure"
       ? "LOCK TABLE diagnostics_state IN EXCLUSIVE MODE"
       : `SELECT id FROM threads WHERE id='${thread}'::uuid FOR UPDATE`;
+
+  if (phase === "write_failure") await evidence?.("before_lock");
 
   const holder = query(
     `SET application_name='canopy-diagnostics-contention'; BEGIN; ${lock}; SELECT pg_sleep(70); COMMIT;`,
@@ -67,15 +70,34 @@ export async function diagnosticsContention(
     }
 
   const during = Bun.sleep(65_000).then(() => api.getComputerDiagnostics({ limit: 1 }));
+  const lockAcquiredAtMs = Date.now();
+  let lockReleasedAtMs = 0;
+
+  const lockedHeap =
+    evidence && phase === "write_failure" ? Bun.sleep(65_000).then(() => evidence("lock_end")) : Promise.resolve();
+
+  const releasedHeap =
+    evidence && phase === "write_failure"
+      ? holder
+          .then(() => {
+            lockReleasedAtMs = Date.now();
+
+            return Bun.sleep(20_000);
+          })
+          .then(() => evidence("released_twenty_seconds"))
+      : Promise.resolve();
 
   return async () => {
     await holder;
     await updates;
+    await lockedHeap;
+    await releasedHeap;
     const interrupted = await during;
     const recovered = await api.getComputerDiagnostics({ limit: 1 });
 
     return {
       lockSeconds: 70,
+      forensic: evidence ? { lockAcquiredAtMs, lockReleasedAtMs } : undefined,
       blockedGatewayConnections: phase === "pool_contention" ? 9 : 0,
       duringPersistenceStatus: interrupted.persistenceStatus,
       recoveredPersistenceStatus: recovered.persistenceStatus,

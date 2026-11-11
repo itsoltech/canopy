@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { Histogram, percentiles } from "@canopy/domain/diagnostics";
+import { Histogram, percentiles, MAX_COUNT } from "@canopy/domain/diagnostics";
 
 test("quantized percentiles stay within observed extrema, including underflow and overflow", () => {
   for (const [sizes, samples] of [
@@ -54,4 +54,32 @@ test("merged and persisted histograms retain extrema without inventing a minimum
   expect(mixed.snapshot().min).toBe(0);
   expect(percentiles([old]).p99).toBeLessThanOrEqual(old.max);
   expect(percentiles([]).samples).toBe(0n);
+});
+
+test("sparse percentile merging preserves exact ranks, overflow bits and uint64 saturation", () => {
+  const first = create(ui.DiagnosticsHistogramSchema, {
+    indices: [129, 1, 100],
+    counts: [3n, 96n, 1n],
+    min: 0.001,
+    max: 10_000_000,
+    sum: 30_000_000,
+  });
+
+  const value = percentiles([first]);
+  expect(value.samples).toBe(100n);
+  expect(value.p50).toBe(0.001);
+  expect(value.p95).toBe(0.001);
+  expect(value.overflow).toBe(true);
+  expect(value.overflowQuantiles).toBe(4);
+  expect(value.sum).toBe(first.sum);
+
+  const saturated = percentiles([
+    create(ui.DiagnosticsHistogramSchema, { indices: [1], counts: [MAX_COUNT - 1n], min: 0.001, max: 0.001 }),
+    create(ui.DiagnosticsHistogramSchema, { indices: [1, 129], counts: [4n, 1n], min: 0.001, max: 1e8 }),
+  ]);
+
+  expect(saturated.samples).toBe(MAX_COUNT);
+  expect(saturated.p99).toBe(0.001);
+  expect(saturated.overflow).toBe(true);
+  expect(saturated.overflowQuantiles).toBe(0);
 });

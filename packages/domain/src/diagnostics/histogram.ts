@@ -115,25 +115,13 @@ export class Histogram {
 
 /** Merge counts before selecting exact 64-bit ranks, never averaging percentiles. */
 export function percentiles(histograms: readonly ui.DiagnosticsHistogram[], sizes = false) {
-  const counts = new BigUint64Array(sizes ? 32 : 130);
-  let max = 0;
-  let min = Infinity;
-  let sum = 0;
+  if (!histograms.length) return create(ui.DiagnosticsPercentilesSchema);
+  // Views multiply this helper by SQL families/RPCs. Merge only present buckets,
+  // rather than allocating and scanning 130 BigInt cells for every distribution.
+  const merged = new Histogram(sizes, true);
 
-  for (const histogram of histograms) {
-    max = Math.max(max, histogram.max);
-
-    if (histogram.counts.some((count) => count > 0n)) min = Math.min(min, histogram.min ?? 0);
-    sum = Math.min(Number.MAX_VALUE, sum + histogram.sum);
-
-    for (let at = 0; at < histogram.indices.length; at++) {
-      const index = histogram.indices[at]!;
-
-      if (index < counts.length) counts[index] = addCount(counts[index]!, histogram.counts[at] ?? 0n);
-    }
-  }
-
-  const samples = counts.reduce((sum, n) => addCount(sum, n), 0n);
+  for (const histogram of histograms) merged.merge(histogram);
+  const samples = merged.counts.reduce((sum, n) => addCount(sum, n), 0n);
 
   let overflowQuantiles = 0;
 
@@ -142,11 +130,12 @@ export function percentiles(histograms: readonly ui.DiagnosticsHistogram[], size
 
     if (!samples) return 0;
 
-    for (let index = 0; index < counts.length; index++) {
-      rank -= counts[index]!;
+    for (let at = 0; at < merged.indices.length; at++) {
+      const index = merged.indices[at]!;
+      rank -= merged.counts[at]!;
 
       if (rank <= 0n) {
-        const overflow = index === counts.length - 1;
+        const overflow = index === (sizes ? 31 : 129);
 
         if (overflow) overflowQuantiles |= bit;
 
@@ -156,21 +145,21 @@ export function percentiles(histograms: readonly ui.DiagnosticsHistogram[], size
             ? 0.001 * 2 ** ((Math.min(128, index) - 1) / 4)
             : 0.001;
 
-        return Math.max(Math.min(min, max), Math.min(max, boundary));
+        return Math.max(Math.min(merged.min, merged.max), Math.min(merged.max, boundary));
       }
     }
 
-    return max;
+    return merged.max;
   };
 
   return create(ui.DiagnosticsPercentilesSchema, {
     p50: quantile(50n, 1),
     p95: quantile(95n, 2),
     p99: quantile(99n, 4),
-    max,
-    sum,
+    max: merged.max,
+    sum: merged.sum,
     samples: BigInt(samples),
-    overflow: Boolean(counts[counts.length - 1]),
+    overflow: merged.indices.at(-1) === (sizes ? 31 : 129),
     overflowQuantiles,
   });
 }

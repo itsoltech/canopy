@@ -230,6 +230,13 @@ przed/po pełnym GC, liczby typów obiektów i heap snapshot w prywatnym katalog
 Artefakty mogą zawierać syntetyczne dane i poświadczenia prywatnej bazy testowej;
 nie trafiają do repo ani logów. Launcher końcowy usuwa te flagi: profile, snapshoty
 i wymuszone GC nie uczestniczą w trzech parach akceptacyjnych.
+Odtworzenie pełnej sekwencji ustawia też `CANOPY_BENCH_FORENSIC_CHECKPOINTS=1`
+oraz te same flagi historii, widoków, checkpointów i kompaktowania co launcher.
+Zapisuje slow receiver i governor oraz trzy punkty write failure: przed blokadą,
+pod jej koniec i 20 s po zwolnieniu. Statystyki sprzed snapshotu i po jawnym GC
+obejmują liczbę typów obiektów; sam snapshot JSC także może wykonać GC.
+Snapshoty służą więc ścieżkom retencji, a wcześniejsze statystyki — rozmiarowi
+niezebranych jeszcze obiektów. Nie porównujemy ich CPU/RSS z nagraniem akceptacyjnym.
 Pamięć etapu 2 mieści się w dotychczasowych
 rezerwacjach; przyrost RSS/VmHWM oraz każdą parę należy pokazać osobno, bez
 uznawania szumu za dodatkowy budżet. Skrypt wymaga czystego commita, zapisuje
@@ -242,6 +249,16 @@ Wrappery fizycznych połączeń są w WeakMap, z rezerwacją 4 KiB w istniejący
 budżecie kolektora dla domyślnej puli dziesięciu sesji. Nie ma rekordów per
 zapytanie, watch ani admission. Próbkowanie event loop używa jednego interwału
 20 ms zamiast tworzyć kolejny timer i closure przy każdej próbce.
+
+Retry trwałości przechowuje gotowe payloady do 64 KiB, maksymalnie 60 minut
+w istniejącym limicie 4 MiB, razem z rezerwacją 4 KiB na rekord/Map/Uint8Array.
+Nie zatrzymuje większych, nieprzyciętych obiektów rollupu ani błędów sterownika.
+Miejsce jest zwalniane przed dodaniem nowej minuty; usunięcie zwiększa jawny
+licznik dropów i ustawia `persistence_gap`. Podsumowanie checkpointów dekoduje
+po jednej minucie, z limitem 126 watermarków; zapis dekoduje payload dopiero po
+otrzymaniu blokady domu. Flaga niepełności przetrwa retry i kompaktowanie.
+Przycinanie payloadu odejmuje rozmiary usuwanych pól, zamiast kodować cały
+rollup lub odpowiedź ponownie dla każdego usuniętego szczegółu.
 
 ### 3.3 Worker i jakość sieci
 

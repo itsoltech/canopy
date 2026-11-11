@@ -1,17 +1,16 @@
 import { create, toBinary } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import type { RpcCollector } from "./collector.ts";
-import type { DiagnosticsStore, StoredMinute } from "./store.ts";
+import type { DiagnosticsStore, EncodedMinute } from "./store.ts";
 import { encodeRollup } from "./rollup.ts";
-
-const PENDING_BYTES = 4 * 1024 * 1024;
+import { PENDING_BYTES, PENDING_ENTRY_BYTES } from "./pending.ts";
 
 export class DiagnosticsPersistence {
   restoring = true;
   status = "restoring";
   persistedThrough = 0;
   epoch: string = crypto.randomUUID();
-  readonly pending = new Map<number, { minute: StoredMinute; bytes: number }>();
+  readonly pending = new Map<number, { minute: EncodedMinute; bytes: number }>();
   #running: Promise<void> | undefined;
   #restore: Promise<void> | undefined;
   #queuedThrough = 0;
@@ -46,6 +45,10 @@ export class DiagnosticsPersistence {
 
   get ready() {
     return this.#stateLoaded;
+  }
+
+  get pendingBytes() {
+    return this.#pendingBytes;
   }
 
   async #load() {
@@ -124,48 +127,32 @@ export class DiagnosticsPersistence {
       const processes = [own, ...this.host.processes(at)];
 
       try {
-        const bytes = encodeRollup(processes).length;
-        this.#pendingBytes += bytes - (this.pending.get(at)?.bytes ?? 0);
-        this.pending.set(at, { minute: { at, processes }, bytes });
+        const payload = encodeRollup(processes);
+        // Charge the backing allocation and conservative object/Map overhead, not a smaller wire view.
+        const bytes = payload.buffer.byteLength + PENDING_ENTRY_BYTES;
+        this.#pendingBytes -= this.pending.get(at)?.bytes ?? 0;
+        this.pending.delete(at);
+        this.#trim(current, bytes, 1);
+        this.#pendingBytes += bytes;
+        this.pending.set(at, { minute: { at, payload }, bytes });
       } catch {
         this.#lost = true;
+        this.collector.budget.dropped++;
       }
 
       this.#queuedThrough = at;
     }
 
-    // Retry only within the live minute ring. Never recreate minutes already downsampled/pruned.
-    while (this.pending.size) {
-      const first = this.pending.keys().next().value;
+    this.#trim(current);
 
-      if (first === undefined) break;
+    if (!this.pending.size) {
+      if (this.#lost) this.status = "persistence_gap";
 
-      if (this.#pendingBytes <= PENDING_BYTES && first >= current - 3_540_000) break;
-      this.#pendingBytes -= this.pending.get(first)!.bytes;
-      this.pending.delete(first);
-      this.#lost = true;
+      return;
     }
 
-    if (!this.pending.size) return;
     const minutes = [...this.pending.values()].map((entry) => entry.minute);
     const next = this.#state();
-    const watermarks = new Map<string, ui.DiagnosticsProcess>();
-
-    for (const minute of minutes)
-      for (const process of minute.processes)
-        for (const checkpoint of process.checkpoints)
-          watermarks.set(
-            `${process.processId}:${checkpoint.session}`,
-            create(ui.DiagnosticsProcessSchema, {
-              processId: process.processId,
-              session: checkpoint.session,
-              sequence: checkpoint.sequence,
-            }),
-          );
-    next.watermarks = [...watermarks.values()];
-    next.persistedThroughMs = minutes
-      .flatMap((minute) => minute.processes.flatMap((process) => process.coverage))
-      .reduce((latest, range) => (range.endMs > latest ? range.endMs : latest), BigInt(this.persistedThrough));
 
     if (
       toBinary(ui.DiagnosticsStateSchema, create(ui.DiagnosticsStateSchema, { ...next, peerOverviews: [] })).length >
@@ -182,14 +169,32 @@ export class DiagnosticsPersistence {
         this.#initialized = true;
       }
 
-      await this.store.write(minutes, next);
-      this.host.saved?.(next);
-      this.persistedThrough = Number(next.persistedThroughMs);
+      const saved = await this.store.write(minutes, next);
+      this.host.saved?.(saved);
+      this.persistedThrough = Number(saved.persistedThroughMs);
       this.pending.clear();
       this.#pendingBytes = 0;
       this.status = this.#lost ? "persistence_gap" : "saved";
     } catch {
       this.status = "unavailable";
+    }
+  }
+
+  #trim(current: number, bytes = 0, slots = 0) {
+    // Retry only within the live minute ring, and reserve space before retaining a new payload.
+    while (this.pending.size) {
+      const first = this.pending.keys().next().value!;
+
+      if (
+        this.pending.size + slots <= 60 &&
+        this.#pendingBytes + bytes <= PENDING_BYTES &&
+        first >= current - 3_540_000
+      )
+        break;
+      this.#pendingBytes -= this.pending.get(first)!.bytes;
+      this.pending.delete(first);
+      this.#lost = true;
+      this.collector.budget.dropped++;
     }
   }
 

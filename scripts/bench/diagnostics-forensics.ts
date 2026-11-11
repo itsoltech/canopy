@@ -8,11 +8,15 @@ export class DiagnosticsForensics {
   readonly directory = process.env["CANOPY_BENCH_FORENSICS_DIR"];
   readonly member = process.env["CANOPY_BENCH_DIAGNOSTICS"] === "1" ? "on" : "off";
 
+  constructor(readonly retained: () => object = () => ({})) {}
+
   begin(phase?: string) {
     if (!this.directory || !phase) return;
 
     if (!/^[a-z_]+$/.test(phase)) throw new Error("Invalid forensic phase");
     this.#phase = phase;
+
+    if (process.env["CANOPY_BENCH_FORENSIC_CHECKPOINTS"] === "1") return;
     this.#profile = profile(
       () =>
         new Promise<void>((resolve) => {
@@ -31,17 +35,22 @@ export class DiagnosticsForensics {
     await Bun.write(`${this.directory}/${this.member}-${this.#phase}.profile.json`, JSON.stringify(value));
   }
 
-  async heap() {
+  async heap(point = "end") {
     if (!this.directory) throw new Error("Heap evidence requires an explicit output directory");
-    const before = { memory: process.memoryUsage(), stats: heapStats() };
+
+    if (!/^[a-z_]+$/.test(point)) throw new Error("Invalid heap checkpoint");
+    const path = `${this.directory}/${this.member}-${this.#phase}-${point}`;
+    const before = { at: Date.now(), memory: process.memoryUsage(), stats: heapStats(), retained: this.retained() };
+    await this.#snapshot(`${path}-before.heapsnapshot.json`);
     Bun.gc(true);
     await Bun.sleep(0);
     Bun.gc(true);
-    const after = { memory: process.memoryUsage(), stats: heapStats() };
-    await Bun.write(`${this.directory}/${this.member}-${this.#phase}.heap.json`, JSON.stringify({ before, after }));
-    await Bun.write(
-      `${this.directory}/${this.member}-${this.#phase}.heapsnapshot.json`,
-      JSON.stringify(Bun.generateHeapSnapshot()),
-    );
+    const after = { at: Date.now(), memory: process.memoryUsage(), stats: heapStats(), retained: this.retained() };
+    await Bun.write(`${path}.heap.json`, JSON.stringify({ before, after }));
+    await this.#snapshot(`${path}-after.heapsnapshot.json`);
+  }
+
+  async #snapshot(path: string) {
+    await Bun.write(path, JSON.stringify(Bun.generateHeapSnapshot()));
   }
 }

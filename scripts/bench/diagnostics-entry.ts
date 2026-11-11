@@ -27,7 +27,13 @@ const core = new GatewayCore({
 });
 
 const governorWorkload = new DiagnosticsGovernorWorkload();
-const forensics = new DiagnosticsForensics();
+
+const forensics = new DiagnosticsForensics(() => ({
+  pendingMinutes: core.diagnostics.persistence?.pending.size ?? 0,
+  pendingBytes: core.diagnostics.persistence?.pendingBytes ?? 0,
+  collectorBytes: core.diagnostics.collector.budget.used,
+  dropped: core.diagnostics.collector.budget.dropped,
+}));
 
 const token = process.env["CANOPY_UI_SERVICE_TOKEN"];
 
@@ -153,7 +159,7 @@ async function execute(command: BenchCommand) {
 
   if (command.action === "end" || command.action === "stop") await governorWorkload.stop();
 
-  if (command.action === "heap") await forensics.heap();
+  if (command.action === "heap") await forensics.heap(command.phase);
 
   if (command.action === "gc") {
     if (process.env["CANOPY_BENCH_RESOURCES"] !== "1") throw new Error("GC is resource-only");

@@ -258,17 +258,7 @@ async function run(on: boolean, index: number) {
       phase === "idle" ? idleMs : loadMs,
       () => worker!.run("reconnect"),
       () => active!.run("sample"),
-      async () => {
-        await checkpoint(database);
-        const beforePg = await pgCounters();
-        const before = await active!.run("begin", phase);
-
-        if (phase === "governor") await active!.run("governor");
-        await worker!.run("begin");
-        const finishContention = await diagnosticsContention(name, database, phase, api, seed.thread);
-
-        return { beforePg, before, finishContention };
-      },
+      () => beginPhase(database, phase, api, seed.thread),
       host ? AbortSignal.any([host.signal, shutdown.signal]) : shutdown.signal,
     );
 
@@ -308,7 +298,7 @@ async function run(on: boolean, index: number) {
     );
     assertRunning();
 
-    await forensicHeap();
+    await forensicHeap(phase);
   }
 
   await resourceHeap("idle_heap_gc", on, index + 1);
@@ -344,8 +334,35 @@ async function run(on: boolean, index: number) {
     console.info(JSON.stringify({ phase: "write_accounting", ...(await diagnosticsWrites(env)) }));
 }
 
-async function forensicHeap() {
-  if (process.env["CANOPY_BENCH_FORENSICS_DIR"]) await active?.run("heap");
+async function beginPhase(
+  database: string,
+  phase: DiagnosticsPhase,
+  api: ReturnType<typeof benchmarkApi>,
+  thread: string,
+) {
+  await checkpoint(database);
+  const beforePg = await pgCounters();
+  const before = await active!.run("begin", phase);
+
+  if (phase === "governor") await active!.run("governor");
+  await worker!.run("begin");
+  const finishContention = await diagnosticsContention(name, database, phase, api, thread, forensicCheckpoint());
+
+  return { beforePg, before, finishContention };
+}
+
+function forensicCheckpoint() {
+  return process.env["CANOPY_BENCH_FORENSICS_DIR"] && process.env["CANOPY_BENCH_FORENSIC_CHECKPOINTS"] === "1"
+    ? (point: string) => active!.run("heap", point)
+    : undefined;
+}
+
+async function forensicHeap(phase: string) {
+  if (!process.env["CANOPY_BENCH_FORENSICS_DIR"]) return;
+
+  if (process.env["CANOPY_BENCH_FORENSIC_CHECKPOINTS"] === "1" && phase !== "slow_reader" && phase !== "governor")
+    return;
+  await active?.run("heap");
 }
 
 try {

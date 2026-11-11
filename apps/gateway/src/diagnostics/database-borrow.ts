@@ -15,7 +15,7 @@ export function observedBorrow(borrow: SqlConnection.Borrower, monitor: Database
       const start = performance.now();
       let acquired = false;
       let releaseStart = start;
-      let completed: Exit.Exit<A, E> | undefined;
+      let workFailure: Exit.Failure<A, E> | undefined;
       monitor.waiting++;
       monitor.peakWaiting = Math.max(monitor.peakWaiting, monitor.waiting);
 
@@ -30,7 +30,8 @@ export function observedBorrow(borrow: SqlConnection.Borrower, monitor: Database
           return Effect.onExit(
             Effect.suspend(() => work(connection)),
             (exit) => {
-              completed = exit;
+              // Successful row sets must never become captured diagnostic closure state.
+              if (Exit.isFailure(exit)) workFailure = exit;
               releaseStart = performance.now();
 
               return Effect.void;
@@ -44,7 +45,8 @@ export function observedBorrow(borrow: SqlConnection.Borrower, monitor: Database
           } else {
             monitor.occupied--;
             // A work failure alone is not a release error; an added cleanup cause is.
-            const releaseError = Exit.isFailure(exit) && !Equal.equals(exit, completed);
+            const releaseError = Exit.isFailure(exit) && !Equal.equals(exit, workFailure);
+            workFailure = undefined;
             monitor.record(family, "release", releaseStart, releaseError, rpc);
           }
 

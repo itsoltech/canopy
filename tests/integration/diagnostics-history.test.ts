@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { create } from "@bufbuild/protobuf";
+import { create, toJsonString } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { Effect } from "effect";
@@ -15,6 +15,7 @@ import { rpcSnapshot } from "../../apps/gateway/src/diagnostics/snapshot.ts";
 import { LinkDiagnostics } from "../../apps/gateway/src/diagnostics/links.ts";
 import { BucketBudget } from "../../apps/gateway/src/diagnostics/buckets.ts";
 import { Findings } from "../../apps/gateway/src/diagnostics/findings.ts";
+import { DATABASE_FAMILIES, DATABASE_PHASES, databaseMetric } from "@canopy/domain/diagnostics";
 
 describe.skipIf(!dockerAvailable)("diagnostics durability and bounded retention", () => {
   let gateway: TestGateway;
@@ -59,14 +60,30 @@ describe.skipIf(!dockerAvailable)("diagnostics durability and bounded retention"
       call.finish(index % 2 ? 0 : 14);
     }
 
+    const privateFailure = "private-failed-write-parameter-and-stack";
     await query(`CREATE FUNCTION reject_diagnostics() RETURNS trigger LANGUAGE plpgsql AS $$
-      BEGIN RAISE EXCEPTION 'synthetic persistence failure'; END $$`);
+      BEGIN RAISE EXCEPTION '${privateFailure} SELECT sensitive_payload'; END $$`);
     await query(
       "CREATE TRIGGER reject_diagnostics BEFORE INSERT ON diagnostics_rollups FOR EACH ROW EXECUTE FUNCTION reject_diagnostics()",
     );
     await persistence.flush();
     expect(persistence.status).toBe("unavailable");
     expect(persistence.pending.size).toBe(1);
+
+    for (let attempt = 0; attempt < 5; attempt++) await persistence.flush();
+    expect(persistence.pending.size).toBe(1);
+
+    for (const entry of persistence.pending.values()) {
+      const wire = toJsonString(ui.DiagnosticsRollupSchema, decodeRollup(entry.minute.payload));
+
+      for (const forbidden of [privateFailure, "SELECT", "sensitive_payload", "stack", "params"])
+        expect(wire).not.toContain(forbidden);
+    }
+
+    const failureMetrics = toJsonString(ui.ComputerDiagnosticsSchema, await gateway.api.getComputerDiagnostics({}));
+
+    for (const forbidden of [privateFailure, "SELECT", "sensitive_payload", "stack", "params"])
+      expect(failureMetrics).not.toContain(forbidden);
     expect((await store.state())?.persistedThroughMs).toBe(0n);
     expect((await query<{ count: number }>("SELECT count(*)::int count FROM diagnostics_rollups"))[0]?.count).toBe(0);
     await query("DROP TRIGGER reject_diagnostics ON diagnostics_rollups");
@@ -75,6 +92,7 @@ describe.skipIf(!dockerAvailable)("diagnostics durability and bounded retention"
     expect(persistence.status).toBe("saved");
     expect((await store.state())?.persistedThroughMs).toBe(BigInt(minute + 60_000));
     const stored = (await query<{ payload: Uint8Array }>("SELECT payload FROM diagnostics_rollups"))[0]!;
+    expect(toJsonString(ui.DiagnosticsRollupSchema, decodeRollup(stored.payload))).not.toContain(privateFailure);
     const series = decodeRollup(stored.payload).processes[0]!.series[0]!;
     // The final call completes in the following minute; its start belongs to this minute.
     expect(series.started).toBe(12n);
@@ -134,7 +152,7 @@ describe.skipIf(!dockerAvailable)("diagnostics durability and bounded retention"
     live.tick();
     const at = now;
     const process = live.rollup(at)!;
-    writer.pending.set(at, { minute: { at, processes: [process] }, bytes: 0 });
+    writer.pending.set(at, { minute: { at, payload: encodeRollup([process]) }, bytes: 0 });
     now += 3_660_000;
     live.start(method.id)!.finish();
     live.tick();
@@ -567,4 +585,95 @@ describe.skipIf(!dockerAvailable)("diagnostics durability and bounded retention"
     ).toBe(180);
     await query("DELETE FROM diagnostics_state WHERE owner_user_id=$1::uuid AND computer_id='quota'", [gateway.userId]);
   });
+
+  test("failed dense writes retain bounded encoded minutes, report drops and recover atomically", async () => {
+    let now = Math.floor(Date.now() / 60_000) * 60_000 - 72 * 60_000;
+    const storage = new DiagnosticsStore(gateway.runtime, gateway.userId, "bounded-failure");
+    const live = new RpcCollector([method], { utc: () => now, monotonic: () => now });
+
+    const wide = create(ui.DiagnosticsProcessSchema, {
+      processId: "gateway",
+      session: "dense-history",
+      checkpoints: [{ session: "dense-history", sequence: 1n }],
+      measures: DATABASE_FAMILIES.flatMap((family) =>
+        DATABASE_PHASES.map((phase) => ({
+          metricId: databaseMetric(family.name, phase),
+          events: 128n * 65536n,
+          histogram: {
+            indices: Array.from({ length: 128 }, (_, index) => index),
+            counts: Array.from({ length: 128 }, () => 65536n),
+            min: 0,
+            max: 1e9,
+            sum: 1e12,
+          },
+        })),
+      ),
+    });
+
+    const writer = new DiagnosticsPersistence(storage, live, {
+      ...host,
+      processes: (at) => [
+        create(ui.DiagnosticsProcessSchema, {
+          ...wide,
+          coverage: [create(ui.DiagnosticsCoverageSchema, { startMs: BigInt(at), endMs: BigInt(at + 60_000) })],
+        }),
+      ],
+    });
+
+    expect(encodeRollup([wide]).length).toBeLessThanOrEqual(65536);
+
+    await writer.start();
+    await query(`CREATE FUNCTION reject_bounded_diagnostics() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN RAISE EXCEPTION 'private-bounded-failure SELECT secret_parameter'; END $$`);
+    await query(`CREATE TRIGGER reject_bounded_diagnostics BEFORE INSERT ON diagnostics_rollups
+      FOR EACH ROW WHEN (NEW.computer_id='bounded-failure') EXECUTE FUNCTION reject_bounded_diagnostics()`);
+
+    try {
+      for (let minute = 0; minute < 72; minute++) {
+        live.start(method.id)!.finish();
+        await writer.flush(true);
+        expect(writer.status).toBe("unavailable");
+        expect(writer.pending.size).toBeLessThanOrEqual(60);
+        expect(writer.pendingBytes).toBeLessThanOrEqual(4 * 1024 * 1024);
+        now += 60_000;
+        live.tick();
+      }
+
+      expect(writer.pending.size).toBe(60);
+      expect(writer.pendingBytes).toBeGreaterThan(3 * 1024 * 1024);
+      expect(live.budget.dropped).toBeGreaterThan(0);
+
+      for (const { minute } of writer.pending.values()) {
+        expect(minute.payload.length).toBeLessThanOrEqual(65536);
+        const value = decodeRollup(minute.payload);
+        expect(value.incomplete).toBe(true);
+        expect(value.processes[0]?.series[0]?.started).toBe(1n);
+        expect(value.processes[1]!.measures.length).toBeLessThan(wide.measures.length);
+        const wire = toJsonString(ui.DiagnosticsRollupSchema, value);
+
+        for (const forbidden of ["private-bounded-failure", "SELECT", "secret_parameter", "stack", "params"])
+          expect(wire).not.toContain(forbidden);
+      }
+
+      expect((await storage.state())?.persistedThroughMs).toBe(0n);
+    } finally {
+      await query("DROP TRIGGER reject_bounded_diagnostics ON diagnostics_rollups");
+      await query("DROP FUNCTION reject_bounded_diagnostics()");
+    }
+
+    await writer.flush();
+    expect(writer.status).toBe("persistence_gap");
+    expect(writer.pending.size).toBe(0);
+    expect(writer.pendingBytes).toBe(0);
+    expect((await storage.state())?.persistenceGap).toBe(true);
+    expect((await storage.state())?.persistedThroughMs).toBe(BigInt(now));
+
+    const rows = await storage.query<{ payload: Uint8Array }>(
+      "SELECT payload FROM diagnostics_rollups WHERE owner_user_id=$1::uuid AND computer_id=$2 AND resolution=60",
+      [gateway.userId, "bounded-failure"],
+    );
+
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every((row) => decodeRollup(row.payload).incomplete)).toBe(true);
+  }, 60_000);
 });
