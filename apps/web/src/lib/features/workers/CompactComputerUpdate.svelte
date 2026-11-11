@@ -7,6 +7,7 @@
   import { presenceTime } from "#lib/features/computers/computers.ts";
   import { updateTone, type UpdatesState } from "./updates.svelte.ts";
   import { updateCheckLabel } from "@canopy/domain/computer-presence";
+  import AppUpdateConfirmation from "./AppUpdateConfirmation.svelte";
 
   let {
     computer,
@@ -17,6 +18,7 @@
 
   const view = $derived(computerUpdate(computer, presenceTime));
   const app = $derived(computer.updates?.app);
+  let confirming = $state(false);
 </script>
 
 <!-- A linked computer's Canopy app: its own gateway and worker update with it (docs/updates.md). -->
@@ -29,26 +31,26 @@
   status={view.status}
   tone={updateTone(view)}
   detail={view.detail}
-  notice={view.status === "Checks paused" ? view.detail : ""}
+  notice={["Checks paused", "Manual update", "Unavailable"].includes(view.status) ? view.detail : ""}
   error={view.failed ? view.detail : ""}
   busy={view.busy}
   progress={view.progress}
   class={className}
 >
   {#snippet action()}
-    {#if view.actionable && !local}
+    {#if view.actionable}
       <IconButton
         icon="arrow-up"
         size="sm"
         label={`Update Canopy on ${computer.name}`}
         disabled={!!updates.pending || updates.snapshot?.run?.state === "running"}
-        loading={updates.pending === computer.nodeId}
-        onclick={() => void updates.manage({ action: "computer", nodeId: computer.nodeId })}
+        loading={updates.pending === (local ? "app" : computer.nodeId)}
+        onclick={() => (confirming = true)}
       />
     {:else if (view.detail || local) && !view.failed && !computer.reason}<IconButton
         icon="information-circle"
         size="sm"
-        label={local ? "Includes this computer’s gateway and worker. Update this app on its computer." : view.detail}
+        label={view.detail || "Includes this computer’s gateway and worker."}
         tooltipOptions={{ touch: "tap" }}
       />{/if}
   {/snippet}
@@ -56,3 +58,5 @@
     <p class="mt-1 text-xs/5 wrap-anywhere text-muted" role="status">{computer.reason}</p>
   {/if}
 </UpdateItem>
+
+<AppUpdateConfirmation bind:open={confirming} {computer} {updates} />

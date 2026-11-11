@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { Button } from "./Button";
 import { Overlay } from "./Overlay";
 import { SheetDragArea } from "./SheetDragArea";
@@ -55,7 +55,7 @@ export function ConfirmHost() {
   return (
     <Overlay visible={Boolean(request)} onClose={close} label={request?.title ?? "Confirm"}>
       {request && (
-        <View style={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8, gap: 16 }}>
+        <View style={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8, gap: 16, flexShrink: 1 }}>
           <SheetDragArea style={{ gap: 4 }}>
             <Text
               accessibilityRole="header"
@@ -63,8 +63,10 @@ export function ConfirmHost() {
             >
               {request.title}
             </Text>
-            <Text style={[type.body, { color: c.muted }]}>{request.description}</Text>
           </SheetDragArea>
+          <ScrollView style={{ flexGrow: 0, flexShrink: 1 }}>
+            <Text style={[type.body, { color: c.muted }]}>{request.description}</Text>
+          </ScrollView>
           {/* Web: DialogActions, stacked on phones with the action on top. */}
           <View style={{ flexDirection: "column-reverse", gap: 8 }}>
             <Button title="Cancel" onPress={close} />

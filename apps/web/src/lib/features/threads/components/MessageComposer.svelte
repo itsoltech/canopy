@@ -28,6 +28,7 @@
   import AccountConfigNotices from "#lib/features/computers/AccountConfigNotices.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { computerName } from "@canopy/domain/computer-presence";
+  import { registerUnsentWork } from "#lib/features/workers/unsent-work.ts";
 
   /**
    * Message box of a thread. Each send carries an idempotency key, so a retried send never runs
@@ -147,6 +148,8 @@
   let sending = $state(false);
   let waiting = $state(false);
   const overview = useOverview();
+
+  $effect(() => registerUnsentWork(() => !!text.length || !!draft.attached.length || !!quotes.length || sending));
 
   const homeName = $derived(thread.nodeId ? computerName(overview?.computer(thread.nodeId)) : "this computer");
 

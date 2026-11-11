@@ -113,9 +113,8 @@
     </div>{/if}
   {#if snapshot}
     {#if snapshot.gatewayBundled}<p class="px-3 py-2 text-sm/5 text-pretty text-muted">
-        This computer’s gateway and worker update with the Canopy app in <TextLink href="/settings/app-updates"
-          >App updates</TextLink
-        >.
+        This computer’s gateway and worker update with its Canopy app.
+        {#if app.status && !app.remote}Open <TextLink href="/settings/app-updates">App updates</TextLink> to update it.{/if}
       </p>{/if}
     <!-- The popover's rows (UpdateRows): computers, workers by computer, agent CLIs by computer. -->
     <div class="min-w-0 px-3">

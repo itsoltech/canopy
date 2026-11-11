@@ -16,7 +16,11 @@
   let pinned = $state(false);
   let closeTimer: ReturnType<typeof setTimeout> | undefined;
   const status = $derived(updates.status);
-  const summary = $derived(updateIndicator(status, center.snapshot, updates.error || center.error, center.pending));
+
+  const summary = $derived(
+    updateIndicator(status, center.snapshot, updates.error || center.error, center.pending, updates.remote),
+  );
+
   const phase = $derived(summary.phase);
   const busy = $derived(phase === "checking" || phase === "downloading");
 

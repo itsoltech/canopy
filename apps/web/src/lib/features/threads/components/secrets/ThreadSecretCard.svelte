@@ -11,6 +11,7 @@
   import Input from "#lib/shared/ui/Input.svelte";
   import { swap } from "#lib/shared/ui/motion.ts";
   import { answerThreadSecret } from "../../api.ts";
+  import { registerUnsentWork } from "#lib/features/workers/unsent-work.ts";
 
   let {
     secret,
@@ -23,6 +24,8 @@
   let revealed = $state(false);
   let busy = $state(false);
   let failure = $state("");
+
+  $effect(() => registerUnsentWork(() => !!value.length || busy));
 
   const expired = $derived(
     secret.status === "saved" && !!secret.expiresAt && timestampMs(secret.expiresAt) <= clock.now,

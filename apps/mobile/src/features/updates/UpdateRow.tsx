@@ -18,6 +18,7 @@ export function UpdateRow({
   failed = false,
   busy = false,
   reason,
+  notice,
   progress,
   action,
   children,
@@ -31,6 +32,7 @@ export function UpdateRow({
   failed?: boolean;
   busy?: boolean;
   reason?: string | undefined;
+  notice?: string | undefined;
   progress?: number | undefined;
   action?: { label: string; disabled: boolean; run: () => void } | undefined;
   children?: ReactNode;
@@ -73,6 +75,11 @@ export function UpdateRow({
       </View>
       {progress !== undefined && (
         <ProgressBar done={BigInt(Math.round(progress))} total={100n} label={`${name}: ${status}`} />
+      )}
+      {notice && (
+        <Text accessibilityLiveRegion="polite" style={[styles.overlayMeta, { color: c.muted }]}>
+          {notice}
+        </Text>
       )}
       {reason &&
         (isRateLimitMessage(reason) ? (

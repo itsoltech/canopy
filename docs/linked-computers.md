@@ -348,6 +348,11 @@ niedostępne (z czytelnym powodem).
 
 Telefon i przeglądarka łączą się z jednym gatewayem i widzą przez niego wszystkie połączone komputery
 (zsumowany widok), bez osobnego parowania z każdym.
+Centrum aktualizacji pozwala też zaktualizować aplikację komputera, z którym klient
+łączy się bezpośrednio. Jego gateway przekazuje potwierdzone żądanie właściciela
+do własnego kanału desktopu; nie tworzy połączenia komputera z samym sobą.
+Akcje partnerów nadal przechodzą przez bezpośrednie, sparowane łącza. Zasady
+potwierdzenia, starszych wersji i odzyskania połączenia opisuje [updates.md](updates.md).
 
 ## UI (szkic)
 

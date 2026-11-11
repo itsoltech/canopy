@@ -69,7 +69,7 @@ export function computer(
 
 /** This computer, two linked computers (one updatable, one too old), three workers on two computers, several CLIs. */
 export function fixtureSnapshot(): ui.UpdatesSnapshot {
-  const studio = node("a");
+  const studio = node("ab");
   const local = "11111111-1111-4111-8111-111111111111";
 
   const snapshot = home(
@@ -112,7 +112,7 @@ export function fixtureSnapshot(): ui.UpdatesSnapshot {
       remoteUpdate: true,
       updates: studioHome,
     }),
-    computer("Old MacBook Air from the office downstairs", "b", undefined, {
+    computer("Old MacBook Air from the office downstairs", "bc", undefined, {
       version: "0.38.2",
       remoteUpdate: false,
       reason: "Update Old MacBook Air from the office downstairs on that computer.",
@@ -120,11 +120,15 @@ export function fixtureSnapshot(): ui.UpdatesSnapshot {
   ];
 
   snapshot.app = create(ui.DesktopUpdateStateSchema, {
+    workerId: local,
     connected: true,
     version: snapshot.gatewayVersion,
     updaterPhase: "idle",
     lastCheckedAtMs: Date.now() - 3600_000,
+    availableVersion: "0.43.0-nightly.1",
   });
+  snapshot.appUpdateSupported = true;
+  snapshot.computerName = "MacBook";
 
   return snapshot;
 }

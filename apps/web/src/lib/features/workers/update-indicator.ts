@@ -3,12 +3,14 @@ import type { ui } from "@canopy/contracts";
 import { listedWorkers, updatesAvailable, externalUpdatesAvailable } from "./compact-updates.ts";
 import { computerUpdate } from "./computer-updates.ts";
 import { isRateLimitMessage } from "@canopy/domain/release/http";
+import { homeAppComputer } from "@canopy/domain/release/update-actions";
 
 export function updateIndicator(
   app: DesktopUpdateStatus | undefined,
   snapshot: ui.UpdatesSnapshot | undefined,
   error: string,
   pending = "",
+  remoteApp = false,
 ) {
   const workers = snapshot ? listedWorkers(snapshot) : [];
   const clis = snapshot?.cliWorkers.flatMap((w) => w.cliTools) ?? [];
@@ -16,7 +18,13 @@ export function updateIndicator(
   const failedWorker = workers.find((w) => w.state === "failed");
   const failedDesktop = workers.find((w) => w.desktop?.phase === "failed")?.desktop;
   const failedCli = clis.find((t) => t.tool?.install?.state === "failed");
-  const computers = snapshot?.computers.map((c) => ({ name: c.name, view: computerUpdate(c) })) ?? [];
+  const home = snapshot && (!app || remoteApp) ? homeAppComputer(snapshot) : undefined;
+
+  const computers = [...(home ? [home] : []), ...(snapshot?.computers ?? [])].map((c) => ({
+    name: c.name,
+    view: computerUpdate(c),
+  }));
+
   const failedComputer = computers.find((c) => c.view.failed);
 
   const failed =
@@ -80,7 +88,7 @@ export function updateIndicator(
   )
     return { phase: "checking", message: "Checking for updates", progress: undefined };
 
-  if (snapshot && updatesAvailable(snapshot))
+  if (snapshot && (updatesAvailable(snapshot) || computers.some((c) => c.view.actionable)))
     return { phase: "available", message: "Updates available", progress: undefined };
 
   if (snapshot && externalUpdatesAvailable(snapshot))

@@ -249,7 +249,7 @@ export class GatewayCore {
         ),
       (credential) => coreRun(this, (s) => s.authenticateWorker(credential)),
     );
-    this.appControl = new LocalAppControl(options.runtime, options.userId);
+    this.appControl = new LocalAppControl(options.runtime, options.userId, () => this.feeds.updatesChanged());
     this.connectors = new ConnectorsRuntime({
       runtime: options.runtime,
       userId: options.userId,

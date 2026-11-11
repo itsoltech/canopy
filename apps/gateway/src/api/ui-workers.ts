@@ -8,6 +8,7 @@ import { updatesSnapshot } from "../updates/center-composition.ts";
 import { guard } from "./ui-errors.ts";
 import { checkLinkedUpdates, requestComputerUpdate } from "../updates/linked.ts";
 import { mobileIdentity } from "../core/mobile-devices.ts";
+import { requestOwnAppUpdate } from "../updates/app.ts";
 
 /** The app control channel belongs to the desktop app's own bundled gateway and its service token, never a device. */
 function localAppOnly(core: GatewayCore, context: HandlerContext) {
@@ -16,6 +17,18 @@ function localAppOnly(core: GatewayCore, context: HandlerContext) {
 }
 
 import type { UiHandlers } from "./ui-service.ts";
+
+async function reportAppControl(core: GatewayCore, report: ui.DesktopReport, context: HandlerContext) {
+  localAppOnly(core, context);
+  await core.appControl.report(report);
+  const state = core.appControl.snapshot();
+
+  if (state.phase === "restarting") await core.departures.announce("restarting", state.targetVersion);
+
+  if (["succeeded", "failed"].includes(state.phase)) await core.departures.recover(state.phase, state.reason);
+
+  return create(ui.DesktopAckSchema);
+}
 
 export function workersHandlers(
   core: GatewayCore,
@@ -51,7 +64,7 @@ export function workersHandlers(
 
     getUpdates: snapshot,
 
-    manageUpdates: async (request) => {
+    manageUpdates: async (request, context) => {
       if (request.action === "update_all") {
         await core.updateCenter.begin();
 
@@ -70,6 +83,12 @@ export function workersHandlers(
           "Update all is running. Wait for it to finish before starting another update.",
           Code.FailedPrecondition,
         );
+
+      if (request.action === "app") {
+        await requestOwnAppUpdate(core, request, context);
+
+        return snapshot();
+      }
 
       if (request.action === "desktop") {
         await core.desktopControl.manage(request);
@@ -104,17 +123,7 @@ export function workersHandlers(
 
       return core.appControl.watch(hello, context.signal);
     },
-    reportAppControl: async (report, context) => {
-      localAppOnly(core, context);
-      await core.appControl.report(report);
-      const state = core.appControl.snapshot();
-
-      if (state.phase === "restarting") await core.departures.announce("restarting", state.targetVersion);
-
-      if (["succeeded", "failed"].includes(state.phase)) await core.departures.recover(state.phase, state.reason);
-
-      return create(ui.DesktopAckSchema);
-    },
+    reportAppControl: (report, context) => reportAppControl(core, report, context),
 
     getWorkerSetup: () =>
       workerGuard(async () => {

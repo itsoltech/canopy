@@ -1,6 +1,6 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { cliUpdateActionable, appCheckPause } from "@canopy/domain/release/update-actions";
+import { cliUpdateActionable, appCheckPause, homeAppComputer } from "@canopy/domain/release/update-actions";
 
 export type UpdateRequest = MessageInitShape<typeof ui.ManageUpdatesRequestSchema>;
 
@@ -88,15 +88,17 @@ export function computerAction(computer: ui.ComputerUpdate): UpdateRequest | und
     return;
 
   if (app.ready || app.updaterPhase === "downloaded" || (app.availableVersion && app.availableVersion !== app.version))
-    return { action: "computer", nodeId: computer.nodeId };
+    return computer.nodeId ? { action: "computer", nodeId: computer.nodeId } : { action: "app" };
 
   return undefined;
 }
 
-export function updatesAvailable(snapshot: ui.UpdatesSnapshot, includeLinkedWorkers = true) {
+export function updatesAvailable(snapshot: ui.UpdatesSnapshot, includeLinkedWorkers = true, includeHomeApp = true) {
   const homes = includeLinkedWorkers ? updateHomes(snapshot) : [{ home: snapshot, nodeId: "" }];
+  const home = includeHomeApp ? homeAppComputer(snapshot) : undefined;
 
   return (
+    (home && !!computerAction(home)) ||
     (!snapshot.gatewayBundled && snapshot.gatewayInstallKind === "binary" && snapshot.gatewayUpdateAvailable) ||
     snapshot.computers.some((computer) => !!computerAction(computer)) ||
     homes.some(
@@ -109,7 +111,7 @@ export function updatesAvailable(snapshot: ui.UpdatesSnapshot, includeLinkedWork
 
 /** Update all only manages this home's workers and CLIs, plus linked computer apps. */
 export function bulkUpdatesAvailable(snapshot: ui.UpdatesSnapshot) {
-  return updatesAvailable(snapshot, false);
+  return updatesAvailable(snapshot, false, false);
 }
 
 export function updatesRunning(snapshot: ui.UpdatesSnapshot) {

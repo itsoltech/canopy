@@ -13,7 +13,7 @@ const CHECK_THROTTLE_MS = 10_000;
 const CHECK_TIMEOUT_MS = 30_000;
 
 /** Who asked: a directly linked computer of this owner (its node id and name). */
-export type AppUpdateOrigin = { nodeId: string; name: string };
+export type AppUpdateOrigin = { nodeId: string; name: string; deviceId?: string };
 
 /**
  * Local mode: the desktop app's own control channel to its bundled gateway (docs/updates.md, "Połączone komputery").
@@ -22,6 +22,7 @@ export type AppUpdateOrigin = { nodeId: string; name: string };
  */
 export class LocalAppControl {
   private session: Session | undefined;
+  private remoteUpdate = false;
   private state = create(ui.DesktopUpdateStateSchema, { phase: "idle" });
   private command = create(ui.DesktopUpdateCommandSchema);
   private queue = Promise.resolve();
@@ -30,7 +31,12 @@ export class LocalAppControl {
   constructor(
     readonly runtime: CoreRuntime,
     readonly owner: string,
+    private readonly changed: () => void = () => {},
   ) {}
+
+  get supportsUpdates() {
+    return this.remoteUpdate;
+  }
 
   private serialize<A>(run: () => Promise<A>): Promise<A> {
     const result = this.queue.then(run);
@@ -49,6 +55,8 @@ export class LocalAppControl {
     this.checking?.finish();
     this.session?.channel.close();
     this.session = session;
+    this.remoteUpdate = hello.remoteUpdate;
+    this.changed();
     const stop = () => channel.close();
     signal.addEventListener("abort", stop, { once: true });
 
@@ -68,6 +76,7 @@ export class LocalAppControl {
       if (this.session === session) {
         this.checking?.finish();
         this.session = undefined;
+        this.changed();
       }
     }
   }
@@ -84,6 +93,7 @@ export class LocalAppControl {
       // Until the app takes up a new request, its reports (older or no request) don't replace the queued state.
       if (this.command.requestId && state.requestId !== this.command.requestId) return;
       this.state = create(ui.DesktopUpdateStateSchema, { ...state, connected: true });
+      this.changed();
 
       if (
         this.checking &&
@@ -105,8 +115,8 @@ export class LocalAppControl {
       connected: open,
       disabledReason: !open
         ? "The Canopy app isn't connected to its gateway."
-        : !this.session?.hello.remoteUpdate
-          ? "Update this Canopy app on its computer."
+        : !this.supportsUpdates
+          ? "Update this computer from its own window once to enable remote updates."
           : this.state.disabledReason,
     });
   }
@@ -117,7 +127,8 @@ export class LocalAppControl {
       const session = this.session;
       const state = this.snapshot();
 
-      if (!session || state.disabledReason) throw new ConnectError(state.disabledReason, Code.FailedPrecondition);
+      if (!session || session.channel.closed || state.disabledReason)
+        throw new ConnectError(state.disabledReason, Code.FailedPrecondition);
 
       if (busy(state.phase)) return;
       this.command = create(ui.DesktopUpdateCommandSchema, {
@@ -134,12 +145,14 @@ export class LocalAppControl {
       });
       await this.audit("desktop.update.request", {
         node: origin.nodeId,
+        device: origin.deviceId ?? "",
         requestId: this.command.requestId,
         version: state.availableVersion,
       });
       session.channel.push(
         create(ui.DesktopControlEventSchema, { sessionId: session.id, confirmed: true, command: this.command }),
       );
+      this.changed();
     });
   }
 

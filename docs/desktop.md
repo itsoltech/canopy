@@ -1010,6 +1010,10 @@ Postęp i wynik są widoczne zdalnie i audytowane. Szczegóły:
 [updates.md](updates.md#zdalna-aktualizacja-aplikacji-desktopowej).
 Tryb lokalny obsługuje żądania połączonego komputera przez kanał własnego gatewaya;
 obie ścieżki używają tego samego `RemoteAppUpdate` i journalu.
+Ten kanał obsługuje także potwierdzone `ManageUpdates.app` od telefonu sparowanego
+z tym gatewayem lub jego web/BFF. Nie wymaga nowego instalatora ani zmiany kontraktu
+`canopy.update.v1`: zachowuje cichy NSIS, odmowę przy potrzebie administratora,
+barierę idle, trwałe id i wynik po restarcie. Telefon nie otwiera kanału kontrolera.
 
 Na macOS aktualizacje są włączone, gdy aplikację podpisał Developer ID (odczyt podpisującego przez
 `codesign --display`). Pieczęć zasobów nie jest warunkiem: buildy do 0.2.0-nightly.7 nie ustawiały
