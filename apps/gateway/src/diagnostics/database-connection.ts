@@ -1,12 +1,27 @@
 import { Effect, Exit, Stream } from "effect";
 import type { SqlConnection } from "effect/sql";
-import type { DatabasePhase } from "@canopy/domain/diagnostics";
+import type { DatabaseFamily, DatabasePhase } from "@canopy/domain/diagnostics";
 import type { DatabaseMonitor } from "./database.ts";
 import { QueryFamily, QueryRpc } from "./query-context.ts";
 
 type SqlParameters = Parameters<SqlConnection.Connection["execute"]>[1];
 
 type Transform = Parameters<SqlConnection.Connection["execute"]>[2];
+
+/** Separate lexical scope: completion hooks cannot capture SQL work, parameters or connections. */
+function completion(
+  monitor: DatabaseMonitor,
+  family: DatabaseFamily,
+  phase: DatabasePhase,
+  rpc: number,
+  start: number,
+) {
+  return <A, E>(exit: Exit.Exit<A, E>) => {
+    monitor.record(family, phase, start, Exit.isFailure(exit), rpc);
+
+    return Effect.void;
+  };
+}
 
 /** Read references directly from the consuming fiber; avoid generators and context copies. */
 export function observed<A, E, R>(monitor: DatabaseMonitor, phase: DatabasePhase, work: Effect.Effect<A, E, R>) {
@@ -16,11 +31,7 @@ export function observed<A, E, R>(monitor: DatabaseMonitor, phase: DatabasePhase
     const rpc = fiber.getRef(QueryRpc);
     const start = performance.now();
 
-    return Effect.onExit(work, (exit) => {
-      monitor.record(family, phase, start, Exit.isFailure(exit), rpc);
-
-      return Effect.void;
-    });
+    return Effect.onExit(work, completion(monitor, family, phase, rpc, start));
   });
 }
 
@@ -62,11 +73,7 @@ export class ObservedConnection implements SqlConnection.Connection {
         const start = performance.now();
 
         return Effect.succeed(
-          Stream.onExit(work, (exit) => {
-            this.monitor.record(family, "execute", start, Exit.isFailure(exit), rpc);
-
-            return Effect.void;
-          }),
+          Stream.onExit(work, completion(this.monitor, family, "execute", rpc, start)),
         );
       }),
     );

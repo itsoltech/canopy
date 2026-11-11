@@ -1,9 +1,14 @@
-import { processGovernor } from "@canopy/process-governor";
+import { processGovernor, type ProcessObserver } from "@canopy/process-governor";
 import { governorMetric } from "@canopy/domain/diagnostics";
 import type { RpcCollector } from "./collector.ts";
 import { databaseMonitor } from "./database.ts";
 import { Effect } from "effect";
 import type { CoreRuntime } from "../core/core-context.ts";
+
+/** The singleton governor must not retain a runtime, operation or admission callback. */
+const governorObserver = (collector: RpcCollector): ProcessObserver => (kind, priority, event, elapsed) => {
+  collector.measure(governorMetric(kind, priority, event), event === "wait" || event === "execution" ? elapsed : 1);
+};
 
 /** Numeric hooks only. No operation identities or arguments cross this boundary. */
 export class ProcessDiagnostics {
@@ -12,6 +17,7 @@ export class ProcessDiagnostics {
   #cpu = process.cpuUsage();
   #sampled = performance.now();
   #expected = 0;
+  #statsBusy = false;
 
   constructor(
     readonly collector: RpcCollector,
@@ -29,12 +35,7 @@ export class ProcessDiagnostics {
     if (monitor) monitor.collector = this.collector;
     this.#cpu = process.cpuUsage();
     this.#sampled = performance.now();
-    this.#stopGovernor = processGovernor.observe((kind, priority, event, elapsed) => {
-      this.collector.measure(
-        governorMetric(kind, priority, event),
-        event === "wait" || event === "execution" ? elapsed : 1,
-      );
-    });
+    this.#stopGovernor = processGovernor.observe(governorObserver(this.collector));
     this.#expected = performance.now() + 20;
     this.#timer = setInterval(() => {
       const now = performance.now();
@@ -75,12 +76,17 @@ export class ProcessDiagnostics {
       this.collector.measure(8, db.occupied, false, 0, weight);
       this.collector.measure(9, db.capacity, false, 0, weight);
 
-      if (db.stats)
+      if (db.stats && !this.#statsBusy) {
+        this.#statsBusy = true;
         void Effect.runPromise(db.stats)
           .then((stats) => {
             db.capacity = stats.max;
           })
-          .catch(() => {});
+          .catch(() => {})
+          .finally(() => {
+            this.#statsBusy = false;
+          });
+      }
       db.peakWaiting = db.waiting;
       db.peakOccupied = db.occupied;
     }
@@ -92,6 +98,7 @@ export class ProcessDiagnostics {
     clearInterval(this.#timer);
     this.#timer = undefined;
     this.#stopGovernor?.();
+    this.#stopGovernor = undefined;
     const db = databaseMonitor(this.runtime);
 
     if (db?.collector === this.collector) db.collector = undefined;

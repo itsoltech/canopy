@@ -1,9 +1,10 @@
 import type { Message } from "@bufbuild/protobuf";
-import { Code, ConnectError, type Interceptor } from "@connectrpc/connect";
+import { Code, type Interceptor } from "@connectrpc/connect";
 import type { RpcCollector, RpcObservation } from "./collector.ts";
 import { registered } from "./registry.ts";
 import { messageKind } from "./message-kind.ts";
 import { rpcContext, rpcMessages } from "./query-context.ts";
+import { diagnosticErrorCode } from "./error-code.ts";
 
 async function* messages(
   input: AsyncIterable<Message>,
@@ -54,7 +55,7 @@ export function diagnosticsInterceptor(collector: RpcCollector): Interceptor {
           try {
             yield* messages(rpcMessages(response.message, id), observation, "response");
           } catch (error) {
-            release(ConnectError.from(error).code);
+            release(error instanceof Error ? diagnosticErrorCode(error) : Code.Unknown);
             throw error;
           } finally {
             release(request.signal.aborted ? Code.Canceled : 0);
@@ -62,7 +63,7 @@ export function diagnosticsInterceptor(collector: RpcCollector): Interceptor {
         })(),
       };
     } catch (error) {
-      release(ConnectError.from(error).code);
+      release(error instanceof Error ? diagnosticErrorCode(error) : Code.Unknown);
       throw error;
     }
   };

@@ -344,7 +344,10 @@ async function beginPhase(
 
   if (phase === "slow_reader" && forensicCheckpoint()) await active!.run("heap", "watches_open");
 
-  if (phase === "governor") await active!.run("governor");
+  if (phase === "governor") {
+    await forensicCheckpoint()?.("before_governor");
+    await active!.run("governor");
+  }
   await worker!.run("begin");
   const finishContention = await diagnosticsContention(postgres, database, phase, api, thread, forensicCheckpoint());
 
@@ -353,7 +356,14 @@ async function beginPhase(
 
 function forensicCheckpoint() {
   return process.env["CANOPY_BENCH_FORENSICS_DIR"] && process.env["CANOPY_BENCH_FORENSIC_CHECKPOINTS"] === "1"
-    ? (point: string) => active!.run("heap", point)
+    ? async (point: string) => {
+        const result = await active!.run("heap", point);
+
+        if (point === "before_lock" && process.env["CANOPY_BENCH_RETENTION_PROBE"] === "1")
+          await active!.run("failure_probe");
+
+        return result;
+      }
     : undefined;
 }
 

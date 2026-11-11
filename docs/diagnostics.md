@@ -256,6 +256,37 @@ pod jej koniec i 20 s po zwolnieniu. Statystyki sprzed snapshotu i po jawnym GC
 obejmują liczbę typów obiektów; sam snapshot JSC także może wykonać GC.
 Snapshoty służą więc ścieżkom retencji, a wcześniejsze statystyki — rozmiarowi
 niezebranych jeszcze obiektów. Nie porównujemy ich CPU/RSS z nagraniem akceptacyjnym.
+
+Skupiony test retencji przygotowuje `bash scripts/bench/diagnostics-retention.sh 2 write_failure`.
+Uruchamiamy go wyłącznie w przyznanym oknie, po aktualizacji stosu do bieżącego dev.
+Każdy checkpoint (przed blokadą, po 65 s blokady i 20 s po zwolnieniu) otrzymuje
+osobny świeży przebieg A/B, z historią, widokami, checkpointami DB i kompaktowaniem.
+Prelude slow receiver trwa 15 s, blokada 70 s, faza awarii 90 s; razem około
+12–18 minut dla trzech checkpointów, zależnie od seedowania i zapisu snapshotów.
+Argument `write_failure_without_watches` jest kontrolą bez otwierania watchy.
+Po punkcie przed blokadą test wykonuje rzeczywisty, owner-scoped INSERT z błędnym
+parametrem JSON 8 MiB rzutowanym na timestamptz. Zwraca tylko bit niepowodzenia;
+błąd, jego message i parametry nie trafiają do IPC ani raportu. Pozwala to
+sprawdzić retencję błędu sterownika niezależnie od wielkości metryk. Dodatkowy
+parametr jest syntetyczny, ale nadal pozostaje wyłącznie w prywatnych artefaktach.
+`CANOPY_DIAGNOSTICS_RETENTION_PROBE=0` wyłącza ten INSERT dla kontroli oryginalnej
+fazy awarii; nie wyłącza 70-sekundowej blokady zapisu diagnostyki.
+`bash scripts/bench/diagnostics-retention.sh 3 governor` przygotowuje oddzielne
+porównanie przed governor i po 90 s obciążenia (około 8–12 minut).
+Etap 2 utrzymuje etap 1 w obu członach; etap 3 utrzymuje etapy 1 i 2.
+Każdy proces pracuje w swap-disabled scope. To przebieg forensyczny, bez statusu
+akceptacji narzutu; nie zastępuje trzech par z bramkami hosta.
+Prywatny katalog ma tryb 0700, artefakty 0600. Plik `post-gc.json` zawiera surowe
+statystyki przed GC, po dwóch `Bun.gc(true)` rozdzielonych oddaniem event loop
+oraz deltę B−A heap/RSS po GC. Snapshot V8 powstaje dopiero po tym odczycie.
+`bun scripts/bench/diagnostics-heap-report.ts off.json on.json` porównuje liczby
+obiektów według konstruktora oraz self bytes, pokazuje 20 największych stringów
+i obiektów wraz z najkrótszą ścieżką od korzenia, pomijając weak edges.
+Self bytes nie są rozmiarem dominatorów; ścieżki mają limit 100 krawędzi.
+Raport nie wypisuje treści stringów, błędów, nazw closure ani dynamicznych kluczy.
+Nieznane nazwy konstruktorów są hashowane, a nazwy pól pochodzą z allowlisty.
+Snapshoty i surowe liczniki typów pozostają prywatne; mogą zawierać dane testowe
+i poświadczenia prywatnej bazy. Nie dołączamy ich do PR.
 Pamięć etapu 2 mieści się w dotychczasowych
 rezerwacjach; przyrost RSS/VmHWM oraz każdą parę należy pokazać osobno, bez
 uznawania szumu za dodatkowy budżet. Skrypt wymaga czystego commita, zapisuje
@@ -264,6 +295,17 @@ HEAD i zachowuje odrzucone próby; po trzech odrzuceniach tej samej pary kończy
 Zwykłe zapytania korzystają z natywnego `PgPool.use`, bez osobnego scope'u
 i finalizera na zapytanie. Transakcje i strumienie nadal rezerwują sesję;
 rollback, savepoint i błąd COMMIT zachowują semantykę sterownika.
+Instrumentacja nie zachowuje `Exit.Failure`, błędu sterownika ani jego pól;
+reserve/execute/release zapisuje tylko rodzinę, czas, id RPC i bit błędu.
+Rozdzielenie błędu pracy od cleanupu wykorzystuje wyłącznie liczby reasons/defects,
+bez porównywania i hashowania błędów. Callbacki zakończenia nie zamykają SQL,
+parametrów ani fizycznego połączenia. Klasyfikacja RPC czyta tylko kod rozpoznanego
+`ConnectError`; pozostałe wyjątki dają `Unknown`, bez kopiowania message.
+Obserwator governora otrzymuje wyłącznie rodzaj, priorytet, zdarzenie i czas;
+nie dostaje operacji, klucza, wyniku ani błędu. Kolektor jest jedyną referencją
+utrzymywaną przez callback obserwatora. Stop usuwa obserwatora i jego unsubscribe.
+Próbkowanie statystyk puli ma najwyżej jedno zadanie w toku i nie zachowuje
+zakończonych promise'ów ani przyczyn ich błędów.
 Wrappery fizycznych połączeń są w WeakMap, z rezerwacją 4 KiB w istniejącym
 budżecie kolektora dla domyślnej puli dziesięciu sesji. Nie ma map per zapytanie,
 watch ani admission. Hook kończący fazę SQL zapisuje wyłącznie cztery liczby

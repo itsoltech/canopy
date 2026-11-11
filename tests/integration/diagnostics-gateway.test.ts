@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create, toJsonString } from "@bufbuild/protobuf";
 import { Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
+import { Code } from "@connectrpc/connect";
 import { Effect, Exit, Stream } from "effect";
 import { SqlClient, type SqlConnection } from "effect/sql";
 import { ProcessGovernor, PROCESS_LIMITS } from "@canopy/process-governor";
@@ -15,6 +16,7 @@ import { DiagnosticsStore } from "../../apps/gateway/src/diagnostics/store.ts";
 import { registered } from "../../apps/gateway/src/diagnostics/registry.ts";
 import { sanitizeSnapshot } from "../../apps/gateway/src/diagnostics/sanitize.ts";
 import { diagnosticsResponse } from "../../apps/gateway/src/diagnostics/response.ts";
+import { diagnosticErrorCode } from "../../apps/gateway/src/diagnostics/error-code.ts";
 import { decodeRollup } from "../../apps/gateway/src/diagnostics/rollup.ts";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
@@ -97,6 +99,8 @@ describe.skipIf(!dockerAvailable)("gateway diagnostics preserve durable, private
         ?.database.some((family) => family.family === "thread.page"),
     ).toBe(true);
     await query("SELECT $1::text AS sensitive", [secret]);
+    // PostgreSQL includes a failed cast's input in its driver error message.
+    await query("SELECT $1::integer AS sensitive", [secret.repeat(4096)]).catch(() => undefined);
     await gateway.runtime.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
@@ -240,6 +244,27 @@ describe.skipIf(!dockerAvailable)("gateway diagnostics preserve durable, private
         const released = yield* Effect.exit(observedBorrow(lease(releaseFailure), monitor)(() => Effect.void));
         expect(Exit.isFailure(released)).toBe(true);
 
+        // A cleanup defect replaces a typed work error; reason counts alone would miss it.
+        const both = yield* Effect.exit(observedBorrow(lease(releaseFailure), monitor)(() => Effect.fail(secret)));
+        expect(Exit.isFailure(both)).toBe(true);
+
+        let inspected = 0;
+        const driverFailure = new Error(secret);
+
+        for (const field of ["parameters", "query", "detail", "cause", "message", "stack"])
+          Object.defineProperty(driverFailure, field, {
+            get() {
+              inspected++;
+              throw new Error("Diagnostics inspected a private driver failure");
+            },
+          });
+        const privateExit = yield* Effect.exit(
+          observedBorrow(lease(reserve), monitor)(() => Effect.fail(driverFailure)),
+        );
+        expect(Exit.isFailure(privateExit)).toBe(true);
+        expect(diagnosticErrorCode(driverFailure)).toBe(Code.Unknown);
+        expect(inspected).toBe(0);
+
         const thrown = yield* Effect.exit(
           observedBorrow(
             lease(reserve),
@@ -262,7 +287,7 @@ describe.skipIf(!dockerAvailable)("gateway diagnostics preserve durable, private
     expect(monitor.occupied).toBe(0);
     const measures = gateway.core.diagnostics.collector.rollup(Math.floor(Date.now() / 60_000) * 60_000)!.measures;
     expect(measures.find((row) => row.metricId === databaseMetric("threads.metadata", "reserve"))?.errors).toBe(1n);
-    expect(measures.find((row) => row.metricId === databaseMetric("threads.metadata", "release"))?.errors).toBe(1n);
+    expect(measures.find((row) => row.metricId === databaseMetric("threads.metadata", "release"))?.errors).toBe(2n);
     expect(toJsonString(ui.ComputerDiagnosticsSchema, snapshot())).not.toContain(secret);
     expect((await query<{ alive: number }>("SELECT 1 AS alive"))[0]?.alive).toBe(1);
   });

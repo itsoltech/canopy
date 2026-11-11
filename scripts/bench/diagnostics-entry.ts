@@ -10,6 +10,7 @@ import { DatabaseMaintenance } from "../../apps/gateway/src/maintenance/job.ts";
 import { BenchCommand } from "./diagnostics-protocol.ts";
 import { DiagnosticsGovernorWorkload } from "./diagnostics-governor.ts";
 import { DiagnosticsForensics } from "./diagnostics-forensics.ts";
+import { failedParameterWrite } from "./diagnostics-retention-probe.ts";
 
 const gatewayDiagnosticsEnabled =
   process.env["CANOPY_BENCH_STAGE"] === "2" && process.env["CANOPY_BENCH_DIAGNOSTICS"] === "1";
@@ -155,6 +156,8 @@ async function stats() {
 }
 
 async function execute(command: BenchCommand) {
+  if (command.action === "failure_probe") await failedParameterWrite(runtime, owner);
+
   if (command.action === "governor") governorWorkload.start();
 
   if (command.action === "end" || command.action === "stop") await governorWorkload.stop();

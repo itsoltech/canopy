@@ -1,4 +1,4 @@
-import { Effect, Equal, Exit } from "effect";
+import { Effect, Exit } from "effect";
 import type { SqlConnection, SqlError } from "effect/sql";
 import type { DatabaseMonitor } from "./database.ts";
 import { QueryFamily, QueryRpc } from "./query-context.ts";
@@ -15,7 +15,8 @@ export function observedBorrow(borrow: SqlConnection.Borrower, monitor: Database
       const start = performance.now();
       let acquired = false;
       let releaseStart = start;
-      let workFailure: Exit.Failure<A, E> | undefined;
+      let workReasons = 0;
+      let workDefects = 0;
       monitor.waiting++;
       monitor.peakWaiting = Math.max(monitor.peakWaiting, monitor.waiting);
 
@@ -30,8 +31,11 @@ export function observedBorrow(borrow: SqlConnection.Borrower, monitor: Database
           return Effect.onExit(
             Effect.suspend(() => work(connection)),
             (exit) => {
-              // Successful row sets must never become captured diagnostic closure state.
-              if (Exit.isFailure(exit)) workFailure = exit;
+              // Keep only counts: a driver failure can own the complete query payload.
+              if (Exit.isFailure(exit)) {
+                workReasons = exit.cause.reasons.length;
+                for (const reason of exit.cause.reasons) if (reason._tag === "Die") workDefects++;
+              }
               releaseStart = performance.now();
 
               return Effect.void;
@@ -44,9 +48,15 @@ export function observedBorrow(borrow: SqlConnection.Borrower, monitor: Database
             monitor.record(family, "reserve", start, Exit.isFailure(exit), rpc);
           } else {
             monitor.occupied--;
-            // A work failure alone is not a release error; an added cleanup cause is.
-            const releaseError = Exit.isFailure(exit) && !Equal.equals(exit, workFailure);
-            workFailure = undefined;
+            // Effect unions cleanup reasons, but elects defects over typed failures.
+            // Counting defects separately also detects a failed cleanup replacing a work error.
+            let releaseError = false;
+
+            if (Exit.isFailure(exit)) {
+              let defects = 0;
+              for (const reason of exit.cause.reasons) if (reason._tag === "Die") defects++;
+              releaseError = exit.cause.reasons.length > workReasons || defects > workDefects;
+            }
             monitor.record(family, "release", releaseStart, releaseError, rpc);
           }
 

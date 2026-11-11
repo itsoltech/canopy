@@ -33,6 +33,23 @@ export class DatabaseMonitor {
   }
 }
 
+/** A lease finalizer owns its scope, never the acquisition result or statement callback. */
+function releaseLease(child: Scope.Scope, monitor: DatabaseMonitor, family: DatabaseFamily, rpc: number) {
+  return <A, E>(exit: Exit.Exit<A, E>) =>
+    Effect.suspend(() => {
+      const start = performance.now();
+
+      return Scope.close(child, exit).pipe(
+        Effect.onExit((release) =>
+          Effect.sync(() => {
+            monitor.occupied--;
+            monitor.record(family, "release", start, Exit.isFailure(release), rpc);
+          }),
+        ),
+      );
+    });
+}
+
 /** A child scope isolates release time from lease lifetime, including failed finalizers. */
 export function observedReserve(acquire: SqlConnection.Acquirer, monitor: DatabaseMonitor): SqlConnection.Acquirer {
   return Effect.withFiber((fiber) => {
@@ -58,20 +75,7 @@ export function observedReserve(acquire: SqlConnection.Acquirer, monitor: Databa
 
         monitor.occupied++;
         monitor.peakOccupied = Math.max(monitor.peakOccupied, monitor.occupied);
-        yield* Effect.addFinalizer((exit) =>
-          Effect.suspend(() => {
-            const released = performance.now();
-
-            return Scope.close(child, exit).pipe(
-              Effect.onExit((release) =>
-                Effect.sync(() => {
-                  monitor.occupied--;
-                  monitor.record(family, "release", released, Exit.isFailure(release), rpc);
-                }),
-              ),
-            );
-          }),
-        );
+        yield* Effect.addFinalizer(releaseLease(child, monitor, family, rpc));
 
         return new ObservedConnection(result.value, monitor);
       }),
