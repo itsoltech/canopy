@@ -68,7 +68,7 @@ export class GitHubPullRequests {
 
     return snapshot;
   }
-  async load(name: string, number: number, force = false): Promise<github.PullRequestSnapshot> {
+  async load(name: string, number: number, force = false, background = false): Promise<github.PullRequestSnapshot> {
     const { run, owner } = this.accounts;
 
     try {
@@ -77,6 +77,7 @@ export class GitHubPullRequests {
       const cached = await this.client.cached(row, key);
 
       const read = {
+        background,
         key,
         path: "/graphql",
         query: SUMMARY_QUERY,

@@ -6,6 +6,7 @@ import { githubAttempts } from "./store-attempts.ts";
 import { githubCatalogue } from "./store-catalogue.ts";
 import { githubCache } from "./store-cache.ts";
 import { githubPullRequests } from "./store-pull-requests.ts";
+import { githubDetectionStore } from "./store-detection.ts";
 
 export function githubStore(sql: SqlClient.SqlClient, key: Buffer) {
   const seal = (value: TokenPair) => encryptSecret(key, JSON.stringify(value));
@@ -90,6 +91,7 @@ export function githubStore(sql: SqlClient.SqlClient, key: Buffer) {
     ...githubCatalogue(sql),
     ...githubCache(sql),
     ...githubPullRequests(sql),
+    ...githubDetectionStore(sql),
   };
 }
 

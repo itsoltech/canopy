@@ -31,6 +31,7 @@ export type ProfileModelsInit = MessageInitShape<typeof ProfileModelsSchema>;
 
 export interface CommandOutput {
   readonly workspaceCopy?: MessageInitShape<typeof CommandResultSchema>["workspaceCopy"];
+  readonly gitPrContext?: MessageInitShape<typeof CommandResultSchema>["gitPrContext"];
   readonly switchedHead?: MessageInitShape<typeof CommandResultSchema>["switchedHead"];
   readonly workspaceOrigin?: string;
   readonly workspaceCloneUrl?: string;

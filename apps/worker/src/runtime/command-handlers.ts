@@ -34,6 +34,8 @@ export class CommandHandlers {
 
     if (kind.case === "readWorkspaceOrigin") return this.ctx.ops.readWorkspaceOrigin(kind);
 
+    if (kind.case === "readGitPrContext") return this.ctx.ops.readGitPrContext(kind);
+
     if (kind.case === "initRepository") return this.ctx.ops.initRepository(kind);
 
     if (kind.case === "cloneRepository") return this.ctx.ops.cloneRepository(kind, command.commandId);

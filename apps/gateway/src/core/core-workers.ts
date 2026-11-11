@@ -226,6 +226,14 @@ export async function coreIngest(
     );
     const body = stored.event.body;
 
+    if (
+      body.case === "threadReady" ||
+      body.case === "turnStarted" ||
+      body.case === "turnFinished" ||
+      body.case === "itemCompleted"
+    )
+      hostContext.githubDetection.request(stored.threadId);
+
     if (body.case === "shellInputPrepared") {
       for (const turn of await coreRun(hostContext, (s) => s.turnsOf(stored.threadId)))
         if (turn.input.shellInputId === body.value.inputId)

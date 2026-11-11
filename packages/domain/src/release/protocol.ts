@@ -22,6 +22,9 @@ export const THREAD_FILES_CAPABILITY = "thread_files_v1";
 /** Transient Git clone progress and cancellation; additive to WorkerLink protocol 1. */
 export const CLONE_PROGRESS_CAPABILITY = "git_clone_progress_v1";
 
+/** Ephemeral checkout/ref/remote identities and bounded local ancestry checks. */
+export const GIT_PR_CONTEXT_CAPABILITY = "git_pr_context_v1";
+
 /** Frozen canopy.update.v1; never bump this for WorkerLink or application releases. */
 export const UPDATE_PROTOCOL = 1;
 

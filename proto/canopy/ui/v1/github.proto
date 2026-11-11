@@ -164,11 +164,15 @@ message PullRequestSnapshot {
   uint64 access_revision = 17;
   repeated string assignees = 18;
   repeated PullRequestLabel label_details = 19;
+  string head_repository_id = 20;
+  string head_repository_name = 21;
 }
 message PullRequestLink {
   PullRequestSummary summary = 1;
   string source = 2;
   google.protobuf.Timestamp created_at = 3;
+  bool current_branch = 4;
+  string evidence = 5;
 }
 message ThreadPullRequestsRequest { string thread_id = 1; }
 message ThreadPullRequestsResponse {

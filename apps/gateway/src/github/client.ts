@@ -12,7 +12,8 @@ export interface GitHubRead {
   variables?: Readonly<Record<string, string | number>>;
   query?: string;
   ttl?: number;
-  project?: (value: Schema.JsonObject) => Promise<Schema.JsonObject>;
+  background?: boolean;
+  project?: (value: Schema.JsonObject, headers: Headers) => Promise<Schema.JsonObject>;
 }
 
 /** Shared durable read cache and budget. Neither endpoint nor GraphQL text comes from a client. */
@@ -94,7 +95,9 @@ export class GitHubClient {
       const response = await this.#request(row, read, previous?.etag ?? "", signal);
 
       const payload =
-        response.value && read.project ? await read.project(response.value) : (response.value ?? previous?.payload);
+        response.value && read.project
+          ? await read.project(response.value, response.headers)
+          : (response.value ?? previous?.payload);
 
       if (!payload) throw new Error("GitHub returned no content");
 
@@ -109,7 +112,7 @@ export class GitHubClient {
           payload,
           response.headers.get("etag") ?? previous?.etag ?? "",
           http.now(),
-          read.ttl ?? 60_000,
+          Math.max(read.ttl ?? 60_000, (Number(response.headers.get("x-poll-interval")) || 0) * 1000),
         ),
       );
 
@@ -138,7 +141,7 @@ export class GitHubClient {
       for (let attempt = 0; ; attempt++) {
         signal.throwIfAborted();
         const budget = await run((s) => s.budget(row.github_user_id, resource, http.now()));
-        this.#available(budget, resource);
+        this.#available(budget, resource, read.background);
 
         try {
           const result = await this.access.authorized(row.id, (access) =>
@@ -189,12 +192,13 @@ export class GitHubClient {
       await run((s) => s.apiRelease(lease));
     }
   }
-  #available(budget: BudgetRow, resource: string) {
+  #available(budget: BudgetRow, resource: string, background = false) {
     const now = this.access.http.now();
     const retry = Number(new Date(budget.retry_at));
 
     const exhausted =
-      budget.remaining < budget.limit_count * 0.05 || budget.used >= (resource === "graphql" ? 1500 : 1000);
+      budget.remaining < budget.limit_count * (background ? 0.2 : 0.05) ||
+      budget.used >= (resource === "graphql" ? 1500 : 1000);
 
     if (retry > now || exhausted)
       throw new GitHubHttpFailure(429, Math.max(retry, exhausted ? Number(new Date(budget.reset_at)) : 0));

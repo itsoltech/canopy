@@ -41,5 +41,8 @@ export async function coreGitHeads(hostContext: GatewayCore, workerId: string, r
     }
   }
 
-  for (const id of changed) await coreBroadcastThread(hostContext, id);
+  for (const id of changed) {
+    hostContext.githubDetection.request(id);
+    await coreBroadcastThread(hostContext, id);
+  }
 }

@@ -18,13 +18,21 @@ import type { HostContext } from "./host-context.ts";
 import { workspaceOrigin } from "../git/origin.ts";
 import { revealInFileManager } from "./reveal.ts";
 import { initRepository } from "../git/project-sources.ts";
+import { GitPrReader } from "../git/pr-context.ts";
 import { WorktreeDiscovery, withKnownPaths } from "../git/discovery.ts";
 
 /** Git worktrees (docs/worktrees.md): refs of a workspace, new worktrees and their branch names. */
 export class GitCommands {
   readonly #creating = new Map<string, Promise<void>>();
   readonly #discovery = new WorktreeDiscovery();
+  readonly #prContext = new GitPrReader();
   constructor(readonly ctx: HostContext) {}
+
+  async readGitPrContext(kind: Extract<Command["kind"], { case: "readGitPrContext" }>): Promise<CommandOutput> {
+    this.ctx.ops.checkCwd(kind.value.repoPath);
+
+    return { gitPrContext: await this.#prContext.read(kind.value) };
+  }
 
   async readWorkspaceOrigin(kind: Extract<Command["kind"], { case: "readWorkspaceOrigin" }>): Promise<CommandOutput> {
     this.ctx.ops.checkCwd(kind.value.repoPath);

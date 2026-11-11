@@ -1,5 +1,6 @@
 import { CliImports } from "../imports/index.ts";
 import { GitHubAccounts } from "../github/service.ts";
+import { GitHubDetection } from "../github/detection.ts";
 import { create } from "@bufbuild/protobuf";
 import { createCoreBots, createCoreBus, createCoreScheduler, createCoreUpdates } from "./core-composition.ts";
 import { ui } from "@canopy/contracts";
@@ -191,6 +192,10 @@ export class GatewayCore {
 
   readonly connectors: ConnectorsRuntime;
   readonly github: GitHubAccounts;
+  #githubDetection: GitHubDetection | undefined;
+  get githubDetection() {
+    return (this.#githubDetection ??= new GitHubDetection(this));
+  }
 
   readonly secrets: ThreadSecrets;
 

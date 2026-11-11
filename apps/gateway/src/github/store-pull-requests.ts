@@ -1,9 +1,9 @@
-import { create, fromJson, type JsonValue } from "@bufbuild/protobuf";
 import { github } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import type { AccountRow } from "./records.ts";
+import { githubPrList } from "./store-pr-list.ts";
 
 export interface RepositoryAccountRow {
   repository_id: string;
@@ -18,6 +18,15 @@ export interface PullRequestRow {
   repository_name: string;
   number: number;
   node_id: string;
+}
+
+export interface DetectionEvidence {
+  repository: string;
+  ref: string;
+  sha: string;
+  context: bigint;
+  lease: string;
+  kind: "branch" | "tool_output";
 }
 
 const conflict = () => new ConnectError("Pull requests changed. Refresh, then retry.", Code.Aborted);
@@ -125,7 +134,8 @@ export function githubPullRequests(sql: SqlClient.SqlClient) {
       expected: bigint,
       source: "manual" | "auto" = "manual",
       snapshot?: github.PullRequestSnapshot,
-    ) => linkPullRequest(sql, owner, id, pr, expected, source, snapshot),
+      evidence?: DetectionEvidence,
+    ) => linkPullRequest(sql, owner, id, pr, expected, source, snapshot, evidence),
     prUnlink: (owner: string, id: string, pr: string, expected: bigint) =>
       sql.withTransaction(
         Effect.gen(function* () {
@@ -145,41 +155,7 @@ export function githubPullRequests(sql: SqlClient.SqlClient) {
     }>`SELECT DISTINCT l.thread_id AS id FROM thread_pull_requests l
       JOIN github_pull_requests p ON p.owner_user_id=l.owner_user_id AND p.id=l.pull_request_id WHERE l.owner_user_id=${owner}::uuid
       AND l.unlinked_at IS NULL AND (${repo ?? null}::text IS NULL OR p.repository_id=${repo ?? null})`,
-    prList: (owner: string, id: string) =>
-      Effect.gen(function* () {
-        const current = yield* thread(owner, id);
-
-        const rows = yield* sql<
-          PullRequestRow & { source: string; created_at: Date; payload: JsonValue | null }
-        >`SELECT p.*,l.source,l.created_at,c.payload
-        FROM thread_pull_requests l JOIN github_pull_requests p ON p.owner_user_id=l.owner_user_id AND p.id=l.pull_request_id
-        LEFT JOIN github_repository_accounts r ON r.owner_user_id=p.owner_user_id AND r.repository_id=p.repository_id
-        LEFT JOIN github_accounts a ON a.owner_user_id=r.owner_user_id AND a.id=r.account_id AND a.status='connected'
-        LEFT JOIN github_pr_cache c ON c.owner_user_id=a.owner_user_id AND c.account_id=a.id AND c.access_revision=a.revision
-          AND c.cache_key='summary:'||p.repository_id||':'||p.number
-        WHERE l.owner_user_id=${owner}::uuid AND l.thread_id=${id}::uuid AND l.unlinked_at IS NULL ORDER BY p.created_at DESC,p.id`;
-
-        return create(github.ThreadPullRequestsResponseSchema, {
-          revision: BigInt(current.pull_request_revision),
-          links: rows.map((r) => ({
-            summary: r.payload
-              ? fromJson(github.PullRequestSnapshotSchema, r.payload).summary
-              : {
-                  ref: {
-                    id: r.id,
-                    host: "github.com",
-                    repositoryId: r.repository_id,
-                    repositoryName: r.repository_name,
-                    number: r.number,
-                    nodeId: r.node_id,
-                  },
-                  state: "unavailable",
-                },
-            source: r.source,
-            createdAt: { seconds: BigInt(Math.floor(Number(new Date(r.created_at)) / 1000)) },
-          })),
-        });
-      }),
+    ...githubPrList(sql),
   };
 }
 
@@ -191,6 +167,7 @@ function linkPullRequest(
   expected: bigint,
   source: "manual" | "auto",
   snapshot?: github.PullRequestSnapshot,
+  evidence?: DetectionEvidence,
 ) {
   const { thread, project } = projectionStore(sql);
 
@@ -199,6 +176,13 @@ function linkPullRequest(
       const current = yield* thread(owner, id, true);
 
       if (BigInt(current.pull_request_revision) !== expected) return yield* Effect.fail(conflict());
+
+      if (evidence) {
+        const valid = yield* sql`SELECT 1 FROM github_detection_jobs WHERE owner_user_id=${owner}::uuid
+          AND thread_id=${id}::uuid AND lease_id=${evidence.lease}::uuid AND lease_until>now()`;
+
+        if (!valid.length) return yield* Effect.fail(conflict());
+      }
 
       if (snapshot) {
         const access = yield* sql`SELECT a.id FROM github_accounts a JOIN github_repository_accounts r
@@ -210,9 +194,10 @@ function linkPullRequest(
       }
 
       const linked =
-        yield* sql`INSERT INTO thread_pull_requests(owner_user_id,thread_id,pull_request_id,source,evidence)
-      VALUES (${owner}::uuid,${id}::uuid,${pr}::uuid,${source},${source === "manual" ? "manual" : "branch"})
-      ON CONFLICT(owner_user_id,thread_id,pull_request_id) DO UPDATE SET unlinked_at=NULL,last_seen_at=now(),source=excluded.source
+        yield* sql`INSERT INTO thread_pull_requests(owner_user_id,thread_id,pull_request_id,source,evidence,head_repository_id,head_ref,head_oid,context_id)
+      VALUES (${owner}::uuid,${id}::uuid,${pr}::uuid,${source},${evidence?.kind ?? (source === "manual" ? "manual" : "branch")},${evidence?.repository ?? ""},${evidence?.ref ?? ""},${evidence?.sha ?? ""},${evidence?.context ?? null}::bigint)
+      ON CONFLICT(owner_user_id,thread_id,pull_request_id) DO UPDATE SET unlinked_at=NULL,last_seen_at=now(),
+        source=CASE WHEN thread_pull_requests.source='manual' THEN 'manual' ELSE excluded.source END
       WHERE ${source === "manual"} OR thread_pull_requests.unlinked_at IS NULL RETURNING pull_request_id`;
 
       if (linked.length) yield* project(owner, id);

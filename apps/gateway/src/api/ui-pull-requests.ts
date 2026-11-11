@@ -27,7 +27,16 @@ export function pullRequestHandlers(
   return {
     getGitHubRepositoryAccount: (r) => guard(() => prs.repositories.get(r.repositoryName)),
     setGitHubRepositoryAccount: (r) => guard(() => prs.repositories.set(r)),
-    listThreadPullRequests: (r) => guard(() => prs.list(r.threadId)),
+    listThreadPullRequests: (r) =>
+      guard(async () => {
+        const result = await prs.list(r.threadId);
+        core.githubDetection.request(r.threadId, false);
+        const detail = (await core.github.run((s) => s.detectionDetail(core.github.owner, r.threadId)))[0]?.detail;
+
+        if (detail) result.detail = detail;
+
+        return result;
+      }),
     linkThreadPullRequest: (r) => guard(() => prs.link(r)),
     unlinkThreadPullRequest: (r) => guard(() => prs.unlink(r)),
     getPullRequest: (r) => guard(() => prs.get(r.pullRequestId, r.refresh)),

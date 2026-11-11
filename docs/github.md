@@ -244,8 +244,9 @@ niepełny wynik i odsyła na GitHub. Pełna paginacja, watch/polling i rozbudowa
 pozostają w etapie 4. PostgreSQL weryfikuje każdy odczyt, a LRU RAM do 32 MiB
 ogranicza ponowne parsowanie tej samej generacji JSON. Retencja 30 dni i limit 100 MiB
 dotyczą już trwałego cache etapu 2.
-Bez autodetekcji etapu 3 panel porządkuje ręcznie powiązane PR według daty utworzenia PR,
-nie daty linku; wyróżnianie bieżącej gałęzi dojdzie razem z dowodami autodetekcji.
+Etap 3 dodaje autodetekcję i wyróżnia PR bieżącej gałęzi przed historią; w każdej grupie
+obowiązuje data utworzenia PR, nie data linku. Web/desktop i mobile pokazują źródło Auto/Manual
+oraz Current branch/History. Unlink zachowuje trwały tombstone.
 
 Test live odczytu Summary jest opt-in: z katalogu głównego uruchom
 `CANOPY_LIVE=1 bun test tests/integration/github-pull-requests.live.test.ts`.
@@ -442,6 +443,8 @@ gałęzi. Rozbieżne albo złożone refspec bez jednoznacznego celu wymagają r�
 
 REST paginujemy po Link, maksymalnie 100 wyników na przebieg discovery; kolejne strony są
 kontynuacją z kursorem i wspólnym budżetem, z jawnym stanem **More results available**.
+Weryfikujemy najwyżej 10 kandydatów na partię i zachowujemy również pozycję wewnątrz strony;
+zmiana pełnego HEAD rozpoczyna nowy przebieg, bez ponownego użycia cache pustego wyniku dla starego SHA.
 Brak dopasowań cache'ujemy 5 min. Dla forków pytamy bazowe repo o head właściciela forka,
 nie o gałąź właściciela bazy; niedostępny/usunięty fork nie usuwa istniejących powiązań.
 
@@ -474,11 +477,21 @@ własnym klientem, sprawdza owner i zgodność repo/head z zapisanym kontekstem 
 Obcy PR pokazuje jako sugestię; wynik narzędzia może cytować cudzy link.
 Rejestracja jest `source=auto`, evidence=`tool_output`, i respektuje unlink.
 Opcjonalne przyszłe narzędzie jawnego linkowania korzysta z tego samego handlera i zgód.
+W etapie 3 dowodem jest ostatni zapisany snapshot checkoutu sprzed zakończenia narzędzia
+(czas ograniczamy również czasem zapisu eventu w gatewayu). Brak takiego snapshotu daje
+komunikat z propozycją ręcznego Link, zamiast użycia kontekstu odczytanego dopiero po wyniku.
+Analizę ograniczamy do 64 KiB już w projekcji SQL; watermark i dzierżawa przetrwają restart.
 
 Canopy nie ustawia `GH_TOKEN`, credential helpera ani loginu `gh` na workerze.
 `gh` używa własnej autoryzacji urządzenia, jeśli użytkownik już ją skonfigurował;
 bez niej agent korzysta z istniejącego gatewayowego connectora z odpowiednim grantem.
 Samo połączenie GitHub App nie nadaje agentom ani botom dostępu do konta.
+
+Dowód merge dla cleanup z nowego klienta jest dostępny wyłącznie dla jawnie wybranego PAT
+z aktualnym grantem konektora dla workera. Wymaga świeżej listy i szczegółu PR, zgodnego
+pełnego SHA/ref oraz obu repository ID; po odczycie ponownie sprawdzamy konto, mapowanie i grant.
+Konta device flow nie mają obecnie takiego grantu i samo zalogowanie nie upoważnia do cleanup.
+Dotychczasowy dowód MCP, niezależne sprawdzenia git i ochrona lokalnych zmian pozostają aktywne.
 
 ### Create PR z gałęzi wątku
 
