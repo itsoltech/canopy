@@ -1,4 +1,5 @@
 import { create } from "@bufbuild/protobuf";
+import { workerDiagnostics } from "../../diagnostics/worker.ts";
 import { Schema } from "effect";
 import { classifyFailure, safeFailureDetail, type JsonValue } from "@canopy/domain";
 import { GrokClient, type PermissionRequest, type PermissionResult, type SessionResult } from "@canopy/grok-acp";
@@ -244,7 +245,13 @@ export class GrokThreads {
   async startTurn(spec: ThreadSpec, turnId: string, input: UserInput, settings?: TurnSettings): Promise<void> {
     // The outbox replays StartTurn after a reconnect while the original prompt may still await an interaction.
     if (this.#entries.get(spec.threadId)?.turnId === turnId) return;
-    const entry = await this.#open(spec, settings);
+    workerDiagnostics.turns.begin(spec.threadId, turnId, "grok");
+
+    const entry = await this.#open(spec, settings).catch((error) => {
+      workerDiagnostics.turns.finish(spec.threadId, turnId, true);
+      throw error;
+    });
+
     entry.turnId = turnId;
     entry.interrupted = false;
     entry.toolUses.clear();

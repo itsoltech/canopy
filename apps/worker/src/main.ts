@@ -3,7 +3,8 @@ import { homedir, hostname } from "node:os";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { setTimeout as sleep } from "node:timers/promises";
-import { ManagedRuntime, Result } from "effect";
+import { Effect, ManagedRuntime, Result } from "effect";
+import { Code, ConnectError } from "@connectrpc/connect";
 import { WorkerState } from "@canopy/contracts";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import { STEER_ATTACHMENTS_CAPABILITY } from "@canopy/domain/release/protocol";
@@ -24,6 +25,7 @@ import {
 import { WorkerUpdates } from "./update-link.ts";
 import { applyShellEnv } from "./cli-tools/shell-env.ts";
 import { endpointOptions, WorkerNetworkRoute } from "./network-route.ts";
+import { workerDiagnostics } from "./diagnostics/worker.ts";
 
 const cliArgs = Bun.argv.slice(2);
 
@@ -147,7 +149,15 @@ const dataDir = resolve(local.data_dir ?? defaultDataDir(Bun.env, process.platfo
 mkdirSync(dataDir, { recursive: true, mode: 0o700 });
 
 // Durable outbox: every thread event goes through the journal before it is sent (docs/durability.md, 3.1).
-const runtime = ManagedRuntime.make(Journal.layer(join(dataDir, "journal.db")));
+const workerMetricsEnabled = process.env["CANOPY_BENCH_WORKER_DIAGNOSTICS"] !== "0";
+const runtime = ManagedRuntime.make(Journal.layer(join(dataDir, "journal.db"), workerMetricsEnabled));
+
+if (workerMetricsEnabled)
+  workerDiagnostics.start(
+    dataDir,
+    await runtime.runPromise(Journal.use((journal) => Effect.succeed(journal.statistics))),
+  );
+
 const { journalId } = await runtime.runPromise(journalHello());
 let worktreeRoots: WorktreeRoots;
 
@@ -298,6 +308,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
 let backoffMs = 1_000;
 
 while (!stopping.signal.aborted) {
+  workerDiagnostics.record(110, 1);
   desktopStatus("connecting");
   let drainDelayMs: number | undefined;
   const endpoint = networkRoute.endpoint;
@@ -321,6 +332,7 @@ while (!stopping.signal.aborted) {
         // project_sources: new project directories (git init) and clones (InitRepository, CloneRepository).
         capabilities: [
           "diagnostics_v1",
+          "worker_diagnostics_v1",
           "shell_input_v1",
           "provider_account_status",
           "running_turns",
@@ -381,6 +393,7 @@ while (!stopping.signal.aborted) {
     });
 
     currentLink = link;
+    workerDiagnostics.record(111, 1);
 
     if (installKind() === "binary") await confirmStartup();
     desktopStatus("online");
@@ -410,7 +423,11 @@ while (!stopping.signal.aborted) {
         (routes) => networkRoute.offer(routes, link),
       ));
 
-      if (endpoint !== networkRoute.endpoint) drainDelayMs = 0;
+      if (endpoint !== networkRoute.endpoint) {
+        workerDiagnostics.record(113, 1);
+        drainDelayMs = 0;
+      } else if (drainDelayMs !== undefined) workerDiagnostics.record(112, 1);
+      else if (!stopping.signal.aborted) workerDiagnostics.record(114, 1);
     } finally {
       clearInterval(heartbeat);
       currentLink = undefined;
@@ -420,7 +437,15 @@ while (!stopping.signal.aborted) {
     if (shutdown.signal.aborted) break;
 
     // A reply queued on the old link can race its deliberate close after a successful migration.
-    if (endpoint !== networkRoute.endpoint) continue;
+    if (endpoint !== networkRoute.endpoint) {
+      workerDiagnostics.record(113, 1);
+      continue;
+    }
+
+    workerDiagnostics.record(
+      error instanceof ConnectError && [Code.Unauthenticated, Code.PermissionDenied].includes(error.code) ? 115 : 114,
+      1,
+    );
 
     if (networkRoute.failed()) continue;
     console.warn(`gateway link failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -437,6 +462,8 @@ while (!stopping.signal.aborted) {
 }
 
 // Stops provider runtimes, then closes the journal (SQLite) cleanly.
+workerDiagnostics.stop();
+
 await gracefulStop;
 
 await host.close();

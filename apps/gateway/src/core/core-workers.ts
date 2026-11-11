@@ -24,6 +24,7 @@ export function createCoreWorkerLink(core: GatewayCore) {
     onMessage: (connection, message) => core.diagnostics.workerMessage(connection, message),
     observeCommand: (kind) => core.diagnostics.command(kind),
     diagnosticsEnabled: () => core.diagnostics.collector.enabled,
+    workerDiagnosticsEnabled: () => core.diagnostics.options.workerDiagnosticsEnabled ?? true,
     authenticate: (credential) => coreRun(core, (s) => s.authenticateWorker(credential)),
     welcome: (workerId, hello) => workerJournalWelcome(core, workerId, hello.journalId),
     config: async (workerId) => (await coreRun(core, (s) => s.workerConfig(workerId))) ?? undefined,

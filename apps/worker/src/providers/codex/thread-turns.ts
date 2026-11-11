@@ -1,4 +1,5 @@
 import type { v2 } from "@canopy/codex-protocol";
+import { workerDiagnostics } from "../../diagnostics/worker.ts";
 import { GoalDirective, type ThreadSpec, type UserInput } from "@canopy/contracts";
 import { Effect } from "effect";
 import { SteerError, type TurnSettings } from "../turn-input.ts";
@@ -24,11 +25,13 @@ export function threadTurns(
       input: UserInput,
       settings?: TurnSettings,
     ) {
+      const enteredAt = workerDiagnostics.enabled ? workerDiagnostics.monotonic() : 0;
       connectorCatalog.set(spec.threadId, spec.connectorTools);
       const entry = yield* ensureLoaded(spec, settings?.recoveryContext);
       const known = entry.platformToCodex.get(turnId);
 
       if (known) return known; // redelivered StartTurn: the turn already exists
+      workerDiagnostics.turns.begin(spec.threadId, turnId, "codex", enteredAt);
       const chosen = yield* turnSettings(spec, settings);
       entry.pendingTurns.push(turnId);
 
@@ -43,6 +46,7 @@ export function threadTurns(
         })
         .pipe(
           Effect.mapError(fail(spec.threadId, "turn/start")),
+          Effect.tapError(() => Effect.sync(() => workerDiagnostics.turns.finish(spec.threadId, turnId, true))),
           Effect.tap((response) =>
             Effect.sync(() => {
               const codexTurn = response.turn.id;

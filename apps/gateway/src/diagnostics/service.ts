@@ -19,6 +19,7 @@ import { diagnosticsResponse } from "./response.ts";
 import { DiagnosticsHistory } from "./history.ts";
 import { ProcessDiagnostics } from "./process.ts";
 import { IngestDiagnostics } from "./ingest.ts";
+import { WorkerCatalog } from "./worker-catalog.ts";
 
 const METHOD_KEYS = new Set(
   [...RPC_METHODS, ...LINKED_METHODS, ...COMMAND_METHODS].map((method) => `${method.layer}:${method.name}`),
@@ -48,10 +49,7 @@ export class Diagnostics {
       details: boolean;
     }
   >();
-  #workers: readonly { id: string; name: string; supported: boolean }[] = [];
-  #workersAt = 0;
-  #workersLoading = false;
-  #workersLimited = false;
+  readonly workers: WorkerCatalog;
   #cacheSavedAt = 0;
 
   constructor(
@@ -65,6 +63,7 @@ export class Diagnostics {
     if (this.collector.enabled && this.collector.gatewayEnabled) this.collector.budget.reserve(256);
     this.resources = new ProcessDiagnostics(this.collector, options.runtime);
     this.peers = new DiagnosticsPeers(core);
+    this.workers = new WorkerCatalog(options);
   }
 
   async start() {
@@ -122,7 +121,7 @@ export class Diagnostics {
     this.#timer = setInterval(() => this.tick(), 5000);
     this.#timer.unref();
     void this.peers.catalog().catch(() => {});
-    void this.#workerCatalog();
+    void this.workers.refresh();
     this.history = new DiagnosticsHistory(this.persistence.store, (process, id) =>
       process === "gateway" ? this.collector.methods.has(id) : this.links.has(process) && id >= 1 && id <= 3,
     );
@@ -153,12 +152,34 @@ export class Diagnostics {
     if (message.payload.case === "heartbeat") link?.heartbeat();
 
     if (message.payload.case === "diagnostics") {
+      if (
+        !(this.options.workerDiagnosticsEnabled ?? true) ||
+        !connection.hello.capabilities.includes("worker_diagnostics_v1")
+      ) {
+        message.payload.value.measures = [];
+        message.payload.value.workerMeasuresSupported = false;
+      }
+
       if (connection.hello.capabilities.includes("diagnostics_v1")) link?.report(message.payload.value, connection);
 
       return true;
     }
 
     return false;
+  }
+
+  sync(target: string, id: number, value: number) {
+    if (this.collector.enabled && (this.options.workerDiagnosticsEnabled ?? true))
+      this.link(target, "computer")?.collector.measure(id, value);
+  }
+
+  syncWatch(target: string, delta: number) {
+    if (!this.collector.enabled || !(this.options.workerDiagnosticsEnabled ?? true)) return;
+    const link = this.link(target, "computer");
+
+    if (!link) return;
+    link.activeWatches = Math.max(0, link.activeWatches + delta);
+    link.collector.measure(220, link.activeWatches);
   }
 
   command(kind: string) {
@@ -178,10 +199,16 @@ export class Diagnostics {
     this.collector.measure(35, hub.peakBytes);
     this.collector.measure(35, hub.bytes, false, 0, weight);
 
-    for (const link of this.links.values()) link.collector.tick();
+    for (const link of this.links.values()) {
+      link.collector.tick();
+
+      if (link.kind === "computer" && (this.options.workerDiagnosticsEnabled ?? true))
+        link.collector.measure(220, link.activeWatches, false, 0, weight);
+    }
+
     void this.peers.catalog().catch(() => {});
     void this.peers.tick();
-    void this.#workerCatalog();
+    void this.workers.refresh();
     const minute = Math.floor(Date.now() / 60_000);
 
     if (minute !== this.#minute) {
@@ -250,7 +277,7 @@ export class Diagnostics {
 
     const revision = `${this.collector.session}:${Math.floor(cached.at / 5000)}:${minutes}:${request.offset}:${request.sortBy}:${request.callKind}:${request.methodKeys.join(",")}:${Number(request.overviewOnly)}`;
     const computer = this.core.computers;
-    const links = this.#links(minutes);
+    const links = this.#links(minutes, request.overviewOnly);
 
     const result = create(ui.ComputerDiagnosticsSchema, {
       ...own,
@@ -291,21 +318,24 @@ export class Diagnostics {
     return internal ? result : diagnosticsResponse(result, request);
   }
 
-  #links(minutes: number) {
+  #links(minutes: number, overviewOnly = false) {
     const result: ui.DiagnosticsLink[] = [];
-    let dropped = Number(this.#workersLimited);
+    let dropped = Number(this.workers.limited);
 
-    const workers = new Map(this.#workers.map((worker) => [worker.id, worker]));
+    const workers = new Map(this.workers.values.map((worker) => [worker.id, worker]));
 
     for (const connection of this.core.link.connections.values())
       workers.set(connection.workerId, {
         id: connection.workerId,
         name: workers.get(connection.workerId)?.name ?? "Worker",
         supported: connection.hello.capabilities.includes("diagnostics_v1"),
+        measured: connection.hello.capabilities.includes("worker_diagnostics_v1"),
       });
 
     for (const worker of workers.values()) {
       const link = this.link(worker.id, "worker");
+
+      if (link && worker.measured && (this.options.workerDiagnosticsEnabled ?? true)) link.measuresSupported = true;
 
       if (link)
         result.push(
@@ -315,6 +345,7 @@ export class Diagnostics {
             worker.supported,
             this.core.link.connections.has(worker.id),
             minutes === 1440 ? this.history?.values.get(`worker:${worker.id}`) : undefined,
+            overviewOnly,
           ),
         );
       else {
@@ -342,6 +373,7 @@ export class Diagnostics {
             peer.capabilities.includes("diagnostics_v1"),
             this.core.computers?.canCall(peer.node_id) ?? false,
             minutes === 1440 ? this.history?.values.get(`computer:${peer.node_id}`) : undefined,
+            overviewOnly,
           ),
         );
       else {
@@ -423,29 +455,5 @@ export class Diagnostics {
     if (Date.now() - this.#cacheSavedAt < 300_000) return [];
 
     return this.peers.persisted();
-  }
-
-  async #workerCatalog() {
-    if (this.#workersLoading || Date.now() - this.#workersAt < 30_000) return;
-    this.#workersLoading = true;
-
-    try {
-      this.#workers = await new DiagnosticsStore(this.options.runtime, this.options.userId, "local").query<{
-        id: string;
-        name: string;
-        supported: boolean;
-      }>(
-        `SELECT id,name,coalesce((capabilities->>'diagnosticsV1')::boolean,false) AS supported FROM workers
-         WHERE owner_user_id=$1::uuid AND archived_at IS NULL AND revoked_at IS NULL ORDER BY name LIMIT 257`,
-        [this.options.userId],
-      );
-      this.#workersLimited = this.#workers.length > 256;
-      this.#workers = this.#workers.slice(0, 256);
-      this.#workersAt = Date.now();
-    } catch {
-      /* Keep the last owner-scoped catalog during a database outage. */
-    } finally {
-      this.#workersLoading = false;
-    }
   }
 }

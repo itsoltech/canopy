@@ -18,6 +18,7 @@ export type DiagnosticsClock = { monotonic(): number; utc(): number };
 const SYSTEM_CLOCK: DiagnosticsClock = { monotonic: () => performance.now(), utc: () => Date.now() };
 
 export class RpcCollector {
+  freshnessMs = 10_000;
   enabled = true;
   gatewayEnabled = true;
   readonly methods = new Map<number, RegisteredMethod>();
@@ -189,6 +190,10 @@ export class RpcCollector {
         }
       }
     }
+  }
+
+  mergeMeasures(values: readonly ui.DiagnosticsMeasureAggregate[], at = this.clock.utc()) {
+    for (const ring of this.#rings) for (const value of values) ring.measure(at, value.metricId)?.merge(value);
   }
 
   tick() {

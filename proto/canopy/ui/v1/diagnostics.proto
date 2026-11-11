@@ -159,6 +159,9 @@ message DiagnosticsLink {
   double heartbeat_age_ms = 8;
   uint64 echo_timeouts = 9;
   bool online = 10;
+  repeated DiagnosticsMeasure measures = 11;
+  bool measures_supported = 12;
+  uint64 dropped_samples = 13;
 }
 message ComputerDiagnostics {
   string computer_id = 1;
@@ -226,4 +229,7 @@ message WorkerLinkDiagnostics {
   DiagnosticsHistogram rtt = 5;
   DiagnosticsHistogram jitter = 6;
   uint64 echo_timeouts = 7;
+  repeated DiagnosticsMeasureAggregate measures = 8;
+  bool worker_measures_supported = 9;
+  uint64 dropped_samples = 10;
 }

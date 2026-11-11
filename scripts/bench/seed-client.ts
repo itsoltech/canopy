@@ -97,7 +97,7 @@ export async function seedClient(env: Readonly<Record<string, string | undefined
       }),
     );
 
-    return { thread, worker };
+    return { thread, worker, turn: ids.values().next().value! };
   } finally {
     await runtime.dispose();
   }

@@ -11,9 +11,11 @@ import { BenchCommand } from "./diagnostics-protocol.ts";
 import { DiagnosticsGovernorWorkload } from "./diagnostics-governor.ts";
 import { DiagnosticsForensics } from "./diagnostics-forensics.ts";
 import { failedParameterWrite } from "./diagnostics-retention-probe.ts";
+import { DiagnosticsMirrorWorkload } from "./diagnostics-mirror-workload.ts";
 
 const gatewayDiagnosticsEnabled =
-  process.env["CANOPY_BENCH_STAGE"] === "2" && process.env["CANOPY_BENCH_DIAGNOSTICS"] === "1";
+  process.env["CANOPY_BENCH_STAGE"] === "3" ||
+  (process.env["CANOPY_BENCH_STAGE"] === "2" && process.env["CANOPY_BENCH_DIAGNOSTICS"] === "1");
 
 const runtime = gatewayRuntime(process.env, { databaseDiagnostics: gatewayDiagnosticsEnabled });
 const owner = await ensureDevUser(runtime, "dev@localhost");
@@ -23,11 +25,17 @@ const core = new GatewayCore({
   userId: owner,
   instanceId: "diagnostics-benchmark",
   role: "server",
-  diagnosticsEnabled: process.env["CANOPY_BENCH_STAGE"] === "2" || process.env["CANOPY_BENCH_DIAGNOSTICS"] === "1",
+  diagnosticsEnabled:
+    ["2", "3"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "") || process.env["CANOPY_BENCH_DIAGNOSTICS"] === "1",
   gatewayDiagnosticsEnabled,
+  workerDiagnosticsEnabled:
+    process.env["CANOPY_BENCH_STAGE"] === "3" && process.env["CANOPY_BENCH_DIAGNOSTICS"] === "1",
 });
 
 const governorWorkload = new DiagnosticsGovernorWorkload();
+const mirrorWorkload = process.env["CANOPY_BENCH_STAGE"] === "3" ? new DiagnosticsMirrorWorkload(core) : undefined;
+
+await mirrorWorkload?.start();
 
 const forensics = new DiagnosticsForensics(() => ({
   pendingMinutes: core.diagnostics.persistence?.pending.size ?? 0,
@@ -162,6 +170,8 @@ async function execute(command: BenchCommand) {
 
   if (command.action === "end" || command.action === "stop") await governorWorkload.stop();
 
+  if (command.action === "end" || command.action === "stop") await mirrorWorkload?.end();
+
   if (command.action === "heap") await forensics.heap(command.phase);
 
   if (command.action === "gc") {
@@ -175,6 +185,7 @@ async function execute(command: BenchCommand) {
     lag.enable();
     cpu = process.cpuUsage();
     since = performance.now();
+    mirrorWorkload?.begin(command.phase ?? "idle");
   }
 
   const value = await stats();
@@ -207,6 +218,9 @@ try {
   await stopped;
 } finally {
   lag.disable();
+  await mirrorWorkload?.end();
+
+  if (mirrorWorkload) console.error(JSON.stringify({ phase: "mirror_workload", commits: mirrorWorkload.commits }));
   await maintenance.stop();
   await core.link.shutdown();
   await core.diagnostics.stop();

@@ -31,6 +31,7 @@ export interface WorkerLinkOptions {
   onMessage?(connection: WorkerConnection, message: WorkerMessage): boolean;
   observeCommand?(kind: string): RpcObservation | undefined;
   diagnosticsEnabled?: () => boolean;
+  workerDiagnosticsEnabled?: () => boolean;
   helloTimeoutMs?: number;
 }
 
@@ -100,6 +101,7 @@ export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
         value: {
           ...(await options.welcome(workerId, hello)),
           diagnosticsV1: (options.diagnosticsEnabled?.() ?? true) && hello.capabilities.includes("diagnostics_v1"),
+          workerDiagnosticsV1: workerMetricsSupported(options, hello),
         },
       }),
     );
@@ -201,6 +203,15 @@ export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
       await Promise.all(sessions);
     },
   };
+}
+
+function workerMetricsSupported(options: WorkerLinkOptions, hello: Hello) {
+  return (
+    (options.diagnosticsEnabled?.() ?? true) &&
+    (options.workerDiagnosticsEnabled?.() ?? true) &&
+    hello.capabilities.includes("diagnostics_v1") &&
+    hello.capabilities.includes("worker_diagnostics_v1")
+  );
 }
 
 function bearerToken(header: string | null): string | undefined {

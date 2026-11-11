@@ -1,4 +1,5 @@
 import { forkSession } from "@anthropic-ai/claude-agent-sdk";
+import { workerDiagnostics } from "../../diagnostics/worker.ts";
 import { TurnOrigin, type ForkSpec, type ThreadSpec, type UserInput } from "@canopy/contracts";
 import { Effect, Schema } from "effect";
 import { isClaudeEffort } from "../models.ts";
@@ -76,6 +77,7 @@ export function threadStart(
       }
 
       started.add(turnId);
+      workerDiagnostics.turns.begin(spec.threadId, turnId, "claude");
       yield* Effect.tryPromise({
         try: async () => {
           let session = sessions.get(spec.threadId);
@@ -127,7 +129,14 @@ export function threadStart(
           session.input.push(userMessage(await claudeContent(input)));
         },
         catch: fail(spec.threadId, "turn"),
-      }).pipe(Effect.tapError(() => Effect.sync(() => started.delete(turnId))));
+      }).pipe(
+        Effect.tapError(() =>
+          Effect.sync(() => {
+            started.delete(turnId);
+            workerDiagnostics.turns.finish(spec.threadId, turnId, true);
+          }),
+        ),
+      );
     }),
   };
 }

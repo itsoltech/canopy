@@ -15,7 +15,7 @@ import { SettingsGroup, SettingsRow } from "./SettingsGroup";
 import { SettingsDisclosure } from "./SettingsDisclosure";
 import { styles, useColors } from "../../ui/theme";
 
-function EvidenceRows({ rows }: { rows: [string, string][] }) {
+export function EvidenceRows({ rows }: { rows: [string, string][] }) {
   const c = useColors();
 
   return (

@@ -6,6 +6,8 @@ import { dockerAvailable } from "@canopy/db/testing";
 import { applyThreadUpdate } from "@canopy/domain/thread-snapshot";
 import { remoteServe, uiHandlers } from "@canopy/gateway/api";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
+import { ThreadMirror } from "../../apps/gateway/src/computers/mirror.ts";
+import { MirrorDiagnostics } from "../../apps/gateway/src/diagnostics/sync.ts";
 import { linkedMessage } from "../../apps/gateway/src/computers/remote.ts";
 import { linkedComputers } from "./support/computers.ts";
 import { eventually, failure, startTestGateway, watchUntil, type TestGateway } from "./support/gateway.ts";
@@ -629,6 +631,56 @@ describe.skipIf(!dockerAvailable)("incremental mirrors over two real gateway lin
     } finally {
       abort.abort();
     }
+  }, 30_000);
+
+  test("mirror diagnostics measure only committed updates and preserve unknown backlog across gaps", async () => {
+    await lb.close();
+    const state = (await la.mirror.state(node))!;
+    const measurements: { id: number; value: number }[] = [];
+    let now = 1;
+
+    const mirror = new ThreadMirror(
+      sa,
+      () =>
+        new MirrorDiagnostics(
+          (id, value) => measurements.push({ id, value }),
+          () => now,
+        ),
+    );
+
+    const [epoch, revision] = state.cursor.split(":");
+
+    async function* update(commit: boolean) {
+      yield create(link.MirrorUpdateSchema, {
+        previousCursor: state.cursor,
+        deltaStart: true,
+        delta: { baseCursor: state.cursor, snapshot: { thread: { id: thread, title: "Measured commit" } } },
+      });
+      now += 125;
+
+      if (commit) {
+        yield create(link.MirrorUpdateSchema, { previousCursor: state.cursor, deltaEnd: true });
+        expect(measurements.some((row) => row.id === 200)).toBe(false);
+        yield create(link.MirrorUpdateSchema, {
+          previousCursor: state.cursor,
+          cursor: `${epoch}:${BigInt(revision!) + 1n}`,
+          commit: true,
+        });
+      }
+    }
+
+    await mirror.consume(node, update(false), () => {}, new AbortController().signal);
+    expect(measurements.some((row) => row.id === 200 || row.id === 201)).toBe(false);
+    measurements.length = 0;
+    await mirror.consume(node, update(true), () => {}, new AbortController().signal);
+    expect(measurements.filter((row) => row.id === 200)).toEqual([{ id: 200, value: 125 }]);
+    expect(measurements.flatMap((row) => (row.id === 201 ? [row.value] : []))).toEqual([1, 0]);
+    expect((await mirror.snapshot(node, thread))?.thread?.title).toBe("Measured commit");
+    await mirror.clearCursor(node);
+    lb = home();
+    b.core.computers = lb;
+    b.core.network = lb.options.network;
+    await connect();
   }, 30_000);
 
   test("an older partner negotiates full opens and background projections with a new home", async () => {

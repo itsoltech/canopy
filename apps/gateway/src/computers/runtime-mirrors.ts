@@ -149,6 +149,11 @@ export function computersSyncMirror(hostContext: LinkedComputers, nodeId: string
         if (!scheduled && !disconnected && !hostContext[computersState].staleMirrors.has(nodeId))
           hostContext[computersState].staleMirrors.set(nodeId, Date.now());
         const log = scheduled || disconnected ? console.debug : console.warn;
+        hostContext.diagnostics(
+          nodeId,
+          scheduled ? 213 : code === Code.DataLoss ? 211 : code === Code.DeadlineExceeded ? 212 : 214,
+          1,
+        );
         log("Linked thread mirror resynchronizing", {
           peer: nodeId,
           reason: scheduled

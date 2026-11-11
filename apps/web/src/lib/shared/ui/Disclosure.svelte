@@ -61,10 +61,7 @@
     ]}
   >
     <span class={["flex items-center", align === "start" && "h-lh"]}>
-      <Icon
-        name="chevron-right"
-        class="t-acc-chevron fill-zinc-400 group-open/disclosure:rotate-90 dark:fill-zinc-500"
-      />
+      <Icon name="chevron-right" class={["t-acc-chevron fill-zinc-400 dark:fill-zinc-500", open && "rotate-90"]} />
     </span>
     <span class="min-w-0 flex-1">{@render summary()}</span>
   </summary>

@@ -6,6 +6,7 @@ import { rpcSnapshot } from "./snapshot.ts";
 import type { BucketBudget, Slot } from "./buckets.ts";
 import type { Connection } from "../computers/runtime-context.ts";
 import type { WorkerConnection } from "../worker-link/connection.ts";
+import { workerMeasures, cleanHistogram, validHistogram, reportBytes } from "./worker-report.ts";
 
 const METHODS = ["rtt", "jitter", "heartbeat"].map((name, index) => ({
   id: index + 1,
@@ -17,7 +18,12 @@ const METHODS = ["rtt", "jitter", "heartbeat"].map((name, index) => ({
 
 export class LinkDiagnostics {
   restoring = false;
-  readonly #pending: { value: ui.WorkerLinkDiagnostics; source: Connection | WorkerConnection | undefined }[] = [];
+  readonly #pending: {
+    value: ui.WorkerLinkDiagnostics;
+    source: Connection | WorkerConnection | undefined;
+    at: number;
+    bytes: number;
+  }[] = [];
   readonly collector: RpcCollector;
   readonly echo = new HeartbeatEcho();
   lastHeartbeat = 0;
@@ -27,6 +33,9 @@ export class LinkDiagnostics {
   readonly #sessions = new Map<string, bigint>();
   #source: Connection | WorkerConnection | undefined;
   #sourceSession = "";
+  measuresSupported = false;
+  reportedDrops = 0n;
+  activeWatches = 0;
 
   constructor(
     readonly target: string,
@@ -34,6 +43,8 @@ export class LinkDiagnostics {
     readonly budget: BucketBudget,
   ) {
     this.collector = new RpcCollector(METHODS, undefined, budget);
+
+    if (kind === "worker") this.collector.freshnessMs = 90_000;
   }
 
   heartbeat() {
@@ -57,7 +68,23 @@ export class LinkDiagnostics {
     while (this.#sessions.size > 2) this.#sessions.delete(this.#sessions.keys().next().value!);
   }
 
-  report(value: ui.WorkerLinkDiagnostics, source?: Connection | WorkerConnection) {
+  report(value: ui.WorkerLinkDiagnostics, source?: Connection | WorkerConnection, at = Date.now()) {
+    const measures = workerMeasures(value);
+
+    if (!measures) return false;
+    value = create(ui.WorkerLinkDiagnosticsSchema, {
+      session: value.session,
+      sequence: value.sequence,
+      startMs: value.startMs,
+      endMs: value.endMs,
+      rtt: value.rtt && cleanHistogram(value.rtt),
+      jitter: value.jitter && cleanHistogram(value.jitter),
+      echoTimeouts: value.echoTimeouts,
+      measures,
+      workerMeasuresSupported: value.workerMeasuresSupported,
+      droppedSamples: value.droppedSamples,
+    });
+
     if (source && source !== this.#source) {
       this.#source = source;
       this.#sourceSession = "";
@@ -71,26 +98,15 @@ export class LinkDiagnostics {
     const histograms = [value.rtt, value.jitter];
 
     for (const histogram of histograms) {
-      if (
-        !histogram ||
-        histogram.indices.length > 130 ||
-        histogram.indices.length !== histogram.counts.length ||
-        histogram.indices.some((index, at) => index > 129 || (at > 0 && index <= histogram.indices[at - 1]!)) ||
-        histogram.counts.some((count) => count > 0xffff_ffffn) ||
-        !Number.isFinite(histogram.sum) ||
-        !Number.isFinite(histogram.max) ||
-        (histogram.min !== undefined &&
-          (!Number.isFinite(histogram.min) || histogram.min < 0 || histogram.min > histogram.max)) ||
-        histogram.sum < 0 ||
-        histogram.max < 0
-      )
-        return false;
+      if (!histogram || !validHistogram(histogram)) return false;
     }
 
     if (value.endMs < value.startMs || value.endMs - value.startMs > 60_000n) return false;
 
     if (this.restoring) {
-      if (this.#pending.length < 8 && this.budget.reserve(8192)) this.#pending.push({ value, source });
+      const bytes = reportBytes(value);
+
+      if (this.#pending.length < 8 && this.budget.reserve(bytes)) this.#pending.push({ value, source, at, bytes });
       else this.budget.dropped++;
 
       return true;
@@ -99,6 +115,11 @@ export class LinkDiagnostics {
     if (source) this.#sourceSession = value.session;
     this.collector.mergeHistogram(1, value.rtt!, value.echoTimeouts);
     this.collector.mergeHistogram(2, value.jitter!);
+
+    for (const row of measures) row.sampledAtMs = BigInt(at - Number(value.endMs - row.sampledAtMs));
+    this.collector.mergeMeasures(measures, at);
+    this.measuresSupported = value.workerMeasuresSupported;
+    this.reportedDrops = value.droppedSamples;
     this.watermark = create(ui.DiagnosticsProcessSchema, {
       processId: `${this.kind}:${this.target}`,
       session: value.session,
@@ -124,8 +145,8 @@ export class LinkDiagnostics {
     this.restoring = false;
 
     for (const pending of this.#pending) {
-      this.budget.used -= 8192;
-      this.report(pending.value, pending.source);
+      this.budget.used -= pending.bytes;
+      this.report(pending.value, pending.source, pending.at);
     }
 
     this.#pending.length = 0;
@@ -144,8 +165,8 @@ export class LinkDiagnostics {
     });
   }
 
-  snapshot(minutes: number, name: string, supported: boolean, online: boolean, hourly?: Slot) {
-    const snapshot = rpcSnapshot(this.collector, minutes, hourly);
+  snapshot(minutes: number, name: string, supported: boolean, online: boolean, hourly?: Slot, overviewOnly = false) {
+    const snapshot = rpcSnapshot(this.collector, minutes, hourly, overviewOnly);
     const find = (method: string) => snapshot.calls.find((call) => call.method === method)?.durationMs;
 
     return create(ui.DiagnosticsLinkSchema, {
@@ -159,6 +180,9 @@ export class LinkDiagnostics {
       heartbeatIntervalMs: find("heartbeat"),
       heartbeatAgeMs: this.lastHeartbeat ? Date.now() - this.lastHeartbeat : 0,
       echoTimeouts: snapshot.calls.find((call) => call.method === "rtt")?.codes[4] ?? 0n,
+      measures: snapshot.gatewayMeasures,
+      measuresSupported: this.measuresSupported || snapshot.gatewayMeasures.length > 0,
+      droppedSamples: this.reportedDrops + BigInt(this.budget.dropped),
     });
   }
 }

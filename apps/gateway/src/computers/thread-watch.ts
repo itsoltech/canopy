@@ -39,13 +39,40 @@ export async function* watchRemoteThread(
   input: ui.WatchThreadRequest,
   signal: AbortSignal,
 ): AsyncGenerator<ui.ThreadUpdate> {
+  computers.watchDiagnostic(node, 1);
+
+  try {
+    yield* superviseThread(computers, node, input, signal);
+  } finally {
+    computers.watchDiagnostic(node, -1);
+  }
+}
+
+async function* superviseThread(
+  computers: LinkedComputers,
+  node: string,
+  input: ui.WatchThreadRequest,
+  signal: AbortSignal,
+): AsyncGenerator<ui.ThreadUpdate> {
   if (input.sequence) {
-    for await (const message of computers.remote(node, ui.GatewayService.method.watchThread, input, signal))
-      yield linkedMessage(ui.ThreadUpdateSchema, message);
+    for await (const message of computers.remote(node, ui.GatewayService.method.watchThread, input, signal)) {
+      const update = linkedMessage(ui.ThreadUpdateSchema, message);
+
+      if (update.change.case === "snapshot") computers.diagnostics(node, 221, 1);
+
+      if (update.change.case === "batch") {
+        let items = 0;
+
+        for (const record of update.change.value.records) if (record.value.case === "item") items++;
+
+        if (items) computers.diagnostics(node, 222, items);
+      }
+
+      yield update;
+    }
 
     return;
   }
-
   const heartbeat =
     computers.hello().capabilities.includes(THREAD_WATCH_LIVENESS) &&
     computers.capabilities(node).includes(THREAD_WATCH_LIVENESS);
@@ -57,12 +84,7 @@ export async function* watchRemoteThread(
     computers.hello().capabilities.includes(THREAD_WATCH_COALESCE) &&
     computers.capabilities(node).includes(THREAD_WATCH_COALESCE);
 
-  let request = create(ui.WatchThreadRequestSchema, {
-    ...input,
-    incremental: true,
-    watchLiveness: heartbeat,
-    watchCoalesce: coalesce,
-  });
+  let request = watchRequest(input, heartbeat, coalesce);
 
   let checkpoint = input.cursor || input.mirrorCursor;
   let lastSeq: bigint | undefined;
@@ -95,6 +117,8 @@ export async function* watchRemoteThread(
         const change = update.change;
 
         if (change.case === "snapshot" || change.case === "delta") {
+          if (change.case === "snapshot") computers.diagnostics(node, 221, 1);
+
           if (change.case === "delta" && change.value.baseCursor !== (request.cursor || request.mirrorCursor))
             throw new ConnectError("Linked thread delta base gap", Code.DataLoss);
           const snapshot = change.case === "snapshot" ? change.value : change.value.snapshot;
@@ -112,6 +136,10 @@ export async function* watchRemoteThread(
 
           if (seq === undefined) continue;
           lastSeq = seq;
+          const body = change.value.event?.body.case;
+
+          if (body === "itemStarted" || body === "itemDelta" || body === "itemCompleted")
+            computers.diagnostics(node, 222, 1);
         }
 
         yield update;
@@ -160,6 +188,7 @@ export async function* watchRemoteThread(
     }
 
     if (signal.aborted) return;
+    computers.diagnostics(node, resubscribeMetric(reason), 1);
     console.debug("Linked thread watch resubscribing", { peer: node, threadId: input.threadId, reason });
     request = create(ui.WatchThreadRequestSchema, {
       ...input,
@@ -172,5 +201,27 @@ export async function* watchRemoteThread(
       fromTurnId,
       historyVersion,
     });
+  }
+}
+
+function watchRequest(input: ui.WatchThreadRequest, heartbeat: boolean, coalesce: boolean) {
+  return create(ui.WatchThreadRequestSchema, {
+    ...input,
+    incremental: true,
+    watchLiveness: heartbeat,
+    watchCoalesce: coalesce,
+  });
+}
+
+function resubscribeMetric(reason: string) {
+  switch (reason) {
+    case "revision":
+      return 210;
+    case "gap":
+      return 211;
+    case "stall":
+      return 212;
+    default:
+      return 213;
   }
 }

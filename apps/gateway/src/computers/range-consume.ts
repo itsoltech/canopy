@@ -15,10 +15,13 @@ export async function consumeThreadRanges(
   notify: () => void,
 ) {
   let lastNotified = 0;
+  const observation = host.mirror.observe?.(node);
 
   for await (const message of updates) {
     signal.throwIfAborted();
     const update = linkedMessage(link.MirrorUpdateSchema, message);
+
+    if (update.heartbeat) observation?.heartbeat();
 
     if (update.rangeFailure) {
       const failure = update.rangeFailure;
@@ -76,6 +79,7 @@ export async function consumeThreadRanges(
     const batch = update.rangeBatch;
 
     if (!batch) continue;
+    observation?.received(update);
 
     try {
       await host.ranges.apply(node, subscription, batch);
@@ -107,6 +111,8 @@ export async function consumeThreadRanges(
 
       await host.ranges.apply(node, subscription, batch);
     }
+
+    observation?.committed();
 
     await host.store.query(
       `DELETE FROM thread_range_failures WHERE owner_user_id=$1::uuid

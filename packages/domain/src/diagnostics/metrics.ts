@@ -1,7 +1,9 @@
+import { WORKER_METRICS, SYNC_METRICS } from "./worker-metrics.ts";
+
 export type MetricDefinition = {
   id: number;
   name: string;
-  group: "process" | "queues" | "governor" | "database";
+  group: "process" | "queues" | "governor" | "database" | "journal" | "harness" | "git" | "storage" | "sync";
   unit: "ms" | "bytes" | "%" | "count" | "seconds";
   kind: "gauge" | "timing" | "counter";
   approximate?: boolean;
@@ -131,6 +133,8 @@ export function governorMetric(
 export const METRIC_DEFINITIONS: ReadonlyMap<number, MetricDefinition> = new Map(
   [
     ...PROCESS_METRICS,
+    ...WORKER_METRICS,
+    ...SYNC_METRICS,
     ...DATABASE_FAMILIES.flatMap((family) =>
       DATABASE_PHASES.map((phase): MetricDefinition => ({
         id: databaseMetric(family.name, phase),

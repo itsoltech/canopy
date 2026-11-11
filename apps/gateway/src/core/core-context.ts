@@ -64,6 +64,8 @@ export interface GatewayCoreOptions {
   readonly diagnosticsEnabled?: boolean;
   /** Benchmark-only Stage 2 switch; Stage 1 remains enabled in both members. */
   readonly gatewayDiagnosticsEnabled?: boolean;
+  /** Benchmark-only Stage 3 switch; earlier stages remain enabled. */
+  readonly workerDiagnosticsEnabled?: boolean;
   readonly role?: GatewayRole;
   readonly skillSources?: import("../agent-environment/source-discovery.ts").SourceOptions;
   readonly updates?: Partial<Omit<GatewayUpdatesOptions, "persistence" | "authenticate">>;

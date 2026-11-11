@@ -1,6 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { gatewayEvidence } from "./gateway-findings.ts";
+import { workerEvidence } from "./worker-findings.ts";
 
 export type Evidence = {
   ruleId: string;
@@ -11,6 +12,7 @@ export type Evidence = {
   critical: boolean;
   duringSync?: boolean;
   fresh?: boolean;
+  recovering?: boolean;
 };
 
 const FAILURES = [2, 4, 8, 10, 13, 14, 15];
@@ -19,6 +21,7 @@ export class Findings {
   readonly states = new Map<string, ui.DiagnosticsFinding>();
   #observedDrops = 0n;
   #completeMinutes = 15;
+  readonly #backlogs = new Map<string, number>();
 
   restore(values: ui.DiagnosticsFinding[]) {
     for (const value of values.slice(0, 64))
@@ -37,7 +40,11 @@ export class Findings {
     this.#completeMinutes =
       snapshot.droppedSamples === this.#observedDrops ? Math.min(15, this.#completeMinutes + 1) : 0;
     this.#observedDrops = snapshot.droppedSamples;
-    const evidence: Evidence[] = gatewayEvidence(snapshot, recent);
+
+    const evidence: Evidence[] = [
+      ...gatewayEvidence(snapshot, recent),
+      ...workerEvidence(snapshot, recent, this.#backlogs),
+    ];
 
     for (const call of snapshot.calls) {
       if (call.stream || call.layer === "command" || /Import|Update|Install|Generate|Clone|Move|Ssh/.test(call.method))
@@ -107,7 +114,7 @@ export class Findings {
       const entering = enough && above ? Math.min(3, (previous?.entering ?? 0) + 1) : 0;
 
       const leaving =
-        enough && value.value < value.threshold * 0.7 && !value.critical
+        enough && (value.recovering ?? value.value < value.threshold * 0.7) && !value.critical
           ? Math.min(5, (previous?.leaving ?? 0) + 1)
           : 0;
 
