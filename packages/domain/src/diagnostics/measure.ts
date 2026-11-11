@@ -87,7 +87,10 @@ export class Measure {
     }
 
     this.incomplete ||=
-      value.incomplete || this.#events === MAX_COUNT || this.#errors === MAX_COUNT || Boolean(this.histogram?.incomplete);
+      value.incomplete ||
+      this.#events === MAX_COUNT ||
+      this.#errors === MAX_COUNT ||
+      Boolean(this.histogram?.incomplete);
   }
 
   snapshot(metricId: number, rpcMethodId = 0) {

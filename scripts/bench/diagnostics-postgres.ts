@@ -1,5 +1,5 @@
 import { SQL } from "bun";
-import { mkdtemp, chmod, rm } from "node:fs/promises";
+import { mkdtemp, chmod, cp, readdir, rm, symlink } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -12,6 +12,22 @@ async function command(args: string[], env = process.env) {
   if (await child.exited) throw new Error("Benchmark PostgreSQL command failed");
 
   return output;
+}
+
+/** npm archives can omit SONAME aliases; repair only our disposable runtime copy. */
+async function prepareRuntime(source: string, directory: string) {
+  const runtime = join(directory, "runtime");
+  await cp(source, runtime, { recursive: true });
+  const library = join(runtime, "lib");
+  const entries = await readdir(library);
+
+  for (const entry of entries) {
+    const alias = entry.match(/^(.+\.so\.\d+)\.\d+$/)?.[1];
+
+    if (alias && !entries.includes(alias)) await symlink(entry, join(library, alias));
+  }
+
+  return join(runtime, "bin");
 }
 
 async function initialize(binaries: string, data: string, pwfile: string, password: string) {
@@ -75,7 +91,7 @@ async function nativePostgres(port: number, password: string) {
 
   if ((await scopeSample(parentScope)).swapCurrent !== 0) throw new Error("Benchmark scope contains swapped pages");
   const source = realpathSync(require.resolve(`@embedded-postgres/${process.platform}-${process.arch}`));
-  const binaries = resolve(dirname(source), "../native/bin");
+  const distribution = resolve(dirname(source), "../native");
   const directory = await mkdtemp(join(tmpdir(), "canopy-diagnostics-pg-"));
   await chmod(directory, 0o700);
   const data = join(directory, "data");
@@ -116,6 +132,7 @@ async function nativePostgres(port: number, password: string) {
   };
 
   try {
+    const binaries = await prepareRuntime(distribution, directory);
     await initialize(binaries, data, pwfile, password);
     child = launch(binaries, data, port, unit, basename(parentScope));
     const deadline = Date.now() + 45_000;
@@ -185,8 +202,10 @@ async function dockerPostgres(port: number, password: string) {
     ],
     { ...process.env, POSTGRES_PASSWORD: password },
   );
+
   const query = (database: string, text: string) =>
     command(["docker", "exec", name, "psql", "-U", "postgres", "-d", database, "-Atqc", text]);
+
   const close = () => command(["docker", "rm", "-f", "-v", name]).then(() => {});
 
   try {

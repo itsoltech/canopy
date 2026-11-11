@@ -30,6 +30,7 @@ export async function monitorScopes(postgresScope: string | undefined, reject: (
 
   if (swapDisabledStage()) {
     scopes.push(await userScope());
+
     if (!postgresScope) throw new Error("PostgreSQL must run in a swap-disabled user scope");
     scopes.push(postgresScope);
   }

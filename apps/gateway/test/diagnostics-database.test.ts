@@ -58,6 +58,7 @@ test("family and RPC churn stays inside the internal measure sub-budget and rele
 
   for (let minute = 0; minute < 90; minute++) {
     now = minute * 60_000;
+
     for (const family of DATABASE_FAMILIES)
       for (const phase of DATABASE_PHASES)
         collector.recordDatabase(databaseMetric(family.name, phase), minute + 1, true, method.id, now);
@@ -83,11 +84,10 @@ test("restored SQL history leaves room for fresh process and query measurements"
   const collector = new RpcCollector([], { monotonic: () => now, utc: () => now });
   const timing = new Measure();
   timing.timing(12, false, 0);
+
   const history = create(ui.DiagnosticsProcessSchema, {
     measures: DATABASE_FAMILIES.flatMap((family) =>
-      DATABASE_PHASES.map((phase) =>
-        timing.snapshot(databaseMetric(family.name, phase)),
-      ),
+      DATABASE_PHASES.map((phase) => timing.snapshot(databaseMetric(family.name, phase))),
     ),
   });
 
@@ -98,7 +98,7 @@ test("restored SQL history leaves room for fresh process and query measurements"
   collector.recordDatabase(databaseMetric("thread.read", "execute"), 34, false, 0, now);
   const rollup = collector.rollup(now)!;
   expect(rollup.measures.find((row) => row.metricId === 2)?.last).toBe(18);
-  expect(
-    rollup.measures.find((row) => row.metricId === databaseMetric("thread.read", "execute"))?.histogram?.max,
-  ).toBe(34);
+  expect(rollup.measures.find((row) => row.metricId === databaseMetric("thread.read", "execute"))?.histogram?.max).toBe(
+    34,
+  );
 });
