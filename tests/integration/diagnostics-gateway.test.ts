@@ -60,6 +60,7 @@ describe.skipIf(!dockerAvailable)("gateway diagnostics preserve durable, private
   test("real RPC queries keep allowlisted families and isolated method context", async () => {
     await Promise.all(Array.from({ length: 8 }, () => gateway.api.getThread({ threadId: thread })));
     await gateway.api.getOverview({});
+    await gateway.api.getComputerDiagnostics({ windowMinutes: 1440 });
     const value = snapshot();
     const call = value.calls.find((row) => row.method.endsWith("/GetThread"));
     expect(call?.database.some((family) => family.family === "thread.read")).toBe(true);
@@ -69,6 +70,11 @@ describe.skipIf(!dockerAvailable)("gateway diagnostics preserve durable, private
         ?.database.some((family) => family.family === "workers.read"),
     ).toBe(true);
     expect(call?.database.some((family) => family.family === "workers.read")).toBe(false);
+    expect(
+      value.calls
+        .find((row) => row.method.endsWith("/GetComputerDiagnostics"))
+        ?.database.some((family) => family.family === "diagnostics.history"),
+    ).toBe(true);
     const abort = new AbortController();
     const watch = gateway.api.watchThread({ threadId: thread }, { signal: abort.signal })[Symbol.asyncIterator]();
     await watch.next();
@@ -290,7 +296,7 @@ describe.skipIf(!dockerAvailable)("gateway diagnostics preserve durable, private
     const partial = new Measure(() => false);
     partial.timing(100, true, at);
     const process = source.rollup(at)!;
-    process.measures.push(partial.snapshot(databaseMetric("workers.read", "execute")));
+    process.measures.push(partial.snapshot(databaseMetric("queue.read", "execute")));
     const store = new DiagnosticsStore(gateway.runtime, gateway.userId, "local");
     const state = create(ui.DiagnosticsStateSchema, { schemaVersion: 1, epoch: crypto.randomUUID() });
     await store.write([{ at, processes: [process] }], state);
@@ -323,7 +329,7 @@ describe.skipIf(!dockerAvailable)("gateway diagnostics preserve durable, private
 
       expect(family?.executeMs?.samples).toBe(1n);
       expect(family?.executeMs?.max).toBe(42);
-      const incomplete = value.database.find((row) => row.family === "workers.read");
+      const incomplete = value.database.find((row) => row.family === "queue.read");
       expect(incomplete?.executeErrors).toBe(1n);
       expect(incomplete?.incomplete).toBe(true);
       expect(incomplete?.executeMs?.samples).toBe(0n);

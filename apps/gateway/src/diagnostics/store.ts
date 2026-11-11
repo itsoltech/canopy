@@ -5,7 +5,7 @@ import { SqlClient } from "effect/sql";
 import type { CoreRuntime } from "../core/core.ts";
 import { decodeRollup, encodeRollup, MAX_PAYLOAD, replaceProcesses, mergeWatermarks } from "./rollup.ts";
 import { downsampleWrite, type RollupRow } from "./downsample.ts";
-import { queryFamily } from "./query-context.ts";
+import { queryFamily, queryRpc } from "./query-context.ts";
 
 export type StoredMinute = { at: number; processes: ui.DiagnosticsProcess[] };
 
@@ -22,7 +22,7 @@ export class DiagnosticsStore {
         const sql = yield* SqlClient.SqlClient;
 
         return yield* sql.unsafe<A>(text, params).pipe(queryFamily("diagnostics.history"));
-      }),
+      }).pipe(queryRpc),
     );
   }
 
