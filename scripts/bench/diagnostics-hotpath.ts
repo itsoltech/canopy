@@ -2,6 +2,7 @@ import { ui } from "@canopy/contracts";
 import { databaseMetric, type DatabasePhase } from "@canopy/domain/diagnostics";
 import { RpcCollector } from "../../apps/gateway/src/diagnostics/collector.ts";
 import { registered } from "../../apps/gateway/src/diagnostics/registry.ts";
+import { benchmarkDiagnosticsViews } from "./diagnostics-views.ts";
 
 const method = registered(ui.GatewayService.method.getThread);
 const phases = ["reserve", "execute", "release"] as const;
@@ -63,3 +64,5 @@ for (let pair = 1; pair <= 3; pair++)
     Bun.gc(true);
     console.info(JSON.stringify({ pair, ...run(deferred) }));
   }
+
+benchmarkDiagnosticsViews();

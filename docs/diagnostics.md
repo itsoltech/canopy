@@ -260,6 +260,10 @@ pierwotny kubełek czasu i nie zawierają SQL, parametrów, wyników ani błęd�
 Hub przy publikacji aktualizuje tylko stałe liczniki i maksima liczbowe,
 rozliczone jako 256 B kolektora; tick 5 s przenosi ich sumy do metryk.
 Próbkowanie event loop nie tworzy kolejnego timera ani closure na każdą próbkę.
+Overview scala z wnętrza gatewaya tylko CPU; nie wylicza odrzucanych potem
+rodzin SQL ani korelacji RPC. Każde okno zachowuje jeden cache: wejście
+w szczegóły zastępuje uboższy widok pełnym, bez drugiej kopii. Rewizja
+odróżnia oba zakresy, aby overview nie potwierdziło niepobranego drill-downu.
 
 Retry trwałości przechowuje gotowe payloady do 64 KiB, maksymalnie 60 minut
 w istniejącym limicie 4 MiB, razem z rezerwacją 4 KiB na rekord/Map/Uint8Array.

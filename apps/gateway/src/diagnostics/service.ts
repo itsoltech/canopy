@@ -40,7 +40,13 @@ export class Diagnostics {
   #unsubscribe: (() => void) | undefined;
   #snapshots = new Map<
     number,
-    { at: number; value: ReturnType<typeof rpcSnapshot>; restored: number; historical: number | undefined }
+    {
+      at: number;
+      value: ReturnType<typeof rpcSnapshot>;
+      restored: number;
+      historical: number | undefined;
+      details: boolean;
+    }
   >();
   #workers: readonly { id: string; name: string; supported: boolean }[] = [];
   #workersAt = 0;
@@ -206,6 +212,7 @@ export class Diagnostics {
 
     if (
       !cached ||
+      (!request.overviewOnly && !cached.details) ||
       now - cached.at >= 5000 ||
       cached.restored !== this.collector.historyRevision ||
       (minutes === 1440 && cached.historical !== this.history?.revision)
@@ -214,7 +221,13 @@ export class Diagnostics {
         at: now,
         restored: this.collector.historyRevision,
         historical: this.history?.revision,
-        value: rpcSnapshot(this.collector, minutes, minutes === 1440 ? this.history?.values.get("gateway") : undefined),
+        details: !request.overviewOnly,
+        value: rpcSnapshot(
+          this.collector,
+          minutes,
+          minutes === 1440 ? this.history?.values.get("gateway") : undefined,
+          request.overviewOnly,
+        ),
       };
       this.#snapshots.set(minutes, cached);
     }
@@ -235,7 +248,7 @@ export class Diagnostics {
         })
       : calls.slice(request.offset, request.offset + limit);
 
-    const revision = `${this.collector.session}:${Math.floor(cached.at / 5000)}:${minutes}:${request.offset}:${request.sortBy}:${request.callKind}:${request.methodKeys.join(",")}`;
+    const revision = `${this.collector.session}:${Math.floor(cached.at / 5000)}:${minutes}:${request.offset}:${request.sortBy}:${request.callKind}:${request.methodKeys.join(",")}:${Number(request.overviewOnly)}`;
     const computer = this.core.computers;
     const links = this.#links(minutes);
 

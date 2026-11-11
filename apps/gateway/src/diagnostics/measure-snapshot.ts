@@ -40,7 +40,7 @@ function databaseFamilies(values: Map<number, Measure>, rpc: number) {
 }
 
 /** Uses the existing transient window budget; no second ring or hourly cache. */
-export function measureSnapshot(collector: RpcCollector, minutes: number, hourly?: Slot) {
+export function measureSnapshot(collector: RpcCollector, minutes: number, hourly?: Slot, overviewOnly = false) {
   const now = collector.clock.utc();
   let width = 60_000;
 
@@ -75,6 +75,8 @@ export function measureSnapshot(collector: RpcCollector, minutes: number, hourly
   try {
     for (const slot of slots)
       for (const [key, value] of slot.measures ?? []) {
+        // Overview exposes CPU only. Do not merge SQL distributions it would discard.
+        if (overviewOnly && (metricOf(key) !== 2 || rpcOf(key))) continue;
         let measure = values.get(key);
 
         if (!measure) {
@@ -113,7 +115,7 @@ export function measureSnapshot(collector: RpcCollector, minutes: number, hourly
 
     for (const rpc of rpcs) associated.set(rpc, databaseFamilies(values, rpc));
 
-    return { gatewayMeasures, database: databaseFamilies(values, 0), associated };
+    return { gatewayMeasures, database: overviewOnly ? [] : databaseFamilies(values, 0), associated };
   } finally {
     collector.windowBudget.used -= reserved;
   }

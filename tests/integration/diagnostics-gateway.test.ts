@@ -60,6 +60,17 @@ describe.skipIf(!dockerAvailable)("gateway diagnostics preserve durable, private
   test("real RPC queries keep allowlisted families and isolated method context", async () => {
     await Promise.all(Array.from({ length: 8 }, () => gateway.api.getThread({ threadId: thread })));
     await gateway.api.getOverview({});
+    const overview = await gateway.api.getComputerDiagnostics({ windowMinutes: 15, overviewOnly: true });
+    expect(overview.database).toEqual([]);
+    expect(overview.calls).toEqual([]);
+
+    const detail = await gateway.api.getComputerDiagnostics({ windowMinutes: 15, revision: overview.revision });
+    expect(detail.notModified).toBe(false);
+    expect(
+      detail.calls
+        .find((row) => row.method.endsWith("/GetThread"))
+        ?.database.some((family) => family.family === "thread.read"),
+    ).toBe(true);
     await gateway.api.getComputerDiagnostics({ windowMinutes: 1440 });
     const value = snapshot();
     const call = value.calls.find((row) => row.method.endsWith("/GetThread"));

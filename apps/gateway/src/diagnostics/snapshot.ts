@@ -16,7 +16,7 @@ export function windowMinutes(value: number) {
   return value;
 }
 
-export function rpcSnapshot(collector: RpcCollector, minutes: number, hourly?: Slot) {
+export function rpcSnapshot(collector: RpcCollector, minutes: number, hourly?: Slot, overviewOnly = false) {
   collector.flushDatabase();
   const now = collector.clock.utc();
   let width = 60_000;
@@ -60,7 +60,7 @@ export function rpcSnapshot(collector: RpcCollector, minutes: number, hourly?: S
       aggregates.set(id, aggregate);
     }
 
-  const measured = measureSnapshot(collector, minutes, hourly);
+  const measured = measureSnapshot(collector, minutes, hourly, overviewOnly);
 
   const calls = [...aggregates].flatMap(([id, aggregate]) => {
     const method = collector.methods.get(id);
