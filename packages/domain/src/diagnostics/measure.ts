@@ -1,12 +1,12 @@
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { addCount, Histogram, MAX_COUNT } from "./histogram.ts";
+import { addSampleCount, Histogram, MAX_COUNT } from "./histogram.ts";
 
 /** No per-sample objects, code arrays or unused histograms for internal measurements. */
 export class Measure {
   histogram: Histogram | undefined;
-  events = 0n;
-  errors = 0n;
+  #events: number | bigint = 0;
+  #errors: number | bigint = 0;
   weightedSum = 0;
   weight = 0;
   max = 0;
@@ -15,6 +15,14 @@ export class Measure {
   incomplete = false;
 
   constructor(readonly reserve?: (bytes: number) => boolean) {}
+
+  get events() {
+    return BigInt(this.#events);
+  }
+
+  get errors() {
+    return BigInt(this.#errors);
+  }
 
   get sampledAtMs() {
     return BigInt(this.#sampledAtMs);
@@ -41,10 +49,11 @@ export class Measure {
   }
 
   counter(count: number, error: boolean, at: number) {
-    this.events = addCount(this.events, BigInt(count));
-    this.errors = addCount(this.errors, error ? BigInt(count) : 0n);
+    this.#events = addSampleCount(this.#events, count);
+
+    if (error) this.#errors = addSampleCount(this.#errors, count);
     this.#sampledAtMs = Math.floor(at);
-    this.incomplete ||= this.events === MAX_COUNT || this.errors === MAX_COUNT;
+    this.incomplete ||= this.#events === MAX_COUNT || this.#errors === MAX_COUNT;
   }
 
   gauge(value: number, weight: number, at: number) {
@@ -52,8 +61,8 @@ export class Measure {
     this.max = Math.max(this.max, value);
     this.last = value;
     this.#sampledAtMs = Math.floor(at);
-    this.events = addCount(this.events);
-    this.incomplete ||= this.events === MAX_COUNT;
+    this.#events = addSampleCount(this.#events);
+    this.incomplete ||= this.#events === MAX_COUNT;
   }
 
   merge(value: ui.DiagnosticsMeasureAggregate | Measure) {
@@ -67,8 +76,8 @@ export class Measure {
       this.histogram?.merge(value.histogram);
     }
 
-    this.events = addCount(this.events, value.events);
-    this.errors = addCount(this.errors, value.errors);
+    this.#events = addSampleCount(this.#events, value instanceof Measure ? value.#events : value.events);
+    this.#errors = addSampleCount(this.#errors, value instanceof Measure ? value.#errors : value.errors);
     this.#weight(value.weightedSum, value.weight);
     this.max = Math.max(this.max, value.max);
 
@@ -78,7 +87,7 @@ export class Measure {
     }
 
     this.incomplete ||=
-      value.incomplete || this.events === MAX_COUNT || this.errors === MAX_COUNT || Boolean(this.histogram?.incomplete);
+      value.incomplete || this.#events === MAX_COUNT || this.#errors === MAX_COUNT || Boolean(this.histogram?.incomplete);
   }
 
   snapshot(metricId: number, rpcMethodId = 0) {

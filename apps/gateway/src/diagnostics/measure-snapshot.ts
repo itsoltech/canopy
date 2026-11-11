@@ -18,7 +18,7 @@ function databaseFamilies(values: Map<number, Measure>, rpc: number) {
     const measures = phases.map((phase) => values.get(databaseMetric(family.name, phase) * 0x1_0000_0000 + rpc));
 
     if (!measures.some((value) => value?.events)) return [];
-    const distributions = measures.map((value) => percentiles(value?.histogram ? [value.histogram.snapshot()] : []));
+    const distributions = measures.map((value) => percentiles(value?.histogram ? [value.histogram] : []));
 
     return [
       create(ui.DiagnosticsDatabaseFamilySchema, {
@@ -96,7 +96,7 @@ export function measureSnapshot(collector: RpcCollector, minutes: number, hourly
       return [
         create(ui.DiagnosticsMeasureSchema, {
           metricId,
-          distribution: value.histogram ? percentiles([value.histogram.snapshot()]) : undefined,
+          distribution: value.histogram ? percentiles([value.histogram]) : undefined,
           events: value.events,
           errors: value.errors,
           mean: value.weight ? value.weightedSum / value.weight : value.last,

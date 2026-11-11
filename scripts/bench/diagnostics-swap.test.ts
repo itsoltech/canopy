@@ -13,17 +13,25 @@ test("stage 2 admits old-page swap-in but rejects three consecutive 4 MiB/s samp
   expect(rejected).toEqual(["swap_in_sustained"]);
 });
 
-test("swap-out rate and cumulative byte limits stay inclusive in both stages", () => {
-  for (const stage2 of [false, true]) {
-    const rejected: string[] = [];
-    const gate = new SwapGate((kind) => rejected.push(kind), stage2);
-    gate.sample(0, 127);
-    gate.cumulative(1024 * 1024 - 1);
-    expect(rejected).toEqual([]);
-    gate.sample(0, 128);
-    gate.cumulative(1024 * 1024);
-    expect(rejected).toEqual(["swap_out_rate", "swap_out_total_bytes"]);
-  }
+test("swap-disabled stages admit host swap-out below 4 MiB/s without a cumulative cap", () => {
+  const rejected: string[] = [];
+  const gate = new SwapGate((kind) => rejected.push(kind), true);
+  gate.sample(0, 4095);
+  gate.cumulative(128 * 1024 * 1024);
+  expect(rejected).toEqual([]);
+  gate.sample(0, 4096);
+  expect(rejected).toEqual(["swap_out_rate"]);
+});
+
+test("stage 1 retains inclusive swap-out rate and cumulative limits", () => {
+  const rejected: string[] = [];
+  const gate = new SwapGate((kind) => rejected.push(kind));
+  gate.sample(0, 127);
+  gate.cumulative(1024 * 1024 - 1);
+  expect(rejected).toEqual([]);
+  gate.sample(0, 128);
+  gate.cumulative(1024 * 1024);
+  expect(rejected).toEqual(["swap_out_rate", "swap_out_total_bytes"]);
 });
 
 test("stage 1 retains its original immediate and sustained swap-in gates", () => {

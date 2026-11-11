@@ -24,6 +24,8 @@ export class RpcCollector {
   readonly short: Buckets;
   readonly minutes: Buckets;
   readonly historyMinutes: Buckets;
+  readonly measureBudget: BucketBudget;
+  readonly databaseBudget: BucketBudget;
   readonly windowBudget = new BucketBudget(512 * 1024);
   readonly #rings: readonly Buckets[];
   readonly active = new Map<number, Map<number, number>>();
@@ -42,9 +44,13 @@ export class RpcCollector {
     readonly clock = SYSTEM_CLOCK,
     readonly budget = new BucketBudget(),
   ) {
-    this.short = new Buckets(5_000, 12, budget);
-    this.minutes = new Buckets(60_000, 61, budget);
-    this.historyMinutes = new Buckets(60_000, 61, budget);
+    // All internal labels, correlations and restored measurements share 1 MiB inside the original 6 MiB.
+    this.measureBudget = new BucketBudget(1024 * 1024, budget);
+    // SQL cardinality must not consume the space needed by process/queue/governor series.
+    this.databaseBudget = new BucketBudget(512 * 1024, this.measureBudget);
+    this.short = new Buckets(5_000, 12, budget, this.measureBudget, this.databaseBudget);
+    this.minutes = new Buckets(60_000, 61, budget, this.measureBudget, this.databaseBudget);
+    this.historyMinutes = new Buckets(60_000, 61, budget, this.measureBudget, this.databaseBudget);
     this.#rings = [this.short, this.minutes];
 
     if (methods.length > MAX_METHODS) throw new Error("Diagnostics method budget exceeded");
@@ -214,13 +220,17 @@ export class RpcCollector {
     // Restore may shed older detail, but must leave room for new RPCs and minute writes.
     const limit = Math.floor(this.budget.limit * 0.5);
 
-    while (this.budget.used + ring.restoreBytes(process, at) > limit) {
+    while (
+      this.budget.used + ring.restoreBytes(process, at) > limit ||
+      this.measureBudget.used + ring.restoreMeasureBytes(process, at) > this.measureBudget.limit / 2 ||
+      this.databaseBudget.used + ring.restoreMeasureBytes(process, at, true) > this.databaseBudget.limit / 2
+    ) {
       if (this.historyMinutes.evictOldest()) {
         this.budget.dropped++;
         continue;
       }
 
-      this.budget.dropped += process.series.length;
+      this.budget.dropped += process.series.length + process.measures.length;
 
       return;
     }

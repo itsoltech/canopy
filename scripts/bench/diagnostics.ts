@@ -10,6 +10,8 @@ import { diagnosticsLoad, type DiagnosticsPhase } from "./diagnostics-load.ts";
 import { diagnosticsContention } from "./diagnostics-contention.ts";
 import { monitorHost } from "./diagnostics-host.ts";
 import { diagnosticsStorage, diagnosticsWrites } from "./diagnostics-storage.ts";
+import { startBenchPostgres, postgresIoDelta } from "./diagnostics-postgres.ts";
+import { assertSameScope, swapDisabledStage } from "./diagnostics-scope.ts";
 
 /** Isolated PostgreSQL and alternating AB/BA pairs; host noise invalidates the entire pair. */
 const forbidden = new Set([17443, 5180, 8444, 17444, 17445, 3000, 7443, 7432, 4443, 7444, 5291, 8081]);
@@ -34,7 +36,6 @@ if (
 )
   throw new Error(`Contention phases need at least ${minimumContentionMs / 1000} seconds`);
 
-const name = `canopy-diagnostics-bench-${process.pid}`;
 const password = randomBytes(24).toString("hex");
 const token = randomBytes(32).toString("hex");
 const key = randomBytes(32).toString("base64");
@@ -110,25 +111,12 @@ async function command(args: string[], env = process.env) {
 }
 
 async function pgCounters() {
-  const cpu = await command(["docker", "exec", name, "cat", "/sys/fs/cgroup/cpu.stat"]);
-  const io = await command(["docker", "exec", name, "cat", "/sys/fs/cgroup/io.stat"]);
-
-  return {
-    cpuMicros: Number(cpu.match(/^usage_usec (\d+)/m)?.[1] ?? 0),
-    writeBytes: [...io.matchAll(/wbytes=(\d+)/g)].reduce((total, value) => total + Number(value[1]), 0),
-    writeDevices: Object.fromEntries(
-      io
-        .trim()
-        .split("\n")
-        .filter(Boolean)
-        .map((line) => [line.split(" ")[0]!, Number(line.match(/\bwbytes=(\d+)/)?.[1] ?? 0)]),
-    ),
-  };
+  return postgres.counters();
 }
 
 async function checkpoint(database: string) {
   if (process.env["CANOPY_BENCH_CHECKPOINT"] !== "1") return;
-  await command(["docker", "exec", name, "psql", "-U", "postgres", "-d", database, "-Atqc", "CHECKPOINT"]);
+  await postgres.query(database, "CHECKPOINT");
 }
 
 async function measuredGateway(env: Record<string, string | undefined>, series: number, on: boolean) {
@@ -137,6 +125,7 @@ async function measuredGateway(env: Record<string, string | undefined>, series: 
   const gateway = await diagnosticsProcess(env);
   const startupMs = performance.now() - started;
   const after = await pgCounters();
+  const io = postgresIoDelta(before, after);
   console.info(
     JSON.stringify({
       phase: "startup",
@@ -145,13 +134,8 @@ async function measuredGateway(env: Record<string, string | undefined>, series: 
       on,
       startupMs,
       pgCpuMicros: after.cpuMicros - before.cpuMicros,
-      ioBytes: after.writeBytes - before.writeBytes,
-      ioDeviceBytes: Object.fromEntries(
-        Object.entries(after.writeDevices).map(([device, bytes]) => [
-          device,
-          bytes - (before.writeDevices[device] ?? 0),
-        ]),
-      ),
+      ioBytes: io.bytes,
+      ioDeviceBytes: io.devices,
       ...(await gateway.run("sample")),
     }),
   );
@@ -187,6 +171,11 @@ async function waitForRestore(api: ReturnType<typeof benchmarkApi>) {
 }
 
 async function recordAffinity(gateway: number, worker: number, pair: number, on: boolean) {
+  if (swapDisabledStage()) {
+    await assertSameScope(gateway);
+    await assertSameScope(worker);
+  }
+
   console.info(
     JSON.stringify({
       phase: "affinity",
@@ -195,7 +184,7 @@ async function recordAffinity(gateway: number, worker: number, pair: number, on:
       on,
       gateway: (await command(["taskset", "-pc", String(gateway)])).trim(),
       worker: (await command(["taskset", "-pc", String(worker)])).trim(),
-      postgres: (await command(["docker", "inspect", "--format", "{{.HostConfig.CpusetCpus}}", name])).trim(),
+      postgres: (await postgres.affinity()).trim(),
     }),
   );
 }
@@ -208,7 +197,7 @@ async function resourceHeap(phase: string, on: boolean, series: number) {
 async function run(on: boolean, index: number) {
   assertRunning();
   const database = `diagnostics_${index}_${Number(on)}_${attempt}`;
-  await command(["docker", "exec", name, "createdb", "-U", "postgres", database]);
+  await postgres.query("postgres", `CREATE DATABASE ${database}`);
 
   const env = {
     ...process.env,
@@ -283,6 +272,7 @@ async function run(on: boolean, index: number) {
     const afterPg = await pgCounters();
     latencies.sort((a, b) => a - b);
     const hours = after.elapsedMs / 3_600_000;
+    const io = postgresIoDelta(beforePg, afterPg, hours);
     console.info(
       JSON.stringify({
         series: index + 1,
@@ -294,13 +284,8 @@ async function run(on: boolean, index: number) {
         worker: { ...workerStats, cpuPercent: workerStats.cpuMicros / workerStats.elapsedMs / 10 },
         cpuPercent: after.cpuMicros / after.elapsedMs / 10,
         pgCpuPercent: (afterPg.cpuMicros - beforePg.cpuMicros) / after.elapsedMs / 10,
-        ioBytesPerHour: (afterPg.writeBytes - beforePg.writeBytes) / hours,
-        ioDeviceBytesPerHour: Object.fromEntries(
-          Object.entries(afterPg.writeDevices).map(([device, bytes]) => [
-            device,
-            (bytes - (beforePg.writeDevices[device] ?? 0)) / hours,
-          ]),
-        ),
+        ioBytesPerHour: io.bytes,
+        ioDeviceBytesPerHour: io.devices,
         walBytesPerHour: (after.walBytes - before.walBytes) / hours,
         persistedBytesPerHour: (after.rollupBytes - before.rollupBytes) / hours,
         writesPerHour: (after.writes - before.writes) / hours,
@@ -361,7 +346,7 @@ async function beginPhase(
 
   if (phase === "governor") await active!.run("governor");
   await worker!.run("begin");
-  const finishContention = await diagnosticsContention(name, database, phase, api, thread, forensicCheckpoint());
+  const finishContention = await diagnosticsContention(postgres, database, phase, api, thread, forensicCheckpoint());
 
   return { beforePg, before, finishContention };
 }
@@ -380,38 +365,9 @@ async function forensicHeap(phase: string) {
   await active?.run("heap");
 }
 
+const postgres = await startBenchPostgres(pgPort, password);
+
 try {
-  await command(
-    [
-      "docker",
-      "run",
-      "-d",
-      "--rm",
-      "--name",
-      name,
-      ...(process.env["CANOPY_BENCH_PG_CPU"] ? ["--cpuset-cpus", process.env["CANOPY_BENCH_PG_CPU"]!] : []),
-      "-e",
-      "POSTGRES_PASSWORD",
-      "-p",
-      `127.0.0.1:${pgPort}:5432`,
-      "postgres:17",
-    ],
-    { ...process.env, POSTGRES_PASSWORD: password },
-  );
-  const deadline = Date.now() + 45_000;
-
-  while (true) {
-    const ready = Bun.spawn(["docker", "exec", name, "pg_isready", "-h", "127.0.0.1", "-U", "postgres"], {
-      stdout: "ignore",
-      stderr: "ignore",
-    });
-
-    if ((await ready.exited) === 0) break;
-
-    if (Date.now() > deadline) throw new Error("Private PostgreSQL did not become ready");
-    await Bun.sleep(100);
-  }
-
   console.info(
     JSON.stringify({ revision: (await command(["git", "rev-parse", "HEAD"])).trim(), idleMs, loadMs, series }),
   );
@@ -431,7 +387,7 @@ try {
       let accepted = false;
 
       for (attempt = 1; attempt <= 3; attempt++) {
-        host = await monitorHost(index + 1, attempt);
+        host = await monitorHost(index + 1, attempt, postgres.scope);
         let completed = false;
 
         try {
@@ -466,6 +422,6 @@ try {
   try {
     await closeProcesses();
   } finally {
-    await command(["docker", "rm", "-f", "-v", name]);
+    await postgres.close();
   }
 }

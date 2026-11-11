@@ -1,4 +1,4 @@
-/** Ignore old swapped pages; reject current pressure using explicit KiB/s and cumulative byte thresholds. */
+/** Stages 2–3 use swap-disabled scopes; stage 1 retains its historical host thresholds. */
 export class SwapGate {
   peakInputKiB = 0;
   peakOutputKiB = 0;
@@ -20,7 +20,7 @@ export class SwapGate {
     this.consecutiveInput = inputKiB >= this.sustainedInputKiB ? this.consecutiveInput + 1 : 0;
     this.longestInput = Math.max(this.longestInput, this.consecutiveInput);
 
-    if (outputKiB >= 128) this.reject("swap_out_rate", String(outputKiB));
+    if (outputKiB >= (this.stage2 ? 4096 : 128)) this.reject("swap_out_rate", String(outputKiB));
 
     if (!this.stage2 && inputKiB >= 1024) this.reject("swap_in_rate", String(inputKiB));
 
@@ -28,7 +28,7 @@ export class SwapGate {
   }
 
   cumulative(outputBytes: number) {
-    if (outputBytes >= 1024 * 1024) this.reject("swap_out_total_bytes", String(outputBytes));
+    if (!this.stage2 && outputBytes >= 1024 * 1024) this.reject("swap_out_total_bytes", String(outputBytes));
   }
 }
 

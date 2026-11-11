@@ -213,10 +213,26 @@ z preflightem, rozgrzewką i uruchomieniem około 75 min, dłużej po odrzuceniu
 Blokady w fazach write/pool pozostają 70 s; okno obserwacji powrotu do normy
 jest krótsze (20 s), więc retry po następnym rolloverze może wypaść poza fazą.
 Pełny test durability/restart sprawdza odtworzenie niezależnie od tego pomiaru.
-Bramki hosta etapu 2 dopuszczają odczyty starych stron swapu: swap-in odrzuca
-parę dopiero przy ≥4 MiB/s przez trzy kolejne sekundy. Swap-out nadal odrzuca
-przy ≥128 KiB/s w dowolnej próbce lub ≥1 MiB na parę, a load powyżej liczby CPU
-także unieważnia parę. Każda próbka i sumy są zapisywane, również poniżej progów.
+Bramki etapów 2–3 wymagają user scope z `MemorySwapMax=0` dla wszystkich
+procesów pomiaru. Launcher obejmuje sterownik, gatewaye, workery i ich dzieci;
+PostgreSQL działa bezpośrednio z przypiętego pakietu `@embedded-postgres`,
+w oddzielnym user scope, także z `MemorySwapMax=0`. Proces tworzony przez
+daemon Dockera nie dziedziczy scope'u klienta, więc nie uczestniczy w tym protokole.
+Wersja PostgreSQL trafia do metadanych; A i B używają tego samego serwera.
+Wyniki z nowym PostgreSQL nie są bezpośrednim porównaniem do historycznych
+nagrań z kontenerem PostgreSQL 17. CPU/I/O PostgreSQL pochodzą z jego scope'u.
+Jeśli user manager nie ma delegowanego kontrolera I/O, fizyczne zapisy i podział
+per urządzenie mają wartość `null` z jawnym powodem w metadanych; nie raportujemy
+zera ani estymacji. Liczniki WAL/payloadu z bazy pozostają dostępne. Ten pomiar
+nie potwierdza wtedy bramki fizycznego I/O, lecz nadal mierzy CPU/p95/RSS/heap.
+`memory.swap.max` musi wynosić 0, a `memory.swap.current` w obu scope'ach
+musi wynosić 0 na początku, co sekundę i na końcu każdej pary. Nieczytelny
+licznik albo naruszenie unieważnia parę. Sprawdzamy przynależność gatewaya
+i workera do scope'u sterownika oraz PostgreSQL do własnego user scope'u.
+Swap-in hosta odrzuca parę przy ≥4 MiB/s przez trzy kolejne sekundy.
+Swap-out hosta odrzuca wyłącznie przy ≥4 MiB/s w dowolnej próbce, bez progu
+sumarycznego. Load powyżej liczby CPU także unieważnia parę.
+Każda próbka i sumy swap-in/out na parę są zapisywane, również poniżej progów.
 Pierwsze naruszenie zapisuje też PID/PPID, wiek, CPU, RSS i nazwę aktywnych
 procesów z `ps`, bez argumentów ani środowiska. Ten odczyt dotyczy wyłącznie
 odrzuconej pary i nie obciąża przyjętych nagrań.
@@ -264,6 +280,23 @@ Overview scala z wnętrza gatewaya tylko CPU; nie wylicza odrzucanych potem
 rodzin SQL ani korelacji RPC. Każde okno zachowuje jeden cache: wejście
 w szczegóły zastępuje uboższy widok pełnym, bez drugiej kopii. Rewizja
 odróżnia oba zakresy, aby overview nie potwierdziło niepobranego drill-downu.
+
+Wewnętrzne serie (proces, kolejki, governor, rodziny SQL i ich powiązania z RPC),
+łącznie z odtworzoną historią, mają wspólny podlimit 1 MiB wewnątrz istniejących
+6 MiB kolektora. Podlimit obejmuje obiekty i sparse kubełki, oddaje rezerwacje
+po wygaśnięciu slotu i zwiększa jawne dropy po wyczerpaniu. Rodziny SQL i korelacje
+mają dodatkowy podlimit 512 KiB w tym 1 MiB, aby nie wypierać serii procesu,
+kolejek i governora. Przy presji pamięci szczegóły są niepełne, nie rozszerzają limitu.
+Odtwarzanie historii może wykorzystać najwyżej połowę każdego podlimitu,
+aby zostawić miejsce na bieżące próbki po restarcie.
+Nie powiększa to budżetu: merge widoku nadal korzysta z istniejących 512 KiB, SQL z 33 280 B,
+a wrappery puli z 4 KiB. Callback rezerwacji jest wspólny dla pierścienia,
+zamiast osobnej closure na etykietę i slot. Aktualizacja liczników używa dokładnych
+liczb całkowitych `number`; po przekroczeniu bezpiecznego zakresu przechodzi na
+`BigInt`, zachowując saturację uint64 i format trwały. Percentyle pojedynczego
+histogramu w pamięci nie tworzą jego kopii ani pośredniego protobufu.
+To ogranicza alokacje przy każdym SQL/admission i podczas okresowych odczytów;
+wpływ na CPU, p95 i RSS wymaga nowego pomiaru.
 
 Retry trwałości przechowuje gotowe payloady do 64 KiB, maksymalnie 60 minut
 w istniejącym limicie 4 MiB, razem z rezerwacją 4 KiB na rekord/Map/Uint8Array.
@@ -860,7 +893,9 @@ Porównanie off/on na tej samej rewizji, danych syntetycznych, wersji runtime i 
 Procesy gatewaya, workera i PostgreSQL przypinamy do oddzielnych fizycznych rdzeni;
 `nice -n -5` tylko jeśli host pozwala. Nie zmieniamy affinity innych procesów ani
 globalnych cache. Przed każdą parą zapisujemy `/proc/loadavg`, a przez całą parę
-próbkujemy swap-in/out (`vmstat 1`). Load powyżej liczby CPU unieważnia parę.
+próbkujemy swap-in/out (`vmstat 1`). Poniższe progi opisują oryginalny protokół
+etapu 1; etapy 2–3 stosują user scope i nowsze bramki opisane w §3.2.
+Load powyżej liczby CPU unieważnia parę.
 Swap-out ≥128 KiB/s w dowolnej próbce albo ≥1 MiB łącznie na parę także ją
 unieważnia. Swap-in odrzuca parę przy ≥1 MiB/s albo ≥128 KiB/s przez trzy
 kolejne sekundy. Drobne odczyty starych stron swapu są dozwolone i raportowane

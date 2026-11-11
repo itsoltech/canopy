@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { Histogram, percentiles, MAX_COUNT } from "@canopy/domain/diagnostics";
+import { Histogram, Measure, percentiles, MAX_COUNT } from "@canopy/domain/diagnostics";
 
 test("quantized percentiles stay within observed extrema, including underflow and overflow", () => {
   for (const [sizes, samples] of [
@@ -82,4 +82,34 @@ test("sparse percentile merging preserves exact ranks, overflow bits and uint64 
   expect(saturated.p99).toBe(0.001);
   expect(saturated.overflow).toBe(true);
   expect(saturated.overflowQuantiles).toBe(0);
+});
+
+test("live counters merge and persist exactly across the safe integer and uint64 limits", () => {
+  const measure = new Measure();
+  measure.counter(Number.MAX_SAFE_INTEGER, false, 1);
+  measure.counter(2, true, 2);
+  measure.timing(125, true, 3);
+  expect(measure.events).toBe(BigInt(Number.MAX_SAFE_INTEGER) + 3n);
+  expect(measure.errors).toBe(3n);
+
+  const restored = new Measure();
+  restored.merge(
+    fromBinary(
+      ui.DiagnosticsMeasureAggregateSchema,
+      toBinary(ui.DiagnosticsMeasureAggregateSchema, measure.snapshot(1)),
+    ),
+  );
+  restored.timing(250, false, 4);
+  expect(restored.events).toBe(measure.events + 1n);
+  expect(restored.errors).toBe(measure.errors);
+  const before = restored.histogram!.snapshot();
+  expect(percentiles([restored.histogram!])).toEqual(percentiles([before]));
+  expect(restored.histogram!.snapshot()).toEqual(before);
+
+  const large = new Histogram(false, true);
+  large.merge(create(ui.DiagnosticsHistogramSchema, { indices: [1], counts: [MAX_COUNT - 1n], max: 0.001 }));
+  large.record(0.001);
+  large.record(0.001);
+  expect(large.snapshot().counts).toEqual([MAX_COUNT]);
+  expect(large.incomplete).toBe(true);
 });

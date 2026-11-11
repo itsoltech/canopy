@@ -1,9 +1,10 @@
 import type { Client } from "@connectrpc/connect";
 import { ui } from "@canopy/contracts";
+import type { BenchPostgres } from "./diagnostics-postgres.ts";
 
 /** Locks only the disposable benchmark DB. Application reads continue during a failed minute write. */
 export async function diagnosticsContention(
-  container: string,
+  postgres: BenchPostgres,
   database: string,
   phase: string,
   api: Client<typeof ui.GatewayService>,
@@ -13,16 +14,7 @@ export async function diagnosticsContention(
   if (phase !== "write_failure" && phase !== "pool_contention") return;
 
   const query = async (text: string) => {
-    const process = Bun.spawn(["docker", "exec", container, "psql", "-U", "postgres", "-d", database, "-Atqc", text], {
-      stdout: "pipe",
-      stderr: "inherit",
-    });
-
-    const output = await new Response(process.stdout).text();
-
-    if (await process.exited) throw new Error("Contention fixture query failed");
-
-    return output.trim();
+    return (await postgres.query(database, text)).trim();
   };
 
   const lock =

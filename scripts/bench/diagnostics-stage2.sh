@@ -17,7 +17,8 @@ if [[ -n $(ss -H -ltn '( sport = :18191 or sport = :18192 )') ]]; then
   printf '%s\n' 'Benchmark ports 18191/18192 are occupied; do not stop another stack.' >&2
   exit 1
 fi
-command -v bun docker taskset vmstat git jq ss >/dev/null
+command -v bun taskset vmstat git jq ss systemd-run systemctl >/dev/null
+source scripts/bench/diagnostics-scope.sh
 mkdir -p -- "$task_output"
 git rev-parse HEAD >"$task_output/head.txt"
 bun --version >"$task_output/bun-version.txt"
@@ -35,6 +36,7 @@ unset CANOPY_BENCH_FORENSIC_CHECKPOINTS
 unset CANOPY_BENCH_FORENSIC_SNAPSHOT_POINT
 export CANOPY_BENCH_SERIES=3
 export CANOPY_BENCH_STAGE=2
+export TMPDIR="$task_output"
 export CANOPY_BENCH_SHORT=1
 export CANOPY_BENCH_IDLE_MS=180000
 export CANOPY_BENCH_LOAD_MS=90000
@@ -51,5 +53,5 @@ export CANOPY_BENCH_GATEWAY_PORT=18192
 printf '%s\n' "Revision: $(cat "$task_output/head.txt")" "Evidence: $task_output" "Controller PID: $$"
 printf '%s\n' 'Order: AB / BA / AB (A=stage 2 off, B=on; stage 1 on throughout).'
 printf '%s\n' 'Workload: 72 minutes; approximately 75 minutes with preflight and startup, longer after rejected pairs.'
-exec "${task_priority[@]}" taskset -c "${CANOPY_DIAGNOSTICS_DRIVER_CPU:-1}" bun scripts/bench/diagnostics.ts \
+diagnostics_scope "${task_priority[@]}" taskset -c "${CANOPY_DIAGNOSTICS_DRIVER_CPU:-1}" bun scripts/bench/diagnostics.ts \
   >"$task_output/results.jsonl" 2>"$task_output/stderr.log"
