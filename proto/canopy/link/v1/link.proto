@@ -36,13 +36,28 @@ message LinkedAgentResult { string result_json = 1; }
 // It is not registered on the public gateway or pairing listener.
 service ThreadMirrorService {
   rpc WatchThreadMirror(MirrorRequest) returns (stream MirrorUpdate);
+  rpc AckThreadRange(ThreadRangeAck) returns (ThreadRangeAckResult);
+  rpc GetThreadRange(ThreadRangeRequest) returns (canopy.ui.v1.ThreadSyncBatch);
 }
+message ThreadRangeRequest {
+  canopy.ui.v1.ThreadSyncCursor cursor = 1;
+  // Inclusive end, zero means current head. Every response remains bounded.
+  uint64 through_seq = 2;
+}
+message ThreadRangeAck {
+  string subscription_id = 1;
+  canopy.ui.v1.ThreadSyncCursor cursor = 2;
+}
+message ThreadRangeAckResult {}
 message MirrorRequest {
   string cursor = 1;
   // Only with thread_mirror_delta on both computers. Older computers keep full projections.
   bool incremental = 2;
   // Negotiated by thread_watch_liveness. Emit idle revision frames.
   bool heartbeat = 3;
+  // Negotiated by thread_ranges_v1. Never downgrades to snapshot transfer.
+  bool ranges = 4;
+  repeated canopy.ui.v1.ThreadSyncCursor thread_cursors = 5;
 }
 message MirrorUpdate {
   string previous_cursor = 1;
@@ -61,6 +76,17 @@ message MirrorUpdate {
   bool delta_end = 12;
   // No projection; cursor must equal the last committed checkpoint.
   bool heartbeat = 13;
+  canopy.ui.v1.ThreadSyncBatch range_batch = 14;
+  ThreadRangeFailure range_failure = 15;
+}
+
+message ThreadRangeFailure {
+  string thread_id = 1;
+  // Sanitized classification, never a transport message or thread content.
+  string reason = 2;
+  uint32 code = 3;
+  bool retryable = 4;
+  uint32 frame_bytes = 5;
 }
 
 // Stage 4, capability "shared_config": internal call over RemoteRequest/RemoteResponse, never

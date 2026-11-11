@@ -4,7 +4,7 @@
 
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
-import type { AgentSender, GatewayDeparture, GetOverviewResponse, ThreadSnapshot, ThreadSnapshotDelta, UpdatesSnapshotSchema } from "../../ui/v1/gateway_pb.ts";
+import type { AgentSender, GatewayDeparture, GetOverviewResponse, ThreadSnapshot, ThreadSnapshotDelta, ThreadSyncBatch, ThreadSyncBatchSchema, ThreadSyncCursor, UpdatesSnapshotSchema } from "../../ui/v1/gateway_pb.ts";
 import { file_canopy_ui_v1_gateway } from "../../ui/v1/gateway_pb.ts";
 import type { BotComposerDraft, BotConversation } from "../../ui/v1/bots_pb.ts";
 import { file_canopy_ui_v1_bots } from "../../ui/v1/bots_pb.ts";
@@ -14,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/link/v1/link.proto.
  */
 export const file_canopy_link_v1_link: GenFile = /*@__PURE__*/
-  fileDesc("ChljYW5vcHkvbGluay92MS9saW5rLnByb3RvEg5jYW5vcHkubGluay52MSKrAQoPQm90TWlycm9yVXBkYXRlEg4KBmN1cnNvchgBIAEoCRINCgVzdGFydBgCIAEoCBIOCgZjb21taXQYAyABKAgSMwoMY29udmVyc2F0aW9uGAQgASgLMh0uY2Fub3B5LnVpLnYxLkJvdENvbnZlcnNhdGlvbhIaChJjb252ZXJzYXRpb25fc3RhcnQYBSABKAgSGAoQY29udmVyc2F0aW9uX2VuZBgGIAEoCCKsAQoPTGlua2VkQWdlbnRDYWxsEhEKCW9wZXJhdGlvbhgBIAEoCRIPCgdjYWxsX2lkGAIgASgJEhAKCGFjdG9yX2lkGAMgASgJEhIKCmFjdG9yX2tpbmQYBCABKAkSFgoOYXJndW1lbnRzX2pzb24YBSABKAkSDAoEaG9wcxgGIAEoDRIpCgZzZW5kZXIYByABKAsyGS5jYW5vcHkudWkudjEuQWdlbnRTZW5kZXIiKAoRTGlua2VkQWdlbnRSZXN1bHQSEwoLcmVzdWx0X2pzb24YASABKAkiRwoNTWlycm9yUmVxdWVzdBIOCgZjdXJzb3IYASABKAkSEwoLaW5jcmVtZW50YWwYAiABKAgSEQoJaGVhcnRiZWF0GAMgASgIIvECCgxNaXJyb3JVcGRhdGUSFwoPcHJldmlvdXNfY3Vyc29yGAEgASgJEg4KBmN1cnNvchgCIAEoCRINCgVyZXNldBgDIAEoCBIOCgZjb21taXQYBCABKAgSLgoIc25hcHNob3QYBSABKAsyHC5jYW5vcHkudWkudjEuVGhyZWFkU25hcHNob3QSGQoRcmVtb3ZlZF90aHJlYWRfaWQYBiABKAkSMwoIb3ZlcnZpZXcYByABKAsyIS5jYW5vcHkudWkudjEuR2V0T3ZlcnZpZXdSZXNwb25zZRIWCg5zbmFwc2hvdF9zdGFydBgIIAEoCBIUCgxzbmFwc2hvdF9lbmQYCSABKAgSMAoFZGVsdGEYCiABKAsyIS5jYW5vcHkudWkudjEuVGhyZWFkU25hcHNob3REZWx0YRITCgtkZWx0YV9zdGFydBgLIAEoCBIRCglkZWx0YV9lbmQYDCABKAgSEQoJaGVhcnRiZWF0GA0gASgIIiwKDFNoYXJlZFNlY3JldBINCgV0b2tlbhgBIAEoCRINCgV2YWx1ZRgCIAEoCSKYAgoKU2hhcmVkSXRlbRILCgNrZXkYASABKAkSDgoGc2hhcmVkGAIgASgIEjQKBWNsb2NrGAMgAygLMiUuY2Fub3B5LmxpbmsudjEuU2hhcmVkSXRlbS5DbG9ja0VudHJ5EhIKCmNoYW5nZWRfYnkYBCABKAkSFQoNY2hhbmdlZF9hdF9tcxgFIAEoAxIOCgZkaWdlc3QYBiABKAkSDwoHcGF5bG9hZBgHIAEoCRItCgdzZWNyZXRzGAggAygLMhwuY2Fub3B5LmxpbmsudjEuU2hhcmVkU2VjcmV0Eg4KBnJlYXNvbhgJIAEoCRosCgpDbG9ja0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoBDoCOAEiPQoQU2hhcmVkQ29uZmlnUHVzaBIpCgVpdGVtcxgBIAMoCzIaLmNhbm9weS5saW5rLnYxLlNoYXJlZEl0ZW0iuwEKEFNoYXJlZEl0ZW1SZXN1bHQSCwoDa2V5GAEgASgJEg8KB291dGNvbWUYAiABKAkSDgoGZGlnZXN0GAMgASgJEg8KB21lc3NhZ2UYBCABKAkSOgoFY2xvY2sYBSADKAsyKy5jYW5vcHkubGluay52MS5TaGFyZWRJdGVtUmVzdWx0LkNsb2NrRW50cnkaLAoKQ2xvY2tFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAQ6AjgBIkYKEVNoYXJlZENvbmZpZ1JlcGx5EjEKB3Jlc3VsdHMYASADKAsyIC5jYW5vcHkubGluay52MS5TaGFyZWRJdGVtUmVzdWx0IiEKEUNvbmZpZ0Jsb2JSZXF1ZXN0EgwKBGhhc2gYASABKAkiLQoPQ29uZmlnQmxvYkNodW5rEgwKBGRhdGEYASABKAwSDAoEc2l6ZRgCIAEoBCIeCgxDb25maWdDdXJzb3ISDgoGY3Vyc29yGAEgASgJIngKC0NvbmZpZ0hlbGxvEjkKB3NjaGVtYXMYASADKAsyKC5jYW5vcHkubGluay52MS5Db25maWdIZWxsby5TY2hlbWFzRW50cnkaLgoMU2NoZW1hc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoDToCOAEiigEKC0NvbmZpZ0ZpZWxkEhIKCnZhbHVlX2pzb24YASABKAkSCwoDaGxjGAIgASgJEgwKBHByZXYYAyABKAkSEwoGc2VjcmV0GAQgASgJSACIAQESEwoGZWRpdGVkGAUgASgISAGIAQESDAoEc2VlbhgGIAMoCUIJCgdfc2VjcmV0QgkKB19lZGl0ZWQinwIKCkNvbmZpZ0l0ZW0SDAoEa2luZBgBIAEoCRIRCglnbG9iYWxfaWQYAiABKAkSFAoMaG9tZV9ub2RlX2lkGAMgASgJEhAKCGlkZW50aXR5GAQgASgJEjYKBmZpZWxkcxgFIAMoCzImLmNhbm9weS5saW5rLnYxLkNvbmZpZ0l0ZW0uRmllbGRzRW50cnkSLAoHZGVsZXRlZBgGIAEoCzIbLmNhbm9weS5saW5rLnYxLkNvbmZpZ0ZpZWxkEhYKDnNjaGVtYV92ZXJzaW9uGAcgASgNGkoKC0ZpZWxkc0VudHJ5EgsKA2tleRgBIAEoCRIqCgV2YWx1ZRgCIAEoCzIbLmNhbm9weS5saW5rLnYxLkNvbmZpZ0ZpZWxkOgI4ASKIAQoMQ29uZmlnVXBkYXRlEioKBWhlbGxvGAEgASgLMhsuY2Fub3B5LmxpbmsudjEuQ29uZmlnSGVsbG8SKQoFaXRlbXMYAiADKAsyGi5jYW5vcHkubGluay52MS5Db25maWdJdGVtEhIKCmNoZWNrcG9pbnQYAyABKAkSDQoFcmVzZXQYBCABKAgiMgoNQ29uZmlnU2hhcmluZxIPCgdlbmFibGVkGAEgASgIEhAKCHJldmlzaW9uGAIgASgEIhgKFkNvbXB1dGVyVXBkYXRlc1JlcXVlc3QiOgoVQ29tcHV0ZXJVcGRhdGVSZXF1ZXN0Eg4KBmFjdGlvbhgBIAEoCRIRCgl3b3JrZXJfaWQYAiABKAkilAEKCU5vZGVIZWxsbxIPCgdub2RlX2lkGAEgASgJEgwKBG5hbWUYAiABKAkSEQoJYWRkcmVzc2VzGAMgAygJEhMKC2FwcF92ZXJzaW9uGAQgASgJEhQKDG1pbl9wcm90b2NvbBgFIAEoDRIUCgxtYXhfcHJvdG9jb2wYBiABKA0SFAoMY2FwYWJpbGl0aWVzGAcgAygJInMKC1BhaXJSZXF1ZXN0Eg4KBnNlY3JldBgBIAEoCRIoCgVoZWxsbxgCIAEoCzIZLmNhbm9weS5saW5rLnYxLk5vZGVIZWxsbxIZCgxzaGFyZV9jb25maWcYAyABKAhIAIgBAUIPCg1fc2hhcmVfY29uZmlnImQKDFBhaXJSZXNwb25zZRIoCgVoZWxsbxgBIAEoCzIZLmNhbm9weS5saW5rLnYxLk5vZGVIZWxsbxIZCgxzaGFyZV9jb25maWcYAiABKAhIAIgBAUIPCg1fc2hhcmVfY29uZmlnImEKC0xpbmtXZWxjb21lEigKBWhlbGxvGAEgASgLMhkuY2Fub3B5LmxpbmsudjEuTm9kZUhlbGxvEhAKCHByb3RvY29sGAIgASgNEhYKDnVwZGF0ZV9ub2RlX2lkGAMgASgJImUKCFByZXNlbmNlEg0KBXN0YXRlGAEgASgJEhcKD2Fubm91bmNlZF9hdF9tcxgCIAEoAxIxCglkZXBhcnR1cmUYAyABKAsyHi5jYW5vcHkudWkudjEuR2F0ZXdheURlcGFydHVyZSIfCglIZWFydGJlYXQSEgoKc2VudF9hdF9tcxgBIAEoAyIKCghVbmxpbmtlZCImChFSb3V0ZUFubm91bmNlbWVudBIRCglhZGRyZXNzZXMYASADKAkipgEKDVJlbGF5Q29tcHV0ZXISDwoHbm9kZV9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhMKC2FwcF92ZXJzaW9uGAMgASgJEg4KBnN0YXR1cxgEIAEoCRIXCg9zdGF0dXNfc2luY2VfbXMYBSABKAMSFAoMbGFzdF9zZWVuX21zGAYgASgDEhQKDGNhcGFiaWxpdGllcxgHIAMoCRIMCgRyb2xlGAggASgJIlIKDFJlbGF5Q2F0YWxvZxIQCghyZXZpc2lvbhgBIAEoBBIwCgljb21wdXRlcnMYAiADKAsyHS5jYW5vcHkubGluay52MS5SZWxheUNvbXB1dGVyIpMBCg1SZW1vdGVSZXF1ZXN0Eg8KB2NhbGxfaWQYASABKAQSDgoGbWV0aG9kGAIgASgJEg8KB3BheWxvYWQYAyABKAwSDAoEbW9yZRgEIAEoCBIWCg50YXJnZXRfbm9kZV9pZBgFIAEoCRIWCg5vcmlnaW5fbm9kZV9pZBgGIAEoCRISCgpyZWxheV9ob3BzGAcgASgNIpYBCg5SZW1vdGVSZXNwb25zZRIPCgdjYWxsX2lkGAEgASgEEg8KB3BheWxvYWQYAiABKAwSDAoEbW9yZRgDIAEoCBILCgNlbmQYBCABKAgSDAoEY29kZRgFIAEoDRIPCgdtZXNzYWdlGAYgASgJEigKBW1vdmVkGAcgAygLMhkuY2Fub3B5LmxpbmsudjEuTW92ZWRJdGVtIh8KDFJlbW90ZUNhbmNlbBIPCgdjYWxsX2lkGAEgASgEIvgECglMaW5rRnJhbWUSKgoFaGVsbG8YASABKAsyGS5jYW5vcHkubGluay52MS5Ob2RlSGVsbG9IABIuCgd3ZWxjb21lGAIgASgLMhsuY2Fub3B5LmxpbmsudjEuTGlua1dlbGNvbWVIABIuCgloZWFydGJlYXQYAyABKAsyGS5jYW5vcHkubGluay52MS5IZWFydGJlYXRIABIsCghwcmVzZW5jZRgEIAEoCzIYLmNhbm9weS5saW5rLnYxLlByZXNlbmNlSAASLAoIdW5saW5rZWQYBSABKAsyGC5jYW5vcHkubGluay52MS5VbmxpbmtlZEgAEjcKDnJlbW90ZV9yZXF1ZXN0GAYgASgLMh0uY2Fub3B5LmxpbmsudjEuUmVtb3RlUmVxdWVzdEgAEjkKD3JlbW90ZV9yZXNwb25zZRgHIAEoCzIeLmNhbm9weS5saW5rLnYxLlJlbW90ZVJlc3BvbnNlSAASNQoNcmVtb3RlX2NhbmNlbBgIIAEoCzIcLmNhbm9weS5saW5rLnYxLlJlbW90ZUNhbmNlbEgAEjMKBnJvdXRlcxgJIAEoCzIhLmNhbm9weS5saW5rLnYxLlJvdXRlQW5ub3VuY2VtZW50SAASNQoNcmVsYXlfY2F0YWxvZxgKIAEoCzIcLmNhbm9weS5saW5rLnYxLlJlbGF5Q2F0YWxvZ0gAEisKBW1vdmVkGAsgASgLMhouY2Fub3B5LmxpbmsudjEuTW92ZWRJdGVtc0gAEjcKDmNvbmZpZ19zaGFyaW5nGAwgASgLMh0uY2Fub3B5LmxpbmsudjEuQ29uZmlnU2hhcmluZ0gAQgYKBGJvZHkixgEKC01vdmVQcmVwYXJlEg8KB21vdmVfaWQYASABKAkSDAoEa2luZBgCIAEoCRIPCgdpdGVtX2lkGAMgASgJEhAKCGJhdGNoX2lkGAQgASgJEg0KBXRpdGxlGAUgASgJEhQKDHdvcmtzcGFjZV9pZBgGIAEoCRIqCgZ0aHJlYWQYByABKAsyGi5jYW5vcHkubGluay52MS5UaHJlYWRNb3ZlEiQKA2JvdBgIIAEoCzIXLmNhbm9weS5saW5rLnYxLkJvdE1vdmUidQoJTW92ZWRGaWxlEhcKD2F0dGFjaG1lbnRfanNvbhgBIAEoCRIMCgRkYXRhGAIgASgMEhEKCW1pbWVfdHlwZRgDIAEoCRIRCgl0aHVtYm5haWwYBCABKAwSGwoTdGh1bWJuYWlsX21pbWVfdHlwZRgFIAEoCSI8CglNb3ZlZEJsb2ISDgoGc2hhMjU2GAEgASgJEhEKCW1pbWVfdHlwZRgCIAEoCRIMCgRkYXRhGAMgASgMImYKC01vdmVkVGhyZWFkEi0KB2hpc3RvcnkYASABKAsyHC5jYW5vcHkudWkudjEuVGhyZWFkU25hcHNob3QSEAoIcm93X2pzb24YAiABKAkSFgoOc2NoZWR1bGVzX2pzb24YAyADKAkiowEKClRocmVhZE1vdmUSLAoHdGhyZWFkcxgBIAMoCzIbLmNhbm9weS5saW5rLnYxLk1vdmVkVGhyZWFkEigKBWZpbGVzGAIgAygLMhkuY2Fub3B5LmxpbmsudjEuTW92ZWRGaWxlEigKBWJsb2JzGAMgAygLMhkuY2Fub3B5LmxpbmsudjEuTW92ZWRCbG9iEhMKC3NvdXJjZV9uYW1lGAQgASgJIooBCgdCb3RNb3ZlEhEKCXJvd3NfanNvbhgBIAEoCRITCgtzb3VyY2VfbmFtZRgCIAEoCRIoCgVmaWxlcxgDIAMoCzIZLmNhbm9weS5saW5rLnYxLk1vdmVkRmlsZRItCgVkcmFmdBgEIAEoCzIeLmNhbm9weS51aS52MS5Cb3RDb21wb3NlckRyYWZ0IjEKDE1vdmVEZWNpc2lvbhIPCgdtb3ZlX2lkGAEgASgJEhAKCGRlY2lzaW9uGAIgASgJIikKCU1vdmVSZXBseRINCgVzdGF0ZRgBIAEoCRINCgVlcnJvchgCIAEoCSI+CgtNb3ZlSW5zcGVjdBIaChJwcm92aWRlcl9pbnN0YW5jZXMYASADKAkSEwoLcHJvamVjdF9pZHMYAiADKAkiQQoOTW92ZUluc3BlY3Rpb24SGgoScHJvdmlkZXJfaW5zdGFuY2VzGAEgAygJEhMKC3Byb2plY3RfaWRzGAIgAygJIn4KCU1vdmVkSXRlbRIPCgdpdGVtX2lkGAEgASgJEgwKBGtpbmQYAiABKAkSFAoMaG9tZV9ub2RlX2lkGAMgASgJEhQKDGZyb21fbm9kZV9pZBgEIAEoCRITCgttb3ZlZF9hdF9tcxgFIAEoAxIRCglob21lX25hbWUYBiABKAkiNgoKTW92ZWRJdGVtcxIoCgVpdGVtcxgBIAMoCzIZLmNhbm9weS5saW5rLnYxLk1vdmVkSXRlbTK9AQoTTGlua2VkQWdlbnRzU2VydmljZRJSCg5XYXRjaEJvdE1pcnJvchIdLmNhbm9weS5saW5rLnYxLk1pcnJvclJlcXVlc3QaHy5jYW5vcHkubGluay52MS5Cb3RNaXJyb3JVcGRhdGUwARJSCgxDYWxsQWdlbnRCdXMSHy5jYW5vcHkubGluay52MS5MaW5rZWRBZ2VudENhbGwaIS5jYW5vcHkubGluay52MS5MaW5rZWRBZ2VudFJlc3VsdDJpChNUaHJlYWRNaXJyb3JTZXJ2aWNlElIKEVdhdGNoVGhyZWFkTWlycm9yEh0uY2Fub3B5LmxpbmsudjEuTWlycm9yUmVxdWVzdBocLmNhbm9weS5saW5rLnYxLk1pcnJvclVwZGF0ZTABMm4KE1NoYXJlZENvbmZpZ1NlcnZpY2USVwoQUHVzaFNoYXJlZENvbmZpZxIgLmNhbm9weS5saW5rLnYxLlNoYXJlZENvbmZpZ1B1c2gaIS5jYW5vcHkubGluay52MS5TaGFyZWRDb25maWdSZXBseTK3AQoRQ29uZmlnU3luY1NlcnZpY2USSwoLV2F0Y2hDb25maWcSHC5jYW5vcHkubGluay52MS5Db25maWdDdXJzb3IaHC5jYW5vcHkubGluay52MS5Db25maWdVcGRhdGUwARJVCg1HZXRDb25maWdCbG9iEiEuY2Fub3B5LmxpbmsudjEuQ29uZmlnQmxvYlJlcXVlc3QaHy5jYW5vcHkubGluay52MS5Db25maWdCbG9iQ2h1bmswATLTAQoVQ29tcHV0ZXJVcGRhdGVTZXJ2aWNlElsKEkdldENvbXB1dGVyVXBkYXRlcxImLmNhbm9weS5saW5rLnYxLkNvbXB1dGVyVXBkYXRlc1JlcXVlc3QaHS5jYW5vcHkudWkudjEuVXBkYXRlc1NuYXBzaG90El0KFVJlcXVlc3RDb21wdXRlclVwZGF0ZRIlLmNhbm9weS5saW5rLnYxLkNvbXB1dGVyVXBkYXRlUmVxdWVzdBodLmNhbm9weS51aS52MS5VcGRhdGVzU25hcHNob3QynQEKE0NvbXB1dGVyTGlua1NlcnZpY2USQQoEUGFpchIbLmNhbm9weS5saW5rLnYxLlBhaXJSZXF1ZXN0GhwuY2Fub3B5LmxpbmsudjEuUGFpclJlc3BvbnNlEkMKB0Nvbm5lY3QSGS5jYW5vcHkubGluay52MS5MaW5rRnJhbWUaGS5jYW5vcHkubGluay52MS5MaW5rRnJhbWUoATABMrcCChNDb21wdXRlck1vdmVTZXJ2aWNlEkUKC1ByZXBhcmVNb3ZlEhsuY2Fub3B5LmxpbmsudjEuTW92ZVByZXBhcmUaGS5jYW5vcHkubGluay52MS5Nb3ZlUmVwbHkSRQoKRGVjaWRlTW92ZRIcLmNhbm9weS5saW5rLnYxLk1vdmVEZWNpc2lvbhoZLmNhbm9weS5saW5rLnYxLk1vdmVSZXBseRJGCgtNb3ZlT3V0Y29tZRIcLmNhbm9weS5saW5rLnYxLk1vdmVEZWNpc2lvbhoZLmNhbm9weS5saW5rLnYxLk1vdmVSZXBseRJKCgtJbnNwZWN0TW92ZRIbLmNhbm9weS5saW5rLnYxLk1vdmVJbnNwZWN0Gh4uY2Fub3B5LmxpbmsudjEuTW92ZUluc3BlY3Rpb25iBnByb3RvMw", [file_canopy_ui_v1_gateway, file_canopy_ui_v1_bots]);
+  fileDesc("ChljYW5vcHkvbGluay92MS9saW5rLnByb3RvEg5jYW5vcHkubGluay52MSKrAQoPQm90TWlycm9yVXBkYXRlEg4KBmN1cnNvchgBIAEoCRINCgVzdGFydBgCIAEoCBIOCgZjb21taXQYAyABKAgSMwoMY29udmVyc2F0aW9uGAQgASgLMh0uY2Fub3B5LnVpLnYxLkJvdENvbnZlcnNhdGlvbhIaChJjb252ZXJzYXRpb25fc3RhcnQYBSABKAgSGAoQY29udmVyc2F0aW9uX2VuZBgGIAEoCCKsAQoPTGlua2VkQWdlbnRDYWxsEhEKCW9wZXJhdGlvbhgBIAEoCRIPCgdjYWxsX2lkGAIgASgJEhAKCGFjdG9yX2lkGAMgASgJEhIKCmFjdG9yX2tpbmQYBCABKAkSFgoOYXJndW1lbnRzX2pzb24YBSABKAkSDAoEaG9wcxgGIAEoDRIpCgZzZW5kZXIYByABKAsyGS5jYW5vcHkudWkudjEuQWdlbnRTZW5kZXIiKAoRTGlua2VkQWdlbnRSZXN1bHQSEwoLcmVzdWx0X2pzb24YASABKAkiWQoSVGhyZWFkUmFuZ2VSZXF1ZXN0Ei4KBmN1cnNvchgBIAEoCzIeLmNhbm9weS51aS52MS5UaHJlYWRTeW5jQ3Vyc29yEhMKC3Rocm91Z2hfc2VxGAIgASgEIlkKDlRocmVhZFJhbmdlQWNrEhcKD3N1YnNjcmlwdGlvbl9pZBgBIAEoCRIuCgZjdXJzb3IYAiABKAsyHi5jYW5vcHkudWkudjEuVGhyZWFkU3luY0N1cnNvciIWChRUaHJlYWRSYW5nZUFja1Jlc3VsdCKPAQoNTWlycm9yUmVxdWVzdBIOCgZjdXJzb3IYASABKAkSEwoLaW5jcmVtZW50YWwYAiABKAgSEQoJaGVhcnRiZWF0GAMgASgIEg4KBnJhbmdlcxgEIAEoCBI2Cg50aHJlYWRfY3Vyc29ycxgFIAMoCzIeLmNhbm9weS51aS52MS5UaHJlYWRTeW5jQ3Vyc29yIuADCgxNaXJyb3JVcGRhdGUSFwoPcHJldmlvdXNfY3Vyc29yGAEgASgJEg4KBmN1cnNvchgCIAEoCRINCgVyZXNldBgDIAEoCBIOCgZjb21taXQYBCABKAgSLgoIc25hcHNob3QYBSABKAsyHC5jYW5vcHkudWkudjEuVGhyZWFkU25hcHNob3QSGQoRcmVtb3ZlZF90aHJlYWRfaWQYBiABKAkSMwoIb3ZlcnZpZXcYByABKAsyIS5jYW5vcHkudWkudjEuR2V0T3ZlcnZpZXdSZXNwb25zZRIWCg5zbmFwc2hvdF9zdGFydBgIIAEoCBIUCgxzbmFwc2hvdF9lbmQYCSABKAgSMAoFZGVsdGEYCiABKAsyIS5jYW5vcHkudWkudjEuVGhyZWFkU25hcHNob3REZWx0YRITCgtkZWx0YV9zdGFydBgLIAEoCBIRCglkZWx0YV9lbmQYDCABKAgSEQoJaGVhcnRiZWF0GA0gASgIEjIKC3JhbmdlX2JhdGNoGA4gASgLMh0uY2Fub3B5LnVpLnYxLlRocmVhZFN5bmNCYXRjaBI5Cg1yYW5nZV9mYWlsdXJlGA8gASgLMiIuY2Fub3B5LmxpbmsudjEuVGhyZWFkUmFuZ2VGYWlsdXJlIm0KElRocmVhZFJhbmdlRmFpbHVyZRIRCgl0aHJlYWRfaWQYASABKAkSDgoGcmVhc29uGAIgASgJEgwKBGNvZGUYAyABKA0SEQoJcmV0cnlhYmxlGAQgASgIEhMKC2ZyYW1lX2J5dGVzGAUgASgNIiwKDFNoYXJlZFNlY3JldBINCgV0b2tlbhgBIAEoCRINCgV2YWx1ZRgCIAEoCSKYAgoKU2hhcmVkSXRlbRILCgNrZXkYASABKAkSDgoGc2hhcmVkGAIgASgIEjQKBWNsb2NrGAMgAygLMiUuY2Fub3B5LmxpbmsudjEuU2hhcmVkSXRlbS5DbG9ja0VudHJ5EhIKCmNoYW5nZWRfYnkYBCABKAkSFQoNY2hhbmdlZF9hdF9tcxgFIAEoAxIOCgZkaWdlc3QYBiABKAkSDwoHcGF5bG9hZBgHIAEoCRItCgdzZWNyZXRzGAggAygLMhwuY2Fub3B5LmxpbmsudjEuU2hhcmVkU2VjcmV0Eg4KBnJlYXNvbhgJIAEoCRosCgpDbG9ja0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoBDoCOAEiPQoQU2hhcmVkQ29uZmlnUHVzaBIpCgVpdGVtcxgBIAMoCzIaLmNhbm9weS5saW5rLnYxLlNoYXJlZEl0ZW0iuwEKEFNoYXJlZEl0ZW1SZXN1bHQSCwoDa2V5GAEgASgJEg8KB291dGNvbWUYAiABKAkSDgoGZGlnZXN0GAMgASgJEg8KB21lc3NhZ2UYBCABKAkSOgoFY2xvY2sYBSADKAsyKy5jYW5vcHkubGluay52MS5TaGFyZWRJdGVtUmVzdWx0LkNsb2NrRW50cnkaLAoKQ2xvY2tFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAQ6AjgBIkYKEVNoYXJlZENvbmZpZ1JlcGx5EjEKB3Jlc3VsdHMYASADKAsyIC5jYW5vcHkubGluay52MS5TaGFyZWRJdGVtUmVzdWx0IiEKEUNvbmZpZ0Jsb2JSZXF1ZXN0EgwKBGhhc2gYASABKAkiLQoPQ29uZmlnQmxvYkNodW5rEgwKBGRhdGEYASABKAwSDAoEc2l6ZRgCIAEoBCIeCgxDb25maWdDdXJzb3ISDgoGY3Vyc29yGAEgASgJIngKC0NvbmZpZ0hlbGxvEjkKB3NjaGVtYXMYASADKAsyKC5jYW5vcHkubGluay52MS5Db25maWdIZWxsby5TY2hlbWFzRW50cnkaLgoMU2NoZW1hc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoDToCOAEiigEKC0NvbmZpZ0ZpZWxkEhIKCnZhbHVlX2pzb24YASABKAkSCwoDaGxjGAIgASgJEgwKBHByZXYYAyABKAkSEwoGc2VjcmV0GAQgASgJSACIAQESEwoGZWRpdGVkGAUgASgISAGIAQESDAoEc2VlbhgGIAMoCUIJCgdfc2VjcmV0QgkKB19lZGl0ZWQinwIKCkNvbmZpZ0l0ZW0SDAoEa2luZBgBIAEoCRIRCglnbG9iYWxfaWQYAiABKAkSFAoMaG9tZV9ub2RlX2lkGAMgASgJEhAKCGlkZW50aXR5GAQgASgJEjYKBmZpZWxkcxgFIAMoCzImLmNhbm9weS5saW5rLnYxLkNvbmZpZ0l0ZW0uRmllbGRzRW50cnkSLAoHZGVsZXRlZBgGIAEoCzIbLmNhbm9weS5saW5rLnYxLkNvbmZpZ0ZpZWxkEhYKDnNjaGVtYV92ZXJzaW9uGAcgASgNGkoKC0ZpZWxkc0VudHJ5EgsKA2tleRgBIAEoCRIqCgV2YWx1ZRgCIAEoCzIbLmNhbm9weS5saW5rLnYxLkNvbmZpZ0ZpZWxkOgI4ASKIAQoMQ29uZmlnVXBkYXRlEioKBWhlbGxvGAEgASgLMhsuY2Fub3B5LmxpbmsudjEuQ29uZmlnSGVsbG8SKQoFaXRlbXMYAiADKAsyGi5jYW5vcHkubGluay52MS5Db25maWdJdGVtEhIKCmNoZWNrcG9pbnQYAyABKAkSDQoFcmVzZXQYBCABKAgiMgoNQ29uZmlnU2hhcmluZxIPCgdlbmFibGVkGAEgASgIEhAKCHJldmlzaW9uGAIgASgEIhgKFkNvbXB1dGVyVXBkYXRlc1JlcXVlc3QiOgoVQ29tcHV0ZXJVcGRhdGVSZXF1ZXN0Eg4KBmFjdGlvbhgBIAEoCRIRCgl3b3JrZXJfaWQYAiABKAkilAEKCU5vZGVIZWxsbxIPCgdub2RlX2lkGAEgASgJEgwKBG5hbWUYAiABKAkSEQoJYWRkcmVzc2VzGAMgAygJEhMKC2FwcF92ZXJzaW9uGAQgASgJEhQKDG1pbl9wcm90b2NvbBgFIAEoDRIUCgxtYXhfcHJvdG9jb2wYBiABKA0SFAoMY2FwYWJpbGl0aWVzGAcgAygJInMKC1BhaXJSZXF1ZXN0Eg4KBnNlY3JldBgBIAEoCRIoCgVoZWxsbxgCIAEoCzIZLmNhbm9weS5saW5rLnYxLk5vZGVIZWxsbxIZCgxzaGFyZV9jb25maWcYAyABKAhIAIgBAUIPCg1fc2hhcmVfY29uZmlnImQKDFBhaXJSZXNwb25zZRIoCgVoZWxsbxgBIAEoCzIZLmNhbm9weS5saW5rLnYxLk5vZGVIZWxsbxIZCgxzaGFyZV9jb25maWcYAiABKAhIAIgBAUIPCg1fc2hhcmVfY29uZmlnImEKC0xpbmtXZWxjb21lEigKBWhlbGxvGAEgASgLMhkuY2Fub3B5LmxpbmsudjEuTm9kZUhlbGxvEhAKCHByb3RvY29sGAIgASgNEhYKDnVwZGF0ZV9ub2RlX2lkGAMgASgJImUKCFByZXNlbmNlEg0KBXN0YXRlGAEgASgJEhcKD2Fubm91bmNlZF9hdF9tcxgCIAEoAxIxCglkZXBhcnR1cmUYAyABKAsyHi5jYW5vcHkudWkudjEuR2F0ZXdheURlcGFydHVyZSIfCglIZWFydGJlYXQSEgoKc2VudF9hdF9tcxgBIAEoAyIKCghVbmxpbmtlZCImChFSb3V0ZUFubm91bmNlbWVudBIRCglhZGRyZXNzZXMYASADKAkipgEKDVJlbGF5Q29tcHV0ZXISDwoHbm9kZV9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhMKC2FwcF92ZXJzaW9uGAMgASgJEg4KBnN0YXR1cxgEIAEoCRIXCg9zdGF0dXNfc2luY2VfbXMYBSABKAMSFAoMbGFzdF9zZWVuX21zGAYgASgDEhQKDGNhcGFiaWxpdGllcxgHIAMoCRIMCgRyb2xlGAggASgJIlIKDFJlbGF5Q2F0YWxvZxIQCghyZXZpc2lvbhgBIAEoBBIwCgljb21wdXRlcnMYAiADKAsyHS5jYW5vcHkubGluay52MS5SZWxheUNvbXB1dGVyIpMBCg1SZW1vdGVSZXF1ZXN0Eg8KB2NhbGxfaWQYASABKAQSDgoGbWV0aG9kGAIgASgJEg8KB3BheWxvYWQYAyABKAwSDAoEbW9yZRgEIAEoCBIWCg50YXJnZXRfbm9kZV9pZBgFIAEoCRIWCg5vcmlnaW5fbm9kZV9pZBgGIAEoCRISCgpyZWxheV9ob3BzGAcgASgNIpYBCg5SZW1vdGVSZXNwb25zZRIPCgdjYWxsX2lkGAEgASgEEg8KB3BheWxvYWQYAiABKAwSDAoEbW9yZRgDIAEoCBILCgNlbmQYBCABKAgSDAoEY29kZRgFIAEoDRIPCgdtZXNzYWdlGAYgASgJEigKBW1vdmVkGAcgAygLMhkuY2Fub3B5LmxpbmsudjEuTW92ZWRJdGVtIh8KDFJlbW90ZUNhbmNlbBIPCgdjYWxsX2lkGAEgASgEIvgECglMaW5rRnJhbWUSKgoFaGVsbG8YASABKAsyGS5jYW5vcHkubGluay52MS5Ob2RlSGVsbG9IABIuCgd3ZWxjb21lGAIgASgLMhsuY2Fub3B5LmxpbmsudjEuTGlua1dlbGNvbWVIABIuCgloZWFydGJlYXQYAyABKAsyGS5jYW5vcHkubGluay52MS5IZWFydGJlYXRIABIsCghwcmVzZW5jZRgEIAEoCzIYLmNhbm9weS5saW5rLnYxLlByZXNlbmNlSAASLAoIdW5saW5rZWQYBSABKAsyGC5jYW5vcHkubGluay52MS5VbmxpbmtlZEgAEjcKDnJlbW90ZV9yZXF1ZXN0GAYgASgLMh0uY2Fub3B5LmxpbmsudjEuUmVtb3RlUmVxdWVzdEgAEjkKD3JlbW90ZV9yZXNwb25zZRgHIAEoCzIeLmNhbm9weS5saW5rLnYxLlJlbW90ZVJlc3BvbnNlSAASNQoNcmVtb3RlX2NhbmNlbBgIIAEoCzIcLmNhbm9weS5saW5rLnYxLlJlbW90ZUNhbmNlbEgAEjMKBnJvdXRlcxgJIAEoCzIhLmNhbm9weS5saW5rLnYxLlJvdXRlQW5ub3VuY2VtZW50SAASNQoNcmVsYXlfY2F0YWxvZxgKIAEoCzIcLmNhbm9weS5saW5rLnYxLlJlbGF5Q2F0YWxvZ0gAEisKBW1vdmVkGAsgASgLMhouY2Fub3B5LmxpbmsudjEuTW92ZWRJdGVtc0gAEjcKDmNvbmZpZ19zaGFyaW5nGAwgASgLMh0uY2Fub3B5LmxpbmsudjEuQ29uZmlnU2hhcmluZ0gAQgYKBGJvZHkixgEKC01vdmVQcmVwYXJlEg8KB21vdmVfaWQYASABKAkSDAoEa2luZBgCIAEoCRIPCgdpdGVtX2lkGAMgASgJEhAKCGJhdGNoX2lkGAQgASgJEg0KBXRpdGxlGAUgASgJEhQKDHdvcmtzcGFjZV9pZBgGIAEoCRIqCgZ0aHJlYWQYByABKAsyGi5jYW5vcHkubGluay52MS5UaHJlYWRNb3ZlEiQKA2JvdBgIIAEoCzIXLmNhbm9weS5saW5rLnYxLkJvdE1vdmUidQoJTW92ZWRGaWxlEhcKD2F0dGFjaG1lbnRfanNvbhgBIAEoCRIMCgRkYXRhGAIgASgMEhEKCW1pbWVfdHlwZRgDIAEoCRIRCgl0aHVtYm5haWwYBCABKAwSGwoTdGh1bWJuYWlsX21pbWVfdHlwZRgFIAEoCSI8CglNb3ZlZEJsb2ISDgoGc2hhMjU2GAEgASgJEhEKCW1pbWVfdHlwZRgCIAEoCRIMCgRkYXRhGAMgASgMImYKC01vdmVkVGhyZWFkEi0KB2hpc3RvcnkYASABKAsyHC5jYW5vcHkudWkudjEuVGhyZWFkU25hcHNob3QSEAoIcm93X2pzb24YAiABKAkSFgoOc2NoZWR1bGVzX2pzb24YAyADKAkiowEKClRocmVhZE1vdmUSLAoHdGhyZWFkcxgBIAMoCzIbLmNhbm9weS5saW5rLnYxLk1vdmVkVGhyZWFkEigKBWZpbGVzGAIgAygLMhkuY2Fub3B5LmxpbmsudjEuTW92ZWRGaWxlEigKBWJsb2JzGAMgAygLMhkuY2Fub3B5LmxpbmsudjEuTW92ZWRCbG9iEhMKC3NvdXJjZV9uYW1lGAQgASgJIooBCgdCb3RNb3ZlEhEKCXJvd3NfanNvbhgBIAEoCRITCgtzb3VyY2VfbmFtZRgCIAEoCRIoCgVmaWxlcxgDIAMoCzIZLmNhbm9weS5saW5rLnYxLk1vdmVkRmlsZRItCgVkcmFmdBgEIAEoCzIeLmNhbm9weS51aS52MS5Cb3RDb21wb3NlckRyYWZ0IjEKDE1vdmVEZWNpc2lvbhIPCgdtb3ZlX2lkGAEgASgJEhAKCGRlY2lzaW9uGAIgASgJIikKCU1vdmVSZXBseRINCgVzdGF0ZRgBIAEoCRINCgVlcnJvchgCIAEoCSI+CgtNb3ZlSW5zcGVjdBIaChJwcm92aWRlcl9pbnN0YW5jZXMYASADKAkSEwoLcHJvamVjdF9pZHMYAiADKAkiQQoOTW92ZUluc3BlY3Rpb24SGgoScHJvdmlkZXJfaW5zdGFuY2VzGAEgAygJEhMKC3Byb2plY3RfaWRzGAIgAygJIn4KCU1vdmVkSXRlbRIPCgdpdGVtX2lkGAEgASgJEgwKBGtpbmQYAiABKAkSFAoMaG9tZV9ub2RlX2lkGAMgASgJEhQKDGZyb21fbm9kZV9pZBgEIAEoCRITCgttb3ZlZF9hdF9tcxgFIAEoAxIRCglob21lX25hbWUYBiABKAkiNgoKTW92ZWRJdGVtcxIoCgVpdGVtcxgBIAMoCzIZLmNhbm9weS5saW5rLnYxLk1vdmVkSXRlbTK9AQoTTGlua2VkQWdlbnRzU2VydmljZRJSCg5XYXRjaEJvdE1pcnJvchIdLmNhbm9weS5saW5rLnYxLk1pcnJvclJlcXVlc3QaHy5jYW5vcHkubGluay52MS5Cb3RNaXJyb3JVcGRhdGUwARJSCgxDYWxsQWdlbnRCdXMSHy5jYW5vcHkubGluay52MS5MaW5rZWRBZ2VudENhbGwaIS5jYW5vcHkubGluay52MS5MaW5rZWRBZ2VudFJlc3VsdDKWAgoTVGhyZWFkTWlycm9yU2VydmljZRJSChFXYXRjaFRocmVhZE1pcnJvchIdLmNhbm9weS5saW5rLnYxLk1pcnJvclJlcXVlc3QaHC5jYW5vcHkubGluay52MS5NaXJyb3JVcGRhdGUwARJWCg5BY2tUaHJlYWRSYW5nZRIeLmNhbm9weS5saW5rLnYxLlRocmVhZFJhbmdlQWNrGiQuY2Fub3B5LmxpbmsudjEuVGhyZWFkUmFuZ2VBY2tSZXN1bHQSUwoOR2V0VGhyZWFkUmFuZ2USIi5jYW5vcHkubGluay52MS5UaHJlYWRSYW5nZVJlcXVlc3QaHS5jYW5vcHkudWkudjEuVGhyZWFkU3luY0JhdGNoMm4KE1NoYXJlZENvbmZpZ1NlcnZpY2USVwoQUHVzaFNoYXJlZENvbmZpZxIgLmNhbm9weS5saW5rLnYxLlNoYXJlZENvbmZpZ1B1c2gaIS5jYW5vcHkubGluay52MS5TaGFyZWRDb25maWdSZXBseTK3AQoRQ29uZmlnU3luY1NlcnZpY2USSwoLV2F0Y2hDb25maWcSHC5jYW5vcHkubGluay52MS5Db25maWdDdXJzb3IaHC5jYW5vcHkubGluay52MS5Db25maWdVcGRhdGUwARJVCg1HZXRDb25maWdCbG9iEiEuY2Fub3B5LmxpbmsudjEuQ29uZmlnQmxvYlJlcXVlc3QaHy5jYW5vcHkubGluay52MS5Db25maWdCbG9iQ2h1bmswATLTAQoVQ29tcHV0ZXJVcGRhdGVTZXJ2aWNlElsKEkdldENvbXB1dGVyVXBkYXRlcxImLmNhbm9weS5saW5rLnYxLkNvbXB1dGVyVXBkYXRlc1JlcXVlc3QaHS5jYW5vcHkudWkudjEuVXBkYXRlc1NuYXBzaG90El0KFVJlcXVlc3RDb21wdXRlclVwZGF0ZRIlLmNhbm9weS5saW5rLnYxLkNvbXB1dGVyVXBkYXRlUmVxdWVzdBodLmNhbm9weS51aS52MS5VcGRhdGVzU25hcHNob3QynQEKE0NvbXB1dGVyTGlua1NlcnZpY2USQQoEUGFpchIbLmNhbm9weS5saW5rLnYxLlBhaXJSZXF1ZXN0GhwuY2Fub3B5LmxpbmsudjEuUGFpclJlc3BvbnNlEkMKB0Nvbm5lY3QSGS5jYW5vcHkubGluay52MS5MaW5rRnJhbWUaGS5jYW5vcHkubGluay52MS5MaW5rRnJhbWUoATABMrcCChNDb21wdXRlck1vdmVTZXJ2aWNlEkUKC1ByZXBhcmVNb3ZlEhsuY2Fub3B5LmxpbmsudjEuTW92ZVByZXBhcmUaGS5jYW5vcHkubGluay52MS5Nb3ZlUmVwbHkSRQoKRGVjaWRlTW92ZRIcLmNhbm9weS5saW5rLnYxLk1vdmVEZWNpc2lvbhoZLmNhbm9weS5saW5rLnYxLk1vdmVSZXBseRJGCgtNb3ZlT3V0Y29tZRIcLmNhbm9weS5saW5rLnYxLk1vdmVEZWNpc2lvbhoZLmNhbm9weS5saW5rLnYxLk1vdmVSZXBseRJKCgtJbnNwZWN0TW92ZRIbLmNhbm9weS5saW5rLnYxLk1vdmVJbnNwZWN0Gh4uY2Fub3B5LmxpbmsudjEuTW92ZUluc3BlY3Rpb25iBnByb3RvMw", [file_canopy_ui_v1_gateway, file_canopy_ui_v1_bots]);
 
 /**
  * @generated from message canopy.link.v1.BotMirrorUpdate
@@ -133,6 +133,65 @@ export const LinkedAgentResultSchema: GenMessage<LinkedAgentResult> = /*@__PURE_
   messageDesc(file_canopy_link_v1_link, 2);
 
 /**
+ * @generated from message canopy.link.v1.ThreadRangeRequest
+ */
+export type ThreadRangeRequest = Message<"canopy.link.v1.ThreadRangeRequest"> & {
+  /**
+   * @generated from field: canopy.ui.v1.ThreadSyncCursor cursor = 1;
+   */
+  cursor?: ThreadSyncCursor | undefined;
+
+  /**
+   * Inclusive end, zero means current head. Every response remains bounded.
+   *
+   * @generated from field: uint64 through_seq = 2;
+   */
+  throughSeq: bigint;
+};
+
+/**
+ * Describes the message canopy.link.v1.ThreadRangeRequest.
+ * Use `create(ThreadRangeRequestSchema)` to create a new message.
+ */
+export const ThreadRangeRequestSchema: GenMessage<ThreadRangeRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_link_v1_link, 3);
+
+/**
+ * @generated from message canopy.link.v1.ThreadRangeAck
+ */
+export type ThreadRangeAck = Message<"canopy.link.v1.ThreadRangeAck"> & {
+  /**
+   * @generated from field: string subscription_id = 1;
+   */
+  subscriptionId: string;
+
+  /**
+   * @generated from field: canopy.ui.v1.ThreadSyncCursor cursor = 2;
+   */
+  cursor?: ThreadSyncCursor | undefined;
+};
+
+/**
+ * Describes the message canopy.link.v1.ThreadRangeAck.
+ * Use `create(ThreadRangeAckSchema)` to create a new message.
+ */
+export const ThreadRangeAckSchema: GenMessage<ThreadRangeAck> = /*@__PURE__*/
+  messageDesc(file_canopy_link_v1_link, 4);
+
+/**
+ * @generated from message canopy.link.v1.ThreadRangeAckResult
+ */
+export type ThreadRangeAckResult = Message<"canopy.link.v1.ThreadRangeAckResult"> & {
+};
+
+/**
+ * Describes the message canopy.link.v1.ThreadRangeAckResult.
+ * Use `create(ThreadRangeAckResultSchema)` to create a new message.
+ */
+export const ThreadRangeAckResultSchema: GenMessage<ThreadRangeAckResult> = /*@__PURE__*/
+  messageDesc(file_canopy_link_v1_link, 5);
+
+/**
  * @generated from message canopy.link.v1.MirrorRequest
  */
 export type MirrorRequest = Message<"canopy.link.v1.MirrorRequest"> & {
@@ -154,6 +213,18 @@ export type MirrorRequest = Message<"canopy.link.v1.MirrorRequest"> & {
    * @generated from field: bool heartbeat = 3;
    */
   heartbeat: boolean;
+
+  /**
+   * Negotiated by thread_ranges_v1. Never downgrades to snapshot transfer.
+   *
+   * @generated from field: bool ranges = 4;
+   */
+  ranges: boolean;
+
+  /**
+   * @generated from field: repeated canopy.ui.v1.ThreadSyncCursor thread_cursors = 5;
+   */
+  threadCursors: ThreadSyncCursor[];
 };
 
 /**
@@ -161,7 +232,7 @@ export type MirrorRequest = Message<"canopy.link.v1.MirrorRequest"> & {
  * Use `create(MirrorRequestSchema)` to create a new message.
  */
 export const MirrorRequestSchema: GenMessage<MirrorRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 3);
+  messageDesc(file_canopy_link_v1_link, 6);
 
 /**
  * @generated from message canopy.link.v1.MirrorUpdate
@@ -237,6 +308,16 @@ export type MirrorUpdate = Message<"canopy.link.v1.MirrorUpdate"> & {
    * @generated from field: bool heartbeat = 13;
    */
   heartbeat: boolean;
+
+  /**
+   * @generated from field: canopy.ui.v1.ThreadSyncBatch range_batch = 14;
+   */
+  rangeBatch?: ThreadSyncBatch | undefined;
+
+  /**
+   * @generated from field: canopy.link.v1.ThreadRangeFailure range_failure = 15;
+   */
+  rangeFailure?: ThreadRangeFailure | undefined;
 };
 
 /**
@@ -244,7 +325,46 @@ export type MirrorUpdate = Message<"canopy.link.v1.MirrorUpdate"> & {
  * Use `create(MirrorUpdateSchema)` to create a new message.
  */
 export const MirrorUpdateSchema: GenMessage<MirrorUpdate> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 4);
+  messageDesc(file_canopy_link_v1_link, 7);
+
+/**
+ * @generated from message canopy.link.v1.ThreadRangeFailure
+ */
+export type ThreadRangeFailure = Message<"canopy.link.v1.ThreadRangeFailure"> & {
+  /**
+   * @generated from field: string thread_id = 1;
+   */
+  threadId: string;
+
+  /**
+   * Sanitized classification, never a transport message or thread content.
+   *
+   * @generated from field: string reason = 2;
+   */
+  reason: string;
+
+  /**
+   * @generated from field: uint32 code = 3;
+   */
+  code: number;
+
+  /**
+   * @generated from field: bool retryable = 4;
+   */
+  retryable: boolean;
+
+  /**
+   * @generated from field: uint32 frame_bytes = 5;
+   */
+  frameBytes: number;
+};
+
+/**
+ * Describes the message canopy.link.v1.ThreadRangeFailure.
+ * Use `create(ThreadRangeFailureSchema)` to create a new message.
+ */
+export const ThreadRangeFailureSchema: GenMessage<ThreadRangeFailure> = /*@__PURE__*/
+  messageDesc(file_canopy_link_v1_link, 8);
 
 /**
  * A secret value of a shared item, only for items marked shared and only while the receiver does
@@ -269,7 +389,7 @@ export type SharedSecret = Message<"canopy.link.v1.SharedSecret"> & {
  * Use `create(SharedSecretSchema)` to create a new message.
  */
 export const SharedSecretSchema: GenMessage<SharedSecret> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 5);
+  messageDesc(file_canopy_link_v1_link, 9);
 
 /**
  * @generated from message canopy.link.v1.SharedItem
@@ -338,7 +458,7 @@ export type SharedItem = Message<"canopy.link.v1.SharedItem"> & {
  * Use `create(SharedItemSchema)` to create a new message.
  */
 export const SharedItemSchema: GenMessage<SharedItem> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 6);
+  messageDesc(file_canopy_link_v1_link, 10);
 
 /**
  * @generated from message canopy.link.v1.SharedConfigPush
@@ -355,7 +475,7 @@ export type SharedConfigPush = Message<"canopy.link.v1.SharedConfigPush"> & {
  * Use `create(SharedConfigPushSchema)` to create a new message.
  */
 export const SharedConfigPushSchema: GenMessage<SharedConfigPush> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 7);
+  messageDesc(file_canopy_link_v1_link, 11);
 
 /**
  * @generated from message canopy.link.v1.SharedItemResult
@@ -398,7 +518,7 @@ export type SharedItemResult = Message<"canopy.link.v1.SharedItemResult"> & {
  * Use `create(SharedItemResultSchema)` to create a new message.
  */
 export const SharedItemResultSchema: GenMessage<SharedItemResult> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 8);
+  messageDesc(file_canopy_link_v1_link, 12);
 
 /**
  * @generated from message canopy.link.v1.SharedConfigReply
@@ -415,7 +535,7 @@ export type SharedConfigReply = Message<"canopy.link.v1.SharedConfigReply"> & {
  * Use `create(SharedConfigReplySchema)` to create a new message.
  */
 export const SharedConfigReplySchema: GenMessage<SharedConfigReply> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 9);
+  messageDesc(file_canopy_link_v1_link, 13);
 
 /**
  * @generated from message canopy.link.v1.ConfigBlobRequest
@@ -432,7 +552,7 @@ export type ConfigBlobRequest = Message<"canopy.link.v1.ConfigBlobRequest"> & {
  * Use `create(ConfigBlobRequestSchema)` to create a new message.
  */
 export const ConfigBlobRequestSchema: GenMessage<ConfigBlobRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 10);
+  messageDesc(file_canopy_link_v1_link, 14);
 
 /**
  * The first chunk carries the total size; chunks arrive in order.
@@ -456,7 +576,7 @@ export type ConfigBlobChunk = Message<"canopy.link.v1.ConfigBlobChunk"> & {
  * Use `create(ConfigBlobChunkSchema)` to create a new message.
  */
 export const ConfigBlobChunkSchema: GenMessage<ConfigBlobChunk> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 11);
+  messageDesc(file_canopy_link_v1_link, 15);
 
 /**
  * @generated from message canopy.link.v1.ConfigCursor
@@ -473,7 +593,7 @@ export type ConfigCursor = Message<"canopy.link.v1.ConfigCursor"> & {
  * Use `create(ConfigCursorSchema)` to create a new message.
  */
 export const ConfigCursorSchema: GenMessage<ConfigCursor> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 12);
+  messageDesc(file_canopy_link_v1_link, 16);
 
 /**
  * @generated from message canopy.link.v1.ConfigHello
@@ -490,7 +610,7 @@ export type ConfigHello = Message<"canopy.link.v1.ConfigHello"> & {
  * Use `create(ConfigHelloSchema)` to create a new message.
  */
 export const ConfigHelloSchema: GenMessage<ConfigHello> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 13);
+  messageDesc(file_canopy_link_v1_link, 17);
 
 /**
  * @generated from message canopy.link.v1.ConfigField
@@ -538,7 +658,7 @@ export type ConfigField = Message<"canopy.link.v1.ConfigField"> & {
  * Use `create(ConfigFieldSchema)` to create a new message.
  */
 export const ConfigFieldSchema: GenMessage<ConfigField> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 14);
+  messageDesc(file_canopy_link_v1_link, 18);
 
 /**
  * @generated from message canopy.link.v1.ConfigItem
@@ -585,7 +705,7 @@ export type ConfigItem = Message<"canopy.link.v1.ConfigItem"> & {
  * Use `create(ConfigItemSchema)` to create a new message.
  */
 export const ConfigItemSchema: GenMessage<ConfigItem> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 15);
+  messageDesc(file_canopy_link_v1_link, 19);
 
 /**
  * @generated from message canopy.link.v1.ConfigUpdate
@@ -617,7 +737,7 @@ export type ConfigUpdate = Message<"canopy.link.v1.ConfigUpdate"> & {
  * Use `create(ConfigUpdateSchema)` to create a new message.
  */
 export const ConfigUpdateSchema: GenMessage<ConfigUpdate> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 16);
+  messageDesc(file_canopy_link_v1_link, 20);
 
 /**
  * @generated from message canopy.link.v1.ConfigSharing
@@ -639,7 +759,7 @@ export type ConfigSharing = Message<"canopy.link.v1.ConfigSharing"> & {
  * Use `create(ConfigSharingSchema)` to create a new message.
  */
 export const ConfigSharingSchema: GenMessage<ConfigSharing> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 17);
+  messageDesc(file_canopy_link_v1_link, 21);
 
 /**
  * @generated from message canopy.link.v1.ComputerUpdatesRequest
@@ -652,7 +772,7 @@ export type ComputerUpdatesRequest = Message<"canopy.link.v1.ComputerUpdatesRequ
  * Use `create(ComputerUpdatesRequestSchema)` to create a new message.
  */
 export const ComputerUpdatesRequestSchema: GenMessage<ComputerUpdatesRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 18);
+  messageDesc(file_canopy_link_v1_link, 22);
 
 /**
  * @generated from message canopy.link.v1.ComputerUpdateRequest
@@ -678,7 +798,7 @@ export type ComputerUpdateRequest = Message<"canopy.link.v1.ComputerUpdateReques
  * Use `create(ComputerUpdateRequestSchema)` to create a new message.
  */
 export const ComputerUpdateRequestSchema: GenMessage<ComputerUpdateRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 19);
+  messageDesc(file_canopy_link_v1_link, 23);
 
 /**
  * @generated from message canopy.link.v1.NodeHello
@@ -725,7 +845,7 @@ export type NodeHello = Message<"canopy.link.v1.NodeHello"> & {
  * Use `create(NodeHelloSchema)` to create a new message.
  */
 export const NodeHelloSchema: GenMessage<NodeHello> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 20);
+  messageDesc(file_canopy_link_v1_link, 24);
 
 /**
  * @generated from message canopy.link.v1.PairRequest
@@ -752,7 +872,7 @@ export type PairRequest = Message<"canopy.link.v1.PairRequest"> & {
  * Use `create(PairRequestSchema)` to create a new message.
  */
 export const PairRequestSchema: GenMessage<PairRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 21);
+  messageDesc(file_canopy_link_v1_link, 25);
 
 /**
  * @generated from message canopy.link.v1.PairResponse
@@ -774,7 +894,7 @@ export type PairResponse = Message<"canopy.link.v1.PairResponse"> & {
  * Use `create(PairResponseSchema)` to create a new message.
  */
 export const PairResponseSchema: GenMessage<PairResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 22);
+  messageDesc(file_canopy_link_v1_link, 26);
 
 /**
  * @generated from message canopy.link.v1.LinkWelcome
@@ -804,7 +924,7 @@ export type LinkWelcome = Message<"canopy.link.v1.LinkWelcome"> & {
  * Use `create(LinkWelcomeSchema)` to create a new message.
  */
 export const LinkWelcomeSchema: GenMessage<LinkWelcome> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 23);
+  messageDesc(file_canopy_link_v1_link, 27);
 
 /**
  * @generated from message canopy.link.v1.Presence
@@ -831,7 +951,7 @@ export type Presence = Message<"canopy.link.v1.Presence"> & {
  * Use `create(PresenceSchema)` to create a new message.
  */
 export const PresenceSchema: GenMessage<Presence> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 24);
+  messageDesc(file_canopy_link_v1_link, 28);
 
 /**
  * @generated from message canopy.link.v1.Heartbeat
@@ -848,7 +968,7 @@ export type Heartbeat = Message<"canopy.link.v1.Heartbeat"> & {
  * Use `create(HeartbeatSchema)` to create a new message.
  */
 export const HeartbeatSchema: GenMessage<Heartbeat> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 25);
+  messageDesc(file_canopy_link_v1_link, 29);
 
 /**
  * @generated from message canopy.link.v1.Unlinked
@@ -861,7 +981,7 @@ export type Unlinked = Message<"canopy.link.v1.Unlinked"> & {
  * Use `create(UnlinkedSchema)` to create a new message.
  */
 export const UnlinkedSchema: GenMessage<Unlinked> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 26);
+  messageDesc(file_canopy_link_v1_link, 30);
 
 /**
  * Stage 6, capability "lan_routes": the sender's current addresses (e.g. after its IP changed).
@@ -882,7 +1002,7 @@ export type RouteAnnouncement = Message<"canopy.link.v1.RouteAnnouncement"> & {
  * Use `create(RouteAnnouncementSchema)` to create a new message.
  */
 export const RouteAnnouncementSchema: GenMessage<RouteAnnouncement> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 27);
+  messageDesc(file_canopy_link_v1_link, 31);
 
 /**
  * Stage 7, capability "relay". Full replacement, ordered by a durable revision.
@@ -940,7 +1060,7 @@ export type RelayComputer = Message<"canopy.link.v1.RelayComputer"> & {
  * Use `create(RelayComputerSchema)` to create a new message.
  */
 export const RelayComputerSchema: GenMessage<RelayComputer> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 28);
+  messageDesc(file_canopy_link_v1_link, 32);
 
 /**
  * @generated from message canopy.link.v1.RelayCatalog
@@ -962,7 +1082,7 @@ export type RelayCatalog = Message<"canopy.link.v1.RelayCatalog"> & {
  * Use `create(RelayCatalogSchema)` to create a new message.
  */
 export const RelayCatalogSchema: GenMessage<RelayCatalog> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 29);
+  messageDesc(file_canopy_link_v1_link, 33);
 
 /**
  * Stage 2, capability "remote_threads": a canopy.ui.v1.GatewayService call
@@ -1023,7 +1143,7 @@ export type RemoteRequest = Message<"canopy.link.v1.RemoteRequest"> & {
  * Use `create(RemoteRequestSchema)` to create a new message.
  */
 export const RemoteRequestSchema: GenMessage<RemoteRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 30);
+  messageDesc(file_canopy_link_v1_link, 34);
 
 /**
  * @generated from message canopy.link.v1.RemoteResponse
@@ -1076,7 +1196,7 @@ export type RemoteResponse = Message<"canopy.link.v1.RemoteResponse"> & {
  * Use `create(RemoteResponseSchema)` to create a new message.
  */
 export const RemoteResponseSchema: GenMessage<RemoteResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 31);
+  messageDesc(file_canopy_link_v1_link, 35);
 
 /**
  * The caller stopped listening (stream closed, timeout). The home aborts the call.
@@ -1095,7 +1215,7 @@ export type RemoteCancel = Message<"canopy.link.v1.RemoteCancel"> & {
  * Use `create(RemoteCancelSchema)` to create a new message.
  */
 export const RemoteCancelSchema: GenMessage<RemoteCancel> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 32);
+  messageDesc(file_canopy_link_v1_link, 36);
 
 /**
  * @generated from message canopy.link.v1.LinkFrame
@@ -1186,7 +1306,7 @@ export type LinkFrame = Message<"canopy.link.v1.LinkFrame"> & {
  * Use `create(LinkFrameSchema)` to create a new message.
  */
 export const LinkFrameSchema: GenMessage<LinkFrame> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 33);
+  messageDesc(file_canopy_link_v1_link, 37);
 
 /**
  * @generated from message canopy.link.v1.MovePrepare
@@ -1242,7 +1362,7 @@ export type MovePrepare = Message<"canopy.link.v1.MovePrepare"> & {
  * Use `create(MovePrepareSchema)` to create a new message.
  */
 export const MovePrepareSchema: GenMessage<MovePrepare> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 34);
+  messageDesc(file_canopy_link_v1_link, 38);
 
 /**
  * One attachment row (JSON of its columns) with its bytes.
@@ -1281,7 +1401,7 @@ export type MovedFile = Message<"canopy.link.v1.MovedFile"> & {
  * Use `create(MovedFileSchema)` to create a new message.
  */
 export const MovedFileSchema: GenMessage<MovedFile> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 35);
+  messageDesc(file_canopy_link_v1_link, 39);
 
 /**
  * @generated from message canopy.link.v1.MovedBlob
@@ -1308,7 +1428,7 @@ export type MovedBlob = Message<"canopy.link.v1.MovedBlob"> & {
  * Use `create(MovedBlobSchema)` to create a new message.
  */
 export const MovedBlobSchema: GenMessage<MovedBlob> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 36);
+  messageDesc(file_canopy_link_v1_link, 40);
 
 /**
  * @generated from message canopy.link.v1.MovedThread
@@ -1341,7 +1461,7 @@ export type MovedThread = Message<"canopy.link.v1.MovedThread"> & {
  * Use `create(MovedThreadSchema)` to create a new message.
  */
 export const MovedThreadSchema: GenMessage<MovedThread> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 37);
+  messageDesc(file_canopy_link_v1_link, 41);
 
 /**
  * @generated from message canopy.link.v1.ThreadMove
@@ -1377,7 +1497,7 @@ export type ThreadMove = Message<"canopy.link.v1.ThreadMove"> & {
  * Use `create(ThreadMoveSchema)` to create a new message.
  */
 export const ThreadMoveSchema: GenMessage<ThreadMove> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 38);
+  messageDesc(file_canopy_link_v1_link, 42);
 
 /**
  * Rows of the bot and its conversation, turns, routines, reminders and handoff notes (JSON).
@@ -1413,7 +1533,7 @@ export type BotMove = Message<"canopy.link.v1.BotMove"> & {
  * Use `create(BotMoveSchema)` to create a new message.
  */
 export const BotMoveSchema: GenMessage<BotMove> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 39);
+  messageDesc(file_canopy_link_v1_link, 43);
 
 /**
  * @generated from message canopy.link.v1.MoveDecision
@@ -1437,7 +1557,7 @@ export type MoveDecision = Message<"canopy.link.v1.MoveDecision"> & {
  * Use `create(MoveDecisionSchema)` to create a new message.
  */
 export const MoveDecisionSchema: GenMessage<MoveDecision> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 40);
+  messageDesc(file_canopy_link_v1_link, 44);
 
 /**
  * @generated from message canopy.link.v1.MoveReply
@@ -1459,7 +1579,7 @@ export type MoveReply = Message<"canopy.link.v1.MoveReply"> & {
  * Use `create(MoveReplySchema)` to create a new message.
  */
 export const MoveReplySchema: GenMessage<MoveReply> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 41);
+  messageDesc(file_canopy_link_v1_link, 45);
 
 /**
  * @generated from message canopy.link.v1.MoveInspect
@@ -1483,7 +1603,7 @@ export type MoveInspect = Message<"canopy.link.v1.MoveInspect"> & {
  * Use `create(MoveInspectSchema)` to create a new message.
  */
 export const MoveInspectSchema: GenMessage<MoveInspect> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 42);
+  messageDesc(file_canopy_link_v1_link, 46);
 
 /**
  * @generated from message canopy.link.v1.MoveInspection
@@ -1505,7 +1625,7 @@ export type MoveInspection = Message<"canopy.link.v1.MoveInspection"> & {
  * Use `create(MoveInspectionSchema)` to create a new message.
  */
 export const MoveInspectionSchema: GenMessage<MoveInspection> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 43);
+  messageDesc(file_canopy_link_v1_link, 47);
 
 /**
  * @generated from message canopy.link.v1.MovedItem
@@ -1551,7 +1671,7 @@ export type MovedItem = Message<"canopy.link.v1.MovedItem"> & {
  * Use `create(MovedItemSchema)` to create a new message.
  */
 export const MovedItemSchema: GenMessage<MovedItem> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 44);
+  messageDesc(file_canopy_link_v1_link, 48);
 
 /**
  * @generated from message canopy.link.v1.MovedItems
@@ -1568,7 +1688,7 @@ export type MovedItems = Message<"canopy.link.v1.MovedItems"> & {
  * Use `create(MovedItemsSchema)` to create a new message.
  */
 export const MovedItemsSchema: GenMessage<MovedItems> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 45);
+  messageDesc(file_canopy_link_v1_link, 49);
 
 /**
  * Stage 5. Internal, negotiated methods over the pinned link, never public RPCs.
@@ -1609,6 +1729,22 @@ export const ThreadMirrorService: GenService<{
     methodKind: "server_streaming";
     input: typeof MirrorRequestSchema;
     output: typeof MirrorUpdateSchema;
+  },
+  /**
+   * @generated from rpc canopy.link.v1.ThreadMirrorService.AckThreadRange
+   */
+  ackThreadRange: {
+    methodKind: "unary";
+    input: typeof ThreadRangeAckSchema;
+    output: typeof ThreadRangeAckResultSchema;
+  },
+  /**
+   * @generated from rpc canopy.link.v1.ThreadMirrorService.GetThreadRange
+   */
+  getThreadRange: {
+    methodKind: "unary";
+    input: typeof ThreadRangeRequestSchema;
+    output: typeof ThreadSyncBatchSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_canopy_link_v1_link, 1);

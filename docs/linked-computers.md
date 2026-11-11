@@ -1064,6 +1064,25 @@ a nie poleceniem pełnego resync. Nieznane addytywne pola są tolerowane; niezna
 typ rekordu jest zachowywany do późniejszego odczytu, z placeholderem w UI.
 Uszkodzony rekord zatrzymuje tylko ten wątek i zapisuje beztreściową diagnostykę.
 
+Pamięć procesu nie przechowuje dziennika ani blobów. Bieżąca partia oraz jej
+przejściowe kodowanie są lokalne dla odczytu; producent zwalnia referencję po ACK
+albo zamknięciu subskrypcji. Oczekiwanie na ACK przechowuje tylko kursor i callback.
+Dom pamięta skalarne heady i kursory aktywnej subskrypcji (koszt zależny od liczby
+wątków, bez treści historii), usuwane przy jej zamknięciu. Błędy publikacji zapisuje
+`0121_thread_publication_failures`: najwyżej 512 bajtów oczyszczonego protobufu na
+wiersz w bazie, z sygnaturą epoki/head/wersji i terminem backoffu. Nie ma globalnej
+mapy błędów w heapie. Deterministyczna awaria pozostaje wstrzymana także po reconnect;
+zmiana sygnatury źródła pozwala spróbować ponownie. Poprawny odczyt usuwa błąd,
+a usunięcie wątku usuwa go kaskadowo.
+
+Opcjonalny test `CANOPY_SYNC_MEMORY=1 bun test tests/integration/thread-sync-memory.test.ts`
+sprawdza osobne heap-y dwóch procesów po GC: 1/10/50 wątków, zwiększenie historii,
+5 cykli rozgrzewki, potem 20 reconnectów i 20 rzeczywistych błędów dekodowania.
+Tolerancje są stałe: 4 MiB względem rozgrzewki i pomiędzy rozmiarami fixture,
+1 MiB dryfu mediany ostatnich pięciu cykli względem pierwszych pięciu. Zbiera
+wyłącznie liczniki i pamięć, bez payloadów i snapshotów heapu. To kontrola retencji,
+nie benchmark opóźnień ani dowód stałego RSS natywnego alokatora.
+
 **Przejście między wersjami.** Nowe RPC, capability i pola mają nowe numery proto.
 Stare numery, wiadomości i zamrożony kontrakt aktualizacji pozostają bez zmian.
 Nowy komputer obsługuje stary format dla partnera bez capability. Para z nowym

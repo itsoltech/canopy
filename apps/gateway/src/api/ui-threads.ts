@@ -5,6 +5,8 @@ import { type GatewayCore } from "../core/core.ts";
 import { guard } from "./ui-errors.ts";
 import type { UiHandlers } from "./ui-service.ts";
 import { watchLocalThread } from "../core/local-thread-watch.ts";
+import { coreState } from "../core/core-context.ts";
+import { readRangeContent } from "../computers/range-content-read.ts";
 
 export function threadsHandlers(
   core: GatewayCore,
@@ -20,6 +22,7 @@ export function threadsHandlers(
   | "answerThreadSecret"
   | "revokeThreadSecret"
   | "watchThread"
+  | "getThreadSyncContent"
   | "updateThread"
   | "regenerateTitle"
   | "setGoal"
@@ -86,6 +89,9 @@ export function threadsHandlers(
             request.incremental,
             request,
           ),
+
+    getThreadSyncContent: (request) =>
+      guard(() => readRangeContent(core[coreState].options.runtime, core[coreState].options.userId, request)),
 
     updateThread: (request) =>
       guard(async () => create(ui.UpdateThreadResponseSchema, { thread: await core.updateThread(request) })),

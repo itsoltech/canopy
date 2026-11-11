@@ -22,7 +22,7 @@ export interface InteractionStore {
     by: { userId: string; botId?: string } | { threadId: string },
     answer: ui.AnswerInteractionRequest,
   ): Fx<ui.Interaction>;
-  pendingInteractions(threadId: string): Fx<ui.Interaction[]>;
+  pendingInteractions(threadId: string, ids?: string[]): Fx<ui.Interaction[]>;
   interactionAnswer(requestId: string): Fx<{ threadId: string; answer: ui.AnswerInteractionRequest } | undefined>;
   interactionEvent(requestId: string): Fx<{ seq: bigint; event: ThreadEvent } | undefined>;
 }
@@ -234,8 +234,9 @@ export function interactionStore(sql: SqlClient.SqlClient, self: () => Pick<Thre
         ),
       ),
 
-    pendingInteractions: (threadId) =>
-      sql<InteractionRow>`SELECT * FROM interaction_requests WHERE thread_id = ${threadId}::uuid AND status = 'pending' ORDER BY created_at`.pipe(
+    pendingInteractions: (threadId, ids) =>
+      sql<InteractionRow>`SELECT * FROM interaction_requests WHERE thread_id = ${threadId}::uuid AND status = 'pending'
+        AND (${ids === undefined} OR id=ANY(${ids ?? []}::uuid[])) ORDER BY created_at`.pipe(
         Effect.map((rows) => rows.map(toInteraction)),
       ),
 

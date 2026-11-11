@@ -53,6 +53,7 @@ export const READS = new Set([
   "WorkspaceCopySource",
   "GetAttachment",
   "GetThreadBlob",
+  "GetThreadSyncContent",
   "ListMentionCatalog",
   "SearchFiles",
   "ListGitRefs",

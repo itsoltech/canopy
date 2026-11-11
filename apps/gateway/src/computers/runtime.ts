@@ -7,6 +7,8 @@ import { computerLink as link } from "@canopy/contracts";
 import { MOVE_ITEMS, RELAY } from "@canopy/domain/computers";
 
 import { ThreadMirror } from "./mirror.ts";
+import { ThreadRangeStore } from "./range-store.ts";
+import { ThreadRangePublisher } from "./range-publish.ts";
 
 import { Redirects } from "./redirects.ts";
 
@@ -53,6 +55,8 @@ export class LinkedComputers {
   readonly [computersState] = new LinkedComputersState();
 
   readonly mirror: ThreadMirror;
+  readonly ranges: ThreadRangeStore;
+  readonly rangePublisher: ThreadRangePublisher;
 
   readonly botMirror: BotMirror;
 
@@ -71,6 +75,8 @@ export class LinkedComputers {
     this[computersState].routes = new Routes(options.store);
     options.network.mount("link", linkHandler(this.routes));
     this.mirror = new ThreadMirror(options.store);
+    this.ranges = new ThreadRangeStore(options.store);
+    this.rangePublisher = new ThreadRangePublisher(options.store);
     this.botMirror = new BotMirror(options.store);
     this.config = options.shared ? new ConfigSync(options.store, options.shared, () => this.hello().nodeId) : undefined;
 

@@ -12,6 +12,7 @@ import {
   REMOTE_THREADS,
   THREAD_MIRROR,
   THREAD_MIRROR_DELTA,
+  THREAD_RANGES,
   THREAD_WATCH_LIVENESS,
   THREAD_WATCH_COALESCE,
 } from "@canopy/domain/computers";
@@ -29,6 +30,7 @@ import { serveConfig } from "./runtime-config.ts";
 import { publishThreadWatch } from "./thread-watch-publish.ts";
 import { ui } from "@canopy/contracts";
 import { watchTiming } from "./watch-liveness.ts";
+import { readThreadRange } from "./range-source.ts";
 
 // ------------------------------------------------------------------ stage 2: remote threads
 
@@ -175,10 +177,35 @@ export async function* computersServeHome(
   if (!hostContext.hello().capabilities.includes(feature) || !connection.capabilities?.has(feature))
     throw new ConnectError("Both computers need an update for this linked action", Code.Unimplemented);
 
+  if (method.name === "AckThreadRange" || method.name === "GetThreadRange") {
+    if (!hostContext.hello().capabilities.includes(THREAD_RANGES) || !connection.capabilities?.has(THREAD_RANGES))
+      throw new ConnectError("Thread ranges require support on both computers", Code.Unimplemented);
+
+    if (method.name === "AckThreadRange")
+      yield hostContext.rangePublisher.acknowledge(nodeId, linkedMessage(link.ThreadRangeAckSchema, request));
+    else {
+      const input = linkedMessage(link.ThreadRangeRequestSchema, request);
+
+      if (!input.cursor) throw new ConnectError("Missing thread range cursor", Code.InvalidArgument);
+      yield await readThreadRange(hostContext.store, input.cursor, input.throughSeq);
+    }
+
+    return;
+  }
+
   if (method.name === "WatchThreadMirror") {
     if (!hostContext.hello().capabilities.includes(THREAD_MIRROR) || !connection.capabilities?.has(THREAD_MIRROR))
       throw new ConnectError("Thread mirrors need an update on both computers", Code.Unimplemented);
     const input = linkedMessage(link.MirrorRequestSchema, request);
+
+    if (input.ranges) {
+      if (!hostContext.hello().capabilities.includes(THREAD_RANGES) || !connection.capabilities.has(THREAD_RANGES))
+        throw new ConnectError("Thread ranges require support on both computers", Code.Unimplemented);
+      yield* hostContext.rangePublisher.publish(nodeId, input, signal, hostContext.options.serve);
+
+      return;
+    }
+
     input.incremental &&=
       hostContext.hello().capabilities.includes(THREAD_MIRROR_DELTA) &&
       connection.capabilities.has(THREAD_MIRROR_DELTA);

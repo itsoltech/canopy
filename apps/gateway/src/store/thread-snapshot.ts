@@ -12,6 +12,7 @@ import { mirrorSelection, type MirrorSelection } from "./mirror-selection.ts";
 import { threadWindow, type ThreadHistoryQuery } from "./thread-window.ts";
 import { composerTurnChoices } from "./composer-turn-choices.ts";
 import { decodeSnapshotRows } from "./snapshot-decode.ts";
+import { decodeTimelineItem } from "./timeline-item.ts";
 
 export interface ThreadSnapshotStore {
   composerTurnChoices(threadId: string, ownerUserId: string): Fx<ui.ComposerTurnChoices | undefined>;
@@ -20,6 +21,7 @@ export interface ThreadSnapshotStore {
     mirrorCursor?: string,
     includeCursor?: boolean,
     history?: ThreadHistoryQuery,
+    projection?: MirrorSelection,
   ): Fx<{
     thread: ThreadRow;
     lastUserTurnChoices: ui.ComposerTurnChoices | undefined;
@@ -37,9 +39,12 @@ export interface ThreadSnapshotStore {
   threadItem(threadId: string, itemId: string): Fx<Item | undefined>;
 }
 
-interface ItemRow {
+export interface ItemRow {
   thread_id: string;
   content: JsonValue;
+  item_id: string;
+  content_sha?: string | null;
+  content_size?: string | null;
   turn_id: string | null;
   first_seq: bigint;
   last_seq: bigint;
@@ -47,24 +52,13 @@ interface ItemRow {
   completed_at: Date | null;
 }
 
-const timelineItem = (r: ItemRow) =>
-  create(ui.TimelineItemSchema, {
-    item: fromJson(ItemSchema, r.content),
-    turnId: r.turn_id ?? "",
-    firstSeq: BigInt(r.first_seq),
-    lastSeq: BigInt(r.last_seq),
-    inherited: r.inherited,
-    fromThreadId: r.inherited ? r.thread_id : "",
-    ...(r.completed_at && { completedAt: timestampFromDate(new Date(r.completed_at)) }),
-  });
-
 export function threadSnapshot(
   sql: SqlClient.SqlClient,
   self: () => Pick<ThreadStore, "thread"> & Pick<TurnStore, "turnsOf"> & Pick<InteractionStore, "pendingInteractions">,
 ): ThreadSnapshotStore {
   return {
     composerTurnChoices: (threadId, ownerUserId) => composerTurnChoices(sql, threadId, ownerUserId),
-    snapshot: (threadId, mirrorCursor, includeCursor, historyQuery) => {
+    snapshot: (threadId, mirrorCursor, includeCursor, historyQuery, projection) => {
       const read = Effect.gen(function* () {
         const thread = yield* self().thread(threadId, false, true);
         const lastUserTurnChoices = yield* composerTurnChoices(sql, threadId, thread.owner_user_id);
@@ -80,37 +74,44 @@ export function threadSnapshot(
                 FROM computer_thread_clock WHERE owner_user_id=${thread.owner_user_id}::uuid`)[0]
           : undefined;
 
-        const selection = mirrorCursor
-          ? yield* mirrorSelection(sql, thread.owner_user_id, threadId, mirrorCursor)
-          : undefined;
+        const selection =
+          projection ??
+          (mirrorCursor ? yield* mirrorSelection(sql, thread.owner_user_id, threadId, mirrorCursor) : undefined);
 
         const window = selection ? undefined : yield* threadWindow(sql, threadId, history.version, historyQuery);
 
         // A fork shows the history it inherits (thread_items_view / thread_fork_chain), marked as inherited.
-        const inheritedTurns = selection
-          ? []
-          : yield* sql<TurnRow>`
+        const inheritedTurns =
+          selection && !projection
+            ? []
+            : yield* sql<TurnRow>`
                 SELECT u.*, s.*, (SELECT bt.bot_id FROM bot_tool_calls bc JOIN bot_turns bt ON bt.id = bc.turn_id WHERE bc.id = u.bot_call_id) AS bot_id FROM thread_fork_chain(${threadId}::uuid) c
                   JOIN turns u ON u.thread_id = c.thread_id LEFT JOIN turn_sources s ON s.turn_id = u.id
                  WHERE c.level > 0 AND u.status <> 'queued' AND (c.upto_seq IS NULL OR u.last_seq <= c.upto_seq)
-                   AND (${!window} OR u.id=ANY(${window?.ids ?? []}::uuid[]))
+                   AND (${!selection && !window} OR u.id=ANY(${selection?.turnIds ?? window?.ids ?? []}::uuid[]))
                  ORDER BY c.level DESC, u.ordinal`;
 
         const turns = yield* self().turnsOf(threadId, selection?.turnIds ?? window?.ids);
 
-        const itemRows = selection
-          ? yield* sql<ItemRow>`SELECT v.thread_id,v.content,v.turn_id,v.first_seq,v.last_seq,false AS inherited,
+        const itemRows =
+          selection && !projection
+            ? yield* sql<ItemRow>`SELECT v.thread_id,v.item_id,v.content,v.turn_id,v.first_seq,v.last_seq,false AS inherited,
                   e.occurred_at AS completed_at
                 FROM thread_items v LEFT JOIN thread_events e ON v.type='agent_message' AND v.status='completed'
                   AND e.thread_id=v.thread_id AND e.seq=v.last_seq
                 WHERE v.thread_id=${threadId}::uuid AND v.item_id=ANY(${selection.itemIds}::text[])
                 ORDER BY v.first_seq`
-          : yield* sql<ItemRow>`SELECT v.thread_id,v.content,v.turn_id,v.first_seq,v.last_seq,c.level>0 AS inherited,
+            : yield* sql<ItemRow>`SELECT v.thread_id,v.item_id,p.public->'value' AS content,p.public->>'sha256' AS content_sha,
+                  p.public->>'size' AS content_size,v.turn_id,v.first_seq,v.last_seq,c.level>0 AS inherited,
                   e.occurred_at AS completed_at
                 FROM thread_fork_chain(${threadId}::uuid) c JOIN thread_items v ON v.thread_id=c.thread_id
+                CROSS JOIN LATERAL (SELECT CASE WHEN ${!!projection || !!historyQuery?.bounded}
+                  THEN thread_replication_item_preview(${threadId}::uuid,v.content)
+                  ELSE jsonb_build_object('value',v.content) END AS public OFFSET 0) p
                 LEFT JOIN thread_events e ON v.type='agent_message' AND v.status='completed'
                   AND e.thread_id=v.thread_id AND e.seq=v.last_seq
                 WHERE (c.upto_seq IS NULL OR v.first_seq<=c.upto_seq)
+                  AND (${!projection} OR v.item_id=ANY(${projection?.itemIds ?? []}::text[]))
                   AND (${!window} OR v.turn_id IS NULL OR v.type='background_task'
                     OR v.turn_id=ANY(${window?.ids ?? []}::uuid[]))
                 ORDER BY c.level DESC,v.first_seq`;
@@ -128,7 +129,7 @@ export function threadSnapshot(
                    ORDER BY seq DESC LIMIT ${selection ? null : 200}) n
                  ORDER BY seq`;
 
-        const interactions = yield* self().pendingInteractions(threadId);
+        const interactions = yield* self().pendingInteractions(threadId, projection?.interactionIds);
 
         return {
           thread,
@@ -161,7 +162,7 @@ export function threadSnapshot(
       return snapshot.pipe(
         Effect.flatMap(({ itemRows, noticeRows, ...state }) =>
           Effect.gen(function* () {
-            const items = yield* Effect.promise(() => decodeSnapshotRows(itemRows, timelineItem));
+            const items = yield* Effect.promise(() => decodeSnapshotRows(itemRows, decodeTimelineItem));
 
             const decoded = yield* Effect.promise(() =>
               decodeSnapshotRows(noticeRows, (r) => {
@@ -184,11 +185,14 @@ export function threadSnapshot(
       );
     },
 
-    threadItem: (threadId, itemId) =>
-      sql<{
-        content: JsonValue;
-      }>`SELECT content FROM thread_items WHERE thread_id = ${threadId}::uuid AND item_id = ${itemId}`.pipe(
-        Effect.map((rows) => (rows[0] ? fromJson(ItemSchema, rows[0].content) : undefined)),
-      ),
+    threadItem: (threadId, itemId) => readItem(sql, threadId, itemId),
   };
+}
+
+function readItem(sql: SqlClient.SqlClient, threadId: string, itemId: string) {
+  return sql<{
+    content: JsonValue;
+  }>`SELECT content FROM thread_items WHERE thread_id = ${threadId}::uuid AND item_id = ${itemId}`.pipe(
+    Effect.map((rows) => (rows[0] ? fromJson(ItemSchema, rows[0].content) : undefined)),
+  );
 }

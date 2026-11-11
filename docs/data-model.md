@@ -1,5 +1,20 @@
 # Model danych (PostgreSQL)
 
+Migracja `0120_thread_ranges` dodaje trwały dziennik publicznych projekcji wątku
+(`thread_replication_clock`, `thread_replication_journal`) oraz treść dużych rekordów
+adresowaną SHA-256 (`thread_replication_content`). Numery dotyczą jednego wątku
+i epoki; są niezależne od seq transkryptu. Niezapublikowane zmiany jednego klucza
+mogą się scalać, opublikowany payload jest niezmienny. Bariera transakcyjna wątku
+porządkuje zapis źródła, bootstrap i zamknięcie publicznej projekcji.
+
+`thread_range_state` i `thread_range_entities` przechowują znormalizowane lustro
+oraz kursor zatwierdzony atomowo z partią. ACK następuje dopiero po commit.
+Nowa epoka zachowuje poprzednią widoczną kopię do zakończenia zakresu; nie miesza
+wierszy obu epok. `thread_range_failures` zawiera wyłącznie klasyfikację błędu
+i kod RPC. Wszystkie tabele odbiorcy mają kaskadę do relacji z partnerem.
+Istniejąca przeniesiona historia jest odczytywana jednorazowo polami protobuf,
+bez ładowania całego blobu do procesu. Szczegóły: [linked-computers.md](linked-computers.md#synchronizacja-zakresami-sekwencji--kontrakt-migracji).
+
 Migracja `0111_worker_event_quarantine` przechowuje oryginalne bajty protobuf
 zdarzeń odrzuconych przez błąd danych SQLSTATE `22xxx`. Kluczem deduplikacji jest
 `event_id`; rekord wskazuje worker, journal, wątek lub bot oraz `journal_seq`.

@@ -3,6 +3,7 @@ import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 
 export interface MirrorSelection {
+  interactionIds?: string[];
   itemIds: string[];
   turnIds: string[];
   noticeSeqs: string[];

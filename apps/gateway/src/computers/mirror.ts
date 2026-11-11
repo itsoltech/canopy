@@ -10,6 +10,8 @@ import type { ComputerStore } from "./store.ts";
 import { MirrorFrames } from "./mirror-frames.ts";
 import { PEER_WATCH_HEARTBEAT_MS } from "./timing.ts";
 import { readMirrorSnapshot } from "./mirror-snapshot.ts";
+import { readRangeMirror } from "./range-read.ts";
+import type { ThreadHistoryQuery } from "../store/thread-window.ts";
 
 export { commitMirrorUpdate, type State } from "./mirror-persistence.ts";
 
@@ -48,7 +50,14 @@ export class ThreadMirror {
     return value;
   }
   /** Snapshot and cursor must come from the same committed generation/read. */
-  async read(node: string, thread: string): Promise<{ snapshot: ui.ThreadSnapshot; cursor: string } | undefined> {
+  async read(
+    node: string,
+    thread: string,
+    history?: ThreadHistoryQuery,
+  ): Promise<{ snapshot: ui.ThreadSnapshot; cursor: string } | undefined> {
+    const ranged = await readRangeMirror(this.store, node, thread, history);
+
+    if (ranged) return ranged;
     const saved = await this.store.runtime.runPromise(readMirrorSnapshot(this.store.owner, node, thread));
 
     if (saved) qualify(ui.ThreadSnapshotSchema, saved.snapshot, node);

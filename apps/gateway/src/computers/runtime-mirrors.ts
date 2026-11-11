@@ -4,12 +4,19 @@ import { Code, ConnectError } from "@connectrpc/connect";
 
 import { computerLink as link } from "@canopy/contracts";
 
-import { REMOTE_BOTS, THREAD_MIRROR, THREAD_MIRROR_DELTA, THREAD_WATCH_LIVENESS } from "@canopy/domain/computers";
+import {
+  REMOTE_BOTS,
+  THREAD_MIRROR,
+  THREAD_MIRROR_DELTA,
+  THREAD_WATCH_LIVENESS,
+  THREAD_RANGES,
+} from "@canopy/domain/computers";
 
 import { computersState, type ComputerChange } from "./runtime-context.ts";
 import type { LinkedComputers } from "./runtime.ts";
 import { WatchLease, watchTiming } from "./watch-liveness.ts";
 import { linkedMessage } from "./remote.ts";
+import { consumeThreadRanges } from "./range-consume.ts";
 
 export function computersEmit(hostContext: LinkedComputers, nodeId: string, removed = false) {
   if (removed) {
@@ -74,8 +81,13 @@ export function computersSyncMirror(hostContext: LinkedComputers, nodeId: string
 
     const lease = new WatchLease(controller.signal, heartbeat ? timing.timeoutMs : timing.legacyProbeMs);
 
+    const ranges =
+      hostContext.hello().capabilities.includes(THREAD_RANGES) &&
+      hostContext.capabilities(nodeId).includes(THREAD_RANGES);
+
     try {
       const cursor = (await hostContext.mirror.state(nodeId))?.cursor ?? "";
+      const subscription = ranges ? await hostContext.ranges.begin(nodeId) : "";
       const method = link.ThreadMirrorService.method.watchThreadMirror;
 
       const updates = hostContext.remote(
@@ -83,6 +95,8 @@ export function computersSyncMirror(hostContext: LinkedComputers, nodeId: string
         method,
         create(link.MirrorRequestSchema, {
           cursor,
+          ranges,
+          threadCursors: ranges ? await hostContext.ranges.cursors(nodeId) : [],
           heartbeat,
           incremental:
             hostContext.hello().capabilities.includes(THREAD_MIRROR_DELTA) &&
@@ -116,9 +130,12 @@ export function computersSyncMirror(hostContext: LinkedComputers, nodeId: string
       };
 
       console.debug("Linked thread mirror subscribed", { peer: nodeId, side: "subscriber" });
-      await hostContext.mirror.consume(nodeId, guarded(), notify, lease.signal, () => {
-        if (hostContext[computersState].staleMirrors.has(nodeId)) notify();
-      });
+
+      if (ranges) await consumeThreadRanges(hostContext, nodeId, subscription, guarded(), lease.signal, notify);
+      else
+        await hostContext.mirror.consume(nodeId, guarded(), notify, lease.signal, () => {
+          if (hostContext[computersState].staleMirrors.has(nodeId)) notify();
+        });
     } catch (error) {
       if (!controller.signal.aborted) {
         const code = error instanceof ConnectError ? error.code : Code.Unknown;
@@ -144,7 +161,8 @@ export function computersSyncMirror(hostContext: LinkedComputers, nodeId: string
           code,
         });
 
-        if ([Code.DataLoss, Code.DeadlineExceeded].includes(code)) await hostContext.mirror.clearCursor(nodeId);
+        if (!ranges && [Code.DataLoss, Code.DeadlineExceeded].includes(code))
+          await hostContext.mirror.clearCursor(nodeId);
 
         for (const listener of hostContext[computersState].listeners) {
           try {

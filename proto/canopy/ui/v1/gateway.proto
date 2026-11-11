@@ -214,6 +214,8 @@ service GatewayService {
 
   // Najpierw snapshot (wątek, tury, itemy, interakcje), potem zmiany na żywo od snapshot.last_seq.
   rpc WatchThread(WatchThreadRequest) returns (stream ThreadUpdate);
+  // Bounded lazy reads of a large public journal record; authorized by its thread.
+  rpc GetThreadSyncContent(ThreadSyncContentRequest) returns (ThreadSyncContentChunk);
 
   // Harmonogram platformy (docs/agent-bus.md#5-harmonogram): tworzony przez użytkownika albo agenta.
   rpc ListSchedules(ListSchedulesRequest) returns (ListSchedulesResponse);
@@ -830,6 +832,7 @@ message TimelineItem {
   // Zakończona wiadomość agenta: czas jej ostatniego zdarzenia (last_seq). Wyznacza czas segmentów tury
   // po pokazanej odpowiedzi także po ponownym otwarciu wątku (docs/timeline-folding.md); inne itemy bez.
   google.protobuf.Timestamp completed_at = 7;
+  ThreadSyncContent content_ref = 800;
 }
 
 // Komunikat dostawcy albo platformy na osi czasu (np. ponowienie po błędzie API).
@@ -1267,6 +1270,64 @@ message ThreadSnapshotDelta {
   repeated string removed_item_ids = 3;
   repeated string removed_turn_ids = 4;
   repeated uint64 removed_notice_seqs = 5;
+}
+
+// A durable public-entity journal. This sequence includes metadata changes and
+// is independent of the transcript's last_seq. Limits include the protobuf envelope.
+message ThreadSyncCursor {
+  string thread_id = 1;
+  string epoch = 2;
+  uint64 applied_seq = 3;
+}
+message ThreadSyncContent {
+  string sha256 = 1;
+  uint64 size_bytes = 2;
+  string type_name = 3;
+  // Empty/protobuf: encoded ThreadSyncRecord. json: protobuf JSON of type_name.
+  string encoding = 4;
+}
+message ThreadSyncContentRequest {
+  string thread_id = 1;
+  string sha256 = 2;
+  uint64 offset = 3;
+  uint32 length = 4;
+}
+message ThreadSyncContentChunk {
+  bytes data = 1;
+  uint64 offset = 2;
+  uint64 size_bytes = 3;
+}
+message ThreadSyncRecord {
+  uint64 seq = 1;
+  // Stable within an epoch, including for tombstones and unknown future cases.
+  string key = 2;
+  bool removed = 3;
+  // A bounded preview is in value; complete large content is fetched on demand.
+  ThreadSyncContent content = 4;
+  // Stable history ordering across inherited source threads; separate from journal seq.
+  int64 position = 5;
+  oneof value {
+    Thread thread = 10;
+    Turn turn = 11;
+    TimelineItem item = 12;
+    ThreadNotice notice = 13;
+    Interaction interaction = 14;
+    Goal goal = 15;
+    Steer steer = 16;
+    BusDelivery bus_delivery = 17;
+  }
+}
+message ThreadSyncBatch {
+  string thread_id = 1;
+  string epoch = 2;
+  uint64 base_seq = 3;
+  uint64 applied_seq = 4;
+  uint64 head_seq = 5;
+  uint64 remaining = 6;
+  repeated ThreadSyncRecord records = 7;
+  // A subscription token scopes acknowledgments; never an authorization token.
+  string subscription_id = 8;
+  bool caught_up = 9;
 }
 
 // Metadane bez wartości; osobny kontrakt nie pozwala echo sekretu w interakcji.
