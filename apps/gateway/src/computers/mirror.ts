@@ -9,6 +9,7 @@ import { linkedMessage, methodNamed, qualify, type RemoteServe } from "./remote.
 import type { ComputerStore } from "./store.ts";
 import { MirrorFrames } from "./mirror-frames.ts";
 import { PEER_WATCH_HEARTBEAT_MS } from "./timing.ts";
+import { readMirrorSnapshot } from "./mirror-snapshot.ts";
 
 export { commitMirrorUpdate, type State } from "./mirror-persistence.ts";
 
@@ -48,17 +49,11 @@ export class ThreadMirror {
   }
   /** Snapshot and cursor must come from the same committed generation/read. */
   async read(node: string, thread: string): Promise<{ snapshot: ui.ThreadSnapshot; cursor: string } | undefined> {
-    const rows = await this.store.query<{ snapshot: Uint8Array; cursor: string }>(
-      `SELECT t.snapshot,s.cursor FROM computer_mirror_threads t JOIN computer_mirror_state s
-      USING(owner_user_id,origin_node_id,generation) WHERE t.owner_user_id=$1::uuid AND t.origin_node_id=$2 AND t.thread_id=$3::uuid`,
-      [this.store.owner, node, thread],
-    );
+    const saved = await this.store.runtime.runPromise(readMirrorSnapshot(this.store.owner, node, thread));
 
-    if (!rows[0]) return undefined;
-    const value = fromBinary(ui.ThreadSnapshotSchema, rows[0].snapshot);
-    qualify(ui.ThreadSnapshotSchema, value, node);
+    if (saved) qualify(ui.ThreadSnapshotSchema, saved.snapshot, node);
 
-    return { snapshot: value, cursor: rows[0].cursor };
+    return saved;
   }
   async threads(node: string, request: ui.ListThreadsRequest): Promise<ui.Thread[]> {
     const started = performance.now();

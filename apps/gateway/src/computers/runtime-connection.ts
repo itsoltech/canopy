@@ -18,6 +18,7 @@ import type { LinkedComputers } from "./runtime.ts";
 import { discoverCertificate, linkClient } from "./transport.ts";
 import { refreshConfigGroup, stopConfig, syncConfig } from "./runtime-config.ts";
 import { PEER_HANDSHAKE_TIMEOUT_MS, PEER_HEARTBEAT_MS } from "./timing.ts";
+import { linkFailure } from "./link-session.ts";
 
 export function computersBroadcast(hostContext: LinkedComputers, frame: MessageInitShape<typeof link.LinkFrameSchema>) {
   for (const set of hostContext[computersState].active.values())
@@ -111,7 +112,8 @@ export function computersPulse(hostContext: LinkedComputers) {
 
   for (const set of hostContext[computersState].active.values())
     for (const c of set) {
-      if (!stalled && now - c.seen > heartbeat * 4) c.close();
+      if (!stalled && now - c.seen > heartbeat * 4)
+        c.close(new ConnectError("Computer link heartbeat timed out", Code.DeadlineExceeded));
       else if (c.ready) c.send({ body: { case: "heartbeat", value: { sentAtMs: BigInt(now) } } });
     }
 }
@@ -190,22 +192,33 @@ export async function computersDial(hostContext: LinkedComputers, peer: PeerRow,
       return;
 
     const output = new AsyncChannel<link.LinkFrame>({
-      maxItems: 2048,
-      overflow: () => new ConnectError("Computer link fell behind", Code.ResourceExhausted),
+      maxItems: 256,
+      reservedItems: 240,
+      overflow: () => {
+        console.warn("Computer link output overflow", { side: "dialer", limit: 256 });
+
+        return new ConnectError("Computer link fell behind", Code.ResourceExhausted);
+      },
     });
 
     const routeController = new AbortController();
     const client = linkClient(address, peer.certificate, hostContext[computersState].identity);
 
     const connection: Connection = {
-      send: (f) => {
-        if (!output.push(create(link.LinkFrameSchema, f))) connection.close();
+      write: async (f, signal) => {
+        if (!(await output.write(create(link.LinkFrameSchema, f), signal)))
+          throw new ConnectError("Computer link closed while sending", Code.Unavailable);
       },
-      close: () => {
-        output.close();
-        routeController.abort();
+      send: (f) => {
+        if (!output.closed && !output.push(create(link.LinkFrameSchema, f)))
+          connection.close(new ConnectError("Computer link fell behind", Code.ResourceExhausted));
+      },
+      close: (reason) => {
+        if (reason) console.warn("Computer link closing", { side: "dialer", ...linkFailure(reason) });
+        output.close(reason);
+        routeController.abort(reason);
         connection.remote?.close();
-        client.close();
+        client.close(reason);
       },
       seen: Date.now(),
       ready: false,
@@ -225,7 +238,7 @@ export async function computersDial(hostContext: LinkedComputers, peer: PeerRow,
       const latency = performance.now() - started;
 
       const deadline = setTimeout(() => {
-        if (!greeted) routeController.abort();
+        if (!greeted) connection.close(new ConnectError("Computer link handshake timed out", Code.DeadlineExceeded));
       }, PEER_HANDSHAKE_TIMEOUT_MS);
 
       try {
@@ -270,6 +283,7 @@ export async function computersDial(hostContext: LinkedComputers, peer: PeerRow,
         break;
       }
     } catch (error) {
+      if (!controller.signal.aborted) console.warn("Computer link dial ended", { ...linkFailure(error), greeted });
       const mismatch = error instanceof ConnectError && error.code === Code.Unauthenticated;
 
       // A pin mismatch never changes trust. Another device now has a discovered address: forget that path.

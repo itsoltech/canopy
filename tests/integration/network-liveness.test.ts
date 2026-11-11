@@ -131,4 +131,26 @@ describe("network access listener liveness", () => {
       phone.destroy();
     }
   });
+
+  test("a client GOAWAY records its numeric code and initiator without debug data", async () => {
+    frozen = false;
+    const phone = phoneClient();
+    phone.on("error", () => {});
+
+    try {
+      const stream = phone.request({ ":method": "POST", ":path": "/canopy.ui.v1.GatewayService/WatchOverview" });
+      stream.on("error", () => {});
+      await new Promise((resolve) => stream.once("response", resolve));
+      phone.goaway(http2.constants.NGHTTP2_ENHANCE_YOUR_CALM, 0, Buffer.from("private-debug-data"));
+      expect(
+        await eventually(
+          async () => logs.some((line) => line.includes("goaway initiator=peer error_code=11")),
+          Boolean,
+        ),
+      ).toBe(true);
+      expect(logs.join()).not.toContain("private-debug-data");
+    } finally {
+      phone.destroy();
+    }
+  });
 });

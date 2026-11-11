@@ -43,7 +43,9 @@ export function watchSession(
   session.once("error", () => {
     if (reason === "peer_closed") reason = "session_error";
   });
-  session.once("goaway", () => {
+  session.once("goaway", (code: number, lastStreamId: number) => {
+    options.log(`goaway initiator=peer error_code=${code} last_stream_id=${lastStreamId}`);
+
     if (reason === "peer_closed") reason = "peer_goaway";
   });
   session.once("close", () => {

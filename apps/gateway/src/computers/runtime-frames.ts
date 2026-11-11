@@ -23,6 +23,7 @@ import { remoteCertificate } from "./transport.ts";
 import type { PeerRow } from "./store.ts";
 import { exchangeConfigSharing, receiveConfigSharing } from "./runtime-config.ts";
 import { RESTART_PRESENCE } from "@canopy/domain/computer-presence";
+import { linkFailure } from "./link-session.ts";
 
 export async function computersReceive(
   hostContext: LinkedComputers,
@@ -160,16 +161,27 @@ export async function* computersAccept(
   if (hostContext[computersState].paused) return;
 
   const output = new AsyncChannel<link.LinkFrame>({
-    maxItems: 2048,
-    overflow: () => new ConnectError("Computer link fell behind", Code.ResourceExhausted),
+    maxItems: 256,
+    reservedItems: 240,
+    overflow: () => {
+      console.warn("Computer link output overflow", { side: "listener", limit: 256 });
+
+      return new ConnectError("Computer link fell behind", Code.ResourceExhausted);
+    },
   });
 
   const connection: Connection = {
-    send: (f) => {
-      if (!output.closed && !output.push(create(link.LinkFrameSchema, f))) connection.close();
+    write: async (f, signal) => {
+      if (!(await output.write(create(link.LinkFrameSchema, f), signal)))
+        throw new ConnectError("Computer link closed while sending", Code.Unavailable);
     },
-    close: () => {
-      output.close();
+    send: (f) => {
+      if (!output.closed && !output.push(create(link.LinkFrameSchema, f)))
+        connection.close(new ConnectError("Computer link fell behind", Code.ResourceExhausted));
+    },
+    close: (reason) => {
+      if (reason) console.warn("Computer link closing", { side: "listener", ...linkFailure(reason) });
+      output.close(reason);
       connection.remote?.close();
     },
     seen: Date.now(),
@@ -196,6 +208,8 @@ export async function* computersAccept(
 
       output.close();
     } catch (error) {
+      if (!context.signal.aborted)
+        console.warn("Computer link receive ended", { side: "listener", ...linkFailure(error) });
       output.close(error);
     }
   })();
@@ -256,6 +270,7 @@ async function receiveHandshake(
   if (protocol && !connection.remote)
     connection.remote = new RemoteCalls({
       send: (f) => connection.send(f),
+      write: (f, signal) => connection.write(f, signal),
       serve: (method, request, signal, _, route) =>
         computersServeRemote(hostContext, nodeId, connection, method, request, signal, route),
       name: () => hostContext[computersState].names.get(nodeId) ?? "The other computer",
