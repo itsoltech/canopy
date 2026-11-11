@@ -227,7 +227,10 @@ export class GatewayCore {
     this[coreState].options = options;
     this.diagnostics = new Diagnostics(this, options);
     this[coreState].actions = new ActionContext(options.runtime);
-    this.hub = new Hub((action) => this[coreState].actions.defer(action));
+    this.hub = new Hub(
+      (action) => this[coreState].actions.defer(action),
+      (metric, value) => this.diagnostics.collector.measure(metric, value),
+    );
     this.feeds = new OwnerFeeds(this);
     this.departures = createGatewayDepartures(this, options);
     this.linkedAgents = new LinkedAgents(this, options, {

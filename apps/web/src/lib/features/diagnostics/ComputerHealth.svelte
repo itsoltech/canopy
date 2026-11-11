@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ui } from "@canopy/contracts";
-  import { freshness, health, measured, diagnosticsStatus } from "@canopy/domain/diagnostics";
+  import { freshness, health, measured, diagnosticsStatus, cpuSummary } from "@canopy/domain/diagnostics";
   import SettingsCard from "#lib/shared/ui/SettingsCard.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
 
@@ -39,7 +39,7 @@
       </div>
       <div>
         <dt class="text-muted">CPU</dt>
-        <dd>Not measured</dd>
+        <dd>{cpuSummary(computer)}</dd>
       </div>
     </dl>
     {#each computer.links as link (`${link.kind}:${link.targetId}`)}
@@ -59,6 +59,6 @@
         History could not be saved. Live data is still available.
       </p>
     {/if}
-    <div><Button onclick={onselect} aria-pressed={selected}>View calls</Button></div>
+    <div><Button onclick={onselect} aria-pressed={selected}>View details</Button></div>
   </div>
 </SettingsCard>

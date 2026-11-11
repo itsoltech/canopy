@@ -7,6 +7,7 @@ import {
   measured,
   diagnosticsFindings,
   diagnosticsStatus,
+  cpuSummary,
 } from "@canopy/domain/diagnostics";
 import { SettingsGroup, SettingsRow } from "./SettingsGroup";
 import { Button } from "../../ui/components";
@@ -26,7 +27,7 @@ export function DiagnosticsComputer({ computer, onSelect }: { computer: ui.Compu
       ) : null}
       <SettingsRow
         title="Gateway coverage"
-        description={`${Math.floor(computer.observedSeconds / 60)} min observed · CPU: Not measured`}
+        description={`${Math.floor(computer.observedSeconds / 60)} min observed · CPU: ${cpuSummary(computer)}`}
       />
       {computer.links.map((link) => (
         <SettingsRow
@@ -46,7 +47,7 @@ export function DiagnosticsComputer({ computer, onSelect }: { computer: ui.Compu
         </Text>
       ) : null}
       <View style={{ minHeight: 48, justifyContent: "center" }}>
-        <Button title="View calls" onPress={onSelect} />
+        <Button title="View details" onPress={onSelect} />
       </View>
     </SettingsGroup>
   );

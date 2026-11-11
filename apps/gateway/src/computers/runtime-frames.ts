@@ -18,6 +18,7 @@ import { computersEmit } from "./runtime-mirrors.ts";
 import { PEER_ROUTE_ROTATION_WINDOW_MS } from "./timing.ts";
 import { computersStatus } from "./runtime-remote.ts";
 import { computersServeRemote } from "./runtime-serving.ts";
+import { rpcMessages } from "../diagnostics/query-context.ts";
 import type { LinkedComputers } from "./runtime.ts";
 import { remoteCertificate } from "./transport.ts";
 import type { PeerRow } from "./store.ts";
@@ -297,7 +298,10 @@ async function receiveHandshake(
       send: (f) => connection.send(f),
       write: (f, signal) => connection.write(f, signal),
       serve: (method, request, signal, _, route) =>
-        computersServeRemote(hostContext, nodeId, connection, method, request, signal, route),
+        rpcMessages(
+          computersServeRemote(hostContext, nodeId, connection, method, request, signal, route),
+          registered(method, "home").id,
+        ),
       name: () => hostContext[computersState].names.get(nodeId) ?? "The other computer",
       allowed: async () => Boolean(await hostContext.store.peer(nodeId)),
       observe: (method) => hostContext.options.core?.diagnostics.collector.start(registered(method, "home").id),

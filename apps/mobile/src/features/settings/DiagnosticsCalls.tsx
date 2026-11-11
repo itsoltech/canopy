@@ -14,6 +14,7 @@ import {
 } from "@canopy/domain/diagnostics";
 import { SettingsGroup, SettingsRow } from "./SettingsGroup";
 import { styles, useColors } from "../../ui/theme";
+import { DiagnosticsDatabase } from "./DiagnosticsMetrics";
 
 export function DiagnosticsCalls({
   calls,
@@ -108,6 +109,7 @@ function CallEvidence({ call, observed }: { call: ui.DiagnosticsCall; observed: 
         {(call.durationMs?.samples ?? 0n) < 1000n ? " p99 has a small sample." : ""}
         {call.incomplete ? " Some measurements are missing." : ""}
       </Text>
+      <DiagnosticsDatabase families={call.database} linked />
     </View>
   );
 }

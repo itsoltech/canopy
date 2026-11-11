@@ -54,6 +54,7 @@ import { openGatewayLink, type GatewayLink } from "@canopy/worker/gateway-link";
 import { ThreadSecretFiles } from "@canopy/worker/runtime";
 import { Layer, ManagedRuntime } from "effect";
 import type { SqlClient } from "effect/sql";
+import { DatabaseMonitor, bindDatabaseMonitor, observedSql } from "../../../apps/gateway/src/diagnostics/database.ts";
 import { BotStore } from "../../../apps/gateway/src/bots/store.ts";
 import type { BotModel } from "../../../apps/gateway/src/bots/types.ts";
 
@@ -570,6 +571,10 @@ export async function startTestGateway(
     ? await (await import("../../../scripts/bench/test-audit.ts")).testAudit(pg.layer, auditDirectory)
     : undefined;
 
+  const monitor = options.diagnostics ? new DatabaseMonitor() : undefined;
+  const database = audit?.layer ?? pg.layer;
+  const measured = monitor ? observedSql(monitor).pipe(Layer.provideMerge(database)) : database;
+
   const runtime: TestRuntime = ManagedRuntime.make(
     Layer.mergeAll(
       GatewayStore.layer(secretsKey),
@@ -584,8 +589,10 @@ export async function startTestGateway(
       AttachmentStore.layer,
       BackgroundTaskStore.layer,
       BotStore.layer(secretsKey),
-    ).pipe(Layer.provideMerge(audit?.layer ?? pg.layer)),
+    ).pipe(Layer.provideMerge(measured)),
   );
+
+  if (monitor) bindDatabaseMonitor(runtime, monitor);
 
   await runtime.runPromise(migrate);
   audit?.start();

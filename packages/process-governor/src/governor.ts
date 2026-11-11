@@ -4,6 +4,25 @@ export type ProcessKind = "git" | "probe" | "install" | "utility" | "harness" | 
 
 export type ProcessPriority = "user" | "background";
 
+export type ProcessEvent =
+  | "attempt"
+  | "admitted"
+  | "wait"
+  | "execution"
+  | "full"
+  | "timeout"
+  | "cancelled"
+  | "evicted"
+  | "joined"
+  | "cached";
+
+export type ProcessObserver = (
+  kind: ProcessKind,
+  priority: ProcessPriority,
+  event: ProcessEvent,
+  elapsedMs: number,
+) => void;
+
 const priorityContext = new AsyncLocalStorage<ProcessPriority>();
 export const currentProcessPriority = (): ProcessPriority => priorityContext.getStore() ?? "user";
 
@@ -33,6 +52,7 @@ interface Waiting {
   reject(error: Error): void;
   timer: ReturnType<typeof setTimeout>;
   cleanup(): void;
+  queuedAt: number;
 }
 
 export const PROCESS_LIMITS: Readonly<Record<ProcessKind, number>> = {
@@ -56,6 +76,7 @@ export class ProcessGovernor {
   #joined = 0;
   #hits = 0;
   #dropped = 0;
+  readonly #observers = new Set<ProcessObserver>();
 
   constructor(
     readonly limits: Readonly<Record<ProcessKind, number>> = PROCESS_LIMITS,
@@ -64,6 +85,25 @@ export class ProcessGovernor {
     readonly maxQueue = 256,
     readonly warn: (message: string) => void = console.warn,
   ) {}
+
+  observe(observer: ProcessObserver) {
+    if (this.#observers.size >= 16) throw new Error("Process observer budget exceeded");
+    this.#observers.add(observer);
+
+    return () => {
+      this.#observers.delete(observer);
+    };
+  }
+
+  #emit(kind: ProcessKind, priority: ProcessPriority, event: ProcessEvent, elapsedMs = 0) {
+    for (const observer of this.#observers) {
+      try {
+        observer(kind, priority, event, elapsedMs);
+      } catch {
+        /* Metrics cannot change admission or release. */
+      }
+    }
+  }
 
   snapshot() {
     return {
@@ -84,11 +124,13 @@ export class ProcessGovernor {
 
   run<T>(policy: ProcessPolicy, operation: () => Promise<T>): Promise<T> {
     policy = { ...policy, priority: policy.priority ?? currentProcessPriority() };
+    this.#emit(policy.kind, policy.priority!, "attempt");
     const key = policy.key === undefined ? undefined : `${this.#generation}:${policy.kind}:${policy.key}`;
     const cached = key === undefined ? undefined : this.#cache.get(key);
 
     if (cached && cached.until > Date.now()) {
       this.#hits++;
+      this.#emit(policy.kind, policy.priority!, "cached");
 
       // SAFETY: An opaque key identifies one operation and result type, as required by ProcessPolicy.
       return Promise.resolve(cached.value as T);
@@ -98,6 +140,7 @@ export class ProcessGovernor {
 
     if (flight) {
       this.#joined++;
+      this.#emit(policy.kind, policy.priority!, "joined");
 
       if (policy.priority === "user") {
         const waiting = this.#queue.find((w) => w.policy.kind === policy.kind && w.policy.key === policy.key);
@@ -135,19 +178,32 @@ export class ProcessGovernor {
 
   /** Synchronous APIs (SDK launch hooks, constructors) fail with back-pressure instead of spawning unboundedly. */
   reserve(kind: ProcessKind): () => void {
+    const priority = currentProcessPriority();
+    this.#emit(kind, priority, "attempt");
+    this.#emit(kind, priority, "wait", 0);
+
+    return this.#reserve(kind, priority);
+  }
+
+  #reserve(kind: ProcessKind, priority: ProcessPriority): () => void {
     if (!this.#available(kind)) {
       this.#saturated();
+      this.#emit(kind, priority, "full");
       throw new ProcessBusyError();
     }
 
     this.#started++;
     this.#running.set(kind, (this.#running.get(kind) ?? 0) + 1);
+    this.#emit(kind, priority, "admitted");
+    const started = this.#observers.size ? performance.now() : undefined;
     let released = false;
 
     return () => {
       if (released) return;
       released = true;
       this.#running.set(kind, (this.#running.get(kind) ?? 1) - 1);
+
+      if (started !== undefined) this.#emit(kind, priority, "execution", performance.now() - started);
       this.#drain();
     };
   }
@@ -166,10 +222,13 @@ export class ProcessGovernor {
 
   #enqueue<T>(policy: ProcessPolicy, operation: () => Promise<T>): Promise<T> {
     return new Promise<T>((resolve, reject) => {
+      if (policy.signal?.aborted) this.#emit(policy.kind, policy.priority!, "cancelled");
       policy.signal?.throwIfAborted();
+      const queuedAt = performance.now();
 
       const start = () => {
-        const release = this.reserve(policy.kind);
+        this.#emit(policy.kind, policy.priority!, "wait", performance.now() - queuedAt);
+        const release = this.#reserve(policy.kind, policy.priority!);
         void Promise.resolve().then(operation).then(resolve, reject).finally(release);
       };
 
@@ -185,9 +244,12 @@ export class ProcessGovernor {
         // Leave room for a click when background refreshes have filled the queue.
         const stale = this.#queue.findIndex((w) => w.policy.priority === "background");
 
-        if (policy.priority !== "background" && stale >= 0) this.#drop(this.#queue[stale]!);
+        if (policy.priority !== "background" && stale >= 0)
+          this.#drop(this.#queue[stale]!, new ProcessBusyError(), "evicted");
         else {
           this.#dropped++;
+          this.#emit(policy.kind, policy.priority!, "wait", performance.now() - queuedAt);
+          this.#emit(policy.kind, policy.priority!, "full");
           reject(new ProcessBusyError());
 
           return;
@@ -196,6 +258,7 @@ export class ProcessGovernor {
 
       const wait: Waiting = {
         policy,
+        queuedAt,
         start,
         reject,
         timer: setTimeout(
@@ -205,7 +268,7 @@ export class ProcessGovernor {
         cleanup: () => policy.signal?.removeEventListener("abort", abort),
       };
 
-      const abort = () => this.#drop(wait, new Error("The queued process was cancelled."));
+      const abort = () => this.#drop(wait, new Error("The queued process was cancelled."), "cancelled");
 
       this.#queue.push(wait);
       policy.signal?.addEventListener("abort", abort, { once: true });
@@ -213,7 +276,11 @@ export class ProcessGovernor {
     });
   }
 
-  #drop(wait: Waiting, error: Error = new ProcessBusyError()): void {
+  #drop(
+    wait: Waiting,
+    error: Error = new ProcessBusyError(),
+    reason: "timeout" | "cancelled" | "evicted" = "timeout",
+  ): void {
     const index = this.#queue.indexOf(wait);
 
     if (index < 0) return;
@@ -221,6 +288,8 @@ export class ProcessGovernor {
     clearTimeout(wait.timer);
     wait.cleanup();
     this.#dropped++;
+    this.#emit(wait.policy.kind, wait.policy.priority!, "wait", performance.now() - wait.queuedAt);
+    this.#emit(wait.policy.kind, wait.policy.priority!, reason);
     wait.reject(error);
   }
 

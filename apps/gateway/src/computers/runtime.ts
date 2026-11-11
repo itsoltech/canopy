@@ -55,6 +55,10 @@ export class LinkedComputers {
 
   readonly [computersState] = new LinkedComputersState();
 
+  diagnosticsWatches() {
+    return this[computersState].mirroring.size + this[computersState].botMirroring.size;
+  }
+
   readonly mirror: ThreadMirror;
   readonly ranges: ThreadRangeStore;
   readonly rangePublisher: ThreadRangePublisher;

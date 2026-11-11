@@ -5,3 +5,9 @@ export { Aggregate, mergeAggregates, mergeCoverage } from "./aggregate.ts";
 export { HeartbeatEcho } from "./echo.ts";
 
 export * from "./presentation.ts";
+
+export * from "./metrics.ts";
+
+export * from "./details.ts";
+
+export * from "./measure.ts";

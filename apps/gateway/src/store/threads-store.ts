@@ -11,6 +11,7 @@ import { listThreadSelect, threadSelect } from "./thread-select.ts";
 import { permissionModeOf } from "./ui-mappers.ts";
 import { storageText } from "./event-text.ts";
 import type { AutomatedAccess } from "./automated-permissions.ts";
+import { queryFamily } from "../diagnostics/query-context.ts";
 
 export interface ThreadStore {
   /** `id`: a thread moved here from a linked computer keeps its id (docs/linked-computers.md, stage 8). */
@@ -111,7 +112,10 @@ export function threadStore(sql: SqlClient.SqlClient): Omit<ThreadStore, "create
           ),
           [threadId, includeDeleted],
         )
-        .pipe(Effect.flatMap((rows) => one(rows, "thread"))),
+        .pipe(
+          queryFamily("thread.read"),
+          Effect.flatMap((rows) => one(rows, "thread")),
+        ),
 
     markThreadSeen: (ownerUserId, threadId, upToSeq) =>
       Effect.gen(function* () {

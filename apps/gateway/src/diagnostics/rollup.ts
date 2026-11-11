@@ -1,6 +1,6 @@
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { mergeAggregates, mergeCoverage } from "@canopy/domain/diagnostics";
+import { mergeAggregates, mergeCoverage, Measure, measureKey, metricOf, rpcOf } from "@canopy/domain/diagnostics";
 
 export const MAX_PAYLOAD = 64 * 1024;
 
@@ -34,10 +34,26 @@ export function decodeRollup(bytes: Uint8Array) {
 export function encodeRollup(processes: ui.DiagnosticsProcess[]) {
   if (processes.length > 64) throw new Error("Diagnostics process budget exceeded");
 
-  const bytes = toBinary(
-    ui.DiagnosticsRollupSchema,
-    create(ui.DiagnosticsRollupSchema, { schemaVersion: 1, processes }),
-  );
+  const rollup = create(ui.DiagnosticsRollupSchema, {
+    schemaVersion: 1,
+    processes: processes.map((value) =>
+      create(ui.DiagnosticsProcessSchema, { ...value, measures: [...value.measures] }),
+    ),
+  });
+
+  let bytes = toBinary(ui.DiagnosticsRollupSchema, rollup);
+
+  if (bytes.length > MAX_PAYLOAD) {
+    // Optional RPC correlations are shed before global series, RPC counters or link watermarks.
+    for (const value of rollup.processes) value.measures = value.measures.filter((measure) => !measure.rpcMethodId);
+    rollup.incomplete = true;
+    bytes = toBinary(ui.DiagnosticsRollupSchema, rollup);
+  }
+
+  while (bytes.length > MAX_PAYLOAD && rollup.processes.some((value) => value.measures.length)) {
+    rollup.processes.findLast((value) => value.measures.length)!.measures.pop();
+    bytes = toBinary(ui.DiagnosticsRollupSchema, rollup);
+  }
 
   if (bytes.length > MAX_PAYLOAD) throw new Error("Diagnostics persistence budget exceeded");
 
@@ -71,6 +87,7 @@ export function compactRollups(rollups: readonly ui.DiagnosticsRollup[]) {
 
   return [...grouped].map(([processId, values]) => {
     const series = new Map<number, ui.DiagnosticsAggregate[]>();
+    const measures = new Map<number, Measure>();
 
     for (const process of values)
       for (const aggregate of process.series) {
@@ -79,12 +96,21 @@ export function compactRollups(rollups: readonly ui.DiagnosticsRollup[]) {
         series.set(aggregate.methodId, bucket);
       }
 
+    for (const process of values)
+      for (const value of process.measures) {
+        const key = measureKey(value.metricId, value.rpcMethodId);
+        const aggregate = measures.get(key) ?? new Measure();
+        aggregate.merge(value);
+        measures.set(key, aggregate);
+      }
+
     return create(ui.DiagnosticsProcessSchema, {
       processId,
       session: "hour",
       sequence: 0n,
       coverage: mergeCoverage(values.flatMap((process) => process.coverage)),
       series: [...series].map(([id, aggregates]) => mergeAggregates(aggregates, id)),
+      measures: [...measures].map(([key, value]) => value.snapshot(metricOf(key), rpcOf(key))),
     });
   });
 }

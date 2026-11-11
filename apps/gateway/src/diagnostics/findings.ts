@@ -1,13 +1,16 @@
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
+import { gatewayEvidence } from "./gateway-findings.ts";
 
-type Evidence = {
+export type Evidence = {
   ruleId: string;
   subject: string;
   value: number;
   threshold: number;
   samples: bigint;
   critical: boolean;
+  duringSync?: boolean;
+  fresh?: boolean;
 };
 
 const FAILURES = [2, 4, 8, 10, 13, 14, 15];
@@ -34,7 +37,7 @@ export class Findings {
     this.#completeMinutes =
       snapshot.droppedSamples === this.#observedDrops ? Math.min(15, this.#completeMinutes + 1) : 0;
     this.#observedDrops = snapshot.droppedSamples;
-    const evidence: Evidence[] = [];
+    const evidence: Evidence[] = gatewayEvidence(snapshot, recent);
 
     for (const call of snapshot.calls) {
       if (call.stream || call.layer === "command" || /Import|Update|Install|Generate|Clone|Move|Ssh/.test(call.method))
@@ -82,13 +85,18 @@ export class Findings {
       const previous = this.states.get(key);
 
       const activity =
-        value.ruleId === "link_slow"
+        value.fresh ??
+        (value.ruleId === "link_slow"
           ? recent.links.some(
               (link) => `${link.kind}:${link.targetId}` === value.subject && (link.rttMs?.samples ?? 0n) > 0n,
             )
-          : recent.calls.some((call) => `${call.layer}:${call.method}` === value.subject && call.completed > 0n);
+          : recent.calls.some((call) => `${call.layer}:${call.method}` === value.subject && call.completed > 0n));
 
-      const enough = activity && snapshot.observedSeconds >= 600 && !snapshot.restoring && this.#completeMinutes >= 15;
+      const enough =
+        activity &&
+        snapshot.observedSeconds >= (value.fresh === undefined ? 600 : 180) &&
+        !snapshot.restoring &&
+        this.#completeMinutes >= (value.fresh === undefined ? 15 : 3);
 
       const slow = snapshot.calls.find((call) => `${call.layer}:${call.method}` === value.subject)?.slow ?? 0n;
       const above = (value.value > value.threshold && (value.ruleId !== "rpc_slow" || slow >= 5n)) || value.critical;

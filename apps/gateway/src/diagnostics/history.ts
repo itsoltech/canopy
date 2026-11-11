@@ -2,6 +2,7 @@ import { Aggregate, mergeCoverage } from "@canopy/domain/diagnostics";
 import type { DiagnosticsStore } from "./store.ts";
 import { BucketBudget, type Slot } from "./buckets.ts";
 import { decodeRollup } from "./rollup.ts";
+import { restoreMeasures } from "./measure-snapshot.ts";
 
 /** One short-lived, shared hourly view. No historical query is part of gateway startup. */
 export class DiagnosticsHistory {
@@ -55,7 +56,11 @@ export class DiagnosticsHistory {
         let slot = values.get(process.processId);
 
         if (!slot) {
-          if (values.size >= 17 || !process.series.some((series) => this.allowed(process.processId, series.methodId))) {
+          if (
+            values.size >= 17 ||
+            (!process.series.some((series) => this.allowed(process.processId, series.methodId)) &&
+              !(process.processId === "gateway" && process.measures.length))
+          ) {
             budget.dropped++;
             continue;
           }
@@ -65,6 +70,14 @@ export class DiagnosticsHistory {
         }
 
         slot.coverage = mergeCoverage([...slot.coverage, ...process.coverage]);
+
+        if (process.processId === "gateway")
+          restoreMeasures(
+            slot,
+            process,
+            (bytes) => budget.reserve(bytes),
+            (id) => this.allowed("gateway", id),
+          );
 
         for (const series of process.series) {
           if (!this.allowed(process.processId, series.methodId)) continue;

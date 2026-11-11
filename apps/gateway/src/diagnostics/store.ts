@@ -5,6 +5,7 @@ import { SqlClient } from "effect/sql";
 import type { CoreRuntime } from "../core/core.ts";
 import { decodeRollup, encodeRollup, MAX_PAYLOAD, replaceProcesses, mergeWatermarks } from "./rollup.ts";
 import { downsampleWrite, type RollupRow } from "./downsample.ts";
+import { queryFamily } from "./query-context.ts";
 
 export type StoredMinute = { at: number; processes: ui.DiagnosticsProcess[] };
 
@@ -20,7 +21,7 @@ export class DiagnosticsStore {
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
 
-        return yield* sql.unsafe<A>(text, params);
+        return yield* sql.unsafe<A>(text, params).pipe(queryFamily("diagnostics.history"));
       }),
     );
   }
@@ -176,7 +177,7 @@ export class DiagnosticsStore {
           ON CONFLICT(owner_user_id,computer_id) DO UPDATE SET payload=EXCLUDED.payload,persisted_through=EXCLUDED.persisted_through`;
           }),
         );
-      }),
+      }).pipe(queryFamily("diagnostics.write")),
     );
   }
 

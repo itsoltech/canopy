@@ -67,7 +67,15 @@ function selectedPhases(): DiagnosticsPhase[] {
   if (process.env["CANOPY_BENCH_RESOURCES"] === "1") return ["idle"];
 
   if (process.env["CANOPY_BENCH_ALL_PHASES"] === "1")
-    return ["idle", "steady", "reconnect", "slow_reader", "write_failure", "pool_contention"];
+    return [
+      "idle",
+      "steady",
+      "reconnect",
+      "slow_reader",
+      "write_failure",
+      "pool_contention",
+      ...(process.env["CANOPY_BENCH_STAGE"] === "2" ? ["governor" as const] : []),
+    ];
 
   if (process.env["CANOPY_BENCH_CONTENTION"] === "1") return ["write_failure", "pool_contention"];
 
@@ -246,6 +254,8 @@ async function run(on: boolean, index: number) {
         await checkpoint(database);
         const beforePg = await pgCounters();
         const before = await active!.run("begin");
+
+        if (phase === "governor") await active!.run("governor");
         await worker!.run("begin");
         const finishContention = await diagnosticsContention(name, database, phase, api, seed.thread);
 

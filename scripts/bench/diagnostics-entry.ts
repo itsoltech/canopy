@@ -8,8 +8,12 @@ import { workerRoutes } from "../../apps/gateway/src/worker-link/routes.ts";
 import { gatewayRuntime, ensureDevUser } from "../../apps/gateway/src/runtime.ts";
 import { DatabaseMaintenance } from "../../apps/gateway/src/maintenance/job.ts";
 import { BenchCommand } from "./diagnostics-protocol.ts";
+import { DiagnosticsGovernorWorkload } from "./diagnostics-governor.ts";
 
-const runtime = gatewayRuntime(process.env);
+const gatewayDiagnosticsEnabled =
+  process.env["CANOPY_BENCH_STAGE"] === "2" && process.env["CANOPY_BENCH_DIAGNOSTICS"] === "1";
+
+const runtime = gatewayRuntime(process.env, { databaseDiagnostics: gatewayDiagnosticsEnabled });
 const owner = await ensureDevUser(runtime, "dev@localhost");
 
 const core = new GatewayCore({
@@ -17,8 +21,11 @@ const core = new GatewayCore({
   userId: owner,
   instanceId: "diagnostics-benchmark",
   role: "server",
-  diagnosticsEnabled: process.env["CANOPY_BENCH_DIAGNOSTICS"] === "1",
+  diagnosticsEnabled: process.env["CANOPY_BENCH_STAGE"] === "2" || process.env["CANOPY_BENCH_DIAGNOSTICS"] === "1",
+  gatewayDiagnosticsEnabled,
 });
+
+const governorWorkload = new DiagnosticsGovernorWorkload();
 
 const token = process.env["CANOPY_UI_SERVICE_TOKEN"];
 
@@ -127,7 +134,11 @@ async function stats() {
       core.diagnostics.collector.short,
       core.diagnostics.collector.minutes,
       core.diagnostics.collector.historyMinutes,
-    ].reduce((count, ring) => count + ring.slots.reduce((total, slot) => total + (slot?.series.size ?? 0), 0), 0),
+    ].reduce(
+      (count, ring) =>
+        count + ring.slots.reduce((total, slot) => total + (slot?.series.size ?? 0) + (slot?.measures?.size ?? 0), 0),
+      0,
+    ),
     tableBytes: Number(db.table_bytes),
     indexBytes: Number(db.index_bytes),
     deadTuples: Number(db.dead_tuples),
@@ -136,6 +147,10 @@ async function stats() {
 }
 
 async function execute(command: BenchCommand) {
+  if (command.action === "governor") governorWorkload.start();
+
+  if (command.action === "end" || command.action === "stop") await governorWorkload.stop();
+
   if (command.action === "gc") {
     if (process.env["CANOPY_BENCH_RESOURCES"] !== "1") throw new Error("GC is resource-only");
     Bun.gc(true);
@@ -151,6 +166,15 @@ async function execute(command: BenchCommand) {
   const value = await stats();
 
   if (command.action === "end") lag.disable();
+
+  if (command.action === "end" && governorWorkload.started)
+    console.error(
+      JSON.stringify({
+        phase: "governor_workload",
+        started: governorWorkload.started,
+        failed: governorWorkload.failed,
+      }),
+    );
   process.send?.({ id: command.id, stats: value, error: false });
 
   if (command.action === "stop") done();

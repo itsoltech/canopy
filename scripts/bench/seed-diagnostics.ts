@@ -7,6 +7,7 @@ import { generateIdentity } from "../../apps/gateway/src/computers/identity.ts";
 import { loadSecretsKey } from "../../apps/gateway/src/store/secrets.ts";
 import { DiagnosticsStore } from "../../apps/gateway/src/diagnostics/store.ts";
 import { RPC_METHODS } from "../../apps/gateway/src/diagnostics/registry.ts";
+import { syntheticGatewayMeasures } from "./seed-diagnostics-metrics.ts";
 
 /** Synthetic metrics only; the owning client-stack has just created this disposable database. */
 export async function seedDiagnostics(env: Readonly<Record<string, string | undefined>>) {
@@ -115,6 +116,7 @@ export async function seedDiagnostics(env: Readonly<Record<string, string | unde
               session: "synthetic-preview",
               sequence: BigInt(index + 1),
               series,
+              measures: syntheticGatewayMeasures(minute + 59_000, methods[0]!.id),
               coverage: [{ startMs: BigInt(minute), endMs: BigInt(minute + 60_000) }],
             }),
           ],

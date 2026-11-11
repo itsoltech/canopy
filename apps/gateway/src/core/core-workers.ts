@@ -17,6 +17,7 @@ import { coreGitHeads } from "../worktrees/heads.ts";
 import { coreNameBranchAfterTurn } from "../worktrees/branch-naming.ts";
 import { createWorkerLink } from "../worker-link/index.ts";
 import { workerJournalWelcome } from "./bot-harness.ts";
+import type { IngestObservation } from "../diagnostics/ingest.ts";
 
 export function createCoreWorkerLink(core: GatewayCore) {
   return createWorkerLink({
@@ -181,20 +182,27 @@ export async function coreIngest(
   connection: WorkerConnection,
   incoming: ThreadEvent[],
 ): Promise<void> {
+  const observation = hostContext.diagnostics.ingest.start(connection, incoming);
+
+  try {
+    await ingestReceived(hostContext, connection, incoming, observation);
+  } finally {
+    observation?.finish();
+  }
+}
+
+async function ingestReceived(
+  hostContext: GatewayCore,
+  connection: WorkerConnection,
+  incoming: ThreadEvent[],
+  observation: IngestObservation | undefined,
+): Promise<void> {
   const journalId = hostContext[coreState].journalIds.get(connection.workerId) ?? "";
   const blocked = hostContext[coreState].blocked.get(connection);
   // Later events of a thread that failed would land out of order: skip them (unacked) until the resend.
   const events = blocked ? incoming.filter((e) => !blocked.has(e.threadId)) : incoming;
 
-  const threads: ThreadEvent[] = [];
-
-  for (const event of events) {
-    const handled =
-      event.turnId && (await hostContext.bots.run((s) => s.harnessEvent(connection.workerId, journalId, event)));
-
-    if (handled) connection.send({ case: "eventAck", value: { threadId: event.threadId, ackSeq: event.journalSeq } });
-    else threads.push(event);
-  }
+  const threads = await ingestBotEvents(hostContext, connection, journalId, events, observation);
 
   if (threads.length === 0) return;
   await hostContext.connectors.enrich(threads);
@@ -204,6 +212,7 @@ export async function coreIngest(
   );
 
   for (const [threadId, ackSeq] of result.acks) connection.send({ case: "eventAck", value: { threadId, ackSeq } });
+  observation?.ack(result.acks, result.stored.length);
 
   for (const unknown of result.unknownThreads)
     coreLog(hostContext, `events for unknown thread ${unknown} kept on worker ${connection.workerId}`);
@@ -330,4 +339,27 @@ export async function coreIngest(
   );
 
   for (const threadId of new Set(notes.map((s) => s.threadId))) await hostContext.backgroundTasks.deliver(threadId);
+}
+
+async function ingestBotEvents(
+  host: GatewayCore,
+  connection: WorkerConnection,
+  journalId: string,
+  events: ThreadEvent[],
+  observation: IngestObservation | undefined,
+) {
+  const threads: ThreadEvent[] = [];
+
+  for (const event of events) {
+    const handled = event.turnId && (await host.bots.run((s) => s.harnessEvent(connection.workerId, journalId, event)));
+
+    if (!handled) threads.push(event);
+    else {
+      connection.send({ case: "eventAck", value: { threadId: event.threadId, ackSeq: event.journalSeq } });
+      // BotStore's boolean includes replayed events; only regular ingest exposes newly stored counts.
+      observation?.ack(new Map([[event.threadId, event.journalSeq]]), 0);
+    }
+  }
+
+  return threads;
 }

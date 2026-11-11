@@ -15,10 +15,67 @@ const limits = {
  * With several instances this becomes LISTEN/NOTIFY (docs/durability.md, 4.3); the API stays the same.
  */
 export class Hub {
-  constructor(readonly defer?: (action: () => void) => boolean) {}
+  constructor(
+    readonly defer?: (action: () => void) => boolean,
+    readonly observe?: (metric: number, value: number) => void,
+  ) {}
   readonly #threads = new Map<string, Set<AsyncChannel<ui.ThreadUpdate>>>();
   readonly #threadObservers = new Map<string, Set<(update: ui.ThreadUpdate) => void>>();
   readonly #overview = new Set<AsyncChannel<ui.OverviewUpdate>>();
+  #peakItems = 0;
+  #peakBytes = 0;
+
+  snapshot() {
+    let watches = 0;
+    let items = 0;
+    let bytes = 0;
+
+    for (const channels of this.#threads.values()) {
+      watches += channels.size;
+
+      for (const channel of channels) {
+        items = Math.max(items, channel.queuedItems);
+        bytes = Math.max(bytes, channel.queuedBytes);
+      }
+    }
+
+    for (const channel of this.#overview) {
+      items = Math.max(items, channel.queuedItems);
+      bytes = Math.max(bytes, channel.queuedBytes);
+    }
+
+    const result = {
+      threads: watches,
+      overview: this.#overview.size,
+      items,
+      bytes,
+      peakItems: Math.max(items, this.#peakItems),
+      peakBytes: Math.max(bytes, this.#peakBytes),
+    };
+
+    this.#peakItems = items;
+    this.#peakBytes = bytes;
+
+    return result;
+  }
+
+  #publish<A>(channels: Set<AsyncChannel<A>>, update: A, bytes: number) {
+    this.observe?.(32, channels.size);
+    this.observe?.(33, channels.size);
+
+    for (const channel of channels) {
+      const closed = channel.closed;
+
+      if (!channel.push(update, bytes)) {
+        channels.delete(channel);
+
+        if (!closed) this.observe?.(36, 1);
+      }
+
+      this.#peakItems = Math.max(this.#peakItems, channel.queuedItems);
+      this.#peakBytes = Math.max(this.#peakBytes, channel.queuedBytes);
+    }
+  }
 
   /** Sequence readers only need invalidation and controls, without a transcript queue or serialization. */
   observeThread(threadId: string, notify: (update: ui.ThreadUpdate) => void) {
@@ -68,6 +125,7 @@ export class Hub {
 
   publishThread(threadId: string, update: ui.ThreadUpdate): void {
     if (this.defer?.(() => this.publishThread(threadId, update))) return;
+    this.observe?.(31, 1);
 
     for (const notify of this.#threadObservers.get(threadId) ?? []) notify(update);
     const channels = this.#threads.get(threadId);
@@ -75,17 +133,18 @@ export class Hub {
     if (!channels?.size) return;
     const bytes = threadUpdateBytes(update).length;
 
-    for (const channel of channels) if (!channel.push(update, bytes)) channels.delete(channel);
+    this.#publish(channels, update, bytes);
 
     if (!channels.size) this.#threads.delete(threadId);
   }
 
   publishOverview(update: ui.OverviewUpdate): void {
     if (this.defer?.(() => this.publishOverview(update))) return;
+    this.observe?.(31, 1);
 
     if (!this.#overview.size) return;
     const bytes = toBinary(ui.OverviewUpdateSchema, update).length;
 
-    for (const channel of this.#overview) if (!channel.push(update, bytes)) this.#overview.delete(channel);
+    this.#publish(this.#overview, update, bytes);
   }
 }

@@ -1,6 +1,14 @@
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { mergeCoverage, addCount, type Histogram } from "@canopy/domain/diagnostics";
+import {
+  mergeCoverage,
+  addCount,
+  METRIC_DEFINITIONS,
+  metricOf,
+  rpcOf,
+  type Measure,
+  type Histogram,
+} from "@canopy/domain/diagnostics";
 import { BucketBudget, Buckets } from "./buckets.ts";
 import { MAX_METHODS, type RegisteredMethod } from "./registry.ts";
 import { updateWindows } from "./windows.ts";
@@ -11,6 +19,7 @@ const SYSTEM_CLOCK: DiagnosticsClock = { monotonic: () => performance.now(), utc
 
 export class RpcCollector {
   enabled = true;
+  gatewayEnabled = true;
   readonly methods = new Map<number, RegisteredMethod>();
   readonly short: Buckets;
   readonly minutes: Buckets;
@@ -132,6 +141,32 @@ export class RpcCollector {
     }
   }
 
+  measure(id: number, value: number, error = false, rpc = 0, weight = 0) {
+    if (!this.enabled || !this.gatewayEnabled || !Number.isFinite(value) || value < 0) return;
+    const definition = METRIC_DEFINITIONS.get(id);
+
+    if (!definition || (rpc && !this.methods.has(rpc))) return;
+    const at = this.#lastUtc + this.clock.monotonic() - this.#lastMono;
+
+    const record = (measure: Measure) => {
+      if (definition.kind === "timing") measure.timing(value, error, at);
+      else if (definition.kind === "counter") measure.counter(Math.floor(value), error, at);
+      else measure.gauge(value, weight, at);
+    };
+
+    for (const ring of this.#rings) {
+      const global = ring.measure(at, id);
+
+      if (global) record(global);
+
+      if (rpc) {
+        const associated = ring.measure(at, id, rpc);
+
+        if (associated) record(associated);
+      }
+    }
+  }
+
   tick() {
     const mono = this.clock.monotonic();
     const utc = this.clock.utc();
@@ -178,6 +213,7 @@ export class RpcCollector {
 
     for (const value of process.series)
       if (this.methods.has(value.methodId)) ring.series(at, value.methodId)?.merge(value);
+    ring.restoreMeasures(process, at);
   }
 
   merge(process: ui.DiagnosticsProcess, at = this.clock.utc()) {
@@ -207,6 +243,7 @@ export class RpcCollector {
       sequence: BigInt(at),
       coverage: mergeCoverage(slot.coverage),
       series: [...slot.series].map(([id, value]) => value.snapshot(id)),
+      measures: [...(slot.measures ?? [])].map(([key, value]) => value.snapshot(metricOf(key), rpcOf(key))),
     });
   }
 }

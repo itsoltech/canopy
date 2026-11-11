@@ -19,6 +19,13 @@ export async function coreRedeliver(hostContext: GatewayCore, workerId: string):
   const connection = hostContext.link.connections.get(workerId);
   const commands = await coreRun(hostContext, (s) => s.pendingCommands(workerId));
 
+  const observePage = (page: PendingCommand[]) => {
+    hostContext.diagnostics.collector.measure(26, page.length);
+    hostContext.diagnostics.collector.measure(27, page[0] ? Math.max(0, Date.now() - page[0].createdAt.getTime()) : 0);
+  };
+
+  observePage(commands);
+
   // Return after dispatching the first batch so the worker event loop can start immediately.
   // A bounded SQL page amortizes reads; ACKs/disconnects free each 64-command batch.
   const drain = async (page: PendingCommand[]) => {
@@ -40,6 +47,7 @@ export async function coreRedeliver(hostContext: GatewayCore, workerId: string):
 
       if (!connection.isOpen || hostContext.link.connections.get(workerId) !== connection) return;
       page = await coreRun(hostContext, (s) => s.pendingCommands(workerId, after));
+      observePage(page);
     }
   };
 

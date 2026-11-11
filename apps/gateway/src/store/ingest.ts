@@ -6,6 +6,7 @@ import { settleThread, stuckThread } from "./ingest-settle.ts";
 import { applyShellInput } from "./shell-input.ts";
 import { storageEvent } from "./event-text.ts";
 import { dataErrorCode, quarantineEvent } from "./event-quarantine.ts";
+import { queryFamily } from "../diagnostics/query-context.ts";
 
 /**
  * Writes worker events into the thread timeline (docs/transcript.md, "Zapis po stronie gateway").
@@ -198,7 +199,7 @@ export class Ingest extends Context.Service<
           }
 
           return { acks, stored, unknownThreads, failedThreads };
-        }),
+        }, queryFamily("ingest.events")),
       });
     }),
   );

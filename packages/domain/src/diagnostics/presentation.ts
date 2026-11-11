@@ -192,6 +192,18 @@ export function diagnosticsUnavailable(computer: ui.ComputerDiagnostics): [strin
 }
 
 export function findingText(finding: ui.DiagnosticsFinding) {
+  if (finding.ruleId === "event_loop")
+    return `Event-loop lag p99 is ${duration(finding.value)}${finding.duringSync ? " during sync" : ""}. Check gateway load. Sync activity is a correlation; it does not identify the cause.`;
+
+  if (finding.ruleId === "db_pool")
+    return `Database connections are busy: ${finding.value.toFixed(1)} queries waiting on average. Check pool wait and slow query families.`;
+
+  if (finding.ruleId === "db_slow")
+    return `${finding.subject} query p95 is ${duration(finding.value)}. Check its reserve, execute and release timings and related RPCs.`;
+
+  if (finding.ruleId === "governor_wait")
+    return `${finding.subject} processes wait ${duration(finding.value)} at p95. Check gateway load before changing process limits.`;
+
   if (finding.ruleId === "rpc_errors")
     return `${finding.subject.split("/").at(-1)} has ${finding.value.toFixed(1)}% server or transport errors over 15 min. Check gateway load and investigate this method.`;
 

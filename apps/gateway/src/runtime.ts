@@ -1,6 +1,7 @@
 import { PgClient } from "@effect/sql-pg";
 import { migrate, migrateOnline } from "@canopy/db";
 import { Effect, Layer, ManagedRuntime, Redacted } from "effect";
+import { DatabaseMonitor, bindDatabaseMonitor, observedSql } from "./diagnostics/database.ts";
 import { BotStore } from "./bots/store.ts";
 import {
   AgentBusStore,
@@ -18,14 +19,24 @@ import {
 } from "./store/index.ts";
 
 /** Database-backed services of the gateway, shared by main.ts and cli.ts. */
-export function gatewayRuntime(env: Readonly<Record<string, string | undefined>>) {
+export function gatewayRuntime(
+  env: Readonly<Record<string, string | undefined>>,
+  options: { databaseDiagnostics?: boolean } = {},
+) {
   const url = env["CANOPY_DATABASE_URL"];
 
   if (!url) throw new Error("CANOPY_DATABASE_URL is not set, e.g. postgres://canopy:...@127.0.0.1:5432/canopy");
   const database = PgClient.layer({ url: Redacted.make(url), applicationName: "canopy-gateway" });
   const secretsKey = loadSecretsKey(env);
+  const monitor = new DatabaseMonitor();
 
-  return ManagedRuntime.make(gatewayServices(secretsKey).pipe(Layer.provideMerge(database)));
+  const measured =
+    options.databaseDiagnostics === false ? database : observedSql(monitor).pipe(Layer.provideMerge(database));
+
+  const runtime = ManagedRuntime.make(gatewayServices(secretsKey).pipe(Layer.provideMerge(measured)));
+  bindDatabaseMonitor(runtime, monitor);
+
+  return runtime;
 }
 
 /** Shared service composition for the application and opt-in database benchmarks. */

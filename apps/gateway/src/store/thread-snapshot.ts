@@ -13,6 +13,7 @@ import { threadWindow, type ThreadHistoryQuery } from "./thread-window.ts";
 import { composerTurnChoices } from "./composer-turn-choices.ts";
 import { decodeSnapshotRows } from "./snapshot-decode.ts";
 import { decodeTimelineItem } from "./timeline-item.ts";
+import { queryFamily } from "../diagnostics/query-context.ts";
 
 export interface ThreadSnapshotStore {
   composerTurnChoices(threadId: string, ownerUserId: string): Fx<ui.ComposerTurnChoices | undefined>;
@@ -160,6 +161,7 @@ export function threadSnapshot(
 
       // Materialize the consistent SQL snapshot first. Decoding yields without extending its read transaction.
       return snapshot.pipe(
+        queryFamily("thread.page"),
         Effect.flatMap(({ itemRows, noticeRows, ...state }) =>
           Effect.gen(function* () {
             const items = yield* Effect.promise(() => decodeSnapshotRows(itemRows, decodeTimelineItem));

@@ -36,6 +36,47 @@ message DiagnosticsProcess {
   repeated DiagnosticsCoverage coverage = 4;
   repeated DiagnosticsAggregate series = 5;
   repeated DiagnosticsCheckpoint checkpoints = 6;
+  repeated DiagnosticsMeasureAggregate measures = 7;
+}
+// Compact internal series share the RPC collector's fixed allocation budget.
+// IDs are assigned by code; rpc_method_id=0 denotes an unassociated observation.
+message DiagnosticsMeasureAggregate {
+  uint32 metric_id = 1;
+  uint32 rpc_method_id = 2;
+  DiagnosticsHistogram histogram = 3;
+  uint64 events = 4;
+  uint64 errors = 5;
+  double weighted_sum = 6;
+  double weight = 7;
+  double max = 8;
+  double last = 9;
+  int64 sampled_at_ms = 10;
+  bool incomplete = 11;
+}
+message DiagnosticsMeasure {
+  uint32 metric_id = 1;
+  DiagnosticsPercentiles distribution = 2;
+  uint64 events = 3;
+  uint64 errors = 4;
+  double mean = 5;
+  double max = 6;
+  double last = 7;
+  int64 sampled_at_ms = 8;
+  double observed_seconds = 9;
+  bool historical = 10;
+  bool incomplete = 11;
+}
+message DiagnosticsDatabaseFamily {
+  string family = 1;
+  DiagnosticsPercentiles reserve_ms = 2;
+  DiagnosticsPercentiles execute_ms = 3;
+  DiagnosticsPercentiles release_ms = 4;
+  DiagnosticsPercentiles transaction_ms = 5;
+  uint64 reserve_errors = 6;
+  uint64 execute_errors = 7;
+  uint64 release_errors = 8;
+  uint64 transaction_errors = 9;
+  bool incomplete = 10;
 }
 message DiagnosticsCheckpoint {
   string session = 1;
@@ -90,6 +131,7 @@ message DiagnosticsCall {
   bool incomplete = 17;
   uint64 slow = 18;
   repeated uint64 message_kinds = 19;
+  repeated DiagnosticsDatabaseFamily database = 20; // top 10 measured contributors
 }
 message DiagnosticsFinding {
   string rule_id = 1;
@@ -103,6 +145,7 @@ message DiagnosticsFinding {
   uint32 leaving = 9;
   bool suspended = 10;
   bool active = 11;
+  bool during_sync = 12; // Correlation in the evaluated minute, never attribution.
 }
 message DiagnosticsLink {
   string target_id = 1;
@@ -146,6 +189,9 @@ message ComputerDiagnostics {
   int64 received_at_ms = 27;
   bool age_uncertain = 28;
   uint32 window_minutes = 29;
+  repeated DiagnosticsMeasure gateway_measures = 30;
+  repeated DiagnosticsDatabaseFamily database = 31; // top 10 by execute p95
+  bool gateway_measures_supported = 32;
 }
 message DiagnosticsSnapshot {
   repeated ComputerDiagnostics computers = 1;

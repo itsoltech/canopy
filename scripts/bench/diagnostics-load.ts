@@ -8,7 +8,8 @@ export type DiagnosticsPhase =
   | "slow_reader"
   | "churn"
   | "write_failure"
-  | "pool_contention";
+  | "pool_contention"
+  | "governor";
 
 /** Fixed offered load with actual gRPC cancellation, reconnects and backpressured watches. */
 export async function diagnosticsLoad<Measurement>(

@@ -3,6 +3,7 @@ import { Code, ConnectError, type Interceptor } from "@connectrpc/connect";
 import type { RpcCollector, RpcObservation } from "./collector.ts";
 import { registered } from "./registry.ts";
 import { messageKind } from "./message-kind.ts";
+import { rpcContext, rpcMessages } from "./query-context.ts";
 
 async function* messages(
   input: AsyncIterable<Message>,
@@ -18,7 +19,8 @@ async function* messages(
 /** Abort releases gauges even if a generator is waiting forever and never receives return(). */
 export function diagnosticsInterceptor(collector: RpcCollector): Interceptor {
   return (next) => async (request) => {
-    const observation = collector.start(registered(request.method).id);
+    const id = registered(request.method).id;
+    const observation = collector.start(id);
 
     if (!observation) return next(request);
     const abort = () => observation.finish(Code.Canceled);
@@ -35,8 +37,8 @@ export function diagnosticsInterceptor(collector: RpcCollector): Interceptor {
     try {
       if (!request.stream) observation.message("request");
 
-      const response = await next(
-        request.stream ? { ...request, message: messages(request.message, observation, "request") } : request,
+      const response = await rpcContext.run(id, () =>
+        next(request.stream ? { ...request, message: messages(request.message, observation, "request") } : request),
       );
 
       if (!response.stream) {
@@ -50,7 +52,7 @@ export function diagnosticsInterceptor(collector: RpcCollector): Interceptor {
         ...response,
         message: (async function* () {
           try {
-            yield* messages(response.message, observation, "response");
+            yield* messages(rpcMessages(response.message, id), observation, "response");
           } catch (error) {
             release(ConnectError.from(error).code);
             throw error;

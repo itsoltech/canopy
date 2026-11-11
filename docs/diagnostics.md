@@ -148,6 +148,56 @@ produkcyjnego `pg_stat_statements`, tekstu SQL, parametrów ani planów automaty
 Powiązanie RPC → rodzina DB wymaga kontekstu lokalnego wywołania; bez niego
 można wskazać współwystępowanie, nie „przyczynę”. Nie odejmujemy p95 SQL od p95 RPC.
 
+**Etap 2 — implementacja:** serie wnętrza gatewaya współdzielą pierścienie i limit
+6 MiB etapu 1, przejściowy budżet scalania 512 KiB oraz cache godzin 1 MiB.
+Nie powstaje drugi kolektor ani osobna migracja: nowe pola protobuf mieszczą się
+w istniejących payloadach rollupów. Kontekst rodziny jest referencją Effect,
+a kontekst lokalnego RPC trafia do niej na granicy wykonania; streamy linked
+przekazują kontekst także podczas iteracji. Zapisane identyfikatory metryk są
+liczbowe i stabilne (`packages/domain/src/diagnostics/metrics.ts`).
+Pula korzysta z oryginalnego PgClient i jego rezerwacji, z osobnym zakresem
+finalizacji do pomiaru rzeczywistego release; transakcje zachowują savepointy
+i rollback po błędzie COMMIT. Liczniki faz mogą się różnić: transakcja może
+rezerwować połączenie w rodzinie zewnętrznej, a wykonywać zapytania w kilku
+rodzinach wewnętrznych. Rodzina `other` i pokrycie klasyfikacji pozostają jawne.
+Brak miejsca na histogram nie usuwa liczników błędów; rodzina oznacza swój
+niepełny rozkład i nie wyzwala na jego podstawie findingu o wolnym zapytaniu.
+
+Korelacje RPC są opcjonalnym szczegółem: nowe klucze korelacji są pomijane po
+192 wpisach metryk slotu, globalne serie nadal podlegają wspólnemu limitowi RAM.
+Przy przekroczeniu 64 KiB odpowiedzi najpierw wypadają korelacje, potem szczegóły
+governora i rodzin; wiersze RPC pozostają. Rollup przekraczający 64 KiB najpierw
+odrzuca korelacje, potem nowe serie, oznaczając niepełność. Odtworzone gauges
+mają czas próbki i znacznik historyczny; nie reprezentują aktualnych wartości.
+Event loop ma timer 20 ms bez nadrabiania ticków, a opóźnienie ≥10 s oznacza lukę.
+
+Ingest zachowuje tylko monotoniczne czasy do 4096 zdarzeń i 16 połączeń,
+rozliczane w tym samym budżecie. Odebrane/rozpoczęte obejmują retry;
+zatwierdzone oznaczają nowe eventy zwykłego ingestu. BotStore zwraca też replay
+jako obsłużony, więc ACK botów ma czas, ale nie zwiększa tego licznika nowych
+eventów. Outbox pokazuje ostatnią odczytaną ograniczoną stronę i jej najstarszy
+czas utworzenia: to estymata, bez COUNT całej kolejki i bez dodatkowego pollingu.
+Watches, kolejki i overflow obserwują istniejący Hub; lustra obejmują aktywne
+subskrypcje mirrorów wątków/botów, bez pomiaru ich lagu (etap 3).
+
+Nowe findings oceniają świeżą minutę: p99 event loop >100 ms przy ≥1000 próbek
+(critical >500 ms), średnio >0,5 oczekującego reserve przez ≥30 s
+(critical >5), execute p95 rodziny >100 ms przy ≥30 próbkach
+(critical >1 s), governor wait p95 >1 s przy ≥30 admissions i niepustej kolejce.
+Wymagają ≥3 min pokrycia, trzech ocen wejścia i pięciu ocen wyjścia poniżej 70%
+progu; brak świeżości zawiesza ocenę. Ruch ingest/fan-out w tej samej minucie
+dopisuje korelację sync do event loop, bez przypisania przyczyny.
+
+Harness `scripts/bench/diagnostics.ts` przy `CANOPY_BENCH_STAGE=2` pozostawia
+etap 1 włączony w obu członach pary, a `CANOPY_BENCH_DIAGNOSTICS` przełącza
+wyłącznie nowe pomiary. Wariant off korzysta z natywnego klienta DB bez adaptera
+rezerwacji, aby koszt adaptera również należał do porównania. Pozostają bramki
+hosta, idle 10 min i scenariusze
+DB/concurrent, dochodzi faza `governor`: osiem `git --version` co 200 ms,
+cztery sloty i kolejka, bez nakładających się burstów. Narzut tej pracy jest
+w obu członach pary; liczba prób/błędów trafia do artefaktów pomiaru.
+Nagrania rozpoczynają się dopiero po potwierdzeniu spokojnego okna przez maintainera.
+
 ### 3.3 Worker i jakość sieci
 
 | Metryka | Definicja i granica |

@@ -62,6 +62,8 @@ export interface GatewayCoreOptions {
   readonly github?: import("../github/http.ts").GitHubOptions;
   /** Benchmark-only off/on comparison on the same revision. Production leaves this enabled. */
   readonly diagnosticsEnabled?: boolean;
+  /** Benchmark-only Stage 2 switch; Stage 1 remains enabled in both members. */
+  readonly gatewayDiagnosticsEnabled?: boolean;
   readonly role?: GatewayRole;
   readonly skillSources?: import("../agent-environment/source-discovery.ts").SourceOptions;
   readonly updates?: Partial<Omit<GatewayUpdatesOptions, "persistence" | "authenticate">>;

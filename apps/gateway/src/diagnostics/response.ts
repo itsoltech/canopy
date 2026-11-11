@@ -14,9 +14,27 @@ export function diagnosticsResponse(value: ui.ComputerDiagnostics, request: ui.C
       notModified: true,
     });
   const budget = request.overviewOnly ? 16 * 1024 : 64 * 1024;
+  // The local window cache is shared by readers and persistence; shed only this response.
+  value = create(ui.ComputerDiagnosticsSchema, {
+    ...value,
+    calls: value.calls.map((call) => create(ui.DiagnosticsCallSchema, { ...call, database: [...call.database] })),
+    gatewayMeasures: [...value.gatewayMeasures],
+    database: [...value.database],
+    links: [...value.links],
+    findings: [...value.findings],
+  });
 
   while (toBinary(ui.ComputerDiagnosticsSchema, value).length > budget) {
-    if (value.links.length) value.links.pop();
+    const call = value.calls.findLast((row) => row.database.length);
+
+    if (call) call.database.pop();
+    else if (value.gatewayMeasures.some((row) => row.metricId >= 2000))
+      value.gatewayMeasures.splice(
+        value.gatewayMeasures.findLastIndex((row) => row.metricId >= 2000),
+        1,
+      );
+    else if (value.database.length) value.database.pop();
+    else if (value.links.length) value.links.pop();
     else if (value.findings.length > 5) value.findings.pop();
     else throw new ConnectError("Diagnostics snapshot exceeds budget", Code.ResourceExhausted);
     value.droppedSamples++;

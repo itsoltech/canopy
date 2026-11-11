@@ -14,6 +14,7 @@
   import Findings from "#lib/features/diagnostics/Findings.svelte";
   import Calls from "#lib/features/diagnostics/Calls.svelte";
   import Grants from "#lib/features/diagnostics/Grants.svelte";
+  import GatewayMetrics from "#lib/features/diagnostics/GatewayMetrics.svelte";
 
   let range = $state("15");
   let computer = $state("");
@@ -110,6 +111,7 @@
     </div>
   {/if}
   {#if selected && detail.data?.computerId === selected}
+    <GatewayMetrics computer={detail.data} />
     <Calls
       computer={detail.data}
       {offset}

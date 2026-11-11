@@ -5,6 +5,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import type { RpcCollector } from "./collector.ts";
 import type { Slot } from "./buckets.ts";
 import { closedWindow } from "./windows.ts";
+import { measureSnapshot } from "./measure-snapshot.ts";
 
 export function windowMinutes(value: number) {
   if (!value) return 15;
@@ -58,6 +59,8 @@ export function rpcSnapshot(collector: RpcCollector, minutes: number, hourly?: S
       aggregates.set(id, aggregate);
     }
 
+  const measured = measureSnapshot(collector, minutes, hourly);
+
   const calls = [...aggregates].flatMap(([id, aggregate]) => {
     const method = collector.methods.get(id);
 
@@ -87,6 +90,7 @@ export function rpcSnapshot(collector: RpcCollector, minutes: number, hourly?: S
         oldestActiveMs: active?.size ? Math.max(0, mono - Math.min(...active.values())) : 0,
         incomplete: value.incomplete,
         slow: value.slow,
+        database: measured.associated.get(id) ?? [],
       }),
     ];
   });
@@ -132,6 +136,8 @@ export function rpcSnapshot(collector: RpcCollector, minutes: number, hourly?: S
 
   return {
     calls,
+    gatewayMeasures: measured.gatewayMeasures,
+    database: measured.database,
     gaps,
     observedSeconds,
     windowStartMs: BigInt(start),

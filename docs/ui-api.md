@@ -30,6 +30,13 @@ RPC (maks. 32 metody), sortowane i filtrowane na domu. Zakresy to 1 min, 15 min,
 1 h i 24 h. Shared query współdzieli odświeżanie overview co 5 s i szczegółów co
 10 s; widoczna partia zachowuje tożsamości wierszy do następnej zmiany sortowania.
 
+Szczegóły obejmują pętlę zdarzeń, CPU/RSS/heap, pulę DB, ingest, subskrypcje
+i governor procesów. Rodziny zapytań mają wyłącznie etykiety z allowlisty;
+SQL, parametry i błędy sterownika nie trafiają do metryk. Najwyżej 10 rodzin
+jest sortowanych po execute p95; osobne rozkłady reserve/execute/release
+i transakcji są dostępne również w szczegółach lokalnego RPC. Niepełne pomiary
+są oznaczane, a odtworzona historia nie udaje bieżącego stanu procesu.
+
 Odczyty są owner-scoped. Bezpośredni komputer tego samego właściciela udostępnia
 diagnostykę przez `diagnostics_v1`; onward wymaga odwoływalnego grantu na domu
 (`GetDiagnosticsGrants`, `SetDiagnosticsGrant`). Wewnętrzny odczyt linked zwraca
