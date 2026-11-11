@@ -187,6 +187,17 @@ zatrzymanie z „Retry” / „Load from scratch”. Niedostępny dom emituje
 `sync_status.reason=computer_unreachable`; zmiana obecności kończy oczekiwanie,
 a klient automatycznie wznawia seq. Awaria watcha przy sprawnym łączu nie zmienia
 obecności komputera ani globalnego stanu gatewaya.
+
+Nagłówek rezerwuje stałe miejsce na ikonę i kompaktowy licznik pozostałych rekordów
+(np. `1.2K`). Dostępna nazwa zawiera dokładną liczbę, a ikona potwierdzenia z zerem
+oznacza „Up to date”. Settings → Diagnostics pokazuje trwałe `applied_seq`, `head_seq`,
+`remaining` oraz stan catch-up każdego lustra. `GetThreadSyncDiagnostics` jest
+odczytem lokalnego gatewaya ograniczonym do właściciela: domyślnie 50, najwyżej
+100 wpisów na stronę, kursor `after` i sumy dla całego właściciela. Widoczna strona
+odświeża dane co 5 s; tło nie odpytuje gatewaya. Powody awarii są kodami z listy
+dozwolonej, obok kodu RPC i rozmiaru błędnej ramki. Odpowiedź nie czyta transkryptu,
+tras, hostów, tokenów ani tekstu wyjątków. Duży licznik nie poszerza nagłówka.
+
 Starszy gateway ignoruje nowe pola; pusty kursor w odpowiedzi wyłącza wznowienie.
 UI ze zdalną kopią przekazuje kursor bezpośrednio do domu online. Zimny klient
 sekwencyjny pobiera ograniczone okno z domu; offline czyta ograniczone lokalne

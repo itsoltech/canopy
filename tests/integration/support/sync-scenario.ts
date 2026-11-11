@@ -12,11 +12,12 @@ import { ComputerStore } from "../../../apps/gateway/src/computers/store.ts";
 import { linkedComputers } from "./computers.ts";
 import { eventually, startTestGateway, type TestGateway } from "./gateway.ts";
 
-export async function scenarioComputer(legacy = false) {
-  let gateway = await startTestGateway({ role: "desktop" });
+export async function scenarioComputer(legacy = false, watchProbeMs?: number) {
+  let gateway = await startTestGateway({ role: "desktop", ...(watchProbeMs !== undefined && { watchProbeMs }) });
 
   const makeLinks = () =>
     linkedComputers({
+      core: gateway.core,
       store: new ComputerStore(gateway.runtime, gateway.userId, gateway.secretsKey),
       host: "127.0.0.1",
       ...(legacy && {
@@ -68,7 +69,11 @@ export async function scenarioComputer(legacy = false) {
       await links.close();
       const { pg, secretsKey, workerId, workerCredential } = gateway;
       await gateway.close(true);
-      gateway = await startTestGateway({ role: "desktop", storage: { pg, secretsKey, workerId, workerCredential } });
+      gateway = await startTestGateway({
+        role: "desktop",
+        ...(watchProbeMs !== undefined && { watchProbeMs }),
+        storage: { pg, secretsKey, workerId, workerCredential },
+      });
       links = makeLinks();
       // Stay offline until the scenario explicitly starts the new link runtime.
     },

@@ -4,6 +4,7 @@ import { ThreadSyncGap } from "@canopy/domain/thread-sync";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { linkedMessage } from "./remote.ts";
 import type { LinkedComputers } from "./runtime.ts";
+import { sanitizedRangeReason } from "./range-failure.ts";
 
 export async function consumeThreadRanges(
   host: LinkedComputers,
@@ -22,29 +23,31 @@ export async function consumeThreadRanges(
     if (update.rangeFailure) {
       const failure = update.rangeFailure;
 
-      const reasons = new Set([
-        "decode_error",
-        "size_limit",
-        "invalid_range",
-        "invalid_cursor",
-        "invalid_record",
-        "access_denied",
-        "thread_removed",
-        "timeout",
-        "stream_unavailable",
-        "watch_failed",
-      ]);
-
-      const reason = reasons.has(failure.reason) ? failure.reason : "watch_failed";
+      const reason = sanitizedRangeReason(failure.reason);
       await host.store.query(
-        `INSERT INTO thread_range_failures(owner_user_id,origin_node_id,thread_id,reason,code,retryable)
-        SELECT $1::uuid,$2,$3::uuid,$4,$5,$6 WHERE EXISTS(SELECT 1 FROM computer_mirror_state
+        `INSERT INTO thread_range_failures(owner_user_id,origin_node_id,thread_id,reason,code,retryable,frame_bytes)
+        SELECT $1::uuid,$2,$3::uuid,$4,$5,$6,$8 WHERE EXISTS(SELECT 1 FROM computer_mirror_state
           WHERE owner_user_id=$1::uuid AND origin_node_id=$2 AND subscription_id=$7::uuid)
         ON CONFLICT(owner_user_id,origin_node_id,thread_id) DO UPDATE
-          SET reason=excluded.reason,code=excluded.code,retryable=excluded.retryable,failed_at=now()`,
-        [host.store.owner, node, failure.threadId, reason, failure.code, failure.retryable, subscription],
+          SET reason=excluded.reason,code=excluded.code,retryable=excluded.retryable,
+            frame_bytes=excluded.frame_bytes,failed_at=now()`,
+        [
+          host.store.owner,
+          node,
+          failure.threadId,
+          reason,
+          failure.code,
+          failure.retryable,
+          subscription,
+          failure.frameBytes,
+        ],
       );
-      console.warn("Thread range catch-up failed", { reason, code: failure.code, retryable: failure.retryable });
+      console.warn("Thread range catch-up failed", {
+        reason,
+        code: failure.code,
+        retryable: failure.retryable,
+        frameBytes: failure.frameBytes,
+      });
       notify();
     }
 

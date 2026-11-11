@@ -11,6 +11,7 @@ import { Skeleton } from "../../ui/Skeleton";
 import { ThreadSearchSheet } from "./ThreadSearchSheet";
 import { ThreadActionsSheet } from "./ThreadActionsSheet";
 import { ThreadSyncStatus } from "./ThreadSyncStatus";
+import { ThreadSyncProgress } from "./ThreadSyncProgress";
 
 export function ThreadHeader({
   thread,
@@ -18,6 +19,7 @@ export function ThreadHeader({
   turns,
   snapshot,
   syncing,
+  syncStatus,
   onDetails,
   onSideThread,
   onGoal,
@@ -30,6 +32,7 @@ export function ThreadHeader({
   turns: ui.Turn[];
   snapshot?: ui.ThreadSnapshot;
   syncing: boolean;
+  syncStatus?: ui.ThreadSyncStatus;
   onDetails: () => void;
   onSideThread: () => void;
   onGoal?: () => void;
@@ -59,6 +62,7 @@ export function ThreadHeader({
           />
         )}
         <ThreadIdentity thread={thread} project={project} syncing={syncing} />
+        <ThreadSyncProgress status={syncStatus} />
         <IconButton icon="magnifying-glass" label="Search thread" onPress={() => setSheet("search")} />
         <IconButton
           icon="ellipsis-horizontal"

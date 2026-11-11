@@ -2,6 +2,23 @@ import { create } from "@bufbuild/protobuf";
 import { computerLink as link } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
 
+const reasons = new Set([
+  "decode_error",
+  "size_limit",
+  "invalid_range",
+  "invalid_cursor",
+  "invalid_record",
+  "access_denied",
+  "thread_removed",
+  "timeout",
+  "stream_unavailable",
+  "watch_failed",
+]);
+
+export function sanitizedRangeReason(reason: string) {
+  return reasons.has(reason) ? reason : "watch_failed";
+}
+
 export function rangeFailure(thread: string, error: ConnectError) {
   const code = error.code;
   const frameBytes = Number(error.metadata.get("canopy-frame-bytes") ?? 0);

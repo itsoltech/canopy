@@ -50,7 +50,7 @@ export type ThreadState = ReturnType<typeof useThreadState>;
 
 function useThreadState(id: string) {
   const { session, client, ready, online, expired } = useSession();
-  const { snapshot, setSnapshot, stream, history } = useThreadSnapshot(id);
+  const { snapshot, setSnapshot, stream, history, syncStatus } = useThreadSnapshot(id);
   const [busy, setBusy] = useState(false);
   const [waiting, setWaiting] = useState(false);
   const [error, setError] = useState("");
@@ -165,6 +165,7 @@ function useThreadState(id: string) {
     projects,
     stream,
     history,
+    syncStatus,
     thread,
     worker,
     ...tray,
@@ -208,6 +209,7 @@ export function ThreadScreen({ id }: { id: string }) {
       header={
         <>
           <ThreadHeader
+            syncStatus={state.syncStatus}
             history={state.history}
             snapshot={snapshot}
             syncing={Boolean(snapshot && !state.home.away && !state.stream.issue && state.stream.connection !== "live")}

@@ -77,6 +77,7 @@
   import type { PageProps } from "./$types";
   import ThreadComposerSlot from "#lib/features/threads/components/ThreadComposerSlot.svelte";
   import ThreadSyncStatus from "#lib/features/threads/components/ThreadSyncStatus.svelte";
+  import ThreadSyncProgress from "#lib/features/threads/components/ThreadSyncProgress.svelte";
   import ThreadWatchNotice from "#lib/features/threads/components/ThreadWatchNotice.svelte";
   import ThreadMenuItems from "#lib/features/threads/components/ThreadMenuItems.svelte";
   import ThreadSearch from "#lib/features/threads/components/ThreadSearch.svelte";
@@ -550,6 +551,7 @@
         <Crumb><Skeleton class="h-4 w-48" /></Crumb>
       {/if}
       {#snippet actions()}
+        <ThreadSyncProgress status={view.syncStatus} />
         {#if thread}
           <DropdownMenu label="Thread actions" placement="bottom-end">
             {#snippet trigger(props)}<IconButton
