@@ -21,6 +21,7 @@
   let busy = $state(false);
   let error = $state("");
   let version = 0;
+  let viewedChanges = $state(new Map<string, string>());
   const id = $derived(snapshot.summary?.ref?.id ?? "");
   const headSha = $derived(snapshot.summary?.headSha ?? "");
   const baseSha = $derived(snapshot.baseSha);
@@ -59,6 +60,18 @@
   const files = $derived(pages.current?.files ?? []);
   const rows = $derived(fileRows(files, tree, collapsed));
 
+  const viewedCount = $derived(
+    (pages.current?.viewedCount ?? 0) +
+      files.reduce(
+        (n, f) =>
+          n +
+          (viewedChanges.has(f.path)
+            ? Number(viewedChanges.get(f.path) === "VIEWED") - Number(f.viewerViewedState === "VIEWED")
+            : 0),
+        0,
+      ),
+  );
+
   const options = $derived([
     { value: "", label: "All commits" },
     ...commits.pages.flatMap((p) =>
@@ -68,6 +81,7 @@
 
   $effect(() => {
     void pages.current;
+    viewedChanges = new Map();
     untrack(close);
   });
 
@@ -88,6 +102,26 @@
     untrack(() => void target.read());
 
     return invalidations.subscribe(id, () => void target.invalidate());
+  });
+
+  $effect(() => {
+    const target = pages;
+
+    const refresh = () => {
+      if (document.visibilityState === "visible" && navigator.onLine) void target.read(false, true);
+    };
+
+    const timer = setInterval(refresh, 60_000);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    window.addEventListener("online", refresh);
+
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+      window.removeEventListener("online", refresh);
+    };
   });
 
   async function open(file: github.PullRequestFile, force = false) {
@@ -130,6 +164,7 @@
     count={commit ? `${files.length}${pages.current?.page?.nextCursor ? "+" : ""}` : String(snapshot.files)}
     more={commits.current?.page?.nextCursor ? () => void commits.read(true) : undefined}
     busy={commits.busy}
+    viewed={pages.current?.viewedComplete ? `${viewedCount}/${pages.current.viewedTotal}` : "…"}
   />
   {#if commit}<p class="py-2 text-sm/5 text-zinc-500 sm:text-xs/5">Changes against this commit’s first parent</p>{/if}
   <ul role="list" class="min-w-0">
@@ -152,6 +187,10 @@
         </li>
       {:else}<CodeFile
           file={row.file}
+          {snapshot}
+          stale={!!pages.current?.page?.stale}
+          onstate={(path, state) => (viewedChanges = new Map(viewedChanges).set(path, state))}
+          onsettled={() => pages.read(false, true)}
           active={selected?.path === row.file.path}
           {patch}
           {busy}

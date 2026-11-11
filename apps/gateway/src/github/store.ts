@@ -9,6 +9,7 @@ import { githubPullRequests } from "./store-pull-requests.ts";
 import { githubDetectionStore } from "./store-detection.ts";
 import { githubUpdateStore } from "./update-account.ts";
 import { githubPollingStore } from "./store-polling.ts";
+import { githubMutationsStore } from "./store-mutations.ts";
 
 export function githubStore(sql: SqlClient.SqlClient, key: Buffer) {
   const seal = (value: TokenPair) => encryptSecret(key, JSON.stringify(value));
@@ -61,6 +62,7 @@ export function githubStore(sql: SqlClient.SqlClient, key: Buffer) {
       revision=github_accounts.revision+1,catalog_verified_at=NULL,updated_at=now() RETURNING *`;
 
   return {
+    ...githubMutationsStore(sql),
     ...githubUpdateStore(sql),
     ...githubPollingStore(sql),
     owned,

@@ -13,6 +13,7 @@
     tree = $bindable(false),
     options,
     count,
+    viewed,
     more,
     busy,
     class: className,
@@ -21,6 +22,7 @@
     tree?: boolean;
     options: { value: string; label: string }[];
     count: string;
+    viewed: string;
     more?: (() => void) | undefined;
     busy: boolean;
     class?: ClassValue;
@@ -47,7 +49,12 @@
       >{/each}
     {#if more}<MenuItem disabled={busy} onselect={more}>Load more commits</MenuItem>{/if}
   </DropdownMenu>
-  <p class="min-w-0 flex-1 text-xs whitespace-nowrap text-zinc-500 tabular-nums dark:text-zinc-400">{count} files</p>
+  <p
+    class="min-w-0 flex-1 text-xs text-zinc-500 tabular-nums dark:text-zinc-400"
+    title={`${count} files · Viewed applies to the whole pull request`}
+  >
+    {viewed} viewed
+  </p>
   <div class="flex shrink-0 gap-0.5" role="group" aria-label="Diff display">
     <IconButton
       size="sm"

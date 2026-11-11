@@ -39,6 +39,13 @@ service GatewayService {
   rpc ListPullRequestCommits(PullRequestPageRequest) returns (PullRequestCommitsPage);
   rpc GetPullRequestDiff(PullRequestPageRequest) returns (PullRequestDiff);
   rpc PreparePullRequestContext(PreparePullRequestContextRequest) returns (PullRequestContextResponse);
+  rpc PreparePullRequestMutation(PullRequestMutationRequest) returns (PullRequestMutationReceipt);
+  rpc GetPullRequestMutation(PullRequestMutationRequestRef) returns (PullRequestMutationReceipt);
+  rpc CreatePullRequestComment(PullRequestMutationRequest) returns (PullRequestMutationReceipt);
+  rpc ReplyPullRequestReviewThread(PullRequestMutationRequest) returns (PullRequestMutationReceipt);
+  rpc UpdatePullRequestComment(PullRequestMutationRequest) returns (PullRequestMutationReceipt);
+  rpc DeletePullRequestComment(PullRequestMutationRequest) returns (PullRequestMutationReceipt);
+  rpc SetPullRequestFileViewed(PullRequestMutationRequest) returns (PullRequestMutationReceipt);
   rpc GetGitHubUpdateAccount(GitHubAccountsRequest) returns (GitHubUpdateAccountResponse);
   rpc SetGitHubUpdateAccount(GitHubUpdateAccountRequest) returns (GitHubUpdateAccountResponse);
   rpc ListGitHubAccounts(GitHubAccountsRequest) returns (GitHubAccountsResponse);

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { github } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { usePages } from "./usePages";
+import { useViewedRefresh } from "./useViewedRefresh";
 
 /** Pin every lazy patch to the selected comparison and discard obsolete responses. */
 export function useCodeRead(snapshot: github.PullRequestSnapshot) {
@@ -34,6 +35,7 @@ export function useCodeRead(snapshot: github.PullRequestSnapshot) {
   );
 
   const currentPage = pages.current;
+  useViewedRefresh(() => pages.read(false, true));
   const [source, setSource] = useState(currentPage);
 
   if (source !== currentPage) {

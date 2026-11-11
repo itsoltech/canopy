@@ -2,8 +2,29 @@ import { github } from "@canopy/contracts";
 import { toJson, type DescMessage, type MessageShape } from "@bufbuild/protobuf";
 import { requestJson, type JsonBody } from "#lib/shared/http.ts";
 import { decode } from "#lib/shared/wire.ts";
+import type { MutationApi } from "@canopy/domain/github-mutations";
 
 const post = (operation: string, body: JsonBody) => requestJson("POST", `/api/github/${operation}`, body, 125_000);
+
+const mutate = async (operation: string, r: github.PullRequestMutationRequest) =>
+  decode(
+    github.PullRequestMutationReceiptSchema,
+    await post(operation, toJson(github.PullRequestMutationRequestSchema, r)),
+  );
+
+export const mutations: MutationApi = {
+  preparePullRequestMutation: (r) => mutate("prepare-mutation", r),
+  getPullRequestMutation: async (r) =>
+    decode(
+      github.PullRequestMutationReceiptSchema,
+      await post("mutation", toJson(github.PullRequestMutationRequestRefSchema, r)),
+    ),
+  createPullRequestComment: (r) => mutate("create-comment", r),
+  replyPullRequestReviewThread: (r) => mutate("reply", r),
+  updatePullRequestComment: (r) => mutate("update-comment", r),
+  deletePullRequestComment: (r) => mutate("delete-comment", r),
+  setPullRequestFileViewed: (r) => mutate("viewed", r),
+};
 
 export const page = async <D extends DescMessage>(
   operation: string,

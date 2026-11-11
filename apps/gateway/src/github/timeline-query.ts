@@ -32,6 +32,8 @@ const event = Schema.Struct({
   actor: Schema.optional(person),
   commit: Schema.optional(commit),
   label: Schema.optional(Schema.Struct({ name: Schema.String })),
+  viewerCanUpdate: Schema.optional(Schema.Boolean),
+  viewerCanDelete: Schema.optional(Schema.Boolean),
 });
 
 const envelope = Schema.Struct({
@@ -68,7 +70,7 @@ const eventFields = `... on ClosedEvent{id createdAt actor{login} url}
 export const TIMELINE_QUERY = `query CanopyTimeline($owner:String!,$name:String!,$number:Int!,$before:String,$after:String,$first:Int,$last:Int){
 rateLimit{cost remaining resetAt} repository(owner:$owner,name:$name){pullRequest(number:$number){id
 timelineItems(first:$first,last:$last,before:$before,after:$after){pageInfo{hasNextPage hasPreviousPage startCursor endCursor}
-nodes{__typename ... on IssueComment{id author{login} body url createdAt}
+nodes{__typename ... on IssueComment{id author{login} body url createdAt viewerCanUpdate viewerCanDelete}
 ... on PullRequestReview{id author{login} body url createdAt state}
 ... on PullRequestCommit{commit{oid messageHeadline committedDate url author{name user{login}}}}
 ${eventFields}}}}}}`;
@@ -89,6 +91,8 @@ function item(value: typeof event.Type, index: number, scope: ReadScope) {
     author: value.author?.login ?? value.actor?.login ?? c?.author?.user?.login ?? c?.author?.name ?? "GitHub",
     body: value.body ?? c?.messageHeadline ?? value.label?.name ?? "",
     kind: value.__typename,
+    viewerCanUpdate: value.viewerCanUpdate ?? false,
+    viewerCanDelete: value.viewerCanDelete ?? false,
     url: value.url ?? c?.url ?? `https://github.com/${scope.pr.repository_name}/pull/${scope.pr.number}`,
     state: value.state?.toLowerCase() ?? "",
     sha: c?.oid ?? "",

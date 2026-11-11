@@ -15,6 +15,7 @@ import { PullRequestCode } from "./PullRequestCode";
 import { PullRequestTimeline } from "./PullRequestTimeline";
 import { usePullRequestWatch } from "./usePullRequestWatch";
 import { putContext } from "./context-draft";
+import { CommentComposer } from "./CommentComposer";
 
 export function PullRequestScreen({ id, threadId }: { id: string; threadId?: string }) {
   const { client, queries, online } = useSession();
@@ -162,15 +163,19 @@ function PullRequestContent({
 }) {
   const c = useColors();
 
-  if (data && tab === "timeline") return <PullRequestTimeline id={id} header={header} />;
+  if (data && tab === "timeline")
+    return <PullRequestTimeline key={data.accountId} id={id} snapshot={data} header={header} />;
 
-  if (data && tab === "code") return <PullRequestCode snapshot={data} header={header} />;
+  if (data && tab === "code") return <PullRequestCode key={data.accountId} snapshot={data} header={header} />;
 
   return (
     <SummaryContent>
       {header}
       {data ? (
-        <PullRequestSummary snapshot={data} />
+        <View style={{ gap: 20 }}>
+          <PullRequestSummary snapshot={data} />
+          <CommentComposer key={`${data.accountId}:${id}`} snapshot={data} />
+        </View>
       ) : (
         !failed && <Text style={[styles.body, { color: c.muted }]}>Loading pull request…</Text>
       )}

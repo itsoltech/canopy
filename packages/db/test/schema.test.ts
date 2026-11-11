@@ -128,6 +128,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "114_github_pull_requests",
       "115_github_detection",
       "116_github_full_read",
+      "117_github_mutations",
     ]);
   }, 60_000);
 

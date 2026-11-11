@@ -112,6 +112,7 @@ export class GitHubPullRequests {
           const saved = (await run((s) => s.prSave(owner, ref, pullRequestCreatedAt(value))))[0]!;
           ref.id = saved.id;
           snapshot.accountId = row.id;
+          snapshot.viewerLogin = row.login;
           snapshot.accessRevision = BigInt(row.revision);
 
           return Schema.decodeUnknownSync(Schema.JsonObject)(toJson(github.PullRequestSnapshotSchema, snapshot));

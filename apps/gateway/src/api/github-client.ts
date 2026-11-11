@@ -30,7 +30,21 @@ export function githubClient(context: HandlerContext, forwarded = "") {
 
 /** Replace public payload bindings before routing. A linked home binds them to the authenticated peer too. */
 export function bindGitHubRequest(method: DescMethod, request: Message, context: HandlerContext) {
-  if (!["BeginGitHubDeviceAuth", "GetGitHubDeviceAuth", "CancelGitHubDeviceAuth"].includes(method.name)) return;
-  // SAFETY: all three allowlisted proto requests declare clientBinding; no other descriptor reaches this access.
+  if (
+    ![
+      "BeginGitHubDeviceAuth",
+      "GetGitHubDeviceAuth",
+      "CancelGitHubDeviceAuth",
+      "PreparePullRequestMutation",
+      "GetPullRequestMutation",
+      "CreatePullRequestComment",
+      "ReplyPullRequestReviewThread",
+      "UpdatePullRequestComment",
+      "DeletePullRequestComment",
+      "SetPullRequestFileViewed",
+    ].includes(method.name)
+  )
+    return;
+  // SAFETY: every allowlisted proto request declares clientBinding; no other descriptor reaches this access.
   reflect(method.input, request).set(method.input.field["clientBinding"]!, githubClient(context));
 }

@@ -17,7 +17,12 @@
   import * as api from "./api.ts";
   import { invalidations } from "./invalidations.ts";
 
-  let { id, class: className }: { id: string; class?: ClassValue } = $props();
+  let {
+    id,
+    snapshot,
+    class: className,
+  }: { id: string; snapshot: github.PullRequestSnapshot; class?: ClassValue } = $props();
+
   let kind = $state("");
   let oldest = $state(false);
   const includeThreads = $derived(!kind || kind === "review");
@@ -106,8 +111,9 @@
       <li class="relative flex min-w-0 items-start gap-3">
         <GitHubAvatar userId="" login={author || "GH"} class="ring-4 ring-surface" />
         <div class="min-w-0 flex-1 pt-1.5">
-          {#if row.kind === "thread"}<ReviewThread {id} thread={row.thread} />{:else}<TimelineEvent
+          {#if row.kind === "thread"}<ReviewThread {id} {snapshot} thread={row.thread} />{:else}<TimelineEvent
               items={row.items}
+              {snapshot}
             />{/if}
         </div>
       </li>

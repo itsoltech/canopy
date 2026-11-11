@@ -16,6 +16,7 @@
   import { invalidations } from "./invalidations.ts";
   import PullRequestHeader from "./PullRequestHeader.svelte";
   import PullRequestSummary from "./PullRequestSummary.svelte";
+  import CommentComposer from "./CommentComposer.svelte";
   import * as api from "./api.ts";
 
   let {
@@ -159,9 +160,12 @@
         {data.stale ? `Last verified ${formatDateTime(data.summary?.verifiedAt)}.` : ""}
       </p>{/if}
     {#if data}
-      {#if tab === "summary"}<PullRequestSummary snapshot={data} />{:else if tab === "timeline"}<PullRequestTimeline
-          {id}
-        />{:else}<PullRequestCode snapshot={data} />{/if}
+      {#key data.accountId}{#if tab === "summary"}<PullRequestSummary
+            snapshot={data}
+          />{:else if tab === "timeline"}<PullRequestTimeline {id} snapshot={data} />{:else}<PullRequestCode
+            snapshot={data}
+          />{/if}{/key}
+      {#if tab !== "code"}{#key `${data.accountId}:${id}`}<CommentComposer snapshot={data} class="mt-5" />{/key}{/if}
     {:else if !read.snapshot.error}<p role="status" class="text-sm text-zinc-500">Loading pull request…</p>{/if}
   </div>
 </div>

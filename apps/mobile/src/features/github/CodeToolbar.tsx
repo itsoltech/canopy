@@ -11,12 +11,14 @@ import type { usePages } from "./usePages";
 export function CodeToolbar({
   commit,
   count,
+  viewed,
   tree,
   onTree,
   onCommit,
 }: {
   commit: string;
   count: string;
+  viewed: string;
   tree: boolean;
   onTree: () => void;
   onCommit: () => void;
@@ -48,7 +50,12 @@ export function CodeToolbar({
         </Text>
         <Icon name="chevron-down" size={12} />
       </Pressable>
-      <Text style={[type.meta, { flex: 1, color: c.muted }]}>{count} files</Text>
+      <Text
+        accessibilityLabel={`${count} files. Viewed applies to the whole pull request.`}
+        style={[type.meta, { flex: 1, color: c.muted }]}
+      >
+        {viewed} viewed
+      </Text>
       <IconAction
         icon={values.diffLayout === "split" ? "view-columns" : "square-2-stack"}
         label={values.diffLayout === "split" ? "Side by side · switch to stacked" : "Stacked · switch to side by side"}

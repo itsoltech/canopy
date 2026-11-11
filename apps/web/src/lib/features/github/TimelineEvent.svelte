@@ -5,8 +5,14 @@
   import { safeHref } from "@canopy/domain/markdown";
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
   import ActivityHeader from "./ActivityHeader.svelte";
+  import CommentActions from "./CommentActions.svelte";
 
-  let { items, class: className }: { items: github.PullRequestTimelineItem[]; class?: ClassValue } = $props();
+  let {
+    items,
+    snapshot,
+    class: className,
+  }: { items: github.PullRequestTimelineItem[]; snapshot: github.PullRequestSnapshot; class?: ClassValue } = $props();
+
   const first = $derived(items[0]);
   const entry = $derived(first?.content.value);
 </script>
@@ -39,9 +45,10 @@
         {/each}
       </ul>
     {:else if entry.body}<div
-        class="min-w-0 rounded-lg border border-zinc-950/10 bg-zinc-500/3 p-3 dark:border-white/10 dark:bg-white/3"
+        class="min-w-0 rounded-lg border border-zinc-950/10 bg-zinc-500/3 p-3 dark:border-white/10 dark:bg-white/3 [&>div]:[overflow-wrap:anywhere]"
       >
-        <Markdown text={entry.body} />
+        <Markdown text={entry.body} class="min-w-0" />
+        {#if first?.content.case === "comment"}<CommentActions {snapshot} comment={entry} kind="issue" />{/if}
       </div>{/if}
   {/if}
 </div>

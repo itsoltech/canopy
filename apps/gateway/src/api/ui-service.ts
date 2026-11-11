@@ -21,6 +21,7 @@ import { workspaceCopyHandlers } from "./ui-workspace-copy.ts";
 import { githubHandlers } from "./ui-github.ts";
 import { pullRequestHandlers } from "./ui-pull-requests.ts";
 import { githubReadHandlers } from "./ui-github-read.ts";
+import { githubMutationHandlers } from "./ui-github-mutations.ts";
 
 export { toConnectError } from "./ui-errors.ts";
 
@@ -84,5 +85,6 @@ export function uiHandlers(core: GatewayCore): UiHandlers {
     ...githubHandlers(core),
     ...pullRequestHandlers(core),
     ...githubReadHandlers(core),
+    ...githubMutationHandlers(core),
   });
 }

@@ -10,8 +10,18 @@ import { usePages } from "./usePages";
 import { PageStatus } from "./PageStatus";
 import { ActivityRow } from "./ActivityRow";
 import { IconAction } from "./IconAction";
+import type { github } from "@canopy/contracts";
+import { CommentComposer } from "./CommentComposer";
 
-export function PullRequestTimeline({ id, header }: { id: string; header: ReactNode }) {
+export function PullRequestTimeline({
+  id,
+  snapshot,
+  header,
+}: {
+  id: string;
+  snapshot: github.PullRequestSnapshot;
+  header: ReactNode;
+}) {
   const { client } = useSession();
   const padding = useContentPadding();
   const c = useColors();
@@ -83,7 +93,7 @@ export function PullRequestTimeline({ id, header }: { id: string; header: ReactN
             </View>
           </View>
         }
-        renderItem={({ item }) => <ActivityRow id={id} row={item} />}
+        renderItem={({ item }) => <ActivityRow id={id} snapshot={snapshot} row={item} />}
         ListEmptyComponent={
           pages.current ? <Text style={[type.meta, { color: c.muted }]}>No matching activity</Text> : undefined
         }
@@ -111,6 +121,7 @@ export function PullRequestTimeline({ id, header }: { id: string; header: ReactN
                 retry={() => void reviews.read(false, true)}
               />
             )}
+            <CommentComposer key={`${snapshot.accountId}:${id}`} snapshot={snapshot} />
           </View>
         }
       />
