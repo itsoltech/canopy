@@ -5,6 +5,9 @@
     workerMetricGroups,
     syncMetricGroups,
     measuresObserved,
+    workerTurnHelp,
+    workerResourceHelp,
+    workerReplayHelp,
   } from "@canopy/domain/diagnostics";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SettingsCard from "#lib/shared/ui/SettingsCard.svelte";
@@ -34,9 +37,7 @@
               </p>
             {:else}
               {#if link.kind === "worker"}
-                <p class="text-base text-muted sm:text-sm">
-                  Turn timings include the agent CLI, tools and inference. Resource values cover the worker process.
-                </p>
+                <p class="text-sm text-muted sm:text-xs">{workerTurnHelp}</p>
               {:else}<p class="text-base text-muted sm:text-sm">
                   Mirror lag runs from local detection to local commit. An unknown backlog is not zero.
                 </p>{/if}
@@ -50,17 +51,17 @@
                         <h4 class="font-medium">{group.title}</h4>
                         <p class="text-sm text-muted">{measuresObserved(link.measures, group.id)}</p>
                       </div>{/snippet}
-                    <MeasureGrid class="pt-4" {measures} />
+                    <MeasureGrid class="pt-2" {measures} />
+                    {#if group.id === "journal"}<p class="pt-2 text-sm text-muted sm:text-xs">
+                        {workerReplayHelp}
+                      </p>{/if}
                   </Disclosure>
                 {/if}
               {/each}
               {#if !link.measures.length}<p class="text-base text-muted sm:text-sm">
                   Not measured in this window.
                 </p>{/if}
-              {#if link.kind === "worker"}<p class="text-sm text-muted">
-                  Replay after a worker restart can be unclassified. Agent CLI memory and provider network time are not
-                  measured.
-                </p>{/if}
+              {#if link.kind === "worker"}<p class="text-sm text-muted sm:text-xs">{workerResourceHelp}</p>{/if}
               {#if link.droppedSamples}<p class="text-sm text-muted">
                   Some measurements are missing: {link.droppedSamples.toString()} dropped samples.
                 </p>{/if}

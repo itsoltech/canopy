@@ -13,3 +13,5 @@ export * from "./details.ts";
 export * from "./measure.ts";
 
 export * from "./worker-metrics.ts";
+
+export * from "./metrics-table.ts";

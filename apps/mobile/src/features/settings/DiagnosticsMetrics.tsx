@@ -3,7 +3,6 @@ import type { ui } from "@canopy/contracts";
 import {
   METRIC_DEFINITIONS,
   metricGroups,
-  metricRows,
   databaseRows,
   databaseHelp,
   histogramHelp,
@@ -13,22 +12,8 @@ import {
 } from "@canopy/domain/diagnostics";
 import { SettingsGroup, SettingsRow } from "./SettingsGroup";
 import { SettingsDisclosure } from "./SettingsDisclosure";
+import { DiagnosticsMeasures, EvidenceRows } from "./DiagnosticsMeasures";
 import { styles, useColors } from "../../ui/theme";
-
-export function EvidenceRows({ rows }: { rows: [string, string][] }) {
-  const c = useColors();
-
-  return (
-    <View style={{ gap: 6 }}>
-      {rows.map(([label, value]) => (
-        <View key={label} style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: 8 }}>
-          <Text style={[styles.workMeta, { color: c.muted }]}>{label}</Text>
-          <Text style={[styles.workMeta, { color: c.text, fontVariant: ["tabular-nums"] }]}>{value}</Text>
-        </View>
-      ))}
-    </View>
-  );
-}
 
 export function DiagnosticsDatabase({
   families,
@@ -87,20 +72,11 @@ export function DiagnosticsMetrics({ computer }: { computer: ui.ComputerDiagnost
               title={`${group.title} · ${groupObserved(computer, group.id)}`}
               initiallyOpen={group.id === "process"}
             >
-              {computer.gatewayMeasures
-                .filter((value) => METRIC_DEFINITIONS.get(value.metricId)?.group === group.id)
-                .map((measure) => (
-                  <View key={measure.metricId} style={{ gap: 8 }}>
-                    <Text style={[styles.chrome, { color: c.text }]}>
-                      {METRIC_DEFINITIONS.get(measure.metricId)?.name}
-                      {METRIC_DEFINITIONS.get(measure.metricId)?.approximate ? " · Estimate from last page read" : ""}
-                    </Text>
-                    <EvidenceRows rows={metricRows(measure)} />
-                    {measure.incomplete ? (
-                      <Text style={[styles.workMeta, { color: c.muted }]}>Some measurements are missing.</Text>
-                    ) : null}
-                  </View>
-                ))}
+              <DiagnosticsMeasures
+                measures={computer.gatewayMeasures.filter(
+                  (value) => METRIC_DEFINITIONS.get(value.metricId)?.group === group.id,
+                )}
+              />
             </SettingsDisclosure>
           ))}
           <Text style={[styles.workMeta, { color: c.muted }]}>{databaseCoverage(computer)}</Text>

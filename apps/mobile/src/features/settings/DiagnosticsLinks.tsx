@@ -1,15 +1,17 @@
-import { Text, View } from "react-native";
+import { Text } from "react-native";
 import type { ui } from "@canopy/contracts";
 import {
   METRIC_DEFINITIONS,
   workerMetricGroups,
   syncMetricGroups,
-  metricRows,
   measuresObserved,
+  workerTurnHelp,
+  workerResourceHelp,
+  workerReplayHelp,
 } from "@canopy/domain/diagnostics";
 import { SettingsGroup } from "./SettingsGroup";
 import { SettingsDisclosure } from "./SettingsDisclosure";
-import { EvidenceRows } from "./DiagnosticsMetrics";
+import { DiagnosticsMeasures } from "./DiagnosticsMeasures";
 import { styles, useColors } from "../../ui/theme";
 
 export function DiagnosticsLinks({ computer }: { computer: ui.ComputerDiagnostics }) {
@@ -32,7 +34,7 @@ export function DiagnosticsLinks({ computer }: { computer: ui.ComputerDiagnostic
             <>
               <Text style={[styles.workMeta, { color: c.muted }]}>
                 {link.kind === "worker"
-                  ? "Turn timings include the agent CLI, tools and inference. Resource values cover the worker process."
+                  ? workerTurnHelp
                   : "Mirror lag runs from local detection to local commit. An unknown backlog is not zero."}
               </Text>
               {(link.kind === "worker" ? workerMetricGroups : syncMetricGroups).map((group) => {
@@ -45,17 +47,10 @@ export function DiagnosticsLinks({ computer }: { computer: ui.ComputerDiagnostic
                     key={group.id}
                     title={`${group.title}${measuresObserved(link.measures, group.id) ? ` · ${measuresObserved(link.measures, group.id)}` : ""}`}
                   >
-                    {measures.map((measure) => (
-                      <View key={measure.metricId} style={{ gap: 8 }}>
-                        <Text style={[styles.chrome, { color: c.text }]}>
-                          {METRIC_DEFINITIONS.get(measure.metricId)?.name}
-                        </Text>
-                        <EvidenceRows rows={metricRows(measure)} />
-                        {measure.incomplete ? (
-                          <Text style={[styles.workMeta, { color: c.muted }]}>Some measurements are missing.</Text>
-                        ) : null}
-                      </View>
-                    ))}
+                    <DiagnosticsMeasures measures={measures} />
+                    {group.id === "journal" ? (
+                      <Text style={[styles.workMeta, { color: c.muted }]}>{workerReplayHelp}</Text>
+                    ) : null}
                   </SettingsDisclosure>
                 ) : null;
               })}
@@ -63,10 +58,7 @@ export function DiagnosticsLinks({ computer }: { computer: ui.ComputerDiagnostic
                 <Text style={[styles.workMeta, { color: c.muted }]}>Not measured in this window.</Text>
               ) : null}
               {link.kind === "worker" ? (
-                <Text style={[styles.workMeta, { color: c.muted }]}>
-                  Replay after a worker restart can be unclassified. Agent CLI memory and provider network time are not
-                  measured.
-                </Text>
+                <Text style={[styles.workMeta, { color: c.muted }]}>{workerResourceHelp}</Text>
               ) : null}
               {link.droppedSamples ? (
                 <Text style={[styles.workMeta, { color: c.muted }]}>
