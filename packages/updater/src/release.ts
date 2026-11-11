@@ -32,7 +32,8 @@ export interface ReleaseSourceOptions {
   cacheMs?: number;
   /** Deliberate test-only escape hatch; production callers never set this from the environment. */
   allowHttpForTests?: boolean;
-  fetch?: (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
+  fetch?: (input: string | URL | Request, init?: RequestInit, redirected?: boolean) => Promise<Response>;
+  cacheScope?: (url: string) => Promise<string>;
 }
 
 const SEMVER =

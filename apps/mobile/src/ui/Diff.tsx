@@ -15,11 +15,13 @@ export function Diff({
   label = "File changes",
   bare = false,
   selectable = true,
+  toolbar = true,
 }: {
   diff: string;
   label?: string;
   bare?: boolean;
   selectable?: boolean;
+  toolbar?: boolean;
 }) {
   const c = useColors();
   const { values, set } = useDevicePreferences();
@@ -41,14 +43,16 @@ export function Diff({
       )}
       {(open || bare) && (
         <>
-          <Segmented
-            value={values.diffLayout}
-            options={[
-              { value: "stacked", label: "Stacked" },
-              { value: "split", label: "Side by side" },
-            ]}
-            onChange={(value) => set("diffLayout", value)}
-          />
+          {toolbar && (
+            <Segmented
+              value={values.diffLayout}
+              options={[
+                { value: "stacked", label: "Stacked" },
+                { value: "split", label: "Side by side" },
+              ]}
+              onChange={(value) => set("diffLayout", value)}
+            />
+          )}
           <View style={{ borderRadius: 8, overflow: "hidden", paddingVertical: 8, backgroundColor: c.inset }}>
             <DiffContent diff={diff.slice(0, INLINE_PREVIEW)} selectable={selectable} />
           </View>

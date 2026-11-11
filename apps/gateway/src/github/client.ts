@@ -1,5 +1,6 @@
 import { Code, ConnectError } from "@connectrpc/connect";
-import { Option, Schema } from "effect";
+import { Effect, Metric, Option, Schema } from "effect";
+import { githubMetrics } from "./metrics.ts";
 import type { GitHubAccess } from "./access.ts";
 import { GitHubHttpFailure } from "./http.ts";
 import { reconnect, type AccountRow } from "./records.ts";
@@ -13,6 +14,7 @@ export interface GitHubRead {
   query?: string;
   ttl?: number;
   background?: boolean;
+  signal?: AbortSignal;
   project?: (value: Schema.JsonObject, headers: Headers) => Promise<Schema.JsonObject>;
 }
 
@@ -49,10 +51,25 @@ export class GitHubClient {
     return { ...saved, payload: this.memory.read(scope, BigInt(saved.generation), saved.serialized_payload) };
   }
   async read(id: string, read: GitHubRead, force = false): Promise<CacheRow> {
+    const started = performance.now();
+
+    try {
+      const value = await this.#read(id, read, force);
+      await Effect.runPromise(Metric.update(githubMetrics.bytes, Buffer.byteLength(JSON.stringify(value.payload))));
+
+      return value;
+    } finally {
+      await Effect.runPromise(Metric.update(githubMetrics.latency, performance.now() - started));
+    }
+  }
+  async #read(id: string, read: GitHubRead, force: boolean): Promise<CacheRow> {
     const { row } = await this.access.token(id);
     const cache = await this.cached(row, read.key);
 
-    if (!force && cache?.payload && Number(new Date(cache.expires_at)) > this.access.http.now()) return cache;
+    const hit = !force && cache?.payload && Number(new Date(cache.expires_at)) > this.access.http.now();
+    await Effect.runPromise(Metric.update(hit ? githubMetrics.hits : githubMetrics.misses, 1));
+
+    if (hit) return cache;
     const key = `${id}:${row.revision}:${read.key}`;
     const old = this.#flights.get(key);
 
@@ -61,7 +78,13 @@ export class GitHubClient {
     if (this.#stopped) throw new ConnectError("GitHub is reconnecting. Retry when connected.", Code.Unavailable);
     const controller = new AbortController();
     this.#controllers.set(key, controller);
-    const promise = this.#load(row, read, controller.signal);
+
+    const promise = this.#load(
+      row,
+      read,
+      read.signal ? AbortSignal.any([controller.signal, read.signal]) : controller.signal,
+    );
+
     this.#flights.set(key, promise);
 
     try {
@@ -227,6 +250,13 @@ export class GitHubClient {
     const retry = failure?.retryAt
       ? Math.max(failure.retryAt, now + Math.min(900_000, 60_000 * 2 ** budget.failures) * (0.8 + Math.random() * 0.4))
       : undefined;
+
+    await Effect.runPromise(
+      Effect.all([
+        Metric.update(githubMetrics.remaining, rate?.remaining ?? number("x-ratelimit-remaining") ?? budget.remaining),
+        Metric.update(githubMetrics.backoff, Math.max(0, (retry ?? now) - now)),
+      ]),
+    );
 
     await this.access.run((s) =>
       s.budgetRecord(

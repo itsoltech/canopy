@@ -63,6 +63,9 @@ export async function coreMessageAttachments(
   if (ids.length > limits.maxFiles)
     throw new InvalidError(`up to ${limits.maxFiles} files can be attached to one message`);
   const rows = await coreAttachments(hostContext, (s) => s.forMessage(hostContext[coreState].options.userId, ids));
+
+  if (rows.filter((r) => /^github-pr-\d+-[a-f0-9]{12}\.md$/.test(r.name)).length > 3)
+    throw new InvalidError("up to 3 pull request contexts can be attached to one message");
   const total = rows.reduce((sum, r) => sum + Number(r.size_bytes), 0);
 
   if (total > limits.maxMessageBytes)

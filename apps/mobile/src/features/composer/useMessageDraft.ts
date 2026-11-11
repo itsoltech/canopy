@@ -103,6 +103,9 @@ export function useMessageDraft(
 
       for (const m of edited.removed) if (isAttachment(m)) files.remove(m.name);
     },
+    appendText(text: string) {
+      apply({ ...current.current, text: `${current.current.text}${current.current.text ? "\n\n" : ""}${text}` });
+    },
     /** Removes a file and its badge. */
     remove(key: string) {
       files.remove(key);

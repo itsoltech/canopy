@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { router } from "expo-router";
-import { ScrollView, Text } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import type { github } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { useSession } from "../../state/session";
@@ -11,12 +11,25 @@ import { styles, useColors } from "../../ui/theme";
 import { toast } from "../../ui/Toast";
 import { PullRequestSummary } from "./PullRequestSummary";
 import { PullRequestHeader } from "./PullRequestHeader";
+import { PullRequestCode } from "./PullRequestCode";
+import { PullRequestTimeline } from "./PullRequestTimeline";
+import { usePullRequestWatch } from "./usePullRequestWatch";
+import { putContext } from "./context-draft";
 
 export function PullRequestScreen({ id, threadId }: { id: string; threadId?: string }) {
   const { client, queries, online } = useSession();
-  const c = useColors();
   const key = `GetPullRequest:${id}`;
   const [denied, setDenied] = useState(false);
+  const [tab, setTab] = useState("summary");
+  usePullRequestWatch(
+    id,
+    useCallback(
+      (update) => {
+        if (update.snapshot) queries.set(key, update.snapshot);
+      },
+      [queries, key],
+    ),
+  );
 
   const read = useSharedQuery<github.PullRequestSnapshot>(
     key,
@@ -80,35 +93,88 @@ export function PullRequestScreen({ id, threadId }: { id: string; threadId?: str
     }
   }
 
+  async function prepare(action: string) {
+    if (!client || !threadId || busy) return;
+    setBusy(true);
+
+    try {
+      const context = await client.api.preparePullRequestContext(
+        { pullRequestId: id, threadId, action },
+        { timeoutMs: 120_000 },
+      );
+
+      putContext(threadId, context);
+      router.back();
+    } catch {
+      setError("Could not prepare PR context. Check access and attachment limits, then retry.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const header = (
+    <View style={{ gap: 16 }}>
+      {data && (
+        <PullRequestHeader
+          snapshot={data}
+          busy={busy || !online}
+          onrefresh={() => void refresh()}
+          onunlink={threadId ? () => void unlink() : undefined}
+          onmessage={toast}
+          oncontext={threadId ? (action) => void prepare(action) : undefined}
+        />
+      )}
+      <Segmented
+        options={[
+          { value: "summary", label: "Summary" },
+          { value: "timeline", label: "Timeline" },
+          { value: "code", label: "Code" },
+        ]}
+        value={tab}
+        onChange={setTab}
+      />
+      {!!data?.detail && <Notice>{data.detail}</Notice>}
+      {!!(error || read.error) && (
+        <Notice error>{error || "Connect to load this page. Check account access, then retry."}</Notice>
+      )}
+    </View>
+  );
+
   return (
     <ScreenFrame header={<ScreenHeader title="Pull request" />}>
-      <SummaryContent>
-        {data && (
-          <PullRequestHeader
-            snapshot={data}
-            busy={busy || !online}
-            onrefresh={() => void refresh()}
-            onunlink={threadId ? () => void unlink() : undefined}
-            onmessage={toast}
-          />
-        )}
-        <Segmented
-          options={[{ value: "summary", label: "Summary" }]}
-          value="summary"
-          onChange={() => {}}
-          style={{ alignSelf: "flex-start" }}
-        />
-        {!!data?.detail && <Notice>{data.detail}</Notice>}
-        {!!(error || read.error) && (
-          <Notice error>{error || "Connect to load this page. Check account access, then retry."}</Notice>
-        )}
-        {data ? (
-          <PullRequestSummary snapshot={data} />
-        ) : (
-          !read.error && <Text style={[styles.body, { color: c.muted }]}>Loading pull request…</Text>
-        )}
-      </SummaryContent>
+      <PullRequestContent id={id} tab={tab} data={data} header={header} failed={!!read.error} />
     </ScreenFrame>
+  );
+}
+
+function PullRequestContent({
+  id,
+  tab,
+  data,
+  header,
+  failed,
+}: {
+  id: string;
+  tab: string;
+  data: github.PullRequestSnapshot | undefined;
+  header: React.ReactNode;
+  failed: boolean;
+}) {
+  const c = useColors();
+
+  if (data && tab === "timeline") return <PullRequestTimeline id={id} header={header} />;
+
+  if (data && tab === "code") return <PullRequestCode snapshot={data} header={header} />;
+
+  return (
+    <SummaryContent>
+      {header}
+      {data ? (
+        <PullRequestSummary snapshot={data} />
+      ) : (
+        !failed && <Text style={[styles.body, { color: c.muted }]}>Loading pull request…</Text>
+      )}
+    </SummaryContent>
   );
 }
 

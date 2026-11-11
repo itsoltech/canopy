@@ -4,6 +4,7 @@
   import * as api from "./api.ts";
   import GitHubInstallation from "./GitHubInstallation.svelte";
   import GitHubAvatar from "./GitHubAvatar.svelte";
+  import GitHubUpdateChoice from "./GitHubUpdateChoice.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
@@ -188,6 +189,7 @@
       <div class="mt-2"><Button size="sm" disabled={busy} onclick={() => load(0, true)}>Retry</Button></div></Alert
     >{/if}
   {#if expanded}<div transition:expand={{ instantReduced: true }}>
+      <GitHubUpdateChoice {account} />
       <div class="grid min-w-0 gap-2 border-t border-zinc-950/5 px-3 py-2 dark:border-white/8">
         {#if account.status === "connected"}
           {#if account.authKind === "pat"}<p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">

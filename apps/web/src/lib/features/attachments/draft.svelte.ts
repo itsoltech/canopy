@@ -31,6 +31,7 @@ export interface DraftFile {
   error: string | undefined;
   /** What the gateway made of it. */
   attachment: ui.Attachment | undefined;
+  contextScope?: string | undefined;
 }
 
 /** Native programs: refused by the gateway anyway, said here before the upload. */
@@ -103,6 +104,41 @@ export class AttachmentDraft {
 
   file(key: string): DraftFile | undefined {
     return this.files.find((f) => f.key === key);
+  }
+
+  /** Accept a context file prepared by the gateway through the same draft and limits as uploads. */
+  accept(attachment: ui.Attachment, contextScope?: string): DraftFile {
+    const limits = this.#limits();
+
+    if (
+      this.attached.length >= limits.maxFiles ||
+      Number(attachment.sizeBytes) > limits.maxFileBytes ||
+      this.attached.reduce((sum, f) => sum + f.size, 0) + Number(attachment.sizeBytes) > limits.maxMessageBytes
+    )
+      throw new Error("Remove an attachment before adding this context.");
+
+    if (
+      attachment.name.startsWith("github-pr-") &&
+      this.attached.filter((f) => f.name.startsWith("github-pr-")).length >= 3
+    )
+      throw new Error("Attach up to 3 pull request contexts.");
+
+    const file: DraftFile = {
+      key: crypto.randomUUID(),
+      contextScope,
+      name: attachment.name,
+      size: Number(attachment.sizeBytes),
+      image: false,
+      localUrl: undefined,
+      status: "ready",
+      progress: 1,
+      error: undefined,
+      attachment,
+    };
+
+    this.files = [...this.files, file];
+
+    return file;
   }
 
   /** The badges the text holds now (keys of ATTACHMENT mentions). */

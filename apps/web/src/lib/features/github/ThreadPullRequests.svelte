@@ -11,9 +11,9 @@
   import * as api from "./api.ts";
   import PanelRow from "#lib/features/threads/components/PanelRow.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
-  import Badge from "#lib/shared/ui/Badge.svelte";
   import { checkLook } from "@canopy/domain/github-pr";
   import { pullRequestHref, toneClasses } from "./presentation.ts";
+  import { tooltip } from "#lib/shared/ui/tooltip.ts";
 
   let { thread, class: className }: { thread: ui.Thread; class?: ClassValue } = $props();
   let expanded = $state(false);
@@ -53,17 +53,21 @@
           >
             {#snippet lead()}<PullRequestState state={pr.state} iconOnly />{/snippet}
             <span title={pr.title}>{pr.title || pr.ref.repositoryName}</span>
-            {#snippet aside()}<span class="shrink-0 text-zinc-500 tabular-nums">#{pr.ref!.number}</span><Icon
-                name={checkLook(pr.checksState).icon}
-                class={toneClasses[checkLook(pr.checksState).tone]}
-                label={`Checks: ${checkLook(pr.checksState).label}`}
-              />{/snippet}
+            {#snippet aside()}<span class="shrink-0 text-zinc-500 tabular-nums">#{pr.ref!.number}</span><span
+                {@attach tooltip(`Checks: ${checkLook(pr.checksState).label}`)}
+                ><Icon
+                  name={checkLook(pr.checksState).icon}
+                  class={toneClasses[checkLook(pr.checksState).tone]}
+                  label={`Checks: ${checkLook(pr.checksState).label}`}
+                /></span
+              >{/snippet}
           </PanelRow>
           <div
             class="flex min-h-5 flex-wrap items-center gap-1.5 px-2 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
           >
-            {#if link.source}<Badge compact>{link.source === "auto" ? "Auto" : "Manual"}</Badge>{/if}
-            <span>{link.currentBranch ? "Current branch" : "History"}</span>
+            <span {@attach tooltip(link.source === "auto" ? "Linked automatically" : "Linked manually")}
+              >{link.currentBranch ? "Current branch" : "History"}</span
+            >
           </div>
           {#if data?.stale && pr.verifiedAt}<p class="text-zinc-500 dark:text-zinc-400">
               Last verified {formatTime(pr.verifiedAt)}
@@ -72,8 +76,11 @@
       {/if}
     {/each}
   </ul>
-  {#if links.length > 1}<Button size="sm" aria-expanded={expanded} onclick={() => (expanded = !expanded)}
-      >{expanded ? "Show less" : `Show ${links.length - 1} more`}</Button
+  {#if links.length > 1}<button
+      type="button"
+      class="min-h-9 w-fit px-2 text-left text-sm/5 text-zinc-500 focus-ring hover:text-zinc-950 sm:text-xs/5 dark:text-zinc-400 dark:hover:text-white"
+      aria-expanded={expanded}
+      onclick={() => (expanded = !expanded)}>{expanded ? "Show less" : `Show ${links.length - 1} more`}</button
     >{/if}
   {#if data?.detail}<p role="status" class="text-sm/5 text-zinc-500 dark:text-zinc-400">{data.detail}</p>{/if}
   {#if read.snapshot.error || error}<Alert
@@ -82,8 +89,8 @@
         onclick={() => void read.reload().catch(() => {})}>Retry</Button
       ></Alert
     >{/if}
-  <Button size="sm" aria-expanded={linking} disabled={data?.stale} onclick={() => (linking = !linking)}
-    >{linking ? "Cancel" : "Link pull request"}</Button
+  <PanelRow icon={linking ? "x-mark" : "plus"} disabled={data?.stale} onclick={() => (linking = !linking)}
+    >{linking ? "Cancel" : "Link pull request"}</PanelRow
   >
   {#if linking}<div transition:expand>
       <LinkPullRequest

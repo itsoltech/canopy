@@ -14,6 +14,7 @@
     href,
     onclick,
     current = false,
+    disabled = false,
     wrap = false,
     class: className,
     children,
@@ -25,6 +26,7 @@
     href?: string | undefined;
     onclick?: (() => void) | undefined;
     current?: boolean;
+    disabled?: boolean | undefined;
     wrap?: boolean;
     class?: ClassValue;
     children: Snippet;
@@ -53,7 +55,7 @@
 {#if href}
   <a {href} class={classes} aria-current={current ? "page" : undefined}>{@render content()}</a>
 {:else if onclick}
-  <button type="button" class={classes} {onclick}>{@render content()}</button>
+  <button type="button" class={classes} {onclick} {disabled}>{@render content()}</button>
 {:else}
   <div class={classes}>{@render content()}</div>
 {/if}

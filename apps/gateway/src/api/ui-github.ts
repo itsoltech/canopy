@@ -4,6 +4,7 @@ import type { UiHandlers } from "./ui-service.ts";
 import { githubFailure } from "../github/http.ts";
 import { githubClient } from "./github-client.ts";
 import { uuid } from "../github/records.ts";
+import { updateAccount } from "../github/update-account.ts";
 
 async function guard<A>(run: () => Promise<A>): Promise<A> {
   try {
@@ -29,10 +30,14 @@ export function githubHandlers(
   | "useGitHubPat"
   | "listGitHubInstallations"
   | "listGitHubRepositories"
+  | "getGitHubUpdateAccount"
+  | "setGitHubUpdateAccount"
 > {
   const binding = (value: string, context: HandlerContext) => githubClient(context, value);
 
   return {
+    getGitHubUpdateAccount: () => guard(() => updateAccount(core.github)),
+    setGitHubUpdateAccount: (r) => guard(() => updateAccount(core.github, r)),
     listGitHubAccounts: () => guard(() => core.github.list()),
     beginGitHubDeviceAuth: (r, c) =>
       guard(() => core.github.device.begin({ ...r, clientBinding: binding(r.clientBinding, c) })),

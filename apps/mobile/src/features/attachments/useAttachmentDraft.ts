@@ -22,6 +22,7 @@ export interface DraftFile {
   temporary?: boolean;
   /** Set once the gateway stored it (UploadAttachment). */
   attachment?: ui.Attachment;
+  contextScope?: string | undefined;
   error?: string;
 }
 
@@ -163,10 +164,12 @@ export function useAttachmentDraft(
       });
   }
 
-  const uploading = files.some((f) => !f.attachment && !f.error);
-  const failed = files.some((f) => f.error);
-
   return {
+    accept: (attachment: ui.Attachment, contextScope?: string) => {
+      const file = { ...preparedFile(attachment, current.current, max), contextScope };
+      apply((rows) => [...rows, file]);
+      onAdd?.(file);
+    },
     files,
     ids: files.flatMap((f) => (f.attachment ? [f.attachment.id] : [])),
     pickPhotos: () => pickPhotos(upload, max.maxFiles - current.current.length, options.imagesOnly),
@@ -189,7 +192,33 @@ export function useAttachmentDraft(
         return [];
       }),
     /** Why the message cannot go yet. */
-    blocker: uploading ? "Uploading files…" : failed ? "Remove the files that could not be attached." : undefined,
+    blocker: attachmentBlocker(files),
+  };
+}
+
+function attachmentBlocker(files: DraftFile[]) {
+  if (files.some((f) => !f.attachment && !f.error)) return "Uploading files…";
+
+  return files.some((f) => f.error) ? "Remove the files that could not be attached." : undefined;
+}
+
+function preparedFile(attachment: ui.Attachment, rows: DraftFile[], max: typeof fallback): DraftFile {
+  const total = rows.reduce((sum, f) => sum + f.size, 0) + Number(attachment.sizeBytes);
+
+  if (
+    rows.length >= max.maxFiles ||
+    total > max.maxMessageBytes ||
+    Number(attachment.sizeBytes) > max.maxFileBytes ||
+    (attachment.name.startsWith("github-pr-") && rows.filter((f) => f.name.startsWith("github-pr-")).length >= 3)
+  )
+    throw new Error("Remove an attachment before adding this context.");
+
+  return {
+    key: Crypto.randomUUID(),
+    name: attachment.name,
+    size: Number(attachment.sizeBytes),
+    kind: "file",
+    attachment,
   };
 }
 

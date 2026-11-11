@@ -1,5 +1,5 @@
 import { clone, create, type DescMethod, type Message } from "@bufbuild/protobuf";
-import { bots, github, MentionKind, MentionSchema, ui, type Mention } from "@canopy/contracts";
+import { bots, MentionKind, MentionSchema, ui, type Mention } from "@canopy/contracts";
 import {
   INLINE_ATTACHMENTS,
   STEER_ATTACHMENTS,
@@ -22,6 +22,7 @@ import { mirrorFirst, offlineThread } from "./routed-thread-mirror.ts";
 import { announcedDeparture } from "@canopy/domain/computer-presence";
 import { watchRemoteThread } from "../computers/thread-watch.ts";
 import { remoteAttachment } from "./routed-attachments.ts";
+import { forgetGitHub, offlineGitHub, rememberGitHub } from "./routed-github-cache.ts";
 
 export async function peerOf(core: GatewayCore, ref: string, method?: DescMethod, request?: Message) {
   if (!core.computers) throw new ConnectError("That computer is no longer linked", Code.NotFound);
@@ -67,6 +68,12 @@ export async function* forward(
       yield message;
     }
   } catch (error) {
+    if (
+      error instanceof ConnectError &&
+      [Code.PermissionDenied, Code.NotFound, Code.FailedPrecondition].includes(error.code)
+    )
+      forgetGitHub(core.computers, nodeId, method);
+
     if (error instanceof ConnectError && [Code.Unavailable, Code.DeadlineExceeded].includes(error.code)) {
       const computer = await core.computers?.computer(nodeId);
       const announced = computer && announcedDeparture(computer.status);
@@ -112,20 +119,12 @@ export async function* home(
 
   if (!computers) throw new ConnectError("That computer is no longer linked", Code.NotFound);
 
-  if (!computers.reachable().includes(nodeId) && method.name === "ListThreadPullRequests") {
-    const id = splitId(linkedMessage(github.ThreadPullRequestsRequestSchema, request).threadId).id;
-    const thread = await computers.mirror.thread(nodeId, id);
+  const offline = await offlineGitHub(computers, nodeId, method, request);
 
-    if (thread) {
-      yield create(github.ThreadPullRequestsResponseSchema, {
-        stale: true,
-        revision: thread.pullRequestRevision,
-        detail: "This computer is offline. Only the latest mirrored pull request is available.",
-        links: thread.newestPullRequest ? [{ summary: thread.newestPullRequest, source: "manual" }] : [],
-      });
+  if (offline) {
+    yield offline;
 
-      return;
-    }
+    return;
   }
 
   if (method.name === "WatchThread") linkedMessage(ui.WatchThreadRequestSchema, request).mirrorCursor = "";
@@ -312,6 +311,7 @@ async function* send(
 
     await ids.map(method.output, message, "toLocal");
     qualify(method.output, message, nodeId);
+    rememberGitHub(computers, nodeId, method, request, message);
     yield message;
   }
 }

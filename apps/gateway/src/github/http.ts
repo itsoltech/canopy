@@ -1,6 +1,7 @@
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Schema } from "effect";
 import { redactConnector } from "../connectors/oauth.ts";
+import { jobLogHttp } from "./log-http.ts";
 
 export interface GitHubOptions {
   readonly clientId?: string;
@@ -56,12 +57,16 @@ export class GitHubHttp {
   readonly config;
   readonly now;
   #fetch;
+  #injectedFetch;
   constructor(options: GitHubOptions = {}) {
     this.config = githubConfig(options);
     this.#fetch = options.fetch ?? fetch;
+    this.#injectedFetch = options.fetch;
     this.now = options.now ?? Date.now;
   }
   async detailed(path: string, init: RequestInit, secrets: readonly string[] = []) {
+    if (/^\/repos\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/actions\/jobs\/[1-9][0-9]*\/logs$/.test(path))
+      return jobLogHttp(path, init, secrets, this.#fetch, this.#injectedFetch, this.now());
     const origin = path.startsWith("/login/") ? "https://github.com" : "https://api.github.com";
 
     const response = await this.#fetch(`${origin}${path}`, {

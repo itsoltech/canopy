@@ -49,10 +49,12 @@ interface Entry {
 }
 
 export interface ReleaseHttpOptions {
-  fetch?: (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
+  fetch?: (input: string | URL | Request, init?: RequestInit, redirected?: boolean) => Promise<Response>;
   now?: () => number;
   allowHttpForTests?: boolean;
   cacheMs?: number;
+  /** Gateway-only auth context. Public callers retain the shared anonymous cache. */
+  cacheScope?: (url: string) => Promise<string>;
 }
 
 function resetAt(headers: Headers, now: number): number {
@@ -69,10 +71,12 @@ export class ReleaseHttp {
   private readonly limited = new Map<string, number>();
   constructor(readonly options: ReleaseHttpOptions = {}) {}
 
-  text(url: string): Promise<string> {
+  async text(url: string): Promise<string> {
     const target = secureReleaseUrl(url, this.options.allowHttpForTests);
+    const scope = this.options.cacheScope ? await this.options.cacheScope(url) : "public";
+    const key = `${scope}:${url}`;
     const now = (this.options.now ?? Date.now)();
-    let entry = this.entries.get(url);
+    let entry = this.entries.get(key);
 
     if (entry?.pending) return entry.pending;
 
@@ -82,13 +86,13 @@ export class ReleaseHttp {
       if (entry.text !== undefined) return Promise.resolve(entry.text);
     }
 
-    const retryAt = this.limited.get(target.origin) ?? 0;
+    const retryAt = this.limited.get(`${scope}:${target.origin}`) ?? 0;
 
     if (now < retryAt) return Promise.reject(new ReleaseRateLimit(retryAt));
     entry ??= { until: 0 };
-    this.entries.set(url, entry);
+    this.entries.set(key, entry);
     const current = entry;
-    current.pending = this.read(target, current)
+    current.pending = this.read(target, current, scope)
       .catch((error: Error) => {
         current.error = error;
         current.until = (this.options.now ?? Date.now)() + (error instanceof ReleaseRateLimit ? 0 : 60_000);
@@ -101,21 +105,27 @@ export class ReleaseHttp {
     return current.pending;
   }
 
-  private async read(target: URL, entry: Entry): Promise<string> {
+  private async read(target: URL, entry: Entry, scope: string): Promise<string> {
     for (let redirects = 0; redirects < 6; redirects++) {
-      const retryAt = this.limited.get(target.origin) ?? 0;
+      const retryAt = this.limited.get(`${scope}:${target.origin}`) ?? 0;
 
       if ((this.options.now ?? Date.now)() < retryAt) throw new ReleaseRateLimit(retryAt);
       const headers = new Headers({ accept: "application/json", "user-agent": "Canopy-Updates" });
 
       if (entry.etag) headers.set("if-none-match", entry.etag);
 
-      const response = await (this.options.fetch ?? fetch)(target, {
-        redirect: "manual",
-        credentials: "omit",
-        signal: AbortSignal.timeout(20_000),
-        headers,
-      });
+      const fetcher: NonNullable<ReleaseHttpOptions["fetch"]> = this.options.fetch ?? fetch;
+
+      const response = await fetcher(
+        target,
+        {
+          redirect: "manual",
+          credentials: "omit",
+          signal: AbortSignal.timeout(20_000),
+          headers,
+        },
+        redirects > 0,
+      );
 
       const now = (this.options.now ?? Date.now)();
 
@@ -132,7 +142,7 @@ export class ReleaseHttp {
 
       if ((response.status === 403 || response.status === 429) && (limited || response.status === 429)) {
         const retryAt = resetAt(response.headers, now);
-        this.limited.set(target.origin, retryAt);
+        this.limited.set(`${scope}:${target.origin}`, retryAt);
         await response.body?.cancel();
         throw new ReleaseRateLimit(retryAt);
       }

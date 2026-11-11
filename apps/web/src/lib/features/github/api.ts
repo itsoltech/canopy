@@ -1,8 +1,28 @@
 import { github } from "@canopy/contracts";
+import { toJson, type DescMessage, type MessageShape } from "@bufbuild/protobuf";
 import { requestJson, type JsonBody } from "#lib/shared/http.ts";
 import { decode } from "#lib/shared/wire.ts";
 
 const post = (operation: string, body: JsonBody) => requestJson("POST", `/api/github/${operation}`, body, 125_000);
+
+export const page = async <D extends DescMessage>(
+  operation: string,
+  schema: D,
+  request: github.PullRequestPageRequest,
+): Promise<MessageShape<D>> =>
+  decode(schema, await post(operation, toJson(github.PullRequestPageRequestSchema, request)));
+
+export const context = async (request: github.PreparePullRequestContextRequest) =>
+  decode(
+    github.PullRequestContextResponseSchema,
+    await post("context", toJson(github.PreparePullRequestContextRequestSchema, request)),
+  );
+
+export const updateAccount = async (homeId: string) =>
+  decode(github.GitHubUpdateAccountResponseSchema, await post("update-account", { homeId }));
+
+export const setUpdateAccount = async (homeId: string, accountId: string, enabled: boolean) =>
+  decode(github.GitHubUpdateAccountResponseSchema, await post("set-update-account", { homeId, accountId, enabled }));
 
 export const accounts = async (homeId: string) =>
   decode(github.GitHubAccountsResponseSchema, await post("accounts", { homeId }));

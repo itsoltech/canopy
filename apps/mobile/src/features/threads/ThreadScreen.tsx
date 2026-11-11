@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { create } from "@bufbuild/protobuf";
 import { ConversationSkeleton, SkeletonScope } from "../../ui/Skeleton";
 import { Redirect } from "expo-router";
+import { useContextDraft } from "../github/useContextDraft";
 import { ScreenFrame } from "../../ui/ScreenFrame";
 import * as Crypto from "expo-crypto";
 import { Code, ConnectError } from "@connectrpc/connect";
@@ -58,6 +59,7 @@ function useThreadState(id: string) {
   const { projects, workers, threads } = useOverview();
   const sending = useRef(false);
   const message = useMessageDraft();
+  useContextDraft(id, message, setError);
   const quotes = useQuoteDraft();
 
   const pending = useRef<{

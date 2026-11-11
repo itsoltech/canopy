@@ -1,89 +1,72 @@
-import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
-import * as Linking from "expo-linking";
-import { safeHref } from "@canopy/domain/markdown";
-import { checkLook, checksSummary, sortedChecks } from "@canopy/domain/github-pr";
-import type { github } from "@canopy/contracts";
-import { Button, Notice } from "../../ui/components";
-import { Icon } from "../../ui/Icon";
+import { useCallback, useState } from "react";
+import { create } from "@bufbuild/protobuf";
+import { Text, View } from "react-native";
+import { github } from "@canopy/contracts";
+import { checksSummary, sortedChecks } from "@canopy/domain/github-pr";
+import { useSession } from "../../state/session";
 import { useColors, useTypography } from "../../ui/theme";
-import { toneColor } from "./presentation";
+import { Button } from "../../ui/components";
+import { usePages } from "./usePages";
+import { PageStatus } from "./PageStatus";
+import { PullRequestCheckRow } from "./PullRequestCheckRow";
 
 export function PullRequestChecks({ snapshot }: { snapshot: github.PullRequestSnapshot }) {
+  const { client } = useSession();
   const c = useColors();
   const type = useTypography();
-  const [expanded, setExpanded] = useState(false);
-  const [error, setError] = useState("");
-  const checks = sortedChecks(snapshot.checks);
+  const id = snapshot.summary?.ref?.id ?? "";
+  const headSha = snapshot.summary?.headSha ?? "";
+  const [visible, setVisible] = useState(5);
 
-  async function open(url: string) {
-    const href = safeHref(url);
+  const pages = usePages(
+    useCallback(
+      (cursor: string, refresh: boolean) =>
+        client!.api.listPullRequestChecks({ pullRequestId: id, headSha, cursor, refresh }),
+      [client, id, headSha],
+    ),
+    id,
+  );
 
-    if (!href) return;
+  const checks = sortedChecks(pages.pages.length ? pages.pages.flatMap((p) => p.checks) : snapshot.checks);
 
-    try {
-      await Linking.openURL(href);
-      setError("");
-    } catch {
-      setError("Could not open this check. Open the pull request on GitHub.");
+  async function more() {
+    if (visible < checks.length) setVisible(checks.length);
+    else {
+      await pages.read(true);
+      setVisible((value) => value + 50);
     }
   }
 
   return (
     <View style={{ gap: 8 }}>
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-        <Text accessibilityRole="header" style={[type.small, { color: c.text }]}>
-          {checksSummary(snapshot)}
+      <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
+        <Text style={[type.small, { color: c.text }]}>
+          {checksSummary(
+            create(github.PullRequestSnapshotSchema, {
+              ...snapshot,
+              checks: pages.pages.length ? pages.pages.flatMap((p) => p.checks) : snapshot.checks,
+            }),
+          )}
         </Text>
-        <Text style={[type.meta, { color: c.muted }]}>{snapshot.summary?.headSha.slice(0, 7)}</Text>
+        <Text style={[type.meta, { color: c.muted }]}>on {headSha.slice(0, 7)}</Text>
       </View>
-      <View style={{ borderWidth: 1, borderColor: c.line, borderRadius: 8, overflow: "hidden" }}>
-        {(expanded ? checks : checks.slice(0, 5)).map((check, i) => {
-          const look = checkLook(check.state);
-
-          return (
-            <Pressable
-              key={`${check.name}:${i}`}
-              accessibilityRole="link"
-              accessibilityLabel={`${check.name}, ${check.provider}, ${look.label}`}
-              disabled={!safeHref(check.url)}
-              onPress={() => void open(check.url)}
-              style={({ pressed }) => ({
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 8,
-                minHeight: 48,
-                paddingHorizontal: 10,
-                borderTopWidth: i ? 1 : 0,
-                borderTopColor: c.rule,
-                backgroundColor: pressed ? c.pressed : undefined,
-              })}
-            >
-              <Icon name={look.icon} color={toneColor(c, look.tone)} />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text numberOfLines={1} style={[type.small, { color: c.text }]}>
-                  {check.name}
-                </Text>
-                <Text numberOfLines={1} style={[type.meta, { color: c.muted }]}>
-                  {check.provider}
-                </Text>
-              </View>
-              <Text style={[type.meta, { width: 76, textAlign: "right", color: toneColor(c, look.tone) }]}>
-                {look.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-      {checks.length > 5 && (
+      {checks.slice(0, visible).map((check, i) => (
+        <PullRequestCheckRow key={`${check.nodeId}:${check.name}:${i}`} id={id} check={check} />
+      ))}
+      {(visible < checks.length || !!pages.current?.page?.nextCursor) && (
         <Button
+          title={visible < checks.length ? `Show ${checks.length - visible} more checks` : "Show more checks"}
           variant="ghost"
-          size="sm"
-          title={expanded ? "Show fewer checks" : `Show ${checks.length - 5} more checks`}
-          onPress={() => setExpanded(!expanded)}
+          disabled={pages.busy}
+          onPress={() => void more()}
         />
       )}
-      {!!error && <Notice error>{error}</Notice>}
+      <PageStatus
+        page={pages.current?.page}
+        busy={pages.busy}
+        error={pages.error}
+        retry={() => void pages.read(false, true)}
+      />
     </View>
   );
 }

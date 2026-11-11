@@ -12,6 +12,7 @@ import { PullRequestStatus } from "./PullRequestStatus";
 import { checkLook } from "@canopy/domain/github-pr";
 import { Icon } from "../../ui/Icon";
 import { toneColor } from "./presentation";
+import { toast } from "../../ui/Toast";
 
 export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onClose: () => void }) {
   const { client, queries, online } = useSession();
@@ -50,6 +51,7 @@ export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onC
         return (
           <View key={pr.ref.id} style={{ minWidth: 0 }}>
             <Pressable
+              onLongPress={() => toast(`${pr.state}, checks ${checkLook(pr.checksState).label}`)}
               accessibilityRole="button"
               accessibilityLabel={`${pr.title}, ${pr.state}, checks ${checkLook(pr.checksState).label}`}
               style={({ pressed }) => ({
@@ -84,13 +86,8 @@ export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onC
               }}
             >
               {!!link.source && (
-                <Text
-                  style={[
-                    styles.chromeMeta,
-                    { color: c.muted, backgroundColor: c.well, borderRadius: 4, paddingHorizontal: 4 },
-                  ]}
-                >
-                  {link.source === "auto" ? "Auto" : "Manual"}
+                <Text style={[styles.chromeMeta, { color: c.muted }]}>
+                  {link.source === "auto" ? "Linked automatically" : "Linked manually"}
                 </Text>
               )}
               <Text style={[styles.chromeMeta, { color: c.muted }]}>
@@ -107,6 +104,7 @@ export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onC
       })}
       {links.length > 1 && (
         <Button
+          variant="ghost"
           size="sm"
           title={expanded ? "Show less" : `Show ${links.length - 1} more`}
           onPress={() => setExpanded(!expanded)}
@@ -120,7 +118,8 @@ export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onC
         </>
       )}
       <Button
-        title={linking ? "Cancel" : "Link pull request"}
+        variant="ghost"
+        title={linking ? "Cancel" : "+ Link pull request"}
         disabled={!online || read.data?.stale}
         onPress={() => setLinking(!linking)}
       />

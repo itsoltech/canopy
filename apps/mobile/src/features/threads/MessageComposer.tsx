@@ -1,8 +1,8 @@
-import { ScrollView, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { ui } from "@canopy/contracts";
 import type { ComposerPick } from "@canopy/domain/composer-choices";
 import { ComposerBox, ComposerPill } from "./ComposerBox";
-import { styles } from "../../ui/theme";
+import { styles, useColors } from "../../ui/theme";
 import { ProviderIcon } from "../../ui/ProviderIcon";
 import { useAppearance } from "../../state/appearance";
 import { useEffortLabel } from "../settings/display";
@@ -144,10 +144,19 @@ function ComposerControls({
 }
 
 function ComposerAttachments({ message, quotes }: { message: MessageDraft; quotes: ReturnType<typeof useQuoteDraft> }) {
+  const c = useColors();
+
   return (
     <>
       <QuoteTray draft={quotes} />
       <AttachmentChips files={message.files.files} onRemove={message.remove} />
+      {message.files.files
+        .filter((file) => file.contextScope)
+        .map((file) => (
+          <Text key={file.key} accessibilityLiveRegion="polite" style={[styles.meta, { color: c.muted }]}>
+            PR context: {file.contextScope}
+          </Text>
+        ))}
     </>
   );
 }

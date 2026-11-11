@@ -10,32 +10,39 @@
     diff,
     label,
     lang,
+    toolbar = true,
+    bounded = true,
     class: className,
     ...rest
-  }: { diff: string; label: string; lang?: LanguageId | undefined; class?: ClassValue } & Omit<
-    HTMLAttributes<HTMLDivElement>,
-    "class"
-  > = $props();
+  }: {
+    diff: string;
+    label: string;
+    lang?: LanguageId | undefined;
+    toolbar?: boolean;
+    bounded?: boolean;
+    class?: ClassValue;
+  } & Omit<HTMLAttributes<HTMLDivElement>, "class"> = $props();
 </script>
 
-<div class="flex items-center justify-end gap-2 py-1" aria-label="Diff toolbar">
-  <div class="flex gap-1" role="group" aria-label="Diff layout">
-    {#each [{ value: "stacked", label: "Stacked" }, { value: "split", label: "Side by side" }] as option (option.value)}
-      <Button
-        size="sm"
-        variant={device.values.diffLayout === option.value ? "primary" : "secondary"}
-        aria-pressed={device.values.diffLayout === option.value}
-        onclick={() => device.set("diffLayout", option.value)}>{option.label}</Button
-      >
-    {/each}
-  </div>
-</div>
+{#if toolbar}<div class="flex items-center justify-end gap-2 py-1" aria-label="Diff toolbar">
+    <div class="flex gap-1" role="group" aria-label="Diff layout">
+      {#each [{ value: "stacked", label: "Stacked" }, { value: "split", label: "Side by side" }] as option (option.value)}
+        <Button
+          size="sm"
+          variant={device.values.diffLayout === option.value ? "primary" : "secondary"}
+          aria-pressed={device.values.diffLayout === option.value}
+          onclick={() => device.set("diffLayout", option.value)}>{option.label}</Button
+        >
+      {/each}
+    </div>
+  </div>{/if}
 
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
   {...rest}
   class={[
-    "diff-surface max-h-[32rem] code-surface rounded-lg bg-zinc-950/2.5 py-2 focus-ring dark:bg-white/5",
+    "diff-surface code-surface rounded-lg bg-zinc-950/2.5 py-2 focus-ring dark:bg-white/5",
+    bounded && "max-h-[32rem]",
     className,
   ]}
   tabindex="0"

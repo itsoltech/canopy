@@ -63,11 +63,24 @@ export function githubCache(sql: SqlClient.SqlClient) {
         Effect.gen(function* () {
           yield* sql`SELECT pg_advisory_xact_lock(hashtext(${`github-cache:${row.owner_user_id}`}))`;
 
-          const size = (yield* sql<{ bytes: string }>`SELECT coalesce(sum(octet_length(payload::text)),0)::text AS bytes
+          const size = (yield* sql<{
+            bytes: string;
+            logs: string;
+          }>`SELECT coalesce(sum(octet_length(payload::text)),0)::text AS bytes,
+        coalesce(sum(CASE WHEN cache_key LIKE 'logs:%' THEN octet_length(payload::text) ELSE 0 END),0)::text AS logs
         FROM github_pr_cache WHERE owner_user_id=${row.owner_user_id}::uuid
         AND (account_id,access_revision,cache_key)<>(${row.id}::uuid,${row.revision}::bigint,${key})`)[0]!;
 
-          if (Number(size.bytes) + Buffer.byteLength(JSON.stringify(payload)) > 104857600)
+          const bytes = Number(
+            (yield* sql<{
+              bytes: string;
+            }>`SELECT octet_length(${JSON.stringify(payload)}::jsonb::text)::text AS bytes`)[0]!.bytes,
+          );
+
+          if (
+            Number(size.bytes) + bytes > 104857600 ||
+            (key.startsWith("logs:") && Number(size.logs) + bytes > 16777216)
+          )
             return yield* Effect.fail(
               new ConnectError("GitHub cache is full. Retry after older summaries expire.", Code.ResourceExhausted),
             );

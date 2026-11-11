@@ -15,12 +15,14 @@ export function PullRequestHeader({
   onrefresh,
   onunlink,
   onmessage,
+  oncontext,
 }: {
   snapshot: github.PullRequestSnapshot;
   busy: boolean;
   onrefresh: () => void;
   onunlink?: (() => void) | undefined;
   onmessage: (value: string) => void;
+  oncontext?: ((action: string) => void) | undefined;
 }) {
   const c = useColors();
   const type = useTypography();
@@ -57,6 +59,13 @@ export function PullRequestHeader({
           name="Pull request"
           actions={[
             { label: busy ? "Refreshing…" : "Refresh", run: onrefresh, disabled: busy },
+            ...(oncontext
+              ? [
+                  { label: "Ask a question", run: () => oncontext("question"), disabled: busy },
+                  { label: "Explain this PR", run: () => oncontext("explain"), disabled: busy },
+                  { label: "Fix findings in this thread", run: () => oncontext("findings"), disabled: busy },
+                ]
+              : []),
             {
               label: "Open on GitHub",
               run: () =>
