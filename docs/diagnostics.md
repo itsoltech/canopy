@@ -83,7 +83,7 @@ VmHWM **≤10 MiB** względem wyłączonego kolektora. Rezerwacje live są ogran
 do 6 MiB dla metod i 2 MiB dla łączy, historyczny widok DB do 1 MiB.
 Histogramy zarówno w RAM, jak i na dysku zawierają tylko niezerowe pary indeks/licznik;
 na dysku indeksy i liczniki są pakowanymi varintami. Zerowe kubełki nie mają alokacji.
-Gateway dopuszcza do 384 deskryptorów i 16 łączy worker/komputer; cache overview
+Gateway dopuszcza do 512 deskryptorów i 16 łączy worker/komputer; cache overview
 do 32 partnerów. Nadmiarowe serie łączy są pomijane z jawnym licznikiem strat,
 bez nieograniczonego rejestru identyfikatorów. Przykład: 24 metody × 60 minut ×
 4 niezerowe kubełki to 5760 par, zamiast 187 200 kubełków jednego pełnego histogramu;
@@ -727,8 +727,12 @@ Porównanie off/on na tej samej rewizji, danych syntetycznych, wersji runtime i 
 Procesy gatewaya, workera i PostgreSQL przypinamy do oddzielnych fizycznych rdzeni;
 `nice -n -5` tylko jeśli host pozwala. Nie zmieniamy affinity innych procesów ani
 globalnych cache. Przed każdą parą zapisujemy `/proc/loadavg`, a przez całą parę
-próbkujemy swap-in/out (`vmstat 1`). Load powyżej liczby CPU albo choć jeden
-niezerowy swap-in/out unieważnia całą parę; zapisujemy odrzucenie i ponawiamy.
+próbkujemy swap-in/out (`vmstat 1`). Load powyżej liczby CPU unieważnia parę.
+Swap-out ≥128 KiB/s w dowolnej próbce albo ≥1 MiB łącznie na parę także ją
+unieważnia. Swap-in odrzuca parę przy ≥1 MiB/s albo ≥128 KiB/s przez trzy
+kolejne sekundy. Drobne odczyty starych stron swapu są dozwolone i raportowane
+łącznie na parę; zajętość swapu nie jest aktywnością. Zapisujemy odrzucenie
+i ponawiamy całą parę, bez wybierania korzystnych fragmentów.
 Raport zawiera wszystkie pary, medianę i min/max sparowanych różnic, bez
 uśredniania wyłącznie korzystnych przebiegów. Idle (10 min), steady load/sync,
 reconnect i wolny odbiorca; procesy osobno jak sync-process fixture.

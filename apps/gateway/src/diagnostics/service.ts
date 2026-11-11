@@ -5,7 +5,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import type { GatewayCore, GatewayCoreOptions } from "../core/core.ts";
 import type { WorkerConnection } from "../worker-link/connection.ts";
 import { RpcCollector } from "./collector.ts";
-import { RPC_METHODS, LINKED_METHODS, COMMAND_METHODS, methodId } from "./registry.ts";
+import { RPC_METHODS, LINKED_METHODS, COMMAND_METHODS, MAX_METHODS, methodId } from "./registry.ts";
 import { diagnosticsInterceptor } from "./interceptor.ts";
 import { rpcSnapshot, windowMinutes } from "./snapshot.ts";
 import { DiagnosticsStore } from "./store.ts";
@@ -159,8 +159,8 @@ export class Diagnostics {
     if (minute !== this.#minute) {
       this.#minute = minute;
       this.findings.evaluate(
-        this.local(create(ui.ComputerDiagnosticsRequestSchema, { windowMinutes: 15, limit: 384 }), true),
-        this.local(create(ui.ComputerDiagnosticsRequestSchema, { windowMinutes: 1, limit: 384 }), true),
+        this.local(create(ui.ComputerDiagnosticsRequestSchema, { windowMinutes: 15, limit: MAX_METHODS }), true),
+        this.local(create(ui.ComputerDiagnosticsRequestSchema, { windowMinutes: 1, limit: MAX_METHODS }), true),
       );
       void this.persistence?.flush();
     }
@@ -177,7 +177,7 @@ export class Diagnostics {
     )
       throw new ConnectError("Choose an available call view", Code.InvalidArgument);
 
-    if (request.offset > 384 || (!internal && request.limit > 32))
+    if (request.offset > MAX_METHODS || (!internal && request.limit > 32))
       throw new ConnectError("Diagnostics page exceeds budget", Code.InvalidArgument);
     let cached = this.#snapshots.get(minutes);
     const now = this.collector.clock.utc();
@@ -347,7 +347,7 @@ export class Diagnostics {
       request.methodKeys.some((key) => !METHOD_KEYS.has(key)) ||
       request.sortBy.length > 16 ||
       request.callKind.length > 8 ||
-      request.offset > 384 ||
+      request.offset > MAX_METHODS ||
       request.limit > 32
     )
       throw new ConnectError("Diagnostics page exceeds budget", Code.InvalidArgument);

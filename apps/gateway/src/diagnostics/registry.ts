@@ -4,6 +4,8 @@ import { SERVED } from "../computers/remote-policy.ts";
 
 export type RegisteredMethod = { id: number; name: string; layer: string; stream: boolean; interactive: boolean };
 
+export const MAX_METHODS = 512;
+
 /** Stable across additive contracts; descriptor collisions are a startup error, never merged series. */
 export function methodId(name: string) {
   let hash = 2166136261;

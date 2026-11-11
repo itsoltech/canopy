@@ -133,7 +133,7 @@ describe.skipIf(!dockerAvailable)("owner diagnostics over real gRPC and one rela
     expect(await rejectedCode(a.api.getComputerDiagnostics({ methodKeys: ["m".repeat(257)] }))).toBe(
       Code.InvalidArgument,
     );
-    expect(await rejectedCode(a.api.getComputerDiagnostics({ offset: 385 }))).toBe(Code.InvalidArgument);
+    expect(await rejectedCode(a.api.getComputerDiagnostics({ offset: 513 }))).toBe(Code.InvalidArgument);
     expect(await rejectedCode(a.api.getComputerDiagnostics({ methodKeys: ["rpc:/private/prompt"] }))).toBe(
       Code.InvalidArgument,
     );

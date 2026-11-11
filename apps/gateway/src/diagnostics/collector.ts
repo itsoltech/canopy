@@ -2,7 +2,7 @@ import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { mergeCoverage, addCount, type Histogram } from "@canopy/domain/diagnostics";
 import { BucketBudget, Buckets } from "./buckets.ts";
-import type { RegisteredMethod } from "./registry.ts";
+import { MAX_METHODS, type RegisteredMethod } from "./registry.ts";
 import { updateWindows } from "./windows.ts";
 
 export type DiagnosticsClock = { monotonic(): number; utc(): number };
@@ -37,7 +37,7 @@ export class RpcCollector {
     this.historyMinutes = new Buckets(60_000, 61, budget);
     this.#rings = [this.short, this.minutes];
 
-    if (methods.length > 384) throw new Error("Diagnostics method budget exceeded");
+    if (methods.length > MAX_METHODS) throw new Error("Diagnostics method budget exceeded");
 
     for (const method of methods) {
       if (this.methods.has(method.id)) throw new Error("Diagnostics descriptor id collision");
