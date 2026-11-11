@@ -1,4 +1,4 @@
-import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
+import { create, toBinary } from "@bufbuild/protobuf";
 
 import { computerLink as link, ui } from "@canopy/contracts";
 
@@ -9,6 +9,7 @@ import { SqlClient } from "effect/sql";
 import type { ComputerStore } from "./store.ts";
 import { applyThreadDelta } from "@canopy/domain/thread-mirror";
 import { mismatch } from "./mirror.ts";
+import { readMirrorSnapshot } from "./mirror-snapshot.ts";
 
 export type State = { cursor: string; generation: string; overview: Uint8Array | null; subscription_id: string };
 
@@ -80,12 +81,10 @@ export async function commitMirrorUpdate(
 
             if (delta.baseCursor !== state.cursor || !delta.snapshot?.thread) return yield* Effect.fail(mismatch());
 
-            const saved = yield* sql<{ snapshot: Uint8Array }>`SELECT snapshot FROM computer_mirror_threads
-              WHERE owner_user_id=${owner}::uuid AND origin_node_id=${node} AND generation=${generation}::uuid
-                AND thread_id=${delta.snapshot.thread.id}::uuid`;
+            const saved = yield* readMirrorSnapshot(owner, node, delta.snapshot.thread.id, generation);
 
-            if (!saved[0]) return yield* Effect.fail(mismatch());
-            update.snapshot = applyThreadDelta(fromBinary(ui.ThreadSnapshotSchema, saved[0].snapshot), delta);
+            if (!saved) return yield* Effect.fail(mismatch());
+            update.snapshot = applyThreadDelta(saved.snapshot, delta);
           }
 
           if (update.snapshot?.thread) {

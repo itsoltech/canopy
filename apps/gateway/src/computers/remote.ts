@@ -7,6 +7,7 @@ import { setImmediate as nextTurn } from "node:timers/promises";
 import { nodesOf } from "./remote-ids.ts";
 import { methodNamed, MovedError, movedItems, SERVED } from "./remote-policy.ts";
 import { syncDecode, syncEncode } from "./sync-codec.ts";
+import { linkFailure } from "./link-session.ts";
 
 export { mapIds, nodesOf, qualify, unqualify } from "./remote-ids.ts";
 
@@ -107,6 +108,7 @@ export class RemoteCalls {
   constructor(
     private readonly options: {
       send: (frame: Frame) => void;
+      write: (frame: Frame, signal: AbortSignal) => Promise<void>;
       serve?: RemoteServe | undefined;
       name: () => string;
       allowed: () => Promise<boolean>;
@@ -183,9 +185,12 @@ export class RemoteCalls {
       }
 
       for (const { data, more } of chunks(toBinary(method.input, request)))
-        this.options.send({
-          body: { case: "remoteRequest", value: { callId: id, method: method.name, payload: data, more, ...route } },
-        });
+        await this.options.write(
+          {
+            body: { case: "remoteRequest", value: { callId: id, method: method.name, payload: data, more, ...route } },
+          },
+          signal,
+        );
 
       for await (const bytes of channel) yield syncDecode(method.output, bytes, `link.${method.name}`);
     } finally {
@@ -302,6 +307,9 @@ export class RemoteCalls {
   }
 
   async #serve(id: bigint, name: string, bytes: Uint8Array, signal: AbortSignal, route: RelayRoute) {
+    let sent = 0;
+    let sentBytes = 0;
+
     try {
       const method = SERVED.has(name) ? methodNamed(name) : undefined;
 
@@ -316,14 +324,19 @@ export class RemoteCalls {
       if (nodesOf(method.input, request).size)
         throw new ConnectError("Calls through another computer are not supported", Code.InvalidArgument);
 
-      let sent = 0;
-
       for await (const message of this.options.serve(method, request, signal, undefined, route)) {
         if (signal.aborted || this.#closed) return;
 
         for (const { data, more } of chunks(syncEncode(method.output, message, `link.${method.name}`))) {
           if (signal.aborted || this.#closed) return;
-          this.options.send({ body: { case: "remoteResponse", value: { callId: id, payload: data, more } } });
+          await this.options.write(
+            { body: { case: "remoteResponse", value: { callId: id, payload: data, more } } },
+            signal,
+          );
+          sentBytes += data.byteLength;
+
+          if (sentBytes >= 1024 * 1024 && sentBytes - data.byteLength < 1024 * 1024)
+            console.debug("Computer link bulk transfer", { method: name, bytes: sentBytes, frames: sent + 1 });
 
           // A ready snapshot generator must let HTTP/2 drain before filling the bounded link queue.
           if (++sent % 16 === 0) await nextTurn(undefined, { signal });
@@ -332,7 +345,15 @@ export class RemoteCalls {
 
       if (!signal.aborted) this.#end(id);
     } catch (error) {
-      if (!signal.aborted) this.#end(id, wireError(error));
+      if (!signal.aborted) {
+        console.warn("Computer link RPC failed", {
+          method: name,
+          bytes: sentBytes,
+          frames: sent,
+          ...linkFailure(error),
+        });
+        this.#end(id, wireError(error));
+      }
     }
   }
 

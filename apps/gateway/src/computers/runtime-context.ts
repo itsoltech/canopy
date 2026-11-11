@@ -22,7 +22,8 @@ import type { NetworkAccess } from "../network/network.ts";
 
 export type Connection = {
   send: (frame: MessageInitShape<typeof link.LinkFrameSchema>) => void;
-  close: () => void;
+  write: (frame: MessageInitShape<typeof link.LinkFrameSchema>, signal: AbortSignal) => Promise<void>;
+  close: (reason?: ConnectError) => void;
   seen: number;
   /** When this link last wrote the peer's last_seen. */
   stored?: number;

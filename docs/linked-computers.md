@@ -991,8 +991,17 @@ Snapshoty i delty lustra grupują powtarzane pola w fragmenty do około 32 KiB p
 pojedynczy większy element wychodzi osobno, w istniejącym limicie pojedynczej wiadomości RPC.
 Pola zachowują kolejność, a ramki start/end i atomowy commit pozostają bez zmian.
 Starszy odbiorca obsługuje grupy przez istniejące repeated fields, bez nowej capability.
-Publisher odpowiedzi RPC oddaje pętlę I/O co 16 fragmentów transportowych, aby HTTP/2
-opróżniało kolejkę także podczas wysyłania gotowego dużego snapshotu.
+Publisher żądań i odpowiedzi RPC czeka na wolne miejsce w kolejce transportu.
+Samo oddawanie pętli I/O co 16 fragmentów nie wystarcza: wolne łącze nadal mogło
+przepełnić kolejkę i zerwać wszystkie subskrypcje przez lokalny HTTP/2 GOAWAY.
+Anulowanie RPC i zamknięcie łącza odblokowują oczekujących producentów. Pozostałe
+sloty pozostają dostępne dla heartbeatów, anulowań i ramek sterujących.
+
+Duże zapisane snapshoty lustra są odczytywane z PostgreSQL w kawałkach po 4 MiB
+w jednym zapytaniu, razem z kursorem. Pełna historia może przekroczyć domyślny
+limit 16 MiB pojedynczego wiersza protokołu sterownika; ten limit pozostaje bez zmian.
+Tak samo odczytywana jest baza delty. Fragmentacja nie zmienia atomowości generacji
+ani checkpointu.
 
 ### Ograniczenia buforów synchronizacji
 
@@ -1005,7 +1014,7 @@ i buforami HTTP/2/TLS:
 | Hub: osobny watch wątku lub overview | 256 wiadomości, 8 MiB zakodowanego protobuf | Odrzucenie kolejki i `DataLoss` dla tego watcha |
 | Zsumowany overview | 256 wiadomości, 8 MiB protobuf | `DataLoss`; klient łączy się po świeży snapshot |
 | Publisher liveness wątku i odebrane odpowiedzi pojedynczego linked RPC | 256 wiadomości, 64 MiB protobuf | `DataLoss`; odebrany RPC jest natychmiast anulowany u domu |
-| Wyjście całego łącza | 2048 ramek, każda ograniczona przez transport do 64 KiB | Zamknięcie tego łącza; ponowne połączenie wznawia checkpointy |
+| Wyjście całego łącza | 16 oczekujących ramek danych RPC; 240 dodatkowych slotów sterujących, każda ramka do 64 KiB | Producent RPC czeka na opróżnienie kolejki; tylko przepełnienie ramek sterujących zamyka łącze |
 | BFF SSE | Próg kolejki 1 MiB UTF-8; dopuszczona jedna większa ramka snapshotu | Następna ramka przy nieopróżnionej kolejce przerywa stream i upstream |
 
 Hub liczy rozmiar raz na publikację, niezależnie od liczby odbiorców; odbiorcy współdzielą
@@ -1027,6 +1036,14 @@ a wykryte stall/gap i wymuszoną resynchronizację na warn. Logi zawierają wył
 id partnera/wątku, stronę, przyczynę, kod błędu i checkpoint/seq; bez nazw komputerów, adresów,
 treści wątku, poświadczeń ani surowych komunikatów błędów. Planowe rewalidacje
 starszego partnera i zmiany rewizji są debug.
+
+Diagnostyka HTTP/2 po stronie klienta i listenera podaje liczbowy kod GOAWAY
+i inicjatora (`local`/`peer`, a przy nieustalonej przyczynie `unknown`). Lokalny
+abort zapisuje przyczynę, a błędy łącza obejmują kod RPC oraz rozpoznaną kategorię
+(np. przepełnienie wyjścia, nieprawidłowa tożsamość/katalog relay, timeout handshake
+lub heartbeat). Duży transfer zapisuje nazwę metody, liczbę bajtów i ramek.
+Logi nie zawierają surowego komunikatu błędu, danych debug GOAWAY, nagłówków,
+adresów, tokenów ani treści snapshotu.
 
 `tests/integration/linked-thread-liveness.test.ts` używa dwóch gatewayów, osobnych
 baz PostgreSQL i przypiętego mTLS. Kontroluje utratę ramek aplikacyjnych bez

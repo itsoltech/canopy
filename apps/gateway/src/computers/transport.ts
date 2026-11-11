@@ -7,10 +7,11 @@ import {
   createContextValues,
   type ConnectRouter,
 } from "@connectrpc/connect";
-import { connectNodeAdapter, createGrpcTransport, Http2SessionManager } from "@connectrpc/connect-node";
+import { connectNodeAdapter, createGrpcTransport } from "@connectrpc/connect-node";
 import { computerLink as link } from "@canopy/contracts";
 import type { Handler } from "../network/listener.ts";
 import { certificateIdentity, linkAddress } from "./identity.ts";
+import { LinkSessionManager } from "./link-session.ts";
 import {
   PEER_CONNECT_TIMEOUT_MS,
   PEER_IDLE_CONNECTION_TIMEOUT_MS,
@@ -75,7 +76,7 @@ export function linkClient(address: string, certificate: string, identity: LinkI
   const pin = certificateIdentity(certificate).fingerprint;
   const baseUrl = linkAddress(address);
 
-  const session = new Http2SessionManager(
+  const session = new LinkSessionManager(
     baseUrl,
     {
       connectTimeoutMs: PEER_CONNECT_TIMEOUT_MS,
@@ -101,7 +102,7 @@ export function linkClient(address: string, certificate: string, identity: LinkI
       link.ComputerLinkService,
       createGrpcTransport({ baseUrl, readMaxBytes: 64 * 1024, writeMaxBytes: 64 * 1024, sessionManager: session }),
     ),
-    { close: () => session.abort() },
+    { close: (reason?: Error) => session.abort(reason) },
   );
 }
 

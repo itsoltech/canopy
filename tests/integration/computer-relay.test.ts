@@ -72,6 +72,9 @@ describe.skipIf(!dockerAvailable)("Share onward: three real gateways and indepen
     const hello = Promise.withResolvers<void>();
 
     const calls = new RemoteCalls({
+      write: async (frame, signal) => {
+        if (!(await output.write(create(link.LinkFrameSchema, frame), signal))) throw new Error("Link closed");
+      },
       send: (frame) => output.push(create(link.LinkFrameSchema, frame)),
       allowed: async () => true,
       name: () => "P1",

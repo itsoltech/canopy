@@ -11,8 +11,15 @@ export class AsyncChannel<T> implements AsyncIterable<T> {
   #closed = false;
   #error: unknown;
   #bytes = 0;
+  readonly #writers = new Set<() => void>();
   constructor(
-    readonly limits?: { maxItems: number; maxBytes?: number; sizeOf?: (value: T) => number; overflow: () => Error },
+    readonly limits?: {
+      maxItems: number;
+      maxBytes?: number;
+      reservedItems?: number;
+      sizeOf?: (value: T) => number;
+      overflow: () => Error;
+    },
   ) {}
 
   get closed(): boolean {
@@ -42,12 +49,44 @@ export class AsyncChannel<T> implements AsyncIterable<T> {
     return true;
   }
 
+  /** Lossless producers wait for capacity. Reserved slots remain available to synchronous control frames. */
+  async write(value: T, signal: AbortSignal, size?: number): Promise<boolean> {
+    const bytes = size ?? this.limits?.sizeOf?.(value) ?? 1;
+
+    if (this.limits && bytes > (this.limits.maxBytes ?? Infinity)) throw this.limits.overflow();
+
+    while (!this.#closed) {
+      signal.throwIfAborted();
+
+      if (
+        !this.limits ||
+        (this.#buffer.length < this.limits.maxItems - (this.limits.reservedItems ?? 0) &&
+          this.#bytes + bytes <= (this.limits.maxBytes ?? Infinity))
+      )
+        return this.push(value, bytes);
+
+      await new Promise<void>((resolve) => {
+        const resume = () => {
+          this.#writers.delete(resume);
+          signal.removeEventListener("abort", resume);
+          resolve();
+        };
+
+        this.#writers.add(resume);
+        signal.addEventListener("abort", resume, { once: true });
+      });
+    }
+
+    return false;
+  }
+
   /** Ends the stream. Buffered values are still delivered, then `cause` is thrown if given. */
   close(cause?: unknown): void {
     if (this.#closed) return;
     this.#closed = true;
     this.#error = cause;
     this.#notify();
+    this.#resumeWriters();
   }
 
   [Symbol.asyncIterator](): AsyncGenerator<T, void, undefined> {
@@ -60,6 +99,7 @@ export class AsyncChannel<T> implements AsyncIterable<T> {
         if (this.#buffer.length > 0) {
           const entry = this.#buffer.shift()!;
           this.#bytes -= entry.bytes;
+          this.#resumeWriters();
           yield entry.value;
         } else if (this.#closed) {
           if (this.#error !== undefined) throw this.#error;
@@ -74,6 +114,7 @@ export class AsyncChannel<T> implements AsyncIterable<T> {
       this.#closed = true;
       this.#buffer.length = 0;
       this.#bytes = 0;
+      this.#resumeWriters();
     }
   }
 
@@ -81,5 +122,9 @@ export class AsyncChannel<T> implements AsyncIterable<T> {
     const wake = this.#wake;
     this.#wake = undefined;
     wake?.();
+  }
+
+  #resumeWriters(): void {
+    for (const resume of this.#writers) resume();
   }
 }
