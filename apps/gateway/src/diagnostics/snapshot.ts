@@ -17,6 +17,7 @@ export function windowMinutes(value: number) {
 }
 
 export function rpcSnapshot(collector: RpcCollector, minutes: number, hourly?: Slot) {
+  collector.flushDatabase();
   const now = collector.clock.utc();
   let width = 60_000;
 

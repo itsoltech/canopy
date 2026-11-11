@@ -71,7 +71,11 @@ function selectedPhases(): DiagnosticsPhase[] {
   if (process.env["CANOPY_BENCH_FORENSICS_DIR"] && forensicPhase) {
     if (forensicPhase === "steady" || forensicPhase === "slow_reader" || forensicPhase === "governor")
       return [forensicPhase];
-    throw new Error("Choose steady, slow_reader or governor for forensic evidence");
+
+    if (forensicPhase === "write_failure") return ["slow_reader", "write_failure"];
+
+    if (forensicPhase === "write_failure_without_watches") return ["write_failure"];
+    throw new Error("Choose steady, slow_reader, write_failure, write_failure_without_watches or governor");
   }
 
   if (process.env["CANOPY_BENCH_RESOURCES"] === "1") return ["idle"];
@@ -247,6 +251,11 @@ async function run(on: boolean, index: number) {
   for (const phase of selectedPhases()) {
     assertRunning();
 
+    if (phase === "slow_reader" && forensicCheckpoint()) {
+      await active.run("begin", phase);
+      await active.run("heap", "before_watches");
+    }
+
     const {
       latencies,
       measurement: { beforePg, before, finishContention },
@@ -255,7 +264,11 @@ async function run(on: boolean, index: number) {
       api,
       seed.thread,
       phase,
-      phase === "idle" ? idleMs : loadMs,
+      phase === "idle"
+        ? idleMs
+        : phase === "slow_reader" && process.env["CANOPY_BENCH_FORENSIC_PHASE"] === "write_failure"
+          ? 15_000
+          : loadMs,
       () => worker!.run("reconnect"),
       () => active!.run("sample"),
       () => beginPhase(database, phase, api, seed.thread),
@@ -343,6 +356,8 @@ async function beginPhase(
   await checkpoint(database);
   const beforePg = await pgCounters();
   const before = await active!.run("begin", phase);
+
+  if (phase === "slow_reader" && forensicCheckpoint()) await active!.run("heap", "watches_open");
 
   if (phase === "governor") await active!.run("governor");
   await worker!.run("begin");

@@ -24,8 +24,26 @@ export class Hub {
   readonly #overview = new Set<AsyncChannel<ui.OverviewUpdate>>();
   #peakItems = 0;
   #peakBytes = 0;
+  #publications = 0;
+  #attempts = 0;
+  #overflows = 0;
+  #peakRecipients = 0;
+  #lastRecipients = 0;
 
   snapshot() {
+    this.observe?.(31, this.#publications);
+    this.observe?.(32, this.#attempts);
+    this.observe?.(36, this.#overflows);
+
+    if (this.#attempts) {
+      this.observe?.(33, this.#peakRecipients);
+      this.observe?.(33, this.#lastRecipients);
+    }
+
+    this.#publications = 0;
+    this.#attempts = 0;
+    this.#overflows = 0;
+    this.#peakRecipients = 0;
     let watches = 0;
     let items = 0;
     let bytes = 0;
@@ -60,8 +78,9 @@ export class Hub {
   }
 
   #publish<A>(channels: Set<AsyncChannel<A>>, update: A, bytes: number) {
-    this.observe?.(32, channels.size);
-    this.observe?.(33, channels.size);
+    this.#attempts += channels.size;
+    this.#lastRecipients = channels.size;
+    this.#peakRecipients = Math.max(this.#peakRecipients, channels.size);
 
     for (const channel of channels) {
       const closed = channel.closed;
@@ -69,7 +88,7 @@ export class Hub {
       if (!channel.push(update, bytes)) {
         channels.delete(channel);
 
-        if (!closed) this.observe?.(36, 1);
+        if (!closed) this.#overflows++;
       }
 
       this.#peakItems = Math.max(this.#peakItems, channel.queuedItems);
@@ -125,7 +144,7 @@ export class Hub {
 
   publishThread(threadId: string, update: ui.ThreadUpdate): void {
     if (this.defer?.(() => this.publishThread(threadId, update))) return;
-    this.observe?.(31, 1);
+    this.#publications++;
 
     for (const notify of this.#threadObservers.get(threadId) ?? []) notify(update);
     const channels = this.#threads.get(threadId);
@@ -140,7 +159,7 @@ export class Hub {
 
   publishOverview(update: ui.OverviewUpdate): void {
     if (this.defer?.(() => this.publishOverview(update))) return;
-    this.observe?.(31, 1);
+    this.#publications++;
 
     if (!this.#overview.size) return;
     const bytes = toBinary(ui.OverviewUpdateSchema, update).length;

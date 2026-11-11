@@ -41,6 +41,16 @@ export class DiagnosticsForensics {
     if (!/^[a-z_]+$/.test(point)) throw new Error("Invalid heap checkpoint");
     const path = `${this.directory}/${this.member}-${this.#phase}-${point}`;
     const before = { at: Date.now(), memory: process.memoryUsage(), stats: heapStats(), retained: this.retained() };
+    const selected = process.env["CANOPY_BENCH_FORENSIC_SNAPSHOT_POINT"];
+
+    // A heap snapshot collects garbage. Independent runs select a single checkpoint so an
+    // earlier snapshot cannot erase the allocation carryover being investigated later.
+    if (selected && point !== selected) {
+      await Bun.write(`${path}.counts.json`, JSON.stringify(before));
+
+      return;
+    }
+
     await this.#snapshot(`${path}-before.heapsnapshot.json`);
     Bun.gc(true);
     await Bun.sleep(0);

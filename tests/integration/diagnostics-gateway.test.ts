@@ -366,6 +366,8 @@ describe.skipIf(!dockerAvailable)("gateway diagnostics preserve durable, private
       const measures = snapshot().gatewayMeasures;
       expect(measures.find((row) => row.metricId === 21)?.events).toBeGreaterThanOrEqual(300n);
       expect(measures.find((row) => row.metricId === 36)?.events).toBeGreaterThan(0n);
+      expect(measures.find((row) => row.metricId === 31)?.events).toBeGreaterThanOrEqual(300n);
+      expect(measures.find((row) => row.metricId === 32)?.events).toBeGreaterThanOrEqual(300n);
       expect(measures.find((row) => row.metricId === 34)?.max).toBe(256);
 
       const cursor = await query<{ seq: bigint }>(

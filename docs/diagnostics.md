@@ -249,9 +249,17 @@ Zwykłe zapytania korzystają z natywnego `PgPool.use`, bez osobnego scope'u
 i finalizera na zapytanie. Transakcje i strumienie nadal rezerwują sesję;
 rollback, savepoint i błąd COMMIT zachowują semantykę sterownika.
 Wrappery fizycznych połączeń są w WeakMap, z rezerwacją 4 KiB w istniejącym
-budżecie kolektora dla domyślnej puli dziesięciu sesji. Nie ma rekordów per
-zapytanie, watch ani admission. Próbkowanie event loop używa jednego interwału
-20 ms zamiast tworzyć kolejny timer i closure przy każdej próbce.
+budżecie kolektora dla domyślnej puli dziesięciu sesji. Nie ma map per zapytanie,
+watch ani admission. Hook kończący fazę SQL zapisuje wyłącznie cztery liczby
+w pierścieniu do 1024 próbek: id metryki/bit błędu, czas trwania, id RPC i czas
+obserwacji. Bufor i jego narzut zajmują 33 280 B w istniejących 6 MiB;
+przepełnienie zwiększa dropy i oznacza rozkłady rodziny jako niepełne.
+Wspólny interwał 20 ms przetwarza najwyżej 256 próbek poza ścieżką zapytania;
+odczyt i rollup opróżniają bufor przed utworzeniem widoku. Próbki zachowują
+pierwotny kubełek czasu i nie zawierają SQL, parametrów, wyników ani błędów.
+Hub przy publikacji aktualizuje tylko stałe liczniki i maksima liczbowe,
+rozliczone jako 256 B kolektora; tick 5 s przenosi ich sumy do metryk.
+Próbkowanie event loop nie tworzy kolejnego timera ani closure na każdą próbkę.
 
 Retry trwałości przechowuje gotowe payloady do 64 KiB, maksymalnie 60 minut
 w istniejącym limicie 4 MiB, razem z rezerwacją 4 KiB na rekord/Map/Uint8Array.

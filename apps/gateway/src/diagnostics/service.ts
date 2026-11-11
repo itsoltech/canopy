@@ -54,6 +54,9 @@ export class Diagnostics {
   ) {
     this.collector.enabled = options.diagnosticsEnabled ?? true;
     this.collector.gatewayEnabled = options.gatewayDiagnosticsEnabled ?? true;
+
+    // Hub's fixed scalar fan-out accumulator shares the existing collector allowance.
+    if (this.collector.enabled && this.collector.gatewayEnabled) this.collector.budget.reserve(256);
     this.resources = new ProcessDiagnostics(this.collector, options.runtime);
     this.peers = new DiagnosticsPeers(core);
   }

@@ -43,6 +43,7 @@ export class ProcessDiagnostics {
 
       // Suspend and long scheduling gaps do not become invented loop samples.
       if (lag < 10_000) this.collector.measure(1, lag);
+      this.collector.flushDatabase(256);
     }, 20);
     this.#timer.unref();
   }

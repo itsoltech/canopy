@@ -28,16 +28,8 @@ export class DatabaseMonitor {
   }
 
   record(family: DatabaseFamily, phase: DatabasePhase, start: number, error: boolean, rpc: number) {
-    const elapsed = performance.now() - start;
-    this.collector?.measure(databaseMetric(family, phase), elapsed, error, rpc);
-
-    if (phase === "execute") {
-      this.collector?.measure(11, 1);
-
-      if (family === "other") this.collector?.measure(10, 1);
-    }
-
-    if (phase === "reserve") this.collector?.measure(12, elapsed, error);
+    const now = performance.now();
+    this.collector?.recordDatabase(databaseMetric(family, phase), now - start, error, rpc, now);
   }
 }
 

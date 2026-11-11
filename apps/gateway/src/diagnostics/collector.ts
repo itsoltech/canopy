@@ -11,6 +11,7 @@ import {
 import { BucketBudget, Buckets } from "./buckets.ts";
 import { MAX_METHODS, type RegisteredMethod } from "./registry.ts";
 import { updateWindows } from "./windows.ts";
+import { DatabaseMeasurements } from "./database-measurements.ts";
 
 export type DiagnosticsClock = { monotonic(): number; utc(): number };
 
@@ -34,6 +35,7 @@ export class RpcCollector {
   #lastUtc: number;
   #sequence = 0n;
   #activeCount = 0;
+  #database: DatabaseMeasurements | undefined;
 
   constructor(
     methods: readonly RegisteredMethod[],
@@ -140,12 +142,27 @@ export class RpcCollector {
     }
   }
 
-  measure(id: number, value: number, error = false, rpc = 0, weight = 0) {
+  measurementTime(monotonic: number) {
+    return this.#lastUtc + monotonic - this.#lastMono;
+  }
+
+  recordDatabase(id: number, elapsed: number, error: boolean, rpc: number, monotonic: number) {
+    if (!this.enabled || !this.gatewayEnabled) return;
+    this.#database ??= new DatabaseMeasurements(this);
+
+    this.#database.record(id, elapsed, error, rpc, monotonic);
+  }
+
+  flushDatabase(limit?: number) {
+    this.#database?.flush(limit);
+  }
+
+  measure(id: number, value: number, error = false, rpc = 0, weight = 0, timestamp?: number) {
     if (!this.enabled || !this.gatewayEnabled || !Number.isFinite(value) || value < 0) return;
     const definition = METRIC_DEFINITIONS.get(id);
 
     if (!definition || (rpc && !this.methods.has(rpc))) return;
-    const at = this.#lastUtc + this.clock.monotonic() - this.#lastMono;
+    const at = timestamp ?? this.measurementTime(this.clock.monotonic());
 
     for (const ring of this.#rings) {
       const global = ring.measure(at, id);
@@ -169,6 +186,7 @@ export class RpcCollector {
   }
 
   tick() {
+    this.flushDatabase();
     const mono = this.clock.monotonic();
     const utc = this.clock.utc();
     const elapsed = mono - this.#lastMono;
@@ -234,6 +252,7 @@ export class RpcCollector {
   }
 
   rollup(at: number) {
+    this.flushDatabase();
     const slot = this.minutes.slots.find((value) => value?.at === at);
 
     if (!slot) return;
