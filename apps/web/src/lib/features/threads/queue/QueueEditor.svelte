@@ -7,6 +7,7 @@
   import MentionEditor from "#lib/features/mentions/MentionEditor.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import { shake } from "#lib/shared/ui/motion.ts";
+  import { registerUnsentWork } from "#lib/features/workers/unsent-work.ts";
 
   /**
    * Inline edit of a queued message (it keeps its place, overrides and quotes): the composer's text field, so the
@@ -45,6 +46,8 @@
   const id = $props.id();
 
   const key = (list: readonly Mention[]) => list.map((m) => `${m.kind}:${m.name}:${m.start}-${m.end}`).join("|");
+
+  $effect(() => registerUnsentWork(() => saving || value !== text || key(mentions) !== key(initial)));
 
   /** Files the message had in its text whose badge is gone: they leave it on Save. */
   const leaving = $derived(

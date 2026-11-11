@@ -14,11 +14,21 @@
 
   /**
    * The updates center with fixture data: light/dark with `?dark=1`, the settings sections with `?view=settings`.
+   * `client=web` has no Electron bridge; `home` selects a computer state and `name` overrides its name.
    * Development only.
    */
   const updates = new UpdatesState();
 
   updates.snapshot = fixtureSnapshot();
+
+  const home = computerStates().find((computer) => computer.name === page.url.searchParams.get("home"));
+
+  if (home) {
+    updates.snapshot.app = home.updates?.app;
+    updates.snapshot.appUpdateSupported = home.remoteUpdate;
+  }
+
+  updates.snapshot.computerName = page.url.searchParams.get("name") || updates.snapshot.computerName;
 
   const app = new DesktopUpdatesState();
 
@@ -45,7 +55,14 @@
 
   // App updates reads this computer's app through the desktop bridge; the gallery answers with the fixture.
   if (settings && !window.canopyDesktop)
-    Object.assign(window, { canopyDesktop: { updates: async () => status, onUpdates: () => () => {} } });
+    Object.assign(window, {
+      canopyDesktop: {
+        updates: async () => status,
+        onUpdates: () => () => {},
+        status: async () => ({ mode: "local" }),
+        onStatus: () => () => {},
+      },
+    });
 
   $effect(() => {
     document.documentElement.classList.toggle("dark", page.url.searchParams.get("dark") === "1");

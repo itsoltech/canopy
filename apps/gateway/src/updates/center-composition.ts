@@ -27,6 +27,8 @@ export async function updatesSnapshot(core: GatewayCore, linked = true) {
 
   if (core.role === "desktop") {
     value.app = core.appControl.snapshot();
+    value.appUpdateSupported = core.appControl.supportsUpdates;
+    value.computerName = core.computers?.hello().name || "This computer";
 
     if (linked) value.computers = await linkedUpdates(core);
   }

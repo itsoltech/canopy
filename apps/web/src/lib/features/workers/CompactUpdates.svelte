@@ -26,7 +26,9 @@
     snapshot?.checking || updates.pending === "check" || cli.pending["check/"] || app.status?.phase === "checking",
   );
 
-  const summary = $derived(updateIndicator(app.status, snapshot, app.error || updates.error, updates.pending));
+  const summary = $derived(
+    updateIndicator(app.status, snapshot, app.error || updates.error, updates.pending, app.remote),
+  );
 
   const error = $derived(updates.error || snapshot?.checkError || cli.errors["check/"] || "");
   const completed = $derived(run?.steps.filter((step) => step.state === "succeeded").length ?? 0);

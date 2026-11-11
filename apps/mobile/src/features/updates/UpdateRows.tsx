@@ -1,7 +1,7 @@
 import { Text, View } from "react-native";
 import type { ui } from "@canopy/contracts";
 import { presenceLabel } from "@canopy/domain/computer-presence";
-import { appCheckPause } from "@canopy/domain/release/update-actions";
+import { appCheckPause, homeAppComputer } from "@canopy/domain/release/update-actions";
 import { isRateLimitMessage } from "@canopy/domain/release/http";
 import { presenceTime } from "../computers/presence";
 import { styles, useColors } from "../../ui/theme";
@@ -25,27 +25,12 @@ export function UpdateRows({ snapshot, pending, manage }: Props) {
   const failed =
     snapshot.gatewayState === "failed" || ["failed", "rolled_back"].includes(snapshot.departure?.state ?? "");
 
-  const app = snapshot.app;
+  const home = homeAppComputer(snapshot);
 
   return (
     <View>
-      {snapshot.gatewayBundled ? (
-        <UpdateRow
-          name="Canopy on this computer"
-          version={app?.version || snapshot.gatewayVersion}
-          target={appTarget(app)}
-          checkedAt={app?.lastCheckedAtMs ?? 0}
-          status={app?.updaterPhase === "downloaded" ? "Ready" : updateLabel(appPhase(app))}
-          busy={updateBusy(app?.phase) || updateBusy(app?.updaterPhase)}
-          failed={!appCheckPause(app) && (app?.phase === "failed" || app?.updaterPhase === "error")}
-          progress={app?.updaterPhase === "downloading" ? app.updaterProgress : undefined}
-          reason={
-            appCheckPause(app) ||
-            app?.reason ||
-            app?.updaterError ||
-            "Includes this computer's gateway and worker. Update this app on its computer."
-          }
-        />
+      {home ? (
+        <ComputerRow computer={home} pending={pending} manage={manage} />
       ) : (
         <UpdateRow
           name="Gateway"
@@ -111,8 +96,7 @@ function ComputerRow({
   const departure = computer.updates?.departure;
 
   const failed =
-    (!appCheckPause(app) && app?.phase === "failed") ||
-    app?.updaterPhase === "error" ||
+    (!appCheckPause(app) && (app?.phase === "failed" || app?.updaterPhase === "error")) ||
     (["failed", "rolled_back"].includes(departure?.state ?? "") &&
       !busy &&
       !(app?.phase === "succeeded" && app.targetVersion === departure?.targetVersion));
@@ -128,26 +112,38 @@ function ComputerRow({
       status={
         away
           ? presenceLabel(computer.presence, computer.presenceSinceMs, presenceTime)
-          : failed
-            ? departure?.state === "rolled_back"
-              ? "Rolled back"
-              : "Failed"
-            : busy
-              ? updateLabel(appPhase(app))
-              : app?.ready
-                ? "Ready"
-                : appCheckPause(app)
-                  ? "Checks paused"
-                  : request
-                    ? "Available"
-                    : computer.remoteUpdate
-                      ? "Up to date"
-                      : "Manual update"
+          : !computer.remoteUpdate
+            ? "Manual update"
+            : !app?.connected || app.disabledReason
+              ? "Unavailable"
+              : failed
+                ? departure?.state === "rolled_back"
+                  ? "Rolled back"
+                  : "Failed"
+                : busy
+                  ? updateLabel(appPhase(app))
+                  : app?.ready
+                    ? "Ready"
+                    : appCheckPause(app)
+                      ? "Checks paused"
+                      : request
+                        ? "Available"
+                        : computer.remoteUpdate
+                          ? "Up to date"
+                          : "Manual update"
       }
       busy={busy}
       failed={failed}
+      notice={!computer.remoteUpdate ? computer.reason : undefined}
       reason={
-        (!failed && appCheckPause(app)) || departure?.reason || app?.reason || app?.updaterError || computer.reason
+        !computer.remoteUpdate
+          ? undefined
+          : computer.reason ||
+            app?.disabledReason ||
+            (!failed && appCheckPause(app)) ||
+            departure?.reason ||
+            app?.reason ||
+            app?.updaterError
       }
       progress={
         app?.phase === "downloading"

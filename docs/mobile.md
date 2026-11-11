@@ -500,6 +500,16 @@ automatycznie w trakcie pracy. Próba zastosowania przy niewysłanym tekście, p
 do następnego uruchomienia. Rejestr przechowuje wyłącznie funkcje sprawdzające zajętość,
 bez treści szkiców; uwzględnia też kompozytory pozostawione pod Settings.
 
+Centrum aktualizacji i Settings → Workers pokazują również aplikację komputera,
+z którym telefon jest sparowany. Akcja Update pyta o restart tego komputera,
+pokazuje znane aktywne tury jego workera i wyjaśnia automatyczne odzyskanie połączenia.
+Ten sam rejestr niewysłanej pracy blokuje żądanie przed potwierdzeniem oraz przed
+wysłaniem. Komputer używa istniejącego journalu `RemoteAppUpdate`, czeka na idle,
+ogłasza przerwę gatewaya i raportuje wynik po restarcie. Starsza aplikacja lub
+gateway bez capability pokazuje instrukcję jednorazowej aktualizacji w oknie komputera.
+`Update all` nie restartuje domu telefonu. To zmiana JS/TS bez nowych modułów,
+uprawnień ani konfiguracji natywnej; fingerprinty pozostają granicą zgodności OTA.
+
 Wiersz pokazuje kanał, skrócone ID działającego OTA, datę oraz wersję docelowego JS
 z `manifest.extra.expoClient.extra.canopyVersion`. Wbudowany bundle ma status `Bundled`,
 klient developerski `Development build` bez akcji aktualizacji. „Read release notes”

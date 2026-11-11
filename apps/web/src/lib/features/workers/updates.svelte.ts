@@ -90,6 +90,8 @@ export class UpdatesState {
         updateBusy(snapshot.gatewayState) ||
         snapshot.run?.state === "running" ||
         snapshot.workers.some((w) => updateBusy(w.state)) ||
+        updateBusy(snapshot.app?.phase ?? "") ||
+        ["checking", "downloading"].includes(snapshot.app?.updaterPhase ?? "") ||
         linkedDownloading(snapshot))
     );
   }

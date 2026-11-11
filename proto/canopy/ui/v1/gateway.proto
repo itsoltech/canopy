@@ -391,13 +391,15 @@ message WorkerRequest { string worker_id = 1; }
 
 message UpdatesRequest {}
 message ManageUpdatesRequest {
-  string action = 1; // check | channel | gateway | worker | all | desktop | update_all | computer | computer_check
+  string action = 1; // check | channel | gateway | worker | all | desktop | update_all | computer | computer_check | app
   string channel = 2;
   string worker_id = 3;
   bool force = 4;
   bool allow_downgrade = 5; // explicit user choice only
   string desktop_request_id = 6; // required for desktop force, bound to the current request
   string node_id = 7; // computer, computer_check: the directly linked computer whose Canopy app updates or checks
+  // Required for app: the user confirmed that this gateway's computer will restart.
+  bool confirm_restart = 8;
 }
 message WorkerUpdate {
   string worker_id = 1;
@@ -434,6 +436,10 @@ message UpdatesSnapshot {
   // Local mode: linked computers, their apps, workers and agent CLIs (docs/updates.md).
   repeated ComputerUpdate computers = 17;
   GatewayDeparture departure = 18;
+  // This gateway accepts owner UI app requests through its local desktop control channel.
+  // False from older gateways or desktops without remote updates. Never implies force or downgrade.
+  bool app_update_supported = 19;
+  string computer_name = 20;
 }
 // A linked computer's Canopy app and what runs on it. Its ids are qualified with its node.
 message ComputerUpdate {

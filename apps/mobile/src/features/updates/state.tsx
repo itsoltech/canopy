@@ -2,29 +2,13 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { ConnectError } from "@connectrpc/connect";
 import type { ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
-import { useOverviewEvents } from "../../state/overview-bus";
-import { workerUpdateSignature } from "@canopy/domain/update-checks";
 import { updatesRunning, type UpdateRequest } from "./model";
+import { useOverview } from "../../state/overview";
+import { confirmAppUpdate } from "./confirmation";
+import { useUpdateNotices } from "./use-update-notices";
 
-/** Overview updates after which the update center may show something new. */
-const UPDATE_EVENTS = new Set([
-  "updatesChanged",
-  "desktopUpdate",
-  "gatewayDeparture",
-  "computer",
-  "workerRemoved",
-  "feeds",
-]);
-
-function useUpdatesState() {
-  const { client, active, online } = useSession();
-  const [snapshot, setSnapshot] = useState<ui.UpdatesSnapshot>();
-  const [open, setOpen] = useState(false);
-  const [pending, setPending] = useState("");
-  const [error, setError] = useState("");
-  const [details, setDetails] = useState("");
-  const [loadError, setLoadError] = useState("");
-  const running = useRef(false);
+function useUpdateGeneration() {
+  const { client } = useSession();
   const generation = useRef(0);
   useEffect(() => {
     generation.current++;
@@ -33,6 +17,21 @@ function useUpdatesState() {
       generation.current++;
     };
   }, [client]);
+
+  return generation;
+}
+
+function useUpdatesState() {
+  const { client, active, online } = useSession();
+  const overview = useOverview();
+  const [snapshot, setSnapshot] = useState<ui.UpdatesSnapshot>();
+  const [open, setOpen] = useState(false);
+  const [pending, setPending] = useState("");
+  const [error, setError] = useState("");
+  const [details, setDetails] = useState("");
+  const [loadError, setLoadError] = useState("");
+  const running = useRef(false);
+  const generation = useUpdateGeneration();
 
   const reload = useCallback(
     async (signal?: AbortSignal) => {
@@ -56,35 +55,7 @@ function useUpdatesState() {
   );
 
   const busy = !!snapshot && updatesRunning(snapshot);
-  const [pushed, setPushed] = useState(false);
-  const [nudge, setNudge] = useState(0);
-  const workers = useRef(new Map<string, string>());
-
-  // The gateway announces update center changes; only an update in progress reads every 2.5 s, and a gateway
-  // that does not push them (older) gets one read a minute in the foreground.
-  useOverviewEvents((update) => {
-    const change = update.change;
-
-    if (change.case === "feeds") setPushed(change.value.pushed.includes("updates"));
-
-    if (change.case === "worker") {
-      const signature = workerUpdateSignature(change.value);
-      const previous = workers.current.get(change.value.id);
-      workers.current.set(change.value.id, signature);
-
-      if (previous === undefined || previous === signature) return;
-    } else if (
-      !UPDATE_EVENTS.has(change.case ?? "") &&
-      !(change.case === "linkedReadCompleted" && change.value === "GetComputerUpdates")
-    )
-      return;
-
-    setNudge((n) => n + 1);
-  });
-
-  useEffect(() => {
-    if (!active || !online) setPushed(false);
-  }, [active, online]);
+  const { pushed, nudge } = useUpdateNotices(active, online);
 
   useEffect(() => {
     if (!client || !active || !online) return;
@@ -109,8 +80,24 @@ function useUpdatesState() {
 
   async function manage(request: UpdateRequest) {
     if (!client || running.current) return;
-    running.current = true;
     const current = generation.current;
+
+    if (
+      confirmAppUpdate(
+        request,
+        snapshot,
+        overview.threads,
+        (confirmed) => {
+          if (current === generation.current) void manage(confirmed);
+        },
+        (message) => {
+          setError(message);
+          setDetails("");
+        },
+      )
+    )
+      return;
+    running.current = true;
     setPending(request.action || "update");
     setError("");
     setDetails("");

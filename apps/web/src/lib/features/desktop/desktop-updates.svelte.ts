@@ -6,6 +6,7 @@ export class DesktopUpdatesState {
   pending = $state(false);
   error = $state("");
   restarting = $state(false);
+  remote = $state(false);
 
   connect() {
     const bridge = window.canopyDesktop;
@@ -18,6 +19,17 @@ export class DesktopUpdatesState {
     };
 
     const off = bridge.onUpdates(receive);
+
+    const offStatus = bridge.onStatus((value) => {
+      if (active) this.remote = value.mode === "remote";
+    });
+
+    void bridge
+      .status()
+      .then((value) => {
+        if (active) this.remote = value.mode === "remote";
+      })
+      .catch(() => {});
     void bridge
       .updates()
       .then(receive)
@@ -28,6 +40,7 @@ export class DesktopUpdatesState {
     return () => {
       active = false;
       off();
+      offStatus();
     };
   }
 

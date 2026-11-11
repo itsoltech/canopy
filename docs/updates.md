@@ -61,8 +61,28 @@ Trzecia ikona stopki (za Settings i licznikiem workerów) pokazuje aktualizacje
 własnej aplikacji desktopowej: stan spokojny, sprawdzanie, pobieranie z procentem
 oraz gotowość do restartu. Hover i klik otwierają ten sam przewijany popover;
 na telefonie jest to dolny panel. Animacja respektuje ograniczenie ruchu.
-Przeglądarka podłączona do gatewaya desktopowego pokazuje „Canopy on this computer”
-z raportu aplikacji; gateway serwerowy nadal ma wyłącznie wiersz gatewaya.
+Klient podłączony do gatewaya desktopowego pokazuje aplikację z jej raportu;
+gateway serwerowy nadal ma wyłącznie wiersz gatewaya.
+
+Telefon, web i zdalny tryb Electron pokazują nazwę podłączonego komputera oraz te same
+akcje i stany aplikacji co dla partnerów. `UpdatesSnapshot.app_update_supported`
+potwierdza obsługę żądań przez gateway i capability `DesktopHello.remote_update`
+ostatnio podłączonego desktopu; brak pola ze starszego gatewaya wyłącza akcję. Starszy desktop
+pokazuje „Update this computer from its own window once to enable remote updates.”.
+Stan własnego updatera, powody odmowy i wynik journalu pozostają w `app`.
+
+Akcja `ManageUpdates.app` wymaga `confirm_restart=true`, roli `desktop` i istniejącego,
+aktywnego kanału aplikacji. Uwierzytelniony właściciel telefonu albo BFF zleca ją
+przez ten sam `LocalAppControl` i `RemoteAppUpdate` co połączony komputer; nie uzyskuje
+dostępu do `WatchAppControl` ani `ReportAppControl`. Gateway odrzuca force, downgrade
+i wybór innego celu. Audyt zachowuje id żądania oraz id urządzenia, jeśli ono zleca akcję.
+Oba interfejsy pytają przed instalacją: komputer restartuje się po zakończeniu pracy,
+a klient automatycznie odzyskuje połączenie. Potwierdzenie pokazuje znane aktywne tury
+workera desktopu. Niewysłany tekst, pliki, cytaty, edycja kolejki lub sekret w tym kliencie
+blokują żądanie; sprawdzenie powtarza się bezpośrednio przed wysłaniem.
+Raporty, otwarcie i zamknięcie kanału aplikacji ogłaszają `updates_changed`.
+`Update all` nadal pomija własną aplikację i dołączony gateway: restart domu
+zawsze wymaga osobnego potwierdzenia. Serwerowy gateway zachowuje własny updater.
 
 Popover ma 352 px szerokości i wysokość zależną od zawartości (maksymalnie
 70% okna / 512 px); przewija się lista między nagłówkiem a odnośnikami.

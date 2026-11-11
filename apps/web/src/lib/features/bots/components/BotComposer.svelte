@@ -20,6 +20,7 @@
   import RoundButton from "./RoundButton.svelte";
   import type { AttachmentDraft } from "#lib/features/attachments/draft.svelte.ts";
   import BotImageIntake from "./BotImageIntake.svelte";
+  import { registerUnsentWork } from "#lib/features/workers/unsent-work.ts";
 
   /**
    * Message box of a bot chat, one rounded pill: "+" on the left, the text growing up to a few lines, and
@@ -103,6 +104,8 @@
 
   const quoteDrafts = useQuoteDrafts();
   const quotes = $derived(quoteDrafts.list(quoteKey));
+
+  $effect(() => registerUnsentWork(() => !!value.length || !!files?.attached.length || !!quotes.length || sending));
 
   const ready = $derived(
     !disabled && !sending && !files?.blocker && (value.trim().length > 0 || quotes.length > 0 || files?.ready),
