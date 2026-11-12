@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ui } from "@canopy/contracts";
 import { useSession } from "./session";
+import { mobileCacheLoaded } from "../features/settings/client-diagnostics";
 
 /** Each thread owns its cache load, save timer and reset fence. */
 export function useThreadPersistence(id: string) {
@@ -16,6 +17,8 @@ export function useThreadPersistence(id: string) {
       .catch(() => undefined)
       .then((cached) => {
         if (cancelled) return;
+
+        if (cached?.thread) mobileCacheLoaded();
         current.current = cached ?? current.current;
         setState({ id, snapshot: current.current, loaded: true });
       });

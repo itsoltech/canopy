@@ -14,7 +14,7 @@ import { failedParameterWrite } from "./diagnostics-retention-probe.ts";
 import { DiagnosticsMirrorWorkload } from "./diagnostics-mirror-workload.ts";
 
 const gatewayDiagnosticsEnabled =
-  process.env["CANOPY_BENCH_STAGE"] === "3" ||
+  ["3", "4"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "") ||
   (process.env["CANOPY_BENCH_STAGE"] === "2" && process.env["CANOPY_BENCH_DIAGNOSTICS"] === "1");
 
 const runtime = gatewayRuntime(process.env, { databaseDiagnostics: gatewayDiagnosticsEnabled });
@@ -26,14 +26,21 @@ const core = new GatewayCore({
   instanceId: "diagnostics-benchmark",
   role: "server",
   diagnosticsEnabled:
-    ["2", "3"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "") || process.env["CANOPY_BENCH_DIAGNOSTICS"] === "1",
+    ["2", "3", "4"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "") ||
+    process.env["CANOPY_BENCH_DIAGNOSTICS"] === "1",
   gatewayDiagnosticsEnabled,
   workerDiagnosticsEnabled:
-    process.env["CANOPY_BENCH_STAGE"] === "3" && process.env["CANOPY_BENCH_DIAGNOSTICS"] === "1",
+    process.env["CANOPY_BENCH_STAGE"] === "4" ||
+    (process.env["CANOPY_BENCH_STAGE"] === "3" && process.env["CANOPY_BENCH_DIAGNOSTICS"] === "1"),
+  clientDiagnosticsEnabled:
+    process.env["CANOPY_BENCH_STAGE"] === "4" && process.env["CANOPY_BENCH_DIAGNOSTICS"] === "1",
 });
 
 const governorWorkload = new DiagnosticsGovernorWorkload();
-const mirrorWorkload = process.env["CANOPY_BENCH_STAGE"] === "3" ? new DiagnosticsMirrorWorkload(core) : undefined;
+
+const mirrorWorkload = ["3", "4"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "")
+  ? new DiagnosticsMirrorWorkload(core)
+  : undefined;
 
 await mirrorWorkload?.start();
 

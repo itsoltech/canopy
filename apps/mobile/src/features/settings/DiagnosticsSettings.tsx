@@ -3,7 +3,9 @@ import { View } from "react-native";
 import { diagnosticsRanges, diagnosticsSorts, diagnosticsKinds, DiagnosticsPages } from "@canopy/domain/diagnostics";
 import { SettingChoice, SettingsGroup, SettingsActions } from "./SettingsGroup";
 import { ResourceState } from "./resource";
-import { useDiagnosticsResource } from "./diagnostics-resource";
+import { useDiagnosticsResource, diagnosticsEpochs } from "./diagnostics-resource";
+import { DiagnosticsClients } from "./DiagnosticsClients";
+import { DiagnosticsActions } from "./DiagnosticsActions";
 import { DiagnosticsComputer, DiagnosticsFindings } from "./DiagnosticsComputer";
 import { DiagnosticsCalls } from "./DiagnosticsCalls";
 import { DiagnosticsGrants } from "./DiagnosticsGrants";
@@ -21,28 +23,35 @@ export function DiagnosticsSettings() {
   const pages = useRef(new DiagnosticsPages());
   const [expanded, setExpanded] = useState(false);
 
-  const overview = useDiagnosticsResource(`GetDiagnostics:${range}`, (api) =>
-    api.getDiagnostics({ windowMinutes: Number(range) }),
-  );
+  const overview = useDiagnosticsResource(`GetDiagnostics:${range}`, async (api) => {
+    const value = await api.getDiagnostics({ windowMinutes: Number(range) });
+
+    if (value.computers.some((computer) => !diagnosticsEpochs.accept(computer)))
+      throw new Error("Diagnostics baseline changed; refresh again");
+
+    return value;
+  });
 
   const computer = selected || overview.data?.computers[0]?.computerId || "";
   const detailKey = `GetComputerDiagnostics:${computer}:${range}:${offset}:${sort}:${kind}`;
 
   const detail = useDiagnosticsResource(
     detailKey,
-    async (api) =>
-      pages.current.remember(
-        detailKey,
-        await api.getComputerDiagnostics({
-          computerId: computer,
-          windowMinutes: Number(range),
-          offset,
-          limit: 32,
-          sortBy: sort,
-          callKind: kind,
-          methodKeys: pages.current.keys.get(detailKey) ?? [],
-        }),
-      ),
+    async (api) => {
+      const value = await api.getComputerDiagnostics({
+        computerId: computer,
+        windowMinutes: Number(range),
+        offset,
+        limit: 32,
+        sortBy: sort,
+        callKind: kind,
+        methodKeys: pages.current.keys.get(detailKey) ?? [],
+      });
+
+      if (!diagnosticsEpochs.accept(value)) throw new Error("Diagnostics baseline changed; refresh again");
+
+      return pages.current.remember(detailKey, value);
+    },
     Boolean(computer),
   );
 
@@ -90,6 +99,17 @@ export function DiagnosticsSettings() {
             onExpand={() => setExpanded(!expanded)}
           />
         ) : null}
+        {overview.data ? (
+          <DiagnosticsActions
+            computers={overview.data.computers}
+            range={Number(range)}
+            computer={data}
+            onReset={async () => {
+              await overview.reload();
+              await detail.reload();
+            }}
+          />
+        ) : null}
         <ResourceState resource={detail}>
           <SettingsGroup>
             <SettingChoice title="Sort calls" value={sort} options={diagnosticsSorts} onChange={chooseSort} />
@@ -105,6 +125,7 @@ export function DiagnosticsSettings() {
           </SettingsGroup>
           {data ? <DiagnosticsMetrics computer={data} /> : null}
           {data ? <DiagnosticsLinks computer={data} /> : null}
+          {data ? <DiagnosticsClients computer={data} /> : null}
           {data ? <DiagnosticsCalls calls={data.calls} computer={data} /> : null}
           {offset || data?.nextOffset ? (
             <SettingsActions>

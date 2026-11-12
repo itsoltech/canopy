@@ -7,6 +7,7 @@ import {
   GOVERNOR_PRIORITIES,
   WORKER_METRIC_IDS,
   SYNC_METRIC_IDS,
+  CLIENT_METRICS,
 } from "@canopy/domain/diagnostics";
 import { RPC_METHODS, LINKED_METHODS, COMMAND_METHODS } from "./registry.ts";
 
@@ -144,7 +145,11 @@ export function sanitizeSnapshot(value: ui.ComputerDiagnostics) {
     });
   };
 
-  value.gatewayMeasures = measures(value.gatewayMeasures, new Set(METRIC_DEFINITIONS.keys()));
+  value.gatewayMeasures = measures(
+    value.gatewayMeasures,
+    new Set([...METRIC_DEFINITIONS.keys()].filter((id) => id < 300 || id >= 400)),
+  );
+  value.clientMeasures = measures(value.clientMeasures, new Set(CLIENT_METRICS.map((metric) => metric.id)));
 
   for (const link of value.links)
     link.measures = measures(link.measures, link.kind === "worker" ? WORKER_METRIC_IDS : SYNC_METRIC_IDS);

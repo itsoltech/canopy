@@ -1,7 +1,8 @@
 <script lang="ts">
   import "./layout.css";
   import { page } from "$app/state";
-  import { goto } from "$app/navigation";
+  import { goto, beforeNavigate } from "$app/navigation";
+  import { startClientDiagnostics, navigationStarted } from "#lib/features/diagnostics/client.ts";
   import { isDesktopRoute, type DesktopWindowControl } from "@canopy/ui/desktop";
   import { onMount } from "svelte";
   import AppShell from "#lib/features/navigation/AppShell.svelte";
@@ -26,6 +27,10 @@
 
   // A file dropped outside a drop target never replaces the app (browser tab or desktop window).
   onMount(holdFileDrops);
+
+  onMount(startClientDiagnostics);
+
+  beforeNavigate(navigationStarted);
 
   onMount(() => {
     const bridge = window.canopyDesktop;

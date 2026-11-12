@@ -134,6 +134,7 @@ export const SERVED = new Set([
   ...GITHUB_MUTATION_METHODS,
   ...GITHUB_REVIEW_METHODS,
   "ReadDiagnosticsSnapshot",
+  "ResetDiagnosticsCounters",
   "GetOverview",
   "WatchOverview",
   "ListThreads",

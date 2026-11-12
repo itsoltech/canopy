@@ -14,16 +14,16 @@ import { DiagnosticsPeers } from "./peers.ts";
 import { Findings } from "./findings.ts";
 import { LinkDiagnostics } from "./links.ts";
 import { BucketBudget } from "./buckets.ts";
-import { callKey, sortCalls, diagnosticsSorts } from "@canopy/domain/diagnostics";
+import { callKey, sortCalls } from "@canopy/domain/diagnostics";
 import { diagnosticsResponse } from "./response.ts";
 import { DiagnosticsHistory } from "./history.ts";
 import { ProcessDiagnostics } from "./process.ts";
 import { IngestDiagnostics } from "./ingest.ts";
 import { WorkerCatalog } from "./worker-catalog.ts";
+import { ClientDiagnostics } from "./clients.ts";
+import { DiagnosticsActions } from "./actions.ts";
 
-const METHOD_KEYS = new Set(
-  [...RPC_METHODS, ...LINKED_METHODS, ...COMMAND_METHODS].map((method) => `${method.layer}:${method.name}`),
-);
+import { validateDiagnostics } from "./validate.ts";
 
 export class Diagnostics {
   readonly collector = new RpcCollector([...RPC_METHODS, ...LINKED_METHODS, ...COMMAND_METHODS]);
@@ -51,6 +51,8 @@ export class Diagnostics {
   >();
   readonly workers: WorkerCatalog;
   #cacheSavedAt = 0;
+  readonly clients: ClientDiagnostics;
+  readonly actions: DiagnosticsActions;
 
   constructor(
     readonly core: GatewayCore,
@@ -61,9 +63,19 @@ export class Diagnostics {
 
     // Hub's fixed scalar fan-out accumulator shares the existing collector allowance.
     if (this.collector.enabled && this.collector.gatewayEnabled) this.collector.budget.reserve(256);
+
+    // Durable baseline IDs and reset metadata stay inside the original fixed collector allowance.
+    if (this.collector.enabled) this.collector.budget.reserve(8 * 1024);
     this.resources = new ProcessDiagnostics(this.collector, options.runtime);
     this.peers = new DiagnosticsPeers(core);
     this.workers = new WorkerCatalog(options);
+    this.actions = new DiagnosticsActions(core);
+    this.clients = new ClientDiagnostics(
+      this.collector,
+      () => this.persistence?.epoch ?? this.collector.session,
+      () => this.persistence?.ready ?? false,
+      options.clientDiagnosticsEnabled ?? true,
+    );
   }
 
   async start() {
@@ -88,8 +100,12 @@ export class Diagnostics {
           if (state.peerOverviews.length) this.#cacheSavedAt = Date.now();
         },
         restore: (state) => {
+          this.clients.restore(state.watermarks);
           this.findings.restore(state.findings);
           this.peers.restore(state.peerOverviews);
+
+          for (const link of this.links.values())
+            link.resetAt = this.persistence?.baselines.get(`${link.kind}:${link.target}`) ?? 0;
 
           for (const watermark of state.watermarks) {
             const [kind, target] = watermark.processId.split(":");
@@ -113,6 +129,7 @@ export class Diagnostics {
 
             return value ? [value] : [];
           }),
+        own: (process, at) => this.clients.rollup(process, at),
       },
     );
     this.#unsubscribe = this.core.computers?.subscribe((change) =>
@@ -136,6 +153,7 @@ export class Diagnostics {
 
     if (!value && this.links.size < 16) {
       value = new LinkDiagnostics(target, kind, this.linkBudget);
+      value.resetAt = this.persistence?.baselines.get(key) ?? 0;
       value.restoring = this.persistence ? !this.persistence.ready : false;
       this.links.set(key, value);
     }
@@ -224,16 +242,7 @@ export class Diagnostics {
   local(request: ui.ComputerDiagnosticsRequest, internal = false) {
     const minutes = windowMinutes(request.windowMinutes);
 
-    if (
-      (request.sortBy && !diagnosticsSorts.some((sort) => sort.value === request.sortBy)) ||
-      (request.callKind && !["unary", "stream"].includes(request.callKind)) ||
-      request.methodKeys.length > 32 ||
-      request.methodKeys.some((key) => !METHOD_KEYS.has(key))
-    )
-      throw new ConnectError("Choose an available call view", Code.InvalidArgument);
-
-    if (request.offset > MAX_METHODS || (!internal && request.limit > 32))
-      throw new ConnectError("Diagnostics page exceeds budget", Code.InvalidArgument);
+    validateDiagnostics(request, internal);
     let cached = this.#snapshots.get(minutes);
     const now = this.collector.clock.utc();
 
@@ -275,7 +284,7 @@ export class Diagnostics {
         })
       : calls.slice(request.offset, request.offset + limit);
 
-    const revision = `${this.collector.session}:${Math.floor(cached.at / 5000)}:${minutes}:${request.offset}:${request.sortBy}:${request.callKind}:${request.methodKeys.join(",")}:${Number(request.overviewOnly)}`;
+    const revision = `${this.collector.session}:${this.persistence?.epoch ?? ""}:${Math.floor(cached.at / 5000)}:${minutes}:${request.offset}:${request.sortBy}:${request.callKind}:${request.methodKeys.join(",")}:${Number(request.overviewOnly)}`;
     const computer = this.core.computers;
     const links = this.#links(minutes, request.overviewOnly);
 
@@ -288,6 +297,7 @@ export class Diagnostics {
       status: "online",
       processSession: this.collector.session,
       epoch: this.persistence?.epoch ?? this.collector.session,
+      epochStartedAtMs: BigInt(this.persistence?.epochStartedAt ?? 0),
       sampledAtMs: BigInt(cached.at),
       sampleAgeMs: Math.max(0, now - cached.at),
       restoring: this.persistence?.restoring ?? false,
@@ -311,7 +321,10 @@ export class Diagnostics {
       gatewayMeasuresSupported: this.collector.gatewayEnabled,
       gatewayMeasures: request.overviewOnly
         ? own.gatewayMeasures.filter((value) => value.metricId === 2)
-        : own.gatewayMeasures,
+        : own.gatewayMeasures.filter((measure) => measure.metricId < 300 || measure.metricId >= 400),
+      clientMeasures: request.overviewOnly
+        ? []
+        : own.gatewayMeasures.filter((measure) => measure.metricId >= 300 && measure.metricId < 400),
       database: request.overviewOnly ? [] : own.database,
     });
 
@@ -413,16 +426,7 @@ export class Diagnostics {
   async computer(request: ui.ComputerDiagnosticsRequest) {
     windowMinutes(request.windowMinutes);
 
-    if (
-      request.methodKeys.length > 32 ||
-      request.methodKeys.some((key) => key.length > 256) ||
-      request.methodKeys.some((key) => !METHOD_KEYS.has(key)) ||
-      request.sortBy.length > 16 ||
-      request.callKind.length > 8 ||
-      request.offset > MAX_METHODS ||
-      request.limit > 32
-    )
-      throw new ConnectError("Diagnostics page exceeds budget", Code.InvalidArgument);
+    validateDiagnostics(request);
 
     if (!request.computerId || request.computerId === (this.core.computers?.hello().nodeId ?? "local"))
       return this.read(request);

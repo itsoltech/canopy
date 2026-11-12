@@ -273,6 +273,54 @@ describe.skipIf(!dockerAvailable)("owner diagnostics over real gRPC and one rela
     ).toBe(true);
   });
 
+  test("resets one supported direct home, refuses onward control and rechecks the target at home", async () => {
+    await b.core.diagnostics.persistence!.start();
+    const before = await b.api.getComputerDiagnostics({});
+
+    const reset = await a.api.resetDiagnostics({
+      computerId: before.computerId,
+      processId: "gateway",
+      epoch: before.epoch,
+      actionId: crypto.randomUUID(),
+    });
+
+    expect(reset.accepted).toBe(true);
+    expect((await b.api.getComputerDiagnostics({})).epoch).toBe(reset.epoch);
+    expect(
+      await rejectedCode(
+        a.api.resetDiagnostics({
+          computerId: target(),
+          processId: "gateway",
+          epoch: "unused",
+          actionId: crypto.randomUUID(),
+        }),
+      ),
+    ).toBe(Code.FailedPrecondition);
+
+    const wrong = nodes[0]!.remote(
+      nodes[1]!.hello().nodeId,
+      link.DiagnosticsService.method.resetDiagnosticsCounters,
+      create(ui.ResetDiagnosticsRequestSchema, {
+        computerId: nodes[0]!.hello().nodeId,
+        processId: "gateway",
+        epoch: reset.epoch,
+        actionId: crypto.randomUUID(),
+      }),
+      AbortSignal.timeout(5000),
+    );
+
+    expect(
+      await rejectedCode(
+        (async () => {
+          for await (const value of wrong) return value;
+
+          return {};
+        })(),
+      ),
+    ).toBe(Code.PermissionDenied);
+    expect((await b.api.getComputerDiagnostics({})).epoch).toBe(reset.epoch);
+  });
+
   test("keeps offline snapshots and unsupported computers visible without recursive gathering", async () => {
     await c.api.setDiagnosticsGrant({ originComputerId: nodes[0]!.hello().nodeId, enabled: true });
 

@@ -518,8 +518,8 @@ agregator nie rozsyła automatycznie ustaleń ani topologii do innych partnerów
 BFF mierzy unary od wejścia do `transport.unary` do wyniku/błędu; zawiera transport,
 kolejki HTTP/2 i czas gatewaya. Stream: czas do pierwszej wiadomości, lifetime,
 liczniki wiadomości/bajtów na istniejącym kodowaniu SSE. BFF i gateway pokazujemy
-osobno; różnica percentyli nie jest latency sieci. `gateway-logging.ts` pozostaje
-wspólnym punktem obserwacji, z rozróżnieniem lokalnych/zdalnych pul transportu.
+osobno; różnica percentyli nie jest latency sieci. `gateway-deadlines.ts` współdzieli
+rozpoznanie lokalnych/zdalnych pul; `gateway-logging.ts` zachowuje logowanie błędów.
 
 Web/desktop: otwarcie wątku = nawigacja → zamontowana pierwsza widoczna porcja osi
 czasu do drugiej klatki (proxy paint, z rozróżnieniem cache/network).
@@ -540,6 +540,46 @@ zakresy i limit 60 KiB/min na nadawcę; nie ufa ownerowi ani metodzie z payloadu
 Sesja+sekwencja deduplikuje partie. Raporty klientów są danymi niezaufanymi,
 oddzielonymi od zaufanych liczników serwera i nie wywołują automatycznych działań.
 Brak bufora na dysku i bezterminowego retry; utrata sieci daje luki pokrycia.
+
+**Etap 4 — implementacja:** każdy klient/BFF ma najwyżej 12 histogramów jednej
+partii, bez identyfikatorów wątków, adresów i treści. Jedna wysyłka może być w toku;
+błąd porzuca partię. Suspend czyści obserwacje; partia starsza niż dwie minuty nie
+dostaje nowego czasu próbki. Mobile mierzy pierwszy reducer snapshotu/batcha;
+dekoder wewnątrz biblioteki Connect nie udostępnia osobnego hooka. Ta seria nosi
+nazwę `First snapshot reducer`, bez deklarowania kosztu decode lub native paint.
+Feed jest obserwowany od montowania do dwóch klatek JS po layout; opóźnienia JS
+nie są miarą płynności natywnego UI. Web używa buforowanego Paint Timing dla FCP.
+
+Gateway dopuszcza 30 aktywnych kanałów nadawca/źródło i 30 wspólnych limitów
+nadawców, wygasających po pięciu minutach. Tożsamość pochodzi z tokenu urządzenia
+lub HttpOnly cookie nadanego przez BFF. Etykiety mają wyłącznie stałe numery 300–359.
+Metadane klienta (32 KiB), resetu (8 KiB), kanałów i checkpointów są rozliczane
+w istniejącym limicie 6 MiB, nie w dodatkowym pierścieniu. Przepełnienie odrzuca
+partię; nie przechowuje błędu ani kolejki ponowień. Hash sesji i sekwencja trafiają
+atomowo do watermarków wraz z rollupem, więc restart nie nalicza partii ponownie.
+
+Raport to jawna projekcja allowlisty: JSON/Markdown do 256 KiB, aliasy komputerów
+i workerów oraz lista pominiętych serii/stron. Podgląd ma podpis ważny dziesięć
+minut; utworzenie zwykłego wątku wymaga osobnego potwierdzenia placement i providera.
+Migracja `0130_diagnostics_actions` wiąże idempotencję z ownerem i trwałym wątkiem;
+receipt znika z wątkiem, bez niezależnego TTL. Załącznik, wątek ASK, outbox i receipt
+powstają w jednej transakcji. Ponowienie po restarcie zwraca zapisany wątek.
+
+Reset zapisuje epoch i granicę wybranego procesu przed ACK. Usuwa tylko jego
+historię/findings; nie zmienia journala, outboxa ani runtime governora. Partie
+workera rozpoczęte przed zapisaną granicą są pomijane również po restarcie;
+niedokładny zegar workera może przedłużyć tę lukę. Klienci odrzucają starsze epoch
+i usuwają cache odczytów rozpoczętych przed potwierdzeniem. Offline reset nie jest
+kolejkowany, a sterowanie linked wymaga bezpośredniego połączenia bez relay.
+
+`bash scripts/bench/diagnostics-stage4.sh` przygotowuje świeży stan każdego członu,
+ścisłe AB/BA/AB/BA i swap-disabled scope dla wszystkich procesów. Etapy 1–3 są
+włączone po obu stronach; B dodaje zbieranie BFF i syntetyczne, ograniczone partie
+klientów. Koszt drivera/BFF jest osobny od gatewaya/workera. Dodatkowa faza `report`
+mierzy jawny eksport; probe JS ponownie używa decoder/reducer/feed/cache z #413–#419.
+To pomiar JS, bez deklaracji wyniku natywnego urządzenia. Szacunek: około 125 min
+plus probe JS i powtórzenia odrzuconych par; kontrola A/A to dwa świeże bloki.
+Skrypt jest gotowy do osobnego cichego okna; jego wynik nie jest jeszcze bramką etapu 4.
 
 ## 4. Reguły zdrowia i zalecenia
 
@@ -746,8 +786,11 @@ granicę; nowa publiczna usługa wymagałaby jawnego rozszerzenia auth.
 Linked część dostaje osobny wewnętrzny descriptor w `proto/canopy/link/v1/link.proto`
 (np. `DiagnosticsService.ReadSnapshot` i `CollectLogs`), obsługiwany istniejącą
 kopertą remote i jawnie dołączony do `methodNamed`/allowlist/relay policy.
-Sterowanie reset/trace ma oddzielną allowlistę direct-only i capability
-`diagnostics_control_v1`; przyjmuje jawną akcję ownera, nie żądanie agregatora.
+Sterowanie reset/trace ma oddzielną allowlistę direct-only; przyjmuje jawną akcję
+ownera, nie żądanie agregatora. Reset używa `diagnostics_v1`: etapy są publikowane
+razem, więc capability obejmuje również reset. Nie dodajemy kolejnej pozycji do
+32-elementowej listy hello, którą walidują też starsze komputery. Trace otrzyma
+oddzielną negocjację przy implementacji etapu 6.
 Odczyt snapshotu i zbieranie logów mają osobne zgody; `CollectLogs` jest efektem
 wymagającym identyfikatora jawnej akcji i audytu także na domu. Relayed wywołanie
 sprawdza aktywną zgodę domu dla origin, maks. jeden hop i brak dalszego gather.

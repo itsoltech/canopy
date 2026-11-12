@@ -36,6 +36,15 @@ export class LinkDiagnostics {
   measuresSupported = false;
   reportedDrops = 0n;
   activeWatches = 0;
+  resetAt = 0;
+
+  reset() {
+    this.collector.reset();
+    this.resetAt = Date.now();
+
+    for (const pending of this.#pending) this.budget.used -= pending.bytes;
+    this.#pending.length = 0;
+  }
 
   constructor(
     readonly target: string,
@@ -108,6 +117,20 @@ export class LinkDiagnostics {
 
       if (this.#pending.length < 8 && this.budget.reserve(bytes)) this.#pending.push({ value, source, at, bytes });
       else this.budget.dropped++;
+
+      return true;
+    }
+
+    if (Number(value.startMs) < this.resetAt) {
+      // A batch straddling a durable baseline cannot re-import old observations, even after restart.
+      this.restoreWatermark(
+        create(ui.DiagnosticsProcessSchema, {
+          processId: `${this.kind}:${this.target}`,
+          session: value.session,
+          sequence: value.sequence,
+        }),
+      );
+      this.budget.dropped++;
 
       return true;
     }

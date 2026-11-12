@@ -29,6 +29,7 @@ import { serveConfigBlob } from "./runtime-blobs.ts";
 import { serveConfig } from "./runtime-config.ts";
 import { publishThreadWatch } from "./thread-watch-publish.ts";
 import { ui } from "@canopy/contracts";
+import { resetHomeDiagnostics } from "../diagnostics/control.ts";
 import { watchTiming } from "./watch-liveness.ts";
 import { readThreadRange } from "./range-source.ts";
 
@@ -45,6 +46,9 @@ export async function* computersServeRemote(
   signal: AbortSignal,
   route?: RelayRoute,
 ): AsyncGenerator<Message> {
+  if (method.name === "ResetDiagnosticsCounters" && (route?.targetNodeId || route?.originNodeId || route?.relayHops))
+    throw new ConnectError("Diagnostics control requires a direct link", Code.PermissionDenied);
+
   if (!route?.targetNodeId) {
     if (route?.originNodeId || route?.relayHops) throw new ConnectError("Invalid relay envelope", Code.InvalidArgument);
     yield* computersServeHome(hostContext, nodeId, connection, method, request, signal);
@@ -133,6 +137,12 @@ export async function* computersServeHome(
   request: Message,
   signal: AbortSignal,
 ): AsyncGenerator<Message> {
+  if (method.name === "ResetDiagnosticsCounters") {
+    yield await resetHomeDiagnostics(hostContext, nodeId, connection, request);
+
+    return;
+  }
+
   if (method.name === "ReadDiagnosticsSnapshot") {
     yield await readHomeDiagnostics(hostContext, nodeId, connection, request);
 

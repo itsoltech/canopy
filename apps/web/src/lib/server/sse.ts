@@ -2,6 +2,7 @@ import type { JsonValue } from "@bufbuild/protobuf";
 import { syncMetrics, syncCpu, syncCpuMicros } from "@canopy/transport";
 import { computerFailure } from "./gateway-errors.ts";
 import { ConnectError } from "@connectrpc/connect";
+import { bffMeasurements } from "./diagnostics.ts";
 
 const SSE_BUFFER_BYTES = 1024 * 1024;
 
@@ -21,6 +22,10 @@ export function sseResponse<T>(
 
   if (request.signal.aborted) abort();
   const encoder = new TextEncoder();
+  const measured = bffMeasurements.enabled;
+  const started = measured ? performance.now() : 0;
+  let messages = 0;
+  let bytesSent = 0;
 
   const body = new ReadableStream<Uint8Array>(
     {
@@ -46,6 +51,8 @@ export function sseResponse<T>(
               );
             controller.enqueue(bytes);
 
+            if (measured) bytesSent += bytes.length;
+
             return true;
           } catch {
             upstream.abort(); // client gone
@@ -59,6 +66,7 @@ export function sseResponse<T>(
 
         try {
           for await (const value of source(upstream.signal)) {
+            if (measured && !messages++) bffMeasurements.record(8, performance.now() - started);
             const start = syncMetrics && syncCpu();
 
             if (upstream.signal.aborted || !send(`data: ${JSON.stringify(encode(value))}\n\n`, start)) break;
@@ -74,6 +82,12 @@ export function sseResponse<T>(
             }
           }
         } finally {
+          if (measured) {
+            bffMeasurements.record(9, performance.now() - started);
+            bffMeasurements.record(10, messages);
+            bffMeasurements.record(11, bytesSent);
+          }
+
           clearInterval(heartbeat);
           request.signal.removeEventListener("abort", abort);
           upstream.abort();

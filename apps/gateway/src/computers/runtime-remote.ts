@@ -234,7 +234,12 @@ export const computersRemoteMethods: ComputersRemoteMethods = {
     const remote = computersChannel(this, nodeId);
 
     if (!remote) throw await this.unavailable(nodeId);
-    const feature = method.name === "CallAgentBus" ? AGENT_BUS : botFeature(method, request);
+
+    let feature = botFeature(method, request);
+
+    if (method.name === "ResetDiagnosticsCounters") feature = "diagnostics_v1";
+
+    if (method.name === "CallAgentBus") feature = AGENT_BUS;
 
     if (feature && (!this.hello().capabilities.includes(feature) || !this.capabilities(nodeId).includes(feature))) {
       const peer = await this.store.peer(nodeId);

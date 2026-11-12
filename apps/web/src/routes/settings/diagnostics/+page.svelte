@@ -1,10 +1,9 @@
 <script lang="ts">
   import { applicationName } from "#lib/application-name.ts";
   import ThreadSyncDiagnostics from "#lib/features/settings/ThreadSyncDiagnostics.svelte";
-  import { ui } from "@canopy/contracts";
   import { diagnosticsRanges, diagnosticsSorts, diagnosticsKinds } from "@canopy/domain/diagnostics";
-  import { diagnosticsRead } from "#lib/features/diagnostics/read.ts";
-  import { sharedRead, revalidateEvery } from "#lib/shared/queries.svelte.ts";
+  import { diagnosticsRead, diagnosticsOverview } from "#lib/features/diagnostics/read.ts";
+  import { revalidateEvery } from "#lib/shared/queries.svelte.ts";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import Select from "#lib/shared/ui/Select.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -16,6 +15,8 @@
   import Grants from "#lib/features/diagnostics/Grants.svelte";
   import GatewayMetrics from "#lib/features/diagnostics/GatewayMetrics.svelte";
   import LinkMetrics from "#lib/features/diagnostics/LinkMetrics.svelte";
+  import ClientMetrics from "#lib/features/diagnostics/ClientMetrics.svelte";
+  import ReportActions from "#lib/features/diagnostics/ReportActions.svelte";
 
   let range = $state("15");
   let computer = $state("");
@@ -23,7 +24,7 @@
   let sort = $state("p95");
   let kind = $state("unary");
   const key = $derived(`GetDiagnostics:${range}`);
-  const overview = $derived(sharedRead(key, ui.DiagnosticsSnapshotSchema, `/api/diagnostics?range=${range}`));
+  const overview = $derived(diagnosticsOverview(key, range));
   const selected = $derived(computer || overview.data?.computers[0]?.computerId || "");
   const detailsKey = $derived(`GetComputerDiagnostics:${selected}:${range}:${offset}:${sort}:${kind}`);
 
@@ -82,6 +83,15 @@
   </SettingsGroup>
   {#if overview.data}
     <Findings computers={overview.data.computers} />
+    <ReportActions
+      computers={overview.data.computers}
+      range={Number(range)}
+      computer={detail.data?.computerId === selected ? detail.data : undefined}
+      onreset={() => {
+        void overview.reload();
+        void detail.reload();
+      }}
+    />
     <div class="max-w-sm">
       <Select
         aria-label="Computer"
@@ -114,6 +124,7 @@
   {#if selected && detail.data?.computerId === selected}
     <GatewayMetrics computer={detail.data} />
     <LinkMetrics computer={detail.data} />
+    <ClientMetrics computer={detail.data} />
     <Calls
       computer={detail.data}
       {offset}

@@ -9,6 +9,11 @@ import { turnBody } from "../../apps/mobile/src/features/timeline/turn-plan.ts";
 import { visibleTurns } from "../../apps/mobile/src/features/threads/thread-turns.ts";
 import { TimelineEntries } from "../../apps/mobile/src/features/threads/timeline-entries.ts";
 import { PersistentThreadCache, type ThreadCacheStorage } from "../../apps/mobile/src/storage/thread-cache.ts";
+import { ClientMeasurements } from "@canopy/domain/diagnostics";
+
+const diagnostics = new ClientMeasurements("web", crypto.randomUUID());
+
+diagnostics.enabled = process.env["CANOPY_BENCH_CLIENT_DIAGNOSTICS"] === "1";
 
 /** CPU measurements, not a test suite. Deterministic data; no application, native modules or user files. */
 const turns = Number(process.env["CANOPY_BENCH_TURNS"] ?? 1000);
@@ -27,7 +32,10 @@ async function measure(name: string, run: () => void | Promise<void>, repeats = 
 
   for (let i = 0; i < repeats; i++) {
     const start = performance.now();
+    const sampled = diagnostics.opening(Date.now(), () => (i % 10 === 0 ? 0 : 1));
     await run();
+
+    if (sampled) diagnostics.record(2, performance.now() - start);
     times.push(performance.now() - start);
   }
 
@@ -35,6 +43,8 @@ async function measure(name: string, run: () => void | Promise<void>, repeats = 
   console.info(
     JSON.stringify({
       metric: name,
+      diagnostics: diagnostics.enabled,
+      member: process.env["CANOPY_BENCH_MEMBER"],
       medianMs: times[Math.floor(times.length / 2)],
       p95Ms: times[Math.floor(times.length * 0.95)],
       repeats,

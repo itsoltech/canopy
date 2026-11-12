@@ -17,11 +17,25 @@ export type Evidence = {
 
 const FAILURES = [2, 4, 8, 10, 13, 14, 15];
 
+export function belongsToProcess(value: ui.DiagnosticsFinding, processId: string) {
+  return processId === "gateway" ? !/^(worker|computer):/.test(value.subject) : value.subject === processId;
+}
+
 export class Findings {
   readonly states = new Map<string, ui.DiagnosticsFinding>();
   #observedDrops = 0n;
   #completeMinutes = 15;
   readonly #backlogs = new Map<string, number>();
+
+  reset(processId: string) {
+    for (const [key, value] of this.states) if (belongsToProcess(value, processId)) this.states.delete(key);
+
+    if (processId !== "gateway") this.#backlogs.delete(processId);
+    else {
+      this.#observedDrops = 0n;
+      this.#completeMinutes = 0;
+    }
+  }
 
   restore(values: ui.DiagnosticsFinding[]) {
     for (const value of values.slice(0, 64))

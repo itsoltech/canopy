@@ -15,6 +15,7 @@ import type { ImmutableImageCache } from "../storage/image-cache";
 import { bots as botContract } from "@canopy/contracts";
 import { ModelCatalogCache } from "../features/models/catalog-cache";
 import { QueryCache } from "@canopy/domain/shared-query";
+import { startMobileDiagnostics } from "../features/settings/client-diagnostics";
 
 const SHARED_READ_FAILED = "Could not load settings. Check the connection and retry.";
 
@@ -62,6 +63,7 @@ function useSessionState() {
   }, [persistence]);
 
   const client = usePairedClient(session, persistence, setError);
+  useEffect(() => (client ? startMobileDiagnostics(client.api) : undefined), [client]);
 
   const modelCatalog = useMemo(() => new ModelCatalogCache(client?.api), [client]);
   // Reads shared by every screen of this pairing; a new pairing or unpair fences the old one's requests.

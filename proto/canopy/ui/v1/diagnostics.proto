@@ -196,6 +196,8 @@ message ComputerDiagnostics {
   repeated DiagnosticsMeasure gateway_measures = 30;
   repeated DiagnosticsDatabaseFamily database = 31; // top 10 by execute p95
   bool gateway_measures_supported = 32;
+  repeated DiagnosticsMeasure client_measures = 33; // Untrusted, sampled observations; separate from server metrics.
+  int64 epoch_started_at_ms = 34;
 }
 message DiagnosticsSnapshot {
   repeated ComputerDiagnostics computers = 1;
@@ -209,6 +211,60 @@ message DiagnosticsState {
   repeated DiagnosticsProcess watermarks = 5;
   repeated ComputerDiagnostics peer_overviews = 6;
   bool persistence_gap = 7;
+  int64 epoch_started_at_ms = 8;
+  repeated DiagnosticsBaseline baselines = 9; // At most 17 local process baselines; fences worker batches across restart.
+}
+message DiagnosticsBaseline {
+  string process_id = 1;
+  int64 started_at_ms = 2;
+}
+
+// A sender is bound by authentication, never by a payload identity.
+message SubmitDiagnosticsRequest {
+  string session = 1;
+  uint64 sequence = 2;
+  string epoch = 3;
+  int64 start_ms = 4;
+  int64 end_ms = 5;
+  string source = 6; // web, desktop, mobile or bff
+  repeated DiagnosticsMeasureAggregate measures = 7;
+  double sampling_rate = 8; // 0.1 for sampled client openings, 1 for BFF operations.
+}
+message DiagnosticsReceipt {
+  string epoch = 1;
+  bool accepted = 2;
+  int64 epoch_started_at_ms = 3;
+}
+message ResetDiagnosticsRequest {
+  string computer_id = 1;
+  string process_id = 2; // gateway; worker:<id> for one worker's diagnostic baseline
+  string epoch = 3;
+  string action_id = 4;
+}
+message DiagnosticsReportRequest {
+  repeated string computer_ids = 1;
+  uint32 window_minutes = 2;
+  string format = 3; // json or markdown
+}
+message DiagnosticsReport {
+  string text = 1;
+  string format = 2;
+  repeated string omitted_sections = 3;
+  string proof = 4; // Short-lived authentication of the exact redacted preview, never a grant.
+  int64 expires_at_ms = 5;
+}
+message InvestigateDiagnosticsRequest {
+  DiagnosticsReport report = 1;
+  string project_id = 2;
+  string workspace_id = 3;
+  string worker_id = 4;
+  int32 provider = 5;
+  string provider_profile_id = 6;
+  string model = 7;
+  string client_request_id = 8;
+}
+message DiagnosticsInvestigation {
+  string thread_id = 1;
 }
 message DiagnosticsGrantRequest {
   string origin_computer_id = 1;

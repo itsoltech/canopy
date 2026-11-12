@@ -18,6 +18,14 @@ export class DiagnosticsHistory {
     readonly allowed: (process: string, method: number) => boolean,
   ) {}
 
+  async invalidate() {
+    await this.#loading;
+    this.values.clear();
+    this.#hour = 0;
+    this.#at = 0;
+    this.revision++;
+  }
+
   load(now: number) {
     const hour = Math.floor(now / 3_600_000) * 3_600_000;
 

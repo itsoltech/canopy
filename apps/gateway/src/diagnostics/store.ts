@@ -208,4 +208,61 @@ export class DiagnosticsStore {
       ],
     );
   }
+
+  reset(state: ui.DiagnosticsState, action: string, processId: string) {
+    const { owner, computer } = this;
+
+    return this.runtime.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+        yield* sql.withTransaction(
+          Effect.gen(function* () {
+            yield* sql`SET LOCAL lock_timeout='100ms'`;
+            yield* sql`SET LOCAL statement_timeout='5s'`;
+            yield* sql`SELECT payload FROM diagnostics_state WHERE owner_user_id=${owner}::uuid AND computer_id=${computer} FOR UPDATE`;
+
+            // Stream a small page instead of retaining up to 900 encoded rollups during reset.
+            yield* sql`DECLARE diagnostics_reset NO SCROLL CURSOR FOR
+              SELECT resolution,bucket_start,payload FROM diagnostics_rollups
+              WHERE owner_user_id=${owner}::uuid AND computer_id=${computer} ORDER BY resolution,bucket_start LIMIT 901`;
+            let seen = 0;
+
+            for (;;) {
+              const rows = yield* sql<{
+                resolution: number;
+                bucket_start: Date;
+                payload: Uint8Array;
+              }>`FETCH FORWARD 8 FROM diagnostics_reset`;
+
+              if (!rows.length) break;
+              seen += rows.length;
+
+              if (seen > 900) throw new Error("Diagnostics reset history exceeds retention limit");
+
+              for (const row of rows) {
+                const rollup = decodeRollup(row.payload);
+                const processes = rollup.processes.filter((process) => process.processId !== processId);
+
+                if (processes.length === rollup.processes.length) continue;
+
+                if (processes.length)
+                  yield* sql`UPDATE diagnostics_rollups SET payload=${encodeRollup(processes, rollup.incomplete)}
+            WHERE owner_user_id=${owner}::uuid AND computer_id=${computer} AND resolution=${row.resolution} AND bucket_start=${row.bucket_start}`;
+                else
+                  yield* sql`DELETE FROM diagnostics_rollups WHERE owner_user_id=${owner}::uuid AND computer_id=${computer}
+            AND resolution=${row.resolution} AND bucket_start=${row.bucket_start}`;
+              }
+            }
+
+            yield* sql`CLOSE diagnostics_reset`;
+
+            yield* sql`INSERT INTO diagnostics_state(owner_user_id,computer_id,payload) VALUES(${owner}::uuid,${computer},${toBinary(ui.DiagnosticsStateSchema, state)})
+          ON CONFLICT(owner_user_id,computer_id) DO UPDATE SET payload=EXCLUDED.payload,persisted_through=NULL`;
+            yield* sql`INSERT INTO audit_log(id,actor_user_id,action,target_type,details) VALUES(gen_random_uuid(),${owner}::uuid,
+          'diagnostics.reset','computer',${JSON.stringify({ action, computer, process: processId })}::jsonb)`;
+          }),
+        );
+      }).pipe(queryFamily("diagnostics.write")),
+    );
+  }
 }

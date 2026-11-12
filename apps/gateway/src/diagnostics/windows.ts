@@ -122,6 +122,11 @@ class RollingWindow {
 
 const windows = new WeakMap<RpcCollector, Map<number, RollingWindow>>();
 
+export function resetWindows(collector: RpcCollector) {
+  windows.delete(collector);
+  collector.windowBudget.used = 0;
+}
+
 export function closedWindow(collector: RpcCollector, minutes: number, start: number, end: number) {
   let views = windows.get(collector);
 
