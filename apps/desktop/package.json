@@ -24,6 +24,7 @@
     "@canopy/contracts": "workspace:*",
     "@canopy/db": "workspace:*",
     "@canopy/domain": "workspace:*",
+    "@canopy/logs": "workspace:*",
     "@canopy/testing": "workspace:*",
     "@canopy/ui": "workspace:*",
     "@canopy/transport": "workspace:*",

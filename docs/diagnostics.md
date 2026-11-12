@@ -902,10 +902,28 @@ generowane z bezpiecznych aliasów; żadnych symlinków, `..` i absolutnych ści
 
 Web/desktop: uwierzytelniony download `application/zip`, `no-store`, plik
 `canopy-diagnostics-<czas>.zip`; download nie wymaga linku publicznego ani tokenu
-w URL. Mobile zapisuje ograniczony plik w prywatnym cache i otwiera systemowy
-share sheet po akcji właściciela; anuluje/usunie plik zgodnie z TTL/unpair.
-W etapie 5 należy ocenić wymagania natywnej zależności share sheet
-względem istniejącego buildu aplikacji mobilnej.
+w URL. Mobile zapisuje ograniczony plik w prywatnym cache i usuwa go po eksporcie,
+TTL lub unpair. Etap 5 pozostaje JS-only, bez zmiany fingerprintów:
+iOS używa istniejącego Share, Android — **Save logs** z wyborem katalogu
+przez Storage Access Framework. Po zapisie pokazuje nazwę pliku i katalogu;
+**Open folder** pojawia się, jeśli system obsługuje otwarcie URI katalogu.
+Natywny share sheet Androida pozostaje możliwym rozszerzeniem przy następnym
+wydaniu wymagającym nowego buildu natywnego.
+
+Eksport etapu 5 wykorzystuje zamknięte szablony zdarzeń. Nie kopiuje swobodnych
+komunikatów, parametrów SQL, stacków ani nieznanych JSON-ów; manifest podaje
+liczbę pominiętych rekordów. Koordynator ponownie sprawdza format przed ZIP.
+Pierwszy pull przygotowuje jedno źródło, zamiast blokować na skanowaniu wszystkich.
+Rotacje są czyszczone przy starcie i najwyżej raz na godzinę podczas zapisu.
+
+Launcher `bash scripts/bench/diagnostics-stage5.sh` zachowuje etapy 1–4 w obu
+wariantach; zmienia wyłącznie etap 5. Cztery pary AB/BA/AB/BA zajmują około
+140 minut bez odrzuceń. Każdy człon ma świeży klaster PostgreSQL i stan procesów,
+scope z wyłączonym swapem oraz bramki load/swap-in z §3.2. Host swap-out jest
+rejestrowany, z analizą MAD. Oddzielna faza eksportu obejmuje sześć źródeł
+po 4 MiB, redakcję, zapis ZIP i pobranie przy równoległej pracy RPC/workerów.
+Raport akcji podaje bajty i czas osobno od zwykłego narzutu. Skrypt jest ręczny;
+nie uruchamia nagrań bez przyznanego okna.
 
 ## 8. Prywatność, raport i działania
 

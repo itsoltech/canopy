@@ -26,6 +26,7 @@ import { WorkerUpdates } from "./update-link.ts";
 import { applyShellEnv } from "./cli-tools/shell-env.ts";
 import { endpointOptions, WorkerNetworkRoute } from "./network-route.ts";
 import { workerDiagnostics } from "./diagnostics/worker.ts";
+import { LogExporter, LogPullSource, installLogWriter, registeredLogs, cleanLogSpool } from "@canopy/logs";
 
 const cliArgs = Bun.argv.slice(2);
 
@@ -147,6 +148,17 @@ if (installKind() !== "docker") void applyShellEnv();
 const dataDir = resolve(local.data_dir ?? defaultDataDir(Bun.env, process.platform));
 
 mkdirSync(dataDir, { recursive: true, mode: 0o700 });
+
+const logDirectory = Bun.env["CANOPY_LOG_DIR"] || join(dataDir, "logs");
+
+installLogWriter("worker", logDirectory, [local.credential]);
+
+await cleanLogSpool(dataDir);
+
+const logSource = new LogPullSource(
+  new LogExporter(registeredLogs(logDirectory, ["worker"])),
+  join(dataDir, "diagnostics-log-spool", "worker"),
+);
 
 // Durable outbox: every thread event goes through the journal before it is sent (docs/durability.md, 3.1).
 const workerMetricsEnabled = process.env["CANOPY_BENCH_WORKER_DIAGNOSTICS"] !== "0";
@@ -331,6 +343,7 @@ while (!stopping.signal.aborted) {
         // worktrees: git refs and worktrees of workspaces (docs/worktrees.md), under worktrees_root by default.
         // project_sources: new project directories (git init) and clones (InitRepository, CloneRepository).
         capabilities: [
+          "diagnostics_logs_v1",
           "diagnostics_v1",
           "worker_diagnostics_v1",
           "shell_input_v1",
@@ -421,6 +434,7 @@ while (!stopping.signal.aborted) {
         runtime,
         (m) => console.info(m),
         (routes) => networkRoute.offer(routes, link),
+        logSource,
       ));
 
       if (endpoint !== networkRoute.endpoint) {

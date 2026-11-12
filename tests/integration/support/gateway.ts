@@ -56,6 +56,7 @@ import { Layer, ManagedRuntime } from "effect";
 import type { SqlClient } from "effect/sql";
 import { DatabaseMonitor, bindDatabaseMonitor, observedSql } from "../../../apps/gateway/src/diagnostics/database.ts";
 import { BotStore } from "../../../apps/gateway/src/bots/store.ts";
+import type { LogPullSource } from "@canopy/logs";
 import type { BotModel } from "../../../apps/gateway/src/bots/types.ts";
 
 export const SERVICE_TOKEN = "t".repeat(48);
@@ -110,6 +111,7 @@ export type CommandHandler = (
 export type CommandReplyExtra = Omit<MessageInitShape<typeof CommandResultSchema>, "$typeName" | "commandId" | "ok">;
 
 export interface ScriptedWorkerOptions {
+  readonly logs?: LogPullSource;
   readonly secretsDataDir?: string;
   /** Report Claude as available (default: only Codex). */
   readonly claude?: boolean;
@@ -302,6 +304,16 @@ export class ScriptedWorker {
   async #loop(): Promise<void> {
     for await (const message of this.link.messages) {
       const payload = message.payload;
+
+      if (payload.case === "diagnosticsLogCommand" && this.options.logs) {
+        const command = payload.value;
+        const part = await this.options.logs.receive(command);
+        this.link.send({
+          case: "diagnosticsLogReply",
+          value: { session: command.session, requestId: command.requestId, part },
+        });
+        continue;
+      }
 
       if (payload.case === "threadSecretDelivery" && this.secrets) {
         this.link.send({ case: "threadSecretReceipt", value: this.secrets.apply(payload.value) });
@@ -560,6 +572,8 @@ export async function startTestGateway(
     watchProbeMs?: number;
     log?: GatewayCoreOptions["log"];
     diagnostics?: boolean;
+    logSources?: GatewayCoreOptions["logSources"];
+    diagnosticsLogDirectory?: string;
     storage?: { pg: TestPostgres; secretsKey: Buffer; workerId: string; workerCredential: string };
   } = {},
 ): Promise<TestGateway> {
@@ -628,6 +642,8 @@ export async function startTestGateway(
     instanceId: "test",
     userId,
     sshSecretsKey: secretsKey,
+    ...(options.logSources && { logSources: options.logSources }),
+    ...(options.diagnosticsLogDirectory && { diagnosticsLogDirectory: options.diagnosticsLogDirectory }),
     ...(cliRegistry && {
       cliLatest: {
         sources: { claude: cliRegistry.url.href, codex: cliRegistry.url.href, grok: cliRegistry.url.href },

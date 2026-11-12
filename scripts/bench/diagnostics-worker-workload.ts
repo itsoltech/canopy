@@ -13,7 +13,8 @@ import { freshGit, git } from "../../apps/worker/src/git/git.ts";
 /** Real SQLite journal + deterministic ACP + git, identical work in both members. No inference or probes. */
 export class DiagnosticsWorkerWorkload {
   readonly directory = mkdtempSync(join(tmpdir(), "canopy-diagnostics-worker-"));
-  readonly enabled = process.env["CANOPY_BENCH_STAGE"] === "4" || process.env["CANOPY_BENCH_DIAGNOSTICS"] === "1";
+  readonly enabled =
+    ["4", "5"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "") || process.env["CANOPY_BENCH_DIAGNOSTICS"] === "1";
   readonly runtime = ManagedRuntime.make(Journal.layer(join(this.directory, "journal.db"), this.enabled));
   readonly threads = new GrokThreads({
     dataDir: this.directory,

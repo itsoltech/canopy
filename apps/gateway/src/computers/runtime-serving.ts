@@ -32,6 +32,7 @@ import { ui } from "@canopy/contracts";
 import { resetHomeDiagnostics } from "../diagnostics/control.ts";
 import { watchTiming } from "./watch-liveness.ts";
 import { readThreadRange } from "./range-source.ts";
+import { serveHomeLogs } from "../diagnostics/log-serving.ts";
 
 // ------------------------------------------------------------------ stage 2: remote threads
 
@@ -106,6 +107,8 @@ export async function* computersServeRemote(
 
   if (method.name === "ReadDiagnosticsSnapshot") feature = "diagnostics_v1";
 
+  if (method.name === "CollectHomeDiagnosticsLogs") feature = "diagnostics_logs_v1";
+
   if (method.name === "CallAgentBus") feature = AGENT_BUS;
 
   if (!connection.capabilities?.has(feature) || !hostContext.capabilities(target.node_id).includes(feature))
@@ -137,6 +140,12 @@ export async function* computersServeHome(
   request: Message,
   signal: AbortSignal,
 ): AsyncGenerator<Message> {
+  if (method.name === "CollectHomeDiagnosticsLogs") {
+    yield* serveHomeLogs(hostContext, nodeId, connection, request, signal);
+
+    return;
+  }
+
   if (method.name === "ResetDiagnosticsCounters") {
     yield await resetHomeDiagnostics(hostContext, nodeId, connection, request);
 

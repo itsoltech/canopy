@@ -23,6 +23,7 @@ import { GITHUB_METHODS } from "./remote-policy.ts";
 // every participant supports stage 4. Routes and relay itself are never inherited.
 const FEATURES = new Set([
   "diagnostics_v1",
+  "diagnostics_logs_v1",
   REMOTE_THREADS,
   "remote_worktrees",
   REMOTE_BRANCH_SWITCH,

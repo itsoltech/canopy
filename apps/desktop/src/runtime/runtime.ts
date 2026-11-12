@@ -63,6 +63,8 @@ export class DesktopRuntime {
     this.env["PATH"] = `${dirname(paths.bun)}${delimiter}${this.env["PATH"]}`;
     // Sidecars live in the signed app bundle: the app's own updater replaces them, never gateway/worker self-update.
     this.env["CANOPY_INSTALL_KIND"] = "desktop";
+    // Private controller spawn configuration; renderer requests cannot choose a source path.
+    Object.assign(this.env, { CANOPY_LOG_DIR: this.logs.directory, CANOPY_LOG_SUPERVISED: "1" });
     this.services = this.makeSupervisor();
     this.web = this.makeSupervisor();
   }

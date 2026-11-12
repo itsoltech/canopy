@@ -9,6 +9,7 @@ import { DiagnosticsReport } from "./DiagnosticsReport";
 import { diagnosticsEpochs } from "./diagnostics-resource";
 import { mobileMeasurements } from "./client-diagnostics";
 import { styles, useColors } from "../../ui/theme";
+import { DiagnosticsLogs } from "./DiagnosticsLogs";
 
 export function DiagnosticsActions({
   computers,
@@ -30,6 +31,7 @@ export function DiagnosticsActions({
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const running = useRef(false);
+  const [logsJobId, setLogsJobId] = useState("");
 
   const processes = [
     { value: "gateway", label: "Gateway" },
@@ -96,7 +98,10 @@ export function DiagnosticsActions({
           </Text>
         ) : null}
       </SettingsGroup>
-      {report ? <DiagnosticsReport computers={computers} range={range} onClose={() => setReport(false)} /> : null}
+      <DiagnosticsLogs computers={computers} onReady={setLogsJobId} />
+      {report ? (
+        <DiagnosticsReport computers={computers} range={range} logsJobId={logsJobId} onClose={() => setReport(false)} />
+      ) : null}
       <Sheet
         title="Reset counters?"
         visible={resetting}

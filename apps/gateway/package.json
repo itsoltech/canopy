@@ -21,6 +21,7 @@
     "@canopy/contracts": "workspace:*",
     "@canopy/db": "workspace:*",
     "@canopy/domain": "workspace:*",
+    "@canopy/logs": "workspace:*",
     "@canopy/transport": "workspace:*",
     "@canopy/updater": "workspace:*",
     "@connectrpc/connect": "2.3.0",

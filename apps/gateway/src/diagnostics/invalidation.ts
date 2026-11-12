@@ -5,7 +5,8 @@ import { computersState } from "../computers/runtime-context.ts";
 export function sendDiagnosticsInvalidation(
   host: LinkedComputers,
   destination: string,
-  value: Pick<link.DiagnosticsInvalidated, "targetNodeId" | "homeNodeId">,
+  value: Pick<link.DiagnosticsInvalidated, "targetNodeId" | "homeNodeId"> &
+    Partial<Pick<link.DiagnosticsInvalidated, "permission">>,
 ) {
   for (const connection of host[computersState].active.get(destination) ?? [])
     if (connection.ready && connection.capabilities?.has("diagnostics_v1"))
@@ -22,7 +23,10 @@ export async function receiveDiagnosticsInvalidation(
     const home = host.relay.entries.get(value.homeNodeId);
 
     if (home?.via_node_id !== sender || !["home", "both"].includes(home.relay_role)) return;
-    await host.options.core?.diagnostics.peers.revoke(value.homeNodeId);
+
+    if (value.permission === "diagnostics_logs") await host.options.core?.diagnostics.logs.revoke(value.homeNodeId);
+    else if (!value.permission || value.permission === "diagnostics_read")
+      await host.options.core?.diagnostics.peers.revoke(value.homeNodeId);
   } else if (value.homeNodeId === sender && host.relay.allowed(value.targetNodeId, sender)) {
     sendDiagnosticsInvalidation(host, value.targetNodeId, value);
   }

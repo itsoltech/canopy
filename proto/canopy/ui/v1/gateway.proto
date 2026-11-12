@@ -89,6 +89,12 @@ service GatewayService {
   rpc ResetDiagnostics(ResetDiagnosticsRequest) returns (DiagnosticsReceipt);
   rpc PrepareDiagnosticsReport(DiagnosticsReportRequest) returns (DiagnosticsReport);
   rpc InvestigateDiagnostics(InvestigateDiagnosticsRequest) returns (DiagnosticsInvestigation);
+  rpc CollectDiagnosticsLogs(CollectDiagnosticsLogsRequest) returns (DiagnosticsLogsJob);
+  rpc GetDiagnosticsLogsJob(DiagnosticsLogsJobRequest) returns (DiagnosticsLogsJob);
+  rpc CancelDiagnosticsLogs(DiagnosticsLogsJobRequest) returns (DiagnosticsLogsJob);
+  rpc DownloadDiagnosticsLogs(DiagnosticsLogsJobRequest) returns (stream DiagnosticsLogPart);
+  rpc WatchDiagnosticsLogSource(DiagnosticsLogSourceRegistration) returns (stream DiagnosticsLogSourceCommand);
+  rpc ReplyDiagnosticsLogSource(DiagnosticsLogSourceReply) returns (DiagnosticsReceipt);
   rpc GetAgentEnvironment(AgentEnvironmentRequest) returns (AgentEnvironmentSnapshot);
   rpc SaveInstructionDocument(SaveInstructionDocumentRequest) returns (AgentEnvironmentSnapshot);
   rpc DeleteInstructionDocument(DeleteInstructionDocumentRequest) returns (AgentEnvironmentSnapshot);

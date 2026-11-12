@@ -215,6 +215,8 @@ export const computersRemoteMethods: ComputersRemoteMethods = {
 
       if (method.name === "ReadDiagnosticsSnapshot") feature = "diagnostics_v1";
 
+      if (method.name === "CollectHomeDiagnosticsLogs") feature = "diagnostics_logs_v1";
+
       if (method.name === "CallAgentBus") feature = AGENT_BUS;
 
       if (!this.hello().capabilities.includes(feature) || !indirect.capabilities.includes(feature))
@@ -238,6 +240,8 @@ export const computersRemoteMethods: ComputersRemoteMethods = {
     let feature = botFeature(method, request);
 
     if (method.name === "ResetDiagnosticsCounters") feature = "diagnostics_v1";
+
+    if (method.name === "CollectHomeDiagnosticsLogs") feature = "diagnostics_logs_v1";
 
     if (method.name === "CallAgentBus") feature = AGENT_BUS;
 

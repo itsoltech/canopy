@@ -12,9 +12,10 @@ import { DiagnosticsGovernorWorkload } from "./diagnostics-governor.ts";
 import { DiagnosticsForensics } from "./diagnostics-forensics.ts";
 import { failedParameterWrite } from "./diagnostics-retention-probe.ts";
 import { DiagnosticsMirrorWorkload } from "./diagnostics-mirror-workload.ts";
+import { benchLogSources } from "./diagnostics-logs.ts";
 
 const gatewayDiagnosticsEnabled =
-  ["3", "4"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "") ||
+  ["3", "4", "5"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "") ||
   (process.env["CANOPY_BENCH_STAGE"] === "2" && process.env["CANOPY_BENCH_DIAGNOSTICS"] === "1");
 
 const runtime = gatewayRuntime(process.env, { databaseDiagnostics: gatewayDiagnosticsEnabled });
@@ -26,19 +27,22 @@ const core = new GatewayCore({
   instanceId: "diagnostics-benchmark",
   role: "server",
   diagnosticsEnabled:
-    ["2", "3", "4"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "") ||
+    ["2", "3", "4", "5"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "") ||
     process.env["CANOPY_BENCH_DIAGNOSTICS"] === "1",
   gatewayDiagnosticsEnabled,
   workerDiagnosticsEnabled:
-    process.env["CANOPY_BENCH_STAGE"] === "4" ||
+    ["4", "5"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "") ||
     (process.env["CANOPY_BENCH_STAGE"] === "3" && process.env["CANOPY_BENCH_DIAGNOSTICS"] === "1"),
   clientDiagnosticsEnabled:
-    process.env["CANOPY_BENCH_STAGE"] === "4" && process.env["CANOPY_BENCH_DIAGNOSTICS"] === "1",
+    process.env["CANOPY_BENCH_STAGE"] === "5" ||
+    (process.env["CANOPY_BENCH_STAGE"] === "4" && process.env["CANOPY_BENCH_DIAGNOSTICS"] === "1"),
+  logsDiagnosticsEnabled: process.env["CANOPY_BENCH_STAGE"] !== "5" || process.env["CANOPY_BENCH_DIAGNOSTICS"] === "1",
+  ...(await benchLogSources()),
 });
 
 const governorWorkload = new DiagnosticsGovernorWorkload();
 
-const mirrorWorkload = ["3", "4"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "")
+const mirrorWorkload = ["3", "4", "5"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "")
   ? new DiagnosticsMirrorWorkload(core)
   : undefined;
 

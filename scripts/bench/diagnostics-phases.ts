@@ -26,8 +26,9 @@ export function selectedPhases(): DiagnosticsPhase[] {
       "slow_reader",
       "write_failure",
       "pool_contention",
-      ...(["2", "3", "4"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "") ? ["governor" as const] : []),
-      ...(process.env["CANOPY_BENCH_STAGE"] === "4" ? ["report" as const] : []),
+      ...(["2", "3", "4", "5"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "") ? ["governor" as const] : []),
+      ...(["4", "5"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "") ? ["report" as const] : []),
+      ...(process.env["CANOPY_BENCH_STAGE"] === "5" ? ["log_export" as const] : []),
     ];
 
   if (process.env["CANOPY_BENCH_CONTENTION"] === "1") return ["write_failure", "pool_contention"];

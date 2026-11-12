@@ -5,6 +5,9 @@ import type { ManagedRuntime } from "effect";
 import type { Journal } from "../journal/index.ts";
 import type { NetworkRoutes } from "@canopy/contracts";
 import { workerDiagnostics } from "../diagnostics/worker.ts";
+import { create } from "@bufbuild/protobuf";
+import { ui } from "@canopy/contracts";
+import type { LogPullSource } from "@canopy/logs";
 
 export interface SessionEnd {
   /** Set when the gateway asked to reconnect later (Drain). */
@@ -18,6 +21,7 @@ export async function serveLink(
   runtime: ManagedRuntime.ManagedRuntime<Journal, unknown>,
   log: (message: string) => void = () => {},
   networkRoutes?: (routes: NetworkRoutes) => Promise<void>,
+  logs?: LogPullSource,
 ): Promise<SessionEnd> {
   host.attach(link);
   let drainDelayMs: number | undefined;
@@ -25,6 +29,36 @@ export async function serveLink(
   try {
     for await (const message of link.messages) {
       switch (message.payload.case) {
+        case "diagnosticsLogCommand": {
+          const command = message.payload.value;
+
+          // Explicit exporter work yields independently of transcript ACK and heartbeat handling.
+          if (logs)
+            void logs
+              .receive(command)
+              .then((part) => {
+                link.send({
+                  case: "diagnosticsLogReply",
+                  value: { session: command.session, requestId: command.requestId, part },
+                });
+              })
+              .catch(() => {
+                try {
+                  link.send({
+                    case: "diagnosticsLogReply",
+                    value: {
+                      session: command.session,
+                      requestId: command.requestId,
+                      part: create(ui.DiagnosticsLogPartSchema, { end: true }),
+                    },
+                  });
+                } catch {
+                  /* Link closed. No journal/outbox retry for log payloads. */
+                }
+              });
+          break;
+        }
+
         case "networkRoutes":
           // Probe concurrently: commands, heartbeats and journal acks stay on the working link.
           void networkRoutes?.(message.payload.value);
@@ -80,6 +114,7 @@ export async function serveLink(
       }
     }
   } finally {
+    await logs?.close();
     host.detach(link);
   }
 

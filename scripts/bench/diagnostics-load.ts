@@ -1,6 +1,7 @@
 import type { Client } from "@connectrpc/connect";
 import { ui } from "@canopy/contracts";
 import { benchWatch } from "./diagnostics-clients.ts";
+import { benchLogExport } from "./diagnostics-logs.ts";
 
 export type DiagnosticsPhase =
   | "idle"
@@ -11,7 +12,8 @@ export type DiagnosticsPhase =
   | "write_failure"
   | "pool_contention"
   | "governor"
-  | "report";
+  | "report"
+  | "log_export";
 
 /** Fixed offered load with actual gRPC cancellation, reconnects and backpressured watches. */
 export async function diagnosticsLoad<Measurement>(
@@ -51,9 +53,15 @@ export async function diagnosticsLoad<Measurement>(
     let nextOverview = performance.now();
     let nextDetails = performance.now();
     let nextReport = performance.now();
+    let logsCollected = false;
 
     while (performance.now() < until && !signal?.aborted) {
       const started = performance.now();
+
+      if (phase === "log_export" && !logsCollected) {
+        logsCollected = true;
+        await benchLogExport(api, signal ?? abort.signal);
+      }
 
       if (phase === "report" && performance.now() >= nextReport) {
         const report = await api.prepareDiagnosticsReport({

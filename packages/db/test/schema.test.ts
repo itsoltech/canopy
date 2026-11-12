@@ -142,6 +142,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "128_thread_panel_cache",
       "129_diagnostics",
       "130_diagnostics_actions",
+      "131_diagnostics_logs",
     ]);
   }, 60_000);
 

@@ -74,6 +74,8 @@ message WorkerMessage {
     // Transient, capability git_clone_progress_v1; never journaled.
     CloneProgress clone_progress = 841;
     canopy.ui.v1.WorkerLinkDiagnostics diagnostics = 850;
+    // Ephemeral pull responses; never journaled or put in a command outbox.
+    canopy.ui.v1.DiagnosticsLogSourceReply diagnostics_log_reply = 851;
   }
 }
 
@@ -97,6 +99,7 @@ message GatewayMessage {
     NetworkRoutes network_routes = 802;
     AgentEnvironmentDesired agent_environment = 820;
     HeartbeatEcho heartbeat_echo = 850;
+    canopy.ui.v1.DiagnosticsLogSourceCommand diagnostics_log_command = 851;
   }
 }
 

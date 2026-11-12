@@ -6,7 +6,7 @@ import { gatewayDeadlines } from "../../apps/web/src/lib/server/gateway-deadline
 import { bffMeasurements, startBffDiagnostics } from "../../apps/web/src/lib/server/diagnostics.ts";
 import { sseResponse } from "../../apps/web/src/lib/server/sse.ts";
 
-const stage4 = process.env["CANOPY_BENCH_STAGE"] === "4";
+const stage4 = ["4", "5"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "");
 
 /** The driver includes the real BFF wrappers. Its process resources are reported separately. */
 export function clientTransport(transport: Transport) {
@@ -16,6 +16,8 @@ export function clientTransport(transport: Transport) {
 /** Fixed synthetic openings exercise numeric ingestion, not browser/native paint performance. */
 export async function benchClients(api: Client<typeof ui.GatewayService>, enabled: boolean, signal: AbortSignal) {
   if (!stage4) return () => {};
+
+  enabled ||= process.env["CANOPY_BENCH_STAGE"] === "5";
 
   bffMeasurements.enabled = enabled;
   bffMeasurements.clear((await api.getComputerDiagnostics({})).epoch);

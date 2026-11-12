@@ -20,11 +20,13 @@
     range,
     computer,
     onreset,
+    logsJobId = "",
   }: {
     computers: ui.ComputerDiagnostics[];
     range: number;
     computer: ui.ComputerDiagnostics | undefined;
     onreset(): void;
+    logsJobId?: string;
   } = $props();
 
   let open = $state(false);
@@ -194,7 +196,7 @@
         <Button onclick={copy}>Copy report</Button><Button onclick={() => (report = undefined)}>Change selection</Button
         >
       </div>
-      <Investigation {report} />
+      <Investigation {report} {logsJobId} />
     {/if}
     {#if error}<Alert tone="error">{error}</Alert>{/if}
     {#if message}<p role="status" class="text-sm text-muted">{message}</p>{/if}

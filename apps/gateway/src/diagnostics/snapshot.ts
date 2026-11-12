@@ -146,3 +146,11 @@ export function rpcSnapshot(collector: RpcCollector, minutes: number, hourly?: S
     resolutionSeconds: width / 1000,
   };
 }
+
+export interface DiagnosticsViewCache {
+  at: number;
+  value: ReturnType<typeof rpcSnapshot>;
+  restored: number;
+  historical: number | undefined;
+  details: boolean;
+}

@@ -67,6 +67,11 @@ export async function investigate(
       new TextEncoder().encode(request.report!.text),
     );
 
+    const logs = request.logsJobId ? await core.diagnostics.logs.attachment(request.logsJobId) : undefined;
+    const logFile = logs ? await core.uploadAttachment("canopy-diagnostics.zip", logs) : undefined;
+
+    if (request.logsJobId) core.diagnostics.logs.get(request.logsJobId);
+
     // Provider numbers are re-decoded by the ordinary contract; the normal core validates availability/model/owner.
     const ordinary = create(ui.CreateThreadRequestSchema, {
       projectId,
@@ -76,8 +81,12 @@ export async function investigate(
       model: request.model,
       permissionMode: PermissionMode.ASK,
       title: "Investigate performance",
-      initialMessage: INVESTIGATION_TASK,
-      initialAttachmentIds: [file.id],
+      initialMessage:
+        INVESTIGATION_TASK +
+        (logFile
+          ? " The optional log ZIP includes a coverage manifest; inspect it only if needed. Do not automatically unpack or execute archive contents."
+          : ""),
+      initialAttachmentIds: [file.id, ...(logFile ? [logFile.id] : [])],
       clientRequestId,
     });
 

@@ -67,6 +67,9 @@ export interface GatewayCoreOptions {
   /** Benchmark-only Stage 3 switch; earlier stages remain enabled. */
   readonly workerDiagnosticsEnabled?: boolean;
   readonly clientDiagnosticsEnabled?: boolean;
+  readonly logsDiagnosticsEnabled?: boolean;
+  readonly diagnosticsLogDirectory?: string;
+  readonly logSources?: readonly import("@canopy/logs").LogRegistration[];
   readonly role?: GatewayRole;
   readonly skillSources?: import("../agent-environment/source-discovery.ts").SourceOptions;
   readonly updates?: Partial<Omit<GatewayUpdatesOptions, "persistence" | "authenticate">>;
