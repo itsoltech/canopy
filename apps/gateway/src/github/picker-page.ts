@@ -163,9 +163,11 @@ async function priorityPage(
     },
   });
 
-  if (graphErrors(result.payload))
+  const payload = Schema.decodeUnknownSync(Schema.JsonObject)(result.payload);
+
+  if (graphErrors(payload))
     throw new ConnectError("Could not load your pull requests. Retry the list.", Code.Unavailable);
-  const value = Schema.decodeUnknownSync(Mine)(result.payload).data.search;
+  const value = Schema.decodeUnknownSync(Mine)(payload).data.search;
   if (value.nodes.some((pr) => String(pr.repository.databaseId) !== source.repositoryId))
     throw new ConnectError("Repository access changed. Choose its account again.", Code.PermissionDenied);
 

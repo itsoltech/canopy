@@ -103,7 +103,7 @@ export function LinkPullRequest({
                     ? "No open pull requests"
                     : "No pull requests yet"}
             </Text>
-          ) : null
+          ) : undefined
         }
         ListFooterComponent={<PullRequestPickerFooter picker={p} {...{ threadId, revision, onlinked, directUrl }} />}
       />
