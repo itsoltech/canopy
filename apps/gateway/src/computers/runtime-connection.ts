@@ -19,6 +19,7 @@ import { discoverCertificate, linkClient } from "./transport.ts";
 import { refreshConfigGroup, stopConfig, syncConfig } from "./runtime-config.ts";
 import { PEER_HANDSHAKE_TIMEOUT_MS, PEER_HEARTBEAT_MS } from "./timing.ts";
 import { linkFailure } from "./link-session.ts";
+import { wireHello } from "./hello.ts";
 
 export function computersBroadcast(hostContext: LinkedComputers, frame: MessageInitShape<typeof link.LinkFrameSchema>) {
   for (const set of hostContext[computersState].active.values())
@@ -229,7 +230,7 @@ export async function computersDial(hostContext: LinkedComputers, peer: PeerRow,
     let greeted = false;
 
     try {
-      const hello = hostContext.hello();
+      const hello = wireHello(hostContext.hello());
       connection.announced = hello.addresses.join();
       connection.send({ body: { case: "hello", value: hello } });
       // Queued hello is sent only after verification. No heartbeat may precede it.

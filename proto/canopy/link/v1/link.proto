@@ -197,7 +197,10 @@ message NodeHello {
   string app_version = 4;
   uint32 min_protocol = 5;
   uint32 max_protocol = 6;
+  // Keep at most 32 entries for older protocol-1 peers; append new features below.
   repeated string capabilities = 7;
+  // Older peers ignore this field. New peers combine both lists before negotiation.
+  repeated string additional_capabilities = 8;
 }
 message PairRequest { string secret = 1; NodeHello hello = 2; optional bool share_config = 3; }
 message PairResponse { NodeHello hello = 1; optional bool share_config = 2; }

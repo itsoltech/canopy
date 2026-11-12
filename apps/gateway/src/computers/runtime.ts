@@ -30,6 +30,7 @@ import { requireDesktopRole } from "../role.ts";
 import { fetchConfigBlob } from "./runtime-blobs.ts";
 import { ConfigSync } from "../config-sync/engine.ts";
 import { PeerReads } from "./reads.ts";
+import { wireHello } from "./hello.ts";
 
 export { computerGuard, type ComputerChange } from "./runtime-context.ts";
 
@@ -161,7 +162,7 @@ export class LinkedComputers {
           this[computersState].retry.delete(request.hello.nodeId);
 
           return create(link.PairResponseSchema, {
-            hello: this.hello(),
+            hello: wireHello(this.hello()),
             shareConfig: (await this.store.peer(request.hello.nodeId))!.share_config,
           });
         }),

@@ -515,6 +515,15 @@ i listę capabilities (`presence`, `unlink`). `LinkWelcome` zwraca własne hello
 numer albo 0 oraz `update_node_id`. Obecnie zakres to 1–1; stałe
 `COMPUTER_LINK_PROTOCOL` / `MIN_COMPUTER_LINK_PROTOCOL` są niezależne od WorkerLink i UpdateService.
 
+Na drucie `NodeHello.capabilities` (7) zawiera najwyżej 32 wpisy: starsze gatewaye protokołu 1
+odrzucają dłuższą listę jako błąd tożsamości. Kolejne funkcje trafiają do addytywnego
+`additional_capabilities` (8), ignorowanego przez starszego odbiorcę. Nowy odbiorca scala obie
+listy przed zapisem i negocjacją; akceptuje też dawne hello z ponad 32 wpisami w polu 7.
+Łączny limit wynosi 128 wpisów, a jego przekroczenie daje `InvalidArgument`, nie błąd
+uwierzytelnienia. Wszystkie wysyłane hello (pairing, connect, welcome i zmiana nazwy) używają
+tego samego podziału. Nowe domyślne capabilities dopisujemy na końcu listy: pierwsze 32
+z nightly.133 zachowują m.in. konfigurację, przenoszenie i aktualizacje aplikacji.
+
 Brak przecięcia zakresów utrzymuje wyłącznie kanał kontrolny i stan `needs_update` na obu stronach.
 Oba gatewaye wyliczają tę samą tożsamość wymagającą aktualizacji; UI pokazuje nazwę partnera albo
 „This computer needs an update”. Wersja aplikacji nie decyduje o zgodności. Etap 2 może dodać

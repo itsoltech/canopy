@@ -24,6 +24,7 @@ import type { PeerRow } from "./store.ts";
 import { exchangeConfigSharing, receiveConfigSharing } from "./runtime-config.ts";
 import { RESTART_PRESENCE } from "@canopy/domain/computer-presence";
 import { linkFailure } from "./link-session.ts";
+import { wireHello } from "./hello.ts";
 
 export async function computersReceive(
   hostContext: LinkedComputers,
@@ -234,10 +235,10 @@ async function receiveHandshake(
   connection: Connection,
   peer: PeerRow,
 ): Promise<void> {
-  const hello = body.case === "hello" ? body.value : body.value.hello;
+  const input = body.case === "hello" ? body.value : body.value.hello;
 
-  if (!hello) throw new ConnectError("Missing handshake", Code.InvalidArgument);
-  hostContext.store.validateHello(hello, nodeId);
+  if (!input) throw new ConnectError("Missing handshake", Code.InvalidArgument);
+  const hello = hostContext.store.validateHello(input, nodeId);
   const local = hostContext.hello();
 
   const protocol =
@@ -281,7 +282,7 @@ async function receiveHandshake(
   // Persisting status below can yield to a remote call while the peer still awaits its handshake.
   if (body.case === "hello") {
     connection.announced = local.addresses.join();
-    connection.send({ body: { case: "welcome", value: { hello: local, protocol, updateNodeId } } });
+    connection.send({ body: { case: "welcome", value: { hello: wireHello(local), protocol, updateNodeId } } });
 
     if (hostContext[computersState].announced !== "connected")
       connection.send({
