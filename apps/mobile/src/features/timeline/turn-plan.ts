@@ -113,7 +113,7 @@ const itemOf = (row: BodyRow) => (row.kind === "item" ? [row.node.item] : []);
 const isToolRow = (row: BodyRow) => row.kind === "item" && isToolItem(row.node.item);
 
 /** Runs of consecutive tools; a sole run shows without its header (it would repeat the fold's counts). */
-export function workRows(work: readonly BodyRow[], groupOpen: (key: string) => boolean): WorkRow[] {
+export function workRows(work: readonly BodyRow[]): WorkRow[] {
   const runs: BodyRow[][] = [];
   let run: BodyRow[] | undefined;
 
@@ -136,7 +136,7 @@ export function workRows(work: readonly BodyRow[], groupOpen: (key: string) => b
         key,
         ...groupSummary(rows.flatMap(itemOf)),
         running: rows.some((r) => r.kind === "item" && r.node.item.status === ItemStatus.IN_PROGRESS),
-        rows: groupOpen(key) ? rows : [],
+        rows,
       });
     } else if (!isToolRow(row)) out.push({ kind: "row", row });
   }

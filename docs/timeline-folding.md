@@ -43,7 +43,7 @@ Przed automatycznym zamknięciem `WorkFolds` sprawdza `VirtualFeed.reading()`. J
 
 `VirtualFeed.scrollRowToTop(key)` po zakończeniu tury przewija długą odpowiedź do początku, 8 px poniżej góry feedu. Działa tylko, jeśli czytelnik nadal śledzi dół i odpowiedź jest wyższa niż dostępny obszar nad kompozytorem. Krótka odpowiedź ani czytelnik, który przewinął w górę, nie są przesuwani. Zwykły ruch jest płynny, reduced motion natychmiastowy; „Jump to latest” przywraca śledzenie końca. API nie zmienia fokusu ani reguł paddingu kompozytora.
 
-Grupy i itemy są osobnymi wirtualnymi wierszami; zamknięte grupy nie montują dzieci. `ResizeObserver` mierzy zmiany wysokości `AnswerSlot`, a obecne kotwiczenie utrzymuje czytany wiersz. Klucze foldu, grupy (pierwszy item) i odpowiedzi pozostają stabilne między deltami. „Pokaż źródło” cytatu otwiera historię, fold oraz właściwą grupę przed przewinięciem do itemu; rozpoznaje też stały wiersz odpowiedzi.
+W web grupy i itemy są osobnymi wirtualnymi wierszami; zamknięte grupy nie montują dzieci. `ResizeObserver` mierzy zmiany wysokości `AnswerSlot`, a obecne kotwiczenie utrzymuje czytany wiersz. Klucze foldu, grupy (pierwszy item) i odpowiedzi pozostają stabilne między deltami. „Pokaż źródło” cytatu otwiera historię, fold oraz właściwą grupę przed przewinięciem do itemu; rozpoznaje też stały wiersz odpowiedzi.
 
 ## Hierarchia treści pracy
 
@@ -70,8 +70,15 @@ klucze wierszy, pamięć rozwinięcia i kotwiczenie pozostają wspólne. Szczeg�
 rozwijają tor grid `0fr` → `1fr` bez pomiaru wysokości, na tokenach `fast` / `smoothOut`;
 zamknięte szczegóły są odmontowane. Rogi nagłówka zmieniają się na tych samych tokenach.
 Przy ograniczonym ruchu obie zmiany są natychmiastowe. Wirtualne dzieci grup zachowują
-docelową wysokość i istniejące wejście, aby nie zmieniać kotwiczenia. Mobile zachowuje
-przełączanie z kotwicą nagłówka oraz dotychczasowy ruch chevrona.
+docelową wysokość i istniejące wejście, aby nie zmieniać kotwiczenia. Mobile używa
+`TimelineDisclosure`: fold i grupa montują treść przy pierwszym otwarciu, a następnie
+zachowują ją do usunięcia wirtualnej komórki tury. Wysokość zmienia się na wątku UI
+przez Reanimated (`fast` / `smoothOut`, 250 ms), tak jak obrót chevrona. Pierwszy layout
+mierzy treść raz; kolejne przełączenia odczytują jej bieżący rozmiar synchronicznie na UI.
+Po otwarciu wysokość jest naturalna, więc strumień i zagnieżdżone rozwinięcia nie
+wymagają pomiarów JS w każdej klatce. Zamknięta treść nie przyjmuje dotyku ani fokusu
+czytnika i wstrzymuje zegary oraz dekoracje. Ograniczony ruch zmienia wysokość i chevron
+natychmiast. Stan ręcznego przełączenia grupy jest lokalny; nie przebudowuje innych grup.
 
 ## Pozycja przy ręcznym przełączaniu
 
@@ -85,7 +92,7 @@ dołożenie wcześniejszej tury z tego samego dnia przenosi etykietę daty i nie
 przesunąć czytanego tekstu. Wyszukiwanie oraz cytat mogą doładować starsze strony;
 po ich odczycie nadal obowiązują te same klucze foldów i segmentów.
 
-Rozwinięcie albo zwinięcie foldu, grupy narzędzi czy itemu ręcznie trzyma kliknięty nagłówek w tym samym miejscu ekranu: rośnie i maleje to, co jest pod nim, a treść nad nim się nie przesuwa. Czytelnik śledzący koniec zostaje na końcu tylko wtedy, gdy przełącza fold ostatniej tury (jej wiersze są końcem osi); każdy inny fold przestaje śledzić koniec i trzyma swój nagłówek.
+Rozwinięcie albo zwinięcie foldu, grupy narzędzi czy itemu ręcznie trzyma kliknięty nagłówek w tym samym miejscu ekranu: rośnie i maleje to, co jest pod nim, a treść nad nim się nie przesuwa. Dotyczy to także ostatniej tury przy czytelniku na końcu. Granicą jest dostępny zakres przewijania, np. zwinięcie całej treści poniżej wysokości viewportu. „Jump to latest” ponownie włącza śledzenie końca.
 
-- Web: `FeedRowView` podaje klucz wiersza nagłówka, strona wątku woła `VirtualFeed.keep(key)` przed `WorkFolds.toggle`, chyba że to ostatni fold, a czytelnik jest na końcu. Automatyczne zmiany (odpowiedź wychodzi z foldu, nowy segment, koniec tury) trzymają dotychczasową kotwicę `VirtualFeed` i `hold(key)`.
-- Mobile: oś jest odwróconą `FlatList`, w której wiersz tury rośnie w stronę starszej treści, więc nagłówek by uciekał w górę. `ui/feed-anchor.tsx` mierzy nagłówek (`measureInWindow`) przed zmianą i po układzie (dwie klatki, potem drugi raz po 180 ms dla późnego układu) i przesuwa listę o tyle, o ile przesunął się nagłówek. Zmiany automatyczne trzyma `maintainVisibleContentPosition` listy. Fold w najnowszej turze przy czytelniku na dole nie przesuwa listy: zostaje na dole.
+- Web: `FeedRowView` podaje klucz wiersza nagłówka, strona wątku woła `VirtualFeed.keep(key)` przed `WorkFolds.toggle`, także dla ostatniego foldu. Ten sam kontrakt ma fixture długiego wątku. Automatyczne zmiany (odpowiedź wychodzi z foldu, nowy segment, koniec tury) trzymają dotychczasową kotwicę `VirtualFeed` i `hold(key)`.
+- Mobile: oś jest odwróconą `FlatList`, w której wiersz tury rośnie w stronę starszej treści. `ui/feed-anchor.tsx` zapisuje pozycję nagłówka przed zmianą i koryguje ją przez `measure` / `scrollTo` na wątku UI podczas przejścia. `maintainVisibleContentPosition` jest wtedy wyłączone, aby kotwica natywnej komórki nie konkurowała z nagłówkiem. Po ustaleniu layoutu wraca obsługa zmian automatycznych. Tylko przełączany nagłówek uruchamia callback klatki; gest przewijania, nowsze przełączenie i odmontowanie kończą poprzednią sesję. Nie ma opóźnionych callbacków JS mierzących komórkę, która mogła już opuścić okno listy. Kontener listy subskrybuje sam stan sesji; klucze, tablica tur i propsy pozostałych komórek zachowują tożsamość.

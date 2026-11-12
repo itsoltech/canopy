@@ -1,4 +1,4 @@
-import { useCallback, useState, type ComponentProps, type Ref } from "react";
+import { useCallback, useEffect, useState, type ComponentProps, type Ref } from "react";
 import { Platform, type FlatList, type FlatListProps, type ScrollViewProps } from "react-native";
 import { KeyboardChatScrollView } from "react-native-keyboard-controller";
 import Animated, {
@@ -12,6 +12,7 @@ import { scheduleOnRN } from "react-native-worklets";
 import { ImageViewport, ImageViewportContext } from "../attachments/image-viewport";
 import { useContentInsets } from "../../ui/ScreenFrame";
 import { styles } from "../../ui/theme";
+import { useManualFeedAnchor } from "../../ui/feed-anchor";
 import { IOSChatScrollView } from "./IOSChatScrollView";
 
 /**
@@ -31,13 +32,19 @@ export function TimelineList<Item>({
   onContentSizeChange?: FlatListProps<Item>["onContentSizeChange"];
 }) {
   const insets = useContentInsets();
+  const manualAnchor = useManualFeedAnchor();
   const safePadding = useDerivedValue(() => insets.bottom);
   const [viewport] = useState(() => new ImageViewport());
   const lastCheck = useSharedValue(0);
   const refresh = viewport.refresh;
 
+  useEffect(() => {
+    if (!manualAnchor) refresh();
+  }, [manualAnchor, refresh]);
+
   const imageScroll = useAnimatedScrollHandler({
     onScroll() {
+      if (manualAnchor) return;
       const now = Date.now();
 
       if (now - lastCheck.get() < 100) return;
@@ -74,6 +81,7 @@ export function TimelineList<Item>({
     <ImageViewportContext.Provider value={viewport}>
       <Animated.FlatList
         {...props}
+        maintainVisibleContentPosition={manualAnchor ? undefined : props.maintainVisibleContentPosition}
         onScroll={composedScroll}
         onLayout={(event) => {
           onLayout?.(event);
@@ -81,7 +89,8 @@ export function TimelineList<Item>({
         }}
         onContentSizeChange={(width, height) => {
           onContentSizeChange?.(width, height);
-          refresh();
+
+          if (!manualAnchor) refresh();
         }}
         renderScrollComponent={renderScrollComponent}
         keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "none"}

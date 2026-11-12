@@ -62,6 +62,7 @@
   let generation = $state(0);
   let running = $state(false);
   let result = $state<BenchResult>();
+  let feed = $state<{ keep: (key: string) => void }>();
 
   // Hydrated: the benchmark button works (the runner waits for this).
   $effect(() => {
@@ -134,6 +135,7 @@
   {#key generation}
     <div class="min-h-0 flex-1" data-bench-scroller>
       <VirtualFeed
+        bind:this={feed}
         {rows}
         key={(row: FeedRow) => row.key}
         group={feedGroup}
@@ -145,14 +147,18 @@
           <FeedRowView
             {row}
             ontoggle={() => (historyOpen = !historyOpen)}
-            onwork={(fold) =>
-              (openWork = openWork.has(fold)
+            onwork={(fold, rowKey) => {
+              feed?.keep(rowKey);
+              openWork = openWork.has(fold)
                 ? new Set([...openWork].filter((id) => id !== fold))
-                : new Set([...openWork, fold]))}
-            ongroup={(key) =>
-              (openGroups = openGroups.has(key)
+                : new Set([...openWork, fold]);
+            }}
+            ongroup={(key, rowKey) => {
+              feed?.keep(rowKey);
+              openGroups = openGroups.has(key)
                 ? new Set([...openGroups].filter((id) => id !== key))
-                : new Set([...openGroups, key]))}
+                : new Set([...openGroups, key]);
+            }}
           />
         {/snippet}
         {#snippet footer()}

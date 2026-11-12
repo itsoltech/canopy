@@ -219,6 +219,18 @@ wymaga pomiarów na słabszym Androidzie i iPhonie; agresywne zmniejszenie okna 
 powodować puste obszary przy szybkim scrollu. Zapisz konfigurację i liczbę
 zamontowanych tur w nagraniu.
 
+Przy zmianach rozwijania pracy wykonaj osobną próbę Profilerem lub tymczasowymi
+licznikami renderów, poza pomiarem klatek. Po ustaleniu listy przełącz dziesięć razy
+fold zakończonej tury, potem grupę narzędzi; wyklucz początkowy montaż i osobno
+policz montowane dzieci. Zapisz liczbę renderowanych komórek tur na przełączenie
+przed i po zmianie oraz rozmiar zamontowanego okna. Ręczna zmiana grupy ma pozostać
+w tej grupie; nie wymaga renderu tury ani innych komórek. Przy foldzie zmienia się
+jedna tura. Nie traktuj odczytu kodu ani liczb web jako pomiaru React Native.
+Nagraj też pozycję nagłówka klatka po klatce podczas otwierania, zamykania i szybkiej
+zmiany kierunku: najnowsza tura przy końcu, środek historii, klawiatura otwarta/zamknięta,
+ograniczenie ruchu i doczytanie starszych tur. Porównaj przewijanie 1000 tur przed i po;
+po rozwinięciu wielu foldów uwzględnij pamięć zachowanych dzieci w oknie FlatList.
+
 W narzędziach pamięci platformy nagraj 30 minut przełączania wątków, przechodzenia
 w tło i otwierania/zamykania dużych obrazów. Porównaj heap Hermes, pamięć bitmap
 i pamięć procesu po zamknięciu viewerów. Osobno zmierz odczyt/zapis cache na

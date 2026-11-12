@@ -22,7 +22,7 @@ export function useComposerScroll<Item>(
   const viewport = useSharedValue(0);
   const correction = useSharedValue(0);
   const inset = useSharedValue(0);
-  const { track, distance, minimum, corrections } = following;
+  const { track, distance, minimum, corrections, anchoring } = following;
   const keyboardMoving = useKeyboardMotion(reader, travel);
 
   const reset = useCallback(() => {
@@ -33,6 +33,7 @@ export function useComposerScroll<Item>(
 
   const onScroll = useAnimatedScrollHandler({
     onBeginDrag: (event) => {
+      anchoring.set(false);
       reader.set(!moving.get() && !keyboardMoving.get());
       travel.set(0);
       previous.set(distance(event.contentOffset.y));

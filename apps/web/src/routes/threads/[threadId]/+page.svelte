@@ -376,14 +376,10 @@
   >();
 
   /**
-   * A fold or tool group the reader opens or closes keeps its header on screen (docs/timeline-folding.md). A reader
-   * following the end stays at the end only when it is the last fold's (its rows are the feed's end).
+   * A manual toggle always keeps its header on screen, including the latest turn while following the end.
    */
   function keepToggled(rowKey: string) {
-    const at = rows.findIndex((row) => row.key === rowKey);
-    const last = rows.findLastIndex((row) => row.kind === "work");
-
-    if (at < last || !atEnd) feed?.keep(rowKey);
+    feed?.keep(rowKey);
   }
 
   // A quote in a message shows where it came from: its item (in folded work or the inherited history: opened

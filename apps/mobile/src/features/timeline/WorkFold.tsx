@@ -1,5 +1,5 @@
-import { useRef } from "react";
-import { Pressable, Text, View, type HostInstance } from "react-native";
+import { Pressable, Text, View } from "react-native";
+import Animated from "react-native-reanimated";
 import { formatSpan } from "@canopy/domain/format";
 import { Rule } from "../../ui/Badge";
 import { LiveText } from "../../ui/LiveText";
@@ -59,8 +59,7 @@ export function WorkFold({
 }) {
   const c = useColors();
   const sky = useTone("sky").text;
-  const header = useRef<HostInstance>(null);
-  const toggle = useAnchoredToggle();
+  const { header, toggle } = useAnchoredToggle();
   const span = summary.spanMs;
 
   const label = starting
@@ -107,21 +106,21 @@ export function WorkFold({
   );
 
   return (
-    <View ref={header} collapsable={false} style={[styles.row, { gap: 12 }]}>
+    <Animated.View ref={header} collapsable={false} style={[styles.row, { gap: 12 }]}>
       {empty ? (
         <View style={{ flexShrink: 1, paddingVertical: 10 }}>{content}</View>
       ) : (
         <Pressable
           accessibilityRole="button"
           accessibilityState={{ expanded: open }}
-          onPress={() => toggle(header.current, onToggle)}
+          onPress={() => toggle(onToggle)}
           style={{ flexShrink: 1, minHeight: 44, paddingVertical: 10 }}
         >
           {content}
         </Pressable>
       )}
       <Rule minWidth={16} />
-    </View>
+    </Animated.View>
   );
 }
 
@@ -144,8 +143,7 @@ export function WorkGroup({
   onToggle: () => void;
 }) {
   const c = useColors();
-  const header = useRef<HostInstance>(null);
-  const toggle = useAnchoredToggle();
+  const { header, toggle } = useAnchoredToggle();
 
   const state =
     status === ItemStatus.FAILED
@@ -159,12 +157,12 @@ export function WorkGroup({
             : "";
 
   return (
-    <View ref={header} collapsable={false}>
+    <Animated.View ref={header} collapsable={false}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={state ? `${label}, ${statusCount} ${state}` : label}
         accessibilityState={{ expanded: open }}
-        onPress={() => toggle(header.current, onToggle)}
+        onPress={() => toggle(onToggle)}
         style={({ pressed }) => [
           styles.row,
           activityHeader.row,
@@ -192,6 +190,6 @@ export function WorkGroup({
           <ItemStatusIcon status={status} count={statusCount} />
         </View>
       </Pressable>
-    </View>
+    </Animated.View>
   );
 }

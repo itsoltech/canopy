@@ -1,6 +1,6 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { Platform, type FlatList, type FlatListProps } from "react-native";
-import { useAnimatedScrollHandler, useDerivedValue, useSharedValue } from "react-native-reanimated";
+import { useAnimatedRef, useAnimatedScrollHandler, useDerivedValue, useSharedValue } from "react-native-reanimated";
 import { useKeyboardFrame } from "./KeyboardWindow";
 import { useContentInsets } from "./ScreenFrame";
 import { scheduleOnRN } from "react-native-worklets";
@@ -15,11 +15,12 @@ const FOLLOW_THRESHOLD = 96;
  * Pass `listProps` to a Reanimated list (`Animated.FlatList`, `TimelineList`).
  */
 export function useFollowingList<Item>(keyboardChat = false) {
-  const list = useRef<FlatList<Item>>(null);
+  const list = useAnimatedRef<FlatList<Item>>();
   const [atBottom, setAtBottom] = useState(true);
   const scrollY = useSharedValue(0);
   const corrections = useSharedValue(0);
   const bottom = useSharedValue(true);
+  const anchoring = useSharedValue(false);
   const keyboard = useKeyboardFrame();
   const insets = useContentInsets();
   const ios = Platform.OS === "ios";
@@ -40,20 +41,6 @@ export function useFollowingList<Item>(keyboardChat = false) {
     [minimum],
   );
 
-  // The scroll offset for the fold anchor (feed-anchor.tsx); 0 is the bottom. Reads and writes go to the UI thread.
-  const offset = useMemo(
-    () => ({
-      get current() {
-        return scrollY.get();
-      },
-      set current(value: number) {
-        corrections.set(corrections.get() + 1);
-        scrollY.set(value);
-      },
-    }),
-    [scrollY, corrections],
-  );
-
   const isFollowing = useCallback(() => distance(scrollY.get()) <= FOLLOW_THRESHOLD, [scrollY, distance]);
 
   /** Records a scroll position (a worklet: scroll handlers call it on the UI thread). */
@@ -61,16 +48,19 @@ export function useFollowingList<Item>(keyboardChat = false) {
     (y: number) => {
       "worklet";
       scrollY.set(y);
+
+      if (anchoring.get()) return;
       const at = distance(y) <= FOLLOW_THRESHOLD;
 
       if (at === bottom.get()) return;
       bottom.set(at);
       scheduleOnRN(setAtBottom, at);
     },
-    [scrollY, bottom, distance],
+    [scrollY, bottom, distance, anchoring],
   );
 
   function jump(animated: boolean) {
+    anchoring.set(false);
     corrections.set(corrections.get() + 1);
     const end = minimum.get();
     list.current?.scrollToOffset({ offset: end, animated });
@@ -80,6 +70,7 @@ export function useFollowingList<Item>(keyboardChat = false) {
   }
 
   const onScroll = useAnimatedScrollHandler({
+    onBeginDrag: () => anchoring.set(false),
     onScroll: (event) => track(event.contentOffset.y),
     onMomentumEnd: (event) => track(event.contentOffset.y),
   });
@@ -95,7 +86,8 @@ export function useFollowingList<Item>(keyboardChat = false) {
 
   return {
     list,
-    offset,
+    scrollY,
+    anchoring,
     isFollowing,
     atBottom,
     track,

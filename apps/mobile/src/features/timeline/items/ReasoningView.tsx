@@ -1,5 +1,6 @@
-import { useRef, useState } from "react";
-import { Pressable, Text, View, type HostInstance } from "react-native";
+import { useState } from "react";
+import { Pressable, Text, View } from "react-native";
+import Animated from "react-native-reanimated";
 import type { Reasoning } from "@canopy/contracts";
 import { LiveText } from "../../../ui/LiveText";
 import { useAnchoredToggle } from "../../../ui/feed-anchor";
@@ -14,8 +15,7 @@ import { activityHeader } from "../activity-header";
 export function ReasoningView({ reasoning, streaming }: { reasoning: Reasoning; streaming: boolean }) {
   const c = useColors();
   const [open, setOpen] = useState(false);
-  const header = useRef<HostInstance>(null);
-  const toggle = useAnchoredToggle();
+  const { header, toggle } = useAnchoredToggle();
 
   const preview =
     (reasoning.summary || reasoning.text)
@@ -27,7 +27,7 @@ export function ReasoningView({ reasoning, streaming }: { reasoning: Reasoning; 
   const label = { fontFamily: font.medium, color: c.muted };
 
   return (
-    <View
+    <Animated.View
       ref={header}
       collapsable={false}
       style={[activityHeader.shell, { borderColor: c.rule, backgroundColor: c.dark ? "#ffffff06" : "#09090b03" }]}
@@ -35,7 +35,7 @@ export function ReasoningView({ reasoning, streaming }: { reasoning: Reasoning; 
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
-        onPress={() => toggle(header.current, () => setOpen(!open))}
+        onPress={() => toggle(() => setOpen(!open))}
         style={({ pressed }) => [
           styles.row,
           activityHeader.row,
@@ -75,6 +75,6 @@ export function ReasoningView({ reasoning, streaming }: { reasoning: Reasoning; 
           />
         </View>
       )}
-    </View>
+    </Animated.View>
   );
 }

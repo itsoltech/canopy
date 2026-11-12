@@ -1,5 +1,6 @@
-import { createContext, useContext, useRef, useState, type ReactNode } from "react";
-import { Pressable, View, type HostInstance } from "react-native";
+import { createContext, useContext, useState, type ReactNode } from "react";
+import { Pressable, View } from "react-native";
+import Animated from "react-native-reanimated";
 import { ItemStatus } from "@canopy/contracts";
 import type { IconName } from "@canopy/ui/icons";
 import { Icon } from "../../ui/Icon";
@@ -45,8 +46,7 @@ export function ItemFrame({
   const [open, setOpen] = useState(false);
   const inherited = useContext(ItemChildren);
   nested ??= inherited;
-  const header = useRef<HostInstance>(null);
-  const toggle = useAnchoredToggle();
+  const { header, toggle } = useAnchoredToggle();
   const violet = useTone("violet").dot;
   const rose = useTone("rose").dot;
 
@@ -76,12 +76,12 @@ export function ItemFrame({
 
   return (
     <View style={surface}>
-      <View ref={header} collapsable={false}>
+      <Animated.View ref={header} collapsable={false}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={label}
           accessibilityState={{ expanded: open }}
-          onPress={() => toggle(header.current, () => setOpen(!open))}
+          onPress={() => toggle(() => setOpen(!open))}
           style={({ pressed }) => [
             activityHeader.row,
             open && activityHeader.open,
@@ -91,7 +91,7 @@ export function ItemFrame({
         >
           {row}
         </Pressable>
-      </View>
+      </Animated.View>
       {open && (
         <View style={activityHeader.body}>
           {children}
