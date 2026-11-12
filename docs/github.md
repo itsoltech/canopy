@@ -679,6 +679,14 @@ następnie zmienione podsumowanie/checki oraz invalidacje zmienionych zasobów; 
 Zmiana checków nie pobiera ponownie diffów ani commitów. Jawny Refresh i własna mutacja
 wymuszają ponowny odczyt. SQL zachowuje projekcje i ETag po restarcie, a dzierżawy
 oraz single-flight łączą współbieżne żądania. REST 304 ponownie używa projekcji bez kosztu primary rate limit.
+Obietnicę wspólnego odczytu rejestrujemy przed asynchronicznym lookupem cache, osobno dla
+zwykłego odczytu i wymuszonego Refresh. Po przejęciu dzierżawy ponownie sprawdzamy świeżość
+cache: inny serwis mógł go uzupełnić przed odczytem generacji. Dotyczy to także obrazów;
+obietnica i kontroler znikają zarówno po sukcesie, jak i po błędzie.
+Pojedyncze współdzielone pobranie ma limit 55 sekund. Timeout
+anuluje transport, usuwa wpis in-flight i zwalnia dzierżawę cache także wtedy, gdy
+transport nie reaguje na anulowanie. Współbieżny odbiorca może rozpocząć jeden nowy
+odczyt; kolejny timeout kończy się błędem zamiast nieskończonych ponowień.
 Web i mobile przechowują strony per PR/account/access revision/SHA w LRU sesji.
 Odwiedzone zakładki pozostają zamontowane, a rewalidacja aktualizuje kluczowane wiersze
 bez czyszczenia treści, pozycji przewijania i rozwinięć. Szkielety są tylko na pierwszym

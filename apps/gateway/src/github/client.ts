@@ -6,6 +6,27 @@ import { GitHubHttpFailure } from "./http.ts";
 import { reconnect, type AccountRow } from "./records.ts";
 import type { BudgetRow, CacheRow } from "./store-cache.ts";
 import { GitHubMemoryCache } from "./memory-cache.ts";
+import { addAbortListener } from "node:events";
+
+class CacheReadTimeout extends ConnectError {
+  constructor() {
+    super("Loading GitHub data timed out. Try again.", Code.Unavailable);
+  }
+}
+
+async function waitForRead<T>(reading: Promise<T>, signal: AbortSignal): Promise<T> {
+  const aborted = Promise.withResolvers<never>();
+  const listener = addAbortListener(signal, () => aborted.reject(signal.reason));
+
+  try {
+    const value = await Promise.race([reading, aborted.promise]);
+    signal.throwIfAborted();
+
+    return value;
+  } finally {
+    listener[Symbol.dispose]();
+  }
+}
 
 export interface GitHubRead {
   key: string;
@@ -25,7 +46,10 @@ export class GitHubClient {
   #flights = new Map<string, Promise<CacheRow>>();
   #controllers = new Map<string, AbortController>();
   #stopped = false;
-  constructor(readonly access: GitHubAccess) {}
+  constructor(
+    readonly access: GitHubAccess,
+    readonly readTimeoutMs = 55_000,
+  ) {}
 
   abort(id: string) {
     this.memory.clear(`${this.access.owner}:${id}:`);
@@ -63,43 +87,67 @@ export class GitHubClient {
       await Effect.runPromise(Metric.update(githubMetrics.latency, performance.now() - started));
     }
   }
-  async #read(id: string, read: GitHubRead, force: boolean): Promise<CacheRow> {
+  async #read(id: string, read: GitHubRead, force: boolean, retry = true): Promise<CacheRow> {
     const { row } = await this.access.token(id);
-    const cache = await this.cached(row, read.key);
-
-    const hit = !force && cache?.payload && Number(new Date(cache.expires_at)) > this.access.http.now();
-    await Effect.runPromise(Metric.update(hit ? githubMetrics.hits : githubMetrics.misses, 1));
-
-    if (hit) return cache;
-    const key = `${id}:${row.revision}:${read.key}`;
+    // An explicit refresh must not join a normal read that can still return a fresh cached value.
+    const key = `${id}:${row.revision}:${force ? "refresh" : "read"}:${read.key}`;
     const old = this.#flights.get(key);
 
-    if (old) return old;
+    if (old) {
+      try {
+        return await (read.signal ? waitForRead(old, read.signal) : old);
+      } catch (cause) {
+        if (!(cause instanceof CacheReadTimeout) || !retry || this.#stopped || read.signal?.aborted) throw cause;
+
+        // One bounded replacement fill; repeated timeouts must surface rather than retry forever.
+        return this.#read(id, read, force, false);
+      }
+    }
 
     if (this.#stopped) throw new ConnectError("GitHub is reconnecting. Retry when connected.", Code.Unavailable);
     const controller = new AbortController();
     this.#controllers.set(key, controller);
 
-    const promise = this.#load(
-      row,
-      read,
-      read.signal ? AbortSignal.any([controller.signal, read.signal]) : controller.signal,
-    );
+    // Register before cache I/O: a delayed miss must not outlive the flight it should join.
+    const promise = this.#boundedRead(row, read, force, controller);
 
     this.#flights.set(key, promise);
 
     try {
       return await promise;
     } finally {
-      this.#flights.delete(key);
-      this.#controllers.delete(key);
+      if (this.#flights.get(key) === promise) {
+        this.#flights.delete(key);
+        this.#controllers.delete(key);
+      }
     }
   }
-  async #load(row: AccountRow, read: GitHubRead, signal: AbortSignal): Promise<CacheRow> {
+  async #boundedRead(row: AccountRow, read: GitHubRead, force: boolean, controller: AbortController) {
+    const timer = setTimeout(() => controller.abort(new CacheReadTimeout()), this.readTimeoutMs);
+    const signal = read.signal ? AbortSignal.any([controller.signal, read.signal]) : controller.signal;
+
+    try {
+      return await waitForRead(this.#cachedRead(row, read, force, signal), signal);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  async #cachedRead(row: AccountRow, read: GitHubRead, force: boolean, signal: AbortSignal): Promise<CacheRow> {
+    const cache = await this.cached(row, read.key);
+    signal.throwIfAborted();
+    const hit = !force && cache?.payload && Number(new Date(cache.expires_at)) > this.access.http.now();
+    await Effect.runPromise(Metric.update(hit ? githubMetrics.hits : githubMetrics.misses, 1));
+
+    if (hit) return cache;
+
+    return this.#load(row, read, force, signal);
+  }
+  async #load(row: AccountRow, read: GitHubRead, force: boolean, signal: AbortSignal): Promise<CacheRow> {
     const { run, http } = this.access;
     const lease = Bun.randomUUIDv7();
     const deadline = Date.now() + 55_000;
     let previous = await this.cached(row, read.key);
+    signal.throwIfAborted();
     const generation = BigInt(previous?.generation ?? 0);
 
     while (!(await run((s) => s.cacheClaim(row, read.key, lease))).length) {
@@ -114,13 +162,20 @@ export class GitHubClient {
 
     try {
       previous = await this.cached(row, read.key);
+      signal.throwIfAborted();
 
-      if (previous?.payload && BigInt(previous.generation) > generation) return previous;
-      const response = await this.#request(row, read, previous?.etag ?? "", signal);
+      // Another service may have filled the cache before this caller sampled its generation.
+      if (
+        previous?.payload &&
+        (BigInt(previous.generation) > generation || (!force && Number(new Date(previous.expires_at)) > http.now()))
+      )
+        return previous;
+      // Release the fenced SQL lease even if an upstream transport ignores cancellation.
+      const response = await waitForRead(this.#request(row, read, previous?.etag ?? "", signal), signal);
 
       const payload =
         response.value && read.project
-          ? await read.project(response.value, response.headers)
+          ? await waitForRead(read.project(response.value, response.headers), signal)
           : (response.value ?? previous?.payload);
 
       if (!payload) throw new Error("GitHub returned no content");

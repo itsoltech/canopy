@@ -85,6 +85,7 @@ export function readFixture(
 
   let avatarMime = "image/png";
   let avatarStatus = 200;
+  let avatarGate = () => Promise.resolve();
 
   let avatarBody = Buffer.from(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==",
@@ -92,7 +93,7 @@ export function readFixture(
   );
 
   const fixtureFetch: typeof fetch = Object.assign(
-    (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+    async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
       const url = new URL(input instanceof Request ? input.url : String(input));
 
       if (url.origin !== "https://avatars.githubusercontent.com") return baseFetch(input, init);
@@ -105,14 +106,14 @@ export function readFixture(
         redirect: init?.redirect,
       });
 
-      return Promise.resolve(
-        headers.get("if-none-match") === '"avatar-v1"'
-          ? new Response(null, { status: 304, headers: { etag: '"avatar-v1"' } })
-          : new Response(avatarBody, {
-              status: avatarStatus,
-              headers: { "content-type": avatarMime, etag: '"avatar-v1"' },
-            }),
-      );
+      await avatarGate();
+
+      return headers.get("if-none-match") === '"avatar-v1"'
+        ? new Response(null, { status: 304, headers: { etag: '"avatar-v1"' } })
+        : new Response(avatarBody, {
+            status: avatarStatus,
+            headers: { "content-type": avatarMime, etag: '"avatar-v1"' },
+          });
     },
     { preconnect: fetch.preconnect },
   );
@@ -383,6 +384,9 @@ export function readFixture(
     ...fixture,
     options: { ...fixture.options, fetch: fixtureFetch },
     avatarRequests,
+    avatarGate: (value: () => Promise<void>) => {
+      avatarGate = value;
+    },
     avatarResponse: (mime: string, bytes: number, status = 200) => {
       avatarMime = mime;
       avatarBody = Buffer.alloc(bytes);
