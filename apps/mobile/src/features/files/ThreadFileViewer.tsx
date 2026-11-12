@@ -82,9 +82,10 @@ export function ThreadFileViewer({
           const kind = confirmation;
           setConfirmation(undefined);
 
-          if (kind === "delete") void viewer.remove().then((removed) => {
-            if (removed) onClose();
-          });
+          if (kind === "delete")
+            void viewer.remove().then((removed) => {
+              if (removed) onClose();
+            });
           else if (kind === "close") onClose();
           else if (viewer.error) viewer.reload();
           else viewer.discard();

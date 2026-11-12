@@ -7,7 +7,12 @@ const filesPath = (threadId: string) => `/api/threads/${encodeURIComponent(threa
 /** Calls wait on the worker (30 s in the gateway). */
 const TIMEOUT_MS = 40_000;
 
-export async function readFile(threadId: string, path: string, itemId = "", expectedSha256 = ""): Promise<ui.ThreadFile> {
+export async function readFile(
+  threadId: string,
+  path: string,
+  itemId = "",
+  expectedSha256 = "",
+): Promise<ui.ThreadFile> {
   const query = new URLSearchParams({ path, itemId, expectedSha256 });
 
   return decode(

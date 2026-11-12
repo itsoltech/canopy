@@ -7,7 +7,13 @@ import { FileLookup } from "./FileLookup";
 import { ThreadFileImage } from "./ThreadFileImage";
 import type { ThreadFileState } from "./useThreadFile";
 
-export function FilePreview({ viewer, name, detail, actions, onDiscard }: {
+export function FilePreview({
+  viewer,
+  name,
+  detail,
+  actions,
+  onDiscard,
+}: {
   viewer: ThreadFileState;
   name: string;
   detail: string;
@@ -21,15 +27,25 @@ export function FilePreview({ viewer, name, detail, actions, onDiscard }: {
   return (
     <>
       <View style={{ padding: 12, gap: 8 }}>
-        {detail ? <Text selectable style={[styles.caption, { color: c.muted }]}>{detail}</Text> : null}
+        {detail ? (
+          <Text selectable style={[styles.caption, { color: c.muted }]}>
+            {detail}
+          </Text>
+        ) : null}
         {actions}
-        {viewer.error ? <Text accessibilityRole="alert" style={[styles.body, { color: c.danger }]}>{viewer.error}</Text> : null}
+        {viewer.error ? (
+          <Text accessibilityRole="alert" style={[styles.body, { color: c.danger }]}>
+            {viewer.error}
+          </Text>
+        ) : null}
         {viewer.editing && viewer.error && <Button title="Discard and reload" onPress={onDiscard} />}
         {viewer.editing && (
           <Text style={[styles.caption, { color: c.muted }]}>{viewer.dirty ? "Unsaved changes" : " "}</Text>
         )}
       </View>
-      {viewer.loading ? <ActivityIndicator accessibilityLabel="Opening the file" color={c.muted} /> : viewer.editing ? (
+      {viewer.loading ? (
+        <ActivityIndicator accessibilityLabel="Opening the file" color={c.muted} />
+      ) : viewer.editing ? (
         <TextInput
           multiline
           value={viewer.draft}
@@ -42,12 +58,18 @@ export function FilePreview({ viewer, name, detail, actions, onDiscard }: {
         />
       ) : (
         <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
-          {file ? file.truncated ? (
-            <Text style={[styles.body, { color: c.muted }]}>This file exceeds the 2 MB preview limit. Open a smaller file to preview it.</Text>
-          ) : /^image\/(png|jpeg|gif|webp)$/.test(file.mimeType) ? (
-            <ThreadFileImage key={file.sha256} file={file} name={name} />
-          ) : (
-            <Text style={[styles.body, { color: c.muted }]}>Canopy cannot show this file. Open it on the thread’s computer.</Text>
+          {file ? (
+            file.truncated ? (
+              <Text style={[styles.body, { color: c.muted }]}>
+                This file exceeds the 2 MB preview limit. Open a smaller file to preview it.
+              </Text>
+            ) : /^image\/(png|jpeg|gif|webp)$/.test(file.mimeType) ? (
+              <ThreadFileImage key={file.sha256} file={file} name={name} />
+            ) : (
+              <Text style={[styles.body, { color: c.muted }]}>
+                Canopy cannot show this file. Open it on the thread’s computer.
+              </Text>
+            )
           ) : !viewer.error && viewer.lookup ? (
             <FileLookup file={viewer.lookup} name={name} onSelect={viewer.reload} />
           ) : null}

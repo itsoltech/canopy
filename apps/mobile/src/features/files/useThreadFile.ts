@@ -47,8 +47,7 @@ export function useThreadFile(threadId: string, itemId: string, path: string) {
         if (response.content.length > PREVIEW_BYTES) throw new Error("Preview exceeds the byte limit");
         setLookup(response);
 
-        if (response.resolution !== FileResolution.FOUND && response.resolution !== FileResolution.UNSPECIFIED)
-          return;
+        if (response.resolution !== FileResolution.FOUND && response.resolution !== FileResolution.UNSPECIFIED) return;
         known.current = { path: response.path, sha256: response.sha256 };
         setFile(response);
       })

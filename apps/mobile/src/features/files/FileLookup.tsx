@@ -23,7 +23,9 @@ export function FileLookup({
         {fileLookupMessage(name, file.resolution)}
       </Text>
       {file.searchIncomplete && (
-        <Text style={[styles.body, { color: c.muted }]}>The search reached its limit. Open a full workspace-relative path.</Text>
+        <Text style={[styles.body, { color: c.muted }]}>
+          The search reached its limit. Open a full workspace-relative path.
+        </Text>
       )}
       {file.matches.map((path) => (
         <Button key={path} title={path} label={`Open ${path}`} variant="ghost" onPress={() => onSelect(path)} />
@@ -36,9 +38,12 @@ export function FileLookup({
             variant="ghost"
             onPress={() => setDetails((shown) => !shown)}
           />
-          {details && file.searchedPaths.map((path, index) => (
-            <Text key={index} selectable style={[styles.caption, { color: c.muted }]}>{path}</Text>
-          ))}
+          {details &&
+            file.searchedPaths.map((path, index) => (
+              <Text key={index} selectable style={[styles.caption, { color: c.muted }]}>
+                {path}
+              </Text>
+            ))}
         </View>
       )}
     </View>

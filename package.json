@@ -21,7 +21,7 @@
     "lint:fix": "oxlint --fix",
     "lint:spacing": "oxlint -c oxlint.spacing.config.ts --fix",
     "format": "oxfmt",
-    "format:check": "oxfmt --check || { oxfmt && bun run lint:spacing && oxfmt && git diff; exit 1; }"
+    "format:check": "oxfmt --check"
   },
   "simple-git-hooks": {
     "commit-msg": "bunx --no-install commitlint --edit \"$1\""

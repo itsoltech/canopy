@@ -13,9 +13,8 @@ function checkedPath(root: string, path: string, workspace = root): string {
   if (!path || path.length > 4096 || path.includes("\0") || path.split(/[\\/]/).includes(".."))
     throw new CommandError("FILE_PATH_INVALID", "Use a path inside this workspace, then reload.", true);
 
-  const absolute = isAbsolute(path) && isWithin(workspace, path)
-    ? resolve(root, relative(workspace, path))
-    : resolve(root, path);
+  const absolute =
+    isAbsolute(path) && isWithin(workspace, path) ? resolve(root, relative(workspace, path)) : resolve(root, path);
 
   if (!isWithin(root, absolute))
     throw new CommandError("FILE_OUTSIDE_ROOTS", "This file is outside this workspace. Choose a file inside it.", true);
@@ -70,7 +69,11 @@ export async function resolvePreview(request: FileRequest, extraRoots: readonly 
     if (preferred.size === 1) return found([...preferred][0]!);
 
     if (preferred.size > 1)
-      return { resolution: FileResolution.AMBIGUOUS, matches: [...preferred].map((p) => relative(root, p)), searchedPaths };
+      return {
+        resolution: FileResolution.AMBIGUOUS,
+        matches: [...preferred].map((p) => relative(root, p)),
+        searchedPaths,
+      };
   }
 
   const direct = existing(request, absolute, extraRoots);

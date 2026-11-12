@@ -30,7 +30,11 @@
 
   const detail = $derived(
     [
-      viewer.lookup?.relativePath ? (viewer.lookup.relativePath === name ? `./${name}` : viewer.lookup.relativePath) : "Workspace file",
+      viewer.lookup?.relativePath
+        ? viewer.lookup.relativePath === name
+          ? `./${name}`
+          : viewer.lookup.relativePath
+        : "Workspace file",
       viewer.lookup?.computer,
     ]
       .filter(Boolean)
@@ -101,16 +105,18 @@
           />
         {/if}
         {#if viewer.file && !viewer.file.binary}<Button
-          size="sm"
-          variant="secondary"
-          disabled={!viewer.editable || viewer.loading}
-          onclick={() => viewer.edit()}>Edit</Button
-        >{/if}
+            size="sm"
+            variant="secondary"
+            disabled={!viewer.editable || viewer.loading}
+            onclick={() => viewer.edit()}>Edit</Button
+          >{/if}
         <Button size="sm" variant="ghost" disabled={viewer.loading} onclick={() => void viewer.load()}>Reload</Button>
       {/if}
       <span class="grow"></span>
-      {#if target.local && viewer.file}<Button size="sm" variant="ghost" onclick={() => void openInApp({ ...target, path: viewer.path })}
-          >Open in default app</Button
+      {#if target.local && viewer.file}<Button
+          size="sm"
+          variant="ghost"
+          onclick={() => void openInApp({ ...target, path: viewer.path })}>Open in default app</Button
         >{/if}
       <span class="inline-flex size-8 items-center justify-center"
         ><CopyButton text={viewer.path || target.path} label="Copy path" /></span
@@ -142,31 +148,36 @@
       </p>
     {/if}
 
-    {#if viewer.loading || viewer.file}<div class="max-h-[65dvh] min-w-0 overflow-auto overscroll-contain rounded-lg bg-zinc-950/3 dark:bg-white/5">
-      {#if viewer.editing}
-        <CodeEditor
-          text={viewer.text}
-          fileName={name}
-          wrap={markdown}
-          onchange={(text) => (viewer.draft = text)}
-          onsave={save}
-        />
-      {:else}
-        <FileContentView
-          local={target.local}
-          file={viewer.file}
-          text={viewer.text}
-          {name}
-          loading={viewer.loading}
-          rendered={markdown && mode === "rendered"}
-        />
-      {/if}
-    </div>{/if}
+    {#if viewer.loading || viewer.file}<div
+        class="max-h-[65dvh] min-w-0 overflow-auto overscroll-contain rounded-lg bg-zinc-950/3 dark:bg-white/5"
+      >
+        {#if viewer.editing}
+          <CodeEditor
+            text={viewer.text}
+            fileName={name}
+            wrap={markdown}
+            onchange={(text) => (viewer.draft = text)}
+            onsave={save}
+          />
+        {:else}
+          <FileContentView
+            local={target.local}
+            file={viewer.file}
+            text={viewer.text}
+            {name}
+            loading={viewer.loading}
+            rendered={markdown && mode === "rendered"}
+          />
+        {/if}
+      </div>{/if}
   </div>
 </Dialog>
 
 <Dialog bind:open={confirmDelete} title="Delete file?" dismissible={!viewer.busy}>
-  <p>Delete <code class="font-mono break-all">{viewer.lookup?.relativePath || name}</code> from {viewer.lookup?.computer || "the thread’s computer"}. This cannot be undone.</p>
+  <p>
+    Delete <code class="font-mono break-all">{viewer.lookup?.relativePath || name}</code> from {viewer.lookup
+      ?.computer || "the thread’s computer"}. This cannot be undone.
+  </p>
   <div class="mt-6 flex justify-end gap-2">
     <Button disabled={viewer.busy} onclick={() => (confirmDelete = false)}>Cancel</Button>
     <Button variant="danger" disabled={viewer.busy} onclick={remove}>Delete file</Button>

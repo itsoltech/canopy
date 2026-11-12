@@ -5,7 +5,13 @@ import { styles, useColors } from "../../ui/theme";
 
 export type FileConfirmationKind = "delete" | "close" | "discard";
 
-export function FileConfirmation({ kind, name, computer, onCancel, onConfirm }: {
+export function FileConfirmation({
+  kind,
+  name,
+  computer,
+  onCancel,
+  onConfirm,
+}: {
   kind: FileConfirmationKind | undefined;
   name: string;
   computer: string;
@@ -19,9 +25,13 @@ export function FileConfirmation({ kind, name, computer, onCancel, onConfirm }: 
   return (
     <Overlay visible={Boolean(kind)} onClose={onCancel} label={title}>
       <View style={{ padding: 20, gap: 16 }}>
-        <Text accessibilityRole="header" style={[styles.body, { color: c.text }]}>{title}</Text>
+        <Text accessibilityRole="header" style={[styles.body, { color: c.text }]}>
+          {title}
+        </Text>
         <Text style={[styles.body, { color: c.muted }]}>
-          {deleting ? `Delete ${name} from ${computer}. This cannot be undone.` : `Your edits to ${name} are not saved.`}
+          {deleting
+            ? `Delete ${name} from ${computer}. This cannot be undone.`
+            : `Your edits to ${name} are not saved.`}
         </Text>
         <Button title="Cancel" onPress={onCancel} />
         <Button title={deleting ? "Delete file" : "Discard changes"} variant="danger" onPress={onConfirm} />

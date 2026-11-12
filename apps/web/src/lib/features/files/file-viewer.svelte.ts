@@ -93,7 +93,13 @@ export class FileViewerState {
 
     try {
       const saved = await writeFile(this.target.threadId, this.path, this.draft, file.sha256);
-      this.file = { ...file, ...saved, relativePath: file.relativePath, computer: file.computer, content: new TextEncoder().encode(this.draft) };
+      this.file = {
+        ...file,
+        ...saved,
+        relativePath: file.relativePath,
+        computer: file.computer,
+        content: new TextEncoder().encode(this.draft),
+      };
       this.text = this.draft;
       this.sha256 = saved.sha256;
 

@@ -29,7 +29,10 @@
   const content = $derived(item.content);
   const directory = useThreadDirectory();
 
-  provideThreadFileLinks(() => directory.currentId || undefined, () => item.itemId);
+  provideThreadFileLinks(
+    () => directory.currentId || undefined,
+    () => item.itemId,
+  );
 
   const streaming = $derived(item.status === ItemStatus.IN_PROGRESS && !turnEnded);
 

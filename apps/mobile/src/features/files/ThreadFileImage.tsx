@@ -25,11 +25,14 @@ export function ThreadFileImage({ file, name }: { file: ui.ThreadFile; name: str
           resizeMode="contain"
           style={{ width: "100%", height: 320 }}
           onError={() => setFailed(true)}
-          onLoad={({ nativeEvent: { source } }) => setDimensions(`${source.width.toLocaleString()} × ${source.height.toLocaleString()}`)}
+          onLoad={({ nativeEvent: { source } }) =>
+            setDimensions(`${source.width.toLocaleString()} × ${source.height.toLocaleString()}`)
+          }
         />
       )}
       <Text style={[styles.caption, { color: c.muted, textAlign: "center", fontVariant: ["tabular-nums"] }]}>
-        {dimensions ? `${dimensions} · ` : ""}{formatBytes(file.size)}
+        {dimensions ? `${dimensions} · ` : ""}
+        {formatBytes(file.size)}
       </Text>
     </View>
   );

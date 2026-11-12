@@ -1,7 +1,9 @@
 import { isAbsoluteFilePath } from "./thread-files.ts";
 
 const EXTENSIONS = new Set(
-  "md markdown mdx txt log csv tsv pdf html htm xml json yaml yml toml ini env png jpg jpeg gif svg webp avif xlsx docx pptx zip c h cc cpp hpp cs css dart diff patch ex exs go gql graphql hs hcl tf java js jsx mjs cjs kt kts lua php pl ps1 py pyi rb rs sh bash sql svelte swift ts tsx vue zig".split(" "),
+  "md markdown mdx txt log csv tsv pdf html htm xml json yaml yml toml ini env png jpg jpeg gif svg webp avif xlsx docx pptx zip c h cc cpp hpp cs css dart diff patch ex exs go gql graphql hs hcl tf java js jsx mjs cjs kt kts lua php pl ps1 py pyi rb rs sh bash sql svelte swift ts tsx vue zig".split(
+    " ",
+  ),
 );
 
 /** Shared web/mobile recognition. A bare name needs a known extension; URLs and shell expressions stay text. */

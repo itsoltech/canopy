@@ -8,12 +8,15 @@ export async function referencePaths(core: GatewayCore, threadId: string, itemId
   if (!itemId || /[\\/]/.test(name)) return [];
 
   const rows = await core[coreState].actions.run(
-    Effect.flatMap(SqlClient.SqlClient, (sql) => sql<{ text: string }>`
+    Effect.flatMap(
+      SqlClient.SqlClient,
+      (sql) => sql<{ text: string }>`
       SELECT left(i.content::text, 65536) AS text FROM thread_items i
       JOIN thread_items source ON source.thread_id=i.thread_id AND source.turn_id=i.turn_id
       WHERE source.thread_id=${threadId}::uuid AND source.item_id=${itemId}
       ORDER BY i.first_seq DESC LIMIT 64
-    `),
+    `,
+    ),
   );
 
   const paths = new Set<string>();

@@ -37,12 +37,14 @@ describe.skipIf(!dockerAvailable)("thread file previews through a real home work
   async function turnItems(threadId: string, messages: string[]) {
     const turnId = Bun.randomUUIDv7();
     const ids = messages.map(() => Bun.randomUUIDv7());
-    await home.sql((sql) => sql`
+    await home.sql(
+      (sql) => sql`
       INSERT INTO turns (id, thread_id, ordinal, status, trigger, input, first_seq, last_seq)
       SELECT ${turnId}::uuid, ${threadId}::uuid, COALESCE(MAX(ordinal), 0) + 1,
         'completed', 'provider', '{}'::jsonb, 100, 100
       FROM turns WHERE thread_id=${threadId}::uuid
-    `);
+    `,
+    );
 
     for (const [index, message] of messages.entries()) {
       const itemId = ids[index]!;
@@ -50,17 +52,20 @@ describe.skipIf(!dockerAvailable)("thread file previews through a real home work
       const item = create(ItemSchema, {
         itemId,
         status: ItemStatus.COMPLETED,
-        content: index === 0
-          ? { case: "agentMessage", value: { text: message } }
-          : { case: "commandExecution", value: { command: message } },
+        content:
+          index === 0
+            ? { case: "agentMessage", value: { text: message } }
+            : { case: "commandExecution", value: { command: message } },
       });
 
       const content = JSON.stringify(toJson(ItemSchema, item));
 
-      await home.sql((sql) => sql`
+      await home.sql(
+        (sql) => sql`
         INSERT INTO thread_items (thread_id, item_id, turn_id, type, status, content, first_seq, last_seq)
         VALUES (${threadId}::uuid, ${itemId}, ${turnId}::uuid, ${item.content.case ?? ""}, 'completed', ${content}::jsonb, 100, 100)
-      `);
+      `,
+      );
     }
 
     return ids[0]!;
@@ -78,12 +83,13 @@ describe.skipIf(!dockerAvailable)("thread file previews through a real home work
     mkdirSync(join(thread.cwd, "assets"));
     caller = await startTestGateway({ role: "desktop" });
 
-    const connect = (gw: typeof caller) => linkedComputers({
-      store: new ComputerStore(gw.runtime, gw.userId, gw.secretsKey),
-      host: "127.0.0.1",
-      heartbeatMs: 100,
-      serve: remoteServe(uiHandlers(gw.core), gw.core),
-    });
+    const connect = (gw: typeof caller) =>
+      linkedComputers({
+        store: new ComputerStore(gw.runtime, gw.userId, gw.secretsKey),
+        host: "127.0.0.1",
+        heartbeatMs: 100,
+        serve: remoteServe(uiHandlers(gw.core), gw.core),
+      });
 
     a = connect(caller);
     b = connect(home.gw);
@@ -108,7 +114,10 @@ describe.skipIf(!dockerAvailable)("thread file previews through a real home work
     writeFileSync(join(home.repo, "nested.txt"), "wrong checkout");
     const path = put("public/nested.txt", "worktree bytes");
 
-    for (const [api, threadId] of [[home.gw.api, thread.id], [caller.api, q()]] as const) {
+    for (const [api, threadId] of [
+      [home.gw.api, thread.id],
+      [caller.api, q()],
+    ] as const) {
       const file = await api.readThreadFile({ threadId, path: "nested.txt" });
       expect(file).toMatchObject({ path, relativePath: "public/nested.txt", resolution: FileResolution.FOUND });
       expect(text(file)).toBe("worktree bytes");
@@ -135,12 +144,15 @@ describe.skipIf(!dockerAvailable)("thread file previews through a real home work
     const source = await turnItems(thread.id, ["Open `hint.txt`", "cat public/hint.txt"]);
     await turnItems(thread.id, ["Read assets/hint.txt"]);
     const foreign = await turnItems((await home.tree()).id, ["Read assets/hint.txt"]);
-    expect(text(await caller.api.readThreadFile({ threadId: q(), itemId: source, path: "hint.txt" }))).toBe("preferred");
+    expect(text(await caller.api.readThreadFile({ threadId: q(), itemId: source, path: "hint.txt" }))).toBe(
+      "preferred",
+    );
     expect(text(await caller.api.readThreadFile({ threadId: q(), itemId: foreign, path: "hint.txt" }))).toBe("root");
     put("absolute.txt", "root absolute");
     const absolute = put("public/absolute.txt", "absolute hint");
     const absoluteSource = await turnItems(thread.id, ["Open `absolute.txt`", `cat ${absolute}`]);
-    expect(text(await caller.api.readThreadFile({ threadId: q(), itemId: absoluteSource, path: "absolute.txt" }))).toBe("absolute hint");
+    const hinted = await caller.api.readThreadFile({ threadId: q(), itemId: absoluteSource, path: "absolute.txt" });
+    expect(text(hinted)).toBe("absolute hint");
   });
 
   test("fresh gitignore-aware lookup sees new files and distinguishes absence from disappearance", async () => {
@@ -175,7 +187,11 @@ describe.skipIf(!dockerAvailable)("thread file previews through a real home work
     const binary = Buffer.alloc(80_000, 0xff);
     const pdf = Buffer.from("%PDF-1.7\nASCII PDF content");
 
-    for (const [name, bytes, mimeType] of [["remote.png", image, "image/png"], ["remote.bin", binary, "application/octet-stream"], ["remote.pdf", pdf, "application/pdf"]] as const) {
+    for (const [name, bytes, mimeType] of [
+      ["remote.png", image, "image/png"],
+      ["remote.bin", binary, "application/octet-stream"],
+      ["remote.pdf", pdf, "application/pdf"],
+    ] as const) {
       put(`assets/${name}`, bytes);
       const file = await caller.api.readThreadFile({ threadId: q(), path: name });
       expect(file).toMatchObject({ binary: true, truncated: false, mimeType });
@@ -185,7 +201,10 @@ describe.skipIf(!dockerAvailable)("thread file previews through a real home work
   });
 
   test("linked reads cap text and binary previews at 2 MiB and cannot authorize mutations", async () => {
-    for (const [name, bytes, binary] of [["large.txt", Buffer.alloc(LIMIT + 100, 0x61), false], ["large.bin", Buffer.alloc(LIMIT + 100), true]] as const) {
+    for (const [name, bytes, binary] of [
+      ["large.txt", Buffer.alloc(LIMIT + 100, 0x61), false],
+      ["large.bin", Buffer.alloc(LIMIT + 100), true],
+    ] as const) {
       put(`public/${name}`, bytes);
       const file = await caller.api.readThreadFile({ threadId: q(), path: name });
       expect(file).toMatchObject({ binary, truncated: true, size: BigInt(bytes.length), sha256: "" });
@@ -195,10 +214,17 @@ describe.skipIf(!dockerAvailable)("thread file previews through a real home work
 
     const result = await home.command({
       commandId: Bun.randomUUIDv7(),
-      kind: { case: "readFile", value: {
-        threadId: thread.id, path: "public/large.bin", workspace: thread.cwd, roots: [thread.cwd],
-        includeBinary: true, maxBytes: LIMIT * 8,
-      } },
+      kind: {
+        case: "readFile",
+        value: {
+          threadId: thread.id,
+          path: "public/large.bin",
+          workspace: thread.cwd,
+          roots: [thread.cwd],
+          includeBinary: true,
+          maxBytes: LIMIT * 8,
+        },
+      },
     });
 
     expect(result?.file?.content?.length).toBe(LIMIT);
@@ -214,13 +240,18 @@ describe.skipIf(!dockerAvailable)("thread file previews through a real home work
     await home.sql((sql) => sql`UPDATE threads SET owner_user_id=${owner}::uuid WHERE id=${thread.id}::uuid`);
 
     try {
-      for (const [api, threadId] of [[home.gw.api, thread.id], [caller.api, q()]] as const) {
+      for (const [api, threadId] of [
+        [home.gw.api, thread.id],
+        [caller.api, q()],
+      ] as const) {
         const error = await failure(api.readThreadFile({ threadId, path: "private.txt" }));
         expect(error).toContain("Thread unavailable");
         expect(error).not.toContain("private bytes");
       }
     } finally {
-      await home.sql((sql) => sql`UPDATE threads SET owner_user_id=${home.gw.userId}::uuid WHERE id=${thread.id}::uuid`);
+      await home.sql(
+        (sql) => sql`UPDATE threads SET owner_user_id=${home.gw.userId}::uuid WHERE id=${thread.id}::uuid`,
+      );
     }
   });
 
@@ -230,7 +261,15 @@ describe.skipIf(!dockerAvailable)("thread file previews through a real home work
     symlinkSync(outside, join(thread.cwd, "escape.txt"));
     symlinkSync(dir, join(thread.cwd, "escape-dir"));
 
-    for (const path of ["../outside.txt", "public/../../outside.txt", "..\\outside.txt", outside, join(home.repo, "README.md"), "escape.txt", "escape-dir/outside.txt"]) {
+    for (const path of [
+      "../outside.txt",
+      "public/../../outside.txt",
+      "..\\outside.txt",
+      outside,
+      join(home.repo, "README.md"),
+      "escape.txt",
+      "escape-dir/outside.txt",
+    ]) {
       const error = await failure(caller.api.readThreadFile({ threadId: q(), path }));
       expect(error).toMatch(/inside this workspace|outside.*(workspace|folders)/);
       expect(error).not.toContain("outside bytes");
@@ -256,24 +295,39 @@ describe.skipIf(!dockerAvailable)("thread file previews through a real home work
     const path = put("public/edit.txt", "before");
     const opened = await caller.api.readThreadFile({ threadId: q(), path: "edit.txt" });
     writeFileSync(path, "concurrent edit");
-    expect(await failure(caller.api.writeThreadFile({
-      threadId: q(), path: opened.path, expectedSha256: opened.sha256, content: new TextEncoder().encode("draft"),
-    }))).toContain("changed on disk");
+    expect(
+      await failure(
+        caller.api.writeThreadFile({
+          threadId: q(),
+          path: opened.path,
+          expectedSha256: opened.sha256,
+          content: new TextEncoder().encode("draft"),
+        }),
+      ),
+    ).toContain("changed on disk");
     expect(readFileSync(path, "utf8")).toBe("concurrent edit");
     const current = await caller.api.readThreadFile({ threadId: q(), path: opened.path });
 
     const saved = await caller.api.writeThreadFile({
-      threadId: q(), path: current.path, expectedSha256: current.sha256, content: new TextEncoder().encode("saved"),
+      threadId: q(),
+      path: current.path,
+      expectedSha256: current.sha256,
+      content: new TextEncoder().encode("saved"),
     });
 
     expect(readFileSync(path, "utf8")).toBe("saved");
     await caller.api.deleteThreadFile({ threadId: q(), path: saved.path, expectedSha256: saved.sha256 });
-    expect((await caller.api.readThreadFile({ threadId: q(), path: saved.path, expectedSha256: saved.sha256 })).resolution).toBe(FileResolution.DELETED);
+    expect(
+      (await caller.api.readThreadFile({ threadId: q(), path: saved.path, expectedSha256: saved.sha256 })).resolution,
+    ).toBe(FileResolution.DELETED);
   });
 
   test("worker and computer-link failures remain connection errors, never missing-file results", async () => {
     home.disconnect();
-    await eventually(() => home.gw.api.getOverview({}), (overview) => !overview.workers.find((w) => w.id === home.workerId)?.online);
+    await eventually(
+      () => home.gw.api.getOverview({}),
+      (overview) => !overview.workers.find((w) => w.id === home.workerId)?.online,
+    );
 
     try {
       expect(await failure(caller.api.readThreadFile({ threadId: q(), path: "README.md" }))).toContain("offline");
