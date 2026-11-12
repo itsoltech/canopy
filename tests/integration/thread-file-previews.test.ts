@@ -24,7 +24,7 @@ describe.skipIf(!dockerAvailable)("thread file previews through a real home work
   let a: LinkedComputers;
   let b: LinkedComputers;
   let thread: ui.Thread;
-  const q = () => qualifyId(thread.id, b.hello().nodeId);
+  const q = (id = thread.id) => qualifyId(id, b.hello().nodeId);
 
   const put = (path: string, content: string | Uint8Array) => {
     const target = join(thread.cwd, path);
@@ -32,6 +32,22 @@ describe.skipIf(!dockerAvailable)("thread file previews through a real home work
 
     return target;
   };
+
+  /** Placement and ownership are immutable: each scenario inserts its own root instead of updating one. */
+  async function copyThread(owner: string, cwd = thread.cwd) {
+    const id = Bun.randomUUIDv7();
+    await home.sql(
+      (sql) => sql`
+      INSERT INTO threads (id, project_id, owner_user_id, kind, root_thread_id, depth,
+        runtime, provider, worker_id, workspace_id, cwd, title, status)
+      SELECT ${id}::uuid, project_id, ${owner}::uuid, 'main', ${id}::uuid, 0,
+        runtime, provider, worker_id, workspace_id, ${cwd}, 'File preview scope', 'idle'
+      FROM threads WHERE id=${thread.id}::uuid
+    `,
+    );
+
+    return id;
+  }
 
   /** Persist the same protobuf JSON the ingest projection uses, without starting a model turn. */
   async function turnItems(threadId: string, messages: string[]) {
@@ -144,14 +160,20 @@ describe.skipIf(!dockerAvailable)("thread file previews through a real home work
     const source = await turnItems(thread.id, ["Open `hint.txt`", "cat public/hint.txt"]);
     await turnItems(thread.id, ["Read assets/hint.txt"]);
     const foreign = await turnItems((await home.tree()).id, ["Read assets/hint.txt"]);
-    expect(text(await caller.api.readThreadFile({ threadId: q(), itemId: source, path: "hint.txt" }))).toBe(
-      "preferred",
-    );
-    expect(text(await caller.api.readThreadFile({ threadId: q(), itemId: foreign, path: "hint.txt" }))).toBe("root");
+
+    for (const [api, threadId, itemId] of [
+      [home.gw.api, thread.id, source],
+      [caller.api, q(), q(source)],
+    ] as const) {
+      expect(text(await api.readThreadFile({ threadId, itemId, path: "hint.txt" }))).toBe("preferred");
+    }
+
+    const fallback = await caller.api.readThreadFile({ threadId: q(), itemId: q(foreign), path: "hint.txt" });
+    expect(text(fallback)).toBe("root");
     put("absolute.txt", "root absolute");
     const absolute = put("public/absolute.txt", "absolute hint");
     const absoluteSource = await turnItems(thread.id, ["Open `absolute.txt`", `cat ${absolute}`]);
-    const hinted = await caller.api.readThreadFile({ threadId: q(), itemId: absoluteSource, path: "absolute.txt" });
+    const hinted = await caller.api.readThreadFile({ threadId: q(), itemId: q(absoluteSource), path: "absolute.txt" });
     expect(text(hinted)).toBe("absolute hint");
   });
 
@@ -237,21 +259,15 @@ describe.skipIf(!dockerAvailable)("thread file previews through a real home work
     );
 
     put("private.txt", "private bytes");
-    await home.sql((sql) => sql`UPDATE threads SET owner_user_id=${owner}::uuid WHERE id=${thread.id}::uuid`);
+    const privateThread = await copyThread(owner);
 
-    try {
-      for (const [api, threadId] of [
-        [home.gw.api, thread.id],
-        [caller.api, q()],
-      ] as const) {
-        const error = await failure(api.readThreadFile({ threadId, path: "private.txt" }));
-        expect(error).toContain("Thread unavailable");
-        expect(error).not.toContain("private bytes");
-      }
-    } finally {
-      await home.sql(
-        (sql) => sql`UPDATE threads SET owner_user_id=${home.gw.userId}::uuid WHERE id=${thread.id}::uuid`,
-      );
+    for (const [api, threadId] of [
+      [home.gw.api, privateThread],
+      [caller.api, q(privateThread)],
+    ] as const) {
+      const error = await failure(api.readThreadFile({ threadId, path: "private.txt" }));
+      expect(error).toContain("Thread unavailable");
+      expect(error).not.toContain("private bytes");
     }
   });
 
@@ -280,15 +296,11 @@ describe.skipIf(!dockerAvailable)("thread file previews through a real home work
     const alias = join(dir, "workspace-alias");
     symlinkSync(thread.cwd, alias);
     put("public/alias.txt", "alias bytes");
-    await home.sql((sql) => sql`UPDATE threads SET cwd=${alias} WHERE id=${thread.id}::uuid`);
-
-    try {
-      const file = await caller.api.readThreadFile({ threadId: q(), path: join(alias, "public/alias.txt") });
-      expect(text(file)).toBe("alias bytes");
-      expect(file.relativePath).toBe("public/alias.txt");
-    } finally {
-      await home.sql((sql) => sql`UPDATE threads SET cwd=${thread.cwd} WHERE id=${thread.id}::uuid`);
-    }
+    const aliasedThread = await copyThread(home.gw.userId, alias);
+    const target = { threadId: q(aliasedThread), path: join(alias, "public/alias.txt") };
+    const file = await caller.api.readThreadFile(target);
+    expect(text(file)).toBe("alias bytes");
+    expect(file.relativePath).toBe("public/alias.txt");
   });
 
   test("edits and deletion target the resolved nested path and reject stale hashes", async () => {
