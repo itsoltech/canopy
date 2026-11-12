@@ -79,7 +79,9 @@ export function LazyItemContent({
       ) : (
         <View style={[styles.row, { flexWrap: "wrap", gap: 8 }]}>
           {error ? (
-            <Text accessibilityLiveRegion="polite" style={[styles.workMeta, { color: c.muted }]}>{error}</Text>
+            <Text accessibilityLiveRegion="polite" style={[styles.workMeta, { color: c.muted }]}>
+              {error}
+            </Text>
           ) : null}
           <Pressable
             accessibilityRole="button"
