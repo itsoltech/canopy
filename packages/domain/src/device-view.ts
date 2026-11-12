@@ -17,6 +17,8 @@ const savedView = Schema.Struct({
   groupByProject: Schema.optionalKey(Schema.Boolean),
   projectOrder: Schema.optionalKey(Schema.Literals([0, 1, 2])),
   workingSection: Schema.optionalKey(Schema.Boolean),
+  lastSeenAppVersion: Schema.optionalKey(Schema.String),
+  appUpdateFrom: Schema.optionalKey(Schema.String),
 });
 
 export type DeviceSidebarValues = Pick<
@@ -25,6 +27,8 @@ export type DeviceSidebarValues = Pick<
 >;
 
 export interface DeviceViewValues extends DeviceSidebarValues {
+  lastSeenAppVersion: string;
+  appUpdateFrom: string;
   archivedThreadsExpanded: boolean;
   archivedBotsExpanded: boolean;
   sidebarCollapsed: boolean;
@@ -34,6 +38,8 @@ export interface DeviceViewValues extends DeviceSidebarValues {
 }
 
 export const deviceViewDefaults: DeviceViewValues = {
+  lastSeenAppVersion: "",
+  appUpdateFrom: "",
   archivedThreadsExpanded: false,
   archivedBotsExpanded: false,
   sidebarCollapsed: false,

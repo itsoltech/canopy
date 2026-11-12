@@ -4,6 +4,7 @@ import { dirname } from "node:path";
 import { Schema } from "effect";
 import { parseReleaseIndex } from "@canopy/domain/release/catalog";
 import { pages, repository } from "./release-github.ts";
+import { publishedNotes, releaseNotesIndex } from "./release-notes.ts";
 import type { JsonValue } from "@canopy/domain/json";
 
 const PublishedRelease = Schema.Struct({
@@ -52,6 +53,8 @@ if (import.meta.main) {
   // gh authenticates with the workflow's GH_TOKEN. Clients never receive that token.
   const text = releaseIndex(pages(`repos/${repository()}/releases?per_page=100`), process.env["CANOPY_RELEASE_TAG"]);
   const output = process.argv[2] ?? "dist/site/releases/v1.json";
+  const previous = await publishedNotes();
   await mkdir(dirname(output), { recursive: true });
+  await writeFile(`${dirname(output)}/notes-v1.json`, releaseNotesIndex(parseReleaseIndex(text), previous));
   await writeFile(output, text);
 }
