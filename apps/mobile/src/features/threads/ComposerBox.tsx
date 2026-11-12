@@ -36,6 +36,8 @@ export interface ComposerBoxProps {
   /** Bot replies keep Stop reachable while the next message is being drafted. */
   stopWhileRunning?: boolean;
   disabled?: boolean;
+  /** Thread Stop remains reachable during watch recovery, independently of Send. */
+  stopDisabled?: boolean;
   busy?: boolean;
   /** Pinned before the field in inline mode, or to the toolbar's left edge. */
   attachment?: ReactNode;
@@ -69,6 +71,7 @@ export function ComposerBox({
   running = false,
   stopWhileRunning = false,
   disabled,
+  stopDisabled,
   busy,
   attachment,
   controls,
@@ -91,7 +94,11 @@ export function ComposerBox({
   const shell = shellCommands && text.startsWith("!");
   const shellIssue = shell && (text.trim() === "!" || files > 0);
   const stop = running && (empty || stopWhileRunning) && Boolean(onStop);
-  const unavailable = disabled || busy || (!stop && (empty || !canSend)) || shellIssue;
+
+  const unavailable = stop
+    ? (stopDisabled ?? (disabled || busy || false))
+    : Boolean(disabled || busy || empty || !canSend || shellIssue);
+
   const composerMotion = useComposerMotion();
   const { progress } = composerMotion;
 
@@ -159,7 +166,7 @@ export function ComposerBox({
             onSend={stop ? onStop : onSend}
             stop={stop}
             running={running}
-            disabled={disabled}
+            disabled={stop ? unavailable : disabled}
             busy={busy}
             unavailable={unavailable}
           />

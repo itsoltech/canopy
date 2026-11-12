@@ -4,6 +4,7 @@ import { ConnectionRecovery } from "@canopy/domain/connection-recovery";
 import { useSession } from "./session";
 import { plannedDeparture } from "../api/departure";
 import { useGatewayDeparture } from "./gateway-departure";
+import { useStreamDiagnostics } from "./stream-diagnostics";
 
 export type Connection =
   | "connecting"
@@ -27,7 +28,7 @@ interface StreamStatus {
 /** Backoff and sticky availability are shared with web; only subscriptions retry, never a sent RPC. */
 export function useStream<T>(
   watch: ((signal: AbortSignal) => AsyncIterable<T>) | null,
-  receive: (value: T) => void | boolean,
+  receive: (value: T) => void | boolean | null,
   key: string,
   threadFailure?: (error: ConnectError) => { retry: boolean; issue: string },
 ) {
@@ -78,10 +79,14 @@ export function useStream<T>(
     publish();
     void runStream({
       signal: controller.signal,
+      started: () => diagnosticStart(),
       recovery,
       start,
       receive: (value) => {
-        const live = onReceive(value) !== false;
+        const readiness = onReceive(value);
+
+        if (readiness === null) return;
+        const live = readiness !== false;
 
         if (live) {
           recovery.succeeded();
@@ -93,42 +98,13 @@ export function useStream<T>(
         if (!live && recovery.snapshot.status !== "unavailable")
           setState((current) => ({ ...current, connection: "syncing" }));
       },
-      failed: (error) => {
-        const { code, rawMessage } = error;
-
-        if (code === Code.Unauthenticated) {
-          clearTimeout(timer);
-          void onExpired();
-
-          return false;
-        }
-
-        const scoped = onThreadFailure(error);
-
-        if (scoped) {
-          setState((current) => ({ ...current, key: subscriptionKey, issue: scoped.issue, connection: "error" }));
-
-          return scoped.retry;
-        }
-
-        if ([Code.NotFound, Code.PermissionDenied, Code.InvalidArgument].includes(code)) {
-          clearTimeout(timer);
-          setState({
-            key: subscriptionKey,
-            connection: "error",
-            retrying: false,
-            issue: "This conversation is no longer available. Return to Threads or retry.",
-          });
-
-          return false;
-        }
-
-        const detail = /\(([^()]+)\)$/.exec(rawMessage)?.[1];
-
-        if (detail) setState((current) => ({ ...current, detail }));
-
-        return true;
-      },
+      failed: (error) =>
+        streamFailure(error, {
+          expired: onExpired,
+          scoped: onThreadFailure,
+          update: (change) => setState((current) => ({ ...current, key: subscriptionKey, ...change })),
+          stop: () => clearTimeout(timer),
+        }),
       retryAt: () => client?.diagnostics.snapshot().retryAt ?? 0,
       planned: () => plannedDeparture(client?.departure.snapshot()),
       publish,
@@ -149,12 +125,19 @@ export function useStream<T>(
       : planned && state.connection === "unavailable"
         ? "reconnecting"
         : current
-          ? threadFailure && state.issue
-            ? "error"
-            : state.connection
+          ? state.connection
           : recovery.snapshot.status === "unavailable"
             ? "unavailable"
             : "connecting";
+
+  const diagnosticStart = useStreamDiagnostics(
+    connection,
+    online,
+    active,
+    epoch,
+    threadFailure ? "thread" : "subscription",
+    state.issue,
+  );
 
   return {
     connection,
@@ -166,8 +149,52 @@ export function useStream<T>(
   };
 }
 
+function streamFailure(
+  error: ConnectError,
+  options: {
+    expired: () => Promise<void>;
+    scoped: (error: ConnectError) => { retry: boolean; issue: string } | undefined;
+    update: (change: Partial<StreamStatus>) => void;
+    stop: () => void;
+  },
+) {
+  if (error.code === Code.Unauthenticated) {
+    options.stop();
+    void options.expired();
+
+    return false;
+  }
+
+  const scoped = options.scoped(error);
+
+  if (scoped) {
+    if (!scoped.retry) options.stop();
+    options.update({ issue: scoped.issue, connection: scoped.retry ? "reconnecting" : "error", retrying: false });
+
+    return scoped.retry;
+  }
+
+  if ([Code.NotFound, Code.PermissionDenied, Code.InvalidArgument].includes(error.code)) {
+    options.stop();
+    options.update({
+      connection: "error",
+      retrying: false,
+      issue: "This conversation is no longer available. Return to Threads or retry.",
+    });
+
+    return false;
+  }
+
+  const detail = /\(([^()]+)\)$/.exec(error.rawMessage)?.[1];
+
+  if (detail) options.update({ detail });
+
+  return true;
+}
+
 async function runStream<T>(options: {
   signal: AbortSignal;
+  started: () => void;
   recovery: ConnectionRecovery;
   start: (signal: AbortSignal) => AsyncIterable<T>;
   receive: (value: T) => void;
@@ -182,6 +209,7 @@ async function runStream<T>(options: {
     recovery.begin();
     publish();
     const started = Date.now();
+    options.started();
 
     try {
       for await (const value of options.start(signal)) {

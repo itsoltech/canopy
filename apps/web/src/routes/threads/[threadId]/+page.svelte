@@ -757,7 +757,9 @@
                     {thread}
                     {worker}
                     running={view.running}
-                    disabled={closed || !view.loaded || Boolean(away)}
+                    runningTurnId={view.ownTurns.find((turn) => turn.status === "running")?.id}
+                    connection={view.composerConnection}
+                    disabled={closed || !view.loaded || Boolean(away) || view.connection === "error"}
                     note={composerNote}
                     onsent={(response) => {
                       if (response.steer) view.upsertSteer(response.steer);

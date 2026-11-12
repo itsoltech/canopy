@@ -5,12 +5,15 @@ import { dockerAvailable } from "@canopy/db/testing";
 import { applyThreadUpdate } from "@canopy/domain/thread-snapshot";
 import { prependThreadPage } from "@canopy/domain/history-pages";
 import { loadThreadItem } from "@canopy/domain/thread-content";
+import { threadWatchReady } from "@canopy/domain/thread-watch-state";
+import { ComposerConnection } from "@canopy/domain/composer-connection";
+import { confirmMessage } from "../../apps/mobile/src/features/threads/pending-message.ts";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { NetworkAccess } from "../../apps/gateway/src/network/network.ts";
 import { mountMobileNetwork } from "../../apps/gateway/src/network/devices.ts";
 import { routedMobileClient } from "../../apps/mobile/src/api/routes.ts";
 import { nodePinnedTransport } from "./support/phone.ts";
-import { SERVICE_TOKEN, startTestGateway } from "./support/gateway.ts";
+import { SERVICE_TOKEN, startTestGateway, eventually } from "./support/gateway.ts";
 
 describe.skipIf(!dockerAvailable)("bounded client sequence watch over real gRPC", () => {
   let gateway: Awaited<ReturnType<typeof startTestGateway>>;
@@ -110,6 +113,102 @@ describe.skipIf(!dockerAvailable)("bounded client sequence watch over real gRPC"
       abort.abort();
     }
   });
+  test("healthy gRPC and mobile watches stay live across two periodic control refreshes", async () => {
+    await Promise.all([healthyWatch(gateway.api), healthyWatch(phone.api)]);
+  }, 20_000);
+
+  test("a send queued during a disconnected watch is delivered exactly once after sequence resume", async () => {
+    const target = (
+      await gateway.api.createThread({
+        projectId: cached.thread!.projectId,
+        workspaceId: cached.thread!.workspaceId,
+        provider: Provider.CODEX,
+        clientRequestId: crypto.randomUUID(),
+      })
+    ).thread!.id;
+
+    const connection = new ComposerConnection();
+    const abort = new AbortController();
+    let state: ui.ThreadSnapshot | undefined;
+
+    const watch = async (signal: AbortSignal) => {
+      try {
+        for await (const update of phone.api.watchThread(
+          { threadId: target, sequence: true, syncCursor: state?.syncCursor },
+          { signal },
+        )) {
+          state = applyThreadUpdate(state, update);
+          const ready = threadWatchReady(update);
+
+          if (ready !== null) connection.update(ready);
+        }
+      } catch (error) {
+        if (!signal.aborted) throw error;
+      } finally {
+        connection.update(false);
+      }
+    };
+
+    const first = new AbortController();
+    const reading = watch(first.signal);
+    let resumed: Promise<void> | undefined;
+
+    try {
+      await eventually(async () => connection.live, Boolean);
+      first.abort();
+      await reading;
+      const checkpoint = state!.syncCursor!;
+
+      const request = {
+        threadId: target,
+        text: "Queued through a brief reconnect",
+        clientRequestId: crypto.randomUUID(),
+      };
+
+      const pending = confirmMessage(
+        request,
+        () => phone.api,
+        abort.signal,
+        () => {},
+        () => connection.waitUntilLive(abort.signal),
+      );
+
+      await Bun.sleep(100);
+      expect(connection.composerAvailable).toBe(true);
+      expect((gateway.worker.inputs.get(target) ?? []).includes(request.text)).toBe(false);
+      resumed = watch(abort.signal);
+      const result = await pending;
+      expect(state!.syncCursor!.epoch).toBe(checkpoint.epoch);
+
+      // The same immutable send is also safe when an acknowledgement is lost.
+      const repeated = await confirmMessage(
+        request,
+        () => phone.api,
+        abort.signal,
+        () => {},
+        () => connection.waitUntilLive(abort.signal),
+      );
+
+      expect(repeated.turn?.id).toBe(result.turn?.id);
+      await eventually(
+        async () => gateway.worker.inputs.get(target) ?? [],
+        (inputs) => inputs.includes(request.text),
+      );
+      expect(gateway.worker.inputs.get(target)?.filter((input) => input === request.text)).toHaveLength(1);
+
+      const rows = await store.query<{ count: string }>(
+        "SELECT count(*)::text AS count FROM turns WHERE thread_id=$1::uuid AND input->>'text'=$2",
+        [target, request.text],
+      );
+
+      expect(rows[0]?.count).toBe("1");
+    } finally {
+      first.abort();
+      abort.abort();
+      connection.reset();
+      await Promise.allSettled([reading, ...(resumed ? [resumed] : [])]);
+    }
+  }, 10_000);
   test("reconnect resumes from the cached sequence and replays no snapshot", async () => {
     cached = fromBinary(ui.ThreadSnapshotSchema, toBinary(ui.ThreadSnapshotSchema, cached));
     const abort = new AbortController();
@@ -318,5 +417,41 @@ describe.skipIf(!dockerAvailable)("bounded client sequence watch over real gRPC"
     } finally {
       abort.abort();
     }
+  }
+
+  async function healthyWatch(api: typeof gateway.api) {
+    const abort = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let live = false;
+    let controls = 0;
+    let batches = 0;
+    const transitions: { at: number; kind: string | undefined }[] = [];
+    let failure: unknown;
+
+    try {
+      for await (const update of api.watchThread({ threadId: thread, sequence: true }, { signal: abort.signal })) {
+        if (update.change.case === "controls") controls++;
+
+        if (update.change.case === "batch") batches++;
+        const ready = threadWatchReady(update);
+
+        if (live && ready === false) transitions.push({ at: Date.now(), kind: update.change.case });
+
+        if (ready !== null) live = ready;
+
+        if (live && !timer) timer = setTimeout(() => abort.abort(), 11_500);
+      }
+    } catch (error) {
+      if (!abort.signal.aborted) failure = error;
+    } finally {
+      clearTimeout(timer);
+      expect(abort.signal.aborted).toBe(true);
+      abort.abort();
+    }
+
+    expect(failure).toBeUndefined();
+    expect(controls).toBeGreaterThanOrEqual(3);
+    expect(batches).toBeGreaterThanOrEqual(3);
+    expect(transitions).toEqual([]);
   }
 });

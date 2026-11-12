@@ -69,6 +69,7 @@
     label = "Message",
     placeholder = "Ask anything…",
     disabled = false,
+    stopDisabled = false,
     canSend = true,
     blockedReason,
     deliveryNotice,
@@ -101,6 +102,7 @@
     label?: string;
     placeholder?: string;
     disabled?: boolean;
+    stopDisabled?: boolean;
     canSend?: boolean;
     blockedReason?: string | undefined;
     deliveryNotice?: string | undefined;
@@ -280,7 +282,7 @@
   <div
     class={[
       "relative rounded-2xl bg-surface shadow-sm ring-1 [--composer-send-width:--spacing(9)] sm:[--composer-send-width:--spacing(8)] dark:shadow-none",
-      disabled && "*:opacity-70",
+      disabled && (!stopMode || stopDisabled) && "*:opacity-70",
       shellMode
         ? "ring-rose-600 has-focus-visible:ring-rose-600 dark:ring-rose-400 dark:has-focus-visible:ring-rose-400"
         : dragging
@@ -424,7 +426,7 @@
             class="relative grid size-9 shrink-0 place-items-center rounded-full bg-zinc-950 text-white focus-ring disabled:opacity-50 sm:size-8 dark:bg-white dark:text-zinc-950"
             aria-label="Stop the turn"
             {@attach tooltip("Stop the turn")}
-            disabled={stopping}
+            disabled={stopping || stopDisabled}
             onclick={onstop}
           >
             {#if stopping}<Spinner class="size-3.5" />{:else}<Icon name="stop" tone="inherit" class="size-3.5" />{/if}

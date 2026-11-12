@@ -240,6 +240,17 @@ jest nakładką pod nagłówkiem, więc nie przesuwa listy ani jej scrolla. Scri
 pozostaje niezależny od kolejnych prób. Web/desktop używa tego samego backoffu i histerezy,
 popovera statusu z ręcznym retry oraz banera nad treścią bez zmiany jej geometrii.
 
+Odświeżenie `WatchThread.controls` co 5 s pozostaje na tym samym strumieniu
+i zachowuje `live`; tylko jawny catch-up lub utrata transportu zmienia gotowość.
+Wspólny helper kompozytora toleruje 1 s non-live po synchronizacji, bez zmiany
+geometrii przycisków. Send czeka z niezmiennym żądaniem do live, Stop pozostaje
+osiągalny i po powrocie dotyczy wyłącznie nadal działającej tury. Szczegóły:
+[potwierdzenie wiadomości](ui-api.md#potwierdzenie-wiadomości).
+Build developerski loguje znaczniki czasu, powody zmian stanu i licznik otwarć
+watcha (`Stream connection changed`, `Stream watch started`), bez treści,
+identyfikatorów wątków, adresów ani tokenów. Licznik rozróżnia zmianę gotowości
+od rzeczywistego ponownego otwarcia transportu.
+
 ### Tailscale na telefonie
 
 Na Androidzie w ustawieniach VPN włącz **Always-on VPN** dla Tailscale, a w ustawieniach

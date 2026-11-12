@@ -9,9 +9,11 @@ export function confirmMessage(
   connection: () => Client<typeof ui.GatewayService> | undefined,
   signal: AbortSignal,
   onWaiting: () => void,
+  beforeAttempt?: () => Promise<void>,
 ) {
   return resolvePendingSend(
-    () => {
+    async () => {
+      await beforeAttempt?.();
       const api = connection();
 
       if (!api) throw new ConnectError("Waiting for connection", Code.Unavailable);
