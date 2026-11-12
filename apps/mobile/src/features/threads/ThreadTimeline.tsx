@@ -73,6 +73,7 @@ const TimelineCell = memo(
     context,
     directory,
     newDay,
+    historical,
     entering,
   }: {
     turn: ui.Turn;
@@ -80,12 +81,13 @@ const TimelineCell = memo(
     context: TurnContext;
     directory: TimelineDirectory;
     newDay: boolean;
+    historical: boolean;
     entering: ReturnType<typeof useMotion>["rise"]["entering"];
   }) {
     return (
       <ArrivingCell entering={entering}>
         <TimelineDirectoryProvider value={{ ...directory, sourceId: turn.fromThreadId || directory.currentId }}>
-          <TimelineTurn turn={turn} entries={entries} context={context} newDay={newDay} />
+          <TimelineTurn turn={turn} entries={entries} context={context} newDay={newDay} historical={historical} />
         </TimelineDirectoryProvider>
       </ArrivingCell>
     );
@@ -96,7 +98,8 @@ const TimelineCell = memo(
     before.entries === after.entries &&
     before.context === after.context &&
     before.directory === after.directory &&
-    before.newDay === after.newDay,
+    before.newDay === after.newDay &&
+    before.historical === after.historical,
 );
 
 const EMPTY_ENTRIES: readonly ui.TimelineItem[] = [];
@@ -155,13 +158,14 @@ export function ThreadTimeline({
           }
           // A turn that arrives (a sent or queued message) fades in; one that only scrolls into view does not, and
           // neither do the rows it mounts with. Later rows inside it animate themselves (TimelineTurn).
-          renderItem={({ item }) => (
+          renderItem={({ item, index }) => (
             <TimelineCell
               turn={item}
               entries={entries.get(turnKey(item)) ?? EMPTY_ENTRIES}
               context={context}
               directory={directory}
               newDay={days.has(item)}
+              historical={index !== 0}
               entering={arrival(turnKey(item))}
             />
           )}

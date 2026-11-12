@@ -7,6 +7,7 @@ const send = (message: JsonObject) => process.stdout.write(`${JSON.stringify(mes
 const notify = (method: string, params: JsonObject) => send({ method, params });
 let ordinal = 0;
 let previous = "";
+let instructions = "";
 
 function turn(id: string, status = "inProgress"): JsonObject {
   return { id, status, items: [], error: null };
@@ -65,7 +66,7 @@ async function start(id: JsonObject[string], params: JsonObject) {
       content: [{ type: "text", text, text_elements: [] }],
     },
   });
-  message(threadId, turnId, `Echo: ${text}`);
+  message(threadId, turnId, instructions ? `Context: ${instructions}` : `Echo: ${text}`);
 
   if (!previous)
     notify("item/started", {
@@ -109,7 +110,12 @@ for await (const line of createInterface({ input: process.stdin })) {
       send({ id, result: { userAgent: "turn-boundary-fixture" } });
       break;
     case "thread/start":
+      instructions = jsonString(params["developerInstructions"]) ?? "";
       send({ id, result: { thread: { id: "fixture-thread", path: null } } });
+      break;
+    case "thread/resume":
+      if (params["threadId"] === "missing-rollout") send({ id, error: { code: -32600, message: "no rollout found" } });
+      else send({ id, result: { thread: { id: "fixture-thread", path: null } } });
       break;
     case "model/list":
       send({ id, result: { data: [], nextCursor: null } });

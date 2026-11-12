@@ -86,8 +86,20 @@ export class ThreadCommands {
 
     // The files first: the input already names their paths.
     if (input.attachments.length > 0) await this.ctx.ops.ensureAttachments(spec.threadId, input.attachments);
+
+    const recoveryContext = await this.ctx.state.options.runtime.runPromise(
+      Journal.use((journal) =>
+        Effect.gen(function* () {
+          if (input.text === "Continue") return yield* journal.recoveryInstructions(spec.threadId);
+          yield* journal.rememberRequest(spec.threadId, input.text);
+
+          return "";
+        }),
+      ),
+    );
+
     // UNSPECIFIED (an older gateway): the thread's mode.
-    const settings = { model, effort, permissionMode: permissionMode || spec.permissionMode };
+    const settings = { model, effort, permissionMode: permissionMode || spec.permissionMode, recoveryContext };
 
     if (spec.provider === Provider.GROK)
       await this.ctx.ops.runGrok(

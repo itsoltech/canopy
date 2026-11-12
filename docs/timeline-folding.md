@@ -26,6 +26,12 @@ nie z czasu zakończenia. Mobile już grupuje całą turę w jednym wierszu.
 Komunikat dostawcy z JSON `type = error` pokazuje czytelny tekst i status HTTP;
 pełny JSON i dodatkowe dane są zredagowane i zwinięte pod „Show details” na obu klientach.
 
+„Retry” po nieudanej turze wysyła wyłącznie „Continue”, bez kopii poprzedniego promptu.
+Po rozpoczęciu nowszej tury starszy błąd zostaje jako tytuł i „Show details”;
+opis, wskazówki i wszystkie akcje naprawcze znikają. Wiadomość czekająca w kolejce
+nie ukrywa jeszcze akcji. Web i mobile zwijają wpis natychmiast, bez animowania
+wysokości podczas streamingu; pozycję czytelnika utrzymuje kotwiczenie osi.
+
 ## Segmenty tury po pokazanej odpowiedzi
 
 Ta sama tura może pracować dalej po wiadomości `final_answer`: steer dostarczony do działającej tury, kontynuacja celu albo agent, który po prostu kontynuuje. Taka odpowiedź zostaje na swoim miejscu, a dalsza praca tworzy kolejny segment, ułożony jak nowa tura. Podział liczy wspólne `workSegments` (`packages/domain/src/work-fold.ts`): wiadomość `final_answer`, po której przyszedł jakikolwiek niepusty wiersz tury, kończy swój segment i jest jego odpowiedzią.

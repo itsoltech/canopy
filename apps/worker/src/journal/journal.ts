@@ -13,6 +13,7 @@ import {
 import { Context, Effect, Layer, Schema } from "effect";
 import { turnTracking } from "./turn-tracking.ts";
 import { shellTracking } from "./shell-inputs.ts";
+import { retryContext } from "./retry-context.ts";
 import { secretEventRedactor } from "../runtime/thread-secrets.ts";
 
 /**
@@ -84,6 +85,8 @@ export class Journal extends Context.Service<
   Journal,
   {
     readonly journalId: string;
+    rememberRequest: ReturnType<typeof retryContext>["rememberRequest"];
+    recoveryInstructions: ReturnType<typeof retryContext>["recoveryInstructions"];
     beginShellInput: ReturnType<typeof shellTracking>["beginShellInput"];
     shellInput: ReturnType<typeof shellTracking>["shellInput"];
     shellPid: ReturnType<typeof shellTracking>["shellPid"];
@@ -323,6 +326,7 @@ function makeJournal(db: Database): Journal["Service"] {
   const admit = botAdmission(db, appendTx);
 
   return Journal.of({
+    ...retryContext(db, attempt),
     ...shellTracking(db, attempt, (threadId, event) => appendTx(threadId, redact(threadId, event))),
     journalId,
     admitBotTurn: (commandId, botId, turnId) => attempt("admitBotTurn", () => admit(commandId, botId, turnId)),

@@ -18,6 +18,7 @@ export function FailureNotice({
   classification = "",
   authHint = "",
   heading = "Could not finish this turn",
+  historical = false,
 }: {
   message: string;
   code?: string;
@@ -25,6 +26,7 @@ export function FailureNotice({
   classification?: string;
   authHint?: string;
   heading?: string;
+  historical?: boolean;
 }) {
   const c = useColors();
   const type = useTypography();
@@ -39,8 +41,8 @@ export function FailureNotice({
   return (
     <View accessibilityRole="alert" style={{ gap: 8 }}>
       <Text style={[styles.body, { fontFamily: font.medium, color: rose }]}>{heading}</Text>
-      <Text style={[styles.body, { color: c.muted }]}>{failure.explanation}</Text>
-      {failure.kind === "auth_required" && authHint ? (
+      {!historical && <Text style={[styles.body, { color: c.muted }]}>{failure.explanation}</Text>}
+      {!historical && failure.kind === "auth_required" && authHint ? (
         <Text style={[styles.body, { color: c.muted }]}>{authHint}</Text>
       ) : null}
       <Pressable

@@ -43,7 +43,15 @@ const AUTH_HINTS = new Map<Provider, string>([
  * How a turn ended (web: TurnEnd). A failed turn explains its error; one that did not complete shows its status and
  * who stopped it. "Completed" is the norm, so it shows nothing.
  */
-export function TurnEnd({ turn, provider }: { turn: ui.Turn; provider: Provider | undefined }) {
+export function TurnEnd({
+  turn,
+  provider,
+  historical,
+}: {
+  turn: ui.Turn;
+  provider: Provider | undefined;
+  historical: boolean;
+}) {
   const c = useColors();
   const look = statusLook(turn.status);
   const tone = useTone(look.tone).text;
@@ -55,6 +63,7 @@ export function TurnEnd({ turn, provider }: { turn: ui.Turn; provider: Provider 
         code={turn.errorCode}
         classification={turn.errorClass}
         source={turn.errorSource}
+        historical={historical}
         authHint={
           (provider !== undefined && AUTH_HINTS.get(provider)) ||
           "Sign in from provider settings, or run codex login on the worker using this instance's CLI home."

@@ -108,7 +108,7 @@ export function threadStart(
             const offered = modelEfforts.get(model || "default");
             const fits = configured && isClaudeEffort(configured) && (!offered || offered.includes(configured));
             const effort = isClaudeEffort(requested) ? requested : fits ? configured : undefined;
-            session = await open(spec, model, effort, mode);
+            session = await open(spec, model, effort, mode, settings?.recoveryContext);
           } else {
             // A process kept alive by background tasks: the turn's model and mode apply from now on.
             if (model && model !== session.model) {

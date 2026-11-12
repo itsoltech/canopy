@@ -304,6 +304,15 @@ Worker podaje źródło w `TurnFinished.source` i `error_code`; starszy worker b
 
 **Kontynuacja.** Tura przerwana przez system ma w UI akcję „Continue”: krótka wiadomość, która wznawia sesję harnessu z pełnym kontekstem (Codex `thread/resume`, Claude `resume`) i prosi o sprawdzenie, co już zrobiono, zanim cokolwiek z efektami ubocznymi zostanie powtórzone (zasada 6). Każda nowa wiadomość robi to samo.
 
+„Retry” nieudanej tury wysyła tylko „Continue”. Worker zachowuje ostatnią niepustą
+prośbę inną niż „Continue” w lokalnym `retry_requests`, niezależnie od ACK zdarzeń.
+Gdy Codex nie ma rolloutu lub Claude nie ma transkryptu i musi utworzyć nową sesję,
+retry przekazuje tę prośbę prywatnie w instrukcjach developera/systemowych wraz
+z zaleceniem sprawdzenia wykonanych skutków. Wznowiona sesja korzysta z własnej
+historii; Grok wymaga skutecznego `loadSession` i nie tworzy zastępczej pustej sesji.
+Odtworzenie obejmuje zachowaną prośbę, nie pełny transkrypt utraconej sesji.
+Wpisy sprzed wprowadzenia tego zapisu nie mają prywatnej kopii prośby.
+
 ## 5. UI
 
 Lustra połączonych komputerów mają własny trwały dziennik unieważnień domu i zapisany per partner

@@ -27,6 +27,7 @@
   const overview = useOverview();
   const thread = $derived(directory.thread(directory.currentId));
   const worker = $derived(thread ? overview.worker(thread.workerId) : undefined);
+  const historical = $derived(directory.latestTurnId !== undefined && directory.latestTurnId !== turn.id);
 
   const proxy = $derived(
     worker?.providerInstances.some(
@@ -108,7 +109,7 @@
       await sendMessage(
         directory.currentId,
         turn.status === "failed"
-          ? `Continue the previous request after the failed turn. Check what was already done before repeating anything with side effects. Previous request: ${turn.inputText}`
+          ? "Continue"
           : `Continue where you left off. Your previous turn was interrupted by the system (${reason || "unknown reason"}), not by me. Check what was already done before repeating anything with side effects.`,
         continueRequest,
       );
@@ -133,6 +134,7 @@
           ? "Run grok login on the worker using this instance's CLI home, then retry."
           : "Sign in from provider settings, or run codex login on the worker using this instance's CLI home."}
       source={turn.errorSource}
+      {historical}
       {proxy}
       {providerHref}
       retrying={continuing === "sending"}
@@ -140,8 +142,8 @@
       onretry={!directory.readOnly && !turn.inherited && thread?.status === "idle" ? continueTurn : undefined}
       onchangemodel={!directory.readOnly && !turn.inherited && thread ? () => (modelOpen = true) : undefined}
     />
-    {#if continuing === "sent"}<p role="status" class="text-sm text-zinc-500">Retry queued</p>{/if}
-    {#if continuing === "error"}<p role="alert" class="text-sm text-rose-700 dark:text-rose-400">
+    {#if !historical && continuing === "sent"}<p role="status" class="text-sm text-zinc-500">Retry queued</p>{/if}
+    {#if !historical && continuing === "error"}<p role="alert" class="text-sm text-rose-700 dark:text-rose-400">
         Could not queue the retry. Try again.
       </p>{/if}
   {:else if turn.status !== "completed"}

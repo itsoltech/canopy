@@ -25,7 +25,7 @@ export function threadTurns(
       settings?: TurnSettings,
     ) {
       connectorCatalog.set(spec.threadId, spec.connectorTools);
-      const entry = yield* ensureLoaded(spec);
+      const entry = yield* ensureLoaded(spec, settings?.recoveryContext);
       const known = entry.platformToCodex.get(turnId);
 
       if (known) return known; // redelivered StartTurn: the turn already exists
