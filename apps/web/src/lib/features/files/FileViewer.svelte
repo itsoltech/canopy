@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import { formatSize } from "@canopy/domain";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Badge from "#lib/shared/ui/Badge.svelte";
@@ -14,6 +15,7 @@
   import FileContentView from "./FileContentView.svelte";
   import { openInApp, type FileTarget } from "./file-links.svelte.ts";
   import { EDIT_LIMIT_BYTES, FileViewerState } from "./file-viewer.svelte.ts";
+  import FileLookup from "./FileLookup.svelte";
 
   /** A thread's file: read with highlighting (Markdown rendered), edit, save, delete or open in the default app. */
   let { target, onclose }: { target: FileTarget; onclose: () => void } = $props();
@@ -28,13 +30,21 @@
   const mode = $derived(devicePreferences.values.attachmentMarkdown);
 
   const detail = $derived(
-    [viewer.file?.path || target.path, viewer.file ? formatSize(Number(viewer.file.size)) : ""]
+    [
+      viewer.lookup?.relativePath
+        ? viewer.lookup.relativePath === name
+          ? `./${name}`
+          : viewer.lookup.relativePath
+        : "Workspace file",
+      viewer.lookup?.computer,
+    ]
       .filter(Boolean)
       .join(" · "),
   );
 
   $effect(() => {
-    void viewer.load();
+    const currentViewer = viewer;
+    void untrack(() => currentViewer.load());
   });
 
   // Closing with unsaved changes asks first; the dialog itself stays open until the user decides.
@@ -86,7 +96,7 @@
           >{#if viewer.dirty}<Badge tone="amber" icon="pencil-square">Unsaved changes</Badge>{/if}</span
         >
       {:else}
-        {#if markdown}
+        {#if markdown && viewer.file && !viewer.file.binary}
           <SegmentedChoice
             label="Markdown view"
             options={[
@@ -96,26 +106,28 @@
             bind:value={() => mode, (value) => devicePreferences.set("attachmentMarkdown", value)}
           />
         {/if}
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={!viewer.editable || viewer.loading}
-          onclick={() => viewer.edit()}>Edit</Button
-        >
+        {#if viewer.file && !viewer.file.binary}<Button
+            size="sm"
+            variant="secondary"
+            disabled={!viewer.editable || viewer.loading}
+            onclick={() => viewer.edit()}>Edit</Button
+          >{/if}
         <Button size="sm" variant="ghost" disabled={viewer.loading} onclick={() => void viewer.load()}>Reload</Button>
       {/if}
       <span class="grow"></span>
-      {#if target.local}<Button size="sm" variant="ghost" onclick={() => void openInApp(target)}
-          >Open in default app</Button
+      {#if target.local && viewer.file}<Button
+          size="sm"
+          variant="ghost"
+          onclick={() => void openInApp({ ...target, path: viewer.path })}>Open in default app</Button
         >{/if}
       <span class="inline-flex size-8 items-center justify-center"
-        ><CopyButton text={viewer.file?.path || target.path} label="Copy path" /></span
+        ><CopyButton text={viewer.path || target.path} label="Copy path" /></span
       >
       <Button
         size="sm"
         variant="ghost"
-        disabled={!viewer.file || viewer.busy || viewer.editing}
-        onclick={() => (confirmDelete = true)}>Delete…</Button
+        disabled={!viewer.file?.sha256 || viewer.loading || viewer.busy || viewer.editing}
+        onclick={() => (confirmDelete = true)}>Delete file</Button
       >
     </div>
 
@@ -127,6 +139,9 @@
         </div>
       {/if}
     {/if}
+    {#if !viewer.loading && !viewer.error && !viewer.file && viewer.lookup}
+      <FileLookup file={viewer.lookup} path={target.path} onselect={(path) => void viewer.load(path)} />
+    {/if}
     {#if viewer.file && !viewer.editable && !viewer.editing && !viewer.file.binary}
       <p class="text-sm/5 text-muted">
         {viewer.file.truncated
@@ -135,31 +150,36 @@
       </p>
     {/if}
 
-    <div class="h-[65dvh] min-w-0 overflow-auto overscroll-contain rounded-lg bg-zinc-950/3 dark:bg-white/5">
-      {#if viewer.editing}
-        <CodeEditor
-          text={viewer.text}
-          fileName={name}
-          wrap={markdown}
-          onchange={(text) => (viewer.draft = text)}
-          onsave={save}
-        />
-      {:else}
-        <FileContentView
-          local={target.local}
-          file={viewer.file}
-          text={viewer.text}
-          {name}
-          loading={viewer.loading}
-          rendered={markdown && mode === "rendered"}
-        />
-      {/if}
-    </div>
+    {#if viewer.loading || viewer.file}<div
+        class="max-h-[65dvh] min-w-0 overflow-auto overscroll-contain rounded-lg bg-zinc-950/3 dark:bg-white/5"
+      >
+        {#if viewer.editing}
+          <CodeEditor
+            text={viewer.text}
+            fileName={name}
+            wrap={markdown}
+            onchange={(text) => (viewer.draft = text)}
+            onsave={save}
+          />
+        {:else}
+          <FileContentView
+            local={target.local}
+            file={viewer.file}
+            text={viewer.text}
+            {name}
+            loading={viewer.loading}
+            rendered={markdown && mode === "rendered"}
+          />
+        {/if}
+      </div>{/if}
   </div>
 </Dialog>
 
 <Dialog bind:open={confirmDelete} title="Delete file?" dismissible={!viewer.busy}>
-  <p>Delete <code class="font-mono break-all">{name}</code> from this computer. This cannot be undone.</p>
+  <p>
+    Delete <code class="font-mono break-all">{viewer.lookup?.relativePath || name}</code> from {viewer.lookup
+      ?.computer || "the thread’s computer"}. This cannot be undone.
+  </p>
   <div class="mt-6 flex justify-end gap-2">
     <Button disabled={viewer.busy} onclick={() => (confirmDelete = false)}>Cancel</Button>
     <Button variant="danger" disabled={viewer.busy} onclick={remove}>Delete file</Button>

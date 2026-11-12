@@ -54,6 +54,7 @@ export const READS = new Set([
   "GetAttachment",
   "GetThreadBlob",
   "GetThreadSyncContent",
+  "ReadThreadFile",
   "ListMentionCatalog",
   "SearchFiles",
   "ListGitRefs",

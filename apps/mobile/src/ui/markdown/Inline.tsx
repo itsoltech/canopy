@@ -6,6 +6,8 @@ import { isString } from "@canopy/domain/json";
 import { useColors, useTypography } from "../theme";
 import { useMarkdownScope } from "./scope";
 import { Faced } from "./text-style";
+import { fileHrefOf, filePathOf } from "@canopy/domain/file-references";
+import { useFileLinks } from "./file-links";
 
 /** Opens only what `safeHref` allows (http, https, mailto) in the system browser or mail app. */
 function open(href: string) {
@@ -16,15 +18,20 @@ function open(href: string) {
 function Link({ href, children }: { href: string; children: ReactNode }) {
   const c = useColors();
   const safe = safeHref(href);
+  const files = useFileLinks();
+  const path = files ? fileHrefOf(href) : undefined;
 
-  if (!safe) return <>{children}</>;
+  if (!safe && !path) return <>{children}</>;
 
   return (
     <Faced
       weight="medium"
       accessibilityRole="link"
-      accessibilityHint={safe}
-      onPress={() => open(safe)}
+      accessibilityHint={path ? `Open ${path}` : safe}
+      onPress={() => {
+        if (files && path) files(path);
+        else if (safe) open(safe);
+      }}
       style={{ color: c.sky, textDecorationLine: "underline", textDecorationColor: `${c.sky}4d` }}
     >
       {children}
@@ -48,6 +55,7 @@ function InlineToken({ token }: { token: Token }) {
   const c = useColors();
   const type = useTypography();
   const { strong, restore } = useMarkdownScope();
+  const files = useFileLinks();
 
   if (isMathToken(token)) return <Text style={{ fontFamily: type.mono.fontFamily, color: strong }}>{token.raw}</Text>;
 
@@ -72,19 +80,27 @@ function InlineToken({ token }: { token: Token }) {
       </Text>
     );
 
-  if (isToken(token, "codespan"))
+  if (isToken(token, "codespan")) {
+    const text = restore(token.text);
+    const path = files ? filePathOf(text) : undefined;
+
     return (
       <Text
+        accessibilityRole={path ? "link" : undefined}
+        accessibilityHint={path ? `Open ${path}` : undefined}
+        onPress={files && path ? () => files(path) : undefined}
         style={{
           fontFamily: type.mono.fontFamily,
           fontSize: type.body.fontSize * 0.875,
-          color: strong,
+          color: path ? c.sky : strong,
+          textDecorationLine: path ? "underline" : undefined,
           backgroundColor: c.rule,
         }}
       >
-        {restore(token.text)}
+        {text}
       </Text>
     );
+  }
 
   if (isToken(token, "link"))
     return (

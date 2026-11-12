@@ -1,4 +1,4 @@
-import type { ui } from "@canopy/contracts";
+import { FileResolution, type ui } from "@canopy/contracts";
 import { deleteFile, readFile, writeFile } from "./api.ts";
 import type { FileTarget } from "./file-links.svelte.ts";
 
@@ -24,6 +24,9 @@ export class FileViewerState {
   error = $state("");
   /** Save failed because the file changed on disk: reload (discarding the draft) or keep editing. */
   conflict = $state(false);
+  path = $state("");
+  sha256 = $state("");
+  lookup = $state<ui.ThreadFile>();
 
   constructor(readonly target: FileTarget) {}
 
@@ -37,14 +40,30 @@ export class FileViewerState {
     return Boolean(file && !file.binary && !file.truncated && file.size <= BigInt(EDIT_LIMIT_BYTES));
   }
 
-  async load(): Promise<void> {
+  async load(selectedPath?: string): Promise<void> {
+    if (this.loading) return;
     this.loading = true;
     this.error = "";
 
+    if (selectedPath) {
+      this.path = selectedPath;
+      this.sha256 = "";
+    }
+
+    const path = this.path || this.target.path;
+    const expected = this.sha256;
+    this.file = undefined;
+    this.lookup = undefined;
+
     try {
-      const file = await readFile(this.target.threadId, this.target.path);
+      const file = await readFile(this.target.threadId, path, this.target.itemId, expected);
+      this.lookup = file;
+
+      if (file.resolution !== FileResolution.UNSPECIFIED && file.resolution !== FileResolution.FOUND) return;
       this.file = file;
-      this.text = decoder.decode(file.content);
+      this.path = file.path;
+      this.sha256 = file.sha256;
+      this.text = file.binary ? "" : decoder.decode(file.content);
       this.draft = this.text;
       this.conflict = false;
     } catch (cause) {
@@ -73,9 +92,16 @@ export class FileViewerState {
     this.error = "";
 
     try {
-      const saved = await writeFile(this.target.threadId, this.target.path, this.draft, file.sha256);
-      this.file = { ...saved, content: file.content };
+      const saved = await writeFile(this.target.threadId, this.path, this.draft, file.sha256);
+      this.file = {
+        ...file,
+        ...saved,
+        relativePath: file.relativePath,
+        computer: file.computer,
+        content: new TextEncoder().encode(this.draft),
+      };
       this.text = this.draft;
+      this.sha256 = saved.sha256;
 
       return true;
     } catch (cause) {
@@ -96,7 +122,7 @@ export class FileViewerState {
     this.error = "";
 
     try {
-      await deleteFile(this.target.threadId, this.target.path, file.sha256);
+      await deleteFile(this.target.threadId, this.path, file.sha256);
 
       return true;
     } catch (cause) {

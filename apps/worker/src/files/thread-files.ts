@@ -6,6 +6,7 @@ import type { FileContentSchema, FileRequest } from "@canopy/contracts";
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { isWithin } from "../git/worktrees.ts";
 import { CommandError } from "../runtime/host-types.ts";
+import { sniff } from "@canopy/domain";
 
 /** Viewer limit: longer files come back truncated and are read-only in the UI. */
 export const DEFAULT_MAX_BYTES = 2 * 1024 * 1024;
@@ -15,8 +16,8 @@ type FileContentInit = MessageInitShape<typeof FileContentSchema>;
 const refuse = (code: string, message: string) => new CommandError(code, message, true);
 
 /**
- * The real path of an existing regular file under one of `roots` (the gateway's: the thread's directory and the
- * owner's workspaces on this worker) or `extraRoots` (this worker's own: the thread's attachments). `~` expands
+ * The real path of an existing regular file under one of `roots` (the gateway's thread directory)
+ * or `extraRoots` (this worker's own thread attachments). `~` expands
  * to the worker's home; symlinks resolve before the check, so a link cannot reach outside the roots.
  */
 export function resolveThreadFile(request: FileRequest, extraRoots: readonly string[]): string {
@@ -29,8 +30,10 @@ export function resolveThreadFile(request: FileRequest, extraRoots: readonly str
 
   try {
     real = realpathSync(expanded);
-  } catch {
-    throw refuse("FILE_NOT_FOUND", "This file no longer exists.");
+  } catch (cause) {
+    if (cause instanceof Error && "code" in cause && (cause.code === "ENOENT" || cause.code === "ENOTDIR"))
+      throw refuse("FILE_NOT_FOUND", "Could not find this file. Check its path, then reload.");
+    throw refuse("FILE_READ_FAILED", "Could not read this file. Check its permissions, then reload.");
   }
 
   if (!statSync(real).isFile()) throw refuse("FILE_NOT_REGULAR", "Only files can be opened, not folders.");
@@ -84,9 +87,9 @@ function metadata(path: string): FileContentInit {
   return { path, size: BigInt(stat.size), sha256: hashFile(path), modifiedMs: BigInt(Math.trunc(stat.mtimeMs)) };
 }
 
-/** Text only: invalid UTF-8 or a NUL byte marks a binary file, whose content is not sent. */
-function isText(bytes: Uint8Array): boolean {
-  if (bytes.subarray(0, 8192).includes(0)) return false;
+/** Validate the complete bounded preview, including bytes beyond the MIME sniffer's sample. */
+function isUtf8(bytes: Uint8Array): boolean {
+  if (bytes.includes(0)) return false;
 
   try {
     new TextDecoder("utf-8", { fatal: true }).decode(bytes);
@@ -113,14 +116,28 @@ function completeUtf8(bytes: Uint8Array): Uint8Array {
   return end > 0 && width > back + 1 ? bytes.subarray(0, end - 1) : bytes;
 }
 
-export function readThreadFile(path: string, maxBytes: number): FileContentInit {
-  const limit = maxBytes > 0 ? maxBytes : DEFAULT_MAX_BYTES;
+export function readThreadFile(path: string, maxBytes: number, includeBinary = false): FileContentInit {
+  const limit = Math.min(maxBytes > 0 ? maxBytes : DEFAULT_MAX_BYTES, DEFAULT_MAX_BYTES);
   const truncated = statSync(path).size > limit;
   const head = readHead(path, limit);
-  const shown = truncated ? completeUtf8(head) : head;
-  const text = isText(shown);
+  const complete = truncated ? completeUtf8(head) : head;
+  const detected = sniff(complete, path);
+  const text = detected.text && isUtf8(complete);
+  const shown = text ? complete : head;
 
-  return { ...metadata(path), content: text ? shown : new Uint8Array(), binary: !text, truncated };
+  // A preview never hashes an unbounded file. A truncated read cannot authorize edits or deletion.
+  const stat = statSync(path);
+
+  return {
+    path,
+    size: BigInt(stat.size),
+    modifiedMs: BigInt(Math.trunc(stat.mtimeMs)),
+    sha256: truncated ? "" : createHash("sha256").update(head).digest("hex"),
+    content: text || includeBinary ? shown : new Uint8Array(),
+    mimeType: detected.mimeType,
+    binary: !text,
+    truncated,
+  };
 }
 
 /** The file on disk still has the content the user read; otherwise their edit would overwrite another change. */

@@ -59,6 +59,7 @@ export function TextViewer({
   attachment = false,
   markdown = false,
   notice,
+  toolbar,
 }: {
   text?: string;
   blob?: BlobRef | undefined;
@@ -70,6 +71,7 @@ export function TextViewer({
   attachment?: boolean;
   markdown?: boolean;
   notice?: string;
+  toolbar?: ReactNode;
 }) {
   const c = useColors();
   const { loaded, error, tooLarge, retry } = useTextContent(text, blob, threadId);
@@ -97,6 +99,7 @@ export function TextViewer({
     >
       {attachment && (
         <View style={{ padding: 12, gap: 8 }}>
+          {toolbar}
           {notice && <Text style={[styles.caption, { color: c.muted }]}>{notice}</Text>}
           {markdown && (
             <Segmented

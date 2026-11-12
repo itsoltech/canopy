@@ -1776,19 +1776,28 @@ Zużyte wejścia szyny mają `withdrawn = consumed` i nie tworzą pustego „Wor
 Ścieżka pliku w wiadomości agenta jest przyciskiem: inline code, który wygląda na plik
 (`out/report.md`, `C:\work\query.sql`, `~/notes.txt`, `src/app.ts:12`), oraz link Markdown do pliku
 (`[raport](out/report.md)`, `file:///…`). Rozpoznawanie (`shared/ui/markdown/file-paths.ts`) wymaga
-rozszerzenia; sama nazwa bez folderu musi mieć rozszerzenie znanego języka albo dokumentu. Kontekst
+rozszerzenia; sama nazwa bez folderu musi mieć znane rozszerzenie (także obrazu). Wspólny parser
+`@canopy/domain/file-references` obsługuje web i mobile. Kontekst
 ustawia `provideThreadDirectory`, więc działa tylko w wątku; poza nim ścieżki zostają zwykłym kodem.
 
 Ustawienie urządzenia **Open files in** (Settings → Interface, `fileLinks`): **Canopy** otwiera
 przeglądarkę (`features/files/FileViewer.svelte`, jedna naraz, host w głównym layoucie), **Default app**
-otwiera plik od razu w domyślnej aplikacji, ale tylko gdy plik leży na tym komputerze (`onThisComputer`: własny gateway desktopu, wątek bez `nodeId`, worker `desktop_bundled`); plik innej maszyny zawsze otwiera się w przeglądarce, a przycisk **Open in default app** jest wtedy ukryty.
+otwiera jawną ścieżkę od razu w domyślnej aplikacji, ale tylko gdy plik leży na tym komputerze (`onThisComputer`: własny gateway desktopu, wątek bez `nodeId`, worker `desktop_bundled`). Goła nazwa najpierw otwiera podgląd, aby umożliwić wybór przy wielu dopasowaniach. Plik innej maszyny zawsze otwiera się w przeglądarce, a przycisk **Open in default app** jest wtedy ukryty.
 
-Przeglądarka czyta plik przez `GET /api/threads/:id/files?path=` (`ReadThreadFile`, do 2 MiB). Markdown
+Przeglądarka czyta plik przez `GET /api/threads/:id/files?path=&itemId=` (`ReadThreadFile`, do 2 MiB).
+`itemId` wskazuje turn źródłowej wiadomości dla podpowiedzi ścieżki. Goła nazwa rozstrzyga się na
+domowym workerze w katalogu wątku/worktree; pojedyncze dopasowanie otwiera plik, wiele daje wybór
+ścieżki. Brak dopasowania pokazuje „Couldn't find … in this workspace.” i rozwijane przeszukane ścieżki;
+„moved or deleted” pojawia się dopiero przy braku ścieżki z hashem poprzedniego odczytu. Błędy transportu
+pozostają błędami połączenia. Tytuł zawiera nazwę, opis ścieżkę względną i komputer; plik w korzeniu ma `./`.
+Obrazy rastrowe pokazują wymiary i rozmiar z ograniczonych bajtów (bez pobierania zasobów zewnętrznych).
+Nieobsługiwane binaria i błędy mają własny stan zamiast pustego pola treści. Markdown
 ma widok Rendered/Source (wspólny z podglądem załączników), reszta jest podświetlona Shiki według
 rozszerzenia. **Edit** ładuje CodeMirror 6 (leniwie, `features/files/code-editor.ts`): język z nazwy pliku
 (`@codemirror/language-data`), kolory z tokenów `--code-*` i palety, więc edytor podąża za motywem.
 Edycja pokazuje znacznik „Unsaved changes” w zarezerwowanym miejscu, `Mod+S` zapisuje
 (`PUT …/files` z SHA-256 odczytu), zamknięcie z niezapisanymi zmianami pyta o porzucenie. Zmiana na dysku
-od odczytu daje konflikt z akcją „Discard and reload”. **Delete…** potwierdza i usuwa z tym samym
+od odczytu daje konflikt z akcją „Discard and reload”. **Delete file** potwierdza i usuwa z tym samym
 sprawdzeniem hasha; **Open in default app** woła `POST …/files/open`. Edycja jest wyłączona dla plików
-binarnych, obciętych i większych niż 400 KB (limit body BFF 512 KB). Granice dostępu: [protocol.md](protocol.md#folder-i-pliki-wątku).
+obciętych i większych niż 400 KB (limit body BFF 512 KB); dla binarnych przycisk jest ukryty.
+Zapis, ponowny odczyt i usunięcie korzystają już z rozstrzygniętej ścieżki. Granice dostępu: [protocol.md](protocol.md#folder-i-pliki-wątku).
