@@ -58,7 +58,7 @@
     <svelte:element
       this={list.ordered ? "ol" : "ul"}
       class={[
-        "grid gap-1 pl-5",
+        "grid grid-cols-1 gap-1 pl-5",
         list.ordered ? "list-decimal" : "list-disc",
         "marker:text-zinc-400 dark:marker:text-zinc-500",
       ]}
@@ -76,7 +76,7 @@
               />
             </div>
           {/if}
-          <div class="grid min-w-0 gap-2">
+          <div class="grid min-w-0 grid-cols-1 gap-2">
             {#if item.loose}
               <MarkdownBlocks tokens={item.tokens} {streaming} {breaks} />
             {:else}
@@ -96,7 +96,7 @@
     </svelte:element>
   {:else if token.type === "blockquote"}
     <blockquote
-      class="grid gap-2 border-l-2 border-zinc-950/10 pl-3 text-zinc-600 dark:border-white/15 dark:text-zinc-400"
+      class="grid grid-cols-1 gap-2 border-l-2 border-zinc-950/10 pl-3 text-zinc-600 dark:border-white/15 dark:text-zinc-400"
     >
       <MarkdownBlocks tokens={(token as Tokens.Blockquote).tokens} {streaming} {breaks} />
     </blockquote>
