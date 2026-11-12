@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { create, type DescMethod, type Message } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { computerLink as link, ui } from "@canopy/contracts";
-import { REMOTE_APP_UPDATE } from "@canopy/domain/computers";
+import { qualifyId, REMOTE_APP_UPDATE } from "@canopy/domain/computers";
 import { linkedMessage, methodNamed } from "../computers/remote.ts";
 import type { GatewayCore } from "../core/core.ts";
 import { single } from "../api/routed-context.ts";
@@ -59,7 +59,10 @@ export async function serveComputerUpdates(
     if (!peer) throw new ConnectError("That computer is no longer linked", Code.PermissionDenied);
 
     if (input.action === "check") await core.appControl.check();
-    else {
+    else if (input.action === "dismiss") {
+      await core.appControl.dismiss(input.requestId);
+      await core.departures.recover("dismissed", "", core.appControl.snapshot().targetVersion);
+    } else {
       if ((await core.updateCenter.status())?.state === "running")
         throw new ConnectError(
           "Update all is running on this computer. Try again when it ends.",
@@ -152,7 +155,7 @@ export async function linkedUpdates(core: GatewayCore): Promise<ui.ComputerUpdat
 export async function requestComputerUpdate(
   core: GatewayCore,
   nodeId: string,
-  action: "app" | "check" | "worker",
+  action: "app" | "check" | "worker" | "dismiss",
   workerId = "",
   signal?: AbortSignal,
 ): Promise<ui.UpdatesSnapshot> {
@@ -178,13 +181,25 @@ export async function requestComputerUpdate(
       core,
       nodeId,
       methodNamed("RequestComputerUpdate")!,
-      create(link.ComputerUpdateRequestSchema, { action, workerId }),
+      create(link.ComputerUpdateRequestSchema, {
+        action,
+        workerId: action === "dismiss" ? "" : workerId,
+        // The owner selected this direct peer; accept its plain UUID as well as the returned qualified ID.
+        // qualifyId preserves existing suffixes, so forward still rejects an ID belonging to another computer.
+        requestId: action === "dismiss" ? qualifyId(workerId, nodeId) : "",
+      }),
       AbortSignal.any([
         ...(signal ? [signal] : []),
         AbortSignal.timeout(action === "check" ? PEER_UPDATE_CHECK_TIMEOUT_MS : PEER_UPDATE_INSTALL_TIMEOUT_MS),
       ]),
     ),
   );
+
+  // The action's authoritative result replaces cached history, including a read already in flight.
+  const read = methodNamed("GetComputerUpdates")!;
+  computers.reads.forget(nodeId, new Set([read.name]));
+  computers.reads.remember(nodeId, read, create(link.ComputerUpdatesRequestSchema), snapshot);
+  computers.reads.due(nodeId, read.name);
 
   if (action !== "check") await audit(core, "computer.update.sent", { node: nodeId, action, worker: workerId });
 

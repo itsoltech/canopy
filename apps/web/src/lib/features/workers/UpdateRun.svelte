@@ -4,8 +4,10 @@
   import Badge from "#lib/shared/ui/Badge.svelte";
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
   import UpdateProgress from "./UpdateProgress.svelte";
+  import StoppedUpdateActions from "./StoppedUpdateActions.svelte";
+  import type { UpdatesState } from "./updates.svelte.ts";
 
-  let { run, class: className }: { run: ui.UpdateRun; class?: ClassValue } = $props();
+  let { run, updates, class: className }: { run: ui.UpdateRun; updates: UpdatesState; class?: ClassValue } = $props();
   const done = $derived(run.steps.filter((s) => s.state === "succeeded").length);
 </script>
 
@@ -45,5 +47,6 @@
         </ol>
       </Disclosure>
     {/if}
+    <StoppedUpdateActions {run} {updates} />
   </section>
 {/if}

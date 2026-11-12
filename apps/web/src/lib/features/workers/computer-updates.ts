@@ -3,6 +3,7 @@ import { compareVersions } from "@canopy/updater/release";
 import { presenceLabel, formatPresenceTime } from "@canopy/domain/computer-presence";
 import { Match } from "effect";
 import { appCheckPause } from "@canopy/domain/release/update-actions";
+import { currentRemoteUpdate, reachedUpdateVersion } from "@canopy/domain/release/remote-update-state";
 
 const newerVersion = (target: string, current: string): boolean => {
   try {
@@ -45,7 +46,8 @@ const PHASE = new Map([
 ]);
 
 export function computerUpdate(computer: ui.ComputerUpdate, time = formatPresenceTime): ComputerUpdateView {
-  const app = computer.updates?.app;
+  const reported = computer.updates?.app;
+  const app = reported && currentRemoteUpdate(reported);
   const base = { current: false, busy: false, failed: false, actionable: false, target: "", progress: undefined };
   const departure = computer.updates?.departure;
 
@@ -71,6 +73,7 @@ export function computerUpdate(computer: ui.ComputerUpdate, time = formatPresenc
   const failedDeparture = !!(
     departure &&
     ["failed", "rolled_back"].includes(departure.state) &&
+    !reachedUpdateVersion(app?.version || computer.version, departure.targetVersion) &&
     !REQUESTED.includes(app?.phase ?? "") &&
     !["checking", "downloading"].includes(app?.updaterPhase ?? "") &&
     !(app?.phase === "succeeded" && app.targetVersion === departure.targetVersion)

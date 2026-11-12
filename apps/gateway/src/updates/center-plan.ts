@@ -79,7 +79,7 @@ export function updatePlan(snapshot: ui.UpdatesSnapshot): ui.UpdateRun {
           kind: "desktop",
           workerId: worker.workerId,
           label: `${worker.name} · Canopy app`,
-          version: "",
+          version: worker.desktop.availableVersion,
           fromVersion: worker.desktop.version,
           state: "queued",
         }),

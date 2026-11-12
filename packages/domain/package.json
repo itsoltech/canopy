@@ -82,6 +82,7 @@
     "./release/catalog": "./src/release/catalog.ts",
     "./release/http": "./src/release/http.ts",
     "./release/update-actions": "./src/release/update-actions.ts",
+    "./release/remote-update-state": "./src/release/remote-update-state.ts",
     "./release/version": "./src/release/version.ts",
     "./release/identity": "./src/release/identity.ts",
     "./humanize": "./src/humanize.ts",
@@ -108,6 +109,10 @@
     "@canopy/contracts": "workspace:*",
     "@canopy/ui": "workspace:*",
     "effect": "4.1.1",
-    "marked": "18.1.2"
+    "marked": "18.1.2",
+    "semver": "7.7.3"
+  },
+  "devDependencies": {
+    "@types/semver": "7.7.1"
   }
 }

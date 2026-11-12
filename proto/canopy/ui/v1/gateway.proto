@@ -419,12 +419,12 @@ message WorkerRequest { string worker_id = 1; }
 
 message UpdatesRequest {}
 message ManageUpdatesRequest {
-  string action = 1; // check | channel | gateway | worker | all | desktop | update_all | computer | computer_check | app
+  string action = 1; // check | channel | gateway | worker | all | desktop | update_all | computer | computer_check | app | dismiss_run | app_dismiss | computer_dismiss | desktop_dismiss
   string channel = 2;
   string worker_id = 3;
   bool force = 4;
   bool allow_downgrade = 5; // explicit user choice only
-  string desktop_request_id = 6; // required for desktop force, bound to the current request
+  string desktop_request_id = 6; // current request for force/dismiss; run id for dismiss_run
   string node_id = 7; // computer, computer_check: the directly linked computer whose Canopy app updates or checks
   // Required for app: the user confirmed that this gateway's computer will restart.
   bool confirm_restart = 8;
@@ -490,7 +490,7 @@ message ComputerUpdate {
 // Owner-scoped durable orchestration. No URLs, credentials, force or downgrade grants.
 message UpdateRun {
   string id = 1;
-  string state = 2; // running | succeeded | failed | blocked
+  string state = 2; // running | succeeded | failed | blocked | superseded | dismissed
   string reason = 3;
   repeated UpdateStep steps = 4;
 }
@@ -500,7 +500,7 @@ message UpdateStep {
   string label = 3;
   string version = 4;
   canopy.worker.v1.Provider provider = 5;
-  string state = 6; // queued | running | succeeded | failed | blocked
+  string state = 6; // queued | running | succeeded | failed | blocked | dismissed
   string reason = 7;
   string started_at = 8;
   string from_version = 9;
@@ -923,7 +923,7 @@ message LinkedComputerSnapshot {
 // Planned interruption and its durable outcome. Empty node_id means the connected gateway.
 message GatewayDeparture {
   string id = 1;
-  string state = 2; // updating | restarting | succeeded | failed | rolled_back
+  string state = 2; // updating | restarting | succeeded | failed | rolled_back | dismissed
   string target_version = 3;
   int64 started_at_ms = 4;
   uint32 window_ms = 5;

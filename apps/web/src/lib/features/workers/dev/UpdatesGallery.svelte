@@ -30,6 +30,17 @@
 
   updates.snapshot.computerName = page.url.searchParams.get("name") || updates.snapshot.computerName;
 
+  if (page.url.searchParams.get("run") === "failed") {
+    updates.snapshot.run = create(ui.UpdateRunSchema, {
+      id: "failed-fixture",
+      state: "failed",
+      reason: "Linked computer · Canopy app: The app restarted before the update completed. Request it again.",
+      steps: [
+        { kind: "computer", label: "Linked computer · Canopy app", state: "failed", version: "0.43.0-nightly.1" },
+      ],
+    });
+  }
+
   const app = new DesktopUpdatesState();
 
   const status: DesktopUpdateStatus = {

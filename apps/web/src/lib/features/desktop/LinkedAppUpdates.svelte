@@ -11,6 +11,7 @@
   import { presenceTime } from "#lib/features/computers/computers.ts";
   import { updateCenter, UpdatesState, updateTone } from "#lib/features/workers/updates.svelte.ts";
   import { updateCheckLabel } from "@canopy/domain/computer-presence";
+  import { currentRemoteUpdate } from "@canopy/domain/release/remote-update-state";
 
   /**
    * Linked computers' Canopy apps (docs/updates.md, "Połączone komputery"). Each computer owns its channel and check
@@ -56,7 +57,7 @@
   >
     {#each computers as computer (computer.nodeId)}
       {@const view = computerUpdate(computer, presenceTime)}
-      {@const app = computer.updates?.app}
+      {@const app = computer.updates?.app && currentRemoteUpdate(computer.updates.app)}
       {@const version = app?.version || computer.version}
       {@const channel = CHANNELS.get(app?.channel ?? "")}
       {@const pending = updates.pending === computer.nodeId}
@@ -80,6 +81,18 @@
           >
             {detail}
           </p>{/if}
+        {#if app?.phase === "failed"}<div class="mt-2">
+            <Button
+              size="sm"
+              disabled={!!updates.pending}
+              onclick={() =>
+                void updates.manage({
+                  action: "computer_dismiss",
+                  nodeId: computer.nodeId,
+                  desktopRequestId: app?.requestId,
+                })}>Dismiss</Button
+            >
+          </div>{/if}
         {#snippet control()}
           {#if computer.remoteUpdate}
             <!-- Both buttons always render; state only disables them, so nothing shifts. -->
@@ -92,9 +105,14 @@
             <Button
               size="sm"
               variant={view.actionable ? "primary" : "secondary"}
-              disabled={!!updates.pending || !view.actionable || updates.snapshot?.run?.state === "running"}
+              disabled={!!updates.pending ||
+                (!view.actionable && app?.phase !== "failed") ||
+                computer.presence !== "connected" ||
+                !app?.connected ||
+                !!app.disabledReason ||
+                updates.snapshot?.run?.state === "running"}
               loading={pending && action === "computer"}
-              onclick={() => run("computer", computer)}>Update</Button
+              onclick={() => run("computer", computer)}>{app?.phase === "failed" ? "Request again" : "Update"}</Button
             >
           {:else}<span class="text-sm/5 text-zinc-500 dark:text-zinc-400">Update on that computer</span>{/if}
         {/snippet}

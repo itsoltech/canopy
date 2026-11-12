@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { randomBytes } from "node:crypto";
 import { createServer, type AddressInfo } from "node:net";
 import { join } from "node:path";
+import { writeFileSync } from "node:fs";
 import { create, toJsonString } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { computerLink as link, ui } from "@canopy/contracts";
@@ -16,6 +17,8 @@ import { LinkedComputers } from "../../apps/gateway/src/computers/runtime.ts";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { methodNamed } from "../../apps/gateway/src/computers/remote.ts";
 import { serveComputerUpdates } from "../../apps/gateway/src/updates/linked.ts";
+import { UpdateRunStore } from "../../apps/gateway/src/updates/run-store.ts";
+import { updatePlan } from "../../apps/gateway/src/updates/center-plan.ts";
 import { LocalDesktopControl } from "../../apps/desktop/src/local-control.ts";
 import { PROGRESS_REPORT_MS, RemoteAppUpdate } from "../../apps/desktop/src/remote-app-update.ts";
 import { computerUpdate } from "../../apps/web/src/lib/features/workers/computer-updates.ts";
@@ -369,10 +372,120 @@ describe.skipIf(!dockerAvailable)("linked computers' app updates", () => {
     expect((await a.api.getUpdates({})).run?.state).toBe("succeeded");
   }, 60_000);
 
-  test("another owner's computer cannot ask B for an update", async () => {
+  test("a stopped linked update reconciles current facts after a gateway restart without launching later steps", async () => {
+    const requestId = app.coordinator.snapshot().requestId;
+    await app.stop();
+    writeFileSync(
+      journal,
+      toJsonString(
+        ui.DesktopUpdateStateSchema,
+        create(ui.DesktopUpdateStateSchema, {
+          requestId,
+          phase: "failed",
+          targetVersion: "1.3.0",
+          version: "1.2.0",
+          reason: "The app restarted before the update completed. Request it again.",
+        }),
+      ),
+    );
+    app = new FakeApp(b, journal, "1.2.0", "1.3.0");
+    await eventually(async () => (await computer())?.updates?.app?.phase === "failed");
+
+    const run = create(ui.UpdateRunSchema, {
+      id: crypto.randomUUID(),
+      state: "failed",
+      reason: "Canopy app: The app restarted before the update completed.",
+      steps: [
+        { kind: "computer", nodeId: bNode, requestId, version: "1.3.0", fromVersion: "1.2.0", state: "failed" },
+        { kind: "computer", nodeId: "c".repeat(64), version: "2.0.0", state: "queued" },
+      ],
+    });
+
+    await new UpdateRunStore(a.runtime, a.userId).write(run);
+    expect((await a.api.getUpdates({})).run?.state).toBe("failed");
+    const key = la.options.store.key;
+    const port = Number(new URL(la.addresses[0]!).port);
+    await la.close();
+    const storage = { pg: a.pg, secretsKey: a.secretsKey, workerId: a.workerId, workerCredential: a.workerCredential };
+    await a.close(true);
+    a = await startTestGateway({ role: "desktop", storage });
+    la = linkedComputers({
+      store: new ComputerStore(a.runtime, a.userId, key),
+      host: "127.0.0.1",
+      port,
+      heartbeatMs: 100,
+      serve: remoteServe(uiHandlers(a.core), a.core),
+      updates: (nodeId, method, request) => serveComputerUpdates(a.core, nodeId, method, request),
+      capabilities: ["presence", "unlink", REMOTE_THREADS, REMOTE_APP_UPDATE],
+    });
+    a.core.computers = la;
+    a.core.network = la.options.network;
+    await la.start();
+    await eventually(async () => la.reachable().includes(bNode), 15_000);
+    expect((await a.api.getUpdates({})).run?.state).toBe("failed");
+    await app.stop();
+    app = new FakeApp(b, journal, "1.4.0");
+    await eventually(async () => (await a.api.getUpdates({})).run?.state === "superseded", 20_000);
+    expect(await new UpdateRunStore(a.runtime, a.userId).read()).toMatchObject({
+      id: run.id,
+      state: "superseded",
+      reason: "",
+      steps: [{ state: "succeeded", reason: "" }, { state: "queued" }],
+    });
+    expect(app.checks).toBe(0);
+    expect(app.restarted).toBe(false);
+    expect((await computer())?.updates?.app).toMatchObject({ phase: "succeeded", version: "1.4.0" });
+  }, 60_000);
+
+  for (const form of ["qualified", "plain"]) {
+    test(`dismissing a linked app failure with a ${form} ID replaces cached state with the acknowledged request`, async () => {
+      await app.stop();
+      app = new FakeApp(b, journal, "1.4.0", "1.5.0");
+      await eventually(
+        async () =>
+          b.core.appControl.snapshot().connected && (await computer())?.updates?.app?.availableVersion === "1.5.0",
+      );
+      const previousRequestId = app.coordinator.snapshot().requestId;
+      await a.api.manageUpdates({ action: "computer", nodeId: bNode });
+      await eventually(async () => (await computer())?.updates?.app?.phase === "waiting_idle");
+      const requestId = (await computer())?.updates?.app?.requestId ?? "";
+      const plainId = app.coordinator.snapshot().requestId;
+      expect(previousRequestId).not.toBe("");
+      expect(plainId).not.toBe(previousRequestId);
+      expect(requestId).toBe(`${plainId}~${nodeRef(bNode)}`);
+      await app.stop();
+      app = new FakeApp(b, journal, "1.4.0", "1.5.0");
+      await eventually(async () => (await computer())?.updates?.app?.phase === "failed");
+
+      for (const desktopRequestId of [previousRequestId, `${plainId}~${nodeRef(la.hello().nodeId)}`]) {
+        expect(
+          await failure(a.api.manageUpdates({ action: "computer_dismiss", nodeId: bNode, desktopRequestId })),
+        ).toMatchObject({ code: desktopRequestId.includes("~") ? Code.InvalidArgument : Code.FailedPrecondition });
+        expect(b.core.appControl.snapshot()).toMatchObject({ requestId: plainId, phase: "failed" });
+      }
+
+      const value = await a.api.manageUpdates({
+        action: "computer_dismiss",
+        nodeId: bNode,
+        desktopRequestId: form === "qualified" ? requestId : plainId,
+      });
+
+      expect(value.computers.find((computer) => computer.nodeId === bNode)?.updates?.app).toMatchObject({
+        requestId,
+        phase: "idle",
+        reason: "",
+      });
+      expect((await computer())?.updates?.app).toMatchObject({ requestId, phase: "idle", reason: "" });
+      await eventually(async () => app.coordinator.snapshot().phase === "idle");
+      expect(app.coordinator.snapshot()).toMatchObject({ requestId: plainId, phase: "idle", reason: "" });
+      expect(app.restarted).toBe(false);
+    }, 30_000);
+  }
+
+  test("another owner's computer cannot ask B for an update or dismiss its failure", async () => {
     const method = methodNamed("RequestComputerUpdate")!;
 
-    for (const action of ["app", "check"]) {
+    for (const action of ["app", "check", "dismiss"]) {
       const request = create(link.ComputerUpdateRequestSchema, { action });
       expect(await failure(serveComputerUpdates(b.core, "f".repeat(64), method, request))).toMatchObject({
         code: Code.PermissionDenied,
@@ -435,8 +548,8 @@ describe.skipIf(!dockerAvailable)("linked computers' app updates", () => {
     });
     // Update all leaves it out.
     expect(
-      (await a.api.getUpdates({})).run?.steps.filter((s) => s.kind === "computer" && s.state === "queued"),
-    ).toEqual([]);
+      updatePlan(await a.api.getUpdates({})).steps.some((step) => step.kind === "computer" && step.nodeId === bNode),
+    ).toBe(false);
   }, 40_000);
 
   test("after Unlink, A cannot reach B's app", async () => {

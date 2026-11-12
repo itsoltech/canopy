@@ -5,7 +5,7 @@ import { styles, useColors } from "../../ui/theme";
 import { SettingsDisclosure } from "../settings/SettingsDisclosure";
 import { UpdateDetails } from "./UpdateDetails";
 import { useUpdates } from "./state";
-import { updateLabel } from "./model";
+import { bulkUpdatesAvailable, updateLabel } from "./model";
 
 /** Loading and action errors share the same recovery controls in settings and the sheet. */
 export function UpdateFeedback() {
@@ -42,11 +42,30 @@ export function UpdateFeedback() {
 
 export function UpdateRun({ run }: { run: ui.UpdateRun | undefined }) {
   const c = useColors();
+  const { snapshot, pending, manage } = useUpdates();
 
   if (!run?.steps.length) return null;
 
   return (
     <SettingsDisclosure title={`Update all · ${run.state === "succeeded" ? "Updated" : updateLabel(run.state)}`}>
+      {["failed", "blocked"].includes(run.state) && (
+        <View style={[styles.row, { flexWrap: "wrap", gap: 8 }]}>
+          {snapshot && bulkUpdatesAvailable(snapshot) && (
+            <Button
+              title="Request again"
+              size="sm"
+              disabled={!!pending}
+              onPress={() => void manage({ action: "update_all" })}
+            />
+          )}
+          <Button
+            title="Dismiss"
+            size="sm"
+            disabled={!!pending}
+            onPress={() => void manage({ action: "dismiss_run", desktopRequestId: run.id })}
+          />
+        </View>
+      )}
       {run.steps.map((step, index) => (
         <View key={index} style={{ paddingVertical: 4, gap: 4 }}>
           <Text numberOfLines={2} style={[styles.overlay, { color: c.text }]}>

@@ -6,6 +6,7 @@ import { SqlClient } from "effect/sql";
 import type { CoreRuntime, GatewayCore } from "../core/core.ts";
 import type { GatewayCoreOptions } from "../core/core-context.ts";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
+import { reachedUpdateVersion } from "@canopy/domain/release/remote-update-state";
 
 export function createGatewayDepartures(core: GatewayCore, options: GatewayCoreOptions) {
   return new GatewayDepartures(
@@ -77,21 +78,34 @@ export class GatewayDepartures {
     return this.serialize(async () => {
       const previous = await this.snapshot();
 
-      if (!previous || !["updating", "restarting"].includes(previous.state)) return;
+      if (!previous) return;
+      const pending = ["updating", "restarting"].includes(previous.state);
+
+      const obsolete =
+        ["failed", "rolled_back"].includes(previous.state) &&
+        (reachedUpdateVersion(this.version, previous.targetVersion) ||
+          (["succeeded", "dismissed"].includes(state) && targetVersion === previous.targetVersion));
+
+      if (!pending && !obsolete) return;
 
       const failed =
         ["failed", "rolled_back"].includes(state) && (!targetVersion || targetVersion === previous.targetVersion);
 
-      const reached = !previous.targetVersion || previous.targetVersion === this.version;
+      const reached =
+        reachedUpdateVersion(this.version, previous.targetVersion) ||
+        (!previous.targetVersion && !failed) ||
+        obsolete ||
+        (state === "succeeded" && targetVersion === previous.targetVersion);
+
       await this.write(
         create(ui.GatewayDepartureSchema, {
           ...previous,
           version: this.version,
-          state: failed ? state : reached ? "succeeded" : "failed",
-          reason: failed
-            ? reason
-            : reached
-              ? ""
+          state: state === "dismissed" && obsolete ? "dismissed" : reached ? "succeeded" : failed ? state : "failed",
+          reason: reached
+            ? ""
+            : failed
+              ? reason
               : "The computer returned without the requested update. Open Updates to retry.",
         }),
       );

@@ -59,7 +59,7 @@
   {#if snapshot?.checkError}<Alert tone="error">{snapshot.checkError}</Alert>{/if}
   {#if cli.errors["check/"]}<Alert tone="error">{cli.errors["check/"]}</Alert>{/if}
   {#if snapshot}
-    {#if snapshot.run}<UpdateRun run={snapshot.run} />{/if}
+    {#if snapshot.run}<UpdateRun run={snapshot.run} {updates} />{/if}
     <section class="grid gap-3 border-t border-zinc-950/5 pt-4 dark:border-white/10" aria-label="Gateway update">
       <div class="flex flex-wrap items-center gap-2">
         <h3 class="text-base font-medium tabular-nums sm:text-sm">Gateway · {snapshot.gatewayVersion}</h3>

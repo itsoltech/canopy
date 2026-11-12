@@ -5,6 +5,7 @@ import { gt, valid } from "semver";
 import { createHash } from "node:crypto";
 import type { DesktopUpdateStatus } from "@canopy/ui/desktop";
 import { UpdateInstallError } from "./update-install.ts";
+import { currentRemoteUpdate, reachedUpdateVersion } from "@canopy/domain/release/remote-update-state";
 
 export interface RemoteUpdateBoundary {
   status(): DesktopUpdateStatus;
@@ -30,6 +31,14 @@ const updater = (update: DesktopUpdateStatus) => ({
     (update.retryAt ? update.publishing || update.message : "") ||
     (update.phase === "error" ? update.message : "")
   ).slice(0, 1000),
+  updaterCurrent:
+    update.phase === "idle" &&
+    update.message === "Up to date" &&
+    !!update.lastCheckedAt &&
+    !update.error &&
+    !update.retryAt &&
+    !update.publishing &&
+    !update.updateVersion,
 });
 
 /** Main-process policy around the normal updater. The file survives lost replies and app restarts. */
@@ -70,12 +79,19 @@ export class RemoteAppUpdate {
       return;
     }
 
-    if (this.state.requestId && !["succeeded", "failed"].includes(this.state.phase)) {
+    if (this.state.requestId && !["idle", "succeeded", "failed"].includes(this.state.phase)) {
       const version = this.boundary.status().version;
-      this.state.phase =
-        this.state.phase === "restarting" && version === this.state.targetVersion ? "succeeded" : "failed";
+      this.state.version = version;
+      this.state.phase = reachedUpdateVersion(version, this.state.targetVersion) ? "succeeded" : "failed";
       this.state.reason =
         this.state.phase === "failed" ? "The app restarted before the update completed. Request it again." : "";
+      this.persist();
+    }
+
+    const current = currentRemoteUpdate({ ...this.state, version: this.boundary.status().version });
+
+    if (current.phase !== this.state.phase) {
+      this.state = current;
       this.persist();
     }
   }
@@ -90,12 +106,16 @@ export class RemoteAppUpdate {
     const update = this.boundary.status();
 
     return {
-      ...this.state,
+      ...currentRemoteUpdate({
+        ...this.state,
+        version: update.version,
+        updaterCurrent: updater(update).updaterCurrent,
+      }),
       version: update.version,
       channel: update.channel,
       availableVersion: this.running
         ? this.state.availableVersion
-        : (update.updateVersion ?? this.state.availableVersion),
+        : (update.updateVersion ?? (updater(update).updaterCurrent ? update.version : this.state.availableVersion)),
       disabledReason: this.historyError || (update.phase === "disabled" ? update.message : ""),
       ready: update.phase === "downloaded",
       lastCheckedAtMs: update.lastCheckedAt ?? 0,
@@ -161,6 +181,17 @@ export class RemoteAppUpdate {
     // Fail closed without overwriting unreadable history or replaying an unknown completed request.
     if (this.historyError) return;
 
+    if (command.dismiss) {
+      if (command.requestId === this.state.requestId && !this.running && this.state.phase === "failed") {
+        this.state.phase = "idle";
+        this.state.reason = "";
+        this.persist();
+        await this.publish().catch(() => {});
+      }
+
+      return;
+    }
+
     if (command.requestId === this.state.requestId) {
       if (command.force && this.running) {
         this.force = true;
@@ -182,12 +213,24 @@ export class RemoteAppUpdate {
     try {
       await this.publish().catch(() => {});
       const update = await this.boundary.check();
-      this.state.targetVersion = update.updateVersion ?? "";
+      // A rejected downgrade is not an installation target that the current version can supersede.
+      this.state.targetVersion =
+        valid(update.updateVersion) && valid(update.version) && gt(update.updateVersion!, update.version)
+          ? update.updateVersion!
+          : "";
+
+      if (updater(update).updaterCurrent) {
+        this.running = false;
+        this.state.phase = "succeeded";
+        this.state.reason = "";
+        await this.publish().catch(() => {});
+
+        return;
+      }
 
       if (update.phase !== "downloaded") throw new Error(update.message);
 
-      if (!valid(update.updateVersion) || !valid(update.version) || !gt(update.updateVersion!, update.version))
-        throw new Error("Remote updates require a strictly newer signed release.");
+      if (!this.state.targetVersion) throw new Error("Remote updates require a strictly newer signed release.");
       this.state.availableVersion = update.updateVersion!;
       this.state.targetVersion = update.updateVersion!;
       this.state.phase = "waiting_idle";
