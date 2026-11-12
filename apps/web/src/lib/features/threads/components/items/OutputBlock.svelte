@@ -41,6 +41,7 @@
   const text = $derived(reveal.text);
   const lines = $derived(tail === undefined ? [] : text.replace(/\n$/, "").split("\n"));
   const cut = $derived(tail !== undefined && lines.length > tail);
+  const size = $derived(cut && !streaming ? formatBytes(new TextEncoder().encode(output).byteLength) : "");
 
   // Remembered while the row is scrolled out of a virtual list.
   const memory = useRemembered<boolean>("output-all");
@@ -53,15 +54,15 @@
 
 {#if text}
   <div class="grid gap-1">
+    <CodeBlock text={shown} {label} data-quote-kind={quoteKind} />
     {#if cut}
       <MoreButton
         expanded={all}
         onclick={() => (all = !all)}
         note={all ? `${lines.length} lines` : `Last ${tail} of ${lines.length} lines`}
-        >{all ? "Show the end only" : "Show all output"}</MoreButton
+        >{all ? "Show the end only" : `Show full output${size ? ` · ${size}` : ""}`}</MoreButton
       >
     {/if}
-    <CodeBlock text={shown} {label} data-quote-kind={quoteKind} />
   </div>
 {/if}
 {#if blob}

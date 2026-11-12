@@ -11,6 +11,8 @@ import { EmptyNote, ErrorText, RowTitle } from "./parts";
 import { Chevron } from "../../../ui/MotionViews";
 import { ImagePreview } from "../../attachments/ImagePreview";
 import { useTimelineDirectory } from "../directory";
+import { useItemContent } from "../item-content";
+import { LazyItemContent } from "../LazyItemContent";
 
 /** The same stored preview the model saw, with a full-screen viewer. */
 export function ImageView({ image, status }: { image: Image; status: ItemStatus }) {
@@ -57,6 +59,7 @@ export function ImageView({ image, status }: { image: Image; status: ItemStatus 
 /** The provider summarised older context to make room (web: CompactionView): a rule with a label that opens the summary. */
 export function CompactionView({ compaction }: { compaction: ContextCompaction }) {
   const c = useColors();
+  const lazy = useItemContent();
   const [open, setOpen] = useState(false);
   const line = <View style={{ flex: 1, height: 1, backgroundColor: c.rule }} />;
 
@@ -81,7 +84,12 @@ export function CompactionView({ compaction }: { compaction: ContextCompaction }
         )}
         {line}
       </View>
-      {open && <Markdown text={compaction.summary} color={c.muted} />}
+      {open && (
+        <>
+          <Markdown text={compaction.summary} color={c.muted} />
+          {lazy && <LazyItemContent key={lazy.reference.sha256} {...lazy} auto subject="summary" />}
+        </>
+      )}
     </View>
   );
 }

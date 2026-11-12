@@ -10,10 +10,13 @@ import { Chevron } from "../../../ui/MotionViews";
 import { Icon } from "../../../ui/Icon";
 import { QuoteAction } from "../../quotes/QuoteAction";
 import { activityHeader } from "../activity-header";
+import { useItemContent } from "../item-content";
+import { LazyItemContent } from "../LazyItemContent";
 
 /** Reasoning, folded: the first line of the summary as a preview, the rest on demand (web: ReasoningView). */
 export function ReasoningView({ reasoning, streaming }: { reasoning: Reasoning; streaming: boolean }) {
   const c = useColors();
+  const lazy = useItemContent();
   const [open, setOpen] = useState(false);
   const { header, toggle } = useAnchoredToggle();
 
@@ -73,6 +76,7 @@ export function ReasoningView({ reasoning, streaming }: { reasoning: Reasoning; 
               .join("\n\n")}
             kind="reasoning"
           />
+          {lazy && <LazyItemContent key={lazy.reference.sha256} {...lazy} auto subject="thought" />}
         </View>
       )}
     </Animated.View>

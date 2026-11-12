@@ -1,7 +1,7 @@
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { View } from "react-native";
-import { ItemStatus, type Item } from "@canopy/contracts";
-import { useTimelineDirectory } from "./directory";
+import { ItemStatus } from "@canopy/contracts";
+import { ItemContent, useLazyItem } from "./item-content";
 import { LazyItemContent } from "./LazyItemContent";
 import type { ItemNode } from "./item-nodes";
 import { useColors } from "../../ui/theme";
@@ -31,10 +31,7 @@ const INLINE = new Set(["userMessage", "agentMessage", "reasoning", "contextComp
  */
 export function ItemView({ node, turnEnded = false }: { node: ItemNode; turnEnded?: boolean }) {
   const c = useColors();
-  const directory = useTimelineDirectory();
-  const reference = directory.content?.(node.item.itemId);
-  const [full, setFull] = useState<{ sha: string; item: Item }>();
-  const item = full?.sha === reference?.sha256 ? (full?.item ?? node.item) : node.item;
+  const { item, lazy } = useLazyItem(node.item);
   const content = item.content;
   const streaming = item.status === ItemStatus.IN_PROGRESS && !turnEnded;
 
@@ -111,15 +108,12 @@ export function ItemView({ node, turnEnded = false }: { node: ItemNode; turnEnde
   return (
     <QuoteItem.Provider value={item.itemId}>
       <View>
-        <ItemChildren.Provider value={framed}>{view}</ItemChildren.Provider>
-        {reference && full?.sha !== reference.sha256 && (
-          <LazyItemContent
-            key={reference.sha256}
-            reference={reference}
-            threadId={directory.currentId}
-            onLoad={(item) => setFull({ sha: reference.sha256, item })}
-          />
-        )}
+        <ItemContent.Provider value={lazy}>
+          <ItemChildren.Provider value={framed}>{view}</ItemChildren.Provider>
+          {lazy && (content.case === "userMessage" || content.case === "agentMessage") && (
+            <LazyItemContent key={lazy.reference.sha256} {...lazy} subject="message" />
+          )}
+        </ItemContent.Provider>
         {nested && inline ? (
           <View style={{ marginTop: 4, gap: 4, borderLeftWidth: 2, borderColor: c.rule, paddingLeft: 12 }}>
             {nested}

@@ -10,6 +10,8 @@ import { useTone } from "../../ui/tone";
 import { ItemStatusIcon } from "./ItemStatusIcon";
 import { Chevron } from "../../ui/MotionViews";
 import { ActivityGroup, activityHeader, activitySurface } from "./activity-header";
+import { useItemContent } from "./item-content";
+import { LazyItemContent } from "./LazyItemContent";
 
 /** The nested items of the item a frame shows (web: item-context.ts); a frame shows them inside its details. */
 export const ItemChildren = createContext<ReactNode>(undefined);
@@ -45,6 +47,7 @@ export function ItemFrame({
   const grouped = useContext(ActivityGroup);
   const [open, setOpen] = useState(false);
   const inherited = useContext(ItemChildren);
+  const lazy = useItemContent();
   nested ??= inherited;
   const { header, toggle } = useAnchoredToggle();
   const violet = useTone("violet").dot;
@@ -95,6 +98,7 @@ export function ItemFrame({
       {open && (
         <View style={activityHeader.body}>
           {children}
+          {lazy && <LazyItemContent key={lazy.reference.sha256} {...lazy} auto />}
           {nested && <View style={{ gap: 4, borderLeftWidth: 2, borderColor: c.rule, paddingLeft: 12 }}>{nested}</View>}
         </View>
       )}

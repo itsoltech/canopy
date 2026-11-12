@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import type { BlobRef } from "@canopy/contracts";
+import { formatBytes } from "@canopy/domain/format";
 import { styles, useColors, useTypography } from "../../ui/theme";
 import { Chevron } from "../../ui/MotionViews";
 import { TextViewerButton } from "../viewers/TextViewerButton";
@@ -81,21 +82,22 @@ export function OutputBlock({
   const lines = output.replace(/\n$/, "").split("\n");
   const cut = tail !== undefined && lines.length > tail;
   const shown = cut && !all ? lines.slice(-tail).join("\n") : output;
+  const size = useMemo(() => (cut ? formatBytes(new TextEncoder().encode(output).byteLength) : ""), [cut, output]);
 
   return (
     <View style={{ gap: 4 }}>
       {output ? (
         <>
+          <CodeBlock text={shown} label={label} />
           {cut && (
             <MoreButton
               expanded={all}
               onPress={() => setAll(!all)}
               note={all ? `${lines.length} lines` : `Last ${tail} of ${lines.length} lines`}
             >
-              {all ? "Show the end only" : "Show all output"}
+              {all ? "Show the end only" : `Show full output · ${size}`}
             </MoreButton>
           )}
-          <CodeBlock text={shown} label={label} />
         </>
       ) : null}
       {blob ? (

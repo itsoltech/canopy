@@ -8,6 +8,9 @@
   import ItemStatusIcon from "./ItemStatusIcon.svelte";
   import { useItemChildren } from "./item-context.ts";
   import { activityBody, activityHeader, activitySurface } from "../activity-header.ts";
+  import LazyItemContent from "./LazyItemContent.svelte";
+  import { useLazyContent } from "./lazy-content.ts";
+  import { ContentExpansion } from "./content-expansion.svelte.ts";
 
   /**
    * One-line activity row (tool, command, file change …) that expands to its details.
@@ -33,8 +36,11 @@
   } = $props();
 
   let open = $state(false);
+  const expansion = new ContentExpansion(() => open);
   const awaiting = useItemAwaiting();
   const nested = useItemChildren();
+  const lazy = useLazyContent();
+  const lazyContent = $derived(lazy());
 
   const iconClass = $derived(
     tone === "violet"
@@ -70,6 +76,11 @@
       {#snippet summary()}{@render row()}{/snippet}
       <div class={[activityBody, "select-text"]}>
         {@render children?.()}
+        {#if lazyContent}
+          {#key lazyContent.reference.sha256}
+            <LazyItemContent {...lazyContent} auto signal={expansion.signal} active={open && !!expansion.signal} />
+          {/key}
+        {/if}
         {#if nested()}<div class="grid gap-1 border-l-2 border-zinc-950/5 pl-3 dark:border-white/10">
             {@render nested()?.()}
           </div>{/if}

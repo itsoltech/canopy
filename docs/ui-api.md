@@ -120,7 +120,15 @@ okno. Pozostawia widoczną ostatnią poprawną kopię do czasu otrzymania spójn
 ograniczone okno. Nie usuwa danych z gatewaya ani nie żąda pełnej historii.
 
 Duże wyniki narzędzi i inne duże itemy mają ograniczony podgląd oraz odnośnik do
-treści. Rozwinięcie pobiera ją leniwie przez owner-scoped odczyt bloba/itemu.
+treści. Rozwinięcie konkretnego wywołania pobiera ją automatycznie przez owner-scoped
+odczyt bloba/itemu. Zwinięte wywołania i grupy nie pokazują akcji pobierania; samo
+przewijanie nie uruchamia odczytu. Rozwinięte body zachowuje podgląd i pokazuje mały
+stan ładowania lub błąd z „Retry” w skali meta wierszy pracy. Zwinięcie przerywa odczyt,
+a pełna treść pozostaje w pamięci sesji klienta, poza reducerem osi czasu. Widoczny
+podgląd wiadomości kończy się akcją „Show full message” z rozmiarem treści; zastępuje
+podgląd w miejscu. Te same reguły obowiązują web/desktop i mobile.
+Skrócony wynik zadania w tle kończy się akcją „Show full output” z rozmiarem gotowej
+treści; rozwija ona cały wynik w miejscu. Podczas streamingu rozmiar pozostaje nieznany.
 Limit partii wynosi 64 rekordy i 64 KiB protobuf łącznie z kopertą; sam limit tur
 nie wystarcza, ponieważ pojedyncza tura może zawierać wielki wynik narzędzia.
 Nieznane pola/case nie przerywają watcha. Nierozpoznany item zachowuje stabilne

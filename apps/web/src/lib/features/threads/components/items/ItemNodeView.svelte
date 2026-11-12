@@ -5,7 +5,7 @@
   import type { ItemNode } from "../../timeline.ts";
   import ItemNodeView from "./ItemNodeView.svelte";
   import ItemView from "./ItemView.svelte";
-  import LazyItemContent from "./LazyItemContent.svelte";
+  import { itemContents, provideLazyContent } from "./lazy-content.ts";
   import type { Item } from "@canopy/contracts";
 
   /**
@@ -14,10 +14,22 @@
    */
   let { node }: { node: ItemNode } = $props();
   const directory = useThreadDirectory();
-  let full = $state<{ sha: string; item: Item }>();
+  let full = $state<{ key: string; item: Item }>();
+  const contentKey = $derived(JSON.stringify([directory.currentId, node.entry.contentRef?.sha256]));
 
-  const item = $derived(
-    full?.sha === node.entry.contentRef?.sha256 ? (full?.item ?? node.entry.item) : node.entry.item,
+  const item = $derived((full?.key === contentKey ? full.item : itemContents.get(contentKey)) ?? node.entry.item);
+
+  provideLazyContent(() =>
+    node.entry.contentRef && item === node.entry.item
+      ? {
+          reference: node.entry.contentRef,
+          threadId: directory.currentId,
+          onload: (item) => {
+            itemContents.set(contentKey, item);
+            full = { key: contentKey, item };
+          },
+        }
+      : undefined,
   );
 
   provideItemAwaiting(() => directory.awaiting(node.entry.id));
@@ -40,15 +52,4 @@
     nested={node.children.length > 0 ? nested : undefined}
     turnEnded={directory.turnEnded?.(node.entry.turnId) ?? false}
   />
-  {#if node.entry.contentRef && full?.sha !== node.entry.contentRef.sha256}
-    {#key node.entry.contentRef.sha256}
-      <LazyItemContent
-        reference={node.entry.contentRef}
-        threadId={directory.currentId}
-        onload={(item) => {
-          full = { sha: node.entry.contentRef!.sha256, item };
-        }}
-      />
-    {/key}
-  {/if}
 </div>
