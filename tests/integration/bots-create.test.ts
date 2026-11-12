@@ -155,7 +155,7 @@ describe.skipIf(!dockerAvailable)("create_bot through the durable gateway loop",
       effort: args.effort,
       approvalPolicy: "safe",
       mcpServerIds: [],
-      threadPermission: "same_bot",
+      threadPermission: "user_default",
     });
     expect((await core.bots.list()).some((b) => b.configuration?.name === args.name)).toBe(false);
     await core.bots.stop();
@@ -209,7 +209,7 @@ describe.skipIf(!dockerAvailable)("create_bot through the durable gateway loop",
       effort: "high",
       approvalPolicy: "safe",
     });
-    expect(card.proposedBot?.threadPermission).toBe("same_bot");
+    expect(card.proposedBot?.threadPermission).toBe("user_default");
     expect(card.proposedBot?.shape).toMatch(
       /^(round|cloud|diamond|spark|clover|blob|flower|droplet|pill|triangle|square|star|hexagon|pumpkin)$/,
     );

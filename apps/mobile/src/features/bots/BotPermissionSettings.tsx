@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { Text, View } from "react-native";
-import type { bots } from "@canopy/contracts";
+import { PermissionMode, type bots } from "@canopy/contracts";
 import { BOT_APPROVAL_OPTIONS, BOT_THREAD_PERMISSION_OPTIONS } from "@canopy/domain/bot-chat";
 import { PickerSheet, SelectField } from "../../ui/Picker";
 import { styles, useColors } from "../../ui/theme";
 import { BotApprovalRules } from "./BotApprovalRules";
+import { pickPermission } from "../threads/permissions";
 
 export function BotPermissionSettings({
   botId,
@@ -23,6 +24,9 @@ export function BotPermissionSettings({
   const [picker, setPicker] = useState("");
   const options = picker === "policy" ? BOT_APPROVAL_OPTIONS : BOT_THREAD_PERMISSION_OPTIONS;
 
+  const threadPermission =
+    config.threadPermission && config.threadPermission !== "same_bot" ? config.threadPermission : "user_default";
+
   return (
     <View style={{ gap: 12 }}>
       <Text style={[styles.heading, { color: c.text }]}>Permissions</Text>
@@ -40,10 +44,7 @@ export function BotPermissionSettings({
       {botId && <BotApprovalRules botId={botId} selectedRule={selectedRule} />}
       <SelectField
         label="Threads started by this bot"
-        value={
-          BOT_THREAD_PERMISSION_OPTIONS.find((o) => o.value === (config.threadPermission || "same_bot"))?.label ??
-          "Use bot permissions"
-        }
+        value={BOT_THREAD_PERMISSION_OPTIONS.find((o) => o.value === threadPermission)?.label ?? "Inherit default"}
         disabled={disabled}
         onPress={() => setPicker("thread")}
       />
@@ -52,11 +53,16 @@ export function BotPermissionSettings({
         title={picker === "policy" ? "Ask for approval" : "Threads started by this bot"}
         visible={!!picker}
         onClose={() => setPicker("")}
-        value={picker === "policy" ? config.approvalPolicy || "safe" : config.threadPermission || "same_bot"}
+        value={picker === "policy" ? config.approvalPolicy || "safe" : threadPermission}
         sections={[{ options }]}
-        onSelect={(value) =>
-          onChange({ ...config, [picker === "policy" ? "approvalPolicy" : "threadPermission"]: value })
-        }
+        onSelect={(value) => {
+          const save = () =>
+            onChange({ ...config, [picker === "policy" ? "approvalPolicy" : "threadPermission"]: value });
+
+          if (picker !== "policy" && value === "full_access")
+            pickPermission(PermissionMode.FULL_ACCESS, PermissionMode.UNSPECIFIED, save);
+          else save();
+        }}
       />
     </View>
   );

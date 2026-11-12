@@ -53,7 +53,7 @@ function botValidate(
 
       if (
         !["safe", "always", "full_auto", ""].includes(config.approvalPolicy) ||
-        !["", "same_bot", "user_default", "ask", "read_only", "accept_edits", "full_auto"].includes(
+        !["", "same_bot", "user_default", "ask", "read_only", "accept_edits", "full_auto", "full_access"].includes(
           config.threadPermission ?? "",
         ) ||
         config.mcpServerIds.length > 32 ||
@@ -158,7 +158,7 @@ export function botConfig(sql: SqlClient.SqlClient, access: BotAccess) {
           user,
           create(bots.BotConfigurationSchema, {
             ...config,
-            threadPermission: config.threadPermission ?? before?.threadPermission ?? (before ? "ask" : "same_bot"),
+            threadPermission: config.threadPermission ?? before?.threadPermission ?? "user_default",
           }),
           !options.id,
         );

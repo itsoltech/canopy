@@ -1,6 +1,6 @@
 import { create, toJson, type JsonObject, type JsonValue } from "@bufbuild/protobuf";
 
-import { bots, PermissionMode, Provider, ui } from "@canopy/contracts";
+import { bots, Provider, ui } from "@canopy/contracts";
 
 import { AGENT_BUS, REMOTE_BOTS, splitId } from "@canopy/domain/computers";
 
@@ -14,7 +14,7 @@ import { fail, isToolArguments, record, text, type Actor, type Arguments } from 
 import type { LinkedAgents } from "./agents.ts";
 import { gather } from "../api/routed-overview.ts";
 import { PEER_READ_TIMEOUT_MS } from "./timing.ts";
-import { requestedThreadPermission } from "../bots/thread-permission.ts";
+import { botThreadPermission } from "../bots/thread-permission.ts";
 import { SettingsStore } from "../store/settings.ts";
 
 export interface AgentsBotToolsMethods {
@@ -197,13 +197,6 @@ function botThreadRequest(args: Arguments, callId: string): ui.CreateThreadReque
     title: text(args, "title", true),
     initialMessage: text(args, "prompt"),
     clientRequestId: callId,
-    permissionMode:
-      {
-        read_only: PermissionMode.READ_ONLY,
-        ask: PermissionMode.ASK,
-        accept_edits: PermissionMode.ACCEPT_EDITS,
-        full_auto: PermissionMode.FULL_AUTO,
-      }[String(args["permission"] ?? "ask")] ?? PermissionMode.ASK,
   });
 }
 
@@ -211,11 +204,7 @@ async function botDefaultThreadRequest(host: LinkedAgents, args: Arguments, call
   const request = botThreadRequest(args, callId);
 
   const defaults = await host.scope.run(SettingsStore.use((s) => s.user(host.owner)));
-  request.permissionMode = requestedThreadPermission(
-    bot.configuration!,
-    text(args, "permission", true),
-    defaults.threadDefaults?.permissionMode,
-  );
+  request.permissionMode = botThreadPermission(bot.configuration!, defaults.threadDefaults?.permissionMode);
 
   return request;
 }

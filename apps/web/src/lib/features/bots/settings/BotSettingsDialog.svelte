@@ -30,6 +30,7 @@
   import { useBotHome } from "../home.svelte.ts";
   import { BOT_APPROVAL_OPTIONS, BOT_THREAD_PERMISSION_OPTIONS } from "@canopy/domain/bot-chat";
   import BotApprovalRules from "./BotApprovalRules.svelte";
+  import FullAccessConfirm from "#lib/features/threads/components/FullAccessConfirm.svelte";
 
   let {
     open = $bindable(false),
@@ -59,7 +60,8 @@
   let effort = $state<string>();
   let modelChanged = $state(false);
   let policy = $state("safe");
-  let threadPermission = $state("same_bot");
+  let threadPermission = $state("user_default");
+  let confirmAccess = $state<() => void>();
   let busy = $state(false);
   let error = $state("");
   let wasOpen = false;
@@ -80,7 +82,8 @@
         option = instances.find((i) => i.id === instanceId)?.models.find((m) => m.model === c.model);
         effort = c.effort || undefined;
         policy = c.approvalPolicy || "safe";
-        threadPermission = c.threadPermission || "same_bot";
+        threadPermission =
+          c.threadPermission && c.threadPermission !== "same_bot" ? c.threadPermission : "user_default";
         error = "";
         session++;
       });
@@ -203,7 +206,15 @@
           >
           <BotApprovalRules botId={bot.id} disabled={busy || !!home.reason} />
           <Field label="Threads started by this bot">
-            <Select bind:value={threadPermission} disabled={busy} options={BOT_THREAD_PERMISSION_OPTIONS} />
+            <Select
+              value={threadPermission}
+              disabled={busy}
+              options={BOT_THREAD_PERMISSION_OPTIONS}
+              onchange={(value) => {
+                if (value === "full_access") confirmAccess = () => (threadPermission = value);
+                else threadPermission = value;
+              }}
+            />
           </Field>
           <p class="text-sm text-zinc-500 dark:text-zinc-400">Thread tool requests also appear in this bot’s chat.</p>
         </SettingsSection>
@@ -238,3 +249,4 @@
     </div>
   </form>
 </Dialog>
+<FullAccessConfirm bind:pending={confirmAccess} />

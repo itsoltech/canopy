@@ -24,7 +24,7 @@ message BotConfiguration {
   string worker_id = 830;
   // Omitted: preserve on update, same_bot on create. Owner-only setting.
   // Empty/same_bot: ASK for safe/always, FULL_AUTO for full_auto.
-  optional string thread_permission = 1001; // same_bot | user_default | ask | read_only | accept_edits | full_auto
+  optional string thread_permission = 1001; // user_default (domyślnie) | ask | read_only | accept_edits | full_auto | full_access
 }
 message Bot {
   string id = 1;

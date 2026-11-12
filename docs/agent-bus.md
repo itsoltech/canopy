@@ -78,7 +78,7 @@ Jedna definicja w Effect Schema (`AGENT_BUS_TOOLS`). Z niej powstaje JSON Schema
 | Narzędzie | Poziom 0 | Poziom 1 | Co robi |
 |---|:-:|:-:|---|
 | `list_agents` | ✓ | ✓ | na czym można uruchomić subagenta: instancje dostawców workera (`claude/native`, `codex/cliproxyapi`, ...) z modelami, wysiłkami i domyślnymi; plus własne ustawienia wywołującego |
-| `spawn_thread` | ✓ | | subagent = nowy wątek boczny: `title`, `prompt`, `instructions?` (rola), `provider?`, `model?`, `effort?`, `permission_mode?`, `fork?`, `notify?`, `interactions?` (`parent` domyślnie, `human`), `workspace_mode?` i `base_ref?`; zwraca od razu `thread_id`, `turn_id` i ustawienia dziecka (`provider`, `model`, `effort`, `permission_mode`) |
+| `spawn_thread` | ✓ | | subagent = nowy wątek boczny: `title`, `prompt`, `instructions?` (rola), `provider?`, `model?`, `effort?`, `fork?`, `notify?`, `interactions?` (`parent` domyślnie, `human`), `workspace_mode?` i `base_ref?`; zwraca od razu `thread_id`, `turn_id` i ustawienia dziecka (`provider`, `model`, `effort`, `permission_mode`) |
 | `send_message` | ✓ | ✓ | wiadomość do wątku z drzewa albo dowolnego wątku właściciela: `delivery` `queue`/`steer`, `notify?` |
 | `wait_threads` | ✓ | ✓ | czekanie na wątki (`any`/`all`, ≤ 300 s, ponawialne); zwraca status i wynik ostatniej tury każdego, wcześniej także pytania lub skierowane do wywołującego wiadomości (`messages`) |
 | `get_thread` / `read_thread` / `list_threads` | ✓ | ✓ | status (z dostawcą, modelem, wysiłkiem, uprawnieniami, `last_turn`, projektem i workerem), transkrypt, lista (`children`, `tree`, `all` z `query` i `limit`) |
@@ -126,7 +126,7 @@ komputery wybór worktree lub dziedziczenia jest jawnie odrzucany do etapu 5; ch
 | Codex `agent_type`, Claude `subagent_type` (role z katalogu) | `instructions` (rola wprost); katalogu ról nie ma |
 | Codex `model`, `reasoning_effort` | `provider`, `model`, `effort` — dowolna instancja dostawcy workera (także inny harness), sprawdzane przez gateway jak wątek użytkownika |
 | Codex `fork_turns` | `fork` (cała historia do ostatniej zakończonej tury) |
-| — | `permission_mode` (nie szerszy niż wywołującego), `interactions` |
+| — | uprawnienia rozstrzygane przez gateway z ustawień właściciela, `interactions` |
 | Codex `send_message` / `followup_task`, `send_input` | `send_message` (`steer` / `queue`) |
 | Codex `wait_agent` (z limitem czasu) | `wait_threads` (`any` / `all`, `timeout_seconds`) |
 | Claude `Task` zwraca wynik rodzicowi | powiadomienie z ostatnią wiadomością dziecka (domyślnie) albo `wait_threads` / `get_thread` (`last_message`, `last_turn`) |
@@ -135,7 +135,7 @@ komputery wybór worktree lub dziedziczenia jest jawnie odrzucany do etapu 5; ch
 
 Reguły (`authorizeBusCall` i gateway):
 - głębokość: dwa poziomy (subagent nie tworzy kolejnych), limity jak w sekcji 6,
-- uprawnienia: `read_only` < `ask` < `accept_edits` < `full_auto`; subagent dostaje uprawnienia wywołującego albo węższe, nigdy szersze. „Uprawnienia wywołującego” to tryb tury, w której padło wywołanie (`turns.permission_mode`: wiadomość może nadpisać domyślny wątku na jedną turę), a bez niego tryb tury w toku, potem domyślny wątku; ten sam tryb dostaje subagent bez `permission_mode`; `FULL_ACCESS` nie jest trybem szyny: wołający w nim liczy się jako `full_auto`, więc jego subagenci i harmonogramy działają w sandboxie ([protocol.md](protocol.md#modele-effort-i-steer)),
+- uprawnienia: `read_only` < `ask` < `accept_edits` < `full_auto` < `full_access`. Model nie wybiera trybu. Settings → Threads → Subagents: **Same as parent** (domyślnie) albo stały tryb, zapisany w `user_settings.settings.threadDefaults.subagentPermissionMode`. Gateway w transakcji blokuje i ponownie odczytuje rodzica, rozstrzyga uprawnienia i zapisuje je w ustawieniach dziecka. Obowiązuje tryb tury wywołującej (potem tury w toku, potem wątku); obniżenie bieżącego domyślnego trybu rodzica natychmiast ogranicza nowe dzieci. Stały wybór nie przekracza tego sufitu. Podniesienie domyślnego trybu nie podnosi uprawnień już działającej tury ani istniejących dzieci. Full access dziedziczy się na workerze z capability `full_access`; bez niej gateway ogranicza go do Full auto. Powód ograniczenia jest w `Thread.permission_mode_note`, widocznym w szczegółach web/mobile. Dawne `permission_mode` pozostaje tylko w dekoderze zgodności: może zawęzić wybór właściciela, próba eskalacji ponad rodzica jest odrzucana. Rodzic musi należeć do tego samego właściciela, także przy odtwarzaniu wywołania,
 - dostawca, model i wysiłek: patrz [Subagenci dowolnego dostawcy](#subagenci-dowolnego-dostawcy); fork zachowuje dostawcę i instancję,
 - rola (`instructions`) dopisuje się do instrukcji wywołującego.
 

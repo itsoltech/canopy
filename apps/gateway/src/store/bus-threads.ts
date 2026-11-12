@@ -17,9 +17,16 @@ import {
   type ThreadSummary,
   type TurnInput,
 } from "./agent-bus-types.ts";
-import { callerMode, insertCall, node, queueTurn, summary, thread } from "./agent-bus-queries.ts";
+import { insertCall, node, queueTurn, summary, thread } from "./agent-bus-queries.ts";
+import { subagentPermission } from "./automated-permissions.ts";
 
 export interface BusThreadStore {
+  spawnPermission(
+    source: CallSource,
+    caller: ThreadRow,
+    requested?: AgentBusArgs["spawn_thread"]["permission_mode"],
+    workerId?: string | null,
+  ): Fx<{ permissionMode: string; permissionModeNote: string }>;
   spawn(input: {
     source: CallSource;
     caller: ThreadRow;
@@ -84,17 +91,14 @@ const spawn = (
             root_path: string;
           }>`SELECT root_path FROM project_workspaces WHERE id = ${caller.workspace_id}::uuid`)[0]!.root_path;
 
-      // Same workspace as the caller, with inherited or explicitly prepared placement, on the provider instance, model
-      // and effort the gateway resolved (the caller's unless the call chose others from list_agents); its
-      // permissions unless the call narrows them (authorizeBusCall: never broader). A role adds to the caller's
-      // instructions.
+      // Resolve access inside this transaction, after locking and re-reading the parent.
+      const access = yield* subagentPermission(sql, source, caller, args.permission_mode);
+
       const settings: ThreadRow["settings"] = {
         ...caller.settings,
-        // The calling turn's mode, not the thread's default (never broader than the caller right now).
-        permissionMode: (yield* callerMode(sql, source, caller)).toUpperCase(),
+        ...access,
         model: target.model,
         effort: target.effort,
-        ...(args.permission_mode !== undefined && { permissionMode: args.permission_mode.toUpperCase() }),
         ...(args.instructions !== undefined && {
           instructions: [caller.settings.instructions, args.instructions].filter(Boolean).join("\n\n"),
         }),
@@ -230,6 +234,8 @@ const send = (sql: SqlClient.SqlClient, { source, caller, args, hops }: Paramete
 
 export function busThreadStore(sql: SqlClient.SqlClient): BusThreadStore {
   const store: BusThreadStore = {
+    spawnPermission: (source, caller, requested, workerId) =>
+      sql.withTransaction(subagentPermission(sql, source, caller, requested, workerId)),
     spawn: (input) => spawn(sql, input),
 
     send: (input) => send(sql, input),

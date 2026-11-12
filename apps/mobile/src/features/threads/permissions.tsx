@@ -39,6 +39,23 @@ export function permissionLook(mode: PermissionMode | undefined): PermissionLook
   return { icon: "shield-check" };
 }
 
+/** Shared confirmation for owner-selected thread, bot and subagent settings. */
+export function pickPermission(
+  mode: PermissionMode,
+  current: PermissionMode,
+  onSelect: (mode: PermissionMode) => void,
+) {
+  if (mode !== PermissionMode.FULL_ACCESS || mode === current) return onSelect(mode);
+  Alert.alert(
+    "Turn on full access?",
+    "The agent edits files and runs commands without asking. No sandbox keeps it in the workspace. It can change any file this computer’s worker can reach and use the network.",
+    [
+      { text: "Cancel", style: "cancel" },
+      { text: "Turn on full access", style: "destructive", onPress: () => onSelect(mode) },
+    ],
+  );
+}
+
 /** Picks a mode; Full access is confirmed each time it is picked. */
 export function PermissionPickerSheet({
   visible,
@@ -54,15 +71,7 @@ export function PermissionPickerSheet({
   const current = value === PermissionMode.UNSPECIFIED || value === undefined ? PermissionMode.ASK : value;
 
   function pick(mode: PermissionMode) {
-    if (mode !== PermissionMode.FULL_ACCESS || mode === current) return onSelect(mode);
-    Alert.alert(
-      "Turn on full access?",
-      "The agent edits files and runs commands without asking. No sandbox keeps it in the workspace. It can change any file this computer’s worker can reach and use the network.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Turn on full access", style: "destructive", onPress: () => onSelect(mode) },
-      ],
-    );
+    pickPermission(mode, current, onSelect);
   }
 
   return (

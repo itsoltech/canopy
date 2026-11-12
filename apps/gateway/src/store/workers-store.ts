@@ -127,6 +127,7 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
           branchSwitch: hello.capabilities.includes("git_branch_switch_v1"),
           // The desktop app's own local-mode worker: it updates with the app (docs/updates.md).
           desktopBundled: hello.capabilities.includes("desktop_bundled"),
+          fullAccess: hello.capabilities.includes("full_access"),
         });
 
         yield* sql`

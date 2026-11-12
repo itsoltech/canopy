@@ -39,6 +39,7 @@ export interface ThreadRow {
     model?: string;
     effort?: string;
     permissionMode?: string;
+    permissionModeNote?: string;
     instructions?: string;
     handoff?: string;
     branchNote?: string;

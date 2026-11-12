@@ -430,7 +430,6 @@ describe.skipIf(!dockerAvailable)("linked bots and agent bus: two independent ho
                   workspace_id: workspace,
                   provider: "codex",
                   provider_instance: "native",
-                  permission: "full_auto",
                   title: "B approved task",
                   prompt: "approved on remote card",
                 },

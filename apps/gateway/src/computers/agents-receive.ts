@@ -265,6 +265,7 @@ async function spawnReceivedThread(
     kind: call.actorKind,
     instructions: text(args, "instructions", true),
     interactions: args["interactions"] === "human" ? "human" : "parent",
+    permissionModeNote: text(args, "permission_mode_note", true),
   });
 
   const target = created.id;

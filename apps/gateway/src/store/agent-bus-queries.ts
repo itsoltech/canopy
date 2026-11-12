@@ -1,5 +1,5 @@
 import { type JsonValue } from "@bufbuild/protobuf";
-import { agentKey, type ThreadNode } from "@canopy/domain";
+import { agentKey, SPAWN_PERMISSION_MODES, type ThreadNode } from "@canopy/domain";
 import { Effect, Match } from "effect";
 import type { SqlClient } from "effect/sql";
 import { NotFound, type ThreadRow, type TurnRow } from "./store.ts";
@@ -234,13 +234,18 @@ export const scheduleSelect = `
 
 /**
  * The caller's effective permission mode: the mode its calling turn runs with (a message may override the
- * thread's default for one turn), else its running turn's, else the thread's default. The ceiling of
- * spawn_thread and the mode a subagent gets when it asks for none.
+ * thread's default for one turn), else its running turn's, else the thread's default. Lowering the
+ * thread's current default also lowers this ceiling immediately for newly created children.
  */
 export const callerMode = (sql: SqlClient.SqlClient, source: CallSource, caller: ThreadRow) =>
   sql<{ permission_mode: string }>`
     SELECT permission_mode FROM turns
      WHERE permission_mode <> '' AND (id = ${turnRef(sql, source)} OR (thread_id = ${caller.id}::uuid AND status = 'running'))
      ORDER BY (id = ${turnRef(sql, source)}) DESC NULLS LAST LIMIT 1`.pipe(
-    Effect.map((rows) => busPermissionMode(rows[0]?.permission_mode || caller.settings.permissionMode)),
+    Effect.map((rows) => {
+      const current = busPermissionMode(caller.settings.permissionMode);
+      const turn = busPermissionMode(rows[0]?.permission_mode || caller.settings.permissionMode);
+
+      return SPAWN_PERMISSION_MODES.indexOf(current) < SPAWN_PERMISSION_MODES.indexOf(turn) ? current : turn;
+    }),
   );

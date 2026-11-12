@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { View } from "react-native";
 import { create } from "@bufbuild/protobuf";
-import { Provider, ui } from "@canopy/contracts";
+import { PermissionMode, Provider, ui } from "@canopy/contracts";
 import type { useAppearance } from "../../state/appearance";
 import { PickerSheet, SelectField } from "../../ui/Picker";
 import { ProviderIcon } from "../../ui/ProviderIcon";
@@ -14,8 +14,16 @@ import { useOverview } from "../../state/overview";
 import { useWorkerLabel } from "../computers/presence";
 import { useWorkerOptions } from "../computers/worker-options";
 import { FollowUpSettings } from "./FollowUpSettings";
+import { SubagentPermissionSettings } from "./SubagentPermissionSettings";
 
 type Settings = ReturnType<typeof useAppearance>;
+
+/** Resetting new-thread defaults leaves the separate subagent setting intact. */
+function threadDefaultsPatch(defaults: ui.ThreadDefaults | undefined, patch: Partial<ui.ThreadDefaults>) {
+  return Object.assign(create(ui.ThreadDefaultsSchema, defaults), patch, {
+    subagentPermissionMode: defaults?.subagentPermissionMode ?? PermissionMode.UNSPECIFIED,
+  });
+}
 
 export function ThreadDefaultsSettings({ settings }: { settings: Settings }) {
   const { projectChoices: projects, workers } = useOverview();
@@ -26,7 +34,7 @@ export function ThreadDefaultsSettings({ settings }: { settings: Settings }) {
   const close = () => setPicker(null);
 
   const save = (patch: Partial<ui.ThreadDefaults>) =>
-    void settings.update({ threadDefaults: Object.assign(create(ui.ThreadDefaultsSchema, defaults), patch) });
+    void settings.update({ threadDefaults: threadDefaultsPatch(defaults, patch) });
 
   const workspace = projects.flatMap((p) => p.workspaces).find((w) => w.id === defaults?.workspaceId);
   const project = projects.find((p) => p.projectIds.includes(workspace?.projectId ?? ""));
@@ -35,6 +43,7 @@ export function ThreadDefaultsSettings({ settings }: { settings: Settings }) {
   return (
     <View style={{ gap: 20 }}>
       <FollowUpSettings settings={settings} />
+      <SubagentPermissionSettings settings={settings} />
       <DefaultResets
         value={create(ui.ThreadDefaultsSchema, defaults)}
         onChange={save}

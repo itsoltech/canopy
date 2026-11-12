@@ -10,10 +10,16 @@ import type { ThreadRow } from "./rows.ts";
 import { listThreadSelect, threadSelect } from "./thread-select.ts";
 import { permissionModeOf } from "./ui-mappers.ts";
 import { storageText } from "./event-text.ts";
+import type { AutomatedAccess } from "./automated-permissions.ts";
 
 export interface ThreadStore {
   /** `id`: a thread moved here from a linked computer keeps its id (docs/linked-computers.md, stage 8). */
-  createThread(ownerUserId: string, request: ui.CreateThreadRequest, id?: string): Fx<ThreadRow>;
+  createThread(
+    ownerUserId: string,
+    request: ui.CreateThreadRequest,
+    id?: string,
+    automated?: AutomatedAccess,
+  ): Fx<ThreadRow>;
   thread(threadId: string, includeDeleted?: boolean, metadataOnly?: boolean): Fx<ThreadRow>;
   /** The owner saw the thread up to `upToSeq` (capped at its last event; the marker only grows). False when nothing changed. */
   markThreadSeen(ownerUserId: string, threadId: string, upToSeq: bigint): Fx<boolean>;
@@ -175,7 +181,7 @@ export function threadStore(sql: SqlClient.SqlClient): Omit<ThreadStore, "create
 
     updateThreadSettings: (threadId, settings) =>
       sql`
-              UPDATE threads SET settings = settings || ${JSON.stringify(settings)}::jsonb WHERE id = ${threadId}::uuid AND archived_at IS NULL`.pipe(
+              UPDATE threads SET settings = settings || ${JSON.stringify({ ...settings, ...(settings.permissionMode && { permissionModeNote: "" }) })}::jsonb WHERE id = ${threadId}::uuid AND archived_at IS NULL`.pipe(
         Effect.andThen(store.thread(threadId)),
       ),
 

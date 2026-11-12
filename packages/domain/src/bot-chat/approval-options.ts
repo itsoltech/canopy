@@ -19,14 +19,9 @@ export const BOT_APPROVAL_OPTIONS: { value: "safe" | "always" | "full_auto"; lab
 
 export const BOT_THREAD_PERMISSION_OPTIONS = [
   {
-    value: "same_bot",
-    label: "Same as the bot’s approvals",
-    description: "Uses Ask first, or Full auto for a full auto bot. Local threads also use connected account rules.",
-  },
-  {
     value: "user_default",
-    label: "Use my thread default",
-    description: "Uses your thread permission default when the bot starts a thread.",
+    label: "Inherit default",
+    description: "Uses your default permissions from Settings → Threads.",
   },
   { value: "ask", label: "Ask first", description: "The agent asks before running tools that need approval." },
   {
@@ -43,5 +38,10 @@ export const BOT_THREAD_PERMISSION_OPTIONS = [
     value: "full_auto",
     label: "Full auto",
     description: "Thread tools run without asking, within the agent’s sandbox.",
+  },
+  {
+    value: "full_access",
+    label: "Full access",
+    description: "Thread tools run without asking or a sandbox, where the computer allows it.",
   },
 ];

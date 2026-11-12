@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import { ui } from "@canopy/contracts";
+import { PermissionMode, ui } from "@canopy/contracts";
 import { Effect } from "effect";
 import { storedSidebarWidth } from "@canopy/domain";
 import { SettingsStore } from "../store/index.ts";
@@ -16,6 +16,12 @@ export async function coreCheckThreadDefaults(
   defaults: ui.ThreadDefaults,
   projectId?: string,
 ): Promise<void> {
+  if (![defaults.permissionMode, defaults.subagentPermissionMode].every((mode) => mode in PermissionMode))
+    throw new InvalidError("Unknown permissions. Choose a supported mode.");
+
+  if (projectId && defaults.subagentPermissionMode !== PermissionMode.UNSPECIFIED)
+    throw new InvalidError("Set subagent permissions in Settings → Threads.");
+
   if (defaults.providerProfileId.length > 100 || defaults.models.some((m) => m.model.length > 200))
     throw new InvalidError("model or profile id is too long");
 

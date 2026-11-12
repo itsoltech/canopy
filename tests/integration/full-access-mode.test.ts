@@ -1,8 +1,7 @@
 /**
  * Full access (PERMISSION_MODE_FULL_ACCESS, docs/protocol.md): round-trips through CreateThread, UpdateThread
  * and SendMessage to a worker that announces `full_access`; a worker without it gets a readable refusal and
- * never a turn in another mode; forks and agents' side threads never inherit it; schedules refuse it; only the
- * owner sets it.
+ * never a turn in another mode; user forks require opting in again, while agents inherit the owner's mode.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
@@ -11,6 +10,11 @@ import { PermissionMode, Provider, ui, type AgentToolResult } from "@canopy/cont
 import { dockerAvailable } from "@canopy/db/testing";
 import { GatewayCore } from "@canopy/gateway/core";
 import { GatewayStore } from "@canopy/gateway/store";
+import { AgentToolCallSchema } from "@canopy/contracts";
+import { tempDirs } from "@canopy/testing";
+import { codexPermissions } from "../../apps/worker/src/providers/codex/permissions.ts";
+import { claudePermissions } from "../../apps/worker/src/providers/claude/permissions.ts";
+import { grokLaunch } from "../../apps/worker/src/providers/grok/launch.ts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { eventually, failure, startTestGateway, type ScriptedWorker, type TestGateway } from "./support/gateway.ts";
@@ -24,6 +28,35 @@ let oldWorkspace = "";
 
 /** On a worker that announces `full_access`. */
 let workspaceId = "";
+const tempDir = tempDirs();
+
+/** Feed the actual child mode delivered over the worker link into each native harness adapter. */
+function nativeChildMode(mode: PermissionMode) {
+  const bypass = mode === PermissionMode.FULL_ACCESS;
+  expect(codexPermissions(mode)).toEqual({
+    approvalPolicy: "never",
+    sandbox: bypass ? "danger-full-access" : "read-only",
+  });
+  expect(claudePermissions(mode, "linux")).toEqual({
+    options: { permissionMode: bypass ? "acceptEdits" : "dontAsk", ...(bypass && { sandbox: { enabled: false } }) },
+    autoAllow: bypass ? "all" : "none",
+  });
+
+  const launch = grokLaunch({
+    dataDir: tempDir("canopy-child-mode-"),
+    profile: { id: "native", kind: "native", providers: ["grok"], env: {}, runtime: {} },
+    linkDeviceLogin: false,
+    baseEnv: {},
+    readOnly: mode === PermissionMode.READ_ONLY,
+    fullAccess: bypass,
+  });
+
+  try {
+    expect(launch.options.env?.["GROK_SANDBOX"]).toBe(bypass ? "off" : "read-only");
+  } finally {
+    launch.cleanup();
+  }
+}
 
 const REFUSED = "Full access is not available on this computer";
 
@@ -188,7 +221,7 @@ describe.skipIf(!dockerAvailable)("full access mode (gateway + scripted workers)
     expect(gw.worker.turnModes.has(failed!.id)).toBe(false);
   });
 
-  test("an agent's side thread never gets Full access; schedules refuse it", async () => {
+  test("subagents inherit Full access; changing the parent affects only new children", async () => {
     const thread = (
       await gw.api.createThread({
         projectId,
@@ -209,7 +242,7 @@ describe.skipIf(!dockerAvailable)("full access mode (gateway + scripted workers)
       (t) => t.some((x) => x.id === sent.turn!.id && x.status === "running"),
     );
 
-    // Inherited: the caller's turn runs in Full access, its side thread in Full auto.
+    // No model parameter: inherit the owner's effective mode.
     const child = json(
       await modern.callTool({
         threadId: thread.id,
@@ -219,10 +252,31 @@ describe.skipIf(!dockerAvailable)("full access mode (gateway + scripted workers)
       }),
     );
 
-    expect(child.permission_mode).toBe("full_auto");
-    expect((await modern.createdThread(child.thread_id))?.permissionMode).toBe(PermissionMode.FULL_AUTO);
+    expect(child.permission_mode).toBe("full_access");
+    const childSpec = (await modern.createdThread(child.thread_id))!;
+    expect(childSpec.permissionMode).toBe(PermissionMode.FULL_ACCESS);
+    nativeChildMode(childSpec.permissionMode);
 
-    // Asked for: not a bus mode at all.
+    await gw.api.updateThread({ threadId: thread.id, permissionMode: PermissionMode.READ_ONLY });
+
+    const readonly = json(
+      await modern.callTool({
+        threadId: thread.id,
+        turnId: sent.turn!.id,
+        tool: "spawn_thread",
+        args: { title: "Read only child", prompt: "Inspect", notify: false },
+      }),
+    );
+
+    expect(readonly.permission_mode).toBe("read_only");
+    const readonlySpec = (await modern.createdThread(readonly.thread_id))!;
+    expect(readonlySpec.permissionMode).toBe(PermissionMode.READ_ONLY);
+    nativeChildMode(readonlySpec.permissionMode);
+    expect((await gw.api.getThread({ threadId: child.thread_id })).thread?.permissionMode).toBe(
+      PermissionMode.FULL_ACCESS,
+    );
+
+    // Legacy parameters cannot raise the parent's current ceiling.
     const asked = await modern.callTool({
       threadId: thread.id,
       turnId: sent.turn!.id,
@@ -236,24 +290,112 @@ describe.skipIf(!dockerAvailable)("full access mode (gateway + scripted workers)
     modern.finish(thread.id, sent.turn!.id);
     await settled(thread.id, 2);
     await modern.callTool({ threadId: thread.id, tool: "close_thread", args: { thread_id: child.thread_id } });
+    await modern.callTool({ threadId: thread.id, tool: "close_thread", args: { thread_id: readonly.thread_id } });
+  });
 
-    expect(
-      await failure(
-        gw.api.createSchedule({
-          target: "new_thread",
-          prompt: "Clean up",
-          name: "Nightly",
-          when: { case: "runAt", value: timestampFromDate(new Date(Date.now() + 60_000)) },
-          newThread: {
-            projectId,
-            placement: "specific",
-            workspaceId,
-            provider: Provider.CODEX,
-            permissionMode: PermissionMode.FULL_ACCESS,
-            title: "Scheduled",
-          },
+  test("owner subagent settings narrow access; parent and computer ceilings are visible; parents are owner-scoped", async () => {
+    const parent = (
+      await gw.api.createThread({
+        projectId,
+        workspaceId,
+        provider: Provider.CODEX,
+        title: "Configured parent",
+        permissionMode: PermissionMode.FULL_ACCESS,
+      })
+    ).thread!;
+
+    const settings = (await gw.api.getSettings({})).user!;
+    const defaults = create(ui.ThreadDefaultsSchema, settings.threadDefaults);
+
+    const setMode = async (subagentPermissionMode: PermissionMode) => {
+      const user = (await gw.api.getSettings({})).user!;
+      await gw.api.updateUserSettings({
+        expectedVersion: user.version,
+        threadDefaults: create(ui.ThreadDefaultsSchema, { ...defaults, subagentPermissionMode }),
+      });
+    };
+
+    const spawn = async (threadId = parent.id, worker = modern) => {
+      const result = await worker.callTool({
+        threadId,
+        tool: "spawn_thread",
+        args: { title: "Configured child", prompt: "Inspect", notify: false },
+      });
+
+      expect(result.isError).toBe(false);
+
+      return (await gw.api.getThread({ threadId: json(result).thread_id })).thread!;
+    };
+
+    try {
+      await setMode(PermissionMode.READ_ONLY);
+      expect((await spawn()).permissionMode).toBe(PermissionMode.READ_ONLY);
+      await setMode(PermissionMode.FULL_ACCESS);
+      await gw.api.updateThread({ threadId: parent.id, permissionMode: PermissionMode.ASK });
+      const capped = await spawn();
+      expect(capped.permissionMode).toBe(PermissionMode.ASK);
+      expect(capped.permissionModeNote).toContain("parent’s mode");
+
+      const legacy = (
+        await gw.api.createThread({
+          projectId,
+          workspaceId: oldWorkspace,
+          provider: Provider.CODEX,
+          title: "Local ceiling",
+          permissionMode: PermissionMode.FULL_AUTO,
+        })
+      ).thread!;
+
+      // A previously allowed parent, now on a computer which forbids bypass.
+      await gw.runtime.runPromise(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          yield* sql`UPDATE threads SET settings = settings || '{"permissionMode":"FULL_ACCESS"}'::jsonb WHERE id=${legacy.id}::uuid`;
         }),
-      ),
-    ).toContain("cannot use Full access");
+      );
+      const clamped = await spawn(legacy.id, gw.worker);
+      expect(clamped.permissionMode).toBe(PermissionMode.FULL_AUTO);
+      expect(clamped.permissionModeNote).toContain("on this computer");
+
+      const other = await gw.runtime.runPromise(GatewayStore.use((s) => s.ensureUser("parent-other@test", "Other")));
+      const foreign = new GatewayCore({ runtime: gw.runtime, instanceId: "foreign-parent", userId: other });
+
+      const refused = await foreign.bus.handle(
+        create(AgentToolCallSchema, {
+          callId: Bun.randomUUIDv7(),
+          threadId: parent.id,
+          toolName: "spawn_thread",
+          argumentsJson: JSON.stringify({ title: "Foreign child", prompt: "x" }),
+        }),
+      );
+
+      expect(refused.isError).toBe(true);
+      expect(refused.content).toContain("not found");
+    } finally {
+      const user = (await gw.api.getSettings({})).user!;
+      await gw.api.updateUserSettings({ expectedVersion: user.version, threadDefaults: settings.threadDefaults });
+    }
+  });
+
+  test("scheduled threads retain the sandbox ceiling with a recorded explanation", async () => {
+    const schedule = (
+      await gw.api.createSchedule({
+        target: "new_thread",
+        prompt: "Clean up",
+        name: "Nightly",
+        when: { case: "runAt", value: timestampFromDate(new Date(Date.now() + 60_000)) },
+        newThread: {
+          projectId,
+          placement: "specific",
+          workspaceId,
+          provider: Provider.CODEX,
+          permissionMode: PermissionMode.FULL_ACCESS,
+          title: "Scheduled",
+        },
+      })
+    ).schedule!;
+
+    expect(schedule.newThread?.permissionMode).toBe(PermissionMode.FULL_AUTO);
+    expect(schedule.newThread?.permissionModeNote).toContain("Scheduled threads limit Full access");
   });
 });

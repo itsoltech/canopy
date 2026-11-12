@@ -291,25 +291,21 @@ export const threadTools = [
   ),
   define(
     "fork_thread",
-    "Threads: fork from a finished visible turn (read_thread gives ids). Inherits source placement, provider, model and permissions, with UI fork validation. Optional prompt starts a turn and subscribes you to its completion. Requires approval because it can inherit elevated permissions.",
+    "Threads: fork from a finished visible turn (read_thread gives ids). Inherits source placement, provider and model, with UI fork validation. Permissions come from the owner's bot settings. Optional prompt starts a turn and subscribes you to its completion. Requires approval.",
     object({ thread_id: str, turn_id: str, title: str, prompt: str }, ["thread_id", "turn_id"]),
     threadPhrase("Forking"),
     (c) =>
-      c.action(async () => {
-        const thread = await c.core.createThread(
-          create(ui.CreateThreadRequestSchema, {
-            forkThreadId: c.string("thread_id"),
-            forkAtTurnId: c.string("turn_id"),
-            title: c.optional("title"),
-            initialMessage: c.optional("prompt"),
-            clientRequestId: c.call.id,
-          }),
-        );
-
-        await c.core.watchBotThread(c.turn, c.call, thread.id);
-
-        return { thread_id: thread.id, thread: json(ui.ThreadSchema, thread) };
-      }),
+      c.core.startBotThread(
+        c.turn,
+        c.call,
+        create(ui.CreateThreadRequestSchema, {
+          forkThreadId: c.string("thread_id"),
+          forkAtTurnId: c.string("turn_id"),
+          title: c.optional("title"),
+          initialMessage: c.optional("prompt"),
+          clientRequestId: c.call.id,
+        }),
+      ),
     "approval",
   ),
   define(

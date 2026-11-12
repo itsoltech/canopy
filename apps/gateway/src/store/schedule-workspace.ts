@@ -92,7 +92,11 @@ export const scheduledThread = (
 ) =>
   Effect.gen(function* () {
     const gateway = yield* GatewayStore;
-    let owner = yield* gateway.createThread(prepared.ownerId, { ...prepared.request, initialMessage: "" });
+
+    let owner = yield* gateway.createThread(prepared.ownerId, { ...prepared.request, initialMessage: "" }, undefined, {
+      permissionModeNote: spec.permissionModeNote,
+    });
+
     yield* sql`UPDATE threads SET origin='schedule', schedule_id=${schedule.id}::uuid,
       schedule_name=${schedule.name || schedule.prompt.slice(0, 60)}, schedule_run=${schedule.runs + 1},
       title=${spec.title || schedule.prompt.split("\n")[0]!.slice(0, 60)} WHERE id=${owner.id}::uuid`;

@@ -91,7 +91,7 @@ export type BotConfiguration = Message<"canopy.ui.v1.BotConfiguration"> & {
    * Omitted: preserve on update, same_bot on create. Owner-only setting.
    * Empty/same_bot: ASK for safe/always, FULL_AUTO for full_auto.
    *
-   * same_bot | user_default | ask | read_only | accept_edits | full_auto
+   * user_default (domyślnie) | ask | read_only | accept_edits | full_auto | full_access
    *
    * @generated from field: optional string thread_permission = 1001;
    */

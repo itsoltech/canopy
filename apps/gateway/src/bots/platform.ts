@@ -15,7 +15,7 @@ import { context, validate, type ToolResult } from "./tools/shared.ts";
 import { wakeupView } from "./tools/schedules.ts";
 import { automationMode, inheritedWorkspace } from "../worktrees/automation.ts";
 import { coreState } from "../core/core-context.ts";
-import { requestedThreadPermission } from "./thread-permission.ts";
+import { botThreadPermission } from "./thread-permission.ts";
 import { SettingsStore } from "../store/settings.ts";
 
 /** Legacy tools: an unknown provider name keeps meaning Codex, as before. */
@@ -290,7 +290,7 @@ async function startThread(core: GatewayCore, turn: BotTurn, call: StoredCall, {
   const config = (await core.bots.get(turn.bot_id)).configuration!;
   const defaults = await core[coreState].options.runtime.runPromise(SettingsStore.use((s) => s.user(owner)));
 
-  const permission = requestedThreadPermission(config, optional("permission"), defaults.threadDefaults?.permissionMode);
+  const permission = botThreadPermission(config, defaults.threadDefaults?.permissionMode);
 
   if (!permission || !["claude", "codex", "grok"].includes(string("provider")))
     throw new Invalid("unknown provider or permission");

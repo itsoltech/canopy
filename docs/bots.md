@@ -517,8 +517,7 @@ Zestaw **zawsze pytaj**, niezależny od reguł i full auto: `create_bot`, `archi
 `set_thread_model`, `archive_thread`, `delete_thread`, `fork_thread`, `set_thread_permission`,
 `answer_interaction`, `stop_background_task`, `cancel_schedule`. `update_self` zawsze pyta
 o model, effort, dostawcę, instancję i politykę; nie przyjmuje reguł ani ustawień uprawnień
-wątków. Jawne `start_thread.permission` powyżej Ask first/Read only, podniesione uprawnienia
-w `create_schedule`/`update_schedule.new_thread` i `update_settings.thread_defaults` też pytają.
+wątków. `update_settings.thread_defaults` też zawsze pyta.
 `ask_user` pozostaje pytaniem. Nieznane narzędzie nie dostaje opcji stałej reguły.
 Dodanie lub zmiana workspace’u zawsze pyta, także przy zmianie samej etykiety;
 reguła projektu nie może posłużyć do przekierowania pracy do innego katalogu.
@@ -531,17 +530,26 @@ Już utrwalona zgoda pozostaje ważna po cofnięciu reguły i restarcie gatewaya
 zatwierdzona akcja wykona się raz. Cofnięcie dotyczy nowych żądań, nie cofa przyjętych decyzji.
 Reguły bota archiwalnego lub przeniesionego nie zatwierdzają nowych żądań.
 
-Nowe boty mają „Threads started by this bot” ustawione na „Same as the bot’s approvals”:
-Ask first dla safe/always, Full auto dla full_auto. Migracja **0090** ustawia istniejącym
-botom bez tego wyboru **Ask first**, także botom full_auto, zachowując zachowanie sprzed
-aktualizacji bez cichego podniesienia uprawnień. Starszy klient, który pomija pole przy
-zapisie, zachowuje zapisany wybór. Zweryfikowane w gatewayu wywołania connectorów czytają
-bieżący wybór bota przy każdym żądaniu: tylko aktualne `same_bot` pozwala dziedziczyć
-reguły kont, również w wcześniej uruchomionych wątkach. Pozostałe opcje to domyślne
-ustawienie użytkownika, Ask first, Read only, Accept edits lub Full auto. Jawne uprawnienie
-w żądaniu bota może zawęzić tryb właściciela, nigdy go podnieść (Read only < Ask first <
-Accept edits < Full auto). Dotyczy to też konfiguracji `new_thread` tworzonego lub
-aktualizowanego harmonogramu. Chronione prośby nadal wymagają zgody. Karty narzędzi uruchomionych wątków pojawiają się
+Nowe boty mają „Threads started by this bot” ustawione na **Inherit default** (`user_default`):
+gateway bierze aktualne domyślne uprawnienia właściciela z Settings → Threads, niezależnie
+od „Ask for approval” bota. Właściciel może wybrać stałe Ask first, Read only, Accept edits,
+Full auto albo Full access; Full access wymaga potwierdzenia w UI. Wybór dotyczy nowych
+wątków, także `fork_thread` i `new_thread` harmonogramu; istniejące wątki zachowują swój tryb.
+Model nie dostaje pola `permission` w narzędziach tworzenia wątków i harmonogramów;
+wstrzyknięte pole jest odrzucane. Domyślne ustawienie jest odczytywane przez gateway,
+a nie z argumentów modelu. Dla bezpośrednich startów wybór jest ponownie rozstrzygany
+w transakcji tworzenia. Harmonogram zapisuje wybór przy utworzeniu lub aktualizacji.
+Na połączonym komputerze gateway źródłowy wybiera tryb właściciela, a docelowy stosuje
+ograniczenie swojego workera. Worker bez capability `full_access` ogranicza Full access
+do Full auto. Harmonogramy nowych wątków zawsze zachowują sandbox: Full access jest
+ograniczany do Full auto. Powód trafia do szczegółów wątku w web i mobile.
+
+Migracja ustawienia dziedziczenia zamienia brak wyboru i dawne `same_bot` na `user_default`.
+Zachowuje jawne ustawienia, w tym Ask first zapisane wcześniej przez migrację **0090**.
+Starszy klient pomijający pole przy zapisie zachowuje zapisany wybór. Zweryfikowane
+wywołania connectorów czytają bieżący wybór przy każdym żądaniu: Inherit default pozwala
+dziedziczyć reguły kont bota, również we wcześniej uruchomionych wątkach; stały tryb
+nie dziedziczy tych reguł. Chronione prośby nadal wymagają zgody. Karty narzędzi uruchomionych wątków pojawiają się
 również w czacie bota, także przez istniejącą trasę UI połączonego komputera. To widok tego
 samego `interaction_requests`, a nie druga zgoda: odpowiedź w dowolnym miejscu rozwiązuje
 jedno żądanie i wysyła jedną odpowiedź do workera. Reguły kont są dziedziczone tylko przez
@@ -632,9 +640,9 @@ z czytelnym komunikatem (etap 5). Opcje dostępne przez narzędzia i API, bez no
 
 | Nazwa | Działanie | Zgoda |
 |---|---|---|
-| `create_schedule` | Harmonogram użytkownika: `thread` lub `new_thread`, termin ISO albo cron, strefa i limity; placement specific/any/least_busy/round_robin | P; A przy podwyższonych permissions nowego wątku |
+| `create_schedule` | Harmonogram użytkownika: `thread` lub `new_thread`, termin ISO albo cron, strefa i limity; placement specific/any/least_busy/round_robin; uprawnienia z ustawień bota | P |
 | `list_schedules` | Harmonogramy właściciela, filtry projektu/wątku i zakończonych; oddzielnie własne wakeups bota | R |
-| `update_schedule` | Pełna konfiguracja z `expected_version`, te same reguły co tworzenie | P; A przy podwyższonych permissions |
+| `update_schedule` | Pełna konfiguracja z `expected_version`, te same reguły co tworzenie | P |
 | `set_schedule_status` | Pauza lub wznowienie harmonogramu użytkownika | P |
 | `cancel_schedule` | Anulowanie harmonogramu właściciela lub własnej pobudki bota (`scope`) | A |
 | `schedule_wakeup` | Jednorazowa własna pobudka bota | P |
