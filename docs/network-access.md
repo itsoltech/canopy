@@ -58,6 +58,11 @@ ale go nie wymaga:
 - rola `server` odrzuca połączenie z certyfikatem klienta, bez montowania usługi łącza;
 - połączenie **bez certyfikatu** trafia do usług urządzeń (telefony, etap 2); bez nich dostaje 403.
 
+Tożsamość i lista partnerów są gotowe przed otwarciem listenera. Gdy usługa komputerów
+jest jeszcze uruchamiana albo już zatrzymywana, `Pair` i `Connect` zwracają `Unavailable`,
+bez oceny zaufania. Restart nie odtwarza certyfikatu: listener używa zapisanego certyfikatu
+i zaszyfrowanego klucza z `computer_identity`.
+
 Listener nie wystawia BFF ani bazy. Sparowane desktopowe BFF korzystają z UI gRPC
 na tym samym listenerze, z osobnym odwoływalnym tokenem i przypiętym certyfikatem
 ([desktop-remote-frontend.md](desktop-remote-frontend.md)); telefony mają ten sam

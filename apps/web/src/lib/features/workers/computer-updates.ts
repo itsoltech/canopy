@@ -1,6 +1,6 @@
 import type { ui } from "@canopy/contracts";
 import { compareVersions } from "@canopy/updater/release";
-import { presenceLabel, formatPresenceTime } from "@canopy/domain/computer-presence";
+import { presenceLabel, formatPresenceTime, pairingRequiredReason } from "@canopy/domain/computer-presence";
 import { Match } from "effect";
 import { appCheckPause } from "@canopy/domain/release/update-actions";
 import { currentRemoteUpdate, reachedUpdateVersion } from "@canopy/domain/release/remote-update-state";
@@ -31,7 +31,6 @@ const PRESENCE = new Map([
   ["sleeping", "It's asleep. Its status shows when it wakes."],
   ["shutting_down", "Its status shows when it reconnects."],
   ["needs_update", "Its Canopy app is too old for this link. Update it on that computer."],
-  ["pairing_required", "Link it again in Settings → Linked computers."],
 ]);
 
 /** Phases of an update this or another computer requested; the app's own updater shows while none runs. */
@@ -67,7 +66,10 @@ export function computerUpdate(computer: ui.ComputerUpdate, time = formatPresenc
         computer.presence === "needs_update"
           ? "Manual update"
           : presenceLabel(computer.presence, computer.presenceSinceMs, time),
-      detail: PRESENCE.get(computer.presence) ?? UNREACHABLE,
+      detail:
+        computer.presence === "pairing_required"
+          ? computer.reason || pairingRequiredReason(computer.name)
+          : (PRESENCE.get(computer.presence) ?? UNREACHABLE),
     };
 
   const failedDeparture = !!(

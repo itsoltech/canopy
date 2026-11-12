@@ -143,6 +143,9 @@ export class LinkedComputers {
     router.service(link.ComputerLinkService, {
       pair: async (request, context) =>
         computerGuard(async () => {
+          if (!this[computersState].ready || this[computersState].stopped)
+            throw new ConnectError("Computer link is starting or stopping. Try again.", Code.Unavailable);
+
           if (!request.hello || request.hello.nodeId === this[computersState].identity.node_id)
             throw new ConnectError("Choose another computer", Code.InvalidArgument);
           await this.store.pair(
@@ -160,6 +163,7 @@ export class LinkedComputers {
 
           this.reads.connected(request.hello.nodeId);
           this[computersState].retry.delete(request.hello.nodeId);
+          this[computersState].identityChecks.delete(request.hello.nodeId);
 
           return create(link.PairResponseSchema, {
             hello: wireHello(this.hello()),

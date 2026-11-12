@@ -46,6 +46,7 @@ export async function computersReceive(
   }
 
   if (body.case === "unlinked") {
+    hostContext[computersState].identityChecks.delete(nodeId);
     await hostContext.moves?.unlinked(nodeId);
     await hostContext.store.remove(nodeId, false);
     await hostContext.relay.refresh();
@@ -136,6 +137,8 @@ export async function* computersAccept(
   request: AsyncIterable<link.LinkFrame>,
   context: HandlerContext,
 ) {
+  if (!hostContext[computersState].ready || hostContext[computersState].stopped)
+    throw new ConnectError("Computer link is starting or stopping. Try again.", Code.Unavailable);
   const remote = certificateIdentity(context.values.get(remoteCertificate));
   const peer = await hostContext.store.peer(remote.nodeId);
 
@@ -314,6 +317,7 @@ async function receiveHandshake(
   // A successful handshake ends the failure streak, including when the
   // eventual disconnect arrives as an exception rather than a clean EOF.
   hostContext[computersState].retry.delete(nodeId);
+  hostContext[computersState].identityChecks.delete(nodeId);
   await computersStatus(hostContext, nodeId, protocol ? "connected" : "needs_update", updateNodeId);
 
   await hostContext.relay.refresh();

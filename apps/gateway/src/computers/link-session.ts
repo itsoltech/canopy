@@ -10,6 +10,13 @@ export function linkFailure(cause: unknown) {
   const reasons = new Map([
     ["Invalid computer identity", "invalid_identity"],
     ["Invalid computer certificate", "invalid_certificate"],
+    ["Computer certificate is not pinned. Pair this computer first.", "client_not_pinned"],
+    ["Computer certificate changed. Unlink and pair again.", "client_pin_mismatch"],
+    [
+      "Computer certificate changed. Unlink and create a new pairing code on the other computer.",
+      "server_pin_mismatch",
+    ],
+    ["Computer link is starting or stopping. Try again.", "link_not_ready"],
     ["Invalid relay computer", "invalid_relay_computer"],
     ["Invalid relay catalog", "invalid_relay_catalog"],
     ["Handshake required", "handshake_required"],

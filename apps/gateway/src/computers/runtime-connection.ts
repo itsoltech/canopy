@@ -15,7 +15,7 @@ import { computersAdvertise } from "./runtime-lan.ts";
 import { computersEmit, computersSyncMirror } from "./runtime-mirrors.ts";
 import { computersStatus } from "./runtime-remote.ts";
 import type { LinkedComputers } from "./runtime.ts";
-import { discoverCertificate, linkClient } from "./transport.ts";
+import { CertificatePinMismatch, discoverCertificate, linkClient } from "./transport.ts";
 import { refreshConfigGroup, stopConfig, syncConfig } from "./runtime-config.ts";
 import { PEER_HANDSHAKE_TIMEOUT_MS, PEER_HEARTBEAT_MS } from "./timing.ts";
 import { linkFailure } from "./link-session.ts";
@@ -180,6 +180,8 @@ export async function computersTick(hostContext: LinkedComputers) {
 
 export async function computersDial(hostContext: LinkedComputers, peer: PeerRow, controller: AbortController) {
   let retired = false;
+  let verifiedPin = false;
+  const mismatches = new Map<string, string>();
 
   for (const route of await hostContext[computersState].routes.list(peer.node_id)) {
     const { address } = route;
@@ -236,6 +238,8 @@ export async function computersDial(hostContext: LinkedComputers, peer: PeerRow,
       // Queued hello is sent only after verification. No heartbeat may precede it.
       const started = performance.now();
       await discoverCertificate(address, peer.fingerprint, hostContext[computersState].identity);
+      verifiedPin = true;
+      hostContext[computersState].identityChecks.delete(peer.node_id);
       const latency = performance.now() - started;
 
       const deadline = setTimeout(() => {
@@ -285,11 +289,10 @@ export async function computersDial(hostContext: LinkedComputers, peer: PeerRow,
       }
     } catch (error) {
       if (!controller.signal.aborted) console.warn("Computer link dial ended", { ...linkFailure(error), greeted });
-      const mismatch = error instanceof ConnectError && error.code === Code.Unauthenticated;
+      const mismatch = error instanceof CertificatePinMismatch;
 
-      // A pin mismatch never changes trust. Another device now has a discovered address: forget that path.
-      // An address the user entered keeps the stage 1 meaning: the computer must be paired again.
-      if (mismatch && route.source === "manual") await computersStatus(hostContext, peer.node_id, "pairing_required");
+      // RPC auth/validation failures say nothing about the server's identity. Only the local TLS probe does.
+      if (mismatch && route.source === "manual") mismatches.set(address, error.fingerprint);
 
       if (mismatch && route.source === "lan") await hostContext[computersState].routes.remove(peer.node_id, address);
       else if (!greeted && !controller.signal.aborted)
@@ -302,9 +305,37 @@ export async function computersDial(hostContext: LinkedComputers, peer: PeerRow,
     }
   }
 
+  if (!controller.signal.aborted && !hostContext[computersState].stopped)
+    await computersCheckIdentity(hostContext, peer, mismatches, verifiedPin);
+
   const delay = Math.min(30_000, (hostContext[computersState].retry.get(peer.node_id)?.delay ?? 500) * 2);
 
   if (!retired && !controller.signal.aborted && !hostContext.canCall(peer.node_id))
     hostContext.reads.disconnected(peer.node_id);
   hostContext[computersState].retry.set(peer.node_id, { delay, at: Date.now() + delay + (Math.random() * delay) / 4 });
+}
+
+/** Exhaust other routes first. A pinned TLS session or a live incoming link outweighs a stale manual address. */
+async function computersCheckIdentity(
+  hostContext: LinkedComputers,
+  peer: PeerRow,
+  routes: Map<string, string>,
+  verifiedPin: boolean,
+) {
+  const state = hostContext[computersState];
+  const previous = state.identityChecks.get(peer.node_id);
+
+  if (verifiedPin || [...(state.active.get(peer.node_id) ?? [])].some((c) => c.ready) || !routes.size) {
+    state.identityChecks.delete(peer.node_id);
+
+    return;
+  }
+
+  state.identityChecks.set(peer.node_id, { expected: peer.fingerprint, routes });
+
+  if (
+    previous?.expected === peer.fingerprint &&
+    [...routes].some(([address, fingerprint]) => previous.routes.get(address) === fingerprint)
+  )
+    await computersStatus(hostContext, peer.node_id, "pairing_required");
 }

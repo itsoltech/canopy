@@ -5,6 +5,8 @@ import { REMOTE_THREADS, THREAD_MIRROR } from "./computers.ts";
 export const DEPARTURE_WINDOW_MS = 5 * 60_000;
 export const RESTART_PRESENCE = "restart_presence";
 
+export const pairingRequiredReason = (name: string) => `${name}'s identity changed. Pair again to trust it.`;
+
 export const announcedDeparture = (status: string) =>
   ["updating", "restarting", "sleeping", "shutting_down"].includes(status);
 
@@ -94,7 +96,7 @@ export function awayReason(
     case "shutting_down":
       return `${name} is offline${at && ` since ${at}`}.`;
     case "pairing_required":
-      return `${name} must be paired again.`;
+      return pairingRequiredReason(name);
     default:
       return `${name} is unreachable${at && ` since ${at}`}.`;
   }

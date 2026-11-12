@@ -9,6 +9,12 @@ wewnętrzną nazwę magazynu kluczy i cache updatera. Szczegóły pól OS:
 podłączonego gatewaya. Na telefonie nazwa i ikona wymagają nowego IPA/APK;
 aktualizacja OTA ich nie zastępuje ([mobile.md](mobile.md)).
 
+Aktualizacja lub restart obu połączonych komputerów zachowuje zapisane piny, certyfikaty
+i klucze. Reinstalacja zachowująca katalog danych też nie wymaga parowania. Przejściowa
+odmowa autoryzacji jest ponawiana jak niedostępność; nie dowodzi zmiany tożsamości.
+Potwierdzony inny certyfikat wymaga jawnego parowania, a powrót starej przypiętej
+tożsamości sam usuwa nieaktualne ostrzeżenie. Szczegóły: [tożsamość i certyfikaty](linked-computers.md#tożsamość-i-certyfikaty).
+
 ## Zapowiedziana przerwa gatewaya
 
 `WatchOverview` wysyła `gateway_departure` przed aktualizacją i restartem, także

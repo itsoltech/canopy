@@ -151,6 +151,8 @@ export class LinkedComputersState {
 
   stopped = false;
 
+  ready = false;
+
   paused = false;
 
   announced = "connected";
@@ -162,6 +164,9 @@ export class LinkedComputersState {
   tasks = new Set<Promise<void>>();
 
   retry = new Map<string, { at: number; delay: number }>();
+
+  /** Consecutive failed dial rounds, bound to the saved pin and the certificate proved at each manual route. */
+  identityChecks = new Map<string, { expected: string; routes: Map<string, string> }>();
 
   tickRunning = false;
 
