@@ -8,6 +8,8 @@ const statuses = new Map<string, string>(
   Object.entries({
     waiting: "Waiting",
     collecting: "Collecting",
+    redacting: "Redacting",
+    transferring: "Transferring",
     done: "Done",
     partial: "Partial",
     truncated: "Truncated",

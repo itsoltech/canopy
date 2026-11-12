@@ -129,6 +129,10 @@ export class DiagnosticsLogs {
   }
 
   get(id: string) {
+    return create(ui.DiagnosticsLogsJobSchema, this.#activeJob(id).value);
+  }
+
+  #activeJob(id: string) {
     if (
       !this.#job ||
       id !== this.#job.value.jobId ||
@@ -137,7 +141,7 @@ export class DiagnosticsLogs {
     )
       throw new ConnectError("Log collection expired. Collect logs again.", Code.NotFound);
 
-    return create(ui.DiagnosticsLogsJobSchema, this.#job.value);
+    return this.#job;
   }
 
   async cancel(id: string) {
@@ -148,8 +152,8 @@ export class DiagnosticsLogs {
   }
 
   async *download(id: string, signal: AbortSignal) {
-    const value = this.get(id);
-    const job = this.#job!;
+    const job = this.#activeJob(id);
+    const value = job.value;
 
     if (!["done", "partial"].includes(value.status) || this.#downloads)
       throw new ConnectError("Wait for this log collection to finish", Code.FailedPrecondition);
@@ -159,7 +163,7 @@ export class DiagnosticsLogs {
 
     try {
       for await (const data of logFileChunks(job.file, combined, 1024 * 1024)) {
-        this.get(id);
+        this.#activeJob(id);
         yield create(ui.DiagnosticsLogPartSchema, { sequence: sequence++, data, checksum: logChecksum(data) });
       }
 
@@ -173,8 +177,8 @@ export class DiagnosticsLogs {
   }
 
   async attachment(id: string) {
-    const value = this.get(id);
-    const job = this.#job!;
+    const job = this.#activeJob(id);
+    const value = job.value;
 
     if (!["done", "partial"].includes(value.status) || value.bytes > 20n * 1024n * 1024n)
       throw new ConnectError("Choose fewer computers or a shorter range to attach logs", Code.ResourceExhausted);
@@ -182,14 +186,14 @@ export class DiagnosticsLogs {
     let bytes = 0;
 
     for await (const data of logFileChunks(job.file, job.abort.signal, 20 * 1024 * 1024)) {
-      this.get(id);
+      this.#activeJob(id);
       bytes += data.length;
 
       if (bytes > 20 * 1024 * 1024) throw new ConnectError("Log attachment limit reached", Code.ResourceExhausted);
       chunks.push(Buffer.from(data));
     }
 
-    this.get(id);
+    this.#activeJob(id);
 
     if (BigInt(bytes) !== value.bytes) throw new ConnectError("Log attachment ended early", Code.DataLoss);
 

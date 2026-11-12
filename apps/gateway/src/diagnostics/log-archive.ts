@@ -47,6 +47,7 @@ export class LogArchive {
           release.resolve();
         }
 
+        home.status = "redacting";
         current = await next();
       } else throw new ConnectError("Log environment metadata is missing", Code.DataLoss);
 
@@ -92,6 +93,7 @@ export class LogArchive {
         });
 
         home.sources.push(safe);
+        home.status = "transferring";
         const previous = this.#tail;
         const release = Promise.withResolvers<void>();
         this.#tail = release.promise;
