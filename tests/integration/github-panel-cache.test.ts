@@ -6,6 +6,8 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { GitHubAccounts } from "../../apps/gateway/src/github/service.ts";
 import { pullRequestAvatar } from "../../apps/gateway/src/github/avatars.ts";
+import { avatarUrl } from "../../apps/gateway/src/github/avatar-url.ts";
+import { GitHubClient } from "../../apps/gateway/src/github/client.ts";
 import { digest, readScope } from "../../apps/gateway/src/github/read-scope.ts";
 import { timeline } from "../../apps/gateway/src/github/timeline-query.ts";
 import { watchPullRequest } from "../../apps/gateway/src/github/watch.ts";
@@ -87,6 +89,7 @@ describe.skipIf(!dockerAvailable)("PR panel cache and actor boundaries", () => {
       entered.resolve();
       await release.promise;
     });
+
     const reading = Promise.all([
       gw.api.getPullRequestAvatar(request),
       gw.api.getPullRequestAvatar(request),
@@ -136,7 +139,7 @@ describe.skipIf(!dockerAvailable)("PR panel cache and actor boundaries", () => {
     const delayed = spyOn(other.prs.client, "cached").mockImplementation(async (row, key) => {
       const value = await cached(row, key);
 
-      if (key === `avatar:${digest(url)}` && !held) {
+      if (key === `avatar:${digest(avatarUrl(url))}` && !held) {
         held = true;
         expect(value?.payload).toBeFalsy();
         missed.resolve();
@@ -169,6 +172,50 @@ describe.skipIf(!dockerAvailable)("PR panel cache and actor boundaries", () => {
       await Promise.allSettled([first, second]);
       delayed.mockRestore();
       fixture.avatarGate(() => Promise.resolve());
+      await other.stop();
+    }
+  });
+
+  test.each([
+    ["successful", false],
+    ["stalled", true],
+  ] as const)("a shared image timeout bounds a %s replacement and recovers", async (_replacement, stallRetry) => {
+    const other = new GitHubAccounts(gw.runtime, gw.userId, fixture.options);
+    const client = new GitHubClient(other.access, 1000);
+    const url = avatarUrl(`https://avatars.githubusercontent.com/u/${stallRetry ? 79 : 78}?v=4`);
+    const read = { key: `avatar:${digest(url)}`, path: url, image: true, ttl: 86_400_000 };
+    const entered = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const before = fixture.counts.get("avatars") ?? 0;
+    let attempts = 0;
+
+    fixture.avatarGate(async () => {
+      if (++attempts > (stallRetry ? 2 : 1)) return;
+      entered.resolve();
+      // Deliberately ignore abort: the cache must settle and release its SQL lease anyway.
+      await release.promise;
+    });
+
+    const first = client.read(account, read);
+    const timedOut = expect(first).rejects.toThrow("Loading GitHub data timed out");
+
+    try {
+      await Promise.race([entered.promise, first]);
+      const waiting = client.read(account, read);
+
+      if (stallRetry) await expect(waiting).rejects.toThrow("Loading GitHub data timed out");
+      const image = await (stallRetry ? client.read(account, read) : waiting);
+      await timedOut;
+      expect(image.payload?.["dataUrl"]).toStartWith("data:image/png;base64,");
+      expect((fixture.counts.get("avatars") ?? 0) - before).toBe(stallRetry ? 3 : 2);
+      release.resolve();
+      expect(await client.read(account, read)).toEqual(image);
+      expect((fixture.counts.get("avatars") ?? 0) - before).toBe(stallRetry ? 3 : 2);
+    } finally {
+      release.resolve();
+      await first.catch(() => {});
+      fixture.avatarGate(() => Promise.resolve());
+      await client.stop();
       await other.stop();
     }
   });
@@ -252,10 +299,12 @@ describe.skipIf(!dockerAvailable)("PR panel cache and actor boundaries", () => {
       gw.api.getPullRequestAvatar({ pullRequestId: pr, url: "https://avatars.githubusercontent.com/u/6" }),
     ).rejects.toThrow();
     fixture.avatarResponse("image/png", 32);
+
     const retried = await gw.api.getPullRequestAvatar({
       pullRequestId: pr,
       url: "https://avatars.githubusercontent.com/u/6",
     });
+
     expect(retried.dataUrl).toStartWith("data:image/png;base64,");
   });
 });
