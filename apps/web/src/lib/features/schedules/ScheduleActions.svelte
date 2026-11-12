@@ -22,11 +22,13 @@
     schedule,
     compact = false,
     onchange,
+    disabled = false,
     class: className,
   }: {
     schedule: ui.Schedule;
     compact?: boolean;
     onchange?: ((schedule: ui.Schedule) => void) | undefined;
+    disabled?: boolean;
     class?: ClassValue;
   } = $props();
 
@@ -71,7 +73,7 @@
           label="Scheduled task actions"
           size={compact ? "sm" : "md"}
           loading={Boolean(busy)}
-          disabled={!!reason}
+          disabled={disabled || !!reason}
           title={reason}
         />
       {/snippet}

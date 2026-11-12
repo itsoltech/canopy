@@ -35,6 +35,8 @@ import { executionLists } from "./routed-execution-lists.ts";
 import { linkedManageUpdates } from "./routed-updates.ts";
 import { linkedWrite } from "../computers/write-diagnostics.ts";
 import { bindGitHubRequest } from "./github-client.ts";
+import { linkedThreadPanel } from "./routed-thread-panel.ts";
+import { linkedArchive } from "./routed-archived.ts";
 
 export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
   // SAFETY: Each entry is invoked with the request decoded by its own GatewayService method descriptor.
@@ -172,17 +174,8 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
       return list;
     },
     ...executionLists(core, local, routedOne),
-    // The archive is paged per computer; other computers' archived threads stay on them in this stage.
-    listArchivedThreads: (request, context) => {
-      const projectIds = request.projectIds.filter((id) => !splitId(id).node);
-
-      if (request.projectIds.length && !projectIds.length) return create(ui.ListArchivedThreadsResponseSchema);
-
-      return local.listArchivedThreads(
-        create(ui.ListArchivedThreadsRequestSchema, { ...request, projectIds }),
-        context,
-      );
-    },
+    ...linkedThreadPanel(core, routedOne),
+    listArchivedThreads: linkedArchive(core, local),
     watchOverview: (request, context) => watchOverview(core, own, request, context),
     manageUpdates: linkedManageUpdates(core, local),
     ...splitOverrides(core, local),

@@ -269,6 +269,40 @@ gdy wcześniej go ogłosił. Wiadomości nie czekają w kolejce wychodzącej.
 
 ## Synchronizacja (lustra tylko do odczytu)
 
+### Panel wątku i archiwum
+
+Panel wątku używa `GetThreadPanel` z capability `remote_thread_panel_v1`.
+Dom sprawdza właściciela wątku i zwraca oddzielne DTO: nazwę connectora,
+etykietę konta, status oraz metadane dostępu workera, bez URL-i, nagłówków,
+diagnoz konta i poświadczeń. Lista do zarządzania obejmuje także konta bez grantu;
+zwykła sekcja pokazuje tylko konta dostępne workerowi wątku.
+
+`SetThreadConnectorGrant` wraca do domu niezależnie od Share configuration.
+Dom sprawdza właściciela wątku, workera i konta oraz rewizję konta, blokuje konto
+i zmienia wyłącznie grant tego workera. Zmiana dotyczy wszystkich jego wątków.
+Dziedziczone All workers i administracja kontem pozostają w ustawieniach domu;
+UI pokazuje „Manage on …”. Wykonanie narzędzia nadal sprawdza aktualny grant
+i politykę zgód w gatewayu domu.
+
+Harmonogramy tworzymy, edytujemy i anulujemy istniejącymi RPC trasowanymi do domu.
+`computer_thread_panels` przechowuje wyłącznie ostatnią poprawną odpowiedź panelu
+do odczytu offline, także po restarcie. Nie stanowi źródła dla planisty ani
+autoryzacji. Niedostępny dom lub sam odczyt panelu zwraca cache z `stale`;
+brak cache także ustawia `unavailable`. Starszy dom zachowuje widoczne sekcje
+z informacją o niedostępnych danych. Odmowa dostępu usuwa cache; unlink usuwa go
+kaskadowo. Web i mobile wyłączają mutacje przy nieaktualnych danych.
+
+Archiwum obejmuje lokalne wątki i zatwierdzone metadane luster wszystkich
+widocznych domów. Licznik, wyszukiwanie, filtr projektu i strony stosują te same
+reguły: bez cudzych właścicieli, usuniętych wątków, archiwalnych projektów
+i podwójnego liczenia dzieci z widocznym rodzicem. Lokalny odczyt pozostaje
+stronicowany w SQL; partnerzy nie są odpytywani po sieci. Identyfikatory partnera
+zachowują kwalifikację domu, a wspólne projekty przechodzą przez aliasy.
+Kursor obejmuje właściciela, filtry i dokładny czas archiwizacji z mikrosekundami.
+Różnica dawnych liczników wynikała z celowego ograniczenia archiwum do własnej
+bazy każdego komputera; po synchronizacji oba liczniki pokazują sumę widocznych
+wątków, także gdy drugi dom jest offline.
+
 Dom publikuje dziennik zmian swoich rzeczy (wątki, itemy osi czasu, tury, kolejki, boty i ich
 wiadomości, statusy). Partnerzy trzymają **lustro**: osobne tabele z `origin_node_id`, tylko do odczytu,
 aktualizowane subskrypcją od kursora. Po rozłączeniu wznowienie od zapamiętanego kursora; gdy kursor jest

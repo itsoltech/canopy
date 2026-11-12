@@ -20,6 +20,9 @@
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
   import PermissionModeTitle from "./PermissionModeTitle.svelte";
   import { permissionKey } from "../labels.ts";
+  import { useThreadPanel } from "../thread-panel.svelte.ts";
+  import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
+  import { awayReason } from "#lib/features/computers/computers.ts";
 
   const capabilities = useGatewayCapabilities();
 
@@ -70,6 +73,12 @@
 
   const lookup = (id: string) => (tree.main.id === id ? tree.main : tree.sides.find((s) => s.id === id));
   const directory = useThreadDirectory();
+  const overview = useOverview();
+  const panel = useThreadPanel(() => thread.id);
+  const homeName = $derived(overview.machine(thread.nodeId) || "this computer");
+  const away = $derived(thread.nodeId ? awayReason(overview.computer(thread.nodeId)) : undefined);
+  const stale = $derived(!!away || !!panel.data?.stale);
+  const panelSchedules = $derived(stale ? (panel.data?.schedules ?? schedules) : schedules);
 
   // A forked main thread ("Fork from here") is in its own tree: its source is found among the project's threads.
   const source = $derived(
@@ -86,8 +95,10 @@
   ]}
 >
   <ThreadTitleActions {thread} compact class={windowTitlebar ? "desktop:hidden" : undefined} />
-  <!-- Connector accounts are per computer (stage 4); a linked computer's thread uses that computer's. -->
-  {#if !thread.nodeId}<ThreadConnectors threadId={thread.id} />{/if}
+  {#if stale}<p role="status" class="px-3 py-2 text-sm/5 text-zinc-500 dark:text-zinc-400">
+      {away || `Thread details on ${homeName} are unreachable.`} Showing last known details.
+    </p>{/if}
+  <ThreadConnectors {thread} {panel} {homeName} disabled={stale} />
   <ThreadPlacement {thread} {worker} {onworktree} />
   <section aria-label="Permissions" class="grid min-w-0 grid-cols-1 gap-1 px-3 py-2">
     <PermissionModeTitle mode={permissionKey(thread.permissionMode)} />
@@ -119,20 +130,34 @@
     </section>
   {/if}
 
-  {#if schedules.length > 0 || onschedule}
+  {#if thread}
     <section aria-labelledby="schedules-title" class="grid min-w-0 grid-cols-1 px-1.5 py-1">
       <h2 id="schedules-title" class="px-2 py-0.5 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
         Scheduled tasks
       </h2>
-      {#if schedules.length > 0}
+      {#if panelSchedules.length > 0}
         <ul role="list" class="grid grid-cols-1 gap-0.5">
-          {#each schedules as schedule (schedule.id)}
-            <li><ScheduleCompactRow {schedule} onchange={onschedulechange} /></li>
+          {#each panelSchedules as schedule (schedule.id)}
+            <li>
+              <ScheduleCompactRow
+                {schedule}
+                disabled={stale}
+                onchange={(updated) => {
+                  onschedulechange?.(updated);
+                  void panel.reload();
+                }}
+              />
+            </li>
           {/each}
         </ul>
       {/if}
       {#if onschedule}
-        <PanelRow icon="plus" onclick={onschedule} class="text-zinc-500 dark:text-zinc-400">Schedule a task</PanelRow>
+        <PanelRow icon="plus" onclick={onschedule} disabled={stale} class="text-zinc-500 dark:text-zinc-400"
+          >Schedule a task</PanelRow
+        >
+      {:else if !panelSchedules.length}<p class="px-2 py-1 text-sm/5 text-zinc-500 dark:text-zinc-400">
+          No scheduled tasks
+        </p>
       {/if}
     </section>
   {/if}

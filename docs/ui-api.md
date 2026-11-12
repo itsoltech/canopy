@@ -1,5 +1,16 @@
 # API dla UI i architektura frontendu
 
+Panel wątku ma własny odczyt `GetThreadPanel(GetThreadRequest)` w zakresie
+właściciela. Zwraca `ThreadPanel`: bezpieczne metadane connectorów i grantów
+workera oraz harmonogramy domu. `SetThreadConnectorGrant` zmienia pojedynczy
+grant workera z kontrolą rewizji i zwraca odświeżony panel. BFF udostępnia je
+jako `GET/PUT /api/threads/:id/panel`; mobile używa tych samych RPC bezpośrednio.
+Połączone gatewaye negocjują `remote_thread_panel_v1`; cache odpowiedzi po utracie
+domu oznaczamy `stale`, a brak ostatniej odpowiedzi także `unavailable`.
+Żadne poświadczenia ani endpointy connectorów nie wchodzą do tego DTO.
+`ListArchivedThreads` łączy lokalne strony z zatwierdzonymi metadanymi luster,
+więc lista i licznik obejmują te same widoczne domy.
+
 Desktop w obu trybach używa dołączonego lokalnego BFF. W remote uwierzytelnia się
 owner-scoped poświadczeniem desktopu przez przypięty TLS Network access, bez
 tokenu usługi zdalnego webu. `GetClientCapabilities` negocjuje protokół oraz metody;

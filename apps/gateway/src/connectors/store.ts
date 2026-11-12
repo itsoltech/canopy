@@ -6,6 +6,7 @@ import { connectorState } from "./store-state.ts";
 import type { Effect } from "effect";
 import { connectorTransaction } from "../config-sync/connector-records.ts";
 import { connectorApps } from "./store-apps.ts";
+import { threadConnectorGrant, threadConnectorList } from "./thread-grant.ts";
 
 export { ConnectorFailure, digest, type AccountRow, type Credentials, type ExecutionSource } from "./records.ts";
 
@@ -27,6 +28,8 @@ export function connectorStore(sql: SqlClient.SqlClient, key: Buffer) {
     audit: base.audit,
     transaction: <A, E, R>(effect: Effect.Effect<A, E, R>) => connectorTransaction(sql, key, effect),
     ...connectorWrites(sql, base, key),
+    threadGrant: threadConnectorGrant(sql, base, key),
+    threadPanel: (user: string, worker: string) => threadConnectorList(sql, user, worker),
     ...connectorApps(sql, base, key),
     ...connectorState(sql, base, key),
   };
