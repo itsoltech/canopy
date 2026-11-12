@@ -3,6 +3,7 @@ import { create, type DescMethod, type Message } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { computerLink as link, ui } from "@canopy/contracts";
 import { qualifyId, REMOTE_APP_UPDATE } from "@canopy/domain/computers";
+import { pairingRequiredReason } from "@canopy/domain/computer-presence";
 import { linkedMessage, methodNamed } from "../computers/remote.ts";
 import type { GatewayCore } from "../core/core.ts";
 import { single } from "../api/routed-context.ts";
@@ -145,6 +146,8 @@ export async function linkedUpdates(core: GatewayCore): Promise<ui.ComputerUpdat
           }
         }
       }
+
+      if (peer.status === "pairing_required") item.reason = peer.unavailableReason || pairingRequiredReason(name);
 
       return item;
     }),

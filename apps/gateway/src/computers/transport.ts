@@ -23,6 +23,23 @@ export const remoteCertificate = createContextKey("");
 
 export type LinkIdentity = { certificate: string; privateKey: string };
 
+/** Created locally only after TLS proves possession of a valid self-signed certificate. */
+export class CertificatePinMismatch extends ConnectError {
+  // ConnectError's inherited structural check also accepts ordinary RPC errors.
+  // Identity-change evidence must come from this local TLS probe's error class.
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- instanceof passes arbitrary values; this boundary validates the local error prototype.
+  static override [Symbol.hasInstance](value: unknown): boolean {
+    return value instanceof Error && CertificatePinMismatch.prototype.isPrototypeOf(value);
+  }
+
+  constructor(readonly fingerprint: string) {
+    super(
+      "Computer certificate changed. Unlink and create a new pairing code on the other computer.",
+      Code.Unauthenticated,
+    );
+  }
+}
+
 /** Learn the certificate only after checking the out-of-band invitation pin.
  * No HTTP request or pairing secret is sent on this discovery connection. */
 export function discoverCertificate(address: string, fingerprint: string, identity: LinkIdentity): Promise<string> {
@@ -55,11 +72,7 @@ export function discoverCertificate(address: string, fingerprint: string, identi
       try {
         const remote = certificateIdentity(socket.getPeerCertificate().raw);
 
-        if (remote.fingerprint !== fingerprint)
-          throw new ConnectError(
-            "Computer certificate changed. Unlink and create a new pairing code on the other computer.",
-            Code.Unauthenticated,
-          );
+        if (remote.fingerprint !== fingerprint) throw new CertificatePinMismatch(remote.fingerprint);
         socket.end();
         resolve(remote.certificate);
       } catch (error) {

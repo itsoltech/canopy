@@ -143,6 +143,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
     await this.moves?.load();
     this[computersState].unsubscribe = this.options.network.onChange(() => computersAdvertise(this));
     await computersDiscovery(this);
+    this[computersState].ready = true;
     this[computersState].timer = setInterval(() => {
       computersPulse(this);
       void computersTick(this).catch(() => {});
@@ -245,6 +246,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
       [this.store.owner, response.hello.nodeId, shareConfig, response.shareConfig ?? true],
     );
     this[computersState].retry.delete(response.hello.nodeId);
+    this[computersState].identityChecks.delete(response.hello.nodeId);
     this.reads.connected(response.hello.nodeId);
     void this[computersState].lan?.refresh().catch(() => {});
     void computersTick(this).catch(() => {});
@@ -287,6 +289,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
       // Persist revocation before releasing trust. A peer offline now learns it
       // through the authenticated control channel on its next reconnect.
       await this.store.remove(nodeId, true);
+      this[computersState].identityChecks.delete(nodeId);
       await this.relay.refresh();
       computersEmit(this, nodeId, true);
 
@@ -316,6 +319,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
     } else if (action === "add_route" || action === "remove_route") {
       if (!(await this.store.peer(nodeId))) throw new ConnectError("Computer not found", Code.NotFound);
       const address = linkAddress(request.address);
+      this[computersState].identityChecks.delete(nodeId);
 
       if (action === "add_route") {
         await this[computersState].routes.add(nodeId, [address], "manual");

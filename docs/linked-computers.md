@@ -457,10 +457,23 @@ Nie trafia do proto, BFF, workera, przeglądarki, argv ani logów.
 
 Certyfikat jest ważny 20 lat, z minutą tolerancji przy utworzeniu. Nie ma automatycznej
 rotacji zaufania ani cichego odnowienia certyfikatu: zmiana certyfikatu wymaga ponownego
-parowania. Zmiana klucza zmienia też id węzła. Po reinstalacji/rotacji usuń starą relację
-przez Unlink i sparuj nową tożsamość. Ponowne parowanie tego samego węzła jawnie zastępuje
-pin i zamyka stare strumienie. Mismatch certyfikatu podczas reconnect pokazuje komunikat
-o potrzebie ponownego parowania; nigdy nie nadpisuje pinu automatycznie.
+parowania. Zmiana klucza zmienia też id węzła. Aktualizacja, restart i reinstalacja aplikacji
+z zachowaniem danych używają tej samej tożsamości: certyfikat i zaszyfrowany klucz są
+w `computer_identity`, a baza i `secrets.enc` pozostają we wspólnym katalogu danych Canopy.
+Zablokowany magazyn kluczy lub błąd odszyfrowania zatrzymuje start; nie generuje zastępczej
+tożsamości. Dopiero usunięcie danych lub jawna rotacja wymaga nowego parowania.
+Ponowne parowanie tego samego węzła jawnie zastępuje pin i zamyka stare strumienie.
+
+Reconnect rozróżnia wynik lokalnego sprawdzenia TLS od odpowiedzi RPC. Samo
+`Unauthenticated`, błędna ważność certyfikatu albo niedostępny partner nie oznacza zmiany
+tożsamości. Stan `pairing_required` wymaga dwóch kolejnych pełnych prób, w których ta sama
+trasa ręczna dowodzi posiadania tego samego innego, ważnego samopodpisanego certyfikatu.
+Próby sprawdzają też pozostałe trasy; zgodny pin na dowolnej trasie lub gotowe łącze
+przychodzące wyklucza taki werdykt. Zmiana trasy nie zmienia źródła zaufania.
+Pin nigdy nie jest automatycznie nadpisywany. Udany handshake ze starym pinem automatycznie
+kasuje również utrwalony, nieaktualny stan `pairing_required`. Potwierdzona zmiana pokazuje
+„{name}'s identity changed. Pair again to trust it.”, również w aktualizacjach i powodach
+niedostępności; nie obiecuje wtedy samoistnego odzyskania zaufania.
 
 ### Listener i sieć
 
@@ -597,6 +610,12 @@ odwołania. To trwałe odwołanie zaufania, nie kolejka komend użytkownika.
 dwa listenery mTLS i dwie oddzielne bazy PostgreSQL w Dockerze. Sprawdza piny, szyfrowanie klucza,
 replay/wrong/expiry/revoke/limity, obcy poprawny certyfikat, inny klucz pod tym samym adresem,
 niezgodność obu stron, obecność, reconnect po restarcie serwisu, nazwy i unlink online/offline.
+
+`tests/integration/linked-pairing-recovery.test.ts` obejmuje ponawianie odmowy autoryzacji
+przy zachowanym pinie (trasy ręczne i LAN), gotowość listenera, restart obu gatewayów
+z ich bazami i zaszyfrowanymi kluczami, handshake starszych capabilities bez zmiany
+protokołu, potwierdzenie innego klucza bez wysłania RPC, powrót przypiętej tożsamości,
+usunięcie utrwalonego błędnego ostrzeżenia oraz działającą trasę obok starego adresu.
 
 ## Konkretny protokół etapu 2
 
@@ -1632,8 +1651,9 @@ Ten sam adres ma jedno źródło; wpis ręczny zawsze staje się `manual`. Limit
 **ostatniego sukcesu**; trasa, która zawiodła po swoim ostatnim sukcesie, idzie za działające, więc
 martwa najlepsza trasa kosztuje jedną próbę. Sukces zapisuje czas i opóźnienie (czas przypiętego
 handshake'u TLS), porażka — czas. Niezgodny pin na trasie `lan` usuwa ją (adres ma teraz inne
-urządzenie); na trasie `manual` zachowuje znaczenie z etapu 1 („must be paired again”); na `announced`
-to tylko porażka. Settings → Linked computers pokazuje trasy partnera w tej kolejności z „Worked 3 minutes
+urządzenie); na trasie `manual` może potwierdzić zmianę tożsamości według reguł dwóch prób
+opisanych powyżej; na `announced` to tylko porażka. Sam błąd autoryzacji RPC nie usuwa
+trasy `lan` ani nie wymaga ponownego parowania. Settings → Linked computers pokazuje trasy partnera w tej kolejności z „Worked 3 minutes
 ago · 4 ms” / „Failed … · last worked …” / „Not tried yet”, pozwala dodać trasę ręczną (HTTPS origin)
 i usunąć dowolną (`ManageComputer` akcje `add_route`/`remove_route`, pole `address` 5).
 

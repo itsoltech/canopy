@@ -3,6 +3,7 @@ import { type DescMethod, type Message } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 
 import { ui } from "@canopy/contracts";
+import { pairingRequiredReason } from "@canopy/domain/computer-presence";
 
 import {
   AGENT_BUS,
@@ -56,6 +57,9 @@ export function computersRelayChannel(hostContext: LinkedComputers, nodeId: stri
 
 export async function computersComputerMessage(hostContext: LinkedComputers, peer: PeerRow, routes: RouteRow[] = []) {
   const result = peerMessage(peer, hostContext.capabilities(peer.node_id), routes);
+
+  if (peer.status === "pairing_required" && !peer.via_node_id)
+    result.unavailableReason = pairingRequiredReason(peer.display_name || peer.name);
   result.shareOnwardNodeIds = hostContext.relay.selected(peer.node_id);
   result.shareConfig = peer.share_config;
   result.peerShareConfig = peer.peer_share_config;
@@ -88,10 +92,13 @@ export async function computersComputerMessage(hostContext: LinkedComputers, pee
     if (!computersRelayChannel(hostContext, peer.via_node_id)) {
       result.status = via?.status === "connected" ? "unreachable" : via?.status || "unreachable";
       result.statusSinceMs = via ? ms(via.status_since) : result.statusSinceMs;
-      result.unavailableReason =
-        via?.status === "connected"
-          ? `Available through ${result.viaName}, which is reconnecting.`
-          : `Available through ${result.viaName}, which ${STATE_TEXT.get(result.status) ?? "is unreachable"} since ${await computersTime(hostContext, new Date(Number(result.statusSinceMs)))}`;
+
+      if (via?.status === "pairing_required") result.unavailableReason = pairingRequiredReason(result.viaName);
+      else
+        result.unavailableReason =
+          via?.status === "connected"
+            ? `Available through ${result.viaName}, which is reconnecting.`
+            : `Available through ${result.viaName}, which ${STATE_TEXT.get(result.status) ?? "is unreachable"} since ${await computersTime(hostContext, new Date(Number(result.statusSinceMs)))}`;
     }
   }
 
@@ -272,7 +279,7 @@ export const computersRemoteMethods: ComputersRemoteMethods = {
     }
 
     if (peer.status === "pairing_required")
-      return new ConnectError(`${name} must be paired again`, Code.FailedPrecondition);
+      return new ConnectError(pairingRequiredReason(name), Code.FailedPrecondition);
     const time = await computersTime(this, new Date(peer.status_since));
 
     return new ConnectError(
