@@ -80,7 +80,11 @@ test.skipIf(!dockerAvailable)(
 
       // Later features extend the registry beyond the thread-sync stack's final stage.
       const remaining = await runtime.runPromise(
-        migrations.pipe(Effect.map((all) => all.filter(([id]) => id > 124).map(([id, name]) => [id, name]))),
+        migrations.pipe(
+          Effect.map((all) =>
+            all.filter(([id]) => id > 124).map(([id, name]): readonly [number, string] => [id, name]),
+          ),
+        ),
       );
 
       expect(await runtime.runPromise(migrate)).toEqual(remaining);
