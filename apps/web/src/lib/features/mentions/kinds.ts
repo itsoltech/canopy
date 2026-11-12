@@ -49,7 +49,7 @@ export function kindLook(m: Pick<Mention, "kind" | "isDir" | "source">): KindLoo
 
 /** The chip: accent text with the kind's icon (or the plugin's own), on a faint accent wash. */
 export const CHIP_CLASS =
-  "mention-chip inline-flex max-w-full items-baseline gap-1 rounded-md bg-brand-600/8 py-px pr-1.5 pl-1 align-baseline font-medium text-brand-700 select-none dark:bg-brand-400/12 dark:text-brand-300";
+  "mention-chip inline-flex max-w-full items-baseline gap-1 rounded-md bg-brand-600/8 py-px pr-1.5 pl-1 align-baseline font-medium text-brand-700 select-text dark:bg-brand-400/12 dark:text-brand-300";
 
 export const CHIP_ICON_CLASS =
   "size-4 shrink-0 self-center fill-brand-600 text-brand-600 dark:fill-brand-400 dark:text-brand-400";

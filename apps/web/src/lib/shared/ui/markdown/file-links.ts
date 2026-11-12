@@ -1,6 +1,6 @@
 import { getContext, setContext } from "svelte";
 
-/** Opens a file path an agent wrote (features/files): Markdown turns such paths into buttons when one is set. */
+/** Opens a file path an agent wrote (features/files): Markdown turns such paths into selectable links. */
 export interface FileLinkHandler {
   open(path: string): void;
 }

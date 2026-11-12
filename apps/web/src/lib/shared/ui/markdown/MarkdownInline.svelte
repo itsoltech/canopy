@@ -7,6 +7,7 @@
   import { tooltip } from "../tooltip.ts";
   import { useFileLinks } from "./file-links.ts";
   import { fileHrefOf, filePathOf } from "./file-paths.ts";
+  import InlineLink from "../InlineLink.svelte";
 
   let { tokens }: { tokens: Token[] } = $props();
   const elements = useInlineElements();
@@ -29,11 +30,10 @@
     {@const path = files ? filePathOf(text) : undefined}
     {#if files && path}
       <!-- A file the agent named: opens in the viewer or the default app (docs/ui-api.md, "Pliki wątku"). -->
-      <button
-        type="button"
+      <InlineLink
         class="cursor-pointer rounded-sm bg-zinc-950/5 box-decoration-clone px-1 py-px text-left font-mono text-[0.875em] text-sky-700 underline decoration-sky-700/30 decoration-dotted underline-offset-2 focus-ring hover:decoration-sky-700 dark:bg-white/10 dark:text-sky-400 dark:decoration-sky-400/30 dark:hover:decoration-sky-400"
-        onclick={() => files.open(path)}
-        {@attach tooltip(`Open ${path}`)}>{text}</button
+        onactivate={() => files.open(path)}
+        {@attach tooltip(`Open ${path}`)}>{text}</InlineLink
       >
     {:else}
       <code
@@ -46,19 +46,18 @@
     {@const href = safeHref(link.href)}
     {@const path = files ? fileHrefOf(link.href) : undefined}
     {#if files && path}
-      <button
-        type="button"
+      <InlineLink
         class="cursor-pointer text-left font-medium text-sky-700 underline decoration-sky-700/30 underline-offset-2 focus-ring hover:decoration-sky-700 dark:text-sky-400 dark:decoration-sky-400/30 dark:hover:decoration-sky-400"
-        onclick={() => files.open(path)}
-        {@attach tooltip(`Open ${path}`)}><MarkdownInline tokens={link.tokens} /></button
+        onactivate={() => files.open(path)}
+        {@attach tooltip(`Open ${path}`)}><MarkdownInline tokens={link.tokens} /></InlineLink
       >
     {:else if href}
-      <a
+      <InlineLink
         {href}
         target="_blank"
         rel="noopener noreferrer nofollow"
         class="font-medium text-sky-700 underline decoration-sky-700/30 underline-offset-2 hover:decoration-sky-700 dark:text-sky-400 dark:decoration-sky-400/30 dark:hover:decoration-sky-400"
-        ><MarkdownInline tokens={link.tokens} /></a
+        ><MarkdownInline tokens={link.tokens} /></InlineLink
       >
     {:else}
       <MarkdownInline tokens={link.tokens} />
@@ -67,11 +66,11 @@
     {@const image = token as Tokens.Image}
     {@const href = safeHref(image.href)}
     {#if href}
-      <a
+      <InlineLink
         {href}
         target="_blank"
         rel="noopener noreferrer nofollow"
-        class="text-sky-700 underline underline-offset-2 dark:text-sky-400">{image.text || href}</a
+        class="text-sky-700 underline underline-offset-2 dark:text-sky-400">{image.text || href}</InlineLink
       >
     {:else}
       {image.text}

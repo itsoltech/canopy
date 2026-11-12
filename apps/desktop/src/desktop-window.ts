@@ -7,6 +7,7 @@ import { trackAppRoutes } from "./app-route-ipc.ts";
 import type { AppRoutes } from "./app-routes.ts";
 import type { WindowPlacement } from "./window-state.ts";
 import { allowedFontAccess, allowedPermission } from "./window-permissions.ts";
+import { attachContextMenu } from "./context-menu.ts";
 
 interface WindowOptions {
   appRoutes: AppRoutes;
@@ -91,6 +92,7 @@ export function createDesktopWindow(options: WindowOptions) {
   options.quitGuard.attach(target);
   trackAppRoutes(target, options.appRoutes);
   attachWindowChrome(target);
+  attachContextMenu(target);
   options.placement?.track(target);
   const updateBackground = () => applyWindowAppearance(target);
   nativeTheme.on("updated", updateBackground);

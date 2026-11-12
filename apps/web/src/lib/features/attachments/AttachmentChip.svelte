@@ -8,6 +8,7 @@
   import AttachmentPreview from "./AttachmentPreview.svelte";
   import { attachmentPreviewKind } from "@canopy/domain/attachment-preview";
   import { attachmentUrl } from "./preview.ts";
+  import InlineLink from "#lib/shared/ui/InlineLink.svelte";
 
   /**
    * A file the user placed in their message, where they placed it (docs/ui-api.md, "Załączniki w tekście"): the
@@ -17,7 +18,7 @@
   let { mention, file }: { mention: Mention; file: ui.Attachment | undefined } = $props();
 
   let open = $state(false);
-  let anchor = $state<HTMLElement>();
+  let anchor = $state<HTMLAnchorElement>();
 
   const name = $derived(file?.name ?? mentionLabel(mention));
 </script>
@@ -27,20 +28,19 @@
 {/snippet}
 
 {#if file && attachmentPreviewKind(file) !== "file"}
-  <button
-    bind:this={anchor}
-    type="button"
+  <InlineLink
+    bind:element={anchor}
     class={[attachmentChipClass(), "cursor-pointer focus-ring hover:bg-brand-600/14 dark:hover:bg-brand-400/18"]}
     aria-label="Open {name}"
-    onclick={() => (open = true)}>{@render body()}</button
+    onactivate={() => (open = true)}>{@render body()}</InlineLink
   >
 {:else if file}
-  <a
-    bind:this={anchor}
+  <InlineLink
+    bind:element={anchor}
     href={attachmentUrl(file, "download")}
     download={name}
     class={[attachmentChipClass(), "focus-ring hover:bg-brand-600/14 dark:hover:bg-brand-400/18"]}
-    aria-label="Download {name}">{@render body()}</a
+    aria-label="Download {name}">{@render body()}</InlineLink
   >
 {:else}
   <MentionChip {mention} />

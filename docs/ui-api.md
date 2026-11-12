@@ -1803,12 +1803,16 @@ Zużyte wejścia szyny mają `withdrawn = consumed` i nie tworzą pustego „Wor
 
 ## Pliki wątku
 
-Ścieżka pliku w wiadomości agenta jest przyciskiem: inline code, który wygląda na plik
+Ścieżka pliku w wiadomości agenta jest zaznaczalnym linkiem: inline code, który wygląda na plik
 (`out/report.md`, `C:\work\query.sql`, `~/notes.txt`, `src/app.ts:12`), oraz link Markdown do pliku
 (`[raport](out/report.md)`, `file:///…`). Rozpoznawanie (`shared/ui/markdown/file-paths.ts`) wymaga
 rozszerzenia; sama nazwa bez folderu musi mieć znane rozszerzenie (także obrazu). Wspólny parser
 `@canopy/domain/file-references` obsługuje web i mobile. Kontekst
 ustawia `provideThreadDirectory`, więc działa tylko w wątku; poza nim ścieżki zostają zwykłym kodem.
+
+Zaznaczenie i kopiowanie zachowują widoczny tekst linków, wzmianek i chipów załączników.
+**Cite** zachowuje także ścieżki plików. Zwykłe kliknięcie lub Enter otwiera plik;
+przeciągnięcie zaznaczenia przez link nie otwiera podglądu.
 
 Ustawienie urządzenia **Open files in** (Settings → Interface, `fileLinks`): **Canopy** otwiera
 przeglądarkę (`features/files/FileViewer.svelte`, jedna naraz, host w głównym layoucie), **Default app**
