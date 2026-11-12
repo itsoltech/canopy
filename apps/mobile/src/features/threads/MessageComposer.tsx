@@ -14,7 +14,6 @@ import type { MessageDraft } from "../composer/useMessageDraft";
 import { Skeleton } from "../../ui/Skeleton";
 import { ComposerFold, useComposerMotion } from "../composer/ComposerFold";
 import { composerGeometry } from "../composer/geometry";
-import { QuoteTray } from "../quotes/QuoteTray";
 import type { useQuoteDraft } from "../quotes/useQuoteDraft";
 import { useComposerSettings } from "./useComposerSettings";
 import { composerPending } from "@canopy/domain/composer-pending";
@@ -60,7 +59,7 @@ export function MessageComposer({
       <PasteTarget draft={message.files}>
         <ComposerBox
           compact={compact}
-          pending={composerPending(quotes.quotes.length, message.files.files.length, message.value.mentions)}
+          pending={composerPending(0, message.files.files.length, message.value.mentions)}
           onExpand={onExpand}
           text={message.value.text}
           onChange={message.setText}
@@ -80,7 +79,7 @@ export function MessageComposer({
           disabled={disabled || Boolean(message.files.blocker)}
           busy={busy}
           files={message.files.ids.length + quotes.quotes.length}
-          top={<ComposerAttachments message={message} quotes={quotes} />}
+          top={<ComposerAttachments message={message} />}
           attachment={<AttachButton draft={message.files} disabled={disabled || busy} />}
           controls={<ComposerControls state={state} thread={thread} />}
         />
@@ -148,12 +147,11 @@ function ComposerControls({
   );
 }
 
-function ComposerAttachments({ message, quotes }: { message: MessageDraft; quotes: ReturnType<typeof useQuoteDraft> }) {
+function ComposerAttachments({ message }: { message: MessageDraft }) {
   const c = useColors();
 
   return (
     <>
-      <QuoteTray draft={quotes} />
       <AttachmentChips files={message.files.files} onRemove={message.remove} />
       {message.files.files
         .filter((file) => file.contextScope)

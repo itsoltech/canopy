@@ -98,9 +98,14 @@ export class QueueState {
   }
 
   /** The editor's text with its chips' ranges (badges of files too): the whole set, so the gateway takes it as is. */
-  async edit(turn: ui.Turn, text: string, mentions: readonly Mention[]): Promise<string | undefined> {
+  async edit(
+    turn: ui.Turn,
+    text: string,
+    mentions: readonly Mention[],
+    quotes: readonly ui.Quote[],
+  ): Promise<string | undefined> {
     try {
-      const saved = await editQueued(this.#source().threadId, turn.id, text, turn.revision, mentions);
+      const saved = await editQueued(this.#source().threadId, turn.id, text, turn.revision, mentions, quotes);
 
       if (saved) this.#sink.turn(saved);
       this.editing = undefined;

@@ -8,6 +8,11 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import { shake } from "#lib/shared/ui/motion.ts";
   import { registerUnsentWork } from "#lib/features/workers/unsent-work.ts";
+  import { create } from "@bufbuild/protobuf";
+  import { ui as schemas } from "@canopy/contracts";
+  import { draftOf, toWire, type QuoteDraft } from "#lib/features/quotes/quote.ts";
+  import { inlineLegacyQuotes } from "@canopy/domain";
+  import { untrack } from "svelte";
 
   /**
    * Inline edit of a queued message (it keeps its place, overrides and quotes): the composer's text field, so the
@@ -24,22 +29,26 @@
     oncancel,
     allowEmpty = false,
     attachments = [],
+    quotes: initialQuotes = [],
     class: className,
   }: {
     text: string;
     mentions?: readonly Mention[];
-    onsave: (text: string, mentions: Mention[]) => Promise<string | undefined>;
+    onsave: (text: string, mentions: Mention[], quotes: ui.Quote[]) => Promise<string | undefined>;
     oncancel: () => void;
     allowEmpty?: boolean;
     attachments?: readonly ui.Attachment[];
+    quotes?: readonly ui.Quote[];
     class?: ClassValue;
   } = $props();
 
-  // svelte-ignore state_referenced_locally
-  let value = $state(text);
+  const restored = untrack(() => inlineLegacyQuotes({ text, quotes: initialQuotes.map(draftOf) }));
+  let value = $state(restored.text);
 
   // svelte-ignore state_referenced_locally
   let mentions = $state<Mention[]>([...initial]);
+
+  let quotes = $state<readonly QuoteDraft[]>(restored.quotes);
   let saving = $state(false);
   let error = $state<string | undefined>(undefined);
   let editor = $state<EditorControls>();
@@ -72,10 +81,19 @@
 
     if (saving) return;
 
-    if (value === text && key(mentions) === key(initial)) return oncancel();
-    const trimmed = trimValue({ text: value, mentions });
+    if (
+      value === text &&
+      key(mentions) === key(initial) &&
+      JSON.stringify(quotes.map(toWire)) === JSON.stringify(initialQuotes.map((q) => toWire(draftOf(q))))
+    )
+      return oncancel();
+    const trimmed = trimValue({ text: value, mentions, quotes });
     saving = true;
-    error = await onsave(trimmed.text, trimmed.mentions);
+    error = await onsave(
+      trimmed.text,
+      trimmed.mentions,
+      (trimmed.quotes ?? []).map((q) => create(schemas.QuoteSchema, toWire(q))),
+    );
     saving = false;
   }
 
@@ -102,6 +120,7 @@
       label="Edit queued message"
       bind:value
       bind:mentions
+      bind:quotes
       bind:editor
       {onkeydown}
       class="max-h-40 min-h-0 scroll-stable overflow-y-auto text-base/6 sm:text-sm/6"

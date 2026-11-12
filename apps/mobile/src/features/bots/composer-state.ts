@@ -5,6 +5,7 @@ import * as Crypto from "expo-crypto";
 import type { useSession } from "../../state/session";
 import { emptyValue, type MessageValue } from "../composer/message-value";
 import type { DraftFile } from "../attachments/useAttachmentDraft";
+import { inlineLegacyQuotes } from "@canopy/domain";
 
 type Client = NonNullable<ReturnType<typeof useSession>["client"]>;
 
@@ -49,7 +50,7 @@ export class BotComposerState {
 
       if (!this.#editing && this.sync.loaded && this.#appliedId !== next.clientRequestId) {
         this.#appliedId = next.clientRequestId;
-        this.value.current = { text: next.text, mentions: next.mentions };
+        this.value.current = { ...inlineLegacyQuotes(next), mentions: next.mentions };
         this.quotes.current = next.quotes;
         this.files.current = next.attachments.map((attachment) => ({
           key: attachment.id,
@@ -103,7 +104,7 @@ export class BotComposerState {
           text: value.text,
           mentions,
           attachments: this.files.current.flatMap((f) => f.attachment ?? []),
-          quotes: [...this.quotes.current],
+          quotes: [...(value.quotes ?? [])],
         }),
       );
       this.#appliedId = this.sync.value.clientRequestId;

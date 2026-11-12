@@ -176,6 +176,8 @@ export interface QuoteSource {
   readonly threadId: string;
   readonly kind: QuoteSourceKind;
   readonly language: string;
+  readonly author?: string;
+  readonly time?: string;
 }
 
 const KINDS = new Set<string>(["agent_message", "reasoning", "command_output", "tool_call", "code", "diff"]);
@@ -200,6 +202,8 @@ export function quoteSourceOf(element: Element | null): QuoteSource | undefined 
     threadId: item.dataset.quoteThread ?? "",
     kind,
     language: region.dataset.quoteLang ?? "",
+    author: item.dataset.quoteAuthor,
+    time: item.dataset.quoteTime,
   };
 }
 

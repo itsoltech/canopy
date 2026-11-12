@@ -49,6 +49,13 @@ function useTimelineData(state: ThreadState) {
       readOnly: away || !thread || Boolean(thread.archivedAt || thread.deletedAt),
       thread: (id) => threads.find((t) => t.id === id) ?? (id === thread?.id ? thread : undefined),
       item: (id) => items.get(id),
+      quoteTime: (id) => {
+        const entry = snapshot?.items.find((e) => e.item?.itemId === id);
+        const turn = state.turns.find((t) => t.id === entry?.turnId);
+        const at = entry?.completedAt ?? turn?.completedAt ?? turn?.startedAt;
+
+        return at ? new Date(Number(at.seconds) * 1000).toLocaleString() : undefined;
+      },
       content: (id) => snapshot?.items.find((entry) => entry.item?.itemId === id)?.contentRef,
       delivery: (callId) => snapshot?.busDeliveries.find((d) => d.callId === callId),
       queuedFallback: (turnId) => snapshot?.steers.find((s) => s.status === "queued" && s.queuedTurnId === turnId),

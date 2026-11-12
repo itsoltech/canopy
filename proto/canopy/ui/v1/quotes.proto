@@ -16,4 +16,11 @@ message Quote {
   string source_kind = 5;
   // Język cytowanego bloku kodu, w pozostałych przypadkach pusty.
   string language = 6;
+  // Opcjonalny zakres znacznika cytatu w tekście wiadomości, UTF-16 [start, end).
+  // Brak obu pól zachowuje notatkę cytatów starszych klientów.
+  optional uint32 start = 7;
+  optional uint32 end = 8;
+  // Opis źródła do podglądu; nie nadaje uprawnień.
+  string source_author = 9;
+  string source_time = 10;
 }

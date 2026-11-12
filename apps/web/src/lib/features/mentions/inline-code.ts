@@ -1,4 +1,4 @@
-import { blockOf, elementOf } from "./editor.ts";
+import { blockOf, isChip } from "./editor.ts";
 import { inlineSpans, inlineHtml } from "./markdown.ts";
 
 /**
@@ -28,7 +28,7 @@ const isBoundary = (node: Node) =>
     node.nodeName === "DIV" ||
     node.nodeName === "P" ||
     node.nodeName === "LI" ||
-    elementOf(node) !== undefined ||
+    isChip(node) ||
     blockOf(node) !== undefined);
 
 interface Run {
@@ -53,7 +53,7 @@ function runsOf(container: Node, out: Run[] = []): Run[] {
     end();
 
     // A line block (a browser's <div> line) holds runs of its own; chips and code blocks hold none.
-    if (child instanceof HTMLElement && !elementOf(child) && !blockOf(child) && child.nodeName !== "BR")
+    if (child instanceof HTMLElement && !isChip(child) && !blockOf(child) && child.nodeName !== "BR")
       runsOf(child, out);
   }
 

@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { create } from "@bufbuild/protobuf";
-import { MentionKind, MentionSchema, type Mention } from "@canopy/contracts";
+import { MentionKind, MentionSchema, type Mention, type ui } from "@canopy/contracts";
 import { useAttachmentDraft } from "../attachments/useAttachmentDraft";
 import type { ComposerBadges } from "../threads/ComposerBox";
 import type { BadgeTone } from "./MessageText";
@@ -14,8 +14,11 @@ import {
   trimValue,
   withoutMention,
   type MessageValue,
+  insertCitation,
+  isPlacedQuote,
 } from "./message-value";
 import type { DraftFile } from "../attachments/useAttachmentDraft";
+import { CitationHistory } from "./citation-history";
 
 /**
  * The next message: its text, the mentions placed in it and its files. A picked file's badge goes in at the caret,
@@ -39,8 +42,12 @@ export function useMessageDraft(
   const value = options.value ? current.current : localValue;
   useUpdateBlocker(() => current.current.text.length > 0);
   const selection = useRef({ start: 0, end: 0 });
+  const hasSelection = useRef(false);
+  const focusAt = useRef<((caret: number) => void) | undefined>(undefined);
+  const history = useRef(new CitationHistory());
 
   const apply = (next: MessageValue) => {
+    history.current.remember(next);
     current.current = next;
     setValue(next);
     options.onChange?.();
@@ -71,11 +78,37 @@ export function useMessageDraft(
 
   const badges: ComposerBadges = {
     mentions: value.mentions,
+    quotes: value.quotes ?? [],
+    focusAt,
     onSelect: (next) => {
+      hasSelection.current = true;
       selection.current = next;
       setCaret(next.start === next.end ? next.start : undefined);
     },
     tone: (m) => (isAttachment(m) ? status.get(m.name) : undefined),
+    editQuote(index, quote) {
+      const old = current.current.quotes?.[index];
+
+      if (!old || !isPlacedQuote(old)) return;
+
+      const removed = editText(
+        current.current,
+        current.current.text.slice(0, old.start) + current.current.text.slice(old.end),
+      ).value;
+
+      const placed = insertCitation(removed, { start: old.start, end: old.start }, quote);
+      apply(placed.value);
+      focusAt.current?.(placed.caret);
+    },
+    removeQuote(index) {
+      const old = current.current.quotes?.[index];
+
+      if (!old || !isPlacedQuote(old)) return;
+      apply(
+        editText(current.current, current.current.text.slice(0, old.start) + current.current.text.slice(old.end)).value,
+      );
+      focusAt.current?.(old.start);
+    },
   };
 
   const inBadge = caret !== undefined && value.mentions.some((m) => m.start < caret && caret <= m.end);
@@ -85,6 +118,13 @@ export function useMessageDraft(
     value,
     files,
     badges,
+    addQuote(quote: ui.Quote) {
+      const at = hasSelection.current ? selection.current.start : current.current.text.length;
+      const placed = insertCitation(current.current, { start: at, end: at }, quote);
+      selection.current = { start: placed.caret, end: placed.caret };
+      apply(placed.value);
+      focusAt.current?.(placed.caret);
+    },
     /** The mention trigger the caret is in ("/rev", "@src/ap"). */
     trigger,
     /** Replaces the trigger and its query with the picked mention's badge. */
@@ -97,9 +137,10 @@ export function useMessageDraft(
       apply(placed.value);
     },
     setText(next: string) {
+      history.current.remember(current.current);
       const edited = editText(current.current, next);
 
-      apply(edited.value);
+      apply(history.current.restore(edited.value));
 
       for (const m of edited.removed) if (isAttachment(m)) files.remove(m.name);
     },
@@ -114,24 +155,28 @@ export function useMessageDraft(
     clear() {
       files.clear();
       selection.current = { start: 0, end: 0 };
+      hasSelection.current = false;
+      history.current.clear();
       setCaret(undefined);
       apply(emptyValue);
     },
     /** What the gateway gets: trimmed text, mentions with stored attachment ids, the files' ids. */
-    outgoing() {
-      const trimmed = trimValue(current.current);
-      const stored = new Map(files.files.flatMap((f) => (f.attachment ? [[f.key, f.attachment.id] as const] : [])));
-
-      const mentions = trimmed.mentions.flatMap((m) => {
-        if (!isAttachment(m)) return [m];
-        const id = stored.get(m.name);
-
-        return id ? [create(MentionSchema, { ...m, name: id })] : [];
-      });
-
-      return { text: trimmed.text, mentions, attachmentIds: [...stored.values()] };
-    },
+    outgoing: () => outgoingMessage(current.current, files.files),
   };
 }
 
 export type MessageDraft = ReturnType<typeof useMessageDraft>;
+
+function outgoingMessage(value: MessageValue, files: readonly DraftFile[]) {
+  const trimmed = trimValue(value);
+  const stored = new Map(files.flatMap((f) => (f.attachment ? [[f.key, f.attachment.id] as const] : [])));
+
+  const mentions = trimmed.mentions.flatMap((m) => {
+    if (!isAttachment(m)) return [m];
+    const id = stored.get(m.name);
+
+    return id ? [create(MentionSchema, { ...m, name: id })] : [];
+  });
+
+  return { text: trimmed.text, mentions, quotes: [...(trimmed.quotes ?? [])], attachmentIds: [...stored.values()] };
+}

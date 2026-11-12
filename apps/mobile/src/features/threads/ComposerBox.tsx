@@ -4,7 +4,7 @@ import Animated, { interpolate, useAnimatedStyle } from "react-native-reanimated
 import { Skeleton } from "../../ui/Skeleton";
 import { styles, useColors } from "../../ui/theme";
 import { Icon } from "../../ui/Icon";
-import type { Mention } from "@canopy/contracts";
+import type { Mention, ui } from "@canopy/contracts";
 import type { BadgeTone } from "../composer/MessageText";
 import { ComposerFold, useComposerMotion } from "../composer/ComposerFold";
 import { ComposerInput } from "../composer/ComposerInput";
@@ -21,6 +21,10 @@ const TRIGGER_HINT = ["/ commands", "$ skills", "@ files", "# threads", "! shell
 /** Badges in the text (the message draft's files); without it the field is plain text. */
 export interface ComposerBadges {
   mentions: readonly Mention[];
+  quotes?: readonly ui.Quote[];
+  focusAt?: { current: ((caret: number) => void) | undefined };
+  editQuote?: (index: number, quote: ui.Quote) => void;
+  removeQuote?: (index: number) => void;
   onSelect: (selection: { start: number; end: number }) => void;
   tone?: (mention: Mention) => BadgeTone;
 }

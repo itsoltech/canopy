@@ -7,7 +7,7 @@ import { botImages, storedBotImage } from "./attachments.ts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { Invalid } from "../store/store.ts";
-import { checkedQuotes } from "../core/quotes.ts";
+import { botQuotes } from "./quotes.ts";
 import { nextHop } from "./policy.ts";
 import { originOf, routineStore, type RoutineOrigin } from "./routines.ts";
 import type { BotRow, BotTurn } from "./types.ts";
@@ -17,30 +17,26 @@ import type { botConfig } from "./store-config.ts";
 
 type BotTurnKey = Pick<BotTurn, "id">;
 
+type EnqueueOptions = RoutineOrigin & {
+  hops?: number;
+  sender?: string;
+  replyTo?: string;
+  exchangeId?: string;
+  event?: boolean;
+  displayText?: string;
+  mentions?: readonly Mention[];
+  quotes?: readonly ui.Quote[];
+  attachmentIds?: readonly string[];
+  attachmentLimits?: AttachmentLimits | undefined;
+  draftRevision?: bigint | undefined;
+};
+
 /** Queues a bot turn with its message (user, bot, routine or system input). */
 function botEnqueue(
   sql: SqlClient.SqlClient,
   { active, changed, connections }: Pick<BotAccess, "active" | "changed" | "connections">,
 ) {
-  return (
-    user: string,
-    botId: string,
-    input: string,
-    requestId: string,
-    options: RoutineOrigin & {
-      hops?: number;
-      sender?: string;
-      replyTo?: string;
-      exchangeId?: string;
-      event?: boolean;
-      displayText?: string;
-      mentions?: readonly Mention[];
-      quotes?: readonly ui.Quote[];
-      attachmentIds?: readonly string[];
-      attachmentLimits?: AttachmentLimits | undefined;
-      draftRevision?: bigint | undefined;
-    } = {},
-  ) =>
+  return (user: string, botId: string, input: string, requestId: string, options: EnqueueOptions = {}) =>
     sql.withTransaction(
       Effect.gen(function* () {
         yield* active(user, botId, true);
@@ -54,10 +50,13 @@ function botEnqueue(
 
         if (previous) return previous.id;
 
-        const quotes = yield* Effect.try({
-          try: () => checkedQuotes(options.quotes ?? [], (message) => new Invalid(message)),
-          catch: (cause) => (cause instanceof Invalid ? cause : new Invalid(String(cause))),
-        });
+        const quotes = yield* botQuotes(
+          sql,
+          user,
+          options.quotes ?? [],
+          options.displayText ?? input,
+          options.mentions,
+        );
 
         const images = yield* botImages(sql, user, options.attachmentIds ?? [], options.attachmentLimits);
         const files = new Map(images.map((a) => [a.id, a]));

@@ -5,17 +5,33 @@ import type { ui } from "@canopy/contracts";
 
 /**
  * The quotes of each thread's composer draft, for this tab (like the draft text, nothing is stored in the
- * browser). Cite adds one, the composer shows them as chips (edit the comment, remove) and sends them with the
- * message, then clears them. Within QUOTE_LIMITS: `add` refuses (undefined) past the maximum.
+ * browser). Cite inserts at the registered editor's caret. The editor serializes their ranges after each edit.
+ * Within QUOTE_LIMITS: `add` refuses (undefined) past the maximum.
  *
  *   const quotes = useQuoteDrafts();
- *   quotes.list(threadId)                       // chips, in the order they were added
+ *   quotes.list(threadId)                       // tokens, in text order
  *   quotes.add(threadId, { text, source, comment })
  *   quotes.edit(threadId, id, "comment")  /  quotes.remove(threadId, id)
  *   sendMessage(…, quotes.wire(threadId)); quotes.clear(threadId)
  */
 export class QuoteDrafts {
   #byThread = $state.raw<ReadonlyMap<string, readonly QuoteDraft[]>>(new Map());
+  #editors = new Map<string, (quote: QuoteDraft) => void>();
+
+  connect(threadId: string, insert: (quote: QuoteDraft) => void): () => void {
+    this.#editors.set(threadId, insert);
+    const pending = this.list(threadId).filter((q) => q.start === undefined);
+
+    for (const quote of pending) insert(quote);
+
+    return () => {
+      if (this.#editors.get(threadId) === insert) this.#editors.delete(threadId);
+    };
+  }
+
+  place(threadId: string, quotes: readonly QuoteDraft[]): void {
+    this.#set(threadId, quotes);
+  }
 
   list(threadId: string): readonly QuoteDraft[] {
     return this.#byThread.get(threadId) ?? [];
@@ -38,9 +54,14 @@ export class QuoteDrafts {
       sourceThreadId: quote.source.threadId,
       sourceKind: quote.source.kind,
       language: quote.source.language,
+      ...(quote.source.author && { sourceAuthor: quote.source.author }),
+      ...(quote.source.time && { sourceTime: quote.source.time }),
     };
 
-    this.#set(threadId, [...current, draft]);
+    const insert = this.#editors.get(threadId);
+
+    if (insert) insert(draft);
+    else this.#set(threadId, [...current, draft]);
 
     return draft;
   }

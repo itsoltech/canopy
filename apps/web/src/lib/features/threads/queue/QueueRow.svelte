@@ -53,7 +53,7 @@
     onsteer: () => void;
     ondelete: () => void;
     onedit: () => void;
-    onsave: (text: string, mentions: Mention[]) => Promise<string | undefined>;
+    onsave: (text: string, mentions: Mention[], quotes: ui.Quote[]) => Promise<string | undefined>;
     oncancel: () => void;
     ondelivery: (delivery: "steer" | "queue") => void;
     class?: ClassValue;
@@ -96,6 +96,7 @@
   {#if editing}
     <QueueEditor
       attachments={turn.attachments}
+      quotes={turn.quotes}
       text={messageOf(turn)}
       mentions={turn.messageText ? turn.mentions : []}
       allowEmpty={carriesMore(turn)}

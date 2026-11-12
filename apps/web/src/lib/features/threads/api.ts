@@ -3,7 +3,7 @@ import type { PermissionModeKey } from "./labels.ts";
 import { requestJson, HttpError, type JsonBody } from "#lib/shared/http.ts";
 import { isJsonObject } from "#lib/shared/json.ts";
 import { resolvePendingSend } from "@canopy/domain/pending-send";
-import { decode } from "#lib/shared/wire.ts";
+import { decode, encode } from "#lib/shared/wire.ts";
 import type { Mention } from "@canopy/contracts";
 import { mentionsToWire } from "#lib/features/mentions/wire.ts";
 import type { WireQuote } from "#lib/features/quotes/quote.ts";
@@ -134,6 +134,7 @@ export async function editQueued(
   text: string,
   expectedRevision: number,
   mentions: readonly Mention[] = [],
+  quotes: readonly ui.Quote[] = [],
 ): Promise<ui.Turn | undefined> {
   return decode(
     ui.EditQueuedTurnResponseSchema,
@@ -142,6 +143,8 @@ export async function editQueued(
       text,
       expectedRevision,
       mentionsComplete: true,
+      quotesComplete: true,
+      quotes: quotes.map((quote) => encode(ui.QuoteSchema, quote)),
       ...(mentions.length > 0 && { mentions: mentionsToWire(mentions) }),
     }),
   ).turn;

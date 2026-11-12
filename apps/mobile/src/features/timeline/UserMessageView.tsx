@@ -142,16 +142,18 @@ type MessageBodyProps = {
 };
 
 function MessageBody({ text, mentions, quotes, color, onAttachment }: MessageBodyProps) {
+  const loose = quotes.filter((quote) => quote.start === undefined);
+
   return (
     <View style={{ gap: 8 }}>
-      {quotes.length ? <MessageQuotes quotes={quotes} /> : null}
+      {loose.length ? <MessageQuotes quotes={loose} /> : null}
       {text.trim() ? (
         <Markdown
           text={text}
           breaks
           color={color}
           selectable={false}
-          elements={mentionElements(text, mentions, onAttachment)}
+          elements={mentionElements(text, mentions, onAttachment, quotes)}
         />
       ) : null}
     </View>

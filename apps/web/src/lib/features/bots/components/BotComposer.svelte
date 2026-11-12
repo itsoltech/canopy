@@ -15,7 +15,6 @@
   import { iconSwap } from "#lib/shared/ui/motion.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import BotAvatar from "./BotAvatar.svelte";
-  import QuoteTray from "#lib/features/quotes/QuoteTray.svelte";
   import { toWire, useQuoteDrafts } from "#lib/features/quotes/quote-drafts.svelte.ts";
   import RoundButton from "./RoundButton.svelte";
   import type { AttachmentDraft } from "#lib/features/attachments/draft.svelte.ts";
@@ -133,11 +132,11 @@
 
   function send() {
     if (!ready || running) return;
-    const trimmed = trimValue({ text: value, mentions });
+    const trimmed = trimValue({ text: value, mentions, quotes });
     onsend(
       trimmed.text,
       trimmed.mentions,
-      quotes.map((quote) => create(ui.QuoteSchema, toWire(quote))),
+      (trimmed.quotes ?? []).map((quote) => create(ui.QuoteSchema, toWire(quote))),
     );
 
     if (!durable) {
@@ -152,16 +151,13 @@
   bind:this={box}
   role="group"
   aria-label="Message composer"
-  data-expanded={multiline || quotes.length > 0 || undefined}
+  data-expanded={multiline || undefined}
   class={[
     "grid grid-cols-[auto_minmax(0,1fr)_auto] items-end gap-x-1 rounded-[1.75rem] bg-white p-1.5 shadow-sm ring-1 ring-zinc-950/10 transition-[border-radius] duration-(--duration-fast) ease-(--ease-smooth-out) has-focus-visible:ring-zinc-950/20 data-expanded:rounded-2xl motion-reduce:transition-none dark:bg-zinc-900 dark:shadow-none dark:ring-white/10 dark:has-focus-visible:ring-white/20",
     disabled && "opacity-70",
     className,
   ]}
 >
-  {#if quotes.length > 0}
-    <div class="col-span-3 row-start-1 min-w-0 px-2 pt-2 pb-3"><QuoteTray threadId={quoteKey} /></div>
-  {/if}
   {#if files?.notice || files?.blocker}<p
       role="status"
       class="col-span-3 row-start-4 px-3 py-2 text-sm text-zinc-500 dark:text-zinc-400"
@@ -184,6 +180,7 @@
     bind:value
     bind:mentions
     bind:editor
+    {quoteKey}
     disabled={disabled || sending}
     onpaste={(event) => intake?.paste(event)}
     acceptChip={(m) => m.kind !== MentionKind.ATTACHMENT || Boolean(files?.file(m.name))}

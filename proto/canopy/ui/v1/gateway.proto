@@ -2380,6 +2380,9 @@ message EditQueuedTurnRequest {
   // Klient wysyła pełną listę pozycji z edytora (plakietki plików, wzmianki). Bez tej flagi i bez wzmianek
   // (starszy klient z edycją jako tekstem) gateway odnajduje dotychczasowe wzmianki w nowym tekście po ich znacznikach.
   bool mentions_complete = 5;
+  repeated Quote quotes = 6;
+  // Pełna lista cytatów z edytora; starsi klienci zachowują cytaty odnalezione po znacznikach.
+  bool quotes_complete = 7;
 }
 
 message EditQueuedTurnResponse {

@@ -16,6 +16,8 @@ export interface ThreadDirectory {
   goal(id: string): ui.Goal | undefined;
   /** The turn with this id is over (completed, failed, interrupted): its items stop streaming. */
   turnEnded?(turnId: string): boolean;
+  /** Fallback source time for historical items without their own timestamp. */
+  quoteTime?(turnId: string): string | undefined;
   /** The thread's steer with this id (a message steered into a turn: its text and quotes). */
   steer?(id: string): ui.Steer | undefined;
   /** The thread's own timeline item with this id (e.g. the background task a platform note is about). */

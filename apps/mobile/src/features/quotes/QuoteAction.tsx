@@ -6,6 +6,7 @@ import type { StyleProp, ViewStyle } from "react-native";
 import { useTimelineDirectory } from "../timeline/directory";
 import { QuoteEditor } from "./QuoteEditor";
 import { markdownText } from "@canopy/domain/markdown";
+import { providerName } from "../models/catalog";
 
 export const QuoteItem = createContext("");
 
@@ -28,6 +29,8 @@ export function useQuotePassage(text: string, kind: string, language = "") {
             sourceItemId: itemId,
             sourceThreadId: directory.sourceId || directory.currentId,
             sourceKind: kind,
+            sourceAuthor: providerName(directory.thread(directory.sourceId || directory.currentId)?.provider ?? 0),
+            sourceTime: directory.quoteTime?.(itemId),
             language,
           })}
           onSave={(value) => directory.quote?.(value)}

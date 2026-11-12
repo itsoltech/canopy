@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/ui/v1/quotes.proto.
  */
 export const file_canopy_ui_v1_quotes: GenFile = /*@__PURE__*/
-  fileDesc("ChljYW5vcHkvdWkvdjEvcXVvdGVzLnByb3RvEgxjYW5vcHkudWkudjEifwoFUXVvdGUSDAoEdGV4dBgBIAEoCRIPCgdjb21tZW50GAIgASgJEhYKDnNvdXJjZV9pdGVtX2lkGAMgASgJEhgKEHNvdXJjZV90aHJlYWRfaWQYBCABKAkSEwoLc291cmNlX2tpbmQYBSABKAkSEAoIbGFuZ3VhZ2UYBiABKAliBnByb3RvMw");
+  fileDesc("ChljYW5vcHkvdWkvdjEvcXVvdGVzLnByb3RvEgxjYW5vcHkudWkudjEi4wEKBVF1b3RlEgwKBHRleHQYASABKAkSDwoHY29tbWVudBgCIAEoCRIWCg5zb3VyY2VfaXRlbV9pZBgDIAEoCRIYChBzb3VyY2VfdGhyZWFkX2lkGAQgASgJEhMKC3NvdXJjZV9raW5kGAUgASgJEhAKCGxhbmd1YWdlGAYgASgJEhIKBXN0YXJ0GAcgASgNSACIAQESEAoDZW5kGAggASgNSAGIAQESFQoNc291cmNlX2F1dGhvchgJIAEoCRITCgtzb3VyY2VfdGltZRgKIAEoCUIICgZfc3RhcnRCBgoEX2VuZGIGcHJvdG8z");
 
 /**
  * Wspólny cytat w wiadomości wątku albo bota. Metadane źródła służą tylko nawigacji UI.
@@ -60,6 +60,31 @@ export type Quote = Message<"canopy.ui.v1.Quote"> & {
    * @generated from field: string language = 6;
    */
   language: string;
+
+  /**
+   * Opcjonalny zakres znacznika cytatu w tekście wiadomości, UTF-16 [start, end).
+   * Brak obu pól zachowuje notatkę cytatów starszych klientów.
+   *
+   * @generated from field: optional uint32 start = 7;
+   */
+  start?: number | undefined;
+
+  /**
+   * @generated from field: optional uint32 end = 8;
+   */
+  end?: number | undefined;
+
+  /**
+   * Opis źródła do podglądu; nie nadaje uprawnień.
+   *
+   * @generated from field: string source_author = 9;
+   */
+  sourceAuthor: string;
+
+  /**
+   * @generated from field: string source_time = 10;
+   */
+  sourceTime: string;
 };
 
 /**

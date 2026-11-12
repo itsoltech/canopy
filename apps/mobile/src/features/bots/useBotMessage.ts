@@ -9,14 +9,14 @@ import { useMessageDraft } from "../composer/useMessageDraft";
 import { useQuoteDraft } from "../quotes/useQuoteDraft";
 import { botComposerState } from "./composer-state";
 
-export function useBotMessage(id: string, live: boolean, onSend: () => void) {
+export function useBotMessage(id: string, live: boolean, onSend: () => void, sourceName = "Bot") {
   const { client, online } = useSession();
   const state = useMemo(() => botComposerState(client, id), [client, id]);
   useSyncExternalStore(state.subscribe, state.snapshot);
   const draft = useMessageDraft({ value: state.value, files: state.files, botId: id, onChange: state.changed });
   const busy = state.sending;
   const [error, setError] = useState("");
-  const quoteDraft = useQuoteDraft(() => state.sending, { current: state.quotes, onChange: state.changed });
+  const quoteDraft = useQuoteDraft(() => state.sending, {}, draft);
   const { quotes } = quoteDraft;
   useEffect(() => {
     if (online) void state.sync.load();
@@ -27,7 +27,7 @@ export function useBotMessage(id: string, live: boolean, onSend: () => void) {
   }, [state, online]);
 
   async function send() {
-    const { text, mentions, attachmentIds } = draft.outgoing();
+    const { text, mentions, attachmentIds, quotes: sentQuotes } = draft.outgoing();
 
     if (
       (!text && !quotes.length && !attachmentIds.length) ||
@@ -52,7 +52,7 @@ export function useBotMessage(id: string, live: boolean, onSend: () => void) {
           botId: id,
           text,
           mentions,
-          quotes: [...quotes],
+          quotes: sentQuotes,
           attachmentIds,
           clientRequestId: saved.clientRequestId,
           draftRevision: saved.revision,
@@ -90,7 +90,14 @@ export function useBotMessage(id: string, live: boolean, onSend: () => void) {
     }
 
     quoteDraft.add(
-      create(ui.QuoteSchema, { text, sourceItemId: message.id, sourceThreadId: id, sourceKind: "agent_message" }),
+      create(ui.QuoteSchema, {
+        text,
+        sourceItemId: message.id,
+        sourceThreadId: id,
+        sourceKind: "agent_message",
+        sourceAuthor: message.senderId === "me" ? "You" : sourceName,
+        sourceTime: message.at.toLocaleString(),
+      }),
     );
   }
 

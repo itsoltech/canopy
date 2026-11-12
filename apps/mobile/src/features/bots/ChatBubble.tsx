@@ -132,18 +132,20 @@ function MessageBody({ message, mine }: { message: ChatMessageView; mine: boolea
 
   return (
     <View style={{ gap: 8 }}>
-      {message.quotes?.map((quote, index) => (
-        <QuotePreview key={index} quote={quote} mine={mine} />
-      ))}
+      {message.quotes
+        ?.filter((q) => q.start === undefined)
+        .map((quote, index) => (
+          <QuotePreview key={index} quote={quote} mine={mine} />
+        ))}
       {mine ? (
         <Text style={[type.body, { color: c.botUserText }]}>
-          <MessageSpans value={{ text: message.text, mentions: message.mentions ?? [] }} />
+          <MessageSpans value={{ text: message.text, mentions: message.mentions ?? [], quotes: message.quotes }} />
         </Text>
       ) : (
         <Markdown
           selectable={false}
           text={message.text}
-          elements={mentionElements(message.text, message.mentions ?? [])}
+          elements={mentionElements(message.text, message.mentions ?? [], undefined, message.quotes)}
         />
       )}
     </View>

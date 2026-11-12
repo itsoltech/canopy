@@ -1103,7 +1103,7 @@ Wiadomości czekające za turą w toku (tury `queued`) użytkownik układa. Kole
 | Metoda | Co robi |
 |---|---|
 | `ReorderQueuedTurns` | `{thread_id, turn_ids}` → podane tury dostają, w tej kolejności, miejsca (`ordinal`), które zajmują razem; tury, których klient nie zna (przyszły w międzyczasie), zostają na swoich. Kolejność zmienia się wśród tur kolejki, więc wystartowane tury nie zmieniają miejsca na osi czasu. Także tury agentów i harmonogramów |
-| `EditQueuedTurn` | `{turn_id, text, expected_revision, mentions, mentions_complete}` → nowy tekst wiadomości użytkownika, złożony jak w `SendMessage`: wzmianki sprawdzone i rozwiązane ([Wzmianki](#wzmianki)), notatka załączników przed tekstem; nadpisania (model, wysiłek, tryb) i załączniki zostają; `/goal` nie czeka w kolejce (`InvalidArgument`). Inna `Turn.revision` (161) niż oczekiwana = `FailedPrecondition` (zmieniona gdzie indziej) |
+| `EditQueuedTurn` | `{turn_id, text, expected_revision, mentions, mentions_complete, quotes, quotes_complete}` → nowy tekst wiadomości użytkownika, złożony jak w `SendMessage`: wzmianki sprawdzone i rozwiązane ([Wzmianki](#wzmianki)), cytaty w swoich zakresach, notatka załączników przed tekstem; nadpisania (model, wysiłek, tryb) i załączniki zostają; `/goal` nie czeka w kolejce (`InvalidArgument`). Inna `Turn.revision` (161) niż oczekiwana = `FailedPrecondition` (zmieniona gdzie indziej) |
 | `DeleteQueuedTurn` | wiadomość użytkownika wychodzi z kolejki: `status = cancelled`, `Turn.withdrawn` (160) = `deleted`; oś czasu jej nie pokazuje |
 | `RestoreQueuedTurn` | cofnięcie usunięcia: tura wraca do kolejki na swoje miejsce (idempotentne) |
 | `SteerQueuedTurn` | wiadomość użytkownika (także z plikami, cytatami i wzmiankami; wejście takie, jakie dostałaby tura) idzie teraz do tury w toku: w jednej transakcji powstają steer (`Steer.from_turn_id` (160) = ta tura) i jego outbox, a tura wychodzi z kolejki (`withdrawn = steered`). Pliki trafiają do workera przed wywołaniem harnessu. Dalej jak steer z `SendMessage` (`pending` → `accepted` → `delivered`); gdy nie wejdzie, wraca ta sama tura na swoje miejsce w kolejce (`Steer.queued_turn_id = from_turn_id`), nie nowa na końcu. Bez tury w toku = `FailedPrecondition`, wiadomość zostaje w kolejce |
@@ -1131,8 +1131,9 @@ sposób wyboru trybu; gateway nie zmienia semantyki ich wiadomości.
 **Wyścig z głową kolejki.** Zmiany kolejki i start jej głowy blokują najpierw wiersz wątku, więc idą jedna po drugiej. Scheduler (`pump`) zapisuje `StartTurn` tylko wtedy, gdy tura nadal jest głową kolejki z rewizją, którą przeczytał (`QueueStore.whileHead`); inaczej czyta kolejkę od nowa. Wystartowana tura ma więc zawsze tekst i miejsce, które użytkownik widział jako ostatnie przyjęte, a zmiana tury, którą scheduler wziął pierwszy, kończy się czytelnym błędem.
 ### Wzmianki
 
-Zwinięty kompozytor wątku pokazuje po lewej ikony z licznikami cytatów, załączników
-i poszczególnych rodzajów wzmianek. Pomija puste grupy; etykiety dostępności i tooltipy
+Zwinięty kompozytor wątku pokazuje po lewej ikony z licznikami załączników
+i poszczególnych rodzajów wzmianek. Cytaty pozostają tokenami w pierwszej linii szkicu,
+bez osobnego licznika. Pomija puste grupy; etykiety dostępności i tooltipy
 podają rodzaj oraz liczbę. Załącznik liczy się raz, niezależnie od swojego chipu w tekście.
 Podsumowanie mieści się w dotychczasowej wysokości pola, a pierwsza linia szkicu lub
 placeholder skraca się w pozostałym miejscu. Kliknięcie rozwija pole i ustawia fokus
@@ -1207,22 +1208,45 @@ Wątek wspomniany przez użytkownika agent może czytać (`get_thread`, `read_th
 
 `Quote` ma wspólny kontrakt w `quotes.proto` (dotychczasowe `ui.Quote` i numery pól
 bez zmian). Boty przesyłają go przez `SendBotMessage.quotes` / `BotMessage.quotes`
-(451), zapisują osobno od tekstu i używają tych samych komponentów Reply/Cite oraz
-notatki `quotesNote`. `source_thread_id` cytatu z bota wskazuje jego rozmowę (id bota).
+(451), zapisują osobno od tekstu i używają tego samego składania cytatów w tekście.
+`source_thread_id` cytatu z bota wskazuje jego rozmowę (id bota).
 
 Użytkownik cytuje fragment tego, co agent wytworzył w wątku (odpowiedź, wcześniejsze wiadomości, rozumowanie, wejście i wynik narzędzia, wynik polecenia, blok kodu, diff) i odsyła go z wiadomością, z opcjonalnym komentarzem do każdego cytatu.
 
 | Pole | Co robi |
 |---|---|
-| `Quote` | `text` (dokładnie zaznaczony tekst, tak jak widać: bez znaczników markdown, z podziałami linii), `comment` (opcjonalny), `source_item_id`, `source_thread_id` (item i jego wątek, także odziedziczona historia forka), `source_kind` (`agent_message` \| `reasoning` \| `command_output` \| `tool_call` \| `code` \| `diff`, pusty = tekst), `language` (blok kodu z językiem) |
+| `Quote` | `text` (zaznaczony lub edytowany fragment, bez znaczników markdown, z podziałami linii), `comment` (opcjonalny), `source_item_id`, `source_thread_id` (item i jego wątek, także odziedziczona historia forka), `source_kind` (`agent_message` \| `reasoning` \| `command_output` \| `tool_call` \| `code` \| `diff`, pusty = tekst), `language` (blok kodu z językiem). Opcjonalne `start` (7), `end` (8) wskazują zakres `[start,end)` znacznika cytatu w jednostkach UTF-16 tekstu wiadomości. `source_author` (9), `source_time` (10) to etykiety źródła dla UI, bez znaczenia dla autoryzacji |
 | `SendMessage.quotes` (150) | cytaty wiadomości, do 20; tekst cytatu niepusty i do 20 000 znaków, komentarz do 4 000 (`QUOTE_LIMITS`, `packages/domain`). Wiadomość może mieć same cytaty. Działa z `delivery = STEER` (cytaty są w tekście, więc steer ich nie kolejkuje) |
 | `Turn.quotes`, `Steer.quotes` (150) | cytaty wiadomości dla bańki użytkownika; `message_text` / `Steer.text` to sama treść użytkownika. Steer, który nie wszedł do tury, staje się turą z tymi samymi cytatami |
 
 `CreateThread` nie ma cytatów: cytuje się w wątku, w którym jest źródło.
 
-Ze wzmiankami notatka cytatów idzie do `composeMessage` razem z notatką załączników, więc zakresy wzmianek w dostarczonym tekście przesuwają się także o nią.
+Gateway porządkuje cytaty po `start` i odrzuca niepełne zakresy, nakładanie się cytatów
+lub wzmianek oraz zakresy poza tekstem. Wskazany wątek źródłowy musi należeć do
+właściciela wiadomości. Referencja nie udostępnia cudzej historii. Tekst, metadane
+źródła i zakresy wracają w snapshotach bez zmian.
 
-**Format dla agenta.** Cytaty to notatka platformy przed treścią (`quotesNote`, `packages/domain/src/quotes`): po notatce załączników (jeśli są), oddzielone pustą linią, potem pusta linia i wiadomość. Proza jako blockquote (każda linia z `> `), wynik polecenia, wywołanie narzędzia, kod i diff jako blok kodu z płotkiem dłuższym niż najdłuższy ciąg backticków w tekście (język bloku kodu, `diff`, inaczej `text`). Komentarz po cytacie jako `Comment: …`:
+**Cytaty w tekście.** Kompozytor przechowuje krótki znacznik `[“początek fragmentu…”]`
+i zakres cytatu. Gateway zastępuje go pełnym fragmentem dokładnie w tym miejscu,
+przed przesunięciem zakresów wzmianek i numerowaniem załączników. Wszystkie harnessy
+dostają ten sam czytelny format tekstowy; nie potrzeba rozszerzeń konkretnego dostawcy:
+
+```text
+Sprawdź ten fragment:
+
+[canopy citation 1]
+> Dostępność i ruch: pełna obsługa.
+[/canopy citation 1]
+
+i porównaj go z kolejnym akapitem.
+```
+
+`EditQueuedTurnRequest.quotes` (6) i `quotes_complete` (7) zastępują pełną listę
+cytatów, także pustą. Starszy edytor bez `quotes_complete` zachowuje cytaty, których
+znaczniki nadal występują w nowym tekście w tej samej kolejności; usunięty znacznik
+usuwa cytat. Zakresy są ponownie wyliczane i sprawdzane.
+
+**Zgodność ze starszymi klientami.** Cytaty bez zakresów zachowują format notatki platformy przed treścią (`quotesNote`, `packages/domain/src/quotes`): po notatce załączników (jeśli są), oddzielone pustą linią, potem pusta linia i wiadomość. W obu formatach proza jest blockquote (każda linia z `> `), wynik polecenia, wywołanie narzędzia, kod i diff są blokiem kodu z płotkiem dłuższym niż najdłuższy ciąg backticków w tekście (język bloku kodu, `diff`, inaczej `text`). Komentarz po cytacie jako `Comment: …`:
 
 ````text
 [canopy] The user quoted 2 passages of this conversation. Each quote is the exact text they selected, followed by their comment on it when they wrote one; their message comes after the quotes.
@@ -1430,7 +1454,31 @@ Podświetlanie składni (`lib/shared/ui/code`): Shiki (gramatyki TextMate) na si
 
 **Panel kolejki** (`features/threads/queue`, [Kolejka](#kolejka)). Wiadomości czekające za turą w toku są panelem przyczepionym nad kompozytorem (ta sama powierzchnia, zaokrąglone tylko górne rogi, dolna krawędź chowa się pod kompozytorem): wiersz na wiadomość z ikoną kolejki, tekstem w jednej linii, podpowiedzią nadpisań („GPT-5.5 · High effort · Read only · 2 files”; na telefonie w menu) i akcjami — „↳ Steer” (do tury w toku teraz; tylko gdy tura trwa, nieaktywny dla wiadomości z plikami), kosz (usuwa od razu, toast z „Undo” przywraca na miejsce) i „…” (Edit message, Move to top / bottom, Turn on / off queueing; na telefonie arkusz). Kolejność: przeciąganie za uchwyt (ikona kolejki zamienia się w uchwyt po najechaniu albo fokusie, na dotyku zawsze; palcem też, `touch-action: none` tylko na uchwycie) albo Alt+↑/↓ w wierszu (↑/↓ na uchwycie), z komunikatem dla czytników ekranu; wiersze płyną na nowe miejsca (FLIP, `reorder` na `--duration-fast`), wchodzą i wychodzą `expand`, przeciągany wiersz unosi się i idzie za wskaźnikiem. Edycja jest w wierszu (Enter zapisuje, Shift+Enter nowa linia, Escape anuluje), a nie przez kompozytor: wiadomość zostaje na swoim miejscu z nadpisaniami i załącznikami (te są już związane z turą i nie dałoby się ich wysłać drugi raz). Zmiany widać od razu (`QueueState`: lokalna kolejność, ukryte usunięte i wysterowane); gateway je potwierdza, odmowa (wiadomość właśnie ruszyła) przywraca stan z gateway i mówi dlaczego w toaście. Tury wyjęte z kolejki (`Turn.withdrawn`) nie są na osi czasu, a numer „Turn N” je pomija. Usunięcie wiadomości agenta, harmonogramu albo celu nie jest możliwe (tylko kolejność).
 
-**Cytaty na osi czasu (Cite).** Zaznaczenie tekstu wytworzonego przez agenta (odpowiedź, wcześniejsze wiadomości, rozumowanie, wejście i wynik narzędzia, wynik polecenia, blok kodu, diff) pokazuje mały przycisk „Cite” przy końcu zaznaczenia: z myszą po puszczeniu przycisku (nie w trakcie przeciągania), z klawiatury po ustaleniu się zaznaczenia, na ekranach dotykowych pod uchwytami zaznaczenia (systemowe menu zostaje nad nim). Przycisk jest w top layer (`features/quotes/CiteLayer.svelte`), więc transkrypt się nie przesuwa; `Alt+Q` cytuje bieżące zaznaczenie z klawiatury (Ctrl+Shift+C otwiera narzędzia deweloperskie przeglądarki). Cite otwiera popover „Add an optional comment…” (Enter zapisuje, Shift+Enter nowa linia, Esc anuluje, Tab krąży w środku; ten sam popover posłuży do edycji z chipa). Zapisany cytat trafia do szkicu cytatów wątku (`useQuoteDrafts()`, `quote-drafts.svelte.ts`: `list/add/edit/remove/clear/wire`, w pamięci karty) i pojawia się w kompozytorze jako chip nad tekstem, obok zasobnika załączników (`QuoteTray` w slocie `elements` `ComposerBox`): ikona cytatu, początek fragmentu, ołówek (ponownie otwiera popover komentarza; z komentarzem w kolorze marki) i usunięcie (×, także Delete/Backspace na przycisku chipa; fokus przechodzi na sąsiada). Chipy wskakują i znikają jak chipy plików (`pop`, `reorder`). Wiadomość idzie z cytatami w `SendMessage.quotes` (także steer), może składać się z samych cytatów (`elementCount` w `ComposerBox` odblokowuje wysyłanie); po udanym wysłaniu znikają tylko wysłane cytaty. Przycisk Cite trzyma się między górą feedu a górą jego lepkiej stopki (kompozytor, karty), więc przy zaznaczeniu tuż nad kompozytorem staje nad zaznaczeniem. Reguły zaznaczenia (`selection.ts`): cytat to tekst, jaki widać (wyrenderowany markdown bez `**`, kod i diff z podziałami linii i wcięciami, bez przycisków, etykiet języka i kontrolek), jedno zaznaczenie = jeden cytat i tylko wewnątrz jednego obszaru jednego itemu (`data-quote-item` na `ItemNodeView`, `data-quote-kind` na obszarach widoków); zaznaczenie przez kilka itemów, we własnych wiadomościach albo w interfejsie dookoła nie pokazuje Cite. Bańka wiadomości pokazuje cytaty (początek fragmentu na linii z lewej i komentarz pod nim); kliknięcie przewija do źródła (otwiera zwinięte „Worked for …” albo odziedziczoną historię) i na chwilę je podświetla (`data-flash`), a gdy źródła już nie ma, mówi o tym.
+**Cytaty na osi czasu (Cite).** Zaznaczenie tekstu wytworzonego przez agenta pokazuje
+„Cite” przy końcu zaznaczenia: po puszczeniu myszy, ustaleniu zaznaczenia klawiaturą
+lub pod uchwytami zaznaczenia na ekranie dotykowym. Przycisk żyje w top layer
+(`features/quotes/CiteLayer.svelte`), więc nie przesuwa transkryptu. `Alt+Q` cytuje
+bieżące zaznaczenie. Menu kontekstowe zaznaczenia na desktopie udostępnia „Cite” i „Copy text”;
+na dotyku pozostaje systemowe menu zaznaczenia. Cite i akcja cytowania wiadomości wstawiają token w ostatnim
+miejscu kursora w kompozytorze, a bez zapamiętanego kursora — na końcu. Fokus wraca
+za token. Nie ma zasobnika cytatów nad polem.
+
+Token ma ikonę cytatu i krótki, skrócony fragment; etykieta dostępności to
+„Citation: ‹fragment›”. Hover lub fokus pokazuje pełny tekst i źródło (rodzaj,
+autor, czas). Kliknięcie lub Enter otwiera „Edit citation”: edycja fragmentu,
+opcjonalnego komentarza i „Jump to source”. Backspace/Delete usuwa cały token;
+Undo/Redo i kopiowanie/wklejanie wewnątrz kompozytora zachowują jego dane.
+`MentionEditor` serializuje cytaty razem z tekstem i wzmiankami, w kolejności tekstu.
+Wiadomość z samym cytatem też można wysłać. Wysłana bańka renderuje takie same
+tokeny w tych samych miejscach, z pełną treścią po hoverze lub fokusie. Cytaty
+starszych klientów bez zakresów pozostają osobnymi blokami.
+
+Przycisk Cite mieści się między górą feedu a lepką stopką; przy zaznaczeniu tuż nad
+kompozytorem odwraca położenie. `selection.ts` bierze widoczny tekst bez kontrolek
+i znaczników markdown, z wcięciami kodu. Jedno zaznaczenie musi mieścić się w jednym
+obszarze jednego itemu (`data-quote-item`, `data-quote-kind`); zaznaczenie przez kilka
+itemów lub we własnych wiadomościach nie pokazuje Cite. Przejście do źródła rozwija
+pracę albo odziedziczoną historię, przewija do itemu i podświetla go (`data-flash`).
 
 **Załączniki w kompozytorze i na osi czasu.** Oba kompozytory (nowy wątek i wątek) przyjmują pliki spinaczem (na telefonie systemowy wybór z aparatem, galerią i plikami), upuszczeniem na okno wątku (nakładka „Drop files to attach”, na samym polu obwódka w kolorze marki) i wklejeniem (zrzut ekranu, skopiowany obraz albo pliki z menedżera plików, także poza polem: [Wklejanie i upuszczanie plików](#wklejanie-i-upuszczanie-plików)). Każdy plik staje się plakietką w tekście ([Załączniki w tekście](#załączniki-w-tekście)): w miejscu kursora, bez kursora na końcu (menu „+” wraca do miejsca, w którym kursor był przed utratą fokusu; upuszczenie wstawia w punkcie upuszczenia), kilka plików naraz jako kilka plakietek oddzielonych spacjami. Plakietka to ten sam chip co wzmianki (`attachments/inline-chip.ts`): ikona rodzaju (obraz albo plik), nazwa ucięta do 16rem, pełna nazwa i rozmiar w podglądzie. Plik wysyła się od razu: w trakcie spinner i cienki pasek postępu w plakietce, po błędzie czerwona plakietka z ikoną alertu, a wysłanie czeka (podpowiedź przy „+”). Stan siedzi w atrybutach `data-status` / `--progress` ustawianych poza historią cofania, a ikony dzielą jedno miejsce, więc zmiana stanu nie przesuwa tekstu ani nie zmienia wysokości kompozytora. Dotknięcie plakietki obrazu otwiera Lightbox, tekstu lub Markdown modal podglądu, a pozostałego pliku albo nieudanego wysłania kartę z metadanymi i „Remove”.
 

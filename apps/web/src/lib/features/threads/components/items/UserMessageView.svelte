@@ -18,6 +18,7 @@
   import AttachmentChip from "#lib/features/attachments/AttachmentChip.svelte";
   import MessageAttachments from "#lib/features/attachments/MessageAttachments.svelte";
   import MessageQuotes from "#lib/features/quotes/MessageQuotes.svelte";
+  import CitationChip from "#lib/features/quotes/CitationChip.svelte";
   import { withoutPlatformNote } from "#lib/features/mentions/editor.ts";
   import MentionChip from "#lib/features/mentions/MentionChip.svelte";
   import { withoutIds } from "@canopy/domain/humanize";
@@ -31,7 +32,7 @@
    * A message you (or another agent, over the agent bus) wrote: the input of a turn, or one steered into
    * it while it ran. `note` says what happens to it; `pending` dims it until it reaches the agent. `files`: the
    * message's attachments (badges where the user placed them, the rest as images and file chips under the text); `quotes`: passages of the thread it quotes, in
-   * the bubble above the text; `details` goes inside the bubble (e.g. the full text the agent received with the
+   * the text at their ranges (older quotes above it); `details` goes inside the bubble (e.g. the full text the agent received with the
    * platform note). `sender`: the thread whose agent wrote it (send_message), named like a turn from an agent; an
    * agent's message folds to its first line (AgentMessageBubble).
    */
@@ -68,6 +69,23 @@
   );
 
   const loose = $derived(files.filter((f) => !placed.has(f.id)));
+  const looseQuotes = $derived(quotes.filter((q) => q.start === undefined));
+
+  const inline = $derived(
+    [
+      ...(shown?.mentions ?? []).map((mention) => ({
+        start: mention.start,
+        end: mention.end,
+        mention,
+        quote: undefined,
+      })),
+      ...quotes.flatMap((quote) =>
+        quote.start !== undefined && quote.end !== undefined
+          ? [{ start: quote.start, end: quote.end, quote, mention: undefined }]
+          : [],
+      ),
+    ].sort((a, b) => a.start - b.start),
+  );
 </script>
 
 <div class="flex flex-col items-end gap-1">
@@ -132,12 +150,12 @@
 </div>
 
 {#snippet content()}
-  {#if quotes.length > 0}<MessageQuotes {quotes} class={[message.text.trim() && "mb-2"]} />{/if}
+  {#if looseQuotes.length > 0}<MessageQuotes quotes={looseQuotes} class={[message.text.trim() && "mb-2"]} />{/if}
   {#if message.text.trim()}
     <Markdown
       text={body}
       breaks
-      elements={shown && { ranges: shown.mentions, render: chip }}
+      elements={inline.length ? { ranges: inline, render: chip } : undefined}
       class="text-inherit dark:text-inherit"
     />
   {/if}
@@ -156,8 +174,11 @@
 {/snippet}
 
 {#snippet chip(index: number)}
-  {@const mention = shown?.mentions[index]}
-  {#if mention?.kind === MentionKind.ATTACHMENT}<AttachmentChip
+  {@const element = inline[index]}
+  {@const mention = element?.mention}
+  {#if element?.quote}<CitationChip
+      quote={element.quote}
+    />{:else if mention?.kind === MentionKind.ATTACHMENT}<AttachmentChip
       {mention}
       file={files.find((f) => f.id === mention.name)}
     />{:else if mention}<MentionChip {mention} />{/if}

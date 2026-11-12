@@ -1,4 +1,4 @@
-import { blockOf, elementOf } from "./editor.ts";
+import { blockOf, isChip } from "./editor.ts";
 
 /**
  * Caret plumbing of the mention editor (Selection and Range over its contenteditable root), apart from the component
@@ -68,7 +68,7 @@ export function chipBeforeCaret(root: HTMLElement): Element | undefined {
         : node.previousSibling
       : node.childNodes[current.anchorOffset - 1];
 
-  return prev instanceof HTMLElement && elementOf(prev) ? prev : undefined;
+  return prev instanceof HTMLElement && isChip(prev) ? prev : undefined;
 }
 
 /**
@@ -94,7 +94,7 @@ export function lineBeforeCaret(root: HTMLElement): string | undefined {
 
   for (; prev && prev.nodeName !== "BR"; prev = prev.previousSibling) {
     if (prev.nodeType === Node.TEXT_NODE) line = (prev.textContent ?? "") + line;
-    else if (prev instanceof HTMLElement && elementOf(prev)) line = `\uFFFC${line}`;
+    else if (prev instanceof HTMLElement && isChip(prev)) line = `\uFFFC${line}`;
     else return undefined;
   }
 
@@ -117,7 +117,7 @@ export function chipAfterCaret(root: HTMLElement): Element | undefined {
         : node.nextSibling
       : node.childNodes[current.anchorOffset];
 
-  return next instanceof HTMLElement && elementOf(next) ? next : undefined;
+  return next instanceof HTMLElement && isChip(next) ? next : undefined;
 }
 
 /** The selection's range when it is inside `root` (to put the caret back after focus went elsewhere). */

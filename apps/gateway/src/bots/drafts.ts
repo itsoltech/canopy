@@ -5,7 +5,7 @@ import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { Invalid } from "../store/store.ts";
 import { SettingsConflict } from "../store/settings.ts";
-import { checkedQuotes } from "../core/quotes.ts";
+import { botQuotes } from "./quotes.ts";
 import { toUiAttachment } from "../store/attachments.ts";
 import type { BotAccess } from "./store-access.ts";
 import { botImages } from "./attachments.ts";
@@ -62,10 +62,7 @@ export function botDrafts(sql: SqlClient.SqlClient, access: BotAccess) {
             catch: () => new Invalid("Invalid draft mentions"),
           });
 
-          const quotes = yield* Effect.try({
-            try: () => checkedQuotes(draft.quotes, (message) => new Invalid(message)),
-            catch: () => new Invalid("Invalid draft quotes"),
-          });
+          const quotes = yield* botQuotes(sql, user, draft.quotes, draft.text, mentions);
 
           const images = yield* botImages(
             sql,

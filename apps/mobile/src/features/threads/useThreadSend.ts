@@ -43,7 +43,7 @@ export function useThreadSend(options: {
   }, [id, session?.deviceId]);
 
   async function send(delivery: ui.MessageDelivery, choices?: ComposerPick) {
-    const { text: value, attachmentIds, mentions } = message.outgoing();
+    const { text: value, attachmentIds, mentions, quotes: sentQuotes } = message.outgoing();
 
     if (
       !client ||
@@ -58,7 +58,7 @@ export function useThreadSend(options: {
     setBusy(true);
     setWaiting(!connection.live);
     setError("");
-    const key = JSON.stringify({ value, delivery, attachmentIds, mentions, quotes: quotes.quotes, choices });
+    const key = JSON.stringify({ value, delivery, attachmentIds, mentions, quotes: sentQuotes, choices });
 
     if (pending.current?.key !== key) pending.current = { key, id: Crypto.randomUUID() };
     const signal = controller.current.signal;
@@ -70,7 +70,7 @@ export function useThreadSend(options: {
         delivery,
         attachmentIds,
         mentions,
-        quotes: [...quotes.quotes],
+        quotes: sentQuotes,
         clientRequestId: pending.current.id,
         ...choices,
       };

@@ -11,6 +11,7 @@
   import GoalBar from "#lib/features/goals/GoalBar.svelte";
   import GoalDialog from "#lib/features/goals/GoalDialog.svelte";
   import CiteLayer from "#lib/features/quotes/CiteLayer.svelte";
+  import { turnQuoteTime } from "#lib/features/quotes/inline.ts";
   import { isFinishedGoal, showsGoal, takesGoals } from "#lib/features/goals/goals.ts";
   import Crumb from "#lib/features/navigation/Crumb.svelte";
   import TopBar from "#lib/features/navigation/TopBar.svelte";
@@ -179,6 +180,7 @@
       return turn !== undefined && isTerminal(turn.status);
     },
     steer: (id) => view.steers.find((s) => s.id === id),
+    quoteTime: (id) => turnQuoteTime(view.turns.find((t) => t.id === id)),
     item: (id) => view.ownEntries.find((e) => e.id === id)?.item,
     delivery: (callId) => view.deliveries.get(callId),
     get canFork() {
