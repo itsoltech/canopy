@@ -146,6 +146,7 @@ describe.skipIf(!dockerAvailable)("bot composer drafts and images", () => {
     const release = Promise.withResolvers<void>();
     const captured = Promise.withResolvers<void>();
     let hold = false;
+
     const sync = new BotComposerSync(
       bot.id,
       {
@@ -164,6 +165,7 @@ describe.skipIf(!dockerAvailable)("bot composer drafts and images", () => {
       },
       () => crypto.randomUUID(),
     );
+
     await sync.load();
     sync.update(
       create(bots.BotComposerDraftSchema, {
@@ -314,6 +316,7 @@ describe.skipIf(!dockerAvailable)("bot composer drafts and images", () => {
         expect(current).not.toContain("Canopy attached files");
 
         for (const file of images) expect(current).not.toContain(file.id);
+
         const session = f
           .records()
           .filter((r) => r.event === "turn")
@@ -351,10 +354,12 @@ describe.skipIf(!dockerAvailable)("bot composer drafts and images", () => {
           .at(-1)!
           .parts.filter((p) => p.type === "image"),
       ).toHaveLength(1);
+
       const commands = await f.query<{ payload: Uint8Array }>(
         "SELECT c.payload FROM worker_commands c JOIN bot_harness_turns h ON h.command_id=c.id JOIN bot_turns t ON t.id=h.turn_id WHERE h.bot_id=$1 ORDER BY t.created_at,t.id",
         [bot.id],
       );
+
       const inputs = commands.map((row) => {
         const command = fromBinary(CommandSchema, row.payload);
 

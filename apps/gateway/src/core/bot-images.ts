@@ -43,6 +43,7 @@ export async function botImageInput(
 
   const inputs = history.map((m) => {
     const attachments = "attachments" in m ? (m.attachments ?? []) : [];
+
     const origin =
       m === current
         ? "Canopy attached files to this message"

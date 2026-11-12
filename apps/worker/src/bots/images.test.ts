@@ -14,6 +14,7 @@ test("an older gateway's historical files are neither fetched nor added to a bot
   const files = new AttachmentFiles(temp("canopy-bot-current-files-"));
   const botId = crypto.randomUUID();
   const data = new TextEncoder().encode("CURRENT_FILE_CONTENT");
+
   const attachment = (name: string, bytes: Uint8Array) => {
     const attachmentId = crypto.randomUUID();
 
@@ -30,6 +31,7 @@ test("an older gateway's historical files are neither fetched nor added to a bot
 
   const current = attachment("current.txt", data);
   const earlier = attachment("earlier.txt", new TextEncoder().encode("EARLIER_FILE_CONTENT"));
+
   const input = create(RunBotTurnSchema, {
     botId,
     turnId: crypto.randomUUID(),
@@ -38,6 +40,7 @@ test("an older gateway's historical files are neither fetched nor added to a bot
     attachments: [current],
     historyAttachments: [earlier],
   });
+
   const fetch = async (sha: string) => {
     if (sha !== current.sha256) throw new Error("Historical content must not be fetched");
 
