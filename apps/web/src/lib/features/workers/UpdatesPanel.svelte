@@ -136,6 +136,7 @@
       </p>{/if}
     {#if snapshot.run && (snapshot.run.steps.length || snapshot.run.state === "running" || snapshot.run.reason)}<UpdateRun
         run={snapshot.run}
+        {updates}
         class="px-3 py-2"
       />{/if}
   {:else}<p class="px-3 py-2 text-sm/5 text-muted" role="status">Loading update status…</p>{/if}

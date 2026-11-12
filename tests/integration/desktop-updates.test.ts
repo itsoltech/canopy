@@ -17,6 +17,8 @@ import { mountMobileNetwork } from "../../apps/gateway/src/network/devices.ts";
 import { pairDesktop } from "../../apps/desktop/src/remote-client.ts";
 import { RemoteDesktopControl } from "../../apps/desktop/src/remote-control.ts";
 import { RemoteAppUpdate } from "../../apps/desktop/src/remote-app-update.ts";
+import { DesktopUpdateStore } from "../../apps/gateway/src/desktop-updates/store.ts";
+import { UpdateRunStore } from "../../apps/gateway/src/updates/run-store.ts";
 import { SERVICE_TOKEN, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
 const makeTemp = tempDirs();
@@ -54,13 +56,17 @@ describe.skipIf(!dockerAvailable)("gateway ↔ desktop app updates over pinned T
   const manage = (workerId: string, force = false, desktopRequestId = "") =>
     gw.api.manageUpdates({ action: "desktop", workerId, force, desktopRequestId });
 
-  beforeAll(async () => {
-    gw = await startTestGateway();
+  async function openNetwork() {
     network = new NetworkAccess({ store: new ComputerStore(gw.runtime, gw.userId, gw.secretsKey), host: "127.0.0.1" });
     gw.core.network = network;
     unmount = mountMobileNetwork(gw.core, network, SERVICE_TOKEN);
     await network.start();
     await network.update(create(ui.UpdateNetworkAccessRequestSchema, { action: "set_enabled", enabled: true }));
+  }
+
+  beforeAll(async () => {
+    gw = await startTestGateway();
+    await openNetwork();
   }, 60_000);
   afterAll(async () => {
     for (const coordinator of coordinators) coordinator.stop();
@@ -104,7 +110,7 @@ describe.skipIf(!dockerAvailable)("gateway ↔ desktop app updates over pinned T
     let restarts = 0;
     let notifications = 0;
     let checks = 0;
-    let result: "signed" | "unsigned" | "older" = "signed";
+    let result: "signed" | "unsigned" | "older" | "current" = "signed";
     let releaseDownload: (() => void) | undefined;
     let control: RemoteDesktopControl;
     let coordinator: RemoteAppUpdate;
@@ -121,10 +127,18 @@ describe.skipIf(!dockerAvailable)("gateway ↔ desktop app updates over pinned T
           await new Promise<void>((resolve) => {
             releaseDownload = resolve;
           });
-        status =
-          result === "unsigned"
-            ? { ...status, phase: "error", message: "Update rejected: Developer ID signature is missing." }
-            : { ...status, phase: "downloaded", updateVersion: result === "older" ? "0.9.0" : "1.1.0-beta.1" };
+
+        if (result === "current")
+          status = {
+            ...status,
+            phase: "idle",
+            message: "Up to date",
+            updateVersion: undefined,
+            lastCheckedAt: Date.now(),
+          };
+        else if (result === "unsigned")
+          status = { ...status, phase: "error", message: "Update rejected: Developer ID signature is missing." };
+        else status = { ...status, phase: "downloaded", updateVersion: result === "older" ? "0.9.0" : "1.1.0-beta.1" };
 
         return status;
       },
@@ -176,7 +190,10 @@ describe.skipIf(!dockerAvailable)("gateway ↔ desktop app updates over pinned T
       stage: (version: string) => {
         status = { ...status, phase: "downloaded", updateVersion: version };
       },
-      stop: () => control.stop(),
+      stop: () => {
+        coordinator.stop();
+        control.stop();
+      },
       corruptHistory: () => {
         const path = join(directory, `update.json.${createHash("sha256").update(client.deviceId).digest("hex")}`);
         writeFileSync(path, "unreadable", { mode: 0o600 });
@@ -191,7 +208,9 @@ describe.skipIf(!dockerAvailable)("gateway ↔ desktop app updates over pinned T
         await connect();
       },
       reconnect: async (version = status.version, updateVersion = status.updateVersion) => {
+        coordinator.stop();
         control.stop();
+        client = { ...client, addresses: gw.core.mobile.networkRoutes().addresses };
         status = { ...status, version, updateVersion, phase: "idle" };
         await connect();
       },
@@ -352,4 +371,108 @@ describe.skipIf(!dockerAvailable)("gateway ↔ desktop app updates over pinned T
     expect(app.counts().checks).toBe(1);
     expect(history()).toBe("unreadable");
   }, 15_000);
+
+  test("requesting again when the target is current succeeds without a restart", async () => {
+    const app = await fixture();
+    app.result("unsigned");
+    await manage(app.workerId);
+    await until(async () => (await state(app.workerId))?.phase === "failed");
+    const previous = (await state(app.workerId))!.requestId;
+    app.result("current");
+    await manage(app.workerId);
+    await until(async () => (await state(app.workerId))?.phase === "succeeded");
+    expect((await state(app.workerId))?.requestId).not.toBe(previous);
+    expect((await state(app.workerId))?.reason).toBe("");
+    expect(app.counts()).toEqual({ checks: 2, notifications: 2, restarts: 0 });
+    await app.reconnect();
+    expect((await state(app.workerId))?.phase).toBe("succeeded");
+  }, 20_000);
+
+  test("dismiss is tied to the failed request and its owner, and survives desktop reconnect", async () => {
+    const app = await fixture();
+    app.result("unsigned");
+    await manage(app.workerId);
+    await until(async () => (await state(app.workerId))?.phase === "failed");
+    const requestId = (await state(app.workerId))!.requestId;
+
+    const dismiss = () =>
+      gw.api.manageUpdates({ action: "desktop_dismiss", workerId: app.workerId, desktopRequestId: requestId });
+
+    expect(
+      await failure(
+        gw.api.manageUpdates({
+          action: "desktop_dismiss",
+          workerId: app.workerId,
+          desktopRequestId: crypto.randomUUID(),
+        }),
+      ),
+    ).toContain("current failed");
+    const other = Bun.randomUUIDv7();
+    await query("INSERT INTO users (id, email, display_name, role) VALUES ($1, $2, 'Other', 'user')", [
+      other,
+      `${other}@test.invalid`,
+    ]);
+    await query("UPDATE workers SET owner_user_id = $1 WHERE id = $2", [other, app.workerId]);
+    expect(await failure(dismiss())).toContain("Pair");
+    await query("UPDATE workers SET owner_user_id = $1 WHERE id = $2", [gw.userId, app.workerId]);
+    await dismiss();
+    await until(async () => app.reports.at(-1)?.phase === "idle");
+    await app.reconnect();
+    expect(await state(app.workerId)).toMatchObject({ phase: "idle", reason: "", requestId });
+    expect(app.counts().checks).toBe(1);
+
+    await manage(app.workerId);
+    await until(async () => (await state(app.workerId))?.phase === "failed");
+    const nextRequest = (await state(app.workerId))!.requestId;
+    const store = new UpdateRunStore(gw.runtime, gw.userId);
+
+    const run = create(ui.UpdateRunSchema, {
+      id: crypto.randomUUID(),
+      state: "failed",
+      steps: [{ kind: "desktop", workerId: app.workerId, requestId: nextRequest, state: "failed", version: "1.1.0" }],
+    });
+
+    await store.write(run);
+    await gw.api.manageUpdates({ action: "dismiss_run", desktopRequestId: run.id });
+    expect(await state(app.workerId)).toMatchObject({ phase: "idle", reason: "", requestId: nextRequest });
+    expect(await store.read()).toMatchObject({ state: "dismissed", steps: [{ state: "dismissed" }] });
+  }, 20_000);
+
+  test("a restart on the old version fails; a later current version clears the durable row across gateway replacement", async () => {
+    const app = await fixture();
+    await manage(app.workerId);
+    await until(async () => app.counts().checks === 1);
+    app.downloaded();
+    await until(async () => (await state(app.workerId))?.phase === "waiting_idle");
+    await app.reconnect("1.0.0");
+    await until(async () => (await state(app.workerId))?.phase === "failed");
+    expect((await state(app.workerId))?.reason).toContain("restarted before");
+    const requestId = (await state(app.workerId))!.requestId;
+    await app.reconnect("1.2.0", "1.2.0");
+    await until(async () => (await state(app.workerId))?.phase === "succeeded");
+    expect(
+      (await new DesktopUpdateStore(gw.runtime, gw.userId).list()).find((row) => row.workerId === app.workerId)?.state,
+    ).toMatchObject({ requestId, phase: "succeeded", reason: "", version: "1.2.0", targetVersion: "1.1.0-beta.1" });
+
+    for (const coordinator of coordinators) coordinator.stop();
+
+    for (const control of controls) control.stop();
+    await Promise.all(loops);
+    unmount();
+    await network.close();
+
+    const storage = {
+      pg: gw.pg,
+      secretsKey: gw.secretsKey,
+      workerId: gw.workerId,
+      workerCredential: gw.workerCredential,
+    };
+
+    await gw.close(true);
+    gw = await startTestGateway({ storage });
+    await openNetwork();
+    expect(await state(app.workerId)).toMatchObject({ requestId, phase: "succeeded", reason: "", connected: false });
+    await app.reconnect("1.2.0", "1.2.0");
+    expect(await state(app.workerId)).toMatchObject({ requestId, phase: "succeeded", reason: "", connected: true });
+  }, 60_000);
 });

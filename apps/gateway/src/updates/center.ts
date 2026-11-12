@@ -2,6 +2,7 @@ import { create, clone } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { ui } from "@canopy/contracts";
 import { newerVersion, updatePlan } from "./center-plan.ts";
+import { remoteStepCurrent, remoteStepDismissed } from "./remote-outcome.ts";
 
 export interface UpdateCenterOptions {
   read(): Promise<ui.UpdateRun | undefined>;
@@ -9,7 +10,7 @@ export interface UpdateCenterOptions {
   snapshot(): Promise<ui.UpdatesSnapshot>;
   manage(request: ui.ManageUpdatesRequest): Promise<ui.UpdatesSnapshot>;
   install(request: ui.InstallCliRequest): Promise<ui.InstallCliResponse>;
-  desktop(request: ui.ManageUpdatesRequest): Promise<void>;
+  desktop(request: ui.ManageUpdatesRequest): Promise<string | void>;
   /** Asks a linked computer for an app update; returns the request id there. */
   computer(nodeId: string): Promise<string>;
 }
@@ -26,12 +27,14 @@ function computerUpdated(step: ui.UpdateStep, snapshot: ui.UpdatesSnapshot): boo
 
   if (computer.presence !== "connected" || !app?.connected) return false;
 
+  if (remoteStepCurrent(step, snapshot)) return true;
+
+  if (remoteStepDismissed(step, snapshot))
+    throw new Error("The app update was dismissed. Request it again to continue.");
+
   if (app.requestId === step.requestId && app.phase === "failed") throw new Error(app.reason || "App update failed");
 
-  return (
-    (app.requestId === step.requestId && app.phase === "succeeded") ||
-    (!!step.version && !newerVersion(step.version, app.version) && app.version !== step.fromVersion)
-  );
+  return false;
 }
 
 /** One serialized, durable chain. Acknowledgement is not completion; reports/version confirm each step. */
@@ -52,9 +55,12 @@ export class UpdateCenter {
     clearInterval(this.timer);
     this.timer = undefined;
   }
-  private serialize(action: () => Promise<void>) {
+  private serialize<A>(action: () => Promise<A>): Promise<A> {
     const next = this.operation.then(action);
-    this.operation = next.catch(() => undefined);
+    this.operation = next.then(
+      () => {},
+      () => {},
+    );
 
     return next;
   }
@@ -146,7 +152,10 @@ export class UpdateCenter {
         create(ui.InstallCliRequestSchema, { workerId: step.workerId, provider: step.provider, version: step.version }),
       );
     } else if (step.kind === "desktop") {
-      await this.options.desktop(create(ui.ManageUpdatesRequestSchema, { action: "desktop", workerId: step.workerId }));
+      step.requestId =
+        (await this.options.desktop(
+          create(ui.ManageUpdatesRequestSchema, { action: "desktop", workerId: step.workerId }),
+        )) ?? "";
     } else if (step.kind === "computer") {
       step.requestId = await this.options.computer(step.nodeId);
     } else throw new Error("Unknown update kind");
@@ -189,20 +198,48 @@ export class UpdateCenter {
       if (Date.now() - Date.parse(step.startedAt) > 60_000)
         throw new Error("CLI install was interrupted or has not reported a result; check the worker and retry");
     } else if (step.kind === "desktop") {
+      if (remoteStepCurrent(step, snapshot)) return true;
+
+      if (remoteStepDismissed(step, snapshot))
+        throw new Error("The app update was dismissed. Request it again to continue.");
+
       if (worker.desktop?.phase === "failed") throw new Error(worker.desktop.reason || "Desktop update failed");
 
-      return worker.desktop?.phase === "succeeded";
+      return false;
     }
 
     return false;
   }
 
-  async status(snapshot?: ui.UpdatesSnapshot) {
+  status(snapshot?: ui.UpdatesSnapshot) {
+    return this.serialize(() => this.currentStatus(snapshot));
+  }
+
+  private async currentStatus(snapshot?: ui.UpdatesSnapshot) {
     const run = await this.options.read();
 
     if (run && ["failed", "blocked"].includes(run.state)) {
       const failed = run.steps.filter((step) => ["failed", "blocked"].includes(step.state));
       const current = snapshot ?? (await this.options.snapshot());
+
+      let resolved = false;
+
+      for (const step of failed) {
+        const dismissed = remoteStepDismissed(step, current);
+
+        if (!dismissed && !remoteStepCurrent(step, current)) continue;
+        step.state = dismissed ? "dismissed" : "succeeded";
+        step.reason = "";
+        resolved = true;
+      }
+
+      if (resolved) {
+        const remaining = run.steps.find((step) => ["failed", "blocked"].includes(step.state));
+        run.state =
+          remaining?.state ?? (run.steps.every((step) => step.state === "succeeded") ? "succeeded" : "superseded");
+        run.reason = remaining ? `${remaining.label}: ${remaining.reason}` : "";
+        await this.options.write(run);
+      }
 
       // Hide only the obsolete external-gateway failure; real failures keep their history.
       if (
@@ -216,5 +253,25 @@ export class UpdateCenter {
     }
 
     return run ? clone(ui.UpdateRunSchema, run) : undefined;
+  }
+
+  dismiss(requestId: string, acknowledge?: (step: ui.UpdateStep) => Promise<void>) {
+    return this.serialize(async () => {
+      const run = await this.options.read();
+
+      if (!run || run.id !== requestId || !["failed", "blocked"].includes(run.state))
+        throw new ConnectError("Choose the current stopped updates to dismiss.", Code.FailedPrecondition);
+
+      for (const step of run.steps) {
+        if (!["failed", "blocked"].includes(step.state)) continue;
+        await acknowledge?.(step);
+        step.state = "dismissed";
+        step.reason = "";
+      }
+
+      run.state = "dismissed";
+      run.reason = "";
+      await this.options.write(run);
+    });
   }
 }

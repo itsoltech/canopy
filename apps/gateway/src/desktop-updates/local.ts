@@ -6,6 +6,8 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import type { CoreRuntime } from "../core/core.ts";
 import { busy, validDesktopHello, validDesktopState } from "./control.ts";
+import { currentRemoteUpdate } from "@canopy/domain/release/remote-update-state";
+import { AppUpdateDismissals } from "./dismissals.ts";
 
 type Session = { id: string; hello: ui.DesktopHello; channel: AsyncChannel<ui.DesktopControlEvent> };
 
@@ -28,11 +30,14 @@ export class LocalAppControl {
   private queue = Promise.resolve();
   private lastCheckRequested = 0;
   private checking: { promise: Promise<void>; finish: () => void; after: number } | undefined;
+  private readonly dismissals: AppUpdateDismissals;
   constructor(
     readonly runtime: CoreRuntime,
     readonly owner: string,
     private readonly changed: () => void = () => {},
-  ) {}
+  ) {
+    this.dismissals = new AppUpdateDismissals(runtime, owner);
+  }
 
   get supportsUpdates() {
     return this.remoteUpdate;
@@ -66,7 +71,7 @@ export class LocalAppControl {
         create(ui.DesktopControlEventSchema, {
           sessionId: session.id,
           confirmed: true,
-          ...(this.command.requestId && busy(this.state.phase) && { command: this.command }),
+          ...(this.command.requestId && (busy(this.state.phase) || this.command.dismiss) && { command: this.command }),
         }),
       );
       yield* channel;
@@ -92,7 +97,20 @@ export class LocalAppControl {
 
       // Until the app takes up a new request, its reports (older or no request) don't replace the queued state.
       if (this.command.requestId && state.requestId !== this.command.requestId) return;
-      this.state = create(ui.DesktopUpdateStateSchema, { ...state, connected: true });
+      const dismissed = !!state.requestId && state.requestId === (await this.dismissals.read());
+
+      if (dismissed && state.phase === "failed") {
+        this.command = create(ui.DesktopUpdateCommandSchema, { requestId: state.requestId, dismiss: true });
+        session.channel.push(
+          create(ui.DesktopControlEventSchema, { sessionId: session.id, confirmed: true, command: this.command }),
+        );
+      }
+
+      this.state = create(ui.DesktopUpdateStateSchema, {
+        ...currentRemoteUpdate(state),
+        connected: true,
+        ...(dismissed && { phase: "idle", reason: "" }),
+      });
       this.changed();
 
       if (
@@ -102,7 +120,7 @@ export class LocalAppControl {
       )
         this.checking.finish();
 
-      if (state.requestId && ["failed", "succeeded"].includes(state.phase)) await this.outcome(state);
+      if (state.requestId && ["failed", "succeeded"].includes(this.state.phase)) await this.outcome(this.state);
     });
   }
 
@@ -150,6 +168,22 @@ export class LocalAppControl {
         version: state.availableVersion,
       });
       session.channel.push(
+        create(ui.DesktopControlEventSchema, { sessionId: session.id, confirmed: true, command: this.command }),
+      );
+      this.changed();
+    });
+  }
+
+  dismiss(requestId: string) {
+    return this.serialize(async () => {
+      if (!requestId || this.state.phase !== "failed" || requestId !== this.state.requestId)
+        throw new ConnectError("Choose the current failed update to dismiss.", Code.FailedPrecondition);
+      await this.dismissals.write(requestId);
+      await this.audit("desktop.update.dismiss", { requestId });
+      this.command = create(ui.DesktopUpdateCommandSchema, { requestId, dismiss: true });
+      this.state = create(ui.DesktopUpdateStateSchema, { ...this.state, phase: "idle", reason: "" });
+      const session = this.session;
+      session?.channel.push(
         create(ui.DesktopControlEventSchema, { sessionId: session.id, confirmed: true, command: this.command }),
       );
       this.changed();
@@ -218,7 +252,8 @@ export class LocalAppControl {
         yield* sql`INSERT INTO audit_log (id, actor_user_id, action, target_type, target_id, details)
         SELECT ${Bun.randomUUIDv7()}::uuid, ${owner}::uuid, ${action}, 'computer', NULL, ${JSON.stringify(details)}::jsonb
         WHERE NOT EXISTS (SELECT 1 FROM audit_log WHERE actor_user_id = ${owner}::uuid AND action = ${action}
-          AND details->>'requestId' = ${details["requestId"] ?? ""})`;
+          AND details->>'requestId' = ${details["requestId"] ?? ""}
+          AND (${action} <> 'desktop.update.outcome' OR details->>'outcome' = ${details["outcome"] ?? ""}))`;
       }),
     );
   }

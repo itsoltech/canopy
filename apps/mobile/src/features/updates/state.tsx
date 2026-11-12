@@ -31,17 +31,19 @@ function useUpdatesState() {
   const [details, setDetails] = useState("");
   const [loadError, setLoadError] = useState("");
   const running = useRef(false);
+  const snapshotRevision = useRef(0);
   const generation = useUpdateGeneration();
 
   const reload = useCallback(
     async (signal?: AbortSignal) => {
       if (!client) return;
       const current = generation.current;
+      const revision = snapshotRevision.current;
 
       try {
         const value = await client.api.getUpdates({}, { ...(signal && { signal }), timeoutMs: 10_000 });
 
-        if (current === generation.current && !signal?.aborted) {
+        if (current === generation.current && revision === snapshotRevision.current && !signal?.aborted) {
           setSnapshot(value);
           setLoadError("");
           client.departure.reconcile(value);
@@ -98,6 +100,7 @@ function useUpdatesState() {
     )
       return;
     running.current = true;
+    snapshotRevision.current++;
     setPending(request.action || "update");
     setError("");
     setDetails("");
@@ -110,7 +113,11 @@ function useUpdatesState() {
 
       if (request.action === "check") await client.api.checkCliUpdates({}, { timeoutMs: 30_000 });
 
-      if (value && current === generation.current) setSnapshot(value);
+      if (value && current === generation.current) {
+        snapshotRevision.current++;
+        setSnapshot(value);
+      }
+
       await reload();
     } catch (cause) {
       if (current === generation.current) {

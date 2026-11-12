@@ -6,6 +6,8 @@ import { isRateLimitMessage } from "@canopy/domain/release/http";
 import { presenceTime } from "../computers/presence";
 import { styles, useColors } from "../../ui/theme";
 import { UpdateRow } from "./UpdateRow";
+import { Button } from "../../ui/Button";
+import { currentRemoteUpdate, reachedUpdateVersion } from "@canopy/domain/release/remote-update-state";
 import {
   appPhase,
   appTarget,
@@ -86,7 +88,8 @@ function ComputerRow({
   pending: boolean;
   manage: Props["manage"];
 }) {
-  const app = computer.updates?.app;
+  const reported = computer.updates?.app;
+  const app = reported && currentRemoteUpdate(reported);
   const request = computerAction(computer);
   const away = computer.presence !== "connected";
 
@@ -98,6 +101,7 @@ function ComputerRow({
   const failed =
     (!appCheckPause(app) && (app?.phase === "failed" || app?.updaterPhase === "error")) ||
     (["failed", "rolled_back"].includes(departure?.state ?? "") &&
+      !reachedUpdateVersion(app?.version || computer.version, departure?.targetVersion || "") &&
       !busy &&
       !(app?.phase === "succeeded" && app.targetVersion === departure?.targetVersion));
 
@@ -141,7 +145,7 @@ function ComputerRow({
           : computer.reason ||
             app?.disabledReason ||
             (!failed && appCheckPause(app)) ||
-            departure?.reason ||
+            (failed ? departure?.reason : "") ||
             app?.reason ||
             app?.updaterError
       }
@@ -154,10 +158,32 @@ function ComputerRow({
       }
       action={
         request
-          ? { label: `Update Canopy on ${computer.name}`, disabled: pending, run: () => manage(request) }
+          ? {
+              label:
+                app?.phase === "failed"
+                  ? `Request update again on ${computer.name}`
+                  : `Update Canopy on ${computer.name}`,
+              disabled: pending,
+              run: () => manage(request),
+            }
           : undefined
       }
-    />
+    >
+      {app?.phase === "failed" && (
+        <Button
+          title="Dismiss"
+          size="sm"
+          disabled={pending}
+          onPress={() =>
+            manage({
+              action: computer.nodeId ? "computer_dismiss" : "app_dismiss",
+              nodeId: computer.nodeId,
+              desktopRequestId: app.requestId,
+            })
+          }
+        />
+      )}
+    </UpdateRow>
   );
 }
 
@@ -222,7 +248,18 @@ function WorkerRows({
             action={
               request ? { label: `Update ${worker.name}`, disabled: pending, run: () => manage(request) } : undefined
             }
-          />
+          >
+            {app?.phase === "failed" && !linked && (
+              <Button
+                title="Dismiss"
+                size="sm"
+                disabled={pending}
+                onPress={() =>
+                  manage({ action: "desktop_dismiss", workerId: worker.workerId, desktopRequestId: app.requestId })
+                }
+              />
+            )}
+          </UpdateRow>
         );
       })}
     </View>

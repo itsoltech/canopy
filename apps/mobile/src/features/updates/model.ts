@@ -1,6 +1,7 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { cliUpdateActionable, appCheckPause, homeAppComputer } from "@canopy/domain/release/update-actions";
+import { currentRemoteUpdate, newerAppVersion } from "@canopy/domain/release/remote-update-state";
 
 export type UpdateRequest = MessageInitShape<typeof ui.ManageUpdatesRequestSchema>;
 
@@ -19,6 +20,8 @@ export const updateLabel = (state = "") =>
     blocked: "Blocked",
     rolled_back: "Rolled back",
     succeeded: "Updated",
+    superseded: "Resolved",
+    dismissed: "Dismissed",
     idle: "Up to date",
     paused: "Checks paused",
     running: "Updating…",
@@ -59,7 +62,12 @@ export function workerAction(
   if (worker.desktop) {
     const app = worker.desktop;
 
-    if (!linked && app.connected && !app.disabledReason && app.availableVersion && app.availableVersion !== app.version)
+    if (
+      !linked &&
+      app.connected &&
+      !app.disabledReason &&
+      (app.phase === "failed" || newerAppVersion(app.availableVersion, app.version))
+    )
       return { action: "desktop", workerId: worker.workerId };
   } else if (
     worker.installKind === "binary" &&
@@ -74,7 +82,8 @@ export function workerAction(
 }
 
 export function computerAction(computer: ui.ComputerUpdate): UpdateRequest | undefined {
-  const app = computer.updates?.app;
+  const reported = computer.updates?.app;
+  const app = reported && currentRemoteUpdate(reported);
 
   if (
     !computer.remoteUpdate ||
@@ -87,7 +96,12 @@ export function computerAction(computer: ui.ComputerUpdate): UpdateRequest | und
   )
     return;
 
-  if (app.ready || app.updaterPhase === "downloaded" || (app.availableVersion && app.availableVersion !== app.version))
+  if (
+    app.phase === "failed" ||
+    app.ready ||
+    app.updaterPhase === "downloaded" ||
+    newerAppVersion(app.availableVersion, app.version)
+  )
     return computer.nodeId ? { action: "computer", nodeId: computer.nodeId } : { action: "app" };
 
   return undefined;

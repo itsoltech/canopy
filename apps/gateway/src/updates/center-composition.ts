@@ -48,6 +48,8 @@ export function createUpdateCenter(core: GatewayCore) {
     install: (request) => core.installCli(request),
     desktop: async (request) => {
       await core.desktopControl.manage(request);
+
+      return (await core.desktopControl.states()).find((state) => state.workerId === request.workerId)?.requestId;
     },
     computer: async (nodeId) => {
       const snapshot = await requestComputerUpdate(core, nodeId, "app");

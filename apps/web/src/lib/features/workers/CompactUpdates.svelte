@@ -5,6 +5,7 @@
   import type { DesktopUpdatesState } from "#lib/features/desktop/desktop-updates.svelte.ts";
   import UpdateProgress from "./UpdateProgress.svelte";
   import UpdateRows from "./UpdateRows.svelte";
+  import StoppedUpdateActions from "./StoppedUpdateActions.svelte";
   import { updatesAvailable } from "./compact-updates.ts";
   import { cliActions } from "./cli-tools.svelte.ts";
   import type { UpdatesState } from "./updates.svelte.ts";
@@ -91,7 +92,7 @@
       >
         {error}
       </p>{/if}
-    {#if run && run.state !== "succeeded"}
+    {#if run && ["running", "failed", "blocked"].includes(run.state)}
       <div class="border-b border-divider py-2 text-xs/5">
         <p role="status">
           {run.state === "running" ? `Updating · ${completed}/${run.steps.length}` : "Updates stopped"}
@@ -104,6 +105,7 @@
         {#if run.reason}<p class="break-anywhere line-clamp-2 text-rose-600 dark:text-rose-400" title={run.reason}>
             {run.reason}
           </p>{/if}
+        <StoppedUpdateActions {run} {updates} class="mt-2" />
       </div>
     {/if}
     <!-- Computers and workers first; agent CLIs collapse below (docs/updates.md). -->

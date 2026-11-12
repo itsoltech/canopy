@@ -513,7 +513,7 @@ export const UpdatesRequestSchema: GenMessage<UpdatesRequest> = /*@__PURE__*/
  */
 export type ManageUpdatesRequest = Message<"canopy.ui.v1.ManageUpdatesRequest"> & {
   /**
-   * check | channel | gateway | worker | all | desktop | update_all | computer | computer_check | app
+   * check | channel | gateway | worker | all | desktop | update_all | computer | computer_check | app | dismiss_run | app_dismiss | computer_dismiss | desktop_dismiss
    *
    * @generated from field: string action = 1;
    */
@@ -542,7 +542,7 @@ export type ManageUpdatesRequest = Message<"canopy.ui.v1.ManageUpdatesRequest"> 
   allowDowngrade: boolean;
 
   /**
-   * required for desktop force, bound to the current request
+   * current request for force/dismiss; run id for dismiss_run
    *
    * @generated from field: string desktop_request_id = 6;
    */
@@ -838,7 +838,7 @@ export type UpdateRun = Message<"canopy.ui.v1.UpdateRun"> & {
   id: string;
 
   /**
-   * running | succeeded | failed | blocked
+   * running | succeeded | failed | blocked | superseded | dismissed
    *
    * @generated from field: string state = 2;
    */
@@ -894,7 +894,7 @@ export type UpdateStep = Message<"canopy.ui.v1.UpdateStep"> & {
   provider: Provider;
 
   /**
-   * queued | running | succeeded | failed | blocked
+   * queued | running | succeeded | failed | blocked | dismissed
    *
    * @generated from field: string state = 6;
    */
@@ -2490,7 +2490,7 @@ export type GatewayDeparture = Message<"canopy.ui.v1.GatewayDeparture"> & {
   id: string;
 
   /**
-   * updating | restarting | succeeded | failed | rolled_back
+   * updating | restarting | succeeded | failed | rolled_back | dismissed
    *
    * @generated from field: string state = 2;
    */

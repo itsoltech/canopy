@@ -4,6 +4,7 @@ import { ui } from "@canopy/contracts";
 import { AsyncChannel } from "@canopy/transport";
 import { mobileGuard, type MobileDevices } from "../core/mobile-devices.ts";
 import { DesktopUpdateStore } from "./store.ts";
+import { currentRemoteUpdate } from "@canopy/domain/release/remote-update-state";
 
 const bearer = (ctx: HandlerContext) =>
   /^Bearer\s+(\S+)$/i.exec(ctx.requestHeader.get("authorization") ?? "")?.[1] ?? "";
@@ -17,6 +18,12 @@ export function validDesktopState(state: ui.DesktopUpdateState, hello: ui.Deskto
     state.targetVersion.length > 128 ||
     state.updaterVersion.length > 128 ||
     state.updaterError.length > 1000 ||
+    (state.updaterCurrent &&
+      (state.updaterPhase !== "idle" ||
+        state.ready ||
+        !!state.updaterVersion ||
+        !!state.updaterError ||
+        !state.lastCheckedAtMs)) ||
     !Number.isFinite(state.updaterProgress) ||
     state.updaterProgress < 0 ||
     state.updaterProgress > 100 ||
@@ -165,21 +172,33 @@ export class DesktopControl {
     }
   }
   async states() {
-    return (await this.store.list()).map((row) => {
-      const session = this.sessions.get(row.deviceId);
-      const connected = !!session?.confirmed && !session.channel.closed;
+    return this.serialize(async () =>
+      Promise.all(
+        (await this.store.list()).map(async (row) => {
+          const session = this.sessions.get(row.deviceId);
+          const connected = !!session?.confirmed && !session.channel.closed;
 
-      return {
-        ...row.state,
-        workerId: row.workerId,
-        connected,
-        disabledReason: !connected
-          ? "Desktop app is offline."
-          : !session.hello.remoteUpdate
-            ? "Update this desktop app manually to enable remote updates."
-            : (session.disabledReason ?? row.state.disabledReason),
-      };
-    });
+          const state = currentRemoteUpdate({
+            ...row.state,
+            version: connected ? session.hello.version : row.state.version,
+          });
+
+          if (state.phase !== row.state.phase)
+            await this.store.save(row.workerId, row.deviceId, state, undefined, "desktop.update.outcome");
+
+          return {
+            ...state,
+            workerId: row.workerId,
+            connected,
+            disabledReason: !connected
+              ? "Desktop app is offline."
+              : !session.hello.remoteUpdate
+                ? "Update this desktop app manually to enable remote updates."
+                : (session.disabledReason ?? row.state.disabledReason),
+          };
+        }),
+      ),
+    );
   }
   async manage(request: ui.ManageUpdatesRequest) {
     return this.serialize(async () => {
@@ -187,6 +206,26 @@ export class DesktopControl {
 
       if (!row) throw new ConnectError("Pair this desktop app to enable remote updates.", Code.FailedPrecondition);
       const session = this.sessions.get(row.deviceId);
+
+      if (request.action === "desktop_dismiss") {
+        if (
+          !request.desktopRequestId ||
+          row.state.phase !== "failed" ||
+          request.desktopRequestId !== row.state.requestId
+        )
+          throw new ConnectError("Choose the current failed update to dismiss.", Code.FailedPrecondition);
+        const command = { ...row.command, dismiss: true, force: false };
+        const state = { ...row.state, phase: "idle", reason: "" };
+
+        if (!(await this.store.save(row.workerId, row.deviceId, state, command, "desktop.update.dismiss")))
+          throw new ConnectError("Pair this desktop app again to dismiss its update.", Code.PermissionDenied);
+        session?.channel.push(
+          create(ui.DesktopControlEventSchema, { sessionId: session.id, confirmed: true, command }),
+        );
+        this.publish(state);
+
+        return;
+      }
 
       if (!session?.confirmed || session.channel.closed)
         throw new ConnectError("Desktop app is offline.", Code.FailedPrecondition);
@@ -252,7 +291,8 @@ export class DesktopControl {
 
     // The row keeps the requested update; the updater's live state is for linked computers (local.ts).
     const value = {
-      ...state,
+      ...currentRemoteUpdate(state),
+      ...(row.command.dismiss && state.requestId === row.state.requestId && { phase: "idle", reason: "" }),
       connected: true,
       updaterPhase: "",
       updaterVersion: "",
@@ -262,8 +302,8 @@ export class DesktopControl {
 
     const outcome =
       state.requestId &&
-      ["failed", "succeeded"].includes(state.phase) &&
-      (state.phase !== row.state.phase || state.requestId !== row.state.requestId);
+      ["failed", "succeeded"].includes(value.phase) &&
+      (value.phase !== row.state.phase || state.requestId !== row.state.requestId);
 
     if (await this.store.save(row.workerId, deviceId, value, undefined, outcome ? "desktop.update.outcome" : undefined))
       this.publish(value);

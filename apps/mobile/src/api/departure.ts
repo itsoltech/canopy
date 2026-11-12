@@ -1,6 +1,7 @@
 import { create, equals, fromJsonString, toJsonString } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { DEPARTURE_WINDOW_MS } from "@canopy/domain/computer-presence";
+import { reachedUpdateVersion } from "@canopy/domain/release/remote-update-state";
 
 export function plannedDeparture(value: ui.GatewayDeparture | undefined, now = Date.now()) {
   return (
@@ -48,7 +49,7 @@ export class MobileDeparture {
     const previous = this.value;
 
     if (!previous || !plannedDeparture(previous)) return;
-    const succeeded = !previous.targetVersion || previous.targetVersion === snapshot.gatewayVersion;
+    const succeeded = !previous.targetVersion || reachedUpdateVersion(snapshot.gatewayVersion, previous.targetVersion);
     this.receive(
       create(ui.GatewayDepartureSchema, {
         ...previous,

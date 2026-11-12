@@ -25,6 +25,7 @@ export class UpdatesState {
   error = $state("");
   pending = $state("");
   #loading = false;
+  #generation = 0;
   #users = 0;
   #stop: (() => void) | undefined;
   #soon: (() => void) | undefined;
@@ -32,12 +33,18 @@ export class UpdatesState {
   async reload(): Promise<void> {
     if (this.#loading || this.pending) return;
     this.#loading = true;
+    const generation = this.#generation;
 
     try {
-      this.snapshot = decode(ui.UpdatesSnapshotSchema, await requestJson("GET", "/api/updates"));
-      this.error = "";
+      const snapshot = decode(ui.UpdatesSnapshotSchema, await requestJson("GET", "/api/updates"));
+
+      if (generation === this.#generation) {
+        this.snapshot = snapshot;
+        this.error = "";
+      }
     } catch (error) {
-      this.error = error instanceof Error ? error.message : "Could not load updates";
+      if (generation === this.#generation)
+        this.error = error instanceof Error ? error.message : "Could not load updates";
     } finally {
       this.#loading = false;
     }
@@ -134,6 +141,7 @@ export class UpdatesState {
   }
   async manage(input: MessageInitShape<typeof ui.ManageUpdatesRequestSchema>): Promise<void> {
     if (this.pending) return;
+    this.#generation++;
     this.pending = input.workerId || input.nodeId || input.action || "update";
     this.error = "";
 
@@ -150,6 +158,7 @@ export class UpdatesState {
     } catch (error) {
       this.error = error instanceof Error ? error.message : "Update action failed";
     } finally {
+      this.#generation++;
       this.pending = "";
     }
   }

@@ -8,7 +8,7 @@ import { updatesSnapshot } from "../updates/center-composition.ts";
 import { guard } from "./ui-errors.ts";
 import { checkLinkedUpdates, requestComputerUpdate } from "../updates/linked.ts";
 import { mobileIdentity } from "../core/mobile-devices.ts";
-import { requestOwnAppUpdate } from "../updates/app.ts";
+import { dismissUpdateFailure, requestOwnAppUpdate } from "../updates/app.ts";
 
 /** The app control channel belongs to the desktop app's own bundled gateway and its service token, never a device. */
 function localAppOnly(core: GatewayCore, context: HandlerContext) {
@@ -25,7 +25,11 @@ async function reportAppControl(core: GatewayCore, report: ui.DesktopReport, con
 
   if (state.phase === "restarting") await core.departures.announce("restarting", state.targetVersion);
 
-  if (["succeeded", "failed"].includes(state.phase)) await core.departures.recover(state.phase, state.reason);
+  if (["succeeded", "failed"].includes(state.phase))
+    await core.departures.recover(state.phase, state.reason, state.targetVersion);
+
+  if (state.phase === "idle" && state.requestId && !state.reason)
+    await core.departures.recover("dismissed", "", state.targetVersion);
 
   return create(ui.DesktopAckSchema);
 }
@@ -65,6 +69,8 @@ export function workersHandlers(
     getUpdates: snapshot,
 
     manageUpdates: async (request, context) => {
+      if (await dismissUpdateFailure(core, request)) return snapshot();
+
       if (request.action === "update_all") {
         await core.updateCenter.begin();
 

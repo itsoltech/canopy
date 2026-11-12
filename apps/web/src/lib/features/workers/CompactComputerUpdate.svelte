@@ -8,6 +8,8 @@
   import { updateTone, type UpdatesState } from "./updates.svelte.ts";
   import { updateCheckLabel } from "@canopy/domain/computer-presence";
   import AppUpdateConfirmation from "./AppUpdateConfirmation.svelte";
+  import Button from "#lib/shared/ui/Button.svelte";
+  import { currentRemoteUpdate } from "@canopy/domain/release/remote-update-state";
 
   let {
     computer,
@@ -17,7 +19,7 @@
   }: { computer: ui.ComputerUpdate; updates: UpdatesState; local?: boolean; class?: ClassValue } = $props();
 
   const view = $derived(computerUpdate(computer, presenceTime));
-  const app = $derived(computer.updates?.app);
+  const app = $derived(computer.updates?.app && currentRemoteUpdate(computer.updates.app));
   let confirming = $state(false);
 </script>
 
@@ -38,12 +40,18 @@
   class={className}
 >
   {#snippet action()}
-    {#if view.actionable}
+    {#if view.actionable || app?.phase === "failed"}
       <IconButton
         icon="arrow-up"
         size="sm"
-        label={`Update Canopy on ${computer.name}`}
-        disabled={!!updates.pending || updates.snapshot?.run?.state === "running"}
+        label={app?.phase === "failed"
+          ? `Request update again on ${computer.name}`
+          : `Update Canopy on ${computer.name}`}
+        disabled={!!updates.pending ||
+          computer.presence !== "connected" ||
+          !app?.connected ||
+          !!app.disabledReason ||
+          updates.snapshot?.run?.state === "running"}
         loading={updates.pending === (local ? "app" : computer.nodeId)}
         onclick={() => (confirming = true)}
       />
@@ -54,6 +62,18 @@
         tooltipOptions={{ touch: "tap" }}
       />{/if}
   {/snippet}
+  {#if app?.phase === "failed"}
+    <Button
+      size="sm"
+      disabled={!!updates.pending}
+      onclick={() =>
+        void updates.manage({
+          action: local ? "app_dismiss" : "computer_dismiss",
+          nodeId: computer.nodeId,
+          desktopRequestId: app?.requestId,
+        })}>Dismiss</Button
+    >
+  {/if}
   {#if computer.reason && computer.readState && computer.readState !== "fresh"}
     <p class="mt-1 text-xs/5 wrap-anywhere text-muted" role="status">{computer.reason}</p>
   {/if}

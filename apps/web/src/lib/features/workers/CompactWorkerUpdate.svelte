@@ -104,12 +104,15 @@
   class={[!worker.connected && "opacity-50", className]}
 >
   {#snippet action()}
-    {#if actionable && !busy && !current}
+    {#if (actionable || (!linked && desktop?.phase === "failed")) && !busy && !current}
       <IconButton
         icon="arrow-up"
         size="sm"
         label={`Update ${worker.name}`}
-        disabled={!!updates.pending || updates.snapshot?.run?.state === "running"}
+        disabled={!!updates.pending ||
+          !worker.connected ||
+          (desktop && (!desktop.connected || !!desktop.disabledReason)) ||
+          updates.snapshot?.run?.state === "running"}
         loading={updates.pending === worker.workerId}
         onclick={() => void updates.manage({ action: desktop ? "desktop" : "worker", workerId: worker.workerId })}
       />
@@ -128,6 +131,18 @@
         tooltipOptions={{ touch: "tap" }}
       />{/if}
   {/snippet}
+  {#if desktop?.phase === "failed" && !linked}
+    <Button
+      size="sm"
+      disabled={!!updates.pending}
+      onclick={() =>
+        void updates.manage({
+          action: "desktop_dismiss",
+          workerId: worker.workerId,
+          desktopRequestId: desktop?.requestId,
+        })}>Dismiss</Button
+    >
+  {/if}
 </UpdateItem>
 <Dialog bind:open={confirming} title="Restart Canopy app now?">
   <div class="grid gap-4">

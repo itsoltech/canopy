@@ -180,8 +180,9 @@ service ComputerUpdateService {
 }
 message ComputerUpdatesRequest {}
 message ComputerUpdateRequest {
-  string action = 1; // app | check | worker
+  string action = 1; // app | check | worker | dismiss
   string worker_id = 2; // worker: one of the home's binary workers
+  string request_id = 3; // dismiss: only the current failed app update
 }
 
 service ComputerLinkService {

@@ -55,6 +55,31 @@ Klient czyta GetUpdates po takim zdarzeniu, `desktop_update`, `gateway_departure
 komputera lub wersji/CLI workera; co 2–2,5 s tylko w trakcie aktualizacji. Gateway bez `updates`
 w `feeds` (starszy) dostaje jeden odczyt na minutę na pierwszym planie; ukryta karta nic nie czyta.
 Ostatni wynik pozostaje widoczny w czasie restartu. Błędy mają szczegóły z kopiowaniem.
+Niepowodzenie zdalnego żądania przestaje być bieżącym błędem, gdy aplikacja zgłosi
+wersję SemVer co najmniej równą celowi albo zakończone sprawdzenie „Up to date”.
+Nie dotyczy to początkowego `idle`, trwającego sprawdzenia, wstrzymania z powodu
+limitu ani nieukończonej publikacji. Taki wynik aktualizuje journal aplikacji,
+rekord `desktop_updates`, checkpoint przerwy i zapisany `updateRun`; nie pozostawia
+czerwonego nagłówka ani odznaki. Restart do wersji docelowej lub nowszej jest
+sukcesem również wtedy, gdy ostatni zapis poprzedzał fazę `restarting`.
+Powrót na starszej wersji zachowuje błąd; brak powrotu nadal podlega limitowi kroku.
+
+Aktualny błąd ma akcje ponowienia i **Dismiss**, a pozostałe pozycje pozostają
+dostępne. Odrzucenie wymaga id bieżącego żądania albo przebiegu i jest ograniczone
+do właściciela. Klienci przekazują id otrzymane w snapshotach bez zmian. Dla aplikacji
+bezpośrednio połączonego komputera gateway przyjmuje także UUID bez sufiksu:
+wiąże go z jawnie wybranym komputerem tego właściciela. Id z sufiksem innego
+komputera jest odrzucane; cel nadal wymaga zgodności z bieżącym błędem.
+Dla własnej aplikacji potwierdzenie jest zapisane w prywatnym
+`user_settings.settings.appUpdateDismissal` przed przekazaniem do journala;
+dla sparowanego zdalnego desktopu przechowuje je `desktop_updates.command`.
+Zatrzymany przebieg ponownie porównuje cele ze snapshotem, także po restarcie
+gatewaya. Po usunięciu nieaktualnego błędu ma `succeeded`, jeśli wszystkie kroki
+są wykonane, albo `superseded`, jeśli późniejsze kroki nadal czekają. Odrzucony
+przebieg ma `dismissed`; jego akcja odrzuca także błąd tego samego żądania aplikacji,
+jeśli nadal jest bieżący. Żadna z tych zmian nie uruchamia kolejnych instalacji.
+Klienci ignorują odczyt rozpoczęty przed nowszą akcją, aby stary cache nie
+przywracał odrzuconego błędu.
 Zmiana telefonu dotyczy wyłącznie JS/TS i nie wymaga nowego runtime ani builda EAS.
 
 Trzecia ikona stopki (za Settings i licznikiem workerów) pokazuje aktualizacje
@@ -99,7 +124,7 @@ procent pobierania, Ready, Waiting for idle, Restarting, Offline, Failed albo
 Manual update (aplikacja za stara na zdalne aktualizacje lub komputer pośredni), z
 przyczyną pod ikoną informacji. Galeria `/dev/updates` (tylko tryb deweloperski)
 pokazuje centrum i wszystkie stany na danych testowych, a `?view=settings` obie sekcje
-ustawień. Instrukcje
+ustawień; `?run=failed` dodaje zatrzymany przebieg z akcjami ponowienia i odrzucenia. Instrukcje
 instalacji i kolejność aktualizacji są pod ikonami informacji. Długie nazwy
 i wersje mają skrót z pełną treścią w podpowiedzi; błędy można rozwinąć.
 Popover nie pokazuje notatek wydań; są w Settings → Workers / App updates razem

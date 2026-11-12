@@ -302,7 +302,12 @@ describe.skipIf(!dockerAvailable)("ordered update all through authenticated gate
             workerId: remoteId,
             name: "Remote app",
             installKind: "desktop",
-            desktop: { version: "1.0.0", availableVersion: "2.0.0", connected: true, phase },
+            desktop: {
+              version: phase === "succeeded" ? "2.0.0" : "1.0.0",
+              availableVersion: "2.0.0",
+              connected: true,
+              phase,
+            },
           }),
           create(ui.WorkerUpdateSchema, {
             workerId: crypto.randomUUID(),

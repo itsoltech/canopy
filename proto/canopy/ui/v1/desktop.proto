@@ -30,6 +30,8 @@ message DesktopUpdateCommand {
   string requested_by = 3;
   // Local mode: check for an update with the app's own channel and settings. Installs nothing; no request id.
   bool check = 4;
+  // Acknowledge only this completed request; never starts or retries an installation.
+  bool dismiss = 5;
 }
 message DesktopControlEvent {
   string session_id = 1;
@@ -62,6 +64,8 @@ message DesktopUpdateState {
   string updater_error = 17;
   // Time the app's updater last started a real feed check, Unix milliseconds. Zero from older apps.
   double last_checked_at_ms = 18;
+  // A completed feed check reports Up to date, with no pending download or error.
+  bool updater_current = 19;
 }
 message DesktopReport {
   string session_id = 1;
