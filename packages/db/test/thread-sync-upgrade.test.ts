@@ -77,7 +77,13 @@ test.skipIf(!dockerAvailable)(
       );
       expect(await runtime.runPromise(through(123))).toEqual([[123, "thread_sync_diagnostics"]]);
       expect(await runtime.runPromise(through(124))).toEqual([[124, "thread_range_lock_order"]]);
-
+      expect(await runtime.runPromise(through(128))).toEqual([
+        [125, "inherited_access_mode"],
+        [126, "thread_sync_time"],
+        [127, "github_repository_access"],
+        [128, "thread_panel_cache"],
+      ]);
+      expect(await runtime.runPromise(migrate)).toEqual([[124, "diagnostics"]]);
       await runtime.runPromise(
         Effect.gen(function* () {
           const sql = yield* SqlClient.SqlClient;
