@@ -1971,7 +1971,10 @@ wpis tylko od starego albo nowego domu i nigdy nie „przenosi” rzeczy, która
   z komunikatem „Moved to Laptop C”. Dom niepołączony z tym komputerem: „Moved to Laptop C, which isn't
   linked to this computer”.
 - **Lustra:** dawny dom publikuje tombstone (wątek usunięty), nowy dom — wątek z pełną historią, więc
-  trzeci komputer pokazuje go raz, z nowym właścicielem.
+  trzeci komputer pokazuje go raz, z nowym właścicielem. `WatchThreadMirror` z dawnym checkpointem
+  i `AckThreadRange` należą do subskrypcji dawnego domu i nie podlegają przekierowaniu pojedynczego
+  wątku. Dzięki temu wznowienie dostaje tombstone, a ACK partii wysłanej przed przeniesieniem kończy
+  się w tej samej subskrypcji; nadal sprawdza partnera, id subskrypcji i dokładny kursor.
 - **Szyna agentów:** argumenty `thread_id`/`bot_id`/`thread_ids` narzędzi wątków i botów są przepisywane;
   wywołanie, na które dawny dom odpowie „moved”, jest ponawiane u nowego domu, a odwołania
   `computer_agent_calls` dostają nowego partnera. Kontrola rodzic–dziecko między komputerami kończy się
