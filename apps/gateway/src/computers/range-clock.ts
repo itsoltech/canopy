@@ -11,8 +11,10 @@ export function prepareRangeClock(sql: SqlClient.SqlClient, store: RangeSourceSt
       AND owner_user_id=${store.owner}::uuid AND deleted_at IS NULL FOR KEY SHARE`;
 
     if (!authorized.length) return yield* Effect.fail(new ConnectError("Thread not found", Code.NotFound));
-    // Moves lock the source row before their deferred journal trigger. Acquire the
-    // foreign-key lock in that order too, before owning the commit barrier.
+    // Source rows precede barriers/clocks. Deferred writers take global journal
+    // -> range barrier -> clock, whose FK must never reacquire threads (even an
+    // unchanged FK is rechecked after repeated updates). Bootstrap creates its
+    // immutable FK anchor under the source lock, preserving deletion cascades.
     yield* sql`SELECT pg_advisory_xact_lock(hashtextextended('canopy.thread_ranges:' || ${thread},0))`;
 
     const clock = (yield* sql<{ epoch: string; head_seq: string; legacy_ready: boolean }>`
@@ -21,9 +23,11 @@ export function prepareRangeClock(sql: SqlClient.SqlClient, store: RangeSourceSt
 
     if (clock?.legacy_ready) return clock;
 
-    if (!clock)
+    if (!clock) {
+      yield* sql`INSERT INTO thread_replication_sources(thread_id) VALUES(${thread}::uuid) ON CONFLICT DO NOTHING`;
       yield* sql`INSERT INTO thread_replication_clock(thread_id,owner_user_id)
         VALUES(${thread}::uuid,${store.owner}::uuid)`;
+    }
 
     yield* prepareRangeLegacy(sql, store, thread);
 

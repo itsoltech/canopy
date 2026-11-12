@@ -17,6 +17,7 @@ import githubMutations from "./0117_github_mutations.sql" with { type: "text" };
 import githubReviews from "./0118_github_reviews.sql" with { type: "text" };
 import githubLifecycle from "./0119_github_lifecycle.sql" with { type: "text" };
 import threadRanges from "./0120_thread_ranges.sql" with { type: "text" };
+import threadRangeLockOrder from "./0124_thread_range_lock_order.sql" with { type: "text" };
 import threadPublicationFailures from "./0121_thread_publication_failures.sql" with { type: "text" };
 import threadClientCursors from "./0122_thread_client_cursors.sql" with { type: "text" };
 import threadSyncDiagnostics from "./0123_thread_sync_diagnostics.sql" with { type: "text" };
@@ -260,6 +261,7 @@ export const migrations = Migrator.fromRecord({
   "0121_thread_publication_failures": sqlFile(threadPublicationFailures),
   "0122_thread_client_cursors": sqlFile(threadClientCursors),
   "0123_thread_sync_diagnostics": sqlFile(threadSyncDiagnostics),
+  "0124_thread_range_lock_order": sqlFile(threadRangeLockOrder),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

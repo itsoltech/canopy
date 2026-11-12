@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
-import { Provider, ui } from "@canopy/contracts";
+import { Provider, ThreadEventSchema, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
@@ -20,10 +20,10 @@ describe.skipIf(!dockerAvailable)("thread publication, sends and moves lock orde
     store = new ComputerStore(gateway.runtime, gateway.userId, gateway.secretsKey);
     // Pause a journal writer after it owns the global advisory lock, before
     // repeated clock updates recheck their FK. No production hook or timed sleep.
-    await store.query(`CREATE FUNCTION pause_range_bootstrap() RETURNS trigger LANGUAGE plpgsql AS $$
+    await store.query(`CREATE FUNCTION pause_range_clock() RETURNS trigger LANGUAGE plpgsql AS $$
       BEGIN PERFORM pg_advisory_xact_lock(19273481,1); RETURN NEW; END $$`);
-    await store.query(`CREATE TRIGGER pause_range_bootstrap BEFORE UPDATE ON thread_replication_clock
-      FOR EACH ROW EXECUTE FUNCTION pause_range_bootstrap()`);
+    await store.query(`CREATE TRIGGER pause_range_clock BEFORE UPDATE ON thread_replication_clock
+      FOR EACH ROW EXECUTE FUNCTION pause_range_clock()`);
   });
 
   afterAll(async () => {
@@ -55,7 +55,7 @@ describe.skipIf(!dockerAvailable)("thread publication, sends and moves lock orde
     return thread;
   }
 
-  function bootstrapGate() {
+  function clockGate() {
     const ready = Promise.withResolvers<number>();
     const release = Promise.withResolvers<void>();
 
@@ -75,14 +75,15 @@ describe.skipIf(!dockerAvailable)("thread publication, sends and moves lock orde
     return { ready: ready.promise, release: () => release.resolve(), done };
   }
 
-  async function blockedQuery(query: string) {
+  async function blockedQuery(query: string, blocker?: number) {
     const pid = await eventually(
       async () =>
         (
           await store.query<{ pid: number }>(
             `SELECT pid FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid()
-        AND state='active' AND wait_event_type='Lock' AND strpos(query,$1)>0`,
-            [query],
+        AND state='active' AND wait_event_type='Lock' AND strpos(query,$1)>0
+        AND ($2::integer IS NULL OR $2::integer=ANY(pg_blocking_pids(pid)))`,
+            [query, blocker ?? null],
           )
         )[0]?.pid,
       (pid) => pid !== undefined,
@@ -93,30 +94,36 @@ describe.skipIf(!dockerAvailable)("thread publication, sends and moves lock orde
     return pid!;
   }
 
-  async function pausedPublisher(thread: string, gate: ReturnType<typeof bootstrapGate>) {
+  async function pausedPublisher(thread: string, gate: ReturnType<typeof clockGate>) {
     const gatePid = await gate.ready;
     const reading = readThreadRange(store, create(ui.ThreadSyncCursorSchema, { threadId: thread }));
 
     try {
-      const blocked = await eventually(
-        async () =>
-          (
-            await store.query<{ blocked: boolean }>(
-              `SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE $1::integer=ANY(pg_blocking_pids(pid))) AS blocked`,
-              [gatePid],
-            )
-          )[0]!.blocked,
-        Boolean,
-      );
+      const pid = await blockedQuery("", gatePid);
 
-      expect(blocked).toBe(true);
+      return { reading, pid };
     } catch (cause) {
       gate.release();
       await Promise.allSettled([reading, gate.done]);
       throw cause;
     }
+  }
 
-    return { reading };
+  function ingestNotice(thread: string) {
+    return gateway.runtime.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+
+        return yield* ingestThread(sql, gateway.workerId, "lock-order-regression", thread, [
+          create(ThreadEventSchema, {
+            threadId: thread,
+            eventId: crypto.randomUUID(),
+            journalSeq: 1n,
+            body: { case: "notice", value: { code: "lock_order", message: "Ingest committed" } },
+          }),
+        ]);
+      }),
+    );
   }
 
   test("command completion, ingest and SendMessage cannot cycle through the journal clock FK", async () => {
@@ -140,8 +147,8 @@ describe.skipIf(!dockerAvailable)("thread publication, sends and moves lock orde
 
     expect(command).toBeDefined();
     const initial = await readThreadRange(store, create(ui.ThreadSyncCursorSchema, { threadId: thread }));
-    const gate = bootstrapGate();
-    await gate.ready;
+    const gate = clockGate();
+    const gatePid = await gate.ready;
 
     const completing = gateway.runtime.runPromise(
       Effect.gen(function* () {
@@ -150,25 +157,22 @@ describe.skipIf(!dockerAvailable)("thread publication, sends and moves lock orde
       }),
     );
 
-    let ingesting: Promise<unknown> | undefined;
+    let ingesting: ReturnType<typeof ingestNotice> | undefined;
     let sending: ReturnType<typeof gateway.api.sendMessage> | undefined;
 
     try {
-      await blockedQuery("UPDATE worker_commands SET status");
-      ingesting = gateway.runtime.runPromise(
-        Effect.gen(function* () {
-          const sql = yield* SqlClient.SqlClient;
-
-          return yield* ingestThread(sql, gateway.workerId, "lock-order-regression", thread, []);
-        }),
-      );
-      await blockedQuery("COMMIT");
+      // Completion owns global journal -> range barrier -> clock, paused before
+      // the first UPDATE. Ingest owns threads and waits for that global lock.
+      // SendMessage queues on ingest's tuple before completion rechecks its FK.
+      const completingPid = await blockedQuery("UPDATE worker_commands SET status", gatePid);
+      ingesting = ingestNotice(thread);
+      const ingestingPid = await blockedQuery("COMMIT", completingPid);
       sending = gateway.api.sendMessage({
         threadId: thread,
         text: "after publication",
         clientRequestId: crypto.randomUUID(),
       });
-      await blockedQuery("AND owner_user_id=");
+      await blockedQuery("AND owner_user_id=", ingestingPid);
     } finally {
       gate.release();
       await Promise.allSettled([completing, ingesting, sending, gate.done]);
@@ -195,20 +199,21 @@ describe.skipIf(!dockerAvailable)("thread publication, sends and moves lock orde
 
     expect(next.headSeq).toBeGreaterThan(initial.headSeq);
     expect(next.caughtUp).toBe(true);
+    expect(next.records.some((r) => r.value.case === "notice" && r.value.value.message === "Ingest committed")).toBe(
+      true,
+    );
     expect(
-      (
-        await store.query(
-          "SELECT acked_seq FROM worker_journal_cursors WHERE thread_id=$1::uuid AND journal_id='lock-order-regression'",
-          [thread],
-        )
-      ).length,
-    ).toBe(1);
+      await store.query(
+        "SELECT acked_seq::text FROM worker_journal_cursors WHERE thread_id=$1::uuid AND journal_id='lock-order-regression'",
+        [thread],
+      ),
+    ).toEqual([{ acked_seq: "1" }]);
   }, 15_000);
 
   test("a move freezes before a queued SendMessage while range publication completes", async () => {
     const thread = await newThread();
-    const gate = bootstrapGate();
-    const { reading } = await pausedPublisher(thread, gate);
+    const gate = clockGate();
+    const { reading, pid } = await pausedPublisher(thread, gate);
 
     const moving = freezeThread(store, {
       moveId: crypto.randomUUID(),
@@ -220,12 +225,12 @@ describe.skipIf(!dockerAvailable)("thread publication, sends and moves lock orde
     let sending: Promise<string> | undefined;
 
     try {
-      await blockedQuery("ORDER BY (id = ");
+      const movingPid = await blockedQuery("ORDER BY (id = ", pid);
       sending = failure(
         gateway.api.sendMessage({ threadId: thread, text: "during move", clientRequestId: crypto.randomUUID() }),
       );
       // The sender queues behind the move's tuple lock, not a wall-clock delay.
-      await blockedQuery("AND owner_user_id=");
+      await blockedQuery("AND owner_user_id=", movingPid);
     } finally {
       gate.release();
       await Promise.allSettled([reading, moving, sending, gate.done]);
