@@ -1,15 +1,14 @@
 import { useRef, type ComponentRef, type ReactNode } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
-import { inputTypography, TextInput } from "../../ui/TextInput";
-import Animated, { interpolate, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
+import Animated, { interpolate, useAnimatedStyle } from "react-native-reanimated";
 import { Skeleton } from "../../ui/Skeleton";
 import { styles, useColors } from "../../ui/theme";
 import { Icon } from "../../ui/Icon";
 import type { Mention } from "@canopy/contracts";
-import { MessageSpans, type BadgeTone } from "../composer/MessageText";
+import type { BadgeTone } from "../composer/MessageText";
 import { ComposerFold, useComposerMotion } from "../composer/ComposerFold";
-import { useChatInputID } from "../composer/ChatKeyboard";
-import { useKeyboardBlur } from "../composer/useKeyboardBlur";
+import { ComposerInput } from "../composer/ComposerInput";
+import type { ComposerPendingItem } from "@canopy/domain/composer-pending";
 import { composerGeometry } from "../composer/geometry";
 import { SendButtons, SPLIT_SEND_WIDTH } from "./SendButtons";
 import { useTween } from "../../ui/motion";
@@ -26,7 +25,7 @@ export interface ComposerBadges {
   tone?: (mention: Mention) => BadgeTone;
 }
 
-interface ComposerBoxProps {
+export interface ComposerBoxProps {
   text: string;
   onChange: (text: string) => void;
   onSend: () => void;
@@ -42,6 +41,7 @@ interface ComposerBoxProps {
   attachment?: ReactNode;
   controls?: ReactNode;
   compact?: boolean;
+  pending?: readonly ComposerPendingItem[];
   /** Bot chats keep their one-row pill when expanded; long drafts still grow. */
   inline?: boolean;
   onExpand?: () => void;
@@ -73,6 +73,7 @@ export function ComposerBox({
   attachment,
   controls,
   compact = false,
+  pending,
   inline = false,
   onExpand,
   placeholder = "Ask anything…",
@@ -112,7 +113,11 @@ export function ComposerBox({
         boxShadow: c.dark ? undefined : "0px 1px 3px #0000001a",
       }}
     >
-      {top}
+      {top ? (
+        <ComposerFold open={!compact} expandedHeight={0} hideWhileWriting={false}>
+          {top}
+        </ComposerFold>
+      ) : null}
       {inline && attachment ? <View style={{ paddingLeft: 4, flexShrink: 0 }}>{attachment}</View> : null}
 
       <ComposerInput
@@ -120,6 +125,8 @@ export function ComposerBox({
         onChange={onChange}
         busy={busy}
         inline={inline}
+        compact={compact}
+        pending={pending}
         onExpand={onExpand}
         placeholder={triggers ? TRIGGER_HINT : placeholder}
         triggers={triggers}
@@ -207,112 +214,6 @@ function ComposerControls({
           children
         )}
       </ScrollView>
-    </Animated.View>
-  );
-}
-
-function ComposerInput({
-  text,
-  onChange,
-  busy,
-  inline,
-  onExpand,
-  placeholder,
-  label,
-  badges,
-  triggers,
-}: Pick<
-  ComposerBoxProps,
-  "text" | "onChange" | "busy" | "inline" | "onExpand" | "placeholder" | "label" | "badges" | "triggers"
->) {
-  const c = useColors();
-  const { progress, writing, room, focused, onFocus } = useComposerMotion();
-  const input = useRef<ComponentRef<typeof TextInput>>(null);
-  const nativeID = useChatInputID();
-  useKeyboardBlur(input, focused);
-
-  // Measure the draft's natural height and retain at least the field's height when writing began.
-  const lines = useSharedValue(0);
-  const resting = useSharedValue(0);
-  const laidOut = useRef(0);
-
-  // Folding shortens the field; writing hands it the controls' room, so the composer keeps its height and nothing
-  // above it moves. The toolbar keeps its own space; the send button sits beside the text only when compact. All on the UI thread,
-  // on a frame around the field: Android's text input does not take animated sizes itself.
-  const fold = useAnimatedStyle(() => {
-    const t = progress.get();
-    const writes = inline ? 0 : writing.get() * t;
-    const padTop = interpolate(t, [0, 1], [10, 14]);
-    const padBottom = interpolate(t, [0, 1], [10, 12]);
-    const max = interpolate(t, [0, 1], [44, 160]);
-
-    const natural = Math.min(
-      max,
-      Math.max(inline ? 44 : interpolate(t, [0, 1], [44, composerGeometry.input]), lines.get() + padTop + padBottom),
-    );
-
-    // Writing: the field fills the room it was given (its height when writing began plus the controls' room) and
-    // grows past it only when the text does.
-    const writingSize = Math.max(natural, resting.get() + room.get());
-
-    return {
-      minHeight: natural + (writingSize - natural) * writes,
-      maxHeight: max + room.get() * writes,
-      paddingRight: inline ? 16 : interpolate(t, [0, 1], [60, 16]),
-      paddingTop: padTop,
-      paddingBottom: padBottom,
-    };
-  });
-
-  return (
-    <Animated.View
-      onLayout={(event) => {
-        laidOut.current = event.nativeEvent.layout.height;
-      }}
-      style={[{ flex: inline ? 1 : undefined, paddingLeft: 16 }, fold]}
-    >
-      <View style={{ flexGrow: 1, flexShrink: 1 }}>
-        <TextInput
-          nativeID={nativeID}
-          ref={input}
-          onContentSizeChange={(event) => lines.set(event.nativeEvent.contentSize.height)}
-          accessibilityLabel={label}
-          // With badges the spans carry the text; a TextInput takes either children or a value.
-          value={badges ? undefined : text}
-          onChangeText={(next) => {
-            onExpand?.();
-            onChange(next);
-          }}
-          onFocus={() => {
-            resting.set(laidOut.current);
-            onExpand?.();
-            onFocus(true);
-          }}
-          onBlur={() => onFocus(false)}
-          onSelectionChange={badges ? (event) => badges.onSelect(event.nativeEvent.selection) : undefined}
-          editable={!busy}
-          multiline
-          maxLength={32000}
-          placeholder={triggers ? undefined : placeholder}
-          accessibilityHint={triggers ? placeholder : undefined}
-          placeholderTextColor={c.faint}
-          style={[styles.body, { flexGrow: 1, flexShrink: 1, padding: 0, color: c.text, textAlignVertical: "top" }]}
-        >
-          {badges ? <MessageSpans value={{ text, mentions: badges.mentions }} tone={badges.tone} /> : null}
-        </TextInput>
-        {/* Native multiline placeholders wrap and affect content size; the hint must do neither. */}
-        {triggers && !text ? (
-          <Text
-            pointerEvents="none"
-            accessible={false}
-            numberOfLines={1}
-            ellipsizeMode="tail"
-            style={[styles.body, inputTypography, { position: "absolute", top: 0, left: 0, right: 0, color: c.faint }]}
-          >
-            {placeholder}
-          </Text>
-        ) : null}
-      </View>
     </Animated.View>
   );
 }

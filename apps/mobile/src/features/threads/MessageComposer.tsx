@@ -17,6 +17,7 @@ import { composerGeometry } from "../composer/geometry";
 import { QuoteTray } from "../quotes/QuoteTray";
 import type { useQuoteDraft } from "../quotes/useQuoteDraft";
 import { useComposerSettings } from "./useComposerSettings";
+import { composerPending } from "@canopy/domain/composer-pending";
 
 export function MessageComposer({
   thread,
@@ -57,6 +58,7 @@ export function MessageComposer({
       <PasteTarget draft={message.files}>
         <ComposerBox
           compact={compact}
+          pending={composerPending(quotes.quotes.length, message.files.files.length, message.value.mentions)}
           onExpand={onExpand}
           text={message.value.text}
           onChange={message.setText}

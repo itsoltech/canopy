@@ -178,14 +178,13 @@ function useThreadState(id: string) {
   };
 }
 
-/** The thread's floating composer: a draft, files, a mention list or a synchronous question keep it open. */
+/** Pending drafts can fold into their summary; an open mention list or synchronous question stays open. */
 function useThreadComposer(state: ThreadState) {
   const { message, interactions } = state;
 
   return useFloatingComposer(
     state.following,
-    Boolean(message.value.text.length || message.files.files.length || message.trigger || state.quotes.quotes.length) ||
-      interactions.some((i) => i.kind === InteractionKind.QUESTION && !i.asynchronous),
+    Boolean(message.trigger) || interactions.some((i) => i.kind === InteractionKind.QUESTION && !i.asynchronous),
     threadComposerHeight,
     collapsedThreadComposerHeight,
   );

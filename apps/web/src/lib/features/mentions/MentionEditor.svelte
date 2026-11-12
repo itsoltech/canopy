@@ -608,7 +608,8 @@
     spellcheck="true"
     tabindex={disabled ? -1 : 0}
     class={[
-      "t-composer-input col-start-1 row-start-1 min-w-0 break-words whitespace-pre-wrap text-zinc-950 outline-none dark:text-white [&_.mention-chip]:mx-px",
+      "t-composer-input col-start-1 row-start-1 min-w-0 break-words text-zinc-950 outline-none dark:text-white [&_.mention-chip]:mx-px",
+      singleLine ? "whitespace-pre" : "whitespace-pre-wrap",
       className,
     ]}
     data-single-line={singleLine || undefined}

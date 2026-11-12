@@ -1,5 +1,10 @@
 # Canopy na iOS i Android
 
+Zwinięty kompozytor wątku pokazuje ikony z licznikami cytatów, załączników i rodzajów
+wzmianek przed pierwszą, skróconą linią szkicu. Dotknięcie podsumowania lub tekstu
+rozwija nakładkę i ustawia fokus w polu. Pełne chipy pozostają zamontowane w zwijanym
+obszarze; rezerwa osi czasu nie zależy od ich liczby ani stanu rozwinięcia.
+
 Pierwsza wersja to **development build** Expo, nie Expo Go ani Expo web.
 Identyfikatory: iOS `tech.itsol.canopy-remote`, Android `tech.itsol.canopy_remote` (Android nie dopuszcza myślnika w identyfikatorze); scheme: `canopy`.
 Konfiguracja: `apps/mobile/app.json`, `app.config.ts`, `eas.json`.

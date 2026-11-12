@@ -1115,6 +1115,13 @@ sposób wyboru trybu; gateway nie zmienia semantyki ich wiadomości.
 **Wyścig z głową kolejki.** Zmiany kolejki i start jej głowy blokują najpierw wiersz wątku, więc idą jedna po drugiej. Scheduler (`pump`) zapisuje `StartTurn` tylko wtedy, gdy tura nadal jest głową kolejki z rewizją, którą przeczytał (`QueueStore.whileHead`); inaczej czyta kolejkę od nowa. Wystartowana tura ma więc zawsze tekst i miejsce, które użytkownik widział jako ostatnie przyjęte, a zmiana tury, którą scheduler wziął pierwszy, kończy się czytelnym błędem.
 ### Wzmianki
 
+Zwinięty kompozytor wątku pokazuje po lewej ikony z licznikami cytatów, załączników
+i poszczególnych rodzajów wzmianek. Pomija puste grupy; etykiety dostępności i tooltipy
+podają rodzaj oraz liczbę. Załącznik liczy się raz, niezależnie od swojego chipu w tekście.
+Podsumowanie mieści się w dotychczasowej wysokości pola, a pierwsza linia szkicu lub
+placeholder skraca się w pozostałym miejscu. Kliknięcie rozwija pole i ustawia fokus
+w edytorze. Rozwinięcie pozostaje nakładką nad osią czasu, ze stałą rezerwą zwiniętego pola.
+
 Komendy, skille, pluginy, pliki i inne wątki są wstawiane w tekst wiadomości jako chipy. Wyzwalacze w kompozytorze: `/` komendy, `$` skille i pluginy (`$Skill`, aplikacje `$app`), `@` pliki folderu wątku, `#` wątki; te same pozycje są w menu „+” obok „Attach files”.
 
 Katalog zakresu (wątek albo workspace, dostawca, profil i folder) jest współdzielony przez kompozytory
