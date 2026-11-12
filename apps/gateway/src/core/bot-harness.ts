@@ -20,6 +20,7 @@ const configurationKey = (configuration: ModelInput["configuration"]) =>
         instructions: configuration.instructions,
         approvalPolicy: configuration.approvalPolicy,
         webAccess: configuration.webAccess ?? true,
+        files: configuration.files ?? true,
       }),
     )
     .digest("hex");
@@ -106,6 +107,13 @@ async function botTurnInput(core: GatewayCore, input: ModelInput, workerId: stri
       "platform",
     );
 
+  if (connection?.isOpen && !connection.hello.capabilities.includes("bot_workspace_v1"))
+    throw new ProviderFailure(
+      "configuration",
+      "Update this worker to use bot files, or choose another worker.",
+      "platform",
+    );
+
   if (
     (images.attachments.length || images.historyAttachments.length) &&
     connection?.isOpen &&
@@ -174,6 +182,7 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
               instructions: input.instructions,
               configurationKey: configurationKey(input.configuration),
               webAccess: !turn.handoff_configuration && (input.configuration.webAccess ?? true),
+              files: !turn.handoff_configuration && (input.configuration.files ?? true),
               ...images,
               tools: harnessTools(input.tools),
             },

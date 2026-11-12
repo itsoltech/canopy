@@ -1,8 +1,22 @@
 import { DEFAULT_BUS_LIMITS, type JsonObject, type JsonValue } from "@canopy/domain";
 import { Predicate } from "effect";
-import type { ToolSpec } from "./types.ts";
+import type { BotTurn, ToolSpec } from "./types.ts";
+import type { bots } from "@canopy/contracts";
+import { BOT_FILE_TOOLS } from "./tools/workspace.ts";
 import { areaTool, areaTools } from "./tools/index.ts";
 import { alwaysAsk } from "./approval-rules.ts";
+
+export function botPlatformTools(config: bots.BotConfiguration, turn: BotTurn): ToolSpec[] {
+  if (turn.handoff_configuration) return [];
+
+  return PLATFORM_TOOLS.filter(
+    (tool) =>
+      (config.files !== false || !BOT_FILE_TOOLS.includes(tool.name)) &&
+      (turn.routine_id
+        ? !["create_routine", "update_routine", "delete_routine", "update_self"].includes(tool.name)
+        : tool.name !== "message_user"),
+  );
+}
 
 /** An allowlist of descriptors, never a model-supplied tool name, grants capability. */
 export function needsApproval(tool: ToolSpec, policy: string, args: JsonObject = {}): boolean {

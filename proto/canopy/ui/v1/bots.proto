@@ -27,6 +27,7 @@ message BotConfiguration {
   optional string thread_permission = 1001; // user_default (domyślnie) | ask | read_only | accept_edits | full_auto | full_access
   // Owner-only. Omitted on create = enabled; omitted on update = preserve.
   optional bool web_access = 1002;
+  optional bool files = 1003;
 }
 message Bot {
   string id = 1;

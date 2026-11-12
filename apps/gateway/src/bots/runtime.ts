@@ -8,7 +8,7 @@ import { Invalid, NotFound } from "../store/store.ts";
 import { splitId } from "@canopy/domain/computers";
 import { SettingsStore } from "../store/settings.ts";
 import { HANDOFF_PROMPT } from "./handoffs.ts";
-import { PLATFORM_TOOLS } from "./policy.ts";
+import { botPlatformTools } from "./policy.ts";
 import { botConfiguration, botView, BotStore } from "./store.ts";
 import type { BotModel, BotTurn, ModelInput, StoredCall, ToolResult, ToolSpec } from "./types.ts";
 import type { ConnectorsRuntime } from "../connectors/runtime.ts";
@@ -238,11 +238,7 @@ export class BotsRuntime {
       const row = await this.run((s) => s.owned(this.#options.userId, turn.bot_id));
       const config = botConfiguration(row);
 
-      const tools = PLATFORM_TOOLS.filter((t) =>
-        turn.routine_id
-          ? !["create_routine", "update_routine", "delete_routine", "update_self"].includes(t.name)
-          : t.name !== "message_user",
-      );
+      const tools = botPlatformTools(config, turn);
 
       tools.push(...(await this.#options.connectors.botTools(turn.bot_id)));
       const messages = [...(turn.checkpoint.length ? turn.checkpoint : await this.run((s) => s.history(turn)))];

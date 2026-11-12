@@ -330,6 +330,7 @@ while (!stopping.signal.aborted) {
           "generate_text",
           "bot_harness_v1",
           "bot_web_v1",
+          "bot_workspace_v1",
           "bot_images_v1",
           "bot_files_v1",
           "thread_secrets",

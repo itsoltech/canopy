@@ -9,7 +9,12 @@ describe("bot capability policy", () => {
     expect(needsApproval({ ...remote, readOnly: true }, "safe")).toBe(false);
     expect(needsApproval({ ...remote, readOnly: true, dangerous: true }, "safe")).toBe(true);
     expect(needsApproval({ ...remote, readOnly: true }, "always")).toBe(true);
-    expect(PLATFORM_TOOLS.some((t) => /shell|exec|file|browser|patch/.test(t.name))).toBe(false);
+    expect(PLATFORM_TOOLS.some((t) => /shell|exec|browser|patch/.test(t.name))).toBe(false);
+    expect(
+      PLATFORM_TOOLS.filter((t) => /file/.test(t.name))
+        .map((t) => t.name)
+        .sort(),
+    ).toEqual(["delete_file", "list_files", "read_file", "write_file"]);
     expect(
       needsApproval(
         PLATFORM_TOOLS.find((t) => t.name === "archive_thread")!,

@@ -9,7 +9,7 @@ describe.skipIf(!dockerAvailable)("bot Runs on defaults", () => {
     test(`${role} selects the expected eligible worker and persists its choice`, async () => {
       const f = await startInstanceFixture(true, {
         role,
-        worker: { hello: { capabilities: ["bot_harness_v1", "bot_web_v1"] } },
+        worker: { hello: { capabilities: ["bot_harness_v1", "bot_web_v1", "bot_workspace_v1"] } },
       });
 
       try {

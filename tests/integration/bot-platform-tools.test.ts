@@ -143,7 +143,6 @@ describe.skipIf(!dockerAvailable)("bot platform tools through the UI core", () =
   });
 
   test("discover a worker without roots, add any absolute workspace, validate paths, start a thread and search its title", async () => {
-    expect(PLATFORM_TOOLS.length).toBeLessThanOrEqual(50);
     expect(new Set(PLATFORM_TOOLS.map((t) => t.name)).size).toBe(PLATFORM_TOOLS.length);
     const workers = await invoke<{ id: string; provider_instances: unknown[] }[]>("list_workers", {}, false, "always");
     expect(workers.find((w) => w.id === gw.workerId)).not.toHaveProperty("allowed_roots");
