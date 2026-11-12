@@ -100,7 +100,6 @@
       >
     </DropdownMenu>
   {/if}
-  {#if reason}<p class="max-w-64 text-sm/5 text-zinc-500 dark:text-zinc-400">{reason}</p>{/if}
   {#if error && !confirming}<p class="text-base/6 text-rose-700 sm:text-sm/5 dark:text-rose-400" role="alert">
       {error}
     </p>{/if}
