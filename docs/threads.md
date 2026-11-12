@@ -65,6 +65,11 @@ workera; po utworzeniu wątku katalog i wyszukiwanie plików używają jego dok�
 
 ## Filtr, menu i archiwum
 
+Tło zaznaczenia w sidebarze wskazuje wyłącznie otwarty wątek, także podczas pracy i najechania.
+Pracę oznaczają pierścień i etykieta „Working” z czasem; sam stan pracy nie dodaje tła ani
+nie przygasza tekstu. Hover niezaznaczonego wiersza jest słabszy od zaznaczenia, a fokus
+klawiatury ma osobny obrys. Te same reguły obowiązują dla wątków głównych i bocznych.
+
 Przycisk obok „Search threads” otwiera wyszukiwanie projektów i wybór wielu projektów.
 Filtr oraz przypięcia są wspólne dla urządzeń, zapisane w gateway.
 Wyszukiwanie tytułów wątków głównych i bocznych oraz nazw projektów działa wewnątrz filtra.

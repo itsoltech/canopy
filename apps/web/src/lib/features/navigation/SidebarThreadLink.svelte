@@ -3,7 +3,7 @@
   import type { ui } from "@canopy/contracts";
   import { tick, type Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
-  import { isCalm, needsYou } from "#lib/features/threads/activity.ts";
+  import { needsYou } from "#lib/features/threads/activity.ts";
   import { lingeringResult } from "#lib/features/threads/result.svelte.ts";
   import ThreadHoverCard from "#lib/features/threads/ThreadHoverCard.svelte";
   import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
@@ -20,9 +20,9 @@
   /**
    * The link of a thread row in the sidebar (main and side threads): opens the thread, previews it on hover,
    * or focus (ThreadHoverCard); right click, long press and Menu/Shift+F10 open its actions. What wants you stands out:
-   * amber tint when it needs you, `data-result` while a finished turn waits to be seen, `data-calm` while it
-   * works or asks its agent (a subtle well keeps text at normal contrast). The
-   * open thread's highlight and hover sit on top. Layout and padding come from `class`.
+   * amber tint when it needs you, `data-result` while a finished turn waits to be seen. Working rows
+   * keep normal text contrast and use their activity mark and status instead of a background.
+   * The open thread keeps its selected background on hover. Layout and padding come from `class`.
    */
   let {
     thread,
@@ -130,7 +130,6 @@
             })}
             href="/threads/{thread.id}"
             aria-current={current ? "page" : undefined}
-            data-calm={(!needsAttention && isCalm(thread)) || undefined}
             data-result={result.current}
             data-unread={thread.markedUnread || undefined}
             class={[
@@ -138,8 +137,8 @@
               !away &&
                 needsAttention &&
                 "bg-amber-500/6 inset-ring inset-ring-amber-500/20 dark:bg-amber-400/6 dark:inset-ring-amber-400/15",
-              !away && !needsAttention && isCalm(thread) && "bg-zinc-950/2.5 dark:bg-white/5",
-              "hover:bg-zinc-950/4 aria-[current=page]:bg-zinc-950/6 dark:hover:bg-white/4 dark:aria-[current=page]:bg-white/8",
+              "aria-[current=page]:bg-zinc-950/6 dark:aria-[current=page]:bg-white/8",
+              !current && "hover:bg-zinc-950/4 dark:hover:bg-white/4",
               className,
               thread.status === "archived" && !compact && "opacity-60",
               away && "opacity-60 saturate-0",

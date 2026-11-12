@@ -1023,6 +1023,8 @@ gdzie wskazuje miejsce wykonywania akcji.
   „Create your first bot” (`/bots?create=1` otwiera ten sam wizard co akcja na stronie,
   po czym zwykła nawigacja zastępuje URL). Shallow `replaceState` nie usuwało parametru
   z reaktywnego `page.url` i tworzyło cykl efektu.
+  Tło zaznaczenia wskazuje tylko otwartą rozmowę i pozostaje widoczne na hoverze;
+  praca bota nie dodaje tła. Fokus klawiatury ma osobny obrys.
 - **Ustawienia** (`settings/BotSettingsHost`, jeden host w głównym layoucie): kliknięcie
   awatara/nazwy w nagłówku lub **Edit bot…** w menu nagłówka i sidebara otwiera dialog,
   na telefonie dolny panel. Sekcje: Appearance (wspólne `EditBotAppearance`, własny hex),
