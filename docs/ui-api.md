@@ -83,6 +83,48 @@ replikują sekretów. Gateway pośredniczący nie zapisuje wartości ani payload
 
 ### Przyrostowy odczyt wątku
 
+#### Docelowe okna i wznowienie po seq
+
+Poniższy kontrakt jest wdrażany osobnym stosem zmian; dalszy opis kursora rewizji
+dotyczy istniejącej ścieżki zgodności. Nowa ścieżka web/desktop/mobile nigdy nie
+przesyła pełnej historii w jednej odpowiedzi ani nie używa jej do naprawy błędu.
+
+Pierwsze otwarcie zwraca ograniczone ostatnie okno: domyślnie 24 tury, z limitem
+liczby rekordów i zakodowanych bajtów każdej wiadomości. `history_before_turn_id`
+i wersja historii służą wyłącznie do stronicowania starszych tur. Nie poszerzają
+automatycznie okna reconnect do całej wcześniej otwartej historii. Starsze strony
+są pobierane na żądanie, a zmiana historii forka unieważnia ich wersję.
+
+Okno zawiera epokę i trwały seq replikacji wątku, opisany w
+[protokole zakresów](linked-computers.md#synchronizacja-zakresami-sekwencji--kontrakt-migracji).
+Ten seq obejmuje także metadane; istniejące `last_seq` nadal oznacza seq transkryptu.
+Po zastosowaniu partii reducer wspólny dla wszystkich klientów przesuwa seq
+atomowo z lokalnym stanem. Reconnect przekazuje ostatni zastosowany seq i epokę;
+gateway odtwarza brakujący zakres, a potem kontynuuje live tym samym strumieniem.
+Luka wywołuje żądanie brakującego zakresu, nigdy pełnego snapshotu.
+
+Jeżeli klient utracił lokalną bazę albo zmieniła się epoka, pobiera nowe ograniczone
+okno. Pozostawia widoczną ostatnią poprawną kopię do czasu otrzymania spójnej bazy.
+„Load from scratch” usuwa tylko cache i kursor bieżącego wątku i również pobiera
+ograniczone okno. Nie usuwa danych z gatewaya ani nie żąda pełnej historii.
+
+Duże wyniki narzędzi i inne duże itemy mają ograniczony podgląd oraz odnośnik do
+treści. Rozwinięcie pobiera ją leniwie przez owner-scoped odczyt bloba/itemu.
+Limit partii wynosi 64 rekordy i 64 KiB protobuf łącznie z kopertą; sam limit tur
+nie wystarcza, ponieważ pojedyncza tura może zawierać wielki wynik narzędzia.
+Nieznane pola/case nie przerywają watcha. Nierozpoznany item zachowuje stabilne
+id i kolejność oraz wyświetla placeholder z możliwością odczytu szczegółów.
+
+Stan wątku rozdziela odczytany cache, catch-up (`applied_seq`, `head_seq`,
+`remaining`), live, niedostępny dom i błąd tego watcha. Osiągalny gateway z
+nieudanym watchem nie staje się globalnie niedostępny. Niedostępny dom pozostawia
+cache i odtwarza watch po powrocie linku. Błąd deterministyczny nie wywołuje
+nieskończonego reconnect: klient próbuje nowej ograniczonej bazy, następnie
+mniejszego okna, a potem pokazuje przyczynę i akcje ponowienia dla tego wątku.
+Diagnostyka zawiera postęp, klasę błędu i rozmiary, bez treści, hostów ani tokenów.
+
+#### Istniejący kursor rewizji
+
 Łącze między komputerami może dodatkowo scalać tekst w oknie 40 ms i sprawdzać rewizje
 konkretnego wątku. Klient UI zachowuje ten sam atomowy kursor snapshotu; addytywne
 `ThreadEventUpdate.first_seq` opisuje początek scalonego zakresu i może być ignorowane

@@ -1003,6 +1003,79 @@ limit 16 MiB pojedynczego wiersza protokołu sterownika; ten limit pozostaje bez
 Tak samo odczytywana jest baza delty. Fragmentacja nie zmienia atomowości generacji
 ani checkpointu.
 
+### Synchronizacja zakresami sekwencji — kontrakt migracji
+
+Ta sekcja opisuje docelowy protokół kolejnego stosu zmian. Opisane wyżej
+`MirrorRequest`/`MirrorUpdate` pozostają ścieżką zgodności. Nowa ścieżka wymaga
+capability obu komputerów i nigdy nie wysyła ani nie składa pełnego snapshotu wątku.
+Nie może automatycznie wrócić do snapshotu po błędzie zakresu.
+
+**Tożsamość i kolejność.** Kursor zawiera dom, id wątku, trwałą losową epokę
+i ostatnią zapisaną `replication_seq`. To osobna, ciągła sekwencja dziennika
+replikacji wątku, obejmująca również metadane, kolejkę tur, interakcje, usunięcia
+i zmiany historii. Istniejące `thread_events.seq` pozostaje kolejnością transkryptu;
+samo nie opisuje np. zmiany tytułu albo zakolejkowania tury. Rekord replikacji
+zachowuje oryginalny seq transkryptu, gdy go ma. Sekwencje różnych wątków nie są
+porównywalne. Numer jest przydzielany w transakcji zmiany, w kolejności commitów,
+więc nie istnieje późniejszy commit o numerze niższym od potwierdzonego.
+
+Dziennik przechowuje wyłącznie publiczne projekcje lub ich przyrosty: nagłówek,
+turę, item, notice, interakcję, cel, steer i dostarczenie szyny. Nie kopiuje tabel
+wykonawczych, lease'ów, sekretów ani poświadczeń. Początkowy stan istniejących
+wątków jest zamieniany na ponumerowane rekordy pojedynczych encji podczas migracji;
+nie powstaje zbiorczy snapshot. Nowe mutacje i rekordy dziennika są atomowe.
+Dziennik wymagany do naprawy zakresu nie podlega retencji 10 000 rewizji starego
+`computer_thread_changes`. Odbiorca utrwala encje osobno, z indeksami dla okien
+historii; nie przepisuje całego protobufu wątku po każdej partii.
+
+**Partia i postęp.** Subskrybent przekazuje swoją epokę i trwały seq. Dom wysyła
+wyłącznie rekordy o większym seq, maksymalnie 64 rekordy i 64 KiB zakodowanej
+wiadomości na partię, łącznie z kopertą. Duże pola itemów, zwłaszcza wyniki narzędzi,
+mają krótki podgląd oraz content-addressed odnośnik do treści pobieranej leniwie.
+Limit dotyczy rzeczywistego protobufu, nie długości tekstu ani oszacowania JSON.
+Niepodzielny duży rekord otrzymuje odnośnik do treści; nie zwiększa limitu partii.
+
+Partia podaje `base_seq`, ostatni zawarty seq i `head_seq` domu z tego samego
+spójnego odczytu. `remaining = head_seq - applied_seq` liczy rekordy replikacji,
+a nie widoczne wiadomości rozmowy ani bajty blobów pobieranych leniwie.
+Wartość zero oznacza kompletność względem podanego head; następna zmiana może go
+zwiększyć. Diagnostyka rozdziela trwały seq, head, pozostałe rekordy, bajty partii
+i stan live. Brak head oznacza nieznany postęp, nigdy pozorne zero.
+
+**Trwałość i flow control.** Odbiorca sprawdza epokę i ciągłość, stosuje rekordy
+i przesuwa kursor w jednej transakcji, dopiero potem potwierdza seq domu. Dom ma
+najwyżej jedną niepotwierdzoną partię danej subskrypcji i czeka również na pojemność
+transportu. HTTP/2 ani kolejka linku nie zastępują potwierdzenia zapisu w bazie.
+Utracone potwierdzenie jest bezpieczne: retransmisja jest idempotentna, a reconnect
+przekazuje kursor odczytany z bazy. Anulowanie, utrata linku i timeout zwalniają
+oczekiwanie producenta oraz subskrypcję. Inne wątki i unary nadal działają.
+
+**Luki, epoki i live.** Gdy `base_seq` nie odpowiada trwałemu kursorowi albo brakuje
+kolejnego seq, odbiorca żąda dokładnie brakującego zakresu od ostatniego ciągłego
+zapisu. Nie przesuwa kursora przez lukę. Duplikaty już zapisanych rekordów są
+pomijane. Live tail używa tych samych partii, sekwencji i potwierdzeń co catch-up.
+Heartbeat potwierdza transport i head, ale sam nie potwierdza zapisu rekordów.
+
+Nieznana epoka, np. po odbudowie bazy domu, rozpoczyna osobny zakres od seq 0.
+Stary stan pozostaje dostępny jako cache i nie miesza się z rekordami nowej epoki.
+Pobieranie nowej epoki nadal jest ograniczone liczbą i bajtami, z trwałym postępem
+każdej partii. Brak zakresu po stronie domu jest jawnym błędem integralności,
+a nie poleceniem pełnego resync. Nieznane addytywne pola są tolerowane; nieznany
+typ rekordu jest zachowywany do późniejszego odczytu, z placeholderem w UI.
+Uszkodzony rekord zatrzymuje tylko ten wątek i zapisuje beztreściową diagnostykę.
+
+**Przejście między wersjami.** Nowe RPC, capability i pola mają nowe numery proto.
+Stare numery, wiadomości i zamrożony kontrakt aktualizacji pozostają bez zmian.
+Nowy komputer obsługuje stary format dla partnera bez capability. Para z nowym
+capability używa wyłącznie zakresów; błąd nie powoduje downgrade do snapshotów.
+Usunięcie ścieżki zgodności wymaga osobnej decyzji o wsparciu starszych wersji.
+
+Weryfikacja protokołu obejmuje dwa prawdziwe gatewaye: duży wątek, przerwanie
+przed i po zapisie partii, utratę ACK, naprawę luki, zmianę epoki, live tail,
+poprawny remaining oraz zgodność ze starszym partnerem. Testy mierzą zakodowane
+bajty, liczbę rekordów, największą liczbę niepotwierdzonych partii i pamięć procesu
+podczas catch-up. Wyniki pomiarów pozostają poza repozytorium.
+
 ### Ograniczenia buforów synchronizacji
 
 Wolny odbiorca nie zatrzymuje publikacji do innych subskrybentów. Limity dotyczą wiadomości
