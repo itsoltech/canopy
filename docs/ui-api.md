@@ -371,6 +371,11 @@ Po reconnect `OverviewUpdate.computer_snapshot` (802) zastępuje widoczne wątki
 jednego `node_id`. Pozwala usunąć z otwartego UI wiersze znikające podczas rozłączenia bez
 naruszania stanu innych komputerów. Następne pojedyncze aktualizacje działają jak wcześniej.
 
+Mapowanie identyfikatorów dla partnera działa na osobnej kopii wiadomości strumienia. Wiadomości
+Huba są współdzielone: lokalny overview i watch wątku muszą zachować lokalne `project_id`,
+także podczas pracy w worktree, a partner otrzymuje identyfikator globalny. Rekord wątku nadal
+zawiera pełne metadane projektu i worktree; aktualizacja statusu nie jest częściowym rekordem.
+
 `Workspace.git_origin` (216) niesie znormalizowaną tożsamość z workera, zachowaną także w lustrze.
 Web wylicza z surowych rekordów wspólne wybory projektów (`@canopy/domain/projects`): zgodny origin
 łączy różne komputery, nazwa lokalna wygrywa, pozostałe są aliasami. No project występuje raz.
