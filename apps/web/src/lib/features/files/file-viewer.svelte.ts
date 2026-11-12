@@ -44,8 +44,14 @@ export class FileViewerState {
     if (this.loading) return;
     this.loading = true;
     this.error = "";
-    const path = selectedPath ?? (this.path || this.target.path);
-    const expected = selectedPath ? "" : this.sha256;
+
+    if (selectedPath) {
+      this.path = selectedPath;
+      this.sha256 = "";
+    }
+
+    const path = this.path || this.target.path;
+    const expected = this.sha256;
     this.file = undefined;
     this.lookup = undefined;
 

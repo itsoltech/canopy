@@ -28,6 +28,7 @@ export function FileActions({
             size="sm"
             disabled={viewer.busy}
             onPress={onDiscard}
+            style={{ minWidth: 144 }}
           />
         </>
       ) : (

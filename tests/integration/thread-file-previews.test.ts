@@ -47,15 +47,19 @@ describe.skipIf(!dockerAvailable)("thread file previews through a real home work
     for (const [index, message] of messages.entries()) {
       const itemId = ids[index]!;
 
-      const content = JSON.stringify(toJson(ItemSchema, create(ItemSchema, {
+      const item = create(ItemSchema, {
         itemId,
         status: ItemStatus.COMPLETED,
-        content: { case: "agentMessage", value: { text: message } },
-      })));
+        content: index === 0
+          ? { case: "agentMessage", value: { text: message } }
+          : { case: "commandExecution", value: { command: message } },
+      });
+
+      const content = JSON.stringify(toJson(ItemSchema, item));
 
       await home.sql((sql) => sql`
         INSERT INTO thread_items (thread_id, item_id, turn_id, type, status, content, first_seq, last_seq)
-        VALUES (${threadId}::uuid, ${itemId}, ${turnId}::uuid, 'agentMessage', 'completed', ${content}::jsonb, 100, 100)
+        VALUES (${threadId}::uuid, ${itemId}, ${turnId}::uuid, ${item.content.case ?? ""}, 'completed', ${content}::jsonb, 100, 100)
       `);
     }
 
@@ -128,7 +132,7 @@ describe.skipIf(!dockerAvailable)("thread file previews through a real home work
     put("hint.txt", "root");
     put("public/hint.txt", "preferred");
     put("assets/hint.txt", "other turn");
-    const source = await turnItems(thread.id, ["Open `hint.txt`", "Read public/hint.txt"]);
+    const source = await turnItems(thread.id, ["Open `hint.txt`", "cat public/hint.txt"]);
     await turnItems(thread.id, ["Read assets/hint.txt"]);
     const foreign = await turnItems((await home.tree()).id, ["Read assets/hint.txt"]);
     expect(text(await caller.api.readThreadFile({ threadId: q(), itemId: source, path: "hint.txt" }))).toBe("preferred");

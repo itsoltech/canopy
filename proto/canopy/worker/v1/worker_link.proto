@@ -1784,7 +1784,7 @@ message FileContent {
   uint64 size = 3;
   string sha256 = 4;
   int64 modified_ms = 5;
-  // Treść nie jest tekstem UTF-8 (wtedy content jest pusty).
+  // Plik binarny; content jest pusty, chyba że żądanie ma include_binary.
   bool binary = 6;
   bool truncated = 7;
   string relative_path = 8;

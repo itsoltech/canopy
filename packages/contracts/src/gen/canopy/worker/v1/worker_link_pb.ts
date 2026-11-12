@@ -6281,7 +6281,7 @@ export type FileContent = Message<"canopy.worker.v1.FileContent"> & {
   modifiedMs: bigint;
 
   /**
-   * Treść nie jest tekstem UTF-8 (wtedy content jest pusty).
+   * Plik binarny; content jest pusty, chyba że żądanie ma include_binary.
    *
    * @generated from field: bool binary = 6;
    */

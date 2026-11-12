@@ -25,7 +25,9 @@ export function FilePreview({ viewer, name, detail, actions, onDiscard }: {
         {actions}
         {viewer.error ? <Text accessibilityRole="alert" style={[styles.body, { color: c.danger }]}>{viewer.error}</Text> : null}
         {viewer.editing && viewer.error && <Button title="Discard and reload" onPress={onDiscard} />}
-        {viewer.dirty && <Text style={[styles.caption, { color: c.muted }]}>Unsaved changes</Text>}
+        {viewer.editing && (
+          <Text style={[styles.caption, { color: c.muted }]}>{viewer.dirty ? "Unsaved changes" : " "}</Text>
+        )}
       </View>
       {viewer.loading ? <ActivityIndicator accessibilityLabel="Opening the file" color={c.muted} /> : viewer.editing ? (
         <TextInput

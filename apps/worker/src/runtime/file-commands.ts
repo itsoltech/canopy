@@ -20,6 +20,7 @@ export async function runFileCommand(ctx: HostContext, kind: FileCommand): Promi
   if (!target) return {};
 
   const extraRoots = [ctx.state.files.threadDir(target.threadId)];
+
   const resolution =
     target.workspace && (kind.case === "readFile" || kind.case === "openFile")
       ? await resolvePreview(target, extraRoots)
