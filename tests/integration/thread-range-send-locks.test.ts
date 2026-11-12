@@ -199,9 +199,9 @@ describe.skipIf(!dockerAvailable)("thread publication, sends and moves lock orde
 
     expect(next.headSeq).toBeGreaterThan(initial.headSeq);
     expect(next.caughtUp).toBe(true);
-    expect(next.records.some((r) => r.value.case === "notice" && r.value.value.message === "Ingest committed")).toBe(
-      true,
-    );
+    expect(
+      next.records.some((r) => r.value.case === "notice" && r.value.value.notice?.message === "Ingest committed"),
+    ).toBe(true);
     expect(
       await store.query(
         "SELECT acked_seq::text FROM worker_journal_cursors WHERE thread_id=$1::uuid AND journal_id='lock-order-regression'",
