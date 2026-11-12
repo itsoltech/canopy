@@ -2,8 +2,7 @@
   import { ItemStatus, type Item } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import { visibleTasks, type BackgroundEntry } from "../background-tasks.ts";
-  import BackgroundTaskSummary from "./BackgroundTaskSummary.svelte";
-  import BackgroundTaskStop from "./BackgroundTaskStop.svelte";
+  import BackgroundTaskRow from "./BackgroundTaskRow.svelte";
 
   let {
     tasks,
@@ -46,24 +45,13 @@
       {#each shown as entry (entry.id)}
         {@const task = entry.item.content.value}
         {@const source = items.get(task.sourceItemId)?.content}
-        <li class="flex min-w-0 items-center rounded-lg pr-1">
-          <button
-            type="button"
-            class="min-h-9 min-w-0 flex-1 rounded-lg px-2 py-1 text-left text-base/5 text-zinc-700 focus-ring hover:bg-zinc-950/4 sm:min-h-8 sm:text-sm/5 dark:text-zinc-300 dark:hover:bg-white/5"
+        <li class="min-w-0">
+          <BackgroundTaskRow
+            {entry}
+            {threadId}
+            exitCode={source?.case === "commandExecution" ? source.value.exitCode : undefined}
             onclick={() => onopen(entry.id)}
-          >
-            <BackgroundTaskSummary
-              {entry}
-              exitCode={source?.case === "commandExecution" ? source.value.exitCode : undefined}
-            />
-          </button>
-          <div class="w-8 shrink-0 sm:w-7">
-            {#if entry.item.status === ItemStatus.IN_PROGRESS}<BackgroundTaskStop
-                {threadId}
-                itemId={entry.id}
-                compact
-              />{/if}
-          </div>
+          />
         </li>
       {/each}
     </ul>
