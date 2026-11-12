@@ -171,6 +171,8 @@ describe.skipIf(!dockerAvailable)("linked PR summaries without replicated creden
       (value) => !value,
     );
     expect((await a.api.listThreadPullRequests({ threadId: qualified(thread) })).links[0]!.summary!.title).toBe("");
-    expect(await failure(a.api.getPullRequest({ pullRequestId: qualified(pr) }))).toContain("Reconnect");
+    expect(await failure(a.api.getPullRequest({ pullRequestId: qualified(pr) }))).toContain(
+      "No connected GitHub account can access itsoltech/canopy",
+    );
   });
 });

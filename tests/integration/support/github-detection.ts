@@ -41,6 +41,8 @@ export function githubDetectionFixture() {
         parent: { id: 777, full_name: "itsoltech/canopy" },
       });
 
+    if (url.pathname === "/repos/fork-owner/canopy/pulls") return Response.json([]);
+
     if (url.pathname === "/repos/itsoltech/canopy/pulls") {
       requests.push(url.search);
 

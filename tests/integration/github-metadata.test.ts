@@ -149,8 +149,19 @@ describe.skipIf(!dockerAvailable)("GitHub metadata ownership, conflicts and dura
     }
 
     fixture.state.issues = false;
-    expect(await code(gw.api.setPullRequestLabels(await request("set_labels"), browser))).toBe(Code.PermissionDenied);
-    fixture.state.issues = true;
+
+    try {
+      expect(await code(gw.api.setPullRequestLabels(await request("set_labels"), browser))).toBe(
+        Code.FailedPrecondition,
+      );
+      snapshot = await gw.api.getPullRequest({ pullRequestId: pr, refresh: true });
+      expect(await code(gw.api.setPullRequestLabels(await request("set_labels"), browser))).toBe(Code.PermissionDenied);
+    } finally {
+      fixture.state.issues = true;
+      await gw.api.listGitHubInstallations({ accountId: snapshot.accountId, refresh: true });
+      snapshot = await gw.api.getPullRequest({ pullRequestId: pr, refresh: true });
+    }
+
     expect(fixture.state.writes).toBe(before);
   }, 30_000);
 
