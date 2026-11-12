@@ -42,7 +42,7 @@ export type ThreadState = ReturnType<typeof useThreadState>;
 function useThreadState(id: string) {
   const { session, client, ready, online } = useSession();
   const { snapshot, setSnapshot, stream, history, syncStatus } = useThreadSnapshot(id);
-  const following = useFollowingList<ui.Turn>(true);
+  const following = useFollowingList<ui.Turn>(true, threadComposerHeight);
   const [details, setDetails] = useState(false);
   const { projects, workers, threads } = useOverview();
   const message = useMessageDraft();
@@ -121,7 +121,6 @@ function useThreadComposer(state: ThreadState) {
     state.following,
     Boolean(message.trigger) || interactions.some((i) => i.kind === InteractionKind.QUESTION && !i.asynchronous),
     threadComposerHeight,
-    collapsedThreadComposerHeight,
   );
 }
 
@@ -170,8 +169,8 @@ export function ThreadScreen({ id }: { id: string }) {
           <ThreadTimeline state={state} composer={composer} />
           <FloatingComposer
             motion={composer.motion}
+            coverage={following.composerInset}
             onLayout={composer.measure}
-            onAccessoryLayout={composer.measureAccessory}
             onExpand={composer.expand}
             onLatest={atBottom || !composer.compact ? undefined : composer.showLatest}
             latestInset={collapsedThreadComposerHeight}

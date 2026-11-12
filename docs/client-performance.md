@@ -71,11 +71,16 @@ Przy pracy w tle główny wątek ma pozostawać wolny dla wejścia użytkownika:
   Indeksy i animacje wejścia aktualizuj dopiero po zmianie kluczy lub grup wierszy.
   Wzrost treści obsługuje `ResizeObserver`; delta o stałej wysokości nie wymaga
   odczytu `scrollHeight`. Izoluj layout wierszy i przewijanych bloków kodu.
-- Rezerwa pod osią wątku jest niezależna od rozwijanego kompozytora. Obserwator feedu
-  mierzy stałą geometrię zwiniętego pola; pomiar naturalnej treści kompozytora zmienia
-  tylko wysokość nakładki. Nie przekazuj jej klatek animacji do spacera ani kotwiczenia
-  scrolla. Ślad rozwinięcia/zwinięcia powinien wykazać brak layoutu poddrzewa osi
-  (dopuszczalny jeden przy przełączeniu), również przy końcu i podczas czytania historii.
+- Rezerwa pod osią wątku obejmuje całą zmierzoną stopkę: pole, toolbar, dolny wiersz,
+  zawinięte cytaty, pliki, chipy i safe area. Web/desktop aktualizuje końcowy spacer raz
+  po zmianie naturalnego rozmiaru, nie po klatkach animacji nakładki. Czytelnik na końcu
+  otrzymuje zsynchronizowane przesunięcie `transform`; podczas czytania historii widok
+  pozostaje nieruchomy. Ślad powinien wykazać najwyżej jeden layout osi przy przełączeniu,
+  bez pętli ResizeObserver → spacer → scroll. Gdy duże zmniejszenie stopki ograniczyłoby
+  offset czytelnika w historii, kolumna zachowuje minimalny zasięg do powrotu na koniec;
+  jego zwolnienie animuje się razem z treścią, bez zmiany zmierzonej rezerwy kompozytora.
+  Na mobile pomiar całego stosu i natywny
+  inset działają na wątku UI, bez pomiarów i korekt scrolla przez JS na każdej klatce.
 - W mobile pętle działają na UI/native thread, korzystają ze wspólnej kolejki
   widoczności listy, zatrzymują się w tle, a dekoracyjne
   `Animated.loop` mają `isInteraction: false`, aby nie blokować batchy listy.

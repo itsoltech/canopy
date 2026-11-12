@@ -7,6 +7,7 @@ import Animated, {
   useDerivedValue,
   useSharedValue,
   type ScrollHandlerProcessed,
+  type SharedValue,
 } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import { ImageViewport, ImageViewportContext } from "../attachments/image-viewport";
@@ -24,16 +25,18 @@ export function TimelineList<Item>({
   onScroll,
   onLayout,
   onContentSizeChange,
+  composerInset,
   ...props
 }: Omit<ComponentProps<typeof Animated.FlatList<Item>>, "onScroll" | "onLayout" | "onContentSizeChange"> & {
   ref?: Ref<FlatList<Item>>;
   onScroll?: ScrollHandlerProcessed;
   onLayout?: FlatListProps<Item>["onLayout"];
   onContentSizeChange?: FlatListProps<Item>["onContentSizeChange"];
+  composerInset?: SharedValue<number>;
 }) {
   const insets = useContentInsets();
   const manualAnchor = useManualFeedAnchor();
-  const safePadding = useDerivedValue(() => insets.bottom);
+  const safePadding = useDerivedValue(() => insets.bottom + (composerInset?.get() ?? 0));
   const [viewport] = useState(() => new ImageViewport());
   const lastCheck = useSharedValue(0);
   const refresh = viewport.refresh;
@@ -64,17 +67,17 @@ export function TimelineList<Item>({
   const renderScrollComponent = useCallback(
     (scrollProps: ScrollViewProps) =>
       Platform.OS === "ios" ? (
-        <IOSChatScrollView {...scrollProps} />
+        <IOSChatScrollView {...scrollProps} composerInset={composerInset} />
       ) : (
         <KeyboardChatScrollView
           {...scrollProps}
           inverted
           offset={insets.bottom}
           extraContentPadding={safePadding}
-          keyboardLiftBehavior="always"
+          keyboardLiftBehavior={composerInset ? "whenAtEnd" : "always"}
         />
       ),
-    [insets.bottom, safePadding],
+    [insets.bottom, safePadding, composerInset],
   );
 
   return (

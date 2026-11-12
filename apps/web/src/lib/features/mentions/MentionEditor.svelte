@@ -582,11 +582,15 @@
   {#if !value && !composing && placeholder}
     <p
       aria-hidden="true"
-      class={["pointer-events-none col-start-1 row-start-1 text-zinc-400 select-none dark:text-zinc-500", className]}
+      class={[
+        "t-composer-placeholder pointer-events-none col-start-1 row-start-1 text-zinc-400 select-none dark:text-zinc-500",
+        className,
+      ]}
+      data-single-line={singleLine || undefined}
     >
       <span class="block truncate">{placeholder}</span>
       {#if hint?.length}
-        <span class="block">
+        <span class="t-composer-hint block">
           {#each hint as item, index (item)}{#if index > 0}{" · "}{/if}<span class="whitespace-nowrap">{item}</span
             >{/each}
         </span>

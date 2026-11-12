@@ -14,7 +14,7 @@ const FOLLOW_THRESHOLD = 96;
  * The scroll position lives on the UI thread; React hears only when the reader leaves or reaches the bottom.
  * Pass `listProps` to a Reanimated list (`Animated.FlatList`, `TimelineList`).
  */
-export function useFollowingList<Item>(keyboardChat = false) {
+export function useFollowingList<Item>(keyboardChat = false, initialComposerHeight = 0) {
   const list = useAnimatedRef<FlatList<Item>>();
   const [atBottom, setAtBottom] = useState(true);
   const scrollY = useSharedValue(0);
@@ -22,13 +22,16 @@ export function useFollowingList<Item>(keyboardChat = false) {
   const bottom = useSharedValue(true);
   const anchoring = useSharedValue(false);
   const keyboard = useKeyboardFrame();
+  const composerInset = useSharedValue(initialComposerHeight);
   const insets = useContentInsets();
   const ios = Platform.OS === "ios";
 
   // iOS exposes the chat inset as a negative offset; Android's synthetic inset keeps its end at zero.
   const minimum = useDerivedValue(() =>
     keyboardChat && ios
-      ? Math.min(0, keyboard.height.get() + insets.bottom * keyboard.progress.get()) - insets.bottom
+      ? Math.min(0, keyboard.height.get() + insets.bottom * keyboard.progress.get()) -
+        insets.bottom -
+        composerInset.get()
       : 0,
   );
 
@@ -86,6 +89,7 @@ export function useFollowingList<Item>(keyboardChat = false) {
 
   return {
     list,
+    composerInset,
     scrollY,
     anchoring,
     isFollowing,

@@ -5,17 +5,18 @@
   import Button from "../Button.svelte";
   import { rise } from "../motion.ts";
   import { UiMemory } from "../memory.ts";
-  import { captureAnchor, rowsOnScreen, type FeedAnchor } from "./feed-anchor.ts";
+  import { captureAnchor, readingKeys, type FeedAnchor } from "./feed-anchor.ts";
   import { FeedEntrances } from "./feed-entrances.ts";
   import { EndScroll } from "./end-scroll.ts";
   import { publishViewport, rowAttachment } from "./feed-measure.ts";
   import { FeedRows } from "./feed-rows.ts";
   import { COLD_OVERSCAN, initialHeight, keepMounted, OVERSCAN_STEP } from "./feed-range.ts";
-  import { feedRowKey, focusFeedRow, footerField, pagedRow } from "./feed-keys.ts";
+  import { feedRowKey, focusFeedRow, focusFeedBoundary, pagedRow } from "./feed-keys.ts";
   import { SizeIndex } from "./size-index.ts";
   import VirtualRow from "./VirtualRow.svelte";
   import { FEED_END_THRESHOLD, ScrollIntent, type ReaderScroll } from "./scroll.ts";
   import type { FeedViewport } from "./viewport.ts";
+  import { footerMotion, FooterScroll } from "./footer-motion.ts";
 
   /**
    * A chat's scroll area: one scroll container with the rows (`role="feed"`, virtualized) and an overlay
@@ -89,7 +90,9 @@
   let scroller = $state<HTMLElement>();
   let list = $state<HTMLElement>();
   let footerElement = $state<HTMLElement>();
-  let footerReserve = $state<HTMLElement>();
+  let footerShell = $state<HTMLElement>();
+  let content = $state<HTMLElement>();
+  const footerScroll = new FooterScroll();
 
   /** Viewport height; 0 until measured (server, hydration): then the last rows render. */
   let viewport = $state(0);
@@ -147,7 +150,10 @@
     const at = anchor && positions.get(anchor.key);
     const top = at === undefined || !anchor ? scrollTop : listTop + index.offset(at) - anchor.top;
 
-    const bounds = stuck
+    // Reuse the tail window near the end, so following does not mount another row during the footer's motion.
+    const tail = stuck || top - listTop + viewport + overscan >= layout.total;
+
+    const bounds = tail
       ? index.tail(viewport + 2 * overscan)
       : index.range(top - listTop - overscan, top - listTop + viewport + overscan);
 
@@ -202,7 +208,6 @@
   const elements = new Map<string, HTMLElement>();
   let commitFrame = 0;
   let measuredViewport = 0;
-  let measuredFooter = 0;
 
   // Reactive updates from measurements wait for the next frame: changing the DOM inside the observer
   // callback would postpone the new rows' notifications (a ResizeObserver loop).
@@ -211,7 +216,6 @@
       commitFrame = 0;
       measured++;
       viewport = measuredViewport;
-      footerHeight = measuredFooter;
 
       if (scroller) gutter = scroller.offsetWidth - scroller.clientWidth;
 
@@ -231,7 +235,6 @@
             const height = entry.borderBoxSize[0]?.blockSize ?? target.offsetHeight;
 
             if (target === scroller) measuredViewport = target.clientHeight;
-            else if (target === footerReserve) measuredFooter = height;
             else if (target.dataset.key) {
               const at = positions.get(target.dataset.key);
               const meta = at === undefined ? undefined : sized[at];
@@ -247,12 +250,25 @@
   const measure = rowAttachment(elements, observer);
 
   $effect(() => {
-    if (!observer || !scroller || !list || !footerReserve) return;
+    if (!observer || !scroller || !list || !footerShell) return;
 
-    for (const element of [scroller, list, footerReserve]) observer.observe(element);
+    const disposeFooter = footerMotion(footerShell, (change) =>
+      footerScroll.resize(
+        content,
+        scroller,
+        change,
+        stuck && !endScroll.active,
+        (height) => (footerHeight = height),
+        setTop,
+      ),
+    );
+
+    for (const element of [scroller, list]) observer.observe(element);
 
     return () => {
-      for (const element of [scroller, list, footerReserve]) if (element) observer.unobserve(element);
+      disposeFooter();
+
+      for (const element of [scroller, list]) if (element) observer.unobserve(element);
     };
   });
 
@@ -261,6 +277,7 @@
     cancelAnimationFrame(commitFrame);
     entrances.dispose();
     endScroll.cancel();
+    footerScroll.cancel();
     clearTimeout(rowTimer);
   });
 
@@ -315,6 +332,7 @@
     }
 
     if (stuck) {
+      footerScroll.follow(content, scroller, setTop);
       const end = scroller.scrollHeight - scroller.clientHeight;
 
       if (Math.abs(scroller.scrollTop - end) >= 1) setTop(end);
@@ -376,6 +394,7 @@
   }
 
   function readerGesture() {
+    footerScroll.interrupt(content, scroller, setTop);
     endScroll.cancel();
     rowTarget = undefined;
     clearTimeout(rowTimer);
@@ -414,6 +433,7 @@
     alignedKey = undefined;
     onlatest?.();
     stuck = true;
+    footerScroll.follow(content, scroller, setTop);
     const distance = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
     const smooth = distance < viewport * 2 && !matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -527,12 +547,7 @@
    * the rows on screen above the footer. Empty while following the end with nothing focused.
    */
   export function reading(): string[] {
-    const keys = focusedKey === undefined ? [] : [focusedKey];
-
-    if (stuck || !scroller) return keys;
-    const box = scroller.getBoundingClientRect();
-
-    return [...keys, ...rowsOnScreen(elements, box.top, box.bottom - footerHeight, focusedKey)];
+    return readingKeys(elements, scroller, stuck, focusedKey, footerHeight);
   }
 
   /**
@@ -561,22 +576,7 @@
   }
 
   function onkeydown(event: KeyboardEvent) {
-    if (event.defaultPrevented) return;
-
-    if (event.ctrlKey && event.key === "End") {
-      event.preventDefault();
-
-      footerField(footerElement)?.focus({ preventScroll: true });
-
-      return;
-    }
-
-    if (event.ctrlKey && event.key === "Home") {
-      event.preventDefault();
-      scroller?.focus({ preventScroll: true });
-
-      return;
-    }
+    if (event.defaultPrevented || focusFeedBoundary(event, footerElement, scroller)) return;
 
     const current = pagedRow(event);
     const at = current === undefined ? undefined : positions.get(current);
@@ -584,10 +584,6 @@
     if (at === undefined) return;
     event.preventDefault();
     void focusRow(at + (event.key === "PageDown" ? 1 : -1));
-  }
-
-  function onfocusout(event: FocusEvent) {
-    if (!(event.relatedTarget instanceof Node) || !list?.contains(event.relatedTarget)) focusedKey = undefined;
   }
 </script>
 
@@ -633,8 +629,9 @@
     }}
   >
     <div class="mx-auto flex min-h-full max-w-(--chat-width) flex-col px-4 sm:px-6">
-      {@render top?.()}
-      <div class="flex grow flex-col pt-2 pb-8">
+      <!-- Keep a containing block between animations: starting/cancelling a transform must not relayout rows. -->
+      <div bind:this={content} class="flex grow [transform:translateY(0)] flex-col pt-2 pb-8">
+        {@render top?.()}
         {#if rows.length === 0 && placeholder}<div class="mt-auto">{@render placeholder()}</div>{/if}
         <!-- Keys and focus bubble up from the focusable articles (WAI-ARIA feed). -->
         <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -647,7 +644,9 @@
           style:padding-bottom="{padBottom}px"
           {onkeydown}
           onfocusin={(event) => (focusedKey = feedRowKey(event.target))}
-          {onfocusout}
+          onfocusout={(event) => {
+            if (!(event.relatedTarget instanceof Node) || !list?.contains(event.relatedTarget)) focusedKey = undefined;
+          }}
         >
           {#each visible as item, offset (key(item))}
             <VirtualRow
@@ -663,19 +662,15 @@
           {/each}
         </div>
       </div>
-      <!-- Only the collapsed composer and safe gap reserve space, regardless of the overlay's size. -->
+      <!-- The full target coverage is scrollable; only a following reader moves with the shell. -->
       <div aria-hidden="true" style:height="{footerSpace}px" class="shrink-0"></div>
     </div>
   </div>
   <!-- The footer and its fade are siblings of the scroller. Resizing them cannot move a row,
      change the virtual window, or make the browser reveal a contenteditable's flow position. -->
   <div class="pointer-events-none absolute bottom-0 left-0 isolate z-10 [contain:layout]" style:right="{gutter}px">
-    <!-- 72px one-line shell composer + 8px top gap + the shared safe-area inset.
-         Observe this fixed rail, never the animated footer: no resize → spacer → scroll loop. -->
-    <div
-      bind:this={footerReserve}
-      class="relative h-[calc(--spacing(20)+max(--spacing(2),env(safe-area-inset-bottom)))]"
-    >
+    <!-- Keep the latest control on the collapsed rail, independently of the measured end space. -->
+    <div class="relative h-[calc(--spacing(20)+max(--spacing(2),env(safe-area-inset-bottom)))]">
       {#if !stuck}
         <div class="pointer-events-none absolute inset-x-0 bottom-full mb-3 flex justify-center" transition:rise>
           <!-- An opaque backing keeps the secondary button legible over text in both themes. -->
@@ -688,22 +683,24 @@
           </span>
         </div>
       {/if}
-      <div class="absolute inset-x-0 bottom-0 isolate">
+      <div bind:this={footerShell} class="absolute inset-x-0 bottom-0 isolate [clip-path:inset(-2rem_-4px_0)]">
+        <div class="absolute inset-x-0 bottom-0">
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div class="mx-auto max-w-(--chat-width) px-4 sm:px-6" {onkeydown}>
+            <div
+              bind:this={footerElement}
+              class="pointer-events-auto relative composer-bottom"
+              onfocusin={() => scrollIntent.reset()}
+              onbeforeinput={() => scrollIntent.reset()}
+            >
+              {@render footer?.()}
+            </div>
+          </div>
+        </div>
         <div
           class="absolute inset-x-0 bottom-0 -z-10 h-[calc(100%+2rem)] bg-linear-to-t from-white from-[calc(100%-2rem)] to-transparent dark:from-black"
           aria-hidden="true"
         ></div>
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div class="mx-auto max-w-(--chat-width) px-4 sm:px-6" {onkeydown}>
-          <div
-            bind:this={footerElement}
-            class="pointer-events-auto relative composer-bottom"
-            onfocusin={() => scrollIntent.reset()}
-            onbeforeinput={() => scrollIntent.reset()}
-          >
-            {@render footer?.()}
-          </div>
-        </div>
       </div>
     </div>
   </div>
