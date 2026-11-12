@@ -35,7 +35,10 @@ unset CANOPY_BENCH_FORENSICS_DIR CANOPY_BENCH_FORENSIC_PHASE
 unset CANOPY_BENCH_FORENSIC_CHECKPOINTS
 unset CANOPY_BENCH_FORENSIC_SNAPSHOT_POINT
 unset CANOPY_BENCH_FORENSIC_FORMAT CANOPY_BENCH_RETENTION_PROBE
+unset CANOPY_BENCH_ONLY_PHASE CANOPY_BENCH_SOURCE_ROOT CANOPY_BENCH_BLOCKED_UPDATES CANOPY_BENCH_POOL_TRACE
+export CANOPY_BENCH_CONTROL=${CANOPY_DIAGNOSTICS_CONTROL:-0}
 export CANOPY_BENCH_SERIES=4
+if [[ $CANOPY_BENCH_CONTROL == 1 ]]; then export CANOPY_BENCH_SERIES=2; fi
 export CANOPY_BENCH_STAGE=3
 export TMPDIR="$task_output"
 export CANOPY_BENCH_SHORT=1
@@ -52,7 +55,11 @@ export CANOPY_BENCH_PG_CPU=${CANOPY_DIAGNOSTICS_PG_CPU:-4}
 export CANOPY_BENCH_PG_PORT=18191
 export CANOPY_BENCH_GATEWAY_PORT=18192
 printf '%s\n' "Revision: $(cat "$task_output/head.txt")" "Evidence: $task_output" "Controller PID: $$"
-printf '%s\n' 'Order: AB / BA / AB / BA (A=stage 3 off, B=on; stages 1 and 2 on throughout).'
+if [[ $CANOPY_BENCH_CONTROL == 1 ]]; then
+  printf '%s\n' 'Control: two A/A pairs, stages 1/2 on, stage 3 off in all four fresh members (~55 minutes).'
+else
+  printf '%s\n' 'Order: AB / BA / AB / BA (A=stage 3 off, B=on; stages 1 and 2 on throughout).'
+fi
 printf '%s\n' 'Worker load: real journal, ACK/replay, deterministic ACP turns and git; no inference.'
-printf '%s\n' 'Workload: 96 minutes; approximately 100 minutes with preflight and startup, longer after rejected pairs.'
-diagnostics_recording "$task_output" "${task_priority[@]}" taskset -c "${CANOPY_DIAGNOSTICS_DRIVER_CPU:-1}" bun scripts/bench/diagnostics.ts
+printf '%s\n' 'Workload: 96 minutes; approximately 110 minutes with fresh clusters and startup, longer after rejected pairs.'
+diagnostics_recording "$task_output" "${task_priority[@]}" taskset -c "${CANOPY_DIAGNOSTICS_DRIVER_CPU:-1}" bun scripts/bench/diagnostics-series.ts
