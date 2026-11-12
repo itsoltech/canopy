@@ -49,7 +49,8 @@ export async function diagnosticsContention(
     phase === "pool_contention"
       ? Promise.all(
           Array.from({ length: blocked }, (_, index) =>
-            api.updateThread({ threadId: thread, title: `Pool contender ${index}` }),
+            // This fixture deliberately waits on a 70 s lock; retain the ordinary BFF deadlines elsewhere.
+            api.updateThread({ threadId: thread, title: `Pool contender ${index}` }, { timeoutMs: 100_000 }),
           ),
         )
       : Promise.resolve([]);
