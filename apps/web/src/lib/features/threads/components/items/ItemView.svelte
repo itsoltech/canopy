@@ -19,6 +19,8 @@
   import { provideItemChildren } from "./item-context.ts";
   import { provideThreadFileLinks } from "#lib/features/files/file-links.svelte.ts";
   import { useThreadDirectory } from "../../thread-directory.ts";
+  import LazyItemContent from "./LazyItemContent.svelte";
+  import { useLazyContent } from "./lazy-content.ts";
 
   /**
    * One transcript item (docs/transcript.md); every type has a view. `nested` = its child items.
@@ -35,6 +37,8 @@
   );
 
   const streaming = $derived(item.status === ItemStatus.IN_PROGRESS && !turnEnded);
+  const lazy = useLazyContent();
+  const lazyContent = $derived(lazy());
 
   const inlineChildren = $derived(
     ["userMessage", "agentMessage", "reasoning", "contextCompaction"].includes(content.case ?? ""),
@@ -75,6 +79,12 @@
   <InteractionPromptView prompt={content.value} status={item.status} />
 {:else if content.case === "providerItem"}
   <ProviderItemView item={content.value} status={item.status} />
+{/if}
+
+{#if lazyContent && (content.case === "userMessage" || content.case === "agentMessage")}
+  {#key lazyContent.reference.sha256}
+    <LazyItemContent {...lazyContent} subject="message" />
+  {/key}
 {/if}
 
 {#if nested && inlineChildren}

@@ -7,9 +7,16 @@
   import LiveText from "#lib/shared/ui/LiveText.svelte";
   import { LineReveal } from "#lib/shared/ui/streaming/line-reveal.svelte.ts";
   import { activityBody } from "../activity-header.ts";
+  import LazyItemContent from "./LazyItemContent.svelte";
+  import { useLazyContent } from "./lazy-content.ts";
+  import { ContentExpansion } from "./content-expansion.svelte.ts";
 
   /** Reasoning, collapsed: the first line of the summary as a preview, the rest on demand. */
   let { reasoning, streaming }: { reasoning: Reasoning; streaming: boolean } = $props();
+  let open = $state(false);
+  const expansion = new ContentExpansion(() => open);
+  const lazy = useLazyContent();
+  const lazyContent = $derived(lazy());
 
   // The preview follows the stream line by line too, not token by token.
   const shown = new LineReveal(
@@ -29,6 +36,7 @@
 
 {#if hasBody || streaming}
   <Disclosure
+    bind:open
     class="activity-shell density-work rounded-md border-l-2 border-zinc-950/5 bg-zinc-950/1 dark:border-white/10 dark:bg-white/2.5"
     grid
     remember="reasoning"
@@ -54,6 +62,17 @@
           {streaming}
           class="text-zinc-500 dark:text-zinc-400"
         />{/if}
+      {#if lazyContent}
+        {#key lazyContent.reference.sha256}
+          <LazyItemContent
+            {...lazyContent}
+            auto
+            signal={expansion.signal}
+            active={open && !!expansion.signal}
+            subject="thought"
+          />
+        {/key}
+      {/if}
     </div>
   </Disclosure>
 {/if}
