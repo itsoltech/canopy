@@ -70,7 +70,12 @@ export default function SettingsScreen() {
             <WhatsNewSettings />
           </>
         )}
-        {section === "diagnostics" && <DiagnosticsSettings />}
+        {section === "diagnostics" && (
+          <>
+            <DiagnosticsSettings />
+            <ThreadSyncDiagnostics />
+          </>
+        )}
         {section === "keybindings" && <KeybindingSettings />}
         {section === "diffs" && <DiffSettings />}
         {section === "appearance" && <AppearanceSettings />}
@@ -86,7 +91,6 @@ export default function SettingsScreen() {
         {section === "mobile" && <DeviceSettings />}
         {section === "workers" && <WorkerSettings />}
         {section === "computers" && <ComputerSettings />}
-        {section === "diagnostics" && <ThreadSyncDiagnostics />}
         {section === "proxies" && <ProxySettings />}
         {section === "connectors" && <ConnectorSettings />}
         {section === "github" && <GitHubSettings />}

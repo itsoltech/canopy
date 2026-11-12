@@ -287,6 +287,12 @@ komputer/łącze, bez toastu na każdy tick i bez systemowych powiadomień w tym
 
 ## 5. Trwałe agregaty, retencja i restart
 
+Migracja etapu 1 to `0124_diagnostics`, po migracjach thread sync `0120–0123`.
+Etapy 2 i 3 nie dodają migracji; korzystają z tych samych tabel i budżetów.
+Panel Thread sync z #543 pozostaje w tym samym widoku Diagnostics na web i mobile:
+jego owner-scoped, trwały postęp jest źródłem seq/head oraz błędów synchronizacji,
+bez drugiej tabeli ani duplikowania tych rekordów w kolektorze metryk procesu.
+
 **Decyzja: persystencja od etapu 1.** Każdy proces nadal zbiera metryki w pamięci;
 tylko domowy gateway zapisuje je do PostgreSQL. Dotyczy to także agregatów workerów
 przesłanych przez WorkerLink oraz później BFF/klientów. Każdy dom zapisuje własne

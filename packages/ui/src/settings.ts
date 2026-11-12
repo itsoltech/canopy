@@ -65,7 +65,8 @@ export const settingsSections: readonly SettingsSection[] = [
     label: "Diagnostics",
     icon: "signal",
     group: "General",
-    keywords: "performance health rpc calls network latency rtt history findings computers",
+    keywords:
+      "performance health rpc calls network latency rtt history findings computers sync progress remaining records errors failures linked computers",
   },
   {
     href: "/settings/projects",

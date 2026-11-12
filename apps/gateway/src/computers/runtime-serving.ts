@@ -134,28 +134,7 @@ export async function* computersServeHome(
   signal: AbortSignal,
 ): AsyncGenerator<Message> {
   if (method.name === "ReadDiagnosticsSnapshot") {
-    if (
-      !hostContext.options.core ||
-      !hostContext.hello().capabilities.includes("diagnostics_v1") ||
-      !connection.capabilities?.has("diagnostics_v1")
-    )
-      throw new ConnectError("Update to see diagnostics", Code.Unimplemented);
-    const origin = hostContext.relay.entries.get(nodeId);
-
-    if (origin) {
-      const grant = await hostContext.store.query(
-        "SELECT 1 FROM diagnostics_grants WHERE owner_user_id=$1::uuid AND origin_computer_id=$2 AND via_node_id=$3",
-        [hostContext.store.owner, nodeId, origin.via_node_id],
-      );
-
-      if (!grant.length) throw new ConnectError("Diagnostics are not shared with this computer", Code.PermissionDenied);
-    }
-
-    const input = linkedMessage(ui.ComputerDiagnosticsRequestSchema, request);
-
-    if (input.computerId)
-      throw new ConnectError("Diagnostics reads are local to the receiving home", Code.PermissionDenied);
-    yield await hostContext.options.core.diagnostics.read(input);
+    yield await readHomeDiagnostics(hostContext, nodeId, connection, request);
 
     return;
   }
@@ -280,4 +259,30 @@ export async function* computersServeHome(
         Boolean(connection.capabilities?.has(THREAD_WATCH_COALESCE)),
     );
   else yield* hostContext.options.serve(method, request, signal, nodeId);
+}
+
+async function readHomeDiagnostics(host: LinkedComputers, node: string, connection: Connection, request: Message) {
+  if (
+    !host.options.core ||
+    !host.hello().capabilities.includes("diagnostics_v1") ||
+    !connection.capabilities?.has("diagnostics_v1")
+  )
+    throw new ConnectError("Update to see diagnostics", Code.Unimplemented);
+  const origin = host.relay.entries.get(node);
+
+  if (origin) {
+    const grant = await host.store.query(
+      "SELECT 1 FROM diagnostics_grants WHERE owner_user_id=$1::uuid AND origin_computer_id=$2 AND via_node_id=$3",
+      [host.store.owner, node, origin.via_node_id],
+    );
+
+    if (!grant.length) throw new ConnectError("Diagnostics are not shared with this computer", Code.PermissionDenied);
+  }
+
+  const input = linkedMessage(ui.ComputerDiagnosticsRequestSchema, request);
+
+  if (input.computerId)
+    throw new ConnectError("Diagnostics reads are local to the receiving home", Code.PermissionDenied);
+
+  return host.options.core.diagnostics.read(input);
 }
