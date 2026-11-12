@@ -81,6 +81,14 @@ Zaimplementowane (2026-11-01). Decyzja użytkownika: długo żyjące procesy i z
 
 Cykl życia itemu `background_task` (`item_id = bg:<id>`): `in_progress` → `completed | failed | interrupted`. Pola: `task_id` (uchwyt do zatrzymania), `kind`, `command`, `description`, `output`, `started_in_turn_id`, `source_item_id` (item, który je uruchomił), `progress` (Claude: podsumowanie, zużycie), `started_at` / `ended_at` (worker stempluje je przy zdarzeniach zadania, gateway uzupełnia brakujące czasem zdarzenia; UI nie pokazuje już „Time unavailable” po przeładowaniu), `exit_code` (Codex).
 
+Lista w szczegółach wątku pokazuje ikonę stanu, skróconą nazwę i metadane przy prawej
+krawędzi wiersza. Działające zadania mają czas trwania; zakończone także wiek zakończenia
+(np. `7m 43s · 7m ago`), bo odpowiadają na różne pytania. Pełna nazwa, przyczyna zatrzymania
+i kod wyjścia pozostają w podpowiedzi i etykiecie dostępności. Na web Stop zastępuje czas
+działającego zadania po najechaniu lub fokusie, bez przesuwania nazwy; tło obejmuje cały
+wiersz. Przy dotyku i w aplikacji mobilnej Stop pozostaje widoczny obok czasu. Zakończone
+wiersze nie rezerwują pustego miejsca na przycisk. Dotknięcie nazwy otwiera pełny wynik.
+
 `stop_reason` (słowa dla modelu i UI: `packages/domain/src/background-tasks`):
 
 | `stop_reason` | Kiedy | Model czyta | UI |

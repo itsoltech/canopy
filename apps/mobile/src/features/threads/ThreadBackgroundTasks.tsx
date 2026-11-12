@@ -1,12 +1,14 @@
 import { useState } from "react";
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { ItemStatus, type ui } from "@canopy/contracts";
-import { backgroundStopLabel } from "@canopy/domain/background-tasks";
+import { backgroundStopLabel, backgroundTitle } from "@canopy/domain/background-tasks";
 import { useSession } from "../../state/session";
-import { Button, Notice } from "../../ui/components";
+import { Notice } from "../../ui/components";
+import { IconButton } from "../../ui/Button";
 import { styles, useColors } from "../../ui/theme";
 import { TextViewer } from "../viewers/TextViewer";
 import { QuoteItem } from "../quotes/QuoteAction";
+import { BackgroundTaskSummary } from "./BackgroundTaskSummary";
 
 export function ThreadBackgroundTasks({ snapshot, disabled }: { snapshot: ui.ThreadSnapshot; disabled: boolean }) {
   const c = useColors();
@@ -20,7 +22,7 @@ export function ThreadBackgroundTasks({ snapshot, disabled }: { snapshot: ui.Thr
     );
 
   return (
-    <View style={{ gap: 12 }}>
+    <View style={{ gap: 4 }}>
       <Text style={[styles.label, { color: c.text }]}>Background tasks</Text>
       {!tasks.length && <Text style={[styles.meta, { color: c.muted }]}>No background tasks</Text>}
       {tasks.map((entry) => (
@@ -51,6 +53,7 @@ export function TaskRow({
   if (item?.content.case !== "backgroundTask") return null;
   const task = item.content.value;
   const running = item.status === ItemStatus.IN_PROGRESS;
+  const name = backgroundTitle(task, "Background task");
 
   const status = running
     ? "Running"
@@ -61,7 +64,7 @@ export function TaskRow({
         : item.status === ItemStatus.INTERRUPTED
           ? "Stopped"
           : item.status === ItemStatus.COMPLETED
-            ? "Done"
+            ? "Completed"
             : "Pending";
 
   async function stop() {
@@ -78,35 +81,36 @@ export function TaskRow({
   }
 
   return (
-    <View style={{ gap: 6, borderBottomWidth: 1, borderColor: c.line, paddingBottom: 8 }}>
-      <Text numberOfLines={compact ? 2 : 3} style={[compact ? styles.overlay : styles.body, { color: c.text }]}>
-        {task.description || task.command || "Background task"}
-      </Text>
-      <Text style={[styles.meta, { color: c.muted }]}>
-        {status}
-        {task.exitCode === undefined ? "" : ` · exit ${task.exitCode}`}
-      </Text>
-      {error ? <Notice error>{error}</Notice> : null}
-      <View style={[styles.row, { flexWrap: "wrap" }]}>
-        <Button title="Show full output" size="sm" onPress={() => setOutput(true)} />
+    <View style={{ gap: 4 }}>
+      <View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${name} — ${status}${task.exitCode ? ` · exit ${task.exitCode}` : ""}. Show full output`}
+          onPress={() => setOutput(true)}
+          style={({ pressed }) => ({ borderRadius: 8, backgroundColor: pressed ? c.pressed : undefined })}
+        >
+          <BackgroundTaskSummary task={task} status={item.status} compact={compact} />
+        </Pressable>
         {running && (
-          <Button
-            title="Stop task"
+          <IconButton
+            icon="stop"
+            label={busy ? "Stopping…" : "Stop task"}
             size="sm"
-            variant="danger"
             busy={busy}
             disabled={disabled}
             onPress={() => void stop()}
+            style={{ position: "absolute", right: 4, top: 6 }}
           />
         )}
       </View>
+      {error ? <Notice error>{error}</Notice> : null}
       {output && (
         <QuoteItem.Provider value={item.itemId}>
           <TextViewer
             text={task.output}
             blob={task.outputBlob}
             threadId={threadId}
-            label={`Output of ${task.description || task.command || "background task"}`}
+            label={`Output of ${name}`}
             onClose={() => setOutput(false)}
           />
         </QuoteItem.Provider>

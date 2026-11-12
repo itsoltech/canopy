@@ -1250,7 +1250,10 @@ z oznaczeniem „loaded turns” przy niepełnej historii, oraz ostatni zgłoszo
 „Copy” kopiuje osobno katalog roboczy i ścieżkę worktree przez `expo-clipboard`.
 Linki do harmonogramów i zarządzania worktree otwierają Settings z zakresem tego wątku
 lub worktree. Lista zadań w tle pozostaje dostępna w szczegółach po zakończeniu tury;
-pokazuje status i kod wyjścia, pozwala zatrzymać zadanie i otworzyć pełny wynik.
+pokazuje ikonę stanu, nazwę w jednej linii, czas trwania i wiek zakończenia przy prawej
+krawędzi. Działające zadanie ma widoczny przycisk Stop, zakończone wykorzystuje pełną
+szerokość wiersza. Etykieta dostępności zawiera pełną nazwę, stan i kod wyjścia;
+dotknięcie wiersza otwiera pełny wynik. To zmiana wyłącznie JS.
 Snapshot strony zachowuje także itemy zadań w tle spoza okna załadowanych tur.
 „Show full output” korzysta ze wspólnego `TextViewer`, także dla wyniku zapisanego jako blob.
 
