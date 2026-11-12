@@ -218,6 +218,7 @@
       <div class="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5 text-sm text-zinc-500 dark:text-zinc-400">
         {#if context.repositories.length > 1}<Select
             inline
+            class="max-w-full min-w-0 [&>button]:max-w-full"
             aria-label="Base repository"
             value={context.repositoryName}
             options={context.repositories.map((value) => ({ value, label: value }))}
@@ -230,6 +231,7 @@
         ><span>→</span>
         {#if context.accountId && context.baseRef}<Select
             inline
+            class="max-w-full min-w-0 [&>button]:max-w-full"
             aria-label="Base branch"
             value={context.baseRef}
             options={[...new Set([context.baseRef, ...context.branches])]
@@ -240,6 +242,7 @@
           />{:else}<span>Base unavailable</span>{/if}
         {#if selection && selection.candidates.length > 1}<Select
             inline
+            class="max-w-full min-w-0 [&>button]:max-w-full"
             aria-label="GitHub account"
             value={context.accountId}
             options={selection.candidates.map((a) => ({ value: a.id, label: a.login }))}
