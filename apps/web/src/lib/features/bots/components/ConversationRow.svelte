@@ -12,6 +12,8 @@
   import { useBotHome } from "../home.svelte.ts";
   import MarkdownSnippet from "#lib/shared/ui/markdown/MarkdownSnippet.svelte";
   import ActionItems from "./ActionItems.svelte";
+  import SidebarQuickArchive from "#lib/features/navigation/SidebarQuickArchive.svelte";
+  import { focusAfterArchive } from "#lib/features/navigation/sidebar-focus.ts";
 
   /**
    * One conversation in the Bots list (shared by `BotListItem` and `GroupListItem`): avatar, name,
@@ -35,9 +37,28 @@
   } & ConversationHandlers = $props();
 
   let menuOpen = $state(false);
+  let archiving = $state(false);
+  let rowBox: HTMLElement | undefined = $state();
   const title = $derived(conversationTitle(conversation));
   const home = useBotHome(() => conversation.nodeId);
   const items = $derived(conversationMenu(conversation, home.reason ? {} : handlers));
+
+  async function archive(event: MouseEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (archiving || home.reason || !handlers.onArchive) return;
+    const focusNext = focusAfterArchive(rowBox);
+
+    archiving = true;
+
+    try {
+      await handlers.onArchive(conversation);
+      focusNext();
+    } finally {
+      archiving = false;
+    }
+  }
 
   // Who wrote the last message, when that is not the 1:1 chat's own bot: "You: …", "Notes: …".
   const author = $derived.by(() => {
@@ -51,8 +72,10 @@
 </script>
 
 <div
+  bind:this={rowBox}
+  data-sidebar-archive-row={Boolean(handlers.onArchive) || undefined}
   class={[
-    "sidebar-row group relative flex min-h-12 items-center gap-3 rounded-xl px-3 py-2 hover:bg-zinc-950/4 has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-2 has-[a:focus-visible]:outline-brand-500 dark:hover:bg-white/4",
+    "sidebar-action-row sidebar-row group relative flex min-h-12 items-center gap-3 rounded-xl px-3 py-2 hover:bg-zinc-950/4 has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-2 has-[a:focus-visible]:outline-brand-500 dark:hover:bg-white/4",
     current && "bg-zinc-950/6 dark:bg-white/8",
     home.reason && "opacity-60",
     className,
@@ -98,7 +121,7 @@
           {#if author}{`${author}: `}{/if}<MarkdownSnippet text={conversation.lastMessage.text} />
         {/if}
       </span>
-      <span class="flex w-7 shrink-0 justify-end">
+      <span class={["flex w-7 shrink-0 justify-end", handlers.onArchive && !home.reason && "sidebar-resting-mark"]}>
         {#if conversation.unread > 0}<span
             class="shrink-0 rounded-full bg-action px-1.5 text-xs/4.5 font-medium text-on-accent tabular-nums"
           >
@@ -107,6 +130,16 @@
       </span>
     </p>
   </div>
+
+  {#if handlers.onArchive && !home.reason}
+    <SidebarQuickArchive
+      archived={conversation.archived ?? false}
+      label="{conversation.archived ? 'Unarchive' : 'Archive'} bot {title}"
+      loading={archiving}
+      onclick={(event) => void archive(event)}
+      class="right-3 bottom-[0.6875rem] sm:bottom-2.5"
+    />
+  {/if}
 
   {#if items.length > 0}
     <DropdownMenu label="Actions for {title}" bind:open={menuOpen} placement="bottom-end">

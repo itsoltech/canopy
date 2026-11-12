@@ -12,7 +12,7 @@ export interface BotAction {
 /** What a conversation in the list can do; a missing handler hides its item. */
 export interface ConversationHandlers {
   onEdit?: ((conversation: ConversationView) => void) | undefined;
-  onArchive?: ((conversation: ConversationView) => void) | undefined;
+  onArchive?: ((conversation: ConversationView) => void | Promise<void>) | undefined;
   onDelete?: ((conversation: ConversationView) => void) | undefined;
   /** Pin or unpin (pins will be a user setting in the gateway). */
   onTogglePin?: ((conversation: ConversationView) => void) | undefined;
@@ -47,7 +47,7 @@ export function conversationMenu(
     items.push({
       label: conversation.archived ? "Unarchive bot" : "Archive bot",
       icon: "archive-box",
-      onselect: () => onArchive(conversation),
+      onselect: () => void onArchive(conversation),
     });
 
   if (onDelete && conversation.archived)

@@ -17,7 +17,11 @@ export const provideThreadActions = (actions: ThreadActions) => setContext(KEY, 
 export const useThreadActions = () => getContext<ThreadActions>(KEY);
 
 export class ThreadActions {
-  dialog = $state.raw<{ kind: "rename" | "delete" | "unpin" | "archive"; thread: ui.Thread }>();
+  dialog = $state.raw<{
+    kind: "rename" | "delete" | "unpin" | "archive";
+    thread: ui.Thread;
+    afterArchive?: () => void;
+  }>();
   /** The thread "Move to…" is open for (MoveDialog). */
   moving = $state.raw<ui.Thread>();
   saving = $state(false);
@@ -41,7 +45,7 @@ export class ThreadActions {
     return new URL(`/threads/${thread.id}`, location.origin).href;
   }
 
-  async run(action: ThreadActionId, thread: ui.Thread, confirmed = false): Promise<void> {
+  async run(action: ThreadActionId, thread: ui.Thread, confirmed = false, afterArchive?: () => void): Promise<void> {
     try {
       const unpin = action === "pin" && this.settings.sidebar.pinnedThreadIds.includes(thread.id);
 
@@ -52,6 +56,8 @@ export class ThreadActions {
 
       if (ask) {
         this.openDialog(unpin ? "unpin" : "archive", thread);
+
+        if (this.dialog && afterArchive) this.dialog = { ...this.dialog, afterArchive };
 
         return;
       }
@@ -100,10 +106,8 @@ export class ThreadActions {
           );
           break;
         case "archive":
-          await this.lifecycle(
-            thread.status === "archived" && thread.archivedBy === "cascade" ? thread.parentThreadId : thread.id,
-            thread.status === "archived" ? "unarchive" : "archive",
-          );
+          await this.archive(thread);
+          afterArchive?.();
           break;
       }
     } catch (cause) {
@@ -125,7 +129,7 @@ export class ThreadActions {
       } else if (dialog.kind === "unpin") {
         await this.settings.pinThread(dialog.thread.id, false);
       } else if (dialog.kind === "archive") {
-        await this.lifecycle(dialog.thread.id, "archive");
+        await this.archive(dialog.thread);
       } else {
         const id = dialog.thread.id;
         const currentId = this.currentId();
@@ -158,6 +162,8 @@ export class ThreadActions {
       }
 
       this.dialog = undefined;
+
+      if (dialog.kind === "archive") dialog.afterArchive?.();
     } catch (cause) {
       this.error(cause);
     } finally {
@@ -167,6 +173,22 @@ export class ThreadActions {
 
   private post(id: string, action: string) {
     return requestJson("POST", `/api/threads/${encodeURIComponent(id)}/lifecycle`, { action });
+  }
+  private async archive(thread: ui.Thread) {
+    const archived = thread.status === "archived";
+    const id = archived && thread.archivedBy === "cascade" ? thread.parentThreadId : thread.id;
+
+    await this.lifecycle(id, archived ? "unarchive" : "archive");
+
+    if (!archived)
+      toast("Thread archived", {
+        action: {
+          label: "Undo",
+          run: () => {
+            void this.lifecycle(id, "unarchive").catch((cause) => this.error(cause));
+          },
+        },
+      });
   }
   private openDialog(kind: "rename" | "delete" | "unpin" | "archive", thread: ui.Thread): void {
     const focused = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;

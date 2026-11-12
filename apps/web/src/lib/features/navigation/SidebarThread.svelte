@@ -50,6 +50,7 @@
 <SidebarThreadLink
   {thread}
   {current}
+  quickArchive
   needsAttention={needsYou(thread) || subagentsNeedingInput.length > 0}
   class="grid gap-0.5 rounded-xl px-3 py-2"
 >
@@ -107,16 +108,18 @@
           class="size-3.5 text-violet-500 dark:text-violet-400"
           label="Started by an agent"
         />{/if}
-      {#if provider}<span
-          class="flex"
-          title={thread.providerProfileId ? `${providerName} · ${thread.providerProfileId}` : providerName}
-          ><ProviderIcon
-            {provider}
-            label={providerName}
-            class="size-3.5"
-            opacity={threadRowMarks.providerOpacity}
-          /></span
-        >{/if}
+      <span class="flex size-3.5 shrink-0 items-center justify-center">
+        {#if provider}<span
+            class="sidebar-resting-mark flex"
+            title={thread.providerProfileId ? `${providerName} · ${thread.providerProfileId}` : providerName}
+            ><ProviderIcon
+              {provider}
+              label={providerName}
+              class="size-3.5"
+              opacity={threadRowMarks.providerOpacity}
+            /></span
+          >{/if}
+      </span>
     </span>
   </span>
 </SidebarThreadLink>

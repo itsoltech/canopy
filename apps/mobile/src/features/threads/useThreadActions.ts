@@ -43,10 +43,20 @@ export function useThreadActions(thread: ui.Thread) {
       else if (action === "read")
         await client.api.setThreadRead({ threadId: thread.id, unread: !(thread.markedUnread || thread.unseenResult) });
       else if (action === "archive") {
+        const threadId = archived && thread.archivedBy === "cascade" ? thread.parentThreadId : thread.id;
+
         await client.api.setThreadArchived({
-          threadId: archived && thread.archivedBy === "cascade" ? thread.parentThreadId : thread.id,
+          threadId,
           archived: !archived,
         });
+
+        if (!archived)
+          toast("Thread archived", {
+            label: "Undo",
+            run: async () => {
+              await client.api.setThreadArchived({ threadId, archived: false });
+            },
+          });
       } else if (action === "delete") {
         const result = await client.api.deleteThread({ threadId: thread.id });
         const reopen = path.startsWith("/thread/") && id && result.threadIds.includes(id) ? id : undefined;
@@ -86,7 +96,7 @@ export function useThreadActions(thread: ui.Thread) {
     } else if (action === "archive" && !archived && general?.confirmArchive) {
       confirm({
         title: "Archive thread?",
-        description: "This also archives its side threads.",
+        description: "This also archives its side threads. Running turns stop and schedules are cancelled.",
         confirm: "Archive thread",
         danger: false,
         action: () => void execute(action),
