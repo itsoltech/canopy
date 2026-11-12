@@ -58,6 +58,7 @@ export function useFeedAnchor({
 }: ReturnType<typeof useFollowingList<ui.Turn>>) {
   const generation = useSharedValue(0);
   const [session] = useState(() => new AnchorSession());
+
   const geometry = useMemo(
     () => ({ list, scrollY, minimum, corrections, anchoring, generation, track }),
     [list, scrollY, minimum, corrections, anchoring, generation, track],
@@ -70,7 +71,11 @@ const Anchor = createContext<ReturnType<typeof useFeedAnchor> | null>(null);
 const idle = new AnchorSession();
 
 /** Inverted: increasing the offset moves the header down, against growth above the cell's bottom. */
-function correctHeader(geometry: ReturnType<typeof useFeedAnchor>["geometry"], top: SharedValue<number>, after: number) {
+function correctHeader(
+  geometry: ReturnType<typeof useFeedAnchor>["geometry"],
+  top: SharedValue<number>,
+  after: number,
+) {
   "worklet";
   const delta = after - top.get();
 
@@ -86,7 +91,13 @@ function correctHeader(geometry: ReturnType<typeof useFeedAnchor>["geometry"], t
   return false;
 }
 
-export function FeedAnchorProvider({ value, children }: { value: ReturnType<typeof useFeedAnchor>; children: ReactNode }) {
+export function FeedAnchorProvider({
+  value,
+  children,
+}: {
+  value: ReturnType<typeof useFeedAnchor>;
+  children: ReactNode;
+}) {
   return <Anchor.Provider value={value}>{children}</Anchor.Provider>;
 }
 

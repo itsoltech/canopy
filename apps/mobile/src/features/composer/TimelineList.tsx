@@ -89,6 +89,7 @@ export function TimelineList<Item>({
         }}
         onContentSizeChange={(width, height) => {
           onContentSizeChange?.(width, height);
+
           if (!manualAnchor) refresh();
         }}
         renderScrollComponent={renderScrollComponent}

@@ -48,6 +48,7 @@ export function useFollowingList<Item>(keyboardChat = false) {
     (y: number) => {
       "worklet";
       scrollY.set(y);
+
       if (anchoring.get()) return;
       const at = distance(y) <= FOLLOW_THRESHOLD;
 
