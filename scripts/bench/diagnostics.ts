@@ -32,6 +32,7 @@ const short = process.env["CANOPY_BENCH_STAGE"] === "2" && process.env["CANOPY_B
 const minimumContentionMs = short ? 90_000 : 140_000;
 
 if (
+  process.env["CANOPY_BENCH_ONLY_PHASE"] !== "steady" &&
   (process.env["CANOPY_BENCH_CONTENTION"] === "1" || process.env["CANOPY_BENCH_ALL_PHASES"] === "1") &&
   loadMs < minimumContentionMs
 )
