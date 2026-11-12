@@ -1765,6 +1765,11 @@ message FileRequest {
   string expected_sha256 = 4;
   // Odczyt: limit bajtów treści (0 = domyślny 2 MiB); dłuższy plik wraca obcięty.
   uint32 max_bytes = 5;
+  // Capability thread_file_preview_v1: rozwiąż nazwę w tym cwd, nie na komputerze klienta.
+  string workspace = 6;
+  repeated string preferred_paths = 7;
+  // Starszy klient nadal dostaje pustą treść plików binarnych.
+  bool include_binary = 8;
 }
 
 message WriteFile {
@@ -1782,6 +1787,20 @@ message FileContent {
   // Treść nie jest tekstem UTF-8 (wtedy content jest pusty).
   bool binary = 6;
   bool truncated = 7;
+  string relative_path = 8;
+  string mime_type = 9;
+  repeated string matches = 10;
+  repeated string searched_paths = 11;
+  bool search_incomplete = 12;
+  FileResolution resolution = 13;
+}
+
+enum FileResolution {
+  FILE_RESOLUTION_UNSPECIFIED = 0;
+  FILE_RESOLUTION_FOUND = 1;
+  FILE_RESOLUTION_NOT_FOUND = 2;
+  FILE_RESOLUTION_DELETED = 3;
+  FILE_RESOLUTION_AMBIGUOUS = 4;
 }
 
 // Rekord znany gatewayowi; location to korzeń utrwalony przy tworzeniu.

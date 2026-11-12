@@ -3,6 +3,7 @@
   import CodeView from "#lib/shared/ui/code/CodeView.svelte";
   import { languageOfPath } from "#lib/shared/ui/code/languages.ts";
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
+  import FileImage from "./FileImage.svelte";
 
   /**
    * A read file, read-only: Markdown rendered, everything else highlighted by its extension with line numbers
@@ -28,6 +29,10 @@
 
 {#if !file}
   {#if loading}<p role="status" class="p-4 text-muted">Opening the file…</p>{/if}
+{:else if file.truncated && file.binary}
+  <p class="p-4 text-muted">This file exceeds the 2 MB preview limit. Open a smaller file to preview it.</p>
+{:else if /^image\/(png|jpeg|gif|webp|avif)$/.test(file.mimeType)}
+  <FileImage {file} {name} />
 {:else if file.binary}
   <p class="p-4 text-muted">Canopy cannot show this file.{local ? " Open it in its default app." : ""}</p>
 {:else if rendered}

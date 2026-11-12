@@ -1,5 +1,6 @@
-import type { Command, FileRequest } from "@canopy/contracts";
+import { FileResolution, type Command, type FileRequest } from "@canopy/contracts";
 import { deleteThreadFile, readThreadFile, resolveThreadFile, writeThreadFile } from "../files/thread-files.ts";
+import { resolvePreview } from "../files/resolve-preview.ts";
 import type { CommandOutput } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
 import { openInDefaultApp } from "./reveal.ts";
@@ -17,11 +18,18 @@ export async function runFileCommand(ctx: HostContext, kind: FileCommand): Promi
   const target: FileRequest | undefined = kind.case === "writeFile" ? kind.value.target : kind.value;
 
   if (!target) return {};
-  const path = resolveThreadFile(target, [ctx.state.files.threadDir(target.threadId)]);
+  const extraRoots = [ctx.state.files.threadDir(target.threadId)];
+  const resolution =
+    target.workspace && (kind.case === "readFile" || kind.case === "openFile")
+      ? await resolvePreview(target, extraRoots)
+      : undefined;
+
+  if (resolution && resolution.resolution !== FileResolution.FOUND) return { file: resolution };
+  const path = resolution?.path || resolveThreadFile(target, extraRoots);
 
   switch (kind.case) {
     case "readFile":
-      return { file: readThreadFile(path, target.maxBytes) };
+      return { file: { ...readThreadFile(path, target.maxBytes, target.includeBinary), ...resolution } };
     case "openFile":
       await openInDefaultApp(path);
 

@@ -2598,6 +2598,8 @@ message ThreadFileRequest {
   string path = 2;
   // Usunięcie: SHA-256 z odczytu; plik zmieniony od tego czasu nie zostanie usunięty.
   string expected_sha256 = 3;
+  // Item źródłowy: wskazówki ścieżek tylko z tej samej tury, sprawdzone na domu.
+  string item_id = 4;
 }
 
 message WriteThreadFileRequest {
@@ -2616,6 +2618,13 @@ message ThreadFile {
   int64 modified_ms = 5;
   bool binary = 6;
   bool truncated = 7;
+  string relative_path = 8;
+  string mime_type = 9;
+  repeated string matches = 10;
+  repeated string searched_paths = 11;
+  bool search_incomplete = 12;
+  canopy.worker.v1.FileResolution resolution = 13;
+  string computer = 14;
 }
 
 message SwitchThreadBranchRequest {

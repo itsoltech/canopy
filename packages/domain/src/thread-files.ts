@@ -20,3 +20,17 @@ export function joinThreadPath(cwd: string, path: string): string {
 
   return `${cwd.replace(/[\\/]+$/, "")}${sep}${relative}`;
 }
+
+/** Shared by both viewers. A lookup miss does not mean a previously opened file disappeared. */
+export function fileLookupMessage(name: string, resolution: number): string {
+  switch (resolution) {
+    case 2:
+      return `Couldn't find ${name} in this workspace.`;
+    case 3:
+      return `${name} is no longer at this path. Check whether it was moved or deleted.`;
+    case 4:
+      return "Several files match this name. Choose a path to open.";
+    default:
+      return "";
+  }
+}

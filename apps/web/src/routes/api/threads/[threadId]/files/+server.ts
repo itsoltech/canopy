@@ -13,13 +13,15 @@ const TIMEOUT_MS = 35_000;
 
 export const GET: RequestHandler = async ({ params, url }) => {
   const path = url.searchParams.get("path") ?? "";
+  const itemId = url.searchParams.get("itemId") ?? "";
+  const expectedSha256 = url.searchParams.get("expectedSha256") ?? "";
 
-  if (!path || path.length > 4096) error(400, "path is required");
+  if (!path || path.length > 4096 || itemId.length > 1024 || expectedSha256.length > 64) error(400, "Invalid file path");
 
   return json(
     encode(
       ui.ThreadFileSchema,
-      await call((api) => api.readThreadFile({ threadId: params.threadId, path }, { timeoutMs: TIMEOUT_MS })),
+      await call((api) => api.readThreadFile({ threadId: params.threadId, path, itemId, expectedSha256 }, { timeoutMs: TIMEOUT_MS })),
     ),
   );
 };

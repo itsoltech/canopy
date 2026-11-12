@@ -17,6 +17,8 @@
   import UserMessageView from "./UserMessageView.svelte";
   import WebSearchView from "./WebSearchView.svelte";
   import { provideItemChildren } from "./item-context.ts";
+  import { provideThreadFileLinks } from "#lib/features/files/file-links.svelte.ts";
+  import { useThreadDirectory } from "../../thread-directory.ts";
 
   /**
    * One transcript item (docs/transcript.md); every type has a view. `nested` = its child items.
@@ -25,6 +27,8 @@
    */
   let { item, nested, turnEnded = false }: { item: Item; nested?: Snippet | undefined; turnEnded?: boolean } = $props();
   const content = $derived(item.content);
+  const directory = useThreadDirectory();
+  provideThreadFileLinks(() => directory.currentId || undefined, () => item.itemId);
   const streaming = $derived(item.status === ItemStatus.IN_PROGRESS && !turnEnded);
 
   const inlineChildren = $derived(

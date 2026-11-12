@@ -1,11 +1,12 @@
 import { create } from "@bufbuild/protobuf";
 import { ui, type CommandResult } from "@canopy/contracts";
-import { THREAD_FILES_CAPABILITY } from "@canopy/domain/release/protocol";
+import { THREAD_FILES_CAPABILITY, THREAD_FILE_PREVIEW_CAPABILITY } from "@canopy/domain/release/protocol";
 import { joinThreadPath } from "@canopy/domain/thread-files";
 import type { GatewayCore } from "../core/core.ts";
 import { coreRun } from "../core/core-broadcast.ts";
-import { coreState, InvalidError } from "../core/core-context.ts";
+import { coreState, InvalidError, UnavailableError } from "../core/core-context.ts";
 import { coreWorkerQuery } from "../core/core-mentions.ts";
+import { referencePaths } from "./reference-paths.ts";
 
 const TIMEOUT_MS = 30_000;
 
@@ -20,6 +21,12 @@ const threadFile = ({ file }: CommandResult): ui.ThreadFile =>
         modifiedMs: file.modifiedMs,
         binary: file.binary,
         truncated: file.truncated,
+        relativePath: file.relativePath,
+        mimeType: file.mimeType,
+        matches: file.matches,
+        searchedPaths: file.searchedPaths,
+        searchIncomplete: file.searchIncomplete,
+        resolution: file.resolution,
       })
     : create(ui.ThreadFileSchema);
 
@@ -43,23 +50,22 @@ export class ThreadFiles {
     if (!thread.worker_id || !thread.cwd) throw new InvalidError("This thread has no working directory.");
     const connection = this.core.link.connections.get(thread.worker_id);
 
-    if (!connection?.isOpen) throw new InvalidError("This computer is offline. Reconnect it to open files.");
+    if (!connection?.isOpen) throw new UnavailableError("This computer is offline. Reconnect it to open files.");
 
     if (!connection.hello.capabilities.includes(THREAD_FILES_CAPABILITY))
       throw new InvalidError("Update this computer to open files from Canopy.");
 
-    const projects = await coreRun(this.core, (s) => s.listProjects(owner));
-
-    const workspaces = projects.flatMap((project) =>
-      project.workspaces.filter((w) => w.workerId === thread.worker_id).map((w) => w.rootPath),
-    );
+    if (!path.trim() || path.length > 4096 || path.includes("\0") || path.split(/[\\/]/).includes(".."))
+      throw new InvalidError("Use a path inside this workspace, then reload.");
 
     return {
       workerId: thread.worker_id,
+      cwd: thread.cwd,
+      preview: connection.hello.capabilities.includes(THREAD_FILE_PREVIEW_CAPABILITY),
       request: {
         threadId: thread.id,
         path: joinThreadPath(thread.cwd, path),
-        roots: [thread.cwd, ...new Set(workspaces)],
+        roots: [thread.cwd],
       },
     };
   }
@@ -70,8 +76,22 @@ export class ThreadFiles {
 
   async read(request: ui.ThreadFileRequest): Promise<ui.ThreadFile> {
     const target = await this.#target(request.threadId, request.path);
+    const preferredPaths = target.preview
+      ? await referencePaths(this.core, request.threadId, request.itemId, request.path)
+      : [];
+    const result = await this.#query(target.workerId, {
+      case: "readFile",
+      value: {
+        ...target.request,
+        ...(target.preview && { path: request.path, workspace: target.cwd, preferredPaths, includeBinary: true }),
+        expectedSha256: request.expectedSha256,
+      },
+    });
+    const file = threadFile(result);
+    file.computer = this.core.computers?.hello().name ||
+      (await coreRun(this.core, (s) => s.listWorkers(this.core.online))).find((w) => w.id === target.workerId)?.name || "";
 
-    return threadFile(await this.#query(target.workerId, { case: "readFile", value: target.request }));
+    return file;
   }
 
   async write(request: ui.WriteThreadFileRequest): Promise<ui.ThreadFile> {
