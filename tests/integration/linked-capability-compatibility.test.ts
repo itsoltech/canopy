@@ -128,14 +128,17 @@ describe.skipIf(!dockerAvailable)("production desktop capability compatibility",
     }
 
     const pin = (await a.store.peers())[0]!.certificate;
+
     const overflow = create(link.NodeHelloSchema, {
       ...hello,
       capabilities: hello.capabilities.slice(0, 32),
       additionalCapabilities: Array.from({ length: 97 }, () => "extra_feature"),
     });
+
     const error = await client
       .pair({ secret: raw.slice(64), hello: overflow })
       .catch((cause: unknown) => ConnectError.from(cause));
+
     expect(error).toBeInstanceOf(ConnectError);
     expect(error).toMatchObject({ code: Code.InvalidArgument, rawMessage: "Too many computer capabilities" });
     expect((await a.store.peers())[0]!.certificate).toBe(pin);
