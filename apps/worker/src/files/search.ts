@@ -63,8 +63,9 @@ const cache = new Map<string, Listing>();
 /** Exact names for the viewer: never fuzzy-rank away a second match or guess after an incomplete listing. */
 export async function exactFileMatches(cwd: string, name: string) {
   const root = realpathSync(cwd);
+
   // A click must include files created since the composer's cached listing.
-  const listing = (await gitListing(root, Date.now())) ?? walkListing(root, Date.now());
+  const listing = (await gitListing(root, Date.now(), true)) ?? walkListing(root, Date.now());
   const matches = listing.entries
     .filter((entry) => !entry.isDir && entry.path.split("/").at(-1) === name)
     .map((entry) => entry.path);
@@ -122,7 +123,7 @@ function depth(path: string): number {
   return path.split("/").length;
 }
 
-async function gitListing(root: string, now: number): Promise<Listing | undefined> {
+async function gitListing(root: string, now: number, fresh = false): Promise<Listing | undefined> {
   try {
     const command = {
       argv: ["git", "-c", "core.quotePath=false", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
@@ -131,7 +132,10 @@ async function gitListing(root: string, now: number): Promise<Listing | undefine
       maxBytes: 8 * 1024 * 1024,
     };
 
-    const result = await runProcess(command, { kind: "git", key: processKey(command), ttlMs: 1_000 });
+    const result = await runProcess(
+      command,
+      fresh ? { kind: "git" } : { kind: "git", key: processKey(command), ttlMs: 1_000 },
+    );
     const out = result.stdout;
 
     if (result.code !== 0) return undefined; // not a git work tree

@@ -1,11 +1,21 @@
+import { useState } from "react";
 import { Text, View } from "react-native";
 import type { ui } from "@canopy/contracts";
 import { fileLookupMessage } from "@canopy/domain/thread-files";
 import { Button } from "../../ui/Button";
 import { styles, useColors } from "../../ui/theme";
 
-export function FileLookup({ file, name, onSelect }: { file: ui.ThreadFile; name: string; onSelect: (path: string) => void }) {
+export function FileLookup({
+  file,
+  name,
+  onSelect,
+}: {
+  file: ui.ThreadFile;
+  name: string;
+  onSelect: (path: string) => void;
+}) {
   const c = useColors();
+  const [details, setDetails] = useState(false);
 
   return (
     <View style={{ gap: 12 }}>
@@ -20,8 +30,13 @@ export function FileLookup({ file, name, onSelect }: { file: ui.ThreadFile; name
       ))}
       {file.searchedPaths.length > 0 && (
         <View style={{ gap: 4 }}>
-          <Text style={[styles.caption, { color: c.muted }]}>Searched paths</Text>
-          {file.searchedPaths.map((path, index) => (
+          <Button
+            title={details ? "Hide searched paths" : "Show searched paths"}
+            size="sm"
+            variant="ghost"
+            onPress={() => setDetails((shown) => !shown)}
+          />
+          {details && file.searchedPaths.map((path, index) => (
             <Text key={index} selectable style={[styles.caption, { color: c.muted }]}>{path}</Text>
           ))}
         </View>

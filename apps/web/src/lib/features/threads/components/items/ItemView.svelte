@@ -28,7 +28,9 @@
   let { item, nested, turnEnded = false }: { item: Item; nested?: Snippet | undefined; turnEnded?: boolean } = $props();
   const content = $derived(item.content);
   const directory = useThreadDirectory();
+
   provideThreadFileLinks(() => directory.currentId || undefined, () => item.itemId);
+
   const streaming = $derived(item.status === ItemStatus.IN_PROGRESS && !turnEnded);
 
   const inlineChildren = $derived(

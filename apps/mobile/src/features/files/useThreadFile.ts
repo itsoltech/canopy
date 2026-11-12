@@ -21,6 +21,7 @@ export function useThreadFile(threadId: string, itemId: string, path: string) {
   const [draft, setDraft] = useState("");
   const text = file && !file.binary ? new TextDecoder().decode(file.content) : "";
   const dirty = editing && draft !== text;
+
   const mutation = useFileMutation(threadId, file, (saved) => {
     setFile(saved);
     known.current = { path: saved.path, sha256: saved.sha256 };

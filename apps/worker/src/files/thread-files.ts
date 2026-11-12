@@ -87,9 +87,9 @@ function metadata(path: string): FileContentInit {
   return { path, size: BigInt(stat.size), sha256: hashFile(path), modifiedMs: BigInt(Math.trunc(stat.mtimeMs)) };
 }
 
-/** Text only: invalid UTF-8 or a NUL byte marks a binary file, whose content is not sent. */
-function isText(bytes: Uint8Array): boolean {
-  if (bytes.subarray(0, 8192).includes(0)) return false;
+/** Validate the complete bounded preview, including bytes beyond the MIME sniffer's sample. */
+function isUtf8(bytes: Uint8Array): boolean {
+  if (bytes.includes(0)) return false;
 
   try {
     new TextDecoder("utf-8", { fatal: true }).decode(bytes);
@@ -120,9 +120,10 @@ export function readThreadFile(path: string, maxBytes: number, includeBinary = f
   const limit = Math.min(maxBytes > 0 ? maxBytes : DEFAULT_MAX_BYTES, DEFAULT_MAX_BYTES);
   const truncated = statSync(path).size > limit;
   const head = readHead(path, limit);
-  const text = isText(truncated ? completeUtf8(head) : head);
-  const shown = text && truncated ? completeUtf8(head) : head;
-  const mimeType = sniff(head, path).mimeType;
+  const complete = truncated ? completeUtf8(head) : head;
+  const detected = sniff(complete, path);
+  const text = detected.text && isUtf8(complete);
+  const shown = text ? complete : head;
 
   // A preview never hashes an unbounded file. A truncated read cannot authorize edits or deletion.
   const stat = statSync(path);
@@ -133,7 +134,7 @@ export function readThreadFile(path: string, maxBytes: number, includeBinary = f
     modifiedMs: BigInt(Math.trunc(stat.mtimeMs)),
     sha256: truncated ? "" : createHash("sha256").update(head).digest("hex"),
     content: text || includeBinary ? shown : new Uint8Array(),
-    mimeType,
+    mimeType: detected.mimeType,
     binary: !text,
     truncated,
   };

@@ -12,6 +12,7 @@ type Resolution = MessageInitShape<typeof FileContentSchema>;
 function checkedPath(root: string, path: string, workspace = root): string {
   if (!path || path.length > 4096 || path.includes("\0") || path.split(/[\\/]/).includes(".."))
     throw new CommandError("FILE_PATH_INVALID", "Use a path inside this workspace, then reload.", true);
+
   const absolute = isAbsolute(path) && isWithin(workspace, path)
     ? resolve(root, relative(workspace, path))
     : resolve(root, path);
@@ -39,6 +40,7 @@ export async function resolvePreview(request: FileRequest, extraRoots: readonly 
   const absolute = checkedPath(root, raw, request.workspace);
   const searchedPaths = [relative(root, absolute) || "."];
   const bare = !isAbsolute(raw) && !/[\\/]/.test(raw.replace(/^\.[\\/]/, ""));
+
   const found = (path: string): Resolution => ({
     path,
     relativePath: relative(root, path),

@@ -18,6 +18,7 @@ export async function runFileCommand(ctx: HostContext, kind: FileCommand): Promi
   const target: FileRequest | undefined = kind.case === "writeFile" ? kind.value.target : kind.value;
 
   if (!target) return {};
+
   const extraRoots = [ctx.state.files.threadDir(target.threadId)];
   const resolution =
     target.workspace && (kind.case === "readFile" || kind.case === "openFile")

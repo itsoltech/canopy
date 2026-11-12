@@ -26,12 +26,14 @@ export function ThreadFileViewer({
   const name = fileName(path);
   const relative = viewer.lookup?.relativePath;
   const detail = [relative === name ? `./${name}` : relative, viewer.lookup?.computer].filter(Boolean).join(" · ");
+
   const close = () => {
     if (viewer.busy) return;
 
     if (viewer.dirty) setConfirmation("close");
     else onClose();
   };
+
   const actions = (
     <FileActions
       viewer={viewer}
@@ -39,6 +41,7 @@ export function ThreadFileViewer({
       onDelete={() => setConfirmation("delete")}
     />
   );
+
   const textView = file && !file.binary && !viewer.editing && !viewer.error && !viewer.loading;
 
   return (

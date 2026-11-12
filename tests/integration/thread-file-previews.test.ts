@@ -46,11 +46,13 @@ describe.skipIf(!dockerAvailable)("thread file previews through a real home work
 
     for (const [index, message] of messages.entries()) {
       const itemId = ids[index]!;
+
       const content = JSON.stringify(toJson(ItemSchema, create(ItemSchema, {
         itemId,
         status: ItemStatus.COMPLETED,
         content: { case: "agentMessage", value: { text: message } },
       })));
+
       await home.sql((sql) => sql`
         INSERT INTO thread_items (thread_id, item_id, turn_id, type, status, content, first_seq, last_seq)
         VALUES (${threadId}::uuid, ${itemId}, ${turnId}::uuid, 'agentMessage', 'completed', ${content}::jsonb, 100, 100)
@@ -163,8 +165,9 @@ describe.skipIf(!dockerAvailable)("thread file previews through a real home work
     const image = Buffer.alloc(100_000);
     image.set(Buffer.from("89504e470d0a1a0a", "hex"));
     const binary = Buffer.alloc(80_000, 0xff);
+    const pdf = Buffer.from("%PDF-1.7\nASCII PDF content");
 
-    for (const [name, bytes, mimeType] of [["remote.png", image, "image/png"], ["remote.bin", binary, "application/octet-stream"]] as const) {
+    for (const [name, bytes, mimeType] of [["remote.png", image, "image/png"], ["remote.bin", binary, "application/octet-stream"], ["remote.pdf", pdf, "application/pdf"]] as const) {
       put(`assets/${name}`, bytes);
       const file = await caller.api.readThreadFile({ threadId: q(), path: name });
       expect(file).toMatchObject({ binary: true, truncated: false, mimeType });
@@ -189,6 +192,7 @@ describe.skipIf(!dockerAvailable)("thread file previews through a real home work
         includeBinary: true, maxBytes: LIMIT * 8,
       } },
     });
+
     expect(result?.file?.content?.length).toBe(LIMIT);
     expect(result?.file?.truncated).toBe(true);
   });
@@ -197,6 +201,7 @@ describe.skipIf(!dockerAvailable)("thread file previews through a real home work
     const owner = await home.gw.runtime.runPromise(
       GatewayStore.use((store) => store.ensureUser("file-owner@example.test", "Other owner")),
     );
+
     put("private.txt", "private bytes");
     await home.sql((sql) => sql`UPDATE threads SET owner_user_id=${owner}::uuid WHERE id=${thread.id}::uuid`);
 
@@ -248,9 +253,11 @@ describe.skipIf(!dockerAvailable)("thread file previews through a real home work
     }))).toContain("changed on disk");
     expect(readFileSync(path, "utf8")).toBe("concurrent edit");
     const current = await caller.api.readThreadFile({ threadId: q(), path: opened.path });
+
     const saved = await caller.api.writeThreadFile({
       threadId: q(), path: current.path, expectedSha256: current.sha256, content: new TextEncoder().encode("saved"),
     });
+
     expect(readFileSync(path, "utf8")).toBe("saved");
     await caller.api.deleteThreadFile({ threadId: q(), path: saved.path, expectedSha256: saved.sha256 });
     expect((await caller.api.readThreadFile({ threadId: q(), path: saved.path, expectedSha256: saved.sha256 })).resolution).toBe(FileResolution.DELETED);

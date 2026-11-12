@@ -76,9 +76,11 @@ export class ThreadFiles {
 
   async read(request: ui.ThreadFileRequest): Promise<ui.ThreadFile> {
     const target = await this.#target(request.threadId, request.path);
+
     const preferredPaths = target.preview
       ? await referencePaths(this.core, request.threadId, request.itemId, request.path)
       : [];
+
     const result = await this.#query(target.workerId, {
       case: "readFile",
       value: {
@@ -87,6 +89,7 @@ export class ThreadFiles {
         expectedSha256: request.expectedSha256,
       },
     });
+
     const file = threadFile(result);
     file.computer =
       this.core.computers?.hello().name ||
