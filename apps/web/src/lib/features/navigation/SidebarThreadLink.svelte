@@ -13,6 +13,9 @@
   import ThreadMenuItems from "#lib/features/threads/components/ThreadMenuItems.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { awayReason } from "#lib/features/computers/computers.ts";
+  import { useThreadActions } from "#lib/features/threads/thread-actions.svelte.ts";
+  import SidebarQuickArchive from "./SidebarQuickArchive.svelte";
+  import { focusAfterArchive } from "./sidebar-focus.ts";
 
   /**
    * The link of a thread row in the sidebar (main and side threads): opens the thread, previews it on hover,
@@ -26,6 +29,7 @@
     current = false,
     needsAttention = needsYou(thread),
     compact = false,
+    quickArchive = false,
     class: className,
     children,
   }: {
@@ -33,14 +37,17 @@
     current?: boolean;
     needsAttention?: boolean;
     compact?: boolean;
+    quickArchive?: boolean;
     class?: ClassValue;
     children: Snippet;
   } = $props();
 
   const result = lingeringResult(() => thread);
   const overview = useOverview();
+  const actions = useThreadActions();
   const away = $derived(thread.nodeId ? awayReason(overview.computer(thread.nodeId)) : undefined);
   let open = $state(false);
+  let archiving = $state(false);
 
   // Where the menu opens from: the pointer for a right click, under the "…" button for a click on it, under
   // the row for the keyboard and a long press (phones show it as a sheet anyway).
@@ -68,6 +75,20 @@
     } else via = "row";
     open = true;
   }
+
+  async function archive(event: MouseEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (archiving || away || thread.deletedAt) return;
+    archiving = true;
+
+    try {
+      await actions.run("archive", thread, false, focusAfterArchive(rowBox));
+    } finally {
+      archiving = false;
+    }
+  }
 </script>
 
 <DropdownMenu
@@ -78,7 +99,11 @@
   class="w-64"
 >
   {#snippet trigger(menu)}
-    <div class="group/row relative" bind:this={rowBox}>
+    <div
+      class="sidebar-action-row group/row relative"
+      data-sidebar-archive-row={quickArchive || undefined}
+      bind:this={rowBox}
+    >
       <span
         aria-hidden="true"
         class="pointer-events-none absolute size-0"
@@ -154,6 +179,16 @@
           }}
         />
       </span>
+      {#if quickArchive}
+        <SidebarQuickArchive
+          archived={thread.status === "archived"}
+          label="{thread.status === 'archived' ? 'Unarchive' : 'Archive'} thread {thread.title}"
+          disabled={Boolean(away || thread.deletedAt)}
+          loading={archiving}
+          onclick={(event) => void archive(event)}
+          class={compact ? "inset-y-0 right-11 my-auto" : "right-3 bottom-[0.6875rem] sm:bottom-2.5"}
+        />
+      {/if}
     </div>
   {/snippet}
   <ThreadMenuItems {thread} />

@@ -17,6 +17,7 @@ import { SidebarActivity } from "./SidebarActivity";
 import { useComputerHome } from "../computers/presence";
 import { SidebarUnread } from "./SidebarUnread";
 import { useSidebarTypography } from "./sidebar-scale";
+import { ThreadArchiveSwipe } from "./ThreadArchiveSwipe";
 
 interface TreeProps {
   thread: ui.Thread;
@@ -57,12 +58,14 @@ function SidebarThreadTree({ thread, sideThreads, rootIds, current, projects, wo
 
   return (
     <View>
-      <SidebarThread
-        thread={thread}
-        project={projects.find((p) => p.id === thread.projectId)}
-        worker={workers.find((w) => w.id === thread.workerId)}
-        subagentsNeedingInput={archived ? [] : subagentsNeedingInput}
-      />
+      <ThreadArchiveSwipe thread={thread}>
+        <SidebarThread
+          thread={thread}
+          project={projects.find((p) => p.id === thread.projectId)}
+          worker={workers.find((w) => w.id === thread.workerId)}
+          subagentsNeedingInput={archived ? [] : subagentsNeedingInput}
+        />
+      </ThreadArchiveSwipe>
       {hasSides && (
         <View style={{ paddingLeft: 20, paddingBottom: 4 }}>
           <Pressable
@@ -82,7 +85,9 @@ function SidebarThreadTree({ thread, sideThreads, rootIds, current, projects, wo
           <Expand open={open}>
             <View style={{ borderLeftWidth: 1, borderColor: c.rule, paddingLeft: 6 }}>
               {sides.active.map((side) => (
-                <SidebarSideThread key={side.id} thread={side} />
+                <ThreadArchiveSwipe key={side.id} thread={side}>
+                  <SidebarSideThread thread={side} />
+                </ThreadArchiveSwipe>
               ))}
               {sides.previous.length > 0 && (
                 <>
@@ -99,7 +104,9 @@ function SidebarThreadTree({ thread, sideThreads, rootIds, current, projects, wo
                   </Pressable>
                   <Expand open={previousOpen}>
                     {sides.previous.map((side) => (
-                      <SidebarSideThread key={side.id} thread={side} previous />
+                      <ThreadArchiveSwipe key={side.id} thread={side}>
+                        <SidebarSideThread thread={side} previous />
+                      </ThreadArchiveSwipe>
                     ))}
                   </Expand>
                 </>

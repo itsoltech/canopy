@@ -70,3 +70,50 @@
   font-size: inherit;
   line-height: inherit;
 }
+
+/* The provider/unread mark and the quick action share a reserved slot. Hover never updates list state. */
+.sidebar-quick-archive {
+  visibility: hidden;
+  pointer-events: none;
+  opacity: 0;
+  scale: var(--scale-large);
+  filter: blur(var(--blur-small));
+}
+
+.sidebar-quick-archive svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .sidebar-quick-archive,
+  .sidebar-resting-mark {
+    transition:
+      opacity var(--duration-fast) var(--ease-in-out),
+      scale var(--duration-fast) var(--ease-in-out),
+      filter var(--duration-fast) var(--ease-in-out),
+      visibility 0s linear var(--duration-fast);
+  }
+
+  .sidebar-action-row:is(:hover, :focus-within) .sidebar-quick-archive {
+    visibility: visible;
+    pointer-events: auto;
+    opacity: 1;
+    scale: 1;
+    filter: blur(0);
+    transition-delay: 0s;
+  }
+
+  .sidebar-action-row:is(:hover, :focus-within) .sidebar-resting-mark {
+    opacity: 0;
+    scale: var(--scale-large);
+    filter: blur(var(--blur-small));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-quick-archive,
+  .sidebar-resting-mark {
+    transition: none !important;
+  }
+}

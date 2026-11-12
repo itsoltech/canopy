@@ -1014,7 +1014,11 @@ gdzie wskazuje miejsce wykonywania akcji.
   Connections pokazuje konta dostępne dla bota i link do Settings → Connectors.
   Granty, OAuth/tokeny, test i reconnect ustawia się przy koncie; zmiana grantu działa od razu.
 - **Archiwum**: główna akcja usuwania z listy, dostępna z obu menu i ustawień, z toastem
-  **Undo**. Sekcja **Archived bots · N** jest zwijana. Otwarta rozmowa jest tylko do odczytu:
+  **Undo**. Wiersz web/desktop pokazuje też szybkie **Archive** (w archiwum **Unarchive**)
+  po najechaniu lub ustawieniu fokusu, w zarezerwowanym dolnym slocie licznika.
+  Akcja korzysta z tego samego handlera co menu, nie otwiera rozmowy i po powodzeniu
+  przenosi fokus do sąsiedniego wiersza. Bez hovera lub z grubym wskaźnikiem pozostaje menu;
+  ograniczenie ruchu wyłącza przenikanie ikon. Sekcja **Archived bots · N** jest zwijana. Otwarta rozmowa jest tylko do odczytu:
   zamiast composera ma „‹Bot› is archived” i **Unarchive**; nie oferuje odpowiedzi ani ponawiania.
   **Delete bot…** w archiwum i Danger zone wymaga potwierdzenia utraty rozmowy. Historyczne
   linie wymian w innych czatach pokazują neutralne „a deleted bot”, bez niedziałającego linku.

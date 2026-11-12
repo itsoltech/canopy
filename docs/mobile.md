@@ -1234,6 +1234,13 @@ pin/unpin, zmiana lub regeneracja tytułu, read/unread, archive/unarchive i dele
 lokalny wątek zachowuje też „Move to a computer”.
 Potwierdzenia korzystają z preferencji użytkownika. „Undo” po usunięciu wywołuje
 `RestoreThread` i przywraca otwarty wątek, również gdy usunięto go wraz z rodzicem.
+Przesunięcie wiersza w lewo archiwizuje wątek, a w archiwum przywraca go tą samą akcją
+co arkusz. Gest działa też dla wątków bocznych; krótkie lub anulowane przesunięcie wraca
+do początku. Pionowe przewijanie, dotknięcie i przytrzymanie zachowują swoje działanie.
+Potwierdzenia i brak połączenia blokują skrót tak samo jak menu. Toast „Thread archived”
+z „Undo” cofa archiwizację przez `SetThreadArchived`, bez wznawiania tur i harmonogramów.
+Gest korzysta z istniejących React Native PanResponder i Reanimated, bez zmian zależności
+natywnych i fingerprintów EAS. Ograniczenie ruchu wyłącza animację powrotu wiersza.
 Panel szczegółów pokazuje sumy tokenów i koszt własnych tur (bez odziedziczonych),
 z oznaczeniem „loaded turns” przy niepełnej historii, oraz ostatni zgłoszony limit okna kontekstu.
 „Copy” kopiuje osobno katalog roboczy i ścieżkę worktree przez `expo-clipboard`.

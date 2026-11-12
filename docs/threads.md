@@ -91,6 +91,17 @@ Strzałki obsługują menu, Escape zamyka je i oddaje fokus. Telefon używa doln
 Akcje: nowa karta, nowy wątek w projekcie, przypięcie, rename, generowanie tytułu, stan przeczytania,
 filtr projektu, kopiowanie, ustawienia, archiwizacja i usunięcie. Odpowiednie akcje bieżącego wątku są w Cmd+K.
 
+Na web/desktop najechanie na główny wiersz lub fokus wewnątrz niego zamienia znak dostawcy
+w prawym dolnym rogu na przycisk „Archive”. Slot zachowuje rozmiar i pozycję, więc podpis
+komputera i katalogu nadal się ucina bez przesunięć. Przenikanie ikon używa tokenów ruchu;
+przy ograniczeniu ruchu zamiana jest natychmiastowa. W kompaktowym archiwum „Unarchive”
+zajmuje zarezerwowane miejsce obok niezmienionego menu „…”. Skrót nie otwiera wątku,
+respektuje te same potwierdzenia i ograniczenia dostępności co menu, a po powodzeniu oddaje
+fokus następnemu wierszowi (ostatni — poprzedniemu; pusta lista — wyszukiwaniu).
+Na ekranach bez hovera i z grubym wskaźnikiem skrót jest ukryty; menu pozostaje dostępne.
+Archiwizacja z menu i skrótu oferuje toast „Thread archived” z „Undo” przez sześć sekund.
+Cofnięcie przywraca wątek i jego kaskadę przez istniejące API, bez wznawiania pracy.
+
 Archiwum zachowuje czytelną oś czasu. Zamiast kompozytora pokazuje ikonę, czas i autora archiwizacji
 (użytkownik, agent albo archiwizacja razem z rodzicem), „Unarchive” i odnośnik do rodzica subagenta.
 Przywrócenie płynnie przywraca kompozytor. Starsze archiwum pokazuje tylko znane informacje.
