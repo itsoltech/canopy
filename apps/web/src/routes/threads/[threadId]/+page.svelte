@@ -608,6 +608,7 @@
         <VirtualFeed
           bind:this={feed}
           bind:atEnd
+          footerExpanded={!compact}
           {rows}
           key={(row: FeedRow) => row.key}
           group={feedGroup}

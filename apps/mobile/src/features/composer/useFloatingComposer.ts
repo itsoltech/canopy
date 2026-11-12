@@ -32,16 +32,15 @@ function animate({ progress, moving, instant }: Fold, compact: boolean) {
  * handler folds it after a reader gesture travels toward older messages and opens it at the end, in the same frame.
  * Stream updates, keyboard changes and anchor corrections are not reader gestures and change nothing.
  *
- * The timeline retains the measured expanded input height through both directions of the fold. The last message
- * already has room when the composer opens, and reading history never needs a reserve/scroll correction.
- * Popovers, keyboard and safe areas are separate. Status rows and the tray above the input join the reserve only at
- * the end of the feed (`measureAccessory`): there the latest message moves up with them, while reading history
- * nothing moves and they float over it.
+ * Thread feeds pass a fixed collapsed reserve, independent of folding, drafts and accessories. Other chats retain
+ * the measured expanded input height through folding; their accessories join the reserve only at the end.
+ * The measured input height still serves keyboard gestures. Popovers, keyboard and safe areas are separate.
  */
 export function useFloatingComposer<Item>(
   following: ReturnType<typeof useFollowingList<Item>>,
   protectedDraft = false,
   initialHeight = 0,
+  reserveHeight?: number,
 ) {
   const reduced = useReducedMotion();
   const [compact, setCompact] = useState(false);
@@ -177,8 +176,8 @@ export function useFloatingComposer<Item>(
       following.showLatest();
     },
     height,
-    /** The feed's reserve under the latest message: the input and, at the end, what floats above it. */
-    reserve: height + accessory,
+    /** Thread feeds reserve one collapsed row; keyboard gestures still use the measured input height. */
+    reserve: reserveHeight ?? height + accessory,
     measure,
     measureAccessory,
     listProps: {

@@ -872,7 +872,8 @@ Podczas przewijania wiersze przechodzą pod nagłówkiem i paskiem stanu. Ikony 
 zmieniają jasność wraz z motywem, a powierzchnia nagłówka utrzymuje ich kontrast.
 `ScreenScroll` stosuje padding treści w New thread, Pair, Settings i arkuszach szczegółów.
 Timeline wątku i bota ma odwrócone końce: górny inset jest na najstarszym końcu,
-a dolny rezerwuje rzeczywistą wysokość kompozytora i oddzielny inset safe area. Tło kompozytora sięga pod
+a dolny rezerwuje zwinięty kompozytor wątku lub rzeczywistą wysokość kompozytora bota
+i oddzielny inset safe area. Tło kompozytora sięga pod
 home indicator; pod klawiaturą inset zastępuje jej rzeczywisty overlap.
 W podziale na kolumny tylko sidebar dostaje lewy inset, a główny panel prawy; po ukryciu
 sidebara główny panel dostaje obie krawędzie. Lewy inset powiększa szerokość kolumny sidebara,
@@ -899,15 +900,13 @@ Kompozytor wątku (także bocznego) i czatu bota jest nakładką nad feedem, z p
 obramowaniem i cieniem w jasnym motywie oraz wygaszeniem tła na 32 dp jak w web.
 `features/composer/FloatingComposer.tsx` ma osobny pas gradientu o stałej wysokości **32 dp**
 nad górną krawędzią pola; gradient nie rozciąga się na pełną wysokość kontenera. Pod ostatnią
-wiadomością (w nagłówku odwróconej listy) stoi rezerwa zmierzonej wysokości rozwiniętego
-kompozytora. Pierwszy render pustego wątku rezerwuje 186 dp: pole 64, toolbar 56,
-dolny wiersz 36, odstęp 8, padding 20 i obramowanie 2. Oba foldy zaczynają z pełną
-wysokością swoich wierszy zamiast zera; późniejszy pomiar nadal obsługuje rzeczywisty
-rozmiar treści. Pomiar nie zawiera safe area, klawiatury ani wierszy statusu i zasobnika (niżej). Zwijanie
-i rozwijanie zmienia wyłącznie nakładkę; obie strony przejścia zachowują tę samą rezerwę,
-bez końcowej zmiany wysokości nagłówka listy ani korekty scrolla. Dzięki temu ostatnia wiadomość
-ma miejsce przez całe otwieranie. Rezerwa podąża za zmianami rozwiniętej treści (np. długim
-draftem lub załącznikami), a podczas pisania nie maleje. Wiersz kontrolek najpierw odzyskuje
+wiadomością wątku (w nagłówku odwróconej listy) stoi stała rezerwa 74 dp: zwinięte
+pole 44, odstęp 8, padding 20 i obramowanie 2. Safe area i klawiatura pozostają osobne.
+Rozwijanie, zwijanie, długi szkic, załączniki i zasobnik zmieniają wyłącznie nakładkę,
+bez zmiany wysokości nagłówka listy ani korekty scrolla. Pomiar rozwiniętego pola nadal
+służy gestom klawiatury (`ChatKeyboard`), ale nie rezerwie feedu. Pierwszy szacunek tego
+pomiaru to 186 dp: pole 64, toolbar 56, dolny wiersz 36, odstęp 8, padding 20 i obramowanie 2.
+Bot zachowuje rezerwę zmierzonej wysokości swojego pola. Wiersz kontrolek najpierw odzyskuje
 pełną wysokość, potem się rozjaśnia; przy zamykaniu znika przed zwężeniem klipu.
 Decyzja o foldzie wymaga gestu czytelnika: próg końca to 8 dp, zwinięcia 192 dp i 96 dp
 przebytej drogi w stronę starszych wiadomości. Każda zmiana foldu zużywa gest. Kolejny wymaga
@@ -919,7 +918,8 @@ nakładką poza mierzonym kompozytorem: otwieranie, filtrowanie, doczytywanie i 
 nie zmieniają rezerwy ani pozycji feedu. Nakładka mieści się między nagłówkiem a kompozytorem,
 nad klawiaturą, z uwzględnieniem safe area; ma maksymalnie 240 dp i własne przewijanie bez
 chowania klawiatury. Wejście i wyjście używają `pop`, przy ograniczeniu ruchu są natychmiastowe. Kotwica listy
-pomija ten nagłówek. „Jump to latest” pozostaje nad nakładką.
+pomija ten nagłówek. „Jump to latest” wątku ma stałą kotwicę nad zwiniętą krawędzią
+i znika, gdy kompozytor jest rozwinięty.
 
 Reguły zwijania pochodzą z webowego `ComposerCompaction`: co najmniej 192 dp od końca
 i 96 dp ruchu ku starszym wiadomościom, rozwinięcie do 8 dp od końca albo po tapnięciu,

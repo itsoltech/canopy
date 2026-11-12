@@ -10,3 +10,7 @@ export const composerGeometry = {
 };
 
 export const threadComposerHeight = Object.values(composerGeometry).reduce((sum, size) => sum + size, 0);
+
+/** One input row, its border, outer padding and gap; independent of drafts, trays and folding. */
+export const collapsedThreadComposerHeight =
+  44 + composerGeometry.border + composerGeometry.padding + composerGeometry.gap;

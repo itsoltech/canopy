@@ -71,6 +71,11 @@ Przy pracy w tle główny wątek ma pozostawać wolny dla wejścia użytkownika:
   Indeksy i animacje wejścia aktualizuj dopiero po zmianie kluczy lub grup wierszy.
   Wzrost treści obsługuje `ResizeObserver`; delta o stałej wysokości nie wymaga
   odczytu `scrollHeight`. Izoluj layout wierszy i przewijanych bloków kodu.
+- Rezerwa pod osią wątku jest niezależna od rozwijanego kompozytora. Obserwator feedu
+  mierzy stałą geometrię zwiniętego pola; pomiar naturalnej treści kompozytora zmienia
+  tylko wysokość nakładki. Nie przekazuj jej klatek animacji do spacera ani kotwiczenia
+  scrolla. Ślad rozwinięcia/zwinięcia powinien wykazać brak layoutu poddrzewa osi
+  (dopuszczalny jeden przy przełączeniu), również przy końcu i podczas czytania historii.
 - W mobile pętle działają na UI/native thread, korzystają ze wspólnej kolejki
   widoczności listy, zatrzymują się w tle, a dekoracyjne
   `Animated.loop` mają `isInteraction: false`, aby nie blokować batchy listy.

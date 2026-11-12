@@ -30,7 +30,7 @@ import { FloatingComposer } from "../composer/FloatingComposer";
 import { useFloatingComposer } from "../composer/useFloatingComposer";
 import { MentionSuggestions } from "../composer/MentionSuggestions";
 import { visibleTurns } from "./thread-turns";
-import { threadComposerHeight } from "../composer/geometry";
+import { collapsedThreadComposerHeight, threadComposerHeight } from "../composer/geometry";
 import { ThreadRequests } from "./ThreadRequests";
 import { ImportedThreadComposer } from "../imports/ImportedThreadComposer";
 import { useQuoteDraft } from "../quotes/useQuoteDraft";
@@ -187,6 +187,7 @@ function useThreadComposer(state: ThreadState) {
     Boolean(message.value.text.length || message.files.files.length || message.trigger || state.quotes.quotes.length) ||
       interactions.some((i) => i.kind === InteractionKind.QUESTION && !i.asynchronous),
     threadComposerHeight,
+    collapsedThreadComposerHeight,
   );
 }
 
@@ -238,7 +239,8 @@ export function ThreadScreen({ id }: { id: string }) {
             onLayout={composer.measure}
             onAccessoryLayout={composer.measureAccessory}
             onExpand={composer.expand}
-            onLatest={atBottom ? undefined : composer.showLatest}
+            onLatest={atBottom || !composer.compact ? undefined : composer.showLatest}
+            latestInset={collapsedThreadComposerHeight}
             overlay={<ThreadSuggestions state={state} />}
             accessory={<ThreadStatus state={state} />}
             tray={<ThreadTray state={state} onGoal={() => setSheet("goal")} />}
