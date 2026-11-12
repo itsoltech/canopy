@@ -69,6 +69,7 @@ export function aggregateNotes(index: NotesIndex, from: string, to: string): Not
 
   const oldest = releases.at(-1);
   const truncated = index.truncated.includes(channel === "development" ? "stable" : channel);
+  const previousMissing = !index.releases.some((release) => release.version === from);
 
   return {
     from,
@@ -77,6 +78,6 @@ export function aggregateNotes(index: NotesIndex, from: string, to: string): Not
     entries: uniqueEntries(releases, seen),
     incomplete:
       !index.releases.some((release) => release.version === to) ||
-      (truncated && (!oldest || compare(from, oldest.version) < 0) && !index.releases.some((r) => r.version === from)),
+      ((truncated || channel === previousChannel) && (!oldest || compare(from, oldest.version) < 0) && previousMissing),
   };
 }

@@ -390,8 +390,13 @@ Ten sam krok zapisuje `dist/site/releases/notes-v1.json` (`schema: 1`). Generato
 z tych samych publicznych GitHub Releases. Zapisuje wersję, datę i wpisy: typ
 `feat`/`perf`/`fix`, scope, tekst bez prefiksu Angular oraz numer i URL PR-a (lub null).
 Usuwa odnośniki do commitów, zachowuje tekst etykiet Markdown i kapitalizuje początek.
-Każdy kanał zachowuje najwyżej 200 najnowszych wersji; `truncated` wymienia kanały
-ze starszą, pominiętą historią. Notatki nie zastępują pełnego indeksu pobrań ani
+Generator scala bieżące wydania z poprzednim indeksem notatek Pages, więc retencja
+GitHub Releases nie usuwa już opublikowanej historii. Bieżący body zastępuje starszy
+wpis tej samej wersji. Tylko HTTP 404 oznacza pierwsze wdrożenie; inny błąd odczytu
+przerywa publikację, zamiast skasować archiwum. Każdy kanał zachowuje najwyżej 200
+najnowszych wersji; `truncated` wymienia kanały ze starszą, pominiętą historią.
+Pierwszy indeks obejmuje dostępne wówczas wydania; nie odtwarza usuniętych bodies.
+Notatki nie zastępują pełnego indeksu pobrań ani
 GitHub Releases. Generator i parser są testowane lokalnie na fixture bodies,
 bez publikacji tagów lub wykonywania workflowu wydania.
 

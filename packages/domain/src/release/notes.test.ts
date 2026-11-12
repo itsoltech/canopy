@@ -97,6 +97,7 @@ test("bounded history and publication lag are explicit rather than claiming comp
   const notes: NotesIndex = { ...index([release("0.2.0-nightly.100", [entry(1)])]), truncated: ["nightly"] };
   expect(aggregateNotes(notes, "0.2.0-nightly.1", "0.2.0-nightly.100").incomplete).toBe(true);
   expect(aggregateNotes(notes, "0.2.0-nightly.100", "0.2.0-nightly.101").incomplete).toBe(true);
+  expect(aggregateNotes({ ...notes, truncated: [] }, "0.2.0-nightly.1", "0.2.0-nightly.100").incomplete).toBe(true);
 });
 
 test("notes reject invalid schemas, versions, dates, duplicate versions and untrusted PR URLs", () => {

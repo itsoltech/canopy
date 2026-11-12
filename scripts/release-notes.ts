@@ -7,9 +7,12 @@ import {
   entryKey,
   noteChannels,
   parseNotesIndex,
+  fetchReleaseNotes,
   type NoteEntry,
+  type NotesIndex,
   type VersionNotes,
 } from "@canopy/domain/release/notes";
+import { ReleaseHttpError, type ReleaseHttp } from "@canopy/domain/release/http";
 
 const sections = new Map<string, NoteEntry["type"]>([
   ["features", "feat"],
@@ -82,8 +85,18 @@ export function parseReleaseBody(body: string): readonly NoteEntry[] {
   return entries;
 }
 
-export function releaseNotesIndex(releases: readonly CatalogRelease[]): string {
-  const notes: VersionNotes[] = releases.flatMap((release) => {
+/** A missing first deployment is expected; other failures must not erase archived notes. */
+export async function publishedNotes(http?: ReleaseHttp): Promise<NotesIndex | undefined> {
+  try {
+    return await fetchReleaseNotes(http);
+  } catch (error) {
+    if (error instanceof ReleaseHttpError && error.status === 404) return undefined;
+    throw error;
+  }
+}
+
+export function releaseNotesIndex(releases: readonly CatalogRelease[], previous?: NotesIndex): string {
+  const current: VersionNotes[] = releases.flatMap((release) => {
     const version = release.tag_name.replace(/^v/, "");
 
     return !release.draft && valid(version) && releaseChannel(version) !== "development"
@@ -91,6 +104,11 @@ export function releaseNotesIndex(releases: readonly CatalogRelease[]): string {
       : [];
   });
 
+  // GitHub prunes nightly assets and release bodies. Pages keeps the bounded notes archive.
+  const byVersion = new Map(previous?.releases.map((release) => [release.version, release]));
+
+  for (const release of current) byVersion.set(release.version, release);
+  const notes = [...byVersion.values()];
   notes.sort((a, b) => compare(b.version, a.version));
 
   const channels = noteChannels.map((channel) => ({
@@ -101,7 +119,9 @@ export function releaseNotesIndex(releases: readonly CatalogRelease[]): string {
   const text = JSON.stringify({
     schema: 1,
     releases: channels.flatMap(({ releases }) => releases.slice(0, NOTES_PER_CHANNEL)),
-    truncated: channels.filter(({ releases }) => releases.length > NOTES_PER_CHANNEL).map(({ channel }) => channel),
+    truncated: channels
+      .filter(({ channel, releases }) => releases.length > NOTES_PER_CHANNEL || previous?.truncated.includes(channel))
+      .map(({ channel }) => channel),
   });
 
   parseNotesIndex(text);
