@@ -6,7 +6,7 @@ import { useCompactControls, useSettingsDensity } from "./density";
 import { font, useColors, useTypography, type Colors } from "./theme";
 
 /** Web: button.ts. One primary per view; everything else secondary or ghost. */
-export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+export type ButtonVariant = "primary" | "secondary" | "ghost" | "text" | "danger";
 
 /** `md`: 40 dp, text 16. `sm`: 32 dp, text 14, for rows, cards and banners. Both reach 48 dp by touch. */
 export type ButtonSize = "md" | "sm";
@@ -21,6 +21,7 @@ function look(variant: ButtonVariant, c: Colors) {
     case "primary":
       return { text: c.onAccent, icon: c.onAccent, background: c.action, pressed: c.actionPressed, ring: false };
     case "ghost":
+    case "text":
       return { text: c.soft, icon: c.icon, background: "transparent", pressed: c.pressed, ring: false };
     case "danger":
       return { text: c.danger, icon: c.danger, background: c.control, pressed: c.dangerPressed, ring: true };
@@ -91,8 +92,9 @@ export function Button({
         style={({ pressed }) => [
           {
             minHeight: settings && size === "md" ? 44 : s.height,
-            paddingLeft: lead ? s.iconPadding : s.padding,
-            paddingRight: s.padding,
+            paddingLeft: variant === "text" ? 0 : lead ? s.iconPadding : s.padding,
+            paddingRight: variant === "text" ? 0 : s.padding,
+            alignSelf: variant === "text" ? "flex-start" : undefined,
             borderRadius: s.radius,
             flexDirection: "row",
             alignItems: "center",

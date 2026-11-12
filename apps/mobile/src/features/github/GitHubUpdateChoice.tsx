@@ -30,7 +30,7 @@ export function GitHubUpdateChoice({ account }: { account: github.GitHubAccount 
   }
 
   return (
-    <View style={{ gap: 8, padding: 8 }}>
+    <View style={{ gap: 8, paddingVertical: 8 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
         <Text style={[type.small, { flex: 1, color: c.text }]}>Use this account for update checks</Text>
         <Switch

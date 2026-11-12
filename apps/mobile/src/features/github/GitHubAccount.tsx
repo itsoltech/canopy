@@ -62,7 +62,6 @@ export function GitHubAccount({
 
   return (
     <View style={{ minWidth: 0 }}>
-      {open && <GitHubUpdateChoice account={account} />}
       <GitHubAccountRow
         account={account}
         installations={catalogue.installationCount}
@@ -78,6 +77,7 @@ export function GitHubAccount({
         </View>
       )}
       <Expand open={open} style={{ gap: 8, paddingTop: 8 }}>
+        <GitHubUpdateChoice account={account} />
         {account.status === "connected" &&
           (account.authKind === "pat" ? (
             <Text style={[type.meta, { color: c.muted }]}>

@@ -58,7 +58,7 @@ export function GitHubRepositories({ accountId, installationId }: { accountId: s
         <Button
           title={all ? "Show fewer" : `Show all ${total}`}
           size="sm"
-          variant="ghost"
+          variant="text"
           disabled={busy}
           onPress={() => {
             setAll(!all);

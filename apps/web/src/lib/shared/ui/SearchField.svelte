@@ -21,7 +21,7 @@
 
 <label
   class={[
-    "flex items-center rounded-lg ring-1 ring-zinc-950/10 has-focus-visible:outline-2 has-focus-visible:outline-brand-500 dark:ring-white/10",
+    "flex min-w-0 items-center rounded-lg ring-1 ring-zinc-950/10 has-focus-visible:outline-2 has-focus-visible:outline-brand-500 dark:ring-white/10",
     overlay ? "gap-1.5 px-2 py-1.5 sm:py-1" : "gap-2 px-2.5 py-2 sm:py-1.5",
     className,
   ]}

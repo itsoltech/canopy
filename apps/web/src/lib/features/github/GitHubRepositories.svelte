@@ -85,7 +85,8 @@
   {#if total > 5 && !query}<div>
       <Button
         size="sm"
-        variant="ghost"
+        variant="text"
+        aria-expanded={all}
         disabled={busy}
         onclick={() => {
           all = !all;

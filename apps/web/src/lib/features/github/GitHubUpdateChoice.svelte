@@ -32,7 +32,7 @@
   }
 </script>
 
-<div class={["grid gap-2 px-2 py-2", className]}>
+<div class={["grid gap-2 px-3 py-2", className]}>
   <Checkbox
     name={`updates-${account.id}`}
     label="Use this account for update checks"

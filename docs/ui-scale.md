@@ -45,6 +45,9 @@ i sidebarze.
 Primary, secondary, ghost i danger mają te same wymiary; różnią się tylko kolorem. Przyciski `sm`
 i `IconButton` dostają na ekranach dotykowych niewidoczny cel 48 px (`TouchTarget`).
 
+Wariant `text` służy do akcji w treści listy, np. „Show all N”. Zachowuje wysokość i cel dotykowy
+przycisku, ale nie ma poziomego paddingu, dzięki czemu etykieta wyrównuje się z tekstem listy.
+
 Bez jawnego `size` `Button`, `ButtonLink` i `IconButton` są `md` w kontekście standardowym i `sm`
 w nakładce. Jawny `size` zawsze wygrywa: podawaj go tylko wtedy, gdy kontrolka świadomie odstaje od
 kontekstu (np. `sm` w nagłówku dialogu).
