@@ -20,7 +20,8 @@ export const listThreadSelect = (where: string, extraColumns = "") => threadSele
 /** The thread columns (ThreadRow) with the joined ones, for `FROM threads t` and the given clauses. */
 export const threadSelect = (where: string, extraColumns = "", metadata = false) => `
           -- An asynchronous question (wait=false) needs the user only once the agent has stopped working.
-          SELECT ${metadata ? LIST_COLUMNS : "t.*"}, (SELECT p.kind FROM projects p WHERE p.id = t.project_id) AS project_kind, ${extraColumns} (SELECT count(*) FROM interaction_requests i WHERE i.thread_id = t.id AND i.status = 'pending' AND (i.question_wait IS DISTINCT FROM false OR t.status NOT IN ('running', 'creating'))) AS pending_interactions,
+          SELECT ${metadata ? LIST_COLUMNS : "t.*"}, to_char(t.archived_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS archived_at_key,
+                 (SELECT p.kind FROM projects p WHERE p.id = t.project_id) AS project_kind, ${extraColumns} (SELECT count(*) FROM interaction_requests i WHERE i.thread_id = t.id AND i.status = 'pending' AND (i.question_wait IS DISTINCT FROM false OR t.status NOT IN ('running', 'creating'))) AS pending_interactions,
                  EXISTS (SELECT 1 FROM turns u WHERE u.thread_id = t.id AND u.status = 'queued' AND ${DISPATCHED}) AS turn_starting,
                  greatest(t.created_at, (SELECT greatest(u.queued_at, coalesce(u.started_at, u.queued_at), coalesce(u.completed_at, u.queued_at))
                    FROM turns u WHERE u.thread_id = t.id

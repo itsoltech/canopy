@@ -5,11 +5,11 @@ import { useOverview } from "../../state/overview";
 import { Button, Sheet } from "../../ui/components";
 import { Icon } from "../../ui/Icon";
 import { styles, useColors } from "../../ui/theme";
-import { ConnectorList, useConnectors } from "../connectors/Connectors";
+import { ThreadConnectors } from "./ThreadConnectors";
+import { useThreadPanel } from "./use-thread-panel";
 import { ThreadPlacement } from "./ThreadPlacement";
 import { ThreadBackgroundTasks } from "./ThreadBackgroundTasks";
 import { SubagentLineage } from "./SubagentLineage";
-import { ListSkeleton } from "../../ui/Skeleton";
 import { SecretGrants } from "./ThreadSecrets";
 import { useComputerHome } from "../computers/presence";
 import { useSession } from "../../state/session";
@@ -50,10 +50,12 @@ export function PanelRow({
 
 export function ThreadPanel({
   snapshot,
+  syncStatus,
   visible,
   onClose,
 }: {
   snapshot?: ui.ThreadSnapshot;
+  syncStatus?: ui.ThreadSyncStatus | undefined;
   visible: boolean;
   onClose: () => void;
 }) {
@@ -62,6 +64,11 @@ export function ThreadPanel({
   const thread = snapshot?.thread;
   const home = useComputerHome(thread?.nodeId);
   const { online } = useSession();
+  const panel = useThreadPanel(thread?.id ?? "", visible && !!thread);
+
+  const stale =
+    home.away || !online || syncStatus?.reason === "computer_unreachable" || !!panel.data?.stale || !!panel.error;
+
   const worker = workers.find((w) => w.id === thread?.workerId);
 
   const lineage = thread
@@ -85,6 +92,14 @@ export function ThreadPanel({
     <Sheet title="Thread details" visible={visible} onClose={onClose}>
       {thread && (
         <>
+          {stale && (
+            <Text accessibilityLiveRegion="polite" style={[styles.meta, { color: c.muted }]}>
+              {panel.data?.unavailable
+                ? `Thread details are unavailable. Manage on ${home.name}.`
+                : `${home.reason || `Thread details on ${home.name} are unreachable.`} Showing last known details.`}
+            </Text>
+          )}
+          <ThreadConnectors {...{ thread, panel }} disabled={stale} homeName={home.name} />
           <View
             style={{
               borderWidth: 1,
@@ -106,7 +121,19 @@ export function ThreadPanel({
           </View>
           {visible && <ThreadPullRequests thread={thread} onClose={onClose} />}
           {visible && <SecretGrants secrets={snapshot?.secrets ?? []} disabled={home.away || !online} />}
-          {snapshot && <ThreadSchedules snapshot={snapshot} onClose={onClose} />}
+          {snapshot && (
+            <ThreadSchedules
+              snapshot={snapshot}
+              schedules={
+                thread.nodeId || stale || !snapshot.schedules.length
+                  ? (panel.data?.schedules ?? snapshot.schedules)
+                  : snapshot.schedules
+              }
+              unavailable={!!panel.data?.unavailable}
+              disabled={stale}
+              onClose={onClose}
+            />
+          )}
           {snapshot && <ThreadBackgroundTasks snapshot={snapshot} disabled={home.away || !online} />}
           <Text style={[styles.label, { color: c.text }]}>Lineage</Text>
           {lineage.length || subagents.length ? (
@@ -115,36 +142,40 @@ export function ThreadPanel({
             <Text style={[styles.meta, { color: c.muted }]}>Main thread</Text>
           )}
           <SubagentLineage threads={subagents} onOpen={openThread} />
-          <Text style={[styles.label, { color: c.text }]}>Connectors</Text>
-          <ThreadConnectors threadId={thread.id} />
-          <Button
-            title="Manage connector access"
-            onPress={() => {
-              onClose();
-              openSettingsSection("connectors");
-            }}
-          />
         </>
       )}
     </Sheet>
   );
 }
 
-function ThreadSchedules({ snapshot, onClose }: { snapshot: ui.ThreadSnapshot; onClose: () => void }) {
+function ThreadSchedules({
+  snapshot,
+  schedules,
+  unavailable,
+  disabled,
+  onClose,
+}: {
+  snapshot: ui.ThreadSnapshot;
+  schedules: readonly ui.Schedule[];
+  unavailable: boolean;
+  disabled: boolean;
+  onClose: () => void;
+}) {
   const c = useColors();
 
   return (
     <View style={{ gap: 8 }}>
       <Text style={[styles.label, { color: c.text }]}>Scheduled tasks</Text>
-      {snapshot.schedules.length ? (
-        snapshot.schedules.map((s) => (
-          <PanelRow key={s.id} title={s.name || "Scheduled task"} value={s.status} icon="clock" />
-        ))
+      {schedules.length ? (
+        schedules.map((s) => <PanelRow key={s.id} title={s.name || "Scheduled task"} value={s.status} icon="clock" />)
       ) : (
-        <Text style={[styles.meta, { color: c.muted }]}>No scheduled tasks</Text>
+        <Text style={[styles.meta, { color: c.muted }]}>
+          {unavailable ? "Connect to load scheduled tasks" : "No scheduled tasks"}
+        </Text>
       )}
       <Button
         title="Manage thread schedules"
+        disabled={disabled}
         onPress={() => {
           onClose();
           openSettingsSection("schedules", { threadId: snapshot.thread?.id ?? "" });
@@ -152,15 +183,4 @@ function ThreadSchedules({ snapshot, onClose }: { snapshot: ui.ThreadSnapshot; o
       />
     </View>
   );
-}
-
-function ThreadConnectors({ threadId }: { threadId: string }) {
-  const c = useColors();
-  const { list, error } = useConnectors(threadId);
-
-  if (list?.accounts.length) return <ConnectorList list={list} />;
-
-  if (!list && !error) return <ListSkeleton rows={2} inset={false} />;
-
-  return <Text style={[styles.meta, { color: c.muted }]}>{error || "No connectors"}</Text>;
 }

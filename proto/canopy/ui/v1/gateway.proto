@@ -144,6 +144,9 @@ service GatewayService {
   rpc RevokeWorker(WorkerRequest) returns (WorkerOperationResponse);
   rpc ArchiveWorker(WorkerRequest) returns (WorkerOperationResponse);
   rpc ListConnectors(ListConnectorsRequest) returns (ListConnectorsResponse);
+  // Display-only home metadata; account credentials never cross this boundary.
+  rpc GetThreadPanel(GetThreadRequest) returns (ThreadPanel);
+  rpc SetThreadConnectorGrant(SetThreadConnectorGrantRequest) returns (ThreadPanel);
   rpc SaveConnectorAccount(SaveConnectorAccountRequest) returns (ConnectorAccountResponse);
   rpc SetConnectorAccess(SetConnectorAccessRequest) returns (ConnectorAccountResponse);
   rpc DisconnectConnector(ConnectorAccountRequest) returns (ConnectorAccountResponse);
@@ -1254,6 +1257,29 @@ message WatchThreadRequest {
   bool sequence = 811;
   ThreadSyncCursor sync_cursor = 812;
   string before_item_id = 813;
+}
+
+message ThreadConnector {
+  string account_id = 1;
+  string connector_name = 2;
+  string account_label = 3;
+  string status = 4;
+  bool granted = 5;
+  // Access inherited from All workers is managed in the home's account settings.
+  bool all_workers = 6;
+  uint64 revision = 7;
+}
+message ThreadPanel {
+  repeated ThreadConnector connectors = 1;
+  repeated Schedule schedules = 2;
+  bool stale = 3;
+  bool unavailable = 4;
+}
+message SetThreadConnectorGrantRequest {
+  string thread_id = 1;
+  string account_id = 2;
+  bool granted = 3;
+  uint64 expected_revision = 4;
 }
 
 message ThreadSnapshot {

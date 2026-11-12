@@ -22,11 +22,13 @@
     schedule,
     compact = false,
     onchange,
+    disabled = false,
     class: className,
   }: {
     schedule: ui.Schedule;
     compact?: boolean;
     onchange?: ((schedule: ui.Schedule) => void) | undefined;
+    disabled?: boolean;
     class?: ClassValue;
   } = $props();
 
@@ -71,7 +73,7 @@
           label="Scheduled task actions"
           size={compact ? "sm" : "md"}
           loading={Boolean(busy)}
-          disabled={!!reason}
+          disabled={disabled || !!reason}
           title={reason}
         />
       {/snippet}
@@ -98,7 +100,6 @@
       >
     </DropdownMenu>
   {/if}
-  {#if reason}<p class="max-w-64 text-sm/5 text-zinc-500 dark:text-zinc-400">{reason}</p>{/if}
   {#if error && !confirming}<p class="text-base/6 text-rose-700 sm:text-sm/5 dark:text-rose-400" role="alert">
       {error}
     </p>{/if}

@@ -269,6 +269,40 @@ gdy wcześniej go ogłosił. Wiadomości nie czekają w kolejce wychodzącej.
 
 ## Synchronizacja (lustra tylko do odczytu)
 
+### Panel wątku i archiwum
+
+Panel wątku używa `GetThreadPanel` z capability `remote_thread_panel_v1`.
+Dom sprawdza właściciela wątku i zwraca oddzielne DTO: nazwę connectora,
+etykietę konta, status oraz metadane dostępu workera, bez URL-i, nagłówków,
+diagnoz konta i poświadczeń. Lista do zarządzania obejmuje także konta bez grantu;
+zwykła sekcja pokazuje tylko konta dostępne workerowi wątku.
+
+`SetThreadConnectorGrant` wraca do domu niezależnie od Share configuration.
+Dom sprawdza właściciela wątku, workera i konta oraz rewizję konta, blokuje konto
+i zmienia wyłącznie grant tego workera. Zmiana dotyczy wszystkich jego wątków.
+Dziedziczone All workers i administracja kontem pozostają w ustawieniach domu;
+UI pokazuje „Manage on …”. Wykonanie narzędzia nadal sprawdza aktualny grant
+i politykę zgód w gatewayu domu.
+
+Harmonogramy tworzymy, edytujemy i anulujemy istniejącymi RPC trasowanymi do domu.
+`computer_thread_panels` przechowuje wyłącznie ostatnią poprawną odpowiedź panelu
+do odczytu offline, także po restarcie. Nie stanowi źródła dla planisty ani
+autoryzacji. Niedostępny dom lub sam odczyt panelu zwraca cache z `stale`;
+brak cache także ustawia `unavailable`. Starszy dom zachowuje widoczne sekcje
+z informacją o niedostępnych danych. Odmowa dostępu usuwa cache; unlink usuwa go
+kaskadowo. Web i mobile wyłączają mutacje przy nieaktualnych danych.
+
+Archiwum obejmuje lokalne wątki i zatwierdzone metadane luster wszystkich
+widocznych domów. Licznik, wyszukiwanie, filtr projektu i strony stosują te same
+reguły: bez cudzych właścicieli, usuniętych wątków, archiwalnych projektów
+i podwójnego liczenia dzieci z widocznym rodzicem. Lokalny odczyt pozostaje
+stronicowany w SQL; partnerzy nie są odpytywani po sieci. Identyfikatory partnera
+zachowują kwalifikację domu, a wspólne projekty przechodzą przez aliasy.
+Kursor obejmuje właściciela, filtry i dokładny czas archiwizacji z mikrosekundami.
+Różnica dawnych liczników wynikała z celowego ograniczenia archiwum do własnej
+bazy każdego komputera; po synchronizacji oba liczniki pokazują sumę widocznych
+wątków, także gdy drugi dom jest offline.
+
 Dom publikuje dziennik zmian swoich rzeczy (wątki, itemy osi czasu, tury, kolejki, boty i ich
 wiadomości, statusy). Partnerzy trzymają **lustro**: osobne tabele z `origin_node_id`, tylko do odczytu,
 aktualizowane subskrypcją od kursora. Po rozłączeniu wznowienie od zapamiętanego kursora; gdy kursor jest
@@ -763,7 +797,7 @@ nie zapisuje payloadu, nagłówków uwierzytelniania ani transportowego cause.
   feedzie `bots`. Zakończenie odczytu w tle oraz commit lustra powodują ponowny odczyt;
   commit oznacza też cache partnera do odświeżenia. Restart/aktualizacja A zachowuje lustro,
   a nowa subskrypcja klienta odczytuje listę bez czekania na nową wiadomość od bota.
-- `ListArchivedThreads` pozostaje lokalne (stronicowanie per komputer); archiwum partnera jest u niego.
+- `ListArchivedThreads` scala lokalne archiwum z widocznymi nagłówkami luster; licznik i stronicowanie obejmują wszystkie domy (szczegóły w sekcji panelu wątku).
 
 W etapie 2 wątki partnera są widoczne **tylko gdy jest połączony** i udostępnia wątki. Gdy zniknie,
 UI usuwa jego workery, projekty i wątki z list (lustra offline to etap 3). Otwarty wątek zostaje
@@ -778,8 +812,8 @@ a komputer wybiera się przez worker. Nowy wątek na workerze B używa rekordu p
 B zostaje właścicielem. Ekrany konfiguracji per komputer (workery, dostawcy, connectory,
 domyślne ustawienia wątków, harmonogramy) pokazują wyłącznie własne rzeczy (`ownWorkers`/`ownProjects`),
 bo konfiguracja wspólna to etap 4. Wyjątek: lista Settings → Projects pokazuje sumę projektów wszystkich
-komputerów z komputerami ich workspace'ów, a stronę ustawień ma tylko projekt z rekordem na tym komputerze. Harmonogramy wątków partnera są
-w tym etapie niedostępne.
+komputerów z komputerami ich workspace'ów, a stronę ustawień ma tylko projekt z rekordem na tym komputerze.
+Obecnie harmonogramy wątków partnera są dostępne przez dom, a panel zachowuje ich ostatni odczyt offline.
 
 ### Dowody
 
@@ -1414,7 +1448,7 @@ nieudostępnionej instancji u partnera, konflikty po edycjach offline rozstrzygn
 obu runtime'ów, wyłączenie i archiwizację, partnera bez capability oraz Unlink.
 `schema.test.ts` obejmuje migrację 0050 (kaskada przy usunięciu partnera). Bez testów UI.
 
-Odroczone po etapie 4: harmonogramy i sekrety wątków partnera (nadal per komputer), ustawienia
+Odroczone po etapie 4: sekrety wątków partnera (nadal per komputer), ustawienia
 projektu (domyślne wątku w projekcie), kompozytor i układ sidebara, scalanie pól wewnątrz jednego
 elementu (konflikt dotyczy całego elementu), dostępność CLI instancji na innym komputerze widoczna
 z tego komputera (UI pokazuje stan własnych workerów).
@@ -1937,7 +1971,10 @@ wpis tylko od starego albo nowego domu i nigdy nie „przenosi” rzeczy, która
   z komunikatem „Moved to Laptop C”. Dom niepołączony z tym komputerem: „Moved to Laptop C, which isn't
   linked to this computer”.
 - **Lustra:** dawny dom publikuje tombstone (wątek usunięty), nowy dom — wątek z pełną historią, więc
-  trzeci komputer pokazuje go raz, z nowym właścicielem.
+  trzeci komputer pokazuje go raz, z nowym właścicielem. `WatchThreadMirror` z dawnym checkpointem
+  i `AckThreadRange` należą do subskrypcji dawnego domu i nie podlegają przekierowaniu pojedynczego
+  wątku. Dzięki temu wznowienie dostaje tombstone, a ACK partii wysłanej przed przeniesieniem kończy
+  się w tej samej subskrypcji; nadal sprawdza partnera, id subskrypcji i dokładny kursor.
 - **Szyna agentów:** argumenty `thread_id`/`bot_id`/`thread_ids` narzędzi wątków i botów są przepisywane;
   wywołanie, na które dawny dom odpowie „moved”, jest ponawiane u nowego domu, a odwołania
   `computer_agent_calls` dostają nowego partnera. Kontrola rodzic–dziecko między komputerami kończy się

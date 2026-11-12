@@ -245,6 +245,14 @@ po awarii nie powoduje automatycznego powtórzenia zapisu.
 
 ## UI i audyt
 
+Panel wątku lokalnego i połączonego komputera korzysta z `GetThreadPanel`.
+Jego DTO zawiera wyłącznie nazwy, statusy i metadane grantów; nie zawiera URL-i,
+nazw nagłówków, błędów konta ani poświadczeń. „Manage connector access” zmienia
+przez `SetThreadConnectorGrant` dostęp workera w domu wątku, z kontrolą właściciela
+i rewizji. Zmiana dotyczy wszystkich wątków tego workera; All workers oraz
+konfigurację konta edytujemy w domu. Cache zdalnego panelu jest tylko do odczytu
+i nigdy nie udziela grantu. Szczegóły: [połączone komputery](linked-computers.md#panel-wątku-i-archiwum).
+
 Settings → Connectors pokazuje katalog, nazwane konta, stan, ostatnie użycie,
 test z listą narzędzi, rename, reconnect, disconnect oraz dostęp workerów/botów.
 Konta są zwartymi wierszami jednej listy z separatorami. Menu wiersza zawiera Test,

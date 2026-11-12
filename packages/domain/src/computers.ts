@@ -28,6 +28,7 @@ export const REMOTE_BOTS = "remote_bots";
 
 /** Durable bot drafts and image messages; every forwarding computer must understand the fields. */
 export const REMOTE_BOT_COMPOSER = "remote_bot_composer_v1";
+export const REMOTE_THREAD_PANEL = "remote_thread_panel_v1";
 export const AGENT_BUS = "agent_bus";
 
 /** Stage 6: the computer accepts `RouteAnnouncement` frames (its partner's current addresses). */

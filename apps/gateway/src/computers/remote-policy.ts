@@ -3,7 +3,7 @@ import { isMessage, type DescMessage, type Message, type MessageShape } from "@b
 import { Code, ConnectError } from "@connectrpc/connect";
 
 import { bots, github, computerLink as link, ui } from "@canopy/contracts";
-import { REMOTE_BOTS, REMOTE_BOT_COMPOSER } from "@canopy/domain/computers";
+import { REMOTE_BOTS, REMOTE_BOT_COMPOSER, REMOTE_THREAD_PANEL } from "@canopy/domain/computers";
 import {
   GITHUB_ACCOUNTS,
   GITHUB_PR,
@@ -87,6 +87,8 @@ export const GITHUB_METHODS = new Set([
 ]);
 
 export function botFeature(method: { name: string }, request: Message): string | undefined {
+  if (["GetThreadPanel", "SetThreadConnectorGrant"].includes(method.name)) return REMOTE_THREAD_PANEL;
+
   if (["RerunPullRequestChecks", "CancelPullRequestCheckRun"].includes(method.name)) return GITHUB_WRITE;
 
   if (
@@ -134,6 +136,8 @@ export const SERVED = new Set([
   "WatchOverview",
   "ListThreads",
   "GetThread",
+  "GetThreadPanel",
+  "SetThreadConnectorGrant",
   "WatchThread",
   "CreateThread",
   "SendMessage",

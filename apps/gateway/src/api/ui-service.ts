@@ -22,6 +22,7 @@ import { githubHandlers } from "./ui-github.ts";
 import { pullRequestHandlers } from "./ui-pull-requests.ts";
 import { githubReadHandlers } from "./ui-github-read.ts";
 import { githubMutationHandlers } from "./ui-github-mutations.ts";
+import { threadPanelHandlers } from "./ui-thread-panel.ts";
 
 export { toConnectError } from "./ui-errors.ts";
 
@@ -48,9 +49,10 @@ function withFeedNudges(core: GatewayCore, handlers: UiHandlers): UiHandlers {
     if (!handler) continue;
 
     // Grants and moves change which accounts a bot must reconnect: compare every bot.
-    const full = /^(SaveConnectorAccount|SetConnectorAccess|DeleteConnectorAccount|DisconnectConnector)$|Move/.test(
-      method.name,
-    );
+    const full =
+      /^(SaveConnectorAccount|SetConnectorAccess|SetThreadConnectorGrant|DeleteConnectorAccount|DisconnectConnector)$|Move/.test(
+        method.name,
+      );
 
     own[method.localName] = async (...args: never[]) => {
       const result = await handler(...args);
@@ -73,6 +75,7 @@ export function uiHandlers(core: GatewayCore): UiHandlers {
     ...mobileHandlers(core),
     ...networkHandlers(core),
     ...connectorsHandlers(core),
+    ...threadPanelHandlers(core),
     ...botsHandlers(core),
     ...projectsHandlers(core),
     ...settingsHandlers(core),

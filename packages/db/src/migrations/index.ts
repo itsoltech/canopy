@@ -24,6 +24,7 @@ import threadSyncDiagnostics from "./0123_thread_sync_diagnostics.sql" with { ty
 import inheritedAccessMode from "./0125_inherited_access_mode.sql" with { type: "text" };
 import threadSyncTime from "./0126_thread_sync_time.sql" with { type: "text" };
 import githubRepositoryAccess from "./0127_github_repository_access.sql" with { type: "text" };
+import threadPanelCache from "./0128_thread_panel_cache.sql" with { type: "text" };
 import botViewDelta from "./0091_bot_view_delta.sql" with { type: "text" };
 import workerConfig from "./0002_worker_config.sql" with { type: "text" };
 import gatewayRuntime from "./0003_gateway_runtime.sql" with { type: "text" };
@@ -268,6 +269,7 @@ export const migrations = Migrator.fromRecord({
   "0125_inherited_access_mode": sqlFile(inheritedAccessMode),
   "0126_thread_sync_time": sqlFile(threadSyncTime),
   "0127_github_repository_access": sqlFile(githubRepositoryAccess),
+  "0128_thread_panel_cache": sqlFile(threadPanelCache),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

@@ -95,9 +95,12 @@ export async function commitMirrorUpdate(
                 ON CONFLICT(owner_user_id,origin_node_id,generation,thread_id) DO UPDATE SET snapshot=excluded.snapshot,thread_metadata=excluded.thread_metadata`;
           }
 
-          if (update.removedThreadId)
+          if (update.removedThreadId) {
+            yield* sql`DELETE FROM computer_thread_panels WHERE owner_user_id=${owner}::uuid AND origin_node_id=${node}
+              AND thread_id=${update.removedThreadId}::uuid`;
             yield* sql`DELETE FROM computer_mirror_threads WHERE owner_user_id=${owner}::uuid AND origin_node_id=${node}
               AND generation=${generation}::uuid AND thread_id=${update.removedThreadId}::uuid`;
+          }
 
           if (update.commit) {
             yield* sql`UPDATE computer_mirror_state SET cursor=${update.cursor},generation=${generation}::uuid,overview=coalesce(${nextOverview},overview)

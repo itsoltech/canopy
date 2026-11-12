@@ -102,7 +102,12 @@ export function toUiThread(row: ThreadRow): ui.Thread {
     lastMessage: row.last_message ?? "",
     ...threadNotice(row),
     markedUnread: row.marked_unread ?? false,
-    ...(row.archived_at && { archivedAt: timestampFromDate(new Date(row.archived_at)) }),
+    ...(row.archived_at && {
+      archivedAt: {
+        ...timestampFromDate(new Date(row.archived_at)),
+        ...(row.archived_at_key && { nanos: Number(row.archived_at_key.slice(20, 26)) * 1000 }),
+      },
+    }),
     archivedBy: row.archived_by ?? "",
     archivedByThreadId: row.archived_by_thread_id ?? "",
     archivedByThreadTitle: row.archived_by_thread_title ?? "",

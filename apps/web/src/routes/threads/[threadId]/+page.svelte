@@ -321,10 +321,7 @@
   const forkThread = () => forkPoint && forkFrom(threadId, forkPoint.id);
   let scheduling = $state(false);
 
-  // Schedules stay on each computer in this stage; a linked computer's thread has none here.
-  const canSchedule = $derived(
-    Boolean(thread && !thread.nodeId && thread.status !== "archived" && thread.status !== "failed"),
-  );
+  const canSchedule = $derived(Boolean(thread && thread.status !== "archived" && thread.status !== "failed"));
 
   const openSchedule = () => {
     panelSheet = false;
@@ -810,6 +807,7 @@
               {tree}
               {worker}
               schedules={view.upcomingSchedules}
+              syncStatus={view.syncStatus}
               backgroundTasks={allBackgroundTasks}
               items={itemsById}
               onbackground={openOutput}
@@ -849,6 +847,7 @@
       {tree}
       {worker}
       schedules={view.upcomingSchedules}
+      syncStatus={view.syncStatus}
       backgroundTasks={allBackgroundTasks}
       items={itemsById}
       onbackground={openOutput}

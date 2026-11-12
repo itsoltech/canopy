@@ -46,6 +46,7 @@ export const READS = new Set([
   "WatchOverview",
   "ListThreads",
   "GetThread",
+  "GetThreadPanel",
   "WatchThread",
   "ListModels",
   "ListDirectory",

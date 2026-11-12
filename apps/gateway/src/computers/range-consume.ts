@@ -59,6 +59,10 @@ export async function consumeThreadRanges(
 
     if (update.removedThreadId) {
       await host.store.query(
+        "DELETE FROM computer_thread_panels WHERE owner_user_id=$1::uuid AND origin_node_id=$2 AND thread_id=$3::uuid",
+        [host.store.owner, node, update.removedThreadId],
+      );
+      await host.store.query(
         "DELETE FROM thread_range_state WHERE owner_user_id=$1::uuid AND origin_node_id=$2 AND thread_id=$3::uuid",
         [host.store.owner, node, update.removedThreadId],
       );

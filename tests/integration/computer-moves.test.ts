@@ -11,6 +11,7 @@ import { botComposerForMove, sendRemoteBotImage } from "./support/bot-composer-m
 import { MoveCrash, type MoveHost } from "../../apps/gateway/src/computers/moves.ts";
 import type { BotModel, ModelInput } from "../../apps/gateway/src/bots/types.ts";
 import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
+import { mirrorCheckpoint, removedFromOldHome } from "./support/mirror-move.ts";
 
 const id = () => crypto.randomUUID();
 const input = (i: ModelInput) => i.messages.findLast((m) => m.role === "user")?.text ?? "";
@@ -289,6 +290,8 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
       ),
     ).toBe(true);
 
+    const checkpoint = await mirrorCheckpoint(lb, aNode, t);
+
     const preview = await a.api.previewMove({ nodeId: cNode, items: [{ kind: "thread", id: t }] });
     expect(preview.unavailable).toBe("");
     expect(preview.items[0]).toMatchObject({
@@ -309,6 +312,8 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
 
     expect(`${arrived?.state} ${arrived?.error}`).toBe("done ");
     expect(await homes(t)).toEqual({ a: 0, c: 1 });
+    // A reconnect carrying B's old checkpoint must receive a tombstone, not a redirect for the entire stream.
+    await removedFromOldHome(lb, aNode, checkpoint);
 
     // History, the move notice, the attachment and the schedule are on C; new turns continue after the old ones.
     const history = await snapshot(c, t);

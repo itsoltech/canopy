@@ -12,10 +12,12 @@
   let {
     schedule,
     onchange,
+    disabled = false,
     class: className,
   }: {
     schedule: ui.Schedule;
     onchange?: ((schedule: ui.Schedule) => void) | undefined;
+    disabled?: boolean;
     class?: ClassValue;
   } = $props();
 </script>
@@ -44,5 +46,5 @@
       {#if schedule.createdBy === "agent"}<span class="sr-only"> (set by an agent)</span>{/if}
     </p>
   </div>
-  <ScheduleActions {schedule} compact {onchange} />
+  <ScheduleActions {schedule} compact {onchange} {disabled} />
 </div>

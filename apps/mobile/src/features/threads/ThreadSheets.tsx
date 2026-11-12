@@ -19,7 +19,12 @@ export function ThreadSheets({
   return (
     <>
       <TimelineDirectoryProvider value={viewerDirectory(state)}>
-        <ThreadPanel snapshot={snapshot} visible={state.details} onClose={() => state.setDetails(false)} />
+        <ThreadPanel
+          snapshot={snapshot}
+          syncStatus={state.syncStatus}
+          visible={state.details}
+          onClose={() => state.setDetails(false)}
+        />
       </TimelineDirectoryProvider>
       <GoalSheet
         thread={thread}

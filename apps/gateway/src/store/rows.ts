@@ -54,6 +54,8 @@ export interface ThreadRow {
   last_seq: bigint;
   created_at: Date;
   archived_at?: Date | null;
+  /** Exact keyset position; Date alone drops PostgreSQL microseconds. */
+  archived_at_key?: string | null;
   archived_by?: string | null;
   archived_by_thread_id?: string | null;
   archived_by_thread_title?: string | null;
