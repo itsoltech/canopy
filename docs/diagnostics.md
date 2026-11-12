@@ -287,7 +287,7 @@ komputer/łącze, bez toastu na każdy tick i bez systemowych powiadomień w tym
 
 ## 5. Trwałe agregaty, retencja i restart
 
-Migracja etapu 1 to `0124_diagnostics`, po migracjach thread sync `0120–0123`.
+Migracja etapu 1 to `0129_diagnostics`, po zarezerwowanych migracjach `0124–0128`.
 Etapy 2 i 3 nie dodają migracji; korzystają z tych samych tabel i budżetów.
 Panel Thread sync z #543 pozostaje w tym samym widoku Diagnostics na web i mobile:
 jego owner-scoped, trwały postęp jest źródłem seq/head oraz błędów synchronizacji,

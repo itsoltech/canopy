@@ -83,7 +83,7 @@ test.skipIf(!dockerAvailable)(
         [127, "github_repository_access"],
         [128, "thread_panel_cache"],
       ]);
-      expect(await runtime.runPromise(migrate)).toEqual([[124, "diagnostics"]]);
+      expect(await runtime.runPromise(migrate)).toEqual([[129, "diagnostics"]]);
       await runtime.runPromise(
         Effect.gen(function* () {
           const sql = yield* SqlClient.SqlClient;
