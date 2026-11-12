@@ -9,7 +9,7 @@ import type { TransitionConfig } from "svelte/transition";
  * Motion in script, on the same token scale as the CSS (routes/layout.css): token values are read from
  * the document, so a change of the scale reaches both. `smoothOut` and `inOut` are the JS twins of
  * `--ease-smooth-out` (cubic-bezier(0.22, 1, 0.36, 1) = easeOutQuint) and `--ease-in-out`.
- * With reduced motion every transition here is opacity only.
+ * With reduced motion transitions use only opacity or run instantly.
  *
  *   {#if open}<div transition:expand>…</div>{/if}
  */
@@ -155,16 +155,15 @@ export function swap(_node: HTMLElement, { delay = 0 }: { delay?: number } = {})
  * arrives along the scale's direction (`step` 1 = up the scale: the new text rises in from below, the old
  * one rises out; -1 the other way), with a fade and cross-blur on --duration-quick. Use the same call as
  * `in:` and `out:` on the text inside a `{#key}`, both stacked in one grid cell (SwapText.svelte), so
- * the swap never shifts the layout. With reduced motion it is a cross-fade.
+ * the swap never shifts the layout. With reduced motion the text changes instantly.
  */
 export function stepSwap(
   _node: HTMLElement,
   { step = 1, distance = "micro" }: { step?: number; distance?: "micro" | "base" } = {},
   options?: { direction: "in" | "out" | "both" },
 ): TransitionConfig {
+  if (prefersReducedMotion.current) return { duration: 0 };
   const ms = duration("quick");
-
-  if (prefersReducedMotion.current) return { duration: ms, css: (t) => `opacity: ${t}` };
 
   const offset =
     length(`--distance-${distance}`, distance === "base" ? 8 : 4) * (options?.direction === "out" ? -step : step);

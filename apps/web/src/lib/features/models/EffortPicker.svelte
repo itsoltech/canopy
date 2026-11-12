@@ -94,7 +94,7 @@
     </div>
     <div class="grid justify-items-center px-8 pt-1 text-center">
       <div class="relative flex text-lg/7 font-medium text-brand-600 dark:text-brand-400">
-        <SwapText text={label} {rank} distance="base" />
+        <SwapText text={label} {rank} distance="base" align="center" />
         {#if isDefault}
           <div
             class="absolute inset-y-0 left-full ml-1.5 flex items-center text-xs/4 font-normal whitespace-nowrap text-zinc-400 dark:text-zinc-500"
