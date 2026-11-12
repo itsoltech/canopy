@@ -1,14 +1,15 @@
-import { useState } from "react";
-import { ScrollView, View, type TextStyle } from "react-native";
+import { useMemo, useState } from "react";
+import { View, type TextStyle } from "react-native";
 import type { Tokens } from "marked";
 import { useColors, useTypography } from "../theme";
 import { Inline } from "./Inline";
 import { useMarkdownScope } from "./scope";
 import { Faced } from "./text-style";
+import { HorizontalScroll } from "../HorizontalScroll";
 
-/** A cell's text wraps past this width; a header never wraps (web: `whitespace-nowrap`). */
+/** Bound headers as well as body cells, so a long heading cannot monopolize the table. */
 const MAX_CELL = 224;
-const MIN_CELL = 48;
+const MIN_CELL = 72;
 const PAD = 8;
 
 /** Average glyph width per point of font size, a little over Inter's so an estimate rarely wraps a header. */
@@ -16,21 +17,23 @@ const GLYPH = 0.6;
 
 /**
  * Column widths from the length of their text: React Native has no table layout, so the widest cell of a
- * column (up to `MAX_CELL`, where its text starts to wrap) or its header sets it. A table narrower than the
- * message (`frame`) widens its columns in proportion to fill it.
+ * column or its header sets it, within the same bounds. A narrow table widens its columns toward the
+ * message (`frame`), without exceeding the maximum. Tall tables retain their natural height in the feed.
  */
 function columnWidths(table: Tokens.Table, fontSize: number, frame: number): number[] {
   const width = (text: string) => text.length * fontSize * GLYPH;
 
   const widths = table.header.map((header, column) => {
-    const cells = Math.max(0, ...table.rows.map((row) => width(row[column]?.text ?? "")));
+    let widest = width(header.text);
 
-    return Math.max(MIN_CELL, width(header.text), Math.min(cells, MAX_CELL)) + PAD * 2;
+    for (const row of table.rows) widest = Math.max(widest, width(row[column]?.text ?? ""));
+
+    return Math.min(MAX_CELL, Math.max(MIN_CELL, widest)) + PAD * 2;
   });
 
   const total = widths.reduce((sum, w) => sum + w, 0);
 
-  return total < frame ? widths.map((w) => (w * frame) / total) : widths;
+  return total < frame ? widths.map((w) => Math.min(MAX_CELL + PAD * 2, (w * frame) / total)) : widths;
 }
 
 const alignOf = (align: Tokens.Table["align"][number] | undefined): TextStyle["textAlign"] =>
@@ -48,7 +51,7 @@ export function MarkdownTable({ table }: { table: Tokens.Table }) {
   // web: text-sm/6, a step under the message with its line height.
   const fontSize = (type.body.fontSize * 14) / 16;
   const text: TextStyle = { ...type.body, fontSize, color: ink };
-  const widths = columnWidths(table, fontSize, frame);
+  const widths = useMemo(() => columnWidths(table, fontSize, frame), [table, fontSize, frame]);
 
   const row = (cells: Tokens.TableCell[], header: boolean) =>
     cells.map((cell, column) => {
@@ -76,22 +79,17 @@ export function MarkdownTable({ table }: { table: Tokens.Table }) {
     });
 
   return (
-    <View onLayout={(event) => setFrame(event.nativeEvent.layout.width)}>
-      <ScrollView horizontal style={{ flexGrow: 0 }}>
-        <View>
-          <View style={{ flexDirection: "row", borderBottomWidth: 1, borderColor: c.line }}>
-            {row(table.header, true)}
-          </View>
-          {table.rows.map((cells, index) => (
-            <View
-              key={index}
-              style={{ flexDirection: "row", borderTopWidth: index === 0 ? 0 : 1, borderColor: c.rule }}
-            >
-              {row(cells, false)}
-            </View>
-          ))}
+    <HorizontalScroll onLayout={(event) => setFrame(event.nativeEvent.layout.width)}>
+      <View>
+        <View style={{ flexDirection: "row", borderBottomWidth: 1, borderColor: c.line }}>
+          {row(table.header, true)}
         </View>
-      </ScrollView>
-    </View>
+        {table.rows.map((cells, index) => (
+          <View key={index} style={{ flexDirection: "row", borderTopWidth: index === 0 ? 0 : 1, borderColor: c.rule }}>
+            {row(cells, false)}
+          </View>
+        ))}
+      </View>
+    </HorizontalScroll>
   );
 }

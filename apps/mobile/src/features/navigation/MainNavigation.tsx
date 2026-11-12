@@ -99,6 +99,8 @@ function Screens() {
       )}
       screenOptions={{
         animation: reduced || wide ? "none" : "default",
+        // Screens defaults to full-screen back swipes on iOS 26, competing with wide message content.
+        fullScreenGestureEnabled: false,
         headerShown: false,
         headerStyle: { backgroundColor: c.background },
         headerTintColor: c.text,

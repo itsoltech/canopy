@@ -1,10 +1,11 @@
 import { useMemo } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { useDevicePreferences } from "../features/settings/device-preferences";
 import { useColors, useTypography } from "./theme";
 import { diffRows, type DiffRow } from "./diff-lines";
 import { DiffGutter, type DiffReview } from "./DiffGutter";
 import type { DiffSide } from "@canopy/domain/diff-anchors";
+import { HorizontalScroll } from "./HorizontalScroll";
 
 /** Shared by the bounded timeline preview and virtualized full-diff chunks. */
 export function DiffContent({
@@ -68,11 +69,5 @@ export function DiffContent({
     </View>
   );
 
-  return wrapped ? (
-    content
-  ) : (
-    <ScrollView horizontal style={{ flexGrow: 0 }}>
-      {content}
-    </ScrollView>
-  );
+  return wrapped ? content : <HorizontalScroll>{content}</HorizontalScroll>;
 }

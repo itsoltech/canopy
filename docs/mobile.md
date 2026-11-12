@@ -1506,7 +1506,21 @@ Obrazy nie są pobierane (link do nich), surowy HTML jest tekstem, matematyka po
 Bloki `diff` / `patch` korzystają ze wspólnego widoku diffu. Pozostały kod jest monospace
 bez kolorowania składni: mobilny workspace nie ma silnika highlightera używanego przez web.
 Tabele nie mają układu tabeli w React Native: szerokości kolumn liczy się z długości tekstu, długie
-komórki się zawijają, a szeroka tabela przewija się w poziomie.
+komórki się zawijają, a szeroka tabela przewija się w poziomie. Nagłówki i treść mają te same
+granice szerokości: 72–224 dp plus padding; również długi nagłówek się zawija. Tabela zachowuje
+naturalną wysokość, więc ruch pionowy przejmuje odwrócona lista osi czasu, także dla tabel
+wyższych niż ekran.
+
+Tabele, niełamany kod, matematyka blokowa i diffy współdzielą `ui/HorizontalScroll`:
+`ScrollView` z zainstalowanego Gesture Handler z `nestedScrollEnabled` na Androidzie,
+blokadą kierunku na iOS i poziomym wskaźnikiem przewijania. Lokalny `GestureHandlerRootView`
+obejmuje też użycie w osobnym oknie modala Androida. Delikatny cień prawej krawędzi wskazuje
+ukrytą treść i znika na końcu; offset i przezroczystość aktualizuje Reanimated na UI,
+bez callbacków JS w każdej klatce. Pomiary układu zmieniają się tylko przy zmianie rozmiarów.
+Stack obszaru głównego jawnie ustawia `fullScreenGestureEnabled: false`: domyślne zachowanie
+`react-native-screens` na iOS 26 dopuszcza swipe-back z całego ekranu, który może konkurować
+z treścią poziomą. Gest powrotu od lewej krawędzi pozostaje aktywny. Sidebar na szerokim oknie
+otwiera przycisk, bez pełnoekranowego gestu; swipe archiwizacji jest tylko na jego wierszach.
 
 Poziomy `ScrollView` w dymku zawsze dostaje `flexGrow: 0`. Domyślne `flexGrow: 1` w kontenerze
 dopasowanym do treści (`alignItems: "flex-start"`, jak dymek czatu) daje mu na iOS i Androidzie
