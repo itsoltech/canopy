@@ -137,6 +137,10 @@ describe.skipIf(!dockerAvailable)("thread file previews through a real home work
     const foreign = await turnItems((await home.tree()).id, ["Read assets/hint.txt"]);
     expect(text(await caller.api.readThreadFile({ threadId: q(), itemId: source, path: "hint.txt" }))).toBe("preferred");
     expect(text(await caller.api.readThreadFile({ threadId: q(), itemId: foreign, path: "hint.txt" }))).toBe("root");
+    put("absolute.txt", "root absolute");
+    const absolute = put("public/absolute.txt", "absolute hint");
+    const absoluteSource = await turnItems(thread.id, ["Open `absolute.txt`", `cat ${absolute}`]);
+    expect(text(await caller.api.readThreadFile({ threadId: q(), itemId: absoluteSource, path: "absolute.txt" }))).toBe("absolute hint");
   });
 
   test("fresh gitignore-aware lookup sees new files and distinguishes absence from disappearance", async () => {

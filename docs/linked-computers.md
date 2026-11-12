@@ -2686,6 +2686,21 @@ ani przyczyn transportowych. Podglądy obrazów i tekstu pokazują ten powód or
 Retry. Zamontowany podgląd ponawia odczyt po zmianie obecności domu lub
 odtworzeniu połączenia klienta. Dotyczy to także mobilnego odczytu Connect.
 
+### Podglądy plików workspace
+
+Linki do plików w wiadomościach nie są załącznikami ani częścią lustra: `ReadThreadFile` z kwalifikowanym
+ID wątku trafia do domu wątku i jego workera. Tam odbywa się kontrola właściciela i rozstrzygnięcie
+względem `threads.cwd`, również dla osobnego worktree. `item_id` wskazuje turn do podpowiedzi ścieżek;
+goła nazwa może dać jeden plik, wybór kilku ścieżek albo jawny brak wyniku z przeszukanymi ścieżkami.
+Nieosiągalny dom lub worker daje błąd połączenia, a nie informację o usunięciu pliku.
+
+Capability workera `thread_file_preview_v1` przenosi metadane rozstrzygnięcia oraz tekst i bajty binarne
+do 2 MiB. Istniejące RPC przez strumień łącza dzieli odpowiedź na porcje 32 KiB; limity i kontrola
+przepływu pozostają wspólne z innymi odczytami. Jawny odczyt pliku ma timeout 35 s zamiast limitu
+agregowanych list. Web i mobile pokazują obrazy z wymiarami i rozmiarem, chowają binarne Edit
+i wykonują kolejne operacje na rozstrzygniętej ścieżce. Podgląd nie udostępnia URL do lokalnego dysku
+domu ani nie otwiera aplikacji na innym komputerze. Szczegóły: [protocol.md](protocol.md#folder-i-pliki-wątku).
+
 ### Strony historii klientów
 
 Klient z `page_size` otrzymuje najpierw odpowiednie okno z lokalnego lustra,

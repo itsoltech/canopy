@@ -16,8 +16,8 @@ type FileContentInit = MessageInitShape<typeof FileContentSchema>;
 const refuse = (code: string, message: string) => new CommandError(code, message, true);
 
 /**
- * The real path of an existing regular file under one of `roots` (the gateway's: the thread's directory and the
- * owner's workspaces on this worker) or `extraRoots` (this worker's own: the thread's attachments). `~` expands
+ * The real path of an existing regular file under one of `roots` (the gateway's thread directory)
+ * or `extraRoots` (this worker's own thread attachments). `~` expands
  * to the worker's home; symlinks resolve before the check, so a link cannot reach outside the roots.
  */
 export function resolveThreadFile(request: FileRequest, extraRoots: readonly string[]): string {

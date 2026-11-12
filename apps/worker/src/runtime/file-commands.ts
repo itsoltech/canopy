@@ -12,7 +12,8 @@ export const isFileCommand = (kind: Command["kind"]): kind is FileCommand =>
 
 /**
  * Files the thread's owner opens from the UI (capability thread_files_v1, docs/protocol.md). The gateway names the
- * thread's directory and the owner's workspaces as roots; the thread's attachments are this worker's own.
+ * thread's directory as its root; the thread's attachments are this worker's own. Preview resolution additionally
+ * confines every candidate to the thread workspace before applying this check.
  */
 export async function runFileCommand(ctx: HostContext, kind: FileCommand): Promise<CommandOutput> {
   const target: FileRequest | undefined = kind.case === "writeFile" ? kind.value.target : kind.value;
