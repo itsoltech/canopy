@@ -55,24 +55,11 @@ async function* superviseThread(
   signal: AbortSignal,
 ): AsyncGenerator<ui.ThreadUpdate> {
   if (input.sequence) {
-    for await (const message of computers.remote(node, ui.GatewayService.method.watchThread, input, signal)) {
-      const update = linkedMessage(ui.ThreadUpdateSchema, message);
-
-      if (update.change.case === "snapshot") computers.diagnostics(node, 221, 1);
-
-      if (update.change.case === "batch") {
-        let items = 0;
-
-        for (const record of update.change.value.records) if (record.value.case === "item") items++;
-
-        if (items) computers.diagnostics(node, 222, items);
-      }
-
-      yield update;
-    }
+    yield* sequenceThread(computers, node, input, signal);
 
     return;
   }
+
   const heartbeat =
     computers.hello().capabilities.includes(THREAD_WATCH_LIVENESS) &&
     computers.capabilities(node).includes(THREAD_WATCH_LIVENESS);
@@ -201,6 +188,29 @@ async function* superviseThread(
       fromTurnId,
       historyVersion,
     });
+  }
+}
+
+async function* sequenceThread(
+  computers: LinkedComputers,
+  node: string,
+  input: ui.WatchThreadRequest,
+  signal: AbortSignal,
+) {
+  for await (const message of computers.remote(node, ui.GatewayService.method.watchThread, input, signal)) {
+    const update = linkedMessage(ui.ThreadUpdateSchema, message);
+
+    if (update.change.case === "snapshot") computers.diagnostics(node, 221, 1);
+
+    if (update.change.case === "batch") {
+      let items = 0;
+
+      for (const record of update.change.value.records) if (record.value.case === "item") items++;
+
+      if (items) computers.diagnostics(node, 222, items);
+    }
+
+    yield update;
   }
 }
 
