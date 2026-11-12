@@ -15,7 +15,7 @@
     selectNode,
     textBeforeCaret,
   } from "./caret.ts";
-  import { ChipEdits, chipClicked, copiedValue, copyValue } from "./chip-edits.ts";
+  import { ChipEdits, chipClicked, copiedValue, copySelection } from "./chip-edits.ts";
   import { CodeBlocks } from "./code-blocks.ts";
   import {
     activeTrigger,
@@ -35,6 +35,10 @@
   import MentionList from "./MentionList.svelte";
   import MentionSuggestions from "./MentionSuggestions.svelte";
   import type { MentionOption, MentionSourceSet } from "./sources.svelte.ts";
+  import type { QuoteDraft } from "#lib/features/quotes/quote.ts";
+  import EditorCitations from "#lib/features/quotes/EditorCitations.svelte";
+  import { useQuoteDrafts } from "#lib/features/quotes/quote-drafts.svelte.ts";
+  import { untrack } from "svelte";
 
   /**
    * The composer's text field with inline mentions (docs/ui-api.md, "Wzmianki"): a contenteditable whose model is
@@ -63,6 +67,8 @@
   let {
     value = $bindable(""),
     mentions = $bindable([]),
+    quotes = $bindable([]),
+    quoteKey,
     id,
     label,
     placeholder = "",
@@ -85,6 +91,8 @@
   }: {
     value?: string;
     mentions?: Mention[];
+    quotes?: readonly QuoteDraft[];
+    quoteKey?: string;
     id: string;
     label: string;
     placeholder?: string;
@@ -113,6 +121,15 @@
   } = $props();
 
   let root = $state<HTMLDivElement>();
+  const quoteDrafts = useQuoteDrafts();
+  const activeQuotes = $derived(quoteKey ? quoteDrafts.list(quoteKey) : quotes);
+
+  $effect(() => {
+    const key = quoteKey;
+    const controls = editor;
+
+    if (key && controls) return untrack(() => quoteDrafts.connect(key, (quote) => controls.insertQuote(quote)));
+  });
 
   $effect(() => {
     if (singleLine && root) root.scrollTop = 0;
@@ -166,11 +183,11 @@
   // An outside change (cleared after sending, a restored draft): render it.
   $effect(() => {
     const text = value;
-    const key = mentionsKey(mentions);
+    const key = mentionsKey(mentions) + JSON.stringify(activeQuotes);
 
     if (!root || (text === shown.text && key === shown.key)) return;
     blocks.clear();
-    root.innerHTML = toHtml({ text, mentions }, icons, sources?.renderMention);
+    root.innerHTML = toHtml({ text, mentions, quotes: activeQuotes }, icons, sources?.renderMention);
     blocks.refresh(root);
     markTicks(root);
     shown = { text, key };
@@ -246,9 +263,12 @@
     }
 
     const next = serialize(root);
-    shown = { text: next.text, key: mentionsKey(next.mentions) };
+    shown = { text: next.text, key: mentionsKey(next.mentions) + JSON.stringify(next.quotes ?? []) };
     value = next.text;
     mentions = next.mentions;
+    quotes = next.quotes ?? [];
+
+    if (quoteKey) quoteDrafts.place(quoteKey, quotes);
     detectTrigger();
   }
 
@@ -292,6 +312,8 @@
     () => sync(),
     (value) => toHtml(value, icons, sources?.renderMention),
   );
+
+  $effect(() => chips.track());
 
   /** Plain text at the caret: lines as text and line breaks (no markup from the clipboard); complete fences as blocks. */
   function insertPlain(text: string) {
@@ -499,27 +521,7 @@
 
   /** Copy and cut from the text: what the message would say (fences of blocks, markers of chips), not their looks. */
   function oncopy(event: ClipboardEvent) {
-    const current = getSelection();
-
-    if (
-      inBlockArea(event.target) ||
-      !root ||
-      !current ||
-      current.isCollapsed ||
-      current.rangeCount === 0 ||
-      !event.clipboardData
-    )
-      return;
-    const range = current.getRangeAt(0);
-
-    if (!root.contains(range.commonAncestorContainer)) return;
-    event.preventDefault();
-    copyValue(event.clipboardData, serialize(range.cloneContents()));
-
-    if (event.type === "cut") {
-      document.execCommand("delete");
-      sync();
-    }
+    if (!inBlockArea(event.target)) copySelection(event, root, () => sync());
   }
 
   function ondrop(event: DragEvent) {
@@ -660,6 +662,8 @@
     {@attach focusOnMount}
   ></div>
 </div>
+
+<EditorCitations {editor} quotes={activeQuotes} />
 
 <style>
   /* The backticks around inline code (inline-code.ts `markTicks`). */

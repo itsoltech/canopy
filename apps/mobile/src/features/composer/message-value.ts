@@ -1,5 +1,6 @@
 import { create } from "@bufbuild/protobuf";
-import { MentionKind, MentionSchema, type Mention } from "@canopy/contracts";
+import { MentionKind, MentionSchema, type Mention, type ui } from "@canopy/contracts";
+import { citationLabel } from "@canopy/domain";
 import { mentionPlaceholder } from "@canopy/domain/mentions";
 
 /**
@@ -10,6 +11,7 @@ import { mentionPlaceholder } from "@canopy/domain/mentions";
 export interface MessageValue {
   readonly text: string;
   readonly mentions: readonly Mention[];
+  readonly quotes?: readonly ui.Quote[];
 }
 
 export const emptyValue: MessageValue = { text: "", mentions: [] };
@@ -37,7 +39,10 @@ export function insertMention(
   mention: Pick<Mention, "kind" | "name" | "label"> & Partial<Pick<Mention, "path" | "source" | "isDir">>,
 ): Placed {
   // Never inside another badge: the insertion point moves past it.
-  const inside = value.mentions.find((m) => m.start < selection.start && selection.start < m.end);
+  const inside = [...value.mentions, ...(value.quotes ?? []).filter(isPlacedQuote)].find(
+    (m) => m.start < selection.start && selection.start < m.end,
+  );
+
   const start = inside ? inside.end : Math.min(selection.start, value.text.length);
   const end = inside ? inside.end : Math.max(start, Math.min(selection.end, value.text.length));
   const placeholder = mentionPlaceholder(mention);
@@ -51,8 +56,16 @@ export function insertMention(
 
   const mentions = value.mentions.flatMap((m) => (m.end <= start ? [m] : m.start >= end ? [moved(m, shift)] : []));
 
+  const quotes = value.quotes?.flatMap((q) =>
+    q.start === undefined || q.end === undefined || q.end <= start
+      ? [q]
+      : q.start >= end
+        ? [{ ...q, start: q.start + shift, end: q.end + shift }]
+        : [],
+  );
+
   return {
-    value: { text: before + lead + placeholder + trail + after, mentions: byStart([...mentions, added]) },
+    value: { text: before + lead + placeholder + trail + after, mentions: byStart([...mentions, added]), quotes },
     caret: at + placeholder.length + trail.length,
   };
 }
@@ -75,7 +88,9 @@ export function editText(value: MessageValue, next: string): Edited {
   const inserted = next.slice(prefix, next.length - suffix);
 
   if (start === end) {
-    const host = value.mentions.find((m) => m.start < start && start < m.end);
+    const host = [...value.mentions, ...(value.quotes ?? []).filter(isPlacedQuote)].find(
+      (m) => m.start < start && start < m.end,
+    );
 
     if (host) {
       start = host.end;
@@ -83,9 +98,13 @@ export function editText(value: MessageValue, next: string): Edited {
     }
   }
 
-  const removed = value.mentions.filter((m) => start < end && m.start < end && m.end > start);
+  const touched = [...value.mentions, ...(value.quotes ?? []).filter(isPlacedQuote)].filter(
+    (m) => start < end && m.start < end && m.end > start,
+  );
 
-  for (const m of removed) {
+  const removed = value.mentions.filter((m) => touched.includes(m));
+
+  for (const m of touched) {
     start = Math.min(start, m.start);
     end = Math.max(end, m.end);
   }
@@ -94,7 +113,15 @@ export function editText(value: MessageValue, next: string): Edited {
 
   const mentions = value.mentions.flatMap((m) => (removed.includes(m) ? [] : m.end <= start ? [m] : [moved(m, shift)]));
 
-  return { value: { text: before.slice(0, start) + inserted + before.slice(end), mentions }, removed };
+  const quotes = value.quotes?.flatMap((q) =>
+    !isPlacedQuote(q) || q.end <= start
+      ? [q]
+      : q.start >= end
+        ? [{ ...q, start: q.start + shift, end: q.end + shift }]
+        : [],
+  );
+
+  return { value: { text: before.slice(0, start) + inserted + before.slice(end), mentions, quotes }, removed };
 }
 
 /** The value without one mention's placeholder (its file was removed from the tray). */
@@ -112,12 +139,17 @@ export function trimValue(value: MessageValue): MessageValue {
   const lead = value.text.length - value.text.trimStart().length;
   const text = value.text.trim();
 
-  return { text, mentions: value.mentions.filter((m) => m.end - lead <= text.length).map((m) => moved(m, -lead)) };
+  return {
+    text,
+    mentions: value.mentions.filter((m) => m.end - lead <= text.length).map((m) => moved(m, -lead)),
+    quotes: value.quotes?.map((q) => (isPlacedQuote(q) ? { ...q, start: q.start - lead, end: q.end - lead } : q)),
+  };
 }
 
 export interface Segment {
   readonly text: string;
   readonly mention?: Mention;
+  readonly quote?: ui.Quote;
 }
 
 /** The text cut at its mentions, for rendering badges in place. */
@@ -125,11 +157,18 @@ export function segmentsOf(value: MessageValue): Segment[] {
   const out: Segment[] = [];
   let at = 0;
 
-  for (const m of byStart(value.mentions)) {
+  const tokens = [
+    ...value.mentions.map((mention) => ({ start: mention.start, end: mention.end, mention, quote: undefined })),
+    ...(value.quotes ?? [])
+      .filter(isPlacedQuote)
+      .map((quote) => ({ start: quote.start, end: quote.end, quote, mention: undefined })),
+  ].sort((a, b) => a.start - b.start);
+
+  for (const m of tokens) {
     if (m.start < at || m.end > value.text.length) continue;
 
     if (m.start > at) out.push({ text: value.text.slice(at, m.start) });
-    out.push({ text: value.text.slice(m.start, m.end), mention: m });
+    out.push({ text: value.text.slice(m.start, m.end), mention: m.mention, quote: m.quote });
     at = m.end;
   }
 
@@ -139,3 +178,34 @@ export function segmentsOf(value: MessageValue): Segment[] {
 }
 
 export const isAttachment = (m: Mention) => m.kind === MentionKind.ATTACHMENT;
+
+export const isPlacedQuote = (q: ui.Quote): q is ui.Quote & { start: number; end: number } =>
+  q.start !== undefined && q.end !== undefined;
+
+export function insertCitation(
+  value: MessageValue,
+  selection: { start: number; end: number },
+  quote: ui.Quote,
+): Placed {
+  const host = value.quotes?.filter(isPlacedQuote).find((q) => q.start < selection.start && selection.start < q.end);
+  const at = host ? { start: host.end, end: host.end } : selection;
+
+  const placed = insertMention(value, at, {
+    kind: MentionKind.ATTACHMENT,
+    name: "citation",
+    label: `“${citationLabel(quote.text)}”`,
+  });
+
+  const marker = placed.value.mentions.find((m) => m.name === "citation" && m.kind === MentionKind.ATTACHMENT)!;
+
+  return {
+    caret: placed.caret,
+    value: {
+      ...placed.value,
+      mentions: placed.value.mentions.filter((m) => m !== marker),
+      quotes: [...(placed.value.quotes ?? []), { ...quote, start: marker.start, end: marker.end }].sort(
+        (a, b) => (a.start ?? Infinity) - (b.start ?? Infinity),
+      ),
+    },
+  };
+}

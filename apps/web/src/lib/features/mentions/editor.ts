@@ -5,6 +5,9 @@ import { INLINE_RENDERERS, type InlineElement, type MentionData } from "./kinds.
 import { isJsonArray, isJsonObject, isString, parseJson } from "#lib/shared/json.ts";
 import { decode } from "#lib/shared/wire.ts";
 import { blockHtml, fenceText, findFences, inlineHtml, type CodeBlockData } from "./markdown.ts";
+import type { QuoteDraft } from "#lib/features/quotes/quote.ts";
+import { citationHtml, placedQuote, quoteFromJson, quoteJson } from "#lib/features/quotes/inline.ts";
+import { citationPlaceholder } from "@canopy/domain";
 
 /**
  * The composer's text model and its DOM (MentionEditor.svelte, a contenteditable). The model is the message text
@@ -31,7 +34,13 @@ const BLOCKS = new Set(["DIV", "P", "LI"]);
 export interface EditorValue {
   readonly text: string;
   readonly mentions: Mention[];
+  readonly quotes?: readonly QuoteDraft[];
 }
+
+export const quoteOf = (node: EditorNode): QuoteDraft | undefined =>
+  node.dataset?.["element"] === "citation" ? quoteFromJson(node.dataset["quote"] ?? "") : undefined;
+
+export const isChip = (node: EditorNode): boolean => Boolean(elementOf(node) || quoteOf(node));
 
 /** The inline element a chip stands for, from its data attributes. */
 export function elementOf(node: EditorNode): InlineElement | undefined {
@@ -67,6 +76,7 @@ export function blockOf(node: EditorNode): CodeBlockData | undefined {
 export function serialize(root: EditorNode): EditorValue {
   let text = "";
   const mentions: Mention[] = [];
+  const quotes: QuoteDraft[] = [];
   // A block ends its line: the next content starts on a new one.
   let pendingBreak = false;
 
@@ -96,6 +106,15 @@ export function serialize(root: EditorNode): EditorValue {
         flush();
         text += fenceText(block);
         pendingBreak = true;
+        continue;
+      }
+
+      const quote = quoteOf(child);
+
+      if (quote) {
+        flush();
+        quotes.push(placedQuote(quote, text.length));
+        text += citationPlaceholder(quote.text);
         continue;
       }
 
@@ -141,7 +160,7 @@ export function serialize(root: EditorNode): EditorValue {
 
   if (last?.nodeName === "BR" && text.endsWith("\n")) text = text.slice(0, -1);
 
-  return { text, mentions };
+  return { text, mentions, quotes };
 }
 
 function withoutIcon(m: MentionData): Omit<MentionData, "icon"> {
@@ -161,7 +180,12 @@ export function toHtml(
   icons: ReadonlyMap<string, string> = new Map(),
   renderMention?: (mention: MentionData) => string,
 ): string {
-  const fences = findFences(value.text).filter((f) => !value.mentions.some((m) => m.start < f.end && m.end > f.start));
+  const fences = findFences(value.text).filter(
+    (f) =>
+      ![...value.mentions, ...(value.quotes ?? [])].some(
+        (m) => m.start !== undefined && m.end !== undefined && m.start < f.end && m.end > f.start,
+      ),
+  );
 
   if (fences.length === 0) return value.text ? runHtml(value, 0, value.text.length, icons, renderMention) : "";
   let html = "";
@@ -190,9 +214,26 @@ function runHtml(
   let html = "";
   let at = from;
 
-  for (const m of [...value.mentions].sort((a, b) => a.start - b.start)) {
-    if (m.start < at || m.end > to) continue;
-    html += inlineHtml(value.text.slice(at, m.start));
+  const elements = [
+    ...value.mentions.map((mention) => ({ start: mention.start, end: mention.end, mention, quote: undefined })),
+    ...(value.quotes ?? []).flatMap((quote) =>
+      quote.start !== undefined && quote.end !== undefined
+        ? [{ start: quote.start, end: quote.end, quote, mention: undefined }]
+        : [],
+    ),
+  ].sort((a, b) => a.start - b.start);
+
+  for (const element of elements) {
+    if (element.start < at || element.end > to) continue;
+    html += inlineHtml(value.text.slice(at, element.start));
+
+    if (element.quote) {
+      html += citationHtml(element.quote);
+      at = element.end;
+      continue;
+    }
+
+    const m = element.mention!;
     const icon = icons.get(iconKey(m));
     const mention = { ...m, ...(icon && { icon }) };
     html += renderMention ? renderMention(mention) : INLINE_RENDERERS.mention.html({ type: "mention", mention });
@@ -220,6 +261,8 @@ export interface EditorControls {
   insertChips(chips: readonly MentionData[], point?: { readonly x: number; readonly y: number }): void;
   /** Takes out the chips `which` picks (undoable). */
   removeChips(which: (mention: MentionData) => boolean): void;
+  insertQuote(quote: QuoteDraft): void;
+  replaceQuote(chip: HTMLElement, quote?: QuoteDraft): void;
   readonly root: HTMLElement | undefined;
 }
 
@@ -230,7 +273,11 @@ export interface EditorControls {
 export const CHIPS_TYPE = "application/x-canopy-chips";
 
 export const chipsToClipboard = (value: EditorValue): string =>
-  JSON.stringify({ text: value.text, mentions: value.mentions.map((m) => toJson(MentionSchema, m)) });
+  JSON.stringify({
+    text: value.text,
+    mentions: value.mentions.map((m) => toJson(MentionSchema, m)),
+    quotes: value.quotes?.map(quoteJson),
+  });
 
 /** The copied value, when `data` is one and its ranges fit its text. */
 export function chipsFromClipboard(data: string): EditorValue | undefined {
@@ -241,8 +288,24 @@ export function chipsFromClipboard(data: string): EditorValue | undefined {
 
     if (!isString(text) || !isJsonArray(list)) return undefined;
     const mentions = list.map((m) => decode(MentionSchema, m));
+    const copiedQuotes = isJsonObject(parsed) ? parsed["quotes"] : undefined;
 
-    return mentions.every((m) => m.end > m.start && m.end <= text.length) ? { text, mentions } : undefined;
+    const quotes = isJsonArray(copiedQuotes)
+      ? copiedQuotes.flatMap((q) => {
+          const quote = isString(q) ? quoteFromJson(q) : undefined;
+
+          return quote &&
+            quote.start !== undefined &&
+            quote.end !== undefined &&
+            quote.start >= 0 &&
+            quote.end > quote.start &&
+            quote.end <= text.length
+            ? [quote]
+            : [];
+        })
+      : [];
+
+    return mentions.every((m) => m.end > m.start && m.end <= text.length) ? { text, mentions, quotes } : undefined;
   } catch {
     return undefined;
   }
@@ -290,6 +353,11 @@ export function trimValue(value: EditorValue): EditorValue {
 
   return {
     text,
+    quotes: value.quotes?.map((q) => ({
+      ...q,
+      start: q.start === undefined ? undefined : q.start - lead,
+      end: q.end === undefined ? undefined : q.end - lead,
+    })),
     mentions: value.mentions
       .filter((m) => m.end - lead <= text.length)
       .map((m) => create(MentionSchema, { ...m, start: m.start - lead, end: m.end - lead })),

@@ -84,7 +84,7 @@ function useBotConversation(id: string) {
   const home = useComputerHome(conversation?.bot?.nodeId || splitId(id).node);
   const bot = conversation?.bot ?? known.find((bot) => bot.id === id);
   const live = stream.connection === "live" && !home.away && !bot?.archived;
-  const message = useBotMessage(id, live, following.resumeFollowing);
+  const message = useBotMessage(id, live, following.resumeFollowing, bot?.configuration?.name);
 
   const approvals =
     conversation?.approvals.filter(

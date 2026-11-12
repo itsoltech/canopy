@@ -867,7 +867,8 @@ pytania `ask_user` (do 6), odczytywane z argumentów wywołania (id zgody = id w
 `SendBotMessageRequest` i `BotMessage` mają `mentions` (**450**) i `quotes` (**451**).
 `Mention.kind=BOT`, `name=bot_id`, `label=nazwa`; zakres `[start,end)` dotyczy znacznika
 `@Nazwa` w oryginalnym tekście, w jednostkach UTF-16. `Quote` jest wspólnym typem
-Threads i Bots (`quotes.proto`); zachowuje tekst, opcjonalny komentarz i metadane źródła.
+Threads i Bots (`quotes.proto`); zachowuje tekst, opcjonalny komentarz, metadane źródła
+i opcjonalne zakresy tokenów `start`/`end` w tekście.
 Wiadomość może zawierać same cytaty. Starsi klienci mogą nadal wysyłać sam tekst.
 
 Migracja **0033_bot_mentions.sql** dodaje do `bot_messages` kolumny JSONB `mentions`
@@ -876,9 +877,12 @@ Tekst w bazie i dymku nie zawiera notatek dla modelu. Gateway odrzuca niepoprawn
 nakładanie i ponad 50 wzmianek; dopuszcza wyłącznie inne, istniejące boty właściciela,
 bez usuniętych. Nazwę dla modelu odczytuje z konfiguracji bota. Cytaty przechodzą tę samą
 walidację co Threads: do 20, tekst niepusty do 20 000 znaków, komentarz do 4 000.
-Identyfikatory źródła cytatu są wyłącznie metadanymi UI, nie nadają dostępu do rozmów.
+Wskazane źródło musi być wątkiem lub botem tego samego właściciela;
+identyfikatory nie nadają dostępu do rozmów.
 
-Przy odczycie historii runtime dodaje `quotesNote` przed tekstem użytkownika oraz listę
+Przy odczycie historii runtime rozwija tokeny cytatów w ich miejscach w tekście,
+w blokach `[canopy citation N]` (szczegóły w [ui-api.md](ui-api.md#cytaty)).
+Cytaty starszych klientów bez zakresów zachowują `quotesNote` przed tekstem użytkownika oraz listę
 `Mentioned bots … "Kropek" (bot_id …)` po nim. Model dostaje wybrane ID do
 `send_bot_message`, także gdy dwa boty mają tę samą nazwę. Snapshoty i checkpointy
 zachowują te dane; ponowienie `client_request_id` zwraca pierwotną turę.
@@ -941,8 +945,9 @@ gdzie wskazuje miejsce wykonywania akcji.
   Akapity i listy markdown mają limit 78ch, tabele i kod korzystają z całej szerokości dymka.
   Twoje wiadomości pozostają po prawej, do 36rem. Inne boty wymienione z nazwy w tekście są
   chipami z awatarem w ich kolorze (`BotChip`, `mentions.ts`). W Twoich wiadomościach chipy
-  wynikają ze strukturalnych ID i zakresów, nie ze zgadywania nazwy. `MessageQuotes` pokazuje
-  cytaty z komentarzami nad treścią, z kontrastem dopasowanym do obu motywów dymka.
+  wynikają ze strukturalnych ID i zakresów, nie ze zgadywania nazwy. `CitationChip` pokazuje
+  cytaty w tekście; pełny fragment, komentarz i źródło są w podglądzie. `MessageQuotes`
+  zachowuje bloki starszych klientów bez zakresów nad treścią.
 - **Separatory czasu** tylko na początku, po zmianie dnia i po godzinie ciszy
   („Today 11:46 AM”).
 - **Status na żywo** (`BotStatusRow`): pod ostatnią wiadomością awatar bota i linia z efektem
@@ -951,10 +956,10 @@ gdzie wskazuje miejsce wykonywania akcji.
   stan z rozmowy (`stateForStatus`, błąd, nowa wiadomość jako `event`).
 - **Akcje wiadomości**: Reply i Copy pojawiają się obok dymka po
   najechaniu lub fokusie; na dotyku długie przytrzymanie otwiera menu. Reakcje pominięto —
-  nie ma ich w API. Reply dodaje widoczny tekst wiadomości jako kartę cytatu, bez `>` ani
-  znaczników markdown w polu. Zaznaczenie fragmentu odpowiedzi pokazuje **Cite** (także
-  Alt+Q); wspólne `CiteLayer`, `QuoteCommentPopover` i `QuoteTray` pozwalają dodać komentarz,
-  edytować go i usunąć cytat. Szkice botów mają osobne klucze `bot:<id>`.
+  nie ma ich w API. Reply dodaje token z widocznym tekstem wiadomości w miejscu kursora,
+  bez znaczników markdown. Zaznaczenie fragmentu odpowiedzi pokazuje **Cite** (także
+  Alt+Q); wspólne `CiteLayer` i `EditorCitations` pozwalają edytować fragment,
+  dodać komentarz i usunąć cytat. Szkice botów mają osobne klucze `bot:<id>`.
 - **Bot ⇄ bot**: kolejne wiadomości wymian w czacie zwijają się do linii „Messaged ‹A› and
   ‹B›”, „Message from ‹A›”, „N messages with ‹A›”. Chip prowadzi do widoku wymiany
   „A ⇄ B”: wiadomości z nazwami i awatarami po lewej, separatory czasu, „Close chat” (i Esc)

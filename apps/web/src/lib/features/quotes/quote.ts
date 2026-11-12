@@ -1,4 +1,13 @@
-import type { QuoteSourceKind } from "@canopy/domain";
+import { isQuoteSourceKind, type QuoteSourceKind } from "@canopy/domain";
+import type { ui } from "@canopy/contracts";
+
+export function draftOf(quote: ui.Quote): QuoteDraft {
+  return {
+    ...quote,
+    id: crypto.randomUUID(),
+    sourceKind: isQuoteSourceKind(quote.sourceKind) ? quote.sourceKind : "agent_message",
+  };
+}
 
 /** A quote waiting in a thread's composer draft (sent as SendMessage.quotes). */
 export interface QuoteDraft {
@@ -9,6 +18,10 @@ export interface QuoteDraft {
   readonly sourceThreadId: string;
   readonly sourceKind: QuoteSourceKind;
   readonly language: string;
+  readonly start?: number;
+  readonly end?: number;
+  readonly sourceAuthor?: string;
+  readonly sourceTime?: string;
 }
 
 /** A quote as the BFF takes it (api/threads/[id]/messages, `quotes`); a type alias, so it fits a `JsonBody`. */
@@ -19,6 +32,10 @@ export type WireQuote = {
   readonly sourceThreadId?: string;
   readonly sourceKind?: string;
   readonly language?: string;
+  readonly start?: number;
+  readonly end?: number;
+  readonly sourceAuthor?: string;
+  readonly sourceTime?: string;
 };
 
 export function toWire(quote: QuoteDraft): WireQuote {
@@ -29,6 +46,9 @@ export function toWire(quote: QuoteDraft): WireQuote {
     ...(quote.sourceThreadId && { sourceThreadId: quote.sourceThreadId }),
     sourceKind: quote.sourceKind,
     ...(quote.language && { language: quote.language }),
+    ...(quote.start !== undefined && { start: quote.start, end: quote.end }),
+    ...(quote.sourceAuthor && { sourceAuthor: quote.sourceAuthor }),
+    ...(quote.sourceTime && { sourceTime: quote.sourceTime }),
   };
 }
 

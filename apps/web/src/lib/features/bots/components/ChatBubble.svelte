@@ -19,6 +19,7 @@
   import MessageActions from "./MessageActions.svelte";
   import MessageRow from "./MessageRow.svelte";
   import MessageQuotes from "#lib/features/quotes/MessageQuotes.svelte";
+  import CitationChip from "#lib/features/quotes/CitationChip.svelte";
 
   /**
    * One message in a run. Bots write markdown (safe renderer) on soft grey, other bots named in it become
@@ -96,8 +97,23 @@
           message.text,
           bots.filter((b) => b.id !== message.senderId),
         ).map((r) => ({ ...r, connector: undefined }))
-    ).sort((a, b) => a.start - b.start),
+    )
+      .map((m) => ({ ...m, quote: undefined }))
+      .sort((a, b) => a.start - b.start),
   );
+
+  const inline = $derived(
+    [
+      ...mentions,
+      ...(message.quotes ?? []).flatMap((quote) =>
+        quote.start !== undefined && quote.end !== undefined
+          ? [{ start: quote.start, end: quote.end, quote, connector: undefined, bot: undefined }]
+          : [],
+      ),
+    ].sort((a, b) => a.start - b.start),
+  );
+
+  const looseQuotes = $derived(message.quotes?.filter((q) => q.start === undefined) ?? []);
 
   // Concentric with the run: the side facing a neighbour gets the small radius.
   const corners = $derived([
@@ -108,8 +124,10 @@
 </script>
 
 {#snippet mention(index: number)}
-  {@const found = mentions[index]}
-  {#if found?.connector}<ConnectorChip mention={found.connector} />{:else if found?.bot}<BotChip bot={found.bot} />{/if}
+  {@const found = inline[index]}
+  {#if found?.quote}<CitationChip quote={found.quote} />{:else if found?.connector}<ConnectorChip
+      mention={found.connector}
+    />{:else if found?.bot}<BotChip bot={found.bot} />{/if}
 {/snippet}
 
 <MessageRow {sender} {side} {mine} showAvatar={last} {showName} {gutter} class={["group/message", className]}>
@@ -144,6 +162,8 @@
           title={fullDateLabel(message.at)}
           data-quote-item={message.id}
           data-quote-thread={conversationId}
+          data-quote-author={sender?.name || "Agent"}
+          data-quote-time={fullDateLabel(message.at)}
           {@attach streaming ? retainStreamWidth : undefined}
           {@attach contextMenu(() => {
             if (matchMedia("(pointer: coarse)").matches) touchMenuOpen = true;
@@ -151,20 +171,20 @@
         >
           <span class="sr-only" data-quote-skip
             >{mine ? "You" : (sender?.name ?? "Unknown")}, {timeLabel(message.at)}:
-          </span>{#if message.quotes?.length}<MessageQuotes
-              quotes={message.quotes}
+          </span>{#if looseQuotes.length}<MessageQuotes
+              quotes={looseQuotes}
               inverted={mine}
               class="pb-2"
-            />{/if}{#if mine}{#each mentions as found, index (found.start)}{message.text.slice(
-                index === 0 ? 0 : mentions[index - 1]!.end,
+            />{/if}{#if mine}{#each inline as found, index (found.start)}{message.text.slice(
+                index === 0 ? 0 : inline[index - 1]!.end,
                 found.start,
-              )}{@render mention(index)}{/each}{message.text.slice(mentions.at(-1)?.end ?? 0)}{:else}<div
+              )}{@render mention(index)}{/each}{message.text.slice(inline.at(-1)?.end ?? 0)}{:else}<div
               data-quote-kind="agent_message"
             >
               <Markdown
                 text={message.text}
                 class="min-w-0 [&_blockquote]:max-w-(--chat-prose-width) [&_ol]:max-w-(--chat-prose-width) [&_p]:max-w-(--chat-prose-width) [&_ul]:max-w-(--chat-prose-width)"
-                elements={mentions.length > 0 ? { ranges: mentions, render: mention } : undefined}
+                elements={inline.length > 0 ? { ranges: inline, render: mention } : undefined}
               />
             </div>{/if}
         </div>

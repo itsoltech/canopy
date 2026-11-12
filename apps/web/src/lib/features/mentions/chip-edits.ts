@@ -14,10 +14,12 @@ import {
   chipsFromClipboard,
   chipsToClipboard,
   elementOf,
+  serialize,
   type EditorControls,
   type EditorValue,
 } from "./editor.ts";
 import type { MentionData } from "./kinds.ts";
+import { citationHtml } from "#lib/features/quotes/inline.ts";
 
 /**
  * Chips put in and taken out of the mention editor by the composer (MentionEditor's `editor`; attachments:
@@ -36,7 +38,7 @@ export class ChipEdits {
   ) {}
 
   /** The chip part of the editor's controls (the root stays live: a getter). */
-  controls(): Pick<EditorControls, "root" | "insertChips" | "removeChips"> {
+  controls(): Pick<EditorControls, "root" | "insertChips" | "removeChips" | "insertQuote" | "replaceQuote"> {
     const root = this.root;
 
     return {
@@ -45,14 +47,47 @@ export class ChipEdits {
       },
       insertChips: (chips, point) => this.insertChips(chips, point),
       removeChips: (which) => this.removeChips(which),
+      insertQuote: (quote) => {
+        const node = root();
+
+        if (!node) return;
+        const focused = document.activeElement === node;
+        node.focus({ preventScroll: true });
+
+        if (!focused || !rangeIn(node)) restoreCaret(node, this.#last);
+        ensureCaret(node);
+        this.insertMarked(`${marked(citationHtml(quote))}&nbsp;`);
+      },
+      replaceQuote: (chip, quote) => {
+        const node = root();
+
+        if (!node || !node.contains(chip)) return;
+        node.focus({ preventScroll: true });
+        selectNode(chip);
+
+        if (quote) this.insertMarked(marked(citationHtml(quote)));
+        else {
+          document.execCommand("delete");
+          this.sync();
+        }
+      },
     };
   }
 
   /** The field lost focus: keep its caret. */
   remember(): void {
     const root = this.root();
+    const range = root && rangeIn(root);
 
-    if (root) this.#last = rangeIn(root);
+    if (range) this.#last = range;
+  }
+
+  /** Keep the last editor range before transcript selection takes over. */
+  track(): () => void {
+    const remember = () => this.remember();
+    document.addEventListener("selectionchange", remember);
+
+    return () => document.removeEventListener("selectionchange", remember);
   }
 
   /** One chip (a trigger's pick) at the selection, with a space after it. */
@@ -105,7 +140,13 @@ export class ChipEdits {
         !(m.kind === MentionKind.ATTACHMENT && current.some((x) => x.kind === m.kind && x.name === m.name)),
     );
 
-    this.insertRendered(this.render({ text: value.text, mentions: kept }));
+    this.insertRendered(
+      this.render({
+        text: value.text,
+        mentions: kept,
+        quotes: value.quotes?.map((q) => ({ ...q, id: crypto.randomUUID() })),
+      }),
+    );
   }
 
   /** Text with its chips (rendered HTML, a paste of copied chips) at the caret. */
@@ -144,7 +185,7 @@ const marked = (html: string) => html.replace("<span ", '<span data-inserted="" 
 export function copyValue(data: DataTransfer, value: EditorValue): void {
   data.setData("text/plain", value.text);
 
-  if (value.mentions.length > 0) data.setData(CHIPS_TYPE, chipsToClipboard(value));
+  if (value.mentions.length > 0 || value.quotes?.length) data.setData(CHIPS_TYPE, chipsToClipboard(value));
 }
 
 /** Chips copied from a composer, when the clipboard's text is still what was copied with them. */
@@ -152,6 +193,23 @@ export function copiedValue(data: DataTransfer | null): EditorValue | undefined 
   const copied = chipsFromClipboard(data?.getData(CHIPS_TYPE) ?? "");
 
   return copied && copied.text === data?.getData("text/plain").replace(/\r\n?/g, "\n") ? copied : undefined;
+}
+
+/** Copy or cut the selected editor model, including atomic citations. */
+export function copySelection(event: ClipboardEvent, root: HTMLElement | undefined, sync: () => void): void {
+  const current = getSelection();
+
+  if (!root || !current || current.isCollapsed || current.rangeCount === 0 || !event.clipboardData) return;
+  const range = current.getRangeAt(0);
+
+  if (!root.contains(range.commonAncestorContainer)) return;
+  event.preventDefault();
+  copyValue(event.clipboardData, serialize(range.cloneContents()));
+
+  if (event.type === "cut") {
+    document.execCommand("delete");
+    sync();
+  }
 }
 
 /** A click that landed on a chip goes to `then` with the chip's mention and element. */

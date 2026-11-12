@@ -9,6 +9,10 @@ export interface StoredQuote {
   sourceThreadId?: string;
   sourceKind?: string;
   language?: string;
+  start?: number;
+  end?: number;
+  sourceAuthor?: string;
+  sourceTime?: string;
 }
 
 export function toUiQuote(quote: StoredQuote): ui.Quote {
@@ -19,5 +23,9 @@ export function toUiQuote(quote: StoredQuote): ui.Quote {
     sourceThreadId: quote.sourceThreadId ?? "",
     sourceKind: quote.sourceKind ?? "",
     language: quote.language ?? "",
+    start: quote.start,
+    end: quote.end,
+    sourceAuthor: quote.sourceAuthor ?? "",
+    sourceTime: quote.sourceTime ?? "",
   });
 }

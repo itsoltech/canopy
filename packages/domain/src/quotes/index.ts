@@ -10,3 +10,5 @@ export {
   type NotedQuote,
   type QuoteSourceKind,
 } from "./quotes.ts";
+
+export { citationLabel, citationPlaceholder, composeQuotes, relocateQuotes, inlineLegacyQuotes } from "./inline.ts";

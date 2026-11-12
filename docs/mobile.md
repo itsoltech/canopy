@@ -1,7 +1,8 @@
 # Canopy na iOS i Android
 
-Zwinięty kompozytor wątku pokazuje ikony z licznikami cytatów, załączników i rodzajów
-wzmianek przed pierwszą, skróconą linią szkicu. Dotknięcie podsumowania lub tekstu
+Zwinięty kompozytor wątku pokazuje ikony z licznikami załączników i rodzajów
+wzmianek przed pierwszą, skróconą linią szkicu. Cytaty są tokenami w tekście, bez
+osobnego licznika. Dotknięcie podsumowania lub tekstu
 rozwija nakładkę i ustawia fokus w polu. Pełne chipy pozostają zamontowane w zwijanym
 obszarze; rezerwa osi czasu nie zależy od ich liczby ani stanu rozwinięcia.
 
@@ -1072,11 +1073,16 @@ przez Share na iOS albo zapis do wskazanego katalogu na Androidzie. Nie renderuj
 ani plików biurowych wewnątrz aplikacji; web również udostępnia ich pobranie.
 Akcja „Quote passage” przy odpowiedzi, rozumowaniu, kodzie, wyniku i diffie otwiera
 edytowalny fragment z opcjonalnym komentarzem. Systemowego menu zaznaczenia tekstu
-nie rozszerzamy modułem natywnym. Pasek szkicu pozwala edytować i usuwać cytaty;
+nie rozszerzamy modułem natywnym. Zapis wstawia cytat w ostatnim miejscu kursora
+(bez kursora — na końcu), a fokus wraca za token. Cytat używa tego samego tekstowego
+modelu plakietek co wzmianki `@` i `$`: krótki fragment w tekście, pełna treść i źródło
+po dotknięciu, edycja i usuwanie w arkuszu. Usunięcie części znacznika usuwa cały token;
 można wysłać same cytaty bez tekstu. Limity są wspólne z gatewayem: 20 cytatów,
 20 tys. znaków fragmentu i 4 tys. znaków komentarza. Długi wynik udostępnia też cytowanie
-poszczególnych fragmentów listy. Wysłane cytaty pokazują treść i komentarz oraz „Show source”:
+poszczególnych fragmentów listy. Wysłane cytaty pozostają w tekście w swoich miejscach;
+dotknięcie pokazuje pełną treść, komentarz i „Jump to source”:
 osobny odczyt strony historii po `target_item_id` odnajduje źródło także poza załadowaną osią.
+W czacie bota odczyt stron rozmowy znajduje pełną wiadomość źródłową, również poza bieżącym oknem.
 Oś czasu nadąża za web: grupę pracy otwiera i zwija Settings → Threads → Turn activity
 („While working”, „After the turn”, z resetem), według tej samej reguły `workFoldOpen`
 z `@canopy/domain/work-fold` co web; tapnięcie decyduje dalej. Preferencje dotyczą tego
@@ -1616,8 +1622,8 @@ gateway ponownie sprawdza wzmianki, granty i zasady zatwierdzania. Przytrzymanie
 otwiera Reply/Copy. Odpowiedź dodaje cytat do szkicu, z komentarzem i usuwaniem;
 można wysłać same cytaty. Ponowienie zachowuje identyfikator dostarczenia tylko dla
 niezmienionego tekstu, wzmianek, cytatów i obrazów. Podpowiedzi nie zmieniają wysokości edytora.
-Wątki i boty współdzielą szkic cytatów oraz pasek `QuoteTray`; boty zachowują komentarze
-edytowane bezpośrednio w pasku. Konwersja Markdown na tekst cytatu jest wspólna
+Wątki i boty współdzielą tokeny cytatów w edytorze, bez osobnego paska nad polem.
+Zakresy są wysyłane i zapisywane razem z tekstem. Konwersja Markdown na tekst cytatu jest wspólna
 w `domain/markdown`. Menu Reply/Copy używa `TextActions`, a kopiowanie w menu
 i przeglądarkach korzysta z tego samego `useCopyText`, z potwierdzeniem dostępności
 i komunikatem ponowienia po błędzie. Długie przytrzymanie treści bota nie konkuruje

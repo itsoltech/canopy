@@ -7,15 +7,15 @@
   import CiteButton from "./CiteButton.svelte";
   import { citePosition } from "./cite-position.ts";
   import { useQuoteDrafts } from "./quote-drafts.svelte.ts";
-  import QuoteCommentPopover from "./QuoteCommentPopover.svelte";
   import { selectedQuote, type SelectedQuote } from "./selection.ts";
+  import SelectionMenu from "./SelectionMenu.svelte";
 
   /**
    * Cite: select text the agent produced inside `root` (the thread's feed) and a small "Cite" button appears at
    * the end of the selection — after the mouse is released or the keyboard selection settles (with a mouse),
-   * or below the selection handles on touch screens, clear of the system's own menu above it. It opens the
-   * comment popover; Save adds the quote to the thread's quote drafts (the composer shows it as a chip and sends
-   * it). Alt+Q cites the current selection from the keyboard. Nothing in the transcript moves: the button lives in
+   * or below the selection handles on touch screens, clear of the system's own menu above it. It inserts the
+   * citation at the composer's saved caret. Alt+Q cites the current selection from the keyboard.
+   * Nothing in the transcript moves: the button lives in
    * the top layer. It stays between the top of `root` and the top of `avoid` (the sticky composer at the bottom of
    * the feed): next to a selection right above the composer it flips above the selection instead of covering it.
    */
@@ -25,11 +25,10 @@
   const CITE_HOTKEY = $derived(keybindings.get("message:quote")[0] ?? "");
   const drafts = useQuoteDrafts();
   let quote = $state.raw<SelectedQuote>();
-  let editing = $state(false);
   let button = $state<HTMLButtonElement>();
   let touch = $state(false);
 
-  // The selection as it was when it settled: it keeps its place while the comment popover takes the focus.
+  // The selection as it was when it settled, used to position the Cite button.
   let range: Range | undefined;
   let pointerDown = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -38,7 +37,6 @@
   let announced = $state("");
 
   function read() {
-    if (editing) return;
     const selection = getSelection();
     const found = selectedQuote(selection);
     const live = found && selection ? selection.getRangeAt(0) : undefined;
@@ -64,8 +62,6 @@
     if (!root) return;
 
     const onselectionchange = () => {
-      if (editing) return;
-
       // While a mouse drags the selection, the button waits for the release.
       if (pointerDown) {
         quote = undefined;
@@ -97,8 +93,8 @@
 
         if (!quote) return;
         event.preventDefault();
-        editing = true;
-      } else if (event.key === "Escape" && quote && !editing) {
+        cite();
+      } else if (event.key === "Escape" && quote) {
         quote = undefined;
       }
     };
@@ -140,7 +136,7 @@
       });
 
       if (!position) {
-        if (!editing) quote = undefined;
+        quote = undefined;
 
         return;
       }
@@ -165,21 +161,27 @@
     };
   };
 
-  function save(comment: string) {
+  function cite() {
     if (!quote) return;
-    const added = drafts.add(threadId, { text: quote.text, source: quote.source, comment });
+    insert(quote);
+  }
+
+  function insert(selected: SelectedQuote) {
+    getSelection()?.removeAllRanges();
+    const added = drafts.add(threadId, { text: selected.text, source: selected.source });
 
     if (added) announced = "Quote added to the message";
     else toast("A message can carry up to 20 quotes", { tone: "error" });
-    getSelection()?.removeAllRanges();
+    done();
   }
 
   function done() {
-    editing = false;
     quote = undefined;
     range = undefined;
   }
 </script>
+
+<SelectionMenu {root} shortcut={CITE_HOTKEY} oncite={insert} />
 
 {#if quote}
   <CiteButton
@@ -187,20 +189,10 @@
     {@attach place}
     {@attach tooltip("Quote in your message", { hotkey: CITE_HOTKEY })}
     popover="manual"
-    aria-haspopup="dialog"
-    aria-expanded={editing}
     class="t-tt fixed inset-auto top-(--float-y) left-(--float-x) m-0"
-    onclick={() => (editing = true)}
-  />
-  <QuoteCommentPopover
-    bind:open={editing}
-    anchor={button}
-    quote={quote.text}
-    placement={touch ? "bottom" : "bottom-start"}
-    onsave={save}
-    onclosed={done}
+    onclick={cite}
   />
 {/if}
 <p class="sr-only" role="status">
-  {quote && !editing ? `Selected text can be quoted: ${formatHotkey(CITE_HOTKEY)}` : announced}
+  {quote ? `Selected text can be quoted: ${formatHotkey(CITE_HOTKEY)}` : announced}
 </p>

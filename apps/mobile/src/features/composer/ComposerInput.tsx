@@ -1,4 +1,4 @@
-import { useRef, type ComponentRef } from "react";
+import { useRef } from "react";
 import { Pressable, Text, View } from "react-native";
 import Animated, { interpolate, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import { inputTypography, TextInput } from "../../ui/TextInput";
@@ -10,6 +10,7 @@ import { useChatInputID } from "./ChatKeyboard";
 import { useKeyboardBlur } from "./useKeyboardBlur";
 import { composerGeometry } from "./geometry";
 import { ComposerPending } from "./ComposerPending";
+import { useCitationInput } from "./useCitationInput";
 
 type Props = Pick<
   ComposerBoxProps,
@@ -41,7 +42,7 @@ export function ComposerInput({
 }: Props) {
   const c = useColors();
   const { progress, writing, room, focused, onFocus } = useComposerMotion();
-  const input = useRef<ComponentRef<typeof TextInput>>(null);
+  const { input, edit, editor } = useCitationInput(badges);
   const nativeID = useChatInputID();
   useKeyboardBlur(input, focused);
 
@@ -125,7 +126,13 @@ export function ComposerInput({
             },
           ]}
         >
-          {badges ? <MessageSpans value={{ text, mentions: badges.mentions }} tone={badges.tone} /> : null}
+          {badges ? (
+            <MessageSpans
+              value={{ text, mentions: badges.mentions, quotes: badges.quotes }}
+              tone={badges.tone}
+              onQuote={edit}
+            />
+          ) : null}
         </TextInput>
         {compact ? (
           <CompactPreview text={text} label={label} placeholder={placeholder} onExpand={expand} />
@@ -141,6 +148,7 @@ export function ComposerInput({
           </Text>
         ) : null}
       </View>
+      {editor}
     </Animated.View>
   );
 }

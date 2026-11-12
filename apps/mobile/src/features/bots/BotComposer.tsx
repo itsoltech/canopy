@@ -1,5 +1,4 @@
 import { ComposerBox } from "../threads/ComposerBox";
-import { QuoteTray } from "../quotes/QuoteTray";
 import type { useBotMessage } from "./useBotMessage";
 import { AttachButton, AttachmentChips } from "../attachments/Attachments";
 import { PasteTarget } from "../attachments/FileIntake";
@@ -28,7 +27,6 @@ export function BotComposer({
 
   return (
     <>
-      <QuoteTray draft={message.quoteDraft} inline busy={busy} />
       {message.error && <Button title="Load saved draft" variant="ghost" size="sm" onPress={message.reloadDraft} />}
       <AttachmentChips files={draft.files.files} onRemove={draft.remove} />
       {draft.files.blocker ? <Notice>{draft.files.blocker}</Notice> : null}

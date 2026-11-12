@@ -1,8 +1,8 @@
 /**
  * Quotes (docs/ui-api.md, "Cytaty"): passages of what an agent produced in a thread — its answer, reasoning,
  * command output, a tool call, a code block, a diff — that the user selected and sends back with a message,
- * each with an optional comment. The agent gets them in the platform note before the user's text, in the
- * stable format of `quotesNote`.
+ * each with an optional comment. Inline ranges expand where the user placed them (`composeQuotes`);
+ * older clients keep the platform note before the user's text, in the stable format of `quotesNote`.
  */
 
 export const QUOTE_SOURCE_KINDS = [
@@ -26,6 +26,8 @@ export interface NotedQuote {
   readonly sourceKind?: string | undefined;
   /** Language of a code block (code, diff). */
   readonly language?: string | undefined;
+  readonly start?: number | undefined;
+  readonly end?: number | undefined;
 }
 
 export function isQuoteSourceKind(kind: string): kind is QuoteSourceKind {

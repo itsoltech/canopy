@@ -5,7 +5,6 @@
   import { AttachmentDraft, limitsOf } from "#lib/features/attachments/draft.svelte.ts";
   import { trimValue } from "#lib/features/mentions/editor.ts";
   import { toWire, useQuoteDrafts } from "#lib/features/quotes/quote-drafts.svelte.ts";
-  import QuoteTray from "#lib/features/quotes/QuoteTray.svelte";
   import { MentionSources } from "#lib/features/mentions/sources.svelte.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import { type ModelOption } from "#lib/features/models/catalog.ts";
@@ -44,8 +43,8 @@
    * their places. Files reach the worker before the message enters a turn, including when steered.
    * Mentions ("/", "$", "@", "#"; docs/ui-api.md "Wzmianki") come from the thread's worker and folder; "/goal" is
    * the platform's command: the rest of the message becomes the thread's goal.
-   * Quotes (Cite on the agent's output; docs/ui-api.md "Cytaty") wait as chips above the text, in the thread's quote
-   * drafts, and go with the message (steered too); a message may be quotes alone.
+   * Quotes (Cite on the agent's output; docs/ui-api.md "Cytaty") are atomic inline tokens at the caret;
+   * their ranges go with the message (steered too). A message may be quotes alone.
    */
   let {
     thread,
@@ -198,7 +197,7 @@
   }
 
   async function send(delivery: Delivery) {
-    const trimmed = trimValue({ text, mentions });
+    const trimmed = trimValue({ text, mentions, quotes });
     const message = text.trimStart().startsWith("!") ? text.trimEnd() : trimmed.text;
     const sentMentions = trimmed.mentions;
 
@@ -213,7 +212,7 @@
 
     const attachmentIds = draft.ids;
     const threadId = thread.id;
-    const sentQuotes = quotes;
+    const sentQuotes = trimmed.quotes ?? [];
     const signal = lifetime.controller.signal;
     sending = true;
     waiting = false;
@@ -308,9 +307,9 @@
     blockedReason={disabled ? note : undefined}
     deliveryNotice={outcome}
     elementCount={quotes.length}
+    quoteKey={thread.id}
     {ongoal}
   >
-    {#snippet elements()}<QuoteTray threadId={thread.id} class="px-3 pt-3" />{/snippet}
     {#snippet controls()}
       <fieldset disabled={disabled || sending} class="contents">
         {#if option}

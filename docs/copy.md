@@ -64,7 +64,7 @@ appear only as the literal name used by an external tool).
 | thread | a conversation with an agent in a project directory | chat, conversation (those are bot words), session |
 | side thread | a thread branched off another thread | sub-thread, child thread, branch |
 | turn | one request and the agent's answer in a thread | run, request, round |
-| citation | a passage added to a message with Cite | — |
+| citation | an inline token containing a quoted passage; `Cite` inserts it, `quote` names its text | footnote, reference |
 | shell command | an owner's command entered with a leading `!`; runs when delivered | terminal message, bash mode |
 | agent | Claude, Codex or Grok working in a thread | assistant, AI, model (a model is something else) |
 | subagent | an agent started by another agent in a side thread | sub-agent, child agent |

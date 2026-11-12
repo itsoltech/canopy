@@ -1,13 +1,14 @@
 import { fromJson, type JsonValue } from "@bufbuild/protobuf";
 import { MentionKind, MentionSchema, type Mention } from "@canopy/contracts";
-import { joinNotes, quotesNote } from "@canopy/domain";
+import { joinNotes, composeQuotes } from "@canopy/domain";
 import type { StoredQuote } from "../store/quotes.ts";
 
 /** Validated at enqueue; keep the original text/ranges in storage and add identity only for the model. */
 export const storedMentions = (value: JsonValue[]): Mention[] => value.map((m) => fromJson(MentionSchema, m));
 
 export function modelInput(text: string, mentions: readonly Mention[], quotes: readonly StoredQuote[]): string {
-  const quoted = joinNotes(quotesNote(quotes), text);
+  const composed = composeQuotes(text, mentions, quotes);
+  const quoted = joinNotes(composed.note, composed.message);
 
   if (!mentions.length) return quoted;
   const unique = [...new Map(mentions.map((m) => [m.name, m])).values()];

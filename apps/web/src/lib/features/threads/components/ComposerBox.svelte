@@ -86,6 +86,7 @@
     sources,
     elements,
     elementCount = 0,
+    quoteKey,
     allowEmpty = false,
     sendLabel = "Send",
     secret = false,
@@ -121,6 +122,7 @@
     sources?: MentionSources | undefined;
     elements?: Snippet;
     elementCount?: number;
+    quoteKey?: string;
     allowEmpty?: boolean;
     sendLabel?: string;
     secret?: boolean;
@@ -144,7 +146,7 @@
 
   const id = $props.id();
   const hasFiles = $derived((draft?.attached.length ?? 0) > 0);
-  const pending = $derived(composerPending(elementCount, draft?.attached.length ?? 0, mentions));
+  const pending = $derived(composerPending(0, draft?.attached.length ?? 0, mentions));
 
   const hasContent = $derived(
     (shellMode ? Boolean(value.slice(1).trim()) : Boolean(value.trim())) || hasFiles || elementCount > 0 || allowEmpty,
@@ -352,6 +354,7 @@
           bind:value
           bind:mentions
           bind:editor
+          {quoteKey}
           {placeholder}
           {hint}
           {disabled}

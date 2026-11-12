@@ -46,7 +46,7 @@ function useThreadState(id: string) {
   const [details, setDetails] = useState(false);
   const { projects, workers, threads } = useOverview();
   const message = useMessageDraft();
-  const quotes = useQuoteDraft();
+  const quotes = useQuoteDraft(undefined, {}, message);
 
   const { connection, available } = useComposerConnection(
     `${session?.deviceId}:${id}`,

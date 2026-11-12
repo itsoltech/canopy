@@ -27,6 +27,8 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import type { BotComposerDraft } from "../composer-draft.svelte.ts";
   import { FileIntake, provideFileIntake } from "#lib/features/attachments/file-intake.svelte.ts";
+  import { provideCitationSource } from "#lib/features/quotes/citation-source.ts";
+  import { revealBotCitation } from "../citation-source.ts";
 
   /**
    * A whole bot chat: header, the scrolling conversation (opens at the "New" divider, else at the end) and
@@ -178,6 +180,27 @@
   const historyStart = $derived(startIndex ?? Math.max(0, entries.length - 100));
   const visibleEntries = $derived(entries.slice(historyStart));
 
+  provideCitationSource((quote) =>
+    revealBotCitation(quote, {
+      get entries() {
+        return entries;
+      },
+      get hasMore() {
+        return hasMore;
+      },
+      get root() {
+        return log;
+      },
+      get load() {
+        return onloadOlder;
+      },
+      show: (index) => {
+        following = false;
+        startIndex = Math.min(historyStart, index);
+      },
+    }),
+  );
+
   $effect(() => {
     if (!loading && !openedHistory && entries.length) {
       openedHistory = true;
@@ -273,7 +296,14 @@
 
     const added = quoteDrafts.add(quoteKey, {
       text,
-      source: { itemId: message.id, threadId: conversation.id, kind: "agent_message", language: "" },
+      source: {
+        itemId: message.id,
+        threadId: conversation.id,
+        kind: "agent_message",
+        language: "",
+        author: conversation.bots.find((b) => b.id === message.senderId)?.name || "Agent",
+        time: message.at.toLocaleString(),
+      },
     });
 
     if (!added) toast("A message can carry up to 20 quotes", { tone: "error" });

@@ -17,7 +17,7 @@ import {
   joinNotes,
   MentionError,
   numberAttachmentMarkers,
-  quotesNote,
+  composeQuotes,
 } from "@canopy/domain";
 import { isPlatformCommand, mentionsToJson, PLATFORM_COMMANDS, workerPath } from "./mentions.ts";
 import type { StoredQuote } from "../store/quotes.ts";
@@ -186,11 +186,12 @@ export function coreComposeInput(
 ): TurnInputJson | undefined {
   if (mentions.length === 0) return quotes.length > 0 ? withQuotes(base ?? { text: message, message }, quotes) : base;
   // The quotes' note joins the other notes before the message, so the mentions' ranges shift past it too.
-  const note = joinNotes(base?.note ?? "", quotesNote(quotes));
+  const quoted = composeQuotes(message, mentions, quotes);
+  const note = joinNotes(base?.note ?? "", quoted.note);
 
   const numbered = numberAttachmentMarkers(
-    message,
-    mentions,
+    quoted.message,
+    quoted.mentions,
     (base?.attachments ?? []).map((a) => a.id),
   );
 

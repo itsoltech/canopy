@@ -4,7 +4,7 @@ import { ui } from "@canopy/contracts";
 import { mentionsFromWire } from "#lib/features/mentions/wire.ts";
 import { readBody } from "#lib/server/body.ts";
 import { call } from "#lib/server/gateway.ts";
-import { encode } from "#lib/shared/wire.ts";
+import { decode, encode } from "#lib/shared/wire.ts";
 import type { RequestHandler } from "./$types";
 
 const Body = Schema.Union([
@@ -16,6 +16,8 @@ const Body = Schema.Union([
     mentions: Schema.optionalKey(Schema.Array(Schema.Json).check(Schema.isMaxLength(150))),
     // The mentions are the editor's whole set (positions), not a plain-text edit.
     mentionsComplete: Schema.optionalKey(Schema.Boolean),
+    quotes: Schema.optionalKey(Schema.Array(Schema.Json).check(Schema.isMaxLength(20))),
+    quotesComplete: Schema.optionalKey(Schema.Boolean),
   }),
   // delete: out of the queue; restore: its undo; steer: into the running turn now.
   Schema.Struct({ action: Schema.Literals(["delete", "restore", "steer"]) }),
@@ -36,12 +38,15 @@ export const POST: RequestHandler = async ({ request, params }) => {
         error(400, cause instanceof Error ? cause.message : "invalid mentions");
       }
 
-      const { text, expectedRevision, mentionsComplete = false } = body;
+      const { text, expectedRevision, mentionsComplete = false, quotesComplete = false } = body;
+      const quotes = (body.quotes ?? []).map((quote) => decode(ui.QuoteSchema, quote));
 
       return json(
         encode(
           ui.EditQueuedTurnResponseSchema,
-          await call((api) => api.editQueuedTurn({ turnId, text, expectedRevision, mentions, mentionsComplete })),
+          await call((api) =>
+            api.editQueuedTurn({ turnId, text, expectedRevision, mentions, mentionsComplete, quotes, quotesComplete }),
+          ),
         ),
       );
     }

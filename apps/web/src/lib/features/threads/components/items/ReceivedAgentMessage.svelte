@@ -5,7 +5,6 @@
   import CopyButton from "#lib/shared/ui/CopyButton.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import { toast } from "#lib/shared/ui/toast.svelte.ts";
-  import QuoteCommentPopover from "#lib/features/quotes/QuoteCommentPopover.svelte";
   import { useQuoteDrafts } from "#lib/features/quotes/quote-drafts.svelte.ts";
   import { useThreadDirectory } from "../../thread-directory.ts";
   import AgentMessageBubble from "./AgentMessageBubble.svelte";
@@ -29,14 +28,11 @@
 
   const directory = useThreadDirectory();
   const drafts = useQuoteDrafts();
-  let editing = $state(false);
-  let anchor = $state<HTMLButtonElement>();
   const passage = $derived(markdownText(text));
 
-  function save(comment: string) {
+  function cite() {
     const added = drafts.add(directory.currentId, {
       text: passage,
-      comment,
       // Received inputs have no output item to reveal; the passage still names its receiving thread.
       source: { itemId: "", threadId: directory.currentId, kind: "agent_message", language: "" },
     });
@@ -56,18 +52,7 @@
   <div class={["flex items-center gap-1", pending && "invisible"]} inert={pending} data-quote-skip>
     <CopyButton {text} label="Copy message" />
     {#if !directory.readOnly && directory.currentId}
-      <IconButton
-        icon="chat-bubble-left-right"
-        label="Quote message"
-        size="sm"
-        aria-haspopup="dialog"
-        aria-expanded={editing}
-        onclick={(event) => {
-          anchor = event.currentTarget;
-          editing = true;
-        }}
-      />
-      <QuoteCommentPopover bind:open={editing} {anchor} quote={passage} onsave={save} />
+      <IconButton icon="chat-bubble-left-right" label="Quote message" size="sm" onclick={cite} />
     {/if}
   </div>
 {/if}

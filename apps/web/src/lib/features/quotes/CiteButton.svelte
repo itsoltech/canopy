@@ -6,7 +6,7 @@
 
   /**
    * The small raised "Cite" button over a selection (CiteLayer places it). It never takes the selection away:
-   * pressing it keeps the text selected until the click opens the comment popover. Other attributes and
+   * pressing it keeps the text selected until the click inserts its inline token. Other attributes and
    * attachments (positioning, tooltip) go on the button.
    */
   let {

@@ -7,6 +7,7 @@
   import ItemView from "./ItemView.svelte";
   import { itemContents, provideLazyContent } from "./lazy-content.ts";
   import type { Item } from "@canopy/contracts";
+  import { providerLabel } from "../../labels.ts";
 
   /**
    * An item and, nested inside it, the items that name it as parent (subagent work). The wrapper names the item
@@ -46,6 +47,10 @@
   class="min-w-0 rounded-lg"
   data-quote-item={node.entry.id}
   data-quote-thread={node.entry.fromThreadId || directory.currentId}
+  data-quote-author={providerLabel(directory.thread(node.entry.fromThreadId || directory.currentId)?.provider ?? 0)}
+  data-quote-time={node.entry.completedAt || node.entry.startedAt
+    ? new Date(node.entry.completedAt ?? node.entry.startedAt!).toLocaleString()
+    : directory.quoteTime?.(node.entry.turnId)}
 >
   <ItemView
     {item}

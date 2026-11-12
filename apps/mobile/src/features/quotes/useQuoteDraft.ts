@@ -3,6 +3,7 @@ import { Alert } from "react-native";
 import type { ui } from "@canopy/contracts";
 import { QUOTE_LIMITS } from "@canopy/domain";
 import { useUpdateBlocker } from "../updates/useUpdateBlocker";
+import type { MessageDraft } from "../composer/useMessageDraft";
 
 export function useQuoteDraft(
   blocked: () => boolean = () => false,
@@ -10,9 +11,10 @@ export function useQuoteDraft(
     current?: { current: readonly ui.Quote[] };
     onChange?: () => void;
   } = {},
+  message?: MessageDraft,
 ) {
   const [local, setLocal] = useState<readonly ui.Quote[]>([]);
-  const quotes = options.current?.current ?? local;
+  const quotes = message ? (message.value.quotes ?? []) : (options.current?.current ?? local);
 
   const setQuotes = (change: (current: readonly ui.Quote[]) => readonly ui.Quote[]) => {
     const next = change(options.current?.current ?? quotes);
@@ -35,15 +37,20 @@ export function useQuoteDraft(
         return;
       }
 
-      setQuotes((current) => [...current, quote]);
+      if (message) message.addQuote(quote);
+      else setQuotes((current) => [...current, quote]);
     },
     edit(index: number, quote: ui.Quote) {
       if (blocked()) return;
-      setQuotes((current) => current.map((item, at) => (at === index ? quote : item)));
+
+      if (message) message.badges.editQuote?.(index, quote);
+      else setQuotes((current) => current.map((item, at) => (at === index ? quote : item)));
     },
     remove(index: number) {
       if (blocked()) return;
-      setQuotes((current) => current.filter((_quote, at) => at !== index));
+
+      if (message) message.badges.removeQuote?.(index);
+      else setQuotes((current) => current.filter((_quote, at) => at !== index));
     },
     clear() {
       setQuotes(() => []);

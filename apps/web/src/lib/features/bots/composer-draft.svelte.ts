@@ -1,12 +1,13 @@
 import { create } from "@bufbuild/protobuf";
-import { bots, type Mention, type ui } from "@canopy/contracts";
+import { bots, type Mention, ui } from "@canopy/contracts";
 import { BotComposerSync } from "@canopy/domain/bot-draft";
-import type { AttachmentLimits } from "@canopy/domain";
+import { inlineLegacyQuotes, type AttachmentLimits } from "@canopy/domain";
 import { AttachmentDraft } from "#lib/features/attachments/draft.svelte.ts";
 import { useQuoteDrafts } from "#lib/features/quotes/quote-drafts.svelte.ts";
 import { trimValue } from "#lib/features/mentions/editor.ts";
 import { requestJson } from "#lib/shared/http.ts";
 import { decode, encode } from "#lib/shared/wire.ts";
+import { draftOf, toWire } from "#lib/features/quotes/quote.ts";
 
 /** Per-bot pending uploads survive unmounts; the canonical message is saved to the gateway. */
 export class BotComposerDraft {
@@ -57,7 +58,8 @@ export class BotComposerDraft {
 
     if (this.#editing || !this.loaded || this.#appliedId === next.clientRequestId) return;
     this.#appliedId = next.clientRequestId;
-    this.text = next.text;
+    const restored = inlineLegacyQuotes(next);
+    this.text = restored.text;
     this.mentions = next.mentions;
     this.files.clear();
     this.files.files = next.attachments.map((a) => ({
@@ -71,7 +73,7 @@ export class BotComposerDraft {
       error: undefined,
       attachment: a,
     }));
-    useQuoteDrafts().restore(this.quoteKey, next.quotes);
+    useQuoteDrafts().restore(this.quoteKey, restored.quotes);
   }
 
   persist() {
@@ -111,13 +113,13 @@ export class BotComposerDraft {
 
     try {
       const draft = await this.sync.outgoing();
-      const trimmed = trimValue({ text: draft.text, mentions: draft.mentions });
+      const trimmed = trimValue({ text: draft.text, mentions: draft.mentions, quotes: draft.quotes.map(draftOf) });
 
       if (
         (await deliver(
           trimmed.text,
           trimmed.mentions,
-          draft.quotes,
+          (trimmed.quotes ?? []).map((q) => create(ui.QuoteSchema, toWire(q))),
           draft.attachments,
           draft.clientRequestId,
           draft.revision,

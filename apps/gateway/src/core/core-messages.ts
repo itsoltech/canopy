@@ -3,7 +3,7 @@ import { ui, type CommandResult } from "@canopy/contracts";
 import { Effect, Match } from "effect";
 import { mentionsFromJson } from "./mentions.ts";
 import { NotFound, SteerStore, toUiDelivery, toUiSteer, toUiTurn, turnEffort } from "../store/index.ts";
-import { checkedQuotes } from "./quotes.ts";
+import { checkedQuotes, coreCheckQuoteSources } from "./quotes.ts";
 import { titleContext } from "./thread-titles.ts";
 import { coreDispatch } from "./core-commands.ts";
 import { checkedPermissionMode, coreState, InvalidError, TTL } from "./core-context.ts";
@@ -256,7 +256,14 @@ const messageActions: CoreMessagesMethods = {
         ? await coreMessageAttachments(this, request.attachmentIds, thread.worker_id ?? "")
         : undefined;
 
-    const quotes = checkedQuotes(request.quotes, (message) => new InvalidError(message));
+    const quotes = checkedQuotes(
+      request.quotes,
+      (message) => new InvalidError(message),
+      request.text,
+      request.mentions,
+    );
+
+    await coreCheckQuoteSources(this, quotes);
 
     if (!request.text.trim() && !files && quotes.length === 0) throw new InvalidError("message is empty");
 

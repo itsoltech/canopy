@@ -1,7 +1,8 @@
 import { create } from "@bufbuild/protobuf";
 import { MentionKind, ui } from "@canopy/contracts";
 import { Effect } from "effect";
-import { placedAttachmentIds, relocateMentions } from "@canopy/domain";
+import { placedAttachmentIds, relocateMentions, relocateQuotes } from "@canopy/domain";
+import { checkedQuotes, coreCheckQuoteSources } from "./quotes.ts";
 import { QueueStore, toUiSteer, toUiTurn, type TurnRow } from "../store/index.ts";
 import { coreState, InvalidError, type TurnInputJson } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
@@ -11,6 +12,7 @@ import { mentionsFromJson } from "./mentions.ts";
 import { coreSendSteer, coreSteers } from "./core-messages.ts";
 import { coreRun } from "./core-broadcast.ts";
 import { coreShellInput } from "./core-shell.ts";
+import { toUiQuote } from "../store/quotes.ts";
 
 export async function corePublishQueued(hostContext: GatewayCore, row: TurnRow): Promise<ui.Turn> {
   const turn = toUiTurn(row);
@@ -88,18 +90,28 @@ export const coreQueueMethods: CoreQueueMethods = {
     );
 
     if (goal !== undefined) throw new InvalidError("a /goal message does not wait in the queue; send it instead");
+
+    const givenQuotes =
+      request.quotesComplete || request.quotes.length
+        ? request.quotes
+        : relocateQuotes(current.input.message ?? current.input.text ?? "", current.input.quotes ?? [], text).map(
+            toUiQuote,
+          );
+
+    const quotes = checkedQuotes(givenQuotes, (message) => new InvalidError(message), text, mentions);
+
+    await coreCheckQuoteSources(this, quotes);
     const wasPlaced = new Set(placedAttachmentIds(mentionsFromJson(current.input.mentions)));
     const placed = new Set(mentions.filter((m) => m.kind === MentionKind.ATTACHMENT).map((m) => m.name));
     const attachments = (current.input.attachments ?? []).filter((a) => !wasPlaced.has(a.id) || placed.has(a.id));
 
-    if (!text.trim() && attachments.length === 0 && !current.input.quotes?.length)
-      throw new InvalidError("message is empty");
+    if (!text.trim() && attachments.length === 0 && !quotes.length) throw new InvalidError("message is empty");
 
     const base: TurnInputJson = attachments.length > 0 ? attachmentsInput(attachments, text, mentions) : { text };
 
     const input =
-      coreShellInput(text, Boolean(attachments.length || current.input.quotes?.length || request.mentions.length)) ??
-      coreComposeInput(this, thread.provider, text, mentions, base, current.input.quotes ?? []) ??
+      coreShellInput(text, Boolean(attachments.length || quotes.length || request.mentions.length)) ??
+      coreComposeInput(this, thread.provider, text, mentions, base, quotes) ??
       base;
 
     const row = await coreQueue(this, (q) =>

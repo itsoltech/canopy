@@ -11,6 +11,7 @@ import { styles, useColors } from "../../ui/theme";
 import { MessageSpans } from "../composer/MessageText";
 import { editText, isAttachment, trimValue, type MessageValue } from "../composer/message-value";
 import { useUpdateBlocker } from "../updates/useUpdateBlocker";
+import { inlineLegacyQuotes } from "@canopy/domain";
 
 const failure = (cause: unknown) => ConnectError.from(cause).rawMessage;
 
@@ -29,7 +30,12 @@ export function QueueEditor({ turn, onClose }: { turn: ui.Turn | undefined; onCl
 function EditorBody({ turn, onClose }: { turn: ui.Turn; onClose: () => void }) {
   const c = useColors();
   const { client } = useSession();
-  const initial: MessageValue = { text: turn.messageText, mentions: turn.mentions };
+
+  const initial: MessageValue = {
+    ...inlineLegacyQuotes({ text: turn.messageText, quotes: turn.quotes }),
+    mentions: turn.mentions,
+  };
+
   const [value, setValue] = useState(initial);
   useUpdateBlocker(() => value.text !== initial.text || value.mentions.length !== initial.mentions.length);
   const [saving, setSaving] = useState(false);
@@ -56,6 +62,8 @@ function EditorBody({ turn, onClose }: { turn: ui.Turn; onClose: () => void }) {
         expectedRevision: turn.revision,
         mentions: [...trimmed.mentions],
         mentionsComplete: true,
+        quotes: [...(trimmed.quotes ?? [])],
+        quotesComplete: true,
       });
       onClose();
     } catch (cause) {
