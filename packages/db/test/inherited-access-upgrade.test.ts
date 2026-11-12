@@ -4,6 +4,12 @@ import { Migrator, SqlClient } from "effect/sql";
 import { migrations, migrate } from "../src/index.ts";
 import { dockerAvailable, startPostgres } from "../src/testing.ts";
 
+const through = (last: number) =>
+  Migrator.make({})({
+    loader: migrations.pipe(Effect.map((all) => all.filter(([id]) => id <= last))),
+    table: "schema_migrations",
+  });
+
 test.skipIf(!dockerAvailable)(
   "inherited bot access upgrades preserve explicit owner choices",
   async () => {
@@ -11,12 +17,8 @@ test.skipIf(!dockerAvailable)(
     const runtime = ManagedRuntime.make(pg.layer);
 
     try {
-      await runtime.runPromise(
-        Migrator.make({})({
-          loader: migrations.pipe(Effect.map((all) => all.filter(([, name]) => name !== "inherited_access_mode"))),
-          table: "schema_migrations",
-        }),
-      );
+      // Apply a contiguous prefix so a later migration cannot make the migrator skip 0125.
+      await runtime.runPromise(through(124));
       const user = Bun.randomUUIDv7();
       await runtime.runPromise(
         Effect.gen(function* () {
@@ -31,7 +33,7 @@ test.skipIf(!dockerAvailable)(
           }
         }),
       );
-      const applied = await runtime.runPromise(migrate);
+      const applied = await runtime.runPromise(through(125));
       expect(applied.map(([, name]) => name)).toEqual(["inherited_access_mode"]);
 
       const modes = await runtime.runPromise(
@@ -52,6 +54,8 @@ test.skipIf(!dockerAvailable)(
         full_auto: "full_auto",
         full_access: "full_access",
       });
+      expect(await runtime.runPromise(through(125))).toEqual([]);
+      await runtime.runPromise(migrate);
       expect(await runtime.runPromise(migrate)).toEqual([]);
     } finally {
       await runtime.dispose();
