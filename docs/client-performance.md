@@ -257,9 +257,13 @@ zmienionych wierszy, nie z liczbą wątków:
 - `Intl.DateTimeFormat` twórz raz na zestaw opcji; listy formatują daty w każdym wierszu.
 - Komponent powtarzany w wierszach nie rejestruje nasłuchów na `document`, jeśli nie są
   potrzebne (tooltip nasłuchuje stuknięć poza sobą tylko dla `touch: "tap"`).
-- Mobile: wiersze FlatList są w `memo` z komparatorem obejmującym wszystko, co wiersz
-  pokazuje, łącznie z etykietą wieku w czasie renderu listy, żeby wynik był taki sam
-  jak bez `memo`. Listy pochodne overview (`workers`, `projectChoices`) są w `useMemo`.
+- Mobile: wiersze FlatList są w `memo` z komparatorem obejmującym dane wiersza.
+  Status i wiek subskrybują jeden zegar przez `useTimeLabel`; snapshotem jest gotowy
+  tekst, więc tyknięcie bez zmiany etykiety nie renderuje nawet komponentu statusu.
+  Lista i cały wiersz nie subskrybują zegara. Zegar zatrzymuje się poza aktywną aplikacją,
+  a pierścień pracy obraca Reanimated na wątku UI, bez pętli klatek JS; ustawienie
+  ograniczenia ruchu pozostawia statyczny pierścień. Listy pochodne overview
+  (`workers`, `projectChoices`) są w `useMemo`.
 
 Scenariusz pomiaru paska: 500 zasianych wątków, otwarty inny, bezczynny wątek, 10 wątków
 pracuje. Co 50 ms jeden z nich zmienia status, tytuł, liczbę zadań w tle lub ostatnią

@@ -1,8 +1,33 @@
 import type { ui } from "@canopy/contracts";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
+import { formatAge } from "./relative-time.ts";
 
 /** Last change of a thread (created, turn queued, started or finished). */
 export const activityOf = (thread: ui.Thread): Timestamp | undefined => thread.lastActivityAt ?? thread.createdAt;
+
+/** The compact working label uses the same rounded age as quiet list rows. */
+export function workingLabel(thread: ui.Thread, now = Date.now()): string {
+  const age = formatAge(activityOf(thread), now);
+
+  return age && age !== "now" ? `Working ${age}` : "Working";
+}
+
+/** Current list status; clients can keep a just-seen result visible briefly without changing these rules. */
+export function threadRowLabel(thread: ui.Thread, now = Date.now()): string {
+  const state = workState(thread);
+
+  if (state === "needs") return "Needs input";
+
+  if (state === "asks") return "Asking agent";
+
+  if (state === "starting") return "Starting";
+
+  if (state === "running") return workingLabel(thread, now);
+  const result = unseenResult(thread) ?? (thread.status === "failed" ? "failed" : undefined);
+
+  return result ? result[0]!.toUpperCase() + result.slice(1) : formatAge(activityOf(thread), now);
+}
+
 const seconds = (thread: ui.Thread) => activityOf(thread)?.seconds ?? 0n;
 
 /** Most recent first. */
@@ -50,7 +75,7 @@ export const unseenResult = (thread: ui.Thread): TurnResult | undefined =>
 
 /**
  * Busy without needing anyone: a turn running or starting, asking its agent, or background tasks alone with
- * nothing new to look at. Lists show such threads calm (dimmed) so finished and waiting ones stand out.
+ * nothing new to look at. Lists use a subtle background while keeping text at normal contrast.
  */
 export function isCalm(thread: ui.Thread): boolean {
   const state = workState(thread);

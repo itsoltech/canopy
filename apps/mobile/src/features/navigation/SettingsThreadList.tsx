@@ -53,7 +53,6 @@ export function SettingsThreadList({
 
   const data = [...active, ...(!active.length ? [{ key: "empty", section: "empty" as const }] : []), ...archived];
   const rootIds = new Set(filtered.roots.map((t) => t.id));
-  const now = Date.now();
 
   const arrival = useArrivals(
     data.map((e) => e.key),
@@ -84,7 +83,6 @@ export function SettingsThreadList({
           ) : item.section === "archived" ? (
             <SidebarThreadTreeRow
               thread={item.thread}
-              now={now}
               archived
               current={current}
               projects={archive.projects}
@@ -94,7 +92,6 @@ export function SettingsThreadList({
           ) : item.thread ? (
             <SidebarThreadTreeRow
               thread={item.thread}
-              now={now}
               sideThreads={filtered.sides.get(item.thread.id) ?? []}
               rootIds={rootIds}
               current={current}

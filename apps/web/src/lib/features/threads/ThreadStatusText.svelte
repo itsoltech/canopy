@@ -7,6 +7,8 @@
   import Spinner from "#lib/shared/ui/Spinner.svelte";
   import { swap } from "#lib/shared/ui/motion.ts";
   import { activityOf, asksAgent, needsYou } from "./activity.ts";
+  import { workingLabel } from "@canopy/domain/thread-activity";
+  import { workingColors } from "@canopy/ui/thread-row";
   import { lingeringResult } from "./result.svelte.ts";
 
   /**
@@ -35,7 +37,11 @@
   );
 </script>
 
-<span class={["flex shrink-0 items-center gap-1 text-sm/5 whitespace-nowrap tabular-nums sm:text-xs/5", className]}>
+<span
+  class={["flex shrink-0 items-center gap-1 text-sm/5 whitespace-nowrap tabular-nums sm:text-xs/5", className]}
+  style:--working-light={workingColors.light.text}
+  style:--working-dark={workingColors.dark.text}
+>
   {#key state}<span class="flex items-center" in:swap>
       {#if needsYou(thread)}
         <span class="flex items-center gap-1 text-amber-700 dark:text-amber-400"
@@ -49,12 +55,15 @@
           {#if icons}<Icon name="hand-raised" tone="inherit" class="size-3.5" />{/if}Asking agent
         </span>
       {:else if thread.status === "creating" || thread.turnStarting}
-        <span class="flex items-center gap-1 text-sky-700 dark:text-sky-400"
+        <span class="flex items-center gap-1 text-(--working-light) dark:text-(--working-dark)"
           >{#if icons}<Spinner class="size-3.5" />{/if}Starting</span
         >
       {:else if thread.status === "running"}
-        <span class="flex items-center gap-1 text-sky-700 dark:text-sky-400" title="Working since {formatDateTime(at)}">
-          {#if icons}<Spinner class="size-3.5" />{/if}Working{age && age !== "now" ? ` ${age}` : ""}
+        <span
+          class="flex items-center gap-1 text-(--working-light) dark:text-(--working-dark)"
+          title="Working since {formatDateTime(at)}"
+        >
+          {#if icons}<Spinner class="size-3.5" />{/if}{workingLabel(thread, clock.now)}
         </span>
       {:else if state === "completed"}
         <span

@@ -11,7 +11,7 @@
   aria-atomic="true"
   class={[
     "sidebar-row-status flex h-5 w-24 shrink-0 items-center justify-end overflow-hidden text-sm/5 tabular-nums sm:h-4.5 sm:text-xs/4.5",
-    "group-data-calm:opacity-60 pointer-fine:group-focus-within/row:invisible pointer-fine:group-hover/row:invisible",
+    "pointer-fine:group-focus-within/row:invisible pointer-fine:group-hover/row:invisible",
     className,
   ]}
 >
