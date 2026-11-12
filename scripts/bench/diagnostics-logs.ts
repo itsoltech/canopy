@@ -32,7 +32,8 @@ export async function benchLogSources() {
 /** One explicit action under concurrent RPC/worker load; no ZIP buffering in the driver. */
 export async function benchLogExport(api: Client<typeof ui.GatewayService>, signal: AbortSignal) {
   const start = performance.now();
-  const enabled = process.env["CANOPY_BENCH_DIAGNOSTICS"] === "1" && process.env["CANOPY_BENCH_CONTROL"] !== "1";
+  // The driver owns MEMBER; DIAGNOSTICS is set only in the gateway/worker child environment.
+  const enabled = process.env["CANOPY_BENCH_MEMBER"] === "B" && process.env["CANOPY_BENCH_CONTROL"] !== "1";
 
   try {
     let job = await api.collectDiagnosticsLogs(

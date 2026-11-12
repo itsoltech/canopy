@@ -3,7 +3,8 @@ import type { DiagnosticsPhase } from "./diagnostics-load.ts";
 export function selectedPhases(): DiagnosticsPhase[] {
   const only = process.env["CANOPY_BENCH_ONLY_PHASE"];
 
-  if (only === "steady" || only === "write_failure" || only === "pool_contention") return [only];
+  if (only === "steady" || only === "write_failure" || only === "pool_contention" || only === "log_export")
+    return [only];
   const forensicPhase = process.env["CANOPY_BENCH_FORENSIC_PHASE"];
 
   if (process.env["CANOPY_BENCH_FORENSICS_DIR"] && forensicPhase) {
