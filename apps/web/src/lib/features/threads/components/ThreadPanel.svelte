@@ -36,6 +36,7 @@
     tree,
     worker,
     schedules,
+    syncStatus,
     secrets = [],
     onsecretchange,
     backgroundTasks = [],
@@ -53,6 +54,7 @@
     worker: ui.Worker | undefined;
     /** Active and paused schedules of the thread. */
     schedules: readonly ui.Schedule[];
+    syncStatus?: ui.ThreadSyncStatus | undefined;
     /** The thread's secrets; the saved, unexpired ones are listed (pending requests stay above the composer). */
     secrets?: readonly ui.ThreadSecret[];
     onsecretchange?: ((secret: ui.ThreadSecret) => void) | undefined;
@@ -77,8 +79,14 @@
   const panel = useThreadPanel(() => thread.id);
   const homeName = $derived(overview.machine(thread.nodeId) || "this computer");
   const away = $derived(thread.nodeId ? awayReason(overview.computer(thread.nodeId)) : undefined);
-  const stale = $derived(!!away || !!panel.data?.stale || !!panel.error);
-  const panelSchedules = $derived(stale || !schedules.length ? (panel.data?.schedules ?? schedules) : schedules);
+
+  const stale = $derived(
+    !!away || syncStatus?.reason === "computer_unreachable" || !!panel.data?.stale || !!panel.error,
+  );
+
+  const panelSchedules = $derived(
+    thread.nodeId || stale || !schedules.length ? (panel.data?.schedules ?? schedules) : schedules,
+  );
 
   // A forked main thread ("Fork from here") is in its own tree: its source is found among the project's threads.
   const source = $derived(

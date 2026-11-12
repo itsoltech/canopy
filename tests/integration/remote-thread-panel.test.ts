@@ -283,6 +283,14 @@ describe.skipIf(!dockerAvailable)("remote thread panel at its authoritative home
             '2026-01-01T00:00:00Z'::timestamptz+($5::int*interval '1 microsecond'))`,
           [id, projectId, computer.gateway.userId, `Archive panel ${index}`, index % 3],
         );
+
+        if (index === 0)
+          await computer.store.query(
+            `INSERT INTO threads(id,root_thread_id,parent_thread_id,project_id,owner_user_id,kind,runtime,provider,status,title,archived_at)
+            VALUES($1::uuid,$2::uuid,$2::uuid,$3::uuid,$4::uuid,'side','gateway','openai','archived','Archive child match',
+              '2026-01-01T00:00:00Z'::timestamptz)`,
+            [crypto.randomUUID(), id, projectId, computer.gateway.userId],
+          );
       }
     }
 
@@ -299,6 +307,10 @@ describe.skipIf(!dockerAvailable)("remote thread panel at its authoritative home
       expect([first.threads.length, second.threads.length]).toEqual([20, 18]);
       expect(new Set([...first.threads, ...second.threads].map((t) => t.id.split("~")[0])).size).toBe(38);
       expect(second.nextPageToken).toBe("");
+      const children = await computer.gateway.api.listArchivedThreads({ query: "child match" });
+      expect(children.totalCount).toBe(2);
+      expect(children.threads.map((entry) => entry.title)).toEqual(["Archive panel 0", "Archive panel 0"]);
+      expect(children.sideThreads).toHaveLength(2);
       expect((await computer.gateway.api.listArchivedThreads({ query: "Private" })).totalCount).toBe(0);
       expect(
         await failure(computer.gateway.api.listArchivedThreads({ query: "changed", pageToken: first.nextPageToken })),

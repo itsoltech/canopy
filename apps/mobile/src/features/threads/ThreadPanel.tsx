@@ -50,10 +50,12 @@ export function PanelRow({
 
 export function ThreadPanel({
   snapshot,
+  syncStatus,
   visible,
   onClose,
 }: {
   snapshot?: ui.ThreadSnapshot;
+  syncStatus?: ui.ThreadSyncStatus | undefined;
   visible: boolean;
   onClose: () => void;
 }) {
@@ -63,7 +65,10 @@ export function ThreadPanel({
   const home = useComputerHome(thread?.nodeId);
   const { online } = useSession();
   const panel = useThreadPanel(thread?.id ?? "", visible && !!thread);
-  const stale = home.away || !online || !!panel.data?.stale || !!panel.error;
+
+  const stale =
+    home.away || !online || syncStatus?.reason === "computer_unreachable" || !!panel.data?.stale || !!panel.error;
+
   const worker = workers.find((w) => w.id === thread?.workerId);
 
   const lineage = thread
@@ -120,7 +125,9 @@ export function ThreadPanel({
             <ThreadSchedules
               snapshot={snapshot}
               schedules={
-                stale || !snapshot.schedules.length ? (panel.data?.schedules ?? snapshot.schedules) : snapshot.schedules
+                thread.nodeId || stale || !snapshot.schedules.length
+                  ? (panel.data?.schedules ?? snapshot.schedules)
+                  : snapshot.schedules
               }
               unavailable={!!panel.data?.unavailable}
               disabled={stale}

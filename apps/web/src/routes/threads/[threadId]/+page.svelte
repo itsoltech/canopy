@@ -807,6 +807,7 @@
               {tree}
               {worker}
               schedules={view.upcomingSchedules}
+              syncStatus={view.syncStatus}
               backgroundTasks={allBackgroundTasks}
               items={itemsById}
               onbackground={openOutput}
@@ -846,6 +847,7 @@
       {tree}
       {worker}
       schedules={view.upcomingSchedules}
+      syncStatus={view.syncStatus}
       backgroundTasks={allBackgroundTasks}
       items={itemsById}
       onbackground={openOutput}
