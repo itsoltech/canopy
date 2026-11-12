@@ -15,16 +15,12 @@
 
   const first = $derived(items[0]);
   const entry = $derived(first?.content.value);
+  const look = $derived(entry && timelineLook(entry.kind, entry.state, first?.content.case));
 </script>
 
 <div class={["grid min-w-0 gap-2", className]}>
-  {#if entry}
-    <ActivityHeader
-      author={entry.author}
-      look={timelineLook(entry.kind, entry.state, first?.content.case)}
-      time={entry.createdAt}
-      url={entry.url}
-    />
+  {#if entry && look}
+    <ActivityHeader author={entry.author} {look} time={entry.createdAt} url={entry.url} />
     {#if first?.content.case === "commit"}
       <p class="text-sm text-zinc-500 sm:text-xs dark:text-zinc-400">
         pushed {items.length}
@@ -44,6 +40,10 @@
             </li>{/if}
         {/each}
       </ul>
+    {:else if first?.content.case === "event"}
+      <p class="text-sm/5 break-words text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
+        {look.label}{entry.body ? ` · ${entry.body}` : ""}
+      </p>
     {:else if entry.body}<div
         class="min-w-0 rounded-lg border border-zinc-950/10 bg-zinc-500/3 p-3 dark:border-white/10 dark:bg-white/3 [&>div]:[overflow-wrap:anywhere]"
       >

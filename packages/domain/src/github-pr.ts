@@ -88,11 +88,31 @@ export function timelineLook(kind: string, state: string, category = ""): PullRe
     case "ClosedEvent":
       return pullRequestLook("closed");
     case "ReopenedEvent":
-      return pullRequestLook("open");
+      return look("Reopened", "git-fork", "success");
     case "ConvertToDraftEvent":
       return pullRequestLook("draft");
     case "ReviewRequestedEvent":
-      return reviewerLook("requested");
+      return look("Requested a review", "clock", "muted");
+    case "ReviewRequestRemovedEvent":
+      return look("Removed a review request", "minus", "muted");
+    case "ReadyForReviewEvent":
+      return look("Marked as ready for review", "check-circle", "muted");
+    case "LabeledEvent":
+      return look("Added a label", "document-text", "muted");
+    case "UnlabeledEvent":
+      return look("Removed a label", "document-text", "muted");
+    case "HeadRefForcePushedEvent":
+      return look("Force-pushed the head branch", "git-fork", "muted");
+    case "BaseRefChangedEvent":
+      return look("Changed the base branch", "git-fork", "muted");
+    case "HeadRefDeletedEvent":
+      return look("Deleted the head branch", "git-fork", "muted");
+    case "RenamedTitleEvent":
+      return look("Changed the title", "pencil-square", "muted");
+    case "AssignedEvent":
+      return look("Added an assignee", "user", "muted");
+    case "UnassignedEvent":
+      return look("Removed an assignee", "user", "muted");
     default:
       return look(
         kind.replace(/Event$/, "").replace(/([a-z])([A-Z])/g, "$1 $2"),

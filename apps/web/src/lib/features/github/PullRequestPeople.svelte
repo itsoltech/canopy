@@ -22,8 +22,8 @@
   const assignees = $derived(assigneeDisplay ? assigneeDisplay.assignees.map((a) => a.name) : snapshot.assignees);
 </script>
 
-<div class={["grid gap-3 text-sm/5 sm:text-xs/5", className]}>
-  <section aria-label="Reviewers" class="relative grid gap-1">
+<div class={["grid min-w-0 gap-3 text-sm/5 sm:text-xs/5", className]}>
+  <section aria-label="Reviewers" class="relative grid min-w-0 gap-1">
     <h3 class="font-medium text-zinc-500 dark:text-zinc-400">Reviewers</h3>
     <MetadataEdit
       {snapshot}
@@ -48,7 +48,7 @@
       </div>
     {/each}
   </section>
-  <section aria-label="Assignees" class="relative grid gap-1">
+  <section aria-label="Assignees" class="relative grid min-w-0 gap-1">
     <h3 class="font-medium text-zinc-500 dark:text-zinc-400">Assignees</h3>
     <MetadataEdit
       {snapshot}

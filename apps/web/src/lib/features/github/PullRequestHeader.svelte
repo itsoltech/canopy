@@ -61,8 +61,11 @@
       href={url}
       target="_blank"
       rel="noreferrer"
-      class="min-w-0 flex-1 truncate font-medium text-zinc-500 hover:underline dark:text-zinc-400"
-      >{ref?.repositoryName} <span class="text-zinc-900 dark:text-zinc-100">#{ref?.number}</span></a
+      class="flex min-w-0 flex-1 gap-1 font-medium text-zinc-500 hover:underline dark:text-zinc-400"
+      title={`${ref?.repositoryName} #${ref?.number}`}
+      ><span class="min-w-0 truncate">{ref?.repositoryName}</span><span
+        class="shrink-0 text-zinc-900 dark:text-zinc-100">#{ref?.number}</span
+      ></a
     >
     <PullRequestState state={pr?.state ?? ""} />
     <DropdownMenu label="Pull request actions" placement="bottom-end" sheet>
@@ -116,9 +119,9 @@
   <div class="flex min-w-0 items-center gap-2 text-sm/5 sm:text-xs/5">
     <GitHubAvatar userId="" login={snapshot.author} compact />
     <p class="min-w-0 truncate" title={snapshot.author}>{snapshot.author}</p>
-    <p class="shrink-0 text-zinc-500 dark:text-zinc-400" title={formatDateTime(pr?.updatedAt)}>
-      updated {age === "now" ? "now" : `${age} ago`}
-    </p>
+    {#if age}<p class="shrink-0 text-zinc-500 dark:text-zinc-400" title={formatDateTime(pr?.updatedAt)}>
+        updated {age === "now" ? "now" : `${age} ago`}
+      </p>{/if}
   </div>
   <p
     class="truncate font-mono text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400"

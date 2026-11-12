@@ -40,7 +40,7 @@
   const rows = $derived(splitDiffLines(lines));
 </script>
 
-<div class={["min-w-full text-(--code-fg)", className]}>
+<div class={["diff-lines text-(--code-fg)", className]}>
   {#if lines.length < parsed.lines.length}<p class="px-3 font-sans text-xs/5 whitespace-normal text-zinc-500">
       Whitespace-only changes hidden.
     </p>{/if}
@@ -62,7 +62,7 @@
       {/each}
     </div>
   {:else}
-    <div class="inline-block min-w-full">
+    <div class="min-w-full">
       {#each lines as line, index (index)}<DiffLine {line} {old} {next} {streaming} {review} />
         {#if review?.editor && review.editorAfter !== undefined && line.anchor?.index === review.editorAfter}
           <div class="min-w-0 font-sans whitespace-normal">{@render review.editor()}</div>

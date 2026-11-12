@@ -24,21 +24,22 @@
   } = $props();
 
   const age = $derived(formatAge(time, clock.now));
+  const relative = $derived(age ? (age === "now" ? "now" : `${age} ago`) : "");
 </script>
 
 <div class={["flex min-w-0 items-center gap-2 text-sm/5 sm:text-xs/5", className]}>
   <p class="min-w-0 truncate font-medium" title={author}>{author || "GitHub"}</p>
-  <span class={toneClasses[look.tone]} {@attach tooltip(look.label)}
+  <span class={["shrink-0", toneClasses[look.tone]]} {@attach tooltip(look.label)}
     ><Icon name={look.icon} label={look.label} tone="inherit" /></span
   >
-  <a
-    href={safeHref(url)}
-    target="_blank"
-    rel="noreferrer"
-    class="ml-auto shrink-0 text-zinc-500 hover:underline dark:text-zinc-400"
-    {@attach tooltip(formatDateTime(time) || "Open on GitHub")}
-    aria-label={`${age === "now" ? "Now" : `${age} ago`}. ${formatDateTime(time)}`}
-  >
-    {age === "now" ? "now" : `${age} ago`}
-  </a>
+  {#if relative}<a
+      href={safeHref(url)}
+      target="_blank"
+      rel="noreferrer"
+      class="ml-auto shrink-0 text-zinc-500 hover:underline dark:text-zinc-400"
+      {@attach tooltip(formatDateTime(time) || "Open on GitHub")}
+      aria-label={`${relative}. ${formatDateTime(time)}`}
+    >
+      {relative}
+    </a>{/if}
 </div>

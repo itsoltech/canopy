@@ -8,9 +8,21 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-:root[data-wrap-diffs="on"] .diff-surface {
+:root[data-wrap-diffs="on"] .diff-code {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+/* Preserve source whitespace only in code, never in the layout between rows. */
+.diff-lines {
+  width: max-content;
+  min-width: 100%;
+  white-space: normal;
+}
+.diff-code {
+  white-space: pre;
+}
+:root[data-wrap-diffs="on"] .diff-lines {
+  width: 100%;
 }
 /* Dark muted text is mostly zinc-400 (`text-zinc-500 dark:text-zinc-400`) or `muted`, so both steps change too. */
 :root[data-contrast="strong"] {
