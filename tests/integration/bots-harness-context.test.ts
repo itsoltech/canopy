@@ -71,7 +71,7 @@ describe.skipIf(!dockerAvailable)("bot context on the harness runtime", () => {
 
     expect(history[0]?.role).toBe("canopy_note");
     expect(history[0]?.text).toContain("5 earlier messages are omitted");
-    expect(history.slice(1).map((m) => m.text)).toEqual(["FIXTURE_OK", newest, "FIXTURE_OK", current]);
+    expect(history.slice(1).map((m) => m.text)).toEqual(["FIXTURE_OK", newest, "FIXTURE_OK"]);
     expect(input).toStartWith(`${current}\n\n`);
     // The default window is 128k tokens; half of it at three characters per token.
     expect(prompt.length).toBeLessThan(192_000 + 300);

@@ -88,6 +88,24 @@ describe.skipIf(!dockerAvailable)("bot files and forwarding", () => {
       expect((await f.gw.api.getAttachment({ attachmentId: files[0]!.id, preview: true })).data).toEqual(
         text.encode("# Canopy document evidence"),
       );
+
+      await f.gw.api.updateBot({
+        botId: bot.id,
+        configuration: {
+          ...bot.configuration!,
+          instructions: "Use the new message's files only.",
+        },
+      });
+      await f.send(bot.id, "A new text-only message");
+      await f.settled(bot.id);
+      const rebuilt = f.inputs().at(-1)!.parts;
+      expect(rebuilt.filter((p) => p.type === "image" || p.type === "document")).toHaveLength(0);
+      const prompt = rebuilt.find((p) => p.type === "text")!.text!;
+      expect(prompt).not.toContain("# Canopy document evidence");
+      expect(prompt).not.toContain("Canopy PDF attachment evidence");
+      expect(prompt).toContain("references only; not attached to the current input");
+
+      for (const file of files) expect(prompt).toContain(`[${file.id}]`);
     }, 20_000);
   }
 

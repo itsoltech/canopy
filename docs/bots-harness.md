@@ -41,8 +41,10 @@ metadane i referencje do przekazania. Pełna tabela i zasady przekazywania:
 
 Gateway wiąże obraz z turą bota atomowo z zapisem wiadomości, po sprawdzeniu
 właściciela, typu, limitów i braku wcześniejszego powiązania. `RunBotTurn`
-przenosi addytywne `attachments` (12) i `history_attachments` (13). Taka komenda
-wymaga capability workera `bot_images_v1`; starszy worker zwraca powód aktualizacji,
+przenosi pliki bieżącej wiadomości w `attachments` (12). Pole
+`history_attachments` (13) pozostaje w kontrakcie dla zgodności, ale gateway
+wysyła je puste, a worker ignoruje jego zawartość od starszego gatewaya. Komenda
+z obrazami wymaga capability workera `bot_images_v1`; starszy worker zwraca powód aktualizacji,
 zamiast uruchomić turę bez obrazów. Wersja WorkerLink pozostaje 1.
 
 Worker pobiera bajty przez `FetchBlob.bot_id` / `bot_turn_id` (4/5). Dostęp wymaga
@@ -55,10 +57,17 @@ Notatka platformy wymienia referencje, nazwy, typy i rozmiary plików. Adapter n
 jak w wątkach i dostarcza bajty natywnie: Claude SDK jako bloki `image` base64,
 Codex app-server jako wejścia `image` z data URL, Grok ACP jako bloki `image`.
 Grok wymaga `promptCapabilities.image`. Bot nadal nie ma `view_image`, shella
-ani czytania dowolnych plików. Po wznowieniu sesji wysyłamy obrazy bieżącej tury;
-odbudowana sesja dostaje też najnowsze pliki z historii: najwyżej 10 i 20 MiB
-łącznie, oprócz plików bieżącej wiadomości. Pominięte pliki zastępuje notatka
-z informacją o `list_attachments` i ponownym załączeniu do odczytu treści.
+ani czytania dowolnych plików. Po wznowieniu i odbudowie sesji wysyłamy wyłącznie
+pliki bieżącej wiadomości. Historia zawiera jedynie referencje dawnych plików
+przy ich wiadomościach, z identyfikatorem i czasem UTC oraz jawną etykietą
+„references only; not attached to the current input”. Bieżąca wiadomość trafia
+osobno do `Current input`, bez powtórzenia w `history_json`.
+`list_attachments` nadal pozwala przekazać wcześniejszy plik do wątku; ponowny
+odczyt treści przez bota wymaga nowego załączenia przez użytkownika.
+Poprzednio odbudowa spłaszczała dawne obrazy, dokumenty i tekst plików do jednego
+nowego wejścia harnessu, co sugerowało ponowne wysłanie ich przez użytkownika.
+Wersja kontekstu załączników w kluczu sesji wymusza jednorazową odbudowę po
+aktualizacji workera, usuwając ten mylący kontekst z cache harnessu.
 Sekrety połączeń i dane logowania nigdy nie są częścią promptu.
 
 ## Sesja i kontekst
@@ -362,5 +371,11 @@ Błąd SDK Claude w wiadomości assistant jest błędem tury, a nie tekstem odpo
 
 Desktop ładuje wspólny web UI, a aplikacja mobilna używa tego samego UI API
 i snapshotów rozmowy; zmiana runtime'u nie wymaga nowego transportu klienta.
+`bot-composer.test.ts` obejmuje dwa obrazy, kolejne wiadomości bez załączników,
+wznowienie i odbudowę wszystkich trzech harnessów oraz opóźniony odczyt szkicu
+przez wspólny synchronizator klientów. Sprawdza zarówno trwałe komendy gatewaya,
+jak i natywne części wejścia kontrolowanych CLI. `bot-files.test.ts` chroni tę
+samą granicę dla tekstu i PDF, a `bots/images.test.ts` sprawdza ignorowanie
+historycznych plików przesłanych przez starszy gateway, bez ich pobierania.
 Repozytorium nie implementuje kanałów Telegram/Discord/WhatsApp dla botów.
 Opt-in testy live (`CANOPY_LIVE=1`) nie mają wpisanych hostów ani kluczy.

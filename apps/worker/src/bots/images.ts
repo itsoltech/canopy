@@ -23,7 +23,8 @@ export async function botImages(
   files: AttachmentFiles,
   fetch: (sha: string) => Promise<Uint8Array>,
 ): Promise<BotContent> {
-  const attachments = [...(resumed ? [] : input.historyAttachments), ...input.attachments];
+  // Older gateways may still send historyAttachments. They are never new user input.
+  const attachments = input.attachments;
   await files.ensure(input.botId, attachments, fetch);
   const images: NormalizedImage[] = [];
   const documents: BotContent["documents"] = [];

@@ -17,7 +17,7 @@ const size = (entry: HistoryEntry) => JSON.stringify(entry).length;
 
 /**
  * The newest messages that fit, and a marked note for the omitted ones. The current input (the last user
- * message and everything after it) is always kept whole; the worker repeats it after the history.
+ * message and everything after it) is always kept whole; the current user message is sent separately.
  */
 export function budgetedHistory(messages: readonly ModelMessage[]): HistoryEntry[] {
   const inputAt = Math.max(

@@ -1,8 +1,9 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { create } from "@bufbuild/protobuf";
+import { create, fromBinary } from "@bufbuild/protobuf";
 import { rmSync } from "node:fs";
 import { join } from "node:path";
-import { bots, MentionKind, Provider } from "@canopy/contracts";
+import { bots, CommandSchema, MentionKind, Provider } from "@canopy/contracts";
+import { BotComposerSync } from "@canopy/domain/bot-draft";
 import { dockerAvailable } from "@canopy/db/testing";
 import { AttachmentStore, GatewayStore } from "@canopy/gateway/store";
 import { BotStore } from "../../apps/gateway/src/bots/store.ts";
@@ -29,6 +30,27 @@ describe.skipIf(!dockerAvailable)("bot composer drafts and images", () => {
 
   const upload = async (botId: string) =>
     (await f.gw.api.uploadAttachment({ botId, name: "photo.png", data: png })).attachment!;
+
+  const composer = (botId: string) =>
+    new BotComposerSync(
+      botId,
+      {
+        load: () => f.gw.api.getBotDraft({ botId }),
+        save: (draft, expectedRevision) => f.gw.api.saveBotDraft({ botId, draft, expectedRevision }),
+      },
+      () => crypto.randomUUID(),
+    );
+
+  const deliver = (botId: string, draft: bots.BotComposerDraft) =>
+    f.gw.api.sendBotMessage({
+      botId,
+      text: draft.text,
+      mentions: draft.mentions,
+      quotes: draft.quotes,
+      attachmentIds: draft.attachments.map((a) => a.id),
+      clientRequestId: draft.clientRequestId,
+      draftRevision: draft.revision,
+    });
 
   test("structured drafts survive a gateway restart and stale saves cannot replace them", async () => {
     const bot = await f.add(Provider.CODEX);
@@ -118,6 +140,65 @@ describe.skipIf(!dockerAvailable)("bot composer drafts and images", () => {
     await f.settled(bot.id);
   }, 20_000);
 
+  test("a draft read started before send cannot restore acknowledged text, quotes or files", async () => {
+    const bot = await f.add(Provider.CODEX);
+    const image = await upload(bot.id);
+    const release = Promise.withResolvers<void>();
+    const captured = Promise.withResolvers<void>();
+    let hold = false;
+
+    const sync = new BotComposerSync(
+      bot.id,
+      {
+        load: async () => {
+          const draft = await f.gw.api.getBotDraft({ botId: bot.id });
+
+          if (hold) {
+            hold = false;
+            captured.resolve();
+            await release.promise;
+          }
+
+          return draft;
+        },
+        save: (draft, expectedRevision) => f.gw.api.saveBotDraft({ botId: bot.id, draft, expectedRevision }),
+      },
+      () => crypto.randomUUID(),
+    );
+
+    await sync.load();
+    sync.update(
+      create(bots.BotComposerDraftSchema, {
+        text: "Check this image",
+        attachments: [image],
+        quotes: [{ text: "Earlier request", sourceKind: "agent_message" }],
+      }),
+    );
+    const outgoing = await sync.outgoing();
+    hold = true;
+    const stale = sync.load();
+    await captured.promise;
+
+    try {
+      await deliver(bot.id, outgoing);
+      const sent = sync.sent(outgoing);
+      release.resolve();
+      await Promise.all([stale, sent]);
+      expect([sync.value.text, sync.value.quotes, sync.value.attachments]).toEqual(["", [], []]);
+      expect(sync.value).toEqual(await f.gw.api.getBotDraft({ botId: bot.id }));
+      sync.update(create(bots.BotComposerDraftSchema, { text: "Text only after acknowledgement" }));
+      const next = await sync.outgoing();
+      expect(next.attachments).toEqual([]);
+      await deliver(bot.id, next);
+      await sync.sent(next);
+      const view = await f.settled(bot.id);
+      expect(view.messages.filter((m) => m.senderId === "user").map((m) => m.attachments.length)).toEqual([1, 0]);
+    } finally {
+      release.resolve();
+      await stale;
+    }
+  }, 20_000);
+
   test("drafts, uploads, binding and worker blob reads are owner-scoped and limited", async () => {
     const bot = await f.add(Provider.CODEX);
 
@@ -173,16 +254,23 @@ describe.skipIf(!dockerAvailable)("bot composer drafts and images", () => {
   }, 20_000);
 
   for (const provider of [Provider.CLAUDE, Provider.CODEX, Provider.GROK]) {
-    test(`${Provider[provider]} receives native image input through the real worker link`, async () => {
+    test(`${Provider[provider]} receives two images once, then only each new message's files`, async () => {
       const bot = await f.add(provider);
-      const image = await upload(bot.id);
+      const images = await Promise.all([upload(bot.id), upload(bot.id)]);
+      const image = images[0]!;
+      const sync = composer(bot.id);
+      await sync.load();
+      sync.update(
+        create(bots.BotComposerDraftSchema, {
+          text: "Describe these two images",
+          attachments: images,
+        }),
+      );
+      const outgoing = await sync.outgoing();
       const before = f.inputs().length;
-      await f.gw.api.sendBotMessage({
-        botId: bot.id,
-        text: "Describe this image",
-        attachmentIds: [image.id],
-        clientRequestId: crypto.randomUUID(),
-      });
+      await deliver(bot.id, outgoing);
+      await sync.sent(outgoing);
+      expect(sync.value.attachments).toEqual([]);
       const conversation = await f.settled(bot.id);
       expect(conversation.messages.at(-1)?.text).toBe("FIXTURE_OK");
       expect(conversation.messages[0]?.attachments[0]).toMatchObject({
@@ -191,45 +279,113 @@ describe.skipIf(!dockerAvailable)("bot composer drafts and images", () => {
         hasThumbnail: true,
       });
       const parts = f.inputs().slice(before).at(-1)!.parts;
-      expect(parts.some((p) => p.type === "image")).toBe(true);
+      expect(parts.filter((p) => p.type === "image")).toHaveLength(2);
       expect(parts.find((p) => p.type === "text")?.text).toContain("Canopy attached files");
       expect(parts.find((p) => p.type === "text")?.text).toContain(image.name);
       expect((await f.gw.api.getAttachment({ attachmentId: image.id, thumbnail: true })).mimeType).toBe("image/webp");
 
-      if (provider === Provider.CODEX) {
-        const turn = f
-          .records()
-          .filter((r) => r.event === "turn" && r.home.includes(`/bots/${bot.id}/`))
-          .at(-1)!;
+      const firstSession = f
+        .records()
+        .filter((r) => r.event === "turn")
+        .at(-1)!.session;
 
-        rmSync(join(turn.home, "sessions", `${turn.session}.json`));
-        await f.send(bot.id, "Remember that image");
+      for (let followup = 0; followup < 3; followup += 1) {
+        if (followup === 1) {
+          // Changing instructions rebuilds the official harness session for every provider.
+          await f.gw.api.updateBot({
+            botId: bot.id,
+            configuration: {
+              ...bot.configuration!,
+              instructions: "Continue with the current message's attachments only.",
+            },
+          });
+        }
+
+        const text = `Text-only follow-up ${followup}`;
+        sync.update(create(bots.BotComposerDraftSchema, { text }));
+        const next = await sync.outgoing();
+        expect(next.attachments).toEqual([]);
+        await deliver(bot.id, next);
+        await sync.sent(next);
         expect((await f.settled(bot.id)).messages.at(-1)?.text).toBe("FIXTURE_OK");
-        expect(
-          f
-            .inputs()
-            .at(-1)
-            ?.parts.filter((p) => p.type === "image"),
-        ).toHaveLength(1);
-        await f.send(bot.id, "Continue");
-        await f.settled(bot.id);
-        expect(
-          f
-            .inputs()
-            .at(-1)
-            ?.parts.filter((p) => p.type === "image"),
-        ).toHaveLength(0);
+        const received = f.inputs().at(-1)!.parts;
+        expect(received.filter((p) => p.type === "image")).toHaveLength(0);
+        const prompt = received.find((p) => p.type === "text")!.text!;
+        const current = prompt.split("\n\nCurrent input:\n").at(-1)!;
+        expect(current).toContain(text);
+        expect(current).not.toContain("Canopy attached files");
+
+        for (const file of images) expect(current).not.toContain(file.id);
+
+        const session = f
+          .records()
+          .filter((r) => r.event === "turn")
+          .at(-1)!.session;
+
+        if (followup === 0) expect(session).toBe(firstSession);
+
+        if (followup === 1) {
+          expect(session).not.toBe(firstSession);
+          expect(prompt).toContain(`Files from an earlier message [${conversation.messages[0]!.id}] at `);
+          expect(prompt).toContain("references only; not attached to the current input");
+
+          for (const file of images) expect(prompt).toContain(file.id);
+        }
       }
+
+      const users = (await f.read(bot.id)).messages.filter((m) => m.senderId === "user");
+      expect(users.map((m) => m.attachments.length)).toEqual([2, 0, 0, 0]);
+      expect(
+        f
+          .inputs()
+          .slice(before)
+          .map((r) => r.parts.filter((p) => p.type === "image").length),
+      ).toEqual([2, 0, 0, 0]);
+
+      const fresh = await upload(bot.id);
+      sync.update(create(bots.BotComposerDraftSchema, { text: "One new image", attachments: [fresh] }));
+      const next = await sync.outgoing();
+      await deliver(bot.id, next);
+      await sync.sent(next);
+      await f.settled(bot.id);
+      expect(
+        f
+          .inputs()
+          .at(-1)!
+          .parts.filter((p) => p.type === "image"),
+      ).toHaveLength(1);
+
+      const commands = await f.query<{ payload: Uint8Array }>(
+        "SELECT c.payload FROM worker_commands c JOIN bot_harness_turns h ON h.command_id=c.id JOIN bot_turns t ON t.id=h.turn_id WHERE h.bot_id=$1 ORDER BY t.created_at,t.id",
+        [bot.id],
+      );
+
+      const inputs = commands.map((row) => {
+        const command = fromBinary(CommandSchema, row.payload);
+
+        if (command.kind.case !== "runBotTurn") throw new Error("Expected a bot turn");
+
+        return command.kind.value;
+      });
+
+      expect(inputs.map((input) => input.attachments.map((a) => a.attachmentId))).toEqual([
+        images.map((a) => a.id),
+        [],
+        [],
+        [],
+        [fresh.id],
+      ]);
+      expect(inputs.every((input) => input.historyAttachments.length === 0)).toBe(true);
 
       await expect(
         f.gw.runtime.runPromise(
           AttachmentStore.use((s) => s.workerBotBlob(f.workerId, bot.id, crypto.randomUUID(), image.sha256)),
         ),
       ).rejects.toThrow();
-    }, 20_000);
+    }, 30_000);
   }
 
-  test("a rebuilt harness bounds historical images and explains omitted images", async () => {
+  test("a rebuilt harness keeps all historical file references without replaying their bytes", async () => {
     const bot = await f.add(Provider.CODEX);
 
     for (let batch = 0; batch < 4; batch += 1) {
@@ -252,7 +408,11 @@ describe.skipIf(!dockerAvailable)("bot composer drafts and images", () => {
     await f.send(bot.id, "Recall the images");
     await f.settled(bot.id);
     const parts = f.inputs().at(-1)!.parts;
-    expect(parts.filter((p) => p.type === "image")).toHaveLength(9);
-    expect(parts.find((p) => p.type === "text")?.text).toContain("omitted earlier attachments");
+    expect(parts.filter((p) => p.type === "image")).toHaveLength(0);
+    const prompt = parts.find((p) => p.type === "text")?.text ?? "";
+    expect(prompt).toContain("references only; not attached to the current input");
+
+    for (const message of (await f.read(bot.id)).messages)
+      for (const attachment of message.attachments) expect(prompt).toContain(attachment.id);
   }, 30_000);
 });

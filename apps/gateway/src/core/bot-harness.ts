@@ -93,9 +93,33 @@ function harnessReply(job: HarnessTurnRow): ModelReply {
   return { text: job.text, calls: [] };
 }
 
+/** Assemble the turn's files and require the worker capability before persisting its command. */
+async function botTurnInput(core: GatewayCore, input: ModelInput, workerId: string, botId: string) {
+  const images = await botImageInput(core, botId, workerId, input.messages);
+  const connection = core.link.connections.get(workerId);
+
+  if (
+    (images.attachments.length || images.historyAttachments.length) &&
+    connection?.isOpen &&
+    !connection.hello.capabilities.includes(
+      [...images.attachments, ...images.historyAttachments].some((a) => a.kind !== "image")
+        ? "bot_files_v1"
+        : "bot_images_v1",
+    )
+  )
+    throw new ProviderFailure(
+      "configuration",
+      "Update this worker to receive files, or choose another worker.",
+      "platform",
+    );
+
+  return images;
+}
+
 /** A model call attaches to a durable worker command, including after a gateway restart. */
 export async function runBotHarness(core: GatewayCore, input: ModelInput): Promise<ModelReply> {
   const turn = input.turn;
+  const attachments = input.messages.findLast((m) => m.role === "user")?.attachments ?? [];
 
   if (!turn) throw new Error("Bot turn is required");
   const run: GatewayCore["bots"]["run"] = (use) => core[coreState].options.runtime.runPromise(BotStore.use(use));
@@ -122,22 +146,7 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
         "platform",
       );
     await run((s) => s.assignWorker(core[coreState].options.userId, turn.bot_id, workerId));
-    const images = await botImageInput(core, turn.bot_id, workerId, input.messages);
-
-    if (
-      (images.attachments.length || images.historyAttachments.length) &&
-      connection?.isOpen &&
-      !connection.hello.capabilities.includes(
-        [...images.attachments, ...images.historyAttachments].some((a) => a.kind !== "image")
-          ? "bot_files_v1"
-          : "bot_images_v1",
-      )
-    )
-      throw new ProviderFailure(
-        "configuration",
-        "Update this worker to receive files, or choose another worker.",
-        "platform",
-      );
+    const images = await botTurnInput(core, input, workerId, turn.bot_id);
 
     const command = await run((s) =>
       s.harnessCommand(
@@ -191,9 +200,9 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
 
       if (
         connection?.isOpen &&
-        input.messages.some((m) => m.attachments?.length) &&
+        attachments.length > 0 &&
         !connection.hello.capabilities.includes(
-          input.messages.some((m) => m.attachments?.some((a) => a.kind !== "image")) ? "bot_files_v1" : "bot_images_v1",
+          attachments.some((a) => a.kind !== "image") ? "bot_files_v1" : "bot_images_v1",
         )
       )
         throw new ProviderFailure(
