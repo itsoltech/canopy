@@ -27,7 +27,7 @@ test("governor and SQL series plateau after GC across saturated queues and rolli
   const output = await new Response(child.stdout).text();
   const errors = await new Response(child.stderr).text();
   expect(await child.exited, errors).toBe(0);
-  const samples = output.trim().split("\n").map(decode);
+  const samples = output.trim().split("\n").map((line) => decode(line));
   expect(samples).toHaveLength(21);
   const baseline = samples[0]!;
   expect(baseline.measures).toBeGreaterThan(0);
