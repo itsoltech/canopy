@@ -40,6 +40,9 @@ export class LogRedactor {
 }
 
 const events = [
+  ["process_started", /^gateway \d+\.\d+\.\d+(?:[-+][\w.+-]+)? listening on\b/i],
+  ["process_started", /^worker [a-f0-9-]{36} (?:connected\b|\(Canopy \d+\.\d+\.\d+)/i],
+  ["link_changed", /^worker [a-f0-9-]{36} disconnected\b/i],
   [
     "process_started",
     /^(?:Canopy (?:gateway|worker)|gateway listening|worker connected|Server listening|Listening on|database system is ready to accept connections)\b/i,

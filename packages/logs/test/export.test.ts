@@ -55,6 +55,10 @@ describe("source log security and bounded exports", () => {
 
     const records = [
       `${at} worker connected Bearer top-secret /home/private/workspace private-host.internal 192.168.1.6`,
+      `${at} gateway 0.0.0-dev listening on http://private-host.internal:21595`,
+      `${at} worker 11111111-1111-4111-8111-111111111111 connected`,
+      `${at} worker 11111111-1111-4111-8111-111111111111 disconnected`,
+      `${at} worker 11111111-1111-4111-8111-111111111111 (Canopy 0.0.0-dev), gateway http://private-host.internal, data /home/private/workspace, journal journal-private`,
       `${at} {"event":"unknown","prompt":"private prompt","token":"top-secret"}`,
       `${at} ERROR: write failed`,
       `${at} STATEMENT: INSERT secret VALUES('private prompt')`,
@@ -74,7 +78,7 @@ describe("source log security and bounded exports", () => {
     );
 
     const text = await readFile(result!.file, "utf8");
-    expect(result!.coverage.records).toBe(2);
+    expect(result!.coverage.records).toBe(6);
     expect(result!.coverage.omittedRecords).toBeGreaterThanOrEqual(6);
 
     for (const secret of [
@@ -87,10 +91,14 @@ describe("source log security and bounded exports", () => {
       "STATEMENT",
       "parameters",
       "query-private",
+      "0.0.0-dev",
+      "11111111",
+      "journal-private",
     ])
       expect(text).not.toContain(secret);
     expect(text).toContain('"event":"process_started"');
-    expect(result!.coverage.redactedRecords).toBe(2);
+    expect(text).toContain('"event":"link_changed"');
+    expect(result!.coverage.redactedRecords).toBe(6);
   });
 
   test("selects newest complete records within the post-redaction cap, with explicit range and legacy coverage", async () => {
