@@ -20,15 +20,19 @@ export function SidebarThreadStatus({
   const c = useColors();
   const type = useSidebarTypography();
   const state = workState(thread);
+
   const format = useCallback(
     (now: number) => label ?? (previous ? formatAge(thread.archivedAt, now) : threadRowLabel(thread, now)),
     [thread, label, previous],
   );
+
   const timed =
     previous ||
     state === "running" ||
     ((state === "idle" || state === "background") && !thread.unseenResult && thread.status !== "failed");
+
   const text = useTimeLabel(format, label === undefined && timed);
+
   const tone =
     label !== undefined
       ? label === "Read-only"

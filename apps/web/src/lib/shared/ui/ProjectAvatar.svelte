@@ -6,6 +6,7 @@
   let { name, class: className }: { name: string; class?: ClassValue } = $props();
 
   const mark = $derived(projectMark(name));
+
   // Literal utilities keep Tailwind's colour variables available after unused theme values are removed.
   const tones = {
     emerald: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",

@@ -3,7 +3,7 @@ import { useGlobalSearchParams, usePathname } from "expo-router";
 import { useLayout } from "../../state/layout";
 import type { bots } from "@canopy/contracts";
 import { BotAvatar } from "./BotAvatar";
-import { age } from "../navigation/SidebarThread";
+import { formatAge } from "@canopy/domain/format";
 import { font, styles, useColors } from "../../ui/theme";
 import Animated from "react-native-reanimated";
 import { useMotion } from "../../ui/motion";
@@ -58,7 +58,7 @@ export function BotListItem({ bot }: { bot: bots.Bot }) {
               numberOfLines={1}
               style={[type.caption, { maxWidth: 64, flexShrink: 0, textAlign: "right", color: c.muted }]}
             >
-              {home.away ? "Read-only" : age(bot.lastMessage?.createdAt?.seconds)}
+              {home.away ? "Read-only" : formatAge(bot.lastMessage?.createdAt)}
             </Text>
           </View>
           <Text numberOfLines={1} style={[type.meta, { color: c.muted }]}>

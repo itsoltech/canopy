@@ -63,8 +63,7 @@
         {#snippet idle()}<ProjectMark name={project?.name ?? "?"} kind={project?.kind} />{/snippet}
       </ThreadActivityMark>
     {/if}
-    <span
-      class="min-w-0 flex-1 truncate text-sm/5 text-zinc-500 sm:text-xs/4.5 dark:text-zinc-400"
+    <span class="min-w-0 flex-1 truncate text-sm/5 text-zinc-500 sm:text-xs/4.5 dark:text-zinc-400"
       >{project?.name ?? "Unknown project"}</span
     >
     <SidebarThreadStatus
@@ -92,7 +91,10 @@
       class="size-3.5 {worker?.online ? 'fill-zinc-400 dark:fill-zinc-500' : 'fill-zinc-300 dark:fill-zinc-700'}"
     />
     <span class="min-w-0 flex-1 truncate"
-      >{worker?.name ?? "Unknown worker"}<span class="text-zinc-400 dark:text-zinc-600">{" · "}</span>{threadPlace(thread, project)}</span
+      >{worker?.name ?? "Unknown worker"}<span class="text-zinc-400 dark:text-zinc-600">{" · "}</span>{threadPlace(
+        thread,
+        project,
+      )}</span
     >
     <span class="flex shrink-0 items-center gap-2">
       <ThreadGoalMark {thread} />
@@ -108,7 +110,12 @@
       {#if provider}<span
           class="flex"
           title={thread.providerProfileId ? `${providerName} · ${thread.providerProfileId}` : providerName}
-          ><ProviderIcon {provider} label={providerName} class="size-3.5" opacity={threadRowMarks.providerOpacity} /></span
+          ><ProviderIcon
+            {provider}
+            label={providerName}
+            class="size-3.5"
+            opacity={threadRowMarks.providerOpacity}
+          /></span
         >{/if}
     </span>
   </span>

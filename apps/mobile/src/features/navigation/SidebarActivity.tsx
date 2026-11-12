@@ -36,7 +36,7 @@ export function SidebarActivity({
       ) : state === "background" ? (
         <Icon name="bolt" size={threadRowMarks.icon} color={c.working.indicator} />
       ) : (
-        idle ?? <ProjectMark name={project?.name ?? "?"} kind={project?.kind} size={threadRowMarks.slot} />
+        (idle ?? <ProjectMark name={project?.name ?? "?"} kind={project?.kind} size={threadRowMarks.slot} />)
       )}
     </View>
   );

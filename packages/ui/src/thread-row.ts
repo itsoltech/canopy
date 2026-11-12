@@ -10,7 +10,9 @@ export const workingColors = {
 const projectTones = ["emerald", "rose", "amber", "sky", "violet", "fuchsia", "cyan", "lime", "zinc"] as const;
 
 export function projectMark(name: string) {
-  const tone = projectTones[[...name].reduce((hash, ch) => (hash * 31 + ch.charCodeAt(0)) >>> 0, 7) % projectTones.length]!;
+  const tone =
+    projectTones[[...name].reduce((hash, ch) => (hash * 31 + ch.charCodeAt(0)) >>> 0, 7) % projectTones.length]!;
+
   const words = name.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
   const initials = (words.length > 1 ? `${words[0]![0]}${words[1]![0]}` : (words[0] ?? "?").slice(0, 2)).toUpperCase();
 

@@ -80,7 +80,9 @@ export function SidebarThread({
               pressed || active
                 ? c.inset
                 : needs
-                  ? (c.dark ? "#fbbf240f" : "#f59e0b0f")
+                  ? c.dark
+                    ? "#fbbf240f"
+                    : "#f59e0b0f"
                   : busy
                     ? c.well
                     : "transparent",
@@ -111,7 +113,11 @@ export function SidebarThread({
             {worker?.name ?? "Unknown worker"} · {threadPlace(thread, project)}
           </Text>
           {thread.goalStatus ? <Icon name="flag" size={16} /> : null}
-          <ProviderIcon provider={thread.provider} size={threadRowMarks.icon} opacity={threadRowMarks.providerOpacity} />
+          <ProviderIcon
+            provider={thread.provider}
+            size={threadRowMarks.icon}
+            opacity={threadRowMarks.providerOpacity}
+          />
         </View>
         <SidebarUnread unread={thread.markedUnread} />
       </Pressable>

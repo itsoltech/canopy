@@ -121,11 +121,7 @@ function SidebarSideThread({ thread, previous = false }: { thread: ui.Thread; pr
   const { id } = useGlobalSearchParams<{ id?: string }>();
   const active = layout.wide && pathname.startsWith("/thread/") && id === thread.id;
 
-  const label = home.away
-    ? "Read-only"
-    : previous
-      ? formatAge(thread.archivedAt)
-      : threadRowLabel(thread);
+  const label = home.away ? "Read-only" : previous ? formatAge(thread.archivedAt) : threadRowLabel(thread);
 
   return (
     <Pressable
@@ -149,7 +145,11 @@ function SidebarSideThread({ thread, previous = false }: { thread: ui.Thread; pr
         away={home.away}
         size={16}
         idle={
-          <Icon name={thread.forkSourceThreadId ? "square-2-stack" : "arrow-turn-down-right"} size={16} color={c.muted} />
+          <Icon
+            name={thread.forkSourceThreadId ? "square-2-stack" : "arrow-turn-down-right"}
+            size={16}
+            color={c.muted}
+          />
         }
       />
       <Text numberOfLines={1} style={[type.title, { flex: 1, minWidth: 0, color: c.body }]}>

@@ -24,10 +24,5 @@
     opacity={threadSpinner.trackOpacity}
     stroke-width={threadSpinner.strokeWidth}
   />
-  <path
-    d={threadSpinner.path}
-    class="stroke-current"
-    stroke-width={threadSpinner.strokeWidth}
-    stroke-linecap="round"
-  />
+  <path d={threadSpinner.path} class="stroke-current" stroke-width={threadSpinner.strokeWidth} stroke-linecap="round" />
 </svg>
