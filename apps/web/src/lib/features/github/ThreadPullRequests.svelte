@@ -40,7 +40,6 @@
 
 <section aria-label="Pull requests" class={["grid min-w-0 gap-2 px-3 py-2", className]}>
   <h2 class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Pull requests</h2>
-  {#if !links.length}<p class="text-sm/5 text-zinc-500 dark:text-zinc-400">No pull requests yet</p>{/if}
   <ul role="list" class="grid min-w-0 gap-2">
     {#each expanded ? links : links.slice(0, 1) as link (link.summary?.ref?.id)}
       {@const pr = link.summary}

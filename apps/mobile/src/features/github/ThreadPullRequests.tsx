@@ -44,7 +44,6 @@ export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onC
   return (
     <View style={{ gap: 10, minWidth: 0 }}>
       <Text style={[styles.label, { color: c.text }]}>Pull requests</Text>
-      {!links.length && <Text style={[styles.meta, { color: c.muted }]}>No pull requests yet</Text>}
       {(expanded ? links : links.slice(0, 1)).map((link) => (
         <ThreadPullRequestRow
           key={link.summary?.ref?.id}
