@@ -77,7 +77,7 @@ export class SteerStore extends Context.Service<
     }): Fx<SteerRow>;
     byClientRequest(threadId: string, clientRequestId: string): Fx<SteerRow | undefined>;
     steer(id: string): Fx<SteerRow>;
-    ofThread(threadId: string): Fx<readonly SteerRow[]>;
+    ofThread(threadId: string, ids?: string[]): Fx<readonly SteerRow[]>;
     accepted(id: string): Fx<SteerRow>;
     failed(id: string, reason: string): Fx<SteerRow>;
     /** Undelivered steers whose turn ended, including those without a worker's dropped notice. */
@@ -147,8 +147,11 @@ export class SteerStore extends Context.Service<
 
         steer: one,
 
-        ofThread: (threadId) =>
-          sql.unsafe<SteerRow>(`${select} WHERE s.thread_id = $1::uuid ORDER BY s.created_at`, [threadId]),
+        ofThread: (threadId, ids) =>
+          sql.unsafe<SteerRow>(
+            `${select} WHERE s.thread_id = $1::uuid AND ($2::uuid[] IS NULL OR s.id=ANY($2::uuid[])) ORDER BY s.created_at`,
+            [threadId, ids ?? null],
+          ),
 
         accepted: (id) =>
           sql`UPDATE turn_steers SET status = 'accepted', updated_at = now() WHERE id = ${id}::uuid AND status = 'pending'`.pipe(

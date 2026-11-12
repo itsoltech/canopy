@@ -25,7 +25,9 @@ export interface BusDeliveryStore {
    * Deliveries of spawn_thread / send_message calls: the latest of a calling thread (its snapshot), those that reached
    * a turn (its status changed) or the one behind an agent's steer.
    */
-  deliveries(by: { sourceThreadId: string } | { turnId: string } | { steerId: string }): Fx<ReadonlyArray<DeliveryRow>>;
+  deliveries(
+    by: { sourceThreadId: string; callIds?: string[] } | { turnId: string } | { steerId: string },
+  ): Fx<ReadonlyArray<DeliveryRow>>;
   /** Notifications due because `turnId` finished. */
   dueNotifications(turnId?: string, afterId?: string): Fx<Notification[]>;
   /** A report whose steer failed or whose receiving turn ended without it. Restart reconciliation. */
@@ -165,9 +167,10 @@ export function busDeliveryStore(sql: SqlClient.SqlClient): BusDeliveryStore {
              WHERE c.tool IN ('spawn_thread', 'send_message') AND c.status = 'completed' AND c.target_thread_id IS NOT NULL`;
 
       return "sourceThreadId" in by
-        ? sql.unsafe<DeliveryRow>(`${select} AND c.source_thread_id = $1::uuid ORDER BY c.created_at DESC LIMIT 200`, [
-            by.sourceThreadId,
-          ])
+        ? sql.unsafe<DeliveryRow>(
+            `${select} AND c.source_thread_id = $1::uuid AND ($2::uuid[] IS NULL OR c.id=ANY($2::uuid[])) ORDER BY c.created_at DESC LIMIT 200`,
+            [by.sourceThreadId, by.callIds ?? null],
+          )
         : "turnId" in by
           ? sql.unsafe<DeliveryRow>(`${select} AND (c.target_turn_id = $1::uuid OR st.queued_turn_id = $1::uuid)`, [
               by.turnId,

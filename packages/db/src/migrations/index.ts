@@ -16,6 +16,8 @@ import githubFullRead from "./0116_github_full_read.sql" with { type: "text" };
 import githubMutations from "./0117_github_mutations.sql" with { type: "text" };
 import githubReviews from "./0118_github_reviews.sql" with { type: "text" };
 import githubLifecycle from "./0119_github_lifecycle.sql" with { type: "text" };
+import threadRanges from "./0120_thread_ranges.sql" with { type: "text" };
+import threadPublicationFailures from "./0121_thread_publication_failures.sql" with { type: "text" };
 import botViewDelta from "./0091_bot_view_delta.sql" with { type: "text" };
 import workerConfig from "./0002_worker_config.sql" with { type: "text" };
 import gatewayRuntime from "./0003_gateway_runtime.sql" with { type: "text" };
@@ -252,6 +254,8 @@ export const migrations = Migrator.fromRecord({
   "0117_github_mutations": sqlFile(githubMutations),
   "0118_github_reviews": sqlFile(githubReviews),
   "0119_github_lifecycle": sqlFile(githubLifecycle),
+  "0120_thread_ranges": sqlFile(threadRanges),
+  "0121_thread_publication_failures": sqlFile(threadPublicationFailures),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

@@ -108,6 +108,11 @@ test.skipIf(!dockerAvailable)(
     const a = await configComputer("Preview A");
     const b = await configComputer("Preview B");
 
+    // Image processing can block longer than the fixture's 450 ms heartbeat budget.
+    // Availability below is driven by explicit listener shutdown, not heartbeat timing.
+    a.links.options.heartbeatMs = 1500;
+    b.links.options.heartbeatMs = 1500;
+
     try {
       // The older home predates the additive watch/steer capabilities as well as bounded previews.
       a.links.options.capabilities = a.links

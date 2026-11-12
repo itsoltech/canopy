@@ -9,6 +9,7 @@ import {
   REMOTE_THREADS,
   REMOTE_BRANCH_SWITCH,
   THREAD_MIRROR,
+  THREAD_RANGES,
   GITHUB_PR,
 } from "@canopy/domain/computers";
 import { Effect } from "effect";
@@ -24,6 +25,7 @@ const FEATURES = new Set([
   "remote_worktrees",
   REMOTE_BRANCH_SWITCH,
   THREAD_MIRROR,
+  THREAD_RANGES,
   REMOTE_BOTS,
   REMOTE_BOT_COMPOSER,
   AGENT_BUS,
@@ -240,7 +242,10 @@ export class ComputerRelay {
               p.status === "restarting" && !partner.capabilities.includes(RESTART_PRESENCE) ? "updating" : p.status,
             statusSinceMs: BigInt(new Date(p.status_since).getTime()),
             lastSeenMs: p.last_seen ? BigInt(new Date(p.last_seen).getTime()) : 0n,
-            capabilities: role === "origin" ? [AGENT_BUS] : p.capabilities.filter((c) => FEATURES.has(c)),
+            capabilities:
+              role === "origin"
+                ? [AGENT_BUS]
+                : p.capabilities.filter((c) => FEATURES.has(c) && partner.capabilities.includes(c)),
             role,
           }),
         );
@@ -275,7 +280,8 @@ export class ComputerRelay {
           !p.name.trim() ||
           p.name.length > 100 ||
           p.appVersion.length > 100 ||
-          p.capabilities.some((c) => !FEATURES.has(c)) ||
+          p.capabilities.length > 32 ||
+          p.capabilities.some((c) => !/^[a-z][a-z0-9_]{0,63}$/.test(c)) ||
           p.statusSinceMs <= 0n ||
           p.statusSinceMs > BigInt(Date.now() + 60_000) ||
           p.lastSeenMs < 0n ||
