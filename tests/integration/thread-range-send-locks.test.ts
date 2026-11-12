@@ -20,8 +20,15 @@ describe.skipIf(!dockerAvailable)("thread publication, sends and moves lock orde
     store = new ComputerStore(gateway.runtime, gateway.userId, gateway.secretsKey);
     // Pause a journal writer after it owns the global advisory lock, before
     // repeated clock updates recheck their FK. No production hook or timed sleep.
+    await store.query(`CREATE TABLE range_clock_gate (
+      singleton boolean PRIMARY KEY DEFAULT true CHECK(singleton), thread_id uuid NOT NULL)`);
     await store.query(`CREATE FUNCTION pause_range_clock() RETURNS trigger LANGUAGE plpgsql AS $$
-      BEGIN PERFORM pg_advisory_xact_lock(19273481,1); RETURN NEW; END $$`);
+      BEGIN
+        IF EXISTS(SELECT 1 FROM range_clock_gate WHERE thread_id=NEW.thread_id) THEN
+          PERFORM pg_advisory_xact_lock(19273481,1);
+        END IF;
+        RETURN NEW;
+      END $$`);
     await store.query(`CREATE TRIGGER pause_range_clock BEFORE UPDATE ON thread_replication_clock
       FOR EACH ROW EXECUTE FUNCTION pause_range_clock()`);
   });
@@ -55,7 +62,12 @@ describe.skipIf(!dockerAvailable)("thread publication, sends and moves lock orde
     return thread;
   }
 
-  function clockGate() {
+  async function clockGate(thread: string) {
+    await store.query(
+      `INSERT INTO range_clock_gate(thread_id) VALUES($1::uuid)
+      ON CONFLICT(singleton) DO UPDATE SET thread_id=excluded.thread_id`,
+      [thread],
+    );
     const ready = Promise.withResolvers<number>();
     const release = Promise.withResolvers<void>();
 
@@ -94,7 +106,7 @@ describe.skipIf(!dockerAvailable)("thread publication, sends and moves lock orde
     return pid!;
   }
 
-  async function pausedPublisher(thread: string, gate: ReturnType<typeof clockGate>) {
+  async function pausedPublisher(thread: string, gate: Awaited<ReturnType<typeof clockGate>>) {
     const gatePid = await gate.ready;
     const reading = readThreadRange(store, create(ui.ThreadSyncCursorSchema, { threadId: thread }));
 
@@ -147,7 +159,7 @@ describe.skipIf(!dockerAvailable)("thread publication, sends and moves lock orde
 
     expect(command).toBeDefined();
     const initial = await readThreadRange(store, create(ui.ThreadSyncCursorSchema, { threadId: thread }));
-    const gate = clockGate();
+    const gate = await clockGate(thread);
     const gatePid = await gate.ready;
 
     const completing = gateway.runtime.runPromise(
@@ -212,7 +224,7 @@ describe.skipIf(!dockerAvailable)("thread publication, sends and moves lock orde
 
   test("a move freezes before a queued SendMessage while range publication completes", async () => {
     const thread = await newThread();
-    const gate = clockGate();
+    const gate = await clockGate(thread);
     const { reading, pid } = await pausedPublisher(thread, gate);
 
     const moving = freezeThread(store, {
