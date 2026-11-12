@@ -35,6 +35,12 @@ Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji
    Alerty wątków i botów idą przez IPC `canopy:notification` do natywnego `Notification`
    procesu main (tylko ścieżki wątku lub bota, każdy klucz raz; [notifications.md](notifications.md));
    uprawnienie `notifications` jest rezerwą dla Notification API strony.
+   Natywne menu kontekstowe (`context-menu.ts`) daje Copy dla zaznaczenia oraz role
+   Undo, Redo, Cut, Copy, Paste i Select All w polach edycji. Przy włączonym sprawdzaniu
+   pisowni pokazuje propozycje poprawek. Linki mają Copy link i Open link in browser;
+   otwieranie dopuszcza wyłącznie `http:` i `https:`. Własne menu renderera i chronione
+   wartości nadal blokują menu systemowe przez lokalne `contextmenu.preventDefault()`.
+   Nie ma dodatkowego IPC ani zmiany izolacji renderera.
    Typography korzysta najpierw z `window.queryLocalFonts()`. Uprawnienie `local-fonts`
    jest dostępne wyłącznie głównej ramce web UI; setup, iframe i obce originy nie mają
    dostępu. Jeśli API nie działa, typowany `listFonts()` wywołuje `canopy:fonts`.
