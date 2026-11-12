@@ -1,11 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { create } from "@bufbuild/protobuf";
 import { ConversationSkeleton, SkeletonScope } from "../../ui/Skeleton";
 import { Redirect } from "expo-router";
 import { useContextDraft } from "../github/useContextDraft";
 import { ScreenFrame } from "../../ui/ScreenFrame";
-import * as Crypto from "expo-crypto";
-import { Code, ConnectError } from "@connectrpc/connect";
 import { InteractionKind, ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { useThreadSnapshot } from "../../state/thread";
@@ -34,48 +32,38 @@ import { collapsedThreadComposerHeight, threadComposerHeight } from "../composer
 import { ThreadRequests } from "./ThreadRequests";
 import { ImportedThreadComposer } from "../imports/ImportedThreadComposer";
 import { useQuoteDraft } from "../quotes/useQuoteDraft";
-import { withSentMessage } from "./sent-message";
-import { confirmMessage } from "./pending-message";
-import type { ComposerPick } from "@canopy/domain/composer-choices";
 import { useArchivedThreadDisclosure } from "../settings/use-archived-thread-disclosure";
-
-/** The gateway refused the message and says why (not delivered: no retry note); otherwise delivery is unknown. */
-function deliveryError(failure: ConnectError) {
-  return [Code.InvalidArgument, Code.FailedPrecondition, Code.ResourceExhausted].includes(failure.code)
-    ? failure.rawMessage
-    : "Could not confirm delivery. Retry with the same text to send it only once.";
-}
+import { useComposerConnection } from "./useComposerConnection";
+import { useThreadSend } from "./useThreadSend";
+import { useThreadStop } from "./useThreadStop";
 
 export type ThreadState = ReturnType<typeof useThreadState>;
 
 function useThreadState(id: string) {
-  const { session, client, ready, online, expired } = useSession();
+  const { session, client, ready, online } = useSession();
   const { snapshot, setSnapshot, stream, history, syncStatus } = useThreadSnapshot(id);
-  const [busy, setBusy] = useState(false);
-  const [waiting, setWaiting] = useState(false);
-  const [error, setError] = useState("");
   const following = useFollowingList<ui.Turn>(true);
   const [details, setDetails] = useState(false);
   const { projects, workers, threads } = useOverview();
-  const sending = useRef(false);
   const message = useMessageDraft();
-  useContextDraft(id, message, setError);
   const quotes = useQuoteDraft();
 
-  const pending = useRef<{
-    key: string;
-    id: string;
-  } | null>(null);
+  const { connection, available } = useComposerConnection(
+    `${session?.deviceId}:${id}`,
+    online && stream.connection === "live",
+  );
 
-  const requestController = useRef(new AbortController());
-  const currentClient = useRef(client);
-  currentClient.current = client;
+  const { send, busy, waiting, error, setError } = useThreadSend({
+    id,
+    message,
+    quotes,
+    connection,
+    setSnapshot,
+    onSend: following.resumeFollowing,
+  });
 
-  useEffect(() => {
-    requestController.current = new AbortController();
-
-    return () => requestController.current.abort();
-  }, [id]);
+  const { stop, stopping } = useThreadStop(id, snapshot, connection, setError);
+  useContextDraft(id, message, setError);
 
   const thread = snapshot?.thread ?? threads.find((t) => t.id === id);
   useArchivedThreadDisclosure(thread?.status === "archived" ? thread.id : undefined);
@@ -85,70 +73,15 @@ function useThreadState(id: string) {
 
   const turns = useMemo(() => visibleTurns(snapshot), [snapshot]);
 
-  async function send(delivery: ui.MessageDelivery, choices?: ComposerPick) {
-    const outgoing = message.outgoing();
-    const { text: value, attachmentIds, mentions } = outgoing;
-
-    if (
-      !client ||
-      (!value && !attachmentIds.length && !quotes.quotes.length) ||
-      message.files.blocker ||
-      sending.current
-    )
-      return;
-    sending.current = true;
-    following.resumeFollowing();
-    setBusy(true);
-    setWaiting(false);
-    setError("");
-
-    const key = JSON.stringify({ value, delivery, attachmentIds, mentions, quotes: quotes.quotes, choices });
-
-    if (pending.current?.key !== key) pending.current = { key, id: Crypto.randomUUID() };
-    const signal = requestController.current.signal;
-
-    try {
-      const request = {
-        threadId: id,
-        text: value,
-        delivery,
-        attachmentIds,
-        mentions,
-        quotes: [...quotes.quotes],
-        clientRequestId: pending.current.id,
-        ...choices,
-      };
-
-      const result = await confirmMessage(
-        request,
-        () => currentClient.current?.api,
-        signal,
-        () => setWaiting(true),
-      );
-
-      setSnapshot((snapshot) => withSentMessage(snapshot, result));
-      message.clear();
-      quotes.clear();
-
-      if (result.deliveryNote) setError(result.deliveryNote);
-      pending.current = null;
-    } catch (e) {
-      if (ConnectError.from(e).code === Code.Unauthenticated) await expired();
-      else if (!signal.aborted) setError(deliveryError(ConnectError.from(e)));
-    } finally {
-      sending.current = false;
-      setBusy(false);
-    }
-  }
-
-  const blocked =
+  const hardBlocked =
     home.away ||
-    !online ||
+    !client ||
     !thread ||
     Boolean(thread.archivedAt || thread.deletedAt) ||
     thread.status === "archived" ||
-    busy ||
-    stream.connection !== "live";
+    stream.connection === "error";
+
+  const blocked = hardBlocked || busy || !available;
 
   return {
     session,
@@ -171,6 +104,8 @@ function useThreadState(id: string) {
     ...tray,
     turns,
     send,
+    stop,
+    stopDisabled: hardBlocked || stopping,
     blocked,
     home,
     message,
@@ -290,12 +225,8 @@ function ThreadComposer({ state, composer }: { state: ThreadState; composer: Ret
           message={state.message}
           quotes={state.quotes}
           send={(delivery, choices) => void state.send(delivery, choices)}
-          stop={() => {
-            if (!state.client || !state.thread) return;
-            void state.client.api
-              .interruptThread({ threadId: state.thread.id })
-              .catch(() => state.setError("Could not stop the turn. Try again."));
-          }}
+          stop={() => void state.stop()}
+          stopDisabled={state.stopDisabled}
           disabled={state.blocked}
           busy={state.busy}
           onDetails={() => state.setDetails(true)}

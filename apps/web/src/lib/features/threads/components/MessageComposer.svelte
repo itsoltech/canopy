@@ -29,6 +29,7 @@
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { computerName } from "@canopy/domain/computer-presence";
   import { registerUnsentWork } from "#lib/features/workers/unsent-work.ts";
+  import type { ComposerConnection } from "@canopy/domain/composer-connection";
 
   /**
    * Message box of a thread. Each send carries an idempotency key, so a retried send never runs
@@ -50,6 +51,8 @@
     thread,
     worker,
     running,
+    runningTurnId,
+    connection,
     disabled = false,
     note,
     onsent,
@@ -62,6 +65,8 @@
     thread: ui.Thread;
     worker: ui.Worker | undefined;
     running: boolean;
+    runningTurnId?: string | undefined;
+    connection?: ComposerConnection | undefined;
     disabled?: boolean;
     note?: string | undefined;
     onsent?: ((response: ui.SendMessageResponse) => void) | undefined;
@@ -155,6 +160,27 @@
 
   let stopping = $state(false);
   let error = $state<string | undefined>(undefined);
+  let composerAvailable = $state(true);
+  const scopeId = $derived(thread.id);
+  const lifetime = $derived({ threadId: scopeId, controller: new AbortController() });
+
+  $effect(() => {
+    const current = connection;
+
+    const update = () => {
+      composerAvailable = current?.composerAvailable ?? true;
+    };
+
+    update();
+
+    return current?.subscribe(update);
+  });
+
+  $effect(() => {
+    const { controller } = lifetime;
+
+    return () => controller.abort();
+  });
 
   /** What happened to the last message when it did not go the way it was sent (a steer that became a turn). */
   let outcome = $state<string | undefined>(undefined);
@@ -176,7 +202,8 @@
     const message = text.trimStart().startsWith("!") ? text.trimEnd() : trimmed.text;
     const sentMentions = trimmed.mentions;
 
-    if ((!message && draft.attached.length === 0 && quotes.length === 0) || sending || disabled) return;
+    if ((!message && draft.attached.length === 0 && quotes.length === 0) || sending || disabled || !composerAvailable)
+      return;
 
     if (draft.blocker) {
       error = draft.blocker;
@@ -187,6 +214,7 @@
     const attachmentIds = draft.ids;
     const threadId = thread.id;
     const sentQuotes = quotes;
+    const signal = lifetime.controller.signal;
     sending = true;
     waiting = false;
     error = undefined;
@@ -205,8 +233,15 @@
         () => {
           waiting = true;
         },
+        {
+          signal,
+          beforeAttempt: async () => {
+            await connection?.waitUntilLive(signal);
+          },
+        },
       );
 
+      if (signal.aborted) return;
       onsent?.(response);
 
       if (response.goal) outcome = `Goal set: ${response.goal.objective}`;
@@ -222,20 +257,27 @@
       for (const quote of sentQuotes) quoteDrafts.remove(threadId, quote.id);
       requestId = crypto.randomUUID();
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      if (!signal.aborted) error = e instanceof Error ? e.message : String(e);
     } finally {
       sending = false;
     }
   }
 
   async function interrupt() {
+    if (stopping || disabled) return;
+    const turnId = runningTurnId;
+    const threadId = thread.id;
+    const signal = lifetime.controller.signal;
     stopping = true;
     error = undefined;
 
     try {
-      await interruptThread(thread.id);
+      await connection?.waitUntilLive(signal);
+
+      if (disabled || !running || turnId !== runningTurnId) return;
+      await interruptThread(threadId);
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      if (!signal.aborted) error = e instanceof Error ? e.message : String(e);
     } finally {
       stopping = false;
     }
@@ -254,7 +296,8 @@
     bind:mentions
     {sources}
     placeholder={running ? "Steer the agent, or queue for the next turn…" : "Ask anything…"}
-    disabled={disabled || sending}
+    disabled={disabled || sending || !composerAvailable}
+    stopDisabled={disabled}
     {sending}
     {stopping}
     onstop={running ? interrupt : undefined}

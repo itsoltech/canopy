@@ -8,11 +8,14 @@
   import MessageComposer from "./MessageComposer.svelte";
   import QuestionForm from "./interactions/QuestionForm.svelte";
   import { QuestionSession } from "./interactions/question-session.svelte.ts";
+  import type { ComposerConnection } from "@canopy/domain/composer-connection";
 
   let {
     thread,
     worker,
     running,
+    runningTurnId,
+    connection,
     disabled = false,
     note,
     onsent,
@@ -29,6 +32,8 @@
     thread: ui.Thread;
     worker: ui.Worker | undefined;
     running: boolean;
+    runningTurnId?: string | undefined;
+    connection?: ComposerConnection | undefined;
     disabled?: boolean;
     note?: string | undefined;
     onsent?: ((response: ui.SendMessageResponse) => void) | undefined;
@@ -129,6 +134,8 @@
       {thread}
       {worker}
       {running}
+      {runningTurnId}
+      {connection}
       {disabled}
       {note}
       {onsent}

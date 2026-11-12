@@ -26,6 +26,7 @@ export function MessageComposer({
   quotes,
   send,
   stop,
+  stopDisabled,
   disabled,
   busy,
   onDetails,
@@ -38,6 +39,7 @@ export function MessageComposer({
   quotes: ReturnType<typeof useQuoteDraft>;
   send: (delivery: ui.MessageDelivery, choices: ComposerPick) => void;
   stop: () => void;
+  stopDisabled: boolean;
   disabled: boolean;
   busy: boolean;
   onDetails: () => void;
@@ -73,6 +75,7 @@ export function MessageComposer({
           }
           primary={primary === ui.MessageDelivery.QUEUE ? "queue" : "steer"}
           onStop={stop}
+          stopDisabled={stopDisabled}
           running={thread?.status === "running"}
           disabled={disabled || Boolean(message.files.blocker)}
           busy={busy}

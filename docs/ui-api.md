@@ -240,6 +240,12 @@ abort i późniejsze sprzątanie generatora usuwają wyłącznie własną subskr
 nigdy zestaw utworzony już przez reconnect. Handler abort jest odpinany przy końcu
 generatora. Heartbeat SSE potwierdza transport BFF, nie kompletność transkryptu.
 
+`domain/thread-watch-state.ts` rozróżnia potwierdzenie gotowości (snapshot lub
+partia `caught_up`), jawny catch-up oraz wiadomości neutralne. `controls`, metadane
+i nieznane case zachowują poprzednią gotowość; odświeżenie kontrolek co 5 s nie
+przełącza klienta na `syncing` i nie otwiera nowego watcha. Pierwsze `controls`
+po wznowieniu również nie potwierdza zakończenia catch-up.
+
 Regresje `tests/integration/thread-multiclient.test.ts` obejmują obie kolejności
 abort/sprzątanie, gRPC z koalescencją BFF obok telefonu Connect przez przypięty TLS,
 steer, pytanie dziecka do rodzica, anulowanie i wznowienie z dyskowej kopii desktopu.
@@ -960,6 +966,16 @@ tym samym `client_request_id` co 2 s. Kompozytor blokuje szkic i pokazuje „Sen
 lub „Still waiting for ‹computer›…”. Potwierdzenie domu obejmuje także `/goal`;
 odczyt wyniku nie tworzy drugiej wiadomości po końcu tury. Szczegóły limitów,
 trwałych potwierdzeń i lokalnego revision probe: [linked-computers.md](linked-computers.md).
+
+Web/desktop i mobile współdzielą `domain/composer-connection.ts`. Po pierwszym
+potwierdzeniu live krótka utrata połączenia pozostawia Send dostępne przez 1 s;
+powtarzane sygnały non-live nie przedłużają tego okna. Wysyłanie w tym czasie
+zachowuje niezmienne żądanie i czeka na rzeczywisty live przed każdą próbą.
+Stop pozostaje dostępny dla działającej tury także po wygaśnięciu tej tolerancji.
+Naciśnięcie podczas reconnect czeka na live i sprawdza, czy nadal działa ta sama
+tura; nie zatrzymuje kolejnej. Samo RPC InterruptThread nie jest odtwarzane przy
+nieznanym wyniku. Wyjście z wątku lub utrata sesji anuluje oczekiwanie.
+Archiwizacja, usunięcie, odmowa dostępu i niedostępny dom blokują akcje bez zwłoki.
 
 BFF dobiera budżet domyślny RPC: odczyty lokalne 10 s, odczyty kwalifikowane
 komputerem 15 s, pozostałe zapisy 35 s. Jawny limit danej operacji ma pierwszeństwo;

@@ -18,6 +18,7 @@ import { ThreadHistory } from "./history.svelte.ts";
 import { classifyFailure, safeFailureDetail } from "@canopy/domain";
 import { timestampMs, type Timestamp } from "@bufbuild/protobuf/wkt";
 import { isFinished, upsertSchedule } from "#lib/features/schedules/schedules.ts";
+import { ComposerConnection } from "@canopy/domain/composer-connection";
 
 import type { TimelineEntry, TimelineNotice, TurnResult } from "./thread-types.ts";
 
@@ -94,7 +95,15 @@ export class ThreadState {
   turnResults = $state.raw<ReadonlyMap<string, TurnResult>>(new Map());
   /** Latest token usage of the thread (usage_updated), live only; carries the context window. */
   usage = $state.raw<Usage | undefined>(undefined);
-  connection = $state<Connection>("connecting");
+  readonly composerConnection = new ComposerConnection();
+  #connection = $state<Connection>("connecting");
+  get connection() {
+    return this.#connection;
+  }
+  set connection(value: Connection) {
+    this.#connection = value;
+    this.composerConnection.update(value === "live");
+  }
   /** The snapshot arrived at least once. */
   loaded = $state(false);
   failure = $state<string | undefined>(undefined);
@@ -404,6 +413,7 @@ export class ThreadState {
 
     return () => {
       disconnect();
+      this.composerConnection.reset();
 
       if (this.#snapshot?.thread && this.#snapshot.cursor) threadCache.set(this.#snapshot);
     };

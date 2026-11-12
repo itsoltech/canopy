@@ -7,6 +7,7 @@ import { bodyJson } from "#lib/shared/json.ts";
 import { saveHistory } from "../desktop/history.ts";
 import type { ThreadState } from "./thread-state.svelte.ts";
 import { ThreadWatchRecovery, threadWatchMessage, threadSyncStatus } from "@canopy/domain/thread-watch-recovery";
+import { threadWatchReady } from "@canopy/domain/thread-watch-state";
 
 export class ThreadHistory {
   loading = $state(false);
@@ -60,7 +61,7 @@ export class ThreadHistory {
 
           if (decision.action === "smaller") this.#smaller = true;
           this.view.failure = threadWatchMessage(decision.reason);
-          this.view.connection = "error";
+          this.view.connection = decision.action === "stop" ? "error" : "reconnecting";
           console.warn("Thread watch failed", { code: failure.code, reason: decision.reason, action: decision.action });
 
           return decision.action !== "stop";
@@ -84,16 +85,13 @@ export class ThreadHistory {
           if (update.syncStatus?.reason) {
             this.view.connection = "error";
             this.view.failure = threadWatchMessage(update.syncStatus.reason, update.syncStatus.computerName);
-          } else if (
-            !update.syncing &&
-            (update.change.case === "snapshot" || (update.change.case === "batch" && update.change.value.caughtUp))
-          ) {
+          } else if (threadWatchReady(update) === true) {
             this.view.connection = "live";
             this.view.failure = undefined;
 
             if (update.change.case !== "batch") this.view.syncStatus = undefined;
             this.#recovery.advanced(snapshot?.syncCursor?.appliedSeq ?? 0n);
-          } else if (!this.view.failure && update.syncing) this.view.connection = "syncing";
+          } else if (!this.view.failure && threadWatchReady(update) === false) this.view.connection = "syncing";
         },
       });
     };
