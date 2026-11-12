@@ -15,12 +15,25 @@ export const Control = Schema.Struct({
     "restart",
     "attach",
     "mirror",
+    "memory-seed",
+    "memory-watch",
+    "memory-release",
+    "memory-gc",
+    "memory-reconnect",
+    "memory-caught",
+    "memory-corrupt",
+    "memory-failed",
+    "memory-repair",
+    "memory-grow",
+    "memory-title",
+    "memory-suppressed",
     "stop",
   ]),
   url: Schema.String,
   code: Schema.String,
   node: Schema.String,
   threads: Schema.Array(Schema.String),
+  count: Schema.Number,
 });
 
 export type Control = typeof Control.Type;
@@ -37,7 +50,7 @@ export const ProcessInfo = Schema.Struct({
 export const decodeInfo = Schema.decodeSync(Schema.fromJsonString(ProcessInfo));
 
 /** Child test processes retain the shared PostgreSQL descriptor and use only ephemeral listener ports. */
-export function syncProcess(role: "home" | "viewer" | "bff") {
+export function syncProcess(role: "home" | "viewer" | "bff", memory = false) {
   let id = 0;
   const pending = new Map<number, { resolve: (value: string) => void; reject: (cause: Error) => void }>();
   const directory = process.env["CANOPY_SYNC_PROFILE_DIR"];
@@ -49,12 +62,13 @@ export function syncProcess(role: "home" | "viewer" | "bff") {
     failReady = reject;
   });
 
-  const profile = directory
-    ? ["--cpu-prof", "--cpu-prof-md", `--cpu-prof-dir=${directory}`, `--cpu-prof-name=${role}.md`]
-    : [];
+  const profile =
+    directory && !memory
+      ? ["--cpu-prof", "--cpu-prof-md", `--cpu-prof-dir=${directory}`, `--cpu-prof-name=${role}.md`]
+      : [];
 
   const child = Bun.spawn([process.execPath, ...profile, join(import.meta.dir, "sync-process-entry.ts")], {
-    env: { ...process.env, CANOPY_SYNC_ROLE: role },
+    env: { ...process.env, CANOPY_SYNC_ROLE: role, ...(memory && { CANOPY_SYNC_MEMORY: "1" }) },
     stdout: "ignore",
     stderr: "inherit",
     ipc(message) {
@@ -71,7 +85,7 @@ export function syncProcess(role: "home" | "viewer" | "bff") {
       pending.delete(reply.id);
 
       if (reply.ok) request?.resolve(reply.payload);
-      else request?.reject(new Error(`Sync ${role} command failed`));
+      else request?.reject(new Error(`Sync ${role} command failed: ${reply.payload}`));
     },
   });
 
@@ -84,7 +98,7 @@ export function syncProcess(role: "home" | "viewer" | "bff") {
 
   const run = async (action: Control["action"], fields: Partial<Omit<Control, "id" | "action">> = {}) => {
     await ready;
-    const request = { id: ++id, action, url: "", code: "", node: "", threads: [], ...fields };
+    const request = { id: ++id, action, url: "", code: "", node: "", threads: [], count: 0, ...fields };
 
     return new Promise<string>((resolve, reject) => {
       pending.set(request.id, { resolve, reject });

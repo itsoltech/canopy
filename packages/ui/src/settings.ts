@@ -11,6 +11,13 @@ export interface SettingsSection {
 
 export const settingsSections: readonly SettingsSection[] = [
   {
+    href: "/settings/diagnostics",
+    label: "Diagnostics",
+    icon: "signal",
+    group: "Connections",
+    keywords: "sync progress remaining records errors failures linked computers",
+  },
+  {
     href: "/settings/general",
     label: "General",
     icon: "cog-6-tooth",

@@ -22,6 +22,7 @@ import "canopy/ui/v1/cli_import.proto";
 import "canopy/ui/v1/github.proto";
 
 service GatewayService {
+  rpc GetThreadSyncDiagnostics(ThreadSyncDiagnosticsRequest) returns (ThreadSyncDiagnostics);
   rpc GetGitHubRepositoryAccount(GitHubRepositoryAccountRequest) returns (GitHubRepositoryAccountResponse);
   rpc SetGitHubRepositoryAccount(SetGitHubRepositoryAccountRequest) returns (GitHubRepositoryAccountResponse);
   rpc ListThreadPullRequests(ThreadPullRequestsRequest) returns (ThreadPullRequestsResponse);
@@ -332,6 +333,31 @@ service GatewayService {
   rpc ContinueImportedThread(ContinueImportedThreadRequest) returns (GetThreadResponse);
   // Ustawienia i biblioteka ze skanu (stos B): lista z porównaniem do Canopy.
   rpc ListImportLibrary(ListImportLibraryRequest) returns (ListImportLibraryResponse);
+}
+
+message ThreadSyncDiagnosticsRequest {
+  string after = 1;
+  uint32 page_size = 2;
+}
+message ThreadSyncDiagnostics {
+  repeated ThreadSyncDiagnostic entries = 1;
+  string next = 2;
+  uint64 remaining = 3;
+  uint32 syncing_threads = 4;
+  uint32 failed_threads = 5;
+}
+message ThreadSyncDiagnostic {
+  string thread_id = 1;
+  string computer_name = 2;
+  uint64 applied_seq = 3;
+  uint64 head_seq = 4;
+  uint64 remaining = 5;
+  bool caught_up = 6;
+  string reason = 7;
+  uint32 code = 8;
+  bool retryable = 9;
+  uint32 frame_bytes = 10;
+  int64 observed_at_ms = 11;
 }
 
 // ---------- Model ----------

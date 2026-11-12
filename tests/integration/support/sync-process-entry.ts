@@ -16,7 +16,17 @@ import { SERVICE_TOKEN } from "./gateway.ts";
 
 async function main() {
   const role = process.env["CANOPY_SYNC_ROLE"];
-  const computer = role === "bff" ? undefined : await scenarioComputer();
+
+  const computer =
+    role === "bff"
+      ? undefined
+      : await scenarioComputer(false, process.env["CANOPY_SYNC_MEMORY"] === "1" ? 100 : undefined);
+
+  const memory =
+    process.env["CANOPY_SYNC_MEMORY"] === "1" && computer
+      ? new (await import("./sync-memory-scenario.ts")).SyncMemoryScenario(computer)
+      : undefined;
+
   const abort = new AbortController();
   const delay = monitorEventLoopDelay({ resolution: 10 });
   let start = process.cpuUsage();
@@ -130,13 +140,17 @@ async function main() {
         stop();
 
         return "";
+      default:
+        if (!memory) throw new Error("Memory scenario is not enabled");
+
+        return memory.execute(command);
     }
   }
 
   const receive = (command: Control) => {
     void execute(command).then(
       (payload) => process.send?.({ id: command.id, ok: true, payload }),
-      () => process.send?.({ id: command.id, ok: false, payload: "" }),
+      (cause) => process.send?.({ id: command.id, ok: false, payload: String(cause) }),
     );
   };
 
@@ -152,6 +166,7 @@ async function main() {
     abort.abort();
     delay.disable();
     await reading;
+    await memory?.release();
     unmount?.();
     await computer?.close();
     process.disconnect?.();

@@ -20,6 +20,7 @@ import { NetworkSettings } from "./NetworkSettings";
 import { DeviceSettings } from "./DeviceSettings";
 import { WorkerSettings } from "./WorkerSettings";
 import { ComputerSettings } from "./ComputerSettings";
+import { ThreadSyncDiagnostics } from "./ThreadSyncDiagnostics";
 import { ProxySettings } from "./ProxySettings";
 import { ConnectorSettings } from "./ConnectorSettings";
 import { GitHubSettings } from "./GitHubSettings";
@@ -75,6 +76,7 @@ export default function SettingsScreen() {
         {section === "mobile" && <DeviceSettings />}
         {section === "workers" && <WorkerSettings />}
         {section === "computers" && <ComputerSettings />}
+        {section === "diagnostics" && <ThreadSyncDiagnostics />}
         {section === "proxies" && <ProxySettings />}
         {section === "connectors" && <ConnectorSettings />}
         {section === "github" && <GitHubSettings />}

@@ -1,5 +1,11 @@
 # Połączone komputery
 
+Postęp luster jest dostępny w Settings → Diagnostics: zastosowany seq, head,
+liczba pozostałych rekordów i potwierdzenie zakończenia catch-up. Trwały błąd
+jednego wątku zachowuje kod klasy, kod RPC i rozmiar ramki; nie przechowuje treści
+ani tekstu wyjątku. Diagnostyka czyta wyłącznie metadane właściciela, w stronach
+do 100 wątków. Szczegóły kontraktu: [UI API](ui-api.md).
+
 Rozłączenie lokalnego workera zmienia dostępność workera, nie obecność komputera.
 Obecność partnera wynika z jego własnego łącza i heartbeatów. Zmiana metadanych
 workera może natomiast zwiększyć rewizję lustra i wywołać ponowną subskrypcję
