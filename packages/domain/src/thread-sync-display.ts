@@ -10,6 +10,16 @@ export function threadSyncProgress(status: Pick<ui.ThreadSyncStatus, "caughtUp" 
   return `${status.remaining} ${status.remaining === 1n ? "record" : "records"} to go`;
 }
 
+/** The header indicator stays empty once the thread is caught up; it only reports work or a problem. */
+export function threadSyncVisible(status: Pick<ui.ThreadSyncStatus, "caughtUp" | "reason">) {
+  return Boolean(status.reason) || !status.caughtUp;
+}
+
+/** Tooltip and accessibility label: the failure reason when paused, otherwise the progress. */
+export function threadSyncLabel(status: Pick<ui.ThreadSyncStatus, "caughtUp" | "remaining" | "reason">) {
+  return status.reason ? `Sync paused: ${threadSyncFailure(status.reason)}` : threadSyncProgress(status);
+}
+
 export function threadSyncCount(remaining: bigint) {
   return remaining >= 999_500_000_000_000n ? ">999T" : formatCount(remaining);
 }

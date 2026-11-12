@@ -1,6 +1,6 @@
 import { Text, View } from "react-native";
 import type { ui } from "@canopy/contracts";
-import { threadSyncProgress, threadSyncCount } from "@canopy/domain/thread-sync-display";
+import { threadSyncCount, threadSyncLabel, threadSyncVisible } from "@canopy/domain/thread-sync-display";
 import { Icon } from "../../ui/Icon";
 import { styles, useColors } from "../../ui/theme";
 
@@ -9,16 +9,18 @@ export function ThreadSyncProgress({ status }: { status?: ui.ThreadSyncStatus })
 
   return (
     <View style={{ width: 64, alignItems: "flex-end" }}>
-      {status && (
+      {status && threadSyncVisible(status) && (
         <View
           accessible
-          accessibilityLabel={threadSyncProgress(status)}
+          accessibilityLabel={threadSyncLabel(status)}
           style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
         >
-          <Icon name={status.reason ? "exclamation-triangle" : status.caughtUp ? "check" : "arrow-path"} />
-          <Text style={[styles.workMeta, { color: c.muted, fontVariant: ["tabular-nums"] }]}>
-            {threadSyncCount(status.remaining)}
-          </Text>
+          <Icon name={status.reason ? "exclamation-triangle" : "arrow-path"} />
+          {!status.reason && (
+            <Text style={[styles.workMeta, { color: c.muted, fontVariant: ["tabular-nums"] }]}>
+              {threadSyncCount(status.remaining)}
+            </Text>
+          )}
         </View>
       )}
     </View>
