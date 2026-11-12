@@ -54,6 +54,4 @@ export CANOPY_BENCH_GATEWAY_PORT=18192
 printf '%s\n' "Revision: $(cat "$task_output/head.txt")" "Evidence: $task_output" "Controller PID: $$"
 printf '%s\n' 'Order: AB / BA / AB / BA (A=stage 2 off, B=on; stage 1 on throughout).'
 printf '%s\n' 'Workload: 96 minutes; approximately 100 minutes with preflight and startup, longer after rejected pairs.'
-diagnostics_scope "${task_priority[@]}" taskset -c "${CANOPY_DIAGNOSTICS_DRIVER_CPU:-1}" bun scripts/bench/diagnostics.ts \
-  >"$task_output/results.jsonl" 2>"$task_output/stderr.log"
-bun scripts/bench/diagnostics-paired-report.ts "$task_output/results.jsonl" >"$task_output/paired-report.json"
+diagnostics_recording "$task_output" "${task_priority[@]}" taskset -c "${CANOPY_DIAGNOSTICS_DRIVER_CPU:-1}" bun scripts/bench/diagnostics.ts
