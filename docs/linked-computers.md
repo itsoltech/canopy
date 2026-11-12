@@ -797,7 +797,7 @@ nie zapisuje payloadu, nagłówków uwierzytelniania ani transportowego cause.
   feedzie `bots`. Zakończenie odczytu w tle oraz commit lustra powodują ponowny odczyt;
   commit oznacza też cache partnera do odświeżenia. Restart/aktualizacja A zachowuje lustro,
   a nowa subskrypcja klienta odczytuje listę bez czekania na nową wiadomość od bota.
-- `ListArchivedThreads` pozostaje lokalne (stronicowanie per komputer); archiwum partnera jest u niego.
+- `ListArchivedThreads` scala lokalne archiwum z widocznymi nagłówkami luster; licznik i stronicowanie obejmują wszystkie domy (szczegóły w sekcji panelu wątku).
 
 W etapie 2 wątki partnera są widoczne **tylko gdy jest połączony** i udostępnia wątki. Gdy zniknie,
 UI usuwa jego workery, projekty i wątki z list (lustra offline to etap 3). Otwarty wątek zostaje
@@ -812,8 +812,8 @@ a komputer wybiera się przez worker. Nowy wątek na workerze B używa rekordu p
 B zostaje właścicielem. Ekrany konfiguracji per komputer (workery, dostawcy, connectory,
 domyślne ustawienia wątków, harmonogramy) pokazują wyłącznie własne rzeczy (`ownWorkers`/`ownProjects`),
 bo konfiguracja wspólna to etap 4. Wyjątek: lista Settings → Projects pokazuje sumę projektów wszystkich
-komputerów z komputerami ich workspace'ów, a stronę ustawień ma tylko projekt z rekordem na tym komputerze. Harmonogramy wątków partnera są
-w tym etapie niedostępne.
+komputerów z komputerami ich workspace'ów, a stronę ustawień ma tylko projekt z rekordem na tym komputerze.
+Obecnie harmonogramy wątków partnera są dostępne przez dom, a panel zachowuje ich ostatni odczyt offline.
 
 ### Dowody
 
@@ -1448,7 +1448,7 @@ nieudostępnionej instancji u partnera, konflikty po edycjach offline rozstrzygn
 obu runtime'ów, wyłączenie i archiwizację, partnera bez capability oraz Unlink.
 `schema.test.ts` obejmuje migrację 0050 (kaskada przy usunięciu partnera). Bez testów UI.
 
-Odroczone po etapie 4: harmonogramy i sekrety wątków partnera (nadal per komputer), ustawienia
+Odroczone po etapie 4: sekrety wątków partnera (nadal per komputer), ustawienia
 projektu (domyślne wątku w projekcie), kompozytor i układ sidebara, scalanie pól wewnątrz jednego
 elementu (konflikt dotyczy całego elementu), dostępność CLI instancji na innym komputerze widoczna
 z tego komputera (UI pokazuje stan własnych workerów).

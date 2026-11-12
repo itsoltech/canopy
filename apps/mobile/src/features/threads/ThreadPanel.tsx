@@ -89,7 +89,9 @@ export function ThreadPanel({
         <>
           {stale && (
             <Text accessibilityLiveRegion="polite" style={[styles.meta, { color: c.muted }]}>
-              {home.reason || `Thread details on ${home.name} are unreachable.`} Showing last known details.
+              {panel.data?.unavailable
+                ? `Thread details are unavailable. Manage on ${home.name}.`
+                : `${home.reason || `Thread details on ${home.name} are unreachable.`} Showing last known details.`}
             </Text>
           )}
           <ThreadConnectors {...{ thread, panel }} disabled={stale} homeName={home.name} />
@@ -117,7 +119,10 @@ export function ThreadPanel({
           {snapshot && (
             <ThreadSchedules
               snapshot={snapshot}
-              schedules={stale ? (panel.data?.schedules ?? snapshot.schedules) : snapshot.schedules}
+              schedules={
+                stale || !snapshot.schedules.length ? (panel.data?.schedules ?? snapshot.schedules) : snapshot.schedules
+              }
+              unavailable={!!panel.data?.unavailable}
               disabled={stale}
               onClose={onClose}
             />
@@ -139,11 +144,13 @@ export function ThreadPanel({
 function ThreadSchedules({
   snapshot,
   schedules,
+  unavailable,
   disabled,
   onClose,
 }: {
   snapshot: ui.ThreadSnapshot;
   schedules: readonly ui.Schedule[];
+  unavailable: boolean;
   disabled: boolean;
   onClose: () => void;
 }) {
@@ -155,7 +162,9 @@ function ThreadSchedules({
       {schedules.length ? (
         schedules.map((s) => <PanelRow key={s.id} title={s.name || "Scheduled task"} value={s.status} icon="clock" />)
       ) : (
-        <Text style={[styles.meta, { color: c.muted }]}>No scheduled tasks</Text>
+        <Text style={[styles.meta, { color: c.muted }]}>
+          {unavailable ? "Connect to load scheduled tasks" : "No scheduled tasks"}
+        </Text>
       )}
       <Button
         title="Manage thread schedules"

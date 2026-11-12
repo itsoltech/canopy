@@ -77,8 +77,8 @@
   const panel = useThreadPanel(() => thread.id);
   const homeName = $derived(overview.machine(thread.nodeId) || "this computer");
   const away = $derived(thread.nodeId ? awayReason(overview.computer(thread.nodeId)) : undefined);
-  const stale = $derived(!!away || !!panel.data?.stale);
-  const panelSchedules = $derived(stale ? (panel.data?.schedules ?? schedules) : schedules);
+  const stale = $derived(!!away || !!panel.data?.stale || !!panel.error);
+  const panelSchedules = $derived(stale || !schedules.length ? (panel.data?.schedules ?? schedules) : schedules);
 
   // A forked main thread ("Fork from here") is in its own tree: its source is found among the project's threads.
   const source = $derived(
@@ -96,7 +96,8 @@
 >
   <ThreadTitleActions {thread} compact class={windowTitlebar ? "desktop:hidden" : undefined} />
   {#if stale}<p role="status" class="px-3 py-2 text-sm/5 text-zinc-500 dark:text-zinc-400">
-      {away || `Thread details on ${homeName} are unreachable.`} Showing last known details.
+      {#if panel.data?.unavailable}Thread details are unavailable. Manage on {homeName}.
+      {:else}{away || `Thread details on ${homeName} are unreachable.`} Showing last known details.{/if}
     </p>{/if}
   <ThreadConnectors {thread} {panel} {homeName} disabled={stale} />
   <ThreadPlacement {thread} {worker} {onworktree} />
@@ -144,7 +145,7 @@
                 disabled={stale}
                 onchange={(updated) => {
                   onschedulechange?.(updated);
-                  void panel.reload();
+                  void panel.reload().catch(() => undefined);
                 }}
               />
             </li>
