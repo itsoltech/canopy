@@ -14,7 +14,7 @@ describe("bot capability policy", () => {
       PLATFORM_TOOLS.filter((t) => /file/.test(t.name))
         .map((t) => t.name)
         .sort(),
-    ).toEqual(["delete_file", "list_files", "read_file", "write_file"]);
+    ).toEqual(["delete_file", "download_file", "list_files", "read_file", "write_file"]);
     expect(
       needsApproval(
         PLATFORM_TOOLS.find((t) => t.name === "archive_thread")!,

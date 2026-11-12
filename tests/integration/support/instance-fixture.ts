@@ -35,7 +35,7 @@ function isolateProviderEnv(): () => void {
 export async function startInstanceFixture(
   bots = false,
   gatewayOptions: Parameters<typeof startTestGateway>[0] = {},
-  workerOptions: Pick<WorkerHostOptions, "shellTimeoutMs"> = {},
+  workerOptions: Pick<WorkerHostOptions, "shellTimeoutMs" | "botDownloads"> = {},
   shellCapability = true,
   steerAttachments = true,
 ) {
@@ -91,6 +91,7 @@ export async function startInstanceFixture(
     "bot_harness_v1",
     "bot_web_v1",
     "bot_workspace_v1",
+    "bot_outgoing_files_v1",
     "bot_images_v1",
     "bot_files_v1",
     "attachments",

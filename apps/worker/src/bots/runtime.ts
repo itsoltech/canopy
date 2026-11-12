@@ -24,6 +24,7 @@ import { botFailureEvent } from "./failures.ts";
 import { providersOf } from "../providers/profiles.ts";
 import { botImages } from "./images.ts";
 import { BotFileError, BotWorkspace, cleanupBotWorkspaces } from "./workspace.ts";
+import { BotFileOperations } from "./file-operations.ts";
 
 function botProvider(provider: Provider) {
   return Match.value(provider).pipe(
@@ -44,7 +45,10 @@ export class BotTurns {
     { abort: AbortController; done: Promise<void>; workspace?: BotWorkspace; files?: boolean; busy?: boolean }
   >();
   readonly #cleanup: ReturnType<typeof setInterval>;
+  readonly #files: BotFileOperations;
   constructor(readonly ctx: HostContext) {
+    this.#files = new BotFileOperations(ctx.state.options.botDownloads);
+
     const cleanup = () => {
       try {
         cleanupBotWorkspaces(ctx.state.options.dataDir);
@@ -65,30 +69,7 @@ export class BotTurns {
     turn.busy = true;
 
     try {
-      const workspace = turn.workspace;
-      let result;
-
-      switch (input.operation) {
-        case "list":
-          result = workspace.list();
-          break;
-        case "read":
-          result = {
-            name: input.path,
-            text: new TextDecoder("utf-8", { fatal: true }).decode(await workspace.read(input.path, 100_000)),
-          };
-          break;
-        case "write":
-          result = workspace.write(input.path, Buffer.from(input.text));
-          break;
-        case "delete":
-          result = workspace.delete(input.path);
-          break;
-        default:
-          throw new BotFileError("Unknown file operation.");
-      }
-
-      return { botFile: { resultJson: JSON.stringify(result) } };
+      return await this.#files.execute(turn.workspace, input, turn.abort.signal);
     } catch (error) {
       throw new CommandError(
         "BOT_FILE_REFUSED",
@@ -245,6 +226,7 @@ export class BotTurns {
       )
       .catch(() => this.ctx.ops.log("bots: harness journal failed"))
       .finally(() => {
+        this.#files.drop(input.botId);
         release();
         abort.abort();
         bus.close();
