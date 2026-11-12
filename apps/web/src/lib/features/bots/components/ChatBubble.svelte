@@ -180,7 +180,11 @@
       {/each}
     </ul>
   {/if}
-  {#if message.attachments?.length}<MessageAttachments attachments={message.attachments} class="w-full" />{/if}
+  {#if message.attachments?.length}<MessageAttachments
+      attachments={message.attachments}
+      align={end ? "end" : "start"}
+      class="w-full"
+    />{/if}
   {#if message.delivery}
     <p
       class={[

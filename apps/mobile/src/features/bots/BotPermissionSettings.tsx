@@ -5,6 +5,7 @@ import { BOT_APPROVAL_OPTIONS, BOT_THREAD_PERMISSION_OPTIONS } from "@canopy/dom
 import { PickerSheet, SelectField } from "../../ui/Picker";
 import { styles, useColors } from "../../ui/theme";
 import { BotApprovalRules } from "./BotApprovalRules";
+import { BotCapabilitySettings } from "./BotCapabilitySettings";
 import { pickPermission } from "../threads/permissions";
 
 export function BotPermissionSettings({
@@ -32,6 +33,10 @@ export function BotPermissionSettings({
       <Text style={[styles.heading, { color: c.text }]}>Permissions</Text>
       <Text style={[styles.meta, { color: c.muted }]}>
         Protected actions and changes to the bot’s model or permissions always ask first.
+      </Text>
+      <BotCapabilitySettings config={config} onChange={onChange} disabled={disabled} />
+      <Text style={[styles.meta, { color: c.muted }]}>
+        Files stay separate from your projects. Downloads require Files. Connections keep their own permissions.
       </Text>
       <SelectField
         label="Ask for approval"

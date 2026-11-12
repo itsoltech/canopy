@@ -30,6 +30,7 @@
   import { useBotHome } from "../home.svelte.ts";
   import { BOT_APPROVAL_OPTIONS, BOT_THREAD_PERMISSION_OPTIONS } from "@canopy/domain/bot-chat";
   import BotApprovalRules from "./BotApprovalRules.svelte";
+  import BotCapabilitySettings from "./BotCapabilitySettings.svelte";
   import FullAccessConfirm from "#lib/features/threads/components/FullAccessConfirm.svelte";
 
   let {
@@ -61,6 +62,8 @@
   let modelChanged = $state(false);
   let policy = $state("safe");
   let threadPermission = $state("user_default");
+  let webAccess = $state(true);
+  let files = $state(true);
   let confirmAccess = $state<() => void>();
   let busy = $state(false);
   let error = $state("");
@@ -82,6 +85,8 @@
         option = instances.find((i) => i.id === instanceId)?.models.find((m) => m.model === c.model);
         effort = c.effort || undefined;
         policy = c.approvalPolicy || "safe";
+        webAccess = c.webAccess !== false;
+        files = c.files !== false;
         threadPermission =
           c.threadPermission && c.threadPermission !== "same_bot" ? c.threadPermission : "user_default";
         error = "";
@@ -112,6 +117,8 @@
       workerId,
       approvalPolicy: policy,
       threadPermission,
+      webAccess,
+      files,
       ...(modelChanged &&
         provider &&
         option && {
@@ -201,6 +208,7 @@
           title="Permissions"
           description="Protected actions and changes to the bot’s model or permissions always ask first."
         >
+          <BotCapabilitySettings bind:webAccess bind:files disabled={busy} />
           <Field label="Ask for approval"
             ><Select bind:value={policy} disabled={busy} options={BOT_APPROVAL_OPTIONS} /></Field
           >

@@ -11,7 +11,11 @@
    * The files of a message in the chat: images as thumbnails (tap for the full image), other files as chips with
    * name, size and type that download the file. SVG and other markup are files, never shown inline.
    */
-  let { attachments, class: className }: { attachments: readonly ui.Attachment[]; class?: ClassValue } = $props();
+  let {
+    attachments,
+    align = "end",
+    class: className,
+  }: { attachments: readonly ui.Attachment[]; align?: "start" | "end"; class?: ClassValue } = $props();
 
   const url = (a: ui.Attachment, variant?: "thumbnail" | "download") =>
     `/api/attachments/${encodeURIComponent(a.id)}${variant ? `?${variant}` : ""}`;
@@ -20,9 +24,13 @@
   const files = $derived(attachments.filter((a) => a.kind !== "image"));
 </script>
 
-<div class={["flex flex-col items-end gap-2", className]}>
+<div class={["flex flex-col gap-2", align === "end" ? "items-end" : "items-start", className]}>
   {#if images.length > 0}
-    <ul role="list" class="flex max-w-[min(85%,42rem)] flex-wrap justify-end gap-2" aria-label="Images">
+    <ul
+      role="list"
+      class={["flex max-w-[min(85%,42rem)] flex-wrap gap-2", align === "end" && "justify-end"]}
+      aria-label="Images"
+    >
       {#each images as image (image.id)}
         <li>
           <FileAvailability entityId={image.id} name={image.name}>
@@ -49,7 +57,11 @@
     </ul>
   {/if}
   {#if files.length > 0}
-    <ul role="list" class="flex max-w-[min(85%,42rem)] flex-wrap justify-end gap-2" aria-label="Files">
+    <ul
+      role="list"
+      class={["flex max-w-[min(85%,42rem)] flex-wrap gap-2", align === "end" && "justify-end"]}
+      aria-label="Files"
+    >
       {#each files as file (file.id)}
         <li class="min-w-0">
           <FileAvailability entityId={file.id} name={file.name}>

@@ -12,6 +12,8 @@
     { label: "Model", value: proposal.model },
     { label: "Effort", value: proposal.effort || "Model default" },
     { label: "Instance", value: `${proposal.provider} · ${proposal.instance}` },
+    { label: "Web access", value: proposal.webAccess ? "On" : "Off" },
+    { label: "Files", value: proposal.files ? "On" : "Off" },
     {
       label: "Approval",
       value:

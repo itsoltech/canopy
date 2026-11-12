@@ -194,6 +194,8 @@ export function approvalView(a: bots.BotApproval): ApprovalView {
             proposal.provider === Provider.CLAUDE ? "Claude" : proposal.provider === Provider.GROK ? "Grok" : "Codex",
           instance: proposal.providerInstance,
           approvalPolicy: proposal.approvalPolicy,
+          webAccess: proposal.webAccess !== false,
+          files: proposal.files !== false,
           instructions: proposal.instructions,
         }
       : undefined,
