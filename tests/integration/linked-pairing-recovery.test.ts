@@ -36,6 +36,21 @@ describe.skipIf(!dockerAvailable)("pairing recovery over gateway TLS links", () 
       updates: async () => create(ui.UpdatesSnapshotSchema),
     });
 
+    const start = computers.start.bind(computers);
+
+    computers.start = async () => {
+      // The shared fixture starts the runtime before its listener. Its first address
+      // announcement would abort startup dials; this suite has no heartbeat retry for 60s.
+      // Keep startup quiescent so each explicit tick runs after the listener is ready.
+      computers[computersState].paused = true;
+
+      try {
+        await start();
+      } finally {
+        computers[computersState].paused = false;
+      }
+    };
+
     gateway.core.computers = computers;
     gateway.core.network = computers.options.network;
 
@@ -58,6 +73,7 @@ describe.skipIf(!dockerAvailable)("pairing recovery over gateway TLS links", () 
     la[computersState].retry.clear();
     await computersTick(la);
     await online();
+    await online(sb, la.hello().nodeId);
   }
 
   async function stopB() {
@@ -123,6 +139,7 @@ describe.skipIf(!dockerAvailable)("pairing recovery over gateway TLS links", () 
     const invitation = await lb.createPairing();
     await la.pair(address, invitation.code);
     await online();
+    await online(sb, la.hello().nodeId);
   }, 30_000);
 
   afterEach(async () => {
@@ -271,11 +288,8 @@ describe.skipIf(!dockerAvailable)("pairing recovery over gateway TLS links", () 
     };
 
     try {
-      // Start the listener before B dials; its initial address announcement retires startup dials.
-      // Then force B -> A, so A can commit connected while B is held processing A's welcome.
-      await sb.query("DELETE FROM computer_routes WHERE owner_user_id=$1::uuid", [sb.owner]);
+      // Force B -> A, so A can commit connected while B is held processing A's welcome.
       await lb.start();
-      await new Routes(sb).add(la.hello().nodeId, [la.addresses[0]!], "announced");
       lb.reads.connected(la.hello().nodeId);
       lb[computersState].retry.clear();
       await computersTick(lb);
@@ -333,7 +347,32 @@ describe.skipIf(!dockerAvailable)("pairing recovery over gateway TLS links", () 
     await la.close();
     la = computer(a, new ComputerStore(a.runtime, a.userId, a.secretsKey));
     await la.start();
-    await restoreB();
+    lb = computer(b, sb, port);
+    const entered = Promise.withResolvers<void>();
+    const resume = Promise.withResolvers<void>();
+    const startNetwork = lb.options.network.start.bind(lb.options.network);
+
+    lb.options.network.start = async () => {
+      // Hold the exact window that used to launch and then abort a startup dial.
+      entered.resolve();
+      await resume.promise;
+      await startNetwork();
+    };
+
+    const starting = lb.start();
+
+    try {
+      await entered.promise;
+      expect(lb[computersState].dialing.size).toBe(0);
+      expect(lb[computersState].active.size).toBe(0);
+      expect((await peer()).status).toBe("pairing_required");
+    } finally {
+      resume.resolve();
+      await starting;
+      lb.options.network.start = startNetwork;
+    }
+
+    await reconnect();
     expect(await peer()).toMatchObject({ status: "connected", fingerprint: pinned.fingerprint });
   }, 25_000);
 
