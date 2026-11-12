@@ -44,10 +44,10 @@ describe.skipIf(!dockerAvailable)("pairing recovery over gateway TLS links", () 
 
   const peer = async () => (await sa.peers())[0]!;
 
-  async function online() {
+  async function online(store = sa, nodeId = lb.hello().nodeId) {
     expect(
       await eventually(
-        async () => (await peer()).status,
+        async () => (await store.peer(nodeId))?.status,
         (value) => value === "connected",
       ),
     ).toBe("connected");
@@ -255,8 +255,47 @@ describe.skipIf(!dockerAvailable)("pairing recovery over gateway TLS links", () 
         appVersion: "0.2.0-nightly.133",
         capabilities: ["presence", "unlink", LAN_ROUTES],
       });
-    await lb.start();
-    await reconnect();
+
+    const previousVersion = (await sb.peers())[0]!.app_version;
+    const entered = Promise.withResolvers<void>();
+    const resume = Promise.withResolvers<void>();
+    const query = sb.query.bind(sb);
+    // Force the CI ordering: B has received A's hello, but has not committed its metadata yet.
+    sb.query = async <A extends object>(...args: Parameters<ComputerStore["query"]>) => {
+      if (args[0].includes("app_version=$4") && args[1]?.[3] === "0.2.0-nightly.137") {
+        entered.resolve();
+        await resume.promise;
+      }
+
+      return query<A>(...args);
+    };
+
+    try {
+      // Start the listener before B dials; its initial address announcement retires startup dials.
+      // Then force B -> A, so A can commit connected while B is held processing A's welcome.
+      await sb.query("DELETE FROM computer_routes WHERE owner_user_id=$1::uuid", [sb.owner]);
+      await lb.start();
+      await new Routes(sb).add(la.hello().nodeId, [la.addresses[0]!], "announced");
+      lb.reads.connected(la.hello().nodeId);
+      lb[computersState].retry.clear();
+      await computersTick(lb);
+      await entered.promise;
+      expect(
+        await eventually(
+          async () => (await peer()).status,
+          (value) => value === "connected",
+        ),
+      ).toBe("connected");
+      // A's connected status is not a barrier for B: its pairing-time version is still legitimate here.
+      expect((await sb.peers())[0]).toMatchObject({ status: "unreachable", app_version: previousVersion });
+    } finally {
+      resume.resolve();
+      sb.query = query;
+    }
+
+    await online();
+    // A's connected status does not imply B processed its welcome. B commits metadata before its own status.
+    await online(sb, la.hello().nodeId);
     expect(await peer()).toMatchObject({
       status: "connected",
       app_version: "0.2.0-nightly.133",
