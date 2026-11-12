@@ -72,12 +72,12 @@
       active={section}
       attention={{ threads: threadsAttention, bots: botsAttention }}
       counts={{ bots: botsUnread }}
-      class="px-3 pb-2"
+      class="sidebar-gutter pb-2"
     />{/if}
 
-  <div class="flex items-center gap-1 px-3 pb-2">
+  <div class="sidebar-inset flex items-center gap-1 pb-2">
     <label
-      class="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 py-2 text-zinc-500 has-focus-visible:outline-2 has-focus-visible:outline-brand-500 sm:py-1.5 dark:text-zinc-400"
+      class="sidebar-row-padding flex min-w-0 flex-1 items-center gap-2 rounded-lg py-2 text-zinc-500 has-focus-visible:outline-2 has-focus-visible:outline-brand-500 sm:py-1.5 dark:text-zinc-400"
     >
       <Icon name="magnifying-glass" class="fill-zinc-400 dark:fill-zinc-500" />
       <span class="sr-only">Search {section === "threads" ? "threads" : "bots"}</span>
@@ -114,7 +114,7 @@
   </div>
 
   <nav
-    class="min-h-0 flex-1 scroll-stable-both overflow-y-auto px-2 pb-3"
+    class="sidebar-inset min-h-0 flex-1 scroll-stable overflow-y-auto pb-3"
     aria-label={section === "threads" ? "Threads" : "Bots"}
   >
     {#if section === "threads"}
@@ -124,7 +124,7 @@
     {/if}
   </nav>
 
-  <div class="flex shrink-0 items-center gap-1 border-t border-zinc-950/5 px-2 py-2 dark:border-white/5">
+  <div class="sidebar-inset flex shrink-0 items-center gap-1 border-t border-zinc-950/5 py-2 dark:border-white/5">
     <a
       href="/settings"
       aria-current={settingsActive ? "page" : undefined}

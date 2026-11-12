@@ -19,7 +19,9 @@
   } = $props();
 </script>
 
-<span class={["sidebar-quick-archive absolute flex size-3.5 items-center justify-center", className]}>
+<span
+  class={["sidebar-quick-archive sidebar-swap-action absolute flex size-3.5 items-center justify-center", className]}
+>
   <IconButton
     icon={archived ? "arrow-uturn-left" : "archive-box"}
     {label}

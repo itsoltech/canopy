@@ -52,7 +52,7 @@
   {current}
   quickArchive
   needsAttention={needsYou(thread) || subagentsNeedingInput.length > 0}
-  class="grid gap-0.5 rounded-xl px-3 py-2"
+  class="sidebar-row-padding grid gap-0.5 rounded-xl py-2"
 >
   <span class="flex min-w-0 items-center gap-2">
     {#if away}
@@ -110,7 +110,7 @@
         />{/if}
       <span class="flex size-3.5 shrink-0 items-center justify-center">
         {#if provider}<span
-            class="sidebar-resting-mark flex"
+            class="sidebar-swap-resting flex"
             title={thread.providerProfileId ? `${providerName} · ${thread.providerProfileId}` : providerName}
             ><ProviderIcon {provider} label={providerName} size="sm" opacity={threadRowMarks.providerOpacity} /></span
           >{/if}

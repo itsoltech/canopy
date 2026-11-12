@@ -23,7 +23,7 @@
     {current}
     compact
     quickArchive
-    class="flex h-10 w-full min-w-0 items-center gap-2 rounded-lg px-3 sm:h-9 pointer-coarse:h-12"
+    class="sidebar-row-padding flex h-10 w-full min-w-0 items-center gap-2 rounded-lg sm:h-9 pointer-coarse:h-12"
   >
     <ProjectMark
       name={overview.project(thread.projectId)?.name ?? "?"}
@@ -37,7 +37,7 @@
     <time
       datetime={isoDateTime(when)}
       title={formatDateTime(when)}
-      class="w-16 shrink-0 truncate text-right text-sm/5 text-zinc-500 tabular-nums sm:text-xs/4.5 dark:text-zinc-400 pointer-fine:group-focus-within/row:invisible pointer-fine:group-hover/row:invisible"
+      class="sidebar-swap-resting w-16 shrink-0 truncate text-right text-sm/5 text-zinc-500 tabular-nums sm:text-xs/4.5 dark:text-zinc-400"
       >{formatAge(when, clock.now)}</time
     >
   </SidebarThreadLink>

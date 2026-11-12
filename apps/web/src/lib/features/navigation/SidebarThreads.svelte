@@ -122,7 +122,7 @@
 
 <div class={["flex min-h-full flex-col", className]}>
   {#if filtered.roots.length === 0}
-    <div class="grid justify-items-start gap-2 px-3 py-2">
+    <div class="sidebar-row-padding grid justify-items-start gap-2 py-2">
       <p class="text-sm/6 text-pretty text-zinc-500 dark:text-zinc-400">
         {#if settings.sidebar.projectIds.length}No threads in the selected projects.{:else if query}No thread matches “{query}”.{:else if overview.connection === "unavailable"}Threads
           appear when the gateway connects.{:else}No threads yet. Select New thread above to start one.{/if}
@@ -165,7 +165,9 @@
               onclick={() => (workingOpen = !workingOpen)}
               icon={workingOpen ? "chevron-down" : "chevron-right"}>{entry.heading}</Button
             >
-          {:else if entry}<h2 class="px-3 pt-3 pb-1 text-sm font-medium text-zinc-500 sm:text-xs dark:text-zinc-400">
+          {:else if entry}<h2
+              class="sidebar-row-padding pt-3 pb-1 text-sm font-medium text-zinc-500 sm:text-xs dark:text-zinc-400"
+            >
               {entry.heading}
             </h2>{/if}
         </li>

@@ -1,3 +1,21 @@
+:root {
+  --sidebar-gutter: 0.75rem;
+  --sidebar-row-inset: 0.25rem;
+  --sidebar-row-padding: calc(var(--sidebar-gutter) - var(--sidebar-row-inset));
+}
+
+.sidebar-gutter {
+  padding-inline: var(--sidebar-gutter);
+}
+
+.sidebar-inset {
+  padding-inline: var(--sidebar-row-inset);
+}
+
+.sidebar-row-padding {
+  padding-inline: var(--sidebar-row-padding);
+}
+
 /* Sidebar controls are one step above compact chrome; overlays keep their own scope. */
 .sidebar-scale {
   --text-base: var(--type-touch);
@@ -71,8 +89,9 @@
   line-height: inherit;
 }
 
-/* The provider/unread mark and the quick action share a reserved slot. Hover never updates list state. */
-.sidebar-quick-archive {
+/* Shared by time/actions and provider/archive (unread/archive in Bots). The resting content reserves
+   each slot; actions float above it. Hover never updates list state. */
+.sidebar-swap-action {
   visibility: hidden;
   pointer-events: none;
   opacity: 0;
@@ -86,8 +105,8 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .sidebar-quick-archive,
-  .sidebar-resting-mark {
+  .sidebar-swap-action,
+  .sidebar-swap-resting {
     transition:
       opacity var(--duration-fast) var(--ease-in-out),
       scale var(--duration-fast) var(--ease-in-out),
@@ -95,7 +114,7 @@
       visibility 0s linear var(--duration-fast);
   }
 
-  .sidebar-action-row:is(:hover, :focus-within) .sidebar-quick-archive {
+  .sidebar-action-row:is(:hover, :focus-within, [data-actions-open]) .sidebar-swap-action {
     visibility: visible;
     pointer-events: auto;
     opacity: 1;
@@ -104,7 +123,8 @@
     transition-delay: 0s;
   }
 
-  .sidebar-action-row:is(:hover, :focus-within) .sidebar-resting-mark {
+  .sidebar-action-row:is(:hover, :focus-within, [data-actions-open]) .sidebar-swap-resting {
+    pointer-events: none;
     opacity: 0;
     scale: var(--scale-large);
     filter: blur(var(--blur-small));
@@ -112,8 +132,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sidebar-quick-archive,
-  .sidebar-resting-mark {
+  .sidebar-swap-action,
+  .sidebar-swap-resting {
     transition: none !important;
   }
 }

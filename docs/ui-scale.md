@@ -161,6 +161,16 @@ natywne działanie przeglądarki na zaznaczalnych obszarach.
   z inicjałami 10 px, znak aktywności slot 20 px i ikonę 18 px (boczny 16 px), avatar bota 44 px.
   Status wątku ma stały slot 96 px, czas bota 64 px, a licznik nieprzeczytanych 28 px;
   zmiany stanu nie przesuwają tekstu. Wartości pozostają w `rem`.
+- Sidebar web/desktop używa wspólnego guttera `--sidebar-gutter` (12 px): wyrównuje
+  treść wierszy, nagłówki grup, ikonę wyszukiwania i ikony dolnego paska. Tło wiersza
+  ma inset `--sidebar-row-inset` (4 px), a padding wiersza to różnica tych tokenów
+  (8 px). Wyszukiwarka i dolny pasek korzystają z tego samego insetu. Lista rezerwuje
+  scrollbar tylko po prawej, bez dodatkowego pustego guttera po lewej.
+  Wspólne klasy `sidebar-swap-resting` / `sidebar-swap-action` zamieniają status/czas
+  na „…” oraz znak dostawcy/licznik na Archive. Oba sloty używają tego samego
+  przenikania, skali i rozmycia (`--duration-fast`, `--ease-in-out`, `--scale-large`,
+  `--blur-small`), bez opóźnienia ruchu w obie strony. Hover, fokus wewnątrz wiersza
+  i otwarte menu utrzymują ten sam stan. Ograniczenie ruchu wyłącza przejścia.
 - Mobile stosuje lokalnie kolejny stopień: tytuł 16 dp (linia 24), podpis 14 dp
   (linia 20), wiek i licznik bota 13 dp (linia 18), padding 8 dp i odstęp linii 2 dp.
   Typografia uwzględnia font i Interface size urządzenia. Znak projektu ma 20 dp,
@@ -182,5 +192,5 @@ natywne działanie przeglądarki na zaznaczalnych obszarach.
   insetami wierszy; zewnętrzny popover nie dodaje guttera. Tło panelu obejmuje gutter,
   a lepkie nagłówki i stopki pozostają przy krawędzi przewijanego obszaru.
   Paski nakładkowe nie rezerwują miejsca.
-  Duże obszary używają `scroll-stable-both` (`stable both-edges`) do symetrycznych insetów
-  wierszy sidebara i kart panelu szczegółów wątku. Pozostałe duże obszary mają gutter na końcu.
+  Panel szczegółów wątku używa `scroll-stable-both` (`stable both-edges`) do symetrycznych
+  insetów kart. Sidebar i pozostałe duże obszary mają gutter na końcu.
