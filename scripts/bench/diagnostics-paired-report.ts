@@ -61,16 +61,15 @@ for (const line of (await Bun.file(file).text()).split("\n")) {
 
 const accepted = ends.filter((row) => row.accepted);
 const deltas: PairedDelta[] = [];
+const phases = Phase.literals.filter((phase) => rows.some((row) => row.phase === phase));
 
 for (const end of accepted) {
   const measurements = rows.filter((row) => row.series === end.pair && row.attempt === end.attempt);
 
-  for (const phase of Phase.literals) {
+  for (const phase of phases) {
     const sides = measurements.filter((row) => row.phase === phase);
     const a = sides.find((row) => !(row.slotOn ?? row.on));
     const b = sides.find((row) => row.slotOn ?? row.on);
-
-    if (!sides.length && (phase === "report" || phase === "log_export")) continue;
 
     if (sides.length !== 2 || !a || !b) throw new Error("Accepted pair lacks exactly one A and B per phase");
 
