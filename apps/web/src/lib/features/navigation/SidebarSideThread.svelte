@@ -35,7 +35,7 @@
   {current}
   compact
   class={[
-    "flex min-h-10 min-w-0 items-center gap-2 rounded-lg py-1.5 pr-3 pl-2 sm:min-h-9 pointer-coarse:min-h-12",
+    "sidebar-row-padding flex min-h-10 min-w-0 items-center gap-2 rounded-lg py-1.5 sm:min-h-9 pointer-coarse:min-h-12",
     thread.status === "archived" && "opacity-60",
     className,
   ]}
@@ -66,7 +66,7 @@
   {#if previous && when}<time
       datetime={isoDateTime(when)}
       title={formatDateTime(when)}
-      class="w-24 shrink-0 truncate text-right text-sm/5 text-zinc-500 tabular-nums sm:text-xs/4.5 dark:text-zinc-400"
+      class="sidebar-swap-resting w-24 shrink-0 truncate text-right text-sm/5 text-zinc-500 tabular-nums sm:text-xs/4.5 dark:text-zinc-400"
       >{formatRelative(when, clock.now)}</time
     >
   {:else}<ThreadGoalMark {thread} /><SidebarThreadStatus {thread} />{/if}

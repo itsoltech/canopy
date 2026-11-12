@@ -93,9 +93,10 @@ filtr projektu, kopiowanie, ustawienia, archiwizacja i usunięcie. Odpowiednie a
 
 Na web/desktop najechanie na główny wiersz lub fokus wewnątrz niego zamienia znak dostawcy
 w prawym dolnym rogu na przycisk „Archive”. Slot zachowuje rozmiar i pozycję, więc podpis
-komputera i katalogu nadal się ucina bez przesunięć. Przenikanie ikon używa tokenów ruchu;
-przy ograniczeniu ruchu zamiana jest natychmiastowa. W kompaktowym archiwum „Unarchive”
-zajmuje zarezerwowane miejsce obok niezmienionego menu „…”. Skrót nie otwiera wątku,
+komputera i katalogu nadal się ucina bez przesunięć. Zamiana statusu/czasu na „…” używa
+tych samych klas i tokenów ruchu co znak dostawcy/Archive, w obu kierunkach i bez opóźnienia.
+Otwarte menu utrzymuje oba przyciski widoczne; przy ograniczeniu ruchu zamiana jest natychmiastowa.
+W kompaktowym archiwum „Unarchive” zajmuje zarezerwowane miejsce obok menu „…”. Skrót nie otwiera wątku,
 respektuje te same potwierdzenia i ograniczenia dostępności co menu, a po powodzeniu oddaje
 fokus następnemu wierszowi (ostatni — poprzedniemu; pusta lista — wyszukiwaniu).
 Na ekranach bez hovera i z grubym wskaźnikiem skrót jest ukryty; menu pozostaje dostępne.

@@ -70,6 +70,8 @@
       {/each}
     </ul>
   {:else if q}
-    <p class="px-3 py-2 text-sm/6 text-pretty text-zinc-500 dark:text-zinc-400">No bot or chat matches “{query}”.</p>
+    <p class="sidebar-row-padding py-2 text-sm/6 text-pretty text-zinc-500 dark:text-zinc-400">
+      No bot or chat matches “{query}”.
+    </p>
   {/if}
 </div>

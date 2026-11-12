@@ -8,7 +8,7 @@
 </script>
 
 {#if query.trim()}
-  <p class={["px-3 py-2 text-sm/6 text-pretty text-zinc-500 dark:text-zinc-400", className]}>
+  <p class={["sidebar-row-padding py-2 text-sm/6 text-pretty text-zinc-500 dark:text-zinc-400", className]}>
     No bots yet, so nobody here answers to “{query}”.
   </p>
 {:else}

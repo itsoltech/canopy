@@ -42,7 +42,9 @@
   $effect(() => botList.use());
 </script>
 
-{#if botList.error}<p role="alert" class="px-3 py-2 text-sm/6 text-rose-600 dark:text-rose-400">{botList.error}</p>{/if}
+{#if botList.error}<p role="alert" class="sidebar-row-padding py-2 text-sm/6 text-rose-600 dark:text-rose-400">
+    {botList.error}
+  </p>{/if}
 {#if conversations.length}
   <BotsNav
     {conversations}
@@ -67,7 +69,7 @@
     }}
   >
     <summary
-      class="flex cursor-pointer list-none items-center gap-2 rounded-lg px-3 py-2 text-sm text-zinc-500 focus-ring dark:text-zinc-400"
+      class="sidebar-row-padding flex cursor-pointer list-none items-center gap-2 rounded-lg py-2 text-sm text-zinc-500 focus-ring dark:text-zinc-400"
       ><Icon name="chevron-right" class="group-open:rotate-90" />Archived bots · {archived.length}</summary
     >
     <BotsNav

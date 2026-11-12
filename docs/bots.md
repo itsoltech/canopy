@@ -1016,6 +1016,11 @@ gdzie wskazuje miejsce wykonywania akcji.
 - **Archiwum**: główna akcja usuwania z listy, dostępna z obu menu i ustawień, z toastem
   **Undo**. Wiersz web/desktop pokazuje też szybkie **Archive** (w archiwum **Unarchive**)
   po najechaniu lub ustawieniu fokusu, w zarezerwowanym dolnym slocie licznika.
+  Czas i „…” używają tej samej zamiany co licznik i Archive oraz wiersze wątków:
+  wspólne tokeny ruchu w obu kierunkach, bez opóźnienia i bez przesunięć tekstu.
+  Slot czasu pozostaje zarezerwowany także przed pierwszą wiadomością; otwarte menu
+  utrzymuje oba przyciski widoczne. Odstępy listy wynikają ze wspólnego guttera sidebara
+  opisanego w [ui-scale.md](ui-scale.md).
   Akcja korzysta z tego samego handlera co menu, nie otwiera rozmowy i po powodzeniu
   przenosi fokus do sąsiedniego wiersza. Bez hovera lub z grubym wskaźnikiem pozostaje menu;
   ograniczenie ruchu wyłącza przenikanie ikon. Sekcja **Archived bots · N** jest zwijana. Otwarta rozmowa jest tylko do odczytu:

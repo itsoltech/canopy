@@ -73,9 +73,10 @@
 
 <div
   bind:this={rowBox}
+  data-actions-open={menuOpen || undefined}
   data-sidebar-archive-row={Boolean(handlers.onArchive) || undefined}
   class={[
-    "sidebar-action-row sidebar-row group relative flex min-h-12 items-center gap-3 rounded-xl px-3 py-2 hover:bg-zinc-950/4 has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-2 has-[a:focus-visible]:outline-brand-500 dark:hover:bg-white/4",
+    "sidebar-action-row sidebar-row sidebar-row-padding group relative flex min-h-12 items-center gap-3 rounded-xl py-2 hover:bg-zinc-950/4 has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-2 has-[a:focus-visible]:outline-brand-500 dark:hover:bg-white/4",
     current && "bg-zinc-950/6 dark:bg-white/8",
     home.reason && "opacity-60",
     className,
@@ -93,18 +94,14 @@
         {title}
         {#if home.reason}<span class="sr-only left-0">Read-only. {home.reason}</span>{/if}
       </a>
-      {#if conversation.lastMessage}
-        <time
-          datetime={conversation.lastMessage.at.toISOString()}
-          class={[
-            "w-16 shrink-0 truncate text-right text-sm/5 text-zinc-500 tabular-nums sm:text-xs/4.5 dark:text-zinc-400",
-            items.length > 0 &&
-              "group-has-aria-expanded:invisible group-has-[button:focus-visible]:invisible pointer-fine:group-hover:invisible",
-          ]}
-        >
-          {listTimeLabel(conversation.lastMessage.at, clock.now)}
-        </time>
-      {/if}
+      <span class={["w-16 shrink-0 text-right", items.length > 0 && "sidebar-swap-resting"]}>
+        {#if conversation.lastMessage}<time
+            datetime={conversation.lastMessage.at.toISOString()}
+            class="block truncate text-sm/5 text-zinc-500 tabular-nums sm:text-xs/4.5 dark:text-zinc-400"
+          >
+            {listTimeLabel(conversation.lastMessage.at, clock.now)}
+          </time>{/if}
+      </span>
     </p>
     <p class="flex items-center gap-2">
       <span
@@ -121,7 +118,7 @@
           {#if author}{`${author}: `}{/if}<MarkdownSnippet text={conversation.lastMessage.text} />
         {/if}
       </span>
-      <span class={["flex w-7 shrink-0 justify-end", handlers.onArchive && !home.reason && "sidebar-resting-mark"]}>
+      <span class={["flex w-7 shrink-0 justify-end", handlers.onArchive && !home.reason && "sidebar-swap-resting"]}>
         {#if conversation.unread > 0}<span
             class="shrink-0 rounded-full bg-action px-1.5 text-xs/4.5 font-medium text-on-accent tabular-nums"
           >
@@ -137,21 +134,17 @@
       label="{conversation.archived ? 'Unarchive' : 'Archive'} bot {title}"
       loading={archiving}
       onclick={(event) => void archive(event)}
-      class="right-3 bottom-[0.6875rem] sm:bottom-2.5"
+      class="right-(--sidebar-row-padding) bottom-[0.6875rem] sm:bottom-2.5"
     />
   {/if}
 
   {#if items.length > 0}
     <DropdownMenu label="Actions for {title}" bind:open={menuOpen} placement="bottom-end">
       {#snippet trigger(props)}
-        <span class="absolute top-1.5 right-1.5">
-          <IconButton
-            icon="ellipsis-horizontal"
-            label="Actions for {title}"
-            size="sm"
-            {...props}
-            class="opacity-0 focus-visible:opacity-100 aria-expanded:opacity-100 pointer-coarse:pointer-events-none pointer-fine:group-hover:opacity-100"
-          />
+        <span
+          class="sidebar-swap-action absolute top-1.5 right-[calc(var(--sidebar-row-padding)-(--spacing(1.5)))] pointer-coarse:hidden"
+        >
+          <IconButton icon="ellipsis-horizontal" label="Actions for {title}" size="sm" {...props} />
         </span>
       {/snippet}
       <ActionItems actions={items} />

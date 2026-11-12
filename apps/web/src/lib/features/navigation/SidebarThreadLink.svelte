@@ -101,6 +101,7 @@
   {#snippet trigger(menu)}
     <div
       class="sidebar-action-row group/row relative"
+      data-actions-open={open || undefined}
       data-sidebar-archive-row={quickArchive || undefined}
       bind:this={rowBox}
     >
@@ -158,7 +159,7 @@
       <span
         {...via === "button" ? anchorOnly(menu) : {}}
         class={[
-          "pointer-events-none absolute right-1.5 flex rounded-lg bg-white opacity-0 shadow-xs ring-1 ring-zinc-950/10 group-focus-within/row:pointer-events-auto group-focus-within/row:opacity-100 group-hover/row:pointer-events-auto group-hover/row:opacity-100 has-aria-[expanded=true]:pointer-events-auto has-aria-[expanded=true]:opacity-100 dark:bg-zinc-800 dark:shadow-none dark:ring-white/10 pointer-coarse:hidden",
+          "sidebar-swap-action absolute right-[calc(var(--sidebar-row-padding)-(--spacing(1.5)))] flex rounded-lg bg-white shadow-xs ring-1 ring-zinc-950/10 dark:bg-zinc-800 dark:shadow-none dark:ring-white/10 pointer-coarse:hidden",
           compact ? "top-1.5 sm:top-1" : "top-2",
         ]}
       >
@@ -186,7 +187,9 @@
           disabled={Boolean(away || thread.deletedAt)}
           loading={archiving}
           onclick={(event) => void archive(event)}
-          class={compact ? "inset-y-0 right-11 my-auto" : "right-3 bottom-[0.6875rem] sm:bottom-2.5"}
+          class={compact
+            ? "inset-y-0 right-11 my-auto"
+            : "right-(--sidebar-row-padding) bottom-[0.6875rem] sm:bottom-2.5"}
         />
       {/if}
     </div>

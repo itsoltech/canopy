@@ -12,7 +12,7 @@
 
 <Delayed ms={200}>
   {#each { length: rows }, index (index)}
-    <li aria-hidden="true" class="t-reveal flex h-10 items-center gap-2 px-3 sm:h-9 pointer-coarse:h-12">
+    <li aria-hidden="true" class="sidebar-row-padding t-reveal flex h-10 items-center gap-2 sm:h-9 pointer-coarse:h-12">
       <Skeleton class="size-5 shrink-0" />
       <Skeleton class={["h-3.5", index % 3 === 0 ? "w-3/5" : index % 3 === 1 ? "w-4/5" : "w-1/2"]} />
       <Skeleton class="ml-auto h-3 w-6 shrink-0" />

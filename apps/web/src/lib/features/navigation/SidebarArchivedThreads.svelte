@@ -154,7 +154,7 @@
         onpointerenter={prefetch}
         onfocus={prefetch}
         onclick={() => devicePreferences.setView({ archivedThreadsExpanded: !expanded })}
-        class="flex h-10 w-full items-center gap-1 rounded-lg px-3 text-sm font-medium text-zinc-500 focus-ring hover:bg-zinc-950/4 sm:h-9 sm:text-xs dark:text-zinc-400 dark:hover:bg-white/4"
+        class="sidebar-row-padding flex h-10 w-full items-center gap-1 rounded-lg text-sm font-medium text-zinc-500 focus-ring hover:bg-zinc-950/4 sm:h-9 sm:text-xs dark:text-zinc-400 dark:hover:bg-white/4"
       >
         <span>Archived ·</span>
         <span
@@ -203,7 +203,9 @@
                 {:else}
                   {#if (pageState.loading || !pageState.loaded) && !pageState.error}
                     <SidebarArchivedSkeleton rows={Math.min(total ?? 5, 5)} />
-                  {:else if !pageState.error}<li class="px-3 py-2 text-sm/6 text-zinc-500 dark:text-zinc-400">
+                  {:else if !pageState.error}<li
+                      class="sidebar-row-padding py-2 text-sm/6 text-zinc-500 dark:text-zinc-400"
+                    >
                       No archived threads{query ? ` matching “${query}”` : ""}.
                     </li>{/if}
                 {/each}
@@ -235,7 +237,7 @@
       {/if}
     </div>
     {#if pageState.error && expanded}
-      <div class="px-3 py-2 text-sm/6 text-zinc-500 dark:text-zinc-400">
+      <div class="sidebar-row-padding py-2 text-sm/6 text-zinc-500 dark:text-zinc-400">
         <p role="status">Could not load archived threads.</p>
         <Button variant="ghost" size="sm" onclick={retry}>Retry</Button>
       </div>

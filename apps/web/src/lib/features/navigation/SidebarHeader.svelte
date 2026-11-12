@@ -74,7 +74,7 @@
     </div>
   {/if}
   <div
-    class="canopy-sidebar-header density-standard flex h-12 items-center justify-between gap-2 pr-2 pl-4"
+    class="canopy-sidebar-header density-standard flex h-12 items-center justify-between gap-2 pr-(--sidebar-row-inset) pl-(--sidebar-gutter)"
     data-window-drag
   >
     <Logo
