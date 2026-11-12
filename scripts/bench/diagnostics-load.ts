@@ -53,8 +53,21 @@ export async function diagnosticsLoad<Measurement>(
       const started = performance.now();
 
       if (process.env["CANOPY_BENCH_VIEW"] === "1" && performance.now() >= nextOverview) {
+        const start = performance.now();
+
         if (process.env["CANOPY_BENCH_SOURCE_ROOT"]) await api.listThreads({ sidebarOnly: true });
         else await api.getDiagnostics({ windowMinutes: 15 });
+        console.info(
+          JSON.stringify({
+            phase: "overview_read",
+            workload: phase,
+            member: process.env["CANOPY_BENCH_MEMBER"],
+            atMs: Date.now(),
+            elapsedMs: performance.now() - start,
+            completed: true,
+            probe: process.env["CANOPY_BENCH_SOURCE_ROOT"] ? "dev_thread_list_sql" : "diagnostics_overview",
+          }),
+        );
         workload.overviewReads++;
         nextOverview = performance.now() + 5000;
       }
@@ -69,6 +82,7 @@ export async function diagnosticsLoad<Measurement>(
         console.info(
           JSON.stringify({
             phase: "history_read",
+            member: process.env["CANOPY_BENCH_MEMBER"],
             workload: phase,
             atMs: Date.now(),
             elapsedMs,
