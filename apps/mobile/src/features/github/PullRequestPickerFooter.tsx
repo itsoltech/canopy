@@ -40,7 +40,7 @@ export function PullRequestPickerFooter({
           {p.data.state === "installation_required" && (
             <Button
               size="sm"
-              title="Manage repositories"
+              title="Manage access"
               disabled={!p.data.installUrl}
               onPress={() => {
                 if (p.data?.installUrl) void Linking.openURL(p.data.installUrl);

@@ -164,7 +164,9 @@ export class GitHubDeviceFlow {
       await this.http.get("/user", tokens.accessToken, undefined, [tokens.refreshToken]),
     );
 
-    const account = await this.run((s) => s.connectAttempt(row, String(user.id), user.login, tokens, this.http.now()));
+    const account = await this.run((s) =>
+      s.connectAttempt(row, String(user.id), user.login, tokens, this.http.now(), user.type ?? "User"),
+    );
 
     if (account) void this.connected(account.id).catch(() => {});
   }

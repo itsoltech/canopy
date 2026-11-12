@@ -72,10 +72,6 @@ export function githubPullRequests(sql: SqlClient.SqlClient) {
       name: string,
     ) => sql<RepositoryAccountRow>`SELECT * FROM github_repository_accounts
       WHERE owner_user_id=${owner}::uuid AND lower(repository_name)=lower(${name})`,
-    repositoryCandidates: (owner: string, name: string) => sql<AccountRow>`SELECT DISTINCT a.* FROM github_accounts a
-      LEFT JOIN github_installation_repositories r ON r.owner_user_id=a.owner_user_id AND r.account_id=a.id
-      LEFT JOIN github_installations i ON i.owner_user_id=r.owner_user_id AND i.account_id=r.account_id AND i.installation_id=r.installation_id
-      WHERE a.owner_user_id=${owner}::uuid AND a.status='connected' AND (a.auth_kind='pat' OR (lower(r.full_name)=lower(${name}) AND NOT i.suspended))`,
     repositoryInstalled: (
       owner: string,
       account: string,

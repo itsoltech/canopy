@@ -24,7 +24,7 @@ export const TokenResponse = Schema.Struct({
   token_type: Schema.String,
 });
 
-export const User = Schema.Struct({ id: positive, login: Schema.NonEmptyString });
+export const User = Schema.Struct({ id: positive, login: Schema.NonEmptyString, type: Schema.optional(Schema.String) });
 
 export const Installation = Schema.Struct({
   id: positive,

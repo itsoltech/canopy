@@ -9,14 +9,11 @@ import { uuid } from "./records.ts";
 export function githubUpdateStore(sql: SqlClient.SqlClient) {
   return {
     updateAccount: (owner: string) =>
-      Effect.gen(function* () {
-        yield* sql`INSERT INTO github_update_accounts(owner_user_id,account_id)
-        SELECT ${owner}::uuid,id FROM github_accounts WHERE owner_user_id=${owner}::uuid AND status='connected'
-        ORDER BY created_at,id LIMIT 1 ON CONFLICT DO NOTHING`;
-
-        return (yield* sql<{ account_id: string | null; enabled: boolean }>`SELECT u.account_id,u.enabled
-        FROM github_update_accounts u WHERE u.owner_user_id=${owner}::uuid`)[0];
-      }),
+      Effect.map(
+        sql<{ account_id: string | null; enabled: boolean }>`SELECT account_id,enabled
+        FROM github_update_accounts WHERE owner_user_id=${owner}::uuid`,
+        (rows) => rows[0],
+      ),
     setUpdateAccount: (owner: string, account: string, enabled: boolean) =>
       sql.withTransaction(
         Effect.gen(function* () {
@@ -34,6 +31,17 @@ export async function updateAccount(accounts: GitHubAccounts, request?: github.G
     if (request.enabled || request.accountId) {
       if (!uuid(request.accountId)) throw new ConnectError("Choose an account", Code.InvalidArgument);
       await accounts.run((s) => s.owned(accounts.owner, request.accountId));
+
+      if (request.enabled) {
+        const current = await accounts.prs.repositories.get("itsoltech/canopy");
+        await accounts.prs.repositories.set(
+          create(github.SetGitHubRepositoryAccountRequestSchema, {
+            repositoryName: "itsoltech/canopy",
+            accountId: request.accountId,
+            expectedRevision: current.revision,
+          }),
+        );
+      }
     }
 
     await accounts.run((s) => s.setUpdateAccount(accounts.owner, request.accountId, request.enabled));
@@ -41,9 +49,10 @@ export async function updateAccount(accounts: GitHubAccounts, request?: github.G
   }
 
   const value = await accounts.run((s) => s.updateAccount(accounts.owner));
+  const resolved = await accounts.prs.repositories.cached("itsoltech/canopy");
 
   return create(github.GitHubUpdateAccountResponseSchema, {
-    accountId: value?.account_id ?? "",
+    accountId: resolved?.row.id ?? "",
     enabled: value?.enabled ?? true,
   });
 }

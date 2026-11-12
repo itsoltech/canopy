@@ -17,24 +17,32 @@ import { usePullRequestWatch } from "./usePullRequestWatch";
 import { putContext } from "./context-draft";
 import { CommentComposer } from "./CommentComposer";
 import { invalidations } from "./invalidations";
+import { GITHUB_HOME, splitId } from "@canopy/domain/computers";
+import { RepositoryAccessActions } from "./RepositoryAccessActions";
 
 const deniedRead = (code: Code) =>
   [Code.PermissionDenied, Code.NotFound, Code.FailedPrecondition, Code.Aborted].includes(code);
+
+const accountAccessError = (cause: unknown) => {
+  const error = ConnectError.from(cause);
+
+  return error.code === Code.PermissionDenied ? error.rawMessage : "";
+};
 
 export function PullRequestScreen({ id, threadId }: { id: string; threadId?: string }) {
   const { client, queries, online } = useSession();
   const key = `GetPullRequest:${id}`;
   const [denied, setDenied] = useState(false);
+  const [accessError, setAccessError] = useState("");
   const [tab, setTab] = useState("summary");
-  usePullRequestWatch(
-    id,
-    useCallback(
-      (update) => {
-        if (update.snapshot) queries.set(key, update.snapshot);
-      },
-      [queries, key],
-    ),
+  const onUpdate = useCallback(
+    (update: github.PullRequestUpdate) => {
+      if (update.snapshot) queries.set(key, update.snapshot);
+    },
+    [queries, key],
   );
+
+  usePullRequestWatch(id, onUpdate);
 
   const read = useSharedQuery<github.PullRequestSnapshot>(
     key,
@@ -42,9 +50,12 @@ export function PullRequestScreen({ id, threadId }: { id: string; threadId?: str
       try {
         const value = await client!.api.getPullRequest({ pullRequestId: id });
         setDenied(false);
+        setAccessError("");
 
         return value;
       } catch (cause) {
+        setAccessError(accountAccessError(cause));
+
         if (deniedRead(ConnectError.from(cause).code)) setDenied(true);
         throw cause;
       }
@@ -81,7 +92,10 @@ export function PullRequestScreen({ id, threadId }: { id: string; threadId?: str
       queries.set(key, await client.api.refreshPullRequest({ pullRequestId: id }));
       invalidations.publish(id);
       setDenied(false);
+      setAccessError("");
     } catch (cause) {
+      setAccessError(accountAccessError(cause));
+
       if (deniedRead(ConnectError.from(cause).code)) setDenied(true);
       setError("Could not load this summary. Check account access and the connection, then retry.");
     } finally {
@@ -134,7 +148,13 @@ export function PullRequestScreen({ id, threadId }: { id: string; threadId?: str
       />
       {!!data?.detail && <Notice>{data.detail}</Notice>}
       {!!(error || read.error) && (
-        <Notice error>{error || "Connect to load this page. Check account access, then retry."}</Notice>
+        <Notice error>{accessError || error || "Connect to load this page. Check account access, then retry."}</Notice>
+      )}
+      {!!accessError && (
+        <RepositoryAccessActions
+          homeId={splitId(id).node ? `${GITHUB_HOME}~${splitId(id).node}` : ""}
+          onconnected={() => void refresh()}
+        />
       )}
     </View>
   );

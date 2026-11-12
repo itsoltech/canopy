@@ -134,33 +134,17 @@ export function usePullRequestPicker(
   return { data, query, setQuery, filter, setFilter, loading, busy, error, reload, more, link, choose, homeId };
 }
 
-async function pickerRead(
+function pickerRead(
   client: NonNullable<ReturnType<typeof useSession>["client"]>,
   threadId: string,
   query: string,
   filter: string,
   cursor = "",
 ) {
-  const request = {
+  return client.api.listRepositoryPullRequests({
     threadId,
     query: query.trim().startsWith("https://") ? "" : query,
     includeClosed: filter === "all",
     cursor,
-  };
-
-  const value = await client.api.listRepositoryPullRequests(request);
-  const candidate = value.selection?.candidates.find((account) => account.authKind === "device");
-
-  if (cursor || value.state !== "choose_account" || !candidate || !value.selection) return value;
-  const node = splitId(threadId).node;
-  await client.api
-    .setGitHubRepositoryAccount({
-      homeId: node ? `${GITHUB_HOME}~${node}` : "",
-      repositoryName: value.repositoryName,
-      accountId: candidate.id,
-      expectedRevision: value.selection.revision,
-    })
-    .catch(() => {});
-
-  return client.api.listRepositoryPullRequests(request);
+  });
 }

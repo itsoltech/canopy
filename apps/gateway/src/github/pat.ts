@@ -82,7 +82,7 @@ export class GitHubPat {
       ),
     );
   }
-  save(connector: string, revision: bigint, userId: string, login: string) {
+  save(connector: string, revision: bigint, userId: string, login: string, accountType = "User") {
     const owner = this.owner;
 
     return this.run(
@@ -101,10 +101,10 @@ export class GitHubPat {
 
             // SAFETY: this single-row INSERT/ON CONFLICT UPDATE either returns the account or fails.
             const row =
-              (yield* sql<AccountRow>`INSERT INTO github_accounts(id,owner_user_id,github_user_id,login,auth_kind,connector_account_id,connector_revision,status)
-          VALUES (${Bun.randomUUIDv7()}::uuid,${owner}::uuid,${userId},${login},'pat',${connector}::uuid,${revision}::bigint,'connected')
+              (yield* sql<AccountRow>`INSERT INTO github_accounts(id,owner_user_id,github_user_id,login,account_type,auth_kind,connector_account_id,connector_revision,status)
+          VALUES (${Bun.randomUUIDv7()}::uuid,${owner}::uuid,${userId},${login},${accountType},'pat',${connector}::uuid,${revision}::bigint,'connected')
           ON CONFLICT(owner_user_id,host,github_user_id) DO UPDATE SET connector_account_id=excluded.connector_account_id,
-          connector_revision=excluded.connector_revision,
+          connector_revision=excluded.connector_revision,account_type=excluded.account_type,
           auth_kind='pat',credentials=NULL,key_id=NULL,refresh_lease=NULL,refresh_lease_until=NULL,catalog_verified_at=NULL,
           login=excluded.login,status='connected',revision=github_accounts.revision+1,updated_at=now() RETURNING *`)[0]!;
 

@@ -6,6 +6,7 @@ import type { GitHubAccounts } from "./service.ts";
 import type { GitHubClient } from "./client.ts";
 import { accountView, uuid } from "./records.ts";
 import { Repository } from "./schemas.ts";
+import { refreshRepositoryAccounts, resolveRepository } from "./repository-resolution.ts";
 
 export const repositoryName = (name: string) => {
   if (
@@ -27,28 +28,46 @@ export function pullRequestUrl(value: string) {
 }
 
 export class GitHubRepositoryAccounts {
+  #resolutions = new Map<string, ReturnType<typeof resolveRepository>>();
   constructor(
     readonly accounts: GitHubAccounts,
     readonly client: GitHubClient,
     readonly changed: (repo?: string) => Promise<void>,
   ) {}
   async get(name: string) {
-    repositoryName(name);
-    const { run, owner } = this.accounts;
-    await this.accounts.pat.invalidate();
-
-    const [rows, candidates] = await Promise.all([
-      run((s) => s.repositoryAccount(owner, name)),
-      run((s) => s.repositoryCandidates(owner, name)),
-    ]);
+    const { mapping, candidates } = await this.resolve(name);
 
     return create(github.GitHubRepositoryAccountResponseSchema, {
-      repositoryId: rows[0]?.repository_id ?? "",
+      repositoryId: mapping?.repository_id ?? "",
       repositoryName: name,
-      accountId: rows[0]?.account_id ?? "",
-      revision: BigInt(rows[0]?.revision ?? 0),
+      accountId: mapping?.account_id ?? "",
+      revision: BigInt(mapping?.revision ?? 0),
       candidates: candidates.map(accountView),
     });
+  }
+  refresh() {
+    return refreshRepositoryAccounts(this.accounts);
+  }
+  async cached(name: string) {
+    const { mapping, candidates } = await this.resolve(name, true);
+    const row = candidates.find((candidate) => candidate.id === mapping?.account_id);
+
+    return mapping && row ? { mapping, row } : undefined;
+  }
+  private async resolve(value: string, cachedOnly = false) {
+    const name = repositoryName(value).toLowerCase();
+    const key = `${name}:${cachedOnly}`;
+    const previous = this.#resolutions.get(key);
+
+    if (previous) return previous;
+    const flight = resolveRepository(this.accounts, name, this.changed, cachedOnly);
+    this.#resolutions.set(key, flight);
+
+    try {
+      return await flight;
+    } finally {
+      this.#resolutions.delete(key);
+    }
   }
   async set(request: github.SetGitHubRepositoryAccountRequest) {
     const { run, owner } = this.accounts;
@@ -87,10 +106,9 @@ export class GitHubRepositoryAccounts {
   }
   async selected(name: string) {
     const { run, owner } = this.accounts;
-    const mapping = (await run((s) => s.repositoryAccount(owner, name)))[0];
+    const { mapping } = await this.resolve(name);
 
-    if (!mapping) throw new ConnectError("Choose an account for this repository.", Code.FailedPrecondition);
-    await this.accounts.catalogue.refresh(mapping.account_id);
+    if (!mapping) throw new ConnectError(`No connected GitHub account can access ${name}.`, Code.PermissionDenied);
     const { row } = await this.accounts.access.token(mapping.account_id);
 
     if (
@@ -98,10 +116,7 @@ export class GitHubRepositoryAccounts {
       !(await run((s) => s.repositoryInstalled(owner, row.id, mapping.repository_id))).length
     ) {
       await run((s) => s.cacheInvalidate(owner, row.id));
-      throw new ConnectError(
-        "This repository is not available to this account. Manage its GitHub installation.",
-        Code.PermissionDenied,
-      );
+      throw new ConnectError(`No connected GitHub account can access ${name}.`, Code.PermissionDenied);
     }
 
     return { mapping, row };

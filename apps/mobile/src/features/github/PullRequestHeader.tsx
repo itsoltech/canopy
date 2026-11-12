@@ -11,6 +11,7 @@ import { PullRequestStatus } from "./PullRequestStatus";
 import { LifecycleActions } from "./LifecycleActions";
 import { useState } from "react";
 import { MetadataEdit } from "./MetadataEdit";
+import { RepositoryAccountSwitch } from "./RepositoryAccountSwitch";
 
 export function PullRequestHeader({
   snapshot,
@@ -83,6 +84,14 @@ export function PullRequestHeader({
           ]}
         />
       </View>
+      {!!ref && (
+        <RepositoryAccountSwitch
+          repositoryName={ref.repositoryName}
+          accountId={snapshot.accountId}
+          disabled={busy}
+          onchanged={onrefresh}
+        />
+      )}
       <Text
         accessibilityRole="header"
         numberOfLines={2}

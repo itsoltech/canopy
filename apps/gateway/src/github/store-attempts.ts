@@ -19,6 +19,7 @@ export function githubAttempts(
     userId: string,
     login: string,
     tokens: TokenPair,
+    accountType: string,
   ) => Effect.Effect<readonly AccountRow[], import("effect/sql").SqlError.SqlError>,
   audit: (
     owner: string,
@@ -102,7 +103,14 @@ export function githubAttempts(
         lease_id=NULL,lease_until=NULL WHERE owner_user_id=${row.owner_user_id}::uuid AND id=${row.id}::uuid
         AND revision=${row.revision}::bigint AND state='pending'`;
     },
-    connectAttempt: (row: AttemptRow, userId: string, login: string, tokens: TokenPair, now: number) =>
+    connectAttempt: (
+      row: AttemptRow,
+      userId: string,
+      login: string,
+      tokens: TokenPair,
+      now: number,
+      accountType = "User",
+    ) =>
       sql.withTransaction(
         Effect.gen(function* () {
           const valid = yield* sql`SELECT id FROM github_device_auth WHERE owner_user_id=${row.owner_user_id}::uuid
@@ -111,7 +119,7 @@ export function githubAttempts(
 
           if (!valid.length) return undefined;
           // SAFETY: the account INSERT/ON CONFLICT UPDATE always returns its single account or fails.
-          const account = (yield* saveAccount(row.owner_user_id, userId, login, tokens))[0]!;
+          const account = (yield* saveAccount(row.owner_user_id, userId, login, tokens, accountType))[0]!;
           yield* sql`DELETE FROM github_installations WHERE owner_user_id=${row.owner_user_id}::uuid AND account_id=${account.id}::uuid`;
           yield* sql`UPDATE github_device_auth SET state='connected',account_id=${account.id}::uuid,
           device_code=NULL,key_id=NULL,lease_id=NULL,lease_until=NULL,revision=revision+1 WHERE id=${row.id}::uuid`;

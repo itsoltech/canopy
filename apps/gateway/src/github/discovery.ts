@@ -63,16 +63,15 @@ export class GitHubDiscovery {
     for (const remote of context.remotes)
       if (remote.name === "upstream" || remote.name === context.upstreamRemote)
         for (const name of remote.fetchRepositories.map(githubName)) if (name) bases.add(name);
-    const { run, owner } = this.prs.accounts;
     const mapped = [];
 
     for (const name of bases) {
-      if (!name || !(await run((s) => s.repositoryAccount(owner, name))).length) continue;
+      if (!name || !(await this.prs.repositories.get(name)).accountId) continue;
       mapped.push(await this.prs.repositories.selected(name));
     }
 
     if (!mapped.length) return;
-    const account = mapped[0]!.row;
+    const { row: account } = await this.prs.repositories.selected(head.name);
 
     const identity = await this.prs.client.read(account.id, {
       key: `repository:${head.name}:identity`,
@@ -90,7 +89,7 @@ export class GitHubDiscovery {
 
       if (
         !mapped.some((m) => m.mapping.repository_id === String(repository.parent!.id)) &&
-        (await run((s) => s.repositoryAccount(owner, name))).length
+        (await this.prs.repositories.get(name)).accountId
       )
         mapped.push(await this.prs.repositories.selected(name));
     }

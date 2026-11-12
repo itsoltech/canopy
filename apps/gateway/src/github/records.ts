@@ -20,6 +20,7 @@ export interface AccountRow {
   host: string;
   github_user_id: string;
   login: string;
+  account_type: string;
   auth_kind: string;
   connector_account_id: string | null;
   connector_revision: bigint | null;
@@ -29,6 +30,7 @@ export interface AccountRow {
   refresh_lease: string | null;
   refresh_lease_until: Date | null;
   catalog_verified_at: Date | null;
+  catalog_fingerprint: string;
   installation_count?: number;
   repository_count?: number;
 }

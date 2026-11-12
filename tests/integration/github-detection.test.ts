@@ -15,7 +15,6 @@ describe.skipIf(!dockerAvailable)("GitHub branch discovery through WorkerHost", 
   let f: Awaited<ReturnType<typeof worktreeFixture>>;
   const api = githubDetectionFixture();
   let thread: ui.Thread;
-  let account = "";
   let detection: GitHubDetection;
 
   let branch = "",
@@ -58,8 +57,7 @@ describe.skipIf(!dockerAvailable)("GitHub branch discovery through WorkerHost", 
     thread = await f.tree();
     branch = git(thread.cwd, "branch", "--show-current");
     head = git(thread.cwd, "rev-parse", "HEAD");
-    account = await connectGitHub(f.gw, api);
-    await f.gw.api.setGitHubRepositoryAccount({ repositoryName: "itsoltech/canopy", accountId: account });
+    await connectGitHub(f.gw, api);
     await f.gw.core.github.run((s) => s.detectionRequest(f.gw.userId, thread.id));
   }, 60_000);
   afterAll(async () => {

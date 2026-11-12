@@ -10,6 +10,7 @@ import { githubDetectionStore } from "./store-detection.ts";
 import { githubUpdateStore } from "./update-account.ts";
 import { githubPollingStore } from "./store-polling.ts";
 import { githubMutationsStore } from "./store-mutations.ts";
+import { githubRepositoryAccess } from "./store-repository-access.ts";
 
 export function githubStore(sql: SqlClient.SqlClient, key: Buffer) {
   const seal = (value: TokenPair) => encryptSecret(key, JSON.stringify(value));
@@ -53,11 +54,11 @@ export function githubStore(sql: SqlClient.SqlClient, key: Buffer) {
       }),
     );
 
-  const saveAccount = (owner: string, userId: string, login: string, tokens: TokenPair) =>
-    sql<AccountRow>`INSERT INTO github_accounts(id,owner_user_id,github_user_id,login,auth_kind,status,credentials,key_id)
-      VALUES (${Bun.randomUUIDv7()}::uuid,${owner}::uuid,${userId},${login},'device','connected',${seal(tokens)},${SECRETS_KEY_ID})
+  const saveAccount = (owner: string, userId: string, login: string, tokens: TokenPair, accountType: string) =>
+    sql<AccountRow>`INSERT INTO github_accounts(id,owner_user_id,github_user_id,login,account_type,auth_kind,status,credentials,key_id)
+      VALUES (${Bun.randomUUIDv7()}::uuid,${owner}::uuid,${userId},${login},${accountType},'device','connected',${seal(tokens)},${SECRETS_KEY_ID})
       ON CONFLICT (owner_user_id,host,github_user_id) DO UPDATE SET login=excluded.login,status='connected',
-      auth_kind='device',connector_account_id=NULL,connector_revision=NULL,
+      account_type=excluded.account_type,auth_kind='device',connector_account_id=NULL,connector_revision=NULL,
       credentials=excluded.credentials,key_id=excluded.key_id,refresh_lease=NULL,refresh_lease_until=NULL,
       revision=github_accounts.revision+1,catalog_verified_at=NULL,updated_at=now() RETURNING *`;
 
@@ -97,6 +98,7 @@ export function githubStore(sql: SqlClient.SqlClient, key: Buffer) {
     ...githubCatalogue(sql),
     ...githubCache(sql),
     ...githubPullRequests(sql),
+    ...githubRepositoryAccess(sql),
     ...githubDetectionStore(sql),
   };
 }

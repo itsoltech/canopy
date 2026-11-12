@@ -14,6 +14,7 @@
   import { toast } from "#lib/shared/ui/toast.svelte.ts";
   import LifecycleActions from "./LifecycleActions.svelte";
   import MetadataEdit from "./MetadataEdit.svelte";
+  import RepositoryAccountSwitch from "./RepositoryAccountSwitch.svelte";
 
   let {
     snapshot,
@@ -92,6 +93,12 @@
     </DropdownMenu>
     {#if onclose}<IconButton icon="x-mark" label="Close pull request" size="sm" onclick={onclose} />{/if}
   </div>
+  {#if ref}<RepositoryAccountSwitch
+      repositoryName={ref.repositoryName}
+      accountId={snapshot.accountId}
+      disabled={busy}
+      onchanged={onrefresh}
+    />{/if}
   <div class="relative min-w-0">
     <h2
       class="line-clamp-2 pr-10 text-lg font-semibold text-zinc-950 dark:text-white"
