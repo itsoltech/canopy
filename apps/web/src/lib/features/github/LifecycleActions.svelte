@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { untrack } from "svelte";
+  import { untrack, type Snippet } from "svelte";
   import type { github } from "@canopy/contracts";
   import { timestampDate, type Timestamp } from "@bufbuild/protobuf/wkt";
   import type { ClassValue } from "svelte/elements";
@@ -26,8 +26,16 @@
   let {
     snapshot,
     onrefresh,
+    compact = false,
+    compactBar,
     class: className,
-  }: { snapshot: github.PullRequestSnapshot; onrefresh: () => void; class?: ClassValue } = $props();
+  }: {
+    snapshot: github.PullRequestSnapshot;
+    onrefresh: () => void;
+    compact?: boolean;
+    compactBar?: Snippet<[{ label: string; disabled: boolean; detail: string; run: () => void } | undefined]>;
+    class?: ClassValue;
+  } = $props();
 
   const key = untrack(() => commentDrafts.key(snapshot, "", "lifecycle"));
   let receipt = $state(untrack(() => commentDrafts.read(key, "").receipt));
@@ -113,7 +121,7 @@
 </script>
 
 {#if life}
-  <div class={["grid min-w-0 gap-2", className]}>
+  <div inert={compact} class={["grid min-w-0 gap-2", compact && "invisible", className]}>
     <div class="flex flex-wrap items-center gap-2">
       {#if ["open", "draft"].includes(snapshot.summary?.state ?? "")}
         <span {@attach tooltip(life.blockingReasons.join(" "))}
@@ -190,6 +198,16 @@
       >{/if}
   </div>
 {/if}
+{@render compactBar?.(
+  life && ["open", "draft"].includes(snapshot.summary?.state ?? "")
+    ? {
+        label: lifecycleLabel(primary),
+        disabled: blocked || !actions.includes(primary),
+        detail: life.blockingReasons.join(" "),
+        run: () => choose(primary),
+      }
+    : undefined,
+)}
 <Dialog bind:open title={`${lifecycleLabel(action)}?`} description={lifecycleEffect(action)} dismissible={!busy}>
   <div class="grid min-w-0 gap-3">
     <p class="text-sm break-words text-zinc-500 dark:text-zinc-400">

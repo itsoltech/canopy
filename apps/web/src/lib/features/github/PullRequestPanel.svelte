@@ -22,6 +22,7 @@
   import { GITHUB_HOME, splitId } from "@canopy/domain/computers";
   import ReadSkeleton from "./ReadSkeleton.svelte";
   import { panelView } from "./panel-view.svelte.ts";
+  import PullRequestScroll from "./PullRequestScroll.svelte";
 
   let {
     id,
@@ -36,7 +37,8 @@
   let error = $state("");
   const view = $derived(panelView(id));
   const tab = $derived(view.tab);
-  let content: HTMLDivElement;
+  let content = $state<HTMLDivElement>();
+  let restoring = false;
   let visible = $state(false);
   const prefix = $props.id();
 
@@ -116,11 +118,21 @@
     const active = tab;
     const target = view;
     const loaded = !!data;
+    const position = target.scroll[active] ?? 0;
+    let current = true;
 
-    if (loaded)
+    if (loaded) {
+      restoring = true;
       void tick().then(() => {
-        if (content) content.scrollTop = target.scroll[active] ?? 0;
+        if (!current || !content) return;
+        content.scrollTop = position;
+        restoring = false;
       });
+    }
+
+    return () => {
+      current = false;
+    };
   });
 
   async function refresh() {
@@ -161,25 +173,32 @@
   }
 </script>
 
-<div class={["flex h-full min-h-0 min-w-0 flex-col bg-surface", className]}>
-  {#if data}<PullRequestHeader
-      snapshot={data}
-      busy={busy || read.snapshot.loading}
-      onrefresh={() => void refresh()}
-      onunlink={threadId ? () => void unlink() : undefined}
-      {onclose}
-      oncontext={threadId ? (action) => void prepare(action) : undefined}
-    />{:else if !read.snapshot.error}<div class="border-b border-divider px-4">
-      <ReadSkeleton header rows={0} />
-    </div>{/if}
-  <PullRequestTabs bind:value={() => tab, (value) => view.select(value)} {prefix} />
+<PullRequestScroll
+  bind:element={content}
+  onscroll={(event) => {
+    if (!restoring) view.scroll[tab] = event.currentTarget.scrollTop;
+  }}
+  class={className}
+>
+  {#snippet header(compact)}
+    {#if data}<PullRequestHeader
+        {compact}
+        snapshot={data}
+        busy={busy || read.snapshot.loading}
+        onrefresh={() => void refresh()}
+        onunlink={threadId ? () => void unlink() : undefined}
+        {onclose}
+        oncontext={threadId ? (action) => void prepare(action) : undefined}
+      />{:else if !read.snapshot.error}<div class="border-b border-divider px-4">
+        <ReadSkeleton header rows={0} />
+      </div>{/if}
+  {/snippet}
+  {#snippet tabs()}<PullRequestTabs bind:value={() => tab, (value) => view.select(value)} {prefix} />{/snippet}
   <div
-    bind:this={content}
-    onscroll={(event) => (view.scroll[tab] = event.currentTarget.scrollTop)}
     role="tabpanel"
     id={`${prefix}-${tab}-panel`}
     aria-labelledby={`${prefix}-${tab}-tab`}
-    class={["min-h-0 flex-1 scroll-stable overflow-y-auto overscroll-contain", tab === "summary" ? "p-4" : "px-4 pb-4"]}
+    class={["min-w-0", tab === "summary" ? "p-4" : "px-4 pb-4"]}
   >
     {#if error || read.snapshot.error}<Alert class="mb-4"
         >{accessError || error || "Connect to load this page. Check account access, then retry."}<Button
@@ -208,4 +227,4 @@
       {#if tab !== "code"}{#key `${data.accountId}:${id}`}<CommentComposer snapshot={data} class="mt-5" />{/key}{/if}
     {:else if !read.snapshot.error}<ReadSkeleton />{/if}
   </div>
-</div>
+</PullRequestScroll>

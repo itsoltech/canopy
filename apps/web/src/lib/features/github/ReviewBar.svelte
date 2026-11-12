@@ -23,7 +23,7 @@
 
 <div
   class={[
-    "sticky top-0 z-40 flex h-14 items-center justify-between gap-3 border-b border-divider bg-surface py-2 text-sm sm:text-xs",
+    "sticky top-(--pr-chrome-height,0px) z-40 -mx-4 flex h-14 items-center justify-between gap-3 border-b border-divider bg-surface px-4 py-2 text-sm sm:text-xs",
     className,
   ]}
 >

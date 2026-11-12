@@ -59,9 +59,9 @@
   <div
     class={[
       "grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-1 border-b border-zinc-950/5 bg-surface dark:border-white/10",
-      active && "sticky top-26 z-20",
+      active && "sticky top-[calc(var(--pr-chrome-height,0px)+6.5rem)] z-20 -mx-4 px-4",
     ]}
-    style:padding-left={`${Math.min(depth, 6) * 12}px`}
+    style:padding-left={`${Math.min(depth, 6) * 12 + (active ? 16 : 0)}px`}
   >
     <button
       type="button"

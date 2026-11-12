@@ -100,7 +100,7 @@
 
 <section aria-label="Timeline" class={["min-w-0", className]}>
   <div
-    class="sticky top-0 z-20 flex h-12 items-center justify-between gap-2 border-b border-zinc-950/10 bg-surface dark:border-white/10"
+    class="sticky top-(--pr-chrome-height,0px) z-20 -mx-4 flex h-12 items-center justify-between gap-2 border-b border-zinc-950/10 bg-surface px-4 dark:border-white/10"
   >
     <DropdownMenu label="Activity filter" sheet>
       {#snippet trigger(props)}<Button {...props} size="sm" variant="ghost"

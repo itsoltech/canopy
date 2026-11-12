@@ -37,7 +37,7 @@
 <div
   aria-label="Code toolbar"
   class={[
-    "@container/code sticky top-14 z-30 flex h-12 min-w-0 items-center gap-1 border-b border-zinc-950/10 bg-surface dark:border-white/10",
+    "@container/code sticky top-[calc(var(--pr-chrome-height,0px)+3.5rem)] z-30 -mx-4 flex h-12 min-w-0 items-center gap-1 border-b border-zinc-950/10 bg-surface px-4 dark:border-white/10",
     className,
   ]}
 >

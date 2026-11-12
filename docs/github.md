@@ -816,6 +816,18 @@ a na wąskim ekranie w arkuszu; parametr `pr` adresu wątku pozwala wrócić do 
 Rozmowa, szkic i pozycja przewijania pozostają zamontowane. Mobile używa pushed screen.
 Panel zawiera zakładki Summary, Timeline i Code w tym samym pasku.
 
+Web i desktop przewijają cały panel jednym pionowym obszarem: nagłówek, zakładki
+i treść. Pełny nagłówek zachowuje wysokość w układzie; po przewinięciu go zostaje
+przyklejony pasek 48 px ze stanem, repo i numerem, jednoliniowym tytułem
+(pełny w tooltipie), checkami, główną akcją, menu i zamknięciem. Zakładki przylegają
+pod nim; filtr Timeline i paski Code uwzględniają ich wspólną wysokość. Przyklejone
+wiersze malują nieprzezroczyste tło do krawędzi panelu, także w ciemnym motywie.
+`IntersectionObserver` przełącza stan z histerezą 16 px, a `ResizeObserver` mierzy
+nagłówek i zakładki tylko przy zmianie rozmiaru. Przełączenie nie zmienia wysokości
+treści ani pozycji przewijania; krótki ruch używa tokenów i znika przy reduced motion.
+Każda zakładka zachowuje własną pozycję w cache sesji. Patche zachowują poziome
+przewijanie wewnątrz pliku, bez osobnego pionowego viewportu.
+
 Prawy panel PR korzysta ze wspólnego `ResizeHandle`, tak jak lewy sidebar. Uchwyt na lewej
 krawędzi obsługuje przeciąganie, strzałki (Shift przyspiesza), Home/End oraz reset dwuklikiem
 lub Enter. Domyślna szerokość to 576 px, zakres 320–1200 px; maksimum zostawia 384 px dla
