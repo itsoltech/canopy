@@ -155,5 +155,5 @@ export function desktopGateway(routesJson: string, token: string) {
     }
   };
 
-  return { transport: { unary, stream }, compatibility };
+  return { transport: { unary, stream }, compatibility, preferencesIdentity: routes.fingerprint };
 }

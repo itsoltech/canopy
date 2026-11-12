@@ -9,9 +9,17 @@ const object = Schema.is(Schema.Record(Schema.String, Schema.MutableJson));
 const readObject = Schema.decodeUnknownSync(Schema.Record(Schema.String, Schema.MutableJson));
 const strings = Schema.decodeUnknownSync(Schema.Array(Schema.String));
 const LOCAL_APPEARANCE = new Set(["sidebarWidth", "sidebarCollapsed", "threadPanelCollapsed"]);
+const LOCAL_SIDEBAR = new Set([
+  "archived",
+  "archivedExpanded",
+  "projectIds",
+  "groupByProject",
+  "projectOrder",
+  "workingSection",
+]);
 
 export const DEVICE_SETTINGS_FIELDS = new Set([
-  "sidebar.archivedExpanded",
+  ...[...LOCAL_SIDEBAR].map((key) => `sidebar.${key}`),
   ...[...LOCAL_APPEARANCE].map((key) => `appearance.${key}`),
 ]);
 
@@ -57,10 +65,7 @@ export function settingsValues(stored: SettingsJson, self: string, nodes: readon
 
     if (section === "threadDefaults") delete json["workspaceId"];
 
-    if (section === "sidebar") {
-      delete json["archived"];
-      delete json["archivedExpanded"];
-    }
+    if (section === "sidebar") for (const key of LOCAL_SIDEBAR) delete json[key];
 
     Object.assign(result, flatten(json, section));
   }

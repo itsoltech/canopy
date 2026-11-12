@@ -61,6 +61,12 @@ describe.skipIf(!dockerAvailable)("account configuration across three independen
       general: { confirmDelete: false },
       composer: { runningDelivery: ui.MessageDelivery.QUEUE },
       cliUpdates: { intervalMinutes: 60 },
+      sidebar: {
+        projectIds: [crypto.randomUUID()],
+        groupByProject: true,
+        projectOrder: ui.ProjectOrder.NAME,
+        workingSection: true,
+      },
     });
     await wait(
       async () =>
@@ -73,6 +79,12 @@ describe.skipIf(!dockerAvailable)("account configuration across three independen
     });
     expect((await c.settings()).composer?.runningDelivery).toBe(ui.MessageDelivery.QUEUE);
     expect((await c.settings()).cliUpdates?.intervalMinutes).toBe(60);
+    expect((await c.settings()).sidebar).toMatchObject({
+      projectIds: [],
+      groupByProject: false,
+      projectOrder: ui.ProjectOrder.ACTIVITY,
+      workingSection: false,
+    });
     await wait(async () => (await a.links.snapshot()).configGroup.length === 3);
 
     const records = await a.store.query<{ fields: object }>(
@@ -82,6 +94,10 @@ describe.skipIf(!dockerAvailable)("account configuration across three independen
 
     expect(JSON.stringify(records)).not.toContain("sidebarWidth");
     expect(JSON.stringify(records)).not.toContain("workspaceId");
+    expect(JSON.stringify(records)).not.toContain("projectIds");
+    expect(JSON.stringify(records)).not.toContain("groupByProject");
+    expect(JSON.stringify(records)).not.toContain("projectOrder");
+    expect(JSON.stringify(records)).not.toContain("workingSection");
     expect(a.links.hello().capabilities).toContain(CONFIG_SYNC);
     expect(a.links.hello().capabilities).not.toContain("shared_config");
   }, 30_000);

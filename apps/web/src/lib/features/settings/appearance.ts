@@ -1,6 +1,6 @@
 import { ui } from "@canopy/contracts";
 import { create } from "@bufbuild/protobuf";
-import { SIDEBAR_WIDTH, storedSidebarWidth } from "@canopy/domain";
+import { SIDEBAR_WIDTH } from "@canopy/domain";
 import { accents, type AccentName } from "@canopy/ui";
 import { isThemeName, paletteStyle, themeVariables, type ThemeName, type ThemeMode } from "@canopy/ui/themes";
 import type { DeviceViewValues } from "@canopy/domain/device-view";
@@ -99,9 +99,9 @@ export function documentAttributes(appearance: ui.AppearanceSettings | undefined
     ["%canopy.darkTheme%", themeOf(appearance, "dark")],
     ["%canopy.paletteStyle%", paletteStyle(themeOf(appearance, "light"), themeOf(appearance, "dark"))],
     ["%canopy.chatWidth%", chatWidthOf(appearance)],
-    ["%canopy.sidebarWidth%", String(storedSidebarWidth(appearance?.sidebarWidth ?? 0) || SIDEBAR_WIDTH.default)],
-    ["%canopy.sidebarCollapsed%", String(appearance?.sidebarCollapsed ?? false)],
-    ["%canopy.threadPanelCollapsed%", String(appearance?.threadPanelCollapsed ?? false)],
+    ["%canopy.sidebarWidth%", String(SIDEBAR_WIDTH.default)],
+    ["%canopy.sidebarCollapsed%", "false"],
+    ["%canopy.threadPanelCollapsed%", "false"],
   ]);
 }
 

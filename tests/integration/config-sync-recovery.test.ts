@@ -137,8 +137,10 @@ describe.skipIf(!dockerAvailable)("configuration replay and version skew over li
     expect((await record(c, "settings"))?.fields["sidebar.pinnedThreadIds"]?.value).toEqual([`${threadId}@${a.node}`]);
     const sidebar = create(ui.SidebarSettingsSchema, (await c.settings()).sidebar);
     sidebar.workingSection = true;
-    await c.update({ sidebar });
-    await wait(async () => (await a.settings()).sidebar?.workingSection === true);
+    await c.update({ sidebar, general: { confirmUnpin: true } });
+    await wait(async () => (await a.settings()).general?.confirmUnpin === true);
+    expect((await a.settings()).sidebar?.workingSection).toBe(false);
+    expect((await c.settings()).sidebar?.workingSection).toBe(true);
     expect((await a.settings()).sidebar?.pinnedThreadIds).toEqual([threadId]);
   }, 30_000);
 

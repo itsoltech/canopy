@@ -1,6 +1,11 @@
 import { toast } from "#lib/shared/ui/toast.svelte.ts";
 import { localFontFamily } from "@canopy/ui/fonts";
-import { DeviceViewPreferences, deviceViewDefaults, type DeviceViewValues } from "@canopy/domain/device-view";
+import {
+  DeviceViewPreferences,
+  deviceViewDefaults,
+  deviceViewStorageKey,
+  type DeviceViewValues,
+} from "@canopy/domain/device-view";
 
 /** Values are strings at the storage boundary; only declared choices are accepted. */
 export const deviceChoices = {
@@ -65,32 +70,64 @@ const viewKey = prefix + "view";
 export class DevicePreferences {
   values = $state<Record<DeviceKey, string>>({ ...deviceDefaults });
   view = $state<DeviceViewValues>({ ...deviceViewDefaults });
-  #view = new DeviceViewPreferences(
-    (values) => (this.view = values),
-    (raw) => {
+  viewLoaded = $state(false);
+  #viewKey = "";
+  #view = this.#createView();
+
+  #createView() {
+    return new DeviceViewPreferences(
+      (values) => (this.view = values),
+      (raw) => {
+        try {
+          localStorage.setItem(this.#viewKey, raw);
+        } catch {
+          toast("The preference could not be saved. Allow browser storage to keep it after closing this tab.", {
+            tone: "error",
+          });
+        }
+      },
+    );
+  }
+
+  connectView(scope: string): () => void {
+    this.#viewKey = deviceViewStorageKey(scope);
+    this.#view = this.#createView();
+
+    try {
+      this.#view.load(localStorage.getItem(this.#viewKey) ?? localStorage.getItem(viewKey));
+    } catch {
+      this.#view.load(null);
+    }
+
+    this.viewLoaded = true;
+    const read = (event: StorageEvent) => {
+      if (event.key !== this.#viewKey && event.key !== null) return;
+
       try {
-        localStorage.setItem(viewKey, raw);
+        this.#view.load(localStorage.getItem(this.#viewKey));
       } catch {
-        toast("The preference could not be saved. Allow browser storage to keep it after closing this tab.", {
-          tone: "error",
-        });
+        // Keep this tab's state when storage becomes unavailable.
       }
-    },
-  );
+    };
+    window.addEventListener("storage", read);
+
+    return () => {
+      window.removeEventListener("storage", read);
+      this.viewLoaded = false;
+    };
+  }
 
   initializeView(legacy: Partial<DeviceViewValues>): void {
-    this.#view.initialize(legacy);
+    if (this.viewLoaded) this.#view.initialize(legacy);
   }
 
   setView(change: Partial<DeviceViewValues>): void {
-    this.#view.set(change);
+    if (this.viewLoaded) this.#view.set(change);
   }
 
   connect(): () => void {
     const read = () => {
       try {
-        this.#view.load(localStorage.getItem(viewKey));
-
         for (const key of Object.keys(deviceChoices)) {
           if (!isDeviceKey(key)) continue;
           const value = localStorage.getItem(prefix + key);

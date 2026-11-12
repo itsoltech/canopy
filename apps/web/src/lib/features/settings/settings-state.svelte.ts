@@ -1,6 +1,8 @@
 import { create, equals, type DescMessage, type MessageShape } from "@bufbuild/protobuf";
 import { getContext, setContext } from "svelte";
 import { ui } from "@canopy/contracts";
+import { deviceSidebarSettings, type DeviceSidebarValues } from "@canopy/domain/device-view";
+import { devicePreferences } from "./device-preferences.svelte.ts";
 import { HttpError, requestJson } from "#lib/shared/http.ts";
 import { decode, encode } from "#lib/shared/wire.ts";
 import { userTimeZone } from "#lib/shared/ui/date-time.ts";
@@ -80,7 +82,7 @@ export class SettingsState {
   }
 
   get sidebar(): ui.SidebarSettings {
-    return this.user.sidebar ?? create(ui.SidebarSettingsSchema);
+    return deviceSidebarSettings(this.user.sidebar, devicePreferences.view);
   }
 
   get general(): ui.GeneralSettings {
@@ -97,8 +99,8 @@ export class SettingsState {
     );
   }
 
-  updateSidebar(change: Partial<Omit<ui.SidebarSettings, "$typeName">>): Promise<void> {
-    return this.#writeUser("sidebar", (current) => ({ ...current, ...change }));
+  updateSidebar(change: Partial<DeviceSidebarValues>): void {
+    devicePreferences.setView(change);
   }
 
   pinThread(threadId: string, pinned: boolean): Promise<void> {

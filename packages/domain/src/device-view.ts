@@ -1,4 +1,6 @@
 import { Schema } from "effect";
+import { create } from "@bufbuild/protobuf";
+import { ui } from "@canopy/contracts";
 import { storedSidebarWidth } from "./appearance/sidebar.ts";
 
 /** Desktop PR geometry in pixels; a narrow window may clamp below the preferred minimum. */
@@ -11,9 +13,18 @@ const savedView = Schema.Struct({
   threadPanelCollapsed: Schema.optionalKey(Schema.Boolean),
   sidebarWidth: Schema.optionalKey(Schema.Number),
   pullRequestWidth: Schema.optionalKey(Schema.Number),
+  projectIds: Schema.optionalKey(Schema.Array(Schema.String)),
+  groupByProject: Schema.optionalKey(Schema.Boolean),
+  projectOrder: Schema.optionalKey(Schema.Literals([0, 1, 2])),
+  workingSection: Schema.optionalKey(Schema.Boolean),
 });
 
-export interface DeviceViewValues {
+export type DeviceSidebarValues = Pick<
+  ui.SidebarSettings,
+  "projectIds" | "groupByProject" | "projectOrder" | "workingSection"
+>;
+
+export interface DeviceViewValues extends DeviceSidebarValues {
   archivedThreadsExpanded: boolean;
   archivedBotsExpanded: boolean;
   sidebarCollapsed: boolean;
@@ -29,7 +40,40 @@ export const deviceViewDefaults: DeviceViewValues = {
   threadPanelCollapsed: false,
   sidebarWidth: 0,
   pullRequestWidth: 0,
+  projectIds: [],
+  groupByProject: false,
+  projectOrder: ui.ProjectOrder.ACTIVITY,
+  workingSection: false,
 };
+
+/** Opaque gateway identity (web/desktop), or pairing identity (mobile); never a credential. */
+export const deviceViewStorageKey = (scope: string) => `canopy.client-view.v2.${encodeURIComponent(scope)}`;
+
+/** Only pins follow the account. All list filters and organization come from this client. */
+export function deviceSidebarSettings(synced: ui.SidebarSettings | undefined, view: DeviceViewValues) {
+  return create(ui.SidebarSettingsSchema, {
+    pinnedThreadIds: synced?.pinnedThreadIds ?? [],
+    pinnedBotIds: synced?.pinnedBotIds ?? [],
+    projectIds: view.projectIds,
+    groupByProject: view.groupByProject,
+    projectOrder: view.projectOrder,
+    workingSection: view.workingSection,
+  });
+}
+
+/** Read old account view fields exclusively for the one-time migration. */
+export function legacyDeviceView(user: ui.UserSettings): Partial<DeviceViewValues> {
+  return {
+    archivedThreadsExpanded: user.sidebar?.archivedExpanded ?? false,
+    sidebarCollapsed: user.appearance?.sidebarCollapsed ?? false,
+    threadPanelCollapsed: user.appearance?.threadPanelCollapsed ?? false,
+    sidebarWidth: user.appearance?.sidebarWidth ?? 0,
+    projectIds: user.sidebar?.projectIds ?? [],
+    groupByProject: user.sidebar?.groupByProject ?? false,
+    projectOrder: user.sidebar?.projectOrder ?? ui.ProjectOrder.ACTIVITY,
+    workingSection: user.sidebar?.workingSection ?? false,
+  };
+}
 
 /** Device storage only. Legacy account values seed missing fields once, including false and zero. */
 export class DeviceViewPreferences {
@@ -47,7 +91,8 @@ export class DeviceViewPreferences {
 
     if (raw) {
       try {
-        this.#saved = Schema.decodeUnknownSync(savedView)(JSON.parse(raw));
+        const { projectIds, ...saved } = Schema.decodeUnknownSync(savedView)(JSON.parse(raw));
+        this.#saved = { ...saved, ...(projectIds && { projectIds: [...projectIds] }) };
       } catch {
         // Invalid or obsolete storage uses the defaults and can be replaced on the next change.
       }

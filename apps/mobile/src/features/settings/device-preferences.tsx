@@ -2,6 +2,8 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import * as SecureStore from "expo-secure-store";
 import { DeviceViewPreferences, deviceViewDefaults, type DeviceViewValues } from "@canopy/domain/device-view";
 import { mobileFontFamilies } from "./mobile-fonts";
+import { useSession } from "../../state/session";
+import { loadDeviceView, saveDeviceView } from "../../storage/device-view";
 
 // Device preferences never enter account settings or overwrite another client's choices.
 export const deviceChoices = {
@@ -61,29 +63,28 @@ export const appearanceDeviceKeys: DeviceKey[] = [
 
 export const diffDeviceKeys: DeviceKey[] = ["diffLayout", "hideWhitespace", "diffFileState", "diffColors"];
 const storageKey = "canopy.settings.preferences.v1";
-const viewStorageKey = "canopy.settings.view.v1";
 
-function deviceViewStore(changed: (values: DeviceViewValues) => void, failed: (error: string) => void) {
+function deviceViewStore(scope: string, changed: (values: DeviceViewValues) => void, failed: (error: string) => void) {
   let writes = Promise.resolve();
 
   return new DeviceViewPreferences(changed, (raw) => {
     writes = writes
       .catch(() => {})
-      .then(() => SecureStore.setItemAsync(viewStorageKey, raw))
+      .then(() => saveDeviceView(scope, raw))
       .then(() => failed(""))
       .catch(() => failed("Could not save device preferences. Choose the setting again to retry."));
   });
 }
 
-function useDeviceView() {
+function useDeviceView(scope: string) {
   const [view, setView] = useState({ ...deviceViewDefaults });
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
-  const [store] = useState(() => deviceViewStore(setView, setError));
+  const [store] = useState(() => deviceViewStore(scope, setView, setError));
 
   useEffect(() => {
     let active = true;
-    void SecureStore.getItemAsync(viewStorageKey)
+    void loadDeviceView(scope)
       .then((raw) => {
         if (active) store.load(raw);
       })
@@ -97,7 +98,7 @@ function useDeviceView() {
     return () => {
       active = false;
     };
-  }, [store]);
+  }, [store, scope]);
 
   return {
     view,
@@ -153,8 +154,8 @@ function readPreferences(raw: string | null): Record<DeviceKey, string> {
   return result;
 }
 
-function useDeviceState() {
-  const view = useDeviceView();
+function useDeviceState(scope: string) {
+  const view = useDeviceView(scope);
   const [values, setValues] = useState({ ...deviceDefaults });
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
@@ -218,7 +219,18 @@ function useDeviceState() {
 const Context = createContext<ReturnType<typeof useDeviceState> | null>(null);
 
 export function DevicePreferencesProvider({ children }: { children: ReactNode }) {
-  return <Context.Provider value={useDeviceState()}>{children}</Context.Provider>;
+  const { session } = useSession();
+  const scope = session ? `${session.fingerprint}.${session.deviceId}` : "unpaired";
+
+  return (
+    <DevicePreferencesSession key={scope} scope={scope}>
+      {children}
+    </DevicePreferencesSession>
+  );
+}
+
+function DevicePreferencesSession({ children, scope }: { children: ReactNode; scope: string }) {
+  return <Context.Provider value={useDeviceState(scope)}>{children}</Context.Provider>;
 }
 
 export function useDevicePreferences() {
