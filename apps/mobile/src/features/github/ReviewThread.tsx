@@ -11,6 +11,7 @@ import { StatusIcon } from "./StatusIcon";
 import { ActivityHeader } from "./ActivityHeader";
 import { CommentComposer } from "./CommentComposer";
 import { CommentActions } from "./CommentActions";
+import { prCommentCitation } from "@canopy/domain";
 import { ThreadResolution } from "./ThreadResolution";
 import { anchorLabel } from "@canopy/domain/github-review";
 
@@ -121,7 +122,12 @@ export function ReviewThread({
             url={comment.url}
           />
           <Markdown text={comment.body} />
-          <CommentActions snapshot={snapshot} comment={comment} kind="review" />
+          <CommentActions
+            snapshot={snapshot}
+            comment={comment}
+            kind="review"
+            quote={prCommentCitation(snapshot, comment, "review_comment", data)}
+          />
         </View>
       ))}
       {!!error && <Notice error>{error}</Notice>}

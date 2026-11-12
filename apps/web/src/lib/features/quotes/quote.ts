@@ -1,4 +1,4 @@
-import { isQuoteSourceKind, type QuoteSourceKind } from "@canopy/domain";
+import { isQuoteSourceKind, type QuoteSourceKind, type PullRequestCitation } from "@canopy/domain";
 import type { ui } from "@canopy/contracts";
 
 export function draftOf(quote: ui.Quote): QuoteDraft {
@@ -22,6 +22,7 @@ export interface QuoteDraft {
   readonly end?: number;
   readonly sourceAuthor?: string;
   readonly sourceTime?: string;
+  readonly pullRequest?: PullRequestCitation;
 }
 
 /** A quote as the BFF takes it (api/threads/[id]/messages, `quotes`); a type alias, so it fits a `JsonBody`. */
@@ -36,6 +37,7 @@ export type WireQuote = {
   readonly end?: number;
   readonly sourceAuthor?: string;
   readonly sourceTime?: string;
+  readonly pullRequest?: PullRequestCitation;
 };
 
 export function toWire(quote: QuoteDraft): WireQuote {
@@ -49,6 +51,20 @@ export function toWire(quote: QuoteDraft): WireQuote {
     ...(quote.start !== undefined && { start: quote.start, end: quote.end }),
     ...(quote.sourceAuthor && { sourceAuthor: quote.sourceAuthor }),
     ...(quote.sourceTime && { sourceTime: quote.sourceTime }),
+    ...(quote.pullRequest && {
+      pullRequest: {
+        pullRequestId: quote.pullRequest.pullRequestId,
+        kind: quote.pullRequest.kind,
+        resourceId: quote.pullRequest.resourceId,
+        repository: quote.pullRequest.repository,
+        number: quote.pullRequest.number,
+        url: quote.pullRequest.url,
+        path: quote.pullRequest.path,
+        line: quote.pullRequest.line,
+        diffHunk: quote.pullRequest.diffHunk,
+        firstLine: quote.pullRequest.firstLine,
+      },
+    }),
   };
 }
 

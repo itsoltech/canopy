@@ -1,3 +1,5 @@
+import { Match } from "effect";
+
 /**
  * Quotes (docs/ui-api.md, "Cytaty"): passages of what an agent produced in a thread — its answer, reasoning,
  * command output, a tool call, a code block, a diff — that the user selected and sends back with a message,
@@ -12,6 +14,7 @@ export const QUOTE_SOURCE_KINDS = [
   "tool_call",
   "code",
   "diff",
+  "pull_request",
 ] as const;
 
 export type QuoteSourceKind = (typeof QUOTE_SOURCE_KINDS)[number];
@@ -28,7 +31,24 @@ export interface NotedQuote {
   readonly language?: string | undefined;
   readonly start?: number | undefined;
   readonly end?: number | undefined;
+  readonly pullRequest?: PullRequestCitation | undefined;
+  readonly sourceAuthor?: string | undefined;
+  readonly sourceTime?: string | undefined;
 }
+
+/** A closed JSON value shared by stored quotes and the web request body. */
+export type PullRequestCitation = {
+  readonly pullRequestId: string;
+  readonly kind: string;
+  readonly resourceId: string;
+  readonly repository: string;
+  readonly number: number;
+  readonly url: string;
+  readonly path: string;
+  readonly line: number;
+  readonly diffHunk: string;
+  readonly firstLine: number;
+};
 
 export function isQuoteSourceKind(kind: string): kind is QuoteSourceKind {
   return QUOTE_SOURCE_KINDS.some((known) => known === kind);
@@ -46,6 +66,7 @@ const origins: Record<QuoteSourceKind, string> = {
   tool_call: "a tool call",
   code: "a code block",
   diff: "a diff",
+  pull_request: "a pull request",
 };
 
 /** A fence longer than any run of backticks in the text (CommonMark), at least three. */
@@ -66,10 +87,27 @@ export function quoteBlock(quote: NotedQuote): string {
     return `${fence}${language}\n${text}\n${fence}`;
   }
 
-  return text
+  const block = text
     .split("\n")
     .map((line) => (line.trim() ? `> ${line}` : ">"))
     .join("\n");
+
+  if (!quote.pullRequest) return block;
+  const pr = quote.pullRequest;
+
+  const kind = Match.value(pr.kind).pipe(
+    Match.when("review_comment", () => "review comment"),
+    Match.when("log", () => "log excerpt"),
+    Match.orElse((value) => value),
+  );
+
+  const location = pr.path ? ` (${pr.path}${pr.line ? `:${pr.line}` : ""})` : "";
+
+  const context = pr.diffHunk
+    ? `\n\nDiff context:\n${fenceFor(pr.diffHunk)}diff\n${pr.diffHunk}\n${fenceFor(pr.diffHunk)}`
+    : "";
+
+  return `Pull request ${kind} by @${quote.sourceAuthor || "GitHub"} on ${pr.repository}#${pr.number}${location}:\n${pr.url}${quote.sourceTime ? ` · ${quote.sourceTime}` : ""}\n${block}${context}`;
 }
 
 /**

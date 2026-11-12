@@ -11,6 +11,7 @@ import { githubUpdateStore } from "./update-account.ts";
 import { githubPollingStore } from "./store-polling.ts";
 import { githubMutationsStore } from "./store-mutations.ts";
 import { githubRepositoryAccess } from "./store-repository-access.ts";
+import { githubCitations } from "./store-citations.ts";
 
 export function githubStore(sql: SqlClient.SqlClient, key: Buffer) {
   const seal = (value: TokenPair) => encryptSecret(key, JSON.stringify(value));
@@ -99,6 +100,7 @@ export function githubStore(sql: SqlClient.SqlClient, key: Buffer) {
     ...githubCache(sql),
     ...githubPullRequests(sql),
     ...githubRepositoryAccess(sql),
+    ...githubCitations(sql),
     ...githubDetectionStore(sql),
   };
 }

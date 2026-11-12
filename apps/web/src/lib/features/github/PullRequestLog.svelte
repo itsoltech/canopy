@@ -6,8 +6,18 @@
   import { PullRequestPages } from "./pages.svelte.ts";
   import PageControls from "./PageControls.svelte";
   import * as api from "./api.ts";
+  import CitationActions from "./CitationActions.svelte";
+  import CitationRegion from "./CitationRegion.svelte";
+  import { prCitation } from "@canopy/domain";
 
-  let { id, jobId, class: className }: { id: string; jobId: string; class?: ClassValue } = $props();
+  let {
+    snapshot,
+    jobId,
+    jobUrl,
+    class: className,
+  }: { snapshot: github.PullRequestSnapshot; jobId: string; jobUrl: string; class?: ClassValue } = $props();
+
+  const id = $derived(snapshot.summary?.ref?.id ?? "");
 
   const pages = $derived(
     new PullRequestPages((cursor, refresh) =>
@@ -19,6 +29,13 @@
     ),
   );
 
+  const quote = $derived(
+    prCitation(snapshot, "log", jobId, pages.current?.text ?? "", {
+      firstLine: pages.current?.firstLine,
+      url: jobUrl,
+    }),
+  );
+
   $effect(() => {
     const target = pages;
     untrack(() => void target.read());
@@ -27,9 +44,12 @@
 
 <section aria-label="Job log" class={["grid min-w-0 gap-2", className]}>
   <p class="font-mono text-sm/5 text-zinc-500 sm:text-xs/5">Job {jobId} · line {pages.current?.firstLine ?? 1}</p>
-  <pre
-    class="max-h-96 scroll-stable overflow-auto rounded-lg bg-zinc-950/4 p-3 font-mono text-xs/5 select-text dark:bg-white/5">{pages
-      .current?.text ?? ""}</pre>
+  <CitationRegion {quote}
+    ><pre
+      class="max-h-96 scroll-stable overflow-auto rounded-lg bg-zinc-950/4 p-3 font-mono text-xs/5 select-text dark:bg-white/5">{pages
+        .current?.text ?? ""}</pre>
+    {#if quote.text}<CitationActions {quote} />{/if}
+  </CitationRegion>
   <PageControls
     page={pages.current?.page}
     busy={pages.busy}

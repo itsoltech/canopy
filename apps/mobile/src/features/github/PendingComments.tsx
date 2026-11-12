@@ -6,6 +6,7 @@ import { Markdown } from "../../ui/markdown/Markdown";
 import { useColors, useTypography } from "../../ui/theme";
 import { CommentActions } from "./CommentActions";
 import type { ReviewDraft } from "./useReviewDraft";
+import { prCommentCitation } from "@canopy/domain";
 
 export function PendingComments({ snapshot, draft }: { snapshot: github.PullRequestSnapshot; draft: ReviewDraft }) {
   const c = useColors(),
@@ -30,7 +31,14 @@ export function PendingComments({ snapshot, draft }: { snapshot: github.PullRequ
               <Text style={[type.meta, { color: c.warning }]}>Outdated · {item.comment?.sha.slice(0, 7)}</Text>
             )}
             <Markdown text={item.comment?.body ?? ""} />
-            {item.comment && <CommentActions snapshot={snapshot} comment={item.comment} kind="review" />}
+            {item.comment && (
+              <CommentActions
+                snapshot={snapshot}
+                comment={item.comment}
+                kind="review"
+                quote={prCommentCitation(snapshot, item.comment, "review_comment", item)}
+              />
+            )}
           </View>
         ))}
       {!!draft.error && <Notice error>{draft.error}</Notice>}

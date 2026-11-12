@@ -1,11 +1,11 @@
 import { useState } from "react";
 import * as Crypto from "expo-crypto";
 import { View } from "react-native";
-import type { github } from "@canopy/contracts";
+import type { github, ui } from "@canopy/contracts";
 import { mutationRequest, mutationUnconfirmed } from "@canopy/domain/github-mutations";
 import { Notice } from "../../ui/components";
 import { confirm } from "../../ui/Confirm";
-import { GitHubActions } from "./GitHubActions";
+import { CitationActions } from "./CitationActions";
 import { CommentComposer } from "./CommentComposer";
 import { useMutation } from "./useMutation";
 import { invalidations } from "./invalidations";
@@ -15,10 +15,12 @@ export function CommentActions({
   snapshot,
   comment,
   kind,
+  quote,
 }: {
   snapshot: github.PullRequestSnapshot;
   comment: github.PullRequestTimelineEntry;
   kind: string;
+  quote: ui.Quote;
 }) {
   const { client, send, busy, online, receipt } = useMutation(snapshot);
 
@@ -58,17 +60,18 @@ export function CommentActions({
     }
   }
 
-  if (!own || (!comment.viewerCanUpdate && !comment.viewerCanDelete)) return null;
   const disabled = busy || preparing || !online || snapshot.stale || !!uncertain;
 
   return (
     <View style={{ gap: 8 }}>
       <View style={{ alignItems: "flex-end" }}>
-        <GitHubActions
-          name="Comment"
+        <CitationActions
+          quote={quote}
           actions={[
-            ...(comment.viewerCanUpdate ? [{ label: "Edit comment", disabled, run: () => setEditing(true) }] : []),
-            ...(comment.viewerCanDelete
+            ...(own && comment.viewerCanUpdate
+              ? [{ label: "Edit comment", disabled, run: () => setEditing(true) }]
+              : []),
+            ...(own && comment.viewerCanDelete
               ? [{ label: "Delete comment", disabled, danger: true, run: () => void prepare() }]
               : []),
           ]}

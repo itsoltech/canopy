@@ -9,6 +9,8 @@
   import { toneClasses } from "./presentation.ts";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import CiActions from "./CiActions.svelte";
+  import CitationActions from "./CitationActions.svelte";
+  import { prCitation, prCheckFailed } from "@canopy/domain";
 
   let {
     snapshot,
@@ -21,7 +23,7 @@
   const look = $derived(checkLook(check.state));
 </script>
 
-<li class={["min-w-0 text-sm/5 sm:text-xs/5", className]}>
+<li class={["group/pr min-w-0 text-sm/5 sm:text-xs/5", className]}>
   <div class="flex min-w-0 items-center pr-2">
     <button
       type="button"
@@ -39,6 +41,15 @@
       <Icon name={open ? "chevron-down" : "chevron-right"} />
     </button>
     <CiActions {snapshot} runId={check.runId} state={check.state} name={check.name} />
+    {#if prCheckFailed(check.state)}<CitationActions
+        quote={prCitation(
+          snapshot,
+          "check",
+          check.nodeId || check.url || check.name,
+          `${check.name}: ${check.state}${check.output ? `\n\n${check.output}` : ""}`,
+          { author: check.provider, url: check.url },
+        )}
+      />{/if}
   </div>
   {#if open}
     {#if check.runId}<PullRequestJobs {snapshot} runId={check.runId} />

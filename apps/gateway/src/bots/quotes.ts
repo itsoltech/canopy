@@ -19,6 +19,8 @@ export function botQuotes(
     });
 
     for (const quote of checked) {
+      if (quote.pullRequest) return yield* Effect.fail(new Invalid("Pull request citations belong to threads"));
+
       if (!quote.sourceThreadId) continue;
 
       const owned =

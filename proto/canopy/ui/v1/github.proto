@@ -323,6 +323,8 @@ message PullRequestTimelineEntry {
   bool viewer_can_update = 9;
   bool viewer_can_delete = 10;
   string avatar_url = 11;
+  // Bounded review context for citations, captured while reading the PR panel.
+  string diff_hunk = 12;
 }
 message PullRequestTimelineItem {
   oneof content {

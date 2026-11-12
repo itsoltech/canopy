@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/ui/v1/quotes.proto.
  */
 export const file_canopy_ui_v1_quotes: GenFile = /*@__PURE__*/
-  fileDesc("ChljYW5vcHkvdWkvdjEvcXVvdGVzLnByb3RvEgxjYW5vcHkudWkudjEi4wEKBVF1b3RlEgwKBHRleHQYASABKAkSDwoHY29tbWVudBgCIAEoCRIWCg5zb3VyY2VfaXRlbV9pZBgDIAEoCRIYChBzb3VyY2VfdGhyZWFkX2lkGAQgASgJEhMKC3NvdXJjZV9raW5kGAUgASgJEhAKCGxhbmd1YWdlGAYgASgJEhIKBXN0YXJ0GAcgASgNSACIAQESEAoDZW5kGAggASgNSAGIAQESFQoNc291cmNlX2F1dGhvchgJIAEoCRITCgtzb3VyY2VfdGltZRgKIAEoCUIICgZfc3RhcnRCBgoEX2VuZGIGcHJvdG8z");
+  fileDesc("ChljYW5vcHkvdWkvdjEvcXVvdGVzLnByb3RvEgxjYW5vcHkudWkudjEinAIKBVF1b3RlEgwKBHRleHQYASABKAkSDwoHY29tbWVudBgCIAEoCRIWCg5zb3VyY2VfaXRlbV9pZBgDIAEoCRIYChBzb3VyY2VfdGhyZWFkX2lkGAQgASgJEhMKC3NvdXJjZV9raW5kGAUgASgJEhAKCGxhbmd1YWdlGAYgASgJEhIKBXN0YXJ0GAcgASgNSACIAQESEAoDZW5kGAggASgNSAGIAQESFQoNc291cmNlX2F1dGhvchgJIAEoCRITCgtzb3VyY2VfdGltZRgKIAEoCRI3CgxwdWxsX3JlcXVlc3QYCyABKAsyIS5jYW5vcHkudWkudjEuUHVsbFJlcXVlc3RDaXRhdGlvbkIICgZfc3RhcnRCBgoEX2VuZCLFAQoTUHVsbFJlcXVlc3RDaXRhdGlvbhIXCg9wdWxsX3JlcXVlc3RfaWQYASABKAkSDAoEa2luZBgCIAEoCRITCgtyZXNvdXJjZV9pZBgDIAEoCRISCgpyZXBvc2l0b3J5GAQgASgJEg4KBm51bWJlchgFIAEoDRILCgN1cmwYBiABKAkSDAoEcGF0aBgHIAEoCRIMCgRsaW5lGAggASgNEhEKCWRpZmZfaHVuaxgJIAEoCRISCgpmaXJzdF9saW5lGAogASgNYgZwcm90bzM");
 
 /**
  * Wspólny cytat w wiadomości wątku albo bota. Metadane źródła służą tylko nawigacji UI.
@@ -85,6 +85,13 @@ export type Quote = Message<"canopy.ui.v1.Quote"> & {
    * @generated from field: string source_time = 10;
    */
   sourceTime: string;
+
+  /**
+   * Źródło PR jest sprawdzane w cache właściciela bez odczytu GitHub przy wysyłaniu.
+   *
+   * @generated from field: canopy.ui.v1.PullRequestCitation pull_request = 11;
+   */
+  pullRequest?: PullRequestCitation | undefined;
 };
 
 /**
@@ -93,4 +100,70 @@ export type Quote = Message<"canopy.ui.v1.Quote"> & {
  */
 export const QuoteSchema: GenMessage<Quote> = /*@__PURE__*/
   messageDesc(file_canopy_ui_v1_quotes, 0);
+
+/**
+ * @generated from message canopy.ui.v1.PullRequestCitation
+ */
+export type PullRequestCitation = Message<"canopy.ui.v1.PullRequestCitation"> & {
+  /**
+   * @generated from field: string pull_request_id = 1;
+   */
+  pullRequestId: string;
+
+  /**
+   * comment | review | review_comment | check | job | log
+   *
+   * @generated from field: string kind = 2;
+   */
+  kind: string;
+
+  /**
+   * @generated from field: string resource_id = 3;
+   */
+  resourceId: string;
+
+  /**
+   * @generated from field: string repository = 4;
+   */
+  repository: string;
+
+  /**
+   * @generated from field: uint32 number = 5;
+   */
+  number: number;
+
+  /**
+   * @generated from field: string url = 6;
+   */
+  url: string;
+
+  /**
+   * @generated from field: string path = 7;
+   */
+  path: string;
+
+  /**
+   * @generated from field: uint32 line = 8;
+   */
+  line: number;
+
+  /**
+   * Ograniczony fragment diffu z cache, nigdy pobierany podczas wysyłania.
+   *
+   * @generated from field: string diff_hunk = 9;
+   */
+  diffHunk: string;
+
+  /**
+   * @generated from field: uint32 first_line = 10;
+   */
+  firstLine: number;
+};
+
+/**
+ * Describes the message canopy.ui.v1.PullRequestCitation.
+ * Use `create(PullRequestCitationSchema)` to create a new message.
+ */
+export const PullRequestCitationSchema: GenMessage<PullRequestCitation> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_quotes, 1);
 

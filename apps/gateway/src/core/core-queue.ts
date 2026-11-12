@@ -100,7 +100,7 @@ export const coreQueueMethods: CoreQueueMethods = {
 
     const quotes = checkedQuotes(givenQuotes, (message) => new InvalidError(message), text, mentions);
 
-    await coreCheckQuoteSources(this, quotes);
+    await coreCheckQuoteSources(this, quotes, thread.id);
     const wasPlaced = new Set(placedAttachmentIds(mentionsFromJson(current.input.mentions)));
     const placed = new Set(mentions.filter((m) => m.kind === MentionKind.ATTACHMENT).map((m) => m.name));
     const attachments = (current.input.attachments ?? []).filter((a) => !wasPlaced.has(a.id) || placed.has(a.id));

@@ -62,6 +62,7 @@ export type DraftHeader = ReturnType<typeof draftHeader>;
 const comment = Schema.Struct({
   node_id: Schema.String,
   body: Schema.String,
+  diff_hunk: Schema.optional(Schema.String),
   path: Schema.String,
   side: Schema.String,
   start_side: Schema.NullOr(Schema.String),
@@ -101,6 +102,7 @@ export function draftPage(value: Schema.JsonObject, h: DraftHeader, user: string
       comment: {
         id: c.node_id,
         body: c.body,
+        diffHunk: (c.diff_hunk ?? "").slice(0, 8_000),
         author: c.user.login,
         avatarUrl: c.user.avatar_url ?? "",
         sha: c.original_commit_id,

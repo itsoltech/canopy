@@ -5,6 +5,11 @@ import { QUOTE_LIMITS } from "@canopy/domain";
 import { Button, Field, Sheet } from "../../ui/components";
 import { Notice } from "../../ui/Alert";
 import { QuoteSource } from "./QuoteSource";
+import { citationPreview } from "@canopy/domain";
+import { Text } from "react-native";
+import { styles, useColors } from "../../ui/theme";
+import * as Linking from "expo-linking";
+import { safeHref } from "@canopy/domain/markdown";
 
 /** Native selection menus cannot add actions in JS. This editable passage lets the reader keep any excerpt. */
 export function QuoteEditor({
@@ -23,10 +28,16 @@ export function QuoteEditor({
   const [text, setText] = useState(quote.text.slice(0, QUOTE_LIMITS.maxTextChars));
   const [comment, setComment] = useState(quote.comment);
   const [source, setSource] = useState(false);
+  const colors = useColors();
 
   return (
     <Sheet title={editing ? "Edit citation" : "Quote passage"} visible onClose={onClose}>
       <Notice>Keep the passage you want to quote, then add a comment.</Notice>
+      {quote.pullRequest && (
+        <Text selectable style={[styles.meta, { color: colors.muted }]}>
+          {citationPreview({ ...quote, text: "" })}
+        </Text>
+      )}
       {quote.text.length > QUOTE_LIMITS.maxTextChars && (
         <Notice>Quotes can contain up to 20,000 characters. Keep a shorter passage.</Notice>
       )}
@@ -46,6 +57,16 @@ export function QuoteEditor({
         maxLength={QUOTE_LIMITS.maxCommentChars}
       />
       <View style={{ alignItems: "flex-end" }}>
+        {quote.pullRequest && (
+          <Button
+            title="Open on GitHub"
+            onPress={() => {
+              const url = safeHref(quote.pullRequest?.url ?? "");
+
+              if (url) void Linking.openURL(url);
+            }}
+          />
+        )}
         {editing && quote.sourceItemId ? <Button title="Jump to source" onPress={() => setSource(true)} /> : null}
         {onRemove ? (
           <Button

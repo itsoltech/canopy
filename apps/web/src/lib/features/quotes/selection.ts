@@ -1,4 +1,7 @@
 import type { QuoteSourceKind } from "@canopy/domain";
+import type { PullRequestCitation } from "@canopy/domain";
+import { ui } from "@canopy/contracts";
+import { fromJsonString } from "@bufbuild/protobuf";
 
 /**
  * What a selection in the transcript quotes: the text as the reader sees it (rendered markdown without its
@@ -178,9 +181,18 @@ export interface QuoteSource {
   readonly language: string;
   readonly author?: string;
   readonly time?: string;
+  readonly pullRequest?: PullRequestCitation;
 }
 
-const KINDS = new Set<string>(["agent_message", "reasoning", "command_output", "tool_call", "code", "diff"]);
+const KINDS = new Set<string>([
+  "agent_message",
+  "reasoning",
+  "command_output",
+  "tool_call",
+  "code",
+  "diff",
+  "pull_request",
+]);
 
 const isQuoteKind = (kind: string): kind is QuoteSourceKind => KINDS.has(kind);
 
@@ -196,6 +208,26 @@ export function quoteSourceOf(element: Element | null): QuoteSource | undefined 
   const kind = region.dataset.quoteKind ?? "";
 
   if (!isQuoteKind(kind)) return undefined;
+
+  if (kind === "pull_request") {
+    try {
+      const quote = fromJsonString(ui.QuoteSchema, item.dataset.quotePr ?? "");
+
+      if (!quote.pullRequest) return undefined;
+
+      return {
+        itemId: "",
+        threadId: "",
+        kind,
+        language: "",
+        author: quote.sourceAuthor,
+        time: quote.sourceTime,
+        pullRequest: quote.pullRequest,
+      };
+    } catch {
+      return undefined;
+    }
+  }
 
   return {
     itemId: item.dataset.quoteItem ?? "",

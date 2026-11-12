@@ -56,6 +56,25 @@ Mobile ma odpowiedniki w `apps/mobile/src/ui/{Diff,DiffContent}.tsx`, `ui/markdo
 
 ## 2. GitHub App i konta
 
+### Cytaty do wątku
+
+`Send to agent` przy komentarzu, komentarzu inline, podsumowaniu review,
+nieudanym checku/jobie i otwartym fragmencie logu dodaje token do composera
+wątku przy zapisanym kursorze. Akcja jest dostępna przy hoverze lub fokusie
+oraz w menu elementu; na dotyku pozostaje widoczna. Zaznaczenie tekstu
+komentarza w web pokazuje `Cite` tak samo jak na osi rozmowy. Podgląd tokenu
+pokazuje treść, autora, repozytorium i numer PR, URL, czas oraz plik i linię
+komentarza inline. Użytkownik może dopisać własny tekst wokół cytatu i dopiero
+potem wysłać wiadomość. Akcja nie wysyła tury samodzielnie.
+
+Źródło jest rozwiązywane wyłącznie w cache gatewaya, po owner/thread/account/
+access revision i bieżącym powiązaniu PR. Wysyłanie nie odświeża dostępu ani
+danych przez GitHub. Komentarze review zapisują do 8000 znaków diff hunk przy
+odczycie panelu. Kontekst trafia do modelu razem z etykietą pochodzenia w miejscu
+tokenu. Logi korzystają z istniejącego, zredagowanego cache; brak poświadczeń
+i dowolnych URL w tej ścieżce. Mobile używa dotychczasowego tekstowego badge
+i edytora fragmentu (`Cite` w menu), bez rozszerzania natywnego menu zaznaczenia.
+
 ### Instalacja i autoryzacja to dwie zgody
 
 Administrator instaluje aplikację na koncie osobistym lub organizacji i wybiera repozytoria.

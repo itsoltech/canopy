@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
-  import { citationLabel } from "@canopy/domain";
+  import { citationLabel, citationTokenLabel } from "@canopy/domain";
   import HoverCard from "#lib/shared/ui/HoverCard.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import { CHIP_CLASS } from "#lib/features/mentions/kinds.ts";
@@ -27,8 +27,11 @@
       onclick={reveal}
       class={[CHIP_CLASS, "max-w-64 text-left focus-ring", className]}
     >
-      <Icon name="chat-bubble-bottom-center-text" class="size-4 shrink-0 self-center" />
-      <span class="truncate">{citationLabel(quote.text)}</span>
+      <Icon
+        name={quote.pullRequest ? "git-fork" : "chat-bubble-bottom-center-text"}
+        class="size-4 shrink-0 self-center"
+      />
+      <span class="truncate">{citationTokenLabel(quote)}</span>
     </button>
   {/snippet}
   <p class="max-h-72 overflow-y-auto break-words whitespace-pre-wrap select-text">{citationTitle(quote)}</p>

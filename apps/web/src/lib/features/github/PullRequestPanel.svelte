@@ -21,6 +21,10 @@
   import RepositoryAccessActions from "./RepositoryAccessActions.svelte";
   import { GITHUB_HOME, splitId } from "@canopy/domain/computers";
   import ReadSkeleton from "./ReadSkeleton.svelte";
+  import { providePrCitationTarget } from "./citation-target.ts";
+  import { useQuoteDrafts } from "#lib/features/quotes/quote-drafts.svelte.ts";
+  import CiteLayer from "#lib/features/quotes/CiteLayer.svelte";
+  import { toast } from "#lib/shared/ui/toast.svelte.ts";
   import { panelView } from "./panel-view.svelte.ts";
   import PullRequestScroll from "./PullRequestScroll.svelte";
 
@@ -29,7 +33,12 @@
     threadId,
     onclose,
     class: className,
-  }: { id: string; threadId?: string; onclose?: (() => void) | undefined; class?: ClassValue } = $props();
+  }: {
+    id: string;
+    threadId?: string;
+    onclose?: (() => void | Promise<void>) | undefined;
+    class?: ClassValue;
+  } = $props();
 
   let busy = $state(false);
   let denied = $state(false);
@@ -41,6 +50,43 @@
   let restoring = false;
   let visible = $state(false);
   const prefix = $props.id();
+  const drafts = useQuoteDrafts();
+
+  async function beforeinsert() {
+    const dialog = content?.closest("dialog");
+
+    const closed = onclose?.();
+
+    // Release the native focus trap before focusing the composer, even if navigation removes the sheet.
+    if (onclose && dialog?.open) dialog.close();
+    // Navigation restores focus when it completes. Insert only after that restoration.
+    await closed;
+    await tick();
+  }
+
+  providePrCitationTarget(
+    async (quote) => {
+      if (!threadId || !quote.pullRequest) return;
+      const targetThread = threadId;
+      await beforeinsert();
+
+      const added = drafts.add(targetThread, {
+        text: quote.text,
+        source: {
+          itemId: "",
+          threadId: "",
+          kind: "pull_request",
+          language: "",
+          author: quote.sourceAuthor,
+          time: quote.sourceTime,
+          pullRequest: quote.pullRequest,
+        },
+      });
+
+      if (!added) toast("A message can carry up to 20 quotes", { tone: "error" });
+    },
+    () => Boolean(threadId),
+  );
 
   $effect(() => {
     const changed = () => (visible = document.visibilityState === "visible");
@@ -228,3 +274,4 @@
     {:else if !read.snapshot.error}<ReadSkeleton />{/if}
   </div>
 </PullRequestScroll>
+{#if threadId}<CiteLayer {threadId} root={content} {beforeinsert} />{/if}

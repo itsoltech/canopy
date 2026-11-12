@@ -1231,6 +1231,17 @@ i zakres cytatu. Gateway zastępuje go pełnym fragmentem dokładnie w tym miejs
 przed przesunięciem zakresów wzmianek i numerowaniem załączników. Wszystkie harnessy
 dostają ten sam czytelny format tekstowy; nie potrzeba rozszerzeń konkretnego dostawcy:
 
+`Quote.pull_request` (11) dodaje źródło panelu PR (`source_kind = pull_request`):
+id PR, rodzaj (`comment`, `review`, `review_comment`, `check`, `job`, `log`),
+id zasobu oraz opis repozytorium, URL, pliku/linii i ograniczonego diffu.
+Gateway rozwiązuje metadane w cache wybranego konta właściciela i jego bieżącej
+rewizji dostępu. PR musi nadal być powiązany z docelowym wątkiem. Nie ma wywołań
+GitHub przy wysyłaniu ani edycji kolejki. Brak źródła wymaga odświeżenia panelu
+i ponownego dodania cytatu. Treść cytatu pozostaje edytowalna; metadane klienta
+nie zastępują danych źródła. Model otrzymuje etykietę `Pull request … by @… on
+owner/repo#N (path:line)` i do 8000 znaków kontekstu diffu z cache w tym samym
+miejscu co token. Boty nie przyjmują źródeł PR.
+
 ```text
 Sprawdź ten fragment:
 

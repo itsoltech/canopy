@@ -15,6 +15,8 @@
   import { toneClasses } from "./presentation.ts";
   import CiActions from "./CiActions.svelte";
   import ReadSkeleton from "./ReadSkeleton.svelte";
+  import CitationActions from "./CitationActions.svelte";
+  import { prCitation, prCheckFailed } from "@canopy/domain";
 
   let {
     snapshot,
@@ -71,11 +73,14 @@
     </div>{/if}
   {#each pages.current?.jobs ?? [] as job (job.id)}
     {@const look = checkLook(job.state)}
-    <div class="flex min-w-0 items-center gap-2 text-sm/5 sm:text-xs/5">
+    <div class="group/pr flex min-w-0 items-center gap-2 text-sm/5 sm:text-xs/5">
       <span {@attach tooltip(look.label)}
         ><Icon name={look.icon} label={look.label} tone="inherit" class={toneClasses[look.tone]} /></span
       >
       <p class="min-w-0 flex-1 truncate" title={job.name}>{job.name}</p>
+      {#if prCheckFailed(job.state)}<CitationActions
+          quote={prCitation(snapshot, "job", job.id, `${job.name}: ${job.state}`, { url: job.url })}
+        />{/if}
       <CiActions {snapshot} {runId} jobId={job.id} state={pages.current?.run?.state ?? job.state} name={job.name} />
       <Button
         size="sm"
@@ -84,7 +89,7 @@
         onclick={() => (selected = selected === job.id ? "" : job.id)}>View logs</Button
       >
     </div>
-    {#if selected === job.id}<PullRequestLog {id} jobId={job.id} />{/if}
+    {#if selected === job.id}<PullRequestLog {snapshot} jobId={job.id} jobUrl={job.url} />{/if}
   {/each}
   <PageControls
     page={pages.current?.page}

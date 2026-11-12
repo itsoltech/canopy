@@ -1,6 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { MentionKind, MentionSchema, type Mention, type ui } from "@canopy/contracts";
-import { citationLabel } from "@canopy/domain";
+import { citationTokenLabel } from "@canopy/domain";
 import { mentionPlaceholder } from "@canopy/domain/mentions";
 
 /**
@@ -193,7 +193,7 @@ export function insertCitation(
   const placed = insertMention(value, at, {
     kind: MentionKind.ATTACHMENT,
     name: "citation",
-    label: `“${citationLabel(quote.text)}”`,
+    label: quote.pullRequest ? `⑂ ${citationTokenLabel(quote)}` : `“${citationTokenLabel(quote)}”`,
   });
 
   const marker = placed.value.mentions.find((m) => m.name === "citation" && m.kind === MentionKind.ATTACHMENT)!;
