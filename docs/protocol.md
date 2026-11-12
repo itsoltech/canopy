@@ -62,6 +62,27 @@ proto ani `WORKER_LINK_PROTOCOL`. [Semantyka Stop](bots.md#zatrzymanie-odpowiedz
 
 ## Założenia
 
+### Czasowy tracing diagnostyczny
+
+Capability `diagnostics_trace_v1` dodaje nietrwałe ramki WorkerLink
+`diagnostics_trace_command` / `diagnostics_trace_reply` (852) i jawne akcje
+`ControlDiagnosticsTrace` / `ExportDiagnosticsTrace`. Jedna lease na komputer
+obejmuje wybrany gateway albo jeden połączony worker. Czas 1/5/10 minut
+(domyślnie 5), auto-off po monotonicznym deadline, rozłączeniu workera i restarcie.
+Stop/eksport wymagają ID aktualnej lease. Sterowanie połączonym komputerem jest
+bezpośrednie, owner-scoped; nie przechodzi przez onward ani zbiorcze gather.
+
+Bufor opt-in: 2000 spanów, najwyżej 100 próbek/s i mniej niż 1% operacji
+(co 101. zdarzenie, aby uniknąć aliasowania par wait/execution). Numeryczny ring
+zajmuje 141 KiB poza zwykłym kolektorem, wewnątrz osobnego limitu tracingu 4 MiB.
+Nie przechowuje payloadów, SQL, parametrów, błędów, stosów ani obietnic.
+Eksport buduje ograniczoną odpowiedź dopiero po jawnej akcji i jej nie cache'uje.
+Zwykłe snapshoty zawierają tylko stan sesji; tracing nie jest utrwalany.
+Próbki tracą dostępność najpóźniej 10 minut po końcu sesji. Audyt oddziela start,
+stop, expiry, cancel i export, zapisując wyłącznie skalarne metadane.
+Starsze workery/komputery nie dostają ramek; capability linku trafia do
+`extra_capabilities`, zgodnie z limitem starego handshake. `update/v1` bez zmian.
+
 - **Worker inicjuje połączenie.** Edge device może stać za NAT-em. Nie otwieramy na nim portów.
 - **Jeden strumień dwukierunkowy na workera:** `WorkerLinkService.Connect(stream WorkerMessage) returns (stream GatewayMessage)`.
   - w górę: handshake, heartbeaty, transkrypty, wyniki komend, prośby o uprawnienia, wywołania szyny agentów,

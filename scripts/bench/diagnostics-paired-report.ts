@@ -12,6 +12,7 @@ const Phase = Schema.Literals([
   "governor",
   "report",
   "log_export",
+  "trace_worker",
 ]);
 
 const Resource = Schema.Struct({ cpuPercent: Schema.Number, rss: Schema.Number, heap: Schema.Number });

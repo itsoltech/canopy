@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Tracing from "#lib/features/diagnostics/Tracing.svelte";
   import { applicationName } from "#lib/application-name.ts";
   import ThreadSyncDiagnostics from "#lib/features/settings/ThreadSyncDiagnostics.svelte";
   import { diagnosticsRanges, diagnosticsSorts, diagnosticsKinds } from "@canopy/domain/diagnostics";
@@ -126,6 +127,13 @@
     </div>
   {/if}
   {#if selected && detail.data?.computerId === selected}
+    <Tracing
+      computer={detail.data}
+      onrefresh={() => {
+        void overview.reload();
+        void detail.reload();
+      }}
+    />
     <GatewayMetrics computer={detail.data} />
     <LinkMetrics computer={detail.data} />
     <ClientMetrics computer={detail.data} />

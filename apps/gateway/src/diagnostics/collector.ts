@@ -7,6 +7,7 @@ import {
   metricOf,
   rpcOf,
   type Histogram,
+  DiagnosticsTrace,
 } from "@canopy/domain/diagnostics";
 import { BucketBudget, Buckets } from "./buckets.ts";
 import { MAX_METHODS, type RegisteredMethod } from "./registry.ts";
@@ -18,6 +19,7 @@ export type DiagnosticsClock = { monotonic(): number; utc(): number };
 const SYSTEM_CLOCK: DiagnosticsClock = { monotonic: () => performance.now(), utc: () => Date.now() };
 
 export class RpcCollector {
+  readonly tracing = new DiagnosticsTrace();
   freshnessMs = 10_000;
   enabled = true;
   gatewayEnabled = true;
@@ -141,6 +143,7 @@ export class RpcCollector {
           value.duration.record(elapsed);
           value.slow = addCount(value.slow, elapsed > 1000 ? 1n : 0n);
         });
+        this.tracing.record("rpc", id, elapsed, code !== 0);
       },
     };
   }
@@ -168,6 +171,7 @@ export class RpcCollector {
 
   recordDatabase(id: number, elapsed: number, error: boolean, rpc: number, monotonic: number) {
     if (!this.enabled || !this.gatewayEnabled) return;
+    this.tracing.record(id % 8 === 0 ? "pool" : "database", id, elapsed, error);
     this.#database ??= new DatabaseMeasurements(this);
 
     this.#database.record(id, elapsed, error, rpc, monotonic);
@@ -182,6 +186,9 @@ export class RpcCollector {
     const definition = METRIC_DEFINITIONS.get(id);
 
     if (!definition || (rpc && !this.methods.has(rpc))) return;
+
+    if (definition.kind === "timing" && (definition.group === "governor" || id === 22))
+      this.tracing.record(id === 22 ? "ingest" : "governor", id, value, error);
     const at = timestamp ?? this.measurementTime(this.clock.monotonic());
 
     for (const ring of this.#rings) {

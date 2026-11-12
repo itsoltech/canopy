@@ -8,6 +8,7 @@ import { workerDiagnostics } from "../diagnostics/worker.ts";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import type { LogPullSource } from "@canopy/logs";
+import { workerTracing } from "../diagnostics/tracing.ts";
 
 export interface SessionEnd {
   /** Set when the gateway asked to reconnect later (Drain). */
@@ -29,6 +30,9 @@ export async function serveLink(
   try {
     for await (const message of link.messages) {
       switch (message.payload.case) {
+        case "diagnosticsTraceCommand":
+          link.send({ case: "diagnosticsTraceReply", value: workerTracing.receive(message.payload.value) });
+          break;
         case "diagnosticsLogCommand": {
           const command = message.payload.value;
 
@@ -80,8 +84,11 @@ export async function serveLink(
 
         case "command": {
           const command = message.payload.value;
+          const tracing = workerTracing.command(command.kind.case);
           // Commands run concurrently (a long turn must not block an interrupt); results go back when ready.
           void host.handleCommand(command).then((result) => {
+            tracing?.(!result?.ok);
+
             if (!result) return; // the worker is stopping: redelivered to the next process
 
             try {
@@ -114,6 +121,7 @@ export async function serveLink(
       }
     }
   } finally {
+    workerTracing.close();
     await logs?.close();
     host.detach(link);
   }

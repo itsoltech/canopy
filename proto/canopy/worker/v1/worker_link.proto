@@ -76,6 +76,7 @@ message WorkerMessage {
     canopy.ui.v1.WorkerLinkDiagnostics diagnostics = 850;
     // Ephemeral pull responses; never journaled or put in a command outbox.
     canopy.ui.v1.DiagnosticsLogSourceReply diagnostics_log_reply = 851;
+    canopy.ui.v1.DiagnosticsWorkerTraceReply diagnostics_trace_reply = 852;
   }
 }
 
@@ -100,6 +101,7 @@ message GatewayMessage {
     AgentEnvironmentDesired agent_environment = 820;
     HeartbeatEcho heartbeat_echo = 850;
     canopy.ui.v1.DiagnosticsLogSourceCommand diagnostics_log_command = 851;
+    canopy.ui.v1.DiagnosticsWorkerTraceRequest diagnostics_trace_command = 852;
   }
 }
 

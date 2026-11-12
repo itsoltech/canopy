@@ -136,6 +136,8 @@ export const SERVED = new Set([
   "ReadDiagnosticsSnapshot",
   "CollectHomeDiagnosticsLogs",
   "ResetDiagnosticsCounters",
+  "ControlHomeDiagnosticsTrace",
+  "ExportHomeDiagnosticsTrace",
   "GetOverview",
   "WatchOverview",
   "ListThreads",

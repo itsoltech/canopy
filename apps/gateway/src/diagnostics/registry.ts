@@ -2,19 +2,15 @@ import { type DescMethod } from "@bufbuild/protobuf";
 import { computerLink, ui, update, CommandSchema, WorkerEnrollmentService, WorkerLinkService } from "@canopy/contracts";
 import { SERVED } from "../computers/remote-policy.ts";
 
+export { diagnosticMethodId as methodId } from "@canopy/domain/diagnostics";
+
+import { diagnosticMethodId as methodId } from "@canopy/domain/diagnostics";
+
 export type RegisteredMethod = { id: number; name: string; layer: string; stream: boolean; interactive: boolean };
 
 export const MAX_METHODS = 512;
 
 /** Stable across additive contracts; descriptor collisions are a startup error, never merged series. */
-export function methodId(name: string) {
-  let hash = 2166136261;
-
-  for (const character of name) hash = Math.imul(hash ^ character.charCodeAt(0), 16777619);
-
-  return hash >>> 0;
-}
-
 export function registered(method: DescMethod, layer = "rpc"): RegisteredMethod {
   const name = `${method.parent.typeName}/${method.name}`;
 

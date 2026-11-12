@@ -19,6 +19,9 @@ export function selectedPhases(): DiagnosticsPhase[] {
 
   if (process.env["CANOPY_BENCH_RESOURCES"] === "1") return ["idle"];
 
+  if (process.env["CANOPY_BENCH_STAGE"] === "6")
+    return ["idle", "steady", "slow_reader", "governor", "log_export", "trace_worker"];
+
   if (process.env["CANOPY_BENCH_ALL_PHASES"] === "1")
     return [
       "idle",

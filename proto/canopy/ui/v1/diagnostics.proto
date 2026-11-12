@@ -198,6 +198,46 @@ message ComputerDiagnostics {
   bool gateway_measures_supported = 32;
   repeated DiagnosticsMeasure client_measures = 33; // Untrusted, sampled observations; separate from server metrics.
   int64 epoch_started_at_ms = 34;
+  DiagnosticsTraceState tracing = 35; // Metadata only. Samples require a separate explicit export.
+  bool tracing_supported = 36;
+}
+
+// One ephemeral lease on one selected local process. Never persisted or relayed onward.
+message DiagnosticsTraceRequest {
+  string computer_id = 1;
+  string process_id = 2; // gateway or worker:<id>
+  string action = 3; // start or stop; export uses its separate RPC
+  uint32 minutes = 4; // 1, 5 (default), 10
+  string lease_id = 5; // Fences stop/export against a newer session.
+}
+message DiagnosticsTraceState {
+  bool active = 1;
+  int64 expires_at_ms = 2;
+  string lease_id = 3;
+  string process_id = 4;
+}
+message DiagnosticsTraceSpan {
+  string trace_id = 1; // Random, unrelated to any thread, request, command or client identity.
+  string operation = 2; // rpc, database, pool, ingest or governor
+  uint32 operation_id = 3; // Registered numeric operation only. No arbitrary labels.
+  double duration_ms = 4;
+  int64 sampled_at_ms = 5;
+  bool failed = 6; // Never an error object, message, cause, SQL or parameters.
+  string operation_name = 7; // Derived from the local descriptor/family allowlist at export only.
+}
+message DiagnosticsTraceExport {
+  DiagnosticsTraceState state = 1;
+  repeated DiagnosticsTraceSpan spans = 2;
+  uint64 dropped_samples = 3;
+}
+message DiagnosticsWorkerTraceRequest {
+  string request_id = 1;
+  DiagnosticsTraceRequest request = 2; // start, stop or export over authenticated WorkerLink only
+}
+message DiagnosticsWorkerTraceReply {
+  string request_id = 1;
+  DiagnosticsTraceExport result = 2;
+  uint32 code = 3; // Sanitised Connect code only.
 }
 message DiagnosticsSnapshot {
   repeated ComputerDiagnostics computers = 1;

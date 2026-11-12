@@ -58,6 +58,7 @@ import { DatabaseMonitor, bindDatabaseMonitor, observedSql } from "../../../apps
 import { BotStore } from "../../../apps/gateway/src/bots/store.ts";
 import type { LogPullSource } from "@canopy/logs";
 import type { BotModel } from "../../../apps/gateway/src/bots/types.ts";
+import type { WorkerTracing } from "../../../apps/worker/src/diagnostics/tracing.ts";
 
 export const SERVICE_TOKEN = "t".repeat(48);
 
@@ -111,6 +112,7 @@ export type CommandHandler = (
 export type CommandReplyExtra = Omit<MessageInitShape<typeof CommandResultSchema>, "$typeName" | "commandId" | "ok">;
 
 export interface ScriptedWorkerOptions {
+  readonly tracing?: WorkerTracing;
   readonly logs?: LogPullSource;
   readonly secretsDataDir?: string;
   /** Report Claude as available (default: only Codex). */
@@ -304,6 +306,11 @@ export class ScriptedWorker {
   async #loop(): Promise<void> {
     for await (const message of this.link.messages) {
       const payload = message.payload;
+
+      if (payload.case === "diagnosticsTraceCommand" && this.options.tracing) {
+        this.link.send({ case: "diagnosticsTraceReply", value: this.options.tracing.receive(payload.value) });
+        continue;
+      }
 
       if (payload.case === "diagnosticsLogCommand" && this.options.logs) {
         const command = payload.value;

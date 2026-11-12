@@ -294,7 +294,7 @@ export class DiagnosticsPeers {
       ).values(),
     ]
       .slice(0, 32)
-      .map((value) => create(ui.ComputerDiagnosticsSchema, { ...value, calls: [] }));
+      .map((value) => create(ui.ComputerDiagnosticsSchema, { ...value, calls: [], tracing: undefined }));
   }
 
   close() {

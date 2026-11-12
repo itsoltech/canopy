@@ -33,6 +33,7 @@ import { resetHomeDiagnostics } from "../diagnostics/control.ts";
 import { watchTiming } from "./watch-liveness.ts";
 import { readThreadRange } from "./range-source.ts";
 import { serveHomeLogs } from "../diagnostics/log-serving.ts";
+import { serveHomeTrace } from "../diagnostics/trace-serving.ts";
 
 // ------------------------------------------------------------------ stage 2: remote threads
 
@@ -47,7 +48,10 @@ export async function* computersServeRemote(
   signal: AbortSignal,
   route?: RelayRoute,
 ): AsyncGenerator<Message> {
-  if (method.name === "ResetDiagnosticsCounters" && (route?.targetNodeId || route?.originNodeId || route?.relayHops))
+  if (
+    ["ResetDiagnosticsCounters", "ControlHomeDiagnosticsTrace", "ExportHomeDiagnosticsTrace"].includes(method.name) &&
+    (route?.targetNodeId || route?.originNodeId || route?.relayHops)
+  )
     throw new ConnectError("Diagnostics control requires a direct link", Code.PermissionDenied);
 
   if (!route?.targetNodeId) {
@@ -140,20 +144,21 @@ export async function* computersServeHome(
   request: Message,
   signal: AbortSignal,
 ): AsyncGenerator<Message> {
+  if (["ControlHomeDiagnosticsTrace", "ExportHomeDiagnosticsTrace"].includes(method.name)) {
+    yield await serveHomeTrace(hostContext, nodeId, connection, request, method.name === "ExportHomeDiagnosticsTrace");
+
+    return;
+  }
+
   if (method.name === "CollectHomeDiagnosticsLogs") {
     yield* serveHomeLogs(hostContext, nodeId, connection, request, signal);
 
     return;
   }
 
-  if (method.name === "ResetDiagnosticsCounters") {
-    yield await resetHomeDiagnostics(hostContext, nodeId, connection, request);
-
-    return;
-  }
-
-  if (method.name === "ReadDiagnosticsSnapshot") {
-    yield await readHomeDiagnostics(hostContext, nodeId, connection, request);
+  if (["ResetDiagnosticsCounters", "ReadDiagnosticsSnapshot"].includes(method.name)) {
+    const read = method.name === "ResetDiagnosticsCounters" ? resetHomeDiagnostics : readHomeDiagnostics;
+    yield await read(hostContext, nodeId, connection, request);
 
     return;
   }

@@ -95,6 +95,8 @@ service GatewayService {
   rpc DownloadDiagnosticsLogs(DiagnosticsLogsJobRequest) returns (stream DiagnosticsLogPart);
   rpc WatchDiagnosticsLogSource(DiagnosticsLogSourceRegistration) returns (stream DiagnosticsLogSourceCommand);
   rpc ReplyDiagnosticsLogSource(DiagnosticsLogSourceReply) returns (DiagnosticsReceipt);
+  rpc ControlDiagnosticsTrace(DiagnosticsTraceRequest) returns (DiagnosticsTraceState);
+  rpc ExportDiagnosticsTrace(DiagnosticsTraceRequest) returns (DiagnosticsTraceExport);
   rpc GetAgentEnvironment(AgentEnvironmentRequest) returns (AgentEnvironmentSnapshot);
   rpc SaveInstructionDocument(SaveInstructionDocumentRequest) returns (AgentEnvironmentSnapshot);
   rpc DeleteInstructionDocument(DeleteInstructionDocumentRequest) returns (AgentEnvironmentSnapshot);
