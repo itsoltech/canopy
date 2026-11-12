@@ -15,7 +15,7 @@
     </p>{/if}
   {#if !families.length}<p class="text-muted">No measured query families in this window.</p>{/if}
   {#each families as family (family.family)}
-    <Disclosure class="border-border min-w-0 rounded-lg border p-3" summaryClass="wrap-anywhere">
+    <Disclosure class="min-w-0 rounded-lg border border-divider p-3" summaryClass="wrap-anywhere">
       {#snippet summary()}
         {family.family} · execute p95 {measured(family.executeMs)} · {family.executeMs?.samples ?? 0n} samples
       {/snippet}
