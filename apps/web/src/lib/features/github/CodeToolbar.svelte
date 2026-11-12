@@ -36,7 +36,12 @@
     className,
   ]}
 >
-  <DropdownMenu label="Commit filter" placement="bottom-start" sheet>
+  <DropdownMenu
+    label="Commit filter"
+    placement="bottom-start"
+    sheet
+    class="w-[min(28rem,calc(100vw-1rem))] max-w-[calc(100vw-1rem)]"
+  >
     {#snippet trigger(props)}<Button {...props} size="sm" variant="ghost" title="Commit filter"
         ><span class="max-w-24 truncate"
           >{#if commit}{commit.slice(0, 7)}{:else}All<span class="hidden @min-[400px]/code:inline">{" commits"}</span
@@ -45,15 +50,17 @@
       >{/snippet}
     {#each options as option (option.value)}<MenuCheckItem
         checked={commit === option.value}
-        onselect={() => (commit = option.value)}>{option.label}</MenuCheckItem
+        onselect={() => (commit = option.value)}
+        ><span class="block truncate" title={option.label}>{option.label}</span></MenuCheckItem
       >{/each}
     {#if more}<MenuItem disabled={busy} onselect={more}>Load more commits</MenuItem>{/if}
   </DropdownMenu>
   <p
-    class="min-w-0 flex-1 text-xs text-zinc-500 tabular-nums dark:text-zinc-400"
+    class="flex min-w-0 flex-1 items-center text-xs whitespace-nowrap text-zinc-500 tabular-nums dark:text-zinc-400"
+    aria-label={`${viewed} files viewed`}
     title={`${count} files · Viewed applies to the whole pull request`}
   >
-    {viewed} viewed
+    <span class="shrink-0">{viewed}</span><span class="hidden @min-[400px]/code:inline">{" viewed"}</span>
   </p>
   <div class="flex shrink-0 gap-0.5" role="group" aria-label="Diff display">
     <IconButton

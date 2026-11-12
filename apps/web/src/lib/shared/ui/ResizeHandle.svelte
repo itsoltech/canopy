@@ -44,7 +44,7 @@
     class?: ClassValue;
   } = $props();
 
-  let drag: { id: number; x: number; size: number; last: number; collapsed: boolean } | undefined;
+  let drag: { id: number; x: number; size: number; last: number; collapsed: boolean; handle: HTMLElement } | undefined;
   let frame = 0;
   const range = $derived({ min, max, reset });
 
@@ -67,6 +67,8 @@
     const next = sizeAt(x);
     drag.last = next.size;
     drag.collapsed = next.collapsed;
+    drag.handle.setAttribute("aria-valuenow", String(next.size));
+    drag.handle.setAttribute("aria-valuetext", `${next.size} pixels`);
     onresize?.(next.size, next.collapsed);
   }
 
@@ -76,20 +78,30 @@
     frame = 0;
 
     if (commit && x !== undefined) follow(x);
-    const { size, last, collapsed } = drag;
+    const { size, last, collapsed, handle } = drag;
     drag = undefined;
     dragging = false;
     delete document.documentElement.dataset["resizing"];
 
-    if (!commit) onresize?.(size, false);
-    else if (last !== size || collapsed) onchange?.({ size: last, collapsed, reason: "drag" });
+    if (!commit) {
+      handle.setAttribute("aria-valuenow", String(size));
+      handle.setAttribute("aria-valuetext", `${size} pixels`);
+      onresize?.(size, false);
+    } else if (last !== size || collapsed) onchange?.({ size: last, collapsed, reason: "drag" });
   }
 
   function onpointerdown(event: PointerEvent & { currentTarget: HTMLElement }) {
     if (event.button !== 0 || event.detail > 1) return;
     event.preventDefault(); // no text selection, no focus jump
     event.currentTarget.setPointerCapture(event.pointerId);
-    drag = { id: event.pointerId, x: event.clientX, size: value, last: value, collapsed: false };
+    drag = {
+      id: event.pointerId,
+      x: event.clientX,
+      size: value,
+      last: value,
+      collapsed: false,
+      handle: event.currentTarget,
+    };
     dragging = true;
     // Keeps the cursor and stops text selection anywhere on the page while dragging (layout.css).
     document.documentElement.dataset["resizing"] = "x";

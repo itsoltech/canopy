@@ -30,14 +30,26 @@ describe("device view persistence for clients of the same owner", () => {
     const b = bStorage.open();
     a.initialize(legacy);
     b.initialize(legacy);
-    a.set({ archivedThreadsExpanded: false, archivedBotsExpanded: true, sidebarCollapsed: false, sidebarWidth: 0 });
+    a.set({
+      archivedThreadsExpanded: false,
+      archivedBotsExpanded: true,
+      sidebarCollapsed: false,
+      sidebarWidth: 0,
+      pullRequestWidth: 960,
+    });
     a.initialize(legacy);
-    expect(a.values).toMatchObject({ archivedThreadsExpanded: false, archivedBotsExpanded: true, sidebarWidth: 0 });
+    expect(a.values).toMatchObject({
+      archivedThreadsExpanded: false,
+      archivedBotsExpanded: true,
+      sidebarWidth: 0,
+      pullRequestWidth: 960,
+    });
     expect(b.values).toMatchObject({
       archivedThreadsExpanded: true,
       archivedBotsExpanded: false,
       sidebarCollapsed: true,
       sidebarWidth: 320,
+      pullRequestWidth: 0,
     });
     const reopened = aStorage.open();
     reopened.initialize(legacy);
@@ -62,6 +74,12 @@ describe("device view persistence for clients of the same owner", () => {
     expect(preferences.values.archivedThreadsExpanded).toBe(false);
     preferences.set({ sidebarWidth: 40 });
     expect(preferences.values.sidebarWidth).toBe(220);
+    preferences.set({ pullRequestWidth: 9000 });
+    expect(preferences.values.pullRequestWidth).toBe(1200);
+    preferences.set({ pullRequestWidth: 40 });
+    expect(preferences.values.pullRequestWidth).toBe(320);
+    preferences.set({ pullRequestWidth: 0 });
+    expect(preferences.values.pullRequestWidth).toBe(0);
   });
 
   test("linked settings exclude disclosures and ignore fields retained by older peers", () => {

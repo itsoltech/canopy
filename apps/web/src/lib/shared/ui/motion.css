@@ -336,6 +336,9 @@
 .t-panel-column[data-collapsed] {
   transition-duration: var(--duration-medium);
 }
+:root[data-resizing="x"] .t-panel-column {
+  transition: none;
+}
 .t-panel {
   transition: opacity var(--duration-slow) var(--ease-smooth-out);
 }

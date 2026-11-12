@@ -35,6 +35,7 @@
   import ThreadPermissionsDialog from "#lib/features/threads/components/ThreadPermissionsDialog.svelte";
   import ThreadPanel from "#lib/features/threads/components/ThreadPanel.svelte";
   import PullRequestPanel from "#lib/features/github/DesktopPullRequestPanel.svelte";
+  import PullRequestResize from "#lib/features/github/PullRequestResize.svelte";
   import ThreadPullRequestSheet from "#lib/features/github/ThreadPullRequestSheet.svelte";
   import { closePullRequest as closePr, toggleThreadPanel } from "#lib/features/github/thread-panel.ts";
   import ThreadTitleActions from "#lib/features/threads/components/ThreadTitleActions.svelte";
@@ -287,6 +288,8 @@
   const selectedPr = $derived(page.url.searchParams.get("pr") ?? "");
 
   const panelOpen = $derived(Boolean(selectedPr) || !device.view.threadPanelCollapsed);
+  let panelContainer = $state<HTMLElement>();
+  const panelId = $props.id();
   let panelSheet = $state(false);
 
   let worktreeDialog = $state(false);
@@ -520,8 +523,13 @@
 <!-- On xl the container reserves the details panel's column (it arrives before the panel, so nothing moves while
      the page loads) and eases it open or shut (motion.css `t-panel-column`). -->
 <div
-  class="t-panel-column flex h-full xl:grid xl:grid-cols-[minmax(0,1fr)_var(--panel-width)] xl:grid-rows-1"
-  style:--panel-width={selectedPr ? "min(36rem, 48vw)" : panelOpen ? "20rem" : "0rem"}
+  bind:this={panelContainer}
+  class="t-panel-column relative flex h-full xl:grid xl:grid-cols-[minmax(0,1fr)_var(--panel-width)] xl:grid-rows-1"
+  style:--panel-width={selectedPr
+    ? "min(var(--pr-panel-width, 576px), var(--pr-panel-max-width, max(0px, calc(100% - 384px))))"
+    : panelOpen
+      ? "20rem"
+      : "0rem"}
   data-collapsed={!panelOpen || undefined}
   data-window-side-panel={panelOpen ? "xl" : undefined}
 >
@@ -773,15 +781,19 @@
 
   <!-- Mounted while closed too, so it can ease out: the panel keeps its width on the column's left edge and fades, so
        its content never re-wraps; a closed panel is inert. -->
+  {#if selectedPr}<div class="absolute inset-y-0 right-(--panel-width) z-40 w-0 max-xl:hidden">
+      <PullRequestResize container={panelContainer} controls={panelId} />
+    </div>{/if}
   <aside
+    id={panelId}
     class="relative min-w-0 overflow-hidden max-xl:hidden"
     aria-label={selectedPr ? "Pull request" : "Thread details"}
     inert={!panelOpen}
     data-collapsed={!panelOpen || undefined}
   >
     <div
-      class="t-panel absolute inset-y-0 left-0 flex flex-col"
-      style:width={selectedPr ? "min(36rem, 48vw)" : "20rem"}
+      class="t-panel absolute inset-y-0 left-0 flex flex-col overflow-hidden"
+      style:width={selectedPr ? "100%" : "20rem"}
     >
       <!-- The 48px title strip keeps the panel's content clear of the window controls on every desktop platform. -->
       <div class="hidden desktop:block" data-window-end>

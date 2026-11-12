@@ -121,7 +121,7 @@
     {#each rows as row (row.key)}
       {@const author = row.kind === "thread" ? row.thread.comments[0]?.author : row.items[0]?.content.value?.author}
       <li class="relative flex min-w-0 items-start gap-3">
-        <GitHubAvatar userId="" login={author || "GH"} class="ring-4 ring-surface" />
+        <GitHubAvatar userId="" login={author ?? ""} class="ring-4 ring-surface" />
         <div class="min-w-0 flex-1 pt-1.5">
           {#if row.kind === "thread"}<ReviewThread {id} {snapshot} thread={row.thread} />{:else}<TimelineEvent
               items={row.items}

@@ -13,6 +13,19 @@ export type Activity =
   | { kind: "event"; key: string; items: github.PullRequestTimelineItem[] }
   | { kind: "thread"; key: string; thread: github.PullRequestReviewThread };
 
+const hiddenTimelineEvents = new Set(["MentionedEvent", "SubscribedEvent", "UnsubscribedEvent"]);
+
+/** Apply to upstream pages and cached items, including union members with only a type name. */
+export function visibleTimelineItem(item: github.PullRequestTimelineItem): boolean {
+  const entry = item.content.value;
+
+  if (!entry) return false;
+
+  return (
+    item.content.case !== "event" || (!hiddenTimelineEvents.has(entry.kind) && !!(entry.createdAt || entry.body.trim()))
+  );
+}
+
 /** Merge the independently paged review feed, then group adjacent commits by their author. */
 export function pullRequestActivity(
   items: readonly github.PullRequestTimelineItem[],
@@ -20,10 +33,16 @@ export function pullRequestActivity(
   oldest: boolean,
 ): Activity[] {
   const rows = [
-    ...items.map((item, index) => ({
-      time: item.content.value?.createdAt?.seconds ?? 0n,
-      row: { kind: "event", key: item.content.value?.id ?? `event:${index}`, items: [item] } satisfies Activity,
-    })),
+    ...items.flatMap((item, index) =>
+      visibleTimelineItem(item)
+        ? [
+            {
+              time: item.content.value?.createdAt?.seconds ?? 0n,
+              row: { kind: "event", key: item.content.value?.id ?? `event:${index}`, items: [item] } satisfies Activity,
+            },
+          ]
+        : [],
+    ),
     ...threads.map((thread) => ({
       time: thread.comments[0]?.createdAt?.seconds ?? 0n,
       row: { kind: "thread", key: `thread:${thread.id}`, thread } satisfies Activity,

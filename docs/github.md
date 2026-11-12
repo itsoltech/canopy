@@ -632,7 +632,12 @@ Timeline pobiera ostatnie 50 zdarzeń (`last/before`), pokazuje je od najnowszyc
 Normalizuje otwarcie/zamknięcie/merge/reopen, commity, komentarze, review, zmiany reviewerów,
 etykiet i gałęzi oraz pozostałe typy z bezpiecznym opisem i linkiem źródłowym.
 Review threads, ich odpowiedzi i check contexts mają własne cursory, także ponad pierwsze 100.
-Nieznany typ zdarzenia pozostaje widoczny jako zdarzenie źródła; „pełna” nie oznacza jednej strony.
+Gateway i wspólny widok aktywności pomijają `MentionedEvent`, `SubscribedEvent` i `UnsubscribedEvent`,
+także gdy mają autora i datę. Ten sam filtr ukrywa te wpisy z istniejącego cache web/desktop i mobile
+oraz nieobsługiwane typy zawierające tylko `__typename`, bez daty i treści. Autor i czas pochodzą
+z pól payloadu (`actor`/`author`, `createdAt`). Obsługiwane zdarzenia mają widoczny opis;
+brak daty pomija czas zamiast pokazywać samo „ago”.
+Paginacja nadal obejmuje wszystkie strony źródła; „pełna” nie oznacza jednej strony.
 Filtr autorów/typów i sortowanie komentarzy mają zakres całej kolekcji, nie tylko załadowanego okna.
 Jeżeli GitHub nie obsługuje filtra, gateway przegląda strony partiami na żądanie w ramach tego samego
 budżetu. Do końca przeglądu UI oznacza wynik jako częściowy i pozwala kontynuować lub anulować.
@@ -719,6 +724,15 @@ a na wąskim ekranie w arkuszu; parametr `pr` adresu wątku pozwala wrócić do 
 Rozmowa, szkic i pozycja przewijania pozostają zamontowane. Mobile używa pushed screen.
 Panel zawiera zakładki Summary, Timeline i Code w tym samym pasku.
 
+Prawy panel PR korzysta ze wspólnego `ResizeHandle`, tak jak lewy sidebar. Uchwyt na lewej
+krawędzi obsługuje przeciąganie, strzałki (Shift przyspiesza), Home/End oraz reset dwuklikiem
+lub Enter. Domyślna szerokość to 576 px, zakres 320–1200 px; maksimum zostawia 384 px dla
+wątku i przy małym oknie może ograniczyć panel poniżej minimum. Poniżej `xl` pozostaje arkusz.
+Szerokość jest lokalną preferencją urządzenia (`pullRequestWidth` w tym samym magazynie co
+`sidebarWidth`), bez synchronizacji ustawień konta. Podczas przeciągania aktualizuje się
+wyłącznie zmienna CSS w `requestAnimationFrame`; stan i zapis zmieniają się po puszczeniu
+uchwytu. Animacja kolumny jest w tym czasie wyłączona.
+
 1. **Panel wątku.** Pod `ThreadPlacement`/Branch lista **Pull requests**: tytuł, repo gdy potrzebne,
    `#number`, stan i checki. Domyślnie najnowszy PR bieżącej gałęzi według utworzenia;
    **Show N more** rozwija resztę. Historyczne powiązania są oznaczone osobno, ręczne pozostają
@@ -752,6 +766,11 @@ Panel zawiera zakładki Summary, Timeline i Code w tym samym pasku.
    Etap 5 dodaje Viewed do wiersza i licznik X/N viewed do paska Code. Stan całego PR ma ikonę i tekst w nagłówku;
    pojedyncze statusy wierszy pozostają ikonami z etykietami dostępnymi i tooltipami.
    Checki używają jednego „Show more”, które przezroczyście doczytuje kolejne strony.
+   Filtr commitów ma ograniczoną szerokość 28 rem (nie więcej niż viewport minus 1 rem),
+   krótkie SHA i skrócone tematy z pełnym tekstem w tooltipie. Na wąskim panelu licznik
+   zachowuje X/N, pomijając słowo „viewed”. Whitespace `pre` obejmuje sam kod, bez odstępów
+   szablonu między wierszami. Bez wrap każdy plik przewija się poziomo; wrap zawija kod
+   wewnątrz dostępnej szerokości, również w układzie split.
 
 Gutter Code ma **Add comment** oraz wybór początku/końca zakresu; unified i split zachowują
 te same kotwice. Dostępne są drag/Shift i równoważne sterowanie klawiaturą, także przy wrap/whitespace.

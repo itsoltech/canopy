@@ -35,7 +35,7 @@
       {side}
       {review}
     />{/if}
-  <div class={review && "min-w-0 flex-1 px-3"}>
+  <div class={["diff-code", review && "min-w-0 flex-1 px-3"]}>
     {#if line}
       {#if highlighted}<span class="diff-sign">{line.text.slice(0, line.text.length - line.code.length)}</span
         ><CodeTokens tokens={highlighted.tokens} />{:else}{line.text || " "}{/if}

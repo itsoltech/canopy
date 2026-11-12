@@ -1,6 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { github } from "@canopy/contracts";
+import { visibleTimelineItem } from "@canopy/domain/github-read";
 import { Schema } from "effect";
 import { graphErrors, jsonMessage, type ReadScope } from "./read-scope.ts";
 
@@ -133,6 +134,7 @@ export async function timeline(scope: ReadScope) {
 
       const items = nodes
         .flatMap((node, i) => (node ? [item(node, i, scope)] : []))
+        .filter(visibleTimelineItem)
         .filter(
           (entry) =>
             (!request.kind || entry.content.case === request.kind) &&
