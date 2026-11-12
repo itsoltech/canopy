@@ -65,13 +65,8 @@ export class GitHubClient {
   }
   async #read(id: string, read: GitHubRead, force: boolean): Promise<CacheRow> {
     const { row } = await this.access.token(id);
-    const cache = await this.cached(row, read.key);
-
-    const hit = !force && cache?.payload && Number(new Date(cache.expires_at)) > this.access.http.now();
-    await Effect.runPromise(Metric.update(hit ? githubMetrics.hits : githubMetrics.misses, 1));
-
-    if (hit) return cache;
-    const key = `${id}:${row.revision}:${read.key}`;
+    // An explicit refresh must not join a normal read that can still return a fresh cached value.
+    const key = `${id}:${row.revision}:${force ? "refresh" : "read"}:${read.key}`;
     const old = this.#flights.get(key);
 
     if (old) return old;
@@ -80,9 +75,11 @@ export class GitHubClient {
     const controller = new AbortController();
     this.#controllers.set(key, controller);
 
-    const promise = this.#load(
+    // Register before cache I/O: a delayed miss must not outlive the flight it should join.
+    const promise = this.#cachedRead(
       row,
       read,
+      force,
       read.signal ? AbortSignal.any([controller.signal, read.signal]) : controller.signal,
     );
 
@@ -95,7 +92,16 @@ export class GitHubClient {
       this.#controllers.delete(key);
     }
   }
-  async #load(row: AccountRow, read: GitHubRead, signal: AbortSignal): Promise<CacheRow> {
+  async #cachedRead(row: AccountRow, read: GitHubRead, force: boolean, signal: AbortSignal): Promise<CacheRow> {
+    const cache = await this.cached(row, read.key);
+    const hit = !force && cache?.payload && Number(new Date(cache.expires_at)) > this.access.http.now();
+    await Effect.runPromise(Metric.update(hit ? githubMetrics.hits : githubMetrics.misses, 1));
+
+    if (hit) return cache;
+
+    return this.#load(row, read, force, signal);
+  }
+  async #load(row: AccountRow, read: GitHubRead, force: boolean, signal: AbortSignal): Promise<CacheRow> {
     const { run, http } = this.access;
     const lease = Bun.randomUUIDv7();
     const deadline = Date.now() + 55_000;
@@ -115,7 +121,12 @@ export class GitHubClient {
     try {
       previous = await this.cached(row, read.key);
 
-      if (previous?.payload && BigInt(previous.generation) > generation) return previous;
+      // Another service may have filled the cache before this caller sampled its generation.
+      if (
+        previous?.payload &&
+        (BigInt(previous.generation) > generation || (!force && Number(new Date(previous.expires_at)) > http.now()))
+      )
+        return previous;
       const response = await this.#request(row, read, previous?.etag ?? "", signal);
 
       const payload =

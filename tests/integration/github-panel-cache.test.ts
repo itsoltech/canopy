@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import { github } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
@@ -6,7 +6,7 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { GitHubAccounts } from "../../apps/gateway/src/github/service.ts";
 import { pullRequestAvatar } from "../../apps/gateway/src/github/avatars.ts";
-import { readScope } from "../../apps/gateway/src/github/read-scope.ts";
+import { digest, readScope } from "../../apps/gateway/src/github/read-scope.ts";
 import { timeline } from "../../apps/gateway/src/github/timeline-query.ts";
 import { watchPullRequest } from "../../apps/gateway/src/github/watch.ts";
 import { startTestGateway, type TestGateway } from "./support/gateway.ts";
@@ -81,13 +81,23 @@ describe.skipIf(!dockerAvailable)("PR panel cache and actor boundaries", () => {
     // SAFETY: the fixture above contains bot events and the assertion verified their avatar.
     const request = create(github.PullRequestAvatarRequestSchema, { pullRequestId: pr, url: bot!.avatarUrl });
     const other = new GitHubAccounts(gw.runtime, gw.userId, fixture.options);
+    const entered = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    fixture.avatarGate(async () => {
+      entered.resolve();
+      await release.promise;
+    });
+    const reading = Promise.all([
+      gw.api.getPullRequestAvatar(request),
+      gw.api.getPullRequestAvatar(request),
+      pullRequestAvatar(other.prs, request),
+    ]);
 
     try {
-      const values = await Promise.all([
-        gw.api.getPullRequestAvatar(request),
-        gw.api.getPullRequestAvatar(request),
-        pullRequestAvatar(other.prs, request),
-      ]);
+      await entered.promise;
+      expect(fixture.counts.get("avatars")).toBe(1);
+      release.resolve();
+      const values = await reading;
 
       expect(values.every((value) => value.dataUrl.startsWith("data:image/png;base64,"))).toBe(true);
       expect(fixture.counts.get("avatars")).toBe(1);
@@ -95,6 +105,9 @@ describe.skipIf(!dockerAvailable)("PR panel cache and actor boundaries", () => {
         { authorization: null, cookie: null, credentials: "omit", redirect: "error" },
       ]);
     } finally {
+      release.resolve();
+      await reading.catch(() => {});
+      fixture.avatarGate(() => Promise.resolve());
       await other.stop();
     }
 
@@ -105,6 +118,58 @@ describe.skipIf(!dockerAvailable)("PR panel cache and actor boundaries", () => {
       expect(fixture.counts.get("avatars")).toBe(1);
     } finally {
       await restarted.stop();
+    }
+  });
+
+  test("a delayed avatar cache miss reuses another service's completed fill", async () => {
+    const url = "https://avatars.githubusercontent.com/u/77?v=4";
+    const request = create(github.PullRequestAvatarRequestSchema, { pullRequestId: pr, url });
+    const other = new GitHubAccounts(gw.runtime, gw.userId, fixture.options);
+    const entered = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const missed = Promise.withResolvers<void>();
+    const resume = Promise.withResolvers<void>();
+    const before = fixture.counts.get("avatars") ?? 0;
+    const cached = other.prs.client.cached.bind(other.prs.client);
+    let held = false;
+
+    const delayed = spyOn(other.prs.client, "cached").mockImplementation(async (row, key) => {
+      const value = await cached(row, key);
+
+      if (key === `avatar:${digest(url)}` && !held) {
+        held = true;
+        expect(value?.payload).toBeFalsy();
+        missed.resolve();
+        await resume.promise;
+      }
+
+      return value;
+    });
+
+    fixture.avatarGate(async () => {
+      entered.resolve();
+      await release.promise;
+    });
+    let first: Promise<github.PullRequestAvatar> | undefined;
+    let second: Promise<github.PullRequestAvatar> | undefined;
+
+    try {
+      first = pullRequestAvatar(gw.core.github.prs, request);
+      await entered.promise;
+      second = pullRequestAvatar(other.prs, request);
+      await missed.promise;
+      release.resolve();
+      const image = await first;
+      resume.resolve();
+      expect(await second).toEqual(image);
+      expect((fixture.counts.get("avatars") ?? 0) - before).toBe(1);
+    } finally {
+      release.resolve();
+      resume.resolve();
+      await Promise.allSettled([first, second]);
+      delayed.mockRestore();
+      fixture.avatarGate(() => Promise.resolve());
+      await other.stop();
     }
   });
 
@@ -186,5 +251,11 @@ describe.skipIf(!dockerAvailable)("PR panel cache and actor boundaries", () => {
     await expect(
       gw.api.getPullRequestAvatar({ pullRequestId: pr, url: "https://avatars.githubusercontent.com/u/6" }),
     ).rejects.toThrow();
+    fixture.avatarResponse("image/png", 32);
+    const retried = await gw.api.getPullRequestAvatar({
+      pullRequestId: pr,
+      url: "https://avatars.githubusercontent.com/u/6",
+    });
+    expect(retried.dataUrl).toStartWith("data:image/png;base64,");
   });
 });
