@@ -62,13 +62,6 @@
                 /></span
               >{/snippet}
           </PanelRow>
-          <div
-            class="flex min-h-5 flex-wrap items-center gap-1.5 px-2 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
-          >
-            <span {@attach tooltip(link.source === "auto" ? "Linked automatically" : "Linked manually")}
-              >{link.currentBranch ? "Current branch" : "History"}</span
-            >
-          </div>
           {#if data?.stale && pr.verifiedAt}<p class="text-zinc-500 dark:text-zinc-400">
               Last verified {formatTime(pr.verifiedAt)}
             </p>{/if}

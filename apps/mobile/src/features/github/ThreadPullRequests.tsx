@@ -145,23 +145,6 @@ function ThreadPullRequestRow({
         <Text style={[styles.chromeMeta, { color: c.muted }]}>#{pr.ref.number}</Text>
         <Icon name={checkLook(pr.checksState).icon} color={toneColor(c, checkLook(pr.checksState).tone)} />
       </Pressable>
-      <View
-        style={{
-          flexDirection: "row",
-          flexWrap: "wrap",
-          alignItems: "center",
-          gap: 6,
-          minHeight: 22,
-          paddingHorizontal: 4,
-        }}
-      >
-        {!!link.source && (
-          <Text style={[styles.chromeMeta, { color: c.muted }]}>
-            {link.source === "auto" ? "Linked automatically" : "Linked manually"}
-          </Text>
-        )}
-        <Text style={[styles.chromeMeta, { color: c.muted }]}>{link.currentBranch ? "Current branch" : "History"}</Text>
-      </View>
       {stale && pr.verifiedAt && (
         <Text style={[styles.meta, { color: c.muted }]}>
           Last verified {timestampDate(pr.verifiedAt).toLocaleString()}

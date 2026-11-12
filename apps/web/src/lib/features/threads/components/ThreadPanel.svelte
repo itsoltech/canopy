@@ -18,8 +18,6 @@
   import ThreadPlacement from "./ThreadPlacement.svelte";
   import ThreadPullRequests from "#lib/features/github/ThreadPullRequests.svelte";
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
-  import PermissionModeTitle from "./PermissionModeTitle.svelte";
-  import { permissionKey } from "../labels.ts";
   import { useThreadPanel } from "../thread-panel.svelte.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { awayReason } from "#lib/features/computers/computers.ts";
@@ -109,12 +107,9 @@
     </p>{/if}
   <ThreadConnectors {thread} {panel} {homeName} disabled={stale} />
   <ThreadPlacement {thread} {worker} {onworktree} />
-  <section aria-label="Permissions" class="grid min-w-0 grid-cols-1 gap-1 px-3 py-2">
-    <PermissionModeTitle mode={permissionKey(thread.permissionMode)} />
-    {#if thread.permissionModeNote}<p class="text-sm text-pretty text-zinc-600 sm:text-xs dark:text-zinc-400">
-        {thread.permissionModeNote}
-      </p>{/if}
-  </section>
+  {#if thread.permissionModeNote}<p class="px-3 py-2 text-sm text-pretty text-zinc-600 sm:text-xs dark:text-zinc-400">
+      {thread.permissionModeNote}
+    </p>{/if}
   {#if capabilities?.supports("/pull-requests") !== false}<ThreadPullRequests {thread} />{:else}<p
       class="px-3 py-2 text-sm text-zinc-500"
     >
