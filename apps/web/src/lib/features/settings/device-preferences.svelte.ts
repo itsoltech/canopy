@@ -100,6 +100,7 @@ export class DevicePreferences {
     }
 
     this.viewLoaded = true;
+
     const read = (event: StorageEvent) => {
       if (event.key !== this.#viewKey && event.key !== null) return;
 
@@ -109,6 +110,7 @@ export class DevicePreferences {
         // Keep this tab's state when storage becomes unavailable.
       }
     };
+
     window.addEventListener("storage", read);
 
     return () => {

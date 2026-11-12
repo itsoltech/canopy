@@ -17,6 +17,7 @@ function deviceStorage() {
   return {
     open(scope = "gateway-a") {
       const key = deviceViewStorageKey(scope);
+
       const preferences = new DeviceViewPreferences(
         () => {},
         (saved) => records.set(key, saved),
@@ -40,6 +41,7 @@ describe("device view persistence for clients of the same owner", () => {
         pinnedThreadIds: ["thread-a"],
       },
     });
+
     const storage = deviceStorage();
     const a = storage.open();
     const phone = deviceStorage().open();

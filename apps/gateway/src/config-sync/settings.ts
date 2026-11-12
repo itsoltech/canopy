@@ -9,6 +9,7 @@ const object = Schema.is(Schema.Record(Schema.String, Schema.MutableJson));
 const readObject = Schema.decodeUnknownSync(Schema.Record(Schema.String, Schema.MutableJson));
 const strings = Schema.decodeUnknownSync(Schema.Array(Schema.String));
 const LOCAL_APPEARANCE = new Set(["sidebarWidth", "sidebarCollapsed", "threadPanelCollapsed"]);
+
 const LOCAL_SIDEBAR = new Set([
   "archived",
   "archivedExpanded",

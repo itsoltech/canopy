@@ -101,6 +101,7 @@
 
   $effect(() => {
     void capabilities.clientPreferencesScope;
+
     if (settings.loaded && devicePreferences.viewLoaded)
       untrack(() => devicePreferences.initializeView(legacyDeviceView(settings.user)));
   });

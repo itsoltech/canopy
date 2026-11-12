@@ -63,6 +63,7 @@ export class GatewayCapabilities {
       )
         return;
       this.state = value["state"];
+
       if (isString(value["clientPreferencesScope"])) this.clientPreferencesScope = value["clientPreferencesScope"];
 
       if (this.state === "pairing") {
