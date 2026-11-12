@@ -236,7 +236,15 @@ describe.skipIf(!dockerAvailable)("linked bots survive home restarts and updates
       expect(await eventually(async () => client.snapshots.slice(before).some(complete), Boolean, 15_000)).toBe(true);
       expect(complete(await list())).toBe(true);
       expect((await list()).bots.some((bot) => bot.id === qualified(removed))).toBe(false);
-      expect((await a.api.listBots({})).bots.map((bot) => bot.id)).toEqual([qualified(ids[1]!)]);
+      const activeId = qualified(ids[1]!);
+      // The filtered list has its own background cache; the inclusive list can refresh first.
+      expect(
+        await eventually(
+          async () => (await a.api.listBots({})).bots.map((bot) => bot.id),
+          (active) => active.length === 1 && active[0] === activeId,
+          15_000,
+        ),
+      ).toEqual([activeId]);
       expect(client.error()).toBe("");
       await mirrored();
     } finally {
