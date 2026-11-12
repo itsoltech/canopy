@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
-import { Provider, TurnOutcome, ui } from "@canopy/contracts";
+import { ItemStatus, Provider, TurnOutcome, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { tempDir } from "@canopy/testing";
 import { applyThreadUpdate } from "@canopy/domain/thread-snapshot";
@@ -13,7 +13,12 @@ import { coalesceDeltas } from "../../apps/web/src/lib/server/coalesce.ts";
 import { nodePinnedTransport } from "./support/phone.ts";
 import { eventually, SERVICE_TOKEN, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
-async function follow(source: AsyncIterable<ui.ThreadUpdate>, abort: AbortController, base?: ui.ThreadSnapshot) {
+async function follow(
+  source: AsyncIterable<ui.ThreadUpdate>,
+  abort: AbortController,
+  base?: ui.ThreadSnapshot,
+  afterUpdate?: (state: ui.ThreadSnapshot) => Promise<void>,
+) {
   let state = base;
   let failure: unknown;
   const updates: ui.ThreadUpdate[] = [];
@@ -23,6 +28,8 @@ async function follow(source: AsyncIterable<ui.ThreadUpdate>, abort: AbortContro
       for await (const update of source) {
         state = applyThreadUpdate(state, update);
         updates.push(update);
+
+        if (afterUpdate) await afterUpdate(state);
       }
     } catch (error) {
       if (!abort.signal.aborted) failure = error;
@@ -109,7 +116,7 @@ describe.skipIf(!dockerAvailable)("independent desktop and paired phone thread s
     await gateway?.close();
   });
 
-  async function desktop(base?: ui.ThreadSnapshot) {
+  async function desktop(base?: ui.ThreadSnapshot, afterUpdate?: (state: ui.ThreadSnapshot) => Promise<void>) {
     const abort = new AbortController();
 
     const client = await follow(
@@ -121,6 +128,7 @@ describe.skipIf(!dockerAvailable)("independent desktop and paired phone thread s
       ),
       abort,
       base,
+      afterUpdate,
     );
 
     clients.push(client);
@@ -144,6 +152,7 @@ describe.skipIf(!dockerAvailable)("independent desktop and paired phone thread s
   test.each(["abort", "return"] as const)(
     "late %s cleanup cannot disconnect the desktop while the phone stays live",
     async (first) => {
+      gateway.worker.holdTurns = true;
       const abort = new AbortController();
       // Suspend at the snapshot to deterministically model delayed transport cleanup after abort.
       const previous = gateway.core.watchThread(threadId, abort.signal, "", true);
@@ -151,23 +160,61 @@ describe.skipIf(!dockerAvailable)("independent desktop and paired phone thread s
 
       if (first === "abort") abort.abort();
       else await previous.return(undefined);
-      const web = await desktop();
+      const text = `Desktop after ${first} with phone connected`;
+      const paused = Promise.withResolvers<void>();
+      const resume = Promise.withResolvers<void>();
+      let held = false;
+
+      const web = await desktop(undefined, async (state) => {
+        if (held || !hasAnswer(state, `Echo: ${text}`)) return;
+        held = true;
+        paused.resolve();
+        await resume.promise;
+      });
 
       if (first === "abort") await previous.return(undefined);
       else abort.abort();
       const mobileClient = await mobile();
-      const text = `Desktop after ${first} with phone connected`;
 
       try {
-        await gateway.api.sendMessage({
+        const sent = await gateway.api.sendMessage({
           threadId,
           text,
           clientRequestId: crypto.randomUUID(),
         });
+
+        const turnId = sent.turn!.id;
+        expect(await eventually(async () => gateway.worker.started.has(turnId), Boolean)).toBe(true);
+        gateway.worker.emit(threadId, turnId, {
+          case: "itemStarted",
+          value: {
+            item: {
+              itemId: `msg-${turnId}`,
+              status: ItemStatus.IN_PROGRESS,
+              content: { case: "agentMessage", value: { text: `Echo: ${text}`, phase: "final_answer" } },
+            },
+          },
+        });
+
         await mobileClient.until((state) => hasAnswer(state, `Echo: ${text}`));
         await web.until((state) => hasAnswer(state, `Echo: ${text}`));
+        await paused.promise;
+        gateway.worker.finish(threadId, turnId, `Echo: ${text}`);
+
+        const completed = (state: ui.ThreadSnapshot) =>
+          hasAnswer(state, `Echo: ${text}`) &&
+          state.turns.some((turn) => turn.id === turnId && turn.status === "completed");
+
+        await mobileClient.until(completed);
+        // Both readers have the answer, but one has not consumed turn completion.
+        // Independent transports do not promise equal sequences at that point.
+        expect(web.state.lastSeq).toBeLessThan(mobileClient.state.lastSeq);
+        resume.resolve();
+        await web.until((state) => completed(state) && state.lastSeq === mobileClient.state.lastSeq);
         expect(web.state.lastSeq).toBe(mobileClient.state.lastSeq);
       } finally {
+        resume.resolve();
+        gateway.worker.holdTurns = false;
         await web.close();
         await mobileClient.close();
       }
