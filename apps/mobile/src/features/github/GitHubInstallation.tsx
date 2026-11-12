@@ -50,7 +50,7 @@ export function GitHubInstallation({
         />
       </View>
       {!!error && <Notice error>{error}</Notice>}
-      <Expand open={open} style={{ paddingLeft: 20, paddingBottom: 8 }}>
+      <Expand open={open} style={{ paddingTop: 8, paddingLeft: 24, paddingBottom: 8 }}>
         {installation.suspended ? (
           <Notice>This installation is suspended. Ask its administrator to restore access.</Notice>
         ) : (

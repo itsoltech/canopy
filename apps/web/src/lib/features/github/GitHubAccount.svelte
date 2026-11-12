@@ -199,7 +199,7 @@
             {#if busy && !loaded}<p role="status" class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
                 Loading installations…
               </p>{/if}
-            <div class={["min-w-0", all && "max-h-96 overflow-y-auto overscroll-contain"]}>
+            <div class={["grid min-w-0 gap-2", all && "max-h-96 overflow-y-auto overscroll-contain"]}>
               {#each shown as installation (`${generation}:${installation.installationId}`)}<GitHubInstallation
                   accountId={account.id}
                   {installation}
