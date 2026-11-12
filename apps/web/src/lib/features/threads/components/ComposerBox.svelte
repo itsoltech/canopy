@@ -30,6 +30,8 @@
   import type { ComposerActivity } from "./composer-compaction.ts";
   import { tick } from "svelte";
   import type { github } from "@canopy/contracts";
+  import { composerPending } from "@canopy/domain/composer-pending";
+  import ComposerPending from "./ComposerPending.svelte";
 
   export async function acceptContext(context: github.PullRequestContextResponse) {
     if (!draft || !context.attachment) return;
@@ -140,6 +142,7 @@
 
   const id = $props.id();
   const hasFiles = $derived((draft?.attached.length ?? 0) > 0);
+  const pending = $derived(composerPending(elementCount, draft?.attached.length ?? 0, mentions));
 
   const hasContent = $derived(
     (shellMode ? Boolean(value.slice(1).trim()) : Boolean(value.trim())) || hasFiles || elementCount > 0 || allowEmpty,
@@ -250,6 +253,13 @@
   };
 
   let editor = $state<EditorControls>();
+
+  async function expand() {
+    onexpand?.("pointer");
+    await tick();
+    editor?.focus();
+  }
+
   const submit = () => box?.closest("form")?.requestSubmit();
 
   function onkeydown(event: KeyboardEvent) {
@@ -279,7 +289,18 @@
     ]}
     bind:this={box}
     onbeforeinput={() => onexpand?.("typing")}
-    onpointerdown={() => onexpand?.("pointer")}
+    onpointerdown={(event) => {
+      // Keep Send/Stop under the pointer until click; focusing them would start the overlay's resize.
+      if (compact && (event.target as Element).closest("button")) {
+        event.preventDefault();
+
+        return;
+      }
+
+      onexpand?.("pointer");
+
+      if (compact && !(event.target as Element).closest("button")) editor?.focus();
+    }}
     data-compact={compact || undefined}
     data-shell-mode={shellMode || undefined}
     style:--composer-send-width={sendWidth === undefined ? undefined : `${sendWidth}px`}
@@ -299,7 +320,10 @@
     <ComposerFold open={!compact}>
       {@render elements?.()}
     </ComposerFold>
-    <div class={secret ? undefined : "t-composer-editor"}>
+    <div class={secret ? undefined : "t-composer-editor flex min-w-0 items-start gap-2"}>
+      {#if compact && pending.length > 0 && !secret}
+        <ComposerPending items={pending} onexpand={expand} />
+      {/if}
       {#if secret}
         <label for="{id}-secret" class="sr-only">{label}</label>
         <Input
@@ -331,6 +355,7 @@
           {onpaste}
           {acceptChip}
           singleLine={compact}
+          containerClass="min-w-0 flex-1"
           class={["text-base/6 sm:text-sm/6", shellMode && "font-mono", disabled && "cursor-not-allowed"]}
         />
       {/if}
