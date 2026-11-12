@@ -122,6 +122,15 @@ export class PersistentThreadCache {
     return this.#serial(() => this.storage.clear());
   }
 
+  remove(id: string): Promise<void> {
+    this.#memory.delete(id);
+    this.#saving = undefined;
+
+    return this.#serial(async () => {
+      for (const entry of await this.storage.list()) if (entry.id === id) await this.storage.remove(entry.name);
+    });
+  }
+
   async #trim() {
     const entries = (await this.storage.list()).sort((a, b) => b.accessed - a.accessed);
     const kept: CacheFile[] = [];

@@ -1,9 +1,10 @@
-import type { Item, Notice, Usage } from "@canopy/contracts";
+import type { Item, Notice, Usage, ui } from "@canopy/contracts";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
 
 export interface TimelineEntry {
   readonly id: string;
   readonly item: Item;
+  readonly contentRef?: ui.ThreadSyncContent | undefined;
   readonly turnId: string;
   readonly firstSeq: bigint;
   /** From the history a fork inherited (its seq counts in the source thread). */

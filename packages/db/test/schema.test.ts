@@ -133,6 +133,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "119_github_lifecycle",
       "120_thread_ranges",
       "121_thread_publication_failures",
+      "122_thread_client_cursors",
     ]);
   }, 60_000);
 

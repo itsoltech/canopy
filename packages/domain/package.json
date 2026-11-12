@@ -40,6 +40,8 @@
     "./computers": "./src/computers.ts",
     "./thread-mirror": "./src/thread-mirror.ts",
     "./thread-sync": "./src/thread-sync.ts",
+    "./thread-watch-recovery": "./src/thread-watch-recovery.ts",
+    "./thread-content": "./src/thread-content.ts",
     "./thread-snapshot": "./src/thread-snapshot.ts",
     "./thread-cache": "./src/thread-cache.ts",
     "./history-pages": "./src/history-pages.ts",

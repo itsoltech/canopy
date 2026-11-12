@@ -30,6 +30,16 @@ export function mapIds(
   const record = reflect(desc, message);
   visit?.(desc, message);
 
+  if (desc.typeName === "canopy.ui.v1.ThreadSyncRecord") {
+    const field = desc.field["key"]!;
+    const key = String(record.get(field));
+    const separator = key.indexOf(":");
+    const kind = key.slice(0, separator).replace(/^legacy_/, "");
+
+    if (["thread", "turn", "item", "interaction", "steer", "delivery", "goal"].includes(kind))
+      record.set(field, `${key.slice(0, separator + 1)}${map(key.slice(separator + 1), `${kind}_id`)}`);
+  }
+
   if (
     desc.typeName === "canopy.worker.v1.Mention" &&
     [MentionKind.BOT, MentionKind.THREAD, MentionKind.CONNECTOR, MentionKind.ATTACHMENT].some(

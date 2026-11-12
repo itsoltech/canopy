@@ -9,6 +9,7 @@ import { dockerAvailable } from "@canopy/db/testing";
 import { remoteServe, uiHandlers } from "@canopy/gateway/api";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import type { LinkedComputers } from "../../apps/gateway/src/computers/runtime.ts";
+import { computersState } from "../../apps/gateway/src/computers/runtime-context.ts";
 import { linkedComputers } from "./support/computers.ts";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
@@ -435,7 +436,7 @@ describe.skipIf(!dockerAvailable)("linked thread application liveness", () => {
     }
   }, 15_000);
 
-  test("a reachable home that cannot provide a fresh snapshot reports a computer-scoped failure", async () => {
+  test("a reachable home that cannot provide a fresh snapshot reports a thread-scoped failure", async () => {
     const view = await follow(24);
 
     try {
@@ -445,9 +446,10 @@ describe.skipIf(!dockerAvailable)("linked thread application liveness", () => {
       expect(view.failure).toBeInstanceOf(ConnectError);
       expect(view.failure).toMatchObject({ code: Code.Unavailable });
 
-      if (view.failure instanceof ConnectError)
-        expect(view.failure.metadata.get("canopy-error-scope")).toBe("computer");
+      if (view.failure instanceof ConnectError) expect(view.failure.metadata.get("canopy-error-scope")).toBe("thread");
       expect(view.updates.at(-1)?.syncing).toBe(true);
+      expect(view.state?.thread?.title).toBe("Recovered stall");
+      expect((await local.computer(node))?.status).toBe("connected");
       expect(local.reachable()).toContain(node);
     } finally {
       fault = "none";
@@ -523,27 +525,17 @@ describe.skipIf(!dockerAvailable)("linked thread application liveness", () => {
     }
   }, 15_000);
 
-  test("a stalled mirror reports unreachable until a fresh generation commits over the healthy link", async () => {
+  test("a stalled mirror keeps cached content and a healthy link until a fresh generation commits", async () => {
     mirrorStalled = true;
 
     try {
-      expect(
-        await eventually(
-          async () => (await local.computer(node))?.status,
-          (status) => status === "unreachable",
-          5000,
-        ),
-      ).toBe("unreachable");
+      expect(await eventually(async () => local[computersState].staleMirrors.has(node), Boolean, 5000)).toBe(true);
+      expect((await local.computer(node))?.status).toBe("connected");
       expect(local.reachable()).toContain(node);
       expect((await local.mirror.snapshot(node, thread))?.thread?.title).toBe("Mirror recovered");
       mirrorStalled = false;
-      expect(
-        await eventually(
-          async () => (await local.computer(node))?.status,
-          (status) => status === "connected",
-          5000,
-        ),
-      ).toBe("connected");
+      expect(await eventually(async () => !local[computersState].staleMirrors.has(node), Boolean, 5000)).toBe(true);
+      expect((await local.computer(node))?.status).toBe("connected");
     } finally {
       mirrorStalled = false;
     }
@@ -557,26 +549,16 @@ describe.skipIf(!dockerAvailable)("linked thread application liveness", () => {
 
     try {
       expect(await eventually(async () => !mirrorError, Boolean)).toBe(true);
-      expect(
-        await eventually(
-          async () => (await local.computer(node))?.status,
-          (status) => status === "unreachable",
-          5000,
-        ),
-      ).toBe("unreachable");
+      expect(await eventually(async () => local[computersState].staleMirrors.has(node), Boolean, 5000)).toBe(true);
+      expect((await local.computer(node))?.status).toBe("connected");
       expect(local.reachable()).toContain(node);
       expect((await local.mirror.state(node))!.cursor).toBe(state.cursor);
       expect((await local.mirror.state(node))!.generation).toBe(state.generation);
       // Keep recovery pending until stale application state has been observed.
       mirrorRecovery = undefined;
       recovery.resolve();
-      expect(
-        await eventually(
-          async () => (await local.computer(node))?.status,
-          (status) => status === "connected",
-          5000,
-        ),
-      ).toBe("connected");
+      expect(await eventually(async () => !local[computersState].staleMirrors.has(node), Boolean, 5000)).toBe(true);
+      expect((await local.computer(node))?.status).toBe("connected");
       expect((await local.mirror.state(node))!.cursor).toBe(state.cursor);
       expect((await local.mirror.state(node))!.generation).toBe(state.generation);
     } finally {

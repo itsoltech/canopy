@@ -42,7 +42,10 @@ export function projectRange(thread: string, keys: readonly RangeKey[]) {
       legacy.map((row) => [`${row.kind}:${row.entity_id}`, fromBinary(ui.ThreadSyncRecordSchema, row.payload)]),
     );
 
-    records.set(`thread:${thread}`, { case: "thread", value: toUiThread(snapshot.thread) });
+    records.set(`thread:${thread}`, {
+      case: "thread",
+      value: { ...toUiThread(snapshot.thread), lastUserTurnChoices: snapshot.lastUserTurnChoices },
+    });
 
     for (const turn of snapshot.turns) records.set(`turn:${turn.id}`, { case: "turn", value: toUiTurn(turn) });
 

@@ -210,7 +210,7 @@ export function ThreadScreen({ id }: { id: string }) {
           <ThreadHeader
             history={state.history}
             snapshot={snapshot}
-            syncing={Boolean(snapshot && !state.home.away && state.stream.connection !== "live")}
+            syncing={Boolean(snapshot && !state.home.away && !state.stream.issue && state.stream.connection !== "live")}
             thread={thread}
             project={projects.find((p) => p.id === thread?.projectId)}
             turns={turns}
@@ -224,7 +224,7 @@ export function ThreadScreen({ id }: { id: string }) {
             goalOpen={Boolean(snapshot?.goal && !isFinishedGoal(snapshot.goal.status))}
             readOnly={state.home.away}
           />
-          <ConnectionBanner stream={state.home.away ? undefined : state.stream} />
+          <ConnectionBanner stream={state.stream} />
         </>
       }
     >

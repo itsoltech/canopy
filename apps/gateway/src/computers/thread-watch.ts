@@ -39,6 +39,13 @@ export async function* watchRemoteThread(
   input: ui.WatchThreadRequest,
   signal: AbortSignal,
 ): AsyncGenerator<ui.ThreadUpdate> {
+  if (input.sequence) {
+    for await (const message of computers.remote(node, ui.GatewayService.method.watchThread, input, signal))
+      yield linkedMessage(ui.ThreadUpdateSchema, message);
+
+    return;
+  }
+
   const heartbeat =
     computers.hello().capabilities.includes(THREAD_WATCH_LIVENESS) &&
     computers.capabilities(node).includes(THREAD_WATCH_LIVENESS);

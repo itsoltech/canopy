@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 /** Page reads keep the pre-read checkpoint. Reopening replays edits made outside the old loaded window. */
-export function useHistoryPage<T extends { cursor: string; historyHasMore: boolean }>(
+export function useHistoryPage<T extends { cursor: string; historyHasMore: boolean; historyItemsHasMore?: boolean }>(
   key: string,
   options: {
     current: { current: T | undefined };
@@ -22,7 +22,7 @@ export function useHistoryPage<T extends { cursor: string; historyHasMore: boole
     async load() {
       const base = options.current.current;
 
-      if (!base?.historyHasMore || request.current) return;
+      if ((!base?.historyHasMore && !base?.historyItemsHasMore) || !base || request.current) return;
       const abort = new AbortController();
       request.current = abort;
       setLoading(true);

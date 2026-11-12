@@ -21,6 +21,7 @@ import { mapProjectIds } from "../config-sync/project-aliases.ts";
 import { mirrorFirst, offlineThread } from "./routed-thread-mirror.ts";
 import { announcedDeparture } from "@canopy/domain/computer-presence";
 import { watchRemoteThread } from "../computers/thread-watch.ts";
+import { boundRoutedThread } from "./routed-thread-batch.ts";
 import { remoteAttachment } from "./routed-attachments.ts";
 import { forgetGitHub, offlineGitHub, rememberGitHub } from "./routed-github-cache.ts";
 
@@ -75,6 +76,10 @@ export async function* forward(
       forgetGitHub(core.computers, nodeId, method);
 
     if (error instanceof ConnectError && [Code.Unavailable, Code.DeadlineExceeded].includes(error.code)) {
+      if (method.name === "WatchThread" && core.computers?.canCall(nodeId))
+        throw new ConnectError("Live updates for this thread are unavailable", error.code, {
+          "canopy-error-scope": "thread",
+        });
       const computer = await core.computers?.computer(nodeId);
       const announced = computer && announcedDeparture(computer.status);
       const attachment = method.name === "GetAttachment" || method.name === "GetThreadBlob";
@@ -312,7 +317,9 @@ async function* send(
     await ids.map(method.output, message, "toLocal");
     qualify(method.output, message, nodeId);
     rememberGitHub(computers, nodeId, method, request, message);
-    yield message;
+
+    if (method.name === "WatchThread") yield* boundRoutedThread(linkedMessage(ui.ThreadUpdateSchema, message));
+    else yield message;
   }
 }
 

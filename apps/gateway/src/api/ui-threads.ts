@@ -7,6 +7,7 @@ import type { UiHandlers } from "./ui-service.ts";
 import { watchLocalThread } from "../core/local-thread-watch.ts";
 import { coreState } from "../core/core-context.ts";
 import { readRangeContent } from "../computers/range-content-read.ts";
+import { watchSequenceThread } from "../core/sequence-thread-watch.ts";
 
 export function threadsHandlers(
   core: GatewayCore,
@@ -80,15 +81,17 @@ export function threadsHandlers(
       ),
 
     watchThread: (request, context) =>
-      context.protocolName !== "canopy.link"
-        ? watchLocalThread(core, request, context.signal)
-        : core.watchThread(
-            request.threadId,
-            context.signal,
-            request.incremental ? request.cursor || request.mirrorCursor : request.mirrorCursor,
-            request.incremental,
-            request,
-          ),
+      request.sequence
+        ? watchSequenceThread(core, request, context.signal)
+        : context.protocolName !== "canopy.link"
+          ? watchLocalThread(core, request, context.signal)
+          : core.watchThread(
+              request.threadId,
+              context.signal,
+              request.incremental ? request.cursor || request.mirrorCursor : request.mirrorCursor,
+              request.incremental,
+              request,
+            ),
 
     getThreadSyncContent: (request) =>
       guard(() => readRangeContent(core[coreState].options.runtime, core[coreState].options.userId, request)),

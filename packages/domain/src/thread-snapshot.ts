@@ -4,6 +4,7 @@ import { eventItemId, reduceItem } from "./items.ts";
 import { applyThreadDelta } from "./thread-mirror.ts";
 import { applyTurnEvent } from "./thread-turn-events.ts";
 import { loadedThreadDelta, orderThreadTurns } from "./history-pages.ts";
+import { applyThreadBatch } from "./thread-batch.ts";
 
 const upsert = <T>(rows: T[], value: T, key: (row: T) => string) => [
   ...rows.filter((row) => key(row) !== key(value)),
@@ -30,7 +31,18 @@ function ownItemPositions(items: ui.TimelineItem[]): Map<string, number> {
 export function applyThreadUpdate(state: ui.ThreadSnapshot | undefined, update: ui.ThreadUpdate): ui.ThreadSnapshot {
   const change = update.change;
 
-  if (change.case === "snapshot") return change.value;
+  if (change.case === "batch") {
+    if (!state) throw new Error("Thread sequence base is missing");
+
+    return applyThreadBatch(state, change.value);
+  }
+
+  if (change.case === "snapshot") {
+    if (update.syncStatus?.reason === "computer_unreachable" && state && state.thread?.id === change.value.thread?.id)
+      return { ...state, thread: change.value.thread };
+
+    return change.value;
+  }
 
   if (change.case === "delta") {
     if (!state?.cursor || state.cursor !== change.value.baseCursor) throw new Error("Thread checkpoint mismatch");
@@ -41,6 +53,8 @@ export function applyThreadUpdate(state: ui.ThreadSnapshot | undefined, update: 
   const previous = state ?? create(ui.ThreadSnapshotSchema);
 
   switch (change.case) {
+    case "controls":
+      return { ...previous, secrets: change.value.secrets, schedules: change.value.schedules };
     case "thread":
       return { ...previous, thread: change.value };
     case "turn":

@@ -22,6 +22,7 @@ import { ConnectionActivity } from "./ConnectionActivity";
 export interface StreamState {
   readonly connection: Connection;
   readonly retry: () => void;
+  readonly loadFromScratch?: () => void;
   readonly issue?: string | undefined;
   readonly detail?: string | undefined;
   readonly retrying?: boolean | undefined;
@@ -188,12 +189,17 @@ export function ConnectionBanner({ stream, overlay = false }: { stream?: StreamS
             banner
             tone={shown.tone}
             actions={
-              <Button
-                title={shown.action === "retry" ? "Retry" : "Details"}
-                size="sm"
-                variant="ghost"
-                onPress={() => (shown.action === "retry" ? shown.stream.retry() : setOpen(true))}
-              />
+              <>
+                <Button
+                  title={shown.action === "retry" ? "Retry" : "Details"}
+                  size="sm"
+                  variant="ghost"
+                  onPress={() => (shown.action === "retry" ? shown.stream.retry() : setOpen(true))}
+                />
+                {shown.action === "retry" && shown.stream.loadFromScratch && (
+                  <Button title="Load from scratch" size="sm" variant="ghost" onPress={shown.stream.loadFromScratch} />
+                )}
+              </>
             }
           >
             {shown.text}

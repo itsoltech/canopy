@@ -8,9 +8,25 @@ export function decodeTimelineItem(row: ItemRow) {
 
   try {
     item = fromJson(ItemSchema, row.content, { ignoreUnknownFields: true });
+
+    if (!item.itemId) item.itemId = row.item_id;
+
+    if (!item.content.case)
+      item.content = create(ItemSchema, {
+        content: {
+          case: "agentMessage",
+          value: { text: "This item is unavailable in this version of Canopy." },
+        },
+      }).content;
   } catch {
     console.warn("Thread item decoding failed", { reason: "invalid_item" });
-    item = create(ItemSchema, { itemId: row.item_id });
+    item = create(ItemSchema, {
+      itemId: row.item_id,
+      content: {
+        case: "agentMessage",
+        value: { text: "This item is unavailable in this version of Canopy." },
+      },
+    });
   }
 
   return create(ui.TimelineItemSchema, {

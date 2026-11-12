@@ -5,6 +5,8 @@
   import type { ItemNode } from "../../timeline.ts";
   import ItemNodeView from "./ItemNodeView.svelte";
   import ItemView from "./ItemView.svelte";
+  import LazyItemContent from "./LazyItemContent.svelte";
+  import type { Item } from "@canopy/contracts";
 
   /**
    * An item and, nested inside it, the items that name it as parent (subagent work). The wrapper names the item
@@ -12,6 +14,11 @@
    */
   let { node }: { node: ItemNode } = $props();
   const directory = useThreadDirectory();
+  let full = $state<{ sha: string; item: Item }>();
+
+  const item = $derived(
+    full?.sha === node.entry.contentRef?.sha256 ? (full?.item ?? node.entry.item) : node.entry.item,
+  );
 
   provideItemAwaiting(() => directory.awaiting(node.entry.id));
 
@@ -29,8 +36,19 @@
   data-quote-thread={node.entry.fromThreadId || directory.currentId}
 >
   <ItemView
-    item={node.entry.item}
+    {item}
     nested={node.children.length > 0 ? nested : undefined}
     turnEnded={directory.turnEnded?.(node.entry.turnId) ?? false}
   />
+  {#if node.entry.contentRef && full?.sha !== node.entry.contentRef.sha256}
+    {#key node.entry.contentRef.sha256}
+      <LazyItemContent
+        reference={node.entry.contentRef}
+        threadId={directory.currentId}
+        onload={(item) => {
+          full = { sha: node.entry.contentRef!.sha256, item };
+        }}
+      />
+    {/key}
+  {/if}
 </div>

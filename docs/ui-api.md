@@ -148,9 +148,49 @@ lub przeniesiona historia wymuszają pełny snapshot. Zachowane są też konserw
 fallbacki dziennika dla tur ze zmiennymi joinami źródłowymi.
 
 Starszy klient nie ustawia `incremental` i otrzymuje dotychczasowe snapshoty.
+
+Nowe web/desktop/mobile ustawiają `WatchThreadRequest.sequence` (811). Pierwszy
+odczyt to ograniczone okno: 24 ostatnie tury i do 128 itemów, maksymalnie 512 KiB
+publicznych rekordów (384 KiB itemów, po 64 KiB tur i metadanych). Naprawa po
+błędzie może zmniejszyć okno do 8 tur i 48 itemów. Starszą historię pobiera się
+osobno przez `before_turn_id` oraz `before_item_id` (813); niezależny kursor itemów
+pozwala stronicować również jedną ogromną turę i wpisy bez tury. Odpowiedź niesie
+`history_items_has_more` i najstarszy identyfikator obu okien. Rozwijanie cytatu
+przechodzi przez ograniczone strony, zachowując ciągłe załadowane okno.
+Pusta strona jednego okna zachowuje jego ostatnią granicę, dopóki drugie okno
+ma starsze dane. Tury dołączone jako kontekst itemów pozostają w cache również
+po następnej partii live. Offline odczyt lustra zachowuje te same granice i seq;
+router nie stronicuje ponownie już ograniczonej odpowiedzi.
+
+Gateway współdzieli ostatnie okna przez LRU o limicie 8 wpisów w całym procesie
+(do 4 MiB publicznych rekordów, dodatkowo obiekty i kopie aktywnych odbiorców).
+Unieważnienie albo zamknięcie ostatniego watcha usuwa wpis. Jeden wątek ma najwyżej
+jeden współdzielony odczyt okna i 8 odczytów różnych zakresów w toku; zakończone
+partie nie są cache'owane. Pozostałe odczyty czekają na zwolnienie slotu. Kolejka
+metadanych odbiorcy mieści 128 wpisów i 64 KiB protobuf; jej przepełnienie naprawia
+autorytatywne odświeżenie kontrolek. Nie są to limity całego heapu ani RSS:
+aktywne subskrypcje mają własne ograniczone wyniki i stan transportu.
+
+`ThreadSnapshot.sync_cursor` (811) identyfikuje wątek, epokę i zatwierdzony seq.
+Reconnect przekazuje go jako `WatchThreadRequest.sync_cursor` (812); gateway
+wysyła `ThreadUpdate.batch` (811), po najwyżej 64 rekordy / 64 KiB protobuf.
+Reducer publikuje treść i seq atomowo. Odczyt strony nie przesuwa kursora live;
+po scaleniu klient wznawia checkpoint sprzed odczytu strony, żeby odtworzyć
+równoległe zmiany. Nieznana epoka lub przyszły seq daje nowe ograniczone okno.
+Duże itemy mają podgląd i `content_ref`; pełna treść jest pobierana wyłącznie na
+żądanie przez `GetThreadSyncContent`, w kawałkach do 48 KiB. Uprawnienia i sekrety
+nie wchodzą do dziennika lustra: aktualizuje je osobny `ThreadUpdate.controls`.
+
+Awaria samego watcha jest lokalna dla wątku. Cache pozostaje widoczny; błędy
+deterministyczne powodują jedną próbę bez kursora, jedną z mniejszym oknem, potem
+zatrzymanie z „Retry” / „Load from scratch”. Niedostępny dom emituje
+`sync_status.reason=computer_unreachable`; zmiana obecności kończy oczekiwanie,
+a klient automatycznie wznawia seq. Awaria watcha przy sprawnym łączu nie zmienia
+obecności komputera ani globalnego stanu gatewaya.
 Starszy gateway ignoruje nowe pola; pusty kursor w odpowiedzi wyłącza wznowienie.
-UI ze zdalną kopią przekazuje kursor bezpośrednio do domu online. Zimny klient nadal
-dostaje lustro lokalnego gatewaya, a następnie stan domu. Szczegóły:
+UI ze zdalną kopią przekazuje kursor bezpośrednio do domu online. Zimny klient
+sekwencyjny pobiera ograniczone okno z domu; offline czyta ograniczone lokalne
+lustro. Starszy watch nadal może rozpocząć od lustra, a następnie stanu domu. Szczegóły:
 [odczyt połączonych komputerów](linked-computers.md#odczyt-i-dostępność).
 
 Każdy `WatchThread` i `WatchOverview` ma własny kanał subskrypcji, także gdy desktop
@@ -1642,6 +1682,10 @@ domyślnemu wysiłkowi modelu albo pustemu; pigułki pokazują zastosowane warto
 Preferencja steer/kolejka pozostaje osobnym ustawieniem użytkownika.
 
 ## Strony historii i trwałe kursory
+
+Poniższy kontrakt wątków dotyczy starszego watcha bez `sequence`. Nowe klienty
+używają niezależnych okien tur i itemów oraz `sync_cursor`, opisanych przy
+`WatchThread` powyżej.
 
 Nowy klient ustawia `page_size` w `WatchThread`, `WatchBotConversation` i
 `ReadBotExchange`. Zero zachowuje pełną historię dla starszych klientów;

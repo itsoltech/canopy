@@ -20,10 +20,15 @@ export function prependThreadPage(
     throw new Error("Thread history changed");
   const turns = new Set(current.turns.map((turn) => turn.id));
   const items = new Set(current.items.map((entry) => `${entry.fromThreadId}:${entry.item?.itemId}`));
+  const sequence = /^range:([^:]+):(\d+)$/.exec(checkpoint);
 
   return create(ui.ThreadSnapshotSchema, {
     ...current,
     cursor: checkpoint,
+    syncCursor:
+      sequence && current.syncCursor && current.syncCursor.epoch === sequence[1]
+        ? { ...current.syncCursor, appliedSeq: BigInt(sequence[2]!) }
+        : current.syncCursor,
     turns: orderThreadTurns([...page.turns.filter((turn) => !turns.has(turn.id)), ...current.turns]),
     items: [
       ...page.items.filter((entry) => !items.has(`${entry.fromThreadId}:${entry.item?.itemId}`)),
@@ -31,6 +36,8 @@ export function prependThreadPage(
     ],
     historyBeforeTurnId: page.historyBeforeTurnId,
     historyHasMore: page.historyHasMore,
+    historyBeforeItemId: page.historyBeforeItemId,
+    historyItemsHasMore: page.historyItemsHasMore,
   });
 }
 
@@ -57,9 +64,10 @@ export function loadedThreadDelta(base: ui.ThreadSnapshot, next: ui.ThreadSnapsh
   const first = base.turns.find((turn) => turn.id === base.historyBeforeTurnId);
 
   if (!first || first.inherited) return next;
+  const loaded = new Set(base.turns.map((turn) => turn.id));
 
   const turns = next.turns.filter(
-    (turn) => turn.inherited || turn.status === "queued" || turn.ordinal >= first.ordinal,
+    (turn) => loaded.has(turn.id) || turn.inherited || turn.status === "queued" || turn.ordinal >= first.ordinal,
   );
 
   const ids = new Set(turns.map((turn) => turn.id));

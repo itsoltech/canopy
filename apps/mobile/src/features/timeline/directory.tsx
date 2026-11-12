@@ -14,6 +14,7 @@ export interface TimelineDirectory {
   readonly readOnly: boolean;
   readonly thread: (id: string) => ui.Thread | undefined;
   readonly item: (id: string) => Item | undefined;
+  readonly content?: (id: string) => ui.ThreadSyncContent | undefined;
   readonly delivery: (callId: string) => ui.BusDelivery | undefined;
   readonly queuedFallback?: (turnId: string) => ui.Steer | undefined;
 }

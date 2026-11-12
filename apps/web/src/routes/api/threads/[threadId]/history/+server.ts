@@ -13,6 +13,8 @@ export const GET: RequestHandler = async ({ params, url, request }) => {
       {
         threadId: params.threadId,
         pageSize: 24,
+        sequence: true,
+        beforeItemId: (url.searchParams.get("beforeItem") ?? "").slice(0, 256),
         beforeTurnId: (url.searchParams.get("before") ?? "").slice(0, 128),
         targetItemId: (url.searchParams.get("target") ?? "").slice(0, 256),
         historyVersion: (url.searchParams.get("version") ?? "").slice(0, 128),
