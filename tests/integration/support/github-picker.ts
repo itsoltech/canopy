@@ -80,6 +80,7 @@ export function githubPickerFixture() {
       const offset = body
         ? Number(body.variables["after"] || 0)
         : (Number(url.searchParams.get("page") || "1") - 1) * 30;
+
       const page = rows.slice(offset, offset + 30);
       const next = offset + page.length < rows.length;
 
