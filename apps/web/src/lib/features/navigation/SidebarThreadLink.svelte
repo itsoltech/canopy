@@ -18,7 +18,7 @@
    * The link of a thread row in the sidebar (main and side threads): opens the thread, previews it on hover,
    * or focus (ThreadHoverCard); right click, long press and Menu/Shift+F10 open its actions. What wants you stands out:
    * amber tint when it needs you, `data-result` while a finished turn waits to be seen, `data-calm` while it
-   * works or asks its agent (rows dim their text, `group-data-calm:`, the activity mark stays clear). The
+   * works or asks its agent (a subtle well keeps text at normal contrast). The
    * open thread's highlight and hover sit on top. Layout and padding come from `class`.
    */
   let {
@@ -112,6 +112,7 @@
               !away &&
                 needsAttention &&
                 "bg-amber-500/6 inset-ring inset-ring-amber-500/20 dark:bg-amber-400/6 dark:inset-ring-amber-400/15",
+              !away && !needsAttention && isCalm(thread) && "bg-zinc-950/2.5 dark:bg-white/5",
               "hover:bg-zinc-950/4 aria-[current=page]:bg-zinc-950/6 dark:hover:bg-white/4 dark:aria-[current=page]:bg-white/8",
               className,
               thread.status === "archived" && !compact && "opacity-60",

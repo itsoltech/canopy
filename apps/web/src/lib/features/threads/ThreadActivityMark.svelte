@@ -8,6 +8,7 @@
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import { workState } from "./activity.ts";
   import { runningAnimation } from "#lib/shared/activity.ts";
+  import { workingColors } from "@canopy/ui/thread-row";
 
   /**
    * The leading mark of a thread in lists: a spinner while a turn runs or the thread starts, a breathing
@@ -47,6 +48,8 @@
 
 <span
   class={["relative inline-grid shrink-0 place-items-center", size === "md" ? "size-4.5" : "size-3.5", className]}
+  style:--working-light={workingColors.light.indicator}
+  style:--working-dark={workingColors.dark.indicator}
   {@attach label ? tooltip(label) : undefined}
 >
   {#key state}
@@ -64,7 +67,7 @@
           ]}
         />
       {:else if state === "starting" || state === "running"}
-        <Spinner class={[glyph, "text-sky-600 dark:text-sky-400"]} />
+        <Spinner class={[glyph, "text-(--working-light) dark:text-(--working-dark)"]} />
       {:else if state === "background"}
         <Icon name="bolt" class={[glyph, "t-pulse text-sky-600 dark:text-sky-400"]} />
       {:else}

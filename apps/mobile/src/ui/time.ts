@@ -47,3 +47,8 @@ const snapshot = () => now;
 export function useLiveTime(active: boolean) {
   return useSyncExternalStore(active ? subscribe : idleSubscribe, snapshot);
 }
+
+/** Select the displayed value from the same clock: unchanged labels do not cause a React render. */
+export function useTimeLabel(format: (now: number) => string, active: boolean) {
+  return useSyncExternalStore(active ? subscribe : idleSubscribe, () => format(Date.now()));
+}

@@ -5,12 +5,15 @@ import type { ui } from "@canopy/contracts";
 import { sidebarChildren } from "@canopy/domain/sidebar-threads";
 import { isSide } from "@canopy/domain/thread-tree";
 import { sameItems } from "@canopy/domain/same-items";
-import { needsYou } from "@canopy/domain/thread-activity";
+import { isCalm, threadRowLabel } from "@canopy/domain/thread-activity";
+import { formatAge } from "@canopy/domain/format";
 import { useLayout } from "../../state/layout";
 import { styles, useColors } from "../../ui/theme";
 import { Chevron, Expand } from "../../ui/MotionViews";
 import { Icon } from "../../ui/Icon";
-import { SidebarThread, age } from "./SidebarThread";
+import { SidebarThread } from "./SidebarThread";
+import { SidebarThreadStatus } from "./SidebarThreadStatus";
+import { SidebarActivity } from "./SidebarActivity";
 import { useComputerHome } from "../computers/presence";
 import { SidebarUnread } from "./SidebarUnread";
 import { useSidebarTypography } from "./sidebar-scale";
@@ -23,15 +26,13 @@ interface TreeProps {
   projects: ui.Project[];
   workers: ui.Worker[];
   archived?: boolean;
-  /** The list's render time: the row also rerenders when one of its age labels changes with it. */
-  now?: number;
 }
 
 const openTree = (current: ui.Thread | undefined) => current && (isSide(current) ? current.parentThreadId : current.id);
 
 /**
  * Every overview event renders the list again; a row renders only when what it shows changed: its thread, side
- * threads, place in the open tree, project, worker or an age label at the list's new render time.
+ * threads, place in the open tree, project or worker. Age labels own their clock subscription.
  */
 const sameTree = (a: TreeProps, b: TreeProps) =>
   a.thread === b.thread &&
@@ -40,10 +41,7 @@ const sameTree = (a: TreeProps, b: TreeProps) =>
   a.sideThreads.every((side) => Boolean(a.rootIds?.has(side.id)) === Boolean(b.rootIds?.has(side.id))) &&
   (openTree(a.current) === a.thread.id) === (openTree(b.current) === b.thread.id) &&
   a.projects.find((p) => p.id === a.thread.projectId) === b.projects.find((p) => p.id === b.thread.projectId) &&
-  a.workers.find((w) => w.id === a.thread.workerId) === b.workers.find((w) => w.id === b.thread.workerId) &&
-  [a.thread.lastActivityAt ?? a.thread.createdAt, ...a.sideThreads.map((side) => side.archivedAt)].every(
-    (at) => age(at?.seconds, a.now) === age(at?.seconds, b.now),
-  );
+  a.workers.find((w) => w.id === a.thread.workerId) === b.workers.find((w) => w.id === b.thread.workerId);
 
 export const SidebarThreadTreeRow = memo(SidebarThreadTree, sameTree);
 
@@ -122,35 +120,8 @@ function SidebarSideThread({ thread, previous = false }: { thread: ui.Thread; pr
   const pathname = usePathname();
   const { id } = useGlobalSearchParams<{ id?: string }>();
   const active = layout.wide && pathname.startsWith("/thread/") && id === thread.id;
-  const needs = !home.away && needsYou(thread);
-  const busy = !home.away && (thread.status === "running" || thread.status === "creating");
-  const result = thread.unseenResult;
 
-  const label = home.away
-    ? "Read-only"
-    : previous
-      ? age(thread.archivedAt?.seconds)
-      : needs
-        ? "Needs input"
-        : busy
-          ? thread.status === "creating"
-            ? "Starting"
-            : "Working"
-          : result
-            ? result[0]!.toUpperCase() + result.slice(1)
-            : "";
-
-  const tone = home.away
-    ? c.muted
-    : needs
-      ? c.warning
-      : busy
-        ? c.sky
-        : result === "failed"
-          ? c.danger
-          : result === "completed"
-            ? c.success
-            : c.muted;
+  const label = home.away ? "Read-only" : previous ? formatAge(thread.archivedAt) : threadRowLabel(thread);
 
   return (
     <Pressable
@@ -165,29 +136,28 @@ function SidebarSideThread({ thread, previous = false }: { thread: ui.Thread; pr
           borderRadius: 8,
           paddingHorizontal: 8,
           opacity: home.away ? 0.55 : 1,
-          backgroundColor: pressed || active ? c.inset : "transparent",
+          backgroundColor: pressed || active ? c.inset : !home.away && isCalm(thread) ? c.well : "transparent",
         },
       ]}
     >
-      <Icon
-        name={
-          needs
-            ? "hand-raised"
-            : busy
-              ? "arrow-path"
-              : thread.forkSourceThreadId
-                ? "square-2-stack"
-                : "arrow-turn-down-right"
-        }
+      <SidebarActivity
+        thread={thread}
+        away={home.away}
         size={16}
-        color={tone}
+        idle={
+          <Icon
+            name={thread.forkSourceThreadId ? "square-2-stack" : "arrow-turn-down-right"}
+            size={16}
+            color={c.muted}
+          />
+        }
       />
       <Text numberOfLines={1} style={[type.title, { flex: 1, minWidth: 0, color: c.body }]}>
         {thread.title || "Untitled thread"}
       </Text>
-      <Text numberOfLines={1} style={[type.meta, { width: 96, textAlign: "right", color: tone }]}>
-        {label}
-      </Text>
+      <View style={{ width: 96 }}>
+        <SidebarThreadStatus thread={thread} label={home.away ? "Read-only" : undefined} previous={previous} />
+      </View>
       <SidebarUnread unread={thread.markedUnread} />
     </Pressable>
   );

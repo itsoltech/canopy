@@ -1,3 +1,13 @@
+import type { ui } from "@canopy/contracts";
+import { basename } from "./humanize.ts";
+
+/** Thread list placement: scratch, checkout HEAD, then the directory for non-worktree threads. */
+export function threadPlace(thread: ui.Thread, project?: ui.Project): string {
+  if (project?.kind === "scratch") return "scratch folder";
+
+  return (thread.worktree && headLabel(thread.worktree)) || basename(thread.cwd);
+}
+
 /** How a checkout's HEAD reads in the UI (docs/worktrees.md, "Bieżąca gałąź"): its branch or the detached commit. */
 export function headLabel(head: { readonly branch: string; readonly detachedCommit: string }): string {
   return head.detachedCommit ? `Detached at ${head.detachedCommit}` : head.branch;

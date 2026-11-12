@@ -1,14 +1,14 @@
 import { Text, View } from "react-native";
 import { palette } from "@canopy/ui";
+import { projectMark } from "@canopy/ui/thread-row";
 import { useColors } from "./theme";
 
 export function ProjectMark({ name, kind, size = 18 }: { name: string; kind?: string; size?: number }) {
   const c = useColors();
-  const tones = ["emerald", "rose", "amber", "sky", "violet", "fuchsia", "cyan", "lime", "zinc"] as const;
-  const tone = tones[[...name].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7) % tones.length]!;
-  const color = palette[tone];
-  const words = name.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
-  const initials = (words.length > 1 ? `${words[0]![0]}${words[1]![0]}` : (words[0] ?? "?").slice(0, 2)).toUpperCase();
+  const mark = projectMark(name);
+  const color = palette[mark.tone];
+  const fill = mark.tone === "zinc" ? c.projectNeutral.fill : color[mark.fill];
+  const text = mark.tone === "zinc" ? c.projectNeutral.text : color[c.dark ? mark.dark : mark.light];
 
   return (
     <View
@@ -18,7 +18,7 @@ export function ProjectMark({ name, kind, size = 18 }: { name: string; kind?: st
         borderRadius: 2,
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: kind === "scratch" ? "transparent" : `${color[500]}26`,
+        backgroundColor: kind === "scratch" ? "transparent" : `${fill}${Math.round(mark.opacity * 255).toString(16)}`,
         borderStyle: kind === "scratch" ? "dashed" : "solid",
         borderWidth: kind === "scratch" ? 1 : 0,
         borderColor: c.muted,
@@ -31,10 +31,10 @@ export function ProjectMark({ name, kind, size = 18 }: { name: string; kind?: st
             lineHeight: size / 2 + 2,
             fontWeight: "700",
             fontFamily: "monospace",
-            color: color[c.dark ? 400 : 700],
+            color: text,
           }}
         >
-          {initials}
+          {mark.initials}
         </Text>
       )}
     </View>

@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
-  import { providerPaths } from "@canopy/ui/provider-icons";
+  import { providerColors, providerPaths } from "@canopy/ui/provider-icons";
   import type { ProviderKey } from "#lib/features/threads/providers.ts";
 
   /**
@@ -11,8 +11,15 @@
     provider,
     label,
     size = "md",
+    opacity = 1,
     class: className,
-  }: { provider: ProviderKey; label?: string | undefined; size?: "sm" | "md"; class?: ClassValue } = $props();
+  }: {
+    provider: ProviderKey;
+    label?: string | undefined;
+    size?: "sm" | "md";
+    class?: ClassValue;
+    opacity?: number;
+  } = $props();
 
   // Shared CC0 / MIT provider marks, also rendered by react-native-svg.
   const paths = providerPaths;
@@ -23,9 +30,12 @@
   class={[
     "shrink-0",
     size === "sm" ? "size-3.5" : "size-4",
-    provider === "CLAUDE" ? "fill-[#D97757]" : "fill-zinc-950 dark:fill-white",
+    "fill-(--provider-light) dark:fill-(--provider-dark)",
     className,
   ]}
+  style:--provider-light={provider === "CLAUDE" ? providerColors.CLAUDE : providerColors.light}
+  style:--provider-dark={provider === "CLAUDE" ? providerColors.CLAUDE : providerColors.dark}
+  {opacity}
   aria-hidden={label ? undefined : "true"}
   role={label ? "img" : undefined}
   aria-label={label}

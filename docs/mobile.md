@@ -1244,6 +1244,17 @@ Wyszukiwanie tytułu wątku bocznego pokazuje rodzica. Archived używa wspólneg
 archiwalne wątki boczne pozostają w Previous agents pod rodzicem. Powiadomienia o wyniku
 subagenta zostają wewnątrz wątku, a pytanie do użytkownika wywołuje jeden alert rodzica.
 
+Etykieta „Working 1m” używa tego samego `workingLabel` i `formatAge` z domain co web:
+czas pochodzi z `lastActivityAt`, z fallbackiem do `createdAt`. Tytuł i metadane
+zachowują zwykły kontrast, a pracujący wiersz ma subtelne tło. Pierścień pracy
+dzieli geometrię i kolory z web (`@canopy/ui/thread-row`); animacja Reanimated
+działa na wątku UI i zatrzymuje się w tle oraz przy systemowym ograniczeniu ruchu.
+Jeden zegar aplikacji aktualizuje wyłącznie zmieniony tekst statusu, nie listę ani
+cały wiersz. Szczegóły pomiarów: [client-performance.md](client-performance.md).
+Podpis miejsca używa wspólnego `threadPlace`: „scratch folder”, HEAD worktree
+(gałąź lub detached commit), potem nazwa katalogu. Inicjały i ton znaku projektu
+są wspólne; neutralny znak w ciemnym motywie używa stopnia 300, tak jak web.
+
 Tapnięcie Archived zmienia lokalny stan od razu; zapis ustawienia w gatewayu działa
 w tle. Osobny cache `Paths.cache/archived-threads-v1` zachowuje ostatnio odczytane
 strony dla najwyżej 8 filtrów, razem z metadanymi projektów i workerów. Używa tego

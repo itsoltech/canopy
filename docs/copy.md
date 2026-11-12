@@ -157,6 +157,12 @@ Numbers that change live (percentages, counters, timers) use tabular digits
 (`tabular-nums`) and never sit in the middle of a sentence, so the text around them
 doesn't move.
 
+Thread list ages and working durations use the shared `formatAge` from domain:
+`now` below 45 seconds, then rounded minutes, hours and days, and rounded weeks
+from 14 rounded days. Round before choosing the unit, so 59.5 minutes becomes `1h`
+and 13.5 days becomes `2w`. The working label is `Working 1m`; omit the age while it
+is `now`. Keep the status in its reserved slot with tabular digits.
+
 ### 4.7 Toasts
 
 One short past-tense sentence about what happened (`Thread deleted`), optionally one

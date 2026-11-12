@@ -47,6 +47,8 @@ export const motion = {
   medium: 350,
   slow: 400,
   verySlow: 500,
+  /** Indeterminate ring, matching the web spin cycle. */
+  spin: 1000,
   /** Web shimmer: a 200% background, 40/50/60% stops, travelling two text widths per cycle. */
   shimmer: { duration: 2000, backgroundSize: 2, start: 0.4, peak: 0.5, end: 0.6, travel: 2 },
   distance: { micro: 4, small: 6, base: 8, medium: 12, large: 30 },

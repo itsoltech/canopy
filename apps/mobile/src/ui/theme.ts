@@ -1,5 +1,6 @@
 import { StyleSheet } from "react-native";
 import { contextType, palette, typography } from "@canopy/ui";
+import { workingColors } from "@canopy/ui/thread-row";
 import { neutralSteps, themes, themeVariables, type ThemeName } from "@canopy/ui/themes";
 import { useAppearance } from "../state/appearance";
 import { themeOf } from "../features/settings/appearance";
@@ -63,6 +64,10 @@ export function colorsFor(dark: boolean, theme: ThemeName = "birch") {
     danger: dark ? palette.rose[400] : palette.rose[700],
     dangerPressed: dark ? `${palette.rose[500]}1a` : palette.rose[50],
     sky: dark ? palette.sky[400] : palette.sky[700],
+    working: workingColors[dark ? "dark" : "light"],
+    agent: dark ? palette.violet[400] : palette.violet[700],
+    interrupted: dark ? palette.orange[400] : palette.orange[700],
+    projectNeutral: { fill: zinc(500), text: dark ? zinc(300) : zinc(700) },
     success: dark ? palette.emerald[400] : palette.emerald[700],
     userBubble: v.hover,
     /** A bot's chat bubble: zinc-100, zinc-800/80. */

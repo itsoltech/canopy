@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { ui } from "@canopy/contracts";
-  import { basename } from "#lib/shared/format.ts";
-  import { headLabel } from "@canopy/domain/git-heads";
+  import { threadPlace } from "@canopy/domain/git-heads";
+  import { threadRowMarks } from "@canopy/ui/thread-row";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import ProjectMark from "#lib/shared/ui/ProjectMark.svelte";
   import ProviderIcon from "#lib/features/models/ProviderIcon.svelte";
@@ -21,7 +21,7 @@
    * One thread in the inbox: project and status, title, then where it runs with its marks
    * (goal, side threads, started by an agent) and the provider's mark. `sides` = number of side threads under it.
    * What it does leads the row (ThreadActivityMark in the avatar's place, background tasks with their count);
-   * busy rows step back, finished unseen ones and those that need you stand out (SidebarThreadLink). Hover,
+   * working rows keep their text contrast, finished unseen ones and those that need you stand out. Hover,
    * focus or tap-and-hold shows its summary (ThreadHoverCard).
    */
   let {
@@ -63,8 +63,7 @@
         {#snippet idle()}<ProjectMark name={project?.name ?? "?"} kind={project?.kind} />{/snippet}
       </ThreadActivityMark>
     {/if}
-    <span
-      class="min-w-0 flex-1 truncate text-sm/5 text-zinc-500 group-data-calm:opacity-60 sm:text-xs/4.5 dark:text-zinc-400"
+    <span class="min-w-0 flex-1 truncate text-sm/5 text-zinc-500 sm:text-xs/4.5 dark:text-zinc-400"
       >{project?.name ?? "Unknown project"}</span
     >
     <SidebarThreadStatus
@@ -83,21 +82,19 @@
       "h-5.5 w-full min-w-0 overflow-hidden text-base/5.5 sm:h-5 sm:text-sm/5",
       thread.titleGenerating
         ? "text-zinc-500 dark:text-zinc-400"
-        : "text-zinc-800 group-aria-[current=page]:text-zinc-950 group-data-calm:opacity-60 group-data-result:text-zinc-950 dark:text-zinc-200 dark:group-aria-[current=page]:text-white dark:group-data-result:text-white",
+        : "text-zinc-800 group-aria-[current=page]:text-zinc-950 group-data-result:text-zinc-950 dark:text-zinc-200 dark:group-aria-[current=page]:text-white dark:group-data-result:text-white",
     ]}
   />
-  <span class="flex min-w-0 items-center gap-2 text-sm/5 text-zinc-500 group-data-calm:opacity-60 sm:text-xs/4.5">
+  <span class="flex min-w-0 items-center gap-2 text-sm/5 text-zinc-500 sm:text-xs/4.5 dark:text-zinc-400">
     <Icon
       name="computer-desktop"
       class="size-3.5 {worker?.online ? 'fill-zinc-400 dark:fill-zinc-500' : 'fill-zinc-300 dark:fill-zinc-700'}"
     />
     <span class="min-w-0 flex-1 truncate"
-      >{worker?.name ?? "Unknown worker"}<span class="text-zinc-400 dark:text-zinc-600">{" · "}</span>{project?.kind ===
-      "scratch"
-        ? "scratch folder"
-        : thread.worktree
-          ? headLabel(thread.worktree)
-          : basename(thread.cwd)}</span
+      >{worker?.name ?? "Unknown worker"}<span class="text-zinc-400 dark:text-zinc-600">{" · "}</span>{threadPlace(
+        thread,
+        project,
+      )}</span
     >
     <span class="flex shrink-0 items-center gap-2">
       <ThreadGoalMark {thread} />
@@ -113,7 +110,12 @@
       {#if provider}<span
           class="flex"
           title={thread.providerProfileId ? `${providerName} · ${thread.providerProfileId}` : providerName}
-          ><ProviderIcon {provider} label={providerName} class="size-3.5 opacity-70" /></span
+          ><ProviderIcon
+            {provider}
+            label={providerName}
+            class="size-3.5"
+            opacity={threadRowMarks.providerOpacity}
+          /></span
         >{/if}
     </span>
   </span>

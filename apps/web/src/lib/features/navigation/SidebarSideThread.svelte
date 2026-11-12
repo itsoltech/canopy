@@ -15,7 +15,7 @@
 
   /**
    * A side thread nested under its main thread in the inbox. Agent-started ones carry a violet mark, forks a
-   * copy mark; while it works or waits, its activity mark takes that place; it steps back, stands out and
+   * copy mark; while it works or waits, its activity mark takes that place; it keeps its text contrast and
    * previews on hover like SidebarThread.
    */
   let {
@@ -58,7 +58,7 @@
       "h-5.5 min-w-0 flex-1 overflow-hidden text-base/5.5 sm:h-5 sm:text-sm/5",
       thread.titleGenerating
         ? "text-zinc-500 dark:text-zinc-400"
-        : "text-zinc-700 group-aria-[current=page]:text-zinc-950 group-data-calm:opacity-60 group-data-result:text-zinc-950 dark:text-zinc-300 dark:group-aria-[current=page]:text-white dark:group-data-result:text-white",
+        : "text-zinc-700 group-aria-[current=page]:text-zinc-950 group-data-result:text-zinc-950 dark:text-zinc-300 dark:group-aria-[current=page]:text-white dark:group-data-result:text-white",
     ]}
   />
   {#if thread.spawnedByAgent}<span class="sr-only">(started by an agent)</span>{/if}
