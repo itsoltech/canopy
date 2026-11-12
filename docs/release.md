@@ -385,6 +385,16 @@ opublikowanego tagu. Waliduje wynik tym samym dekoderem co klient przed uploadem
 Weryfikacja rozmiarów i hashy oraz kompletności platform nadal odbywa się w
 `release-upload.ts` **przed** upublicznieniem release; indeks jest tylko listą.
 
+Ten sam krok zapisuje `dist/site/releases/notes-v1.json` (`schema: 1`). Generator
+`scripts/release-notes.ts` parsuje sekcje Features, Performance Improvements i Bug Fixes
+z tych samych publicznych GitHub Releases. Zapisuje wersję, datę i wpisy: typ
+`feat`/`perf`/`fix`, scope, tekst bez prefiksu Angular oraz numer i URL PR-a (lub null).
+Usuwa odnośniki do commitów, zachowuje tekst etykiet Markdown i kapitalizuje początek.
+Każdy kanał zachowuje najwyżej 200 najnowszych wersji; `truncated` wymienia kanały
+ze starszą, pominiętą historią. Notatki nie zastępują pełnego indeksu pobrań ani
+GitHub Releases. Generator i parser są testowane lokalnie na fixture bodies,
+bez publikacji tagów lub wykonywania workflowu wydania.
+
 Pages wdraża stronę i indeks jednym artefaktem, serializowanym wspólną grupą `pages`
 dla wszystkich kanałów i zwykłych zmian strony. Strona/skrypty pochodzą z bieżącego `dev`,
 żeby wydanie starszej linii stable nie cofnęło strony OAuth. Zwykłe wdrożenie Pages

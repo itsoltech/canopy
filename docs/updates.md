@@ -471,6 +471,25 @@ Nie ma możliwości zdalnego dodania kanału do procesu, który go jeszcze nie z
 
 ## Release i mirror
 
+### Strukturalne notatki wydań
+
+`https://itsoltech.github.io/canopy/releases/notes-v1.json` zawiera do 200 wersji
+na kanał z datami i wpisami New (`feat`), Improved (`perf`) oraz Fixed (`fix`).
+Klient notatek czyta wyłącznie Pages, z istniejącym cache 15 min i ETag;
+awaria nie uruchamia fallbacku do API GitHuba. Dekoder sprawdza schemat,
+daty, wersje, limity, duplikaty i URL-e PR-ów w repozytorium Canopy.
+Pełne treści nadal żyją w GitHub Releases, bez commitowanego CHANGELOG-a.
+
+Zakres aktualizacji to `(poprzednia wersja, bieżąca wersja]` na kanale
+uruchomionego buildu. Agregacja porządkuje grupy New, Improved, Fixed,
+a wewnątrz nich najnowsze zmiany. Deduplikuje po numerze PR-a lub scope
+i podsumowaniu, gdy brak numeru. Promocje powtarzają skumulowane notatki;
+wpisy znane z poprzedniego kanału są odejmowane. Notatki innych kanałów
+nie zapowiadają zmian nieobecnych w uruchomionym buildzie. Ucięta historia
+oraz brak bieżącego wydania w snapshotcie mają jawny stan niekompletności.
+
+### Indeks pobrań
+
 Źródło domyślne: `https://itsoltech.github.io/canopy/releases/v1.json`.
 Wersjonowany indeks (`schema: 1`, `releases`) zawiera tag, flagę prerelease,
 czas publikacji, notatki i listę nazw/URL-i wszystkich assetów, w tym `manifest.json`.

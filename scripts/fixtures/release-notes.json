@@ -1,0 +1,48 @@
+[
+  {
+    "body": "# [0.2.0-nightly.146](https://github.com/itsoltech/canopy/compare/v0.2.0-nightly.145...v0.2.0-nightly.146) (2026-11-13)\n\n### Bug Fixes\n\n* **threads:** keep drafts after reconnect ([#592](https://github.com/itsoltech/canopy/issues/592)) ([012abcd](https://github.com/itsoltech/canopy/commit/012abcdef))\n\n### Features\n\n* **updates:** show `What's new` after an update ([#593](https://github.com/itsoltech/canopy/pull/593)) ([abcdef0](https://github.com/itsoltech/canopy/commit/abcdef0123))\n  with links to each change\n* add compact settings (#594)\n\n### Performance Improvements\n\n* **files:** open large diffs faster ([765abcd](https://github.com/itsoltech/canopy/commit/765abcdef))\n\n### BREAKING CHANGES\n\n* Internal migration instructions\n",
+    "entries": [
+      {
+        "type": "fix",
+        "scope": "threads",
+        "summary": "Keep drafts after reconnect",
+        "pr": 592,
+        "url": "https://github.com/itsoltech/canopy/pull/592"
+      },
+      {
+        "type": "feat",
+        "scope": "updates",
+        "summary": "Show What's new after an update with links to each change",
+        "pr": 593,
+        "url": "https://github.com/itsoltech/canopy/pull/593"
+      },
+      {
+        "type": "feat",
+        "scope": "",
+        "summary": "Add compact settings",
+        "pr": 594,
+        "url": "https://github.com/itsoltech/canopy/pull/594"
+      },
+      { "type": "perf", "scope": "files", "summary": "Open large diffs faster", "pr": null, "url": null }
+    ]
+  },
+  {
+    "body": "Release overview\n\n### Features\n- feat(settings): remember filters (#583)\n- feat(settings): remember filters (#583)\n\n### Documentation\n- Update installation instructions\n\n### Bug Fixes\n- fix: preserve **bold text** and [labels](https://example.com) (#584)\n\nThanks to our contributors.",
+    "entries": [
+      {
+        "type": "feat",
+        "scope": "settings",
+        "summary": "Remember filters",
+        "pr": 583,
+        "url": "https://github.com/itsoltech/canopy/pull/583"
+      },
+      {
+        "type": "fix",
+        "scope": "",
+        "summary": "Preserve bold text and labels",
+        "pr": 584,
+        "url": "https://github.com/itsoltech/canopy/pull/584"
+      }
+    ]
+  }
+]

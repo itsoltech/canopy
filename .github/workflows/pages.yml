@@ -8,6 +8,9 @@ on:
       - site/**
       - scripts/build-site.ts
       - scripts/release-index.ts
+      - scripts/release-notes.ts
+      - packages/domain/src/release/notes.ts
+      - packages/domain/src/release/version.ts
       - packages/domain/src/release/catalog.ts
       - packages/domain/src/oauth-return.ts
       - .github/workflows/pages.yml
