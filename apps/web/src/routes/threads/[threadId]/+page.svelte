@@ -166,6 +166,9 @@
     get currentId() {
       return threadId;
     },
+    get latestTurnId() {
+      return view.turns.findLast((turn) => !turn.withdrawn && (turn.status !== "queued" || turn.dispatched))?.id;
+    },
     thread: (id) => (id === thread?.id ? thread : overview.threads.get(id)),
     awaiting: (itemId) => view.pending.some((i) => i.itemId === itemId),
     goal: (id) => (view.goal?.id === id ? view.goal : undefined),

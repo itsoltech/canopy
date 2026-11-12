@@ -21,6 +21,7 @@
     retrying = false,
     retryDisabled = false,
     heading = "Could not finish this turn",
+    historical = false,
   }: {
     message: string;
     code?: string | undefined;
@@ -36,6 +37,7 @@
     retrying?: boolean;
     retryDisabled?: boolean;
     heading?: string;
+    historical?: boolean;
   } = $props();
 
   const failure = $derived(failurePresentation(message, classification || code, proxy));
@@ -47,21 +49,23 @@
 
 <div class="grid min-w-0 gap-2 text-base/6 sm:text-sm/6">
   <p class="font-medium text-rose-700 dark:text-rose-400">{heading}</p>
-  <p class="text-pretty text-zinc-600 dark:text-zinc-400">{failure.explanation}</p>
-  {#if failure.kind === "auth_required" && !proxy && authHint}
-    <p class="text-zinc-600 dark:text-zinc-400">{authHint}</p>
-  {/if}
-  <div class="flex flex-wrap items-center gap-2">
-    {#if failure.model && onchangemodel}<Button size="sm" onclick={onchangemodel}>Change model</Button>{/if}
-    {#if failure.settings}
-      <ButtonLink size="sm" variant="ghost" href={providerHref}
-        >{failure.kind === "auth_required" && !proxy ? signInLabel : "Open provider settings"}</ButtonLink
-      >
+  {#if !historical}
+    <p class="text-pretty text-zinc-600 dark:text-zinc-400">{failure.explanation}</p>
+    {#if failure.kind === "auth_required" && !proxy && authHint}
+      <p class="text-zinc-600 dark:text-zinc-400">{authHint}</p>
     {/if}
-    {#if failure.proxy}<ButtonLink size="sm" variant="ghost" href="/settings/proxies">Check proxy</ButtonLink>{/if}
-    {#if onretry}<Button size="sm" loading={retrying} disabled={retryDisabled} onclick={onretry}>Retry</Button>{/if}
-    {#if onchangeworker}<Button size="sm" variant="ghost" onclick={onchangeworker}>Change worker</Button>{/if}
-  </div>
+    <div class="flex flex-wrap items-center gap-2">
+      {#if failure.model && onchangemodel}<Button size="sm" onclick={onchangemodel}>Change model</Button>{/if}
+      {#if failure.settings}
+        <ButtonLink size="sm" variant="ghost" href={providerHref}
+          >{failure.kind === "auth_required" && !proxy ? signInLabel : "Open provider settings"}</ButtonLink
+        >
+      {/if}
+      {#if failure.proxy}<ButtonLink size="sm" variant="ghost" href="/settings/proxies">Check proxy</ButtonLink>{/if}
+      {#if onretry}<Button size="sm" loading={retrying} disabled={retryDisabled} onclick={onretry}>Retry</Button>{/if}
+      {#if onchangeworker}<Button size="sm" variant="ghost" onclick={onchangeworker}>Change worker</Button>{/if}
+    </div>
+  {/if}
   <Disclosure class="min-w-0 text-zinc-500 dark:text-zinc-400">
     {#snippet summary()}Show details{/snippet}
     <div class="flex min-w-0 items-start gap-2 py-2">

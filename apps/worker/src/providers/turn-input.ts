@@ -9,6 +9,8 @@ export interface TurnSettings {
   readonly model: string;
   readonly effort: string;
   readonly permissionMode?: PermissionMode;
+  /** Previous request, used privately only when a retry has to create a fresh provider session. */
+  readonly recoveryContext?: string;
 }
 
 /** A steer that cannot enter the turn: it is no longer running here, or the provider refused it. */

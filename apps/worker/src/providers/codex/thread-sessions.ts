@@ -52,7 +52,7 @@ export function threadSessions(ctx: CodexThreadContext) {
       .request("thread/start", { ...params, ...dynamicTools(spec, options.viewImage !== undefined) })
       .pipe(Effect.mapError(fail(spec.threadId, operation)));
 
-  const ensureLoaded = (spec: ThreadSpec) =>
+  const ensureLoaded = (spec: ThreadSpec, recoveryContext = "") =>
     Effect.gen(function* () {
       const loaded = byPlatform.get(spec.threadId);
 
@@ -88,10 +88,16 @@ export function threadSessions(ctx: CodexThreadContext) {
         );
 
       if (resumed) return register(spec.threadId, resumed.id, resumed.path);
+
       // Codex writes a thread's rollout with its first turn: a thread that never had one is gone with the
       // process that created it. Nothing is lost by starting it again; the gateway keeps the platform
       // thread and takes the new Codex id (thread_ready replaces the old one).
-      const started = yield* startThread(spec, params, "resume");
+      const started = yield* startThread(
+        spec,
+        { ...params, developerInstructions: [spec.instructions, recoveryContext].filter(Boolean).join("\n\n") },
+        "resume",
+      );
+
       const entry = register(spec.threadId, started.thread.id, started.thread.path);
       yield* announce(entry, spec.providerThreadId).pipe(Effect.mapError(fail(spec.threadId, "journal")));
 

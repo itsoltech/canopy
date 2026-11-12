@@ -28,6 +28,7 @@ export function claudeSessions(
     model: string,
     effort: Options["effort"],
     mode: PermissionMode,
+    recoveryContext = "",
   ): Promise<Session> => {
     const profile = options.profile(spec.providerProfileId);
 
@@ -50,7 +51,10 @@ export function claudeSessions(
 
     const attachments = options.attachmentsDir?.(spec.threadId);
     const secrets = options.secretsDir?.(spec.threadId);
-    const instructions = [managedClaudeInstructions(runtime.home), spec.instructions].filter(Boolean).join("\n\n");
+
+    const instructions = [managedClaudeInstructions(runtime.home), spec.instructions, !resume && recoveryContext]
+      .filter(Boolean)
+      .join("\n\n");
 
     const queryOptions: Options = {
       cwd: spec.cwd,

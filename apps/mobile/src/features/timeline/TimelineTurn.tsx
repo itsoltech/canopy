@@ -33,11 +33,13 @@ export function TimelineTurn({
   entries,
   context,
   newDay,
+  historical,
 }: {
   turn: ui.Turn;
   entries: readonly ui.TimelineItem[];
   context: TurnContext;
   newDay: boolean;
+  historical: boolean;
 }) {
   const { workFold } = useDevicePreferences();
   const [folds, setFolds] = useState<ReadonlyMap<number, boolean>>(new Map());
@@ -113,7 +115,7 @@ export function TimelineTurn({
       })}
       {ended && (
         <View style={{ gap: 4, marginTop: answerText.trim() && turn.status === "completed" ? -12 : 0 }}>
-          <TurnEnd turn={turn} provider={context.provider} />
+          <TurnEnd turn={turn} provider={context.provider} historical={historical} />
           <QuoteItem.Provider value={lastAnswer?.itemId ?? ""}>
             <TurnDetails turn={turn} answer={answerText} />
           </QuoteItem.Provider>

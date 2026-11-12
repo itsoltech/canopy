@@ -36,7 +36,7 @@ function fixture(events: ThreadEvent[], logs: string[], enrich?: CodexThreadsOpt
     ...(enrich && { enrich }),
     interact: async () => create(InteractionResponseSchema, { allow: false }),
     callTool: async () => create(AgentToolResultSchema, { isError: true }),
-  }).pipe(Layer.provide(Journal.layer(join(root, "journal.db"))));
+  }).pipe(Layer.provideMerge(Journal.layer(join(root, "journal.db"))));
 }
 
 const spec = () =>
@@ -53,6 +53,44 @@ function finished(events: ThreadEvent[], turnId: string) {
     while (!events.some((e) => e.turnId === turnId && e.body.case === "turnFinished")) yield* Effect.sleep("5 millis");
   }).pipe(Effect.timeout("5 seconds"));
 }
+
+for (const lost of [false, true])
+  test(`a retry keeps its user message short when the provider session is ${lost ? "lost" : "resumed"}`, async () => {
+    const events: ThreadEvent[] = [];
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const journal = yield* Journal;
+        const threads = yield* CodexThreads;
+        const thread = { ...spec(), providerThreadId: lost ? "missing-rollout" : "saved-session" };
+        const request = "Finish the deployment and check the completed steps";
+        yield* journal.rememberRequest(thread.threadId, request);
+        const recoveryContext = yield* journal.recoveryInstructions(thread.threadId);
+        const turnId = Bun.randomUUIDv7();
+        yield* threads.startTurn(thread, turnId, create(UserInputSchema, { text: "Continue" }), {
+          model: "",
+          effort: "",
+          recoveryContext,
+        });
+        yield* finished(events, turnId);
+
+        const messages = events.flatMap((event) =>
+          event.turnId === turnId && event.body.case === "itemCompleted" ? [event.body.value.item?.content] : [],
+        );
+
+        const inputs = messages.flatMap((content) => (content?.case === "userMessage" ? [content.value.text] : []));
+        expect(inputs).toEqual(["Continue"]);
+        expect(inputs.join("\n")).not.toContain(request);
+        expect(messages).toContainEqual(
+          expect.objectContaining({
+            case: "agentMessage",
+            value: expect.objectContaining({ text: lost ? `Context: ${recoveryContext}` : "Echo: Continue" }),
+          }),
+        );
+
+        if (lost) expect(recoveryContext).toContain(JSON.stringify(request));
+      }).pipe(Effect.provide(fixture(events, [])), Effect.scoped),
+    );
+  });
 
 test("Codex binds a prompt to its RPC response across native wake-ups and late events", async () => {
   const events: ThreadEvent[] = [];

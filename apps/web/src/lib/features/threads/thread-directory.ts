@@ -7,6 +7,8 @@ export interface ThreadDirectory {
   /** The thread being shown. */
   readonly currentId: string;
   readonly readOnly?: boolean;
+  /** Latest visible turn, excluding messages still waiting in the queue. */
+  readonly latestTurnId?: string;
   thread(id: string): ui.Thread | undefined;
   /** A pending interaction (approval, question) is about this item. */
   awaiting(itemId: string): boolean;
