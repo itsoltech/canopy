@@ -206,10 +206,10 @@ w obu członach pary; liczba prób/błędów trafia do artefaktów pomiaru.
 Nagrania rozpoczynają się dopiero po potwierdzeniu spokojnego okna przez maintainera.
 
 Skrócony protokół etapu 2 uruchamia jedna komenda:
-`bash scripts/bench/diagnostics-stage2.sh`. Trzy przyjęte pary mają kolejność
-AB / BA / AB (ABBA + AB), gdzie A wyłącza wyłącznie etap 2, a B go włącza.
-Idle trwa 3 min, każda z sześciu pozostałych faz 90 s, łącznie 72 min obciążenia;
-z preflightem, rozgrzewką i uruchomieniem około 75 min, dłużej po odrzuceniu pary.
+`bash scripts/bench/diagnostics-stage2.sh`. Cztery przyjęte pary mają kolejność
+AB / BA / AB / BA (dwa pełne bloki ABBA), gdzie A wyłącza wyłącznie etap 2, a B go włącza.
+Idle trwa 3 min, każda z sześciu pozostałych faz 90 s, łącznie 96 min obciążenia;
+z preflightem, rozgrzewką i uruchomieniem około 100 min, dłużej po odrzuceniu pary.
 Blokady w fazach write/pool pozostają 70 s; okno obserwacji powrotu do normy
 jest krótsze (20 s), więc retry po następnym rolloverze może wypaść poza fazą.
 Pełny test durability/restart sprawdza odtworzenie niezależnie od tego pomiaru.
@@ -230,12 +230,20 @@ musi wynosić 0 na początku, co sekundę i na końcu każdej pary. Nieczytelny
 licznik albo naruszenie unieważnia parę. Sprawdzamy przynależność gatewaya
 i workera do scope'u sterownika oraz PostgreSQL do własnego user scope'u.
 Swap-in hosta odrzuca parę przy ≥4 MiB/s przez trzy kolejne sekundy.
-Swap-out hosta odrzuca wyłącznie przy ≥4 MiB/s w dowolnej próbce, bez progu
-sumarycznego. Load powyżej liczby CPU także unieważnia parę.
+Swap-out hosta jest wyłącznie rejestrowany, bez odrzucenia pary przy zerowym
+swapie scope'ów. Load powyżej liczby CPU także unieważnia parę.
 Każda próbka i sumy swap-in/out na parę są zapisywane, również poniżej progów.
 Pierwsze naruszenie zapisuje też PID/PPID, wiek, CPU, RSS i nazwę aktywnych
 procesów z `ps`, bez argumentów ani środowiska. Ten odczyt dotyczy wyłącznie
 odrzuconej pary i nie obciąża przyjętych nagrań.
+Monitor zapisuje też ticki CPU i ostatni CPU wątków kswapd/zram oraz I/O zram.
+`diagnostics-paired-report.ts` raportuje mediany wszystkich przyjętych par
+oraz analizę wrażliwości bez oznaczonych par. Para jest oznaczona, gdy dowolna
+delta CPU, p95, RSS lub heap dla fazy/procesu odbiega od mediany o więcej niż
+2× MAD i szczyt host swap-out tej pary przekracza 4 MiB/s. MAD to mediana
+bezwzględnych odchyleń od mediany; przy MAD=0 każde niezerowe odchylenie spełnia
+warunek. Oznaczenie obejmuje całą parę, nie jest odrzuceniem ani zmianą głównej
+mediany. Raport zachowuje powody, liczebność i wszystkie wyniki bez zaokrągleń.
 Etap 1 zachowuje wcześniejsze bramki. Kryteria narzutu: mediana delty CPU <1 pp,
 RPC p95 bez regresji powyżej max(1 ms, 10% wartości bazowej), odczyt 24 h <50 ms,
 synchroniczne odtworzenie CPU <100 ms. Po profilowaniu cel etapu 2 jest ostrzejszy:

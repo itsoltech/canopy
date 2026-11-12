@@ -1,6 +1,7 @@
 import { cpus } from "node:os";
 import { SwapGate, swapCounters, pageSize } from "./diagnostics-swap.ts";
 import { monitorScopes, swapDisabledStage } from "./diagnostics-scope.ts";
+import { kernelNoiseMonitor } from "./diagnostics-kernel.ts";
 
 /** Wait outside pair recording; never stop system maintenance owned by another process. */
 export async function waitForSystemJobs(signal: AbortSignal) {
@@ -55,6 +56,7 @@ export async function monitorHost(pair: number, attempt: number, postgresScope?:
   const swap = new SwapGate(reject, swapDisabled);
   const sampleScopes = await monitorScopes(postgresScope, reject);
   const scopeBefore = await sampleScopes();
+  const kernelNoise = await kernelNoiseMonitor();
 
   if (Number(loadavg.split(" ")[0]) > cpuCount) reject("load", loadavg);
   console.info(
@@ -67,6 +69,7 @@ export async function monitorHost(pair: number, attempt: number, postgresScope?:
       swap: before,
       bytesPerPage,
       scopes: scopeBefore,
+      kernelNoise: await kernelNoise(),
     }),
   );
   const vmstat = Bun.spawn(["vmstat", "-w", "-S", "K", "1"], { stdout: "pipe", stderr: "inherit" });
@@ -106,6 +109,7 @@ export async function monitorHost(pair: number, attempt: number, postgresScope?:
             loadavg: load,
             vmstat: line,
             scopes: await sampleScopes(),
+            kernelNoise: await kernelNoise(),
           }),
         );
 
@@ -151,7 +155,8 @@ export async function monitorHost(pair: number, attempt: number, postgresScope?:
           peakSwapOutKiBPerSec: swap.peakOutputKiB,
           swapInSustainedThresholdKiBPerSec: swap.sustainedInputKiB,
           longestSwapInThresholdRun: swap.longestInput,
-          swapOutThresholdKiBPerSec: swapDisabled ? 4096 : 128,
+          swapOutThresholdKiBPerSec: swapDisabled ? null : 128,
+          hostSwapOutLogOnly: swapDisabled,
           scopes: scopeAfter,
           violations,
         }),

@@ -20,7 +20,7 @@ export class SwapGate {
     this.consecutiveInput = inputKiB >= this.sustainedInputKiB ? this.consecutiveInput + 1 : 0;
     this.longestInput = Math.max(this.longestInput, this.consecutiveInput);
 
-    if (outputKiB >= (this.stage2 ? 4096 : 128)) this.reject("swap_out_rate", String(outputKiB));
+    if (!this.stage2 && outputKiB >= 128) this.reject("swap_out_rate", String(outputKiB));
 
     if (!this.stage2 && inputKiB >= 1024) this.reject("swap_in_rate", String(inputKiB));
 
