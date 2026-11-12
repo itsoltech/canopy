@@ -59,7 +59,7 @@
     {#snippet summary()}
       <span class="flex min-w-0 items-start gap-2">
         <Icon name={status.icon} class="shrink-0" />
-        <span class="grid min-w-0 flex-1 gap-1">
+        <span class="grid min-w-0 flex-1 grid-cols-1 gap-1">
           <span class="font-medium break-words">{computer.name}</span>
           <span class="break-words tabular-nums">{threadSyncComputerSummary(computer)}</span>
           {#if !computer.reachable}<span>Unreachable</span>{/if}
