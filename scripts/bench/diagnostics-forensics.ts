@@ -32,7 +32,9 @@ export class DiagnosticsForensics {
     const value = await this.#profile;
     this.#finish = undefined;
     this.#profile = undefined;
-    await Bun.write(`${this.directory}/${this.member}-${this.#phase}.profile.json`, JSON.stringify(value), { mode: 0o600 });
+    await Bun.write(`${this.directory}/${this.member}-${this.#phase}.profile.json`, JSON.stringify(value), {
+      mode: 0o600,
+    });
   }
 
   async heap(point = "end") {
@@ -66,6 +68,7 @@ export class DiagnosticsForensics {
       process.env["CANOPY_BENCH_FORENSIC_FORMAT"] === "v8"
         ? Bun.generateHeapSnapshot("v8", "arraybuffer")
         : JSON.stringify(Bun.generateHeapSnapshot());
+
     await Bun.write(path, snapshot, { mode: 0o600 });
   }
 }

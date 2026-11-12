@@ -1,4 +1,4 @@
-import { Effect, Exit } from "effect";
+import { Cause, Effect, Exit } from "effect";
 import type { SqlConnection, SqlError } from "effect/sql";
 import type { DatabaseMonitor } from "./database.ts";
 import { QueryFamily, QueryRpc } from "./query-context.ts";
@@ -34,8 +34,10 @@ export function observedBorrow(borrow: SqlConnection.Borrower, monitor: Database
               // Keep only counts: a driver failure can own the complete query payload.
               if (Exit.isFailure(exit)) {
                 workReasons = exit.cause.reasons.length;
-                for (const reason of exit.cause.reasons) if (reason._tag === "Die") workDefects++;
+
+                for (const reason of exit.cause.reasons) if (Cause.isDieReason(reason)) workDefects++;
               }
+
               releaseStart = performance.now();
 
               return Effect.void;
@@ -54,9 +56,11 @@ export function observedBorrow(borrow: SqlConnection.Borrower, monitor: Database
 
             if (Exit.isFailure(exit)) {
               let defects = 0;
-              for (const reason of exit.cause.reasons) if (reason._tag === "Die") defects++;
+
+              for (const reason of exit.cause.reasons) if (Cause.isDieReason(reason)) defects++;
               releaseError = exit.cause.reasons.length > workReasons || defects > workDefects;
             }
+
             monitor.record(family, "release", releaseStart, releaseError, rpc);
           }
 

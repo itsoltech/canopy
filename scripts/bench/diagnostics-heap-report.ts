@@ -42,8 +42,11 @@ if (!off || !on) throw new Error("Usage: bun scripts/bench/diagnostics-heap-repo
 
 // Analyze sequentially; do not hold both snapshot graphs in memory.
 const a = summarize(await heapGraph(off));
+
 Bun.gc(true);
+
 const b = summarize(await heapGraph(on));
+
 const deltas = [...new Set([...a.types.keys(), ...b.types.keys()])].map((constructor) => {
   const before = a.types.get(constructor) ?? { count: 0, selfBytes: 0 };
   const after = b.types.get(constructor) ?? { count: 0, selfBytes: 0 };
@@ -56,11 +59,14 @@ const deltas = [...new Set([...a.types.keys(), ...b.types.keys()])].map((constru
     deltaSelfBytes: after.selfBytes - before.selfBytes,
   };
 });
+
 deltas.sort((left, right) => right.deltaSelfBytes - left.deltaSelfBytes);
+
 console.info(
   JSON.stringify(
     {
-      sizes: "Strongly reachable self bytes; not dominator retained sizes. Weak edges excluded; paths capped at 100 edges.",
+      sizes:
+        "Strongly reachable self bytes; not dominator retained sizes. Weak edges excluded; paths capped at 100 edges.",
       privacy: "No string contents, error messages, dynamic property keys or closure names are emitted.",
       types: deltas,
       off: { largestStrings: a.largestStrings, largestObjects: a.largestObjects },

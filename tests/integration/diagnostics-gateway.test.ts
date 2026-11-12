@@ -258,9 +258,11 @@ describe.skipIf(!dockerAvailable)("gateway diagnostics preserve durable, private
               throw new Error("Diagnostics inspected a private driver failure");
             },
           });
+
         const privateExit = yield* Effect.exit(
           observedBorrow(lease(reserve), monitor)(() => Effect.fail(driverFailure)),
         );
+
         expect(Exit.isFailure(privateExit)).toBe(true);
         expect(diagnosticErrorCode(driverFailure)).toBe(Code.Unknown);
         expect(inspected).toBe(0);

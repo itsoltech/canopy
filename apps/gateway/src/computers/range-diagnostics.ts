@@ -5,6 +5,7 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import type { CoreRuntime } from "../core/core.ts";
 import { sanitizedRangeReason } from "./range-failure.ts";
+import { queryFamily } from "../diagnostics/query-context.ts";
 
 type DiagnosticRow = {
   node: string;
@@ -137,6 +138,6 @@ export function readRangeDiagnostics(
         syncingThreads: summaries.reduce((sum, row) => sum + row.behind, 0),
         failedThreads: computers.reduce((sum, computer) => sum + computer.pausedThreads, 0),
       });
-    }),
+    }).pipe(queryFamily("diagnostics.history")),
   );
 }

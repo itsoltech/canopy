@@ -348,6 +348,7 @@ async function beginPhase(
     await forensicCheckpoint()?.("before_governor");
     await active!.run("governor");
   }
+
   await worker!.run("begin");
   const finishContention = await diagnosticsContention(postgres, database, phase, api, thread, forensicCheckpoint());
 

@@ -6,9 +6,11 @@ import { Effect } from "effect";
 import type { CoreRuntime } from "../core/core-context.ts";
 
 /** The singleton governor must not retain a runtime, operation or admission callback. */
-const governorObserver = (collector: RpcCollector): ProcessObserver => (kind, priority, event, elapsed) => {
-  collector.measure(governorMetric(kind, priority, event), event === "wait" || event === "execution" ? elapsed : 1);
-};
+const governorObserver =
+  (collector: RpcCollector): ProcessObserver =>
+  (kind, priority, event, elapsed) => {
+    collector.measure(governorMetric(kind, priority, event), event === "wait" || event === "execution" ? elapsed : 1);
+  };
 
 /** Numeric hooks only. No operation identities or arguments cross this boundary. */
 export class ProcessDiagnostics {
@@ -87,6 +89,7 @@ export class ProcessDiagnostics {
             this.#statsBusy = false;
           });
       }
+
       db.peakWaiting = db.waiting;
       db.peakOccupied = db.occupied;
     }

@@ -34,7 +34,7 @@ export class DatabaseMonitor {
 }
 
 /** A lease finalizer owns its scope, never the acquisition result or statement callback. */
-function releaseLease(child: Scope.Scope, monitor: DatabaseMonitor, family: DatabaseFamily, rpc: number) {
+function releaseLease(child: Scope.Closeable, monitor: DatabaseMonitor, family: DatabaseFamily, rpc: number) {
   return <A, E>(exit: Exit.Exit<A, E>) =>
     Effect.suspend(() => {
       const start = performance.now();

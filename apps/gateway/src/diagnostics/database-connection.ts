@@ -72,9 +72,7 @@ export class ObservedConnection implements SqlConnection.Connection {
         const rpc = fiber.getRef(QueryRpc);
         const start = performance.now();
 
-        return Effect.succeed(
-          Stream.onExit(work, completion(this.monitor, family, "execute", rpc, start)),
-        );
+        return Effect.succeed(Stream.onExit(work, completion(this.monitor, family, "execute", rpc, start)));
       }),
     );
   }
