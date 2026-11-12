@@ -587,6 +587,13 @@ próbę czytelnym błędem i pozostawia bieżącą binarkę.
    `allow_downgrade` administratora. Stan i identyfikator polecenia zapisuje
    prywatny plik `.update.json` obok binarki.
 
+Zapis rekordu używa osobnego pliku tymczasowego z prawami `0600`, `fsync`
+i atomowego `rename` w tym samym katalogu. Czytelnik widzi poprzedni albo cały
+nowy rekord, także podczas potwierdzania startupu. Fixture'y testowe muszą używać
+tego samego zapisu; bezpośrednie przekierowanie do `.update.json` odsłania pusty
+lub częściowy JSON przed zakończeniem zapisu. Brak pliku oznacza brak rekordu,
+ale uszkodzony JSON pozostaje błędem odczytu, a nie potwierdzeniem aktualizacji.
+
 Binarka uruchamia proces nadzorujący i właściwy proces usługi. Kod wyjścia **75**
 żąda ponownego uruchomienia executable. Ten sam mechanizm działa na pierwszym
 planie i pod systemd/launchd. Stary supervisor pozostaje w pamięci do potwierdzenia
