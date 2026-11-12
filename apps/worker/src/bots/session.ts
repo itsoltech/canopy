@@ -37,6 +37,7 @@ export function botSession(input: RunBotTurn, options: { dataDir: string; source
         isolation: 2,
         // Discard sessions whose user turns mixed historical files with newly attached files.
         attachmentContext: 2,
+        webAccess: input.webAccess,
         model: input.model,
         effort: input.effort,
         tools: input.tools,

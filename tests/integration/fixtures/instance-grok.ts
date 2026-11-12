@@ -142,7 +142,14 @@ for await (const line of createInterface({ input: process.stdin })) {
 
       if (!config.permission.allow.includes("MCPTool(canopy__*)"))
         throw new Error("Canopy MCP needs a harness allow rule; the gateway enforces approvals");
-      botEvidence("grok", arg("--tools") === "search_tool,use_tool" && !!arg("--agent-profile"));
+      botEvidence(
+        "grok",
+        !!arg("--tools") &&
+          arg("--tools")!
+            .split(",")
+            .every((tool) => ["search_tool", "use_tool", "web_search", "web_fetch"].includes(tool)) &&
+          !!arg("--agent-profile"),
+      );
       const server = params.mcpServers?.[0];
 
       if (server)

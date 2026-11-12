@@ -25,6 +25,8 @@ message BotConfiguration {
   // Omitted: preserve on update, same_bot on create. Owner-only setting.
   // Empty/same_bot: ASK for safe/always, FULL_AUTO for full_auto.
   optional string thread_permission = 1001; // user_default (domyślnie) | ask | read_only | accept_edits | full_auto | full_access
+  // Owner-only. Omitted on create = enabled; omitted on update = preserve.
+  optional bool web_access = 1002;
 }
 message Bot {
   string id = 1;

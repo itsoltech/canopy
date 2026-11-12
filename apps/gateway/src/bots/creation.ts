@@ -86,5 +86,6 @@ export function proposedBot(args: JsonObject, own: bots.BotConfiguration): bots.
     instructions: given.get("instructions") ?? "",
     approvalPolicy: given.get("approval_policy") ?? own.approvalPolicy,
     threadPermission: "user_default",
+    webAccess: true,
   });
 }

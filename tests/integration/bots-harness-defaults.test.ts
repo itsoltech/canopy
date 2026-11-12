@@ -7,7 +7,10 @@ import { eventually } from "./support/gateway.ts";
 describe.skipIf(!dockerAvailable)("bot Runs on defaults", () => {
   for (const role of ["desktop", "server"] as const) {
     test(`${role} selects the expected eligible worker and persists its choice`, async () => {
-      const f = await startInstanceFixture(true, { role, worker: { hello: { capabilities: ["bot_harness_v1"] } } });
+      const f = await startInstanceFixture(true, {
+        role,
+        worker: { hello: { capabilities: ["bot_harness_v1", "bot_web_v1"] } },
+      });
 
       try {
         await f.save(Provider.CODEX, "bot-native");

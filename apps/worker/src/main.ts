@@ -329,6 +329,7 @@ while (!stopping.signal.aborted) {
           "codex_device_login",
           "generate_text",
           "bot_harness_v1",
+          "bot_web_v1",
           "bot_images_v1",
           "bot_files_v1",
           "thread_secrets",

@@ -27,7 +27,7 @@ function botClaudeProcess() {
   };
 }
 
-/** Official Claude SDK, with an empty built-in tool set and only Canopy MCP. */
+/** Official Claude SDK: optional web tools and Canopy MCP, without local tools. */
 export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
   const { input, session, signal } = ctx;
   signal.throwIfAborted();
@@ -42,7 +42,8 @@ export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
     offset: path ? statSync(path).size : 0,
     providerTurn: "",
   });
-  const allowedTools = input.tools.map((t) => `mcp__canopy__${t.name}`);
+  const webTools = input.webAccess ? ["WebSearch", "WebFetch"] : [];
+  const allowedTools = [...webTools, ...input.tools.map((t) => `mcp__canopy__${t.name}`)];
   const profile = claudeProfileOptions(ctx.profile, process.env);
   const content = await ctx.content(resumed);
   signal.throwIfAborted();
@@ -94,7 +95,7 @@ export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
       ...(resumed ? { resume: id } : { sessionId: id }),
       persistSession: true,
       settingSources: [],
-      tools: [],
+      tools: webTools,
       allowedTools,
       strictMcpConfig: true,
       mcpServers: input.tools.length ? { canopy: { type: "http", ...ctx.mcp, alwaysLoad: true } } : {},

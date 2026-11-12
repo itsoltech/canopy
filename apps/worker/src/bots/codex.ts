@@ -38,6 +38,8 @@ async function botCodexLaunch(ctx: BotHarnessContext): Promise<CodexAppServerLau
       ...base.command,
       ...codexTextOverrides(catalog),
       "-c",
+      `web_search=${JSON.stringify(input.webAccess ? "live" : "disabled")}`,
+      "-c",
       'cli_auth_credentials_store="file"',
       "-c",
       "skills.include_instructions=false",
@@ -69,6 +71,7 @@ function botThreadParams(ctx: BotHarnessContext) {
         ? { canopy: { url: ctx.mcp.url, http_headers: ctx.mcp.headers, default_tools_approval_mode: "approve" } }
         : {},
       developer_instructions: "",
+      web_search: ctx.input.webAccess ? "live" : "disabled",
     },
   };
 }

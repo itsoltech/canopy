@@ -19,7 +19,12 @@ export async function runGrokBot(ctx: BotHarnessContext): Promise<void> {
     effort: input.effort,
     readOnly: true,
     linkDeviceLogin: session.linkLogin,
-    bot: { cwd: session.cwd, instructions: input.instructions, sourceHome: session.sourceHome },
+    bot: {
+      cwd: session.cwd,
+      instructions: input.instructions,
+      sourceHome: session.sourceHome,
+      webAccess: input.webAccess,
+    },
   });
 
   const client = new GrokClient({
