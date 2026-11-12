@@ -285,6 +285,8 @@ obiektów według konstruktora oraz self bytes, pokazuje 20 największych string
 i obiektów wraz z najkrótszą ścieżką od korzenia. Format V8 pozwala pominąć weak edges;
 JSC nie klasyfikuje ich oddzielnie, więc jego ścieżka nie dowodzi silnej retencji.
 Self bytes nie są rozmiarem dominatorów; ścieżki mają limit 100 krawędzi.
+Fixture zachowuje także legacy watch bez flagi `sequence`, aby usunięcie pełnych
+snapshotów w nowym protokole nie ukryło kosztu diagnostyki dla starszych klientów.
 Raport nie wypisuje treści stringów, błędów, nazw closure ani dynamicznych kluczy.
 Nieznane nazwy konstruktorów są hashowane, a nazwy pól pochodzą z allowlisty.
 Snapshoty i surowe liczniki typów pozostają prywatne; mogą zawierać dane testowe

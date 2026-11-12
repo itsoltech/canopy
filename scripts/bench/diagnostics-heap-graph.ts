@@ -72,6 +72,16 @@ const CONSTRUCTORS = new Set([
   "SlimPromiseReaction",
   "FullPromiseReaction",
   "QueryMachine",
+  "PgConnectionImpl",
+  "JSLexicalEnvironment",
+  "JSModuleEnvironment",
+  "JSSourceCode",
+  "JSGlobalLexicalEnvironment",
+  "ModuleProgramExecutable",
+  "UnlinkedModuleProgramCodeBlock",
+  "GlobalObject",
+  "JSGlobalProxy",
+  "SymbolTable",
 ]);
 
 const FIELDS = new Set([

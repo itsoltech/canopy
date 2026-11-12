@@ -8,7 +8,7 @@ import { diagnosticsWorker } from "./diagnostics-worker-process.ts";
 import { seedDiagnosticsHistory } from "./seed-diagnostics-history.ts";
 import { diagnosticsLoad, type DiagnosticsPhase } from "./diagnostics-load.ts";
 import { diagnosticsContention } from "./diagnostics-contention.ts";
-import { monitorHost } from "./diagnostics-host.ts";
+import { monitorHost, waitForSystemJobs } from "./diagnostics-host.ts";
 import { diagnosticsStorage, diagnosticsWrites } from "./diagnostics-storage.ts";
 import { startBenchPostgres, postgresIoDelta } from "./diagnostics-postgres.ts";
 import { assertSameScope, swapDisabledStage } from "./diagnostics-scope.ts";
@@ -398,6 +398,7 @@ try {
       let accepted = false;
 
       for (attempt = 1; attempt <= 3; attempt++) {
+        await waitForSystemJobs(shutdown.signal);
         host = await monitorHost(index + 1, attempt, postgres.scope);
         let completed = false;
 

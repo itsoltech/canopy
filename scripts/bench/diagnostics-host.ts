@@ -2,6 +2,27 @@ import { cpus } from "node:os";
 import { SwapGate, swapCounters, pageSize } from "./diagnostics-swap.ts";
 import { monitorScopes, swapDisabledStage } from "./diagnostics-scope.ts";
 
+/** Wait outside pair recording; never stop system maintenance owned by another process. */
+export async function waitForSystemJobs(signal: AbortSignal) {
+  for (;;) {
+    signal.throwIfAborted();
+
+    const child = Bun.spawn(["ps", "-C", "updatedb,plocate-build,mandb,fstrim", "-o", "pid=,comm="], {
+      stdout: "pipe",
+      stderr: "ignore",
+    });
+
+    const processes = (await new Response(child.stdout).text()).trim();
+    const code = await child.exited;
+
+    if (code > 1) throw new Error("Cannot inspect system maintenance before recording");
+
+    if (!processes) return;
+    console.info(JSON.stringify({ phase: "host_jobs_wait", atMs: Date.now(), processes }));
+    await Bun.sleep(5000);
+  }
+}
+
 export function pinnedCommand(env: Record<string, string | undefined>, role: "GATEWAY" | "WORKER", args: string[]) {
   const cpu = env[`CANOPY_BENCH_${role}_CPU`];
 
