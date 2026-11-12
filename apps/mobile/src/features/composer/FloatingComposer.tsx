@@ -15,6 +15,7 @@ export function FloatingComposer({
   onLayout,
   onExpand,
   onLatest,
+  latestInset,
   motion,
   overlay,
   accessory,
@@ -35,6 +36,8 @@ export function FloatingComposer({
   onLayout: (event: LayoutChangeEvent) => void;
   onExpand: () => void;
   onLatest?: (() => void) | undefined;
+  /** Thread feeds anchor this control to their fixed collapsed edge, outside the growing overlay. */
+  latestInset?: number;
 }) {
   const c = useColors();
   const insets = useContentInsets();
@@ -62,7 +65,12 @@ export function FloatingComposer({
               entering={pop.entering}
               exiting={pop.exiting}
               pointerEvents="box-none"
-              style={{ height: 56, flexShrink: 1, alignItems: "center" }}
+              style={[
+                { height: 56, flexShrink: 1, alignItems: "center" },
+                latestInset === undefined
+                  ? undefined
+                  : { position: "absolute", bottom: latestInset + insets.bottom, left: 0, right: 0 },
+              ]}
             >
               <View
                 style={{

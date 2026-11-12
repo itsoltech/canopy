@@ -134,8 +134,9 @@ natywne działanie przeglądarki na zaznaczalnych obszarach.
   `env(safe-area-inset-bottom)`, także od `sm`. Na wyśrodkowanych ekranach to minimalny
   odstęp po przewinięciu, a nie wymuszone wyrównanie do dołu. Status wysyłki zajmuje
   miejsce komputera w wierszu kontekstu, bez dodatkowego pustego wiersza pod nim.
-  Spacer osi czasu i pozycja „Jump to latest” uwzględniają mierzoną wysokość całego
-  wrappera wraz z insetem; tło composera dochodzi do dolnej krawędzi widoku. Rozmowy
+  W wątkach spacer osi czasu i pozycja „Jump to latest” uwzględniają stałą wysokość
+  zwiniętego pola (72 px), odstęp 8 px i dolny inset; rozwijanie pola nie zmienia rezerwy.
+  Przycisk wygasa pod rozwiniętym polem, a tło dochodzi do dolnej krawędzi widoku. Rozmowy
   botów i grup utrzymują koniec po zmianie wysokości composera tylko podczas śledzenia
   najnowszych wiadomości, bez przesuwania czytelnika przeglądającego historię.
 - Wiersze nakładek mają jedną linię na pole: nazwy użytkownika (projekty, workery, gałęzie, modele)

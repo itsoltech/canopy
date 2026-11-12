@@ -23,7 +23,7 @@
    *
    * - Only the rows near the viewport are mounted; the others are padding sized from measurements
    *   (ResizeObserver, kept by key) or the average of their group.
-   * - While the reader is at the bottom it stays there (new rows, streaming growth, a taller composer,
+   * - While the reader is at the bottom it stays there (new rows, streaming growth,
    *   the keyboard opening); once they scroll up, the first visible row keeps its place on screen when
    *   rows above change height or are added (also prepended older history).
    * - The first snapshot mounts its last rows; a layout effect pins them before the browser paints.
@@ -48,6 +48,7 @@
     placeholder,
     row,
     footer,
+    footerExpanded = false,
     inserted,
     atEnd = $bindable(true),
     onreaderscroll,
@@ -67,6 +68,8 @@
     placeholder?: Snippet;
     row: Snippet<[T, number]>;
     footer?: Snippet;
+    /** Hide the fixed-position latest button while the expanded composer covers it. */
+    footerExpanded?: boolean;
     /** How a row inserted between shown rows enters (none by default: e.g. older history above). */
     inserted?: (row: T) => "unfold" | "reveal" | undefined;
     /** Out: the reader follows the end (the latest rows are on screen). */
@@ -86,17 +89,13 @@
   let scroller = $state<HTMLElement>();
   let list = $state<HTMLElement>();
   let footerElement = $state<HTMLElement>();
+  let footerReserve = $state<HTMLElement>();
 
   /** Viewport height; 0 until measured (server, hydration): then the last rows render. */
   let viewport = $state(0);
   let scrollTop = $state(0);
   let listTop = $state(0);
   let footerHeight = $state(0);
-
-  // The overlay never participates in row layout. While reading, its reservation only grows:
-  // shrinking cannot clamp scrollTop, including in the middle of a CSS transition. At the end
-  // use its live size, then settle after the reservation is committed, before paint.
-  let reservedFooter = $state(0);
 
   /** Width of the scroller's vertical scrollbar (the backdrop under the composer stops before it). */
   let gutter = $state(0);
@@ -180,7 +179,7 @@
     return at === undefined ? 0 : Math.max(0, viewport - footerHeight - (layout.total - index.offset(at)));
   });
 
-  const footerSpace = $derived(Math.max(reservedFooter, footerHeight + alignmentSpace));
+  const footerSpace = $derived(footerHeight + alignmentSpace);
 
   let rowTarget: string | undefined;
   let rowTimer: ReturnType<typeof setTimeout> | undefined;
@@ -232,10 +231,8 @@
             const height = entry.borderBoxSize[0]?.blockSize ?? target.offsetHeight;
 
             if (target === scroller) measuredViewport = target.clientHeight;
-            else if (target === footerElement) {
-              reservedFooter = stuck ? height : Math.max(reservedFooter, measuredFooter, height);
-              measuredFooter = height;
-            } else if (target.dataset.key) {
+            else if (target === footerReserve) measuredFooter = height;
+            else if (target.dataset.key) {
               const at = positions.get(target.dataset.key);
               const meta = at === undefined ? undefined : sized[at];
 
@@ -250,12 +247,12 @@
   const measure = rowAttachment(elements, observer);
 
   $effect(() => {
-    if (!observer || !scroller || !list || !footerElement) return;
+    if (!observer || !scroller || !list || !footerReserve) return;
 
-    for (const element of [scroller, list, footerElement]) observer.observe(element);
+    for (const element of [scroller, list, footerReserve]) observer.observe(element);
 
     return () => {
-      for (const element of [scroller, list, footerElement]) if (element) observer.unobserve(element);
+      for (const element of [scroller, list, footerReserve]) if (element) observer.unobserve(element);
     };
   });
 
@@ -666,35 +663,47 @@
           {/each}
         </div>
       </div>
-      <!-- Rail alignment includes the overlay's height: the footer no longer adds flow space. -->
+      <!-- Only the collapsed composer and safe gap reserve space, regardless of the overlay's size. -->
       <div aria-hidden="true" style:height="{footerSpace}px" class="shrink-0"></div>
     </div>
   </div>
   <!-- The footer and its fade are siblings of the scroller. Resizing them cannot move a row,
      change the virtual window, or make the browser reveal a contenteditable's flow position. -->
-  <div class="pointer-events-none absolute bottom-0 left-0 isolate z-10" style:right="{gutter}px">
+  <div class="pointer-events-none absolute bottom-0 left-0 isolate z-10 [contain:layout]" style:right="{gutter}px">
+    <!-- 72px one-line shell composer + 8px top gap + the shared safe-area inset.
+         Observe this fixed rail, never the animated footer: no resize → spacer → scroll loop. -->
     <div
-      class="absolute inset-x-0 bottom-0 -z-10 h-[calc(100%+2rem)] bg-linear-to-t from-white from-[calc(100%-2rem)] to-transparent dark:from-black"
-      aria-hidden="true"
-    ></div>
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="mx-auto max-w-(--chat-width) px-4 sm:px-6" {onkeydown}>
-      <div
-        bind:this={footerElement}
-        class="pointer-events-auto relative composer-bottom"
-        onfocusin={() => scrollIntent.reset()}
-        onbeforeinput={() => scrollIntent.reset()}
-      >
-        {#if !stuck}
-          <!-- Centred by flex, not translate: rise animates `translate` and would cancel a -translate-x-1/2. -->
-          <div class="pointer-events-none absolute inset-x-0 bottom-full mb-3 flex justify-center" transition:rise>
-            <!-- The secondary button is translucent in dark mode; an opaque backing keeps it legible over text. -->
-            <span class="pointer-events-auto flex rounded-md bg-white shadow-md dark:bg-zinc-900 dark:shadow-black/50">
-              <Button size="sm" icon="arrow-down" onclick={jump}>Jump to latest</Button>
-            </span>
+      bind:this={footerReserve}
+      class="relative h-[calc(--spacing(20)+max(--spacing(2),env(safe-area-inset-bottom)))]"
+    >
+      {#if !stuck}
+        <div class="pointer-events-none absolute inset-x-0 bottom-full mb-3 flex justify-center" transition:rise>
+          <!-- An opaque backing keeps the secondary button legible over text in both themes. -->
+          <span
+            class="t-feed-latest pointer-events-auto flex rounded-md bg-white shadow-md dark:bg-zinc-900 dark:shadow-black/50"
+            data-covered={footerExpanded || undefined}
+            inert={footerExpanded}
+          >
+            <Button size="sm" icon="arrow-down" onclick={jump}>Jump to latest</Button>
+          </span>
+        </div>
+      {/if}
+      <div class="absolute inset-x-0 bottom-0 isolate">
+        <div
+          class="absolute inset-x-0 bottom-0 -z-10 h-[calc(100%+2rem)] bg-linear-to-t from-white from-[calc(100%-2rem)] to-transparent dark:from-black"
+          aria-hidden="true"
+        ></div>
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div class="mx-auto max-w-(--chat-width) px-4 sm:px-6" {onkeydown}>
+          <div
+            bind:this={footerElement}
+            class="pointer-events-auto relative composer-bottom"
+            onfocusin={() => scrollIntent.reset()}
+            onbeforeinput={() => scrollIntent.reset()}
+          >
+            {@render footer?.()}
           </div>
-        {/if}
-        {@render footer?.()}
+        </div>
       </div>
     </div>
   </div>

@@ -389,15 +389,27 @@
 }
 
 /* --- Toast (22): rises with fade + cross-blur on --duration-slow, leaves on --duration-medium. -------- */
-/* Composer: preserve mounted drafts, fold tools/panels, open slower than close. */
+/* The thread slot animates one outer height; all its mounted parts switch to their natural size at once. */
 .t-composer-slot {
   min-height: --spacing(44);
-  transition: min-height var(--duration-slow) var(--ease-smooth-out);
 }
 .t-composer-slot[data-compact],
 .t-composer-slot:has([data-pending-decision]) {
   min-height: 0;
-  transition-duration: var(--duration-medium);
+}
+.t-composer-slot .t-composer-editor,
+.t-composer-slot .t-composer-input,
+.t-composer-slot .t-composer-fold,
+.t-composer-slot .t-composer-fold > *,
+.t-composer-slot .t-acc-panel,
+.t-composer-slot .t-acc-panel > * {
+  transition: none;
+}
+.t-feed-latest {
+  transition: opacity var(--duration-fast) var(--ease-smooth-out);
+}
+.t-feed-latest[data-covered] {
+  opacity: 0;
 }
 .t-composer-editor {
   padding: --spacing(3.5) --spacing(4) 0;
@@ -460,6 +472,9 @@
   .t-composer-input,
   .t-composer-fold,
   .t-composer-fold > * {
+    transition: none !important;
+  }
+  .t-feed-latest {
     transition: none !important;
   }
 }
