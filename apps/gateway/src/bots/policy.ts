@@ -179,7 +179,7 @@ const legacyTools: ToolSpec[] = [
   ]),
   tool(
     "start_thread",
-    "Start a coding agent on a project's worker, including No project for a fresh scratch directory. workspace_mode defaults to the scoped setting; checkout uses the current checkout; new_worktree creates an isolated branch (optional base_ref); inherit_parent uses parent_thread_id's placement in this workspace. Linked computers support checkout only. model: an id from list_models for that worker and instance; omit it for the default. Returns immediately; completion arrives as a follow-up. Elevated permissions require user approval.",
+    "Start a coding agent on a project's worker, including No project for a fresh scratch directory. workspace_mode defaults to the scoped setting; checkout uses the current checkout; new_worktree creates an isolated branch (optional base_ref); inherit_parent uses parent_thread_id's placement in this workspace. Linked computers support checkout only. model: an id from list_models for that worker and instance; omit it for the default. Permissions come from the owner's settings. Returns immediately; completion arrives as a follow-up.",
     {
       project_id: str,
       workspace_id: str,
@@ -193,7 +193,6 @@ const legacyTools: ToolSpec[] = [
       prompt: str,
       attachment_ids: { type: "array", items: str },
       title: str,
-      permission: { type: "string", enum: ["ask", "read_only", "accept_edits", "full_auto"] },
     },
     ["project_id", "workspace_id", "provider", "provider_instance", "prompt"],
   ),

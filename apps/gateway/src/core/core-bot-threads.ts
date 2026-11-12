@@ -1,4 +1,4 @@
-import { create } from "@bufbuild/protobuf";
+import { create, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { Effect } from "effect";
 import { GatewayStore } from "../store/index.ts";
@@ -11,13 +11,14 @@ import type { GatewayCore } from "./core.ts";
 import { coreBroadcastThread } from "./core-broadcast.ts";
 import { SqlClient } from "effect/sql";
 import { copyConversationFiles, forwardedNotice } from "./bot-files.ts";
+import { botThreadPermission } from "../bots/thread-permission.ts";
 
 export interface CoreBotThreadsMethods {
   startBotThread(
     turn: BotTurn,
     call: StoredCall,
     request: ui.CreateThreadRequest,
-  ): Promise<{ thread_id: string; turn_id: string | undefined; worker_id: string }>;
+  ): Promise<{ thread_id: string; turn_id: string | undefined; worker_id: string; thread?: JsonValue }>;
   watchBotThread(turn: BotTurn, call: StoredCall, threadId: string): Promise<string | undefined>;
   botThreadQueued(threadId: string): Promise<void>;
   sendBotThreadMessage(
@@ -44,9 +45,15 @@ export const coreBotThreadsMethods: CoreBotThreadsMethods = {
   async startBotThread(this: GatewayCore, turn: BotTurn, call: StoredCall, request: ui.CreateThreadRequest) {
     return this.botAction(turn, call, async () => {
       const initialAttachmentIds = await copyConversationFiles(this, turn, call);
+      const bot = await this.bots.get(turn.bot_id);
+      const defaults = await this.settings();
+      const permissionMode = botThreadPermission(bot.configuration!, defaults.user?.threadDefaults?.permissionMode);
 
       const thread = await this.createThread(
-        create(ui.CreateThreadRequestSchema, { ...request, initialAttachmentIds }),
+        create(ui.CreateThreadRequestSchema, { ...request, initialAttachmentIds, permissionMode }),
+        undefined,
+        false,
+        {},
       );
 
       await this[coreState].actions.run(
@@ -58,7 +65,12 @@ export const coreBotThreadsMethods: CoreBotThreadsMethods = {
       const turnId = await this.watchBotThread(turn, call, thread.id);
       await forwardedNotice(this, turn, call, thread.title);
 
-      return { thread_id: thread.id, turn_id: turnId, worker_id: thread.workerId };
+      return {
+        thread_id: thread.id,
+        turn_id: turnId,
+        worker_id: thread.workerId,
+        ...(request.forkThreadId && { thread: toJson(ui.ThreadSchema, thread) }),
+      };
     });
   },
 

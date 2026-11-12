@@ -617,7 +617,14 @@ narzędzia w wątku. Odpowiedź na taki widok jest kierowana do tego samego żą
 lub przez istniejącą trasę połączonego komputera; nie tworzy drugiej decyzji.
 `BotConfiguration.thread_permission` (1001) wybiera domyślne uprawnienia nowych wątków bota.
 Pole jest opcjonalne: brak przy aktualizacji zachowuje zapisany wybór, przy tworzeniu
-oznacza `same_bot`. Migracja istniejących botów zachowuje Ask first, także dla full_auto.
+oznacza `user_default` (**Inherit default**), czyli domyślny tryb właściciela z Settings → Threads.
+Stałe nadpisania: `ask`, `read_only`, `accept_edits`, `full_auto`, `full_access`.
+Migracja zamienia brak wyboru i `same_bot` na `user_default`, zachowując jawne wybory.
+`ThreadDefaults.subagent_permission_mode` (7) jest ustawieniem użytkownika w DB:
+`UNSPECIFIED` = **Same as parent**, pozostałe wartości ograniczają tryb nowych subagentów
+do wyboru właściciela i sufitu rodzica. Ustawienia projektu nie przyjmują tego pola.
+`Thread.permission_mode_note` (1040) opisuje ograniczenie przy tworzeniu; panel szczegółów
+web i mobile pokazuje je obok zapisanego trybu. Jawna późniejsza zmiana trybu czyści tę notatkę.
 `ListThreadApprovals` pobiera tylko oczekujące zgody narzędzi aktywnych tur właściciela,
 bez snapshotów wątków. `thread_id` jest kotwicą trasowania; `other_thread_ids` uzupełnia
 partię do 512 wątków tego samego domu. Zdalne karty używają kwalifikowanego id oryginalnego

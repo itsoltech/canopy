@@ -23,6 +23,7 @@ import {
  */
 
 export interface BusHost {
+  ownerUserId?: string;
   linked?(request: AgentToolCall, call: AgentBusCall, caller: ThreadRow): Promise<JsonValue | undefined>;
   extend?(call: AgentBusCall, caller: ThreadRow, result: JsonValue): Promise<JsonValue>;
   run<A, E>(effect: Effect.Effect<A, E, GatewayStore | AgentBusStore>): Promise<A>;

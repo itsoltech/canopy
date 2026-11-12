@@ -51,7 +51,7 @@ describe.skipIf(!dockerAvailable)("platform tools delegate approval to the gatew
       }, 15_000);
     }
 
-    test(`${Provider[provider]} full auto starts a thread without native refusal or a gateway card`, async () => {
+    test(`${Provider[provider]} full auto starts an Ask first thread without native refusal or a gateway card`, async () => {
       const bot = await f.add(provider, f.workerId, "full_auto");
       const title = `From bot ${crypto.randomUUID().slice(0, 8)}`;
       await f.tool(bot.id, "start_thread", {
@@ -67,7 +67,8 @@ describe.skipIf(!dockerAvailable)("platform tools delegate approval to the gatew
       expect(completed.messages.at(-1)).toMatchObject({ failed: false });
       expect(completed.approvals).toHaveLength(0);
       const thread = (await f.gw.api.listThreads({ projectId })).threads.find((t) => t.title === title);
-      expect(thread?.permissionMode).toBe(PermissionMode.FULL_AUTO);
+      // Bot action approvals and the owner's new-thread default are independent settings.
+      expect(thread?.permissionMode).toBe(PermissionMode.ASK);
     }, 15_000);
   }
 

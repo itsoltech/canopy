@@ -12,7 +12,7 @@ export function CreateBot({ onClose }: { onClose: () => void }) {
         color: "#8b5cf6",
         providerInstance: "native",
         approvalPolicy: "safe",
-        threadPermission: "same_bot",
+        threadPermission: "user_default",
       },
     }),
   );

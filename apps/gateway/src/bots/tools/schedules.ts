@@ -5,19 +5,8 @@ import { Schema } from "effect";
 import { BotStore, type WakeupRow } from "../store.ts";
 import { Invalid, NotFound } from "../../store/store.ts";
 import { automationMode } from "../../worktrees/automation.ts";
-import { requestedThreadPermission } from "../thread-permission.ts";
-import {
-  bool,
-  decoded,
-  define,
-  json,
-  object,
-  permissionSchema,
-  provider,
-  providerSchema,
-  str,
-  type ToolContext,
-} from "./shared.ts";
+import { botThreadPermission } from "../thread-permission.ts";
+import { bool, decoded, define, json, object, provider, providerSchema, str, type ToolContext } from "./shared.ts";
 
 const fields = {
   thread_id: str,
@@ -40,7 +29,6 @@ const fields = {
       provider_instance: str,
       model: str,
       effort: str,
-      permission: permissionSchema,
       title: str,
       workspace_mode: { type: "string", enum: ["default", "checkout", "new_worktree", "inherit_parent"] },
       base_ref: str,
@@ -65,7 +53,6 @@ const NewThread = Schema.Struct({
   provider_instance: Schema.String,
   model: Schema.optional(Schema.String),
   effort: Schema.optional(Schema.String),
-  permission: Schema.optional(Schema.Json),
   title: Schema.optional(Schema.String),
   workspace_mode: Schema.optional(Schema.String),
   base_ref: Schema.optional(Schema.String),
@@ -104,11 +91,7 @@ async function configuration(c: ToolContext) {
         providerProfileId: n.provider_instance,
         model: n.model ?? "",
         effort: n.effort ?? "",
-        permissionMode: requestedThreadPermission(
-          bot!.configuration!,
-          n.permission === undefined ? "" : Schema.decodeUnknownSync(Schema.String)(n.permission),
-          defaults?.user?.threadDefaults?.permissionMode,
-        ),
+        permissionMode: botThreadPermission(bot!.configuration!, defaults?.user?.threadDefaults?.permissionMode),
         title: n.title ?? "",
         workspaceMode: automationMode(n.workspace_mode ?? ""),
         baseRef: n.base_ref ?? "",
@@ -119,7 +102,7 @@ async function configuration(c: ToolContext) {
 }
 
 const description =
-  "Schedules: create a user platform schedule, separate from your own schedule_wakeup reminders. target=thread uses thread_id; target=new_thread uses new_thread configuration and placement (specific/any/least_busy/round_robin). Supply exactly run_at (ISO with the user's offset at that date) or cron (5 fields, minimum interval 5 minutes). timezone is IANA and defaults to the user's timezone (UTC only if none is stored). Optional until/max_runs bound cron runs. Elevated new-thread permissions require approval. Returns the UI schedule and version.";
+  "Schedules: create a user platform schedule, separate from your own schedule_wakeup reminders. target=thread uses thread_id; target=new_thread uses new_thread configuration and placement (specific/any/least_busy/round_robin). Supply exactly run_at (ISO with the user's offset at that date) or cron (5 fields, minimum interval 5 minutes). timezone is IANA and defaults to the user's timezone (UTC only if none is stored). Optional until/max_runs bound cron runs. New-thread permissions come from the owner's bot settings, limited to sandboxed modes. Returns the UI schedule and version.";
 
 export const scheduleTools = [
   define("create_schedule", description, object(fields, ["prompt"]), "Creating a schedule", (c) =>
@@ -155,7 +138,7 @@ export const scheduleTools = [
   ),
   define(
     "update_schedule",
-    "Schedules: replace the full configuration of an active or paused user schedule using its expected_version from list_schedules. Same fields and validation as create_schedule, including the user's timezone default; retains status/history/runs. Elevated new-thread permissions require approval.",
+    "Schedules: replace the full configuration of an active or paused user schedule using its expected_version from list_schedules. Same fields and validation as create_schedule, including the user's timezone default; retains status/history/runs. New-thread permissions come from the owner's bot settings, limited to sandboxed modes.",
     object({ ...fields, schedule_id: str, expected_version: { type: "integer", minimum: 1 } }, [
       "schedule_id",
       "expected_version",

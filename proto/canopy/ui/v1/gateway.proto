@@ -697,6 +697,8 @@ message Thread {
   PullRequestSummary newest_pull_request = 1030;
   uint32 pull_request_count = 1031;
   uint64 pull_request_revision = 1032;
+  // Powód ograniczenia odziedziczonego/skonfigurowanego trybu przy utworzeniu wątku.
+  string permission_mode_note = 1040;
 }
 
 message ComposerTurnChoices {
@@ -1461,6 +1463,8 @@ message NewThreadSchedule {
   WorkspaceMode workspace_mode = 10;
   string base_ref = 11;
   string parent_thread_id = 12;
+  // Gateway explanation when the configured mode was limited by a policy ceiling.
+  string permission_mode_note = 13;
 }
 
 message ScheduleRun {
@@ -1602,6 +1606,8 @@ message ThreadDefaults {
   canopy.worker.v1.PermissionMode permission_mode = 5;
   // Model per dostawca (zmiana dostawcy w nowym wątku zachowuje model każdego z nich). Brak = model profilu.
   repeated ProviderModel models = 6;
+  // Tylko ustawienia użytkownika: UNSPECIFIED = tryb rodzica; jawny tryb ogranicza nowe subagenty.
+  canopy.worker.v1.PermissionMode subagent_permission_mode = 7;
 }
 
 message ProviderModel {

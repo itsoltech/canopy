@@ -2,7 +2,7 @@ import { create, toJson, type JsonValue } from "@bufbuild/protobuf";
 
 import { Code, ConnectError } from "@connectrpc/connect";
 
-import { PermissionMode, Provider, ui, type AgentToolCall } from "@canopy/contracts";
+import { Provider, ui, type AgentToolCall } from "@canopy/contracts";
 
 import { agentBusToolsFor, authorizeBusCall, DEFAULT_BUS_LIMITS, type AgentBusCall } from "@canopy/domain";
 
@@ -17,6 +17,7 @@ import type { LinkedAgents } from "./agents.ts";
 import { gather } from "../api/routed-overview.ts";
 import { PEER_READ_TIMEOUT_MS } from "./timing.ts";
 import { refuseRemoteAutomation } from "../worktrees/remote.ts";
+import { permissionModeOf } from "../store/ui-mappers.ts";
 
 export interface AgentsBusToolsMethods {
   extend(call: AgentBusCall, caller: ThreadRow, result: JsonValue): Promise<JsonValue>;
@@ -153,6 +154,8 @@ export const agentsBusToolsMethods: AgentsBusToolsMethods = {
         call.args.provider ?? `${caller.provider}/${caller.provider_profile_id || "native"}`
       ).split(/[/:]/);
 
+      const access = await linkedSpawnPermission(this, request, caller, call.args.permission_mode);
+
       return this.send(node, "spawn", actor, request.callId, {
         request: toJson(
           ui.CreateThreadRequestSchema,
@@ -171,15 +174,11 @@ export const agentsBusToolsMethods: AgentsBusToolsMethods = {
             effort: call.args.effort ?? "",
             clientRequestId: request.callId,
             workspaceMode: ui.WorkspaceMode.CHECKOUT,
-            permissionMode: {
-              read_only: PermissionMode.READ_ONLY,
-              ask: PermissionMode.ASK,
-              accept_edits: PermissionMode.ACCEPT_EDITS,
-              full_auto: PermissionMode.FULL_AUTO,
-            }[call.args.permission_mode ?? facts.callerPermissionMode ?? "ask"],
+            permissionMode: permissionModeOf(access.permissionMode),
           }),
         ),
         instructions: call.args.instructions ?? "",
+        permission_mode_note: access.permissionModeNote,
         interactions: call.args.interactions ?? "parent",
         notify: call.args.notify ?? true,
       });
@@ -273,6 +272,24 @@ export const agentsBusToolsMethods: AgentsBusToolsMethods = {
     return result;
   },
 };
+
+function linkedSpawnPermission(
+  host: LinkedAgents,
+  request: AgentToolCall,
+  caller: ThreadRow,
+  requested: Extract<AgentBusCall, { tool: "spawn_thread" }>["args"]["permission_mode"],
+) {
+  return host.scope.run(
+    AgentBusStore.use((s) =>
+      s.spawnPermission(
+        { callId: request.callId, threadId: request.threadId, turnId: request.turnId, itemId: request.itemId },
+        caller,
+        requested,
+        null,
+      ),
+    ),
+  );
+}
 
 async function waitLinkedThreads(
   hostContext: LinkedAgents,

@@ -48,6 +48,7 @@ export function createCoreBots(core: GatewayCore, options: GatewayCoreOptions): 
 
 export function createCoreBus(core: GatewayCore): AgentBus {
   return new AgentBus({
+    ownerUserId: core[coreState].options.userId,
     linked: (request, call, caller) => core.linkedAgents.tool(request, call, caller),
     extend: (call, caller, result) => core.linkedAgents.extend(call, caller, result),
     run: (effect) => core[coreState].options.runtime.runPromise(effect),

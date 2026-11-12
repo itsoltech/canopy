@@ -215,7 +215,8 @@ Gateway zapisuje ją wyłącznie po wyborze „Always allow…” przez właści
 przy każdym kolejnym żądaniu i zachowuje kopię w historii zgód. Cofnięcie działa od
 następnego żądania. W lokalnych wątkach uruchomionych przez bota zweryfikowana ścieżka
 connectora czyta bieżące ustawienie wątków bota przy każdym żądaniu. Tylko aktualne
-`same_bot` pozwala użyć tej reguły; wybór nie jest zamrożony przy starcie wątku.
+**Inherit default** (`user_default`, także dawne `same_bot`) pozwala użyć tej reguły;
+wybór nie jest zamrożony przy starcie wątku. Stały tryb nie dziedziczy reguł kont bota.
 Reguły bota archiwalnego lub przeniesionego nie obowiązują. Payload permission workera
 nie może sam zadeklarować konta lub użytej reguły. `READ_ONLY` nadal odmawia zapisów.
 Rutyny w tle używają grantów i polityki tego samego bota; uruchomienie rutyny

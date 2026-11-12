@@ -103,6 +103,7 @@ test.skipIf(!dockerAvailable)(
           expect(yield* sql`SELECT * FROM thread_replication_journal WHERE thread_id=${thread}::uuid`).toEqual([]);
         }),
       );
+      await runtime.runPromise(migrate);
       expect(await runtime.runPromise(migrate)).toEqual([]);
     } finally {
       await runtime.dispose();

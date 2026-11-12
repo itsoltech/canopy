@@ -11,6 +11,7 @@
   import SubagentDisplaySettings from "#lib/features/settings/SubagentDisplaySettings.svelte";
   import WorkFoldSettings from "#lib/features/settings/WorkFoldSettings.svelte";
   import FollowUpSettings from "#lib/features/settings/FollowUpSettings.svelte";
+  import SubagentPermissionSettings from "#lib/features/settings/SubagentPermissionSettings.svelte";
 
   const overview = useOverview();
   const settings = useSettings();
@@ -22,14 +23,22 @@
 <SubagentDisplaySettings />
 <WorkFoldSettings />
 <FollowUpSettings />
+<SubagentPermissionSettings />
 
 <SettingsGroup
   title="New threads"
   description="Defaults for new threads on all your computers and devices. Project defaults override them."
 >
   {#snippet actions()}
-    <Button size="sm" icon="arrow-path" onclick={() => settings.updateThreadDefaults(create(ui.ThreadDefaultsSchema))}
-      >Restore defaults</Button
+    <Button
+      size="sm"
+      icon="arrow-path"
+      onclick={() =>
+        settings.updateThreadDefaults(
+          create(ui.ThreadDefaultsSchema, {
+            subagentPermissionMode: settings.threadDefaults.subagentPermissionMode,
+          }),
+        )}>Restore defaults</Button
     >
   {/snippet}
   <ThreadDefaultsFields

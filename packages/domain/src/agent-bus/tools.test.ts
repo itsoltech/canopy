@@ -40,6 +40,8 @@ describe("agent bus tool specs", () => {
     expect(wait.properties["thread_ids"]).toMatchObject({ type: "array", minItems: 1, maxItems: 20 });
     expect(wait.properties["timeout_seconds"]).toMatchObject({ type: "integer", minimum: 1, maximum: 300 });
     expect(wait.properties["until"]).toMatchObject({ enum: ["any", "all"] });
+    const spawn = specs.find((s) => s.name === "spawn_thread")!.inputSchema;
+    expect(spawn["properties"]).not.toHaveProperty("permission_mode");
   });
 });
 

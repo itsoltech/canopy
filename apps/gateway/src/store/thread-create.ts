@@ -8,6 +8,26 @@ import type { TurnRow } from "./rows.ts";
 import { permissionModeName } from "./ui-mappers.ts";
 import type { ThreadStore } from "./threads-store.ts";
 import type { WorktreeStore } from "./worktrees.ts";
+import { automatedPermission } from "./automated-permissions.ts";
+import { busPermissionMode } from "./agent-bus-types.ts";
+import type { AutomatedAccess } from "./automated-permissions.ts";
+
+const creationAccess = (
+  sql: SqlClient.SqlClient,
+  owner: string,
+  worker: string,
+  request: ui.CreateThreadRequest,
+  automated?: AutomatedAccess,
+) =>
+  automated
+    ? automatedPermission(
+        sql,
+        owner,
+        worker,
+        busPermissionMode(permissionModeName(request.permissionMode)),
+        automated.permissionModeNote,
+      )
+    : Effect.succeed({ permissionMode: permissionModeName(request.permissionMode) || "ASK" });
 
 /**
  * The turn a fork starts after (CreateThreadRequest.fork_at_turn_id): in the visible history of the thread
@@ -60,7 +80,7 @@ export function threadCreation(
   self: () => Pick<ThreadStore, "thread"> & Pick<WorktreeStore, "ownWorktree">,
 ): Pick<ThreadStore, "createThread"> {
   return {
-    createThread: (ownerUserId, request, movedId) =>
+    createThread: (ownerUserId, request, movedId, automated) =>
       sql.withTransaction(
         Effect.gen(function* () {
           const workspace = yield* one(
@@ -168,10 +188,12 @@ export function threadCreation(
               ? scratchCwd(workspace.root_path, id, style)
               : (requested ?? workspace.root_path));
 
+          const access = yield* creationAccess(sql, ownerUserId, workspace.worker_id, request, automated);
+
           const settings = JSON.stringify({
             model: request.model,
             effort: request.effort,
-            permissionMode: permissionModeName(request.permissionMode) || "ASK",
+            ...access,
             instructions: request.instructions,
           });
 

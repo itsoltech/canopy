@@ -18,6 +18,8 @@
   import ThreadPlacement from "./ThreadPlacement.svelte";
   import ThreadPullRequests from "#lib/features/github/ThreadPullRequests.svelte";
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
+  import PermissionModeTitle from "./PermissionModeTitle.svelte";
+  import { permissionKey } from "../labels.ts";
 
   const capabilities = useGatewayCapabilities();
 
@@ -87,6 +89,12 @@
   <!-- Connector accounts are per computer (stage 4); a linked computer's thread uses that computer's. -->
   {#if !thread.nodeId}<ThreadConnectors threadId={thread.id} />{/if}
   <ThreadPlacement {thread} {worker} {onworktree} />
+  <section aria-label="Permissions" class="grid min-w-0 grid-cols-1 gap-1 px-3 py-2">
+    <PermissionModeTitle mode={permissionKey(thread.permissionMode)} />
+    {#if thread.permissionModeNote}<p class="text-sm text-pretty text-zinc-600 sm:text-xs dark:text-zinc-400">
+        {thread.permissionModeNote}
+      </p>{/if}
+  </section>
   {#if capabilities?.supports("/pull-requests") !== false}<ThreadPullRequests {thread} />{:else}<p
       class="px-3 py-2 text-sm text-zinc-500"
     >

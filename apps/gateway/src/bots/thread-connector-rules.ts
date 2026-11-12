@@ -22,7 +22,7 @@ export function allowThreadConnector(
           const started = yield* sql<{ bot_id: string }>`SELECT s.bot_id FROM bot_started_threads s
         JOIN bots b ON b.id = s.bot_id JOIN threads t ON t.id = s.thread_id
         WHERE s.thread_id = ${interaction.threadId}::uuid
-          AND coalesce(b.configuration ->> 'threadPermission', 'ask') IN ('', 'same_bot')
+          AND coalesce(b.configuration ->> 'threadPermission', 'user_default') IN ('', 'same_bot', 'user_default')
           AND b.owner_user_id = ${user}::uuid AND t.owner_user_id = b.owner_user_id
           AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL FOR UPDATE OF t`;
 

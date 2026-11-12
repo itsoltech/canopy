@@ -74,10 +74,6 @@ export async function coreScheduleConfiguration(
 
     if (!Object.values(PermissionMode).includes(spec.permissionMode)) throw new InvalidError("unknown permission mode");
 
-    // Full access is chosen in a thread, never for runs nobody watches start.
-    if (spec.permissionMode === PermissionMode.FULL_ACCESS)
-      throw new InvalidError("A scheduled thread cannot use Full access. Choose Full auto or another mode.");
-
     const project = (await coreRun(hostContext, (s) => s.listProjects(hostContext[coreState].options.userId))).find(
       (p) => p.id === spec.projectId,
     );
@@ -118,7 +114,15 @@ export async function coreScheduleConfiguration(
       ...spec,
       placement,
       title: spec.title.trim(),
-      permissionMode: spec.permissionMode || PermissionMode.ASK,
+      // Unattended schedules retain their existing sandbox ceiling.
+      permissionMode:
+        spec.permissionMode === PermissionMode.FULL_ACCESS
+          ? PermissionMode.FULL_AUTO
+          : spec.permissionMode || PermissionMode.ASK,
+      permissionModeNote:
+        spec.permissionMode === PermissionMode.FULL_ACCESS
+          ? "Scheduled threads limit Full access to Full auto. Keep this mode or choose one that asks."
+          : "",
     });
   }
 

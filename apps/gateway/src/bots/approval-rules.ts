@@ -1,8 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { bots } from "@canopy/contracts";
-import type { JsonObject, JsonValue } from "@canopy/domain";
+import type { JsonObject } from "@canopy/domain";
 import { Predicate } from "effect";
-import { isJsonObject } from "./json.ts";
 import type { ToolSpec } from "./types.ts";
 
 /** Explicit owner decisions only. These tools cannot be covered by a standing rule or full auto. */
@@ -25,8 +24,6 @@ export const ALWAYS_ASK_TOOLS = new Set([
   "cancel_schedule",
 ]);
 
-const elevated = (value: JsonValue | undefined) => value !== undefined && value !== "ask" && value !== "read_only";
-
 export function alwaysAsk(tool: ToolSpec, args: JsonObject): boolean {
   if (tool.source !== "platform") return false;
 
@@ -37,14 +34,7 @@ export function alwaysAsk(tool: ToolSpec, args: JsonObject): boolean {
       (key) => Object.hasOwn(args, key),
     );
 
-  if (tool.name === "start_thread") return elevated(args["permission"]);
-
-  if (tool.name === "update_settings") return args["thread_defaults"] !== undefined;
-  const thread = args["new_thread"];
-
-  return (
-    ["create_schedule", "update_schedule"].includes(tool.name) && isJsonObject(thread) && elevated(thread["permission"])
-  );
+  return tool.name === "update_settings" && args["thread_defaults"] !== undefined;
 }
 
 /** The entire allowlist. No arbitrary model tool name becomes a grant. */
@@ -56,8 +46,8 @@ const ACTION_LABELS = {
   interrupt_thread: "interrupting threads",
   set_goal: "updating thread goals",
   regenerate_title: "generating thread titles",
-  create_schedule: "creating schedules with Ask first or Read only permissions",
-  update_schedule: "updating schedules with Ask first or Read only permissions",
+  create_schedule: "creating schedules",
+  update_schedule: "updating schedules",
   set_schedule_status: "pausing and resuming schedules",
   schedule_wakeup: "scheduling reminders",
   update_settings: "updating text generation settings",

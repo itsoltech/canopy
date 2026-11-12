@@ -46,7 +46,7 @@ export const RequestSecret = Schema.Struct({
 });
 
 /** Permission modes a side thread may ask for, narrowest first; never broader than the caller's (authorizeBusCall). */
-export const SPAWN_PERMISSION_MODES = ["read_only", "ask", "accept_edits", "full_auto"] as const;
+export const SPAWN_PERMISSION_MODES = ["read_only", "ask", "accept_edits", "full_auto", "full_access"] as const;
 
 export type SpawnPermissionMode = (typeof SPAWN_PERMISSION_MODES)[number];
 
@@ -274,7 +274,7 @@ export const AGENT_BUS_TOOLS = {
     description:
       "Start a subagent: delegate a task to a new side thread, inheriting your working directory/worktree unless workspace_mode chooses another placement. By default a copy of you; it can run on " +
       "another provider, model and effort (any Claude, Codex or Grok instance from list_agents), with its own instructions " +
-      "and permissions. Use this whenever you want to delegate, parallelize or get a second opinion; it is the subagent tool here " +
+      "and the permissions selected by the owner (same as yours by default). Use this whenever you want to delegate, parallelize or get a second opinion; it is the subagent tool here " +
       "(there is no spawn_agent or Task tool). The user sees the thread and can steer it. Returns at once with thread_id and turn_id; " +
       "its final message is reported to you automatically when it finishes, or call wait_threads to wait for it.",
     args: SpawnThread,
@@ -450,7 +450,13 @@ export function agentBusToolSpecs(names: readonly AgentBusToolName[] = AGENT_BUS
   return names
     .map((name) => AGENT_BUS_TOOLS[name])
     .map((tool) => {
-      const document = Schema.toJsonSchemaDocument(tool.args, { onExcessProperty: "error" });
+      // Old workers may still send permission_mode. Decode it only to narrow access; new models never choose it.
+      const args =
+        tool.name === "spawn_thread"
+          ? SpawnThread.mapFields(({ permission_mode: _legacy, ...fields }) => fields)
+          : tool.args;
+
+      const document = Schema.toJsonSchemaDocument(args, { onExcessProperty: "error" });
       const schema = document.schema;
 
       // Providers require an object schema; an empty Struct compiles to "anything but null".

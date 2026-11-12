@@ -188,7 +188,6 @@ describe.skipIf(!dockerAvailable)("bot platform tools through the UI core", () =
         provider_instance: "platform-test",
         prompt: "pwd",
         title: "Find Me Across Projects",
-        permission: "read_only",
       },
       true,
     );
@@ -264,7 +263,6 @@ describe.skipIf(!dockerAvailable)("bot platform tools through the UI core", () =
         placement: "round_robin",
         provider: "codex",
         provider_instance: "platform-test",
-        permission: "read_only",
       },
     });
 

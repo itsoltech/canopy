@@ -14,8 +14,13 @@ Read only, Full auto (bez pytań, w sandboxie workspace'u) i Full access (bez py
 (pigułka kompozytora, panel, hover card, `PermissionModeTitle` z odznaką „No sandbox”). Każdy wybór
 Full access w pickerze i w domyślnych wątków potwierdza dialog „Turn on full access?”
 (`FullAccessConfirm`); w „Permissions…” potwierdzeniem jest przycisk „Turn on full access” zamiast
-„Save”. Nigdy nie przechodzi niejawnie: fork, wątek boczny agenta, szkic wątku bocznego i harmonogram
-dostają co najwyżej Full auto.
+„Save”. Fork użytkownika, szkic wątku bocznego i harmonogram dostają co najwyżej Full auto.
+Subagent uruchamiany narzędziem dziedziczy tryb właściciela, także Full access.
+Settings → Threads → Subagents wybiera **Same as parent** (domyślnie) lub stały tryb,
+który nie przekroczy uprawnień rodzica. Gateway zapisuje rozstrzygnięty tryb na dziecku;
+późniejsza zmiana rodzica nie zmienia istniejących dzieci. Tryb tury może ograniczyć
+dziedziczenie poniżej domyślnego trybu wątku. Ograniczenie Full access przez komputer
+do Full auto ma wyjaśnienie w panelu szczegółów web i mobile. Szczegóły: [agent-bus.md](agent-bus.md).
 
 Breadcrumb nad stroną pokazuje projekt, wątek główny (link) i „New side thread”; „Same directory on …” podaje komputer.
 Długie nazwy są ucinane; podpowiedź pokazuje pełny komputer, projekt, katalog i gałąź worktree.

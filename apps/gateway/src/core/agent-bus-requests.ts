@@ -31,9 +31,22 @@ export const busRequestsMethods: BusRequestsMethods = {
       ...(request.expiresAt && { expiresAt: timestampDate(request.expiresAt) }),
     };
 
+    const calling = await this[busState].host
+      .run(GatewayStore.use((s) => s.thread(request.threadId)))
+      .catch(() => undefined);
+
+    if (
+      !calling ||
+      (workerId !== undefined && calling.worker_id !== workerId) ||
+      (this[busState].host.ownerUserId && calling.owner_user_id !== this[busState].host.ownerUserId)
+    )
+      return failure(request.callId, "Thread not found");
+
     if (request.cancelled) return busCancel(this, request, source, workerId);
 
     const stored = await this[busState].host.run(AgentBusStore.use((s) => s.storedCall(request.callId)));
+
+    if (stored && stored.source_thread_id !== calling.id) return failure(request.callId, "Call not found");
 
     // A synchronous ask is persisted before waiting; reconnecting attaches to that same question set.
     if (
@@ -64,13 +77,6 @@ export const busRequestsMethods: BusRequestsMethods = {
 
     if (Result.isFailure(decoded)) return refuse(decoded.failure, safeJson(request.argumentsJson));
     const call = decoded.success;
-
-    const calling = await this[busState].host
-      .run(GatewayStore.use((s) => s.thread(request.threadId)))
-      .catch(() => undefined);
-
-    if (calling && workerId !== undefined && calling.worker_id !== workerId)
-      return failure(request.callId, `thread ${request.threadId} not found`);
 
     if (calling && this[busState].host.linked) {
       try {
@@ -143,7 +149,8 @@ export const busRequestsMethods: BusRequestsMethods = {
       // A concurrent duplicate of a spawn/send may have stored it first.
       const again = await this[busState].host.run(AgentBusStore.use((s) => s.storedCall(request.callId)));
 
-      if (again?.status === "completed") return ok(request.callId, again.result ?? {});
+      if (again?.status === "completed" && again.source_thread_id === calling.id)
+        return ok(request.callId, again.result ?? {});
 
       const reason =
         error instanceof Error && (error.name === "Invalid" || error.name === "NotFound")

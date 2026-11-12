@@ -18,17 +18,23 @@ import { coreBroadcastThread, coreRun } from "./core-broadcast.ts";
 import { coreAnnounceSchedule } from "./core-schedules.ts";
 import { corePrepareWorkspace } from "../worktrees/core-worktrees.ts";
 import { coreNameBranchLater } from "../worktrees/branch-naming.ts";
+import type { AutomatedAccess } from "../store/automated-permissions.ts";
 
 /**
  * The worker's last report (ConfigApplied) must offer the provider and the profile for it. A worker that
  * has not reported yet is not judged: the thread waits for it like for an offline worker.
  */
-export async function coreCheckProvider(hostContext: GatewayCore, request: ui.CreateThreadRequest): Promise<void> {
+export async function coreCheckProvider(
+  hostContext: GatewayCore,
+  request: ui.CreateThreadRequest,
+  automated = false,
+): Promise<void> {
   const projects = await coreRun(hostContext, (s) => s.listProjects(hostContext[coreState].options.userId));
   const workspace = projects.flatMap((p) => p.workspaces).find((w) => w.id === request.workspaceId);
 
   if (!workspace) return; // the store reports the missing workspace
-  coreCheckFullAccess(hostContext, workspace.workerId, request.permissionMode);
+
+  if (!automated) coreCheckFullAccess(hostContext, workspace.workerId, request.permissionMode);
   const worker = (await coreWorkers(hostContext)).find((w) => w.id === workspace.workerId);
 
   if (!worker || worker.appliedVersion === 0n) return;
@@ -135,8 +141,15 @@ export interface CoreThreadsMethods {
   markThreadSeen(threadId: string, upToSeq: bigint): Promise<ui.Thread>;
   createThread(
     input: ui.CreateThreadRequest,
-    remoteParent?: { ref: string; kind: string; instructions: string; interactions: string },
+    remoteParent?: {
+      ref: string;
+      kind: string;
+      instructions: string;
+      interactions: string;
+      permissionModeNote?: string;
+    },
     ownerInput?: boolean,
+    automated?: AutomatedAccess,
   ): Promise<ui.Thread>;
 }
 
@@ -228,11 +241,19 @@ export const coreThreadsMethods: CoreThreadsMethods = {
   async createThread(
     this: GatewayCore,
     input: ui.CreateThreadRequest,
-    remoteParent?: { ref: string; kind: string; instructions: string; interactions: string },
+    remoteParent?: {
+      ref: string;
+      kind: string;
+      instructions: string;
+      interactions: string;
+      permissionModeNote?: string;
+    },
     ownerInput = false,
+    automated = remoteParent ? { permissionModeNote: remoteParent.permissionModeNote ?? "" } : undefined,
   ): Promise<ui.Thread> {
-    const asked = input.forkAtTurnId && !input.parentThreadId ? await coreForkRequest(this, input) : input;
-    await coreCheckProvider(this, asked);
+    const source = input.forkAtTurnId && !input.parentThreadId ? await coreForkRequest(this, input) : input;
+    const asked = automated ? { ...source, permissionMode: input.permissionMode } : source;
+    await coreCheckProvider(this, asked, automated !== undefined);
 
     const where = {
       workspaceId: asked.workspaceId,
@@ -256,7 +277,12 @@ export const coreThreadsMethods: CoreThreadsMethods = {
       !(ownerInput && request.initialMessage.startsWith("!"))
     ) {
       const row = await coreRun(this, (s) =>
-        s.createThread(this[coreState].options.userId, effort === request.effort ? request : { ...request, effort }),
+        s.createThread(
+          this[coreState].options.userId,
+          effort === request.effort ? request : { ...request, effort },
+          undefined,
+          automated,
+        ),
       );
 
       if (remoteParent) {
@@ -304,7 +330,7 @@ export const coreThreadsMethods: CoreThreadsMethods = {
       : undefined;
 
     const row = await coreRun(this, (s) =>
-      s.createThread(this[coreState].options.userId, { ...request, effort, initialMessage: "" }),
+      s.createThread(this[coreState].options.userId, { ...request, effort, initialMessage: "" }, undefined, automated),
     );
 
     if (goal === undefined) {

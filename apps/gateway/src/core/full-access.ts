@@ -37,8 +37,8 @@ export function coreCheckFullAccess(hostContext: GatewayCore, workerId: string |
 }
 
 /**
- * A mode nobody chose for this thread (a fork, an agent's side thread): Full access is never inherited
- * implicitly, it becomes Full auto (still no prompts, sandboxed to the workspace).
+ * User-created forks and side-thread drafts require choosing Full access again. Agent-created children
+ * instead use the owner's inheritance policy (store/automated-permissions.ts).
  */
 export const inheritedPermissionMode = (mode: PermissionMode): PermissionMode =>
   mode === PermissionMode.FULL_ACCESS ? PermissionMode.FULL_AUTO : mode;

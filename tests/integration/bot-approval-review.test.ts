@@ -46,7 +46,7 @@ describe.skipIf(!dockerAvailable)("approval review regressions through the gatew
     const saved = (await suite.gw.api.updateBot({ botId: bot.id, configuration })).bot!;
     expect(saved.configuration?.threadPermission).toBe("read_only");
     expect((await add("New default", { approvalPolicy: "full_auto" })).configuration?.threadPermission).toBe(
-      "same_bot",
+      "user_default",
     );
 
     const error = await suite.gw.api
@@ -87,12 +87,12 @@ describe.skipIf(!dockerAvailable)("approval review regressions through the gatew
     );
   });
 
-  test("explicit thread and schedule permissions cannot exceed the owner's setting", async () => {
-    for (const [ownerMode, asked, expected] of [
-      ["read_only", "ask", PermissionMode.READ_ONLY],
-      ["ask", "full_auto", PermissionMode.ASK],
-      ["accept_edits", "full_auto", PermissionMode.ACCEPT_EDITS],
-      ["full_auto", "read_only", PermissionMode.READ_ONLY],
+  test("thread and schedule permissions come from the owner's bot setting", async () => {
+    for (const [ownerMode, expected] of [
+      ["read_only", PermissionMode.READ_ONLY],
+      ["ask", PermissionMode.ASK],
+      ["accept_edits", PermissionMode.ACCEPT_EDITS],
+      ["full_auto", PermissionMode.FULL_AUTO],
     ] as const) {
       const title = `Cap ${ownerMode}`;
       const bot = await add(title, { approvalPolicy: "always", threadPermission: ownerMode });
@@ -101,7 +101,6 @@ describe.skipIf(!dockerAvailable)("approval review regressions through the gatew
         workspace_id: suite.workspaceId,
         provider: "codex",
         provider_instance: "native",
-        permission: asked,
         title,
         prompt: "Check",
       });
@@ -126,14 +125,49 @@ describe.skipIf(!dockerAvailable)("approval review regressions through the gatew
         placement: "specific",
         provider: "codex",
         provider_instance: "native",
-        permission: "full_auto",
       },
     });
     await send(bot.id, "Schedule");
-    await approve(bot.id);
+    await settled(bot.id);
     const schedule = (await suite.gw.api.listSchedules({})).schedules.find((s) => s.prompt === "Check")!;
     expect(schedule.newThread?.permissionMode).toBe(PermissionMode.READ_ONLY);
   }, 20_000);
+
+  test("model-supplied thread and schedule modes are rejected before creating anything", async () => {
+    const bot = await add("Injected modes", { approvalPolicy: "full_auto" });
+    const before = (await suite.gw.api.listThreads({ projectId: suite.projectId })).threads.length;
+
+    for (const name of ["start_thread", "create_schedule"]) {
+      const placement = {
+        project_id: suite.projectId,
+        workspace_id: suite.workspaceId,
+        provider: "codex",
+        provider_instance: "native",
+        permission: "full_access",
+      };
+
+      request(
+        name,
+        name === "start_thread"
+          ? { ...placement, prompt: "Injected" }
+          : {
+              prompt: "Injected",
+              target: "new_thread",
+              run_at: new Date(Date.now() + 3600_000).toISOString(),
+              new_thread: placement,
+            },
+      );
+      const requested = suite.model;
+      suite.model = async (input) =>
+        input.messages.at(-1)?.role === "tool" ? reply(input.messages.at(-1)!.text) : requested(input);
+      await send(bot.id, name);
+      const state = await settled(bot.id);
+      expect(state.messages.some((m) => m.text.includes("unknown field permission"))).toBe(true);
+    }
+
+    expect((await suite.gw.api.listThreads({ projectId: suite.projectId })).threads).toHaveLength(before);
+    expect((await suite.gw.api.listSchedules({})).schedules.some((s) => s.prompt === "Injected")).toBe(false);
+  });
 
   test("archived and moved bots cannot use standing rules; workspace path actions always ask", async () => {
     const bot = await add("Stopped rule owner", { approvalPolicy: "always" });

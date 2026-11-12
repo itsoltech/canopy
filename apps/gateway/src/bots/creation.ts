@@ -85,6 +85,6 @@ export function proposedBot(args: JsonObject, own: bots.BotConfiguration): bots.
     effort: given.get("effort") ?? own.effort,
     instructions: given.get("instructions") ?? "",
     approvalPolicy: given.get("approval_policy") ?? own.approvalPolicy,
-    threadPermission: "same_bot",
+    threadPermission: "user_default",
   });
 }

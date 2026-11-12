@@ -1,4 +1,3 @@
-import type { JsonValue } from "@canopy/domain";
 import type { Effect } from "effect";
 import { SettingsStore } from "../store/settings.ts";
 import { platformError } from "./errors.ts";
@@ -7,11 +6,6 @@ import { botConfiguration, requiredString, type BotStore } from "./store.ts";
 import type { ModelMessage, ToolResult, ToolSpec, BotTurn } from "./types.ts";
 import type { bots } from "@canopy/contracts";
 import type { BotRuntimeOptions } from "./runtime.ts";
-import { isJsonObject } from "./json.ts";
-
-/** Thread permissions above ask/read_only make the tool need approval like a dangerous one. */
-const elevated = (permission: JsonValue | undefined) =>
-  permission !== undefined && permission !== "ask" && permission !== "read_only";
 
 /** The runtime's options and store access, for the steps of a turn. */
 export interface TurnStep {
@@ -52,13 +46,8 @@ export async function runToolCall(
       const phrase =
         (await ctx.options.describeTool?.(tool, requested.arguments)) ?? statusPhrase(tool, requested.arguments);
 
-      const newThread = requested.arguments["new_thread"];
-      const schedulePermission = isJsonObject(newThread) ? newThread["permission"] : undefined;
-
       const policyTool =
-        (tool.name === "start_thread" && elevated(requested.arguments["permission"])) ||
-        (["create_schedule", "update_schedule"].includes(tool.name) && elevated(schedulePermission)) ||
-        (tool.name === "update_settings" && requested.arguments["thread_defaults"] !== undefined)
+        tool.name === "update_settings" && requested.arguments["thread_defaults"] !== undefined
           ? { ...tool, dangerous: true }
           : tool;
 
