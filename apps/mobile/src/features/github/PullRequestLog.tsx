@@ -7,9 +7,14 @@ import { Overlay } from "../../ui/Overlay";
 import { SheetCloseButton } from "../../ui/SheetDragArea";
 import { usePages } from "./usePages";
 import { PageControls } from "./PageControls";
+import type { github } from "@canopy/contracts";
+import { prCitation } from "@canopy/domain";
+import { CitationActions } from "./CitationActions";
 
 export function PullRequestLog({
   id,
+  snapshot,
+  jobUrl,
   jobId,
   onClose,
   children,
@@ -17,6 +22,8 @@ export function PullRequestLog({
   onDismiss,
 }: {
   id: string;
+  snapshot: github.PullRequestSnapshot;
+  jobUrl: string;
   jobId: string;
   onClose: () => void;
   children?: ReactNode;
@@ -39,6 +46,14 @@ export function PullRequestLog({
     <Overlay visible={visible} onClose={onClose} onDismiss={onDismiss} label="Job log">
       <View style={{ flexDirection: "row", alignItems: "center", padding: 12 }}>
         <Text style={[type.small, { flex: 1, color: c.text }]}>Job {jobId}</Text>
+        {!!pages.current?.text && (
+          <CitationActions
+            quote={prCitation(snapshot, "log", jobId, pages.current.text, {
+              firstLine: pages.current.firstLine,
+              url: jobUrl,
+            })}
+          />
+        )}
         {children}
         <SheetCloseButton label="Close log" />
       </View>

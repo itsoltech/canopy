@@ -1,5 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
+import type { PullRequestCitation } from "@canopy/domain";
 
 /** A quote of a message (SendMessage.quotes) as kept in the turn's or steer's input JSON. */
 export interface StoredQuote {
@@ -13,6 +14,7 @@ export interface StoredQuote {
   end?: number;
   sourceAuthor?: string;
   sourceTime?: string;
+  pullRequest?: PullRequestCitation;
 }
 
 export function toUiQuote(quote: StoredQuote): ui.Quote {
@@ -27,5 +29,6 @@ export function toUiQuote(quote: StoredQuote): ui.Quote {
     end: quote.end,
     sourceAuthor: quote.sourceAuthor ?? "",
     sourceTime: quote.sourceTime ?? "",
+    pullRequest: quote.pullRequest,
   });
 }

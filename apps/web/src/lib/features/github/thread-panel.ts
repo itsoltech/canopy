@@ -5,7 +5,8 @@ import { devicePreferences } from "#lib/features/settings/device-preferences.sve
 export function closePullRequest() {
   const url = new URL(page.url.href);
   url.searchParams.delete("pr");
-  void goto(`${url.pathname}${url.search}`, { reset: false });
+
+  return goto(`${url.pathname}${url.search}`, { reset: false });
 }
 
 export function toggleThreadPanel(open: boolean, sheet: () => void) {

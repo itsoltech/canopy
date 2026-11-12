@@ -1083,6 +1083,13 @@ poszczególnych fragmentów listy. Wysłane cytaty pozostają w tekście w swoic
 dotknięcie pokazuje pełną treść, komentarz i „Jump to source”:
 osobny odczyt strony historii po `target_item_id` odnajduje źródło także poza załadowaną osią.
 W czacie bota odczyt stron rozmowy znajduje pełną wiadomość źródłową, również poza bieżącym oknem.
+Panel PR dodaje `Send to agent` do komentarzy, review, nieudanych checków/jobów
+i wyświetlanych fragmentów logu. Powrót do wątku wstawia cytat przy zapisanym
+kursorze i ustawia fokus za nim. `Cite` w menu elementu otwiera dotychczasowy
+edytor fragmentu; natywne zaznaczanie nie wymaga nowego modułu. Plakietka zawiera
+znak PR, autora i krótki fragment. Podgląd pokazuje repozytorium/numer, plik/linię,
+czas i URL (`Open on GitHub`). Metadane i kontekst diffu są sprawdzane w cache
+właściciela na gatewayu bez żądania GitHub przy wysyłaniu. Cała zmiana pozostaje JS.
 Oś czasu nadąża za web: grupę pracy otwiera i zwija Settings → Threads → Turn activity
 („While working”, „After the turn”, z resetem), według tej samej reguły `workFoldOpen`
 z `@canopy/domain/work-fold` co web; tapnięcie decyduje dalej. Preferencje dotyczą tego

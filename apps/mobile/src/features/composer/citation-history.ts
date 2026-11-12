@@ -1,5 +1,4 @@
 import type { ui } from "@canopy/contracts";
-import { citationPlaceholder } from "@canopy/domain";
 import type { MessageValue } from "./message-value";
 
 /** Native undo and plain-text paste can restore a marker after its range was removed. */
@@ -11,7 +10,8 @@ export class CitationHistory {
     if (value.quotes?.length) this.#snapshots.set(value.text, value.quotes);
 
     for (const quote of value.quotes ?? []) {
-      this.#quotes.set(citationPlaceholder(quote.text), quote);
+      if (quote.start !== undefined && quote.end !== undefined)
+        this.#quotes.set(value.text.slice(quote.start, quote.end), quote);
     }
 
     while (this.#quotes.size > 60) this.#quotes.delete(this.#quotes.keys().next().value!);

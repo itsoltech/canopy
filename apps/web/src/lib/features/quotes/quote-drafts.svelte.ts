@@ -56,6 +56,7 @@ export class QuoteDrafts {
       language: quote.source.language,
       ...(quote.source.author && { sourceAuthor: quote.source.author }),
       ...(quote.source.time && { sourceTime: quote.source.time }),
+      ...(quote.source.pullRequest && { pullRequest: quote.source.pullRequest }),
     };
 
     const insert = this.#editors.get(threadId);

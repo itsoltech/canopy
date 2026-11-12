@@ -6,6 +6,9 @@
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
   import ActivityHeader from "./ActivityHeader.svelte";
   import CommentActions from "./CommentActions.svelte";
+  import CitationActions from "./CitationActions.svelte";
+  import CitationRegion from "./CitationRegion.svelte";
+  import { prCommentCitation } from "@canopy/domain";
 
   let {
     items,
@@ -44,11 +47,19 @@
       <p class="text-sm/5 break-words text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
         {look.label}{entry.body ? ` · ${entry.body}` : ""}
       </p>
-    {:else if entry.body}<div
-        class="min-w-0 rounded-lg border border-zinc-950/10 bg-zinc-500/3 p-3 dark:border-white/10 dark:bg-white/3 [&>div]:[overflow-wrap:anywhere]"
-      >
-        <Markdown text={entry.body} class="min-w-0" />
-        {#if first?.content.case === "comment"}<CommentActions {snapshot} comment={entry} kind="issue" />{/if}
-      </div>{/if}
+    {:else}<CitationRegion quote={prCommentCitation(snapshot, entry, first?.content.case ?? "comment")}
+        ><div
+          class="min-w-0 rounded-lg border border-zinc-950/10 bg-zinc-500/3 p-3 dark:border-white/10 dark:bg-white/3 [&>div]:[overflow-wrap:anywhere]"
+        >
+          <Markdown text={entry.body} class="min-w-0" />
+          {#if first?.content.case === "comment"}<CommentActions
+              {snapshot}
+              comment={entry}
+              kind="issue"
+              quote={prCommentCitation(snapshot, entry)}
+            />
+          {:else}<CitationActions quote={prCommentCitation(snapshot, entry, "review")} />{/if}
+        </div></CitationRegion
+      >{/if}
   {/if}
 </div>

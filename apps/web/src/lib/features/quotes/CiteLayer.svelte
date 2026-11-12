@@ -19,8 +19,17 @@
    * the top layer. It stays between the top of `root` and the top of `avoid` (the sticky composer at the bottom of
    * the feed): next to a selection right above the composer it flips above the selection instead of covering it.
    */
-  let { threadId, root, avoid }: { threadId: string; root: HTMLElement | undefined; avoid?: HTMLElement | undefined } =
-    $props();
+  let {
+    threadId,
+    root,
+    avoid,
+    beforeinsert,
+  }: {
+    threadId: string;
+    root: HTMLElement | undefined;
+    avoid?: HTMLElement | undefined;
+    beforeinsert?: () => Promise<void>;
+  } = $props();
 
   const CITE_HOTKEY = $derived(keybindings.get("message:quote")[0] ?? "");
   const drafts = useQuoteDrafts();
@@ -166,9 +175,11 @@
     insert(quote);
   }
 
-  function insert(selected: SelectedQuote) {
+  async function insert(selected: SelectedQuote) {
+    const targetThread = threadId;
     getSelection()?.removeAllRanges();
-    const added = drafts.add(threadId, { text: selected.text, source: selected.source });
+    await beforeinsert?.();
+    const added = drafts.add(targetThread, { text: selected.text, source: selected.source });
 
     if (added) announced = "Quote added to the message";
     else toast("A message can carry up to 20 quotes", { tone: "error" });

@@ -7,6 +7,8 @@ import { Markdown } from "../../ui/markdown/Markdown";
 import { useColors, useTypography } from "../../ui/theme";
 import { ActivityHeader } from "./ActivityHeader";
 import { CommentActions } from "./CommentActions";
+import { CitationActions } from "./CitationActions";
+import { prCommentCitation } from "@canopy/domain";
 
 export function TimelineEvent({
   items,
@@ -61,12 +63,19 @@ export function TimelineEvent({
           {entry.body ? ` · ${entry.body}` : ""}
         </Text>
       ) : (
-        !!entry.body && (
-          <View style={{ padding: 12, borderWidth: 1, borderColor: c.line, backgroundColor: c.inset, borderRadius: 8 }}>
-            <Markdown text={entry.body} />
-            {first?.content.case === "comment" && <CommentActions snapshot={snapshot} comment={entry} kind="issue" />}
-          </View>
-        )
+        <View style={{ padding: 12, borderWidth: 1, borderColor: c.line, backgroundColor: c.inset, borderRadius: 8 }}>
+          <Markdown text={entry.body} />
+          {first?.content.case === "comment" ? (
+            <CommentActions
+              snapshot={snapshot}
+              comment={entry}
+              kind="issue"
+              quote={prCommentCitation(snapshot, entry)}
+            />
+          ) : (
+            <CitationActions quote={prCommentCitation(snapshot, entry, "review")} />
+          )}
+        </View>
       )}
     </View>
   );

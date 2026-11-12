@@ -15,6 +15,8 @@
   import CommentActions from "./CommentActions.svelte";
   import ThreadResolution from "./ThreadResolution.svelte";
   import { anchorLabel } from "@canopy/domain/github-review";
+  import CitationRegion from "./CitationRegion.svelte";
+  import { prCommentCitation } from "@canopy/domain";
 
   let {
     id,
@@ -121,24 +123,32 @@
     >
     {#if data.outdated}<span {@attach tooltip("Outdated")}><Icon name="clock" label="Outdated" /></span>{/if}
   </div>
-  {#each comments.slice(0, visible) as comment, index (comment.id)}<div
-      class={[
-        "grid min-w-0 gap-2 [&>div]:[overflow-wrap:anywhere]",
-        index > 0 && "ml-3 border-l border-zinc-950/10 pl-3 dark:border-white/10",
-      ]}
-    >
-      <ActivityHeader
-        withAvatar={index > 0}
-        avatarUrl={comment.avatarUrl}
-        pullRequestId={id}
-        author={comment.author}
-        time={comment.createdAt}
-        url={safeHref(comment.url)}
-        look={reviewerLook("commented")}
-      />
-      <Markdown text={comment.body} class="min-w-0" />
-      <CommentActions {snapshot} {comment} kind="review" />
-    </div>{/each}
+  {#each comments.slice(0, visible) as comment, index (comment.id)}<CitationRegion
+      quote={prCommentCitation(snapshot, comment, "review_comment", data)}
+      ><div
+        class={[
+          "grid min-w-0 gap-2 [&>div]:[overflow-wrap:anywhere]",
+          index > 0 && "ml-3 border-l border-zinc-950/10 pl-3 dark:border-white/10",
+        ]}
+      >
+        <ActivityHeader
+          withAvatar={index > 0}
+          avatarUrl={comment.avatarUrl}
+          pullRequestId={id}
+          author={comment.author}
+          time={comment.createdAt}
+          url={safeHref(comment.url)}
+          look={reviewerLook("commented")}
+        />
+        <Markdown text={comment.body} class="min-w-0" />
+        <CommentActions
+          {snapshot}
+          {comment}
+          kind="review"
+          quote={prCommentCitation(snapshot, comment, "review_comment", data)}
+        />
+      </div></CitationRegion
+    >{/each}
   {#if error}<p role="alert">{error}</p>{/if}
   <div class="flex gap-2">
     {#if visible < comments.length || data.repliesCursor}<Button

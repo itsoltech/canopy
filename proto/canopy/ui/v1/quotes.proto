@@ -23,4 +23,21 @@ message Quote {
   // Opis źródła do podglądu; nie nadaje uprawnień.
   string source_author = 9;
   string source_time = 10;
+  // Źródło PR jest sprawdzane w cache właściciela bez odczytu GitHub przy wysyłaniu.
+  PullRequestCitation pull_request = 11;
+}
+
+message PullRequestCitation {
+  string pull_request_id = 1;
+  // comment | review | review_comment | check | job | log
+  string kind = 2;
+  string resource_id = 3;
+  string repository = 4;
+  uint32 number = 5;
+  string url = 6;
+  string path = 7;
+  uint32 line = 8;
+  // Ograniczony fragment diffu z cache, nigdy pobierany podczas wysyłania.
+  string diff_hunk = 9;
+  uint32 first_line = 10;
 }

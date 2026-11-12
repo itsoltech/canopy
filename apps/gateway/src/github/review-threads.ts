@@ -10,6 +10,7 @@ import { actor, actorFields, actorLogin } from "./actors.ts";
 const comment = Schema.Struct({
   id: Schema.String,
   body: Schema.String,
+  diffHunk: Schema.optional(Schema.String),
   url: Schema.String,
   createdAt: Schema.String,
   author: actor,
@@ -59,7 +60,7 @@ const envelope = Schema.Struct({
 
 const fields = `id path line isResolved isOutdated diffSide startLine startDiffSide originalLine originalStartLine
 viewerCanResolve viewerCanUnresolve pullRequest{id}
-comments(first:50,after:$reply){pageInfo{hasNextPage endCursor} nodes{id body url createdAt author{${actorFields}} originalCommit{oid} state viewerDidAuthor viewerCanUpdate viewerCanDelete}}`;
+comments(first:50,after:$reply){pageInfo{hasNextPage endCursor} nodes{id body diffHunk url createdAt author{${actorFields}} originalCommit{oid} state viewerDidAuthor viewerCanUpdate viewerCanDelete}}`;
 
 export const REVIEW_THREADS_QUERY = `query CanopyReviewThreads($owner:String!,$name:String!,$number:Int!,$after:String,$reply:String){
 rateLimit{cost remaining resetAt} repository(owner:$owner,name:$name){pullRequest(number:$number){id
@@ -111,6 +112,7 @@ export async function reviewThreads(scope: ReadScope) {
               author: actorLogin(c.author),
               avatarUrl: c.author?.avatarUrl ?? "",
               body: c.body,
+              diffHunk: (c.diffHunk ?? "").slice(0, 8_000),
               viewerCanUpdate: !!c.viewerDidAuthor && !!c.viewerCanUpdate,
               viewerCanDelete: !!c.viewerDidAuthor && !!c.viewerCanDelete,
               state: c.state ?? "",

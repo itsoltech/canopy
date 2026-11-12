@@ -1,6 +1,7 @@
 import { getContext, setContext } from "svelte";
 import type { ui } from "@canopy/contracts";
 import { useThreadDirectory } from "#lib/features/threads/thread-directory.ts";
+import { safeHref } from "@canopy/domain/markdown";
 
 type RevealCitation = (quote: ui.Quote) => Promise<boolean>;
 
@@ -11,7 +12,20 @@ export const provideCitationSource = (reveal: RevealCitation) => setContext(KEY,
 export function useCitationSource(): RevealCitation {
   const directory = useThreadDirectory();
 
-  return (
-    getContext<RevealCitation | undefined>(KEY) ?? ((quote) => directory.revealQuote?.(quote) ?? Promise.resolve(false))
-  );
+  const reveal =
+    getContext<RevealCitation | undefined>(KEY) ??
+    ((quote: ui.Quote) => directory.revealQuote?.(quote) ?? Promise.resolve(false));
+
+  return async (quote) => {
+    if (quote.pullRequest?.url) {
+      const url = safeHref(quote.pullRequest.url);
+
+      if (!url) return false;
+      window.open(url, "_blank", "noopener,noreferrer");
+
+      return true;
+    }
+
+    return reveal(quote);
+  };
 }

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { github } from "@canopy/contracts";
+  import type { github, ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import {
     mutationRequest,
@@ -7,8 +7,7 @@
     mutationUnconfirmed,
     uncertainMutation,
   } from "@canopy/domain/github-mutations";
-  import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
-  import IconButton from "#lib/shared/ui/IconButton.svelte";
+  import CitationActions from "./CitationActions.svelte";
   import MenuItem from "#lib/shared/ui/MenuItem.svelte";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
   import DialogActions from "#lib/shared/ui/DialogActions.svelte";
@@ -23,11 +22,13 @@
     snapshot,
     comment,
     kind,
+    quote,
     class: className,
   }: {
     snapshot: github.PullRequestSnapshot;
     comment: github.PullRequestTimelineEntry;
     kind: string;
+    quote: ui.Quote;
     class?: ClassValue;
   } = $props();
 
@@ -73,37 +74,32 @@
   }
 </script>
 
-{#if own && (comment.viewerCanUpdate || comment.viewerCanDelete)}<div class={["grid gap-2", className]}>
-    <div class="flex justify-end">
-      <DropdownMenu label="Comment actions" sheet>
-        {#snippet trigger(props)}<IconButton
-            {...props}
-            icon="ellipsis-horizontal"
-            label="Comment actions"
-            size="sm"
-            disabled={busy || snapshot.stale || (receipt && mutationUnconfirmed(receipt))}
-          />{/snippet}
-        {#if comment.viewerCanUpdate}<MenuItem onselect={() => (editing = true)}>Edit comment</MenuItem>{/if}
-        {#if comment.viewerCanDelete}<MenuItem onselect={() => void prepareDelete()}>Delete comment</MenuItem>{/if}
-      </DropdownMenu>
-    </div>
-    {#if editing}<CommentComposer
-        {snapshot}
-        resourceId={comment.id}
-        commentKind={kind}
-        initial={comment.body}
-        ondone={() => (editing = false)}
-      />{/if}
-    {#if error || receipt?.detail}<p role="status" class="text-sm text-rose-700 dark:text-rose-400">
-        {error || (receipt && mutationUnconfirmed(receipt) ? uncertainMutation : receipt?.detail)}
-        {#if receipt && mutationUnconfirmed(receipt)}<a
-            href={safeHref(comment.url)}
-            target="_blank"
-            rel="noreferrer"
-            class="underline">Open on GitHub</a
-          >{/if}
-      </p>{/if}
-  </div>{/if}
+<div class={["grid gap-2", className]}>
+  <CitationActions {quote}>
+    {#if own && (comment.viewerCanUpdate || comment.viewerCanDelete)}
+      {@const disabled = busy || snapshot.stale || Boolean(receipt && mutationUnconfirmed(receipt))}
+      {#if comment.viewerCanUpdate}<MenuItem {disabled} onselect={() => (editing = true)}>Edit comment</MenuItem>{/if}
+      {#if comment.viewerCanDelete}<MenuItem {disabled} onselect={() => void prepareDelete()}>Delete comment</MenuItem
+        >{/if}
+    {/if}
+  </CitationActions>
+  {#if editing}<CommentComposer
+      {snapshot}
+      resourceId={comment.id}
+      commentKind={kind}
+      initial={comment.body}
+      ondone={() => (editing = false)}
+    />{/if}
+  {#if error || receipt?.detail}<p role="status" class="text-sm text-rose-700 dark:text-rose-400">
+      {error || (receipt && mutationUnconfirmed(receipt) ? uncertainMutation : receipt?.detail)}
+      {#if receipt && mutationUnconfirmed(receipt)}<a
+          href={safeHref(comment.url)}
+          target="_blank"
+          rel="noreferrer"
+          class="underline">Open on GitHub</a
+        >{/if}
+    </p>{/if}
+</div>
 <Dialog
   bind:open={deleting}
   title="Delete comment?"

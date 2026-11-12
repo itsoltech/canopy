@@ -12,6 +12,8 @@ import { PullRequestLog } from "./PullRequestLog";
 import { toneColor } from "./presentation";
 import type { github } from "@canopy/contracts";
 import { CiActions } from "./CiActions";
+import { CitationActions } from "./CitationActions";
+import { prCitation, prCheckFailed } from "@canopy/domain";
 import { ListSkeleton } from "../../ui/Skeleton";
 
 export function PullRequestJobs({ snapshot, runId }: { snapshot: github.PullRequestSnapshot; runId: string }) {
@@ -75,6 +77,11 @@ export function PullRequestJobs({ snapshot, runId }: { snapshot: github.PullRequ
             <Text numberOfLines={2} style={[type.small, { flex: 1, color: c.text }]}>
               {job.name}
             </Text>
+            {prCheckFailed(job.state) && (
+              <CitationActions
+                quote={prCitation(snapshot, "job", job.id, `${job.name}: ${job.state}`, { url: job.url })}
+              />
+            )}
             <CiActions
               snapshot={snapshot}
               runId={runId}
@@ -104,6 +111,8 @@ export function PullRequestJobs({ snapshot, runId }: { snapshot: github.PullRequ
       {!!jobId && (
         <PullRequestLog
           id={id}
+          snapshot={snapshot}
+          jobUrl={pages.current?.jobs.find((job) => job.id === jobId)?.url ?? ""}
           jobId={jobId}
           visible={logVisible}
           onClose={() => setJob("")}

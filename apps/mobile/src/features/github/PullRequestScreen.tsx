@@ -19,6 +19,7 @@ import { CommentComposer } from "./CommentComposer";
 import { invalidations } from "./invalidations";
 import { GITHUB_HOME, splitId } from "@canopy/domain/computers";
 import { RepositoryAccessActions } from "./RepositoryAccessActions";
+import { PrCitationTarget, prCitationSender } from "./citation-target";
 
 const deniedRead = (code: Code) =>
   [Code.PermissionDenied, Code.NotFound, Code.FailedPrecondition, Code.Aborted].includes(code);
@@ -104,8 +105,7 @@ export function PullRequestScreen({ id, threadId }: { id: string; threadId?: str
     }
   }
 
-  const onMetadata = useEffectEvent(() => void refresh());
-  useEffect(() => invalidations.subscribe(`${id}:metadata`, onMetadata), [id]);
+  useMetadataRefresh(id, refresh);
 
   async function prepare(action: string) {
     if (!client || !threadId || busy) return;
@@ -160,10 +160,17 @@ export function PullRequestScreen({ id, threadId }: { id: string; threadId?: str
   );
 
   return (
-    <ScreenFrame header={<ScreenHeader title="Pull request" />}>
-      <PullRequestContent id={id} tab={tab} data={data} header={header} failed={!!read.error} />
-    </ScreenFrame>
+    <PrCitationTarget value={prCitationSender(threadId)}>
+      <ScreenFrame header={<ScreenHeader title="Pull request" />}>
+        <PullRequestContent id={id} tab={tab} data={data} header={header} failed={!!read.error} />
+      </ScreenFrame>
+    </PrCitationTarget>
   );
+}
+
+function useMetadataRefresh(id: string, refresh: () => Promise<void>) {
+  const onMetadata = useEffectEvent(() => void refresh());
+  useEffect(() => invalidations.subscribe(`${id}:metadata`, onMetadata), [id]);
 }
 
 function PullRequestNotices({

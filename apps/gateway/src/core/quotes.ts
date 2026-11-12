@@ -6,6 +6,7 @@ import type { GatewayCore } from "./core.ts";
 import { coreState, InvalidError } from "./core-context.ts";
 import { coreRun } from "./core-broadcast.ts";
 import type { Mention } from "@canopy/contracts";
+import { resolvePullRequestCitation } from "../github/citations.ts";
 
 const MAX_ID = 200;
 
@@ -40,6 +41,9 @@ export function checkedQuotes(
       if (quote.sourceKind && !isQuoteSourceKind(quote.sourceKind))
         throw invalid(`${label} has an unknown source kind "${quote.sourceKind}"`);
 
+      if ((quote.sourceKind === "pull_request") !== Boolean(quote.pullRequest))
+        throw invalid(`${label} has an invalid pull request source`);
+
       if (quote.sourceItemId.length > MAX_ID || quote.sourceThreadId.length > MAX_ID || quote.language.length > 40)
         throw invalid(`${label} has an invalid source`);
 
@@ -64,12 +68,18 @@ export function checkedQuotes(
         ...(quote.start !== undefined && quote.end !== undefined && { start: quote.start, end: quote.end }),
         ...(quote.sourceAuthor && { sourceAuthor: quote.sourceAuthor.slice(0, 200) }),
         ...(quote.sourceTime && { sourceTime: quote.sourceTime.slice(0, 100) }),
+        ...(quote.pullRequest && { pullRequest: quote.pullRequest }),
       };
     });
 }
 
-export async function coreCheckQuoteSources(core: GatewayCore, quotes: readonly StoredQuote[]): Promise<void> {
+export async function coreCheckQuoteSources(core: GatewayCore, quotes: StoredQuote[], thread: string): Promise<void> {
   for (const quote of quotes) {
+    if (quote.pullRequest) {
+      Object.assign(quote, await resolvePullRequestCitation(core, thread, quote));
+      continue;
+    }
+
     if (!quote.sourceThreadId) continue;
     const source = await coreRun(core, (s) => s.thread(quote.sourceThreadId!)).catch(() => undefined);
 

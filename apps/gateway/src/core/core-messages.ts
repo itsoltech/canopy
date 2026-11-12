@@ -263,7 +263,7 @@ const messageActions: CoreMessagesMethods = {
       request.mentions,
     );
 
-    await coreCheckQuoteSources(this, quotes);
+    await coreCheckQuoteSources(this, quotes, threadId);
 
     if (!request.text.trim() && !files && quotes.length === 0) throw new InvalidError("message is empty");
 
