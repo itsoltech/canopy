@@ -76,16 +76,7 @@ export function SidebarThread({
         style={({ pressed }) => [
           rowStyle,
           {
-            backgroundColor:
-              pressed || active
-                ? c.inset
-                : needs
-                  ? c.dark
-                    ? "#fbbf240f"
-                    : "#f59e0b0f"
-                  : busy
-                    ? c.well
-                    : "transparent",
+            backgroundColor: pressed || active ? c.inset : needs ? (c.dark ? "#fbbf240f" : "#f59e0b0f") : "transparent",
             borderColor: needs ? `${c.warning}33` : "transparent",
             opacity: home.away ? 0.55 : 1,
           },

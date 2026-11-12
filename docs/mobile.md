@@ -1303,7 +1303,8 @@ subagenta zostają wewnątrz wątku, a pytanie do użytkownika wywołuje jeden a
 
 Etykieta „Working 1m” używa tego samego `workingLabel` i `formatAge` z domain co web:
 czas pochodzi z `lastActivityAt`, z fallbackiem do `createdAt`. Tytuł i metadane
-zachowują zwykły kontrast, a pracujący wiersz ma subtelne tło. Pierścień pracy
+zachowują zwykły kontrast; sam stan pracy nie dodaje tła. W szerokim układzie tło
+zaznaczenia wskazuje tylko otwarty wątek, także podczas pracy. Pierścień pracy
 dzieli geometrię i kolory z web (`@canopy/ui/thread-row`); animacja Reanimated
 działa na wątku UI i zatrzymuje się w tle oraz przy systemowym ograniczeniu ruchu.
 Jeden zegar aplikacji aktualizuje wyłącznie zmieniony tekst statusu, nie listę ani

@@ -75,7 +75,7 @@ export const unseenResult = (thread: ui.Thread): TurnResult | undefined =>
 
 /**
  * Busy without needing anyone: a turn running or starting, asking its agent, or background tasks alone with
- * nothing new to look at. Lists use a subtle background while keeping text at normal contrast.
+ * nothing new to look at. Lists keep normal text contrast and show activity through the status and mark.
  */
 export function isCalm(thread: ui.Thread): boolean {
   const state = workState(thread);
