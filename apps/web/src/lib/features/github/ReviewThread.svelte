@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import { create } from "@bufbuild/protobuf";
   import { github } from "@canopy/contracts";
   import { safeHref } from "@canopy/domain/markdown";
@@ -33,17 +34,34 @@
   let error = $state("");
   let busy = $state(false);
   let generation = 0;
-  const data = $derived(current ?? thread);
-  const comments = $derived([...history.flatMap((page) => page.comments), ...data.comments]);
+
+  const data = $derived(
+    current ? { ...thread, comments: current.comments, repliesCursor: current.repliesCursor } : thread,
+  );
+
+  const comments = $derived([
+    ...new Map(
+      [...history.flatMap((page) => page.comments), ...data.comments].map((comment) => [comment.id, comment]),
+    ).values(),
+  ]);
+
+  const head = $derived(snapshot.summary?.headSha);
 
   $effect(() => {
-    void thread;
+    void head;
     current = undefined;
     history = [];
     visible = 3;
     error = "";
     busy = false;
     generation++;
+  });
+
+  $effect(() => {
+    const first = thread;
+    untrack(() => {
+      if (history.length) history = [first, ...history.slice(1)];
+    });
   });
 
   async function more() {
@@ -110,6 +128,9 @@
       ]}
     >
       <ActivityHeader
+        withAvatar={index > 0}
+        avatarUrl={comment.avatarUrl}
+        pullRequestId={id}
         author={comment.author}
         time={comment.createdAt}
         url={safeHref(comment.url)}

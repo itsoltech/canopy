@@ -1,7 +1,7 @@
 <script lang="ts">
   import { github } from "@canopy/contracts";
   import { create, fromJsonString } from "@bufbuild/protobuf";
-  import { untrack } from "svelte";
+  import { tick, untrack } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import { SharedRead, queries } from "#lib/shared/queries.svelte.ts";
   import { HttpError } from "#lib/shared/http.ts";
@@ -20,6 +20,8 @@
   import * as api from "./api.ts";
   import RepositoryAccessActions from "./RepositoryAccessActions.svelte";
   import { GITHUB_HOME, splitId } from "@canopy/domain/computers";
+  import ReadSkeleton from "./ReadSkeleton.svelte";
+  import { panelView } from "./panel-view.svelte.ts";
 
   let {
     id,
@@ -32,7 +34,9 @@
   let denied = $state(false);
   let accessError = $state("");
   let error = $state("");
-  let tab = $state("summary");
+  const view = $derived(panelView(id));
+  const tab = $derived(view.tab);
+  let content: HTMLDivElement;
   let visible = $state(false);
   const prefix = $props.id();
 
@@ -47,24 +51,26 @@
   $effect(() => {
     if (!visible) return;
     const requestId = id;
-    let revision = "";
+    const target = view;
+    let revision = target.revision;
 
     return liveSource(`/api/github/events?id=${encodeURIComponent(requestId)}`, {
       url: () => `/api/github/events?id=${encodeURIComponent(requestId)}&revision=${revision}`,
       onmessage: (text) => {
         const update = fromJsonString(github.PullRequestUpdateSchema, text);
         const changed = !!revision && revision !== update.revision;
+        const first = !revision;
         revision = update.revision;
+        target.revision = revision;
 
         if (update.snapshot) untrack(() => read.set(update.snapshot!));
 
-        if (changed || update.gap) invalidations.publish(requestId);
+        if (update.gap) invalidations.publish(requestId);
+        else if (changed || first)
+          for (const resource of update.invalidated) invalidations.publish(`${requestId}:${resource}`);
       },
       ondrop: () => {
         void read.reload().catch(() => {});
-      },
-      onopen: (reconnected) => {
-        if (reconnected) invalidations.publish(requestId);
       },
     });
   });
@@ -105,6 +111,17 @@
   );
 
   const data = $derived(denied ? undefined : read.data);
+
+  $effect(() => {
+    const active = tab;
+    const target = view;
+    const loaded = !!data;
+
+    if (loaded)
+      void tick().then(() => {
+        if (content) content.scrollTop = target.scroll[active] ?? 0;
+      });
+  });
 
   async function refresh() {
     if (busy) return;
@@ -147,14 +164,18 @@
 <div class={["flex h-full min-h-0 min-w-0 flex-col bg-surface", className]}>
   {#if data}<PullRequestHeader
       snapshot={data}
-      {busy}
+      busy={busy || read.snapshot.loading}
       onrefresh={() => void refresh()}
       onunlink={threadId ? () => void unlink() : undefined}
       {onclose}
       oncontext={threadId ? (action) => void prepare(action) : undefined}
-    />{/if}
-  <PullRequestTabs bind:value={tab} {prefix} />
+    />{:else if !read.snapshot.error}<div class="border-b border-divider px-4">
+      <ReadSkeleton header rows={0} />
+    </div>{/if}
+  <PullRequestTabs bind:value={() => tab, (value) => view.select(value)} {prefix} />
   <div
+    bind:this={content}
+    onscroll={(event) => (view.scroll[tab] = event.currentTarget.scrollTop)}
     role="tabpanel"
     id={`${prefix}-${tab}-panel`}
     aria-labelledby={`${prefix}-${tab}-tab`}
@@ -174,14 +195,17 @@
     {#if data?.detail}<p role="status" class="mb-4 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
         {data.detail}
         {data.stale ? `Last verified ${formatDateTime(data.summary?.verifiedAt)}.` : ""}
+        <Button size="sm" variant="ghost" disabled={busy} onclick={refresh}>Retry</Button>
       </p>{/if}
     {#if data}
-      {#key data.accountId}{#if tab === "summary"}<PullRequestSummary
-            snapshot={data}
-          />{:else if tab === "timeline"}<PullRequestTimeline {id} snapshot={data} />{:else}<PullRequestCode
-            snapshot={data}
-          />{/if}{/key}
+      {#key `${data.accountId}:${data.accessRevision}:${id}`}
+        <div hidden={tab !== "summary"}><PullRequestSummary snapshot={data} /></div>
+        {#if view.visited.includes("timeline")}<div hidden={tab !== "timeline"}>
+            <PullRequestTimeline {id} snapshot={data} />
+          </div>{/if}
+        {#if view.visited.includes("code")}<div hidden={tab !== "code"}><PullRequestCode snapshot={data} /></div>{/if}
+      {/key}
       {#if tab !== "code"}{#key `${data.accountId}:${id}`}<CommentComposer snapshot={data} class="mt-5" />{/key}{/if}
-    {:else if !read.snapshot.error}<p role="status" class="text-sm text-zinc-500">Loading pull request…</p>{/if}
+    {:else if !read.snapshot.error}<ReadSkeleton />{/if}
   </div>
 </div>

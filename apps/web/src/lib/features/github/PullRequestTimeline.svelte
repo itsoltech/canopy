@@ -16,6 +16,7 @@
   import { PullRequestPages } from "./pages.svelte.ts";
   import * as api from "./api.ts";
   import { invalidations } from "./invalidations.ts";
+  import ReadSkeleton from "./ReadSkeleton.svelte";
 
   let {
     id,
@@ -26,26 +27,31 @@
   let kind = $state("");
   let oldest = $state(false);
   const includeThreads = $derived(!kind || kind === "review");
+  const cacheScope = $derived(`${snapshot.accountId}:${snapshot.accessRevision}:${id}:${snapshot.summary?.headSha}`);
 
   const pages = $derived.by(() => {
     const base = create(github.PullRequestPageRequestSchema, { pullRequestId: id, kind, oldestFirst: oldest });
 
-    return new PullRequestPages((cursor, refresh) =>
-      api.page(
-        "timeline",
-        github.PullRequestTimelinePageSchema,
-        create(github.PullRequestPageRequestSchema, { ...base, cursor, refresh }),
-      ),
+    return new PullRequestPages(
+      (cursor, refresh) =>
+        api.page(
+          "timeline",
+          github.PullRequestTimelinePageSchema,
+          create(github.PullRequestPageRequestSchema, { ...base, cursor, refresh }),
+        ),
+      `timeline:${cacheScope}:${kind}:${oldest}`,
     );
   });
 
   const reviews = $derived(
-    new PullRequestPages((cursor, refresh) =>
-      api.page(
-        "reviews",
-        github.PullRequestReviewThreadsPageSchema,
-        create(github.PullRequestPageRequestSchema, { pullRequestId: id, cursor, refresh }),
-      ),
+    new PullRequestPages(
+      (cursor, refresh) =>
+        api.page(
+          "reviews",
+          github.PullRequestReviewThreadsPageSchema,
+          create(github.PullRequestPageRequestSchema, { pullRequestId: id, cursor, refresh }),
+        ),
+      `reviews:${cacheScope}`,
     ),
   );
 
@@ -62,10 +68,12 @@
     untrack(() => void target.read());
 
     const unsubscribe = invalidations.subscribe(id, () => void target.invalidate());
-    const reviewUnsubscribe = invalidations.subscribe(`${id}:reviews`, () => void target.invalidate());
+    const resource = invalidations.subscribe(`${id}:timeline`, () => void target.invalidate(false, false));
+    const reviewUnsubscribe = invalidations.subscribe(`${id}:reviews`, () => void target.invalidate(false, false));
 
     return () => {
       unsubscribe();
+      resource();
       reviewUnsubscribe();
     };
   });
@@ -75,7 +83,7 @@
     untrack(() => void target.read());
 
     const unsubscribe = invalidations.subscribe(id, () => void target.invalidate());
-    const reviewUnsubscribe = invalidations.subscribe(`${id}:reviews`, () => void target.invalidate());
+    const reviewUnsubscribe = invalidations.subscribe(`${id}:reviews`, () => void target.invalidate(false, false));
 
     return () => {
       unsubscribe();
@@ -114,14 +122,20 @@
       onclick={() => (oldest = !oldest)}
     />
   </div>
+  {#if !pages.current && !pages.error}<ReadSkeleton />{/if}
   <ol
     role="list"
     class="relative grid gap-5 py-5 before:absolute before:inset-y-5 before:left-4 before:w-px before:bg-zinc-950/10 dark:before:bg-white/10"
   >
     {#each rows as row (row.key)}
-      {@const author = row.kind === "thread" ? row.thread.comments[0]?.author : row.items[0]?.content.value?.author}
+      {@const actor = row.kind === "thread" ? row.thread.comments[0] : row.items[0]?.content.value}
       <li class="relative flex min-w-0 items-start gap-3">
-        <GitHubAvatar userId="" login={author ?? ""} class="ring-4 ring-surface" />
+        <GitHubAvatar
+          pullRequestId={id}
+          url={actor?.avatarUrl}
+          login={actor?.author ?? ""}
+          class="ring-4 ring-surface"
+        />
         <div class="min-w-0 flex-1 pt-1.5">
           {#if row.kind === "thread"}<ReviewThread {id} {snapshot} thread={row.thread} />{:else}<TimelineEvent
               items={row.items}

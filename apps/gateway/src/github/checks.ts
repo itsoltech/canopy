@@ -43,7 +43,14 @@ const envelope = Schema.Struct({
                     commit: Schema.Struct({
                       oid: Schema.String,
                       statusCheckRollup: Schema.NullOr(
-                        Schema.Struct({ contexts: Schema.Struct({ nodes: Schema.Array(check), pageInfo: graphPage }) }),
+                        Schema.Struct({
+                          state: Schema.optional(Schema.String),
+                          contexts: Schema.Struct({
+                            totalCount: Schema.optional(Schema.Number),
+                            nodes: Schema.Array(check),
+                            pageInfo: graphPage,
+                          }),
+                        }),
                       ),
                     }),
                   }),
@@ -59,13 +66,26 @@ const envelope = Schema.Struct({
 
 export const CHECKS_QUERY = `query CanopyChecks($owner:String!,$name:String!,$number:Int!,$after:String){rateLimit{cost remaining resetAt}
 repository(owner:$owner,name:$name){pullRequest(number:$number){id headRefOid commits(last:1){nodes{commit{oid
-statusCheckRollup{contexts(first:50,after:$after){pageInfo{hasNextPage endCursor} nodes{__typename
+statusCheckRollup{state contexts(first:50,after:$after){totalCount pageInfo{hasNextPage endCursor} nodes{__typename
 ... on CheckRun{id name status conclusion detailsUrl summary text checkSuite{app{name} workflowRun{databaseId}}}
 ... on StatusContext{id context state targetUrl creator{login}}}}}}}}}}}`;
 
-export async function checks(scope: ReadScope) {
+export async function checks(
+  scope: ReadScope,
+  signal?: AbortSignal,
+  onSummary?: (state: string, count: number) => Promise<void>,
+) {
   return scope.read(github.PullRequestChecksPageSchema, {
-    ttl: 15_000,
+    ...(signal && { signal }),
+    ttl: ["merged", "closed"].includes(scope.snapshot.summary?.state ?? "")
+      ? 300_000
+      : ["pending", "expected"].includes(scope.snapshot.summary?.checksState ?? "") ||
+          scope.snapshot.checks.some((item) =>
+            ["pending", "queued", "in_progress", "waiting", "requested"].includes(item.state),
+          ) ||
+          (scope.snapshot.summary?.checksCount ?? 0) > scope.snapshot.checks.length
+        ? 15_000
+        : 60_000,
     path: "/graphql",
     query: CHECKS_QUERY,
     variables: { ...scope.variables, ...(scope.position && { after: scope.position }) },
@@ -77,6 +97,9 @@ export async function checks(scope: ReadScope) {
       if (!pr || pr.id !== scope.pr.node_id || pr.headRefOid !== scope.head || commit?.oid !== scope.head)
         throw new ConnectError("Checks changed. Refresh this pull request.", Code.FailedPrecondition);
       const connection = commit.statusCheckRollup?.contexts;
+
+      if (commit.statusCheckRollup?.state && connection?.totalCount !== undefined)
+        await onSummary?.(commit.statusCheckRollup.state.toLowerCase(), connection.totalCount);
 
       return jsonMessage(
         github.PullRequestChecksPageSchema,

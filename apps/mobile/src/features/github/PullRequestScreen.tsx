@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useEffectEvent, useState } from "react";
 import { router } from "expo-router";
-import { ScrollView, Text, View } from "react-native";
+import { ScrollView, View } from "react-native";
 import type { github } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { useSession } from "../../state/session";
 import { useSharedQuery } from "../../state/queries";
-import { Notice, ScreenHeader, Segmented } from "../../ui/components";
+import { Button, Notice, ScreenHeader, Segmented } from "../../ui/components";
 import { ScreenFrame, useContentPadding } from "../../ui/ScreenFrame";
-import { styles, useColors } from "../../ui/theme";
+import { ListSkeleton } from "../../ui/Skeleton";
 import { toast } from "../../ui/Toast";
 import { PullRequestSummary } from "./PullRequestSummary";
 import { PullRequestHeader } from "./PullRequestHeader";
@@ -131,7 +131,7 @@ export function PullRequestScreen({ id, threadId }: { id: string; threadId?: str
       {data && (
         <PullRequestHeader
           snapshot={data}
-          busy={busy || !online}
+          busy={busy || read.loading || !online}
           onrefresh={() => void refresh()}
           onunlink={threadId ? () => void unlink() : undefined}
           onmessage={toast}
@@ -147,16 +147,15 @@ export function PullRequestScreen({ id, threadId }: { id: string; threadId?: str
         value={tab}
         onChange={setTab}
       />
-      {!!data?.detail && <Notice>{data.detail}</Notice>}
-      {!!(error || read.error) && (
-        <Notice error>{accessError || error || "Connect to load this page. Check account access, then retry."}</Notice>
-      )}
-      {!!accessError && (
-        <RepositoryAccessActions
-          homeId={splitId(id).node ? `${GITHUB_HOME}~${splitId(id).node}` : ""}
-          onconnected={() => void refresh()}
-        />
-      )}
+      <PullRequestNotices
+        id={id}
+        detail={data?.detail ?? ""}
+        error={error}
+        failed={!!read.error}
+        accessError={accessError}
+        busy={busy}
+        onrefresh={() => void refresh()}
+      />
     </View>
   );
 
@@ -164,6 +163,43 @@ export function PullRequestScreen({ id, threadId }: { id: string; threadId?: str
     <ScreenFrame header={<ScreenHeader title="Pull request" />}>
       <PullRequestContent id={id} tab={tab} data={data} header={header} failed={!!read.error} />
     </ScreenFrame>
+  );
+}
+
+function PullRequestNotices({
+  id,
+  detail,
+  error,
+  failed,
+  accessError,
+  busy,
+  onrefresh,
+}: {
+  id: string;
+  detail: string;
+  error: string;
+  failed: boolean;
+  accessError: string;
+  busy: boolean;
+  onrefresh: () => void;
+}) {
+  const node = splitId(id).node;
+
+  return (
+    <>
+      {!!detail && <Notice>{detail}</Notice>}
+      {!!(error || failed) && (
+        <Notice error>{accessError || error || "Connect to load this page. Check account access, then retry."}</Notice>
+      )}
+      {!!accessError && (
+        <RepositoryAccessActions homeId={node ? `${GITHUB_HOME}~${node}` : ""} onconnected={onrefresh} />
+      )}
+      {!!(error || failed || detail) && (
+        <View style={{ gap: 8 }}>
+          <Button title="Retry" variant="ghost" disabled={busy} onPress={onrefresh} />
+        </View>
+      )}
+    </>
   );
 }
 
@@ -180,25 +216,41 @@ function PullRequestContent({
   header: React.ReactNode;
   failed: boolean;
 }) {
-  const c = useColors();
+  const [visited, setVisited] = useState(["summary"]);
 
-  if (data && tab === "timeline")
-    return <PullRequestTimeline key={data.accountId} id={id} snapshot={data} header={header} />;
-
-  if (data && tab === "code") return <PullRequestCode key={data.accountId} snapshot={data} header={header} />;
+  if (!visited.includes(tab)) setVisited([...visited, tab]);
 
   return (
-    <SummaryContent>
-      {header}
-      {data ? (
-        <View style={{ gap: 20 }}>
-          <PullRequestSummary snapshot={data} />
-          <CommentComposer key={`${data.accountId}:${id}`} snapshot={data} />
+    <>
+      <View style={{ flex: 1, display: tab === "summary" || !data ? "flex" : "none" }}>
+        <SummaryContent>
+          {header}
+          {data ? (
+            <View style={{ gap: 20 }}>
+              <PullRequestSummary key={`${data.accountId}:${data.accessRevision}:${id}`} snapshot={data} />
+              <CommentComposer key={`${data.accountId}:${id}`} snapshot={data} />
+            </View>
+          ) : (
+            !failed && <ListSkeleton rows={4} avatar inset={false} />
+          )}
+        </SummaryContent>
+      </View>
+      {data && visited.includes("timeline") && (
+        <View style={{ flex: 1, display: tab === "timeline" ? "flex" : "none" }}>
+          <PullRequestTimeline
+            key={`${data.accountId}:${data.accessRevision}:${id}`}
+            id={id}
+            snapshot={data}
+            header={header}
+          />
         </View>
-      ) : (
-        !failed && <Text style={[styles.body, { color: c.muted }]}>Loading pull request…</Text>
       )}
-    </SummaryContent>
+      {data && visited.includes("code") && (
+        <View style={{ flex: 1, display: tab === "code" ? "flex" : "none" }}>
+          <PullRequestCode key={`${data.accountId}:${data.accessRevision}:${id}`} snapshot={data} header={header} />
+        </View>
+      )}
+    </>
   );
 }
 

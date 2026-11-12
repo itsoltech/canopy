@@ -26,22 +26,25 @@ export function ReviewThread({
   const { client } = useSession();
   const c = useColors();
   const type = useTypography();
-  const [data, setData] = useState(thread);
+  const [page, setData] = useState(thread);
   const [history, setHistory] = useState<github.PullRequestReviewThread[]>([]);
   const [visible, setVisible] = useState(3);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [source, setSource] = useState(thread);
   const generation = useRef({ value: 0 });
-  const comments = [...history.flatMap((page) => page.comments), ...data.comments];
+  const data = history.length ? { ...thread, comments: page.comments, repliesCursor: page.repliesCursor } : thread;
+
+  const comments = [
+    ...new Map(
+      [...history.flatMap((page) => page.comments), ...data.comments].map((comment) => [comment.id, comment]),
+    ).values(),
+  ];
 
   if (source !== thread) {
     setSource(thread);
-    setData(thread);
-    setHistory([]);
-    setVisible(3);
-    setError("");
-    setBusy(false);
+
+    if (history.length) setHistory([thread, ...history.slice(1)]);
   }
 
   useEffect(() => {
@@ -51,7 +54,7 @@ export function ReviewThread({
     return () => {
       serial.value++;
     };
-  }, [thread]);
+  }, [thread.id, snapshot.summary?.headSha]);
 
   async function more() {
     if (busy) return;
@@ -109,6 +112,9 @@ export function ReviewThread({
           ]}
         >
           <ActivityHeader
+            withAvatar={index > 0}
+            avatarUrl={comment.avatarUrl}
+            pullRequestId={id}
             author={comment.author}
             look={reviewerLook("commented")}
             time={comment.createdAt}

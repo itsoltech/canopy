@@ -16,6 +16,7 @@
   let visible = $state(5);
   const id = $derived(snapshot.summary?.ref?.id ?? "");
   const headSha = $derived(snapshot.summary?.headSha ?? "");
+  const cacheScope = $derived(`${snapshot.accountId}:${snapshot.accessRevision}:${id}:${headSha}`);
 
   const pages = $derived.by(() => {
     const base = create(github.PullRequestPageRequestSchema, {
@@ -23,12 +24,14 @@
       headSha,
     });
 
-    return new PullRequestPages((cursor, refresh) =>
-      api.page(
-        "checks",
-        github.PullRequestChecksPageSchema,
-        create(github.PullRequestPageRequestSchema, { ...base, cursor, refresh }),
-      ),
+    return new PullRequestPages(
+      (cursor, refresh) =>
+        api.page(
+          "checks",
+          github.PullRequestChecksPageSchema,
+          create(github.PullRequestPageRequestSchema, { ...base, cursor, refresh }),
+        ),
+      `checks:${cacheScope}`,
     );
   });
 
@@ -36,7 +39,13 @@
     const target = pages;
     untrack(() => void target.read());
 
-    return invalidations.subscribe(id, () => void target.invalidate(true));
+    const all = invalidations.subscribe(id, () => void target.invalidate(true));
+    const resource = invalidations.subscribe(`${id}:checks`, () => void target.invalidate(true, false));
+
+    return () => {
+      all();
+      resource();
+    };
   });
 
   const checks = $derived(sortedChecks(pages.pages.length ? pages.pages.flatMap((p) => p.checks) : snapshot.checks));

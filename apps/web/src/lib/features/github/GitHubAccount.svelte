@@ -123,7 +123,7 @@
       onclick={() => (expanded = !expanded)}
       class="grid min-h-16 min-w-0 flex-1 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 rounded-lg py-2 text-left focus-ring @min-[36rem]:min-h-14 @min-[36rem]:grid-cols-[auto_minmax(0,1fr)_auto]"
     >
-      <GitHubAvatar userId={account.githubUserId} login={account.login} class="row-span-3 @min-[36rem]:row-span-2" />
+      <GitHubAvatar accountId={account.id} login={account.login} class="row-span-3 @min-[36rem]:row-span-2" />
       <div class="col-start-2 row-start-1 min-w-0 text-base/5 font-medium sm:text-sm/5">
         <TruncatedText text={account.login} />
       </div>

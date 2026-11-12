@@ -128,7 +128,13 @@ export function CodeFileDiff({
 
   return (
     <View style={{ gap: 8, paddingVertical: 8 }}>
-      {busy && <Text style={[type.meta, { color: c.muted }]}>Loading patch…</Text>}
+      {busy && !patch && (
+        <View
+          accessibilityLabel="Loading diff"
+          accessibilityState={{ busy: true }}
+          style={{ height: 160, backgroundColor: c.inset, borderRadius: 6 }}
+        />
+      )}
       {!!error && (
         <>
           <Notice error>{error}</Notice>

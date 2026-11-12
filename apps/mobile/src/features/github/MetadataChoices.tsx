@@ -79,7 +79,12 @@ export function MetadataChoices({
               ) : option.kind === "team" ? (
                 <Icon name="user-group" label="Team" />
               ) : (
-                <GitHubAvatar login={option.name} userId={option.userId} compact />
+                <GitHubAvatar
+                  login={option.name}
+                  pullRequestId={snapshot.summary?.ref?.id}
+                  url={option.avatarUrl}
+                  compact
+                />
               )}
               <Text numberOfLines={1} style={[type.small, { flex: 1, color: c.text }]}>
                 {option.name}

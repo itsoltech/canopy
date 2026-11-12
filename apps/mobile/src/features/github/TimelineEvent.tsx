@@ -21,15 +21,11 @@ export function TimelineEvent({
   const entry = first?.content.value;
 
   if (!entry) return null;
+  const look = timelineLook(entry.kind, entry.state, first?.content.case);
 
   return (
     <View style={{ gap: 8 }}>
-      <ActivityHeader
-        author={entry.author}
-        look={timelineLook(entry.kind, entry.state, first?.content.case)}
-        time={entry.createdAt}
-        url={entry.url}
-      />
+      <ActivityHeader author={entry.author} look={look} time={entry.createdAt} url={entry.url} />
       {first?.content.case === "commit" ? (
         <>
           <Text style={[type.meta, { color: c.muted }]}>
@@ -59,6 +55,11 @@ export function TimelineEvent({
             );
           })}
         </>
+      ) : first?.content.case === "event" ? (
+        <Text style={[type.meta, { color: c.muted }]}>
+          {look.label}
+          {entry.body ? ` · ${entry.body}` : ""}
+        </Text>
       ) : (
         !!entry.body && (
           <View style={{ padding: 12, borderWidth: 1, borderColor: c.line, backgroundColor: c.inset, borderRadius: 8 }}>

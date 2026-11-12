@@ -2,20 +2,32 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { github } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { usePages } from "./usePages";
-import { useViewedRefresh } from "./useViewedRefresh";
+
+interface CodeView {
+  commitSha: string;
+  selected?: github.PullRequestFile;
+  patch?: github.PullRequestDiff;
+}
 
 /** Pin every lazy patch to the selected comparison and discard obsolete responses. */
 export function useCodeRead(snapshot: github.PullRequestSnapshot) {
-  const { client } = useSession();
+  const { client, queries } = useSession();
   const id = snapshot.summary?.ref?.id ?? "";
   const headSha = snapshot.summary?.headSha ?? "";
   const baseSha = snapshot.baseSha;
-  const [commitSha, setCommit] = useState("");
-  const [selected, setSelected] = useState<github.PullRequestFile>();
-  const [patch, setPatch] = useState<github.PullRequestDiff>();
+  const key = `CodeView:${snapshot.accountId}:${snapshot.accessRevision}:${id}:${headSha}:${baseSha}`;
+  const saved = queries.snapshot<CodeView>(key).data;
+  const [commitSha, setCommit] = useState(saved?.commitSha ?? "");
+  const [selected, setSelected] = useState<github.PullRequestFile | undefined>(saved?.selected);
+  const [patch, setPatch] = useState<github.PullRequestDiff | undefined>(saved?.patch);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const generation = useRef({ value: 0 });
+  const comparison = useRef(`${key}:${commitSha}`);
+
+  useEffect(() => {
+    queries.set(key, { commitSha, selected, patch });
+  }, [queries, key, commitSha, selected, patch]);
 
   const pages = usePages(
     useCallback(
@@ -26,6 +38,7 @@ export function useCodeRead(snapshot: github.PullRequestSnapshot) {
     id,
     "",
     true,
+    `files:${snapshot.accountId}:${snapshot.accessRevision}:${headSha}:${baseSha}:${commitSha}`,
   );
 
   const commits = usePages(
@@ -34,10 +47,12 @@ export function useCodeRead(snapshot: github.PullRequestSnapshot) {
       [client, id],
     ),
     id,
+    "",
+    false,
+    `commits:${snapshot.accountId}:${snapshot.accessRevision}:${headSha}`,
   );
 
   const currentPage = pages.current;
-  useViewedRefresh(() => pages.read(false, true));
   const [source, setSource] = useState(currentPage);
 
   if (source !== currentPage) {
@@ -55,16 +70,26 @@ export function useCodeRead(snapshot: github.PullRequestSnapshot) {
   useEffect(() => {
     const serial = generation.current;
     serial.value++;
+    const next = `${key}:${commitSha}`;
+
+    if (comparison.current !== next) {
+      comparison.current = next;
+      setSelected(undefined);
+      setPatch(undefined);
+      setBusy(false);
+      setError("");
+    }
 
     return () => {
       serial.value++;
     };
-  }, [currentPage]);
+  }, [key, commitSha]);
 
   async function open(file: github.PullRequestFile, force = true) {
     const version = ++generation.current.value;
+
+    if (selected?.path !== file.path) setPatch(undefined);
     setSelected(file);
-    setPatch(undefined);
     setError("");
     const load = force || file.patchState === "available";
     setBusy(load);

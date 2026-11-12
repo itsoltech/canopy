@@ -12,8 +12,9 @@ import { ActivityRow } from "./ActivityRow";
 import { IconAction } from "./IconAction";
 import type { github } from "@canopy/contracts";
 import { CommentComposer } from "./CommentComposer";
+import { ListSkeleton } from "../../ui/Skeleton";
 
-function useTimelineRead(id: string, kind: string, oldestFirst: boolean) {
+function useTimelineRead(id: string, kind: string, oldestFirst: boolean, scope: string) {
   const { client } = useSession();
 
   const pages = usePages(
@@ -24,6 +25,8 @@ function useTimelineRead(id: string, kind: string, oldestFirst: boolean) {
     ),
     id,
     `${id}:reviews`,
+    false,
+    `timeline:${scope}:${kind}:${oldestFirst}`,
   );
 
   const reviews = usePages(
@@ -34,6 +37,8 @@ function useTimelineRead(id: string, kind: string, oldestFirst: boolean) {
     ),
     id,
     `${id}:reviews`,
+    false,
+    `reviews:${scope}`,
   );
 
   return { pages, reviews };
@@ -57,10 +62,22 @@ export function PullRequestTimeline({
     [picker, setPicker] = useState(false);
 
   const includeThreads = !kind || kind === "review";
-  const { pages, reviews } = useTimelineRead(id, kind, oldestFirst);
+
+  const { pages, reviews } = useTimelineRead(
+    id,
+    kind,
+    oldestFirst,
+    `${snapshot.accountId}:${snapshot.accessRevision}:${snapshot.summary?.headSha}`,
+  );
 
   const rows = pullRequestActivity(
-    pages.pages.flatMap((p) => p.items),
+    pages.pages.flatMap((p) =>
+      p.items.filter((item) => {
+        const entry = item.content.value;
+
+        return entry && (item.content.case !== "event" || entry.createdAt || entry.body.trim());
+      }),
+    ),
     includeThreads ? reviews.pages.flatMap((p) => p.threads) : [],
     oldestFirst,
   );
@@ -105,7 +122,11 @@ export function PullRequestTimeline({
         }
         renderItem={({ item }) => <ActivityRow id={id} snapshot={snapshot} row={item} />}
         ListEmptyComponent={
-          pages.current ? <Text style={[type.meta, { color: c.muted }]}>No matching activity</Text> : undefined
+          pages.current ? (
+            <Text style={[type.meta, { color: c.muted }]}>No matching activity</Text>
+          ) : !pages.error ? (
+            <ListSkeleton rows={3} avatar inset={false} />
+          ) : undefined
         }
         ListFooterComponent={
           <View style={{ gap: 8, paddingTop: 16 }}>

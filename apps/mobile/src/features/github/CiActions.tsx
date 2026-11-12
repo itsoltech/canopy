@@ -1,6 +1,8 @@
 import { Text, View } from "react-native";
 import type { github } from "@canopy/contracts";
-import { ciLabel, ciEffect, ciReason, type CiAction } from "@canopy/domain/github-ci";
+import { ciLabel, ciEffect, ciReason, ciActions, type CiAction } from "@canopy/domain/github-ci";
+import { useState } from "react";
+import { PickerSheet, type PickerOption } from "../../ui/Picker";
 import { Button, Notice, Sheet } from "../../ui/components";
 import { useColors, useTypography } from "../../ui/theme";
 import { IconAction } from "./IconAction";
@@ -30,7 +32,9 @@ export function CiActions({
   const c = useColors(),
     type = useTypography();
 
-  const actions: CiAction[] = jobId ? ["job", "cancel"] : ["all", "failed", "cancel"];
+  const options = actionOptions(snapshot, runId, state, jobId, controller, online);
+  const [menu, setMenu] = useState(false);
+  const [pending, setPending] = useState<CiAction>();
   const refresh = () => invalidations.publish(snapshot.summary?.ref?.id ?? "");
 
   const close = () => {
@@ -42,45 +46,34 @@ export function CiActions({
   return (
     <View style={{ flexShrink: 0 }}>
       {!dialog && (
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          {actions.map((action, i) => {
-            const reason = !online
-              ? "Connect and refresh before changing CI."
-              : ciReason(snapshot, runId, state, action);
+        <View style={{ width: 44 }}>
+          {!!options.length && (
+            <IconAction icon="ellipsis-horizontal" label="Check actions" onPress={() => setMenu(true)} />
+          )}
+          <PickerSheet<CiAction>
+            title="Check actions"
+            visible={menu}
+            onClose={() => setMenu(false)}
+            onSelect={(action) => {
+              setPending(action);
+              setMenu(false);
+            }}
+            onDismiss={() => {
+              const action = pending;
+              setPending(undefined);
 
-            const inspect = !!f.receipt && i === 0;
+              if (!action) return;
 
-            return (
-              <IconAction
-                key={action}
-                icon={
-                  inspect
-                    ? "clock"
-                    : action === "cancel"
-                      ? "stop"
-                      : action === "failed"
-                        ? "arrow-path-rounded-square"
-                        : "arrow-path"
-                }
-                label={inspect ? "Check CI request" : ciLabel(action)}
-                disabled={!controller || f.busy || (!inspect && (controller.blocked || !!reason))}
-                hint={
-                  inspect
-                    ? "Check CI request"
-                    : reason || (controller?.blocked ? "Check current state before another CI action." : "")
-                }
-                onPress={() => {
-                  const choose = () => {
-                    if (controller?.state.receipt) controller.patch({ open: true });
-                    else void controller?.choose(action, action === "job" ? jobId : "", action === "job" ? name : "");
-                  };
+              const choose = () => {
+                if (controller?.state.receipt) controller.patch({ open: true });
+                else void controller?.choose(action, action === "job" ? jobId : "", action === "job" ? name : "");
+              };
 
-                  if (beforeChoose) beforeChoose(choose);
-                  else choose();
-                }}
-              />
-            );
-          })}
+              if (beforeChoose) beforeChoose(choose);
+              else choose();
+            }}
+            sections={[{ options }]}
+          />
         </View>
       )}
       {dialog && (
@@ -131,4 +124,24 @@ export function CiActions({
       )}
     </View>
   );
+}
+
+function actionOptions(
+  snapshot: github.PullRequestSnapshot,
+  runId: string,
+  state: string,
+  jobId: string,
+  controller: ReturnType<typeof useCiController>["controller"],
+  online: boolean,
+): PickerOption<CiAction>[] {
+  if (!controller) return [];
+
+  if (controller.state.receipt) return [{ value: "all", label: "Check CI request", icon: "clock" }];
+
+  return (runId ? ciActions(state, !!jobId) : []).map((action) => ({
+    value: action,
+    label: ciLabel(action),
+    disabled: controller.blocked || !online || !!ciReason(snapshot, runId, state, action),
+    description: !online ? "Connect to change CI." : ciReason(snapshot, runId, state, action) || undefined,
+  }));
 }

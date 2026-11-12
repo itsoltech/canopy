@@ -6,7 +6,14 @@ import type { TestGateway } from "./gateway.ts";
 export const readHead = "a".repeat(40);
 export const readBase = "b".repeat(40);
 const date = "2026-11-10T12:00:00Z";
-const author = { login: "fixture-reviewer" };
+
+const author = {
+  login: "fixture-reviewer",
+  avatarUrl: "https://avatars.githubusercontent.com/u/2?v=4",
+  __typename: "User",
+};
+
+const bot = { login: "claude", avatarUrl: "https://avatars.githubusercontent.com/in/3?v=4", __typename: "Bot" };
 const source = "https://github.com/itsoltech/canopy/pull/42";
 
 export function fixtureFilePath(i: number) {
@@ -65,6 +72,50 @@ export function readFixture(
   let attempt = 1;
   let timelineVersion = "";
   const counts = new Map<string, number>();
+  const baseFetch = fixture.options.fetch;
+
+  if (!baseFetch) throw new Error("Missing fixture transport");
+
+  const avatarRequests: {
+    authorization: string | null;
+    cookie: string | null;
+    credentials?: RequestInit["credentials"];
+    redirect?: RequestInit["redirect"];
+  }[] = [];
+
+  let avatarMime = "image/png";
+  let avatarStatus = 200;
+
+  let avatarBody = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==",
+    "base64",
+  );
+
+  const fixtureFetch: typeof fetch = Object.assign(
+    (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      const url = new URL(input instanceof Request ? input.url : String(input));
+
+      if (url.origin !== "https://avatars.githubusercontent.com") return baseFetch(input, init);
+      counts.set("avatars", (counts.get("avatars") ?? 0) + 1);
+      const headers = new Headers(init?.headers);
+      avatarRequests.push({
+        authorization: headers.get("authorization"),
+        cookie: headers.get("cookie"),
+        credentials: init?.credentials,
+        redirect: init?.redirect,
+      });
+
+      return Promise.resolve(
+        headers.get("if-none-match") === '"avatar-v1"'
+          ? new Response(null, { status: 304, headers: { etag: '"avatar-v1"' } })
+          : new Response(avatarBody, {
+              status: avatarStatus,
+              headers: { "content-type": avatarMime, etag: '"avatar-v1"' },
+            }),
+      );
+    },
+    { preconnect: fetch.preconnect },
+  );
 
   const checkItems = () =>
     Array.from({ length: 137 }, (_, i) => ({
@@ -83,7 +134,8 @@ export function readFixture(
 
   const events = () =>
     Array.from({ length: 153 }, (_, i) => {
-      const common = { id: `EVENT_${i}`, author, actor: author, createdAt: date, url: source };
+      const person = i % 5 === 0 ? bot : author;
+      const common = { id: `EVENT_${i}`, author: person, actor: person, createdAt: date, url: source };
 
       if (i % 4 === 0)
         return {
@@ -295,7 +347,9 @@ export function readFixture(
     }
 
     if (key.endsWith("/pulls/42/commits"))
-      return Response.json([{ sha: head, commit: { message: "Safe change", author: { name: author.login } } }]);
+      return Response.json([{ sha: head, commit: { message: "Safe change", author: { name: author.login } } }], {
+        headers: { etag: headers.etag },
+      });
 
     if (key.endsWith("/actions/runs/123"))
       return Response.json({
@@ -327,6 +381,13 @@ export function readFixture(
 
   return {
     ...fixture,
+    options: { ...fixture.options, fetch: fixtureFetch },
+    avatarRequests,
+    avatarResponse: (mime: string, bytes: number, status = 200) => {
+      avatarMime = mime;
+      avatarBody = Buffer.alloc(bytes);
+      avatarStatus = status;
+    },
     counts,
     head: (value: string) => {
       head = value;

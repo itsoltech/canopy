@@ -4,12 +4,13 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { Schema } from "effect";
 import { digest, graphErrors } from "./read-scope.ts";
 
-const User = Schema.Struct({ id: Schema.String, login: Schema.String });
+const User = Schema.Struct({ id: Schema.String, login: Schema.String, avatarUrl: Schema.optional(Schema.String) });
 const Label = Schema.Struct({ id: Schema.String, name: Schema.String, color: Schema.String });
 
 const Reviewer = Schema.Struct({
   id: Schema.String,
   login: Schema.optional(Schema.String),
+  avatarUrl: Schema.optional(Schema.String),
   slug: Schema.optional(Schema.String),
   organization: Schema.optional(Schema.Struct({ login: Schema.String })),
 });
@@ -39,8 +40,8 @@ export const MetadataRepository = Schema.Struct({
 export const METADATA_QUERY = `query CanopyMetadata($owner:String!,$name:String!,$number:Int!,$reviewers:String,$assignees:String,$labels:String){
 rateLimit{cost remaining resetAt} repository(owner:$owner,name:$name){databaseId viewerPermission
 pullRequest(number:$number){id title body viewerCanUpdate author{login ... on User{id}}
-reviewRequests(first:100,after:$reviewers){nodes{requestedReviewer{... on User{id login} ... on Team{id slug organization{login}}}} pageInfo{hasNextPage endCursor}}
-assignees(first:100,after:$assignees){nodes{id login} pageInfo{hasNextPage endCursor}}
+reviewRequests(first:100,after:$reviewers){nodes{requestedReviewer{... on User{id login avatarUrl(size:64)} ... on Team{id slug organization{login}}}} pageInfo{hasNextPage endCursor}}
+assignees(first:100,after:$assignees){nodes{id login avatarUrl(size:64)} pageInfo{hasNextPage endCursor}}
 labels(first:100,after:$labels){nodes{id name color} pageInfo{hasNextPage endCursor}}}}}`;
 
 export function metadataData(value: Schema.JsonObject, repository: string, id: string) {
@@ -67,12 +68,18 @@ export function metadataView(repo: typeof MetadataRepository.Type) {
             id: r.id,
             name: r.login ?? `${r.organization?.login}/${r.slug}`,
             kind: r.login ? "user" : "team",
+            avatarUrl: r.avatarUrl ?? "",
           },
         ]
       : [],
   );
 
-  const assignees = pr.assignees.nodes.map((u) => ({ id: u.id, name: u.login, kind: "user" }));
+  const assignees = pr.assignees.nodes.map((u) => ({
+    id: u.id,
+    name: u.login,
+    kind: "user",
+    avatarUrl: u.avatarUrl ?? "",
+  }));
 
   const labels = pr.labels.nodes.map((l) => ({
     ...l,

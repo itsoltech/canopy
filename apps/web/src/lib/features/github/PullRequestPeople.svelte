@@ -36,7 +36,9 @@
       {@const look = reviewerLook(reviewer.state)}
       <div class="flex min-h-8 min-w-0 items-center gap-2">
         {#if reviewer.login.includes("/")}<Icon name="user-group" label="Team" />{:else}<GitHubAvatar
-            userId=""
+            pullRequestId={snapshot.summary?.ref?.id}
+            url={reviewerDisplay?.reviewers.find((r) => r.name === reviewer.login)?.avatarUrl ||
+              snapshot.actorAvatars[reviewer.login]}
             login={reviewer.login}
             compact
           />{/if}
@@ -58,7 +60,12 @@
     />
     {#if !assignees.length}<p class="text-zinc-500 dark:text-zinc-400">No assignees</p>{/if}
     {#each assignees as login, i (`${login}:${i}`)}<div class="flex min-h-8 min-w-0 items-center gap-2">
-        <GitHubAvatar userId="" {login} compact />
+        <GitHubAvatar
+          pullRequestId={snapshot.summary?.ref?.id}
+          url={assigneeDisplay?.assignees.find((a) => a.name === login)?.avatarUrl || snapshot.actorAvatars[login]}
+          {login}
+          compact
+        />
         <p class="min-w-0 flex-1 truncate" title={login}>{login}</p>
         <span {@attach tooltip("Assigned")}><Icon name="user" label="Assigned" /></span>
       </div>{/each}

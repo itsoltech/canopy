@@ -6,7 +6,23 @@ import { mutationRequest, mutationUnconfirmed, sendMutation, type MutationApi } 
 export type CiAction = "all" | "failed" | "job" | "cancel";
 
 export const ciLabel = (action: CiAction) =>
-  ({ all: "Re-run", job: "Re-run", failed: "Re-run failed", cancel: "Cancel run" })[action];
+  ({ all: "Re-run", job: "Re-run", failed: "Re-run failed jobs", cancel: "Cancel" })[action];
+
+/** Hide inapplicable actions before permissions/connectivity disable any remaining choices. */
+export function ciActions(state: string, job = false): CiAction[] {
+  if (["queued", "in_progress", "pending", "waiting", "requested"].includes(state)) return ["cancel"];
+
+  if (
+    !["success", "failure", "timed_out", "cancelled", "action_required", "neutral", "skipped", "completed"].includes(
+      state,
+    )
+  )
+    return [];
+
+  return job
+    ? ["job"]
+    : ["all", ...(["failure", "timed_out", "action_required"].includes(state) ? ["failed" as const] : [])];
+}
 
 export const ciEffect = (action: CiAction) =>
   ({

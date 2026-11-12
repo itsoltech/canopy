@@ -34,7 +34,15 @@ export function PullRequestPeople({ snapshot }: { snapshot: github.PullRequestSn
             {r.login.includes("/") ? (
               <StatusIcon name="user-group" label="Team" />
             ) : (
-              <GitHubAvatar login={r.login} userId="" compact />
+              <GitHubAvatar
+                login={r.login}
+                pullRequestId={snapshot.summary?.ref?.id}
+                url={
+                  reviewerDisplay?.reviewers.find((reviewer) => reviewer.name === r.login)?.avatarUrl ||
+                  snapshot.actorAvatars[r.login]
+                }
+                compact
+              />
             )}
             <Text numberOfLines={1} style={[type.small, { flex: 1, color: c.text }]}>
               {r.login}
@@ -52,7 +60,12 @@ export function PullRequestPeople({ snapshot }: { snapshot: github.PullRequestSn
         {!assignees.length && <Text style={[type.small, { color: c.muted }]}>No assignees</Text>}
         {assignees.map((login, i) => (
           <View key={`${login}:${i}`} style={{ flexDirection: "row", alignItems: "center", gap: 8, minHeight: 32 }}>
-            <GitHubAvatar {...{ login }} userId="" compact />
+            <GitHubAvatar
+              {...{ login }}
+              pullRequestId={snapshot.summary?.ref?.id}
+              url={assigneeDisplay?.assignees.find((a) => a.name === login)?.avatarUrl || snapshot.actorAvatars[login]}
+              compact
+            />
             <Text numberOfLines={1} style={[type.small, { flex: 1, color: c.text }]}>
               {login}
             </Text>

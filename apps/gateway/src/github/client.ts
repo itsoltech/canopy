@@ -10,6 +10,7 @@ import { GitHubMemoryCache } from "./memory-cache.ts";
 export interface GitHubRead {
   key: string;
   path: string;
+  image?: boolean;
   variables?: Readonly<Record<string, string | number>>;
   query?: string;
   ttl?: number;
@@ -148,6 +149,7 @@ export class GitHubClient {
     }
   }
   async #request(row: AccountRow, read: GitHubRead, etag: string, signal: AbortSignal) {
+    if (read.image) return { ...(await this.access.http.image(read.path, etag, signal)), row };
     const { run, http } = this.access;
     const resource = read.query ? "graphql" : "core";
     const lease = Bun.randomUUIDv7();

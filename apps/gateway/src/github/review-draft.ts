@@ -73,7 +73,7 @@ const comment = Schema.Struct({
   updated_at: Schema.String,
   created_at: Schema.String,
   html_url: Schema.String,
-  user: Schema.Struct({ id: Schema.Number, login: Schema.String }),
+  user: Schema.Struct({ id: Schema.Number, login: Schema.String, avatar_url: Schema.optional(Schema.String) }),
 });
 
 export function draftPage(value: Schema.JsonObject, h: DraftHeader, user: string, page: github.PullRequestPageInfo) {
@@ -102,6 +102,7 @@ export function draftPage(value: Schema.JsonObject, h: DraftHeader, user: string
         id: c.node_id,
         body: c.body,
         author: c.user.login,
+        avatarUrl: c.user.avatar_url ?? "",
         sha: c.original_commit_id,
         url: c.html_url,
         createdAt: timestampFromDate(new Date(c.created_at)),

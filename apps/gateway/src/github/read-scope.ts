@@ -15,13 +15,19 @@ export const invalidCursor = () => new ConnectError("This page changed. Refresh 
 export const changesUpdated = () => new ConnectError("Changes updated. Refresh the files.", Code.FailedPrecondition);
 
 /** Access is checked before cache; a cursor is authenticated for one owner/account/PR/filter/SHA. */
-export async function readScope(prs: GitHubPullRequests, request: github.PullRequestPageRequest, kind: string) {
+export async function readScope(
+  prs: GitHubPullRequests,
+  request: github.PullRequestPageRequest,
+  kind: string,
+  wait = false,
+  verifiedSnapshot?: github.PullRequestSnapshot,
+) {
   const { accounts, repositories, client } = prs;
 
   if (!uuid(request.pullRequestId)) throw new ConnectError("Pull request not found", Code.NotFound);
   const pr = await accounts.run((s) => s.prOwned(accounts.owner, request.pullRequestId));
   // Explicit refresh must wait for an expired Summary, including between mutation and receipt inspection.
-  const snapshot = await prs.load(pr.repository_name, pr.number, false, false, request.refresh);
+  const snapshot = verifiedSnapshot ?? (await prs.load(pr.repository_name, pr.number, false, false, request.refresh));
   const { mapping, row } = await repositories.selected(pr.repository_name);
   const access = await accounts.access.token(row.id);
 
@@ -50,26 +56,10 @@ export async function readScope(prs: GitHubPullRequests, request: github.PullReq
 
   const binding = bind(kind);
   const sign = (value: string) => createHmac("sha256", access.token).update(value).digest();
-  let position = "";
-  let generation = Bun.randomUUIDv7();
 
-  if (request.cursor) {
-    try {
-      if (request.cursor.length > 8192) throw invalidCursor();
-      const [text = "", signature = ""] = request.cursor.split(".");
-      const expected = sign(text);
-      const actual = Buffer.from(signature, "base64url");
-
-      if (actual.length !== expected.length || !timingSafeEqual(expected, actual)) throw invalidCursor();
-      const cursor = Schema.decodeUnknownSync(Cursor)(JSON.parse(Buffer.from(text, "base64url").toString()));
-
-      if (cursor.binding !== binding) throw invalidCursor();
-      position = cursor.position;
-      generation = cursor.snapshot;
-    } catch {
-      throw invalidCursor();
-    }
-  }
+  const { position, snapshot: generation } = request.cursor
+    ? parseCursor(request.cursor, binding, sign)
+    : { position: "", snapshot: Bun.randomUUIDv7() };
 
   const cursor = (next: string, cursorBinding = binding) => {
     if (!next) return "";
@@ -93,17 +83,24 @@ export async function readScope(prs: GitHubPullRequests, request: github.PullReq
       snapshot: generation,
     });
 
-  async function fresh() {
-    const current = await prs.load(pr.repository_name, pr.number, true);
-
-    if (current.summary?.headSha !== head || current.baseSha !== snapshot.baseSha) throw changesUpdated();
-
-    if (current.stale) throw new ConnectError("Connect to load this page. Retry when connected.", Code.Unavailable);
-  }
-
   async function read<D extends DescMessage>(schema: D, options: Omit<GitHubRead, "key">): Promise<MessageShape<D>> {
     const key = `${kind}:${pr.repository_id}:${pr.number}:${binding}:${digest(position)}`;
     const cached = await client.cached(row, key);
+
+    if (!request.refresh && !wait && cached?.payload && Number(new Date(cached.expires_at)) <= accounts.http.now()) {
+      // The viewer already has verified data. Revalidate through the same durable single flight.
+      void client
+        .read(row.id, { ...options, key })
+        .catch(async (cause) => {
+          if (githubFailure(cause).code === Code.PermissionDenied) {
+            client.memory.clear();
+            await accounts.run((s) => s.cacheInvalidate(accounts.owner, row.id));
+          }
+        })
+        .catch(() => {});
+
+      return fromJsonString(schema, JSON.stringify(cached.payload));
+    }
 
     try {
       const value = await client.read(row.id, { ...options, key }, request.refresh);
@@ -148,12 +145,13 @@ export async function readScope(prs: GitHubPullRequests, request: github.PullReq
     pr,
     snapshot,
     row,
+    binding,
     head,
     position,
     cursor,
     page,
     read,
-    fresh,
+    fresh: () => freshPage(prs, pr.repository_name, pr.number, head, snapshot.baseSha),
     replyCursor: (id: string, next: string) => cursor(next, bind("reviews", id)),
     root: `/repos/${pr.repository_name}`,
     variables: { owner: pr.repository_name.split("/")[0]!, name: pr.repository_name.split("/")[1]!, number: pr.number },
@@ -161,6 +159,32 @@ export async function readScope(prs: GitHubPullRequests, request: github.PullReq
 }
 
 export type ReadScope = Awaited<ReturnType<typeof readScope>>;
+
+async function freshPage(prs: GitHubPullRequests, repository: string, number: number, head: string, base: string) {
+  const current = await prs.load(repository, number, true);
+
+  if (current.summary?.headSha !== head || current.baseSha !== base) throw changesUpdated();
+
+  if (current.stale) throw new ConnectError("Connect to load this page. Retry when connected.", Code.Unavailable);
+}
+
+function parseCursor(value: string, binding: string, sign: (text: string) => Uint8Array) {
+  try {
+    if (value.length > 8192) throw invalidCursor();
+    const [text = "", signature = ""] = value.split(".");
+    const expected = sign(text);
+    const actual = Buffer.from(signature, "base64url");
+
+    if (actual.length !== expected.length || !timingSafeEqual(expected, actual)) throw invalidCursor();
+    const cursor = Schema.decodeUnknownSync(Cursor)(JSON.parse(Buffer.from(text, "base64url").toString()));
+
+    if (cursor.binding !== binding) throw invalidCursor();
+
+    return cursor;
+  } catch {
+    throw invalidCursor();
+  }
+}
 
 const filterBinding = (r: github.PullRequestPageRequest) => [r.kind, r.author, r.oldestFirst, r.commitSha];
 

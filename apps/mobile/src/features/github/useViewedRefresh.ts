@@ -15,14 +15,12 @@ export function useViewedRefresh(refresh: () => Promise<void>) {
       };
 
       read();
-      const timer = setInterval(read, 60_000);
 
       const listener = AppState.addEventListener("change", (state) => {
         if (state === "active") read();
       });
 
       return () => {
-        clearInterval(timer);
         listener.remove();
       };
     }, [online]),

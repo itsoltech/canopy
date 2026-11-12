@@ -15,6 +15,11 @@ export async function githubRead(api: ReturnType<typeof gateway>, operation: str
           options,
         ),
       );
+    case "avatar":
+      return encode(
+        github.PullRequestAvatarSchema,
+        await api.getPullRequestAvatar(await readMessage(request, github.PullRequestAvatarRequestSchema), options),
+      );
     case "metadata":
       return encode(
         github.PullRequestMetadataPageSchema,

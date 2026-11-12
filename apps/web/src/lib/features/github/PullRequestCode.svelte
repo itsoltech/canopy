@@ -13,13 +13,31 @@
   import { invalidations } from "./invalidations.ts";
   import { ReviewDraft } from "./review-draft.svelte.ts";
   import ReviewBar from "./ReviewBar.svelte";
+  import ReadSkeleton from "./ReadSkeleton.svelte";
+  import { queries } from "#lib/shared/queries.svelte.ts";
+
+  interface CodeView {
+    commit: string;
+    tree: boolean;
+    collapsed: Set<string>;
+    selected?: github.PullRequestFile;
+    patch?: github.PullRequestDiff;
+  }
 
   let { snapshot, class: className }: { snapshot: github.PullRequestSnapshot; class?: ClassValue } = $props();
-  let commit = $state("");
-  let tree = $state(false);
-  let collapsed = $state(new Set<string>());
-  let selected = $state<github.PullRequestFile>();
-  let patch = $state<github.PullRequestDiff>();
+
+  const saved = untrack(
+    () =>
+      queries.snapshot<CodeView>(
+        `CodeView:${snapshot.accountId}:${snapshot.accessRevision}:${snapshot.summary?.ref?.id}`,
+      ).data,
+  );
+
+  let commit = $state(saved?.commit ?? "");
+  let tree = $state(saved?.tree ?? false);
+  let collapsed = $state(saved?.collapsed ?? new Set<string>());
+  let selected = $state<github.PullRequestFile | undefined>(saved?.selected);
+  let patch = $state<github.PullRequestDiff | undefined>(saved?.patch);
   let busy = $state(false);
   let error = $state("");
   let version = 0;
@@ -27,15 +45,38 @@
   const id = $derived(snapshot.summary?.ref?.id ?? "");
   const headSha = $derived(snapshot.summary?.headSha ?? "");
   const baseSha = $derived(snapshot.baseSha);
-  const draft = $derived(new ReviewDraft(id, headSha));
+  const cacheScope = $derived(`${snapshot.accountId}:${snapshot.accessRevision}:${id}:${headSha}:${baseSha}`);
+  const draft = $derived(new ReviewDraft(id, headSha, `ReviewDraft:${cacheScope}`));
+  let comparison = untrack(() => `${cacheScope}:${commit}`);
+
+  $effect(() => {
+    const next = `${cacheScope}:${commit}`;
+    untrack(() => {
+      if (comparison === next) return;
+      comparison = next;
+      close();
+    });
+  });
+
+  $effect(() =>
+    queries.set(`CodeView:${snapshot.accountId}:${snapshot.accessRevision}:${id}`, {
+      commit,
+      tree,
+      collapsed,
+      selected,
+      patch,
+    }),
+  );
 
   $effect(() => {
     const target = draft;
-    untrack(() => void target.read());
-    const unsubscribe = invalidations.subscribe(`${id}:reviews`, () => void target.read());
+    untrack(() => void target.read(false, false));
+    const unsubscribe = invalidations.subscribe(`${id}:reviews`, () => void target.read(false, false));
+    const manual = invalidations.subscribe(id, () => void target.read());
 
     return () => {
       unsubscribe();
+      manual();
       target.close();
     };
   });
@@ -52,22 +93,26 @@
   const pages = $derived.by(() => {
     const request = base;
 
-    return new PullRequestPages((cursor, refresh) =>
-      api.page(
-        "files",
-        github.PullRequestFilesPageSchema,
-        create(github.PullRequestPageRequestSchema, { ...request, cursor, refresh }),
-      ),
+    return new PullRequestPages(
+      (cursor, refresh) =>
+        api.page(
+          "files",
+          github.PullRequestFilesPageSchema,
+          create(github.PullRequestPageRequestSchema, { ...request, cursor, refresh }),
+        ),
+      `files:${cacheScope}:${commit}`,
     );
   });
 
   const commits = $derived(
-    new PullRequestPages((cursor, refresh) =>
-      api.page(
-        "commits",
-        github.PullRequestCommitsPageSchema,
-        create(github.PullRequestPageRequestSchema, { pullRequestId: id, cursor, refresh }),
-      ),
+    new PullRequestPages(
+      (cursor, refresh) =>
+        api.page(
+          "commits",
+          github.PullRequestCommitsPageSchema,
+          create(github.PullRequestPageRequestSchema, { pullRequestId: id, cursor, refresh }),
+        ),
+      `commits:${cacheScope}`,
     ),
   );
 
@@ -107,20 +152,30 @@
   $effect(() => {
     const target = pages;
     untrack(() => {
-      selected = undefined;
-      patch = undefined;
       version++;
       void target.read();
     });
 
-    return invalidations.subscribe(id, () => void target.invalidate(true));
+    const all = invalidations.subscribe(id, () => void target.invalidate(true));
+    const resource = invalidations.subscribe(`${id}:files`, () => void target.invalidate(true, false));
+
+    return () => {
+      all();
+      resource();
+    };
   });
 
   $effect(() => {
     const target = commits;
     untrack(() => void target.read());
 
-    return invalidations.subscribe(id, () => void target.invalidate());
+    const all = invalidations.subscribe(id, () => void target.invalidate());
+    const resource = invalidations.subscribe(`${id}:commits`, () => void target.invalidate(false, false));
+
+    return () => {
+      all();
+      resource();
+    };
   });
 
   $effect(() => {
@@ -130,17 +185,15 @@
     const refresh = () => {
       if (document.visibilityState === "visible" && navigator.onLine) {
         void target.read(false, true);
-        void review.read();
+        void review.read(false, false);
       }
     };
 
-    const timer = setInterval(refresh, 60_000);
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", refresh);
     window.addEventListener("online", refresh);
 
     return () => {
-      clearInterval(timer);
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", refresh);
       window.removeEventListener("online", refresh);
@@ -148,8 +201,8 @@
   });
 
   async function open(file: github.PullRequestFile, force = false) {
+    if (selected?.path !== file.path) patch = undefined;
     selected = file;
-    patch = undefined;
     error = "";
     busy = force || file.patchState === "available";
     const generation = ++version;
@@ -188,9 +241,12 @@
     count={commit ? `${files.length}${pages.current?.page?.nextCursor ? "+" : ""}` : String(snapshot.files)}
     more={commits.current?.page?.nextCursor ? () => void commits.read(true) : undefined}
     busy={commits.busy}
+    error={commits.error}
+    retry={() => void commits.read(false, true)}
     viewed={pages.current?.viewedComplete ? `${viewedCount}/${pages.current.viewedTotal}` : "…"}
   />
   {#if commit}<p class="py-2 text-sm/5 text-zinc-500 sm:text-xs/5">Changes against this commit’s first parent</p>{/if}
+  {#if !pages.current && !pages.error}<ReadSkeleton />{/if}
   <ul role="list" class="min-w-0">
     {#each rows as row (row.key)}
       {#if row.kind === "folder"}<li>

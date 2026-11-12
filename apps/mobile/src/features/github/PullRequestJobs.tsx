@@ -12,6 +12,7 @@ import { PullRequestLog } from "./PullRequestLog";
 import { toneColor } from "./presentation";
 import type { github } from "@canopy/contracts";
 import { CiActions } from "./CiActions";
+import { ListSkeleton } from "../../ui/Skeleton";
 
 export function PullRequestJobs({ snapshot, runId }: { snapshot: github.PullRequestSnapshot; runId: string }) {
   const id = snapshot.summary?.ref?.id ?? "";
@@ -31,6 +32,7 @@ export function PullRequestJobs({ snapshot, runId }: { snapshot: github.PullRequ
     id,
     "",
     true,
+    `jobs:${snapshot.accountId}:${snapshot.accessRevision}:${snapshot.summary?.headSha}:${runId}`,
   );
 
   const latest = useRef(pages);
@@ -46,7 +48,7 @@ export function PullRequestJobs({ snapshot, runId }: { snapshot: github.PullRequ
           AppState.currentState === "active" &&
           current.current?.jobs.some((job) => ["queued", "in_progress", "pending", "waiting"].includes(job.state))
         )
-          void current.read(false, true);
+          void current.read();
       }, 15_000);
 
       return () => clearInterval(timer);
@@ -55,6 +57,7 @@ export function PullRequestJobs({ snapshot, runId }: { snapshot: github.PullRequ
 
   return (
     <View style={{ gap: 8, padding: 8 }}>
+      {!pages.current && !pages.error && <ListSkeleton rows={3} inset={false} />}
       {pages.current?.run && (
         <View style={{ flexDirection: "row", alignItems: "center" }}>
           <Text style={[type.small, { flex: 1, color: c.text }]}>

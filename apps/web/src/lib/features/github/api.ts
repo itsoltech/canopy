@@ -141,3 +141,6 @@ export const unlink = async (threadId: string, pullRequestId: string, expectedRe
 
 export const pullRequest = async (pullRequestId: string, refresh = false) =>
   decode(github.PullRequestSnapshotSchema, await post("pull-request", { pullRequestId, refresh }));
+
+export const avatar = async (pullRequestId: string, url: string, accountId: string) =>
+  decode(github.PullRequestAvatarSchema, await post("avatar", { pullRequestId, url, accountId }));
