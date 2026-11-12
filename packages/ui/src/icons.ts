@@ -290,6 +290,11 @@ export const icons = {
   ],
   // check
   copied: ["m5 12l5 5L20 7"],
+  // git-branch
+  "git-branch": [
+    "M5 18a2 2 0 1 0 4 0a2 2 0 1 0-4 0M5 6a2 2 0 1 0 4 0a2 2 0 1 0-4 0m10 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0",
+    "M7 8v8m2 2h6a2 2 0 0 0 2-2v-5m-3 3l3-3l3 3",
+  ],
   // git-fork
   "git-fork": [
     "M10 18a2 2 0 1 0 4 0a2 2 0 1 0-4 0M5 6a2 2 0 1 0 4 0a2 2 0 1 0-4 0m10 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0",

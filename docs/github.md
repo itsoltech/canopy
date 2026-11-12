@@ -333,9 +333,14 @@ doczytania kolejnych stron przez **Load more**; nie uruchamiamy nieograniczonego
 Web/desktop używa `Popover` i `Combobox`, mobile wspólnego arkusza i wirtualnej listy.
 Otwarcie od razu pokazuje skeleton, bez odczytu GitHub przy otwieraniu całego wątku.
 **Open / All** obejmuje także closed/merged; wybór linkuje istniejącą akcją i pozostawia
-picker otwarty do kolejnego linku. Powiązane wiersze mają **Linked** i są wyłączone.
-Numer PR albo URL otwiera dotychczasowy formularz kontroli dostępu, także dla innego repo.
-Brak GitHub remote pokazuje wyłącznie ścieżkę URL; brak konta, instalacji i limit API
+picker otwarty do kolejnego linku. Nagłówek mieści repozytorium, opcjonalne konto i filtr
+w jednej linii. Wiersz ma najwyżej dwie linie: stan, numer i tytuł oraz gałęzie, autora
+i krótki wiek. Aktualną gałąź, własny PR i powiązanie oznaczają ikony z dostępnymi etykietami;
+miejsce na statusy jest stałe, a powiązane wiersze są wyłączone. Lista przewija się wewnątrz panelu.
+Pole **Search or paste a link** przyjmuje numer PR lub URL, także innego repozytorium.
+Pierwszy wynik **Link #123** albo **Link {url}** linkuje bez osobnego przycisku URL.
+Nieudane linkowanie URL udostępnia dotychczasowy formularz kontroli dostępu.
+Brak GitHub remote zachowuje wyszukiwanie z wklejeniem URL; brak konta, instalacji i limit API
 mają odrębne stany, akcję połączenia/zarządzania repo lub czas resetu. Nie dodajemy natywnych
 zależności, uprawnień ani konfiguracji mobile.
 Panel wątku nie pokazuje podpowiedzi o wyborze konta ani ręcznym dopasowaniu gałęzi:

@@ -8,6 +8,7 @@
     "./composer-connection": "./src/composer-connection.ts",
     "./thread-watch-state": "./src/thread-watch-state.ts",
     "./github-pr": "./src/github-pr.ts",
+    "./github-pr-picker": "./src/github-pr-picker.ts",
     "./github-read": "./src/github-read.ts",
     "./github-watch": "./src/github-watch.ts",
     "./github-mutations": "./src/github-mutations.ts",
