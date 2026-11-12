@@ -15,6 +15,7 @@ import { UpdateRows } from "./UpdateRows";
 import { CliUpdates } from "./CliUpdates";
 import { UpdateFeedback, UpdateRun } from "./UpdateSummary";
 import { usePhoneUpdates } from "./phone";
+import { useWhatsNew } from "./whats-new";
 
 /** The third sidebar action, like the web update center. Its 44 dp slot stays reserved in every state. */
 export function UpdateCenterButton() {
@@ -46,7 +47,8 @@ export function UpdateCenterButton() {
 export function UpdateCenter() {
   const { snapshot, open, setOpen, pending, manage } = useUpdates();
   const phone = usePhoneUpdates();
-  const settings = useRef(false);
+  const destination = useRef<"settings" | "notes" | undefined>(undefined);
+  const notes = useWhatsNew();
   const c = useColors();
   const busy = !!pending || snapshot?.run?.state === "running";
 
@@ -56,10 +58,12 @@ export function UpdateCenter() {
       onClose={() => setOpen(false)}
       label="Updates"
       onDismiss={() => {
-        if (settings.current) {
-          settings.current = false;
-          openSettingsSection("workers");
-        }
+        const next = destination.current;
+        destination.current = undefined;
+
+        if (next === "settings") openSettingsSection("app-updates");
+
+        if (next === "notes") notes.show();
       }}
     >
       <SheetContent.Provider value={true}>
@@ -101,11 +105,20 @@ export function UpdateCenter() {
           </ScrollView>
           <View style={{ borderTopWidth: 1, borderColor: c.line, paddingHorizontal: 16, paddingVertical: 8 }}>
             <Button
+              title="What's new"
+              variant="ghost"
+              size="sm"
+              onPress={() => {
+                destination.current = "notes";
+                setOpen(false);
+              }}
+            />
+            <Button
               title="Open update settings"
               variant="ghost"
               size="sm"
               onPress={() => {
-                settings.current = true;
+                destination.current = "settings";
                 setOpen(false);
               }}
             />

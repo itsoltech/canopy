@@ -61,6 +61,12 @@ export interface DesktopReleaseNote {
   markdown: string;
 }
 
+export interface DesktopAppHistory {
+  version: string;
+  from: string;
+  updated: boolean;
+}
+
 export interface DesktopStatus {
   /** Last saved mode selection, without credentials or one-time enrollment fields. */
   configuration?: DesktopSavedConfiguration;
@@ -189,6 +195,10 @@ export interface DesktopBridge {
   /** Versioned feedback avoids outdated remote overlays saying "again" after the window expires. */
   onQuitGuard(listener: (state: QuitGuardState) => void, overlayVersion?: 1): () => void;
   updates(): Promise<DesktopUpdateStatus>;
+  /** This app's device-local history, independent of the selected gateway. */
+  appUpdateHistory?(): Promise<DesktopAppHistory>;
+  /** Validated public Pages notes, read in main without relaxing the renderer's CSP. */
+  releaseNotes?(): Promise<string>;
   setUpdateChannel(channel: DesktopUpdateChannel): Promise<DesktopUpdateStatus>;
   setUpdateCheckInterval?(minutes: number): Promise<DesktopUpdateStatus>;
   checkForUpdates(): Promise<DesktopUpdateStatus>;

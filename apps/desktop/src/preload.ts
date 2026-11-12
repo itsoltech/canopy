@@ -62,6 +62,8 @@ const bridge: DesktopBridge = {
       ipcRenderer.send("canopy:quit-guard-delivered", delivered.phase, "web");
     }, overlayVersion === 1),
   updates: () => ipcRenderer.invoke("canopy:updates"),
+  appUpdateHistory: () => ipcRenderer.invoke("canopy:app-update-history"),
+  releaseNotes: () => ipcRenderer.invoke("canopy:release-notes"),
   setUpdateChannel: (channel) => ipcRenderer.invoke("canopy:update-channel", channel),
   setUpdateCheckInterval: (minutes) => ipcRenderer.invoke("canopy:update-check-interval", minutes),
   checkForUpdates: () => ipcRenderer.invoke("canopy:update-check"),

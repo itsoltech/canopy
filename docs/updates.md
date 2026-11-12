@@ -471,6 +471,30 @@ Nie ma możliwości zdalnego dodania kanału do procesu, który go jeszcze nie z
 
 ## Release i mirror
 
+### What's new po aktualizacji
+
+Przy starcie klient zapamiętuje wersję uruchomionej aplikacji i ostatni zakres
+aktualizacji. Zmiana na wyższe SemVer pokazuje zamykaną kartę
+„Updated to …” z akcją „See what's new”; dialog nie otwiera się sam.
+Zamknięcie karty ani restart nie kasują zakresu From … to ….
+Pierwsza instalacja, nieznana poprzednia wersja i downgrade tylko ustawiają
+nową bazę, bez pokazywania historii. Buildy development nie zmieniają bazy.
+
+Zapis korzysta z `DeviceViewPreferences` z #583 w oddzielnym zakresie
+aktualizacji, bez synchronizacji konta: web ma localStorage per gateway,
+desktop `app-update-history.json` we własnym profilu Electron, telefon plik
+preferencji per instalacja, niezależny od parowania. Desktop używa wersji
+z `app.getVersion()`, web wersji swojego buildu, mobile wersji bundla JS
+(`CANOPY_VERSION`), więc OTA i aktualizacja sklepowa trafiają w ten sam przepływ.
+Aktualizacja połączonego komputera nie wywołuje własnego powiadomienia.
+
+Settings → App updates i stopka Updates dają „What's new” także później.
+Widok zawiera zgrupowany ostatni zakres albo bieżące i 9 wcześniejszych wydań
+tego samego kanału; nie podaje wersji nowszych niż uruchomiony build.
+Wpisy mają scope i link PR-a. Puste dane, brak bieżącego wydania, ucięta
+historia oraz błąd sieci mają jawne komunikaty, Retry i odnośnik do GitHub Releases.
+Awaria notatek nie blokuje aplikacji ani aktualizacji.
+
 ### Strukturalne notatki wydań
 
 `https://itsoltech.github.io/canopy/releases/notes-v1.json` zawiera do 200 wersji
@@ -479,6 +503,12 @@ Klient notatek czyta wyłącznie Pages, z istniejącym cache 15 min i ETag;
 awaria nie uruchamia fallbacku do API GitHuba. Dekoder sprawdza schemat,
 daty, wersje, limity, duplikaty i URL-e PR-ów w repozytorium Canopy.
 Pełne treści nadal żyją w GitHub Releases, bez commitowanego CHANGELOG-a.
+
+Web pobiera publiczny, stały zasób przez `GET /api/updates/whats-new` w BFF,
+bez parametrów ani odczytu poświadczeń gatewaya. Desktop używa typowanego
+IPC `canopy:release-notes` z kontrolą nadawcy i originu, telefon czyta Pages
+bezpośrednio. Nie rozszerzamy CSP renderera. Starsze wersje bridge'a mogą
+korzystać z BFF; własny numer desktopu nadal pochodzi z jego statusu.
 
 Zakres aktualizacji to `(poprzednia wersja, bieżąca wersja]` na kanale
 uruchomionego buildu. Agregacja porządkuje grupy New, Improved, Fixed,

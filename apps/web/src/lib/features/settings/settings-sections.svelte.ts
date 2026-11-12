@@ -15,13 +15,6 @@ const desktopSections: readonly SettingsSection[] = [
     group: "Connections",
     keywords: "desktop local remote worker computer",
   },
-  {
-    href: "/settings/app-updates",
-    label: "App updates",
-    icon: "arrow-up",
-    group: "Connections",
-    keywords: "desktop app updates stable beta nightly channel version",
-  },
 ];
 
 /**

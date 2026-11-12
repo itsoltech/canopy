@@ -6,6 +6,8 @@ import type { ControllerArguments, ControllerResult } from "./controller.ts";
 import { RemoteAppUpdate } from "./remote-app-update.ts";
 import type { DesktopUpdates } from "./updates.ts";
 import type { Logs } from "./runtime/log.ts";
+import { fetchReleaseNotes } from "@canopy/domain/release/notes";
+import { desktopAppHistory } from "./app-update-history.ts";
 
 export function acceptRemoteUpdate(
   remote: RemoteAppUpdate | undefined,
@@ -57,6 +59,18 @@ export function registerUpdateIpc(
   remote: () => RemoteAppUpdate | undefined,
   authorize: (event: IpcMainInvokeEvent) => void,
 ) {
+  const history = desktopAppHistory(app.getPath("userData"), app.getVersion());
+
+  ipcMain.handle("canopy:app-update-history", (event) => {
+    authorize(event);
+
+    return history();
+  });
+  ipcMain.handle("canopy:release-notes", async (event) => {
+    authorize(event);
+
+    return JSON.stringify(await fetchReleaseNotes());
+  });
   ipcMain.handle("canopy:updates", (event) => {
     authorize(event);
 

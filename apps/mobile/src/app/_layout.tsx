@@ -19,6 +19,8 @@ import { ToastHost } from "../ui/Toast";
 import { PhoneUpdatesProvider } from "../features/updates/phone";
 import { UpdatesProvider } from "../features/updates/state";
 import { UpdateCenter } from "../features/updates/UpdateCenter";
+import { WhatsNewProvider } from "../features/updates/whats-new";
+import { WhatsNewNotice, WhatsNewSheet } from "../features/updates/WhatsNew";
 import { KeyboardWindow } from "../ui/KeyboardWindow";
 import {
   useFonts,
@@ -67,6 +69,8 @@ function Navigation() {
       </Stack>
       <InAppAlerts />
       <UpdateCenter />
+      <WhatsNewSheet />
+      <WhatsNewNotice />
       <ConfirmHost />
       <ToastHost key={session?.deviceId ?? "unpaired"} />
     </View>
@@ -119,7 +123,9 @@ export default function Layout() {
         <PreferencesProvider>
           <SessionProvider>
             <DevicePreferencesProvider>
-              <SessionUI />
+              <WhatsNewProvider>
+                <SessionUI />
+              </WhatsNewProvider>
             </DevicePreferencesProvider>
           </SessionProvider>
         </PreferencesProvider>
