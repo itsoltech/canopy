@@ -3,7 +3,7 @@ import fixtures from "./fixtures/release-notes.json";
 import { parseReleaseBody, publishedNotes, releaseNotesIndex } from "./release-notes.ts";
 import { releaseIndex } from "./release-index.ts";
 import { parseReleaseIndex } from "@canopy/domain/release/catalog";
-import { parseNotesIndex, NOTES_PER_CHANNEL } from "@canopy/domain/release/notes";
+import { parseNotesIndex, NOTES_PER_CHANNEL, type NotesIndex } from "@canopy/domain/release/notes";
 import { ReleaseHttp } from "@canopy/domain/release/http";
 
 test("Angular release bodies become plain summaries, scopes, PRs and groups without commit metadata", () => {
@@ -69,6 +69,6 @@ test("only a missing initial Pages archive permits bootstrap; outages and invali
   expect(await publishedNotes(http(404, "Not found"))).toBeUndefined();
   await expect(publishedNotes(http(503, "Unavailable"))).rejects.toThrow();
   await expect(publishedNotes(http(200, "broken"))).rejects.toThrow();
-  const empty = { schema: 1, releases: [], truncated: [] };
+  const empty: NotesIndex = { schema: 1, releases: [], truncated: [] };
   expect(await publishedNotes(http(200, JSON.stringify(empty)))).toEqual(empty);
 });
