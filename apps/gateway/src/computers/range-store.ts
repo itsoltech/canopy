@@ -89,12 +89,13 @@ export class ThreadRangeStore {
                 const visible = !saved || batch.caughtUp ? batch.epoch : saved.visible_epoch;
                 const visibleSeq = visible === batch.epoch ? batch.appliedSeq : BigInt(saved?.visible_applied_seq ?? 0);
                 yield* sql`INSERT INTO thread_range_state(owner_user_id,origin_node_id,thread_id,epoch,visible_epoch,
-            applied_seq,head_seq,visible_applied_seq,subscription_id)
+            applied_seq,head_seq,visible_applied_seq,subscription_id,last_synced_at)
           VALUES(${owner}::uuid,${node},${batch.threadId}::uuid,${batch.epoch}::uuid,${visible}::uuid,
-            ${batch.appliedSeq},${batch.headSeq},${visibleSeq},${subscription}::uuid)
+            ${batch.appliedSeq},${batch.headSeq},${visibleSeq},${subscription}::uuid,CURRENT_TIMESTAMP)
           ON CONFLICT(owner_user_id,origin_node_id,thread_id) DO UPDATE SET epoch=excluded.epoch,
             visible_epoch=excluded.visible_epoch,applied_seq=excluded.applied_seq,head_seq=excluded.head_seq,
-            visible_applied_seq=excluded.visible_applied_seq,subscription_id=excluded.subscription_id`;
+            visible_applied_seq=excluded.visible_applied_seq,subscription_id=excluded.subscription_id,
+            last_synced_at=excluded.last_synced_at`;
                 yield* writeRangeEntities(sql, owner, node, batch);
 
                 if (batch.caughtUp)

@@ -2,32 +2,24 @@
   import { onMount } from "svelte";
   import { create } from "@bufbuild/protobuf";
   import { ui } from "@canopy/contracts";
-  import { formatCount } from "@canopy/domain/format";
+  import { groupThreadSyncDiagnostics, threadSyncLastTime, threadSyncTotals } from "@canopy/domain/thread-sync-display";
   import { requestJson } from "#lib/shared/http.ts";
   import { decode } from "#lib/shared/wire.ts";
   import { useConnectionRequest } from "#lib/features/network/connection-request.svelte.ts";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
-  import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
-  import Button from "#lib/shared/ui/Button.svelte";
+  import IconButton from "#lib/shared/ui/IconButton.svelte";
+  import Icon from "#lib/shared/ui/Icon.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
-  import ThreadSyncDiagnostic from "./ThreadSyncDiagnostic.svelte";
-
-  let cursors = $state([""]);
-  let after = $state("");
+  import ThreadSyncComputer from "./ThreadSyncComputer.svelte";
 
   const request = useConnectionRequest(create(ui.ThreadSyncDiagnosticsSchema), async () =>
     decode(
       ui.ThreadSyncDiagnosticsSchema,
-      await requestJson("POST", "/api/thread-sync-diagnostics", { after, pageSize: 50 }),
+      await requestJson("POST", "/api/thread-sync-diagnostics", { summaryOnly: true }),
     ),
   );
 
-  function page(cursor: string, back = false) {
-    if (back) cursors = cursors.slice(0, -1);
-    else cursors = [...cursors, cursor];
-    after = cursor;
-    void request.reload();
-  }
+  const grouped = $derived(groupThreadSyncDiagnostics(request.data));
 
   onMount(() => {
     void request.reload();
@@ -40,32 +32,36 @@
   });
 </script>
 
-{#if request.error}<Alert tone="error">Could not load sync diagnostics. Retry when the gateway is available.</Alert
-  >{/if}
-<SettingsGroup
-  title="Thread sync"
-  description="Progress on this gateway. Saved messages stay available while a computer is unreachable."
->
-  {#snippet actions()}<Button disabled={request.loading} onclick={() => void request.reload()}>Refresh</Button
-    >{/snippet}
-  <SettingsRow title="Remaining" description="Records still needed to catch up with linked computers.">
-    {#snippet control()}<span title={request.data.remaining.toString()}
-        >{formatCount(request.data.remaining)} to go</span
-      >{/snippet}
-  </SettingsRow>
-  <SettingsRow title="Threads" description="Catching up / paused">
-    {#snippet control()}<span>{request.data.syncingThreads} / {request.data.failedThreads}</span>{/snippet}
-  </SettingsRow>
-  {#each request.data.entries as entry (entry.threadId)}<ThreadSyncDiagnostic {entry} />{/each}
-  {#if !request.data.entries.length}<SettingsRow
-      title={request.loaded ? "No mirrored threads on this page" : "Loading sync progress…"}
-    />{/if}
+<SettingsGroup title="Thread sync" description="Sync with linked computers.">
+  {#snippet actions()}
+    <IconButton
+      icon="arrow-path"
+      label="Refresh sync status"
+      disabled={request.loading}
+      onclick={() => void request.reload()}
+    />
+  {/snippet}
+  {#if request.error}
+    <div class="p-3"><Alert tone="error">Could not load sync status. Refresh to retry.</Alert></div>
+  {/if}
+  {#if !request.loaded}
+    <p class="p-3">Loading sync status…</p>
+  {:else if !grouped.computers.length}
+    <p class="p-3 text-zinc-500 dark:text-zinc-400">No threads synced from linked computers</p>
+  {:else if grouped.allCaughtUp}
+    <div class="flex items-start gap-2 p-3" role="status">
+      <Icon name="check" class="shrink-0" />
+      <div class="grid min-w-0 gap-1">
+        <p>All threads are up to date</p>
+        <p class="text-sm text-zinc-500 dark:text-zinc-400">{threadSyncLastTime(grouped.lastSyncedAtMs)}</p>
+      </div>
+    </div>
+  {:else}
+    {#if grouped.syncing || grouped.paused}
+      <p class="p-3 tabular-nums" role="status">
+        {threadSyncTotals(grouped.syncing, grouped.paused, grouped.remaining)}
+      </p>
+    {/if}
+    {#each grouped.computers as { computer } (computer.nodeId)}<ThreadSyncComputer {computer} />{/each}
+  {/if}
 </SettingsGroup>
-{#if cursors.length > 1 || request.data.next}
-  <div class="flex justify-end gap-2">
-    <Button disabled={request.loading || cursors.length < 2} onclick={() => page(cursors.at(-2) ?? "", true)}
-      >Previous</Button
-    >
-    <Button disabled={request.loading || !request.data.next} onclick={() => page(request.data.next)}>Next</Button>
-  </div>
-{/if}

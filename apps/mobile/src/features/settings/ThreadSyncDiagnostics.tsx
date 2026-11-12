@@ -1,75 +1,73 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffectEvent } from "react";
 import { useFocusEffect } from "expo-router";
-import { View } from "react-native";
-import { formatCount } from "@canopy/domain/format";
+import { Text, View } from "react-native";
+import { groupThreadSyncDiagnostics, threadSyncLastTime, threadSyncTotals } from "@canopy/domain/thread-sync-display";
 import { useAppActive } from "../../ui/active";
-import { Button } from "../../ui/components";
-import { SettingsGroup, SettingsActions } from "./SettingsGroup";
-import { SettingsValue } from "./SettingsValue";
+import { IconButton } from "../../ui/components";
+import { Icon } from "../../ui/Icon";
+import { styles, useColors } from "../../ui/theme";
+import { SettingsGroup } from "./SettingsGroup";
 import { ResourceState, useSettingsResource } from "./resource";
-import { ThreadSyncDiagnostic } from "./ThreadSyncDiagnostic";
+import { ThreadSyncComputer } from "./ThreadSyncComputer";
 
-/** Only a mounted, foreground settings page polls; rows and queries are bounded. */
+/** Only a focused, foreground page polls scalar computer summaries. */
 export function ThreadSyncDiagnostics() {
-  const [cursors, setCursors] = useState([""]);
-  const after = cursors.at(-1) ?? "";
-
-  const resource = useSettingsResource(`GetThreadSyncDiagnostics:${after}`, (api) =>
-    api.getThreadSyncDiagnostics({ after, pageSize: 50 }),
+  const resource = useSettingsResource("GetThreadSyncDiagnostics:summary", (api) =>
+    api.getThreadSyncDiagnostics({ summaryOnly: true }),
   );
 
   const active = useAppActive();
-  const { reload } = resource;
+  const c = useColors();
+  const refresh = useEffectEvent(() => void resource.reload());
   useFocusEffect(
     useCallback(() => {
       if (!active) return;
-      const timer = setInterval(() => void reload(), 5000);
+      const timer = setInterval(refresh, 5000);
 
       return () => clearInterval(timer);
-    }, [active, reload]),
+    }, [active]),
   );
-  const data = resource.data;
+  const grouped = resource.data ? groupThreadSyncDiagnostics(resource.data) : undefined;
 
   return (
     <ResourceState resource={resource}>
       <SettingsGroup
         title="Thread sync"
-        description="Progress on this gateway. Saved messages stay available while a computer is unreachable."
-        actions={<Button title="Refresh" disabled={resource.loading} onPress={() => void reload()} />}
+        description="Sync with linked computers."
+        actions={
+          <IconButton
+            icon="arrow-path"
+            label="Refresh sync status"
+            disabled={resource.loading}
+            onPress={() => void resource.reload()}
+          />
+        }
       >
-        <SettingsValue
-          title="Remaining"
-          value={`${formatCount(data?.remaining ?? 0n)} to go`}
-          description="Records still needed to catch up with linked computers."
-        />
-        <SettingsValue
-          title="Threads"
-          description="Catching up / paused"
-          value={`${data?.syncingThreads ?? 0} / ${data?.failedThreads ?? 0}`}
-        />
-        {data?.entries.map((entry) => (
-          <ThreadSyncDiagnostic key={entry.threadId} entry={entry} />
-        ))}
-        {data && !data.entries.length ? <SettingsValue title="No mirrored threads on this page" value="0" /> : null}
+        {!grouped ? (
+          <Text style={[styles.chrome, { color: c.muted }]}>Loading sync status…</Text>
+        ) : !grouped.computers.length ? (
+          <Text style={[styles.chrome, { color: c.muted }]}>No threads synced from linked computers</Text>
+        ) : grouped.allCaughtUp ? (
+          <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }} accessibilityLiveRegion="polite">
+            <Icon name="check" />
+            <View style={{ minWidth: 0, flex: 1, gap: 4 }}>
+              <Text style={[styles.chrome, { color: c.text }]}>All threads are up to date</Text>
+              <Text style={[styles.workMeta, { color: c.muted }]}>{threadSyncLastTime(grouped.lastSyncedAtMs)}</Text>
+            </View>
+          </View>
+        ) : (
+          <>
+            {grouped.syncing || grouped.paused ? (
+              <Text accessibilityLiveRegion="polite" style={[styles.chrome, { color: c.text }]}>
+                {threadSyncTotals(grouped.syncing, grouped.paused, grouped.remaining)}
+              </Text>
+            ) : null}
+            {grouped.computers.map(({ computer }) => (
+              <ThreadSyncComputer key={computer.nodeId} computer={computer} />
+            ))}
+          </>
+        )}
       </SettingsGroup>
-      {cursors.length > 1 || data?.next ? (
-        <View>
-          <SettingsActions>
-            <Button
-              title="Previous"
-              disabled={resource.loading || cursors.length < 2}
-              onPress={() => setCursors((previous) => previous.slice(0, -1))}
-            />
-            <Button
-              title="Next"
-              disabled={resource.loading || !data?.next}
-              onPress={() => {
-                if (data?.next) setCursors((previous) => [...previous, data.next]);
-              }}
-            />
-          </SettingsActions>
-        </View>
-      ) : null}
     </ResourceState>
   );
 }

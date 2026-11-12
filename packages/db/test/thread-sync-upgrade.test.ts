@@ -101,6 +101,21 @@ test.skipIf(!dockerAvailable)(
           expect(yield* sql`SELECT * FROM thread_replication_sources WHERE thread_id=${thread}::uuid`).toEqual([]);
           expect(yield* sql`SELECT * FROM thread_replication_clock WHERE thread_id=${thread}::uuid`).toEqual([]);
           expect(yield* sql`SELECT * FROM thread_replication_journal WHERE thread_id=${thread}::uuid`).toEqual([]);
+          yield* sql`INSERT INTO thread_range_state(owner_user_id,origin_node_id,thread_id,epoch,visible_epoch,
+            applied_seq,head_seq,visible_applied_seq,subscription_id)
+            VALUES(${user}::uuid,'upgrade-peer',${thread}::uuid,gen_random_uuid(),gen_random_uuid(),7,10,7,gen_random_uuid())`;
+        }),
+      );
+      await runtime.runPromise(through(125));
+      expect(await runtime.runPromise(through(126))).toEqual([[126, "thread_sync_time"]]);
+      await runtime.runPromise(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+
+          const [state] = yield* sql`SELECT applied_seq::int,head_seq::int,visible_applied_seq::int,last_synced_at
+            FROM thread_range_state WHERE owner_user_id=${user}::uuid AND thread_id=${thread}::uuid`;
+
+          expect(state).toEqual({ applied_seq: 7, head_seq: 10, visible_applied_seq: 7, last_synced_at: null });
         }),
       );
       await runtime.runPromise(migrate);

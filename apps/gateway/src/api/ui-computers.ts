@@ -29,7 +29,12 @@ export function computersHandlers(
   return {
     getThreadSyncDiagnostics: (request) =>
       computerGuard(() =>
-        readRangeDiagnostics(core[coreState].options.runtime, core[coreState].options.userId, request),
+        readRangeDiagnostics(
+          core[coreState].options.runtime,
+          core[coreState].options.userId,
+          request,
+          core.computers?.reachable() ?? [],
+        ),
       ),
     getComputers: () => computerGuard(() => computers(core).snapshot()),
 
