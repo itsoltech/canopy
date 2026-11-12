@@ -51,6 +51,7 @@ import { configNotices } from "../config-sync/notices.ts";
 import { followWorkerRecords } from "./runtime-workers.ts";
 import { RESTART_PRESENCE } from "@canopy/domain/computer-presence";
 import { PEER_HEARTBEAT_MS } from "./timing.ts";
+import { wireHello } from "./hello.ts";
 
 /** A direct partner connected now that receives moves (never through a relay). */
 export function computersMovable(hostContext: LinkedComputers, nodeId: string) {
@@ -108,7 +109,6 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
               THREAD_WATCH_COALESCE,
               REMOTE_BOTS,
               REMOTE_BOT_COMPOSER,
-              REMOTE_THREAD_PANEL,
               AGENT_BUS,
               RELAY,
               INLINE_ATTACHMENTS,
@@ -118,6 +118,8 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
         ...(this.config ? [CONFIG_SYNC] : []),
         ...(this.moves ? [MOVE_ITEMS] : []),
         ...(this.options.updates ? [REMOTE_APP_UPDATE] : []),
+        // Keep the original protocol-1 capabilities first; older peers ignore the overflow field.
+        ...(this.options.serve ? [REMOTE_THREAD_PANEL] : []),
       ],
     });
   },
@@ -231,7 +233,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
       throw new ConnectError("Choose another computer", Code.InvalidArgument);
 
     const response = await linkClient(address, certificate, this[computersState].identity).pair(
-      { secret: raw.slice(64), hello: this.hello(), shareConfig },
+      { secret: raw.slice(64), hello: wireHello(this.hello()), shareConfig },
       { timeoutMs: 10_000 },
     );
 
@@ -268,7 +270,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
           name,
         ]);
         this[computersState].identity.name = name;
-        computersBroadcast(this, { body: { case: "hello", value: this.hello() } });
+        computersBroadcast(this, { body: { case: "hello", value: wireHello(this.hello()) } });
       } else {
         if (!(await this.store.peer(nodeId))) throw new ConnectError("Computer not found", Code.NotFound);
         await this.store.query(

@@ -4,10 +4,12 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { computerLink as link } from "@canopy/contracts";
+import { create } from "@bufbuild/protobuf";
 import type { CoreRuntime } from "../core/core.ts";
 import { encryptSecret, decryptSecret } from "../store/secrets.ts";
 import { certificateIdentity, computerName, generateIdentity, hash, linkAddress } from "./identity.ts";
 import { ROUTE_ORDER } from "./routes.ts";
+import { COMPUTER_CAPABILITY_LIMIT } from "./hello.ts";
 
 export type IdentityRow = {
   node_id: string;
@@ -124,9 +126,9 @@ export class ComputerStore {
       addresses,
     };
   }
-  async pair(secret: string, hello: link.NodeHello, certificate: string, peerShareConfig = true) {
+  async pair(secret: string, input: link.NodeHello, certificate: string, peerShareConfig = true) {
     const identity = certificateIdentity(certificate);
-    this.validateHello(hello, identity.nodeId);
+    const hello = this.validateHello(input, identity.nodeId);
     const { owner } = this;
 
     // Commit failed attempts as well as successful exchanges. Locks serialize revoke/replay.
@@ -176,21 +178,25 @@ export class ComputerStore {
       );
   }
   validateHello(hello: link.NodeHello, nodeId: string) {
-    if (
-      hello.nodeId !== nodeId ||
-      hello.appVersion.length > 100 ||
-      hello.addresses.length > 16 ||
-      hello.capabilities.length > 32
-    )
+    if (hello.nodeId !== nodeId || hello.appVersion.length > 100 || hello.addresses.length > 16)
       throw new ConnectError("Invalid computer identity", Code.Unauthenticated);
+
+    if (hello.capabilities.length + hello.additionalCapabilities.length > COMPUTER_CAPABILITY_LIMIT)
+      throw new ConnectError("Too many computer capabilities", Code.InvalidArgument);
     computerName(hello.name);
 
     for (const address of hello.addresses) linkAddress(address);
+
+    return create(link.NodeHelloSchema, {
+      ...hello,
+      capabilities: [...hello.capabilities, ...hello.additionalCapabilities],
+      additionalCapabilities: [],
+    });
   }
   /** The address entered for pairing is a manual route that just worked; the partner's own addresses are announced. */
-  async remember(hello: link.NodeHello, certificate: string, address: string, latencyMs: number) {
+  async remember(input: link.NodeHello, certificate: string, address: string, latencyMs: number) {
     const identity = certificateIdentity(certificate);
-    this.validateHello(hello, identity.nodeId);
+    const hello = this.validateHello(input, identity.nodeId);
     await this.query(
       `INSERT INTO computer_peers (owner_user_id,node_id,name,certificate,fingerprint,app_version,min_protocol,max_protocol)
       VALUES ($1::uuid,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (owner_user_id,node_id) DO UPDATE SET
