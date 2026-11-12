@@ -112,6 +112,14 @@ sondowaniu providerów. Własne pliki wykonywalne, loginy i profile native są z
 Preload udostępnia status, konfigurację trybu w zaufanym lokalnym ekranie,
 otwarcie ustawień oraz typowane operacje i subskrypcję aktualizacji aplikacji.
 Brak dostępu do plików, shella i dowolnego IPC.
+`appUpdateHistory()` (`canopy:app-update-history`) zwraca wyłącznie własną wersję,
+poprzednią wersję i jednorazową flagę powiadomienia po aktualizacji.
+Zapis w `userData/app-update-history.json` używa klientowego helpera preferencji
+i atomowej wymiany pliku; pozostaje wspólny dla trybu lokalnego i zdalnego.
+`releaseNotes()` (`canopy:release-notes`) odczytuje w main wyłącznie stały indeks
+notatek Pages i zwraca zwalidowany JSON. Obie operacje sprawdzają nadawcę i origin
+jak pozostały bridge, nie przyjmują URL-a, ścieżki ani danych innego komputera.
+Renderer zachowuje `connect-src 'self'`. Przepływ UI opisuje [updates.md](updates.md#whats-new-po-aktualizacji).
 Menu „Settings…” (`CmdOrCtrl+,`) pokazuje główne okno i otwiera ostatnią stronę
 ustawień używaną w tym oknie (domyślnie `/settings`). Main wysyła `canopy:open-route`
 wyłącznie dla ścieżek `/settings` i ich podstron; preload oraz web ponawiają walidację.

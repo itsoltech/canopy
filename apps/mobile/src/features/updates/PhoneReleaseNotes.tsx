@@ -1,17 +1,17 @@
 import { useEffect, useState } from "react";
 import { Linking, Text, View } from "react-native";
-import * as Updates from "expo-updates";
+import { UpdateInfoType, type UpdateInfo } from "expo-updates";
 import { isString } from "@canopy/domain/json";
-import { releaseCatalog } from "@canopy/domain/release/catalog";
+import { fetchReleaseNotes, type NoteEntry } from "@canopy/domain/release/notes";
 import { releaseChannel } from "@canopy/domain/release/version";
 import { Button } from "../../ui/components";
-import { Markdown } from "../../ui/markdown";
+import { WhatsNewEntries } from "./WhatsNewEntries";
 import { styles, useColors } from "../../ui/theme";
 import { SettingsDisclosure } from "../settings/SettingsDisclosure";
 
 /** The OTA manifest carries the JS release version, independent of the installed native binary. */
-export function phoneReleaseVersion(update?: Updates.UpdateInfo) {
-  if (update?.type !== Updates.UpdateInfoType.NEW || !("extra" in update.manifest)) return undefined;
+export function phoneReleaseVersion(update?: UpdateInfo) {
+  if (update?.type !== UpdateInfoType.NEW || !("extra" in update.manifest)) return undefined;
   const value = update.manifest.extra?.expoClient?.extra?.canopyVersion;
 
   return isString(value) && releaseChannel(value) !== "development" ? value : undefined;
@@ -25,10 +25,10 @@ export function PhoneReleaseNotes({ version, channel }: { version?: string; chan
   );
 }
 
-/** Same public GitHub release bodies as the desktop changelog; never substitute a newer channel release. */
+/** Structured Pages notes for this exact OTA; never substitute a newer channel release. */
 function ReleaseBody({ version }: { version?: string }) {
   const c = useColors();
-  const [body, setBody] = useState<string>();
+  const [entries, setEntries] = useState<readonly NoteEntry[]>();
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
   const published = version && releaseChannel(version) !== "development";
@@ -37,13 +37,14 @@ function ReleaseBody({ version }: { version?: string }) {
     const controller = new AbortController();
     let cancelled = false;
     const timer = setTimeout(() => controller.abort(), 20_000);
-    void releaseCatalog
-      .tag(`v${version}`)
-      .then((release) => {
-        if (release.tag_name !== `v${version}` || release.draft) throw new Error("Release mismatch");
+    void fetchReleaseNotes()
+      .then((index) => {
+        const release = index.releases.find((item) => item.version === version);
 
-        if (!controller.signal.aborted) {
-          setBody(release.body ?? "");
+        if (!release) throw new Error("Release not published");
+
+        if (!cancelled && !controller.signal.aborted) {
+          setEntries(release.entries);
           setError("");
         }
       })
@@ -62,16 +63,11 @@ function ReleaseBody({ version }: { version?: string }) {
   return (
     <View style={{ gap: 8 }}>
       {published && <Text style={[styles.label, { color: c.text }]}>{version}</Text>}
-      {body ? (
-        <Markdown text={body} />
+      {entries ? (
+        <WhatsNewEntries entries={entries} />
       ) : (
         <Text style={[styles.meta, { color: c.muted }]}>
-          {error ||
-            (!published
-              ? "Release notes are unavailable for this update."
-              : body === undefined
-                ? "Loading release notes…"
-                : "No release notes were published for this version.")}
+          {error || (!published ? "Release notes are unavailable for this update." : "Loading release notes…")}
         </Text>
       )}
       {error && (

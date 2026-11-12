@@ -11,12 +11,14 @@
   import type { UpdatesState } from "./updates.svelte.ts";
   import { updateIndicator } from "./update-indicator.ts";
   import { isRateLimitMessage } from "@canopy/domain/release/http";
+  import { whatsNew } from "#lib/features/updates/whats-new.svelte.ts";
 
   let {
     updates,
     app,
     class: className,
-  }: { updates: UpdatesState; app: DesktopUpdatesState; class?: ClassValue } = $props();
+    onnotes,
+  }: { updates: UpdatesState; app: DesktopUpdatesState; class?: ClassValue; onnotes?: () => void } = $props();
 
   const cli = cliActions();
   const snapshot = $derived(updates.snapshot);
@@ -114,6 +116,14 @@
   </div>
   <footer class="flex shrink-0 flex-wrap gap-x-4 gap-y-1 border-t border-divider px-3 py-2 text-xs/5 text-muted">
     <a href="/settings/workers" class="rounded focus-ring hover:text-ink">Update details</a>
-    {#if app.status}<a href="/settings/app-updates" class="rounded focus-ring hover:text-ink">App updates</a>{/if}
+    <button
+      type="button"
+      class="rounded focus-ring hover:text-ink"
+      onclick={() => {
+        onnotes?.();
+        whatsNew.show();
+      }}>What's new</button
+    >
+    <a href="/settings/app-updates" class="rounded focus-ring hover:text-ink">App updates</a>
   </footer>
 </section>

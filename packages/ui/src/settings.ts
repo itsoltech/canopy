@@ -11,6 +11,13 @@ export interface SettingsSection {
 
 export const settingsSections: readonly SettingsSection[] = [
   {
+    href: "/settings/app-updates",
+    label: "App updates",
+    icon: "arrow-up",
+    group: "General",
+    keywords: "app updates stable beta nightly channel version whats new release notes changelog",
+  },
+  {
     href: "/settings/diagnostics",
     label: "Diagnostics",
     icon: "signal",

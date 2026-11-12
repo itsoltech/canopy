@@ -9,6 +9,13 @@ Pierwsza wersja to **development build** Expo, nie Expo Go ani Expo web.
 Identyfikatory: iOS `tech.itsol.canopy-remote`, Android `tech.itsol.canopy_remote` (Android nie dopuszcza myślnika w identyfikatorze); scheme: `canopy`.
 Konfiguracja: `apps/mobile/app.json`, `app.config.ts`, `eas.json`.
 
+Po OTA lub aktualizacji sklepowej zamykana karta „Updated to …” otwiera
+„What's new” z zakresem poprzedniej i bieżącej wersji bundla. Historia jest lokalna
+dla instalacji i pozostaje po zmianie parowania. Settings → App updates i Updates
+otwierają ten sam arkusz. Notatki oraz podgląd notatek dostępnego OTA czytają
+wyłącznie statyczny JSON Pages, bez API GitHuba. Implementacja jest wyłącznie JS,
+bez nowych modułów, konfiguracji natywnej lub wejść fingerprintu; [updates.md](updates.md#whats-new-po-aktualizacji).
+
 Natywna nazwa oraz ikony zależą od kanału: `Canopy (Nightly)`, `Canopy (Beta)` albo
 `Canopy` (stable). `app.config.ts` wybiera kanał z `CANOPY_CHANNEL`, następnie profilu
 `EAS_BUILD_PROFILE`, a na końcu wersji w `canopy-version.json` (lokalny development

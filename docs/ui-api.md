@@ -1259,6 +1259,15 @@ Popraw oba miejsca.
 
 ## 4. Frontend (`apps/web`)
 
+### Notatki aplikacji
+
+`GET /api/updates/whats-new` podaje publiczny, zwalidowany indeks
+`releases/notes-v1.json` ze stałego adresu Pages. Nie przyjmuje parametrów,
+nie wywołuje gatewaya i nie pobiera tokenów ani danych właściciela. Odpowiedź
+ma publiczny cache 15 min; błędy 502 są bez cache i mają akcję Retry w UI.
+Desktop czyta ten sam zasób przez ograniczony bridge main, bez zmiany CSP.
+Lokalna historia i grupowanie: [updates.md](updates.md#whats-new-po-aktualizacji).
+
 ### Współdzielone odczyty
 
 Projekty, workery, modele, ustawienia i podobne katalogi zmieniają się tylko po znanych

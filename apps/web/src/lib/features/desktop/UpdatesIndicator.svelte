@@ -93,7 +93,14 @@
           </div>{/if}
       </div>
     {/snippet}
-    <CompactUpdates updates={center} app={updates} />
+    <CompactUpdates
+      updates={center}
+      app={updates}
+      onnotes={() => {
+        open = false;
+        pinned = false;
+      }}
+    />
   </Popover>
 </div>
 

@@ -29,6 +29,8 @@ import { AgentEnvironmentSettings } from "./AgentEnvironmentSettings";
 import { ImportSettings } from "./ImportSettings";
 import { useDevicePreferences } from "./device-preferences";
 import { useLayout } from "../../state/layout";
+import { AppUpdateStatus } from "./AppUpdateStatus";
+import { WhatsNewSettings } from "../updates/WhatsNew";
 
 export default function SettingsScreen() {
   const { section: selectedSection = "" } = useLocalSearchParams<{ section?: string }>();
@@ -61,6 +63,12 @@ export default function SettingsScreen() {
         }
       >
         {section === "general" && <GeneralSettings />}
+        {section === "app-updates" && (
+          <>
+            <AppUpdateStatus />
+            <WhatsNewSettings />
+          </>
+        )}
         {section === "keybindings" && <KeybindingSettings />}
         {section === "diffs" && <DiffSettings />}
         {section === "appearance" && <AppearanceSettings />}

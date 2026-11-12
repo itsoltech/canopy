@@ -50,6 +50,7 @@
   import { keybindings } from "#lib/features/commands/keybindings.svelte.ts";
   import { legacyDeviceView } from "@canopy/domain/device-view";
   import { watchNotifications } from "#lib/features/notifications/watch.svelte.ts";
+  import WhatsNewHost from "#lib/features/updates/WhatsNewHost.svelte";
 
   let { children }: { children: Snippet } = $props();
 
@@ -285,3 +286,4 @@
 <BotSettingsHost />
 {#if capabilities.linkedComputers}<BotMoveHost />{/if}
 <UpdateBanner />
+<WhatsNewHost />
