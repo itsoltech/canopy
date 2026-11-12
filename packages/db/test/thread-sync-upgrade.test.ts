@@ -77,6 +77,13 @@ test.skipIf(!dockerAvailable)(
       );
       expect(await runtime.runPromise(through(123))).toEqual([[123, "thread_sync_diagnostics"]]);
       expect(await runtime.runPromise(through(124))).toEqual([[124, "thread_range_lock_order"]]);
+
+      // Later features extend the registry beyond the thread-sync stack's final stage.
+      const remaining = await runtime.runPromise(
+        migrations.pipe(Effect.map((all) => all.filter(([id]) => id > 124).map(([id, name]) => [id, name]))),
+      );
+
+      expect(await runtime.runPromise(migrate)).toEqual(remaining);
       await runtime.runPromise(
         Effect.gen(function* () {
           const sql = yield* SqlClient.SqlClient;
