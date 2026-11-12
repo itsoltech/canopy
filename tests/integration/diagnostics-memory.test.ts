@@ -15,6 +15,7 @@ const Sample = Schema.Struct({
   queued: Schema.Number,
   slots: Schema.Number,
 });
+
 const decode = Schema.decodeSync(Schema.fromJsonString(Sample));
 const median = (values: number[]) => values.sort((a, b) => a - b)[Math.floor(values.length / 2)]!;
 const MiB = 1024 * 1024;
@@ -24,10 +25,14 @@ test("governor and SQL series plateau after GC across saturated queues and rolli
     stdout: "pipe",
     stderr: "pipe",
   });
+
   const output = await new Response(child.stdout).text();
   const errors = await new Response(child.stderr).text();
   expect(await child.exited, errors).toBe(0);
-  const samples = output.trim().split("\n").map((line) => decode(line));
+  const samples = output
+    .trim()
+    .split("\n")
+    .map((line) => decode(line));
   expect(samples).toHaveLength(21);
   const baseline = samples[0]!;
   expect(baseline.measures).toBeGreaterThan(0);
@@ -50,6 +55,7 @@ test("governor and SQL series plateau after GC across saturated queues and rolli
     expect(sample.measures - baseline.measures).toBeLessThanOrEqual(256);
     expect(sample.histograms - baseline.histograms).toBeLessThanOrEqual(256);
   }
+
   console.info(
     "diagnostics-memory",
     JSON.stringify({ baseline, last: steady.at(-1), heapGrowthMiB: (steady.at(-1)!.heap - baseline.heap) / MiB }),

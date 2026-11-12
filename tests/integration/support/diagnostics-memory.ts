@@ -33,11 +33,13 @@ async function cycle(index: number) {
       const running = governor.run({ kind, key, ttlMs: 60_000 }, () => gate.promise);
       const joined = governor.run({ kind, key }, async () => 0);
       const abort = new AbortController();
+
       const tasks = Array.from({ length: 6 }, (_, n) =>
         governor
           .run({ kind, key: `${key}:${n}`, signal: abort.signal, priority: "background" }, async () => n)
           .catch(() => -1),
       );
+
       abort.abort();
       gate.resolve(1);
       await Promise.all([running, joined, ...tasks]);
@@ -89,6 +91,8 @@ async function sample(cycle: number) {
 
 for (let index = 0; index < 25; index++) {
   await cycle(index);
+
   if (index >= 4) await sample(index);
 }
+
 stop();
