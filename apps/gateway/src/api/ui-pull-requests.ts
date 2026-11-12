@@ -1,6 +1,7 @@
 import type { GatewayCore } from "../core/core.ts";
 import type { UiHandlers } from "./ui-service.ts";
 import { githubFailure } from "../github/http.ts";
+import { repositoryPullRequests } from "../github/picker.ts";
 
 async function guard<A>(use: () => Promise<A>) {
   try {
@@ -17,6 +18,7 @@ export function pullRequestHandlers(
   | "getGitHubRepositoryAccount"
   | "setGitHubRepositoryAccount"
   | "listThreadPullRequests"
+  | "listRepositoryPullRequests"
   | "linkThreadPullRequest"
   | "unlinkThreadPullRequest"
   | "getPullRequest"
@@ -25,6 +27,7 @@ export function pullRequestHandlers(
   const prs = core.github.prs;
 
   return {
+    listRepositoryPullRequests: (r) => guard(() => repositoryPullRequests(prs, r)),
     getGitHubRepositoryAccount: (r) => guard(() => prs.repositories.get(r.repositoryName)),
     setGitHubRepositoryAccount: (r) => guard(() => prs.repositories.set(r)),
     listThreadPullRequests: (r) =>

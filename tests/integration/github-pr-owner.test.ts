@@ -66,6 +66,7 @@ test.skipIf(!dockerAvailable)(
         () => foreign.getPullRequest({ pullRequestId: pr }),
         () => foreign.refreshPullRequest({ pullRequestId: pr }),
         () => foreign.listThreadPullRequests({ threadId: thread }),
+        () => foreign.listRepositoryPullRequests({ threadId: thread }),
         () => foreign.linkThreadPullRequest({ threadId: thread, url: "https://github.com/itsoltech/canopy/pull/42" }),
         () => foreign.unlinkThreadPullRequest({ threadId: thread, pullRequestId: pr, expectedRevision: list.revision }),
         () => foreign.setGitHubRepositoryAccount({ repositoryName: "itsoltech/canopy", accountId: account }),

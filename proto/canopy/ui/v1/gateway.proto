@@ -26,6 +26,7 @@ service GatewayService {
   rpc GetGitHubRepositoryAccount(GitHubRepositoryAccountRequest) returns (GitHubRepositoryAccountResponse);
   rpc SetGitHubRepositoryAccount(SetGitHubRepositoryAccountRequest) returns (GitHubRepositoryAccountResponse);
   rpc ListThreadPullRequests(ThreadPullRequestsRequest) returns (ThreadPullRequestsResponse);
+  rpc ListRepositoryPullRequests(RepositoryPullRequestsRequest) returns (RepositoryPullRequestsResponse);
   rpc LinkThreadPullRequest(LinkThreadPullRequestRequest) returns (ThreadPullRequestsResponse);
   rpc UnlinkThreadPullRequest(UnlinkThreadPullRequestRequest) returns (ThreadPullRequestsResponse);
   rpc GetPullRequest(PullRequestRequest) returns (PullRequestSnapshot);

@@ -7,6 +7,18 @@ import type { PullRequestRow } from "./store-pull-requests.ts";
 
 export function githubPrList(sql: SqlClient.SqlClient) {
   return {
+    prPickerContext: (owner: string, id: string) => sql<{ git_origin: string; branch: string }>`
+      SELECT coalesce(w.git_origin,'') AS git_origin,CASE WHEN coalesce(wt.detached_commit,ch.detached_commit,'')<>'' THEN ''
+        WHEN coalesce(wt.branch,ch.branch,g.context->>'branch','')=g.context->>'branch'
+          THEN coalesce(nullif(g.context->>'pushRef',''),g.context->>'branch','')
+        ELSE coalesce(wt.branch,ch.branch,g.context->>'branch','') END AS branch
+      FROM threads t LEFT JOIN (project_workspaces w JOIN projects p ON p.id=w.project_id)
+        ON w.id=t.workspace_id AND p.owner_user_id=t.owner_user_id
+      LEFT JOIN worktrees wt ON wt.id=t.worktree_id AND wt.owner_user_id=t.owner_user_id AND wt.removed_at IS NULL
+      LEFT JOIN checkout_heads ch ON ch.workspace_id=t.workspace_id AND t.worktree_id IS NULL
+      LEFT JOIN LATERAL (SELECT context FROM github_git_contexts
+        WHERE owner_user_id=t.owner_user_id AND thread_id=t.id ORDER BY id DESC LIMIT 1) g ON true
+      WHERE t.owner_user_id=${owner}::uuid AND t.id=${id}::uuid AND t.deleted_at IS NULL`,
     prList: (owner: string, id: string) =>
       Effect.gen(function* () {
         const current = (yield* sql<{ pull_request_revision: bigint }>`SELECT pull_request_revision FROM threads

@@ -62,7 +62,6 @@ export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onC
           onPress={() => setExpanded(!expanded)}
         />
       )}
-      {!!read.data?.detail && <Text style={[styles.meta, { color: c.muted }]}>{read.data.detail}</Text>}
       {!!read.error && (
         <>
           <Notice error>Could not load pull requests. Check the connection, then retry.</Notice>
@@ -75,16 +74,15 @@ export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onC
         disabled={!online || read.data?.stale}
         onPress={() => setLinking(!linking)}
       />
-      {linking && (
-        <LinkPullRequest
-          threadId={thread.id}
-          revision={read.data?.revision ?? thread.pullRequestRevision}
-          onlinked={(value) => {
-            queries.set(key, value);
-            setLinking(false);
-          }}
-        />
-      )}
+      <LinkPullRequest
+        visible={linking}
+        onClose={() => setLinking(false)}
+        threadId={thread.id}
+        revision={read.data?.revision ?? thread.pullRequestRevision}
+        onlinked={(value) => {
+          queries.set(key, value);
+        }}
+      />
       {!links.some((link) => link.currentBranch) && (
         <Button
           variant="ghost"

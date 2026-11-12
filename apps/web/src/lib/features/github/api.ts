@@ -4,6 +4,7 @@ import { requestJson, type JsonBody } from "#lib/shared/http.ts";
 import { decode } from "#lib/shared/wire.ts";
 import type { MutationApi } from "@canopy/domain/github-mutations";
 import { importPullRequestDraft } from "@canopy/domain/github-lifecycle";
+import { GITHUB_HOME, splitId } from "@canopy/domain/computers";
 
 const post = (operation: string, body: JsonBody) => requestJson("POST", `/api/github/${operation}`, body, 125_000);
 
@@ -120,6 +121,29 @@ export const chooseAccount = async (
 
 export const pullRequests = async (threadId: string) =>
   decode(github.ThreadPullRequestsResponseSchema, await post("pull-requests", { threadId }));
+
+export const repositoryPullRequests = async (threadId: string, query = "", includeClosed = false, cursor = "") => {
+  const read = async () =>
+    decode(
+      github.RepositoryPullRequestsResponseSchema,
+      await post("repository-pull-requests", { threadId, query, includeClosed, cursor }),
+    );
+
+  const value = await read();
+  const candidate = value.selection?.candidates.find((account) => account.authKind === "device");
+
+  if (cursor || value.state !== "choose_account" || !candidate || !value.selection) return value;
+  const node = splitId(threadId).node;
+  // Opening the picker remembers its best available account; the top switcher can change it.
+  await chooseAccount(
+    node ? `${GITHUB_HOME}~${node}` : "",
+    value.repositoryName,
+    candidate.id,
+    value.selection.revision,
+  ).catch(() => {});
+
+  return read();
+};
 
 export const link = async (threadId: string, url: string, expectedRevision: bigint) =>
   decode(

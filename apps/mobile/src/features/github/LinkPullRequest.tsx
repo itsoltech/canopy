@@ -1,138 +1,113 @@
-import { useState } from "react";
-import { Text, View } from "react-native";
+import { FlatList, Text, View } from "react-native";
 import type { github } from "@canopy/contracts";
-import { GITHUB_HOME, splitId } from "@canopy/domain/computers";
-import { useSession } from "../../state/session";
-import { Button, Field, Notice } from "../../ui/components";
-import { PickerSheet, SelectField } from "../../ui/Picker";
+import { Field } from "../../ui/components";
+import { Overlay } from "../../ui/Overlay";
+import { SheetDragArea, SheetCloseButton } from "../../ui/SheetDragArea";
+import { Segmented } from "../../ui/Segmented";
+import { ListSkeleton } from "../../ui/Skeleton";
 import { styles, useColors } from "../../ui/theme";
-import { ConnectGitHub } from "./ConnectGitHub";
+import { PullRequestPickerFooter } from "./PullRequestPickerFooter";
+import { PullRequestPickerAccount } from "./PullRequestPickerAccount";
+import { RepositoryPullRequestRow } from "./RepositoryPullRequestRow";
+import { usePullRequestPicker } from "./usePullRequestPicker";
 
-interface LinkPullRequestProps {
+export function LinkPullRequest({
+  threadId,
+  revision,
+  onlinked,
+  visible,
+  onClose,
+}: {
   threadId: string;
   revision: bigint;
   onlinked: (value: github.ThreadPullRequestsResponse) => void;
-}
-
-export function LinkPullRequest({ threadId, revision, onlinked }: LinkPullRequestProps) {
-  const { client } = useSession();
+  visible: boolean;
+  onClose: () => void;
+}) {
   const c = useColors();
-  const [url, setUrl] = useState("");
-  const [selection, setSelection] = useState<github.GitHubRepositoryAccountResponse>();
-  const [accountId, setAccountId] = useState("");
-  const [choosing, setChoosing] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [configured, setConfigured] = useState(true);
-  const node = splitId(threadId).node;
-  const homeId = node ? `${GITHUB_HOME}~${node}` : "";
+  const p = usePullRequestPicker(threadId, visible, revision, onlinked);
 
-  async function check() {
-    if (!client || busy) return;
-    setBusy(true);
-    setError("");
-    setSelection(undefined);
-
-    try {
-      const match = /^https:\/\/github\.com\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\/pull\/[1-9][0-9]*$/.exec(url.trim());
-
-      if (!match) {
-        setError("Enter a GitHub pull request URL.");
-
-        return;
-      }
-
-      const value = await client.api.getGitHubRepositoryAccount({ homeId, repositoryName: match[1]! });
-      setSelection(value);
-      setAccountId(
-        value.candidates.some((a) => a.id === value.accountId)
-          ? value.accountId
-          : value.candidates.length === 1
-            ? value.candidates[0]!.id
-            : "",
-      );
-
-      if (!value.candidates.length) setConfigured((await client.api.listGitHubAccounts({ homeId })).configured);
-    } catch {
-      setError("Could not check repository access. Check the connection, then retry.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function link() {
-    if (!client || !selection || !accountId || busy) return;
-    setBusy(true);
-    setError("");
-
-    try {
-      if (selection.accountId !== accountId)
-        setSelection(
-          await client.api.setGitHubRepositoryAccount({
-            homeId,
-            repositoryName: selection.repositoryName,
-            accountId,
-            expectedRevision: selection.revision,
-          }),
-        );
-      onlinked(await client.api.linkThreadPullRequest({ threadId, url: url.trim(), expectedRevision: revision }));
-    } catch {
-      setError("Could not link this pull request. Check repository access and refresh before retrying.");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const directUrl = /^https:\/\/github\.com\/[^/]+\/[^/]+\/pull\/[1-9][0-9]*$/.test(p.query.trim())
+    ? p.query.trim()
+    : /^#?[1-9][0-9]*$/.test(p.query.trim()) && p.data?.repositoryName
+      ? `https://github.com/${p.data.repositoryName}/pull/${p.query.trim().replace(/^#/, "")}`
+      : "";
 
   return (
-    <View style={{ gap: 12, minWidth: 0 }}>
-      <Field
-        label="Pull request URL"
-        value={url}
-        placeholder="https://github.com/owner/repo/pull/123"
-        autoCapitalize="none"
-        autoCorrect={false}
-        onChangeText={(value) => {
-          setUrl(value);
-          setSelection(undefined);
+    <Overlay visible={visible} onClose={onClose} label="Link pull request">
+      <SheetDragArea
+        style={{
+          paddingHorizontal: 16,
+          paddingTop: 12,
+          paddingBottom: 4,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 8,
         }}
-      />
-      {selection &&
-        (selection.candidates.length ? (
-          <>
-            <SelectField
-              label="GitHub account"
-              value={selection.candidates.find((a) => a.id === accountId)?.login ?? "Choose an account"}
-              onPress={() => setChoosing(true)}
-            />
-            <Text style={[styles.meta, { color: c.muted }]}>
-              Use this account for {selection.repositoryName} on this computer.
+      >
+        <Text accessibilityRole="header" numberOfLines={1} style={[styles.overlayHeading, { color: c.muted, flex: 1 }]}>
+          Link pull request
+        </Text>
+        <SheetCloseButton label="Close picker" />
+      </SheetDragArea>
+      <View style={{ paddingHorizontal: 12, gap: 8 }}>
+        {!!p.data?.repositoryName && (
+          <Text numberOfLines={1} style={[styles.overlayMeta, { color: c.muted }]}>
+            {p.data.repositoryName}
+          </Text>
+        )}
+        {p.data?.selection && (p.data.selection.candidates.length > 1 || p.data.state === "choose_account") && (
+          <PullRequestPickerAccount
+            selection={p.data.selection}
+            disabled={p.busy || p.loading}
+            onchoose={(id) => void p.choose(id)}
+          />
+        )}
+        <Segmented
+          value={p.filter}
+          onChange={p.setFilter}
+          options={[
+            { value: "open", label: "Open" },
+            { value: "all", label: "All" },
+          ]}
+        />
+        <Field
+          label="Find a pull request"
+          value={p.query}
+          onChangeText={p.setQuery}
+          placeholder="#123, title, branch, author or URL"
+          autoCorrect={false}
+          autoCapitalize="none"
+        />
+      </View>
+      <FlatList
+        data={p.data?.items ?? []}
+        keyExtractor={(pr) => String(pr.number)}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingHorizontal: 8, paddingVertical: 4 }}
+        style={{ flexGrow: 0 }}
+        renderItem={({ item }) => (
+          <RepositoryPullRequestRow pr={item} disabled={p.busy} onSelect={(pr) => void p.link(pr)} />
+        )}
+        onEndReached={() => void p.more()}
+        onEndReachedThreshold={0.5}
+        ListEmptyComponent={
+          p.loading ? (
+            <ListSkeleton rows={3} />
+          ) : p.data?.state === "ready" ? (
+            <Text style={[styles.overlayMeta, { color: c.muted, padding: 12 }]}>
+              {p.data.nextCursor
+                ? "Load more to find pull requests"
+                : p.query
+                  ? "No matching pull requests"
+                  : p.filter === "open"
+                    ? "No open pull requests"
+                    : "No pull requests yet"}
             </Text>
-          </>
-        ) : (
-          <>
-            <ConnectGitHub homeId={homeId} configured={configured} onconnected={() => void check()} />
-            <Text style={[styles.meta, { color: c.muted }]}>
-              If your account is connected, manage its repository access in Settings → GitHub.
-            </Text>
-          </>
-        ))}
-      {!!error && <Notice error>{error}</Notice>}
-      <Button
-        title={busy ? "Checking…" : selection ? "Link pull request" : "Check access"}
-        disabled={busy || (!!selection && !accountId)}
-        onPress={() => void (selection ? link() : check())}
+          ) : undefined
+        }
+        ListFooterComponent={<PullRequestPickerFooter picker={p} {...{ threadId, revision, onlinked, directUrl }} />}
       />
-      <PickerSheet
-        title="Choose an account"
-        visible={choosing}
-        value={accountId}
-        sections={[{ options: selection?.candidates.map((a) => ({ value: a.id, label: a.login })) ?? [] }]}
-        onClose={() => setChoosing(false)}
-        onSelect={(value) => {
-          setAccountId(value);
-          setChoosing(false);
-        }}
-      />
-    </View>
+    </Overlay>
   );
 }

@@ -153,8 +153,6 @@ export class GitHubDetection {
 
           if (cursors[key]) detail = "More results available. Refresh to continue discovery.";
         }
-      } else if (context.branch && context.remotes.length) {
-        detail = "Choose a repository account or link a pull request manually to match this branch.";
       }
 
       const events = await run((s) => s.detectionEvents(owner, thread.thread_id, seq));

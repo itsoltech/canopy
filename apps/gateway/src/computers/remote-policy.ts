@@ -56,6 +56,7 @@ export const GITHUB_PR_METHODS = new Set([
   "GetGitHubRepositoryAccount",
   "SetGitHubRepositoryAccount",
   "ListThreadPullRequests",
+  "ListRepositoryPullRequests",
   "LinkThreadPullRequest",
   "UnlinkThreadPullRequest",
   "GetPullRequest",

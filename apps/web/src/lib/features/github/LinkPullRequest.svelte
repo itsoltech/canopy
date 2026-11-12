@@ -1,122 +1,37 @@
 <script lang="ts">
   import type { github } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
-  import { GITHUB_HOME, splitId } from "@canopy/domain/computers";
-  import Button from "#lib/shared/ui/Button.svelte";
-  import Input from "#lib/shared/ui/Input.svelte";
-  import Select from "#lib/shared/ui/Select.svelte";
-  import Alert from "#lib/shared/ui/Alert.svelte";
-  import ConnectGitHub from "./ConnectGitHub.svelte";
-  import * as api from "./api.ts";
+  import Popover from "#lib/shared/ui/Popover.svelte";
+  import Icon from "#lib/shared/ui/Icon.svelte";
+  import PullRequestPicker from "./PullRequestPicker.svelte";
 
   let {
     threadId,
     revision,
     onlinked,
+    disabled = false,
     class: className,
   }: {
     threadId: string;
     revision: bigint;
     onlinked: (value: github.ThreadPullRequestsResponse) => void;
+    disabled?: boolean;
     class?: ClassValue;
   } = $props();
 
-  let url = $state("");
-  let selection = $state<github.GitHubRepositoryAccountResponse>();
-  let accountId = $state("");
-  let busy = $state(false);
-  let error = $state("");
-  let name = $state("");
-  let configured = $state(true);
-  const homeId = $derived(splitId(threadId).node ? `${GITHUB_HOME}~${splitId(threadId).node}` : "");
-
-  async function check() {
-    busy = true;
-    error = "";
-    selection = undefined;
-
-    try {
-      const match = /^https:\/\/github\.com\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\/pull\/[1-9][0-9]*$/.exec(url.trim());
-
-      if (!match) {
-        error = "Enter a GitHub pull request URL.";
-
-        return;
-      }
-
-      name = match[1]!;
-      const value = await api.repositoryAccount(homeId, name);
-      selection = value;
-      accountId = value.candidates.some((a) => a.id === value.accountId)
-        ? value.accountId
-        : value.candidates.length === 1
-          ? value.candidates[0]!.id
-          : "";
-
-      if (!value.candidates.length) configured = (await api.accounts(homeId)).configured;
-    } catch {
-      error = "Could not check repository access. Check the connection, then retry.";
-    } finally {
-      busy = false;
-    }
-  }
-
-  async function link() {
-    const selected = selection;
-
-    if (!selected || !accountId || busy) return;
-    busy = true;
-    error = "";
-
-    try {
-      if (selected.accountId !== accountId)
-        selection = await api.chooseAccount(homeId, name, accountId, selected.revision);
-      onlinked(await api.link(threadId, url.trim(), revision));
-    } catch {
-      error = "Could not link this pull request. Check repository access and refresh before retrying.";
-    } finally {
-      busy = false;
-    }
-  }
+  let open = $state(false);
 </script>
 
-<form
-  class={["grid min-w-0 gap-3", className]}
-  onsubmit={(e) => {
-    e.preventDefault();
-    void (selection ? link() : check());
-  }}
->
-  <Input
-    name="pull-request-url"
-    aria-label="Pull request URL"
-    placeholder="https://github.com/owner/repo/pull/123"
-    bind:value={url}
-    oninput={() => {
-      selection = undefined;
-      error = "";
-    }}
-  />
-  {#if selection}
-    {#if selection.candidates.length}
-      <Select
-        aria-label="GitHub account"
-        bind:value={accountId}
-        options={selection.candidates.map((a) => ({ value: a.id, label: a.login }))}
-        placeholder="Choose an account"
-      />
-      <p class="text-sm/5 text-zinc-500 dark:text-zinc-400">Use this account for {name} on this computer.</p>
-    {:else}
-      <ConnectGitHub {homeId} {configured} onconnected={() => void check()} />
-      <p class="text-sm/5 text-zinc-500 dark:text-zinc-400">
-        If your account is connected, manage its repository access in Settings → GitHub.
-      </p>
-    {/if}
-  {/if}
-  {#if error}<Alert>{error}</Alert>{/if}
-  <div>
-    <Button type="submit" size="sm" disabled={busy || (!!selection && !accountId)}
-      >{busy ? "Checking…" : selection ? "Link pull request" : "Check access"}</Button
+<Popover bind:open label="Link pull request" sheet class={["w-[min(26rem,calc(100vw-1rem))]", className]}>
+  {#snippet trigger(props)}
+    <button
+      type="button"
+      {...props}
+      {disabled}
+      class="flex min-h-9 w-full min-w-0 items-center gap-2 rounded-lg px-2 text-left text-base/5 text-zinc-700 focus-ring hover:bg-zinc-950/4 disabled:opacity-50 sm:min-h-8 sm:text-sm/5 dark:text-zinc-300 dark:hover:bg-white/5"
     >
-  </div>
-</form>
+      <Icon name="plus" /><span>Link pull request</span>
+    </button>
+  {/snippet}
+  {#if open}<PullRequestPicker {threadId} {revision} {onlinked} />{/if}
+</Popover>
