@@ -32,7 +32,9 @@
   let attempt = $state(0);
 
   $effect(() => {
-    if (!active || (!auto && attempt === 0)) return;
+    const requested = attempt;
+
+    if (!active || (!auto && requested === 0)) return;
     const abort = new AbortController();
 
     void load(signal ? AbortSignal.any([signal, abort.signal]) : abort.signal);

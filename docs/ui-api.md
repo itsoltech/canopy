@@ -116,6 +116,8 @@ stan ładowania lub błąd z „Retry” w skali meta wierszy pracy. Zwinięcie 
 a pełna treść pozostaje w pamięci sesji klienta, poza reducerem osi czasu. Widoczny
 podgląd wiadomości kończy się akcją „Show full message” z rozmiarem treści; zastępuje
 podgląd w miejscu. Te same reguły obowiązują web/desktop i mobile.
+Skrócony wynik zadania w tle kończy się akcją „Show full output” z rozmiarem gotowej
+treści; rozwija ona cały wynik w miejscu. Podczas streamingu rozmiar pozostaje nieznany.
 Limit partii wynosi 64 rekordy i 64 KiB protobuf łącznie z kopertą; sam limit tur
 nie wystarcza, ponieważ pojedyncza tura może zawierać wielki wynik narzędzia.
 Nieznane pola/case nie przerywają watcha. Nierozpoznany item zachowuje stabilne
