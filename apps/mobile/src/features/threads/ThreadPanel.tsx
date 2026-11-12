@@ -15,7 +15,6 @@ import { useComputerHome } from "../computers/presence";
 import { useSession } from "../../state/session";
 import { openSettingsSection } from "../settings/navigation";
 import { ThreadPullRequests } from "../github/ThreadPullRequests";
-import { permissionLabel } from "./permissions";
 
 export function PanelRow({
   title,
@@ -114,7 +113,6 @@ export function ThreadPanel({
               icon="computer-desktop"
             />
             <ThreadPlacement thread={thread} onClose={onClose} />
-            <PanelRow title="Permissions" value={permissionLabel(thread.permissionMode)} icon="shield-check" />
             {!!thread.permissionModeNote && (
               <Text style={[styles.meta, { color: c.muted }]}>{thread.permissionModeNote}</Text>
             )}
