@@ -1,10 +1,18 @@
 # Połączone komputery
 
-Postęp luster jest dostępny w Settings → Diagnostics: zastosowany seq, head,
-liczba pozostałych rekordów i potwierdzenie zakończenia catch-up. Trwały błąd
-jednego wątku zachowuje kod klasy, kod RPC i rozmiar ramki; nie przechowuje treści
-ani tekstu wyjątku. Diagnostyka czyta wyłącznie metadane właściciela, w stronach
-do 100 wątków. Szczegóły kontraktu: [UI API](ui-api.md).
+Settings → Diagnostics grupuje postęp luster według połączonego komputera.
+Pokazuje jego nazwę z aplikacji, stan, liczbę wątków i czas ostatniej zapisanej
+partii. Po rozwinięciu pobiera tylko wątki nadrabiające lub wstrzymane: tytuł,
+pozostałe rekordy, rozpoznany powód i odnośnik do wątku. Gotowe wątki mają jeden
+licznik. Gdy wszystkie komputery są osiągalne i zsynchronizowane, zostaje jeden
+spokojny status bez listy ani zerowych liczników. Nieosiągalny komputer zachowuje
+osobny status nawet przy zerowym zapisanym backlogu.
+
+Odczyt korzysta wyłącznie z lokalnych metadanych właściciela, bez treści wiadomości,
+tras, poświadczeń ani tekstu wyjątku. Widoczna strona odświeża podsumowania co 5 s;
+szczegóły tylko dla rozwiniętych komputerów, po 25 wątków (limit RPC: 100).
+Trwały błąd nadal zachowuje kod klasy, kod RPC i rozmiar ramki.
+Szczegóły kontraktu: [UI API](ui-api.md).
 
 Rozłączenie lokalnego workera zmienia dostępność workera, nie obecność komputera.
 Obecność partnera wynika z jego własnego łącza i heartbeatów. Zmiana metadanych
@@ -1062,6 +1070,11 @@ a nie widoczne wiadomości rozmowy ani bajty blobów pobieranych leniwie.
 Wartość zero oznacza kompletność względem podanego head; następna zmiana może go
 zwiększyć. Diagnostyka rozdziela trwały seq, head, pozostałe rekordy, bajty partii
 i stan live. Brak head oznacza nieznany postęp, nigdy pozorne zero.
+
+`thread_range_state.last_synced_at` (migracja 0124) zapisuje czas zastosowania
+partii w tej samej transakcji co kursor i encje. Ponowne odczytanie diagnostyki,
+błąd i duplikat partii nie przesuwają tego czasu. Historyczne kursory mają `NULL`
+do następnej zastosowanej partii; UI nie zastępuje go czasem odświeżenia strony.
 
 **Trwałość i flow control.** Odbiorca sprawdza epokę i ciągłość, stosuje rekordy
 i przesuwa kursor w jednej transakcji, dopiero potem potwierdza seq domu. Dom ma

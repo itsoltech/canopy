@@ -37,6 +37,17 @@ samego glifu w komendach i aplikacji mobilnej; `sidebar` używa `layout-sidebar`
 
 ## Synchronizacja wątku
 
+`GetThreadSyncDiagnostics` ma addytywny tryb `summary_only`: zwraca `computers`
+z pełnymi licznikami dla każdego domu oraz osiągalnością z runtime łącza.
+Nie pobiera ani nie dekoduje historii wątków. `computer_node_id` ogranicza
+stronicowane `entries` do wybranego komputera, a `attention_only` pomija gotowe
+wątki. Tytuły pochodzą z `thread_metadata` bieżącej generacji lustra;
+brak metadanych pokazuje „Untitled thread”. Wszystkie złączenia filtrują właściciela,
+także przy identycznych id domu i wątku u innych właścicieli. Domyślny odczyt
+zachowuje dotychczasowe stronicowanie i znaczenie liczników dla starszych klientów.
+Wspólne `domain/thread-sync-display.ts` łączy strony z podsumowaniami komputerów
+i określa statusy, liczniki oraz teksty dla web/desktop i mobile.
+
 Nagłówek wątku pokazuje synchronizację ikoną `arrow-path` w istniejącym miejscu znaku
 projektu; nazwa projektu, tytuł i przyciski nie przesuwają się. Ikona zastępuje znak
 po 500 ms nieprzerwanej synchronizacji i przenika z powrotem po przejściu do `live`.
