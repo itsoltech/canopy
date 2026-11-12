@@ -7,7 +7,7 @@ import { Logs, LogExporter, LogPullSource, logChecksum, registeredLogs } from "@
 import { tempDir } from "@canopy/testing";
 import { remoteServe, uiHandlers } from "@canopy/gateway/api";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
-import { wireHello } from "../../apps/gateway/src/computers/capabilities.ts";
+import { wireHello } from "../../apps/gateway/src/computers/hello.ts";
 import { startTestGateway, eventually, type TestGateway } from "./support/gateway.ts";
 import { linkedComputers } from "./support/computers.ts";
 import { join } from "node:path";
@@ -198,7 +198,7 @@ describe.skipIf(!dockerAvailable)("owner log collection over gRPC, worker link a
     expect(await code(gateways[0]!.api.getDiagnosticsLogsJob({ jobId: crypto.randomUUID() }))).toBe(Code.NotFound);
     const hello = wireHello(nodes[0]!.hello());
     expect(hello.capabilities.length).toBeLessThanOrEqual(32);
-    expect(hello.extraCapabilities).toContain("diagnostics_logs_v1");
+    expect(hello.additionalCapabilities).toContain("diagnostics_logs_v1");
   });
 
   test("cancel closes the source and ZIP, invalidates download, and a retry is a new bounded action", async () => {
