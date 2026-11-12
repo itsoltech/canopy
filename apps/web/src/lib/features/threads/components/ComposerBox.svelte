@@ -140,7 +140,7 @@
   const trimmed = $derived(trimValue({ text: value, mentions }));
 
   // The empty composer lists what each trigger character does.
-  const hint = $derived(shell && sources && !compact ? TRIGGER_HINT : undefined);
+  const hint = $derived(shell && sources ? TRIGGER_HINT : undefined);
 
   const id = $props.id();
   const hasFiles = $derived((draft?.attached.length ?? 0) > 0);
@@ -281,13 +281,8 @@
 <div class={["grid grid-cols-1", className]}>
   <div
     class={[
-      "relative rounded-2xl bg-surface shadow-sm ring-1 [--composer-send-width:--spacing(9)] sm:[--composer-send-width:--spacing(8)] dark:shadow-none",
+      "group/composer relative isolate rounded-2xl [--composer-send-width:--spacing(9)] sm:[--composer-send-width:--spacing(8)]",
       disabled && (!stopMode || stopDisabled) && "*:opacity-70",
-      shellMode
-        ? "ring-rose-600 has-focus-visible:ring-rose-600 dark:ring-rose-400 dark:has-focus-visible:ring-rose-400"
-        : dragging
-          ? "ring-2 ring-brand-600 dark:ring-brand-500"
-          : "ring-zinc-950/10 has-focus-visible:ring-accent dark:ring-white/10",
     ]}
     bind:this={box}
     onbeforeinput={() => onexpand?.("typing")}
@@ -319,6 +314,17 @@
     }}
     {ondrop}
   >
+    <div
+      aria-hidden="true"
+      class={[
+        "t-composer-surface pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-full rounded-2xl bg-surface shadow-sm ring-1 dark:shadow-none",
+        shellMode
+          ? "ring-rose-600 dark:ring-rose-400"
+          : dragging
+            ? "ring-2 ring-brand-600 dark:ring-brand-500"
+            : "ring-zinc-950/10 group-has-focus-visible/composer:ring-accent dark:ring-white/10",
+      ]}
+    ></div>
     <ComposerFold open={!compact}>
       {@render elements?.()}
     </ComposerFold>
@@ -407,7 +413,7 @@
         {@render controls?.()}
       </div>
     </ComposerFold>
-    <div class="absolute right-2.5 bottom-2.5 flex items-center gap-1" {@attach followSendWidth}>
+    <div class="t-composer-send absolute right-2.5 bottom-2.5 flex items-center gap-1" {@attach followSendWidth}>
       {#if deliveryNotice}<HintIcon label="Message delivery information" text={deliveryNotice} />{/if}
       <ResizeSlot>
         {#if steerMode && onqueue}

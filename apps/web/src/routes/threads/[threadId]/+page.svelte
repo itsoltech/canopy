@@ -675,7 +675,7 @@
             <!-- What comes and goes above the composer grows in and out (each carries its own gap below). -->
             <div class="grid grid-cols-1 pt-2" bind:this={feedFooter}>
               {#if view.secrets.some((s) => s.status === "pending")}
-                <GrowIn class="pb-3"
+                <GrowIn overlay class="pb-3"
                   ><ThreadSecretsPanel
                     secrets={view.secrets.filter((s) => s.status === "pending")}
                     onchange={(secret) => view.upsertSecret(secret)}
@@ -683,7 +683,7 @@
                 >
               {/if}
               {#if view.pending.some((i) => i.kind !== InteractionKind.QUESTION)}
-                <GrowIn class="pb-3">
+                <GrowIn overlay class="pb-3">
                   <div
                     class={["grid gap-3 p-px", away && "opacity-60"]}
                     role="region"
@@ -699,7 +699,7 @@
                 </GrowIn>
               {/if}
               {#if view.backgroundTasks.length > 0}
-                <GrowIn class="justify-self-start pb-3">
+                <GrowIn overlay class="justify-self-start pb-3">
                   <BackgroundTasksChip tasks={runningBackgroundTasks} onjump={(task) => openOutput(task.id)} />
                 </GrowIn>
               {/if}

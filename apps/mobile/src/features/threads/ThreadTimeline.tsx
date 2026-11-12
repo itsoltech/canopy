@@ -136,6 +136,7 @@ export function ThreadTimeline({
       <FeedAnchorProvider value={anchor}>
         <TimelineList
           {...composer.listProps}
+          composerInset={following.composerInset}
           onEndReached={() => {
             if (!following.isFollowing()) void state.history.load();
           }}
@@ -187,7 +188,6 @@ export function ThreadTimeline({
                   </Animated.View>
                 ))}
               </View>
-              <View style={{ height: composer.reserve }} />
             </>
           }
         />

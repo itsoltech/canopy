@@ -389,7 +389,7 @@
 }
 
 /* --- Toast (22): rises with fade + cross-blur on --duration-slow, leaves on --duration-medium. -------- */
-/* The thread slot animates one outer height; all its mounted parts switch to their natural size at once. */
+/* Natural sizing switches once; the feed shell clips its resize and each part retains its own motion. */
 .t-composer-slot {
   min-height: --spacing(44);
 }
@@ -400,10 +400,43 @@
 .t-composer-slot .t-composer-editor,
 .t-composer-slot .t-composer-input,
 .t-composer-slot .t-composer-fold,
-.t-composer-slot .t-composer-fold > *,
-.t-composer-slot .t-acc-panel,
-.t-composer-slot .t-acc-panel > * {
+.t-composer-slot .t-acc-panel {
   transition: none;
+}
+.t-composer-slot .t-composer-fold > * {
+  min-width: 0;
+  overflow: visible;
+  translate: 0 var(--distance-base);
+  transition:
+    opacity var(--duration-medium) var(--ease-smooth-out),
+    translate var(--duration-medium) var(--ease-smooth-out);
+}
+.t-composer-slot .t-composer-fold[data-open] > * {
+  translate: 0 0;
+  transition-duration: var(--duration-slow);
+}
+.t-composer-slot [aria-label="Quotes"] {
+  max-height: min(--spacing(48), 20dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.t-composer-slot .t-composer-input:not([data-single-line]) {
+  max-height: min(--spacing(72), 25dvh);
+}
+.t-composer-hint {
+  opacity: 1;
+  translate: 0 0;
+  transition:
+    opacity var(--duration-slow) var(--ease-smooth-out),
+    translate var(--duration-slow) var(--ease-smooth-out);
+}
+.t-composer-placeholder[data-single-line] {
+  height: --spacing(6);
+}
+.t-composer-placeholder[data-single-line] .t-composer-hint {
+  opacity: 0;
+  translate: 0 var(--distance-base);
+  transition-duration: var(--duration-medium);
 }
 .t-feed-latest {
   transition: opacity var(--duration-fast) var(--ease-smooth-out);
@@ -471,7 +504,8 @@
   .t-composer-editor,
   .t-composer-input,
   .t-composer-fold,
-  .t-composer-fold > * {
+  .t-composer-fold > *,
+  .t-composer-hint {
     transition: none !important;
   }
   .t-feed-latest {

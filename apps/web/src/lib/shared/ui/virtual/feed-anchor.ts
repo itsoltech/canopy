@@ -50,3 +50,19 @@ export function rowsOnScreen(
 
   return keys;
 }
+
+/** Focused row plus visible reading rows; a following reader has no reading range. */
+export function readingKeys(
+  elements: ReadonlyMap<string, HTMLElement>,
+  scroller: HTMLElement | undefined,
+  following: boolean,
+  focused: string | undefined,
+  footerHeight: number,
+): string[] {
+  const keys = focused === undefined ? [] : [focused];
+
+  if (following || !scroller) return keys;
+  const box = scroller.getBoundingClientRect();
+
+  return [...keys, ...rowsOnScreen(elements, box.top, box.bottom - footerHeight, focused)];
+}

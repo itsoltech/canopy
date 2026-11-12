@@ -3,6 +3,19 @@ export const footerField = (footer: HTMLElement | undefined): HTMLElement | null
   footer?.querySelector<HTMLElement>('[contenteditable="true"], textarea:not([disabled])') ??
   footer?.querySelector<HTMLElement>("input:not([disabled]), button:not([disabled])");
 
+/** Ctrl+Home/End focus the feed or its composer without the browser scrolling the page. */
+export function focusFeedBoundary(
+  event: KeyboardEvent,
+  footer: HTMLElement | undefined,
+  scroller: HTMLElement | undefined,
+): boolean {
+  if (!event.ctrlKey || (event.key !== "Home" && event.key !== "End")) return false;
+  event.preventDefault();
+  (event.key === "End" ? footerField(footer) : scroller)?.focus({ preventScroll: true });
+
+  return true;
+}
+
 /** Row containing a focused control or keyboard event target. */
 export function feedRowKey(target: EventTarget | null): string | undefined {
   return target instanceof Element ? target.closest<HTMLElement>("article[data-key]")?.dataset.key : undefined;

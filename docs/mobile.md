@@ -892,7 +892,7 @@ Podczas przewijania wiersze przechodzą pod nagłówkiem i paskiem stanu. Ikony 
 zmieniają jasność wraz z motywem, a powierzchnia nagłówka utrzymuje ich kontrast.
 `ScreenScroll` stosuje padding treści w New thread, Pair, Settings i arkuszach szczegółów.
 Timeline wątku i bota ma odwrócone końce: górny inset jest na najstarszym końcu,
-a dolny rezerwuje zwinięty kompozytor wątku lub rzeczywistą wysokość kompozytora bota
+a dolny rezerwuje rzeczywistą wysokość kompozytora wątku lub bota
 i oddzielny inset safe area. Tło kompozytora sięga pod
 home indicator; pod klawiaturą inset zastępuje jej rzeczywisty overlap.
 W podziale na kolumny tylko sidebar dostaje lewy inset, a główny panel prawy; po ukryciu
@@ -919,13 +919,18 @@ BotAvatar, ChatBubble i BotDetailsPanel. Brand assety pochodzą z `apps/web/stat
 Kompozytor wątku (także bocznego) i czatu bota jest nakładką nad feedem, z powierzchnią,
 obramowaniem i cieniem w jasnym motywie oraz wygaszeniem tła na 32 dp jak w web.
 `features/composer/FloatingComposer.tsx` ma osobny pas gradientu o stałej wysokości **32 dp**
-nad górną krawędzią pola; gradient nie rozciąga się na pełną wysokość kontenera. Pod ostatnią
-wiadomością wątku (w nagłówku odwróconej listy) stoi stała rezerwa 74 dp: zwinięte
-pole 44, odstęp 8, padding 20 i obramowanie 2. Safe area i klawiatura pozostają osobne.
-Rozwijanie, zwijanie, długi szkic, załączniki i zasobnik zmieniają wyłącznie nakładkę,
-bez zmiany wysokości nagłówka listy ani korekty scrolla. Pomiar rozwiniętego pola nadal
-służy gestom klawiatury (`ChatKeyboard`), ale nie rezerwie feedu. Pierwszy szacunek tego
-pomiaru to 186 dp: pole 64, toolbar 56, dolny wiersz 36, odstęp 8, padding 20 i obramowanie 2.
+nad górną krawędzią pola; gradient nie rozciąga się na pełną wysokość kontenera.
+`ComposerCoverage` mierzy cały widoczny stos na wątku UI: pole, toolbar, dolny wiersz,
+zawinięte cytaty, załączniki, podsumowania w kompakcie, zasobnik i statusy. Natywny inset
+listy udostępnia dokładnie ten obszar do przewinięcia; safe area jest dodawana tylko raz
+przez scroll view, razem z bieżącą klawiaturą. Nie ma stałej rezerwy w nagłówku listy.
+Przy końcu iOS zatwierdza inset i offset razem, a Android korzysta z `extraContentPadding`
+i `whenAtEnd`; historia nie przesuwa się podczas czytania powyżej końca. Pomiar nie
+przechodzi przez React na każdej klatce i zatrzymuje się po opuszczeniu ekranu.
+Nagłe zmiany naturalnej wysokości (np. dodanie cytatów) animuje zewnętrzny klip na
+wątku UI; fold zachowuje własną krzywą. Sugestie pozostają poza klipem i pomiarem.
+Oddzielny pomiar pola służy gestom `ChatKeyboard`. Pierwszy szacunek to 186 dp:
+pole 64, toolbar 56, dolny wiersz 36, odstęp 8, padding 20 i obramowanie 2.
 Bot zachowuje rezerwę zmierzonej wysokości swojego pola. Wiersz kontrolek najpierw odzyskuje
 pełną wysokość, potem się rozjaśnia; przy zamykaniu znika przed zwężeniem klipu.
 Decyzja o foldzie wymaga gestu czytelnika: próg końca to 8 dp, zwinięcia 192 dp i 96 dp
@@ -1097,9 +1102,9 @@ rezerwy feedu ani jego scrolla. Nagłówki działają także przy zwiniętym kom
 Nad zasobnikiem są wiersze statusu
 („Syncing…”, sekrety, „Sending…”, błąd wysyłki, komputer offline) i chip zadań w tle.
 Wiersze statusu i zasobnik leżą na tle kompozytora z własnym wygaszeniem 32 dp, poza pomiarem
-pola. Ich wysokość wchodzi do rezerwy pod ostatnią wiadomością tylko na końcu feedu
-(`useFloatingComposer.measureAccessory`): tam ostatnia wiadomość przesuwa się razem z nimi,
-a podczas czytania historii nic się nie przesuwa, a zmiana czeka na powrót na koniec.
+pola dla gestów klawiatury. Pomiar całego stosu obejmuje je w każdym stanie: ostatnią
+wiadomość można przewinąć ponad nakładkę. Przy końcu przesuwa się razem z nimi,
+a podczas czytania historii nic się nie przesuwa.
 Zasobnik wchodzi i wychodzi przez `rise`, wiersze kolejki dodatkowo przez `layout`.
 
 Panel subagentów (`SubagentsPanel`, web: `SubagentsPanel`) pokazuje tylko pracujących
