@@ -1439,6 +1439,13 @@ co tokeny CSS web (`routes/layout.css`): otwarcie `fast` (250 ms), zamknięcie `
 dla tekstu i odsłonięcia szkieletu. Bez liczb ad hoc w komponentach. React Native nie ma `filter: blur`,
 więc przejścia web z rozmyciem są tu bez niego.
 
+Fold pracy i grupy narzędzi korzystają z `features/timeline/TimelineDisclosure`: leniwy
+montaż, zachowanie treści po zamknięciu, naturalna wysokość po otwarciu oraz przejście
+wysokości na UI przez `fast` / `smoothOut` (250 ms w obie strony). Ograniczenie ruchu
+pomija przejście. Kotwica ręcznego przełączenia mierzy nagłówek na UI i na czas ruchu
+wyłącza natywne kotwiczenie komórki. Dotyczy to także ostatniej tury; szczegóły i granice
+zakresu przewijania opisuje [timeline-folding.md](timeline-folding.md).
+
 Presety (`useMotion()`): `rise` (nowy wiersz, tylko przezroczystość), `pop` (coś dodanego, rośnie
 od `scale.medium`), `toast` (komunikat: wjeżdża o `distance.medium`, `slow` / `medium`), `swap`
 (zmieniony tekst wchodzi o `distance.micro`), `reveal` (treść w miejscu szkieletu), `layout`

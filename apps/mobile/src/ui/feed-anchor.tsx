@@ -1,79 +1,187 @@
-import { createContext, useContext, useMemo, type ReactNode, type RefObject } from "react";
-import type { HostInstance } from "react-native";
-import type { SharedValue } from "react-native-reanimated";
+import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import { View } from "react-native";
+import {
+  measure,
+  scrollTo,
+  useAnimatedRef,
+  useFrameCallback,
+  useSharedValue,
+  type SharedValue,
+} from "react-native-reanimated";
+import { scheduleOnRN, scheduleOnUI } from "react-native-worklets";
+import type { ui } from "@canopy/contracts";
+import type { useFollowingList } from "./useFollowingList";
+import { motion, useReducedMotion } from "./motion";
 
-/**
- * Keeps what the reader tapped where it was (docs/timeline-folding.md): opening or closing a fold grows or shrinks
- * the content under its header; the header itself and everything above it stay on screen. The feed is an inverted
- * FlatList, where a row grows towards older content, so the header would move; the anchor measures it before the
- * change and moves the list by as much as it moved. A reader following the bottom stays there when the fold is in
- * the latest turn.
- */
-export interface FeedAnchor {
-  /** Runs `change` (a toggle) with `target` (the tapped header) held in place; `latest`: it is in the latest turn. */
-  readonly toggle: (target: HostInstance | null, change: () => void, latest: boolean) => void;
+/** Native cell anchoring yields to the tapped header for one disclosure transition. */
+class AnchorSession {
+  #version = 0;
+  #manual = false;
+  #listeners = new Set<() => void>();
+
+  subscribe = (listener: () => void) => {
+    this.#listeners.add(listener);
+
+    return () => {
+      this.#listeners.delete(listener);
+    };
+  };
+
+  manual = () => this.#manual;
+
+  begin() {
+    this.#version++;
+    this.#manual = true;
+    this.#emit();
+
+    return this.#version;
+  }
+
+  end(version: number) {
+    if (!this.#manual || version !== this.#version) return;
+    this.#manual = false;
+    this.#emit();
+  }
+
+  #emit() {
+    for (const listener of this.#listeners) listener();
+  }
 }
 
-const Anchor = createContext<FeedAnchor>({ toggle: (_target, change) => change() });
+export function useFeedAnchor({
+  list,
+  scrollY,
+  minimum,
+  corrections,
+  anchoring,
+  track,
+}: ReturnType<typeof useFollowingList<ui.Turn>>) {
+  const generation = useSharedValue(0);
+  const [session] = useState(() => new AnchorSession());
+  const geometry = useMemo(
+    () => ({ list, scrollY, minimum, corrections, anchoring, generation, track }),
+    [list, scrollY, minimum, corrections, anchoring, generation, track],
+  );
 
-/** Whether rows under this provider belong to the latest turn (the bottom of the feed). */
-const Latest = createContext(false);
-
-export function LatestScope({ latest, children }: { latest: boolean; children: ReactNode }) {
-  return <Latest.Provider value={latest}>{children}</Latest.Provider>;
+  return useMemo(() => ({ session, geometry }), [session, geometry]);
 }
 
-export function FeedAnchorProvider({ value, children }: { value: FeedAnchor; children: ReactNode }) {
+const Anchor = createContext<ReturnType<typeof useFeedAnchor> | null>(null);
+const idle = new AnchorSession();
+
+/** Inverted: increasing the offset moves the header down, against growth above the cell's bottom. */
+function correctHeader(geometry: ReturnType<typeof useFeedAnchor>["geometry"], top: SharedValue<number>, after: number) {
+  "worklet";
+  const delta = after - top.get();
+
+  if (Math.abs(delta) < 0.5) return true;
+  const next = Math.max(geometry.minimum.get(), geometry.scrollY.get() - delta);
+
+  // At the physical end there may be no scroll range left to preserve the old position.
+  if (Math.abs(next - geometry.scrollY.get()) < 0.5) top.set(after);
+  geometry.scrollY.set(next);
+  geometry.corrections.set(geometry.corrections.get() + 1);
+  scrollTo(geometry.list, 0, next, false);
+
+  return false;
+}
+
+export function FeedAnchorProvider({ value, children }: { value: ReturnType<typeof useFeedAnchor>; children: ReactNode }) {
   return <Anchor.Provider value={value}>{children}</Anchor.Provider>;
 }
 
-/** A toggle that keeps its header (`target`) in place. */
-export function useAnchoredToggle() {
-  const anchor = useContext(Anchor);
-  const latest = useContext(Latest);
+/** Only the list wrapper subscribes; starting a toggle does not replace turn props or the data array. */
+export function useManualFeedAnchor() {
+  const session = useContext(Anchor)?.session ?? idle;
 
-  return (target: HostInstance | null, change: () => void) => anchor.toggle(target, change, latest);
-}
-
-interface Scrollable {
-  scrollToOffset(params: { offset: number; animated?: boolean }): void;
+  return useSyncExternalStore(session.subscribe, session.manual);
 }
 
 /**
- * The anchor of an inverted list: `offset` is its current scroll offset (kept by its scroll events), `following`
- * whether the reader is at the bottom. Rows in the latest turn bypass the anchor only while the reader follows.
+ * Synchronous UI geometry replaces delayed JS measurements of possibly clipped cells. Only the tapped
+ * header's frame callback runs. A drag cancels the correction; a newer tap supersedes the older session.
  */
-export function useFeedAnchor(
-  list: RefObject<Scrollable | null>,
-  offset: RefObject<number>,
-  following: () => boolean,
-  minimum?: SharedValue<number>,
-): FeedAnchor {
-  return useMemo(
-    () => ({
-      toggle(target, change, latest) {
-        // Following the bottom, a fold in the latest turn keeps the reader at the bottom: the list does that itself.
-        if (!target || (latest && following())) return change();
+export function useAnchoredToggle() {
+  const anchor = useContext(Anchor);
+  const header = useAnimatedRef<View>();
+  const reduced = useReducedMotion();
+  const top = useSharedValue(0);
+  const started = useSharedValue(0);
+  const version = useSharedValue(0);
+  const stable = useSharedValue(0);
+  const active = useSharedValue(false);
+  // Keep class instances and JS listeners out of the worklet closure.
+  const geometry = anchor?.geometry;
 
-        target.measureInWindow((_x, before) => {
-          change();
+  const finish = (id: number) => {
+    if (version.get() === id) frames.setActive(false);
+    anchor?.session.end(id);
 
-          // Layout lands within a frame or two; a late one (fonts, images, markdown) is caught by the second check.
-          const settle = () =>
-            target.measureInWindow((_x2, after) => {
-              const moved = after - before;
+    if (!geometry) return;
+    scheduleOnUI(() => {
+      if (geometry.generation.get() !== id) return;
+      geometry.anchoring.set(false);
+      geometry.track(geometry.scrollY.get());
+    });
+  };
 
-              if (Math.abs(moved) < 1) return;
-              // Inverted: a larger offset shows older content, which moves the rows down the screen.
-              offset.current = Math.max(minimum?.get() ?? 0, offset.current - moved);
-              list.current?.scrollToOffset({ offset: offset.current, animated: false });
-            });
+  const frames = useFrameCallback(() => {
+    "worklet";
 
-          requestAnimationFrame(() => requestAnimationFrame(settle));
-          setTimeout(settle, 180);
-        });
-      },
-    }),
-    [list, offset, following, minimum],
+    if (!geometry || !active.get()) return;
+    const box = measure(header);
+
+    if (!geometry.anchoring.get() || geometry.generation.get() !== version.get() || !box || box.height <= 0) {
+      active.set(false);
+      scheduleOnRN(finish, version.get());
+
+      return;
+    }
+
+    stable.set(correctHeader(geometry, top, box.pageY) ? stable.get() + 1 : 0);
+
+    const elapsed = Date.now() - started.get();
+
+    if ((elapsed >= (reduced ? 0 : motion.fast) && stable.get() >= 2) || elapsed >= motion.fast + motion.slow) {
+      active.set(false);
+      geometry.anchoring.set(false);
+      scheduleOnRN(finish, version.get());
+    }
+  }, false);
+
+  useEffect(
+    () => () => {
+      frames.setActive(false);
+      anchor?.session.end(version.get());
+
+      if (!geometry) return;
+      scheduleOnUI(() => {
+        if (geometry.generation.get() === version.get()) geometry.anchoring.set(false);
+      });
+    },
+    [frames, anchor, version, geometry],
   );
+
+  return {
+    header,
+    toggle(change: () => void) {
+      if (!anchor || !geometry) return change();
+      const id = anchor.session.begin();
+      frames.setActive(true);
+      scheduleOnUI(() => {
+        const box = measure(header);
+        version.set(id);
+        geometry.generation.set(id);
+        stable.set(0);
+        started.set(Date.now());
+        active.set(Boolean(box && box.height > 0));
+        geometry.anchoring.set(active.get());
+
+        if (box) top.set(box.pageY);
+        scheduleOnRN(change);
+
+        if (!active.get()) scheduleOnRN(finish, id);
+      });
+    },
+  };
 }

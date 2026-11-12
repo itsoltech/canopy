@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { View } from "react-native";
 import Animated from "react-native-reanimated";
 import { ui, type Item } from "@canopy/contracts";
@@ -25,39 +25,81 @@ import type { ThreadState } from "./ThreadScreen";
 function useTimelineData(state: ThreadState) {
   const { threads } = useOverview();
   const { snapshot, thread } = state;
+  const quoteAction = useRef(state.quotes.add);
+  quoteAction.current = state.quotes.add;
+  const quote = useCallback((value: ui.Quote) => quoteAction.current(value), []);
+  const away = state.home.away;
 
-  const items = new Map(
-    (snapshot?.items ?? []).flatMap((e): [string, Item][] => (e.item ? [[e.item.itemId, e.item]] : [])),
-  );
+  return useMemo(() => {
+    const items = new Map(
+      (snapshot?.items ?? []).flatMap((e): [string, Item][] => (e.item ? [[e.item.itemId, e.item]] : [])),
+    );
 
-  const tasks = new Map(
-    [...items.values()].flatMap((item): [string, Item][] =>
-      item.content.case === "backgroundTask" && item.content.value.sourceItemId
-        ? [[item.content.value.sourceItemId, item]]
-        : [],
-    ),
-  );
+    const tasks = new Map(
+      [...items.values()].flatMap((item): [string, Item][] =>
+        item.content.case === "backgroundTask" && item.content.value.sourceItemId
+          ? [[item.content.value.sourceItemId, item]]
+          : [],
+      ),
+    );
 
-  const directory: TimelineDirectory = {
-    currentId: thread?.id ?? "",
-    quote: state.quotes.add,
-    readOnly: state.home.away || !thread || Boolean(thread.archivedAt || thread.deletedAt),
-    thread: (id) => threads.find((t) => t.id === id) ?? (id === thread?.id ? thread : undefined),
-    item: (id) => items.get(id),
-    content: (id) => snapshot?.items.find((entry) => entry.item?.itemId === id)?.contentRef,
-    delivery: (callId) => snapshot?.busDeliveries.find((d) => d.callId === callId),
-    queuedFallback: (turnId) => snapshot?.steers.find((s) => s.status === "queued" && s.queuedTurnId === turnId),
-  };
+    const directory: TimelineDirectory = {
+      currentId: thread?.id ?? "",
+      quote,
+      readOnly: away || !thread || Boolean(thread.archivedAt || thread.deletedAt),
+      thread: (id) => threads.find((t) => t.id === id) ?? (id === thread?.id ? thread : undefined),
+      item: (id) => items.get(id),
+      content: (id) => snapshot?.items.find((entry) => entry.item?.itemId === id)?.contentRef,
+      delivery: (callId) => snapshot?.busDeliveries.find((d) => d.callId === callId),
+      queuedFallback: (turnId) => snapshot?.steers.find((s) => s.status === "queued" && s.queuedTurnId === turnId),
+    };
 
-  const context: TurnContext = {
-    notices: snapshot?.notices ?? [],
-    steers: snapshot?.steers ?? [],
-    tasks,
-    provider: thread?.provider,
-  };
+    const context: TurnContext = {
+      notices: snapshot?.notices ?? [],
+      steers: snapshot?.steers ?? [],
+      tasks,
+      provider: thread?.provider,
+    };
 
-  return { directory, context };
+    return { directory, context };
+  }, [snapshot, thread, threads, quote, away]);
 }
+
+/** Native anchoring/follow-state changes may update the list wrapper without rendering unchanged turns. */
+const TimelineCell = memo(
+  function TimelineCell({
+    turn,
+    entries,
+    context,
+    directory,
+    newDay,
+    entering,
+  }: {
+    turn: ui.Turn;
+    entries: readonly ui.TimelineItem[];
+    context: TurnContext;
+    directory: TimelineDirectory;
+    newDay: boolean;
+    entering: ReturnType<typeof useMotion>["rise"]["entering"];
+  }) {
+    return (
+      <ArrivingCell entering={entering}>
+        <TimelineDirectoryProvider value={{ ...directory, sourceId: turn.fromThreadId || directory.currentId }}>
+          <TimelineTurn turn={turn} entries={entries} context={context} newDay={newDay} />
+        </TimelineDirectoryProvider>
+      </ArrivingCell>
+    );
+  },
+  // Entrance presets only apply on mount; consuming an arrival must not render settled history again.
+  (before, after) =>
+    before.turn === after.turn &&
+    before.entries === after.entries &&
+    before.context === after.context &&
+    before.directory === after.directory &&
+    before.newDay === after.newDay,
+);
+
+const EMPTY_ENTRIES: readonly ui.TimelineItem[] = [];
 
 export function ThreadTimeline({
   state,
@@ -73,8 +115,8 @@ export function ThreadTimeline({
 
   const { turns, following, snapshot } = state;
   const { directory, context } = useTimelineData(state);
-  const anchor = useFeedAnchor(following.list, following.offset, following.isFollowing, following.minimum);
-  const latestFirst = [...turns].reverse();
+  const anchor = useFeedAnchor(following);
+  const latestFirst = useMemo(() => [...turns].reverse(), [turns]);
   const turnKey = (turn: ui.Turn) => `${turn.fromThreadId}:${turn.id}`;
   const arrival = useArrivals(latestFirst.map(turnKey), Boolean(snapshot), { newestFirst: true });
   const { rise } = useMotion();
@@ -113,18 +155,15 @@ export function ThreadTimeline({
           }
           // A turn that arrives (a sent or queued message) fades in; one that only scrolls into view does not, and
           // neither do the rows it mounts with. Later rows inside it animate themselves (TimelineTurn).
-          renderItem={({ item, index }) => (
-            <ArrivingCell entering={arrival(turnKey(item))}>
-              <TimelineDirectoryProvider value={{ ...directory, sourceId: item.fromThreadId || directory.currentId }}>
-                <TimelineTurn
-                  turn={item}
-                  entries={entries.get(turnKey(item)) ?? []}
-                  context={context}
-                  newDay={days.has(item)}
-                  latest={index === 0}
-                />
-              </TimelineDirectoryProvider>
-            </ArrivingCell>
+          renderItem={({ item }) => (
+            <TimelineCell
+              turn={item}
+              entries={entries.get(turnKey(item)) ?? EMPTY_ENTRIES}
+              context={context}
+              directory={directory}
+              newDay={days.has(item)}
+              entering={arrival(turnKey(item))}
+            />
           )}
           ListHeaderComponent={
             <>
