@@ -117,11 +117,11 @@ export default function Layout() {
     <SafeAreaProvider>
       <KeyboardWindow>
         <PreferencesProvider>
-          <DevicePreferencesProvider>
-            <SessionProvider>
+          <SessionProvider>
+            <DevicePreferencesProvider>
               <SessionUI />
-            </SessionProvider>
-          </DevicePreferencesProvider>
+            </DevicePreferencesProvider>
+          </SessionProvider>
         </PreferencesProvider>
       </KeyboardWindow>
     </SafeAreaProvider>

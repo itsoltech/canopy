@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useGlobalSearchParams } from "expo-router";
-import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { expandProjectIds } from "@canopy/domain/projects";
 import { sidebarThreads } from "@canopy/domain/sidebar-threads";
@@ -11,11 +10,10 @@ import { projectAwayReason } from "@canopy/domain/linked-snapshot";
 
 export function useSidebarThreads(query: string) {
   const { threads, projectChoices: choices, workers, computers } = useOverview();
-  const { user, update } = useAppearance();
+  const { sidebar, updateSidebar } = useAppearance();
   const { client } = useSession();
   const { id } = useGlobalSearchParams<{ id?: string }>();
   const [fetchedCurrent, setFetchedCurrent] = useState<ui.Thread>();
-  const sidebar = user?.sidebar ?? create(ui.SidebarSettingsSchema);
   const settings = { ...sidebar, projectIds: expandProjectIds(sidebar.projectIds, choices) };
   const current = threads.find((t) => t.id === id) ?? (fetchedCurrent?.id === id ? fetchedCurrent : undefined);
 
@@ -49,6 +47,6 @@ export function useSidebarThreads(query: string) {
     settings,
     filtered: sidebarThreads(threads, settings, query, projectName),
     projectName,
-    setProjectId: (id: string) => void update({ sidebar: { ...sidebar, projectIds: id ? [id] : [] } }),
+    setProjectId: (id: string) => updateSidebar({ projectIds: id ? [id] : [] }),
   };
 }

@@ -29,6 +29,7 @@ export class GatewayCapabilities {
   message = $state("");
   methods = $state<string[]>();
   linkedComputers = $state(false);
+  clientPreferencesScope = $state("");
   /** The gateway runs inside this desktop app (local mode): only the desktop role offers linked computers. */
   get ownGateway() {
     return this.linkedComputers;
@@ -62,6 +63,8 @@ export class GatewayCapabilities {
       )
         return;
       this.state = value["state"];
+
+      if (isString(value["clientPreferencesScope"])) this.clientPreferencesScope = value["clientPreferencesScope"];
 
       if (this.state === "pairing") {
         queries.forget((key) => key.startsWith("GetPullRequest:") || key.startsWith("ListThreadPullRequests:"));

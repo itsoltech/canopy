@@ -14,11 +14,10 @@ export function GeneralSettings() {
   const settings = useAppearance();
   const device = useDevicePreferences();
   const c = useColors();
-  const sidebar = settings.user?.sidebar;
-  const disabled = !settings.user || settings.saving;
+  const sidebar = settings.sidebar;
+  const disabled = !device.viewLoaded;
 
-  const saveSidebar = (patch: Partial<ui.SidebarSettings>) =>
-    void settings.update({ sidebar: Object.assign(create(ui.SidebarSettingsSchema, sidebar), patch) });
+  const saveSidebar = settings.updateSidebar;
 
   return (
     <View style={{ gap: 24 }}>
@@ -58,7 +57,7 @@ export function GeneralSettings() {
           ]}
         />
       </SettingsGroup>
-      <SettingsGroup title="Sidebar" description="Account">
+      <SettingsGroup title="Sidebar" description="This device">
         <SettingToggle
           title="Group by project"
           description="Group sidebar threads under project headings."

@@ -136,9 +136,13 @@ describe.skipIf(!dockerAvailable)("configuration replay and version skew over li
     await wait(() => c.gateway.worker.configs.at(-1)?.cliUpdateCheckMinutes === 60);
     expect((await record(c, "settings"))?.fields["sidebar.pinnedThreadIds"]?.value).toEqual([`${threadId}@${a.node}`]);
     const sidebar = create(ui.SidebarSettingsSchema, (await c.settings()).sidebar);
+    const botId = crypto.randomUUID();
     sidebar.workingSection = true;
+    sidebar.pinnedBotIds = [botId];
     await c.update({ sidebar });
-    await wait(async () => (await a.settings()).sidebar?.workingSection === true);
+    await wait(async () => (await a.settings()).sidebar?.pinnedBotIds.includes(`${botId}~${nodeRef(c.node)}`) === true);
+    expect((await a.settings()).sidebar?.workingSection).toBe(false);
+    expect((await c.settings()).sidebar?.workingSection).toBe(true);
     expect((await a.settings()).sidebar?.pinnedThreadIds).toEqual([threadId]);
   }, 30_000);
 

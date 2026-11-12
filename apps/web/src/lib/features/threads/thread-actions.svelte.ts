@@ -94,7 +94,7 @@ export class ThreadActions {
           break;
         case "filter":
           if (thread.status === "archived") devicePreferences.setView({ archivedThreadsExpanded: true });
-          await this.settings.updateSidebar({
+          this.settings.updateSidebar({
             projectIds: [thread.projectId],
           });
           break;

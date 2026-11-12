@@ -6,6 +6,7 @@ import { accents } from "@canopy/ui";
 import { useSession } from "./session";
 import { useOverviewEvents } from "./overview-bus";
 import { useDevicePreferences } from "../features/settings/device-preferences";
+import { deviceSidebarSettings, legacyDeviceView, type DeviceSidebarValues } from "@canopy/domain/device-view";
 
 /** Settings versions only grow: an older read or event never replaces a newer value. */
 function newer(current: ui.UserSettings | undefined, next: ui.UserSettings | undefined) {
@@ -85,12 +86,7 @@ function useAppearanceState() {
 
   useEffect(() => {
     if (!user || !device.viewLoaded) return;
-    device.initializeView({
-      archivedThreadsExpanded: user.sidebar?.archivedExpanded ?? false,
-      sidebarCollapsed: user.appearance?.sidebarCollapsed ?? false,
-      threadPanelCollapsed: user.appearance?.threadPanelCollapsed ?? false,
-      sidebarWidth: user.appearance?.sidebarWidth ?? 0,
-    });
+    device.initializeView(legacyDeviceView(user));
   }, [user, device]);
 
   const dark =
@@ -99,6 +95,8 @@ function useAppearanceState() {
 
   return {
     user,
+    sidebar: deviceSidebarSettings(user?.sidebar, device.view),
+    updateSidebar: (change: Partial<DeviceSidebarValues>) => device.setView(change),
     limits,
     /** A project's thread defaults (Settings → Projects), if it has its own. */
     projectDefaults: (projectId: string) => projects.find((p) => p.projectId === projectId)?.threadDefaults,

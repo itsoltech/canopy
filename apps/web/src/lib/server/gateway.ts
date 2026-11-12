@@ -1,4 +1,5 @@
 import { createClient, type Client } from "@connectrpc/connect";
+import { createHash } from "node:crypto";
 import { createGrpcTransport } from "@connectrpc/connect-node";
 import { error, fail, isActionFailure, isHttpError, type ActionFailure } from "@sveltejs/kit";
 import { ui } from "@canopy/contracts";
@@ -12,6 +13,13 @@ import { gatewayDeadlines } from "./gateway-deadlines.ts";
 const desktop = process.env["CANOPY_DESKTOP_CLIENT_TOKEN"]
   ? desktopGateway(process.env["CANOPY_DESKTOP_GATEWAY_ROUTES"] ?? "", process.env["CANOPY_DESKTOP_CLIENT_TOKEN"])
   : undefined;
+
+/** A non-secret namespace; backend addresses stay inside the BFF. */
+export function clientPreferencesScope(): string {
+  return createHash("sha256")
+    .update(desktop?.preferencesIdentity ?? GATEWAY_URL)
+    .digest("hex");
+}
 
 export async function gatewayCompatibility(): Promise<GatewayCompatibility> {
   if (desktop) return desktop.compatibility();

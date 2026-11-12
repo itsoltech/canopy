@@ -54,7 +54,7 @@
     <Button size="sm" icon="arrow-path" onclick={restoreDeviceDefaults}>Restore device defaults</Button>
   </div>
   <NotificationSettings />
-  <SettingsGroup title="Sidebar" description="Account">
+  <SettingsGroup title="Sidebar" description="This device">
     <PreferenceRow
       title="Group by project"
       description="Group sidebar threads under project headings."

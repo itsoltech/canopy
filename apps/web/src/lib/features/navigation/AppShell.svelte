@@ -48,6 +48,7 @@
   import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
   import { applyDeviceAppearance } from "#lib/features/settings/device-appearance.ts";
   import { keybindings } from "#lib/features/commands/keybindings.svelte.ts";
+  import { legacyDeviceView } from "@canopy/domain/device-view";
   import { watchNotifications } from "#lib/features/notifications/watch.svelte.ts";
 
   let { children }: { children: Snippet } = $props();
@@ -93,13 +94,16 @@
   onMount(() => devicePreferences.connect());
 
   $effect(() => {
-    if (!settings.loaded) return;
-    devicePreferences.initializeView({
-      archivedThreadsExpanded: settings.sidebar.archivedExpanded,
-      sidebarCollapsed: settings.appearance.sidebarCollapsed,
-      sidebarWidth: settings.appearance.sidebarWidth,
-      threadPanelCollapsed: settings.appearance.threadPanelCollapsed,
-    });
+    const scope = capabilities.clientPreferencesScope;
+
+    if (scope) return untrack(() => devicePreferences.connectView(scope));
+  });
+
+  $effect(() => {
+    void capabilities.clientPreferencesScope;
+
+    if (settings.loaded && devicePreferences.viewLoaded)
+      untrack(() => devicePreferences.initializeView(legacyDeviceView(settings.user)));
   });
 
   onMount(() => keybindings.connect());

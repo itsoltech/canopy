@@ -851,11 +851,15 @@ Settings korzysta ze wspólnych tokenów tematów Birch, Fern, Lagoon, Cedar, He
 Blossom i Ash. Preferencje urządzenia (typografia, kontrast, diffy i format czasu)
 pozostają w SecureStore telefonu i nie zmieniają preferencji przeglądarki.
 Rozwinięcie archiwum wątków i botów oraz zwinięcie sidebara również należą do telefonu
-(`DevicePreferences`, `canopy.settings.view.v1` w SecureStore). Przetrwają odmontowanie
+(`DevicePreferences`, wspólny `@canopy/domain/device-view`). Filtr projektów,
+grupowanie i kolejność grup także należą do tego telefonu. Stan widoku jest zapisany
+w `canopy.client-view.v2.<scope>.json` w katalogu dokumentów, osobno dla certyfikatu
+gatewaya i identyfikatora parowania. Stary `canopy.settings.view.v1` w SecureStore
+jest tylko źródłem migracji geometrii. Wartości przetrwają odmontowanie
 listy i restart aplikacji. Otwarcie archiwalnego wątku rozwija tylko lokalne archiwum;
 nie zmienia stanu desktopu ani webu. Brakujące wartości są jednorazowo inicjalizowane
-ze starych pól konta, bez ich aktualizowania. Filtr projektów i przypięcia nadal są
-ustawieniami konta; pełna klasyfikacja jest w [settings-map.md](settings-map.md).
+ze starych pól konta, bez ich aktualizowania. Przypięcia nadal są ustawieniem konta;
+pełna klasyfikacja jest w [settings-map.md](settings-map.md).
 Na wąskim oknie sidebar jest natywnym ekranem listy (stos lista → wątek); web na telefonie
 otwiera go jako drawer. Od 600 dp szerokości okna (klasa large screen Androida: tablety,
 rozłożony foldable, telefon w poziomie) lista zostaje obok otwartego wątku lub czatu, jak

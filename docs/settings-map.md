@@ -10,6 +10,8 @@ Ostatnie dwie strony tylko w desktopie, Linked computers według capability gate
 „Account” oznacza ustawienia właściciela w DB aktualnego gatewaya, wspólne dla jego
 klientów web/desktop. Nie oznacza automatycznej synchronizacji niezależnych gatewayów.
 „This device” oznacza profil przeglądarki/origin lub lokalną powłokę Electron.
+Stan widoku dodatkowo rozdziela gatewaye: web używa niejawnego identyfikatora BFF,
+desktop remote przypiętego certyfikatu, mobile certyfikatu i identyfikatora parowania.
 Aplikacja mobilna trzyma Turn activity dla samego telefonu (docs/mobile.md).
 Każda nowa preferencja ma opis zakresu i działania oraz reset po zmianie.
 Istniejące domyślne wartości wątków i generowania tekstu otrzymują również reset
@@ -27,9 +29,10 @@ bez zmian. Opcja wyboru bez działania jest wyłączona z opisem „Soon”.
 | General / Notifications | Thread notifications | urządzenie | Off | Alert systemowy, gdy wątek kończy turę, ma błąd, zatrzymuje go system albo czeka na zgodę/odpowiedź; tytuł wątku, projekt/komputer i krótki podgląd; tylko gdy otwarte jest okno Canopy (na macOS zamknięte okno nie wysyła alertów); z dźwiękiem oglądany wątek gra tylko dźwięk; web wymaga zgody Notification API i pokazuje odmowę lub zamknięty monit, desktop używa natywnego `Notification` przez IPC ([notifications.md](notifications.md)) |
 | General / Notifications | Bot notifications | urządzenie | Off | Alert systemowy o wiadomości bota do użytkownika, karcie zgody lub pytaniu; nazwa bota i krótki podgląd; te same zasady zgody, fokusu, dźwięku i duplikatów co dla wątków |
 | General / Notifications | In-app notifications | urządzenie | On | Toast o innym wątku lub rozmowie bota przy fokusie aplikacji |
-| General / Sidebar | Group by project | konto | Off | Nagłówki projektów w aktywnym sidebarze, z zachowaniem przypięć i priorytetu pytań |
-| General / Sidebar | Project order | konto | Latest activity | Kolejność grup według aktywności, nazwy lub utworzenia projektu; bez obietnicy ostatniej wiadomości użytkownika, której indeks nie udostępnia |
-| General / Sidebar | Working section | konto | Off | Osobna zwijana sekcja pracujących wątków/drzew; pytania i nowe wyniki wracają do głównej listy |
+| Sidebar | Project filter | urządzenie/gateway | All projects | Filtr listy aktywnej i archiwum, niezależny od pozostałych urządzeń |
+| General / Sidebar | Group by project | urządzenie/gateway | Off | Nagłówki projektów w aktywnym sidebarze, z zachowaniem przypięć i priorytetu pytań |
+| General / Sidebar | Project order | urządzenie/gateway | Latest activity | Kolejność grup według aktywności, nazwy lub utworzenia projektu; bez obietnicy ostatniej wiadomości użytkownika, której indeks nie udostępnia |
+| General / Sidebar | Working section | urządzenie/gateway | Off | Osobna zwijana sekcja pracujących wątków/drzew; pytania i nowe wyniki wracają do głównej listy |
 | General / Confirmations | Confirm unpin / archive / delete | konto | Off / Off / On | Dialog przed odpowiednią akcją wątku we wszystkich menu i komendach |
 | General / Display | Time format | urządzenie | System | Godziny w znacznikach czasu web/desktop: system, 12h lub 24h |
 | General / Display | Time zone | konto, odczyt z urządzenia | IANA urządzenia, fallback UTC | Istniejąca synchronizacja dla botów i harmonogramów; przeniesiona z Appearance, bez zmiany semantyki |
@@ -83,10 +86,14 @@ projektów, poświadczeń, zaproszeń ani zasobów. Domyślne „brak” oznacza
 | Desktop | Local/remote mode; worker status; detected CLIs; change mode | urządzenie/store: wybór przy konfiguracji | Wyłącznie topologia uruchomienia i status lokalnych usług; bez ogólnych preferencji zachowania |
 | App updates | Installed version; channel; check frequency; check now; download/restart status; release notes; Linked computers (version, target, channel, status, Check now, Update) | urządzenie/store: kanał builda, 6 h; partnerzy: tylko odczyt | Wyłącznie aktualizacje powłoki i runtime; kanał i częstotliwość połączonego komputera zmienia się na nim samym |
 
-Stan widoku jest lokalny dla urządzenia: rozwinięcie archiwum wątków i botów,
-zwinięcie sidebara i panelu szczegółów wątku oraz szerokość sidebara. Web/desktop
-przechowuje go przez `DevicePreferences` w `canopy:preferences:view`, mobile przez
-ten sam model w SecureStore (`canopy.settings.view.v1`). Otwarcie archiwalnego wątku
+Stan widoku jest lokalny dla urządzenia i gatewaya: filtr projektów, grupowanie,
+kolejność grup, sekcja Working, rozwinięcie archiwum wątków i botów,
+zwinięcie sidebara i panelu szczegółów wątku oraz szerokość sidebara i panelu PR.
+Wspólny `@canopy/domain/device-view` definiuje typowane pola, wartości domyślne,
+klucze `canopy.client-view.v2.<scope>` i migrację. Web/desktop zapisuje localStorage,
+mobile plik JSON w katalogu dokumentów przez istniejący `expo-file-system` (bez zmian natywnych).
+Stare lokalne klucze `canopy:preferences:view` i `canopy.settings.view.v1` służą tylko
+do przeniesienia wcześniejszej geometrii i rozwinięć. Otwarcie archiwalnego wątku
 rozwija archiwum tylko na tym urządzeniu. Jawne zwinięcie pozostaje możliwe.
 Przy pierwszym odczycie brakujące wartości są jednorazowo kopiowane ze starych
 ustawień konta; zapisane `false` i szerokość `0` również blokują kolejne kopiowanie.
@@ -94,14 +101,18 @@ Pola proto pozostają dla starych klientów. Nowe klienty nie zmieniają ich prz
 obsłudze widoku; synchronizacja konfiguracji nie eksportuje ani nie stosuje tych pól.
 Reset stron General/Appearance nie zmienia zapamiętanego stanu widoku.
 
-Audyt pozostałych pól konta: `sidebar.groupByProject`, `projectOrder` i `workingSection`
-opisują sposób organizacji listy, a nie bieżące rozwinięcie sekcji. Zostają na koncie,
-podobnie jak schemat/palety kolorów, szerokość czatu, potwierdzenia,
-domyślne nowego wątku i tryb Steer/Queue. Przypięcia wątków/botów są organizacją
-zasobów i także pozostają na koncie. `sidebar.projectIds` jest niejednoznacznym filtrem:
-zachowujemy istniejący zakres konta; rekomendacja to osobna decyzja produktowa o
-przeniesieniu go na urządzenie. Pamięć tras, zakładek, przewijania i pozostałe ręczne
-foldy już żyją w pamięci klienta lub preferencjach urządzenia, poza ustawieniami konta.
+Audyt pozostałych pól konta: schemat/palety kolorów i szerokość czatu pozostają
+na koncie jako preferowany wygląd i długość wiersza, niezależne od geometrii paneli.
+Potwierdzenia, domyślne nowego wątku i tryb Steer/Queue nadal opisują zachowanie.
+Przypięcia wątków/botów organizują zasoby i także pozostają na koncie. Nowe klienty
+zmieniają w sekcji `sidebar` wyłącznie przypięcia, zachowując stare pola dla migracji.
+Gateway nadal przyjmuje zapisy starych klientów; nie usuwa pól proto ani danych DB.
+Pamięć ostatniej sekcji Settings, tras, przewijania, rozwinięcia Updates oraz ręczne
+foldy już żyją w pamięci klienta lub preferencjach urządzenia. Gęstość, typografia
+i domyślne rozwinięcie aktywności tur także pozostają lokalne. Filtr mobile używa
+tego samego modelu co web; wyszukiwanie jest przejściowym stanem listy. Obecny
+kontrakt nie ma osobnego filtra komputerów ani statusu; kolejność wątków wynika z aktywności.
+Istniejące zakresy powiadomień i keybindings pozostają bez zmian.
 Udostępnianie między połączonymi komputerami pozostaje osobną funkcją.
 
 Quit shortcut przenosimy z App updates do General → Desktop app, obok potwierdzeń,
@@ -115,7 +126,7 @@ centrum aktualizacji służy wykonywaniu aktualizacji.
 
 ## Pominięcia
 
-- Canopy ma wykrywanie GitHub PR/merge do sprzątania worktree, ale nie ma własnego widoku ani procesu przeglądu PR. Nie dodajemy fikcyjnych preferencji PR.
+- Panel GitHub PR ma lokalną szerokość; jego zmiana nie jest ustawieniem konta.
 - „Last user message” nie jest dostępne w indeksie projektów/wątków; używamy istniejącej, prawdziwej aktywności drzewa.
 - Brak push/background service worker: alerty działają wyłącznie przy otwartej aplikacji, bez serwerowej dystrybucji dźwięków lub treści.
 - Fonty są lokalnymi stosami systemowymi, bez pobierania fontów od stron trzecich.
