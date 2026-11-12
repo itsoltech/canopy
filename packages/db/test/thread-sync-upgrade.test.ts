@@ -76,6 +76,7 @@ test.skipIf(!dockerAvailable)(
         }),
       );
       expect(await runtime.runPromise(through(123))).toEqual([[123, "thread_sync_diagnostics"]]);
+      expect(await runtime.runPromise(through(124))).toEqual([[124, "thread_range_lock_order"]]);
       await runtime.runPromise(
         Effect.gen(function* () {
           const sql = yield* SqlClient.SqlClient;
@@ -84,6 +85,22 @@ test.skipIf(!dockerAvailable)(
             yield* sql`SELECT reason,code,retryable,frame_bytes::int FROM thread_range_failures WHERE thread_id=${thread}::uuid`;
 
           expect(failure).toEqual({ reason: "unavailable", code: 14, retryable: true, frame_bytes: 0 });
+
+          const [clock] = yield* sql`SELECT head_seq::int,checkpoint_seq::int,legacy_ready
+            FROM thread_replication_clock WHERE thread_id=${thread}::uuid`;
+
+          expect(clock).toEqual({ head_seq: 1, checkpoint_seq: 0, legacy_ready: false });
+
+          const [record] = yield* sql`SELECT seq::int,encode(payload,'hex') AS payload
+            FROM thread_replication_journal WHERE thread_id=${thread}::uuid`;
+
+          expect(record).toEqual({ seq: 1, payload: "0801" });
+
+          // Existing clocks retain referential integrity through the new anchor.
+          yield* sql`DELETE FROM threads WHERE id=${thread}::uuid`;
+          expect(yield* sql`SELECT * FROM thread_replication_sources WHERE thread_id=${thread}::uuid`).toEqual([]);
+          expect(yield* sql`SELECT * FROM thread_replication_clock WHERE thread_id=${thread}::uuid`).toEqual([]);
+          expect(yield* sql`SELECT * FROM thread_replication_journal WHERE thread_id=${thread}::uuid`).toEqual([]);
         }),
       );
       expect(await runtime.runPromise(migrate)).toEqual([]);

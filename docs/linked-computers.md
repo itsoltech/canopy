@@ -1011,6 +1011,21 @@ ani checkpointu.
 
 ### Synchronizacja zakresami sekwencji — kontrakt migracji
 
+Kolejność blokad publikacji: wiersz źródłowego `threads` przez `KEY SHARE`,
+bariera `canopy.thread_ranges:<id>` i zegar `thread_replication_clock`.
+Przenoszenie, `SendMessage` i ingest blokują
+wiersz wątku przed odroczonym zapisem dziennika. Odroczone triggery biorą globalną
+blokadę `canopy.thread_mirror_journal` przed barierami wątków i zegarami;
+nie mogą pod tymi blokadami ponownie blokować wierszy `threads`.
+
+Dotyczy to również blokad niejawnych: PostgreSQL ponownie sprawdza niezmieniony
+klucz obcy przy kolejnej aktualizacji wiersza utworzonego w bieżącej transakcji.
+Dlatego zegar wskazuje na niezmienny wiersz `thread_replication_sources`, a dopiero
+ten na `threads`. Bootstrap tworzy go po zablokowaniu źródła. Dziennik aktualizuje
+wyłącznie zegar; usunięcie wątku nadal kaskadowo usuwa źródło, zegar i zakresy.
+Publikacja nie bierze globalnej blokady dziennika. Błąd publikacji jest utrwalany
+w osobnej transakcji po zwolnieniu blokad odczytu.
+
 Ta sekcja opisuje docelowy protokół kolejnego stosu zmian. Opisane wyżej
 `MirrorRequest`/`MirrorUpdate` pozostają ścieżką zgodności. Nowa ścieżka wymaga
 capability obu komputerów i nigdy nie wysyła ani nie składa pełnego snapshotu wątku.

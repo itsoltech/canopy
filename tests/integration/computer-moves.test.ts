@@ -262,7 +262,7 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
     await Promise.allSettled([a?.close(), b?.close(), c?.close()]);
   }, 30000);
 
-  test("a thread moves with its history and files; the old home redirects and a third computer sees the new owner", async () => {
+  async function moveThreadWithHistory() {
     const t = await thread(a, aProject, aWorkspace, "Feature work", "remember the cat called Mruczek");
     const upload = await a.api.uploadAttachment({ name: "notes.txt", data: new TextEncoder().encode("moved bytes") });
     await a.api.sendMessage({
@@ -419,7 +419,13 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
       ),
     ).toBeTruthy();
     expect(lb.redirects.home(t)?.home_node_id).toBe(cNode);
-  }, 60000);
+  }
+
+  test.each(Array.from({ length: 20 }, (_, index) => index + 1))(
+    "a thread moves with its history and files; the old home redirects and a third computer sees the new owner (run %i/20)",
+    moveThreadWithHistory,
+    60000,
+  );
 
   test("a bot moves with its conversation, routines and reminders: nothing fires twice or is lost; accounts are flagged", async () => {
     const bot = (

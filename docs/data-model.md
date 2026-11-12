@@ -1,5 +1,12 @@
 # Model danych (PostgreSQL)
 
+Migracja `0124_thread_range_lock_order` dodaje niezmienny wiersz
+`thread_replication_sources` pomiędzy `threads` a aktualizowanym zegarem
+`thread_replication_clock`. Zachowuje istniejące epoki, sekwencje, payloady
+i kaskadowe usuwanie. Powtórna kontrola FK zegara pod blokadą dziennika nie
+blokuje dzięki temu wiersza wykonawczego wątku; kolejność blokad opisuje
+[linked-computers.md](linked-computers.md#synchronizacja-zakresami-sekwencji--kontrakt-migracji).
+
 Migracja `0120_thread_ranges` dodaje trwały dziennik publicznych projekcji wątku
 (`thread_replication_clock`, `thread_replication_journal`) oraz treść dużych rekordów
 adresowaną SHA-256 (`thread_replication_content`). Numery dotyczą jednego wątku
