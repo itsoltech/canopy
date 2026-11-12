@@ -25,6 +25,7 @@ export class FileViewerState {
   /** Save failed because the file changed on disk: reload (discarding the draft) or keep editing. */
   conflict = $state(false);
   path = $state("");
+  sha256 = $state("");
   lookup = $state<ui.ThreadFile>();
 
   constructor(readonly target: FileTarget) {}
@@ -44,8 +45,9 @@ export class FileViewerState {
     this.loading = true;
     this.error = "";
     const path = selectedPath ?? (this.path || this.target.path);
-    const expected = selectedPath ? "" : (this.file?.sha256 ?? "");
+    const expected = selectedPath ? "" : this.sha256;
     this.file = undefined;
+    this.lookup = undefined;
 
     try {
       const file = await readFile(this.target.threadId, path, this.target.itemId, expected);
@@ -54,6 +56,7 @@ export class FileViewerState {
       if (file.resolution !== FileResolution.UNSPECIFIED && file.resolution !== FileResolution.FOUND) return;
       this.file = file;
       this.path = file.path;
+      this.sha256 = file.sha256;
       this.text = file.binary ? "" : decoder.decode(file.content);
       this.draft = this.text;
       this.conflict = false;
@@ -86,6 +89,7 @@ export class FileViewerState {
       const saved = await writeFile(this.target.threadId, this.path, this.draft, file.sha256);
       this.file = { ...file, ...saved, relativePath: file.relativePath, computer: file.computer, content: new TextEncoder().encode(this.draft) };
       this.text = this.draft;
+      this.sha256 = saved.sha256;
 
       return true;
     } catch (cause) {

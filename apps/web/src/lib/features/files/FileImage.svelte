@@ -27,6 +27,8 @@
       alt={name}
       class="mx-auto max-h-[55dvh] max-w-full object-contain"
       onload={(event) => {
+        if (!(event.currentTarget instanceof HTMLImageElement)) return;
+
         dimensions = `${event.currentTarget.naturalWidth.toLocaleString()} × ${event.currentTarget.naturalHeight.toLocaleString()}`;
       }}
       onerror={() => (failed = true)}

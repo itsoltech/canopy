@@ -451,12 +451,30 @@ Capability `thread_files_v1`: nietrwałe, nigdy z outboxa `ReadFile` (222), `Ope
 `WriteFile` (224) i `DeleteFile` (225) z `FileRequest`; wynik w `CommandResult.file` (222, `FileContent`).
 UI woła `ReadThreadFile`, `WriteThreadFile`, `DeleteThreadFile` i `OpenThreadFile` z ID wątku i ścieżką;
 względna ścieżka liczy się od `threads.cwd` (`@canopy/domain/thread-files`). Gateway sprawdza właściciela
-i wysyła `roots`: katalog wątku i workspace'y właściciela na tym workerze. Worker dodaje katalog
-załączników wątku, rozwija `~`, rozwiązuje symlinki i przyjmuje tylko istniejący zwykły plik pod jednym
-z korzeni (`FILE_OUTSIDE_ROOTS`). Odczyt zwraca do 2 MiB (`truncated`), plik nie-UTF-8 jako `binary` bez
-treści, oraz SHA-256 całego pliku. Zapis i usunięcie wymagają `expected_sha256` z odczytu; inna treść na
+i wysyła `roots`: katalog wątku, także gdy jest osobnym worktree. Worker rozwiązuje symlinki
+i przyjmuje tylko istniejący zwykły plik wewnątrz dozwolonego korzenia (`FILE_OUTSIDE_ROOTS`).
+Starsze komendy bez rozstrzygania podglądu dopuszczają również katalog załączników danego wątku.
+Odczyt zwraca do 2 MiB (`truncated`); przekroczenie limitu nie oblicza hasha całego pliku i zwraca pusty
+`sha256`, więc nie uprawnia do edycji ani usunięcia. Zapis i usunięcie wymagają `expected_sha256` z odczytu; inna treść na
 dysku daje `FILE_CHANGED`, więc edycja nie nadpisze cudzej zmiany. `OpenFile` używa `open`,
 `explorer.exe` albo `xdg-open`. Połączone komputery przekazują do domu wątku odczyt, zapis i usunięcie, ale nie `OpenThreadFile`: plik otworzyłby się na innym komputerze.
+
+Addytywne `thread_file_preview_v1` dodaje do `FileRequest` `workspace`, `preferred_paths` oraz
+`include_binary`. Gateway przekazuje surową ścieżkę i rzeczywiste `threads.cwd`; worker rozstrzyga
+nazwę na komputerze wykonującym wątek. Goła nazwa preferuje ścieżki z tego samego turnu (wskazanego
+przez `ThreadFileRequest.item_id`), potem plik bezpośrednio w katalogu wątku, potem dokładne dopasowanie
+nazwy z `git ls-files --cached --others --exclude-standard`. Hints: maksymalnie 32 ścieżki z 64 elementów
+po 64 KiB; nie poszerzają dostępu. Lista git ma limit 100 tys. ścieżek, 8 MiB i 5 s; poza git ograniczony
+przegląd ma limit 20 tys. wpisów i 12 poziomów. Niepełna lista nigdy nie daje automatycznego wyboru.
+`..`, NUL i ścieżki bezwzględne poza workspace są odrzucane; symlinki sprawdzane są po `realpath`.
+
+Wynik zawiera `resolution` (`FOUND`, `NOT_FOUND`, `DELETED`, `AMBIGUOUS`), `relative_path`, `mime_type`,
+`matches`, `searched_paths` i `search_incomplete`; UI dodaje nazwę komputera domowego. `DELETED` oznacza
+brak wcześniej otwartej ścieżki przy odczycie z `expected_sha256`, bez twierdzenia, czy plik przeniesiono,
+czy usunięto. Zwykłe nierozstrzygnięcie daje `NOT_FOUND`; błąd połączenia lub uprawnień pozostaje błędem.
+`include_binary` przesyła również bajty binarne (limit 2 MiB); starszy klient nadal dostaje pustą treść
+binarną. Odczyt przez link używa istniejącego strumienia z porcjami 32 KiB, z kontrolą przepływu,
+anulowaniem i limitem ponownego złożenia wiadomości. Nie powstaje URL do systemu plików komputera domowego.
 
 ## CLI dostawców
 

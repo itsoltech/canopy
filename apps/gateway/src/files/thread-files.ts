@@ -35,8 +35,8 @@ const MAX_WRITE_BYTES = 2 * 1024 * 1024;
 
 /**
  * Files of a thread (docs/protocol.md, thread_files_v1): the owner opens, edits, deletes or hands a file to its
- * default app. The gateway names the roots (the thread's directory and the owner's workspaces on its worker);
- * the worker resolves symlinks and refuses anything outside them, or the thread's own attachments.
+ * default app. The gateway confines access to the thread's directory; the worker resolves symlinks before
+ * checking the boundary. Preview lookups never widen it to another workspace.
  */
 export class ThreadFiles {
   constructor(readonly core: GatewayCore) {}
@@ -88,8 +88,10 @@ export class ThreadFiles {
       },
     });
     const file = threadFile(result);
-    file.computer = this.core.computers?.hello().name ||
-      (await coreRun(this.core, (s) => s.listWorkers(this.core.online))).find((w) => w.id === target.workerId)?.name || "";
+    file.computer =
+      this.core.computers?.hello().name ||
+      (await coreRun(this.core, (s) => s.listWorkers(this.core.online))).find((w) => w.id === target.workerId)?.name ||
+      "";
 
     return file;
   }

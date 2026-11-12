@@ -35,7 +35,7 @@ class ThreadFileLinks implements FileLinkHandler {
     if (!threadId) return;
     const target = { threadId, path, local: this.local(threadId), itemId: this.itemId() };
 
-    if (target.local && devicePreferences.values.fileLinks === "app") void openInApp(target);
+    if (target.local && /[\\/]/.test(path) && devicePreferences.values.fileLinks === "app") void openInApp(target);
     else openedFile.current = target;
   }
 }

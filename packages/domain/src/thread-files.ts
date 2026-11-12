@@ -1,3 +1,5 @@
+import { FileResolution } from "@canopy/contracts";
+
 /** An absolute path on any worker OS: POSIX `/…`, `~`, a Windows drive `C:\…` / `C:/…` or a UNC `\\…`. */
 export const isAbsoluteFilePath = (path: string): boolean =>
   path.startsWith("/") ||
@@ -22,13 +24,13 @@ export function joinThreadPath(cwd: string, path: string): string {
 }
 
 /** Shared by both viewers. A lookup miss does not mean a previously opened file disappeared. */
-export function fileLookupMessage(name: string, resolution: number): string {
+export function fileLookupMessage(name: string, resolution: FileResolution): string {
   switch (resolution) {
-    case 2:
+    case FileResolution.NOT_FOUND:
       return `Couldn't find ${name} in this workspace.`;
-    case 3:
+    case FileResolution.DELETED:
       return `${name} is no longer at this path. Check whether it was moved or deleted.`;
-    case 4:
+    case FileResolution.AMBIGUOUS:
       return "Several files match this name. Choose a path to open.";
     default:
       return "";

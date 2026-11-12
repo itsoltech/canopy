@@ -27,6 +27,15 @@ w `apps/mobile` przez `CANOPY_CHANNEL=nightly bunx expo config --type public`.
 
 ## Transport: czy React Native obsługuje gRPC?
 
+Ścieżki plików w wiadomościach agenta (kod inline i linki Markdown) otwierają podgląd przez
+`ReadThreadFile` z ID wątku i elementu źródłowego. Rozstrzygnięcie nazw, wybór spośród kilku dopasowań,
+uprawnienia i limity są wspólne z webem; dla połączonego komputera odczyt wykonuje gateway domowy.
+Podgląd pokazuje względną ścieżkę i komputer, tekst/Markdown, a dla obrazów rastrowych również
+wymiary i rozmiar. Binaria nie mają akcji Edit. Reload zachowuje rozstrzygniętą ścieżkę i hash;
+edycja tekstu oraz Delete file wymagają hasha odczytu. Nieudany zapis i reconnect nie porzucają szkicu,
+a zamknięcie lub porzucenie zmian wymaga potwierdzenia. Limit odczytu to 2 MiB, edycji 400 KiB.
+Implementacja `features/files` używa istniejących komponentów i modułów; nie zmienia konfiguracji natywnej.
+
 Natywne gRPC wymaga HTTP/2 i dostępu do trailers; fetch React Native nie udostępnia
 takiego interfejsu. Nie używamy natywnego transportu gRPC ani biblioteki Node w telefonie.
 `@connectrpc/connect-web@2.3.0` wysyła **Connect z binarnym protobuf** przez jawnie

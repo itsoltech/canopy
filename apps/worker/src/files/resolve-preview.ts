@@ -9,10 +9,12 @@ import { resolveThreadFile } from "./thread-files.ts";
 
 type Resolution = MessageInitShape<typeof FileContentSchema>;
 
-function checkedPath(root: string, path: string): string {
+function checkedPath(root: string, path: string, workspace = root): string {
   if (!path || path.length > 4096 || path.includes("\0") || path.split(/[\\/]/).includes(".."))
     throw new CommandError("FILE_PATH_INVALID", "Use a path inside this workspace, then reload.", true);
-  const absolute = resolve(root, path);
+  const absolute = isAbsolute(path) && isWithin(workspace, path)
+    ? resolve(root, relative(workspace, path))
+    : resolve(root, path);
 
   if (!isWithin(root, absolute))
     throw new CommandError("FILE_OUTSIDE_ROOTS", "This file is outside this workspace. Choose a file inside it.", true);
@@ -34,7 +36,7 @@ function existing(request: FileRequest, path: string, extraRoots: readonly strin
 export async function resolvePreview(request: FileRequest, extraRoots: readonly string[]): Promise<Resolution> {
   const root = realpathSync(request.workspace);
   const raw = request.path.trim();
-  const absolute = checkedPath(root, raw);
+  const absolute = checkedPath(root, raw, request.workspace);
   const searchedPaths = [relative(root, absolute) || "."];
   const bare = !isAbsolute(raw) && !/[\\/]/.test(raw.replace(/^\.[\\/]/, ""));
   const found = (path: string): Resolution => ({
@@ -52,7 +54,7 @@ export async function resolvePreview(request: FileRequest, extraRoots: readonly 
       let candidate: string;
 
       try {
-        candidate = checkedPath(root, hint);
+        candidate = checkedPath(root, hint, request.workspace);
       } catch {
         continue; // A transcript hint grants no access and never widens the workspace.
       }
@@ -74,7 +76,7 @@ export async function resolvePreview(request: FileRequest, extraRoots: readonly 
   if (direct) return found(direct);
 
   if (request.expectedSha256)
-    return { resolution: FileResolution.DELETED, relativePath: searchedPaths[0], searchedPaths };
+    return { resolution: FileResolution.DELETED, relativePath: relative(root, absolute), searchedPaths };
 
   if (!bare) return { resolution: FileResolution.NOT_FOUND, searchedPaths };
   const listing = await exactFileMatches(root, basename(raw));

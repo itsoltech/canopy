@@ -62,7 +62,7 @@ export function ItemView({ node, turnEnded = false }: { node: ItemNode; turnEnde
       );
       break;
     case "agentMessage":
-      view = <AgentMessageView message={content.value} streaming={streaming} />;
+      view = <AgentMessageView message={content.value} streaming={streaming} itemId={item.itemId} />;
       break;
     case "reasoning":
       view = <ReasoningView reasoning={content.value} streaming={streaming} />;

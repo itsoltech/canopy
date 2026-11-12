@@ -7,19 +7,28 @@ import { useColors } from "../../ui/theme";
 import { useMessageActions } from "./useMessageActions";
 import { useAppActive } from "../../ui/active";
 import { useViewportVisibility } from "../../ui/viewport";
+import { ThreadFileLinks } from "../files/ThreadFileLinks";
 
 /** Agent prose stays primary reading content, inside work folds and in the answer slot (web: AgentMessageView). */
-export function AgentMessageView({ message, streaming }: { message: AgentMessage; streaming: boolean }) {
+export function AgentMessageView({
+  message,
+  streaming,
+  itemId,
+}: {
+  message: AgentMessage;
+  streaming: boolean;
+  itemId: string;
+}) {
   const actions = useMessageActions(message.text, "agent_message", !streaming);
 
   return (
-    <>
+    <ThreadFileLinks itemId={itemId}>
       <Pressable {...actions.trigger} accessibilityState={{ busy: streaming }}>
         <Markdown text={message.text} selectable={!actions.available} />
         {streaming && <Caret />}
       </Pressable>
       {actions.menu}
-    </>
+    </ThreadFileLinks>
   );
 }
 
