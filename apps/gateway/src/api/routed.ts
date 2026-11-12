@@ -1,4 +1,4 @@
-import { create } from "@bufbuild/protobuf";
+import { clone, create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { bots, computerLink as link, ui } from "@canopy/contracts";
 import { nodeRef, splitId, REMOTE_WORKTREES } from "@canopy/domain/computers";
@@ -259,7 +259,8 @@ export function remoteServe(local: UiHandlers, core?: GatewayCore): RemoteServe 
         yield response;
       } else
         for await (const message of stream(own[method.localName]!, request, context)) {
-          const response = create(method.output, message);
+          // Hub subscribers share messages; id mapping must only change this peer's copy.
+          const response = clone(method.output, message);
           await ids?.map(method.output, response, "toGlobal");
           yield response;
         }

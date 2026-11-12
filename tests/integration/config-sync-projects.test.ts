@@ -2,10 +2,13 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { computerLink, PermissionMode, Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
+import { remoteServe, uiHandlers } from "@canopy/gateway/api";
 import { nodeRef } from "@canopy/domain/computers";
+import { applyThreadUpdate } from "@canopy/domain/thread-snapshot";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { configAllowed } from "../../apps/gateway/src/computers/runtime-config.ts";
+import { linkedMessage } from "../../apps/gateway/src/computers/remote.ts";
 import { projectTransaction } from "../../apps/gateway/src/config-sync/project-records.ts";
 import { wireItem } from "../../apps/gateway/src/config-sync/merge.ts";
 import type { ConfigRow } from "../../apps/gateway/src/config-sync/persistence.ts";
@@ -48,6 +51,21 @@ async function saveDefaults(c: ConfigComputer, id: string, value: MessageInitSha
     expectedVersion: (await defaults(c, id))?.version ?? 0n,
     threadDefaults: create(ui.ThreadDefaultsSchema, value),
   });
+}
+
+async function checkpoint(computer: ConfigComputer, threadId: string, cursor = "") {
+  const abort = new AbortController();
+
+  try {
+    for await (const update of computer.gateway.api.watchThread(
+      { threadId, cursor, incremental: true },
+      { signal: abort.signal },
+    ))
+      return update;
+    throw new Error("Missing thread checkpoint");
+  } finally {
+    abort.abort();
+  }
 }
 
 async function policy(c: ConfigComputer, projectId: string, change: Partial<ui.WorktreeSettings>, workerId = "") {
@@ -152,6 +170,135 @@ describe.skipIf(!dockerAvailable)("projects and worktree policy across separate 
     await wait(async () =>
       (await a.gateway.api.listThreads({ projectId: pa.project.id })).threads.some((t) => t.id === response.thread?.id),
     );
+  }, 30_000);
+
+  test("linked working updates keep a worktree side thread's home project and branch", async () => {
+    // Choose the home whose project is an alias, so outbound mapping must change projectId.
+    const home = pa.project.id > pb.project.id ? a : b;
+    const peer = home === a ? b : a;
+    const place = home === a ? pa : pb;
+    const canonical = [pa.project.id, pb.project.id].sort()[0]!;
+    const tree = crypto.randomUUID();
+    const path = "/repo/worktrees/ad9tje";
+    const branch = "feat/trigger-material-matching";
+    await home.store.query(
+      `INSERT INTO worktrees(id,owner_user_id,project_id,workspace_id,worker_id,repo_root,path,branch)
+        VALUES($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6,$7,$8)`,
+      [
+        tree,
+        home.gateway.userId,
+        place.project.id,
+        place.workspace.id,
+        home.gateway.workerId,
+        place.workspace.rootPath,
+        path,
+        branch,
+      ],
+    );
+
+    const parent = (
+      await home.gateway.api.createThread({
+        projectId: place.project.id,
+        workspaceId: place.workspace.id,
+        provider: Provider.CODEX,
+        title: "Worktree parent",
+        workspaceMode: ui.WorkspaceMode.EXISTING_WORKTREE,
+        worktreeId: tree,
+      })
+    ).thread!;
+
+    const thread = (
+      await home.gateway.api.createThread({
+        projectId: place.project.id,
+        workspaceId: place.workspace.id,
+        provider: Provider.CODEX,
+        title: "Worktree side",
+        parentThreadId: parent.id,
+      })
+    ).thread!;
+
+    await wait(async () => (await home.gateway.api.getThread({ threadId: thread.id })).thread?.status === "idle");
+    const base = applyThreadUpdate(undefined, await checkpoint(home, thread.id));
+    const abort = new AbortController();
+    const signal = AbortSignal.any([abort.signal, AbortSignal.timeout(20_000)]);
+    const serve = remoteServe(uiHandlers(home.gateway.core), home.gateway.core);
+
+    const remote = serve(
+      ui.GatewayService.method.watchOverview,
+      create(ui.WatchOverviewRequestSchema, { includeSnapshot: true }),
+      signal,
+      peer.node,
+    );
+
+    const initial = await remote[Symbol.asyncIterator]().next();
+
+    if (!initial.value) throw new Error("Missing linked overview snapshot");
+    const snapshot = linkedMessage(ui.OverviewUpdateSchema, initial.value).change;
+    expect(snapshot.case).toBe("mobileSnapshot");
+
+    if (snapshot.case !== "mobileSnapshot") throw new Error("Missing linked overview snapshot");
+    expect(snapshot.value.threads.find((row) => row.id === thread.id)?.projectId).toBe(canonical);
+    const local = home.gateway.core.hub.subscribeOverview();
+    const localRows: ui.Thread[] = [];
+    const remoteRows: ui.Thread[] = [];
+
+    const readingLocal = (async () => {
+      for await (const update of local.updates)
+        if (update.change.case === "thread" && update.change.value.id === thread.id)
+          localRows.push(update.change.value);
+    })();
+
+    const readingRemote = (async () => {
+      try {
+        for await (const message of remote) {
+          const update = linkedMessage(ui.OverviewUpdateSchema, message);
+
+          if (update.change.case === "thread" && update.change.value.id === thread.id)
+            remoteRows.push(update.change.value);
+        }
+      } catch (error) {
+        if (!signal.aborted) throw error;
+      }
+    })();
+
+    home.gateway.worker.holdTurns = true;
+    let turn = "";
+
+    try {
+      turn = (await home.gateway.api.sendMessage({ threadId: thread.id, text: "Keep working" })).turn!.id;
+      await wait(() => remoteRows.some((row) => row.status === "running"));
+      await home.gateway.api.setThreadRead({ threadId: thread.id, unread: true });
+      await wait(() => remoteRows.some((row) => row.status === "running" && row.markedUnread));
+      const delta = await checkpoint(home, thread.id, base.cursor);
+      expect(delta.change.case).toBe("delta");
+      expect(applyThreadUpdate(base, delta).thread).toMatchObject({
+        projectId: place.project.id,
+        cwd: path,
+        worktree: { id: tree, branch },
+      });
+      home.gateway.worker.finish(thread.id, turn);
+      turn = "";
+      await wait(() => remoteRows.some((row) => row.status === "idle"));
+      expect(localRows.some((row) => row.status === "running" && row.markedUnread)).toBe(true);
+
+      for (const [rows, projectId] of [
+        [localRows, place.project.id],
+        [remoteRows, canonical],
+      ] as const)
+        for (const row of rows)
+          expect(row).toMatchObject({
+            projectId,
+            workspaceId: place.workspace.id,
+            cwd: path,
+            worktree: { id: tree, branch },
+          });
+    } finally {
+      if (turn) home.gateway.worker.finish(thread.id, turn);
+      home.gateway.worker.holdTurns = false;
+      local.close();
+      abort.abort();
+      await Promise.all([readingLocal, readingRemote]);
+    }
   }, 30_000);
 
   test("account and project policies propagate; locations and worker policy stay local", async () => {
