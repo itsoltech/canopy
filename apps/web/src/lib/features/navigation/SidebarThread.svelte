@@ -112,12 +112,7 @@
         {#if provider}<span
             class="sidebar-resting-mark flex"
             title={thread.providerProfileId ? `${providerName} · ${thread.providerProfileId}` : providerName}
-            ><ProviderIcon
-              {provider}
-              label={providerName}
-              class="size-3.5"
-              opacity={threadRowMarks.providerOpacity}
-            /></span
+            ><ProviderIcon {provider} label={providerName} size="sm" opacity={threadRowMarks.providerOpacity} /></span
           >{/if}
       </span>
     </span>
