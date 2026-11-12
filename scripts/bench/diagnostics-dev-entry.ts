@@ -92,10 +92,12 @@ try {
   await stopped;
 } finally {
   lag.disable();
+  await core.link.shutdown();
   core.secrets.stop();
   core.desktopControl.close();
   core.appControl.close();
   core.updates.close();
   await server.close();
   await runtime.dispose();
+  process.disconnect?.();
 }
