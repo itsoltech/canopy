@@ -31,8 +31,7 @@ export function ThreadArchiveSwipe({ thread, children }: { thread: ui.Thread; ch
       onPanResponderRelease: (_, gesture) => {
         reset();
 
-        if (gesture.dx <= -80 && -gesture.dx > Math.abs(gesture.dy) * 1.5 && gesture.vx <= 0)
-          actions.run("archive");
+        if (gesture.dx <= -80 && -gesture.dx > Math.abs(gesture.dy) * 1.5 && gesture.vx <= 0) actions.run("archive");
       },
       onPanResponderTerminate: reset,
       onPanResponderTerminationRequest: () => true,
