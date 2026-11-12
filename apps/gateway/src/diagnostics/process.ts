@@ -6,7 +6,7 @@ import { Effect } from "effect";
 import type { CoreRuntime } from "../core/core-context.ts";
 
 /** The singleton governor must not retain a runtime, operation or admission callback. */
-const governorObserver =
+export const governorObserver =
   (collector: RpcCollector): ProcessObserver =>
   (kind, priority, event, elapsed) => {
     collector.measure(governorMetric(kind, priority, event), event === "wait" || event === "execution" ? elapsed : 1);
