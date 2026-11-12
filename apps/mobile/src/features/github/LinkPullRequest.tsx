@@ -56,7 +56,7 @@ export function LinkPullRequest({
             {p.data.repositoryName}
           </Text>
         )}
-        {p.data?.selection && (p.data.selection.candidates.length > 1 || p.data.state === "choose_account") && (
+        {p.data?.selection && p.data.selection.candidates.length > 1 && (
           <PullRequestPickerAccount
             selection={p.data.selection}
             disabled={p.busy || p.loading}

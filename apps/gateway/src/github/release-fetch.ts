@@ -81,8 +81,11 @@ async function candidate(accounts: GitHubAccounts, admin: () => Promise<boolean>
   if (!(await admin())) return;
   const setting = await updateAccount(accounts);
 
-  if (!setting.enabled || !setting.accountId) return;
-  const row = await accounts.run((s) => s.owned(accounts.owner, setting.accountId));
+  if (!setting.enabled) return;
+  const resolved = await accounts.prs.repositories.cached("itsoltech/canopy");
+
+  if (!resolved) return;
+  const { row } = resolved;
 
   if (row.status !== "connected" || row.refresh_lease) return;
 
@@ -99,10 +102,11 @@ async function authenticated(accounts: GitHubAccounts, row: AccountRow, url: URL
   signal.throwIfAborted();
   const setting = await updateAccount(accounts);
   const current = await accounts.run((s) => s.owned(accounts.owner, row.id));
+  const resolved = await accounts.prs.repositories.cached("itsoltech/canopy");
 
   if (
     !setting.enabled ||
-    setting.accountId !== row.id ||
+    resolved?.row.id !== row.id ||
     current.revision !== row.revision ||
     current.status !== "connected"
   )

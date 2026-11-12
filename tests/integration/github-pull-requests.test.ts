@@ -188,11 +188,14 @@ describe.skipIf(!dockerAvailable)("manual GitHub PRs over gRPC and controlled HT
     for (const secret of fixture.secrets.slice(-2)) expect(inspect(redacted, { depth: null })).not.toContain(secret);
     fixture.echoText("");
     await gw.api.disconnectGitHubAccount({ accountId: otherAccount });
-    expect(await failure(gw.api.getPullRequest({ pullRequestId: pr }))).toContain("Reconnect");
     expect((await list()).links.every((l) => !l.summary?.title)).toBe(true);
+    const fallback = await gw.api.getPullRequest({ pullRequestId: pr });
+    expect(fallback.accountId).toBe(account);
+    expect(fallback.summary!.title).toContain("account 101");
+    expect((await list()).links.every((l) => !l.summary?.title.includes("account 202"))).toBe(true);
     const restored = await connectGitHub(gw, fixture, 202);
     expect(restored).toBe(otherAccount);
-    await gw.api.getPullRequest({ pullRequestId: pr });
+    expect((await gw.api.getPullRequest({ pullRequestId: pr })).accountId).toBe(account);
     fixture.status(403);
     expect(await failure(gw.api.refreshPullRequest({ pullRequestId: pr }))).toContain("permissions");
     expect((await list()).links.every((l) => !l.summary?.title)).toBe(true);

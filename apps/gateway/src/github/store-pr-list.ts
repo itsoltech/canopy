@@ -7,8 +7,9 @@ import type { PullRequestRow } from "./store-pull-requests.ts";
 
 export function githubPrList(sql: SqlClient.SqlClient) {
   return {
-    prPickerContext: (owner: string, id: string) => sql<{ git_origin: string; branch: string }>`
-      SELECT coalesce(w.git_origin,'') AS git_origin,CASE WHEN coalesce(wt.detached_commit,ch.detached_commit,'')<>'' THEN ''
+    prPickerContext: (owner: string, id: string) => sql<{ git_origin: string; branch: string; base_ref: string }>`
+      SELECT coalesce(w.git_origin,'') AS git_origin,coalesce(wt.base_ref,'') AS base_ref,
+        CASE WHEN coalesce(wt.detached_commit,ch.detached_commit,'')<>'' THEN ''
         WHEN coalesce(wt.branch,ch.branch,g.context->>'branch','')=g.context->>'branch'
           THEN coalesce(nullif(g.context->>'pushRef',''),g.context->>'branch','')
         ELSE coalesce(wt.branch,ch.branch,g.context->>'branch','') END AS branch

@@ -73,14 +73,12 @@ describe.skipIf(!dockerAvailable)("repository PR picker through owner-scoped gRP
     return items;
   }
 
-  test("requires an explicit account choice before reading repository PRs", async () => {
-    const calls = fixture.pickerCalls;
+  test("resolves the repository's only accessible account without a required choice", async () => {
     const result = await page();
-    expect(result.state).toBe("choose_account");
+    expect(result.state).toBe("ready");
+    expect(result.selection?.accountId).toBe(account);
     expect(result.selection?.candidates.map((candidate) => candidate.id)).toEqual([account]);
-    expect(result.items).toHaveLength(0);
-    expect(fixture.pickerCalls).toBe(calls);
-    await gw.api.setGitHubRepositoryAccount({ repositoryName: "itsoltech/canopy", accountId: account });
+    expect(result.items.length).toBeGreaterThan(0);
   });
 
   test("pins matching branches, then the viewer's PRs, then recently updated PRs; warms cache", async () => {
@@ -235,6 +233,6 @@ describe.skipIf(!dockerAvailable)("repository PR picker through owner-scoped gRP
     await gw.api.disconnectGitHubAccount({ accountId: account });
     const disconnected = await page();
     expect(disconnected.state).toBe("account_required");
-    expect(disconnected.detail).toContain("Connect GitHub");
+    expect(disconnected.detail).toContain("No connected GitHub account can access");
   });
 });

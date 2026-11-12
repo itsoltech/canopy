@@ -107,6 +107,7 @@ export class GitHubBackground {
     }));
   }
   private async poll() {
+    await this.prs.repositories.refresh();
     const rows = await this.prs.accounts.run((s) => s.pollCandidates(this.prs.accounts.owner));
     const groups = Map.groupBy(rows, (p) => p.repository_id);
 

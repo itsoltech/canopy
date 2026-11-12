@@ -36,30 +36,16 @@ export async function repositoryPullRequests(prs: GitHubPullRequests, r: github.
 
   try {
     const selection = await prs.repositories.get(response.repositoryName);
-    // Prefer an App account with verified installation access over a PAT fallback.
-    selection.candidates.sort(
-      (a, b) =>
-        Number(b.authKind === "device") - Number(a.authKind === "device") ||
-        a.login.localeCompare(b.login) ||
-        a.id.localeCompare(b.id),
-    );
     response.selection = selection;
 
     if (!selection.accountId || !selection.candidates.some((a) => a.id === selection.accountId)) {
       const available = await accounts.list();
       response.configured = available.configured;
       response.installUrl = available.installUrl;
-      response.state = selection.candidates.length
-        ? "choose_account"
-        : available.accounts.some((a) => a.status === "connected")
-          ? "installation_required"
-          : "account_required";
-
-      if (response.state === "choose_account") response.detail = "Choose an account to load pull requests.";
-      else if (response.state === "installation_required")
-        response.detail =
-          "This repository is not available to your connected accounts. Manage repository access on GitHub.";
-      else response.detail = "Connect GitHub to browse pull requests.";
+      response.state = available.accounts.some((a) => a.status === "connected")
+        ? "installation_required"
+        : "account_required";
+      response.detail = `No connected GitHub account can access ${response.repositoryName}.`;
 
       return response;
     }

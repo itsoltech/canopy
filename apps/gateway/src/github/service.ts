@@ -57,7 +57,7 @@ export class GitHubAccounts {
     this.prs = new GitHubPullRequests(this, publish);
     this.mutations = new GitHubMutations(this.prs);
     this.background = new GitHubBackground(this.prs);
-    this.catalogue = new GitHubCatalogue(this.access, this.prs.client);
+    this.catalogue = new GitHubCatalogue(this.access, this.prs.client, () => this.prs.changed());
     this.device = new GitHubDeviceFlow(this.run, this.http, owner, (id) => this.catalogue.refresh(id));
   }
   async list() {
@@ -90,7 +90,7 @@ export class GitHubAccounts {
   async usePat(id: string) {
     const value = await this.pat.read(id);
     const user = Schema.decodeUnknownSync(User)(await this.http.get("/user", value.token));
-    const row = await this.pat.save(id, value.revision, String(user.id), user.login);
+    const row = await this.pat.save(id, value.revision, String(user.id), user.login, user.type ?? "User");
 
     return create(github.GitHubAccountResponseSchema, { account: accountView(row) });
   }

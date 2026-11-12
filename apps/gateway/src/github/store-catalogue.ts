@@ -33,13 +33,17 @@ export function githubCatalogue(sql: SqlClient.SqlClient) {
       row: AccountRow,
       catalogue: readonly { installation: Installation; repos: readonly Repository[] }[],
       now: number,
+      fingerprint: string,
     ) =>
       sql.withTransaction(
         Effect.gen(function* () {
-          const owned = yield* sql`SELECT id FROM github_accounts WHERE owner_user_id=${row.owner_user_id}::uuid
+          const owned = yield* sql<{
+            catalog_fingerprint: string;
+          }>`SELECT catalog_fingerprint FROM github_accounts WHERE owner_user_id=${row.owner_user_id}::uuid
           AND id=${row.id}::uuid AND status='connected' AND revision=${row.revision}::bigint FOR UPDATE`;
 
-          if (!owned.length) return false;
+          if (!owned[0]) return undefined;
+          const changed = owned[0].catalog_fingerprint !== fingerprint;
           yield* sql`DELETE FROM github_installations WHERE owner_user_id=${row.owner_user_id}::uuid AND account_id=${row.id}::uuid`;
 
           for (const { installation: i, repos } of catalogue) {
@@ -64,9 +68,14 @@ export function githubCatalogue(sql: SqlClient.SqlClient) {
               yield* sql`INSERT INTO github_installation_repositories ${sql.insert(values)}`;
           }
 
-          yield* sql`UPDATE github_accounts SET catalog_verified_at=${new Date(now)} WHERE owner_user_id=${row.owner_user_id}::uuid AND id=${row.id}::uuid`;
+          yield* sql`UPDATE github_accounts SET catalog_verified_at=${new Date(now)},catalog_fingerprint=${fingerprint},
+            revision=revision+${changed ? 1 : 0}
+            WHERE owner_user_id=${row.owner_user_id}::uuid AND id=${row.id}::uuid`;
 
-          return true;
+          if (changed)
+            yield* sql`DELETE FROM github_pr_cache WHERE owner_user_id=${row.owner_user_id}::uuid AND account_id=${row.id}::uuid`;
+
+          return { changed };
         }),
       ),
     installations: (owner: string, account: string, page: number) =>

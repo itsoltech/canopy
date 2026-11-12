@@ -292,15 +292,33 @@ właścicielami ani kontami. Single-flight i krótka dzierżawa SQL deduplikują
 I/O HTTP odbywa się poza transakcją. Po zmianie zapisujemy tylko zmienione projekcje i publikujemy
 rewizję przez istniejący Hub/owner feed. `QueryCache` web/mobile odrzuca spóźnione odpowiedzi.
 
+### Automatyczne konto repozytorium
+
+Wspólny resolver gatewaya wybiera konto według dostępu do repozytorium dla linkowania,
+Create PR, panelu PR, wykrywania gałęzi i odczytów wydań. Indeks owner + nazwa repo → konta
+i instalacje powstaje z katalogu GitHub App, także dla instalacji organizacji. Jedno
+dopasowanie działa bez kontrolki konta. Kilka zachowuje ostatni wybór dla repo, a bez niego
+wybiera konto typu User przed Bot/App, potem według loginu i ID. Gateway zapamiętuje wybór;
+klient pokazuje mały, opcjonalny przełącznik tylko przy kilku kontach z dostępem.
+Brak dostępu pokazuje repozytorium i **Manage access** albo **Connect GitHub** wewnątrz
+pickera/formularza. Nie wymaga wcześniejszego ręcznego mapowania konta.
+
+Katalog jest ważny 15 minut. Istniejący poller co minutę odświeża wygasłe katalogi,
+a ręczne odświeżenie instalacji wymusza ponowny odczyt. Połączenie/odłączenie konta również
+aktualizuje indeks. Atomowa wymiana katalogu porównuje fingerprint instalacji, repo,
+zawieszenia i uprawnień: zmiana podnosi rewizję dostępu, usuwa prywatny cache konta
+i odświeża projekcje. Niezmieniony katalog zachowuje rewizję i ETagi. Odczyt z ciepłego
+indeksu nie odpytuje GitHub. Zapamiętanie lokalnej preferencji nie wykonuje mutacji GitHub.
+PAT pozostaje wyłącznie jawnym wyborem; resolver nie przeszukuje tokenów Connectors.
+Odczyty wydań używają tylko świeżego indeksu i ważnego tokenu, bez czekania na odświeżenie.
+
 ### Picker repozytorium przy linkowaniu
 
 `ListRepositoryPullRequests` rozwiązuje repozytorium z `git_origin` workspace’u należącego
 do wątku. Weryfikuje właściciela przed odczytem konta/cache i ponownie sprawdza rewizję
 dostępu przed odpowiedzią. Klient nie podaje konta, instalacji ani endpointu GitHub.
-Sam odczyt RPC nie zapisuje mapowania. Przy otwarciu picker zachowuje zapamiętane konto;
-przy jego braku zapisuje pierwsze konto App z potwierdzonym dostępem do instalacji
-(stabilna kolejność loginów). Kilka dopasowań pokazuje kompaktowy przełącznik konta u góry.
-PAT nadal wymaga jawnego wyboru. Token użytkownika GitHub App zostaje w gatewayu.
+Konto rozwiązuje wspólny resolver opisany powyżej. Kilka dopasowań pokazuje kompaktowy
+przełącznik konta u góry. Token użytkownika GitHub App zostaje w gatewayu.
 
 Picker pokazuje domyślnie otwarte PR według ostatniej aktualizacji: najpierw pasujące
 head refs (również z forków), potem PR wybranego użytkownika, następnie pozostałe.
@@ -441,7 +459,7 @@ Sam UUID, GitHub node ID, repo ID lub URL nigdy nie jest uprawnieniem do odczytu
 | --- | --- |
 | `github_accounts` | UUID, owner, host, GitHub user ID/login, nazwa, dom, auth kind, status, access revision; zaszyfrowana para tokenów albo FK do własnego PAT connectora, nigdy oba |
 | `github_installations`, `github_installation_repositories` | Owner + account + installation ID; właściciel instalacji, permissions, selected/all, suspended, repo ID i kanoniczna nazwa, czas weryfikacji. Wiersze instalacji powtarzają się per autoryzowany użytkownik |
-| `github_repository_accounts` | Owner + repo ID → lokalne account/installation ID, jawny wybór i rewizja; brak globalnego domyślnego konta dla zapisów |
+| `github_repository_accounts` | Owner + repo ID → zapamiętane konto i rewizja; automatyczny wybór według indeksu instalacji, opcjonalna zmiana przy kilku dopasowaniach |
 | `github_pull_requests`, `thread_pull_requests` | Kanoniczny PR: owner + host + repository ID + number/node ID. Relacja many-to-many: owner + thread + PR, `source=auto/manual`, evidence=branch/tool_output/product_create, branch/repo/SHA w chwili powiązania, created/last_seen, `unlinked_at` |
 | `github_pr_cache`, `github_pr_pages`, `github_pr_checks` | Cache izolowany account/access revision; nagłówek, ETag, SHA, fetched/verified, completeness, strony timeline/review/files i podsumowania CI. `viewerViewedState` jest polem cache strony GraphQL plików, nie osobną tabelą stanu Canopy |
 | `github_mutation_receipts` | Owner/dom/account + request ID, akcja, fingerprint, oczekiwane SHA/rewizje, potwierdzenie użytkownika, stan, upstream ID/wynik i czasy. Dotyczy wszystkich mutacji; bez tokenów i surowego body |
@@ -558,9 +576,15 @@ Dotychczasowy dowód MCP, niezależne sprawdzenia git i ochrona lokalnych zmian 
 
 ### Create PR z gałęzi wątku
 
-Jawne **Create pull request** odczytuje ten sam kontekst git i wymaga opublikowanej head branch.
-Użytkownik wybiera base repo/branch, head repo/ref, konto i draft/ready; Canopy nie wykonuje
-push ani tworzenia forka w tle. Brak opublikowanego SHA kieruje do zwykłego przepływu pracy z git.
+Jawne **Create pull request** odczytuje ten sam kontekst git i automatycznie rozwiązuje konta
+head oraz base według dostępu. Nagłówek zaczyna się od owner/repo, następnie pokazuje
+head → base bez pustego separatora konta. Base pochodzi z zapisanego base wątku, jeśli nadal
+istnieje, albo z domyślnej gałęzi repo; kompaktowy picker pozwala go zmienić. Przełącznik
+konta pojawia się tylko przy kilku kontach z dostępem. **Draft with agent** i **Review pull request**
+działają po uzyskaniu wymaganych pól oraz opublikowanego head SHA.
+Canopy nie wykonuje push ani tworzenia forka w tle. Osobne komunikaty rozróżniają brak
+opublikowanej gałęzi i lokalne niewypchnięte commity. Istniejące API nie ma akcji push;
+formularz wskazuje git lub agenta oraz odświeżenie po wypchnięciu.
 **Draft with agent** po jawnym kliknięciu uruchamia jedną zwykłą turę wątku z ograniczonym
 załącznikiem repo/ref/SHA, listą commitów i wybranymi diffami (limity §7). Formularz pokazuje
 stan ładowania i wypełnia pola tytułu oraz opisu wyłącznie zweryfikowaną odpowiedzią tej tury.
@@ -621,7 +645,7 @@ Rozszerzamy istniejący **`canopy.ui.v1.GatewayService`**, z wiadomościami w no
 | Grupa RPC | Kontrakt |
 | --- | --- |
 | `ListGitHubAccounts`, `BeginGitHubDeviceAuth`, `GetGitHubDeviceAuth`, `CancelGitHubDeviceAuth`, `DisconnectGitHubAccount` | DTO konta i stanu próby bez tokenów/device code; żądania mają dom, nie dowolny URL |
-| `ListGitHubInstallations`, `ListGitHubRepositories`, `SetGitHubRepositoryAccount` | Stronicowany katalog dostępnych repo, jawny wybór konta i expected revision |
+| `ListGitHubInstallations`, `ListGitHubRepositories`, `SetGitHubRepositoryAccount` | Stronicowany katalog dostępnych repo, opcjonalna zmiana automatycznie rozwiązanego konta i expected revision |
 | `ListThreadPullRequests`, `LinkThreadPullRequest`, `UnlinkThreadPullRequest`, `RefreshPullRequest` | Thread ID + kanoniczna tożsamość PR; link zweryfikowany w gatewayu; tombstone atomowy |
 | `GetPullRequest`, `WatchPullRequest`, `ListPullRequestTimeline`, `ListPullRequestReviewThreads`, `ListPullRequestFiles`, `GetPullRequestDiff` | Nagłówek, checki, cursory i rewizje; patch tylko dla wskazanego pliku i SHA; prywatne pending review per konto |
 | `CreatePullRequestComment`, `ReplyPullRequestReviewThread`, `UpdatePullRequestComment`, `DeletePullRequestComment`, `SetPullRequestReviewThreadResolved` | Typ komentarza i upstream ID związane z PR; edycja/usunięcie tylko własnego komentarza; resolve/unresolve według aktualnych praw |
@@ -1015,9 +1039,9 @@ account for update checks** pozwala wyłączyć i wybrać inne własne konto. To
 publicznych metadanych Canopy, który wykorzystuje już udzieloną autoryzację i zmniejsza koszt
 wspólnego limitu IP przy awarii CDN. Osobny opt-in nie zmienia zakresu już udzielonego dostępu,
 a pozostawiałby połączone konta przy słabszym anonimowym fallbacku.
-Pierwsze połączone konto danego właściciela jest domyślnym kandydatem, wybór kolejnego nie
-zastępuje go po cichu. Na gatewayu z wieloma ownerami globalny updater używa wyłącznie własnego
-konta administratora zarządzającego aktualizacjami i tego jawnego ustawienia; nie przeszukuje
+Konto jest rozwiązywane według dostępu do `itsoltech/canopy`, z tą samą zapamiętaną
+preferencją co inne odczyty repo. Na gatewayu z wieloma ownerami globalny updater używa wyłącznie
+konta administratora zarządzającego aktualizacjami i jego ustawienia; nie przeszukuje
 tokenów pozostałych ownerów po odmowie/limicie. Bez skonfigurowanego ownera działa publicznie.
 Desktop korzystający z domu może otrzymać publiczne metadane przez istniejący kanał aktualizacji;
 samodzielny Electron/worker/mobile nadal korzysta z publicznego katalogu, bez kopiowania tokenu.

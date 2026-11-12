@@ -1,12 +1,11 @@
 import { useState } from "react";
-import { Text, View } from "react-native";
+import { View } from "react-native";
 import type { github } from "@canopy/contracts";
 import { GITHUB_HOME, splitId } from "@canopy/domain/computers";
 import { useSession } from "../../state/session";
 import { Button, Field, Notice } from "../../ui/components";
 import { PickerSheet, SelectField } from "../../ui/Picker";
-import { styles, useColors } from "../../ui/theme";
-import { ConnectGitHub } from "./ConnectGitHub";
+import { RepositoryAccessActions } from "./RepositoryAccessActions";
 
 interface LinkPullRequestProps {
   threadId: string;
@@ -17,14 +16,12 @@ interface LinkPullRequestProps {
 
 export function LinkPullRequestUrl({ threadId, revision, onlinked, initialUrl = "" }: LinkPullRequestProps) {
   const { client } = useSession();
-  const c = useColors();
   const [url, setUrl] = useState(initialUrl);
   const [selection, setSelection] = useState<github.GitHubRepositoryAccountResponse>();
   const [accountId, setAccountId] = useState("");
   const [choosing, setChoosing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [configured, setConfigured] = useState(true);
   const node = splitId(threadId).node;
   const homeId = node ? `${GITHUB_HOME}~${node}` : "";
 
@@ -52,8 +49,6 @@ export function LinkPullRequestUrl({ threadId, revision, onlinked, initialUrl = 
             ? value.candidates[0]!.id
             : "",
       );
-
-      if (!value.candidates.length) setConfigured((await client.api.listGitHubAccounts({ homeId })).configured);
     } catch {
       setError("Could not check repository access. Check the connection, then retry.");
     } finally {
@@ -98,25 +93,20 @@ export function LinkPullRequestUrl({ threadId, revision, onlinked, initialUrl = 
         }}
       />
       {selection &&
-        (selection.candidates.length ? (
+        (selection.candidates.length > 1 ? (
           <>
             <SelectField
               label="GitHub account"
               value={selection.candidates.find((a) => a.id === accountId)?.login ?? "Choose an account"}
               onPress={() => setChoosing(true)}
             />
-            <Text style={[styles.meta, { color: c.muted }]}>
-              Use this account for {selection.repositoryName} on this computer.
-            </Text>
           </>
-        ) : (
+        ) : !selection.candidates.length ? (
           <>
-            <ConnectGitHub homeId={homeId} configured={configured} onconnected={() => void check()} />
-            <Text style={[styles.meta, { color: c.muted }]}>
-              If your account is connected, manage its repository access in Settings → GitHub.
-            </Text>
+            <Notice>No connected GitHub account can access {selection.repositoryName}.</Notice>
+            <RepositoryAccessActions homeId={homeId} onconnected={() => void check()} />
           </>
-        ))}
+        ) : null)}
       {!!error && <Notice error>{error}</Notice>}
       <Button
         title={busy ? "Checking…" : selection ? "Link pull request" : "Check access"}

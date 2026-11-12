@@ -7,7 +7,7 @@
   import Input from "#lib/shared/ui/Input.svelte";
   import Select from "#lib/shared/ui/Select.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
-  import ConnectGitHub from "./ConnectGitHub.svelte";
+  import RepositoryAccessActions from "./RepositoryAccessActions.svelte";
   import * as api from "./api.ts";
 
   let {
@@ -30,7 +30,6 @@
   let busy = $state(false);
   let error = $state("");
   let name = $state("");
-  let configured = $state(true);
   const homeId = $derived(splitId(threadId).node ? `${GITHUB_HOME}~${splitId(threadId).node}` : "");
 
   async function check() {
@@ -55,8 +54,6 @@
         : value.candidates.length === 1
           ? value.candidates[0]!.id
           : "";
-
-      if (!value.candidates.length) configured = (await api.accounts(homeId)).configured;
     } catch {
       error = "Could not check repository access. Check the connection, then retry.";
     } finally {
@@ -101,19 +98,18 @@
     }}
   />
   {#if selection}
-    {#if selection.candidates.length}
+    {#if selection.candidates.length > 1}
       <Select
         aria-label="GitHub account"
         bind:value={accountId}
         options={selection.candidates.map((a) => ({ value: a.id, label: a.login }))}
-        placeholder="Choose an account"
+        inline
       />
-      <p class="text-sm/5 text-zinc-500 dark:text-zinc-400">Use this account for {name} on this computer.</p>
-    {:else}
-      <ConnectGitHub {homeId} {configured} onconnected={() => void check()} />
-      <p class="text-sm/5 text-zinc-500 dark:text-zinc-400">
-        If your account is connected, manage its repository access in Settings → GitHub.
+    {:else if !selection.candidates.length}
+      <p role="status" class="text-sm/5 text-zinc-500 dark:text-zinc-400">
+        No connected GitHub account can access {name}.
       </p>
+      <RepositoryAccessActions {homeId} onconnected={() => void check()} />
     {/if}
   {/if}
   {#if error}<Alert>{error}</Alert>{/if}

@@ -25,12 +25,23 @@ export function githubDetectionFixture() {
   fixture.intercept((request) => {
     const url = new URL(request.url);
 
+    if (/^\/user\/installations\/[0-9]+\/repositories$/.test(url.pathname))
+      return Response.json({
+        total_count: 2,
+        repositories: [
+          { id: 777, full_name: "itsoltech/canopy", private: true, permissions: { pull: true, push: true } },
+          { id: 888, full_name: "fork-owner/canopy", private: true, permissions: { pull: true, push: true } },
+        ],
+      });
+
     if (url.pathname === "/repos/fork-owner/canopy")
       return Response.json({
         id: 888,
         full_name: "fork-owner/canopy",
         parent: { id: 777, full_name: "itsoltech/canopy" },
       });
+
+    if (url.pathname === "/repos/fork-owner/canopy/pulls") return Response.json([]);
 
     if (url.pathname === "/repos/itsoltech/canopy/pulls") {
       requests.push(url.search);

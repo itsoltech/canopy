@@ -12,6 +12,7 @@
   import MarkdownEditor from "#lib/shared/ui/MarkdownEditor.svelte";
   import Select from "#lib/shared/ui/Select.svelte";
   import Checkbox from "#lib/shared/ui/Checkbox.svelte";
+  import RepositoryAccessActions from "./RepositoryAccessActions.svelte";
   import { createDrafts } from "./create-drafts.ts";
   import { mutationRefused, mutationDetail } from "./mutation-errors.ts";
   import * as api from "./api.ts";
@@ -44,7 +45,10 @@
 
   const homeId = $derived(splitId(threadId).node ? `${GITHUB_HOME}~${splitId(threadId).node}` : "");
   const uncertain = $derived(!!receipt && (mutationUnconfirmed(receipt) || receipt.state === "accepted"));
-  const blocked = $derived(busy || !online || uncertain || !context?.published || !context.accountId);
+
+  const blocked = $derived(
+    busy || !online || uncertain || !context?.published || !context.accountId || !context.headRef || !context.baseRef,
+  );
 
   const request = (fields: MessageInitShape<typeof github.PullRequestCreateContextRequestSchema> = {}) =>
     create(github.PullRequestCreateContextRequestSchema, {
@@ -212,29 +216,22 @@
   <div class="grid min-w-0 gap-3">
     {#if context}
       <div class="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5 text-sm text-zinc-500 dark:text-zinc-400">
-        {#if selection && selection.candidates.length > 1}<Select
-            inline
-            aria-label="GitHub account"
-            value={context.accountId}
-            options={selection.candidates.map((a) => ({ value: a.id, label: a.login }))}
-            disabled={busy || uncertain}
-            onchange={(value) => void account(value)}
-          />{:else}<span>{context.viewerLogin}</span>{/if}
-        <span>·</span>
         {#if context.repositories.length > 1}<Select
             inline
+            class="max-w-full min-w-0 [&>button]:max-w-full"
             aria-label="Base repository"
             value={context.repositoryName}
             options={context.repositories.map((value) => ({ value, label: value }))}
             disabled={busy || uncertain}
             onchange={(repositoryName) => void load({ repositoryName, baseRef: "" })}
           />{:else}<span class="min-w-0 truncate" title={context.repositoryName}>{context.repositoryName}</span>{/if}
-        <span>:</span><span
+        <span
           class="max-w-full min-w-0 truncate select-text"
           title={`${context.headRepositoryName}:${context.headRef} · ${context.headSha}`}>{context.headRef}</span
         ><span>→</span>
-        {#if context.accountId}<Select
+        {#if context.accountId && context.baseRef}<Select
             inline
+            class="max-w-full min-w-0 [&>button]:max-w-full"
             aria-label="Base branch"
             value={context.baseRef}
             options={[...new Set([context.baseRef, ...context.branches])]
@@ -242,6 +239,15 @@
               .map((value) => ({ value, label: value }))}
             disabled={busy || uncertain}
             onchange={(baseRef) => void load({ baseRef })}
+          />{:else}<span>Base unavailable</span>{/if}
+        {#if selection && selection.candidates.length > 1}<Select
+            inline
+            class="max-w-full min-w-0 [&>button]:max-w-full"
+            aria-label="GitHub account"
+            value={context.accountId}
+            options={selection.candidates.map((a) => ({ value: a.id, label: a.login }))}
+            disabled={busy || uncertain}
+            onchange={(value) => void account(value)}
           />{/if}
       </div>
       {#if context.nextCursor}<Button
@@ -255,6 +261,9 @@
           }}>Load more branches</Button
         >{/if}
       {#if context.detail}<p role="status" class="text-sm text-amber-700 dark:text-amber-400">{context.detail}</p>{/if}
+      {#if !context.accountId}
+        <RepositoryAccessActions {homeId} onconnected={() => void load()} />
+      {/if}
     {/if}
     <div class="flex items-center justify-between gap-2">
       <Button size="sm" loading={drafting} disabled={blocked} onclick={() => void agentDraft()}

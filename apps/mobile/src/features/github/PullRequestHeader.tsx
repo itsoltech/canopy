@@ -11,6 +11,7 @@ import { PullRequestStatus } from "./PullRequestStatus";
 import { LifecycleActions } from "./LifecycleActions";
 import { useState } from "react";
 import { MetadataEdit } from "./MetadataEdit";
+import { RepositoryAccountSwitch } from "./RepositoryAccountSwitch";
 
 export function PullRequestHeader({
   snapshot,
@@ -83,6 +84,14 @@ export function PullRequestHeader({
           ]}
         />
       </View>
+      {!!ref && (
+        <RepositoryAccountSwitch
+          repositoryName={ref.repositoryName}
+          accountId={snapshot.accountId}
+          disabled={busy}
+          onchanged={onrefresh}
+        />
+      )}
       <Text
         accessibilityRole="header"
         numberOfLines={2}
@@ -91,15 +100,7 @@ export function PullRequestHeader({
         {metadata?.title ?? pr?.title}
       </Text>
       <MetadataEdit snapshot={snapshot} kind="title" onDisplay={setMetadata} />
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-        <GitHubAvatar login={snapshot.author} userId="" compact />
-        <Text numberOfLines={1} style={[type.meta, { flex: 1, color: c.text }]}>
-          {snapshot.author}
-        </Text>
-        <Text style={[type.meta, { color: c.muted }]}>
-          updated {formatAge(pr?.updatedAt) === "now" ? "now" : `${formatAge(pr?.updatedAt)} ago`}
-        </Text>
-      </View>
+      <PullRequestAuthor snapshot={snapshot} />
       <Text numberOfLines={1} style={[type.mono, { color: c.muted }]}>
         {snapshot.baseRef} ← {snapshot.headRef}
       </Text>
@@ -130,6 +131,22 @@ export function PullRequestHeader({
         </Pressable>
       </View>
       <LifecycleActions snapshot={snapshot} onrefresh={onrefresh} />
+    </View>
+  );
+}
+
+function PullRequestAuthor({ snapshot }: { snapshot: github.PullRequestSnapshot }) {
+  const c = useColors();
+  const type = useTypography();
+  const age = formatAge(snapshot.summary?.updatedAt);
+
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+      <GitHubAvatar login={snapshot.author} userId="" compact />
+      <Text numberOfLines={1} style={[type.meta, { flex: 1, color: c.text }]}>
+        {snapshot.author}
+      </Text>
+      <Text style={[type.meta, { color: c.muted }]}>updated {age === "now" ? "now" : `${age} ago`}</Text>
     </View>
   );
 }

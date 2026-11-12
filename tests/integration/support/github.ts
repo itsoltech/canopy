@@ -52,6 +52,7 @@ export function githubFixture() {
   const tokens = new Map<string, number>();
   const refreshTokens = new Map<string, number>();
   const secrets: string[] = [];
+  const accountTypes = new Map<number, string>();
 
   const pair = (user: number) => {
     const access = `ghu_fixture_${++sequence}`;
@@ -127,6 +128,7 @@ export function githubFixture() {
       if (url.pathname === "/user")
         return Response.json({
           id: user,
+          type: accountTypes.get(user) ?? "User",
           login:
             (longNames ? `account-${user}-with-a-very-long-company-name` : `account-${user}`) +
             (echoSecrets ? `-${access}-${secrets.at(-1)}` : ""),
@@ -181,6 +183,9 @@ export function githubFixture() {
     },
     user: (id: number) => {
       nextUser = id;
+    },
+    accountType: (id: number, type: string) => {
+      accountTypes.set(id, type);
     },
     mode: (value: string) => {
       mode = value;

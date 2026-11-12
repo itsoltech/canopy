@@ -5,6 +5,7 @@ import { PickerSheet } from "../../ui/Picker";
 import { MarkdownEditor } from "../../ui/MarkdownEditor";
 import { useColors, useTypography } from "../../ui/theme";
 import { useCreateForm, type CreateForm, type CreateProps } from "./useCreateForm";
+import { RepositoryAccessActions } from "./RepositoryAccessActions";
 
 export function CreatePullRequest(props: CreateProps) {
   const f = useCreateForm(props);
@@ -113,18 +114,6 @@ function CreateTarget({ form: f }: { form: CreateForm }) {
   return (
     <>
       <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 4 }}>
-        {(f.selection?.candidates.length ?? 0) > 1 ? (
-          <Button
-            title={context.viewerLogin || "Choose account"}
-            size="sm"
-            variant="ghost"
-            disabled={f.busy || f.uncertain}
-            onPress={() => f.setPicker("account")}
-          />
-        ) : (
-          <Text style={[type.meta, { color: c.muted }]}>{context.viewerLogin}</Text>
-        )}
-        <Text style={[type.meta, { color: c.muted }]}>·</Text>
         {context.repositories.length > 1 ? (
           <Button
             title={context.repositoryName}
@@ -143,9 +132,9 @@ function CreateTarget({ form: f }: { form: CreateForm }) {
           accessibilityLabel={`${context.headRepositoryName}:${context.headRef}`}
           style={[type.meta, { color: c.muted, flexShrink: 1 }]}
         >
-          : {context.headRef} →
+          {context.headRef} →
         </Text>
-        {!!context.accountId && (
+        {context.accountId && context.baseRef ? (
           <Button
             title={`${context.baseRef} ⌄`}
             label="Base branch"
@@ -154,12 +143,25 @@ function CreateTarget({ form: f }: { form: CreateForm }) {
             disabled={f.busy || f.uncertain}
             onPress={() => f.setPicker("base")}
           />
+        ) : (
+          <Text style={[type.meta, { color: c.muted }]}>Base unavailable</Text>
+        )}
+        {(f.selection?.candidates.length ?? 0) > 1 && (
+          <Button
+            title={context.viewerLogin}
+            label="GitHub account"
+            size="sm"
+            variant="ghost"
+            disabled={f.busy || f.uncertain}
+            onPress={() => f.setPicker("account")}
+          />
         )}
       </View>
       {!!context.nextCursor && (
         <Button title="Load more branches" disabled={f.busy || f.uncertain} onPress={() => void f.more()} />
       )}
       {!!context.detail && <Notice>{context.detail}</Notice>}
+      {!context.accountId && <RepositoryAccessActions homeId={f.homeId} onconnected={() => void f.load()} />}
       <PickerSheet
         title={f.picker === "account" ? "GitHub account" : f.picker === "base" ? "Base branch" : "Base repository"}
         visible={!!f.picker}

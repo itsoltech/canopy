@@ -14,7 +14,7 @@ import { mutationRequest } from "@canopy/domain/github-mutations";
 import { GitHubMetadataEditor } from "@canopy/domain/github-metadata";
 import { SERVICE_TOKEN, startTestGateway, type TestGateway } from "./support/gateway.ts";
 import { linkedRead } from "./support/github-read.ts";
-import { githubBrowser } from "./support/github-pr.ts";
+import { connectGitHub, githubBrowser } from "./support/github-pr.ts";
 import { metadataFixture } from "./support/github-metadata.ts";
 
 const code = (promise: Promise<object>) =>
@@ -149,8 +149,19 @@ describe.skipIf(!dockerAvailable)("GitHub metadata ownership, conflicts and dura
     }
 
     fixture.state.issues = false;
-    expect(await code(gw.api.setPullRequestLabels(await request("set_labels"), browser))).toBe(Code.PermissionDenied);
-    fixture.state.issues = true;
+
+    try {
+      expect(await code(gw.api.setPullRequestLabels(await request("set_labels"), browser))).toBe(
+        Code.FailedPrecondition,
+      );
+      snapshot = await gw.api.getPullRequest({ pullRequestId: pr, refresh: true });
+      expect(await code(gw.api.setPullRequestLabels(await request("set_labels"), browser))).toBe(Code.PermissionDenied);
+    } finally {
+      fixture.state.issues = true;
+      await gw.api.listGitHubInstallations({ accountId: snapshot.accountId, refresh: true });
+      snapshot = await gw.api.getPullRequest({ pullRequestId: pr, refresh: true });
+    }
+
     expect(fixture.state.writes).toBe(before);
   }, 30_000);
 
@@ -404,6 +415,18 @@ describe.skipIf(!dockerAvailable)("GitHub metadata ownership, conflicts and dura
     await gw.api.preparePullRequestMutation(r, browser);
     const before = fixture.state.writes;
     await gw.api.disconnectGitHubAccount({ accountId: snapshot.accountId });
+
+    const denied = await gw.api.setPullRequestAssignees(r, browser).then(
+      () => undefined,
+      (error) => ConnectError.from(error),
+    );
+
+    expect(denied).toMatchObject({
+      code: Code.PermissionDenied,
+      rawMessage: "No connected GitHub account can access itsoltech/canopy.",
+    });
+    expect(fixture.state.writes).toBe(before);
+    expect(await connectGitHub(gw, fixture)).toBe(snapshot.accountId);
     expect(await code(gw.api.setPullRequestAssignees(r, browser))).toBe(Code.FailedPrecondition);
     expect(fixture.state.writes).toBe(before);
   }, 30_000);

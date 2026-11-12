@@ -18,6 +18,8 @@
   import PullRequestSummary from "./PullRequestSummary.svelte";
   import CommentComposer from "./CommentComposer.svelte";
   import * as api from "./api.ts";
+  import RepositoryAccessActions from "./RepositoryAccessActions.svelte";
+  import { GITHUB_HOME, splitId } from "@canopy/domain/computers";
 
   let {
     id,
@@ -28,6 +30,7 @@
 
   let busy = $state(false);
   let denied = $state(false);
+  let accessError = $state("");
   let error = $state("");
   let tab = $state("summary");
   let visible = $state(false);
@@ -89,9 +92,12 @@
       try {
         const value = await api.pullRequest(id);
         denied = false;
+        accessError = "";
 
         return value;
       } catch (cause) {
+        if (cause instanceof HttpError && cause.status === 403) accessError = cause.message;
+
         if (cause instanceof HttpError && [403, 404, 409, 412].includes(cause.status)) denied = true;
         throw cause;
       }
@@ -109,7 +115,10 @@
       read.set(await api.pullRequest(id, true));
       invalidations.publish(id);
       denied = false;
+      accessError = "";
     } catch (cause) {
+      if (cause instanceof HttpError && cause.status === 403) accessError = cause.message;
+
       if (cause instanceof HttpError && [403, 404, 409, 412].includes(cause.status)) denied = true;
       error = "Could not load this summary. Check account access and the connection, then retry.";
     } finally {
@@ -152,12 +161,16 @@
     class={["min-h-0 flex-1 scroll-stable overflow-y-auto overscroll-contain", tab === "summary" ? "p-4" : "px-4 pb-4"]}
   >
     {#if error || read.snapshot.error}<Alert class="mb-4"
-        >{error || "Connect to load this page. Check account access, then retry."}<Button
+        >{accessError || error || "Connect to load this page. Check account access, then retry."}<Button
           size="sm"
           variant="ghost"
           onclick={refresh}>Retry</Button
         ></Alert
       >{/if}
+    {#if accessError}<RepositoryAccessActions
+        homeId={splitId(id).node ? `${GITHUB_HOME}~${splitId(id).node}` : ""}
+        onconnected={() => void refresh()}
+      />{/if}
     {#if data?.detail}<p role="status" class="mb-4 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
         {data.detail}
         {data.stale ? `Last verified ${formatDateTime(data.summary?.verifiedAt)}.` : ""}

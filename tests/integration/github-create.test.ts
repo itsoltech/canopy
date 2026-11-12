@@ -79,8 +79,6 @@ describe.skipIf(!dockerAvailable)("Create PR from the thread checkout", () => {
   });
 
   test("agent context only drafts; a reviewed create links once, without git push or a model turn", async () => {
-    expect((await context()).accountId).toBe("");
-    await gw.api.setGitHubRepositoryAccount({ repositoryName: "itsoltech/canopy", accountId: account });
     const value = await context();
     expect(value).toMatchObject({
       published: true,
@@ -107,6 +105,17 @@ describe.skipIf(!dockerAvailable)("Create PR from the thread checkout", () => {
     expect(state.creates).toBe(1);
     expect(gw.worker.inputs.size).toBe(0);
   }, 30_000);
+
+  test("the base defaults to the repository branch and accepts another branch from the compact picker", async () => {
+    const initial = await context();
+    expect(initial.baseRef).toBe("dev");
+    const branch = "release/a-very-long-base-branch-name-for-testing-truncation";
+    const selected = await gw.api.getPullRequestCreateContext({ threadId: thread, baseRef: branch });
+    expect(selected.baseRef).toBe(branch);
+    expect(selected.baseSha).toBe(state.base);
+    expect(selected.accountId).toBe(account);
+    expect(selected.published).toBe(true);
+  });
 
   test("create/link crash resumes by immutable upstream ID after a gateway restart, respecting a tombstone", async () => {
     const r = await prepare(await request());
@@ -167,6 +176,7 @@ describe.skipIf(!dockerAvailable)("Create PR from the thread checkout", () => {
   test("unpublished branch, checkout/published push and account changes require a fresh confirmation", async () => {
     state.published = false;
     expect((await context()).published).toBe(false);
+    expect((await context()).detail).toContain("not published on GitHub");
     const unpushed = await request();
     expect(await code(gw.api.preparePullRequestMutation(unpushed, browser))).toBe(Code.FailedPrecondition);
     state.published = true;
@@ -175,6 +185,7 @@ describe.skipIf(!dockerAvailable)("Create PR from the thread checkout", () => {
       before = state.creates;
 
     localHead = "d".repeat(40);
+    expect((await context()).detail).toContain("unpushed commits");
     expect(await code(gw.api.createPullRequest(r, browser))).toBe(Code.FailedPrecondition);
     localHead = state.head;
     state.head = "e".repeat(40);
@@ -261,4 +272,19 @@ describe.skipIf(!dockerAvailable)("Create PR from the thread checkout", () => {
     expect(JSON.stringify(audit)).not.toContain("User-edited Markdown");
     expect(JSON.stringify(audit)).not.toContain("feat: reviewed title");
   }, 30_000);
+
+  test("inaccessible repositories retain their target and expose an actionable account error", async () => {
+    const connected = await gw.api.listGitHubAccounts({});
+
+    for (const value of connected.accounts)
+      if (value.status === "connected") await gw.api.disconnectGitHubAccount({ accountId: value.id });
+
+    expect(await context()).toMatchObject({
+      repositoryName: "itsoltech/canopy",
+      headRef: state.branch,
+      accountId: "",
+      published: false,
+      detail: "No connected GitHub account can access itsoltech/canopy.",
+    });
+  });
 });

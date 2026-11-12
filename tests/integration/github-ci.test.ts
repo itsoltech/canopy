@@ -179,14 +179,24 @@ describe.skipIf(!dockerAvailable)("GitHub CI owner boundaries and durable asynch
   test("Actions write and user repository rights are independent of Checks read", async () => {
     const before = fixture.state.writes.length;
     fixture.state.actionsWrite = false;
-    expect(await code(gw.api.rerunPullRequestChecks(request(), browser))).toBe(Code.PermissionDenied);
-    expect((await gw.api.getPullRequest({ pullRequestId: pr, refresh: true })).ciBlockingReason).toContain(
-      "Actions write",
-    );
-    fixture.state.actionsWrite = true;
-    fixture.state.push = false;
-    expect(await code(gw.api.rerunPullRequestChecks(request(), browser))).toBe(Code.PermissionDenied);
-    fixture.state.push = true;
+
+    try {
+      expect(await code(gw.api.rerunPullRequestChecks(request(), browser))).toBe(Code.FailedPrecondition);
+      snapshot = await gw.api.getPullRequest({ pullRequestId: pr, refresh: true });
+      expect(snapshot.ciBlockingReason).toContain("Actions write");
+      expect(await code(gw.api.rerunPullRequestChecks(request(), browser))).toBe(Code.PermissionDenied);
+      fixture.state.actionsWrite = true;
+      fixture.state.push = false;
+      await gw.api.listGitHubInstallations({ accountId: snapshot.accountId, refresh: true });
+      snapshot = await gw.api.getPullRequest({ pullRequestId: pr, refresh: true });
+      expect(await code(gw.api.rerunPullRequestChecks(request(), browser))).toBe(Code.PermissionDenied);
+    } finally {
+      fixture.state.actionsWrite = true;
+      fixture.state.push = true;
+      await gw.api.listGitHubInstallations({ accountId: snapshot.accountId, refresh: true });
+      snapshot = await gw.api.getPullRequest({ pullRequestId: pr, refresh: true });
+    }
+
     expect(fixture.state.writes.length).toBe(before);
   }, 30_000);
 

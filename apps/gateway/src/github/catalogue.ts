@@ -8,6 +8,7 @@ import { Installations, Repositories, type Installation, type Repository } from 
 import { reconnect } from "./records.ts";
 import { GitHubHttpFailure } from "./http.ts";
 import { GitHubClient } from "./client.ts";
+import { createHash } from "node:crypto";
 
 export class GitHubCatalogue {
   #flights = new Map<string, Promise<void>>();
@@ -17,6 +18,7 @@ export class GitHubCatalogue {
   constructor(
     readonly access: GitHubAccess,
     readonly client: GitHubClient,
+    readonly changed: () => Promise<void> = async () => {},
   ) {}
   async stop() {
     this.#stopped = true;
@@ -112,7 +114,34 @@ export class GitHubCatalogue {
 
     if (signal.aborted || row.revision !== revision || row.status !== "connected") throw reconnect();
 
-    if (!(await this.access.run((s) => s.saveCatalogue(row, catalogue, this.access.http.now())))) throw reconnect();
+    const fingerprint = createHash("sha256")
+      .update(
+        JSON.stringify(
+          catalogue
+            .map(({ installation: i, repos }) => [
+              i.id,
+              i.account.login,
+              i.account.type,
+              i.repository_selection,
+              !!i.suspended_at,
+              Object.entries(i.permissions).sort(),
+              repos
+                .map((r) => [r.id, r.full_name, r.private, Object.entries(r.permissions ?? {}).sort()])
+                .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+            ])
+            .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+        ),
+      )
+      .digest("hex");
+
+    const saved = await this.access.run((s) => s.saveCatalogue(row, catalogue, this.access.http.now(), fingerprint));
+
+    if (!saved) throw reconnect();
+
+    if (saved.changed) {
+      this.client.memory.clear();
+      await this.changed();
+    }
   }
   async #read(id: string, path: string, signal: AbortSignal) {
     signal.throwIfAborted();
@@ -151,7 +180,7 @@ export class GitHubCatalogue {
     });
   }
   async repositories(request: github.GitHubCatalogueRequest) {
-    await this.refresh(request.accountId);
+    await this.refresh(request.accountId, request.refresh);
 
     const rows = await this.access.run((s) =>
       s.repositories(this.access.owner, request.accountId, request.installationId, request.page),

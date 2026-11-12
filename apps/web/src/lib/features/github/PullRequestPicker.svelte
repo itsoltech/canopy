@@ -172,14 +172,13 @@
       ]}
     />
   </div>
-  {#if data?.selection && (data.selection.candidates.length > 1 || data.state === "choose_account")}
+  {#if data?.selection && data.selection.candidates.length > 1}
     <div class="min-w-0 border-b border-zinc-950/5 px-2 py-1 dark:border-white/8">
       <Select
         inline
         aria-label="GitHub account"
         value={data.selection.accountId}
         options={data.selection.candidates.map((a) => ({ value: a.id, label: a.login }))}
-        placeholder="Choose an account"
         disabled={busy || loading}
         onchange={(id) => void choose(id)}
       />
@@ -240,7 +239,7 @@
           href={data.installUrl || "/settings/github"}
           target={data.installUrl ? "_blank" : undefined}
           rel="noreferrer"
-          size="sm">Manage repositories</ButtonLink
+          size="sm">Manage access</ButtonLink
         >
       {:else if data.state === "rate_limited"}<p>Reset: {formatEnglishDateTime(data.retryAt)}</p>{/if}
       {#if data.state !== "not_github"}<Button size="sm" variant="ghost" onclick={() => retry++}>Retry</Button>{/if}

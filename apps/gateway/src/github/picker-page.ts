@@ -93,7 +93,7 @@ export async function pickerPage(
       const items = Schema.decodeUnknownSync(Schema.Struct({ items: Schema.Array(Pull) }))(value).items.slice(0, 30);
 
       if (items.some((pr) => String(pr.base.repo.id) !== source.repositoryId))
-        throw new ConnectError("Repository access changed. Choose its account again.", Code.PermissionDenied);
+        throw new ConnectError("Repository access changed. Refresh the list.", Code.PermissionDenied);
 
       const next = headers
         .get("link")
@@ -167,7 +167,7 @@ async function priorityPage(
       )(value).data.repository;
 
       if (String(repository.databaseId) !== source.repositoryId)
-        throw new ConnectError("Repository access changed. Choose its account again.", Code.PermissionDenied);
+        throw new ConnectError("Repository access changed. Refresh the list.", Code.PermissionDenied);
 
       return { data: { search: repository.pulls } };
     },
@@ -180,7 +180,7 @@ async function priorityPage(
   const value = Schema.decodeUnknownSync(Mine)(payload).data.search;
 
   if (value.nodes.some((pr) => String(pr.repository.databaseId) !== source.repositoryId))
-    throw new ConnectError("Repository access changed. Choose its account again.", Code.PermissionDenied);
+    throw new ConnectError("Repository access changed. Refresh the list.", Code.PermissionDenied);
 
   return {
     next: value.pageInfo.hasNextPage ? (value.pageInfo.endCursor ?? "") : "",

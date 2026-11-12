@@ -8,7 +8,8 @@ import { headTarget, githubName } from "./discovery.ts";
 import { uuid } from "./records.ts";
 import { repositoryName } from "./repository-accounts.ts";
 import { ContextFile } from "./context-file.ts";
-import { GitHubHttpFailure } from "./http.ts";
+import { githubFailure } from "./http.ts";
+import { createBaseBranch, createPublication } from "./create-branches.ts";
 
 const Branch = Schema.Struct({ name: Schema.String, commit: Schema.Struct({ sha: Schema.String }) });
 
@@ -20,33 +21,29 @@ const Repository = Schema.Struct({
   parent: Schema.optional(Schema.Struct({ full_name: Schema.String })),
 });
 
-/** The form can ask for an explicit account before any GitHub lookup. */
+/** Resolve accounts in the gateway; access failures retain a compact, actionable form target. */
 export async function createFormContext(core: GatewayCore, r: github.PullRequestCreateContextRequest) {
-  const { context, head } = await checkoutContext(core, r.threadId);
+  const checkout = await checkoutContext(core, r.threadId);
 
-  const names = [
-    ...new Set(
-      [head.name, ...context.remotes.flatMap((remote) => remote.fetchRepositories.map(githubName))].filter(Boolean),
-    ),
-  ];
+  try {
+    return (await createContext(core, r, checkout)).value;
+  } catch (cause) {
+    const error = githubFailure(cause);
 
-  const repository = r.repositoryName ? repositoryName(r.repositoryName) : head.name;
-  const mapping = await core.github.run((s) => s.repositoryAccount(core.github.owner, repository));
+    if (error.code !== Code.PermissionDenied) throw error;
+    const repository = r.repositoryName ? repositoryName(r.repositoryName) : checkout.head.name;
 
-  if (mapping.length) return (await createContext(core, r)).value;
-
-  if (!names.includes(repository))
-    throw new ConnectError("Choose a repository from this thread’s remotes.", Code.InvalidArgument);
-
-  return create(github.PullRequestCreateContextSchema, {
-    threadId: r.threadId,
-    repositoryName: repository,
-    repositories: names,
-    headRepositoryName: head.name,
-    headRef: head.ref,
-    headSha: context.headOid,
-    detail: "Choose a GitHub account to check the published branch.",
-  });
+    return create(github.PullRequestCreateContextSchema, {
+      threadId: r.threadId,
+      repositoryName: repository,
+      repositories: [repository],
+      headRepositoryName: checkout.head.name,
+      headRef: checkout.head.ref,
+      headSha: checkout.context.headOid,
+      baseRef: r.baseRef,
+      detail: error.rawMessage,
+    });
+  }
 }
 
 export async function checkoutContext(core: GatewayCore, id: string) {
@@ -65,15 +62,19 @@ export async function checkoutContext(core: GatewayCore, id: string) {
   const head = context && headTarget(context);
 
   if (!head || !context)
-    throw new ConnectError("Choose a published GitHub branch in this thread, then retry.", Code.FailedPrecondition);
+    throw new ConnectError("Choose a GitHub branch in this thread, then retry.", Code.FailedPrecondition);
   await core.github.run((s) => s.detectionSaveContext(core.github.owner, id, context));
 
   return { context, head };
 }
 
 /** All paths derive from a verified checkout and canonical repository names, never client URLs. */
-export async function createContext(core: GatewayCore, r: github.PullRequestCreateContextRequest) {
-  const { context, head } = await checkoutContext(core, r.threadId);
+export async function createContext(
+  core: GatewayCore,
+  r: github.PullRequestCreateContextRequest,
+  checkout?: Awaited<ReturnType<typeof checkoutContext>>,
+) {
+  const { context, head } = checkout ?? (await checkoutContext(core, r.threadId));
 
   if (r.headSha && r.headSha !== context.headOid)
     throw new ConnectError("The checkout changed. Refresh the form.", Code.FailedPrecondition);
@@ -85,17 +86,13 @@ export async function createContext(core: GatewayCore, r: github.PullRequestCrea
   ];
 
   const repository = r.repositoryName ? repositoryName(r.repositoryName) : head.name;
-  // A fork's parent is checked using the selected base account, below.
-  const selected = await core.github.prs.repositories.selected(repository);
+  const headAccount = await core.github.prs.repositories.selected(head.name);
 
-  const read = async (path: string) =>
-    (
-      await core.github.prs.client.read(
-        selected.row.id,
-        { key: `create:${path}:${context.headOid}`, path, ttl: 0 },
-        true,
-      )
-    ).payload;
+  const read = async (path: string, account = headAccount.row.id) =>
+    Schema.decodeUnknownSync(Schema.JsonObject)(
+      (await core.github.prs.client.read(account, { key: `create:${path}:${context.headOid}`, path, ttl: 0 }, true))
+        .payload,
+    );
 
   const headRepo = Schema.decodeUnknownSync(Repository)(await read(`/repos/${head.name}`));
 
@@ -106,29 +103,20 @@ export async function createContext(core: GatewayCore, r: github.PullRequestCrea
 
   if (!names.some((n) => n.toLowerCase() === repository.toLowerCase()))
     throw new ConnectError("Choose a repository from this thread's remotes or fork parent.", Code.InvalidArgument);
-  const baseRepo = Schema.decodeUnknownSync(Repository)(await read(`/repos/${repository}`));
+
+  const selected =
+    repository.toLowerCase() === head.name.toLowerCase()
+      ? headAccount
+      : await core.github.prs.repositories.selected(repository);
+
+  const baseRead = (path: string) => read(path, selected.row.id);
+  const baseRepo = Schema.decodeUnknownSync(Repository)(await baseRead(`/repos/${repository}`));
 
   if (String(baseRepo.id) !== selected.mapping.repository_id)
-    throw new ConnectError("Repository changed. Choose its account again.", Code.FailedPrecondition);
-  const baseRef = r.baseRef || baseRepo.default_branch;
-
-  const base = Schema.decodeUnknownSync(Branch)(
-    await read(`/repos/${repository}/branches/${encodeURIComponent(baseRef)}`),
-  );
-
-  let published = false;
-
-  try {
-    const branch = Schema.decodeUnknownSync(Branch)(
-      await read(`/repos/${head.name}/branches/${encodeURIComponent(head.ref)}`),
-    );
-
-    published = branch.commit.sha === context.headOid;
-  } catch (cause) {
-    if (!(cause instanceof ConnectError && cause.code === Code.NotFound)) {
-      if (!(cause instanceof GitHubHttpFailure && cause.status === 404)) throw cause;
-    }
-  }
+    throw new ConnectError("Repository changed. Refresh the form.", Code.FailedPrecondition);
+  const stored = (await core.github.run((s) => s.prPickerContext(core.github.owner, r.threadId)))[0]?.base_ref ?? "";
+  const base = await createBaseBranch(baseRead, repository, r.baseRef, stored, baseRepo.default_branch, context);
+  const publication = await createPublication(read, head.name, head.ref, context.headOid);
 
   const page = r.cursor ? Number(r.cursor) : 1;
 
@@ -136,10 +124,25 @@ export async function createContext(core: GatewayCore, r: github.PullRequestCrea
     throw new ConnectError("Refresh the branch list.", Code.InvalidArgument);
 
   const branches = Schema.decodeUnknownSync(Schema.Struct({ items: Schema.Array(Branch) }))(
-    await read(`/repos/${repository}/branches?per_page=100&page=${page}`),
+    await baseRead(`/repos/${repository}/branches?per_page=100&page=${page}`),
   ).items;
 
-  await core.github.prs.repositories.selected(repository);
+  const current = await core.github.prs.repositories.selected(repository);
+
+  const currentHead =
+    repository.toLowerCase() === head.name.toLowerCase()
+      ? current
+      : await core.github.prs.repositories.selected(head.name);
+
+  if (
+    current.row.id !== selected.row.id ||
+    current.row.revision !== selected.row.revision ||
+    current.mapping.revision !== selected.mapping.revision ||
+    currentHead.row.id !== headAccount.row.id ||
+    currentHead.row.revision !== headAccount.row.revision ||
+    currentHead.mapping.revision !== headAccount.mapping.revision
+  )
+    throw new ConnectError("Repository access changed. Refresh the form.", Code.FailedPrecondition);
 
   return {
     selected,
@@ -153,15 +156,14 @@ export async function createContext(core: GatewayCore, r: github.PullRequestCrea
       headRepositoryName: head.name,
       headRef: head.ref,
       headSha: context.headOid,
-      baseRef,
-      baseSha: base.commit.sha,
+      baseRef: base.ref,
+      baseSha: base.branch.commit.sha,
       branches: branches.map((b) => b.name),
       nextCursor: branches.length === 100 ? String(page + 1) : "",
       accountId: selected.row.id,
       accessRevision: BigInt(selected.row.revision),
       viewerLogin: selected.row.login,
-      published,
-      detail: published ? "" : "This branch has unpushed commits. Push it with git or your agent, then refresh.",
+      ...publication,
     }),
   };
 }
