@@ -35,7 +35,7 @@ unset CANOPY_BENCH_FORENSICS_DIR CANOPY_BENCH_FORENSIC_PHASE
 unset CANOPY_BENCH_FORENSIC_CHECKPOINTS
 unset CANOPY_BENCH_FORENSIC_SNAPSHOT_POINT
 unset CANOPY_BENCH_FORENSIC_FORMAT CANOPY_BENCH_RETENTION_PROBE
-export CANOPY_BENCH_SERIES=3
+export CANOPY_BENCH_SERIES=4
 export CANOPY_BENCH_STAGE=3
 export TMPDIR="$task_output"
 export CANOPY_BENCH_SHORT=1
@@ -52,8 +52,9 @@ export CANOPY_BENCH_PG_CPU=${CANOPY_DIAGNOSTICS_PG_CPU:-4}
 export CANOPY_BENCH_PG_PORT=18191
 export CANOPY_BENCH_GATEWAY_PORT=18192
 printf '%s\n' "Revision: $(cat "$task_output/head.txt")" "Evidence: $task_output" "Controller PID: $$"
-printf '%s\n' 'Order: AB / BA / AB (A=stage 3 off, B=on; stages 1 and 2 on throughout).'
+printf '%s\n' 'Order: AB / BA / AB / BA (A=stage 3 off, B=on; stages 1 and 2 on throughout).'
 printf '%s\n' 'Worker load: real journal, ACK/replay, deterministic ACP turns and git; no inference.'
-printf '%s\n' 'Workload: 72 minutes; approximately 75 minutes with preflight and startup, longer after rejected pairs.'
+printf '%s\n' 'Workload: 96 minutes; approximately 100 minutes with preflight and startup, longer after rejected pairs.'
 diagnostics_scope "${task_priority[@]}" taskset -c "${CANOPY_DIAGNOSTICS_DRIVER_CPU:-1}" bun scripts/bench/diagnostics.ts \
   >"$task_output/results.jsonl" 2>"$task_output/stderr.log"
+bun scripts/bench/diagnostics-paired-report.ts "$task_output/results.jsonl" >"$task_output/paired-report.json"

@@ -437,13 +437,14 @@ Powody resubskrypcji pochodzą z istniejącego supervisora, bez nowych probes.
 
 Launcher `bash scripts/bench/diagnostics-stage3.sh` jest gotowy do ręcznego pomiaru
 po potwierdzeniu wolnego hosta. Etapy 1–2 pozostają włączone w obu wariantach,
-zmienia się tylko etap 3. Skrócony protokół uzgodniony dla etapów 2–3: trzy pary
-AB/BA/AB, idle po 3 min, pozostałe fazy po 90 s, w tym governor; około **75 min**
+zmienia się tylko etap 3. Protokół etapów 2–3: cztery przyjęte pary
+AB/BA/AB/BA, idle po 3 min, pozostałe fazy po 90 s, w tym governor; około **100 min**
 bez odrzuconych par. Wszystkie mierzone procesy działają w user scope'ach
 z `MemorySwapMax=0`; `memory.swap.current` musi wynosić 0 przez całą parę.
-Load ponad liczbę CPU, host swap-out ≥4 MiB/s w próbce oraz swap-in ≥4 MiB/s
-przez trzy kolejne sekundy odrzucają całą parę. Nie ma łącznego limitu host swap-out.
-Pozostała aktywność swapu jest raportowana; odrzucenie zapisuje też listę
+Load ponad liczbę CPU oraz swap-in ≥4 MiB/s przez trzy kolejne sekundy
+odrzucają całą parę. Host swap-out jest wyłącznie rejestrowany. Analiza MAD
+i mediany z oznaczonymi parami oraz bez nich używają wspólnego raportera (§3.2).
+Odrzucenie zapisuje też listę
 procesów bez argv/env. Kryteria kosztu pozostają z §10; gate nie jest domyślnie
 zaakceptowany. Fixture obejmuje prawdziwy journal/ACK/replay, deterministyczny ACP,
 git i lokalny odbiornik mirroru z commitami PostgreSQL. Generowane lokalnie ramki
