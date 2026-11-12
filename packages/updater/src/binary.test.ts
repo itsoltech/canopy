@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, spyOn, test } from "bun:test";
+import * as fs from "node:fs/promises";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -97,13 +98,28 @@ describe.skipIf(process.platform === "win32")("binary update and independent rol
     });
   });
   test("a confirmed update can apply the next one: its restart request is not rolled back", async () => {
-    const binaryPath = await fixture(),
-      record = `${binaryPath}.update.json`;
+    const binaryPath = await fixture();
+    const updater = JSON.stringify(import.meta.resolve("./binary.ts"));
+    const executable = JSON.stringify(binaryPath);
 
-    // v3 confirms its own update and stops; v2 confirms, stages v3 (new command) and asks for a restart (75).
-    const v3 = `#!/bin/sh\nprintf '{"commandId":"u2","previousVersion":"2.0.0","version":"3.0.0","state":"succeeded","reason":""}' > '${record}'\nexit 0\n`;
-    await writeFile(`${binaryPath}.v3`, v3, { mode: 0o700 });
-    const v2 = `#!/bin/sh\nprintf '{"commandId":"u2","previousVersion":"2.0.0","version":"3.0.0","state":"restarting","reason":""}' > '${record}'\ncp '${binaryPath}' '${binaryPath}.bak'\nmv '${binaryPath}.v3' '${binaryPath}'\nexit 75\n`;
+    // Both children use the production writer; shell redirection exposes a truncated record to the watchdog.
+    const v3 = `#!${process.execPath}
+import { confirmStartup } from ${updater};
+await confirmStartup(${executable}, "3.0.0");
+process.exit(0);
+`;
+
+    const v2 = `#!${process.execPath}
+import { confirmStartup, stageBinaryUpdate, UPDATE_RESTART_EXIT_CODE } from ${updater};
+await confirmStartup(${executable}, "2.0.0");
+await stageBinaryUpdate({
+  binaryPath: ${executable}, currentVersion: "2.0.0", version: "3.0.0", commandId: "u2",
+  asset: ${JSON.stringify(artifact(v3))},
+  chunks: (async function* () { yield Buffer.from(${JSON.stringify(v3)}); })(),
+});
+process.exit(UPDATE_RESTART_EXIT_CODE);
+`;
+
     await stageBinaryUpdate({
       binaryPath,
       currentVersion: "1.0.0",
@@ -115,6 +131,70 @@ describe.skipIf(process.platform === "win32")("binary update and independent rol
     expect(await superviseBinary({ binaryPath, args: [], startupTimeoutMs: 2_000, pollMs: 10 })).toBe(0);
     expect(await readFile(binaryPath, "utf8")).toBe(v3);
     expect(await readUpdateRecord(binaryPath)).toMatchObject({ commandId: "u2", version: "3.0.0", state: "succeeded" });
+  });
+  test("a reader keeps the pending record while startup confirmation has written only half its replacement", async () => {
+    const binaryPath = await fixture();
+    const next = "#!/bin/sh\nexit 0\n";
+    await stageBinaryUpdate({
+      binaryPath,
+      currentVersion: "1.0.0",
+      version: "2.0.0",
+      commandId: "confirmation",
+      asset: artifact(next),
+      chunks: chunks(next),
+    });
+    const interrupted = Promise.withResolvers<string>();
+    const resume = Promise.withResolvers<void>();
+    const open = fs.open;
+
+    const opening = spyOn(fs, "open").mockImplementation(async (path, flags, mode) => {
+      const file = await open(path, flags, mode);
+
+      if (String(path).startsWith(`${binaryPath}.update.`)) {
+        const write = file.writeFile.bind(file);
+        spyOn(file, "writeFile").mockImplementation(async (data, options) => {
+          const json = String(data);
+          const middle = Math.floor(json.length / 2);
+          await write(json.slice(0, middle), options);
+          interrupted.resolve(String(path));
+          await resume.promise;
+          await write(json.slice(middle), options);
+        });
+      }
+
+      return file;
+    });
+
+    const confirmation = confirmStartup(binaryPath, "2.0.0");
+
+    try {
+      const temp = await Promise.race([
+        interrupted.promise,
+        confirmation.then(() => {
+          throw new Error("Confirmation completed without reaching the write barrier");
+        }),
+      ]);
+
+      const partial = await readFile(temp, "utf8");
+      expect(() => JSON.parse(partial)).toThrow(SyntaxError);
+      expect(await readUpdateRecord(binaryPath)).toMatchObject({ commandId: "confirmation", state: "restarting" });
+    } finally {
+      resume.resolve();
+
+      try {
+        await confirmation;
+      } finally {
+        opening.mockRestore();
+      }
+    }
+
+    expect(await readUpdateRecord(binaryPath)).toMatchObject({ commandId: "confirmation", state: "succeeded" });
+  });
+  test("a torn authoritative record is an error, rather than an absent or confirmed update", async () => {
+    const binaryPath = await fixture();
+    expect(await readUpdateRecord(binaryPath)).toBeUndefined();
+    await writeFile(`${binaryPath}.update.json`, '{"commandId":"torn","state":');
+    await expect(readUpdateRecord(binaryPath)).rejects.toBeInstanceOf(SyntaxError);
   });
   test("restores .bak when the new executable never becomes healthy", async () => {
     const binaryPath = await fixture(),
