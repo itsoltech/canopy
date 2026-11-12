@@ -118,7 +118,7 @@ test.skipIf(!dockerAvailable)(
           expect(state).toEqual({ applied_seq: 7, head_seq: 10, visible_applied_seq: 7, last_synced_at: null });
         }),
       );
-      expect(await runtime.runPromise(through(123))).toEqual([]);
+      expect(await runtime.runPromise(through(124))).toEqual([]);
       await runtime.runPromise(migrate);
       expect(await runtime.runPromise(migrate)).toEqual([]);
     } finally {
