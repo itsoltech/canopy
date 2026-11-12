@@ -54,7 +54,7 @@ for task_checkpoint in "${task_points[@]}"; do
   export TMPDIR="$task_directory" CANOPY_BENCH_FORENSICS_DIR="$task_directory"
   export CANOPY_BENCH_FORENSIC_SNAPSHOT_POINT="$task_checkpoint"
   systemd-run --user --scope --quiet --unit="canopy-diagnostics-retention-$$-$task_checkpoint" \
-    -p MemorySwapMax=0 -- taskset -c "${CANOPY_DIAGNOSTICS_DRIVER_CPU:-1}" bun scripts/bench/diagnostics.ts \
+    -p MemorySwapMax=0 -- taskset -c "${CANOPY_DIAGNOSTICS_DRIVER_CPU:-1}" bun scripts/bench/diagnostics-series.ts \
     >"$task_directory/results.jsonl" 2>"$task_directory/stderr.log"
   task_snapshot_phase=${task_phase%_without_watches}
   task_prefix="$task_snapshot_phase-$task_checkpoint"

@@ -53,7 +53,7 @@ export async function diagnosticsLoad<Measurement>(
       const started = performance.now();
 
       if (process.env["CANOPY_BENCH_VIEW"] === "1" && performance.now() >= nextOverview) {
-        if (process.env["CANOPY_BENCH_SOURCE_ROOT"]) await api.getThread({ threadId: thread });
+        if (process.env["CANOPY_BENCH_SOURCE_ROOT"]) await api.listThreads({ sidebarOnly: true });
         else await api.getDiagnostics({ windowMinutes: 15 });
         workload.overviewReads++;
         nextOverview = performance.now() + 5000;
@@ -62,7 +62,7 @@ export async function diagnosticsLoad<Measurement>(
       if (process.env["CANOPY_BENCH_VIEW"] === "1" && performance.now() >= nextDetails) {
         const start = performance.now();
 
-        if (process.env["CANOPY_BENCH_SOURCE_ROOT"]) await api.getThread({ threadId: thread });
+        if (process.env["CANOPY_BENCH_SOURCE_ROOT"]) await api.listThreads({ sidebarOnly: true });
         else await api.getComputerDiagnostics({ windowMinutes: 1440, limit: 32, sortBy: "p95", callKind: "unary" });
         const elapsedMs = performance.now() - start;
         historyReads.push(elapsedMs);
@@ -73,7 +73,7 @@ export async function diagnosticsLoad<Measurement>(
             atMs: Date.now(),
             elapsedMs,
             completed: true,
-            probe: process.env["CANOPY_BENCH_SOURCE_ROOT"] ? "dev_thread_metadata" : "diagnostics_history",
+            probe: process.env["CANOPY_BENCH_SOURCE_ROOT"] ? "dev_thread_list_sql" : "diagnostics_history",
           }),
         );
         workload.detailReads++;
