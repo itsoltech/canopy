@@ -278,19 +278,23 @@ describe.skipIf(!dockerAvailable)("remote thread panel at its authoritative home
       for (let index = 0; index < count; index++) {
         const id = crypto.randomUUID();
         await computer.store.query(
-          `INSERT INTO threads(id,root_thread_id,project_id,owner_user_id,kind,runtime,provider,status,title,archived_at)
-          VALUES($1::uuid,$1::uuid,$2::uuid,$3::uuid,'main','gateway','openai','archived',$4,
-            '2026-01-01T00:00:00Z'::timestamptz+($5::int*interval '1 microsecond'))`,
-          [id, projectId, computer.gateway.userId, `Archive panel ${index}`, index % 3],
+          `INSERT INTO threads(id,root_thread_id,project_id,owner_user_id,kind,runtime,provider,status,title)
+          VALUES($1::uuid,$1::uuid,$2::uuid,$3::uuid,'main','gateway','openai','idle',$4)`,
+          [id, projectId, computer.gateway.userId, `Archive panel ${index}`],
         );
 
         if (index === 0)
           await computer.store.query(
-            `INSERT INTO threads(id,root_thread_id,parent_thread_id,project_id,owner_user_id,kind,runtime,provider,status,title,archived_at)
-            VALUES($1::uuid,$2::uuid,$2::uuid,$3::uuid,$4::uuid,'side','gateway','openai','archived','Archive child match',
+            `INSERT INTO threads(id,root_thread_id,parent_thread_id,depth,project_id,owner_user_id,kind,runtime,provider,status,title,archived_at)
+            VALUES($1::uuid,$2::uuid,$2::uuid,1,$3::uuid,$4::uuid,'side','gateway','openai','archived','Archive child match',
               '2026-01-01T00:00:00Z'::timestamptz)`,
             [crypto.randomUUID(), id, projectId, computer.gateway.userId],
           );
+        await computer.store.query(
+          `UPDATE threads SET status='archived',archived_at=
+            '2026-01-01T00:00:00Z'::timestamptz+($2::int*interval '1 microsecond') WHERE id=$1::uuid`,
+          [id, index % 3],
+        );
       }
     }
 
@@ -307,7 +311,13 @@ describe.skipIf(!dockerAvailable)("remote thread panel at its authoritative home
       expect([first.threads.length, second.threads.length]).toEqual([20, 18]);
       expect(new Set([...first.threads, ...second.threads].map((t) => t.id.split("~")[0])).size).toBe(38);
       expect(second.nextPageToken).toBe("");
-      const children = await computer.gateway.api.listArchivedThreads({ query: "child match" });
+
+      const children = await eventually(
+        () => computer.gateway.api.listArchivedThreads({ query: "child match" }),
+        (page) => page.totalCount === 2 && page.sideThreads.length === 2,
+        20_000,
+      );
+
       expect(children.totalCount).toBe(2);
       expect(children.threads.map((entry) => entry.title)).toEqual(["Archive panel 0", "Archive panel 0"]);
       expect(children.sideThreads).toHaveLength(2);
