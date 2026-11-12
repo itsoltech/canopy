@@ -9,6 +9,7 @@
    * its scale) the motion follows the change: a higher rank rises in from below, a lower one drops in from
    * above. The first render shows the text at once. `reserve` lists every text it may show: the box keeps
    * the widest one's width, so it (and whatever sits beside it) never resizes as the text changes.
+   * Use `align="center"` for a centred slot: both texts keep the same centre even when their widths differ.
    *
    *   <SwapText text={level.label} rank={index} reserve={levels.map((l) => l.label)} distance="base" />
    */
@@ -16,6 +17,7 @@
     text,
     rank,
     distance = "micro",
+    align = "start",
     reserve = [],
     live = false,
     class: className,
@@ -25,6 +27,7 @@
     /** The value's place on its scale (direction of the swap); without it the text always rises. */
     rank?: number | undefined;
     distance?: "micro" | "base";
+    align?: "start" | "center";
     /** Texts whose widest width the box keeps. */
     reserve?: readonly string[];
     class?: ClassValue;
@@ -41,7 +44,7 @@
   });
 </script>
 
-<span class={["inline-grid text-start *:col-start-1 *:row-start-1", className]}>
+<span class={["inline-grid *:col-start-1 *:row-start-1", align === "center" ? "text-center" : "text-start", className]}>
   {#each reserve as each, i (i)}
     <span class="invisible truncate" aria-hidden="true">{each}</span>
   {/each}
