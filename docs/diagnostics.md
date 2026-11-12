@@ -278,10 +278,12 @@ Każdy proces pracuje w swap-disabled scope. To przebieg forensyczny, bez status
 akceptacji narzutu; nie zastępuje trzech par z bramkami hosta.
 Prywatny katalog ma tryb 0700, artefakty 0600. Plik `post-gc.json` zawiera surowe
 statystyki przed GC, po dwóch `Bun.gc(true)` rozdzielonych oddaniem event loop
-oraz deltę B−A heap/RSS po GC. Snapshot V8 powstaje dopiero po tym odczycie.
+oraz deltę B−A heap/RSS po GC. Natywny snapshot JSC powstaje dopiero po tym odczycie;
+analizator obsługuje także format V8.
 `bun scripts/bench/diagnostics-heap-report.ts off.json on.json` porównuje liczby
 obiektów według konstruktora oraz self bytes, pokazuje 20 największych stringów
-i obiektów wraz z najkrótszą ścieżką od korzenia, pomijając weak edges.
+i obiektów wraz z najkrótszą ścieżką od korzenia. Format V8 pozwala pominąć weak edges;
+JSC nie klasyfikuje ich oddzielnie, więc jego ścieżka nie dowodzi silnej retencji.
 Self bytes nie są rozmiarem dominatorów; ścieżki mają limit 100 krawędzi.
 Raport nie wypisuje treści stringów, błędów, nazw closure ani dynamicznych kluczy.
 Nieznane nazwy konstruktorów są hashowane, a nazwy pól pochodzą z allowlisty.

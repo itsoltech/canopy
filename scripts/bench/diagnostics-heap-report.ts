@@ -33,7 +33,7 @@ function summarize(graph: HeapGraph) {
     path: graph.path(index),
   });
 
-  return { types, largestStrings: strings.map(row), largestObjects: objects.map(row) };
+  return { format: graph.format, types, largestStrings: strings.map(row), largestObjects: objects.map(row) };
 }
 
 const [off, on] = Bun.argv.slice(2);
@@ -66,11 +66,11 @@ console.info(
   JSON.stringify(
     {
       sizes:
-        "Strongly reachable self bytes; not dominator retained sizes. Weak edges excluded; paths capped at 100 edges.",
+        "Root-reachable self bytes, not dominator retained sizes. V8 weak edges excluded; JSC has no weak-edge classification. Paths capped at 100 edges.",
       privacy: "No string contents, error messages, dynamic property keys or closure names are emitted.",
       types: deltas,
-      off: { largestStrings: a.largestStrings, largestObjects: a.largestObjects },
-      on: { largestStrings: b.largestStrings, largestObjects: b.largestObjects },
+      off: { format: a.format, largestStrings: a.largestStrings, largestObjects: a.largestObjects },
+      on: { format: b.format, largestStrings: b.largestStrings, largestObjects: b.largestObjects },
     },
     null,
     2,

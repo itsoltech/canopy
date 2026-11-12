@@ -1,5 +1,6 @@
 import { Schema } from "effect";
 import { createHash } from "node:crypto";
+import { JscSnapshot, normalizeJsc } from "./diagnostics-heap-jsc.ts";
 
 const Snapshot = Schema.Struct({
   snapshot: Schema.Struct({
@@ -57,6 +58,20 @@ const CONSTRUCTORS = new Set([
   "Histogram",
   "Scope",
   "Fiber",
+  "FiberImpl",
+  "ModuleRecord",
+  "FunctionExecutable",
+  "UnlinkedFunctionExecutable",
+  "FunctionCodeBlock",
+  "UnlinkedFunctionCodeBlock",
+  "Structure",
+  "PropertyTable",
+  "LexicalEnvironment",
+  "AsyncGenerator",
+  "Generator",
+  "SlimPromiseReaction",
+  "FullPromiseReaction",
+  "QueryMachine",
 ]);
 
 const FIELDS = new Set([
@@ -98,10 +113,12 @@ export function constructorLabel(name: string) {
 
 export async function heapGraph(file: string) {
   try {
-    return new HeapGraph(Schema.decodeUnknownSync(Snapshot)(await Bun.file(file).json()));
+    const data = Schema.decodeUnknownSync(Schema.Union([Snapshot, JscSnapshot]))(await Bun.file(file).json());
+
+    return "nodeClassNames" in data ? new HeapGraph(normalizeJsc(data), "jsc") : new HeapGraph(data, "v8");
   } catch {
     // Schema errors can embed input values. Never print them or preserve them as causes.
-    throw new Error("Cannot read a supported V8 heap snapshot");
+    throw new Error("Cannot read a supported heap snapshot");
   }
 }
 
@@ -125,7 +142,10 @@ export class HeapGraph {
   readonly parentEdges: Int32Array;
   readonly #labels = new Map<number, string>();
 
-  constructor(readonly data: typeof Snapshot.Type) {
+  constructor(
+    readonly data: typeof Snapshot.Type,
+    readonly format: "jsc" | "v8",
+  ) {
     const meta = data.snapshot.meta;
     this.nodeStride = meta.node_fields.length;
     this.edgeStride = meta.edge_fields.length;

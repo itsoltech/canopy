@@ -42,7 +42,39 @@ test("heap evidence excludes weak-only objects and redacts payload strings and d
       (failure: Error) => failure.message,
     );
 
-    expect(error).toBe("Cannot read a supported V8 heap snapshot");
+    expect(error).toBe("Cannot read a supported heap snapshot");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("native JSC snapshots preserve retainer paths without exposing strings or dynamic keys", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "canopy-retention-report-"));
+  const file = join(directory, "snapshot.json");
+  const secret = "private-query-parameter-and-error-message";
+
+  try {
+    await Bun.write(
+      file,
+      JSON.stringify({
+        version: 3,
+        type: "Inspector",
+        nodes: [0, 0, 0, 0, 41, 32, 1, 2, 72, 8192, 2, 0, 93, 64, 3, 2],
+        nodeClassNames: ["<root>", "Query", "string", secret],
+        // Deliberately unordered sources and sparse IDs, matching Inspector's ID semantics.
+        edges: [41, 72, 1, 0, 0, 41, 0, 0, 41, 93, 1, 1],
+        edgeTypes: ["Internal", "Property", "Index", "Variable"],
+        edgeNames: ["parameters", secret],
+      }),
+    );
+    const graph = await heapGraph(file);
+    expect(graph.format).toBe("jsc");
+    expect(graph.number(2, graph.nodeSize)).toBe(8192);
+    expect(graph.path(2).complete).toBe(true);
+    expect(graph.path(2).fromRoot.map((part) => part.constructor)).toEqual(["Query", "string"]);
+    expect(graph.path(2).fromRoot.at(-1)?.via).toBe("parameters");
+    expect(graph.path(3).fromRoot.at(-1)?.via).toBe("<property>");
+    expect(JSON.stringify([graph.path(2), graph.path(3)])).not.toContain(secret);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
