@@ -53,7 +53,8 @@
             style:--label-bg={color.background}
           ></span>
         {:else if option.kind === "team"}<Icon name="user-group" label="Team" />{:else}<GitHubAvatar
-            userId={option.userId}
+            pullRequestId={snapshot.summary?.ref?.id}
+            url={option.avatarUrl}
             login={option.name}
             compact
           />{/if}

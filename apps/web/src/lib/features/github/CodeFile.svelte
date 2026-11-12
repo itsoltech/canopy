@@ -12,6 +12,7 @@
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import { toneClasses } from "./presentation.ts";
   import ViewedCheckbox from "./ViewedCheckbox.svelte";
+  import ReadSkeleton from "./ReadSkeleton.svelte";
 
   let {
     file,
@@ -89,7 +90,7 @@
     </div>
   </div>
   {#if active}<div class="grid min-w-0 gap-2 pb-2">
-      {#if busy}<p role="status" class="text-sm text-zinc-500 sm:text-xs">Loading patch…</p>{/if}
+      {#if busy && !patch}<ReadSkeleton rows={2} />{/if}
       {#if error}<p role="alert" class="text-sm text-rose-700 sm:text-xs dark:text-rose-400">{error}</p>
         <Button variant="ghost" size="sm" onclick={onopen}>Retry</Button>{/if}
       {#if patch?.patch}<ReviewDiff {patch} {file} {snapshot} {draft} {historical} />{/if}

@@ -394,16 +394,24 @@ Wiele kart/urządzeń współdzieli najszybszy potrzebny harmonogram.
 
 | Widoczność | Harmonogram startowy | Zakres |
 | --- | --- | --- |
-| Otwarty PR | Checki co 15 s, gdy pending/in progress; inaczej 60 s. Nagłówek i najnowsza strona timeline co 60 s | Tylko widoczny PR; starsze strony na żądanie |
-| Widoczny panel wątku | Co 60 s | Zbiorcze nagłówki/checki, bez opisów, timeline i diffów |
-| Aktywny wątek w tle | Co 5 min | Repo/znane head ref, maksymalnie 10 PR na zapytanie zbiorcze |
+| Otwarty PR, zakończone checki | Jedno warunkowe żądanie REST co 60 s łącznie, rotacyjnie metadata PR, check-runs i legacy statuses | Przy jednej stronie każdego zasobu powrót do endpointu co około 3 min; maks. 5 żądań w 5 min |
+| Otwarty PR, trwające checki | Tylko zasoby checków zawierające pending/in progress co 15 s; pozostałe dzielą wolny slot co 60 s | Bez okresowego GraphQL, timeline ani diffów |
+| Widoczny panel wątku | Ten sam współdzielony harmonogram warunkowy | Bez osobnego pollera nagłówków |
+| Closed/merged, także widoczny | Brak okresowego pollingu | Zmiany po ręcznym Refresh lub własnej mutacji |
+| Aktywny wątek w tle | Bez okresowego odświeżania danych PR | Rozpoznanie po zmianie checkoutu/pushu pozostaje osobnym zdarzeniem |
 | Brak obserwatorów i aktywności albo archiwum | Brak okresowego pollingu | Wznowienie po otwarciu, zmianie gałęzi/pushu lub ręcznym Refresh |
-| Closed/merged bez widocznego widoku | Jeden końcowy odczyt, potem tylko otwarcie/Refresh | Widoczny widok nadal odświeża nowe komentarze według pierwszego wiersza |
 
-Wymagane przez endpoint `x-poll-interval` jest dolną granicą. Terminy mają jitter ±20%.
-Aktywność w tle oznacza running/queued lub zmianę checkoutu w ostatnich 15 min, nie samo istnienie wątku.
-Grupujemy według `(owner, account, repo)`, do 10 znanych PR/head ref na partię; GraphQL aliases
-ograniczają liczbę round-tripów, bez pobierania wszystkich PR repozytorium.
+Wymagane przez endpoint `x-poll-interval` jest dolną granicą. Terminy watcha mają jitter +0–10%,
+aby nie wyprzedzać TTL cache. Bez widocznego panelu nie odświeżamy okresowo danych PR.
+Metadata, check-runs i legacy statuses mają rzeczywiste ETagi REST; odpowiedź 304 zachowuje
+projekcję. Pierwsze otwarcie może zainicjować walidatory odpowiedziami 200. GraphQL POST
+nie udaje żądania warunkowego: pełne podsumowanie pobieramy dopiero po zmianie
+`updated_at`, head/base SHA lub stanu, a stronę checków po zmianie sygnału checków.
+Timeline i reviews unieważniamy po zmianie metadata, pliki/commity dopiero po zmianie SHA
+lub ręcznym odświeżeniu. Bez zmiany nie pobieramy tych stron w tle.
+Sweep utrzymaniowy i odnawiane streamy dzielą terminy oraz single-flight. Przez 5 min
+po zamknięciu zachowujemy harmonogram bez wykonywania pracy; odnowienie dzierżawy
+nie uruchamia ponownie odczytów. Ostatni ukryty obserwator anuluje trwający probe.
 Strony discovery są doczytywane przy pierwszym wykryciu lub na żądanie, nie w każdym ticku.
 Po mutacji unieważniamy tylko odpowiedni PR/review/run i doczytujemy wynik;
 nie odświeżamy całego repo. Zmiana head SHA unieważnia checki i pliki, także cache Viewed;
@@ -417,16 +425,17 @@ oznaczoną jako nieaktualna kopię, jak istniejące lustra wątków. Nie obiecuj
 
 ### Budżet wydajności
 
-Założenie do oszacowania: 1 widoczny PR z trwającym CI, 10 aktywnych repo w tle,
-jedna strona nagłówka/timeline, bez przewijania. Checki to 240 odczytów/h, szczegóły 60/h,
-tło do 120/h: **do 420 requestów/h**, około **420–2100 punktów GraphQL/h** przy koszcie 1–5.
-REST discovery/ETag to dodatkowo do 120 odczytów/h, często 304; uwzględniamy je w kolejce.
+Założenie do oszacowania: 1 widoczny PR z trwającym CI,
+jedna strona nagłówka/timeline, bez przewijania. Checki to najwyżej 240 odczytów/h,
+nagłówek i timeline po 60/h: **do 360 requestów/h**, około **360–1800 punktów GraphQL/h**
+przy koszcie 1–5. Zbiorcza weryfikacja nagłówków ma osobny TTL 5 min i obejmuje tylko
+widoczne PR; brak widoku oznacza zero okresowych odczytów. Discovery działa na zdarzenie/żądanie.
 Kilka PR jednego repo dzieli partię, różne repo zwiększają koszt liniowo.
 Lokalny miękki limit Canopy to 1500 punktów GraphQL i 1000 requestów REST/h/użytkownika;
 poller wydłuża odstępy, gdy pomiar kosztu nie mieści się w limicie. To budżet Canopy, nie limit GitHub.
 
-Typowa odpowiedź ma mieć ≤ 64 KiB; przy 540 odpowiedziach/h to około 34 MiB/h.
-Założone 1–5 ms CPU na walidację/projekcję daje 0,5–2,7 s CPU/h, czyli < 0,1% jednego rdzenia.
+Typowa odpowiedź ma mieć ≤ 64 KiB; przy 360 odpowiedziach/h to około 23 MiB/h.
+Założone 1–5 ms CPU na walidację/projekcję daje 0,36–1,8 s CPU/h, czyli < 0,1% jednego rdzenia.
 To **szacunki bez pomiaru**, nie gwarancja; strony historii, diffy i logi liczymy osobno.
 Limity: 2 MiB na odpowiedź upstream/stronę, 32 MiB LRU RAM na gateway, 128 KiB nagłówka PR,
 256 KiB patcha na plik. Parser i renderer nigdy nie otrzymują całego PR w jednym przebiegu.
@@ -666,7 +675,24 @@ wyłącznie addytywne. `proto/canopy/update/v1` pozostaje nietknięte; `WORKER_L
 zostaje przy addytywnej capability kontekstu git. Generujemy `bun run gen` i sprawdzamy `gen:check`.
 
 Fetch zwraca cache od razu i zleca odświeżenie. `WatchPullRequest` wysyła początkowy snapshot,
-następnie zmienione podsumowanie/checki oraz invalidacje stron; nie całą historię co tick.
+następnie zmienione podsumowanie/checki oraz invalidacje zmienionych zasobów; nie całą historię co tick.
+Zmiana checków nie pobiera ponownie diffów ani commitów. Jawny Refresh i własna mutacja
+wymuszają ponowny odczyt. SQL zachowuje projekcje i ETag po restarcie, a dzierżawy
+oraz single-flight łączą współbieżne żądania. REST 304 ponownie używa projekcji bez kosztu primary rate limit.
+Web i mobile przechowują strony per PR/account/access revision/SHA w LRU sesji.
+Odwiedzone zakładki pozostają zamontowane, a rewalidacja aktualizuje kluczowane wiersze
+bez czyszczenia treści, pozycji przewijania i rozwinięć. Szkielety są tylko na pierwszym
+odczycie; błąd odświeżenia zachowuje dane i udostępnia Retry. Dwa źródła Timeline
+nie wyświetlają osobnych etykiet Loading. Refresh ma stałe miejsce w nagłówku.
+
+Awatary aktorów pochodzą z `avatarUrl`/`avatar_url` w payloadzie; typ Bot zachowuje
+sufiks `[bot]`. `GetPullRequestAvatar` sprawdza właściciela przed cache i zwraca
+ograniczony raster jako data URL. Gateway akceptuje tylko HTTPS CDN GitHub `/u/{id}`
+lub `/in/{id}`, bez redirectów i credentiali; limit wynosi 128 KiB, TTL 24 h.
+Przeglądarka/telefon nie pobierają awatarów z GitHub. Inicjały i nieaktywne checkboxy
+zadań Markdown zachowują normalny kontrast.
+Akcje checka mają jedno menu „…” o stałej szerokości: Cancel tylko dla aktywnego run,
+Re-run dla zakończonego, Re-run failed jobs dla wyniku z nieudanymi jobami.
 Nie jest to stream GitHub: poller jest jedynym producentem. Po luce klient ponawia fetch
 i rewaliduje załadowane strony. Panel wykorzystuje `WatchThread` i małe pole podsumowania
 w `ui.Thread`; pełną listę pobiera osobno. Odrębna rewizja PR nie zwiększa historii tokenowych delt wątku.
@@ -845,8 +871,8 @@ Wynik uncertain oznacza niesynchronizowany stan do odczytu GitHub, nie pozorny s
 Offline checkbox jest nieaktywny; **nie kolejkujemy** kliknięć ani nie odtwarzamy ich po reconnect.
 Po reconnect/otwarciu/fokusie odświeżamy stan. Przy równoległych kliknięciach obowiązuje stan
 z GitHub; nie próbujemy scalać lokalnych intencji z innych urządzeń.
-Na widocznym Code rewalidujemy aktywną stronę Viewed co 60 s, współdzieląc odczyt klientów;
-to do 60 dodatkowych zapytań GraphQL/h, z pomiarem punktów i w ramach budżetu §3.
+Code odczytuje Viewed po otwarciu/fokusie, zmianie SHA, własnym zapisie i ręcznym Refresh;
+nie uruchamia dodatkowego timera pobierającego pliki przy każdym ticku CI.
 
 Po nowym push GitHub może zmienić wcześniejsze Viewed na `DISMISSED` dla zmienionych plików.
 UI pokazuje odznaczony checkbox i **Changed since you viewed this file**, odróżniając to od
@@ -996,7 +1022,7 @@ Poller działa w gatewayu; aplikacja mobilna w tle nie utrzymuje odpytywania.
 | Odczyt/zapis cudzego repo, cache lub wątku | Owner scope przed cache i przed efektem, composite FK, weryfikacja repo/installation/account i docelowych comment/review/thread/run/job ID. Własność komentarza porównujemy z GitHub user ID konta, nie loginem ani rolą admin; cudzy zasób zwraca NotFound. Grant ani full auto nie zastępuje owner scope |
 | Przeciek przez worker/linked computers | Tokeny tylko w domu konta. DTO, lustra, protokół workerów i załącznik kontekstu bez credentiali. Allowlist RPC/capabilities, unpair/revoke zamyka streamy i czyści cache |
 | Prompt injection w opisie, diffie, review, logach i szkicu Create PR | Cała treść GitHub oraz wynik modelu są niezaufanymi danymi. Plik kontekstu oznacza pochodzenie i cytowane granice; notatka platformy zabrania traktować PR jako zgodę lub instrukcję systemową. Wynik agenta zasila tylko pola tekstowe formularza; nie ustala konta, repo/base, metody merge ani akcji. Użytkownik ogląda i zatwierdza tekst przed publikacją; linków/poleceń/żądań sekretów nie wykonujemy |
-| XSS, tracking i SSRF | Istniejący tokenowy renderer Markdown: HTML jako tekst, obrazy jako linki, `safeHref` z `@canopy/domain/markdown`. Bez `body_html`, skryptów, auto-downloadu obrazów/avatarów i proxy dowolnych linków; endpointy API buduje gateway z walidowanych ID |
+| XSS, tracking i SSRF | Istniejący tokenowy renderer Markdown: HTML jako tekst, obrazy jako linki, `safeHref` z `@canopy/domain/markdown`. Bez `body_html`, skryptów i proxy dowolnych linków; awatary przechodzą przez ograniczony cache gatewaya, bez credentiali i redirectów (§6). Endpointy API buduje gateway z walidowanych ID |
 | Merge/close niewłaściwego PR albo nowego SHA | Preflight na świeżym stanie, jawne potwierdzenie repo/PR/base/head/metody, związane z request ID i SHA; zmiana celu lub expiry wymaga nowego potwierdzenia. GitHub egzekwuje protection/rulesets; brak bypass, kasowania gałęzi i merge innych PR w tle |
 | Cancel/re-run niewłaściwego CI, przerwanie deploy lub powtórzenie skutku | Gateway ustala repo/run/job/attempt/SHA i związek z PR; potwierdzenie cancel dotyczy całego wskazanego run. Re-run jawnie ostrzega o ponownym wykonaniu joba i jego zależności, również deploy. Nie ma force-cancel, debug logging ani workflow dispatch w v1 |
 | Kradzież tokenu z Contents/Actions: write albo logów | Repo instalacji ogranicza zasięg; token szyfrowany tylko w domu, stała allowlista operacji i brak worker/model API do mutacji. Logi i signed URL mają oddzielne limity/redakcję (§6); żadnego wysyłania logów do modelu z samego View logs |

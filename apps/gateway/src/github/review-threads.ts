@@ -5,13 +5,14 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { Schema } from "effect";
 import { graphPage } from "./timeline-query.ts";
 import { graphErrors, jsonMessage, type ReadScope } from "./read-scope.ts";
+import { actor, actorFields, actorLogin } from "./actors.ts";
 
 const comment = Schema.Struct({
   id: Schema.String,
   body: Schema.String,
   url: Schema.String,
   createdAt: Schema.String,
-  author: Schema.NullOr(Schema.Struct({ login: Schema.String })),
+  author: actor,
   originalCommit: Schema.NullOr(Schema.Struct({ oid: Schema.String })),
   viewerCanUpdate: Schema.optional(Schema.Boolean),
   viewerCanDelete: Schema.optional(Schema.Boolean),
@@ -58,7 +59,7 @@ const envelope = Schema.Struct({
 
 const fields = `id path line isResolved isOutdated diffSide startLine startDiffSide originalLine originalStartLine
 viewerCanResolve viewerCanUnresolve pullRequest{id}
-comments(first:50,after:$reply){pageInfo{hasNextPage endCursor} nodes{id body url createdAt author{login} originalCommit{oid} state viewerDidAuthor viewerCanUpdate viewerCanDelete}}`;
+comments(first:50,after:$reply){pageInfo{hasNextPage endCursor} nodes{id body url createdAt author{${actorFields}} originalCommit{oid} state viewerDidAuthor viewerCanUpdate viewerCanDelete}}`;
 
 export const REVIEW_THREADS_QUERY = `query CanopyReviewThreads($owner:String!,$name:String!,$number:Int!,$after:String,$reply:String){
 rateLimit{cost remaining resetAt} repository(owner:$owner,name:$name){pullRequest(number:$number){id
@@ -107,7 +108,8 @@ export async function reviewThreads(scope: ReadScope) {
             sha: n.comments.nodes[0]?.originalCommit?.oid ?? "",
             comments: n.comments.nodes.map((c) => ({
               id: c.id,
-              author: c.author?.login ?? "Deleted user",
+              author: actorLogin(c.author),
+              avatarUrl: c.author?.avatarUrl ?? "",
               body: c.body,
               viewerCanUpdate: !!c.viewerDidAuthor && !!c.viewerCanUpdate,
               viewerCanDelete: !!c.viewerDidAuthor && !!c.viewerCanDelete,

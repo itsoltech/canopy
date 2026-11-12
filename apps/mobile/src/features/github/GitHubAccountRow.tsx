@@ -48,7 +48,7 @@ export function GitHubAccountRow({
           backgroundColor: pressed ? c.inset : "transparent",
         })}
       >
-        <GitHubAvatar userId={account.githubUserId} login={account.login} />
+        <GitHubAvatar accountId={account.id} login={account.login} />
         <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
           <Text numberOfLines={1} style={[type.chrome, { color: c.text, fontFamily: font.medium }]}>
             {account.login}

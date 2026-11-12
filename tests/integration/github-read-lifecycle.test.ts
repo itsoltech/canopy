@@ -8,10 +8,11 @@ import { GitHubAccounts } from "../../apps/gateway/src/github/service.ts";
 import { githubMetrics } from "../../apps/gateway/src/github/metrics.ts";
 import { watchPullRequest } from "../../apps/gateway/src/github/watch.ts";
 import { startTestGateway, type TestGateway } from "./support/gateway.ts";
-import { linkedRead, readFixture } from "./support/github-read.ts";
+import { linkedRead } from "./support/github-read.ts";
+import { pollingFixture } from "./support/github-polling.ts";
 
 describe.skipIf(!dockerAvailable)("GitHub read leases and retention", () => {
-  const fixture = readFixture();
+  const fixture = pollingFixture();
   let gw: TestGateway;
   let pr: string;
   let thread: string;
@@ -47,8 +48,8 @@ describe.skipIf(!dockerAvailable)("GitHub read leases and retention", () => {
     const timeline = fixture.counts.get("CanopyTimeline") ?? 0;
     const updates = await Promise.all([first(), first(), first()]);
     expect(updates.every((u) => u.revision === updates[0]!.revision && !u.gap)).toBe(true);
-    expect((fixture.counts.get("CanopyChecks") ?? 0) - checks).toBe(1);
-    expect((fixture.counts.get("CanopyTimeline") ?? 0) - timeline).toBe(1);
+    expect((fixture.counts.get("CanopyChecks") ?? 0) - checks).toBe(0);
+    expect((fixture.counts.get("CanopyTimeline") ?? 0) - timeline).toBe(0);
     fixture.advance(100_000);
     fixture.timelineVersion(" updated");
     const gap = await first(updates[0]!.revision);
@@ -78,7 +79,7 @@ describe.skipIf(!dockerAvailable)("GitHub read leases and retention", () => {
     }
   });
 
-  test("background polling uses known active threads and one batch of aliases, without timeline or files", async () => {
+  test("active threads without a visible PR do not cause background GitHub requests", async () => {
     const before = fixture.counts.get("CanopyHeaders") ?? 0;
     await gw.core.github.background.tick();
     expect(fixture.counts.get("CanopyHeaders") ?? 0).toBe(before);
@@ -96,10 +97,10 @@ describe.skipIf(!dockerAvailable)("GitHub read leases and retention", () => {
     });
     const timeline = fixture.counts.get("CanopyTimeline") ?? 0;
     await Promise.all([gw.core.github.background.tick(), gw.core.github.background.tick()]);
-    expect((fixture.counts.get("CanopyHeaders") ?? 0) - before).toBe(1);
+    expect(fixture.counts.get("CanopyHeaders") ?? 0).toBe(before);
     expect(fixture.counts.get("CanopyTimeline") ?? 0).toBe(timeline);
     await gw.core.github.background.tick();
-    expect((fixture.counts.get("CanopyHeaders") ?? 0) - before).toBe(1);
+    expect(fixture.counts.get("CanopyHeaders") ?? 0).toBe(before);
   });
 
   test("maintenance expires each content class while preserving identities and durable account preferences", async () => {

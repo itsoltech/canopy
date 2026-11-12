@@ -12,6 +12,7 @@ import { ViewedCheckbox } from "./ViewedCheckbox";
 import { useViewedCount } from "./useViewedCount";
 import { useReviewDraft } from "./useReviewDraft";
 import { ReviewBar } from "./ReviewBar";
+import { ListSkeleton } from "../../ui/Skeleton";
 
 export function PullRequestCode({ snapshot, header }: { snapshot: github.PullRequestSnapshot; header: ReactNode }) {
   const c = useColors();
@@ -37,6 +38,7 @@ export function PullRequestCode({ snapshot, header }: { snapshot: github.PullReq
         keyExtractor={(file) => file.path}
         stickySectionHeadersEnabled
         contentContainerStyle={padding}
+        ListEmptyComponent={!pages.current && !pages.error ? <ListSkeleton rows={4} inset={false} /> : undefined}
         ListHeaderComponent={
           <View style={{ gap: 12 }}>
             {header}

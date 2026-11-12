@@ -14,6 +14,7 @@
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import { toneClasses } from "./presentation.ts";
   import CiActions from "./CiActions.svelte";
+  import ReadSkeleton from "./ReadSkeleton.svelte";
 
   let {
     snapshot,
@@ -25,12 +26,14 @@
   let selected = $state("");
 
   const pages = $derived(
-    new PullRequestPages((cursor, refresh) =>
-      api.page(
-        "jobs",
-        github.PullRequestJobsPageSchema,
-        create(github.PullRequestPageRequestSchema, { pullRequestId: id, resourceId: runId, cursor, refresh }),
-      ),
+    new PullRequestPages(
+      (cursor, refresh) =>
+        api.page(
+          "jobs",
+          github.PullRequestJobsPageSchema,
+          create(github.PullRequestPageRequestSchema, { pullRequestId: id, resourceId: runId, cursor, refresh }),
+        ),
+      `jobs:${snapshot.accountId}:${snapshot.accessRevision}:${id}:${snapshot.summary?.headSha}:${runId}`,
     ),
   );
 
@@ -43,9 +46,10 @@
     const timer = setInterval(() => {
       if (
         document.visibilityState === "visible" &&
+        region?.checkVisibility() &&
         target.current?.jobs.some((job) => ["queued", "in_progress", "pending", "waiting"].includes(job.state))
       )
-        void target.read(false, true);
+        void target.read();
     }, 15_000);
 
     return () => {
@@ -53,9 +57,12 @@
       clearInterval(timer);
     };
   });
+
+  let region: HTMLDivElement;
 </script>
 
-<div class={["grid min-w-0 gap-2 p-3", className]}>
+<div bind:this={region} class={["grid min-w-0 gap-2 p-3", className]}>
+  {#if !pages.current && !pages.error}<ReadSkeleton rows={2} />{/if}
   {#if pages.current?.run}<div class="flex min-w-0 items-center gap-2">
       <p class="min-w-0 flex-1 truncate" title={pages.current.run.name}>
         {pages.current.run.name} · attempt {pages.current.run.attempt}

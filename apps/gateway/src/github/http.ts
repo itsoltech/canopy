@@ -2,6 +2,8 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { Schema } from "effect";
 import { redactConnector } from "../connectors/oauth.ts";
 import { jobLogHttp } from "./log-http.ts";
+import { avatarUrl } from "./avatar-url.ts";
+import { setTimeout } from "node:timers/promises";
 
 export interface GitHubOptions {
   readonly clientId?: string;
@@ -9,6 +11,7 @@ export interface GitHubOptions {
   /** In-process fixture injection only; endpoint origins are never configurable by clients. */
   readonly fetch?: typeof fetch;
   readonly now?: () => number;
+  readonly wait?: (ms: number, signal: AbortSignal) => Promise<void>;
 }
 
 export function githubConfig(options: GitHubOptions = {}) {
@@ -68,6 +71,7 @@ function emptyActionsResponse(path: string, method: string | undefined, status: 
 export class GitHubHttp {
   readonly config;
   readonly now;
+  readonly wait;
   #fetch;
   #injectedFetch;
   constructor(options: GitHubOptions = {}) {
@@ -75,6 +79,7 @@ export class GitHubHttp {
     this.#fetch = options.fetch ?? fetch;
     this.#injectedFetch = options.fetch;
     this.now = options.now ?? Date.now;
+    this.wait = options.wait ?? ((ms: number, signal: AbortSignal) => setTimeout(ms, undefined, { signal }));
   }
   async detailed(path: string, init: RequestInit, secrets: readonly string[] = []) {
     if (/^\/repos\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/actions\/jobs\/[1-9][0-9]*\/logs$/.test(path))
@@ -125,6 +130,48 @@ export class GitHubHttp {
     const value = Schema.decodeUnknownSync(Schema.JsonObject)(Array.isArray(decoded) ? { items: decoded } : decoded);
 
     return { status: response.status, headers, value };
+  }
+  async image(value: string, etag: string, signal: AbortSignal) {
+    const response = await this.#fetch(avatarUrl(value), {
+      redirect: "error",
+      credentials: "omit",
+      signal: AbortSignal.any([signal, AbortSignal.timeout(10_000)]),
+      headers: { Accept: "image/png,image/jpeg,image/webp,image/gif", ...(etag && { "If-None-Match": etag }) },
+    });
+
+    const headers = new Headers(response.headers);
+
+    if (response.status === 304) return { status: 304, headers, value: null };
+    const mime = headers.get("content-type")?.split(";")[0] ?? "";
+    const reader = response.body?.getReader();
+
+    if (!response.ok || !reader || !["image/png", "image/jpeg", "image/webp", "image/gif"].includes(mime)) {
+      await reader?.cancel();
+      throw new ConnectError("Avatar unavailable", Code.Unavailable);
+    }
+
+    const parts: Uint8Array[] = [];
+    let size = 0;
+
+    try {
+      for (;;) {
+        const part = await reader.read();
+
+        if (part.done) break;
+        size += part.value.byteLength;
+
+        if (size > 131_072) throw new ConnectError("Avatar unavailable", Code.ResourceExhausted);
+        parts.push(part.value);
+      }
+    } finally {
+      await reader.cancel();
+    }
+
+    return {
+      status: response.status,
+      headers,
+      value: { dataUrl: `data:${mime};base64,${Buffer.concat(parts).toString("base64")}` },
+    };
   }
   async request(path: string, init: RequestInit, secrets: readonly string[] = []) {
     const result = await this.detailed(path, init, secrets);

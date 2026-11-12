@@ -4,8 +4,8 @@ import { github } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Option, Schema } from "effect";
 import { LIFECYCLE_FIELDS, LIFECYCLE_REPOSITORY_FIELDS, snapshotLifecycle } from "./lifecycle-state.ts";
+import { actor as person, actorFields, actorLogin, actorAvatars } from "./actors.ts";
 
-const person = Schema.NullOr(Schema.Struct({ login: Schema.String, id: Schema.optional(Schema.String) }));
 const page = Schema.Struct({ hasNextPage: Schema.Boolean });
 
 const check = Schema.Struct({
@@ -56,7 +56,10 @@ const PullRequest = Schema.Struct({
     }),
   ),
   assignees: Schema.NullOr(
-    Schema.Struct({ nodes: Schema.Array(Schema.Struct({ login: Schema.String })), pageInfo: page }),
+    Schema.Struct({
+      nodes: Schema.Array(Schema.Struct({ login: Schema.String, avatarUrl: Schema.optional(Schema.String) })),
+      pageInfo: page,
+    }),
   ),
   reviewRequests: Schema.NullOr(
     Schema.Struct({
@@ -68,6 +71,7 @@ const PullRequest = Schema.Struct({
               name: Schema.optional(Schema.String),
               slug: Schema.optional(Schema.String),
               id: Schema.optional(Schema.String),
+              avatarUrl: Schema.optional(Schema.String),
               organization: Schema.optional(Schema.Struct({ login: Schema.String })),
             }),
           ),
@@ -111,14 +115,14 @@ const Envelope = Schema.Struct({
 export const SUMMARY_QUERY = `query CanopyPullRequest($owner:String!,$name:String!,$number:Int!){
   rateLimit { cost remaining resetAt }
   repository(owner:$owner,name:$name){ databaseId viewerPermission ${LIFECYCLE_REPOSITORY_FIELDS} pullRequest(number:$number){
-    id number title state isDraft body author{login} updatedAt createdAt
+    id number title state isDraft body author{${actorFields}} updatedAt createdAt
     baseRefName headRefName baseRefOid headRefOid changedFiles additions deletions
     headRepository{databaseId nameWithOwner}
     ${LIFECYCLE_FIELDS}
     labels(first:100){nodes{name color} pageInfo{hasNextPage}}
-    assignees(first:100){nodes{login} pageInfo{hasNextPage}}
-    reviewRequests(first:100){nodes{requestedReviewer{... on User{id login} ... on Team{id name slug organization{login}}}} pageInfo{hasNextPage}}
-    latestReviews(first:100){nodes{author{login ... on User{id}} state} pageInfo{hasNextPage}}
+    assignees(first:100){nodes{login avatarUrl(size:64)} pageInfo{hasNextPage}}
+    reviewRequests(first:100){nodes{requestedReviewer{... on User{id login avatarUrl(size:64)} ... on Team{id name slug organization{login}}}} pageInfo{hasNextPage}}
+    latestReviews(first:100){nodes{author{${actorFields} ... on User{id}} state} pageInfo{hasNextPage}}
     commits(last:1){nodes{commit{oid statusCheckRollup{state contexts(first:100){totalCount pageInfo{hasNextPage}
       nodes{__typename ... on CheckRun{id name status conclusion detailsUrl checkSuite{app{name} workflowRun{databaseId}}}
       ... on StatusContext{id context state targetUrl creator{login}}}}}}}}
@@ -199,7 +203,17 @@ export function summarySnapshot(
       updatedAt: timestampFromDate(new Date(pr.updatedAt)),
       verifiedAt: timestampFromDate(new Date(now)),
     },
-    author: pr.author?.login ?? "Deleted user",
+    author: actorLogin(pr.author),
+    actorAvatars: actorAvatars([
+      pr.author,
+      ...(pr.assignees?.nodes ?? []),
+      ...(pr.latestReviews?.nodes.map((r) => r.author) ?? []),
+      ...(pr.reviewRequests?.nodes.flatMap((r) =>
+        r.requestedReviewer?.login
+          ? [{ login: r.requestedReviewer.login, avatarUrl: r.requestedReviewer.avatarUrl }]
+          : [],
+      ) ?? []),
+    ]),
     lifecycle: snapshotLifecycle(value),
     body: pr.body ?? previous?.body ?? "",
     baseRef: pr.baseRefName,
@@ -236,7 +250,7 @@ export function summarySnapshot(
         []),
       ...(pr.latestReviews?.nodes.map((r) => ({
         nodeId: r.author?.id ?? "",
-        login: r.author?.login ?? "Deleted user",
+        login: actorLogin(r.author),
         state: r.state.toLowerCase(),
       })) ??
         previous?.reviewers.filter((r) => r.state !== "requested") ??

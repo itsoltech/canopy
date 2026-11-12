@@ -28,6 +28,7 @@ export function PullRequestChecks({ snapshot }: { snapshot: github.PullRequestSn
     id,
     "",
     true,
+    `checks:${snapshot.accountId}:${snapshot.accessRevision}:${headSha}`,
   );
 
   const checks = sortedChecks(pages.pages.length ? pages.pages.flatMap((p) => p.checks) : snapshot.checks);

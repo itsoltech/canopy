@@ -7,6 +7,7 @@
   import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import MenuCheckItem from "#lib/shared/ui/MenuCheckItem.svelte";
   import MenuItem from "#lib/shared/ui/MenuItem.svelte";
+  import Skeleton from "#lib/shared/ui/Skeleton.svelte";
 
   let {
     commit = $bindable(""),
@@ -16,6 +17,8 @@
     viewed,
     more,
     busy,
+    error = "",
+    retry,
     class: className,
   }: {
     commit?: string;
@@ -25,6 +28,8 @@
     viewed: string;
     more?: (() => void) | undefined;
     busy: boolean;
+    error?: string;
+    retry?: () => void;
     class?: ClassValue;
   } = $props();
 </script>
@@ -54,6 +59,11 @@
         ><span class="block truncate" title={option.label}>{option.label}</span></MenuCheckItem
       >{/each}
     {#if more}<MenuItem disabled={busy} onselect={more}>Load more commits</MenuItem>{/if}
+    {#if busy && options.length === 1}<div class="grid gap-2 px-2 py-2">
+        <Skeleton class="h-5 w-full" /><Skeleton class="h-5 w-3/4" />
+      </div>{/if}
+    {#if error}<p role="alert" class="px-2 py-1 text-xs/5 text-zinc-500">{error}</p>
+      <MenuItem disabled={busy} onselect={retry}>Retry</MenuItem>{/if}
   </DropdownMenu>
   <p
     class="flex min-w-0 flex-1 items-center text-xs whitespace-nowrap text-zinc-500 tabular-nums dark:text-zinc-400"

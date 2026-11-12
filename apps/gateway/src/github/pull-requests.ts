@@ -68,6 +68,13 @@ export class GitHubPullRequests {
 
     return snapshot;
   }
+  /** Watch authorization must not turn an expired cached header into an unconditional GraphQL poll. */
+  async cached(name: string, number: number) {
+    const { mapping, row } = await this.repositories.selected(name);
+    const saved = await this.client.cached(row, `summary:${mapping.repository_id}:${number}`);
+
+    return saved?.payload ? fromJsonString(github.PullRequestSnapshotSchema, JSON.stringify(saved.payload)) : undefined;
+  }
   async load(
     name: string,
     number: number,
@@ -82,17 +89,18 @@ export class GitHubPullRequests {
       const key = `summary:${mapping.repository_id}:${number}`;
       const cached = await this.client.cached(row, key);
 
+      const previous = cached?.payload
+        ? fromJsonString(github.PullRequestSnapshotSchema, JSON.stringify(cached.payload))
+        : undefined;
+
       const read = {
         background,
+        ttl: ["merged", "closed"].includes(previous?.summary?.state ?? "") ? 300_000 : 60_000,
         key,
         path: "/graphql",
         query: SUMMARY_QUERY,
         variables: { owner: name.split("/")[0]!, name: name.split("/")[1]!, number },
         project: async (value: Schema.JsonObject) => {
-          const previous = cached?.payload
-            ? fromJsonString(github.PullRequestSnapshotSchema, JSON.stringify(cached.payload))
-            : undefined;
-
           const partial = partialSnapshot(value, previous);
 
           if (partial)
@@ -148,7 +156,6 @@ export class GitHubPullRequests {
 
         if (Number(new Date(cached.expires_at)) <= this.accounts.http.now()) {
           snapshot.stale = true;
-          snapshot.detail = "The last verified summary is shown. Refresh to check for changes.";
           void this.client
             .read(row.id, read)
             .then(() => this.changed(mapping.repository_id))

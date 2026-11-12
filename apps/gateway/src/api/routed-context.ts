@@ -31,6 +31,7 @@ export const READS = new Set([
   "ListThreadPullRequests",
   "ListRepositoryPullRequests",
   "GetPullRequest",
+  "GetPullRequestAvatar",
   "WatchPullRequest",
   "ListPullRequestTimeline",
   "ListPullRequestReviewThreads",

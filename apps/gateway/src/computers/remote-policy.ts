@@ -60,6 +60,7 @@ export const GITHUB_PR_METHODS = new Set([
   "LinkThreadPullRequest",
   "UnlinkThreadPullRequest",
   "GetPullRequest",
+  "GetPullRequestAvatar",
   "RefreshPullRequest",
   "WatchPullRequest",
   "ListPullRequestTimeline",

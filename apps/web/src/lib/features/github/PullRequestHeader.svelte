@@ -68,6 +68,7 @@
       ></a
     >
     <PullRequestState state={pr?.state ?? ""} />
+    <IconButton icon="arrow-path" label="Refresh pull request" loading={busy} size="sm" onclick={onrefresh} />
     <DropdownMenu label="Pull request actions" placement="bottom-end" sheet>
       {#snippet trigger(props)}<IconButton
           icon="ellipsis-horizontal"
@@ -75,7 +76,6 @@
           size="sm"
           {...props}
         />{/snippet}
-      <MenuItem icon="arrow-path" disabled={busy} onselect={onrefresh}>{busy ? "Refreshing…" : "Refresh"}</MenuItem>
       {#if oncontext}
         <MenuItem icon="chat-bubble-left" disabled={busy} onselect={() => oncontext?.("question")}
           >Ask a question</MenuItem
@@ -117,7 +117,12 @@
       />{/key}
   </div>
   <div class="flex min-w-0 items-center gap-2 text-sm/5 sm:text-xs/5">
-    <GitHubAvatar userId="" login={snapshot.author} compact />
+    <GitHubAvatar
+      pullRequestId={snapshot.summary?.ref?.id}
+      url={snapshot.actorAvatars[snapshot.author]}
+      login={snapshot.author}
+      compact
+    />
     <p class="min-w-0 truncate" title={snapshot.author}>{snapshot.author}</p>
     {#if age}<p class="shrink-0 text-zinc-500 dark:text-zinc-400" title={formatDateTime(pr?.updatedAt)}>
         updated {age === "now" ? "now" : `${age} ago`}

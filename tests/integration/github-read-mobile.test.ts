@@ -8,11 +8,12 @@ import { mountMobileNetwork } from "../../apps/gateway/src/network/devices.ts";
 import { routedMobileClient } from "../../apps/mobile/src/api/routes.ts";
 import { nodePinnedTransport } from "./support/phone.ts";
 import { SERVICE_TOKEN, failure, startTestGateway } from "./support/gateway.ts";
-import { linkedRead, readFixture } from "./support/github-read.ts";
+import { linkedRead } from "./support/github-read.ts";
+import { pollingFixture } from "./support/github-polling.ts";
 
 describe.skipIf(!dockerAvailable)("GitHub full read over paired mobile transport", () => {
   test("reads pages, logs and code, watches and prepares context through a revocable pinned device", async () => {
-    const fixture = readFixture();
+    const fixture = pollingFixture(true);
     const gw = await startTestGateway({ github: fixture.options });
 
     const network = new NetworkAccess({

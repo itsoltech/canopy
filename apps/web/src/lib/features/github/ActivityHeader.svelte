@@ -8,18 +8,25 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import { toneClasses } from "./presentation.ts";
+  import GitHubAvatar from "./GitHubAvatar.svelte";
 
   let {
     author,
     look,
     time,
     url = "",
+    avatarUrl = "",
+    pullRequestId = "",
+    withAvatar = false,
     class: className,
   }: {
     author: string;
     look: PullRequestLook;
     time?: Timestamp | undefined;
     url?: string;
+    avatarUrl?: string;
+    pullRequestId?: string;
+    withAvatar?: boolean;
     class?: ClassValue;
   } = $props();
 
@@ -28,6 +35,7 @@
 </script>
 
 <div class={["flex min-w-0 items-center gap-2 text-sm/5 sm:text-xs/5", className]}>
+  {#if withAvatar}<GitHubAvatar login={author} url={avatarUrl} {pullRequestId} compact />{/if}
   <p class="min-w-0 truncate font-medium" title={author}>{author || "GitHub"}</p>
   <span class={["shrink-0", toneClasses[look.tone]]} {@attach tooltip(look.label)}
     ><Icon name={look.icon} label={look.label} tone="inherit" /></span

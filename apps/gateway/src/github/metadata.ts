@@ -103,6 +103,7 @@ const Item = Schema.Struct({
   name: Schema.optional(Schema.String),
   slug: Schema.optional(Schema.String),
   color: Schema.optional(Schema.String),
+  avatar_url: Schema.optional(Schema.String),
 });
 
 export async function metadataPage(scope: ReadScope) {
@@ -160,6 +161,7 @@ export async function metadataPage(scope: ReadScope) {
               kind: item.slug ? "team" : item.login ? "user" : "label",
               color: item.color && /^[a-f0-9]{6}$/i.test(item.color) ? item.color : "",
               userId: item.login && item.id ? String(item.id) : "",
+              avatarUrl: item.avatar_url ?? "",
             }),
           );
       }

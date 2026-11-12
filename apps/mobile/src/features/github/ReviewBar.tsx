@@ -5,6 +5,7 @@ import { Button, Sheet } from "../../ui/components";
 import { useColors, useTypography } from "../../ui/theme";
 import { ReviewForm } from "./ReviewForm";
 import type { ReviewDraft } from "./useReviewDraft";
+import { Skeleton } from "../../ui/Skeleton";
 
 export function ReviewBar({ snapshot, draft }: { snapshot: github.PullRequestSnapshot; draft: ReviewDraft }) {
   const c = useColors(),
@@ -26,21 +27,24 @@ export function ReviewBar({ snapshot, draft }: { snapshot: github.PullRequestSna
           backgroundColor: c.background,
         }}
       >
-        <Text style={[type.meta, { color: c.text, flex: 1 }]}>
-          {draft.busy
-            ? "Loading review…"
-            : draft.pendingId
-              ? `${draft.count} pending ${draft.count === 1 ? "comment" : "comments"}`
-              : "No pending review"}
-        </Text>
+        {!draft.pages.length && !draft.error ? (
+          <Skeleton style={{ flex: 1, height: 20 }} />
+        ) : (
+          <Text style={[type.meta, { color: c.text, flex: 1 }]}>
+            {draft.error
+              ? "Could not load review."
+              : draft.pendingId
+                ? `${draft.count} pending ${draft.count === 1 ? "comment" : "comments"}`
+                : "No pending review"}
+          </Text>
+        )}
         <Button
-          title="Review changes"
+          title={draft.error ? "Retry" : "Review changes"}
           size="sm"
           variant="primary"
           disabled={draft.busy}
           onPress={async () => {
-            await draft.refresh();
-            setOpen(true);
+            if (await draft.refresh()) setOpen(true);
           }}
         />
       </View>

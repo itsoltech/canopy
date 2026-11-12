@@ -72,6 +72,7 @@
                 name="markdown-task"
                 checked={item.checked}
                 disabled
+                readOnlyVisual
                 aria-label={item.checked ? "Done" : "Not done"}
               />
             </div>

@@ -22,11 +22,10 @@ function TaskBox({ checked }: { checked: boolean }) {
         height: 20,
         borderRadius: 4,
         borderWidth: 1,
-        borderColor: checked ? c.action : c.faint,
+        borderColor: checked ? c.action : c.muted,
         backgroundColor: checked ? c.action : "transparent",
         alignItems: "center",
         justifyContent: "center",
-        opacity: 0.7,
       }}
     >
       {checked && (

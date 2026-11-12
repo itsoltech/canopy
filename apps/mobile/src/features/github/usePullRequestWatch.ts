@@ -6,14 +6,15 @@ import type { github } from "@canopy/contracts";
 import { invalidations } from "./invalidations";
 
 export function usePullRequestWatch(id: string, changed: (update: github.PullRequestUpdate) => void) {
-  const { client } = useSession();
+  const { client, queries } = useSession();
   useFocusEffect(
     useCallback(() => {
       if (!client) return;
       let controller: AbortController | undefined;
       let timer: ReturnType<typeof setTimeout> | undefined;
       let stopped = false;
-      let revision = "";
+      const key = `PullRequestWatch:${id}`;
+      let revision = queries.snapshot<string>(key).data ?? "";
 
       async function watch() {
         if (stopped || AppState.currentState !== "active") return;
@@ -25,8 +26,11 @@ export function usePullRequestWatch(id: string, changed: (update: github.PullReq
             { pullRequestId: id, visibility: "view", revision },
             { signal: controller.signal, timeoutMs: 0 },
           )) {
-            if ((revision && revision !== update.revision) || update.gap) invalidations.publish(id);
+            if (update.gap) invalidations.publish(id);
+            else if (!revision || revision !== update.revision)
+              for (const resource of update.invalidated) invalidations.publish(`${id}:${resource}`);
             revision = update.revision;
+            queries.set(key, revision);
             changed(update);
           }
         } catch {
@@ -51,6 +55,6 @@ export function usePullRequestWatch(id: string, changed: (update: github.PullReq
         controller?.abort();
         listener.remove();
       };
-    }, [client, id, changed]),
+    }, [client, queries, id, changed]),
   );
 }

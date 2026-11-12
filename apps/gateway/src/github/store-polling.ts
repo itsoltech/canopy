@@ -5,6 +5,17 @@ import type { PullRequestRow } from "./store-pull-requests.ts";
 
 export function githubPollingStore(sql: SqlClient.SqlClient) {
   return {
+    cacheChecks: (row: AccountRow, repository: string, number: number, head: string, state: string, count: number) =>
+      sql`UPDATE github_pr_cache c SET payload=jsonb_set(jsonb_set(c.payload,
+        '{summary,checksState}',${JSON.stringify(state)}::jsonb),'{summary,checksCount}',${JSON.stringify(count)}::jsonb),
+        generation=generation+1
+        WHERE owner_user_id=${row.owner_user_id}::uuid AND account_id=${row.id}::uuid
+        AND access_revision=${row.revision}::bigint AND cache_key=${`summary:${repository}:${number}`}
+        AND payload->'summary'->>'headSha'=${head}
+        AND EXISTS(SELECT 1 FROM github_accounts a WHERE a.owner_user_id=c.owner_user_id AND a.id=c.account_id
+          AND a.revision=c.access_revision AND a.status='connected')
+        AND EXISTS(SELECT 1 FROM github_repository_accounts r WHERE r.owner_user_id=c.owner_user_id
+          AND r.repository_id=${repository} AND r.account_id=c.account_id)`,
     pollCandidates: (owner: string) => sql<PullRequestRow>`SELECT DISTINCT p.* FROM github_pull_requests p
       JOIN thread_pull_requests l ON l.owner_user_id=p.owner_user_id AND l.pull_request_id=p.id AND l.unlinked_at IS NULL
       JOIN threads t ON t.owner_user_id=l.owner_user_id AND t.id=l.thread_id

@@ -4,6 +4,7 @@ import { github } from "@canopy/contracts";
 import { visibleTimelineItem } from "@canopy/domain/github-read";
 import { Schema } from "effect";
 import { graphErrors, jsonMessage, type ReadScope } from "./read-scope.ts";
+import { actor as person, actorFields, actorLogin } from "./actors.ts";
 
 export const graphPage = Schema.Struct({
   hasNextPage: Schema.Boolean,
@@ -11,8 +12,6 @@ export const graphPage = Schema.Struct({
   endCursor: Schema.NullOr(Schema.String),
   startCursor: Schema.optional(Schema.NullOr(Schema.String)),
 });
-
-const person = Schema.NullOr(Schema.Struct({ login: Schema.String }));
 
 const commit = Schema.Struct({
   oid: Schema.String,
@@ -68,13 +67,14 @@ const eventFields = `... on ClosedEvent{id createdAt actor{login} url}
 ... on HeadRefDeletedEvent{id createdAt actor{login}} ... on RenamedTitleEvent{id createdAt actor{login}}
 ... on AssignedEvent{id createdAt actor{login}} ... on UnassignedEvent{id createdAt actor{login}}`;
 
-export const TIMELINE_QUERY = `query CanopyTimeline($owner:String!,$name:String!,$number:Int!,$before:String,$after:String,$first:Int,$last:Int){
+export const TIMELINE_QUERY =
+  `query CanopyTimeline($owner:String!,$name:String!,$number:Int!,$before:String,$after:String,$first:Int,$last:Int){
 rateLimit{cost remaining resetAt} repository(owner:$owner,name:$name){pullRequest(number:$number){id
 timelineItems(first:$first,last:$last,before:$before,after:$after){pageInfo{hasNextPage hasPreviousPage startCursor endCursor}
 nodes{__typename ... on IssueComment{id author{login} body url createdAt viewerCanUpdate viewerCanDelete}
 ... on PullRequestReview{id author{login} body url createdAt state}
 ... on PullRequestCommit{commit{oid messageHeadline committedDate url author{name user{login}}}}
-${eventFields}}}}}}`;
+${eventFields}}}}}}`.replaceAll("{login}", `{${actorFields}}`);
 
 function item(value: typeof event.Type, index: number, scope: ReadScope) {
   const c = value.commit;
@@ -89,7 +89,8 @@ function item(value: typeof event.Type, index: number, scope: ReadScope) {
 
   const entry = create(github.PullRequestTimelineEntrySchema, {
     id: value.id ?? c?.oid ?? `${scope.position}:${index}:${value.__typename}`,
-    author: value.author?.login ?? value.actor?.login ?? c?.author?.user?.login ?? c?.author?.name ?? "GitHub",
+    author: actorLogin(value.author ?? value.actor ?? c?.author?.user ?? null, c?.author?.name ?? "GitHub"),
+    avatarUrl: (value.author ?? value.actor ?? c?.author?.user)?.avatarUrl ?? "",
     body: value.body ?? c?.messageHeadline ?? value.label?.name ?? "",
     kind: value.__typename,
     viewerCanUpdate: value.viewerCanUpdate ?? false,
@@ -110,6 +111,7 @@ export async function timeline(scope: ReadScope) {
   const { request } = scope;
 
   return scope.read(github.PullRequestTimelinePageSchema, {
+    ttl: ["merged", "closed"].includes(scope.snapshot.summary?.state ?? "") ? 300_000 : 60_000,
     path: "/graphql",
     query: TIMELINE_QUERY,
     variables: {

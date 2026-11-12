@@ -7,11 +7,23 @@ import type { TestGateway } from "./gateway.ts";
 
 export const githubBrowser = () => ({ headers: { "canopy-github-client": randomBytes(32).toString("base64url") } });
 
+type FixtureActor = {
+  login: string;
+  avatarUrl?: string;
+  __typename?: string;
+};
+
 /** Deliberately hostile markdown, long metadata and varied CI states, served only by loopback HTTP. */
 export function githubPrData(number = 42, state = "OPEN", draft = false) {
   const sha = "a".repeat(40);
   const pageInfo = { hasNextPage: false };
   const checks = ["SUCCESS", "FAILURE", "IN_PROGRESS", "QUEUED", "CANCELLED", "SKIPPED", "NEUTRAL", "TIMED_OUT"];
+
+  const person = (login: string, id: number): FixtureActor => ({
+    login,
+    avatarUrl: `https://avatars.githubusercontent.com/u/${id}?v=4`,
+    __typename: "User",
+  });
 
   return {
     id: `PR_fixture_${number}`,
@@ -25,7 +37,7 @@ export function githubPrData(number = 42, state = "OPEN", draft = false) {
         { length: 8 },
         (_, i) => `## Detail ${i + 1}\n\nA long description with code, links and images treated as untrusted data.\n\n`,
       ).join(""),
-    author: { login: "maintainer-with-a-long-name" },
+    author: person("maintainer-with-a-long-name", 1),
     updatedAt: "2026-11-10T12:00:00Z",
     createdAt: new Date(Date.UTC(2026, 10, 9, 10, number)).toISOString(),
     baseRefName: "dev",
@@ -42,9 +54,9 @@ export function githubPrData(number = 42, state = "OPEN", draft = false) {
       })),
       pageInfo,
     },
-    assignees: { nodes: [{ login: "maintainer" }], pageInfo },
-    reviewRequests: { nodes: [{ requestedReviewer: { login: "reviewer-with-a-long-name" } }], pageInfo },
-    latestReviews: { nodes: [{ author: { login: "reviewer" }, state: "APPROVED" }], pageInfo },
+    assignees: { nodes: [person("maintainer", 1)], pageInfo },
+    reviewRequests: { nodes: [{ requestedReviewer: person("reviewer-with-a-long-name", 2) }], pageInfo },
+    latestReviews: { nodes: [{ author: person("reviewer", 2), state: "APPROVED" }], pageInfo },
     commits: {
       nodes: [
         {

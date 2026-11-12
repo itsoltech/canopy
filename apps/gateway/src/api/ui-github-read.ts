@@ -11,6 +11,7 @@ import { commits, files, diff } from "../github/files.ts";
 import { watchPullRequest } from "../github/watch.ts";
 import { prepareContext } from "../github/context.ts";
 import { githubFailure } from "../github/http.ts";
+import { pullRequestAvatar } from "../github/avatars.ts";
 import type { github } from "@canopy/contracts";
 
 export function githubReadHandlers(
@@ -18,6 +19,7 @@ export function githubReadHandlers(
 ): Pick<
   UiHandlers,
   | "listPullRequestTimeline"
+  | "getPullRequestAvatar"
   | "listPullRequestReviewThreads"
   | "getPullRequestReviewDraft"
   | "getPullRequestMetadata"
@@ -43,6 +45,13 @@ export function githubReadHandlers(
   };
 
   return {
+    getPullRequestAvatar: async (r) => {
+      try {
+        return await pullRequestAvatar(core.github.prs, r);
+      } catch (cause) {
+        throw githubFailure(cause);
+      }
+    },
     listPullRequestTimeline: (r) => read(r, "timeline", timeline),
     listPullRequestReviewThreads: (r) => read(r, "reviews", reviewThreads),
     getPullRequestReviewDraft: (r) => read(r, "pending", reviewDraft),
