@@ -33,6 +33,8 @@ export function repositoryAccessFixture() {
 
       return Response.json({ total_count: repositories.length, repositories });
     }
+
+    return undefined;
   });
 
   return {
