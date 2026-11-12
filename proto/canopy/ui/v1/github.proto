@@ -223,6 +223,37 @@ message PullRequestLink {
   string evidence = 5;
 }
 message ThreadPullRequestsRequest { string thread_id = 1; }
+// The repository and branch are resolved by the home gateway from the owned thread.
+message RepositoryPullRequestsRequest {
+  string thread_id = 1;
+  string query = 2;
+  bool include_closed = 3;
+  string cursor = 4;
+}
+message RepositoryPullRequest {
+  uint32 number = 1;
+  string title = 2;
+  string state = 3;
+  string head_ref = 4;
+  string base_ref = 5;
+  string author = 6;
+  google.protobuf.Timestamp updated_at = 7;
+  bool current_branch = 8;
+  bool viewer_is_author = 9;
+  bool linked = 10;
+}
+message RepositoryPullRequestsResponse {
+  string repository_name = 1;
+  repeated RepositoryPullRequest items = 2;
+  string next_cursor = 3;
+  // ready, not_github, account_required, choose_account, installation_required, rate_limited, unavailable.
+  string state = 4;
+  string detail = 5;
+  google.protobuf.Timestamp retry_at = 6;
+  GitHubRepositoryAccountResponse selection = 7;
+  string install_url = 8;
+  bool configured = 9;
+}
 message ThreadPullRequestsResponse {
   repeated PullRequestLink links = 1;
   uint64 revision = 2;

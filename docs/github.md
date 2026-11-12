@@ -170,8 +170,10 @@ od razu; każde wykonanie nadal sprawdza aktualną rewizję dostępu i odpowied�
 
 Konta identyfikuje `(owner, host, GitHub user ID, dom)`, nie login ani nazwa „Work”.
 Ponowne logowanie do tego samego konta aktualizuje tokeny; inne konto jest osobnym rekordem.
-Mapowanie `(owner, dom, repository ID) → account ID` jest jawne. Jeden uprawniony kandydat może
-być proponowany; kilka wymaga wyboru. Zmiana konta nie ponawia zapisów i usuwa dane starego
+Mapowanie `(owner, dom, repository ID) → account ID` jest zapamiętywane per repozytorium.
+Otwarcie pickera przy linkowaniu zachowuje ten wybór, a przy jego braku dobiera uprawnione
+konto App; kilka dopasowań udostępnia przełącznik u góry pickera (§3).
+Zmiana konta nie ponawia zapisów i usuwa dane starego
 kontekstu dostępu. Identyfikatory GitHub przeżywają rename/transfer repozytorium i zmianę loginu.
 Nie próbujemy kolejno kont po odmowie zapisu. PAT jest wyłącznie jawnym fallbackiem wskazanym
 z istniejącego, własnego konta GitHub w Connectors; bez kopiowania tokenu do nowego rekordu.
@@ -289,6 +291,38 @@ repository ID, PR, parametry strony i SHA. Nigdy nie współdzielimy prywatnej t
 właścicielami ani kontami. Single-flight i krótka dzierżawa SQL deduplikują odczyt;
 I/O HTTP odbywa się poza transakcją. Po zmianie zapisujemy tylko zmienione projekcje i publikujemy
 rewizję przez istniejący Hub/owner feed. `QueryCache` web/mobile odrzuca spóźnione odpowiedzi.
+
+### Picker repozytorium przy linkowaniu
+
+`ListRepositoryPullRequests` rozwiązuje repozytorium z `git_origin` workspace’u należącego
+do wątku. Weryfikuje właściciela przed odczytem konta/cache i ponownie sprawdza rewizję
+dostępu przed odpowiedzią. Klient nie podaje konta, instalacji ani endpointu GitHub.
+Sam odczyt RPC nie zapisuje mapowania. Przy otwarciu picker zachowuje zapamiętane konto;
+przy jego braku zapisuje pierwsze konto App z potwierdzonym dostępem do instalacji
+(stabilna kolejność loginów). Kilka dopasowań pokazuje kompaktowy przełącznik konta u góry.
+PAT nadal wymaga jawnego wyboru. Token użytkownika GitHub App zostaje w gatewayu.
+
+Picker pokazuje domyślnie otwarte PR według ostatniej aktualizacji: najpierw pasujące
+head refs (również z forków), potem PR wybranego użytkownika, następnie pozostałe.
+Pierwsze dwie grupy mają stałe zapytania GraphQL, pozostałe używają REST `pulls` z ETagiem.
+Wspólny cache ma TTL 30 s, obsługuje 304 i single-flight. Strony źródłowe i odpowiedzi
+mają najwyżej 30 elementów; jedno RPC czyta najwyżej 3 strony. Podpisany kursor wiąże
+owner/wątek/konto/rewizje/repo/gałąź/filtry i pozycję wewnątrz strony, wygasa po 15 min.
+Wyszukiwanie po numerze, tytule, gałęziach i autorze filtruje te same cache’owane strony,
+bez osobnego żądania GitHub przy każdej zmianie tekstu. Rzadkie dopasowania mogą wymagać
+doczytania kolejnych stron przez **Load more**; nie uruchamiamy nieograniczonego skanu.
+
+Web/desktop używa `Popover` i `Combobox`, mobile wspólnego arkusza i wirtualnej listy.
+Otwarcie od razu pokazuje skeleton, bez odczytu GitHub przy otwieraniu całego wątku.
+**Open / All** obejmuje także closed/merged; wybór linkuje istniejącą akcją i pozostawia
+picker otwarty do kolejnego linku. Powiązane wiersze mają **Linked** i są wyłączone.
+Numer PR albo URL otwiera dotychczasowy formularz kontroli dostępu, także dla innego repo.
+Brak GitHub remote pokazuje wyłącznie ścieżkę URL; brak konta, instalacji i limit API
+mają odrębne stany, akcję połączenia/zarządzania repo lub czas resetu. Nie dodajemy natywnych
+zależności, uprawnień ani konfiguracji mobile.
+Panel wątku nie pokazuje podpowiedzi o wyborze konta ani ręcznym dopasowaniu gałęzi:
+pusty stan to **No pull requests yet** i akcje linkowania/tworzenia. Brak konta lub dostępu
+jest wyjaśniany dopiero w pickerze, wraz z właściwą akcją.
 
 ### Limity i ponowienia
 
@@ -722,7 +756,8 @@ Panel zawiera zakładki Summary, Timeline i Code w tym samym pasku.
 1. **Panel wątku.** Pod `ThreadPlacement`/Branch lista **Pull requests**: tytuł, repo gdy potrzebne,
    `#number`, stan i checki. Domyślnie najnowszy PR bieżącej gałęzi według utworzenia;
    **Show N more** rozwija resztę. Historyczne powiązania są oznaczone osobno, ręczne pozostają
-   dostępne po zmianie gałęzi. **Link pull request** przyjmuje URL, **Create pull request** otwiera
+   dostępne po zmianie gałęzi. **Link pull request** otwiera kompaktowy picker repozytorium workspace’u
+   (arkusz na telefonie), a **Create pull request** otwiera
    formularz dla gałęzi wątku (§5). Pusty wynik nie jest błędem auth.
 2. **Nagłówek PR.** Repo, numer, tytuł, autor, updated time, `base ← head`, liczba plików, +/−,
    stan Open/Merged/Closed/Draft. `gh pr checkout N` jest kopiowalnym tekstem; dopisek określa repo.

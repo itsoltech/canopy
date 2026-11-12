@@ -29,6 +29,7 @@ export function refuseForeignAdministration(method: DescMethod, request: Message
 export const READS = new Set([
   "GetGitHubRepositoryAccount",
   "ListThreadPullRequests",
+  "ListRepositoryPullRequests",
   "GetPullRequest",
   "WatchPullRequest",
   "ListPullRequestTimeline",
