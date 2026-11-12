@@ -1071,6 +1071,14 @@ Utracone potwierdzenie jest bezpieczne: retransmisja jest idempotentna, a reconn
 przekazuje kursor odczytany z bazy. Anulowanie, utrata linku i timeout zwalniają
 oczekiwanie producenta oraz subskrypcję. Inne wątki i unary nadal działają.
 
+`WatchThreadMirror`, `AckThreadRange` i `GetThreadRange` pozostają przypisane
+do pierwotnego domu dziennika także po przeniesieniu wątku. Kursor, epoka
+i identyfikator subskrypcji nie są żądaniem akcji na obecnym domu wątku.
+Stary dom przyjmuje ACK partii zapisanej przed cutoverem, a wznowiona
+subskrypcja usuwa poprzednie lustro. Naprawa zakresu usuniętego źródła zwraca
+`NotFound`; nie kieruje starej epoki do nowego domu. Zwykłe odczyty i zapisy
+wątku nadal podążają za przekierowaniem.
+
 **Luki, epoki i live.** Gdy `base_seq` nie odpowiada trwałemu kursorowi albo brakuje
 kolejnego seq, odbiorca żąda dokładnie brakującego zakresu od ostatniego ciągłego
 zapisu. Nie przesuwa kursora przez lukę. Duplikaty już zapisanych rekordów są

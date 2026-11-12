@@ -169,8 +169,10 @@ export async function* computersServeHome(
     return;
   }
 
-  // A thing that moved away answers with its new home; the caller follows (stage 8).
-  hostContext.redirects.refuse(method, request);
+  // Mirror cursors and ACKs belong to this home's journal, even after a move.
+  // Redirecting them strands the old mirror: its final ACK and every resumed
+  // subscription containing that cursor would fail before emitting removal.
+  if (method.parent.typeName !== link.ThreadMirrorService.typeName) hostContext.redirects.refuse(method, request);
 
   const feature = method.name === "CallAgentBus" ? AGENT_BUS : (botFeature(method, request) ?? REMOTE_THREADS);
 
