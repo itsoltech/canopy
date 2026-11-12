@@ -415,7 +415,13 @@ describe.skipIf(!dockerAvailable)("GitHub metadata ownership, conflicts and dura
     await gw.api.preparePullRequestMutation(r, browser);
     const before = fixture.state.writes;
     await gw.api.disconnectGitHubAccount({ accountId: snapshot.accountId });
-    await expect(gw.api.setPullRequestAssignees(r, browser)).rejects.toMatchObject({
+
+    const denied = await gw.api.setPullRequestAssignees(r, browser).then(
+      () => undefined,
+      (error) => ConnectError.from(error),
+    );
+
+    expect(denied).toMatchObject({
       code: Code.PermissionDenied,
       rawMessage: "No connected GitHub account can access itsoltech/canopy.",
     });
