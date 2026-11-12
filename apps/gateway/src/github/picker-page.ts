@@ -7,6 +7,7 @@ import type { GitHubPullRequests } from "./pull-requests.ts";
 import { graphErrors } from "./read-scope.ts";
 
 const Ref = Schema.Struct({ ref: Schema.String });
+
 const Pull = Schema.Struct({
   number: Schema.Number,
   title: Schema.String,
@@ -75,6 +76,7 @@ export async function pickerPage(
   if (!Number.isSafeInteger(page) || page < 1 || page > 10_000)
     throw new ConnectError("Refresh the pull request list.", Code.InvalidArgument);
   const path = `/repos/${source.repository}/pulls`;
+
   const params = new URLSearchParams({
     state: source.all ? "all" : "open",
     sort: "updated",
@@ -89,14 +91,18 @@ export async function pickerPage(
     ttl: 30_000,
     project: async (value, headers) => {
       const items = Schema.decodeUnknownSync(Schema.Struct({ items: Schema.Array(Pull) }))(value).items.slice(0, 30);
+
       if (items.some((pr) => String(pr.base.repo.id) !== source.repositoryId))
         throw new ConnectError("Repository access changed. Choose its account again.", Code.PermissionDenied);
+
       const next = headers
         .get("link")
         ?.split(",")
         .find((entry) => /;\s*rel="next"/.test(entry));
+
       const href = next && /<([^>]+)>/.exec(next)?.[1];
       const url = href ? new URL(href) : undefined;
+
       const hasMore =
         url?.origin === "https://api.github.com" &&
         url.pathname === path &&
@@ -134,6 +140,7 @@ async function priorityPage(
 ): Promise<PickerPage> {
   if (lane === 0 && !source.branch) return { items: [], next: "" };
   const q = `repo:${source.repository} is:pr author:${source.login}${source.all ? "" : " is:open"} sort:updated-desc`;
+
   const result = await prs.client.read(source.account, {
     key: `picker-priority:${source.repositoryId}:${lane}:${lane === 0 ? source.branch : source.login}:${source.all}:${position}`,
     path: "/graphql",
@@ -150,12 +157,15 @@ async function priorityPage(
     ttl: 30_000,
     project: async (value) => {
       if (graphErrors(value)) throw new ConnectError("Could not load pull requests. Retry the list.", Code.Unavailable);
+
       if (lane !== 0) return value;
+
       const repository = Schema.decodeUnknownSync(
         Schema.Struct({
           data: Schema.Struct({ repository: Schema.Struct({ databaseId: Schema.Number, pulls: Schema.JsonObject }) }),
         }),
       )(value).data.repository;
+
       if (String(repository.databaseId) !== source.repositoryId)
         throw new ConnectError("Repository access changed. Choose its account again.", Code.PermissionDenied);
 
@@ -168,6 +178,7 @@ async function priorityPage(
   if (graphErrors(payload))
     throw new ConnectError("Could not load your pull requests. Retry the list.", Code.Unavailable);
   const value = Schema.decodeUnknownSync(Mine)(payload).data.search;
+
   if (value.nodes.some((pr) => String(pr.repository.databaseId) !== source.repositoryId))
     throw new ConnectError("Repository access changed. Choose its account again.", Code.PermissionDenied);
 
@@ -189,6 +200,7 @@ async function priorityPage(
 
 function graphState(state: string, draft: boolean) {
   if (state === "MERGED") return "merged";
+
   if (state === "CLOSED") return "closed";
 
   return draft ? "draft" : "open";

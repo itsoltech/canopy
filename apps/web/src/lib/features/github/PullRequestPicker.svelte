@@ -26,6 +26,7 @@
     onlinked: (value: github.ThreadPullRequestsResponse) => void;
     class?: ClassValue;
   } = $props();
+
   let query = $state("");
   let filter = $state("open");
   let data = $state<github.RepositoryPullRequestsResponse>();
@@ -36,6 +37,7 @@
   let manual = $state(false);
   let epoch = 0;
   const homeId = $derived(splitId(threadId).node ? `${GITHUB_HOME}~${splitId(threadId).node}` : "");
+
   const directUrl = $derived(
     /^https:\/\/github\.com\/[^/]+\/[^/]+\/pull\/[1-9][0-9]*$/.test(query.trim())
       ? query.trim()
@@ -48,15 +50,17 @@
     const search = query,
       all = filter === "all",
       id = threadId;
-    retry;
+
+    void retry;
     const current = ++epoch;
     loading = true;
     error = "";
     data = untrack(() => data && { ...data, items: [], nextCursor: "" });
+
     const timer = setTimeout(
       () => {
         void api
-          .repositoryPullRequests(id, /^https:\/\//.test(search.trim()) ? "" : search, all)
+          .repositoryPullRequests(id, search.trim().startsWith("https://") ? "" : search, all)
           .then((value) => {
             if (current === epoch) data = value;
           })
@@ -72,22 +76,27 @@
 
     return () => {
       clearTimeout(timer);
+
       if (epoch === current) epoch++;
     };
   });
 
   async function more() {
     if (!data?.nextCursor || loading || busy) return;
+
     const current = epoch,
       previous = data;
+
     loading = true;
+
     try {
       const page = await api.repositoryPullRequests(
         threadId,
-        /^https:\/\//.test(query.trim()) ? "" : query,
+        query.trim().startsWith("https://") ? "" : query,
         filter === "all",
         previous.nextCursor,
       );
+
       if (current === epoch)
         data = {
           ...page,
@@ -108,9 +117,11 @@
     const current = epoch;
     busy = true;
     error = "";
+
     try {
       const value = await api.link(threadId, `https://github.com/${data.repositoryName}/pull/${pr.number}`, revision);
       onlinked(value);
+
       if (current === epoch && data)
         data = {
           ...data,
@@ -125,8 +136,10 @@
 
   async function choose(accountId: string) {
     const selection = data?.selection;
+
     if (!selection || busy) return;
     busy = true;
+
     try {
       await api.chooseAccount(homeId, selection.repositoryName, accountId, selection.revision);
       retry++;

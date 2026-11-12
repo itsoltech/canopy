@@ -26,6 +26,7 @@ export function LinkPullRequest({
 }) {
   const c = useColors();
   const p = usePullRequestPicker(threadId, visible, revision, onlinked);
+
   const directUrl = /^https:\/\/github\.com\/[^/]+\/[^/]+\/pull\/[1-9][0-9]*$/.test(p.query.trim())
     ? p.query.trim()
     : /^#?[1-9][0-9]*$/.test(p.query.trim()) && p.data?.repositoryName

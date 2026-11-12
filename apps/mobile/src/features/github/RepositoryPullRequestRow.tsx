@@ -15,6 +15,7 @@ export const RepositoryPullRequestRow = memo(function RepositoryPullRequestRow({
   onSelect: (pr: github.RepositoryPullRequest) => void;
 }) {
   const c = useColors();
+
   return (
     <Pressable
       accessibilityRole="button"

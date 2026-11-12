@@ -15,6 +15,7 @@ describe.skipIf(!dockerAvailable)("repository PR picker through owner-scoped gRP
   let fixture: ReturnType<typeof githubPickerFixture>;
   let account: string;
   let thread: string;
+
   beforeAll(async () => {
     fixture = githubPickerFixture();
     gw = await startTestGateway({ github: fixture.options });
@@ -39,6 +40,7 @@ describe.skipIf(!dockerAvailable)("repository PR picker through owner-scoped gRP
       ),
     );
   }, 60_000);
+
   afterAll(async () => {
     await gw?.close();
     fixture?.close();
@@ -52,11 +54,14 @@ describe.skipIf(!dockerAvailable)("repository PR picker through owner-scoped gRP
       }),
     );
   }
+
   const page = (query = "", includeClosed = false, cursor = "") =>
     gw.api.listRepositoryPullRequests({ threadId: thread, query, includeClosed, cursor });
+
   async function collect(query = "", all = false) {
     const items: github.RepositoryPullRequest[] = [];
     let cursor = "";
+
     do {
       const result = await page(query, all, cursor);
       expect(result.state).toBe("ready");
@@ -64,6 +69,7 @@ describe.skipIf(!dockerAvailable)("repository PR picker through owner-scoped gRP
       items.push(...result.items);
       cursor = result.nextCursor;
     } while (cursor);
+
     return items;
   }
 
@@ -91,6 +97,7 @@ describe.skipIf(!dockerAvailable)("repository PR picker through owner-scoped gRP
     expect(new Set(items.map((pr) => pr.number)).size).toBe(73);
     expect(items.slice(2, 17).every((pr) => pr.viewerIsAuthor)).toBe(true);
     expect(items.slice(17).every((pr) => !pr.viewerIsAuthor && !pr.currentBranch)).toBe(true);
+
     for (const secret of fixture.secrets) expect(inspect(items, { depth: null })).not.toContain(secret);
   });
 
@@ -130,6 +137,7 @@ describe.skipIf(!dockerAvailable)("repository PR picker through owner-scoped gRP
 
   test("cursors are fenced to thread, query, filters, account access and signature", async () => {
     const first = await page();
+
     for (const request of [
       { threadId: thread, query: "different", cursor: first.nextCursor },
       { threadId: thread, includeClosed: true, cursor: first.nextCursor },
@@ -139,6 +147,7 @@ describe.skipIf(!dockerAvailable)("repository PR picker through owner-scoped gRP
       expect(result.state).not.toBe("ready");
       expect(result.items).toHaveLength(0);
     }
+
     expect(
       await gw.api.listRepositoryPullRequests({ threadId: crypto.randomUUID() }).then(
         () => 0,
@@ -159,6 +168,7 @@ describe.skipIf(!dockerAvailable)("repository PR picker through owner-scoped gRP
   test("an upstream failure clears rows and offers a retry", async () => {
     await gw.core.github.run((s) => s.cacheInvalidate(gw.userId, account));
     fixture.pickerStatus(422);
+
     try {
       const result = await page();
       expect(result.state).toBe("unavailable");
@@ -172,6 +182,7 @@ describe.skipIf(!dockerAvailable)("repository PR picker through owner-scoped gRP
 
   test("exposes matching accounts in the picker and remembers the account per repository", async () => {
     const second = await connectGitHub(gw, fixture, 202);
+
     try {
       const original = (await page()).selection!;
       expect(original.accountId).toBe(account);

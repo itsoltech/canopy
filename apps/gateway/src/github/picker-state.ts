@@ -14,6 +14,7 @@ export function pickerFailure(response: github.RepositoryPullRequestsResponse, e
     response.retryAt = timestampFromDate(new Date(retryAt));
   } else {
     if (error.code === Code.PermissionDenied) response.state = "installation_required";
+
     if (error.code === Code.FailedPrecondition && error.rawMessage.includes("Reconnect"))
       response.state = "account_required";
   }

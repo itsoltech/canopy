@@ -31,6 +31,7 @@ export function PullRequestPickerAccount({
         sections={[{ options: selection.candidates.map((a) => ({ value: a.id, label: a.login })) }]}
         onSelect={(id) => {
           setOpen(false);
+
           if (id !== selection.accountId) onchoose(id);
         }}
       />

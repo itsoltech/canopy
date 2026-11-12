@@ -26,10 +26,12 @@ export function usePullRequestPicker(
 
   useEffect(() => {
     const current = ++epoch.current;
+
     if (!client || !visible) return;
     setLoading(true);
     setError("");
     setData((previous) => previous && { ...previous, items: [], nextCursor: "" });
+
     const timer = setTimeout(
       () => {
         void pickerRead(client, threadId, query, filter)
@@ -48,6 +50,7 @@ export function usePullRequestPicker(
 
     return () => {
       clearTimeout(timer);
+
       if (epoch.current === current) epoch.current++;
     };
   }, [client, threadId, visible, query, filter, retry]);
@@ -57,8 +60,10 @@ export function usePullRequestPicker(
     const current = epoch.current;
     paging.current = true;
     setLoading(true);
+
     try {
       const page = await pickerRead(client, threadId, query, filter, data.nextCursor);
+
       if (epoch.current === current)
         setData({
           ...page,
@@ -71,6 +76,7 @@ export function usePullRequestPicker(
       if (epoch.current === current) setError("Could not load more pull requests. Retry the list.");
     } finally {
       paging.current = false;
+
       if (epoch.current === current) setLoading(false);
     }
   }
@@ -81,6 +87,7 @@ export function usePullRequestPicker(
     const current = epoch.current;
     setBusy(true);
     setError("");
+
     try {
       onlinked(
         await client.api.linkThreadPullRequest({
@@ -108,6 +115,7 @@ export function usePullRequestPicker(
   async function choose(accountId: string) {
     if (!client || !data?.selection || busy) return;
     setBusy(true);
+
     try {
       await client.api.setGitHubRepositoryAccount({
         homeId,
@@ -135,12 +143,14 @@ async function pickerRead(
 ) {
   const request = {
     threadId,
-    query: /^https:\/\//.test(query.trim()) ? "" : query,
+    query: query.trim().startsWith("https://") ? "" : query,
     includeClosed: filter === "all",
     cursor,
   };
+
   const value = await client.api.listRepositoryPullRequests(request);
   const candidate = value.selection?.candidates.find((account) => account.authKind === "device");
+
   if (cursor || value.state !== "choose_account" || !candidate || !value.selection) return value;
   const node = splitId(threadId).node;
   await client.api

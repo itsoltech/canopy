@@ -50,6 +50,7 @@ export function pickerCursor(token: string, binding: string, now: number, value:
     offset,
     next: (nextLane: number, nextPosition: string, nextOffset: number) => {
       if (nextLane > 2) return "";
+
       const text = Buffer.from(
         JSON.stringify({ binding, lane: nextLane, position: nextPosition, offset: nextOffset, expires: now + 900_000 }),
       ).toString("base64url");

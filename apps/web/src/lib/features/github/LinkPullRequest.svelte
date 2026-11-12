@@ -18,6 +18,7 @@
     disabled?: boolean;
     class?: ClassValue;
   } = $props();
+
   let open = $state(false);
 </script>
 

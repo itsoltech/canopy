@@ -18,6 +18,7 @@ export async function repositoryPullRequests(prs: GitHubPullRequests, r: github.
 
   if (!thread) throw new ConnectError("Thread not found", Code.NotFound);
   const config = accounts.http.config;
+
   const response = create(github.RepositoryPullRequestsResponseSchema, {
     repositoryName: githubName(thread.git_origin),
     configured: config.configured,
@@ -53,6 +54,7 @@ export async function repositoryPullRequests(prs: GitHubPullRequests, r: github.
         : available.accounts.some((a) => a.status === "connected")
           ? "installation_required"
           : "account_required";
+
       if (response.state === "choose_account") response.detail = "Choose an account to load pull requests.";
       else if (response.state === "installation_required")
         response.detail =
@@ -64,6 +66,7 @@ export async function repositoryPullRequests(prs: GitHubPullRequests, r: github.
 
     const selected = await prs.repositories.selected(response.repositoryName);
     const access = await accounts.access.token(selected.row.id);
+
     const source: PickerSource = {
       account: selected.row.id,
       repository: response.repositoryName,
@@ -72,6 +75,7 @@ export async function repositoryPullRequests(prs: GitHubPullRequests, r: github.
       login: selected.row.login,
       all: r.includeClosed,
     };
+
     const binding = digest(
       JSON.stringify([
         accounts.owner,
@@ -82,6 +86,7 @@ export async function repositoryPullRequests(prs: GitHubPullRequests, r: github.
         r.query.trim().toLowerCase(),
       ]),
     );
+
     const cursor = pickerCursor(access.token, binding, accounts.http.now(), r.cursor);
     let { lane, position, offset } = cursor;
     const linked = await prs.list(r.threadId);
