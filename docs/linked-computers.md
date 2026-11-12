@@ -1071,7 +1071,7 @@ Wartość zero oznacza kompletność względem podanego head; następna zmiana m
 zwiększyć. Diagnostyka rozdziela trwały seq, head, pozostałe rekordy, bajty partii
 i stan live. Brak head oznacza nieznany postęp, nigdy pozorne zero.
 
-`thread_range_state.last_synced_at` (migracja 0124) zapisuje czas zastosowania
+`thread_range_state.last_synced_at` (migracja 0126) zapisuje czas zastosowania
 partii w tej samej transakcji co kursor i encje. Ponowne odczytanie diagnostyki,
 błąd i duplikat partii nie przesuwają tego czasu. Historyczne kursory mają `NULL`
 do następnej zastosowanej partii; UI nie zastępuje go czasem odświeżenia strony.

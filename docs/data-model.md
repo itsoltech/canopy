@@ -16,7 +16,7 @@ porządkuje zapis źródła, bootstrap i zamknięcie publicznej projekcji.
 
 `thread_range_state` i `thread_range_entities` przechowują znormalizowane lustro
 oraz kursor zatwierdzony atomowo z partią. ACK następuje dopiero po commit.
-Migracja `0124_thread_sync_time` dodaje nullable `last_synced_at`: rzeczywisty czas
+Migracja `0126_thread_sync_time` dodaje nullable `last_synced_at`: rzeczywisty czas
 zapisu partii, bez wymyślania dat dla wcześniejszych kursorów. Duplikat go nie zmienia.
 Nowa epoka zachowuje poprzednią widoczną kopię do zakończenia zakresu; nie miesza
 wierszy obu epok. `thread_range_failures` zawiera wyłącznie klasyfikację błędu

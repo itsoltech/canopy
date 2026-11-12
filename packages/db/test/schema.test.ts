@@ -137,7 +137,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "123_thread_sync_diagnostics",
       "124_thread_range_lock_order",
       "125_inherited_access_mode",
-      "124_thread_sync_time",
+      "126_thread_sync_time",
     ]);
   }, 60_000);
 

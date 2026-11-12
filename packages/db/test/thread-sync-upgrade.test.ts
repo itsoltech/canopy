@@ -106,7 +106,8 @@ test.skipIf(!dockerAvailable)(
             VALUES(${user}::uuid,'upgrade-peer',${thread}::uuid,gen_random_uuid(),gen_random_uuid(),7,10,7,gen_random_uuid())`;
         }),
       );
-      expect(await runtime.runPromise(through(124))).toEqual([[124, "thread_sync_time"]]);
+      await runtime.runPromise(through(125));
+      expect(await runtime.runPromise(through(126))).toEqual([[126, "thread_sync_time"]]);
       await runtime.runPromise(
         Effect.gen(function* () {
           const sql = yield* SqlClient.SqlClient;
