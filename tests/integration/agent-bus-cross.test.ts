@@ -513,7 +513,7 @@ describe.skipIf(!dockerAvailable)("agent bus across providers and trees (gateway
       args: { thread_id: a.id, prompt: "as B", notify: false },
     });
 
-    expect([spoofed.isError, spoofed.content]).toEqual([true, `thread ${b.id} not found`]);
+    expect([spoofed.isError, spoofed.content]).toEqual([true, "Thread not found"]);
 
     expect(
       (await studio.callTool({ threadId: a.id, tool: "interrupt_thread", args: { thread_id: b.id } })).content,

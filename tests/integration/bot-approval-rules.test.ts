@@ -234,35 +234,37 @@ describe.skipIf(!dockerAvailable)("bot-started thread approvals", () => {
       ["full_access", PermissionMode.FULL_AUTO],
     ];
 
-    for (const [threadPermission, expected] of modes) {
-      const bot = await add(`Mode ${threadPermission}`, { approvalPolicy: "full_auto", threadPermission });
-      await send(bot.id, "Start with my setting");
-      await settled(bot.id);
+    try {
+      for (const [threadPermission, expected] of modes) {
+        const bot = await add(`Mode ${threadPermission}`, { approvalPolicy: "full_auto", threadPermission });
+        await send(bot.id, "Start with my setting");
+        await settled(bot.id);
 
-      const threads = await eventually(
-        () => suite.gw.api.listThreads({ projectId: suite.projectId }),
-        (r) => r.threads.some((t) => t.title === `Mode ${threadPermission}`),
-      );
+        const threads = await eventually(
+          () => suite.gw.api.listThreads({ projectId: suite.projectId }),
+          (r) => r.threads.some((t) => t.title === `Mode ${threadPermission}`),
+        );
 
-      const thread = threads.threads.find((t) => t.title === `Mode ${threadPermission}`)!;
-      expect(thread.permissionMode).toBe(expected);
+        const thread = threads.threads.find((t) => t.title === `Mode ${threadPermission}`)!;
+        expect(thread.permissionMode).toBe(expected);
 
-      if (["same_bot", "user_default", "full_access"].includes(threadPermission))
-        expect(thread.permissionModeNote).toContain("limits Full access to Full auto");
+        if (["same_bot", "user_default", "full_access"].includes(threadPermission))
+          expect(thread.permissionModeNote).toContain("limits Full access to Full auto");
 
-      const ready = await eventually(
-        async () => suite.gw.worker.created.find((t) => t.threadId === thread.id),
-        Boolean,
-      );
+        const ready = await eventually(
+          async () => suite.gw.worker.created.find((t) => t.threadId === thread.id),
+          Boolean,
+        );
 
-      expect(ready?.permissionMode).toBe(expected);
+        expect(ready?.permissionMode).toBe(expected);
+      }
+    } finally {
+      const current = (await suite.gw.api.getSettings({})).user!;
+      await suite.gw.api.updateUserSettings({
+        expectedVersion: current.version,
+        threadDefaults: settings.threadDefaults,
+      });
     }
-
-    const current = (await suite.gw.api.getSettings({})).user!;
-    await suite.gw.api.updateUserSettings({
-      expectedVersion: current.version,
-      threadDefaults: settings.threadDefaults,
-    });
   }, 20_000);
 
   test("a bot inherits Full access on a capable worker and a fixed override can narrow it", async () => {
@@ -303,28 +305,30 @@ describe.skipIf(!dockerAvailable)("bot-started thread approvals", () => {
             title: i.configuration.name,
           });
 
-    for (const [threadPermission, expected] of [
-      ["user_default", PermissionMode.FULL_ACCESS],
-      ["read_only", PermissionMode.READ_ONLY],
-    ] as const) {
-      const bot = await add(`Capable ${threadPermission}`, { approvalPolicy: "full_auto", threadPermission });
-      await send(bot.id, "Start");
-      await settled(bot.id);
+    try {
+      for (const [threadPermission, expected] of [
+        ["user_default", PermissionMode.FULL_ACCESS],
+        ["read_only", PermissionMode.READ_ONLY],
+      ] as const) {
+        const bot = await add(`Capable ${threadPermission}`, { approvalPolicy: "full_auto", threadPermission });
+        await send(bot.id, "Start");
+        await settled(bot.id);
 
-      const thread = (await suite.gw.api.listThreads({ projectId: suite.projectId })).threads.find(
-        (t) => t.title === bot.configuration!.name,
-      )!;
+        const thread = (await suite.gw.api.listThreads({ projectId: suite.projectId })).threads.find(
+          (t) => t.title === bot.configuration!.name,
+        )!;
 
-      expect(thread.permissionMode).toBe(expected);
-      expect(thread.permissionModeNote).toBe("");
-      expect((await worker.createdThread(thread.id))?.permissionMode).toBe(expected);
+        expect(thread.permissionMode).toBe(expected);
+        expect(thread.permissionModeNote).toBe("");
+        expect((await worker.createdThread(thread.id))?.permissionMode).toBe(expected);
+      }
+    } finally {
+      const current = (await suite.gw.api.getSettings({})).user!;
+      await suite.gw.api.updateUserSettings({
+        expectedVersion: current.version,
+        threadDefaults: settings.threadDefaults,
+      });
     }
-
-    const current = (await suite.gw.api.getSettings({})).user!;
-    await suite.gw.api.updateUserSettings({
-      expectedVersion: current.version,
-      threadDefaults: settings.threadDefaults,
-    });
   }, 20_000);
 
   test("project rule starts only matching threads; one native request can be answered in either chat", async () => {
