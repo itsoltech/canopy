@@ -41,7 +41,7 @@ export async function runGrokBot(ctx: BotHarnessContext): Promise<void> {
   try {
     signal.throwIfAborted();
     const info = await client.initialize();
-    const hasImages = [...input.attachments, ...input.historyAttachments].some((a) => a.kind === "image");
+    const hasImages = input.attachments.some((a) => a.kind === "image");
 
     if (hasImages && !info.agentCapabilities?.promptCapabilities?.image)
       throw new BotHarnessFailure("IMAGE_UNAVAILABLE", "Update the Grok CLI to receive images.");

@@ -81,6 +81,7 @@ test("bot isolation keeps only the selected login and rebuilds pre-isolation ses
     for (const configuration of [
       { model: input.model, tools: input.tools },
       { isolation: 2, model: input.model, tools: input.tools },
+      { isolation: 2, model: input.model, effort: input.effort, tools: input.tools, configuration: input.instructions },
     ]) {
       const key = createHash("sha256").update(JSON.stringify(configuration)).digest("hex");
       writeFileSync(join(session.home, "..", "session.json"), JSON.stringify({ id: "old-session", key }));

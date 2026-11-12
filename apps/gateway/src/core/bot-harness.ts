@@ -96,6 +96,7 @@ function harnessReply(job: HarnessTurnRow): ModelReply {
 /** A model call attaches to a durable worker command, including after a gateway restart. */
 export async function runBotHarness(core: GatewayCore, input: ModelInput): Promise<ModelReply> {
   const turn = input.turn;
+  const attachments = input.messages.findLast((m) => m.role === "user")?.attachments ?? [];
 
   if (!turn) throw new Error("Bot turn is required");
   const run: GatewayCore["bots"]["run"] = (use) => core[coreState].options.runtime.runPromise(BotStore.use(use));
@@ -191,9 +192,9 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
 
       if (
         connection?.isOpen &&
-        input.messages.some((m) => m.attachments?.length) &&
+        attachments.length > 0 &&
         !connection.hello.capabilities.includes(
-          input.messages.some((m) => m.attachments?.some((a) => a.kind !== "image")) ? "bot_files_v1" : "bot_images_v1",
+          attachments.some((a) => a.kind !== "image") ? "bot_files_v1" : "bot_images_v1",
         )
       )
         throw new ProviderFailure(

@@ -42,10 +42,11 @@ export class BotComposerSync {
     if (this.#loading) return this.#loading;
 
     if (this.#dirty || this.#saving) return;
+    const version = this.#version;
     this.#loading = this.transport
       .load()
       .then((draft) => {
-        if (!this.#dirty) {
+        if (!this.#dirty && this.#version === version) {
           this.value = draft;
           this.loaded = true;
           this.error = "";
@@ -130,9 +131,13 @@ export class BotComposerSync {
 
   async sent(sent: bots.BotComposerDraft): Promise<void> {
     if (sent.clientRequestId !== this.value.clientRequestId) return;
+    clearTimeout(this.#timer);
+    this.#version += 1;
     this.value = create(bots.BotComposerDraftSchema, { botId: this.botId, revision: sent.revision + 1n });
     this.#dirty = false;
     this.#notify();
+    // A read started before acknowledgement can still contain the just-sent files.
+    await this.#loading;
     await this.load();
   }
 

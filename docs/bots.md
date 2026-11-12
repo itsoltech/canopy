@@ -78,6 +78,10 @@ Wysyłanie zachowuje szkic do potwierdzenia gatewaya. Odrzucone żądanie i bł�
 transportu nie kasują treści ani klucza idempotencji. Przyjęta wiadomość czyści
 wyłącznie wysyłaną rewizję; nowszy szkic zapisany na drugim urządzeniu pozostaje.
 Konflikt zapisu jest jawny i nie nadpisuje drugiego urządzenia.
+Wyczyszczenie obejmuje tekst, wzmianki, cytaty i załączniki w tej samej transakcji
+co przyjęcie wiadomości. Wspólny synchronizator web/desktop/mobile odrzuca odczyt
+szkicu rozpoczęty przed potwierdzeniem wysłania, a następnie pobiera aktualny stan.
+Opóźniona odpowiedź nie może przywrócić właśnie wysłanych plików.
 
 Bot przyjmuje wszystkie typy obsługiwane przez wątki: obrazy, tekst, kod, PDF,
 archiwa i inne pliki binarne. Programy wykonywalne są odrzucane. Web/desktop
@@ -97,11 +101,20 @@ Wiadomość może składać się z samych plików. Bot nadal nie ma narzędzi dy
 Tekst pliku jest oznaczony jako niezaufane dane: do 64 000 znaków na plik
 i 128 000 łącznie na wejście. PDF w Codex/Grok: najwyżej 50 pierwszych stron,
 bez OCR; błąd parsowania albo brak tekstu daje jawną notatkę i zachowuje
-oryginał do przekazania. Przycięcie ma osobną notatkę. Odbudowa sesji dodaje
-najnowsze historyczne załączniki do 10 plików / 20 MiB; pominięcie wyjaśnia
-notatka. Wznowiona sesja dostaje tylko nowe bajty. Wymagane capability workera:
+oryginał do przekazania. Przycięcie ma osobną notatkę. Każde wejście harnessu
+dostaje wyłącznie bajty plików wysłanych z bieżącą wiadomością, także po odbudowie
+sesji. Historia zachowuje referencje, nazwy, typy i rozmiary przy wcześniejszej
+wiadomości, oznaczone jej identyfikatorem i czasem UTC; nie są to załączniki
+nowego wejścia. Dawnych plików nie pobieramy ani nie wysyłamy ponownie do modelu.
+Bot może znaleźć referencje przez `list_attachments` i przekazać je do wątku;
+jeśli potrzebuje ponownie odczytać treść, prosi użytkownika o załączenie pliku.
+Wymagane capability workera:
 `bot_images_v1` dla samych obrazów, `bot_files_v1` dla pozostałych plików;
 starszy worker wymaga aktualizacji. `WORKER_LINK_PROTOCOL` pozostaje 1.
+
+Konta connectorów (w tym Slack) udostępniają botowi narzędzia MCP; nie są
+automatycznym kanałem odbioru wiadomości ani ponownego pobierania plików wątku.
+Samo wspomnienie connectora nie dodaje plików do wiadomości.
 
 ### Przekazywanie do wątków
 

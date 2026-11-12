@@ -27,6 +27,8 @@ export interface ModelMessage {
   role: "user" | "assistant" | "tool";
   text: string;
   attachments?: readonly import("../store/attachments.ts").StoredAttachment[];
+  messageId?: string;
+  createdAt?: string;
   calls?: ToolCall[];
   callId?: string;
 }
