@@ -45,6 +45,7 @@
 
   const homeId = $derived(splitId(threadId).node ? `${GITHUB_HOME}~${splitId(threadId).node}` : "");
   const uncertain = $derived(!!receipt && (mutationUnconfirmed(receipt) || receipt.state === "accepted"));
+
   const blocked = $derived(
     busy || !online || uncertain || !context?.published || !context.accountId || !context.headRef || !context.baseRef,
   );

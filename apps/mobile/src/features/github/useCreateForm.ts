@@ -52,6 +52,7 @@ export function useCreateForm(props: CreateProps) {
 
   const homeId = splitId(threadId).node ? `${GITHUB_HOME}~${splitId(threadId).node}` : "";
   const uncertain = !!receipt && (mutationUnconfirmed(receipt) || receipt.state === "accepted");
+
   const blocked =
     busy || !online || uncertain || !context?.published || !context.accountId || !context.headRef || !context.baseRef;
 

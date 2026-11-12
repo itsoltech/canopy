@@ -20,6 +20,7 @@
   let error = $state("");
   const node = $derived(splitId(accountId).node);
   const homeId = $derived(node ? `${GITHUB_HOME}~${node}` : "");
+
   const read = $derived(
     new SharedRead(queries, `GitHubRepositoryAccount:${homeId}:${repositoryName}`, () =>
       api.repositoryAccount(homeId, repositoryName),

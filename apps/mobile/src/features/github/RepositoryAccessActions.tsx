@@ -7,6 +7,7 @@ import { ConnectGitHub } from "./ConnectGitHub";
 
 export function RepositoryAccessActions({ homeId, onconnected }: { homeId: string; onconnected: () => void }) {
   const { client } = useSession();
+
   const read = useSharedQuery(
     `GitHubAccessAccounts:${homeId}`,
     () => client!.api.listGitHubAccounts({ homeId }),

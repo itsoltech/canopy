@@ -16,6 +16,7 @@ describe.skipIf(!dockerAvailable)("automatic repository accounts through owner-s
   let second = "";
   const get = () => gw.api.getGitHubRepositoryAccount({ repositoryName: "itsoltech/canopy" });
   const refresh = (accountId: string) => gw.api.listGitHubInstallations({ accountId, refresh: true });
+
   const choose = async (accountId: string) =>
     gw.api.setGitHubRepositoryAccount({
       repositoryName: "itsoltech/canopy",
@@ -112,6 +113,7 @@ describe.skipIf(!dockerAvailable)("automatic repository accounts through owner-s
     fixture.access(101, ["itsoltech/canopy"]);
     await refresh(first);
     expect((await get()).accountId).toBe(first);
+
     const owner = await gw.runtime.runPromise(
       GatewayStore.use((s) => s.ensureUser("repository-owner@example.test", "Other owner")),
     );

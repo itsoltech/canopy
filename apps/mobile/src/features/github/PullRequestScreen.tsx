@@ -35,6 +35,7 @@ export function PullRequestScreen({ id, threadId }: { id: string; threadId?: str
   const [denied, setDenied] = useState(false);
   const [accessError, setAccessError] = useState("");
   const [tab, setTab] = useState("summary");
+
   const onUpdate = useCallback(
     (update: github.PullRequestUpdate) => {
       if (update.snapshot) queries.set(key, update.snapshot);
