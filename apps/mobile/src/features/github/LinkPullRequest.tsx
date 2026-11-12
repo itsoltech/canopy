@@ -1,13 +1,13 @@
-import { FlatList, Text, View } from "react-native";
+import { FlatList, Pressable, Text, View } from "react-native";
 import type { github } from "@canopy/contracts";
-import { Field } from "../../ui/components";
+import { pullRequestPickerItems } from "@canopy/domain/github-pr-picker";
+import { SearchField } from "../../ui/SearchField";
+import { Icon } from "../../ui/Icon";
 import { Overlay } from "../../ui/Overlay";
-import { SheetDragArea, SheetCloseButton } from "../../ui/SheetDragArea";
-import { Segmented } from "../../ui/Segmented";
 import { ListSkeleton } from "../../ui/Skeleton";
 import { styles, useColors } from "../../ui/theme";
 import { PullRequestPickerFooter } from "./PullRequestPickerFooter";
-import { PullRequestPickerAccount } from "./PullRequestPickerAccount";
+import { PullRequestPickerHeader } from "./PullRequestPickerHeader";
 import { RepositoryPullRequestRow } from "./RepositoryPullRequestRow";
 import { usePullRequestPicker } from "./usePullRequestPicker";
 
@@ -27,68 +27,51 @@ export function LinkPullRequest({
   const c = useColors();
   const p = usePullRequestPicker(threadId, visible, revision, onlinked);
 
-  const directUrl = /^https:\/\/github\.com\/[^/]+\/[^/]+\/pull\/[1-9][0-9]*$/.test(p.query.trim())
-    ? p.query.trim()
-    : /^#?[1-9][0-9]*$/.test(p.query.trim()) && p.data?.repositoryName
-      ? `https://github.com/${p.data.repositoryName}/pull/${p.query.trim().replace(/^#/, "")}`
-      : "";
-
   return (
     <Overlay visible={visible} onClose={onClose} label="Link pull request">
-      <SheetDragArea
-        style={{
-          paddingHorizontal: 16,
-          paddingTop: 12,
-          paddingBottom: 4,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 8,
-        }}
-      >
-        <Text accessibilityRole="header" numberOfLines={1} style={[styles.overlayHeading, { color: c.muted, flex: 1 }]}>
-          Link pull request
-        </Text>
-        <SheetCloseButton label="Close picker" />
-      </SheetDragArea>
-      <View style={{ paddingHorizontal: 12, gap: 8 }}>
-        {!!p.data?.repositoryName && (
-          <Text numberOfLines={1} style={[styles.overlayMeta, { color: c.muted }]}>
-            {p.data.repositoryName}
-          </Text>
-        )}
-        {p.data?.selection && p.data.selection.candidates.length > 1 && (
-          <PullRequestPickerAccount
-            selection={p.data.selection}
-            disabled={p.busy || p.loading}
-            onchoose={(id) => void p.choose(id)}
-          />
-        )}
-        <Segmented
-          value={p.filter}
-          onChange={p.setFilter}
-          options={[
-            { value: "open", label: "Open" },
-            { value: "all", label: "All" },
-          ]}
-        />
-        <Field
+      <PullRequestPickerHeader picker={p} />
+      <View style={{ paddingHorizontal: 12 }}>
+        <SearchField
           label="Find a pull request"
           value={p.query}
-          onChangeText={p.setQuery}
-          placeholder="#123, title, branch, author or URL"
-          autoCorrect={false}
-          autoCapitalize="none"
+          onChange={p.setQuery}
+          placeholder="Search or paste a link"
         />
       </View>
       <FlatList
-        data={p.data?.items ?? []}
-        keyExtractor={(pr) => String(pr.number)}
+        data={pullRequestPickerItems(p.query, p.data)}
+        keyExtractor={(item) => item.key}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ paddingHorizontal: 8, paddingVertical: 4 }}
         style={{ flexGrow: 0 }}
-        renderItem={({ item }) => (
-          <RepositoryPullRequestRow pr={item} disabled={p.busy} onSelect={(pr) => void p.link(pr)} />
-        )}
+        renderItem={({ item }) =>
+          item.pr ? (
+            <RepositoryPullRequestRow pr={item.pr} disabled={p.busy} onSelect={() => void p.link(item)} />
+          ) : (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={item.label}
+              accessibilityState={{ disabled: p.busy || item.linked }}
+              disabled={p.busy || item.linked}
+              onPress={() => void p.link(item)}
+              style={({ pressed }) => ({
+                minHeight: 44,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+                paddingHorizontal: 8,
+                borderRadius: 8,
+                backgroundColor: pressed ? c.pressed : "transparent",
+                opacity: item.linked ? 0.5 : 1,
+              })}
+            >
+              <Icon name="link" />
+              <Text numberOfLines={1} style={[styles.overlay, { color: c.text, flex: 1 }]}>
+                {item.label}
+              </Text>
+            </Pressable>
+          )
+        }
         onEndReached={() => void p.more()}
         onEndReachedThreshold={0.5}
         ListEmptyComponent={
@@ -106,7 +89,7 @@ export function LinkPullRequest({
             </Text>
           ) : undefined
         }
-        ListFooterComponent={<PullRequestPickerFooter picker={p} {...{ threadId, revision, onlinked, directUrl }} />}
+        ListFooterComponent={<PullRequestPickerFooter picker={p} {...{ threadId, revision, onlinked }} />}
       />
     </Overlay>
   );

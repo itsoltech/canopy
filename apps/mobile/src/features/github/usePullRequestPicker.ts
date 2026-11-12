@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { github } from "@canopy/contracts";
 import { GITHUB_HOME, splitId } from "@canopy/domain/computers";
+import type { PullRequestPickerItem } from "@canopy/domain/github-pr-picker";
 import { useSession } from "../../state/session";
 
 export function usePullRequestPicker(
@@ -16,6 +17,8 @@ export function usePullRequestPicker(
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // A failed direct link can continue through the repository access form.
+  const [url, setUrl] = useState("");
   const [retry, setRetry] = useState(0);
   const epoch = useRef(0);
   const linking = useRef(false);
@@ -30,6 +33,7 @@ export function usePullRequestPicker(
     if (!client || !visible) return;
     setLoading(true);
     setError("");
+    setUrl("");
     setData((previous) => previous && { ...previous, items: [], nextCursor: "" });
 
     const timer = setTimeout(
@@ -81,31 +85,34 @@ export function usePullRequestPicker(
     }
   }
 
-  async function link(pr: github.RepositoryPullRequest) {
-    if (!client || !data || linking.current || pr.linked) return;
+  async function link(item: PullRequestPickerItem) {
+    if (!client || linking.current || item.linked) return;
     linking.current = true;
     const current = epoch.current;
     setBusy(true);
     setError("");
+    setUrl("");
 
     try {
-      onlinked(
-        await client.api.linkThreadPullRequest({
-          threadId,
-          url: `https://github.com/${data.repositoryName}/pull/${pr.number}`,
-          expectedRevision: revision,
-        }),
-      );
-      setData((previous) =>
-        previous && epoch.current === current
-          ? {
-              ...previous,
-              items: previous.items.map((p) => (p.number === pr.number ? { ...p, linked: true } : p)),
-            }
-          : previous,
-      );
+      const request = { threadId, url: item.url, expectedRevision: revision };
+      onlinked(await client.api.linkThreadPullRequest(request));
+
+      if (!item.pr && current === epoch.current) {
+        setQuery("");
+        reload();
+      } else
+        setData((previous) =>
+          previous && epoch.current === current
+            ? {
+                ...previous,
+                items: previous.items.map((p) => (p.number === item.pr?.number ? { ...p, linked: true } : p)),
+              }
+            : previous,
+        );
     } catch {
       setError("Could not link this pull request. Refresh the list, then retry.");
+
+      if (!item.pr && current === epoch.current) setUrl(item.url);
     } finally {
       linking.current = false;
       setBusy(false);
@@ -131,7 +138,7 @@ export function usePullRequestPicker(
     }
   }
 
-  return { data, query, setQuery, filter, setFilter, loading, busy, error, reload, more, link, choose, homeId };
+  return { data, query, setQuery, filter, setFilter, loading, busy, error, url, reload, more, link, choose, homeId };
 }
 
 function pickerRead(

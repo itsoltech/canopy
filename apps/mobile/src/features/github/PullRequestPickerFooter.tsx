@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Linking, Text, View } from "react-native";
 import type { github } from "@canopy/contracts";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
@@ -13,16 +12,13 @@ export function PullRequestPickerFooter({
   threadId,
   revision,
   onlinked,
-  directUrl,
 }: {
   picker: ReturnType<typeof usePullRequestPicker>;
   threadId: string;
   revision: bigint;
   onlinked: (value: github.ThreadPullRequestsResponse) => void;
-  directUrl: string;
 }) {
   const c = useColors();
-  const [manual, setManual] = useState(false);
 
   return (
     <View style={{ gap: 8, padding: 8 }}>
@@ -70,10 +66,10 @@ export function PullRequestPickerFooter({
           onPress={() => void p.more()}
         />
       )}
-      {manual || directUrl || p.data?.state === "not_github" ? (
+      {!!p.url && (
         <LinkPullRequestUrl
-          key={directUrl}
-          initialUrl={directUrl}
+          key={p.url}
+          initialUrl={p.url}
           threadId={threadId}
           revision={revision}
           onlinked={(value) => {
@@ -81,8 +77,6 @@ export function PullRequestPickerFooter({
             p.reload();
           }}
         />
-      ) : (
-        <Button variant="ghost" size="sm" title="Link by URL" onPress={() => setManual(true)} />
       )}
     </View>
   );

@@ -16,12 +16,14 @@ export function Segmented<T extends string>({
   value,
   onChange,
   style,
+  compact = false,
 }: {
   /** `badge`: a count beside the label of a segment that is not selected (unread items there). */
   options: readonly { value: T; label: string; badge?: number; disabled?: boolean }[];
   value: T;
   onChange: (value: T) => void;
   style?: StyleProp<ViewStyle>;
+  compact?: boolean;
 }) {
   const c = useColors();
   const type = useTypography();
@@ -83,9 +85,9 @@ export function Segmented<T extends string>({
             style={[
               {
                 flex: 1,
-                minHeight: 32,
-                paddingHorizontal: 12,
-                paddingVertical: 6,
+                minHeight: compact ? 28 : 32,
+                paddingHorizontal: compact ? 8 : 12,
+                paddingVertical: compact ? 4 : 6,
                 alignItems: "center",
                 justifyContent: "center",
                 opacity: option.disabled ? 0.4 : 1,
@@ -95,7 +97,12 @@ export function Segmented<T extends string>({
           >
             {/* The badge sits beside the label, outside its flow: the label stays put when it appears. */}
             <View>
-              <Text style={[type.small, { fontFamily: font.medium, color: value === option.value ? c.text : c.muted }]}>
+              <Text
+                style={[
+                  compact ? type.meta : type.small,
+                  { fontFamily: font.medium, color: value === option.value ? c.text : c.muted },
+                ]}
+              >
                 {option.label}
               </Text>
               {value !== option.value && !!option.badge && <SegmentBadge count={option.badge} />}
