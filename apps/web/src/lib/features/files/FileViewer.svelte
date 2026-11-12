@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import { formatSize } from "@canopy/domain";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Badge from "#lib/shared/ui/Badge.svelte";
@@ -42,7 +43,8 @@
   );
 
   $effect(() => {
-    void viewer.load();
+    const currentViewer = viewer;
+    void untrack(() => currentViewer.load());
   });
 
   // Closing with unsaved changes asks first; the dialog itself stays open until the user decides.
