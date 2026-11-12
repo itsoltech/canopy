@@ -1,6 +1,7 @@
 import type { Client } from "@connectrpc/connect";
 import { ui } from "@canopy/contracts";
 import type { BenchPostgres } from "./diagnostics-postgres.ts";
+import { tracePool } from "./diagnostics-pool-trace.ts";
 
 /** Locks only the disposable benchmark DB. Application reads continue during a failed minute write. */
 export async function diagnosticsContention(
@@ -39,11 +40,15 @@ export async function diagnosticsContention(
     await Bun.sleep(50);
   }
 
-  // The default pool has ten slots: nine blocked updates leave one for reads and diagnostics.
+  // Worker ingest can hold one additional row-locked lease. Leave one slot for reads.
+  const blocked = Number(process.env["CANOPY_BENCH_BLOCKED_UPDATES"] ?? 8);
+
+  if (!Number.isInteger(blocked) || blocked < 1 || blocked > 9) throw new Error("Choose 1–9 blocked writes");
+
   const updates =
     phase === "pool_contention"
       ? Promise.all(
-          Array.from({ length: 9 }, (_, index) =>
+          Array.from({ length: blocked }, (_, index) =>
             api.updateThread({ threadId: thread, title: `Pool contender ${index}` }),
           ),
         )
@@ -55,13 +60,19 @@ export async function diagnosticsContention(
         await query(
           "SELECT count(*) FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND application_name='canopy-gateway'",
         ),
-      ) < 9
+      ) < blocked
     ) {
-      if (Date.now() > deadline) throw new Error("Nine blocked gateway connections were not observed");
+      if (Date.now() > deadline) throw new Error("Blocked gateway connections were not observed");
       await Bun.sleep(50);
     }
 
-  const during = Bun.sleep(65_000).then(() => api.getComputerDiagnostics({ limit: 1 }));
+  const status = () =>
+    process.env["CANOPY_BENCH_SOURCE_ROOT"]
+      ? Promise.resolve({ persistenceStatus: "not_available_on_dev", pendingMinutes: 0 })
+      : api.getComputerDiagnostics({ limit: 1 });
+
+  const during = Bun.sleep(65_000).then(status);
+  const stopTrace = await tracePool(postgres, database, phase);
   const lockAcquiredAtMs = Date.now();
   let lockReleasedAtMs = 0;
 
@@ -85,12 +96,13 @@ export async function diagnosticsContention(
     await lockedHeap;
     await releasedHeap;
     const interrupted = await during;
-    const recovered = await api.getComputerDiagnostics({ limit: 1 });
+    const recovered = await status();
+    await stopTrace();
 
     return {
       lockSeconds: 70,
       forensic: evidence ? { lockAcquiredAtMs, lockReleasedAtMs } : undefined,
-      blockedGatewayConnections: phase === "pool_contention" ? 9 : 0,
+      blockedGatewayConnections: phase === "pool_contention" ? blocked : 0,
       duringPersistenceStatus: interrupted.persistenceStatus,
       recoveredPersistenceStatus: recovered.persistenceStatus,
       pendingMinutes: recovered.pendingMinutes,

@@ -3,7 +3,7 @@ import { createClient } from "@connectrpc/connect";
 import { createGrpcTransport } from "@connectrpc/connect-node";
 import { ui } from "@canopy/contracts";
 import { diagnosticsProcess } from "./diagnostics-process.ts";
-import { seedClient } from "./seed-client.ts";
+import { seedBenchmark } from "./diagnostics-seed.ts";
 import { diagnosticsWorker } from "./diagnostics-worker-process.ts";
 import { seedDiagnosticsHistory } from "./seed-diagnostics-history.ts";
 import { diagnosticsLoad, type DiagnosticsPhase } from "./diagnostics-load.ts";
@@ -12,6 +12,7 @@ import { monitorHost, waitForSystemJobs } from "./diagnostics-host.ts";
 import { diagnosticsStorage, diagnosticsWrites } from "./diagnostics-storage.ts";
 import { startBenchPostgres, postgresIoDelta } from "./diagnostics-postgres.ts";
 import { assertSameScope, swapDisabledStage } from "./diagnostics-scope.ts";
+import { fixtureIdentity } from "./diagnostics-fixture.ts";
 
 /** Isolated PostgreSQL and alternating AB/BA pairs; host noise invalidates the entire pair. */
 const forbidden = new Set([17443, 5180, 8444, 17444, 17445, 3000, 7443, 7432, 4443, 7444, 5291, 8081]);
@@ -67,6 +68,9 @@ async function closeProcesses() {
 }
 
 function selectedPhases(): DiagnosticsPhase[] {
+  const only = process.env["CANOPY_BENCH_ONLY_PHASE"];
+
+  if (only === "steady" || only === "write_failure" || only === "pool_contention") return [only];
   const forensicPhase = process.env["CANOPY_BENCH_FORENSIC_PHASE"];
 
   if (process.env["CANOPY_BENCH_FORENSICS_DIR"] && forensicPhase) {
@@ -160,6 +164,7 @@ function benchmarkApi() {
 }
 
 async function waitForRestore(api: ReturnType<typeof benchmarkApi>) {
+  if (process.env["CANOPY_BENCH_SOURCE_ROOT"]) return;
   const deadline = Date.now() + 30_000;
 
   while ((await api.getComputerDiagnostics({ limit: 1 })).restoring) {
@@ -205,13 +210,19 @@ async function run(on: boolean, index: number) {
     CANOPY_SECRETS_KEY: key,
     CANOPY_UI_SERVICE_TOKEN: token,
     CANOPY_PORT: String(gatewayPort),
-    CANOPY_BENCH_DIAGNOSTICS: String(Number(on)),
+    CANOPY_BENCH_DIAGNOSTICS: String(Number(on && process.env["CANOPY_BENCH_CONTROL"] !== "1")),
   };
 
-  const seed = await seedClient(env);
+  const seed = await seedBenchmark(env);
 
-  if (process.env["CANOPY_BENCH_HISTORY"] === "1")
+  // Dev has no diagnostic persistence table. This lock is inert on dev and only
+  // preserves the timeline of the compatibility-watch allocation control.
+  if (process.env["CANOPY_BENCH_SOURCE_ROOT"])
+    await postgres.query(database, "CREATE TABLE diagnostics_state (id integer)");
+
+  if (process.env["CANOPY_BENCH_HISTORY"] === "1" && !process.env["CANOPY_BENCH_SOURCE_ROOT"])
     console.info(JSON.stringify({ history: await seedDiagnosticsHistory(env) }));
+  await fixtureIdentity(postgres, database, index + 1, attempt, on, env.CANOPY_BENCH_DIAGNOSTICS === "1");
   await checkpoint(database);
   active = await measuredGateway(env, index + 1, on);
   worker = await diagnosticsWorker({
@@ -277,7 +288,8 @@ async function run(on: boolean, index: number) {
       JSON.stringify({
         series: index + 1,
         attempt,
-        on,
+        on: env.CANOPY_BENCH_DIAGNOSTICS === "1",
+        slotOn: on,
         phase,
         contention,
         ...after,
@@ -309,7 +321,7 @@ async function run(on: boolean, index: number) {
   if (process.env["CANOPY_BENCH_RESOURCES"] === "1")
     console.info(JSON.stringify({ phase: "storage", on, resolutions: await diagnosticsStorage(env) }));
 
-  if (on && process.env["CANOPY_BENCH_HISTORY"] === "1") {
+  if (process.env["CANOPY_BENCH_HISTORY"] === "1") {
     for (let restart = 0; restart < 3; restart++) {
       active = await diagnosticsProcess(env);
       await waitForRestore(benchmarkApi());
@@ -383,7 +395,24 @@ try {
     JSON.stringify({ revision: (await command(["git", "rev-parse", "HEAD"])).trim(), idleMs, loadMs, series }),
   );
 
-  if (process.env["CANOPY_BENCH_SMOKE"] === "1" || process.env["CANOPY_BENCH_RESOURCES"] === "1") {
+  if (process.env["CANOPY_BENCH_MEMBER"]) {
+    const index = Number(process.env["CANOPY_BENCH_PAIR"]) - 1;
+    attempt = Number(process.env["CANOPY_BENCH_ATTEMPT"]);
+    host = await monitorHost(index + 1, attempt, postgres.scope);
+    let completed = false;
+
+    try {
+      await Bun.sleep(30_000);
+      await run(process.env["CANOPY_BENCH_MEMBER"] === "B", index);
+      completed = true;
+    } catch (error) {
+      if (!host.signal.aborted) throw error;
+    } finally {
+      await closeProcesses();
+      await host.stop(completed);
+      host = undefined;
+    }
+  } else if (process.env["CANOPY_BENCH_SMOKE"] === "1" || process.env["CANOPY_BENCH_RESOURCES"] === "1") {
     console.info(
       JSON.stringify({
         phase: process.env["CANOPY_BENCH_RESOURCES"] === "1" ? "resources_only" : "smoke_only",

@@ -15,5 +15,5 @@ diagnostics_recording() {
   trap 'kill -TERM "$task_scope_pid" 2>/dev/null || true; wait "$task_scope_pid" || true; exit 143' INT TERM
   wait "$task_scope_pid"
   trap - INT TERM
-  bun scripts/bench/diagnostics-paired-report.ts "$task_recording_output/results.jsonl" >"$task_recording_output/paired-report.json"
+  bun scripts/bench/diagnostics-paired-report.ts "$task_recording_output/results.jsonl" "${CANOPY_DIAGNOSTICS_AA_REPORT:-}" >"$task_recording_output/paired-report.json"
 }

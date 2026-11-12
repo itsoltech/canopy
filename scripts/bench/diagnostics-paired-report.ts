@@ -1,5 +1,6 @@
 import { Schema } from "effect";
 import { pairedSummary, type PairedDelta } from "./diagnostics-paired.ts";
+import { latencyNoise } from "./diagnostics-noise.ts";
 
 const Phase = Schema.Literals([
   "idle",
@@ -19,9 +20,11 @@ const Measurement = Schema.Struct({
   series: Schema.Number,
   attempt: Schema.Number,
   on: Schema.Boolean,
+  slotOn: Schema.optional(Schema.Boolean),
   rpcP95Ms: Schema.NullOr(Schema.Number),
   pgCpuPercent: Schema.Number,
   worker: Resource,
+  historyReadP95Ms: Schema.optional(Schema.NullOr(Schema.Number)),
 });
 
 const PairEnd = Schema.Struct({
@@ -60,12 +63,13 @@ for (const end of accepted) {
 
   for (const phase of Phase.literals) {
     const sides = measurements.filter((row) => row.phase === phase);
-    const a = sides.find((row) => !row.on);
-    const b = sides.find((row) => row.on);
+    const a = sides.find((row) => !(row.slotOn ?? row.on));
+    const b = sides.find((row) => row.slotOn ?? row.on);
 
     if (sides.length !== 2 || !a || !b) throw new Error("Accepted pair lacks exactly one A and B per phase");
 
-    if (sides[0]!.on !== (end.pair % 2 === 0)) throw new Error("Accepted pair violates strict AB/BA order");
+    if ((sides[0]!.slotOn ?? sides[0]!.on) !== (end.pair % 2 === 0))
+      throw new Error("Accepted pair violates strict AB/BA order");
     const add = (metric: string, delta: number) => deltas.push({ pair: end.pair, phase, metric, delta });
     add("gateway.cpuPp", b.cpuPercent - a.cpuPercent);
     add("worker.cpuPp", b.worker.cpuPercent - a.worker.cpuPercent);
@@ -80,9 +84,32 @@ for (const end of accepted) {
       add(`worker.${key}MiB`, (b.worker[key] - a.worker[key]) / 1048576);
     }
 
-    if (a.rpcP95Ms !== null && b.rpcP95Ms !== null) add("rpc.p95Ms", b.rpcP95Ms - a.rpcP95Ms);
+    if (a.rpcP95Ms !== null && b.rpcP95Ms !== null) {
+      add("rpc.p95Ms", b.rpcP95Ms - a.rpcP95Ms);
+
+      if (a.rpcP95Ms > 0) add("rpc.p95Percent", ((b.rpcP95Ms - a.rpcP95Ms) / a.rpcP95Ms) * 100);
+    }
+
+    if (a.historyReadP95Ms != null && b.historyReadP95Ms != null)
+      add("history.p95Ms", b.historyReadP95Ms - a.historyReadP95Ms);
   }
 }
+
+const controlPath = Bun.argv[3];
+
+const control = controlPath
+  ? Schema.decodeUnknownSync(
+      Schema.fromJsonString(
+        Schema.Struct({
+          deltas: Schema.Array(
+            Schema.Struct({ pair: Schema.Number, phase: Schema.String, metric: Schema.String, delta: Schema.Number }),
+          ),
+        }),
+      ),
+    )(await Bun.file(controlPath).text())
+  : undefined;
+
+const summary = pairedSummary(deltas, accepted);
 
 console.info(
   JSON.stringify(
@@ -90,7 +117,8 @@ console.info(
       accepted,
       rejected: ends.filter((row) => !row.accepted),
       deltas,
-      ...pairedSummary(deltas, accepted),
+      ...summary,
+      latencyNoise: control ? latencyNoise(deltas, control.deltas) : [],
     },
     null,
     2,

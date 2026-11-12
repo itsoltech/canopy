@@ -209,7 +209,29 @@ Skrócony protokół etapu 2 uruchamia jedna komenda:
 `bash scripts/bench/diagnostics-stage2.sh`. Cztery przyjęte pary mają kolejność
 AB / BA / AB / BA (dwa pełne bloki ABBA), gdzie A wyłącza wyłącznie etap 2, a B go włącza.
 Idle trwa 3 min, każda z sześciu pozostałych faz 90 s, łącznie 96 min obciążenia;
-z preflightem, rozgrzewką i uruchomieniem około 100 min, dłużej po odrzuceniu pary.
+z preflightem, rozgrzewką i uruchomieniem około 110 min, dłużej po odrzuceniu pary.
+`diagnostics-series.ts` uruchamia każdy człon w osobnym procesie Bun, z nowym
+klastrem PostgreSQL, bazą i prywatnym katalogiem stanu gatewaya/workera. Czeka
+na zakończenie procesu i usunięcie klastra przed kolejnym członem. Log zawiera
+PID, identyfikator bazy, katalog i początkowe liczby wątków/tur/itemów/rollupów.
+Fixture pool contention zajmuje osiem z dziesięciu slotów; ingest może zająć
+dziewiąty, a jeden pozostaje dla odczytów. Dziewięć zablokowanych aktualizacji
+mogło razem z ingestem wyczerpać pulę aż do zwolnienia 70-sekundowej blokady.
+Osobny `diagnostics-focus.sh <2|3> pool <8|9>` zapisuje stany, czasy oczekiwań
+i PID-y blokujących sesji bez treści SQL ani parametrów; nie jest pomiarem narzutu.
+
+Przed bramką każdego etapu `CANOPY_DIAGNOSTICS_CONTROL=1` z tym samym launcherem
+uruchamia dwie pary A/A (około 55 min): wszystkie cztery świeże człony mają
+wyłączony bieżący etap, niższe etapy pozostają włączone. Kontrola etapu 3 musi
+więc zachować etap 2. Zapisane sloty A/B określają kolejność, a osobne `on`
+rzeczywisty stan instrumentacji. `CANOPY_DIAGNOSTICS_AA_REPORT` wskazuje raport
+kontroli podczas bramki A/B. Raport podaje bezwzględną i względną zmianę p95.
+Opisowa granica szumu fazy to największa bezwzględna delta jej dwóch par A/A;
+nie jest przedziałem ufności. Cel RPC to brak regresji powyżej większej z wartości
+0,25 ms i tej granicy. Nie odejmujemy szumu od wyników ani nie odrzucamy na jego
+podstawie par. Mikrobenchmark `diagnostics-rpc-path.ts` obejmuje interceptor,
+kontekst, zegary i zapis rodziny DB; profil rzeczywistej fazy steady przygotowuje
+`diagnostics-focus.sh <2|3> profile`, oddzielnie od nagrań bramki.
 Blokady w fazach write/pool pozostają 70 s; okno obserwacji powrotu do normy
 jest krótsze (20 s), więc retry po następnym rolloverze może wypaść poza fazą.
 Pełny test durability/restart sprawdza odtworzenie niezależnie od tego pomiaru.
@@ -218,7 +240,8 @@ procesów pomiaru. Launcher obejmuje sterownik, gatewaye, workery i ich dzieci;
 PostgreSQL działa bezpośrednio z przypiętego pakietu `@embedded-postgres`,
 w oddzielnym user scope, także z `MemorySwapMax=0`. Proces tworzony przez
 daemon Dockera nie dziedziczy scope'u klienta, więc nie uczestniczy w tym protokole.
-Wersja PostgreSQL trafia do metadanych; A i B używają tego samego serwera.
+Wersja PostgreSQL trafia do metadanych; A i B używają tej samej wersji binarki,
+ale osobnych klastrów.
 Wyniki z nowym PostgreSQL nie są bezpośrednim porównaniem do historycznych
 nagrań z kontenerem PostgreSQL 17. CPU/I/O PostgreSQL pochodzą z jego scope'u.
 Jeśli user manager nie ma delegowanego kontrolera I/O, fizyczne zapisy i podział

@@ -62,6 +62,7 @@ export async function monitorHost(pair: number, attempt: number, postgresScope?:
   console.info(
     JSON.stringify({
       phase: "host_begin",
+      member: process.env["CANOPY_BENCH_MEMBER"],
       pair,
       attempt,
       loadavg,
@@ -104,6 +105,7 @@ export async function monitorHost(pair: number, attempt: number, postgresScope?:
         console.info(
           JSON.stringify({
             phase: "host_sample",
+            member: process.env["CANOPY_BENCH_MEMBER"],
             pair,
             attempt,
             loadavg: load,
@@ -139,28 +141,32 @@ export async function monitorHost(pair: number, attempt: number, postgresScope?:
       swap.cumulative((after.output - before.output) * bytesPerPage);
       await activity;
       const accepted = completed && !abort.signal.aborted;
-      console.info(
-        JSON.stringify({
-          phase: "pair_end",
-          pair,
-          attempt,
-          accepted,
-          maxLoad,
-          samples: samples - 1,
-          swapInPages: after.input - before.input,
-          swapOutPages: after.output - before.output,
-          swapInBytes: (after.input - before.input) * bytesPerPage,
-          swapOutBytes: (after.output - before.output) * bytesPerPage,
-          peakSwapInKiBPerSec: swap.peakInputKiB,
-          peakSwapOutKiBPerSec: swap.peakOutputKiB,
-          swapInSustainedThresholdKiBPerSec: swap.sustainedInputKiB,
-          longestSwapInThresholdRun: swap.longestInput,
-          swapOutThresholdKiBPerSec: swapDisabled ? null : 128,
-          hostSwapOutLogOnly: swapDisabled,
-          scopes: scopeAfter,
-          violations,
-        }),
-      );
+
+      const result = {
+        phase: process.env["CANOPY_BENCH_MEMBER"] ? "member_end" : "pair_end",
+        member: process.env["CANOPY_BENCH_MEMBER"],
+        pair,
+        attempt,
+        accepted,
+        maxLoad,
+        samples: samples - 1,
+        swapInPages: after.input - before.input,
+        swapOutPages: after.output - before.output,
+        swapInBytes: (after.input - before.input) * bytesPerPage,
+        swapOutBytes: (after.output - before.output) * bytesPerPage,
+        peakSwapInKiBPerSec: swap.peakInputKiB,
+        peakSwapOutKiBPerSec: swap.peakOutputKiB,
+        swapInSustainedThresholdKiBPerSec: swap.sustainedInputKiB,
+        longestSwapInThresholdRun: swap.longestInput,
+        swapOutThresholdKiBPerSec: swapDisabled ? null : 128,
+        hostSwapOutLogOnly: swapDisabled,
+        scopes: scopeAfter,
+        violations,
+      };
+
+      console.info(JSON.stringify(result));
+
+      if (process.env["CANOPY_BENCH_MEMBER"]) process.send?.(result);
 
       return accepted;
     },
