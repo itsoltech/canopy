@@ -81,6 +81,7 @@ export function TimelineList<Item>({
     <ImageViewportContext.Provider value={viewport}>
       <Animated.FlatList
         {...props}
+        nestedScrollEnabled
         maintainVisibleContentPosition={manualAnchor ? undefined : props.maintainVisibleContentPosition}
         onScroll={composedScroll}
         onLayout={(event) => {

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { useDevicePreferences } from "../../features/settings/device-preferences";
 import { useColors, useTypography } from "../theme";
 import { INLINE_PREVIEW } from "../../features/viewers/TextViewer";
@@ -8,6 +8,7 @@ import { CopyAction } from "../../features/viewers/copy-action";
 import { QuoteAction } from "../../features/quotes/QuoteAction";
 import { DiffContent } from "../DiffContent";
 import { useMarkdownScope } from "./scope";
+import { HorizontalScroll } from "../HorizontalScroll";
 
 /**
  * A wide block in a message (code, display math): long lines scroll sideways inside it, never widening the
@@ -17,11 +18,7 @@ import { useMarkdownScope } from "./scope";
 export function SidewaysScroll({ children, wrap = false }: { children: ReactNode; wrap?: boolean }) {
   if (wrap) return <View style={{ padding: 12 }}>{children}</View>;
 
-  return (
-    <ScrollView horizontal style={{ flexGrow: 0 }} contentContainerStyle={{ padding: 12 }}>
-      {children}
-    </ScrollView>
-  );
+  return <HorizontalScroll contentContainerStyle={{ padding: 12 }}>{children}</HorizontalScroll>;
 }
 
 /**
