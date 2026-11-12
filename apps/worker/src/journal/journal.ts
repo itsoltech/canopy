@@ -14,6 +14,7 @@ import { Context, Effect, Layer, Schema } from "effect";
 import { turnTracking } from "./turn-tracking.ts";
 import { shellTracking } from "./shell-inputs.ts";
 import { retryContext } from "./retry-context.ts";
+import { commandTracking } from "./commands.ts";
 import { secretEventRedactor } from "../runtime/thread-secrets.ts";
 import { journalStatistics, type JournalStatistics } from "./statistics.ts";
 import { workerDiagnostics } from "../diagnostics/worker.ts";
@@ -316,19 +317,10 @@ function makeJournal(db: Database, diagnostics: boolean): Journal["Service"] {
     return out;
   });
 
-  const upsertCommand = db.query(
-    `INSERT INTO processed_commands (command_id, result, processed_at) VALUES ($id, $result, $at)
-     ON CONFLICT (command_id) DO UPDATE SET result = excluded.result, processed_at = excluded.processed_at`,
-  );
-
-  const selectCommand = db.query<{ result: Uint8Array }, { id: string }>(
-    "SELECT result FROM processed_commands WHERE command_id = $id",
-  );
-
-  const purge = db.query("DELETE FROM processed_commands WHERE processed_at < $before");
   const admit = botAdmission(db, appendTx);
 
   return Journal.of({
+    ...commandTracking(db, attempt),
     ...retryContext(db, attempt),
     ...(diagnostics && { statistics: journalStatistics(db) }),
     ...shellTracking(db, attempt, (threadId, event) => appendTx(threadId, redact(threadId, event))),
@@ -345,22 +337,6 @@ function makeJournal(db: Database, diagnostics: boolean): Journal["Service"] {
     ),
     pending: Effect.fn("Journal.pending")((persisted: ReadonlyMap<string, bigint>) =>
       attempt("pending", () => pendingTx(persisted)),
-    ),
-    rememberCommand: Effect.fn("Journal.rememberCommand")((result: MessageInitShape<typeof CommandResultSchema>) =>
-      attempt("rememberCommand", () => {
-        const message = create(CommandResultSchema, result);
-        upsertCommand.run({ id: message.commandId, result: toBinary(CommandResultSchema, message), at: Date.now() });
-      }),
-    ),
-    commandResult: Effect.fn("Journal.commandResult")((commandId: string) =>
-      attempt("commandResult", () => {
-        const row = selectCommand.get({ id: commandId });
-
-        return row ? fromBinary(CommandResultSchema, row.result) : undefined;
-      }),
-    ),
-    purgeCommands: Effect.fn("Journal.purgeCommands")((maxAgeMs: number) =>
-      attempt("purgeCommands", () => purge.run({ before: Date.now() - maxAgeMs }).changes),
     ),
     openBackgroundTasks: Effect.fn("Journal.openBackgroundTasks")(() =>
       attempt("openBackgroundTasks", () =>
