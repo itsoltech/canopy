@@ -1011,17 +1011,6 @@ ani checkpointu.
 
 ### Synchronizacja zakresami sekwencji — kontrakt migracji
 
-Kolejność blokad publikacji: wiersz źródłowego `threads` przez `FOR UPDATE`,
-następnie bariera `canopy.thread_ranges:<id>`, a na końcu wiersz
-`thread_replication_clock`. Dotyczy to bootstrapu, publikacji zakresu i okna
-klienta. Samo `KEY SHARE` nie wystarcza: dopuszcza równoległy `UPDATE`, którego
-odroczony trigger dziennika czeka na barierę publikacji; oczekujący `SendMessage`
-z `FOR UPDATE` może wtedy zablokować późniejszą kontrolę klucza obcego publikacji.
-Przenoszenie, przyjmowanie wiadomości i zdarzeń workera blokują wiersz wątku
-przed odroczonym zapisem dziennika. Odroczone triggery biorą blokadę globalnego
-dziennika przed barierami wątków; publikacja nie bierze blokady globalnej.
-Nie wolno dokładać blokady wiersza `threads` dopiero pod barierą publikacji.
-
 Ta sekcja opisuje docelowy protokół kolejnego stosu zmian. Opisane wyżej
 `MirrorRequest`/`MirrorUpdate` pozostają ścieżką zgodności. Nowa ścieżka wymaga
 capability obu komputerów i nigdy nie wysyła ani nie składa pełnego snapshotu wątku.

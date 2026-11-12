@@ -262,171 +262,168 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
     await Promise.allSettled([a?.close(), b?.close(), c?.close()]);
   }, 30000);
 
+  async function moveThreadWithHistory() {
+    const t = await thread(a, aProject, aWorkspace, "Feature work", "remember the cat called Mruczek");
+    const upload = await a.api.uploadAttachment({ name: "notes.txt", data: new TextEncoder().encode("moved bytes") });
+    await a.api.sendMessage({
+      threadId: t,
+      text: "see the notes",
+      attachmentIds: [upload.attachment!.id],
+      clientRequestId: id(),
+    });
+    await eventually(
+      async () => a.worker.inputs.get(t) ?? [],
+      (x) => x.length === 2,
+    );
+    await idle(a, t);
+
+    const schedule = (
+      await a.api.createSchedule({ threadId: t, prompt: "daily check", when: { case: "cron", value: "0 9 * * *" } })
+    ).schedule!;
+
+    expect(
+      await eventually(
+        async () => (await b.api.listThreads({})).threads.some((x) => x.id === qualifyId(t, aNode)),
+        Boolean,
+        10000,
+      ),
+    ).toBe(true);
+
+    const preview = await a.api.previewMove({ nodeId: cNode, items: [{ kind: "thread", id: t }] });
+    expect(preview.unavailable).toBe("");
+    expect(preview.items[0]).toMatchObject({
+      kind: "thread",
+      id: t,
+      title: "Feature work",
+      blocked: "",
+      projectId: aProject,
+    });
+    expect(preview.items[0]!.moves.join()).toContain("1 schedule");
+    const started = await move([{ kind: "thread", id: t }]);
+    expect((await settled(started.moves[0]!.id))?.state).toBe("done");
+
+    const arrived = await eventually(
+      async () => (await c.api.getMoves({})).moves.find((m) => m.itemId === t),
+      (m) => m?.state === "done",
+    );
+
+    expect(`${arrived?.state} ${arrived?.error}`).toBe("done ");
+    expect(await homes(t)).toEqual({ a: 0, c: 1 });
+
+    // History, the move notice, the attachment and the schedule are on C; new turns continue after the old ones.
+    const history = await snapshot(c, t);
+
+    const texts = history.items.map((i) =>
+      i.item?.content.case === "agentMessage" || i.item?.content.case === "userMessage"
+        ? i.item.content.value.text
+        : "",
+    );
+
+    expect(texts).toContain("Echo: remember the cat called Mruczek");
+    expect(
+      history.notices.some((n) => n.notice?.code === "moved" && n.notice.message === "Moved from Laptop A to Laptop C"),
+    ).toBe(true);
+    expect(history.turns.length).toBe(2);
+    expect(new TextDecoder().decode((await c.api.getAttachment({ attachmentId: upload.attachment!.id })).data)).toBe(
+      "moved bytes",
+    );
+    expect((await c.api.listSchedules({ threadId: t })).schedules.map((s) => s.id)).toContain(schedule.id);
+    expect(
+      (await sql<{ status: string }>(a, "SELECT status FROM schedules WHERE id=$1::uuid", [schedule.id]))[0]?.status,
+    ).toBe("cancelled");
+    // The agent continues on C's worker in the new workspace, with a handoff note instead of the old session.
+    const created = c.worker.created.find((x) => x.threadId === t)!;
+    expect(created.cwd).toBe("/repo/new");
+    expect(created.instructions).toContain("moved from Laptop A to Laptop C");
+    expect(created.instructions).toContain("remember the cat called Mruczek");
+    await c.api.sendMessage({ threadId: t, text: "continue here", clientRequestId: id() });
+    expect(
+      await eventually(
+        async () => c.worker.inputs.get(t) ?? [],
+        (x) => x.includes("continue here"),
+      ),
+    ).toContain("continue here");
+    const after = await snapshot(c, t);
+    expect(after.turns.at(-1)!.ordinal).toBe(3);
+
+    // A's old id resolves to C: reading and writing reach the new home.
+    expect((await a.api.getThread({ threadId: t })).thread?.nodeId).toBe(cNode);
+    await a.api.sendMessage({ threadId: t, text: "from the old laptop", clientRequestId: id() });
+    expect(
+      await eventually(
+        async () => c.worker.inputs.get(t) ?? [],
+        (x) => x.includes("from the old laptop"),
+      ),
+    ).toContain("from the old laptop");
+    expect(a.worker.inputs.get(t)).not.toContain("from the old laptop");
+    expect(
+      await eventually(
+        async () => (await a.api.listThreads({})).threads.find((x) => splitPlain(x.id) === t)?.nodeId,
+        (node) => node === cNode,
+        15_000,
+      ),
+    ).toBe(cNode);
+    // B: the mirror and list update the owner, and A's qualified id follows the redirect.
+    expect(
+      await eventually(
+        async () => (await b.api.listThreads({})).threads.filter((x) => splitPlain(x.id) === t).map((x) => x.id),
+        (ids) => ids.length === 1 && ids[0] === qualifyId(t, cNode),
+        15000,
+      ),
+    ).toEqual([qualifyId(t, cNode)]);
+    expect(
+      await eventually(
+        async () => lb.redirects.home(t)?.home_node_id,
+        (h) => h === cNode,
+      ),
+    ).toBe(cNode);
+    expect((await b.api.getThread({ threadId: qualifyId(t, aNode) })).thread?.nodeId).toBe(cNode);
+    expect(
+      await eventually(
+        async () =>
+          (
+            await sql(b, "SELECT 1 FROM computer_mirror_threads WHERE origin_node_id=$1 AND thread_id=$2::uuid", [
+              aNode,
+              t,
+            ])
+          ).length,
+        (n) => n === 0,
+        15000,
+      ),
+    ).toBe(0);
+    // Both sides audit the move.
+    expect(
+      (await sql(a, "SELECT 1 FROM audit_log WHERE action='computer.move.thread.sent' AND target_id=$1::uuid", [t]))
+        .length,
+    ).toBe(1);
+    expect(
+      (await sql(c, "SELECT 1 FROM audit_log WHERE action='computer.move.thread.received' AND target_id=$1::uuid", [t]))
+        .length,
+    ).toBe(1);
+
+    // Agent bus references to the old id reach the new home, also when B learns the move lazily.
+    await sql(b, "DELETE FROM computer_redirects");
+    await lb.redirects.load();
+
+    const sent = await b.worker.callTool({
+      threadId: bThread,
+      tool: "send_message",
+      args: { thread_id: qualifyId(t, aNode), prompt: "agent hello" },
+    });
+
+    if (sent.isError) throw new Error(sent.content);
+    expect(
+      await eventually(
+        async () => c.worker.inputs.get(t) ?? [],
+        (x) => x.some((m) => m.includes("agent hello")),
+      ),
+    ).toBeTruthy();
+    expect(lb.redirects.home(t)?.home_node_id).toBe(cNode);
+  }
+
   test.each(Array.from({ length: 20 }, (_, index) => index + 1))(
     "a thread moves with its history and files; the old home redirects and a third computer sees the new owner (run %i/20)",
-    async () => {
-      const t = await thread(a, aProject, aWorkspace, "Feature work", "remember the cat called Mruczek");
-      const upload = await a.api.uploadAttachment({ name: "notes.txt", data: new TextEncoder().encode("moved bytes") });
-      await a.api.sendMessage({
-        threadId: t,
-        text: "see the notes",
-        attachmentIds: [upload.attachment!.id],
-        clientRequestId: id(),
-      });
-      await eventually(
-        async () => a.worker.inputs.get(t) ?? [],
-        (x) => x.length === 2,
-      );
-      await idle(a, t);
-
-      const schedule = (
-        await a.api.createSchedule({ threadId: t, prompt: "daily check", when: { case: "cron", value: "0 9 * * *" } })
-      ).schedule!;
-
-      expect(
-        await eventually(
-          async () => (await b.api.listThreads({})).threads.some((x) => x.id === qualifyId(t, aNode)),
-          Boolean,
-          10000,
-        ),
-      ).toBe(true);
-
-      const preview = await a.api.previewMove({ nodeId: cNode, items: [{ kind: "thread", id: t }] });
-      expect(preview.unavailable).toBe("");
-      expect(preview.items[0]).toMatchObject({
-        kind: "thread",
-        id: t,
-        title: "Feature work",
-        blocked: "",
-        projectId: aProject,
-      });
-      expect(preview.items[0]!.moves.join()).toContain("1 schedule");
-      const started = await move([{ kind: "thread", id: t }]);
-      expect((await settled(started.moves[0]!.id))?.state).toBe("done");
-
-      const arrived = await eventually(
-        async () => (await c.api.getMoves({})).moves.find((m) => m.itemId === t),
-        (m) => m?.state === "done",
-      );
-
-      expect(`${arrived?.state} ${arrived?.error}`).toBe("done ");
-      expect(await homes(t)).toEqual({ a: 0, c: 1 });
-
-      // History, the move notice, the attachment and the schedule are on C; new turns continue after the old ones.
-      const history = await snapshot(c, t);
-
-      const texts = history.items.map((i) =>
-        i.item?.content.case === "agentMessage" || i.item?.content.case === "userMessage"
-          ? i.item.content.value.text
-          : "",
-      );
-
-      expect(texts).toContain("Echo: remember the cat called Mruczek");
-      expect(
-        history.notices.some(
-          (n) => n.notice?.code === "moved" && n.notice.message === "Moved from Laptop A to Laptop C",
-        ),
-      ).toBe(true);
-      expect(history.turns.length).toBe(2);
-      expect(new TextDecoder().decode((await c.api.getAttachment({ attachmentId: upload.attachment!.id })).data)).toBe(
-        "moved bytes",
-      );
-      expect((await c.api.listSchedules({ threadId: t })).schedules.map((s) => s.id)).toContain(schedule.id);
-      expect(
-        (await sql<{ status: string }>(a, "SELECT status FROM schedules WHERE id=$1::uuid", [schedule.id]))[0]?.status,
-      ).toBe("cancelled");
-      // The agent continues on C's worker in the new workspace, with a handoff note instead of the old session.
-      const created = c.worker.created.find((x) => x.threadId === t)!;
-      expect(created.cwd).toBe("/repo/new");
-      expect(created.instructions).toContain("moved from Laptop A to Laptop C");
-      expect(created.instructions).toContain("remember the cat called Mruczek");
-      await c.api.sendMessage({ threadId: t, text: "continue here", clientRequestId: id() });
-      expect(
-        await eventually(
-          async () => c.worker.inputs.get(t) ?? [],
-          (x) => x.includes("continue here"),
-        ),
-      ).toContain("continue here");
-      const after = await snapshot(c, t);
-      expect(after.turns.at(-1)!.ordinal).toBe(3);
-
-      // A's old id resolves to C: reading and writing reach the new home.
-      expect((await a.api.getThread({ threadId: t })).thread?.nodeId).toBe(cNode);
-      await a.api.sendMessage({ threadId: t, text: "from the old laptop", clientRequestId: id() });
-      expect(
-        await eventually(
-          async () => c.worker.inputs.get(t) ?? [],
-          (x) => x.includes("from the old laptop"),
-        ),
-      ).toContain("from the old laptop");
-      expect(a.worker.inputs.get(t)).not.toContain("from the old laptop");
-      expect(
-        await eventually(
-          async () => (await a.api.listThreads({})).threads.find((x) => splitPlain(x.id) === t)?.nodeId,
-          (node) => node === cNode,
-          15_000,
-        ),
-      ).toBe(cNode);
-      // B: the mirror and list update the owner, and A's qualified id follows the redirect.
-      expect(
-        await eventually(
-          async () => (await b.api.listThreads({})).threads.filter((x) => splitPlain(x.id) === t).map((x) => x.id),
-          (ids) => ids.length === 1 && ids[0] === qualifyId(t, cNode),
-          15000,
-        ),
-      ).toEqual([qualifyId(t, cNode)]);
-      expect(
-        await eventually(
-          async () => lb.redirects.home(t)?.home_node_id,
-          (h) => h === cNode,
-        ),
-      ).toBe(cNode);
-      expect((await b.api.getThread({ threadId: qualifyId(t, aNode) })).thread?.nodeId).toBe(cNode);
-      expect(
-        await eventually(
-          async () =>
-            (
-              await sql(b, "SELECT 1 FROM computer_mirror_threads WHERE origin_node_id=$1 AND thread_id=$2::uuid", [
-                aNode,
-                t,
-              ])
-            ).length,
-          (n) => n === 0,
-          15000,
-        ),
-      ).toBe(0);
-      // Both sides audit the move.
-      expect(
-        (await sql(a, "SELECT 1 FROM audit_log WHERE action='computer.move.thread.sent' AND target_id=$1::uuid", [t]))
-          .length,
-      ).toBe(1);
-      expect(
-        (
-          await sql(c, "SELECT 1 FROM audit_log WHERE action='computer.move.thread.received' AND target_id=$1::uuid", [
-            t,
-          ])
-        ).length,
-      ).toBe(1);
-
-      // Agent bus references to the old id reach the new home, also when B learns the move lazily.
-      await sql(b, "DELETE FROM computer_redirects");
-      await lb.redirects.load();
-
-      const sent = await b.worker.callTool({
-        threadId: bThread,
-        tool: "send_message",
-        args: { thread_id: qualifyId(t, aNode), prompt: "agent hello" },
-      });
-
-      if (sent.isError) throw new Error(sent.content);
-      expect(
-        await eventually(
-          async () => c.worker.inputs.get(t) ?? [],
-          (x) => x.some((m) => m.includes("agent hello")),
-        ),
-      ).toBeTruthy();
-      expect(lb.redirects.home(t)?.home_node_id).toBe(cNode);
-    },
+    moveThreadWithHistory,
     60000,
   );
 
