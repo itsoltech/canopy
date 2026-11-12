@@ -439,9 +439,11 @@ Launcher `bash scripts/bench/diagnostics-stage3.sh` jest gotowy do ręcznego pom
 po potwierdzeniu wolnego hosta. Etapy 1–2 pozostają włączone w obu wariantach,
 zmienia się tylko etap 3. Skrócony protokół uzgodniony dla etapów 2–3: trzy pary
 AB/BA/AB, idle po 3 min, pozostałe fazy po 90 s, w tym governor; około **75 min**
-bez odrzuconych par. Load ponad liczbę CPU, swap-out ≥128 KiB/s w próbce lub
-≥1 MiB/parę oraz swap-in ≥4 MiB/s przez trzy kolejne sekundy odrzucają całą parę.
-Pozostała aktywność swapu jest tylko raportowana; odrzucenie zapisuje też listę
+bez odrzuconych par. Wszystkie mierzone procesy działają w user scope'ach
+z `MemorySwapMax=0`; `memory.swap.current` musi wynosić 0 przez całą parę.
+Load ponad liczbę CPU, host swap-out ≥4 MiB/s w próbce oraz swap-in ≥4 MiB/s
+przez trzy kolejne sekundy odrzucają całą parę. Nie ma łącznego limitu host swap-out.
+Pozostała aktywność swapu jest raportowana; odrzucenie zapisuje też listę
 procesów bez argv/env. Kryteria kosztu pozostają z §10; gate nie jest domyślnie
 zaakceptowany. Fixture obejmuje prawdziwy journal/ACK/replay, deterministyczny ACP,
 git i lokalny odbiornik mirroru z commitami PostgreSQL. Generowane lokalnie ramki
