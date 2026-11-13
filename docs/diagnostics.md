@@ -570,7 +570,9 @@ nie są miarą płynności natywnego UI. Web używa buforowanego Paint Timing dl
 
 Gateway dopuszcza 30 aktywnych kanałów nadawca/źródło i 30 wspólnych limitów
 nadawców, wygasających po pięciu minutach. Tożsamość pochodzi z tokenu urządzenia
-lub HttpOnly cookie nadanego przez BFF. Etykiety mają wyłącznie stałe numery 300–359.
+lub HttpOnly cookie nadanego przez BFF. Etykiety mają wyłącznie stałe numery 300–399 i 450–455.
+Numery 450–455 obejmują liczbę odzyskań osi czasu i czas żądanie starszej strony →
+gotowość renderera, osobno dla web, desktop i mobile; nie dodają etykiet z treści.
 Metadane klienta (32 KiB), resetu (8 KiB), kanałów i checkpointów są rozliczane
 w istniejącym limicie 6 MiB, nie w dodatkowym pierścieniu. Przepełnienie odrzuca
 partię; nie przechowuje błędu ani kolejki ponowień. Hash sesji i sekwencja trafiają

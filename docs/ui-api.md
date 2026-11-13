@@ -186,6 +186,16 @@ nieskończonego reconnect: klient próbuje nowej ograniczonej bazy, następnie
 mniejszego okna, a potem pokazuje przyczynę i akcje ponowienia dla tego wątku.
 Diagnostyka zawiera postęp, klasę błędu i rozmiary, bez treści, hostów ani tokenów.
 
+Renderer web/desktop nie wyprowadza pustej pracy z samego rekordu tury:
+niezależne okno itemów może jeszcze nie obejmować jej treści. Wiersz
+„Loading earlier work…” zajmuje minimum 44 px. Wejście takiej tury do overscanu
+automatycznie pobiera starszą stronę, z istniejącymi kursorami tur i itemów,
+jednym odczytem naraz i kotwiczeniem feedu. Brak postępu granic zatrzymuje
+odczyty i pokazuje istniejący błąd z Retry. Cache i wznowienie po seq nie
+zastępują tego odczytu; checkpoint pozostaje atomowy. Settings → Diagnostics
+podaje `Earlier work rendered` oraz licznik `Timeline recoveries`;
+metryki nie zawierają treści ani identyfikatorów.
+
 #### Istniejący kursor rewizji
 
 Łącze między komputerami może dodatkowo scalać tekst w oknie 40 ms i sprawdzać rewizje

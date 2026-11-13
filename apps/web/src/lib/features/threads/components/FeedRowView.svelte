@@ -13,6 +13,8 @@
   import AnswerSlot from "./AnswerSlot.svelte";
   import ShellMessage from "./ShellMessage.svelte";
   import { activitySurface } from "./activity-header.ts";
+  import Button from "#lib/shared/ui/Button.svelte";
+  import Spinner from "#lib/shared/ui/Spinner.svelte";
 
   /**
    * One row of the thread page's feed. Rows space themselves (bottom padding, measured with the row);
@@ -26,12 +28,18 @@
     ontoggle,
     onwork,
     ongroup,
+    onhistory,
+    historyLoading = false,
+    historyError = "",
   }: {
     row: FeedRow;
     ontoggle: () => void;
     /** `rowKey`: the toggled header's row, which keeps its place on screen. */
     onwork: (fold: string, rowKey: string) => void;
     ongroup: (key: string, rowKey: string) => void;
+    onhistory?: () => void;
+    historyLoading?: boolean;
+    historyError?: string;
   } = $props();
 
   const directory = useThreadDirectory();
@@ -40,7 +48,8 @@
   const attached = () => (row.kind === "work-group" && row.open) || (row.kind === "timeline" && row.group === "body");
 
   const turnId = $derived.by(() => {
-    if (row.kind === "work" || row.kind === "work-group" || row.kind === "answer") return row.turn.id;
+    if (row.kind === "work" || row.kind === "work-group" || row.kind === "answer" || row.kind === "work-gap")
+      return row.turn.id;
 
     if (row.kind !== "timeline") return undefined;
     const inner = row.row;
@@ -93,6 +102,19 @@
     <p class="flex items-center gap-1.5 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
       <span class="shrink-0">From</span><ThreadLink threadId={row.threadId} fallback="an earlier thread" />
     </p>
+  </div>
+{:else if row.kind === "work-gap"}
+  <div
+    class="flex min-h-11 items-center gap-2 pb-1 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
+    data-turn={turnId}
+    role="status"
+  >
+    {#if historyError}
+      <span>{historyError}</span><Button size="sm" variant="ghost" onclick={onhistory}>Retry</Button>
+    {:else}
+      {#if historyLoading}<Spinner />{:else}<Icon name="arrow-path" />{/if}
+      <span>Loading earlier work…</span>
+    {/if}
   </div>
 {:else if (row.kind === "timeline" || row.kind === "work" || row.kind === "work-group" || row.kind === "answer") && row.history}
   <div class={[row.last && "pb-3"]} data-turn={turnId}>

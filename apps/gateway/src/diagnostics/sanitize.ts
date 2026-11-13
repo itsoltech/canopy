@@ -149,7 +149,7 @@ export function sanitizeSnapshot(value: ui.ComputerDiagnostics) {
 
   value.gatewayMeasures = measures(
     value.gatewayMeasures,
-    new Set([...METRIC_DEFINITIONS.keys()].filter((id) => id < 300 || id >= 400)),
+    new Set([...METRIC_DEFINITIONS.keys()].filter((id) => METRIC_DEFINITIONS.get(id)?.group !== "clients")),
   );
   value.clientMeasures = measures(value.clientMeasures, new Set(CLIENT_METRICS.map((metric) => metric.id)));
 

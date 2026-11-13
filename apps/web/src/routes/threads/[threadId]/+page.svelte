@@ -53,6 +53,8 @@
   import { isSide, retainTree, treeOf } from "#lib/features/threads/thread-tree.ts";
   import { isTerminal, topLevelEntry } from "#lib/features/threads/timeline.ts";
   import { WorkFolds, type FoldReader } from "#lib/features/threads/work-folds.svelte.ts";
+  import { syncWorkFolds, workHistoryPrefetch } from "#lib/features/threads/thread-feed-effects.svelte.ts";
+  import { timelineRecovery } from "#lib/features/diagnostics/client.ts";
   import { devicePreferences as device } from "#lib/features/settings/device-preferences.svelte.ts";
   import { threadScrollMemory } from "#lib/features/threads/thread-scroll-memory.svelte.ts";
   import { FeedBuilder, feedEstimate, feedGroup, feedInserted, type FeedRow } from "#lib/features/threads/feed.ts";
@@ -244,7 +246,7 @@
 
   // Ended turns fold their work into "Worked for …"; which folds are open, per thread.
   const folds = $derived((void threadId, new WorkFolds()));
-  const builder = $derived((void threadId, new FeedBuilder()));
+  const builder = $derived((void threadId, new FeedBuilder((count) => timelineRecovery("fold_derivation", count))));
 
   const scrollMemory = $derived(threadScrollMemory(threadId, compaction, (value) => (compact = value)));
 
@@ -262,6 +264,7 @@
       historyOpen,
       openWork: folds.open,
       openGroups: folds.groups,
+      historyItemsHasMore: view.historyItemsHasMore,
     }),
   );
 
@@ -272,6 +275,7 @@
 
   const turnsOnRail = $derived(railTurns(rows));
   let feedViewport = $state<FeedViewport>({ start: 0, end: 0, height: 0 });
+  const prefetchHistory = workHistoryPrefetch(() => ({ rows, history: view.history }));
 
   // Queued messages above the composer (reorder, edit, delete, steer now); confirmed changes go into the
   // thread's state before the stream repeats them.
@@ -433,19 +437,7 @@
     return true;
   }
 
-  $effect.pre(() => {
-    const turns = [...view.inheritedTurns, ...view.ownTurns];
-    const entries = [...view.inheritedEntries, ...view.ownEntries];
-    const notices = view.notices;
-
-    const preferences = {
-      expandWhileWorking: device.values.workWhileWorking === "expanded",
-      keepAfterTurn: device.values.workAfterTurn === "keep-open",
-    };
-
-    const live = view.connection === "live";
-    untrack(() => folds.update(turns, entries, notices, feed, preferences, live));
-  });
+  syncWorkFolds(() => ({ folds, view, reader: feed, preferences: device.values }));
 
   $effect.pre(() => {
     const current = rows;
@@ -627,6 +619,7 @@
             onviewport={(viewport) => {
               feedViewport = viewport;
             }}
+            onwindow={prefetchHistory}
           >
             {#snippet placeholder()}
               {#if !view.loaded}<TimelineSkeleton />{/if}
@@ -666,6 +659,9 @@
             {#snippet row(row: FeedRow)}
               <FeedRowView
                 {row}
+                onhistory={() => void view.history.load()}
+                historyLoading={view.history.loading}
+                historyError={view.history.error}
                 ontoggle={() => (historyOpen = !historyOpen)}
                 onwork={(fold, rowKey) => {
                   keepToggled(rowKey);

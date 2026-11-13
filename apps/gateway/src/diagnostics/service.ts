@@ -14,7 +14,7 @@ import { DiagnosticsPeers } from "./peers.ts";
 import { Findings } from "./findings.ts";
 import { LinkDiagnostics } from "./links.ts";
 import { BucketBudget } from "./buckets.ts";
-import { callKey, sortCalls } from "@canopy/domain/diagnostics";
+import { callKey, sortCalls, METRIC_DEFINITIONS } from "@canopy/domain/diagnostics";
 import { diagnosticsResponse } from "./response.ts";
 import { DiagnosticsHistory } from "./history.ts";
 import { ProcessDiagnostics } from "./process.ts";
@@ -324,10 +324,10 @@ export class Diagnostics {
       gatewayMeasuresSupported: this.collector.gatewayEnabled,
       gatewayMeasures: request.overviewOnly
         ? own.gatewayMeasures.filter((value) => value.metricId === 2)
-        : own.gatewayMeasures.filter((measure) => measure.metricId < 300 || measure.metricId >= 400),
+        : own.gatewayMeasures.filter((measure) => METRIC_DEFINITIONS.get(measure.metricId)?.group !== "clients"),
       clientMeasures: request.overviewOnly
         ? []
-        : own.gatewayMeasures.filter((measure) => measure.metricId >= 300 && measure.metricId < 400),
+        : own.gatewayMeasures.filter((measure) => METRIC_DEFINITIONS.get(measure.metricId)?.group === "clients"),
       database: request.overviewOnly ? [] : own.database,
     });
 

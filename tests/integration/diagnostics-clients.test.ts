@@ -138,9 +138,13 @@ describe.skipIf(!dockerAvailable)("client diagnostics auth, redaction and explic
     measurements.record(13, 100);
     measurements.record(14, 3);
     measurements.record(15, 1024 * 1024);
+    measurements.record(16, 1);
+    measurements.record(17, 240);
     const batch = measurements.take();
     expect(batch.measures.find((row) => row.metricId === clientMetric("desktop", 14))?.histogram).toBeUndefined();
     expect(batch.measures.find((row) => row.metricId === clientMetric("desktop", 14))?.events).toBe(3n);
+    expect(batch.measures.find((row) => row.metricId === clientMetric("desktop", 16))?.events).toBe(1n);
+    expect(batch.measures.find((row) => row.metricId === clientMetric("desktop", 17))?.histogram?.sum).toBe(240);
     expect((await gw.api.submitDiagnostics(batch, { headers })).accepted).toBe(true);
     measurements.record(13, 101);
     expect(await rejectedCode(gw.api.submitDiagnostics(measurements.take(), { headers }))).toBe(Code.InvalidArgument);
@@ -234,23 +238,37 @@ describe.skipIf(!dockerAvailable)("client diagnostics auth, redaction and explic
       ),
     ).toBe(Code.InvalidArgument);
   });
-  test("thread watch reasons and counts survive submission and redacted report export", async () => {
+  test("thread watch and history recovery metrics remain distinct through submission and redacted export", async () => {
     const measurements = new ClientMeasurements("mobile", crypto.randomUUID());
     measurements.clear(sample.epoch);
     recordThreadWatchFailure(measurements, { code: 8, frameBytes: 70000 }, "size_limit");
     recordThreadWatchFailure(measurements, { code: 8, frameBytes: 70000 }, "size_limit");
+    measurements.record(16, 3);
+    measurements.record(17, 240);
     const batch = measurements.take();
     expect(batch.measures.find((row) => row.metricId === threadWatchMetric("mobile", 0))?.events).toBe(2n);
+    expect(batch.measures.find((row) => row.metricId === clientMetric("mobile", 16))?.events).toBe(3n);
+    expect(batch.measures.find((row) => row.metricId === clientMetric("mobile", 17))?.histogram?.sum).toBe(240);
     expect((await gw.api.submitDiagnostics(batch, { headers })).accepted).toBe(true);
 
     const value = await eventually(
       detail,
-      (value) => value.clientMeasures.some((row) => row.metricId === threadWatchMetric("mobile", 0)),
+      (value) =>
+        value.clientMeasures.some((row) => row.metricId === threadWatchMetric("mobile", 0)) &&
+        value.clientMeasures.some((row) => row.metricId === clientMetric("mobile", 17)),
       10000,
     );
 
+    expect(value.clientMeasures.find((row) => row.metricId === clientMetric("mobile", 16))?.events).toBe(3n);
+    expect(value.clientMeasures.find((row) => row.metricId === clientMetric("mobile", 17))?.distribution?.samples).toBe(
+      1n,
+    );
+    expect(value.gatewayMeasures.some((row) => row.metricId === clientMetric("mobile", 17))).toBe(false);
+
     const exported = diagnosticReport([value], "json").text;
     expect(exported).toContain("mobile · Thread update too large");
+    expect(exported).toContain("mobile · Timeline recoveries");
+    expect(exported).toContain("mobile · Earlier work rendered");
     expect(exported).toContain('"samples": "2"');
     expect(exported).not.toContain(measurements.session);
   }, 15_000);

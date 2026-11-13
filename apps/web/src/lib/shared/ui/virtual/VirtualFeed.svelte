@@ -6,9 +6,10 @@
   import { rise } from "../motion.ts";
   import { UiMemory } from "../memory.ts";
   import { captureAnchor, holdAnchor, readingKeys, type FeedAnchor } from "./feed-anchor.ts";
+  import { settleAnchor } from "./feed-anchor.ts";
   import { FeedEntrances } from "./feed-entrances.ts";
   import { EndScroll } from "./end-scroll.ts";
-  import { publishViewport, rowAttachment } from "./feed-measure.ts";
+  import { feedObserver, publishViewport, rowAttachment } from "./feed-measure.ts";
   import { FeedRows } from "./feed-rows.ts";
   import { COLD_OVERSCAN, feedRange, OVERSCAN_STEP, rowAlignmentSpace } from "./feed-range.ts";
   import { feedRowKey, focusFeedRow, navigateFeedKey } from "./feed-keys.ts";
@@ -57,6 +58,7 @@
     onreaderscroll,
     onlatest,
     onviewport,
+    onwindow,
     scrollMemory,
     ready = true,
   }: {
@@ -83,6 +85,8 @@
     onlatest?: () => void;
     /** Measured visible rows (no overscan), published at most once per animation frame. */
     onviewport?: (viewport: FeedViewport) => void;
+    /** Mounted rows including overscan, for bounded history prefetch before missing work reaches the reader. */
+    onwindow?: (viewport: FeedViewport) => void;
     scrollMemory?: FeedScrollMemory;
     ready?: boolean;
   } = $props();
@@ -114,7 +118,7 @@
   let stuck = $state(true);
   const opening = new FeedScrollOpening(untrack(() => scrollMemory));
 
-  $effect(() => opening.connect(() => ({ following: stuck, anchor })));
+  $effect(() => opening.connect(() => ({ following: stuck, anchor }), settle));
 
   // The overscan (most of it above the end, where the reader starts) grows to its full size in idle-time
   // steps after the first rows were measured, instead of rendering in the frame that opens the thread.
@@ -155,7 +159,7 @@
       viewport,
       scrollTop,
       listTop,
-      anchor,
+      anchor: anchor && { ...anchor, key: scrollMemory?.key?.(anchor.identity ?? anchor.key) ?? anchor.key },
       stuck,
       overscan: Math.min(fullOverscan, overscanLimit),
       focused: focusedKey,
@@ -169,6 +173,8 @@
 
   $effect(() => {
     void layout;
+    const window = { start: range[0], end: range[1], height: viewport };
+    untrack(() => onwindow?.(window));
 
     return publishViewport(index, scrollTop - listTop, Math.max(0, viewport - footerHeight), onviewport);
   });
@@ -219,28 +225,15 @@
     });
   };
 
-  const observer =
-    typeof ResizeObserver === "undefined"
-      ? undefined
-      : new ResizeObserver((entries) => {
-          for (const entry of entries) {
-            const target = entry.target;
-
-            if (!(target instanceof HTMLElement)) continue;
-            const height = entry.borderBoxSize[0]?.blockSize ?? target.offsetHeight;
-
-            if (target === scroller) measuredViewport = target.clientHeight;
-            else if (target.dataset.key) {
-              const at = positions.get(target.dataset.key);
-              const meta = at === undefined ? undefined : sized[at];
-
-              if (meta) index.measure(meta.key, meta.group, height);
-            }
-          }
-
-          settle();
-          commit();
-        });
+  const observer = feedObserver(
+    index,
+    () => ({ positions, sized, scroller }),
+    (height) => {
+      measuredViewport = height ?? measuredViewport;
+      settle();
+      commit();
+    },
+  );
 
   const measure = rowAttachment(elements, observer);
 
@@ -332,6 +325,7 @@
         return;
       } else {
         anchor = { key: rowTarget, element, top: 0 };
+        identifyAnchor();
         rowTarget = undefined;
       }
     }
@@ -345,19 +339,20 @@
       return;
     }
 
-    const element = anchor && (anchor.element.isConnected ? anchor.element : elements.get(anchor.key));
+    if (anchor) anchor.key = scrollMemory?.key?.(anchor.identity ?? anchor.key) ?? anchor.key;
 
-    if (anchor && element) {
-      anchor.element = element;
-      const delta = element.getBoundingClientRect().top - scroller.getBoundingClientRect().top - anchor.top;
-
-      if (Math.abs(delta) >= 0.5) setTop(scroller.scrollTop + delta);
-    } else capture();
+    if (!settleAnchor(anchor, elements, scroller, setTop) && (!anchor || !positions.has(anchor.key))) capture();
   }
 
   function capture() {
     if (!scroller || !list) return;
-    anchor = captureAnchor(list.children, scroller.getBoundingClientRect().top);
+    const box = scroller.getBoundingClientRect();
+    anchor = captureAnchor(list.children, box.top, box.bottom);
+    identifyAnchor();
+  }
+
+  function identifyAnchor() {
+    if (anchor) anchor.identity = scrollMemory?.identity?.(anchor.key) ?? anchor.key;
   }
 
   function onscroll() {
@@ -535,6 +530,7 @@
     endScroll.cancel();
     stuck = false;
     anchor = { key: rowKey, element: target.element, top: 8 };
+    identifyAnchor();
     smoothUntil = moveToAnswer(target.scroller, target.top, setTop);
 
     return true;
@@ -558,6 +554,7 @@
     if (!stuck && !elements.has(rowKey)) rowTarget = rowKey;
 
     if (!stuck) anchor = holdAnchor(rowKey, elements, scroller, focusedKey === removedKey) ?? anchor;
+    identifyAnchor();
   }
 
   /**
@@ -572,6 +569,7 @@
     stuck = false;
     rowTarget = undefined;
     anchor = { key: rowKey, element, top: element.getBoundingClientRect().top - scroller.getBoundingClientRect().top };
+    identifyAnchor();
   }
 
   function onkeydown(event: KeyboardEvent) {

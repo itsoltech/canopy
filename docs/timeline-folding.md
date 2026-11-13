@@ -106,17 +106,31 @@ wymagają pomiarów JS w każdej klatce. Zamknięta treść nie przyjmuje dotyku
 czytnika i wstrzymuje zegary oraz dekoracje. Ograniczony ruch zmienia wysokość i chevron
 natychmiast. Stan ręcznego przełączenia grupy jest lokalny; nie przebudowuje innych grup.
 
+## Niepełne okno pracy
+
+Watch `sequence` ma niezależne okna tur i itemów. Rekord zakończonej tury bez
+jej itemów nie oznacza pustej pracy. Web/desktop pokazuje w tym miejscu zwarty
+wiersz „Loading earlier work…”, zamiast pustego „Worked for…” i slotu odpowiedzi.
+Pierwsza tura z okna itemów również może być niepełna; zachowuje już odczytane
+segmenty, steery oraz odpowiedź, z tym samym wierszem nad pracą. Zamontowane
+okno wraz z overscanem uruchamia jeden odczyt starszej strony naraz, zanim
+czytelnik dojdzie do luki. Błąd zatrzymuje prefetch i pokazuje Retry. Stan ten
+wynika z granicy itemów, także po odczycie starego cache, a nie z preferencji
+foldów. Niezgodność liczby źródłowych wierszy z podsumowaniami segmentów pokazuje
+całą treść bez zwijania i rejestruje odzyskiwanie w Diagnostics.
+
 ## Pozycja przy ręcznym przełączaniu
 
-Strona historii kończy się wyłącznie między turami. Wejście, segmenty
-„Worked for…”, odpowiedzi i stopka jednej tury przychodzą razem; dotyczy to
-również tur odziedziczonych przez fork. Dołożenie starszych tur zachowuje
-klucze istniejących wierszy i kotwicę czytelnika. Protokół opisuje
+Starszy protokół stron historii kończy stronę między turami. Watch `sequence`
+stronicuje itemy niezależnie od tur i może przeciąć segment. Dołożenie starszych
+steerów zmienia numery segmentów, więc kotwica web zapamiętuje tożsamość
+wiadomości i odnajduje jej aktualny slot odpowiedzi zamiast starego numeru.
+Dotyczy to również tur odziedziczonych przez fork. Protokół opisuje
 [ui-api.md](ui-api.md#strony-historii-i-trwałe-kursory).
 Kotwicą web jest treść wiadomości, z pominięciem wierszy początku i końca tury:
 dołożenie wcześniejszej tury z tego samego dnia przenosi etykietę daty i nie może
 przesunąć czytanego tekstu. Wyszukiwanie oraz cytat mogą doładować starsze strony;
-po ich odczycie nadal obowiązują te same klucze foldów i segmentów.
+po ich odczycie kotwica nadal wskazuje tę samą wiadomość.
 
 Rozwinięcie albo zwinięcie foldu, grupy narzędzi czy itemu ręcznie trzyma kliknięty nagłówek w tym samym miejscu ekranu: rośnie i maleje to, co jest pod nim, a treść nad nim się nie przesuwa. Dotyczy to także ostatniej tury przy czytelniku na końcu. Granicą jest dostępny zakres przewijania, np. zwinięcie całej treści poniżej wysokości viewportu. „Jump to latest” ponownie włącza śledzenie końca.
 

@@ -78,6 +78,7 @@ export class ThreadState {
     },
   );
   hasMore = $state(false);
+  historyItemsHasMore = $state(false);
   thread = $state.raw<ui.Thread | undefined>(undefined);
   turns = $state.raw<ui.Turn[]>([]);
   entries = $state.raw<TimelineEntry[]>([]);
@@ -159,6 +160,7 @@ export class ThreadState {
   apply(update: ui.ThreadUpdate): void {
     this.#snapshot = applyThreadUpdate(this.#snapshot, update);
     this.hasMore = this.#snapshot.historyHasMore || this.#snapshot.historyItemsHasMore;
+    this.historyItemsHasMore = this.#snapshot.historyItemsHasMore;
 
     const change = ["snapshot", "delta", "batch", "controls"].includes(update.change.case ?? "")
       ? { case: "snapshot" as const, value: this.#snapshot }

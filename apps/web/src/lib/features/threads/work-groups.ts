@@ -7,6 +7,7 @@ import { currentWorkHint, groupSummary, isToolItem, workCounts } from "@canopy/d
 import type { IconName } from "@canopy/ui/icons";
 import { blank } from "./work-segments.ts";
 import { foldId, turnProgress, workSegments, type BodyRow, type WorkSegment } from "@canopy/domain/work-fold";
+import { recoverFoldRows } from "./work-history.ts";
 
 /**
  * Each turn's work under a stable "Working for …" / "Worked for …" row:
@@ -30,6 +31,7 @@ import { foldId, turnProgress, workSegments, type BodyRow, type WorkSegment } fr
  *   second group cannot reparent existing tools or change the first group's manual choice.
  */
 export type FoldedRow =
+  | { readonly kind: "work-gap"; readonly key: string; readonly turn: ui.Turn }
   | {
       readonly kind: "row";
       readonly row: TimelineRow;
@@ -124,6 +126,8 @@ export function foldTurns(
   rows: readonly TimelineRow[],
   isOpen: (fold: string) => boolean,
   groupOpen: (key: string) => boolean = () => false,
+  gaps: ReadonlySet<string> = new Set(),
+  report: (count: number) => void = (count) => console.warn("Timeline recovery", { reason: "fold_derivation", count }),
 ): FoldedRow[] {
   // A background task owns its source command's lifecycle after the turn ends. System stops can
   // finish the task without another source-item update; tasks can also arrive outside the turn.
@@ -192,8 +196,15 @@ export function foldTurns(
     if (!fold) continue;
     placed.add(turnId);
 
-    for (let index = 0; index < fold.segments.length; index++)
-      out.push(...segmentRows(fold, index, isOpen, groupOpen, tasksBySource));
+    if (gaps.has(turnId)) {
+      out.push({ kind: "work-gap", key: `work-gap:${turnId}`, turn: fold.turn });
+
+      // No items have arrived for this turn. Its duration is not evidence of an empty work section.
+      if (fold.body.length === 0) continue;
+    }
+
+    const derived = fold.segments.flatMap((_, index) => segmentRows(fold, index, isOpen, groupOpen, tasksBySource));
+    out.push(...recoverFoldRows(fold.body, derived, report));
 
     // The body is grouped here even when old items arrive after a newer turn. Its footer belongs here too.
     const end = ends.get(turnId);

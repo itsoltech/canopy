@@ -6,8 +6,9 @@ import { decode } from "#lib/shared/wire.ts";
 import { bodyJson } from "#lib/shared/json.ts";
 import { saveHistory } from "../desktop/history.ts";
 import type { ThreadState } from "./thread-state.svelte.ts";
-import { clientOpening, clientMeasurements } from "#lib/features/diagnostics/client.ts";
+import { clientMeasurements, clientOpening, timelineRecovery } from "#lib/features/diagnostics/client.ts";
 import { recordThreadWatchFailure } from "@canopy/domain/diagnostics";
+import { tick } from "svelte";
 import { ThreadWatchRecovery, threadWatchMessage, threadSyncStatus } from "@canopy/domain/thread-watch-recovery";
 import { threadWatchReady } from "@canopy/domain/thread-watch-state";
 import { warmCacheHit } from "./warming.ts";
@@ -19,6 +20,7 @@ export class ThreadHistory {
   #abort = new AbortController();
   #recovery = new ThreadWatchRecovery();
   #smaller = false;
+  #reportedGap = false;
   retry() {
     this.#recovery.reset();
     this.#restart();
@@ -149,6 +151,13 @@ export class ThreadHistory {
     if (this.loading || !base?.thread || (!target && !base.historyHasMore && !base.historyItemsHasMore)) return;
     this.loading = true;
     this.error = "";
+    const started = performance.now();
+
+    if (!this.#reportedGap && base.historyItemsHasMore) {
+      this.#reportedGap = true;
+      timelineRecovery("history_window");
+    }
+
     const checkpoint = base.cursor;
     const signal = this.#abort.signal;
 
@@ -167,6 +176,14 @@ export class ThreadHistory {
       const current = this.read();
 
       if (signal.aborted || !current) return;
+
+      if (
+        page.historyBeforeTurnId === base.historyBeforeTurnId &&
+        page.historyBeforeItemId === base.historyBeforeItemId &&
+        (page.historyHasMore || page.historyItemsHasMore) &&
+        !page.historyReset
+      )
+        throw new Error("History page did not advance");
       let next: ui.ThreadSnapshot;
 
       try {
@@ -180,6 +197,10 @@ export class ThreadHistory {
 
       this.view.apply(create(ui.ThreadUpdateSchema, { change: { case: "snapshot", value: next } }));
       this.#restart();
+      await tick();
+      requestAnimationFrame(() => {
+        if (!signal.aborted && !document.hidden) clientMeasurements.record(17, performance.now() - started);
+      });
     } catch {
       if (!signal.aborted) this.error = "Could not load earlier messages. Try again.";
     } finally {

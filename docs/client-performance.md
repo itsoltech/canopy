@@ -96,6 +96,17 @@ wiarygodnie odtworzyć z samej liczby zdarzeń `Animation` w cudzym śladzie.
 
 ### Strumieniowanie osi czasu
 
+Web/desktop pobiera brakującą pracę tur w zamontowanym oknie wraz z overscanem,
+z jedną stroną w toku. Miernik `Earlier work rendered` obejmuje żądanie starszej
+strony, scalenie, aktualizację Svelte i pierwszy rAF po niej; to proxy gotowości
+renderera, nie potwierdzenie klatki kompozytora. `Timeline recoveries` zlicza
+odtworzenie niepełnego okna, awaryjne pokazanie wierszy przy niezgodności
+derywacji oraz timeout pozycjonowania. Log zawiera wyłącznie stały powód i liczbę,
+bez treści, identyfikatorów i kotwic. Sprawdź scroll do granicy niepełnej tury,
+reload z cache i przejście z innego wątku: treść ma nadejść bez load-more,
+a tekst już czytany ma zachować pozycję. Pozycjonowanie web ma limit 2 s;
+po nim odsłania aktualną treść nawet bez kompletu pomiarów.
+
 Powrót do wątku odtwarza lokalną kotwicę (klucz elementu i offset wewnątrz),
 bez rozszerzania okna historii. Web czeka na zmierzenie początkowego okna przed
 odsłonięciem scrollera; mobile ma ograniczoną liczbę prób pomiaru komórki i

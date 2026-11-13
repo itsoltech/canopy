@@ -9,6 +9,12 @@ export let clientMeasurements = new ClientMeasurements("web", crypto.randomUUID(
 let observed = false;
 let navigationAt = 0;
 
+/** Fixed reasons and counts only; never transcript content, identifiers or saved anchors. */
+export function timelineRecovery(reason: "history_window" | "fold_derivation" | "position_timeout", count = 1) {
+  clientMeasurements.record(16, count);
+  console.warn("Timeline recovery", { reason, count });
+}
+
 export function navigationStarted() {
   navigationAt = performance.now();
   pauseThreadWarming();
