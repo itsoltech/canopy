@@ -7,7 +7,8 @@ trafiają do opisu PR, nigdy do plików w repozytorium.
 
 `GetComputers` korzysta ze wspólnego cache sesji web/desktop i mobile. Powtórzony
 komunikat `computer` po zapisie mirrora lub zmianie samego `lastSeenMs` nie
-unieważnia odczytu. Zmiana nazwy, obecności, uprawnień lub konfiguracji oraz luka
+unieważnia odczytu. Komunikat zawiera też bieżące trasy partnera, więc dodanie,
+usunięcie lub odkrycie trasy nadal unieważnia cache. Zmiana nazwy, obecności, uprawnień lub konfiguracji oraz luka
 w strumieniu nadal wymuszają odczyt. Listy powiadomień konfiguracji nie mają
 zegara odpytywania: feed właściciela porównuje zegar konfiguracji i zbiór otwartych
 powiadomień, a po zmianie wysyła `linkedReadCompleted(GetComputers)`.
