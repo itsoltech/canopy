@@ -43,6 +43,7 @@
     "typescript": "npm:@typescript/typescript6@6.0.2"
   },
   "patchedDependencies": {
-    "@electron/notarize@2.5.0": "patches/@electron%2Fnotarize@2.5.0.patch"
+    "@electron/notarize@2.5.0": "patches/@electron%2Fnotarize@2.5.0.patch",
+    "semantic-release@25.0.9": "patches/semantic-release@25.0.9.patch"
   }
 }
