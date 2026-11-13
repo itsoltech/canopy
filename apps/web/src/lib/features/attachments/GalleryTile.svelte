@@ -22,6 +22,6 @@
   </div>
   <figcaption class="grid min-h-12 min-w-0 gap-0.5 text-sm/5 sm:text-xs/5">
     {#if side}<p class="font-medium text-zinc-950 dark:text-white">{side}</p>{/if}
-    <p class="line-clamp-2 wrap-anywhere text-zinc-600 dark:text-zinc-400" title={caption}>{caption}</p>
+    <p class="line-clamp-2 self-start wrap-anywhere text-zinc-600 dark:text-zinc-400" title={caption}>{caption}</p>
   </figcaption>
 </figure>
