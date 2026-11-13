@@ -28,13 +28,13 @@
 </script>
 
 {#if !file}
-  {#if loading}<p role="status" class="p-4 text-muted">Opening the file…</p>{/if}
+  {#if loading}<p role="status" class="p-4 text-sm text-muted">Opening the file…</p>{/if}
 {:else if file.truncated && file.binary}
-  <p class="p-4 text-muted">This file exceeds the 2 MB preview limit. Open a smaller file to preview it.</p>
+  <p class="p-4 text-sm text-muted">This file exceeds the 2 MB preview limit. Open a smaller file to preview it.</p>
 {:else if /^image\/(png|jpeg|gif|webp|avif)$/.test(file.mimeType)}
   <FileImage {file} {name} />
 {:else if file.binary}
-  <p class="p-4 text-muted">
+  <p class="p-4 text-sm text-muted">
     Canopy cannot show this file.{local ? " Open it in its default app." : " Open it on the thread’s computer."}
   </p>
 {:else if rendered}
@@ -53,5 +53,5 @@
     class="min-h-full"
   />
 {:else}
-  <p class="p-4 text-muted">This file is empty.</p>
+  <p class="p-4 text-sm text-muted">This file is empty.</p>
 {/if}
