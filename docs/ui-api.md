@@ -2177,14 +2177,31 @@ Jedno kliknięcie otwiera preview, dwuklik utrwala kartę. Ukryte i ignorowane w
 pomija domyślnie; `Show ignored files` przeładowuje zakres na żądanie.
 
 Cache drzewa ma 2 MiB zakodowanego payloadu na klienta web, oddzielnie od plików
-i historii; do 30 wątków, 128 węzłów katalogów i 32 rozwiniętych folderów na wątek.
+i historii; do 30 wątków, 128 węzłów katalogów i 30 rozwiniętych folderów na wątek.
+Pozostałe dwa miejsca zakresu watch zajmują korzeń i aktywny plik.
 Usuwa nieobserwowane wpisy, a gdy aktywna zawartość wyczerpie limit, pokazuje akcję
 ponownego odczytu folderu od początku. Dwa listowania działają naraz; kolejka ma
 64 miejsca. Niepotrzebne kursory są zwalniane, więc dalsze rozwinięcie może wymagać
 odczytu folderu od początku. Zamknięcie obu widoków anuluje pracę i zwalnia kursory;
 nie ma pollingu. Własny zapis/usunięcie unieważnia tylko drzewo danego wątku.
-Zewnętrzne zmiany odświeża `Reload files`; przy zmianie katalogu podczas paginacji
-`Reload directory`. Treść drzewa pozostaje w pamięci, poza storage i synchronizacją.
+Zewnętrzne zmiany dostarcza `WatchThreadFiles` przez osobny
+`POST /api/threads/:id/files/events` (SSE); lista ścieżek nie trafia do URL.
+Jeden stream współdzielą widoczne drzewo i aktywny plik. Zmiana karty nie otwiera
+drugiego strumienia historii. Ukrycie klienta lub ostatniego odbiorcy anuluje watch
+i ponowienia. Po powrocie/reconnect stosujemy checkpoint i rewalidację widocznych
+katalogów oraz aktywnego pliku; nigdy pełne drzewo ani automatyczny zapis.
+Bez capability lub po błędzie pozostaje `Reload files` z informacją o braku live
+changes; przy zmianie katalogu podczas paginacji działa `Reload directory`.
+Treść drzewa pozostaje w pamięci, poza storage i synchronizacją.
+
+Czysty aktywny plik przyjmuje nowy odczyt. Dirty zachowuje bazę i szkic, pokazuje
+`Changed on disk` / `Removed from disk` oraz `Copy changes`. `Compare changes`
+przełącza wirtualny, tylko do odczytu podgląd `On disk` / `Your changes`, bez
+uruchamiania drugiego edytora. Porównanie tekstu do 400 KiB mieści się we wspólnym
+budżecie szkiców; większa lub binarna wersja pozostawia kopiowanie i reload.
+`Discard and reload` wymaga potwierdzenia dla dirty. Nie ma force overwrite.
+Konflikt hasha ma Connect `Aborted` i BFF HTTP 412; nie rozpoznajemy komunikatu
+tekstem. Zmiana korzenia blokuje zapis starego szkicu do nowej lokalizacji.
 
 Viewer zakładki wirtualizuje oryginalne linie, a linię ponad 4096 jednostek UTF-16
 dzieli na oznaczone kontynuacje bez utraty znaków. Web montuje do 120 wierszy;

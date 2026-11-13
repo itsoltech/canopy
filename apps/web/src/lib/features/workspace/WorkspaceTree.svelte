@@ -52,8 +52,9 @@
   });
 
   let previous: DirectoryRow[] = [];
+  let foreground = $state(!globalThis.document.hidden);
 
-  $effect(() => tree.retain());
+  $effect(() => (foreground ? tree.retain() : undefined));
 
   $effect.pre(() => {
     const next = rows;
@@ -134,6 +135,8 @@
     ] ?? "";
 </script>
 
+<svelte:document onvisibilitychange={() => (foreground = !globalThis.document.hidden)} />
+
 <div class="relative flex h-full min-h-60 min-w-0 flex-col" aria-label="Files">
   <span class="pointer-events-none invisible absolute h-8 pointer-coarse:h-12" bind:clientHeight={rowHeight}></span>
   <div class="flex h-10 shrink-0 items-center justify-between gap-2 border-b border-divider px-2">
@@ -155,6 +158,7 @@
     </div>
   </div>
   {#if (subscribe(), tree.node("").status)}<p class="px-2 py-1 text-xs text-muted">{tree.node("").status}</p>{/if}
+  {#if (subscribe(), tree.watchStatus)}<p role="status" class="px-2 py-1 text-xs text-muted">{tree.watchStatus}</p>{/if}
   <div
     bind:this={scroller}
     bind:clientHeight={height}

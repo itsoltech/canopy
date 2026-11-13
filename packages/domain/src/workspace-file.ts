@@ -1,4 +1,4 @@
-import { FileResolution, type ThreadDirectoryPage, type ui } from "@canopy/contracts";
+import { FileResolution, type ThreadDirectoryPage, type ThreadFilesUpdate, type ui } from "@canopy/contracts";
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import type { FilePosition } from "./file-references.ts";
 
@@ -16,6 +16,11 @@ export interface WorkspaceFileTarget {
 }
 
 export interface WorkspaceFileApi {
+  watchFiles?(
+    request: MessageInitShape<typeof ui.WatchThreadFilesRequestSchema>,
+    signal: AbortSignal,
+    receive: (update: ThreadFilesUpdate) => void,
+  ): Promise<void>;
   listDirectory?(
     request: MessageInitShape<typeof ui.ListThreadDirectoryRequestSchema>,
     signal: AbortSignal,
@@ -24,6 +29,8 @@ export interface WorkspaceFileApi {
   write(target: WorkspaceFileTarget, path: string, text: string, hash: string): Promise<ui.ThreadFile>;
   remove(target: WorkspaceFileTarget, path: string, hash: string): Promise<void>;
 }
+
+export class WorkspaceFileConflict extends Error {}
 
 /** A document survives tab switches. Only metadata is persisted; bytes and drafts stay in memory. */
 export class WorkspaceFile {
@@ -42,6 +49,12 @@ export class WorkspaceFile {
   readerPositionRevision = -1;
   scroll = 0;
   #read: AbortController | undefined;
+  #refresh: AbortController | undefined;
+  #refreshAgain = false;
+  changedOnDisk = false;
+  removedOnDisk = false;
+  diskText: string | undefined;
+  watchStatus = "";
 
   constructor(
     readonly target: WorkspaceFileTarget,
@@ -65,7 +78,11 @@ export class WorkspaceFile {
     return this.file?.content.byteLength ?? 0;
   }
   get draftBytes(): number {
-    return this.editing ? encoder.encode(this.text).byteLength + encoder.encode(this.draft).byteLength : 0;
+    return this.editing
+      ? encoder.encode(this.text).byteLength +
+          encoder.encode(this.draft).byteLength +
+          encoder.encode(this.diskText ?? "").byteLength
+      : 0;
   }
 
   locate(position?: FilePosition): void {
@@ -105,6 +122,9 @@ export class WorkspaceFile {
         this.text = file.binary ? "" : decoder.decode(file.content);
         this.draft = "";
         this.editing = false;
+        this.changedOnDisk = false;
+        this.removedOnDisk = false;
+        this.diskText = undefined;
       }
     } catch (cause) {
       if (!read.signal.aborted)
@@ -153,13 +173,83 @@ export class WorkspaceFile {
     this.draft = "";
     this.editing = false;
     this.error = "";
+    this.diskText = undefined;
     this.changed();
+  }
+
+  /** Revalidation never replaces a dirty base or draft; only an explicit discard can accept disk bytes. */
+  async revalidate(): Promise<void> {
+    if (!this.file || this.loading || this.busy) return;
+
+    if (this.#refresh) {
+      this.#refreshAgain = true;
+
+      return;
+    }
+
+    const controller = new AbortController();
+    const base = this.file;
+    this.#refresh = controller;
+
+    try {
+      const file = await this.api.read(this.target, this.path, "", controller.signal);
+
+      if (controller.signal.aborted || this.file !== base) return;
+      this.watchStatus = "";
+      const found = file.resolution === FileResolution.FOUND || file.resolution === FileResolution.UNSPECIFIED;
+
+      if (found && file.sha256 === base.sha256) {
+        this.changedOnDisk = false;
+        this.removedOnDisk = false;
+        this.diskText = undefined;
+      } else if (this.dirty || !found) {
+        this.changedOnDisk = true;
+        this.removedOnDisk = !found;
+
+        const text =
+          found && !file.binary && !file.truncated && file.size <= BigInt(FILE_EDIT_BYTES)
+            ? decoder.decode(file.content)
+            : undefined;
+
+        this.diskText =
+          text !== undefined &&
+          this.reserveDraft(this.bytes + encoder.encode(this.draft).byteLength + encoder.encode(text).byteLength)
+            ? text
+            : undefined;
+      } else if (file.content.byteLength <= FILE_PREVIEW_BYTES) {
+        this.file = this.lookup = file;
+        this.text = file.binary ? "" : decoder.decode(file.content);
+
+        if (this.editing) this.draft = this.text;
+        this.changedOnDisk = false;
+        this.diskText = undefined;
+      }
+    } catch {
+      if (!controller.signal.aborted) this.watchStatus = "File changes are unavailable. Reconnect, then reload.";
+    } finally {
+      if (this.#refresh === controller) this.#refresh = undefined;
+
+      if (!controller.signal.aborted) this.changed();
+
+      if (!controller.signal.aborted && this.#refreshAgain) {
+        this.#refreshAgain = false;
+        void this.revalidate();
+      }
+    }
   }
 
   async save(): Promise<boolean> {
     const file = this.file;
 
     if (!file?.sha256 || !this.dirty || this.busy) return false;
+
+    if (this.changedOnDisk) {
+      this.error = "The file changed on disk. Compare or copy your changes before discarding and reloading.";
+      this.changed();
+
+      return false;
+    }
+
     this.busy = true;
     this.error = "";
     this.changed();
@@ -181,10 +271,14 @@ export class WorkspaceFile {
     } catch (cause) {
       this.error = failure(cause, "Could not save the file. Check the connection, then retry.");
 
+      if (cause instanceof WorkspaceFileConflict) this.changedOnDisk = true;
+
       return false;
     } finally {
       this.busy = false;
       this.changed();
+
+      if (this.changedOnDisk) void this.revalidate();
     }
   }
 
@@ -211,6 +305,9 @@ export class WorkspaceFile {
     this.#read?.abort();
     this.#read = undefined;
     this.loading = false;
+    this.#refresh?.abort();
+    this.#refresh = undefined;
+    this.#refreshAgain = false;
   }
 
   release(): void {

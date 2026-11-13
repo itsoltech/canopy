@@ -519,6 +519,24 @@ sprawdza właściciela, wyprowadza worker oraz rzeczywiste `threads.cwd` i kieru
 odczyt do domu wątku. Worker bez capability wymaga aktualizacji. Komenda nie trafia
 do outboxa, dziennika ani synchronizacji metadanych.
 
+Capability `thread_files_watch_v1` dodaje nietrwały start/stop
+`WatchThreadFiles` (komenda 230) i `WorkerMessage.thread_files_update` (842).
+Gateway wyprowadza ownera, worker i cwd z wątku; żądanie obejmuje do 32 względnych
+plików/katalogów, tożsamość korzenia i checkpoint. Worker współdzieli koordynator
+checkoutu i nierrekurencyjne obserwatory wyłącznie dla tych katalogów, rodziców
+aktywnych plików oraz Git HEAD/index. Nie odczytuje rekurencyjnie drzewa.
+Najwyżej 8 checkoutów, 32 odbiorców i 32 katalogi na checkout. Ostatni odbiorca
+zamyka uchwyty, timer i historię; rozłączenie workera sprząta wszystkie subskrypcje.
+
+Partia zawiera tylko invalidacje katalogu, zmiany/usunięcia wskazanego pliku albo
+zmianę korzenia: do 64 rekordów / 64 KiB, bez źródła i snapshotu. Historia checkoutu
+ma do 256 rekordów / 256 KiB; gateway buforuje do 4 partii / 256 KiB na odbiorcę.
+Bursty są łączone przez 150 ms. Przepełnienie, obca epoka lub niedostępny replay
+dają `revalidate_required`; klient odczytuje tylko widoczny zakres. Nie ma pollingu
+dysku, zapisów w bazie, pełnego manifestu ani automatycznego replay mutacji.
+Zmiana dysku unieważnia także współdzielony status Git. Workerowy `FILE_CHANGED`
+jest mapowany na Connect `Aborted`, więc klient rozpoznaje konflikt po kodzie.
+
 Jedna strona obejmuje do 200 bezpośrednich dzieci i 64 KiB protobuf z kopertą;
 klienci żądają 100. Iterator natywny ma bufor do 64 KiB i budżet pracy 2 s.
 Nie powstaje pełna lista ani rekurencyjny snapshot. Worker utrzymuje najwyżej

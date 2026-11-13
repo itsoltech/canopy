@@ -1,10 +1,11 @@
 import { type GatewayCore } from "../core/core.ts";
-import { guard } from "./ui-errors.ts";
+import { guard, toConnectError } from "./ui-errors.ts";
 import type { UiHandlers } from "./ui-service.ts";
 import { ThreadBranches } from "../worktrees/thread-branches.ts";
 import { ThreadFiles } from "../files/thread-files.ts";
 import { ThreadDirectory } from "../files/thread-directory.ts";
 import { ThreadHighlight } from "../files/thread-highlight.ts";
+import { ThreadWatch } from "../files/thread-watch.ts";
 
 /** Git worktrees (docs/worktrees.md): settings scopes and the composer's refs; a thread's folder and files. */
 export function worktreesHandlers(
@@ -24,6 +25,7 @@ export function worktreesHandlers(
   | "readThreadFile"
   | "listThreadDirectory"
   | "getThreadFileHighlight"
+  | "watchThreadFiles"
   | "writeThreadFile"
   | "deleteThreadFile"
   | "openThreadFile"
@@ -32,6 +34,7 @@ export function worktreesHandlers(
   const files = new ThreadFiles(core);
   const directory = new ThreadDirectory(core);
   const highlight = new ThreadHighlight(core);
+  const watch = new ThreadWatch(core);
 
   return {
     listThreadBranches: (request) => guard(() => branches.list(request)),
@@ -57,6 +60,13 @@ export function worktreesHandlers(
     readThreadFile: (request) => guard(() => files.read(request)),
     listThreadDirectory: (request) => guard(() => directory.list(request)),
     getThreadFileHighlight: (request) => guard(() => highlight.read(request)),
+    watchThreadFiles: async function* (request, context) {
+      try {
+        yield* watch.watch(request, context.signal);
+      } catch (cause) {
+        throw toConnectError(cause);
+      }
+    },
     writeThreadFile: (request) => guard(() => files.write(request)),
     deleteThreadFile: (request) =>
       guard(async () => {

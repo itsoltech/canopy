@@ -121,6 +121,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
         ...(this.options.updates ? [REMOTE_APP_UPDATE] : []),
         // Keep the original protocol-1 capabilities first; older peers ignore the overflow field.
         ...(this.options.serve ? [REMOTE_THREAD_PANEL] : []),
+        ...(this.options.serve ? ["thread_files_watch_v1"] : []),
         ...(this.options.core?.diagnostics.collector.enabled ? ["diagnostics_v1"] : []),
         ...(this.options.core?.diagnostics.logs.enabled ? [DIAGNOSTICS_LOGS] : []),
         ...(this.options.core?.diagnostics.collector.enabled ? ["diagnostics_trace_v1"] : []),

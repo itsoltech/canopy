@@ -386,6 +386,7 @@ while (!stopping.signal.aborted) {
           "thread_file_preview_v1",
           "thread_directory_v1",
           "thread_file_highlight_v1",
+          "thread_files_watch_v1",
           // provisional_branches: RenameWorktreeBranch.provisional keeps pushed or switched branches.
           "provisional_branches",
           "project_sources",

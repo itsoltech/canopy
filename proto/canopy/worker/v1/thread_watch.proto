@@ -1,0 +1,37 @@
+syntax = "proto3";
+package canopy.worker.v1;
+
+// Nietrwała subskrypcja; wyłącznie invalidacje, nigdy treść ani manifest.
+message ThreadFilesWatch {
+  string subscription_id = 1;
+  string owner_id = 2;
+  string thread_id = 3;
+  string workspace = 4;
+  repeated string directories = 5;
+  repeated string files = 6;
+  string root_identity = 7;
+  string cursor = 8;
+  bool release = 9;
+}
+
+enum ThreadFileChangeKind {
+  THREAD_FILE_CHANGE_KIND_UNSPECIFIED = 0;
+  THREAD_FILE_CHANGE_KIND_DIRECTORY_INVALIDATED = 1;
+  THREAD_FILE_CHANGE_KIND_FILE_CHANGED = 2;
+  THREAD_FILE_CHANGE_KIND_FILE_REMOVED = 3;
+  THREAD_FILE_CHANGE_KIND_ROOT_CHANGED = 4;
+}
+
+message ThreadFileChange {
+  ThreadFileChangeKind kind = 1;
+  string path = 2;
+}
+
+// Do 64 rekordów / 64 KiB. Cursor obejmuje epokę procesu i checkoutu.
+message ThreadFilesUpdate {
+  string subscription_id = 1;
+  string root_identity = 2;
+  string cursor = 3;
+  repeated ThreadFileChange changes = 4;
+  bool revalidate_required = 5;
+}

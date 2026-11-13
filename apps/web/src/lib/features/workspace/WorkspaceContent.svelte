@@ -2,7 +2,6 @@
   import { tick, type Snippet } from "svelte";
   import { tabPath, type WorkspaceModuleTarget } from "@canopy/domain/workspace-modules";
   import type { ThreadWorkspace } from "./thread-workspace.svelte.ts";
-  import WorkspaceFile from "./WorkspaceFile.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import { refreshActivities } from "#lib/shared/activity.ts";
 
@@ -25,12 +24,15 @@
 {#if selection}
   {@const tab = selection}
   <div id="workspace-content" role="tabpanel" aria-label={tabPath(tab)} class="flex min-h-0 flex-1 flex-col">
-    {#if tab.kind === "module"}{#key tab.id}{@render module(tab, true)}{/key}{:else}{#key tab.document}<WorkspaceFile
-          document={tab.document}
-          preview={tab.preview}
-          onkeep={() => state.view.keep(tab.id)}
-          onclose={() => state.close(tab.id)}
-        />{/key}{/if}
+    {#if tab.kind === "module"}{#key tab.id}{@render module(
+          tab,
+          true,
+        )}{/key}{:else}{#await import("./WorkspaceFile.svelte") then file}{#key tab.document}<file.default
+            document={tab.document}
+            preview={tab.preview}
+            onkeep={() => state.view.keep(tab.id)}
+            onclose={() => state.close(tab.id)}
+          />{/key}{/await}{/if}
   </div>
 {/if}
 {#if state.view.error}<Alert tone="error" banner>{state.view.error}</Alert>{/if}

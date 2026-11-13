@@ -9,7 +9,15 @@ import { useFileHighlight } from "./useFileHighlight";
 import { syntaxColors } from "./syntax-colors";
 
 /** Virtual chunks keep original line numbers; a 2 MiB single line remains selectable in full. */
-export function WorkspaceText({ document, draft }: { document: WorkspaceFile; draft?: string }) {
+export function WorkspaceText({
+  document,
+  draft,
+  plain = false,
+}: {
+  document: WorkspaceFile;
+  draft?: string;
+  plain?: boolean;
+}) {
   const c = useColors();
   const type = useTypography();
   const source = draft ?? document.text;
@@ -31,7 +39,7 @@ export function WorkspaceText({ document, draft }: { document: WorkspaceFile; dr
 
   const first = index.row(Math.min(top, index.rows - 1)).line;
   const start = Math.floor((first - 1) / 80) * 80 + 1;
-  const { tokens, note } = useFileHighlight(document, start, !indexing && (!large || enabled), draft);
+  const { tokens, note } = useFileHighlight(document, start, !plain && !indexing && (!large || enabled), draft);
   const colors = syntaxColors(c);
   const position = document.position;
   const revision = document.positionRevision;
@@ -68,7 +76,9 @@ export function WorkspaceText({ document, draft }: { document: WorkspaceFile; dr
               ? "Preparing the rest of the file…"
               : note || "Large files are shown as plain text to keep them responsive."}
           </Text>
-          {large && !enabled && <Button title="Enable highlighting" size="sm" onPress={() => setEnabled(true)} />}
+          {large && !plain && !enabled && (
+            <Button title="Enable highlighting" size="sm" onPress={() => setEnabled(true)} />
+          )}
         </View>
       )}
       <VirtualizedList

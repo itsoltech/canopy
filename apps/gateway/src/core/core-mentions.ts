@@ -1,4 +1,5 @@
 import { create } from "@bufbuild/protobuf";
+import { Code, ConnectError } from "@connectrpc/connect";
 import {
   MentionCatalogSchema,
   MentionKind,
@@ -92,6 +93,9 @@ export async function coreWorkerQuery(
   const result = await connection.sendCommand(kind, timeoutMs, options?.commandId, options?.progress);
 
   if (!result.ok) {
+    if (result.errorCode === "FILE_CHANGED")
+      throw new ConnectError("The file changed on disk. Compare your changes before reloading.", Code.Aborted);
+
     if (kind.case === "cloneRepository" && result.errorCode === "CLONE_AUTH_FAILED") {
       const worker = (await coreWorkers(hostContext)).find((w) => w.id === workerId);
       throw new InvalidError(

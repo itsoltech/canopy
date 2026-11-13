@@ -13,13 +13,16 @@ import { revealInFileManager } from "./reveal.ts";
 import { isFileCommand, runFileCommand } from "./file-commands.ts";
 import { ThreadDirectories } from "../files/thread-directory.ts";
 import { ThreadHighlights } from "../files/thread-highlight.ts";
+import { ThreadFilesWatcher } from "../files/thread-watch.ts";
 
 export class CommandHandlers {
   readonly #directories = new ThreadDirectories();
   readonly #highlights = new ThreadHighlights();
+  readonly #filesWatcher = new ThreadFilesWatcher();
   constructor(readonly ctx: HostContext) {}
 
   closeDirectories() {
+    this.#filesWatcher.close();
     this.#highlights.close();
 
     return this.#directories.close();
@@ -40,6 +43,13 @@ export class CommandHandlers {
       this.ctx.ops.checkCwd(kind.value.workspace);
 
       return { threadFileHighlight: await this.#highlights.read(kind.value) };
+    }
+
+    if (kind.case === "watchThreadFiles") {
+      if (!kind.value.release) this.ctx.ops.checkCwd(kind.value.workspace);
+      await this.#filesWatcher.watch(kind.value, (value) => this.ctx.ops.send({ case: "threadFilesUpdate", value }));
+
+      return {};
     }
 
     if (isFileCommand(kind)) return runFileCommand(this.ctx, kind);

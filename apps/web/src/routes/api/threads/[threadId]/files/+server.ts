@@ -1,8 +1,9 @@
 import { error, json } from "@sveltejs/kit";
 import { Schema } from "effect";
+import { Code, ConnectError, type Client } from "@connectrpc/connect";
 import { ui } from "@canopy/contracts";
 import { readBody } from "#lib/server/body.ts";
-import { call } from "#lib/server/gateway.ts";
+import { call, gateway, failWith } from "#lib/server/gateway.ts";
 import { encode } from "#lib/shared/wire.ts";
 import type { RequestHandler } from "./$types";
 
@@ -10,6 +11,16 @@ import type { RequestHandler } from "./$types";
 const Path = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(4096));
 const Hash = Schema.String.check(Schema.isMaxLength(64));
 const TIMEOUT_MS = 35_000;
+
+async function mutate<A>(run: (api: Client<typeof ui.GatewayService>) => Promise<A>): Promise<A> {
+  try {
+    return await run(gateway());
+  } catch (cause) {
+    if (cause instanceof ConnectError && cause.code === Code.Aborted)
+      error(412, "The file changed on disk. Compare your changes before reloading.");
+    failWith(cause);
+  }
+}
 
 export const GET: RequestHandler = async ({ params, url }) => {
   const path = url.searchParams.get("path") ?? "";
@@ -38,7 +49,7 @@ export const PUT: RequestHandler = async ({ params, request }) => {
   return json(
     encode(
       ui.ThreadFileSchema,
-      await call((api) =>
+      await mutate((api) =>
         api.writeThreadFile(
           { threadId: params.threadId, path: body.path, content, expectedSha256: body.expectedSha256 },
           { timeoutMs: TIMEOUT_MS },
@@ -52,7 +63,7 @@ const Target = Schema.Struct({ path: Path, expectedSha256: Hash });
 
 export const DELETE: RequestHandler = async ({ params, request }) => {
   const body = await readBody(request, Target);
-  await call((api) => api.deleteThreadFile({ threadId: params.threadId, ...body }, { timeoutMs: TIMEOUT_MS }));
+  await mutate((api) => api.deleteThreadFile({ threadId: params.threadId, ...body }, { timeoutMs: TIMEOUT_MS }));
 
   return json({});
 };

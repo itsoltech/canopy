@@ -1,6 +1,8 @@
 import { fileLocation } from "./file-references.ts";
 import { objectsOf, parseObject, str } from "./json.ts";
 import { WorkspaceFile, type WorkspaceFileApi, type WorkspaceFileTarget } from "./workspace-file.ts";
+import { DirectoryQueue } from "./workspace-directory-queue.ts";
+import { workspaceRead } from "./workspace-read.ts";
 import {
   fileTab,
   tabBusy,
@@ -221,8 +223,12 @@ export class WorkspaceStore {
     api: WorkspaceFileApi,
     readonly cleanBytes: number,
   ) {
+    const reads = new DirectoryQueue();
+    const list = api.listDirectory;
     this.api = {
       ...api,
+      read: (target, path, hash, signal) => workspaceRead(reads, signal, () => api.read(target, path, hash, signal)),
+      ...(list && { listDirectory: (request, signal) => workspaceRead(reads, signal, () => list(request, signal)) }),
       write: async (target, path, text, hash) => {
         const file = await api.write(target, path, text, hash);
 
