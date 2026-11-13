@@ -8,6 +8,14 @@ export class ThreadCache {
 
   constructor(readonly limits = { count: 12, bytes: 64 * 1024 * 1024 }) {}
 
+  get usage() {
+    return { count: this.#entries.size, bytes: this.#bytes };
+  }
+
+  peek(id: string): ui.ThreadSnapshot | undefined {
+    return this.#entries.get(id)?.snapshot;
+  }
+
   get(id: string): ui.ThreadSnapshot | undefined {
     const entry = this.#entries.get(id);
 

@@ -249,6 +249,45 @@ tych pomiarów; harness Bun ich nie zastępuje.
 
 ## Pasek boczny i indeks wątków na żywo
 
+Dogrzewanie historii używa jednego `WatchOverview` z najwyżej 32 headami, bez
+subskrypcji poszczególnych wątków. Web/desktop utrzymuje LRU do 32 wpisów i 32 MiB
+zakodowanego protobuf; to budżet payloadu, nie pomiar heapu JS ani RSS. Zestaw obejmuje
+12 ostatnich widocznych korzeni paska, wątki pracujące, nieobejrzane wyniki i przypięcia,
+z twardym limitem 32. Archiwum jest wykluczone. Widoczne ostatnie wątki mają pierwszeństwo.
+„Widoczne” oznacza korzenie po filtrach projektu i wyszukiwania, a nie pozycję
+w viewport. Ostatnie 12 wybieramy zawsze według `Last activity`: `last_reply_at`,
+z datą utworzenia jako fallbackiem, niezależnie od wybranego `Created` lub `Custom`.
+Ręczne przeciągnięcie i pozycja przypięcia nie zmieniają tej kolejności;
+przypięte wątki dołączają osobno w ramach wspólnego limitu.
+Każdy zachowany wpis jest przycinany do ograniczonego ogona, niezależnie od historii
+stronicowanej na otwartej stronie. Duże treści nadal są odczytywane na żądanie.
+
+Jedno zadanie dogrzewania może działać naraz; starty są oddalone o co najmniej 2 s
+(najwyżej 30 dodatkowych odczytów na minutę). Bez zmian headów nie ma odczytów danych.
+Scalenie powtarzających się headów nie tworzy kolejki. Nieudany odczyt czeka 30 s;
+każde zadanie ma timeout 8 s. Nawigacja anuluje zadanie i daje widocznemu widokowi
+co najmniej 500 ms pierwszeństwa. Ukryta karta i utrata połączenia zatrzymują tło.
+Polling headów pozostaje wewnątrz strumienia: najwyżej 30 ograniczonych odczytów SQL
+na minutę i klienta, bez dodatkowych żądań HTTP/gRPC klienta ani odczytów sieciowych domu.
+
+Settings → Diagnostics rozdziela stare proxy drugiej klatki od czasu
+`Thread current state visible`: nawigacja → pierwsze rAF po zastosowaniu danych
+aktualnych względem ostatniego headu. `Warm cache hit` to średnia z 0/100 dla otwarć
+z aktualnym checkpointem w pamięci; stary cache nie jest trafieniem. Rejestr obejmuje
+też licznik `Background thread requests` oraz `Thread cache payload` w bajtach.
+Otwarcia czasowe zachowują dotychczasowe próbkowanie 10%; hit rate i żądania obejmują
+wszystkie otwarcia i odczyty. Żadne identyfikatory ani treść nie trafiają do metryk.
+Rzeczywisty heap należy mierzyć osobno. rAF jest proxy gotowości renderera, nie
+potwierdzeniem prezentacji klatki przez kompozytor.
+
+Porównuj zimny cache i ciepły cache z już załadowanym kodem trasy; kompilacja Vite
+nie należy do kosztu dogrzewania. W osobnej próbie sprawdź pełne zimne otwarcie.
+Po pobycie na liście sprawdź, że pierwszy render zawiera najnowszy ogon, a watch
+otrzymuje checkpoint z cache. Zapisz liczbę dodatkowych odczytów na minutę,
+payload LRU i heap. `CANOPY_BENCH_CONTAINER` pozwala nadać prywatnemu kontenerowi
+pomiarowemu nazwę z prefiksem `canopy-`; istniejący kontener o tej nazwie nie jest
+usuwany, jeżeli uruchomienie nowego się nie powiodło.
+
 Każde zdarzenie overview zastępuje indeks wątków (`OverviewState.threads`), więc wszystko,
 co czyta cały indeks, przelicza się przy każdym zdarzeniu. Koszt ma rosnąć z liczbą
 zmienionych wierszy, nie z liczbą wątków:

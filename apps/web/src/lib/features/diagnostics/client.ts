@@ -3,6 +3,7 @@ import { ui } from "@canopy/contracts";
 import { ClientMeasurements } from "@canopy/domain/diagnostics";
 import { requestJson } from "#lib/shared/http.ts";
 import { decode } from "#lib/shared/wire.ts";
+import { observeThreadCacheMemory, pauseThreadWarming } from "#lib/features/threads/warming.ts";
 
 export let clientMeasurements = new ClientMeasurements("web", crypto.randomUUID());
 let observed = false;
@@ -10,6 +11,7 @@ let navigationAt = 0;
 
 export function navigationStarted() {
   navigationAt = performance.now();
+  pauseThreadWarming();
 }
 
 /** Installed once while the app is mounted. Only sampled openings enable the per-open observers. */
@@ -27,6 +29,7 @@ export function startClientDiagnostics() {
   const timer = setInterval(() => {
     if (document.hidden || !navigator.onLine || pending) return;
     pending = true;
+    observeThreadCacheMemory();
     void requestJson(
       "POST",
       "/api/diagnostics/submit",
@@ -68,12 +71,15 @@ export function startClientDiagnostics() {
   };
 }
 
-export function clientOpening(cached: boolean) {
+export function clientOpening(cached: boolean, current = false) {
   const started = navigationAt || performance.now();
   navigationAt = 0;
+  clientMeasurements.record(13, current ? 100 : 0);
 
   if (!clientMeasurements.opening()) return;
   let finished = false;
+  let currentPaint = false;
+  let cancelled = false;
   let observer: PerformanceObserver | undefined;
 
   if (globalThis.PerformanceObserver?.supportedEntryTypes?.includes("longtask")) {
@@ -86,9 +92,17 @@ export function clientOpening(cached: boolean) {
   const deadline = setTimeout(() => {
     observer?.disconnect();
     finished = true;
+    cancelled = true;
   }, 30_000);
 
   return {
+    current() {
+      if (currentPaint || cancelled || performance.now() - started > 30_000) return;
+      currentPaint = true;
+      requestAnimationFrame(() => {
+        if (!cancelled && !document.hidden) clientMeasurements.record(12, performance.now() - started);
+      });
+    },
     snapshot(started: number) {
       if (!finished) clientMeasurements.record(2, performance.now() - started);
     },
@@ -104,6 +118,7 @@ export function clientOpening(cached: boolean) {
       );
     },
     cancel() {
+      cancelled = true;
       finished = true;
       clearTimeout(deadline);
       observer?.disconnect();

@@ -1,6 +1,6 @@
 import { create, toBinary } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { CLIENT_SOURCES, clientMetricIds, type ClientSource } from "@canopy/domain/diagnostics";
+import { CLIENT_SOURCES, clientMetricIds, clientCounter, type ClientSource } from "@canopy/domain/diagnostics";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { createHash } from "node:crypto";
 import type { RpcCollector } from "./collector.ts";
@@ -160,7 +160,9 @@ function validateMeasures(request: ui.SubmitDiagnosticsRequest, source: ClientSo
 
   return request.measures.map((row) => {
     const histogram = row.histogram;
-    const count = (row.metricId - 300) % 16 >= 10;
+    const count = clientCounter(row.metricId);
+    const offset = (row.metricId - 300) % 16;
+    const limit = offset === 15 ? 64 * 1024 * 1024 : offset === 13 ? 100 : source === "bff" ? 604_800_000 : 120_000;
 
     if (
       !allowed.has(row.metricId) ||
@@ -178,7 +180,7 @@ function validateMeasures(request: ui.SubmitDiagnosticsRequest, source: ClientSo
         ? !!histogram
         : !histogram ||
           !validHistogram(histogram) ||
-          histogram.max > (source === "bff" ? 604_800_000 : 120_000) ||
+          histogram.max > limit ||
           histogram.counts.reduce((sum, value) => sum + value, 0n) !== row.events)
     )
       throw new ConnectError("Diagnostics metric is outside the registered schema", Code.InvalidArgument);

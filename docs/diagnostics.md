@@ -515,6 +515,15 @@ agregator nie rozsyła automatycznie ustaleń ani topologii do innych partnerów
 
 ### 3.5 Klienci i dostarczenie agregatów
 
+W wolnych offsetach 12–15 istniejących rejestrów klientów dodano: czas do
+aktualnego stanu wątku (nawigacja → pierwsze rAF po aktualnym cache lub catch-up),
+trafienie aktualnego cache (0/100, średnia daje procent), liczbę odczytów historii
+w tle oraz bajty payloadu cache. To nie jest pomiar heapu ani prezentacji klatki.
+Aktualność odnosi się do ostatniego owner-scoped headu z overview, którego sonda
+działa co 2 s. Tło i offline nie tworzą pozornych trafień. Czasy otwarć są próbkowane
+jak dotąd; stałe liczniki trafień/żądań oraz próbka bajtów co minutę są ograniczone
+niezależnie. Szczegóły i budżety: [client-performance.md](client-performance.md).
+
 BFF mierzy unary od wejścia do `transport.unary` do wyniku/błędu; zawiera transport,
 kolejki HTTP/2 i czas gatewaya. Stream: czas do pierwszej wiadomości, lifetime,
 liczniki wiadomości/bajtów na istniejącym kodowaniu SSE. BFF i gateway pokazujemy

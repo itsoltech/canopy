@@ -28,20 +28,29 @@ const names = [
   "Stream lifetime",
   "Stream messages",
   "Stream bytes",
+  "Thread current state visible",
+  "Warm cache hit",
+  "Background thread requests",
+  "Thread cache payload",
 ] as const;
 
 const units = new Map<number, MetricDefinition["unit"]>([
   [10, "count"],
   [11, "bytes"],
+  [13, "%"],
+  [14, "count"],
+  [15, "bytes"],
 ]);
+
+export const clientCounter = (id: number) => [10, 11, 14].includes((id - 300) % 16);
 
 export const CLIENT_METRICS: MetricDefinition[] = CLIENT_SOURCES.flatMap((source, index) =>
   names.flatMap((name, metric): MetricDefinition[] => {
     if (
       (source === "mobile" && [3, 4].includes(metric)) ||
       (source !== "mobile" && metric === 5) ||
-      (source !== "bff" && metric >= 6) ||
-      (source === "bff" && metric < 6)
+      (source !== "bff" && metric >= 6 && metric <= 11) ||
+      (source === "bff" && (metric < 6 || metric > 11))
     )
       return [];
 
@@ -51,7 +60,7 @@ export const CLIENT_METRICS: MetricDefinition[] = CLIENT_SOURCES.flatMap((source
         name: `${source === "bff" ? "BFF" : source} · ${source === "mobile" && metric === 2 ? "First snapshot reducer" : name}`,
         group: "clients",
         unit: units.get(metric) ?? "ms",
-        kind: metric >= 10 ? "counter" : "timing",
+        kind: [10, 11, 14].includes(metric) ? "counter" : [13, 15].includes(metric) ? "gauge" : "timing",
         approximate: true,
       },
     ];

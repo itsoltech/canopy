@@ -1,7 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { Histogram, addCount } from "./histogram.ts";
-import { clientMetric, clientMetricIds, type ClientSource } from "./client-metrics.ts";
+import { clientMetric, clientMetricIds, clientCounter, type ClientSource } from "./client-metrics.ts";
 
 /** At most twelve fixed histograms. No thread IDs, URLs, payloads, disk buffer or retry queue. */
 export class ClientMeasurements {
@@ -69,8 +69,8 @@ export class ClientMeasurements {
       measures: [...this.#values].map(([metricId, value]) =>
         create(ui.DiagnosticsMeasureAggregateSchema, {
           metricId,
-          events: (metricId - 300) % 16 >= 10 ? BigInt(Math.floor(value.histogram.sum)) : value.events,
-          histogram: (metricId - 300) % 16 >= 10 ? undefined : value.histogram.snapshot(),
+          events: clientCounter(metricId) ? BigInt(Math.floor(value.histogram.sum)) : value.events,
+          histogram: clientCounter(metricId) ? undefined : value.histogram.snapshot(),
           sampledAtMs: BigInt(now),
         }),
       ),
