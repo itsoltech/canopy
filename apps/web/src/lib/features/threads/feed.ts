@@ -3,6 +3,7 @@ import type { TimelineEntry, TimelineNotice, TurnResult } from "./thread-types.t
 import { buildTimeline, type ItemNode, type TimelineRow } from "./timeline.ts";
 import { foldTurns, type WorkSummary } from "./work-groups.ts";
 import { FeedPrefix } from "./feed-prefix.ts";
+import { workHistoryGaps } from "./work-history.ts";
 import { turnNotices } from "@canopy/domain/turn-notices";
 
 /**
@@ -35,7 +36,7 @@ export type FeedRow =
       readonly end?: boolean;
     }
   /** Stable fold, tool group or streaming answer slot. */
-  | (Extract<import("./work-groups.ts").FoldedRow, { kind: "work" | "work-group" | "answer" }> & {
+  | (Extract<import("./work-groups.ts").FoldedRow, { kind: "work" | "work-group" | "answer" | "work-gap" }> & {
       readonly history: boolean;
       readonly last: boolean;
       readonly end?: boolean;
@@ -60,6 +61,8 @@ export interface FeedInput {
   /** Folds open (by fold id: a turn's, or its later segment's, `foldId`), live or ended. */
   readonly openWork: ReadonlySet<string>;
   readonly openGroups?: ReadonlySet<string>;
+  /** Turn and item windows page independently: a turn header alone does not prove its work is empty. */
+  readonly historyItemsHasMore?: boolean;
 }
 
 /** Group of a row for size estimates: items by their content, other rows by kind. */
@@ -75,6 +78,27 @@ export function feedScrollKey(row: FeedRow): string {
   const id = row.row.node.entry.id;
 
   return row.key.replace(/answer:.+$/, () => `item:${id}`);
+}
+
+/** Paging can renumber segment slots or replace an input placeholder with its persisted item. */
+export function resolveFeedScrollKey(rows: readonly FeedRow[], identity: string): string {
+  const exact = rows.find((row) => feedScrollKey(row) === identity);
+
+  if (exact) return exact.key;
+
+  const input = rows.find(
+    (row) =>
+      row.kind === "timeline" &&
+      row.row.kind === "item" &&
+      row.row.inputOf &&
+      `input:${row.row.inputOf.id}` === identity,
+  );
+
+  if (input) return input.key;
+  const gap = identity.replace(/(^|:)work:/, "$1work-gap:");
+  const work = identity.replace(/(^|:)work-gap:/, "$1work:");
+
+  return rows.find((row) => row.key === gap || row.key === work)?.key ?? identity;
 }
 
 /**
@@ -99,6 +123,7 @@ const ESTIMATES = new Map<string, number>([
   ["notice", 44],
   ["turn-end", 40],
   ["work", 36],
+  ["work-gap", 44],
   ["work-group", 44],
   ["answer", 160],
   ["item:userMessage", 96],
@@ -114,6 +139,7 @@ export const feedEstimate = (group: string): number => ESTIMATES.get(group.repla
  * delta re-renders only the row it touches.
  */
 export class FeedBuilder {
+  constructor(readonly report?: (count: number) => void) {}
   #rows: FeedRow[] = [];
   readonly #nodes = new WeakMap<TimelineEntry, ItemNode>();
   readonly #prefix = new FeedPrefix();
@@ -147,7 +173,19 @@ export class FeedBuilder {
         parts.forEach((part, p) => {
           if (parts.length > 1)
             next.push({ kind: "history-part", key: `history:${part.threadId}`, threadId: part.threadId });
-          const folded = foldTurns(part.rows, open, groupOpen);
+
+          const folded = foldTurns(
+            part.rows,
+            open,
+            groupOpen,
+            workHistoryGaps(
+              input.inheritedTurns.filter((turn) => (turn.fromThreadId || sourceId) === part.threadId),
+              input.inheritedEntries.filter((entry) => (entry.fromThreadId || sourceId) === part.threadId),
+              input.historyItemsHasMore ?? false,
+            ),
+            this.report,
+          );
+
           folded.forEach((fold, r) => {
             const last = p === parts.length - 1 && r === folded.length - 1;
 
@@ -170,7 +208,13 @@ export class FeedBuilder {
       next.push({ kind: "forked", key: "forked", sourceId });
     }
 
-    for (const row of this.#prefix.build(input, (part, context) => ownRows(part, this.#nodes, context))) next.push(row);
+    // Compute the boundary before slicing the completed prefix; the live tail's first turn is not another gap.
+    const gaps = workHistoryGaps(input.turns, input.entries, input.historyItemsHasMore ?? false);
+
+    for (const row of this.#prefix.build(input, (part, context) =>
+      ownRows(part, this.#nodes, gaps, context, this.report),
+    ))
+      next.push(row);
 
     if (input.working && !next.some((r) => r.kind === "work" && r.summary.live))
       next.push({ kind: "working", key: "working" });
@@ -205,12 +249,16 @@ export class FeedBuilder {
 function ownRows(
   input: FeedInput,
   nodes: WeakMap<TimelineEntry, ItemNode>,
+  gaps: ReadonlySet<string>,
   context?: { readonly lastDay: string; readonly withdrawn: readonly number[] },
+  report?: (count: number) => void,
 ): FeedRow[] {
   return foldTurns(
     buildTimeline(input.entries, input.turns, input.notices, input.results, nodes, context),
     (fold) => input.openWork.has(fold),
     (key) => input.openGroups?.has(key) ?? false,
+    gaps,
+    report,
   ).map((fold): FeedRow =>
     fold.kind !== "row"
       ? { ...fold, history: false, last: false }

@@ -1,8 +1,28 @@
 /** The row that keeps its place on screen while the reader is scrolled up, and its distance from the top edge. */
 export interface FeedAnchor {
   key: string;
+  /** Message identity can survive a segment slot being reassigned when older work is paged in. */
+  identity?: string;
   element: HTMLElement;
   top: number;
+}
+
+/** Correct measured growth only against the row's current element, never a reassigned segment slot. */
+export function settleAnchor(
+  anchor: FeedAnchor | undefined,
+  elements: ReadonlyMap<string, HTMLElement>,
+  scroller: HTMLElement,
+  setTop: (top: number) => void,
+): boolean {
+  const element = anchor && elements.get(anchor.key);
+
+  if (!anchor || !element) return false;
+  anchor.element = element;
+  const delta = element.getBoundingClientRect().top - scroller.getBoundingClientRect().top - anchor.top;
+
+  if (Math.abs(delta) >= 0.5) setTop(scroller.scrollTop + delta);
+
+  return true;
 }
 
 /** Keep a closing fold's surviving header visible when its work rows disappear. */
@@ -22,7 +42,7 @@ export function holdAnchor(
 }
 
 /** The first mounted row whose bottom is below the top edge (rows are in order), as the anchor. */
-export function captureAnchor(rows: HTMLCollection, edge: number): FeedAnchor | undefined {
+export function captureAnchor(rows: HTMLCollection, edge: number, bottom: number): FeedAnchor | undefined {
   let low = 0;
   let high = rows.length - 1;
 
@@ -43,9 +63,11 @@ export function captureAnchor(rows: HTMLCollection, edge: number): FeedAnchor | 
   }
 
   const element = rows[low];
+  const rect = element?.getBoundingClientRect();
 
-  return element instanceof HTMLElement && element.dataset.key
-    ? { key: element.dataset.key, element, top: element.getBoundingClientRect().top - edge }
+  // A large scroll can outrun the mounted window. Its old rows are not reading anchors.
+  return element instanceof HTMLElement && element.dataset.key && rect && rect.bottom > edge && rect.top < bottom
+    ? { key: element.dataset.key, element, top: rect.top - edge }
     : undefined;
 }
 

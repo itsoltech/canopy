@@ -2,8 +2,9 @@ import { untrack } from "svelte";
 import { rememberThreadScroll, type ThreadScrollPosition } from "@canopy/domain/thread-scroll";
 import { devicePreferences as device } from "../settings/device-preferences.svelte.ts";
 import type { ComposerCompaction } from "./components/composer-compaction.ts";
-import { feedScrollKey, type FeedRow } from "./feed.ts";
+import { feedScrollKey, resolveFeedScrollKey, type FeedRow } from "./feed.ts";
 import type { WorkFolds } from "./work-folds.svelte.ts";
+import { timelineRecovery } from "#lib/features/diagnostics/client.ts";
 
 export function threadScrollMemory(id: string, compaction: ComposerCompaction, publish: (compact: boolean) => void) {
   let prepared = $state(false);
@@ -17,7 +18,12 @@ export function threadScrollMemory(id: string, compaction: ComposerCompaction, p
       return untrack(() => device.view.threadScroll.find((entry) => entry.threadId === id)?.position);
     },
     key(identity: string) {
-      return current.find((row) => feedScrollKey(row) === identity)?.key ?? identity;
+      return resolveFeedScrollKey(current, identity);
+    },
+    identity(key: string) {
+      const row = current.find((row) => row.key === key);
+
+      return row ? feedScrollKey(row) : key;
     },
     prepare(rows: readonly FeedRow[], folds: WorkFolds, historyOpen: boolean, expanded = false): boolean {
       current = rows;
@@ -54,6 +60,9 @@ export function threadScrollMemory(id: string, compaction: ComposerCompaction, p
         compaction.compact = true;
         publish(true);
       }
+    },
+    recovered() {
+      timelineRecovery("position_timeout");
     },
   };
 }

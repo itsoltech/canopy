@@ -7,11 +7,15 @@ export { CLIENT_SOURCES, type ClientSource } from "./client-source.ts";
 
 const sourceTitles = { web: "Web", desktop: "Desktop", mobile: "Mobile", bff: "BFF" };
 
+// History recovery series follow the watch block (364–399) and worker git timings (400–409).
+const metricSource = (id: number) =>
+  id >= 450 && id < 456
+    ? CLIENT_SOURCES[Math.floor((id - 450) / 2)]
+    : (threadWatchSource(id) ?? CLIENT_SOURCES[Math.floor((id - 300) / 16)]);
+
 export function clientGroups(measures: readonly ui.DiagnosticsMeasure[]) {
   return CLIENT_SOURCES.flatMap((source) => {
-    const rows = measures.filter(
-      (row) => (threadWatchSource(row.metricId) ?? CLIENT_SOURCES[Math.floor((row.metricId - 300) / 16)]) === source,
-    );
+    const rows = measures.filter((row) => metricSource(row.metricId) === source);
 
     return rows.length ? [{ source, title: sourceTitles[source], measures: rows }] : [];
   });
@@ -45,7 +49,11 @@ const units = new Map<number, MetricDefinition["unit"]>([
 ]);
 
 export const clientCounter = (id: number) =>
-  threadWatchSource(id) ? threadWatchCounter(id) : [10, 11, 14].includes((id - 300) % 16);
+  id >= 450 && id < 456
+    ? (id - 450) % 2 === 0
+    : threadWatchSource(id)
+      ? threadWatchCounter(id)
+      : [10, 11, 14].includes((id - 300) % 16);
 
 export const CLIENT_METRICS: MetricDefinition[] = [
   ...CLIENT_SOURCES.flatMap((source, index) =>
@@ -71,16 +79,34 @@ export const CLIENT_METRICS: MetricDefinition[] = [
     }),
   ),
   ...THREAD_WATCH_METRICS,
+  ...CLIENT_SOURCES.flatMap((source, index): MetricDefinition[] =>
+    source === "bff"
+      ? []
+      : [
+          {
+            id: 450 + index * 2,
+            name: `${source} · Timeline recoveries`,
+            group: "clients",
+            unit: "count",
+            kind: "counter",
+            approximate: true,
+          },
+          {
+            id: 451 + index * 2,
+            name: `${source} · Earlier work rendered`,
+            group: "clients",
+            unit: "ms",
+            kind: "timing",
+            approximate: true,
+          },
+        ],
+  ),
 ];
 
 export const clientMetric = (source: ClientSource, metric: number) =>
-  300 + CLIENT_SOURCES.indexOf(source) * 16 + metric;
+  metric === 16 || metric === 17
+    ? 450 + CLIENT_SOURCES.indexOf(source) * 2 + metric - 16
+    : 300 + CLIENT_SOURCES.indexOf(source) * 16 + metric;
 
 export const clientMetricIds = (source: ClientSource) =>
-  new Set(
-    CLIENT_METRICS.flatMap((metric) =>
-      (threadWatchSource(metric.id) ?? CLIENT_SOURCES[Math.floor((metric.id - 300) / 16)]) === source
-        ? [metric.id]
-        : [],
-    ),
-  );
+  new Set(CLIENT_METRICS.flatMap((metric) => (metricSource(metric.id) === source ? [metric.id] : [])));

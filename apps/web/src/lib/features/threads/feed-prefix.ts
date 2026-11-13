@@ -47,6 +47,7 @@ export class FeedPrefix {
     const before = prefix.input;
 
     if (
+      before.historyItemsHasMore !== input.historyItemsHasMore ||
       !sameSet(before.openWork, input.openWork) ||
       !sameSet(before.openGroups ?? new Set(), input.openGroups ?? new Set()) ||
       !before.entries.every((entry, i) => input.entries[i] === entry) ||
