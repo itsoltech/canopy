@@ -1360,6 +1360,9 @@ przewijania, nawet gdy komórka źródłowa opuści okno wirtualizacji. Wiersze 
 `memo`, a zapis stosuje jedną odpowiedź ReorderThread bez odświeżania listy.
 Animacja rozmieszczenia korzysta z tokenów i systemowego ograniczenia ruchu;
 pętla zatrzymuje się w tle. Nie dodajemy modułu haptyki: aplikacja go dotąd nie używa.
+Callback klatek rejestruje się dopiero po aktywacji przeciągania i wyłącza po jego
+zakończeniu lub anulowaniu. Sam wybrany tryb Custom nie utrzymuje zegara UI;
+spóźniony start po zakończeniu gestu ponownie sprawdza aktywny wiersz.
 
 Etykieta „Working 1m” używa tego samego `workingLabel` i `formatAge` z domain co web:
 czas pochodzi z `lastActivityAt`, z fallbackiem do `createdAt`. Tytuł i metadane
