@@ -72,7 +72,7 @@ export type HostOperations = HostHooks &
     | "removeWorktree"
     | "revealWorktree"
   > &
-  Pick<CommandHandlers, "execute">;
+  Pick<CommandHandlers, "execute" | "closeDirectories">;
 
 export class HostContext {
   readonly ops: HostOperations;
@@ -151,6 +151,7 @@ export class HostContext {
       interruptBotTurn: bots.interruptBotTurn.bind(bots),
       closeBots: bots.closeBots.bind(bots),
       execute: commands.execute.bind(commands),
+      closeDirectories: commands.closeDirectories.bind(commands),
       listGitRefs: gitCommands.listGitRefs.bind(gitCommands),
       readWorkspaceOrigin: gitCommands.readWorkspaceOrigin.bind(gitCommands),
       readGitPrContext: gitCommands.readGitPrContext.bind(gitCommands),

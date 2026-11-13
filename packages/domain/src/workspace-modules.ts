@@ -2,6 +2,7 @@ import { fileName } from "./file-references.ts";
 import type { WorkspaceFile } from "./workspace-file.ts";
 
 export const workspaceModules = [
+  { id: "files", label: "Files", icon: "folder" },
   { id: "pull-requests", label: "Pull requests", icon: "git-fork" },
   { id: "tasks", label: "Tasks", icon: "queue-list" },
   { id: "connectors", label: "Connectors", icon: "link" },

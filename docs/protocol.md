@@ -490,6 +490,33 @@ i własnego remote. Konektor oraz poświadczenia pozostają w gatewayu. Pola są
 
 ## Folder i pliki wątku
 
+Capability `thread_directory_v1` dodaje nietrwałe `ListThreadDirectory` (228) oraz
+`CommandResult.thread_directory` (228), bez zmiany `WORKER_LINK_PROTOCOL = 1`.
+UI podaje wyłącznie id wątku, względny katalog, filtr, rewizję i kursor. Gateway
+sprawdza właściciela, wyprowadza worker oraz rzeczywiste `threads.cwd` i kieruje
+odczyt do domu wątku. Worker bez capability wymaga aktualizacji. Komenda nie trafia
+do outboxa, dziennika ani synchronizacji metadanych.
+
+Jedna strona obejmuje do 200 bezpośrednich dzieci i 64 KiB protobuf z kopertą;
+klienci żądają 100. Iterator `opendir` ma bufor 32 wpisów i budżet pracy 2 s.
+Nie powstaje pełna lista ani rekurencyjny snapshot. Worker utrzymuje najwyżej
+8 iteratorów; kursor jest jednorazowy, związany z właścicielem, wątkiem, tożsamością
+korzenia, katalogiem i filtrem, wygasa po 30 s. `release` zwalnia go wcześniej,
+a rozłączenie czyści iteratory. Zmiana rewizji katalogu lub korzenia daje typowany
+błąd i wymaga ponownego odczytu tego katalogu, bez cichego kontynuowania starej listy.
+
+Ścieżki bezwzględne, `..`, NUL, backslash i `.git` są odrzucane. Komponenty katalogu
+nie mogą być dowiązaniami. Worker ponownie sprawdza granicę po enumeracji; wpis
+symlinka zawiera typ i nazwę bez celu i nie jest rozwijany. Odpowiedź zawiera wyłącznie
+ścieżki względne i nieujawniający korzenia hash jego tożsamości.
+
+Git korzysta z process governora: współdzielony status porcelain, limit 1 MiB,
+2 s i cache 2 s, bez procesu dla każdego pliku. Statusy obejmują modyfikację,
+dodanie, usunięcie, zmianę nazwy, konflikt, nieśledzone i ignorowane wpisy.
+Usunięte nazwy mają osobny typ; ich metadane na iterator są ograniczone do 128 KiB.
+Niepełny lub niedostępny status daje `git_status_complete = false` i komunikat;
+nie blokuje zwykłego listowania.
+
 Capability `reveal_path`: nietrwała `RevealPath` (220) otwiera katalog wątku menedżerem plików
 komputera workera ([worktrees.md](worktrees.md)).
 

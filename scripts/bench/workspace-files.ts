@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { FileResolution, type Command, FileContentSchema } from "@canopy/contracts";
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { CommandResultSchema } from "@canopy/contracts";
+import { workspaceDirectory } from "./workspace-directory.ts";
 
 const names = [
   "sample.ts",
@@ -30,9 +31,13 @@ export function workspaceFiles() {
   );
 
   const hash = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
+  const directory = workspaceDirectory(files);
 
-  return (command: Command): MessageInitShape<typeof CommandResultSchema> | undefined => {
+  return async (command: Command): Promise<MessageInitShape<typeof CommandResultSchema> | undefined> => {
     const kind = command.kind;
+
+    if (kind.case === "listThreadDirectory")
+      return { commandId: command.commandId, ok: true, threadDirectory: await directory(kind.value) };
 
     if (kind.case !== "readFile" && kind.case !== "writeFile" && kind.case !== "deleteFile") return undefined;
     const target = kind.case === "writeFile" ? kind.value.target : kind.value;

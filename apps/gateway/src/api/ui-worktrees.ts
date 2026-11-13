@@ -3,6 +3,7 @@ import { guard } from "./ui-errors.ts";
 import type { UiHandlers } from "./ui-service.ts";
 import { ThreadBranches } from "../worktrees/thread-branches.ts";
 import { ThreadFiles } from "../files/thread-files.ts";
+import { ThreadDirectory } from "../files/thread-directory.ts";
 
 /** Git worktrees (docs/worktrees.md): settings scopes and the composer's refs; a thread's folder and files. */
 export function worktreesHandlers(
@@ -20,12 +21,14 @@ export function worktreesHandlers(
   | "revealWorktree"
   | "revealThreadDirectory"
   | "readThreadFile"
+  | "listThreadDirectory"
   | "writeThreadFile"
   | "deleteThreadFile"
   | "openThreadFile"
 > {
   const branches = new ThreadBranches(core);
   const files = new ThreadFiles(core);
+  const directory = new ThreadDirectory(core);
 
   return {
     listThreadBranches: (request) => guard(() => branches.list(request)),
@@ -49,6 +52,7 @@ export function worktreesHandlers(
         return {};
       }),
     readThreadFile: (request) => guard(() => files.read(request)),
+    listThreadDirectory: (request) => guard(() => directory.list(request)),
     writeThreadFile: (request) => guard(() => files.write(request)),
     deleteThreadFile: (request) =>
       guard(async () => {

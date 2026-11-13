@@ -73,7 +73,7 @@ export async function clientWorker(baseUrl: string, worker: { workerId: string; 
           workerId: worker.workerId,
           journalId: Bun.randomUUIDv7(),
           state: WorkerState.ACTIVE,
-          capabilities: files ? ["thread_files_v1", "thread_file_preview_v1"] : [],
+          capabilities: files ? ["thread_files_v1", "thread_file_preview_v1", "thread_directory_v1"] : [],
           attachmentsRoot: "/srv/canopy-attachments",
           providers: [{ provider: Provider.CODEX, available: true, version: "benchmark" }],
         },
@@ -140,7 +140,7 @@ export async function clientWorker(baseUrl: string, worker: { workerId: string; 
 
       if (payload.case !== "command") continue;
       const { commandId, kind } = payload.value;
-      const fileResult = files?.(payload.value);
+      const fileResult = await files?.(payload.value);
 
       if (fileResult) {
         link.send({ case: "commandResult", value: fileResult });

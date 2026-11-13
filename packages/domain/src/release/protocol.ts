@@ -22,6 +22,9 @@ export const THREAD_FILES_CAPABILITY = "thread_files_v1";
 /** Home-workspace name resolution and bounded binary bytes for file previews. */
 export const THREAD_FILE_PREVIEW_CAPABILITY = "thread_file_preview_v1";
 
+/** Bounded, nonrecursive cwd/worktree enumeration; additive to WorkerLink protocol 1. */
+export const THREAD_DIRECTORY_CAPABILITY = "thread_directory_v1";
+
 /** Transient Git clone progress and cancellation; additive to WorkerLink protocol 1. */
 export const CLONE_PROGRESS_CAPABILITY = "git_clone_progress_v1";
 

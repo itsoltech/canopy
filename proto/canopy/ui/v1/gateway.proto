@@ -10,6 +10,7 @@ import "canopy/ui/v1/workspace_copy.proto";
 
 import "google/protobuf/timestamp.proto";
 import "canopy/worker/v1/worker_link.proto";
+import "canopy/worker/v1/thread_directory.proto";
 import "canopy/ui/v1/bots.proto";
 import "canopy/ui/v1/quotes.proto";
 import "canopy/ui/v1/connectors.proto";
@@ -313,6 +314,7 @@ service GatewayService {
   // Pliki wątku (capability thread_files_v1): ścieżka względna liczy się od katalogu wątku;
   // dostęp tylko pod katalogiem wątku, workspace'ami właściciela na tym workerze i katalogami workera.
   rpc ReadThreadFile(ThreadFileRequest) returns (ThreadFile);
+  rpc ListThreadDirectory(ListThreadDirectoryRequest) returns (canopy.worker.v1.ThreadDirectoryPage);
   rpc WriteThreadFile(WriteThreadFileRequest) returns (ThreadFile);
   rpc DeleteThreadFile(ThreadFileRequest) returns (google.protobuf.Empty);
   // Otwiera plik w domyślnej aplikacji systemu na komputerze workera.
@@ -1055,6 +1057,16 @@ message OverviewFeeds {
 }
 
 // ---------- Katalogi, projekty, workspace'y ----------
+
+message ListThreadDirectoryRequest {
+  string thread_id = 1;
+  string directory = 2;
+  uint32 page_size = 3;
+  string page_token = 4;
+  bool include_ignored = 5;
+  string known_revision = 6;
+  bool release = 7;
+}
 
 message ListDirectoryRequest {
   string worker_id = 1;

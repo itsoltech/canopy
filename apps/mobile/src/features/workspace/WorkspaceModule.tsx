@@ -10,9 +10,14 @@ import { PullRequestScreen } from "../github/PullRequestScreen";
 import { Notice } from "../../ui/components";
 import { useContentPadding } from "../../ui/ScreenFrame";
 import { WorkspaceTask } from "./WorkspaceTask";
+import { WorkspaceTree } from "./WorkspaceTree";
+import { useWorkspace } from "./context";
 
 export function WorkspaceModule({ state, target }: { state: ThreadState; target: WorkspaceModuleTarget }) {
   const padding = useContentPadding();
+  const view = useWorkspace();
+
+  if (target.module === "files" && view) return <WorkspaceTree view={view} />;
 
   if (target.module === "pull-requests" && target.resource)
     return <PullRequestScreen id={target.resource} threadId={state.thread?.id} embedded />;
@@ -36,10 +41,18 @@ export function WorkspaceModuleBody({
   onClose: () => void;
 }) {
   const { thread, snapshot, home } = state;
-  const panel = useThreadPanel(thread?.id ?? "", Boolean(thread) && target.module !== "pull-requests");
+  const view = useWorkspace();
+
+  const panel = useThreadPanel(
+    thread?.id ?? "",
+    Boolean(thread) && target.module !== "pull-requests" && target.module !== "files",
+  );
+
   const stale = home.away || !!panel.data?.stale || !!panel.error || state.stream.connection !== "live";
 
   if (!thread) return <Notice>Opening the thread…</Notice>;
+
+  if (target.module === "files" && view) return <WorkspaceTree view={view} onOpen={onClose} />;
 
   if (target.module === "pull-requests") return <ThreadPullRequests thread={thread} onClose={onClose} />;
 

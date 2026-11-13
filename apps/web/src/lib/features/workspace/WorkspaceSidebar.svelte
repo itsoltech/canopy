@@ -134,7 +134,7 @@
   <Dialog bind:open={sheet} title="Modules" bare sheet>
     {#if sheet}
       {@render header()}
-      <div class="min-h-0 overflow-auto p-2">
+      <div class={selection?.module === "files" ? "h-[65dvh] min-h-0 p-2" : "min-h-0 overflow-auto p-2"}>
         {#if selection}{@render module(selection, false)}{:else}<div class="grid gap-1">
             {#each workspaceModules as entry (entry.id)}<button
                 type="button"

@@ -56,7 +56,7 @@ Edycja pozostaje natywnym polem tekstowym bez kolorów podczas pisania. Tokeniza
 viewera i Preview changes dochodzą w osobnej warstwie workspace'u; obecny shell
 nie dodaje nowych RPC ani modułu natywnego. Poza wątkiem pozostaje pełnoekranowy viewer.
 
-`+` obok przełącznika kart otwiera moduły Pull requests, Tasks i Connectors w pełnej
+`+` obok przełącznika kart otwiera moduły Files, Pull requests, Tasks i Connectors w pełnej
 karcie bieżącego wątku. Modules otwiera arkusz minimalnego modułu z wyborem,
 Open in tab i Close module. Szczegóły wątku mają osobny arkusz; otwarcie jednego
 zamyka drugi. Nie ma dokowanego panelu na telefonie. Wybrany moduł i karty są
@@ -70,6 +70,20 @@ w karcie. Connectors zachowuje granty całego workera. Nieaktywne moduły są
 odmontowane, dane korzystają ze współdzielonego cache parowania, a ponowne
 otwarcie sekcji PR korzysta z zapamiętanej prezentacji. Nie zmieniamy konfiguracji
 natywnej ani fingerprintów; kolorowanie plików dochodzi w kolejnej warstwie.
+
+Files używa `FlatList` ze stałą wysokością wiersza co najmniej 48 dp, dostosowaną
+do skali tekstu. Okno montowania ma do 80 wierszy na obsługiwanych viewportach;
+`Load more` pobiera po 100 dzieci bieżącego katalogu. Arkusz i pełna karta
+współdzielą model drzewa, bez zagnieżdżania listy w scrollu arkusza. Dotknięcie pliku
+otwiera preview; Keep tab utrwala go w przełączniku kart. Litery statusu Git i opisy
+dostępności uzupełniają kolory. Symlinki i usunięte wpisy są nieaktywne.
+
+Cache drzewa ma osobny limit 1 MiB zakodowanego payloadu, do 30 wątków, po 128
+węzłów katalogów i 32 rozwinięcia. Listowania mają wspólny limit dwóch równoległych
+odczytów; po zamknięciu ostatniego widoku odczyty i kursory są zwalniane. Brak
+pollingu w tle. `Reload files` odświeża zmiany spoza Canopy; własny zapis i usunięcie
+unieważniają drzewo wątku. Przekroczenie budżetu lub wygaśnięcie kursora pokazuje
+ponowny odczyt folderu. Starszy gateway/worker dostaje komunikat o aktualizacji.
 
 Ścieżki plików w wiadomościach agenta (kod inline i linki Markdown) otwierają podgląd przez
 `ReadThreadFile` z ID wątku i elementu źródłowego. Rozstrzygnięcie nazw, wybór spośród kilku dopasowań,

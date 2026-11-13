@@ -1,4 +1,5 @@
-import { FileResolution, type ui } from "@canopy/contracts";
+import { FileResolution, type ThreadDirectoryPage, type ui } from "@canopy/contracts";
+import type { MessageInitShape } from "@bufbuild/protobuf";
 import type { FilePosition } from "./file-references.ts";
 
 export const FILE_EDIT_BYTES = 400 * 1024;
@@ -15,6 +16,10 @@ export interface WorkspaceFileTarget {
 }
 
 export interface WorkspaceFileApi {
+  listDirectory?(
+    request: MessageInitShape<typeof ui.ListThreadDirectoryRequestSchema>,
+    signal: AbortSignal,
+  ): Promise<ThreadDirectoryPage>;
   read(target: WorkspaceFileTarget, path: string, hash: string, signal: AbortSignal): Promise<ui.ThreadFile>;
   write(target: WorkspaceFileTarget, path: string, text: string, hash: string): Promise<ui.ThreadFile>;
   remove(target: WorkspaceFileTarget, path: string, hash: string): Promise<void>;

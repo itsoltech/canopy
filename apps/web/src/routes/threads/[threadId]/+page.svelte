@@ -88,6 +88,7 @@
   import WorkspaceSidebar from "#lib/features/workspace/WorkspaceSidebar.svelte";
   import WorkspaceSummary from "#lib/features/workspace/WorkspaceSummary.svelte";
   import WorkspaceFrame from "#lib/features/workspace/WorkspaceFrame.svelte";
+  import WorkspaceFiles from "#lib/features/workspace/WorkspaceFiles.svelte";
   import type { WorkspaceModuleId, WorkspaceModuleTarget } from "@canopy/domain/workspace-modules";
   import { devicePreferences as device } from "#lib/features/settings/device-preferences.svelte.ts";
 
@@ -825,7 +826,8 @@
 {/snippet}
 
 {#snippet renderModule(target: WorkspaceModuleTarget, full: boolean)}
-  {#if target.module === "pull-requests" && target.resource && full}
+  {#if target.module === "files"}<WorkspaceFiles view={workspaceState.view} onopen={() => (panelSheet = false)} />
+  {:else if target.module === "pull-requests" && target.resource && full}
     <PullRequestPanel id={target.resource} {threadId} onclose={() => workspaceState.view.select("thread")} />
   {:else if target.module === "tasks" && target.resource && full}
     {@const task = allBackgroundTasks.find((entry) => entry.id === target.resource)}

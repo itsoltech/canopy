@@ -84,6 +84,7 @@ const NOT_REMEMBERED: ReadonlySet<Command["kind"]["case"]> = new Set([
   "revealPath",
   // Explicit owner actions on one file: answered once, never redelivered.
   "readFile",
+  "listThreadDirectory",
   "openFile",
   "writeFile",
   "deleteFile",
@@ -210,6 +211,7 @@ export class WorkerHost {
     if (this.#ctx.state.link === link) {
       this.#ctx.state.link = undefined;
       void this.#ctx.ops.closeClones();
+      void this.#ctx.ops.closeDirectories();
     }
 
     // The redelivered StartTurn asks again on the next link.
@@ -352,6 +354,7 @@ export class WorkerHost {
         ...(output.importLibraryContent && { importLibraryContent: output.importLibraryContent }),
         ...(output.importSecret && { importSecret: output.importSecret }),
         ...(output.file && { file: output.file }),
+        ...(output.threadDirectory && { threadDirectory: output.threadDirectory }),
       };
 
       if (!NOT_REMEMBERED.has(command.kind.case)) await this.#remember(result);
@@ -387,6 +390,7 @@ export class WorkerHost {
   }
 
   async close(): Promise<void> {
+    await this.#ctx.ops.closeDirectories();
     await this.#ctx.ops.closeClones();
     await this.#copies.close();
     this.#ctx.state.closing = true;
