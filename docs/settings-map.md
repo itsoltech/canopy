@@ -7,6 +7,11 @@ Code: **Projects → Worktrees → Diffs → Agent environment**.
 Connections: **Providers → Connectors → Proxies → Workers → Network access → Devices → Linked computers → Desktop → App updates**.
 Ostatnie dwie strony tylko w desktopie, Linked computers według capability gatewaya.
 
+Planowana strona **General → Diagnostics**: [diagnostics.md](diagnostics.md).
+Projekt obejmuje wspólny przegląd gatewayów, workerów i łączy wszystkich połączonych
+komputerów, metryki RPC, zalecenia oraz zbieranie zredagowanych logów; web/desktop
+i mobile mają ten sam zakres. Strona nie jest jeszcze zaimplementowana.
+
 „Account” oznacza ustawienia właściciela w DB aktualnego gatewaya, wspólne dla jego
 klientów web/desktop. Nie oznacza automatycznej synchronizacji niezależnych gatewayów.
 „This device” oznacza profil przeglądarki/origin lub lokalną powłokę Electron.
