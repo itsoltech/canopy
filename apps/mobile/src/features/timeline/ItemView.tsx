@@ -20,6 +20,7 @@ import { ToolCallView } from "./items/ToolCallView";
 import { WebSearchView } from "./items/WebSearchView";
 import { UserMessageView } from "./UserMessageView";
 import { QuoteItem } from "../quotes/QuoteAction";
+import { ImageGallery } from "../attachments/ImageGallery";
 
 export { itemNodes, type ItemNode } from "./item-nodes";
 
@@ -93,6 +94,9 @@ export function ItemView({ node, turnEnded = false }: { node: ItemNode; turnEnde
       break;
     case "image":
       view = <ImageView image={content.value} status={item.status} />;
+      break;
+    case "imageGallery":
+      view = <ImageGallery gallery={content.value} />;
       break;
     case "contextCompaction":
       view = <CompactionView compaction={content.value} />;

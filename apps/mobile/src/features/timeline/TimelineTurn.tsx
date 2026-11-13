@@ -79,7 +79,12 @@ export function TimelineTurn({
     initialFolds(turn, entries, context, target),
   );
 
-  const body = useMemo(() => turnBody(turn, entries, context.notices), [turn, entries, context.notices]);
+  const allBody = useMemo(() => turnBody(turn, entries, context.notices), [turn, entries, context.notices]);
+
+  const gallery = (row: (typeof allBody)[number]) =>
+    row.kind === "item" && row.node.item.content.case === "imageGallery";
+
+  const body = allBody.filter((row) => !gallery(row));
   const ended = ["completed", "interrupted", "failed", "cancelled"].includes(turn.status);
   const plan = segmentsOf(turn, body, () => false);
 
@@ -173,6 +178,9 @@ export function TimelineTurn({
           </View>
         );
       })}
+      {allBody.filter(gallery).map((row) => (
+        <BodyRowView key={row.key} row={row} steers={context.steers} ended={ended} />
+      ))}
       {ended && (
         <View style={{ gap: 4, marginTop: answerText.trim() && turn.status === "completed" ? -12 : 0 }}>
           <TurnEnd turn={turn} provider={context.provider} historical={historical} />

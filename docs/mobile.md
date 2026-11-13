@@ -1849,6 +1849,21 @@ Zewnętrzna zmiana zachowuje dirty i udostępnia `Compare changes`, `Copy change
 oraz potwierdzane `Discard and reload`. Porównanie obu wersji używa tej samej
 wirtualnej listy wierszy; edycja nadal jest natywna, bez live highlighting.
 
+## Galerie obrazów agenta
+
+Item `image_gallery` pozostaje widoczny pod odpowiedzią, również po zwinięciu
+aktywności tury. Dwie kolumny mieszczą początkowo sześć obrazów; „Show all N”
+rozwija pozostałe. Ramki 16:9 i zarezerwowane miejsce podpisu utrzymują układ.
+Istniejący viewport włącza miniatury tylko w widocznym obszarze, a prywatny cache
+załączników i anulowanie odczytów obowiązują także dla zdalnych identyfikatorów.
+
+Pełny obraz pobieramy dopiero po dotknięciu. Viewer używa istniejącego powiększania,
+zamknięcia i eksportu (Save image/Share image); dodaje opis, licznik, poprzedni/następny
+oraz Before/After dla pary. Długie opisy przewijają się w ograniczonej części ekranu.
+Alt trafia do czytnika, stan pary ma etykietę i wybrane taby, a kontrolki respektują
+tokeny ruchu i ustawienie reduced motion. Nie dodajemy modułów ani zmian natywnych;
+fingerprint pozostaje granicą zgodności, a eksport JS nie zastępuje odbioru na urządzeniu.
+
 ## Źródła sprawdzone dla tego wdrożenia
 
 - [Expo SDK 58](https://expo.dev/changelog/sdk-58), [expo/fetch i Encoding APIs](https://docs.expo.dev/versions/v58.0.0/sdk/expo/).

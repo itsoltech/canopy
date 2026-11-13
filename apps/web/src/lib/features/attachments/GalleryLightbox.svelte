@@ -62,7 +62,9 @@
           >
         </div>
         {#if comparison}
-          <div class="rounded-lg bg-zinc-100 text-zinc-950 dark:bg-zinc-900 dark:text-white">
+          <div
+            class="rounded-lg bg-zinc-100 text-zinc-950 dark:bg-zinc-900 dark:text-white [&_button]:min-h-12 sm:[&_button]:min-h-8"
+          >
             <SegmentedChoice
               label="Compare images"
               bind:value={() => image?.side ?? "", choose}
