@@ -100,6 +100,10 @@ describe.skipIf(!dockerAvailable)("document root checkpoints across watch lifeti
         expect(document.draft).toBe("draft from the previous checkout");
         expect(document.changedOnDisk).toBe(true);
         expect(readFileSync(file, "utf8")).toBe("base");
+        await eventually(
+          () => Promise.resolve(document.error),
+          (message) => message.includes("working directory changed"),
+        );
 
         const target = {
           threadId: thread.id,
