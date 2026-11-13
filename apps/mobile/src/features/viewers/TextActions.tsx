@@ -8,6 +8,7 @@ export function TextActions({
   onReply,
   onQuote,
   onDismiss,
+  onEdit,
 }: {
   text: string;
   visible: boolean;
@@ -15,6 +16,7 @@ export function TextActions({
   onReply?: (() => void) | undefined;
   onQuote?: (() => void) | undefined;
   onDismiss?: (() => void) | undefined;
+  onEdit?: (() => void) | undefined;
 }) {
   const { copy } = useCopyText(text);
 
@@ -27,6 +29,7 @@ export function TextActions({
       sections={[
         {
           options: [
+            ...(onEdit ? [{ value: "edit", label: "Edit from here", icon: "arrow-uturn-left" as const }] : []),
             ...(onReply ? [{ value: "reply", label: "Reply", icon: "arrow-uturn-left" as const }] : []),
             { value: "copy", label: "Copy message", icon: "clipboard-document" as const },
             ...(onQuote ? [{ value: "quote", label: "Quote passage", icon: "chat-bubble-left-right" as const }] : []),
@@ -34,7 +37,8 @@ export function TextActions({
         },
       ]}
       onSelect={(action) => {
-        if (action === "reply") onReply?.();
+        if (action === "edit") onEdit?.();
+        else if (action === "reply") onReply?.();
         else if (action === "quote") onQuote?.();
         else void copy();
       }}

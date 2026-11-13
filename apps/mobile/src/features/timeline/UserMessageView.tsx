@@ -48,6 +48,7 @@ export function UserMessageView({
   mentions = [],
   fromAgent = false,
   sender,
+  onEdit,
 }: {
   text: string;
   note?: MessageNote | undefined;
@@ -58,6 +59,7 @@ export function UserMessageView({
   mentions?: readonly Mention[];
   fromAgent?: boolean;
   sender?: ui.AgentSender | undefined;
+  onEdit?: (() => void) | undefined;
 }) {
   const c = useColors();
   const [selected, setSelected] = useState<ui.Attachment>();
@@ -67,7 +69,7 @@ export function UserMessageView({
   const placed = new Set(mentions.flatMap((m) => (m.kind === MentionKind.ATTACHMENT ? [m.name] : [])));
   const loose = attachments.filter((a) => a.kind === "image" || !placed.has(a.id));
   const body = !mentions.length && hasPlatformNote(text) ? withoutIds(text) : text;
-  const actions = useMessageActions(body, agent ? "agent_message" : undefined, !pending);
+  const actions = useMessageActions(body, agent ? "agent_message" : undefined, !pending, onEdit);
   const color = note?.tone === "amber" ? amber : agent ? violet : c.muted;
 
   const icon =
@@ -78,7 +80,7 @@ export function UserMessageView({
     ) : null;
 
   const onAttachment = (id: string) => setSelected(attachments.find((file) => file.id === id));
-  const hasContent = Boolean(body.trim() || quotes.length);
+  const hasContent = Boolean(body.trim() || quotes.length || onEdit);
 
   return (
     <View style={{ alignItems: "flex-end", gap: 4 }}>

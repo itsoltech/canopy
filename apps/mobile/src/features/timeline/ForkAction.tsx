@@ -20,6 +20,7 @@ export function ForkAction({ turn, style }: { turn: ui.Turn; style?: StyleProp<V
     thread?.runtime === "worker" &&
     thread.provider !== Provider.GROK &&
     thread.status !== "creating" &&
+    !turn.rewindId &&
     !!turn.startedAt &&
     ["completed", "failed", "interrupted"].includes(turn.status);
 

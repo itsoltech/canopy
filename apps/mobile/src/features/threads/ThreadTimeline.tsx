@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View } from "react-native";
 import Animated from "react-native-reanimated";
 import { ui, type Item } from "@canopy/contracts";
@@ -26,6 +26,7 @@ import { WorkGroupChoices } from "@canopy/domain/work-group-choices";
 import { turnNotices } from "@canopy/domain/turn-notices";
 import { ThreadScrollItems, ThreadScrollParent, ThreadScrollTarget } from "../../ui/thread-scroll-items";
 import { scrollTurnKey, useThreadScrollMemory } from "./useThreadScrollMemory";
+import { RewindGroup, useRewindTimeline } from "./rewind-timeline";
 
 /** What the timeline's items look up: other threads, items, deliveries, and its tasks by their command. */
 function useTimelineData(state: ThreadState) {
@@ -34,6 +35,11 @@ function useTimelineData(state: ThreadState) {
   const quoteAction = useRef(state.quotes.add);
   quoteAction.current = state.quotes.add;
   const quote = useCallback((value: ui.Quote) => quoteAction.current(value), []);
+  const editAction = useRef(state.rewind.open);
+  useEffect(() => {
+    editAction.current = state.rewind.open;
+  }, [state.rewind.open]);
+  const editFrom = useCallback((turn: ui.Turn) => editAction.current(turn), []);
   const away = state.home.away;
   const foldChoices = useMemo(() => new Map<string, ReadonlyMap<number, WorkFoldChoice>>(), [thread?.id]);
   const groupChoices = useMemo(() => new WorkGroupChoices(), [thread?.id]);
@@ -54,6 +60,15 @@ function useTimelineData(state: ThreadState) {
     const directory: TimelineDirectory = {
       currentId: thread?.id ?? "",
       quote,
+      editFrom:
+        !away &&
+        thread?.runtime === "worker" &&
+        !thread.spawnedByAgent &&
+        !thread.scheduleId &&
+        !thread.archivedAt &&
+        !thread.rewindPending
+          ? editFrom
+          : undefined,
       readOnly: away || !thread || Boolean(thread.archivedAt || thread.deletedAt),
       thread: (id) => threads.find((t) => t.id === id) ?? (id === thread?.id ? thread : undefined),
       item: (id) => items.get(id),
@@ -79,7 +94,7 @@ function useTimelineData(state: ThreadState) {
     };
 
     return { directory, context };
-  }, [snapshot, thread, threads, quote, away, foldChoices, groupChoices, state.turns]);
+  }, [snapshot, thread, threads, quote, editFrom, away, foldChoices, groupChoices, state.turns]);
 }
 
 /** Native anchoring/follow-state changes may update the list wrapper without rendering unchanged turns. */
@@ -138,7 +153,8 @@ export function ThreadTimeline({
   const { turns, following, snapshot } = state;
   const { directory, context } = useTimelineData(state);
   const anchor = useFeedAnchor(following);
-  const latestFirst = useMemo(() => [...turns].reverse(), [turns]);
+  const rewind = useRewindTimeline(turns);
+  const latestFirst = useMemo(() => [...rewind.shown].reverse(), [rewind.shown]);
 
   const memory = useThreadScrollMemory(
     state.id,
@@ -152,8 +168,8 @@ export function ThreadTimeline({
   const turnKey = (turn: ui.Turn) => `${turn.fromThreadId}:${turn.id}`;
   const arrival = useArrivals(latestFirst.map(turnKey), Boolean(snapshot), { newestFirst: true });
   const { rise } = useMotion();
-  const days = newDays(turns);
-  const loose = context.notices.filter((n) => !n.turnId);
+  const days = newDays(rewind.shown);
+  const loose = context.notices.filter((n) => !n.turnId && n.notice?.code !== "thread_rewound");
   const steering = snapshot?.steers.filter((s) => ["pending", "accepted"].includes(s.status)) ?? [];
 
   const [entryIndex] = useState(() => new TimelineEntries());
@@ -204,15 +220,23 @@ export function ThreadTimeline({
               // A turn that arrives (a sent or queued message) fades in; one that only scrolls into view does not, and
               // neither do the rows it mounts with. Later rows inside it animate themselves (TimelineTurn).
               renderItem={({ item, index }) => (
-                <TimelineCell
+                <RewindGroup
                   turn={item}
-                  entries={entries.get(turnKey(item)) ?? EMPTY_ENTRIES}
-                  context={context}
-                  directory={directory}
-                  newDay={days.has(item)}
-                  historical={index !== 0}
-                  entering={arrival(turnKey(item))}
-                />
+                  turns={turns}
+                  rewind={rewind}
+                  actions={state.rewind}
+                  readOnly={directory.readOnly}
+                >
+                  <TimelineCell
+                    turn={item}
+                    entries={entries.get(turnKey(item)) ?? EMPTY_ENTRIES}
+                    context={context}
+                    directory={directory}
+                    newDay={days.has(item)}
+                    historical={index !== 0}
+                    entering={arrival(turnKey(item))}
+                  />
+                </RewindGroup>
               )}
               ListHeaderComponent={
                 <>

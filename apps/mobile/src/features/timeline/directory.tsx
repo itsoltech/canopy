@@ -18,6 +18,7 @@ export interface TimelineDirectory {
   readonly content?: (id: string) => ui.ThreadSyncContent | undefined;
   readonly delivery: (callId: string) => ui.BusDelivery | undefined;
   readonly queuedFallback?: (turnId: string) => ui.Steer | undefined;
+  readonly editFrom?: ((turn: ui.Turn) => void) | undefined;
 }
 
 const Directory = createContext<TimelineDirectory>({

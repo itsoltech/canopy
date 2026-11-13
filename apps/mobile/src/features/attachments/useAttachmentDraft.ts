@@ -171,6 +171,8 @@ export function useAttachmentDraft(
       onAdd?.(file);
     },
     files,
+    /** Restore only uploaded bindings; release native preview copies of the previous composer. */
+    replace: (next: DraftFile[]) => apply((rows) => replaceDraftFiles(rows, next)),
     ids: files.flatMap((f) => (f.attachment ? [f.attachment.id] : [])),
     pickPhotos: () => pickPhotos(upload, max.maxFiles - current.current.length, options.imagesOnly),
     pickFiles: () => pickFiles(upload, options.imagesOnly),
@@ -185,15 +187,16 @@ export function useAttachmentDraft(
 
         return rows.filter((f) => f.key !== key);
       }),
-    clear: () =>
-      apply((rows) => {
-        for (const file of rows) discardPreview(file);
-
-        return [];
-      }),
+    clear: () => apply((rows) => replaceDraftFiles(rows, [])),
     /** Why the message cannot go yet. */
     blocker: attachmentBlocker(files),
   };
+}
+
+function replaceDraftFiles(before: DraftFile[], next: DraftFile[]) {
+  for (const file of before) discardPreview(file);
+
+  return next;
 }
 
 function attachmentBlocker(files: DraftFile[]) {

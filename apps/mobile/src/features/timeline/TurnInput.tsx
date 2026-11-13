@@ -63,6 +63,11 @@ export function TurnInput({ turn }: { turn: ui.Turn }) {
   if (origin.kind === "user")
     return (
       <UserMessageView
+        onEdit={
+          !turn.inherited && !turn.rewindId && turn.startedAt && directory.editFrom
+            ? () => directory.editFrom?.(turn)
+            : undefined
+        }
         text={text}
         attachments={turn.attachments}
         quotes={turn.quotes}

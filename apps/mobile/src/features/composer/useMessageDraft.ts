@@ -72,35 +72,22 @@ export function useMessageDraft(
     },
   );
 
-  const status = new Map<string, BadgeTone>(
-    files.files.map((f) => [f.key, f.error ? "failed" : f.attachment ? undefined : "uploading"]),
-  );
-
   const badges: ComposerBadges = {
-    mentions: value.mentions,
-    quotes: value.quotes ?? [],
+    ...draftBadges(value, files.files),
     focusAt,
     onSelect: (next) => {
       hasSelection.current = true;
       selection.current = next;
       setCaret(next.start === next.end ? next.start : undefined);
     },
-    tone: (m) => (isAttachment(m) ? status.get(m.name) : undefined),
-    editQuote(index, quote) {
-      const old = current.current.quotes?.[index];
+    editQuote(index: number, quote: ui.Quote) {
+      const placed = replaceCitation(current.current, index, quote);
 
-      if (!old || !isPlacedQuote(old)) return;
-
-      const removed = editText(
-        current.current,
-        current.current.text.slice(0, old.start) + current.current.text.slice(old.end),
-      ).value;
-
-      const placed = insertCitation(removed, { start: old.start, end: old.start }, quote);
+      if (!placed) return;
       apply(placed.value);
       focusAt.current?.(placed.caret);
     },
-    removeQuote(index) {
+    removeQuote(index: number) {
       const old = current.current.quotes?.[index];
 
       if (!old || !isPlacedQuote(old)) return;
@@ -116,6 +103,16 @@ export function useMessageDraft(
 
   return {
     value,
+    snapshot: () => snapshotDraft(current.current, files.files),
+    restore(next: { value: MessageValue; files: DraftFile[] }) {
+      files.replace(next.files);
+      history.current.clear();
+      selection.current = { start: next.value.text.length, end: next.value.text.length };
+      hasSelection.current = false;
+      setCaret(undefined);
+      apply(next.value);
+      focusAt.current?.(next.value.text.length);
+    },
     files,
     badges,
     addQuote(quote: ui.Quote) {
@@ -166,6 +163,31 @@ export function useMessageDraft(
 }
 
 export type MessageDraft = ReturnType<typeof useMessageDraft>;
+
+function snapshotDraft(value: MessageValue, files: readonly DraftFile[]) {
+  return { value, files: files.map((file) => ({ ...file, previewUri: undefined, temporary: false })) };
+}
+
+function draftBadges(value: MessageValue, files: readonly DraftFile[]) {
+  const status = new Map<string, BadgeTone>(
+    files.map((file) => [file.key, file.error ? "failed" : file.attachment ? undefined : "uploading"]),
+  );
+
+  return {
+    mentions: value.mentions,
+    quotes: value.quotes ?? [],
+    tone: (mention: Mention) => (isAttachment(mention) ? status.get(mention.name) : undefined),
+  };
+}
+
+function replaceCitation(value: MessageValue, index: number, quote: ui.Quote) {
+  const old = value.quotes?.[index];
+
+  if (!old || !isPlacedQuote(old)) return;
+  const removed = editText(value, value.text.slice(0, old.start) + value.text.slice(old.end)).value;
+
+  return insertCitation(removed, { start: old.start, end: old.start }, quote);
+}
 
 function outgoingMessage(value: MessageValue, files: readonly DraftFile[]) {
   const trimmed = trimValue(value);
