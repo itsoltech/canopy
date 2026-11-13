@@ -17,6 +17,10 @@
   import { decode } from "#lib/shared/wire.ts";
   import { whenIdle } from "#lib/shared/idle.ts";
   import { sidebarEntries } from "@canopy/domain/sidebar-entries";
+  import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
+  import { SidebarOrder, provideSidebarOrder } from "./sidebar-order.svelte.ts";
+  import { sidebarDrag } from "./sidebar-drag.ts";
+  import SidebarOrderFeedback from "./SidebarOrderFeedback.svelte";
 
   let {
     currentThreadId,
@@ -61,15 +65,38 @@
   });
 
   const filtered = $derived(
-    sidebarThreads(all, filterSettings, query, (id) => {
-      const choice = overview.projectChoice(id);
+    sidebarThreads(
+      all,
+      filterSettings,
+      query,
+      (id) => {
+        const choice = overview.projectChoice(id);
 
-      return choice ? [choice.name, ...choice.aliases].join(" ") : "";
-    }),
+        return choice ? [choice.name, ...choice.aliases].join(" ") : "";
+      },
+      devicePreferences.view.threadSortMode,
+    ),
   );
 
   let workingOpen = $state(false);
   const entries = $derived(sidebarEntries(filtered, settings.sidebar, overview.projectChoices, workingOpen));
+
+  const ordering = provideSidebarOrder(
+    new SidebarOrder(
+      overview,
+      settings,
+      () => entries,
+      (id) =>
+        sidebarEntries(
+          { ...filtered, pins: new Set([...filtered.pins].filter((pin) => pin !== id)) },
+          settings.sidebar,
+          overview.projectChoices,
+          workingOpen,
+        ),
+    ),
+  );
+
+  const drag = sidebarDrag(ordering);
 
   // The each below animates reorders, so every update of its list measures all rows and forces a style and
   // layout pass. It iterates the order only, kept while unchanged; rows read their entry from the map, so a
@@ -121,6 +148,7 @@
 </script>
 
 <div class={["flex min-h-full flex-col", className]}>
+  <SidebarOrderFeedback {ordering} />
   {#if filtered.roots.length === 0}
     <div class="sidebar-row-padding grid justify-items-start gap-2 py-2">
       <p class="text-sm/6 text-pretty text-zinc-500 dark:text-zinc-400">
@@ -134,11 +162,12 @@
         >{/if}
     </div>
   {:else}
-    <ul role="list" class="grid gap-0.5" aria-label="Thread inbox">
+    <ul role="list" class="grid gap-0.5" aria-label="Thread inbox" {@attach drag}>
       {#each shown as key, index (key)}
         {@const entry = rows.get(key)}
         <li
           class={entry?.thread && "sidebar-entry"}
+          data-thread-id={entry?.thread?.id}
           animate:reorder
           in:rise={{ delay: stagger(index), instant: !filled }}
           out:expand

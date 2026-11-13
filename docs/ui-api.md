@@ -1854,6 +1854,16 @@ i nie przekracza nagłówków, z wyjątkiem przypinania/odpinania. Archiwum zach
 dotychczasową kolejność archiwizacji. Zagnieżdżone wątki boczne zachowują drzewo;
 przypięte boczne można porządkować jak pozostałe korzenie.
 
+Menu „Thread options” obok wyszukiwania łączy wybór sortowania z filtrem projektów.
+W Custom przeciąganie myszą zaczyna się po ruchu o 6 px; sam klik otwiera wątek.
+Wskaźnik pokazuje miejsce upuszczenia, krawędzie listy przewijają ją automatycznie,
+a górna strefa „Drop here to pin” podświetla przekroczenie progu przypinania.
+Wyciągnięcie z Pinned respektuje `confirm_unpin`; anulowanie nie zmienia ani pina,
+ani klucza. Menu wątku udostępnia „Move up/down/to top/to bottom”, a fokusowany
+wiersz obsługuje Alt+↑/↓/Home/End. Escape anuluje przeciąganie. Ruch wskaźnika
+zmienia tylko kopię wiersza i linię celu; lista kluczy zmienia się raz po zapisie.
+Istniejący FLIP `reorder` animuje widocznych sąsiadów i respektuje ograniczenie ruchu.
+
 W Custom wątki są uporządkowane osobno według domu (lokalne najpierw, potem id
 komputera). Zdalna kolejność jest widoczna, ale edytowalna tylko w domu wątku;
 nie ma przenoszenia kluczy pomiędzy niezależnymi bazami. Przypięcia zdalnych wątków

@@ -9,6 +9,7 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import SearchField from "#lib/shared/ui/SearchField.svelte";
   import SidebarProjectChoice from "./SidebarProjectChoice.svelte";
+  import SidebarSort from "./SidebarSort.svelte";
 
   let { class: className }: { class?: ClassValue } = $props();
   const overview = useOverview();
@@ -43,12 +44,12 @@
       label="Clear filters"
       onclick={() => void settings.updateSidebar({ projectIds: [] })}
     />{/if}
-  <Popover label="Filter threads" sheet placement="bottom-end" class="w-72 max-w-[calc(100vw-1rem)] p-1.5">
+  <Popover label="Thread options" sheet placement="bottom-end" class="w-72 max-w-[calc(100vw-1rem)] p-1.5">
     {#snippet trigger(props)}
       <button
         type="button"
         {...props}
-        aria-label={active ? `Filter projects (${count} selected)` : "Filter projects"}
+        aria-label={active ? `Thread options (${count} projects selected)` : "Thread options"}
         class={[
           "relative flex h-9 items-center gap-1 rounded-lg px-2 text-sm/5 focus-ring sm:h-8",
           active
@@ -60,6 +61,7 @@
         {#if selected.length}<span class="min-w-3 tabular-nums">{count}</span>{/if}
       </button>
     {/snippet}
+    <SidebarSort class="mb-1 border-b border-divider pb-1" />
     <div class="sidebar-scale grid gap-1">
       <SearchField
         name="project-search"
