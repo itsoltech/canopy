@@ -88,6 +88,13 @@ Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji
 
 ## Granice i zgodność
 
+Visuals (docs/agent-visuals.md) są iframe `srcdoc` w rendererze, nie `<webview>`.
+Dokument `srcdoc` dziedziczy CSP okna, więc `DocumentPolicy` dopuszcza dokładnie
+hash przypiętego skryptu kitu (`KIT_SCRIPT_CSP`); inne skrypty inline pozostają
+zablokowane. `frame-src 'none'` nie blokuje `srcdoc`. Ramka bez `allow-same-origin`
+nie widzi preloadu, IPC ani DOM okna; `setWindowOpenHandler` i blokady nawigacji
+pozostają bez zmian.
+
 Tryb lokalny korzysta ze zwykłego `CreateWorkerEnrollment` i `enrollWorker`, zamiast
 tworzyć poświadczenia bezpośrednio w bazie. Oba tryby ładują dołączony frontend
 z lokalnego BFF na loopback. Tryb zdalny uruchamia BFF i worker, bez gatewaya/bazy;
