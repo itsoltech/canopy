@@ -1236,6 +1236,12 @@ Before/After dla pary. Błąd obrazu ma własne „Retry”, a reconnect ponawia
 Wszystkie odczyty korzystają z istniejącego owner-scoped API załączników, również
 dla kwalifikowanych identyfikatorów połączonego komputera; nie czytają workspace.
 
+W `agent_message` zapisane lokalne obrazy Markdown korzystają z tego samego
+lightboxa i API. Manifest `images` przypina załącznik do href i zakresu tokenu
+w niezmienionym tekście. Ramka 16:9 rezerwuje miejsce przed pobraniem miniatury;
+błąd importu pozostawia klikalny plik i komunikat odzyskiwania. Zdalne URL
+są wyłącznie linkami, bez automatycznego żądania do zewnętrznego hosta.
+
 #### Załączniki w tekście
 
 **Podgląd plików.** Plakietki wiadomości wysłanych, kolejki i kompozytora otwierają

@@ -27,6 +27,12 @@ const ImageArguments = Schema.Struct({
 export const ShowImages = ImageArguments.check(Schema.makeFilter((args) => imagePairsProblem(args.images) ?? true));
 
 export const IMAGE_TOOLS = {
+  import_image_reply: {
+    name: "import_image_reply",
+    description: "Internal worker request to import local Markdown images from a completed message in its own turn.",
+    args: Schema.Struct({ item_id: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(300)) }),
+    mutates: true,
+  },
   show_images: {
     name: "show_images",
     description:

@@ -1200,6 +1200,8 @@ message GalleryImage {
   // UTF-16 source token offsets, only for imported local Markdown images.
   uint32 markdown_start = 12;
   uint32 markdown_end = 13;
+  // Original parsed Markdown href. Gateway generated, never an authorization input.
+  string source_path = 14;
 }
 
 // Treść większa niż limit wiadomości trafia do blobu (BlobChunk) i jest wskazywana przez BlobRef.
@@ -1226,6 +1228,9 @@ message AgentMessage {
   string text = 1;
   // commentary (komentarz w trakcie pracy) | partial_answer | final_answer; pusty, gdy dostawca nie rozróżnia.
   string phase = 2;
+  // Durable Markdown image manifest, only the gateway may populate it.
+  repeated GalleryImage images = 3;
+  string image_error = 4;
 }
 
 message Reasoning {

@@ -6,7 +6,7 @@ import { isString } from "@canopy/domain/json";
 import { useColors, useTypography } from "../theme";
 import { useMarkdownScope } from "./scope";
 import { Faced } from "./text-style";
-import { fileLinkHrefOf, filePathOf } from "@canopy/domain/file-references";
+import { fileLinkHrefOf, filePathOf, imageFilePathOf } from "@canopy/domain/file-references";
 import { useFileLinks } from "./file-links";
 import { Html } from "./Html";
 
@@ -43,6 +43,21 @@ function Link({ href, children }: { href: string; children: ReactNode }) {
 /** Text with the caller's elements drawn where their sentinels are. */
 function Plain({ text }: { text: string }) {
   const { render } = useMarkdownScope();
+  const files = useFileLinks();
+  const c = useColors();
+  const path = files ? imageFilePathOf(text) : undefined;
+
+  if (path && files)
+    return (
+      <Text
+        accessibilityRole="link"
+        accessibilityHint={`Open ${path}`}
+        onPress={() => files(path)}
+        style={{ color: c.sky, backgroundColor: c.rule, textDecorationLine: "underline" }}
+      >
+        {text}
+      </Text>
+    );
 
   if (!render || !hasSentinel(text)) return <>{text}</>;
 

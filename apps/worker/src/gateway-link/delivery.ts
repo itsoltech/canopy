@@ -28,6 +28,7 @@ export const journalHello = Effect.fn("delivery.journalHello")(function* () {
 export const resendPending = Effect.fn("delivery.resendPending")(function* (
   link: GatewayLink,
   before?: (event: ThreadEvent) => void,
+  canSend?: (event: ThreadEvent) => boolean,
 ) {
   const journal = yield* Journal;
 
@@ -39,6 +40,8 @@ export const resendPending = Effect.fn("delivery.resendPending")(function* (
 
   for (const event of events) {
     if (link.heldThreads?.has(event.threadId)) continue;
+
+    if (canSend && !canSend(event)) continue;
     before?.(event);
     link.send({ case: "threadEvent", value: event }, true);
     sent++;

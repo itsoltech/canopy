@@ -44,6 +44,32 @@ w jednej transakcji. Call ID daje ten sam wynik także po restarcie i usunięciu
 korzysta z istniejącej osi czasu. Worker nie może tworzyć ani nadpisywać
 gatewayowych itemów galerii przez własne zdarzenia.
 
+Zakończona wiadomość agenta może zawierać lokalne obrazy Markdown. Worker
+wysyła wewnętrzne `import_image_reply({item_id})` po zdarzeniu zakończenia
+wiadomości, przed końcem tury. Gateway parsuje utrwalony tekst tym samym
+lexerem co klienci; pomija kod, HTML i zdalne URL. Ścieżki muszą należeć
+wyłącznie do workspace/worktree tej wiadomości. Maksymalnie 10 obrazów
+w wiadomości i 100 000 znaków źródła; nadmiar odrzuca całą partię.
+Obowiązują te same limity bajtów, rezerwacje i pipeline co dla `show_images`.
+Jeśli przejściowy błąd ingestu zwolnił strumień przed zapisem zakończenia
+wiadomości, importer czeka do 10 s na ten zapis. Oczekiwanie dotyczy tylko
+wywołania importu; pozostałe wątki i odbiór zdarzeń działają dalej.
+
+Manifest trafia do `AgentMessage.images = 3`, a błąd odzyskiwania do
+`image_error = 4`. `GalleryImage.markdown_start/end` wskazują zakres UTF-16,
+`source_path = 14` oryginalny href tokenu; ścieżka nie uprawnia do odczytu.
+Tekst pozostaje niezmieniony, a jedno gatewayowe `item_completed` aktualizuje
+istniejący item. Hash tekstu sprawdzany podczas commitu odrzuca zmienione źródło.
+Worker nie może dostarczyć własnego manifestu ani komunikatu błędu.
+
+Worker przetrzymuje granicę journala od `turn_finished` do wyniku importu,
+bez blokowania tekstu innych wątków. Reconnect nie wysyła tej granicy przed
+wynikiem; wywołanie ma stałe ID per wątek/tura/item. Oczekiwanie kończy się
+po 65 s lub 256 zatrzymanych zdarzeniach; błąd pozostawia tekst i link do pliku.
+Restart procesu przed zapisem kopii może pozostawić tylko link; potwierdzony
+zapis przeżywa restart i usunięcie pliku. Wewnętrznego narzędzia nie ma
+w katalogach modeli żadnego z trzech harnessów.
+
 `AgentToolCall.cancelled` (831) oznacza zakończenie oczekiwania klienta MCP
 (timeout lub anulowanie). Worker ponawia tę samą kopertę do `AgentToolResult`, także
 po reconnect. Gateway autoryzuje bota/workera i zapisuje anulowanie wywołania oraz

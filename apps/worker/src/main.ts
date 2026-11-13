@@ -424,7 +424,15 @@ while (!stopping.signal.aborted) {
     if (installKind() === "binary") await confirmStartup();
     desktopStatus("online");
     backoffMs = 1_000;
-    const resent = await runtime.runPromise(resendPending(link, (event) => host.sendPreviews(link, event)));
+
+    const resent = await runtime.runPromise(
+      resendPending(
+        link,
+        (event) => host.sendPreviews(link, event),
+        (event) => host.canSendEvent(event),
+      ),
+    );
+
     console.info(
       `connected to ${networkRoute.endpoint.gateway_url}${resent > 0 ? `, resent ${resent} journal event(s)` : ""}`,
     );

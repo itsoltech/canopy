@@ -133,7 +133,7 @@
             {/if}
             <button
               type="button"
-              class="relative grid size-9 place-items-center rounded-md focus-ring hover:bg-white/10 sm:size-8"
+              class="relative grid size-12 place-items-center rounded-md focus-ring hover:bg-white/10 sm:size-8"
               aria-label="Close"
               onclick={() => (open = false)}
             >

@@ -20,8 +20,12 @@ function failureOf(name: string, argumentsJson: string): string {
 describe("agent bus tool specs", () => {
   const specs = agentBusToolSpecs();
 
-  test("one spec per tool, every input is a closed object schema", () => {
-    expect(specs.map((s) => s.name).sort()).toEqual(Object.keys(AGENT_BUS_TOOLS).sort());
+  test("one spec per model-facing tool, every input is a closed object schema", () => {
+    expect(specs.map((s) => s.name).sort()).toEqual(
+      Object.keys(AGENT_BUS_TOOLS)
+        .filter((name) => name !== "import_image_reply")
+        .sort(),
+    );
 
     for (const spec of specs) {
       expect(spec.inputSchema["type"]).toBe("object");
@@ -54,6 +58,7 @@ describe("tool sets per level", () => {
       "get_answers",
       "get_background_task",
       "get_thread",
+      "import_image_reply",
       "list_agents",
       "list_background_tasks",
       "list_schedules",
@@ -68,6 +73,7 @@ describe("tool sets per level", () => {
       "wait_threads",
     ]);
     expect(agentBusToolSpecs(agentBusToolsFor(1)).map((s) => s.name)).not.toContain("spawn_thread");
+    expect(agentBusToolSpecs().map((s) => s.name)).not.toContain("import_image_reply");
   });
 });
 

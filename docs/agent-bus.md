@@ -82,6 +82,13 @@ Każda para wymaga dokładnie dwóch stron `before` / `after`. Sukces zawiera
 workera `thread_image_replies_v1`. Limity, transfer i trwałość:
 [protokół](protocol.md#trwałe-odpowiedzi-obrazami).
 
+Lokalne `![opis](path)` w zakończonej odpowiedzi są drugim sposobem
+publikacji: wewnętrzny importer kopiuje je jako załączniki i dopisuje manifest
+do oryginalnej wiadomości. Narzędzie `import_image_reply` nie jest dostępne
+modelowi. Kod, HTML, zdalne obrazy oraz gołe ścieżki nie uruchamiają pobierania.
+Goła ścieżka pozostaje klikalnym plikiem. Przy dużym raporcie agent powinien
+wybrać reprezentatywne obrazy i użyć `show_images`, zamiast wklejać wszystkie.
+
 Eksporter workera sprawdza bieżący katalog i turę niezależnie od gatewaya.
 Przed uruchomieniem harnessu przypina tożsamości cwd/worktree i katalogu załączników
 oraz ich przodków; ponowna tura ani reconnect nie ustanawiają nowej granicy zaufania.

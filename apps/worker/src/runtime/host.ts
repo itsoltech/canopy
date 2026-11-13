@@ -183,6 +183,7 @@ export class WorkerHost {
   attach(link: GatewayLink): void {
     if (link.welcome.threadLifecycle) this.applyThreadLifecycle(link.welcome.threadLifecycle);
     this.#ctx.state.link = link;
+    this.#ctx.state.markdownImages.resume();
     this.environment.refresh(true);
 
     for (const { request } of this.#ctx.state.interactions.values())
@@ -248,6 +249,10 @@ export class WorkerHost {
   /** Previews an event points to, sent on `link` before the event (journal resend after Welcome). */
   sendPreviews(link: GatewayLink, event: ThreadEvent): void {
     this.#ctx.state.previews.sendFor(link, event, (chunk) => link.send({ case: "blobChunk", value: chunk }));
+  }
+
+  canSendEvent(event: ThreadEvent): boolean {
+    return this.#ctx.state.markdownImages.canSend(event);
   }
 
   async applyConfig(message: WorkerConfig): Promise<ConfigAppliedInit> {
@@ -398,6 +403,7 @@ export class WorkerHost {
 
   async close(): Promise<void> {
     await this.#ctx.ops.closeDirectories();
+    this.#ctx.state.markdownImages.close();
     this.#ctx.state.imageExports.close();
     await this.#ctx.ops.closeClones();
     await this.#copies.close();

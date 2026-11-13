@@ -13,12 +13,14 @@ import { Invalid, type CallSource, type ThreadRow } from "../store/index.ts";
 import { coreState } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
 import { receiveThreadImage } from "./image-receive.ts";
+import type { ImageMessageSource } from "../store/image-message.ts";
 
 export async function publishThreadImages(
   core: GatewayCore,
   source: CallSource,
   caller: ThreadRow,
   args: AgentBusArgs["show_images"],
+  markdown?: ImageMessageSource,
 ): Promise<JsonValue> {
   const workerId = caller.worker_id;
   const connection = workerId ? core.link.connections.get(workerId) : undefined;
@@ -38,9 +40,10 @@ export async function publishThreadImages(
     source,
     ownerId: caller.owner_user_id,
     workerId,
-    requestHash: createHash("sha256").update(JSON.stringify(args)).digest("hex"),
+    requestHash: createHash("sha256").update(JSON.stringify({ args, markdown })).digest("hex"),
     count: args.images.length,
     maxBytes: Math.min(IMAGE_REPLY_LIMITS.batchBytes, limits.maxMessageBytes),
+    ...(markdown && { markdown }),
   };
 
   const actions = core[coreState].actions;
@@ -67,7 +70,7 @@ export async function publishThreadImages(
     const roots = [caller.cwd];
 
     // Only this thread's attachment directory is eligible; no other scratch or attachment roots.
-    if (connection.hello.attachmentsRoot) {
+    if (!markdown && connection.hello.attachmentsRoot) {
       const separator = /^(win32|windows)$/.test(connection.hello.host?.os ?? "") ? "\\" : "/";
       roots.push(`${connection.hello.attachmentsRoot}${separator}${caller.id}`);
     }

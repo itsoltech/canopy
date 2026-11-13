@@ -11,6 +11,7 @@
     "./workspace-file": "./src/workspace-file.ts",
     "./workspace-directory": "./src/workspace-directory.ts",
     "./workspace-changes": "./src/workspace-changes.ts",
+    "./markdown-images": "./src/markdown/images.ts",
     "./image-replies": "./src/agent-bus/images.ts",
     "./thread-warmer": "./src/thread-warmer.ts",
     "./thread-warm-set": "./src/thread-warm-set.ts",
