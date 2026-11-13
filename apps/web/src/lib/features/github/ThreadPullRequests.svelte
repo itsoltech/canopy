@@ -10,9 +10,9 @@
   import PullRequestState from "./PullRequestState.svelte";
   import * as api from "./api.ts";
   import PanelRow from "#lib/features/threads/components/PanelRow.svelte";
-  import Icon from "#lib/shared/ui/Icon.svelte";
+  import CheckStateIcon from "./CheckStateIcon.svelte";
   import { checkLook } from "@canopy/domain/github-pr";
-  import { pullRequestHref, toneClasses } from "./presentation.ts";
+  import { pullRequestHref } from "./presentation.ts";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
 
   let { thread, class: className }: { thread: ui.Thread; class?: ClassValue } = $props();
@@ -44,6 +44,7 @@
     {#each expanded ? links : links.slice(0, 1) as link (link.summary?.ref?.id)}
       {@const pr = link.summary}
       {#if pr?.ref}
+        {@const checks = checkLook(pr.checksState)}
         <li class="min-w-0 text-sm/5 sm:text-xs/5">
           <PanelRow
             icon="git-fork"
@@ -53,12 +54,8 @@
             {#snippet lead()}<PullRequestState state={pr.state} iconOnly />{/snippet}
             <span title={pr.title}>{pr.title || pr.ref.repositoryName}</span>
             {#snippet aside()}<span class="shrink-0 text-zinc-500 tabular-nums">#{pr.ref!.number}</span><span
-                {@attach tooltip(`Checks: ${checkLook(pr.checksState).label}`)}
-                ><Icon
-                  name={checkLook(pr.checksState).icon}
-                  class={toneClasses[checkLook(pr.checksState).tone]}
-                  label={`Checks: ${checkLook(pr.checksState).label}`}
-                /></span
+                {@attach tooltip(`Checks: ${checks.label}`)}
+                ><CheckStateIcon look={checks} label={`Checks: ${checks.label}`} /></span
               >{/snippet}
           </PanelRow>
           {#if data?.stale && pr.verifiedAt}<p class="text-zinc-500 dark:text-zinc-400">

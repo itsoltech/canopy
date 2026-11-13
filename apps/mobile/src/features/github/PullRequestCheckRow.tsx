@@ -9,7 +9,7 @@ import { Button } from "../../ui/components";
 import { Markdown } from "../../ui/markdown/Markdown";
 import { useColors, useTypography } from "../../ui/theme";
 import { PullRequestJobs } from "./PullRequestJobs";
-import { toneColor } from "./presentation";
+import { CheckStateIcon } from "./CheckStateIcon";
 import { toast } from "../../ui/Toast";
 import { CiActions } from "./CiActions";
 import { prCitation, prCheckFailed } from "@canopy/domain";
@@ -45,7 +45,7 @@ export function PullRequestCheckRow({
             backgroundColor: pressed ? c.pressed : undefined,
           })}
         >
-          <Icon name={look.icon} color={toneColor(c, look.tone)} label={look.label} />
+          <CheckStateIcon look={look} />
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text numberOfLines={2} style={[type.small, { color: c.text }]}>
               {check.name}

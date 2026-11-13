@@ -8,13 +8,15 @@ export interface PullRequestLook {
   icon: IconName;
   tone: PullRequestTone;
   rank: number;
+  spinning?: boolean;
 }
 
-const look = (label: string, icon: IconName, tone: PullRequestTone, rank = 4): PullRequestLook => ({
+const look = (label: string, icon: IconName, tone: PullRequestTone, rank = 4, spinning = false): PullRequestLook => ({
   label,
   icon,
   tone,
   rank,
+  spinning,
 });
 
 export function checkLook(state: string): PullRequestLook {
@@ -30,7 +32,7 @@ export function checkLook(state: string): PullRequestLook {
       return look("Action required", "exclamation-circle", "warning", 0);
     case "in_progress":
     case "pending":
-      return look("Running", "arrow-path", "warning", 1);
+      return look("Running", "arrow-path", "warning", 1, true);
     case "queued":
     case "waiting":
     case "requested":

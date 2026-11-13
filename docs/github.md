@@ -824,6 +824,12 @@ Serwer weryfikuje pochodzenie comment/review/thread ID; po push nie przelicza po
 
 ### Jobs i logi CI
 
+Trwające checki, jobs i podsumowania CI w web i mobile używają tego samego pierścienia,
+koloru pracy i cyklu obrotu co aktywny wątek w sidebarze. Etykieta dostępności to
+**Running**; kolejka zachowuje nieruchomy zegar. Zmiana stanu zachowuje rozmiar ikony
+i używa animacji zamiany, z uwzględnieniem ograniczenia ruchu. Web wstrzymuje obrót
+poza widocznym obszarem i w ukrytej karcie; mobile zatrzymuje go w tle aplikacji.
+
 Check run kojarzymy z GitHub Actions job/run/attempt po zweryfikowanych danych GitHub i repo/SHA,
 nie po parsowaniu dowolnego `details_url`. Jobs: strony po 30 (maks. 100); logi dopiero po
 **View logs** przy checku/jobie. GitHub zwraca plik logu joba przez krótkotrwały redirect,

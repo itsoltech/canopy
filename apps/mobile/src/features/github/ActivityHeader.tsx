@@ -6,8 +6,7 @@ import { formatAge } from "@canopy/domain/format";
 import { safeHref } from "@canopy/domain/markdown";
 import { useColors, useTypography } from "../../ui/theme";
 import { toast } from "../../ui/Toast";
-import { StatusIcon } from "./StatusIcon";
-import { toneColor } from "./presentation";
+import { CheckStateIcon } from "./CheckStateIcon";
 import { GitHubAvatar } from "./GitHubAvatar";
 
 export function ActivityHeader({
@@ -39,7 +38,7 @@ export function ActivityHeader({
       <Text numberOfLines={1} style={[type.small, { flexShrink: 1, color: c.text }]}>
         {author || "GitHub"}
       </Text>
-      <StatusIcon name={look.icon} label={look.label} color={toneColor(c, look.tone)} />
+      <CheckStateIcon look={look} showStatus />
       {!!age && (
         <Pressable
           accessibilityRole="link"

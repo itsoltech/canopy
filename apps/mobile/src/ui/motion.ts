@@ -135,6 +135,11 @@ function presets(reduced: boolean) {
       entering: reduced ? undefined : from({ opacity: 0, translateY: motion.distance.micro }, motion.quick, inOut),
       exiting: undefined,
     } satisfies Preset,
+    /** Icon swap (web `iconSwap`): a changed glyph grows from a quarter in its fixed slot. */
+    iconSwap: {
+      entering: reduced ? undefined : from({ opacity: 0, scale: 0.25 }, motion.fast, inOut),
+      exiting: undefined,
+    } satisfies Preset,
     /**
      * Skeleton reveal (web `t-reveal`): loaded content resolves in where its skeleton was while the skeleton fades
      * out; instant when reduced.
