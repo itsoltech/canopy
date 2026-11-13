@@ -16,13 +16,13 @@ import type { ui } from "@canopy/contracts";
  */
 export class QuoteDrafts {
   #byThread = $state.raw<ReadonlyMap<string, readonly QuoteDraft[]>>(new Map());
-  #editors = new Map<string, (quote: QuoteDraft) => void>();
+  #editors = new Map<string, (quote: QuoteDraft, edit: boolean) => void>();
 
-  connect(threadId: string, insert: (quote: QuoteDraft) => void): () => void {
+  connect(threadId: string, insert: (quote: QuoteDraft, edit: boolean) => void): () => void {
     this.#editors.set(threadId, insert);
     const pending = this.list(threadId).filter((q) => q.start === undefined);
 
-    for (const quote of pending) insert(quote);
+    for (const quote of pending) insert(quote, false);
 
     return () => {
       if (this.#editors.get(threadId) === insert) this.#editors.delete(threadId);
@@ -61,7 +61,7 @@ export class QuoteDrafts {
 
     const insert = this.#editors.get(threadId);
 
-    if (insert) insert(draft);
+    if (insert) insert(draft, true);
     else this.#set(threadId, [...current, draft]);
 
     return draft;

@@ -125,13 +125,6 @@
   const activeQuotes = $derived(quoteKey ? quoteDrafts.list(quoteKey) : quotes);
 
   $effect(() => {
-    const key = quoteKey;
-    const controls = editor;
-
-    if (key && controls) return untrack(() => quoteDrafts.connect(key, (quote) => controls.insertQuote(quote)));
-  });
-
-  $effect(() => {
     if (singleLine && root) root.scrollTop = 0;
   });
 
@@ -663,7 +656,7 @@
   ></div>
 </div>
 
-<EditorCitations {editor} quotes={activeQuotes} />
+<EditorCitations {editor} quotes={activeQuotes} {quoteKey} />
 
 <style>
   /* The backticks around inline code (inline-code.ts `markTicks`). */

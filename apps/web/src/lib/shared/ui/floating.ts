@@ -19,6 +19,8 @@ export interface PositionOptions {
   readonly offset?: number;
   /** Minimum distance from the viewport edge, px. */
   readonly padding?: number;
+  /** Follow transforms that move the anchor without resizing it (for example the composer). */
+  readonly followMotion?: boolean;
 }
 
 export interface Position {
@@ -147,6 +149,22 @@ function transformOrigin(position: Position, anchor: DOMRect, floating: HTMLElem
  */
 export function autoPosition(anchor: Element, floating: HTMLElement, options?: PositionOptions): () => void {
   let frame = 0;
+  let motionFrame = 0;
+  let previous = anchor.getBoundingClientRect();
+
+  const follow = () => {
+    const rect = anchor.getBoundingClientRect();
+
+    if (
+      rect.x !== previous.x ||
+      rect.y !== previous.y ||
+      rect.width !== previous.width ||
+      rect.height !== previous.height
+    )
+      positionNow(anchor, floating, options);
+    previous = rect;
+    motionFrame = requestAnimationFrame(follow);
+  };
 
   const update = () => {
     cancelAnimationFrame(frame);
@@ -154,6 +172,9 @@ export function autoPosition(anchor: Element, floating: HTMLElement, options?: P
   };
 
   positionNow(anchor, floating, options);
+
+  if (options?.followMotion) motionFrame = requestAnimationFrame(follow);
+
   const observer = new ResizeObserver(update);
   observer.observe(anchor);
   observer.observe(floating);
@@ -168,6 +189,7 @@ export function autoPosition(anchor: Element, floating: HTMLElement, options?: P
 
   return () => {
     cancelAnimationFrame(frame);
+    cancelAnimationFrame(motionFrame);
     observer.disconnect();
     windowState.disconnect();
     window.removeEventListener("scroll", update, { capture: true });

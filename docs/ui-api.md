@@ -1276,7 +1276,16 @@ właściciela wiadomości. Referencja nie udostępnia cudzej historii. Tekst, me
 źródła i zakresy wracają w snapshotach bez zmian.
 
 **Cytaty w tekście.** Kompozytor przechowuje krótki znacznik `[“początek fragmentu…”]`
-i zakres cytatu. Gateway zastępuje go pełnym fragmentem dokładnie w tym miejscu,
+i zakres cytatu. Cite (przycisk, menu zaznaczenia lub skrót) oraz cytowanie z panelu PR
+wstawiają znacznik przy zapamiętanym kursorze i od razu otwierają nad nim edytor
+z fokusem w opcjonalnym komentarzu. Enter zapisuje komentarz, Shift+Enter dodaje
+nową linię, a Mod+Enter zapisuje także z pola fragmentu. Escape, Cancel i kliknięcie
+poza edytorem zachowują cytat bez niezapisanych zmian. Po zamknięciu kursor wraca
+do kompozytora za cytat. Kliknięcie istniejącego znacznika otwiera ten sam edytor;
+odtworzenie szkicu i wklejenie cytatów go nie otwierają. Mobile zachowuje arkusz
+edycji fragmentu i opcjonalnego komentarza przed dodaniem cytatu.
+
+Gateway zastępuje znacznik pełnym fragmentem dokładnie w tym miejscu,
 przed przesunięciem zakresów wzmianek i numerowaniem załączników. Wszystkie harnessy
 dostają ten sam czytelny format tekstowy; nie potrzeba rozszerzeń konkretnego dostawcy:
 
