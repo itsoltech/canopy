@@ -178,7 +178,8 @@ export function ThreadTimeline({
                 if (snapshot?.thread) mobileFeedLayout(snapshot.thread.id);
               }}
               onEndReached={() => {
-                if (memory.positioned && !following.isFollowing()) void state.history.load();
+                if (memory.positioned && !following.anchoring.get() && !following.isFollowing())
+                  void state.history.load();
               }}
               onEndReachedThreshold={0.3}
               data={latestFirst}
