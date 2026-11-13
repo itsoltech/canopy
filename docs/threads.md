@@ -289,6 +289,8 @@ załączników. Trwałe zdarzenie rewindu i upserty tur docierają przez rosnąc
 również do luster i klientów po reconnect. Nie wymagają pełnego snapshotu.
 Domyślna oś czasu ukrywa suffix pod „N messages rewound · Show”. Odczyty dla modelu
 pomijają zastąpione tury. Nowa sesja nie zawiera ich nawet po restarcie workera.
+Zapisany kontekst generowania tytułu jest czyszczony; ponowne generowanie korzysta
+z pierwszej widocznej wiadomości. Wynik wcześniejszego zlecenia tytułu jest unieważniony.
 Cofnięcie rewindu jest możliwe przed rozpoczęciem kolejnej tury; przywraca sesję
 i widoczność historii, pozostawiając pliki w aktualnym stanie.
 

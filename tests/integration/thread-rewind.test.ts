@@ -250,6 +250,28 @@ describe.skipIf(!dockerAvailable)("in-place durable thread rewind", () => {
     expect(commands.at(-1)!.afterProviderTurnRef).toBe(before.turns[0]!.provider_turn_ref!);
   });
 
+  test("title regeneration cannot replay the cached context of a rewound message", async () => {
+    const thread = await createThread();
+    const before = await history(thread.id);
+    await gw.runtime.runPromise(GatewayStore.use((store) => store.beginTitle(thread.id, false, "APPLE")));
+    await gw.api.rewindThread({
+      threadId: thread.id,
+      turnId: before.turns[0]!.id,
+      clientRequestId: "title-context",
+    });
+    expect(await failure(gw.api.regenerateTitle({ threadId: thread.id }))).toContain("send a message");
+    await gw.api.sendMessage({ threadId: thread.id, text: "PEAR", clientRequestId: "new-title-context" });
+    await waitTurn(thread.id, 4);
+    await gw.api.regenerateTitle({ threadId: thread.id });
+
+    const generated = await eventually(
+      async () => gw.worker.commands.findLast((command) => command.case === "generateText"),
+      (command) => command?.case === "generateText" && command.value.prompt.includes("PEAR"),
+    );
+
+    expect(generated?.case === "generateText" && generated.value.prompt).not.toContain("APPLE");
+  });
+
   test("intent survives a gateway restart and a duplicate result commits once", async () => {
     const thread = await createThread();
     const before = await history(thread.id);
