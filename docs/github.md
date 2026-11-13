@@ -311,6 +311,35 @@ właścicielami ani kontami. Single-flight i krótka dzierżawa SQL deduplikują
 I/O HTTP odbywa się poza transakcją. Po zmianie zapisujemy tylko zmienione projekcje i publikujemy
 rewizję przez istniejący Hub/owner feed. `QueryCache` web/mobile odrzuca spóźnione odpowiedzi.
 
+### Obrazy w treści PR
+
+Opis PR, komentarze, review i wątki review na web/desktop oraz mobile jawnie włączają
+obrazy w rendererze markdown. Markdown wątków agentów zachowuje obrazy jako linki.
+HTML jest parsowany jako dane: obsługujemy `img` (`src`, `alt`, szerokość i wysokość
+do 4096 px) oraz `br`; pozostałe tagi zostawiają tylko tekst. Style i event handlery
+nie trafiają do DOM ani widoków natywnych.
+
+`GetPullRequestImage` sprawdza owner PR i konto wybrane dla repozytorium, a następnie
+przynależność węzła GitHub do tego PR. Gateway pobiera `bodyHTML` tego węzła przez
+GraphQL i rozwiązuje oryginalne źródło obrazu do bieżącego podpisanego URL. Dzięki
+temu prywatne załączniki działają bez przesyłania poświadczeń ani podpisanych adresów
+do przeglądarki, telefonu czy modelu. BFF `POST /api/github/image` zwraca wyłącznie
+ograniczone dane rastrowe. Rozwiązanie URL ma TTL 60 s, bajty obrazu 5 min; oba
+odczyty korzystają ze wspólnego cache i single-flight z rewizją konta. Przed zwrotem
+gateway ponownie weryfikuje mapowanie konta.
+
+Dozwolone źródła HTTPS to `github.com/user-attachments/assets/<id>` oraz dokładne
+hosty `private-user-images.githubusercontent.com`, `user-images.githubusercontent.com`,
+`raw.githubusercontent.com` i `camo.githubusercontent.com`. Każdy z maksymalnie czterech
+redirectów przechodzi tę samą kontrolę; nagłówek Authorization trafia wyłącznie do
+endpointu załączników na `github.com`, nigdy do storage. Limit wynosi 2 MiB po
+dekodowaniu transportu i 15 s na pobranie. Gateway sprawdza MIME oraz sygnaturę PNG,
+JPEG, GIF lub WebP; SVG jest odrzucane. Niedozwolone i uszkodzone źródło zostaje
+tekstem alternatywnym lub linkiem. Małe obrazy z wymiarami do 64 px mieszczą się
+w linii; większe zachowują stałą ramkę (proporcje z wymiarów albo 16:9), dopasowanie
+contain i szerokość najwyżej kontenera. Web pobiera większe obrazy dopiero blisko
+viewportu, mobile przy montowaniu widocznego okna listy.
+
 ### Automatyczne konto repozytorium
 
 Wspólny resolver gatewaya wybiera konto według dostępu do repozytorium dla linkowania,

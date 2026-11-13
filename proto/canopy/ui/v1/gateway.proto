@@ -32,6 +32,7 @@ service GatewayService {
   rpc UnlinkThreadPullRequest(UnlinkThreadPullRequestRequest) returns (ThreadPullRequestsResponse);
   rpc GetPullRequest(PullRequestRequest) returns (PullRequestSnapshot);
   rpc GetPullRequestAvatar(PullRequestAvatarRequest) returns (PullRequestAvatar);
+  rpc GetPullRequestImage(PullRequestImageRequest) returns (PullRequestImage);
   rpc RefreshPullRequest(PullRequestRequest) returns (PullRequestSnapshot);
   rpc WatchPullRequest(WatchPullRequestRequest) returns (stream PullRequestUpdate);
   rpc ListPullRequestTimeline(PullRequestPageRequest) returns (PullRequestTimelinePage);

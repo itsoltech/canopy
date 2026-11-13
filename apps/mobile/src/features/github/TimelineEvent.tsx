@@ -3,7 +3,7 @@ import * as Linking from "expo-linking";
 import type { github } from "@canopy/contracts";
 import { timelineLook } from "@canopy/domain/github-pr";
 import { safeHref } from "@canopy/domain/markdown";
-import { Markdown } from "../../ui/markdown/Markdown";
+import { GitHubMarkdown as Markdown } from "./GitHubMarkdown";
 import { useColors, useTypography } from "../../ui/theme";
 import { ActivityHeader } from "./ActivityHeader";
 import { CommentActions } from "./CommentActions";
@@ -64,7 +64,7 @@ export function TimelineEvent({
         </Text>
       ) : (
         <View style={{ padding: 12, borderWidth: 1, borderColor: c.line, backgroundColor: c.inset, borderRadius: 8 }}>
-          <Markdown text={entry.body} />
+          <Markdown text={entry.body} pullRequestId={snapshot.summary?.ref?.id ?? ""} contentId={entry.id} />
           {first?.content.case === "comment" ? (
             <CommentActions
               snapshot={snapshot}

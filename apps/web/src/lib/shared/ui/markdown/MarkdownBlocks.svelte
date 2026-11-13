@@ -7,6 +7,8 @@
   import MarkdownBlocks from "./MarkdownBlocks.svelte";
   import MarkdownInline from "./MarkdownInline.svelte";
   import { useInlineElements } from "./inline-elements.ts";
+  import { useImages } from "./images.ts";
+  import MarkdownHtml from "./MarkdownHtml.svelte";
 
   /** `streaming`: the text is still arriving (code blocks reveal per line, `CodeFence`). */
   let {
@@ -16,6 +18,7 @@
   }: { tokens: Token[]; streaming?: boolean; breaks?: boolean } = $props();
 
   const elements = useInlineElements();
+  const images = useImages();
 
   const headingSize = new Map<number, string>([
     [1, "text-lg/7 sm:text-base/7"],
@@ -140,6 +143,8 @@
   {:else if token.type === "text"}
     <p class={breaks ? "whitespace-pre-wrap" : undefined}><MarkdownInline tokens={inline(token as Tokens.Text)} /></p>
   {:else if token.type === "html"}
-    <p class="whitespace-pre-wrap">{token.raw}</p>
+    <p class="whitespace-pre-wrap">
+      {#if images.render}<MarkdownHtml text={token.raw} />{:else}{token.raw}{/if}
+    </p>
   {/if}
 {/each}

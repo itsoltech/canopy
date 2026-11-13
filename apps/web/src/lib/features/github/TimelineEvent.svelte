@@ -3,7 +3,7 @@
   import type { ClassValue } from "svelte/elements";
   import { timelineLook } from "@canopy/domain/github-pr";
   import { safeHref } from "@canopy/domain/markdown";
-  import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
+  import Markdown from "./GitHubMarkdown.svelte";
   import ActivityHeader from "./ActivityHeader.svelte";
   import CommentActions from "./CommentActions.svelte";
   import CitationActions from "./CitationActions.svelte";
@@ -51,7 +51,12 @@
         ><div
           class="min-w-0 rounded-lg border border-zinc-950/10 bg-zinc-500/3 p-3 dark:border-white/10 dark:bg-white/3 [&>div]:[overflow-wrap:anywhere]"
         >
-          <Markdown text={entry.body} class="min-w-0" />
+          <Markdown
+            text={entry.body}
+            pullRequestId={snapshot.summary?.ref?.id ?? ""}
+            contentId={entry.id}
+            class="min-w-0"
+          />
           {#if first?.content.case === "comment"}<CommentActions
               {snapshot}
               comment={entry}

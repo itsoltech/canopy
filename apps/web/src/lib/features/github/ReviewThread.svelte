@@ -4,7 +4,7 @@
   import { github } from "@canopy/contracts";
   import { safeHref } from "@canopy/domain/markdown";
   import type { ClassValue } from "svelte/elements";
-  import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
+  import Markdown from "./GitHubMarkdown.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import * as api from "./api.ts";
@@ -140,7 +140,7 @@
           url={safeHref(comment.url)}
           look={reviewerLook("commented")}
         />
-        <Markdown text={comment.body} class="min-w-0" />
+        <Markdown text={comment.body} pullRequestId={id} contentId={comment.id} class="min-w-0" />
         <CommentActions
           {snapshot}
           {comment}

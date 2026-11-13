@@ -10,6 +10,7 @@
     "./github-pr": "./src/github-pr.ts",
     "./github-pr-picker": "./src/github-pr-picker.ts",
     "./github-read": "./src/github-read.ts",
+    "./github-images": "./src/github-images.ts",
     "./github-watch": "./src/github-watch.ts",
     "./github-mutations": "./src/github-mutations.ts",
     "./github-ci": "./src/github-ci.ts",
@@ -119,6 +120,7 @@
     "@canopy/ui": "workspace:*",
     "effect": "4.1.1",
     "marked": "18.1.2",
+    "parse5": "8.0.0",
     "semver": "7.7.3"
   },
   "devDependencies": {

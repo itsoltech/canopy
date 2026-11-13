@@ -8,10 +8,13 @@
   import { useFileLinks } from "./file-links.ts";
   import { fileHrefOf, filePathOf } from "./file-paths.ts";
   import InlineLink from "../InlineLink.svelte";
+  import { useImages } from "./images.ts";
+  import MarkdownHtml from "./MarkdownHtml.svelte";
 
   let { tokens }: { tokens: Token[] } = $props();
   const elements = useInlineElements();
   const files = useFileLinks();
+  const images = useImages();
 </script>
 
 {#each tokens as token, index (index)}
@@ -65,7 +68,9 @@
   {:else if token.type === "image"}
     {@const image = token as Tokens.Image}
     {@const href = safeHref(image.href)}
-    {#if href}
+    {#if images.render}
+      {@render images.render({ src: image.href, alt: image.text })}
+    {:else if href}
       <InlineLink
         {href}
         target="_blank"
@@ -77,6 +82,8 @@
     {/if}
   {:else if token.type === "br"}
     <br />
+  {:else if token.type === "html" && images.render}
+    <MarkdownHtml text={token.raw} />
   {:else if token.type === "text" && "tokens" in token && token.tokens}
     <MarkdownInline tokens={token.tokens} />
   {:else if token.type === "escape" || token.type === "text"}

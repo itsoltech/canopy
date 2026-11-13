@@ -7,6 +7,11 @@ export async function githubRead(api: ReturnType<typeof gateway>, operation: str
   const options = { timeoutMs: 120_000 };
 
   switch (operation) {
+    case "image":
+      return encode(
+        github.PullRequestImageSchema,
+        await api.getPullRequestImage(await readMessage(request, github.PullRequestImageRequestSchema), options),
+      );
     case "repository-pull-requests":
       return encode(
         github.RepositoryPullRequestsResponseSchema,

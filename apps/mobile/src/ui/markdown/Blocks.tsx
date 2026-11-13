@@ -10,6 +10,7 @@ import { MarkdownList } from "./MarkdownList";
 import { MarkdownTable } from "./MarkdownTable";
 import { MarkdownScopeProvider, useMarkdownScope } from "./scope";
 import { Faced } from "./text-style";
+import { Html } from "./Html";
 
 /** Heading sizes over the body's (web: text-lg/7, text-base/7, then text-base/6), as [size, line height]. */
 const HEADING: ReadonlyMap<number, readonly [number, number]> = new Map([
@@ -63,7 +64,7 @@ function DisplayMath({ raw }: { raw: string }) {
 
 function Block({ token }: { token: Token }) {
   const c = useColors();
-  const { restore, selectable } = useMarkdownScope();
+  const { restore, selectable, image } = useMarkdownScope();
 
   if (isMathToken(token)) return token.display ? <DisplayMath raw={token.raw} /> : <Prose>{token.raw}</Prose>;
 
@@ -99,7 +100,7 @@ function Block({ token }: { token: Token }) {
   if (isToken(token, "text")) return <Prose>{token.tokens ? <Inline tokens={token.tokens} /> : token.text}</Prose>;
 
   // Raw HTML shows as the text it is.
-  if (isToken(token, "html")) return <Prose>{token.raw.trimEnd()}</Prose>;
+  if (isToken(token, "html")) return <Prose>{image ? <Html text={token.raw} /> : token.raw.trimEnd()}</Prose>;
 
   return null;
 }

@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
+import type { GitHubImage } from "@canopy/domain/github-images";
 import { View } from "react-native";
 import { lexMarkdown, withSentinels } from "@canopy/domain/markdown";
 import { useColors } from "../theme";
@@ -20,6 +21,7 @@ export function Markdown({
   breaks = false,
   elements,
   selectable = true,
+  image,
 }: {
   text: string;
   color?: string | undefined;
@@ -27,6 +29,7 @@ export function Markdown({
   elements?: InlineElements | undefined;
   /** Chat bubbles supply their own long-press Reply/Copy menu. */
   selectable?: boolean;
+  image?: (value: GitHubImage) => ReactNode;
 }) {
   const c = useColors();
   const ranges = elements?.ranges;
@@ -35,6 +38,7 @@ export function Markdown({
   const tokens = useMemo(() => lexMarkdown(marked?.text ?? text, breaks), [marked, text, breaks]);
 
   const scope = {
+    image,
     selectable,
     ink: color ?? c.body,
     strong: color ?? c.text,
