@@ -7,6 +7,7 @@ import { ItemView } from "./ItemView";
 import { BackgroundNoteRow, NoticeRow } from "./NoticeRows";
 import type { BodyRow } from "./turn-plan";
 import { STEERED, UserMessageView } from "./UserMessageView";
+import { ThreadScrollItem } from "../../ui/thread-scroll-items";
 
 /** Unchanged body rows retain their rendered subtree when a neighboring disclosure toggles. */
 export const BodyRowView = memo(function BodyRowView({
@@ -23,9 +24,11 @@ export const BodyRowView = memo(function BodyRowView({
   if (row.kind === "notice" && !row.notice.notice) return null;
 
   return (
-    <Animated.View entering={rise.entering}>
-      <BodyRowContent row={row} steers={steers} ended={ended} />
-    </Animated.View>
+    <ThreadScrollItem id={row.key}>
+      <Animated.View entering={rise.entering}>
+        <BodyRowContent row={row} steers={steers} ended={ended} />
+      </Animated.View>
+    </ThreadScrollItem>
   );
 });
 

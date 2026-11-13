@@ -54,6 +54,7 @@
   import { isTerminal, topLevelEntry } from "#lib/features/threads/timeline.ts";
   import { WorkFolds, type FoldReader } from "#lib/features/threads/work-folds.svelte.ts";
   import { devicePreferences as device } from "#lib/features/settings/device-preferences.svelte.ts";
+  import { threadScrollMemory } from "#lib/features/threads/thread-scroll-memory.svelte.ts";
   import { FeedBuilder, feedEstimate, feedGroup, feedInserted, type FeedRow } from "#lib/features/threads/feed.ts";
   import TurnRail from "#lib/features/threads/rail/TurnRail.svelte";
   import { railTurns } from "#lib/features/threads/rail/turn-rail.ts";
@@ -245,6 +246,8 @@
   const folds = $derived((void threadId, new WorkFolds()));
   const builder = $derived((void threadId, new FeedBuilder()));
 
+  const scrollMemory = $derived(threadScrollMemory(threadId, compaction, (value) => (compact = value)));
+
   const rows = $derived(
     builder.build({
       entries: view.ownEntries,
@@ -262,7 +265,7 @@
     }),
   );
 
-  $effect(() => {
+  $effect.pre(() => {
     void threadId;
     historyOpen = false;
   });
@@ -440,12 +443,15 @@
       keepAfterTurn: device.values.workAfterTurn === "keep-open",
     };
 
-    untrack(() => folds.update(turns, entries, notices, feed, preferences));
+    const live = view.connection === "live";
+    untrack(() => folds.update(turns, entries, notices, feed, preferences, live));
   });
 
   $effect.pre(() => {
     const current = rows;
-    untrack(() => folds.keepFlat(current));
+    const loaded = view.loaded && device.viewLoaded;
+
+    if (loaded) untrack(() => (historyOpen = scrollMemory.prepare(current, folds, historyOpen)));
   });
 
   // The thread's actions in the command palette (the same as its menu, plus Interrupt while it works).
@@ -602,174 +608,176 @@
             />
           </div>
         {/if}
-        <VirtualFeed
-          bind:this={feed}
-          bind:atEnd
-          footerExpanded={!compact}
-          {rows}
-          key={(row: FeedRow) => row.key}
-          group={feedGroup}
-          estimate={feedEstimate}
-          inserted={feedInserted}
-          label="Timeline"
-          busy={working}
-          onreaderscroll={readerScroll}
-          onlatest={expandComposer}
-          onviewport={(viewport) => {
-            feedViewport = viewport;
-          }}
-        >
-          {#snippet placeholder()}
-            {#if !view.loaded}<TimelineSkeleton />{/if}
-          {/snippet}
-          {#snippet top()}
-            {#if view.hasMore}
-              <div class="flex justify-center py-3">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={view.history.loading}
-                  onclick={() => void view.history.load()}
-                  >{view.history.loading ? "Loading earlier messages…" : "Show earlier messages"}</Button
-                >
-                {#if view.history.error}<p role="status" class="text-sm text-red-600 dark:text-red-400">
-                    {view.history.error}
-                  </p>{/if}
-              </div>
-            {/if}
-            {#if thread?.scheduleId}<ScheduleOrigin {thread} class="pt-4" />{/if}
-            {#if thread?.spawnedByAgent && thread.parentThreadId}
-              <SubagentOrigin parentThreadId={thread.parentThreadId} parentTitle={parent?.title} class="mt-4" />
-            {/if}
-            {#if view.loaded && rows.length === 0}
-              <EmptyState
-                icon={thread?.status === "creating" ? "arrow-path" : "sparkles"}
-                title={thread?.status === "creating" ? "Starting the thread" : "No messages yet"}
-                description={thread?.status === "creating"
-                  ? `Setting up the agent on ${worker?.name ?? "the worker"}.`
-                  : closed
-                    ? "This thread closed before anyone said a word."
-                    : "Send a message below to start."}
-                class="mt-8"
-              />
-            {/if}
-          {/snippet}
-          {#snippet row(row: FeedRow)}
-            <FeedRowView
-              {row}
-              ontoggle={() => (historyOpen = !historyOpen)}
-              onwork={(fold, rowKey) => {
-                keepToggled(rowKey);
-                folds.toggle(fold);
-              }}
-              ongroup={(key, rowKey) => {
-                keepToggled(rowKey);
-                folds.toggleGroup(key);
-              }}
-            />
-          {/snippet}
-          {#snippet footer()}
-            <!-- What comes and goes above the composer grows in and out (each carries its own gap below). -->
-            <div class="grid grid-cols-1 pt-2" bind:this={feedFooter}>
-              {#if view.secrets.some((s) => s.status === "pending")}
-                <GrowIn overlay class="pb-3"
-                  ><ThreadSecretsPanel
-                    secrets={view.secrets.filter((s) => s.status === "pending")}
-                    onchange={(secret) => view.upsertSecret(secret)}
-                  /></GrowIn
-                >
-              {/if}
-              {#if view.pending.some((i) => i.kind !== InteractionKind.QUESTION)}
-                <GrowIn overlay class="pb-3">
-                  <div
-                    class={["grid gap-3 p-px", away && "opacity-60"]}
-                    role="region"
-                    aria-label="Waiting for you"
-                    inert={Boolean(away)}
+        {#if device.viewLoaded}<VirtualFeed
+            bind:this={feed}
+            bind:atEnd
+            footerExpanded={!compact}
+            {rows}
+            {scrollMemory}
+            ready={view.loaded && scrollMemory.prepared}
+            key={(row: FeedRow) => row.key}
+            group={feedGroup}
+            estimate={feedEstimate}
+            inserted={feedInserted}
+            label="Timeline"
+            busy={working}
+            onreaderscroll={readerScroll}
+            onlatest={expandComposer}
+            onviewport={(viewport) => {
+              feedViewport = viewport;
+            }}
+          >
+            {#snippet placeholder()}
+              {#if !view.loaded}<TimelineSkeleton />{/if}
+            {/snippet}
+            {#snippet top()}
+              {#if view.hasMore}
+                <div class="flex justify-center py-3">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={view.history.loading}
+                    onclick={() => void view.history.load()}
+                    >{view.history.loading ? "Loading earlier messages…" : "Show earlier messages"}</Button
                   >
-                    <PendingDecisions
-                      interactions={view.pending.filter((i) => i.kind !== InteractionKind.QUESTION)}
-                      items={itemsById}
-                      {parent}
-                    />
-                  </div>
-                </GrowIn>
-              {/if}
-              {#if view.backgroundTasks.length > 0}
-                <GrowIn overlay class="justify-self-start pb-3">
-                  <BackgroundTasksChip tasks={runningBackgroundTasks} onjump={(task) => openOutput(task.id)} />
-                </GrowIn>
-              {/if}
-              {#snippet composerPanels()}
-                {#if thread && shownGoal}
-                  <div class="t-rise">
-                    <GoalBar
-                      goal={shownGoal}
-                      provider={thread.provider}
-                      threadId={thread.id}
-                      disabled={closed}
-                      embedded
-                      {compact}
-                      onchange={(goal) => view.upsertGoal(goal)}
-                      ondismiss={() => (dismissedGoals = new Set(dismissedGoals).add(shownGoal.id))}
-                    />
-                  </div>
-                {/if}
-                {#if subagents.length > 0}
-                  <div class="t-rise" out:subagentPresence|global>
-                    <SubagentsPanel {subagents} {compact} embedded />
-                  </div>
-                {/if}
-                <div inert={Boolean(away)} class={away ? "opacity-60" : undefined}>
-                  <QueuePanel
-                    {queue}
-                    {compact}
-                    embedded
-                    delivery={settings.runningDelivery}
-                    ondelivery={(delivery) => void settings.updateRunningDelivery(delivery)}
-                  />
+                  {#if view.history.error}<p role="status" class="text-sm text-red-600 dark:text-red-400">
+                      {view.history.error}
+                    </p>{/if}
                 </div>
-              {/snippet}
-              {#if thread}
-                {#snippet computerStatus()}
-                  {#if away}<ComputerAwayBar computer={overview.computer(thread.nodeId)} reason={away} />{/if}
-                {/snippet}
-                <ThreadComposerSlot {thread} {parent} {compact}>
-                  <Composer
-                    status={away ? computerStatus : undefined}
-                    {compact}
-                    panelsLabel={queue.rows.length > 0 || subagents.length > 0
-                      ? `${subagents.length} agents · ${queue.rows.length} queued`
-                      : shownGoal
-                        ? "Goal"
-                        : undefined}
-                    onexpand={expandComposer}
-                    onfocuschange={(focused) => {
-                      compaction.focus(focused);
-                      compact = compaction.compact;
-                    }}
-                    class="relative"
-                    top={queue.rows.length > 0 || subagents.length > 0 || shownGoal ? composerPanels : undefined}
-                    questions={view.pending}
-                    {thread}
-                    {worker}
-                    running={view.running}
-                    runningTurnId={view.ownTurns.find((turn) => turn.status === "running")?.id}
-                    connection={view.composerConnection}
-                    disabled={closed || !view.loaded || Boolean(away) || view.connection === "error"}
-                    note={composerNote}
-                    onsent={(response) => {
-                      if (response.steer) view.upsertSteer(response.steer);
-                    }}
-                    ongoal={canGoal && !openGoal ? () => (goalDialog = true) : undefined}
-                  />
-                </ThreadComposerSlot>
-              {:else}
-                <Skeleton class="h-28 rounded-2xl" />
               {/if}
-            </div>
-          {/snippet}
-        </VirtualFeed>
+              {#if thread?.scheduleId}<ScheduleOrigin {thread} class="pt-4" />{/if}
+              {#if thread?.spawnedByAgent && thread.parentThreadId}
+                <SubagentOrigin parentThreadId={thread.parentThreadId} parentTitle={parent?.title} class="mt-4" />
+              {/if}
+              {#if view.loaded && rows.length === 0}
+                <EmptyState
+                  icon={thread?.status === "creating" ? "arrow-path" : "sparkles"}
+                  title={thread?.status === "creating" ? "Starting the thread" : "No messages yet"}
+                  description={thread?.status === "creating"
+                    ? `Setting up the agent on ${worker?.name ?? "the worker"}.`
+                    : closed
+                      ? "This thread closed before anyone said a word."
+                      : "Send a message below to start."}
+                  class="mt-8"
+                />
+              {/if}
+            {/snippet}
+            {#snippet row(row: FeedRow)}
+              <FeedRowView
+                {row}
+                ontoggle={() => (historyOpen = !historyOpen)}
+                onwork={(fold, rowKey) => {
+                  keepToggled(rowKey);
+                  folds.toggle(fold);
+                }}
+                ongroup={(key, rowKey) => {
+                  keepToggled(rowKey);
+                  folds.toggleGroup(key);
+                }}
+              />
+            {/snippet}
+            {#snippet footer()}
+              <!-- What comes and goes above the composer grows in and out (each carries its own gap below). -->
+              <div class="grid grid-cols-1 pt-2" bind:this={feedFooter}>
+                {#if view.secrets.some((s) => s.status === "pending")}
+                  <GrowIn overlay class="pb-3"
+                    ><ThreadSecretsPanel
+                      secrets={view.secrets.filter((s) => s.status === "pending")}
+                      onchange={(secret) => view.upsertSecret(secret)}
+                    /></GrowIn
+                  >
+                {/if}
+                {#if view.pending.some((i) => i.kind !== InteractionKind.QUESTION)}
+                  <GrowIn overlay class="pb-3">
+                    <div
+                      class={["grid gap-3 p-px", away && "opacity-60"]}
+                      role="region"
+                      aria-label="Waiting for you"
+                      inert={Boolean(away)}
+                    >
+                      <PendingDecisions
+                        interactions={view.pending.filter((i) => i.kind !== InteractionKind.QUESTION)}
+                        items={itemsById}
+                        {parent}
+                      />
+                    </div>
+                  </GrowIn>
+                {/if}
+                {#if view.backgroundTasks.length > 0}
+                  <GrowIn overlay class="justify-self-start pb-3">
+                    <BackgroundTasksChip tasks={runningBackgroundTasks} onjump={(task) => openOutput(task.id)} />
+                  </GrowIn>
+                {/if}
+                {#snippet composerPanels()}
+                  {#if thread && shownGoal}
+                    <div class="t-rise">
+                      <GoalBar
+                        goal={shownGoal}
+                        provider={thread.provider}
+                        threadId={thread.id}
+                        disabled={closed}
+                        embedded
+                        {compact}
+                        onchange={(goal) => view.upsertGoal(goal)}
+                        ondismiss={() => (dismissedGoals = new Set(dismissedGoals).add(shownGoal.id))}
+                      />
+                    </div>
+                  {/if}
+                  {#if subagents.length > 0}
+                    <div class="t-rise" out:subagentPresence|global>
+                      <SubagentsPanel {subagents} {compact} embedded />
+                    </div>
+                  {/if}
+                  <div inert={Boolean(away)} class={away ? "opacity-60" : undefined}>
+                    <QueuePanel
+                      {queue}
+                      {compact}
+                      embedded
+                      delivery={settings.runningDelivery}
+                      ondelivery={(delivery) => void settings.updateRunningDelivery(delivery)}
+                    />
+                  </div>
+                {/snippet}
+                {#if thread}
+                  {#snippet computerStatus()}
+                    {#if away}<ComputerAwayBar computer={overview.computer(thread.nodeId)} reason={away} />{/if}
+                  {/snippet}
+                  <ThreadComposerSlot {thread} {parent} {compact}>
+                    <Composer
+                      status={away ? computerStatus : undefined}
+                      {compact}
+                      panelsLabel={queue.rows.length > 0 || subagents.length > 0
+                        ? `${subagents.length} agents · ${queue.rows.length} queued`
+                        : shownGoal
+                          ? "Goal"
+                          : undefined}
+                      onexpand={expandComposer}
+                      onfocuschange={(focused) => {
+                        compaction.focus(focused);
+                        compact = compaction.compact;
+                      }}
+                      class="relative"
+                      top={queue.rows.length > 0 || subagents.length > 0 || shownGoal ? composerPanels : undefined}
+                      questions={view.pending}
+                      {thread}
+                      {worker}
+                      running={view.running}
+                      runningTurnId={view.ownTurns.find((turn) => turn.status === "running")?.id}
+                      connection={view.composerConnection}
+                      disabled={closed || !view.loaded || Boolean(away) || view.connection === "error"}
+                      note={composerNote}
+                      onsent={(response) => {
+                        if (response.steer) view.upsertSteer(response.steer);
+                      }}
+                      ongoal={canGoal && !openGoal ? () => (goalDialog = true) : undefined}
+                    />
+                  </ThreadComposerSlot>
+                {:else}
+                  <Skeleton class="h-28 rounded-2xl" />
+                {/if}
+              </div>
+            {/snippet}
+          </VirtualFeed>{/if}
       {/key}
     </div>
     <FileDropOverlay {intake} />

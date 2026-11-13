@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import * as SecureStore from "expo-secure-store";
 import { DeviceViewPreferences, deviceViewDefaults, type DeviceViewValues } from "@canopy/domain/device-view";
+import { rememberThreadScroll, type ThreadScrollPosition } from "@canopy/domain/thread-scroll";
 import { mobileFontFamilies } from "./mobile-fonts";
 import { useSession } from "../../state/session";
 import { loadDeviceView, saveDeviceView } from "../../storage/device-view";
@@ -109,6 +110,9 @@ function useDeviceView(scope: string) {
     },
     setView(change: Partial<DeviceViewValues>) {
       if (loaded) store.set(change);
+    },
+    saveThreadScroll(threadId: string, position: ThreadScrollPosition) {
+      if (loaded) store.set({ threadScroll: rememberThreadScroll(store.values.threadScroll, threadId, position) });
     },
   };
 }

@@ -96,6 +96,14 @@ wiarygodnie odtworzyć z samej liczby zdarzeń `Animation` w cudzym śladzie.
 
 ### Strumieniowanie osi czasu
 
+Powrót do wątku odtwarza lokalną kotwicę (klucz elementu i offset wewnątrz),
+bez rozszerzania okna historii. Web czeka na zmierzenie początkowego okna przed
+odsłonięciem scrollera; mobile ma ograniczoną liczbę prób pomiaru komórki i
+wiadomości. Weryfikacja obejmuje także korektę wysokości wiersza, która najpierw
+ogranicza scrollTop, a potem odbudowuje zasięg przed zdarzeniem scroll: taki
+layout nie może wyłączyć podążania. Zapis pozycji jest ograniczony do LRU 100
+wątków w stanie urządzenia, poza snapshotami i dogrzewaniem cache.
+
 - Wyszukiwanie itemu po id w reducerze i `ThreadState` korzysta z indeksu pozycji,
   nie z liniowego `findIndex` przy każdej delcie. Dopisanie aktualizuje jeden wpis;
   snapshot, prepend historii, usunięcie lub zmiana kolejności odbudowują indeks.

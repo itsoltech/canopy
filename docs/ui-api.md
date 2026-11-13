@@ -1864,6 +1864,22 @@ wymiany botów niedostępnych, zarchiwizowanych albo przeniesionych.
 
 ### Preferencje General i aktualizacje
 
+Pozycja czytania wątku jest stanem urządzenia, bez RPC i synchronizacji konta.
+`DeviceViewPreferences.threadScroll` w istniejącym `canopy.client-view.v2.<scope>`
+zachowuje najwyżej 100 ostatnio odwiedzonych wątków: podążanie za końcem albo
+stabilny klucz elementu i offset wewnątrz niego. Zapis działa w pamięci i lokalnym
+storage; tło i wyjście z widoku utrwalają ostatnią pozycję. Powrót do wątku oraz
+reload odtwarzają kotwicę tylko w już załadowanym oknie. Fold i grupa zawierające
+kotwicę otwierają się przed pomiarem. Brak elementu lub kotwica poza tym oknem
+oznaczają powrót na koniec, bez dodatkowego
+pobierania historii. Nowe wątki i czytelnicy podążający za końcem widzą najnowszą
+wiadomość, także po aktualizacjach w tle. Odtworzenie nie animuje przewijania;
+feed czeka ukryty na pomiar właściwych wierszy, a czytanie historii zaczyna się
+ze zwiniętym kompozytorem i dostępnym „Jump to latest”. Korekty wysokości nie
+są gestem czytelnika i nie wyłączają podążania. Snapshot dogrzanego cache nie
+oznacza obserwowanego na żywo zakończenia pracy i nie uruchamia przejścia do
+początku długiej odpowiedzi.
+
 `DeviceViewPreferences.threadSortMode` przechowuje lokalnie `activity`, `created`
 albo `custom`; brak wartości inicjalizuje `activity`. Wybór nie jest polem ustawień
 konta ani wspólnej konfiguracji. Domyślny tryb pozostaje „Last activity”, ale używa

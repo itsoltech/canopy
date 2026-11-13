@@ -78,11 +78,14 @@ export class WorkFolds {
     notices: readonly TimelineNotice[],
     reader: FoldReader | undefined,
     preferences: WorkFoldPreferences,
+    live = true,
   ): void {
     const ended: string[] = [];
 
+    if (!live) this.#running.clear();
+
     for (const turn of turns) {
-      if (!isTerminal(turn.status)) this.#running.add(turn.id);
+      if (!isTerminal(turn.status) && live) this.#running.add(turn.id);
       else if (this.#running.delete(turn.id)) ended.push(turn.id);
     }
 
@@ -116,5 +119,15 @@ export class WorkFolds {
   /** The fold an item of the timeline sits under (by item id), if any: a quote opens it to show its source. */
   foldOf(itemId: string): string | undefined {
     return this.#plan?.workOf.get(`item:${itemId}`);
+  }
+
+  /** Open a saved work row before the feed measures its initial window. */
+  revealKey(key: string): boolean {
+    const fold = this.#plan?.workOf.get(key);
+
+    if (!fold || this.open.has(fold)) return false;
+    this.toggle(fold, true);
+
+    return true;
   }
 }

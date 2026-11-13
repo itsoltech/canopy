@@ -22,8 +22,10 @@ export function publishViewport(
   index: SizeIndex,
   top: number,
   height: number,
-  callback: (viewport: FeedViewport) => void,
-): () => void {
+  callback: ((viewport: FeedViewport) => void) | undefined,
+): (() => void) | undefined {
+  if (!callback || height <= 0) return undefined;
+
   const frame = requestAnimationFrame(() => {
     const [start, end] = index.range(top, top + height);
     callback({ start, end, height });

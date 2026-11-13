@@ -13,6 +13,7 @@ import { QuoteItem } from "../quotes/QuoteAction";
 import { BodyRowView } from "./TimelineBodyRow";
 import { WorkRail } from "./WorkRail";
 import { TimelineDisclosure } from "./TimelineDisclosure";
+import { ThreadScrollItem, useThreadScrollTarget } from "../../ui/thread-scroll-items";
 
 /** What a turn looks up beyond its own items: the thread's notices and steers, its tasks and provider. */
 export interface TurnContext {
@@ -23,6 +24,31 @@ export interface TurnContext {
   readonly provider: Provider | undefined;
   /** Per timeline, so virtual cell remounts retain manual choices without persisting them to disk. */
   readonly foldChoices: Map<string, ReadonlyMap<number, WorkFoldChoice>>;
+}
+
+/** Only seed the disclosure that contains the saved row; later toggles retain normal fold rules. */
+function initialFolds(turn: ui.Turn, entries: readonly ui.TimelineItem[], context: TurnContext, target?: string) {
+  const saved = context.foldChoices.get(turn.id);
+
+  if (saved || !target) return saved ?? new Map<number, WorkFoldChoice>();
+  const body = turnBody(turn, entries, context.notices);
+  const choices = new Map<number, WorkFoldChoice>();
+
+  segmentsOf(turn, body, () => false).forEach((segment, index) => {
+    const work = body.slice(segment.start + segment.inputs, segment.end);
+
+    if (work.some((row) => row.key === target))
+      choices.set(index, {
+        open: true,
+        state: {
+          live: segment.live,
+          answered: segment.answered,
+          answerSeq: body[segment.answerBoundary]?.seq,
+        },
+      });
+  });
+
+  return choices;
 }
 
 /**
@@ -44,9 +70,10 @@ export function TimelineTurn({
   historical: boolean;
 }) {
   const { workFold } = useDevicePreferences();
+  const target = useThreadScrollTarget();
 
-  const [folds, setFolds] = useState<ReadonlyMap<number, WorkFoldChoice>>(
-    () => context.foldChoices.get(turn.id) ?? new Map(),
+  const [folds, setFolds] = useState<ReadonlyMap<number, WorkFoldChoice>>(() =>
+    initialFolds(turn, entries, context, target),
   );
 
   const body = useMemo(() => turnBody(turn, entries, context.notices), [turn, entries, context.notices]);
@@ -85,7 +112,9 @@ export function TimelineTurn({
       {turn.shellCommand !== undefined ? (
         <ShellMessage command={turn.shellCommand} result={turn.shellResult} status={turn.status} error={turn.error} />
       ) : hasInput ? (
-        <TurnInput turn={turn} />
+        <ThreadScrollItem id="input">
+          <TurnInput turn={turn} />
+        </ThreadScrollItem>
       ) : null}
       {segments.map((segment, index) => {
         const id = foldId(turn.id, index);
@@ -114,16 +143,18 @@ export function TimelineTurn({
               <BodyRowView key={row.key} row={row} steers={context.steers} ended={ended} />
             ))}
             <View>
-              <WorkFold
-                summary={summary}
-                starting={turn.status === "queued" && turn.dispatched}
-                open={isOpen}
-                onToggle={() => {
-                  const next = new Map(folds).set(index, { open: !isOpen, state: state(index) });
-                  context.foldChoices.set(turn.id, next);
-                  setFolds(next);
-                }}
-              />
+              <ThreadScrollItem id={`work:${id}`}>
+                <WorkFold
+                  summary={summary}
+                  starting={turn.status === "queued" && turn.dispatched}
+                  open={isOpen}
+                  onToggle={() => {
+                    const next = new Map(folds).set(index, { open: !isOpen, state: state(index) });
+                    context.foldChoices.set(turn.id, next);
+                    setFolds(next);
+                  }}
+                />
+              </ThreadScrollItem>
               <TimelineDisclosure open={isOpen && work.length > 0}>
                 <WorkRail
                   work={work}

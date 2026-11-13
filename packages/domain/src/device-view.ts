@@ -3,6 +3,7 @@ import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { storedSidebarWidth } from "./appearance/sidebar.ts";
 import type { ThreadSortMode } from "./thread-order.ts";
+import { savedThreadScroll, THREAD_SCROLL_LIMIT, type SavedThreadScroll } from "./thread-scroll.ts";
 
 /** Desktop PR geometry in pixels; a narrow window may clamp below the preferred minimum. */
 export const PULL_REQUEST_WIDTH = { default: 576, min: 320, max: 1200, minThread: 384 } as const;
@@ -21,6 +22,7 @@ const savedView = Schema.Struct({
   threadSortMode: Schema.optionalKey(Schema.Literals(["activity", "created", "custom"])),
   lastSeenAppVersion: Schema.optionalKey(Schema.String),
   appUpdateFrom: Schema.optionalKey(Schema.String),
+  threadScroll: Schema.optionalKey(Schema.Array(savedThreadScroll)),
 });
 
 export type DeviceSidebarValues = Pick<
@@ -29,6 +31,7 @@ export type DeviceSidebarValues = Pick<
 >;
 
 export interface DeviceViewValues extends DeviceSidebarValues {
+  threadScroll: readonly SavedThreadScroll[];
   threadSortMode: ThreadSortMode;
   lastSeenAppVersion: string;
   appUpdateFrom: string;
@@ -41,6 +44,7 @@ export interface DeviceViewValues extends DeviceSidebarValues {
 }
 
 export const deviceViewDefaults: DeviceViewValues = {
+  threadScroll: [],
   threadSortMode: "activity",
   lastSeenAppVersion: "",
   appUpdateFrom: "",
@@ -125,6 +129,9 @@ export class DeviceViewPreferences {
     const width = values.pullRequestWidth;
     this.values = {
       ...values,
+      threadScroll: values.threadScroll
+        .filter((entry) => entry.position.mode === "following" || Number.isFinite(entry.position.offset))
+        .slice(-THREAD_SCROLL_LIMIT),
       sidebarWidth: storedSidebarWidth(values.sidebarWidth),
       pullRequestWidth:
         Number.isFinite(width) && width > 0

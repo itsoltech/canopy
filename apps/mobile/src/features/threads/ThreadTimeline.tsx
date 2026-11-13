@@ -22,6 +22,8 @@ import { TimelineEntries } from "./timeline-entries";
 import type { ThreadState } from "./ThreadScreen";
 import { mobileFeedLayout } from "../settings/client-diagnostics";
 import type { WorkFoldChoice } from "@canopy/domain/work-fold";
+import { ThreadScrollItems, ThreadScrollParent, ThreadScrollTarget } from "../../ui/thread-scroll-items";
+import { scrollTurnKey, useThreadScrollMemory } from "./useThreadScrollMemory";
 
 /** What the timeline's items look up: other threads, items, deliveries, and its tasks by their command. */
 function useTimelineData(state: ThreadState) {
@@ -98,7 +100,9 @@ const TimelineCell = memo(
     return (
       <ArrivingCell entering={entering}>
         <TimelineDirectoryProvider value={{ ...directory, sourceId: turn.fromThreadId || directory.currentId }}>
-          <TimelineTurn turn={turn} entries={entries} context={context} newDay={newDay} historical={historical} />
+          <ThreadScrollParent.Provider value={scrollTurnKey(turn)}>
+            <TimelineTurn turn={turn} entries={entries} context={context} newDay={newDay} historical={historical} />
+          </ThreadScrollParent.Provider>
         </TimelineDirectoryProvider>
       </ArrivingCell>
     );
@@ -131,6 +135,16 @@ export function ThreadTimeline({
   const { directory, context } = useTimelineData(state);
   const anchor = useFeedAnchor(following);
   const latestFirst = useMemo(() => [...turns].reverse(), [turns]);
+
+  const memory = useThreadScrollMemory(
+    state.id,
+    latestFirst,
+    Boolean(snapshot),
+    following,
+    composer.listProps.onScroll,
+    composer.restoreReading,
+  );
+
   const turnKey = (turn: ui.Turn) => `${turn.fromThreadId}:${turn.id}`;
   const arrival = useArrivals(latestFirst.map(turnKey), Boolean(snapshot), { newestFirst: true });
   const { rise } = useMotion();
@@ -144,71 +158,82 @@ export function ThreadTimeline({
 
   return (
     <TimelineDirectoryProvider value={directory}>
-      <FeedAnchorProvider value={anchor}>
-        <TimelineList
-          {...composer.listProps}
-          composerInset={following.composerInset}
-          onLayout={() => {
-            if (snapshot?.thread) mobileFeedLayout(snapshot.thread.id);
-          }}
-          onContentSizeChange={() => {
-            if (snapshot?.thread) mobileFeedLayout(snapshot.thread.id);
-          }}
-          onEndReached={() => {
-            if (!following.isFollowing()) void state.history.load();
-          }}
-          onEndReachedThreshold={0.3}
-          data={latestFirst}
-          keyExtractor={turnKey}
-          style={styles.fill}
-          contentContainerStyle={{ maxWidth, paddingTop: 24, flexGrow: 1, gap: 0 }}
-          keyboardShouldPersistTaps="handled"
-          // Inverted: the footer is the top of the feed, the header sits under the latest turn.
-          ListFooterComponent={
-            <View style={{ gap: 16, paddingBottom: 16 }}>
-              <HistoryFooter
-                hasMore={snapshot?.historyHasMore || snapshot?.historyItemsHasMore}
-                history={state.history}
-              />
-              {!snapshot && <ConversationSkeleton />}
-              {snapshot?.thread && !turns.length && <Notice>This thread is ready for your first message.</Notice>}
-            </View>
-          }
-          // A turn that arrives (a sent or queued message) fades in; one that only scrolls into view does not, and
-          // neither do the rows it mounts with. Later rows inside it animate themselves (TimelineTurn).
-          renderItem={({ item, index }) => (
-            <TimelineCell
-              turn={item}
-              entries={entries.get(turnKey(item)) ?? EMPTY_ENTRIES}
-              context={context}
-              directory={directory}
-              newDay={days.has(item)}
-              historical={index !== 0}
-              entering={arrival(turnKey(item))}
+      <ThreadScrollItems.Provider value={memory.items}>
+        <ThreadScrollTarget.Provider value={memory.target}>
+          <FeedAnchorProvider value={anchor}>
+            <TimelineList
+              {...composer.listProps}
+              onScroll={memory.onScroll}
+              onScrollToIndexFailed={memory.onScrollToIndexFailed}
+              onViewableItemsChanged={memory.onViewableItemsChanged}
+              composerInset={following.composerInset}
+              onLayout={() => {
+                memory.restore();
+
+                if (snapshot?.thread) mobileFeedLayout(snapshot.thread.id);
+              }}
+              onContentSizeChange={() => {
+                memory.restore();
+
+                if (snapshot?.thread) mobileFeedLayout(snapshot.thread.id);
+              }}
+              onEndReached={() => {
+                if (memory.positioned && !following.isFollowing()) void state.history.load();
+              }}
+              onEndReachedThreshold={0.3}
+              data={latestFirst}
+              keyExtractor={turnKey}
+              style={[styles.fill, { opacity: memory.positioned ? 1 : 0 }]}
+              contentContainerStyle={{ maxWidth, paddingTop: 24, flexGrow: 1, gap: 0 }}
+              keyboardShouldPersistTaps="handled"
+              // Inverted: the footer is the top of the feed, the header sits under the latest turn.
+              ListFooterComponent={
+                <View style={{ gap: 16, paddingBottom: 16 }}>
+                  <HistoryFooter
+                    hasMore={snapshot?.historyHasMore || snapshot?.historyItemsHasMore}
+                    history={state.history}
+                  />
+                  {!snapshot && <ConversationSkeleton />}
+                  {snapshot?.thread && !turns.length && <Notice>This thread is ready for your first message.</Notice>}
+                </View>
+              }
+              // A turn that arrives (a sent or queued message) fades in; one that only scrolls into view does not, and
+              // neither do the rows it mounts with. Later rows inside it animate themselves (TimelineTurn).
+              renderItem={({ item, index }) => (
+                <TimelineCell
+                  turn={item}
+                  entries={entries.get(turnKey(item)) ?? EMPTY_ENTRIES}
+                  context={context}
+                  directory={directory}
+                  newDay={days.has(item)}
+                  historical={index !== 0}
+                  entering={arrival(turnKey(item))}
+                />
+              )}
+              ListHeaderComponent={
+                <>
+                  <View style={{ gap: 12, paddingBottom: steering.length || loose.length ? 12 : 0 }}>
+                    {loose.map((n) => (n.notice ? <NoticeRow key={String(n.seq)} notice={n.notice} /> : null))}
+                    {steering.map((s) => (
+                      <Animated.View key={s.id} entering={rise.entering} exiting={rise.exiting}>
+                        <UserMessageView
+                          text={s.text}
+                          mentions={s.mentions}
+                          attachments={s.attachments}
+                          note={steeringNote(s)}
+                          sender={s.sender}
+                          quotes={s.quotes}
+                          pending
+                        />
+                      </Animated.View>
+                    ))}
+                  </View>
+                </>
+              }
             />
-          )}
-          ListHeaderComponent={
-            <>
-              <View style={{ gap: 12, paddingBottom: steering.length || loose.length ? 12 : 0 }}>
-                {loose.map((n) => (n.notice ? <NoticeRow key={String(n.seq)} notice={n.notice} /> : null))}
-                {steering.map((s) => (
-                  <Animated.View key={s.id} entering={rise.entering} exiting={rise.exiting}>
-                    <UserMessageView
-                      text={s.text}
-                      mentions={s.mentions}
-                      attachments={s.attachments}
-                      note={steeringNote(s)}
-                      sender={s.sender}
-                      quotes={s.quotes}
-                      pending
-                    />
-                  </Animated.View>
-                ))}
-              </View>
-            </>
-          }
-        />
-      </FeedAnchorProvider>
+          </FeedAnchorProvider>
+        </ThreadScrollTarget.Provider>
+      </ThreadScrollItems.Provider>
     </TimelineDirectoryProvider>
   );
 }

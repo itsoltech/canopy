@@ -99,6 +99,19 @@ export function useFollowingList<Item>(keyboardChat = false, initialComposerHeig
     minimum,
     corrections,
     resumeFollowing: () => jump(false),
+    restoreReading: (offset?: number) => {
+      anchoring.set(true);
+      corrections.set(corrections.get() + 1);
+
+      if (offset !== undefined) {
+        const y = Math.max(minimum.get(), offset);
+        list.current?.scrollToOffset({ offset: y, animated: false });
+        scrollY.set(y);
+      }
+
+      bottom.set(false);
+      setAtBottom(false);
+    },
     showLatest: () => jump(true),
     listProps: {
       ref: list,
