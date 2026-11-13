@@ -32,7 +32,6 @@ import { collapsedThreadComposerHeight, threadComposerHeight } from "../composer
 import { ThreadRequests } from "./ThreadRequests";
 import { ImportedThreadComposer } from "../imports/ImportedThreadComposer";
 import { useQuoteDraft } from "../quotes/useQuoteDraft";
-import { useArchivedThreadDisclosure } from "../settings/use-archived-thread-disclosure";
 import { useComposerConnection } from "./useComposerConnection";
 import { useThreadSend } from "./useThreadSend";
 import { useThreadStop } from "./useThreadStop";
@@ -68,7 +67,6 @@ function useThreadState(id: string) {
   useContextDraft(id, message, setError);
 
   const thread = snapshot?.thread ?? threads.find((t) => t.id === id);
-  useArchivedThreadDisclosure(thread?.status === "archived" ? thread.id : undefined);
   const home = useComputerHome(thread?.nodeId || splitId(id).node);
   const worker = workers.find((w) => w.id === thread?.workerId);
   const tray = useThreadTray({ id, snapshot, setSnapshot, thread, threads });

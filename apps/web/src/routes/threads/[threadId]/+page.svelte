@@ -104,11 +104,6 @@
   $effect(() => view.connect(threadId));
 
   const thread = $derived(view.thread);
-  const archivedId = $derived(thread?.status === "archived" ? thread.id : undefined);
-
-  $effect(() => {
-    if (archivedId) untrack(() => device.setView({ archivedThreadsExpanded: true }));
-  });
 
   $effect(() => {
     if (thread?.deletedAt) void goto("/");
