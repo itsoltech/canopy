@@ -2738,6 +2738,8 @@ message ThreadFileRequest {
   string expected_sha256 = 3;
   // Item źródłowy: wskazówki ścieżek tylko z tej samej tury, sprawdzone na domu.
   string item_id = 4;
+  // Usunięcie: tożsamość korzenia z odczytu; podmiana checkoutu odrzuca mutację.
+  string expected_root_identity = 5;
 }
 
 message WriteThreadFileRequest {
@@ -2746,6 +2748,7 @@ message WriteThreadFileRequest {
   bytes content = 3;
   // SHA-256 z odczytu; inna treść na dysku odrzuca zapis (konflikt).
   string expected_sha256 = 4;
+  string expected_root_identity = 5;
 }
 
 message ThreadFile {
@@ -2767,6 +2770,7 @@ message ThreadFile {
   uint32 image_height = 16;
   string image_preview_error = 17;
   bytes image_preview = 18;
+  string root_identity = 19;
 }
 
 message SwitchThreadBranchRequest {

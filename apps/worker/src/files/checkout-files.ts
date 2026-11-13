@@ -18,6 +18,7 @@ import { invalidateDirectoryGit } from "./directory-git.ts";
 interface Subscriber {
   request: ThreadFilesWatch;
   send: (update: ThreadFilesUpdate) => void;
+  signal: AbortSignal;
 }
 
 interface Record {
@@ -41,6 +42,7 @@ export class CheckoutFiles {
   #git: FSWatcher | undefined;
   #gitStarted = false;
   #tail: Promise<void> = Promise.resolve();
+  #adding = 0;
 
   constructor(
     readonly workspace: string,
@@ -51,29 +53,62 @@ export class CheckoutFiles {
     return `${this.epoch}:${this.#sequence}`;
   }
 
-  async add(request: ThreadFilesWatch, send: Subscriber["send"]) {
+  get idle() {
+    return !this.subscribers.size && !this.#adding;
+  }
+
+  async add(request: ThreadFilesWatch, send: Subscriber["send"], signal: AbortSignal) {
+    this.#adding++;
+    const subscriber: Subscriber = { request, send, signal };
+
+    const cancel = () => {
+      if (this.subscribers.get(request.subscriptionId) === subscriber) this.remove(request.subscriptionId);
+    };
+
+    signal.addEventListener("abort", cancel, { once: true });
+
     // Serialise native handle changes, including concurrent subscriptions to the same checkout.
     const operation = this.#tail.then(async () => {
+      if (signal.aborted) return;
+
       if (this.#closed) throw new CommandError("WATCH_CLOSED", "Reopen Files to watch changes.", true);
-      this.subscribers.set(request.subscriptionId, { request, send });
+      this.subscribers.set(request.subscriptionId, subscriber);
 
       try {
         await this.#reconcile();
 
-        if (this.#closed) return;
+        if (this.#closed || signal.aborted) return;
         this.#replay(request, send);
       } catch (cause) {
-        this.remove(request.subscriptionId);
+        cancel();
         throw cause;
+      } finally {
+        if (signal.aborted) cancel();
+        this.#prune();
       }
     });
 
     this.#tail = operation.catch(() => {});
-    await operation;
+
+    try {
+      await operation;
+    } finally {
+      signal.removeEventListener("abort", cancel);
+      this.#adding--;
+      this.#prune();
+
+      if (this.idle) this.close();
+    }
   }
 
   remove(id: string) {
     this.subscribers.delete(id);
+    this.#prune();
+
+    if (this.idle) this.close();
+  }
+
+  #prune() {
     const wanted = this.#directories();
 
     for (const [path, watcher] of this.watchers)
@@ -81,8 +116,6 @@ export class CheckoutFiles {
         watcher.close();
         this.watchers.delete(path);
       }
-
-    if (!this.subscribers.size) this.close();
   }
 
   close() {
@@ -125,12 +158,15 @@ export class CheckoutFiles {
 
       if (this.#closed) return;
 
+      if (!this.#directories().has(directory)) continue;
+
       if (target.rootIdentity !== this.rootIdentity) throw new Error("Working directory changed");
       const watcher = watch(target.path, { persistent: false }, (_event, name) => this.#schedule(directory, name));
       watcher.on("error", () => this.#schedule(directory, null));
       this.watchers.set(directory, watcher);
       // Close the lookup/watch race before reporting the initial checkpoint.
       const current = await directoryPath(this.workspace, directory);
+      this.#prune();
 
       if (current.path !== target.path || current.revision !== target.revision) this.#schedule(directory, null);
     }
@@ -259,6 +295,10 @@ export class CheckoutFiles {
   }
 
   #send(request: ThreadFilesWatch, send: Subscriber["send"], changes: ThreadFileChange[], revalidateRequired: boolean) {
+    const subscriber = this.subscribers.get(request.subscriptionId);
+
+    if (this.#closed || subscriber?.request !== request || subscriber.signal.aborted) return;
+
     if (changes.length > 64) {
       changes = [];
       revalidateRequired = true;

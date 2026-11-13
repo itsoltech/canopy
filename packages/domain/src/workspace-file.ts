@@ -26,8 +26,14 @@ export interface WorkspaceFileApi {
     signal: AbortSignal,
   ): Promise<ThreadDirectoryPage>;
   read(target: WorkspaceFileTarget, path: string, hash: string, signal: AbortSignal): Promise<ui.ThreadFile>;
-  write(target: WorkspaceFileTarget, path: string, text: string, hash: string): Promise<ui.ThreadFile>;
-  remove(target: WorkspaceFileTarget, path: string, hash: string): Promise<void>;
+  write(
+    target: WorkspaceFileTarget,
+    path: string,
+    text: string,
+    hash: string,
+    rootIdentity?: string,
+  ): Promise<ui.ThreadFile>;
+  remove(target: WorkspaceFileTarget, path: string, hash: string, rootIdentity?: string): Promise<void>;
 }
 
 export class WorkspaceFileConflict extends Error {}
@@ -51,6 +57,7 @@ export class WorkspaceFile {
   #read: AbortController | undefined;
   #refresh: AbortController | undefined;
   #refreshAgain = false;
+  #rootChanged = false;
   changedOnDisk = false;
   removedOnDisk = false;
   diskText: string | undefined;
@@ -125,6 +132,7 @@ export class WorkspaceFile {
         this.changedOnDisk = false;
         this.removedOnDisk = false;
         this.diskText = undefined;
+        this.#rootChanged = false;
       }
     } catch (cause) {
       if (!read.signal.aborted)
@@ -179,7 +187,7 @@ export class WorkspaceFile {
 
   /** Revalidation never replaces a dirty base or draft; only an explicit discard can accept disk bytes. */
   async revalidate(): Promise<void> {
-    if (!this.file || this.loading || this.busy) return;
+    if (this.#rootChanged || !this.file || this.loading || this.busy) return;
 
     if (this.#refresh) {
       this.#refreshAgain = true;
@@ -195,6 +203,8 @@ export class WorkspaceFile {
       const file = await this.api.read(this.target, this.path, "", controller.signal);
 
       if (controller.signal.aborted || this.file !== base) return;
+
+      if (!this.checkRoot(file.rootIdentity)) return;
       this.watchStatus = "";
       const found = file.resolution === FileResolution.FOUND || file.resolution === FileResolution.UNSPECIFIED;
 
@@ -255,13 +265,14 @@ export class WorkspaceFile {
     this.changed();
 
     try {
-      const saved = await this.api.write(this.target, this.path, this.draft, file.sha256);
+      const saved = await this.api.write(this.target, this.path, this.draft, file.sha256, file.rootIdentity);
       this.file = {
         ...file,
         ...saved,
         content: encoder.encode(this.draft),
         relativePath: file.relativePath,
         computer: file.computer,
+        rootIdentity: file.rootIdentity,
       };
       this.text = this.draft;
       this.editing = false;
@@ -283,12 +294,12 @@ export class WorkspaceFile {
   }
 
   async remove(): Promise<boolean> {
-    if (!this.file?.sha256 || this.busy || this.dirty) return false;
+    if (!this.file?.sha256 || this.busy || this.dirty || this.#rootChanged || this.changedOnDisk) return false;
     this.busy = true;
     this.changed();
 
     try {
-      await this.api.remove(this.target, this.path, this.file.sha256);
+      await this.api.remove(this.target, this.path, this.file.sha256, this.file.rootIdentity);
 
       return true;
     } catch (cause) {
@@ -308,6 +319,28 @@ export class WorkspaceFile {
     this.#refresh?.abort();
     this.#refresh = undefined;
     this.#refreshAgain = false;
+  }
+
+  /** The checkpoint belongs to the document, including while its watch is stopped. */
+  checkRoot(identity: string): boolean {
+    if (this.#rootChanged) return false;
+
+    if (identity && this.file?.rootIdentity && this.file.rootIdentity !== identity) {
+      this.invalidateRoot();
+
+      return false;
+    }
+
+    return true;
+  }
+
+  invalidateRoot(): void {
+    this.cancel();
+    this.#rootChanged = true;
+    this.changedOnDisk = true;
+    this.diskText = undefined;
+    this.error = "The working directory changed. Copy your changes, then reload the file.";
+    this.changed();
   }
 
   release(): void {

@@ -19,6 +19,7 @@ export function watchPath(path: string, file = false) {
 interface Subscription {
   request: ThreadFilesWatch;
   checkout?: CheckoutFiles;
+  cancellation: AbortController;
 }
 
 /** No journal, outbox, disk polling, content or persistent replay. */
@@ -37,6 +38,7 @@ export class ThreadFilesWatcher {
         known.request.threadId === request.threadId &&
         known.request.workspace === request.workspace
       ) {
+        known.cancellation.abort();
         known.checkout?.remove(request.subscriptionId);
         this.#subscriptions.delete(request.subscriptionId);
         this.#trim();
@@ -59,7 +61,7 @@ export class ThreadFilesWatcher {
     for (const path of request.directories) watchPath(path);
 
     for (const path of request.files) watchPath(path, true);
-    const entry: Subscription = { request };
+    const entry: Subscription = { request, cancellation: new AbortController() };
     this.#subscriptions.set(request.subscriptionId, entry);
     const epoch = this.#epoch;
 
@@ -80,21 +82,29 @@ export class ThreadFilesWatcher {
       }
 
       entry.checkout = checkout;
-      await checkout.add(request, send);
+      await checkout.add(request, send, entry.cancellation.signal);
     } catch (cause) {
-      entry.checkout?.remove(request.subscriptionId);
-      this.#subscriptions.delete(request.subscriptionId);
-      this.#trim();
+      entry.cancellation.abort();
+
+      if (this.#subscriptions.get(request.subscriptionId) === entry) this.#subscriptions.delete(request.subscriptionId);
       throw cause;
+    } finally {
+      this.#trim();
     }
   }
 
   #trim() {
-    for (const [key, checkout] of this.#checkouts) if (!checkout.subscribers.size) this.#checkouts.delete(key);
+    for (const [key, checkout] of this.#checkouts)
+      if (checkout.idle) {
+        checkout.close();
+        this.#checkouts.delete(key);
+      }
   }
 
   close() {
     this.#epoch++;
+
+    for (const entry of this.#subscriptions.values()) entry.cancellation.abort();
 
     for (const checkout of this.#checkouts.values()) checkout.close();
     this.#checkouts.clear();

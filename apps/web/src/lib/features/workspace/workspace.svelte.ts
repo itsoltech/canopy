@@ -17,8 +17,8 @@ export const workspaceStore = new WorkspaceStore(
 
       return readFile(target.threadId, path, target.itemId, hash, signal);
     },
-    write: (target, path, text, hash) => fileMutation(() => writeFile(target.threadId, path, text, hash)),
-    remove: (target, path, hash) => fileMutation(() => deleteFile(target.threadId, path, hash)),
+    write: (target, path, text, hash, root) => fileMutation(() => writeFile(target.threadId, path, text, hash, root)),
+    remove: (target, path, hash, root) => fileMutation(() => deleteFile(target.threadId, path, hash, root)),
   },
   16 * 1024 * 1024,
 );

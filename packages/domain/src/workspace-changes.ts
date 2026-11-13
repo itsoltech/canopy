@@ -171,13 +171,12 @@ export function observeWorkspaceFile(store: WorkspaceStore, document: import("./
     files: [path],
     update: (update) => {
       if (update.changes.some((change) => change.kind === Kind.ROOT_CHANGED)) {
-        document.changedOnDisk = true;
-        document.diskText = undefined;
-        document.error = "The working directory changed. Copy your changes, then reopen the file.";
-        document.changed();
+        document.invalidateRoot();
 
         return;
       }
+
+      if (!document.checkRoot(update.rootIdentity)) return;
 
       if (
         update.revalidateRequired ||

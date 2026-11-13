@@ -229,15 +229,15 @@ export class WorkspaceStore {
       ...api,
       read: (target, path, hash, signal) => workspaceRead(reads, signal, () => api.read(target, path, hash, signal)),
       ...(list && { listDirectory: (request, signal) => workspaceRead(reads, signal, () => list(request, signal)) }),
-      write: async (target, path, text, hash) => {
-        const file = await api.write(target, path, text, hash);
+      write: async (target, path, text, hash, root) => {
+        const file = await api.write(target, path, text, hash, root);
 
         for (const listener of this.#fileListeners) listener({ threadId: target.threadId, path });
 
         return file;
       },
-      remove: async (target, path, hash) => {
-        await api.remove(target, path, hash);
+      remove: async (target, path, hash, root) => {
+        await api.remove(target, path, hash, root);
 
         for (const listener of this.#fileListeners) listener({ threadId: target.threadId, path });
       },

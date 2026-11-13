@@ -42,21 +42,27 @@ export function useWorkspaceStore(client: ReturnType<typeof routedMobileClient> 
               { signal, timeoutMs: 40_000 },
             );
           },
-          async write(target, path, text, hash) {
+          async write(target, path, text, hash, root) {
             if (!client) throw new Error("This phone is not paired. Pair it, then reopen the file.");
 
             return fileMutation(() =>
               client.api.writeThreadFile(
-                { threadId: target.threadId, path, content: new TextEncoder().encode(text), expectedSha256: hash },
+                {
+                  threadId: target.threadId,
+                  path,
+                  content: new TextEncoder().encode(text),
+                  expectedSha256: hash,
+                  expectedRootIdentity: root ?? "",
+                },
                 { timeoutMs: 40_000 },
               ),
             );
           },
-          async remove(target, path, hash) {
+          async remove(target, path, hash, root) {
             if (!client) throw new Error("This phone is not paired. Pair it, then reopen the file.");
             await fileMutation(() =>
               client.api.deleteThreadFile(
-                { threadId: target.threadId, path, expectedSha256: hash },
+                { threadId: target.threadId, path, expectedSha256: hash, expectedRootIdentity: root ?? "" },
                 { timeoutMs: 40_000 },
               ),
             );

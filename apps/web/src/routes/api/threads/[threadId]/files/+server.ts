@@ -40,7 +40,12 @@ export const GET: RequestHandler = async ({ params, url }) => {
   );
 };
 
-const Write = Schema.Struct({ path: Path, text: Schema.String, expectedSha256: Hash });
+const Write = Schema.Struct({
+  path: Path,
+  text: Schema.String,
+  expectedSha256: Hash,
+  expectedRootIdentity: Schema.optional(Hash),
+});
 
 export const PUT: RequestHandler = async ({ params, request }) => {
   const body = await readBody(request, Write);
@@ -51,7 +56,13 @@ export const PUT: RequestHandler = async ({ params, request }) => {
       ui.ThreadFileSchema,
       await mutate((api) =>
         api.writeThreadFile(
-          { threadId: params.threadId, path: body.path, content, expectedSha256: body.expectedSha256 },
+          {
+            threadId: params.threadId,
+            path: body.path,
+            content,
+            expectedSha256: body.expectedSha256,
+            expectedRootIdentity: body.expectedRootIdentity ?? "",
+          },
           { timeoutMs: TIMEOUT_MS },
         ),
       ),
@@ -59,7 +70,7 @@ export const PUT: RequestHandler = async ({ params, request }) => {
   );
 };
 
-const Target = Schema.Struct({ path: Path, expectedSha256: Hash });
+const Target = Schema.Struct({ path: Path, expectedSha256: Hash, expectedRootIdentity: Schema.optional(Hash) });
 
 export const DELETE: RequestHandler = async ({ params, request }) => {
   const body = await readBody(request, Target);

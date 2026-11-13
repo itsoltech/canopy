@@ -27,8 +27,9 @@ export async function writeFile(
   path: string,
   text: string,
   expectedSha256: string,
+  expectedRootIdentity = "",
 ): Promise<ui.ThreadFile> {
-  const body = { path, text, expectedSha256 };
+  const body = { path, text, expectedSha256, expectedRootIdentity };
 
   if (new TextEncoder().encode(JSON.stringify(body)).byteLength > 512 * 1024)
     throw new Error("These edits exceed the save limit. Reduce the file size, then retry.");
@@ -36,8 +37,13 @@ export async function writeFile(
   return decode(ui.ThreadFileSchema, await requestJson("PUT", filesPath(threadId), body, TIMEOUT_MS));
 }
 
-export async function deleteFile(threadId: string, path: string, expectedSha256: string): Promise<void> {
-  await requestJson("DELETE", filesPath(threadId), { path, expectedSha256 }, TIMEOUT_MS);
+export async function deleteFile(
+  threadId: string,
+  path: string,
+  expectedSha256: string,
+  expectedRootIdentity = "",
+): Promise<void> {
+  await requestJson("DELETE", filesPath(threadId), { path, expectedSha256, expectedRootIdentity }, TIMEOUT_MS);
 }
 
 /** The worker's computer opens the file in its default app. */

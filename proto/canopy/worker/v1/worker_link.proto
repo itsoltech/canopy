@@ -1835,6 +1835,8 @@ message FileRequest {
   repeated string preferred_paths = 7;
   // Starszy klient nadal dostaje pustą treść plików binarnych.
   bool include_binary = 8;
+  // Capability thread_files_watch_v1: mutacja tylko w korzeniu odczytanego dokumentu.
+  string expected_root_identity = 9;
 }
 
 message WriteFile {
@@ -1863,6 +1865,7 @@ message FileContent {
   string image_preview_error = 16;
   // Pierwsza klatka GIF jako PNG, maks. 2 MiB. Oryginalne content i hash pozostają bez zmian.
   bytes image_preview = 17;
+  string root_identity = 18;
 }
 
 enum FileResolution {
