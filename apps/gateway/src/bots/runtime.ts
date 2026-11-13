@@ -303,6 +303,7 @@ export class BotsRuntime {
     if (!request.configuration) throw new Invalid("configuration is required");
 
     const result = await this.run((s) => s.save(this.#options.userId, request.configuration!, { id: request.botId }));
+
     if (this.#timer) void this.tick().catch(() => undefined);
 
     return result;
