@@ -74,7 +74,7 @@ export class LinkedComputers {
 
     if (options.core) requireDesktopRole(options.core.role);
     this[computersState].routes = new Routes(options.store);
-    options.network.mount("link", linkHandler(this.routes));
+    options.network.mount("link", linkHandler(this.routes, options.core ? [options.core.diagnostics.interceptor] : []));
     this.mirror = new ThreadMirror(options.store);
     this.ranges = new ThreadRangeStore(options.store);
     this.rangePublisher = new ThreadRangePublisher(options.store);

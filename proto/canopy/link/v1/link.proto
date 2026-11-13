@@ -3,6 +3,12 @@ package canopy.link.v1;
 
 import "canopy/ui/v1/gateway.proto";
 import "canopy/ui/v1/bots.proto";
+import "canopy/ui/v1/diagnostics.proto";
+
+// Local-only snapshot. Never gathers the receiving home's partners.
+service DiagnosticsService {
+  rpc ReadDiagnosticsSnapshot(canopy.ui.v1.ComputerDiagnosticsRequest) returns (canopy.ui.v1.ComputerDiagnostics);
+}
 
 // Stage 5. Internal, negotiated methods over the pinned link, never public RPCs.
 service LinkedAgentsService {
@@ -216,7 +222,11 @@ message Presence {
   int64 announced_at_ms = 2;
   canopy.ui.v1.GatewayDeparture departure = 3;
 }
-message Heartbeat { int64 sent_at_ms = 1; }
+message Heartbeat {
+  int64 sent_at_ms = 1;
+  uint64 echo_sequence = 2;
+}
+message HeartbeatEcho { uint64 sequence = 1; }
 message Unlinked {}
 // Stage 6, capability "lan_routes": the sender's current addresses (e.g. after its IP changed).
 // The receiver stores them as routes with source "announced"; it never trusts them more than
@@ -291,7 +301,14 @@ message LinkFrame {
     // Stage 8, capability "move_items": where moved threads and bots live now.
     MovedItems moved = 11;
     ConfigSharing config_sharing = 12;
+    HeartbeatEcho heartbeat_echo = 13;
+    DiagnosticsInvalidated diagnostics_invalidated = 14;
   }
+}
+// Home -> relay -> origin, one hop. Removes retained data after a grant revoke.
+message DiagnosticsInvalidated {
+  string target_node_id = 1;
+  string home_node_id = 2;
 }
 
 // Stage 8, capability "move_items": moving a thread or bot between two directly linked

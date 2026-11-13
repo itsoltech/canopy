@@ -125,6 +125,7 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
           // Threads, settings and libraries of the device's CLIs (docs/import.md).
           cliImport: hello.capabilities.includes("cli_import_v1"),
           branchSwitch: hello.capabilities.includes("git_branch_switch_v1"),
+          diagnosticsV1: hello.capabilities.includes("diagnostics_v1"),
           // The desktop app's own local-mode worker: it updates with the app (docs/updates.md).
           desktopBundled: hello.capabilities.includes("desktop_bundled"),
           fullAccess: hello.capabilities.includes("full_access"),

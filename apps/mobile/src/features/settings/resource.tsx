@@ -20,13 +20,13 @@ const SETTINGS_MAX_AGE_MS = 30_000;
  * last 30 s. A mutation reads only this resource again; projects, workers and threads follow the stream.
  * Never display raw transport diagnostics.
  */
-export function useSettingsResource<T>(key: string, fetch: (api: SettingsApi) => Promise<T>) {
+export function useSettingsResource<T>(key: string, fetch: (api: SettingsApi) => Promise<T>, enabled = true) {
   const { client } = useSession();
 
   const shared = useSharedQuery<T>(
     key,
     () => (client ? fetch(client.api) : Promise.reject(new Error("Not paired"))),
-    Boolean(client),
+    Boolean(client) && enabled,
     SETTINGS_MAX_AGE_MS,
   );
 

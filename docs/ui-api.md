@@ -21,6 +21,22 @@ wywołaniu zakończonym Unavailable, Unimplemented lub Unauthenticated; każde R
 uwierzytelnione. Gateway podaje nazwę z tożsamości, bez pełnego snapshotu komputerów. Różnica numerów buildów
 przy zgodnym protokole nie jest błędem. [Projekt i migracja](desktop-remote-frontend.md).
 
+## Diagnostics
+
+Settings → Diagnostics w General pokazuje lokalny gateway i wszystkie połączone
+komputery; web, desktop i mobile korzystają z tego samego kontraktu.
+`GetDiagnostics` zwraca overview, a `GetComputerDiagnostics` stronicowane szczegóły
+RPC (maks. 32 metody), sortowane i filtrowane na domu. Zakresy to 1 min, 15 min,
+1 h i 24 h. Shared query współdzieli odświeżanie overview co 5 s i szczegółów co
+10 s; widoczna partia zachowuje tożsamości wierszy do następnej zmiany sortowania.
+
+Odczyty są owner-scoped. Bezpośredni komputer tego samego właściciela udostępnia
+diagnostykę przez `diagnostics_v1`; onward wymaga odwoływalnego grantu na domu
+(`GetDiagnosticsGrants`, `SetDiagnosticsGrant`). Wewnętrzny odczyt linked zwraca
+wyłącznie lokalne dane, bez rekurencyjnego zbierania. Offline i starsza wersja
+pozostają osobnymi kartami. Trwała historia, oznaczenie luk, ograniczenia kosztu
+i brak pomiaru publicznych payloadów: [diagnostics.md](diagnostics.md).
+
 ## Ikony
 
 Favicon, apple-touch-icon, nazwa manifestu i sufiks tytułów stron odzwierciedlają

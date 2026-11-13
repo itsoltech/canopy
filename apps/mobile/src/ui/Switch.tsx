@@ -3,6 +3,7 @@ import { Animated, Pressable } from "react-native";
 import { motion } from "@canopy/ui";
 import { smoothOut, useReducedMotion } from "./motion";
 import { useColors } from "./theme";
+import { useMinimumTouchTarget } from "./density";
 
 /**
  * Web: Switch. 44 × 24 dp on phones: a zinc-200 (white/5) track turns brand when on; the white thumb travels on the
@@ -20,6 +21,7 @@ export function Switch({
   disabled?: boolean;
 }) {
   const c = useColors();
+  const touchTarget = useMinimumTouchTarget();
   const reduced = useReducedMotion();
   const [x] = useState(() => new Animated.Value(value ? 1 : 0));
 
@@ -49,7 +51,7 @@ export function Switch({
       accessibilityState={{ checked: value, disabled }}
       disabled={disabled}
       onPress={() => onChange(!value)}
-      hitSlop={10}
+      hitSlop={Math.max(10, (touchTarget - 24) / 2)}
       style={{
         width: 44,
         height: 24,

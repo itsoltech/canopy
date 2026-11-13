@@ -558,6 +558,7 @@ export async function startTestGateway(
     secretTtlMs?: number;
     watchProbeMs?: number;
     log?: GatewayCoreOptions["log"];
+    diagnostics?: boolean;
     storage?: { pg: TestPostgres; secretsKey: Buffer; workerId: string; workerCredential: string };
   } = {},
 ): Promise<TestGateway> {
@@ -644,7 +645,7 @@ export async function startTestGateway(
       workerRoutes(core, router);
       uiRoutes(core)(router);
     },
-    interceptors: [serviceTokenAuth(SERVICE_TOKEN)],
+    interceptors: [...(options.diagnostics ? [core.diagnostics.interceptor] : []), serviceTokenAuth(SERVICE_TOKEN)],
   });
 
   const api = createClient(
@@ -724,6 +725,7 @@ export async function startTestGateway(
       }
 
       await core.link.shutdown();
+      await core.diagnostics.stop();
       await grpc.close();
       cliRegistry?.stop(true);
       await runtime.dispose();

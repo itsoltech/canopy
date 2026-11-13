@@ -77,7 +77,7 @@ test.skipIf(!dockerAvailable)(
       );
       expect(await runtime.runPromise(through(123))).toEqual([[123, "thread_sync_diagnostics"]]);
       expect(await runtime.runPromise(through(124))).toEqual([[124, "thread_range_lock_order"]]);
-
+      expect(await runtime.runPromise(through(125))).toEqual([[125, "inherited_access_mode"]]);
       await runtime.runPromise(
         Effect.gen(function* () {
           const sql = yield* SqlClient.SqlClient;
@@ -107,7 +107,6 @@ test.skipIf(!dockerAvailable)(
             VALUES(${user}::uuid,'upgrade-peer',${thread}::uuid,gen_random_uuid(),gen_random_uuid(),7,10,7,gen_random_uuid())`;
         }),
       );
-      await runtime.runPromise(through(125));
       expect(await runtime.runPromise(through(126))).toEqual([[126, "thread_sync_time"]]);
 
       // Later features extend the registry beyond the thread-sync stack's final stage.

@@ -8,6 +8,8 @@ import { nodesOf } from "./remote-ids.ts";
 import { methodNamed, MovedError, movedItems, SERVED } from "./remote-policy.ts";
 import { syncDecode, syncEncode } from "./sync-codec.ts";
 import { linkFailure } from "./link-session.ts";
+import type { RpcObservation } from "../diagnostics/collector.ts";
+import { messageKind } from "../diagnostics/message-kind.ts";
 
 export { mapIds, nodesOf, qualify, unqualify } from "./remote-ids.ts";
 
@@ -112,6 +114,7 @@ export class RemoteCalls {
       serve?: RemoteServe | undefined;
       name: () => string;
       allowed: () => Promise<boolean>;
+      observe?: (method: DescMethod) => RpcObservation | undefined;
     },
   ) {}
 
@@ -309,12 +312,20 @@ export class RemoteCalls {
   async #serve(id: bigint, name: string, bytes: Uint8Array, signal: AbortSignal, route: RelayRoute) {
     let sent = 0;
     let sentBytes = 0;
+    let observation: RpcObservation | undefined;
+    const abort = () => observation?.finish(Code.Canceled);
 
     try {
       const method = SERVED.has(name) ? methodNamed(name) : undefined;
 
       if (!method || !this.options.serve)
         throw new ConnectError("This computer does not share that action", Code.Unimplemented);
+
+      if (!route.targetNodeId || route.relayHops === 1) observation = this.options.observe?.(method);
+      observation?.message("request", bytes.length);
+      signal.addEventListener("abort", abort, { once: true });
+
+      if (signal.aborted) abort();
 
       // Unlink closes the connection first; this keeps a race from serving a revoked peer.
       if (!(await this.options.allowed()))
@@ -326,8 +337,10 @@ export class RemoteCalls {
 
       for await (const message of this.options.serve(method, request, signal, undefined, route)) {
         if (signal.aborted || this.#closed) return;
+        const encoded = syncEncode(method.output, message, `link.${method.name}`);
+        observation?.message("response", encoded.length, messageKind(message));
 
-        for (const { data, more } of chunks(syncEncode(method.output, message, `link.${method.name}`))) {
+        for (const { data, more } of chunks(encoded)) {
           if (signal.aborted || this.#closed) return;
           await this.options.write(
             { body: { case: "remoteResponse", value: { callId: id, payload: data, more } } },
@@ -345,6 +358,8 @@ export class RemoteCalls {
 
       if (!signal.aborted) this.#end(id);
     } catch (error) {
+      observation?.finish(ConnectError.from(error).code);
+
       if (!signal.aborted) {
         console.warn("Computer link RPC failed", {
           method: name,
@@ -354,6 +369,9 @@ export class RemoteCalls {
         });
         this.#end(id, wireError(error));
       }
+    } finally {
+      signal.removeEventListener("abort", abort);
+      observation?.finish(signal.aborted ? Code.Canceled : 0);
     }
   }
 

@@ -1,12 +1,13 @@
 import { CliImports } from "../imports/index.ts";
 import { GitHubAccounts } from "../github/service.ts";
 import { GitHubDetection } from "../github/detection.ts";
+import { Diagnostics } from "../diagnostics/service.ts";
 import { create } from "@bufbuild/protobuf";
 import { createCoreBots, createCoreBus, createCoreScheduler, createCoreUpdates } from "./core-composition.ts";
 import { ui } from "@canopy/contracts";
 
 import { SettingsStore } from "../store/index.ts";
-import { createWorkerLink, type WorkerLink } from "../worker-link/index.ts";
+import type { WorkerLink } from "../worker-link/index.ts";
 import { DEFAULT_ATTACHMENT_LIMITS, type AttachmentLimits } from "@canopy/domain";
 import { AgentBus } from "./agent-bus.ts";
 import { BackgroundTasks } from "./background-tasks.ts";
@@ -35,7 +36,7 @@ import type { NetworkAccess } from "../network/network.ts";
 import { LinkedAgents } from "../computers/agents.ts";
 import type { GatewayRole } from "../role.ts";
 import { coreState, type GatewayCoreOptions } from "./core-context.ts";
-import { coreServe } from "./core-workers.ts";
+import { createCoreWorkerLink } from "./core-workers.ts";
 import { corePublishInteraction } from "./core-interactions.ts";
 import { coreSendSteer } from "./core-messages.ts";
 import { coreAttachmentsMethods, type CoreAttachmentsMethods } from "./core-attachments.ts";
@@ -66,7 +67,6 @@ import { coreWorkLoopMethods, type CoreWorkLoopMethods } from "./core-work-loop.
 import { coreWorktreesMethods, type CoreWorktreesMethods } from "../worktrees/core-worktrees.ts";
 import { coreWorktreeLifecycleMethods, type CoreWorktreeLifecycleMethods } from "../worktrees/core-lifecycle.ts";
 import { WorktreeCleanupSchedule } from "../worktrees/cleanup-schedule.ts";
-import { workerJournalWelcome } from "./bot-harness.ts";
 
 export {
   describeError,
@@ -81,6 +81,7 @@ const createCoreGitHub = (core: GatewayCore, options: GatewayCoreOptions) =>
   new GitHubAccounts(options.runtime, options.userId, options.github, (ids) => core.threadsChanged(ids));
 
 export class GatewayCore {
+  readonly diagnostics: Diagnostics;
   readonly accounts = new ProviderAccounts(this);
   readonly role: GatewayRole;
   readonly [coreState] = new GatewayCoreState();
@@ -224,6 +225,7 @@ export class GatewayCore {
     this.role = options.role ?? "server";
     this.imports = new CliImports(this);
     this[coreState].options = options;
+    this.diagnostics = new Diagnostics(this, options);
     this[coreState].actions = new ActionContext(options.runtime);
     this.hub = new Hub((action) => this[coreState].actions.defer(action));
     this.feeds = new OwnerFeeds(this);
@@ -257,19 +259,7 @@ export class GatewayCore {
     });
     this.github = createCoreGitHub(this, options);
     this.bots = createCoreBots(this, options);
-    this.link = createWorkerLink({
-      authenticate: (credential) => coreRun(this, (s) => s.authenticateWorker(credential)),
-      welcome: (workerId, hello) => workerJournalWelcome(this, workerId, hello.journalId),
-      config: async (workerId) => (await coreRun(this, (s) => s.workerConfig(workerId))) ?? undefined,
-      onConnected: (connection) =>
-        coreServe(this, connection).catch((cause: unknown) => {
-          coreLog(
-            this,
-            `worker ${connection.workerId} session failed: ${cause instanceof Error ? cause.message : "initialization failed"}`,
-          );
-          connection.close();
-        }),
-    });
+    this.link = createCoreWorkerLink(this);
     this.updates = createCoreUpdates(this, options);
     this.workers = new WorkerAdministration({
       runtime: options.runtime,

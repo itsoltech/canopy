@@ -18,13 +18,6 @@ export const settingsSections: readonly SettingsSection[] = [
     keywords: "app updates stable beta nightly channel version whats new release notes changelog",
   },
   {
-    href: "/settings/diagnostics",
-    label: "Diagnostics",
-    icon: "signal",
-    group: "Connections",
-    keywords: "sync progress remaining records errors failures linked computers",
-  },
-  {
     href: "/settings/general",
     label: "General",
     icon: "cog-6-tooth",
@@ -66,6 +59,14 @@ export const settingsSections: readonly SettingsSection[] = [
     icon: "clock",
     group: "General",
     keywords: "schedule cron recurring repeat wake-up timer automation",
+  },
+  {
+    href: "/settings/diagnostics",
+    label: "Diagnostics",
+    icon: "signal",
+    group: "General",
+    keywords:
+      "performance health rpc calls network latency rtt history findings computers sync progress remaining records errors failures linked computers",
   },
   {
     href: "/settings/projects",

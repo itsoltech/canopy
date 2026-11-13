@@ -20,6 +20,7 @@ import "canopy/ui/v1/agent_environment.proto";
 import "canopy/ui/v1/desktop.proto";
 import "canopy/ui/v1/cli_import.proto";
 import "canopy/ui/v1/github.proto";
+import "canopy/ui/v1/diagnostics.proto";
 
 service GatewayService {
   rpc GetThreadSyncDiagnostics(ThreadSyncDiagnosticsRequest) returns (ThreadSyncDiagnostics);
@@ -80,6 +81,10 @@ service GatewayService {
   rpc UseGitHubPat(UseGitHubPatRequest) returns (GitHubAccountResponse);
   rpc ListGitHubInstallations(GitHubCatalogueRequest) returns (GitHubInstallationsResponse);
   rpc ListGitHubRepositories(GitHubCatalogueRequest) returns (GitHubRepositoriesResponse);
+  rpc GetDiagnostics(DiagnosticsRequest) returns (DiagnosticsSnapshot);
+  rpc GetComputerDiagnostics(ComputerDiagnosticsRequest) returns (ComputerDiagnostics);
+  rpc GetDiagnosticsGrants(DiagnosticsRequest) returns (DiagnosticsGrants);
+  rpc SetDiagnosticsGrant(DiagnosticsGrantRequest) returns (DiagnosticsGrants);
   rpc GetAgentEnvironment(AgentEnvironmentRequest) returns (AgentEnvironmentSnapshot);
   rpc SaveInstructionDocument(SaveInstructionDocumentRequest) returns (AgentEnvironmentSnapshot);
   rpc DeleteInstructionDocument(DeleteInstructionDocumentRequest) returns (AgentEnvironmentSnapshot);

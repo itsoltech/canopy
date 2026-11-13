@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { mkdir } from "node:fs/promises";
 import { seedClient } from "./seed-client.ts";
 import { clientWorker } from "./client-worker.ts";
+import { seedDiagnostics } from "./seed-diagnostics.ts";
 
 /** Private disposable gateway/BFF for renderer profiling; never reads a developer's stack config. */
 const root = resolve(import.meta.dir, "../..");
@@ -28,6 +29,8 @@ const webPort = port("CANOPY_BENCH_WEB_PORT", 15437);
 const gatewayPort = port("CANOPY_BENCH_GATEWAY_PORT", 15438);
 const pgPort = port("CANOPY_BENCH_PG_PORT", 15439);
 const production = process.env["CANOPY_BENCH_PRODUCTION"] === "1";
+const diagnostics = process.env["CANOPY_BENCH_DIAGNOSTICS_PREVIEW"] === "1";
+const emptyDiagnostics = process.env["CANOPY_BENCH_DIAGNOSTICS_EMPTY"] === "1";
 
 if (new Set([webPort, gatewayPort, pgPort]).size !== 3) throw new Error("Benchmark ports must differ");
 
@@ -89,7 +92,7 @@ try {
     CANOPY_SECRETS_KEY: randomBytes(32).toString("base64"),
     CANOPY_UI_SERVICE_TOKEN: token,
     CANOPY_HOST: "127.0.0.1",
-    CANOPY_GATEWAY_ROLE: "server",
+    CANOPY_GATEWAY_ROLE: diagnostics ? "desktop" : "server",
     CANOPY_PORT: String(gatewayPort),
     CANOPY_NETWORK_PORT: undefined,
     CANOPY_DEV_USER_EMAIL: "dev@localhost",
@@ -97,8 +100,10 @@ try {
 
   const seeded = process.env["CANOPY_BENCH_SEED"] === "0" ? undefined : await seedClient(gatewayEnv);
 
+  if (diagnostics && !emptyDiagnostics) await seedDiagnostics(gatewayEnv);
+
   children.push(
-    Bun.spawn(["bun", "apps/gateway/src/main.ts"], {
+    Bun.spawn(["bun", emptyDiagnostics ? "scripts/bench/diagnostics-entry.ts" : "apps/gateway/src/main.ts"], {
       cwd: root,
       env: gatewayEnv,
       stdout: "inherit",

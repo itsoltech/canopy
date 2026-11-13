@@ -1,0 +1,85 @@
+import type { Client } from "@connectrpc/connect";
+import { ui } from "@canopy/contracts";
+
+/** Locks only the disposable benchmark DB. Application reads continue during a failed minute write. */
+export async function diagnosticsContention(
+  container: string,
+  database: string,
+  phase: string,
+  api: Client<typeof ui.GatewayService>,
+  thread: string,
+) {
+  if (phase !== "write_failure" && phase !== "pool_contention") return;
+
+  const query = async (text: string) => {
+    const process = Bun.spawn(["docker", "exec", container, "psql", "-U", "postgres", "-d", database, "-Atqc", text], {
+      stdout: "pipe",
+      stderr: "inherit",
+    });
+
+    const output = await new Response(process.stdout).text();
+
+    if (await process.exited) throw new Error("Contention fixture query failed");
+
+    return output.trim();
+  };
+
+  const lock =
+    phase === "write_failure"
+      ? "LOCK TABLE diagnostics_state IN EXCLUSIVE MODE"
+      : `SELECT id FROM threads WHERE id='${thread}'::uuid FOR UPDATE`;
+
+  const holder = query(
+    `SET application_name='canopy-diagnostics-contention'; BEGIN; ${lock}; SELECT pg_sleep(70); COMMIT;`,
+  );
+
+  const deadline = Date.now() + 10_000;
+
+  while (
+    (await query(
+      "SELECT count(*) FROM pg_stat_activity WHERE datname=current_database() AND application_name='canopy-diagnostics-contention' AND wait_event='PgSleep'",
+    )) !== "1"
+  ) {
+    if (Date.now() > deadline) throw new Error("Contention lock was not acquired");
+    await Bun.sleep(50);
+  }
+
+  // The default pool has ten slots: nine blocked updates leave one for reads and diagnostics.
+  const updates =
+    phase === "pool_contention"
+      ? Promise.all(
+          Array.from({ length: 9 }, (_, index) =>
+            api.updateThread({ threadId: thread, title: `Pool contender ${index}` }),
+          ),
+        )
+      : Promise.resolve([]);
+
+  if (phase === "pool_contention")
+    while (
+      Number(
+        await query(
+          "SELECT count(*) FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND application_name='canopy-gateway'",
+        ),
+      ) < 9
+    ) {
+      if (Date.now() > deadline) throw new Error("Nine blocked gateway connections were not observed");
+      await Bun.sleep(50);
+    }
+
+  const during = Bun.sleep(65_000).then(() => api.getComputerDiagnostics({ limit: 1 }));
+
+  return async () => {
+    await holder;
+    await updates;
+    const interrupted = await during;
+    const recovered = await api.getComputerDiagnostics({ limit: 1 });
+
+    return {
+      lockSeconds: 70,
+      blockedGatewayConnections: phase === "pool_contention" ? 9 : 0,
+      duringPersistenceStatus: interrupted.persistenceStatus,
+      recoveredPersistenceStatus: recovered.persistenceStatus,
+      pendingMinutes: recovered.pendingMinutes,
+    };
+  };
+}

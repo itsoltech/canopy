@@ -16,11 +16,12 @@ export function mountMobileNetwork(core: GatewayCore, network: NetworkAccess, se
       core.desktopControl.routes(router);
       uiRoutes(core)(router);
     },
-    interceptors: [serviceTokenAuth(serviceToken, core.mobile)],
+    interceptors: [core.diagnostics.interceptor, serviceTokenAuth(serviceToken, core.mobile)],
     readMaxBytes: 32 * 1024 * 1024,
   });
 
   const workers = connectNodeAdapter({
+    interceptors: [core.diagnostics.interceptor],
     routes: (router) => workerRoutes(core, router, true),
     readMaxBytes: 32 * 1024 * 1024,
   });

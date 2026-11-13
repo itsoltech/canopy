@@ -10,6 +10,7 @@ import {
 import { AsyncChannel, createGrpcClientTransport } from "@canopy/transport";
 import { workerMessage, type WorkerPayloadInit } from "./messages.ts";
 import { MIN_WORKER_LINK_PROTOCOL, WORKER_LINK_PROTOCOL } from "@canopy/domain/release/protocol";
+import { HeartbeatEcho } from "@canopy/domain/diagnostics";
 
 export interface GatewayLinkOptions {
   /** e.g. https://gateway.example.com */
@@ -81,9 +82,27 @@ export async function openGatewayLink(options: GatewayLinkOptions): Promise<Gate
 
   const inbound = new AsyncChannel<GatewayMessage>();
 
+  const echo =
+    first.value.payload.value.diagnosticsV1 && options.hello.capabilities?.includes("diagnostics_v1")
+      ? new HeartbeatEcho()
+      : undefined;
+
+  const report = echo
+    ? setInterval(() => {
+        if (!outbound.closed) outbound.push(workerMessage({ case: "diagnostics", value: echo.batch() }));
+      }, 30_000)
+    : undefined;
+
+  report?.unref();
+
   const closed = (async (): Promise<{ error?: ConnectError }> => {
     try {
       for (let next = await responses.next(); !next.done; next = await responses.next()) {
+        if (next.value.payload.case === "heartbeatEcho") {
+          echo?.receive(next.value.payload.value.sequence);
+          continue;
+        }
+
         inbound.push(next.value);
       }
 
@@ -96,6 +115,7 @@ export async function openGatewayLink(options: GatewayLinkOptions): Promise<Gate
 
       return { error };
     } finally {
+      clearInterval(report);
       outbound.close();
     }
   })();
@@ -105,7 +125,12 @@ export async function openGatewayLink(options: GatewayLinkOptions): Promise<Gate
     messages: inbound,
     closed,
     send(payload) {
-      if (!outbound.push(workerMessage(payload))) {
+      const measured =
+        echo && payload.case === "heartbeat"
+          ? { ...payload, value: { ...payload.value, echoSequence: echo.send() } }
+          : payload;
+
+      if (!outbound.push(workerMessage(measured))) {
         throw new ConnectError("gateway link is closed", Code.Unavailable);
       }
     },

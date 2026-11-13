@@ -13,6 +13,7 @@ import { AsyncChannel } from "@canopy/transport";
 import { MIN_WORKER_LINK_PROTOCOL, WORKER_LINK_PROTOCOL, workerLinkCompatible } from "@canopy/domain/release/protocol";
 import { WorkerConnection } from "./connection.ts";
 import { gatewayMessage } from "./messages.ts";
+import type { RpcObservation } from "../diagnostics/collector.ts";
 
 export interface WorkerLinkOptions {
   /** Maps a bearer credential to a worker id. Returns undefined when unknown or revoked. */
@@ -26,6 +27,10 @@ export interface WorkerLinkOptions {
   config?(workerId: string): Promise<MessageInitShape<typeof WorkerConfigSchema> | undefined>;
   /** Called after Welcome (and config) are queued. The connection is already registered. */
   onConnected?(connection: WorkerConnection): void | Promise<void>;
+  /** Authenticated ephemeral diagnostics; runs before the application's database-backed message pump. */
+  onMessage?(connection: WorkerConnection, message: WorkerMessage): boolean;
+  observeCommand?(kind: string): RpcObservation | undefined;
+  diagnosticsEnabled?: () => boolean;
   helloTimeoutMs?: number;
 }
 
@@ -89,7 +94,15 @@ export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
     }
 
     const outbound = new AsyncChannel<GatewayMessage>();
-    outbound.push(gatewayMessage({ case: "welcome", value: await options.welcome(workerId, hello) }));
+    outbound.push(
+      gatewayMessage({
+        case: "welcome",
+        value: {
+          ...(await options.welcome(workerId, hello)),
+          diagnosticsV1: (options.diagnosticsEnabled?.() ?? true) && hello.capabilities.includes("diagnostics_v1"),
+        },
+      }),
+    );
     const config = await options.config?.(workerId);
 
     if (config && BigInt(config.version ?? 0) !== hello.configVersion) {
@@ -101,7 +114,7 @@ export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
       throw new ConnectError("worker credentials changed; reconnect", Code.Unauthenticated);
 
     if (shuttingDown) throw new ConnectError("gateway shutting down", Code.Unavailable);
-    const connection = new WorkerConnection(workerId, hello, outbound);
+    const connection = new WorkerConnection(workerId, hello, outbound, options.observeCommand);
     connections.get(workerId)?.close();
     connections.set(workerId, connection);
     void connection.closed.then(() => {
@@ -113,6 +126,18 @@ export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
     void (async () => {
       try {
         for (let next = await inbound.next(); !next.done; next = await inbound.next()) {
+          if (
+            next.value.payload.case === "heartbeat" &&
+            next.value.payload.value.echoSequence &&
+            hello.capabilities.includes("diagnostics_v1") &&
+            (options.diagnosticsEnabled?.() ?? true)
+          )
+            connection.send({
+              case: "heartbeatEcho",
+              value: { sequence: next.value.payload.value.echoSequence },
+            });
+
+          if (options.onMessage?.(connection, next.value)) continue;
           connection.deliver(next.value);
         }
 

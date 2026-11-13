@@ -38,6 +38,8 @@ message LinkedComputer {
   // The computer that needs an update before configuration can be shared (this computer's or the partner's node id);
   // empty when both support it.
   string config_update_node_id = 27;
+  // This indirect computer may receive an explicit diagnostics read grant from this home.
+  bool diagnostics_grant_eligible = 28;
 }
 message ComputerRoute {
   string address = 1;

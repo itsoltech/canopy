@@ -111,11 +111,26 @@ export function computersPulse(hostContext: LinkedComputers) {
 
   if (hostContext[computersState].stopped || hostContext[computersState].paused) return;
 
-  for (const set of hostContext[computersState].active.values())
+  for (const [nodeId, set] of hostContext[computersState].active)
     for (const c of set) {
       if (!stalled && now - c.seen > heartbeat * 4)
         c.close(new ConnectError("Computer link heartbeat timed out", Code.DeadlineExceeded));
-      else if (c.ready) c.send({ body: { case: "heartbeat", value: { sentAtMs: BigInt(now) } } });
+      else if (c.ready) {
+        c.send({
+          body: {
+            case: "heartbeat",
+            value: {
+              sentAtMs: BigInt(now),
+              echoSequence: c.echo?.send(performance.now(), heartbeat * 2) ?? 0n,
+            },
+          },
+        });
+
+        if (c.echo && now - (c.echoReportedAt ?? 0) >= 30_000) {
+          hostContext.options.core?.diagnostics.link(nodeId, "computer")?.report(c.echo.batch(), c);
+          c.echoReportedAt = now;
+        }
+      }
     }
 }
 

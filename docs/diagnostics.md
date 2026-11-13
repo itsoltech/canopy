@@ -1,6 +1,6 @@
 # Diagnostyka wydajności
 
-Status: **zaakceptowany 2026-11-10, jeszcze niewdrożony**. Dokumentacyjny PR #495
+Status: **zaakceptowany 2026-11-10; implementacja etapu 1 w draft PR**. Dokumentacyjny PR #495
 jest podstawą stosu diagnostyki i zostanie scalony razem z nim (§10).
 Settings → Diagnostics ma pomóc
 właścicielowi ustalić, co spowalnia Canopy i co zrobić dalej. Jeden ekran pokazuje
@@ -24,7 +24,7 @@ Powiązane: [architektura](architecture.md), [protokół](protocol.md), [UI API]
   w procesach i gatewayach właściciela oraz jego uwierzytelnionych klientach.
   Eksport i przekazanie raportu agentowi są osobnymi, jawnymi akcjami.
 - Agregaty zbieramy w pamięci i utrwalamy lekkimi partiami w bazie domowego gatewaya
-  od etapu 1: minuty przez 72 h, godziny przez 30 dni, bez zapisów na każde RPC.
+  od etapu 1: minuty przez 2 h, godziny przez 30 dni, bez zapisów na każde RPC.
   Budżet narzutu obejmuje zapis i retencję. Szczegółowe próbki tylko po czasowym
   włączeniu na wskazanym komputerze; nie są utrwalane.
 - Zbieranie logów obejmuje wyłącznie zarejestrowane źródła Canopy. Nie pobiera
@@ -57,12 +57,16 @@ kierunek i autoryzowany właściciel. Id komputera/procesu jest zakresem kolekto
 nie etykietą mnożoną przez wątek, projekt, model, adres i każdy kod błędu.
 Kody mają stałą tablicę liczników. Nigdy nie tworzymy serii z tekstu wejścia.
 
-**Okna:** 1 min / 15 min / 1 h / 24 h. Pierścienie mają 12 slotów po 5 s,
-15 po 1 min i 96 po 15 min. Aktualizacja dotyka trzech bieżących slotów;
-odczyt scala histogramy. Obejmuje bieżący slot i poprzednie sloty danego pierścienia:
-granica jest zaokrąglona, a odpowiedź podaje rzeczywiste `window_start/end` i rozdzielczość.
-Okno 1 h scala 60 minutowych rollupów z §5, z bieżącą nieutrwaloną częścią,
-w ograniczonym cache; nie wymaga czwartego pierścienia ani odczytu SQL na każdy tick.
+**Okna:** 1 min / 15 min / 1 h / 24 h. RAM zawiera 12 slotów po 5 s oraz bieżącą
+minutę i ostatnie 60 minut. Aktualizacja RPC dotyka tylko dwóch bieżących slotów.
+Zamknięte minuty wchodzą i wychodzą z gotowych sum 15 min / 1 h raz na minutę;
+odczyt dodaje do nich bieżącą minutę. Scalanie nie tworzy pośrednich kopii protobuf.
+Widok 24 h pobiera najwyżej 23 zakończone godziny z DB i dodaje bieżącą godzinę
+z RAM. Jedna współdzielona odpowiedź historyczna ma cache 5 s, bez odczytu SQL
+na każdy tick ani ładowania całej historii do pierścieni. Po crashu ostatnia
+zakończona godzina może przejściowo użyć najwyżej 60 minut, zanim powstanie jej
+rollup godzinowy. Granica jest zaokrąglona do rozdzielczości widoku, a odpowiedź
+podaje rzeczywiste `window_start/end` i rozdzielczość (24 h: 1 h).
 UI nie obiecuje dowolnego dokładnego zakresu historycznego.
 
 Histogram czasu ma 128 stałych kubełków: granice `1 µs × 2^(i/4)`,
@@ -74,11 +78,16 @@ Rozmiary mają osobny histogram 32 kubełków log2 bajtów, sumę i max.
 Liczniki nie mogą zawijać się: saturacja slotu oznacza niepełność danych.
 
 Budżet całej diagnostyki: **64 MiB na gateway, 16 MiB na worker,
-2 MiB na BFF/klienta**. Gateway dopuszcza do 384 pełnych serii, worker do 64;
-rezerwujemy serie metod z deskryptorów przed rodzinami opcjonalnymi. Jeden histogram
-128 × uint32 × 123 sloty to około 62 KiB; sumy, błędy, rozmiary, cache partnerów
-i tracing, bufory zapisu/odtworzenia i cache okna 1 h muszą zmieścić się
-w całościowym limicie, sprawdzanym przy alokacji.
+2 MiB na BFF/klienta** to limity całego planu. Etap 1 ma cel przyrostu RSS i startowego
+VmHWM **≤10 MiB** względem wyłączonego kolektora. Rezerwacje live są ograniczone
+do 6 MiB dla metod i 2 MiB dla łączy, historyczny widok DB do 1 MiB.
+Histogramy zarówno w RAM, jak i na dysku zawierają tylko niezerowe pary indeks/licznik;
+na dysku indeksy i liczniki są pakowanymi varintami. Zerowe kubełki nie mają alokacji.
+Gateway dopuszcza do 512 deskryptorów i 16 łączy worker/komputer; cache overview
+do 32 partnerów. Nadmiarowe serie łączy są pomijane z jawnym licznikiem strat,
+bez nieograniczonego rejestru identyfikatorów. Przykład: 24 metody × 60 minut ×
+4 niezerowe kubełki to 5760 par, zamiast 187 200 kubełków jednego pełnego histogramu;
+pozostałe histogramy również są rzadkie. Sumy okien i cache są ograniczone deskryptorami.
 Brak miejsca ogranicza szczegóły i zwiększa `dropped_series/samples`, nie zatrzymuje RPC.
 Nie tworzymy macierzy worker × wszystkie metody: workery mają osobne ograniczone podsumowania.
 Przekroczenie liczby metod po rozbudowie kontraktu wymaga zmiany budżetu lub schematu,
@@ -278,6 +287,12 @@ komputer/łącze, bez toastu na każdy tick i bez systemowych powiadomień w tym
 
 ## 5. Trwałe agregaty, retencja i restart
 
+Migracja etapu 1 to `0129_diagnostics`, po zarezerwowanych migracjach `0124–0128`.
+Etapy 2 i 3 nie dodają migracji; korzystają z tych samych tabel i budżetów.
+Panel Thread sync z #543 pozostaje w tym samym widoku Diagnostics na web i mobile:
+jego owner-scoped, trwały postęp jest źródłem seq/head oraz błędów synchronizacji,
+bez drugiej tabeli ani duplikowania tych rekordów w kolektorze metryk procesu.
+
 **Decyzja: persystencja od etapu 1.** Każdy proces nadal zbiera metryki w pamięci;
 tylko domowy gateway zapisuje je do PostgreSQL. Dotyczy to także agregatów workerów
 przesłanych przez WorkerLink oraz później BFF/klientów. Każdy dom zapisuje własne
@@ -308,8 +323,10 @@ nie dodaje ponownie liczników; bieżąca minuta i zapis nigdy nie są sumowane 
 
 Przy błędzie SQL dane pozostają w ograniczonych buforach pamięci; następna minuta
 ponawia zapis bez blokowania RPC i bez ciasnej pętli retry. Bufor zaległych minut
-ma limit 4 MiB w budżecie gatewaya; po jego wyczerpaniu najstarsze niezapisane
-minuty tracą trwałość, z jawnym `persistence_gap`. Pierścienie live nadal działają.
+ma limit 4 MiB i obejmuje najwyżej 60 slotów minutowych w budżecie gatewaya.
+Po przekroczeniu pamięci lub wieku najstarsze niezapisane minuty tracą trwałość,
+z jawnym `persistence_gap`. Nie odtwarzamy zaległych minut po ich downsamplingu
+i usunięciu przez retencję. Pierścienie live nadal działają.
 Odpowiedź niesie `persisted_through`, `pending_minutes` i błąd jako zamknięty kod.
 Graceful shutdown próbuje opróżnić partię w istniejącym limicie drain; crash może
 utracić ostatnią nieutrwaloną minutę i trwającą partię, a przy awarii DB więcej. UI pokazuje
@@ -321,8 +338,9 @@ Nowe, zwykłe zalogowane tabele (proponowane nazwy):
 
 | Tabela | Klucz i ograniczenie |
 |---|---|
-| `diagnostics_rollups` | `(owner_user_id, computer_id, resolution, bucket_start)`; jeden blob z procesami domu na minutę/godzinę. Do 64 KiB payloadu na rekord, 4320 minut i 720 godzin na komputer; sesje/restarty nie tworzą osobnych wierszy. Indeks klucza obsługuje zakres czasu i pruning. |
+| `diagnostics_rollups` | `(owner_user_id, computer_id, resolution, bucket_start)`; jeden blob z procesami domu na minutę/godzinę. Do 64 KiB payloadu na rekord, około 120 minut i 720 godzin na komputer; twarda kwota 180 minut pozostawia godzinę na opóźnienie maintenance. Sesje/restarty nie tworzą osobnych wierszy. Indeks klucza obsługuje zakres czasu i pruning. |
 | `diagnostics_state` | `(owner_user_id, computer_id)`; do 64 KiB stanu lokalnych procesów/findings, reset epoch i watermarków. Cache partnera przechowuje wyłącznie ostatni overview do 16 KiB, findings i oryginalny czas próbki, do 32 partnerów/512 KiB; nie ich historię. |
+| `diagnostics_peer_cache` | Osobna tabela ostatnich overview: `(owner_user_id, computer_id)`, do 16 KiB na partnera. Oddzielenie pozwala zachować limit 64 KiB stanu domu i 512 KiB cache. FK do partnera usuwa cache przy unlink; trwały tombstone odwołania blokuje spóźniony snapshot. |
 
 Wszystkie odczyty, UPSERT-y i pruning wymagają owner/computer scope po autoryzacji.
 Maks. 64 procesy w utrwalonym podsumowaniu domu; większy zestaw ma jawne niepełne
@@ -334,14 +352,15 @@ gdy pruning nie nadąża, odraczamy nowy zapis zamiast przekraczać kwotę.
 Nie mnożymy stanu przez stare sesje i epoki; usunięte procesy wygasają z retencją,
 a revoke/unlink usuwa cache partnera także z DB.
 
-**Retencja: 1 min przez 72 h, 1 h przez 30 dni.** Maintenance scala zakończoną
-godzinę z minut: sumuje kubełki/liczniki, bierze max, waży zasoby czasem i zachowuje
-pokrycie. Rollup zastępuje poprzedni wynik, nie dopisuje do niego tych samych minut;
-spóźniona minuta unieważnia checkpoint danej godziny. Minut nie usuwa się
+**Retencja: 1 min przez 2 h, 1 h przez 30 dni.** Pierwszy zapis po zamknięciu
+godziny dołącza jej rollup do tej samej partii UPSERT; spóźniona minuta ponownie
+wylicza i zastępuje godzinę pod blokadą stanu domu. Sumuje kubełki/liczniki,
+bierze max i zachowuje pokrycie, nigdy nie dodaje ponownie zapisanych minut.
+Maintenance uzupełnia brakujące godziny po crashu i usuwa stare minuty. Minut nie usuwa się
 przed zapisaniem rollupu godzinowego lub jawnym oznaczeniem luki przy limicie.
 Odczyt wybiera jedną rozdzielczość dla danego odcinka, bez podwójnego naliczania.
-Godziny starsze niż 72 h służą dłuższej historii/API; widoki 15 min/1 h/24 h nadal
-korzystają z minut. Latest findings to zastępowany stan, nie rosnąca historia.
+Widoki 15 min / 1 h korzystają z RAM; 24 h i przyszłe dłuższe zakresy z godzin w DB.
+Latest findings to zastępowany stan, nie rosnąca historia.
 
 Rozszerzamy `apps/gateway/src/maintenance/{job,prune}.ts` według
 [database-retention.md](database-retention.md): trwały checkpoint, `SKIP LOCKED`,
@@ -352,19 +371,23 @@ Migracje addytywne w `packages/db/src/migrations/`: numer najwyższy+1 **w chwil
 implementacji**, bez edycji zastosowanych, z aktualizacją
 `packages/db/test/schema.test.ts`. Nie rezerwujemy numeru w projekcie.
 
-Szacunek per komputer, łącznie gateway/workery/BFF: przy średnio **16 KiB/min**
-i takim samym rozmiarze godziny, 4320 + 720 rekordów zajmuje około **79 MiB**
-payloadu; z metadanymi/indeksami planujemy około **100–160 MiB**. To założenie
-do sprawdzenia na liczbie aktywnych serii i procesów, nie gwarancja kompresji.
-Przy limicie 64 KiB jest to **315 MiB** payloadu, kwota logiczna z metadanymi
-**320 MiB/komputer**, planowany budżet tabel/TOAST/indeksów **512 MiB/komputer**
+Szacunek per komputer, łącznie gateway/workery/BFF: przy średnio **2 KiB/min**
+i **4 KiB/godzinę**, 120 + 720 rekordów zajmuje około **3,1 MiB** payloadu;
+z metadanymi/indeksami planujemy około **5–10 MiB**. To założenie do sprawdzenia
+na liczbie aktywnych serii i procesów, nie gwarancja kompresji. Przy limicie 64 KiB
+i twardej kwocie 180 + 720 rekordów jest to **56,25 MiB** payloadu,
+planowany budżet tabel/TOAST/indeksów **96 MiB/komputer**
 po autovacuum. MVCC/WAL są mierzone osobno; pruning nie obiecuje natychmiastowego
 zmniejszenia pliku. Cache partnerów nie mnoży kosztu historii przez liczbę domów.
 
 ### 5.3 Odtworzenie i koszt
 
-Po restarcie gateway w tle odczytuje bieżącą epoch, stan findings i ostatnie 24 h
-minut, stronicując/dekodując w budżecie pamięci, a potem zasila pierścienie i cache.
+Po uruchomieniu listenera gateway w tle odczytuje bieżącą epoch, stan findings i
+wyłącznie ostatnią godzinę minut, po 8 wierszy z oddawaniem event loop.
+Nie czyta 72 h ani 24 h minut. Start i RPC nie oczekują zakończenia restore;
+cel CPU synchronicznej ścieżki startu to **<100 ms**, VmHWM do **+10 MiB**.
+Oddzielnie mierzymy cały koszt odtwarzania w tle, bez ukrywania go za gotowością listenera.
+Widok pełnej historii pobiera godziny dopiero na żądanie (cel p95 **<50 ms**).
 Odtwarzanie jest jednokrotne i współdzielone, nie wykonywane na każde otwarcie UI;
 RPC aplikacji nie czekają. Widoki **15 min / 1 h / 24 h** kontynuują zapisaną historię,
 z rzeczywistą luką między ostatnim pokrytym pomiarem a wznowieniem procesu.
@@ -379,6 +402,29 @@ Restart workera nie kasuje jego utrwalonych okien na gatewayu; nowa sesja dodaje
 wyłącznie nowe dane. Przy przyszłych N instancjach gatewaya wpisy procesów i
 watermarki muszą być scalane bez nadpisywania cudzych danych; brak instancji daje
 niepełne pokrycie, także po przełączeniu load balancera. Nie uśredniamy percentyli.
+
+Implementacja etapu 1 rozdziela odtworzone kubełki od bieżących w ramach wspólnego
+budżetu pamięci: odczyt je scala, ale zapis nowej sesji nigdy nie utrwala ponownie
+historii poprzedniej. Odtworzone szczegóły mogą zająć najwyżej 50% budżetu
+kolektora; najstarsze sloty historyczne ustępują nowszym, a wygasłe są zwalniane.
+Pozostały budżet chroni bieżące próbki i minutowy zapis przed zagłodzeniem przez
+pełną historię. Ograniczenie szczegółów zwiększa `dropped_samples` i zachowuje
+luki pokrycia; zapis w DB pozostaje pod pełną retencją. Raporty RTT mają osobne checkpointy sesji nadawcy, zapisane
+atomowo z agregatem sesji odbiorcy. Dwie ostatnie sesje na łącze mieszczą się w
+ograniczonym stanie deduplikacji także przy reconnect w tej samej minucie.
+
+Odczyt scala agregaty w pamięci bez pośrednich kopii protobuf. Sumy zamkniętych
+minut są aktualizowane dodaniem nowego i odjęciem wygasłego slotu; dokładne max
+odświeżamy z pozostałych slotów raz na minutę. Odtworzenie lub saturacja wymusza
+ponowne scalenie, bo odjęcie nasyconego licznika nie odtworzyłoby danych.
+Bieżące liczniki i gauges są dodawane od nowa, bez modyfikowania sumy.
+Po rzeczywistej stracie findings wznawiają ocenę po 15 kolejnych
+minutowych ocenach bez nowych strat; licznik skumulowany nie blokuje ich na zawsze.
+
+Publiczny interceptor nie ma hooka istniejących zakodowanych bajtów protobuf:
+rozmiary tych RPC pozostają `Not measured`. Wewnętrzne linked RPC wykorzystują
+bajty istniejącego encode/decode. Zasoby procesu, DB/pool, eksport, logi i tracing
+pozostają w kolejnych etapach; karta etapu 1 oznacza CPU jako `Not measured`.
 
 **Budżet zapisu wliczony w <1% rdzenia i brak regresji p95:** obejmuje serializację,
 SQL, dodatkowy CPU PostgreSQL, odtwarzanie, downsampling, pruning i autovacuum.
@@ -674,7 +720,7 @@ zgodnie z `AGENTS.md`, nigdy pojedynczy niegotowy etap do `dev`.
 
 | Etap | Zakres, rozmiar i zależność | Dowód zakończenia |
 |---|---|---|
-| 1. Wspólny overview + RPC + RTT + trwałość | **XL**, po PR #495: kolektor RPC, heartbeat echo workerów i komputerów, owner-scoped odczyty/capability/grants, shared-query, cache/freshness, karty wszystkich domów, RPC table/drill-down, 1 min/15 min/1 h/24 h, findings link/RPC. Minutowy zapis rollupów i findings, odtworzenie, 72 h/30 dni, downsampling/pruning i cache offline (§5). Direct i dozwolony onward, unsupported/offline. **Pierwsza wartość już tutaj**, dla wszystkich linked komputerów i po restarcie. | Integracja gRPC dwóch gatewayów i workerów, plus trzeciego przez relay: histogram/count/stream cleanup, deduplikacja, brak recursive gather, owner denial/revoke, starsze wersje, RTT vs heartbeat. Test migracji tabel i grants/schema; restart gatewaya/workera i offline cache, ciągłość okien/findings z rzeczywistą luką, retry po awarii DB bez podwójnego naliczania, atomowy watermark. Retencja 72 h/30 dni, downsampling, kwoty i rollback/concurrent pruning. Pomiar kosztu zapisu CPU/WAL/I/O, odtworzenia i p95 on/off. Ręcznie te same dane na trzech klientach. |
+| 1. Wspólny overview + RPC + RTT + trwałość | **XL**, po PR #495: kolektor RPC, heartbeat echo workerów i komputerów, owner-scoped odczyty/capability/grants, shared-query, cache/freshness, karty wszystkich domów, RPC table/drill-down, 1 min/15 min/1 h/24 h, findings link/RPC. Minutowy zapis rollupów i findings, odtworzenie ostatniej godziny, retencja 2 h/30 dni, downsampling przy zapisie i cache offline (§5). Direct i dozwolony onward, unsupported/offline. **Pierwsza wartość już tutaj**, dla wszystkich linked komputerów i po restarcie. | Integracja gRPC dwóch gatewayów i workerów, plus trzeciego przez relay: histogram/count/stream cleanup, deduplikacja, brak recursive gather, owner denial/revoke, starsze wersje, RTT vs heartbeat. Test migracji tabel i grants/schema; restart gatewaya/workera i offline cache, ciągłość okien/findings z rzeczywistą luką, retry po awarii DB bez podwójnego naliczania, atomowy watermark. Retencja 2 h/30 dni, downsampling, kwoty i rollback/concurrent pruning; brak oczekiwania RPC na restore oraz owner-scoped godziny pobierane na żądanie. Pomiar kosztu zapisu CPU/WAL/I/O, odtworzenia i p95 on/off. Ręcznie te same dane na trzech klientach. |
 | 2. Gateway/DB/governor | **M**, po 1: event loop, zasoby, SQL families/pool waits i powiązanie RPC, ingest/outbox/watch/fan-out/queue, governor wait/admission, kolejne findings i szczegóły. | Integracja gRPC przy obciążeniu ingest i wolnym odbiorcy, zachowane ACK/durability, owner-scoped SQL, błędy reserve/execute i release. Porównanie DB2/concurrent i process-governor z kolektorem on/off, bez EXPLAIN w produkcji. |
 | 3. Workery i synchronizacja | **M**, po 2: journal/redelivery, harness TTFT/turn, git, dysk, mirror lag i resubscribe reasons, oba końce finding linku, szczegóły wszystkich workerów. | Gateway↔worker: reconnect/drain/restart, redelivery bez podwójnego naliczania, luki/mirror commit, symulowana wolna sieć, bez dodatkowych probes. Harness adaptery na deterministycznych CLI, brak prompt/path w wynikach, reuse #386 i #409–#411. |
 | 4. Klienci i raport/agent | **M**, po 3: agregaty BFF, sampled web/desktop/mobile timings, eksport JSON/Markdown, wybór placement i utworzenie zwykłego wątku, reset epoch. | Integracja auth, rate/size/schema, stara sekwencja/epoch, unpair/revoke, redakcja, załącznik na właściwym domu i idempotentne utworzenie. Benchmarki #413–#419 z oddzieleniem JS od native; ręczny copy audit i parity. |
@@ -683,7 +729,18 @@ zgodnie z `AGENTS.md`, nigdy pojedynczy niegotowy etap do `dev`.
 
 **Pomiar narzutu jest bramką każdego etapu**, nie pracą zostawioną wyłącznie na 6.
 Porównanie off/on na tej samej rewizji, danych syntetycznych, wersji runtime i maszynie,
-naprzemiennie minimum trzy serie po rozgrzewce. Idle (10 min), steady load/sync,
+**pięć par off/on po rozgrzewce**, kolejność AB/BA/AB/BA/AB (bloki ABBA).
+Procesy gatewaya, workera i PostgreSQL przypinamy do oddzielnych fizycznych rdzeni;
+`nice -n -5` tylko jeśli host pozwala. Nie zmieniamy affinity innych procesów ani
+globalnych cache. Przed każdą parą zapisujemy `/proc/loadavg`, a przez całą parę
+próbkujemy swap-in/out (`vmstat 1`). Load powyżej liczby CPU unieważnia parę.
+Swap-out ≥128 KiB/s w dowolnej próbce albo ≥1 MiB łącznie na parę także ją
+unieważnia. Swap-in odrzuca parę przy ≥1 MiB/s albo ≥128 KiB/s przez trzy
+kolejne sekundy. Drobne odczyty starych stron swapu są dozwolone i raportowane
+łącznie na parę; zajętość swapu nie jest aktywnością. Zapisujemy odrzucenie
+i ponawiamy całą parę, bez wybierania korzystnych fragmentów.
+Raport zawiera wszystkie pary, medianę i min/max sparowanych różnic, bez
+uśredniania wyłącznie korzystnych przebiegów. Idle (10 min), steady load/sync,
 reconnect i wolny odbiorca; procesy osobno jak sync-process fixture.
 Raport: różnica CPU w punktach procentowych jednego rdzenia (<1 pp), CPU-sekundy/
 RPC, RSS/heap, event-loop p99/max, p95 RPC i otwarcia wątku, przepustowość,
@@ -695,9 +752,12 @@ Baseline idle bliski zeru nie nadaje się
 na mianownik względnego „1%”. Brak rosnącej pamięci po wypełnieniu pierścieni
 sprawdzamy również w przebiegu 30 min z churnem klientów/partnerów.
 
-Warunek p95: brak powtarzalnego pogorszenia poza rozrzutem baseline; wzrost
-`> max(1 ms, 1%)` wymaga wyjaśnienia/profilu i poprawy przed merge, nie automatycznej
-akceptacji. Trzy krótkie serie nie dowodzą braku mniejszej regresji: zapisujemy
+Warunek CPU: mediana sparowanego przyrostu **<1 pp** jednego rdzenia.
+Warunek p95: mediana sparowanego przyrostu **< max(1 ms, 10% baseline)**.
+RSS w steady i startup VmHWM mają przyrost najwyżej **10 MiB**, synchroniczny
+restore na ścieżce startu CPU **<100 ms**, odczyt pełnej historii z DB p95 **<50 ms**.
+Przekroczenie wymaga profilu i poprawy przed merge, nie automatycznej
+akceptacji. Pięć krótkich par nie dowodzi braku mniejszej regresji: zapisujemy
 niepewność i także niekorzystne wyniki. Eksport/tracing mają oddzielny profil
 on/off i własny limit CPU; przy zbyt wysokim koszcie ograniczamy szczegóły,
 częstotliwość lub transfer, nie zwiększamy budżetu bez decyzji.
@@ -718,7 +778,7 @@ przetrwać restart dzięki lekkiej persystencji z §5, dostarczanej w etapie 1.
 | Obszar | Przyjęta decyzja |
 |---|---|
 | Nazwa | **Diagnostics**, w General; obejmuje także sieć, świeżość i logi. |
-| Historia po restarcie | **Trwała od etapu 1**: kompaktowe histogramy/liczniki i ostatnie findings, batch najwyżej raz/min/proces w domowym gatewayu. Minuty 72 h, godziny 30 dni, kwoty i pruning z §5; worker bez DB. Okna 15 min/1 h/24 h kontynuują historię z oznaczoną faktyczną luką. Koszt zapisu w budżecie narzutu. |
+| Historia po restarcie | **Trwała od etapu 1**: rzadkie histogramy/liczniki i ostatnie findings, batch najwyżej raz/min/proces w domowym gatewayu. Minuty 2 h, godziny 30 dni, kwoty i pruning z §5; worker bez DB. Restore ostatniej godziny w tle po uruchomieniu listenera, 24 h z godzin w DB na żądanie. Okna kontynuują historię z oznaczoną faktyczną luką. Koszt zapisu w budżecie narzutu. |
 | Dokładność percentyli a pamięć | Stałe 128 kubełków (~19% kwantyzacji) i jawny max/pokrycie; jeśli to za mało do decyzji o optymalizacji, zwiększyć precyzję dopiero po pomiarze budżetu 64/16 MiB. |
 | Dane partnerów/onward | Bezpośredni partner tego samego właściciela ma odczyt diagnostyki; logi tylko na jawną akcję ownera. Onward wymaga osobnych, odwoływalnych grants read/logs od domu. Brak grant nie ukrywa karty komputera. |
 | Domyślny zakres logów i prywatność | 1 h, wszystkie komputery, 2/12/96 MiB przed kompresją, 100 MiB ZIP, redakcja home On, bez opcji eksportu sekretów. 6/24 h tylko w ramach dostępnej rotacji. |
