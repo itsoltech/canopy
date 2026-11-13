@@ -4,6 +4,7 @@ import { LayoutAnimationConfig } from "react-native-reanimated";
 import { useLayout } from "../../state/layout";
 import { useColors } from "../../ui/theme";
 import { useReducedMotion } from "../../ui/motion";
+import { ScreenActivity } from "../../ui/ScreenActivity";
 
 export const unstable_settings = { initialRouteName: "index" };
 
@@ -16,7 +17,7 @@ export default function SettingsStack() {
     <Stack
       screenLayout={({ children }) => (
         <LayoutAnimationConfig skipEntering skipExiting>
-          {children}
+          <ScreenActivity>{children}</ScreenActivity>
         </LayoutAnimationConfig>
       )}
       screenOptions={{

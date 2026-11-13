@@ -11,6 +11,7 @@ import { useAppearance } from "./appearance";
 import { useOverviewEvents, useOverviewHeadSelection } from "./overview-bus";
 import { useLowPowerMode } from "./low-power";
 import { mobileMeasurements } from "../features/settings/client-diagnostics";
+import { whileForeground } from "./foreground-work";
 
 const limits = { recent: 10, count: 16, intervalMs: 5000, retryMs: 30_000 };
 
@@ -77,13 +78,17 @@ export function useThreadWarming(threads: ui.Thread[], projects: ui.Project[], l
       if (state !== "active") warming?.enable(false);
     });
 
-    const timer = setInterval(() => {
-      if (AppState.currentState === "active" && threadCache) mobileMeasurements.record(15, threadCache.usage.bytes);
-    }, 60_000);
+    const stop = whileForeground(AppState, () => {
+      const timer = setInterval(() => {
+        if (threadCache) mobileMeasurements.record(15, threadCache.usage.bytes);
+      }, 60_000);
+
+      return () => clearInterval(timer);
+    });
 
     return () => {
       app.remove();
-      clearInterval(timer);
+      stop();
       warming?.close();
     };
   }, [warming, threadCache]);

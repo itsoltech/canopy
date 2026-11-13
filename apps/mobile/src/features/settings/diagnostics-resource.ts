@@ -1,7 +1,10 @@
 import { useEffect } from "react";
+import { AppState } from "react-native";
 import type { QueryCache } from "@canopy/domain/shared-query";
 import { useSession } from "../../state/session";
 import { useSettingsResource, type SettingsApi } from "./resource";
+import { useAppActive } from "../../ui/active";
+import { whileForeground } from "../../state/foreground-work";
 
 export { diagnosticsEpochs } from "./diagnostics-epochs";
 
@@ -10,7 +13,8 @@ const polling = new WeakMap<QueryCache, Map<string, { users: number; stop(): voi
 /** Screens share both the query and its foreground-only timer. */
 export function useDiagnosticsResource<T>(key: string, fetch: (api: SettingsApi) => Promise<T>, enabled = true) {
   const resource = useSettingsResource(key, fetch, enabled);
-  const { queries, active, epoch } = useSession();
+  const { queries, epoch } = useSession();
+  const active = useAppActive();
   const interval = resource.error ? 30_000 : 10_000;
 
   useEffect(() => {
@@ -22,8 +26,14 @@ export function useDiagnosticsResource<T>(key: string, fetch: (api: SettingsApi)
     if (current) current.users++;
     else {
       queries.invalidate(key);
-      const timer = setInterval(() => queries.invalidate(key), interval);
-      entries.set(key, { users: 1, stop: () => clearInterval(timer) });
+
+      const stop = whileForeground(AppState, () => {
+        const timer = setInterval(() => queries.invalidate(key), interval);
+
+        return () => clearInterval(timer);
+      });
+
+      entries.set(key, { users: 1, stop });
     }
 
     return () => {

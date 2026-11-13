@@ -5,6 +5,7 @@ import { ClientMeasurements } from "@canopy/domain/diagnostics";
 import type { Client } from "@connectrpc/connect";
 import type { ui } from "@canopy/contracts";
 import { diagnosticsEpochs } from "./diagnostics-epochs";
+import { whileForeground } from "../../state/foreground-work";
 
 export const mobileMeasurements = new ClientMeasurements("mobile", Crypto.randomUUID());
 
@@ -62,33 +63,34 @@ export function mobileCacheLoaded() {
 export function startMobileDiagnostics(api: Client<typeof ui.GatewayService>) {
   diagnosticsEpochs.clear();
   let busy = false;
-  const abort = new AbortController();
 
-  const activity = AppState.addEventListener("change", (state) => {
-    if (state !== "active") {
+  const stop = whileForeground(AppState, () => {
+    const abort = new AbortController();
+
+    const timer = setInterval(() => {
+      if (busy) return;
+      busy = true;
+      void api
+        .submitDiagnostics(mobileMeasurements.take(), { signal: abort.signal, timeoutMs: 5000 })
+        .then((receipt) => {
+          if (!abort.signal.aborted && !receipt.accepted) mobileMeasurements.clear(receipt.epoch);
+        })
+        .catch(() => {})
+        .finally(() => {
+          busy = false;
+        });
+    }, 60_000);
+
+    return () => {
+      clearInterval(timer);
+      abort.abort();
       cancelMobileOpening();
       mobileMeasurements.clear(mobileMeasurements.epoch);
-    }
+    };
   });
 
-  const timer = setInterval(() => {
-    if (busy || AppState.currentState !== "active") return;
-    busy = true;
-    void api
-      .submitDiagnostics(mobileMeasurements.take(), { signal: abort.signal, timeoutMs: 5000 })
-      .then((receipt) => {
-        if (!receipt.accepted) mobileMeasurements.clear(receipt.epoch);
-      })
-      .catch(() => {})
-      .finally(() => {
-        busy = false;
-      });
-  }, 60_000);
-
   return () => {
-    clearInterval(timer);
-    activity.remove();
-    abort.abort();
+    stop();
     cancelMobileOpening();
     mobileMeasurements.clear();
   };

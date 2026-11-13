@@ -22,6 +22,7 @@ import { UpdateCenter } from "../features/updates/UpdateCenter";
 import { WhatsNewProvider } from "../features/updates/whats-new";
 import { WhatsNewNotice, WhatsNewSheet } from "../features/updates/WhatsNew";
 import { KeyboardWindow } from "../ui/KeyboardWindow";
+import { ScreenActivity } from "../ui/ScreenActivity";
 import {
   useFonts,
   Inter_400Regular,
@@ -47,7 +48,7 @@ function Navigation() {
       <Stack
         screenLayout={({ children }) => (
           <LayoutAnimationConfig skipEntering skipExiting>
-            {children}
+            <ScreenActivity>{children}</ScreenActivity>
           </LayoutAnimationConfig>
         )}
         screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.background } }}

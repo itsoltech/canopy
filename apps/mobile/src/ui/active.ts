@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { AppState } from "react-native";
+import { useVisibility } from "./viewport";
 
 const listeners = new Set<() => void>();
 let subscription: ReturnType<typeof AppState.addEventListener> | undefined;
@@ -19,7 +20,10 @@ function subscribe(update: () => void) {
   };
 }
 
-/** Animation loops and clocks stop while the app is inactive or backgrounded. */
+/** Animation loops and timers stop while the app is inactive or their retained screen is covered. */
 export function useAppActive() {
-  return useSyncExternalStore(subscribe, () => AppState.currentState === "active");
+  const visible = useVisibility();
+  const active = useSyncExternalStore(subscribe, () => AppState.currentState === "active");
+
+  return active && visible;
 }

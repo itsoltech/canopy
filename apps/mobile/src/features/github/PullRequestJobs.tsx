@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useState, useRef } from "react";
-import { AppState, Text, View } from "react-native";
-import { useFocusEffect } from "expo-router";
+import { useCallback, useState, useRef } from "react";
+import { Text, View } from "react-native";
 import { checkLook } from "@canopy/domain/github-pr";
 import { useSession } from "../../state/session";
 import { useColors, useTypography } from "../../ui/theme";
@@ -13,6 +12,7 @@ import type { github } from "@canopy/contracts";
 import { CiActions } from "./CiActions";
 import { prCitation, prCheckFailed } from "@canopy/domain";
 import { ListSkeleton } from "../../ui/Skeleton";
+import { useForegroundInterval } from "../../ui/interval";
 
 export function PullRequestJobs({ snapshot, runId }: { snapshot: github.PullRequestSnapshot; runId: string }) {
   const id = snapshot.summary?.ref?.id ?? "";
@@ -35,25 +35,11 @@ export function PullRequestJobs({ snapshot, runId }: { snapshot: github.PullRequ
     `jobs:${snapshot.accountId}:${snapshot.accessRevision}:${snapshot.summary?.headSha}:${runId}`,
   );
 
-  const latest = useRef(pages);
-  useEffect(() => {
-    latest.current = pages;
-  }, [pages]);
-  useFocusEffect(
-    useCallback(() => {
-      const timer = setInterval(() => {
-        const current = latest.current;
-
-        if (
-          AppState.currentState === "active" &&
-          current.current?.jobs.some((job) => ["queued", "in_progress", "pending", "waiting"].includes(job.state))
-        )
-          void current.read();
-      }, 15_000);
-
-      return () => clearInterval(timer);
-    }, []),
+  const pending = !!pages.current?.jobs.some((job) =>
+    ["queued", "in_progress", "pending", "waiting"].includes(job.state),
   );
+
+  useForegroundInterval(() => void pages.read(), 15_000, pending);
 
   return (
     <View style={{ gap: 8, padding: 8 }}>

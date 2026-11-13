@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ui } from "@canopy/contracts";
 import { Button, Field, Notice, Sheet } from "../../ui/components";
 import { SettingToggle } from "./SettingsGroup";
 import { SettingsValue } from "./SettingsValue";
 import { ResourceState, useSettingsResource } from "./resource";
+import { useLiveTime } from "../../ui/time";
 
 export function ComputerPairing({ onClose }: { onClose: () => void }) {
   const resource = useSettingsResource("GetComputers", (api) => api.getComputers({}));
@@ -11,14 +12,9 @@ export function ComputerPairing({ onClose }: { onClose: () => void }) {
   const [shareConfig, setShare] = useState(true);
   const [address, setAddress] = useState("");
   const [code, setCode] = useState("");
-  const [now, setNow] = useState(() => Date.now());
+  const now = useLiveTime(!!invitation);
   const { data } = resource;
   const { run } = resource;
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-
-    return () => clearInterval(timer);
-  }, []);
   const remaining = Math.max(0, Math.ceil((Number(invitation?.expiresAtMs ?? 0) - now) / 1000));
 
   function close() {

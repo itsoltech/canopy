@@ -1,13 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { AppState } from "react-native";
 import * as Crypto from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
 import type { github } from "@canopy/contracts";
 import { useSession } from "../../state/session";
+import { useAppActive } from "../../ui/active";
+import { useForegroundInterval } from "../../ui/interval";
 
 /** Persist only attempt/request identifiers, scoped to pairing and home. Tokens never leave the gateway. */
 export function useGitHubSignIn(homeId: string, onconnected?: () => void) {
   const { client, session } = useSession();
+  const foreground = useAppActive();
   const [attempt, setAttempt] = useState<github.GitHubDeviceAuth>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -71,6 +74,12 @@ export function useGitHubSignIn(homeId: string, onconnected?: () => void) {
       void run(() => client!.api.getGitHubDeviceAuth({ attemptId: id }));
   };
 
+  useForegroundInterval(poll, 2000, attempt?.state === "pending");
+  const resume = useEffectEvent(poll);
+  useEffect(() => {
+    if (foreground) resume();
+  }, [foreground]);
+
   useEffect(() => {
     active.current = true;
     void SecureStore.getItemAsync(`${key}.attempt`)
@@ -81,13 +90,9 @@ export function useGitHubSignIn(homeId: string, onconnected?: () => void) {
       .catch(() => {
         if (active.current) setError("Could not restore GitHub sign-in. Start again to get a new code.");
       });
-    const timer = setInterval(poll, 2000);
-    const listener = AppState.addEventListener("change", poll);
 
     return () => {
       active.current = false;
-      clearInterval(timer);
-      listener.remove();
     };
     // The parent keys this flow by home and pairing; a render must never start a second poller.
     // eslint-disable-next-line react-hooks/exhaustive-deps

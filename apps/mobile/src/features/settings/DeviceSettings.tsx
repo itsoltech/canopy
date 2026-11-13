@@ -11,23 +11,23 @@ import { SettingsValue } from "./SettingsValue";
 import { useDateTime } from "./display";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 import { SettingsSkeletonRows } from "./SettingsSkeleton";
+import { useLiveTime } from "../../ui/time";
 
 function useDeviceSettings() {
   const resource = useSettingsResource("GetMobileDevices", (api) => api.getMobileDevices({}));
   const { client, session, forget } = useSession();
   const [invitation, setInvitation] = useState<ui.CreateMobilePairingResponse>();
-  const [now, setNow] = useState(Date.now);
+
+  const now = useLiveTime(
+    !!invitation || !!resource.data?.pairings.some((pairing) => !pairing.usedAt && !pairing.revokedAt),
+  );
+
   const format = useDateTime();
   const data = resource.data;
   const current = data?.pairings.find((p) => p.id === invitation?.pairing?.id) ?? invitation?.pairing;
   const seconds = Math.max(0, Math.ceil(Number(current?.expiresAt?.seconds ?? 0n) - now / 1000));
   const usable = seconds > 0 && !current?.usedAt && !current?.revokedAt;
   // Pairings and revocations arrive as overview events (shared read); the countdown is local.
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-
-    return () => clearInterval(timer);
-  }, []);
   useEffect(
     () => () => {
       if (invitation?.pairing) void client?.api.revokeMobilePairing({ id: invitation.pairing.id }).catch(() => {});

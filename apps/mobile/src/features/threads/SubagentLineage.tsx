@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { View, type StyleProp, type ViewStyle } from "react-native";
 import type { ui } from "@canopy/contracts";
 import { subagentLineage, subagentState } from "@canopy/domain/subagents";
@@ -6,6 +6,7 @@ import { formatCount } from "@canopy/domain/format";
 import { useDevicePreferences } from "../settings/device-preferences";
 import { SubagentLineageRow } from "./SubagentLineageRow";
 import { SubagentGroup } from "./SubagentGroup";
+import { useForegroundInterval } from "../../ui/interval";
 
 /** Shared by thread details and the composer's bounded overlay. */
 export function SubagentLineage({
@@ -24,11 +25,7 @@ export function SubagentLineage({
   const open = device.values.finishedSubagentsExpanded === "on";
   const failures = lineage.previous.filter((t) => subagentState(t) === "failed").length;
 
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 60_000);
-
-    return () => clearInterval(timer);
-  }, []);
+  useForegroundInterval(() => setNow(Date.now()), 60_000, threads.length > 0);
 
   return (
     <View style={style}>

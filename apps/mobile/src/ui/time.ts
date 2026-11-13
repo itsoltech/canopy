@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { AppState } from "react-native";
+import { useVisibility } from "./viewport";
 
 const listeners = new Set<() => void>();
 let now = Date.now();
@@ -45,10 +46,14 @@ const snapshot = () => now;
 
 /** One foreground clock, subscribed only by mounted live text, never by the list or work fold. */
 export function useLiveTime(active: boolean) {
-  return useSyncExternalStore(active ? subscribe : idleSubscribe, snapshot);
+  const visible = useVisibility();
+
+  return useSyncExternalStore(active && visible ? subscribe : idleSubscribe, snapshot);
 }
 
 /** Select the displayed value from the same clock: unchanged labels do not cause a React render. */
 export function useTimeLabel(format: (now: number) => string, active: boolean) {
-  return useSyncExternalStore(active ? subscribe : idleSubscribe, () => format(Date.now()));
+  const visible = useVisibility();
+
+  return useSyncExternalStore(active && visible ? subscribe : idleSubscribe, () => format(Date.now()));
 }

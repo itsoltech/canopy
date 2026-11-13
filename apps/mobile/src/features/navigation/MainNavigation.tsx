@@ -10,6 +10,8 @@ import { scheduleOnRN } from "react-native-worklets";
 import { AppSidebar } from "./AppSidebar";
 import { motion, smoothOut, useReducedMotion } from "../../ui/motion";
 import { PaneInsets } from "../../ui/ScreenFrame";
+import { ScreenActivity } from "../../ui/ScreenActivity";
+import { VisibilityScope } from "../../ui/viewport";
 
 /** Wide windows keep the thread list beside the stack (collapsible); phones navigate list → thread. */
 export default function MainNavigation() {
@@ -76,7 +78,9 @@ function SidebarColumn({ open, width }: { open: boolean; width: number }) {
         style={[{ flex: 1, width, borderRightWidth: 1, borderRightColor: c.line }, panel]}
       >
         <LayoutAnimationConfig skipEntering skipExiting>
-          <AppSidebar />
+          <VisibilityScope visible={open}>
+            <AppSidebar />
+          </VisibilityScope>
         </LayoutAnimationConfig>
       </Animated.View>
     </View>
@@ -94,7 +98,7 @@ function Screens() {
       // A screen's first render and its removal do not animate its rows and notices; later changes do.
       screenLayout={({ children }) => (
         <LayoutAnimationConfig skipEntering skipExiting>
-          {children}
+          <ScreenActivity>{children}</ScreenActivity>
         </LayoutAnimationConfig>
       )}
       screenOptions={{

@@ -1,8 +1,6 @@
-import { useCallback, useEffectEvent } from "react";
-import { useFocusEffect } from "expo-router";
 import { Text, View } from "react-native";
 import { groupThreadSyncDiagnostics, threadSyncLastTime, threadSyncTotals } from "@canopy/domain/thread-sync-display";
-import { useAppActive } from "../../ui/active";
+import { useForegroundInterval } from "../../ui/interval";
 import { IconButton } from "../../ui/components";
 import { Icon } from "../../ui/Icon";
 import { styles, useColors } from "../../ui/theme";
@@ -16,17 +14,8 @@ export function ThreadSyncDiagnostics() {
     api.getThreadSyncDiagnostics({ summaryOnly: true }),
   );
 
-  const active = useAppActive();
   const c = useColors();
-  const refresh = useEffectEvent(() => void resource.reload());
-  useFocusEffect(
-    useCallback(() => {
-      if (!active) return;
-      const timer = setInterval(refresh, 5000);
-
-      return () => clearInterval(timer);
-    }, [active]),
-  );
+  useForegroundInterval(() => void resource.reload(), 5000);
   const grouped = resource.data ? groupThreadSyncDiagnostics(resource.data) : undefined;
 
   return (

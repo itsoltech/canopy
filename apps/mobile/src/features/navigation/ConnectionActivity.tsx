@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
 import { Spinner } from "../../ui/Badge";
 import { useColors, useTypography } from "../../ui/theme";
 import type { StreamState } from "./ConnectionStatus";
 import { Icon } from "../../ui/Icon";
 import { useReducedMotion } from "../../ui/motion";
+import { useLiveTime } from "../../ui/time";
 
 export function ConnectionSpinner({ active }: { active: boolean }) {
   const c = useColors();
@@ -21,19 +21,8 @@ export function ConnectionSpinner({ active }: { active: boolean }) {
 export function ConnectionActivity({ stream, visible }: { stream: StreamState; visible: boolean }) {
   const c = useColors();
   const type = useTypography();
-  const [now, setNow] = useState(Date.now);
   const down = !["live", "paused", "offline", "error"].includes(stream.connection);
-
-  useEffect(() => {
-    if (!visible || !down || !stream.retryAt) return;
-    const firstTick = setTimeout(() => setNow(Date.now()), 0);
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-
-    return () => {
-      clearTimeout(firstTick);
-      clearInterval(timer);
-    };
-  }, [visible, down, stream.retryAt]);
+  const now = useLiveTime(visible && down && !!stream.retryAt);
 
   const seconds = Math.max(0, Math.ceil(((stream.retryAt ?? now) - now) / 1000));
 

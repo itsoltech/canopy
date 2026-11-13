@@ -15,6 +15,7 @@ import { useContentInsets } from "../../ui/ScreenFrame";
 import { useKeyboardFrame } from "../../ui/KeyboardWindow";
 import { motion, smoothOut, useReducedMotion } from "../../ui/motion";
 import { useComposerMotion } from "./ComposerFold";
+import { useAppActive } from "../../ui/active";
 
 /** Measure the entire visible stack, including trays and the footer, on the UI thread.
  * Native insets extend the scroll range without relaying animation frames through React or laying out rows.
@@ -34,6 +35,7 @@ export function ComposerCoverage({
   const viewport = useWindowDimensions().height;
   const keyboard = useKeyboardFrame();
   const reduced = useReducedMotion();
+  const active = useAppActive();
   const { progress, writing } = useComposerMotion();
   const previousFold = useSharedValue(progress.get());
   const previousWriting = useSharedValue(writing.get());
@@ -76,10 +78,10 @@ export function ComposerCoverage({
 
   useFocusEffect(
     useCallback(() => {
-      frames.setActive(Boolean(value));
+      frames.setActive(Boolean(value) && active);
 
       return () => frames.setActive(false);
-    }, [frames, value]),
+    }, [frames, value, active]),
   );
 
   return (

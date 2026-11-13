@@ -1,6 +1,6 @@
 import { Provider, type ui } from "@canopy/contracts";
 import { View } from "react-native";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { providerName } from "../models/catalog";
 import { Button, Notice } from "../../ui/components";
 import { SettingsSection, SettingsActions } from "./SettingsGroup";
@@ -8,6 +8,7 @@ import { SettingsValue } from "./SettingsValue";
 import { useOverview } from "../../state/overview";
 import { ResourceState, useSettingsAction, workersFollowStream } from "./resource";
 import { useDateTime } from "./display";
+import { useForegroundInterval } from "../../ui/interval";
 
 export function WorkerProviderAccounts({ worker, readOnly }: { worker: ui.Worker; readOnly: string }) {
   // Workers follow the overview stream: their changes after an action arrive there, no read needed.
@@ -17,11 +18,7 @@ export function WorkerProviderAccounts({ worker, readOnly }: { worker: ui.Worker
   const format = useDateTime();
   const [now, setNow] = useState(() => Date.now());
 
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 60_000);
-
-    return () => clearInterval(timer);
-  }, []);
+  useForegroundInterval(() => setNow(Date.now()), 60_000);
 
   const accounts = current.providerInstances.filter(
     (i) => i.enabled && i.account && (i.account.state !== "unknown" || i.account.authMethod || i.account.detail),
