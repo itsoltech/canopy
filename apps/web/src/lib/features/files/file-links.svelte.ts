@@ -5,6 +5,9 @@ import { onThisComputer } from "#lib/features/threads/thread-actions.ts";
 import { provideFileLinks, type FileLinkHandler } from "#lib/shared/ui/markdown/file-links.ts";
 import { toast } from "#lib/shared/ui/toast.svelte.ts";
 import { openFile } from "./api.ts";
+import { fileLocation } from "@canopy/domain/file-references";
+import { useWorkspace } from "#lib/features/workspace/workspace.svelte.ts";
+import type { Workspace } from "@canopy/domain/workspace";
 
 export interface FileTarget {
   readonly threadId: string;
@@ -27,15 +30,17 @@ class ThreadFileLinks implements FileLinkHandler {
     readonly threadId: () => string | undefined,
     readonly local: (threadId: string) => boolean,
     readonly itemId: () => string = () => "",
+    readonly workspace?: () => Workspace,
   ) {}
 
   open(path: string): void {
     const threadId = this.threadId();
 
     if (!threadId) return;
-    const target = { threadId, path, local: this.local(threadId), itemId: this.itemId() };
+    const target = { threadId, ...fileLocation(path), local: this.local(threadId), itemId: this.itemId() };
 
     if (target.local && /[\\/]/.test(path) && devicePreferences.values.fileLinks === "app") void openInApp(target);
+    else if (this.workspace) this.workspace().open(target);
     else openedFile.current = target;
   }
 }
@@ -51,7 +56,7 @@ export function provideThreadFileLinks(threadId: () => string | undefined, itemI
     return thread ? onThisComputer(thread, overview.worker(thread.workerId), capabilities?.ownGateway ?? false) : false;
   };
 
-  provideFileLinks(new ThreadFileLinks(threadId, local, itemId));
+  provideFileLinks(new ThreadFileLinks(threadId, local, itemId, useWorkspace()));
 }
 
 /** This computer opens the file in its default app; failures show as a toast. */

@@ -1,5 +1,7 @@
 <script lang="ts">
   import { applicationName } from "#lib/application-name.ts";
+  import { connectWorkspace } from "#lib/features/workspace/workspace.svelte.ts";
+  import WorkspaceExit from "#lib/features/workspace/WorkspaceExit.svelte";
   import { ui } from "@canopy/contracts";
   import { create } from "@bufbuild/protobuf";
   import { afterNavigate, beforeNavigate } from "$app/navigation";
@@ -136,7 +138,16 @@
   $effect(() => {
     const scope = capabilities.clientPreferencesScope;
 
-    if (scope) return untrack(() => devicePreferences.connectView(scope));
+    if (scope)
+      return untrack(() => {
+        const offView = devicePreferences.connectView(scope);
+        const offWorkspace = connectWorkspace(scope);
+
+        return () => {
+          offView();
+          offWorkspace();
+        };
+      });
   });
 
   $effect(() => {
@@ -326,3 +337,4 @@
 {#if capabilities.linkedComputers}<BotMoveHost />{/if}
 <UpdateBanner />
 <WhatsNewHost />
+<WorkspaceExit />

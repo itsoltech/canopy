@@ -8,8 +8,9 @@ interface Activity {
 const activities = new Map<Element, Activity>();
 let observer: IntersectionObserver | undefined;
 
-function visibilityChanged() {
-  for (const activity of activities.values()) activity.update(activity.visible && !document.hidden);
+export function refreshActivities(): void {
+  for (const [element, activity] of activities)
+    activity.update(activity.visible && !document.hidden && !element.closest("[inert]"));
 }
 
 /** One observer for running decorations and clocks; clipped/overscan rows and hidden tabs do no work. */
@@ -21,10 +22,10 @@ export function observeActivity(element: Element, update: (active: boolean) => v
 
         if (!activity) continue;
         activity.visible = entry.isIntersecting;
-        activity.update(activity.visible && !document.hidden);
+        activity.update(activity.visible && !document.hidden && !entry.target.closest("[inert]"));
       }
     });
-    document.addEventListener("visibilitychange", visibilityChanged);
+    document.addEventListener("visibilitychange", refreshActivities);
   }
 
   activities.set(element, { visible: false, update });
@@ -38,7 +39,7 @@ export function observeActivity(element: Element, update: (active: boolean) => v
     if (activities.size) return;
     observer?.disconnect();
     observer = undefined;
-    document.removeEventListener("visibilitychange", visibilityChanged);
+    document.removeEventListener("visibilitychange", refreshActivities);
   };
 }
 

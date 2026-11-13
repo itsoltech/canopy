@@ -183,6 +183,10 @@ export interface DesktopBridge {
   onWindowState(listener: (state: DesktopWindowState) => void): () => void;
   /** Minimize, maximize / restore or close the calling window (Windows and Linux draw their own buttons). */
   windowControl?(control: DesktopWindowControl): Promise<void>;
+  /** Local drafts fence close/quit before services stop; no file contents cross this bridge. */
+  setWorkspaceBlocked?(blocked: boolean): Promise<void>;
+  onWorkspaceClose?(listener: (action: "close" | "quit") => void): () => void;
+  finishWorkspaceClose?(action: "close" | "quit"): Promise<void>;
   status(): Promise<DesktopStatus>;
   /** Only in the bundled setup window. False means the user canceled the restart confirmation. */
   configure(configuration: DesktopConfiguration): Promise<void | boolean>;

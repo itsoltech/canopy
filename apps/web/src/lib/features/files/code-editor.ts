@@ -23,6 +23,7 @@ import {
   rectangularSelection,
 } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
+import type { FilePosition } from "@canopy/domain/file-references";
 
 /**
  * The file viewer's editor (CodeMirror 6, loaded on first edit). Colours come from the code tokens in
@@ -71,7 +72,15 @@ export interface CodeEditor {
   /** Replaces the content (a reload) without counting as an edit of the user's. */
   reset(text: string): void;
   focus(): void;
+  locate(position: FilePosition): void;
   destroy(): void;
+}
+
+export interface CodeEditorMemory {
+  state?: EditorState | undefined;
+  language?: Compartment | undefined;
+  events?: Compartment | undefined;
+  positionRevision?: number;
 }
 
 export interface CodeEditorOptions {
@@ -80,53 +89,67 @@ export interface CodeEditorOptions {
   wrap: boolean;
   onchange: (text: string) => void;
   onsave: () => void;
+  memory?: CodeEditorMemory | undefined;
+  workspace?: boolean;
 }
 
 export function createCodeEditor(parent: HTMLElement, options: CodeEditorOptions): CodeEditor {
-  const language = new Compartment();
+  const memory = options.memory;
+  const language = memory?.language ?? new Compartment();
+  const events = memory?.events ?? new Compartment();
+
+  if (memory) {
+    memory.language = language;
+    memory.events = events;
+  }
+
   let resetting = false;
+  let destroyed = false;
 
   const view = new EditorView({
     parent,
-    state: EditorState.create({
-      doc: options.text,
-      extensions: [
-        lineNumbers(),
-        highlightActiveLineGutter(),
-        foldGutter(),
-        history(),
-        drawSelection(),
-        indentOnInput(),
-        bracketMatching(),
-        closeBrackets(),
-        rectangularSelection(),
-        crosshairCursor(),
-        highlightActiveLine(),
-        highlightSelectionMatches(),
-        search({ top: true }),
-        syntaxHighlighting(highlight),
-        theme,
-        language.of([]),
-        ...(options.wrap ? [EditorView.lineWrapping] : []),
-        keymap.of([
-          { key: "Mod-s", preventDefault: true, run: () => (options.onsave(), true) },
-          ...closeBracketsKeymap,
-          ...defaultKeymap,
-          ...searchKeymap,
-          ...historyKeymap,
-          ...foldKeymap,
-          indentWithTab,
-        ]),
-        EditorView.updateListener.of((update) => {
-          if (update.docChanged && !resetting) options.onchange(update.state.doc.toString());
-        }),
-      ],
-    }),
+    state:
+      memory?.state ??
+      EditorState.create({
+        doc: options.text,
+        extensions: [
+          lineNumbers(),
+          highlightActiveLineGutter(),
+          foldGutter(),
+          history(),
+          drawSelection(),
+          indentOnInput(),
+          bracketMatching(),
+          closeBrackets(),
+          rectangularSelection(),
+          crosshairCursor(),
+          highlightActiveLine(),
+          highlightSelectionMatches(),
+          search({ top: true }),
+          syntaxHighlighting(highlight),
+          theme,
+          language.of([]),
+          ...(options.wrap ? [EditorView.lineWrapping] : []),
+          events.of([]),
+          keymap.of([
+            ...closeBracketsKeymap,
+            ...defaultKeymap,
+            ...searchKeymap,
+            ...historyKeymap,
+            ...foldKeymap,
+            indentWithTab,
+          ]),
+        ],
+      }),
   });
+
+  view.dispatch({ effects: events.reconfigure(editorEvents(options, () => resetting)) });
 
   // The grammar loads by the file's name (`.sql`, `.cs`, `Dockerfile`); unknown files stay plain text.
   const description = LanguageDescription.matchFilename(languages, options.fileName);
-  void description?.load().then((support) => view.dispatch({ effects: language.reconfigure(support) }));
+  void description?.load().then((support) => {
+    if (!destroyed) view.dispatch({ effects: language.reconfigure(support) });
+  });
 
   return {
     text: () => view.state.doc.toString(),
@@ -136,6 +159,31 @@ export function createCodeEditor(parent: HTMLElement, options: CodeEditorOptions
       resetting = false;
     },
     focus: () => view.focus(),
-    destroy: () => view.destroy(),
+    locate(position) {
+      const line = view.state.doc.line(Math.min(position.line, view.state.doc.lines));
+      const end = view.state.doc.line(Math.min(position.end, view.state.doc.lines));
+      const anchor = Math.min(line.to, line.from + position.column - 1);
+      view.dispatch({
+        selection: { anchor, head: position.end > position.line ? end.to : anchor },
+        scrollIntoView: true,
+      });
+      view.focus();
+    },
+    destroy() {
+      if (memory) memory.state = view.state.update({ effects: events.reconfigure([]) }).state;
+      destroyed = true;
+      view.destroy();
+    },
   };
+}
+
+function editorEvents(options: CodeEditorOptions, resetting: () => boolean) {
+  return [
+    ...(!options.workspace
+      ? [keymap.of([{ key: "Mod-s", preventDefault: true, run: () => (options.onsave(), true) }])]
+      : []),
+    EditorView.updateListener.of((update) => {
+      if (update.docChanged && !resetting()) options.onchange(update.state.doc.toString());
+    }),
+  ];
 }

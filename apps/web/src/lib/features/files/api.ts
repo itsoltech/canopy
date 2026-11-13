@@ -12,12 +12,13 @@ export async function readFile(
   path: string,
   itemId = "",
   expectedSha256 = "",
+  signal?: AbortSignal,
 ): Promise<ui.ThreadFile> {
   const query = new URLSearchParams({ path, itemId, expectedSha256 });
 
   return decode(
     ui.ThreadFileSchema,
-    await requestJson("GET", `${filesPath(threadId)}?${query}`, undefined, TIMEOUT_MS),
+    await requestJson("GET", `${filesPath(threadId)}?${query}`, undefined, TIMEOUT_MS, signal),
   );
 }
 
@@ -27,10 +28,12 @@ export async function writeFile(
   text: string,
   expectedSha256: string,
 ): Promise<ui.ThreadFile> {
-  return decode(
-    ui.ThreadFileSchema,
-    await requestJson("PUT", filesPath(threadId), { path, text, expectedSha256 }, TIMEOUT_MS),
-  );
+  const body = { path, text, expectedSha256 };
+
+  if (new TextEncoder().encode(JSON.stringify(body)).byteLength > 512 * 1024)
+    throw new Error("These edits exceed the save limit. Reduce the file size, then retry.");
+
+  return decode(ui.ThreadFileSchema, await requestJson("PUT", filesPath(threadId), body, TIMEOUT_MS));
 }
 
 export async function deleteFile(threadId: string, path: string, expectedSha256: string): Promise<void> {

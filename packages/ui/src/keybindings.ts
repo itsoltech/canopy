@@ -1,4 +1,4 @@
-export type BindingContext = "global" | "thread" | "composer" | "selection" | "models";
+export type BindingContext = "global" | "thread" | "composer" | "selection" | "models" | "workspace" | "file";
 
 export type BindingGroup = "Navigation" | "Threads" | "Composer" | "Messages" | "Models" | "Appearance" | "Settings";
 
@@ -27,6 +27,21 @@ export const bindingCatalogue: readonly BindingDefinition[] = [
   ]),
   define("toggle-sidebar", "Toggle sidebar", "Navigation", "global", "Outside modal dialogs", ["Mod+B"]),
   define("open-settings", "Open settings", "Navigation", "global", "Outside modal dialogs"),
+  define("workspace:next", "Switch to next tab", "Navigation", "workspace", "In a workspace, outside text fields", [
+    "Alt+PageDown",
+  ]),
+  define(
+    "workspace:previous",
+    "Switch to previous tab",
+    "Navigation",
+    "workspace",
+    "In a workspace, outside text fields",
+    ["Alt+PageUp"],
+  ),
+  define("workspace:close", "Close active tab", "Navigation", "workspace", "A file tab is active"),
+  define("workspace:keep", "Keep preview tab", "Navigation", "workspace", "A preview tab is active"),
+  define("file:go-line", "Go to line", "Navigation", "file", "Focus is inside the file viewer or editor", ["Mod+G"]),
+  define("file:save", "Save file", "Navigation", "file", "Focus is inside the file editor", ["Mod+S"]),
   define("new-project", "Add project", "Navigation", "global", "Outside modal dialogs"),
   define(
     "new-thread-in",
@@ -89,6 +104,8 @@ export const bindingCatalogue: readonly BindingDefinition[] = [
 
 export function contextsOverlap(a: BindingContext, b: BindingContext): boolean {
   if (a === b || a === "global" || b === "global") return true;
+
+  if ((a === "workspace" && b === "file") || (b === "workspace" && a === "file")) return true;
 
   return (a === "thread" && b !== "models") || (b === "thread" && a !== "models");
 }

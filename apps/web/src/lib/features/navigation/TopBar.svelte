@@ -12,7 +12,13 @@
    * (narrow or touch screens). It is a macOS window title strip in every sidebar state; when the sidebar is
    * hidden, it also leaves room for the traffic lights (routes/layout.css).
    */
-  let { children, actions, description }: { children: Snippet; actions?: Snippet; description?: string } = $props();
+  let {
+    children,
+    actions,
+    description,
+    workspace,
+  }: { children: Snippet; actions?: Snippet; description?: string; workspace?: Snippet } = $props();
+
   const descriptionId = $props.id();
   const shell = useShell();
   const palette = usePalette();
@@ -21,7 +27,11 @@
 <div class="flex h-12 shrink-0 items-center gap-2 px-2 sm:px-4" data-window-titlebar>
   <IconButton icon="bars-3" label="Open menu" class="lg:hidden" onclick={() => shell.openMenu()} />
   <SidebarToggle />
-  <nav aria-label="Breadcrumb" aria-describedby={description ? descriptionId : undefined} class="min-w-0 flex-1">
+  <nav
+    aria-label="Breadcrumb"
+    aria-describedby={description ? descriptionId : undefined}
+    class={workspace ? "max-w-[22%] min-w-12 shrink" : "min-w-0 flex-1"}
+  >
     <ol
       role="list"
       class="flex min-w-0 items-center gap-2 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400 [&_[aria-current=page]]:text-zinc-950 dark:[&_[aria-current=page]]:text-white"
@@ -30,9 +40,10 @@
     </ol>
     {#if description}<span id={descriptionId} class="sr-only">{description}</span>{/if}
   </nav>
+  {#if workspace}<div class="min-w-24 flex-1" data-window-no-drag>{@render workspace()}</div>{/if}
   {#if palette || actions}
     <div class="flex shrink-0 items-center gap-1">
-      {#if palette}
+      {#if palette && !workspace}
         <IconButton
           icon="magnifying-glass"
           label="Search and commands"

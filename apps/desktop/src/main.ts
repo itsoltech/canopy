@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, nativeImage, powerMonitor, Tray } from "electron";
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron";
 import { monitorPower } from "./power-events.ts";
+import { registerWorkspaceClose, requestWorkspaceQuit } from "./workspace-close.ts";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { stopController } from "./runtime/process.ts";
 import { join, resolve } from "node:path";
@@ -280,6 +281,8 @@ app.on("before-quit", (event) => {
   event.preventDefault();
 
   if (quitting) return;
+
+  if (requestWorkspaceQuit()) return;
   quitting = true;
   stopPower();
   quitGuard.cancel();
@@ -356,6 +359,7 @@ function registerIpc() {
   registerFontsIpc(authorize, () => status.webUrl);
   registerHistoryIpc(history, authorize, () => status.phase === "running" && !status.needsPairing);
   registerWindowPreferencesIpc(authorize, iconPath);
+  registerWorkspaceClose(authorize);
   registerAppRouteIpc(appRoutes, authorize, () => window);
   ipcMain.handle("canopy:status", (event) => {
     authorize(event);

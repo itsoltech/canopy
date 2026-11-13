@@ -12,6 +12,7 @@ import {
   type StartTurn,
 } from "@canopy/contracts";
 import { openGatewayLink, type GatewayLink } from "@canopy/worker/gateway-link";
+import { workspaceFiles } from "./workspace-files.ts";
 
 /** No CLI or inference: a deterministic answer on the real worker → gateway → BFF → SSE path. */
 async function answer(
@@ -58,6 +59,7 @@ async function answer(
 }
 
 export async function clientWorker(baseUrl: string, worker: { workerId: string; credential: string }) {
+  const files = process.env["CANOPY_BENCH_WORKSPACE"] === "1" ? workspaceFiles() : undefined;
   const abort = new AbortController();
   const deadline = Date.now() + 20_000;
   let link: GatewayLink;
@@ -71,6 +73,7 @@ export async function clientWorker(baseUrl: string, worker: { workerId: string; 
           workerId: worker.workerId,
           journalId: Bun.randomUUIDv7(),
           state: WorkerState.ACTIVE,
+          capabilities: files ? ["thread_files_v1", "thread_file_preview_v1"] : [],
           attachmentsRoot: "/srv/canopy-attachments",
           providers: [{ provider: Provider.CODEX, available: true, version: "benchmark" }],
         },
@@ -137,6 +140,12 @@ export async function clientWorker(baseUrl: string, worker: { workerId: string; 
 
       if (payload.case !== "command") continue;
       const { commandId, kind } = payload.value;
+      const fileResult = files?.(payload.value);
+
+      if (fileResult) {
+        link.send({ case: "commandResult", value: fileResult });
+        continue;
+      }
 
       if (kind.case === "startTurn") {
         link.send({ case: "commandResult", value: { commandId, ok: true } });

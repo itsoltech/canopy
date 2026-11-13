@@ -2,6 +2,7 @@
   import CodeTokens from "./CodeTokens.svelte";
   import { Highlight } from "./highlight.svelte.ts";
   import type { LanguageId } from "./languages.ts";
+  import type { FilePosition } from "@canopy/domain/file-references";
 
   /**
    * The text of a code block, one element per line, syntax-highlighted when `lang` is known (`Highlight`:
@@ -12,7 +13,13 @@
     text,
     lang,
     streaming = false,
-  }: { text: string; lang?: LanguageId | undefined; streaming?: boolean } = $props();
+    position,
+  }: {
+    text: string;
+    lang?: LanguageId | undefined;
+    streaming?: boolean;
+    position?: FilePosition | undefined;
+  } = $props();
 
   const highlight = new Highlight(
     () => text,
@@ -30,7 +37,15 @@
 </script>
 
 <!-- One line: this renders inside a <pre>, where whitespace in the template would show. -->
-{#if !lang && !streaming}{text}{:else}{#each rows as row, index (index)}<span
-      class={streaming ? "t-stream-line" : undefined}
-      >{index > 0 ? "\n" : ""}{#if typeof row === "string"}{row}{:else}<CodeTokens tokens={row.tokens} />{/if}</span
+{#if !lang && !streaming && !position}{text}{:else}{#each rows as row, index (index)}{index > 0 ? "\n" : ""}<span
+      data-file-line={position ? index + 1 : undefined}
+      class={[
+        position && "inline-block min-h-[1lh] min-w-px",
+        streaming && "t-stream-line",
+        position &&
+          index + 1 >= position.line &&
+          index + 1 <= position.end &&
+          "bg-amber-400/20 outline outline-amber-500/25",
+      ]}
+      >{#if typeof row === "string"}{row}{:else}<CodeTokens tokens={row.tokens} />{/if}</span
     >{/each}{/if}

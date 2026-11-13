@@ -6,6 +6,7 @@ import { SqlClient } from "effect/sql";
 import { ensureDevUser, gatewayRuntime, migrateDatabase } from "../../apps/gateway/src/runtime.ts";
 import { GatewayStore } from "../../apps/gateway/src/store/index.ts";
 import { longThreadSnapshot } from "../../apps/web/src/lib/features/threads/dev/fixture.ts";
+import { workspaceFileLinks } from "./workspace-files.ts";
 
 /** Called only for the disposable database just created by client-stack; never accepts an existing stack. */
 export async function seedClient(env: Readonly<Record<string, string | undefined>>) {
@@ -23,6 +24,14 @@ export async function seedClient(env: Readonly<Record<string, string | undefined
     const workspace = Bun.randomUUIDv7();
     const thread = Bun.randomUUIDv7();
     const snapshot = longThreadSnapshot({ turns: 1000, answerRepeat: 64 });
+
+    if (env["CANOPY_BENCH_WORKSPACE"] === "1") {
+      const last = snapshot.items.findLast((entry) => entry.item?.content.case === "agentMessage");
+
+      if (last?.item?.content.case === "agentMessage")
+        last.item.content.value.text = `Workspace files: ${workspaceFileLinks}`;
+    }
+
     const ids = new Map(snapshot.turns.map((turn) => [turn.id, Bun.randomUUIDv7()]));
 
     const items = snapshot.items.flatMap((entry) =>

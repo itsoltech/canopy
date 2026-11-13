@@ -12,6 +12,8 @@ import { ThreadSearchSheet } from "./ThreadSearchSheet";
 import { ThreadActionsSheet } from "./ThreadActionsSheet";
 import { ThreadSyncStatus } from "./ThreadSyncStatus";
 import { ThreadSyncProgress } from "./ThreadSyncProgress";
+import { useWorkspace } from "../workspace/context";
+import { WorkspaceTabs } from "../workspace/WorkspaceTabs";
 
 export function ThreadHeader({
   thread,
@@ -43,6 +45,7 @@ export function ThreadHeader({
   const c = useColors();
   const { wide } = useLayout();
   const [sheet, setSheet] = useState<"actions" | "search" | null>(null);
+  const workspace = useWorkspace();
 
   return (
     <>
@@ -62,12 +65,13 @@ export function ThreadHeader({
           />
         )}
         <ThreadIdentity thread={thread} project={project} syncing={syncing} />
-        <ThreadSyncProgress status={syncStatus} />
-        <IconButton icon="magnifying-glass" label="Search thread" onPress={() => setSheet("search")} />
+        {workspace && <WorkspaceTabs view={workspace} />}
+        <ThreadSyncProgress status={syncStatus} compact={Boolean(workspace)} />
+        {wide && <IconButton icon="magnifying-glass" label="Search thread" onPress={() => setSheet("search")} />}
         <IconButton
           icon="ellipsis-horizontal"
           label="Thread actions"
-          disabled={readOnly || !thread}
+          disabled={!thread}
           onPress={() => setSheet("actions")}
         />
         <IconButton icon="view-columns" label="Thread details" onPress={onDetails} />
@@ -75,8 +79,10 @@ export function ThreadHeader({
       {thread && (
         <ThreadActionsSheet
           thread={thread}
-          visible={!readOnly && sheet === "actions"}
+          visible={sheet === "actions"}
           onClose={() => setSheet(null)}
+          onSearch={() => setSheet("search")}
+          readOnly={readOnly}
           onSideThread={onSideThread}
           onGoal={onGoal}
           goalOpen={goalOpen}
@@ -104,15 +110,7 @@ function ThreadIdentity({ thread, project, syncing }: { thread?: ui.Thread; proj
           <ProjectMark name={project.name} kind={project.kind} />
         </ThreadSyncStatus>
       )}
-      {project ? (
-        <Text numberOfLines={1} style={[styles.body, { color: c.muted, maxWidth: 110, paddingLeft: 8 }]}>
-          {project.name}
-        </Text>
-      ) : (
-        <Skeleton style={{ width: 70, height: 16 }} />
-      )}
-      <Text style={[styles.body, { color: c.faint, paddingHorizontal: 8 }]}>/</Text>
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, minWidth: 0, maxWidth: 110, paddingLeft: 8 }}>
         {thread ? (
           <Text numberOfLines={1} style={[styles.body, { color: c.text }]}>
             {thread.title}

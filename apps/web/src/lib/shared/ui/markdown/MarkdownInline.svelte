@@ -6,7 +6,7 @@
   import { splitSentinels, useInlineElements } from "./inline-elements.ts";
   import { tooltip } from "../tooltip.ts";
   import { useFileLinks } from "./file-links.ts";
-  import { fileHrefOf, filePathOf } from "./file-paths.ts";
+  import { fileLinkHrefOf, filePathOf } from "./file-paths.ts";
   import InlineLink from "../InlineLink.svelte";
   import { useImages } from "./images.ts";
   import MarkdownHtml from "./MarkdownHtml.svelte";
@@ -35,7 +35,7 @@
       <!-- A file the agent named: opens in the viewer or the default app (docs/ui-api.md, "Pliki wątku"). -->
       <InlineLink
         class="cursor-pointer rounded-sm bg-zinc-950/5 box-decoration-clone px-1 py-px text-left font-mono text-[0.875em] text-sky-700 underline decoration-sky-700/30 decoration-dotted underline-offset-2 focus-ring hover:decoration-sky-700 dark:bg-white/10 dark:text-sky-400 dark:decoration-sky-400/30 dark:hover:decoration-sky-400"
-        onactivate={() => files.open(path)}
+        onactivate={() => files.open(text)}
         {@attach tooltip(`Open ${path}`)}>{text}</InlineLink
       >
     {:else}
@@ -47,7 +47,7 @@
   {:else if token.type === "link"}
     {@const link = token as Tokens.Link}
     {@const href = safeHref(link.href)}
-    {@const path = files ? fileHrefOf(link.href) : undefined}
+    {@const path = files ? fileLinkHrefOf(link.href) : undefined}
     {#if files && path}
       <InlineLink
         class="cursor-pointer text-left font-medium text-sky-700 underline decoration-sky-700/30 underline-offset-2 focus-ring hover:decoration-sky-700 dark:text-sky-400 dark:decoration-sky-400/30 dark:hover:decoration-sky-400"

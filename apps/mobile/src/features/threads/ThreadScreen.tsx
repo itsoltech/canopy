@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { BackHandler, View } from "react-native";
 import { create } from "@bufbuild/protobuf";
 import { ConversationSkeleton, SkeletonScope } from "../../ui/Skeleton";
 import { Redirect } from "expo-router";
@@ -38,6 +39,9 @@ import { useThreadStop } from "./useThreadStop";
 import { useMobileOpening } from "../settings/client-diagnostics";
 import { threadCacheCurrent } from "@canopy/domain/thread-warm-set";
 import { useDevicePreferences } from "../settings/device-preferences";
+import { WorkspaceContext } from "../workspace/context";
+import { WorkspaceFile } from "../workspace/WorkspaceFile";
+import { VisibilityScope } from "../../ui/viewport";
 
 export type ThreadState = ReturnType<typeof useThreadState>;
 
@@ -135,6 +139,29 @@ function useThreadComposer(state: ThreadState) {
 export function ThreadScreen({ id }: { id: string }) {
   const state = useThreadState(id);
   const { viewLoaded } = useDevicePreferences();
+  const { warming } = useOverview();
+  const { workspace: store } = useSession();
+  const workspace = useSyncExternalStore(store.subscribe, () => store.view(id));
+  useSyncExternalStore(store.subscribe, () => workspace.active);
+  const fileTab = workspace.current;
+  useEffect(() => {
+    warming?.yieldToNavigation();
+  }, [warming, workspace.active]);
+  useEffect(() => {
+    store.touch(workspace);
+
+    return () => workspace.current?.document.cancel();
+  }, [store, workspace]);
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (workspace.active === "thread") return false;
+      workspace.select("thread");
+
+      return true;
+    });
+
+    return () => subscription.remove();
+  }, [workspace]);
   const composer = useThreadComposer(state);
 
   const [sheet, setSheet] = useState<"goal" | "side" | null>(null);
@@ -148,51 +175,68 @@ export function ThreadScreen({ id }: { id: string }) {
   if (!session) return <Redirect href="/pair" />;
 
   return (
-    <ScreenFrame
-      header={
-        <>
-          <ThreadHeader
-            syncStatus={state.syncStatus}
-            history={state.history}
-            snapshot={snapshot}
-            syncing={Boolean(snapshot && !state.home.away && !state.stream.issue && state.stream.connection !== "live")}
-            thread={thread}
-            project={projects.find((p) => p.id === thread?.projectId)}
-            turns={turns}
-            onDetails={() => setDetails(true)}
-            onSideThread={() => setSheet("side")}
-            onGoal={
-              thread && takesGoals(thread) && (!snapshot?.goal || isFinishedGoal(snapshot.goal.status))
-                ? () => setSheet("goal")
-                : undefined
-            }
-            goalOpen={Boolean(snapshot?.goal && !isFinishedGoal(snapshot.goal.status))}
-            readOnly={state.home.away}
-          />
-          <ConnectionBanner stream={state.stream} />
-        </>
-      }
-    >
-      <ChatKeyboard composerHeight={composer.height}>
-        <DropZone draft={state.message.files} disabled={blocked || state.home.away}>
-          {viewLoaded && <ThreadTimeline state={state} composer={composer} />}
-          <FloatingComposer
-            motion={composer.motion}
-            coverage={following.composerInset}
-            onLayout={composer.measure}
-            onExpand={composer.expand}
-            onLatest={atBottom || !composer.compact ? undefined : composer.showLatest}
-            latestInset={collapsedThreadComposerHeight}
-            overlay={<ThreadSuggestions state={state} />}
-            accessory={<ThreadStatus state={state} />}
-            tray={<ThreadTray state={state} onGoal={() => setSheet("goal")} />}
+    <WorkspaceContext.Provider value={workspace}>
+      <ScreenFrame
+        header={
+          <>
+            <ThreadHeader
+              syncStatus={state.syncStatus}
+              history={state.history}
+              snapshot={snapshot}
+              syncing={Boolean(
+                snapshot && !state.home.away && !state.stream.issue && state.stream.connection !== "live",
+              )}
+              thread={thread}
+              project={projects.find((p) => p.id === thread?.projectId)}
+              turns={turns}
+              onDetails={() => setDetails(true)}
+              onSideThread={() => setSheet("side")}
+              onGoal={
+                thread && takesGoals(thread) && (!snapshot?.goal || isFinishedGoal(snapshot.goal.status))
+                  ? () => setSheet("goal")
+                  : undefined
+              }
+              goalOpen={Boolean(snapshot?.goal && !isFinishedGoal(snapshot.goal.status))}
+              readOnly={state.home.away}
+            />
+            <ConnectionBanner stream={state.stream} />
+          </>
+        }
+      >
+        <ChatKeyboard composerHeight={composer.height}>
+          <View
+            style={[
+              { flex: 1 },
+              fileTab ? { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, opacity: 0 } : undefined,
+            ]}
+            pointerEvents={fileTab ? "none" : "auto"}
+            accessibilityElementsHidden={Boolean(fileTab)}
+            importantForAccessibility={fileTab ? "no-hide-descendants" : "auto"}
           >
-            <ThreadComposer state={state} composer={composer} />
-          </FloatingComposer>
-        </DropZone>
-      </ChatKeyboard>
-      <ThreadSheets state={state} sheet={sheet} onClose={() => setSheet(null)} />
-    </ScreenFrame>
+            <VisibilityScope visible={!fileTab}>
+              <DropZone draft={state.message.files} disabled={blocked || state.home.away}>
+                {viewLoaded && <ThreadTimeline state={state} composer={composer} />}
+                <FloatingComposer
+                  motion={composer.motion}
+                  coverage={following.composerInset}
+                  onLayout={composer.measure}
+                  onExpand={composer.expand}
+                  onLatest={atBottom || !composer.compact ? undefined : composer.showLatest}
+                  latestInset={collapsedThreadComposerHeight}
+                  overlay={<ThreadSuggestions state={state} />}
+                  accessory={<ThreadStatus state={state} />}
+                  tray={<ThreadTray state={state} onGoal={() => setSheet("goal")} />}
+                >
+                  <ThreadComposer state={state} composer={composer} />
+                </FloatingComposer>
+              </DropZone>
+            </VisibilityScope>
+          </View>
+          {fileTab && <WorkspaceFile key={`${id}:${fileTab.id}`} view={workspace} tab={fileTab} />}
+        </ChatKeyboard>
+        <ThreadSheets state={state} sheet={sheet} onClose={() => setSheet(null)} />
+      </ScreenFrame>
+    </WorkspaceContext.Provider>
   );
 }
 

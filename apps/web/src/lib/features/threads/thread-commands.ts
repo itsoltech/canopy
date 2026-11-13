@@ -2,6 +2,18 @@ import type { ui } from "@canopy/contracts";
 import type { Command } from "#lib/features/commands/registry.ts";
 import { toast } from "#lib/shared/ui/toast.svelte.ts";
 import { requestTitleRegeneration } from "./title-actions.ts";
+import { interruptThread } from "./api.ts";
+
+/** Shared page and palette action; a loading thread has no interrupt target yet. */
+export async function requestThreadInterrupt(threadId?: string): Promise<void> {
+  if (!threadId) return;
+
+  try {
+    await interruptThread(threadId);
+  } catch (cause) {
+    toast(`Could not interrupt: ${cause instanceof Error ? cause.message : "unknown error"}`, { tone: "error" });
+  }
+}
 
 /** What the thread page offers its palette commands: availability (read when the palette asks) and actions. */
 export interface ThreadCommandContext {

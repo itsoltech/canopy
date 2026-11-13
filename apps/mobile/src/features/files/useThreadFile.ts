@@ -92,4 +92,4 @@ export function useThreadFile(threadId: string, itemId: string, path: string) {
   };
 }
 
-export type ThreadFileState = ReturnType<typeof useThreadFile>;
+export type ThreadFileState = Omit<ReturnType<typeof useThreadFile>, "setDraft"> & { setDraft: (text: string) => void };

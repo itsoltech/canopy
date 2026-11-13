@@ -4,11 +4,11 @@ import { threadSyncCount, threadSyncLabel, threadSyncVisible } from "@canopy/dom
 import { Icon } from "../../ui/Icon";
 import { styles, useColors } from "../../ui/theme";
 
-export function ThreadSyncProgress({ status }: { status?: ui.ThreadSyncStatus }) {
+export function ThreadSyncProgress({ status, compact = false }: { status?: ui.ThreadSyncStatus; compact?: boolean }) {
   const c = useColors();
 
   return (
-    <View style={{ width: 64, alignItems: "flex-end" }}>
+    <View style={{ width: compact ? 16 : 64, alignItems: "flex-end" }}>
       {status && threadSyncVisible(status) && (
         <View
           accessible
@@ -16,7 +16,7 @@ export function ThreadSyncProgress({ status }: { status?: ui.ThreadSyncStatus })
           style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
         >
           <Icon name={status.reason ? "exclamation-triangle" : "arrow-path"} />
-          {!status.reason && (
+          {!status.reason && !compact && (
             <Text style={[styles.workMeta, { color: c.muted, fontVariant: ["tabular-nums"] }]}>
               {threadSyncCount(status.remaining)}
             </Text>
