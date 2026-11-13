@@ -5,6 +5,53 @@ opcjonalny `duration_ms` (dodatnie milisekundy, zakres uint32). Nie przepisuje
 historycznych załączników ani blobów. Nowe filmy zachowują oryginał oraz neutralną
 miniaturę WebP w istniejącej kolumnie `thumb_sha256`.
 
+## Szkice kompozytora
+
+Migracja `0140_composer_drafts` dodaje `composer_drafts` (właściciel, urządzenie,
+cel, binarny `ComposerDraft`, rewizja, identyfikator mutacji, przejęcie i potwierdzenie
+wysłania), `composer_draft_attachments` oraz licznik zmian `composer_draft_clock`.
+Każde zapytanie jest ograniczone przez `owner_user_id`. Payload ma najwyżej 512 KiB,
+właściciel najwyżej 100 niewysłanych szkiców, a retencja treści wynosi 30 dni od zapisu.
+Pruning pomija rozpoczęte wysyłki; małe potwierdzenia idempotencji usuwa 30 dni po wysłaniu. Referencje FK chronią
+załączniki do wygaśnięcia/usunięcia szkicu; samo wygaśnięcie nie usuwa załącznika
+wykorzystanego już w wiadomości. Treść nie trafia do logów.
+
+Zapis wymaga `expected_revision` i idempotentnego `mutation_id`; przejęcie blokuje
+wiersz, zwiększa rewizję i odnawia klucz wysyłki. Wygra jedno urządzenie. To samo urządzenie może odzyskać
+wynik przejęcia po utracie odpowiedzi. Stara rewizja źródła nie może już wysłać wiadomości.
+Wysyłanie sprawdza rewizję i rezerwuje receipt w krótkiej transakcji, następnie
+przekazuje wiadomość poza transakcją i zapisuje wynik w drugiej krótkiej transakcji.
+Nie utrzymuje połączenia SQL ani blokady wątku podczas pump/steer lub zdalnego RPC.
+Nie wymaga poprzedzającego zapisu szkicu ani blokady doradczej właściciela. Nie czeka
+także na odpowiedź zapisu, który już trwa: gateway akceptuje rewizję starszą od
+zapisu z tym samym kluczem wysyłki, ale nigdy od przejęcia przez inne urządzenie.
+Blokada doradcza pojedynczego id szkicu porządkuje pierwszy zapis i wysłanie;
+małe potwierdzenie powstaje także dla niewysłanego wcześniej do gatewaya szkicu,
+więc spóźniony zapis po wysłaniu nie odtworzy treści. Po sukcesie
+zachowuje przez 30 dni 32-bajtowy skrót SHA-256 requestu, usuwa treść i referencje
+załączników. Jednoznaczna odmowa cofa blokadę. Błąd o nieznanym wyniku wymaga ponowienia
+tego samego requestu; odpowiedź odtwarza istniejąca idempotencja wiadomości lub
+tworzenia wątku, bez drugiej kopii treści tury w receipcie szkicu.
+Utrata odpowiedzi z domu zdalnego zatwierdza lokalną blokadę przejęcia, zamiast
+umożliwiać drugiemu urządzeniu rozpoczęcie kolejnej wysyłki. Jawne odzyskanie
+kompozytora usuwa tę blokadę przez owner-scoped delete; edycja nadal zaczyna nową wiadomość.
+`threads.creation_request_id` z unikalnym indeksem właściciela
+chroni także tworzenie wątku przed powtórzeniem.
+
+Indeks `composer_drafts(thread_id)` wspiera usuwanie szkiców wątku. Lista pomija
+wysyłane i zablokowane wiersze. Zapis po commit budzi współdzielony hub subskrypcji;
+watch sprawdza trwały licznik po wznowieniu i powiadomieniu, bez okresowego pollingu.
+Ukryte receipty zwykłych wysyłek nie zmieniają licznika ani nie budzą subskrypcji.
+Usunięcia przez mirror i maintenance powiadamiają hub po zatwierdzeniu zmian.
+`delivery_request_id` pozwala po restarcie odczytać potwierdzenie, a identyfikator
+próby chroni przed spóźnionym wynikiem poprzedniej próby. Aktywna próba ma lease
+5 minut; równoległe identyczne żądanie czeka poza SQL, bez przejmowania dostawy.
+Odczyt odzyskiwania sprawdza też natywną turę/steer, więc naprawia receipt po utracie
+procesu między przyjęciem wiadomości a zapisem wyniku.
+
+Usunięcie wątku usuwa jego szkice (również cel nowego wątku bocznego), przez FK
+przy twardym usunięciu i trigger przy `deleted_at`. Archiwizacja zachowuje szkice.
+
 Migracja `0133_thread_order` dodaje nullable `threads.sidebar_order_key` (base-62,
 porównanie bajtowe `C`). Stare wątki bez klucza używają malejącego czasu utworzenia
 i id; migracja nie przepisuje historii. Trigger przy tworzeniu przydziela klucz
@@ -498,6 +545,8 @@ pod kluczem `(thread_id, client_request_id)`, z FK usuwanym kaskadowo z wątkiem
 Blokada wiersza wątku właściciela serializuje przyjęcie; efekt i potwierdzenie
 commitują razem. Dotyczy także komend bez tury (`/goal`). Powtórny odczyt zwraca
 bieżący stan tury/steera, bez ponawiania efektu. Nie ma deduplikacji treści.
+Odzyskiwanie szkicu sprawdza ten receipt także po utracie potwierdzenia wysyłki
+w `composer_drafts`; obejmuje to `/goal` bez tury ani steera i nie ponawia komendy.
 
 - `thread_events (thread_id, seq)` — klucz główny, odczyt osi czasu; `(thread_id, event_id)` unikalny — idempotencja.
 - `thread_items (thread_id, first_seq)` — snapshot dla frontendu; `(thread_id) WHERE status = 'in_progress'` — elementy w toku.

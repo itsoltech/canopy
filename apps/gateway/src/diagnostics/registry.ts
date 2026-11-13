@@ -8,7 +8,7 @@ import { diagnosticMethodId as methodId } from "@canopy/domain/diagnostics";
 
 export type RegisteredMethod = { id: number; name: string; layer: string; stream: boolean; interactive: boolean };
 
-export const MAX_METHODS = 512;
+export const MAX_METHODS = 576;
 
 /** Stable across additive contracts; descriptor collisions are a startup error, never merged series. */
 export function registered(method: DescMethod, layer = "rpc"): RegisteredMethod {

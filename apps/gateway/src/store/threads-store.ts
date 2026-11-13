@@ -15,6 +15,7 @@ import { queryFamily } from "../diagnostics/query-context.ts";
 import { reorderThread } from "./thread-order.ts";
 
 export interface ThreadStore {
+  threadByCreation(owner: string, requestId: string): Fx<ThreadRow | undefined>;
   reorderThread(ownerUserId: string, request: ui.ReorderThreadRequest): Fx<void>;
   /** `id`: a thread moved here from a linked computer keeps its id (docs/linked-computers.md, stage 8). */
   createThread(
@@ -106,6 +107,15 @@ const archivedThreads = (sql: SqlClient.SqlClient, ownerUserId: string, request:
 
 export function threadStore(sql: SqlClient.SqlClient): Omit<ThreadStore, "createThread"> {
   const store: Omit<ThreadStore, "createThread"> = {
+    threadByCreation: (owner, requestId) =>
+      requestId
+        ? sql
+            .unsafe<ThreadRow>(threadSelect("WHERE t.owner_user_id=$1::uuid AND t.creation_request_id=$2"), [
+              owner,
+              requestId,
+            ])
+            .pipe(Effect.map((rows) => rows[0]))
+        : Effect.succeed(undefined),
     reorderThread: (owner, request) => reorderThread(sql, owner, request),
     thread: (threadId, includeDeleted = false, metadataOnly = false) =>
       sql

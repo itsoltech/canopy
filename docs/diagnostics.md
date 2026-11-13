@@ -83,7 +83,7 @@ VmHWM **≤10 MiB** względem wyłączonego kolektora. Rezerwacje live są ogran
 do 6 MiB dla metod i 2 MiB dla łączy, historyczny widok DB do 1 MiB.
 Histogramy zarówno w RAM, jak i na dysku zawierają tylko niezerowe pary indeks/licznik;
 na dysku indeksy i liczniki są pakowanymi varintami. Zerowe kubełki nie mają alokacji.
-Gateway dopuszcza do 512 deskryptorów i 16 łączy worker/komputer; cache overview
+Gateway dopuszcza do 576 deskryptorów i 16 łączy worker/komputer; cache overview
 do 32 partnerów. Nadmiarowe serie łączy są pomijane z jawnym licznikiem strat,
 bez nieograniczonego rejestru identyfikatorów. Przykład: 24 metody × 60 minut ×
 4 niezerowe kubełki to 5760 par, zamiast 187 200 kubełków jednego pełnego histogramu;

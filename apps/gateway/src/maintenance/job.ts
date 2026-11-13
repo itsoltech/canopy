@@ -1,5 +1,6 @@
 import type { gatewayRuntime } from "../runtime.ts";
 import { pruneDatabase } from "./prune.ts";
+import { notifyDraftOwner } from "../drafts/events.ts";
 
 /** The DB row schedules work across instances; the timer only wakes an idle process. */
 export class DatabaseMaintenance {
@@ -16,7 +17,9 @@ export class DatabaseMaintenance {
       this.#running ??= this.runtime
         .runPromise(pruneDatabase(this.owner))
         .then(
-          () => {},
+          (touched) => {
+            if (touched) notifyDraftOwner(this.runtime, this.owner);
+          },
           () => {
             console.warn("Database maintenance deferred; durable progress will retry");
           },

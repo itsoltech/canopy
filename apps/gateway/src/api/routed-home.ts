@@ -76,6 +76,14 @@ export async function* forward(
       forgetGitHub(core.computers, nodeId, method);
 
     if (error instanceof ConnectError && [Code.Unavailable, Code.DeadlineExceeded].includes(error.code)) {
+      // A reply lost after write admission is not an offline rejection. Preserve
+      // uncertainty before presence decoration can turn it into FailedPrecondition.
+      if (
+        ["SendMessage", "CreateThread"].includes(method.name) &&
+        (error.code === Code.DeadlineExceeded || error.metadata.get("canopy-link-closed") === "true")
+      )
+        throw new ConnectError("Send not confirmed. Retry with the same request.", Code.DeadlineExceeded);
+
       if (method.name === "WatchThread" && core.computers?.canCall(nodeId))
         throw new ConnectError("Live updates for this thread are unavailable", error.code, {
           "canopy-error-scope": "thread",

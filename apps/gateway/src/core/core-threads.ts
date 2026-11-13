@@ -19,6 +19,7 @@ import { coreAnnounceSchedule } from "./core-schedules.ts";
 import { corePrepareWorkspace } from "../worktrees/core-worktrees.ts";
 import { coreNameBranchLater } from "../worktrees/branch-naming.ts";
 import type { AutomatedAccess } from "../store/automated-permissions.ts";
+import { checkedQuotes, coreCheckQuoteSources } from "./quotes.ts";
 
 /**
  * The worker's last report (ConfigApplied) must offer the provider and the profile for it. A worker that
@@ -128,6 +129,38 @@ export async function coreStartThread(hostContext: GatewayCore, row: ThreadRow):
   hostContext.hub.publishOverview(
     create(ui.OverviewUpdateSchema, { change: { case: "thread", value: coreUiThread(hostContext, row) } }),
   );
+}
+
+async function completedCreation(core: GatewayCore, input: ui.CreateThreadRequest) {
+  const previous = await coreRun(core, (s) =>
+    s.threadByCreation(core[coreState].options.userId, input.clientRequestId),
+  );
+
+  if (!previous) return;
+
+  const ready =
+    (!input.initialMessage && !input.initialAttachmentIds.length && !input.initialQuotes.length) ||
+    (await coreRun(core, (s) => s.turnByClientRequest(previous.id, input.clientRequestId)));
+
+  if (!ready) return;
+
+  if (previous.status === "creating") await coreStartThread(core, previous);
+
+  return coreUiThread(core, previous);
+}
+
+async function initialQuotes(core: GatewayCore, request: ui.CreateThreadRequest) {
+  const quotes = checkedQuotes(
+    request.initialQuotes,
+    (reason) => new InvalidError(reason),
+    request.initialMessage,
+    request.initialMentions,
+  );
+
+  for (const quote of quotes)
+    if (quote.sourceThreadId) await coreCheckQuoteSources(core, [quote], quote.sourceThreadId);
+
+  return quotes;
 }
 
 export interface CoreThreadsMethods {
@@ -258,6 +291,9 @@ export const coreThreadsMethods: CoreThreadsMethods = {
     ownerInput = false,
     automated = remoteParent ? { permissionModeNote: remoteParent.permissionModeNote ?? "" } : undefined,
   ): Promise<ui.Thread> {
+    const previous = await completedCreation(this, input);
+
+    if (previous) return previous;
     const source = input.forkAtTurnId && !input.parentThreadId ? await coreForkRequest(this, input) : input;
     const asked = automated ? { ...source, permissionMode: input.permissionMode } : source;
     await coreCheckProvider(this, asked, automated !== undefined);
@@ -281,6 +317,7 @@ export const coreThreadsMethods: CoreThreadsMethods = {
     if (
       request.initialAttachmentIds.length === 0 &&
       request.initialMentions.length === 0 &&
+      request.initialQuotes.length === 0 &&
       !(ownerInput && request.initialMessage.startsWith("!"))
     ) {
       const row = await coreRun(this, (s) =>
@@ -330,6 +367,8 @@ export const coreThreadsMethods: CoreThreadsMethods = {
       files?.files,
     );
 
+    const quotes = await initialQuotes(this, request);
+
     if (goal !== undefined && files) throw new InvalidError("a /goal message cannot carry attachments");
 
     const shell = ownerInput
@@ -351,6 +390,7 @@ export const coreThreadsMethods: CoreThreadsMethods = {
           request.initialMessage,
           mentions,
           files?.input(row.id, request.initialMessage, mentions),
+          quotes,
         );
 
       await coreRun(this, (s) =>
