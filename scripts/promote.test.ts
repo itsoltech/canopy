@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { JsonValue } from "@canopy/domain";
+import { isJsonObject, type JsonValue } from "@canopy/domain";
 import { burnInDays, promotionSummary, runPromotion, type PromotionOptions } from "./promote.ts";
 import { loadPromotion, type PromotionAdapters } from "./promotion-data.ts";
 import { DAY } from "./promotion-policy.ts";
@@ -67,9 +67,9 @@ function fixture() {
             conclusion: "success",
           })),
         };
-      const sha = new URL(`https://fixture.invalid/${path}`).searchParams.get("head_sha")!;
+      const page = Number(new URL(`https://fixture.invalid/${path}`).searchParams.get("page") ?? 1);
 
-      return { workflow_runs: runs.get(sha) ?? [] };
+      return { workflow_runs: [...runs.values()].flat().slice((page - 1) * 100, page * 100) };
     },
     pages(path) {
       if (path.includes("/releases?")) return releases;
@@ -77,9 +77,15 @@ function fixture() {
       if (path.includes("labels=release-blocker")) return blockers;
 
       if (path.includes("/issues?")) return issues;
-      const match = /\/commits\/([^/]+)\/pulls/.exec(path);
 
-      if (match) return pulls.get(match[1]!) ?? [];
+      if (path.includes("/pulls?")) {
+        const base = new URL(`https://fixture.invalid/${path}`).searchParams.get("base");
+
+        return [...pulls.values()]
+          .flat()
+          .filter((pr) => isJsonObject(pr) && isJsonObject(pr["base"]) && pr["base"]["ref"] === base);
+      }
+
       throw new Error(`Unexpected fixture API read: ${path}`);
     },
   };
@@ -557,4 +563,83 @@ test("dry-run forecasts strict hold expiry before the pending fix soaks", async 
 
   expect(result.next).toEqual({ at: now + 1, sha: feature, version: "0.2.0-beta.1" });
   expect(f.writes).toEqual([]);
+});
+
+test("fresh blockers, PR holds, follow-up bodies and CI failures abort the pre-push recheck", async () => {
+  for (const gate of ["blocker", "label", "body", "removed-link", "ci"]) {
+    const f = fixture();
+    const feature = f.commit("feat: original", 50);
+    f.release(feature, "v0.2.0-nightly.1");
+    const fix = f.commit("fix: correction", 1, gate === "removed-link" ? "feature.ts" : "other.ts");
+
+    if (gate === "removed-link")
+      f.pulls.set(fix, [
+        {
+          number: 69,
+          body: `Refs: ${"f".repeat(40)}`,
+          merged_at: "2026-11-10",
+          merge_commit_sha: fix,
+          base: { ref: "dev" },
+          labels: [],
+        },
+      ]);
+    f.pulls.set(feature, [
+      { number: 68, body: "", merged_at: "2026-11-01", merge_commit_sha: feature, base: { ref: "dev" }, labels: [] },
+    ]);
+
+    const racing: PromotionAdapters = {
+      ...f.adapters,
+      git(...args) {
+        if (args[0] === "fetch") {
+          if (gate === "blocker") f.blockers.push({ number: 7 });
+
+          if (gate === "label")
+            f.pulls.set(feature, [
+              {
+                number: 68,
+                body: "",
+                merged_at: "2026-11-01",
+                merge_commit_sha: feature,
+                base: { ref: "dev" },
+                labels: [{ name: "promotion-hold" }],
+              },
+            ]);
+
+          if (gate === "body")
+            f.pulls.set(fix, [
+              {
+                number: 69,
+                body: "Fixes: #68",
+                merged_at: "2026-11-10",
+                merge_commit_sha: fix,
+                base: { ref: "dev" },
+                labels: [],
+              },
+            ]);
+
+          if (gate === "removed-link") f.pulls.set(fix, []);
+
+          if (gate === "ci")
+            f.runs.set(feature, [
+              {
+                head_sha: feature,
+                head_branch: "dev",
+                status: "completed",
+                conclusion: "failure",
+                run_number: 2,
+                run_attempt: 1,
+              },
+            ]);
+        }
+
+        return f.git(...args);
+      },
+    };
+
+    await expect(runPromotion("fixture/canopy", "dev-next", options, racing, now)).rejects.toThrow(
+      "Promotion gates changed during selection",
+    );
+    expect(f.git("ls-remote", "origin", "refs/heads/next")).toStartWith(f.baseline);
+    expect(f.writes).toEqual([]);
+  }
 });

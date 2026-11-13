@@ -1,6 +1,6 @@
 /** Local git history exercises diff/blame semantics, then the actual cutoff policy consumes that evidence. */
 import { afterEach, expect, test } from "bun:test";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -206,6 +206,19 @@ test("blame ignores listed revisions that are missing from the repository", () =
   f.commit("chore: list a revision that was never fetched", 40, root + featureRule);
   const fix = f.commit("fix: panel color", 1, root + featureRule.replace("red", "blue"));
   expect(fix.attributions[0]?.sha).toBe(feature.sha);
+  const diagnostics: string[] = [];
+
+  const attribution = attributePromotionFix(fix, (...args) => {
+    const result = spawnSync("git", args, { cwd: f.cwd, encoding: "utf8" });
+    diagnostics.push(result.stderr);
+
+    if (result.status !== 0) throw new Error("Git object is unavailable");
+
+    return result.stdout.trim();
+  });
+
+  expect(attribution[0]?.sha).toBe(feature.sha);
+  expect(diagnostics.join("")).toBe("");
 });
 
 test("explicit PR/SHA links and standard reverts take precedence over blame and its path exclusions", () => {

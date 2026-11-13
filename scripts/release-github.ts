@@ -10,6 +10,9 @@ export function git(...args: string[]): string {
 // write may still have happened (a second dispatch would start a second release).
 const RETRY_DELAYS_MS = [2_000, 5_000, 15_000, 30_000];
 
+// Batched PRs and workflow runs exceed Node's 1 MiB default, even on a single 100-item page.
+const MAX_RESPONSE_BYTES = 64 * 1024 * 1024;
+
 const TRANSIENT = /HTTP 5\d\d|unexpected end of JSON|timed? ?out|ECONNRESET|connection reset|EOF/i;
 
 function read<T>(run: () => T): T {
@@ -36,6 +39,7 @@ export function api(path: string, method = "GET", body?: JsonValue): JsonValue |
   const call = (): JsonValue | undefined => {
     const output = execFileSync("gh", args, {
       encoding: "utf8",
+      maxBuffer: MAX_RESPONSE_BYTES,
       ...(body !== undefined && { input: JSON.stringify(body) }),
     });
 
@@ -47,7 +51,12 @@ export function api(path: string, method = "GET", body?: JsonValue): JsonValue |
 
 export function pages(path: string): JsonValue[] {
   const result = read((): JsonValue =>
-    JSON.parse(execFileSync("gh", ["api", "--paginate", "--slurp", path], { encoding: "utf8" })),
+    JSON.parse(
+      execFileSync("gh", ["api", "--paginate", "--slurp", path], {
+        encoding: "utf8",
+        maxBuffer: MAX_RESPONSE_BYTES,
+      }),
+    ),
   );
 
   if (!Array.isArray(result) || !result.every(Array.isArray)) throw new Error("Invalid paginated GitHub response");

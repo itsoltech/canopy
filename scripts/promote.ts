@@ -153,7 +153,7 @@ export async function runPromotion(
     throw new Error("Branch moved during selection; retry next cycle");
   adapters.git("merge-base", "--is-ancestor", input.target, plan.sha);
   adapters.git("merge-base", "--is-ancestor", plan.sha, `origin/${source}`);
-  const rechecked = loadPromotion(repo, path, input.soakMs, adapters, now);
+  const rechecked = loadPromotion(repo, path, input.soakMs, adapters, now, undefined, input);
   rechecked.paused = input.paused;
   rechecked.holdCapMs = input.holdCapMs;
 

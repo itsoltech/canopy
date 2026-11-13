@@ -1,5 +1,5 @@
 import { isJsonArray, isJsonObject, type JsonValue, type JsonObject } from "@canopy/domain/json";
-import type { PromotionCommit, PromotionInput } from "./promotion-policy.ts";
+import { promotionCommitLinks, type PromotionCommit, type PromotionInput } from "./promotion-policy.ts";
 import { attributePromotionFix } from "./promotion-attribution.ts";
 
 export interface PromotionAdapters {
@@ -47,24 +47,30 @@ export function promotionBranches(path: string): ["dev" | "next", "next" | "main
   throw new Error("Choose dev-next or next-main");
 }
 
-function prsForCommit(repo: string, sha: string, source: string, adapters: PromotionAdapters): PromotionCommit["prs"] {
-  return adapters.pages(`repos/${repo}/commits/${sha}/pulls?per_page=100`).flatMap((value) => {
-    const pr = object(value);
+function mergedPrs(repo: string, source: string, adapters: PromotionAdapters) {
+  const result = new Map<string, PromotionCommit["prs"]>();
 
-    // A commit can also appear in unmerged promotion/backmerge PRs; only its actual squash PR counts.
-    if (!pr["merged_at"] || pr["merge_commit_sha"] !== sha) return [];
-    const base = string(object(pr["base"])["ref"]);
+  for (const base of new Set([source, "dev"])) {
+    for (const value of adapters.pages(`repos/${repo}/pulls?state=closed&base=${base}&per_page=100`)) {
+      const pr = object(value);
 
-    if (base !== source && base !== "dev") return [];
+      // A commit can also appear in unmerged promotion/backmerge PRs; only its actual squash PR counts.
+      if (!pr["merged_at"]) continue;
+      const sha = string(pr["merge_commit_sha"]);
 
-    return [
-      {
+      if (object(pr["base"])["ref"] !== base) continue;
+      const prs = result.get(sha) ?? [];
+
+      prs.push({
         number: number(pr["number"]),
         body: pr["body"] === null ? "" : string(pr["body"]),
         hold: array(pr["labels"]).some((label) => object(label)["name"] === "promotion-hold"),
-      },
-    ];
-  });
+      });
+      result.set(sha, prs);
+    }
+  }
+
+  return result;
 }
 
 function publishedReleases(repo: string, source: string, adapters: PromotionAdapters) {
@@ -95,29 +101,39 @@ function publishedReleases(repo: string, source: string, adapters: PromotionAdap
   return result;
 }
 
-function latestRun(repo: string, source: string, sha: string, adapters: PromotionAdapters) {
+function latestRuns(repo: string, source: string, adapters: PromotionAdapters) {
   // Unlike issues/releases, the runs endpoint wraps each page in workflow_runs.
-  const runs: JsonObject[] = [];
+  const runs = new Map<string, JsonObject>();
 
   for (let page = 1; ; page++) {
     const response = object(
       adapters.api(
-        `repos/${repo}/actions/workflows/release.yml/runs?branch=${source}&head_sha=${sha}&per_page=100&page=${page}`,
+        // Filter locally: GitHub caps filtered run searches at 1,000 results, even with pagination.
+        `repos/${repo}/actions/workflows/release.yml/runs?per_page=100&page=${page}`,
       ),
     );
 
     const batch = array(response["workflow_runs"]);
-    runs.push(...batch.map(object));
+
+    for (const value of batch) {
+      const run = object(value);
+
+      if (run["head_branch"] !== source) continue;
+      const sha = string(run["head_sha"]);
+      const previous = runs.get(sha);
+
+      if (
+        !previous ||
+        number(run["run_number"]) > number(previous["run_number"]) ||
+        (run["run_number"] === previous["run_number"] && number(run["run_attempt"]) > number(previous["run_attempt"]))
+      )
+        runs.set(sha, run);
+    }
 
     if (batch.length < 100) break;
   }
 
-  return runs
-    .filter((run) => run["head_sha"] === sha && run["head_branch"] === source)
-    .sort(
-      (a, b) =>
-        number(b["run_number"]) - number(a["run_number"]) || number(b["run_attempt"]) - number(a["run_attempt"]),
-    )[0];
+  return runs;
 }
 
 function untaggedSmoke(repo: string, run: JsonObject, adapters: PromotionAdapters): boolean {
@@ -139,29 +155,45 @@ function untaggedSmoke(repo: string, run: JsonObject, adapters: PromotionAdapter
   );
 }
 
-function readCommit(repo: string, source: string, sha: string, adapters: PromotionAdapters): PromotionCommit {
-  const parent = adapters.git("rev-parse", `${sha}^1`);
+function readCommit(
+  sha: string,
+  prs: PromotionCommit["prs"],
+  adapters: PromotionAdapters,
+  previous?: PromotionCommit,
+): PromotionCommit {
+  const parent = previous?.parent ?? adapters.git("rev-parse", `${sha}^1`);
 
   const commit: PromotionCommit = {
     sha,
     parent,
-    landedAt: Number(adapters.git("show", "-s", "--format=%ct", sha)) * 1000,
-    message: adapters.git("show", "-s", "--format=%B", sha),
-    files: adapters
-      .git("diff-tree", "--no-commit-id", "--name-only", "-r", "--no-renames", parent, sha)
-      .split("\n")
-      .filter(Boolean),
+    landedAt: previous?.landedAt ?? Number(adapters.git("show", "-s", "--format=%ct", sha)) * 1000,
+    message: previous?.message ?? adapters.git("show", "-s", "--format=%B", sha),
+    files:
+      previous?.files ??
+      adapters
+        .git("diff-tree", "--no-commit-id", "--name-only", "-r", "--no-renames", parent, sha)
+        .split("\n")
+        .filter(Boolean),
     attributions: [],
-    prs: prsForCommit(repo, sha, source, adapters),
+    prs,
     green: false,
   };
 
-  commit.attributions = attributePromotionFix(commit, adapters.git);
+  // Git objects are immutable, but PR bodies can change their explicit links between selection and push.
+  commit.attributions =
+    previous && JSON.stringify(promotionCommitLinks(previous)) === JSON.stringify(promotionCommitLinks(commit))
+      ? previous.attributions
+      : attributePromotionFix(commit, adapters.git);
 
   return commit;
 }
 
-function pendingDevFixes(repo: string, sourceSha: string, adapters: PromotionAdapters): PromotionCommit[] {
+function pendingDevFixes(
+  sourceSha: string,
+  adapters: PromotionAdapters,
+  prs: Map<string, PromotionCommit["prs"]>,
+  previous: Map<string, PromotionCommit>,
+): PromotionCommit[] {
   const devSha = adapters.git("rev-parse", "origin/dev");
   adapters.git("merge-base", "--is-ancestor", sourceSha, devSha);
 
@@ -169,7 +201,7 @@ function pendingDevFixes(repo: string, sourceSha: string, adapters: PromotionAda
     .git("rev-list", "--first-parent", "--reverse", `${sourceSha}..${devSha}`)
     .split("\n")
     .filter(Boolean)
-    .map((sha) => readCommit(repo, "dev", sha, adapters));
+    .map((sha) => readCommit(sha, prs.get(sha) ?? [], adapters, previous.get(sha)));
 }
 
 export function loadPromotion(
@@ -179,6 +211,7 @@ export function loadPromotion(
   adapters: PromotionAdapters,
   now = Date.now(),
   targetOverride?: string,
+  previousInput?: PromotionInput,
 ): PromotionInput {
   const [source, target] = promotionBranches(path);
   const sourceSha = adapters.git("rev-parse", `origin/${source}`);
@@ -190,20 +223,36 @@ export function loadPromotion(
     .split("\n")
     .filter(Boolean);
 
-  const releases = publishedReleases(repo, source, adapters);
+  const releases = history.length
+    ? publishedReleases(repo, source, adapters)
+    : new Map<string, { tag: string; readyAt: number }>();
+
+  const prs = history.length ? mergedPrs(repo, source, adapters) : new Map<string, PromotionCommit["prs"]>();
+  const runs = history.length ? latestRuns(repo, source, adapters) : new Map<string, JsonObject>();
+
+  const previous = new Map(
+    [...(previousInput?.commits ?? []), ...(previousInput?.pendingFixes ?? [])].map((commit) => [commit.sha, commit]),
+  );
+
   const commits: PromotionCommit[] = [];
   // A stable hotfix can be target via a merge's second parent after Back-merge.
   // Older first-parent commits are still dependencies, but cannot themselves be promoted over that hotfix.
   const minimumIndex = history.findIndex((sha) => adapters.git("merge-base", targetSha, sha) === targetSha);
 
   for (const sha of history) {
-    const latest = latestRun(repo, source, sha, adapters);
+    const latest = runs.get(sha);
     const release = releases.get(sha);
-    const commit = readCommit(repo, source, sha, adapters);
-    commit.green =
-      latest?.["status"] === "completed" &&
-      latest["conclusion"] === "success" &&
-      (!!release || untaggedSmoke(repo, latest, adapters));
+    const commit = readCommit(sha, prs.get(sha) ?? [], adapters, previous.get(sha));
+    let green: boolean | undefined;
+    // The policy reads this only for a possible candidate; excluded untagged commits need no jobs API calls.
+    Object.defineProperty(commit, "green", {
+      enumerable: true,
+      get: () =>
+        (green ??=
+          latest?.["status"] === "completed" &&
+          latest["conclusion"] === "success" &&
+          (!!release || untaggedSmoke(repo, latest, adapters))),
+    });
 
     if (release) commit.release = release;
     commits.push(commit);
@@ -226,7 +275,7 @@ export function loadPromotion(
     minimumIndex: Math.max(0, minimumIndex),
   };
 
-  if (path === "next-main" && commits.length) input.pendingFixes = pendingDevFixes(repo, sourceSha, adapters);
+  if (path === "next-main" && commits.length) input.pendingFixes = pendingDevFixes(sourceSha, adapters, prs, previous);
 
   return input;
 }
