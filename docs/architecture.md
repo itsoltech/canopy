@@ -26,6 +26,7 @@ Powiązane dokumenty:
 - [execution.md](execution.md) — tury, praca w tle, subagenci, interakcje, limity
 - [goals.md](goals.md) — cele: silnikiem jest harness (Codex goals, Claude `/goal`), platforma je śledzi i steruje nimi z UI
 - [agent-bus.md](agent-bus.md) — szyna agentów: delegowanie przez wątki boczne, interakcje, harmonogram; natywna orkiestracja dostawców wyłączona
+- [agent-visuals.md](agent-visuals.md) — projekt obrazów w odpowiedziach i interaktywnych visuals; rekomendacje, granice i plan dostarczenia, bez implementacji
 - [durability.md](durability.md) — trwałość, graceful shutdown, aktualizacje w trakcie działania
 - [`proto/canopy/worker/v1/worker_link.proto`](../proto/canopy/worker/v1/worker_link.proto) — szkic kontraktu
 
