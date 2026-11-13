@@ -6,6 +6,7 @@
 
   let { view, onopen = () => {} }: { view: Workspace; onopen?: () => void } = $props();
   const capabilities = useGatewayCapabilities();
+
   // Both chunks are needed for the first page; avoid an extra round trip after the tree mounts.
   const load = () =>
     Promise.all([import("./WorkspaceTree.svelte"), import("./directory-api.ts")]).then(([tree]) => tree);

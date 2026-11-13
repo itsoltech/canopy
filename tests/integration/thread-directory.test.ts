@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdirSync, renameSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { create, toBinary, toJsonString } from "@bufbuild/protobuf";
+import { Code, ConnectError } from "@connectrpc/connect";
 import {
   CommandSchema,
   ThreadDirectoryPageSchema,
@@ -281,9 +282,14 @@ describe.skipIf(!dockerAvailable)("bounded thread directory over gateway, worker
         tokens.push(page.nextPageToken);
       }
 
-      expect(
-        await failure(home.gw.api.listThreadDirectory({ threadId: thread.id, directory: "many", pageSize: 1 })),
-      ).toContain("Too many directories");
+      const refused = await home.gw.api
+        .listThreadDirectory({ threadId: thread.id, directory: "many", pageSize: 1 })
+        .then(
+          () => undefined,
+          (cause: unknown) => ConnectError.from(cause).code,
+        );
+
+      expect(refused).toBe(Code.InvalidArgument);
       await home.gw.api.listThreadDirectory({
         threadId: thread.id,
         directory: "many",
