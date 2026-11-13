@@ -31,6 +31,15 @@ export class CommandHandlers {
   async execute(command: Command): Promise<CommandOutput> {
     const kind = command.kind;
 
+    if (kind.case === "exportThreadImage")
+      return {
+        threadImageExport: await this.ctx.state.imageExports.execute(kind.value, {
+          cwd: this.ctx.state.cwds.get(kind.value.threadId) ?? "",
+          attachments: this.ctx.state.files.threadDir(kind.value.threadId),
+          running: this.ctx.state.running.has(`${kind.value.threadId}/${kind.value.turnId}`),
+        }),
+      };
+
     if (kind.case === "listDirectory") return this.ctx.ops.listDirectory(kind.value.path);
 
     if (kind.case === "listThreadDirectory") {

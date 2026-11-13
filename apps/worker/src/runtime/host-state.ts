@@ -22,6 +22,7 @@ import type { HeadTracker } from "../git/heads.ts";
 import { CatalogCache } from "../mentions/catalog.ts";
 import { AttachmentFiles } from "../attachments/files.ts";
 import { PreviewStore } from "../images/index.ts";
+import { ThreadImageExports } from "../images/exports.ts";
 import { WorkerImport } from "../import/service.ts";
 import { AccountStatuses } from "../providers/account-status.ts";
 import { resolveWorktreeRoots, type WorktreeRoots } from "../git/worktree-roots.ts";
@@ -132,6 +133,7 @@ export class HostState {
   }
   readonly files: AttachmentFiles;
   readonly previews: PreviewStore;
+  readonly imageExports: ThreadImageExports;
   /** CLI import (docs/import.md): scans and reads the device's CLI homes on the owner's request. */
   readonly imports: WorkerImport;
   /** Working directory per thread (from the commands' ThreadSpec): view_image's scope. */
@@ -161,6 +163,7 @@ export class HostState {
     };
     this.worktreeRoots = options.worktreeRoots ?? resolveWorktreeRoots({ dataDir: options.dataDir, home: "" });
     this.files = new AttachmentFiles(options.dataDir);
+    this.imageExports = new ThreadImageExports(this.files.root);
     this.previews = new PreviewStore(options.dataDir);
     this.previews.prune();
     this.imports = new WorkerImport({

@@ -82,6 +82,23 @@ Każda para wymaga dokładnie dwóch stron `before` / `after`. Sukces zawiera
 workera `thread_image_replies_v1`. Limity, transfer i trwałość:
 [protokół](protocol.md#trwałe-odpowiedzi-obrazami).
 
+Eksporter workera sprawdza bieżący katalog i turę niezależnie od gatewaya.
+Przed uruchomieniem harnessu przypina tożsamości cwd/worktree i katalogu załączników
+oraz ich przodków; ponowna tura ani reconnect nie ustanawiają nowej granicy zaufania.
+Unix otwiera każdy komponent przez `openat(O_NOFOLLOW)` względem zweryfikowanego
+uchwytu rodzica. Windows sprawdza identyfikatory plików i reparse points na uchwytach,
+utrzymując przodków bez `FILE_SHARE_DELETE` do otwarcia pliku. Podmiana katalogu,
+symlinku lub junction po przypisaniu scope kończy się odmową, również przed wydaniem
+snapshotu. Wspólny katalog załączników jest przypięty przy tworzeniu workera.
+Odrzuca traversal, dowiązania, junctions, hardlinki i pliki specjalne; przed
+odczytem sprawdza fizyczną ścieżkę otwartego deskryptora (Linux `/proc`, macOS
+`F_GETPATH`, Windows `GetFinalPathNameByHandleW`). Brak tej kontroli oznacza odmowę.
+Probe otwiera plik i zwraca metadane bez alokacji bajtów. Pierwszy read tworzy
+ograniczony snapshot, kontroluje rozmiar i czasy modyfikacji, liczy SHA-256;
+dalsze odczyty używają wyłącznie tego snapshotu. Worker utrzymuje najwyżej dwa
+eksporty, jeden na wątek; usuwa je po 10 s bezczynności, 60 s całości,
+zakończeniu tury lub rozłączeniu. Bajty nigdy nie trafiają do journalu ani modelu.
+
 Jedna definicja w Effect Schema (`AGENT_BUS_TOOLS`). Z niej powstaje JSON Schema dla dostawców, a gateway dekoduje wywołania ściśle: nieznane narzędzie, nadmiarowe pole albo wartość spoza zakresu wracają do modelu jako błąd narzędzia.
 
 | Narzędzie | Poziom 0 | Poziom 1 | Co robi |
@@ -450,6 +467,8 @@ Regresje wiadomości: `tests/integration/agent-bus-messages.test.ts` — przerwa
   - `thread/resume` i `thread/fork` nie przyjmują `dynamicTools`. Codex trzyma narzędzia z wątkiem: działają po wznowieniu w nowym procesie i w forkach (sprawdzone na żywo).
   - Skutek: wątek boczny utworzony forkiem wątku głównego widzi też narzędzia orkiestratora (`spawn_thread` itd.). Gateway i tak odrzuca je według poziomu wywołującego (`authorizeBusCall`).
   - Konektory kont są osobnym lokalnym MCP `canopy_connectors`, aby zmiana ich katalogu mogła wejść na granicy tur przez unsubscribe/resume z historią. Nie zmienia to dynamic tools szyny ani `view_image`; szczegóły w [connectors.md](connectors.md#ograniczenia-sesji-harnessów).
+- **Grok ACP:** prywatny, uwierzytelniony serwer MCP workera udostępnia ten sam schemat `show_images` co pozostałe harnessy.
+- `ThreadSpec.instructions` odróżnia oglądanie przez model od publikowania dla użytkownika i zaleca reprezentatywne obrazy przed usunięciem źródeł. Stary wątek Codexa z utrwalonym katalogiem bez `show_images` wymaga nowego wątku; agent ma jawnie powiedzieć o braku narzędzia. Fork i samo resume nie odświeżają katalogu.
 - Zestaw zależy od poziomu wątku (`ThreadSpec.depth`). Model wątku bocznego nie widzi `spawn_thread` ani narzędzi sterowania.
 - Worker tylko przekazuje wywołania (`AgentToolCall`) do gateway i niczego nie wykonuje lokalnie.
 

@@ -48,6 +48,9 @@ describe.skipIf(!dockerAvailable)("composer shell input over gRPC and scripted h
       expect(done.shellResult?.output).toContain("shell output\n");
       expect(done.shellResult?.output).toContain("shell error\n");
       expect(done.inputText).toBe(shellInputText(done.shellResult!));
+      expect(fixture.inputs().some((input) => input.parts.some((part) => part.text?.endsWith(done.inputText)))).toBe(
+        true,
+      );
       const view = await snapshot(thread.id);
       expect(
         view.items.some((i) => i.item?.content.case === "agentMessage" && i.item.content.value.text === done.inputText),

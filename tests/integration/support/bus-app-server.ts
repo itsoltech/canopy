@@ -9,6 +9,7 @@ const notify = (method: string, params: JsonObject) => send({ method, params });
 const threadId = "bus-fixture-thread";
 const turnId = "bus-fixture-turn";
 let args: JsonObject = {};
+const tool = process.argv[2] ?? "send_message";
 
 for await (const line of createInterface({ input: process.stdin })) {
   const request = decodeJsonObject(JSON.parse(line));
@@ -38,7 +39,7 @@ for await (const line of createInterface({ input: process.stdin })) {
         type: "mcpToolCall",
         id: "native-mcp-call",
         server: "canopy",
-        tool: "send_message",
+        tool,
         arguments: args,
         status: "inProgress",
         appContext: null,
@@ -54,7 +55,7 @@ for await (const line of createInterface({ input: process.stdin })) {
         type: "dynamicToolCall",
         id: "bus-call",
         namespace: "canopy",
-        tool: "send_message",
+        tool,
         arguments: args,
         status: "inProgress",
         contentItems: null,
@@ -65,7 +66,7 @@ for await (const line of createInterface({ input: process.stdin })) {
     send({
       id: "bus-tool-request",
       method: "item/tool/call",
-      params: { threadId, turnId, callId: "bus-call", namespace: "canopy", tool: "send_message", arguments: args },
+      params: { threadId, turnId, callId: "bus-call", namespace: "canopy", tool, arguments: args },
     });
   } else if (id === "bus-tool-request") {
     notify("item/completed", {
@@ -75,7 +76,7 @@ for await (const line of createInterface({ input: process.stdin })) {
         type: "mcpToolCall",
         id: "native-mcp-call",
         server: "canopy",
-        tool: "send_message",
+        tool,
         arguments: args,
         status: "completed",
         appContext: null,
@@ -91,7 +92,7 @@ for await (const line of createInterface({ input: process.stdin })) {
         type: "dynamicToolCall",
         id: "bus-call",
         namespace: "canopy",
-        tool: "send_message",
+        tool,
         arguments: args,
         status: "completed",
         contentItems: [],

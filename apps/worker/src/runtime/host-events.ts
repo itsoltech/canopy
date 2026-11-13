@@ -24,6 +24,7 @@ export class HostEvents {
 
     if (event.body.case === "turnFinished") {
       this.ctx.state.running.delete(key);
+      this.ctx.state.imageExports.close(event.threadId);
       // The turn may have switched branches without the watch noticing.
       setTimeout(() => void this.ctx.state.heads.check(event.threadId), 0).unref();
     }
