@@ -132,6 +132,10 @@ export function threadLifecycle(sql: SqlClient.SqlClient, dispatch: Dispatch) {
 
           const ids = rows.map((r) => r.id);
           const commands = yield* stop(ids);
+          // Late deleted-thread events are acknowledged without projection, so finish its turns here.
+          yield* sql`UPDATE turns SET status='interrupted', interrupt_source='system',
+            interrupt_reason='thread deleted', completed_at=now()
+            WHERE thread_id=ANY(${ids}::uuid[]) AND status='running'`;
           yield* sql`UPDATE threads SET deleted_at = now(), deletion_batch_id = ${threadId}::uuid, title_requested = false,
         title_revision = title_revision + 1 WHERE id = ANY(${ids}::uuid[])`;
 

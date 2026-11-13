@@ -32,6 +32,7 @@ export const WORKER_METRICS: MetricDefinition[] = [
   { id: 113, name: "Route changes", group: "journal", unit: "count", kind: "counter" },
   { id: 114, name: "Transport failures", group: "journal", unit: "count", kind: "counter" },
   { id: 115, name: "Authentication failures", group: "journal", unit: "count", kind: "counter" },
+  { id: 116, name: "Journals deferred until gateway update", group: "journal", unit: "count", kind: "counter" },
   { id: 120, name: "Disk available", group: "storage", unit: "bytes", kind: "gauge" },
   { id: 121, name: "Disk total", group: "storage", unit: "bytes", kind: "gauge" },
   { id: 122, name: "Journal file size", group: "storage", unit: "bytes", kind: "gauge" },

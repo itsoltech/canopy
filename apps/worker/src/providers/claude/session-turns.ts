@@ -5,10 +5,13 @@ import { transcriptPath } from "./transcript.ts";
 import type { ClaudeThreadContext, Session, SessionTurn } from "./thread-types.ts";
 import { fileSize } from "./session-io.ts";
 import type { sessionOutput } from "./session-output.ts";
+import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import { startsTurn } from "./mapping.ts";
 
 export function sessionTurns(ctx: ClaudeThreadContext, record: ReturnType<typeof sessionOutput>["record"]) {
   const { options, journal } = ctx;
   const idleGraceMs = options.idleGraceMs ?? 3_000;
+  const suppressed = new WeakSet<Session>();
 
   const beginTurn = async (session: Session, turnId: string, origin: TurnOrigin, model: string) => {
     if (session.closeTimer) clearTimeout(session.closeTimer);
@@ -70,5 +73,31 @@ export function sessionTurns(ctx: ClaudeThreadContext, record: ReturnType<typeof
     }
   };
 
-  return { beginTurn, closeWhenIdle, dropSteers };
+  const suppressWake = async (session: Session, message: SDKMessage) => {
+    if (session.turn || !startsTurn(message)) return false;
+
+    if (!suppressed.has(session) && options.allowProviderTurn?.(session.threadId) !== false) return false;
+
+    if (!suppressed.has(session)) {
+      suppressed.add(session);
+      await session.query.interrupt().catch(() => {});
+      await record(session.threadId, {
+        body: {
+          case: "notice",
+          value: {
+            level: NoticeLevel.INFO,
+            code: "continuation_suppressed",
+            message: "Automatic follow-up skipped because this thread is archived or deleted.",
+          },
+        },
+      });
+    }
+
+    if (message.type === "result") suppressed.delete(session);
+    closeWhenIdle(session);
+
+    return true;
+  };
+
+  return { beginTurn, closeWhenIdle, dropSteers, suppressWake };
 }

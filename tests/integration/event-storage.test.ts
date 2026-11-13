@@ -13,6 +13,7 @@ import { eventually, startTestGateway, type TestGateway } from "./support/gatewa
 
 let gw: TestGateway;
 let threadId = "";
+const logs: string[] = [];
 const dir = tempDir("canopy-event-storage-");
 
 const query = <A extends object>(statement: string, params: readonly string[] = []) =>
@@ -88,7 +89,7 @@ async function replay(events: ThreadEventInit[], subject = threadId) {
 
 describe.skipIf(!dockerAvailable)("worker event storage on PostgreSQL and gRPC", () => {
   beforeAll(async () => {
-    gw = await startTestGateway();
+    gw = await startTestGateway({ log: (message) => logs.push(message) });
     const project = (await gw.api.createProject({ name: "Event storage" })).project!;
 
     const workspace = (
@@ -251,7 +252,7 @@ describe.skipIf(!dockerAvailable)("worker event storage on PostgreSQL and gRPC",
     }
   }, 20_000);
 
-  test("a serialization failure keeps the journal unacked and succeeds through ordinary redelivery", async () => {
+  test("a serialization failure retries its journal without draining the worker", async () => {
     await query(`CREATE FUNCTION reject_transient_event() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
       IF NEW.payload->'notice'->>'code' = 'transient_test' THEN
         RAISE EXCEPTION 'temporary serialization failure' USING ERRCODE = '40001';
@@ -262,6 +263,8 @@ describe.skipIf(!dockerAvailable)("worker event storage on PostgreSQL and gRPC",
       "CREATE TRIGGER reject_transient_event BEFORE INSERT ON thread_events FOR EACH ROW EXECUTE FUNCTION reject_transient_event()",
     );
 
+    const before = logs.length;
+
     const session = await replay([
       { body: { case: "notice", value: { code: "transient_test", message: "transient" } } },
       output("after transient"),
@@ -270,40 +273,24 @@ describe.skipIf(!dockerAvailable)("worker event storage on PostgreSQL and gRPC",
     try {
       expect(
         await eventually(
-          async () => session.closed(),
-          (closed) => closed,
+          async () => logs.slice(before).some((message) => message.startsWith("worker events not stored:")),
+          Boolean,
         ),
       ).toBe(true);
-      expect(session.drains()).toBe(1);
+      expect(session.drains()).toBe(0);
+      expect(session.closed()).toBe(false);
       expect((await session.runtime.runPromise(journalHello())).threads).toHaveLength(1);
       expect(
         await query("SELECT 1 FROM worker_event_quarantine WHERE event_id=$1::uuid", [session.originals[0]!.eventId]),
       ).toHaveLength(0);
       await query("DROP TRIGGER reject_transient_event ON thread_events");
       await query("DROP FUNCTION reject_transient_event()");
-      const hello = await session.runtime.runPromise(journalHello());
-
-      const link = await openGatewayLink({
-        baseUrl: gw.grpcUrl,
-        credential: gw.workerCredential,
-        hello: { workerId: gw.workerId, ...hello },
-      });
-
-      const reading = (async () => {
-        for await (const message of link.messages)
-          if (message.payload.case === "eventAck") await session.runtime.runPromise(applyAck(message.payload.value));
-      })();
-
-      try {
-        await session.runtime.runPromise(resendPending(link));
-        await session.empty();
-        expect(
-          await query("SELECT 1 FROM thread_events WHERE event_id=$1::uuid", [session.originals[1]!.eventId]),
-        ).toHaveLength(1);
-      } finally {
-        link.close();
-        await reading;
-      }
+      await session.empty();
+      expect(
+        await query("SELECT 1 FROM thread_events WHERE event_id=$1::uuid", [session.originals[1]!.eventId]),
+      ).toHaveLength(1);
+      expect(session.drains()).toBe(0);
+      expect(session.closed()).toBe(false);
     } finally {
       await session.close();
     }

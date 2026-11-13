@@ -114,6 +114,12 @@ Archiwum zachowuje czytelną oś czasu. Zamiast kompozytora pokazuje ikonę, cza
 Przywrócenie płynnie przywraca kompozytor. Starsze archiwum pokazuje tylko znane informacje.
 Gateway odrzuca wiadomości do archiwum.
 
+Archiwizacja przerywa turę, lecz pozostawia zadania w tle do zakończenia lub
+ręcznego zatrzymania. Wynik zadania nadal zapisuje się w archiwum; ani notatka
+platformy, ani natywna pobudka harnessu nie zaczynają nowej tury. Przywrócenie
+wątku pokazuje wynik bez automatycznego wznawiania kontynuacji. Szczegóły:
+[execution.md](execution.md#pobudka-agent-dowiaduje-się-o-każdym-końcu-zadania).
+
 Główny wątek i jego boczne archiwizują się razem. Gateway w jednej transakcji oznacza aktywne
 boczne jako `archived_by=cascade`, przerywa działające tury i anuluje kolejkę, harmonogramy oraz
 oczekujące dostarczenia, tak jak przy niezależnej archiwizacji. Przywrócenie głównego odtwarza tylko

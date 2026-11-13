@@ -7,6 +7,7 @@ import type { JsonObject } from "@canopy/domain";
 import { Schema } from "effect";
 import { recordInput, recordProbe, releaseProbe } from "./instance-probe.ts";
 import { botFailure, botTool, claudeBotConfig } from "./bot-probe.ts";
+import { archivedBackground } from "./instance-background.ts";
 
 if (process.argv.includes("--version")) {
   console.log("Claude Code 2.1.316");
@@ -43,6 +44,12 @@ async function turn(text: string): Promise<void> {
     model: "fixture-model",
     cwd: process.cwd(),
   });
+
+  if (text.includes("BACKGROUND_ARCHIVE_TEST")) {
+    await archivedBackground(session, send);
+
+    return;
+  }
 
   if (text.split("\n\nCurrent input:\n").at(-1)?.includes("STOP_REPLY")) {
     const stream = (event: JsonObject) =>

@@ -5,11 +5,17 @@ import type { SqlClient, SqlError } from "effect/sql";
 
 const decodeCode = Schema.decodeUnknownOption(Schema.Struct({ code: Schema.String }));
 
-/** Only PostgreSQL data exceptions qualify; constraints, transport and transaction failures still retry. */
-export function dataErrorCode(error: SqlError.SqlError): string | undefined {
+export function sqlErrorCode(error: SqlError.SqlError): string | undefined {
   const decoded = decodeCode(error.reason.cause);
 
-  return Option.isSome(decoded) && /^22[0-9A-Z]{3}$/.test(decoded.value.code) ? decoded.value.code : undefined;
+  return Option.isSome(decoded) && /^[0-9A-Z]{5}$/.test(decoded.value.code) ? decoded.value.code : undefined;
+}
+
+/** Invalid data and violated constraints cannot succeed by replaying the same event. */
+export function dataErrorCode(error: SqlError.SqlError): string | undefined {
+  const code = sqlErrorCode(error);
+
+  return code?.startsWith("22") || code?.startsWith("23") ? code : undefined;
 }
 
 /** Original protobuf bytes never pass through text/jsonb. The caller commits this with marker + cursor. */
@@ -19,10 +25,11 @@ export const quarantineEvent = (
   journalId: string,
   event: ThreadEvent,
   code: string,
+  reason = "data_error",
 ) =>
   Effect.gen(function* () {
-    yield* sql`INSERT INTO worker_event_quarantine(worker_id,journal_id,thread_id,event_id,journal_seq,sqlstate,payload)
-      VALUES(${workerId}::uuid,${journalId},${event.threadId}::uuid,${event.eventId}::uuid,${event.journalSeq},${code},${toBinary(ThreadEventSchema, event)})
+    yield* sql`INSERT INTO worker_event_quarantine(worker_id,journal_id,thread_id,event_id,journal_seq,sqlstate,payload,reason)
+      VALUES(${workerId}::uuid,${journalId},${event.threadId}::uuid,${event.eventId}::uuid,${event.journalSeq},${code},${toBinary(ThreadEventSchema, event)},${reason})
       ON CONFLICT (event_id) DO NOTHING`;
 
     return create(ThreadEventSchema, {

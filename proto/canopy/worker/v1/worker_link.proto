@@ -94,6 +94,8 @@ message GatewayMessage {
     WorkerConfig config = 16;
     // Odpowiedź na FetchBlob: fragmenty bajtów (request_id) albo błąd.
     BlobChunk blob_chunk = 17;
+    // Only sent to workers advertising thread_lifecycle_v1. Replaced on every reconnect.
+    ThreadLifecycle thread_lifecycle = 18;
     // Poufne: wyłącznie transport TLS, nigdy journal/outbox/logi.
     ThreadSecretDelivery thread_secret_delivery = 500;
     // Only sent to workers advertising "network_route_migration".
@@ -236,6 +238,18 @@ message Welcome {
   uint32 heartbeat_interval_seconds = 2;
   bool diagnostics_v1 = 3;
   bool worker_diagnostics_v1 = 4;
+  // Gateway resolves poison events per thread without ingest-induced worker drains.
+  // A new worker resumes journals deferred after an older gateway's ingest drain.
+  bool isolated_event_ingest = 5;
+  // Present on gateways that suppress provider wake-ups for archived/deleted threads.
+  ThreadLifecycle thread_lifecycle = 6;
+}
+
+message ThreadLifecycle {
+  repeated string closed_thread_ids = 1;
+  repeated string opened_thread_ids = 2;
+  // Full snapshot, including an empty one; otherwise an incremental update.
+  bool replace = 3;
 }
 
 // ---------- Konfiguracja zdalna (docs/worker-config.md) ----------

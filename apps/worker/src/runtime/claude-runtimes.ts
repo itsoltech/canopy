@@ -66,6 +66,7 @@ export class ClaudeRuntimes {
         claudeConfiguredEffort(readClaudeUserSettings(this.ctx.state.deviceHomes.claude), process.env, names),
       profile: (id) => (profile.id === (id || "native") ? profile : undefined),
       publish: (event) => this.ctx.ops.publish(event),
+      allowProviderTurn: (threadId) => !this.ctx.state.closedThreads.has(threadId),
       onActivitySettled: () => {
         if (this.ctx.state.staleRuntimes.has(`claude/${profile.id}`))
           void this.ctx.ops.reconcileRuntimes().catch(() => {});

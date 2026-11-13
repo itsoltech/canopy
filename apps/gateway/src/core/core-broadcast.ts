@@ -10,9 +10,12 @@ import { coreWorkers } from "./core-providers.ts";
 import { coreUiThread } from "./core-titles.ts";
 import { decorateOrigins } from "./workspace-origins.ts";
 import { threadDiagnostic } from "./thread-diagnostics.ts";
+import { publishWorkerThreadLifecycle } from "./worker-thread-lifecycle.ts";
 
 export async function coreBroadcastThread(hostContext: GatewayCore, threadId: string): Promise<void> {
-  const thread = coreUiThread(hostContext, await coreRun(hostContext, (s) => s.thread(threadId, true, true)));
+  const row = await coreRun(hostContext, (s) => s.thread(threadId, true, true));
+  publishWorkerThreadLifecycle(hostContext, row);
+  const thread = coreUiThread(hostContext, row);
   hostContext.hub.publishThread(threadId, create(ui.ThreadUpdateSchema, { change: { case: "thread", value: thread } }));
   hostContext.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "thread", value: thread } }));
 }

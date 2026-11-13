@@ -33,6 +33,8 @@ interface PendingCommand {
 export class WorkerConnection {
   readonly workerId: string;
   readonly hello: Hello;
+  readonly threadLifecycle = new Map<string, boolean>();
+  threadLifecycleRevision = 0;
   networkRouteStatus: NetworkRouteStatus | undefined;
   /** Worker messages after the handshake. CommandResults matched by sendCommand() are not repeated here. */
   readonly messages: AsyncIterable<WorkerMessage>;

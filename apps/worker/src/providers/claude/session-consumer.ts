@@ -23,7 +23,7 @@ export async function consumeSession(
 ) {
   const { options, sessions } = ctx;
   const { record, readOutput, readGoalVerdicts } = output;
-  const { beginTurn, closeWhenIdle, dropSteers } = turns;
+  const { beginTurn, closeWhenIdle, dropSteers, suppressWake } = turns;
   const { mapper, threadId } = session;
 
   const { endTurn, finishTurn, settleFromTranscript, knownEnd } = sessionCompletion(ctx, session, record, dropSteers);
@@ -49,6 +49,8 @@ export async function consumeSession(
 
       if (!next || next.done) break;
       const message = next.value;
+
+      if (await suppressWake(session, message)) continue;
 
       // A resumed process first drains old task notifications. Their empty result is not the answer to
       // StartTurn (nor to a queued steer), and must not release or close the waiting input's turn.

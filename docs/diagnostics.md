@@ -916,6 +916,16 @@ liczbę pominiętych rekordów. Koordynator ponownie sprawdza format przed ZIP.
 Pierwszy pull przygotowuje jedno źródło, zamiast blokować na skanowaniu wszystkich.
 Rotacje są czyszczone przy starcie i najwyżej raz na godzinę podczas zapisu.
 
+Wyniki ingestu mają rozpoznawane szablony `worker_events_not_stored`,
+`worker_events_dropped`, `worker_events_quarantined` i `worker_events_deferred`.
+Pierwszy obejmuje też wcześniejszy komunikat `events of thread … not stored`.
+Eksport zachowuje wyłącznie typ zdarzenia, źródło i czas; identyfikatory wątku
+i workera, treść i szczegóły błędu nie opuszczają lokalnego filtra.
+W szczegółach kolejek gatewaya są liczniki nieudanych prób zapisu (41), zdarzeń
+odrzuconych po usunięciu (42) i kwarantanny (43). Worker raportuje liczbę journali
+wstrzymanych po drainie starego gatewaya (116); ich wznowienie wymaga aktualizacji
+gatewaya i następuje automatycznie. Liczniki nie zawierają identyfikatorów wątków.
+
 Launcher `bash scripts/bench/diagnostics-stage5.sh` zachowuje etapy 1–4 w obu
 wariantach; zmienia wyłącznie etap 5. Cztery pary AB/BA/AB/BA zajmują około
 140 minut bez odrzuceń. Każdy człon ma świeży klaster PostgreSQL i stan procesów,

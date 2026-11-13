@@ -18,6 +18,10 @@ import { coreNameBranchAfterTurn } from "../worktrees/branch-naming.ts";
 import { createWorkerLink } from "../worker-link/index.ts";
 import { workerJournalWelcome } from "./bot-harness.ts";
 import type { IngestObservation } from "../diagnostics/ingest.ts";
+import type { IngestFallback } from "../store/ingest-outcomes.ts";
+import { sqlErrorCode } from "../store/event-quarantine.ts";
+import { WorkerIngestQueue } from "./worker-ingest-queue.ts";
+import { syncWorkerThreadLifecycle } from "./worker-thread-lifecycle.ts";
 
 export function createCoreWorkerLink(core: GatewayCore) {
   return createWorkerLink({
@@ -41,13 +45,15 @@ export function createCoreWorkerLink(core: GatewayCore) {
 
 // ------------------------------------------------------------------ workers
 
-export async function coreServe(hostContext: GatewayCore, connection: WorkerConnection): Promise<void> {
+async function workerConnected(hostContext: GatewayCore, connection: WorkerConnection) {
   const { workerId } = connection;
   hostContext.accounts.connected(connection);
   await coreRun(hostContext, (s) =>
     s.workerConnected(workerId, hostContext[coreState].options.instanceId, connection.hello),
   );
   coreLog(hostContext, `worker ${workerId} connected`);
+  // Re-read after registration to close the Welcome/config handshake's lifecycle race.
+  await syncWorkerThreadLifecycle(hostContext, connection);
   offerWorkerRoutes(hostContext, connection);
   await hostContext.environment
     .connected(workerId, connection.hello)
@@ -74,6 +80,12 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
       coreLog(hostContext, `lost turns of worker ${workerId} not ended: ${describeError(cause)}`),
     );
   }
+}
+
+export async function coreServe(hostContext: GatewayCore, connection: WorkerConnection): Promise<void> {
+  const { workerId } = connection;
+  const ingest = ingestQueue(hostContext, connection);
+  await workerConnected(hostContext, connection);
 
   try {
     for await (const message of connection.messages) {
@@ -92,7 +104,7 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
           await hostContext.secrets.receipt(workerId, message.payload.value);
           break;
         case "threadEvent":
-          await coreIngest(hostContext, connection, [message.payload.value]);
+          await ingest.enqueue(message.payload.value);
           break;
         case "configApplied": {
           const report = message.payload.value;
@@ -173,6 +185,7 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
   } catch (error) {
     coreLog(hostContext, `worker ${workerId} stream failed: ${describeError(error)}`);
   } finally {
+    await ingest.finished();
     coreLog(hostContext, `worker ${workerId} disconnected`);
     await coreBroadcastWorkers(hostContext).catch(() => {});
   }
@@ -182,11 +195,23 @@ export async function coreIngest(
   hostContext: GatewayCore,
   connection: WorkerConnection,
   incoming: ThreadEvent[],
-): Promise<void> {
+  fallback?: IngestFallback,
+): Promise<string | undefined> {
   const observation = hostContext.diagnostics.ingest.start(connection, incoming);
 
   try {
-    await ingestReceived(hostContext, connection, incoming, observation);
+    return await ingestReceived(hostContext, connection, incoming, observation, fallback);
+  } catch {
+    // Enrichment and bot persistence failures also retain the journal and use the per-thread retry lane.
+    for (const threadId of new Set(incoming.map((event) => event.threadId))) {
+      coreLog(
+        hostContext,
+        `worker events not stored: worker ${connection.workerId} thread ${threadId} reason ${fallback ? "quarantine_unavailable" : "retry_pending"}`,
+      );
+      hostContext.diagnostics.collector.measure(41, 1);
+    }
+
+    return "58000";
   } finally {
     observation?.finish();
   }
@@ -197,19 +222,17 @@ async function ingestReceived(
   connection: WorkerConnection,
   incoming: ThreadEvent[],
   observation: IngestObservation | undefined,
-): Promise<void> {
-  const journalId = hostContext[coreState].journalIds.get(connection.workerId) ?? "";
-  const blocked = hostContext[coreState].blocked.get(connection);
-  // Later events of a thread that failed would land out of order: skip them (unacked) until the resend.
-  const events = blocked ? incoming.filter((e) => !blocked.has(e.threadId)) : incoming;
+  fallback?: IngestFallback,
+): Promise<string | undefined> {
+  const journalId = connection.hello.journalId;
 
-  const threads = await ingestBotEvents(hostContext, connection, journalId, events, observation);
+  const threads = await ingestBotEvents(hostContext, connection, journalId, incoming, observation);
 
   if (threads.length === 0) return;
   await hostContext.connectors.enrich(threads);
 
   const result = await hostContext[coreState].options.runtime.runPromise(
-    Ingest.use((i) => i.ingest(connection.workerId, journalId, threads)),
+    Ingest.use((i) => i.ingest(connection.workerId, journalId, threads, fallback)),
   );
 
   for (const [threadId, ackSeq] of result.acks) connection.send({ case: "eventAck", value: { threadId, ackSeq } });
@@ -218,33 +241,20 @@ async function ingestReceived(
   for (const unknown of result.unknownThreads)
     coreLog(hostContext, `events for unknown thread ${unknown} kept on worker ${connection.workerId}`);
 
-  if (result.failedThreads.length > 0) {
-    const set = blocked ?? new Set<string>();
-    hostContext[coreState].blocked.set(connection, set);
+  for (const outcome of result.outcomes) {
+    coreLog(
+      hostContext,
+      `worker events ${outcome.kind}: worker ${connection.workerId} thread ${outcome.threadId} count ${outcome.count} reason ${outcome.reason}`,
+    );
+    hostContext.diagnostics.collector.measure(outcome.kind === "dropped" ? 42 : 43, outcome.count);
+  }
 
-    for (const { threadId, error } of result.failedThreads) {
-      coreLog(
-        hostContext,
-        `events of thread ${threadId} not stored (kept on worker ${connection.workerId}): ${describeError(error)}`,
-      );
-      set.add(threadId);
-    }
-
-    // The worker resends unacked events after reconnecting: ask for that, a little later.
-    if (!blocked) {
-      setTimeout(() => {
-        if (!connection.isOpen) return;
-
-        try {
-          connection.send({
-            case: "drain",
-            value: { reason: "redelivering events that failed to store", reconnectAfterMs: 10_000 },
-          });
-        } finally {
-          connection.close();
-        }
-      }, 1_000);
-    }
+  for (const { threadId } of result.failedThreads) {
+    coreLog(
+      hostContext,
+      `worker events not stored: worker ${connection.workerId} thread ${threadId} reason ${fallback ? "quarantine_unavailable" : "retry_pending"}`,
+    );
+    hostContext.diagnostics.collector.measure(41, 1);
   }
 
   const touched = new Set<string>();
@@ -340,6 +350,10 @@ async function ingestReceived(
   );
 
   for (const threadId of new Set(notes.map((s) => s.threadId))) await hostContext.backgroundTasks.deliver(threadId);
+
+  const failure = result.failedThreads[0];
+
+  return failure ? (sqlErrorCode(failure.error) ?? "58000") : undefined;
 }
 
 async function ingestBotEvents(
@@ -363,4 +377,8 @@ async function ingestBotEvents(
   }
 
   return threads;
+}
+
+function ingestQueue(host: GatewayCore, connection: WorkerConnection) {
+  return new WorkerIngestQueue(connection, (events, fallback) => coreIngest(host, connection, events, fallback));
 }

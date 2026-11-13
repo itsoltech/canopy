@@ -30,15 +30,21 @@ export const resendPending = Effect.fn("delivery.resendPending")(function* (
   before?: (event: ThreadEvent) => void,
 ) {
   const journal = yield* Journal;
+
+  if (link.welcome.isolatedEventIngest) yield* journal.resumeDelivery();
   const persisted = new Map(link.welcome.persisted.map((c) => [c.threadId, c.lastSeq] as const));
   const events = yield* journal.pending(persisted);
 
+  let sent = 0;
+
   for (const event of events) {
+    if (link.heldThreads?.has(event.threadId)) continue;
     before?.(event);
     link.send({ case: "threadEvent", value: event }, true);
+    sent++;
   }
 
-  return events.length;
+  return sent;
 });
 
 export const applyAck = Effect.fn("delivery.applyAck")(function* (ack: EventAck) {
