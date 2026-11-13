@@ -84,7 +84,7 @@ export function planFolds(
         turnId: turn.id,
         live: segment.live,
         answered: segment.answered,
-        answerSeq: segment.answered ? body[segment.answer]?.seq : undefined,
+        answerSeq: body[segment.answerBoundary]?.seq,
       });
       last.set(turn.id, id);
 

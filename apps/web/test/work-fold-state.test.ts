@@ -161,11 +161,11 @@ describe("segments after a shown answer", () => {
 
   test("work after a confirmed answer starts a new segment and the answer stays", () => {
     expect(workSegments([tool, final], "live", closed)).toEqual([
-      { start: 0, end: 2, inputs: 0, answer: 1, live: true, answered: true },
+      { start: 0, end: 2, inputs: 0, answer: 1, live: true, answered: true, answerBoundary: 1 },
     ]);
     expect(workSegments([tool, final, tool], "live", closed)).toEqual([
-      { start: 0, end: 2, inputs: 0, answer: 1, live: false, answered: true },
-      { start: 2, end: 3, inputs: 0, answer: -1, live: true, answered: false },
+      { start: 0, end: 2, inputs: 0, answer: 1, live: false, answered: true, answerBoundary: 1 },
+      { start: 2, end: 3, inputs: 0, answer: -1, live: true, answered: false, answerBoundary: -1 },
     ]);
     // Completed: both keep their answers; an unphased last message is the second one's.
     expect(workSegments([tool, final, tool, unphased], "completed", closed).map((s) => s.answer)).toEqual([1, 3]);
@@ -174,9 +174,12 @@ describe("segments after a shown answer", () => {
   test("a steer after the answer leads the next segment, above its fold", () => {
     const [first, second] = workSegments([tool, final, steer, tool, final], "live", closed);
     expect(first).toMatchObject({ answer: 1, inputs: 0 });
-    expect(second).toEqual({ start: 2, end: 5, inputs: 1, answer: 4, live: true, answered: true });
-    // A steer inside running work stays in the fold.
-    expect(workSegments([tool, steer, tool], "live", closed)[0]).toMatchObject({ inputs: 0, answer: -1 });
+    expect(second).toEqual({ start: 2, end: 5, inputs: 1, answer: 4, live: true, answered: true, answerBoundary: 4 });
+    // A steer also splits running work, without expiring its live choices.
+    expect(workSegments([tool, steer, tool], "live", closed)).toMatchObject([
+      { start: 0, end: 1, inputs: 0, answer: -1, live: true },
+      { start: 1, end: 3, inputs: 1, answer: -1, live: true },
+    ]);
   });
 
   test("an interrupted second segment keeps the first answer and follows the turn-end rule", () => {

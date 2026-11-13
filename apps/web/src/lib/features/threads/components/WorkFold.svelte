@@ -23,7 +23,15 @@
   const starting = $derived(turn.status === "queued" && turn.dispatched);
 
   const label = $derived(
-    starting ? "Starting" : summary.live ? "Working for" : summary.spanMs === undefined ? "Work" : "Worked for",
+    starting
+      ? "Starting"
+      : summary.live
+        ? summary.startMs === undefined
+          ? "Working"
+          : "Working for"
+        : summary.spanMs === undefined
+          ? "Work"
+          : "Worked for",
   );
 
   // An ended turn whose fold holds nothing: the duration as plain text, no chevron, nothing to open.
