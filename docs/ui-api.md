@@ -1868,7 +1868,9 @@ Pozycja czytania wątku jest stanem urządzenia, bez RPC i synchronizacji konta.
 `DeviceViewPreferences.threadScroll` w istniejącym `canopy.client-view.v2.<scope>`
 zachowuje najwyżej 100 ostatnio odwiedzonych wątków: podążanie za końcem albo
 stabilny klucz elementu i offset wewnątrz niego. Zapis działa w pamięci i lokalnym
-storage; tło i wyjście z widoku utrwalają ostatnią pozycję. Powrót do wątku oraz
+storage; odpowiedź jest identyfikowana przez wiadomość, nawet gdy jej stały slot
+zaczyna pokazywać kolejną wiadomość. Tło i wyjście z widoku utrwalają ostatnią pozycję.
+Powrót do wątku oraz
 reload odtwarzają kotwicę tylko w już załadowanym oknie. Fold i grupa zawierające
 kotwicę otwierają się przed pomiarem. Brak elementu lub kotwica poza tym oknem
 oznaczają powrót na koniec, bez dodatkowego

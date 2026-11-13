@@ -5,6 +5,7 @@ import type { SizeIndex } from "./size-index.ts";
 export interface FeedScrollMemory {
   readonly initial: ThreadScrollPosition | undefined;
   save(position: ThreadScrollPosition): void;
+  key?(identity: string): string;
   restored?(following: boolean): void;
 }
 
@@ -12,13 +13,17 @@ export interface FeedScrollMemory {
 export class FeedScrollOpening {
   positioned = $state(false);
   readonly initial: ThreadScrollPosition | undefined;
-  target: Extract<ThreadScrollPosition, { mode: "anchor" }> | undefined;
   #timer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(readonly memory: FeedScrollMemory | undefined) {
     this.initial = memory?.initial;
-    this.target = this.initial?.mode === "anchor" ? this.initial : undefined;
     this.positioned = !memory;
+  }
+
+  get target() {
+    const initial = this.initial;
+
+    return initial?.mode === "anchor" ? { ...initial, key: this.memory?.key?.(initial.key) ?? initial.key } : undefined;
   }
 
   place(
@@ -43,7 +48,6 @@ export class FeedScrollOpening {
       anchor = { key: target.key, element, top: -offset };
       setTop(scroller.scrollTop + element.getBoundingClientRect().top - scroller.getBoundingClientRect().top + offset);
     } else setTop(scroller.scrollHeight);
-    this.target = undefined;
     this.positioned = true;
     this.memory?.restored?.(!anchor);
 

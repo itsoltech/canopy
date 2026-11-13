@@ -380,10 +380,10 @@
     lastTop = top;
     scrollTop = top;
 
-    if (!stuck && performance.now() >= smoothUntil) capture();
+    if (!stuck && origin === "reader" && performance.now() >= smoothUntil) capture();
     opening.schedule(() => ({ following: stuck, anchor }));
 
-    if (stuck && origin === "unattributed") settle();
+    if (origin === "unattributed") settle();
   }
 
   function onwheel(event: WheelEvent) {
