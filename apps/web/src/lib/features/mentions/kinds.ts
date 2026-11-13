@@ -41,10 +41,21 @@ export function kindLook(m: Pick<Mention, "kind" | "isDir" | "source">): KindLoo
     case MentionKind.CONNECTOR:
       return { icon: "link", label: "Connectors" };
     case MentionKind.ATTACHMENT:
-      return { icon: m.source === "image" ? "photo" : "document-text", label: "Attachments" };
+      return {
+        icon: attachmentIcon(m.source),
+        label: "Attachments",
+      };
     default:
       return { icon: "link", label: "Mentions" };
   }
+}
+
+function attachmentIcon(source: string): IconName {
+  if (source === "image") return "photo";
+
+  if (source === "video") return "play";
+
+  return "document-text";
 }
 
 /** The chip: accent text with the kind's icon (or the plugin's own), on a faint accent wash. */

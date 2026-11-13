@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/ui/v1/attachments.proto.
  */
 export const file_canopy_ui_v1_attachments: GenFile = /*@__PURE__*/
-  fileDesc("Ch5jYW5vcHkvdWkvdjEvYXR0YWNobWVudHMucHJvdG8SDGNhbm9weS51aS52MSKhAQoKQXR0YWNobWVudBIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEhEKCW1pbWVfdHlwZRgDIAEoCRIMCgRraW5kGAQgASgJEhIKCnNpemVfYnl0ZXMYBSABKAQSDQoFd2lkdGgYBiABKA0SDgoGaGVpZ2h0GAcgASgNEg4KBnNoYTI1NhgIIAEoCRIVCg1oYXNfdGh1bWJuYWlsGAkgASgIYgZwcm90bzM");
+  fileDesc("Ch5jYW5vcHkvdWkvdjEvYXR0YWNobWVudHMucHJvdG8SDGNhbm9weS51aS52MSK2AQoKQXR0YWNobWVudBIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEhEKCW1pbWVfdHlwZRgDIAEoCRIMCgRraW5kGAQgASgJEhIKCnNpemVfYnl0ZXMYBSABKAQSDQoFd2lkdGgYBiABKA0SDgoGaGVpZ2h0GAcgASgNEg4KBnNoYTI1NhgIIAEoCRIVCg1oYXNfdGh1bWJuYWlsGAkgASgIEhMKC2R1cmF0aW9uX21zGAogASgNYgZwcm90bzM");
 
 /**
  * Shared by thread messages and bot conversations. Types come from content, never the client filename.
@@ -62,6 +62,13 @@ export type Attachment = Message<"canopy.ui.v1.Attachment"> & {
    * @generated from field: bool has_thumbnail = 9;
    */
   hasThumbnail: boolean;
+
+  /**
+   * Container duration, when known. Zero means unknown.
+   *
+   * @generated from field: uint32 duration_ms = 10;
+   */
+  durationMs: number;
 };
 
 /**

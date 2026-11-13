@@ -1,5 +1,10 @@
 # Model danych (PostgreSQL)
 
+Migracja `0135_video_attachments` rozszerza `attachments.kind` o `video` i dodaje
+opcjonalny `duration_ms` (dodatnie milisekundy, zakres uint32). Nie przepisuje
+historycznych załączników ani blobów. Nowe filmy zachowują oryginał oraz neutralną
+miniaturę WebP w istniejącej kolumnie `thumb_sha256`.
+
 Migracja `0133_thread_order` dodaje nullable `threads.sidebar_order_key` (base-62,
 porównanie bajtowe `C`). Stare wątki bez klucza używają malejącego czasu utworzenia
 i id; migracja nie przepisuje historii. Trigger przy tworzeniu przydziela klucz

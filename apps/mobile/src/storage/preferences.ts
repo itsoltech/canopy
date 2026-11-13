@@ -7,6 +7,7 @@ import { File, Paths } from "expo-file-system";
 export const deviceChoices = {
   workWhileWorking: ["expanded", "collapsed"],
   workAfterTurn: ["collapse", "keep-open"],
+  workToolCalls: ["collapsed", "expanded"],
 } as const;
 
 export type DeviceKey = keyof typeof deviceChoices;
@@ -16,6 +17,7 @@ export type DeviceValues = { [K in DeviceKey]: (typeof deviceChoices)[K][number]
 export const deviceDefaults: DeviceValues = {
   workWhileWorking: "expanded",
   workAfterTurn: "collapse",
+  workToolCalls: "collapsed",
 };
 
 const file = () => new File(Paths.document, "device-preferences.json");
@@ -28,6 +30,7 @@ function isChoice<K extends DeviceKey>(key: K, value: unknown): value is DeviceV
 interface StoredPreferences {
   workWhileWorking?: unknown;
   workAfterTurn?: unknown;
+  workToolCalls?: unknown;
 }
 
 function isStored(value: unknown): value is StoredPreferences {
@@ -50,6 +53,7 @@ function parse(raw: string): DeviceValues {
       ? saved.workWhileWorking
       : deviceDefaults.workWhileWorking,
     workAfterTurn: isChoice("workAfterTurn", saved.workAfterTurn) ? saved.workAfterTurn : deviceDefaults.workAfterTurn,
+    workToolCalls: isChoice("workToolCalls", saved.workToolCalls) ? saved.workToolCalls : deviceDefaults.workToolCalls,
   };
 }
 

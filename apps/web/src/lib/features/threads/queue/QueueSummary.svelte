@@ -12,7 +12,13 @@
   }: { summary: string; items: readonly QueueContentItem[]; class?: ClassValue } = $props();
 
   const icon = (kind: QueueContentItem["kind"]) =>
-    kind === "image" ? "photo" : kind === "citation" ? "chat-bubble-bottom-center-text" : "document-text";
+    kind === "image"
+      ? "photo"
+      : kind === "video"
+        ? "play"
+        : kind === "citation"
+          ? "chat-bubble-bottom-center-text"
+          : "document-text";
 </script>
 
 <Popover label="Message content" placement="top-start" sheet class="w-80 max-w-[calc(100vw-2rem)]">

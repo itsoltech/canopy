@@ -51,9 +51,11 @@ export function QueueSummary({ preview }: { preview: ReturnType<typeof queuePrev
                 name={
                   item.kind === "image"
                     ? "photo"
-                    : item.kind === "citation"
-                      ? "chat-bubble-bottom-center-text"
-                      : "document-text"
+                    : item.kind === "video"
+                      ? "play"
+                      : item.kind === "citation"
+                        ? "chat-bubble-bottom-center-text"
+                        : "document-text"
                 }
                 size={16}
                 color={c.muted}

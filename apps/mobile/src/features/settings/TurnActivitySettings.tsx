@@ -16,6 +16,15 @@ const choices = [
     ],
   },
   {
+    preference: "workToolCalls",
+    title: "Tool calls",
+    description: "Expand tool groups during a turn.",
+    options: [
+      { value: "collapsed", label: "Collapsed" },
+      { value: "expanded", label: "Expanded" },
+    ],
+  },
+  {
     preference: "workAfterTurn",
     title: "After the turn",
     description: "Collapse when the agent marks the final answer, or when the turn ends.",

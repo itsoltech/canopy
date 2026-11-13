@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { View } from "react-native";
 import type { Item, Provider, ui } from "@canopy/contracts";
 import { foldId, workFoldOpen, type WorkFoldChoice, type WorkFoldState } from "@canopy/domain/work-fold";
+import type { WorkGroupChoices } from "@canopy/domain/work-group-choices";
 import { ShellMessage } from "../../ui/ShellMessage";
 import { useDevicePreferences } from "../../state/preferences";
 import { TurnDetails, TurnEnd } from "./TurnEnd";
@@ -24,6 +25,7 @@ export interface TurnContext {
   readonly provider: Provider | undefined;
   /** Per timeline, so virtual cell remounts retain manual choices without persisting them to disk. */
   readonly foldChoices: Map<string, ReadonlyMap<number, WorkFoldChoice>>;
+  readonly groupChoices: WorkGroupChoices;
 }
 
 /** Only seed the disclosure that contains the saved row; later toggles retain normal fold rules. */
@@ -69,7 +71,7 @@ export function TimelineTurn({
   newDay: boolean;
   historical: boolean;
 }) {
-  const { workFold } = useDevicePreferences();
+  const { workFold, values } = useDevicePreferences();
   const target = useThreadScrollTarget();
 
   const [folds, setFolds] = useState<ReadonlyMap<number, WorkFoldChoice>>(() =>
@@ -160,7 +162,8 @@ export function TimelineTurn({
                   work={work}
                   steers={context.steers}
                   ended={ended}
-                  expanded={segment.live && workFold.expandWhileWorking}
+                  expanded={values.workToolCalls === "expanded"}
+                  choices={context.groupChoices}
                 />
               </TimelineDisclosure>
             </View>

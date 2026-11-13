@@ -3,7 +3,7 @@
  * where it lives on the worker, the limits, and the platform note that tells the agent about it.
  */
 
-export type AttachmentKind = "image" | "file";
+export type AttachmentKind = "image" | "video" | "file";
 
 export interface AttachmentLimits {
   readonly maxFileBytes: number;
@@ -82,6 +82,7 @@ export function formatSize(bytes: number | bigint): string {
 }
 
 export interface NotedAttachment {
+  readonly durationMs?: number;
   readonly name: string;
   readonly path: string;
   readonly mimeType: string;
@@ -103,8 +104,10 @@ export function attachmentsNote(attachments: readonly NotedAttachment[], numbere
 
   const lines = attachments.map((a, i) => {
     const details = [
+      a.kind === "video" ? "video" : "",
       a.mimeType,
       formatSize(a.sizeBytes),
+      a.kind === "video" && a.durationMs ? `${(a.durationMs / 1000).toFixed(1)} s` : "",
       a.kind === "image" && a.width && a.height ? `${a.width}×${a.height} px` : "",
     ]
       .filter(Boolean)

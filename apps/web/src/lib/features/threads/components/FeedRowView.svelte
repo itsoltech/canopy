@@ -166,6 +166,7 @@
         label={row.label}
         open={row.open}
         running={row.running}
+        hint={row.hint}
         icon={row.icon}
         status={row.status}
         statusCount={row.statusCount}

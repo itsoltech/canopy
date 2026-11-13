@@ -4,6 +4,7 @@ import type { TimelineEntry, TimelineNotice } from "./thread-state.svelte.ts";
 import { isTerminal } from "./timeline.ts";
 import { planFolds, readWork, type FoldsPlan } from "./work-segments.ts";
 import { workFoldOpen, type WorkFoldChoice, type WorkFoldPreferences } from "@canopy/domain/work-fold";
+import { WorkGroupChoices } from "@canopy/domain/work-group-choices";
 
 /** The feed as the folds need it (VirtualFeed's `reading` and `hold`). */
 export interface FoldReader {
@@ -23,7 +24,7 @@ export class WorkFolds {
   /** Turns seen running: their end is a change the reader may be in the middle of. */
   readonly #running = new Set<string>();
   readonly #manual = new Map<string, WorkFoldChoice>();
-  readonly #manualGroups = new Set<string>();
+  readonly #groupChoices = new WorkGroupChoices();
   #plan: FoldsPlan | undefined;
 
   /** A choice lasts until the segment's next answer/end boundary. */
@@ -41,7 +42,7 @@ export class WorkFolds {
   }
 
   toggleGroup(key: string, open = !this.groups.has(key)): void {
-    this.#manualGroups.add(key);
+    this.#groupChoices.choose(key, open);
     this.#setGroup(key, open);
   }
 
@@ -54,20 +55,12 @@ export class WorkFolds {
     this.groups = next;
   }
 
-  /**
-   * Reveal a live fold's groups unless manually closed. Remember its sole flattened group too, so
-   * adding another group cannot hide rows the reader was seeing. Call outside tracking.
-   */
-  keepFlat(rows: readonly FeedRow[]): void {
+  /** Apply the independent tool-group preference without overriding manual choices. Call outside tracking. */
+  updateGroups(rows: readonly FeedRow[], expanded: boolean): void {
     for (const row of rows) {
-      const key =
-        row.kind === "work" && row.open && row.summary.live
-          ? row.flat
-          : row.kind === "work-group" && !isTerminal(row.turn.status)
-            ? row.key
-            : undefined;
-
-      if (key && !this.#manualGroups.has(key)) this.#setGroup(key, true);
+      if (row.kind !== "work-group") continue;
+      const key = row.key.replace(/^history:[^:]+:/, "");
+      this.#setGroup(key, this.#groupChoices.open(key, !isTerminal(row.turn.status), expanded));
     }
   }
 

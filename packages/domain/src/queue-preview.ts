@@ -1,9 +1,11 @@
 import { MentionKind, type ui } from "@canopy/contracts";
 import { mentionLabel } from "./mentions/index.ts";
 import { citationTokenLabel } from "./quotes/preview.ts";
+import { attachmentPreviewKind } from "./attachments/preview.ts";
+import { formatVideoDuration } from "./attachments/video.ts";
 
 export interface QueueContentItem {
-  kind: "image" | "file" | "citation";
+  kind: "image" | "video" | "file" | "citation";
   label: string;
 }
 
@@ -38,13 +40,18 @@ export function queuePreview(turn: ui.Turn) {
 
   const items: QueueContentItem[] = [
     ...turn.attachments.map((file): QueueContentItem => ({
-      kind: file.kind === "image" || file.mimeType.startsWith("image/") ? "image" : "file",
-      label: file.name,
+      kind:
+        attachmentPreviewKind(file) === "video"
+          ? "video"
+          : file.kind === "image" || file.mimeType.startsWith("image/")
+            ? "image"
+            : "file",
+      label: [file.name, formatVideoDuration(file.durationMs)].filter(Boolean).join(" · "),
     })),
     ...turn.quotes.map((quote): QueueContentItem => ({ kind: "citation", label: citationTokenLabel(quote) })),
   ];
 
-  const summary = (["image", "file", "citation"] as const)
+  const summary = (["image", "video", "file", "citation"] as const)
     .flatMap((kind) => {
       const count = items.filter((item) => item.kind === kind).length;
 

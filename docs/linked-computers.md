@@ -2777,6 +2777,12 @@ bazami PostgreSQL i kluczami sekretów, przypięte mTLS, skryptowane workery. Be
 
 ### Podglądy załączników
 
+Filmy używają tej samej kwalifikacji id i autoryzacji domu. Metadane i odczyty
+`GetAttachment.offset/limit` przechodzą przez łącze; nowy dom pobiera wycinek
+bloba z bazy. BFF składa strumień HTTP Range z ograniczonych odczytów. Starszy
+dom ignorujący te pola zwraca cały plik w granicach limitu uploadu; BFF używa
+jednej takiej odpowiedzi dla zakresu, bez powtarzania pełnego pobrania.
+
 Id załącznika z historii i wzmianki w tekście zachowuje kwalifikator domu
 (`uuid~node`). `GetAttachment` jest odczytem dozwolonym przez łącze; dom nadal
 sprawdza właściciela. Odczyt po samym lokalnym UUID nie szuka pliku na innych

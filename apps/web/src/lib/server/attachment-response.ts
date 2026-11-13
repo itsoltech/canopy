@@ -4,6 +4,7 @@ import type { ui } from "@canopy/contracts";
 import { ATTACHMENT_PREVIEW_BYTES } from "@canopy/domain/attachment-preview";
 import { fileResponse } from "./files.ts";
 import { gatewayFailure } from "./gateway-errors.ts";
+import { attachmentStream } from "./attachment-stream.ts";
 
 /** Bytes or a JSON failure for every attachment consumer, including img previews. No payloads enter logs. */
 export async function attachmentResponse(
@@ -11,11 +12,14 @@ export async function attachmentResponse(
   attachmentId: string,
   url: URL,
   ifNoneMatch: string | null = null,
+  request?: Request,
 ) {
   const thumbnail = url.searchParams.has("thumbnail");
   const preview = url.searchParams.has("preview");
 
   try {
+    if (request && !thumbnail && !preview && !url.searchParams.has("image"))
+      return await attachmentStream(api, attachmentId, url, request);
     const response = await api.getAttachment({ attachmentId, thumbnail, preview });
     const name = response.attachment?.name ?? "attachment";
     const data = preview && !thumbnail ? response.data.subarray(0, ATTACHMENT_PREVIEW_BYTES) : response.data;

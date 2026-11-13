@@ -449,9 +449,10 @@
 
   $effect.pre(() => {
     const current = rows;
+    const expanded = device.values.workToolCalls === "expanded";
     const loaded = view.loaded && device.viewLoaded;
 
-    if (loaded) untrack(() => (historyOpen = scrollMemory.prepare(current, folds, historyOpen)));
+    if (loaded) untrack(() => (historyOpen = scrollMemory.prepare(current, folds, historyOpen, expanded)));
   });
 
   // The thread's actions in the command palette (the same as its menu, plus Interrupt while it works).

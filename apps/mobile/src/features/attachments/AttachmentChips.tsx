@@ -44,7 +44,7 @@ function AttachmentChip({ file, onRemove }: { file: DraftFile; onRemove: (key: s
 
   const uploading = !file.attachment && !file.error;
   const status = file.error ?? (uploading ? "Uploading…" : "Attached");
-  const duration = file.kind === "video" ? videoDuration(file.duration) : undefined;
+  const duration = file.kind === "video" ? videoDuration(file.attachment?.durationMs || file.duration) : undefined;
 
   return (
     <Animated.View
@@ -128,15 +128,16 @@ function AttachmentChip({ file, onRemove }: { file: DraftFile; onRemove: (key: s
 function MediaTile({ file, uploading }: { file: DraftFile; uploading: boolean }) {
   const c = useColors();
   const [unreadable, setUnreadable] = useState(false);
-  const duration = videoDuration(file.duration);
+  const duration = videoDuration(file.attachment?.durationMs || file.duration);
 
   const image = useImage(
     file.attachment ? { kind: "attachment", file: file.attachment } : { kind: "local", uri: file.previewUri ?? "" },
     true,
-    file.kind === "image" && Boolean(file.attachment),
+    Boolean(file.attachment && (file.kind === "image" || file.attachment.hasThumbnail)),
   );
 
-  const preview = file.kind === "image" && file.attachment ? image.uri : file.previewUri;
+  const preview =
+    file.attachment && (file.kind === "image" || file.attachment.hasThumbnail) ? image.uri : file.previewUri;
 
   return (
     <View

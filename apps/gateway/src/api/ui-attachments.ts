@@ -21,7 +21,7 @@ export function attachmentsHandlers(
       }),
 
     getAttachment: (request) =>
-      guard(() => core.getAttachment(request.attachmentId, request.thumbnail, request.preview)),
+      guard(() => core.getAttachment(request.attachmentId, request.thumbnail, request.preview, request)),
 
     getThreadBlob: (request) => guard(() => core.getThreadBlob(request.threadId, request.sha256)),
 

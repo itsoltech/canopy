@@ -5,6 +5,7 @@
   import TouchTarget from "#lib/shared/ui/TouchTarget.svelte";
   import { exitDuration } from "#lib/shared/ui/motion.ts";
   import AttachmentImage from "./AttachmentImage.svelte";
+  import VideoPlayer from "./VideoPlayer.svelte";
 
   /**
    * An image at full size over the page (modal 06: `t-modal` scales in on --duration-fast, out on
@@ -17,6 +18,8 @@
     detail = "",
     download,
     entityId,
+    video = false,
+    poster,
   }: {
     open?: boolean;
     src: string;
@@ -24,6 +27,8 @@
     detail?: string;
     download?: string | undefined;
     entityId?: string;
+    video?: boolean;
+    poster?: string | undefined;
   } = $props();
 
   let dialog = $state<HTMLDialogElement>();
@@ -64,18 +69,22 @@
       <div
         class="max-h-[calc(var(--window-safe-height)-11rem)] max-w-[96vw] scroll-stable overflow-auto rounded-lg sm:max-h-[calc(var(--window-safe-height)-8rem)]"
       >
-        <AttachmentImage
-          {src}
-          alt={name}
-          {entityId}
-          class="min-h-36 rounded-lg bg-zinc-950 text-white"
-          imageClass={[
-            "mx-auto w-auto rounded-lg object-contain outline-1 -outline-offset-1 outline-white/10",
-            zoomed
-              ? "max-w-none"
-              : "max-h-[calc(var(--window-safe-height)-11rem)] max-w-full sm:max-h-[calc(var(--window-safe-height)-8rem)]",
-          ]}
-        />
+        {#if video}
+          <VideoPlayer {src} {poster} active={open} />
+        {:else}
+          <AttachmentImage
+            {src}
+            alt={name}
+            {entityId}
+            class="min-h-36 rounded-lg bg-zinc-950 text-white"
+            imageClass={[
+              "mx-auto w-auto rounded-lg object-contain outline-1 -outline-offset-1 outline-white/10",
+              zoomed
+                ? "max-w-none"
+                : "max-h-[calc(var(--window-safe-height)-11rem)] max-w-full sm:max-h-[calc(var(--window-safe-height)-8rem)]",
+            ]}
+          />
+        {/if}
       </div>
       <!-- Its own dark surface: readable over any page, also while the backdrop fades in. -->
       <figcaption
@@ -86,13 +95,14 @@
           {#if detail}<span class="block truncate text-white/60 tabular-nums">{detail}</span>{/if}
         </span>
         <span class="flex shrink-0 items-center justify-end gap-1">
-          <button
-            type="button"
-            aria-pressed={zoomed}
-            onclick={() => (zoomed = !zoomed)}
-            class="min-w-20 rounded-md px-2 py-1.5 font-medium focus-ring hover:bg-white/10"
-            >{zoomed ? "Zoom out" : "Zoom in"}</button
-          >
+          {#if !video}<button
+              type="button"
+              aria-pressed={zoomed}
+              onclick={() => (zoomed = !zoomed)}
+              class="min-w-20 rounded-md px-2 py-1.5 font-medium focus-ring hover:bg-white/10"
+              >{zoomed ? "Zoom out" : "Zoom in"}</button
+            >
+          {/if}
           {#if download}
             <a
               href={download}
