@@ -320,6 +320,7 @@ export class GatewayCore {
     this.backgroundTasks = new BackgroundTasks(
       {
         run: (effect) => this[coreState].options.runtime.runPromise(effect),
+        pump: (threadId) => this.pump(threadId),
         queued: async (threadId, turn) => {
           await coreBroadcastTurn(this, threadId, turn.id); // re-read: the UI gets the turn with its source
           await this.pump(threadId);

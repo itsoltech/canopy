@@ -18,6 +18,8 @@ export interface BackgroundTasksHost {
   run<A, E>(effect: Effect.Effect<A, E, BackgroundTaskStore>): Promise<A>;
   /** A turn was queued: announce it and start it when the thread is free. */
   queued(threadId: string, turn: TurnRow): Promise<void>;
+  /** Recover a note turn committed before its dispatch, including after a gateway restart. */
+  pump(threadId: string): Promise<void>;
   /** A steer was stored: send it to the worker. */
   steered(steerId: string): Promise<void>;
   /** The user's Stop for a background item (StopTask to the worker). */
@@ -150,9 +152,16 @@ export class BackgroundTasks {
 
   /** Every thread with notes that may move now. */
   async tick(): Promise<void> {
+    const steers = await this.#host.run(BackgroundTaskStore.use((s) => s.pendingSteers()));
+
+    for (const steerId of steers) await this.#host.steered(steerId);
+
     const threads = await this.#host.run(BackgroundTaskStore.use((s) => s.pendingThreads()));
 
-    for (const threadId of threads) await this.deliver(threadId);
+    for (const threadId of threads) {
+      await this.deliver(threadId);
+      await this.#host.pump(threadId);
+    }
   }
 
   /** Delivers now and then every few seconds (main.ts; tests call tick() or start a short interval). */

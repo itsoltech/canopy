@@ -15,6 +15,7 @@ import { workerDiagnostics } from "../diagnostics/worker.ts";
 const TURN_NOT_RUNNING = "TURN_NOT_RUNNING";
 
 export class ThreadCommands {
+  readonly #starts = new Map<string, Promise<CommandOutput>>();
   constructor(readonly ctx: HostContext) {}
   async createThread(kind: Extract<Command["kind"], { case: "createThread" }>): Promise<CommandOutput> {
     const spec = kind.value.thread;
@@ -59,9 +60,51 @@ export class ThreadCommands {
   }
 
   async startTurn(kind: Extract<Command["kind"], { case: "startTurn" }>, commandId: string): Promise<CommandOutput> {
+    const threadId = kind.value.thread?.threadId ?? "";
+    const previous = this.#starts.get(threadId);
+
+    const next = (previous ?? Promise.resolve())
+      .catch(() => {})
+      .then(async () => {
+        // The gateway outbox retains this unacknowledged command across restarts/reconnects.
+        // Provider wake-ups can precede their turn_started event reaching the gateway.
+        while (
+          [...this.ctx.state.running].some(
+            (key) => key.startsWith(`${threadId}/`) && key !== `${threadId}/${kind.value.turnId}`,
+          )
+        ) {
+          if (this.ctx.state.shuttingDown || this.ctx.state.closing)
+            throw new CommandError("WORKER_DRAINING", "worker is stopping", false);
+          await Bun.sleep(50);
+        }
+
+        if (this.ctx.state.shuttingDown || this.ctx.state.closing)
+          throw new CommandError("WORKER_DRAINING", "worker is stopping", false);
+
+        return this.#startTurn(kind, commandId);
+      });
+
+    this.#starts.set(threadId, next);
+
+    try {
+      return await next;
+    } finally {
+      if (this.#starts.get(threadId) === next) this.#starts.delete(threadId);
+    }
+  }
+
+  async #startTurn(kind: Extract<Command["kind"], { case: "startTurn" }>, commandId: string): Promise<CommandOutput> {
     const { thread: spec, turnId, input: rawInput, model, effort, permissionMode } = kind.value;
 
     if (!spec || !rawInput) throw new CommandError("INVALID_COMMAND", "thread spec or input missing", true);
+
+    // A crash can land between turn_started and remembering CommandResult. Do not admit that turn again,
+    // even after its events were ACKed or the gateway replaced a previously rejected command id.
+    if (await this.ctx.state.options.runtime.runPromise(Journal.use((j) => j.hasStartedTurn(spec.threadId, turnId))))
+      return {};
+
+    if (await this.ctx.state.options.runtime.runPromise(Journal.use((j) => j.wasInterrupted(spec.threadId, turnId))))
+      return {};
 
     if (this.ctx.state.closedThreads.has(spec.threadId))
       throw new CommandError("THREAD_CLOSED", "the thread is archived or deleted", true);
@@ -104,6 +147,13 @@ export class ThreadCommands {
 
     // UNSPECIFIED (an older gateway): the thread's mode.
     const settings = { model, effort, permissionMode: permissionMode || spec.permissionMode, recoveryContext };
+
+    // An archive/delete interrupt can overtake a queued start or arrive while its files are fetched.
+    if (await this.ctx.state.options.runtime.runPromise(Journal.use((j) => j.wasInterrupted(spec.threadId, turnId))))
+      return {};
+
+    if (this.ctx.state.closedThreads.has(spec.threadId))
+      throw new CommandError("THREAD_CLOSED", "the thread is archived or deleted", true);
     workerDiagnostics.turns.queue(
       spec.threadId,
       turnId,
@@ -196,11 +246,12 @@ export class ThreadCommands {
       if (shellRuns.some((run) => run.startTurn)) return {};
     }
 
+    // Also fences StartTurn still waiting in admission; the cancellation survives worker restart.
+    await this.ctx.state.options.runtime.runPromise(Journal.use((j) => j.noteInterrupt(threadId, turnId)));
+
     // E.g. the turn died with the previous process: the gateway ends it on its side.
     if (!this.ctx.state.running.has(`${threadId}/${turnId}`))
       throw new CommandError(TURN_NOT_RUNNING, "the turn is not running on this worker", true);
-    // Remembered with the turn: if it ends without the worker seeing it, its interruption was asked for.
-    await this.ctx.state.options.runtime.runPromise(Journal.use((j) => j.noteInterrupt(threadId, turnId)));
 
     // The command does not name the provider: the runtime with the running turn takes it.
     const claude = [...this.ctx.state.claude].find(([, handle]) =>

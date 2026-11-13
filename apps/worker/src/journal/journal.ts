@@ -127,6 +127,9 @@ export class Journal extends Context.Service<
     beginShutdown(): Effect.Effect<number, JournalError>;
     /** Turns whose turn_started is journaled and whose turn_finished is not, with their harness record and items. */
     openTurns(): Effect.Effect<ReadonlyArray<OpenTurn>, JournalError>;
+    /** Durable admission receipt, retained after turn end and transcript ACK. */
+    hasStartedTurn(threadId: string, turnId: string): Effect.Effect<boolean, JournalError>;
+    wasInterrupted(threadId: string, turnId: string): Effect.Effect<boolean, JournalError>;
     /** Records (or updates) where the turn's harness keeps its record; dropped with the turn's end. */
     noteHarness(threadId: string, turnId: string, harness: TurnHarness): Effect.Effect<void, JournalError>;
     /** The platform asked to interrupt the turn (kept until its end). */
@@ -172,6 +175,12 @@ const SCHEMA = `
     turn_id   TEXT NOT NULL,
     PRIMARY KEY (thread_id, turn_id)
   );
+  CREATE TABLE IF NOT EXISTS started_turns (
+    thread_id TEXT NOT NULL,
+    turn_id   TEXT NOT NULL,
+    PRIMARY KEY (thread_id, turn_id)
+  );
+  INSERT OR IGNORE INTO started_turns SELECT thread_id, turn_id FROM open_turns;
   CREATE TABLE IF NOT EXISTS turn_harness (
     thread_id     TEXT NOT NULL,
     turn_id       TEXT NOT NULL,
@@ -325,6 +334,8 @@ function makeJournal(db: Database, diagnostics: boolean): Journal["Service"] {
 
   return Journal.of({
     ...commandTracking(db, attempt),
+    hasStartedTurn: turns.hasStartedTurn,
+    wasInterrupted: turns.wasInterrupted,
     ...retryContext(db, attempt),
     ...heldDelivery(db, attempt),
     ...(diagnostics && { statistics: journalStatistics(db) }),

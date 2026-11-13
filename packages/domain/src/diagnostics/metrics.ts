@@ -58,6 +58,7 @@ const PROCESS_METRICS: MetricDefinition[] = [
   { id: 41, name: "Event storage failures", group: "queues", unit: "count", kind: "counter" },
   { id: 42, name: "Events dropped after deletion", group: "queues", unit: "count", kind: "counter" },
   { id: 43, name: "Events quarantined", group: "queues", unit: "count", kind: "counter" },
+  { id: 44, name: "Turn starts requeued", group: "queues", unit: "count", kind: "counter" },
 ];
 
 export const DATABASE_FAMILIES = [

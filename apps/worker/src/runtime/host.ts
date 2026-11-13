@@ -362,7 +362,7 @@ export class WorkerHost {
         workerDiagnostics.turns.finish(command.kind.value.thread?.threadId ?? "", command.kind.value.turnId, true);
 
       // The runtimes went down under it: the next process runs it.
-      if (this.#ctx.state.shuttingDown) return undefined;
+      if (this.#ctx.state.shuttingDown || this.#ctx.state.closing) return undefined;
 
       const failure =
         error instanceof CommandError
