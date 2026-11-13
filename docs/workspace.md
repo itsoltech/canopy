@@ -1,12 +1,13 @@
 # Zakładki wątku i moduł plików
 
-Status: **projekt v2 zaakceptowany do implementacji w siedmiu warstwach**.
-Zakładki dzielą rząd z sygnetem projektu i tytułem wątku. Pasek ikon obsługuje jeden
-panel; podsumowanie jest dokowane bez modułu, pływające na żądanie przy module,
+Status: **draft projektu v2; układ oczekuje akceptacji użytkownika po obejrzeniu
+makiety**. Implementacja wymaga osobnego, jawnego polecenia rozpoczęcia prac.
+W proponowanym układzie zakładki dzielą rząd z sygnetem projektu i tytułem wątku.
+Pasek ikon obsługuje jeden panel; podsumowanie jest dokowane bez modułu, pływające na żądanie przy module,
 a na wąskim ekranie jest arkuszem. Ustalono jeden zastępowalny czysty preview,
 utrwalany przez Edit/Keep tab/dwuklik, drzewo ograniczone do cwd/worktree wątku
 i mobilną edycję natywną bez kolorów podczas pisania (kolory w viewerze i Preview
-changes). Ten PR opisuje projekt; realizacja następuje w osobnym stosie.
+changes). Ten PR opisuje projekt; stos implementacyjny nie został rozpoczęty.
 
 Cel: czytać i edytować pliki obok kontekstu wątku bez wielokrotnego otwierania modala.
 Priorytet: otwarcie wątku, pisanie i streaming nie płacą za nieotwarte moduły.
@@ -718,13 +719,15 @@ Sprawdzamy szczeliny, gutter, długie ścieżki i rezerwę dirty/close w obu mot
 
 ## 10. Migracja i stos implementacyjny
 
-Układ v2 i zakres zostały zaakceptowane. Poniższe **7 PR implementacyjnych** tworzy
+Zaakceptowano preview, zakres drzewa i sposób edycji mobilnej. Układ v2 pozostaje
+do obejrzenia i akceptacji; dokumentacyjny PR pozostaje draftem. Dopiero po tej
+akceptacji i osobnym poleceniu rozpoczęcia implementacji poniższe **7 PR** utworzy
 jeden stos przez `gh stack`, osobny od dokumentacyjnego PR:
 pierwszy bazuje na `dev`, każdy następny na poprzednim. Każda warstwa działa po
 checkout i ma kompletny widoczny rezultat oraz fallback starszych komponentów.
 Wszystkie pozostają draftami do ukończenia i weryfikacji całości; scalanie naraz
 przez maintenera zgodnie z polityką repozytorium. Żadna warstwa nie jest scalana
-osobno. Dokumentacyjny PR może zostać scalony wcześniej przez maintenera.
+osobno. Gotowość i scalenie dokumentacyjnego PR pozostają decyzją maintenera.
 Przed każdą migracją sprawdzamy najwyższy numer na aktualnym dev (obecnie 0134)
 i wybieramy kolejny wolny; po rebase ponownie sprawdzamy monotoniczność.
 
