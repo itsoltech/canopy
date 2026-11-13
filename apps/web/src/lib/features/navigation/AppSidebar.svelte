@@ -32,6 +32,13 @@
   const section = $derived<Section>(sectionOf(page.url.pathname) ?? sectionMemory.current);
   const queries = $state<Record<Section, string>>({ threads: "", bots: "" });
 
+  $effect(() => {
+    const query = queries.threads;
+    const timer = setTimeout(() => (overview.warmQuery = query), 500);
+
+    return () => clearTimeout(timer);
+  });
+
   const threadsAttention = $derived.by(() => {
     const threads = [...overview.threads.values()];
 

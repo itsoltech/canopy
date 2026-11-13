@@ -37,6 +37,14 @@ i kod RPC. Wszystkie tabele odbiorcy mają kaskadę do relacji z partnerem.
 Istniejąca przeniesiona historia jest odczytywana jednorazowo polami protobuf,
 bez ładowania całego blobu do procesu. Szczegóły: [linked-computers.md](linked-computers.md#synchronizacja-zakresami-sekwencji--kontrakt-migracji).
 
+Migracja `0134_thread_mirror_recent_ranges` dodaje ograniczony sufiks publicznych
+rekordów mirrora wraz z usunięciami. Klucz to owner, partner, wątek, epoka i seq;
+payload oraz checkpoint powstają w tej samej transakcji. Sufiks umożliwia dogrzewanie
+cache klienta bez połączenia ze źródłem. Zapis zachowuje najwyżej 256 rekordów
+i 256 KiB na epokę; podczas odbudowy dodatkowo poprzednią widoczną epokę.
+Brakujące starsze rekordy oznaczają ograniczone okno z pagingiem. FK usuwa sufiks
+razem ze stanem mirrora; migracja nie kopiuje istniejącej historii.
+
 Migracja `0111_worker_event_quarantine` przechowuje oryginalne bajty protobuf
 zdarzeń odrzuconych przez błąd danych SQLSTATE `22xxx`. Kluczem deduplikacji jest
 `event_id`; rekord wskazuje worker, journal, wątek lub bot oraz `journal_seq`.

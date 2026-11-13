@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useEffectEvent, useMemo, useRef, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from "react";
 import type { ui } from "@canopy/contracts";
 import { useSession } from "./session";
 import { useStream } from "./stream";
@@ -14,10 +14,17 @@ function useOverviewBusState() {
   const { client, session, queries, modelCatalog } = useSession();
   const listeners = useRef(new Set<Listener>());
   const snapshots = useRef(0);
+  const [headIds, setHeadIds] = useState("");
   const invalidation = useMemo(() => new OverviewInvalidation(queries), [queries]);
 
   const stream = useStream(
-    client ? (signal) => client.api.watchOverview({ includeSnapshot: true }, { signal }) : null,
+    client
+      ? (signal) =>
+          client.api.watchOverview(
+            { includeSnapshot: true, threadHeadIds: headIds ? headIds.split(",") : [] },
+            { signal },
+          )
+      : null,
     (update: ui.OverviewUpdate) => {
       const change = update.change;
 
@@ -33,7 +40,7 @@ function useOverviewBusState() {
         if (gap) modelCatalog.invalidate();
       } else invalidation.apply(update);
     },
-    `overview:${session?.deviceId}`,
+    `overview:${session?.deviceId}:${headIds}`,
   );
 
   const subscribe = useMemo(
@@ -47,7 +54,7 @@ function useOverviewBusState() {
     [],
   );
 
-  return { stream, subscribe };
+  return { stream, subscribe, setHeadIds };
 }
 
 const Context = createContext<ReturnType<typeof useOverviewBusState> | null>(null);
@@ -72,6 +79,7 @@ function useOverviewBus() {
 
 /** The connection of the shared overview stream. */
 export const useOverviewStream = () => useOverviewBus().stream;
+export const useOverviewHeadSelection = () => useOverviewBus().setHeadIds;
 
 /** Receives every overview update while mounted. Children subscribe before the stream starts. */
 export function useOverviewEvents(listener: Listener) {

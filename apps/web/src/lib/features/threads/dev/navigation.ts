@@ -3,6 +3,9 @@ import { ui } from "@canopy/contracts";
 import { tick } from "svelte";
 import { decode } from "#lib/shared/wire.ts";
 import { ThreadState } from "../thread-state.svelte.ts";
+import { warmCacheHit, threadWarmingUsage } from "../warming.ts";
+
+export { threadWarmingUsage };
 
 const frame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
@@ -60,6 +63,10 @@ export async function probeThreadSnapshot(threadId: string, repeats = 20) {
 
 /** SPA navigation to the first painted thread articles and a focusable composer; this is not browser TTI. */
 export async function probeThreadNavigation(path: string) {
+  if (location.pathname === path) throw new Error("Start this probe from a different route");
+  const id = path.startsWith("/threads/") ? decodeURIComponent(path.slice(9)) : "";
+  const cacheCurrent = warmCacheHit(id);
+  const cache = threadWarmingUsage();
   const started = performance.now();
   await goto(path);
   const deadline = performance.now() + 20_000;
@@ -71,12 +78,16 @@ export async function probeThreadNavigation(path: string) {
 
   await tick();
   await frame();
+  const firstFeedFrameMs = performance.now() - started;
   await frame();
   const paintMs = performance.now() - started;
   const composer = document.querySelector<HTMLElement>('[contenteditable="true"]');
   composer?.focus();
 
   return {
+    cacheCurrent,
+    cache,
+    firstFeedFrameMs,
     paintMs,
     focusReadyMs: composer && document.activeElement === composer ? performance.now() - started : undefined,
     nodes: document.querySelectorAll("*").length,

@@ -7,15 +7,51 @@ import type { ui } from "@canopy/contracts";
 import { diagnosticsEpochs } from "./diagnostics-epochs";
 
 export const mobileMeasurements = new ClientMeasurements("mobile", Crypto.randomUUID());
-let opening: { start: number; frame: number; snapshot: boolean; cached: boolean; painting: boolean } | undefined;
 
-export function useMobileOpening(id: string, cached: boolean) {
-  const begin = useEffectEvent(() => beginMobileOpening(cached));
+let opening:
+  | {
+      start: number;
+      id: string;
+      frame: number;
+      snapshot: boolean;
+      cached: boolean;
+      painting: boolean;
+      layout: boolean;
+      current: boolean;
+      currentPaint: boolean;
+      painted: boolean;
+    }
+  | undefined;
+
+let tapped = "";
+
+export function mobileThreadTapped(id: string, cached: boolean, current: boolean) {
+  beginMobileOpening(id, cached);
+  tapped = id;
+  mobileMeasurements.record(13, current ? 100 : 0);
+
+  if (opening) opening.current = current;
+}
+
+export function useMobileOpening(id: string, cached: boolean, current = false) {
+  const begin = useEffectEvent(() => {
+    if (tapped !== id) {
+      beginMobileOpening(id, cached);
+      mobileMeasurements.record(13, current ? 100 : 0);
+    }
+
+    tapped = "";
+
+    if (current) mobileCurrentVisible(id);
+  });
 
   useEffect(() => {
     begin();
+    const current = opening;
 
-    return cancelMobileOpening;
+    return () => {
+      if (opening === current) cancelMobileOpening();
+    };
   }, [id]);
 }
 
@@ -58,11 +94,24 @@ export function startMobileDiagnostics(api: Client<typeof ui.GatewayService>) {
   };
 }
 
-export function beginMobileOpening(cached = false) {
+export function beginMobileOpening(id: string, cached = false) {
   cancelMobileOpening();
 
   if (!mobileMeasurements.opening()) return;
-  const current = { start: performance.now(), frame: 0, snapshot: false, cached, painting: false };
+
+  const current = {
+    start: performance.now(),
+    id,
+    frame: 0,
+    snapshot: false,
+    cached,
+    painting: false,
+    layout: false,
+    current: false,
+    currentPaint: false,
+    painted: false,
+  };
+
   let previous = current.start;
 
   const frame = () => {
@@ -84,8 +133,8 @@ export function beginMobileOpening(cached = false) {
   current.frame = requestAnimationFrame(frame);
 }
 
-export function mobileSnapshotStarted() {
-  return opening && !opening.snapshot ? performance.now() : 0;
+export function mobileSnapshotStarted(id: string) {
+  return opening?.id === id && !opening.snapshot ? performance.now() : 0;
 }
 
 export function mobileSnapshotFinished(start: number) {
@@ -94,10 +143,15 @@ export function mobileSnapshotFinished(start: number) {
   mobileMeasurements.record(2, performance.now() - start);
 }
 
-export function mobileFeedLayout() {
+export function mobileFeedLayout(id: string) {
   const current = opening;
 
-  if (!current || current.painting) return;
+  if (!current || current.id !== id) return;
+  current.layout = true;
+
+  if (current.current) mobileCurrentVisible(id);
+
+  if (current.painting) return;
 
   if (performance.now() - current.start > 30_000) {
     cancelMobileOpening();
@@ -110,13 +164,33 @@ export function mobileFeedLayout() {
     requestAnimationFrame(() => {
       if (opening === current && AppState.currentState === "active") {
         mobileMeasurements.record(current.cached ? 0 : 1, performance.now() - current.start);
-        cancelMobileOpening();
+        current.painted = true;
+
+        if (current.currentPaint) cancelMobileOpening();
       }
     }),
   );
 }
 
+/** A layout plus a current sequence checkpoint; the next rAF is a JS presentation proxy. */
+export function mobileCurrentVisible(id: string) {
+  const current = opening;
+
+  if (!current || current.id !== id) return;
+  current.current = true;
+
+  if (!current.layout || current.currentPaint) return;
+  current.currentPaint = true;
+  requestAnimationFrame(() => {
+    if (opening !== current || AppState.currentState !== "active") return;
+    mobileMeasurements.record(12, performance.now() - current.start);
+
+    if (current.painted) cancelMobileOpening();
+  });
+}
+
 export function cancelMobileOpening() {
   if (opening) cancelAnimationFrame(opening.frame);
   opening = undefined;
+  tapped = "";
 }

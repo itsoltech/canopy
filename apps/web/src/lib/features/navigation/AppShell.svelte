@@ -53,6 +53,7 @@
   import WhatsNewHost from "#lib/features/updates/WhatsNewHost.svelte";
   import { threadWarmSet } from "@canopy/domain/thread-warm-set";
   import { sidebarThreads } from "@canopy/domain/sidebar-threads";
+  import { expandProjectIds } from "@canopy/domain/projects";
   import { createThreadWarming, connectThreadWarming } from "#lib/features/threads/warming.ts";
 
   let { children }: { children: Snippet } = $props();
@@ -99,8 +100,8 @@
       settings.sidebar.pinnedThreadIds,
       sidebarThreads(
         [...overview.threads.values()],
-        settings.sidebar,
-        "",
+        { ...settings.sidebar, projectIds: expandProjectIds(settings.sidebar.projectIds, overview.projectChoices) },
+        overview.warmQuery,
         (id) => overview.project(id)?.name ?? "",
       ).roots.map((thread) => thread.id),
     ),

@@ -1209,6 +1209,23 @@ podczas catch-up. Wyniki pomiarów pozostają poza repozytorium.
 
 ### Ograniczenia buforów synchronizacji
 
+Dogrzewanie cache klienta używa tego samego seq i ograniczonych zakresów co widoczny
+watch, także dla kwalifikowanych id wątków partnera. Overview odczytuje head lustra
+z `thread_range_state.visible_epoch/visible_applied_seq` po autoryzowanym powiązaniu
+owner + peer. Nie pyta domu przez sieć i nie zakłada, że lustro jest równe headowi
+offline domu. Po nadrobieniu lustra następny head uruchamia kolejną deltę klienta.
+Zdalny odczyt w tle wymaga `THREAD_RANGES`; brak capability nie może przełączyć go
+na starszą ścieżkę pełnej historii. Odczyt preferuje lokalny, trwały mirror także
+przy niedostępnym domu. Migracja 0134 zachowuje sufiks niezmiennych rekordów
+(w tym tombstone): maksymalnie 256 rekordów / 256 KiB na epokę i wątek.
+Podczas odbudowy pozostaje dodatkowo poprzednia widoczna epoka. Odczyt zwraca
+maksymalnie cztery partie po 64 rekordy / 64 KiB, z headem widocznego checkpointu.
+Brak sufiksu po aktualizacji, retencji lub zmianie epoki oznacza nowe ograniczone
+okno 24 tur / 128 itemów z pagingiem. Nie uruchamia replay pełnej historii ani
+nowej subskrypcji domu. Unlink usuwa także sufiks przez kaskadę FK.
+Unlink usuwa wątek z zestawu overview; cache
+nie nadaje uprawnień i każde kolejne żądanie przechodzi zwykłe owner scoping.
+
 Wolny odbiorca nie zatrzymuje publikacji do innych subskrybentów. Limity dotyczą wiadomości
 oczekujących w kolejce aplikacji, poza pojedynczą aktualnie dostarczaną wiadomością
 i buforami HTTP/2/TLS:

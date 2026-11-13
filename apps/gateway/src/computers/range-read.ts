@@ -33,7 +33,7 @@ export async function readRangeMirror(
   );
 }
 
-function readRangeWindow(
+export function readRangeWindow(
   sql: SqlClient.SqlClient,
   owner: string,
   node: string,

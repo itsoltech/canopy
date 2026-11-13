@@ -33,7 +33,7 @@ export async function clearPairingCache(
 
 /** Pairing lifetime fence plus serialized disk work: a late stream cannot resurrect revoked data. */
 export class PersistentThreadCache {
-  #memory = new ThreadCache({ count: 6, bytes: 24 * 1024 * 1024 });
+  #memory = new ThreadCache({ count: 16, bytes: 24 * 1024 * 1024 });
   #writing: Promise<void> = Promise.resolve();
   #closed = false;
   #saving: { snapshot: ui.ThreadSnapshot; promise: Promise<void> } | undefined;
@@ -42,6 +42,10 @@ export class PersistentThreadCache {
     readonly storage: ThreadCacheStorage,
     readonly limits = cacheLimits,
   ) {}
+
+  get usage() {
+    return this.#memory.usage;
+  }
 
   peek(id: string) {
     return this.#closed ? undefined : this.#memory.get(id);

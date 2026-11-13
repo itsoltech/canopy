@@ -5,12 +5,22 @@ import { threadCacheTail } from "@canopy/domain/thread-cache-tail";
 
 /** SPA memory, with private Electron persistence when the preload bridge is available. */
 class ClientThreadCache extends ThreadCache {
+  #generation = 0;
+
   forget(id: string) {
+    this.#generation++;
     super.delete(id);
     removeHistory(`thread_${id}`);
   }
+  override clear() {
+    this.#generation++;
+    super.clear();
+  }
   async load(id: string) {
+    const generation = this.#generation;
     const cached = this.get(id) ?? (await loadHistory(ui.ThreadSnapshotSchema, `thread_${id}`));
+
+    if (generation !== this.#generation) return undefined;
 
     if (cached?.thread?.id === id) super.set(threadCacheTail(cached));
 

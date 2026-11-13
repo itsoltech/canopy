@@ -66,3 +66,8 @@ export function pauseThreadWarming() {
 export function observeThreadCacheMemory() {
   clientMeasurements.record(15, threadCache.usage.bytes);
 }
+
+/** Numeric-only local probe; payload accounting is distinct from browser heap. */
+export function threadWarmingUsage() {
+  return { requests: current?.requests ?? 0, payloadBytes: threadCache.usage.bytes, entries: threadCache.usage.count };
+}

@@ -7,6 +7,7 @@ import { SqlClient } from "effect/sql";
 import type { ComputerStore } from "./store.ts";
 import { rangeResult } from "./range-effects.ts";
 import { writeRangeEntities, writeRangeHeader } from "./range-entities.ts";
+import { writeRecentRange } from "./range-recent.ts";
 
 type Saved = {
   epoch: string;
@@ -97,6 +98,7 @@ export class ThreadRangeStore {
             visible_applied_seq=excluded.visible_applied_seq,subscription_id=excluded.subscription_id,
             last_synced_at=excluded.last_synced_at`;
                 yield* writeRangeEntities(sql, owner, node, batch);
+                yield* writeRecentRange(sql, owner, node, batch);
 
                 if (batch.caughtUp)
                   yield* sql`DELETE FROM thread_range_entities WHERE owner_user_id=${owner}::uuid
