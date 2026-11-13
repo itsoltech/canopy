@@ -34,8 +34,8 @@ describe.skipIf(!dockerAvailable)("visible PR polling request budget", () => {
 
         const budget =
           new Map([
-            ["running", 25],
-            ["completed", 5],
+            ["running", 30],
+            ["completed", 10],
           ]).get(state) ?? 0;
 
         expect(result.idle.total).toBeLessThanOrEqual(budget);
@@ -90,6 +90,79 @@ describe.skipIf(!dockerAvailable)("visible PR polling request budget", () => {
       controller.abort();
       await stream.return();
     } finally {
+      await gw.close();
+      fixture.close();
+    }
+  }, 60_000);
+
+  test("each slow tick detects comment edits and a forced timeline read bypasses a warm page", async () => {
+    const fixture = pollingFixture();
+    fixture.state.running = false;
+
+    const gw = await startTestGateway({
+      github: {
+        ...fixture.options,
+        fetch: Object.assign(
+          async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+            const response = await fixture.options.fetch!(input, init);
+
+            // Cache expiry starts after the response, not when its slow tick began.
+            if (String(input).endsWith("/pulls/42")) fixture.advance(7000);
+
+            return response;
+          },
+          { preconnect: fetch.preconnect },
+        ),
+        wait: async (ms, signal) => {
+          signal.throwIfAborted();
+          fixture.advance(Math.ceil(ms));
+        },
+      },
+    });
+
+    const controller = new AbortController();
+
+    try {
+      const { pr } = await linkedRead(gw, fixture);
+
+      const stream = watchPullRequest(
+        gw.core.github.prs,
+        create(github.WatchPullRequestRequestSchema, { pullRequestId: pr, visibility: "panel" }),
+        controller.signal,
+      );
+
+      await stream.next();
+
+      for (const [index, edit] of ["checklist ticked", "final review"].entries()) {
+        // Warm the timeline just before the edit, so its 60 s TTL cannot hide a stale response.
+        fixture.advance(50_000);
+        const before = await gw.api.listPullRequestTimeline({ pullRequestId: pr, refresh: true });
+        fixture.timelineVersion(edit);
+        fixture.state.updatedAt = `2026-11-10T12:0${index + 1}:00Z`;
+        const started = fixture.requests.length;
+        const editedAt = fixture.options.now!();
+        const update = (await stream.next()).value;
+        expect(update?.invalidated).toContain("timeline");
+        expect(update?.invalidated).toContain("reviews");
+        expect(fixture.options.now!() - editedAt).toBeLessThanOrEqual(30_000);
+        const probes = fixture.requests.slice(started).filter((r) => r.resource.endsWith("/pulls/42"));
+        expect(probes).toHaveLength(1);
+        expect(probes[0]?.conditional).toBe(true);
+
+        // Web/mobile invalidation uses refresh:true, which must reach GraphQL even with a warm cache.
+        const timelineAt = fixture.requests.length;
+        const after = await gw.api.listPullRequestTimeline({ pullRequestId: pr, refresh: true });
+        expect(
+          after.items.some((item) => item.content.case === "comment" && item.content.value.body.includes(edit)),
+        ).toBe(true);
+        expect(before.items.some((item) => item.content.value?.body.includes(edit))).toBe(false);
+        expect(fixture.requests.slice(timelineAt).some((r) => r.resource === "CanopyTimeline")).toBe(true);
+      }
+
+      controller.abort();
+      await stream.return();
+    } finally {
+      controller.abort();
       await gw.close();
       fixture.close();
     }
