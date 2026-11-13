@@ -18,7 +18,7 @@
   }
 </script>
 
-<HoverCard label="Citation" touch="press" class="w-80 max-w-[calc(100vw-1rem)]">
+<HoverCard label="Citation" touch="press" class="w-max max-w-[min(20rem,calc(100vw-1rem))]">
   {#snippet trigger(props)}
     <button
       type="button"

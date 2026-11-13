@@ -76,7 +76,7 @@
   anchor={preview?.anchor}
   placement="top-start"
   focusOnOpen={false}
-  class="w-80 max-w-[calc(100vw-1rem)]"
+  class="w-max max-w-[min(20rem,calc(100vw-1rem))]"
 >
   <div
     {id}
