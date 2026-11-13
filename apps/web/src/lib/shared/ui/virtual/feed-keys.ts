@@ -41,3 +41,20 @@ export function focusFeedRow(element: HTMLElement | undefined, scroller: HTMLEle
     block: element.offsetHeight > scroller.clientHeight - footerHeight ? "start" : "nearest",
   });
 }
+
+/** Page keys navigate feed articles; boundaries keep their existing focus destination. */
+export function navigateFeedKey(
+  event: KeyboardEvent,
+  footer: HTMLElement | undefined,
+  scroller: HTMLElement | undefined,
+  positions: ReadonlyMap<string, number>,
+  focus: (at: number) => Promise<void>,
+): void {
+  if (event.defaultPrevented || focusFeedBoundary(event, footer, scroller)) return;
+  const current = pagedRow(event);
+  const at = current === undefined ? undefined : positions.get(current);
+
+  if (at === undefined) return;
+  event.preventDefault();
+  void focus(at + (event.key === "PageDown" ? 1 : -1));
+}

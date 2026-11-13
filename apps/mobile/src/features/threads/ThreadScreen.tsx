@@ -37,6 +37,7 @@ import { useThreadSend } from "./useThreadSend";
 import { useThreadStop } from "./useThreadStop";
 import { useMobileOpening } from "../settings/client-diagnostics";
 import { threadCacheCurrent } from "@canopy/domain/thread-warm-set";
+import { useDevicePreferences } from "../settings/device-preferences";
 
 export type ThreadState = ReturnType<typeof useThreadState>;
 
@@ -90,6 +91,7 @@ function useThreadState(id: string) {
   const blocked = hardBlocked || busy || !available;
 
   return {
+    id,
     session,
     client,
     ready,
@@ -132,6 +134,7 @@ function useThreadComposer(state: ThreadState) {
 
 export function ThreadScreen({ id }: { id: string }) {
   const state = useThreadState(id);
+  const { viewLoaded } = useDevicePreferences();
   const composer = useThreadComposer(state);
 
   const [sheet, setSheet] = useState<"goal" | "side" | null>(null);
@@ -172,7 +175,7 @@ export function ThreadScreen({ id }: { id: string }) {
     >
       <ChatKeyboard composerHeight={composer.height}>
         <DropZone draft={state.message.files} disabled={blocked || state.home.away}>
-          <ThreadTimeline state={state} composer={composer} />
+          {viewLoaded && <ThreadTimeline state={state} composer={composer} />}
           <FloatingComposer
             motion={composer.motion}
             coverage={following.composerInset}

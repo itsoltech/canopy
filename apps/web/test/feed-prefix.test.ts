@@ -4,7 +4,7 @@ import { timestampFromMs } from "@bufbuild/protobuf/wkt";
 import { ItemSchema, ItemStatus, NoticeSchema, ui } from "@canopy/contracts";
 import { FeedPrefix } from "../src/lib/features/threads/feed-prefix.ts";
 import type { FeedInput, FeedRow } from "../src/lib/features/threads/feed.ts";
-import { FeedBuilder } from "../src/lib/features/threads/feed.ts";
+import { FeedBuilder, feedScrollKey } from "../src/lib/features/threads/feed.ts";
 import { buildTimeline } from "../src/lib/features/threads/timeline.ts";
 import type { TimelineEntry } from "../src/lib/features/threads/thread-types.ts";
 
@@ -47,6 +47,39 @@ const build = (part: FeedInput, context?: { lastDay: string; withdrawn: readonly
     last: false,
     work: false,
   }));
+
+test("reading anchors follow their message when an answer slot is replaced, including inherited history", () => {
+  for (const inherited of [false, true]) {
+    const builder = new FeedBuilder();
+    const base = input();
+
+    const state = (ended: boolean): FeedInput => {
+      const entries = [...base.entries, ...(ended ? [entry("final", "b", 3n)] : [])];
+      const turns = ended ? base.turns.map((t) => ({ ...t, status: "completed" })) : base.turns;
+
+      return {
+        ...base,
+        entries: inherited ? [] : entries,
+        turns: inherited ? [] : turns,
+        inheritedEntries: inherited ? entries : [],
+        inheritedTurns: inherited ? turns : [],
+        forkSourceId: inherited ? "source" : undefined,
+        historyOpen: true,
+        openWork: new Set(["b"]),
+      };
+    };
+
+    const answer = builder.build(state(false)).find((row) => row.kind === "answer" && row.turn.id === "b");
+
+    if (!answer) throw new Error("Expected the provisional answer");
+    const saved = feedScrollKey(answer);
+    const next = builder.build(state(true));
+    const restored = next.find((row) => feedScrollKey(row) === saved);
+    expect(restored?.key).toBe(`${inherited ? "history:source:" : ""}item:live`);
+    expect(next.find((row) => row.key === answer.key)).toBeDefined();
+    expect(feedScrollKey(next.find((row) => row.key === answer.key) ?? answer)).not.toBe(saved);
+  }
+});
 
 test("streaming reuses completed history and retains day boundaries and withdrawn numbering", () => {
   const cache = new FeedPrefix();

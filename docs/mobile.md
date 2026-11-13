@@ -778,6 +778,18 @@ Zimny odczyt prosi o 24 pełne tury, czat bota i wymiana o 50 wiadomości.
 Przewinięcie do starszego końca odwróconej listy pobiera poprzednią stronę;
 „Show earlier messages” pozwala też ponowić odczyt lub rozwinąć krótką listę.
 `maintainVisibleContentPosition` utrzymuje widoczny element przy dopisaniu historii.
+Pozycja czytania jest lokalna dla telefonu i parowania: istniejący magazyn
+`DeviceViewPreferences` zachowuje LRU 100 wątków, z podążaniem za końcem albo
+kluczem wiadomości, jej tury i offsetem wewnątrz wiadomości. Pomiar wiadomości
+jest niezależny od wysokości pracy nad nią. Powrót i restart odtwarzają wyłącznie
+kotwice w załadowanym oknie; fold i grupa zawierające kotwicę otwierają się przed
+pozycjonowaniem. Brak wiadomości oznacza koniec,
+bez dodatkowych odczytów. Lista pozostaje przezroczysta do ustawienia pozycji.
+Próby odnalezienia niezmierzonej komórki są ograniczone; odtworzenie nie animuje
+przewijania i pokazuje zwinięty kompozytor z „Jump to latest” przy czytaniu historii.
+Nowe wiadomości w tle nie odciągają od zapamiętanej historii, a czytelnik
+podążający za końcem wraca do najnowszej wiadomości. Zapis przy końcu gestu,
+zmianie widocznych tur, wyjściu z ekranu i przejściu w tło zostaje na urządzeniu.
 Wyszukiwanie obejmuje wejścia i odpowiedzi agenta; wpisane zapytanie doczytuje
 strony do początku historii. Zwykłe otwarcie ani restart nie uruchamia tego odczytu.
 Cache zachowuje całe dotąd załadowane okno z granicą strony i kursorem.

@@ -10,13 +10,15 @@
   import { EndScroll } from "./end-scroll.ts";
   import { publishViewport, rowAttachment } from "./feed-measure.ts";
   import { FeedRows } from "./feed-rows.ts";
-  import { COLD_OVERSCAN, initialHeight, keepMounted, OVERSCAN_STEP } from "./feed-range.ts";
-  import { feedRowKey, focusFeedRow, focusFeedBoundary, pagedRow } from "./feed-keys.ts";
+  import { COLD_OVERSCAN, feedRange, OVERSCAN_STEP, rowAlignmentSpace } from "./feed-range.ts";
+  import { feedRowKey, focusFeedRow, navigateFeedKey } from "./feed-keys.ts";
   import { SizeIndex } from "./size-index.ts";
   import VirtualRow from "./VirtualRow.svelte";
-  import { FEED_END_THRESHOLD, ScrollIntent, type ReaderScroll } from "./scroll.ts";
+  import { FEED_END_THRESHOLD, followingAfterScroll, ScrollIntent, type ReaderScroll } from "./scroll.ts";
   import type { FeedViewport } from "./viewport.ts";
   import { footerMotion, FooterScroll } from "./footer-motion.ts";
+  import { FeedScrollOpening, type FeedScrollMemory } from "./feed-scroll-memory.svelte.ts";
+  import { answerStart, moveToAnswer } from "./answer-scroll.ts";
 
   /**
    * A chat's scroll area: one scroll container with the rows (`role="feed"`, virtualized) and an overlay
@@ -55,6 +57,8 @@
     onreaderscroll,
     onlatest,
     onviewport,
+    scrollMemory,
+    ready = true,
   }: {
     rows: readonly T[];
     key: (row: T) => string;
@@ -79,6 +83,8 @@
     onlatest?: () => void;
     /** Measured visible rows (no overscan), published at most once per animation frame. */
     onviewport?: (viewport: FeedViewport) => void;
+    scrollMemory?: FeedScrollMemory;
+    ready?: boolean;
   } = $props();
 
   const uid = $props.id();
@@ -106,6 +112,9 @@
 
   /** Following the end (the reader is at the bottom). */
   let stuck = $state(true);
+  const opening = new FeedScrollOpening(untrack(() => scrollMemory));
+
+  $effect(() => opening.connect(() => ({ following: stuck, anchor })));
 
   // The overscan (most of it above the end, where the reader starts) grows to its full size in idle-time
   // steps after the first rows were measured, instead of rendering in the frame that opens the thread.
@@ -141,23 +150,17 @@
 
   const range = $derived.by((): [number, number] => {
     void layout;
-    void scrollTop;
 
-    if (viewport === 0) return index.tail(initialHeight());
-    const overscan = Math.min(fullOverscan, overscanLimit);
-    // Reading above: the window follows the anchor row, also when rows were added or resized above it
-    // (its scroll position is corrected only once it is mounted).
-    const at = anchor && positions.get(anchor.key);
-    const top = at === undefined || !anchor ? scrollTop : listTop + index.offset(at) - anchor.top;
-
-    // Reuse the tail window near the end, so following does not mount another row during the footer's motion.
-    const tail = stuck || top - listTop + viewport + overscan >= layout.total;
-
-    const bounds = tail
-      ? index.tail(viewport + 2 * overscan)
-      : index.range(top - listTop - overscan, top - listTop + viewport + overscan);
-
-    return keepMounted(bounds, focusedKey === undefined ? undefined : positions.get(focusedKey));
+    return feedRange(index, positions, {
+      viewport,
+      scrollTop,
+      listTop,
+      anchor,
+      stuck,
+      overscan: Math.min(fullOverscan, overscanLimit),
+      focused: focusedKey,
+      restoring: opening.positioned ? undefined : opening.target,
+    });
   });
 
   const padTop = $derived.by(() => (void layout, index.offset(range[0])));
@@ -166,24 +169,16 @@
 
   $effect(() => {
     void layout;
-    const top = scrollTop - listTop;
-    const height = Math.max(0, viewport - footerHeight);
-    const callback = onviewport;
 
-    if (!callback || !viewport) return;
-
-    return publishViewport(index, top, height, callback);
+    return publishViewport(index, scrollTop - listTop, Math.max(0, viewport - footerHeight), onviewport);
   });
 
   // A start-aligned last row needs enough space below it to reach the viewport's top.
   let alignedKey = $state<string>();
 
-  const alignmentSpace = $derived.by(() => {
-    void layout;
-    const at = alignedKey === undefined ? undefined : positions.get(alignedKey);
-
-    return at === undefined ? 0 : Math.max(0, viewport - footerHeight - (layout.total - index.offset(at)));
-  });
+  const alignmentSpace = $derived(
+    (void layout, rowAlignmentSpace(index, alignedKey, positions, viewport, footerHeight)),
+  );
 
   const footerSpace = $derived(footerHeight + alignmentSpace);
 
@@ -288,6 +283,8 @@
     void padBottom;
     void sized;
     void footerSpace;
+    void ready;
+    void viewport;
 
     untrack(settle);
   });
@@ -308,6 +305,14 @@
 
   function settle() {
     if (!scroller || !list) return;
+
+    if (!opening.positioned) {
+      const restored = opening.place(scroller, elements, index, positions, visible.map(key), ready, viewport, setTop);
+
+      if (restored === false) return;
+      anchor = restored;
+      stuck = !restored;
+    }
 
     // The reader scrolled and its scroll event is still to come: take it in first, or the old anchor
     // would undo the scroll.
@@ -364,21 +369,21 @@
     if (Math.abs(top - lastTop) < 0.5) return;
     const origin = scrollIntent.origin(top, endScroll.active ? Infinity : smoothUntil);
 
-    if (origin !== "programmatic") {
+    if (origin === "reader") {
       const distance = scroller.scrollHeight - top - scroller.clientHeight;
 
-      if (!rowTarget && distance <= FEED_END_THRESHOLD) stuck = true;
-      else if (top < lastTop - 0.5) stuck = false;
+      stuck = followingAfterScroll(stuck, origin, distance, lastTop - top, Boolean(rowTarget));
 
-      if (origin === "reader") {
-        onreaderscroll?.({ distance, up: lastTop - top });
-      }
+      onreaderscroll?.({ distance, up: lastTop - top });
     }
 
     lastTop = top;
     scrollTop = top;
 
-    if (!stuck && performance.now() >= smoothUntil) capture();
+    if (!stuck && origin === "reader" && performance.now() >= smoothUntil) capture();
+    opening.schedule(() => ({ following: stuck, anchor }));
+
+    if (origin === "unattributed") settle();
   }
 
   function onwheel(event: WheelEvent) {
@@ -519,25 +524,18 @@
   /** After a turn, let a following reader start an oversized answer at its first line.
    * No focus change, no movement for a short answer or a reader who scrolled away. */
   export async function scrollRowToTop(rowKey: string): Promise<boolean> {
-    if (!stuck) return false;
-    await tick();
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-    const element = elements.get(rowKey);
+    const target = await answerStart(() => ({
+      following: stuck,
+      scroller,
+      element: elements.get(rowKey),
+      footer: footerHeight,
+    }));
 
-    if (!stuck || !scroller || !element) return false;
-    const box = element.getBoundingClientRect();
-
-    if (box.height <= scroller.clientHeight - footerHeight - 16) return false;
+    if (!target) return false;
     endScroll.cancel();
-    const top = scroller.scrollTop + box.top - scroller.getBoundingClientRect().top - 8;
     stuck = false;
-    anchor = { key: rowKey, element, top: 8 };
-
-    if (matchMedia("(prefers-reduced-motion: reduce)").matches) setTop(top);
-    else {
-      smoothUntil = performance.now() + 1000;
-      scroller.scrollTo({ top, behavior: "smooth" });
-    }
+    anchor = { key: rowKey, element: target.element, top: 8 };
+    smoothUntil = moveToAnswer(target.scroller, target.top, setTop);
 
     return true;
   }
@@ -577,14 +575,7 @@
   }
 
   function onkeydown(event: KeyboardEvent) {
-    if (event.defaultPrevented || focusFeedBoundary(event, footerElement, scroller)) return;
-
-    const current = pagedRow(event);
-    const at = current === undefined ? undefined : positions.get(current);
-
-    if (at === undefined) return;
-    event.preventDefault();
-    void focusRow(at + (event.key === "PageDown" ? 1 : -1));
+    navigateFeedKey(event, footerElement, scroller, positions, focusRow);
   }
 </script>
 
@@ -598,6 +589,7 @@
     {id}
     class="relative h-full scroll-pt-2 scroll-pb-(--feed-footer) scroll-stable overflow-y-auto overscroll-contain [contain:strict] [overflow-anchor:none] focus-visible:outline-none"
     style:--feed-footer="{footerHeight}px"
+    style:visibility={opening.positioned ? undefined : "hidden"}
     role="region"
     aria-label={label}
     tabindex="0"
@@ -656,7 +648,7 @@
               count={sized.length}
               {memory}
               {measure}
-              enter={entrances.take(key(item))}
+              enter={opening.positioned ? entrances.take(key(item)) : undefined}
               exiting={() => !positions.has(key(item)) && inserted?.(item) === "unfold"}
             >
               {@render row(item, range[0] + offset)}

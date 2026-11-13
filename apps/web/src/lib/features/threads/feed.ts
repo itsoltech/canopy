@@ -68,6 +68,14 @@ export const feedGroup = (row: FeedRow): string =>
       (row.history ? ":history" : "")
     : row.kind;
 
+/** Persist a message's identity, even when the stable answer slot later shows a different message. */
+export function feedScrollKey(row: FeedRow): string {
+  if (row.kind !== "answer" || row.row?.kind !== "item") return row.key;
+  const id = row.row.node.entry.id;
+
+  return row.key.replace(/answer:.+$/, () => `item:${id}`);
+}
+
 /**
  * How a row inserted mid-feed enters (VirtualFeed `inserted`): the rows of a fold that opened unfold,
  * a fold that formed when its turn ended resolves in. History rows opening with their header do not.

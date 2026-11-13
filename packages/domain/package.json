@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./thread-scroll": "./src/thread-scroll.ts",
     "./thread-warmer": "./src/thread-warmer.ts",
     "./thread-warm-set": "./src/thread-warm-set.ts",
     "./thread-cache-tail": "./src/thread-cache-tail.ts",

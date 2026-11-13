@@ -9,6 +9,7 @@ import { ActivityGroup, activityHeader, activitySurface } from "./activity-heade
 import { workRows, type BodyRow, type WorkRow } from "./turn-plan";
 import { BodyRowView } from "./TimelineBodyRow";
 import { TimelineDisclosure } from "./TimelineDisclosure";
+import { useThreadScrollTarget } from "../../ui/thread-scroll-items";
 
 type GroupRow = Extract<WorkRow, { kind: "group" }>;
 
@@ -25,7 +26,12 @@ const ToolGroup = memo(function ToolGroup({
   ended: boolean;
 }) {
   const c = useColors();
-  const [manual, setManual] = useState<boolean>();
+  const target = useThreadScrollTarget();
+
+  const [manual, setManual] = useState<boolean | undefined>(() =>
+    row.rows.some((inner) => inner.key === target) ? true : undefined,
+  );
+
   const open = manual ?? expanded;
 
   return (

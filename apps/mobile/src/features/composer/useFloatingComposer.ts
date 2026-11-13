@@ -27,6 +27,14 @@ function animate({ progress, moving, instant }: Fold, compact: boolean) {
   );
 }
 
+/** Opening history has no transition: expose the latest control in the same initial layout. */
+function restoreReading({ progress, moving }: Fold, folded: SharedValue<boolean>, publish: (compact: boolean) => void) {
+  folded.set(true);
+  progress.set(0);
+  moving.set(false);
+  publish(true);
+}
+
 /**
  * The floating composer's fold (web: ComposerCompaction), decided and animated on the UI thread: the list's scroll
  * handler folds it after a reader gesture travels toward older messages and opens it at the end, in the same frame.
@@ -183,5 +191,6 @@ export function useFloatingComposer<Item>(
       ...following.listProps,
       onScroll,
     },
+    restoreReading: () => restoreReading(motionState, folded, setCompact),
   };
 }

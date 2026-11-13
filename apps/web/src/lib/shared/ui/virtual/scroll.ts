@@ -7,6 +7,21 @@ export interface ReaderScroll {
   up: number;
 }
 
+/** Layout clamping can look like an upward scroll after a measured row grows again. Only gestures release following. */
+export function followingAfterScroll(
+  following: boolean,
+  origin: "reader" | "programmatic" | "unattributed",
+  distance: number,
+  up: number,
+  targeting: boolean,
+): boolean {
+  if (origin !== "reader") return following;
+
+  if (!targeting && distance <= FEED_END_THRESHOLD) return true;
+
+  return up > 0.5 ? false : following;
+}
+
 /** A short gesture lease includes touch/trackpad inertia, but never our own scroll writes.
  * Consumed scroll events can arrive through ResizeObserver before the native scroll listener. */
 export class ScrollIntent {
