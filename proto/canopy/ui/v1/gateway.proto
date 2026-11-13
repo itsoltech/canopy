@@ -1314,6 +1314,10 @@ message ThreadConnector {
   // Access inherited from All workers is managed in the home's account settings.
   bool all_workers = 6;
   uint64 revision = 7;
+  // Last provider attachment compared with the current authorized catalog.
+  string session_state = 8; // available | pending | pending_removal | failed | unavailable
+  string session_detail = 9;
+  bool session_attached = 10;
 }
 message ThreadPanel {
   repeated ThreadConnector connectors = 1;

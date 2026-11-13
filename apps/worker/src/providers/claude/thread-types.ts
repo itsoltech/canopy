@@ -7,6 +7,7 @@ import type {
   Mention,
   PermissionMode,
   ThreadEvent,
+  ThreadSpec,
 } from "@canopy/contracts";
 import { AsyncChannel } from "@canopy/transport";
 import { Schema } from "effect";
@@ -74,6 +75,7 @@ export interface ClaudeInstanceRuntime {
 }
 
 export interface Session {
+  refreshConnectors(spec: ThreadSpec): Promise<void>;
   readonly threadId: string;
   readonly sessionId: string;
   readonly cwd: string;

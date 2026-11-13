@@ -1,5 +1,5 @@
 import { query, type Options, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
-import type { PermissionMode, ThreadSpec } from "@canopy/contracts";
+import type { ConnectorTool, PermissionMode, ThreadSpec } from "@canopy/contracts";
 import { AsyncChannel } from "@canopy/transport";
 import { claudeNativeToolOptions } from "../native-tools.ts";
 import { CLAUDE_VIEW_IMAGE_TOOL, claudeBusServer, claudeBusToolNames } from "./bus.ts";
@@ -13,6 +13,7 @@ import type { claudeRuntime } from "./session-runtime.ts";
 import { sessionPermissions } from "./session-permissions.ts";
 import { callKey, fileSize } from "./session-io.ts";
 import { claudeInstructionSettings, managedClaudeInstructions } from "./instructions.ts";
+import { claudeConnectorRefresh } from "./connector-mcp.ts";
 
 export function claudeSessions(
   ctx: ClaudeThreadContext,
@@ -46,7 +47,7 @@ export function claudeSessions(
     const busTools = [
       ...(spec.enableAgentBus ? claudeBusToolNames(spec.depth) : []),
       ...(options.viewImage ? [CLAUDE_VIEW_IMAGE_TOOL] : []),
-      ...spec.connectorTools.map((tool) => `mcp__${BUS_SERVER}__${tool.name}`),
+      `mcp__${BUS_SERVER}__*`,
     ];
 
     const attachments = options.attachmentsDir?.(spec.threadId);
@@ -55,6 +56,19 @@ export function claudeSessions(
     const instructions = [managedClaudeInstructions(runtime.home), spec.instructions, !resume && recoveryContext]
       .filter(Boolean)
       .join("\n\n");
+
+    const servers = (tools: readonly ConnectorTool[]) => ({
+      [BUS_SERVER]: claudeBusServer({
+        threadId: spec.threadId,
+        depth: spec.depth,
+        agentBus: spec.enableAgentBus,
+        connectorTools: tools,
+        turnId,
+        toolUseId: (tool, args) => busCalls.get(callKey(tool, args))?.shift(),
+        callTool: options.callTool,
+        ...(options.viewImage && { viewImage: (path: string) => options.viewImage!(spec.threadId, spec.cwd, path) }),
+      }),
+    });
 
     const queryOptions: Options = {
       cwd: spec.cwd,
@@ -77,23 +91,7 @@ export function claudeSessions(
       perTaskStopAffordance: true,
       // Only the platform's MCP servers: the device owner's would leak their tools and accounts.
       strictMcpConfig: true,
-      mcpServers:
-        spec.enableAgentBus || spec.connectorTools.length || options.viewImage
-          ? {
-              [BUS_SERVER]: claudeBusServer({
-                threadId: spec.threadId,
-                depth: spec.depth,
-                agentBus: spec.enableAgentBus,
-                connectorTools: spec.connectorTools,
-                turnId,
-                toolUseId: (tool, args) => busCalls.get(callKey(tool, args))?.shift(),
-                callTool: options.callTool,
-                ...(options.viewImage && {
-                  viewImage: (path: string) => options.viewImage!(spec.threadId, spec.cwd, path),
-                }),
-              }),
-            }
-          : {},
+      mcpServers: servers(spec.connectorTools),
       systemPrompt: {
         type: "preset",
         preset: "claude_code",
@@ -103,8 +101,10 @@ export function claudeSessions(
     };
 
     const q = query({ prompt: input, options: queryOptions });
+    const refreshConnectors = claudeConnectorRefresh(q, spec.connectorTools, servers);
     const transcript = transcriptPath(runtime.home, sessionId);
     session = {
+      refreshConnectors: (current) => refreshConnectors(current.connectorTools),
       threadId: spec.threadId,
       sessionId,
       cwd: spec.cwd,

@@ -350,6 +350,9 @@ Konta [Connectors](connectors.md) mają podobne przypisanie „all / chosen work
 ale ich poświadczenia **nie są synchronizowane**. Worker dostaje jedynie katalog
 narzędzi w `ThreadSpec.connector_tools`; wywołania wracają do gateway linkiem gRPC.
 Konto należy do właściciela wątku. Granty botów są niezależne od grantów workerów.
+Aktualny katalog jest dołączany także do każdej kolejnej tury istniejącego wątku;
+adapter stosuje zmianę między turami i raportuje ją do panelu. Nie wymaga to
+przesyłania poświadczeń konektora ani przerywania bieżącej pracy.
 
 ## 5. Bezpieczeństwo
 

@@ -121,12 +121,20 @@ export function threadStart(
             if (mode !== session.mode) await switchMode(session, mode);
           }
 
+          await session.refreshConnectors(spec);
+          await settings?.connectorsReady?.();
           await beginTurn(session, turnId, TurnOrigin.COMMAND, model);
           await record(
             spec.threadId,
             userItem(turnId, `user:${turnId}`, turnId, input.text, input.authorUserId, input.mentions),
           );
-          session.input.push(userMessage(await claudeContent(input)));
+          session.input.push(
+            userMessage(
+              await claudeContent(
+                settings?.connectorNote ? { ...input, text: `${input.text}\n\n${settings.connectorNote}` } : input,
+              ),
+            ),
+          );
         },
         catch: fail(spec.threadId, "turn"),
       }).pipe(

@@ -159,6 +159,9 @@ export class CodexEventMapper {
       case "item/started":
       case "item/completed": {
         const { item, turnId } = notification.params;
+
+        // The authenticated connector bridge journals its own account-aware tool item.
+        if (item.type === "mcpToolCall" && item.server === "canopy_connectors") return [event(turnId, undefined)];
         const completed = notification.method === "item/completed";
         this.#reported.add(item.id);
 

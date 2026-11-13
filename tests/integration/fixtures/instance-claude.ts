@@ -4,10 +4,11 @@ import { appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import type { JsonObject } from "@canopy/domain";
-import { Schema } from "effect";
+import { Match, Schema } from "effect";
 import { recordInput, recordProbe, releaseProbe } from "./instance-probe.ts";
 import { botFailure, botTool, claudeBotConfig } from "./bot-probe.ts";
 import { archivedBackground } from "./instance-background.ts";
+import { sdkInventory } from "./instance-mcp.ts";
 
 if (process.argv.includes("--version")) {
   console.log("Claude Code 2.1.316");
@@ -27,6 +28,8 @@ mkdirSync(folder, { recursive: true });
 
 const transcript = join(folder, `${session}.jsonl`);
 const send = (message: JsonObject) => process.stdout.write(JSON.stringify(message) + "\n");
+const inventory = sdkInventory(send);
+let configured = Promise.resolve();
 
 recordProbe("claude", resume ? "resume" : "spawn", session);
 
@@ -34,7 +37,7 @@ const botMcp = claudeBotConfig();
 let instructions = "";
 
 async function turn(text: string): Promise<void> {
-  recordProbe("claude", "turn", session);
+  recordProbe("claude", "turn", session, "", inventory.tools);
   send({
     type: "system",
     subtype: "init",
@@ -50,6 +53,19 @@ async function turn(text: string): Promise<void> {
 
     return;
   }
+
+  if (text.includes("CONNECTOR_BACKGROUND"))
+    send({
+      type: "system",
+      subtype: "task_started",
+      session_id: session,
+      uuid: crypto.randomUUID(),
+      task_id: "connector-background",
+      tool_use_id: "connector-task-tool",
+      description: "Fixture background task",
+      is_backgrounded: true,
+      task_type: "local_bash",
+    });
 
   if (text.split("\n\nCurrent input:\n").at(-1)?.includes("STOP_REPLY")) {
     const stream = (event: JsonObject) =>
@@ -194,18 +210,42 @@ for await (const line of createInterface({ input: process.stdin })) {
   const message = JSON.parse(line);
 
   if (message.type === "control_request") {
-    if (message.request.subtype === "initialize")
-      instructions = Schema.decodeUnknownSync(Schema.Array(Schema.String))(message.request.systemPrompt ?? []).join(
-        "\n",
-      );
-    send({
-      type: "control_response",
-      response: {
-        subtype: "success",
-        request_id: message.request_id,
-        response: { commands: [], models: [], agents: [] },
-      },
-    });
+    if (message.request.subtype === "mcp_message") {
+      send({
+        type: "control_response",
+        response: { subtype: "success", request_id: message.request_id, response: {} },
+      });
+      continue;
+    }
+
+    void (async () => {
+      if (message.request.subtype === "initialize")
+        instructions = Schema.decodeUnknownSync(Schema.Array(Schema.String))(message.request.systemPrompt ?? []).join(
+          "\n",
+        );
+
+      if (message.request.subtype === "initialize" || message.request.subtype === "mcp_set_servers")
+        configured = inventory.configure(
+          message.request.subtype === "initialize"
+            ? message.request.sdkMcpServers?.includes("canopy")
+            : !!message.request.servers?.canopy,
+        );
+      await configured;
+      send({
+        type: "control_response",
+        response: {
+          subtype: "success",
+          request_id: message.request_id,
+          response: Match.value(message.request.subtype).pipe(
+            Match.when("mcp_status", () => ({ mcpServers: inventory.status() })),
+            Match.when("mcp_set_servers", () => ({ added: [], removed: [], errors: {} })),
+            Match.orElse(() => ({ commands: [], models: [], agents: [] })),
+          ),
+        },
+      });
+    })();
+  } else if (message.type === "control_response") {
+    inventory.response(message.response.request_id, message.response.response ?? {});
   } else if (message.type === "user") {
     if (message.uuid)
       send({ type: "command_lifecycle", command_uuid: message.uuid, state: "started", session_id: session });
@@ -228,6 +268,6 @@ for await (const line of createInterface({ input: process.stdin })) {
       : content.map((part) => ({ type: part.type, text: part.text, image: part.source?.media_type }));
 
     recordInput("claude", parts);
-    void turn(parts.map((part) => part.text ?? "").join("\n"));
+    void configured.then(() => turn(parts.map((part) => part.text ?? "").join("\n")));
   }
 }

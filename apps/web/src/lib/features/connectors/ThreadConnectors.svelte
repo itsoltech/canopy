@@ -21,7 +21,10 @@
   } = $props();
 
   let managing = $state(false);
-  const accounts = $derived(panel.data?.connectors.filter((account) => account.granted) ?? []);
+
+  const accounts = $derived(
+    panel.data?.connectors.filter((account) => account.granted || account.sessionAttached) ?? [],
+  );
 
   const status = $derived(
     panel.error ||
@@ -50,14 +53,24 @@
   {#if status}<p role="status" class="text-zinc-500 dark:text-zinc-400">{status}</p>{/if}
   {#if accounts.length > 0}<ul role="list" class="grid gap-2">
       {#each accounts as account (account.accountId)}<li
-          class="flex min-w-0 items-center gap-2"
+          class="grid min-w-0 gap-1"
           title={accountStatus(account.status)}
         >
-          <Icon name="link" /><span class="min-w-0 flex-1 truncate"
-            >{account.connectorName} · {account.accountLabel}</span
-          >{#if account.status !== "connected"}<span class="shrink-0 text-amber-700 dark:text-amber-400"
-              >{accountStatus(account.status)}</span
-            >{/if}
+          <div class="flex min-w-0 items-center gap-2">
+            <Icon name="link" /><span class="min-w-0 flex-1 truncate"
+              >{account.connectorName} · {account.accountLabel}</span
+            >{#if account.status !== "connected"}<span class="shrink-0 text-amber-700 dark:text-amber-400"
+                >{accountStatus(account.status)}</span
+              >{/if}
+          </div>
+          <p class="min-h-5 pl-6 text-zinc-500 dark:text-zinc-400" role="status">
+            {#if account.sessionState === "available"}Available
+            {:else if account.sessionState === "pending"}Available next turn
+            {:else if account.sessionState === "pending_removal"}Access removed · Tools update next turn
+            {:else if account.sessionState === "failed"}{account.sessionDetail}
+            {:else if account.sessionState === "unavailable" && account.status === "connected"}No tools available
+            {:else if !account.sessionState}Send a message to check tool availability{/if}
+          </p>
         </li>{/each}
     </ul>{/if}
 </section>

@@ -88,6 +88,7 @@ Pełne wiadomości nigdy nie giną: bez mapowania trafiają do dziennika jako `r
 - Limit czasu wywołania 330 s, dłuższy niż najdłuższe `wait_threads` (300 s).
 - `call_id` z id `tool_use` (z `_meta` wywołania albo dopasowany po nazwie i argumentach ze strumienia), więc ponowione wywołanie po ponownym połączeniu dostaje zapisany wynik.
 - Narzędzia szyny są dozwolone w każdym trybie uprawnień (`allowedTools`); autoryzuje je gateway.
+- Zmiana konektorów dotyczy następnej tury. Nowe query/resume dostaje aktualne `mcpServers`; query z zadaniami w tle usuwa i dodaje serwer przez `setMcpServers`, ponieważ SDK zachowuje instancję przy samej podmianie tej samej nazwy. Worker czeka do 15 s na `connected` i aktualny katalog w `mcpServerStatus`: samo zakończenie rejestracji może jeszcze zwrócić `pending`. Notatka `[canopy]` informuje model tylko o zmianach ([connectors.md](connectors.md#ograniczenia-sesji-harnessów)).
 
 ## Załączniki i obrazy
 

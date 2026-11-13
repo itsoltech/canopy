@@ -55,12 +55,6 @@ export function dynamicTools(spec: ThreadSpec, viewImage: boolean): { dynamicToo
   const tools = [
     ...(spec.enableAgentBus ? codexAgentBusTools(spec.depth) : []),
     ...(viewImage ? [codexViewImageTool()] : []),
-    ...spec.connectorTools.map((t): v2.DynamicToolSpec => ({
-      type: "function",
-      name: t.name,
-      description: t.description,
-      inputSchema: decodeJson(JSON.parse(t.inputSchemaJson)),
-    })),
   ];
 
   return tools.length > 0 ? { dynamicTools: tools } : {};

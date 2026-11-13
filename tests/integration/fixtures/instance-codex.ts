@@ -1,12 +1,14 @@
 #!/usr/bin/env bun
 /** Codex wire fixture with real durable session files and independently releasable turns. */
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
 import type { JsonObject } from "@canopy/domain";
 import { recordInput, recordProbe, releaseProbe } from "./instance-probe.ts";
 import { botFailure, botTool, codexBotConfig } from "./bot-probe.ts";
 import { decodeJsonObject, jsonObject } from "../../../apps/worker/src/providers/json.ts";
+import { HttpMcp, httpTools } from "./instance-mcp.ts";
+import { Schema } from "effect";
 
 if (process.argv.includes("--version")) {
   console.log("codex-cli 0.164.0");
@@ -43,6 +45,7 @@ const currentProvider =
 
 const botServers = new Map<string, ReturnType<typeof codexBotConfig>>();
 const instructions = new Map<string, string>();
+const catalogs = new Map<string, string[]>();
 const interrupted = new Set<string>();
 const send = (message: JsonObject) => process.stdout.write(JSON.stringify(message) + "\n");
 const notify = (method: string, params: JsonObject) => send({ method, params });
@@ -73,7 +76,7 @@ async function turn(
 
   send({ id, result: { turn: { id: turnId, status: "inProgress", items: [], error: null } } });
   notify("turn/started", { threadId, turn: { id: turnId, status: "inProgress", items: [], error: null } });
-  recordProbe("codex", "turn", threadId, providers.get(threadId));
+  recordProbe("codex", "turn", threadId, providers.get(threadId), catalogs.get(threadId));
 
   if (text.split("\n\nCurrent input:\n").at(-1)?.includes("STOP_REPLY"))
     notify("item/agentMessage/delta", { threadId, turnId, itemId: `answer-${turnId}`, delta: "Partial reply" });
@@ -218,8 +221,35 @@ for await (const line of createInterface({ input: process.stdin })) {
     instructions.set(session, params.baseInstructions ?? "");
 
     if (params.config) botServers.set(session, codexBotConfig(params.config));
+
+    const config = Schema.decodeUnknownSync(
+      Schema.Struct({ mcp_servers: Schema.optionalKey(Schema.Record(Schema.String, HttpMcp)) }),
+    )(params.config ?? {});
+
+    catalogs.set(session, await httpTools(config.mcp_servers?.["canopy_connectors"]));
     recordProbe("codex", request.method, session, params.modelProvider);
     send({ id, result: { thread: { id: session, path: null } } });
+  } else if (request.method === "mcpServerStatus/list") {
+    const names =
+      process.env["PROFILE_PROBE"] === "connector-failure" &&
+      !existsSync(join(dirname(process.env["INSTANCE_TRACE"]!), "release-attach"))
+        ? []
+        : (catalogs.get(params.threadId) ?? []);
+
+    send({
+      id,
+      result: {
+        data: [
+          {
+            name: "canopy_connectors",
+            runtimeStatus: "connected",
+            toolsError: null,
+            tools: Object.fromEntries(names.map((name) => [name, { name }])),
+          },
+        ],
+        nextCursor: null,
+      },
+    });
   } else if (request.method === "turn/start") void turn(id, params);
   else if (request.method === "turn/interrupt") {
     interrupted.add(params.turnId);

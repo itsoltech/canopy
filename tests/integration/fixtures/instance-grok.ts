@@ -7,8 +7,10 @@ import type { JsonObject } from "@canopy/domain";
 import { recordInput, recordProbe, releaseProbe } from "./instance-probe.ts";
 import { arg, botEvidence, botFailure, botTool } from "./bot-probe.ts";
 import { Schema } from "effect";
+import { httpTools } from "./instance-mcp.ts";
 
 const servers = new Map<string, { url: string; headers: Record<string, string> }>();
+const catalogs = new Map<string, string[]>();
 const permissions = new Map<string, (denied: boolean) => void>();
 const profile = arg("--agent-profile");
 const instructions = profile ? readFileSync(profile, "utf8") : "";
@@ -35,7 +37,7 @@ async function turn(
   id: number,
   params: { sessionId: string; prompt: { type: string; text?: string; mimeType?: string }[] },
 ): Promise<void> {
-  recordProbe("grok", "turn", params.sessionId);
+  recordProbe("grok", "turn", params.sessionId, "", catalogs.get(params.sessionId));
   recordInput(
     "grok",
     params.prompt.map((p) => ({ type: p.type, text: p.text, image: p.mimeType })),
@@ -150,13 +152,14 @@ for await (const line of createInterface({ input: process.stdin })) {
             .every((tool) => ["search_tool", "use_tool", "web_search", "web_fetch"].includes(tool)) &&
           !!arg("--agent-profile"),
       );
-      const server = params.mcpServers?.[0];
+    }
 
-      if (server)
-        servers.set(session, {
-          url: server.url,
-          headers: Object.fromEntries(server.headers.map((h: { name: string; value: string }) => [h.name, h.value])),
-        });
+    const server = params.mcpServers?.[0];
+
+    if (server) {
+      const headers = Object.fromEntries(server.headers.map((h: { name: string; value: string }) => [h.name, h.value]));
+      servers.set(session, { url: server.url, headers });
+      catalogs.set(session, await httpTools({ url: server.url, http_headers: headers }));
     }
 
     recordProbe("grok", message.method, session);

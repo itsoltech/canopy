@@ -9,7 +9,7 @@ import type { UiHandlers } from "./ui-service.ts";
 export async function threadPanel(core: GatewayCore, threadId: string) {
   const thread = await core.getThread(threadId);
   const user = core[coreState].options.userId;
-  const connectors = await core.connectors.run((store) => store.threadPanel(user, thread.workerId));
+  const connectors = await core.connectors.run((store) => store.threadPanel(user, thread.workerId, threadId));
 
   return create(ui.ThreadPanelSchema, {
     connectors,

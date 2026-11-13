@@ -12,6 +12,7 @@ export const ProbeRecord = Schema.Struct({
   credentialMatches: Schema.Boolean,
   session: Schema.String,
   provider: Schema.String,
+  tools: Schema.optionalKey(Schema.Array(Schema.String)),
 });
 
 export type ProbeRecord = typeof ProbeRecord.Type;
@@ -59,7 +60,7 @@ export function probeRecords(path: string): ProbeRecord[] {
 }
 
 /** Fixture metadata only. Never records credentials, env dumps or argv. */
-export function recordProbe(harness: string, event: string, session = "", provider = ""): void {
+export function recordProbe(harness: string, event: string, session = "", provider = "", tools?: string[]): void {
   const env = process.env;
   const trace = env["INSTANCE_TRACE"];
 
@@ -75,8 +76,18 @@ export function recordProbe(harness: string, event: string, session = "", provid
   const credentialMatches = !probe || env["INSTANCE_SECRET"] === `fixture-secret-${probe}`;
   appendFileSync(
     trace,
-    JSON.stringify({ event, harness, pid: process.pid, home, probe, proxy, credentialMatches, session, provider }) +
-      "\n",
+    JSON.stringify({
+      event,
+      harness,
+      pid: process.pid,
+      home,
+      probe,
+      proxy,
+      credentialMatches,
+      session,
+      provider,
+      tools,
+    }) + "\n",
   );
 }
 

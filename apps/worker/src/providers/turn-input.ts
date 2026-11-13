@@ -11,6 +11,9 @@ export interface TurnSettings {
   readonly permissionMode?: PermissionMode;
   /** Previous request, used privately only when a retry has to create a fresh provider session. */
   readonly recoveryContext?: string;
+  /** Called only after this turn's connector catalog has attached successfully. */
+  readonly connectorsReady?: () => Promise<void>;
+  readonly connectorNote?: string;
 }
 
 /** A steer that cannot enter the turn: it is no longer running here, or the provider refused it. */
