@@ -1,5 +1,5 @@
 import type { ui, Item } from "@canopy/contracts";
-import { foldId, turnProgress, workSegments, type BodyRow } from "@canopy/domain/work-fold";
+import { foldId, turnProgress, workSegments, type BodyRow, type WorkFoldState } from "@canopy/domain/work-fold";
 import type { TimelineEntry, TimelineNotice } from "./thread-types.ts";
 import { isSteerMessage } from "./timeline.ts";
 
@@ -13,7 +13,7 @@ export function blank(content: Item["content"]): boolean {
 }
 
 /** One segment's fold as `WorkFolds` decides it: open or closed by the same rules as a turn's. */
-export interface FoldPlan {
+export interface FoldPlan extends WorkFoldState {
   readonly id: string;
   readonly turnId: string;
   readonly live: boolean;
@@ -79,7 +79,13 @@ export function planFolds(
 
     segments.forEach((segment, index) => {
       const id = foldId(turn.id, index);
-      folds.push({ id, turnId: turn.id, live: segment.live, answered: segment.answered });
+      folds.push({
+        id,
+        turnId: turn.id,
+        live: segment.live,
+        answered: segment.answered,
+        answerSeq: segment.answered ? body[segment.answer]?.seq : undefined,
+      });
       last.set(turn.id, id);
 
       for (let at = segment.start + segment.inputs; at < segment.end; at++)
@@ -93,7 +99,7 @@ export function planFolds(
 /**
  * Of the folds about to close, the ones the reader is in: one of their work rows (not the inputs or the
  * answer around them — those stay) among `reading` (row keys on screen or focused, in order). For each,
- * the first such row: it keeps its place when the fold closes above it.
+ * the first such row: its surviving fold header becomes the anchor when this row disappears.
  */
 export function readWork(
   closing: readonly string[],

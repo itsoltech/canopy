@@ -3,18 +3,18 @@ import type { FeedRow } from "./feed.ts";
 import type { TimelineEntry, TimelineNotice } from "./thread-state.svelte.ts";
 import { isTerminal } from "./timeline.ts";
 import { planFolds, readWork, type FoldsPlan } from "./work-segments.ts";
-import { workFoldOpen, type WorkFoldPreferences } from "@canopy/domain/work-fold";
+import { workFoldOpen, type WorkFoldChoice, type WorkFoldPreferences } from "@canopy/domain/work-fold";
 
 /** The feed as the folds need it (VirtualFeed's `reading` and `hold`). */
 export interface FoldReader {
   reading(): string[];
-  hold(key: string): void;
+  hold(key: string, removedKey: string): void;
   scrollRowToTop(key: string): Promise<boolean>;
 }
 
 /**
  * Per-page choices for live/ended folds and tool groups, surviving virtual unmounts. Completion
- * preserves the reader's choices and holds any visible work row. Following readers start long final
+ * expires live choices and anchors a closing fold's header. Following readers start long final
  * answers at the top; VirtualFeed leaves short answers and readers who scrolled away alone.
  */
 export class WorkFolds {
@@ -22,14 +22,15 @@ export class WorkFolds {
   groups = $state.raw<ReadonlySet<string>>(new Set());
   /** Turns seen running: their end is a change the reader may be in the middle of. */
   readonly #running = new Set<string>();
-  readonly #manual = new Map<string, boolean>();
+  readonly #manual = new Map<string, WorkFoldChoice>();
   readonly #manualGroups = new Set<string>();
-  readonly #held = new Set<string>();
   #plan: FoldsPlan | undefined;
 
-  /** Open or close a fold (a segment's, `foldId`): the reader's choice wins for the rest of the visit. */
+  /** A choice lasts until the segment's next answer/end boundary. */
   toggle(fold: string, open = !this.open.has(fold)): void {
-    this.#manual.set(fold, open);
+    const state = this.#plan?.folds.find((entry) => entry.id === fold);
+
+    if (state) this.#manual.set(fold, { open, state });
 
     if (open === this.open.has(fold)) return;
     const next = new Set(this.open);
@@ -94,18 +95,15 @@ export class WorkFolds {
     const closing: string[] = [];
 
     for (const fold of plan.folds) {
-      if (workFoldOpen(fold.live, fold.answered, preferences, this.#manual.get(fold.id), this.#held.has(fold.id)))
-        next.add(fold.id);
+      if (workFoldOpen(fold, preferences, this.#manual.get(fold.id))) next.add(fold.id);
       else if (this.open.has(fold.id)) closing.push(fold.id);
     }
 
-    if (reader)
-      for (const [fold, key] of readWork(closing, reader.reading(), plan.workOf)) {
-        if (this.#manual.get(fold) === false) continue;
-        reader.hold(key);
-        this.#held.add(fold);
-        next.add(fold);
-      }
+    if (reader) {
+      const reading = readWork(closing, reader.reading(), plan.workOf).entries().next().value;
+
+      if (reading) reader.hold(`work:${reading[0]}`, reading[1]);
+    }
 
     if (next.size !== this.open.size || [...next].some((id) => !this.open.has(id))) {
       this.open = next;

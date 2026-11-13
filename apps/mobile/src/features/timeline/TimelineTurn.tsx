@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { View } from "react-native";
 import type { Item, Provider, ui } from "@canopy/contracts";
-import { foldId, workFoldOpen } from "@canopy/domain/work-fold";
+import { foldId, workFoldOpen, type WorkFoldChoice, type WorkFoldState } from "@canopy/domain/work-fold";
 import { ShellMessage } from "../../ui/ShellMessage";
 import { useDevicePreferences } from "../../state/preferences";
 import { TurnDetails, TurnEnd } from "./TurnEnd";
@@ -21,12 +21,14 @@ export interface TurnContext {
   /** Background tasks by the command item that started them (they own its lifecycle after the turn). */
   readonly tasks: ReadonlyMap<string, Item>;
   readonly provider: Provider | undefined;
+  /** Per timeline, so virtual cell remounts retain manual choices without persisting them to disk. */
+  readonly foldChoices: Map<string, ReadonlyMap<number, WorkFoldChoice>>;
 }
 
 /**
  * One turn of the thread (web: buildTimeline + foldTurns + FeedRowView): its start and input, then per segment its
  * leading steers, the "Working for …" fold with the work under it, the answer, and how the turn ended.
- * Settings → Threads → Turn activity decides each fold until the reader taps it; the tap wins for the visit.
+ * Settings → Threads → Turn activity decides each fold; live taps expire at its answer/end boundary.
  */
 export function TimelineTurn({
   turn,
@@ -42,13 +44,27 @@ export function TimelineTurn({
   historical: boolean;
 }) {
   const { workFold } = useDevicePreferences();
-  const [folds, setFolds] = useState<ReadonlyMap<number, boolean>>(new Map());
+
+  const [folds, setFolds] = useState<ReadonlyMap<number, WorkFoldChoice>>(
+    () => context.foldChoices.get(turn.id) ?? new Map(),
+  );
+
   const body = useMemo(() => turnBody(turn, entries, context.notices), [turn, entries, context.notices]);
   const ended = ["completed", "interrupted", "failed", "cancelled"].includes(turn.status);
   const plan = segmentsOf(turn, body, () => false);
 
-  const open = (index: number) =>
-    workFoldOpen(plan[index]?.live ?? false, plan[index]?.answered ?? false, workFold, folds.get(index));
+  const state = (index: number): WorkFoldState => {
+    const segment = plan[index];
+    const answer = segment?.answered ? body[segment.answer] : undefined;
+
+    return {
+      live: segment?.live ?? false,
+      answered: segment?.answered ?? false,
+      answerSeq: answer?.seq,
+    };
+  };
+
+  const open = (index: number) => workFoldOpen(state(index), workFold, folds.get(index));
 
   const segments = segmentsOf(turn, body, open);
   const hasInput = Boolean(turn.inputText || turn.messageText || turn.attachments.length || turn.quotes.length);
@@ -97,7 +113,11 @@ export function TimelineTurn({
                 summary={summary}
                 starting={turn.status === "queued" && turn.dispatched}
                 open={isOpen}
-                onToggle={() => setFolds(new Map(folds).set(index, !isOpen))}
+                onToggle={() => {
+                  const next = new Map(folds).set(index, { open: !isOpen, state: state(index) });
+                  context.foldChoices.set(turn.id, next);
+                  setFolds(next);
+                }}
               />
               <TimelineDisclosure open={isOpen && work.length > 0}>
                 <WorkRail

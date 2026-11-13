@@ -20,11 +20,12 @@ export type BodyRow =
   | {
       readonly kind: "item";
       readonly key: string;
+      readonly seq: bigint;
       readonly node: ItemNode;
       readonly steer: boolean;
       readonly completedAt: number | undefined;
     }
-  | { readonly kind: "notice"; readonly key: string; readonly notice: ui.ThreadNotice };
+  | { readonly kind: "notice"; readonly key: string; readonly seq: bigint; readonly notice: ui.ThreadNotice };
 
 /** What the open fold shows: rows as they are, or tools under a group header (web: workRows). */
 export type WorkRow =
