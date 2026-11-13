@@ -326,6 +326,22 @@ describe.skipIf(!dockerAvailable)("in-place durable thread rewind", () => {
     expect((await history(thread.id)).lastSeq).toBe(after.lastSeq);
   });
 
+  test("Grok refuses preview and rewind through gRPC without creating a pending operation", async () => {
+    const thread = await gw.runtime.runPromise(
+      GatewayStore.use((store) =>
+        store.createThread(
+          gw.userId,
+          create(ui.CreateThreadRequestSchema, { projectId, workspaceId, provider: Provider.GROK }),
+        ),
+      ),
+    );
+
+    const request = { threadId: thread.id, turnId: Bun.randomUUIDv7(), clientRequestId: "grok-unavailable" };
+    expect(await failure(gw.api.prepareThreadRewind(request))).toContain("not available for this agent");
+    expect(await failure(gw.api.rewindThread(request))).toContain("not available for this agent");
+    expect((await history(thread.id)).thread.rewind_pending_id).toBeNull();
+  });
+
   test("unknown owners, inherited turns and old workers are refused before writing an intent", async () => {
     const thread = await createThread();
     const turns = (await history(thread.id)).turns;
