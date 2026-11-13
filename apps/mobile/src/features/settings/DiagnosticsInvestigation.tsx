@@ -7,11 +7,17 @@ import { investigationChoices } from "@canopy/domain/diagnostics";
 import { useOverview } from "../../state/overview";
 import { useSession } from "../../state/session";
 import { useModelCatalog } from "../models/catalog";
-import { SettingsGroup, SettingChoice } from "./SettingsGroup";
+import { SettingsGroup, SettingChoice, SettingToggle } from "./SettingsGroup";
 import { Button, Notice } from "../../ui/components";
 import { styles, useColors } from "../../ui/theme";
 
-export function DiagnosticsInvestigation({ report }: { report: ui.DiagnosticsReport }) {
+export function DiagnosticsInvestigation({
+  report,
+  logsJobId = "",
+}: {
+  report: ui.DiagnosticsReport;
+  logsJobId?: string;
+}) {
   const { projects, workers } = useOverview();
   const { client } = useSession();
   const c = useColors();
@@ -19,6 +25,7 @@ export function DiagnosticsInvestigation({ report }: { report: ui.DiagnosticsRep
   const [workspaceId, setWorkspace] = useState("");
   const [model, setModel] = useState("");
   const [busy, setBusy] = useState(false);
+  const [attachLogs, setAttachLogs] = useState(false);
   const [error, setError] = useState("");
   const running = useRef(false);
   const requestId = useRef(Crypto.randomUUID());
@@ -46,6 +53,7 @@ export function DiagnosticsInvestigation({ report }: { report: ui.DiagnosticsRep
         providerProfileId: selected.profileId,
         model: selected.model,
         clientRequestId: requestId.current,
+        logsJobId: attachLogs ? logsJobId : "",
       });
 
       router.push({ pathname: "/thread/[id]", params: { id: result.threadId } });
@@ -59,6 +67,14 @@ export function DiagnosticsInvestigation({ report }: { report: ui.DiagnosticsRep
 
   return (
     <View style={{ gap: 12 }}>
+      {logsJobId ? (
+        <SettingToggle
+          title="Attach logs"
+          description="Adds the collected ZIP to this thread. The normal file limit applies."
+          value={attachLogs}
+          onChange={setAttachLogs}
+        />
+      ) : null}
       <SettingsGroup title="Ask an agent to investigate">
         <SettingChoice
           title="Project"

@@ -16,6 +16,7 @@ import { bots as botContract } from "@canopy/contracts";
 import { ModelCatalogCache } from "../features/models/catalog-cache";
 import { QueryCache } from "@canopy/domain/shared-query";
 import { startMobileDiagnostics } from "../features/settings/client-diagnostics";
+import { clearDiagnosticLogs } from "../features/settings/diagnostics-log-file";
 
 const SHARED_READ_FAILED = "Could not load settings. Check the connection and retry.";
 
@@ -113,6 +114,8 @@ function useSessionState() {
   }, [client]);
 
   async function clearHistory(revoked = false) {
+    clearDiagnosticLogs();
+
     const cleared = await clearPairedHistory([threadCache, botCache, archivedCache, imageCache], () =>
       persistence.forget(),
     );

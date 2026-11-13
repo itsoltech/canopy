@@ -24,6 +24,7 @@ import { githubReadHandlers } from "./ui-github-read.ts";
 import { githubMutationHandlers } from "./ui-github-mutations.ts";
 import { threadPanelHandlers } from "./ui-thread-panel.ts";
 import { diagnosticsHandlers } from "./ui-diagnostics.ts";
+import { diagnosticsLogHandlers } from "./ui-diagnostics-logs.ts";
 
 export { toConnectError } from "./ui-errors.ts";
 
@@ -70,6 +71,7 @@ function withFeedNudges(core: GatewayCore, handlers: UiHandlers): UiHandlers {
 export function uiHandlers(core: GatewayCore): UiHandlers {
   return withFeedNudges(core, {
     ...diagnosticsHandlers(core),
+    ...diagnosticsLogHandlers(core),
     ...agentEnvironmentHandlers(core),
     ...computersHandlers(core),
     ...workersHandlers(core),

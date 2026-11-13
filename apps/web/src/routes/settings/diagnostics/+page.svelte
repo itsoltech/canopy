@@ -17,8 +17,10 @@
   import LinkMetrics from "#lib/features/diagnostics/LinkMetrics.svelte";
   import ClientMetrics from "#lib/features/diagnostics/ClientMetrics.svelte";
   import ReportActions from "#lib/features/diagnostics/ReportActions.svelte";
+  import CollectLogs from "#lib/features/diagnostics/CollectLogs.svelte";
 
   let range = $state("15");
+  let logsJobId = $state("");
   let computer = $state("");
   let offset = $state(0);
   let sort = $state("p95");
@@ -84,6 +86,7 @@
   {#if overview.data}
     <Findings computers={overview.data.computers} />
     <ReportActions
+      {logsJobId}
       computers={overview.data.computers}
       range={Number(range)}
       computer={detail.data?.computerId === selected ? detail.data : undefined}
@@ -92,6 +95,7 @@
         void detail.reload();
       }}
     />
+    <CollectLogs computers={overview.data.computers} onready={(id) => (logsJobId = id)} />
     <div class="max-w-sm">
       <Select
         aria-label="Computer"

@@ -17,22 +17,28 @@ export function DiagnosticsGrants() {
 
   return (
     <ResourceState resource={grants}>
-      <SettingsGroup
-        title="Diagnostics access"
-        description="Allow these computers to read this computer’s diagnostics through a relay."
-      >
-        {origins.map((peer) => (
-          <SettingToggle
-            key={peer.nodeId}
-            title={peer.displayName || peer.name}
-            description={`Via ${peer.viaName}`}
-            value={grants.data?.grants.some((grant) => grant.originComputerId === peer.nodeId) ?? false}
-            disabled={grants.busy || !grants.data}
-            onChange={(enabled) =>
-              void grants.run((api) => api.setDiagnosticsGrant({ originComputerId: peer.nodeId, enabled }))
-            }
-          />
-        ))}
+      <SettingsGroup title="Diagnostics access" description="Choose what these computers can collect through a relay.">
+        {origins.flatMap((peer) =>
+          ["diagnostics_read", "diagnostics_logs"].map((permission) => (
+            <SettingToggle
+              key={`${peer.nodeId}:${permission}`}
+              title={peer.displayName || peer.name}
+              description={`${permission === "diagnostics_logs" ? "Logs" : "Diagnostics"} via ${peer.viaName}`}
+              value={
+                grants.data?.grants.some(
+                  (grant) =>
+                    grant.originComputerId === peer.nodeId && (grant.permission || "diagnostics_read") === permission,
+                ) ?? false
+              }
+              disabled={grants.busy || !grants.data}
+              onChange={(enabled) =>
+                void grants.run((api) =>
+                  api.setDiagnosticsGrant({ originComputerId: peer.nodeId, enabled, permission }),
+                )
+              }
+            />
+          )),
+        )}
       </SettingsGroup>
     </ResourceState>
   );

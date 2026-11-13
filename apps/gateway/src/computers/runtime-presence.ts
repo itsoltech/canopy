@@ -1,4 +1,5 @@
 import { create } from "@bufbuild/protobuf";
+import { DIAGNOSTICS_LOGS } from "./capabilities.ts";
 
 import { Code, ConnectError } from "@connectrpc/connect";
 
@@ -121,6 +122,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
         // Keep the original protocol-1 capabilities first; older peers ignore the overflow field.
         ...(this.options.serve ? [REMOTE_THREAD_PANEL] : []),
         ...(this.options.core?.diagnostics.collector.enabled ? ["diagnostics_v1"] : []),
+        ...(this.options.core?.diagnostics.logs.enabled ? [DIAGNOSTICS_LOGS] : []),
       ],
     });
   },

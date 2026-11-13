@@ -23,3 +23,5 @@ export * from "./client-collector.ts";
 export * from "./epochs.ts";
 
 export * from "./placement.ts";
+
+export * from "./logs.ts";

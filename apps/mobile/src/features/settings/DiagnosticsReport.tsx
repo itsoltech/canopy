@@ -12,10 +12,12 @@ export function DiagnosticsReport({
   computers,
   range,
   onClose,
+  logsJobId = "",
 }: {
   computers: ui.ComputerDiagnostics[];
   range: number;
   onClose(): void;
+  logsJobId?: string;
 }) {
   const c = useColors();
   const { client } = useSession();
@@ -109,7 +111,7 @@ export function DiagnosticsReport({
             <Button title="Copy report" onPress={() => void copy()} />
             <Button title="Change selection" onPress={() => setReport(undefined)} />
           </SettingsActions>
-          <DiagnosticsInvestigation report={report} />
+          <DiagnosticsInvestigation report={report} logsJobId={logsJobId} />
         </>
       )}
       {error ? <Alert tone="error">{error}</Alert> : null}

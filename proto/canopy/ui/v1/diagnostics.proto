@@ -262,6 +262,7 @@ message InvestigateDiagnosticsRequest {
   string provider_profile_id = 6;
   string model = 7;
   string client_request_id = 8;
+  string logs_job_id = 9; // Explicit owner choice; ordinary attachment limit still applies.
 }
 message DiagnosticsInvestigation {
   string thread_id = 1;
@@ -269,9 +270,90 @@ message DiagnosticsInvestigation {
 message DiagnosticsGrantRequest {
   string origin_computer_id = 1;
   bool enabled = 2;
+  string permission = 3; // Empty/diagnostics_read or separately granted diagnostics_logs.
 }
 message DiagnosticsGrant {
   string origin_computer_id = 1;
+  string permission = 2;
+}
+
+message CollectDiagnosticsLogsRequest {
+  repeated string computer_ids = 1;
+  uint32 hours = 2; // 1, 6 or 24, interpreted at each source.
+  bool include_legacy = 3; // Explicitly labelled untimed tail only.
+  bool alias_home = 4; // Paths/hosts/secrets are always removed, regardless of this choice.
+  string action_id = 5;
+}
+message DiagnosticsLogsJobRequest { string job_id = 1; }
+message DiagnosticsLogsHome {
+  string computer_id = 1;
+  string alias = 2;
+  string status = 3;
+  uint64 bytes = 4;
+  repeated DiagnosticsLogCoverage sources = 5;
+}
+message DiagnosticsLogsJob {
+  string job_id = 1;
+  string status = 2;
+  int64 created_at_ms = 3;
+  int64 expires_at_ms = 4;
+  uint64 bytes = 5;
+  repeated DiagnosticsLogsHome homes = 6;
+  uint32 hours = 7;
+}
+message DiagnosticsLogCoverage {
+  string source = 1;
+  uint32 worker = 2; // Per-action alias only, never a worker name, id or path.
+  string status = 3;
+  uint64 bytes = 4;
+  uint64 records = 5;
+  uint64 omitted_records = 6;
+  uint64 omitted_bytes = 7;
+  uint64 redacted_records = 8;
+  int64 first_at_ms = 9;
+  int64 last_at_ms = 10;
+  bool legacy = 11;
+  bool rotation_verified = 12;
+}
+// At most 32 KiB data, strict sequence and SHA-256. Metadata precedes each source.
+message DiagnosticsLogPart {
+  uint32 sequence = 1;
+  bytes data = 2;
+  string checksum = 3;
+  DiagnosticsLogCoverage coverage = 4;
+  bool end = 5;
+  DiagnosticsLogEnvironment environment = 6;
+}
+message DiagnosticsLogEnvironment {
+  string version = 1;
+  string os = 2;
+  string arch = 3;
+  double uptime_seconds = 4;
+  int64 collected_at_ms = 5;
+  double sample_age_ms = 6;
+  repeated DiagnosticsMeasure measures = 7;
+  repeated DiagnosticsFinding findings = 8; // Subjects are omitted; closed rules/severities only.
+}
+message DiagnosticsHomeLogsRequest {
+  string action_id = 1;
+  uint32 hours = 2;
+  bool include_legacy = 3;
+  bool alias_home = 4;
+  uint32 budget_bytes = 5;
+}
+// Private controller/BFF registration: service-token only, never a mobile or linked action.
+message DiagnosticsLogSourceRegistration { string session = 1; repeated string sources = 2; }
+message DiagnosticsLogSourceCommand {
+  string session = 1;
+  string request_id = 2;
+  string transfer_id = 3;
+  DiagnosticsHomeLogsRequest begin = 4;
+  bool cancel = 5;
+}
+message DiagnosticsLogSourceReply {
+  string session = 1;
+  string request_id = 2;
+  DiagnosticsLogPart part = 3;
 }
 message DiagnosticsGrants {
   repeated DiagnosticsGrant grants = 1;

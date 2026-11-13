@@ -29,6 +29,7 @@
         "@canopy/contracts": "workspace:*",
         "@canopy/db": "workspace:*",
         "@canopy/domain": "workspace:*",
+        "@canopy/logs": "workspace:*",
         "@canopy/testing": "workspace:*",
         "@canopy/transport": "workspace:*",
         "@canopy/ui": "workspace:*",
@@ -60,6 +61,7 @@
         "@canopy/contracts": "workspace:*",
         "@canopy/db": "workspace:*",
         "@canopy/domain": "workspace:*",
+        "@canopy/logs": "workspace:*",
         "@canopy/process-governor": "workspace:*",
         "@canopy/transport": "workspace:*",
         "@canopy/updater": "workspace:*",
@@ -137,6 +139,7 @@
         "@bufbuild/protobuf": "2.16.0",
         "@canopy/contracts": "workspace:*",
         "@canopy/domain": "workspace:*",
+        "@canopy/logs": "workspace:*",
         "@canopy/transport": "workspace:*",
         "@canopy/ui": "workspace:*",
         "@canopy/updater": "workspace:*",
@@ -183,6 +186,7 @@
         "@canopy/contracts": "workspace:*",
         "@canopy/domain": "workspace:*",
         "@canopy/grok-acp": "workspace:*",
+        "@canopy/logs": "workspace:*",
         "@canopy/process-governor": "workspace:*",
         "@canopy/transport": "workspace:*",
         "@canopy/updater": "workspace:*",
@@ -244,6 +248,17 @@
         "@canopy/testing": "workspace:*",
       },
     },
+    "packages/logs": {
+      "name": "@canopy/logs",
+      "version": "0.0.0",
+      "dependencies": {
+        "@bufbuild/protobuf": "2.16.0",
+        "@canopy/contracts": "workspace:*",
+      },
+      "devDependencies": {
+        "@canopy/testing": "workspace:*",
+      },
+    },
     "packages/process-governor": {
       "name": "@canopy/process-governor",
       "version": "0.0.0",
@@ -284,6 +299,7 @@
         "@canopy/db": "workspace:*",
         "@canopy/domain": "workspace:*",
         "@canopy/gateway": "workspace:*",
+        "@canopy/logs": "workspace:*",
         "@canopy/process-governor": "workspace:*",
         "@canopy/transport": "workspace:*",
         "@canopy/worker": "workspace:*",
@@ -517,6 +533,8 @@
     "@canopy/grok-acp": ["@canopy/grok-acp@workspace:packages/grok-acp"],
 
     "@canopy/integration-tests": ["@canopy/integration-tests@workspace:tests/integration"],
+
+    "@canopy/logs": ["@canopy/logs@workspace:packages/logs"],
 
     "@canopy/mobile": ["@canopy/mobile@workspace:apps/mobile"],
 

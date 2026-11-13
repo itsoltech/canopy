@@ -11,8 +11,10 @@
   import Field from "#lib/shared/ui/Field.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
+  import Checkbox from "#lib/shared/ui/Checkbox.svelte";
 
-  let { report }: { report: ui.DiagnosticsReport } = $props();
+  let { report, logsJobId = "" }: { report: ui.DiagnosticsReport; logsJobId?: string } = $props();
+  let attachLogs = $state(false);
   const overview = useOverview();
   const catalog = useModelCatalog();
   let projectId = $state("");
@@ -51,6 +53,7 @@
               providerProfileId: selected.profileId,
               model: selected.model,
               clientRequestId: requestId,
+              logsJobId: attachLogs ? logsJobId : "",
             }),
           ),
         ),
@@ -106,6 +109,12 @@
     selected provider. Normal approvals apply.
   </p>
   {#if error}<Alert tone="error">{error}</Alert>{/if}
+  {#if logsJobId}<Checkbox
+      name="investigate-logs"
+      label="Attach logs"
+      description="Adds the collected ZIP to this thread. The normal file limit applies."
+      bind:checked={attachLogs}
+    />{/if}
   {#if worker && !worker.online}<p class="text-sm text-muted">
       This worker is offline. Choose a connected worker.
     </p>{/if}

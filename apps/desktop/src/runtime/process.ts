@@ -68,9 +68,8 @@ export class Supervisor {
 
     const closed = new Promise<void>((resolve) => child.once("close", () => resolve()));
     this.children.set(spec.name, { child, closed, spec });
-    const stream = this.logs.stream(spec.name);
-    child.stdout?.on("data", stream);
-    child.stderr?.on("data", stream);
+    child.stdout?.on("data", this.logs.stream(spec.name));
+    child.stderr?.on("data", this.logs.stream(spec.name));
     child.once("error", (error) => this.logs.write(spec.name, error.message));
     const started = Date.now();
     child.once("spawn", () => this.changed(spec.name, true));

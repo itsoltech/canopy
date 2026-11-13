@@ -7,7 +7,7 @@ import type { WorkerConnection } from "../worker-link/connection.ts";
 import { RpcCollector } from "./collector.ts";
 import { RPC_METHODS, LINKED_METHODS, COMMAND_METHODS, MAX_METHODS, methodId } from "./registry.ts";
 import { diagnosticsInterceptor } from "./interceptor.ts";
-import { rpcSnapshot, windowMinutes } from "./snapshot.ts";
+import { rpcSnapshot, windowMinutes, type DiagnosticsViewCache } from "./snapshot.ts";
 import { DiagnosticsStore } from "./store.ts";
 import { DiagnosticsPersistence } from "./persistence.ts";
 import { DiagnosticsPeers } from "./peers.ts";
@@ -22,6 +22,7 @@ import { IngestDiagnostics } from "./ingest.ts";
 import { WorkerCatalog } from "./worker-catalog.ts";
 import { ClientDiagnostics } from "./clients.ts";
 import { DiagnosticsActions } from "./actions.ts";
+import { DiagnosticsLogs } from "./log-jobs.ts";
 
 import { validateDiagnostics } from "./validate.ts";
 
@@ -39,20 +40,12 @@ export class Diagnostics {
   #timer: ReturnType<typeof setInterval> | undefined;
   #minute = 0;
   #unsubscribe: (() => void) | undefined;
-  #snapshots = new Map<
-    number,
-    {
-      at: number;
-      value: ReturnType<typeof rpcSnapshot>;
-      restored: number;
-      historical: number | undefined;
-      details: boolean;
-    }
-  >();
+  #snapshots = new Map<number, DiagnosticsViewCache>();
   readonly workers: WorkerCatalog;
   #cacheSavedAt = 0;
   readonly clients: ClientDiagnostics;
   readonly actions: DiagnosticsActions;
+  readonly logs: DiagnosticsLogs;
 
   constructor(
     readonly core: GatewayCore,
@@ -70,6 +63,7 @@ export class Diagnostics {
     this.peers = new DiagnosticsPeers(core);
     this.workers = new WorkerCatalog(options);
     this.actions = new DiagnosticsActions(core);
+    this.logs = new DiagnosticsLogs(core, options);
     this.clients = new ClientDiagnostics(
       this.collector,
       () => this.persistence?.epoch ?? this.collector.session,
@@ -79,6 +73,8 @@ export class Diagnostics {
   }
 
   async start() {
+    if (this.logs.enabled) void this.logs.initialise().catch(() => {});
+
     if (!this.collector.enabled) return;
 
     if (this.#timer) return;
@@ -132,9 +128,11 @@ export class Diagnostics {
         own: (process, at) => this.clients.rollup(process, at),
       },
     );
-    this.#unsubscribe = this.core.computers?.subscribe((change) =>
-      this.peers.invalidate(change.nodeId, change.removed),
-    );
+    this.#unsubscribe = this.core.computers?.subscribe((change) => {
+      this.peers.invalidate(change.nodeId, change.removed);
+
+      if (change.removed) void this.logs.revoke(change.nodeId);
+    });
     this.#timer = setInterval(() => this.tick(), 5000);
     this.#timer.unref();
     void this.peers.catalog().catch(() => {});
@@ -439,6 +437,7 @@ export class Diagnostics {
   }
 
   async stop() {
+    await this.logs.close();
     this.resources.stop();
     clearInterval(this.#timer);
     this.#timer = undefined;

@@ -11,6 +11,7 @@ const Phase = Schema.Literals([
   "pool_contention",
   "governor",
   "report",
+  "log_export",
 ]);
 
 const Resource = Schema.Struct({ cpuPercent: Schema.Number, rss: Schema.Number, heap: Schema.Number });
@@ -68,7 +69,7 @@ for (const end of accepted) {
     const a = sides.find((row) => !(row.slotOn ?? row.on));
     const b = sides.find((row) => row.slotOn ?? row.on);
 
-    if (!sides.length && phase === "report") continue;
+    if (!sides.length && (phase === "report" || phase === "log_export")) continue;
 
     if (sides.length !== 2 || !a || !b) throw new Error("Accepted pair lacks exactly one A and B per phase");
 

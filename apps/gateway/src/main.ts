@@ -25,6 +25,8 @@ import { loadSecretsKey } from "./store/secrets.ts";
 import { workerRoutes } from "./worker-link/routes.ts";
 import { gatewayRole } from "./role.ts";
 import { DatabaseMaintenance } from "./maintenance/job.ts";
+import { installLogWriter, runtimeLogDirectory, registeredLogs } from "@canopy/logs";
+import { dirname } from "node:path";
 
 const env = Bun.env;
 
@@ -54,6 +56,13 @@ if (!serviceToken)
   throw new Error("CANOPY_UI_SERVICE_TOKEN is not set (shared with the web BFF): openssl rand -hex 32");
 
 const runtime = gatewayRuntime(env);
+const logDirectory = runtimeLogDirectory("gateway", env);
+
+installLogWriter("gateway", logDirectory, [
+  serviceToken,
+  env["CANOPY_DATABASE_URL"] ?? "",
+  env["CANOPY_SECRETS_KEY"] ?? "",
+]);
 
 if ((env["CANOPY_MIGRATE"] ?? "1") === "1") {
   const applied = await migrateDatabase(runtime, env);
@@ -67,6 +76,16 @@ const userId = await ensureDevUser(runtime, env["CANOPY_DEV_USER_EMAIL"] ?? "dev
 const core = new GatewayCore({
   role: gatewayRole(env),
   runtime,
+  diagnosticsLogDirectory: dirname(logDirectory),
+  logSources: [
+    ...registeredLogs(
+      logDirectory,
+      env["CANOPY_LOG_SUPERVISED"] === "1" ? ["desktop", "gateway", "postgres", "web", "initdb"] : ["gateway"],
+    ),
+    ...(env["CANOPY_LOG_SUPERVISED"] !== "1" && env["CANOPY_POSTGRES_LOG_FILE"]
+      ? [{ source: "postgres" as const, file: env["CANOPY_POSTGRES_LOG_FILE"], rotationVerified: false }]
+      : []),
+  ],
   instanceId: `${process.pid}@${Bun.env["HOSTNAME"] ?? "gateway"}`,
   userId,
   log: (m) => console.info(m),

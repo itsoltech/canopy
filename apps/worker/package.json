@@ -20,6 +20,7 @@
     "@canopy/codex-protocol": "workspace:*",
     "@canopy/contracts": "workspace:*",
     "@canopy/domain": "workspace:*",
+    "@canopy/logs": "workspace:*",
     "@canopy/grok-acp": "workspace:*",
     "@canopy/process-governor": "workspace:*",
     "@canopy/transport": "workspace:*",

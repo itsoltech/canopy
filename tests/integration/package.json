@@ -12,6 +12,7 @@
     "@canopy/contracts": "workspace:*",
     "@canopy/db": "workspace:*",
     "@canopy/domain": "workspace:*",
+    "@canopy/logs": "workspace:*",
     "@canopy/gateway": "workspace:*",
     "@canopy/transport": "workspace:*",
     "@canopy/worker": "workspace:*",

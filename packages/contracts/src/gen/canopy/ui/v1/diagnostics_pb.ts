@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/ui/v1/diagnostics.proto.
  */
 export const file_canopy_ui_v1_diagnostics: GenFile = /*@__PURE__*/
-  fileDesc("Ch5jYW5vcHkvdWkvdjEvZGlhZ25vc3RpY3MucHJvdG8SDGNhbm9weS51aS52MSJrChREaWFnbm9zdGljc0hpc3RvZ3JhbRIPCgdpbmRpY2VzGAEgAygNEg4KBmNvdW50cxgCIAMoBBILCgNzdW0YAyABKAESCwoDbWF4GAQgASgBEhAKA21pbhgFIAEoAUgAiAEBQgYKBF9taW4iyQMKFERpYWdub3N0aWNzQWdncmVnYXRlEhEKCW1ldGhvZF9pZBgBIAEoDRIPCgdzdGFydGVkGAIgASgEEhEKCWNvbXBsZXRlZBgDIAEoBBINCgVjb2RlcxgEIAMoBBI0CghkdXJhdGlvbhgFIAEoCzIiLmNhbm9weS51aS52MS5EaWFnbm9zdGljc0hpc3RvZ3JhbRI5Cg1yZXF1ZXN0X2J5dGVzGAYgASgLMiIuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzSGlzdG9ncmFtEjoKDnJlc3BvbnNlX2J5dGVzGAcgASgLMiIuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzSGlzdG9ncmFtEjkKDWZpcnN0X21lc3NhZ2UYCCABKAsyIi5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NIaXN0b2dyYW0SGAoQcmVxdWVzdF9tZXNzYWdlcxgJIAEoBBIZChFyZXNwb25zZV9tZXNzYWdlcxgKIAEoBBIVCg1tYXhfaW5fZmxpZ2h0GAsgASgNEhIKCmluY29tcGxldGUYDCABKAgSDAoEc2xvdxgNIAEoBBIVCg1tZXNzYWdlX2tpbmRzGA4gAygEInQKEURpYWdub3N0aWNzUm9sbHVwEhYKDnNjaGVtYV92ZXJzaW9uGAEgASgNEjMKCXByb2Nlc3NlcxgCIAMoCzIgLmNhbm9weS51aS52MS5EaWFnbm9zdGljc1Byb2Nlc3MSEgoKaW5jb21wbGV0ZRgDIAEoCCKrAgoSRGlhZ25vc3RpY3NQcm9jZXNzEhIKCnByb2Nlc3NfaWQYASABKAkSDwoHc2Vzc2lvbhgCIAEoCRIQCghzZXF1ZW5jZRgDIAEoBBIzCghjb3ZlcmFnZRgEIAMoCzIhLmNhbm9weS51aS52MS5EaWFnbm9zdGljc0NvdmVyYWdlEjIKBnNlcmllcxgFIAMoCzIiLmNhbm9weS51aS52MS5EaWFnbm9zdGljc0FnZ3JlZ2F0ZRI4CgtjaGVja3BvaW50cxgGIAMoCzIjLmNhbm9weS51aS52MS5EaWFnbm9zdGljc0NoZWNrcG9pbnQSOwoIbWVhc3VyZXMYByADKAsyKS5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NNZWFzdXJlQWdncmVnYXRlIooCChtEaWFnbm9zdGljc01lYXN1cmVBZ2dyZWdhdGUSEQoJbWV0cmljX2lkGAEgASgNEhUKDXJwY19tZXRob2RfaWQYAiABKA0SNQoJaGlzdG9ncmFtGAMgASgLMiIuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzSGlzdG9ncmFtEg4KBmV2ZW50cxgEIAEoBBIOCgZlcnJvcnMYBSABKAQSFAoMd2VpZ2h0ZWRfc3VtGAYgASgBEg4KBndlaWdodBgHIAEoARILCgNtYXgYCCABKAESDAoEbGFzdBgJIAEoARIVCg1zYW1wbGVkX2F0X21zGAogASgDEhIKCmluY29tcGxldGUYCyABKAgihQIKEkRpYWdub3N0aWNzTWVhc3VyZRIRCgltZXRyaWNfaWQYASABKA0SOgoMZGlzdHJpYnV0aW9uGAIgASgLMiQuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzUGVyY2VudGlsZXMSDgoGZXZlbnRzGAMgASgEEg4KBmVycm9ycxgEIAEoBBIMCgRtZWFuGAUgASgBEgsKA21heBgGIAEoARIMCgRsYXN0GAcgASgBEhUKDXNhbXBsZWRfYXRfbXMYCCABKAMSGAoQb2JzZXJ2ZWRfc2Vjb25kcxgJIAEoARISCgpoaXN0b3JpY2FsGAogASgIEhIKCmluY29tcGxldGUYCyABKAgijwMKGURpYWdub3N0aWNzRGF0YWJhc2VGYW1pbHkSDgoGZmFtaWx5GAEgASgJEjgKCnJlc2VydmVfbXMYAiABKAsyJC5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NQZXJjZW50aWxlcxI4CgpleGVjdXRlX21zGAMgASgLMiQuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzUGVyY2VudGlsZXMSOAoKcmVsZWFzZV9tcxgEIAEoCzIkLmNhbm9weS51aS52MS5EaWFnbm9zdGljc1BlcmNlbnRpbGVzEjwKDnRyYW5zYWN0aW9uX21zGAUgASgLMiQuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzUGVyY2VudGlsZXMSFgoOcmVzZXJ2ZV9lcnJvcnMYBiABKAQSFgoOZXhlY3V0ZV9lcnJvcnMYByABKAQSFgoOcmVsZWFzZV9lcnJvcnMYCCABKAQSGgoSdHJhbnNhY3Rpb25fZXJyb3JzGAkgASgEEhIKCmluY29tcGxldGUYCiABKAgiOgoVRGlhZ25vc3RpY3NDaGVja3BvaW50Eg8KB3Nlc3Npb24YASABKAkSEAoIc2VxdWVuY2UYAiABKAQiNwoTRGlhZ25vc3RpY3NDb3ZlcmFnZRIQCghzdGFydF9tcxgBIAEoAxIOCgZlbmRfbXMYAiABKAMiLAoSRGlhZ25vc3RpY3NSZXF1ZXN0EhYKDndpbmRvd19taW51dGVzGAEgASgNIsoBChpDb21wdXRlckRpYWdub3N0aWNzUmVxdWVzdBITCgtjb21wdXRlcl9pZBgBIAEoCRIWCg53aW5kb3dfbWludXRlcxgCIAEoDRIOCgZvZmZzZXQYAyABKA0SDQoFbGltaXQYBCABKA0SEAoIcmV2aXNpb24YBSABKAkSFQoNb3ZlcnZpZXdfb25seRgGIAEoCBIPCgdzb3J0X2J5GAcgASgJEhEKCWNhbGxfa2luZBgIIAEoCRITCgttZXRob2Rfa2V5cxgJIAMoCSKYAQoWRGlhZ25vc3RpY3NQZXJjZW50aWxlcxILCgNwNTAYASABKAESCwoDcDk1GAIgASgBEgsKA3A5ORgDIAEoARILCgNtYXgYBCABKAESDwoHc2FtcGxlcxgFIAEoBBIQCghvdmVyZmxvdxgGIAEoCBILCgNzdW0YByABKAESGgoSb3ZlcmZsb3dfcXVhbnRpbGVzGAggASgNIvAECg9EaWFnbm9zdGljc0NhbGwSDgoGbWV0aG9kGAEgASgJEg0KBWxheWVyGAIgASgJEg4KBnN0cmVhbRgDIAEoCBIPCgdzdGFydGVkGAQgASgEEhEKCWNvbXBsZXRlZBgFIAEoBBIYChBjYWxsc19wZXJfbWludXRlGAYgASgBEg0KBWNvZGVzGAcgAygEEhEKCWluX2ZsaWdodBgIIAEoDRIVCg1tYXhfaW5fZmxpZ2h0GAkgASgNEjkKC2R1cmF0aW9uX21zGAogASgLMiQuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzUGVyY2VudGlsZXMSOwoNcmVxdWVzdF9ieXRlcxgLIAEoCzIkLmNhbm9weS51aS52MS5EaWFnbm9zdGljc1BlcmNlbnRpbGVzEjwKDnJlc3BvbnNlX2J5dGVzGAwgASgLMiQuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzUGVyY2VudGlsZXMSPgoQZmlyc3RfbWVzc2FnZV9tcxgNIAEoCzIkLmNhbm9weS51aS52MS5EaWFnbm9zdGljc1BlcmNlbnRpbGVzEhgKEHJlcXVlc3RfbWVzc2FnZXMYDiABKAQSGQoRcmVzcG9uc2VfbWVzc2FnZXMYDyABKAQSGAoQb2xkZXN0X2FjdGl2ZV9tcxgQIAEoARISCgppbmNvbXBsZXRlGBEgASgIEgwKBHNsb3cYEiABKAQSFQoNbWVzc2FnZV9raW5kcxgTIAMoBBI5CghkYXRhYmFzZRgUIAMoCzInLmNhbm9weS51aS52MS5EaWFnbm9zdGljc0RhdGFiYXNlRmFtaWx5IvABChJEaWFnbm9zdGljc0ZpbmRpbmcSDwoHcnVsZV9pZBgBIAEoCRIPCgdzdWJqZWN0GAIgASgJEhAKCHNldmVyaXR5GAMgASgJEg0KBXZhbHVlGAQgASgBEhEKCXRocmVzaG9sZBgFIAEoARIPCgdzYW1wbGVzGAYgASgEEhgKEG9ic2VydmVkX3NlY29uZHMYByABKAESEAoIZW50ZXJpbmcYCCABKA0SDwoHbGVhdmluZxgJIAEoDRIRCglzdXNwZW5kZWQYCiABKAgSDgoGYWN0aXZlGAsgASgIEhMKC2R1cmluZ19zeW5jGAwgASgIIrEDCg9EaWFnbm9zdGljc0xpbmsSEQoJdGFyZ2V0X2lkGAEgASgJEgwKBGtpbmQYAiABKAkSDAoEbmFtZRgDIAEoCRIRCglzdXBwb3J0ZWQYBCABKAgSNAoGcnR0X21zGAUgASgLMiQuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzUGVyY2VudGlsZXMSNwoJaml0dGVyX21zGAYgASgLMiQuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzUGVyY2VudGlsZXMSQwoVaGVhcnRiZWF0X2ludGVydmFsX21zGAcgASgLMiQuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzUGVyY2VudGlsZXMSGAoQaGVhcnRiZWF0X2FnZV9tcxgIIAEoARIVCg1lY2hvX3RpbWVvdXRzGAkgASgEEg4KBm9ubGluZRgKIAEoCBIyCghtZWFzdXJlcxgLIAMoCzIgLmNhbm9weS51aS52MS5EaWFnbm9zdGljc01lYXN1cmUSGgoSbWVhc3VyZXNfc3VwcG9ydGVkGAwgASgIEhcKD2Ryb3BwZWRfc2FtcGxlcxgNIAEoBCKCCAoTQ29tcHV0ZXJEaWFnbm9zdGljcxITCgtjb21wdXRlcl9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhMKC2FwcF92ZXJzaW9uGAMgASgJEg4KBnN0YXR1cxgEIAEoCRIXCg9wcm9jZXNzX3Nlc3Npb24YBSABKAkSDQoFZXBvY2gYBiABKAkSFQoNc2FtcGxlZF9hdF9tcxgHIAEoAxIVCg1zYW1wbGVfYWdlX21zGAggASgBEhcKD3dpbmRvd19zdGFydF9tcxgJIAEoAxIVCg13aW5kb3dfZW5kX21zGAogASgDEhoKEnJlc29sdXRpb25fc2Vjb25kcxgLIAEoDRIYChBvYnNlcnZlZF9zZWNvbmRzGAwgASgBEi8KBGdhcHMYDSADKAsyIS5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NDb3ZlcmFnZRIRCglyZXN0b3JpbmcYDiABKAgSHAoUcGVyc2lzdGVkX3Rocm91Z2hfbXMYDyABKAMSFwoPcGVuZGluZ19taW51dGVzGBAgASgNEhoKEnBlcnNpc3RlbmNlX3N0YXR1cxgRIAEoCRIsCgVjYWxscxgSIAMoCzIdLmNhbm9weS51aS52MS5EaWFnbm9zdGljc0NhbGwSLAoFbGlua3MYEyADKAsyHS5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NMaW5rEjIKCGZpbmRpbmdzGBQgAygLMiAuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzRmluZGluZxIVCg10b3RhbF9tZXRob2RzGBUgASgNEhMKC25leHRfb2Zmc2V0GBYgASgNEhAKCHJldmlzaW9uGBcgASgJEhQKDG5vdF9tb2RpZmllZBgYIAEoCBIXCg9kcm9wcGVkX3NhbXBsZXMYGSABKAQSGQoRZGV0YWlsc19hdmFpbGFibGUYGiABKAgSFgoOcmVjZWl2ZWRfYXRfbXMYGyABKAMSFQoNYWdlX3VuY2VydGFpbhgcIAEoCBIWCg53aW5kb3dfbWludXRlcxgdIAEoDRI6ChBnYXRld2F5X21lYXN1cmVzGB4gAygLMiAuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzTWVhc3VyZRI5CghkYXRhYmFzZRgfIAMoCzInLmNhbm9weS51aS52MS5EaWFnbm9zdGljc0RhdGFiYXNlRmFtaWx5EiIKGmdhdGV3YXlfbWVhc3VyZXNfc3VwcG9ydGVkGCAgASgIEjkKD2NsaWVudF9tZWFzdXJlcxghIAMoCzIgLmNhbm9weS51aS52MS5EaWFnbm9zdGljc01lYXN1cmUSGwoTZXBvY2hfc3RhcnRlZF9hdF9tcxgiIAEoAyJLChNEaWFnbm9zdGljc1NuYXBzaG90EjQKCWNvbXB1dGVycxgBIAMoCzIhLmNhbm9weS51aS52MS5Db21wdXRlckRpYWdub3N0aWNzIugCChBEaWFnbm9zdGljc1N0YXRlEhYKDnNjaGVtYV92ZXJzaW9uGAEgASgNEg0KBWVwb2NoGAIgASgJEhwKFHBlcnNpc3RlZF90aHJvdWdoX21zGAMgASgDEjIKCGZpbmRpbmdzGAQgAygLMiAuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzRmluZGluZxI0Cgp3YXRlcm1hcmtzGAUgAygLMiAuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzUHJvY2VzcxI5Cg5wZWVyX292ZXJ2aWV3cxgGIAMoCzIhLmNhbm9weS51aS52MS5Db21wdXRlckRpYWdub3N0aWNzEhcKD3BlcnNpc3RlbmNlX2dhcBgHIAEoCBIbChNlcG9jaF9zdGFydGVkX2F0X21zGAggASgDEjQKCWJhc2VsaW5lcxgJIAMoCzIhLmNhbm9weS51aS52MS5EaWFnbm9zdGljc0Jhc2VsaW5lIkAKE0RpYWdub3N0aWNzQmFzZWxpbmUSEgoKcHJvY2Vzc19pZBgBIAEoCRIVCg1zdGFydGVkX2F0X21zGAIgASgDItIBChhTdWJtaXREaWFnbm9zdGljc1JlcXVlc3QSDwoHc2Vzc2lvbhgBIAEoCRIQCghzZXF1ZW5jZRgCIAEoBBINCgVlcG9jaBgDIAEoCRIQCghzdGFydF9tcxgEIAEoAxIOCgZlbmRfbXMYBSABKAMSDgoGc291cmNlGAYgASgJEjsKCG1lYXN1cmVzGAcgAygLMikuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzTWVhc3VyZUFnZ3JlZ2F0ZRIVCg1zYW1wbGluZ19yYXRlGAggASgBIlIKEkRpYWdub3N0aWNzUmVjZWlwdBINCgVlcG9jaBgBIAEoCRIQCghhY2NlcHRlZBgCIAEoCBIbChNlcG9jaF9zdGFydGVkX2F0X21zGAMgASgDImQKF1Jlc2V0RGlhZ25vc3RpY3NSZXF1ZXN0EhMKC2NvbXB1dGVyX2lkGAEgASgJEhIKCnByb2Nlc3NfaWQYAiABKAkSDQoFZXBvY2gYAyABKAkSEQoJYWN0aW9uX2lkGAQgASgJIlgKGERpYWdub3N0aWNzUmVwb3J0UmVxdWVzdBIUCgxjb21wdXRlcl9pZHMYASADKAkSFgoOd2luZG93X21pbnV0ZXMYAiABKA0SDgoGZm9ybWF0GAMgASgJInEKEURpYWdub3N0aWNzUmVwb3J0EgwKBHRleHQYASABKAkSDgoGZm9ybWF0GAIgASgJEhgKEG9taXR0ZWRfc2VjdGlvbnMYAyADKAkSDQoFcHJvb2YYBCABKAkSFQoNZXhwaXJlc19hdF9tcxgFIAEoAyLmAQodSW52ZXN0aWdhdGVEaWFnbm9zdGljc1JlcXVlc3QSLwoGcmVwb3J0GAEgASgLMh8uY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzUmVwb3J0EhIKCnByb2plY3RfaWQYAiABKAkSFAoMd29ya3NwYWNlX2lkGAMgASgJEhEKCXdvcmtlcl9pZBgEIAEoCRIQCghwcm92aWRlchgFIAEoBRIbChNwcm92aWRlcl9wcm9maWxlX2lkGAYgASgJEg0KBW1vZGVsGAcgASgJEhkKEWNsaWVudF9yZXF1ZXN0X2lkGAggASgJIi0KGERpYWdub3N0aWNzSW52ZXN0aWdhdGlvbhIRCgl0aHJlYWRfaWQYASABKAkiRgoXRGlhZ25vc3RpY3NHcmFudFJlcXVlc3QSGgoSb3JpZ2luX2NvbXB1dGVyX2lkGAEgASgJEg8KB2VuYWJsZWQYAiABKAgiLgoQRGlhZ25vc3RpY3NHcmFudBIaChJvcmlnaW5fY29tcHV0ZXJfaWQYASABKAkiQwoRRGlhZ25vc3RpY3NHcmFudHMSLgoGZ3JhbnRzGAEgAygLMh4uY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzR3JhbnQi0QIKFVdvcmtlckxpbmtEaWFnbm9zdGljcxIPCgdzZXNzaW9uGAEgASgJEhAKCHNlcXVlbmNlGAIgASgEEhAKCHN0YXJ0X21zGAMgASgDEg4KBmVuZF9tcxgEIAEoAxIvCgNydHQYBSABKAsyIi5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NIaXN0b2dyYW0SMgoGaml0dGVyGAYgASgLMiIuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzSGlzdG9ncmFtEhUKDWVjaG9fdGltZW91dHMYByABKAQSOwoIbWVhc3VyZXMYCCADKAsyKS5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NNZWFzdXJlQWdncmVnYXRlEiEKGXdvcmtlcl9tZWFzdXJlc19zdXBwb3J0ZWQYCSABKAgSFwoPZHJvcHBlZF9zYW1wbGVzGAogASgEYgZwcm90bzM");
+  fileDesc("Ch5jYW5vcHkvdWkvdjEvZGlhZ25vc3RpY3MucHJvdG8SDGNhbm9weS51aS52MSJrChREaWFnbm9zdGljc0hpc3RvZ3JhbRIPCgdpbmRpY2VzGAEgAygNEg4KBmNvdW50cxgCIAMoBBILCgNzdW0YAyABKAESCwoDbWF4GAQgASgBEhAKA21pbhgFIAEoAUgAiAEBQgYKBF9taW4iyQMKFERpYWdub3N0aWNzQWdncmVnYXRlEhEKCW1ldGhvZF9pZBgBIAEoDRIPCgdzdGFydGVkGAIgASgEEhEKCWNvbXBsZXRlZBgDIAEoBBINCgVjb2RlcxgEIAMoBBI0CghkdXJhdGlvbhgFIAEoCzIiLmNhbm9weS51aS52MS5EaWFnbm9zdGljc0hpc3RvZ3JhbRI5Cg1yZXF1ZXN0X2J5dGVzGAYgASgLMiIuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzSGlzdG9ncmFtEjoKDnJlc3BvbnNlX2J5dGVzGAcgASgLMiIuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzSGlzdG9ncmFtEjkKDWZpcnN0X21lc3NhZ2UYCCABKAsyIi5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NIaXN0b2dyYW0SGAoQcmVxdWVzdF9tZXNzYWdlcxgJIAEoBBIZChFyZXNwb25zZV9tZXNzYWdlcxgKIAEoBBIVCg1tYXhfaW5fZmxpZ2h0GAsgASgNEhIKCmluY29tcGxldGUYDCABKAgSDAoEc2xvdxgNIAEoBBIVCg1tZXNzYWdlX2tpbmRzGA4gAygEInQKEURpYWdub3N0aWNzUm9sbHVwEhYKDnNjaGVtYV92ZXJzaW9uGAEgASgNEjMKCXByb2Nlc3NlcxgCIAMoCzIgLmNhbm9weS51aS52MS5EaWFnbm9zdGljc1Byb2Nlc3MSEgoKaW5jb21wbGV0ZRgDIAEoCCKrAgoSRGlhZ25vc3RpY3NQcm9jZXNzEhIKCnByb2Nlc3NfaWQYASABKAkSDwoHc2Vzc2lvbhgCIAEoCRIQCghzZXF1ZW5jZRgDIAEoBBIzCghjb3ZlcmFnZRgEIAMoCzIhLmNhbm9weS51aS52MS5EaWFnbm9zdGljc0NvdmVyYWdlEjIKBnNlcmllcxgFIAMoCzIiLmNhbm9weS51aS52MS5EaWFnbm9zdGljc0FnZ3JlZ2F0ZRI4CgtjaGVja3BvaW50cxgGIAMoCzIjLmNhbm9weS51aS52MS5EaWFnbm9zdGljc0NoZWNrcG9pbnQSOwoIbWVhc3VyZXMYByADKAsyKS5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NNZWFzdXJlQWdncmVnYXRlIooCChtEaWFnbm9zdGljc01lYXN1cmVBZ2dyZWdhdGUSEQoJbWV0cmljX2lkGAEgASgNEhUKDXJwY19tZXRob2RfaWQYAiABKA0SNQoJaGlzdG9ncmFtGAMgASgLMiIuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzSGlzdG9ncmFtEg4KBmV2ZW50cxgEIAEoBBIOCgZlcnJvcnMYBSABKAQSFAoMd2VpZ2h0ZWRfc3VtGAYgASgBEg4KBndlaWdodBgHIAEoARILCgNtYXgYCCABKAESDAoEbGFzdBgJIAEoARIVCg1zYW1wbGVkX2F0X21zGAogASgDEhIKCmluY29tcGxldGUYCyABKAgihQIKEkRpYWdub3N0aWNzTWVhc3VyZRIRCgltZXRyaWNfaWQYASABKA0SOgoMZGlzdHJpYnV0aW9uGAIgASgLMiQuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzUGVyY2VudGlsZXMSDgoGZXZlbnRzGAMgASgEEg4KBmVycm9ycxgEIAEoBBIMCgRtZWFuGAUgASgBEgsKA21heBgGIAEoARIMCgRsYXN0GAcgASgBEhUKDXNhbXBsZWRfYXRfbXMYCCABKAMSGAoQb2JzZXJ2ZWRfc2Vjb25kcxgJIAEoARISCgpoaXN0b3JpY2FsGAogASgIEhIKCmluY29tcGxldGUYCyABKAgijwMKGURpYWdub3N0aWNzRGF0YWJhc2VGYW1pbHkSDgoGZmFtaWx5GAEgASgJEjgKCnJlc2VydmVfbXMYAiABKAsyJC5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NQZXJjZW50aWxlcxI4CgpleGVjdXRlX21zGAMgASgLMiQuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzUGVyY2VudGlsZXMSOAoKcmVsZWFzZV9tcxgEIAEoCzIkLmNhbm9weS51aS52MS5EaWFnbm9zdGljc1BlcmNlbnRpbGVzEjwKDnRyYW5zYWN0aW9uX21zGAUgASgLMiQuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzUGVyY2VudGlsZXMSFgoOcmVzZXJ2ZV9lcnJvcnMYBiABKAQSFgoOZXhlY3V0ZV9lcnJvcnMYByABKAQSFgoOcmVsZWFzZV9lcnJvcnMYCCABKAQSGgoSdHJhbnNhY3Rpb25fZXJyb3JzGAkgASgEEhIKCmluY29tcGxldGUYCiABKAgiOgoVRGlhZ25vc3RpY3NDaGVja3BvaW50Eg8KB3Nlc3Npb24YASABKAkSEAoIc2VxdWVuY2UYAiABKAQiNwoTRGlhZ25vc3RpY3NDb3ZlcmFnZRIQCghzdGFydF9tcxgBIAEoAxIOCgZlbmRfbXMYAiABKAMiLAoSRGlhZ25vc3RpY3NSZXF1ZXN0EhYKDndpbmRvd19taW51dGVzGAEgASgNIsoBChpDb21wdXRlckRpYWdub3N0aWNzUmVxdWVzdBITCgtjb21wdXRlcl9pZBgBIAEoCRIWCg53aW5kb3dfbWludXRlcxgCIAEoDRIOCgZvZmZzZXQYAyABKA0SDQoFbGltaXQYBCABKA0SEAoIcmV2aXNpb24YBSABKAkSFQoNb3ZlcnZpZXdfb25seRgGIAEoCBIPCgdzb3J0X2J5GAcgASgJEhEKCWNhbGxfa2luZBgIIAEoCRITCgttZXRob2Rfa2V5cxgJIAMoCSKYAQoWRGlhZ25vc3RpY3NQZXJjZW50aWxlcxILCgNwNTAYASABKAESCwoDcDk1GAIgASgBEgsKA3A5ORgDIAEoARILCgNtYXgYBCABKAESDwoHc2FtcGxlcxgFIAEoBBIQCghvdmVyZmxvdxgGIAEoCBILCgNzdW0YByABKAESGgoSb3ZlcmZsb3dfcXVhbnRpbGVzGAggASgNIvAECg9EaWFnbm9zdGljc0NhbGwSDgoGbWV0aG9kGAEgASgJEg0KBWxheWVyGAIgASgJEg4KBnN0cmVhbRgDIAEoCBIPCgdzdGFydGVkGAQgASgEEhEKCWNvbXBsZXRlZBgFIAEoBBIYChBjYWxsc19wZXJfbWludXRlGAYgASgBEg0KBWNvZGVzGAcgAygEEhEKCWluX2ZsaWdodBgIIAEoDRIVCg1tYXhfaW5fZmxpZ2h0GAkgASgNEjkKC2R1cmF0aW9uX21zGAogASgLMiQuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzUGVyY2VudGlsZXMSOwoNcmVxdWVzdF9ieXRlcxgLIAEoCzIkLmNhbm9weS51aS52MS5EaWFnbm9zdGljc1BlcmNlbnRpbGVzEjwKDnJlc3BvbnNlX2J5dGVzGAwgASgLMiQuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzUGVyY2VudGlsZXMSPgoQZmlyc3RfbWVzc2FnZV9tcxgNIAEoCzIkLmNhbm9weS51aS52MS5EaWFnbm9zdGljc1BlcmNlbnRpbGVzEhgKEHJlcXVlc3RfbWVzc2FnZXMYDiABKAQSGQoRcmVzcG9uc2VfbWVzc2FnZXMYDyABKAQSGAoQb2xkZXN0X2FjdGl2ZV9tcxgQIAEoARISCgppbmNvbXBsZXRlGBEgASgIEgwKBHNsb3cYEiABKAQSFQoNbWVzc2FnZV9raW5kcxgTIAMoBBI5CghkYXRhYmFzZRgUIAMoCzInLmNhbm9weS51aS52MS5EaWFnbm9zdGljc0RhdGFiYXNlRmFtaWx5IvABChJEaWFnbm9zdGljc0ZpbmRpbmcSDwoHcnVsZV9pZBgBIAEoCRIPCgdzdWJqZWN0GAIgASgJEhAKCHNldmVyaXR5GAMgASgJEg0KBXZhbHVlGAQgASgBEhEKCXRocmVzaG9sZBgFIAEoARIPCgdzYW1wbGVzGAYgASgEEhgKEG9ic2VydmVkX3NlY29uZHMYByABKAESEAoIZW50ZXJpbmcYCCABKA0SDwoHbGVhdmluZxgJIAEoDRIRCglzdXNwZW5kZWQYCiABKAgSDgoGYWN0aXZlGAsgASgIEhMKC2R1cmluZ19zeW5jGAwgASgIIrEDCg9EaWFnbm9zdGljc0xpbmsSEQoJdGFyZ2V0X2lkGAEgASgJEgwKBGtpbmQYAiABKAkSDAoEbmFtZRgDIAEoCRIRCglzdXBwb3J0ZWQYBCABKAgSNAoGcnR0X21zGAUgASgLMiQuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzUGVyY2VudGlsZXMSNwoJaml0dGVyX21zGAYgASgLMiQuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzUGVyY2VudGlsZXMSQwoVaGVhcnRiZWF0X2ludGVydmFsX21zGAcgASgLMiQuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzUGVyY2VudGlsZXMSGAoQaGVhcnRiZWF0X2FnZV9tcxgIIAEoARIVCg1lY2hvX3RpbWVvdXRzGAkgASgEEg4KBm9ubGluZRgKIAEoCBIyCghtZWFzdXJlcxgLIAMoCzIgLmNhbm9weS51aS52MS5EaWFnbm9zdGljc01lYXN1cmUSGgoSbWVhc3VyZXNfc3VwcG9ydGVkGAwgASgIEhcKD2Ryb3BwZWRfc2FtcGxlcxgNIAEoBCKCCAoTQ29tcHV0ZXJEaWFnbm9zdGljcxITCgtjb21wdXRlcl9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhMKC2FwcF92ZXJzaW9uGAMgASgJEg4KBnN0YXR1cxgEIAEoCRIXCg9wcm9jZXNzX3Nlc3Npb24YBSABKAkSDQoFZXBvY2gYBiABKAkSFQoNc2FtcGxlZF9hdF9tcxgHIAEoAxIVCg1zYW1wbGVfYWdlX21zGAggASgBEhcKD3dpbmRvd19zdGFydF9tcxgJIAEoAxIVCg13aW5kb3dfZW5kX21zGAogASgDEhoKEnJlc29sdXRpb25fc2Vjb25kcxgLIAEoDRIYChBvYnNlcnZlZF9zZWNvbmRzGAwgASgBEi8KBGdhcHMYDSADKAsyIS5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NDb3ZlcmFnZRIRCglyZXN0b3JpbmcYDiABKAgSHAoUcGVyc2lzdGVkX3Rocm91Z2hfbXMYDyABKAMSFwoPcGVuZGluZ19taW51dGVzGBAgASgNEhoKEnBlcnNpc3RlbmNlX3N0YXR1cxgRIAEoCRIsCgVjYWxscxgSIAMoCzIdLmNhbm9weS51aS52MS5EaWFnbm9zdGljc0NhbGwSLAoFbGlua3MYEyADKAsyHS5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NMaW5rEjIKCGZpbmRpbmdzGBQgAygLMiAuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzRmluZGluZxIVCg10b3RhbF9tZXRob2RzGBUgASgNEhMKC25leHRfb2Zmc2V0GBYgASgNEhAKCHJldmlzaW9uGBcgASgJEhQKDG5vdF9tb2RpZmllZBgYIAEoCBIXCg9kcm9wcGVkX3NhbXBsZXMYGSABKAQSGQoRZGV0YWlsc19hdmFpbGFibGUYGiABKAgSFgoOcmVjZWl2ZWRfYXRfbXMYGyABKAMSFQoNYWdlX3VuY2VydGFpbhgcIAEoCBIWCg53aW5kb3dfbWludXRlcxgdIAEoDRI6ChBnYXRld2F5X21lYXN1cmVzGB4gAygLMiAuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzTWVhc3VyZRI5CghkYXRhYmFzZRgfIAMoCzInLmNhbm9weS51aS52MS5EaWFnbm9zdGljc0RhdGFiYXNlRmFtaWx5EiIKGmdhdGV3YXlfbWVhc3VyZXNfc3VwcG9ydGVkGCAgASgIEjkKD2NsaWVudF9tZWFzdXJlcxghIAMoCzIgLmNhbm9weS51aS52MS5EaWFnbm9zdGljc01lYXN1cmUSGwoTZXBvY2hfc3RhcnRlZF9hdF9tcxgiIAEoAyJLChNEaWFnbm9zdGljc1NuYXBzaG90EjQKCWNvbXB1dGVycxgBIAMoCzIhLmNhbm9weS51aS52MS5Db21wdXRlckRpYWdub3N0aWNzIugCChBEaWFnbm9zdGljc1N0YXRlEhYKDnNjaGVtYV92ZXJzaW9uGAEgASgNEg0KBWVwb2NoGAIgASgJEhwKFHBlcnNpc3RlZF90aHJvdWdoX21zGAMgASgDEjIKCGZpbmRpbmdzGAQgAygLMiAuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzRmluZGluZxI0Cgp3YXRlcm1hcmtzGAUgAygLMiAuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzUHJvY2VzcxI5Cg5wZWVyX292ZXJ2aWV3cxgGIAMoCzIhLmNhbm9weS51aS52MS5Db21wdXRlckRpYWdub3N0aWNzEhcKD3BlcnNpc3RlbmNlX2dhcBgHIAEoCBIbChNlcG9jaF9zdGFydGVkX2F0X21zGAggASgDEjQKCWJhc2VsaW5lcxgJIAMoCzIhLmNhbm9weS51aS52MS5EaWFnbm9zdGljc0Jhc2VsaW5lIkAKE0RpYWdub3N0aWNzQmFzZWxpbmUSEgoKcHJvY2Vzc19pZBgBIAEoCRIVCg1zdGFydGVkX2F0X21zGAIgASgDItIBChhTdWJtaXREaWFnbm9zdGljc1JlcXVlc3QSDwoHc2Vzc2lvbhgBIAEoCRIQCghzZXF1ZW5jZRgCIAEoBBINCgVlcG9jaBgDIAEoCRIQCghzdGFydF9tcxgEIAEoAxIOCgZlbmRfbXMYBSABKAMSDgoGc291cmNlGAYgASgJEjsKCG1lYXN1cmVzGAcgAygLMikuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzTWVhc3VyZUFnZ3JlZ2F0ZRIVCg1zYW1wbGluZ19yYXRlGAggASgBIlIKEkRpYWdub3N0aWNzUmVjZWlwdBINCgVlcG9jaBgBIAEoCRIQCghhY2NlcHRlZBgCIAEoCBIbChNlcG9jaF9zdGFydGVkX2F0X21zGAMgASgDImQKF1Jlc2V0RGlhZ25vc3RpY3NSZXF1ZXN0EhMKC2NvbXB1dGVyX2lkGAEgASgJEhIKCnByb2Nlc3NfaWQYAiABKAkSDQoFZXBvY2gYAyABKAkSEQoJYWN0aW9uX2lkGAQgASgJIlgKGERpYWdub3N0aWNzUmVwb3J0UmVxdWVzdBIUCgxjb21wdXRlcl9pZHMYASADKAkSFgoOd2luZG93X21pbnV0ZXMYAiABKA0SDgoGZm9ybWF0GAMgASgJInEKEURpYWdub3N0aWNzUmVwb3J0EgwKBHRleHQYASABKAkSDgoGZm9ybWF0GAIgASgJEhgKEG9taXR0ZWRfc2VjdGlvbnMYAyADKAkSDQoFcHJvb2YYBCABKAkSFQoNZXhwaXJlc19hdF9tcxgFIAEoAyL7AQodSW52ZXN0aWdhdGVEaWFnbm9zdGljc1JlcXVlc3QSLwoGcmVwb3J0GAEgASgLMh8uY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzUmVwb3J0EhIKCnByb2plY3RfaWQYAiABKAkSFAoMd29ya3NwYWNlX2lkGAMgASgJEhEKCXdvcmtlcl9pZBgEIAEoCRIQCghwcm92aWRlchgFIAEoBRIbChNwcm92aWRlcl9wcm9maWxlX2lkGAYgASgJEg0KBW1vZGVsGAcgASgJEhkKEWNsaWVudF9yZXF1ZXN0X2lkGAggASgJEhMKC2xvZ3Nfam9iX2lkGAkgASgJIi0KGERpYWdub3N0aWNzSW52ZXN0aWdhdGlvbhIRCgl0aHJlYWRfaWQYASABKAkiWgoXRGlhZ25vc3RpY3NHcmFudFJlcXVlc3QSGgoSb3JpZ2luX2NvbXB1dGVyX2lkGAEgASgJEg8KB2VuYWJsZWQYAiABKAgSEgoKcGVybWlzc2lvbhgDIAEoCSJCChBEaWFnbm9zdGljc0dyYW50EhoKEm9yaWdpbl9jb21wdXRlcl9pZBgBIAEoCRISCgpwZXJtaXNzaW9uGAIgASgJIoMBCh1Db2xsZWN0RGlhZ25vc3RpY3NMb2dzUmVxdWVzdBIUCgxjb21wdXRlcl9pZHMYASADKAkSDQoFaG91cnMYAiABKA0SFgoOaW5jbHVkZV9sZWdhY3kYAyABKAgSEgoKYWxpYXNfaG9tZRgEIAEoCBIRCglhY3Rpb25faWQYBSABKAkiKwoZRGlhZ25vc3RpY3NMb2dzSm9iUmVxdWVzdBIOCgZqb2JfaWQYASABKAkijwEKE0RpYWdub3N0aWNzTG9nc0hvbWUSEwoLY29tcHV0ZXJfaWQYASABKAkSDQoFYWxpYXMYAiABKAkSDgoGc3RhdHVzGAMgASgJEg0KBWJ5dGVzGAQgASgEEjUKB3NvdXJjZXMYBSADKAsyJC5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NMb2dDb3ZlcmFnZSKyAQoSRGlhZ25vc3RpY3NMb2dzSm9iEg4KBmpvYl9pZBgBIAEoCRIOCgZzdGF0dXMYAiABKAkSFQoNY3JlYXRlZF9hdF9tcxgDIAEoAxIVCg1leHBpcmVzX2F0X21zGAQgASgDEg0KBWJ5dGVzGAUgASgEEjAKBWhvbWVzGAYgAygLMiEuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzTG9nc0hvbWUSDQoFaG91cnMYByABKA0ihgIKFkRpYWdub3N0aWNzTG9nQ292ZXJhZ2USDgoGc291cmNlGAEgASgJEg4KBndvcmtlchgCIAEoDRIOCgZzdGF0dXMYAyABKAkSDQoFYnl0ZXMYBCABKAQSDwoHcmVjb3JkcxgFIAEoBBIXCg9vbWl0dGVkX3JlY29yZHMYBiABKAQSFQoNb21pdHRlZF9ieXRlcxgHIAEoBBIYChByZWRhY3RlZF9yZWNvcmRzGAggASgEEhMKC2ZpcnN0X2F0X21zGAkgASgDEhIKCmxhc3RfYXRfbXMYCiABKAMSDgoGbGVnYWN5GAsgASgIEhkKEXJvdGF0aW9uX3ZlcmlmaWVkGAwgASgIIskBChJEaWFnbm9zdGljc0xvZ1BhcnQSEAoIc2VxdWVuY2UYASABKA0SDAoEZGF0YRgCIAEoDBIQCghjaGVja3N1bRgDIAEoCRI2Cghjb3ZlcmFnZRgEIAEoCzIkLmNhbm9weS51aS52MS5EaWFnbm9zdGljc0xvZ0NvdmVyYWdlEgsKA2VuZBgFIAEoCBI8CgtlbnZpcm9ubWVudBgGIAEoCzInLmNhbm9weS51aS52MS5EaWFnbm9zdGljc0xvZ0Vudmlyb25tZW50IvYBChlEaWFnbm9zdGljc0xvZ0Vudmlyb25tZW50Eg8KB3ZlcnNpb24YASABKAkSCgoCb3MYAiABKAkSDAoEYXJjaBgDIAEoCRIWCg51cHRpbWVfc2Vjb25kcxgEIAEoARIXCg9jb2xsZWN0ZWRfYXRfbXMYBSABKAMSFQoNc2FtcGxlX2FnZV9tcxgGIAEoARIyCghtZWFzdXJlcxgHIAMoCzIgLmNhbm9weS51aS52MS5EaWFnbm9zdGljc01lYXN1cmUSMgoIZmluZGluZ3MYCCADKAsyIC5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NGaW5kaW5nIoABChpEaWFnbm9zdGljc0hvbWVMb2dzUmVxdWVzdBIRCglhY3Rpb25faWQYASABKAkSDQoFaG91cnMYAiABKA0SFgoOaW5jbHVkZV9sZWdhY3kYAyABKAgSEgoKYWxpYXNfaG9tZRgEIAEoCBIUCgxidWRnZXRfYnl0ZXMYBSABKA0iRAogRGlhZ25vc3RpY3NMb2dTb3VyY2VSZWdpc3RyYXRpb24SDwoHc2Vzc2lvbhgBIAEoCRIPCgdzb3VyY2VzGAIgAygJIqABChtEaWFnbm9zdGljc0xvZ1NvdXJjZUNvbW1hbmQSDwoHc2Vzc2lvbhgBIAEoCRISCgpyZXF1ZXN0X2lkGAIgASgJEhMKC3RyYW5zZmVyX2lkGAMgASgJEjcKBWJlZ2luGAQgASgLMiguY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzSG9tZUxvZ3NSZXF1ZXN0Eg4KBmNhbmNlbBgFIAEoCCJwChlEaWFnbm9zdGljc0xvZ1NvdXJjZVJlcGx5Eg8KB3Nlc3Npb24YASABKAkSEgoKcmVxdWVzdF9pZBgCIAEoCRIuCgRwYXJ0GAMgASgLMiAuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzTG9nUGFydCJDChFEaWFnbm9zdGljc0dyYW50cxIuCgZncmFudHMYASADKAsyHi5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NHcmFudCLRAgoVV29ya2VyTGlua0RpYWdub3N0aWNzEg8KB3Nlc3Npb24YASABKAkSEAoIc2VxdWVuY2UYAiABKAQSEAoIc3RhcnRfbXMYAyABKAMSDgoGZW5kX21zGAQgASgDEi8KA3J0dBgFIAEoCzIiLmNhbm9weS51aS52MS5EaWFnbm9zdGljc0hpc3RvZ3JhbRIyCgZqaXR0ZXIYBiABKAsyIi5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NIaXN0b2dyYW0SFQoNZWNob190aW1lb3V0cxgHIAEoBBI7CghtZWFzdXJlcxgIIAMoCzIpLmNhbm9weS51aS52MS5EaWFnbm9zdGljc01lYXN1cmVBZ2dyZWdhdGUSIQoZd29ya2VyX21lYXN1cmVzX3N1cHBvcnRlZBgJIAEoCBIXCg9kcm9wcGVkX3NhbXBsZXMYCiABKARiBnByb3RvMw");
 
 /**
  * Numbers and locally registered identifiers only. Never payloads or error messages.
@@ -1373,6 +1373,13 @@ export type InvestigateDiagnosticsRequest = Message<"canopy.ui.v1.InvestigateDia
    * @generated from field: string client_request_id = 8;
    */
   clientRequestId: string;
+
+  /**
+   * Explicit owner choice; ordinary attachment limit still applies.
+   *
+   * @generated from field: string logs_job_id = 9;
+   */
+  logsJobId: string;
 };
 
 /**
@@ -1412,6 +1419,13 @@ export type DiagnosticsGrantRequest = Message<"canopy.ui.v1.DiagnosticsGrantRequ
    * @generated from field: bool enabled = 2;
    */
   enabled: boolean;
+
+  /**
+   * Empty/diagnostics_read or separately granted diagnostics_logs.
+   *
+   * @generated from field: string permission = 3;
+   */
+  permission: string;
 };
 
 /**
@@ -1429,6 +1443,11 @@ export type DiagnosticsGrant = Message<"canopy.ui.v1.DiagnosticsGrant"> & {
    * @generated from field: string origin_computer_id = 1;
    */
   originComputerId: string;
+
+  /**
+   * @generated from field: string permission = 2;
+   */
+  permission: string;
 };
 
 /**
@@ -1437,6 +1456,447 @@ export type DiagnosticsGrant = Message<"canopy.ui.v1.DiagnosticsGrant"> & {
  */
 export const DiagnosticsGrantSchema: GenMessage<DiagnosticsGrant> = /*@__PURE__*/
   messageDesc(file_canopy_ui_v1_diagnostics, 27);
+
+/**
+ * @generated from message canopy.ui.v1.CollectDiagnosticsLogsRequest
+ */
+export type CollectDiagnosticsLogsRequest = Message<"canopy.ui.v1.CollectDiagnosticsLogsRequest"> & {
+  /**
+   * @generated from field: repeated string computer_ids = 1;
+   */
+  computerIds: string[];
+
+  /**
+   * 1, 6 or 24, interpreted at each source.
+   *
+   * @generated from field: uint32 hours = 2;
+   */
+  hours: number;
+
+  /**
+   * Explicitly labelled untimed tail only.
+   *
+   * @generated from field: bool include_legacy = 3;
+   */
+  includeLegacy: boolean;
+
+  /**
+   * Paths/hosts/secrets are always removed, regardless of this choice.
+   *
+   * @generated from field: bool alias_home = 4;
+   */
+  aliasHome: boolean;
+
+  /**
+   * @generated from field: string action_id = 5;
+   */
+  actionId: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.CollectDiagnosticsLogsRequest.
+ * Use `create(CollectDiagnosticsLogsRequestSchema)` to create a new message.
+ */
+export const CollectDiagnosticsLogsRequestSchema: GenMessage<CollectDiagnosticsLogsRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_diagnostics, 28);
+
+/**
+ * @generated from message canopy.ui.v1.DiagnosticsLogsJobRequest
+ */
+export type DiagnosticsLogsJobRequest = Message<"canopy.ui.v1.DiagnosticsLogsJobRequest"> & {
+  /**
+   * @generated from field: string job_id = 1;
+   */
+  jobId: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.DiagnosticsLogsJobRequest.
+ * Use `create(DiagnosticsLogsJobRequestSchema)` to create a new message.
+ */
+export const DiagnosticsLogsJobRequestSchema: GenMessage<DiagnosticsLogsJobRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_diagnostics, 29);
+
+/**
+ * @generated from message canopy.ui.v1.DiagnosticsLogsHome
+ */
+export type DiagnosticsLogsHome = Message<"canopy.ui.v1.DiagnosticsLogsHome"> & {
+  /**
+   * @generated from field: string computer_id = 1;
+   */
+  computerId: string;
+
+  /**
+   * @generated from field: string alias = 2;
+   */
+  alias: string;
+
+  /**
+   * @generated from field: string status = 3;
+   */
+  status: string;
+
+  /**
+   * @generated from field: uint64 bytes = 4;
+   */
+  bytes: bigint;
+
+  /**
+   * @generated from field: repeated canopy.ui.v1.DiagnosticsLogCoverage sources = 5;
+   */
+  sources: DiagnosticsLogCoverage[];
+};
+
+/**
+ * Describes the message canopy.ui.v1.DiagnosticsLogsHome.
+ * Use `create(DiagnosticsLogsHomeSchema)` to create a new message.
+ */
+export const DiagnosticsLogsHomeSchema: GenMessage<DiagnosticsLogsHome> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_diagnostics, 30);
+
+/**
+ * @generated from message canopy.ui.v1.DiagnosticsLogsJob
+ */
+export type DiagnosticsLogsJob = Message<"canopy.ui.v1.DiagnosticsLogsJob"> & {
+  /**
+   * @generated from field: string job_id = 1;
+   */
+  jobId: string;
+
+  /**
+   * @generated from field: string status = 2;
+   */
+  status: string;
+
+  /**
+   * @generated from field: int64 created_at_ms = 3;
+   */
+  createdAtMs: bigint;
+
+  /**
+   * @generated from field: int64 expires_at_ms = 4;
+   */
+  expiresAtMs: bigint;
+
+  /**
+   * @generated from field: uint64 bytes = 5;
+   */
+  bytes: bigint;
+
+  /**
+   * @generated from field: repeated canopy.ui.v1.DiagnosticsLogsHome homes = 6;
+   */
+  homes: DiagnosticsLogsHome[];
+
+  /**
+   * @generated from field: uint32 hours = 7;
+   */
+  hours: number;
+};
+
+/**
+ * Describes the message canopy.ui.v1.DiagnosticsLogsJob.
+ * Use `create(DiagnosticsLogsJobSchema)` to create a new message.
+ */
+export const DiagnosticsLogsJobSchema: GenMessage<DiagnosticsLogsJob> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_diagnostics, 31);
+
+/**
+ * @generated from message canopy.ui.v1.DiagnosticsLogCoverage
+ */
+export type DiagnosticsLogCoverage = Message<"canopy.ui.v1.DiagnosticsLogCoverage"> & {
+  /**
+   * @generated from field: string source = 1;
+   */
+  source: string;
+
+  /**
+   * Per-action alias only, never a worker name, id or path.
+   *
+   * @generated from field: uint32 worker = 2;
+   */
+  worker: number;
+
+  /**
+   * @generated from field: string status = 3;
+   */
+  status: string;
+
+  /**
+   * @generated from field: uint64 bytes = 4;
+   */
+  bytes: bigint;
+
+  /**
+   * @generated from field: uint64 records = 5;
+   */
+  records: bigint;
+
+  /**
+   * @generated from field: uint64 omitted_records = 6;
+   */
+  omittedRecords: bigint;
+
+  /**
+   * @generated from field: uint64 omitted_bytes = 7;
+   */
+  omittedBytes: bigint;
+
+  /**
+   * @generated from field: uint64 redacted_records = 8;
+   */
+  redactedRecords: bigint;
+
+  /**
+   * @generated from field: int64 first_at_ms = 9;
+   */
+  firstAtMs: bigint;
+
+  /**
+   * @generated from field: int64 last_at_ms = 10;
+   */
+  lastAtMs: bigint;
+
+  /**
+   * @generated from field: bool legacy = 11;
+   */
+  legacy: boolean;
+
+  /**
+   * @generated from field: bool rotation_verified = 12;
+   */
+  rotationVerified: boolean;
+};
+
+/**
+ * Describes the message canopy.ui.v1.DiagnosticsLogCoverage.
+ * Use `create(DiagnosticsLogCoverageSchema)` to create a new message.
+ */
+export const DiagnosticsLogCoverageSchema: GenMessage<DiagnosticsLogCoverage> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_diagnostics, 32);
+
+/**
+ * At most 32 KiB data, strict sequence and SHA-256. Metadata precedes each source.
+ *
+ * @generated from message canopy.ui.v1.DiagnosticsLogPart
+ */
+export type DiagnosticsLogPart = Message<"canopy.ui.v1.DiagnosticsLogPart"> & {
+  /**
+   * @generated from field: uint32 sequence = 1;
+   */
+  sequence: number;
+
+  /**
+   * @generated from field: bytes data = 2;
+   */
+  data: Uint8Array;
+
+  /**
+   * @generated from field: string checksum = 3;
+   */
+  checksum: string;
+
+  /**
+   * @generated from field: canopy.ui.v1.DiagnosticsLogCoverage coverage = 4;
+   */
+  coverage?: DiagnosticsLogCoverage | undefined;
+
+  /**
+   * @generated from field: bool end = 5;
+   */
+  end: boolean;
+
+  /**
+   * @generated from field: canopy.ui.v1.DiagnosticsLogEnvironment environment = 6;
+   */
+  environment?: DiagnosticsLogEnvironment | undefined;
+};
+
+/**
+ * Describes the message canopy.ui.v1.DiagnosticsLogPart.
+ * Use `create(DiagnosticsLogPartSchema)` to create a new message.
+ */
+export const DiagnosticsLogPartSchema: GenMessage<DiagnosticsLogPart> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_diagnostics, 33);
+
+/**
+ * @generated from message canopy.ui.v1.DiagnosticsLogEnvironment
+ */
+export type DiagnosticsLogEnvironment = Message<"canopy.ui.v1.DiagnosticsLogEnvironment"> & {
+  /**
+   * @generated from field: string version = 1;
+   */
+  version: string;
+
+  /**
+   * @generated from field: string os = 2;
+   */
+  os: string;
+
+  /**
+   * @generated from field: string arch = 3;
+   */
+  arch: string;
+
+  /**
+   * @generated from field: double uptime_seconds = 4;
+   */
+  uptimeSeconds: number;
+
+  /**
+   * @generated from field: int64 collected_at_ms = 5;
+   */
+  collectedAtMs: bigint;
+
+  /**
+   * @generated from field: double sample_age_ms = 6;
+   */
+  sampleAgeMs: number;
+
+  /**
+   * @generated from field: repeated canopy.ui.v1.DiagnosticsMeasure measures = 7;
+   */
+  measures: DiagnosticsMeasure[];
+
+  /**
+   * Subjects are omitted; closed rules/severities only.
+   *
+   * @generated from field: repeated canopy.ui.v1.DiagnosticsFinding findings = 8;
+   */
+  findings: DiagnosticsFinding[];
+};
+
+/**
+ * Describes the message canopy.ui.v1.DiagnosticsLogEnvironment.
+ * Use `create(DiagnosticsLogEnvironmentSchema)` to create a new message.
+ */
+export const DiagnosticsLogEnvironmentSchema: GenMessage<DiagnosticsLogEnvironment> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_diagnostics, 34);
+
+/**
+ * @generated from message canopy.ui.v1.DiagnosticsHomeLogsRequest
+ */
+export type DiagnosticsHomeLogsRequest = Message<"canopy.ui.v1.DiagnosticsHomeLogsRequest"> & {
+  /**
+   * @generated from field: string action_id = 1;
+   */
+  actionId: string;
+
+  /**
+   * @generated from field: uint32 hours = 2;
+   */
+  hours: number;
+
+  /**
+   * @generated from field: bool include_legacy = 3;
+   */
+  includeLegacy: boolean;
+
+  /**
+   * @generated from field: bool alias_home = 4;
+   */
+  aliasHome: boolean;
+
+  /**
+   * @generated from field: uint32 budget_bytes = 5;
+   */
+  budgetBytes: number;
+};
+
+/**
+ * Describes the message canopy.ui.v1.DiagnosticsHomeLogsRequest.
+ * Use `create(DiagnosticsHomeLogsRequestSchema)` to create a new message.
+ */
+export const DiagnosticsHomeLogsRequestSchema: GenMessage<DiagnosticsHomeLogsRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_diagnostics, 35);
+
+/**
+ * Private controller/BFF registration: service-token only, never a mobile or linked action.
+ *
+ * @generated from message canopy.ui.v1.DiagnosticsLogSourceRegistration
+ */
+export type DiagnosticsLogSourceRegistration = Message<"canopy.ui.v1.DiagnosticsLogSourceRegistration"> & {
+  /**
+   * @generated from field: string session = 1;
+   */
+  session: string;
+
+  /**
+   * @generated from field: repeated string sources = 2;
+   */
+  sources: string[];
+};
+
+/**
+ * Describes the message canopy.ui.v1.DiagnosticsLogSourceRegistration.
+ * Use `create(DiagnosticsLogSourceRegistrationSchema)` to create a new message.
+ */
+export const DiagnosticsLogSourceRegistrationSchema: GenMessage<DiagnosticsLogSourceRegistration> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_diagnostics, 36);
+
+/**
+ * @generated from message canopy.ui.v1.DiagnosticsLogSourceCommand
+ */
+export type DiagnosticsLogSourceCommand = Message<"canopy.ui.v1.DiagnosticsLogSourceCommand"> & {
+  /**
+   * @generated from field: string session = 1;
+   */
+  session: string;
+
+  /**
+   * @generated from field: string request_id = 2;
+   */
+  requestId: string;
+
+  /**
+   * @generated from field: string transfer_id = 3;
+   */
+  transferId: string;
+
+  /**
+   * @generated from field: canopy.ui.v1.DiagnosticsHomeLogsRequest begin = 4;
+   */
+  begin?: DiagnosticsHomeLogsRequest | undefined;
+
+  /**
+   * @generated from field: bool cancel = 5;
+   */
+  cancel: boolean;
+};
+
+/**
+ * Describes the message canopy.ui.v1.DiagnosticsLogSourceCommand.
+ * Use `create(DiagnosticsLogSourceCommandSchema)` to create a new message.
+ */
+export const DiagnosticsLogSourceCommandSchema: GenMessage<DiagnosticsLogSourceCommand> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_diagnostics, 37);
+
+/**
+ * @generated from message canopy.ui.v1.DiagnosticsLogSourceReply
+ */
+export type DiagnosticsLogSourceReply = Message<"canopy.ui.v1.DiagnosticsLogSourceReply"> & {
+  /**
+   * @generated from field: string session = 1;
+   */
+  session: string;
+
+  /**
+   * @generated from field: string request_id = 2;
+   */
+  requestId: string;
+
+  /**
+   * @generated from field: canopy.ui.v1.DiagnosticsLogPart part = 3;
+   */
+  part?: DiagnosticsLogPart | undefined;
+};
+
+/**
+ * Describes the message canopy.ui.v1.DiagnosticsLogSourceReply.
+ * Use `create(DiagnosticsLogSourceReplySchema)` to create a new message.
+ */
+export const DiagnosticsLogSourceReplySchema: GenMessage<DiagnosticsLogSourceReply> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_diagnostics, 38);
 
 /**
  * @generated from message canopy.ui.v1.DiagnosticsGrants
@@ -1453,7 +1913,7 @@ export type DiagnosticsGrants = Message<"canopy.ui.v1.DiagnosticsGrants"> & {
  * Use `create(DiagnosticsGrantsSchema)` to create a new message.
  */
 export const DiagnosticsGrantsSchema: GenMessage<DiagnosticsGrants> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_diagnostics, 28);
+  messageDesc(file_canopy_ui_v1_diagnostics, 39);
 
 /**
  * Ephemeral WorkerLink report: no journal, outbox, ACK or arbitrary labels.
@@ -1517,5 +1977,5 @@ export type WorkerLinkDiagnostics = Message<"canopy.ui.v1.WorkerLinkDiagnostics"
  * Use `create(WorkerLinkDiagnosticsSchema)` to create a new message.
  */
 export const WorkerLinkDiagnosticsSchema: GenMessage<WorkerLinkDiagnostics> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_diagnostics, 29);
+  messageDesc(file_canopy_ui_v1_diagnostics, 40);
 

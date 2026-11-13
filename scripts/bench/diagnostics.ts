@@ -32,7 +32,7 @@ const loadMs = Number(process.env["CANOPY_BENCH_LOAD_MS"] ?? 120_000);
 const series = Number(process.env["CANOPY_BENCH_SERIES"] ?? 5);
 
 const short =
-  ["2", "3", "4"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "") && process.env["CANOPY_BENCH_SHORT"] === "1";
+  ["2", "3", "4", "5"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "") && process.env["CANOPY_BENCH_SHORT"] === "1";
 
 const minimumContentionMs = short ? 90_000 : 140_000;
 
@@ -267,7 +267,7 @@ async function run(on: boolean, index: number) {
         phase,
         contention,
         ...after,
-        ...(process.env["CANOPY_BENCH_STAGE"] === "4" && {
+        ...(["4", "5"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "") && {
           driverBff: {
             ...process.memoryUsage(),
             heap: process.memoryUsage().heapUsed,

@@ -3,7 +3,8 @@ import type { DiagnosticsPhase } from "./diagnostics-load.ts";
 export function selectedPhases(): DiagnosticsPhase[] {
   const only = process.env["CANOPY_BENCH_ONLY_PHASE"];
 
-  if (only === "steady" || only === "write_failure" || only === "pool_contention") return [only];
+  if (only === "steady" || only === "write_failure" || only === "pool_contention" || only === "log_export")
+    return [only];
   const forensicPhase = process.env["CANOPY_BENCH_FORENSIC_PHASE"];
 
   if (process.env["CANOPY_BENCH_FORENSICS_DIR"] && forensicPhase) {
@@ -26,8 +27,9 @@ export function selectedPhases(): DiagnosticsPhase[] {
       "slow_reader",
       "write_failure",
       "pool_contention",
-      ...(["2", "3", "4"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "") ? ["governor" as const] : []),
-      ...(process.env["CANOPY_BENCH_STAGE"] === "4" ? ["report" as const] : []),
+      ...(["2", "3", "4", "5"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "") ? ["governor" as const] : []),
+      ...(["4", "5"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "") ? ["report" as const] : []),
+      ...(process.env["CANOPY_BENCH_STAGE"] === "5" ? ["log_export" as const] : []),
     ];
 
   if (process.env["CANOPY_BENCH_CONTENTION"] === "1") return ["write_failure", "pool_contention"];

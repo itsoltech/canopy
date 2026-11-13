@@ -10,6 +10,8 @@ service DiagnosticsService {
   rpc ReadDiagnosticsSnapshot(canopy.ui.v1.ComputerDiagnosticsRequest) returns (canopy.ui.v1.ComputerDiagnostics);
   // Explicit owner action over a direct link only. Never part of relay/gather.
   rpc ResetDiagnosticsCounters(canopy.ui.v1.ResetDiagnosticsRequest) returns (canopy.ui.v1.DiagnosticsReceipt);
+  // Source-only collection, no recursive gather. Requires diagnostics_logs_v1 and its separate grant.
+  rpc CollectHomeDiagnosticsLogs(canopy.ui.v1.DiagnosticsHomeLogsRequest) returns (stream canopy.ui.v1.DiagnosticsLogPart);
 }
 
 // Stage 5. Internal, negotiated methods over the pinned link, never public RPCs.
@@ -311,6 +313,7 @@ message LinkFrame {
 message DiagnosticsInvalidated {
   string target_node_id = 1;
   string home_node_id = 2;
+  string permission = 3; // Empty = diagnostics_read, diagnostics_logs cancels active exports/downloads.
 }
 
 // Stage 8, capability "move_items": moving a thread or bot between two directly linked
