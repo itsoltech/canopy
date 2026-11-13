@@ -11,6 +11,7 @@ import { Journal } from "@canopy/worker/journal";
 import { WorkerHost, serveLink } from "@canopy/worker/runtime";
 import { THREAD_IMAGE_REPLIES_CAPABILITY } from "@canopy/domain/release/protocol";
 import { ManagedRuntime } from "effect";
+import { SqlClient } from "effect/sql";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
 import { pruneDatabase } from "../../apps/gateway/src/maintenance/prune.ts";
 
@@ -148,6 +149,29 @@ describe.skipIf(!dockerAvailable)("image replies through the real WorkerHost and
   }
 
   const images = (item: Item) => (item.content.case === "agentMessage" ? item.content.value.images : []);
+
+  test("waits for its completed message when transient ingestion retries release the worker stream", async () => {
+    const query = (text: string) => gw.runtime.runPromise(SqlClient.SqlClient.use((sql) => sql.unsafe(text)));
+    await query("CREATE SEQUENCE image_completion_retry");
+    await query(`CREATE FUNCTION delay_image_completion() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+      IF NEW.kind='item_completed' AND nextval('image_completion_retry') <= 2 THEN
+        RAISE EXCEPTION 'transient image completion failure' USING ERRCODE='40001';
+      END IF;
+      RETURN NEW;
+    END $$`);
+    await query(
+      "CREATE TRIGGER delay_image_completion BEFORE INSERT ON thread_events FOR EACH ROW EXECUTE FUNCTION delay_image_completion()",
+    );
+
+    try {
+      const result = await reply("![After ingestion recovery](screen.png)");
+      expect(images(result.item)).toHaveLength(1);
+    } finally {
+      await query("DROP TRIGGER delay_image_completion ON thread_events");
+      await query("DROP FUNCTION delay_image_completion()");
+      await query("DROP SEQUENCE image_completion_retry");
+    }
+  }, 30_000);
 
   test("imports parsed local images in position after empty completion; code and remote images stay inert", async () => {
     const text =

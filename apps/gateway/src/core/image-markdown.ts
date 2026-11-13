@@ -11,10 +11,26 @@ import { coreState } from "./core-context.ts";
 import { publishThreadImages } from "./image-publication.ts";
 import type { GatewayCore } from "./core.ts";
 
+/** A recovering ingest lane may yield the stream before its completion is durable. */
+async function completedImageMessage(core: GatewayCore, source: CallSource, itemId: string) {
+  const deadline = Date.now() + 10_000;
+
+  for (;;) {
+    try {
+      return await core[coreState].actions.run(
+        Effect.flatMap(SqlClient.SqlClient, (sql) => readImageMessage(sql, source, itemId)),
+      );
+    } catch (error) {
+      if (!(error instanceof Invalid) || Date.now() >= deadline) throw error;
+      await Bun.sleep(100);
+    }
+  }
+}
+
 /** Worker requests after message completion. All paths and offsets come from persisted source, never the worker. */
 export async function importImageReply(core: GatewayCore, source: CallSource, caller: ThreadRow, itemId: string) {
   const actions = core[coreState].actions;
-  const item = await actions.run(Effect.flatMap(SqlClient.SqlClient, (sql) => readImageMessage(sql, source, itemId)));
+  const item = await completedImageMessage(core, source, itemId);
 
   if (item.content.case !== "agentMessage") throw new Invalid("Message unavailable.");
   const text = item.content.value.text;

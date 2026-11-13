@@ -51,6 +51,9 @@ lexerem co klienci; pomija kod, HTML i zdalne URL. Ścieżki muszą należeć
 wyłącznie do workspace/worktree tej wiadomości. Maksymalnie 10 obrazów
 w wiadomości i 100 000 znaków źródła; nadmiar odrzuca całą partię.
 Obowiązują te same limity bajtów, rezerwacje i pipeline co dla `show_images`.
+Jeśli przejściowy błąd ingestu zwolnił strumień przed zapisem zakończenia
+wiadomości, importer czeka do 10 s na ten zapis. Oczekiwanie dotyczy tylko
+wywołania importu; pozostałe wątki i odbiór zdarzeń działają dalej.
 
 Manifest trafia do `AgentMessage.images = 3`, a błąd odzyskiwania do
 `image_error = 4`. `GalleryImage.markdown_start/end` wskazują zakres UTF-16,
