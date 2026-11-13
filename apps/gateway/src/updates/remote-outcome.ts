@@ -3,6 +3,8 @@ import { newerAppVersion, reachedUpdateVersion } from "@canopy/domain/release/re
 
 /** Compare current target facts before consulting the historical failure of a request. */
 function remoteStepApp(step: ui.UpdateStep, snapshot: ui.UpdatesSnapshot) {
+  if (step.kind === "app") return snapshot.app;
+
   if (step.kind === "computer") return snapshot.computers.find((item) => item.nodeId === step.nodeId)?.updates?.app;
 
   if (step.kind === "desktop") return snapshot.workers.find((worker) => worker.workerId === step.workerId)?.desktop;

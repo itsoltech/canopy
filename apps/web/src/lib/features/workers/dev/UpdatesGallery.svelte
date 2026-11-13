@@ -11,6 +11,7 @@
   import UpdatesPanel from "../UpdatesPanel.svelte";
   import { UpdatesState } from "../updates.svelte.ts";
   import { computerStates, fixtureSnapshot } from "./update-fixtures.ts";
+  import { bulkUpdateSteps } from "@canopy/domain/release/update-plan";
 
   /**
    * The updates center with fixture data: light/dark with `?dark=1`, the settings sections with `?view=settings`.
@@ -38,6 +39,30 @@
       steps: [
         { kind: "computer", label: "Linked computer · Canopy app", state: "failed", version: "0.43.0-nightly.1" },
       ],
+    });
+  }
+
+  if (["running", "complete"].includes(page.url.searchParams.get("run") || "")) {
+    const complete = page.url.searchParams.get("run") === "complete";
+    const steps = bulkUpdateSteps(updates.snapshot);
+
+    for (const [index, step] of steps.entries()) {
+      if (step.state === "skipped") continue;
+      step.state = complete || index === 0 ? "succeeded" : index === 1 ? "running" : "queued";
+    }
+
+    steps.push(
+      create(ui.UpdateStepSchema, {
+        kind: "cli",
+        label: "Build computer · Codex",
+        state: "skipped",
+        reason: "Update this agent CLI with Homebrew.",
+      }),
+    );
+    updates.snapshot.run = create(ui.UpdateRunSchema, {
+      id: "update-fixture",
+      state: complete ? "succeeded" : "running",
+      steps,
     });
   }
 

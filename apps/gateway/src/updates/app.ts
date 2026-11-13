@@ -1,23 +1,28 @@
 import { Code, ConnectError, type HandlerContext } from "@connectrpc/connect";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
+import { Match } from "effect";
 import type { GatewayCore } from "../core/core.ts";
 import { mobileIdentity } from "../core/mobile-devices.ts";
 import { requestComputerUpdate } from "./linked.ts";
 
 /** Dismiss the same app request as the stopped step, without acknowledging any later failure. */
 async function dismissRunApp(core: GatewayCore, step: ui.UpdateStep) {
-  if (!step.requestId || !["computer", "desktop"].includes(step.kind)) return;
+  if (!step.requestId || !["computer", "desktop", "app"].includes(step.kind)) return;
   const snapshot = await core.updateCenter.options.snapshot();
 
-  const app =
-    step.kind === "computer"
-      ? snapshot.computers.find((computer) => computer.nodeId === step.nodeId)?.updates?.app
-      : snapshot.workers.find((worker) => worker.workerId === step.workerId)?.desktop;
+  const app = Match.value(step.kind).pipe(
+    Match.when("app", () => snapshot.app),
+    Match.when("computer", () => snapshot.computers.find((computer) => computer.nodeId === step.nodeId)?.updates?.app),
+    Match.orElse(() => snapshot.workers.find((worker) => worker.workerId === step.workerId)?.desktop),
+  );
 
   if (app?.requestId !== step.requestId || app.phase !== "failed") return;
 
-  if (step.kind === "computer") await requestComputerUpdate(core, step.nodeId, "dismiss", step.requestId);
+  if (step.kind === "app") {
+    await core.appControl.dismiss(step.requestId);
+    await core.departures.recover("dismissed", "", app.targetVersion);
+  } else if (step.kind === "computer") await requestComputerUpdate(core, step.nodeId, "dismiss", step.requestId);
   else
     await core.desktopControl.manage(
       create(ui.ManageUpdatesRequestSchema, {

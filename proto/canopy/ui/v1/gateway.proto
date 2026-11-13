@@ -471,6 +471,7 @@ message ManageUpdatesRequest {
   string node_id = 7; // computer, computer_check: the directly linked computer whose Canopy app updates or checks
   // Required for app: the user confirmed that this gateway's computer will restart.
   bool confirm_restart = 8;
+  uint32 update_step_index = 9; // retry_step: index in the current owner-scoped run
 }
 message WorkerUpdate {
   string worker_id = 1;
@@ -538,12 +539,12 @@ message UpdateRun {
   repeated UpdateStep steps = 4;
 }
 message UpdateStep {
-  string kind = 1; // gateway | worker | cli | desktop | computer
+  string kind = 1; // gateway | worker | cli | desktop | computer | app
   string worker_id = 2;
   string label = 3;
   string version = 4;
   canopy.worker.v1.Provider provider = 5;
-  string state = 6; // queued | running | succeeded | failed | blocked | dismissed
+  string state = 6; // queued | running | succeeded | failed | blocked | dismissed | skipped
   string reason = 7;
   string started_at = 8;
   string from_version = 9;

@@ -3,6 +3,7 @@ import { appRestartDescription, appRunningTurns } from "@canopy/domain/release/u
 import { confirm } from "../../ui/Confirm";
 import { hasUnsentWork } from "./unsent-work";
 import type { UpdateRequest } from "./model";
+import { appUpdateAvailable } from "@canopy/domain/release/update-plan";
 
 /** The same guard runs before showing confirmation and just before sending the confirmed action. */
 export function confirmAppUpdate(
@@ -12,9 +13,18 @@ export function confirmAppUpdate(
   send: (confirmed: UpdateRequest) => void,
   blocked: (message: string) => void,
 ): boolean {
-  if (request.action !== "app" && request.action !== "computer") return false;
+  const bulk =
+    request.action === "update_all" &&
+    snapshot?.run?.state !== "running" &&
+    snapshot?.appUpdateSupported &&
+    appUpdateAvailable(snapshot.app);
 
-  if (request.action === "app" && hasUnsentWork()) {
+  const retryApp =
+    request.action === "retry_step" && snapshot?.run?.steps[request.updateStepIndex ?? 0]?.kind === "app";
+
+  if (request.action !== "app" && request.action !== "computer" && !bulk && !retryApp) return false;
+
+  if (request.action !== "computer" && hasUnsentWork()) {
     blocked("Send or discard your drafts and files before updating this computer.");
 
     return true;
@@ -27,13 +37,13 @@ export function confirmAppUpdate(
 
   const name = computer?.name || snapshot?.computerName || "This computer";
   confirm({
-    title: `Update “${name}”?`,
+    title: bulk ? "Update all?" : `Update “${name}”?`,
     description: appRestartDescription(
       name,
       appRunningTurns(threads, (computer?.updates ?? snapshot)?.app?.workerId || ""),
       "phone",
     ),
-    confirm: "Update computer",
+    confirm: bulk ? "Update all" : "Update computer",
     action: () => send({ ...request, confirmRestart: true }),
   });
 

@@ -70,6 +70,7 @@ export class GatewayUpdates {
   #draining = false;
   #ready = false;
   #commands = new Map<string, Promise<update.UpdateCommand | undefined>>();
+  #queuing = new Map<string, Promise<update.UpdateCommand | undefined>>();
   readonly #cache: UpdateCache;
   get draining(): boolean {
     return this.#draining;
@@ -396,11 +397,25 @@ export class GatewayUpdates {
 
     return promise;
   }
-  async #queue(
-    worker: WorkerUpdateRow,
-    force: boolean,
-    allowDowngrade: boolean,
-  ): Promise<update.UpdateCommand | undefined> {
+  #queue(worker: WorkerUpdateRow, force: boolean, allowDowngrade: boolean): Promise<update.UpdateCommand | undefined> {
+    const pending = this.#queuing.get(worker.id);
+
+    if (pending) return pending;
+
+    const command = this.#prepareCommand(worker.id, force, allowDowngrade).finally(() =>
+      this.#queuing.delete(worker.id),
+    );
+
+    this.#queuing.set(worker.id, command);
+
+    return command;
+  }
+  async #prepareCommand(workerId: string, force: boolean, allowDowngrade: boolean) {
+    // Auto-update on Hello and Update all share one command, including when their earlier reads raced.
+    const worker = (await this.options.persistence.workers()).find((item) => item.id === workerId);
+
+    if (!worker) throw new ConnectError("Worker not found", Code.NotFound);
+
     if (worker.version === this.version) return undefined;
 
     if (worker.status.installKind !== "binary")

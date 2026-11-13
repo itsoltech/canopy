@@ -3,6 +3,8 @@ import { ui } from "@canopy/contracts";
 import { cliUpdateActionable, appCheckPause, homeAppComputer } from "@canopy/domain/release/update-actions";
 import { currentRemoteUpdate, newerAppVersion } from "@canopy/domain/release/remote-update-state";
 
+export { bulkUpdatesAvailable } from "@canopy/domain/release/update-plan";
+
 export type UpdateRequest = MessageInitShape<typeof ui.ManageUpdatesRequestSchema>;
 
 export const updateBusy = (state = "") =>
@@ -26,6 +28,7 @@ export const updateLabel = (state = "") =>
     paused: "Checks paused",
     running: "Updating…",
     managed_externally: "Managed externally",
+    skipped: "Skipped",
     ahead: "Newer than gateway",
   })[state] ?? "Not checked";
 
@@ -121,11 +124,6 @@ export function updatesAvailable(snapshot: ui.UpdatesSnapshot, includeLinkedWork
         home.cliWorkers.some((worker) => worker.cliTools.some(cliUpdateActionable)),
     )
   );
-}
-
-/** Update all only manages this home's workers and CLIs, plus linked computer apps. */
-export function bulkUpdatesAvailable(snapshot: ui.UpdatesSnapshot) {
-  return updatesAvailable(snapshot, false, false);
 }
 
 export function updatesRunning(snapshot: ui.UpdatesSnapshot) {

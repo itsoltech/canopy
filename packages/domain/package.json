@@ -98,6 +98,7 @@
     "./release/app-history": "./src/release/app-history.ts",
     "./release/http": "./src/release/http.ts",
     "./release/update-actions": "./src/release/update-actions.ts",
+    "./release/update-plan": "./src/release/update-plan.ts",
     "./release/remote-update-state": "./src/release/remote-update-state.ts",
     "./release/version": "./src/release/version.ts",
     "./release/identity": "./src/release/identity.ts",

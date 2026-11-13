@@ -3,7 +3,8 @@
   import type { ClassValue } from "svelte/elements";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
-  import IconButton from "#lib/shared/ui/IconButton.svelte";
+  import Disclosure from "#lib/shared/ui/Disclosure.svelte";
+  import UpdateActionButton from "./UpdateActionButton.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import { clock } from "#lib/shared/clock.svelte.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
@@ -13,7 +14,7 @@
   import UpdateRun from "./UpdateRun.svelte";
   import { updateCenter, UpdatesState, updateBusy } from "./updates.svelte.ts";
   import TextLink from "#lib/shared/ui/TextLink.svelte";
-  import { listedWorkers, updatesAvailable } from "./compact-updates.ts";
+  import { listedWorkers } from "./compact-updates.ts";
   import { updateIndicator } from "./update-indicator.ts";
   import { isRateLimitMessage } from "@canopy/domain/release/http";
 
@@ -33,7 +34,6 @@
   const snapshot = $derived(updates.snapshot);
   const busy = $derived(updateBusy(snapshot?.gatewayState ?? "") || snapshot?.run?.state === "running");
   const summary = $derived(updateIndicator(undefined, snapshot, updates.error, updates.pending));
-  const available = $derived(!!snapshot && updatesAvailable(snapshot));
 
   const checked = $derived.by(() => {
     const at = Date.parse(snapshot?.checkedAt ?? "");
@@ -85,11 +85,6 @@
       <p class="text-xs/5 text-muted" title={snapshot?.checkedAt}>{checked}</p>
     </div>
     <div class="flex shrink-0 items-center gap-1">
-      <IconButton
-        size="sm"
-        icon="information-circle"
-        label="Update all skips externally managed items. It updates the gateway, binary workers, native agent CLIs, then Canopy apps. Linked computers update last, one at a time."
-      />
       <Button
         size="sm"
         disabled={!!updates.pending || busy || snapshot?.checking}
@@ -98,12 +93,7 @@
           void (snapshot?.admin || snapshot?.gatewayBundled ? updates.manage({ action: "check" }) : updates.reload())}
         >Check now</Button
       >
-      {#if available}<Button
-          size="sm"
-          disabled={!!updates.pending || busy}
-          loading={snapshot?.run?.state === "running"}
-          onclick={() => void updates.manage({ action: "update_all" })}>Update all</Button
-        >{/if}
+      <UpdateActionButton {updates} />
     </div>
   </div>
   {#if updates.error || snapshot?.checkError}<div class="p-3">
@@ -112,6 +102,19 @@
       >
     </div>{/if}
   {#if snapshot}
+    {#if snapshot.run && snapshot.run.state !== "dismissed"}<UpdateRun
+        run={snapshot.run}
+        {updates}
+        class="border-b border-divider px-3 py-2"
+      />{/if}
+    <Disclosure class="px-3 py-2 text-sm/5 text-muted">
+      {#snippet summary()}Update order{/snippet}
+      <p class="pt-2 text-pretty">
+        Canopy updates the gateway, binary workers, agent CLIs, then Canopy apps. Linked computers restart one at a
+        time. This computer restarts last. Externally managed items show their installer in the results. Other updates
+        continue after a failure. Workers wait for their gateway; agent CLIs wait for their worker.
+      </p>
+    </Disclosure>
     {#if snapshot.gatewayBundled}<p class="px-3 py-2 text-sm/5 text-pretty text-muted">
         This computer’s gateway and worker update with its Canopy app.
         {#if app.status && !app.remote}Open <TextLink href="/settings/app-updates">App updates</TextLink> to update it.{/if}
@@ -134,10 +137,5 @@
       >
         No workers yet
       </p>{/if}
-    {#if snapshot.run && (snapshot.run.steps.length || snapshot.run.state === "running" || snapshot.run.reason)}<UpdateRun
-        run={snapshot.run}
-        {updates}
-        class="px-3 py-2"
-      />{/if}
   {:else}<p class="px-3 py-2 text-sm/5 text-muted" role="status">Loading update status…</p>{/if}
 </SettingsGroup>

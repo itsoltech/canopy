@@ -72,11 +72,11 @@ export function UpdateCenter() {
             <Text accessibilityRole="header" style={[styles.overlayHeading, { color: c.strong, flex: 1 }]}>
               Updates
             </Text>
-            {snapshot && bulkUpdatesAvailable(snapshot) && (
+            {snapshot && (bulkUpdatesAvailable(snapshot) || snapshot.run?.state === "running") && (
               <Button
-                title={snapshot.run?.state === "failed" ? "Retry update all" : "Update all"}
+                title={snapshot.run?.state === "running" ? "Show update progress" : "Update all"}
                 size="sm"
-                disabled={busy || !snapshot.admin}
+                disabled={!!pending}
                 onPress={() => void manage({ action: "update_all" })}
               />
             )}

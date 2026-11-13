@@ -711,6 +711,10 @@ Capability **`remote_app_update`** dodaje `ComputerUpdateService` (`GetComputerU
 `RequestComputerUpdate`) do listy `SERVED`, wyłącznie na bezpośrednim łączu; relay ich nie
 przenosi. A pokazuje wersję i stan aplikacji B, jego workery i CLI, prosi B o aktualizację,
 a obie strony ją audytują. Szczegóły i kolejność Update all: [updates.md](updates.md#połączone-komputery).
+Update all obejmuje też binarne workery i obsługiwane CLI partnerów przez te same
+sprawdzające właściciela trasy co pojedyncze przyciski. CLI nadal wymaga obustronnego
+Share configuration. Restart partnerów jest szeregowy, a własna aplikacja restartuje
+się dopiero po nich; prywatny zapis przebiegu odtwarza wyniki po powrocie.
 
 Metody spoza listy z kwalifikowanym id najwyższego poziomu (np. `ListSchedules` dla wątku B) dają
 „This isn't available for threads on another computer yet”. Sekrety wątków nie przechodzą przez łącze.

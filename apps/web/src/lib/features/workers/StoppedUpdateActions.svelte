@@ -4,6 +4,7 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import { updatesAvailable } from "./compact-updates.ts";
   import type { UpdatesState } from "./updates.svelte.ts";
+  import UpdateActionButton from "./UpdateActionButton.svelte";
 
   let { run, updates, class: className }: { run: ui.UpdateRun; updates: UpdatesState; class?: ClassValue } = $props();
 </script>
@@ -11,9 +12,7 @@
 {#if ["failed", "blocked"].includes(run.state)}
   <div class={["flex flex-wrap gap-2", className]}>
     {#if updates.snapshot && updatesAvailable(updates.snapshot)}
-      <Button size="sm" disabled={!!updates.pending} onclick={() => void updates.manage({ action: "update_all" })}>
-        Request again
-      </Button>
+      <UpdateActionButton {updates} />
     {/if}
     <Button
       size="sm"

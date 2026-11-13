@@ -1,15 +1,17 @@
 import { create, clone } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { ui } from "@canopy/contracts";
-import { newerVersion, updatePlan } from "./center-plan.ts";
+import { reachedUpdateVersion } from "@canopy/domain/release/remote-update-state";
+import { updatePlan } from "./center-plan.ts";
 import { remoteStepCurrent, remoteStepDismissed } from "./remote-outcome.ts";
 
 export interface UpdateCenterOptions {
   read(): Promise<ui.UpdateRun | undefined>;
   write(run: ui.UpdateRun): Promise<void>;
   snapshot(): Promise<ui.UpdatesSnapshot>;
-  manage(request: ui.ManageUpdatesRequest): Promise<ui.UpdatesSnapshot>;
-  install(request: ui.InstallCliRequest): Promise<ui.InstallCliResponse>;
+  manage(request: ui.ManageUpdatesRequest, nodeId?: string): Promise<ui.UpdatesSnapshot>;
+  install(request: ui.InstallCliRequest, nodeId?: string): Promise<ui.InstallCliResponse>;
+  app?(): Promise<string>;
   desktop(request: ui.ManageUpdatesRequest): Promise<string | void>;
   /** Asks a linked computer for an app update; returns the request id there. */
   computer(nodeId: string): Promise<string>;
@@ -64,36 +66,38 @@ export class UpdateCenter {
 
     return next;
   }
-  begin() {
+  async begin(confirmRestart = false) {
+    if ((await this.options.read())?.state === "running") return;
+
     return this.serialize(async () => {
-      if ((await this.options.read())?.state === "running")
-        throw new ConnectError("Update all is already running", Code.FailedPrecondition);
+      if ((await this.options.read())?.state === "running") return;
       const snapshot = await this.options.snapshot();
       const run = updatePlan(snapshot);
 
-      if (!run.steps.length)
+      if (!run.steps.some((step) => step.state === "queued"))
         throw new ConnectError(
           "No updates Canopy can install. Update externally managed items with their installer.",
           Code.FailedPrecondition,
         );
 
-      if (run.steps.some((s) => ["gateway", "worker"].includes(s.kind)) && !snapshot.admin)
-        throw new ConnectError(
-          "An administrator must update the gateway and binary workers first",
-          Code.PermissionDenied,
-        );
+      if (!confirmRestart && run.steps.some((step) => step.kind === "app" && step.state === "queued"))
+        throw new ConnectError("Confirm the computer restart before updating all.", Code.FailedPrecondition);
       await this.options.write(run);
-    }).then(() => this.tick());
+    }).then(() => {
+      void this.tick().catch(() => undefined);
+    });
   }
   tick() {
     return (this.ticking ??= this.serialize(async () => {
       const run = await this.options.read();
 
       if (run?.state !== "running") return;
-      const step = run.steps.find((s) => s.state !== "succeeded");
+      const step = run.steps.find((s) => ["queued", "running"].includes(s.state));
 
       if (!step) {
-        run.state = "succeeded";
+        const failed = run.steps.find((item) => ["failed", "blocked"].includes(item.state));
+        run.state = failed?.state || "succeeded";
+        run.reason = failed ? "Some updates failed. Retry the failed items." : "";
         await this.options.write(run);
 
         return;
@@ -103,11 +107,26 @@ export class UpdateCenter {
         const snapshot = await this.options.snapshot();
 
         if (step.state === "queued") {
+          const dependency = run.steps.find(
+            (item) =>
+              ["failed", "blocked"].includes(item.state) &&
+              item.nodeId === step.nodeId &&
+              ((item.kind === "gateway" && ["worker", "cli"].includes(step.kind)) ||
+                (item.kind === "worker" && step.kind === "cli" && item.workerId === step.workerId)),
+          );
+
+          if (dependency)
+            throw new ConnectError(
+              `Update ${dependency.label} successfully before retrying this item.`,
+              Code.FailedPrecondition,
+            );
           // Persist before sending. A crash never replays an unconfirmed CLI install or desktop restart.
           step.state = "running";
           step.startedAt = new Date().toISOString();
           await this.options.write(run);
-          await this.launch(step, snapshot);
+
+          if (await this.complete(step, snapshot, true)) step.state = "succeeded";
+          else await this.launch(step, snapshot);
         } else if (await this.complete(step, snapshot)) step.state = "succeeded";
 
         if (Date.now() - Date.parse(step.startedAt) > 35 * 60_000)
@@ -116,8 +135,7 @@ export class UpdateCenter {
         step.state = cause instanceof ConnectError && cause.code === Code.FailedPrecondition ? "blocked" : "failed";
         step.reason =
           cause instanceof ConnectError ? cause.rawMessage : cause instanceof Error ? cause.message : "Update failed";
-        run.state = step.state;
-        run.reason = `${step.label}: ${step.reason.replace(/\.$/, "")}. Later updates have not started.`;
+        run.reason = "Some updates failed. Other updates continue.";
       }
 
       await this.options.write(run);
@@ -127,6 +145,13 @@ export class UpdateCenter {
   }
 
   private async launch(step: ui.UpdateStep, snapshot: ui.UpdatesSnapshot) {
+    const home =
+      step.nodeId && step.kind !== "computer"
+        ? snapshot.computers.find((item) => item.nodeId === step.nodeId)?.updates
+        : snapshot;
+
+    if (!home) throw new Error("This computer is unavailable. Reconnect it and retry.");
+
     if (step.kind === "gateway") {
       if (snapshot.gatewayInstallKind !== "binary")
         throw new ConnectError(
@@ -138,18 +163,22 @@ export class UpdateCenter {
         throw new Error("The selected gateway release changed; check for updates and retry");
       await this.options.manage(create(ui.ManageUpdatesRequestSchema, { action: "gateway" }));
     } else if (step.kind === "worker") {
-      if (snapshot.gatewayVersion !== step.version)
+      if (home.gatewayVersion !== step.version)
         throw new Error("Update the gateway to the selected worker version first");
-      await this.options.manage(create(ui.ManageUpdatesRequestSchema, { action: "worker", workerId: step.workerId }));
+      await this.options.manage(
+        create(ui.ManageUpdatesRequestSchema, { action: "worker", workerId: step.workerId }),
+        step.nodeId,
+      );
     } else if (step.kind === "cli") {
       if (!step.version)
         throw new ConnectError("Check the latest CLI version before installing", Code.FailedPrecondition);
-      const worker = snapshot.workers.find((w) => w.workerId === step.workerId);
+      const worker = home.workers.find((w) => w.workerId === step.workerId);
 
       if (!worker || worker.compatibility !== "compatible")
         throw new Error("Worker and gateway protocols are incompatible; update the worker first");
       await this.options.install(
         create(ui.InstallCliRequestSchema, { workerId: step.workerId, provider: step.provider, version: step.version }),
+        step.nodeId,
       );
     } else if (step.kind === "desktop") {
       step.requestId =
@@ -158,25 +187,46 @@ export class UpdateCenter {
         )) ?? "";
     } else if (step.kind === "computer") {
       step.requestId = await this.options.computer(step.nodeId);
+    } else if (step.kind === "app") {
+      if (!this.options.app) throw new Error("Update this Canopy app from its own window.");
+      step.requestId = await this.options.app();
     } else throw new Error("Unknown update kind");
   }
 
-  private async complete(step: ui.UpdateStep, snapshot: ui.UpdatesSnapshot): Promise<boolean> {
+  private async complete(step: ui.UpdateStep, snapshot: ui.UpdatesSnapshot, beforeLaunch = false): Promise<boolean> {
     if (step.kind === "gateway") {
       if (snapshot.gatewayVersion === step.version) return true;
 
-      if (snapshot.gatewayState === "failed") throw new Error(snapshot.gatewayReason || "Gateway update failed");
+      if (!beforeLaunch && snapshot.gatewayState === "failed")
+        throw new Error(snapshot.gatewayReason || "Gateway update failed");
 
       return false;
     }
 
-    if (step.kind === "computer") return computerUpdated(step, snapshot);
-    const worker = snapshot.workers.find((w) => w.workerId === step.workerId);
+    if (step.kind === "computer")
+      return beforeLaunch ? remoteStepCurrent(step, snapshot) : computerUpdated(step, snapshot);
+
+    if (step.kind === "app") {
+      if (remoteStepCurrent(step, snapshot)) return true;
+
+      if (!beforeLaunch && snapshot.app?.phase === "failed")
+        throw new Error(snapshot.app.reason || "App update failed");
+
+      return false;
+    }
+
+    const home = step.nodeId ? snapshot.computers.find((item) => item.nodeId === step.nodeId)?.updates : snapshot;
+
+    if (step.nodeId && snapshot.computers.find((item) => item.nodeId === step.nodeId)?.presence !== "connected")
+      return false;
+
+    if (!home) return false;
+    const worker = home.workers.find((w) => w.workerId === step.workerId);
 
     if (!worker) throw new Error("Worker no longer belongs to this update scope");
 
     if (step.kind === "worker") {
-      if (worker.state === "failed") throw new Error(worker.reason || "Worker update failed");
+      if (!beforeLaunch && worker.state === "failed") throw new Error(worker.reason || "Worker update failed");
 
       if (worker.version === step.version && worker.connected) {
         if (worker.compatibility !== "compatible")
@@ -185,25 +235,27 @@ export class UpdateCenter {
         return true;
       }
     } else if (step.kind === "cli") {
-      const cli = snapshot.cliWorkers
+      const cli = home.cliWorkers
         .find((w) => w.id === step.workerId)
         ?.cliTools.find((t) => t.tool?.provider === step.provider);
 
-      if (cli?.tool?.install?.state === "failed") throw new Error(cli.tool.install.error || "CLI install failed");
+      if (!beforeLaunch && cli?.tool?.install?.state === "failed")
+        throw new Error(cli.tool.install.error || "CLI install failed");
 
       if (cli?.tool?.install?.state === "running") return false;
 
-      if (cli?.tool?.version && !newerVersion(step.version, cli.tool.version)) return true;
+      if (cli?.tool?.version && reachedUpdateVersion(cli.tool.version, step.version)) return true;
 
-      if (Date.now() - Date.parse(step.startedAt) > 60_000)
+      if (!beforeLaunch && Date.now() - Date.parse(step.startedAt) > 60_000)
         throw new Error("CLI install was interrupted or has not reported a result; check the worker and retry");
     } else if (step.kind === "desktop") {
       if (remoteStepCurrent(step, snapshot)) return true;
 
-      if (remoteStepDismissed(step, snapshot))
+      if (!beforeLaunch && remoteStepDismissed(step, snapshot))
         throw new Error("The app update was dismissed. Request it again to continue.");
 
-      if (worker.desktop?.phase === "failed") throw new Error(worker.desktop.reason || "Desktop update failed");
+      if (!beforeLaunch && worker.desktop?.phase === "failed")
+        throw new Error(worker.desktop.reason || "Desktop update failed");
 
       return false;
     }
@@ -211,7 +263,12 @@ export class UpdateCenter {
     return false;
   }
 
-  status(snapshot?: ui.UpdatesSnapshot) {
+  async status(snapshot?: ui.UpdatesSnapshot) {
+    const run = await this.options.read();
+
+    // Slow command acknowledgements must not hide the durable progress from readers or a second click.
+    if (run?.state === "running") return clone(ui.UpdateRunSchema, run);
+
     return this.serialize(() => this.currentStatus(snapshot));
   }
 
@@ -236,7 +293,8 @@ export class UpdateCenter {
       if (resolved) {
         const remaining = run.steps.find((step) => ["failed", "blocked"].includes(step.state));
         run.state =
-          remaining?.state ?? (run.steps.every((step) => step.state === "succeeded") ? "succeeded" : "superseded");
+          remaining?.state ??
+          (run.steps.every((step) => ["succeeded", "skipped"].includes(step.state)) ? "succeeded" : "superseded");
         run.reason = remaining ? `${remaining.label}: ${remaining.reason}` : "";
         await this.options.write(run);
       }
@@ -247,12 +305,64 @@ export class UpdateCenter {
         failed.length === 1 &&
         failed[0]?.kind === "gateway" &&
         failed[0].reason.includes("Managed externally") &&
-        !updatePlan(current).steps.length
+        !updatePlan(current).steps.some((step) => step.state === "queued")
       )
         return undefined;
     }
 
     return run ? clone(ui.UpdateRunSchema, run) : undefined;
+  }
+
+  retry(requestId: string, index: number, confirmRestart = false) {
+    return this.serialize(async () => {
+      const run = await this.options.read();
+      const step = run?.steps[index];
+
+      if (
+        !run ||
+        run.id !== requestId ||
+        run.state === "running" ||
+        !step ||
+        !["failed", "blocked"].includes(step.state)
+      )
+        throw new ConnectError("Choose a failed update from the current results.", Code.FailedPrecondition);
+
+      if (step.kind === "app" && !confirmRestart)
+        throw new ConnectError("Confirm the computer restart before retrying its app.", Code.FailedPrecondition);
+
+      const current = updatePlan(await this.options.snapshot()).steps.find(
+        (item) =>
+          item.kind === step.kind &&
+          item.workerId === step.workerId &&
+          item.nodeId === step.nodeId &&
+          item.provider === step.provider,
+      );
+
+      if (current && current.state === "skipped") throw new ConnectError(current.reason, Code.FailedPrecondition);
+      // Keep the selected version and successful history. Every launch checks the current owner and target again.
+      step.state = "queued";
+      step.reason = "";
+      step.startedAt = "";
+      step.requestId = "";
+
+      for (const item of run.steps) {
+        if (item.state !== "blocked" || item.nodeId !== step.nodeId) continue;
+
+        if (
+          (step.kind === "worker" && item.kind === "cli" && item.workerId === step.workerId) ||
+          step.kind === "gateway"
+        ) {
+          item.state = "queued";
+          item.reason = "";
+        }
+      }
+
+      run.state = "running";
+      run.reason = "";
+      await this.options.write(run);
+    }).then(() => {
+      void this.tick().catch(() => undefined);
+    });
   }
 
   dismiss(requestId: string, acknowledge?: (step: ui.UpdateStep) => Promise<void>) {

@@ -6,7 +6,9 @@ Status kont per instancja i worker (CLI, cache, prywatność):
 
 CLI **Claude Code (`claude`), Codex (`codex`) i Grok (`grok`)** muszą być już
 zainstalowane na komputerze workera. Dotyczy to desktopu, samodzielnych binarek
-i Dockera. Canopy ich nie zawiera, nie pobiera i nie aktualizuje. Użytkownik
+i Dockera. Canopy ich nie zawiera ani nie instaluje automatycznie. Na żądanie
+właściciela instaluje i aktualizuje obsługiwane CLI przez pojedyncze przyciski lub
+Update all, również na połączonych komputerach ([provider-cli.md](provider-cli.md)). Użytkownik
 zapewnia wersję, login oraz PATH usługi albo ścieżkę pliku wykonywalnego instancji.
 Worker sam dobiera PATH z powłoki logowania użytkownika (`$SHELL -l -i -c`, raz na start) i szuka CLI także
 w miejscach Bun, Volta, npm, pnpm, Yarn, nvm/fnm, mise/asdf i Homebrew; kolejność, pierwszeństwo zmiennych

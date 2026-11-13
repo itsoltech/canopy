@@ -123,6 +123,7 @@ describe.skipIf(!dockerAvailable)("linked computers' app updates", () => {
   let la: LinkedComputers;
   let lb: LinkedComputers;
   let app: FakeApp;
+  let localApp: FakeApp | undefined;
   let bNode = "";
   let journal = "";
 
@@ -191,6 +192,7 @@ describe.skipIf(!dockerAvailable)("linked computers' app updates", () => {
     app = new FakeApp(b, journal, "1.0.0", "1.1.0");
   }, 90_000);
   afterAll(async () => {
+    await localApp?.stop();
     await app?.stop();
     await Promise.allSettled([la?.close(), lb?.close()]);
     await a?.close();
@@ -332,6 +334,9 @@ describe.skipIf(!dockerAvailable)("linked computers' app updates", () => {
   }, 60_000);
 
   test("Update all on A updates B last and tolerates B going offline while it restarts", async () => {
+    // Replace the earlier check-only app's disconnected snapshot with an up-to-date local app.
+    localApp = new FakeApp(a, join(makeTemp("canopy-local-app-current-"), "remote-update.json"), "1.1.0");
+    await eventually(async () => (await a.api.getUpdates({})).app?.version === "1.1.0");
     await app.stop();
     app = new FakeApp(b, journal, "1.1.0", "1.2.0");
     app.idle = true;

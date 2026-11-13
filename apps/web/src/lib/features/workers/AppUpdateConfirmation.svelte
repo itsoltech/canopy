@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { ui } from "@canopy/contracts";
+  import type { MessageInitShape } from "@bufbuild/protobuf";
   import { appRestartDescription, appRunningTurns } from "@canopy/domain/release/update-actions";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -12,10 +13,12 @@
     open = $bindable(false),
     computer,
     updates,
+    request,
   }: {
     open?: boolean;
     computer: ui.ComputerUpdate;
     updates: UpdatesState;
+    request?: MessageInitShape<typeof ui.ManageUpdatesRequestSchema>;
   } = $props();
 
   const overview = useOverview();
@@ -31,9 +34,10 @@
   });
 </script>
 
-<Dialog bind:open title={`Update “${computer.name}”?`}>
+<Dialog bind:open title={request?.action === "update_all" ? "Update all?" : `Update “${computer.name}”?`}>
   <p class="text-base/6 text-pretty whitespace-pre-line text-muted sm:text-sm/6">
     {appRestartDescription(computer.name, turns, "web")}
+    {#if request?.action === "update_all"}This computer restarts last, after the linked computers finish.{/if}
   </p>
   {#if blocked}<p class="mt-3 text-base/6 text-pretty text-muted sm:text-sm/6" role="status">
       Send or discard your drafts and files before updating this computer.
@@ -48,9 +52,13 @@
         if (blocked) return;
         open = false;
         void updates.manage(
-          computer.nodeId ? { action: "computer", nodeId: computer.nodeId } : { action: "app", confirmRestart: true },
+          request
+            ? { ...request, confirmRestart: true }
+            : computer.nodeId
+              ? { action: "computer", nodeId: computer.nodeId }
+              : { action: "app", confirmRestart: true },
         );
-      }}>Update computer</Button
+      }}>{request?.action === "update_all" ? "Update all" : "Update computer"}</Button
     >
   </DialogActions>
 </Dialog>
