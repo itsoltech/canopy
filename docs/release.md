@@ -296,6 +296,8 @@ Sam zarezerwowany tag, artefakt albo zielony przebieg z pominiętą publikacją 
 Artefakt rewizji zachowujemy 90 dni; starsze artefakty z retencją 7 dni działają do wygaśnięcia.
 Brak, niepełna rewizja (starszy artefakt bez gałęzi) lub wygaśnięcie artefaktu nie daje dispatchowi
 dowodu gotowości. Zwykłe push/schedule nadal używają SHA zdarzenia.
+Podsumowanie promocji podaje wybrany recovery run i wynik jego bramki dla kandydata C0,
+także gdy niezależny hold zatrzymuje samą promocję.
 Lustro jest usuwane również po błędzie. Konflikt istniejącego tagu lub notes zatrzymuje push.
 Awaria API po pushu może zostawić tag i notes bez GitHub Release; ponowienie odzyskuje
 tę rezerwację według procedury poniżej.

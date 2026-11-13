@@ -290,7 +290,26 @@ test("stable dry-run selects the exact recovered beta despite a later retry of t
   expect(result.plan.sha).toBe(beta);
   expect(result.plan.reason).toBe("Ready");
   expect(result.version).toBe("0.2.0");
+  expect(promotionSummary(result.input, result.plan, result.version)).toContain(
+    "Candidate recovery Release: https://github.com/fixture/canopy/actions/runs/335/attempts/1; exact-SHA gate: passed",
+  );
   expect(f.git("ls-remote", "origin", "refs/heads/main")).toStartWith(f.baseline);
+  expect(f.writes).toEqual([]);
+
+  f.pulls.set(beta, [
+    {
+      number: 68,
+      body: "",
+      merged_at: "2026-11-01",
+      merge_commit_sha: beta,
+      base: { ref: "dev" },
+      labels: [{ name: "promotion-hold" }],
+    },
+  ]);
+  const held = await runPromotion("fixture/canopy", "next-main", { ...options, dryRun: true }, adapters, now);
+  expect(held.plan.sha).toBe(f.baseline);
+  expect(promotionSummary(held.input, held.plan)).toContain("exact-SHA gate: passed");
+  expect(held.plan.holds[0]?.reason).toBe("promotion-hold");
   expect(f.writes).toEqual([]);
 });
 

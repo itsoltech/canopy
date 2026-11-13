@@ -22,6 +22,7 @@ export function burnInDays(value: string, policy = "Burn-in"): number {
 
 export function promotionSummary(input: PromotionInput, plan: PromotionPlan, version?: string): string {
   const [source, target] = promotionBranches(input.path);
+  const candidate = input.commits.find((commit) => commit.sha === plan.initial);
 
   const lines = [
     `### Promotion ${source} → ${target}`,
@@ -31,6 +32,11 @@ export function promotionSummary(input: PromotionInput, plan: PromotionPlan, ver
     `- Final C: ${plan.sha}`,
     `- Expected version: ${version ?? "none (no release)"}; Release recomputes before publishing`,
     `- Decision: ${plan.reason}`,
+    ...(candidate?.recoveryRun
+      ? [
+          `- Candidate recovery Release: ${candidate.recoveryRun}; exact-SHA gate: ${candidate.green ? "passed" : "failed"}`,
+        ]
+      : []),
     "",
     "Included commits:",
     ...plan.included.map((commit) => `- ${commit.sha} ${commit.message.split("\n")[0]}`),

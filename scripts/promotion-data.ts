@@ -292,6 +292,10 @@ export function loadPromotion(
     const latest = runs.get(sha);
     const release = releases.get(sha);
     const commit = readCommit(sha, prs.get(sha) ?? [], adapters, previous.get(sha));
+
+    if (latest?.["event"] === "workflow_dispatch")
+      commit.recoveryRun = `https://github.com/${repo}/actions/runs/${number(latest["id"])}/attempts/${number(latest["run_attempt"])}`;
+
     let green: boolean | undefined;
     // The policy reads this only for a possible candidate; excluded untagged commits need no jobs API calls.
     Object.defineProperty(commit, "green", {

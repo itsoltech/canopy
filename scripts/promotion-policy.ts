@@ -10,6 +10,8 @@ export interface PromotionCommit {
   attributions: PromotionAttribution[];
   prs: { number: number; body: string; hold: boolean }[];
   green: boolean;
+  /** Exact recovery run selected for this SHA, independently of any promotion hold. */
+  recoveryRun?: string;
   release?: { tag: string; readyAt: number };
 }
 
