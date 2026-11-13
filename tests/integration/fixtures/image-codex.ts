@@ -2,7 +2,9 @@
 /** Offline app-server peer for image publication through the complete WorkerHost. */
 import { createInterface } from "node:readline";
 import type { JsonObject } from "@canopy/domain";
+import { Schema } from "effect";
 import { decodeJsonObject, jsonObject, jsonString } from "../../../apps/worker/src/providers/json.ts";
+import { HttpMcp, httpTools } from "./instance-mcp.ts";
 
 if (process.argv[2] === "--version") {
   console.log("codex-cli 0.170.0");
@@ -11,6 +13,7 @@ if (process.argv[2] === "--version") {
 
 const send = (value: JsonObject) => process.stdout.write(`${JSON.stringify(value)}\n`);
 const notify = (method: string, params: JsonObject) => send({ method, params });
+const catalogs = new Map<string, string[]>();
 let active = { threadId: "", turnId: "", text: "" };
 
 function answer() {
@@ -41,9 +44,36 @@ for await (const line of createInterface({ input: process.stdin })) {
 
   if (method === "initialize") send({ id, result: { userAgent: "image-fixture" } });
   else if (method === "model/list") send({ id, result: { data: [], nextCursor: null } });
-  else if (method === "thread/start" || method === "thread/fork")
-    send({ id, result: { thread: { id: crypto.randomUUID(), path: null } } });
-  else if (method === "turn/start") {
+  else if (method === "thread/start" || method === "thread/fork" || method === "thread/resume") {
+    const threadId = method === "thread/resume" ? (jsonString(params["threadId"]) ?? "") : crypto.randomUUID();
+
+    const config = Schema.decodeUnknownSync(
+      Schema.Struct({ mcp_servers: Schema.optionalKey(Schema.Record(Schema.String, HttpMcp)) }),
+    )(params["config"] ?? {});
+
+    const server = config.mcp_servers?.["canopy_connectors"];
+
+    if (server) catalogs.set(threadId, await httpTools(server));
+    else catalogs.delete(threadId);
+    send({ id, result: { thread: { id: threadId, path: null } } });
+  } else if (method === "mcpServerStatus/list") {
+    const names = catalogs.get(jsonString(params["threadId"]) ?? "");
+    send({
+      id,
+      result: {
+        data: names
+          ? [
+              {
+                name: "canopy_connectors",
+                runtimeStatus: "connected",
+                tools: Object.fromEntries(names.map((name) => [name, { name }])),
+              },
+            ]
+          : [],
+        nextCursor: null,
+      },
+    });
+  } else if (method === "turn/start") {
     const input = params["input"];
     const text = Array.isArray(input) ? (jsonString(jsonObject(input[0])?.["text"]) ?? "") : "";
     const data = decodeJsonObject(JSON.parse(text));
