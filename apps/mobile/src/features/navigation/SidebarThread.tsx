@@ -16,6 +16,8 @@ import { SidebarUnread } from "./SidebarUnread";
 import { useSidebarTypography } from "./sidebar-scale";
 import { SidebarActivity } from "./SidebarActivity";
 import { SidebarThreadStatus } from "./SidebarThreadStatus";
+import { IconButton } from "../../ui/components";
+import { useSidebarDragContext } from "./sidebar-drag";
 
 const rowStyle: ViewStyle = {
   paddingHorizontal: 12,
@@ -32,16 +34,19 @@ export function SidebarThread({
   worker,
   style,
   subagentsNeedingInput = [],
+  reorder = false,
 }: {
   thread: ui.Thread;
   project?: ui.Project;
   worker?: ui.Worker;
   style?: StyleProp<ViewStyle>;
   subagentsNeedingInput?: readonly ui.Thread[];
+  reorder?: boolean;
 }) {
   const c = useColors();
   const type = useSidebarTypography();
   const [actions, setActions] = useState(false);
+  const ordering = useSidebarDragContext();
   const home = useComputerHome(thread.nodeId);
   const layout = useLayout();
   const pathname = usePathname();
@@ -67,11 +72,35 @@ export function SidebarThread({
         accessibilityLabel={`${thread.title || "Untitled thread"}, ${statusLabel ?? threadRowLabel(thread)}${home.away ? `, ${home.reason}` : ""}${thread.markedUnread ? ", Unread" : ""}`}
         accessibilityState={{ selected: active }}
         onPress={() => void layout.openThread(thread.id)}
-        onLongPress={() => setActions(true)}
-        accessibilityHint="Hold for thread actions."
-        accessibilityActions={[{ name: "longpress", label: "Thread actions" }]}
+        onLongPress={reorder ? undefined : () => setActions(true)}
+        onLayout={(event) => {
+          const height = event.nativeEvent.layout.height;
+          const threadId = thread.id;
+          ordering?.pickups.modify((pickups) => {
+            "worklet";
+            pickups[threadId] = height;
+
+            return pickups;
+          });
+        }}
+        accessibilityHint={
+          reorder ? "Hold and drag to reorder. Use Thread actions for more options." : "Hold for thread actions."
+        }
+        accessibilityActions={[
+          { name: "longpress", label: "Thread actions" },
+          ...(reorder
+            ? [
+                { name: "increment", label: "Move down" },
+                { name: "decrement", label: "Move up" },
+              ]
+            : []),
+        ]}
         onAccessibilityAction={(event) => {
           if (event.nativeEvent.actionName === "longpress") setActions(true);
+
+          if (reorder && event.nativeEvent.actionName === "increment") ordering?.move(thread.id, "down");
+
+          if (reorder && event.nativeEvent.actionName === "decrement") ordering?.move(thread.id, "up");
         }}
         style={({ pressed }) => [
           rowStyle,
@@ -94,6 +123,7 @@ export function SidebarThread({
               <SidebarThreadStatus thread={thread} label={statusLabel} />
             </Swap>
           </View>
+          {reorder && <IconButton icon="ellipsis-horizontal" label="Thread actions" onPress={() => setActions(true)} />}
         </View>
         <Text numberOfLines={1} style={[type.title, { color: thread.titleGenerating ? c.muted : c.strong }]}>
           {thread.title || "Untitled thread"}
@@ -112,7 +142,12 @@ export function SidebarThread({
         </View>
         <SidebarUnread unread={thread.markedUnread} />
       </Pressable>
-      <ThreadActionsSheet thread={thread} visible={actions} onClose={() => setActions(false)} />
+      <ThreadActionsSheet
+        thread={thread}
+        visible={actions}
+        onClose={() => setActions(false)}
+        onReorder={reorder ? (direction) => ordering?.move(thread.id, direction) : undefined}
+      />
     </>
   );
 }

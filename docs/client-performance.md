@@ -292,6 +292,10 @@ klucz w gatewayu i stosuje pojedynczą deltę metadanych. Web podczas przeciąga
 przesuwa tylko kopię wiersza i wskaźnik celu przez `transform`; trafienie celu jest
 walidowane dopiero po zmianie kandydata. Stabilne sloty wierszy oraz tablica kluczy
 pozostają podstawą renderowania; FLIP uruchamia się po zatwierdzeniu nowej kolejności.
+Mobile przechowuje geometrię zamontowanych komórek w shared values i przesuwa
+nakładkę oraz wskaźnik na wątku UI. FlatList zachowuje okno wirtualizacji przy
+przeciąganiu; nie powiększa go do liczby wszystkich wątków. Zdarzenia palca nie
+zmieniają stanu listy w React ani nie wywołują RPC przed upuszczeniem.
 
 Scenariusz pomiaru paska: 500 zasianych wątków, otwarty inny, bezczynny wątek, 10 wątków
 pracuje. Co 50 ms jeden z nich zmienia status, tytuł, liczbę zadań w tle lub ostatnią

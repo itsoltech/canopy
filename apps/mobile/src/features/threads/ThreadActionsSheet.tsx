@@ -6,8 +6,23 @@ import { Overlay } from "../../ui/Overlay";
 import { PickerSheet, type PickerSection } from "../../ui/Picker";
 import { useThreadActions, type ThreadAction } from "./useThreadActions";
 import { ItemComputerMove } from "../settings/ItemComputerMove";
+import type { SidebarMove } from "../navigation/sidebar-order";
 
-type SheetAction = ThreadAction | "move";
+type SheetAction = ThreadAction | "move" | SidebarMove;
+
+function reorderOptions(enabled: boolean): PickerSection<SheetAction> {
+  return {
+    title: enabled ? "Move" : undefined,
+    options: enabled
+      ? [
+          { value: "up", label: "Move up", icon: "arrow-up" },
+          { value: "down", label: "Move down", icon: "arrow-down" },
+          { value: "top", label: "Move to top", icon: "arrow-up" },
+          { value: "bottom", label: "Move to bottom", icon: "arrow-down" },
+        ]
+      : [],
+  };
+}
 
 /** Shared by header and sidebar rows. The caller supplies only actions specific to the open screen. */
 export function ThreadActionsSheet({
@@ -17,6 +32,7 @@ export function ThreadActionsSheet({
   onSideThread,
   onGoal,
   goalOpen,
+  onReorder,
 }: {
   thread: ui.Thread;
   visible: boolean;
@@ -24,6 +40,7 @@ export function ThreadActionsSheet({
   onSideThread?: () => void;
   onGoal?: () => void;
   goalOpen?: boolean;
+  onReorder?: ((direction: SidebarMove) => void) | undefined;
 }) {
   const state = useThreadActions(thread);
   const [rename, setRename] = useState(false);
@@ -33,6 +50,7 @@ export function ThreadActionsSheet({
   const disabled = state.disabled || state.busy;
 
   const sections: PickerSection<SheetAction>[] = [
+    reorderOptions(!!onReorder),
     {
       options: [
         ...(onSideThread
@@ -118,6 +136,7 @@ export function ThreadActionsSheet({
           } else if (action === "move") setMove(true);
           else if (action === "side") onSideThread?.();
           else if (action === "goal") onGoal?.();
+          else if (action === "up" || action === "down" || action === "top" || action === "bottom") onReorder?.(action);
           else state.run(action);
         }}
       />

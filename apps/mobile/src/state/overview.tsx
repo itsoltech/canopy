@@ -28,6 +28,10 @@ function useOverviewState() {
   const [linkedReads, setLinkedReads] = useState<Record<string, number>>({});
   const generation = useRef(0);
 
+  const updateThread = useCallback((thread: ui.Thread) => {
+    setThreads((rows) => upsertLinkedRows(rows, [thread]));
+  }, []);
+
   useEffect(() => {
     if (loaded) void archivedCache?.rememberMetadata(projects, workers)?.catch(() => {});
   }, [archivedCache, loaded, projects, workers]);
@@ -161,6 +165,7 @@ function useOverviewState() {
     linkedReads,
     stream,
     reload,
+    updateThread,
   };
 }
 

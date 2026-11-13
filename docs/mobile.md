@@ -1278,14 +1278,14 @@ domyślny workspace, agenta i uprawnienia.
 Są tworzenie wątku, rename/archive/unread, wyszukiwanie treści, zwinięta praca/narzędzia,
 subagents i panel worker/cwd/model/status/schedules/lineage/connectors.
 
-Nagłówek oraz przytrzymanie wiersza sidebara otwierają ten sam arkusz akcji wątku:
+Nagłówek oraz przytrzymanie wiersza sidebara poza trybem Custom otwierają ten sam arkusz akcji wątku:
 pin/unpin, zmiana lub regeneracja tytułu, read/unread, archive/unarchive i delete;
 lokalny wątek zachowuje też „Move to a computer”.
 Potwierdzenia korzystają z preferencji użytkownika. „Undo” po usunięciu wywołuje
 `RestoreThread` i przywraca otwarty wątek, również gdy usunięto go wraz z rodzicem.
 Przesunięcie wiersza w lewo archiwizuje wątek, a w archiwum przywraca go tą samą akcją
 co arkusz. Gest działa też dla wątków bocznych; krótkie lub anulowane przesunięcie wraca
-do początku. Pionowe przewijanie, dotknięcie i przytrzymanie zachowują swoje działanie.
+do początku. Pionowe przewijanie i dotknięcie zachowują swoje działanie.
 Potwierdzenia i brak połączenia blokują skrót tak samo jak menu. Toast „Thread archived”
 z „Undo” cofa archiwizację przez `SetThreadArchived`, bez wznawiania tur i harmonogramów.
 Gest korzysta z istniejących React Native PanResponder i Reanimated, bez zmian zależności
@@ -1311,6 +1311,26 @@ Wyszukiwanie tytułu wątku bocznego pokazuje rodzica. Archived używa wspólneg
 `@canopy/domain/archived-threads`, filtrów projektu i wyszukiwania po stronie gatewaya;
 archiwalne wątki boczne pozostają w Previous agents pod rodzicem. Powiadomienia o wyniku
 subagenta zostają wewnątrz wątku, a pytanie do użytkownika wywołuje jeden alert rodzica.
+
+„Thread options” obok wyszukiwania łączy filtr projektów z trybami „Last activity”,
+„Created” i „Custom”. Wybór jest lokalny dla urządzenia, domyślnie Last activity;
+znaczniki odpowiedzi i klucze kolejności pochodzą ze wspólnego `thread-order`.
+W Custom przytrzymanie przez 350 ms i ruch co najmniej 6 dp rozpoczynają przeciąganie.
+Chwyt obejmuje tylko główny wiersz: zagnieżdżony wątek boczny nie podnosi rodzica.
+Wiersz ma wtedy osobny przycisk „Thread actions”; arkusz oferuje Move up/down/to top/to
+bottom, a akcje dostępności increment/decrement przesuwają w dół/górę.
+Przesuwanie pozostaje w sekcji oraz projekcie; wyjątek to Pinned. Górna strefa
+pokazuje „Drop here to pin” / „Release to pin”, a wyciągnięcie przypiętego wątku
+respektuje Confirm unpin. Anulowanie potwierdzenia niczego nie zapisuje.
+
+Gest używa zainstalowanego gesture-handler 3 (`usePanGesture`) i Reanimated 4.
+Geometrię zgłaszają tylko zamontowane komórki FlatList. Kopia wiersza, linia celu
+i przewijanie krawędzi działają na wątku UI; JS otrzymuje tylko podniesienie do
+nakładki i zakończony ruch. Wspólny detektor pozostaje zamontowany podczas
+przewijania, nawet gdy komórka źródłowa opuści okno wirtualizacji. Wiersze zachowują
+`memo`, a zapis stosuje jedną odpowiedź ReorderThread bez odświeżania listy.
+Animacja rozmieszczenia korzysta z tokenów i systemowego ograniczenia ruchu;
+pętla zatrzymuje się w tle. Nie dodajemy modułu haptyki: aplikacja go dotąd nie używa.
 
 Etykieta „Working 1m” używa tego samego `workingLabel` i `formatAge` z domain co web:
 czas pochodzi z `lastActivityAt`, z fallbackiem do `createdAt`. Tytuł i metadane
