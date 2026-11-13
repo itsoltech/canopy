@@ -20,7 +20,11 @@ export async function* watchConfig(sync: ConfigSync, cursor: string, signal: Abo
     if (!allowed()) throw new ConnectError("Configuration sharing is off", Code.FailedPrecondition);
 
     const clock = (
-      await sync.store.query<ClockRow>("SELECT * FROM config_clock WHERE owner_user_id=$1::uuid", [sync.store.owner])
+      await sync.store.query<ClockRow>(
+        "SELECT * FROM config_clock WHERE owner_user_id=$1::uuid",
+        [sync.store.owner],
+        "config.sync",
+      )
     )[0]!;
 
     const [epoch, revision] = checkpoint.split(":");
@@ -32,6 +36,7 @@ export async function* watchConfig(sync: ConfigSync, cursor: string, signal: Abo
       `SELECT * FROM config_items WHERE owner_user_id=$1::uuid
       AND revision>$2::bigint AND revision<=$3::bigint ORDER BY revision LIMIT 100`,
       [sync.store.owner, after, clock.revision],
+      "config.sync",
     );
 
     const nextRevision = rows.length === 100 ? rows.at(-1)!.revision : clock.revision;
@@ -43,7 +48,7 @@ export async function* watchConfig(sync: ConfigSync, cursor: string, signal: Abo
       // Secret values are decrypted for this batch only and exist nowhere else in plain form.
       const secrets = await sync.store.runtime.runPromise(
         Effect.flatMap(SqlClient.SqlClient, (sql) => outgoingSecrets(sql, sync.store.owner, sync.store.key, rows)).pipe(
-          queryFamily("settings.store"),
+          queryFamily("config.sync"),
           queryRpc,
         ),
       );

@@ -4,6 +4,7 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { coreState } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
+import { queryFamily, queryRpc } from "../diagnostics/query-context.ts";
 
 /** Domains an overview stream of this gateway pushes completely (`OverviewUpdate.feeds`). */
 export const OWNER_FEEDS = ["bots", "connectors", "proxies", "updates"] as const;
@@ -133,7 +134,12 @@ export class OwnerFeeds {
   #query(text: string, ...params: string[]): Promise<readonly Row[]> {
     const { runtime, userId } = this.core[coreState].options;
 
-    return runtime.runPromise(Effect.flatMap(SqlClient.SqlClient, (sql) => sql.unsafe<Row>(text, [userId, ...params])));
+    return runtime.runPromise(
+      Effect.flatMap(SqlClient.SqlClient, (sql) => sql.unsafe<Row>(text, [userId, ...params])).pipe(
+        queryFamily("overview.feeds"),
+        queryRpc,
+      ),
+    );
   }
 
   #publish(change: ui.OverviewUpdate["change"]): void {

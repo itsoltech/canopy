@@ -6,7 +6,10 @@ import { Code } from "@connectrpc/connect";
 import { Effect, Exit, Stream } from "effect";
 import { SqlClient, type SqlConnection } from "effect/sql";
 import { ProcessGovernor, PROCESS_LIMITS } from "@canopy/process-governor";
-import { databaseMetric, governorMetric, Measure } from "@canopy/domain/diagnostics";
+import { databaseMetric, governorMetric, Measure, measureKey, type DatabaseFamily } from "@canopy/domain/diagnostics";
+import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
+import { readThreadRange } from "../../apps/gateway/src/computers/range-source.ts";
+import { projectIds } from "../../apps/gateway/src/config-sync/project-aliases.ts";
 import { observedReserve, databaseMonitor } from "../../apps/gateway/src/diagnostics/database.ts";
 import { observedBorrow } from "../../apps/gateway/src/diagnostics/database-borrow.ts";
 import { queryFamily } from "../../apps/gateway/src/diagnostics/query-context.ts";
@@ -57,6 +60,43 @@ describe.skipIf(!dockerAvailable)("gateway diagnostics preserve durable, private
   }, 60_000);
   afterAll(async () => {
     await gateway?.close();
+  });
+
+  test("range reads, configuration aliases and overview revisions have stable background families", async () => {
+    const collector = gateway.core.diagnostics.collector;
+
+    const events = (family: DatabaseFamily) => {
+      collector.flushDatabase();
+      const key = measureKey(databaseMetric(family, "execute"));
+
+      return collector.minutes.slots.reduce((sum, slot) => sum + (slot?.measures?.get(key)?.events ?? 0n), 0n);
+    };
+
+    const other = events("other");
+    const range = events("mirrors.read");
+    const config = events("config.sync");
+    const feed = events("overview.feeds");
+    const store = new ComputerStore(gateway.runtime, gateway.userId, gateway.secretsKey);
+    await readThreadRange(store, create(ui.ThreadSyncCursorSchema, { threadId: thread }));
+    await gateway.runtime.runPromise(Effect.flatMap(SqlClient.SqlClient, (sql) => projectIds(sql, gateway.userId)));
+    const abort = new AbortController();
+    const watch = gateway.api.watchOverview({}, { signal: abort.signal })[Symbol.asyncIterator]();
+
+    try {
+      await watch.next();
+      await eventually(
+        async () => events("overview.feeds"),
+        (value) => value > feed,
+      );
+      expect(events("mirrors.read")).toBeGreaterThan(range);
+      expect(events("config.sync")).toBeGreaterThan(config);
+      expect(events("overview.feeds")).toBeGreaterThan(feed);
+      expect(events("other")).toBe(other);
+    } finally {
+      abort.abort();
+      await watch.return?.();
+      collector.reset();
+    }
   });
 
   test("real RPC queries keep allowlisted families and isolated method context", async () => {

@@ -43,7 +43,7 @@ export function globalIds(sql: SqlClient.SqlClient, owner: string, kind: string)
       toGlobal: (id: string) => alias.get(id) ?? globals.get(id) ?? id,
       toLocal: (id: string) => locals.get(alias.get(id) ?? id) ?? id,
     };
-  }).pipe(queryFamily("settings.store"));
+  }).pipe(queryFamily("config.sync"));
 }
 
 const Overrides = Schema.Struct({

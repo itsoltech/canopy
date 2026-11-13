@@ -20,6 +20,7 @@ import { cipherOf, pruneSecrets, recordCiphers, storeSecret } from "./secrets.ts
 import { CONNECTOR_KINDS } from "./connector-values.ts";
 import { applyConnector } from "./connector-apply.ts";
 import { configEquality } from "./equality.ts";
+import { queryFamily, queryRpc } from "../diagnostics/query-context.ts";
 
 type HistoryRow = Field & {
   id: string;
@@ -66,7 +67,7 @@ async function unresolved(sync: ConfigSync, rows: readonly NoticeRow[]) {
       }
 
       return result;
-    }),
+    }).pipe(queryFamily("config.sync"), queryRpc),
   );
 }
 
@@ -249,7 +250,7 @@ export async function manageConfigNotice(sync: ConfigSync, id: string, action: s
           return { kind: first.kind, ...result };
         }),
       );
-    }),
+    }).pipe(queryFamily("config.sync"), queryRpc),
   );
 
   if (outcome.kind === "settings" && outcome.cli !== undefined) await host.settingsChanged?.(outcome.cli);

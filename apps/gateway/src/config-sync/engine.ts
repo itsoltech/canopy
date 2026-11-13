@@ -85,7 +85,7 @@ export class ConfigSync {
         yield* recordWorkers(sql, store.owner, self());
       }).pipe(
         (fx) => Effect.flatMap(SqlClient.SqlClient, (sql) => sql.withTransaction(fx)),
-        queryFamily("settings.store"),
+        queryFamily("config.sync"),
         queryRpc,
       ),
     );
@@ -143,7 +143,7 @@ export class ConfigSync {
             return { ...outcome, workers };
           }),
         );
-      }).pipe(queryFamily("settings.store"), queryRpc),
+      }).pipe(queryFamily("config.sync"), queryRpc),
     );
 
     const ahead = clockParts(result.last).wall - Date.now();
@@ -175,7 +175,7 @@ export class ConfigSync {
 
     const missing = await store.runtime.runPromise(
       Effect.flatMap(SqlClient.SqlClient, (sql) => missingBlobs(sql, store.owner)).pipe(
-        queryFamily("settings.store"),
+        queryFamily("config.sync"),
         queryRpc,
       ),
     );
@@ -196,7 +196,7 @@ export class ConfigSync {
             return yield* sql.withTransaction(
               Effect.andThen(configLock(sql, store.owner), applyWaitingEnvironment(sql, store.owner, blobs)),
             );
-          }).pipe(queryFamily("settings.store"), queryRpc),
+          }).pipe(queryFamily("config.sync"), queryRpc),
         )) || changed;
     }
 
@@ -209,7 +209,7 @@ export class ConfigSync {
 
     return store.runtime.runPromise(
       Effect.flatMap(SqlClient.SqlClient, (sql) => sql.withTransaction(recordWorkers(sql, store.owner, self()))).pipe(
-        queryFamily("settings.store"),
+        queryFamily("config.sync"),
         queryRpc,
       ),
     );
@@ -242,7 +242,7 @@ export class ConfigSync {
             if (changed) yield* saveRecord(sql, store.owner, row, last);
           }),
         );
-      }).pipe(queryFamily("settings.store"), queryRpc),
+      }).pipe(queryFamily("config.sync"), queryRpc),
     );
   }
 }

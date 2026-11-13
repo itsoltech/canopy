@@ -51,7 +51,7 @@ export function instanceIds(sql: SqlClient.SqlClient, owner: string): Effect.Eff
         return local.get(alias.get(key) ?? key) ?? id;
       },
     };
-  }).pipe(queryFamily("settings.store"));
+  }).pipe(queryFamily("config.sync"));
 }
 
 /** The harness a message's instance id belongs to, from its sibling `provider` field (enum or name). */

@@ -11,6 +11,7 @@ import { certificateIdentity, computerName, generateIdentity, hash, linkAddress 
 import { ROUTE_ORDER } from "./routes.ts";
 import { COMPUTER_CAPABILITY_LIMIT } from "./hello.ts";
 import { queryFamily, queryRpc } from "../diagnostics/query-context.ts";
+import type { DatabaseFamily } from "@canopy/domain/diagnostics";
 
 export type IdentityRow = {
   node_id: string;
@@ -55,13 +56,13 @@ export class ComputerStore {
     readonly owner: string,
     readonly key: Buffer,
   ) {}
-  query<A extends object>(text: string, params: unknown[] = []) {
+  query<A extends object>(text: string, params: unknown[] = [], family: DatabaseFamily = "computers.store") {
     return this.runtime.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
 
         return yield* sql.unsafe<A>(text, params);
-      }).pipe(queryFamily("computers.store"), queryRpc),
+      }).pipe(queryFamily(family), queryRpc),
     );
   }
   async identity() {

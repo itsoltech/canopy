@@ -9,6 +9,7 @@ import { compactRangeRecord } from "./range-content.ts";
 import { rangeResult } from "./range-effects.ts";
 import { prepareRangeClock } from "./range-clock.ts";
 import { rangeBatch, rangeRows, type RangeHead, type SealedRecord } from "./range-source-rows.ts";
+import { queryFamily, queryRpc } from "../diagnostics/query-context.ts";
 
 export type RangeSourceStore = Pick<ComputerStore, "owner" | "runtime" | "query">;
 
@@ -91,7 +92,7 @@ export function readThreadRange(
             }),
           );
         }),
-      ),
+      ).pipe(queryFamily("mirrors.read"), queryRpc),
     )
     .then(rangeResult);
 }

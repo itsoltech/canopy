@@ -24,6 +24,7 @@ export function rangeThreadHeads(store: RangeSourceStore) {
     LEFT JOIN thread_publication_failures f ON f.thread_id=t.id
     WHERE t.owner_user_id=$1::uuid AND t.deleted_at IS NULL ORDER BY t.id`,
     [store.owner],
+    "mirrors.read",
   );
 }
 
@@ -41,6 +42,7 @@ export async function rangeOverview(store: RangeSourceStore, previous?: RangeOve
     await store.query<RangeOverviewClock>(
       "SELECT revision::text,epoch FROM computer_thread_clock WHERE owner_user_id=$1::uuid",
       [store.owner],
+      "mirrors.read",
     )
   )[0] ?? { revision: "0", epoch: "" };
 
@@ -53,6 +55,7 @@ export async function rangeOverview(store: RangeSourceStore, previous?: RangeOve
       `SELECT count(*)::text AS count,coalesce(bool_or(thread_id IS NULL),false) AS metadata
       FROM computer_thread_changes WHERE owner_user_id=$1::uuid AND revision>$2::bigint AND revision<=$3::bigint`,
       [store.owner, previous.revision, clock.revision],
+      "mirrors.read",
     )
   )[0]!;
 
