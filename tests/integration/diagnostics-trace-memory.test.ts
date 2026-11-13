@@ -28,11 +28,12 @@ test("stopped tracing retains only bounded export data and releases it at TTL ac
   expect(samples).toHaveLength(25);
   const baseline = samples[0]!;
 
+  console.info(
+    "diagnostics-trace-memory",
+    JSON.stringify({ baseline, stopped: samples.at(-2), purged: samples.at(-1), samples }),
+  );
+
   for (const sample of samples.slice(1)) expect(sample.heap - baseline.heap).toBeLessThan(2 * 1024 * 1024);
   const purged = samples.filter((sample) => sample.phase === "purged");
   expect(purged.at(-1)!.heap - purged[0]!.heap).toBeLessThan(1024 * 1024);
-  console.info(
-    "diagnostics-trace-memory",
-    JSON.stringify({ baseline, stopped: samples.at(-2), purged: samples.at(-1) }),
-  );
 }, 30_000);

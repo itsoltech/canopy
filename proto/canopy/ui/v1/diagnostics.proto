@@ -209,6 +209,7 @@ message DiagnosticsTraceRequest {
   string action = 3; // start or stop; export uses its separate RPC
   uint32 minutes = 4; // 1, 5 (default), 10
   string lease_id = 5; // Fences stop/export against a newer session.
+  uint32 max_samples = 6; // Export capacity understood by the reader; 0 preserves the legacy 2000 limit.
 }
 message DiagnosticsTraceState {
   bool active = 1;

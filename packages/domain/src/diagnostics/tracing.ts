@@ -2,7 +2,8 @@ import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 
 // Prime stride avoids aliasing alternating reserve/execute and wait/execution events.
-export const TRACE_LIMITS = { samples: 2000, bytes: 4 * 1024 * 1024, perSecond: 100, stride: 101 } as const;
+export const TRACE_LIMITS = { samples: 10_000, bytes: 4 * 1024 * 1024, perSecond: 100, stride: 101 } as const;
+export const LEGACY_TRACE_SAMPLES = 2000;
 export const TRACE_OPERATIONS = ["rpc", "database", "pool", "ingest", "governor"] as const;
 
 export type TraceOperation = (typeof TRACE_OPERATIONS)[number];
@@ -10,7 +11,7 @@ export type TraceOperation = (typeof TRACE_OPERATIONS)[number];
 const FIELDS = 9;
 
 /** Opt-in numeric ring. Inactive collection allocates nothing; no request/error/query can enter it.
- * 141 KiB plus a fixed 16-byte random scratch buffer, below the separate opt-in 4 MiB ceiling.
+ * 704 KiB plus a fixed 16-byte random scratch buffer, below the separate opt-in 4 MiB ceiling.
  * Export DTOs are built only by an explicit owner action and never cached.
  */
 export class DiagnosticsTrace {
@@ -113,14 +114,15 @@ export class DiagnosticsTrace {
     else this.#size++;
   }
 
-  export(lease: string) {
+  export(lease: string, maxSamples: number = TRACE_LIMITS.samples) {
     const state = this.state();
 
     if (!lease || lease !== state.leaseId) return;
     const spans: ui.DiagnosticsTraceSpan[] = [];
+    const size = Math.min(this.#size, TRACE_LIMITS.samples, Math.max(0, Math.floor(maxSamples)));
 
-    for (let i = 0; i < this.#size; i++) {
-      const at = ((this.#head - this.#size + i + TRACE_LIMITS.samples) % TRACE_LIMITS.samples) * FIELDS;
+    for (let i = 0; i < size; i++) {
+      const at = ((this.#head - size + i + TRACE_LIMITS.samples) % TRACE_LIMITS.samples) * FIELDS;
       const value = this.#values!;
       let traceId = "";
 
@@ -137,7 +139,11 @@ export class DiagnosticsTrace {
       );
     }
 
-    return create(ui.DiagnosticsTraceExportSchema, { state, spans, droppedSamples: this.#dropped });
+    return create(ui.DiagnosticsTraceExportSchema, {
+      state,
+      spans,
+      droppedSamples: this.#dropped + BigInt(this.#size - size),
+    });
   }
 
   clear() {

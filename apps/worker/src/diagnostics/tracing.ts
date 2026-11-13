@@ -1,6 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { ui, CommandSchema } from "@canopy/contracts";
-import { DiagnosticsTrace, governorMetric, diagnosticMethodId } from "@canopy/domain/diagnostics";
+import { DiagnosticsTrace, LEGACY_TRACE_SAMPLES, governorMetric, diagnosticMethodId } from "@canopy/domain/diagnostics";
 import { processGovernor } from "@canopy/process-governor";
 
 const commands = new Map(
@@ -48,7 +48,8 @@ export class WorkerTracing {
     } else if (request?.action === "stop" && this.trace.stop(request.leaseId)) {
       this.stop(request.leaseId);
       result = create(ui.DiagnosticsTraceExportSchema, { state: this.trace.state() });
-    } else if (request?.action === "export") result = this.trace.export(request.leaseId);
+    } else if (request?.action === "export")
+      result = this.trace.export(request.leaseId, request.maxSamples || LEGACY_TRACE_SAMPLES);
 
     return create(ui.DiagnosticsWorkerTraceReplySchema, { requestId: command.requestId, result, code: result ? 0 : 9 });
   }

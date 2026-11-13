@@ -13,9 +13,9 @@ const trace = new DiagnosticsTrace(
 function session() {
   const lease = crypto.randomUUID();
 
-  if (!trace.start(lease, "gateway", 1)) throw new Error("Trace did not start");
+  if (!trace.start(lease, "gateway", 5)) throw new Error("Trace did not start");
 
-  for (let second = 0; second < 25; second++) {
+  for (let second = 0; second <= Math.ceil(TRACE_LIMITS.samples / TRACE_LIMITS.perSecond); second++) {
     now += 1000;
 
     for (let call = 0; call < TRACE_LIMITS.perSecond * TRACE_LIMITS.stride; call++)
@@ -31,20 +31,28 @@ function session() {
   return lease;
 }
 
-async function sample(cycle: number, phase: string) {
+async function collect() {
   await Bun.sleep(0);
   Bun.gc(true);
   await Bun.sleep(0);
   Bun.gc(true);
   const stats = heapStats();
 
-  console.info(JSON.stringify({ cycle, phase, heap: process.memoryUsage().heapUsed, objects: stats.objectCount }));
+  return { heap: process.memoryUsage().heapUsed, objects: stats.objectCount };
 }
 
-// Warm protobuf export and sampling code before comparing retained memory.
-for (let cycle = 0; cycle < 3; cycle++) {
+async function sample(cycle: number, phase: string) {
+  console.info(JSON.stringify({ cycle, phase, ...(await collect()) }));
+}
+
+// Warm a full measurement window, including GC and expiry, before taking the
+// baseline. Larger exports can finish JIT compilation after the first sessions.
+for (let cycle = 0; cycle < 12; cycle++) {
   session();
-  trace.clear();
+  await collect();
+  now += 600_001;
+  trace.state();
+  await collect();
 }
 
 await sample(-1, "baseline");
