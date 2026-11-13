@@ -49,7 +49,6 @@ export class BotsRuntime {
   #tickDone: Promise<void> = Promise.resolve();
   #stopped = false;
   #pollAt = 0;
-  #intervalMs = 250;
   #wakeAgain = false;
   constructor(options: BotRuntimeOptions) {
     this.#options = options;
@@ -108,10 +107,9 @@ export class BotsRuntime {
   start(intervalMs = 250): void {
     this.#stopped = false;
     this.#pollAt = 0;
-    this.#intervalMs = intervalMs;
     this.#timer ??= setInterval(() => {
-      if (this.#ticking || performance.now() < this.#pollAt) return;
-      void this.tick().catch(() => this.#options.log?.("bots: queue tick failed"));
+      if (this.#ticking) return;
+      void this.tick(false).catch(() => this.#options.log?.("bots: queue tick failed"));
     }, intervalMs);
     this.#timer.unref();
   }
@@ -126,7 +124,7 @@ export class BotsRuntime {
     for (const task of active) task.abort.abort();
     await Promise.all(active.map((a) => a.done));
   }
-  async tick(): Promise<void> {
+  async tick(wake = true): Promise<void> {
     if (this.#stopped) return;
 
     if (this.#ticking) {
@@ -136,15 +134,16 @@ export class BotsRuntime {
     }
 
     this.#ticking = true;
+    const started = performance.now();
     const tickDone = Promise.withResolvers<void>();
     this.#tickDone = tickDone.promise;
 
     try {
       await this.#options.linkedTick?.();
+
+      if (!wake && started < this.#pollAt) return;
       const state = await this.run((s) => s.poll(this.#options.userId, this.now()));
-      this.#pollAt =
-        performance.now() +
-        (state.configured || this.#active.size ? this.#intervalMs : Math.max(this.#intervalMs, state.delay_ms));
+      this.#pollAt = state.configured || this.#active.size ? 0 : started + 5000;
 
       if (!state.ready) return;
       await this.run((s) => s.deliver());
