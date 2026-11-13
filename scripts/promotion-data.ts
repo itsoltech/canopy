@@ -6,6 +6,7 @@ export interface PromotionAdapters {
   git: (...args: string[]) => string;
   api: (path: string, method?: string, body?: JsonValue) => JsonValue | undefined;
   pages: (path: string) => JsonValue[];
+  releaseRevision: (repo: string, artifactId: number) => { sha: string; branch: string } | undefined;
 }
 
 function isString(value: JsonValue | undefined): value is string {
@@ -101,6 +102,31 @@ function publishedReleases(repo: string, source: string, adapters: PromotionAdap
   return result;
 }
 
+function recoverySha(repo: string, source: string, run: JsonObject, adapters: PromotionAdapters): string | undefined {
+  // Only trusted release branches can dispatch this workflow. The dispatch ref is not its build revision.
+  if (!["dev", "next", "main"].includes(string(run["head_branch"]))) return;
+
+  for (let page = 1; ; page++) {
+    const response = object(
+      adapters.api(`repos/${repo}/actions/runs/${number(run["id"])}/artifacts?per_page=100&page=${page}`),
+    );
+
+    const batch = array(response["artifacts"]);
+
+    for (const value of batch) {
+      const artifact = object(value);
+
+      if (artifact["name"] !== "release-revision" || artifact["expired"] !== false) continue;
+      const revision = adapters.releaseRevision(repo, number(artifact["id"]));
+
+      if (revision?.branch === source && /^[0-9a-f]{40}$/.test(revision.sha) && revision.sha.length === 40)
+        return revision.sha;
+    }
+
+    if (batch.length < 100) return;
+  }
+}
+
 function latestRuns(repo: string, source: string, adapters: PromotionAdapters) {
   // Unlike issues/releases, the runs endpoint wraps each page in workflow_runs.
   const runs = new Map<string, JsonObject>();
@@ -118,10 +144,17 @@ function latestRuns(repo: string, source: string, adapters: PromotionAdapters) {
     for (const value of batch) {
       const run = object(value);
 
-      if (run["head_branch"] !== source) continue;
-      const sha = string(run["head_sha"]);
+      const sha =
+        run["event"] === "workflow_dispatch"
+          ? recoverySha(repo, source, run, adapters)
+          : run["head_branch"] === source
+            ? string(run["head_sha"])
+            : undefined;
+
+      if (!sha) continue;
       const previous = runs.get(sha);
 
+      // A later attempt of an older push must not supersede a newer recovery run.
       if (
         !previous ||
         number(run["run_number"]) > number(previous["run_number"]) ||
@@ -136,7 +169,7 @@ function latestRuns(repo: string, source: string, adapters: PromotionAdapters) {
   return runs;
 }
 
-function untaggedSmoke(repo: string, run: JsonObject, adapters: PromotionAdapters): boolean {
+function releaseJobs(repo: string, run: JsonObject, adapters: PromotionAdapters): JsonObject[] {
   const jobs: JsonObject[] = [];
 
   for (let page = 1; ; page++) {
@@ -150,8 +183,24 @@ function untaggedSmoke(repo: string, run: JsonObject, adapters: PromotionAdapter
     if (batch.length < 100) break;
   }
 
+  return jobs;
+}
+
+function successfulSmoke(jobs: JsonObject[]): boolean {
   return ["linux-x64", "linux-arm64", "darwin-arm64", "windows-x64"].every((target) =>
     jobs.some((job) => string(job["name"]).startsWith(`smoke (${target},`) && job["conclusion"] === "success"),
+  );
+}
+
+function recoveryPublished(repo: string, run: JsonObject, adapters: PromotionAdapters): boolean {
+  const jobs = releaseJobs(repo, run, adapters);
+
+  // A reserved tag/artifact alone is not publication. A no-release rerun can be green with skipped jobs.
+  return (
+    successfulSmoke(jobs) &&
+    ["checks / Typecheck, tests, builds", "release", "publish-desktop"].every((name) =>
+      jobs.some((job) => job["name"] === name && job["conclusion"] === "success"),
+    )
   );
 }
 
@@ -251,7 +300,9 @@ export function loadPromotion(
         (green ??=
           latest?.["status"] === "completed" &&
           latest["conclusion"] === "success" &&
-          (!!release || untaggedSmoke(repo, latest, adapters))),
+          (latest["event"] === "workflow_dispatch"
+            ? !!release && recoveryPublished(repo, latest, adapters)
+            : !!release || successfulSmoke(releaseJobs(repo, latest, adapters)))),
     });
 
     if (release) commit.release = release;

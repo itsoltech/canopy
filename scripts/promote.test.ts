@@ -52,6 +52,9 @@ function fixture() {
   const writes: { path: string; method: string; body: JsonValue | undefined }[] = [];
 
   const adapters: PromotionAdapters = {
+    releaseRevision() {
+      throw new Error("Push runs do not need revision artifacts");
+    },
     git,
     api(path, method = "GET", body) {
       if (method !== "GET") {
@@ -226,6 +229,69 @@ test("stable promotes an older published beta and measures burn-in from the mani
   expect(result.version).toBe("0.2.0");
   expect(f.git("ls-remote", "origin", "refs/heads/main")).toStartWith(old);
   expect(f.writes.some((write) => write.path.includes("/dispatches"))).toBe(false);
+});
+
+test("stable dry-run selects the exact recovered beta despite a later retry of the older push", async () => {
+  const f = fixture();
+  const beta = f.commit("feat: recovered beta", 200);
+  const workflowSha = f.commit("ci: recovery tooling", 190, "tooling.ts");
+  f.release(beta, "v0.2.0-beta.1", 100);
+  f.git("push", "origin", `${beta}:refs/heads/next`);
+  f.runs.set(beta, [
+    {
+      id: 333,
+      event: "push",
+      head_branch: "next",
+      head_sha: beta,
+      status: "completed",
+      conclusion: "cancelled",
+      run_number: 333,
+      run_attempt: 2,
+    },
+    {
+      id: 335,
+      event: "workflow_dispatch",
+      head_branch: "dev",
+      head_sha: workflowSha,
+      status: "completed",
+      conclusion: "success",
+      run_number: 335,
+      run_attempt: 1,
+    },
+  ]);
+  f.runs.delete(workflowSha);
+
+  const adapters: PromotionAdapters = {
+    ...f.adapters,
+    releaseRevision: () => ({ sha: beta, branch: "next" }),
+    api(path, method, body) {
+      if (path.includes("/335/artifacts?"))
+        return { artifacts: [{ id: 12, name: "release-revision", expired: false }] };
+
+      if (path.includes("/335/jobs?"))
+        return {
+          jobs: [
+            ...["linux-x64", "linux-arm64", "darwin-arm64", "windows-x64"].map((target) => ({
+              name: `smoke (${target}, fixture)`,
+              conclusion: "success",
+            })),
+            ...["checks / Typecheck, tests, builds", "release", "publish-desktop"].map((name) => ({
+              name,
+              conclusion: "success",
+            })),
+          ],
+        };
+
+      return f.adapters.api(path, method, body);
+    },
+  };
+
+  const result = await runPromotion("fixture/canopy", "next-main", { ...options, dryRun: true }, adapters, now);
+  expect(result.plan.sha).toBe(beta);
+  expect(result.plan.reason).toBe("Ready");
+  expect(result.version).toBe("0.2.0");
+  expect(f.git("ls-remote", "origin", "refs/heads/main")).toStartWith(f.baseline);
+  expect(f.writes).toEqual([]);
 });
 
 test("diverged histories and concurrent target changes cannot result in a non-fast-forward promotion", async () => {

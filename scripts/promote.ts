@@ -1,5 +1,5 @@
 import { appendFileSync } from "node:fs";
-import { api, git, pages, repository } from "./release-github.ts";
+import { api, git, pages, releaseRevision, repository } from "./release-github.ts";
 import { loadPromotion, promotionBranches, promotionIssues, type PromotionAdapters } from "./promotion-data.ts";
 import {
   DAY,
@@ -202,7 +202,7 @@ if (import.meta.main) {
           ...options,
           holdCapDays: automatic ? burnInDays(process.env[variable] || String(cap), "Hold cap") : Infinity,
         },
-        { git, api, pages },
+        { git, api, pages, releaseRevision },
       );
     } catch (error) {
       failed = true;
