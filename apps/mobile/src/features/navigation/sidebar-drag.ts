@@ -8,6 +8,8 @@ import {
   useAnimatedScrollHandler,
   useFrameCallback,
   useSharedValue,
+  type FrameInfo,
+  type SharedValue,
 } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import type Animated from "react-native-reanimated";
@@ -22,6 +24,22 @@ function withinWidth(bounds: { left: number; right: number }, x: number) {
   "worklet";
 
   return x >= bounds.left && x <= bounds.right;
+}
+
+/** Register frames only for a live drag; a late JS start must not revive a finalized or suspended gesture. */
+function useDragLoop(enabled: boolean, active: SharedValue<string>, tick: (time: FrameInfo) => void) {
+  const loop = useFrameCallback(tick, false);
+
+  useEffect(() => {
+    if (!enabled) loop.setActive(false);
+
+    return () => {
+      loop.setActive(false);
+      active.set("");
+    };
+  }, [loop, enabled, active]);
+
+  return (running: boolean) => loop.setActive(running && !!active.get());
 }
 
 export function useSidebarDrag(
@@ -59,7 +77,7 @@ export function useSidebarDrag(
 
   const scroll = useAnimatedScrollHandler((event) => offset.set(event.contentOffset.y));
 
-  const loop = useFrameCallback((time) => {
+  const setLoopActive = useDragLoop(enabled && appActive, active, (time) => {
     "worklet";
 
     if (!active.get()) return;
@@ -83,13 +101,7 @@ export function useSidebarDrag(
     );
 
     if (edge && next !== offset.get()) scrollTo(list, 0, next, false);
-  }, false);
-
-  useEffect(() => {
-    loop.setActive(enabled && appActive);
-
-    return () => loop.setActive(false);
-  }, [loop, enabled, appActive]);
+  });
 
   const gesture = usePanGesture({
     enabled: enabled && appActive,
@@ -131,6 +143,7 @@ export function useSidebarDrag(
       "worklet";
       active.set(pending.get());
       pointer.set(event.absoluteY - top.get());
+      scheduleOnRN(setLoopActive, true);
     },
     onUpdate: (event) => {
       "worklet";
@@ -152,6 +165,7 @@ export function useSidebarDrag(
       active.set("");
       pending.set("");
       pin.set(false);
+      scheduleOnRN(setLoopActive, false);
     },
   });
 
