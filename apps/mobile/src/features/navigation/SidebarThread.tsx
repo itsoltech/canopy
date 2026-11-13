@@ -18,6 +18,7 @@ import { SidebarActivity } from "./SidebarActivity";
 import { SidebarThreadStatus } from "./SidebarThreadStatus";
 import { IconButton } from "../../ui/components";
 import { useSidebarDragContext } from "./sidebar-drag";
+import { DraftMarker } from "../drafts/DraftMarker";
 
 const rowStyle: ViewStyle = {
   paddingHorizontal: 12,
@@ -125,9 +126,12 @@ export function SidebarThread({
           </View>
           {reorder && <IconButton icon="ellipsis-horizontal" label="Thread actions" onPress={() => setActions(true)} />}
         </View>
-        <Text numberOfLines={1} style={[type.title, { color: thread.titleGenerating ? c.muted : c.strong }]}>
-          {thread.title || "Untitled thread"}
-        </Text>
+        <View style={styles.row}>
+          <Text numberOfLines={1} style={[type.title, { flex: 1, color: thread.titleGenerating ? c.muted : c.strong }]}>
+            {thread.title || "Untitled thread"}
+          </Text>
+          <DraftMarker threadId={thread.id} />
+        </View>
         <View style={[styles.row, { gap: 8 }]}>
           <Icon name="computer-desktop" size={16} color={worker?.online ? c.muted : c.faint} />
           <Text numberOfLines={1} style={[type.meta, { flex: 1, minWidth: 0, color: c.muted }]}>

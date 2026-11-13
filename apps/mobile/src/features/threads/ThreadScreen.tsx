@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { BackHandler, View } from "react-native";
 import { create } from "@bufbuild/protobuf";
 import { ConversationSkeleton, SkeletonScope } from "../../ui/Skeleton";
-import { Redirect } from "expo-router";
+import { Redirect, router, useLocalSearchParams } from "expo-router";
 import { useContextDraft } from "../github/useContextDraft";
 import { ScreenFrame } from "../../ui/ScreenFrame";
 import { InteractionKind, ui } from "@canopy/contracts";
@@ -17,7 +17,7 @@ import { ThreadHeader } from "./ThreadHeader";
 import { ThreadTimeline } from "./ThreadTimeline";
 import { ConnectionBanner } from "../navigation/ConnectionStatus";
 import { useFollowingList } from "../../ui/useFollowingList";
-import { useMessageDraft } from "../composer/useMessageDraft";
+import { usePersistentMessage } from "../drafts/usePersistentMessage";
 import { isFinishedGoal, takesGoals } from "./GoalSheet";
 import { useThreadTray } from "./tray/useThreadTray";
 import { ThreadTray } from "./tray/ThreadTray";
@@ -50,7 +50,9 @@ import { Button } from "../../ui/Button";
 export type ThreadState = ReturnType<typeof useThreadState>;
 
 function useThreadState(id: string) {
-  const { session, client, ready, online, threadCache } = useSession();
+  const { session, client, ready, online, threadCache, workspace: store } = useSession();
+  const workspace = store.view(id);
+  const threadVisible = useSyncExternalStore(store.subscribe, () => workspace.active === "thread");
   const { snapshot, setSnapshot, stream, history, syncStatus, view } = useThreadSnapshot(id);
   const { warming } = useOverview();
   useMobileOpening(
@@ -61,7 +63,7 @@ function useThreadState(id: string) {
   const following = useFollowingList<ui.Turn>(true, threadComposerHeight);
   const [details, setDetails] = useState(false);
   const { projects, workers, threads } = useOverview();
-  const message = useMessageDraft();
+  const message = usePersistentMessage(create(ui.ComposerDraftTargetSchema, { threadId: id }), threadVisible);
   const quotes = useQuoteDraft(undefined, {}, message);
 
   const { connection, available } = useComposerConnection(
@@ -173,6 +175,13 @@ export function ThreadScreen({ id }: { id: string }) {
   const composer = useThreadComposer(state);
 
   const [sheet, setSheet] = useState<"goal" | "side" | "modules" | null>(null);
+  const params = useLocalSearchParams<{ draftSideThread?: string }>();
+  useEffect(() => {
+    if (params.draftSideThread === "1") {
+      setSheet("side");
+      router.setParams({ draftSideThread: undefined });
+    }
+  }, [params.draftSideThread]);
 
   const { session, ready, snapshot, following, setDetails, projects, thread, turns, blocked } = state;
 

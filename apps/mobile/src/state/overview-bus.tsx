@@ -11,7 +11,7 @@ type Listener = (update: ui.OverviewUpdate) => void;
  * so one phone opens one stream (and one remote subscription per linked computer at the gateway).
  */
 function useOverviewBusState() {
-  const { client, session, queries, modelCatalog } = useSession();
+  const { client, session, queries, modelCatalog, drafts } = useSession();
   const listeners = useRef(new Set<Listener>());
   const snapshots = useRef(0);
   const [headIds, setHeadIds] = useState("");
@@ -27,6 +27,8 @@ function useOverviewBusState() {
       : null,
     (update: ui.OverviewUpdate) => {
       const change = update.change;
+
+      if (change.case === "thread" && change.value.deletedAt) drafts?.removeThread(change.value.id);
 
       for (const listener of listeners.current) listener(update);
 

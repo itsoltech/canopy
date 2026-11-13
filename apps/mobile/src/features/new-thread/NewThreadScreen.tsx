@@ -24,6 +24,7 @@ import { MentionSuggestions } from "../composer/MentionSuggestions";
 import { ComposerViewport } from "../composer/ComposerViewport";
 import { SkeletonScope } from "../../ui/Skeleton";
 import { useProjectDetails } from "../computers/project-details";
+import { DraftActions } from "../drafts/DraftActions";
 
 type State = ReturnType<typeof useNewThread>;
 
@@ -69,10 +70,16 @@ export function NewThreadScreen() {
                       onSend={() => void state.create()}
                       disabled={state.initialLoading || Boolean(blocker)}
                       busy={state.busy}
+                      readonly={Boolean(message.persistent?.pendingCreate)}
                       files={message.files.ids.length}
                       label="Task for the agent"
                       top={<AttachmentChips files={message.files.files} onRemove={message.remove} />}
-                      attachment={<AttachButton draft={message.files} disabled={state.busy} />}
+                      attachment={
+                        <AttachButton
+                          draft={message.files}
+                          disabled={state.busy || Boolean(message.persistent?.pendingCreate)}
+                        />
+                      }
                       controls={
                         <>
                           {selected && (
@@ -120,6 +127,7 @@ export function NewThreadScreen() {
                 />
               </View>
               <WorkspacePills draft={state.workspaceDraft} />
+              {message.persistent && <DraftActions draft={message.persistent} disabled={state.busy} />}
             </SkeletonScope>
             {!state.initialLoading && blocker && blocker !== message.files.blocker ? <Notice>{blocker}</Notice> : null}
             {!state.initialLoading && (

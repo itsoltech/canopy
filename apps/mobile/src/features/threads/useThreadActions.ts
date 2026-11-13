@@ -11,7 +11,7 @@ import { useComputerHome } from "../computers/presence";
 export type ThreadAction = "side" | "goal" | "pin" | "rename" | "regenerate" | "read" | "archive" | "delete";
 
 export function useThreadActions(thread: ui.Thread) {
-  const { client, online } = useSession();
+  const { client, online, drafts } = useSession();
   const appearance = useAppearance();
   const home = useComputerHome(thread.nodeId);
   const { id } = useGlobalSearchParams<{ id?: string }>();
@@ -59,6 +59,8 @@ export function useThreadActions(thread: ui.Thread) {
           });
       } else if (action === "delete") {
         const result = await client.api.deleteThread({ threadId: thread.id });
+
+        for (const deletedId of result.threadIds) drafts?.removeThread(deletedId);
         const reopen = path.startsWith("/thread/") && id && result.threadIds.includes(id) ? id : undefined;
 
         if (reopen) router.replace("/");
