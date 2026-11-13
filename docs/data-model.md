@@ -403,6 +403,7 @@ Pozostałe tabele:
 | `agent_bus_calls` | szyna agentów: każde wywołanie narzędzia (`spawn_thread`, `send_message`, `wait_threads`, ...), argumenty, wynik, uruchomiony wątek/tura, `hops`, powiadomienie zwrotne (outbox) |
 | `blobs` | duże treści (output, diff, obraz), adresowane sha256, inline albo w magazynie obiektów |
 | `attachments` | pliki użytkownika do wiadomości: właściciel, blob (sha256) i miniatura WebP obrazu, nazwa (bez katalogów i znaków sterujących), typ rozpoznany z treści, `kind` (`image` / `file`), rozmiar, wymiary; po wysłaniu wątek i tura albo bot i tura bota (raz, razem, wyłącznie jedna rozmowa) |
+| `thread_image_publications` | rezerwacja budżetu `show_images` przed alokacją: call ID, wątek/tura/worker, hash argumentów, token i termin lease, liczba oraz bajty; zatwierdzony wpis zachowuje budżet tury po restarcie, atomowo z załącznikami, manifestem galerii, audytem i wynikiem wywołania |
 | `bot_composer_drafts` | prywatny, trwały szkic bota: tekst, strukturalne wzmianki, cytaty i wgrane obrazy w protobuf, rewizja CAS i klucz idempotencji wiadomości |
 | `thread_blobs` | bloby, które pokazuje transkrypt wątku (podglądy obrazów od workera): przez nie UI czyta blob (właściciel, drzewo wątku) |
 | `worker_journal_cursors` | potwierdzone `journal_seq` per worker, dziennik i wątek (kursory `Welcome`) |

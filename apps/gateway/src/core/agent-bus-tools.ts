@@ -35,6 +35,8 @@ export async function busExecute(
     hostContext[busState].host.run(AgentBusStore.use(use));
 
   switch (call.tool) {
+    case "show_images":
+      return hostContext[busState].host.showImages(source, caller, call.args);
     case "request_secret":
       return hostContext[busState].host.requestSecret(source, call.args);
     case "ask_user": {

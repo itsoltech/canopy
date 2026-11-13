@@ -46,6 +46,7 @@ export async function prepareAttachment(
   rawName: string,
   data: Uint8Array,
   limits: AttachmentLimits,
+  options: { imageReply?: boolean } = {},
 ): Promise<PreparedAttachment> {
   let name = safeFileName(rawName);
 
@@ -85,7 +86,7 @@ export async function prepareAttachment(
   let image: { data: Uint8Array; mimeType: string; width: number; height: number };
 
   try {
-    image = await normalize(data, sniffed.mimeType);
+    image = await normalize(data, sniffed.mimeType, options.imageReply ?? false);
   } catch (error) {
     if (error instanceof AttachmentRejected) throw error;
 
@@ -94,7 +95,11 @@ export async function prepareAttachment(
     throw new AttachmentRejected(`${name} could not be read as an image`);
   }
 
-  if (sniffed.kind === "convertible") name = withExtension(name, image.mimeType === "image/png" ? "png" : "jpg");
+  if (sniffed.kind === "convertible" || image.mimeType !== sniffed.mimeType)
+    name = withExtension(name, image.mimeType === "image/png" ? "png" : "jpg");
+
+  if (options.imageReply && image.data.length > limits.maxFileBytes)
+    throw new AttachmentRejected(`${name} exceeds the image limit after processing. Choose a smaller image.`);
 
   const thumbnail = new Uint8Array(
     await sharp(image.data, { limitInputPixels: MAX_PIXELS })
@@ -122,6 +127,7 @@ const videoPoster = sharp({ create: { width: 320, height: 180, channels: 3, back
 async function normalize(
   data: Uint8Array,
   mimeType: string,
+  firstFrame: boolean,
 ): Promise<{ data: Uint8Array; mimeType: string; width: number; height: number }> {
   const meta = await sharp(data, { limitInputPixels: false }).metadata();
   const width = meta.width ?? 0;
@@ -133,13 +139,13 @@ async function normalize(
     );
 
   // GIF: kept byte for byte (animation; no EXIF to strip).
-  if (mimeType === "image/gif") return { data, mimeType, width, height };
-  const animated = mimeType === "image/webp" && (meta.pages ?? 1) > 1;
+  if (mimeType === "image/gif" && !firstFrame) return { data, mimeType, width, height };
+  const animated = !firstFrame && mimeType === "image/webp" && (meta.pages ?? 1) > 1;
   // rotate(): upright by its EXIF orientation; the output carries no metadata (sharp drops it unless asked).
   const pipeline = sharp(data, { limitInputPixels: MAX_PIXELS, animated }).rotate();
 
   const encoded =
-    mimeType === "image/png" || mimeType === "image/tiff"
+    mimeType === "image/png" || mimeType === "image/tiff" || mimeType === "image/gif"
       ? pipeline.png()
       : mimeType === "image/webp"
         ? pipeline.webp({ quality: 92 })
@@ -149,6 +155,7 @@ async function normalize(
 
   const outType = Match.value(mimeType).pipe(
     Match.when("image/tiff", () => "image/png"),
+    Match.when("image/gif", () => "image/png"),
     Match.when("image/webp", () => "image/webp"),
     Match.when("image/png", () => "image/png"),
     Match.orElse(() => "image/jpeg"),

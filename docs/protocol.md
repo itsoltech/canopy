@@ -4,6 +4,37 @@ Harness Grok: `Provider.PROVIDER_GROK = 3`, `WorkerConfig.grok = 640`; używa is
 
 Status: **szkic**, kanał i handshake zaimplementowane (`apps/gateway/src/worker-link`, `apps/worker/src/gateway-link`). Kontrakt: [`proto/canopy/worker/v1/worker_link.proto`](../proto/canopy/worker/v1/worker_link.proto).
 
+### Trwałe odpowiedzi obrazami
+
+Addytywna capability `thread_image_replies_v1` dopuszcza nietrwałe
+`ExportThreadImage` (`Command.export_thread_image = 231`) i
+`CommandResult.thread_image_export = 231`. `WORKER_LINK_PROTOCOL` pozostaje 1;
+zamrożone `update/v1` nie zmienia się. Starszy worker dostaje jawną odmowę
+„Update this computer to show images in Canopy.”, bez wysłania nieznanej komendy.
+
+Gateway sprawdza ownera, przypięcie workera i aktywną turę. Rezerwuje budżet
+przed alokacją: 1 transfer na wątek, 2 na worker, 100 obrazów / 200 MiB na turę.
+Wywołanie obejmuje 1–10 obrazów, maks. 20 MiB na plik i 50 MiB łącznie;
+niższe limity załączników właściciela mają pierwszeństwo. Liczymy większy
+z rozmiarów wejścia i wyniku normalizacji. Rezerwacja ma lease 60 s i token
+odgradzający wygasłą próbę od nowej; przerwana próba zwalnia niezapisany budżet.
+
+`probe` zwraca sam rozmiar i nazwę. `read` przesyła do 256 KiB na odpowiedź,
+z niezmiennym rozmiarem, nazwą i SHA-256; gateway sprawdza hash całości.
+Limit bezczynności wynosi 10 s, całości 60 s. `release` usuwa eksport.
+Gateway przekazuje tylko katalog bieżącego wątku i jego własny katalog
+załączników; worker musi niezależnie sprawdzić zakres oraz tożsamość tury.
+Bajty nie trafiają do modelu, outboxa ani journala.
+
+Gateway rozpoznaje typ z bajtów i używa pipeline załączników: limit 100 Mpx,
+normalizacja bez EXIF/GPS/XMP i miniatura WebP do 512 px. Publikacja utrwala
+pierwszą klatkę animacji. SVG pozostaje plikiem, nie obrazem galerii.
+Załączniki, `Item.image_gallery = 25`, audyt i wynik `show_images` powstają
+w jednej transakcji. Call ID daje ten sam wynik także po restarcie i usunięciu
+źródła. Manifest nie zawiera bajtów ani ścieżek workera; przyrostowy sync
+korzysta z istniejącej osi czasu. Worker nie może tworzyć ani nadpisywać
+gatewayowych itemów galerii przez własne zdarzenia.
+
 `AgentToolCall.cancelled` (831) oznacza zakończenie oczekiwania klienta MCP
 (timeout lub anulowanie). Worker ponawia tę samą kopertę do `AgentToolResult`, także
 po reconnect. Gateway autoryzuje bota/workera i zapisuje anulowanie wywołania oraz

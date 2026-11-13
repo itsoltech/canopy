@@ -2,6 +2,10 @@ import { type JsonSchema, Result, Schema } from "effect";
 import { QUESTION_TOOLS, questionsProblem } from "./questions.ts";
 import { BACKGROUND_TASK_TOOLS } from "./background-tasks.ts";
 import { isEntityId } from "../computers.ts";
+import { IMAGE_TOOLS } from "./images.ts";
+import { RequestSecret } from "./secrets.ts";
+
+export { RequestSecret } from "./secrets.ts";
 
 /**
  * Agent bus tools: how agents delegate work to each other as side threads (docs/agent-bus.md).
@@ -36,14 +40,6 @@ const Notify = Schema.Boolean.annotate({
 });
 
 export const ListAgents = Schema.Struct({});
-
-export const RequestSecret = Schema.Struct({
-  label: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200)),
-  description: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(2000)),
-  placeholder: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(200))),
-  name: Schema.optionalKey(Schema.String.check(Schema.isPattern(/^[A-Za-z_][A-Za-z0-9_]{0,127}$/))),
-  request_id: Schema.optionalKey(Schema.String.check(Schema.isUUID())),
-});
 
 /** Permission modes a side thread may ask for, narrowest first; never broader than the caller's (authorizeBusCall). */
 export const SPAWN_PERMISSION_MODES = ["read_only", "ask", "accept_edits", "full_auto", "full_access"] as const;
@@ -250,6 +246,7 @@ const define = <S extends Schema.Top>(tool: ToolDefinition<S>) => tool;
 
 export const AGENT_BUS_TOOLS = {
   ...QUESTION_TOOLS,
+  ...IMAGE_TOOLS,
   request_secret: define({
     name: "request_secret",
     description:

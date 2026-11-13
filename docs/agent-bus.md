@@ -73,6 +73,15 @@ flowchart TB
 
 ## 3. Narzędzia
 
+`show_images({images:[{path,alt,caption?,pair?,side?}],caption?})` publikuje
+trwałe obrazy w **swoim** wątku, również na poziomie 1. `view_image` służy
+do oglądania obrazu przez model; `show_images` do pokazania go użytkownikowi.
+Każda para wymaga dokładnie dwóch stron `before` / `after`. Sukces zawiera
+`delivered`, `item_id` oraz `attachment_ids`; agent nie powinien twierdzić,
+że pokazał obrazy po błędzie narzędzia. Zapis wymaga aktywnej tury i capability
+workera `thread_image_replies_v1`. Limity, transfer i trwałość:
+[protokół](protocol.md#trwałe-odpowiedzi-obrazami).
+
 Jedna definicja w Effect Schema (`AGENT_BUS_TOOLS`). Z niej powstaje JSON Schema dla dostawców, a gateway dekoduje wywołania ściśle: nieznane narzędzie, nadmiarowe pole albo wartość spoza zakresu wracają do modelu jako błąd narzędzia.
 
 | Narzędzie | Poziom 0 | Poziom 1 | Co robi |

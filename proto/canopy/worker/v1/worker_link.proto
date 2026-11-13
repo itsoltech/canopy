@@ -449,6 +449,8 @@ message Command {
     GetThreadFileHighlight get_thread_file_highlight = 229;
     // Nietrwały start/stop obserwacji; capability thread_files_watch_v1.
     ThreadFilesWatch watch_thread_files = 230;
+    // Transient, thread_image_replies_v1; bytes never enter the outbox or journal.
+    ExportThreadImage export_thread_image = 231;
     // CLI dostawców (sekcja na końcu pliku). Nietrwała: nigdy z outboxa.
     InstallCli install_cli = 800;
     // Nietrwałe metadane konta; capability provider_account_status, bez journala/outboxa.
@@ -744,6 +746,7 @@ message CommandResult {
   GitPrContext git_pr_context = 227;
   ThreadDirectoryPage thread_directory = 228;
   ThreadFileHighlight thread_file_highlight = 229;
+  ThreadImageExport thread_image_export = 231;
   ProviderAccountsReport provider_accounts = 810;
   // Wynik ScanImportSources (docs/import.md).
   ImportScan import_scan = 850;
@@ -756,6 +759,28 @@ message CommandResult {
   // Wynik ReadImportSecret.
   ImportSecretValue import_secret = 854;
   BotFileResult bot_file = 832;
+}
+
+// A single immutable export, scoped to the source turn. Roots come from the gateway,
+// and the worker independently verifies its current thread directory and turn.
+message ExportThreadImage {
+  string thread_id = 1;
+  string turn_id = 2;
+  string export_id = 3;
+  string path = 4;
+  repeated string roots = 5;
+  // probe (metadata only), read, release.
+  string operation = 6;
+  uint64 offset = 7;
+  uint64 max_bytes = 8;
+}
+
+message ThreadImageExport {
+  string name = 1;
+  uint64 size_bytes = 2;
+  string sha256 = 3;
+  // At most 256 KiB. Never forwarded to a model.
+  bytes data = 4;
 }
 
 message GetProviderAccounts {
@@ -1146,9 +1171,35 @@ message Item {
     Image image = 22;
     ContextCompaction context_compaction = 23;
     InteractionPrompt interaction_prompt = 24;
+    // Gateway-owned, immutable publication. No worker filesystem paths or inline bytes.
+    ImageGallery image_gallery = 25;
     // Typ dostawcy bez dedykowanego mapowania. Dane są pełne, UI pokazuje widok ogólny.
     ProviderItem provider_item = 30;
   }
+}
+
+message ImageGallery {
+  repeated GalleryImage images = 1;
+  string caption = 2;
+  // Optional source Markdown message; empty for show_images.
+  string source_item_id = 3;
+}
+
+message GalleryImage {
+  string attachment_id = 1;
+  string name = 2;
+  string mime_type = 3;
+  uint64 size_bytes = 4;
+  uint32 width = 5;
+  uint32 height = 6;
+  string alt = 7;
+  string caption = 8;
+  string pair = 9;
+  string side = 10;
+  bool has_thumbnail = 11;
+  // UTF-16 source token offsets, only for imported local Markdown images.
+  uint32 markdown_start = 12;
+  uint32 markdown_end = 13;
 }
 
 // Treść większa niż limit wiadomości trafia do blobu (BlobChunk) i jest wskazywana przez BlobRef.

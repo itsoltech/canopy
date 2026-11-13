@@ -63,6 +63,7 @@ describe("tool sets per level", () => {
       "schedule_recurring",
       "schedule_wakeup",
       "send_message",
+      "show_images",
       "stop_background_task",
       "wait_threads",
     ]);
