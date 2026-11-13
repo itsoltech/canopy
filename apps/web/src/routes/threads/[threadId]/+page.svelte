@@ -22,7 +22,7 @@
   import ScheduleOrigin from "#lib/features/schedules/ScheduleOrigin.svelte";
   import BackgroundTasksChip from "#lib/features/threads/components/BackgroundTasksChip.svelte";
   import BackgroundTaskDialog from "#lib/features/threads/components/BackgroundTaskDialog.svelte";
-  import { backgroundTasks } from "#lib/features/threads/background-tasks.ts";
+  import { backgroundTasks, backgroundName } from "#lib/features/threads/background-tasks.ts";
   import { provideBackgroundOutput } from "#lib/features/threads/background-output.ts";
   import Composer from "#lib/features/threads/components/Composer.svelte";
   import { ComposerCompaction, type ComposerActivity } from "#lib/features/threads/components/composer-compaction.ts";
@@ -33,11 +33,7 @@
   import ThreadModelDialog from "#lib/features/threads/components/ThreadModelDialog.svelte";
   import ThreadPermissionsDialog from "#lib/features/threads/components/ThreadPermissionsDialog.svelte";
   import ThreadPanel from "#lib/features/threads/components/ThreadPanel.svelte";
-  import PullRequestPanel from "#lib/features/github/DesktopPullRequestPanel.svelte";
-  import PullRequestResize from "#lib/features/github/PullRequestResize.svelte";
-  import ThreadPullRequestSheet from "#lib/features/github/ThreadPullRequestSheet.svelte";
-  import { closePullRequest as closePr, toggleThreadPanel } from "#lib/features/github/thread-panel.ts";
-  import ThreadTitleActions from "#lib/features/threads/components/ThreadTitleActions.svelte";
+  import PullRequestPanel from "#lib/features/github/PullRequestPanel.svelte";
   import QueuePanel from "#lib/features/threads/queue/QueuePanel.svelte";
   import { QueueState } from "#lib/features/threads/queue/queue-state.svelte.ts";
   import SubagentsPanel from "#lib/features/threads/subagents/SubagentsPanel.svelte";
@@ -53,7 +49,6 @@
   import { WorkFolds, type FoldReader } from "#lib/features/threads/work-folds.svelte.ts";
   import { syncWorkFolds, workHistoryPrefetch } from "#lib/features/threads/thread-feed-effects.svelte.ts";
   import { timelineRecovery } from "#lib/features/diagnostics/client.ts";
-  import { devicePreferences as device } from "#lib/features/settings/device-preferences.svelte.ts";
   import { threadScrollMemory } from "#lib/features/threads/thread-scroll-memory.svelte.ts";
   import { FeedBuilder, feedEstimate, feedGroup, feedInserted, type FeedRow } from "#lib/features/threads/feed.ts";
   import TurnRail from "#lib/features/threads/rail/TurnRail.svelte";
@@ -90,6 +85,11 @@
   import { ThreadWorkspace } from "#lib/features/workspace/thread-workspace.svelte.ts";
   import WorkspaceTabs from "#lib/features/workspace/WorkspaceTabs.svelte";
   import WorkspaceContent from "#lib/features/workspace/WorkspaceContent.svelte";
+  import WorkspaceSidebar from "#lib/features/workspace/WorkspaceSidebar.svelte";
+  import WorkspaceSummary from "#lib/features/workspace/WorkspaceSummary.svelte";
+  import WorkspaceFrame from "#lib/features/workspace/WorkspaceFrame.svelte";
+  import type { WorkspaceModuleId, WorkspaceModuleTarget } from "@canopy/domain/workspace-modules";
+  import { devicePreferences as device } from "#lib/features/settings/device-preferences.svelte.ts";
 
   let { data }: PageProps = $props();
   const threadId = $derived(page.params.threadId ?? "");
@@ -297,10 +297,14 @@
   // on narrow ones.
   const selectedPr = $derived(page.url.searchParams.get("pr") ?? "");
 
-  const panelOpen = $derived(Boolean(selectedPr) || !device.view.threadPanelCollapsed);
-  let panelContainer = $state<HTMLElement>();
-  const panelId = $props.id();
+  const panelOpen = $derived(!workspaceState.view.panelCollapsed);
   let panelSheet = $state(false);
+  let summaryAnchor = $state<HTMLElement>();
+
+  $effect(() => {
+    if (!selectedPr) return;
+    untrack(() => workspaceState.view.openModule({ module: "pull-requests", resource: selectedPr }));
+  });
 
   let worktreeDialog = $state(false);
 
@@ -309,7 +313,7 @@
     worktreeDialog = true;
   }
 
-  const togglePanel = () => toggleThreadPanel(panelOpen, () => (panelSheet = true));
+  const togglePanel = () => workspaceState.togglePanel(() => (panelSheet = true));
 
   const canBranch = $derived(!away && Boolean(tree && thread && thread.status !== "archived"));
 
@@ -360,22 +364,17 @@
     allBackgroundTasks.filter((entry) => entry.item.status === ItemStatus.IN_PROGRESS),
   );
 
-  let outputId = $state<string>();
-  let outputOpen = $state(false);
-  const selectedTask = $derived(allBackgroundTasks.find((entry) => entry.id === outputId));
-
   const openOutput = (id: string) => {
-    outputId = id;
-    outputOpen = true;
+    panelSheet = false;
+    const task = allBackgroundTasks.find((entry) => entry.id === id);
+    workspaceState.view.openModule({
+      module: "tasks",
+      resource: id,
+      label: task ? backgroundName(task.item.content.value) : "Task output",
+    });
   };
 
   provideBackgroundOutput(openOutput);
-
-  $effect(() => {
-    void threadId;
-    outputOpen = false;
-    outputId = undefined;
-  });
 
   let feed = $state<
     FoldReader & {
@@ -507,20 +506,8 @@
 
 <svelte:head><title>{thread?.title ?? "Thread"} · {applicationName}</title></svelte:head>
 
-<!-- On xl the container reserves the details panel's column (it arrives before the panel, so nothing moves while
-     the page loads) and eases it open or shut (motion.css `t-panel-column`). -->
-<div
-  bind:this={panelContainer}
-  class="t-panel-column relative flex h-full xl:grid xl:grid-cols-[minmax(0,1fr)_var(--panel-width)] xl:grid-rows-1"
-  style:--panel-width={selectedPr
-    ? "min(var(--pr-panel-width, 576px), var(--pr-panel-max-width, max(0px, calc(100% - 384px))))"
-    : panelOpen
-      ? "20rem"
-      : "0rem"}
-  data-collapsed={!panelOpen || undefined}
-  data-window-side-panel={panelOpen ? "xl" : undefined}
->
-  <div class="relative flex min-w-0 flex-1 flex-col" {@attach intake.zone}>
+<WorkspaceFrame state={workspaceState}>
+  <div class="relative flex min-h-0 min-w-0 flex-1 flex-col" {@attach intake.zone}>
     <TopBar description={away ? `Read-only. ${away}` : undefined}>
       {#if thread}
         <Crumb
@@ -540,23 +527,39 @@
       {:else}
         <Crumb><Skeleton class="h-4 w-48" /></Crumb>
       {/if}
-      {#snippet workspace()}<WorkspaceTabs state={workspaceState} {working} pending={blockingQuestions} />{/snippet}
+      {#snippet workspace()}<WorkspaceTabs
+          state={workspaceState}
+          {working}
+          pending={blockingQuestions}
+          actions={threadActions}
+        />{/snippet}
       {#snippet actions()}
         <div class="max-sm:hidden"><ThreadSyncProgress status={view.syncStatus} /></div>
-        {#if thread}
-          <DropdownMenu label="Thread actions" placement="bottom-end">
-            {#snippet trigger(props)}<IconButton
-                icon="ellipsis-horizontal"
-                label="Thread actions"
-                {...props}
-              />{/snippet}
-            <ThreadMenuItems {thread} omit={panelOpen ? ["open", "rename", "regenerate"] : ["open"]} />
-            <MenuItem icon="magnifying-glass" onselect={() => (searchOpen = true)}>Search thread</MenuItem>
-          </DropdownMenu>
-        {/if}
-        <IconButton icon="panel-right" label="Thread details" aria-pressed={panelOpen} onclick={togglePanel} />
+        {#if thread}<div class="max-sm:hidden">
+            <DropdownMenu label="Thread actions" placement="bottom-end">
+              {#snippet trigger(props)}<IconButton
+                  icon="ellipsis-horizontal"
+                  label="Thread actions"
+                  {...props}
+                />{/snippet}
+              {@render threadActions()}
+            </DropdownMenu>
+          </div>{/if}
+        <WorkspaceSummary
+          view={workspaceState.view}
+          wide={workspaceState.wide}
+          anchor={summaryAnchor}
+          onopen={() => (panelSheet = false)}>{@render threadPanel("summary")}</WorkspaceSummary
+        >
+        <IconButton
+          icon="panel-right"
+          label={workspaceState.wide ? (panelOpen ? "Collapse panel" : "Show panel") : "Open modules"}
+          aria-pressed={panelOpen}
+          onclick={togglePanel}
+        />
       {/snippet}
     </TopBar>
+    <span bind:this={summaryAnchor} class="pointer-events-none absolute top-12 right-2"></span>
     <ThreadSearch
       bind:open={searchOpen}
       {view}
@@ -777,78 +780,32 @@
             </VirtualFeed>{/if}
         {/key}
       </div>
-      <WorkspaceContent state={workspaceState} />
+      <WorkspaceContent state={workspaceState} module={renderModule} />
     </div>
     <FileDropOverlay {intake} />
   </div>
 
-  <!-- Mounted while closed too, so it can ease out: the panel keeps its width on the column's left edge and fades, so
-       its content never re-wraps; a closed panel is inert. -->
-  {#if selectedPr}<div class="absolute inset-y-0 right-(--panel-width) z-40 w-0 max-xl:hidden">
-      <PullRequestResize container={panelContainer} controls={panelId} />
-    </div>{/if}
-  <aside
-    id={panelId}
-    class="relative min-w-0 overflow-hidden max-xl:hidden"
-    aria-label={selectedPr ? "Pull request" : "Thread details"}
-    inert={!panelOpen}
-    data-collapsed={!panelOpen || undefined}
-  >
-    <div
-      class="t-panel absolute inset-y-0 left-0 flex flex-col overflow-hidden"
-      style:width={selectedPr ? "100%" : "20rem"}
+  {#snippet sidebar()}
+    <WorkspaceSidebar
+      view={workspaceState.view}
+      wide={workspaceState.wide}
+      module={renderModule}
+      bind:sheet={panelSheet}
     >
-      <!-- The 48px title strip keeps the panel's content clear of the window controls on every desktop platform. -->
-      <div class="hidden desktop:block" data-window-end>
-        {#if thread}<ThreadTitleActions {thread} titlebar />{:else}<div class="h-12" data-window-drag></div>{/if}
-      </div>
-      {#if selectedPr}<PullRequestPanel id={selectedPr} {threadId} onclose={closePr} />{:else}<div
-          class="min-h-0 flex-1 scroll-stable-both overflow-y-auto px-1 py-3"
-        >
-          <!-- What the overview already knows (worker, model, status, lineage) shows at once; usage and tasks fill in. -->
-          {#if thread && tree}
-            <ThreadPanel
-              windowTitlebar
-              onworktree={manageWorktree}
-              {thread}
-              {tree}
-              {worker}
-              schedules={view.upcomingSchedules}
-              syncStatus={view.syncStatus}
-              backgroundTasks={allBackgroundTasks}
-              items={itemsById}
-              onbackground={openOutput}
-              onschedule={canSchedule ? openSchedule : undefined}
-              onschedulechange={(schedule) => view.upsertSchedule(schedule)}
-              secrets={view.secrets}
-              onsecretchange={(secret) => view.upsertSecret(secret)}
-              onnewside={canBranch ? openSide : undefined}
-            />
-          {:else}
-            <Skeleton class="h-72 rounded-2xl" />
-          {/if}
-        </div>
-      {/if}
-    </div>
-  </aside>
-</div>
+      {#snippet summary()}{@render threadPanel("summary")}{/snippet}
+    </WorkspaceSidebar>
+  {/snippet}
+</WorkspaceFrame>
 
-{#if selectedPr}<ThreadPullRequestSheet
-    id={selectedPr}
-    {threadId}
-    onclose={closePr}
-    onopen={() => (panelSheet = false)}
-  />{/if}
+{#snippet threadActions()}
+  {#if thread}<ThreadMenuItems {thread} omit={["open"]} />{/if}
+  <MenuItem icon="magnifying-glass" onselect={() => (searchOpen = true)}>Search thread</MenuItem>
+{/snippet}
 
-{#if thread?.worktree}
-  <Dialog bind:open={worktreeDialog} title="Worktree" size="lg">
-    {#if worktreeDialog}<WorktreeManagement worktreeId={thread.worktree.id} />{/if}
-  </Dialog>
-{/if}
-
-{#if thread && tree}
-  <Dialog bind:open={() => panelSheet && !selectedPr, (open) => (panelSheet = open)} title="Thread details">
+{#snippet threadPanel(mode: "summary" | WorkspaceModuleId)}
+  {#if thread && tree}
     <ThreadPanel
+      {mode}
       onworktree={manageWorktree}
       {thread}
       {tree}
@@ -863,16 +820,37 @@
       secrets={view.secrets}
       onsecretchange={(secret) => view.upsertSecret(secret)}
       onnewside={canBranch ? openSide : undefined}
-      class="-mx-1.5 shadow-none ring-0 dark:ring-0"
     />
+  {:else}<Skeleton class="h-72 rounded-2xl" />{/if}
+{/snippet}
+
+{#snippet renderModule(target: WorkspaceModuleTarget, full: boolean)}
+  {#if target.module === "pull-requests" && target.resource && full}
+    <PullRequestPanel id={target.resource} {threadId} onclose={() => workspaceState.view.select("thread")} />
+  {:else if target.module === "tasks" && target.resource && full}
+    {@const task = allBackgroundTasks.find((entry) => entry.id === target.resource)}
+    {#if task && thread}<BackgroundTaskDialog
+        embedded
+        entry={task}
+        threadId={thread.id}
+        cwd={thread.cwd}
+        source={itemsById.get(task.item.content.value.sourceItemId)}
+        onclose={() => workspaceState.view.select("thread")}
+      />
+    {:else}<EmptyState
+        title="Task output is outside the loaded history"
+        description="Open Tasks to choose another task."
+      />{/if}
+  {:else}{@render threadPanel(target.module)}{/if}
+{/snippet}
+
+{#if thread?.worktree}
+  <Dialog bind:open={worktreeDialog} title="Worktree" size="lg">
+    {#if worktreeDialog}<WorktreeManagement worktreeId={thread.worktree.id} />{/if}
   </Dialog>
-  {#if selectedTask}<BackgroundTaskDialog
-      bind:open={outputOpen}
-      entry={selectedTask}
-      threadId={thread.id}
-      cwd={thread.cwd}
-      source={itemsById.get(selectedTask.item.content.value.sourceItemId)}
-    />{/if}
+{/if}
+
+{#if thread && tree}
   <ThreadModelDialog bind:open={modelOpen} {thread} {worker} />
   <ThreadPermissionsDialog bind:open={permissionsOpen} {thread} />
   <GoalDialog

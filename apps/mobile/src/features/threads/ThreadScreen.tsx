@@ -42,6 +42,7 @@ import { useDevicePreferences } from "../settings/device-preferences";
 import { WorkspaceContext } from "../workspace/context";
 import { WorkspaceFile } from "../workspace/WorkspaceFile";
 import { VisibilityScope } from "../../ui/viewport";
+import { WorkspaceModule } from "../workspace/WorkspaceModule";
 
 export type ThreadState = ReturnType<typeof useThreadState>;
 
@@ -143,14 +144,15 @@ export function ThreadScreen({ id }: { id: string }) {
   const { workspace: store } = useSession();
   const workspace = useSyncExternalStore(store.subscribe, () => store.view(id));
   useSyncExternalStore(store.subscribe, () => workspace.active);
-  const fileTab = workspace.current;
+  const fileTab = workspace.currentFile;
+  const activeTab = workspace.current;
   useEffect(() => {
     warming?.yieldToNavigation();
   }, [warming, workspace.active]);
   useEffect(() => {
     store.touch(workspace);
 
-    return () => workspace.current?.document.cancel();
+    return () => workspace.currentFile?.document.cancel();
   }, [store, workspace]);
   useEffect(() => {
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -164,7 +166,7 @@ export function ThreadScreen({ id }: { id: string }) {
   }, [workspace]);
   const composer = useThreadComposer(state);
 
-  const [sheet, setSheet] = useState<"goal" | "side" | null>(null);
+  const [sheet, setSheet] = useState<"goal" | "side" | "modules" | null>(null);
 
   const { session, ready, snapshot, following, setDetails, projects, thread, turns, blocked } = state;
 
@@ -189,7 +191,14 @@ export function ThreadScreen({ id }: { id: string }) {
               thread={thread}
               project={projects.find((p) => p.id === thread?.projectId)}
               turns={turns}
-              onDetails={() => setDetails(true)}
+              onDetails={() => {
+                setSheet(null);
+                setDetails(true);
+              }}
+              onModules={() => {
+                setDetails(false);
+                setSheet("modules");
+              }}
               onSideThread={() => setSheet("side")}
               onGoal={
                 thread && takesGoals(thread) && (!snapshot?.goal || isFinishedGoal(snapshot.goal.status))
@@ -207,13 +216,13 @@ export function ThreadScreen({ id }: { id: string }) {
           <View
             style={[
               { flex: 1 },
-              fileTab ? { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, opacity: 0 } : undefined,
+              activeTab ? { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, opacity: 0 } : undefined,
             ]}
-            pointerEvents={fileTab ? "none" : "auto"}
-            accessibilityElementsHidden={Boolean(fileTab)}
-            importantForAccessibility={fileTab ? "no-hide-descendants" : "auto"}
+            pointerEvents={activeTab ? "none" : "auto"}
+            accessibilityElementsHidden={Boolean(activeTab)}
+            importantForAccessibility={activeTab ? "no-hide-descendants" : "auto"}
           >
-            <VisibilityScope visible={!fileTab}>
+            <VisibilityScope visible={!activeTab}>
               <DropZone draft={state.message.files} disabled={blocked || state.home.away}>
                 {viewLoaded && <ThreadTimeline state={state} composer={composer} />}
                 <FloatingComposer
@@ -233,6 +242,9 @@ export function ThreadScreen({ id }: { id: string }) {
             </VisibilityScope>
           </View>
           {fileTab && <WorkspaceFile key={`${id}:${fileTab.id}`} view={workspace} tab={fileTab} />}
+          {activeTab?.kind === "module" && (
+            <WorkspaceModule key={`${id}:${activeTab.id}`} state={state} target={activeTab} />
+          )}
         </ChatKeyboard>
         <ThreadSheets state={state} sheet={sheet} onClose={() => setSheet(null)} />
       </ScreenFrame>

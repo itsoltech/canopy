@@ -13,11 +13,13 @@ import { useViewedCount } from "./useViewedCount";
 import { useReviewDraft } from "./useReviewDraft";
 import { ReviewBar } from "./ReviewBar";
 import { ListSkeleton } from "../../ui/Skeleton";
+import { usePanelScroll } from "./panel-view";
 
 export function PullRequestCode({ snapshot, header }: { snapshot: github.PullRequestSnapshot; header: ReactNode }) {
   const c = useColors();
   const type = useTypography();
   const padding = useContentPadding();
+  const scroll = usePanelScroll("code");
   const { pages, commits, commitSha, setCommit, selected, patch, busy, error, open, toggle } = useCodeRead(snapshot);
   const [picker, setPicker] = useState(false);
   const [tree, setTree] = useState(false);
@@ -31,6 +33,7 @@ export function PullRequestCode({ snapshot, header }: { snapshot: github.PullReq
     <>
       <ReviewBar snapshot={snapshot} draft={draft} />
       <SectionList
+        {...scroll}
         sections={rows.map((row) => ({
           ...row,
           data: row.kind === "file" && selected?.path === row.file.path ? [row.file] : [],

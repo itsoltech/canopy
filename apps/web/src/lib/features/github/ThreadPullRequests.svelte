@@ -14,11 +14,13 @@
   import { checkLook } from "@canopy/domain/github-pr";
   import { pullRequestHref } from "./presentation.ts";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
+  import { useWorkspace } from "#lib/features/workspace/workspace.svelte.ts";
 
   let { thread, class: className }: { thread: ui.Thread; class?: ClassValue } = $props();
   let expanded = $state(false);
   let creating = $state(false);
   let error = $state("");
+  const workspace = useWorkspace();
 
   const read = $derived(
     new SharedRead<github.ThreadPullRequestsResponse>(
@@ -48,7 +50,15 @@
         <li class="min-w-0 text-sm/5 sm:text-xs/5">
           <PanelRow
             icon="git-fork"
-            href={pullRequestHref(thread.id, pr.ref.id)}
+            href={workspace ? undefined : pullRequestHref(thread.id, pr.ref.id)}
+            onclick={workspace
+              ? () =>
+                  workspace().openModule({
+                    module: "pull-requests",
+                    resource: pr.ref!.id,
+                    label: `#${pr.ref!.number} · ${pr.title || pr.ref!.repositoryName}`,
+                  })
+              : undefined}
             class={link.currentBranch ? "bg-zinc-950/5 dark:bg-white/8" : undefined}
           >
             {#snippet lead()}<PullRequestState state={pr.state} iconOnly />{/snippet}

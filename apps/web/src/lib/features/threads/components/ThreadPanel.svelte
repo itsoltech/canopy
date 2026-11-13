@@ -21,6 +21,8 @@
   import { useThreadPanel } from "../thread-panel.svelte.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { awayReason } from "#lib/features/computers/computers.ts";
+  import { useWorkspace } from "#lib/features/workspace/workspace.svelte.ts";
+  import type { WorkspaceModuleId } from "@canopy/domain/workspace-modules";
 
   const capabilities = useGatewayCapabilities();
 
@@ -45,6 +47,7 @@
     onnewside,
     onworktree,
     windowTitlebar = false,
+    mode = "summary",
     class: className,
   }: {
     thread: ui.Thread;
@@ -64,6 +67,7 @@
     onnewside?: (() => void) | undefined;
     onworktree: () => void;
     windowTitlebar?: boolean;
+    mode?: "summary" | WorkspaceModuleId;
     class?: ClassValue;
   } = $props();
 
@@ -73,6 +77,7 @@
 
   const lookup = (id: string) => (tree.main.id === id ? tree.main : tree.sides.find((s) => s.id === id));
   const directory = useThreadDirectory();
+  const workspace = useWorkspace();
   const overview = useOverview();
   const panel = useThreadPanel(() => thread.id);
   const homeName = $derived(overview.machine(thread.nodeId) || "this computer");
@@ -100,30 +105,43 @@
     className,
   ]}
 >
-  <ThreadTitleActions {thread} compact class={windowTitlebar ? "desktop:hidden" : undefined} />
+  {#if mode === "summary"}<ThreadTitleActions
+      {thread}
+      compact
+      class={windowTitlebar ? "desktop:hidden" : undefined}
+    />{/if}
   {#if stale}<p role="status" class="px-3 py-2 text-sm/5 text-zinc-500 dark:text-zinc-400">
       {#if panel.data?.unavailable}Thread details are unavailable. Manage on {homeName}.
       {:else}{away || `Thread details on ${homeName} are unreachable.`} Showing last known details.{/if}
     </p>{/if}
-  <ThreadConnectors {thread} {panel} {homeName} disabled={stale} />
-  <ThreadPlacement {thread} {worker} {onworktree} />
-  {#if thread.permissionModeNote}<p class="px-3 py-2 text-sm text-pretty text-zinc-600 sm:text-xs dark:text-zinc-400">
+  {#if mode === "connectors"}<ThreadConnectors {thread} {panel} {homeName} disabled={stale} />{/if}
+  {#if mode === "summary"}<ThreadPlacement {thread} {worker} {onworktree} />{/if}
+  {#if mode === "summary" && thread.permissionModeNote}<p
+      class="px-3 py-2 text-sm text-pretty text-zinc-600 sm:text-xs dark:text-zinc-400"
+    >
       {thread.permissionModeNote}
     </p>{/if}
-  {#if capabilities?.supports("/pull-requests") !== false}<ThreadPullRequests {thread} />{:else}<p
-      class="px-3 py-2 text-sm text-zinc-500"
-    >
+  {#if mode === "pull-requests" && capabilities?.supports("/pull-requests") !== false}<ThreadPullRequests
+      {thread}
+    />{:else if mode === "pull-requests"}<p class="px-3 py-2 text-sm text-zinc-500">
       Update Canopy on your gateway to link pull requests
     </p>{/if}
 
-  {#if onbackground}<BackgroundTasksSection
+  {#if mode === "summary" && thread.newestPullRequest?.ref}
+    {@const resource = thread.newestPullRequest.ref.id}
+    <PanelRow icon="git-fork" onclick={() => workspace?.().openModule({ module: "pull-requests", resource })}>
+      {thread.newestPullRequest.title || `Pull request #${thread.newestPullRequest.ref.number}`}
+    </PanelRow>
+  {/if}
+
+  {#if mode === "tasks" && onbackground}<BackgroundTasksSection
       tasks={backgroundTasks}
       threadId={thread.id}
       {items}
       onopen={onbackground}
     />{/if}
 
-  {#if activeSecrets.length > 0 && onsecretchange}
+  {#if mode === "summary" && activeSecrets.length > 0 && onsecretchange}
     <section aria-labelledby="secrets-title" class="grid min-w-0 grid-cols-1 px-1.5 py-1">
       <h2 id="secrets-title" class="px-2 py-0.5 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Secrets</h2>
       <ul role="list" class="grid grid-cols-1 gap-0.5">
@@ -134,7 +152,7 @@
     </section>
   {/if}
 
-  {#if thread}
+  {#if mode === "tasks"}
     <section aria-labelledby="schedules-title" class="grid min-w-0 grid-cols-1 px-1.5 py-1">
       <h2 id="schedules-title" class="px-2 py-0.5 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
         Scheduled tasks
@@ -166,7 +184,7 @@
     </section>
   {/if}
 
-  {#if thread.forkSourceThreadId}
+  {#if mode === "summary" && thread.forkSourceThreadId}
     <section aria-label="Fork" class="grid min-w-0 grid-cols-1 px-1.5 py-1">
       <PanelRow icon="square-2-stack" href="/threads/{thread.forkSourceThreadId}">
         Forked from {source?.title ?? "another thread"}
@@ -181,5 +199,5 @@
     </section>
   {/if}
 
-  <ThreadLineage {tree} currentId={thread.id} {onnewside} />
+  {#if mode === "summary"}<ThreadLineage {tree} currentId={thread.id} {onnewside} />{/if}
 </div>

@@ -5,16 +5,14 @@ import { useOverview } from "../../state/overview";
 import { Button, Sheet } from "../../ui/components";
 import { Icon } from "../../ui/Icon";
 import { styles, useColors } from "../../ui/theme";
-import { ThreadConnectors } from "./ThreadConnectors";
 import { useThreadPanel } from "./use-thread-panel";
 import { ThreadPlacement } from "./ThreadPlacement";
-import { ThreadBackgroundTasks } from "./ThreadBackgroundTasks";
 import { SubagentLineage } from "./SubagentLineage";
 import { SecretGrants } from "./ThreadSecrets";
 import { useComputerHome } from "../computers/presence";
 import { useSession } from "../../state/session";
 import { openSettingsSection } from "../settings/navigation";
-import { ThreadPullRequests } from "../github/ThreadPullRequests";
+import { useWorkspace } from "../workspace/context";
 
 export function PanelRow({
   title,
@@ -64,6 +62,7 @@ export function ThreadPanel({
   const home = useComputerHome(thread?.nodeId);
   const { online } = useSession();
   const panel = useThreadPanel(thread?.id ?? "", visible && !!thread);
+  const workspace = useWorkspace();
 
   const stale =
     home.away || !online || syncStatus?.reason === "computer_unreachable" || !!panel.data?.stale || !!panel.error;
@@ -98,7 +97,6 @@ export function ThreadPanel({
                 : `${home.reason || `Thread details on ${home.name} are unreachable.`} Showing last known details.`}
             </Text>
           )}
-          <ThreadConnectors {...{ thread, panel }} disabled={stale} homeName={home.name} />
           <View
             style={{
               borderWidth: 1,
@@ -117,22 +115,18 @@ export function ThreadPanel({
               <Text style={[styles.meta, { color: c.muted }]}>{thread.permissionModeNote}</Text>
             )}
           </View>
-          {visible && <ThreadPullRequests thread={thread} onClose={onClose} />}
-          {visible && <SecretGrants secrets={snapshot?.secrets ?? []} disabled={home.away || !online} />}
-          {snapshot && (
-            <ThreadSchedules
-              snapshot={snapshot}
-              schedules={
-                thread.nodeId || stale || !snapshot.schedules.length
-                  ? (panel.data?.schedules ?? snapshot.schedules)
-                  : snapshot.schedules
-              }
-              unavailable={!!panel.data?.unavailable}
-              disabled={stale}
-              onClose={onClose}
+          {thread.newestPullRequest?.ref && (
+            <Button
+              title={thread.newestPullRequest.title || "Open pull request"}
+              onPress={() => {
+                const id = thread.newestPullRequest?.ref?.id;
+
+                if (id) workspace?.openModule({ module: "pull-requests", resource: id });
+                onClose();
+              }}
             />
           )}
-          {snapshot && <ThreadBackgroundTasks snapshot={snapshot} disabled={home.away || !online} />}
+          {visible && <SecretGrants secrets={snapshot?.secrets ?? []} disabled={home.away || !online} />}
           <Text style={[styles.label, { color: c.text }]}>Lineage</Text>
           {lineage.length || subagents.length ? (
             lineage.map((t) => <Button key={t.id} title={t.title} onPress={() => openThread(t.id)} />)
@@ -146,7 +140,7 @@ export function ThreadPanel({
   );
 }
 
-function ThreadSchedules({
+export function ThreadSchedules({
   snapshot,
   schedules,
   unavailable,

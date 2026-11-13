@@ -8,6 +8,34 @@ jako `GET/PUT /api/threads/:id/panel`; mobile używa tych samych RPC bezpośredn
 Połączone gatewaye negocjują `remote_thread_panel_v1`; cache odpowiedzi po utracie
 domu oznaczamy `stale`, a brak ostatniej odpowiedzi także `unavailable`.
 Żadne poświadczenia ani endpointy connectorów nie wchodzą do tego DTO.
+
+## Moduły workspace'u wątku
+
+`features/workspace` rejestruje wewnętrzne moduły Pull requests, Tasks i Connectors
+przez wspólne deskryptory `@canopy/domain/workspace-modules`. Klucz pełnej karty
+obejmuje moduł i kwalifikowane id zasobu we właściwym wątku. `+` w nagłówku otwiera
+utrwaloną kartę; `+` prawego panelu zastępuje jego jedyny moduł. Maksymalizacja
+aktywuje pełną kartę, zachowując panel. Zamykanie kart nie usuwa PR ani zadań.
+Moduły korzystają z dotychczasowych owner-scoped RPC i wspólnego cache zapytań;
+nie powstaje drugi watch historii. Nieaktywne pełne moduły są odmontowane.
+
+Na szerokim obszarze wątku pasek ikon wybiera moduł, a ponowny wybór oddaje panel
+podsumowaniu. Bez modułu Thread details jest domyślnie dokowane. Przy module
+przycisk szczegółów otwiera przejściową kartę: outside click/Escape ją zamyka.
+Zwężenie obszaru przenosi moduły i szczegóły do osobnych arkuszy; nie otwiera ich
+automatycznie. Panel pozostawia co najmniej 38 rem głównej treści. Jego szerokość
+256–384 px, zwinięcie, wybrany moduł i karty są lokalne dla urządzenia. Uchwyt
+obsługuje klawiaturę i zapisuje szerokość po zakończeniu zmiany. Zajęcie panelu
+nie zależy od aktywnej karty głównej. Stare odnośniki `?pr=` otwierają kartę PR.
+
+PR zachowuje Summary/Timeline/Code, akcje wierszy i ostatnią zawartość podczas
+odświeżania. Tasks rozdziela zadania w tle i harmonogramy; wybrany wynik jest
+pełną kartą z istniejącymi akcjami cytowania i zatrzymania. Granty connectorów
+nadal obejmują workera i wszystkie jego wątki. Metadane sekretów i lineage
+pozostają w podsumowaniu; oczekujące interakcje pozostają przy rozmowie.
+
+## Odczyty panelu
+
 `ListArchivedThreads` łączy lokalne strony z zatwierdzonymi metadanymi luster,
 więc lista i licznik obejmują te same widoczne domy.
 
@@ -407,7 +435,7 @@ Odświeżanie jest single-flight, z cooldownem/backoffem po stronie gatewaya.
 Arkusz „Thread details” ma stały nagłówek; tytuł wątku i menu zmiany nazwy są
 pokazane raz, we wspólnym `ThreadPanel` używanym też na desktopie. Pełny tytuł
 jest dostępny w tooltipie (na telefonie po przytrzymaniu) i w dialogu zmiany nazwy.
-Pusta lista konektorów zajmuje jeden wiersz „Connectors · None” z linkiem „Manage”.
+Pusta lista konektorów w module Connectors zajmuje jeden wiersz „Connectors · None” z linkiem „Manage”.
 Panel web/desktop i mobile nie powtarza modelu, uprawnień, statusu ani zużycia tokenów i kosztu.
 Model i uprawnienia pozostają w kompozytorze, a status w nagłówku wątku i sidebarze.
 Sekcja położenia ma osobne wiersze komputera, pełnej zawijanej ścieżki „Worktree”/„Directory”

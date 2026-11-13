@@ -13,7 +13,8 @@ import { PullRequestStatus } from "./PullRequestStatus";
 import { checkLook } from "@canopy/domain/github-pr";
 import { CheckStateIcon } from "./CheckStateIcon";
 import { toast } from "../../ui/Toast";
-import { useForegroundInterval } from "../../ui/interval";
+import { useQueryRefresh } from "../../state/query-refresh";
+import { useWorkspace } from "../workspace/context";
 
 export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onClose: () => void }) {
   const { client, queries, online } = useSession();
@@ -22,7 +23,7 @@ export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onC
   const [linking, setLinking] = useState(false);
   const [creating, setCreating] = useState(false);
   const key = `ListThreadPullRequests:${thread.id}:${thread.pullRequestRevision}`;
-  useForegroundInterval(() => queries.invalidate(key), 60_000, online);
+  useQueryRefresh(key, 60_000, online);
 
   const read = useSharedQuery<github.ThreadPullRequestsResponse>(
     key,
@@ -109,6 +110,8 @@ function ThreadPullRequestRow({
   const c = useColors(),
     pr = link.summary;
 
+  const workspace = useWorkspace();
+
   if (!pr?.ref) return null;
 
   return (
@@ -128,7 +131,17 @@ function ThreadPullRequestRow({
         })}
         onPress={() => {
           onClose();
-          router.push({ pathname: "/pull-request/[id]", params: { id: pr.ref!.id, threadId } });
+          const id = pr.ref?.id;
+
+          if (!id) return;
+
+          if (workspace)
+            workspace.openModule({
+              module: "pull-requests",
+              resource: id,
+              label: `#${pr.ref?.number} · ${pr.title || pr.ref?.repositoryName}`,
+            });
+          else router.push({ pathname: "/pull-request/[id]", params: { id, threadId } });
         }}
       >
         <PullRequestStatus state={pr.state} iconOnly />

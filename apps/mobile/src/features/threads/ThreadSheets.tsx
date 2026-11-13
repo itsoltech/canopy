@@ -4,6 +4,7 @@ import { SideThreadSheet } from "./SideThreadSheet";
 import { QueueEditor } from "./QueuedMessage";
 import type { ThreadState } from "./ThreadScreen";
 import { TimelineDirectoryProvider, type TimelineDirectory } from "../timeline/directory";
+import { WorkspaceModules } from "../workspace/WorkspaceModules";
 
 export function ThreadSheets({
   state,
@@ -11,7 +12,7 @@ export function ThreadSheets({
   onClose,
 }: {
   state: ThreadState;
-  sheet: "goal" | "side" | null;
+  sheet: "goal" | "side" | "modules" | null;
   onClose: () => void;
 }) {
   const { snapshot, thread } = state;
@@ -32,6 +33,7 @@ export function ThreadSheets({
         visible={!state.home.away && sheet === "goal"}
         onClose={onClose}
       />
+      <WorkspaceModules state={state} visible={sheet === "modules"} onClose={onClose} />
       <SideThreadSheet main={thread} visible={!state.home.away && sheet === "side"} onClose={onClose} />
       <QueueEditor turn={state.home.away ? undefined : state.editing} onClose={() => state.setEditing(undefined)} />
     </>

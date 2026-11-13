@@ -118,6 +118,24 @@
   }
 }
 
+/* Workspace sheets retain their placement between phone and docked-sidebar widths. */
+.t-modal[data-sheet="force"] {
+  transition-duration: var(--duration-medium);
+}
+.t-modal[data-sheet="force"][open] {
+  translate: 0 var(--sheet-drag, 0px);
+  transition-duration: var(--duration-slow);
+}
+.t-modal[data-sheet="force"][data-dragging] {
+  transition-duration: 0s;
+}
+.t-modal[data-sheet="force"]::backdrop {
+  transition-duration: var(--duration-medium);
+}
+.t-modal[data-sheet="force"][open]::backdrop {
+  transition-duration: var(--duration-slow);
+}
+
 /* --- Drawer (panel reveal 07): the mobile navigation from the left edge -------------------------------- */
 .t-drawer {
   translate: -100% 0;
@@ -350,6 +368,27 @@
   .t-panel-column,
   .t-panel {
     transition: none !important;
+  }
+}
+
+.t-workspace-surface {
+  transition: opacity var(--duration-quick) var(--ease-smooth-out);
+}
+.t-workspace-surface[data-leaving] {
+  opacity: 0;
+}
+.t-workspace-surface:not([data-leaving]) > * {
+  animation: t-rise var(--duration-fast) var(--ease-smooth-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspace-summary {
+    transition: none !important;
+  }
+  .t-workspace-surface {
+    transition: none;
+  }
+  .t-workspace-surface > * {
+    animation: none !important;
   }
 }
 

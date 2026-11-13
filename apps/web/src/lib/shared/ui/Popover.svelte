@@ -144,7 +144,7 @@
         panel.hidePopover();
 
         if (hadFocus && (document.activeElement === document.body || panel.contains(document.activeElement))) {
-          untrack(() => anchorElement ?? anchor)?.focus({ preventScroll: true });
+          untrack(() => anchor ?? anchorElement)?.focus({ preventScroll: true });
         }
 
         const exit = exitDuration(panel);
@@ -195,7 +195,7 @@
 
       if (!panel || !(target instanceof Node)) return;
 
-      if ((anchorElement ?? anchor)?.contains(target)) return;
+      if (anchor?.contains(target) || anchorElement?.contains(target)) return;
 
       if (target === panel && narrow) {
         // The sheet's backdrop belongs to the panel element: close when the press is outside its box.
@@ -218,7 +218,7 @@
         event.key === "Escape" &&
         !event.defaultPrevented &&
         (event.target === document.body ||
-          (event.target instanceof Node && (anchorElement ?? anchor)?.contains(event.target)))
+          (event.target instanceof Node && (anchor?.contains(event.target) || anchorElement?.contains(event.target))))
       ) {
         event.preventDefault();
         open = false;
@@ -249,7 +249,7 @@
     if (next instanceof Node && panel && !panel.contains(next)) {
       focusInside = false;
 
-      if (!(anchorElement ?? anchor)?.contains(next)) open = false;
+      if (!anchor?.contains(next) && !anchorElement?.contains(next)) open = false;
     }
   }
 </script>

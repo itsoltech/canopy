@@ -2,6 +2,7 @@
   import type { ThreadWorkspace } from "./thread-workspace.svelte.ts";
   import { contributeCommands } from "#lib/features/commands/commands.svelte.ts";
   import { keybindings } from "#lib/features/commands/keybindings.svelte.ts";
+  import { tabPath } from "@canopy/domain/workspace-modules";
 
   let { workspace }: { workspace: ThreadWorkspace } = $props();
 
@@ -21,7 +22,7 @@
         { id: "thread", title: "Thread", group: "actions", run: () => workspace.view.select("thread") },
         ...workspace.view.tabs.map((tab) => ({
           id: tab.id,
-          title: tab.document.path,
+          title: tabPath(tab),
           group: "actions" as const,
           run: () => workspace.view.select(tab.id),
         })),
