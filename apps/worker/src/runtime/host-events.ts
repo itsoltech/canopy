@@ -18,6 +18,23 @@ import { workerDiagnostics } from "../diagnostics/worker.ts";
 export class HostEvents {
   constructor(readonly ctx: HostContext) {}
   publish(event: ThreadEvent): void {
+    const images = this.ctx.state.markdownImages;
+
+    if (
+      images.hold(
+        event,
+        (held) => this.#publish(held),
+        () => Boolean(this.ctx.state.link),
+      )
+    )
+      return;
+    const itemId = images.observe(event);
+    this.#publish(event);
+
+    if (itemId) images.enqueue(event, itemId, (request, signal) => this.callTool(request, signal));
+  }
+
+  #publish(event: ThreadEvent): void {
     const key = `${event.threadId}/${event.turnId}`;
 
     if (event.body.case === "turnStarted") this.ctx.state.running.add(key);

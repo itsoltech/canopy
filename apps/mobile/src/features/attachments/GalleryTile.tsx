@@ -7,7 +7,15 @@ import { useImageVisibility } from "./image-viewport";
 import { gallerySource } from "./gallery-source";
 import { useImage } from "./useImage";
 
-export function GalleryTile({ image, onOpen }: { image: GalleryImage; onOpen: () => void }) {
+export function GalleryTile({
+  image,
+  onOpen,
+  showCaption = true,
+}: {
+  image: GalleryImage;
+  onOpen: () => void;
+  showCaption?: boolean;
+}) {
   const c = useColors();
   const type = useTypography();
   const source = useMemo(() => gallerySource(image), [image]);
@@ -55,12 +63,14 @@ export function GalleryTile({ image, onOpen }: { image: GalleryImage; onOpen: ()
           </Pressable>
         )}
       </View>
-      <View style={{ minHeight: 52, gap: 2 }}>
-        {side ? <Text style={[type.small, { color: c.text }]}>{side}</Text> : null}
-        <Text numberOfLines={2} accessibilityLabel={caption} style={[type.small, { color: c.muted }]}>
-          {caption}
-        </Text>
-      </View>
+      {showCaption ? (
+        <View style={{ minHeight: 52, gap: 2 }}>
+          {side ? <Text style={[type.small, { color: c.text }]}>{side}</Text> : null}
+          <Text numberOfLines={2} accessibilityLabel={caption} style={[type.small, { color: c.muted }]}>
+            {caption}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }

@@ -54,12 +54,12 @@
   });
 </script>
 
-<div class={["grid min-w-0 items-center gap-2", className]}>
+<span class={["grid min-w-0 items-center gap-2", className]}>
   {#if failure}
-    <div class="grid min-w-0 justify-items-start gap-1 p-3">
-      <p role="alert" class="max-w-prose break-words">{failure}</p>
+    <span class="grid min-w-0 justify-items-start gap-1 p-3">
+      <span role="alert" class="max-w-prose break-words">{failure}</span>
       <Button variant="ghost" size="sm" onclick={() => retry++}>Retry</Button>
-    </div>
+    </span>
   {:else if url}
     {#snippet loadedImage()}<img
         src={url}
@@ -79,6 +79,6 @@
       {@render loadedImage()}
     {/if}
   {:else}
-    <p role="status" class="p-3">Loading image…</p>
+    <span role="status" class="p-3">Loading image…</span>
   {/if}
-</div>
+</span>

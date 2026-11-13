@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
-import { Animated, Pressable } from "react-native";
+import { Animated, Pressable, Text } from "react-native";
 import type { AgentMessage } from "@canopy/contracts";
 import { Markdown } from "../../ui/markdown";
 import { useReducedMotion } from "../../ui/motion";
-import { useColors } from "../../ui/theme";
+import { useColors, useTypography } from "../../ui/theme";
 import { useMessageActions } from "./useMessageActions";
 import { useAppActive } from "../../ui/active";
 import { useViewportVisibility } from "../../ui/viewport";
 import { ThreadFileLinks } from "../files/ThreadFileLinks";
+import { MessageImage } from "./MessageImage";
+import { GalleryViewer } from "../attachments/GalleryViewer";
 
 /** Agent prose stays primary reading content, inside work folds and in the answer slot (web: AgentMessageView). */
 export function AgentMessageView({
@@ -20,14 +22,39 @@ export function AgentMessageView({
   itemId: string;
 }) {
   const actions = useMessageActions(message.text, "agent_message", !streaming);
+  const colors = useColors();
+  const type = useTypography();
+  const [selected, setSelected] = useState<number>();
 
   return (
     <ThreadFileLinks itemId={itemId}>
       <Pressable {...actions.trigger} accessibilityState={{ busy: streaming }}>
-        <Markdown text={message.text} selectable={!actions.available} />
+        <Markdown
+          text={message.text}
+          selectable={!actions.available}
+          image={(value) => (
+            <MessageImage
+              {...{ value, message, streaming }}
+              onOpen={(image) => setSelected(message.images.indexOf(image))}
+            />
+          )}
+        />
+        {message.imageError ? (
+          <Text accessibilityRole="alert" style={[type.small, { color: colors.muted, marginTop: 8 }]}>
+            {message.imageError}
+          </Text>
+        ) : null}
         {streaming && <Caret />}
       </Pressable>
       {actions.menu}
+      {selected !== undefined ? (
+        <GalleryViewer
+          images={message.images}
+          selected={selected}
+          onSelect={setSelected}
+          onClose={() => setSelected(undefined)}
+        />
+      ) : null}
     </ThreadFileLinks>
   );
 }

@@ -1,6 +1,5 @@
-import { create, toJson, type JsonValue } from "@bufbuild/protobuf";
-import { timestampNow } from "@bufbuild/protobuf/wkt";
-import { GalleryImageSchema, ItemSchema, ItemStatus, ThreadEventSchema, type GalleryImage } from "@canopy/contracts";
+import { create, type JsonValue } from "@bufbuild/protobuf";
+import { GalleryImageSchema, ItemSchema, ItemStatus, type GalleryImage } from "@canopy/contracts";
 import type { AgentBusArgs } from "@canopy/domain";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
@@ -9,6 +8,7 @@ import { AttachmentStore } from "./attachments.ts";
 import { insertCall } from "./agent-bus-queries.ts";
 import { lockImageSource, type ImageLease, type ImagePublication } from "./image-publications.ts";
 import { Invalid } from "./store.ts";
+import { imageMessageItem, writeImageItem } from "./image-message.ts";
 
 /** Attachments, immutable transcript manifest, audit, quota accounting and receipt commit together. */
 export function commitImageGallery(
@@ -50,40 +50,23 @@ export function commitImageGallery(
             caption: description.caption ?? "",
             pair: description.pair ?? "",
             side: description.side ?? "",
-            markdownStart: 0,
-            markdownEnd: 0,
+            markdownStart: input.markdown?.references[index]?.start ?? 0,
+            markdownEnd: input.markdown?.references[index]?.end ?? 0,
+            sourcePath: input.markdown?.references[index]?.href ?? "",
           }),
         );
       }
 
-      const itemId = `gallery-${input.source.callId}`;
+      const item = input.markdown
+        ? yield* imageMessageItem(sql, input.source, input.markdown, images)
+        : create(ItemSchema, {
+            itemId: `gallery-${input.source.callId}`,
+            status: ItemStatus.COMPLETED,
+            content: { case: "imageGallery", value: { images, caption: args.caption ?? "" } },
+          });
 
-      const item = create(ItemSchema, {
-        itemId,
-        status: ItemStatus.COMPLETED,
-        content: { case: "imageGallery", value: { images, caption: args.caption ?? "" } },
-      });
-
-      const locked = yield* sql<{ last_seq: string }>`SELECT last_seq FROM threads
-        WHERE id=${input.source.threadId}::uuid`;
-
-      const seq = BigInt(locked[0]!.last_seq) + 1n;
-
-      const event = create(ThreadEventSchema, {
-        eventId: Bun.randomUUIDv7(),
-        threadId: input.source.threadId,
-        turnId: input.source.turnId,
-        occurredAt: timestampNow(),
-        body: { case: "itemCompleted", value: { item } },
-      });
-
-      yield* sql`INSERT INTO thread_events(thread_id,seq,event_id,origin,turn_id,kind,item_id,payload,occurred_at)
-        VALUES (${input.source.threadId}::uuid,${seq},${event.eventId}::uuid,'gateway',${input.source.turnId}::uuid,
-          'item_completed',${itemId},${JSON.stringify(toJson(ThreadEventSchema, event))}::jsonb,now())`;
-      yield* sql`INSERT INTO thread_items(thread_id,item_id,turn_id,type,status,content,first_seq,last_seq)
-        VALUES (${input.source.threadId}::uuid,${itemId},${input.source.turnId}::uuid,'image_gallery','completed',
-          ${JSON.stringify(toJson(ItemSchema, item))}::jsonb,${seq},${seq})`;
-      yield* sql`UPDATE threads SET last_seq=${seq} WHERE id=${input.source.threadId}::uuid`;
+      const itemId = item.itemId;
+      const { seq, event } = yield* writeImageItem(sql, input.source, item);
       yield* sql`UPDATE thread_image_publications SET state='committed',size_bytes=${chargedBytes}
         WHERE call_id=${input.source.callId}::uuid AND lease_token=${lease.token}::uuid`;
 
@@ -93,7 +76,13 @@ export function commitImageGallery(
         attachment_ids: images.map((image) => image.attachmentId),
       };
 
-      yield* insertCall(sql, { source: input.source, tool: "show_images", args, status: "completed", result });
+      yield* insertCall(sql, {
+        source: input.source,
+        tool: input.markdown ? "import_image_reply" : "show_images",
+        args: input.markdown ? { item_id: input.markdown.itemId } : args,
+        status: "completed",
+        result,
+      });
       yield* sql`INSERT INTO audit_log(id,actor_user_id,action,target_type,target_id,details)
         VALUES (${input.source.callId}::uuid,${input.ownerId}::uuid,'thread.show_images','thread',
           ${input.source.threadId}::uuid,${JSON.stringify({ count: files.length, size_bytes: chargedBytes, item_id: itemId })}::jsonb)`;

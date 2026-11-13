@@ -1864,6 +1864,11 @@ Alt trafia do czytnika, stan pary ma etykietę i wybrane taby, a kontrolki respe
 tokeny ruchu i ustawienie reduced motion. Nie dodajemy modułów ani zmian natywnych;
 fingerprint pozostaje granicą zgodności, a eksport JS nie zastępuje odbioru na urządzeniu.
 
+Obrazy Markdown w odpowiedzi agenta otwierają ten sam viewer. Klient używa
+manifestu zapisanego przez gateway, nie lokalnej ścieżki workera. Stała ramka
+zachowuje wysokość podczas importu i dekodowania. Niezapisany obraz pozostaje
+linkiem do pliku, a zdalny obraz linkiem zewnętrznym bez automatycznego pobierania.
+
 ## Źródła sprawdzone dla tego wdrożenia
 
 - [Expo SDK 58](https://expo.dev/changelog/sdk-58), [expo/fetch i Encoding APIs](https://docs.expo.dev/versions/v58.0.0/sdk/expo/).

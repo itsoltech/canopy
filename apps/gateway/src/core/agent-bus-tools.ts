@@ -37,6 +37,8 @@ export async function busExecute(
   switch (call.tool) {
     case "show_images":
       return hostContext[busState].host.showImages(source, caller, call.args);
+    case "import_image_reply":
+      return hostContext[busState].host.importImageReply(source, caller, call.args.item_id);
     case "request_secret":
       return hostContext[busState].host.requestSecret(source, call.args);
     case "ask_user": {

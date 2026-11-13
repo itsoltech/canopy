@@ -54,6 +54,7 @@ describe("tool sets per level", () => {
       "get_answers",
       "get_background_task",
       "get_thread",
+      "import_image_reply",
       "list_agents",
       "list_background_tasks",
       "list_schedules",
@@ -68,6 +69,7 @@ describe("tool sets per level", () => {
       "wait_threads",
     ]);
     expect(agentBusToolSpecs(agentBusToolsFor(1)).map((s) => s.name)).not.toContain("spawn_thread");
+    expect(agentBusToolSpecs().map((s) => s.name)).not.toContain("import_image_reply");
   });
 });
 

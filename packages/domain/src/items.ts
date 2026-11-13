@@ -117,7 +117,15 @@ function keepAccumulated(previous: Item, next: Item): void {
 
   switch (after.case) {
     case "agentMessage":
-      if (before.case === "agentMessage" && !after.value.text) after.value.text = before.value.text;
+      if (before.case === "agentMessage") {
+        if (!after.value.text) after.value.text = before.value.text;
+
+        if (after.value.text === before.value.text && !after.value.images.length && !after.value.imageError) {
+          after.value.images = before.value.images;
+          after.value.imageError = before.value.imageError;
+        }
+      }
+
       break;
     case "reasoning":
       if (before.case === "reasoning") {

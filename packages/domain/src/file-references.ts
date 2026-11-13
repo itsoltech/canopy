@@ -106,3 +106,7 @@ export function fileHrefOf(href: string): string | undefined {
 }
 
 export const fileName = (path: string): string => path.split(/[\\/]/).filter(Boolean).at(-1) ?? path;
+
+/** A standalone image path in prose is a file action, never a source to load automatically. */
+export const imageFilePathOf = (text: string): string | undefined =>
+  /\.(?:png|jpe?g|gif|webp|avif|svg)(?::\d+(?::\d+)?)?$/i.test(text.trim()) ? filePathOf(text) : undefined;

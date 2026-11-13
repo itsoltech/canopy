@@ -4,6 +4,7 @@ import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import type { CallSource } from "./agent-bus-types.ts";
 import { Invalid } from "./store.ts";
+import type { ImageMessageSource } from "./image-message.ts";
 
 export interface ImagePublication {
   source: CallSource;
@@ -12,6 +13,7 @@ export interface ImagePublication {
   requestHash: string;
   count: number;
   maxBytes: number;
+  markdown?: ImageMessageSource;
 }
 
 export interface ImageLease {

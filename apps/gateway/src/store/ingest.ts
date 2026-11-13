@@ -111,10 +111,17 @@ export const ingestThread = (
         known.add(incoming.eventId);
         const seq = ++last;
 
+        const content =
+          incoming.body.case === "itemStarted" || incoming.body.case === "itemCompleted"
+            ? incoming.body.value.item?.content
+            : undefined;
+
         const gatewayGallery =
           origin === "worker" &&
-          (((incoming.body.case === "itemStarted" || incoming.body.case === "itemCompleted") &&
-            incoming.body.value.item?.content.case === "imageGallery") ||
+          ((content?.case === "agentMessage" &&
+            (content.value.images.length > 0 || Boolean(content.value.imageError))) ||
+            ((incoming.body.case === "itemStarted" || incoming.body.case === "itemCompleted") &&
+              incoming.body.value.item?.content.case === "imageGallery") ||
             ((incoming.body.case === "itemStarted" || incoming.body.case === "itemCompleted") &&
               incoming.body.value.item?.itemId.startsWith("gallery-")) ||
             (incoming.body.case === "itemDelta" && incoming.body.value.itemId.startsWith("gallery-")));

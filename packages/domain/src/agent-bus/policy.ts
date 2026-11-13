@@ -109,6 +109,7 @@ export function authorizeBusCall(
 
   switch (call.tool) {
     case "show_images":
+    case "import_image_reply":
     case "request_secret":
       return caller.archived ? deny("this thread is archived") : allow;
     case "ask_user":

@@ -26,6 +26,7 @@ import { runBotHarness } from "./bot-harness.ts";
 import { answerBotThreadApproval } from "./bot-thread-approval.ts";
 import { linkedBotThreadApprovals } from "../computers/bot-thread-approvals.ts";
 import { publishThreadImages } from "./image-publication.ts";
+import { importImageReply } from "./image-markdown.ts";
 
 export function createCoreBots(core: GatewayCore, options: GatewayCoreOptions): BotsRuntime {
   return new BotsRuntime({
@@ -64,6 +65,7 @@ export function createCoreBus(core: GatewayCore): AgentBus {
     interaction: (interaction) => corePublishInteraction(core, interaction),
     requestSecret: (source, args) => core.secrets.request(source, args),
     showImages: (source, caller, args) => publishThreadImages(core, source, caller, args),
+    importImageReply: (source, caller, itemId) => importImageReply(core, source, caller, itemId),
     interrupt: (threadId) => core.interrupt(threadId),
     answer: (by, request) => coreAnswer(core, by, request),
     broadcastThread: (threadId) => coreBroadcastThread(core, threadId),

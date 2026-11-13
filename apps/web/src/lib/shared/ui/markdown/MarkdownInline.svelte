@@ -10,6 +10,7 @@
   import InlineLink from "../InlineLink.svelte";
   import { useImages } from "./images.ts";
   import MarkdownHtml from "./MarkdownHtml.svelte";
+  import { fileHrefOf, imageFilePathOf } from "@canopy/domain/file-references";
 
   let { tokens }: { tokens: Token[] } = $props();
   const elements = useInlineElements();
@@ -70,6 +71,11 @@
     {@const href = safeHref(image.href)}
     {#if images.render}
       {@render images.render({ src: image.href, alt: image.text })}
+    {:else if files && fileHrefOf(image.href)}
+      <InlineLink
+        onactivate={() => files.open(fileHrefOf(image.href)!)}
+        class="text-sky-700 underline focus-ring dark:text-sky-400">{image.text || image.href}</InlineLink
+      >
     {:else if href}
       <InlineLink
         {href}
@@ -87,10 +93,16 @@
   {:else if token.type === "text" && "tokens" in token && token.tokens}
     <MarkdownInline tokens={token.tokens} />
   {:else if token.type === "escape" || token.type === "text"}
+    {@const imagePath = files && token.type === "text" ? imageFilePathOf((token as Tokens.Text).text) : undefined}
     {#if elements && (token as Tokens.Text).text.includes("\uE000")}
       {#each splitSentinels((token as Tokens.Text).text) as part, p (p)}{#if typeof part === "number"}{@render elements.render(
             part,
           )}{:else}{part}{/if}{/each}
+    {:else if imagePath && files}
+      <InlineLink
+        class="rounded-sm bg-zinc-950/5 px-1 font-mono text-[0.875em] text-sky-700 underline focus-ring dark:bg-white/10 dark:text-sky-400"
+        onactivate={() => files.open(imagePath)}>{(token as Tokens.Text).text}</InlineLink
+      >
     {:else}
       {(token as Tokens.Text).text}
     {/if}
