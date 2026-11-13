@@ -6,7 +6,8 @@ import { decode } from "#lib/shared/wire.ts";
 import { bodyJson } from "#lib/shared/json.ts";
 import { saveHistory } from "../desktop/history.ts";
 import type { ThreadState } from "./thread-state.svelte.ts";
-import { clientOpening } from "#lib/features/diagnostics/client.ts";
+import { clientOpening, clientMeasurements } from "#lib/features/diagnostics/client.ts";
+import { recordThreadWatchFailure } from "@canopy/domain/diagnostics";
 import { ThreadWatchRecovery, threadWatchMessage, threadSyncStatus } from "@canopy/domain/thread-watch-recovery";
 import { threadWatchReady } from "@canopy/domain/thread-watch-state";
 import { warmCacheHit } from "./warming.ts";
@@ -48,6 +49,7 @@ export class ThreadHistory {
       stop();
       this.view.connection = this.read()?.thread ? "syncing" : "connecting";
       stop = liveSource(`/api/threads/${id}/events`, {
+        stableMs: 10_000,
         url: () =>
           `/api/threads/${id}/events?${new URLSearchParams({
             incremental: "1",
@@ -64,7 +66,13 @@ export class ThreadHistory {
           this.view.connection = "error";
         },
         onerror: (failure) => {
-          const decision = this.#recovery.failed(failure);
+          const scoped =
+            failure.code === 14 && this.view.syncStatus?.reason === "computer_unreachable"
+              ? { ...failure, computer: true }
+              : failure;
+
+          const decision = this.#recovery.failed(scoped);
+          recordThreadWatchFailure(clientMeasurements, scoped, decision.reason);
 
           if (decision.action === "reset" || decision.action === "smaller") this.reset();
 
@@ -79,11 +87,7 @@ export class ThreadHistory {
           const started = first && opening ? performance.now() : 0;
           const update = decode(ui.ThreadUpdateSchema, JSON.parse(data));
 
-          try {
-            this.view.apply(update);
-          } catch {
-            throw new Error("Thread resynchronization required");
-          }
+          this.view.apply(update);
 
           const snapshot = this.read();
 

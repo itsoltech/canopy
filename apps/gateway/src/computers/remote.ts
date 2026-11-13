@@ -5,7 +5,8 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { Match } from "effect";
 import { setImmediate as nextTurn } from "node:timers/promises";
 import { nodesOf } from "./remote-ids.ts";
-import { methodNamed, MovedError, movedItems, SERVED } from "./remote-policy.ts";
+import { methodNamed, SERVED } from "./remote-policy.ts";
+import { remoteResponseError, remoteWireError } from "./remote-error.ts";
 import { syncDecode, syncEncode } from "./sync-codec.ts";
 import { linkFailure } from "./link-session.ts";
 import type { RpcObservation } from "../diagnostics/collector.ts";
@@ -77,23 +78,6 @@ function join(parts: Uint8Array[]): Uint8Array {
   }
 
   return out;
-}
-
-/** Only Connect's own codes cross; anything else is an internal error without details. */
-function wireError(cause: unknown) {
-  const moved = movedItems(cause);
-
-  if (moved && cause instanceof ConnectError)
-    return {
-      code: cause.code,
-      message: cause.rawMessage.slice(0, 500),
-      moved: moved.slice(0, 64),
-    };
-
-  if (cause instanceof ConnectError && cause.code > 0 && cause.code <= 16)
-    return { code: cause.code, message: cause.rawMessage.slice(0, 500) };
-
-  return { code: Code.Internal, message: "internal error" };
 }
 
 type Outgoing = { channel: AsyncChannel<Uint8Array>; parts: Uint8Array[]; size: number; streaming: boolean };
@@ -221,13 +205,7 @@ export class RemoteCalls {
 
     if (r.end) {
       this.#outgoing.delete(r.callId);
-      call.channel.close(
-        r.code
-          ? r.moved.length
-            ? new MovedError(r.moved, r.message)
-            : new ConnectError(r.message, r.code in Code ? r.code : Code.Internal)
-          : undefined,
-      );
+      call.channel.close(remoteResponseError(r));
 
       return;
     }
@@ -367,7 +345,7 @@ export class RemoteCalls {
           frames: sent,
           ...linkFailure(error),
         });
-        this.#end(id, wireError(error));
+        this.#end(id, remoteWireError(error));
       }
     } finally {
       signal.removeEventListener("abort", abort);
@@ -375,7 +353,7 @@ export class RemoteCalls {
     }
   }
 
-  #end(id: bigint, error?: { code: number; message: string; moved?: link.MovedItem[] }) {
+  #end(id: bigint, error?: ReturnType<typeof remoteWireError>) {
     if (!this.#closed)
       this.options.send({ body: { case: "remoteResponse", value: { callId: id, end: true, ...error } } });
   }

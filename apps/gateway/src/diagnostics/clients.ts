@@ -1,6 +1,12 @@
 import { create, toBinary } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { CLIENT_SOURCES, clientMetricIds, clientCounter, type ClientSource } from "@canopy/domain/diagnostics";
+import {
+  CLIENT_SOURCES,
+  clientMetricIds,
+  clientCounter,
+  threadWatchSource,
+  type ClientSource,
+} from "@canopy/domain/diagnostics";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { createHash } from "node:crypto";
 import type { RpcCollector } from "./collector.ts";
@@ -40,7 +46,7 @@ export class ClientDiagnostics {
       request.endMs < request.startMs ||
       request.endMs - request.startMs > 60_000n ||
       Math.abs(now - Number(request.endMs)) > 120_000 ||
-      request.measures.length > 12
+      request.measures.length > 24
     )
       throw new ConnectError("Diagnostics batch exceeds its schema or size limit", Code.InvalidArgument);
     const measures = validateMeasures(request, source, now);
@@ -162,7 +168,18 @@ function validateMeasures(request: ui.SubmitDiagnosticsRequest, source: ClientSo
     const histogram = row.histogram;
     const count = clientCounter(row.metricId);
     const offset = (row.metricId - 300) % 16;
-    const limit = offset === 15 ? 64 * 1024 * 1024 : offset === 13 ? 100 : source === "bff" ? 604_800_000 : 120_000;
+
+    const limit = threadWatchSource(row.metricId)
+      ? (row.metricId - 364) % 12 === 10
+        ? 16
+        : 0xffffffff
+      : offset === 15
+        ? 64 * 1024 * 1024
+        : offset === 13
+          ? 100
+          : source === "bff"
+            ? 604_800_000
+            : 120_000;
 
     if (
       !allowed.has(row.metricId) ||

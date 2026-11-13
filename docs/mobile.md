@@ -229,7 +229,9 @@ uprawnień lub brakującego wątku kończą subskrypcję stanem `error`; odwoła
 Zaplanowane restarty nadal korzystają z osobnego komunikatu i próby co 2,5 s w ograniczonym oknie.
 
 Backoff: 1 / 2 / 4 / 8 / 16 / 30 s z jitterem 80–100%, nigdy ponad 30 s. Czas oczekiwania
-liczy się od zakończenia nieudanej próby. Sukces, zmiana sieci (`expo-network`, bez nowej
+liczy się od zakończenia nieudanej próby. Dla watcha wątku sukces zeruje backoff
+dopiero po 10 s stabilnego live; pojedynczy odebrany batch nie kasuje kolejnych awarii.
+Dla pozostałych subskrypcji sukces zeruje go od razu. Zmiana sieci (`expo-network`, bez nowej
 zależności NetInfo), foreground oraz „Reconnect now” zerują backoff. Reset nie usuwa
 decyzji o niedostępności. Wszystkie żądania telefonu dzielą także cooldown po nieudanym
 wyścigu tras; odczyty i niezależne subskrypcje nie uruchamiają dodatkowych probe w tym oknie.
@@ -258,6 +260,17 @@ Build developerski loguje znaczniki czasu, powody zmian stanu i licznik otwarć
 watcha (`Stream connection changed`, `Stream watch started`), bez treści,
 identyfikatorów wątków, adresów ani tokenów. Licznik rozróżnia zmianę gotowości
 od rzeczywistego ponownego otwarcia transportu.
+
+Awaria watcha wątku zachowuje własny powód w Details, również przy zdrowym overview.
+Opis mówi np. o zbyt dużej aktualizacji lub brakujących aktualizacjach; szczegóły
+zawierają kod RPC i kategorię z zamkniętej listy. Luka seq wznawia ostatni atomowy
+checkpoint bez usuwania cache ani stron historii. Trzecia kolejna awaria kończy
+automatyczne naprawy; 10 s stabilnego live odnawia ich budżet. Diagnostyka zlicza
+te kategorie i rozmiar odrzuconej partii, bez tekstu błędu i treści wątku.
+Przedwczesny koniec streamu bez błędu również liczy się jako awaria watcha;
+anulowanie przy przejściu w tło nie zużywa budżetu i zachowuje checkpoint.
+Planowy koniec offline watcha po odzyskaniu obecności domu zachowuje kategorię
+`computer_unreachable` i nie zużywa budżetu błędów samego wątku.
 
 ### Tailscale na telefonie
 

@@ -653,6 +653,11 @@ przerywa wywołanie u domu (zamknięty strumień przeglądarki, timeout). Identy
 wołający, osobno dla każdego kierunku połączenia. Każda strona może wołać przez dowolne gotowe
 połączenie, więc wystarczy, że jedna strona ma listener.
 
+Addytywne `RemoteResponse.thread_failure` (8) zachowuje kategorię i rozmiar
+błędu watcha wątku. Przekazywane są tylko kategorie z listy dozwolonej oraz
+liczbowy kod/rozmiar; dowolne metadane błędu i lokalna proweniencja zerwanego
+łącza nie przechodzą do partnera. Starszy partner ignoruje pole i zachowuje kod RPC.
+
 Dom obsługuje tylko listę dozwolonych metod wątków (`SERVED`): overview, lista i odczyt wątków,
 `WatchThread`, tworzenie wątku, wiadomości (kolejka i steer), przerwanie, odpowiedzi na zgody i pytania,
 zarządzanie kolejką, ustawienia wątku, tytuł, cel, zadania w tle, przeczytanie/archiwizacja/usuwanie,

@@ -18,6 +18,8 @@ export * from "./metrics-table.ts";
 
 export * from "./client-metrics.ts";
 
+export * from "./thread-watch.ts";
+
 export * from "./client-collector.ts";
 
 export * from "./epochs.ts";

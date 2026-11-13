@@ -3,7 +3,7 @@ import { ui } from "@canopy/contracts";
 import { Histogram, addCount } from "./histogram.ts";
 import { clientMetric, clientMetricIds, clientCounter, type ClientSource } from "./client-metrics.ts";
 
-/** At most twelve fixed histograms. No thread IDs, URLs, payloads, disk buffer or retry queue. */
+/** At most 24 fixed series. No thread IDs, URLs, payloads, disk buffer or retry queue. */
 export class ClientMeasurements {
   enabled = true;
   readonly session: string;
@@ -39,8 +39,12 @@ export class ClientMeasurements {
   }
 
   record(metric: number, value: number) {
-    if (!this.enabled) return;
     const id = clientMetric(this.source, metric);
+    this.recordId(id, value);
+  }
+
+  recordId(id: number, value: number) {
+    if (!this.enabled) return;
 
     if (!this.#ids.has(id) || !Number.isFinite(value) || value < 0) return;
     let row = this.#values.get(id);

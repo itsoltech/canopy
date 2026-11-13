@@ -260,10 +260,18 @@ partii. Zmiana zestawu zastępuje tę samą subskrypcję overview, bez watcha na
 
 Awaria samego watcha jest lokalna dla wątku. Cache pozostaje widoczny; błędy
 deterministyczne powodują jedną próbę bez kursora, jedną z mniejszym oknem, potem
-zatrzymanie z „Retry” / „Load from scratch”. Niedostępny dom emituje
+zatrzymanie z „Retry” / „Load from scratch”. Wykryta luka między partiami zachowuje
+ostatni atomowy checkpoint i odtwarza wyłącznie brakujący zakres; trzecia kolejna
+awaria zatrzymuje watch. Krótki sukces ani rosnący seq nie zerują budżetu prób
+i backoffu: potrzebne jest 10 s stabilnego live. Niedostępny dom emituje
 `sync_status.reason=computer_unreachable`; zmiana obecności kończy oczekiwanie,
 a klient automatycznie wznawia seq. Awaria watcha przy sprawnym łączu nie zmienia
 obecności komputera ani globalnego stanu gatewaya.
+
+Mobilne Details i web/desktop pokazują konkretny powód awarii wątku. Kod RPC,
+zamknięta kategoria powodu i rozmiar odrzuconej partii przechodzą również przez
+SSE oraz połączony komputer; tekst wyjątku nie trafia do diagnostyki klienta.
+Eksport zawiera liczniki kategorii i próbki kodu/rozmiaru, bez identyfikatora wątku.
 
 Nagłówek rezerwuje stałe miejsce na ikonę i kompaktowy licznik pozostałych rekordów
 (np. `1.2K`). Dostępna nazwa zawiera dokładną liczbę, a ikona potwierdzenia z zerem

@@ -515,6 +515,15 @@ agregator nie rozsyła automatycznie ustaleń ani topologii do innych partnerów
 
 ### 3.5 Klienci i dostarczenie agregatów
 
+Identyfikatory 364–399 zawierają po 12 stałych serii dla web, desktop i mobile:
+10 liczników kategorii awarii watcha wątku, kod RPC i rozmiar odrzuconej partii.
+Kategorie obejmują limit rozmiaru, lukę seq, błędny checkpoint/odczyt/rekord,
+brak dostępu, niedostępny komputer, utratę streamu, timeout i pozostałą awarię.
+Nie są próbkowane; obowiązują istniejące limity kolektora. Żaden tekst wyjątku,
+identyfikator wątku, trasa ani treść wiadomości nie staje się etykietą lub payloadem.
+Eksport korzysta z tych samych agregatów. Partia klienta przyjmuje do 24 miar,
+nadal do 16 KiB oraz 60 KiB/min; kod RPC mieści się w 1–16, rozmiar w uint32.
+
 W wolnych offsetach 12–15 istniejących rejestrów klientów dodano: czas do
 aktualnego stanu wątku (nawigacja → pierwsze rAF po aktualnym cache lub catch-up),
 trafienie aktualnego cache (0/100, średnia daje procent), liczbę odczytów historii

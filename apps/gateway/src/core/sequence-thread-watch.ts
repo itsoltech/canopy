@@ -34,6 +34,7 @@ export async function* watchSequenceThread(core: GatewayCore, input: ui.WatchThr
     throw new ConnectError("Live updates for this thread are unavailable", error.code, {
       "canopy-error-scope": "thread",
       "canopy-sync-reason": failure.reason,
+      "canopy-frame-bytes": String(failure.frameBytes),
     });
   }
 }

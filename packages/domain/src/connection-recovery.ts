@@ -25,6 +25,9 @@ export class ConnectionRecovery {
   #attempt = 0;
   #retrying = false;
   #retryAt: number | undefined;
+  #liveSince: number | undefined;
+
+  constructor(readonly stableMs = 0) {}
 
   get snapshot(): RecoverySnapshot {
     return { status: this.#status, retrying: this.#retrying, retryAt: this.#retryAt };
@@ -51,6 +54,8 @@ export class ConnectionRecovery {
   }
 
   failed(now = Date.now(), random = Math.random()) {
+    if (this.#liveSince !== undefined && now - this.#liveSince >= this.stableMs) this.resetBackoff();
+    this.#liveSince = undefined;
     this.#downSince ??= now;
     this.#failures++;
 
@@ -62,11 +67,17 @@ export class ConnectionRecovery {
     return this.check(now);
   }
 
-  succeeded() {
+  succeeded(now = Date.now()) {
+    this.#liveSince ??= now;
     this.#status = "live";
     this.#downSince = undefined;
     this.#failures = 0;
-    this.resetBackoff();
+
+    if (now - this.#liveSince >= this.stableMs) this.resetBackoff();
+    else {
+      this.#retryAt = undefined;
+      this.#retrying = false;
+    }
 
     return this.snapshot;
   }
