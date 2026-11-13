@@ -1,5 +1,5 @@
 import { appendFileSync } from "node:fs";
-import { api, git, pages, repository } from "./release-github.ts";
+import { api, git, pages, releaseRevision, repository } from "./release-github.ts";
 import { loadPromotion, promotionBranches, promotionIssues, type PromotionAdapters } from "./promotion-data.ts";
 import {
   DAY,
@@ -22,6 +22,7 @@ export function burnInDays(value: string, policy = "Burn-in"): number {
 
 export function promotionSummary(input: PromotionInput, plan: PromotionPlan, version?: string): string {
   const [source, target] = promotionBranches(input.path);
+  const candidate = input.commits.find((commit) => commit.sha === plan.initial);
 
   const lines = [
     `### Promotion ${source} → ${target}`,
@@ -31,6 +32,11 @@ export function promotionSummary(input: PromotionInput, plan: PromotionPlan, ver
     `- Final C: ${plan.sha}`,
     `- Expected version: ${version ?? "none (no release)"}; Release recomputes before publishing`,
     `- Decision: ${plan.reason}`,
+    ...(candidate?.recoveryRun
+      ? [
+          `- Candidate recovery Release: ${candidate.recoveryRun}; exact-SHA gate: ${candidate.green ? "passed" : "failed"}`,
+        ]
+      : []),
     "",
     "Included commits:",
     ...plan.included.map((commit) => `- ${commit.sha} ${commit.message.split("\n")[0]}`),
@@ -202,7 +208,7 @@ if (import.meta.main) {
           ...options,
           holdCapDays: automatic ? burnInDays(process.env[variable] || String(cap), "Hold cap") : Infinity,
         },
-        { git, api, pages },
+        { git, api, pages, releaseRevision },
       );
     } catch (error) {
       failed = true;

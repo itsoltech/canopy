@@ -1,5 +1,8 @@
 /** Shared Actions API client. Uses gh's GH_TOKEN authentication without constructing credentialed URLs. */
 import { execFileSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { JsonValue } from "@canopy/domain";
 
 export function git(...args: string[]): string {
@@ -62,6 +65,28 @@ export function pages(path: string): JsonValue[] {
   if (!Array.isArray(result) || !result.every(Array.isArray)) throw new Error("Invalid paginated GitHub response");
 
   return result.flat();
+}
+
+/** Read only the two revision files from an artifact selected from this run's API response. */
+export function releaseRevision(repo: string, artifactId: number) {
+  const directory = mkdtempSync(join(tmpdir(), "canopy-release-revision-"));
+  const archive = join(directory, "revision.zip");
+
+  try {
+    writeFileSync(
+      archive,
+      read(() => execFileSync("gh", ["api", `repos/${repo}/actions/artifacts/${artifactId}/zip`])),
+    );
+    const entries = execFileSync("unzip", ["-Z1", archive], { encoding: "utf8" }).trim().split("\n");
+
+    // Before cross-branch recovery, this artifact carried only the SHA for Mobile release.
+    if (!entries.includes("release-sha") || !entries.includes("release-branch")) return;
+    const file = (name: string) => execFileSync("unzip", ["-p", archive, name], { encoding: "utf8" }).trim();
+
+    return { sha: file("release-sha"), branch: file("release-branch") };
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 }
 
 export function repository(): string {

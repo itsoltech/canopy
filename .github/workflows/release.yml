@@ -173,8 +173,8 @@ jobs:
             echo "::error::Planned $PLANNED, released $RELEASED"
             exit 1
           fi
-      # workflow_run.head_sha is the dispatch ref, which can differ from expected_sha.
-      - name: Record released revision for Mobile release
+      # workflow_run.head_sha is the dispatch ref. Promotion and Mobile release read the pinned revision.
+      - name: Record released revision for promotion and Mobile release
         if: steps.release.outputs.published == 'true'
         run: |
           printf '%s\n' "$EXPECTED_SHA" > "$RUNNER_TEMP/release-sha"
@@ -187,7 +187,7 @@ jobs:
             ${{ runner.temp }}/release-sha
             ${{ runner.temp }}/release-branch
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 90
           overwrite: true
 
   # Nothing of this run will be published: checks failed or the release could not reserve its version.

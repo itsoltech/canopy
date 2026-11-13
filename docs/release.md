@@ -284,9 +284,20 @@ wywołaniu: z lokalnego URL nie odczytałby owner/repo i sprawdzałby dostęp ta
 Po checkach semantic-release tworzy tag i notes w lustrze; wrapper atomowo wysyła do origin
 wyłącznie tag wydania i notes, bez force i bez pushu gałęzi. Następnie API GitHuba tworzy
 ukryty draft z tym samym tytułem, notatkami i flagą prerelease, wskazujący przypięty SHA.
-Artefakt Actions `release-revision` przekazuje ten SHA do osobnego workflow Mobile release;
+Artefakt Actions `release-revision` przekazuje ten SHA i gałąź kanału do promocji oraz osobnego workflow Mobile release;
 `workflow_run.head_sha` może być inne przy dispatchu starszego commita. Mobile pobiera artefakt
 wyłącznie z zakończonego przebiegu z zielonym jobem `release`, przed swoim checkoutem.
+Promocja rozpoznaje również recovery dispatch uruchomiony z nowszym toolingiem na `dev`
+dla starszego SHA na `next`: czyta `release-sha` i `release-branch` z artefaktu tego konkretnego
+przebiegu, zamiast przypisywać mu `head_sha`/`head_branch` refa dispatchu. Nie wymaga odczytu inputs API.
+Wymaga pełnego SHA, zgodnej gałęzi, publicznego wydania z manifestem na tym SHA oraz sukcesu
+CI, wszystkich czterech smoke i `publish-desktop` w zakończonym zielonym przebiegu.
+Sam zarezerwowany tag, artefakt albo zielony przebieg z pominiętą publikacją nie wystarcza.
+Artefakt rewizji zachowujemy 90 dni; starsze artefakty z retencją 7 dni działają do wygaśnięcia.
+Brak, niepełna rewizja (starszy artefakt bez gałęzi) lub wygaśnięcie artefaktu nie daje dispatchowi
+dowodu gotowości. Zwykłe push/schedule nadal używają SHA zdarzenia.
+Podsumowanie promocji podaje wybrany recovery run i wynik jego bramki dla kandydata C0,
+także gdy niezależny hold zatrzymuje samą promocję.
 Lustro jest usuwane również po błędzie. Konflikt istniejącego tagu lub notes zatrzymuje push.
 Awaria API po pushu może zostawić tag i notes bez GitHub Release; ponowienie odzyskuje
 tę rezerwację według procedury poniżej.
@@ -498,7 +509,12 @@ całego aktywnego nightly. Ręczny dispatch omija oczekiwanie na cron, ale nie b
 
 - Po błędzie buildów albo publikacji użyj **Re-run failed jobs**: zachowuje wyjścia `plan`/`release`
   i powtarza nieudane joby z zależnymi. Ponowienie całego workflow po utworzeniu tagu kończy się
-  „no release”, bo tag już istnieje. Artefakty Actions żyją 7 dni.
+  „no release”, bo tag już istnieje. Artefakty buildów Actions żyją 7 dni, a artefakt rewizji 90 dni.
+  Ponowiony job `release` może też zwrócić „no release”, gdy inne recovery opublikowało już tag.
+  Wtedy `stop-builds` nadal anuluje cały przebieg, aby zatrzymać kosztowne buildy i notaryzację;
+  API Actions nie pozwala anulować samych pojedynczych jobów. Nie zamieniamy tego w zielony
+  dowód nowej publikacji. Promocja wybiera nowszy recovery po numerze przebiegu, a dopiero
+  przy tym samym numerze porównuje próbę: późniejsze ponowienie starszego pushu nie zastępuje recovery.
 - **Notaryzacja macOS zawiodła** (timeout Apple, odrzucenie, wygasła umowa/klucz): release pozostaje
   draftem, wszystkie updatery i aliasy obrazów zostają na poprzedniej wersji.
   Sprawdź log `desktop (darwin-arm64)` (status zgłoszenia `notarytool`,
@@ -744,7 +760,9 @@ Angular co Release; nie uruchamiają `semantic-release --dry-run`, który sprawd
 **Koszt odczytu.** Skrypt stronicuje listę przebiegów `release.yml` i zamkniętych PR-ów
 do `dev`/gałęzi źródłowej, a następnie wiąże je lokalnie przez dokładny SHA. Listę przebiegów
 filtruje lokalnie, aby nie obciąć historii na limicie 1000 wyników filtrowanego wyszukiwania
-Actions. Joby smoke pobiera dopiero dla rozważanego kandydata bez opublikowanego tagu;
+Actions. Artefakt rewizji pobiera tylko dla dispatchów z zaufanych gałęzi wydania.
+Joby pobiera dopiero dla rozważanego kandydata: smoke bez opublikowanego tagu albo pełne
+dowody CI/smoke/publikacji recovery;
 preferencja tagów, najnowszego przebiegu i jego próby pozostaje bez zmian.
 Recheck ponownie odczytuje publikacje, PR-y, CI i blokery. Wykorzystuje wyłącznie niezmienne
 dane git z pierwszego odczytu; zmianę jawnych linków w body PR uwzględnia także w atrybucji.
