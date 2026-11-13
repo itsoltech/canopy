@@ -12,6 +12,6 @@
   }: { id: string; open: boolean; children: Snippet; class?: ClassValue } = $props();
 </script>
 
-<div {id} class={["t-acc-panel", className]} data-open={open || undefined} inert={!open}>
+<div {id} class={["t-acc-panel t-composer-disclosure", className]} data-open={open || undefined} inert={!open}>
   <div>{@render children()}</div>
 </div>

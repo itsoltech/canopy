@@ -5,10 +5,10 @@ import { ItemStatus, type ui } from "@canopy/contracts";
 import { StatusDot } from "../../../ui/Badge";
 import { raised } from "../../../ui/Button";
 import { AnchoredOverlay } from "../../../ui/AnchoredOverlay";
-import { Icon } from "../../../ui/Icon";
 import { useMotion } from "../../../ui/motion";
 import { styles, useColors } from "../../../ui/theme";
 import { TaskRow } from "../ThreadBackgroundTasks";
+import { TrayChevron } from "./TrayHeader";
 
 /** The thread's own background tasks still running, oldest first (web: ThreadState.backgroundTasks). */
 export function runningTasks(snapshot: ui.ThreadSnapshot | undefined): ui.TimelineItem[] {
@@ -45,6 +45,7 @@ export function BackgroundTasksChip({
 
   return (
     <AnchoredOverlay
+      disclosure
       visible={open && tasks.length > 0}
       onClose={() => setOpen(false)}
       label="Background tasks"
@@ -75,7 +76,7 @@ export function BackgroundTasksChip({
               <Text numberOfLines={1} style={[styles.meta, { color: c.soft, fontVariant: ["tabular-nums"] }]}>
                 {label}
               </Text>
-              <Icon name={tasks.length === 1 ? "command-line" : "chevron-up-down"} size={14} color={c.faint} />
+              <TrayChevron open={open} />
             </Pressable>
           </Animated.View>
         )

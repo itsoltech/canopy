@@ -77,8 +77,8 @@ export class FooterScroll {
   }
 }
 
-/** Observe natural content, never an animated height. Commit the scroll range once per real change.
- * Shell clipping and element translations run independently of the timeline's layout. */
+/** Natural composer changes commit once. Tray disclosures already animate their layout, so the
+ * shell and reserve follow each measured frame without starting another resize animation. */
 export function footerMotion(shell: HTMLElement, resize: (change: FooterResize) => void): () => void {
   const content = shell.firstElementChild;
 
@@ -87,6 +87,7 @@ export function footerMotion(shell: HTMLElement, resize: (change: FooterResize) 
   let first = true;
   let height = 0;
   let shellAnimation: Animation | undefined;
+  let disclosing = false;
   const parts = new Map<HTMLElement, { top: number; height: number; animation?: Animation }>();
 
   const observer = new ResizeObserver(([entry]) => {
@@ -95,8 +96,20 @@ export function footerMotion(shell: HTMLElement, resize: (change: FooterResize) 
 
     if (Math.abs(next - height) < 0.25) return;
 
+    const wasDisclosing = disclosing;
+    disclosing = content
+      .getAnimations({ subtree: true })
+      .some(
+        (animation) =>
+          animation instanceof CSSTransition &&
+          animation.transitionProperty === "grid-template-rows" &&
+          animation.effect instanceof KeyframeEffect &&
+          animation.effect.target instanceof HTMLElement &&
+          animation.effect.target.classList.contains("t-composer-disclosure"),
+      );
+
     const ms =
-      first || matchMedia("(prefers-reduced-motion: reduce)").matches
+      first || disclosing || wasDisclosing || matchMedia("(prefers-reduced-motion: reduce)").matches
         ? 0
         : duration(content.querySelector("[data-thread-composer-slot][data-compact]") ? "medium" : "slow");
 

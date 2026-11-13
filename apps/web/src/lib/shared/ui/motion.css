@@ -380,6 +380,24 @@
 .t-acc-panel[data-open] > * {
   opacity: 1;
 }
+/* Composer trays reveal upward. Their measured height drives the footer reserve during disclosure. */
+.t-composer-chevron,
+.t-composer-disclosure,
+.t-composer-disclosure > * {
+  transition-duration: var(--duration-medium);
+}
+.t-composer-chevron.rotate-0,
+.t-composer-disclosure[data-open],
+.t-composer-disclosure[data-open] > * {
+  transition-duration: var(--duration-slow);
+}
+.t-composer-disclosure > * {
+  translate: 0 var(--distance-micro);
+  transition-property: opacity, translate;
+}
+.t-composer-disclosure[data-open] > * {
+  translate: 0 0;
+}
 @media (prefers-reduced-motion: reduce) {
   .t-acc-chevron,
   .t-acc-panel,
@@ -399,8 +417,7 @@
 }
 .t-composer-slot .t-composer-editor,
 .t-composer-slot .t-composer-input,
-.t-composer-slot .t-composer-fold,
-.t-composer-slot .t-acc-panel {
+.t-composer-slot .t-composer-fold {
   transition: none;
 }
 .t-composer-slot .t-composer-fold > * {

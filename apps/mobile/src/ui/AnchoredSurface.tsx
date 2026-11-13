@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ComponentRef } from "react";
+import { useEffect, useRef, useState, type ComponentRef } from "react";
 import { AccessibilityInfo, BackHandler, Keyboard, Pressable, ScrollView, Text, View } from "react-native";
 import Animated, {
   measure,
@@ -7,10 +7,12 @@ import Animated, {
   useSharedValue,
   type AnimatedRef,
 } from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
 import type { EdgeInsets } from "react-native-safe-area-context";
 import type { AnchoredContent } from "./AnchoredOverlay";
 import { useKeyboardFrame } from "./KeyboardWindow";
 import { useMotion } from "./motion";
+import { useDisclosureMotion } from "./disclosure-motion";
 import { useOverlaySwipe } from "./useOverlaySwipe";
 import { IconButton } from "./Button";
 import { styles, useColors } from "./theme";
@@ -20,6 +22,7 @@ function useAnchorBounds(content: AnchoredContent, host: AnimatedRef<ComponentRe
   const keyboard = useKeyboardFrame();
   const { anchor: anchorRef, maxHeight } = content;
   const bounds = useSharedValue({ left: 0, bottom: 0, width: 0, maxHeight: 0 });
+  const [positioned, setPositioned] = useState(false);
 
   useFrameCallback(() => {
     const frame = measure(host);
@@ -38,6 +41,8 @@ function useAnchorBounds(content: AnchoredContent, host: AnimatedRef<ComponentRe
 
     const previous = bounds.get();
 
+    if ((!previous.width || !previous.maxHeight) && next.width && next.maxHeight) scheduleOnRN(setPositioned, true);
+
     if (
       next.left !== previous.left ||
       next.bottom !== previous.bottom ||
@@ -47,7 +52,7 @@ function useAnchorBounds(content: AnchoredContent, host: AnimatedRef<ComponentRe
       bounds.set(next);
   });
 
-  return useAnimatedStyle(() => bounds.get());
+  return { style: useAnimatedStyle(() => bounds.get()), positioned };
 }
 
 /** Elevated, opaque, content-sized list. Its backdrop consumes outside taps without forwarding them to the feed. */
@@ -62,6 +67,7 @@ export function AnchoredSurface({
 }) {
   const c = useColors();
   const { dropdown } = useMotion();
+  const disclosure = useDisclosureMotion();
   const bounds = useAnchorBounds(content, host, insets);
   const swipe = useOverlaySwipe(content.onClose);
   const heading = useRef<ComponentRef<typeof Text>>(null);
@@ -83,6 +89,9 @@ export function AnchoredSurface({
     };
   }, [content.onClose]);
 
+  // The first UI-thread measurement supplies the width and height limit before a height entrance starts.
+  if (content.disclosure && !bounds.positioned) return null;
+
   return (
     <View collapsable={false} pointerEvents="box-none" style={{ position: "absolute", inset: 0 }}>
       <Pressable
@@ -92,8 +101,9 @@ export function AnchoredSurface({
         {...swipe.handlers}
       />
       <Animated.View
-        entering={dropdown.entering}
-        exiting={dropdown.exiting}
+        entering={content.disclosure ? disclosure.entering : dropdown.entering}
+        exiting={content.disclosure ? disclosure.exiting : dropdown.exiting}
+        layout={content.disclosure ? disclosure.layout : undefined}
         accessibilityViewIsModal={content.modal}
         accessibilityLabel={content.label}
         onAccessibilityEscape={content.onClose}
@@ -116,7 +126,7 @@ export function AnchoredSurface({
             boxShadow: "0px 4px 16px #00000026",
             overflow: "hidden",
           },
-          bounds,
+          bounds.style,
         ]}
       >
         <View {...swipe.handlers} style={[styles.row, { paddingLeft: 12, paddingRight: 4, minHeight: 40 }]}>
