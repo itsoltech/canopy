@@ -1,5 +1,13 @@
 # Wydajność bazy danych
 
+Rodziny diagnostyki rozdzielają pracę użytkownika od synchronizacji w tle:
+`mirrors.read` obejmuje zegar, listę head i odczyt zakresów, `mirrors.write`
+transakcję trwałego zastosowania, `overview.feeds` porównania rewizji właściciela,
+a `config.sync` zegar i rekordy synchronizacji, aliasy identyfikatorów oraz
+publikowanie współdzielonej konfiguracji. `settings.store` oznacza magazyn ustawień,
+nie każdy odczyt konfiguracji linku. Etykiety pochodzą z zamkniętej listy w kodzie;
+SQL, ścieżki, właściciele i parametry nie trafiają do kolektora.
+
 ## Powtarzalne pomiary
 
 `bun scripts/bench/db.ts --run --explain` uruchamia opt-in benchmark warstwy

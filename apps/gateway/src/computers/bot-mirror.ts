@@ -6,6 +6,7 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { linkedMessage, methodNamed, qualify, type RemoteServe } from "./remote.ts";
 import type { ComputerStore } from "./store.ts";
+import { queryFamily, queryRpc } from "../diagnostics/query-context.ts";
 
 /** Bot conversations are projections only. A complete replacement commits atomically, like thread mirrors. */
 export class BotMirror {
@@ -180,7 +181,7 @@ export class BotMirror {
             ON CONFLICT(owner_user_id,origin_node_id) DO UPDATE SET cursor=excluded.cursor`;
             }),
           );
-        }),
+        }).pipe(queryFamily("mirrors.write"), queryRpc),
       );
       batch = undefined;
       changed();

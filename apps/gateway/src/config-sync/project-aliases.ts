@@ -32,7 +32,7 @@ export function projectIds(sql: SqlClient.SqlClient, owner: string) {
       known: new Set([...locals.keys(), ...globals.keys(), ...alias.keys()]),
       local: new Set(globals.keys()),
     };
-  }).pipe(queryFamily("settings.store"));
+  }).pipe(queryFamily("config.sync"));
 }
 
 /** Only project references are shared. Workspaces, workers and worktrees always keep their computer suffix. */

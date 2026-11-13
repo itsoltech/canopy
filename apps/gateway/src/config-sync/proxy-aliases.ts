@@ -19,7 +19,7 @@ export function proxyIds(sql: SqlClient.SqlClient, owner: string) {
     const known = new Set(rows.flatMap((r) => [r.id, ids.toGlobal(r.id)]));
 
     return { ...ids, local, known };
-  }).pipe(queryFamily("settings.store"));
+  }).pipe(queryFamily("config.sync"));
 }
 
 export function mapProxyIds(

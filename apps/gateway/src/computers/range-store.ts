@@ -8,6 +8,7 @@ import type { ComputerStore } from "./store.ts";
 import { rangeResult } from "./range-effects.ts";
 import { writeRangeEntities, writeRangeHeader } from "./range-entities.ts";
 import { writeRecentRange } from "./range-recent.ts";
+import { queryFamily, queryRpc } from "../diagnostics/query-context.ts";
 
 type Saved = {
   epoch: string;
@@ -120,7 +121,7 @@ export class ThreadRangeStore {
               }),
             );
           }),
-        ),
+        ).pipe(queryFamily("mirrors.write"), queryRpc),
       )
       .then(rangeResult);
   }

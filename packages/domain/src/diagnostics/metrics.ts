@@ -102,6 +102,9 @@ export const DATABASE_FAMILIES = [
   { id: 37, name: "attachments.store" },
   { id: 38, name: "background.store" },
   { id: 39, name: "updates.store" },
+  { id: 40, name: "mirrors.read" },
+  { id: 41, name: "overview.feeds" },
+  { id: 42, name: "config.sync" },
 ] as const;
 
 export type DatabaseFamily = (typeof DATABASE_FAMILIES)[number]["name"];
