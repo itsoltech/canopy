@@ -29,6 +29,9 @@
   import { computerName } from "@canopy/domain/computer-presence";
   import { registerUnsentWork } from "#lib/features/workers/unsent-work.ts";
   import type { ComposerConnection } from "@canopy/domain/composer-connection";
+  import { useThreadRewind } from "../rewind-state.svelte.ts";
+  import { ComposerRewind } from "../composer-rewind.svelte.ts";
+  import Button from "#lib/shared/ui/Button.svelte";
 
   /**
    * Message box of a thread. Each send carries an idempotency key, so a retried send never runs
@@ -149,6 +152,33 @@
   const draft = new AttachmentDraft(() => limitsOf(settings?.attachmentLimits));
   const quoteDrafts = useQuoteDrafts();
   const quotes = $derived(quoteDrafts.list(thread.id));
+  const rewind = useThreadRewind();
+
+  const editorRewind = new ComposerRewind(
+    () => ({ threadId: thread.id, text, mentions }),
+    (next, chips) => {
+      text = next;
+      mentions = chips;
+    },
+    draft,
+    quoteDrafts,
+  );
+
+  $effect(() => rewind?.().connect(() => !sending && !draft.uploading && !draft.failed));
+
+  $effect(() => {
+    const state = rewind?.();
+    const restored = state?.draft;
+
+    if (!state || !restored) return;
+    untrack(() => {
+      editorRewind.load(restored);
+      state.draft = undefined;
+      requestId = crypto.randomUUID();
+      void tick().then(() => box?.focus());
+    });
+  });
+
   let sending = $state(false);
   let waiting = $state(false);
   const overview = useOverview();
@@ -284,6 +314,24 @@
 </script>
 
 <form class={["grid grid-cols-1 gap-2", className]} onsubmit={submit}>
+  {#if rewind?.().busy}<p class="text-sm/5 text-muted" role="status">Editing this thread…</p>{/if}
+  {#if rewind?.().error}
+    <Alert tone="error"
+      >{rewind?.().error}<Button variant="ghost" size="sm" onclick={() => void rewind?.().retry()}>Retry</Button></Alert
+    >
+  {/if}
+  {#if editorRewind.saved.length}
+    <div class="flex flex-wrap items-center gap-2 text-sm/5 text-muted">
+      <span>Your previous draft is saved.</span><Button
+        variant="ghost"
+        size="sm"
+        onclick={() => {
+          editorRewind.swap();
+          void tick().then(() => box?.focus());
+        }}>Swap drafts</Button
+      >
+    </div>
+  {/if}
   {#if error}<Alert tone="error">{error}</Alert>{/if}
   <ComposerBox
     bind:this={box}

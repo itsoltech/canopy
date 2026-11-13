@@ -43,6 +43,10 @@
     editor?.focus();
   }
 
+  export function focus() {
+    editor?.focus();
+  }
+
   /**
    * Message box: a growing text field and a bottom row with `controls` (pills) and a round
    * send button. While `onstop` is set and the box is empty, the round button stops the turn instead.

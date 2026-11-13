@@ -5,6 +5,7 @@ import { foldTurns, type WorkSummary } from "./work-groups.ts";
 import { FeedPrefix } from "./feed-prefix.ts";
 import { workHistoryGaps } from "./work-history.ts";
 import { turnNotices } from "@canopy/domain/turn-notices";
+import { rewindRows, type RewindFeedRow } from "./rewind-feed.ts";
 
 /**
  * The rows of the thread page's virtual feed, in order: a fork's inherited history (a header that folds
@@ -14,6 +15,7 @@ import { turnNotices } from "@canopy/domain/turn-notices";
  * turn's work is folded under one stable live/ended header (`work`, see work-groups.ts), in history too.
  */
 export type FeedRow =
+  | RewindFeedRow
   | {
       readonly kind: "history-head";
       readonly key: string;
@@ -63,6 +65,7 @@ export interface FeedInput {
   readonly openGroups?: ReadonlySet<string>;
   /** Turn and item windows page independently: a turn header alone does not prove its work is empty. */
   readonly historyItemsHasMore?: boolean;
+  readonly openRewinds?: ReadonlySet<string>;
 }
 
 /** Group of a row for size estimates: items by their content, other rows by kind. */
@@ -211,10 +214,15 @@ export class FeedBuilder {
     // Compute the boundary before slicing the completed prefix; the live tail's first turn is not another gap.
     const gaps = workHistoryGaps(input.turns, input.entries, input.historyItemsHasMore ?? false);
 
-    for (const row of this.#prefix.build(input, (part, context) =>
-      ownRows(part, this.#nodes, gaps, context, this.report),
-    ))
-      next.push(row);
+    const own = input.turns.some((turn) => turn.rewindId)
+      ? rewindRows(
+          ownRows(input, this.#nodes, gaps, undefined, this.report),
+          input.turns,
+          input.openRewinds ?? new Set(),
+        )
+      : this.#prefix.build(input, (part, context) => ownRows(part, this.#nodes, gaps, context, this.report));
+
+    next.push(...own);
 
     if (input.working && !next.some((r) => r.kind === "work" && r.summary.live))
       next.push({ kind: "working", key: "working" });
