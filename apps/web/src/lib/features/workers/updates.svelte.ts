@@ -5,6 +5,7 @@ import { decode, encode } from "#lib/shared/wire.ts";
 import type { Tone } from "#lib/shared/ui/tone.ts";
 import { linkedDownloading } from "./computer-updates.ts";
 import { workerUpdateSignature } from "@canopy/domain/update-checks";
+import { hasUnsentWork } from "./unsent-work.ts";
 
 /** While something updates (a run, a worker, a linked download): its progress arrives with each read. */
 const BUSY_RELOAD_MS = 2000;
@@ -141,6 +142,13 @@ export class UpdatesState {
   }
   async manage(input: MessageInitShape<typeof ui.ManageUpdatesRequestSchema>): Promise<void> {
     if (this.pending) return;
+
+    if (input.confirmRestart && hasUnsentWork()) {
+      this.error = "Send or discard your drafts and files before updating this computer.";
+
+      return;
+    }
+
     this.#generation++;
     this.pending = input.workerId || input.nodeId || input.action || "update";
     this.error = "";

@@ -177,7 +177,7 @@ function externalCliReport(gateway: TestGateway) {
       os: "linux",
       arch: "x64",
       tools: [
-        { provider: Provider.CLAUDE, method: CliInstallMethod.NPM, version: "1.0.0", installable: true },
+        { provider: Provider.CLAUDE, method: CliInstallMethod.MISE, version: "1.0.0", installable: true },
         {
           provider: Provider.CODEX,
           method: CliInstallMethod.HOMEBREW,
@@ -185,7 +185,7 @@ function externalCliReport(gateway: TestGateway) {
           installable: true,
           manualCommand: "brew upgrade codex",
         },
-        { provider: Provider.GROK, method: CliInstallMethod.BUN, version: "1.0.0", installable: true },
+        { provider: Provider.GROK, method: CliInstallMethod.YARN, version: "1.0.0", installable: true },
       ],
     }),
   );
@@ -262,7 +262,7 @@ describe.skipIf(!dockerAvailable)("ordered update all through authenticated gate
     }
   });
 
-  test("worker failure stops the chain with its reason, without starting a CLI", async () => {
+  test("worker failure blocks only its dependent CLI, with a retryable reason", async () => {
     const f = await fixture();
     await f.gateway.api.manageUpdates({ action: "update_all" });
     const command = await workerCommand(f);
@@ -276,11 +276,20 @@ describe.skipIf(!dockerAvailable)("ordered update all through authenticated gate
       },
       { headers: f.headers },
     );
-    await f.gateway.core.updateCenter.tick();
-    const run = (await f.gateway.api.getUpdates({})).run;
+
+    const run = await eventually(
+      async () => {
+        await f.gateway.core.updateCenter.tick();
+
+        return (await f.gateway.api.getUpdates({})).run;
+      },
+      (run) => run?.state !== "running",
+      5000,
+    );
+
     expect(run?.state).toBe("failed");
-    expect(run?.reason).toContain("SHA-256 mismatch");
-    expect(run?.steps[1]?.state).toBe("queued");
+    expect(run?.steps[0]?.reason).toContain("SHA-256 mismatch");
+    expect(run?.steps[1]?.state).toBe("blocked");
     expect(f.gateway.worker.commands.some((c) => c.case === "installCli")).toBe(false);
   });
 
@@ -361,8 +370,18 @@ describe.skipIf(!dockerAvailable)("ordered update all through authenticated gate
       { ...f.hello, version: "2.0.0", minWorkerLinkProtocol: 9, workerLinkProtocol: 9 },
       { headers: f.headers },
     );
-    await f.gateway.core.updateCenter.tick();
-    expect((await f.gateway.api.getUpdates({})).run?.reason).toContain("incompatible");
+
+    const step = await eventually(
+      async () => {
+        await f.gateway.core.updateCenter.tick();
+
+        return (await f.gateway.api.getUpdates({})).run?.steps[0];
+      },
+      (step) => step?.state === "failed",
+      5000,
+    );
+
+    expect(step?.reason).toContain("incompatible");
     expect(f.gateway.worker.commands.some((c) => c.case === "installCli")).toBe(false);
   });
 
@@ -371,7 +390,10 @@ describe.skipIf(!dockerAvailable)("ordered update all through authenticated gate
     await externalCliReport(f.gateway);
     const result = await f.gateway.api.manageUpdates({ action: "update_all" });
     expect(result.gatewayUpdateAvailable).toBe(true);
-    expect(result.run?.steps.map((s) => [s.kind, s.version])).toEqual([["worker", "1.5.0"]]);
+    expect(result.run?.steps.filter((step) => step.state !== "skipped").map((s) => [s.kind, s.version])).toEqual([
+      ["worker", "1.5.0"],
+    ]);
+    expect(result.run?.steps.filter((step) => step.state === "skipped")).toHaveLength(4);
     const command = await workerCommand(f);
     expect(command.version).toBe("1.5.0");
     await f.client.report(
@@ -434,6 +456,63 @@ describe.skipIf(!dockerAvailable)("ordered update all through authenticated gate
     const run = await new UpdateRunStore(f.gateway.runtime, f.gateway.userId).read();
     expect(run?.steps.map((s) => s.state)).toEqual(["running", "queued", "queued"]);
     expect(f.gateway.worker.commands.some((c) => c.case === "installCli")).toBe(false);
+  });
+
+  test("a failed gateway blocks its workers and CLIs while an independent app still updates", async () => {
+    const f = await fixture("binary", "1.0.0");
+    const store = new UpdateRunStore(f.gateway.runtime, f.gateway.userId);
+    const commands: string[] = [];
+
+    const center = new UpdateCenter({
+      read: () => store.read(),
+      write: (run) => store.write(run),
+      snapshot: async () => {
+        const snapshot = await updatesSnapshot(f.gateway.core);
+        snapshot.workers.push(
+          create(ui.WorkerUpdateSchema, {
+            workerId: "independent-app",
+            name: "Independent app",
+            installKind: "desktop",
+            desktop: {
+              connected: true,
+              version: commands.includes("desktop") ? "2.0.0" : "1.0.0",
+              availableVersion: "2.0.0",
+            },
+          }),
+        );
+
+        return snapshot;
+      },
+      manage: async (request) => {
+        commands.push(request.action);
+        throw new Error("Gateway download failed. Check the connection and retry.");
+      },
+      install: async () => {
+        throw new Error("A dependent CLI must not start");
+      },
+      desktop: async () => {
+        commands.push("desktop");
+      },
+      computer: async () => {
+        throw new Error("No linked app in this fixture");
+      },
+    });
+
+    await center.begin();
+
+    const run = await eventually(
+      async () => {
+        await center.tick();
+
+        return center.status();
+      },
+      (run) => run?.state !== "running",
+      5000,
+    );
+
+    expect(commands).toEqual(["gateway", "desktop"]);
+    expect(run?.steps.map((step) => step.state)).toEqual(["failed", "blocked", "blocked", "succeeded"]);
+    expect(run?.steps[1]?.reason).toContain("Gateway");
   });
 
   test("plans and durable state are owner-scoped; a role change prevents binary updates", async () => {

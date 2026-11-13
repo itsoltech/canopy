@@ -2,7 +2,8 @@ import type { ui } from "@canopy/contracts";
 import type { DesktopUpdateStatus } from "@canopy/ui/desktop";
 import { cliUpdateActionable } from "@canopy/domain/release/update-actions";
 import { updateBusy } from "./updates.svelte.ts";
-import { computerUpdatesAvailable } from "./computer-updates.ts";
+
+export { bulkUpdatesAvailable as updatesAvailable } from "@canopy/domain/release/update-plan";
 
 export function workerCurrent(worker: ui.WorkerUpdate, gatewayVersion: string): boolean {
   if (worker.state === "failed" || updateBusy(worker.state) || worker.compatibility !== "compatible") return false;
@@ -44,24 +45,6 @@ export const gatewayCurrent = (snapshot: ui.UpdatesSnapshot): boolean =>
 /** Workers with their own row: the desktop app's bundled worker is part of "This Canopy app". */
 export const listedWorkers = (snapshot: ui.UpdatesSnapshot): ui.WorkerUpdate[] =>
   snapshot.workers.filter((worker) => !worker.bundled);
-
-export const updatesAvailable = (snapshot: ui.UpdatesSnapshot): boolean =>
-  computerUpdatesAvailable(snapshot) ||
-  (!snapshot.gatewayBundled && snapshot.gatewayInstallKind === "binary" && snapshot.gatewayUpdateAvailable) ||
-  listedWorkers(snapshot).some((worker) =>
-    worker.desktop
-      ? worker.desktop.connected &&
-        !worker.desktop.disabledReason &&
-        !!worker.desktop.availableVersion &&
-        worker.desktop.availableVersion !== worker.desktop.version
-      : worker.installKind === "binary" &&
-        !!worker.version &&
-        worker.version !== snapshot.gatewayVersion &&
-        worker.state !== "ahead",
-  ) ||
-  snapshot.cliWorkers.some(
-    (worker) => snapshot.workers.some((w) => w.workerId === worker.id) && worker.cliTools.some(cliUpdateActionable),
-  );
 
 export const externalUpdatesAvailable = (snapshot: ui.UpdatesSnapshot): boolean =>
   (!snapshot.gatewayBundled && snapshot.gatewayInstallKind !== "binary" && snapshot.gatewayUpdateAvailable) ||

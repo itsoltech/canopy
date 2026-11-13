@@ -47,7 +47,14 @@ export function UpdateRun({ run }: { run: ui.UpdateRun | undefined }) {
   if (!run?.steps.length) return null;
 
   return (
-    <SettingsDisclosure title={`Update all · ${run.state === "succeeded" ? "Updated" : updateLabel(run.state)}`}>
+    <SettingsDisclosure
+      title={`Update all · ${run.state === "succeeded" ? "Complete" : updateLabel(run.state)}`}
+      initiallyOpen={run.state === "running"}
+    >
+      <Text accessibilityLiveRegion="polite" style={[styles.overlayMeta, { color: c.muted }]}>
+        {run.steps.filter((step) => step.state === "succeeded").length}/
+        {run.steps.filter((step) => step.state !== "skipped").length} updated
+      </Text>
       {["failed", "blocked"].includes(run.state) && (
         <View style={[styles.row, { flexWrap: "wrap", gap: 8 }]}>
           {snapshot && bulkUpdatesAvailable(snapshot) && (
@@ -77,6 +84,14 @@ export function UpdateRun({ run }: { run: ui.UpdateRun | undefined }) {
             </Text>
           )}
           {!!step.reason && <UpdateDetails text={step.reason} />}
+          {run.state !== "running" && ["failed", "blocked"].includes(step.state) && (
+            <Button
+              title="Retry update"
+              size="sm"
+              disabled={!!pending}
+              onPress={() => void manage({ action: "retry_step", desktopRequestId: run.id, updateStepIndex: index })}
+            />
+          )}
         </View>
       ))}
     </SettingsDisclosure>

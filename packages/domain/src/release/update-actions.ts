@@ -56,13 +56,22 @@ export function appCheckPause(app: ui.DesktopUpdateState | undefined): string {
   return [app.updaterError, app.reason].find(isRateLimitMessage) ?? "";
 }
 
-/** Bulk updates leave installed CLIs owned by package managers to those managers. */
+/** Match the gateway's installer support, including managers with a supported update recipe. */
 export const cliManagedExternally = (item: ui.WorkerCliTool): boolean =>
   !!item.tool &&
-  ![CliInstallMethod.NATIVE, CliInstallMethod.NOT_INSTALLED, CliInstallMethod.UNSPECIFIED].includes(item.tool.method);
+  (!item.tool.installable ||
+    !!item.managedBy ||
+    [
+      CliInstallMethod.HOMEBREW,
+      CliInstallMethod.MISE,
+      CliInstallMethod.ASDF,
+      CliInstallMethod.YARN,
+      CliInstallMethod.DOCKER,
+      CliInstallMethod.OTHER,
+    ].includes(item.tool.method));
 
 export const cliUpdateActionable = (item: ui.WorkerCliTool): boolean =>
-  item.tool?.method === CliInstallMethod.NATIVE &&
-  item.tool.installable &&
+  !!item.tool?.installable &&
+  !cliManagedExternally(item) &&
   item.action === "update" &&
   !item.blockedReason.includes("owner");
