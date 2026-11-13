@@ -15,6 +15,7 @@ const version = (process.env["WEB_BUILD_VERSION"] ??= buildVersion());
 const canopyVersion = process.env["CANOPY_VERSION"] || "0.0.0-dev";
 
 export default defineConfig({
+  worker: { format: "es" },
   plugins: [
     tailwindcss(),
     sveltekit({

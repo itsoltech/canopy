@@ -2,6 +2,7 @@
 // Opis semantyki: docs/protocol.md
 syntax = "proto3";
 import "canopy/worker/v1/thread_directory.proto";
+import "canopy/worker/v1/thread_highlight.proto";
 
 package canopy.worker.v1;
 
@@ -440,6 +441,8 @@ message Command {
     ReadGitPrContext read_git_pr_context = 227;
     // Nietrwała, ograniczona enumeracja; capability thread_directory_v1.
     ListThreadDirectory list_thread_directory = 228;
+    // Ograniczone okno tokenów; capability thread_file_highlight_v1, bez journala/outboxa.
+    GetThreadFileHighlight get_thread_file_highlight = 229;
     // CLI dostawców (sekcja na końcu pliku). Nietrwała: nigdy z outboxa.
     InstallCli install_cli = 800;
     // Nietrwałe metadane konta; capability provider_account_status, bez journala/outboxa.
@@ -712,6 +715,7 @@ message CommandResult {
   FileContent file = 222;
   GitPrContext git_pr_context = 227;
   ThreadDirectoryPage thread_directory = 228;
+  ThreadFileHighlight thread_file_highlight = 229;
   ProviderAccountsReport provider_accounts = 810;
   // Wynik ScanImportSources (docs/import.md).
   ImportScan import_scan = 850;
@@ -1850,6 +1854,11 @@ message FileContent {
   repeated string searched_paths = 11;
   bool search_incomplete = 12;
   FileResolution resolution = 13;
+  uint32 image_width = 14;
+  uint32 image_height = 15;
+  string image_preview_error = 16;
+  // Pierwsza klatka GIF jako PNG, maks. 2 MiB. Oryginalne content i hash pozostają bez zmian.
+  bytes image_preview = 17;
 }
 
 enum FileResolution {

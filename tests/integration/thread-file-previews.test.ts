@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdirSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import sharp from "sharp";
 import { create, toJson } from "@bufbuild/protobuf";
 import { FileResolution, ItemSchema, ItemStatus, type ui } from "@canopy/contracts";
 import { qualifyId } from "@canopy/domain/computers";
@@ -220,6 +221,29 @@ describe.skipIf(!dockerAvailable)("thread file previews through a real home work
       expect(file.content).toEqual(new Uint8Array(bytes));
       expect(file.sha256).toHaveLength(64);
     }
+  });
+
+  test("image dimensions and static previews are bounded before client decoding", async () => {
+    const small = sharp({ create: { width: 16, height: 12, channels: 3, background: "#123456" } });
+    put("assets/small.png", await small.clone().png().toBuffer());
+    const png = await caller.api.readThreadFile({ threadId: q(), path: "small.png" });
+    expect(png).toMatchObject({ imageWidth: 16, imageHeight: 12, imagePreviewError: "" });
+
+    put("assets/static.gif", await small.clone().gif().toBuffer());
+    const gif = await caller.api.readThreadFile({ threadId: q(), path: "static.gif" });
+    expect(gif).toMatchObject({ imageWidth: 16, imageHeight: 12, imagePreviewError: "" });
+    expect(Buffer.from(gif.imagePreview.subarray(0, 8)).toString("hex")).toBe("89504e470d0a1a0a");
+
+    const huge = await sharp({ create: { width: 4100, height: 4100, channels: 3, background: "#123456" } })
+      .png()
+      .toBuffer();
+
+    put("assets/huge.png", huge);
+    const denied = await caller.api.readThreadFile({ threadId: q(), path: "huge.png" });
+    expect(denied.imageWidth).toBe(0);
+    expect(denied.imagePreview).toHaveLength(0);
+    expect(denied.imagePreviewError).toBeTruthy();
+    expect(denied.content).toEqual(new Uint8Array(huge));
   });
 
   test("linked reads cap text and binary previews at 2 MiB and cannot authorize mutations", async () => {

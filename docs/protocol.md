@@ -490,6 +490,28 @@ i własnego remote. Konektor oraz poświadczenia pozostają w gatewayu. Pola są
 
 ## Folder i pliki wątku
 
+Capability `thread_file_highlight_v1` dodaje nietrwałe `GetThreadFileHighlight`
+(229) oraz wynik `thread_file_highlight` (229). Gateway wyprowadza owner, worker
+i cwd z wątku; kontrola ścieżki i hash odczytu obowiązują ponownie na workerze.
+Żądanie obejmuje do 200 linii. Opcjonalny szkic do 400 KiB z rewizją służy tylko
+jawnemu podglądowi zmian; nie trafia do outboxa, modelu, DB ani synchronizacji.
+Przekazanie szkicu przez linked computers wymaga bezpośredniej trasy do domu;
+relay dopuszcza wyłącznie odczyt zapisanej treści. Wynik ma do 64 KiB protobuf
+z kopertą: hash, rewizja szkicu, numery linii, offsety UTF-16 i zamknięty enum ról,
+bez tekstu, HTML i CSS. Niepełny wynik oznacza plain text dla pozostałych linii.
+
+Jeden leniwy wykonawca CPU obsługuje zadanie, cztery czekają. Ładowanie gramatyki
+i rozgrzewka na stałym tekście mają osobny limit 10 s; właściwa praca nad plikiem
+ma twardy limit 100 ms i miękki 70 ms między liniami. Linia ponad 2000 jednostek
+UTF-16 zatrzymuje propagację stanu gramatyki. LRU ma do 8 sesji / 8 MiB źródeł,
+128 checkpointów na sesję i TTL 30 s; rozłączenie workera go czyści.
+
+`FileContent` i `ThreadFile` mają addytywne wymiary obrazu, przyczynę odmowy
+preview i opcjonalny statyczny PNG. Worker sprawdza nagłówek przez ograniczony
+dekoder przed wysłaniem do klienta: najwyżej 16 MP i 2 MiB podglądu. Nie przekazuje
+SVG do dekodera obrazu. Starszy worker bez wymiarów pozostawia akcję otwarcia
+pliku na komputerze zamiast nieograniczonego dekodowania bitmapy w kliencie.
+
 Capability `thread_directory_v1` dodaje nietrwałe `ListThreadDirectory` (228) oraz
 `CommandResult.thread_directory` (228), bez zmiany `WORKER_LINK_PROTOCOL = 1`.
 UI podaje wyłącznie id wątku, względny katalog, filtr, rewizję i kursor. Gateway

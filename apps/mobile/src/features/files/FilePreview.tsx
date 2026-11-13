@@ -63,7 +63,7 @@ export function FilePreview({
               <Text style={[styles.body, { color: c.muted }]}>
                 This file exceeds the 2 MB preview limit. Open a smaller file to preview it.
               </Text>
-            ) : /^image\/(png|jpeg|gif|webp)$/.test(file.mimeType) ? (
+            ) : /^image\/(png|jpeg|gif|webp|avif)$/.test(file.mimeType) ? (
               <ThreadFileImage key={file.sha256} file={file} name={name} />
             ) : (
               <Text style={[styles.body, { color: c.muted }]}>

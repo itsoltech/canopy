@@ -1729,6 +1729,13 @@ niekończącą się wysokość: blok kodu był wysokim pustym prostokątem.
 
 ## Sprawdzanie aplikacji
 
+Zakładki plików workspace'u używają natywnej wirtualnej listy linii i ról składni
+otrzymanych przez bounded `GetThreadFileHighlight`, bez parsera w runtime telefonu.
+Natywne pole edycji pozostaje bez kolorów; jawne `Preview changes` koloruje szkic,
+`Keep editing` wraca do pisania. Tło anuluje żądania kolorowania. Tokeny mają osobny
+LRU 2 MiB, związany z klientem parowania; treść i szkic pozostają tylko w pamięci.
+Szczegóły limitów oraz fallbacków: [UI API](ui-api.md#pliki-wątku).
+
 Przy `INSTALL_FAILED_INSUFFICIENT_STORAGE` na AVD użyj
 `bunx expo run:android --active-arch-only` lub zwiększ dysk emulatora.
 Na iOS Simulator zachowaj standardowe podpisywanie debug: wyłączenie go przez

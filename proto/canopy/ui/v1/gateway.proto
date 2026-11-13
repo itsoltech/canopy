@@ -11,6 +11,7 @@ import "canopy/ui/v1/workspace_copy.proto";
 import "google/protobuf/timestamp.proto";
 import "canopy/worker/v1/worker_link.proto";
 import "canopy/worker/v1/thread_directory.proto";
+import "canopy/worker/v1/thread_highlight.proto";
 import "canopy/ui/v1/bots.proto";
 import "canopy/ui/v1/quotes.proto";
 import "canopy/ui/v1/connectors.proto";
@@ -315,6 +316,7 @@ service GatewayService {
   // dostęp tylko pod katalogiem wątku, workspace'ami właściciela na tym workerze i katalogami workera.
   rpc ReadThreadFile(ThreadFileRequest) returns (ThreadFile);
   rpc ListThreadDirectory(ListThreadDirectoryRequest) returns (canopy.worker.v1.ThreadDirectoryPage);
+  rpc GetThreadFileHighlight(ThreadFileHighlightRequest) returns (canopy.worker.v1.ThreadFileHighlight);
   rpc WriteThreadFile(WriteThreadFileRequest) returns (ThreadFile);
   rpc DeleteThreadFile(ThreadFileRequest) returns (google.protobuf.Empty);
   // Otwiera plik w domyślnej aplikacji systemu na komputerze workera.
@@ -1057,6 +1059,16 @@ message OverviewFeeds {
 }
 
 // ---------- Katalogi, projekty, workspace'y ----------
+
+message ThreadFileHighlightRequest {
+  string thread_id = 1;
+  string path = 2;
+  string sha256 = 3;
+  uint32 start_line = 4;
+  uint32 line_count = 5;
+  optional string draft = 6;
+  string draft_revision = 7;
+}
 
 message ListThreadDirectoryRequest {
   string thread_id = 1;
@@ -2741,6 +2753,10 @@ message ThreadFile {
   bool search_incomplete = 12;
   canopy.worker.v1.FileResolution resolution = 13;
   string computer = 14;
+  uint32 image_width = 15;
+  uint32 image_height = 16;
+  string image_preview_error = 17;
+  bytes image_preview = 18;
 }
 
 message SwitchThreadBranchRequest {

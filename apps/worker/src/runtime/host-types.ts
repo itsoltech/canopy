@@ -55,6 +55,7 @@ export interface CommandOutput {
   readonly importSecret?: MessageInitShape<typeof CommandResultSchema>["importSecret"];
   readonly file?: MessageInitShape<typeof CommandResultSchema>["file"];
   readonly threadDirectory?: MessageInitShape<typeof CommandResultSchema>["threadDirectory"];
+  readonly threadFileHighlight?: MessageInitShape<typeof CommandResultSchema>["threadFileHighlight"];
 }
 
 export interface WorkerHostOptions {

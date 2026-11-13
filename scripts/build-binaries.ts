@@ -215,7 +215,7 @@ export async function compile(entry: string, outfile: string, target: Target, ve
   const native = sharpLoader(await sharpFiles(target));
 
   const build = await Bun.build({
-    entrypoints: [entry],
+    entrypoints: [entry, join(root, "apps/worker/src/files/highlight-executor.ts")],
     target: "bun",
     minify: { syntax: true, whitespace: true },
     sourcemap: "none",

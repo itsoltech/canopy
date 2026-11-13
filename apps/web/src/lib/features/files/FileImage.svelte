@@ -7,9 +7,21 @@
   let dimensions = $state("");
   let failed = $state(false);
 
+  const safe = $derived(
+    file.imageWidth > 0 &&
+      file.imageHeight > 0 &&
+      file.imageWidth * file.imageHeight <= 16_000_000 &&
+      !file.imagePreviewError,
+  );
+
   $effect(() => {
-    const bytes = new Uint8Array(file.content);
-    const source = URL.createObjectURL(new Blob([bytes], { type: file.mimeType }));
+    if (!safe) return;
+    const bytes = new Uint8Array(file.imagePreview.length ? file.imagePreview : file.content);
+
+    const source = URL.createObjectURL(
+      new Blob([bytes], { type: file.imagePreview.length ? "image/png" : file.mimeType }),
+    );
+
     url = source;
     dimensions = "";
     failed = false;
@@ -19,7 +31,11 @@
 </script>
 
 <figure class="grid min-w-0 gap-2 p-3">
-  {#if failed}
+  {#if !safe}
+    <p class="text-sm text-muted">
+      {file.imagePreviewError || "Update Canopy on the thread’s computer to preview this image safely."}
+    </p>
+  {:else if failed}
     <p role="alert" class="text-base text-muted sm:text-sm">Could not show this image. Reload to try again.</p>
   {:else if url}
     <img

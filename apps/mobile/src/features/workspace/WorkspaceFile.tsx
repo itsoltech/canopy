@@ -1,5 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { View } from "react-native";
+import { Button } from "../../ui/Button";
 import type { Workspace, WorkspaceTab } from "@canopy/domain/workspace";
 import { fileName } from "@canopy/domain/file-references";
 import { useContentPadding } from "../../ui/ScreenFrame";
@@ -10,6 +11,7 @@ import { FileLookup } from "../files/FileLookup";
 import type { ThreadFileState } from "../files/useThreadFile";
 import { WorkspaceReader } from "./WorkspaceReader";
 import { GoToLine } from "./GoToLine";
+import { WorkspaceText } from "./WorkspaceText";
 
 export function WorkspaceFile({ view, tab }: { view: Workspace; tab: WorkspaceTab }) {
   useSyncExternalStore(view.store.subscribe, view.store.getVersion);
@@ -17,6 +19,11 @@ export function WorkspaceFile({ view, tab }: { view: Workspace; tab: WorkspaceTa
   const padding = useContentPadding(0);
   const [confirmation, setConfirmation] = useState<FileConfirmationKind>();
   const [go, setGo] = useState(false);
+  const [previewChanges, setPreviewChanges] = useState(false);
+
+  useEffect(() => {
+    if (!document.editing) setPreviewChanges(false);
+  }, [document.editing]);
 
   useEffect(() => {
     if (!document.file) void document.load();
@@ -52,18 +59,33 @@ export function WorkspaceFile({ view, tab }: { view: Workspace; tab: WorkspaceTa
   const name = fileName(document.path);
 
   const actions = (
-    <FileActions
-      viewer={viewer}
-      onDiscard={() => (document.dirty ? setConfirmation("discard") : document.discard())}
-      onDelete={() => setConfirmation("delete")}
-    />
+    <View style={{ gap: 8 }}>
+      <FileActions
+        viewer={viewer}
+        onDiscard={() => (document.dirty ? setConfirmation("discard") : document.discard())}
+        onDelete={() => setConfirmation("delete")}
+      />
+      {document.editing && (
+        <Button
+          size="sm"
+          title={previewChanges ? "Keep editing" : "Preview changes"}
+          disabled={document.busy}
+          onPress={() => setPreviewChanges((value) => !value)}
+        />
+      )}
+    </View>
   );
 
   const textView = document.file && !document.file.binary && !document.editing;
 
   return (
     <View style={{ flex: 1, ...padding }}>
-      {textView ? (
+      {document.editing && previewChanges ? (
+        <>
+          <View style={{ padding: 12 }}>{actions}</View>
+          <WorkspaceText document={document} draft={document.draft} />
+        </>
+      ) : textView ? (
         <WorkspaceReader
           tab={tab}
           name={name}

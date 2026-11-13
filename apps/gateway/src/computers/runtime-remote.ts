@@ -17,6 +17,7 @@ import {
 import { botFeature } from "./remote-policy.ts";
 
 import { RELAY_METHODS, relayCallback } from "./relay.ts";
+import { fileHighlightDraft } from "./remote-policy.ts";
 
 import { type PeerRow } from "./store.ts";
 
@@ -204,7 +205,11 @@ export const computersRemoteMethods: ComputersRemoteMethods = {
     const indirect = this.relay.entries.get(nodeId);
 
     if (indirect) {
-      if (!RELAY_METHODS.has(method.name) || (indirect.relay_role === "origin" && !relayCallback(method, request)))
+      if (
+        fileHighlightDraft(method, request) ||
+        !RELAY_METHODS.has(method.name) ||
+        (indirect.relay_role === "origin" && !relayCallback(method, request))
+      )
         throw new ConnectError("This relay entry is read only", Code.PermissionDenied);
       const remote = indirect.via_node_id && computersRelayChannel(this, indirect.via_node_id);
 
