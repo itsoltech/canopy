@@ -22,6 +22,11 @@ export const GITHUB_METADATA_METHODS = new Set([
   "SetPullRequestLabels",
 ]);
 
+/** Draft source never crosses an onward-sharing relay, including a malicious relay envelope. */
+export const fileHighlightDraft = (method: { name: string }, request: Message): boolean =>
+  method.name === "GetThreadFileHighlight" &&
+  linkedMessage(ui.ThreadFileHighlightRequestSchema, request).draft !== undefined;
+
 export const GITHUB_LIFECYCLE_METHODS = new Set([
   "GetPullRequestCreateContext",
   "PreparePullRequestDraftContext",
@@ -191,6 +196,7 @@ export const SERVED = new Set([
   "RevealWorktree",
   "ReadThreadFile",
   "ListThreadDirectory",
+  "GetThreadFileHighlight",
   "WriteThreadFile",
   "DeleteThreadFile",
   "WatchThreadMirror",

@@ -31,6 +31,7 @@ export class WorkspaceFile {
   lookup: ui.ThreadFile | undefined;
   text = "";
   draft = "";
+  draftRevision = 0;
   editing = false;
   loading = false;
   busy = false;
@@ -140,6 +141,7 @@ export class WorkspaceFile {
       this.error = "The draft limit was reached. Save or discard another draft, then retry.";
     } else {
       this.draft = text;
+      this.draftRevision++;
       this.error = "";
     }
 

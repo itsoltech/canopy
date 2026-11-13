@@ -1,0 +1,24 @@
+{
+  "name": "@canopy/syntax",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./languages": "./src/languages.ts",
+    "./theme": "./src/theme.ts",
+    "./highlighter": "./src/highlighter.ts",
+    "./incremental": "./src/incremental.ts",
+    "./window": "./src/window.ts",
+    "./source": "./src/source.ts",
+    "./roles": "./src/roles.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@canopy/contracts": "workspace:*",
+    "@shikijs/engine-javascript": "4.6.0",
+    "@shikijs/langs": "4.6.0",
+    "@shikijs/primitive": "4.6.0"
+  }
+}

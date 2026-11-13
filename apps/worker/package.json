@@ -23,6 +23,7 @@
     "@canopy/logs": "workspace:*",
     "@canopy/grok-acp": "workspace:*",
     "@canopy/process-governor": "workspace:*",
+    "@canopy/syntax": "workspace:*",
     "@canopy/transport": "workspace:*",
     "@canopy/updater": "workspace:*",
     "@connectrpc/connect": "2.3.0",

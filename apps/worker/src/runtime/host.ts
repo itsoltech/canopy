@@ -85,6 +85,7 @@ const NOT_REMEMBERED: ReadonlySet<Command["kind"]["case"]> = new Set([
   // Explicit owner actions on one file: answered once, never redelivered.
   "readFile",
   "listThreadDirectory",
+  "getThreadFileHighlight",
   "openFile",
   "writeFile",
   "deleteFile",
@@ -355,6 +356,7 @@ export class WorkerHost {
         ...(output.importSecret && { importSecret: output.importSecret }),
         ...(output.file && { file: output.file }),
         ...(output.threadDirectory && { threadDirectory: output.threadDirectory }),
+        ...(output.threadFileHighlight && { threadFileHighlight: output.threadFileHighlight }),
       };
 
       if (!NOT_REMEMBERED.has(command.kind.case)) await this.#remember(result);

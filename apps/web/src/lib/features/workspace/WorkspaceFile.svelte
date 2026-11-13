@@ -218,6 +218,15 @@
       />
     {:else if !viewer.file && viewer.lookup && !viewer.loading}
       <FileLookup file={viewer.lookup} path={document.path} onselect={(path) => void document.load(path)} />
+    {:else if viewer.file && !viewer.file.binary && !rendered}
+      {#await import("./WorkspaceSource.svelte") then reader}
+        <reader.default
+          {document}
+          text={viewer.text}
+          path={viewer.file.relativePath || document.path}
+          revision={viewer.positionRevision}
+        />
+      {/await}
     {:else}
       <FileContentView
         file={viewer.file}

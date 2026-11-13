@@ -1,0 +1,51 @@
+syntax = "proto3";
+package canopy.worker.v1;
+
+// Nietrwałe okno semantycznych tokenów; nigdy HTML, CSS ani fragmenty treści.
+enum SyntaxRole {
+  SYNTAX_ROLE_UNSPECIFIED = 0;
+  SYNTAX_ROLE_COMMENT = 1;
+  SYNTAX_ROLE_KEYWORD = 2;
+  SYNTAX_ROLE_PUNCTUATION = 3;
+  SYNTAX_ROLE_STRING = 4;
+  SYNTAX_ROLE_REGEXP = 5;
+  SYNTAX_ROLE_CONSTANT = 6;
+  SYNTAX_ROLE_FUNCTION = 7;
+  SYNTAX_ROLE_TYPE = 8;
+  SYNTAX_ROLE_TAG = 9;
+  SYNTAX_ROLE_PROPERTY = 10;
+  SYNTAX_ROLE_INSERTED = 11;
+  SYNTAX_ROLE_DELETED = 12;
+}
+
+message SyntaxSpan {
+  uint32 from = 1; // UTF-16, względem początku linii
+  uint32 to = 2;
+  SyntaxRole role = 3;
+}
+
+message SyntaxLine {
+  uint32 line = 1; // numer od 1
+  repeated SyntaxSpan spans = 2;
+}
+
+message ThreadFileHighlight {
+  string sha256 = 1;
+  string draft_revision = 2;
+  repeated SyntaxLine lines = 3;
+  // Brak znanego stanu poprzedniej linii: klient zachowuje plain text.
+  bool incomplete = 4;
+  string reason = 5;
+}
+
+message GetThreadFileHighlight {
+  string owner_id = 1;
+  string thread_id = 2;
+  string workspace = 3;
+  string path = 4;
+  string sha256 = 5;
+  uint32 start_line = 6;
+  uint32 line_count = 7; // najwyżej 200
+  optional string draft = 8; // najwyżej 400 KiB; wyłącznie jawne Preview changes
+  string draft_revision = 9;
+}

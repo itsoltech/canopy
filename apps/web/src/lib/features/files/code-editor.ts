@@ -24,6 +24,7 @@ import {
 } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import type { FilePosition } from "@canopy/domain/file-references";
+import { workspaceHighlight } from "#lib/features/workspace/workspace-editor.ts";
 
 /**
  * The file viewer's editor (CodeMirror 6, loaded on first edit). Colours come from the code tokens in
@@ -126,7 +127,7 @@ export function createCodeEditor(parent: HTMLElement, options: CodeEditorOptions
           highlightActiveLine(),
           highlightSelectionMatches(),
           search({ top: true }),
-          syntaxHighlighting(highlight),
+          ...(options.workspace ? [workspaceHighlight(options.fileName)] : [syntaxHighlighting(highlight)]),
           theme,
           language.of([]),
           ...(options.wrap ? [EditorView.lineWrapping] : []),
@@ -146,7 +147,7 @@ export function createCodeEditor(parent: HTMLElement, options: CodeEditorOptions
   view.dispatch({ effects: events.reconfigure(editorEvents(options, () => resetting)) });
 
   // The grammar loads by the file's name (`.sql`, `.cs`, `Dockerfile`); unknown files stay plain text.
-  const description = LanguageDescription.matchFilename(languages, options.fileName);
+  const description = options.workspace ? undefined : LanguageDescription.matchFilename(languages, options.fileName);
   void description?.load().then((support) => {
     if (!destroyed) view.dispatch({ effects: language.reconfigure(support) });
   });

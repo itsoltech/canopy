@@ -12,12 +12,16 @@ import { withProcessPriority } from "@canopy/process-governor";
 import { revealInFileManager } from "./reveal.ts";
 import { isFileCommand, runFileCommand } from "./file-commands.ts";
 import { ThreadDirectories } from "../files/thread-directory.ts";
+import { ThreadHighlights } from "../files/thread-highlight.ts";
 
 export class CommandHandlers {
   readonly #directories = new ThreadDirectories();
+  readonly #highlights = new ThreadHighlights();
   constructor(readonly ctx: HostContext) {}
 
   closeDirectories() {
+    this.#highlights.close();
+
     return this.#directories.close();
   }
 
@@ -30,6 +34,12 @@ export class CommandHandlers {
       this.ctx.ops.checkCwd(kind.value.workspace);
 
       return { threadDirectory: await this.#directories.list(kind.value) };
+    }
+
+    if (kind.case === "getThreadFileHighlight") {
+      this.ctx.ops.checkCwd(kind.value.workspace);
+
+      return { threadFileHighlight: await this.#highlights.read(kind.value) };
     }
 
     if (isFileCommand(kind)) return runFileCommand(this.ctx, kind);

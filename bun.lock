@@ -88,6 +88,7 @@
         "@bufbuild/protobuf": "2.16.0",
         "@canopy/contracts": "workspace:*",
         "@canopy/domain": "workspace:*",
+        "@canopy/syntax": "workspace:*",
         "@canopy/ui": "workspace:*",
         "@connectrpc/connect": "2.3.0",
         "@connectrpc/connect-web": "2.3.0",
@@ -140,6 +141,7 @@
         "@canopy/contracts": "workspace:*",
         "@canopy/domain": "workspace:*",
         "@canopy/logs": "workspace:*",
+        "@canopy/syntax": "workspace:*",
         "@canopy/transport": "workspace:*",
         "@canopy/ui": "workspace:*",
         "@canopy/updater": "workspace:*",
@@ -153,9 +155,6 @@
         "@connectrpc/connect": "2.3.0",
         "@connectrpc/connect-node": "2.3.0",
         "@lezer/highlight": "1.2.5",
-        "@shikijs/engine-javascript": "4.6.0",
-        "@shikijs/langs": "4.6.0",
-        "@shikijs/primitive": "4.6.0",
         "effect": "4.1.1",
         "katex": "0.16.28",
         "marked": "18.1.2",
@@ -188,6 +187,7 @@
         "@canopy/grok-acp": "workspace:*",
         "@canopy/logs": "workspace:*",
         "@canopy/process-governor": "workspace:*",
+        "@canopy/syntax": "workspace:*",
         "@canopy/transport": "workspace:*",
         "@canopy/updater": "workspace:*",
         "@connectrpc/connect": "2.3.0",
@@ -263,6 +263,16 @@
     "packages/process-governor": {
       "name": "@canopy/process-governor",
       "version": "0.0.0",
+    },
+    "packages/syntax": {
+      "name": "@canopy/syntax",
+      "version": "0.0.0",
+      "dependencies": {
+        "@canopy/contracts": "workspace:*",
+        "@shikijs/engine-javascript": "4.6.0",
+        "@shikijs/langs": "4.6.0",
+        "@shikijs/primitive": "4.6.0",
+      },
     },
     "packages/testing": {
       "name": "@canopy/testing",
@@ -541,6 +551,8 @@
     "@canopy/mobile": ["@canopy/mobile@workspace:apps/mobile"],
 
     "@canopy/process-governor": ["@canopy/process-governor@workspace:packages/process-governor"],
+
+    "@canopy/syntax": ["@canopy/syntax@workspace:packages/syntax"],
 
     "@canopy/testing": ["@canopy/testing@workspace:packages/testing"],
 

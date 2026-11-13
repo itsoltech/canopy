@@ -262,6 +262,28 @@ describe.skipIf(!dockerAvailable)("Share onward: three real gateways and indepen
     ).toBe(n2);
   });
 
+  test("file draft highlighting cannot cross a relay, even with a forged incoming envelope", async () => {
+    const request = create(ui.ThreadFileHighlightRequestSchema, {
+      threadId: q(thread),
+      path: "sample.ts",
+      sha256: "0".repeat(64),
+      startLine: 1,
+      lineCount: 1,
+      draft: "private draft",
+      draftRevision: "edit-1",
+    });
+
+    expect(await failure(w.api.getThreadFileHighlight(request))).toContain("read only");
+
+    for (const route of [
+      { targetNodeId: n2, originNodeId: "", relayHops: 0 },
+      { targetNodeId: "", originNodeId: n2, relayHops: 1 },
+    ]) {
+      const incoming = create(ui.ThreadFileHighlightRequestSchema, { ...request, threadId: thread });
+      expect(await failure(raw(route, "GetThreadFileHighlight", incoming))).toContain("direct connection");
+    }
+  });
+
   test("explicit reciprocal sharing permits both directions without a routing loop", async () => {
     await p1.api.manageComputer({ action: "share_onward", nodeId: n2, shareOnwardNodeIds: [wn] });
     expect(await eventually(async () => l2.reachable().includes(wn), Boolean)).toBe(true);

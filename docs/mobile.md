@@ -50,8 +50,12 @@ są lokalne dla parowania; szkice i zawartość nie trafiają do pliku metadanyc
 Cache czystych plików ma limit 8 MiB, suma baz i szkiców 4 MiB.
 
 Viewer zachowuje Markdown/source, kopiowanie i obrazy. Source jest oknem linii
-z numerami, pozycją i zakresem z linku lub Go to line; bardzo długie linie dzieli
-na fragmenty do 4096 znaków bez utraty treści i par surogatów, pod tym samym numerem.
+z numerami, pozycją i zakresem z linku lub Go to line. Powrót do karty przywraca
+zapamiętany offset dopiero po
+ukończeniu indeksowania i pomiarze listy. Nowy link do linii ma pierwszeństwo;
+zdarzenia przewijania podczas przygotowania listy nie nadpisują starego offsetu.
+Bardzo długie linie dzieli na fragmenty do 4096 znaków bez utraty treści i par
+surogatów, pod tym samym numerem.
 Edycja pozostaje natywnym polem tekstowym bez kolorów podczas pisania. Tokenizacja
 viewera i Preview changes dochodzą w osobnej warstwie workspace'u; obecny shell
 nie dodaje nowych RPC ani modułu natywnego. Poza wątkiem pozostaje pełnoekranowy viewer.
@@ -1728,6 +1732,13 @@ dopasowanym do treści (`alignItems: "flex-start"`, jak dymek czatu) daje mu na 
 niekończącą się wysokość: blok kodu był wysokim pustym prostokątem.
 
 ## Sprawdzanie aplikacji
+
+Zakładki plików workspace'u używają natywnej wirtualnej listy linii i ról składni
+otrzymanych przez bounded `GetThreadFileHighlight`, bez parsera w runtime telefonu.
+Natywne pole edycji pozostaje bez kolorów; jawne `Preview changes` koloruje szkic,
+`Keep editing` wraca do pisania. Tło anuluje żądania kolorowania. Tokeny mają osobny
+LRU 2 MiB, związany z klientem parowania; treść i szkic pozostają tylko w pamięci.
+Szczegóły limitów oraz fallbacków: [UI API](ui-api.md#pliki-wątku).
 
 Przy `INSTALL_FAILED_INSUFFICIENT_STORAGE` na AVD użyj
 `bunx expo run:android --active-arch-only` lub zwiększ dysk emulatora.

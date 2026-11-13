@@ -4,6 +4,7 @@ import { resolvePreview } from "../files/resolve-preview.ts";
 import type { CommandOutput } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
 import { openInDefaultApp } from "./reveal.ts";
+import { fileImageMetadata } from "../files/file-image.ts";
 
 type FileCommand = Extract<Command["kind"], { case: "readFile" | "openFile" | "writeFile" | "deleteFile" }>;
 
@@ -32,7 +33,12 @@ export async function runFileCommand(ctx: HostContext, kind: FileCommand): Promi
 
   switch (kind.case) {
     case "readFile":
-      return { file: { ...readThreadFile(path, target.maxBytes, target.includeBinary), ...resolution } };
+      return {
+        file: await fileImageMetadata({
+          ...readThreadFile(path, target.maxBytes, target.includeBinary),
+          ...resolution,
+        }),
+      };
     case "openFile":
       await openInDefaultApp(path);
 

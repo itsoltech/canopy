@@ -2186,6 +2186,24 @@ nie ma pollingu. Własny zapis/usunięcie unieważnia tylko drzewo danego wątku
 Zewnętrzne zmiany odświeża `Reload files`; przy zmianie katalogu podczas paginacji
 `Reload directory`. Treść drzewa pozostaje w pamięci, poza storage i synchronizacją.
 
+Viewer zakładki wirtualizuje oryginalne linie, a linię ponad 4096 jednostek UTF-16
+dzieli na oznaczone kontynuacje bez utraty znaków. Web montuje do 120 wierszy;
+indeks źródła powstaje porcjami. Plik ponad 200 KiB, 10 000 linii lub z linią
+ponad 2000 jednostek zaczyna od plain text; `Enable highlighting` jest jawne.
+Webowy reader i edytor używają jednego aktywnego Web Workera, również dla
+przyrostowych dekoracji edytora. Parser składni nie trafia na główny wątek pliku.
+Motyw korzysta ze wspólnych ról `--code-*`, bez ponownej tokenizacji po zmianie palety.
+
+Mobile wywołuje `GetThreadFileHighlight` dla jednego okna do 200 linii przez
+Connect. LRU tokenów ma do 128 wpisów / 2 MiB zakodowanego protobuf na klienta
+parowania, bez treści źródłowej. Przewinięcie lub tło anuluje poprzedni odczyt;
+bez capability, przy błędzie i po timeout treść pozostaje czytelna. Natywna edycja
+nie tokenizuje podczas pisania. `Preview changes` pokazuje kolorowany szkic,
+a `Keep editing` wraca do pola. Nie dodajemy zależności ani konfiguracji natywnej.
+
+Oba klienty sprawdzają wymiary i odmowę preview z workera przed utworzeniem
+bitmapy; limit wynosi 16 MP. Podgląd animowanego obrazu jest statyczny.
+
 Pozostały opis viewera dotyczy wspólnych RPC oraz dotychczasowego modala poza wątkiem.
 
 Ścieżka pliku w wiadomości agenta jest zaznaczalnym linkiem: inline code, który wygląda na plik
