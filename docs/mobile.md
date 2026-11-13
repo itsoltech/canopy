@@ -1178,6 +1178,19 @@ identyfikator ostatniej wiadomości oraz wątek źródłowy; arkusz akcji zamyka
 otwarciem edytora cytatu. Kopiowanie pozostaje dostępne w historii tylko do odczytu,
 cytowanie i fork zachowują dotychczasowe warunki dostępności. „Fork from here” używa
 `CreateThread`, z identycznymi warunkami dostępności jak web, i otwiera nowy wątek.
+Przytrzymanie własnej, rozpoczętej wiadomości udostępnia też „Edit from here”.
+Kompaktowy arkusz potwierdza liczbę cofanych wiadomości, anulowanie kolejki i żądań
+oraz zatrzymanie aktywnej pracy i zadań w tle. Gdy agent udostępnia checkpointy,
+właściciel wybiera „Conversation only” albo „Conversation and files” i może rozwinąć
+listę przywracanych plików. W przeciwnym razie arkusz mówi „Files stay as they are”.
+Ograniczenia agentów i granic wykonania egzekwuje gateway; szczegóły w [threads.md](threads.md).
+Wynik trwałej operacji wraca przez `GetThreadRewind`, także po utracie odpowiedzi.
+Tekst, cytaty i powiązania załączników wracają do composera; bieżące ustawienia modelu
+i uprawnień zostają zachowane. „Swap saved drafts” pozwala wrócić do wcześniejszych
+niewysłanych szkiców w tej sesji ekranu. Cofnięta historia jest domyślnie zwinięta pod
+„N messages rewound” z „Show”/„Hide”, „Undo” i odzyskaniem szkicu przez „Edit message”.
+Undo jest dostępne przed kolejną turą lub cofnięciem; nie uruchamia pracy ponownie
+i nie przywraca stanu plików. Zmiana nie dodaje modułów ani konfiguracji natywnej.
 Treść wiadomości z menu nie konkuruje z natywnym zaznaczaniem; pełne przeglądarki
 zachowują zaznaczanie tekstu.
 Obrazy i bloby odziedziczonych tur są odczytywane przez ich wątek źródłowy.

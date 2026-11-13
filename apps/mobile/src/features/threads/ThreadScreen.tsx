@@ -43,6 +43,9 @@ import { WorkspaceContext } from "../workspace/context";
 import { WorkspaceFile } from "../workspace/WorkspaceFile";
 import { VisibilityScope } from "../../ui/viewport";
 import { WorkspaceModule } from "../workspace/WorkspaceModule";
+import { useThreadRewind } from "./useThreadRewind";
+import { RewindSheet } from "./RewindSheet";
+import { Button } from "../../ui/Button";
 
 export type ThreadState = ReturnType<typeof useThreadState>;
 
@@ -84,6 +87,7 @@ function useThreadState(id: string) {
   const tray = useThreadTray({ id, snapshot, setSnapshot, thread, threads });
 
   const turns = useMemo(() => visibleTurns(snapshot), [snapshot]);
+  const rewind = useThreadRewind(id, message, busy, following.resumeFollowing);
 
   const hardBlocked =
     home.away ||
@@ -93,7 +97,7 @@ function useThreadState(id: string) {
     thread.status === "archived" ||
     stream.connection === "error";
 
-  const blocked = hardBlocked || busy || !available;
+  const blocked = hardBlocked || busy || !available || rewind.busy || Boolean(thread?.rewindPending);
 
   return {
     id,
@@ -123,6 +127,7 @@ function useThreadState(id: string) {
     home,
     message,
     quotes,
+    rewind,
   };
 }
 
@@ -190,7 +195,7 @@ export function ThreadScreen({ id }: { id: string }) {
               )}
               thread={thread}
               project={projects.find((p) => p.id === thread?.projectId)}
-              turns={turns}
+              turns={turns.filter((turn) => !turn.rewindId)}
               onDetails={() => {
                 setSheet(null);
                 setDetails(true);
@@ -247,6 +252,7 @@ export function ThreadScreen({ id }: { id: string }) {
           )}
         </ChatKeyboard>
         <ThreadSheets state={state} sheet={sheet} onClose={() => setSheet(null)} />
+        <RewindSheet state={state.rewind} />
       </ScreenFrame>
     </WorkspaceContext.Provider>
   );
@@ -263,6 +269,14 @@ function ThreadStatus({ state }: { state: ThreadState }) {
         <Notice>{state.waiting ? `Still waiting for ${home.name || "this computer"}…` : "Sending…"}</Notice>
       ) : null}
       {error ? <Notice error>{error}</Notice> : null}
+      {state.rewind.busy ? <Notice>Editing this thread…</Notice> : null}
+      {state.rewind.error && !state.rewind.selected ? <Notice error>{state.rewind.error}</Notice> : null}
+      {state.rewind.error && state.rewind.canRetry && !state.rewind.selected ? (
+        <Button title="Retry" variant="ghost" onPress={state.rewind.retry} />
+      ) : null}
+      {state.rewind.saved ? (
+        <Button title="Swap saved drafts" variant="ghost" disabled={state.blocked} onPress={state.rewind.swap} />
+      ) : null}
       {home.away && (
         <Notice>
           {home.name} · {home.status}. Read only until it reconnects.
