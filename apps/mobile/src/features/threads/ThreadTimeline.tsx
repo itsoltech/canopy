@@ -60,7 +60,15 @@ function useTimelineData(state: ThreadState) {
     const directory: TimelineDirectory = {
       currentId: thread?.id ?? "",
       quote,
-      editFrom: !away && thread?.runtime === "worker" && !thread.spawnedByAgent && !thread.scheduleId && !thread.archivedAt && !thread.rewindPending ? editFrom : undefined,
+      editFrom:
+        !away &&
+        thread?.runtime === "worker" &&
+        !thread.spawnedByAgent &&
+        !thread.scheduleId &&
+        !thread.archivedAt &&
+        !thread.rewindPending
+          ? editFrom
+          : undefined,
       readOnly: away || !thread || Boolean(thread.archivedAt || thread.deletedAt),
       thread: (id) => threads.find((t) => t.id === id) ?? (id === thread?.id ? thread : undefined),
       item: (id) => items.get(id),
@@ -212,16 +220,22 @@ export function ThreadTimeline({
               // A turn that arrives (a sent or queued message) fades in; one that only scrolls into view does not, and
               // neither do the rows it mounts with. Later rows inside it animate themselves (TimelineTurn).
               renderItem={({ item, index }) => (
-                <RewindGroup turn={item} turns={turns} rewind={rewind} actions={state.rewind} readOnly={directory.readOnly}>
-                <TimelineCell
+                <RewindGroup
                   turn={item}
-                  entries={entries.get(turnKey(item)) ?? EMPTY_ENTRIES}
-                  context={context}
-                  directory={directory}
-                  newDay={days.has(item)}
-                  historical={index !== 0}
-                  entering={arrival(turnKey(item))}
-                />
+                  turns={turns}
+                  rewind={rewind}
+                  actions={state.rewind}
+                  readOnly={directory.readOnly}
+                >
+                  <TimelineCell
+                    turn={item}
+                    entries={entries.get(turnKey(item)) ?? EMPTY_ENTRIES}
+                    context={context}
+                    directory={directory}
+                    newDay={days.has(item)}
+                    historical={index !== 0}
+                    entering={arrival(turnKey(item))}
+                  />
                 </RewindGroup>
               )}
               ListHeaderComponent={
