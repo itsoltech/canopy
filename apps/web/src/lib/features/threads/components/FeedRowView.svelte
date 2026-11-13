@@ -15,6 +15,7 @@
   import { activitySurface } from "./activity-header.ts";
   import Button from "#lib/shared/ui/Button.svelte";
   import Spinner from "#lib/shared/ui/Spinner.svelte";
+  import RewindHistory from "./RewindHistory.svelte";
 
   /**
    * One row of the thread page's feed. Rows space themselves (bottom padding, measured with the row);
@@ -70,7 +71,9 @@
   });
 </script>
 
-{#if row.kind === "history-head"}
+{#if row.kind === "rewind"}
+  <div class="pb-3"><RewindHistory {row} /></div>
+{:else if row.kind === "history-head"}
   <div class={[!row.open && "pb-3"]}>
     <div class={[well, row.open ? "rounded-t-xl" : "rounded-xl"]}>
       <button

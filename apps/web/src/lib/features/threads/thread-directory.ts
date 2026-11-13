@@ -26,6 +26,7 @@ export interface ThreadDirectory {
   delivery?(callId: string): ui.BusDelivery | undefined;
   /** Its turns can be forked from ("Fork from here"): a thread on a worker that started at its provider. */
   readonly canFork?: boolean;
+  readonly canRewind?: boolean;
   /** Scrolls to the item a quote came from and highlights it; false when it is not in this thread any more. */
   revealQuote?(quote: ui.Quote): Promise<boolean>;
 }

@@ -5,7 +5,9 @@ import type { ui } from "@canopy/contracts";
  * A turn the provider never started (no time it started) has no point to fork at, and a running one none yet.
  */
 export const forkable = (turn: ui.Turn): boolean =>
-  (turn.status === "completed" || turn.status === "failed" || turn.status === "interrupted") && Boolean(turn.startedAt);
+  !turn.rewindId &&
+  (turn.status === "completed" || turn.status === "failed" || turn.status === "interrupted") &&
+  Boolean(turn.startedAt);
 
 /** "Fork thread": the latest turn a fork can start after (own turns first, then the inherited history). */
 export const lastForkPoint = (own: readonly ui.Turn[], inherited: readonly ui.Turn[]): ui.Turn | undefined =>

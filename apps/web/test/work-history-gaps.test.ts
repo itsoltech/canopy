@@ -78,6 +78,33 @@ test("paging replaces the gap with steer segments, collapsed summaries and the o
   expect(restored).toEqual(new FeedBuilder().build(input(entries, false)));
 });
 
+test("rewound work gaps stay hidden until Show and paging restores the same segments as ordinary history", () => {
+  const builder = new FeedBuilder();
+
+  const rewound = turns.map((turn) =>
+    turn.id === "earlier" ? { ...turn, rewindId: "rewind", trigger: "user" } : turn,
+  );
+
+  const partial = { ...input(entries.slice(-1), true), turns: rewound };
+  const hidden = builder.build(partial);
+  expect(hidden.find((row) => row.kind === "rewind")).toMatchObject({ messages: 1, open: false });
+  expect(hidden.some((row) => row.key === "work-gap:earlier")).toBe(false);
+  const openRewinds = new Set(["rewind"]);
+  const shown = builder.build({ ...partial, openRewinds });
+  const gap = shown.findIndex((row) => row.key === "work-gap:earlier");
+  expect(gap).toBeGreaterThan(-1);
+  expect(prefetchWorkHistory(shown, gap, gap + 1)).toBe(true);
+
+  const complete = { ...input(entries, false), turns: rewound, openRewinds };
+  const restored = builder.build(complete);
+  expect(restored.some((row) => row.kind === "work-gap")).toBe(false);
+  expect(restored.find((row) => row.key === "work:earlier")).toMatchObject({ summary: { size: 1 } });
+  expect(restored.filter((row) => row.kind !== "rewind").map((row) => row.key)).toEqual(
+    new FeedBuilder().build(input(entries, false)).map((row) => row.key),
+  );
+  expect(builder.build({ ...complete, openRewinds: new Set() }).some((row) => row.key === "work:earlier")).toBe(false);
+});
+
 test("paging older steers keeps the reading anchor on its message when segment slots are reassigned", () => {
   for (const inherited of [false, true]) {
     const state = (items: readonly TimelineEntry[], more: boolean): FeedInput => {

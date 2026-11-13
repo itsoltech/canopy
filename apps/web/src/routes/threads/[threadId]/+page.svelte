@@ -11,7 +11,6 @@
   import GoalBar from "#lib/features/goals/GoalBar.svelte";
   import GoalDialog from "#lib/features/goals/GoalDialog.svelte";
   import CiteLayer from "#lib/features/quotes/CiteLayer.svelte";
-  import { turnQuoteTime } from "#lib/features/quotes/inline.ts";
   import { isFinishedGoal, showsGoal, takesGoals } from "#lib/features/goals/goals.ts";
   import Crumb from "#lib/features/navigation/Crumb.svelte";
   import TopBar from "#lib/features/navigation/TopBar.svelte";
@@ -42,10 +41,11 @@
   import SubagentOrigin from "#lib/features/threads/components/SubagentOrigin.svelte";
   import TimelineSkeleton from "#lib/features/threads/components/TimelineSkeleton.svelte";
   import { forkFrom, lastForkPoint } from "#lib/features/threads/fork.svelte.ts";
-  import { provideThreadDirectory } from "#lib/features/threads/thread-directory.ts";
+  import { providePageDirectory } from "#lib/features/threads/page-directory.ts";
+  import { ThreadRewind, provideThreadRewind } from "#lib/features/threads/rewind-state.svelte.ts";
   import { ThreadState } from "#lib/features/threads/thread-state.svelte.ts";
   import { retainTree, treeOf } from "#lib/features/threads/thread-tree.ts";
-  import { isTerminal, topLevelEntry } from "#lib/features/threads/timeline.ts";
+  import { topLevelEntry } from "#lib/features/threads/timeline.ts";
   import { WorkFolds, type FoldReader } from "#lib/features/threads/work-folds.svelte.ts";
   import { syncWorkFolds, workHistoryPrefetch } from "#lib/features/threads/thread-feed-effects.svelte.ts";
   import { timelineRecovery } from "#lib/features/diagnostics/client.ts";
@@ -163,33 +163,21 @@
   const [keepTree, keepSubagents] = [retainTree(), retainSubagents()];
   const tree = $derived(keepTree(thread ? treeOf(threads, thread) : undefined));
 
-  provideThreadDirectory({
-    get readOnly() {
-      return Boolean(away);
-    },
-    get currentId() {
-      return threadId;
-    },
-    get latestTurnId() {
-      return view.turns.findLast((turn) => !turn.withdrawn && (turn.status !== "queued" || turn.dispatched))?.id;
-    },
-    thread: (id) => (id === thread?.id ? thread : overview.threads.get(id)),
-    awaiting: (itemId) => view.pending.some((i) => i.itemId === itemId),
-    goal: (id) => (view.goal?.id === id ? view.goal : undefined),
-    turnEnded: (turnId) => {
-      const turn = view.turns.find((t) => t.id === turnId);
+  const rewind = $derived((void threadId, new ThreadRewind()));
 
-      return turn !== undefined && isTerminal(turn.status);
-    },
-    steer: (id) => view.steers.find((s) => s.id === id),
-    quoteTime: (id) => turnQuoteTime(view.turns.find((t) => t.id === id)),
-    item: (id) => view.ownEntries.find((e) => e.id === id)?.item,
-    delivery: (callId) => view.deliveries.get(callId),
-    get canFork() {
-      return canFork;
-    },
-    revealQuote: (quote) => revealQuote(quote.sourceItemId),
+  provideThreadRewind(() => rewind);
+
+  $effect(() => {
+    const current = rewind;
+
+    return () => current.dispose();
   });
+
+  providePageDirectory(
+    () => ({ id: threadId, view, readOnly: Boolean(away), canFork }),
+    (id) => (id === thread?.id ? thread : overview.threads.get(id)),
+    (quote) => revealQuote(quote.sourceItemId),
+  );
 
   // Its latest result counts as seen once it has been on screen (the sidebar's "Completed" goes out everywhere).
   let atEnd = $state(true);
@@ -269,6 +257,7 @@
       openWork: folds.open,
       openGroups: folds.groups,
       historyItemsHasMore: view.historyItemsHasMore,
+      openRewinds: rewind.open,
     }),
   );
 
@@ -409,6 +398,9 @@
     const top = topLevelEntry(own ? view.ownEntries : view.inheritedEntries, entry);
 
     if (inherited && !historyOpen) historyOpen = true;
+    const rewound = own && view.ownTurns.find((turn) => turn.id === own.turnId)?.rewindId;
+
+    if (rewound) rewind.show(rewound);
 
     const fold = folds.foldOf(top.id);
 
@@ -765,7 +757,12 @@
                         running={view.running}
                         runningTurnId={view.ownTurns.find((turn) => turn.status === "running")?.id}
                         connection={view.composerConnection}
-                        disabled={closed || !view.loaded || Boolean(away) || view.connection === "error"}
+                        disabled={closed ||
+                          !view.loaded ||
+                          Boolean(away) ||
+                          view.connection === "error" ||
+                          thread.rewindPending ||
+                          rewind.busy}
                         note={composerNote}
                         onsent={(response) => {
                           if (response.steer) view.upsertSteer(response.steer);

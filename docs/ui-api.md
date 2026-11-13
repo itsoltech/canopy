@@ -1252,6 +1252,33 @@ Plik może stać w tekście wiadomości w miejscu, które wybrał użytkownik: w
 - **Edycja w kolejce:** edytor kolejki to pole kompozytora (`MentionEditor`): pliki są plakietkami, wzmianki chipami, a zapis wysyła ich pozycje jak `SendMessage` z `mentions_complete = true` (cała lista z edytora). Umieszczony plik żyje razem ze swoją plakietką: bez niej opuszcza wiadomość (nadal związany z turą, ale nie idzie do agenta); pliki nigdy nieumieszczone zostają, nowe nie dochodzą. Starszy klient edytuje sam tekst i nie wysyła wzmianek ani flagi: gateway odnajduje wtedy dotychczasowe wzmianki w nowym tekście po ich znacznikach (`relocateMentions`, `packages/domain`).
 - **Bez pozycji:** wiadomość (np. ze starszego klienta) ma notatkę bez numerów, jak dotąd.
 
+### Edit from here
+
+Strzałka cofnięcia w wierszu czasu własnej wiadomości otwiera kompaktowy popover
+„Edit from here”. `PrepareThreadRewind` sprawdza punkt i podaje liczbę wiadomości,
+pracę do zatrzymania oraz dostępność checkpointów plików. „Stop and edit” wymaga
+świadomego potwierdzenia zatrzymania. Przy checkpointach użytkownik wybiera
+„Conversation only” albo „Conversation and files” i może rozwinąć listę ścieżek.
+Bez checkpointu potwierdzenie mówi „Files stay as they are.”.
+
+BFF `POST /api/threads/[threadId]/rewind` obsługuje preview, rewind, read i restore.
+Mutacja zachowuje klucz idempotencji po utracie odpowiedzi; po otrzymaniu ID
+operacji klient czyta `GetThreadRewind`. Podczas operacji kompozytor jest zablokowany.
+Udany wynik wstawia tekst, wzmianki, cytaty i nowe powiązania załączników do tego
+samego kompozytora. Dotychczasowy szkic zostaje w pamięci karty; „Swap drafts”
+przełącza zachowane szkice bez zapisu ich treści w przeglądarce. Przycisk jest
+nieaktywny podczas wysyłania, uploadu, błędu załącznika i operacji rewind; handler
+sprawdza tę samą blokadę, aby odpowiedź wysłania nie usunęła podmienionego szkicu.
+Ustawienia agenta
+i uprawnień pozostają takie, jakie użytkownik wybrał w kompozytorze.
+
+Tury z `rewind_id` oraz ich późne elementy są domyślnie schowane pod
+„N messages rewound · Show”. Undo przywraca rozmowę przed następną turą,
+pozostawiając pliki i zatrzymane zadania bez zmian. „Edit message” odzyskuje szkic
+z trwałej operacji także po ponownym otwarciu wątku. Cytat ze schowanej historii
+rozwija jej grupę przed przewinięciem. Gateway egzekwuje wszystkie ograniczenia;
+szczegóły i zweryfikowane możliwości harnessów: [threads.md](threads.md).
+
 ### Kolejka
 
 `Thread.turn_starting` (162) przenosi ten sam stan startu do overview i aktualizacji wątku. Pozwala pokazać „Starting” także przed zdarzeniem `running`, zamiast poprzedniego wyniku tury.
