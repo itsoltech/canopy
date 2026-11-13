@@ -22,6 +22,12 @@ on:
         description: Commit to release (must remain in the selected branch history)
         required: true
         type: string
+      release_branch:
+        description: Release channel branch (current uses the workflow ref; recovery can run updated tooling from dev)
+        required: false
+        default: current
+        type: choice
+        options: [current, dev, next, main]
       desktop_all_targets:
         description: Nightly also builds the experimental linux-arm64 desktop target
         required: false
@@ -34,7 +40,7 @@ permissions:
 # GitHub replaces an older pending run in this group, but never cancels its active run (which may be
 # publishing). Push, schedule and dispatch share the branch lock; tags have their own locks.
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ inputs.release_branch && inputs.release_branch != 'current' && format('refs/heads/{0}', inputs.release_branch) || github.ref }}
   cancel-in-progress: false
 
 env:
@@ -42,12 +48,13 @@ env:
   BUN_VERSION: 1.4.4
   IMAGE_NAMESPACE: ghcr.io/itsoltech
   EXPECTED_SHA: ${{ inputs.expected_sha || github.sha }}
+  RELEASE_BRANCH: ${{ inputs.release_branch && inputs.release_branch != 'current' && inputs.release_branch || github.ref_name }}
 
 jobs:
   checks:
     needs: plan
     # Keep main/next/tag checks even for no-release runs; dev pays for CI only for a planned nightly.
-    if: needs.plan.outputs.published == 'true' || github.ref != 'refs/heads/dev'
+    if: needs.plan.outputs.published == 'true' || (inputs.release_branch && inputs.release_branch != 'current' && inputs.release_branch || github.ref_name) != 'dev'
     uses: ./.github/workflows/ci.yml
     with:
       revision: ${{ inputs.expected_sha || github.sha }}
@@ -61,7 +68,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     concurrency:
-      group: release-version-${{ github.ref }}
+      group: release-version-${{ inputs.release_branch && inputs.release_branch != 'current' && format('refs/heads/{0}', inputs.release_branch) || github.ref }}
       cancel-in-progress: false
     permissions:
       # Planning probes push access only to its disposable local mirror.
@@ -77,6 +84,19 @@ jobs:
         with:
           ref: ${{ env.EXPECTED_SHA }}
           fetch-depth: 0
+      - name: Release tooling from the workflow revision
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
+          sparse-checkout: |
+            scripts
+            release.config.mjs
+          sparse-checkout-cone-mode: false
+      - name: Use current release tooling with the pinned source
+        run: |
+          cp .release-tooling/scripts/{semantic-release,release-body,release-draft,release-recovery,generate-release-notes}.mjs scripts/
+          cp .release-tooling/release.config.mjs .
       - uses: ./.github/actions/setup-bun
       - uses: actions/setup-node@v5
         with:
@@ -106,7 +126,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     concurrency:
-      group: release-version-${{ github.ref }}
+      group: release-version-${{ inputs.release_branch && inputs.release_branch != 'current' && format('refs/heads/{0}', inputs.release_branch) || github.ref }}
       cancel-in-progress: false
     permissions:
       contents: write
@@ -120,6 +140,19 @@ jobs:
         with:
           ref: ${{ env.EXPECTED_SHA }}
           fetch-depth: 0
+      - name: Release tooling from the workflow revision
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
+          sparse-checkout: |
+            scripts
+            release.config.mjs
+          sparse-checkout-cone-mode: false
+      - name: Use current release tooling with the pinned source
+        run: |
+          cp .release-tooling/scripts/{semantic-release,release-body,release-draft,release-recovery,generate-release-notes}.mjs scripts/
+          cp .release-tooling/release.config.mjs .
       - uses: ./.github/actions/setup-bun
       - uses: actions/setup-node@v5
         with:
@@ -143,12 +176,16 @@ jobs:
       # workflow_run.head_sha is the dispatch ref, which can differ from expected_sha.
       - name: Record released revision for Mobile release
         if: steps.release.outputs.published == 'true'
-        run: printf '%s\n' "$EXPECTED_SHA" > "$RUNNER_TEMP/release-sha"
+        run: |
+          printf '%s\n' "$EXPECTED_SHA" > "$RUNNER_TEMP/release-sha"
+          printf '%s\n' "$RELEASE_BRANCH" > "$RUNNER_TEMP/release-branch"
       - uses: actions/upload-artifact@v4
         if: steps.release.outputs.published == 'true'
         with:
           name: release-revision
-          path: ${{ runner.temp }}/release-sha
+          path: |
+            ${{ runner.temp }}/release-sha
+            ${{ runner.temp }}/release-branch
           if-no-files-found: error
           retention-days: 7
           overwrite: true
@@ -481,7 +518,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     concurrency:
-      group: release-publish-${{ github.ref }}
+      group: release-publish-${{ inputs.release_branch && inputs.release_branch != 'current' && format('refs/heads/{0}', inputs.release_branch) || github.ref }}
       cancel-in-progress: false
     permissions:
       contents: write
@@ -494,6 +531,16 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: ${{ env.EXPECTED_SHA }}
+      - name: Release tooling from the workflow revision
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
+          sparse-checkout: scripts
+      - name: Use current publication tooling with the pinned source
+        run: |
+          cp .release-tooling/scripts/{release-body,release-draft}.mjs scripts/
+          cp .release-tooling/scripts/release-upload.ts scripts/
       # The staging scripts have no runtime package dependencies.
       - uses: ./.github/actions/setup-bun
         with:
@@ -519,7 +566,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     concurrency:
-      group: release-publish-${{ github.ref }}
+      group: release-publish-${{ inputs.release_branch && inputs.release_branch != 'current' && format('refs/heads/{0}', inputs.release_branch) || github.ref }}
       cancel-in-progress: false
     permissions:
       contents: write
@@ -533,6 +580,16 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: ${{ env.EXPECTED_SHA }}
+      - name: Release tooling from the workflow revision
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
+          sparse-checkout: scripts
+      - name: Use current publication tooling with the pinned source
+        run: |
+          cp .release-tooling/scripts/{release-body,release-draft}.mjs scripts/
+          cp .release-tooling/scripts/release-upload.ts scripts/
       - uses: ./.github/actions/setup-bun
       - uses: actions/download-artifact@v5
         with:

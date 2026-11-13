@@ -6,6 +6,7 @@ import { parseReleaseIndex } from "@canopy/domain/release/catalog";
 import { pages, repository } from "./release-github.ts";
 import { publishedNotes, releaseNotesIndex } from "./release-notes.ts";
 import type { JsonValue } from "@canopy/domain/json";
+import { limitReleaseBody } from "./release-body.mjs";
 
 const PublishedRelease = Schema.Struct({
   tag_name: Schema.String,
@@ -37,7 +38,13 @@ export function releaseIndex(values: readonly JsonValue[], requiredTag?: string)
       draft: false,
       prerelease: release.prerelease,
       published_at: release.published_at,
-      body: release.body,
+      body:
+        release.body === null
+          ? null
+          : limitReleaseBody(
+              release.body,
+              `https://github.com/itsoltech/canopy/compare/${release.tag_name}^...${release.tag_name}`,
+            ),
       assets: release.assets.map(({ name, browser_download_url }) => ({ name, browser_download_url })),
     }));
 

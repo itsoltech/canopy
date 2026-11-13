@@ -8,7 +8,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import semanticRelease from "semantic-release";
-import { generateNotes } from "@semantic-release/release-notes-generator";
+import { generateReleaseNotes } from "./generate-release-notes.mjs";
+import { findGithubRelease, githubDraft } from "./release-draft.mjs";
+import { recoverRelease } from "./release-recovery.mjs";
 import config from "../release.config.mjs";
 
 const dryRun = process.argv.includes("--dry-run");
@@ -48,15 +50,33 @@ function verifyAncestry(branch) {
 
 // semantic-release's push-access probe rejects an older HEAD, including in dry runs. A private
 // mirror gives it the pinned branch while preserving all other branches, tags and channel notes.
-export async function releasePinned({ dryRun = false, createDraft = githubDraft } = {}) {
-  const branch = process.env.GITHUB_REF_NAME;
+export async function releasePinned({
+  dryRun = false,
+  createDraft = githubDraft,
+  findRelease = findGithubRelease,
+} = {}) {
+  const branch = process.env.RELEASE_BRANCH || process.env.GITHUB_REF_NAME;
 
   if (!["dev", "next", "main"].includes(branch)) throw new Error("Unsupported release branch");
   git("fetch", "--prune", "--tags", "origin", "+refs/heads/*:refs/remotes/origin/*", "+refs/notes/*:refs/notes/*");
   verifyAncestry(branch);
+  const repositoryUrl = git("remote", "get-url", "origin");
+
+  const recovered = await recoverRelease({
+    sha,
+    branch,
+    dryRun,
+    findRelease,
+    repositoryUrl,
+    createDraft: async (body) => {
+      verifyAncestry(branch);
+      await createDraft(body);
+    },
+  });
+
+  if (recovered !== undefined) return recovered;
   const directory = mkdtempSync(join(tmpdir(), "canopy-release-snapshot-"));
   const mirror = join(directory, "origin.git");
-  const repositoryUrl = git("remote", "get-url", "origin");
 
   try {
     git("init", "--bare", mirror);
@@ -66,23 +86,26 @@ export async function releasePinned({ dryRun = false, createDraft = githubDraft 
 
     const originalNotes = readNotes();
 
-    const result = await semanticRelease({
-      ...config,
-      dryRun,
-      ci: !process.argv.includes("--no-ci"),
-      repositoryUrl: pathToFileURL(mirror).href,
-      // GitHub needs the real owner/repo, and notes must keep their public compare/commit links.
-      plugins: config.plugins
-        .filter((plugin) => !Array.isArray(plugin) || plugin[0] !== "@semantic-release/github")
-        .map((plugin) =>
-          Array.isArray(plugin) && plugin[0] === "@semantic-release/release-notes-generator"
-            ? {
-                generateNotes: (_options, context) =>
-                  generateNotes(plugin[1], { ...context, options: { ...context.options, repositoryUrl } }),
-              }
-            : plugin,
-        ),
-    });
+    const result = await semanticRelease(
+      {
+        ...config,
+        dryRun,
+        ci: !process.argv.includes("--no-ci"),
+        repositoryUrl: pathToFileURL(mirror).href,
+        // GitHub needs the real owner/repo, and notes must keep their public compare/commit links.
+        plugins: config.plugins
+          .filter((plugin) => !Array.isArray(plugin) || plugin[0] !== "@semantic-release/github")
+          .map((plugin) =>
+            Array.isArray(plugin) && plugin[0] === "@semantic-release/release-notes-generator"
+              ? {
+                  generateNotes: (_options, context) =>
+                    generateReleaseNotes(plugin[1], { ...context, options: { ...context.options, repositoryUrl } }),
+                }
+              : plugin,
+          ),
+      },
+      { env: { ...process.env, GITHUB_REF: `refs/heads/${branch}` } },
+    );
 
     if (result?.nextRelease && !dryRun) {
       verifyAncestry(branch);
@@ -110,17 +133,6 @@ export async function releasePinned({ dryRun = false, createDraft = githubDraft 
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
-}
-
-function githubDraft(body) {
-  const repository = process.env.GITHUB_REPOSITORY;
-
-  if (!repository || !/^[\w.-]+\/[\w.-]+$/.test(repository)) throw new Error("GITHUB_REPOSITORY is required");
-  execFileSync("gh", ["api", `repos/${repository}/releases`, "--method", "POST", "--input", "-"], {
-    input: JSON.stringify(body),
-    stdio: ["pipe", "ignore", "pipe"],
-    env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN || process.env.GITHUB_TOKEN },
-  });
 }
 
 if (import.meta.main && process.env.GITHUB_REF_TYPE === "tag") {

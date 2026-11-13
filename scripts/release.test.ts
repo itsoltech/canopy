@@ -51,9 +51,12 @@ function fixture() {
   copyFileSync(join(root, "scripts/release-analyzer.mjs"), join(cwd, "scripts/release-analyzer.mjs"));
   copyFileSync(join(root, "scripts/release-expected-version.mjs"), join(cwd, "scripts/release-expected-version.mjs"));
   copyFileSync(join(root, "scripts/semantic-release.mjs"), join(cwd, "scripts/semantic-release.mjs"));
+
+  for (const file of ["release-body.mjs", "release-draft.mjs", "release-recovery.mjs", "generate-release-notes.mjs"])
+    copyFileSync(join(root, "scripts", file), join(cwd, "scripts", file));
   writeFileSync(
     join(cwd, "pinned-release.mjs"),
-    'import { releasePinned } from "./scripts/semantic-release.mjs"; import { writeFileSync } from "node:fs"; await releasePinned({ dryRun: process.argv.includes("--dry-run"), createDraft: (body) => writeFileSync("draft.json", JSON.stringify(body)) });\n',
+    'import { releasePinned } from "./scripts/semantic-release.mjs"; import { existsSync, readFileSync, writeFileSync } from "node:fs"; await releasePinned({ dryRun: process.argv.includes("--dry-run"), findRelease: (tag) => tag === "v0.1.0" ? { tag_name: tag, draft: false, prerelease: false } : existsSync("draft.json") && JSON.parse(readFileSync("draft.json", "utf8")).tag_name === tag ? JSON.parse(readFileSync("draft.json", "utf8")) : undefined, createDraft: (body) => writeFileSync("draft.json", JSON.stringify(body)) });\n',
   );
   writeFileSync(
     join(cwd, "release.config.mjs"),
@@ -110,7 +113,14 @@ function fixture() {
   };
 }
 
-async function runPinned(cwd: string, branch: string, sha: string, dry = true, expectedVersion = "") {
+async function runPinned(
+  cwd: string,
+  branch: string,
+  sha: string,
+  dry = true,
+  expectedVersion = "",
+  workflowBranch = branch,
+) {
   const child = Bun.spawn(["node", "pinned-release.mjs", "--no-ci", ...(dry ? ["--dry-run"] : [])], {
     cwd,
     env: {
@@ -119,8 +129,9 @@ async function runPinned(cwd: string, branch: string, sha: string, dry = true, e
       GITHUB_TOKEN: "",
       GITHUB_ACTIONS: "true",
       CI: "true",
-      GITHUB_REF: `refs/heads/${branch}`,
-      GITHUB_REF_NAME: branch,
+      GITHUB_REF: `refs/heads/${workflowBranch}`,
+      GITHUB_REF_NAME: workflowBranch,
+      RELEASE_BRANCH: branch,
       GITHUB_REF_TYPE: "branch",
       GITHUB_SHA: sha,
       EXPECTED_SHA: sha,
@@ -146,7 +157,7 @@ test("Release accepts the event SHA and rejects a checkout that differs from the
   const expected = repo.git("rev-parse", "HEAD");
 
   const run = (expectedSha: string) =>
-    Bun.spawnSync(["bun", "scripts/semantic-release.mjs", "--dry-run"], {
+    Bun.spawnSync(["node", "pinned-release.mjs", "--dry-run", "--no-ci"], {
       cwd: repo.cwd,
       env: {
         ...process.env,
@@ -166,14 +177,14 @@ test("Release accepts the event SHA and rejects a checkout that differs from the
 
   const current = run(expected);
   expect(current.exitCode, current.stderr.toString()).toBe(0);
-  expect(current.stdout.toString()).toContain("published=false");
+  expect(current.stdout.toString()).not.toContain("Resuming");
   repo.git("commit", "--allow-empty", "-m", "fix: branch moved");
   const newer = repo.git("rev-parse", "HEAD");
   repo.git("push", "origin", "main");
   repo.git("checkout", "--detach", expected);
   const push = run(expected);
   expect(push.exitCode).toBe(0);
-  expect(push.stdout.toString()).toContain("published=false");
+  expect(push.stdout.toString()).not.toContain("Resuming");
   const dispatch = run(newer);
   expect(dispatch.exitCode).not.toBe(0);
   expect(dispatch.stderr.toString()).toContain("Checkout does not match EXPECTED_SHA");
@@ -412,6 +423,62 @@ test("Release refuses a pinned SHA removed from the branch by a force push", asy
   await expect(runPinned(repo.cwd, "dev", pinned)).rejects.toThrow("refusing rewritten history");
   await expect(runPinned(repo.cwd, "dev", pinned, false)).rejects.toThrow("refusing rewritten history");
   expect(repo.remoteTags()).toEqual(["v0.1.0"]);
+});
+
+test.each([
+  ["dev", "0.2.0-nightly.1"],
+  ["next", "0.2.0-beta.1"],
+  ["main", "0.2.0"],
+])(
+  "%s resumes the reserved version after a lost draft POST without changing any refs",
+  async (branch, version) => {
+    const repo = fixture();
+    repo.git("checkout", branch!);
+    repo.git("commit", "--allow-empty", "-m", "feat(web): reserved feature (#600)\n\nA long PR body");
+    const sha = repo.git("rev-parse", "HEAD");
+    repo.git("push", "origin", branch!);
+    await runPinned(repo.cwd, branch!, sha, false, version);
+    const tag = `v${version}`;
+    const refs = repo.git("ls-remote", "origin");
+    const original = readFileSync(join(repo.cwd, "draft.json"), "utf8");
+    rmSync(join(repo.cwd, "draft.json"));
+    repo.git("commit", "--allow-empty", "-m", "fix: later commit");
+    repo.git("push", "origin", branch!);
+    repo.git("checkout", "--detach", sha);
+    const movedRefs = repo.git("ls-remote", "origin");
+    expect(movedRefs).not.toBe(refs);
+    expect(await runPinned(repo.cwd, branch!, sha, true, "", "dev")).toContain(`Resuming ${tag}`);
+    expect(() => readFileSync(join(repo.cwd, "draft.json"))).toThrow();
+    await expect(runPinned(repo.cwd, branch!, sha, false, "9.9.9")).rejects.toThrow("but the existing tag is");
+    expect(await runPinned(repo.cwd, branch!, sha, false, version, "dev")).toContain(`Resuming ${tag}`);
+    const recovered = readFileSync(join(repo.cwd, "draft.json"), "utf8");
+    expect(JSON.parse(recovered)).toEqual(JSON.parse(original));
+    expect(recovered).not.toContain("later commit");
+    expect(recovered).not.toContain("A long PR body");
+    await runPinned(repo.cwd, branch!, sha, false, version);
+    expect(readFileSync(join(repo.cwd, "draft.json"), "utf8")).toBe(recovered);
+    writeFileSync(join(repo.cwd, "draft.json"), JSON.stringify({ ...JSON.parse(recovered), draft: false }));
+    expect(await runPinned(repo.cwd, branch!, sha, false, version)).not.toContain("Resuming");
+    expect(repo.git("ls-remote", "origin")).toBe(movedRefs);
+  },
+  60_000,
+);
+
+test("recovery refuses ambiguous tags and missing channel metadata", async () => {
+  const repo = fixture();
+  repo.git("checkout", "next");
+  repo.git("commit", "--allow-empty", "-m", "feat: reserve beta");
+  const sha = repo.git("rev-parse", "HEAD");
+  repo.git("push", "origin", "next");
+  repo.git("tag", "v0.2.0-beta.1");
+  repo.git("push", "origin", "--tags");
+  await expect(runPinned(repo.cwd, "next", sha)).rejects.toThrow();
+  repo.git("notes", "--ref=semantic-release-v0.2.0-beta.1", "add", "-m", '{"channels":["nightly"]}', "v0.2.0-beta.1");
+  repo.git("push", "origin", "refs/notes/semantic-release-v0.2.0-beta.1");
+  await expect(runPinned(repo.cwd, "next", sha)).rejects.toThrow("metadata for this channel");
+  repo.git("tag", "v0.2.0-beta.2");
+  repo.git("push", "origin", "--tags");
+  await expect(runPinned(repo.cwd, "next", sha)).rejects.toThrow("Multiple release tags");
 });
 
 test("server-then-desktop publication keeps checksums.txt and manifest.json consistent and repeatable", async () => {

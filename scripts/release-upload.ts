@@ -8,6 +8,8 @@ import { existsSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { api, git, pages, repository } from "./release-github.ts";
 import { resolveVersion } from "./version.ts";
+import { limitReleaseBody } from "./release-body.mjs";
+import { githubDraft } from "./release-draft.mjs";
 
 const GENERATED = ["checksums.txt", "manifest.json"];
 
@@ -81,24 +83,24 @@ const github: ReleaseUploadAdapters = {
 
     return releases.find((release) => release.tag_name === tag);
   },
-  create: ({ repo, tag, version, channel }) => {
-    execFileSync(
+  create: ({ repo, tag, version, channel, sha }) => {
+    const notes = execFileSync(
       "gh",
-      [
-        "release",
-        "create",
-        tag,
-        "--repo",
-        repo,
-        "--verify-tag",
-        "--draft",
-        "--latest=false",
-        "--title",
-        `Canopy ${version}`,
-        "--generate-notes",
-        ...(channel === "stable" ? [] : ["--prerelease"]),
-      ],
-      { stdio: "inherit" },
+      ["api", `repos/${repo}/releases/generate-notes`, "--method", "POST", "-f", `tag_name=${tag}`, "--jq", ".body"],
+      { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
+    );
+
+    githubDraft(
+      {
+        tag_name: tag,
+        target_commitish: sha,
+        name: `Canopy ${version}`,
+        body: notes,
+        draft: true,
+        make_latest: "false",
+        prerelease: channel !== "stable",
+      },
+      repo,
     );
   },
   assets: (repo, id) => {
@@ -112,7 +114,16 @@ const github: ReleaseUploadAdapters = {
     execFileSync("gh", ["release", "upload", tag, ...paths, "--repo", repo, "--clobber"], { stdio: "inherit" });
   },
   publish: (repo, id, stable) => {
-    api(`repos/${repo}/releases/${id}`, "PATCH", { draft: false, make_latest: stable ? "legacy" : "false" });
+    const notes = execFileSync("gh", ["api", `repos/${repo}/releases/${id}`, "--jq", '.body // ""'], {
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+    });
+
+    api(`repos/${repo}/releases/${id}`, "PATCH", {
+      draft: false,
+      make_latest: stable ? "legacy" : "false",
+      body: limitReleaseBody(notes, `https://github.com/${repo}/releases`),
+    });
   },
 };
 
