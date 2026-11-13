@@ -11,6 +11,7 @@ import { coreWorkers } from "./core-providers.ts";
 import { coreDeliver, coreDispatch } from "./core-commands.ts";
 import { coreRun } from "./core-broadcast.ts";
 import type { GatewayCore } from "./core.ts";
+import { workerThreadSnapshot } from "./worker-thread-lifecycle.ts";
 
 const configurationKey = (configuration: ModelInput["configuration"]) =>
   createHash("sha256")
@@ -37,7 +38,12 @@ export async function workerJournalWelcome(core: GatewayCore, workerId: string, 
   const persisted = journalId ? await coreRun(core, (s) => s.journalCursors(workerId, journalId)) : [];
   const botCursors = journalId ? await core.bots.run((s) => s.harnessCursors(workerId, journalId)) : [];
 
-  return { heartbeatIntervalSeconds: 15, persisted: [...persisted, ...botCursors] };
+  return {
+    heartbeatIntervalSeconds: 15,
+    persisted: [...persisted, ...botCursors],
+    isolatedEventIngest: true,
+    threadLifecycle: await workerThreadSnapshot(core, workerId),
+  };
 }
 
 async function botWorker(core: GatewayCore, input: ModelInput, turn: BotTurn, workerId: string): Promise<string> {

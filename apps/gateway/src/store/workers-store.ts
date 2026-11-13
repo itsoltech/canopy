@@ -17,6 +17,7 @@ export interface WorkerStore {
   workerConnected(workerId: string, instanceId: string, hello: Hello): Fx<void>;
   workerSeen(workerId: string): Fx<void>;
   journalCursors(workerId: string, journalId: string): Fx<{ threadId: string; lastSeq: bigint }[]>;
+  closedWorkerThreads(workerId: string): Fx<string[]>;
   listWorkers(online: ReadonlySet<string>, ownerUserId?: string): Fx<ui.Worker[]>;
 }
 
@@ -160,6 +161,10 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
               SELECT thread_id, acked_seq FROM worker_journal_cursors WHERE worker_id = ${workerId}::uuid AND journal_id = ${journalId}`.pipe(
         Effect.map((rows) => rows.map((r) => ({ threadId: r.thread_id, lastSeq: BigInt(r.acked_seq) }))),
       ),
+
+    closedWorkerThreads: (workerId) =>
+      sql<{ id: string }>`SELECT id FROM threads WHERE worker_id=${workerId}::uuid
+        AND (archived_at IS NOT NULL OR deleted_at IS NOT NULL)`.pipe(Effect.map((rows) => rows.map((row) => row.id))),
 
     listWorkers: (online, ownerUserId) =>
       Effect.gen(function* () {

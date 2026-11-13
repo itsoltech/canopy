@@ -40,6 +40,23 @@ export class LogRedactor {
 }
 
 const events = [
+  [
+    "worker_events_deferred",
+    /^worker events deferred: count \d+ reason legacy_ingest_drain; update the gateway to resume delivery$/i,
+  ],
+  [
+    "worker_events_not_stored",
+    /^worker events not stored: worker [a-f0-9-]{36} thread [a-f0-9-]{36} reason (?:retry_pending|quarantine_unavailable)$/i,
+  ],
+  [
+    "worker_events_dropped",
+    /^worker events dropped: worker [a-f0-9-]{36} thread [a-f0-9-]{36} count \d+ reason deleted_thread$/i,
+  ],
+  [
+    "worker_events_quarantined",
+    /^worker events quarantined: worker [a-f0-9-]{36} thread [a-f0-9-]{36} count \d+ reason (?:archived_thread|data_error|retry_exhausted)$/i,
+  ],
+  ["worker_events_not_stored", /^events of thread [a-f0-9-]{36} not stored \(kept on worker [a-f0-9-]{36}\):/i],
   ["process_started", /^gateway \d+\.\d+\.\d+(?:[-+][\w.+-]+)? listening on\b/i],
   ["process_started", /^worker [a-f0-9-]{36} (?:connected\b|\(Canopy \d+\.\d+\.\d+)/i],
   ["link_changed", /^worker [a-f0-9-]{36} disconnected\b/i],

@@ -63,6 +63,9 @@ export class ThreadCommands {
 
     if (!spec || !rawInput) throw new CommandError("INVALID_COMMAND", "thread spec or input missing", true);
 
+    if (this.ctx.state.closedThreads.has(spec.threadId))
+      throw new CommandError("THREAD_CLOSED", "the thread is archived or deleted", true);
+
     if (
       (permissionMode || spec.permissionMode) === PermissionMode.FULL_ACCESS &&
       this.ctx.state.options.fullAccess === false

@@ -199,17 +199,41 @@ Zasady:
   surogatów i dosłowny tekst `\u0000` pozostają bez zmian. Ta sama reguła obejmuje
   projekcje itemów, tekst botów, wyniki komend i wygenerowane tytuły. Stary dziennik
   z taką treścią opróżnia się sam po aktualizacji gatewaya; nie należy go usuwać.
-- Inny błąd danych PostgreSQL (SQLSTATE klasy `22`) uruchamia izolację zdarzeń
+- Inny błąd danych lub ograniczeń PostgreSQL (SQLSTATE klasy `22` / `23`) uruchamia izolację zdarzeń
   w odrzuconej partii. Gateway zapisuje oryginalny protobuf jako `bytea` w
   `worker_event_quarantine`, ostrzeżenie `event_quarantined` w historii oraz kursor
   dziennika w jednej transakcji. Ostrzeżenie zachowuje `event_id`, więc replay nie
   powiela go. Dopiero commit pozwala wysłać ACK. Kolejne zdarzenia są przyjmowane
   bez rozłączania workera. Log zawiera identyfikatory i SQLSTATE, bez treści zdarzenia.
   Boty stosują tę samą kwarantannę i umieszczają ostrzeżenie w zapisywanym tekście tury.
-- Pozostałe błędy, w tym utrata połączenia, deadlock i serializacja, nie powodują
-  kwarantanny ani ACK. Obowiązuje dotychczasowy drain i ponowne dostarczenie.
-  Awaria zapisu samej kwarantanny lub ostrzeżenia również pozostawia journal do replay.
+- Archiwizacja nie blokuje wyników istniejącej tury ani zdarzeń między turami.
+  Zdarzenia nieznanej tury są izolowane z powodem `archived_thread`, bez tworzenia
+  tury. Usunięty wątek nie przyjmuje payloadu: gateway atomowo zapisuje tylko
+  kursor i wysyła ACK. Nie dopisuje historii ani kwarantanny i nie przywraca wątku.
+- Pozostałe błędy, w tym utrata połączenia z bazą, deadlock i serializacja, są
+  ponawiane osobno dla każdego wątku po 250 ms, 1 s i 4 s. Następnie oryginał,
+  ostrzeżenie i kursor trafiają atomowo do kwarantanny (`retry_exhausted`). Awaria
+  tego zapisu oznacza retry co 30 s bez ACK. Kolejność wątku pozostaje zachowana;
+  połączenie i inne wątki działają dalej, bez drainu ingestu.
+- Addytywne `Welcome.isolated_event_ingest` (pole 5) sygnalizuje tę obsługę;
+  `WORKER_LINK_PROTOCOL` pozostaje 1. Stary worker korzysta z niej bez zmian.
+  Nowy worker po drainie starego gatewaya z powodem
+  `redelivering events that failed to store` zapisuje lokalne `held_delivery`
+  dla wszystkich niepotwierdzonych journali (stary gateway nie podaje winnego
+  wątku). Po reconnectach nie wysyła ich replay ani nowych zdarzeń tych wątków,
+  lecz zachowuje je na dysku; pozostałe wątki działają dalej. Welcome z flagą
+  usuwa blokadę i automatycznie wznawia dostarczanie po aktualizacji gatewaya.
 - Zdarzenia między turami (zadania w tle, kompaktowanie, zmiany statusu) mają pusty `turn_id` i są przesyłane tak samo.
+- Capability `thread_lifecycle_v1` włącza addytywny `ThreadLifecycle`:
+  `Welcome.thread_lifecycle` (pole 6) zawiera snapshot przypisanych wątków
+  archiwalnych i usuniętych (`closed_thread_ids`, `replace=true`), a komunikat
+  `GatewayMessage.thread_lifecycle` (pole 18) aktualizuje zamknięte i przywrócone
+  identyfikatory. Po rejestracji połączenia gateway ponawia snapshot z ochroną
+  przed nadpisaniem nowszej zmiany starym odczytem. Worker stosuje Welcome przed
+  konfiguracją i blokuje nowe `StartTurn` oraz natywną pobudkę Claude w zamkniętym
+  wątku. Zadania w tle działają dalej. Nie wymaga to zmiany wersji protokołu:
+  stary worker korzysta z ochrony ingestu gatewaya, a nowy worker ze starym
+  gatewayem korzysta z trwałego wstrzymania journali po drainie ingestu.
 - Kompaktowanie delt po `item_completed` to decyzja retencji, nie protokołu ([transcript.md](transcript.md#7-retencja)).
 
 ## Komendy (gateway → worker)

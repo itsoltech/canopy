@@ -280,7 +280,12 @@ export class ConnectorsRuntime {
       let catalog = catalogs.get(event.threadId);
 
       if (!catalog) {
-        const thread = await this.options.runtime.runPromise(GatewayStore.use((s) => s.thread(event.threadId)));
+        const thread = await this.options.runtime.runPromise(
+          GatewayStore.use((s) => s.thread(event.threadId, true, true)),
+        );
+
+        // Deleted journals are resolved by ingest; missing labels must not prevent their ACK policy.
+        if (thread.deleted_at) continue;
         catalog = await this.run((s) => s.list(thread.owner_user_id)).catch(() => []);
         catalogs.set(event.threadId, catalog);
       }

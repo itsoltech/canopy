@@ -57,7 +57,7 @@ PostgreSQL odrzuca je w `jsonb` (NUL także w `text`); ponawianie niezmienionego
 zdarzenia nie mogłoby się zakończyć. Normalizacja odbywa się przed projekcjami,
 także dla botów. Nie usuwa zdarzenia ani nie wymaga naprawiania SQLite użytkownika.
 
-Inne błędy danych SQLSTATE `22xxx` mają trwały wynik zastępczy: oryginalne bajty
+Inne błędy danych i ograniczeń SQLSTATE `22xxx` / `23xxx` mają trwały wynik zastępczy: oryginalne bajty
 protobuf w `worker_event_quarantine` (migracja `0111_worker_event_quarantine`),
 widoczne ostrzeżenie i kursor zapisane atomowo. Kwarantanna nie wykonuje efektów
 odrzuconego zdarzenia; jego oryginał pozostaje dostępny administratorowi bazy.
@@ -65,8 +65,29 @@ Ostrzeżenie wątku ma pochodzenie `gateway` oraz oryginalny `event_id`, a bot d
 je do tekstu tury. ACK oznacza wtedy trwałe przyjęcie do kwarantanny, a nie poprawne
 zastosowanie wszystkich projekcji. Nie ma automatycznego ponawiania danych
 z kwarantanny. Rekord nie jest wystawiany przez API ani logi; usuwa go kaskada przy
-fizycznym usunięciu workera. Zwykłe błędy transportu lub transakcji nadal nie dostają
-ACK i korzystają z replay. Szczegóły: [protocol.md](protocol.md#dostarczanie-transkryptu-at-least-once--idempotencja).
+fizycznym usunięciu workera.
+
+Ingest blokuje ten sam wiersz wątku co archiwizacja i usuwanie oraz sprawdza
+przypisanie workera. Archiwum przyjmuje późne wyniki istniejących tur i zdarzenia
+między turami; zdarzenie nieznanej tury trafia do kwarantanny z powodem
+`archived_thread`, bez tworzenia tury. Usunięty wątek przyjmuje wyłącznie trwały
+kursor: payload jest odrzucany, bez historii, kwarantanny ani przywracania wątku.
+Usunięcie kończy działające tury jako przerwane przez system; archiwizacja
+i usunięcie nadal zapisują komendy przerwania w trwałym outboxie.
+Archiwizacja pozostawia zadania w tle, ale ich koniec zapisuje anulowaną notatkę
+w tej samej transakcji co stan zadania. Przywrócenie między ingestem a dostarczeniem
+notatki nie uruchomi pobudki. Snapshot i aktualizacje cyklu życia wątku blokują
+także natywne kontynuacje Claude na nowym workerze; próby ze starszego journala
+trafiają do kwarantanny bez utworzenia tury.
+
+Błędy przejściowe mają oddzielną, uporządkowaną kolejkę każdego wątku. Gateway
+ponawia zapis po 250 ms, 1 s i 4 s, następnie zachowuje oryginał w kwarantannie
+z powodem `retry_exhausted` (migracja `0132_worker_ingest_outcomes`). Gdy także ten
+zapis jest niedostępny, ponawia go co 30 s bez ACK; worker zachowuje journal.
+Żaden taki błąd nie rozłącza workera ani nie zatrzymuje tur pozostałych wątków.
+Nowy worker ze starym gatewayem po pierwszym drainie ingestu trwale wstrzymuje
+niepotwierdzone journale, zamiast powtarzać pętlę. Aktualizacja gatewaya wznawia
+je automatycznie. Szczegóły: [protocol.md](protocol.md#dostarczanie-transkryptu-at-least-once--idempotencja).
 
 ### 3.2 Wątki dostawców
 

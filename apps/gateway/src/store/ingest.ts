@@ -7,6 +7,7 @@ import { applyShellInput } from "./shell-input.ts";
 import { storageEvent } from "./event-text.ts";
 import { dataErrorCode, quarantineEvent } from "./event-quarantine.ts";
 import { queryFamily, queryMethods } from "../diagnostics/query-context.ts";
+import { acknowledgeEvents, archivedEventAllowed, type IngestFallback, type IngestOutcome } from "./ingest-outcomes.ts";
 
 /**
  * Writes worker events into the thread timeline (docs/transcript.md, "Zapis po stronie gateway").
@@ -37,9 +38,10 @@ export interface IngestResult {
   readonly acks: ReadonlyMap<string, bigint>;
   /** Newly stored events, in timeline order, for live subscribers. */
   readonly stored: readonly StoredEvent[];
+  readonly outcomes: readonly IngestOutcome[];
   /** Threads the gateway does not know: not acked, the worker keeps them. */
   readonly unknownThreads: readonly string[];
-  /** Threads whose events could not be stored this time: not acked, resent by the worker after a reconnect. */
+  /** Threads whose events could not be stored this time: not acked; retried independently of the link. */
   readonly failedThreads: readonly { threadId: string; error: SqlError.SqlError }[];
 }
 
@@ -57,15 +59,35 @@ export const ingestThread = (
   threadId: string,
   events: readonly ThreadEvent[],
   origin: "worker" | "gateway" = "worker",
+  fallback?: IngestFallback,
 ) =>
   sql.withTransaction(
     Effect.gen(function* () {
       const locked = yield* sql<{
         last_seq: string;
-      }>`SELECT last_seq FROM threads WHERE id = ${threadId}::uuid FOR UPDATE`;
+        archived_at: Date | null;
+        deleted_at: Date | null;
+        worker_id: string | null;
+      }>`SELECT last_seq, archived_at, deleted_at, worker_id FROM threads WHERE id = ${threadId}::uuid FOR UPDATE`;
 
-      if (!locked[0]) return undefined;
-      let last = BigInt(locked[0].last_seq);
+      const thread = locked[0];
+
+      if (!thread || thread.worker_id !== workerId) return undefined;
+      const outcomes: IngestOutcome[] = [];
+
+      if (thread.deleted_at) {
+        const previous = yield* sql<{ acked_seq: string }>`SELECT acked_seq FROM worker_journal_cursors
+          WHERE worker_id=${workerId}::uuid AND journal_id=${journalId} AND thread_id=${threadId}::uuid`;
+
+        const count = events.filter((e) => e.journalSeq > BigInt(previous[0]?.acked_seq ?? 0)).length;
+        const ack = yield* acknowledgeEvents(sql, workerId, journalId, threadId, events);
+
+        if (count) outcomes.push({ threadId, kind: "dropped", reason: "deleted_thread", count });
+
+        return { ack, stored: [], outcomes };
+      }
+
+      let last = BigInt(thread.last_seq);
       const ids = events.map((e) => e.eventId);
 
       const known = new Set(
@@ -82,24 +104,30 @@ export const ingestThread = (
         if (known.has(incoming.eventId)) continue;
         known.add(incoming.eventId);
         const seq = ++last;
-        const event = yield* resolveTurn(sql, threadId, storageEvent(incoming));
-        yield* insertEvent(sql, threadId, seq, event, origin);
+
+        const rejection =
+          thread.archived_at && !(yield* archivedEventAllowed(sql, incoming))
+            ? { code: "23514", reason: "archived_thread" as const }
+            : fallback;
+
+        const event = rejection
+          ? yield* quarantineEvent(sql, workerId, journalId, incoming, rejection.code, rejection.reason)
+          : yield* resolveTurn(sql, threadId, storageEvent(incoming));
+
+        yield* insertEvent(sql, threadId, seq, event, rejection ? "gateway" : origin);
         yield* applySideEffects(sql, threadId, seq, event);
         yield* applySteer(sql, threadId, seq, event);
 
         if (event.body.case === "shellInputPrepared") yield* applyShellInput(sql, threadId, event.body.value);
         stored.push({ threadId, seq, event });
+
+        if (rejection) outcomes.push({ threadId, kind: "quarantined", reason: rejection.reason, count: 1 });
       }
 
       yield* sql`UPDATE threads SET last_seq = ${last} WHERE id = ${threadId}::uuid`;
-      const ack = events.reduce((max, e) => (e.journalSeq > max ? e.journalSeq : max), 0n);
-      yield* sql`
-        INSERT INTO worker_journal_cursors (worker_id, journal_id, thread_id, acked_seq)
-        VALUES (${workerId}::uuid, ${journalId}, ${threadId}::uuid, ${ack})
-        ON CONFLICT (worker_id, journal_id, thread_id) DO UPDATE SET acked_seq = greatest(worker_journal_cursors.acked_seq, EXCLUDED.acked_seq)
-      `;
+      const ack = yield* acknowledgeEvents(sql, workerId, journalId, threadId, events);
 
-      return { ack, stored };
+      return { ack, stored, outcomes };
     }),
   );
 
@@ -110,6 +138,7 @@ export class Ingest extends Context.Service<
       workerId: string,
       journalId: string,
       events: readonly ThreadEvent[],
+      fallback?: IngestFallback,
     ): Effect.Effect<IngestResult, SqlError.SqlError>;
     /**
      * Closes what a finished turn left open (docs/durability.md, "Stany tury i wątku"): items still in progress in a
@@ -161,6 +190,7 @@ export class Ingest extends Context.Service<
             workerId: string,
             journalId: string,
             events: readonly ThreadEvent[],
+            fallback?: IngestFallback,
           ) {
             const byThread = new Map<string, ThreadEvent[]>();
 
@@ -174,12 +204,21 @@ export class Ingest extends Context.Service<
 
             const acks = new Map<string, bigint>();
             const stored: StoredEvent[] = [];
+            const outcomes: IngestOutcome[] = [];
             const unknownThreads: string[] = [];
             const failedThreads: { threadId: string; error: SqlError.SqlError }[] = [];
 
             for (const [threadId, threadEvents] of byThread) {
               // Isolate data exceptions; other failures keep the thread unacked for redelivery.
-              const result = yield* ingestThread(sql, workerId, journalId, threadId, threadEvents).pipe(
+              const result = yield* ingestThread(
+                sql,
+                workerId,
+                journalId,
+                threadId,
+                threadEvents,
+                "worker",
+                fallback,
+              ).pipe(
                 Effect.catchTag("SqlError", (error) =>
                   dataErrorCode(error)
                     ? isolateDataErrors(sql, workerId, journalId, threadId, threadEvents)
@@ -197,9 +236,10 @@ export class Ingest extends Context.Service<
 
               acks.set(threadId, result.ack);
               stored.push(...result.stored);
+              outcomes.push(...result.outcomes);
             }
 
-            return { acks, stored, unknownThreads, failedThreads };
+            return { acks, stored, outcomes, unknownThreads, failedThreads };
           }, queryFamily("ingest.events")),
         }),
       );
@@ -218,6 +258,7 @@ const isolateDataErrors = (
   sql.withTransaction(
     Effect.gen(function* () {
       const stored: StoredEvent[] = [];
+      const outcomes: IngestOutcome[] = [];
       let ack = 0n;
 
       for (const event of events) {
@@ -228,8 +269,11 @@ const isolateDataErrors = (
             if (!code) return Effect.fail(error);
 
             return Effect.gen(function* () {
-              const marker = yield* quarantineEvent(sql, workerId, journalId, event, code);
-              const saved = yield* ingestThread(sql, workerId, journalId, threadId, [marker], "gateway");
+              const saved = yield* ingestThread(sql, workerId, journalId, threadId, [event], "worker", {
+                code,
+                reason: "data_error",
+              });
+
               yield* sql.afterCommit(
                 Effect.logWarning("Worker event quarantined", {
                   workerId,
@@ -249,8 +293,9 @@ const isolateDataErrors = (
 
         if (result.ack > ack) ack = result.ack;
         stored.push(...result.stored);
+        outcomes.push(...result.outcomes);
       }
 
-      return { ack, stored };
+      return { ack, stored, outcomes };
     }),
   );

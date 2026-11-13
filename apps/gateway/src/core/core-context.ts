@@ -249,9 +249,6 @@ export class GatewayCoreState {
 
   readonly journalIds = new Map<string, string>();
 
-  /** Threads whose events failed to store on a connection: skipped until the worker reconnects and resends. */
-  readonly blocked = new WeakMap<WorkerConnection, Set<string>>();
-
   /** Mention catalogs by worker + provider + profile + folder (the composer asks on every popup). */
   readonly catalogs = new Map<string, { at: number; catalog: MentionCatalog }>();
   readonly workspaceOrigins = new Map<string, { at: number; origin: Promise<string | undefined> }>();

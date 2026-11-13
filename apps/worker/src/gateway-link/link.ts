@@ -23,6 +23,8 @@ export interface GatewayLinkOptions {
   readonly fingerprint?: string;
   readonly pingIntervalMs?: number;
   readonly signal?: AbortSignal;
+  /** Durable journals held after a legacy gateway's ingest drain; resumed by a safe Welcome. */
+  readonly heldThreads?: readonly string[];
 }
 
 /** The worker side of one WorkerLinkService.Connect stream, after a successful handshake. */
@@ -32,6 +34,7 @@ export interface GatewayLink {
   readonly messages: AsyncIterable<GatewayMessage>;
   /** Resolves when the stream ends; carries the error if it ended abnormally. */
   readonly closed: Promise<{ error?: ConnectError }>;
+  readonly heldThreads?: ReadonlySet<string>;
   send(payload: WorkerPayloadInit, replay?: boolean): void;
   /** Half-closes the request stream. The gateway ends the call in response. */
   close(): void;
@@ -133,11 +136,16 @@ export async function openGatewayLink(options: GatewayLinkOptions): Promise<Gate
     }
   })();
 
+  const heldThreads = new Set(first.value.payload.value.isolatedEventIngest ? [] : options.heldThreads);
+
   return {
     welcome: first.value.payload.value,
     messages: inbound,
     closed,
+    heldThreads,
     send(payload, replay = false) {
+      if (payload.case === "threadEvent" && heldThreads.has(payload.value.threadId ?? "")) return;
+
       const measured =
         echo && payload.case === "heartbeat"
           ? { ...payload, value: { ...payload.value, echoSequence: echo.send() } }

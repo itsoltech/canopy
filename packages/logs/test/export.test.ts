@@ -58,6 +58,11 @@ describe("source log security and bounded exports", () => {
       `${at} gateway 0.0.0-dev listening on http://private-host.internal:21595`,
       `${at} worker 11111111-1111-4111-8111-111111111111 connected`,
       `${at} worker 11111111-1111-4111-8111-111111111111 disconnected`,
+      `${at} worker events not stored: worker 11111111-1111-4111-8111-111111111111 thread 22222222-2222-4222-8222-222222222222 reason retry_pending`,
+      `${at} worker events dropped: worker 11111111-1111-4111-8111-111111111111 thread 22222222-2222-4222-8222-222222222222 count 3 reason deleted_thread`,
+      `${at} worker events quarantined: worker 11111111-1111-4111-8111-111111111111 thread 22222222-2222-4222-8222-222222222222 count 1 reason archived_thread`,
+      `${at} worker events deferred: count 1 reason legacy_ingest_drain; update the gateway to resume delivery`,
+      `${at} events of thread 22222222-2222-4222-8222-222222222222 not stored (kept on worker 11111111-1111-4111-8111-111111111111): PgConnection: Query failed: thread is archived or deleted /home/private token-secret`,
       `${at} worker 11111111-1111-4111-8111-111111111111 (Canopy 0.0.0-dev), gateway http://private-host.internal, data /home/private/workspace, journal journal-private`,
       `${at} {"event":"unknown","prompt":"private prompt","token":"top-secret"}`,
       `${at} ERROR: write failed`,
@@ -78,7 +83,7 @@ describe("source log security and bounded exports", () => {
     );
 
     const text = await readFile(result!.file, "utf8");
-    expect(result!.coverage.records).toBe(6);
+    expect(result!.coverage.records).toBe(11);
     expect(result!.coverage.omittedRecords).toBeGreaterThanOrEqual(6);
 
     for (const secret of [
@@ -93,12 +98,28 @@ describe("source log security and bounded exports", () => {
       "query-private",
       "0.0.0-dev",
       "11111111",
+      "22222222",
+      "PgConnection",
+      "token-secret",
       "journal-private",
     ])
       expect(text).not.toContain(secret);
     expect(text).toContain('"event":"process_started"');
     expect(text).toContain('"event":"link_changed"');
-    expect(result!.coverage.redactedRecords).toBe(6);
+
+    for (const event of ["not_stored", "dropped", "quarantined", "deferred"])
+      expect(text).toContain(`"event":"worker_events_${event}"`);
+    const verified: Uint8Array[] = [];
+    let omitted = 0;
+
+    const chunks = async function* () {
+      yield Buffer.from(text);
+    };
+
+    for await (const chunk of verifiedLogChunks(chunks(), "gateway", () => omitted++)) verified.push(chunk);
+    expect(omitted).toBe(0);
+    expect(Buffer.concat(verified).toString()).toBe(text);
+    expect(result!.coverage.redactedRecords).toBe(11);
   });
 
   test("selects newest complete records within the post-redaction cap, with explicit range and legacy coverage", async () => {

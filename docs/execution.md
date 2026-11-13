@@ -133,7 +133,15 @@ Zaimplementowane (2026-11-02). Codex nigdy nie budzi się sam, a Claude tylko po
 - **Steer, który nie wszedł** (tura skończyła się wcześniej, dostawca odmówił): notatka wraca do oczekujących i jest dostarczana od nowa (własna tura albo następna tura). Nigdy nie staje się turą użytkownika.
 - **Zatrzymanie przez użytkownika:** bez tury pobudki (użytkownik wie, co zrobił). Notatka trafia do tury w toku, a bez niej do następnej tury, która się zacznie (steer zaraz po jej starcie). Zatrzymanie przez agenta (`stop_background_task`) nie daje notatki wcale: agent wie.
 - **Claude bez podwójnych tur:** zadanie Claude, które skończyło się samo (`completed`, `failed` z błędem), czeka `graceMs` (15 s) od końca. Jeśli w tym czasie trwała albo zaczęła się tura wątku (Claude opisuje zadanie w turze, która trwała, albo zaczyna własną turę `provider`), notatka ma status `harness` i nic nie jest wysyłane. Inaczej (np. proces Claude Code się skończył) platforma dostarcza notatkę sama.
-- **Wątek zarchiwizowany:** notatka `cancelled`.
+- **Wątek zarchiwizowany:** działająca tura jest przerywana, ale zadania w tle mogą
+  działać dalej, tak jak po zwykłym przerwaniu tury. Ich zakończenie zapisuje stan
+  zadania i notatkę `cancelled` w jednej transakcji; nie tworzy tury ani steera.
+  Worker po informacji o archiwizacji blokuje także natywną pobudkę Claude,
+  zapisując nieturową informację `continuation_suppressed`. Przywrócenie wątku
+  pokazuje wynik zadania, ale nie uruchamia zaległej kontynuacji. Starszy worker
+  może dosłać próbę takiej tury: gateway izoluje ją bez rozłączania połączenia.
+  Dla usuniętego wątku gateway zapisuje tylko kursor i potwierdza odrzucenie
+  zdarzeń, bez zachowania treści ani przywracania wątku.
 - **UI:** tura `background_task` i steer notatki to zwarty wiersz systemowy na osi czasu (`BackgroundNoteRow`: „Background task stopped: worker restarted for a deploy · <nazwa>”, link do outputu zadania), nie wiadomość; `ui.Turn.background_item_ids`, `ui.Steer.background_item_ids`. Panel zadań pokazuje powód słowami i czas końca.
 - Testy: `tests/integration/background-task-notes.test.ts` (skryptowany worker), `background-task-notes.live.test.ts` (Codex i Claude przez CLIProxyAPI: restart workera w trakcie zadania, notatka po restarcie, agent odpowiada, co się stało).
 

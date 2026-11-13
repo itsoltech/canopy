@@ -8,6 +8,7 @@ import composerTurnChoices from "./0101_composer_turn_choices.sql" with { type: 
 import botComposer from "./0102_bot_composer.sql" with { type: "text" };
 import configFieldAncestry from "./0110_config_field_ancestry.sql" with { type: "text" };
 import workerEventQuarantine from "./0111_worker_event_quarantine.sql" with { type: "text" };
+import workerIngestOutcomes from "./0132_worker_ingest_outcomes.sql" with { type: "text" };
 import workspaceCopy from "./0112_workspace_copy.sql" with { type: "text" };
 import githubAccounts from "./0113_github_accounts.sql" with { type: "text" };
 import githubPullRequests from "./0114_github_pull_requests.sql" with { type: "text" };
@@ -256,6 +257,7 @@ export const migrations = Migrator.fromRecord({
   "0109_secret_queue_indexes": Effect.void,
   "0110_config_field_ancestry": sqlFile(configFieldAncestry),
   "0111_worker_event_quarantine": sqlFile(workerEventQuarantine),
+  "0132_worker_ingest_outcomes": sqlFile(workerIngestOutcomes),
   "0112_workspace_copy": sqlFile(workspaceCopy),
   "0113_github_accounts": sqlFile(githubAccounts),
   "0114_github_pull_requests": sqlFile(githubPullRequests),

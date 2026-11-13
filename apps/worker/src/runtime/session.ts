@@ -2,7 +2,7 @@ import type { GatewayLink } from "../gateway-link/index.ts";
 import { applyAck } from "../gateway-link/index.ts";
 import type { WorkerHost } from "./host.ts";
 import type { ManagedRuntime } from "effect";
-import type { Journal } from "../journal/index.ts";
+import { Journal } from "../journal/index.ts";
 import type { NetworkRoutes } from "@canopy/contracts";
 import { workerDiagnostics } from "../diagnostics/worker.ts";
 import { create } from "@bufbuild/protobuf";
@@ -30,6 +30,9 @@ export async function serveLink(
   try {
     for await (const message of link.messages) {
       switch (message.payload.case) {
+        case "threadLifecycle":
+          host.applyThreadLifecycle(message.payload.value);
+          break;
         case "diagnosticsTraceCommand":
           link.send({ case: "diagnosticsTraceReply", value: workerTracing.receive(message.payload.value) });
           break;
@@ -113,6 +116,17 @@ export async function serveLink(
           workerDiagnostics.record(106, await runtime.runPromise(applyAck(message.payload.value)));
           break;
         case "drain":
+          if (
+            !link.welcome.isolatedEventIngest &&
+            message.payload.value.reason === "redelivering events that failed to store"
+          ) {
+            const count = await runtime.runPromise(Journal.use((journal) => journal.holdPending()));
+            log(
+              `worker events deferred: count ${count} reason legacy_ingest_drain; update the gateway to resume delivery`,
+            );
+            workerDiagnostics.record(116, count);
+          }
+
           drainDelayMs = message.payload.value.reconnectAfterMs;
           log(`gateway draining (${message.payload.value.reason}), reconnecting in ${drainDelayMs} ms`);
           break;

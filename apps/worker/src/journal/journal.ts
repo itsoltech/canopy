@@ -14,6 +14,7 @@ import { Context, Effect, Layer, Schema } from "effect";
 import { turnTracking } from "./turn-tracking.ts";
 import { shellTracking } from "./shell-inputs.ts";
 import { retryContext } from "./retry-context.ts";
+import { heldDelivery } from "./held-delivery.ts";
 import { commandTracking } from "./commands.ts";
 import { secretEventRedactor } from "../runtime/thread-secrets.ts";
 import { journalStatistics, type JournalStatistics } from "./statistics.ts";
@@ -90,6 +91,9 @@ export class Journal extends Context.Service<
     readonly journalId: string;
     rememberRequest: ReturnType<typeof retryContext>["rememberRequest"];
     recoveryInstructions: ReturnType<typeof retryContext>["recoveryInstructions"];
+    holdPending: ReturnType<typeof heldDelivery>["holdPending"];
+    heldThreads: ReturnType<typeof heldDelivery>["heldThreads"];
+    resumeDelivery: ReturnType<typeof heldDelivery>["resumeDelivery"];
     readonly statistics?: () => JournalStatistics;
     beginShellInput: ReturnType<typeof shellTracking>["beginShellInput"];
     shellInput: ReturnType<typeof shellTracking>["shellInput"];
@@ -322,6 +326,7 @@ function makeJournal(db: Database, diagnostics: boolean): Journal["Service"] {
   return Journal.of({
     ...commandTracking(db, attempt),
     ...retryContext(db, attempt),
+    ...heldDelivery(db, attempt),
     ...(diagnostics && { statistics: journalStatistics(db) }),
     ...shellTracking(db, attempt, (threadId, event) => appendTx(threadId, redact(threadId, event))),
     journalId,

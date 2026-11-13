@@ -1,7 +1,7 @@
 import { LOG_LIMITS, type LogSource } from "./limits.ts";
 
 const record =
-  /^\{"at":\d{1,16},"source":"(desktop|gateway|worker|postgres|web|initdb)","event":"(?:process_started|process_stopped|process_restarting|migration_applied|link_changed|health_check|diagnostics_saved|startup_recovery|postgres_status)","legacy":(?:true|false)\}\n$/;
+  /^\{"at":\d{1,16},"source":"(desktop|gateway|worker|postgres|web|initdb)","event":"(?:process_started|process_stopped|process_restarting|migration_applied|link_changed|health_check|diagnostics_saved|startup_recovery|postgres_status|worker_events_not_stored|worker_events_dropped|worker_events_quarantined|worker_events_deferred)","legacy":(?:true|false)\}\n$/;
 
 /** Defence in depth for authenticated source adapters: never archive arbitrary payloads or unknown JSON. */
 export async function* verifiedLogChunks(input: AsyncIterable<Uint8Array>, source: LogSource, omitted: () => void) {

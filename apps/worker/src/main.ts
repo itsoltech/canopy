@@ -327,6 +327,7 @@ while (!stopping.signal.aborted) {
 
   try {
     const link = await openGatewayLink({
+      heldThreads: await runtime.runPromise(Journal.use((journal) => journal.heldThreads())),
       ...endpointOptions(endpoint),
       credential: local.credential,
       pingIntervalMs: (local.ping_interval_seconds ?? 30) * 1_000,
@@ -350,6 +351,7 @@ while (!stopping.signal.aborted) {
           "shell_input_v1",
           "provider_account_status",
           "running_turns",
+          "thread_lifecycle_v1",
           "attachments",
           STEER_ATTACHMENTS_CAPABILITY,
           "probe_providers",
@@ -407,6 +409,11 @@ while (!stopping.signal.aborted) {
     });
 
     currentLink = link;
+
+    if (link.heldThreads?.size)
+      console.warn(
+        `worker events deferred: count ${link.heldThreads.size} reason legacy_ingest_drain; update the gateway to resume delivery`,
+      );
     workerDiagnostics.record(111, 1);
 
     if (installKind() === "binary") await confirmStartup();

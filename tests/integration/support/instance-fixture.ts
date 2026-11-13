@@ -88,6 +88,7 @@ export async function startInstanceFixture(
   let host = createHost();
 
   const capabilities = [
+    "thread_lifecycle_v1",
     "bot_harness_v1",
     "bot_web_v1",
     "bot_workspace_v1",
@@ -113,7 +114,7 @@ export async function startInstanceFixture(
 
   let stopped = false;
 
-  let serving = serveLink(link, host, runtime).catch((error) => {
+  let serving = serveLink(link, host, runtime, (message) => logs.push(message)).catch((error) => {
     if (!stopped) throw error;
   });
 
@@ -271,7 +272,7 @@ export async function startInstanceFixture(
           ...(await runtime.runPromise(journalHello())),
         },
       });
-      serving = serveLink(link, host, runtime).catch(() => {});
+      serving = serveLink(link, host, runtime, (message) => logs.push(message)).catch(() => {});
       await runtime.runPromise(resendPending(link, (event) => host.sendPreviews(link, event)));
       await eventually(async () => host.config, Boolean);
     },
@@ -307,7 +308,7 @@ export async function startInstanceFixture(
         },
       });
 
-      const done = serveLink(next, host, runtime).catch(() => {});
+      const done = serveLink(next, host, runtime, (message) => logs.push(message)).catch(() => {});
       link = next;
       serving = done;
       await runtime.runPromise(resendPending(next, (event) => host.sendPreviews(next, event)));

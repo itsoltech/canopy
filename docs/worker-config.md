@@ -39,6 +39,19 @@ Status: **zaimplementowana**:
 
 Gateway przechowuje konfigurację w `worker_configs`; lokalny plik zawiera tylko połączenie.
 
+Nie jest potrzebna konfiguracja naprawy zaległych zdarzeń archiwalnego lub usuniętego
+wątku. Po aktualizacji gatewaya journal opróżnia się automatycznie, bez ręcznego
+przywracania wątku. Jeśli nowy worker łączy się ze starym gatewayem żądającym
+powtarzających się drainów ingestu, po pierwszym drainie zachowuje niepotwierdzone
+journale na dysku i wstrzymuje ich wysyłkę. Log `worker events deferred` i licznik
+diagnostyki wskazują potrzebę aktualizacji gatewaya. Inne wątki mogą pracować dalej;
+nowy gateway automatycznie odblokowuje wysyłkę. Szczegóły: [durability.md](durability.md)
+oraz [protocol.md](protocol.md#dostarczanie-transkryptu-at-least-once--idempotencja).
+Nowy gateway przekazuje też snapshot i zmiany archiwizacji/przywrócenia przez
+`thread_lifecycle_v1`. Worker zachowuje tę informację przy rozłączeniu, a po
+reconnect zastępuje ją aktualnym snapshotem. Zadania w tle mogą się zakończyć,
+ale nie budzą zarchiwizowanego ani usuniętego wątku nową turą.
+
 ## Dodanie maszyny z UI
 
 1. W **Settings → Workers → Add worker** podaj nazwę i opcjonalne **Worker tags**.

@@ -51,6 +51,8 @@ export interface ClaudeThreadsOptions {
    */
   runtimeOf?(profile: ResolvedProfile): ClaudeInstanceRuntime | undefined;
   publish(event: ThreadEvent): void;
+  /** Archived/deleted threads keep their tasks, but cannot start native completion turns. */
+  allowProviderTurn?(threadId: string): boolean;
   /** An event has finished journaling; the host may recheck a pending drain. */
   onActivitySettled?(): void;
   interact(request: InteractionRequest): Promise<InteractionResponse>;

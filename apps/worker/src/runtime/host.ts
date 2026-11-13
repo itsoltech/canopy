@@ -7,6 +7,7 @@ import {
   type Command,
   type InteractionResponse,
   type ThreadEvent,
+  type ThreadLifecycle,
   type WorkerConfig,
 } from "@canopy/contracts";
 import { applyWorkerConfig, type AppliedConfig, prepareSystemProbe } from "../config/remote.ts";
@@ -176,6 +177,7 @@ export class WorkerHost {
   }
 
   attach(link: GatewayLink): void {
+    if (link.welcome.threadLifecycle) this.applyThreadLifecycle(link.welcome.threadLifecycle);
     this.#ctx.state.link = link;
     this.environment.refresh(true);
 
@@ -188,6 +190,20 @@ export class WorkerHost {
     if (this.#ctx.state.catalog) this.#ctx.ops.send({ case: "modelCatalog", value: this.#ctx.state.catalog });
     this.#ctx.state.heads.snapshot();
     void this.#ctx.state.cli.report().catch(() => undefined);
+  }
+
+  threadClosed(threadId: string): boolean {
+    return this.#ctx.state.closedThreads.has(threadId);
+  }
+
+  applyThreadLifecycle(state: ThreadLifecycle): void {
+    const closed = this.#ctx.state.closedThreads;
+
+    if (state.replace) closed.clear();
+
+    for (const id of state.closedThreadIds) closed.add(id);
+
+    for (const id of state.openedThreadIds) closed.delete(id);
   }
 
   detach(link: GatewayLink): void {
