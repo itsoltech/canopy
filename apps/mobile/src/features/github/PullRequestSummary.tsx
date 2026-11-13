@@ -3,7 +3,7 @@ import type { github } from "@canopy/contracts";
 import { PullRequestChecks } from "./PullRequestChecks";
 import { PullRequestLabels } from "./PullRequestLabels";
 import { PullRequestPeople } from "./PullRequestPeople";
-import { Markdown } from "../../ui/markdown/Markdown";
+import { GitHubMarkdown as Markdown } from "./GitHubMarkdown";
 import { useColors, useTypography } from "../../ui/theme";
 import { useState } from "react";
 import { MetadataEdit } from "./MetadataEdit";
@@ -25,7 +25,11 @@ export function PullRequestSummary({ snapshot }: { snapshot: github.PullRequestS
         </Text>
         <MetadataEdit snapshot={snapshot} kind="description" onDisplay={setMetadata} />
         {body ? (
-          <Markdown text={body} />
+          <Markdown
+            text={body}
+            pullRequestId={snapshot.summary?.ref?.id ?? ""}
+            contentId={snapshot.summary?.ref?.nodeId ?? ""}
+          />
         ) : (
           <Text style={[type.small, { color: c.muted }]}>No description provided</Text>
         )}

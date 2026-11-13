@@ -582,3 +582,13 @@ message PullRequestMetadataPage {
   PullRequestPageInfo page = 3;
   bool members_available = 4;
 }
+message PullRequestImageRequest {
+  string pull_request_id = 1;
+  // GitHub node ID of the PR, issue comment, review, or review comment.
+  string content_id = 2;
+  string url = 3;
+}
+message PullRequestImage {
+  // Bounded raster bytes. Credentials and signed upstream URLs stay in the gateway.
+  string data_url = 1;
+}

@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { github } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
-  import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
+  import Markdown from "./GitHubMarkdown.svelte";
   import PullRequestPeople from "./PullRequestPeople.svelte";
   import PullRequestLabels from "./PullRequestLabels.svelte";
   import PullRequestChecks from "./PullRequestChecks.svelte";
@@ -27,10 +27,11 @@
       ondisplay={(value) => (display = value)}
       class="[&>button]:absolute [&>button]:top-3 [&>button]:right-0"
     />
-    {#if body}<Markdown text={body} class="min-w-0 [overflow-wrap:anywhere]" />{:else}<p
-        class="text-sm text-zinc-500 dark:text-zinc-400"
-      >
-        No description provided
-      </p>{/if}
+    {#if body}<Markdown
+        text={body}
+        pullRequestId={snapshot.summary?.ref?.id ?? ""}
+        contentId={snapshot.summary?.ref?.nodeId ?? ""}
+        class="min-w-0 [overflow-wrap:anywhere]"
+      />{:else}<p class="text-sm text-zinc-500 dark:text-zinc-400">No description provided</p>{/if}
   </section>
 </article>

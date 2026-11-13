@@ -2,7 +2,7 @@
   import type { github } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import { anchorLabel } from "@canopy/domain/github-review";
-  import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
+  import Markdown from "./GitHubMarkdown.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import CommentActions from "./CommentActions.svelte";
   import type { ReviewDraft } from "./review-draft.svelte.ts";
@@ -26,7 +26,11 @@
                 class="ml-2 text-amber-700 dark:text-amber-400">Outdated · {item.comment?.sha.slice(0, 7)}</span
               >{/if}
           </p>
-          <Markdown text={item.comment?.body ?? ""} />
+          <Markdown
+            text={item.comment?.body ?? ""}
+            pullRequestId={snapshot.summary?.ref?.id ?? ""}
+            contentId={item.comment?.id ?? ""}
+          />
           <CommentActions
             {snapshot}
             comment={item.comment}

@@ -12,6 +12,7 @@ import { watchPullRequest } from "../github/watch.ts";
 import { prepareContext } from "../github/context.ts";
 import { githubFailure } from "../github/http.ts";
 import { pullRequestAvatar } from "../github/avatars.ts";
+import { pullRequestImage } from "../github/images.ts";
 import type { github } from "@canopy/contracts";
 
 export function githubReadHandlers(
@@ -20,6 +21,7 @@ export function githubReadHandlers(
   UiHandlers,
   | "listPullRequestTimeline"
   | "getPullRequestAvatar"
+  | "getPullRequestImage"
   | "listPullRequestReviewThreads"
   | "getPullRequestReviewDraft"
   | "getPullRequestMetadata"
@@ -45,6 +47,13 @@ export function githubReadHandlers(
   };
 
   return {
+    getPullRequestImage: async (r) => {
+      try {
+        return await pullRequestImage(core.github.prs, r);
+      } catch (cause) {
+        throw githubFailure(cause);
+      }
+    },
     getPullRequestAvatar: async (r) => {
       try {
         return await pullRequestAvatar(core.github.prs, r);

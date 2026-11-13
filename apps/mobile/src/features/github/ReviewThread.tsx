@@ -4,7 +4,7 @@ import type { github } from "@canopy/contracts";
 import { reviewerLook } from "@canopy/domain/github-pr";
 import { useSession } from "../../state/session";
 import { Button, Notice } from "../../ui/components";
-import { Markdown } from "../../ui/markdown/Markdown";
+import { GitHubMarkdown as Markdown } from "./GitHubMarkdown";
 import { Icon } from "../../ui/Icon";
 import { useColors, useTypography } from "../../ui/theme";
 import { StatusIcon } from "./StatusIcon";
@@ -121,7 +121,7 @@ export function ReviewThread({
             time={comment.createdAt}
             url={comment.url}
           />
-          <Markdown text={comment.body} />
+          <Markdown text={comment.body} pullRequestId={id} contentId={comment.id} />
           <CommentActions
             snapshot={snapshot}
             comment={comment}

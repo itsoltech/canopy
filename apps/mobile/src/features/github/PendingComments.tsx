@@ -2,7 +2,7 @@ import { Text, View } from "react-native";
 import type { github } from "@canopy/contracts";
 import { anchorLabel } from "@canopy/domain/github-review";
 import { Button, Notice } from "../../ui/components";
-import { Markdown } from "../../ui/markdown/Markdown";
+import { GitHubMarkdown as Markdown } from "./GitHubMarkdown";
 import { useColors, useTypography } from "../../ui/theme";
 import { CommentActions } from "./CommentActions";
 import type { ReviewDraft } from "./useReviewDraft";
@@ -30,7 +30,11 @@ export function PendingComments({ snapshot, draft }: { snapshot: github.PullRequ
             {item.outdated && (
               <Text style={[type.meta, { color: c.warning }]}>Outdated · {item.comment?.sha.slice(0, 7)}</Text>
             )}
-            <Markdown text={item.comment?.body ?? ""} />
+            <Markdown
+              text={item.comment?.body ?? ""}
+              pullRequestId={snapshot.summary?.ref?.id ?? ""}
+              contentId={item.comment?.id ?? ""}
+            />
             {item.comment && (
               <CommentActions
                 snapshot={snapshot}

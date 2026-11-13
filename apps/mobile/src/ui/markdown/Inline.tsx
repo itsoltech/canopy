@@ -8,6 +8,7 @@ import { useMarkdownScope } from "./scope";
 import { Faced } from "./text-style";
 import { fileHrefOf, filePathOf } from "@canopy/domain/file-references";
 import { useFileLinks } from "./file-links";
+import { Html } from "./Html";
 
 /** Opens only what `safeHref` allows (http, https, mailto) in the system browser or mail app. */
 function open(href: string) {
@@ -54,7 +55,7 @@ function Plain({ text }: { text: string }) {
 function InlineToken({ token }: { token: Token }) {
   const c = useColors();
   const type = useTypography();
-  const { strong, restore } = useMarkdownScope();
+  const { strong, restore, image } = useMarkdownScope();
   const files = useFileLinks();
 
   if (isMathToken(token)) return <Text style={{ fontFamily: type.mono.fontFamily, color: strong }}>{token.raw}</Text>;
@@ -109,7 +110,14 @@ function InlineToken({ token }: { token: Token }) {
       </Link>
     );
 
-  if (isToken(token, "image")) return <Link href={token.href}>{token.text || safeHref(token.href) || ""}</Link>;
+  if (isToken(token, "image"))
+    return image ? (
+      image({ src: token.href, alt: token.text })
+    ) : (
+      <Link href={token.href}>{token.text || safeHref(token.href) || ""}</Link>
+    );
+
+  if (isToken(token, "html") && image) return <Html text={token.raw} />;
 
   if (token.type === "br") return "\n";
 

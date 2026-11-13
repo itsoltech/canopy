@@ -3,6 +3,7 @@ import { Schema } from "effect";
 import { redactConnector } from "../connectors/oauth.ts";
 import { jobLogHttp } from "./log-http.ts";
 import { avatarUrl } from "./avatar-url.ts";
+import { imageHttp } from "./image-http.ts";
 import { setTimeout } from "node:timers/promises";
 
 export interface GitHubOptions {
@@ -172,6 +173,9 @@ export class GitHubHttp {
       headers,
       value: { dataUrl: `data:${mime};base64,${Buffer.concat(parts).toString("base64")}` },
     };
+  }
+  attachment(value: string, etag: string, signal: AbortSignal, token: string) {
+    return imageHttp(value, etag, signal, this.#fetch, token);
   }
   async request(path: string, init: RequestInit, secrets: readonly string[] = []) {
     const result = await this.detailed(path, init, secrets);

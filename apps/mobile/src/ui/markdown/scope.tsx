@@ -1,5 +1,6 @@
 import { createContext, useContext, type ReactNode } from "react";
 import type { SentinelRange } from "@canopy/domain/markdown";
+import type { GitHubImage } from "@canopy/domain/github-images";
 
 /** Elements a caller draws inside the text over ranges of the source (mention badges; `@canopy/domain/markdown`). */
 export interface InlineElements {
@@ -10,6 +11,7 @@ export interface InlineElements {
 
 /** What every block and inline run of one message reads: its text colour, and the caller's inline elements. */
 export interface MarkdownScope {
+  readonly image?: ((value: GitHubImage) => ReactNode) | undefined;
   readonly selectable: boolean;
   /** Body text colour (commentary, reasoning and tinted bubbles are quieter or tinted). */
   readonly ink: string;

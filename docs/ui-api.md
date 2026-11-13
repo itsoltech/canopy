@@ -329,6 +329,13 @@ Revoke kończy otwarte streamy w procesie gatewaya. Starsze parowania wymagają 
 
 ## Konto GitHub
 
+`GetPullRequestImage` i BFF `POST /api/github/image` udostępniają obrazy z opisu PR,
+komentarzy i review. Gateway sprawdza właściciela, wybrane konto i przynależność
+węzła do PR, rozwiązuje prywatny URL przez `bodyHTML`, a zwraca wyłącznie ograniczony
+raster jako data URL. Podpisy URL i poświadczenia pozostają w gatewayu. Wspólny
+renderer ładuje obrazy tylko po jawnym przekazaniu renderera przez widoki GitHub;
+treści wątków agentów zachowują dotychczasowe linki. Limity i cache: [github.md](github.md#obrazy-w-treści-pr).
+
 Settings → GitHub na web/desktop i mobile korzysta z ośmiu RPC opisanych w
 `proto/canopy/ui/v1/github.proto`: konta, start/status/cancel device flow,
 disconnect, jawny wybór istniejącego PAT i stronicowane instalacje/repozytoria.

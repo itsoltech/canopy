@@ -7,6 +7,9 @@ import { importPullRequestDraft } from "@canopy/domain/github-lifecycle";
 
 const post = (operation: string, body: JsonBody) => requestJson("POST", `/api/github/${operation}`, body, 125_000);
 
+export const image = async (pullRequestId: string, contentId: string, url: string) =>
+  decode(github.PullRequestImageSchema, await post("image", { pullRequestId, contentId, url }));
+
 const mutate = async (operation: string, r: github.PullRequestMutationRequest) =>
   decode(
     github.PullRequestMutationReceiptSchema,
