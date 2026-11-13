@@ -11,7 +11,7 @@ domu oznaczamy `stale`, a brak ostatniej odpowiedzi także `unavailable`.
 
 ## Moduły workspace'u wątku
 
-`features/workspace` rejestruje wewnętrzne moduły Pull requests, Tasks i Connectors
+`features/workspace` rejestruje wewnętrzne moduły Files, Pull requests, Tasks i Connectors
 przez wspólne deskryptory `@canopy/domain/workspace-modules`. Klucz pełnej karty
 obejmuje moduł i kwalifikowane id zasobu we właściwym wątku. `+` w nagłówku otwiera
 utrwaloną kartę; `+` prawego panelu zastępuje jego jedyny moduł. Maksymalizacja
@@ -117,8 +117,9 @@ Webowy `Icon` domyślnie używa `--icon-muted`: zinc-500 w jasnym i zinc-400 w c
 Hover, aktywacja, fokus klawiatury i wybrany/rozwinięty stan kontrolki ustawiają
 `--icon-emphasis` (odpowiednio zinc-700 / zinc-300), również w nagłówkach i nawigacji.
 `tone="inherit"` zachowuje kolor semantycznego statusu lub kontrast głównej akcji;
-jawne klasy koloru nadal mają pierwszeństwo. Przełącznik Thread details używa `panel-right`:
-`layout-sidebar-right`, czyli obrysu okna z prawym panelem. `view-columns` używa tego
+jawne klasy koloru nadal mają pierwszeństwo. Przycisk Thread details używa
+`information-circle`; osobne zwinięcie/przywrócenie panelu używa `panel-right`
+(`layout-sidebar-right`, czyli obrysu okna z prawym panelem). `view-columns` używa tego
 samego glifu w komendach i aplikacji mobilnej; `sidebar` używa `layout-sidebar`.
 
 ## Synchronizacja wątku
