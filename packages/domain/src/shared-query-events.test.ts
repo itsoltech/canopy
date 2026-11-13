@@ -26,6 +26,86 @@ async function watched(keys: string[]) {
 }
 
 describe("overview events and shared reads", () => {
+  test.each(["thread", "gap"])("%s revalidation retains mounted PR consumers through a delayed read", async (event) => {
+    const queries = new QueryCache({ coalesceMs: 0 });
+    const invalidation = new OverviewInvalidation(queries);
+    const key = "GetPullRequest:pr";
+    const initial = { title: "First summary" };
+    const refreshed = { title: "Updated summary" };
+    const pending = Promise.withResolvers<typeof initial>();
+    const seen: (typeof initial | undefined)[] = [];
+    let reads = 0;
+    queries.set(key, initial);
+
+    const stops = [1, 2].map(() =>
+      queries.watch(
+        key,
+        () => {
+          reads++;
+
+          return pending.promise;
+        },
+        () => seen.push(queries.snapshot<typeof initial>(key).data),
+      ),
+    );
+
+    try {
+      if (event === "gap") invalidation.synced([], true);
+      else
+        invalidation.apply(
+          update({ case: "thread", value: create(ui.ThreadSchema, { id: "thread", pullRequestRevision: 1n }) }),
+        );
+      await Bun.sleep(10);
+      expect(reads).toBe(1);
+      expect(queries.snapshot(key)).toMatchObject({ data: initial, loaded: true, loading: true });
+      expect(queries.snapshot("GetPullRequest:another-pr").loaded).toBe(false);
+      pending.resolve(refreshed);
+      await Bun.sleep(10);
+      expect(queries.snapshot(key)).toMatchObject({ data: refreshed, loaded: true, loading: false });
+      expect(seen.length).toBeGreaterThan(0);
+      expect(seen.every((value) => value === initial || value === refreshed)).toBe(true);
+    } finally {
+      stops.forEach((stop) => stop());
+      queries.dispose();
+    }
+  });
+
+  test("a failed PR revalidation keeps content and unchanged thread revisions do not retry it", async () => {
+    const queries = new QueryCache({ coalesceMs: 0 });
+    const invalidation = new OverviewInvalidation(queries);
+    const key = "GetPullRequest:pr";
+    const initial = { title: "Cached summary" };
+
+    const thread = update({
+      case: "thread",
+      value: create(ui.ThreadSchema, { id: "thread", pullRequestRevision: 2n }),
+    });
+
+    let reads = 0;
+    queries.set(key, initial);
+
+    const stop = queries.watch(
+      key,
+      async () => {
+        reads++;
+        throw new Error("Offline");
+      },
+      () => {},
+    );
+
+    try {
+      invalidation.apply(thread);
+      await Bun.sleep(10);
+      expect(queries.snapshot(key)).toMatchObject({ data: initial, loaded: true, loading: false, error: "Offline" });
+      invalidation.apply(thread);
+      await Bun.sleep(10);
+      expect(reads).toBe(1);
+    } finally {
+      stop();
+      queries.dispose();
+    }
+  });
+
   test("a home resnapshot drops private PR content and a late pre-revoke response cannot restore it", async () => {
     const queries = new QueryCache();
     const pending = Promise.withResolvers<string | null>();

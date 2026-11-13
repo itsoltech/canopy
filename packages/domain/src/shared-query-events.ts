@@ -50,7 +50,7 @@ export class OverviewInvalidation {
       this.#pullRequests.set(thread.id, thread.pullRequestRevision);
 
       if (previous !== thread.pullRequestRevision)
-        this.queries.forget(named(["GetPullRequest", "ListThreadPullRequests"]));
+        this.queries.invalidate(named(["GetPullRequest", "ListThreadPullRequests"]));
     }
 
     if (["computerRemoved", "computerSnapshot", "mobileSnapshot"].includes(change.case ?? ""))
@@ -84,9 +84,6 @@ export class OverviewInvalidation {
 
     for (const worker of workers) this.#workers.set(worker.id, workerSignature(worker));
 
-    if (gap) {
-      this.queries.forget(named(["GetPullRequest", "ListThreadPullRequests"]));
-      this.queries.invalidate(() => true);
-    }
+    if (gap) this.queries.invalidate(() => true);
   }
 }
