@@ -3,6 +3,7 @@ import { View } from "react-native";
 import { LayoutAnimationConfig } from "react-native-reanimated";
 import type { ui } from "@canopy/contracts";
 import { sameItems } from "@canopy/domain/same-items";
+import type { WorkGroupChoices } from "@canopy/domain/work-group-choices";
 import { useColors } from "../../ui/theme";
 import { WorkGroup } from "./WorkFold";
 import { ActivityGroup, activityHeader, activitySurface } from "./activity-header";
@@ -19,20 +20,24 @@ const ToolGroup = memo(function ToolGroup({
   expanded,
   steers,
   ended,
+  choices,
 }: {
   row: GroupRow;
   expanded: boolean;
   steers: readonly ui.Steer[];
   ended: boolean;
+  choices: WorkGroupChoices;
 }) {
   const c = useColors();
   const target = useThreadScrollTarget();
 
-  const [manual, setManual] = useState<boolean | undefined>(() =>
-    row.rows.some((inner) => inner.key === target) ? true : undefined,
-  );
+  const [, setOpen] = useState(() => {
+    if (row.rows.some((inner) => inner.key === target)) choices.choose(row.key, true);
 
-  const open = manual ?? expanded;
+    return choices.open(row.key, !ended, expanded);
+  });
+
+  const open = choices.open(row.key, !ended, expanded);
 
   return (
     <View style={[activityHeader.shell, activitySurface(c)]}>
@@ -40,10 +45,14 @@ const ToolGroup = memo(function ToolGroup({
         label={row.label}
         open={open}
         running={row.running}
+        hint={row.hint}
         icon={row.icon}
         status={row.status}
         statusCount={row.statusCount}
-        onToggle={() => setManual(!open)}
+        onToggle={() => {
+          choices.choose(row.key, !open);
+          setOpen((previous) => !previous);
+        }}
       />
       <TimelineDisclosure open={open}>
         <ActivityGroup value={true}>
@@ -65,11 +74,13 @@ export const WorkRail = memo(
     steers,
     ended,
     expanded,
+    choices,
   }: {
     work: readonly BodyRow[];
     steers: readonly ui.Steer[];
     ended: boolean;
     expanded: boolean;
+    choices: WorkGroupChoices;
   }) {
     const c = useColors();
     const rows = useMemo(() => workRows(work), [work]);
@@ -81,7 +92,7 @@ export const WorkRail = memo(
             row.kind === "row" ? (
               <BodyRowView key={row.row.key} row={row.row} steers={steers} ended={ended} />
             ) : (
-              <ToolGroup key={row.key} row={row} expanded={expanded} steers={steers} ended={ended} />
+              <ToolGroup key={row.key} row={row} expanded={expanded} choices={choices} steers={steers} ended={ended} />
             ),
           )}
         </LayoutAnimationConfig>
@@ -92,5 +103,6 @@ export const WorkRail = memo(
     sameItems(before.work, after.work) &&
     before.steers === after.steers &&
     before.ended === after.ended &&
-    before.expanded === after.expanded,
+    before.expanded === after.expanded &&
+    before.choices === after.choices,
 );

@@ -33,7 +33,7 @@ export type FeedRow =
       /** The last row of an open fold: the conversation after it keeps its usual gap. */
       readonly end?: boolean;
     }
-  /** Stable fold, flattened tool group or streaming answer slot. */
+  /** Stable fold, tool group or streaming answer slot. */
   | (Extract<import("./work-groups.ts").FoldedRow, { kind: "work" | "work-group" | "answer" }> & {
       readonly history: boolean;
       readonly last: boolean;

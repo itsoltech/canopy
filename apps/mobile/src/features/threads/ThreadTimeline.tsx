@@ -22,6 +22,7 @@ import { TimelineEntries } from "./timeline-entries";
 import type { ThreadState } from "./ThreadScreen";
 import { mobileFeedLayout } from "../settings/client-diagnostics";
 import type { WorkFoldChoice } from "@canopy/domain/work-fold";
+import { WorkGroupChoices } from "@canopy/domain/work-group-choices";
 import { ThreadScrollItems, ThreadScrollParent, ThreadScrollTarget } from "../../ui/thread-scroll-items";
 import { scrollTurnKey, useThreadScrollMemory } from "./useThreadScrollMemory";
 
@@ -34,6 +35,7 @@ function useTimelineData(state: ThreadState) {
   const quote = useCallback((value: ui.Quote) => quoteAction.current(value), []);
   const away = state.home.away;
   const foldChoices = useMemo(() => new Map<string, ReadonlyMap<number, WorkFoldChoice>>(), [thread?.id]);
+  const groupChoices = useMemo(() => new WorkGroupChoices(), [thread?.id]);
 
   return useMemo(() => {
     const items = new Map(
@@ -72,10 +74,11 @@ function useTimelineData(state: ThreadState) {
       tasks,
       provider: thread?.provider,
       foldChoices,
+      groupChoices,
     };
 
     return { directory, context };
-  }, [snapshot, thread, threads, quote, away, foldChoices]);
+  }, [snapshot, thread, threads, quote, away, foldChoices, groupChoices]);
 }
 
 /** Native anchoring/follow-state changes may update the list wrapper without rendering unchanged turns. */

@@ -35,6 +35,7 @@ export type WorkRow =
       readonly key: string;
       readonly label: string;
       readonly running: boolean;
+      readonly hint: string;
       readonly icon: IconName;
       readonly status: ItemStatus;
       readonly statusCount: number;
@@ -113,7 +114,7 @@ export const segmentsOf = (
 const itemOf = (row: BodyRow) => (row.kind === "item" ? [row.node.item] : []);
 const isToolRow = (row: BodyRow) => row.kind === "item" && isToolItem(row.node.item);
 
-/** Runs of consecutive tools; a sole run shows without its header (it would repeat the fold's counts). */
+/** Runs of consecutive tools always retain their header, including a sole run. */
 export function workRows(work: readonly BodyRow[]): WorkRow[] {
   const runs: BodyRow[][] = [];
   let run: BodyRow[] | undefined;
@@ -123,7 +124,6 @@ export function workRows(work: readonly BodyRow[]): WorkRow[] {
     else if (run) run.push(row);
     else runs.push((run = [row]));
 
-  if (runs.length <= 1) return work.map((row) => ({ kind: "row", row }));
   const first = new Map(runs.map((rows) => [rows[0], rows] as const));
   const out: WorkRow[] = [];
 
@@ -137,6 +137,7 @@ export function workRows(work: readonly BodyRow[]): WorkRow[] {
         key,
         ...groupSummary(rows.flatMap(itemOf)),
         running: rows.some((r) => r.kind === "item" && r.node.item.status === ItemStatus.IN_PROGRESS),
+        hint: currentWorkHint(rows.flatMap(itemOf)),
         rows,
       });
     } else if (!isToolRow(row)) out.push({ kind: "row", row });

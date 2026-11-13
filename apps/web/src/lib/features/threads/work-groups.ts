@@ -26,8 +26,8 @@ import { foldId, turnProgress, workSegments, type BodyRow, type WorkSegment } fr
  *   segment's fold id, `foldId`).
  * - Empty reasoning and messages add no visible work. Later text deltas can make them visible.
  * - Other turns and background work without a turn keep their own order.
- * - Consecutive tools form a group under its own header when the work has several such phases. A sole
- *   group would only repeat the fold's counts: its rows follow the open fold directly (`flat`).
+ * - Consecutive tools always form a group under a stable header, including a sole group. Adding a
+ *   second group cannot reparent existing tools or change the first group's manual choice.
  */
 export type FoldedRow =
   | {
@@ -44,8 +44,6 @@ export type FoldedRow =
       readonly turn: ui.Turn;
       readonly open: boolean;
       readonly summary: WorkSummary;
-      /** Key of the sole tool group shown without its header; it opens if a live turn adds a second. */
-      readonly flat: string | undefined;
     }
   | {
       readonly kind: "work-group";
@@ -54,6 +52,7 @@ export type FoldedRow =
       readonly open: boolean;
       readonly label: string;
       readonly running: boolean;
+      readonly hint: string;
       readonly icon: IconName;
       readonly status: ItemStatus;
       readonly statusCount: number;
@@ -229,7 +228,6 @@ function segmentRows(
     turn,
     open,
     summary: summarize(turn, work, tasksBySource, segmentTimes(fold, index)),
-    flat: groups.length === 1 ? groupKey(turn.id, groups[0]!) : undefined,
   });
 
   if (open) out.push(...workRows(turn, work, groups, groupOpen));
@@ -274,7 +272,7 @@ function toolGroups(work: readonly TimelineRow[]): TimelineRow[][] {
   return groups;
 }
 
-/** An open fold's rows: other work as it is, tools under their group's header (a sole group has none). */
+/** An open fold's rows: other work as it is, tools under their stable group header. */
 function workRows(
   turn: ui.Turn,
   work: readonly TimelineRow[],
@@ -287,7 +285,7 @@ function workRows(
   for (const row of work) {
     const tools = groupOf.get(row);
 
-    if (!tools || groups.length === 1) {
+    if (!tools) {
       out.push({ kind: "row", row, work: true });
       continue;
     }
@@ -303,6 +301,7 @@ function workRows(
         open,
         ...groupSummary(itemsOf(tools)),
         running: tools.some((r) => r.kind === "item" && r.node.entry.item.status === ItemStatus.IN_PROGRESS),
+        hint: currentWorkHint(itemsOf(tools)),
         items: tools.map((r) => r.key),
       });
 

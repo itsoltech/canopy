@@ -44,6 +44,7 @@
     ".": "./src/index.ts",
     "./items": "./src/items.ts",
     "./work-fold": "./src/work-fold.ts",
+    "./work-group-choices": "./src/work-group-choices.ts",
     "./mentions": "./src/mentions/index.ts",
     "./provider-accounts": "./src/provider-accounts.ts",
     "./update-checks": "./src/update-checks.ts",

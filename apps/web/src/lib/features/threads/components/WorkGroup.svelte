@@ -11,6 +11,7 @@
     label,
     open,
     running,
+    hint,
     icon,
     status,
     statusCount,
@@ -20,6 +21,7 @@
     label: string;
     open: boolean;
     running: boolean;
+    hint: string;
     icon: IconName;
     status: ItemStatus;
     statusCount: number;
@@ -36,7 +38,7 @@
       activityHeader,
     ]}
     aria-expanded={open}
-    title={label}
+    title={running && !open ? `${label} · ${hint}` : label}
     onclick={ontoggle}
   >
     <span class="flex h-lh shrink-0 items-center"
@@ -46,7 +48,12 @@
       /></span
     >
     <span class="flex h-lh shrink-0 items-center"><Icon name={icon} /></span>
-    <LiveText text={label} active={running} class="min-w-0 flex-1 truncate" />
+    <span class="flex min-w-0 flex-1 gap-2">
+      <LiveText text={label} active={running} class="min-w-0 flex-1 truncate" />
+      {#if running && !open}
+        <span class="min-w-0 flex-1 truncate text-zinc-500 dark:text-zinc-400">{hint}</span>
+      {/if}
+    </span>
     <span class="flex h-6 w-10 shrink-0 items-center justify-end text-sm/6 tabular-nums sm:h-5 sm:w-28 sm:text-xs/5"
       ><ItemStatusIcon {status} count={statusCount} /></span
     >
