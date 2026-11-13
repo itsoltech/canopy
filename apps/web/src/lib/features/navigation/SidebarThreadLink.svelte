@@ -16,6 +16,7 @@
   import { useThreadActions } from "#lib/features/threads/thread-actions.svelte.ts";
   import SidebarQuickArchive from "./SidebarQuickArchive.svelte";
   import { focusAfterArchive } from "./sidebar-focus.ts";
+  import SidebarMoveMenu from "./SidebarMoveMenu.svelte";
 
   /**
    * The link of a thread row in the sidebar (main and side threads): opens the thread, previews it on hover,
@@ -194,4 +195,5 @@
     </div>
   {/snippet}
   <ThreadMenuItems {thread} />
+  {#if quickArchive}<SidebarMoveMenu {thread} />{/if}
 </DropdownMenu>

@@ -287,6 +287,12 @@ zmienionych wierszy, nie z liczbą wątków:
   ograniczenia ruchu pozostawia statyczny pierścień. Listy pochodne overview
   (`workers`, `projectChoices`) są w `useMemo`.
 
+Ręczne porządkowanie nie pobiera ponownie listy. Każde przeniesienie zapisuje jeden
+klucz w gatewayu i stosuje pojedynczą deltę metadanych. Web podczas przeciągania
+przesuwa tylko kopię wiersza i wskaźnik celu przez `transform`; trafienie celu jest
+walidowane dopiero po zmianie kandydata. Stabilne sloty wierszy oraz tablica kluczy
+pozostają podstawą renderowania; FLIP uruchamia się po zatwierdzeniu nowej kolejności.
+
 Scenariusz pomiaru paska: 500 zasianych wątków, otwarty inny, bezczynny wątek, 10 wątków
 pracuje. Co 50 ms jeden z nich zmienia status, tytuł, liczbę zadań w tle lub ostatnią
 wiadomość, przez tę samą ścieżkę co handler SSE (JSON → protobuf → `OverviewState.apply`).

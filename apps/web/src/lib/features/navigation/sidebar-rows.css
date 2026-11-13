@@ -137,3 +137,31 @@
     transition: none !important;
   }
 }
+/* Only the dragged row is promoted; the list keeps its existing keyed FLIP reflow. */
+.sidebar-drag-ghost {
+  position: fixed;
+  top: 0;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0.85;
+  border-radius: var(--radius-xl);
+  background: var(--color-panel);
+  box-shadow: 0 0 0 1px var(--color-divider);
+}
+
+.sidebar-drag-ghost .sidebar-entry {
+  content-visibility: visible;
+}
+[data-drag-source] {
+  opacity: 0.35;
+}
+.sidebar-drop-indicator {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 2px;
+  z-index: 99;
+  pointer-events: none;
+  border-radius: 1px;
+  background: var(--color-brand-500);
+}
