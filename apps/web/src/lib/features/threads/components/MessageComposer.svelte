@@ -180,6 +180,7 @@
   });
 
   let sending = $state(false);
+  const draftSwapBlocked = $derived(sending || Boolean(draft.blocker) || Boolean(rewind?.().busy));
   let waiting = $state(false);
   const overview = useOverview();
 
@@ -329,7 +330,9 @@
       <span>Your previous draft is saved.</span><Button
         variant="ghost"
         size="sm"
+        disabled={draftSwapBlocked}
         onclick={() => {
+          if (draftSwapBlocked) return;
           editorRewind.swap();
           void tick().then(() => box?.focus());
         }}>Swap drafts</Button

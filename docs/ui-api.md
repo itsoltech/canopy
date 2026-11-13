@@ -1266,7 +1266,10 @@ Mutacja zachowuje klucz idempotencji po utracie odpowiedzi; po otrzymaniu ID
 operacji klient czyta `GetThreadRewind`. Podczas operacji kompozytor jest zablokowany.
 Udany wynik wstawia tekst, wzmianki, cytaty i nowe powiązania załączników do tego
 samego kompozytora. Dotychczasowy szkic zostaje w pamięci karty; „Swap drafts”
-przełącza zachowane szkice bez zapisu ich treści w przeglądarce. Ustawienia agenta
+przełącza zachowane szkice bez zapisu ich treści w przeglądarce. Przycisk jest
+nieaktywny podczas wysyłania, uploadu, błędu załącznika i operacji rewind; handler
+sprawdza tę samą blokadę, aby odpowiedź wysłania nie usunęła podmienionego szkicu.
+Ustawienia agenta
 i uprawnień pozostają takie, jakie użytkownik wybrał w kompozytorze.
 
 Tury z `rewind_id` oraz ich późne elementy są domyślnie schowane pod
