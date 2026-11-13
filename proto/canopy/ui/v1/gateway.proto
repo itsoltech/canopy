@@ -85,6 +85,10 @@ service GatewayService {
   rpc GetComputerDiagnostics(ComputerDiagnosticsRequest) returns (ComputerDiagnostics);
   rpc GetDiagnosticsGrants(DiagnosticsRequest) returns (DiagnosticsGrants);
   rpc SetDiagnosticsGrant(DiagnosticsGrantRequest) returns (DiagnosticsGrants);
+  rpc SubmitDiagnostics(SubmitDiagnosticsRequest) returns (DiagnosticsReceipt);
+  rpc ResetDiagnostics(ResetDiagnosticsRequest) returns (DiagnosticsReceipt);
+  rpc PrepareDiagnosticsReport(DiagnosticsReportRequest) returns (DiagnosticsReport);
+  rpc InvestigateDiagnostics(InvestigateDiagnosticsRequest) returns (DiagnosticsInvestigation);
   rpc GetAgentEnvironment(AgentEnvironmentRequest) returns (AgentEnvironmentSnapshot);
   rpc SaveInstructionDocument(SaveInstructionDocumentRequest) returns (AgentEnvironmentSnapshot);
   rpc DeleteInstructionDocument(DeleteInstructionDocumentRequest) returns (AgentEnvironmentSnapshot);

@@ -12,7 +12,9 @@ const workerId = process.env["CANOPY_BENCH_WORKER_ID"];
 
 if (!baseUrl || !credential || !workerId) throw new Error("Private benchmark worker configuration is required");
 
-const workload = process.env["CANOPY_BENCH_STAGE"] === "3" ? new DiagnosticsWorkerWorkload() : undefined;
+const workload = ["3", "4"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "")
+  ? new DiagnosticsWorkerWorkload()
+  : undefined;
 
 await workload?.start();
 

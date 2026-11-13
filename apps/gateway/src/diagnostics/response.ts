@@ -11,6 +11,8 @@ export function diagnosticsResponse(value: ui.ComputerDiagnostics, request: ui.C
       sampledAtMs: value.sampledAtMs,
       sampleAgeMs: value.sampleAgeMs,
       windowMinutes: value.windowMinutes,
+      epoch: value.epoch,
+      epochStartedAtMs: value.epochStartedAtMs,
       notModified: true,
     });
   const budget = request.overviewOnly ? 16 * 1024 : 64 * 1024;
@@ -19,6 +21,7 @@ export function diagnosticsResponse(value: ui.ComputerDiagnostics, request: ui.C
     ...value,
     calls: value.calls.map((call) => create(ui.DiagnosticsCallSchema, { ...call, database: [...call.database] })),
     gatewayMeasures: [...value.gatewayMeasures],
+    clientMeasures: [...value.clientMeasures],
     database: [...value.database],
     links: value.links.map((link) => create(ui.DiagnosticsLinkSchema, { ...link, measures: [...link.measures] })),
     findings: [...value.findings],
@@ -47,6 +50,12 @@ export function diagnosticsResponse(value: ui.ComputerDiagnostics, request: ui.C
       removedBytes = toBinary(
         ui.ComputerDiagnosticsSchema,
         create(ui.ComputerDiagnosticsSchema, { gatewayMeasures: removed }),
+      ).length;
+    } else if (value.clientMeasures.length) {
+      const removed = value.clientMeasures.pop()!;
+      removedBytes = toBinary(
+        ui.ComputerDiagnosticsSchema,
+        create(ui.ComputerDiagnosticsSchema, { clientMeasures: [removed] }),
       ).length;
     } else if (value.database.length) {
       const removed = value.database.pop()!;

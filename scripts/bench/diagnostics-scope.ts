@@ -23,7 +23,7 @@ export async function assertSameScope(pid: number) {
   if ((await userScope(pid)) !== (await userScope())) throw new Error("Measured child escaped the benchmark scope");
 }
 
-export const swapDisabledStage = () => ["2", "3"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "");
+export const swapDisabledStage = () => ["2", "3", "4"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "");
 
 export async function monitorScopes(postgresScope: string | undefined, reject: (kind: string, value: string) => void) {
   const scopes: string[] = [];

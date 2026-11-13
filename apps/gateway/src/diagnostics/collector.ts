@@ -10,7 +10,7 @@ import {
 } from "@canopy/domain/diagnostics";
 import { BucketBudget, Buckets } from "./buckets.ts";
 import { MAX_METHODS, type RegisteredMethod } from "./registry.ts";
-import { updateWindows } from "./windows.ts";
+import { updateWindows, resetWindows } from "./windows.ts";
 import { DatabaseMeasurements } from "./database-measurements.ts";
 
 export type DiagnosticsClock = { monotonic(): number; utc(): number };
@@ -39,6 +39,7 @@ export class RpcCollector {
   #sequence = 0n;
   #activeCount = 0;
   #database: DatabaseMeasurements | undefined;
+  #generation = 0;
 
   constructor(
     methods: readonly RegisteredMethod[],
@@ -78,6 +79,7 @@ export class RpcCollector {
     }
 
     const started = this.clock.monotonic();
+    const generation = this.#generation;
     const now = this.#lastUtc + started - this.#lastMono;
     const calls = this.active.get(id) ?? new Map<number, number>();
     // A per-method sequence distinguishes calls that share the same clock value.
@@ -102,7 +104,7 @@ export class RpcCollector {
     return {
       started,
       message: (direction: "request" | "response", bytes?: number, kind = 3) => {
-        if (done) return;
+        if (done || generation !== this.#generation) return;
         const elapsed = this.clock.monotonic() - started;
         this.#change(now + elapsed, id, (value) => {
           const index = (direction === "request" ? 0 : 4) + kind;
@@ -129,6 +131,8 @@ export class RpcCollector {
         calls.delete(token);
         this.#activeCount--;
         this.budget.used -= 256;
+
+        if (generation !== this.#generation) return;
         const elapsed = this.clock.monotonic() - started;
         this.#change(now + elapsed, id, (value) => {
           value.completed = addCount(value.completed);
@@ -151,6 +155,15 @@ export class RpcCollector {
 
   measurementTime(monotonic: number) {
     return this.#lastUtc + monotonic - this.#lastMono;
+  }
+
+  reset() {
+    this.flushDatabase();
+    this.#generation++;
+
+    for (const ring of [this.short, this.minutes, this.historyMinutes]) ring.expire(Infinity);
+    resetWindows(this);
+    this.historyRevision++;
   }
 
   recordDatabase(id: number, elapsed: number, error: boolean, rpc: number, monotonic: number) {

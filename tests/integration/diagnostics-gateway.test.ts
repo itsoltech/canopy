@@ -251,7 +251,8 @@ describe.skipIf(!dockerAvailable)("gateway diagnostics preserve durable, private
         let inspected = 0;
         const driverFailure = new Error(secret);
 
-        for (const field of ["parameters", "query", "detail", "cause", "message", "stack"])
+        // Replace the lazy stack before message: JSC may read message while materializing the stack property.
+        for (const field of ["stack", "parameters", "query", "detail", "cause", "message"])
           Object.defineProperty(driverFailure, field, {
             get() {
               inspected++;

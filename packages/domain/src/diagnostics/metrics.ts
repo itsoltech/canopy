@@ -1,9 +1,20 @@
 import { WORKER_METRICS, SYNC_METRICS } from "./worker-metrics.ts";
+import { CLIENT_METRICS } from "./client-metrics.ts";
 
 export type MetricDefinition = {
   id: number;
   name: string;
-  group: "process" | "queues" | "governor" | "database" | "journal" | "harness" | "git" | "storage" | "sync";
+  group:
+    | "process"
+    | "queues"
+    | "governor"
+    | "database"
+    | "journal"
+    | "harness"
+    | "git"
+    | "storage"
+    | "sync"
+    | "clients";
   unit: "ms" | "bytes" | "%" | "count" | "seconds";
   kind: "gauge" | "timing" | "counter";
   approximate?: boolean;
@@ -135,6 +146,7 @@ export const METRIC_DEFINITIONS: ReadonlyMap<number, MetricDefinition> = new Map
     ...PROCESS_METRICS,
     ...WORKER_METRICS,
     ...SYNC_METRICS,
+    ...CLIENT_METRICS,
     ...DATABASE_FAMILIES.flatMap((family) =>
       DATABASE_PHASES.map((phase): MetricDefinition => ({
         id: databaseMetric(family.name, phase),

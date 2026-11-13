@@ -44,6 +44,16 @@ wyłącznie lokalne dane, bez rekurencyjnego zbierania. Offline i starsza wersja
 pozostają osobnymi kartami. Trwała historia, oznaczenie luk, ograniczenia kosztu
 i brak pomiaru publicznych payloadów: [diagnostics.md](diagnostics.md).
 
+`SubmitDiagnostics` przyjmuje stałe serie BFF/klientów po auth, z deduplikacją
+sesji/sekwencji, kontrolą epoch i wspólnym limitem 60 KiB/min na nadawcę. Dane
+klientów pozostają osobno od metryk gatewaya. `PrepareDiagnosticsReport` daje
+zredagowany podgląd JSON/Markdown do 256 KiB. `InvestigateDiagnostics` wymaga
+podpisanego podglądu i jawnego wyboru istniejącego projektu/workspace/workera
+na tym domu; atomowo tworzy zwykły wątek ASK z załącznikiem i receipt idempotencji.
+`ResetDiagnostics` utrwala baseline wybranego procesu przed ACK, bez zmiany
+runtime governora. Sterowanie linked działa tylko po bezpośrednim połączeniu
+z `diagnostics_control_v1`, nigdy przez relay.
+
 ## Ikony
 
 Favicon, apple-touch-icon, nazwa manifestu i sufiks tytułów stron odzwierciedlają

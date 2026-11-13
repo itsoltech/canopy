@@ -1,5 +1,6 @@
 import type { Client } from "@connectrpc/connect";
 import { ui } from "@canopy/contracts";
+import { benchWatch } from "./diagnostics-clients.ts";
 
 export type DiagnosticsPhase =
   | "idle"
@@ -9,7 +10,8 @@ export type DiagnosticsPhase =
   | "churn"
   | "write_failure"
   | "pool_contention"
-  | "governor";
+  | "governor"
+  | "report";
 
 /** Fixed offered load with actual gRPC cancellation, reconnects and backpressured watches. */
 export async function diagnosticsLoad<Measurement>(
@@ -48,9 +50,23 @@ export async function diagnosticsLoad<Measurement>(
     let nextSample = performance.now() + 60_000;
     let nextOverview = performance.now();
     let nextDetails = performance.now();
+    let nextReport = performance.now();
 
     while (performance.now() < until && !signal?.aborted) {
       const started = performance.now();
+
+      if (phase === "report" && performance.now() >= nextReport) {
+        const report = await api.prepareDiagnosticsReport({
+          computerIds: ["local"],
+          windowMinutes: 15,
+          format: "json",
+        });
+
+        console.info(
+          JSON.stringify({ phase: "report_action", elapsedMs: performance.now() - started, bytes: report.text.length }),
+        );
+        nextReport = performance.now() + 5000;
+      }
 
       if (process.env["CANOPY_BENCH_VIEW"] === "1" && performance.now() >= nextOverview) {
         await readView(api, phase, "overview");
@@ -157,7 +173,7 @@ async function warmWatches(
 ) {
   const watches =
     phase === "slow_reader"
-      ? Array.from({ length: 8 }, () => api.watchThread({ threadId: thread }, { signal })[Symbol.asyncIterator]())
+      ? Array.from({ length: 8 }, () => benchWatch(api, thread, signal)[Symbol.asyncIterator]())
       : [];
 
   const opening: number[] = [];

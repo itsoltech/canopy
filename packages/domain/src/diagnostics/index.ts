@@ -15,3 +15,11 @@ export * from "./measure.ts";
 export * from "./worker-metrics.ts";
 
 export * from "./metrics-table.ts";
+
+export * from "./client-metrics.ts";
+
+export * from "./client-collector.ts";
+
+export * from "./epochs.ts";
+
+export * from "./placement.ts";

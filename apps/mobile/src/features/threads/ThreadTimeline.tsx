@@ -20,6 +20,7 @@ import { steeringNote, UserMessageView } from "../timeline/UserMessageView";
 import { newDays } from "./thread-turns";
 import { TimelineEntries } from "./timeline-entries";
 import type { ThreadState } from "./ThreadScreen";
+import { mobileFeedLayout } from "../settings/client-diagnostics";
 
 /** What the timeline's items look up: other threads, items, deliveries, and its tasks by their command. */
 function useTimelineData(state: ThreadState) {
@@ -144,6 +145,12 @@ export function ThreadTimeline({
         <TimelineList
           {...composer.listProps}
           composerInset={following.composerInset}
+          onLayout={() => {
+            if (snapshot?.thread) mobileFeedLayout();
+          }}
+          onContentSizeChange={() => {
+            if (snapshot?.thread) mobileFeedLayout();
+          }}
           onEndReached={() => {
             if (!following.isFollowing()) void state.history.load();
           }}

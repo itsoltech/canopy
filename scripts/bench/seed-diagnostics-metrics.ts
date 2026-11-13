@@ -5,6 +5,7 @@ import {
   DATABASE_FAMILIES,
   governorMetric,
   WORKER_METRIC_IDS,
+  CLIENT_METRICS,
 } from "@canopy/domain/diagnostics";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
@@ -82,6 +83,14 @@ export function syntheticGatewayMeasures(at: number, rpc: number) {
     if (event === "wait" || event === "execution") value.timing(20, false, at);
     else value.counter(40, false, at);
     result.push(value.snapshot(governorMetric("git", "user", event)));
+  }
+
+  for (const definition of CLIENT_METRICS) {
+    const value = new Measure();
+
+    if (definition.kind === "counter") value.counter(definition.unit === "bytes" ? 8192 : 12, false, at);
+    else for (const duration of [2, 7, 24]) value.timing(duration, false, at);
+    result.push(value.snapshot(definition.id));
   }
 
   return result;

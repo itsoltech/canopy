@@ -3,6 +3,8 @@ import type { QueryCache } from "@canopy/domain/shared-query";
 import { useSession } from "../../state/session";
 import { useSettingsResource, type SettingsApi } from "./resource";
 
+export { diagnosticsEpochs } from "./diagnostics-epochs";
+
 const polling = new WeakMap<QueryCache, Map<string, { users: number; stop(): void }>>();
 
 /** Screens share both the query and its foreground-only timer. */

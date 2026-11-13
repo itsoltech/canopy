@@ -8,6 +8,8 @@ import "canopy/ui/v1/diagnostics.proto";
 // Local-only snapshot. Never gathers the receiving home's partners.
 service DiagnosticsService {
   rpc ReadDiagnosticsSnapshot(canopy.ui.v1.ComputerDiagnosticsRequest) returns (canopy.ui.v1.ComputerDiagnostics);
+  // Explicit owner action over a direct link only. Never part of relay/gather.
+  rpc ResetDiagnosticsCounters(canopy.ui.v1.ResetDiagnosticsRequest) returns (canopy.ui.v1.DiagnosticsReceipt);
 }
 
 // Stage 5. Internal, negotiated methods over the pinned link, never public RPCs.

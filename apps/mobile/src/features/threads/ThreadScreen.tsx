@@ -36,12 +36,14 @@ import { useArchivedThreadDisclosure } from "../settings/use-archived-thread-dis
 import { useComposerConnection } from "./useComposerConnection";
 import { useThreadSend } from "./useThreadSend";
 import { useThreadStop } from "./useThreadStop";
+import { useMobileOpening } from "../settings/client-diagnostics";
 
 export type ThreadState = ReturnType<typeof useThreadState>;
 
 function useThreadState(id: string) {
-  const { session, client, ready, online } = useSession();
+  const { session, client, ready, online, threadCache } = useSession();
   const { snapshot, setSnapshot, stream, history, syncStatus } = useThreadSnapshot(id);
+  useMobileOpening(id, Boolean(threadCache?.peek(id)?.thread));
   const following = useFollowingList<ui.Turn>(true, threadComposerHeight);
   const [details, setDetails] = useState(false);
   const { projects, workers, threads } = useOverview();

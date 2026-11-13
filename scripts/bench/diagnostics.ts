@@ -13,6 +13,8 @@ import { diagnosticsStorage, diagnosticsWrites } from "./diagnostics-storage.ts"
 import { startBenchPostgres, postgresIoDelta } from "./diagnostics-postgres.ts";
 import { assertSameScope, swapDisabledStage } from "./diagnostics-scope.ts";
 import { fixtureIdentity } from "./diagnostics-fixture.ts";
+import { clientTransport, benchClients } from "./diagnostics-clients.ts";
+import { selectedPhases } from "./diagnostics-phases.ts";
 
 /** Isolated PostgreSQL and alternating AB/BA pairs; host noise invalidates the entire pair. */
 const forbidden = new Set([17443, 5180, 8444, 17444, 17445, 3000, 7443, 7432, 4443, 7444, 5291, 8081]);
@@ -28,7 +30,10 @@ if (
 const idleMs = Number(process.env["CANOPY_BENCH_IDLE_MS"] ?? 600_000);
 const loadMs = Number(process.env["CANOPY_BENCH_LOAD_MS"] ?? 120_000);
 const series = Number(process.env["CANOPY_BENCH_SERIES"] ?? 5);
-const short = ["2", "3"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "") && process.env["CANOPY_BENCH_SHORT"] === "1";
+
+const short =
+  ["2", "3", "4"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "") && process.env["CANOPY_BENCH_SHORT"] === "1";
+
 const minimumContentionMs = short ? 90_000 : 140_000;
 
 if (
@@ -66,44 +71,6 @@ async function closeProcesses() {
   } finally {
     await currentGateway?.close();
   }
-}
-
-function selectedPhases(): DiagnosticsPhase[] {
-  const only = process.env["CANOPY_BENCH_ONLY_PHASE"];
-
-  if (only === "steady" || only === "write_failure" || only === "pool_contention") return [only];
-  const forensicPhase = process.env["CANOPY_BENCH_FORENSIC_PHASE"];
-
-  if (process.env["CANOPY_BENCH_FORENSICS_DIR"] && forensicPhase) {
-    if (forensicPhase === "steady" || forensicPhase === "slow_reader" || forensicPhase === "governor")
-      return [forensicPhase];
-
-    if (forensicPhase === "write_failure") return ["slow_reader", "write_failure"];
-
-    if (forensicPhase === "write_failure_without_watches") return ["write_failure"];
-    throw new Error("Choose steady, slow_reader, write_failure, write_failure_without_watches or governor");
-  }
-
-  if (process.env["CANOPY_BENCH_RESOURCES"] === "1") return ["idle"];
-
-  if (process.env["CANOPY_BENCH_ALL_PHASES"] === "1")
-    return [
-      "idle",
-      "steady",
-      "reconnect",
-      "slow_reader",
-      "write_failure",
-      "pool_contention",
-      ...(["2", "3"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "") ? ["governor" as const] : []),
-    ];
-
-  if (process.env["CANOPY_BENCH_CONTENTION"] === "1") return ["write_failure", "pool_contention"];
-
-  if (process.env["CANOPY_BENCH_CHURN"] === "1") return ["churn"];
-
-  if (process.env["CANOPY_BENCH_EXTRA_PHASES"] === "1") return ["reconnect", "slow_reader"];
-
-  return ["idle", "steady"];
 }
 
 async function command(args: string[], env = process.env) {
@@ -151,16 +118,18 @@ async function measuredGateway(env: Record<string, string | undefined>, series: 
 function benchmarkApi() {
   return createClient(
     ui.GatewayService,
-    createGrpcTransport({
-      baseUrl: `http://127.0.0.1:${gatewayPort}`,
-      interceptors: [
-        (next) => (request) => {
-          request.header.set("authorization", `Bearer ${token}`);
+    clientTransport(
+      createGrpcTransport({
+        baseUrl: `http://127.0.0.1:${gatewayPort}`,
+        interceptors: [
+          (next) => (request) => {
+            request.header.set("authorization", `Bearer ${token}`);
 
-          return next(request);
-        },
-      ],
-    }),
+            return next(request);
+          },
+        ],
+      }),
+    ),
   );
 }
 
@@ -234,6 +203,12 @@ async function run(on: boolean, index: number) {
 
   await waitForRestore(api);
 
+  const stopClients = await benchClients(
+    api,
+    env.CANOPY_BENCH_DIAGNOSTICS === "1",
+    host ? AbortSignal.any([host.signal, shutdown.signal]) : shutdown.signal,
+  );
+
   console.info(
     JSON.stringify({ phase: "background_restore", series: index + 1, attempt, on, ...(await active.run("sample")) }),
   );
@@ -251,6 +226,9 @@ async function run(on: boolean, index: number) {
       await active.run("begin", phase);
       await active.run("heap", "before_watches");
     }
+
+    const bffCpu = process.cpuUsage();
+    const bffStarted = performance.now();
 
     const {
       latencies,
@@ -289,6 +267,14 @@ async function run(on: boolean, index: number) {
         phase,
         contention,
         ...after,
+        ...(process.env["CANOPY_BENCH_STAGE"] === "4" && {
+          driverBff: {
+            ...process.memoryUsage(),
+            heap: process.memoryUsage().heapUsed,
+            cpuPercent:
+              (process.cpuUsage(bffCpu).user + process.cpuUsage(bffCpu).system) / (performance.now() - bffStarted) / 10,
+          },
+        }),
         worker: { ...workerStats, cpuPercent: workerStats.cpuMicros / workerStats.elapsedMs / 10 },
         cpuPercent: after.cpuMicros / after.elapsedMs / 10,
         pgCpuPercent: (afterPg.cpuMicros - beforePg.cpuMicros) / after.elapsedMs / 10,
@@ -308,6 +294,7 @@ async function run(on: boolean, index: number) {
   }
 
   await resourceHeap("idle_heap_gc", on, index + 1);
+  stopClients();
 
   await worker.close();
   worker = undefined;
@@ -318,26 +305,30 @@ async function run(on: boolean, index: number) {
     console.info(JSON.stringify({ phase: "storage", on, resolutions: await diagnosticsStorage(env) }));
 
   if (process.env["CANOPY_BENCH_HISTORY"] === "1") {
-    for (let restart = 0; restart < 3; restart++) {
-      active = await diagnosticsProcess(env);
-      await waitForRestore(benchmarkApi());
-      console.info(
-        JSON.stringify({
-          phase: "restart",
-          series: index + 1,
-          attempt,
-          on,
-          restart,
-          ...(await active.run(process.env["CANOPY_BENCH_RESOURCES"] === "1" ? "gc" : "sample")),
-        }),
-      );
-      await active.close();
-      active = undefined;
-    }
+    await sampleRestarts(env, on, index + 1);
   }
 
   if (on && process.env["CANOPY_BENCH_RESOURCES"] === "1")
     console.info(JSON.stringify({ phase: "write_accounting", ...(await diagnosticsWrites(env)) }));
+}
+
+async function sampleRestarts(env: Record<string, string | undefined>, on: boolean, series: number) {
+  for (let restart = 0; restart < 3; restart++) {
+    active = await diagnosticsProcess(env);
+    await waitForRestore(benchmarkApi());
+    console.info(
+      JSON.stringify({
+        phase: "restart",
+        series,
+        attempt,
+        on,
+        restart,
+        ...(await active.run(process.env["CANOPY_BENCH_RESOURCES"] === "1" ? "gc" : "sample")),
+      }),
+    );
+    await active.close();
+    active = undefined;
+  }
 }
 
 async function beginPhase(

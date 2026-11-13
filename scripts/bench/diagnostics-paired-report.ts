@@ -10,6 +10,7 @@ const Phase = Schema.Literals([
   "write_failure",
   "pool_contention",
   "governor",
+  "report",
 ]);
 
 const Resource = Schema.Struct({ cpuPercent: Schema.Number, rss: Schema.Number, heap: Schema.Number });
@@ -24,6 +25,7 @@ const Measurement = Schema.Struct({
   rpcP95Ms: Schema.NullOr(Schema.Number),
   pgCpuPercent: Schema.Number,
   worker: Resource,
+  driverBff: Schema.optional(Resource),
   historyReadP95Ms: Schema.optional(Schema.NullOr(Schema.Number)),
 });
 
@@ -66,6 +68,8 @@ for (const end of accepted) {
     const a = sides.find((row) => !(row.slotOn ?? row.on));
     const b = sides.find((row) => row.slotOn ?? row.on);
 
+    if (!sides.length && phase === "report") continue;
+
     if (sides.length !== 2 || !a || !b) throw new Error("Accepted pair lacks exactly one A and B per phase");
 
     if ((sides[0]!.slotOn ?? sides[0]!.on) !== (end.pair % 2 === 0))
@@ -74,9 +78,23 @@ for (const end of accepted) {
     add("gateway.cpuPp", b.cpuPercent - a.cpuPercent);
     add("worker.cpuPp", b.worker.cpuPercent - a.worker.cpuPercent);
     add("postgres.cpuPp", b.pgCpuPercent - a.pgCpuPercent);
+
+    if (a.driverBff && b.driverBff) {
+      add("driverBff.cpuPp", b.driverBff.cpuPercent - a.driverBff.cpuPercent);
+      add("driverBff.rssMiB", (b.driverBff.rss - a.driverBff.rss) / 1048576);
+      add("driverBff.heapMiB", (b.driverBff.heap - a.driverBff.heap) / 1048576);
+    }
+
     add(
       "total.cpuPp",
-      b.cpuPercent + b.worker.cpuPercent + b.pgCpuPercent - a.cpuPercent - a.worker.cpuPercent - a.pgCpuPercent,
+      b.cpuPercent +
+        b.worker.cpuPercent +
+        b.pgCpuPercent +
+        (b.driverBff?.cpuPercent ?? 0) -
+        a.cpuPercent -
+        a.worker.cpuPercent -
+        a.pgCpuPercent -
+        (a.driverBff?.cpuPercent ?? 0),
     );
 
     for (const key of ["rss", "heap"] as const) {

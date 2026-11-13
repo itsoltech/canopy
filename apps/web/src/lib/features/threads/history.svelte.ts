@@ -6,6 +6,7 @@ import { decode } from "#lib/shared/wire.ts";
 import { bodyJson } from "#lib/shared/json.ts";
 import { saveHistory } from "../desktop/history.ts";
 import type { ThreadState } from "./thread-state.svelte.ts";
+import { clientOpening } from "#lib/features/diagnostics/client.ts";
 import { ThreadWatchRecovery, threadWatchMessage, threadSyncStatus } from "@canopy/domain/thread-watch-recovery";
 import { threadWatchReady } from "@canopy/domain/thread-watch-state";
 
@@ -32,6 +33,10 @@ export class ThreadHistory {
   ) {}
 
   connect(id: string) {
+    const opening = clientOpening(Boolean(this.read()?.thread));
+
+    if (this.read()?.thread) opening?.paint();
+    let first = true;
     this.#abort = new AbortController();
     let stop = () => {};
 
@@ -67,6 +72,7 @@ export class ThreadHistory {
           return decision.action !== "stop";
         },
         onmessage: (data) => {
+          const started = first && opening ? performance.now() : 0;
           const update = decode(ui.ThreadUpdateSchema, JSON.parse(data));
 
           try {
@@ -76,6 +82,13 @@ export class ThreadHistory {
           }
 
           const snapshot = this.read();
+
+          if (first && (update.change.case === "snapshot" || update.change.case === "batch")) {
+            first = false;
+
+            if (started) opening?.snapshot(started);
+            opening?.paint();
+          }
 
           if (snapshot?.thread && snapshot.cursor) saveHistory(ui.ThreadSnapshotSchema, `thread_${id}`, snapshot);
           this.view.syncStatus = update.syncStatus ?? this.view.syncStatus;
@@ -100,6 +113,7 @@ export class ThreadHistory {
     open();
 
     return () => {
+      opening?.cancel();
       stop();
       this.#abort.abort();
       this.#restart = () => {};

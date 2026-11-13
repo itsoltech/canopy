@@ -9,6 +9,7 @@ import { gatewayFailure } from "./gateway-errors.ts";
 import { logGatewayFailures } from "./gateway-logging.ts";
 import { isolatedGatewayTransport } from "./gateway-transport.ts";
 import { gatewayDeadlines } from "./gateway-deadlines.ts";
+import { startBffDiagnostics } from "./diagnostics.ts";
 
 const desktop = process.env["CANOPY_DESKTOP_CLIENT_TOKEN"]
   ? desktopGateway(process.env["CANOPY_DESKTOP_GATEWAY_ROUTES"] ?? "", process.env["CANOPY_DESKTOP_CLIENT_TOKEN"])
@@ -88,6 +89,8 @@ export function gateway(): Client<typeof ui.GatewayService> {
       ),
     ),
   );
+
+  startBffDiagnostics(client);
 
   return client;
 }
