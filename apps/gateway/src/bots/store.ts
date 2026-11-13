@@ -13,6 +13,7 @@ import { botThreadApprovals } from "./thread-approvals.ts";
 import { botExchange } from "./store-exchange.ts";
 import { botDrafts } from "./drafts.ts";
 import { queryMethods } from "../diagnostics/query-context.ts";
+import { botPoll } from "./poll.ts";
 
 export {
   botConfiguration,
@@ -31,6 +32,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
   const core = { ...access, ...config, ...queue };
 
   return {
+    poll: (owner: string, now: Date) => botPoll(sql, owner, now),
     handoffContext: access.handoffs.context,
     handoffFallback: access.handoffs.fallback,
     latestHandoff: access.handoffs.latest,

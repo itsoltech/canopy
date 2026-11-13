@@ -1,5 +1,16 @@
 # Boty
 
+## Bezczynna kolejka
+
+Pętla gatewaya najpierw sprawdza jednym odczytem pracę właściciela. Gdy nie ma
+gotowej tury, oczekującego zakończenia wątku ani należnego przypomnienia/rutyny,
+nie otwiera transakcji dostarczenia i claim. Następny odczyt wypada najpóźniej
+za 5 s, wcześniej według najbliższego terminu rutyny, przypomnienia lub dzierżawy.
+Aktywne boty zachowują rytm 250 ms. Wysłanie wiadomości, retry, odpowiedź na kartę
+i zmiana konfiguracji budzą kolejkę od razu; pobudka podczas odczytu jest ponawiana.
+Zmiany z innego procesu i dostarczenia agentów przez link mają fallback do 5 s.
+Ostateczną kwalifikację, blokady i idempotencję nadal sprawdzają trwałe transakcje.
+
 ## Dostęp do sieci i izolowane pliki
 
 Ustawienia bota w web/desktop i mobile udostępniają przełączniki **Web access**

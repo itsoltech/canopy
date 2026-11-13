@@ -1,4 +1,4 @@
-import { create, fromJson } from "@bufbuild/protobuf";
+import { create } from "@bufbuild/protobuf";
 import { bots, Provider } from "@canopy/contracts";
 import { classifyFailure, ProviderFailure, safeFailureDetail, type JsonObject } from "@canopy/domain";
 import { botApprovalContext } from "./approval-context.ts";
@@ -6,8 +6,7 @@ import { Effect, Schema } from "effect";
 import type { CoreRuntime } from "../core/core.ts";
 import { Invalid, NotFound } from "../store/store.ts";
 import { splitId } from "@canopy/domain/computers";
-import { SettingsStore } from "../store/settings.ts";
-import { HANDOFF_PROMPT } from "./handoffs.ts";
+import { runHandoff } from "./runtime-handoff.ts";
 import { botPlatformTools } from "./policy.ts";
 import { botConfiguration, botView, BotStore } from "./store.ts";
 import type { BotModel, BotTurn, ModelInput, StoredCall, ToolResult, ToolSpec } from "./types.ts";
@@ -49,6 +48,9 @@ export class BotsRuntime {
   #ticking = false;
   #tickDone: Promise<void> = Promise.resolve();
   #stopped = false;
+  #pollAt = 0;
+  #intervalMs = 250;
+  #wakeAgain = false;
   constructor(options: BotRuntimeOptions) {
     this.#options = options;
     this.harnessTools = new HarnessTools(
@@ -77,77 +79,17 @@ export class BotsRuntime {
     });
   }
   async #handoff(turn: BotTurn, abort: AbortController): Promise<void> {
-    const config = fromJson(bots.BotConfigurationSchema, turn.handoff_configuration);
-    const remaining = new Date(turn.handoff_deadline!).getTime() - Date.now();
-    const timer = setTimeout(() => abort.abort(new Error("handoff deadline exceeded")), Math.max(0, remaining));
-    let note: string;
-    let reason = "";
-
-    try {
-      const messages = turn.checkpoint.length ? turn.checkpoint : await this.run((s) => s.history(turn));
-      const saved = messages.at(-1)?.role === "assistant" ? messages.at(-1) : undefined;
-
-      if (saved) {
-        if (saved.calls?.length || !saved.text.trim()) throw new Error("invalid handoff response");
-        note = saved.text;
-      } else {
-        if (remaining <= 0) throw new Error("handoff deadline exceeded");
-
-        const context = await this.run((s) => s.handoffContext(turn));
-
-        const timezone =
-          (await this.#options.runtime.runPromise(SettingsStore.use((s) => s.user(this.#options.userId)))).timezone ||
-          "UTC";
-
-        const time = `Current time: ${this.now().toISOString()} (UTC). User timezone: ${timezone}.`;
-
-        // A provider (or test model) ignoring AbortSignal must not hold up the bot queue.
-        const reply = await new Promise<Awaited<ReturnType<BotModel>>>((resolve, reject) => {
-          const stopped = () => reject(new Error("handoff aborted"));
-          abort.signal.addEventListener("abort", stopped, { once: true });
-
-          if (abort.signal.aborted) {
-            stopped();
-
-            return;
-          }
-
-          void this.#reply(
-            turn.bot_id,
-            {
-              configuration: config,
-              turn,
-              instructions: `You are ${config.name}, a conversational assistant inside Canopy. ${time}\n${config.instructions}\n\n${HANDOFF_PROMPT}\n\n${context}`,
-              messages,
-              tools: [],
-              signal: abort.signal,
-            },
-            turn.handoff_instance_label ?? undefined,
-          )
-            .then(resolve, reject)
-            .finally(() => abort.signal.removeEventListener("abort", stopped));
-        });
-
-        abort.signal.throwIfAborted();
-
-        if (reply.calls.length || !reply.text.trim()) throw new Error("invalid handoff response");
-        note = reply.text.slice(0, 32000);
-        await this.run((s) => s.checkpoint(turn, [...messages, { role: "assistant", text: note }]));
-      }
-    } catch (error) {
-      if (this.#stopped) throw error;
-      reason =
-        remaining <= 0 || Date.now() >= new Date(turn.handoff_deadline!).getTime()
-          ? "deadline_exceeded"
-          : "source_unavailable_or_failed";
-      note = await this.run((s) => s.handoffFallback(turn));
-    } finally {
-      clearTimeout(timer);
-    }
-
-    await this.run((s) => s.finishHandoff(turn, config.model, note, reason));
-
-    if (reason) this.#options.log?.(`bots: handoff fallback (${reason})`);
+    await runHandoff(
+      {
+        options: this.#options,
+        run: this.run.bind(this),
+        now: () => this.now(),
+        stopping: () => this.#stopped,
+        reply: this.#reply.bind(this),
+      },
+      turn,
+      abort,
+    );
   }
   run<A, E>(use: (store: BotStore["Service"]) => Effect.Effect<A, E>): Promise<A> {
     return this.#options.runtime.runPromise(BotStore.use(use));
@@ -165,7 +107,10 @@ export class BotsRuntime {
   }
   start(intervalMs = 250): void {
     this.#stopped = false;
+    this.#pollAt = 0;
+    this.#intervalMs = intervalMs;
     this.#timer ??= setInterval(() => {
+      if (this.#ticking || performance.now() < this.#pollAt) return;
       void this.tick().catch(() => this.#options.log?.("bots: queue tick failed"));
     }, intervalMs);
     this.#timer.unref();
@@ -182,13 +127,26 @@ export class BotsRuntime {
     await Promise.all(active.map((a) => a.done));
   }
   async tick(): Promise<void> {
-    if (this.#stopped || this.#ticking) return;
+    if (this.#stopped) return;
+
+    if (this.#ticking) {
+      this.#wakeAgain = true;
+
+      return;
+    }
+
     this.#ticking = true;
     const tickDone = Promise.withResolvers<void>();
     this.#tickDone = tickDone.promise;
 
     try {
       await this.#options.linkedTick?.();
+      const state = await this.run((s) => s.poll(this.#options.userId, this.now()));
+      this.#pollAt =
+        performance.now() +
+        (state.ready || this.#active.size ? this.#intervalMs : Math.max(this.#intervalMs, state.delay_ms));
+
+      if (!state.ready) return;
       await this.run((s) => s.deliver());
       await this.run((s) => s.deliverRoutines(this.#options.userId, this.now()));
 
@@ -211,6 +169,12 @@ export class BotsRuntime {
     } finally {
       this.#ticking = false;
       tickDone.resolve();
+
+      if (this.#wakeAgain) {
+        this.#wakeAgain = false;
+        this.#pollAt = 0;
+        void this.tick().catch(() => this.#options.log?.("bots: queue wake failed"));
+      }
     }
   }
   async #execute(turn: BotTurn, abort: AbortController): Promise<void> {
@@ -338,7 +302,10 @@ export class BotsRuntime {
   async update(request: bots.UpdateBotRequest) {
     if (!request.configuration) throw new Invalid("configuration is required");
 
-    return this.run((s) => s.save(this.#options.userId, request.configuration!, { id: request.botId }));
+    const result = await this.run((s) => s.save(this.#options.userId, request.configuration!, { id: request.botId }));
+    if (this.#timer) void this.tick().catch(() => undefined);
+
+    return result;
   }
   list(includeArchived = false) {
     return this.run((s) => s.list(this.#options.userId, includeArchived));
@@ -357,6 +324,7 @@ export class BotsRuntime {
     const bot = await this.run((s) => s.archive(this.#options.userId, id, archived));
 
     if (archived) this.#abortBot(id);
+    else if (this.#timer) void this.tick().catch(() => undefined);
 
     return bot;
   }
@@ -411,10 +379,14 @@ export class BotsRuntime {
   markRead(request: bots.MarkBotReadRequest) {
     return this.run((s) => s.markRead(this.#options.userId, request.botId, request.throughSeq));
   }
-  setRoutineEnabled(request: bots.SetBotRoutineEnabledRequest) {
-    return this.run((s) =>
+  async setRoutineEnabled(request: bots.SetBotRoutineEnabledRequest) {
+    const result = await this.run((s) =>
       s.updateRoutine(this.#options.userId, request.botId, request.routineId, { enabled: request.enabled }, this.now()),
     );
+
+    if (this.#timer) void this.tick().catch(() => undefined);
+
+    return result;
   }
   deleteRoutine(request: bots.DeleteBotRoutineRequest) {
     return this.run((s) => s.deleteRoutine(this.#options.userId, request.botId, request.routineId));
@@ -426,7 +398,11 @@ export class BotsRuntime {
     if (!splitId(request.approvalId).node) {
       const approval = await this.run((s) => s.answer(this.#options.userId, request));
 
-      if (approval) return approval;
+      if (approval) {
+        if (this.#timer) void this.tick().catch(() => undefined);
+
+        return approval;
+      }
     }
 
     const thread = await this.#options.answerThreadApproval?.(request);
