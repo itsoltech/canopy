@@ -73,8 +73,17 @@ Sekrety połączeń i dane logowania nigdy nie są częścią promptu.
 ## Sesja i kontekst
 
 Rozmowa bota ma ukrytą sesję harnessu, bez sztucznego projektu lub wątku w UI.
-Worker trzyma prywatny home i pusty scratch pod swoim data dir, oddzielnie dla
-bota oraz pary harness/instancja. Udostępnia tylko login wskazanej instancji,
+Worker trzyma prywatny home pod swoim data dir, oddzielnie dla
+bota oraz pary harness/instancja. Scratch jest osobny dla rozmowy bota,
+wspólny przy zmianie dostawcy, bez dostępu do home harnessu. **Files** (domyślnie
+włączone) udostępnia platformowe `list_files`, `read_file`, `write_file` i
+`delete_file`, zawsze przez gateway i aktywną turę workera. Nazwy są płaskie,
+bez katalogów, traversal i dowiązań; odczyt tekstu ma limit 100 000 bajtów.
+Budżet to 200 MiB, 256 plików, 50 MiB na plik; miejsce na zapis atomowy liczy się
+przed utworzeniem pliku tymczasowego. Retencja po 7 dniach bezczynności pomija
+aktywne sesje, a restart usuwa porzucone zapisy. Natywne narzędzia plikowe
+pozostają wyłączone we wszystkich trzech harnessach: ich sandbox workspace
+nie gwarantuje ograniczenia odczytu hosta. Worker udostępnia tylko login wskazanej instancji,
 bez ustawień, pluginów, skilli i instrukcji katalogu użytkownika. Nie przyjmuje
 ścieżki projektu z komendy bota.
 

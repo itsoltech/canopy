@@ -5,6 +5,7 @@ import { Schema } from "effect";
 import { Provider, type RunBotTurn } from "@canopy/contracts";
 import { prepareClaudeHome } from "../providers/claude/home.ts";
 import { prepareCodexHome } from "../providers/codex/home.ts";
+import { BotWorkspace } from "./workspace.ts";
 
 const SavedSession = Schema.Struct({ id: Schema.String, key: Schema.String });
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -26,7 +27,9 @@ export function botSession(input: RunBotTurn, options: { dataDir: string; source
   const root = directory(directory(options.dataDir, "bots"), input.botId);
   const instance = createHash("sha256").update(`${input.provider}/${input.profileId}`).digest("hex");
   const path = directory(root, instance);
-  const cwd = directory(path, "scratch");
+  // A bot has one durable conversation; changing provider does not change its files.
+  const workspace = new BotWorkspace(directory(root, "workspace"));
+  const cwd = workspace.path;
   const home = directory(path, "home");
   const sessionPath = join(path, "session.json");
 
@@ -38,6 +41,7 @@ export function botSession(input: RunBotTurn, options: { dataDir: string; source
         // Discard sessions whose user turns mixed historical files with newly attached files.
         attachmentContext: 2,
         webAccess: input.webAccess,
+        files: input.files,
         model: input.model,
         effort: input.effort,
         tools: input.tools,
@@ -77,6 +81,7 @@ export function botSession(input: RunBotTurn, options: { dataDir: string; source
 
   return {
     cwd,
+    workspace,
     home,
     sourceHome: options.sourceHome,
     linkLogin: options.linkLogin,

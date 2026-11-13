@@ -4,9 +4,10 @@ import { AgentToolResultSchema, type AgentToolCall, type AgentToolResult } from 
 import { Schema } from "effect";
 import type { BotRuntimeOptions } from "./runtime.ts";
 import type { BotsRuntime } from "./runtime.ts";
-import { PLATFORM_TOOLS } from "./policy.ts";
+import { botPlatformTools } from "./policy.ts";
 import { runToolCall, WAITING } from "./turn-steps.ts";
 import type { BotTurn } from "./types.ts";
+import { botConfiguration } from "./store-views.ts";
 
 /** Uses the existing bot executors; MCP never bypasses approvals or the turn lease. */
 export class HarnessTools {
@@ -79,14 +80,9 @@ export class HarnessTools {
 
       if (active.abort.signal.aborted) return reply("Bot turn interrupted", true);
       const turn = active.turn;
+      const config = botConfiguration(await this.run((s) => s.owned(this.options.userId, turn.bot_id)));
 
-      const tools = PLATFORM_TOOLS.filter((t) =>
-        turn.handoff_configuration
-          ? false
-          : turn.routine_id
-            ? !["create_routine", "update_routine", "delete_routine", "update_self"].includes(t.name)
-            : t.name !== "message_user",
-      );
+      const tools = botPlatformTools(config, turn);
 
       if (!turn.handoff_configuration) tools.push(...(await this.options.connectors.botTools(turn.bot_id)));
 

@@ -1,7 +1,14 @@
 import { create } from "@bufbuild/protobuf";
 import { Match } from "effect";
 import { classifyFailure } from "@canopy/domain";
-import { AgentToolCallSchema, Provider, TurnEndSource, TurnOutcome, type RunBotTurn } from "@canopy/contracts";
+import {
+  AgentToolCallSchema,
+  Provider,
+  TurnEndSource,
+  TurnOutcome,
+  type BotFileOperation,
+  type RunBotTurn,
+} from "@canopy/contracts";
 import { instanceShadowHome } from "../config/remote.ts";
 import { Journal, type ThreadEventInit } from "../journal/index.ts";
 import { grokBus } from "../providers/grok/bus.ts";
@@ -16,6 +23,7 @@ import { BotHarnessFailure } from "./types.ts";
 import { botFailureEvent } from "./failures.ts";
 import { providersOf } from "../providers/profiles.ts";
 import { botImages } from "./images.ts";
+import { BotFileError, BotWorkspace, cleanupBotWorkspaces } from "./workspace.ts";
 
 function botProvider(provider: Provider) {
   return Match.value(provider).pipe(
@@ -31,8 +39,68 @@ const imagesFor = (ctx: HostContext, input: RunBotTurn) => (resumed: boolean) =>
 
 /** Hidden bot sessions own no project workspace and expose only gateway-executed MCP. */
 export class BotTurns {
-  readonly #active = new Map<string, { abort: AbortController; done: Promise<void> }>();
-  constructor(readonly ctx: HostContext) {}
+  readonly #active = new Map<
+    string,
+    { abort: AbortController; done: Promise<void>; workspace?: BotWorkspace; files?: boolean; busy?: boolean }
+  >();
+  readonly #cleanup: ReturnType<typeof setInterval>;
+  constructor(readonly ctx: HostContext) {
+    const cleanup = () => {
+      try {
+        cleanupBotWorkspaces(ctx.state.options.dataDir);
+      } catch {
+        ctx.ops.log("bots: workspace cleanup failed");
+      }
+    };
+
+    cleanup();
+    this.#cleanup = setInterval(cleanup, 30 * 60 * 1000);
+    this.#cleanup.unref();
+  }
+  async botFile(input: BotFileOperation): Promise<CommandOutput> {
+    const turn = this.#active.get(`${input.botId}/${input.turnId}`);
+
+    if (!turn?.files || !turn.workspace || turn.abort.signal.aborted || turn.busy)
+      throw new CommandError("BOT_FILES_UNAVAILABLE", "Bot files are unavailable for this turn.", false);
+    turn.busy = true;
+
+    try {
+      const workspace = turn.workspace;
+      let result;
+
+      switch (input.operation) {
+        case "list":
+          result = workspace.list();
+          break;
+        case "read":
+          result = {
+            name: input.path,
+            text: new TextDecoder("utf-8", { fatal: true }).decode(await workspace.read(input.path, 100_000)),
+          };
+          break;
+        case "write":
+          result = workspace.write(input.path, Buffer.from(input.text));
+          break;
+        case "delete":
+          result = workspace.delete(input.path);
+          break;
+        default:
+          throw new BotFileError("Unknown file operation.");
+      }
+
+      return { botFile: { resultJson: JSON.stringify(result) } };
+    } catch (error) {
+      throw new CommandError(
+        "BOT_FILE_REFUSED",
+        error instanceof BotFileError
+          ? error.message
+          : "The file is unavailable. Choose a regular file in this conversation workspace.",
+        false,
+      );
+    } finally {
+      turn.busy = false;
+    }
+  }
   async runBotTurn(input: RunBotTurn, commandId: string): Promise<CommandOutput> {
     const key = `${input.botId}/${input.turnId}`;
 
@@ -91,6 +159,11 @@ export class BotTurns {
       linkLogin: profile.kind === "native" && (runtime.ownLogin === true || config[provider].linkDeviceLogin),
     });
 
+    const active = this.#active.get(`${input.botId}/${input.turnId}`)!;
+    active.workspace = session.workspace;
+    active.files = input.files;
+    const release = session.workspace.hold();
+
     const record = async (event: ThreadEventInit) => {
       const saved = await this.ctx.state.options.runtime.runPromise(
         Journal.use((j) => j.append(input.botId, { ...botFailureEvent(event), turnId: input.turnId })),
@@ -118,6 +191,7 @@ export class BotTurns {
       );
 
       if (!started) {
+        release();
         bus.close();
         closed();
 
@@ -127,6 +201,7 @@ export class BotTurns {
       this.ctx.state.threadProviders.set(input.botId, input.provider);
       this.ctx.ops.publish(started);
     } catch (error) {
+      release();
       bus.close();
       throw error;
     }
@@ -170,6 +245,7 @@ export class BotTurns {
       )
       .catch(() => this.ctx.ops.log("bots: harness journal failed"))
       .finally(() => {
+        release();
         abort.abort();
         bus.close();
         closed();
@@ -204,6 +280,7 @@ export class BotTurns {
     return {};
   }
   async closeBots(): Promise<void> {
+    clearInterval(this.#cleanup);
     const active = [...this.#active.values()];
 
     for (const task of active) task.abort.abort();

@@ -95,6 +95,8 @@ export class CommandHandlers {
     switch (kind.case) {
       case "runBotTurn":
         return this.ctx.ops.runBotTurn(kind.value, command.commandId);
+      case "botFile":
+        return this.ctx.ops.botFile(kind.value);
       case "interruptBotTurn":
         return this.ctx.ops.interruptBotTurn(kind.value);
       case "createThread":

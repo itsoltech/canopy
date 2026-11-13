@@ -58,7 +58,7 @@ export type HostOperations = HostHooks &
   > &
   Pick<TaskCommands, "setGoal" | "stopTask" | "unloadThread"> &
   Pick<TextGeneration, "generateText"> &
-  Pick<BotTurns, "runBotTurn" | "interruptBotTurn" | "closeBots"> &
+  Pick<BotTurns, "runBotTurn" | "interruptBotTurn" | "closeBots" | "botFile"> &
   Pick<CloneCommands, "cloneRepository" | "cancelCloneRepository" | "closeClones"> &
   Pick<
     GitCommands,
@@ -147,6 +147,7 @@ export class HostContext {
       unloadThread: tasks.unloadThread.bind(tasks),
       generateText: generation.generateText.bind(generation),
       runBotTurn: bots.runBotTurn.bind(bots),
+      botFile: bots.botFile.bind(bots),
       interruptBotTurn: bots.interruptBotTurn.bind(bots),
       closeBots: bots.closeBots.bind(bots),
       execute: commands.execute.bind(commands),

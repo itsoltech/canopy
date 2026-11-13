@@ -160,6 +160,7 @@ export function botConfig(sql: SqlClient.SqlClient, access: BotAccess) {
             ...config,
             threadPermission: config.threadPermission ?? before?.threadPermission ?? "user_default",
             webAccess: config.webAccess ?? before?.webAccess ?? true,
+            files: config.files ?? before?.files ?? true,
           }),
           !options.id,
         );

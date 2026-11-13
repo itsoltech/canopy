@@ -30,6 +30,7 @@ export type DirectoryEntryInit = MessageInitShape<typeof DirectoryEntrySchema>;
 export type ProfileModelsInit = MessageInitShape<typeof ProfileModelsSchema>;
 
 export interface CommandOutput {
+  readonly botFile?: MessageInitShape<typeof CommandResultSchema>["botFile"];
   readonly workspaceCopy?: MessageInitShape<typeof CommandResultSchema>["workspaceCopy"];
   readonly gitPrContext?: MessageInitShape<typeof CommandResultSchema>["gitPrContext"];
   readonly switchedHead?: MessageInitShape<typeof CommandResultSchema>["switchedHead"];

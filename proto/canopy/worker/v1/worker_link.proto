@@ -417,6 +417,8 @@ message Command {
     // Capability bot_harness_v1. Trwałe, odizolowane od wątków projektowych.
     RunBotTurn run_bot_turn = 830;
     InterruptTurn interrupt_bot_turn = 831;
+    // Transient, active bot turn only; no model-selected host path.
+    BotFileOperation bot_file = 832;
     // Import z CLI agentów (cli_import.proto, docs/import.md). Nietrwałe: nigdy z outboxa.
     ScanImportSources scan_import_sources = 850;
     ReadImportPage read_import_page = 851;
@@ -690,6 +692,7 @@ message CommandResult {
   ImportLibraryContent import_library_content = 853;
   // Wynik ReadImportSecret.
   ImportSecretValue import_secret = 854;
+  BotFileResult bot_file = 832;
 }
 
 message GetProviderAccounts {
@@ -819,6 +822,19 @@ message RunBotTurn {
   repeated InputAttachment history_attachments = 13;
   // Gateway-resolved bot setting; absent for legacy commands and tool-free handoffs.
   bool web_access = 14;
+  bool files = 15;
+}
+
+message BotFileOperation {
+  string bot_id = 1;
+  string turn_id = 2;
+  string operation = 3; // list | read | write | delete
+  string path = 4;
+  string text = 5;
+}
+
+message BotFileResult {
+  string result_json = 1;
 }
 
 message DirectoryEntry {
