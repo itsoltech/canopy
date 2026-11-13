@@ -1,10 +1,10 @@
-import { useCallback, useEffect } from "react";
-import { AppState } from "react-native";
+import { useCallback } from "react";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import { EmptyState } from "../../ui/components";
 import { ImportStart } from "../imports/ImportStart";
 import { ImportRunGroup } from "./ImportRunGroup";
 import { ResourceState, useSettingsResource } from "./resource";
+import { useForegroundInterval } from "../../ui/interval";
 
 /** Settings → Import: choose the computer's CLI sources and manage durable runs. */
 export function ImportSettings() {
@@ -22,18 +22,7 @@ export function ImportSettings() {
     }, [reload]),
   );
 
-  useEffect(() => {
-    if (!active) return;
-
-    const timer = setInterval(
-      () => {
-        if (AppState.currentState === "active") void reload();
-      },
-      running ? 3000 : 15_000,
-    );
-
-    return () => clearInterval(timer);
-  }, [active, running, reload]);
+  useForegroundInterval(() => void reload(), running ? 3000 : 15_000, active);
 
   return (
     <ResourceState resource={resource}>

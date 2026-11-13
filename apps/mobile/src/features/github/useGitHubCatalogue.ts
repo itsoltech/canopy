@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from "react";
-import { AppState } from "react-native";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import type { github } from "@canopy/contracts";
 import { useSession } from "../../state/session";
+import { useAppActive } from "../../ui/active";
+import { useForegroundInterval } from "../../ui/interval";
 
 export function useGitHubCatalogue(account: github.GitHubAccount, onchanged: () => void) {
   const { client } = useSession();
+  const foreground = useAppActive();
   const [installations, setInstallations] = useState<github.GitHubInstallation[]>([]);
   const [next, setNext] = useState(0);
   const [busy, setBusy] = useState(account.status === "connected" && account.authKind !== "pat");
@@ -63,22 +65,14 @@ export function useGitHubCatalogue(account: github.GitHubAccount, onchanged: () 
 
   useEffect(() => {
     void fetchCatalogue();
-
-    const listener = AppState.addEventListener("change", (state) => {
-      if (state === "active") void load(0, true);
-    });
-
-    const timer = setInterval(() => {
-      if (AppState.currentState === "active") void load();
-    }, 900_000);
-
-    return () => {
-      listener.remove();
-      clearInterval(timer);
-    };
     // Remounting on account revision resets the catalogue; ordinary renders preserve open repositories.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, account.id, account.revision]);
+  useForegroundInterval(() => void load(), 900_000);
+  const resume = useEffectEvent(() => void load(0, true));
+  useEffect(() => {
+    if (foreground) resume();
+  }, [foreground]);
 
   return {
     installations,

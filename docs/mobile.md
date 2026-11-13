@@ -1369,6 +1369,13 @@ dzieli geometrię i kolory z web (`@canopy/ui/thread-row`); animacja Reanimated
 działa na wątku UI i zatrzymuje się w tle oraz przy systemowym ograniczeniu ruchu.
 Jeden zegar aplikacji aktualizuje wyłącznie zmieniony tekst statusu, nie listę ani
 cały wiersz. Szczegóły pomiarów: [client-performance.md](client-performance.md).
+Zachowane ekrany stosu otrzymują zakres widoczności zgodny z fokusem nawigacji;
+ukrycie nadrzędnego stosu zatrzymuje również dekoracje i zegary jego dzieci.
+Odliczanie próśb, potwierdzeń, parowania i reconnect używa tego samego zegara.
+Timery odczytów panelu wątku, PR, importu i diagnostyki są usuwane poza widocznym
+ekranem lub foreground. Zawieszenie usuwa je już w zdarzeniu AppState; raportowanie
+diagnostyki anuluje także trwającą wysyłkę. Powrót przywraca zwykły rytm bez
+odtwarzania pominiętych ticków. Dogrzewanie cache nadal ma własny limit 12 odczytów/min.
 Podpis miejsca używa wspólnego `threadPlace`: „scratch folder”, HEAD worktree
 (gałąź lub detached commit), potem nazwa katalogu. Inicjały i ton znaku projektu
 są wspólne; neutralny znak w ciemnym motywie używa stopnia 300, tak jak web.

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { connectors } from "@canopy/contracts";
 import { View } from "react-native";
 import { Button, Sheet } from "../../ui/components";
@@ -8,6 +8,7 @@ import { ConnectorForm } from "./ConnectorForm";
 import { ConnectorAccountRow } from "./ConnectorAccountRow";
 import { ConnectorAccountDetails } from "./ConnectorAccountDetails";
 import { SettingsSkeletonRows } from "./SettingsSkeleton";
+import { useForegroundInterval } from "../../ui/interval";
 
 export function ConnectorSettings() {
   const resource = useSettingsResource("ListConnectors", (api) => api.listConnectors({}));
@@ -15,11 +16,7 @@ export function ConnectorSettings() {
   const [selected, setSelected] = useState<{ id: string; view: "actions" | "access" }>();
   const [now, setNow] = useState(Date.now);
 
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 30_000);
-
-    return () => clearInterval(timer);
-  }, []);
+  useForegroundInterval(() => setNow(Date.now()), 30_000);
 
   const account = resource.data?.accounts.find((entry) => entry.id === selected?.id);
   const type = resource.data?.types.find((entry) => entry.id === account?.connectorType);

@@ -3,6 +3,7 @@ import * as Crypto from "expo-crypto";
 import type { ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { clearDiagnosticLogs, exportDiagnosticLogs } from "./diagnostics-log-file";
+import { useAppActive } from "../../ui/active";
 
 export type DiagnosticsLogsModel = ReturnType<typeof useDiagnosticsLogs>;
 
@@ -13,8 +14,9 @@ function useLogPolling(
   setError: (error: string) => void,
 ) {
   const { client } = useSession();
+  const foreground = useAppActive();
   useEffect(() => {
-    if (!client || !job || job.status !== "collecting") return;
+    if (!client || !job || job.status !== "collecting" || !foreground) return;
     const controller = new AbortController();
 
     const timer = setTimeout(() => {
@@ -34,7 +36,7 @@ function useLogPolling(
       clearTimeout(timer);
       controller.abort();
     };
-  }, [client, job, onReady, setJob, setError]);
+  }, [client, job, onReady, setJob, setError, foreground]);
 }
 
 export function useDiagnosticsLogs(onReady: (id: string) => void) {

@@ -16,6 +16,7 @@ import { useDisclosureMotion } from "./disclosure-motion";
 import { useOverlaySwipe } from "./useOverlaySwipe";
 import { IconButton } from "./Button";
 import { styles, useColors } from "./theme";
+import { useAppActive } from "./active";
 
 /** Measure on the UI thread so the portal follows scrolling, folding, rotation and every native keyboard frame. */
 function useAnchorBounds(content: AnchoredContent, host: AnimatedRef<ComponentRef<typeof View>>, insets: EdgeInsets) {
@@ -23,8 +24,9 @@ function useAnchorBounds(content: AnchoredContent, host: AnimatedRef<ComponentRe
   const { anchor: anchorRef, maxHeight } = content;
   const bounds = useSharedValue({ left: 0, bottom: 0, width: 0, maxHeight: 0 });
   const [positioned, setPositioned] = useState(false);
+  const active = useAppActive();
 
-  useFrameCallback(() => {
+  const frames = useFrameCallback(() => {
     const frame = measure(host);
     const anchor = measure(anchorRef);
 
@@ -50,7 +52,13 @@ function useAnchorBounds(content: AnchoredContent, host: AnimatedRef<ComponentRe
       next.maxHeight !== previous.maxHeight
     )
       bounds.set(next);
-  });
+  }, false);
+
+  useEffect(() => {
+    frames.setActive(active);
+
+    return () => frames.setActive(false);
+  }, [frames, active]);
 
   return { style: useAnimatedStyle(() => bounds.get()), positioned };
 }

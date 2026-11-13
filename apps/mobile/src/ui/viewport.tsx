@@ -33,6 +33,10 @@ export class Viewport {
 export const ViewportContext = createContext<Viewport | null>(null);
 const DisclosureVisibility = createContext(true);
 
+export function useVisibility() {
+  return useContext(DisclosureVisibility);
+}
+
 /** Retained accordion bodies stop clocks and decorative loops while clipped closed. */
 export function VisibilityScope({ visible, children }: { visible: boolean; children: ReactNode }) {
   const parent = useContext(DisclosureVisibility);
@@ -43,7 +47,7 @@ export function VisibilityScope({ visible, children }: { visible: boolean; child
 /** Outside a timeline, mounted controls are eligible immediately. No continuous JS/rAF loop. */
 export function useViewportVisibility() {
   const viewport = useContext(ViewportContext);
-  const disclosed = useContext(DisclosureVisibility);
+  const disclosed = useVisibility();
   const ref = useRef<ComponentRef<typeof View>>(null);
   const { height, width } = useWindowDimensions();
   const [visible, setVisible] = useState(!viewport);

@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
 import { Text, type StyleProp, type TextStyle } from "react-native";
 import { timestampMs, type Timestamp } from "@bufbuild/protobuf/wkt";
 import { styles, useColors } from "./theme";
+import { useLiveTime } from "./time";
 
 /**
  * Time left to answer a request with a known deadline, as on the web: "Expires in 1:45", amber in the last 25 s,
@@ -18,16 +18,9 @@ export function RequestCountdown({
   style?: StyleProp<TextStyle>;
 }) {
   const c = useColors();
-  const [now, setNow] = useState(Date.now);
   const deadline = expiresAt ? timestampMs(expiresAt) : undefined;
   const active = deadline !== undefined && pending;
-
-  useEffect(() => {
-    if (!active) return;
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-
-    return () => clearInterval(timer);
-  }, [active]);
+  const now = useLiveTime(active);
 
   if (!expiresAt) return null;
   const seconds = Math.max(0, Math.ceil((timestampMs(expiresAt) - now) / 1000));

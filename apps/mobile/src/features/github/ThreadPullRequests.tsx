@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { AppState, Pressable, Text, View } from "react-native";
+import { useState } from "react";
+import { Pressable, Text, View } from "react-native";
 import { router } from "expo-router";
 import type { ui, github } from "@canopy/contracts";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
@@ -13,6 +13,7 @@ import { PullRequestStatus } from "./PullRequestStatus";
 import { checkLook } from "@canopy/domain/github-pr";
 import { CheckStateIcon } from "./CheckStateIcon";
 import { toast } from "../../ui/Toast";
+import { useForegroundInterval } from "../../ui/interval";
 
 export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onClose: () => void }) {
   const { client, queries, online } = useSession();
@@ -21,13 +22,7 @@ export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onC
   const [linking, setLinking] = useState(false);
   const [creating, setCreating] = useState(false);
   const key = `ListThreadPullRequests:${thread.id}:${thread.pullRequestRevision}`;
-  useEffect(() => {
-    const timer = setInterval(() => {
-      if (AppState.currentState === "active") queries.invalidate(key);
-    }, 60_000);
-
-    return () => clearInterval(timer);
-  }, [key, queries]);
+  useForegroundInterval(() => queries.invalidate(key), 60_000, online);
 
   const read = useSharedQuery<github.ThreadPullRequestsResponse>(
     key,

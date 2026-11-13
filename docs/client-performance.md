@@ -197,6 +197,22 @@ publikacji OTA. Nie uruchamiaj buildów EAS ani generowania projektów natywnych
 
 ## Profilowanie na urządzeniu
 
+Przy zgłoszeniu temperatury lub zużycia baterii najpierw nagraj osobno iOS i Android:
+listę z co najmniej dwoma pracującymi wątkami, streaming otwartego wątku, bezczynny
+wątek, panel PR oraz dwie minuty bezczynnej listy. Zapisz rewizję JS, runtime natywny,
+tryb deweloperski i stan aplikacji. Zbierz CPU procesu i wątków, FPS JS/UI, rendery/s,
+aktywne timery, wybudzenia i żądania/wiadomości na minutę. `adb top -H`, `dumpsys cpuinfo`
+i `dumpsys gfxinfo` oraz Instruments Time Profiler rozdzielają koszty platformy;
+React Profiler i Hermes wskazują JS. Nie loguj payloadów ani identyfikatorów rozmów.
+Odróżniaj brak prezentowanych klatek w spokojnym UI od utraconych klatek.
+
+Samo uruchomienie development launchera nie jest scenariuszem Canopy. Gdy sterowanie
+urządzeniem lub zgodny development build jest niedostępny, raportuj brak pomiaru CPU/FPS
+i termiki. Lokalna instrumentacja hooków może policzyć timery, odczyty i wywołania
+workletów przy zadanym zegarze, ale nie mierzy natywnych wybudzeń, kosztu GPU ani renderów
+React. Nie przeliczaj takich liczników na oszczędność baterii. Instrumentację i ślady
+zachowuj poza repozytorium; do PR trafiają liczby z opisem metody i ograniczeń.
+
 `TMPDIR` na dysku, następnie `bun scripts/bench/image-cache.ts`, mierzy liczbę żądań
 i bajty odpowiedzi HTTP dla 20 miniatur po 16 KiB: dwa przejścia i ponowne otwarcie,
 a osobno restart cache w tym samym parowaniu. Porównuje poprzedni odczyt przy każdym

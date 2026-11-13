@@ -9,6 +9,7 @@ import { SettingsGroup, SettingChoice } from "./SettingsGroup";
 import { SettingsValue } from "./SettingsValue";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 import { SettingsSkeletonRows } from "./SettingsSkeleton";
+import { useAppActive } from "../../ui/active";
 
 export type MoveItem = { kind: "thread" | "bot"; id: string };
 
@@ -20,11 +21,12 @@ function useMoveProgress(
   reload: () => Promise<void>,
 ) {
   const { client } = useSession();
+  const foreground = useAppActive();
   const running = moves.some((m) => !["done", "aborted"].includes(m.state));
   const watched = useRef(false);
 
   useEffect(() => {
-    if (!batch || !running || !client) return;
+    if (!batch || !running || !client || !foreground) return;
     let busy = false;
     let active = true;
     watched.current = true;
@@ -43,7 +45,7 @@ function useMoveProgress(
       active = false;
       clearInterval(timer);
     };
-  }, [batch, running, client, setMoves]);
+  }, [batch, running, client, setMoves, foreground]);
 
   // A finished move changes what the preview shows; read it once.
   useEffect(() => {

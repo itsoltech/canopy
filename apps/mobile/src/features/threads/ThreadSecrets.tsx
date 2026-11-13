@@ -7,6 +7,7 @@ import { Button, Field, Notice, Sheet } from "../../ui/components";
 import { styles, useColors } from "../../ui/theme";
 import { TextInput } from "../../ui/TextInput";
 import { useUpdateBlocker } from "../updates/useUpdateBlocker";
+import { useLiveTime } from "../../ui/time";
 
 /** Values never enter snapshots, drafts or diagnostics. Closing the sheet unmounts the write-only input. */
 export function ThreadSecrets({ secrets, disabled }: { secrets: readonly ui.ThreadSecret[]; disabled: boolean }) {
@@ -132,12 +133,7 @@ function SecretRequest({ secret, disabled }: { secret: ui.ThreadSecret; disabled
 /** Active grants contain metadata only; a saved value is never returned by the API. */
 export function SecretGrants({ secrets, disabled }: { secrets: readonly ui.ThreadSecret[]; disabled: boolean }) {
   const c = useColors();
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-
-    return () => clearInterval(timer);
-  }, []);
+  const now = useLiveTime(secrets.some((secret) => secret.status === "saved" && !!secret.expiresAt));
   const active = secrets.filter((s) => s.status === "saved" && (!s.expiresAt || timestampMs(s.expiresAt) > now));
 
   if (!active.length) return null;
