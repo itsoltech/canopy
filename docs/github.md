@@ -418,8 +418,8 @@ Wiele kart/urządzeń współdzieli najszybszy potrzebny harmonogram.
 
 | Widoczność | Harmonogram startowy | Zakres |
 | --- | --- | --- |
-| Otwarty PR, zakończone checki | Jedno warunkowe żądanie REST co 60 s łącznie, rotacyjnie metadata PR, check-runs i legacy statuses | Przy jednej stronie każdego zasobu powrót do endpointu co około 3 min; maks. 5 żądań w 5 min |
-| Otwarty PR, trwające checki | Tylko zasoby checków zawierające pending/in progress co 15 s; pozostałe dzielą wolny slot co 60 s | Bez okresowego GraphQL, timeline ani diffów |
+| Otwarty PR, zakończone checki | Metadata PR na każdym ticku co 60 s oraz jedna rotacyjna strona check-runs/legacy statuses | Edycje komentarzy wykrywane po około 60–66 s; najwyżej 10 warunkowych żądań w 5 min po inicjalizacji |
+| Otwarty PR, trwające checki | Zasoby checków z pending/in progress co 15 s; metadata i jedna pozostała strona CI co 60 s | Bez okresowego GraphQL, timeline ani diffów |
 | Widoczny panel wątku | Ten sam współdzielony harmonogram warunkowy | Bez osobnego pollera nagłówków |
 | Closed/merged, także widoczny | Brak okresowego pollingu | Zmiany po ręcznym Refresh lub własnej mutacji |
 | Aktywny wątek w tle | Bez okresowego odświeżania danych PR | Rozpoznanie po zmianie checkoutu/pushu pozostaje osobnym zdarzeniem |
@@ -433,6 +433,16 @@ nie udaje żądania warunkowego: pełne podsumowanie pobieramy dopiero po zmiani
 `updated_at`, head/base SHA lub stanu, a stronę checków po zmianie sygnału checków.
 Timeline i reviews unieważniamy po zmianie metadata, pliki/commity dopiero po zmianie SHA
 lub ręcznym odświeżeniu. Bez zmiany nie pobieramy tych stron w tle.
+Metadata nie bierze udziału w rotacji stron CI: każda wolna iteracja pyta o `updated_at`,
+które GitHub zmienia także po edycji komentarza. Bez zmian dodatkowy probe kończy się
+304 i nie zużywa podstawowego limitu REST; nadal obowiązują budżety, backoff,
+`x-poll-interval`, jitter i wspólny single-flight. Dla jednego PR to najwyżej około
+60 prób metadata/h oraz 60 rotacyjnych prób CI/h przy zakończonych checkach.
+Termin wolnego ticku uwzględnia wygaśnięcie cache metadata po odpowiedzi, żeby czas
+żądania nie powodował pominięcia kolejnej walidacji. Dłuższy interwał serwera nadal ma pierwszeństwo.
+Nie powstaje nowy poller. Po zmianie metadata klient odświeża timeline/reviews z
+`refresh=true`: gateway pomija nawet niewygasły cache strony i pobiera bieżące `body`
+przez GraphQL. Sam upływ ticku bez zmiany nie odczytuje timeline.
 Sweep utrzymaniowy i odnawiane streamy dzielą terminy oraz single-flight. Przez 5 min
 po zamknięciu zachowujemy harmonogram bez wykonywania pracy; odnowienie dzierżawy
 nie uruchamia ponownie odczytów. Ostatni ukryty obserwator anuluje trwający probe.

@@ -88,7 +88,7 @@ async function refreshChecks(scope: ReadScope, signal: AbortSignal) {
   return watchScope(scope.prs, scope.pr.id);
 }
 
-/** One conditional REST request per slow tick. Running resources alone get a faster deadline. */
+/** Metadata on every slow tick plus one idle CI resource. Running checks keep their faster deadline. */
 async function poll(prs: GitHubPullRequests, id: string, p: Producer) {
   if (p.flight) return p.flight;
   const controller = new AbortController();
@@ -141,7 +141,14 @@ async function poll(prs: GitHubPullRequests, id: string, p: Producer) {
         : [];
 
     if (!initial && now >= p.nextSlow) {
-      const slow = p.targets.filter((target) => !p.signals.get(targetKey(target))?.running);
+      const metadata = p.targets.find((target) => target.kind === "metadata");
+
+      if (metadata && !targets.includes(metadata)) targets.push(metadata);
+
+      const slow = p.targets.filter(
+        (target) => target.kind !== "metadata" && !p.signals.get(targetKey(target))?.running,
+      );
+
       const target = slow[p.index++ % slow.length];
 
       if (target && !targets.includes(target)) targets.push(target);
@@ -178,7 +185,8 @@ async function poll(prs: GitHubPullRequests, id: string, p: Producer) {
 
     if (metadataChanged || checksChanged) publish(p, scope.snapshot, invalidated);
 
-    if (initial || now >= p.nextSlow) p.nextSlow = now + jitter(60_000);
+    if (initial || now >= p.nextSlow)
+      p.nextSlow = Math.max(now + jitter(60_000), p.signals.get("metadata:1")?.expires ?? 0);
 
     if (!p.signals.size) p.nextSlow = 0;
     const running = [...p.signals.values()].filter((value) => value.running);
