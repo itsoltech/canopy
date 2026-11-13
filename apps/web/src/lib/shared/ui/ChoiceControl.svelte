@@ -48,7 +48,10 @@
       onchange?.(event);
     }}
     class={[
-      "col-start-1 row-start-1 size-full appearance-none border bg-white checked:border-brand-600 checked:bg-brand-600 indeterminate:border-brand-600 indeterminate:bg-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:bg-white/5 dark:checked:border-brand-500 dark:checked:bg-brand-500 dark:indeterminate:border-brand-500 dark:indeterminate:bg-brand-500 forced-colors:appearance-auto",
+      "col-start-1 row-start-1 size-full appearance-none border bg-white checked:border-brand-600 checked:bg-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:bg-white/5 dark:checked:border-brand-500 dark:checked:bg-brand-500 forced-colors:appearance-auto",
+      // `:indeterminate` also matches every radio of a group with nothing checked: fill only mixed checkboxes.
+      type === "checkbox" &&
+        "indeterminate:border-brand-600 indeterminate:bg-brand-600 dark:indeterminate:border-brand-500 dark:indeterminate:bg-brand-500",
       readOnlyVisual
         ? "border-zinc-400 dark:border-zinc-500"
         : "border-zinc-300 disabled:opacity-50 dark:border-white/15",
