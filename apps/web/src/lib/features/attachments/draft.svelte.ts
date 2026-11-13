@@ -23,6 +23,7 @@ export interface DraftFile {
   readonly size: number;
   /** The browser says it is an image: a local preview while it uploads. */
   readonly image: boolean;
+  readonly video?: boolean;
   /** Object URL of the local file (images only); revoked on removal. */
   readonly localUrl: string | undefined;
   status: DraftStatus;
@@ -228,6 +229,7 @@ export class AttachmentDraft {
       name,
       size: file.size,
       image,
+      video: /^video\/(mp4|webm|quicktime)$/.test(file.type),
       localUrl: image ? URL.createObjectURL(file) : undefined,
       status: "uploading",
       progress: 0,

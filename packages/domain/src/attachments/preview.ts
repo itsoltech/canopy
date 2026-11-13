@@ -1,9 +1,11 @@
 /** Shared preview limits and file classification. File contents never become HTML. */
 export const ATTACHMENT_PREVIEW_BYTES = 128 * 1024;
 
-export type AttachmentPreviewKind = "image" | "markdown" | "text" | "file";
+export type AttachmentPreviewKind = "image" | "video" | "markdown" | "text" | "file";
 
 export function attachmentPreviewKind(file: { name: string; mimeType: string; kind?: string }): AttachmentPreviewKind {
+  if (/^video\/(mp4|webm|quicktime)$/.test(file.mimeType)) return "video";
+
   if (file.kind === "image" || file.mimeType === "image/svg+xml") return "image";
 
   if (/^(text\/(markdown|x-markdown))($|;)/i.test(file.mimeType) || /\.(md|markdown|mdown)$/i.test(file.name))

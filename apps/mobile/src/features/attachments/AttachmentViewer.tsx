@@ -13,10 +13,13 @@ import { ImageViewer } from "./ImageViewer";
 import { readAttachmentPreview } from "./preview";
 import { attachmentFailure } from "./failure";
 import { useAttachmentConnection } from "./useAttachmentConnection";
+import { VideoSummary } from "./VideoSummary";
 
 const FILE_BYTES = 30 * 1024 ** 2;
 
 export function AttachmentViewer({ file, onClose }: { file: ui.Attachment; onClose: () => void }) {
+  if (attachmentPreviewKind(file) === "video") return <VideoSummary file={file} onClose={onClose} />;
+
   return file.kind === "image" ? (
     <ImageViewer source={{ kind: "attachment", file }} name={file.name} onClose={onClose} />
   ) : (

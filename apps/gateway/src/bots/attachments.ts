@@ -67,5 +67,6 @@ export const storedBotImage = (row: AttachmentRow): StoredAttachment => ({
   ...(row.height && { height: row.height }),
   sha256: row.sha256,
   hasThumbnail: row.thumb_sha256 !== null,
+  ...(row.duration_ms && { durationMs: Number(row.duration_ms) }),
   path: "",
 });

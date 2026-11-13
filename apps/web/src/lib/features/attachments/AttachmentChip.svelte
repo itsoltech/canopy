@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Mention, ui } from "@canopy/contracts";
-  import { mentionLabel } from "@canopy/domain";
+  import { mentionLabel, formatVideoDuration } from "@canopy/domain";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import { CHIP_ICON_CLASS, kindLook } from "#lib/features/mentions/kinds.ts";
   import MentionChip from "#lib/features/mentions/MentionChip.svelte";
@@ -24,7 +24,11 @@
 </script>
 
 {#snippet body()}
-  <Icon name={kindLook(mention).icon} class={CHIP_ICON_CLASS} /><span class="truncate">{name}</span>
+  <Icon
+    name={file && attachmentPreviewKind(file) === "video" ? "play" : kindLook(mention).icon}
+    class={CHIP_ICON_CLASS}
+  /><span class="truncate">{name}</span>
+  {#if file?.durationMs}<span class="shrink-0 tabular-nums">{formatVideoDuration(file.durationMs)}</span>{/if}
 {/snippet}
 
 {#if file && attachmentPreviewKind(file) !== "file"}

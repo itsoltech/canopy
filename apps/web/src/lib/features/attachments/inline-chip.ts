@@ -1,5 +1,5 @@
 import { MentionKind } from "@canopy/contracts";
-import { formatSize } from "@canopy/domain";
+import { formatSize, formatVideoDuration } from "@canopy/domain";
 import { CHIP_CLASS, escape, iconSvg, kindLook, type MentionData } from "#lib/features/mentions/kinds.ts";
 import type { DraftFile } from "./draft.svelte.ts";
 
@@ -50,6 +50,25 @@ export function showUploads(root: ParentNode, file: (key: string) => DraftFile |
     if (!draft) continue;
     chip.dataset["status"] = draft.status;
     chip.style.setProperty("--progress", String(draft.progress));
+    const icon = chip.querySelector("svg");
+    const kind = draft.attachment?.kind ?? (draft.video ? "video" : draft.image ? "image" : "file");
+
+    if (icon && icon.dataset["attachmentKind"] !== kind) {
+      const glyph = kindLook({ kind: MentionKind.ATTACHMENT, source: kind, isDir: false }).icon;
+      icon.outerHTML = iconSvg(glyph, KIND_ICON).replace("<svg ", `<svg data-attachment-kind="${kind}" `);
+    }
+
+    let duration = chip.querySelector<HTMLElement>("[data-duration]");
+    const label = formatVideoDuration(draft.attachment?.durationMs);
+
+    if (label && !duration) {
+      duration = document.createElement("span");
+      duration.dataset["duration"] = "true";
+      duration.className = "shrink-0 tabular-nums";
+      chip.append(duration);
+    }
+
+    if (duration) duration.textContent = label ?? "";
 
     if (draft.status !== "ready") chip.title = uploadTitle(draft);
     else chip.removeAttribute("title");
@@ -57,11 +76,11 @@ export function showUploads(root: ParentNode, file: (key: string) => DraftFile |
 }
 
 /** The badge of a file the composer just took (its name; an image gets the image icon). */
-export const chipOf = (file: Pick<DraftFile, "key" | "name" | "image">): MentionData => ({
+export const chipOf = (file: Pick<DraftFile, "key" | "name" | "image" | "video">): MentionData => ({
   kind: MentionKind.ATTACHMENT,
   name: file.key,
   label: file.name,
   path: "",
-  source: file.image ? "image" : "file",
+  source: file.image ? "image" : file.video ? "video" : "file",
   isDir: false,
 });

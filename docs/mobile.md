@@ -1521,8 +1521,13 @@ zgody nie blokuje wyboru. Kompozytor nie ma akcji robienia zdjęcia kamerą.
 Oba kompozytory utrzymują poziomo przewijany pasek wszystkich plików do wysłania lub usunięcia,
 także po zakończeniu uploadu. Obrazy mają lokalne miniatury 56 × 56 dp, filmy kafelek z ikoną
 odtwarzania i czasem, jeśli picker go poda. Zainstalowany picker nie zwraca plakatu filmu;
-nie dodajemy natywnego generatora miniatur. Rodzaj `video` służy tylko prezentacji draftu;
-upload nadal przesyła nazwę i bajty, a gateway rozpoznaje i zapisuje typ jak dotąd.
+nie dodajemy natywnego generatora miniatur. Rodzaj `video` w szkicu opisuje wybór
+pickera; upload nadal przesyła nazwę i bajty, a gateway niezależnie rozpoznaje
+kontener i zapisuje `kind = video`. Wysłane filmy mają plakat rastrowy z gatewaya,
+ikonę i znany czas. Plakat używa istniejącego przypiętego transportu i cache obrazów;
+pełny film nie trafia do cache obrazów. Przeglądarka pokazuje Play on a computer
+i Share video (iOS) lub Save video (Android); bajty eksportu pobiera dopiero akcja.
+Ta warstwa nie zmienia fingerprintu ani modułów natywnych; player jest osobną zmianą.
 Pozostałe pliki pokazują ikonę formatu (PDF, archiwum, kod, tekst, arkusz, audio lub plik),
 nazwę i rozmiar. Format wynika z MIME i rozszerzenia. Wysokość wiersza jest stała, nazwy
 skracają się z zachowaniem końcówki, a przycisk usuwania ma cel 32 × 56 dp i usuwa też

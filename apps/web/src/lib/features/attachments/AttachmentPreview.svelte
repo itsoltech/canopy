@@ -1,7 +1,8 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import type { ui } from "@canopy/contracts";
-  import { formatSize } from "@canopy/domain";
+  import { formatSize, formatVideoDuration } from "@canopy/domain";
+  import Icon from "#lib/shared/ui/Icon.svelte";
   import { attachmentPreviewKind } from "@canopy/domain/attachment-preview";
   import Popover from "#lib/shared/ui/Popover.svelte";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
@@ -30,6 +31,7 @@
   const detail = $derived(
     [
       formatSize(file.sizeBytes),
+      formatVideoDuration(file.durationMs),
       file.width && file.height
         ? `${file.width}×${file.height}`
         : dimensions
@@ -158,7 +160,24 @@
     onpointerleave={leave}
     class="grid w-72 max-w-[calc(100vw-2rem)] gap-2 p-3"
   >
-    {#if kind === "image"}
+    {#if kind === "video"}
+      <button
+        type="button"
+        aria-label="Play {file.name}"
+        onclick={() => (open = true)}
+        class="relative grid min-h-36 place-items-center overflow-hidden rounded-lg bg-zinc-800 text-white focus-ring"
+      >
+        {#if file.hasThumbnail}
+          <AttachmentImage
+            src={attachmentUrl(file, "thumbnail")}
+            entityId={file.id}
+            class="absolute inset-0"
+            imageClass="h-36 w-full object-cover"
+          />
+        {/if}
+        <span class="relative flex items-center gap-2"><Icon name="play" />Play video</span>
+      </button>
+    {:else if kind === "image"}
       <AttachmentImage
         onload={imageLoaded}
         src={attachmentUrl(file, file.hasThumbnail ? "thumbnail" : "image")}
@@ -178,10 +197,12 @@
   </div>
 </Popover>
 
-{#if kind === "image"}
+{#if kind === "image" || kind === "video"}
   <Lightbox
     bind:open
-    src={attachmentUrl(file, "image")}
+    src={attachmentUrl(file, kind === "image" ? "image" : undefined)}
+    video={kind === "video"}
+    poster={kind === "video" && file.hasThumbnail ? attachmentUrl(file, "thumbnail") : undefined}
     entityId={file.id}
     name={file.name}
     {detail}
