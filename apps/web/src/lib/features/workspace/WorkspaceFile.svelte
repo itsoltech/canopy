@@ -131,6 +131,7 @@
   }
 
   function keydown(event: KeyboardEvent) {
+    if (event.isComposing) return;
     confineSelectAll(event);
 
     if (keybindings.matches(event, "file:go-line")) {
@@ -263,7 +264,9 @@
       if (scroller) document.scroll = scroller.scrollTop;
     }}
   >
-    {#if compare}
+    {#if !foreground}
+      <div class="h-full"></div>
+    {:else if compare}
       {#await import("./WorkspaceSource.svelte") then reader}
         <reader.default
           {document}

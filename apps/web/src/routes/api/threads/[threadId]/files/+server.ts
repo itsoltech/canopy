@@ -22,7 +22,7 @@ async function mutate<A>(run: (api: Client<typeof ui.GatewayService>) => Promise
   }
 }
 
-export const GET: RequestHandler = async ({ params, url }) => {
+export const GET: RequestHandler = async ({ params, url, request }) => {
   const path = url.searchParams.get("path") ?? "";
   const itemId = url.searchParams.get("itemId") ?? "";
   const expectedSha256 = url.searchParams.get("expectedSha256") ?? "";
@@ -34,7 +34,10 @@ export const GET: RequestHandler = async ({ params, url }) => {
     encode(
       ui.ThreadFileSchema,
       await call((api) =>
-        api.readThreadFile({ threadId: params.threadId, path, itemId, expectedSha256 }, { timeoutMs: TIMEOUT_MS }),
+        api.readThreadFile(
+          { threadId: params.threadId, path, itemId, expectedSha256 },
+          { signal: request.signal, timeoutMs: TIMEOUT_MS },
+        ),
       ),
     ),
   );

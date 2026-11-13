@@ -1,7 +1,7 @@
 import { getContext, setContext } from "svelte";
 import { createSubscriber } from "svelte/reactivity";
 import { WorkspaceStore, type Workspace } from "@canopy/domain/workspace";
-import { WorkspaceFileConflict } from "@canopy/domain/workspace-file";
+import { WorkspaceFileConflict, WorkspaceAccessRevoked } from "@canopy/domain/workspace-file";
 import { HttpError } from "#lib/shared/http.ts";
 import { readFile, writeFile, deleteFile } from "#lib/features/files/api.ts";
 import { toast } from "#lib/shared/ui/toast.svelte.ts";
@@ -10,12 +10,13 @@ import { pauseThreadWarming } from "#lib/features/threads/warming.ts";
 export const workspaceStore = new WorkspaceStore(
   {
     watchFiles: async (request, signal, receive) =>
-      (await import("./watch-api.ts")).watchFiles(request, signal, receive),
-    listDirectory: async (request, signal) => (await import("./directory-api.ts")).listDirectory(request, signal),
+      fileMutation(async () => (await import("./watch-api.ts")).watchFiles(request, signal, receive)),
+    listDirectory: async (request, signal) =>
+      fileMutation(async () => (await import("./directory-api.ts")).listDirectory(request, signal)),
     read: (target, path, hash, signal) => {
       pauseThreadWarming();
 
-      return readFile(target.threadId, path, target.itemId, hash, signal);
+      return fileMutation(() => readFile(target.threadId, path, target.itemId, hash, signal));
     },
     write: (target, path, text, hash, root) => fileMutation(() => writeFile(target.threadId, path, text, hash, root)),
     remove: (target, path, hash, root) => fileMutation(() => deleteFile(target.threadId, path, hash, root)),
@@ -27,6 +28,9 @@ async function fileMutation<T>(run: () => Promise<T>): Promise<T> {
   try {
     return await run();
   } catch (cause) {
+    if (cause instanceof HttpError && (cause.status === 401 || cause.status === 403 || cause.status === 404))
+      throw new WorkspaceAccessRevoked("File access ended. Reopen the thread to check access.");
+
     if (cause instanceof HttpError && cause.status === 412) throw new WorkspaceFileConflict(cause.message);
     throw cause;
   }

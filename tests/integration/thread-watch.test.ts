@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdirSync, symlinkSync, writeFileSync, unlinkSync } from "node:fs";
+import { mkdirSync, symlinkSync, writeFileSync, unlinkSync, renameSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { create, toBinary, toJsonString, type MessageInitShape } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
@@ -16,7 +16,8 @@ import { qualifyId } from "@canopy/domain/computers";
 import { remoteServe, uiHandlers } from "@canopy/gateway/api";
 import { GatewayStore } from "@canopy/gateway/store";
 import { WorkspaceStore } from "@canopy/domain/workspace";
-import { WorkspaceFileConflict } from "@canopy/domain/workspace-file";
+import { WorkspaceFileConflict, WorkspaceAccessRevoked } from "@canopy/domain/workspace-file";
+import { workspaceDirectories } from "@canopy/domain/workspace-directory";
 import { observeWorkspaceFile } from "@canopy/domain/workspace-changes";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import type { LinkedComputers } from "../../apps/gateway/src/computers/runtime.ts";
@@ -39,7 +40,7 @@ describe.skipIf(!dockerAvailable)("scoped file invalidations over the real worke
     mkdirSync(data);
     home = await worktreeFixture(data, {
       role: "desktop",
-      capabilities: ["thread_files_watch_v1", "thread_files_v1", "thread_file_preview_v1"],
+      capabilities: ["thread_files_watch_v1", "thread_files_v1", "thread_file_preview_v1", "thread_directory_v1"],
     });
     thread = await home.tree();
     mkdirSync(join(thread.cwd, "folder"));
@@ -355,6 +356,146 @@ describe.skipIf(!dockerAvailable)("scoped file invalidations over the real worke
     } finally {
       stop();
       store.clear();
+    }
+  });
+
+  function resourceStore() {
+    return new WorkspaceStore(
+      {
+        listDirectory: (request, signal) => caller.api.listThreadDirectory(request, { signal }),
+        read: (target, path, hash, signal) =>
+          caller.api.readThreadFile({ threadId: target.threadId, path, expectedSha256: hash }, { signal }),
+        write: (target, path, text, hash) =>
+          caller.api.writeThreadFile({
+            threadId: target.threadId,
+            path,
+            content: new TextEncoder().encode(text),
+            expectedSha256: hash,
+          }),
+        remove: async () => {},
+        watchFiles: async (request, signal, receive) => {
+          try {
+            for await (const update of caller.api.watchThreadFiles(request, { signal, timeoutMs: 0 })) receive(update);
+          } catch (cause) {
+            if ([Code.PermissionDenied, Code.NotFound].includes(ConnectError.from(cause).code))
+              throw new WorkspaceAccessRevoked("File access ended.");
+            throw cause;
+          }
+        },
+      },
+      8 * 1024 * 1024,
+    );
+  }
+
+  test("clearing a paired scope releases real streams and cursors and erases retained dirty documents", async () => {
+    const store = resourceStore();
+    const view = store.view(q());
+    view.open({ threadId: q(), path: "folder/source.txt" });
+    const document = view.currentFile!.document;
+    await document.load();
+    document.edit();
+    document.setDraft("private unsaved text");
+    const tree = workspaceDirectories(store, 1024 * 1024).tree(q());
+    const releaseTree = tree.retain();
+    const releaseFile = observeWorkspaceFile(store, document);
+
+    try {
+      await eventually(() => Promise.resolve(worker().fileWatches.size), Boolean);
+      store.clear();
+      // Late UI cleanup must not resurrect a subscription after unpairing.
+      releaseFile();
+      releaseTree();
+      releaseTree();
+      expect(document.draft).toBe("");
+      expect(document.text).toBe("");
+      expect(document.file).toBeUndefined();
+      expect(tree.nodes.size).toBe(0);
+      await eventually(
+        () => Promise.resolve(worker().fileWatches.size),
+        (size) => size === 0,
+      );
+      await document.load();
+      expect(document.file).toBeUndefined();
+    } finally {
+      releaseFile();
+      releaseTree();
+      store.clear();
+    }
+  });
+
+  test("thread access revocation stops retries and removes cached bytes before another update is delivered", async () => {
+    const isolated = await home.tree();
+    mkdirSync(join(isolated.cwd, "folder"));
+    writeFileSync(join(isolated.cwd, "folder", "source.txt"), "private base");
+    const id = q(isolated.id);
+    const store = resourceStore();
+    const view = store.view(id);
+    view.open({ threadId: id, path: "folder/source.txt" });
+    const document = view.currentFile!.document;
+    await document.load();
+    document.edit();
+    document.setDraft("private draft");
+    const release = observeWorkspaceFile(store, document);
+
+    try {
+      await eventually(() => Promise.resolve(worker().fileWatches.size), Boolean);
+      await home.sql((sql) => sql`UPDATE threads SET deleted_at=now() WHERE id=${isolated.id}::uuid`);
+      writeFileSync(join(isolated.cwd, "folder", "source.txt"), "inaccessible bytes");
+      await eventually(
+        () => Promise.resolve(view.tabs.length),
+        (size) => size === 0,
+      );
+      expect(document.text).toBe("");
+      expect(document.draft).toBe("");
+      expect(document.file).toBeUndefined();
+      await eventually(
+        () => Promise.resolve(worker().fileWatches.size),
+        (size) => size === 0,
+      );
+    } finally {
+      release();
+      store.clear();
+    }
+  });
+
+  test("a replaced worktree root preserves the old draft and requires explicit reload", async () => {
+    const store = resourceStore();
+    const view = store.view(q());
+    view.open({ threadId: q(), path: "folder/source.txt" });
+    const document = view.currentFile!.document;
+    await document.load();
+    document.edit();
+    document.setDraft("draft from old worktree");
+    const release = observeWorkspaceFile(store, document);
+    const backup = `${thread.cwd}-moved`;
+    let moved = false;
+
+    try {
+      await eventually(() => Promise.resolve(worker().fileWatches.size), Boolean);
+      renameSync(thread.cwd, backup);
+      moved = true;
+      mkdirSync(thread.cwd);
+      mkdirSync(join(thread.cwd, "folder"));
+      writeFileSync(join(thread.cwd, "folder", "source.txt"), "replacement root");
+      await eventually(
+        () => Promise.resolve(document.error),
+        (error) => error.includes("working directory changed"),
+      );
+      expect(document.draft).toBe("draft from old worktree");
+      expect(await document.save()).toBe(false);
+      await document.revalidate();
+      expect(document.text).not.toBe("replacement root");
+      document.discard();
+      await document.load();
+      expect(document.text).toBe("replacement root");
+    } finally {
+      release();
+      store.clear();
+
+      if (moved) {
+        rmSync(thread.cwd, { recursive: true });
+        renameSync(backup, thread.cwd);
+      }
     }
   });
 });

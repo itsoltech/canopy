@@ -27,14 +27,14 @@ class WorkspaceChanges {
   readonly threads = new Map<string, Changes>();
   constructor(readonly store: WorkspaceStore) {
     store.watchFiles((change) => {
-      if (change) return;
+      if (change && !change.revoked) return;
 
-      for (const thread of this.threads.values()) {
+      for (const [id, thread] of this.threads) {
+        if (change && id !== change.threadId) continue;
         thread.scopes.clear();
         thread.stop();
+        this.threads.delete(id);
       }
-
-      this.threads.clear();
     });
   }
 
@@ -57,8 +57,9 @@ class WorkspaceChanges {
       released = true;
       current.scopes.delete(scope);
       current.restart();
-
-      if (!current.scopes.size) this.threads.delete(threadId);
+      queueMicrotask(() => {
+        if (!current.scopes.size && this.threads.get(threadId) === current) this.threads.delete(threadId);
+      });
     };
   }
 }
@@ -69,6 +70,7 @@ class Changes {
   #root = "";
   #cursor = "";
   #queued = false;
+  #signature = "";
 
   constructor(
     readonly store: WorkspaceStore,
@@ -78,17 +80,21 @@ class Changes {
   stop() {
     this.#connection?.abort();
     this.#connection = undefined;
+    this.#signature = "";
   }
 
   restart() {
-    this.stop();
-
-    if (this.#queued || !this.scopes.size) return;
+    if (this.#queued) return;
     this.#queued = true;
     queueMicrotask(() => {
       this.#queued = false;
 
-      if (!this.scopes.size) return;
+      if (!this.scopes.size) return this.stop();
+      const signature = JSON.stringify(this.#paths());
+
+      if (signature === this.#signature && this.#connection) return;
+      this.stop();
+      this.#signature = signature;
       const connection = new AbortController();
       this.#connection = connection;
       void this.#run(connection.signal);
@@ -99,8 +105,7 @@ class Changes {
     const watch = this.store.api.watchFiles;
 
     if (!watch) return;
-    const directories = [...new Set([...this.scopes].flatMap((scope) => scope.directories))];
-    const files = [...new Set([...this.scopes].flatMap((scope) => scope.files))];
+    const { directories, files } = this.#paths();
 
     if (directories.length + files.length > 32) {
       this.#status("Live changes paused. Collapse a directory, then reopen Files.");
@@ -127,6 +132,24 @@ class Changes {
           retries = 0;
           this.#status("");
 
+          for (const tab of this.store.views.get(this.threadId)?.files ?? []) {
+            if (update.changes.some((change) => change.kind === Kind.ROOT_CHANGED)) {
+              tab.document.invalidateRoot();
+              continue;
+            }
+
+            if (!tab.document.checkRoot(update.rootIdentity)) continue;
+
+            if (
+              update.revalidateRequired ||
+              update.changes.some(
+                (change) =>
+                  change.path === tab.document.file?.relativePath && change.kind !== Kind.DIRECTORY_INVALIDATED,
+              )
+            )
+              tab.document.stale = true;
+          }
+
           for (const scope of this.scopes) scope.update(update);
 
           if (update.changes.some((change) => change.kind === Kind.ROOT_CHANGED)) this.stop();
@@ -143,6 +166,20 @@ class Changes {
 
   #status(message: string) {
     for (const scope of this.scopes) scope.status(message);
+  }
+
+  #paths() {
+    const directories = [...new Set([...this.scopes].flatMap((scope) => scope.directories))].sort();
+    const visible = [...new Set([...this.scopes].flatMap((scope) => scope.files))];
+
+    const open =
+      this.store.views
+        .get(this.threadId)
+        ?.files.flatMap((tab) => (tab.document.file?.relativePath ? [tab.document.file.relativePath] : [])) ?? [];
+
+    const files = [...new Set([...visible, ...open])].slice(0, Math.max(0, 32 - directories.length)).sort();
+
+    return { directories, files };
   }
 }
 
@@ -165,6 +202,8 @@ export function observeWorkspaceFile(store: WorkspaceStore, document: import("./
   const path = document.file?.relativePath;
 
   if (!path) return () => {};
+
+  if (document.stale) void document.revalidate();
 
   const release = workspaceChanges(store).retain(document.target.threadId, {
     directories: [],

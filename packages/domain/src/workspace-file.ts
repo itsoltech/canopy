@@ -38,6 +38,8 @@ export interface WorkspaceFileApi {
 
 export class WorkspaceFileConflict extends Error {}
 
+export class WorkspaceAccessRevoked extends Error {}
+
 /** A document survives tab switches. Only metadata is persisted; bytes and drafts stay in memory. */
 export class WorkspaceFile {
   file: ui.ThreadFile | undefined;
@@ -57,11 +59,13 @@ export class WorkspaceFile {
   #read: AbortController | undefined;
   #refresh: AbortController | undefined;
   #refreshAgain = false;
+  #disposed = false;
   #rootChanged = false;
   changedOnDisk = false;
   removedOnDisk = false;
   diskText: string | undefined;
   watchStatus = "";
+  stale = false;
 
   constructor(
     readonly target: WorkspaceFileTarget,
@@ -100,7 +104,7 @@ export class WorkspaceFile {
   }
 
   async load(selected?: string): Promise<void> {
-    if (this.busy || this.dirty) return;
+    if (this.#disposed || this.busy || this.dirty) return;
     this.cancel();
     const read = new AbortController();
     this.#read = read;
@@ -132,6 +136,7 @@ export class WorkspaceFile {
         this.changedOnDisk = false;
         this.removedOnDisk = false;
         this.diskText = undefined;
+        this.stale = false;
         this.#rootChanged = false;
       }
     } catch (cause) {
@@ -147,7 +152,7 @@ export class WorkspaceFile {
   }
 
   edit(): void {
-    if (!this.editable || this.loading || this.busy) return;
+    if (this.#disposed || !this.editable || this.loading || this.busy || this.changedOnDisk) return;
 
     if (!this.reserveDraft(this.bytes * 2)) {
       this.error = "The draft limit was reached. Save or discard another draft, then retry.";
@@ -162,10 +167,13 @@ export class WorkspaceFile {
   }
 
   setDraft(text: string): void {
-    if (!this.editing || this.busy) return;
+    if (this.#disposed || !this.editing || this.busy) return;
     const bytes = encoder.encode(text).byteLength;
 
-    if (bytes > FILE_EDIT_BYTES || !this.reserveDraft(this.bytes + bytes)) {
+    if (
+      bytes > FILE_EDIT_BYTES ||
+      !this.reserveDraft(this.bytes + bytes + encoder.encode(this.diskText ?? "").byteLength)
+    ) {
       this.error = "The draft limit was reached. Save or discard another draft, then retry.";
     } else {
       this.draft = text;
@@ -187,7 +195,7 @@ export class WorkspaceFile {
 
   /** Revalidation never replaces a dirty base or draft; only an explicit discard can accept disk bytes. */
   async revalidate(): Promise<void> {
-    if (this.#rootChanged || !this.file || this.loading || this.busy) return;
+    if (this.#disposed || this.#rootChanged || !this.file || this.loading || this.busy) return;
 
     if (this.#refresh) {
       this.#refreshAgain = true;
@@ -205,6 +213,7 @@ export class WorkspaceFile {
       if (controller.signal.aborted || this.file !== base) return;
 
       if (!this.checkRoot(file.rootIdentity)) return;
+      this.stale = false;
       this.watchStatus = "";
       const found = file.resolution === FileResolution.FOUND || file.resolution === FileResolution.UNSPECIFIED;
 
@@ -251,7 +260,7 @@ export class WorkspaceFile {
   async save(): Promise<boolean> {
     const file = this.file;
 
-    if (!file?.sha256 || !this.dirty || this.busy) return false;
+    if (this.#disposed || !file?.sha256 || !this.dirty || this.busy) return false;
 
     if (this.changedOnDisk) {
       this.error = "The file changed on disk. Compare or copy your changes before discarding and reloading.";
@@ -266,6 +275,8 @@ export class WorkspaceFile {
 
     try {
       const saved = await this.api.write(this.target, this.path, this.draft, file.sha256, file.rootIdentity);
+
+      if (this.#disposed) return false;
       this.file = {
         ...file,
         ...saved,
@@ -280,6 +291,7 @@ export class WorkspaceFile {
 
       return true;
     } catch (cause) {
+      if (this.#disposed) return false;
       this.error = failure(cause, "Could not save the file. Check the connection, then retry.");
 
       if (cause instanceof WorkspaceFileConflict) this.changedOnDisk = true;
@@ -287,28 +299,32 @@ export class WorkspaceFile {
       return false;
     } finally {
       this.busy = false;
-      this.changed();
 
-      if (this.changedOnDisk) void this.revalidate();
+      if (!this.#disposed) this.changed();
+
+      if (!this.#disposed && this.changedOnDisk) void this.revalidate();
     }
   }
 
   async remove(): Promise<boolean> {
-    if (!this.file?.sha256 || this.busy || this.dirty || this.#rootChanged || this.changedOnDisk) return false;
+    if (this.#disposed || !this.file?.sha256 || this.busy || this.dirty || this.#rootChanged || this.changedOnDisk)
+      return false;
     this.busy = true;
     this.changed();
 
     try {
       await this.api.remove(this.target, this.path, this.file.sha256, this.file.rootIdentity);
 
-      return true;
+      return !this.#disposed;
     } catch (cause) {
+      if (this.#disposed) return false;
       this.error = failure(cause, "Could not delete the file. Reload, then retry.");
 
       return false;
     } finally {
       this.busy = false;
-      this.changed();
+
+      if (!this.#disposed) this.changed();
     }
   }
 
@@ -349,6 +365,21 @@ export class WorkspaceFile {
     this.file = undefined;
     this.lookup = undefined;
     this.text = "";
+    this.draft = "";
+    this.diskText = undefined;
+    this.changedOnDisk = false;
+    this.removedOnDisk = false;
+  }
+
+  /** Revocation fences late mutations and clears bytes even while an old view still holds this object. */
+  dispose(): void {
+    this.#disposed = true;
+    this.cancel();
+    this.file = this.lookup = undefined;
+    this.text = this.draft = "";
+    this.diskText = undefined;
+    this.editing = false;
+    this.error = "File access ended. Reopen the thread to check access.";
   }
 }
 

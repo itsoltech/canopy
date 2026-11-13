@@ -2,7 +2,8 @@ import { useEffect, useMemo } from "react";
 import { File, Paths } from "expo-file-system";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { WorkspaceStore } from "@canopy/domain/workspace";
-import { WorkspaceFileConflict } from "@canopy/domain/workspace-file";
+import { WorkspaceFileConflict, WorkspaceAccessRevoked } from "@canopy/domain/workspace-file";
+import { clearHighlights } from "./highlight-cache";
 import type { routedMobileClient } from "../../api/routes";
 import type { DeviceSession } from "../../storage/session";
 
@@ -20,14 +21,18 @@ export function useWorkspaceStore(client: ReturnType<typeof routedMobileClient> 
           async watchFiles(request, signal, receive) {
             if (!client) return;
 
-            for await (const update of client.api.watchThreadFiles(request, { signal, timeoutMs: 0 })) receive(update);
+            await fileMutation(async () => {
+              for await (const update of client.api.watchThreadFiles(request, { signal, timeoutMs: 0 }))
+                receive(update);
+            });
           },
           async listDirectory(request, signal) {
             if (!client) throw new Error("This phone is not paired. Pair it, then reopen Files.");
 
             try {
-              return await client.api.listThreadDirectory(request, { signal, timeoutMs: 12_000 });
+              return await fileMutation(() => client.api.listThreadDirectory(request, { signal, timeoutMs: 12_000 }));
             } catch (cause) {
+              if (cause instanceof WorkspaceAccessRevoked) throw cause;
               const error = ConnectError.from(cause);
               throw new Error(
                 error.code === Code.Unimplemented ? "Update Canopy on your gateway to browse files." : error.rawMessage,
@@ -37,9 +42,11 @@ export function useWorkspaceStore(client: ReturnType<typeof routedMobileClient> 
           async read(target, path, hash, signal) {
             if (!client) throw new Error("This phone is not paired. Pair it, then reopen the file.");
 
-            return client.api.readThreadFile(
-              { threadId: target.threadId, itemId: target.itemId ?? "", path, expectedSha256: hash },
-              { signal, timeoutMs: 40_000 },
+            return fileMutation(() =>
+              client.api.readThreadFile(
+                { threadId: target.threadId, itemId: target.itemId ?? "", path, expectedSha256: hash },
+                { signal, timeoutMs: 40_000 },
+              ),
             );
           },
           async write(target, path, text, hash, root) {
@@ -91,7 +98,14 @@ export function useWorkspaceStore(client: ReturnType<typeof routedMobileClient> 
       store.connect(null, () => {});
     }
 
-    return () => store.clear();
+    const release = store.watchFiles((change) => {
+      if (!change || change.revoked) clearHighlights(client);
+    });
+
+    return () => {
+      store.clear();
+      release();
+    };
   }, [client, store, scope]);
 
   return store;
@@ -102,6 +116,9 @@ async function fileMutation<T>(run: () => Promise<T>): Promise<T> {
     return await run();
   } catch (cause) {
     const error = ConnectError.from(cause);
+
+    if (error.code === Code.PermissionDenied || error.code === Code.Unauthenticated || error.code === Code.NotFound)
+      throw new WorkspaceAccessRevoked("File access ended. Reopen the thread to check access.");
 
     if (error.code === Code.Aborted) throw new WorkspaceFileConflict(error.rawMessage);
     throw cause;

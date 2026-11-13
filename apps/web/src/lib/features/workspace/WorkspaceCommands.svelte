@@ -45,7 +45,8 @@
   ]);
 
   function keydown(event: KeyboardEvent) {
-    if (event.defaultPrevented || document.querySelector("dialog:modal, [role=menu]:popover-open")) return;
+    if (event.defaultPrevented || event.isComposing || document.querySelector("dialog:modal, [role=menu]:popover-open"))
+      return;
 
     if (keybindings.matches(event, "workspace:close") && workspace.current) {
       event.preventDefault();
