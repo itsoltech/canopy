@@ -269,6 +269,14 @@ gdy wcześniej go ogłosił. Wiadomości nie czekają w kolejce wychodzącej.
 
 ## Synchronizacja (lustra tylko do odczytu)
 
+Ręczna kolejność sidebara jest metadanymi wątku w jego domu
+(`Thread.sidebar_order_key`), a czas ostatniej odpowiedzi to `last_reply_at`.
+Oba pola przechodzą istniejącą projekcją i dziennikiem przyrostów; ruch jednego
+wątku nie wysyła pełnego snapshotu historii ani listy. Na innym komputerze
+kolejność domu jest tylko do odczytu. W Custom każdy dom stanowi osobny zakres
+(lokalny pierwszy); nie można przeciągać wątków pomiędzy domami.
+Wybór trybu sortowania pozostaje preferencją urządzenia, poza config sync.
+
 ### Panel wątku i archiwum
 
 Panel wątku używa `GetThreadPanel` z capability `remote_thread_panel_v1`.
@@ -2082,11 +2090,12 @@ Stos PR-ów: `feat/linked-shared-config-N` ([etapy](#etapy-wspólnej-konfiguracj
 | Dane | Źródło | Zakres | Powód |
 |---|---|---|---|
 | wygląd: schemat, akcent, palety Light/Dark, szerokość czatu | `user_settings.appearance` | wspólne | wybór użytkownika, nie ekranu |
-| szerokość i zwinięcie sidebara, zwinięty panel wątku, rozwinięcie archiwum wątków/botów | preferencje urządzenia (web/desktop: profil przeglądarki, mobile: SecureStore) | urządzenie | stan konkretnego widoku; stare pola konta służą tylko jednorazowej inicjalizacji |
+| szerokość i zwinięcie sidebara, filtr, grupowanie, kolejność projektów, sekcja Working, tryb sortowania wątków, zwinięty panel wątku, rozwinięcie archiwum wątków/botów | preferencje urządzenia (web/desktop: profil przeglądarki, mobile: SecureStore) | urządzenie | stan konkretnego widoku; stare pola konta służą tylko jednorazowej inicjalizacji |
 | ogólne (potwierdzenia), kompozytor (Enter w trakcie tury) | `user_settings.general`, `.composer` | wspólne | nawyki użytkownika |
 | domyślne ustawienia wątku | `user_settings.thread_defaults` | wspólne bez `workspace_id` | workspace jest katalogiem jednej maszyny |
 | generowanie tekstu, strefa czasowa | `user_settings.text_generation`, `.timezone` | wspólne | jedno konto, jedna osoba |
-| sidebar: przypięte wątki i boty, filtr i kolejność projektów | `user_settings.sidebar` | wspólne | id jako globalne odwołania |
+| sidebar: przypięte wątki i boty | `user_settings.sidebar` | wspólne | id jako globalne odwołania |
+| ręczna kolejność wątków | `threads.sidebar_order_key` | właściciel, dom wątku | jeden klucz na wątek; przyrostowe metadane dla innych urządzeń, edycja w domu |
 | domyślna częstotliwość sprawdzania CLI | `user_settings.cli_updates` | wspólne | wartość domyślna konta |
 | nadpisanie częstotliwości CLI na workerze | `worker_configs.config` | worker | ustawienie maszyny |
 | limity załączników, adres gatewaya dla workerów | `user_settings` | komputer | konfiguracja tego gatewaya |

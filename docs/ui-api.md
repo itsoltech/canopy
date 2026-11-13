@@ -1833,6 +1833,32 @@ wymiany botów niedostępnych, zarchiwizowanych albo przeniesionych.
 
 ### Preferencje General i aktualizacje
 
+`DeviceViewPreferences.threadSortMode` przechowuje lokalnie `activity`, `created`
+albo `custom`; brak wartości inicjalizuje `activity`. Wybór nie jest polem ustawień
+konta ani wspólnej konfiguracji. Domyślny tryb pozostaje „Last activity”, ale używa
+`Thread.last_reply_at` (ostatnia zakończona wiadomość agenta), z fallbackiem do
+utworzenia przed pierwszą odpowiedzią. Wysłanie wiadomości, start tury i zmiana
+statusu nie podnoszą wątku. „Created” sortuje po `created_at`, najnowsze najpierw.
+
+„Custom” korzysta z `sidebar_order_key`; nowe wątki zaczynają na górze, stare bez
+klucza zachowują kolejność utworzenia. `ReorderThread` przyjmuje id przenoszonego
+wątku i opcjonalne `after_thread_id` / `before_thread_id`. Odpowiedź oraz overview
+zawierają jeden zmieniony wątek, bez pobierania listy. Puste obie granice oznaczają
+górę. Serwer waliduje wszystkie id w zakresie właściciela. Szczegóły migracji:
+[data-model.md](data-model.md).
+
+Sekcje Pinned, Needs attention, grupy projektów oraz Working pozostają rozłączne.
+Wybrany tryb porządkuje wątki **wewnątrz** każdej sekcji; kolejność projektów ma
+nadal własne ustawienie. Przeciąganie ręczne nie zmienia projektu ani stanu pracy
+i nie przekracza nagłówków, z wyjątkiem przypinania/odpinania. Archiwum zachowuje
+dotychczasową kolejność archiwizacji. Zagnieżdżone wątki boczne zachowują drzewo;
+przypięte boczne można porządkować jak pozostałe korzenie.
+
+W Custom wątki są uporządkowane osobno według domu (lokalne najpierw, potem id
+komputera). Zdalna kolejność jest widoczna, ale edytowalna tylko w domu wątku;
+nie ma przenoszenia kluczy pomiędzy niezależnymi bazami. Przypięcia zdalnych wątków
+pozostają dostępne w istniejącym menu. Zmiana klucza jest zwykłą deltą metadanych.
+
 Filtr, grupowanie i kolejność projektów, sekcja Working, rozwinięcie archiwum
 wątków/botów, szerokość i zwinięcie sidebara oraz geometria paneli wątku i PR
 należą do urządzenia i gatewaya (`DevicePreferences`,

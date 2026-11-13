@@ -1,5 +1,6 @@
 import type { ui } from "@canopy/contracts";
-import { needsYou, treeActivity } from "./thread-activity.ts";
+import { needsYou } from "./thread-activity.ts";
+import { compareThreadOrder, type ThreadSortMode } from "./thread-order.ts";
 import { groupSideThreads, isSide } from "./thread-tree.ts";
 
 export const isArchivedSidebarThread = (thread: ui.Thread | undefined): thread is ui.Thread =>
@@ -20,6 +21,7 @@ export function sidebarThreads(
   settings: ui.SidebarSettings,
   query: string,
   projectName: (id: string) => string,
+  sortMode: ThreadSortMode = "activity",
 ) {
   const selected = new Set(settings.projectIds);
   const eligible = threads.filter((t) => !t.deletedAt && (!selected.size || selected.has(t.projectId)));
@@ -50,14 +52,7 @@ export function sidebarThreads(
   });
 
   roots.sort((a, b) => {
-    const aTree = [a, ...(sides.get(a.id) ?? []).filter((t) => t.status !== "archived")];
-    const bTree = [b, ...(sides.get(b.id) ?? []).filter((t) => t.status !== "archived")];
-
-    return (
-      Number(pins.has(b.id)) - Number(pins.has(a.id)) ||
-      Number(bTree.some(needsYou)) - Number(aTree.some(needsYou)) ||
-      Number(treeActivity(bTree) - treeActivity(aTree))
-    );
+    return Number(pins.has(b.id)) - Number(pins.has(a.id)) || compareThreadOrder(a, b, sortMode);
   });
 
   return { roots, sides, pins };

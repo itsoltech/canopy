@@ -13,7 +13,7 @@ const LIST_COLUMNS = `t.id,t.project_id,t.owner_user_id,t.kind,t.parent_thread_i
   t.workspace_id,t.cwd,t.fork_source_thread_id,t.fork_after_turn_id,t.status,t.status_detail,t.title,
   t.title_source,t.title_revision,t.title_requested,t.last_seq,t.created_at,t.archived_at,t.archived_by,
   t.archived_by_thread_id,t.deleted_at,t.worktree_id,NULL::text AS provider_thread_id,''::text AS title_context,
-  t.newest_pull_request,t.pull_request_count,t.pull_request_revision,t.list_settings AS settings`;
+  t.newest_pull_request,t.pull_request_count,t.pull_request_revision,t.sidebar_order_key,t.list_settings AS settings`;
 
 export const listThreadSelect = (where: string, extraColumns = "") => threadSelect(where, extraColumns, true);
 
@@ -26,6 +26,9 @@ export const threadSelect = (where: string, extraColumns = "", metadata = false)
                  greatest(t.created_at, (SELECT greatest(u.queued_at, coalesce(u.started_at, u.queued_at), coalesce(u.completed_at, u.queued_at))
                    FROM turns u WHERE u.thread_id = t.id
                    ORDER BY greatest(u.queued_at, coalesce(u.started_at, u.queued_at), coalesce(u.completed_at, u.queued_at)) DESC LIMIT 1)) AS last_activity_at,
+                 (SELECT e.occurred_at FROM thread_items m JOIN thread_events e ON e.thread_id = m.thread_id AND e.seq = m.last_seq
+                   WHERE m.thread_id = t.id AND m.type = 'agent_message' AND m.status = 'completed'
+                   ORDER BY m.last_seq DESC LIMIT 1) AS last_reply_at,
                  (SELECT g.status FROM goals g WHERE g.thread_id = t.id AND g.status NOT IN ('achieved', 'cancelled') LIMIT 1) AS goal_status,
                  (SELECT count(*) FROM thread_items b WHERE b.thread_id = t.id AND b.type = 'background_task' AND b.status = 'in_progress') AS background_tasks,
                  -- The unseen result with what a notification shows: the turn's last answer or its error.

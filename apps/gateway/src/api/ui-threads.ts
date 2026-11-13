@@ -16,6 +16,7 @@ export function threadsHandlers(
   | "listThreads"
   | "listArchivedThreads"
   | "getThread"
+  | "reorderThread"
   | "createThread"
   | "sendMessage"
   | "interruptThread"
@@ -35,6 +36,8 @@ export function threadsHandlers(
   | "restoreThread"
 > {
   return {
+    reorderThread: (request) =>
+      guard(async () => create(ui.GetThreadResponseSchema, { thread: await core.reorderThread(request) })),
     listThreads: (request) =>
       guard(async () =>
         create(ui.ListThreadsResponseSchema, {

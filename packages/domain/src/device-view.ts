@@ -2,6 +2,7 @@ import { Schema } from "effect";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { storedSidebarWidth } from "./appearance/sidebar.ts";
+import type { ThreadSortMode } from "./thread-order.ts";
 
 /** Desktop PR geometry in pixels; a narrow window may clamp below the preferred minimum. */
 export const PULL_REQUEST_WIDTH = { default: 576, min: 320, max: 1200, minThread: 384 } as const;
@@ -17,6 +18,7 @@ const savedView = Schema.Struct({
   groupByProject: Schema.optionalKey(Schema.Boolean),
   projectOrder: Schema.optionalKey(Schema.Literals([0, 1, 2])),
   workingSection: Schema.optionalKey(Schema.Boolean),
+  threadSortMode: Schema.optionalKey(Schema.Literals(["activity", "created", "custom"])),
   lastSeenAppVersion: Schema.optionalKey(Schema.String),
   appUpdateFrom: Schema.optionalKey(Schema.String),
 });
@@ -27,6 +29,7 @@ export type DeviceSidebarValues = Pick<
 >;
 
 export interface DeviceViewValues extends DeviceSidebarValues {
+  threadSortMode: ThreadSortMode;
   lastSeenAppVersion: string;
   appUpdateFrom: string;
   archivedThreadsExpanded: boolean;
@@ -38,6 +41,7 @@ export interface DeviceViewValues extends DeviceSidebarValues {
 }
 
 export const deviceViewDefaults: DeviceViewValues = {
+  threadSortMode: "activity",
   lastSeenAppVersion: "",
   appUpdateFrom: "",
   archivedThreadsExpanded: false,
