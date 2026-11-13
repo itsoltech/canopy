@@ -11,8 +11,7 @@ import { LinkPullRequest } from "./LinkPullRequest";
 import { CreatePullRequest } from "./CreatePullRequest";
 import { PullRequestStatus } from "./PullRequestStatus";
 import { checkLook } from "@canopy/domain/github-pr";
-import { Icon } from "../../ui/Icon";
-import { toneColor } from "./presentation";
+import { CheckStateIcon } from "./CheckStateIcon";
 import { toast } from "../../ui/Toast";
 
 export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onClose: () => void }) {
@@ -142,7 +141,7 @@ function ThreadPullRequestRow({
           {pr.title || pr.ref.repositoryName}
         </Text>
         <Text style={[styles.chromeMeta, { color: c.muted }]}>#{pr.ref.number}</Text>
-        <Icon name={checkLook(pr.checksState).icon} color={toneColor(c, checkLook(pr.checksState).tone)} />
+        <CheckStateIcon look={checkLook(pr.checksState)} label={`Checks: ${checkLook(pr.checksState).label}`} />
       </Pressable>
       {stale && pr.verifiedAt && (
         <Text style={[styles.meta, { color: c.muted }]}>

@@ -5,9 +5,8 @@
   import { safeHref } from "@canopy/domain/markdown";
   import { formatAge, formatDateTime } from "#lib/shared/format.ts";
   import { clock } from "#lib/shared/clock.svelte.ts";
-  import Icon from "#lib/shared/ui/Icon.svelte";
+  import CheckStateIcon from "./CheckStateIcon.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
-  import { toneClasses } from "./presentation.ts";
   import GitHubAvatar from "./GitHubAvatar.svelte";
 
   let {
@@ -37,9 +36,7 @@
 <div class={["flex min-w-0 items-center gap-2 text-sm/5 sm:text-xs/5", className]}>
   {#if withAvatar}<GitHubAvatar login={author} url={avatarUrl} {pullRequestId} compact />{/if}
   <p class="min-w-0 truncate font-medium" title={author}>{author || "GitHub"}</p>
-  <span class={["shrink-0", toneClasses[look.tone]]} {@attach tooltip(look.label)}
-    ><Icon name={look.icon} label={look.label} tone="inherit" /></span
-  >
+  <span class="shrink-0" {@attach tooltip(look.label)}><CheckStateIcon {look} /></span>
   {#if relative}<a
       href={safeHref(url)}
       target="_blank"

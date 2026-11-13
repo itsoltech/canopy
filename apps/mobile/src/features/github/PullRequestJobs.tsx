@@ -5,11 +5,10 @@ import { checkLook } from "@canopy/domain/github-pr";
 import { useSession } from "../../state/session";
 import { useColors, useTypography } from "../../ui/theme";
 import { Button } from "../../ui/components";
-import { StatusIcon as Icon } from "./StatusIcon";
+import { CheckStateIcon } from "./CheckStateIcon";
 import { usePages } from "./usePages";
 import { PageControls } from "./PageControls";
 import { PullRequestLog } from "./PullRequestLog";
-import { toneColor } from "./presentation";
 import type { github } from "@canopy/contracts";
 import { CiActions } from "./CiActions";
 import { prCitation, prCheckFailed } from "@canopy/domain";
@@ -76,7 +75,7 @@ export function PullRequestJobs({ snapshot, runId }: { snapshot: github.PullRequ
 
         return (
           <View key={job.id} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Icon name={look.icon} label={look.label} color={toneColor(c, look.tone)} />
+            <CheckStateIcon look={look} showStatus />
             <Text numberOfLines={2} style={[type.small, { flex: 1, color: c.text }]}>
               {job.name}
             </Text>

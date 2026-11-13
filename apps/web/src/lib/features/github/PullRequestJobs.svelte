@@ -4,7 +4,7 @@
   import { github } from "@canopy/contracts";
   import { checkLook } from "@canopy/domain/github-pr";
   import type { ClassValue } from "svelte/elements";
-  import Icon from "#lib/shared/ui/Icon.svelte";
+  import CheckStateIcon from "./CheckStateIcon.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import { PullRequestPages } from "./pages.svelte.ts";
   import PageControls from "./PageControls.svelte";
@@ -12,7 +12,6 @@
   import * as api from "./api.ts";
   import { invalidations } from "./invalidations.ts";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
-  import { toneClasses } from "./presentation.ts";
   import CiActions from "./CiActions.svelte";
   import ReadSkeleton from "./ReadSkeleton.svelte";
   import { prCitation, prCheckFailed } from "@canopy/domain";
@@ -74,9 +73,7 @@
     {#each pages.current?.jobs ?? [] as job (job.id)}
       {@const look = checkLook(job.state)}
       <div class="group/pr flex min-w-0 items-center gap-2 text-sm/5 sm:text-xs/5">
-        <span {@attach tooltip(look.label)}
-          ><Icon name={look.icon} label={look.label} tone="inherit" class={toneClasses[look.tone]} /></span
-        >
+        <span {@attach tooltip(look.label)}><CheckStateIcon {look} /></span>
         <p class="min-w-0 flex-1 truncate" title={job.name}>{job.name}</p>
         <CiActions
           {snapshot}

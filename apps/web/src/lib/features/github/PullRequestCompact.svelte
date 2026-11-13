@@ -1,13 +1,12 @@
 <script lang="ts">
   import type { github } from "@canopy/contracts";
   import { checkLook } from "@canopy/domain/github-pr";
-  import Icon from "#lib/shared/ui/Icon.svelte";
+  import CheckStateIcon from "./CheckStateIcon.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import PullRequestState from "./PullRequestState.svelte";
   import PullRequestMenu from "./PullRequestMenu.svelte";
-  import { toneClasses } from "./presentation.ts";
 
   let {
     snapshot,
@@ -55,8 +54,8 @@
     >
     <p class="truncate font-medium" {@attach tooltip(title)}>{title}</p>
   </div>
-  <span class="shrink-0" {@attach tooltip(`Checks: ${checks.label}`)}
-    ><Icon name={checks.icon} class={toneClasses[checks.tone]} label={`Checks: ${checks.label}`} /></span
+  <span class="size-4 shrink-0" {@attach tooltip(`Checks: ${checks.label}`)}
+    >{#if compact}<CheckStateIcon look={checks} label={`Checks: ${checks.label}`} />{/if}</span
   >
   {#if primary}<span
       class="max-w-28 min-w-0 shrink-0"
