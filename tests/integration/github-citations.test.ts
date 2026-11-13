@@ -106,6 +106,8 @@ describe.skipIf(!dockerAvailable)("PR citations through gateway and real harness
       const calls = [...github.counts];
       // Descriptive fields from a client must never override the source in the owner-scoped cache.
       quotes[1]!.sourceAuthor = "forged";
+      // A selection carries visible text, even when its source comment is Markdown.
+      quotes[1]!.sourceKind = "text_selection";
       quotes[1]!.pullRequest!.repository = "foreign/private";
       quotes[1]!.pullRequest!.path = "wrong.ts";
       quotes[1]!.pullRequest!.diffHunk = "untrusted client context";
@@ -127,6 +129,7 @@ describe.skipIf(!dockerAvailable)("PR citations through gateway and real harness
       expect(turn.quotes[1]!.pullRequest?.line).toBe(3);
       expect(turn.quotes[1]!.pullRequest?.diffHunk).toHaveLength(8000);
       expect(turn.quotes[1]!.sourceAuthor).toBe("reviewer");
+      expect(turn.quotes[1]!.sourceKind).toBe("text_selection");
       expect(turn.inputText).toContain(
         "Pull request review comment by @reviewer on itsoltech/canopy#42 (src/safe.ts:3):",
       );

@@ -1,10 +1,11 @@
 import { create } from "@bufbuild/protobuf";
 import { MentionSchema, type Mention } from "@canopy/contracts";
 import { quoteBlock, quotesNote, type NotedQuote } from "./quotes.ts";
+import { citationPlainText } from "./label.ts";
 
 /** A compact, readable marker; its range identifies the citation. */
-export function citationLabel(text: string, max = 32): string {
-  const line = text.replace(/\s+/g, " ").trim();
+export function citationLabel(text: string, max = 32, markdown = true): string {
+  const line = (markdown ? citationPlainText(text) : text).replace(/\s+/g, " ").trim();
 
   return line.length > max ? `${line.slice(0, max).trimEnd()}…` : line;
 }

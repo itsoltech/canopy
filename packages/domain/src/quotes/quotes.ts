@@ -9,6 +9,8 @@ import { Match } from "effect";
 
 export const QUOTE_SOURCE_KINDS = [
   "agent_message",
+  "agent_message_markdown",
+  "text_selection",
   "reasoning",
   "command_output",
   "tool_call",
@@ -61,6 +63,8 @@ export function isCodeQuote(kind: string | undefined): boolean {
 
 const origins: Record<QuoteSourceKind, string> = {
   agent_message: "your message",
+  agent_message_markdown: "your message",
+  text_selection: "this conversation",
   reasoning: "your reasoning",
   command_output: "command output",
   tool_call: "a tool call",

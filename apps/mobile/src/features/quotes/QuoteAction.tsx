@@ -25,10 +25,10 @@ export function useQuotePassage(text: string, kind: string, language = "") {
       available && open ? (
         <QuoteEditor
           quote={create(ui.QuoteSchema, {
-            text: kind === "agent_message" || kind === "reasoning" ? markdownText(text) : text,
+            text: kind === "reasoning" ? markdownText(text) : text,
             sourceItemId: itemId,
             sourceThreadId: directory.sourceId || directory.currentId,
-            sourceKind: kind,
+            sourceKind: kind === "agent_message" ? "agent_message_markdown" : kind,
             sourceAuthor: providerName(directory.thread(directory.sourceId || directory.currentId)?.provider ?? 0),
             sourceTime: directory.quoteTime?.(itemId),
             language,

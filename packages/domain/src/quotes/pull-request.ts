@@ -1,8 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { ui, type github } from "@canopy/contracts";
-import { citationLabel } from "./inline.ts";
-import { QUOTE_LIMITS, type NotedQuote } from "./quotes.ts";
+import { QUOTE_LIMITS } from "./quotes.ts";
 
 export function prCitation(
   snapshot: github.PullRequestSnapshot,
@@ -61,26 +60,3 @@ export function prCommentCitation(
 
 export const prCheckFailed = (state: string) =>
   ["failure", "failed", "error", "timed_out", "action_required", "startup_failure"].includes(state);
-
-export function citationTokenLabel(quote: NotedQuote): string {
-  return quote.pullRequest
-    ? `@${quote.sourceAuthor || "GitHub"} · ${citationLabel(quote.text)}`
-    : citationLabel(quote.text);
-}
-
-export function citationPreview(quote: NotedQuote): string {
-  const pr = quote.pullRequest;
-
-  const source = pr
-    ? [
-        `${pr.repository}#${pr.number}`,
-        pr.path && `${pr.path}${pr.line ? `:${pr.line}` : ""}`,
-        pr.firstLine && `Line ${pr.firstLine}`,
-        pr.url,
-      ]
-    : [quote.sourceKind?.replaceAll("_", " ")];
-
-  return [quote.text, [quote.sourceAuthor || "Agent", ...source, quote.sourceTime].filter(Boolean).join(" · ")].join(
-    "\n\n",
-  );
-}

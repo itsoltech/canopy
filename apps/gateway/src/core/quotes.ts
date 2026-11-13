@@ -41,7 +41,10 @@ export function checkedQuotes(
       if (quote.sourceKind && !isQuoteSourceKind(quote.sourceKind))
         throw invalid(`${label} has an unknown source kind "${quote.sourceKind}"`);
 
-      if ((quote.sourceKind === "pull_request") !== Boolean(quote.pullRequest))
+      if (
+        (quote.sourceKind === "pull_request" && !quote.pullRequest) ||
+        (quote.pullRequest && !["pull_request", "text_selection"].includes(quote.sourceKind))
+      )
         throw invalid(`${label} has an invalid pull request source`);
 
       if (quote.sourceItemId.length > MAX_ID || quote.sourceThreadId.length > MAX_ID || quote.language.length > 40)

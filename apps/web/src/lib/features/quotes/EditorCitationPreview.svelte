@@ -3,7 +3,7 @@
   import { quoteOf } from "#lib/features/mentions/editor.ts";
   import Popover from "#lib/shared/ui/Popover.svelte";
   import type { QuoteDraft } from "./quote.ts";
-  import { citationTitle } from "./inline.ts";
+  import CitationPreview from "./CitationPreview.svelte";
 
   let { editor, disabled = false }: { editor: EditorControls | undefined; disabled?: boolean } = $props();
   let preview = $state<{ quote: QuoteDraft; anchor: HTMLElement }>();
@@ -78,9 +78,14 @@
   focusOnOpen={false}
   class="w-80 max-w-[calc(100vw-1rem)]"
 >
-  <div role="presentation" onpointerenter={() => clearTimeout(timer)} onpointerleave={close} class="p-3">
-    <p {id} class="max-h-72 overflow-y-auto break-words whitespace-pre-wrap select-text">
-      {preview ? citationTitle(preview.quote) : ""}
-    </p>
+  <div
+    {id}
+    role="presentation"
+    onpointerenter={() => clearTimeout(timer)}
+    onpointerleave={close}
+    onfocusin={() => clearTimeout(timer)}
+    class="p-3"
+  >
+    {#if preview}<CitationPreview quote={preview.quote} />{/if}
   </div>
 </Popover>

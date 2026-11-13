@@ -1,13 +1,13 @@
 <script lang="ts">
   import type { ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
-  import { citationLabel, citationTokenLabel } from "@canopy/domain";
+  import { citationTokenLabel } from "@canopy/domain";
   import HoverCard from "#lib/shared/ui/HoverCard.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import { CHIP_CLASS } from "#lib/features/mentions/kinds.ts";
   import { useCitationSource } from "./citation-source.ts";
   import { toast } from "#lib/shared/ui/toast.svelte.ts";
-  import { citationTitle } from "./inline.ts";
+  import CitationPreview from "./CitationPreview.svelte";
 
   let { quote, class: className }: { quote: ui.Quote; class?: ClassValue } = $props();
   const revealSource = useCitationSource();
@@ -18,12 +18,12 @@
   }
 </script>
 
-<HoverCard label="Citation" touch="press" class="max-w-[calc(100vw-1rem)]">
+<HoverCard label="Citation" touch="press" class="w-80 max-w-[calc(100vw-1rem)]">
   {#snippet trigger(props)}
     <button
       type="button"
       {...props}
-      aria-label="Citation: {citationLabel(quote.text)}"
+      aria-label="Citation: {citationTokenLabel(quote)}"
       onclick={reveal}
       class={[CHIP_CLASS, "max-w-64 text-left focus-ring", className]}
     >
@@ -34,6 +34,5 @@
       <span class="truncate">{citationTokenLabel(quote)}</span>
     </button>
   {/snippet}
-  <p class="max-h-72 overflow-y-auto break-words whitespace-pre-wrap select-text">{citationTitle(quote)}</p>
-  {#if quote.comment}<p class="pt-2 whitespace-pre-wrap select-text">{quote.comment}</p>{/if}
+  <CitationPreview {quote} />
 </HoverCard>

@@ -14,4 +14,6 @@ export {
 
 export { citationLabel, citationPlaceholder, composeQuotes, relocateQuotes, inlineLegacyQuotes } from "./inline.ts";
 
-export { prCitation, prCommentCitation, prCheckFailed, citationTokenLabel, citationPreview } from "./pull-request.ts";
+export { prCitation, prCommentCitation, prCheckFailed } from "./pull-request.ts";
+
+export { citationTokenLabel, citationPreview, citationTitle, citationHasMarkdown } from "./preview.ts";

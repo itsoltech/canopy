@@ -218,7 +218,7 @@ export function quoteSourceOf(element: Element | null): QuoteSource | undefined 
       return {
         itemId: "",
         threadId: "",
-        kind,
+        kind: "text_selection",
         language: "",
         author: quote.sourceAuthor,
         time: quote.sourceTime,
