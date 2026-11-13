@@ -65,6 +65,8 @@ export function toUiThread(row: ThreadRow): ui.Thread {
     pullRequestCount: row.pull_request_count ?? 0,
     pullRequestRevision: BigInt(row.pull_request_revision ?? 0),
     id: row.id,
+    sidebarOrderKey: row.sidebar_order_key ?? "",
+    lastReplyAt: row.last_reply_at ? timestampFromDate(new Date(row.last_reply_at)) : undefined,
     projectId: row.project_id,
     kind: row.kind === "side" || row.remote_parent_ref ? ui.ThreadKind.SIDE : ui.ThreadKind.MAIN,
     parentThreadId: row.parent_thread_id ?? (row.remote_parent_kind === "thread" ? (row.remote_parent_ref ?? "") : ""),

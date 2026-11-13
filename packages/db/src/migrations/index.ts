@@ -29,6 +29,7 @@ import threadPanelCache from "./0128_thread_panel_cache.sql" with { type: "text"
 import diagnostics from "./0129_diagnostics.sql" with { type: "text" };
 import diagnosticsActions from "./0130_diagnostics_actions.sql" with { type: "text" };
 import diagnosticsLogs from "./0131_diagnostics_logs.sql" with { type: "text" };
+import threadOrder from "./0133_thread_order.sql" with { type: "text" };
 import botViewDelta from "./0091_bot_view_delta.sql" with { type: "text" };
 import workerConfig from "./0002_worker_config.sql" with { type: "text" };
 import gatewayRuntime from "./0003_gateway_runtime.sql" with { type: "text" };
@@ -278,6 +279,7 @@ export const migrations = Migrator.fromRecord({
   "0129_diagnostics": sqlFile(diagnostics),
   "0130_diagnostics_actions": sqlFile(diagnosticsActions),
   "0131_diagnostics_logs": sqlFile(diagnosticsLogs),
+  "0133_thread_order": sqlFile(threadOrder),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

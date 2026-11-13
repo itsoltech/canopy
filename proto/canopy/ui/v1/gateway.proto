@@ -260,6 +260,8 @@ service GatewayService {
   rpc ListModels(ListModelsRequest) returns (ListModelsResponse);
   // Domyślny model i wysiłek wątku (kolejne tury bez nadpisania w wiadomości).
   rpc UpdateThread(UpdateThreadRequest) returns (UpdateThreadResponse);
+  // Changes one thread's manual position; bounds are owned, active threads.
+  rpc ReorderThread(ReorderThreadRequest) returns (GetThreadResponse);
   rpc RegenerateTitle(RegenerateTitleRequest) returns (RegenerateTitleResponse);
   // Cel harnessu w wątku (docs/goals.md): ustawienie, pauza, wznowienie, usunięcie.
   rpc SetGoal(SetGoalRequest) returns (SetGoalResponse);
@@ -740,6 +742,19 @@ message Thread {
   uint64 pull_request_revision = 1032;
   // Powód ograniczenia odziedziczonego/skonfigurowanego trybu przy utworzeniu wątku.
   string permission_mode_note = 1040;
+  // Owner's manual sidebar arrangement. Empty on threads predating the migration.
+  string sidebar_order_key = 1050;
+  // Latest completed agent message; absent before the first reply.
+  google.protobuf.Timestamp last_reply_at = 1051;
+}
+
+message ReorderThreadRequest {
+  string thread_id = 1;
+  // Empty means the beginning/end of the visible section, respectively.
+  string after_thread_id = 2;
+  string before_thread_id = 3;
+  // Grouped clients prevent moves across project groups.
+  bool within_project = 4;
 }
 
 message ComposerTurnChoices {

@@ -105,6 +105,7 @@ export class GatewayCore {
   declare listThreads: CoreThreadsMethods["listThreads"];
   declare listArchivedThreads: CoreThreadsMethods["listArchivedThreads"];
   declare getThread: CoreThreadsMethods["getThread"];
+  declare reorderThread: CoreThreadsMethods["reorderThread"];
   declare setThreadRead: CoreThreadsMethods["setThreadRead"];
   declare setThreadArchived: CoreThreadsMethods["setThreadArchived"];
   declare deleteThread: CoreThreadsMethods["deleteThread"];

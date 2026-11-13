@@ -12,8 +12,10 @@ import { permissionModeOf } from "./ui-mappers.ts";
 import { storageText } from "./event-text.ts";
 import type { AutomatedAccess } from "./automated-permissions.ts";
 import { queryFamily } from "../diagnostics/query-context.ts";
+import { reorderThread } from "./thread-order.ts";
 
 export interface ThreadStore {
+  reorderThread(ownerUserId: string, request: ui.ReorderThreadRequest): Fx<void>;
   /** `id`: a thread moved here from a linked computer keeps its id (docs/linked-computers.md, stage 8). */
   createThread(
     ownerUserId: string,
@@ -104,6 +106,7 @@ const archivedThreads = (sql: SqlClient.SqlClient, ownerUserId: string, request:
 
 export function threadStore(sql: SqlClient.SqlClient): Omit<ThreadStore, "createThread"> {
   const store: Omit<ThreadStore, "createThread"> = {
+    reorderThread: (owner, request) => reorderThread(sql, owner, request),
     thread: (threadId, includeDeleted = false, metadataOnly = false) =>
       sql
         .unsafe<ThreadRow>(

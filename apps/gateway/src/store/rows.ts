@@ -53,6 +53,8 @@ export interface ThreadRow {
   title_context: string;
   last_seq: bigint;
   created_at: Date;
+  sidebar_order_key?: string | null;
+  last_reply_at?: Date | null;
   archived_at?: Date | null;
   /** Exact keyset position; Date alone drops PostgreSQL microseconds. */
   archived_at_key?: string | null;

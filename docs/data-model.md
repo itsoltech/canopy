@@ -1,5 +1,18 @@
 # Model danych (PostgreSQL)
 
+Migracja `0133_thread_order` dodaje nullable `threads.sidebar_order_key` (base-62,
+porównanie bajtowe `C`). Stare wątki bez klucza używają malejącego czasu utworzenia
+i id; migracja nie przepisuje historii. Trigger przy tworzeniu przydziela klucz
+przed pierwszym aktywnym wątkiem właściciela. `ReorderThread` zapisuje jeden wiersz,
+sprawdza właściciela, aktywność, granice oraz opcjonalny zakres projektu.
+Blokada advisory właściciela serializuje przydzielanie pozycji bez blokowania FK
+do `users`. Po nieaktualnych granicach operacja wybiera wolny podprzedział;
+odwrócone granice są odrzucane. Prefiks długości części całkowitej pozwala dokładać
+na obu końcach bez liniowego wydłużania kluczy. Część ułamkowa może rosnąć przy
+zagęszczaniu jednego przedziału, bez przepisywania całej listy po ruchu.
+Indeks odpowiada zakresowi aktywnych wątków właściciela.
+Osobny indeks ostatnich wiadomości agenta wspiera `Thread.last_reply_at`.
+
 Migracja `0124_thread_range_lock_order` dodaje niezmienny wiersz
 `thread_replication_sources` pomiędzy `threads` a aktualizowanym zegarem
 `thread_replication_clock`. Zachowuje istniejące epoki, sekwencje, payloady

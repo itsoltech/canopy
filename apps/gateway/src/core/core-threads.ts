@@ -131,6 +131,7 @@ export async function coreStartThread(hostContext: GatewayCore, row: ThreadRow):
 }
 
 export interface CoreThreadsMethods {
+  reorderThread(request: ui.ReorderThreadRequest): Promise<ui.Thread>;
   listThreads(projectId: string, includeArchived?: boolean, sidebarOnly?: boolean): Promise<ui.Thread[]>;
   listArchivedThreads(request: ui.ListArchivedThreadsRequest): Promise<ui.ListArchivedThreadsResponse>;
   getThread(threadId: string): Promise<ui.Thread>;
@@ -154,6 +155,12 @@ export interface CoreThreadsMethods {
 }
 
 export const coreThreadsMethods: CoreThreadsMethods = {
+  async reorderThread(this: GatewayCore, request: ui.ReorderThreadRequest): Promise<ui.Thread> {
+    await coreRun(this, (s) => s.reorderThread(this[coreState].options.userId, request));
+    await coreBroadcastThread(this, request.threadId);
+
+    return this.getThread(request.threadId);
+  },
   async listThreads(
     this: GatewayCore,
     projectId: string,
