@@ -1,9 +1,12 @@
 # Zakładki wątku i moduł plików
 
-Status: **projekt v2 po decyzji o układzie; bez implementacji**. Zakładki w jednym
-rzędzie nagłówka, pasek ikon z jednym panelem oraz podsumowanie zależne od zajęcia
-panelu wynikają z decyzji użytkownika. Pozostałe pytania są w §11. Dokument nie
-zmienia działającego API, ustawień ani wyglądu klientów i nie zatwierdza implementacji.
+Status: **projekt v2 zaakceptowany do implementacji w siedmiu warstwach**.
+Zakładki dzielą rząd z sygnetem projektu i tytułem wątku. Pasek ikon obsługuje jeden
+panel; podsumowanie jest dokowane bez modułu, pływające na żądanie przy module,
+a na wąskim ekranie jest arkuszem. Ustalono jeden zastępowalny czysty preview,
+utrwalany przez Edit/Keep tab/dwuklik, drzewo ograniczone do cwd/worktree wątku
+i mobilną edycję natywną bez kolorów podczas pisania (kolory w viewerze i Preview
+changes). Ten PR opisuje projekt; realizacja następuje w osobnym stosie.
 
 Cel: czytać i edytować pliki obok kontekstu wątku bez wielokrotnego otwierania modala.
 Priorytet: otwarcie wątku, pisanie i streaming nie płacą za nieotwarte moduły.
@@ -36,6 +39,30 @@ ale usuwa pozycję przed otwarciem; fragment linku także nie dociera do viewera
 Obsługa zakresów i skok do linii są więc nową funkcją. Obecny webowy highlighter
 ładuje gramatyki leniwie, ale tokenizuje na głównym wątku; przeniesienie pracy
 do osobnego wykonawcy również wymaga zmiany. Mobile obecnie pokazuje kod bez kolorów.
+
+### Zgodność z bieżącym klientem
+
+Projekt zachowuje następujące zachowania przy przenoszeniu istniejących powierzchni:
+
+- Jeden stale dostępny przycisk menu wiersza PR/checka/joba łączy akcje Canopy,
+  cytowanie i akcje zewnętrzne, rozdzielone opisanymi grupami (#608). Nie wracają
+  osobne menu ani dodatkowy przycisk pojawiający się na hoverze.
+- Odświeżanie i luki overview unieważniają świeżość PR, zachowując zawartość,
+  zamontowane sekcje, scroll i rozwinięcia (#611). Skeleton służy pierwszemu
+  odczytowi, a cofnięcie dostępu nadal czyści prywatne dane. Minimalny panel
+  i pełna karta korzystają z tej samej dzierżawy i granic rewizji dostępu.
+- Dogrzewanie wątków (#622/#623/#629) pozostaje odrębnym ograniczonym cache
+  transkryptu: web/desktop 32 wpisy / 32 MiB, mobile 16 / 24 MiB. Nie pobiera
+  drzew, plików, tokenów ani modułów workspace'u. Jeden job naraz, odstępy startów
+  2 s web / 5 s mobile i pierwszeństwo nawigacji pozostają bez zmian.
+- Sortowanie sidebara Created/Last activity/Custom, pinning, przeciąganie i akcje
+  Move zachowują zakres i semantykę (#617/#619/#626). Kolejność kart jest osobna.
+  Zestaw recent do warming nadal pochodzi z Last activity niezależnie od trybu
+  wyświetlania i pozycji ręcznej; aktywacja karty nie zmienia kolejności wątków.
+- Stany Opening/empty/too large/unavailable podglądu używają kompaktowej wielkości
+  podpisu pliku, zgodnie z poprawką #634, bez powiększenia przez kontekst dialogu.
+  Przy aktualizacji projektu #634 pozostaje otwarty; reguła jest wymogiem migracji,
+  nie twierdzeniem o jego scaleniu. Treść i cele dotykowe nadal respektują skalę UI.
 
 Poza zakresem: terminal, language server, uruchamianie kodu, automatyczny zapis,
 tworzenie i przenoszenie plików, pełny edytor projektu, synchronizacja szkiców,
@@ -217,6 +244,12 @@ edytor zachowuje model dokumentu/undo w ramach budżetu, ale oddaje DOM i obserw
 Odtworzenie z samych metadanych nie obiecuje historii undo. Stan dirty jest zawsze
 przypięty w pamięci i nie podlega LRU. Limit 12 kart nie oznacza 12 działających edytorów.
 
+Cache workspace'u jest dodatkowy względem ograniczonego cache historii. Nie
+kopiujemy snapshotów transkryptu do kart ani nie mnożymy zestawu warming przez
+liczbę otwartych kart. Raport pamięci obejmuje sumę obu mechanizmów i ich rozbicie.
+Aktywacja pliku/modułu daje interakcji pierwszeństwo przed warming; ukrycie Thread
+nie uruchamia drugiej subskrypcji, a tło nadal respektuje foreground i stan łącza.
+
 Rozmowa bieżącego wątku zachowuje zamontowany composer i stan kotwicy, ale ukryty
 feed jest `inert`, bez timerów, animacji i pracy layoutu. Istnieje jeden `WatchThread`
 dla bieżącego wątku, nie jeden na zakładkę. W trakcie oglądania pliku pracę agenta
@@ -362,10 +395,9 @@ workera komputera, a telefon mapuje role na paletę. Nie wysyła kodu do dostawc
 Przed kolorami i przy niedostępnej tokenizacji tekst pozostaje widoczny.
 W v1 edycja pozostaje natywnym `TextInput` z kolorowanym **podglądem** wybieranym
 przez `Preview changes`; bez kolorowania podczas samego pisania. To świadoma
-różnica prezentacji względem desktopu, **do zatwierdzenia przez użytkownika**.
-Otwieranie, edycja, zapis, konflikt, linie, zakresy i drzewo mają pełny parytet.
-Jeśli wymagane są kolory podczas pisania także na telefonie, osobny edytor mobilny
-i jego pomiary stają się warunkiem realizacji, a szacunek z §10 wymaga zmiany.
+różnica prezentacji względem desktopu, **zaakceptowana dla v1**. Otwieranie,
+edycja, zapis, konflikt, linie, zakresy i drzewo mają pełny parytet. Kolorowanie
+podczas pisania na telefonie pozostaje poza zakresem v1.
 
 ### Binaria, obrazy i duże pliki
 
@@ -587,6 +619,9 @@ limity cache nie dowodzą braku wycieku. Telefon w tle ma 0 timerów/pollerów F
    `PerformanceObserver` long tasks i trace profilera na web/desktop; sumy RPC/bajtów
    przez istniejące `CANOPY_SYNC_METRICS`. Udowodnić brak żądań dla zamkniętych
    modułów i brak pełnego drzewa/historii podczas reconnect.
+   Osobno porównać obecne Thread current state visible, Warm cache hit,
+   Background thread requests i Thread cache payload; zimny/ciepły workspace
+   nie może ukrywać regresji nawigacji ani podnosić limitów dogrzewania.
 3. Porównać przynajmniej trzy naprzemienne pary przed/po po 2 min, bez równoległych
    buildów i przy kontroli obciążenia. Osobno 30 min przełączania, undo, utraty
    połączenia i powrotu; heap snapshots po zamknięciu i odpięciu zakresu.
@@ -683,12 +718,15 @@ Sprawdzamy szczeliny, gutter, długie ścieżki i rezerwę dirty/close w obu mot
 
 ## 10. Migracja i stos implementacyjny
 
-Układ v2 jest ustalony; pozostały odpowiedzi z §11. Draft dokumentacji nie stanowi zgody na
-implementację. Po akceptacji poniższe **7 PR** tworzy jeden stos przez `gh stack`:
+Układ v2 i zakres zostały zaakceptowane. Poniższe **7 PR implementacyjnych** tworzy
+jeden stos przez `gh stack`, osobny od dokumentacyjnego PR:
 pierwszy bazuje na `dev`, każdy następny na poprzednim. Każda warstwa działa po
 checkout i ma kompletny widoczny rezultat oraz fallback starszych komponentów.
 Wszystkie pozostają draftami do ukończenia i weryfikacji całości; scalanie naraz
-przez `gh stack merge <stack> --squash`, zgodnie z polityką repozytorium.
+przez maintenera zgodnie z polityką repozytorium. Żadna warstwa nie jest scalana
+osobno. Dokumentacyjny PR może zostać scalony wcześniej przez maintenera.
+Przed każdą migracją sprawdzamy najwyższy numer na aktualnym dev (obecnie 0134)
+i wybieramy kolejny wolny; po rebase ponownie sprawdzamy monotoniczność.
 
 | Warstwa | Kompletny rezultat (web/desktop i mobile w tej samej warstwie) | Szacunek |
 | --- | --- | --- |
@@ -736,20 +774,3 @@ rozstrzygnąć dirty szkice, bo rollback procesu ich nie odzyska.
 5. Wykonane dozwolone kontrole repo i copy audit w opisach PR. Weryfikację
    wymagającą dodatkowej zgody planujemy osobno; nie nazywamy niewykonanego
    pomiaru, E2E ani runtime'u mobilnego wynikiem pozytywnym.
-
-## 11. Ustalenia i pozostałe decyzje
-
-Ustalono: jeden rząd sygnet projektu/tytuł/zakładki bez nazwy projektu, aktywna karta
-zawsze widoczna z overflow, pasek ikon i jeden panel, dokowane podsumowanie przy
-braku modułu, zamknięta domyślnie karta pływająca przy zajętym panelu oraz arkusze
-na wąskich szerokościach. Tych decyzji nie otwieramy ponownie.
-
-| Pytanie | Rekomendacja | Konsekwencja |
-| --- | --- | --- |
-| Czy pojedynczy klik zastępuje podgląd? | **Tak**, jeden czysty preview; Edit/dwuklik/Keep tab utrwala | Drzewo nie tworzy dziesiątek kart; dirty nigdy nie znika |
-| Jaki zakres eksploracji w pierwszej wersji? | **Tylko cwd/worktree bieżącego wątku** | Pełny zakres obecnych RPC; przeglądarka całego komputera wymaga osobnego projektu |
-| Czy mobile ma kolorować tekst podczas pisania? | **Kolory w viewerze i Preview changes, natywna edycja bez kolorów w v1** | Zachowuje IME i obecny runtime; wymóg kolorowania na żywo zmienia estymatę i wymaga decyzji o edytorze |
-
-Pozostałe limity i skróty są proponowanymi wartościami startowymi do pomiarów,
-nie dodatkowymi pytaniami blokującymi. Draft czeka na rozstrzygnięcie powyższych
-decyzji i zgodę na implementację; nie ma jeszcze pomiarów ani dowodów działania funkcji.
