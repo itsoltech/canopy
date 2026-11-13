@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScrollView, Text, View, VirtualizedList, type VirtualizedListInstance } from "react-native";
 import type { WorkspaceFile } from "@canopy/domain/workspace-file";
 import type { SourceIndex, SourceRow } from "@canopy/syntax/source";
@@ -16,6 +16,10 @@ export function WorkspaceText({ document, draft }: { document: WorkspaceFile; dr
   const index = useSourceIndex(source);
   const indexing = index.text !== source;
   const list = useRef<VirtualizedListInstance>(null);
+  const savedOffset = useRef(draft === undefined ? document.scroll : 0);
+  const restored = useRef(false);
+  const viewport = useRef(0);
+  const contentHeight = useRef(0);
   const height = Math.max(24, type.mono.lineHeight ?? 24);
   const [top, setTop] = useState(Math.floor(document.scroll / height));
   const [enabled, setEnabled] = useState(false);
@@ -36,11 +40,24 @@ export function WorkspaceText({ document, draft }: { document: WorkspaceFile; dr
     setEnabled(false);
   }, [source]);
 
-  useEffect(() => {
-    if (indexing || !position || document.readerPositionRevision === revision || position.line > index.lines) return;
-    list.current?.scrollToIndex({ index: index.rowForLine(position.line), animated: false });
-    document.readerPositionRevision = revision;
-  }, [document, index, indexing, position, revision]);
+  const restorePosition = useCallback(() => {
+    if (indexing || !viewport.current || !list.current || contentHeight.current + 1 < index.rows * height) return;
+
+    if (position && document.readerPositionRevision !== revision && position.line <= index.lines) {
+      const row = index.rowForLine(position.line);
+      list.current.scrollToIndex({ index: row, animated: false });
+      setTop(row);
+      document.readerPositionRevision = revision;
+    } else if (!restored.current) {
+      const offset = Math.min(savedOffset.current, Math.max(0, index.rows * height - viewport.current));
+      list.current.scrollToOffset({ offset, animated: false });
+      setTop(Math.floor(offset / height));
+    }
+
+    restored.current = true;
+  }, [document, height, index, indexing, position, revision]);
+
+  useEffect(restorePosition, [restorePosition]);
 
   return (
     <View style={{ flex: 1, minHeight: 0 }}>
@@ -64,11 +81,19 @@ export function WorkspaceText({ document, draft }: { document: WorkspaceFile; dr
         maxToRenderPerBatch={16}
         windowSize={2}
         getItemLayout={(_, item) => ({ length: height, offset: height * item, index: item })}
+        onLayout={(event) => {
+          viewport.current = event.nativeEvent.layout.height;
+          restorePosition();
+        }}
+        onContentSizeChange={(_width, content) => {
+          contentHeight.current = content;
+          restorePosition();
+        }}
         onScroll={(event) => {
           const offset = event.nativeEvent.contentOffset.y;
           setTop(Math.floor(offset / height));
 
-          if (!indexing && draft === undefined) document.scroll = offset;
+          if (restored.current && !indexing && draft === undefined) document.scroll = offset;
         }}
         scrollEventThrottle={100}
         renderItem={({ item }: { item: SourceRow }) => {

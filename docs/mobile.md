@@ -50,8 +50,12 @@ są lokalne dla parowania; szkice i zawartość nie trafiają do pliku metadanyc
 Cache czystych plików ma limit 8 MiB, suma baz i szkiców 4 MiB.
 
 Viewer zachowuje Markdown/source, kopiowanie i obrazy. Source jest oknem linii
-z numerami, pozycją i zakresem z linku lub Go to line; bardzo długie linie dzieli
-na fragmenty do 4096 znaków bez utraty treści i par surogatów, pod tym samym numerem.
+z numerami, pozycją i zakresem z linku lub Go to line. Powrót do karty przywraca
+zapamiętany offset dopiero po
+ukończeniu indeksowania i pomiarze listy. Nowy link do linii ma pierwszeństwo;
+zdarzenia przewijania podczas przygotowania listy nie nadpisują starego offsetu.
+Bardzo długie linie dzieli na fragmenty do 4096 znaków bez utraty treści i par
+surogatów, pod tym samym numerem.
 Edycja pozostaje natywnym polem tekstowym bez kolorów podczas pisania. Tokenizacja
 viewera i Preview changes dochodzą w osobnej warstwie workspace'u; obecny shell
 nie dodaje nowych RPC ani modułu natywnego. Poza wątkiem pozostaje pełnoekranowy viewer.
