@@ -1,8 +1,9 @@
 # Zakładki wątku i moduł plików
 
-Status: **propozycja do wyboru układu; bez implementacji**. Wybór wariantu należy do
-użytkownika. Rekomendacja poniżej nie jest zatwierdzoną decyzją. Dokument nie zmienia
-działającego API, ustawień ani wyglądu klientów.
+Status: **projekt v2 po decyzji o układzie; bez implementacji**. Zakładki w jednym
+rzędzie nagłówka, pasek ikon z jednym panelem oraz podsumowanie zależne od zajęcia
+panelu wynikają z decyzji użytkownika. Pozostałe pytania są w §11. Dokument nie
+zmienia działającego API, ustawień ani wyglądu klientów i nie zatwierdza implementacji.
 
 Cel: czytać i edytować pliki obok kontekstu wątku bez wielokrotnego otwierania modala.
 Priorytet: otwarcie wątku, pisanie i streaming nie płacą za nieotwarte moduły.
@@ -10,7 +11,7 @@ Zakładki dotyczą **jednego wątku**, nie całej aplikacji ani wielu wątków n
 Nie zmieniamy znaczenia workspace'u: nadal jest katalogiem projektu na workerze.
 
 Punkty oparcia: [architektura](architecture.md), [UI API](ui-api.md#pliki-wątku),
-[protokół plików](protocol.md#folder-i-pliki-wątku), [GitHub](github.md),
+[protokół plików](protocol.md#folder-i-pliki-wątku), [pull requests](github.md),
 [połączone komputery](linked-computers.md), [mobile](mobile.md),
 [skala UI](ui-scale.md), [copy](copy.md) i [pomiary](client-performance.md).
 
@@ -18,8 +19,8 @@ Punkty oparcia: [architektura](architecture.md), [UI API](ui-api.md#pliki-wątku
 
 `features/files/FileViewer.svelte` otwiera jeden plik w modalu. Czyta przez
 `ReadThreadFile`, edytuje przez `WriteThreadFile`, usuwa przez `DeleteThreadFile`
-i otwiera lokalną aplikację przez `OpenThreadFile`. Podświetlanie Shiki i leniwy
-CodeMirror już istnieją. Odczyt ma limit 2 MiB, a UI pozwala edytować do 400 KiB.
+i otwiera lokalną aplikację przez `OpenThreadFile`. Podświetlanie składni i leniwie
+ładowany edytor już istnieją. Odczyt ma limit 2 MiB, a UI pozwala edytować do 400 KiB.
 Gateway dopuszcza większy zapis, ale webowy limit body 512 KiB wymaga sprawdzania
 również rozmiaru **zakodowanego JSON**, nie tylko bajtów tekstu. Zapis i usunięcie
 używają SHA-256 odczytu. Rozstrzyganie gołych nazw, obrazy, wybór niejednoznacznej
@@ -41,39 +42,61 @@ tworzenie i przenoszenie plików, pełny edytor projektu, synchronizacja szkicó
 replikacja zawartości dysku i przeglądanie całego komputera. Kontrakt rejestracji
 modułów jest wewnętrzny, bez ładowania zewnętrznych rozszerzeń.
 
-## 2. Trzy warianty układu
+## 2. Ustalony układ v2
 
-Makiety są osobnymi statycznymi materiałami poza repozytorium. Każdy wariant
-pokazuje jasną i ciemną paletę Birch oraz desktop, wąskie okno i telefon.
-Pokazane dane są przykładowe; materiały nie są dowodem działania funkcji.
+Jedna samodzielna makieta poza repozytorium zastępuje porównanie wariantów.
+Pokazuje jasną i ciemną paletę Birch oraz desktop, wąskie okno i telefon, w każdym
+przypadku: brak modułu, Files z zamkniętym podsumowaniem i Files z otwartym
+podsumowaniem. Na małych szerokościach podsumowanie jest arkuszem. Dane są
+przykładowe; materiał nie jest dowodem działania funkcji.
 
-| Wariant | Zakładki i moduły | Szczegóły wątku | Zaleta i koszt |
-| --- | --- | --- | --- |
-| **A — pasek ikon** (rekomendacja) | Pasek zakładek pod nagłówkiem; po prawej pasek ikon i jeden opcjonalny panel modułu | Zakotwiczona nakładka z przycisku `Thread details` | Stały koszt szerokości, największy obszar pliku; poznanie ikon wymaga etykiet i tooltipów |
-| **B — stos modułów** | Zakładki pod nagłówkiem; prawa kolumna ze zwijanymi sekcjami Files, Pull requests, Tasks, Connectors | Pływająca karta w zarezerwowanej bocznej zatoce, możliwa do schowania | Kilka podsumowań naraz; mniej miejsca i ryzyko przewijania długiej kolumny |
-| **C — zakładki w nagłówku** | Tożsamość wątku i zakładki w jednym pasie; moduły otwierają wysuwany panel po prawej | Nakładka pod tożsamością wątku | Mniej pionowego chrome; długie tytuły i wiele plików szybciej wymuszają przełącznik zakładek |
+### Jeden rząd nagłówka i przepełnienie
 
-Nie proponujemy ustawienia z trzema trwałymi trybami. Użytkownik wybiera jeden
-układ do realizacji. Semantyka zakładek, limity, bezpieczeństwo i zachowanie telefonu
-pozostają wspólne. C wymaga najwięcej uwagi dla obszarów przeciągania okna i przycisków
-systemowych desktopu; A oddziela je od zakładek dokumentów.
+Kolejność: **sygnet/avatar projektu → tytuł wątku → zakładki → `+` → przełącznik
+zakładek → kontrolki podsumowania i panelu**. Nie pokazujemy nazwy projektu ani
+osobnego rzędu zakładek. Sygnet ma dostępną nazwę projektu i tooltip, tytuł pełną
+nazwę w tooltipie oraz dostępną akcję zmiany tytułu. Nagłówek ma wysokość istniejącego
+headera (3 rem przy standardowym rozmiarze); obszary przeciągania okna i kontrolki
+systemowe desktopu mają odrębne, zarezerwowane miejsce. Zakładki nie są drag region.
 
-### Architektura informacji dla wariantu A
+Tytuł ma `min-width: 0`, ellipsis i maks. `min(14rem, 22%)` szerokości głównego
+obszaru; podczas braku miejsca kurczy się przed zakładką aktywną. Zakładki mają
+etykiety do 14 rem, stały slot dirty/close i pełną ścieżkę w tooltipie/menu.
+`Thread` pozostaje pierwszą przypiętą kartą modelu, nie musi stale zajmować miejsca
+na ekranie, gdy aktywny jest plik. Niezmienny przycisk `Switch tab` z liczbą kart
+obejmuje wszystkie karty, ich kolejność i dirty, także te ukryte.
 
-Lewy sidebar nadal służy projektom, wątkom i botom. Nagłówek identyfikuje wątek
-i jego stan, nawet gdy aktywny jest plik. Pod nim zakładki wybierają **główną treść**.
-Prawy pasek wybiera **pomocniczy moduł**. Przycisk szczegółów otwiera **kontekst wątku**.
-Nie powielamy tych samych list we wszystkich trzech miejscach.
+Pas zakładek nie zawija się ani nie poszerza aplikacji. W pierwszej kolejności
+pokazuje aktywną kartę i najbliższe karty mieszczące się w reszcie miejsca; pozostałe
+są w przełączniku. Aktywna nigdy nie trafia wyłącznie do overflow: zmiana karty,
+resize i zamknięcie przeliczają widoczny wycinek bez zmiany kolejności modelu.
+Menu i roving tabindex obejmują widoczne nagłówki, a wybór z przełącznika przenosi
+fokus do nowego aktywnego nagłówka. Przy zbyt małej przestrzeni cały pas zastępuje
+jeden przycisk aktywnej karty z licznikiem i chevronem, w tym samym rzędzie.
+Na telefonie tytuł pozostaje skrócony, a nazwa aktywnej karty także ma ellipsis;
+pełne obie nazwy są w arkuszach. `+`, summary i moduły zachowują zarezerwowane cele
+dotykowe. Przy dużej skali tekstu tytuł może skurczyć się wizualnie do sygnetu,
+zachowując dostępną nazwę. Nie dokładamy drugiego rzędu ani poziomego scrolla strony.
+
+`+` w głównym nagłówku otwiera `Open module` **w pełnej zakładce**, np. wybrany PR.
+Nie jest akcją tworzenia wątku ani pliku. Wybór pliku z drzewa otwiera kartę obok
+`Thread`; aktywacja modułu w panelu nie zmienia aktywnej karty.
+
+### Architektura informacji
+
+Lewy sidebar nadal służy projektom, wątkom i botom. Zakładki w nagłówku wybierają
+**główną treść**. Prawy pasek ikon wybiera **pomocniczy moduł**, jeden naraz.
+Gdy żadnego nie wybrano, prawa kolumna pokazuje **podsumowanie wątku**.
 
 | Dzisiaj | Docelowe miejsce | Tryb minimalny → pełna zakładka |
 | --- | --- | --- |
 | Wiadomości i composer | Pierwsza zakładka `Thread` | Bez kopii w sidebarze; szkic, kolejka i oczekujące interakcje pozostają przy rozmowie |
-| Tytuł, komputer, Directory/Worktree, Branch, fork i lineage | Pływające `Thread details` | Krótki kontekst, kopiowanie i istniejący picker gałęzi; bez osobnej pełnej zakładki |
+| Komputer, Open in, Directory/Worktree, Branch, PR, Changes, fork, lineage i subagenci | `Thread details`: dokowane lub pływające według stanu panelu | Krótki kontekst, kopiowanie, istniejące akcje otwierania i picker gałęzi; bez osobnej pełnej zakładki |
 | Lista PR pod Branch i pełny panel PR | Moduł `Pull requests` | Lista powiązań, stan i checki → jeden PR z Summary/Timeline/Code i wszystkimi obecnymi akcjami |
 | Nowe drzewo katalogu | Moduł `Files` | Drzewo i wyszukiwanie → pełny eksplorator; wybrany plik otwiera osobną zakładkę |
 | Connectory | Moduł `Connectors` | Dostępne konta i granty workera → szczegóły dostępu; administracja kontem nadal w Settings |
 | Zadania w tle i harmonogramy | Moduł `Tasks` z oddzielnymi grupami | Aktywne zadania i najbliższe terminy → wynik wskazanego zadania lub lista harmonogramów |
-| Subagenci, cel, kolejka, prośby o zgodę i sekret | Obecny zasobnik rozmowy; lineage w szczegółach | Nie chowamy oczekujących odpowiedzi w module; metadane zapisanych sekretów przez istniejący arkusz |
+| Cel, kolejka, prośby o zgodę i sekret | Obecny zasobnik rozmowy; lineage/subagenci również w podsumowaniu | Nie chowamy oczekujących odpowiedzi w module; metadane zapisanych sekretów przez istniejący arkusz |
 
 Zmiana grantu connectora nadal dotyczy **workera i wszystkich jego wątków**;
 przeniesienie kontrolki nie zawęża tego skutku. `Tasks` nie utożsamia zadania
@@ -81,19 +104,52 @@ w tle z harmonogramem. Zatrzymanie, anulowanie i zarządzanie worktree zachowuj�
 istniejące potwierdzenia i autoryzację. Szczegóły nie powtarzają modelu,
 uprawnień, kosztu ani statusu już obecnego przy composerze i w nagłówku.
 
-### Co znaczy „pływające”
+Krótki wiersz PR/Changes w podsumowaniu jest linkiem do pełnego zasobu, nie drugą
+listą modułu. Lineage i subagenci pokazują stan i przejście do rozmowy; oczekujące
+interakcje nadal mają sygnalizację w `Thread`. Jedno query dostarcza wspólne metadane.
 
-W A i C jest to niemodalna, zakotwiczona przy nagłówku powierzchnia, bez swobodnego
-przeciągania po ekranie. Domyślnie zamknięta; otwiera się po świadomej akcji.
-Szerokość 20 rem, maksymalnie dostępna przestrzeń minus boczne insety; pionowe
-przewijanie wewnętrzne. Zakrywa treść tylko podczas czytania szczegółów, nie zajmuje
-stale kolumny. Nie otwiera się od zdarzenia agenta. Escape, przycisk zamknięcia
-i kliknięcie poza powierzchnią zamykają ją i przywracają fokus wyzwalacza.
-Otwarty picker w jej wnętrzu ma pierwszeństwo Escape; operacje z potwierdzeniem
-używają istniejącego dialogu. Na telefonie szczegóły są arkuszem.
+### Podsumowanie zależne od panelu
 
-W B karta jest wizualnie uniesiona, ale zadokowana w zatoce obok treści. Nie leży
-nad kodem; jej koszt szerokości jest argumentem przeciw temu wariantowi.
+| Stan szerokiego okna | Prawa kolumna | Podsumowanie |
+| --- | --- | --- |
+| Żaden moduł nie zajmuje panelu | Dokowane `Thread details`, widoczne domyślnie | Zajmuje normalną kolumnę; niczego nie przykrywa |
+| Files/PR/inny moduł zajmuje panel | Minimalny widok modułu + pasek ikon | Karta pływająca domyślnie zamknięta, przełączana ikoną podsumowania w głównym nagłówku |
+| Ponowne kliknięcie aktywnej ikony albo `Close module` | Moduł oddaje panel; wraca dokowane `Thread details` | Otwarta karta pływająca znika; podsumowanie widoczne w doku |
+| Panel ręcznie zwinięty | Pozostaje pasek ikon; wybrany moduł zachowuje tożsamość | Podsumowanie dostępne pod ikoną, bez automatycznego otwarcia karty |
+
+Zajęcie panelu dotyczy minimalnego modułu, nie kart głównych: otwarty plik lub PR
+w zakładce sam nie usuwa podsumowania z doku. Zmiana modułu zamyka kartę pływającą.
+Otwieranie jej jest przejściowe i nie zapisuje się w preferencjach. `activeModuleId`
+i zwinięcie panelu zapisujemy lokalnie; przy pierwszym wejściu brak modułu i otwarty
+dok. Wyłączenie modułu resetuje zwinięcie i pokazuje dok; świadome zwinięcie samego
+doku może go schować do ponownego użycia kontrolki panelu. Ikona podsumowania przy
+braku modułu przywraca/fokusuje dok, a gdy zajmuje go moduł — przełącza kartę.
+
+Karta jest niemodalna, zakotwiczona w **prawym górnym rogu głównej treści**, po
+lewej od panelu i poniżej nagłówka, z insetem 8 px. Nie jest swobodnie przeciągana
+ani przypinana nad treścią. Ma szerokość do 20 rem, wysokość do dostępnej przestrzeni
+i wewnętrzny scroll. Escape, `Close thread details` i kliknięcie poza zamykają kartę;
+Escape/close przywraca fokus ikonie, kliknięcie poza zachowuje fokus klikniętego celu.
+Otwarty picker wewnątrz ma pierwszeństwo Escape. Zdarzenie agenta nie otwiera karty.
+Powrót z arkusza po resize nigdy nie otwiera jej automatycznie.
+
+### Nagłówek prawego panelu
+
+Ten sam rząd ma aktywny **chip przypominający zakładkę**, przyległe `+`,
+`Open in tab` (ikona maksymalizacji) i `Collapse panel`. Chip zawiera ikonę i
+etykietę `Files`/`Pull requests`/`Tasks`/`Connectors`, ellipsis oraz menu zmiany
+modułu i `Close module`. To jeden aktywny moduł, bez kolejnego trwałego zestawu kart.
+`+` tutaj otwiera `Open sidebar module` i **zastępuje minimalny moduł**; nie tworzy
+karty głównej. Różnica obu `+` wynika z miejsca, etykiety dostępnej i tooltipu.
+
+Maksymalizacja otwiera/aktywuje pełną kartę tego zasobu, zachowując minimalny panel
+i współdzieląc dane. Nie zmienia szerokości kolumny na cały ekran. `Collapse panel`
+chowa powierzchnię bez wyłączenia modułu; przycisk w głównym nagłówku `Show panel`
+przywraca ją. Aktywna ikona modułu wyłącza moduł i dokuje podsumowanie nawet po
+zwinięciu. Przy braku modułu chip nazywa się `Thread details`, maksymalizacji nie
+ma (slot jest zarezerwowany), a `+` nadal wybiera moduł. Kontrolki mają stałe sloty,
+więc długa nazwa i zmiana stanu nie przesuwają przycisków. Na małej szerokości ten
+sam nagłówek występuje w arkuszu modułu; zamiast collapse ma zamknięcie arkusza.
 
 ## 3. Model zakładek i stan urządzenia
 
@@ -231,7 +287,8 @@ wewnętrzne Summary/Timeline/Code; nie stają się osobnymi zakładkami workspac
 Równocześnie widoczny kompakt i pełna karta używają jednej dzierżawy odczytu.
 
 Proponowane granice web: `ThreadWorkspace`, `WorkspaceTabs`, `ModuleRail`,
-`ModuleHost`, `ThreadDetailsPopover`; w Files: `DirectoryTree`, `FileTab`,
+`ModuleHost`, `ThreadDetailsContent` w `ThreadDetailsDock`/`ThreadDetailsPopover`
+lub arkuszu; w Files: `DirectoryTree`, `FileTab`,
 `FileToolbar`, `FileViewport`, adapter edytora. Reużywamy `PanelRow`, `PanelField`,
 `Popover`, `Dialog`, `DropdownMenu`, `ResizeHandle`, wirtualizatora i tokenów kodu.
 Mobile ma analogiczne hosty z `Sheet`, `FlatList`, natywnym edytorem i istniejącym
@@ -284,7 +341,7 @@ lub z linią ponad 2 000 znaków domyślnie używa zwykłego tekstu; nie urucham
 nieograniczonej tokenizacji. `Enable highlighting` dotyczy tylko dostępnego okna,
 z limitem pracy; nie zwiększa limitu odczytu. Nieznany język pozostaje czytelny.
 
-Web/desktop: jeden leniwy Web Worker z silnikiem Shiki JavaScript, gramatyki według
+Web/desktop: jeden leniwy Web Worker z obecnym silnikiem JavaScript, gramatyki według
 rozszerzenia i tokeny `--code-*`. Nie przenosimy runtime'u highlightera do początkowego
 bundla wątku. Zadania zawierają rewizję dokumentu i id żądania; stare wyniki są
 odrzucane. Tokenizacja zachowuje stan gramatyki między ograniczonymi fragmentami,
@@ -292,14 +349,14 @@ bo linia wewnątrz komentarza wieloliniowego wymaga wcześniejszego kontekstu.
 Bez checkpointu najpierw zwykły tekst; nie skanujemy synchronicznie całego prefiksu.
 Zadanie przekraczające 100 ms jest anulowane, a worker może zostać odtworzony.
 
-CodeMirror pozostaje leniwy. Adapter edytora stosuje dekoracje tokenów z tego
+Edytor pozostaje leniwy. Adapter edytora stosuje dekoracje tokenów z tego
 samego wykonawcy, bez drugiego pełnego parsera synchronicznego na głównym wątku.
 Wpisanie znaku natychmiast aktualizuje tekst/undo; dekoracje dochodzą po krótkim
 debounce, ze sprawdzeniem rewizji. Nie przesyłamy całej treści na każdy znak.
 Wirtualizację, IME, selekcję, Tab i undo trzeba zweryfikować przed uznaniem
-tego adaptera za gotowy; istniejąca konfiguracja CodeMirror tego jeszcze nie zapewnia.
+tego adaptera za gotowy; istniejąca konfiguracja edytora tego jeszcze nie zapewnia.
 
-Mobile: natywny viewer renderuje okna tokenów semantycznych, bez HTML/WebView.
+Mobile: natywny viewer renderuje okna tokenów semantycznych, bez osadzania HTML.
 Proponowane ograniczone RPC tokenizacji opisuje §6: pracę wykonuje osobny wykonawca
 workera komputera, a telefon mapuje role na paletę. Nie wysyła kodu do dostawcy LLM.
 Przed kolorami i przy niedostępnej tokenizacji tekst pozostaje widoczny.
@@ -332,7 +389,7 @@ dla jednego linku. Lokalne `Open in default app` działa tylko przy istniejącym
 Wspólny parser zwraca `{ path, startLine?, endLine?, column? }`. Akceptuje
 `path:31`, `path:31:4`, `path:31-40`, `path#L31`, `path#L31-L40` i `path#L31-40`
 w inline code i lokalnym linku Markdown. Nie zmienia obsługi URL HTTP(S).
-Litera dysku Windows nie jest numerem linii. Procentowe kodowanie dekodujemy raz;
+Litera dysku w ścieżce nie jest numerem linii. Procentowe kodowanie dekodujemy raz;
 NUL, próby wyjścia poza korzeń i nieprawidłowe URI są odrzucane na granicy API.
 Nieprawidłowa/odwrócona pozycja otwiera plik z informacją i `Go to line`, bez
 odejmowania 1 od niezweryfikowanej wartości. Numeracja jest od 1, zakres jest domknięty.
@@ -389,7 +446,7 @@ Każdy PR proto generuje kontrakty i zapewnia czyste `gen:check`.
 | Plik i rozstrzygnięcie ścieżki | `ReadThreadFile(ThreadFileRequest)` → `ReadFile(FileRequest)`; zachować `item_id`, `resolution`, `matches`, `search_incomplete`, hash i binaria |
 | Edycja/usunięcie/aplikacja | `WriteThreadFile`, `DeleteThreadFile`, `OpenThreadFile`; żadnych nowych równoległych CRUD RPC |
 | Szybkie otwarcie | `SearchFiles` z istniejącym scope wątku; linia jest stanem widoku, nie nowym RPC odczytu |
-| PR, connectory i zadania | Obecne metody GitHub, `GetThreadPanel`, `SetThreadConnectorGrant`, harmonogramy i `WatchThread`; bez nowego ogólnego snapshotu workspace'u |
+| PR, connectory i zadania | Obecne metody PR, `GetThreadPanel`, `SetThreadConnectorGrant`, harmonogramy i `WatchThread`; bez nowego ogólnego snapshotu workspace'u |
 | Wybór workspace'u | Obecne `ListDirectory` nadal służy kreatorowi; nie reużywamy jego szerokiego zakresu absolutnych ścieżek jako drzewa wątku |
 
 ### `ListThreadDirectory`: ograniczone, nierekurencyjne strony
@@ -517,7 +574,7 @@ rozmiarem interfejsu i urządzeniem. Nowy shell nie może opóźnić istniejący
 Osobne granice zasobów: maks. 2 równoległe odczyty Files na klienta, jeden aktywny
 edytor i wykonawca web, ograniczenia DOM z §5, pamięć/cache z §3. Po 20 cyklach
 otwarcia/zamknięcia, po rozgrzewce i GC, retained heap nie rośnie o więcej niż
-5 MiB web / 3 MiB Hermes. RSS, heap JS i pamięć bitmap raportujemy oddzielnie;
+5 MiB web / 3 MiB natywnego runtime'u JS. RSS, heap JS i pamięć bitmap raportujemy oddzielnie;
 limity cache nie dowodzą braku wycieku. Telefon w tle ma 0 timerów/pollerów Files.
 
 ### Plan pomiarów
@@ -527,15 +584,16 @@ limity cache nie dowodzą braku wycieku. Telefon w tle ma 0 timerów/pollerów F
    katalog 10 000 dzieci, pliki 0/100/400 KiB i 2/20 MiB, linia 100 000 znaków,
    nieznany język, binaria i obraz ponad limit. Nie dodawać suite testów UI.
 2. Zmierzyć markery od kliknięcia do shell/plain text/tokenów, Resource Timing,
-   `PerformanceObserver` long tasks i CDP trace na web/desktop; sumy RPC/bajtów
+   `PerformanceObserver` long tasks i trace profilera na web/desktop; sumy RPC/bajtów
    przez istniejące `CANOPY_SYNC_METRICS`. Udowodnić brak żądań dla zamkniętych
    modułów i brak pełnego drzewa/historii podczas reconnect.
 3. Porównać przynajmniej trzy naprzemienne pary przed/po po 2 min, bez równoległych
    buildów i przy kontroli obciążenia. Osobno 30 min przełączania, undo, utraty
    połączenia i powrotu; heap snapshots po zamknięciu i odpięciu zakresu.
-4. Na iPhonie i słabszym Androidzie użyć profilera RN/Hermes i narzędzi platformy:
+4. Na dwóch wspieranych platformach mobilnych, w tym słabszym telefonie, użyć
+   profilera natywnego runtime'u JS i narzędzi platformy:
    opóźnienie pisania, liczba renderów, płynność przewijania, bitmapy, klawiatura,
-   tło i pamięć procesu. Harness Bun nie jest dowodem wydajności urządzenia.
+   tło i pamięć procesu. Harness serwerowy nie jest dowodem wydajności urządzenia.
 5. Do opisu implementacyjnego PR wpisać liczby przed/po, warunki, p50/p95,
    największe partie i niewykonane pomiary. Profile/logi/obrazy pozostawić poza
    repo. Niespełniony budżet blokuje rozszerzanie zakresu i wymaga naprawy.
@@ -547,18 +605,28 @@ musi respektować aktualne granice zgody; E2E wymaga wcześniejszej zgody użytk
 
 ### Te same pojęcia, inne powierzchnie
 
-Na desktopie A domyślnie ma pasek modułów 2.75 rem i opcjonalny panel 18 rem,
+Na desktopie układ ma pasek modułów 2.75 rem i domyślnie widoczny panel 18 rem,
 zmieniany w zakresie 16–24 rem. Panel pokazujemy wyłącznie, jeśli po odjęciu lewego
 sidebara pozostaje co najmniej 38 rem głównej treści. Decyduje szerokość kontenera
-i Interface size, nie sam viewport. PR otwiera pełną kartę, zamiast wypierać drzewo.
+i Interface size, nie sam viewport. Wybór PR przez `+` głównego nagłówka otwiera
+pełną kartę; wybór ikony PR w railu zastępuje moduł prawego panelu.
 Resizer zachowuje istniejącą klawiaturę; zapis szerokości następuje po puszczeniu.
 
 Przy wąskim web/desktop lewa nawigacja nadal staje się drawerem według obecnych
-reguł. Panel modułu jest nakładką/arkuszem, bez drugiej ściśniętej kolumny.
-Pasek zakładek przewija się w poziomie tylko we własnym obszarze; pierwsza `Thread`
-i przycisk `Switch tab` pozostają dostępne. Poniżej 40 rem pasek zastępuje przycisk
-aktywnej karty z licznikiem. Przy 320 px i powiększeniu 200% nie powstaje poziomy
-scroll całej aplikacji; przewija się tylko kod bez wrap.
+reguł. **Nie ma dokowanego prawego panelu ani podsumowania**, także przy braku
+modułu. Moduły i podsumowanie otwierają osobne arkusze wyłącznie po akcji.
+Arkusz podsumowania zastępuje arkusz modułu, nie układa się na nim; zamknięcie
+wraca do treści. Wybrany moduł pozostaje wybrany po zamknięciu arkusza, lecz ponowne
+kliknięcie jego ikony/`Close module` wyłącza go. Wyłączenie modułu na telefonie
+nie otwiera podsumowania. Rozszerzenie okna dokuje podsumowanie tylko przy braku
+modułu; z modułem karta pływająca pozostaje zamknięta. Zmiana progu zamyka nakładki
+i zachowuje ich dane, nie ich otwartość.
+
+Zakładki pozostają w jednym rzędzie z sygnetem i skróconym tytułem. Reguły overflow
+z §2 utrzymują aktywną kartę; poniżej 40 rem lub wcześniej, gdy brakuje miejsca,
+zastępuje je przycisk aktywnej karty z licznikiem. Przy 320 px i powiększeniu 200%
+nie powstaje poziomy scroll aplikacji; przewija się tylko kod bez wrap. Nawigacja,
+`+`, summary i moduły nie znikają w overflow plików.
 
 W `apps/mobile` przycisk nazwy aktywnej karty otwiera **tab switcher sheet**:
 `Thread`, otwarte pliki/PR, dirty, zamknięcie, `Keep tab` i `Open module`.
@@ -583,8 +651,22 @@ nie zależą od hover, prawego przycisku ani precyzyjnego przeciągania.
 
 Reużywamy `motion.ts` / `motion.css` i wspólnego `@canopy/ui`:
 otwarcie nakładki `fast` 250 ms, zamknięcie `quick` 150 ms; panel `slow` / `medium`
-400 / 350 ms; `smoothOut`. Mobile używa istniejącego `sheetSpring` i Reanimated
-na wątku UI. Nie dodajemy biblioteki animacji ani osobnej skali czasów.
+400 / 350 ms; `smoothOut`. Mobile używa istniejącego `sheetSpring` na wątku UI.
+Nie dodajemy biblioteki animacji ani osobnej skali czasów.
+
+**Dock → float:** wybranie modułu ustala zawartość istniejącej kolumny bez zmiany
+jej szerokości. Podsumowanie wychodzi przez opacity według `quick` 150 ms, moduł
+wchodzi przez transform/opacity według `fast` 250 ms i `smoothOut`. Nie animujemy
+lotu karty przez kod: karta pływająca pozostaje zamknięta. Dopiero kliknięcie ikony
+otwiera ją z kotwicy przez `fast`, a close/outside/Escape zamyka przez `quick`.
+**Float → dock:** wyłączenie modułu zamyka ewentualną kartę przez `quick` i zastępuje
+moduł podsumowaniem przez `fast`; docelowy dock jest widoczny. Nie ma dwóch aktywnych
+kopii treści ani dwóch subskrypcji. Fokus z usuwanego panelu wraca do aktywnej ikony,
+z karty do przycisku summary; inne miejsce fokusu pozostaje bez zmian.
+Zmiana zajęcia nie animuje szerokości; dopiero jawne collapse/restore powierzchni
+używa `medium`/`slow`, z pojedynczą zmianą layoutu i animacją samej powierzchni.
+Przy reduced motion wszystkie te przejścia są natychmiastowe, bez transform,
+przenikania i utrzymywania wychodzącego DOM. Resize nie uruchamia sekwencji przejść.
 
 Przełączenie karty jest natychmiastowe, bez animowania całego dokumentu, blur kodu
 ani płynnego scrolla do linii. Krótko zmienia się tylko wskaźnik wybranej zakładki.
@@ -601,7 +683,7 @@ Sprawdzamy szczeliny, gutter, długie ścieżki i rezerwę dirty/close w obu mot
 
 ## 10. Migracja i stos implementacyjny
 
-Najpierw wybór układu i odpowiedzi z §11. Draft dokumentacji nie stanowi zgody na
+Układ v2 jest ustalony; pozostały odpowiedzi z §11. Draft dokumentacji nie stanowi zgody na
 implementację. Po akceptacji poniższe **7 PR** tworzy jeden stos przez `gh stack`:
 pierwszy bazuje na `dev`, każdy następny na poprzednim. Każda warstwa działa po
 checkout i ma kompletny widoczny rezultat oraz fallback starszych komponentów.
@@ -610,10 +692,10 @@ przez `gh stack merge <stack> --squash`, zgodnie z polityką repozytorium.
 
 | Warstwa | Kompletny rezultat (web/desktop i mobile w tej samej warstwie) | Szacunek |
 | --- | --- | --- |
-| 1. Zakładki plików | Shell z `Thread`, preview/keep/close/reorder, lokalne metadane i dirty guard. Obecny viewer/edytor w karcie przez istniejące RPC; parser pozycji i skok/zakres; telefon ma switcher. Linki poza wątkiem zachowują swój viewer | 4–6 dni inżynierskich |
-| 2. Moduły i szczegóły | Rejestr, minimalny sidebar/sheet, zakładki PR, Tasks i Connectors, pływające szczegóły. Wszystkie obecne akcje dostępne, jedna subskrypcja/query na zasób, zgodność `?pr=` | 4–6 dni |
+| 1. Zakładki plików | Jeden rząd sygnet/tytuł/karty z overflow i aktywną zawsze widoczną, `Thread`, preview/keep/close/reorder, lokalne metadane i dirty guard. Obecny viewer/edytor w karcie przez istniejące RPC; parser pozycji i skok/zakres; telefon ma switcher. Linki poza wątkiem zachowują swój viewer | 4–6 dni inżynierskich |
+| 2. Moduły i szczegóły | Rejestr, rail i panel/sheet z chipem/+/maksymalizacją, zakładki PR, Tasks i Connectors; podsumowanie dock ↔ float zależnie od zajęcia panelu. Wszystkie obecne akcje dostępne, jedna subskrypcja/query na zasób, zgodność `?pr=` | 4–6 dni |
 | 3. Drzewo | `ListThreadDirectory`, status Git i capability, routing domu, BFF/Connect, leniwe strony i wirtualizacja; pełny eksplorator i otwieranie plików. Reload i odświeżanie po własnych mutacjach wystarczają bez watch | 5–8 dni |
-| 4. Viewer i podświetlanie | Wirtualne linie, wykonawca Shiki, tokeny mobilne z bounded RPC, limity dużych plików/obrazów, kolory w podglądzie szkicu; edytor web z dekoracjami poza głównym wątkiem, mobile natywny | 5–8 dni |
+| 4. Viewer i podświetlanie | Wirtualne linie, wykonawca podświetlania, tokeny mobilne z bounded RPC, limity dużych plików/obrazów, kolory w podglądzie szkicu; edytor web z dekoracjami poza głównym wątkiem, mobile natywny | 5–8 dni |
 | 5. Zmiany dysku | Ograniczony `WatchThreadFiles`, cache/invalidacje zakresów, rewalidacja aktywnego dokumentu, zachowanie szkicu i porównanie konfliktu. Offline/reconnect bez replay i pełnego drzewa | 4–6 dni |
 | 6. Zasoby i odzyskiwanie | Egzekwowane limity cache/edytorów/iteratorów, anulowanie po zmianie widoku, cleanup po revoke/unpair, utrata worktree i zmiana korzenia; finalne przypadki IME/klawiatury i dostępności | 3–5 dni |
 | 7. Domknięcie migracji | Usunięcie starego modala plików wątku i konkurujących paneli, przy zachowaniu viewerów załączników/blobów/botów. Aktualizacja dokumentacji obszarów, pomiary porównawcze i usunięcie przełącznika migracji | 3–5 dni |
@@ -621,7 +703,7 @@ przez `gh stack merge <stack> --squash`, zgodnie z polityką repozytorium.
 Łącznie **28–44 dni inżynierskich**, około 6–9 tygodni jednej osoby przy 5 dniach
 pracy tygodniowo. Zakres obejmuje oba klienty, kontrakty i poprawki z pomiarów;
 nie obejmuje czasu decyzji użytkownika, review, nowego edytora natywnego ani nowych
-buildów natywnych. Rozpoznanie wykonalności off-thread CodeMirror i mobilnego
+buildów natywnych. Rozpoznanie wykonalności dekoracji edytora poza wątkiem UI i mobilnego
 viewera należy do warstwy 4; nie rezerwujemy osobnego PR wyłącznie na eksperyment.
 Jeżeli pomiary lub wymagane moduły natywne zmienią koszt, aktualizujemy plan przed
 rozszerzeniem. Każda warstwa musi już respektować budżety, bezpieczeństwo i dirty;
@@ -646,23 +728,28 @@ rozstrzygnąć dirty szkice, bo rollback procesu ich nie odzyska.
    stare capability, anulowanie i reconnect; bez testów web UI.
 3. Każda warstwa ma parytet funkcji na telefonie, z jedyną jawnie zatwierdzoną
    różnicą kolorowania podczas edycji. Weryfikacja ręczna obejmuje jasny/ciemny,
-   desktop/wąski/telefon, krótkie i długie nazwy, klawiaturę i reduced motion.
+   desktop/wąski/telefon, krótkie i długie nazwy, klawiaturę i reduced motion;
+   jeden rząd nagłówka z aktywną kartą przy 12 kartach, oba `+`, collapse/restore,
+   wyłączenie modułu i wszystkie stany dock/float/sheet bez kradzieży fokusu.
 4. Wykazane liczbowo budżety z §8, ograniczone partie i brak wzrostu kosztu
    ukrytych modułów. Przejście kart nie reconnectuje historii i nie skanuje drzewa.
 5. Wykonane dozwolone kontrole repo i copy audit w opisach PR. Weryfikację
    wymagającą dodatkowej zgody planujemy osobno; nie nazywamy niewykonanego
    pomiaru, E2E ani runtime'u mobilnego wynikiem pozytywnym.
 
-## 11. Decyzje użytkownika
+## 11. Ustalenia i pozostałe decyzje
+
+Ustalono: jeden rząd sygnet projektu/tytuł/zakładki bez nazwy projektu, aktywna karta
+zawsze widoczna z overflow, pasek ikon i jeden panel, dokowane podsumowanie przy
+braku modułu, zamknięta domyślnie karta pływająca przy zajętym panelu oraz arkusze
+na wąskich szerokościach. Tych decyzji nie otwieramy ponownie.
 
 | Pytanie | Rekomendacja | Konsekwencja |
 | --- | --- | --- |
-| Który układ: A, B czy C? | **A**, pasek ikon + jeden minimalny panel, karty pod nagłówkiem | Najlepszy stosunek miejsca na plik do stałego chrome; B daje więcej podsumowań naraz, C oszczędza wysokość |
-| Jak utrzymywać szczegóły wątku? | **Zakotwiczona nakładka, domyślnie zamknięta**, bez swobodnego przeciągania | Nie zabiera miejsca i nie zasłania treści podczas pracy; alternatywa to zatoka B |
 | Czy pojedynczy klik zastępuje podgląd? | **Tak**, jeden czysty preview; Edit/dwuklik/Keep tab utrwala | Drzewo nie tworzy dziesiątek kart; dirty nigdy nie znika |
 | Jaki zakres eksploracji w pierwszej wersji? | **Tylko cwd/worktree bieżącego wątku** | Pełny zakres obecnych RPC; przeglądarka całego komputera wymaga osobnego projektu |
 | Czy mobile ma kolorować tekst podczas pisania? | **Kolory w viewerze i Preview changes, natywna edycja bez kolorów w v1** | Zachowuje IME i obecny runtime; wymóg kolorowania na żywo zmienia estymatę i wymaga decyzji o edytorze |
 
 Pozostałe limity i skróty są proponowanymi wartościami startowymi do pomiarów,
-nie dodatkowymi pytaniami blokującymi wybór layoutu. Dokument pozostaje draftem
-do wyboru wariantu; nie ma jeszcze pomiarów ani implementacyjnych dowodów działania.
+nie dodatkowymi pytaniami blokującymi. Draft czeka na rozstrzygnięcie powyższych
+decyzji i zgodę na implementację; nie ma jeszcze pomiarów ani dowodów działania funkcji.
