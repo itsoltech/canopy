@@ -2,12 +2,13 @@ import { create, fromJson, type JsonValue, type MessageInitShape } from "@bufbui
 import { RewindThreadSchema, ui, type Command } from "@canopy/contracts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
-import { Invalid, NotFound, type Fx } from "./errors.ts";
+import { Invalid, NotFound, one, type Fx } from "./errors.ts";
 import type { ThreadStore } from "./threads-store.ts";
 import type { OutboxStore } from "./outbox.ts";
 import { rewindTarget, type RewindTarget } from "./rewind-target.ts";
 import { rewindDraft } from "./rewind-draft.ts";
 import { completeRewind } from "./rewind-result.ts";
+import { rewindBoundaries } from "./rewind-boundaries.ts";
 
 export interface RewindRow {
   id: string;
@@ -140,6 +141,16 @@ export function rewindStore(sql: SqlClient.SqlClient, store: () => ThreadStore &
 
           if (row.status !== "completed" || current.rewind_pending_id)
             return yield* Effect.fail(new Invalid("This rewind cannot be undone now."));
+
+          const target = yield* one(
+            yield* sql<{
+              queued_at: Date;
+              ordinal: number;
+            }>`SELECT queued_at,ordinal FROM turns WHERE id=${row.turn_id}::uuid`,
+            "turn",
+          );
+
+          yield* rewindBoundaries(sql, thread, target.queued_at, target.ordinal);
 
           const later = yield* sql`SELECT id FROM turns WHERE thread_id=${thread}::uuid AND rewind_id IS NULL
           AND ordinal>=(SELECT ordinal FROM turns WHERE id=${row.turn_id}::uuid)`;

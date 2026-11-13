@@ -295,6 +295,8 @@ Zapisany kontekst generowania tytułu jest czyszczony; ponowne generowanie korzy
 z pierwszej widocznej wiadomości. Wynik wcześniejszego zlecenia tytułu jest unieważniony.
 Cofnięcie rewindu jest możliwe przed rozpoczęciem kolejnej tury; przywraca sesję
 i widoczność historii, pozostawiając pliki w aktualnym stanie.
+Obowiązują te same granice automatyzacji i aktywnych dzieci: dodanie celu lub
+harmonogramu po rewindzie blokuje Undo, także zanim powstanie następna tura.
 
 Lista tur operacji i seq jej wykonania/cofnięcia są trwałe (`thread_rewind_turns`,
 `completed_seq`, `restored_seq`). Fork widzi historię źródła z chwili swojego

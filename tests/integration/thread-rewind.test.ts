@@ -158,6 +158,60 @@ describe.skipIf(!dockerAvailable)("in-place durable thread rewind", () => {
     expect(late._tag).toBe("Failure");
   });
 
+  test("Undo refuses automation and active children started after rewind, before another user turn", async () => {
+    for (const boundary of ["goal", "schedule", "child"]) {
+      const thread = await createThread();
+      const target = (await history(thread.id)).turns[1]!;
+
+      const result = await gw.api.rewindThread({
+        threadId: thread.id,
+        turnId: target.id,
+        clientRequestId: `undo-${boundary}`,
+      });
+
+      let childId = "";
+
+      try {
+        if (boundary === "goal")
+          await gw.api.setGoal({ threadId: thread.id, action: "set", objective: "New work after rewind" });
+        else if (boundary === "schedule")
+          await gw.api.createSchedule({
+            threadId: thread.id,
+            prompt: "later",
+            when: { case: "cron", value: "0 9 * * *" },
+            timezone: "UTC",
+          });
+        else {
+          gw.worker.holdTurns = true;
+          childId = (
+            await gw.api.createThread({
+              projectId,
+              workspaceId,
+              parentThreadId: thread.id,
+              provider: Provider.CODEX,
+              initialMessage: "Child work after rewind",
+              clientRequestId: "undo-child",
+            })
+          ).thread!.id;
+          await eventually(
+            () => history(childId),
+            (state) => state.turns.some((turn) => turn.status === "running"),
+          );
+        }
+
+        expect(await failure(gw.api.restoreThreadRewind({ threadId: thread.id, rewindId: result.rewindId }))).toContain(
+          boundary === "child" ? "active subagents" : "goal or scheduled",
+        );
+        expect((await history(thread.id)).turns[1]!.rewind_id).toBe(result.rewindId);
+        expect((await history(thread.id)).thread.rewind_pending_id).toBeNull();
+      } finally {
+        gw.worker.holdTurns = false;
+
+        if (childId) await gw.api.interruptThread({ threadId: childId });
+      }
+    }
+  });
+
   test("a failed native rewind keeps history visible and permits a fresh attempt", async () => {
     const thread = await createThread();
     const before = await history(thread.id);
