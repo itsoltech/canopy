@@ -5,6 +5,7 @@
   import type { ui } from "@canopy/contracts";
   import { attachmentPreviewKind } from "@canopy/domain/attachment-preview";
   import AttachmentPreview from "./AttachmentPreview.svelte";
+  import { formatVideoDuration } from "@canopy/domain";
 
   /**
    * A file as a chip: icon, name and a second line (size and type, or why it failed). With `href` the whole chip
@@ -34,7 +35,7 @@
 
 {#snippet body()}
   <Icon
-    name={failed ? "exclamation-circle" : "document-text"}
+    name={failed ? "exclamation-circle" : file && attachmentPreviewKind(file) === "video" ? "play" : "document-text"}
     class={["shrink-0", failed ? "text-rose-600 dark:text-rose-400" : "fill-zinc-400 dark:fill-zinc-500"]}
   />
   <div class="min-w-0">
@@ -45,7 +46,7 @@
         failed ? "text-rose-700 dark:text-rose-400" : "text-zinc-500 dark:text-zinc-400",
       ]}
     >
-      {detail}
+      {detail}{file?.durationMs ? ` · ${formatVideoDuration(file.durationMs)}` : ""}
     </p>
   </div>
   {@render trailing?.()}

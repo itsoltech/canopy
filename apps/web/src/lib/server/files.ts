@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 
 /**
  * Bytes from the gateway to the browser (docs/ui-api.md, "Załączniki"): only raster images the browser renders
- * safely are shown inline; SVG has an explicit image-only path. HTML, text and archives download. The type is the gateway's
+ * safely and sniffed video containers are shown inline; SVG has an explicit image-only path. HTML, text and archives download. The type is the gateway's
  * (from the content), the browser must not guess (`nosniff`), and the document gets no rights at all (CSP sandbox).
  */
 export function fileResponse(
@@ -13,7 +13,10 @@ export function fileResponse(
   options: { name?: string; download?: boolean; image?: boolean; ifNoneMatch?: string | null } = {},
 ): Response {
   const inline =
-    (INLINE_IMAGE_TYPES.has(mimeType) || (options.image && mimeType === "image/svg+xml")) && !options.download;
+    (INLINE_IMAGE_TYPES.has(mimeType) ||
+      /^video\/(mp4|webm|quicktime)$/.test(mimeType) ||
+      (options.image && mimeType === "image/svg+xml")) &&
+    !options.download;
 
   // A text file read as text, never as markup.
   const type = inline

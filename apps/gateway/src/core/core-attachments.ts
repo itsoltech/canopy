@@ -92,6 +92,7 @@ export async function coreMessageAttachments(
         ...(r.height && { height: r.height }),
         sha256: r.sha256,
         hasThumbnail: r.thumb_sha256 !== null,
+        ...(r.duration_ms && { durationMs: Number(r.duration_ms) }),
         path: attachmentPath(root, os, threadId, r.id, r.name),
       }));
 
@@ -203,7 +204,12 @@ export function coreAttachments<A, E>(
 
 export interface CoreAttachmentsMethods {
   uploadAttachment(name: string, data: Uint8Array): Promise<ui.Attachment>;
-  getAttachment(attachmentId: string, thumbnail: boolean, preview?: boolean): Promise<ui.GetAttachmentResponse>;
+  getAttachment(
+    attachmentId: string,
+    thumbnail: boolean,
+    preview?: boolean,
+    read?: Pick<ui.GetAttachmentRequest, "offset" | "limit" | "metadataOnly">,
+  ): Promise<ui.GetAttachmentResponse>;
   getThreadBlob(threadId: string, sha256: string): Promise<ui.GetThreadBlobResponse>;
 }
 
@@ -231,14 +237,23 @@ export const coreAttachmentsMethods: CoreAttachmentsMethods = {
     attachmentId: string,
     thumbnail: boolean,
     preview = false,
+    read?: Pick<ui.GetAttachmentRequest, "offset" | "limit" | "metadataOnly">,
   ): Promise<ui.GetAttachmentResponse> {
     const row = await coreAttachments(this, (s) => s.owned(this[coreState].options.userId, attachmentId));
     const sha = thumbnail ? row.thumb_sha256 : row.sha256;
 
     if (!sha) throw new InvalidError("this attachment has no thumbnail");
+    const offset = Number(read?.offset ?? 0n);
+
+    if (!Number.isSafeInteger(offset) || offset > 2_147_483_646 || (read?.limit ?? 0) > 1024 * 1024)
+      throw new InvalidError("invalid attachment byte range");
 
     const blob = await coreAttachments(this, (s) =>
-      s.blob(sha, preview && !thumbnail ? ATTACHMENT_PREVIEW_BYTES : undefined),
+      s.blob(
+        sha,
+        read?.metadataOnly ? 0 : read?.limit || (preview && !thumbnail ? ATTACHMENT_PREVIEW_BYTES : undefined),
+        offset,
+      ),
     );
 
     return create(ui.GetAttachmentResponseSchema, {
@@ -246,6 +261,8 @@ export const coreAttachmentsMethods: CoreAttachmentsMethods = {
       data: blob.data,
       mimeType: blob.mimeType,
       truncated: preview && !thumbnail && BigInt(row.size_bytes) > BigInt(blob.data.length),
+      totalSize: blob.totalSize,
+      offset: BigInt(offset),
     });
   },
 

@@ -4,6 +4,7 @@ import {
   safeFileName,
   sniff,
   withExtension,
+  videoDurationMs,
   type AttachmentKind,
   type AttachmentLimits,
 } from "@canopy/domain";
@@ -24,6 +25,7 @@ export class AttachmentRejected extends Error {
 }
 
 export interface PreparedAttachment {
+  readonly durationMs?: number;
   readonly name: string;
   readonly mimeType: string;
   readonly kind: AttachmentKind;
@@ -67,6 +69,19 @@ export async function prepareAttachment(
 
   if (sniffed.kind === "file") return file();
 
+  if (sniffed.kind === "video") {
+    // No decoder/native dependency: a shared neutral poster is a small raster, never uploaded markup.
+    const thumbnail = new Uint8Array(await videoPoster);
+    const durationMs = videoDurationMs(data, sniffed.mimeType);
+
+    return {
+      ...file(),
+      kind: "video",
+      ...(durationMs && { durationMs }),
+      thumbnail: { data: thumbnail, sha256: sha256Hex(thumbnail) },
+    };
+  }
+
   let image: { data: Uint8Array; mimeType: string; width: number; height: number };
 
   try {
@@ -99,6 +114,10 @@ export async function prepareAttachment(
     thumbnail: { data: thumbnail, sha256: sha256Hex(thumbnail) },
   };
 }
+
+const videoPoster = sharp({ create: { width: 320, height: 180, channels: 3, background: "#27272a" } })
+  .webp({ quality: 60 })
+  .toBuffer();
 
 async function normalize(
   data: Uint8Array,

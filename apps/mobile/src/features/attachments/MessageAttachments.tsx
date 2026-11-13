@@ -5,6 +5,8 @@ import { Icon } from "../../ui/Icon";
 import { styles, useColors } from "../../ui/theme";
 import { ImagePreview } from "./ImagePreview";
 import { AttachmentViewer } from "./AttachmentViewer";
+import { VideoAttachment } from "./VideoAttachment";
+import { attachmentPreviewKind } from "@canopy/domain/attachment-preview";
 
 export function MessageAttachments({ files, pending }: { files: readonly ui.Attachment[]; pending: boolean }) {
   const c = useColors();
@@ -18,7 +20,9 @@ export function MessageAttachments({ files, pending }: { files: readonly ui.Atta
       ]}
     >
       {files.map((file) =>
-        file.kind === "image" ? (
+        attachmentPreviewKind(file) === "video" ? (
+          <VideoAttachment key={file.id} file={file} />
+        ) : file.kind === "image" ? (
           <ImagePreview
             key={file.id}
             source={{ kind: "attachment", file }}

@@ -2375,6 +2375,10 @@ message GetAttachmentRequest {
   bool thumbnail = 2;
   // Ograniczony podgląd: pierwsze 128 KiB, bez pobierania całego bloba z bazy.
   bool preview = 800;
+  // Bounded byte reads for media. Ownership is checked on every request.
+  uint64 offset = 801;
+  uint32 limit = 802;
+  bool metadata_only = 803;
 }
 
 message GetAttachmentResponse {
@@ -2382,6 +2386,8 @@ message GetAttachmentResponse {
   bytes data = 2;
   string mime_type = 3;
   bool truncated = 800;
+  uint64 total_size = 801;
+  uint64 offset = 802;
 }
 
 // Podgląd obrazu z transkryptu wątku (Image.blob, ToolCall.images), tylko dla właściciela wątku.

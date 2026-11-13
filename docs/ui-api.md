@@ -1081,6 +1081,37 @@ przez połączone komputery wymagają `remote_bot_composer_v1` na całej trasie.
 
 ### Załączniki
 
+Filmy MP4 (marki ISO/AVC), MOV i WebM są rozpoznawane z nagłówka kontenera jako
+`kind = video`; rozszerzenie i MIME klienta nie nadają tego rodzaju. HTML i SVG
+pozostają plikami. Odtwarzalność kodeka zależy od platformy (typowo H.264/AAC
+w MP4 oraz VP8/VP9 w WebM); nie ma transkodowania. `Attachment.duration_ms` (10)
+zawiera czas z nagłówka kontenera, jeśli jest dostępny. Gateway tworzy neutralny
+plakat WebP 320×180 przez istniejący sharp, bez uruchamiania dekodera wideo.
+`has_thumbnail` oznacza ten obraz; nie jest to pierwsza klatka filmu.
+
+Chipy wiadomości, kolejki i composera pokazują ikonę filmu i znany czas.
+Hover pokazuje plakat i Play video; kliknięcie otwiera wspólny `Lightbox`.
+Natywny `<video controls playsinline preload="metadata">` nie uruchamia filmu
+automatycznie, zaczyna wyciszony i zatrzymuje się po zamknięciu, wyjściu poza
+ekran lub ukryciu karty. Space przełącza odtwarzanie, strzałki przewijają o 5 s.
+Nie ma gracza inline w historii: ukryte wiadomości nie utrzymują dekoderów.
+
+`GetAttachment` przyjmuje `offset` (801), `limit` (802, do 1 MiB) oraz
+`metadata_only` (803). Odpowiedź ma `total_size` (801) i `offset` (802).
+Każdy odczyt sprawdza właściciela przed pobraniem wycinka z PostgreSQL.
+BFF strumieniuje pełne pobranie oraz pojedynczy HTTP Range porcjami po 256 KiB,
+z backpressure i anulowaniem RPC. Zwraca Accept-Ranges, 206/Content-Range,
+416 dla nieprawidłowego zakresu, obsługuje suffix/open ranges, HEAD i If-Range.
+Walidacja ETag następuje po autoryzacji; nagłówki nosniff i bezpieczna nazwa
+pobrania obowiązują również filmy. Starszy dom ignorujący pola zakresu może
+zwrócić pełny plik: BFF wykorzystuje tę jedną odpowiedź, zamiast pobierać ją
+ponownie dla każdego fragmentu. Pełne strumieniowanie wymaga aktualnego domu.
+
+Limity filmów pozostają takie jak pozostałych plików (domyślnie 20 MiB,
+maksymalnie 30 MiB na plik): upload i dostarczenie do workera nadal przenoszą
+oryginał. Osobny wyższy limit zwiększałby bufory tych ścieżek. Notatka dla
+agenta wymienia video i znany czas; worker dostaje oryginalne bajty na dysku.
+
 Niezmienne bajty załączników i blobów wątku mają `Cache-Control: private,
 max-age=31536000, immutable` oraz ETag SHA256 faktycznie wysłanego wariantu.
 Query `?thumbnail` i `?preview` tworzą odrębne klucze URL; walidacja ETag następuje

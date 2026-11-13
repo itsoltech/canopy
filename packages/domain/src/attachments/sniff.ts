@@ -9,7 +9,9 @@
  * - `executable`: native programs (ELF, PE, Mach-O): rejected.
  */
 
-export type SniffedKind = "image" | "convertible" | "file" | "executable";
+import { videoType } from "./video.ts";
+
+export type SniffedKind = "image" | "video" | "convertible" | "file" | "executable";
 
 export interface Sniffed {
   readonly kind: SniffedKind;
@@ -84,6 +86,10 @@ export function sniff(bytes: Uint8Array, name = ""): Sniffed {
 
   if (ascii(0, "RIFF") && ascii(8, "WEBP")) return binary("image", "image/webp");
 
+  const video = videoType(bytes);
+
+  if (video) return binary("video", video);
+
   if (ascii(4, "ftyp")) {
     const brand = String.fromCharCode(...bytes.slice(8, 12));
 
@@ -92,7 +98,7 @@ export function sniff(bytes: Uint8Array, name = ""): Sniffed {
     if (["heic", "heix", "hevc", "hevx", "heim", "heis", "mif1", "msf1"].includes(brand))
       return binary("convertible", "image/heic");
 
-    return binary("file", brand.startsWith("qt") ? "video/quicktime" : "video/mp4");
+    return binary("file", "application/octet-stream");
   }
 
   if (at(0, 0x49, 0x49, 0x2a, 0x00) || at(0, 0x4d, 0x4d, 0x00, 0x2a)) return binary("convertible", "image/tiff");

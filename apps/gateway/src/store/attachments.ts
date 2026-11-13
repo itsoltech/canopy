@@ -22,7 +22,8 @@ export interface AttachmentRow {
   thumb_sha256: string | null;
   name: string;
   mime_type: string;
-  kind: "image" | "file";
+  kind: "image" | "video" | "file";
+  duration_ms: number | string | null;
   size_bytes: bigint | number | string;
   width: number | null;
   height: number | null;
@@ -37,7 +38,8 @@ export interface StoredAttachment {
   readonly id: string;
   readonly name: string;
   readonly mimeType: string;
-  readonly kind: "image" | "file";
+  readonly kind: "image" | "video" | "file";
+  readonly durationMs?: number;
   readonly sizeBytes: number;
   readonly width?: number;
   readonly height?: number;
@@ -51,7 +53,8 @@ export interface NewAttachment {
   readonly ownerUserId: string;
   readonly name: string;
   readonly mimeType: string;
-  readonly kind: "image" | "file";
+  readonly kind: "image" | "video" | "file";
+  readonly durationMs?: number;
   readonly data: Uint8Array;
   readonly sha256: string;
   readonly width?: number;
@@ -73,7 +76,11 @@ export class AttachmentStore extends Context.Service<
     owned(ownerUserId: string, attachmentId: string): Fx<AttachmentRow>;
     /** Attachments a new message may take: the owner's, not yet sent, in the order given. */
     forMessage(ownerUserId: string, ids: readonly string[]): Fx<AttachmentRow[]>;
-    blob(sha256: string, maxBytes?: number): Fx<{ data: Uint8Array; mimeType: string }>;
+    blob(
+      sha256: string,
+      maxBytes?: number,
+      offset?: number,
+    ): Fx<{ data: Uint8Array; mimeType: string; totalSize: bigint }>;
     /** Stores a blob (idempotent: the same content is the same blob). */
     putBlob(sha256: string, data: Uint8Array, mimeType: string): Fx<void>;
     /** A transcript blob the owner may read through this thread (or another thread of its tree). */
@@ -94,13 +101,20 @@ export class AttachmentStore extends Context.Service<
         sql`INSERT INTO blobs (sha256, size_bytes, mime_type, data) VALUES (${sha256}, ${data.length}, ${mimeType}, ${data})
             ON CONFLICT (sha256) DO NOTHING`.pipe(Effect.asVoid);
 
-      const readBlob = (rows: readonly { data: Uint8Array | null; mime_type: string }[], what: string) => {
+      const readBlob = (
+        rows: readonly { data: Uint8Array | null; mime_type: string; size_bytes?: number | string | bigint }[],
+        what: string,
+      ) => {
         const row = rows[0];
 
         // Blobs moved to object storage (storage_url) are not served yet.
         if (!row?.data) return Effect.fail(new NotFound(`${what} not found`));
 
-        return Effect.succeed({ data: new Uint8Array(row.data), mimeType: row.mime_type });
+        return Effect.succeed({
+          data: new Uint8Array(row.data),
+          mimeType: row.mime_type,
+          totalSize: BigInt(row.size_bytes ?? row.data.length),
+        });
       };
 
       const store = AttachmentStore.of({
@@ -114,9 +128,9 @@ export class AttachmentStore extends Context.Service<
               if (input.thumbnail) yield* putBlob(input.thumbnail.sha256, input.thumbnail.data, "image/webp");
 
               const rows = yield* sql<AttachmentRow>`
-                INSERT INTO attachments (id, owner_user_id, sha256, thumb_sha256, name, mime_type, kind, size_bytes, width, height)
+                INSERT INTO attachments (id, owner_user_id, sha256, thumb_sha256, name, mime_type, kind, size_bytes, width, height, duration_ms)
                 VALUES (${Bun.randomUUIDv7()}::uuid, ${input.ownerUserId}::uuid, ${input.sha256}, ${input.thumbnail?.sha256 ?? null}, ${input.name},
-                        ${input.mimeType}, ${input.kind}, ${input.data.length}, ${input.width ?? null}, ${input.height ?? null})
+                        ${input.mimeType}, ${input.kind}, ${input.data.length}, ${input.width ?? null}, ${input.height ?? null}, ${input.durationMs ?? null})
                 RETURNING *`;
 
               return rows[0]!;
@@ -160,13 +174,14 @@ export class AttachmentStore extends Context.Service<
             return ordered;
           }),
 
-        blob: (sha256, maxBytes) =>
+        blob: (sha256, maxBytes, offset = 0) =>
           SHA256.test(sha256)
             ? sql<{
                 data: Uint8Array | null;
                 mime_type: string;
-              }>`SELECT substring(data FROM 1 FOR ${maxBytes ?? 2_147_483_647}::integer) AS data,
-                        mime_type FROM blobs WHERE sha256 = ${sha256}`.pipe(
+                size_bytes: number;
+              }>`SELECT substring(data FROM ${offset + 1}::integer FOR ${maxBytes ?? 2_147_483_647}::integer) AS data,
+                        mime_type, size_bytes FROM blobs WHERE sha256 = ${sha256}`.pipe(
                 Effect.flatMap((rows) => readBlob(rows, "blob")),
               )
             : Effect.fail(new NotFound("blob not found")),
@@ -240,6 +255,7 @@ export function toUiAttachment(row: AttachmentRow | StoredAttachment): ui.Attach
       height: row.height ?? 0,
       sha256: row.sha256,
       hasThumbnail: row.thumb_sha256 !== null,
+      durationMs: Number(row.duration_ms ?? 0),
     });
   }
 
@@ -253,5 +269,6 @@ export function toUiAttachment(row: AttachmentRow | StoredAttachment): ui.Attach
     height: row.height ?? 0,
     sha256: row.sha256,
     hasThumbnail: row.hasThumbnail,
+    durationMs: row.durationMs ?? 0,
   });
 }

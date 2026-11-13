@@ -28,7 +28,7 @@ export async function readImage(
 ) {
   const size = source.kind === "thread" ? source.sizeBytes : source.file.sizeBytes;
 
-  if (size > BigInt(IMAGE_BYTES))
+  if (!(thumbnail && source.kind === "attachment" && source.file.hasThumbnail) && size > BigInt(IMAGE_BYTES))
     throw new ImageReadError("This image exceeds the 20 MB viewing limit. Export a smaller image to view it.");
 
   const response =
