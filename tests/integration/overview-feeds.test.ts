@@ -135,9 +135,44 @@ describe.skipIf(!dockerAvailable)("pushed bot, connector and proxy changes", () 
     await Bun.sleep(4500);
     expect(
       watcher.updates.filter((u) =>
-        ["bot", "botRemoved", "connectorsChanged", "proxiesChanged"].includes(u.change.case ?? ""),
+        ["bot", "botRemoved", "connectorsChanged", "proxiesChanged", "linkedReadCompleted"].includes(
+          u.change.case ?? "",
+        ),
       ),
     ).toEqual([]);
     watcher.close();
   }, 15_000);
+
+  test("configuration revisions and resolved notices invalidate shared computer reads", async () => {
+    const watcher = subscriber(gw);
+    using _closing = { [Symbol.dispose]: () => watcher.close() };
+    await watcher.next("feeds");
+    await Bun.sleep(300);
+
+    const query = (text: string, params: string[] = [], owner = gw.userId) =>
+      gw.runtime.runPromise(Effect.flatMap(SqlClient.SqlClient, (sql) => sql.unsafe(text, [owner, ...params])));
+
+    const invalidated = () => watcher.next("linkedReadCompleted", (u) => u.change.value === "GetComputers");
+
+    const other = crypto.randomUUID();
+    await query(`INSERT INTO users(id,email,display_name,role) VALUES($1::uuid,$1::text,'Other','user')`, [], other);
+    await query("INSERT INTO config_clock(owner_user_id) VALUES($1::uuid)", [], other);
+    await Bun.sleep(2200);
+    expect(watcher.updates.filter((u) => u.change.case === "linkedReadCompleted")).toEqual([]);
+
+    await query(
+      "INSERT INTO config_clock(owner_user_id) VALUES($1::uuid) ON CONFLICT(owner_user_id) DO UPDATE SET revision=config_clock.revision+1",
+    );
+    await invalidated();
+    const id = crypto.randomUUID();
+    await query(
+      `INSERT INTO config_history(id,owner_user_id,kind,global_id,field,value,hlc,node_id,notice_node_id)
+      VALUES($2::uuid,$1::uuid,'settings','account','timezone','"UTC"','1.0.test','test','test')`,
+      [id],
+    );
+    await invalidated();
+    await query("UPDATE config_history SET state='dismissed' WHERE owner_user_id=$1::uuid AND id=$2::uuid", [id]);
+    await invalidated();
+    expect(watcher.updates.filter((u) => u.change.case === "linkedReadCompleted")).toEqual([]);
+  }, 20_000);
 });
