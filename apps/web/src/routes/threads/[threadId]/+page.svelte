@@ -6,7 +6,7 @@
   import LiveText from "#lib/shared/ui/LiveText.svelte";
   import { goto } from "$app/navigation";
   import { contributeCommands } from "#lib/features/commands/commands.svelte.ts";
-  import { threadCommands } from "#lib/features/threads/thread-commands.ts";
+  import { requestThreadInterrupt, threadCommands } from "#lib/features/threads/thread-commands.ts";
   import { composerAvailability } from "#lib/features/threads/thread-availability.ts";
   import GoalBar from "#lib/features/goals/GoalBar.svelte";
   import GoalDialog from "#lib/features/goals/GoalDialog.svelte";
@@ -20,7 +20,6 @@
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import ScheduleDialog from "#lib/features/schedules/ScheduleDialog.svelte";
   import ScheduleOrigin from "#lib/features/schedules/ScheduleOrigin.svelte";
-  import { interruptThread } from "#lib/features/threads/api.ts";
   import BackgroundTasksChip from "#lib/features/threads/components/BackgroundTasksChip.svelte";
   import BackgroundTaskDialog from "#lib/features/threads/components/BackgroundTaskDialog.svelte";
   import { backgroundTasks } from "#lib/features/threads/background-tasks.ts";
@@ -492,15 +491,7 @@
       : [],
   );
 
-  async function stop() {
-    if (!thread) return;
-
-    try {
-      await interruptThread(thread.id);
-    } catch (cause) {
-      toast(`Could not interrupt: ${cause instanceof Error ? cause.message : "unknown error"}`, { tone: "error" });
-    }
-  }
+  const stop = () => requestThreadInterrupt(thread?.id);
 
   const blockingQuestions = $derived(view.pending.filter((interaction) => !interaction.asynchronous).length);
 
