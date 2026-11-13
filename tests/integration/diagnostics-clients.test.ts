@@ -124,6 +124,21 @@ describe.skipIf(!dockerAvailable)("client diagnostics auth, redaction and explic
     expect(value.clientMeasures.find((measure) => measure.metricId === clientMetric("web", 1))?.events).toBe(2n);
   }, 15_000);
 
+  test("cache freshness timings, hit ratios, request counters and payload bytes cross the registered client boundary", async () => {
+    const measurements = new ClientMeasurements("desktop", crypto.randomUUID());
+    measurements.clear(sample.epoch);
+    measurements.record(12, 8);
+    measurements.record(13, 100);
+    measurements.record(14, 3);
+    measurements.record(15, 1024 * 1024);
+    const batch = measurements.take();
+    expect(batch.measures.find((row) => row.metricId === clientMetric("desktop", 14))?.histogram).toBeUndefined();
+    expect(batch.measures.find((row) => row.metricId === clientMetric("desktop", 14))?.events).toBe(3n);
+    expect((await gw.api.submitDiagnostics(batch, { headers })).accepted).toBe(true);
+    measurements.record(13, 101);
+    expect(await rejectedCode(gw.api.submitDiagnostics(measurements.take(), { headers }))).toBe(Code.InvalidArgument);
+  });
+
   test("bounds wire size, sender cardinality and combined BFF/browser rate", () => {
     const collector = gw.core.diagnostics.collector;
     const clients = new ClientDiagnostics(collector, () => sample.epoch);

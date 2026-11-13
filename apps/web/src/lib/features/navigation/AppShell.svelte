@@ -51,6 +51,9 @@
   import { legacyDeviceView } from "@canopy/domain/device-view";
   import { watchNotifications } from "#lib/features/notifications/watch.svelte.ts";
   import WhatsNewHost from "#lib/features/updates/WhatsNewHost.svelte";
+  import { threadWarmSet } from "@canopy/domain/thread-warm-set";
+  import { sidebarThreads } from "@canopy/domain/sidebar-threads";
+  import { createThreadWarming, connectThreadWarming } from "#lib/features/threads/warming.ts";
 
   let { children }: { children: Snippet } = $props();
 
@@ -81,16 +84,51 @@
 
   provideOverview(overview);
 
-  $effect(() => overview.connect());
-
-  let ready = $state(false);
-
   // Settings live in the gateway: seeded by the server, changed from other devices through the stream.
   const settings = new SettingsState(
     create(ui.GetSettingsResponseSchema, { user: { appearance: appearanceFromDocument() } }),
   );
 
   provideSettings(settings);
+
+  const warming = createThreadWarming();
+
+  const warmIds = $derived(
+    threadWarmSet(
+      [...overview.threads.values()],
+      settings.sidebar.pinnedThreadIds,
+      sidebarThreads(
+        [...overview.threads.values()],
+        settings.sidebar,
+        "",
+        (id) => overview.project(id)?.name ?? "",
+      ).roots.map((thread) => thread.id),
+    ),
+  );
+
+  const headIds = $derived([...warmIds].sort().join(","));
+
+  $effect(() => {
+    const ids = headIds;
+
+    return untrack(() => overview.connect(ids));
+  });
+
+  $effect(() => warming.select(warmIds));
+
+  $effect(() => warming.activate(page.params.threadId ?? ""));
+
+  $effect(() => warming.enable(overview.connection === "live" && !document.hidden && navigator.onLine));
+
+  $effect(() =>
+    overview.subscribe((update) => {
+      if (update.change.case === "threadHeads") warming.heads(update.change.value.heads);
+    }),
+  );
+
+  onMount(() => connectThreadWarming(warming, () => overview.connection === "live"));
+
+  let ready = $state(false);
 
   onMount(() => devicePreferences.connect());
 

@@ -243,10 +243,12 @@ export class OverviewState {
     }
   }
 
-  connect(): () => void {
+  connect(heads = ""): () => void {
     let pending: ui.OverviewUpdate[] | undefined;
+    // Replacing a subscription to change its bounded head set also introduces a stream gap.
+    this.#synced = false;
 
-    return liveSource("/api/overview/events", {
+    return liveSource(`/api/overview/events?${new URLSearchParams({ heads })}`, {
       onstatus: (state) => {
         this.recovery = state;
         this.connection = state.status;

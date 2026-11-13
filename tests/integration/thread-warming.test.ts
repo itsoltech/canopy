@@ -1,10 +1,16 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { toBinary } from "@bufbuild/protobuf";
+import { create, toBinary } from "@bufbuild/protobuf";
 import { Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { applyThreadUpdate } from "@canopy/domain/thread-snapshot";
+import { ThreadCache } from "@canopy/domain/thread-cache";
+import { ThreadWarmer } from "@canopy/domain/thread-warmer";
+import { threadCacheCurrent, threadWarmSet, THREAD_WARM_LIMITS } from "@canopy/domain/thread-warm-set";
+import { sidebarThreads } from "@canopy/domain/sidebar-threads";
+import { threadSortModes } from "@canopy/domain/thread-order";
+import { overviewThreadHeads } from "../../apps/gateway/src/core/overview-thread-heads.ts";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
-import { startTestGateway } from "./support/gateway.ts";
+import { startTestGateway, eventually } from "./support/gateway.ts";
 
 describe.skipIf(!dockerAvailable)("background thread sequence reads", () => {
   let gateway: Awaited<ReturnType<typeof startTestGateway>>;
@@ -113,6 +119,126 @@ describe.skipIf(!dockerAvailable)("background thread sequence reads", () => {
     expect(tail.historyItemsHasMore).toBe(true);
     expect(tail.historyBeforeItemId).toBeTruthy();
     expect(toBinary(ui.ThreadSnapshotSchema, tail).length).toBeLessThan(600 * 1024);
+  });
+
+  test("recent warming follows replies and filters across created and manual sidebar order", async () => {
+    const added: ui.Thread[] = [];
+
+    for (const title of ["Warm order first", "Warm order reply", "Warm order newest"]) {
+      const thread = (
+        await gateway.api.createThread({
+          projectId: base.thread!.projectId,
+          workspaceId: base.thread!.workspaceId,
+          provider: Provider.CODEX,
+          title,
+        })
+      ).thread!;
+
+      added.push(thread);
+    }
+
+    const [first, reply, newest] = added;
+    await eventually(
+      () => gateway.api.getThread({ threadId: reply!.id }),
+      (r) => r.thread?.status === "idle",
+    );
+    await gateway.api.sendMessage({
+      threadId: reply!.id,
+      text: "A recent reply",
+      clientRequestId: crypto.randomUUID(),
+    });
+    await eventually(
+      () => gateway.api.getThread({ threadId: reply!.id }),
+      (r) => !!r.thread?.lastReplyAt && r.thread.status === "idle",
+    );
+    await gateway.api.reorderThread({ threadId: first!.id, beforeThreadId: newest!.id });
+    const threads = (await gateway.api.listThreads({})).threads;
+    const settings = create(ui.SidebarSettingsSchema);
+    const limits = { ...THREAD_WARM_LIMITS, recent: 1, count: 1 };
+    const firstBySort = { custom: first!.id, created: newest!.id, activity: reply!.id };
+
+    for (const mode of threadSortModes) {
+      const roots = sidebarThreads(threads, settings, "Warm order", () => "", mode.value).roots;
+      expect(roots[0]?.id).toBe(firstBySort[mode.value]);
+      expect(
+        threadWarmSet(
+          threads,
+          [],
+          roots.map((thread) => thread.id),
+          limits,
+        ),
+      ).toEqual([reply!.id]);
+    }
+
+    const roots = sidebarThreads(threads, settings, "Warm order first", () => "", "custom").roots;
+    expect(
+      threadWarmSet(
+        threads,
+        [],
+        roots.map((thread) => thread.id),
+        limits,
+      ),
+    ).toEqual([first!.id]);
+    expect(
+      threadWarmSet(
+        threads,
+        [newest!.id],
+        roots.map((thread) => thread.id),
+        { ...limits, count: 3 },
+      ),
+    ).toEqual([first!.id, reply!.id, newest!.id]);
+  });
+
+  test("the bounded warmer coalesces heads into a current memory tail and yields to the visible thread", async () => {
+    const cache = new ThreadCache({ count: 2, bytes: 1024 * 1024 });
+    const kinds: string[] = [];
+
+    const warmer = new ThreadWarmer(
+      { peek: (key) => cache.peek(key), load: async (key) => cache.get(key), save: (snapshot) => cache.set(snapshot) },
+      async function* (key, cursor, signal) {
+        for await (const update of gateway.api.watchThread(
+          { threadId: key, sequence: true, background: true, syncCursor: cursor },
+          { signal },
+        )) {
+          kinds.push(update.change.case ?? "");
+          yield update;
+        }
+      },
+      { ...THREAD_WARM_LIMITS, intervalMs: 20, requested: () => {} },
+    );
+
+    try {
+      warmer.select([id]);
+      const initial = await overviewThreadHeads(gateway.core, [id]);
+      warmer.heads(initial.heads);
+      warmer.enable(true);
+      await eventually(
+        async () => cache.peek(id),
+        (snapshot) => !!snapshot?.syncCursor,
+      );
+      expect(cache.peek(id)?.items.length).toBeLessThanOrEqual(128);
+      expect(cache.usage.bytes).toBeLessThanOrEqual(cache.limits.bytes);
+      expect(warmer.requests).toBe(1);
+      warmer.activate(id);
+      kinds.length = 0;
+      await gateway.api.updateThread({ threadId: id, title: "Ready in the background" });
+      const next = await overviewThreadHeads(gateway.core, [id]);
+      warmer.heads(next.heads);
+      warmer.heads(next.heads);
+      expect(warmer.requests).toBe(1);
+      warmer.activate("");
+      expect(
+        await eventually(
+          async () => cache.peek(id)?.thread?.title,
+          (title) => title === "Ready in the background",
+        ),
+      ).toBe("Ready in the background");
+      expect(kinds.every((kind) => kind === "batch")).toBe(true);
+      expect(warmer.requests).toBe(2);
+      expect(threadCacheCurrent(cache.peek(id), next.heads[0])).toBe(true);
+    } finally {
+      warmer.close();
+    }
   });
 
   async function warm(snapshot?: ui.ThreadSnapshot) {

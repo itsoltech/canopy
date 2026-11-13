@@ -9,6 +9,7 @@ import type { ThreadState } from "./thread-state.svelte.ts";
 import { clientOpening } from "#lib/features/diagnostics/client.ts";
 import { ThreadWatchRecovery, threadWatchMessage, threadSyncStatus } from "@canopy/domain/thread-watch-recovery";
 import { threadWatchReady } from "@canopy/domain/thread-watch-state";
+import { warmCacheHit } from "./warming.ts";
 
 export class ThreadHistory {
   loading = $state(false);
@@ -33,7 +34,10 @@ export class ThreadHistory {
   ) {}
 
   connect(id: string) {
-    const opening = clientOpening(Boolean(this.read()?.thread));
+    const current = warmCacheHit(id);
+    const opening = clientOpening(Boolean(this.read()?.thread), current);
+
+    if (current) opening?.current();
 
     if (this.read()?.thread) opening?.paint();
     let first = true;
@@ -99,6 +103,7 @@ export class ThreadHistory {
             this.view.connection = "error";
             this.view.failure = threadWatchMessage(update.syncStatus.reason, update.syncStatus.computerName);
           } else if (threadWatchReady(update) === true) {
+            opening?.current();
             this.view.connection = "live";
             this.view.failure = undefined;
 

@@ -34,11 +34,15 @@ const emptyDiagnostics = process.env["CANOPY_BENCH_DIAGNOSTICS_EMPTY"] === "1";
 
 if (new Set([webPort, gatewayPort, pgPort]).size !== 3) throw new Error("Benchmark ports must differ");
 
-const name = `canopy-client-bench-${process.pid}`;
+const name = process.env["CANOPY_BENCH_CONTAINER"] ?? `canopy-client-bench-${process.pid}`;
+
+if (!/^canopy-[a-z0-9-]+$/.test(name)) throw new Error("Choose a canopy-prefixed benchmark container name");
+
 const password = randomBytes(24).toString("hex");
 const token = randomBytes(32).toString("hex");
 const children: ReturnType<typeof Bun.spawn>[] = [];
 let stopping = false;
+let containerCreated = false;
 let stopWorker: (() => Promise<void>) | undefined;
 
 async function stop() {
@@ -48,7 +52,9 @@ async function stop() {
 
   for (const child of children.toReversed()) child.kill("SIGTERM");
   await Promise.all(children.map((child) => child.exited));
-  await Bun.spawn(["docker", "rm", "-f", "-v", name], { stdout: "ignore", stderr: "ignore" }).exited;
+
+  if (containerCreated)
+    await Bun.spawn(["docker", "rm", "-f", "-v", name], { stdout: "ignore", stderr: "ignore" }).exited;
 }
 
 for (const signal of ["SIGINT", "SIGTERM"] as const)
@@ -73,6 +79,7 @@ try {
   );
 
   if ((await docker.exited) !== 0) throw new Error("Could not start private PostgreSQL");
+  containerCreated = true;
 
   const deadline = Date.now() + 45_000;
 
