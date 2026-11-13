@@ -960,6 +960,13 @@ message GetOverviewResponse {
 message WatchOverviewRequest {
   // Mobile reconnects need a fresh overview + threads before consuming live changes.
   bool include_snapshot = 762;
+  // At most 32 threads. One multiplexed head probe, never a watch per thread.
+  repeated string thread_head_ids = 830;
+}
+
+message ThreadHeads {
+  // applied_seq is the latest locally readable sequence (also for linked mirrors).
+  repeated ThreadSyncCursor heads = 1;
 }
 
 message MobileOverviewSnapshot {
@@ -1036,6 +1043,7 @@ message OverviewUpdate {
     OverviewFeeds feeds = 828;
     // The update center changed (state, check, a worker's or linked computer's update): read GetUpdates again.
     bool updates_changed = 829;
+    ThreadHeads thread_heads = 830;
   }
 }
 
@@ -1291,6 +1299,9 @@ message WatchThreadRequest {
   bool sequence = 811;
   ThreadSyncCursor sync_cursor = 812;
   string before_item_id = 813;
+  // Finite, low-priority cache warming: bounded tail or at most 256 sequence records.
+  // Does not read permission-bearing controls or keep a live subscription open.
+  bool background = 814;
 }
 
 message ThreadConnector {

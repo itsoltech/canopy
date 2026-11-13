@@ -27,7 +27,8 @@ export function projectsHandlers(
   return {
     getOverview: () => guard(() => core.overview()),
 
-    watchOverview: (request, context) => core.watchOverview(context.signal, request.includeSnapshot),
+    watchOverview: (request, context) =>
+      core.watchOverview(context.signal, request.includeSnapshot, request.threadHeadIds),
 
     listDirectory: (request) => guard(() => core.listDirectory(request.workerId, request.path)),
 

@@ -244,6 +244,20 @@ Duże itemy mają podgląd i `content_ref`; pełna treść jest pobierana wyłą
 żądanie przez `GetThreadSyncContent`, w kawałkach do 48 KiB. Uprawnienia i sekrety
 nie wchodzą do dziennika lustra: aktualizuje je osobny `ThreadUpdate.controls`.
 
+Dogrzewanie cache używa tej samej ścieżki `sequence`, z addytywnym
+`WatchThreadRequest.background` (814). Odczyt kończy się po najwyżej czterech
+partiach (256 rekordów, do 64 KiB każda); cel jest ustalony na początku odczytu,
+więc stale rosnący wątek nie utrzymuje zadania. Luka ponad 256 seq lub inna epoka
+daje wyłącznie nowe ograniczone okno 24 tur / 128 itemów. Starsza historia pozostaje
+stronicowana. Tło nie pobiera kontrolek z uprawnieniami ani treści blobów.
+
+Jedyny `WatchOverview` klienta przyjmuje `thread_head_ids` (830), do 32 identyfikatorów.
+Co 2 s wykonuje ograniczony odczyt skalarów i emituje `OverviewUpdate.thread_heads`
+tylko po zmianie. To seq replikacji, obejmujący również metadane, a nie `Thread.last_seq`.
+Odczyt jest owner-scoped. Dla połączonego komputera ogłasza atomowo zatwierdzony,
+widoczny seq lokalnego lustra; nie pyta sieciowo domu i nie ujawnia niezatwierdzonych
+partii. Zmiana zestawu zastępuje tę samą subskrypcję overview, bez watcha na każdy wątek.
+
 Awaria samego watcha jest lokalna dla wątku. Cache pozostaje widoczny; błędy
 deterministyczne powodują jedną próbę bez kursora, jedną z mniejszym oknem, potem
 zatrzymanie z „Retry” / „Load from scratch”. Niedostępny dom emituje
