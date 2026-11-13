@@ -831,10 +831,18 @@ message BotFileOperation {
   string operation = 3; // list | read | write | delete
   string path = 4;
   string text = 5;
+  string url = 6;
+  string filename = 7;
+  string export_id = 8;
+  uint64 offset = 9;
 }
 
 message BotFileResult {
   string result_json = 1;
+  bytes data = 2;
+  string name = 3;
+  uint64 size_bytes = 4;
+  string sha256 = 5;
 }
 
 message DirectoryEntry {

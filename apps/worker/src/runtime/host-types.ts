@@ -57,6 +57,8 @@ export interface CommandOutput {
 }
 
 export interface WorkerHostOptions {
+  /** Local-fixture transport for bot download security tests; absent in production. */
+  readonly botDownloads?: import("../bots/download.ts").BotDownloadOptions;
   /** Integration fixtures can shorten clone deadlines without changing production limits. */
   readonly cloneTimeouts?: { stallTimeoutMs?: number; overallTimeoutMs?: number };
   /** Tests can shorten the production two-minute shell deadline. */

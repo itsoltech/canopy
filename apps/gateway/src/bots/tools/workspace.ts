@@ -13,6 +13,12 @@ export const BOT_FILE_TOOLS = [
 ];
 
 export async function botFileCommand(ctx: ToolContext, operation: string) {
+  const result = await botFileResponse(ctx, operation);
+
+  return Schema.decodeUnknownSync(Schema.fromJsonString(Schema.Json))(result.resultJson);
+}
+
+export async function botFileResponse(ctx: ToolContext, operation: string, offset = 0n) {
   const bot = await ctx.core.bots.run((s) => s.owned(ctx.options.userId, ctx.turn.bot_id));
 
   if (botConfiguration(bot).files === false || ctx.turn.handoff_configuration)
@@ -31,6 +37,12 @@ export async function botFileCommand(ctx: ToolContext, operation: string) {
   if (!connection?.isOpen || !connection.hello.capabilities.includes("bot_workspace_v1"))
     throw new Invalid("Update the bot's worker to use files, then retry.");
 
+  if (
+    ["download", "export", "release"].includes(operation) &&
+    !connection.hello.capabilities.includes("bot_outgoing_files_v1")
+  )
+    throw new Invalid("Update the bot's worker to download and send files, then retry.");
+
   const result = await connection.sendCommand({
     case: "botFile",
     value: {
@@ -39,13 +51,16 @@ export async function botFileCommand(ctx: ToolContext, operation: string) {
       operation,
       path: ctx.optional("path"),
       text: ctx.optional("text"),
+      url: ctx.optional("url"),
+      filename: ctx.optional("filename"),
+      exportId: ctx.call.id,
+      offset,
     },
   });
 
   if (!result.ok || !result.botFile) throw new Invalid(result.errorMessage || "The file operation failed. Try again.");
 
-  // Only the command result's data crosses this boundary; no host paths or provider diagnostics.
-  return Schema.decodeUnknownSync(Schema.fromJsonString(Schema.Json))(result.botFile.resultJson);
+  return result.botFile;
 }
 
 const execute = (operation: string) => (ctx: ToolContext) => ctx.action(() => botFileCommand(ctx, operation));

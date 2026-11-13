@@ -264,6 +264,32 @@ Historyczny wynik narzędzia nigdy nie jest upoważnieniem do nowej akcji.
 
 ## Trwałość i prezentacja
 
+`download_file` pobiera do scratch przez ograniczony transport HTTP(S) workera:
+50 MiB, 60 s łącznie, 10 s bezczynności i 5 przekierowań. Każdy URL oraz
+przekierowanie rozwiązuje DNS; jakikolwiek adres niepubliczny odrzuca całe żądanie.
+Połączenie używa wybranego literalnego IP, bez drugiego lookup; HTTPS zachowuje
+SNI i walidację certyfikatu dla oryginalnego hosta. Prywatne, metadata, mapowane
+IPv4, link-local, multicast i zarezerwowane zakresy są blokowane. Transport nie
+dziedziczy proxy, ciasteczek ani nagłówków z kont. MIME pochodzi z odpowiedzi
+i jest zapisany w wyniku narzędzia; gateway rozpoznaje typ ponownie z bajtów.
+
+`send_attachment` odczytuje pojedynczy zwykły plik z prywatnego workspace przez
+ograniczone fragmenty 1 MiB. Worker utrzymuje jedną niemodyfikowalną kopię
+do 50 MiB na aktywną rozmowę, z limitem 60 s; bramka sprawdza rozmiar i SHA-256.
+Gateway stosuje istniejące limity i walidację typu załączników właściciela.
+Storage blobu, referencja, wiadomość bota, audyt `bot.send_attachment` i wynik
+narzędzia zatwierdzają się w jednej fenced transakcji z deduplikacją call id.
+Bajty i ścieżki hosta nie trafiają do wyniku narzędzia modelu. Wymagane jest
+capability `bot_outgoing_files_v1`. Wyłączenie Files jest sprawdzane także przy
+wykonaniu po zgodzie. Pobieranie nie utrzymuje blokady wiersza podczas I/O,
+żeby heartbeat lease i Stop mogły działać. Odczyt i wysyłka po Stop są odmawiane.
+
+Załączniki wychodzące używają tego samego `BotMessage.attachments` i API pobrania
+co pliki użytkownika, więc web/desktop/mobile korzystają z obecnych podglądów.
+W tym runtime nie ma automatycznych kanałów wiadomości Telegram/Slack; konto
+MCP daje przyznane narzędzia, nie adres do doręczeń. Wysłanie do zewnętrznego
+kanału wymaga jego istniejącego narzędzia oraz grantu i polityki zgód gatewaya.
+
 `bot_turns` nadal serializuje rozmowę. Komenda wykonania jest zapisana w istniejącym
 `worker_commands` przed wysyłką i ma trwały identyfikator. Jej payload nie zawiera
 sekretów ani ścieżek projektów. Odpowiedzi komend deduplikuje journal Workera.
