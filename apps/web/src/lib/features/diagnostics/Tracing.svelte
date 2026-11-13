@@ -1,6 +1,7 @@
 <script lang="ts">
   import { create, toJson, toJsonString } from "@bufbuild/protobuf";
   import { ui } from "@canopy/contracts";
+  import { TRACE_LIMITS } from "@canopy/domain/diagnostics";
   import { requestJson } from "#lib/shared/http.ts";
   import { decode } from "#lib/shared/wire.ts";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
@@ -38,6 +39,7 @@
         minutes: Number(minutes),
         action: kind === "export" ? "" : kind,
         leaseId: target.tracing?.leaseId,
+        maxSamples: TRACE_LIMITS.samples,
       });
 
       const result = await requestJson(

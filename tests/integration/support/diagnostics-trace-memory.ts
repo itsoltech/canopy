@@ -13,9 +13,9 @@ const trace = new DiagnosticsTrace(
 function session() {
   const lease = crypto.randomUUID();
 
-  if (!trace.start(lease, "gateway", 1)) throw new Error("Trace did not start");
+  if (!trace.start(lease, "gateway", 5)) throw new Error("Trace did not start");
 
-  for (let second = 0; second < 25; second++) {
+  for (let second = 0; second <= Math.ceil(TRACE_LIMITS.samples / TRACE_LIMITS.perSecond); second++) {
     now += 1000;
 
     for (let call = 0; call < TRACE_LIMITS.perSecond * TRACE_LIMITS.stride; call++)

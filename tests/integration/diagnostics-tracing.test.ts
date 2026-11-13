@@ -29,7 +29,7 @@ test("trace sampling, rate, ring, monotonic expiry and restart limits are enforc
 
   const lease = crypto.randomUUID();
   expect(trace.start(lease, "gateway", 11)).toBe(false);
-  expect(trace.start(lease, "gateway", 1)).toBe(true);
+  expect(trace.start(lease, "gateway", 5)).toBe(true);
   // An observer's different wall clock must not override the home's monotonic lease.
   expect(traceState(trace.state())?.active).toBe(true);
   expect(traceState({ ...trace.state(), processId: "SELECT private_parameter" })).toBeUndefined();
@@ -44,7 +44,7 @@ test("trace sampling, rate, ring, monotonic expiry and restart limits are enforc
   expect(trace.export(lease)?.spans.length).toBe(TRACE_LIMITS.perSecond);
   expect(trace.export(lease)?.droppedSamples).toBeGreaterThan(0n);
 
-  for (let second = 1; second <= 30; second++) {
+  for (let second = 1; second <= Math.ceil(TRACE_LIMITS.samples / TRACE_LIMITS.perSecond) + 2; second++) {
     now = second * 1000;
 
     for (let i = 0; i < 10000; i++) trace.record("ingest", 22, 3);
@@ -55,7 +55,7 @@ test("trace sampling, rate, ring, monotonic expiry and restart limits are enforc
   expect(new Set(result.spans.map((span) => span.traceId)).size).toBe(TRACE_LIMITS.samples);
   expect(toBinary(ui.DiagnosticsTraceExportSchema, result).length).toBeLessThan(TRACE_LIMITS.bytes);
   expect(trace.stop(crypto.randomUUID())).toBe(false);
-  now = 60001;
+  now = 300001;
   expect(trace.state().active).toBe(false);
   const count = result.droppedSamples;
   trace.record("ingest", 22, 4);
@@ -170,6 +170,46 @@ describe.skipIf(!dockerAvailable)("owner-scoped opt-in tracing over gRPC and Wor
     );
     await gateway.api.controlDiagnosticsTrace({ ...request(1, "stop"), leaseId: remote.leaseId });
     expect(computerLink.DiagnosticsService.method.controlHomeDiagnosticsTrace.methodKind).toBe("unary");
+  });
+
+  test.each(["local", "linked", "worker"])("%s exports honor legacy and expanded reader limits", async (kind) => {
+    const gateway = gateways[0]!;
+
+    const input = request(
+      kind === "linked" ? 1 : 0,
+      "start",
+      kind === "worker" ? `worker:${gateway.workerId}` : "gateway",
+    );
+
+    const state = await gateway.api.controlDiagnosticsTrace({ ...input, minutes: 5 });
+
+    const trace =
+      kind === "worker" ? worker.trace : gateways[kind === "linked" ? 1 : 0]!.core.diagnostics.collector.tracing;
+
+    let now = performance.now();
+    const clock = spyOn(trace, "monotonic").mockImplementation(() => now);
+
+    try {
+      for (let sample = 0; sample < 2112; sample++) {
+        now += 100;
+
+        for (let call = 0; call < TRACE_LIMITS.stride; call++)
+          trace.record("governor", governorMetric("utility", "user", "execution"), 0.1);
+      }
+
+      const exportRequest = { ...input, leaseId: state.leaseId };
+      const legacy = await gateway.api.exportDiagnosticsTrace(exportRequest);
+      const expanded = await gateway.api.exportDiagnosticsTrace({ ...exportRequest, maxSamples: TRACE_LIMITS.samples });
+      expect(legacy.spans).toHaveLength(2000);
+      expect(expanded.spans.length).toBeGreaterThan(2000);
+      expect(expanded.spans.length).toBeLessThanOrEqual(TRACE_LIMITS.samples);
+      expect(expanded.droppedSamples).toBeLessThan(legacy.droppedSamples);
+      const bounded = await gateway.api.exportDiagnosticsTrace({ ...exportRequest, maxSamples: 1 });
+      expect(bounded.spans).toHaveLength(1);
+    } finally {
+      clock.mockRestore();
+      await gateway.api.controlDiagnosticsTrace({ ...input, action: "stop", leaseId: state.leaseId });
+    }
   });
 
   test("worker lease records governor timings and explicit stop detaches; no restart or expiry activation", async () => {

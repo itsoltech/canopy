@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { Text } from "react-native";
 import { create, toJsonString } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
+import { TRACE_LIMITS } from "@canopy/domain/diagnostics";
 import { useSession } from "../../state/session";
 import { Button, Notice } from "../../ui/components";
 import { SettingChoice, SettingsActions, SettingsGroup } from "./SettingsGroup";
@@ -48,6 +49,7 @@ export function DiagnosticsTracing({
         minutes: Number(minutes),
         action: kind === "export" ? "" : kind,
         leaseId: state?.leaseId,
+        maxSamples: TRACE_LIMITS.samples,
       });
 
       if (kind === "export") {

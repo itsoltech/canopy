@@ -1015,11 +1015,15 @@ Przekazywanie bajtów wymaga przejścia lokalnego filtra; błąd redakcji kończ
   Stare odpowiedzi po epoch są ignorowane, stare rollupy sprząta retention;
   offline reset nie jest kolejkowany.
 - **Start deeper tracing**: wybrany komputer, 1/5/10 min, domyślnie 5,
-  maks. 10 min i jedna lease. Maks. 1% wywołań, 100 próbek/s, 2000 spanów/4 MiB,
+  maks. 10 min i jedna lease. Maks. 1% wywołań, 100 próbek/s, 10 000 spanów/4 MiB,
   ring w pamięci, automatyczne off po deadline, restart i ręczne **Stop tracing**.
   Spany tylko stałych operacji RPC/DB/pool/ingest/governor z losowym trace id,
-  bez payloadów. Zwykły snapshot pokazuje tylko aktywność/termin tracingu;
-  pobranie próbek z innego komputera wymaga jawnej akcji na nim i prawa eksportu.
+  bez payloadów. Zwykły snapshot pokazuje tylko aktywność/termin tracingu.
+  Pierścień liczb zajmuje 720 000 B (bez scratch 16 B). Eksport negocjuje polem
+  `max_samples` liczbę rozumianą przez odbiorcę: brak pola zachowuje 2000 spanów
+  dla starszych gatewayów i workerów, nowe klienty proszą o 10 000.
+  Przycięcie eksportu zwiększa jego `dropped_samples`, nie usuwa próbek z pierścienia.
+  Pobranie próbek z innego komputera wymaga jawnej akcji na nim i prawa eksportu.
 
 Zlecenie badania pokazuje, dokąd trafi raport: uruchomiony harness może przekazać
 go wybranemu providerowi tak jak zwykły załącznik. To świadomy eksport właściciela,

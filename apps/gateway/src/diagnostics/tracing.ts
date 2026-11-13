@@ -5,7 +5,7 @@ import type { GatewayCore } from "../core/core.ts";
 import type { WorkerConnection } from "../worker-link/connection.ts";
 import { actionQuery } from "./actions.ts";
 import { linkedMessage } from "../computers/remote.ts";
-import { TRACE_LIMITS, METRIC_DEFINITIONS, traceState } from "@canopy/domain/diagnostics";
+import { TRACE_LIMITS, LEGACY_TRACE_SAMPLES, METRIC_DEFINITIONS, traceState } from "@canopy/domain/diagnostics";
 import { DIAGNOSTICS_TRACE } from "../computers/capabilities.ts";
 
 /** One computer, one process, one lease. No persistence, broadcast, automatic restart or onward routing. */
@@ -46,7 +46,7 @@ export class DiagnosticsTracing {
       if (exporting) {
         const result = this.#worker
           ? await this.#worker.tracing.call(create(ui.DiagnosticsTraceRequestSchema, { ...request, action: "export" }))
-          : this.core.diagnostics.collector.tracing.export(request.leaseId);
+          : this.core.diagnostics.collector.tracing.export(request.leaseId, request.maxSamples || LEGACY_TRACE_SAMPLES);
 
         if (!result) throw new ConnectError("Tracing samples have expired", Code.NotFound);
 
