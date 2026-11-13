@@ -11,7 +11,7 @@ import { botComposerForMove, sendRemoteBotImage } from "./support/bot-composer-m
 import { MoveCrash, type MoveHost } from "../../apps/gateway/src/computers/moves.ts";
 import type { BotModel, ModelInput } from "../../apps/gateway/src/bots/types.ts";
 import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
-import { mirrorCheckpoint, removedFromOldHome } from "./support/mirror-move.ts";
+import { mirrorCheckpoint, publishedVisual, removedFromOldHome } from "./support/mirror-move.ts";
 
 const id = () => crypto.randomUUID();
 const input = (i: ModelInput) => i.messages.findLast((m) => m.role === "user")?.text ?? "";
@@ -282,6 +282,8 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
       await a.api.createSchedule({ threadId: t, prompt: "daily check", when: { case: "cron", value: "0 9 * * *" } })
     ).schedule!;
 
+    const visualId = await publishedVisual((text, params) => sql(a, text, params), t); // moves with the thread
+
     expect(
       await eventually(
         async () => (await b.api.listThreads({})).threads.some((x) => x.id === qualifyId(t, aNode)),
@@ -333,6 +335,7 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
       "moved bytes",
     );
     expect((await c.api.listSchedules({ threadId: t })).schedules.map((s) => s.id)).toContain(schedule.id);
+    expect((await c.api.getVisual({ threadId: t, visualId })).visual?.title).toBe("Moved visual");
     expect(
       (await sql<{ status: string }>(a, "SELECT status FROM schedules WHERE id=$1::uuid", [schedule.id]))[0]?.status,
     ).toBe("cancelled");

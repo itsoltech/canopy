@@ -4,6 +4,7 @@ import { Effect } from "effect";
 import { Migrator, SqlClient } from "effect/sql";
 import init from "./0001_init.sql" with { type: "text" };
 import videoAttachments from "./0135_video_attachments.sql" with { type: "text" };
+import threadVisuals from "./0139_thread_visuals.sql" with { type: "text" };
 import historyReadIndexes from "./0100_history_read_indexes.sql" with { type: "text" };
 import composerTurnChoices from "./0101_composer_turn_choices.sql" with { type: "text" };
 import botComposer from "./0102_bot_composer.sql" with { type: "text" };
@@ -290,6 +291,7 @@ export const migrations = Migrator.fromRecord({
   "0136_thread_rewinds": sqlFile(threadRewinds),
   "0137_thread_image_publications": sqlFile(threadImagePublications),
   "0138_image_reply_imports": sqlFile(imageReplyImports),
+  "0139_thread_visuals": sqlFile(threadVisuals),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

@@ -1,5 +1,5 @@
 import { Result, Schema } from "effect";
-import type { ToolJsonSpec } from "../agent-bus/tools.ts";
+import type { ToolJsonSpec } from "../agent-bus/tool-specs.ts";
 
 /**
  * view_image: a platform tool the worker runs itself (docs/agent-bus.md, "view_image"). It reads an image from the

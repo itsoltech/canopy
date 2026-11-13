@@ -57,6 +57,7 @@ export const READS = new Set([
   "WorkspaceCopySource",
   "GetAttachment",
   "GetThreadBlob",
+  "GetVisual",
   "GetThreadSyncContent",
   "ReadThreadFile",
   "ListThreadDirectory",

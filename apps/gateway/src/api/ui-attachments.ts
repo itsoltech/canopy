@@ -1,6 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { type GatewayCore } from "../core/core.ts";
+import { getThreadVisual } from "../core/visual-publication.ts";
 import { guard } from "./ui-errors.ts";
 import type { UiHandlers } from "./ui-service.ts";
 
@@ -8,7 +9,13 @@ export function attachmentsHandlers(
   core: GatewayCore,
 ): Pick<
   UiHandlers,
-  "uploadAttachment" | "getAttachment" | "getThreadBlob" | "listMentionCatalog" | "searchFiles" | "searchThreads"
+  | "uploadAttachment"
+  | "getAttachment"
+  | "getThreadBlob"
+  | "getVisual"
+  | "listMentionCatalog"
+  | "searchFiles"
+  | "searchThreads"
 > {
   return {
     uploadAttachment: (request) =>
@@ -24,6 +31,8 @@ export function attachmentsHandlers(
       guard(() => core.getAttachment(request.attachmentId, request.thumbnail, request.preview, request)),
 
     getThreadBlob: (request) => guard(() => core.getThreadBlob(request.threadId, request.sha256)),
+
+    getVisual: (request) => guard(() => getThreadVisual(core, request)),
 
     listMentionCatalog: (request) => guard(() => core.listMentionCatalog(request)),
 

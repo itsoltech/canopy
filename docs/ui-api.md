@@ -1241,6 +1241,14 @@ lightboxa i API. Manifest `images` przypina załącznik do href i zakresu tokenu
 w niezmienionym tekście. Ramka 16:9 rezerwuje miejsce przed pobraniem miniatury;
 błąd importu pozostawia klikalny plik i komunikat odzyskiwania. Zdalne URL
 są wyłącznie linkami, bez automatycznego żądania do zewnętrznego hosta.
+#### Visuals
+
+`GetVisual(thread_id, visual_id, version)` (0 = najnowsza) zwraca manifest,
+kanoniczny `spec_json` i listę wersji. Odczyt jest owner-scoped: wątek musi
+należeć do użytkownika i być wątkiem visuala albo pokazywać go (fork).
+Obcy lub nieistniejący visual daje `NotFound`. Kwalifikowane ID (`uuid~node`)
+kieruje odczyt do domu wątku jak `GetThreadBlob`; niedostępny dom daje
+„Available when <computer> is connected.”.
 
 #### Załączniki w tekście
 

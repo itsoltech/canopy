@@ -247,6 +247,9 @@ message Welcome {
   bool isolated_event_ingest = 5;
   // Present on gateways that suppress provider wake-ups for archived/deleted threads.
   ThreadLifecycle thread_lifecycle = 6;
+  // The gateway stores render_visual calls (docs/agent-visuals.md). Older gateways leave it unset, and the worker
+  // answers the tool itself with an update message instead of forwarding it.
+  bool thread_visuals_v1 = 7;
 }
 
 message ThreadLifecycle {
@@ -1173,6 +1176,8 @@ message Item {
     InteractionPrompt interaction_prompt = 24;
     // Gateway-owned, immutable publication. No worker filesystem paths or inline bytes.
     ImageGallery image_gallery = 25;
+    // Gateway-owned interactive visual manifest (docs/agent-visuals.md). The spec is read with GetVisual.
+    Visual visual = 26;
     // Typ dostawcy bez dedykowanego mapowania. Dane są pełne, UI pokazuje widok ogólny.
     ProviderItem provider_item = 30;
   }
@@ -1202,6 +1207,20 @@ message GalleryImage {
   uint32 markdown_end = 13;
   // Original parsed Markdown href. Gateway generated, never an authorization input.
   string source_path = 14;
+}
+
+// Manifest of the latest version of a visual. Small: the spec itself never travels in thread updates.
+message Visual {
+  string visual_id = 1;
+  uint32 version = 2;
+  uint32 schema_version = 3;
+  uint32 kit_version = 4;
+  string title = 5;
+  string description = 6;
+  // Space to reserve, 160–720 px.
+  uint32 height = 7;
+  string sha256 = 8;
+  uint64 size_bytes = 9;
 }
 
 // Treść większa niż limit wiadomości trafia do blobu (BlobChunk) i jest wskazywana przez BlobRef.

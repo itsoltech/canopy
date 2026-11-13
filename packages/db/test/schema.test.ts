@@ -150,6 +150,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "136_thread_rewinds",
       "137_thread_image_publications",
       "138_image_reply_imports",
+      "139_thread_visuals",
     ]);
   }, 60_000);
 

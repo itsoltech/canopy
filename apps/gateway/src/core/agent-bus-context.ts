@@ -47,6 +47,7 @@ export interface BusHost {
   requestSecret(source: CallSource, args: AgentBusArgs["request_secret"]): Promise<JsonValue>;
   showImages(source: CallSource, caller: ThreadRow, args: AgentBusArgs["show_images"]): Promise<JsonValue>;
   importImageReply(source: CallSource, caller: ThreadRow, itemId: string): Promise<JsonValue>;
+  renderVisual(source: CallSource, caller: ThreadRow, args: AgentBusArgs["render_visual"]): Promise<JsonValue>;
   /**
    * The provider instances of the thread's worker a subagent can run on (enabled there, with their availability and
    * the pickers' model catalogs); undefined before the worker reported its configuration.
@@ -64,6 +65,7 @@ export const WAIT_POLL_MS = 1_000;
 /** Tools that persist their own call (reads store their result together with notification consumption). */
 export const STORES_ITS_CALL = new Set([
   "show_images",
+  "render_visual",
   "spawn_thread",
   "send_message",
   "schedule_wakeup",

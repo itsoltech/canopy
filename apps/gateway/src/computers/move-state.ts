@@ -66,6 +66,26 @@ export function localHistory(history: ui.ThreadSnapshot, from: string, moved: Re
   return snapshot;
 }
 
+/** Published visual versions of a moved thread, owned here and attached to its placeholder turn. */
+function insertMovedVisuals(
+  sql: SqlClient.SqlClient,
+  rows: readonly string[],
+  threadId: string,
+  owner: string,
+  turnId: string,
+) {
+  return Effect.forEach(rows, (json) =>
+    sql.unsafe(
+      `INSERT INTO thread_visuals (visual_id, version, thread_id, owner_user_id, turn_id, call_id, item_id, title, description,
+        height, schema_version, kit_version, spec, sha256, created_at)
+      SELECT visual_id, version, $2::uuid, $3::uuid, $4::uuid, call_id, item_id, title, description, height, schema_version,
+        kit_version, spec, sha256, created_at
+      FROM json_populate_record(NULL::thread_visuals, $1::json) ON CONFLICT DO NOTHING`,
+      [JSON.stringify(Schema.decodeUnknownSync(JsonRow)(JSON.parse(json))), threadId, owner, turnId],
+    ),
+  );
+}
+
 /** Everything of a staged thread except the thread rows (created through the core). One transaction, idempotent. */
 export function applyThreadRows(
   store: ComputerStore,
@@ -149,6 +169,9 @@ export function applyThreadRows(
           },
         ]);
       }
+
+      // Visual versions belong to the moved history's placeholder turn, like its files.
+      if (ordinal > 0) yield* insertMovedVisuals(sql, thread.visualsJson, input.threadId, owner, input.ordinalTurn);
 
       for (const file of input.files) {
         const a = Schema.decodeUnknownSync(JsonRow)(JSON.parse(file.attachmentJson));

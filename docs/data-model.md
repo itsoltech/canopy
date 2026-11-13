@@ -81,6 +81,15 @@ wywołania i odpowiedź blokują te same wiersze bota i tury; spóźniona decyzj
 zapisuje odpowiedzi ani zgody. `bot_tool_calls.status = interrupted` zachowuje
 tombstone anulowanego wywołania, także gdy anulowanie dotarło przed jego wykonaniem.
 
+## Visuals
+
+`thread_visuals` (migracja 0139) przechowuje niezmienne wersje spec visuala:
+klucz `(visual_id, version)`, wątek, właściciel, tura publikacji, `call_id`
+(unikalny), item, tytuł, opis, wysokość, wersje schematu i kitu, spec do 128 KiB
+i SHA-256. Item osi czasu (`thread_items.type = 'visual'`) zawiera tylko manifest
+najnowszej wersji. Usunięcie wątku usuwa wersje kaskadowo. Limity tury (10 visuals,
+1 MiB spec) liczone są z tej tabeli w transakcji publikacji.
+
 ## Połączenia proxy
 
 Migracja `0061_proxies` dodaje owner-scoped `proxies` z FK do zaszyfrowanego sekretu,

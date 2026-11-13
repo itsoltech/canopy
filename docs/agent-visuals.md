@@ -584,3 +584,18 @@ i pomiary produkcyjne pozostają kryteriami przyszłych PR-ów.
   `data-paused` zatrzymuje animacje poza ekranem, `data-reduced-motion`
   i `prefers-reduced-motion` je wyłączają.
 
+### Gateway i zapis
+
+- `render_visual` (`packages/domain/src/agent-bus/visuals.ts`) jest w `AGENT_BUS_TOOLS`,
+  więc trafia do wszystkich trzech harnessów. Opis narzędzia zawiera katalog,
+  zasady stanu, przykład i limity. Dekoder szyny odrzuca argumenty większe niż
+  limit spec przed parsowaniem, potem waliduje spec jak `decodeVisualSpec`.
+- Gateway (`core/visual-publication.ts`, `store/visuals.ts`) wymaga uruchomionej
+  tury, przypiętego workera z `thread_visuals_v1` i niearchiwizowanego wątku.
+  Nowy visual dostaje UUIDv7 i wersję 1; aktualizacja wymaga `visual_id`
+  i `expected_version` tego samego wątku. Rozbieżność daje konflikt z numerem
+  aktualnej wersji, nigdy last-write-wins. Retry po call ID zwraca ten sam wynik.
+- Wynik: `{ delivered, visual_id, item_id, version, citation_ref }`, gdzie
+  `citation_ref` ma postać `visual:<visual_id>@<version>` i nie uprawnia do odczytu.
+- Zapisane argumenty wywołania nie zawierają spec (tylko tytuł, opis i hash).
+

@@ -225,7 +225,19 @@ export async function exportThread(
       return JSON.stringify(before ? { ...row, status: before.status, next_run_at: before.next_run_at } : row);
     });
 
-    threads.push(create(link.MovedThreadSchema, { history: snapshot, rowJson: JSON.stringify(row), schedulesJson }));
+    const visuals = await store.query<{ row: JsonObject }>(
+      `SELECT row_to_json(v) AS row FROM thread_visuals v WHERE thread_id = $1::uuid ORDER BY visual_id, version`,
+      [id],
+    );
+
+    threads.push(
+      create(link.MovedThreadSchema, {
+        history: snapshot,
+        rowJson: JSON.stringify(row),
+        schedulesJson,
+        visualsJson: visuals.map(({ row: visual }) => JSON.stringify(visual)),
+      }),
+    );
   }
 
   const files = await store.query<{

@@ -35,3 +35,22 @@ export async function removedFromOldHome(computer: LinkedComputers, home: string
     controller.abort();
   }
 }
+
+/** A stored visual version of a thread's first turn, as render_visual leaves it; returns its id. */
+export async function publishedVisual(
+  query: (text: string, params: string[]) => Promise<readonly object[]>,
+  threadId: string,
+): Promise<string> {
+  const visualId = crypto.randomUUID();
+
+  await query(
+    `INSERT INTO thread_visuals(visual_id,version,thread_id,owner_user_id,turn_id,call_id,item_id,title,description,height,
+      schema_version,kit_version,spec,sha256)
+    SELECT $1::uuid,1,t.id,t.owner_user_id,u.id,$3::uuid,'visual-'||$1,'Moved visual','Shows the move.',360,1,1,
+      '{"schema_version":1,"root":{"type":"divider"}}','x' FROM threads t JOIN turns u ON u.thread_id=t.id
+    WHERE t.id=$2::uuid ORDER BY u.ordinal LIMIT 1`,
+    [visualId, threadId, crypto.randomUUID()],
+  );
+
+  return visualId;
+}

@@ -33,6 +33,9 @@ export const THREAD_FILES_WATCH_CAPABILITY = "thread_files_watch_v1";
 /** Durable image replies, with bounded thread-scoped exports; additive to protocol 1. */
 export const THREAD_IMAGE_REPLIES_CAPABILITY = "thread_image_replies_v1";
 
+/** Interactive visuals: render_visual on the worker, GetVisual and the visual item on gateways and clients. */
+export const THREAD_VISUALS_CAPABILITY = "thread_visuals_v1";
+
 /** Transient Git clone progress and cancellation; additive to WorkerLink protocol 1. */
 export const CLONE_PROGRESS_CAPABILITY = "git_clone_progress_v1";
 

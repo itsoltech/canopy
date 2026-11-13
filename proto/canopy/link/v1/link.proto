@@ -365,6 +365,8 @@ message MovedThread {
   string row_json = 2;
   // Active and paused schedules of the thread (JSON rows).
   repeated string schedules_json = 3;
+  // Published visual versions (thread_visuals rows, JSON); the spec moves with the thread.
+  repeated string visuals_json = 4;
 }
 message ThreadMove {
   // The main thread first, then its side threads.

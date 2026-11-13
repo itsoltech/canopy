@@ -6,6 +6,7 @@ import { settleThread, stuckThread } from "./ingest-settle.ts";
 import { applyShellInput } from "./shell-input.ts";
 import { storageEvent } from "./event-text.ts";
 import { dataErrorCode, quarantineEvent } from "./event-quarantine.ts";
+import { gatewayOwnedItem } from "./visuals.ts";
 import { queryFamily, queryMethods } from "../diagnostics/query-context.ts";
 import { acknowledgeEvents, archivedEventAllowed, type IngestFallback, type IngestOutcome } from "./ingest-outcomes.ts";
 
@@ -126,11 +127,12 @@ export const ingestThread = (
               incoming.body.value.item?.itemId.startsWith("gallery-")) ||
             (incoming.body.case === "itemDelta" && incoming.body.value.itemId.startsWith("gallery-")));
 
-        const rejection = gatewayGallery
-          ? { code: "23514", reason: "data_error" as const }
-          : thread.archived_at && !(yield* archivedEventAllowed(sql, incoming))
-            ? { code: "23514", reason: "archived_thread" as const }
-            : fallback;
+        const rejection =
+          gatewayGallery || gatewayOwnedItem(incoming)
+            ? { code: "23514", reason: "data_error" as const }
+            : thread.archived_at && !(yield* archivedEventAllowed(sql, incoming))
+              ? { code: "23514", reason: "archived_thread" as const }
+              : fallback;
 
         const suppressed =
           superseded.has(incoming.turnId) ||

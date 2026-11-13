@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { Result } from "effect";
 import type { JsonObject } from "../json.ts";
-import { AGENT_BUS_TOOLS, agentBusToolSpecs, agentBusToolsFor, decodeAgentBusCall } from "./tools.ts";
+import { agentBusToolSpecs } from "./tool-specs.ts";
+import { AGENT_BUS_TOOLS, agentBusToolsFor, decodeAgentBusCall } from "./tools.ts";
 
 const THREAD = "0196f0c1-0000-7000-8000-000000000000";
 
@@ -64,6 +65,7 @@ describe("tool sets per level", () => {
       "list_schedules",
       "list_threads",
       "read_thread",
+      "render_visual",
       "request_secret",
       "schedule_recurring",
       "schedule_wakeup",
