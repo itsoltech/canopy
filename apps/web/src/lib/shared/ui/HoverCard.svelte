@@ -116,7 +116,8 @@
   const press = longPress(() => after(0, true));
 </script>
 
-<Popover bind:open {label} {placement} focusOnOpen={false} class={["w-72", className]}>
+<!-- A caller's class replaces the default width (no conflicting width utilities). -->
+<Popover bind:open {label} {placement} focusOnOpen={false} class={className ?? "w-72"}>
   {#snippet trigger(props)}
     {@render renderTrigger({
       ...(touch === "press"

@@ -23,13 +23,14 @@ export function citationPreview(quote: NotedQuote) {
   const location = pr?.path ? `${pr.path}${pr.line ? `:${pr.line}` : ""}` : pr?.firstLine ? `Line ${pr.firstLine}` : "";
 
   return {
-    text: quote.text,
+    // Selections often carry the surrounding line breaks; they would only pad the card.
+    text: quote.text.trim(),
     markdown: citationHasMarkdown(quote),
     caption: [quote.sourceAuthor || "Agent", pr && `${pr.repository}#${pr.number}`, location, quote.sourceTime]
       .filter(Boolean)
       .join(" · "),
     url: pr?.url ?? "",
-    comment: quote.comment ?? "",
+    comment: quote.comment?.trim() ?? "",
   };
 }
 
