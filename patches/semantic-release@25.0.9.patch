@@ -1,0 +1,80 @@
+diff --git a/lib/git.js b/lib/git.js
+index 8766eda168ff9b4bb6edf5acf71f4ce4077b62a7..afd86a807aa2ae61f2d41f19fd12ac9dd4c5d2ec 100644
+--- a/lib/git.js
++++ b/lib/git.js
+@@ -4,7 +4,6 @@ import { execa } from "execa";
+ import debugGit from "debug";
+ import { merge } from "lodash-es";
+ import { GIT_NOTE_REF } from "./definitions/constants.js";
+-import { extractGitLogTags } from "./utils.js";
+ 
+ const debug = debugGit("semantic-release:git");
+ 
+@@ -313,48 +312,29 @@ export async function isBranchUpToDate(repositoryUrl, branch, execaOptions) {
+  * @returns {Promise<Map<string, Object>>} A promise that resolves to a Map of tag names to their notes.
+  */
+ export async function getTagsNotes(execaOptions) {
+-  /**
+-   * git log --tags="*" --decorate-refs="refs/tags/*" --no-walk --format="%d%x09%N" --notes="refs/notes/semantic-release*"
+-   *
+-   *  (tag: v1.2.3)
+-   *  (tag: v2.0.0)  {"channels":[null]}
+-   *  (tag: v3.0.0, tag: 5833/merge)	{"channels":[null]}
+-   *  ...
+-   */
+-  const { stdout } = await execa(
+-    "git",
+-    [
+-      "log",
+-      "--tags=*",
+-      "--decorate-refs=refs/tags/*", // This filters the refs shown in the %d format specifier to only include tags matching refs/tags/*.
+-      "--no-walk", // This ensures that only the commits directly pointed to by the tags are shown, not their historical parents.
+-      "--format=%d%x09%N", // <refName><tab><notes> eg. (tag: v24.2.3)  {"channels":[null]}
+-      `--notes=refs/notes/${GIT_NOTE_REF}*`, // handles both patterns for notes - `semantic-release` (old) and `semantic-release-<version>` (current)
+-    ],
+-    execaOptions
++  const { stdout: tags } = await execa("git", ["tag", "--list"], execaOptions);
++  const { stdout: notes } = await execa(
++    "git", ["for-each-ref", "--format=%(refname)", `refs/notes/${GIT_NOTE_REF}*`], execaOptions
+   );
+-
+-  // drop empty lines
+-  const lines = stdout.split("\n").filter((line) => line.trim() !== "");
+-
+-  // parse and create a map of tags to notes
++  const refs = new Set(notes.split("\n"));
+   const tagNotesMap = new Map();
+ 
+-  for (const line of lines) {
+-    const [tagPart, notePart] = line.trim().split("\t"); // tab separator is defined in the git command above (%x09)
+-    const tags = extractGitLogTags(tagPart);
+-    if (tags.length === 0) {
+-      debug(`Cannot parse tags from line: ${line}`);
+-      continue;
+-    }
+-
+-    try {
+-      const parsed = JSON.parse(notePart);
+-      tags.forEach((tag) => {
+-        tagNotesMap.set(tag, parsed);
++  // %N concatenates notes from every matching ref on the commit. Promotions can
++  // put several channel tags there, so decoration lines cannot identify a tag's note.
++  for (const tag of tags.split("\n").filter(Boolean)) {
++    for (const ref of [`refs/notes/${GIT_NOTE_REF}-${tag}`, `refs/notes/${GIT_NOTE_REF}`]) {
++      if (!refs.has(ref)) continue;
++      const result = await execa("git", ["notes", `--ref=${ref}`, "show", tag], {
++        ...execaOptions, reject: false,
+       });
+-    } catch (error) {
+-      debug(error);
++      if (result.exitCode !== 0) continue;
++      try {
++        tagNotesMap.set(tag, JSON.parse(result.stdout));
++      } catch (error) {
++        debug(error);
++      }
++      // Prefer tag-specific metadata; the shared ref supports legacy releases only.
++      break;
+     }
+   }
+ 

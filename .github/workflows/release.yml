@@ -92,12 +92,19 @@ jobs:
           sparse-checkout: |
             scripts
             release.config.mjs
+            patches/semantic-release@25.0.9.patch
           sparse-checkout-cone-mode: false
       - name: Use current release tooling with the pinned source
         run: |
-          cp .release-tooling/scripts/{semantic-release,release-body,release-draft,release-recovery,generate-release-notes}.mjs scripts/
+          cp .release-tooling/scripts/{semantic-release,release-analyzer,release-expected-version,release-body,release-draft,release-recovery,generate-release-notes}.mjs scripts/
           cp .release-tooling/release.config.mjs .
       - uses: ./.github/actions/setup-bun
+      - name: Apply release dependency patch from the workflow revision
+        run: |
+          patch=.release-tooling/patches/semantic-release@25.0.9.patch
+          if ! git apply --directory=node_modules/semantic-release --reverse --check "$patch" 2>/dev/null; then
+            git apply --directory=node_modules/semantic-release "$patch"
+          fi
       - uses: actions/setup-node@v5
         with:
           node-version: 24
@@ -148,12 +155,19 @@ jobs:
           sparse-checkout: |
             scripts
             release.config.mjs
+            patches/semantic-release@25.0.9.patch
           sparse-checkout-cone-mode: false
       - name: Use current release tooling with the pinned source
         run: |
-          cp .release-tooling/scripts/{semantic-release,release-body,release-draft,release-recovery,generate-release-notes}.mjs scripts/
+          cp .release-tooling/scripts/{semantic-release,release-analyzer,release-expected-version,release-body,release-draft,release-recovery,generate-release-notes}.mjs scripts/
           cp .release-tooling/release.config.mjs .
       - uses: ./.github/actions/setup-bun
+      - name: Apply release dependency patch from the workflow revision
+        run: |
+          patch=.release-tooling/patches/semantic-release@25.0.9.patch
+          if ! git apply --directory=node_modules/semantic-release --reverse --check "$patch" 2>/dev/null; then
+            git apply --directory=node_modules/semantic-release "$patch"
+          fi
       - uses: actions/setup-node@v5
         with:
           node-version: 24

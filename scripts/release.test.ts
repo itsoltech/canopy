@@ -109,6 +109,7 @@ function fixture() {
     cwd,
     remoteTags,
     dryRun: () => run(),
+    release: (dry = true) => run(dry),
     cleanup: () => rmSync(dir, { recursive: true, force: true }),
   };
 }
@@ -189,7 +190,7 @@ test("Release accepts the event SHA and rejects a checkout that differs from the
   expect(dispatch.exitCode).not.toBe(0);
   expect(dispatch.stderr.toString()).toContain("Checkout does not match EXPECTED_SHA");
   expect(repo.remoteTags()).toEqual(["v0.1.0"]);
-});
+}, 60_000);
 
 test("bootstrap branches produce no release, then feat produces stable, beta and nightly 0.2.0", async () => {
   const repo = fixture();
@@ -352,6 +353,123 @@ test("fast-forward promotions retain the base version, and docs-only changes pro
     repo.cleanup();
   }
 }, 60_000);
+
+test.each([{ annotated: false }, { annotated: true }])(
+  "nightly.147 remains visible beside beta.1 (annotated promotion: $annotated)",
+  async ({ annotated }) => {
+    const repo = fixture();
+    repo.git("checkout", "dev");
+    repo.git("commit", "--allow-empty", "-m", "feat: previous nightly");
+    repo.git("tag", "v0.2.0-nightly.146");
+    repo.git("notes", "--ref=semantic-release-v0.2.0-nightly.146", "add", "-m", '{"channels":["nightly"]}');
+    repo.git("commit", "--allow-empty", "-m", "fix: promoted nightly");
+    const promoted = repo.git("rev-parse", "HEAD");
+    repo.git("tag", "v0.2.0-nightly.147");
+    repo.git("notes", "--ref=semantic-release-v0.2.0-nightly.147", "add", "-m", '{"channels":["nightly"]}');
+    repo.git("tag", ...(annotated ? ["-a", "-m", "Beta promotion"] : []), "v0.2.0-beta.1");
+    repo.git("notes", "--ref=semantic-release-v0.2.0-beta.1", "add", "-m", '{"channels":["beta"]}', "v0.2.0-beta.1");
+    repo.git("branch", "-f", "next", promoted);
+    repo.git("commit", "--allow-empty", "-m", "fix: first change after promotion");
+    const sha = repo.git("rev-parse", "HEAD");
+    repo.git("push", "origin", "dev", "next", "--tags", "refs/notes/*:refs/notes/*");
+    const refs = repo.git("ls-remote", "origin");
+    const output = await runPinned(repo.cwd, "dev", sha);
+    expect(output).toContain("Found git tag v0.2.0-nightly.147 associated with version 0.2.0-nightly.147");
+    expect(output).toContain("Found 1 commits since last release");
+    expect(output).toContain("The next release version is 0.2.0-nightly.148");
+    expect(repo.git("ls-remote", "origin")).toBe(refs);
+    expect(repo.git("notes", "--ref=semantic-release-v0.2.0-nightly.147", "show", "v0.2.0-nightly.147")).toBe(
+      '{"channels":["nightly"]}',
+    );
+    expect(repo.git("notes", "--ref=semantic-release-v0.2.0-beta.1", "show", "v0.2.0-beta.1")).toBe(
+      '{"channels":["beta"]}',
+    );
+  },
+  60_000,
+);
+
+test("successive promotions and stable hotfix back-merges preserve every channel's history", async () => {
+  const repo = fixture();
+
+  const publish = async (branch: string, version: string) => {
+    repo.git("push", "origin", branch);
+    const sha = repo.git("rev-parse", "HEAD");
+    expect(await runPinned(repo.cwd, branch, sha, false, version)).toContain(`Published release ${version} on`);
+  };
+
+  repo.git("checkout", "dev");
+  repo.git("commit", "--allow-empty", "-m", "feat: first promoted feature");
+  await publish("dev", "0.2.0-nightly.1");
+  repo.git("checkout", "next");
+  repo.git("merge", "--ff-only", "dev");
+  await publish("next", "0.2.0-beta.1");
+  repo.git("checkout", "dev");
+  repo.git("commit", "--allow-empty", "-m", "fix: change after beta promotion");
+  await publish("dev", "0.2.0-nightly.2");
+  repo.git("checkout", "next");
+  repo.git("merge", "--ff-only", "dev");
+  await publish("next", "0.2.0-beta.2");
+  repo.git("checkout", "main");
+  repo.git("merge", "--ff-only", "next");
+  await publish("main", "0.2.0");
+  repo.git("commit", "--allow-empty", "-m", "fix: stable hotfix");
+  await publish("main", "0.2.1");
+
+  for (const branch of ["next", "dev"]) {
+    repo.git("checkout", branch);
+    repo.git("commit", "--allow-empty", "-m", "docs: branch diverged");
+    repo.git("merge", "--no-ff", "main", "-m", "chore: back-merge stable hotfix");
+    repo.git("push", "origin", branch);
+    expect(await runPinned(repo.cwd, branch, repo.git("rev-parse", "HEAD"))).toContain("no new version is released");
+  }
+
+  repo.git("commit", "--allow-empty", "-m", "fix: next release train");
+  await publish("dev", "0.2.2-nightly.1");
+  repo.git("checkout", "next");
+  repo.git("merge", "--no-ff", "dev", "-m", "chore: promote next train");
+  await publish("next", "0.2.2-beta.1");
+  repo.git("checkout", "main");
+  repo.git("merge", "--ff-only", "next");
+  await publish("main", "0.2.2");
+}, 60_000);
+
+test("legacy channel notes remain readable beside tag-specific promotion notes", async () => {
+  const repo = fixture();
+  repo.git("checkout", "dev");
+  repo.git("commit", "--allow-empty", "-m", "feat: legacy nightly");
+  repo.git("tag", "v0.2.0-nightly.1");
+  repo.git("notes", "--ref=semantic-release", "add", "-m", '{"channels":["nightly"]}');
+  repo.git("tag", "v0.2.0-beta.1");
+  repo.git("notes", "--ref=semantic-release-v0.2.0-beta.1", "add", "-m", '{"channels":["beta"]}');
+  repo.git("commit", "--allow-empty", "-m", "fix: change after legacy nightly");
+  repo.git("push", "origin", "dev", "--tags", "refs/notes/*:refs/notes/*");
+  expect(await repo.dryRun()).toContain("The next release version is 0.2.0-nightly.2");
+}, 60_000);
+
+test.each([{ dry: true }, { dry: false }])(
+  "existing tags outside branch history fail before tagging (dry run: $dry)",
+  async ({ dry }) => {
+    const repo = fixture();
+    repo.git("checkout", "dev");
+    repo.git("commit", "--allow-empty", "-m", "feat: current feature");
+    const sha = repo.git("rev-parse", "HEAD");
+    repo.git("push", "origin", "dev");
+    repo.git("checkout", "--detach", "v0.1.0");
+    repo.git("commit", "--allow-empty", "-m", "feat: conflicting history");
+    repo.git("tag", "v0.2.0-nightly.1");
+    repo.git("push", "origin", "--tags");
+    repo.git("checkout", "dev");
+    const refs = repo.git("ls-remote", "origin");
+    const local = repo.git("show-ref");
+    const message = "Release computed v0.2.0-nightly.1, but that tag already exists; nothing was tagged";
+    await expect(runPinned(repo.cwd, "dev", sha, dry)).rejects.toThrow(message);
+    await expect(repo.release(dry)).rejects.toThrow(message);
+    expect(repo.git("ls-remote", "origin")).toBe(refs);
+    expect(repo.git("show-ref")).toBe(local);
+    expect(() => readFileSync(join(repo.cwd, "draft.json"))).toThrow();
+  },
+  60_000,
+);
 
 test.each([
   ["dev", "0.2.0-nightly.1", "0.2.0-nightly.2"],

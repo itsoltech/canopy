@@ -281,6 +281,20 @@ SHA ani nie podciąga nowszych commitów. Analyzer, numeracja kanałów, `EXPECT
 i format tagu pozostają z `release.config.mjs`. Generator notatek dostaje prawdziwy URL
 repozytorium, aby zachować linki porównań i commitów. Plugin GitHub jest wyłączony w tym
 wywołaniu: z lokalnego URL nie odczytałby owner/repo i sprawdzałby dostęp także w dry runie.
+
+Przypięte semantic-release 25.0.9 ma poprawkę Bun w `patches/semantic-release@25.0.9.patch`:
+czyta metadane każdego tagu z jego własnego refa `refs/notes/semantic-release-<tag>`;
+wspólny stary ref `refs/notes/semantic-release` służy tylko jako fallback. Bez poprawki
+`getTagsNotes` parsuje `git log --format=%d%x09%N --notes=refs/notes/semantic-release*`:
+dla kilku tagów na jednym commicie przypisuje pierwszą notatkę wszystkim tagom,
+a kolejne notatki pomija. Po promocji nightly → beta może więc przypisać nightly kanał beta;
+`getLastRelease` odrzuci wtedy najnowsze nightly i wyliczy ponownie jego zajęty numer.
+`git tag --merged`, fetch notes, przypięte lustro i analyzer nie gubią tagu.
+Poprawka zachowuje osobne kanały przy promocjach, wspólnych tagach stable/beta/nightly
+i back-merge; nie zmienia wersji, tagów ani notes. Plan i release nakładają tę samą poprawkę
+z rewizji workflow także po instalacji zależności starszego przypiętego źródła;
+niezgodna zależność zatrzymuje przebieg. Kopiują też aktualny analyzer i guard wersji.
+
 Po checkach semantic-release tworzy tag i notes w lustrze; wrapper atomowo wysyła do origin
 wyłącznie tag wydania i notes, bez force i bez pushu gałęzi. Następnie API GitHuba tworzy
 ukryty draft z tym samym tytułem, notatkami i flagą prerelease, wskazujący przypięty SHA.
@@ -400,6 +414,20 @@ przebieg błędem bez tagu: użyj **Re-run all jobs** (nowy plan i buildy). `pla
 dzielą grupę `release-version-<ref>`. Blokada całego workflow `release-<ref>` obejmuje również
 czas między planem a tagowaniem: drugi przebieg tej gałęzi zaczyna plan dopiero po zakończeniu
 pierwszego i pobiera jego tagi/notes. Nie ma okna na dwa plany tej samej wersji w jednej gałęzi.
+
+Ten sam hook `verifyRelease` sprawdza dokładny ref `refs/tags/<nextRelease.gitTag>`,
+także w dry runie i bez `EXPECTED_VERSION`. Istniejący tag zatrzymuje plan przed generowaniem
+notatek, prepare i tagowaniem, z komunikatem o zajętym numerze i sprawdzeniu metadanych kanału.
+Nie pomijamy automatycznie numerów: konflikt może oznaczać niewłaściwy zakres commitów,
+inną historię albo uszkodzone metadane, więc sam wolny kolejny numer nie dowodzi poprawności.
+Nieudany odczyt refa również blokuje wydanie. Wyścig po sprawdzeniu nadal zabezpiecza
+atomowy push bez force. Odzyskiwanie istniejącego tagu na dokładnym SHA pozostaje osobną
+ścieżką: wznawia tę samą rezerwację, bez próby ponownego tagowania.
+
+Po scaleniu poprawki odczytu kanałów do `dev` nie trzeba wykonywać żadnego polecenia
+odzyskiwania, przesuwać tagów ani ponawiać Promote. Najbliższy harmonogram o :40 UTC
+zobaczy istniejące `v0.2.0-nightly.147` i dla kolejnych releasowalnych commitów zaplanuje
+`0.2.0-nightly.148`, o ile wcześniejszy przebieg nie zarezerwował już tego numeru.
 
 **Przesunięta gałąź.** Nowy commit przed `plan` albo podczas checków nie anuluje aktywnego
 wydania. Tag nadal wskazuje SHA startowe. `stop-builds` zatrzymuje buildy i notaryzację przy
@@ -1020,6 +1048,11 @@ Origin używa `file://`, aby generator notatek miał poprawny URL. Sprawdza brak
 main/next/dev, feat → 0.2.0 / 0.2.0-beta.1 / 0.2.0-nightly.1 oraz breaking w 0.x i po 1.0.0.
 Osobny test publikuje wyłącznie do tego lokalnego bare origin, sprawdzając pełen cykl promocji
 nightly → beta → stable i brak wydania po docs-only. Fixture nie tworzy tagów w repozytorium roboczym.
+Regresja z nightly.146 oraz nightly.147/beta.1 na jednym commicie wymaga nightly.148;
+obejmuje lekki i adnotowany tag promocji. Kolejne publikacje sprawdzają ponowne promocje
+oraz rozbieżne gałęzie z back-merge hotfixa stable. Zajęty tag spoza historii gałęzi blokuje
+dry run i publikację, zarówno bezpośrednio przez konfigurację, jak i przez przypięte lustro,
+bez zmiany refów lub utworzenia draftu.
 Testy wrappera przesuwają gałąź przed planem i podczas checków dla nightly, beta oraz stable.
 Pierwszy tag wskazuje przypięty SHA, notatki pomijają późniejsze commity, a drugi przebieg
 wydaje późniejszy SHA z kolejnym numerem bez luk ani duplikatów. Draft zapisuje lokalny adapter
