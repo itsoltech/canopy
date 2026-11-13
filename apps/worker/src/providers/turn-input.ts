@@ -14,6 +14,14 @@ export interface TurnSettings {
   /** Called only after this turn's connector catalog has attached successfully. */
   readonly connectorsReady?: () => Promise<void>;
   readonly connectorNote?: string;
+  /** Synchronous fence checked after async preparation, immediately before provider submission. */
+  readonly canSubmit?: () => boolean;
+}
+
+export class TurnAdmissionCancelled extends Error {
+  constructor() {
+    super("The turn was cancelled before submission.");
+  }
 }
 
 /** A steer that cannot enter the turn: it is no longer running here, or the provider refused it. */

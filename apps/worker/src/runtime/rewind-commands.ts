@@ -27,12 +27,16 @@ export class RewindCommands {
       if (this.ctx.state.rewindingThreads.has(spec.threadId))
         throw new CommandError("REWIND_BUSY", "This thread is already rewinding.", true);
       this.ctx.state.rewindingThreads.add(spec.threadId);
+      this.ctx.state.turnAdmissions.invalidate(spec.threadId);
 
       try {
         for (const turnId of request.cancelledTurnIds)
           await this.ctx.state.options.runtime.runPromise(
             Journal.use((journal) => journal.noteInterrupt(spec.threadId, turnId)),
           );
+        await this.#stop(spec.threadId);
+        await this.ctx.state.turnAdmissions.drain(spec.threadId);
+        // A start submitted just before invalidation may publish turn_started while draining.
         await this.#stop(spec.threadId);
 
         // turn_finished clears its interrupt receipt. Fence any queued old StartTurn again after stopping.
@@ -67,6 +71,10 @@ export class RewindCommands {
   }
 
   async #stop(threadId: string): Promise<void> {
+    const shells = [...this.ctx.state.shellRuns.values()].filter((run) => run.threadId === threadId);
+
+    for (const run of shells) run.controller.abort();
+    await Promise.allSettled(shells.map((run) => run.pending));
     const running = [...this.ctx.state.running].find((key) => key.startsWith(`${threadId}/`));
 
     if (running) {

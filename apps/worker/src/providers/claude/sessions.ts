@@ -14,6 +14,7 @@ import { sessionPermissions } from "./session-permissions.ts";
 import { callKey, fileSize } from "./session-io.ts";
 import { claudeInstructionSettings, managedClaudeInstructions } from "./instructions.ts";
 import { claudeConnectorRefresh } from "./connector-mcp.ts";
+import { TurnAdmissionCancelled } from "../turn-input.ts";
 
 export function claudeSessions(
   ctx: ClaudeThreadContext,
@@ -30,6 +31,7 @@ export function claudeSessions(
     effort: Options["effort"],
     mode: PermissionMode,
     recoveryContext = "",
+    canSubmit: () => boolean = () => true,
   ): Promise<Session> => {
     const profile = options.profile(spec.providerProfileId);
 
@@ -101,6 +103,7 @@ export function claudeSessions(
       abortController: abort,
     };
 
+    if (!canSubmit()) throw new TurnAdmissionCancelled();
     const q = query({ prompt: input, options: queryOptions });
     const refreshConnectors = claudeConnectorRefresh(q, spec.connectorTools, servers);
     const transcript = transcriptPath(runtime.home, sessionId);

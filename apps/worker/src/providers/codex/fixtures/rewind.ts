@@ -1,12 +1,22 @@
 /** Persistent app-server fixture: the answer exposes exactly the model's current conversation. */
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, watch, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { Schema } from "effect";
 import { decodeJsonObject, jsonObject, jsonString } from "../../json.ts";
+import { HttpMcp, httpTools } from "../../../../../../tests/integration/fixtures/instance-mcp.ts";
 
 const home = process.env["CODEX_HOME"]!;
 const turnsSchema = Schema.Array(Schema.Struct({ id: Schema.String, text: Schema.String }));
+const catalogs = new Map<string, string[]>();
+
+async function configure(threadId: string, params: Schema.Schema.Type<typeof Schema.JsonObject>) {
+  const config = Schema.decodeUnknownSync(
+    Schema.Struct({ mcp_servers: Schema.optionalKey(Schema.Record(Schema.String, HttpMcp)) }),
+  )(params["config"] ?? {});
+
+  catalogs.set(threadId, await httpTools(config.mcp_servers?.["canopy_connectors"]));
+}
 
 const read = (id: string) =>
   Schema.decodeUnknownSync(turnsSchema)(JSON.parse(readFileSync(join(home, `${id}.json`), "utf8")));
@@ -28,15 +38,34 @@ for await (const line of createInterface({ input: process.stdin })) {
   const thread = jsonString(params["threadId"]) ?? "";
 
   switch (request["method"]) {
-    case "model/list":
-      send({ id, result: { data: [], nextCursor: null } });
+    case "model/list": {
+      const gate = process.env["CANOPY_REWIND_TEST_GATE"];
+
+      if (gate) {
+        writeFileSync(join(gate, "entered"), "");
+
+        // Keep reading requests: rewind can replace the entry while turn settings are pending.
+        const watcher = watch(gate, () => {
+          if (!existsSync(join(gate, "release"))) return;
+          watcher.close();
+          send({ id, result: { data: [], nextCursor: null } });
+        });
+
+        if (existsSync(join(gate, "release"))) {
+          watcher.close();
+          send({ id, result: { data: [], nextCursor: null } });
+        }
+      } else send({ id, result: { data: [], nextCursor: null } });
       break;
+    }
+
     case "initialize":
       send({ id, result: { userAgent: "rewind-fixture" } });
       break;
     case "thread/start": {
       const created = crypto.randomUUID();
       save(created, []);
+      await configure(created, params);
       send({ id, result: native(created) });
       break;
     }
@@ -52,13 +81,30 @@ for await (const line of createInterface({ input: process.stdin })) {
 
       const created = crypto.randomUUID();
       save(created, turns.slice(0, boundary + 1));
+      await configure(created, params);
       send({ id, result: native(created) });
       break;
     }
 
     case "thread/resume":
       read(thread);
+      await configure(thread, params);
       send({ id, result: native(thread) });
+      break;
+    case "mcpServerStatus/list":
+      send({
+        id,
+        result: {
+          data: [
+            {
+              name: "canopy_connectors",
+              runtimeStatus: "connected",
+              tools: Object.fromEntries((catalogs.get(thread) ?? []).map((name) => [name, { name }])),
+            },
+          ],
+          nextCursor: null,
+        },
+      });
       break;
     case "turn/start": {
       const input = Schema.decodeUnknownSync(

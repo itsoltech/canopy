@@ -18,8 +18,47 @@ const announceThread = (ctx: CodexThreadContext, entry: Entry, replaces = "") =>
     })
     .pipe(Effect.tap((event) => Effect.sync(() => ctx.options.publish(event))));
 
+function reconfigureThread(ctx: CodexThreadContext, spec: ThreadSpec, entry: Entry) {
+  const { codex } = ctx;
+
+  return Effect.gen(function* () {
+    if (entry.pendingTurns.length || [...entry.codexToPlatform.keys()].some((id) => !entry.finishedTurns.has(id)))
+      return yield* new CodexThreadError({
+        threadId: spec.threadId,
+        operation: "connectors",
+        message: "A turn is still running",
+      });
+    // 0.164 rejoins subscribed sessions and ignores overrides. Unsubscribe first: an idle
+    // session with config overrides is then rebuilt from its durable history, retaining its ID.
+    yield* codex
+      .request("thread/unsubscribe", { threadId: entry.codexId })
+      .pipe(Effect.mapError(fail(spec.threadId, "connectors")));
+    const params = paramsOf(ctx, spec);
+
+    return yield* codex.request("thread/resume", { threadId: entry.codexId, ...params, excludeTurns: true }).pipe(
+      Effect.as(entry),
+      Effect.catch((error) =>
+        Effect.gen(function* () {
+          if (!NO_ROLLOUT.test(error.message)) return yield* fail(spec.threadId, "connectors")(error);
+
+          // An empty session has no rollout until its first turn. Recreate only that empty session.
+          const started = yield* codex
+            .request("thread/start", { ...params, ...dynamicTools(spec, ctx.options.viewImage !== undefined) })
+            .pipe(Effect.mapError(fail(spec.threadId, "connectors")));
+
+          const replacement = registerThread(ctx, spec.threadId, started.thread.id, started.thread.path);
+
+          yield* announceThread(ctx, replacement, entry.codexId).pipe(Effect.mapError(fail(spec.threadId, "journal")));
+
+          return replacement;
+        }),
+      ),
+    );
+  });
+}
+
 export function threadSessions(ctx: CodexThreadContext) {
-  const { options, codex, journal, byPlatform } = ctx;
+  const { options, codex, byPlatform } = ctx;
   const loading = Semaphore.makeUnsafe(1);
 
   const register = (platformId: string, codexId: string, rolloutPath: string | null) =>
@@ -86,38 +125,7 @@ export function threadSessions(ctx: CodexThreadContext) {
 
   return {
     ensureLoaded,
-    reconfigure: (spec: ThreadSpec, entry: Entry) =>
-      Effect.gen(function* () {
-        if (entry.pendingTurns.length || [...entry.codexToPlatform.keys()].some((id) => !entry.finishedTurns.has(id)))
-          return yield* new CodexThreadError({
-            threadId: spec.threadId,
-            operation: "connectors",
-            message: "A turn is still running",
-          });
-        // 0.164 rejoins subscribed sessions and ignores overrides. Unsubscribe first: an idle
-        // session with config overrides is then rebuilt from its durable history, retaining its ID.
-        yield* codex
-          .request("thread/unsubscribe", { threadId: entry.codexId })
-          .pipe(Effect.mapError(fail(spec.threadId, "connectors")));
-        const params = threadParams(spec);
-
-        return yield* codex.request("thread/resume", { threadId: entry.codexId, ...params, excludeTurns: true }).pipe(
-          Effect.as(entry),
-          Effect.catch((error) =>
-            Effect.gen(function* () {
-              if (!NO_ROLLOUT.test(error.message)) return yield* fail(spec.threadId, "connectors")(error);
-              // An empty session has no rollout until its first turn. Recreate only that empty session.
-              const started = yield* startThread(spec, params, "connectors");
-              const replacement = register(spec.threadId, started.thread.id, started.thread.path);
-              yield* announceThread(ctx, replacement, entry.codexId).pipe(
-                Effect.mapError(fail(spec.threadId, "journal")),
-              );
-
-              return replacement;
-            }),
-          ),
-        );
-      }),
+    reconfigure: (spec: ThreadSpec, entry: Entry) => reconfigureThread(ctx, spec, entry),
     rewind: Effect.fn("CodexThreads.rewind")(function* (request: RewindThread) {
       const spec = request.thread;
 

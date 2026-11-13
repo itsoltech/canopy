@@ -283,6 +283,13 @@ edycji subagentów. Stare tury bez checkpointu i Codex pokazują „Files stay a
 are.” Fork Claude nie kopiuje file-history, więc przywracanie korzysta z sesji
 źródłowej przed przełączeniem. Nie odtwarzamy zgód ani zadań przy cofnięciu rewindu.
 
+Worker unieważnia generację wszystkich oczekujących startów wątku i czeka na
+zakończenie ich przygotowania przed przełączeniem sesji. Blokada obejmuje również
+czas przed `turn_started`, gdy start czeka na runtime, sesję lub ustawienia tury.
+Adapter sprawdza anulowanie i tożsamość sesji bezpośrednio przed wysłaniem wejścia.
+Start wysłany przed blokadą zostaje zatrzymany po opróżnieniu przyjęć. Trwałe zakazy
+tur w journalu blokują ich ponowne dostarczenie po reconnect lub restarcie.
+
 Rewind ma trwały zamiar, komendę w outboxie i wynik w journalu workera. Komenda
 pozostaje dostarczalna do potwierdzenia, także po TTL zwykłego outboxu. Dłuższe
 rozłączenie nie pozostawia wątku trwale zablokowanego. Do rozstrzygnięcia gateway

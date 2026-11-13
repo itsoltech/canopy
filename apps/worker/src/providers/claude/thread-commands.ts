@@ -1,17 +1,17 @@
 import { forkSession } from "@anthropic-ai/claude-agent-sdk";
 import { workerDiagnostics } from "../../diagnostics/worker.ts";
-import { TurnOrigin, type ForkSpec, type ThreadSpec, type UserInput } from "@canopy/contracts";
+import { type ForkSpec, type ThreadSpec, type UserInput } from "@canopy/contracts";
 import { Effect, Schema } from "effect";
 import { isClaudeEffort } from "../models.ts";
-import { SteerError, type TurnSettings } from "../turn-input.ts";
+import { SteerError, TurnAdmissionCancelled, type TurnSettings } from "../turn-input.ts";
 
 import { ClaudeThreadError, fail, type ClaudeThreadContext } from "./thread-types.ts";
 import type { claudeRuntime } from "./session-runtime.ts";
 import type { claudeSessions } from "./sessions.ts";
 import type { sessionOutput } from "./session-output.ts";
 import type { sessionTurns } from "./session-turns.ts";
-import { claudeContent } from "./input.ts";
-import { userMessage, userItem } from "./session-io.ts";
+import { userMessage } from "./session-io.ts";
+import { submitClaudeTurn } from "./turn-admission.ts";
 
 export function threadCreation(ctx: ClaudeThreadContext, runtime: ReturnType<typeof claudeRuntime>) {
   const { options, journal } = ctx;
@@ -50,7 +50,7 @@ export function threadCreation(ctx: ClaudeThreadContext, runtime: ReturnType<typ
 export function threadStart(
   ctx: ClaudeThreadContext,
   sessionsRuntime: ReturnType<typeof claudeSessions>,
-  beginTurn: ReturnType<typeof sessionTurns>["beginTurn"],
+  turns: ReturnType<typeof sessionTurns>,
   record: ReturnType<typeof sessionOutput>["record"],
 ) {
   const { options, sessions, started, resolvedModels, modelEfforts } = ctx;
@@ -80,6 +80,9 @@ export function threadStart(
       workerDiagnostics.turns.begin(spec.threadId, turnId, "claude");
       yield* Effect.tryPromise({
         try: async () => {
+          const canSubmit = settings?.canSubmit ?? (() => true);
+
+          if (!canSubmit()) return;
           let session = sessions.get(spec.threadId);
 
           // A process that is ending (idle, no tasks) finishes first; the turn gets a new one.
@@ -110,7 +113,13 @@ export function threadStart(
             const offered = modelEfforts.get(model || "default");
             const fits = configured && isClaudeEffort(configured) && (!offered || offered.includes(configured));
             const effort = isClaudeEffort(requested) ? requested : fits ? configured : undefined;
-            session = await open(spec, model, effort, mode, settings?.recoveryContext);
+
+            try {
+              session = await open(spec, model, effort, mode, settings?.recoveryContext, canSubmit);
+            } catch (error) {
+              if (error instanceof TurnAdmissionCancelled) return;
+              throw error;
+            }
           } else {
             // A process kept alive by background tasks: the turn's model and mode apply from now on.
             if (model && model !== session.model) {
@@ -123,33 +132,7 @@ export function threadStart(
 
           await session.refreshConnectors(spec);
           await settings?.connectorsReady?.();
-          await beginTurn(session, turnId, TurnOrigin.COMMAND, model);
-          await record(
-            spec.threadId,
-            userItem(turnId, `user:${turnId}`, turnId, input.text, input.authorUserId, input.mentions),
-          );
-          session.input.push(
-            userMessage(
-              await claudeContent(
-                settings?.connectorNote ? { ...input, text: `${input.text}\n\n${settings.connectorNote}` } : input,
-              ),
-              {
-              uuid: Schema.decodeUnknownSync(
-                Schema.TemplateLiteral([
-                  Schema.String,
-                  "-",
-                  Schema.String,
-                  "-",
-                  Schema.String,
-                  "-",
-                  Schema.String,
-                  "-",
-                  Schema.String,
-                ]),
-              )(turnId),
-              },
-            ),
-          );
+          await submitClaudeTurn(ctx, session, turnId, input, model, canSubmit, turns, record, settings?.connectorNote);
         },
         catch: fail(spec.threadId, "turn"),
       }).pipe(

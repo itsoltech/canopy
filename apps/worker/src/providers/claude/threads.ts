@@ -121,7 +121,7 @@ const make = (options: ClaudeThreadsOptions) =>
     return ClaudeThreads.of({
       rewind: claudeRewind(ctx, runtime),
       ...threadCreation(ctx, runtime),
-      ...threadStart(ctx, sessions, turns.beginTurn, output.record),
+      ...threadStart(ctx, sessions, turns, output.record),
       ...threadControls(ctx),
       hasActiveTurns: () => output.recording() || [...ctx.sessions.values()].some((session) => !!session.turn),
       ...threadCatalog(ctx, runtime),
