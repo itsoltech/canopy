@@ -73,6 +73,7 @@
   }
 
   function keydown(event: KeyboardEvent) {
+    if (event.isComposing) return;
     const buttons = [...(root?.querySelectorAll<HTMLButtonElement>("[data-workspace-tab]") ?? [])];
     const index = buttons.findIndex((button) => button === event.target);
 

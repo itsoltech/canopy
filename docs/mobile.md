@@ -48,6 +48,10 @@ Android Back wraca do `Thread` bez zamykania karty. Rozmowa i composer zachowuj�
 stan podczas czytania pliku. Metadane maks. 12 kart na wątek / 30 wątków / 256 KiB
 są lokalne dla parowania; szkice i zawartość nie trafiają do pliku metadanych.
 Cache czystych plików ma limit 8 MiB, suma baz i szkiców 4 MiB.
+Najwyżej dwa czyste pliki pozostają rozgrzane; pozostałe zachowują metadane do
+ponownego odczytu. Unpair i odwołanie dostępu czyszczą dokumenty, tokeny i streamy,
+również przy późnej odpowiedzi rozpoczętego zapisu. Zmiana korzenia zachowuje szkic
+do jawnego skopiowania lub porzucenia; nie nadpisuje pliku w nowym worktree.
 
 Viewer zachowuje Markdown/source, kopiowanie i obrazy. Source jest oknem linii
 z numerami, pozycją i zakresem z linku lub Go to line. Powrót do karty przywraca

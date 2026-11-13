@@ -7,6 +7,11 @@ type HighlightClient = ReturnType<typeof routedMobileClient>;
 
 const caches = new WeakMap<HighlightClient, Map<string, { value: ThreadFileHighlight; bytes: number }>>();
 const identities = new WeakMap<WorkspaceFile, number>();
+
+export const clearHighlights = (client: HighlightClient): void => {
+  caches.delete(client);
+};
+
 let serial = 0;
 
 export function highlightKey(document: WorkspaceFile, start: number, draft: boolean): string {

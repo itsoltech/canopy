@@ -45,7 +45,13 @@ export function useFileHighlight(document: WorkspaceFile, start: number, enabled
         { signal: controller.signal, timeoutMs: 15_000 },
       )
       .then((result) => {
-        if (controller.signal.aborted || result.sha256 !== file.sha256 || result.draftRevision !== revision) return;
+        if (
+          controller.signal.aborted ||
+          document.file !== file ||
+          result.sha256 !== file.sha256 ||
+          result.draftRevision !== revision
+        )
+          return;
         rememberHighlight(client, key, result);
         setTokens(new Map(result.lines.map((line) => [line.line, line])));
         setNote(result.reason);

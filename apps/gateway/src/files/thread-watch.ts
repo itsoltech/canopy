@@ -1,7 +1,8 @@
-import { toBinary } from "@bufbuild/protobuf";
+import { create, toBinary } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import {
   ThreadFilesUpdateSchema,
+  ThreadFileChangeSchema,
   ThreadFileChangeKind as Kind,
   type ui,
   type ThreadFilesUpdate,
@@ -40,7 +41,8 @@ export class ThreadWatch {
     const ownerId = this.core[coreState].options.userId;
     const thread = await coreRun(this.core, (store) => store.thread(request.threadId));
 
-    if (thread.owner_user_id !== ownerId || thread.deleted_at) throw new InvalidError("Thread unavailable.");
+    if (thread.owner_user_id !== ownerId || thread.deleted_at)
+      throw new ConnectError("Thread unavailable. Reopen the thread to check access.", Code.PermissionDenied);
 
     if (!thread.worker_id || !thread.cwd) throw new InvalidError("This thread has no working directory.");
     const worker = this.core.link.connections.get(thread.worker_id);
@@ -102,13 +104,19 @@ export class ThreadWatch {
         if (signal.aborted) break;
         const current = await coreRun(this.core, (store) => store.thread(thread.id));
 
-        if (
-          current.owner_user_id !== ownerId ||
-          current.deleted_at ||
-          current.cwd !== thread.cwd ||
-          current.worker_id !== thread.worker_id
-        )
-          throw new InvalidError("Thread unavailable. Reopen Files.");
+        if (current.owner_user_id !== ownerId || current.deleted_at)
+          throw new ConnectError("Thread unavailable. Reopen the thread to check access.", Code.PermissionDenied);
+
+        if (current.cwd !== thread.cwd || current.worker_id !== thread.worker_id) {
+          yield {
+            ...update,
+            changes: [create(ThreadFileChangeSchema, { kind: Kind.ROOT_CHANGED })],
+            revalidateRequired: true,
+          };
+
+          return;
+        }
+
         yield update;
       }
 

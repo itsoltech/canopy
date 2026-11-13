@@ -1,13 +1,17 @@
 import { fileLocation } from "./file-references.ts";
-import { objectsOf, parseObject, str } from "./json.ts";
-import { WorkspaceFile, type WorkspaceFileApi, type WorkspaceFileTarget } from "./workspace-file.ts";
+import { restoreWorkspace, workspaceMetadata } from "./workspace-storage.ts";
+import {
+  WorkspaceFile,
+  WorkspaceAccessRevoked,
+  type WorkspaceFileApi,
+  type WorkspaceFileTarget,
+} from "./workspace-file.ts";
 import { DirectoryQueue } from "./workspace-directory-queue.ts";
 import { workspaceRead } from "./workspace-read.ts";
 import {
   fileTab,
   tabBusy,
   tabDirty,
-  workspaceModule,
   type WorkspaceEntry,
   type WorkspaceModuleTarget,
   type WorkspaceTab,
@@ -16,7 +20,6 @@ import {
 export type { WorkspaceEntry, WorkspaceTab } from "./workspace-modules.ts";
 
 export const WORKSPACE_TAB_LIMIT = 12;
-const METADATA_BYTES = 256 * 1024;
 const DRAFT_BYTES = 4 * 1024 * 1024;
 
 /** One thread's tab model. Thread is implicit and always first; focus never follows storage events. */
@@ -166,7 +169,7 @@ export class Workspace {
 
     if (!tab || tabDirty(tab) || tabBusy(tab)) return false;
 
-    if (tab.kind === "file") tab.document.cancel();
+    if (tab.kind === "file") tab.document.dispose();
     // The remaining documents retain their draft and scroll state.
     this.tabs = this.tabs.filter((entry) => entry.id !== id);
     this.#metadata.delete(id);
@@ -212,7 +215,7 @@ export class Workspace {
 /** Bounded per-device store, separate from transcript warming. Persist callbacks receive metadata only. */
 export class WorkspaceStore {
   readonly api: WorkspaceFileApi;
-  readonly #fileListeners = new Set<(change: { threadId: string; path: string } | null) => void>();
+  readonly #fileListeners = new Set<(change: { threadId: string; path: string; revoked?: boolean } | null) => void>();
   readonly views = new Map<string, Workspace>();
   #listeners = new Set<() => void>();
   #version = 0;
@@ -225,26 +228,35 @@ export class WorkspaceStore {
   ) {
     const reads = new DirectoryQueue();
     const list = api.listDirectory;
+    const watch = api.watchFiles;
     this.api = {
       ...api,
-      read: (target, path, hash, signal) => workspaceRead(reads, signal, () => api.read(target, path, hash, signal)),
-      ...(list && { listDirectory: (request, signal) => workspaceRead(reads, signal, () => list(request, signal)) }),
+      read: (target, path, hash, signal) =>
+        this.guard(target.threadId, () => workspaceRead(reads, signal, () => api.read(target, path, hash, signal))),
+      ...(list && {
+        listDirectory: (request, signal) =>
+          this.guard(request.threadId ?? "", () => workspaceRead(reads, signal, () => list(request, signal))),
+      }),
+      ...(watch && {
+        watchFiles: (request, signal, receive) =>
+          this.guard(request.threadId ?? "", () => watch(request, signal, receive)),
+      }),
       write: async (target, path, text, hash, root) => {
-        const file = await api.write(target, path, text, hash, root);
+        const file = await this.guard(target.threadId, () => api.write(target, path, text, hash, root));
 
         for (const listener of this.#fileListeners) listener({ threadId: target.threadId, path });
 
         return file;
       },
       remove: async (target, path, hash, root) => {
-        await api.remove(target, path, hash, root);
+        await this.guard(target.threadId, () => api.remove(target, path, hash, root));
 
         for (const listener of this.#fileListeners) listener({ threadId: target.threadId, path });
       },
     };
   }
 
-  watchFiles(listener: (change: { threadId: string; path: string } | null) => void): () => void {
+  watchFiles(listener: (change: { threadId: string; path: string; revoked?: boolean } | null) => void): () => void {
     this.#fileListeners.add(listener);
 
     return () => this.#fileListeners.delete(listener);
@@ -256,6 +268,30 @@ export class WorkspaceStore {
     return () => this.#listeners.delete(listener);
   };
   getVersion = (): number => this.#version;
+
+  private async guard<T>(threadId: string, run: () => Promise<T>): Promise<T> {
+    try {
+      return await run();
+    } catch (cause) {
+      if (cause instanceof WorkspaceAccessRevoked) {
+        const view = this.views.get(threadId);
+
+        for (const tab of view?.files ?? []) tab.document.dispose();
+
+        if (view) {
+          view.tabs = [];
+          view.active = "thread";
+          view.sidebar = undefined;
+          view.error = "File access ended. Reopen the thread to check access.";
+        }
+
+        for (const listener of this.#fileListeners) listener({ threadId, path: "", revoked: true });
+        this.notify(true);
+      }
+
+      throw cause;
+    }
+  }
 
   view(threadId: string): Workspace {
     let view = this.views.get(threadId);
@@ -279,7 +315,7 @@ export class WorkspaceStore {
 
       if (candidate === view || candidate.files.some((tab) => tab.document.editing || tab.document.busy)) continue;
 
-      for (const tab of candidate.files) tab.document.cancel();
+      for (const tab of candidate.files) tab.document.dispose();
       this.views.delete(id);
     }
 
@@ -301,12 +337,15 @@ export class WorkspaceStore {
   trim(): void {
     const documents = this.documents();
     let bytes = documents.reduce((sum, entry) => sum + entry.bytes, 0);
+    const warm = new Set(documents.filter((entry) => entry.file));
+    const warmLimit = this.cleanBytes <= 8 * 1024 * 1024 ? 2 : 4;
 
     for (const entry of documents) {
-      if (bytes <= this.cleanBytes) break;
+      if (bytes <= this.cleanBytes && warm.size <= warmLimit) break;
 
       if (entry.editing || entry.busy || this.#active?.currentFile?.document === entry) continue;
       bytes -= entry.bytes;
+      warm.delete(entry);
       entry.release();
     }
   }
@@ -321,46 +360,7 @@ export class WorkspaceStore {
 
   connect(raw: string | null, persist: (raw: string) => void): void {
     this.clear();
-
-    if (raw && raw.length <= METADATA_BYTES) {
-      for (const saved of objectsOf(parseObject(raw)["views"]).slice(-30)) {
-        const id = str(saved["threadId"]);
-
-        if (!id || id.length > 1024) continue;
-        const view = this.view(id);
-        const sidebar = workspaceModule(str(saved["sidebar"]));
-        view.sidebar = sidebar ? { module: sidebar.id, resource: str(saved["sidebarResource"]) } : undefined;
-        view.panelCollapsed = saved["panelCollapsed"] === true;
-        const width = Number(saved["panelWidth"]);
-
-        if (Number.isFinite(width) && width >= 256 && width <= 384) view.panelWidth = width;
-
-        for (const tab of objectsOf(saved["tabs"]).slice(0, WORKSPACE_TAB_LIMIT - 1)) {
-          const module = workspaceModule(str(tab["module"]));
-
-          if (module) {
-            view.openModule({
-              module: module.id,
-              resource: str(tab["resource"]).slice(0, 1024),
-              label: str(tab["label"]).slice(0, 256),
-            });
-
-            continue;
-          }
-
-          const path = str(tab["path"]);
-          const threadId = str(tab["threadId"]);
-
-          if (!path || path.length > 4096 || !threadId || threadId.length > 1024) continue;
-          view.open({ threadId, path, itemId: str(tab["itemId"]) });
-          view.keep(view.active);
-        }
-
-        const index = Number(saved["active"]);
-        view.active = view.tabs[index - 1]?.id ?? "thread";
-      }
-    }
-
+    restoreWorkspace(this, raw);
     this.#persist = persist;
     this.notify();
   }
@@ -370,31 +370,12 @@ export class WorkspaceStore {
     this.#active = undefined;
     this.#persist = undefined;
 
-    for (const document of this.documents()) document.cancel();
+    for (const document of this.documents()) document.dispose();
     this.views.clear();
     this.notify();
   }
 
   private persist(): void {
-    const views = [...this.views.values()].slice(-30).map((view) => ({
-      threadId: view.threadId,
-      active: view.tabs.findIndex((tab) => tab.id === view.active) + 1,
-      sidebar: view.sidebar?.module,
-      sidebarResource: view.sidebar?.resource,
-      panelCollapsed: view.panelCollapsed,
-      panelWidth: view.panelWidth,
-      tabs: view.tabs.map((tab) =>
-        tab.kind === "module"
-          ? { module: tab.module, resource: tab.resource, label: tab.label?.slice(0, 256) }
-          : {
-              threadId: tab.document.target.threadId,
-              path: tab.document.path,
-              itemId: tab.document.target.itemId ?? "",
-            },
-      ),
-    }));
-
-    while (views.length && new TextEncoder().encode(JSON.stringify({ views })).length > METADATA_BYTES) views.shift();
-    this.#persist?.(JSON.stringify({ views }));
+    this.#persist?.(workspaceMetadata(this));
   }
 }

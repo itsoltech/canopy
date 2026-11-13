@@ -48,8 +48,11 @@ class DirectoryCache {
   ) {
     store.watchFiles((change) => {
       if (!change) {
-        for (const tree of this.trees.values()) tree.clear();
+        for (const tree of this.trees.values()) tree.dispose();
         this.trees.clear();
+      } else if (change.revoked) {
+        this.trees.get(change.threadId)?.dispose();
+        this.trees.delete(change.threadId);
       } else this.trees.get(change.threadId)?.invalidate();
     });
   }
@@ -116,6 +119,7 @@ export class WorkspaceDirectory {
   #listeners = new Set<() => void>();
   #version = 0;
   #stale = false;
+  #disposed = false;
 
   constructor(
     readonly threadId: string,
@@ -138,13 +142,20 @@ export class WorkspaceDirectory {
   }
 
   retain(): () => void {
+    if (this.#disposed) return () => {};
+
     this.users++;
 
     if (this.users === 1 && (!this.nodes.get("")?.revision || this.#stale)) this.invalidate();
 
     if (this.users === 1) this.#stopWatch = observeWorkspaceDirectory(this);
 
+    let released = false;
+
     return () => {
+      if (released || this.#disposed) return;
+      released = true;
+
       if (--this.users) return;
       this.#stopWatch?.();
       this.#stopWatch = undefined;
@@ -229,6 +240,7 @@ export class WorkspaceDirectory {
   }
 
   async load(path: string, reload = false): Promise<void> {
+    if (this.#disposed) return;
     const node = this.node(path);
 
     if (node.read) return;
@@ -285,6 +297,7 @@ export class WorkspaceDirectory {
         throw new Error("This directory changed or its page expired. Reload the directory to continue.");
 
       if (this.rootIdentity && this.rootIdentity !== page.rootIdentity) {
+        void this.release(path, page.nextPageToken, includeIgnored);
         this.clear();
         this.node("").error = "The working directory changed. Reload Files to continue.";
 
@@ -325,6 +338,8 @@ export class WorkspaceDirectory {
   }
 
   invalidate(paths: Iterable<string> = ["", ...this.expanded]): void {
+    if (this.#disposed) return;
+
     if (!this.users) {
       this.#stale = true;
 
@@ -365,6 +380,14 @@ export class WorkspaceDirectory {
     this.expanded.clear();
     this.rootIdentity = "";
     this.notify();
+  }
+
+  dispose(): void {
+    this.#disposed = true;
+    this.#stopWatch?.();
+    this.#stopWatch = undefined;
+    this.users = 0;
+    this.clear();
   }
 
   private cancel(node: Directory): void {

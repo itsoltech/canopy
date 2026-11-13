@@ -34,6 +34,20 @@ pełną kartą z istniejącymi akcjami cytowania i zatrzymania. Granty connector
 nadal obejmują workera i wszystkie jego wątki. Metadane sekretów i lineage
 pozostają w podsumowaniu; oczekujące interakcje pozostają przy rozmowie.
 
+Workspace ogranicza czyste treści do 16 MiB i czterech rozgrzanych plików na webie
+(8 MiB i dwóch na mobile); szkice mają osobny wspólny limit 4 MiB. Ukryte widoki
+nie utrzymują edytora, wykonawcy składni ani obserwatorów geometrii. Zmiana karty
+anuluje odczyt, a anulowanie HTTP odczytu pliku dochodzi przez BFF do RPC.
+Otwarte pliki dzielą bounded obserwację zakresu; invalidacja nieaktywnego pliku
+oznacza go do rewalidacji przy ponownym wejściu, bez odczytu w tle.
+
+Utrata dostępu do wątku zamyka stream i retry, usuwa jego karty, treści i tokeny,
+także gdy odmontowywany komponent nadal trzyma dokument. Unpair/reset zakresu
+czyści wszystkie dokumenty i kursory; późna odpowiedź mutacji nie odtwarza cache.
+Zmiana tożsamości katalogu zachowuje stary szkic i blokuje zapis. Dopiero jawne
+porzucenie zmian oraz Reload akceptują plik z nowego korzenia. Skróty workspace'u
+nie przechwytują klawiszy podczas kompozycji IME.
+
 ## Odczyty panelu
 
 `ListArchivedThreads` łączy lokalne strony z zatwierdzonymi metadanymi luster,
