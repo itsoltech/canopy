@@ -116,7 +116,13 @@ oryginalnych rekordach. Tożsamość origin nie zmienia kontraktu etapów 4 ani 
 
 Worker z capability **`workspace_origin`** obsługuje nietrwałe `Command.read_workspace_origin` (**216**)
 i `CommandResult.workspace_origin` (**216**). Odczytuje lokalne `remote.origin.url` katalogu workspace'u
-przez process governor: bez shella, fetch i promptów, z limitem 2 s oraz cache 30 s.
+przez process governor: bez shella, fetch i promptów, z limitem 2 s. Worker scala
+równoległe odczyty i trzyma do 256 bezpiecznych wyników według ścieżki workspace'u.
+Przed ponownym użyciem sprawdza tożsamość i czasy plików `.git`, `commondir`,
+wspólnego `config` i `config.worktree`: zmiana origin, atomowa wymiana konfiguracji
+lub zmiana worktree unieważnia wynik bez oczekiwania na TTL. Jawne zmienne zmieniające
+odkrywanie repozytorium lub konfigurację Git wyłączają cache plikowy. Zakres `--local`
+zachowuje dotychczasowe pomijanie include/includeIf.
 Zwraca wyłącznie znormalizowaną tożsamość, nigdy surowy URL z credentialami.
 Gateway pyta wyłącznie o workspace'y właściciela, cache'uje odpowiedź 30 s i zachowuje ją
 w `project_workspaces.git_origin` (migracja **0072_workspace_origin**).

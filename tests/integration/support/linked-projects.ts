@@ -8,17 +8,22 @@ import { eventually } from "./gateway.ts";
 import { worktreeFixture } from "./worktrees.ts";
 
 /** Two desktop homes, real Git origin reads over gRPC, and isolated provider stand-ins. */
-export async function linkedProjectFixture(dir: string, options: { shared?: boolean; cloneProgress?: boolean } = {}) {
+export async function linkedProjectFixture(
+  dir: string,
+  options: { shared?: boolean; cloneProgress?: boolean; diagnostics?: boolean } = {},
+) {
   mkdirSync(join(dir, "a"));
   mkdirSync(join(dir, "b"));
 
   const a = await worktreeFixture(join(dir, "a"), {
     role: "desktop",
+    ...(options.diagnostics && { diagnostics: true }),
     originUrl: "git@GitHub.com:itsoltech/pinpoint.git",
   });
 
   const b = await worktreeFixture(join(dir, "b"), {
     role: "desktop",
+    ...(options.diagnostics && { diagnostics: true }),
     originUrl: "https://github.com/itsoltech/pinpoint/",
     ...(options.cloneProgress && { capabilities: ["git_clone_progress_v1"] }),
   });
