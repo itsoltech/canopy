@@ -60,7 +60,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17: threads, turns and t
       ).toContain("foreign key");
     });
 
-    test("placement and lineage are immutable; provider_thread_id is set once, replaceable only before the first turn", async () => {
+    test("placement stays immutable; replacing a started session requires a completed rewind", async () => {
       const w = await world();
       const thread = await mainThread(w);
       expect(await failure(`UPDATE threads SET cwd = '/elsewhere' WHERE id = $1`, [thread])).toContain("immutable");
@@ -69,14 +69,14 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17: threads, turns and t
       // No history yet (e.g. a Codex thread without a rollout, started again after a worker restart).
       await query(`UPDATE threads SET provider_thread_id = 'sess-2' WHERE id = $1`, [thread]);
       expect(await failure(`UPDATE threads SET provider_thread_id = NULL WHERE id = $1`, [thread])).toContain(
-        "set once",
+        "completed rewind",
       );
       await query(
         `INSERT INTO turns (id, thread_id, ordinal, status, trigger, input, started_at) VALUES ($1, $2, 1, 'running', 'provider', '{}', now())`,
         [id(), thread],
       );
       expect(await failure(`UPDATE threads SET provider_thread_id = 'sess-3' WHERE id = $1`, [thread])).toContain(
-        "set once",
+        "completed rewind",
       );
     });
   });
@@ -133,7 +133,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17: threads, turns and t
       const main = await mainThread(w, "claude");
 
       const noTurn = insertSide(w, { parent: main, root: main, forkSource: main });
-      expect(await failure(noTurn.sql, noTurn.params)).toContain("no completed turn");
+      expect(await failure(noTurn.sql, noTurn.params)).toContain("no completed visible turn");
 
       await completedTurn(w, main, ["a"]);
       const crossProvider = insertSide(w, { parent: main, root: main, provider: "codex", forkSource: main });

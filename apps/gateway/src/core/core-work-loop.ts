@@ -117,7 +117,7 @@ export async function corePump(hostContext: GatewayCore, threadId: string): Prom
 export async function corePumpQueued(hostContext: GatewayCore, threadId: string): Promise<void> {
   const state = await coreRun(hostContext, (s) => s.thread(threadId, true));
 
-  if (state.deleted_at || state.archived_at) return;
+  if (state.deleted_at || state.archived_at || state.rewind_pending_id) return;
 
   // Steers that never joined their turn run next (in order, before anything queued after them).
   for (const steerId of await coreSteers(hostContext, (s) => s.dropped(threadId)))

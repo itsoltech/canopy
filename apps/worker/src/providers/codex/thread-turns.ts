@@ -27,6 +27,7 @@ export function threadTurns(
       input: UserInput,
       settings?: TurnSettings,
     ) {
+      if (settings?.canSubmit?.() === false) return "";
       const enteredAt = workerDiagnostics.enabled ? workerDiagnostics.monotonic() : 0;
       const previous = connectorCatalog.get(spec.threadId);
       let entry = yield* ensureLoaded(spec, settings?.recoveryContext);
@@ -46,6 +47,8 @@ export function threadTurns(
       });
       workerDiagnostics.turns.begin(spec.threadId, turnId, "codex", enteredAt);
       const chosen = yield* turnSettings(spec, settings);
+
+      if (byPlatform.get(spec.threadId) !== entry || settings?.canSubmit?.() === false) return "";
       entry.pendingTurns.push(turnId);
 
       if (input.mentions.length > 0 || settings?.connectorNote)

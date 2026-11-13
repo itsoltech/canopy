@@ -74,11 +74,11 @@ export const ensureTurn = (
  * token usage of the source's last turn right after a fork. Creating a turn from it would leave a
  * turn "running" forever and block the thread's queue.
  */
-export const resolveTurn = (sql: SqlClient.SqlClient, threadId: string, event: ThreadEvent) =>
+export const resolveTurn = (sql: SqlClient.SqlClient, threadId: string, event: ThreadEvent, admit = true) =>
   Effect.gen(function* () {
     if (!event.turnId) return event;
 
-    if (event.body.case === "turnStarted") {
+    if (admit && event.body.case === "turnStarted") {
       yield* ensureTurn(sql, threadId, event.turnId, "provider");
 
       return event;
@@ -157,8 +157,8 @@ export const noteBackgroundEnd = (sql: SqlClient.SqlClient, threadId: string, it
       INSERT INTO background_task_notes (thread_id, item_id, wake, harness_wakes, ended_at, hops, status, reason)
       SELECT ${threadId}::uuid, ${itemId}, ${!stoppedByUser(task.stopReason)} AND coalesce(u.hops, 0) + 1 <= ${DEFAULT_BUS_LIMITS.maxHops},
              ${natural} AND t.provider = 'claude', ${endedAt}, least(coalesce(u.hops, 0) + 1, 16),
-             CASE WHEN t.archived_at IS NOT NULL OR t.deleted_at IS NOT NULL THEN 'cancelled' ELSE 'waiting' END,
-             CASE WHEN t.archived_at IS NOT NULL OR t.deleted_at IS NOT NULL THEN 'the thread is archived or deleted' END
+             CASE WHEN t.archived_at IS NOT NULL OR t.deleted_at IS NOT NULL OR t.rewind_pending_id IS NOT NULL OR u.rewind_id IS NOT NULL THEN 'cancelled' ELSE 'waiting' END,
+             CASE WHEN t.archived_at IS NOT NULL OR t.deleted_at IS NOT NULL OR t.rewind_pending_id IS NOT NULL OR u.rewind_id IS NOT NULL THEN 'the thread is closed or rewinding' END
         FROM threads t JOIN thread_items i ON i.thread_id = t.id AND i.item_id = ${itemId} LEFT JOIN turns u ON u.id = i.turn_id
        WHERE t.id = ${threadId}::uuid
       ON CONFLICT (thread_id, item_id) DO NOTHING`;

@@ -89,6 +89,7 @@ export function threadSnapshot(
                 SELECT u.*, s.*, (SELECT bt.bot_id FROM bot_tool_calls bc JOIN bot_turns bt ON bt.id = bc.turn_id WHERE bc.id = u.bot_call_id) AS bot_id FROM thread_fork_chain(${threadId}::uuid) c
                   JOIN turns u ON u.thread_id = c.thread_id LEFT JOIN turn_sources s ON s.turn_id = u.id
                  WHERE c.level > 0 AND u.status <> 'queued' AND (c.upto_seq IS NULL OR u.last_seq <= c.upto_seq)
+                   AND thread_turn_visible_at(u.id,c.upto_seq)
                    AND (${!selection && !window} OR u.id=ANY(${selection?.turnIds ?? window?.ids ?? []}::uuid[]))
                  ORDER BY c.level DESC, u.ordinal`;
 
@@ -112,6 +113,7 @@ export function threadSnapshot(
                 LEFT JOIN thread_events e ON v.type='agent_message' AND v.status='completed'
                   AND e.thread_id=v.thread_id AND e.seq=v.last_seq
                 WHERE (c.upto_seq IS NULL OR v.first_seq<=c.upto_seq)
+                  AND thread_turn_visible_at(v.turn_id,c.upto_seq)
                   AND (${!projection} OR v.item_id=ANY(${projection?.itemIds ?? []}::text[]))
                   AND (${!window} OR v.turn_id IS NULL OR v.type='background_task'
                     OR v.turn_id=ANY(${window?.ids ?? []}::uuid[]))

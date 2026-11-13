@@ -35,6 +35,7 @@ export const nextTurn = (sql: SqlClient.SqlClient, threadId: string) =>
     SELECT u.* FROM turns u JOIN threads t ON t.id = u.thread_id
      WHERE u.thread_id = $1::uuid AND u.status = 'queued' AND t.provider_thread_id IS NOT NULL
        AND t.status IN ('idle', 'interrupted', 'failed') AND t.deleted_at IS NULL AND t.archived_at IS NULL
+       AND t.rewind_pending_id IS NULL AND u.rewind_id IS NULL
        AND NOT EXISTS (SELECT 1 FROM turns r WHERE r.thread_id = u.thread_id AND r.status = 'running')
        AND NOT EXISTS (SELECT 1 FROM turns u WHERE u.thread_id = t.id AND u.status = 'queued' AND ${DISPATCHED})
      ORDER BY u.ordinal LIMIT 1`,

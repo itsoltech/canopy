@@ -50,7 +50,8 @@ const forkPoint = (sql: SqlClient.SqlClient, ownerUserId: string, request: ui.Cr
                 JOIN threads s ON s.id = u.thread_id
                 JOIN threads f ON f.id = ${from}::uuid
                WHERE u.id = ${request.forkAtTurnId}::uuid AND f.owner_user_id = ${ownerUserId}::uuid
-                 AND (c.upto_seq IS NULL OR u.last_seq <= c.upto_seq)`;
+                 AND (c.upto_seq IS NULL OR u.last_seq <= c.upto_seq)
+                 AND thread_turn_visible_at(u.id,coalesce(c.upto_seq,f.last_seq))`;
 
     const point = rows[0];
 

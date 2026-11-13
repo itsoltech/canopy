@@ -21,6 +21,7 @@ export function composerTurnChoices(sql: SqlClient.SqlClient, threadId: string, 
     FROM turns u JOIN threads t ON t.id=u.thread_id
     WHERE u.thread_id=${threadId}::uuid AND t.owner_user_id=${ownerUserId}::uuid
       AND u.author_user_id=${ownerUserId}::uuid AND u.trigger='user' AND u.withdrawn IS NULL
+      AND u.rewind_id IS NULL
       AND NOT (u.input ? 'shellCommand')
     ORDER BY u.ordinal DESC LIMIT 1`.pipe(
     Effect.map((rows) => {

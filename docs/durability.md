@@ -205,6 +205,16 @@ Każda instancja może obsłużyć dowolne żądanie. Wdrożenie może zacząć 
 
 ### 4.2 Outbox komend
 
+Rewind zapisuje zamiar (`thread_rewinds`) i komendę w tej samej transakcji,
+pod blokadą przyjęć wątku. `rewind_pending_id` blokuje kolejkę i nowe wejścia,
+także po restarcie gatewaya. Worker pamięta wynik jak inne komendy. ACK outboxa,
+przełączenie sesji i oznaczenie zastąpionych tur stanowią jeden commit; utrata
+połączenia odtwarza wynik bez drugiego rewindu. Powtórny fork po awarii workera
+przed zapisem wyniku może pozostawić nieużywaną sesję natywną, ale nie zmienia
+historii źródła. Spóźnione zdarzenia zastąpionych tur zostają w audycie bez
+ponownego otwarcia pracy. Upserty tur i zdarzenie `thread_rewound` idą przez
+dotychczasowy journal seq, bez resetu historii lub pełnego snapshotu.
+
 ```mermaid
 sequenceDiagram
     autonumber

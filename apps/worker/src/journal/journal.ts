@@ -91,6 +91,7 @@ export class Journal extends Context.Service<
   {
     readonly journalId: string;
     rememberRequest: ReturnType<typeof retryContext>["rememberRequest"];
+    forgetRequest: ReturnType<typeof retryContext>["forgetRequest"];
     recoveryInstructions: ReturnType<typeof retryContext>["recoveryInstructions"];
     connectorCatalog: ReturnType<typeof connectorCatalog>["connectorCatalog"];
     rememberConnectorCatalog: ReturnType<typeof connectorCatalog>["rememberConnectorCatalog"];

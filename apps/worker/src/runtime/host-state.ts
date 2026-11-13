@@ -25,6 +25,7 @@ import { PreviewStore } from "../images/index.ts";
 import { WorkerImport } from "../import/service.ts";
 import { AccountStatuses } from "../providers/account-status.ts";
 import { resolveWorktreeRoots, type WorktreeRoots } from "../git/worktree-roots.ts";
+import { ThreadAdmissions } from "./thread-admissions.ts";
 
 import type { ProviderRuntimeHandle, ProfileModelsInit, WorkerHostOptions } from "./host-types.ts";
 
@@ -72,6 +73,8 @@ export class HostState {
   readonly codexRestart = new Map<string, Promise<void>>();
   readonly running = new Set<string>();
   readonly closedThreads = new Set<string>();
+  readonly rewindingThreads = new Set<string>();
+  readonly turnAdmissions = new ThreadAdmissions();
   updateDraining = false;
   admitting = 0;
 

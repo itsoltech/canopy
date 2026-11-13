@@ -30,6 +30,7 @@ export function threadWindow(sql: SqlClient.SqlClient, thread: string, version: 
         SELECT u.id,-c.level AS depth,u.ordinal FROM chain c
         JOIN turns u ON u.thread_id=c.thread_id WHERE u.status<>'queued'
           AND (c.upto_seq IS NULL OR u.last_seq<=c.upto_seq)
+          AND thread_turn_visible_at(u.id,c.upto_seq)
       ), bounds AS (
         SELECT b.depth AS end_depth,b.ordinal AS end_ordinal,
           coalesce(t.depth,f.depth) AS start_depth,coalesce(t.ordinal,f.ordinal) AS start_ordinal,
@@ -44,6 +45,7 @@ export function threadWindow(sql: SqlClient.SqlClient, thread: string, version: 
           SELECT u.id,-c.level AS depth,u.ordinal FROM turns u
           WHERE u.thread_id=c.thread_id AND u.status<>'queued'
             AND (c.upto_seq IS NULL OR u.last_seq<=c.upto_seq)
+            AND thread_turn_visible_at(u.id,c.upto_seq)
             AND (b.end_depth IS NULL OR (-c.level,u.ordinal)<(b.end_depth,b.end_ordinal))
             AND (b.start_depth IS NULL OR (-c.level,u.ordinal)>=(b.start_depth,b.start_ordinal))
           ORDER BY u.ordinal DESC LIMIT CASE WHEN b.start_depth IS NULL THEN ${Math.min(query.pageSize, 100)} END

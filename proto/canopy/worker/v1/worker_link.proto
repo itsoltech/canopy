@@ -403,6 +403,8 @@ message Command {
     StopTask stop_task = 16;
     BackgroundItem background_item = 17;
     SetGoal set_goal = 18;
+    // Additive capability thread_rewind_v1. A replacement session preserves the original.
+    RewindThread rewind_thread = 19;
     // Modele, effort i steer (sekcja na końcu pliku).
     ListModels list_models = 40;
     // Globalne instancje dostawców (sekcja na końcu pliku).
@@ -686,11 +688,33 @@ message ListDirectory {
   string path = 1; // absolutny istniejący katalog; pusty = katalog domowy workera
 }
 
+message RewindThread {
+  ThreadSpec thread = 1;
+  string source_provider_thread_id = 2;
+  string after_provider_turn_ref = 3;
+  // An empty prefix creates a session, never an unbounded fork.
+  bool empty = 4;
+  bool restore_files = 5;
+  string checkpoint_id = 6;
+  bool preview = 7;
+  string restore_provider_thread_id = 8;
+  string checkpoint_session_id = 9;
+  repeated string cancelled_turn_ids = 10;
+}
+
+message ThreadRewindResult {
+  string provider_thread_id = 1;
+  bool files_available = 2;
+  repeated string files = 3;
+  string files_detail = 4;
+}
+
 message CommandResult {
   string command_id = 1;
   bool ok = 2;
   string error_code = 3;
   string error_message = 4;
+  ThreadRewindResult rewind = 19;
   // Wynik ListDirectory i podobnych komend zapytań.
   repeated DirectoryEntry entries = 5;
   // Rzeczywista ścieżka listowanego katalogu (także dla pustego ListDirectory.path).

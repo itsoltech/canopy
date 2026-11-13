@@ -16,6 +16,10 @@ export function retryContext(
   const select = db.query<{ request: string }, [string]>("SELECT request FROM retry_requests WHERE thread_id = ?");
 
   return {
+    forgetRequest: (threadId: string) =>
+      attempt("forgetRequest", () => {
+        db.query("DELETE FROM retry_requests WHERE thread_id=?").run(threadId);
+      }),
     rememberRequest: (threadId: string, text: string) =>
       attempt("rememberRequest", () => {
         // Repeated retries must retain the request that describes the work.

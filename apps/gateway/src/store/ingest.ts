@@ -68,7 +68,8 @@ export const ingestThread = (
         archived_at: Date | null;
         deleted_at: Date | null;
         worker_id: string | null;
-      }>`SELECT last_seq, archived_at, deleted_at, worker_id FROM threads WHERE id = ${threadId}::uuid FOR UPDATE`;
+        rewind_pending_id: string | null;
+      }>`SELECT last_seq, archived_at, deleted_at, worker_id,rewind_pending_id FROM threads WHERE id = ${threadId}::uuid FOR UPDATE`;
 
       const thread = locked[0];
 
@@ -100,6 +101,11 @@ export const ingestThread = (
 
       const stored: StoredEvent[] = [];
 
+      const superseded = new Set(
+        (yield* sql<{ id: string }>`SELECT id FROM turns
+        WHERE thread_id=${threadId}::uuid AND rewind_id IS NOT NULL`).map((row) => row.id),
+      );
+
       for (const incoming of events) {
         if (known.has(incoming.eventId)) continue;
         known.add(incoming.eventId);
@@ -110,15 +116,28 @@ export const ingestThread = (
             ? { code: "23514", reason: "archived_thread" as const }
             : fallback;
 
+        const suppressed =
+          superseded.has(incoming.turnId) ||
+          Boolean(
+            thread.rewind_pending_id &&
+            (incoming.body.case === "turnStarted" ||
+              incoming.body.case === "threadReady" ||
+              incoming.body.case === "goalState"),
+          );
+
         const event = rejection
           ? yield* quarantineEvent(sql, workerId, journalId, incoming, rejection.code, rejection.reason)
-          : yield* resolveTurn(sql, threadId, storageEvent(incoming));
+          : yield* resolveTurn(sql, threadId, storageEvent(incoming), !suppressed);
 
         yield* insertEvent(sql, threadId, seq, event, rejection ? "gateway" : origin);
-        yield* applySideEffects(sql, threadId, seq, event);
-        yield* applySteer(sql, threadId, seq, event);
 
-        if (event.body.case === "shellInputPrepared") yield* applyShellInput(sql, threadId, event.body.value);
+        if (!suppressed) {
+          yield* applySideEffects(sql, threadId, seq, event);
+          yield* applySteer(sql, threadId, seq, event);
+        }
+
+        if (!suppressed && event.body.case === "shellInputPrepared")
+          yield* applyShellInput(sql, threadId, event.body.value);
         stored.push({ threadId, seq, event });
 
         if (rejection) outcomes.push({ threadId, kind: "quarantined", reason: rejection.reason, count: 1 });

@@ -237,6 +237,8 @@ const messageActions: CoreMessagesMethods = {
 
     if (thread.archived_at) throw new InvalidError("the thread is archived");
 
+    if (thread.rewind_pending_id) throw new InvalidError("This thread is rewinding. Wait for it to finish.");
+
     // Imported as history (docs/import.md): no provider session to continue in this thread.
     if (thread.imported?.mode === "history")
       throw new InvalidError("This thread was imported as history. Continue it in a new thread.");

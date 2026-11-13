@@ -134,7 +134,10 @@ export function interactionStore(sql: SqlClient.SqlClient, self: () => Pick<Thre
           const ended = yield* sql`SELECT id FROM turns WHERE id = ${row.turn_id}::uuid
             AND status IN ('completed', 'interrupted', 'failed', 'cancelled')`;
 
-          if (request.cancelled || ended.length) {
+          const rewinding =
+            yield* sql`SELECT id FROM threads WHERE id=${row.thread_id}::uuid AND rewind_pending_id IS NOT NULL`;
+
+          if (request.cancelled || ended.length || rewinding.length) {
             yield* sql`UPDATE interaction_requests SET status = 'expired', answered_at = now() WHERE id = ${row.id}::uuid`;
             row.status = "expired";
           }

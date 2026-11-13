@@ -22,7 +22,7 @@ export interface OutboxStore {
     command: MessageInitShape<typeof CommandSchema>;
     ttlSeconds: number;
   }): Fx<Command>;
-  /** Ordered keyset page, at most 2048 commands / about 512 KiB (one oversized command makes progress). */
+  /** Ordered keyset page, at most 2048 commands / about 512 KiB. Rewind admission stays fenced until ACK, so its intent never expires. */
   pendingCommands(workerId: string, afterId?: string): Fx<PendingCommand[]>;
   commandDone(commandId: string, ok: boolean, result: JsonValue): Fx<void>;
   retryTurnStart(commandId: string, result: JsonValue): Fx<Command | undefined>;
@@ -37,9 +37,8 @@ export function outboxStore(sql: SqlClient.SqlClient): OutboxStore {
       sql`
       SELECT c.id FROM worker_commands c JOIN turns u ON u.id = c.turn_id JOIN threads t ON t.id = c.thread_id
       WHERE c.id = ${commandId}::uuid AND c.status IN ('pending', 'delivered') AND c.expires_at > now()
-        AND u.status IN ('queued', 'running') AND t.archived_at IS NULL AND t.deleted_at IS NULL`.pipe(
-        Effect.map((rows) => rows.length > 0),
-      ),
+        AND u.status IN ('queued', 'running') AND u.rewind_id IS NULL AND t.rewind_pending_id IS NULL
+        AND t.archived_at IS NULL AND t.deleted_at IS NULL`.pipe(Effect.map((rows) => rows.length > 0)),
     enqueueCommand: ({ workerId, threadId, turnId, command, ttlSeconds }) =>
       Effect.gen(function* () {
         const message = create(CommandSchema, { ...command });
@@ -58,7 +57,8 @@ export function outboxStore(sql: SqlClient.SqlClient): OutboxStore {
       sql<Pick<OutboxRow, "id" | "payload"> & { expires_at: Date; created_at: Date }>`
         WITH candidates AS MATERIALIZED (
           SELECT id, payload, created_at, expires_at FROM worker_commands
-          WHERE worker_id = ${workerId}::uuid AND status IN ('pending', 'delivered') AND expires_at > now()
+          WHERE worker_id = ${workerId}::uuid AND status IN ('pending', 'delivered')
+            AND (expires_at > now() OR kind='rewindThread')
           ${afterId ? sql`AND (created_at, id) > (SELECT created_at, id FROM worker_commands WHERE id = ${afterId}::uuid AND worker_id = ${workerId}::uuid)` : sql``}
           ORDER BY created_at, id LIMIT 2048
         ), budget AS (

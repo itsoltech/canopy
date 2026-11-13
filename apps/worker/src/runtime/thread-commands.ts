@@ -16,7 +16,6 @@ import { connectorTurn } from "./connector-turn.ts";
 const TURN_NOT_RUNNING = "TURN_NOT_RUNNING";
 
 export class ThreadCommands {
-  readonly #starts = new Map<string, Promise<CommandOutput>>();
   constructor(readonly ctx: HostContext) {}
   async createThread(kind: Extract<Command["kind"], { case: "createThread" }>): Promise<CommandOutput> {
     const spec = kind.value.thread;
@@ -62,39 +61,38 @@ export class ThreadCommands {
 
   async startTurn(kind: Extract<Command["kind"], { case: "startTurn" }>, commandId: string): Promise<CommandOutput> {
     const threadId = kind.value.thread?.threadId ?? "";
-    const previous = this.#starts.get(threadId);
 
-    const next = (previous ?? Promise.resolve())
-      .catch(() => {})
-      .then(async () => {
-        // The gateway outbox retains this unacknowledged command across restarts/reconnects.
-        // Provider wake-ups can precede their turn_started event reaching the gateway.
-        while (
-          [...this.ctx.state.running].some(
-            (key) => key.startsWith(`${threadId}/`) && key !== `${threadId}/${kind.value.turnId}`,
-          )
-        ) {
-          if (this.ctx.state.shuttingDown || this.ctx.state.closing)
-            throw new CommandError("WORKER_DRAINING", "worker is stopping", false);
-          await Bun.sleep(50);
-        }
+    if (this.ctx.state.rewindingThreads.has(threadId)) return {};
+
+    return this.ctx.state.turnAdmissions.start(threadId, async (current) => {
+      // The gateway outbox retains this unacknowledged command across restarts/reconnects.
+      // Provider wake-ups can precede their turn_started event reaching the gateway.
+      while (
+        [...this.ctx.state.running].some(
+          (key) => key.startsWith(`${threadId}/`) && key !== `${threadId}/${kind.value.turnId}`,
+        )
+      ) {
+        if (!current()) return {};
 
         if (this.ctx.state.shuttingDown || this.ctx.state.closing)
           throw new CommandError("WORKER_DRAINING", "worker is stopping", false);
+        await Bun.sleep(50);
+      }
 
-        return this.#startTurn(kind, commandId);
-      });
+      if (this.ctx.state.shuttingDown || this.ctx.state.closing)
+        throw new CommandError("WORKER_DRAINING", "worker is stopping", false);
 
-    this.#starts.set(threadId, next);
+      if (!current()) return {};
 
-    try {
-      return await next;
-    } finally {
-      if (this.#starts.get(threadId) === next) this.#starts.delete(threadId);
-    }
+      return this.#startTurn(kind, commandId, current);
+    });
   }
 
-  async #startTurn(kind: Extract<Command["kind"], { case: "startTurn" }>, commandId: string): Promise<CommandOutput> {
+  async #startTurn(
+    kind: Extract<Command["kind"], { case: "startTurn" }>,
+    commandId: string,
+    current: () => boolean,
+  ): Promise<CommandOutput> {
     const { thread: spec, turnId, input: rawInput, model, effort, permissionMode } = kind.value;
 
     if (!spec || !rawInput) throw new CommandError("INVALID_COMMAND", "thread spec or input missing", true);
@@ -107,7 +105,7 @@ export class ThreadCommands {
     if (await this.ctx.state.options.runtime.runPromise(Journal.use((j) => j.wasInterrupted(spec.threadId, turnId))))
       return {};
 
-    if (this.ctx.state.closedThreads.has(spec.threadId))
+    if (this.ctx.state.closedThreads.has(spec.threadId) || this.ctx.state.rewindingThreads.has(spec.threadId))
       throw new CommandError("THREAD_CLOSED", "the thread is archived or deleted", true);
 
     if (
@@ -149,20 +147,28 @@ export class ThreadCommands {
     // UNSPECIFIED (an older gateway): the thread's mode.
     const connectors = await connectorTurn(this.ctx, spec, turnId);
 
+    const canSubmit = () =>
+      current() &&
+      !this.ctx.state.closedThreads.has(spec.threadId) &&
+      !this.ctx.state.rewindingThreads.has(spec.threadId) &&
+      !this.ctx.state.closing &&
+      !this.ctx.state.shuttingDown &&
+      !this.ctx.state.options.runtime.runSync(Journal.use((j) => j.wasInterrupted(spec.threadId, turnId)));
+
     const settings = {
       model,
       effort,
       permissionMode: permissionMode || spec.permissionMode,
       recoveryContext,
       ...connectors,
+      canSubmit,
     };
 
     // An archive/delete interrupt can overtake a queued start or arrive while its files are fetched.
     if (await this.ctx.state.options.runtime.runPromise(Journal.use((j) => j.wasInterrupted(spec.threadId, turnId))))
       return {};
 
-    if (this.ctx.state.closedThreads.has(spec.threadId))
-      throw new CommandError("THREAD_CLOSED", "the thread is archived or deleted", true);
+    if (!canSubmit()) return {};
     workerDiagnostics.turns.queue(
       spec.threadId,
       turnId,

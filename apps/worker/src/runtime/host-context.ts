@@ -16,6 +16,7 @@ import { CommandHandlers } from "./command-handlers.ts";
 import { GitCommands } from "./git-commands.ts";
 import { CloneCommands } from "./clone-commands.ts";
 import { BranchCommands } from "./branch-commands.ts";
+import { RewindCommands } from "./rewind-commands.ts";
 import { BotTurns } from "../bots/runtime.ts";
 
 export interface HostHooks {
@@ -24,6 +25,7 @@ export interface HostHooks {
 }
 
 export type HostOperations = HostHooks &
+  Pick<RewindCommands, "rewindThread"> &
   Pick<BranchCommands, "switchThreadBranch"> &
   Pick<HostCatalog, "homes" | "probe" | "startLogin" | "publishCatalog" | "listModels"> &
   Pick<HostFiles, "checkCwd" | "listDirectory" | "ensureAttachments" | "fetchBlob" | "viewImage"> &
@@ -95,7 +97,9 @@ export class HostContext {
     const gitCommands = new GitCommands(this);
     const clones = new CloneCommands(this);
     const branches = new BranchCommands(this);
+    const rewinds = new RewindCommands(this);
     this.ops = {
+      rewindThread: rewinds.rewindThread.bind(rewinds),
       ...hooks,
       switchThreadBranch: branches.switchThreadBranch.bind(branches),
       homes: catalog.homes.bind(catalog),

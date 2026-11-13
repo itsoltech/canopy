@@ -58,6 +58,7 @@ export const lastMessage = (sql: SqlClient.SqlClient, threadId: string, turnId?:
   sql<{ text: string | null }>`
     SELECT content->'agentMessage'->>'text' AS text FROM thread_items
      WHERE thread_id = ${threadId}::uuid AND type = 'agent_message'
+       AND NOT EXISTS (SELECT 1 FROM turns u WHERE u.id=thread_items.turn_id AND u.rewind_id IS NOT NULL)
        AND (${turnId ?? null}::uuid IS NULL OR turn_id = ${turnId ?? null}::uuid) ORDER BY first_seq DESC LIMIT 1`.pipe(
     Effect.map((rows) => rows[0]?.text ?? ""),
   );
@@ -104,7 +105,7 @@ export const summary = (sql: SqlClient.SqlClient, threadId: string): Fx<ThreadSu
       interrupt_source: string | null;
     }>`
       SELECT id, status, error, error_source, interrupt_reason, interrupt_source FROM turns
-       WHERE thread_id = ${row.id}::uuid AND status IN ('completed', 'interrupted', 'failed', 'cancelled') ORDER BY ordinal DESC LIMIT 1`)[0];
+       WHERE thread_id = ${row.id}::uuid AND rewind_id IS NULL AND status IN ('completed', 'interrupted', 'failed', 'cancelled') ORDER BY ordinal DESC LIMIT 1`)[0];
 
     const reason = Match.value(ended?.status).pipe(
       Match.when("failed", () => [ended?.error_source, ended?.error].filter(Boolean).join(": ")),

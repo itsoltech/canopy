@@ -238,6 +238,14 @@ Zasady:
 
 ## Komendy (gateway → worker)
 
+`RewindThread` wymaga capability `thread_rewind_v1`; nie zmienia numeru
+`WORKER_LINK_PROTOCOL`. Gateway odmawia staremu workerowi z instrukcją aktualizacji.
+Komenda niesie dokładną sesję i granicę zachowanego prefiksu albo jawny pusty
+prefiks. `cancelled_turn_ids` zapisuje trwałe zakazy ponownego StartTurn przed
+zatrzymaniem i po zatrzymaniu bieżącej pracy. Wynik `CommandResult.rewind`
+podaje nową sesję. Podgląd checkpointu (`preview`) nie wysyła promptu do modelu.
+Oryginalna sesja zostaje do undo; żadne pliki nie są cofane bez `restore_files`.
+
 | Komenda | Efekt na workerze | Wynik |
 |---|---|---|
 | `CreateThread` | Walidacja absolutnego, istniejącego katalogu `cwd` i profilu dostawcy. Nowy wątek u dostawcy albo fork (`ForkSpec`: Claude `forkSession`, Codex `thread/fork`). | `CommandResult` + `thread_ready` (`provider_thread_id`) |

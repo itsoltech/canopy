@@ -61,6 +61,7 @@ import { coreQueueMethods, type CoreQueueMethods } from "./core-queue.ts";
 import { coreSchedulesMethods, type CoreSchedulesMethods } from "./core-schedules.ts";
 import { coreSettingsMethods, type CoreSettingsMethods } from "./core-settings.ts";
 import { coreThreadsMethods, type CoreThreadsMethods } from "./core-threads.ts";
+import { coreRewindMethods, type CoreRewindMethods } from "./core-rewind.ts";
 import { coreTitlesMethods, type CoreTitlesMethods } from "./core-titles.ts";
 import { coreWatchMethods, type CoreWatchMethods } from "./core-watch.ts";
 import { coreWorkLoopMethods, type CoreWorkLoopMethods } from "./core-work-loop.ts";
@@ -112,6 +113,10 @@ export class GatewayCore {
   declare restoreThread: CoreThreadsMethods["restoreThread"];
   declare markThreadSeen: CoreThreadsMethods["markThreadSeen"];
   declare createThread: CoreThreadsMethods["createThread"];
+  declare prepareThreadRewind: CoreRewindMethods["prepareThreadRewind"];
+  declare rewindThread: CoreRewindMethods["rewindThread"];
+  declare restoreThreadRewind: CoreRewindMethods["restoreThreadRewind"];
+  declare getThreadRewind: CoreRewindMethods["getThreadRewind"];
   declare startBotThread: CoreBotThreadsMethods["startBotThread"];
   declare watchBotThread: CoreBotThreadsMethods["watchBotThread"];
   declare botThreadQueued: CoreBotThreadsMethods["botThreadQueued"];
@@ -367,6 +372,7 @@ for (const methods of [
   coreQueueMethods,
   coreProjectsMethods,
   coreThreadsMethods,
+  coreRewindMethods,
   coreBotThreadsMethods,
   coreAttachmentsMethods,
   coreMentionsMethods,

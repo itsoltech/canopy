@@ -30,6 +30,7 @@ export const pendingMessages = (sql: SqlClient.SqlClient, recipient: string, sen
      FROM agent_bus_calls c JOIN threads t ON t.id = c.source_thread_id
      WHERE c.tool = 'send_message' AND c.status = 'completed' AND c.message_consumed IS NULL
        AND c.target_thread_id = $1::uuid AND c.source_thread_id = ANY($2::uuid[])
+       AND NOT EXISTS (SELECT 1 FROM turns u WHERE u.id=c.source_turn_id AND u.rewind_id IS NOT NULL)
        AND t.id <> $1::uuid AND t.root_thread_id = (SELECT root_thread_id FROM threads WHERE id = $1::uuid)
        AND ${unentered} ORDER BY c.created_at, c.id`,
     [recipient, senders],

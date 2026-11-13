@@ -1,7 +1,7 @@
 import { create, toJson, type MessageInitShape } from "@bufbuild/protobuf";
 import { coreNameBranchAfterTurn } from "../worktrees/branch-naming.ts";
 import { SHELL_INPUT_CAPABILITY, SHELL_INPUT_TIMEOUT_MS } from "@canopy/domain";
-import { STEER_ATTACHMENTS_CAPABILITY } from "@canopy/domain/release/protocol";
+import { STEER_ATTACHMENTS_CAPABILITY, THREAD_REWIND_CAPABILITY } from "@canopy/domain/release/protocol";
 import { CommandResultSchema, CommandSchema, type Command, type CommandResult } from "@canopy/contracts";
 import { AgentBusStore, GatewayStore, SteerStore } from "../store/index.ts";
 import { BotStore } from "../bots/store.ts";
@@ -38,7 +38,7 @@ export async function coreRedeliver(hostContext: GatewayCore, workerId: string):
           page
             .slice(offset, offset + 64)
             .map((pending) =>
-              pending.expiresAt.getTime() > Date.now()
+              pending.command.kind.case === "rewindThread" || pending.expiresAt.getTime() > Date.now()
                 ? coreDeliver(hostContext, workerId, pending.command)
                 : undefined,
             ),
@@ -154,6 +154,13 @@ async function deliverCommand(
 
   let result: CommandResult | undefined = fullAccessRefusal(connection.hello.capabilities, command);
 
+  if (command.kind.case === "rewindThread" && !connection.hello.capabilities.includes(THREAD_REWIND_CAPABILITY))
+    result = create(CommandResultSchema, {
+      commandId: command.commandId,
+      errorCode: "REWIND_UNSUPPORTED",
+      errorMessage: "Update this thread's worker to use Edit from here.",
+    });
+
   try {
     const body = command.kind.value;
 
@@ -221,6 +228,17 @@ async function deliverCommand(
     }
 
     return retry;
+  }
+
+  if (command.kind.case === "rewindThread") {
+    const completed = await coreRun(hostContext, (s) => s.completeRewind(command.commandId, result));
+
+    if (completed) {
+      for (const turnId of completed.turns) await coreBroadcastTurn(hostContext, completed.threadId, turnId);
+      await coreBroadcastThread(hostContext, completed.threadId);
+    }
+
+    return;
   }
 
   await coreRun(hostContext, (s) => s.commandDone(command.commandId, result.ok, toJson(CommandResultSchema, result)));
