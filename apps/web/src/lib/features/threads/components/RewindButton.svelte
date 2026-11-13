@@ -47,7 +47,7 @@
     <IconButton {...props} icon="arrow-uturn-left" size="sm" label="Edit from here" disabled={rewind?.().busy} />
   {/snippet}
   <div class="grid gap-3 p-3">
-    <p class="text-sm/5 font-medium">Edit from here</p>
+    <p class="text-sm/5 font-medium">{preview?.running ? "Stop and edit?" : "Edit from here?"}</p>
     {#if loading}<p class="text-xs/5 text-muted" role="status">Checking this message…</p>{/if}
     {#if error}<p class="text-xs/5 text-rose-700 dark:text-rose-400" role="alert">{error}</p>{/if}
     {#if preview}
@@ -56,9 +56,9 @@
         {preview.messages === 1 ? "message" : "messages"} and edit this one. You can undo before sending again.
       </p>
       {#if preview.running || preview.backgroundTasks}
-        <p class="text-xs/5 text-muted">The agent and its background tasks will stop.</p>
+        <p class="text-xs/5 text-muted">The agent and its background tasks stop.</p>
       {/if}
-      <p class="text-xs/5 text-muted">Queued messages and pending requests will be cancelled.</p>
+      <p class="text-xs/5 text-muted">Canopy cancels queued messages and pending requests.</p>
       {#if preview.filesAvailable}
         <details class="text-xs/5 text-muted">
           <summary class="cursor-pointer rounded focus-ring">Show files to restore ({preview.files.length})</summary>
