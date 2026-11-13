@@ -144,7 +144,7 @@ export class BotsRuntime {
       const state = await this.run((s) => s.poll(this.#options.userId, this.now()));
       this.#pollAt =
         performance.now() +
-        (state.ready || this.#active.size ? this.#intervalMs : Math.max(this.#intervalMs, state.delay_ms));
+        (state.configured || this.#active.size ? this.#intervalMs : Math.max(this.#intervalMs, state.delay_ms));
 
       if (!state.ready) return;
       await this.run((s) => s.deliver());

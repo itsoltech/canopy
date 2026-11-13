@@ -19,18 +19,18 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, exchange
     const poll = (owner = suite.gw.userId) => suite.current.bots.run((s) => s.poll(owner, new Date()));
 
     try {
-      expect(await poll()).toEqual({ ready: false, delay_ms: 5000 });
+      expect(await poll()).toEqual({ ready: false, delay_ms: 5000, configured: false });
       const bot = await add("Queue preflight");
-      expect(await poll()).toEqual({ ready: false, delay_ms: 5000 });
+      expect(await poll()).toEqual({ ready: false, delay_ms: 5000, configured: true });
 
       const turn = await suite.current.bots.run((s) =>
         s.enqueue(suite.gw.userId, bot.id, "recover", crypto.randomUUID()),
       );
 
       expect((await poll()).ready).toBe(true);
-      expect(await poll(crypto.randomUUID())).toEqual({ ready: false, delay_ms: 5000 });
+      expect(await poll(crypto.randomUUID())).toEqual({ ready: false, delay_ms: 5000, configured: false });
       await suite.current.bots.run((s) => s.claim(suite.gw.userId));
-      expect(await poll()).toEqual({ ready: false, delay_ms: 5000 });
+      expect(await poll()).toEqual({ ready: false, delay_ms: 5000, configured: true });
 
       const lease = (interval: string) =>
         suite.gw.runtime.runPromise(
