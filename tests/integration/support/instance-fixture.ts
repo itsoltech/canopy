@@ -89,6 +89,7 @@ export async function startInstanceFixture(
 
   const capabilities = [
     "bot_harness_v1",
+    "bot_web_v1",
     "bot_images_v1",
     "bot_files_v1",
     "attachments",

@@ -159,7 +159,7 @@ projekcję rozmowy, bez ukrytych checkpointów modelu i danych połączeń conne
 
 Claude, Codex i Grok wykonują inferencję na przypiętym workerze przez oficjalne
 CLI/SDK: Claude Agent SDK, Codex app-server i Grok CLI przez ACP. Każdy bot ma
-izolowaną sesję i wyłącznie narzędzia Canopy. Gateway
+izolowaną sesję, narzędzia Canopy i opcjonalne natywne narzędzia sieciowe. Gateway
 zachowuje rozmowę, outbox, zgody i wykonawców narzędzi. Ustawienie **Runs on** wybiera
 workera; offline wiadomości czekają. Native/device login i proxy są obsługiwane przez
 harness. Gateway nie wywołuje API modelu. Pełna decyzja

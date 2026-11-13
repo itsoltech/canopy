@@ -191,11 +191,16 @@ minimalny katalog (`codexTextCatalog`).
 
 ## Narzędzia i granica bezpieczeństwa
 
-Bot nie dostaje Bash, shella, odczytu/zapisu plików, obrazu lokalnego, web fetch,
-wyszukiwania, natywnych subagentów, celów ani harmonogramu harnessu. Read-only
+Bot nie dostaje Bash, shella, odczytu/zapisu plików, obrazu lokalnego,
+natywnych subagentów, celów ani harmonogramu harnessu. **Web access** jest
+domyślnie włączone: Claude dostaje `WebSearch`/`WebFetch`, Codex `web_search=live`,
+Grok `web_search`/`web_fetch` w curated profilu i allowliście. Wyłączenie usuwa
+te narzędzia i zmienia fingerprint sesji. Handoff zawsze wyłącza dostęp do sieci
+i pozostałe narzędzia. Gateway wymaga capability `bot_web_v1`; ustawienie jest
+właścicielskie, przechowywane w konfiguracji JSON bez migracji bazy. Read-only
 sandbox jest drugą warstwą, nie dowodem usunięcia narzędzi.
 
-Claude: `tools: []`, `settingSources: []`, `strictMcpConfig`, wyłączone hooki,
+Claude: `tools: [WebSearch, WebFetch]` lub `[]`, `settingSources: []`, `strictMcpConfig`, wyłączone hooki,
 puste pluginy, własny system prompt i allowlista konkretnych `mcp__canopy__*`.
 Serwer ma `alwaysLoad: true`, bez odroczonego wyszukiwania narzędzi.
 Zgody na akcje MCP egzekwuje gateway. Codex: katalog bota nadpisuje we wpisie modelu
@@ -216,7 +221,8 @@ zasobów. Nie dają one dostępu do lokalnych plików. Dowodem izolacji obu CLI
 jest przechwycona lista schematów w `apps/worker/src/bots/isolation.test.ts`.
 Boty używają executable, środowiska i logowania instancji, ale pomijają jej
 launch args: dowolne flagi mogłyby dołączyć lokalne narzędzia lub obcy MCP.
-Grok używa curated profilu z `tools: search_tool, use_tool` i takiej samej allowlisty
+Grok używa curated profilu z `tools: search_tool, use_tool` oraz opcjonalnie
+`web_search, web_fetch` i takiej samej allowlisty
 `--tools`, bez launch args i skilli instancji. Pozostaje tylko transport Canopy MCP;
 callbacki ACP odmawiają każdego lokalnego uprawnienia. Przechwycenie schematów
 prawdziwego CLI jest częścią `isolation.test.ts`, obok Claude i Codexa.

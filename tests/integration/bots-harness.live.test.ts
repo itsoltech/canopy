@@ -35,7 +35,7 @@ for (const provider of [Provider.CLAUDE, Provider.CODEX]) {
           credential: worker.credential,
           hello: {
             workerId: worker.workerId,
-            capabilities: ["bot_harness_v1"],
+            capabilities: ["bot_harness_v1", "bot_web_v1"],
             ...(await runtime.runPromise(journalHello())),
           },
         });

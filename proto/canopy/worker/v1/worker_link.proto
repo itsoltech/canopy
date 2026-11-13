@@ -817,6 +817,8 @@ message RunBotTurn {
   // bot_images_v1 for images; bot_files_v1 for documents/text/opaque files. No filesystem tools.
   repeated InputAttachment attachments = 12;
   repeated InputAttachment history_attachments = 13;
+  // Gateway-resolved bot setting; absent for legacy commands and tool-free handoffs.
+  bool web_access = 14;
 }
 
 message DirectoryEntry {

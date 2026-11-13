@@ -17,6 +17,7 @@ import { botSession } from "./session.ts";
 const temp = tempDirs();
 
 const Tool = Schema.Struct({
+  type: Schema.optionalKey(Schema.String),
   name: Schema.optionalKey(Schema.String),
   tools: Schema.optionalKey(Schema.Array(Schema.Struct({ name: Schema.String }))),
   function: Schema.optionalKey(Schema.Struct({ name: Schema.String })),
@@ -131,156 +132,169 @@ test("Grok login uses the selected auth path; only bots replace the shell home",
   }
 });
 
-for (const provider of [Provider.CLAUDE, Provider.CODEX, Provider.GROK]) {
-  const name = provider === Provider.CLAUDE ? "claude" : provider === Provider.CODEX ? "codex" : "grok";
-  test.skipIf(!Bun.which(name))(
-    `${name} offers only Canopy MCP schemas to the model`,
-    async () => {
-      const dir = temp("canopy-bot-isolation-");
-      const user = userEnvironment(temp("canopy-bot-user-"));
-      const seen = Promise.withResolvers<typeof Inference.Type>();
-      const requests: (typeof Inference.Type)[] = [];
-      const captured: string[] = [];
-      const abort = new AbortController();
+for (const webAccess of [false, true]) {
+  for (const provider of [Provider.CLAUDE, Provider.CODEX, Provider.GROK]) {
+    const name = provider === Provider.CLAUDE ? "claude" : provider === Provider.CODEX ? "codex" : "grok";
+    test.skipIf(!Bun.which(name))(
+      `${name} offers Canopy MCP and web tools only when web access is ${webAccess}`,
+      async () => {
+        const dir = temp("canopy-bot-isolation-");
+        const user = userEnvironment(temp("canopy-bot-user-"));
+        const seen = Promise.withResolvers<typeof Inference.Type>();
+        const requests: (typeof Inference.Type)[] = [];
+        const captured: string[] = [];
+        const abort = new AbortController();
 
-      const server = Bun.serve({
-        hostname: "127.0.0.1",
-        port: 0,
-        fetch: async (request) => {
-          if (
-            request.method === "POST" &&
-            /\/(messages|responses|chat\/completions)$/.test(new URL(request.url).pathname)
-          ) {
-            const body = await request.json();
-            const parsed = Schema.decodeUnknownSync(Inference)(body);
-            requests.push(parsed);
-            captured.push(JSON.stringify(body));
+        const server = Bun.serve({
+          hostname: "127.0.0.1",
+          port: 0,
+          fetch: async (request) => {
+            if (
+              request.method === "POST" &&
+              /\/(messages|responses|chat\/completions)$/.test(new URL(request.url).pathname)
+            ) {
+              const body = await request.json();
+              const parsed = Schema.decodeUnknownSync(Inference)(body);
+              requests.push(parsed);
+              captured.push(JSON.stringify(body));
 
-            if (JSON.stringify(body).includes("Run ls") && parsed.tools?.length) seen.resolve(parsed);
-          }
+              if (JSON.stringify(body).includes("Run ls") && parsed.tools?.length) seen.resolve(parsed);
+            }
 
-          return Response.json(
-            { type: "error", error: { type: "invalid_request_error", message: "fixture refuses inference" } },
-            { status: 400 },
-          );
-        },
-      });
-
-      const input = create(RunBotTurnSchema, {
-        botId: crypto.randomUUID(),
-        turnId: crypto.randomUUID(),
-        provider,
-        profileId: "fixture",
-        model:
-          provider === Provider.CLAUDE
-            ? "claude-haiku-5-5"
-            : provider === Provider.CODEX
-              ? "gpt-6.1-sol"
-              : "fixture-grok",
-        effort: "low",
-        instructions: "Use only Canopy tools.",
-        historyJson: "[]",
-        input: "Run ls using a shell tool now.",
-        tools: [
-          {
-            name: "fixture_only",
-            description: "Read fixture state",
-            inputSchemaJson: '{"type":"object","properties":{}}',
+            return Response.json(
+              { type: "error", error: { type: "invalid_request_error", message: "fixture refuses inference" } },
+              { status: 400 },
+            );
           },
-        ],
-      });
+        });
 
-      const profile = resolveProfiles([
-        { kind: "cliproxyapi", id: "fixture", baseUrl: server.url.href, apiKey: "fixture", providers: [name] },
-      ]).find((p) => p.config.id === "fixture")!.resolved!;
+        const input = create(RunBotTurnSchema, {
+          botId: crypto.randomUUID(),
+          turnId: crypto.randomUUID(),
+          provider,
+          profileId: "fixture",
+          webAccess,
+          model:
+            provider === Provider.CLAUDE
+              ? "claude-haiku-5-5"
+              : provider === Provider.CODEX
+                ? "gpt-6.1-sol"
+                : "fixture-grok",
+          effort: "low",
+          instructions: "Use only Canopy tools.",
+          historyJson: "[]",
+          input: "Run ls using a shell tool now.",
+          tools: [
+            {
+              name: "fixture_only",
+              description: "Read fixture state",
+              inputSchemaJson: '{"type":"object","properties":{}}',
+            },
+          ],
+        });
 
-      const bus = grokBus({
-        threadId: input.botId,
-        depth: 0,
-        agentBus: false,
-        connectorTools: input.tools,
-        turnId: () => input.turnId,
-        callTool: async () => {
-          throw new Error("Inference fixture never calls tools");
-        },
-      });
+        const profile = resolveProfiles([
+          { kind: "cliproxyapi", id: "fixture", baseUrl: server.url.href, apiKey: "fixture", providers: [name] },
+        ]).find((p) => p.config.id === "fixture")!.resolved!;
 
-      if (!("url" in bus.server)) throw new Error("Expected HTTP MCP");
+        const bus = grokBus({
+          threadId: input.botId,
+          depth: 0,
+          agentBus: false,
+          connectorTools: input.tools,
+          turnId: () => input.turnId,
+          callTool: async () => {
+            throw new Error("Inference fixture never calls tools");
+          },
+        });
 
-      const context = {
-        input,
-        profile: { ...profile, env: user.env },
-        executable: name,
-        signal: abort.signal,
-        clientVersion: "test",
-        session: botSession(input, { dataDir: dir, sourceHome: dir, linkLogin: false }),
-        mcp: { url: bus.server.url, headers: Object.fromEntries(bus.server.headers.map((h) => [h.name, h.value])) },
-        record: async () => {},
-        noteHarness: async () => {},
-        content: async () => ({ text: input.input, images: [], documents: [] }),
-      };
+        if (!("url" in bus.server)) throw new Error("Expected HTTP MCP");
 
-      const done = (
-        provider === Provider.CLAUDE
-          ? runClaudeBot(context)
-          : provider === Provider.CODEX
-            ? runCodexBot(context)
-            : runGrokBot(context)
-      ).catch(() => undefined);
+        const context = {
+          input,
+          profile: { ...profile, env: user.env },
+          executable: name,
+          signal: abort.signal,
+          clientVersion: "test",
+          session: botSession(input, { dataDir: dir, sourceHome: dir, linkLogin: false }),
+          mcp: { url: bus.server.url, headers: Object.fromEntries(bus.server.headers.map((h) => [h.name, h.value])) },
+          record: async () => {},
+          noteHarness: async () => {},
+          content: async () => ({ text: input.input, images: [], documents: [] }),
+        };
 
-      const timer = setTimeout(() => {
-        abort.abort();
-        seen.reject(new Error("Official CLI did not send inference"));
-      }, 20_000);
+        const done = (
+          provider === Provider.CLAUDE
+            ? runClaudeBot(context)
+            : provider === Provider.CODEX
+              ? runCodexBot(context)
+              : runGrokBot(context)
+        ).catch(() => undefined);
 
-      try {
-        const tools = (await seen.promise).tools ?? [];
-        abort.abort();
-        await done;
-        expect(tools.length).toBeGreaterThan(0);
+        const timer = setTimeout(() => {
+          abort.abort();
+          seen.reject(new Error("Official CLI did not send inference"));
+        }, 20_000);
 
-        if (provider === Provider.CLAUDE) expect(tools.map((t) => t.name)).toEqual(["mcp__canopy__fixture_only"]);
-        else if (provider === Provider.CODEX) {
-          expect(tools.map((t) => t.name).sort()).toEqual([
-            "list_mcp_resource_templates",
-            "list_mcp_resources",
-            "mcp__canopy",
-            "read_mcp_resource",
-          ]);
-          expect(tools.find((t) => t.name === "mcp__canopy")?.tools?.map((t) => t.name)).toEqual(["fixture_only"]);
-        } else expect(tools.map((t) => t.function?.name).sort()).toEqual(["search_tool", "use_tool"]);
+        try {
+          const tools = (await seen.promise).tools ?? [];
+          abort.abort();
+          await done;
+          expect(tools.length).toBeGreaterThan(0);
 
-        expect(
-          requests
-            .flatMap((r) => r.tools ?? [])
-            .every((t) =>
-              [
-                "mcp__canopy__fixture_only",
-                "list_mcp_resource_templates",
-                "list_mcp_resources",
-                "mcp__canopy",
-                "read_mcp_resource",
-                "search_tool",
-                "use_tool",
-              ].includes(t.name ?? t.function?.name ?? ""),
-            ),
-        ).toBe(true);
+          if (provider === Provider.CLAUDE)
+            expect(tools.map((t) => t.name).sort()).toEqual(
+              [...(webAccess ? ["WebFetch", "WebSearch"] : []), "mcp__canopy__fixture_only"].sort(),
+            );
+          else if (provider === Provider.CODEX) {
+            expect(tools.some((t) => t.type === "web_search")).toBe(webAccess);
+            expect(
+              tools
+                .filter((t) => t.name)
+                .map((t) => t.name)
+                .sort(),
+            ).toEqual(["list_mcp_resource_templates", "list_mcp_resources", "mcp__canopy", "read_mcp_resource"]);
+            expect(tools.find((t) => t.name === "mcp__canopy")?.tools?.map((t) => t.name)).toEqual(["fixture_only"]);
+          } else
+            expect(tools.map((t) => t.function?.name).sort()).toEqual(
+              [...(webAccess ? ["web_fetch", "web_search"] : []), "search_tool", "use_tool"].sort(),
+            );
 
-        expect(captured.some((body) => body.includes("<skills_instructions>"))).toBe(false);
-
-        for (const marker of user.forbidden)
           expect(
-            captured.some((body) => body.includes(marker)),
-            `User context leaked: ${marker}`,
-          ).toBe(false);
-      } finally {
-        clearTimeout(timer);
-        abort.abort();
-        await done;
-        bus.close();
-        await server.stop(true);
-      }
-    },
-    25_000,
-  );
+            requests
+              .flatMap((r) => r.tools ?? [])
+              .every(
+                (t) =>
+                  (webAccess && t.type === "web_search") ||
+                  [
+                    ...(webAccess ? ["WebFetch", "WebSearch", "web_fetch", "web_search"] : []),
+                    "mcp__canopy__fixture_only",
+                    "list_mcp_resource_templates",
+                    "list_mcp_resources",
+                    "mcp__canopy",
+                    "read_mcp_resource",
+                    "search_tool",
+                    "use_tool",
+                  ].includes(t.name ?? t.function?.name ?? ""),
+              ),
+          ).toBe(true);
+
+          expect(captured.some((body) => body.includes("<skills_instructions>"))).toBe(false);
+
+          for (const marker of user.forbidden)
+            expect(
+              captured.some((body) => body.includes(marker)),
+              `User context leaked: ${marker}`,
+            ).toBe(false);
+        } finally {
+          clearTimeout(timer);
+          abort.abort();
+          await done;
+          bus.close();
+          await server.stop(true);
+        }
+      },
+      25_000,
+    );
+  }
 }

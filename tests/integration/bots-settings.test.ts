@@ -89,6 +89,33 @@ describe.skipIf(!dockerAvailable)("bot settings and archive through gateway", ()
     await gw?.close();
   });
 
+  test("web access defaults on and owner updates preserve explicit false across unrelated saves", async () => {
+    const bot = await add("Web settings");
+    expect(bot.configuration?.webAccess).toBe(true);
+
+    const disabled = (
+      await gw.api.updateBot({ botId: bot.id, configuration: { ...bot.configuration!, webAccess: false } })
+    ).bot!;
+
+    expect(disabled.configuration?.webAccess).toBe(false);
+
+    const saved = (
+      await gw.api.updateBot({
+        botId: bot.id,
+        configuration: { ...disabled.configuration!, webAccess: undefined, name: "Renamed web settings" },
+      })
+    ).bot!;
+
+    expect(saved.configuration?.webAccess).toBe(false);
+    expect((await read(bot.id)).bot?.configuration?.webAccess).toBe(false);
+
+    const enabled = (
+      await gw.api.updateBot({ botId: bot.id, configuration: { ...saved.configuration!, webAccess: true } })
+    ).bot!;
+
+    expect(enabled.configuration?.webAccess).toBe(true);
+  });
+
   test("UpdateBot saves all editable fields, normalizes names and rejects invalid settings and duplicate names", async () => {
     const a = await add("Before settings");
     const b = await add("Taken settings");

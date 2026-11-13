@@ -52,7 +52,11 @@ export function claudeBotConfig() {
 
   if (!process.env["BOT_TRACE"] || !value) return undefined;
   const config = Schema.decodeSync(Schema.fromJsonString(McpConfig))(value);
-  botEvidence("claude", arg("--tools") === "" && process.argv.includes("--strict-mcp-config"));
+  botEvidence(
+    "claude",
+    (arg("--tools") ?? "").split(",").every((tool) => ["", "WebSearch", "WebFetch"].includes(tool)) &&
+      process.argv.includes("--strict-mcp-config"),
+  );
 
   if (config.mcpServers["canopy"] && !arg("--allowedTools")?.includes("mcp__canopy__"))
     throw new Error("Canopy MCP needs a harness allowlist; the gateway enforces approvals");
