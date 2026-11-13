@@ -14,6 +14,7 @@ import type { GatewayLink } from "../gateway-link/index.ts";
 
 import type { HostContext } from "./host-context.ts";
 import { workerDiagnostics } from "../diagnostics/worker.ts";
+import { gatewayToolRefusal } from "./tool-gates.ts";
 
 export class HostEvents {
   constructor(readonly ctx: HostContext) {}
@@ -105,6 +106,10 @@ export class HostEvents {
   }
 
   callTool(call: AgentToolCall, signal?: AbortSignal): Promise<AgentToolResult> {
+    const refusal = gatewayToolRefusal(call, this.ctx.state.link?.welcome);
+
+    if (refusal) return Promise.resolve(refusal);
+
     return new Promise((resolve) => {
       const abort = () => {
         const cancelled = create(AgentToolCallSchema, { ...call, cancelled: true });

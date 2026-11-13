@@ -599,3 +599,16 @@ i pomiary produkcyjne pozostają kryteriami przyszłych PR-ów.
   `citation_ref` ma postać `visual:<visual_id>@<version>` i nie uprawnia do odczytu.
 - Zapisane argumenty wywołania nie zawierają spec (tylko tytuł, opis i hash).
 
+### Worker i harnessy
+
+- Worker ogłasza `thread_visuals_v1`. Nie wykonuje niczego lokalnie: Claude
+  (`mcp__canopy__render_visual`), Codex (dynamic tool w przestrzeni `canopy`)
+  i Grok (lokalny HTTP MCP) budują listę z tych samych `AGENT_BUS_TOOLS`
+  i przekazują `AgentToolCall` do gateway. Wątki Codexa utworzone wcześniej
+  nie dostają narzędzia po wznowieniu (patrz [agent-bus.md](agent-bus.md#9-udostępnienie-narzędzi-dostawcom)).
+- Instrukcję dla modelu niesie opis narzędzia (katalog, stan, przykład, limity,
+  „controls never contact you”, `ask_user` dla decyzji); bez osobnego promptu systemowego.
+- Testy: `tests/integration/visuals.test.ts` (zapis, replay, wersje, konflikt,
+  obcy visual, owner scoping, limity, stary worker, wstrzyknięty item) i
+  `visual-harnesses.test.ts` (adaptery Codex, Claude i Grok przez gRPC do PostgreSQL).
+
