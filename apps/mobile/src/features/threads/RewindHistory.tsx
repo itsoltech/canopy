@@ -23,7 +23,7 @@ export function RewindHistory({
   const group = turns.filter((entry) => entry.rewindId === turn.rewindId);
   const first = Math.min(...group.map((entry) => entry.ordinal));
   const count = group.filter((entry) => entry.trigger === "user" && !entry.withdrawn).length;
-  const undo = !turns.some((entry) => entry.ordinal >= first && entry.rewindId !== turn.rewindId);
+  const undo = !turns.some((entry) => !entry.inherited && entry.ordinal >= first && entry.rewindId !== turn.rewindId);
 
   return (
     <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 4, paddingBottom: 12 }}>
