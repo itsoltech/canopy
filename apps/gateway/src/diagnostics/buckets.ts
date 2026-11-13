@@ -14,6 +14,7 @@ export type Slot = {
   coverage: ui.DiagnosticsCoverage[];
   series: Map<number, Aggregate>;
   measures?: Map<number, Measure>;
+  correlations?: number;
 };
 
 /** Allocations, including conservative object/Map overhead, share one process budget. */
@@ -114,7 +115,7 @@ export class Buckets {
 
     if (!value) {
       // Correlations are optional detail. Global family/resource series keep their space.
-      if (rpc && (slot.measures?.size ?? 0) >= 192) {
+      if (rpc && (slot.correlations ?? 0) >= 256) {
         this.budget.dropped++;
 
         return;
@@ -127,6 +128,8 @@ export class Buckets {
       value = new Measure(reserve);
       slot.measures ??= new Map();
       slot.measures.set(key, value);
+
+      if (rpc) slot.correlations = (slot.correlations ?? 0) + 1;
     }
 
     return value;
