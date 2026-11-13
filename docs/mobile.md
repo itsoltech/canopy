@@ -729,9 +729,38 @@ pokazuje kopię z pamięci, a po restarcie odczytuje ją z prywatnego katalogu
 `expo-file-system` (`Paths.cache/thread-snapshots-v1`). System może usunąć cache;
 wtedy aplikacja pobiera ostatnie 24 pełne tury. Nie używa współdzielonego storage ani nie
 dodaje zależności natywnych. LRU mieści 16 wątków / 64 MiB protobuf na dysku,
-maksymalnie 16 MiB na wpis, oraz 6 wątków / 24 MiB w pamięci. Wpisy przekraczające
+maksymalnie 16 MiB na wpis, oraz 16 wątków / 24 MiB w pamięci. Wpisy przekraczające
 limit nadal działają online, ale nie są utrwalane. Zapis pliku tymczasowego i rename
 chronią przed częściowym odczytem; uszkodzony wpis jest usuwany.
+
+Przez cały czas działania widocznej aplikacji overview wybiera do dogrzewania
+10 ostatnich korzeni według filtrów paska, wątki pracujące, nieobejrzane wyniki
+i przypięcia, łącznie najwyżej 16. Archiwum jest wykluczone.
+Ostatnie korzenie wybieramy według `Last activity` (ostatnia odpowiedź, a przy jej
+braku data utworzenia), również gdy lista pokazuje `Created` lub `Custom`.
+Ręczna kolejność i pozycja przypięcia nie zastępują recency; przypięcia dołączają
+osobno w ramach tego samego limitu. Projekt i zapytanie ograniczają wybór korzeni.
+Jeden overview niesie heady tego zestawu; nie otwieramy osobnych subskrypcji wątków. Zmiana headu uruchamia
+skończony `WatchThread(sequence=true, background=true)` od checkpointu z tego samego
+trwałego cache. Daleki lub brakujący checkpoint dostaje tylko ograniczony ogon.
+Zapis zachowuje najwyżej 128 itemów / 384 KiB i do 24 ostatnich tur oraz potrzebne
+zależności w budżecie 64 KiB tur; starsza historia pozostaje stronicowana.
+
+Najwyżej jedno zadanie pracuje naraz i startuje co najmniej 5 s po poprzednim
+(do 12 odczytów/min). Zmiany tego samego headu są scalane, a kolejne wątki mają
+rotacyjne pierwszeństwo, żeby ciągły streaming jednego nie blokował pozostałych.
+Powrót na foreground zaczyna od widocznych ostatnich wątków. Background, inactive,
+offline i niedziałający overview anulują pracę; tapnięcie anuluje odczyt przed
+nawigacją i zostawia 500 ms dla ekranu. Jeśli istniejący binary udostępnia moduł
+SDK 58 `ExpoBattery`, stan Low Power Mode i jego zdarzenia również zatrzymują tło.
+Bez tego opcjonalnego modułu wykrywanie oszczędzania energii jest niedostępne;
+nie dodajemy zależności wymagającej przebudowania aplikacji.
+
+Diagnostics mierzy czas od tapnięcia do rAF z aktualnym ogonem po layout, odsetek
+otwarć z checkpointem zgodnym z ostatnim headem, liczbę odczytów w tle i bajty
+protobuf w pamięci cache. To proxy JS, nie czas prezentacji natywnego kompozytora;
+payload nie oznacza heap/RSS. Cache i zadania pozostają w zakresie parowania oraz
+pinu certyfikatu, a unpair zamyka istniejącą ścieżkę zapisu.
 
 Kolejne zapisy tej samej niemutowalnej rewizji współdzielą serializację i trwający
 zapis, również przy wyjściu z ekranu. Nowa rewizja, odczyt albo inny wątek
@@ -742,9 +771,9 @@ Przygotowanie osi czasu zachowuje tablice itemów niezmienionych tur, dzięki cz
 Grupowanie dzieci subagenta dopisuje do tablic zamiast kopiować rosnącą grupę.
 Pomiary JS i ograniczenia profilowania: [client-performance.md](client-performance.md).
 
-`WatchThread` wysyła `incremental=true` i ostatni atomowy `cursor`. Gateway odpowiada
-deltą dziennika albo pełnym stanem według reguł w `ui-api.md`. Zdarzenia live nie
-przesuwają kursora; ponowny odczyt idempotentnie nakłada projekcje od checkpointu.
+`WatchThread` wysyła `sequence=true` i ostatni atomowy `syncCursor`. Gateway odpowiada
+partiami rekordów od ostatniego seq albo ograniczonym oknem według reguł w `ui-api.md`.
+Klient zatwierdza checkpoint po atomowym zastosowaniu partii współdzielonym reducerem.
 Zimny odczyt prosi o 24 pełne tury, czat bota i wymiana o 50 wiadomości.
 Przewinięcie do starszego końca odwróconej listy pobiera poprzednią stronę;
 „Show earlier messages” pozwala też ponowić odczyt lub rozwinąć krótką listę.

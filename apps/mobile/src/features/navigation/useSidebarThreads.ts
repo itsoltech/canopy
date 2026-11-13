@@ -10,7 +10,7 @@ import { projectAwayReason } from "@canopy/domain/linked-snapshot";
 import { useDevicePreferences } from "../settings/device-preferences";
 
 export function useSidebarThreads(query: string) {
-  const { threads, projectChoices: choices, workers, computers } = useOverview();
+  const { threads, projectChoices: choices, workers, computers, setWarmQuery } = useOverview();
   const { sidebar, updateSidebar } = useAppearance();
   const { client } = useSession();
   const { view } = useDevicePreferences();
@@ -18,6 +18,12 @@ export function useSidebarThreads(query: string) {
   const [fetchedCurrent, setFetchedCurrent] = useState<ui.Thread>();
   const settings = { ...sidebar, projectIds: expandProjectIds(sidebar.projectIds, choices) };
   const current = threads.find((t) => t.id === id) ?? (fetchedCurrent?.id === id ? fetchedCurrent : undefined);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setWarmQuery(query), 500);
+
+    return () => clearTimeout(timer);
+  }, [query, setWarmQuery]);
 
   useEffect(() => {
     let active = true;

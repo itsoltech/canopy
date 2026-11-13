@@ -8,7 +8,6 @@ import {
   REMOTE_BOTS,
   splitId,
   THREAD_MIRROR,
-  THREAD_RANGES,
 } from "@canopy/domain/computers";
 import { AsyncChannel } from "@canopy/transport";
 import { Code, ConnectError } from "@connectrpc/connect";
@@ -19,7 +18,7 @@ import { redirected, single, target } from "./routed-context.ts";
 import { toConnectError } from "./ui-errors.ts";
 import { ConfigIds } from "./routed-config.ts";
 import { mapProjectIds } from "../config-sync/project-aliases.ts";
-import { mirrorFirst, offlineThread } from "./routed-thread-mirror.ts";
+import { mirrorFirst, offlineThread, warmMirrorFirst } from "./routed-thread-mirror.ts";
 import { announcedDeparture } from "@canopy/domain/computer-presence";
 import { watchRemoteThread } from "../computers/thread-watch.ts";
 import { boundRoutedThread } from "./routed-thread-batch.ts";
@@ -133,13 +132,7 @@ export async function* home(
     return;
   }
 
-  if (method.name === "WatchThread") {
-    const input = linkedMessage(ui.WatchThreadRequestSchema, request);
-    input.mirrorCursor = "";
-
-    if (input.background && !computers.capabilities(nodeId).includes(THREAD_RANGES))
-      throw new ConnectError("This computer does not support bounded cache warming", Code.Unimplemented);
-  }
+  if (yield* warmMirrorFirst(computers, nodeId, method, request, signal)) return;
 
   if (
     yield* mirrorFirst(computers, nodeId, method, request, (input) =>

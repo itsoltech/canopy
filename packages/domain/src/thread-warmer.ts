@@ -19,6 +19,7 @@ export class ThreadWarmer {
   #job: { id: string; abort: AbortController } | undefined;
   #nextAt = 0;
   #active = "";
+  #after = "";
   #enabled = false;
   #closed = false;
   requests = 0;
@@ -63,6 +64,7 @@ export class ThreadWarmer {
   }
 
   enable(enabled: boolean) {
+    if (enabled && !this.#enabled) this.#after = "";
     this.#enabled = enabled;
 
     if (!enabled) {
@@ -96,7 +98,10 @@ export class ThreadWarmer {
   }
 
   #pending() {
-    return this.#ids.find((id) => {
+    const start = this.#ids.indexOf(this.#after) + 1;
+    const ordered = [...this.#ids.slice(start), ...this.#ids.slice(0, start)];
+
+    return ordered.find((id) => {
       const head = this.#heads.get(id);
 
       if (id === this.#active || !head || (this.#retry.get(id) ?? 0) > Date.now()) return false;
@@ -127,6 +132,7 @@ export class ThreadWarmer {
   }
 
   async #run(id: string) {
+    this.#after = id;
     const job = { id, abort: new AbortController() };
     this.#job = job;
     const signal = AbortSignal.any([job.abort.signal, AbortSignal.timeout(8000)]);

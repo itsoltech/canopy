@@ -261,11 +261,15 @@ Ręczne przeciągnięcie i pozycja przypięcia nie zmieniają tej kolejności;
 przypięte wątki dołączają osobno w ramach wspólnego limitu.
 Każdy zachowany wpis jest przycinany do ograniczonego ogona, niezależnie od historii
 stronicowanej na otwartej stronie. Duże treści nadal są odczytywane na żądanie.
+Mobile wybiera 10 ostatnich korzeni, ogranicza zestaw do 16 i rozdziela starty
+o 5 s (najwyżej 12 odczytów/min); używa istniejącego cache trwałego po restarcie.
+Szczegóły foreground i wykrywania Low Power Mode: [mobile.md](mobile.md).
 
 Jedno zadanie dogrzewania może działać naraz; starty są oddalone o co najmniej 2 s
 (najwyżej 30 dodatkowych odczytów na minutę). Bez zmian headów nie ma odczytów danych.
 Scalenie powtarzających się headów nie tworzy kolejki. Nieudany odczyt czeka 30 s;
-każde zadanie ma timeout 8 s. Nawigacja anuluje zadanie i daje widocznemu widokowi
+każde zadanie ma timeout 8 s. Rotacja zapobiega zagłodzeniu przez stale rosnący head.
+Nawigacja anuluje zadanie i daje widocznemu widokowi
 co najmniej 500 ms pierwszeństwa. Ukryta karta i utrata połączenia zatrzymują tło.
 Polling headów pozostaje wewnątrz strumienia: najwyżej 30 ograniczonych odczytów SQL
 na minutę i klienta, bez dodatkowych żądań HTTP/gRPC klienta ani odczytów sieciowych domu.
@@ -287,6 +291,10 @@ otrzymuje checkpoint z cache. Zapisz liczbę dodatkowych odczytów na minutę,
 payload LRU i heap. `CANOPY_BENCH_CONTAINER` pozwala nadać prywatnemu kontenerowi
 pomiarowemu nazwę z prefiksem `canopy-`; istniejący kontener o tej nazwie nie jest
 usuwany, jeżeli uruchomienie nowego się nie powiodło.
+Dev probe `probeThreadNavigation` zwraca zgodność cache z headem przed otwarciem,
+bajty i licznik żądań oraz pierwszą i drugą klatkę feedu. Startuj z innej trasy.
+`threadWarmingUsage` z tego samego modułu pozwala porównać licznik po 60 s;
+różnica to żądania/min bez kasowania agregatów Diagnostics.
 
 Każde zdarzenie overview zastępuje indeks wątków (`OverviewState.threads`), więc wszystko,
 co czyta cały indeks, przelicza się przy każdym zdarzeniu. Koszt ma rosnąć z liczbą

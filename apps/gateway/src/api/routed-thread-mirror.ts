@@ -1,12 +1,43 @@
 import { create, type DescMethod, type Message } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { splitId, THREAD_MIRROR, THREAD_MIRROR_DELTA } from "@canopy/domain/computers";
+import { splitId, THREAD_MIRROR, THREAD_MIRROR_DELTA, THREAD_RANGES } from "@canopy/domain/computers";
 import { applyThreadDelta } from "@canopy/domain/thread-mirror";
 import { AsyncChannel } from "@canopy/transport";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { linkedMessage } from "../computers/remote.ts";
 import type { LinkedComputers } from "../computers/runtime.ts";
 import { threadHistory } from "../core/thread-history.ts";
+import { warmRangeMirror } from "../computers/range-warm.ts";
+
+/** Background reads follow the local mirror checkpoint, including while the home is offline. */
+export async function* warmMirrorFirst(
+  computers: LinkedComputers,
+  node: string,
+  method: DescMethod,
+  request: Message,
+  signal: AbortSignal,
+): AsyncGenerator<Message, boolean> {
+  if (method.name !== "WatchThread") return false;
+  const input = linkedMessage(ui.WatchThreadRequestSchema, request);
+  input.mirrorCursor = "";
+
+  if (!input.background) return false;
+
+  if (!computers.capabilities(node).includes(THREAD_RANGES))
+    throw new ConnectError("This computer does not support bounded cache warming", Code.Unimplemented);
+
+  if (!input.sequence) throw new ConnectError("Background reads require sequence sync", Code.InvalidArgument);
+  const updates = await warmRangeMirror(computers.mirror.store, node, input);
+
+  if (!updates) return false;
+
+  for (const update of updates) {
+    if (signal.aborted) return true;
+    yield update;
+  }
+
+  return true;
+}
 
 /** Seed online reads locally; actions always continue to the owner-scoped home handlers. */
 export async function* mirrorFirst(

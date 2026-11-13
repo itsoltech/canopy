@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create, toBinary } from "@bufbuild/protobuf";
 import { Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
+import { tempDirs } from "@canopy/testing";
 import { applyThreadUpdate } from "@canopy/domain/thread-snapshot";
 import { ThreadCache } from "@canopy/domain/thread-cache";
 import { ThreadWarmer } from "@canopy/domain/thread-warmer";
@@ -11,6 +12,10 @@ import { threadSortModes } from "@canopy/domain/thread-order";
 import { overviewThreadHeads } from "../../apps/gateway/src/core/overview-thread-heads.ts";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { startTestGateway, eventually } from "./support/gateway.ts";
+import { PersistentThreadCache } from "../../apps/mobile/src/storage/thread-cache.ts";
+import { DiskThreadStorage } from "./support/thread-cache.ts";
+
+const directory = tempDirs();
 
 describe.skipIf(!dockerAvailable)("background thread sequence reads", () => {
   let gateway: Awaited<ReturnType<typeof startTestGateway>>;
@@ -238,6 +243,50 @@ describe.skipIf(!dockerAvailable)("background thread sequence reads", () => {
       expect(threadCacheCurrent(cache.peek(id), next.heads[0])).toBe(true);
     } finally {
       warmer.close();
+    }
+  });
+
+  test("a mobile restart warms only deltas from its durable checkpoint and pauses without losing progress", async () => {
+    const disk = new DiskThreadStorage(directory("canopy-warm-mobile-"));
+    const original = new PersistentThreadCache(disk);
+    let checkpoint: ui.ThreadSnapshot | undefined;
+
+    for (const update of await warm()) checkpoint = applyThreadUpdate(checkpoint, update);
+    await original.save(checkpoint!);
+    const restarted = new PersistentThreadCache(disk);
+    expect(restarted.peek(id)).toBeUndefined();
+    await gateway.api.updateThread({ threadId: id, title: "While the phone was away" });
+    const heads = await overviewThreadHeads(gateway.core, [id]);
+    const kinds: string[] = [];
+
+    const warmer = new ThreadWarmer(restarted, async function* (key, syncCursor, signal) {
+      for await (const update of gateway.api.watchThread(
+        { threadId: key, syncCursor, sequence: true, background: true },
+        { signal },
+      )) {
+        kinds.push(update.change.case ?? "");
+        yield update;
+      }
+    });
+
+    try {
+      warmer.select([id]);
+      warmer.heads(heads.heads);
+      expect(warmer.requests).toBe(0);
+      warmer.enable(true);
+      await eventually(async () => threadCacheCurrent(restarted.peek(id), heads.heads[0]), Boolean);
+      warmer.enable(false);
+      expect(kinds.length).toBeGreaterThan(0);
+      expect(kinds.every((kind) => kind === "batch")).toBe(true);
+      expect(restarted.usage.bytes).toBeLessThanOrEqual(24 * 1024 * 1024);
+      await restarted.load(id);
+      const diskOnly = new PersistentThreadCache(disk);
+      expect((await diskOnly.load(id))?.thread?.title).toBe("While the phone was away");
+      await diskOnly.close();
+    } finally {
+      warmer.close();
+      await restarted.close();
+      await original.close();
     }
   });
 

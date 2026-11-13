@@ -149,10 +149,10 @@ export function ThreadTimeline({
           {...composer.listProps}
           composerInset={following.composerInset}
           onLayout={() => {
-            if (snapshot?.thread) mobileFeedLayout();
+            if (snapshot?.thread) mobileFeedLayout(snapshot.thread.id);
           }}
           onContentSizeChange={() => {
-            if (snapshot?.thread) mobileFeedLayout();
+            if (snapshot?.thread) mobileFeedLayout(snapshot.thread.id);
           }}
           onEndReached={() => {
             if (!following.isFollowing()) void state.history.load();

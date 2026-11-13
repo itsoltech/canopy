@@ -12,6 +12,7 @@ import {
 import { projectChoices } from "@canopy/domain/projects";
 import { useSession } from "./session";
 import { useOverviewEvents, useOverviewStream } from "./overview-bus";
+import { useThreadWarming } from "./thread-warming";
 
 const upsertComputer = (rows: ui.LinkedComputer[], value: ui.LinkedComputer) => [
   ...rows.filter((r) => r.nodeId !== value.nodeId),
@@ -25,6 +26,7 @@ function useOverviewState() {
   const [workers, setWorkers] = useState<ui.Worker[]>([]);
   const [computers, setComputers] = useState<ui.LinkedComputer[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [warmQuery, setWarmQuery] = useState("");
   const [linkedReads, setLinkedReads] = useState<Record<string, number>>({});
   const generation = useRef(0);
 
@@ -77,9 +79,12 @@ function useOverviewState() {
   };
 
   const stream = useOverviewStream();
+  const warming = useThreadWarming(threads, projects, stream.connection === "live", warmQuery);
 
   useOverviewEvents((update: ui.OverviewUpdate) => {
     const change = update.change;
+
+    if (change.case === "threadHeads") return;
 
     if (change.case === "gatewayDeparture") {
       client?.departure.receive(change.value);
@@ -164,6 +169,8 @@ function useOverviewState() {
     loaded,
     linkedReads,
     stream,
+    warming,
+    setWarmQuery,
     reload,
     updateThread,
   };

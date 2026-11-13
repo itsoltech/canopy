@@ -30,6 +30,7 @@ export class OverviewState {
   projectChoices = $derived(projectChoices(this.projects));
   /** Active threads and Previous agents, plus archived rows observed live or fetched on demand. */
   threads = $state.raw<ReadonlyMap<string, ui.Thread>>(new Map());
+  warmQuery = $state("");
   /** Linked computers by node id. Mirror-capable peers remain listed while offline. */
   computers = $state.raw<ReadonlyMap<string, ui.LinkedComputer>>(new Map());
   workers = $derived(workersWithAvailability(this.#workers, [...this.computers.values()]));

@@ -9,7 +9,11 @@ import { firstHistoryPage, useHistoryPage } from "./history-page";
 import { ThreadWatchRecovery, threadWatchMessage, threadSyncStatus } from "@canopy/domain/thread-watch-recovery";
 import { useThreadPersistence } from "./thread-persistence";
 import { threadWatchReady } from "@canopy/domain/thread-watch-state";
-import { mobileSnapshotStarted, mobileSnapshotFinished } from "../features/settings/client-diagnostics";
+import {
+  mobileSnapshotStarted,
+  mobileSnapshotFinished,
+  mobileCurrentVisible,
+} from "../features/settings/client-diagnostics";
 
 /** Read the durable base before subscribing; every retry uses the latest atomic checkpoint. */
 export function useThreadSnapshot(id: string) {
@@ -37,7 +41,8 @@ export function useThreadSnapshot(id: string) {
           )
       : null,
     (update: ui.ThreadUpdate) => {
-      const sampled = update.change.case === "snapshot" || update.change.case === "batch" ? mobileSnapshotStarted() : 0;
+      const sampled =
+        update.change.case === "snapshot" || update.change.case === "batch" ? mobileSnapshotStarted(id) : 0;
 
       if (update.syncStatus) setSyncStatus(update.syncStatus);
 
@@ -55,6 +60,7 @@ export function useThreadSnapshot(id: string) {
       const caughtUp = threadWatchReady(update);
 
       if (caughtUp) {
+        mobileCurrentVisible(id);
         repair.advanced(current.current.syncCursor?.appliedSeq ?? 0n);
 
         if (!update.syncStatus?.reason && update.change.case !== "batch") setSyncStatus(undefined);

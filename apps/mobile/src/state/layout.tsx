@@ -3,6 +3,9 @@ import { useWindowDimensions } from "react-native";
 import { router, usePathname, type Href } from "expo-router";
 import { useSession } from "./session";
 import { useDevicePreferences } from "../features/settings/device-preferences";
+import { useOverview } from "./overview";
+import { threadCacheCurrent } from "@canopy/domain/thread-warm-set";
+import { mobileThreadTapped } from "../features/settings/client-diagnostics";
 
 /**
  * From this window width (dp, Android's large-screen class) the thread list stays beside the open thread, as on
@@ -16,6 +19,7 @@ function useLayoutState() {
   const device = useDevicePreferences();
   const sidebarOpen = !device.view.sidebarCollapsed;
   const { threadCache } = useSession();
+  const { warming } = useOverview();
   const opening = useRef(0);
   const pathname = usePathname();
   const wide = width >= WIDE_LAYOUT;
@@ -48,6 +52,12 @@ function useLayoutState() {
     /** Read local history before starting the push, so its first frame includes cached turns and their times. */
     async openThread(id: string) {
       const request = ++opening.current;
+      warming?.yieldToNavigation();
+      mobileThreadTapped(
+        id,
+        Boolean(threadCache?.peek(id)?.thread),
+        Boolean(warming?.enabled && threadCacheCurrent(threadCache?.peek(id), warming.head(id))),
+      );
 
       if (threadCache && !threadCache.peek(id)) await threadCache.load(id).catch(() => undefined);
 
