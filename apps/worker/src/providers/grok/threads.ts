@@ -252,6 +252,8 @@ export class GrokThreads {
       throw error;
     });
 
+    await settings?.connectorsReady?.();
+
     entry.turnId = turnId;
     entry.interrupted = false;
     entry.toolUses.clear();
@@ -278,7 +280,7 @@ export class GrokThreads {
     try {
       const prompt = await grokPrompt(
         spec.instructions,
-        input,
+        settings?.connectorNote ? { ...input, text: `${input.text}\n\n${settings.connectorNote}` } : input,
         entry.client.capabilities?.agentCapabilities?.promptCapabilities?.image === true,
       );
 

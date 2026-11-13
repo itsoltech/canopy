@@ -14,6 +14,7 @@ import { Context, Effect, Layer, Schema } from "effect";
 import { turnTracking } from "./turn-tracking.ts";
 import { shellTracking } from "./shell-inputs.ts";
 import { retryContext } from "./retry-context.ts";
+import { connectorCatalog } from "./connector-catalog.ts";
 import { heldDelivery } from "./held-delivery.ts";
 import { commandTracking } from "./commands.ts";
 import { secretEventRedactor } from "../runtime/thread-secrets.ts";
@@ -91,6 +92,8 @@ export class Journal extends Context.Service<
     readonly journalId: string;
     rememberRequest: ReturnType<typeof retryContext>["rememberRequest"];
     recoveryInstructions: ReturnType<typeof retryContext>["recoveryInstructions"];
+    connectorCatalog: ReturnType<typeof connectorCatalog>["connectorCatalog"];
+    rememberConnectorCatalog: ReturnType<typeof connectorCatalog>["rememberConnectorCatalog"];
     holdPending: ReturnType<typeof heldDelivery>["holdPending"];
     heldThreads: ReturnType<typeof heldDelivery>["heldThreads"];
     resumeDelivery: ReturnType<typeof heldDelivery>["resumeDelivery"];
@@ -337,6 +340,7 @@ function makeJournal(db: Database, diagnostics: boolean): Journal["Service"] {
     hasStartedTurn: turns.hasStartedTurn,
     wasInterrupted: turns.wasInterrupted,
     ...retryContext(db, attempt),
+    ...connectorCatalog(db, attempt),
     ...heldDelivery(db, attempt),
     ...(diagnostics && { statistics: journalStatistics(db) }),
     ...shellTracking(db, attempt, (threadId, event) => appendTx(threadId, redact(threadId, event))),

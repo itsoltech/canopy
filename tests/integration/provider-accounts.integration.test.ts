@@ -175,6 +175,44 @@ console.log(JSON.stringify({ loggedIn: true, authMethod: "claude.ai", email: "qa
     expect(powershell).toBe(`$env:CLAUDE_CONFIG_DIR='${ownHome.replaceAll("'", "''")}'; & '${executable}' auth login`);
   }, 30_000);
 
+  test("a forced refresh waits for an older cached report and then reads the current login", async () => {
+    const connection = gw.core.link.connections.get(workerId)!;
+    const worker = (await gw.api.getOverview({})).workers.find((w) => w.id === workerId)!;
+    // Drain the ConfigApplied read, including its asynchronous overview broadcast.
+    await gw.core.accounts.refresh(connection, worker.configVersion);
+    const captured = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const handle = host.handleCommand.bind(host);
+
+    host.handleCommand = async (command) => {
+      const result = await handle(command);
+
+      if (command.kind.case === "getProviderAccounts" && !command.kind.value.refresh) {
+        captured.resolve();
+        await release.promise;
+      }
+
+      return result;
+    };
+
+    const background = gw.core.accounts.refresh(connection, worker.configVersion);
+
+    try {
+      await captured.promise;
+      writeFileSync(join(dir, "plan"), "team");
+      const before = count();
+      const refreshed = gw.core.accounts.refresh(connection, worker.configVersion, true);
+      release.resolve();
+      expect(await refreshed).toBe(true);
+      expect((await account())?.plan).toBe("team");
+      expect(count()).toBeGreaterThan(before);
+    } finally {
+      release.resolve();
+      await background;
+      host.handleCommand = handle;
+    }
+  });
+
   test("a full provider refresh invalidates login metadata without a configuration version change", async () => {
     writeFileSync(join(dir, "plan"), "enterprise");
     const before = count();

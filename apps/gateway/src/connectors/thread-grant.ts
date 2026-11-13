@@ -1,14 +1,15 @@
 import { ui } from "@canopy/contracts";
-import { create } from "@bufbuild/protobuf";
+import { create, type JsonValue } from "@bufbuild/protobuf";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import type { ConnectorBase } from "./accounts.ts";
 import { fail } from "./records.ts";
 import { connectorTransaction } from "../config-sync/connector-records.ts";
 import { connectorType } from "./catalog.ts";
+import { connectorSessionState } from "./session-state.ts";
 
 /** Read no credential-bearing columns, including when the account is disconnected. */
-export function threadConnectorList(sql: SqlClient.SqlClient, user: string, worker: string) {
+export function threadConnectorList(sql: SqlClient.SqlClient, user: string, worker: string, threadId: string) {
   return sql<{
     id: string;
     connector_type: string;
@@ -17,22 +18,28 @@ export function threadConnectorList(sql: SqlClient.SqlClient, user: string, work
     all_workers: boolean;
     revision: string;
     granted: boolean;
+    tools: JsonValue[];
   }>`
-    SELECT a.id,a.connector_type,a.name,a.status,a.all_workers,a.revision::text,
+    SELECT a.id,a.connector_type,a.name,a.status,a.all_workers,a.revision::text,a.tools,
       a.all_workers OR EXISTS(SELECT 1 FROM connector_worker_grants g
         WHERE g.account_id=a.id AND g.worker_id=${worker || null}::uuid) AS granted
     FROM connector_accounts a WHERE a.owner_user_id=${user}::uuid ORDER BY a.connector_type,a.name,a.id`.pipe(
-    Effect.map((rows) =>
-      rows.map((row) =>
-        create(ui.ThreadConnectorSchema, {
-          accountId: row.id,
-          connectorName: connectorType(row.connector_type)?.name ?? row.connector_type,
-          accountLabel: row.name,
-          status: row.status,
-          granted: row.granted,
-          allWorkers: row.all_workers,
-          revision: BigInt(row.revision),
-        }),
+    Effect.flatMap((rows) =>
+      connectorSessionState(
+        sql,
+        threadId,
+        rows.map((row) =>
+          create(ui.ThreadConnectorSchema, {
+            accountId: row.id,
+            connectorName: connectorType(row.connector_type)?.name ?? row.connector_type,
+            accountLabel: row.name,
+            status: row.status,
+            granted: row.granted,
+            allWorkers: row.all_workers,
+            revision: BigInt(row.revision),
+          }),
+        ),
+        rows.map((row) => row.tools),
       ),
     ),
   );

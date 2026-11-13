@@ -11,6 +11,7 @@ import type { HostContext } from "./host-context.ts";
 import { instanceKey } from "./instance-runtimes.ts";
 import { prepareShellInput } from "./shell-input.ts";
 import { workerDiagnostics } from "../diagnostics/worker.ts";
+import { connectorTurn } from "./connector-turn.ts";
 
 const TURN_NOT_RUNNING = "TURN_NOT_RUNNING";
 
@@ -146,7 +147,15 @@ export class ThreadCommands {
     );
 
     // UNSPECIFIED (an older gateway): the thread's mode.
-    const settings = { model, effort, permissionMode: permissionMode || spec.permissionMode, recoveryContext };
+    const connectors = await connectorTurn(this.ctx, spec, turnId);
+
+    const settings = {
+      model,
+      effort,
+      permissionMode: permissionMode || spec.permissionMode,
+      recoveryContext,
+      ...connectors,
+    };
 
     // An archive/delete interrupt can overtake a queued start or arrive while its files are fetched.
     if (await this.ctx.state.options.runtime.runPromise(Journal.use((j) => j.wasInterrupted(spec.threadId, turnId))))
@@ -160,22 +169,27 @@ export class ThreadCommands {
       spec.provider === Provider.CLAUDE ? "claude" : spec.provider === Provider.GROK ? "grok" : "codex",
     );
 
-    if (spec.provider === Provider.GROK)
-      await this.ctx.ops.runGrok(
-        (threads) => threads.startTurn(spec, turnId, input, settings),
-        spec.providerProfileId || "native",
-      );
-    else if (spec.provider === Provider.CLAUDE)
-      await this.ctx.ops.runClaude(
-        (threads) => threads.startTurn(spec, turnId, input, settings),
-        spec.providerProfileId || "native",
-      );
-    else
-      await this.ctx.ops.runCodex(
-        spec.provider,
-        (threads) => threads.startTurn(spec, turnId, input, settings),
-        this.ctx.ops.codexGroupOf(spec.providerProfileId),
-      );
+    try {
+      if (spec.provider === Provider.GROK)
+        await this.ctx.ops.runGrok(
+          (threads) => threads.startTurn(spec, turnId, input, settings),
+          spec.providerProfileId || "native",
+        );
+      else if (spec.provider === Provider.CLAUDE)
+        await this.ctx.ops.runClaude(
+          (threads) => threads.startTurn(spec, turnId, input, settings),
+          spec.providerProfileId || "native",
+        );
+      else
+        await this.ctx.ops.runCodex(
+          spec.provider,
+          (threads) => threads.startTurn(spec, turnId, input, settings),
+          this.ctx.ops.codexGroupOf(spec.providerProfileId),
+        );
+    } catch (error) {
+      await connectors.failed();
+      throw error;
+    }
 
     return {};
   }

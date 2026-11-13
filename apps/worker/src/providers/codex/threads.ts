@@ -14,6 +14,7 @@ import { threadEvents, threadExit } from "./thread-events.ts";
 import { threadCatalog, threadTurnSettings } from "./thread-catalog.ts";
 import { threadSessions } from "./thread-sessions.ts";
 import { threadTurns, threadGoals } from "./thread-turns.ts";
+import { codexConnectorMcp } from "./connector-mcp.ts";
 
 export { CodexThreadError, type CodexThreadsOptions, type InteractionInit } from "./thread-types.ts";
 
@@ -115,6 +116,8 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
     };
 
     const { record } = threadEvents(ctx);
+    ctx.connectorMcp = codexConnectorMcp(ctx);
+    yield* Effect.addFinalizer(() => Effect.sync(() => ctx.connectorMcp?.close()));
     let processing = 0;
     const settleAfterExit = threadExit(ctx);
     // Interrupted (before the process is killed) when the runtime closes on purpose.
@@ -163,7 +166,7 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
           ),
         ),
       create: sessions.create,
-      ...threadTurns(ctx, sessions.ensureLoaded, turnSettings),
+      ...threadTurns(ctx, sessions.ensureLoaded, turnSettings, sessions.reconfigure),
       listModels: catalog.listModels,
       listMentionCatalog: catalog.listMentionCatalog,
       ...threadGoals(ctx, sessions.ensureLoaded),

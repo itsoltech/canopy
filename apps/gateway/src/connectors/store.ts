@@ -29,7 +29,7 @@ export function connectorStore(sql: SqlClient.SqlClient, key: Buffer) {
     transaction: <A, E, R>(effect: Effect.Effect<A, E, R>) => connectorTransaction(sql, key, effect),
     ...connectorWrites(sql, base, key),
     threadGrant: threadConnectorGrant(sql, base, key),
-    threadPanel: (user: string, worker: string) => threadConnectorList(sql, user, worker),
+    threadPanel: (user: string, worker: string, threadId: string) => threadConnectorList(sql, user, worker, threadId),
     ...connectorApps(sql, base, key),
     ...connectorState(sql, base, key),
   };

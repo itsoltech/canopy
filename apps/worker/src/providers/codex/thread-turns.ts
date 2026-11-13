@@ -9,11 +9,13 @@ import { CodexThreadError, fail, type CodexThreadContext } from "./thread-types.
 import type { threadSessions } from "./thread-sessions.ts";
 import type { threadTurnSettings } from "./thread-catalog.ts";
 import { threadEvents } from "./thread-events.ts";
+import { refreshCodexConnectors } from "./connector-mcp.ts";
 
 export function threadTurns(
   ctx: CodexThreadContext,
   ensureLoaded: ReturnType<typeof threadSessions>["ensureLoaded"],
   turnSettings: ReturnType<typeof threadTurnSettings>,
+  reconfigure: ReturnType<typeof threadSessions>["reconfigure"],
 ) {
   const { codex, connectorCatalog, byPlatform } = ctx;
   const { record } = threadEvents(ctx);
@@ -26,22 +28,39 @@ export function threadTurns(
       settings?: TurnSettings,
     ) {
       const enteredAt = workerDiagnostics.enabled ? workerDiagnostics.monotonic() : 0;
-      connectorCatalog.set(spec.threadId, spec.connectorTools);
-      const entry = yield* ensureLoaded(spec, settings?.recoveryContext);
+      const previous = connectorCatalog.get(spec.threadId);
+      let entry = yield* ensureLoaded(spec, settings?.recoveryContext);
       const known = entry.platformToCodex.get(turnId);
 
       if (known) return known; // redelivered StartTurn: the turn already exists
+
+      entry = yield* refreshCodexConnectors(ctx, reconfigure, spec, entry, previous);
+      yield* Effect.tryPromise({
+        try: () => settings?.connectorsReady?.() ?? Promise.resolve(),
+        catch: () =>
+          new CodexThreadError({
+            threadId: spec.threadId,
+            operation: "connectors",
+            message: "Could not record connector attachment",
+          }),
+      });
       workerDiagnostics.turns.begin(spec.threadId, turnId, "codex", enteredAt);
       const chosen = yield* turnSettings(spec, settings);
       entry.pendingTurns.push(turnId);
 
-      if (input.mentions.length > 0) entry.mentions.set(turnId, { text: input.text, mentions: input.mentions });
+      if (input.mentions.length > 0 || settings?.connectorNote)
+        entry.mentions.set(turnId, { text: input.text, mentions: input.mentions });
 
       const response = yield* codex
         .request("turn/start", {
           threadId: entry.codexId,
           clientUserMessageId: turnId,
-          input: codexUserInput(input),
+          input: [
+            ...codexUserInput(input),
+            ...(settings?.connectorNote
+              ? [{ type: "text" as const, text: settings.connectorNote, text_elements: [] }]
+              : []),
+          ],
           ...chosen,
         })
         .pipe(

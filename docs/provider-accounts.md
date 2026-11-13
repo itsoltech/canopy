@@ -30,7 +30,8 @@ i zabicie grupy procesów po timeout. Odpowiedź CLI nigdy nie trafia do logu.
 Cache w pamięci workera: 15 min, błędy 60 s, single-flight także dla
 jednoczesnych wymuszonych odświeżeń. Klucz obejmuje instancję, harness,
 wykonywalny plik, argumenty, środowisko, katalog i wersję konfiguracji.
-Zakończony login unieważnia cache; nowa konfiguracja ma nowy klucz.
+Zakończony login i pełny Refresh unieważniają cache także bez zmiany wersji
+konfiguracji; nowa konfiguracja ma nowy klucz.
 Zmianę loginu/logout wykonaną poza aplikacją wykrywa Refresh lub odczyt
 co 15 min na aktywnym połączeniu. Timer jest usuwany po rozłączeniu;
 odczyty tła mają niższy priorytet i mogą zostać odrzucone jako nieaktualne.
@@ -40,6 +41,9 @@ Addytywna capability `provider_account_status` i nietrwała komenda
 `GetProviderAccounts` nie zmieniają `WORKER_LINK_PROTOCOL`. Starsze workery
 nie dostają nieznanej komendy. Gateway odpytuje po ConfigApplied oraz ręcznym
 Refresh, współdzieli loty i zachowuje wyłącznie oczyszczony raport w pamięci.
+Wymuszony Refresh nie współdzieli wcześniejszego odczytu z cache: czeka na jego
+zakończenie, po czym wysyła nowe wymuszone zapytanie. Zbieżne wymuszone
+odświeżenia tego samego zakresu nadal współdzielą jedno zapytanie.
 Zmiana wersji/połączenia odrzuca stare wyniki. Lista i overview nie uruchamiają
 CLI. Raport nie jest zapisywany do bazy, outboxa ani journala workera.
 
@@ -93,6 +97,7 @@ Testy adapterów używają fake CLI, bez prawdziwych kont. Obejmują odpowiedzi
 Claude/Codex, brak loginu, niepoprawny format, timeout,
 single-flight/cache/refresh, filtrowanie sekretów oraz to, że Grok nie
 uruchamia żadnego procesu i nie zwraca komunikatu. Test gRPC używa prawdziwego
-WorkerHost oraz PostgreSQL: odczyty bez spawn, zbieżne odświeżenia, zmiana
+WorkerHost oraz PostgreSQL: odczyty bez spawn, zbieżne odświeżenia,
+wymuszony odczyt przy wstrzymanej wcześniejszej odpowiedzi z cache, zmiana
 home instancji (katalog widoczny tylko dla własnego shadow home), brak
 trwałego journala, proxy bez klucza i odmowa odczytu obcego workera.

@@ -8,7 +8,7 @@ Szyna działa dla Codexa i Claude; Claude korzysta z serwera MCP w procesie work
 [Connectors](connectors.md) współdzielą transport `AgentToolCall/AgentToolResult`.
 Pole `connector_account_id` (520) wybiera oddzielny dispatcher gateway z kontrolą
 właściciela, workera, aktywnej tury, grantu i zgody. Katalog jest namespacowany
-per konto; `dynamicTools` Codexa i serwer MCP Claude otrzymują wyłącznie schematy
+per konto; lokalne serwery MCP Codexa i Claude otrzymują wyłącznie schematy
 i etykiety. Poświadczenia dostawcy nigdy nie trafiają do workera.
 - wyłączanie natywnych narzędzi dostawców: `apps/worker/src/providers/native-tools.ts`, z testem na prawdziwym Codexie,
 - definicje narzędzi, zestawy per poziom i reguły dostępu: `packages/domain/src/agent-bus`,
@@ -17,7 +17,7 @@ i etykiety. Poświadczenia dostawcy nigdy nie trafiają do workera.
 - gateway: `AgentBus` (`apps/gateway/src/core/agent-bus.ts`) i `AgentBusStore` (`apps/gateway/src/store/agent-bus.ts`): dekodowanie, fakty z bazy, `authorizeBusCall`, wykonanie, powiadomienia, pytania do rodzica,
 - testy: `tests/integration/agent-bus.test.ts` (gateway + skryptowany worker), `codex dynamic tools (live)` w `app-server.live.test.ts`.
 
-Zestaw narzędzi wątku Codexa jest ustalany przy `thread/start`. Wątki utworzone przed zmianą zestawu (np. przed włączeniem harmonogramu) mają stary zestaw.
+Zestaw narzędzi szyny wątku Codexa jest ustalany przy `thread/start`. Wątki utworzone przed zmianą tego zestawu (np. przed włączeniem harmonogramu) mają stary zestaw. Konektory korzystają z osobnego MCP i aktualizują się na granicy tur ([connectors.md](connectors.md#ograniczenia-sesji-harnessów)).
 
 | Narzędzie | Stan |
 |---|---|
@@ -440,6 +440,7 @@ Regresje wiadomości: `tests/integration/agent-bus-messages.test.ts` — przerwa
 - **Codex:** `thread/start { dynamicTools }` ze specyfikacji `agentBusToolSpecs(agentBusToolsFor(depth))`. Pole jest eksperymentalne; plan B to lokalny serwer MCP.
   - `thread/resume` i `thread/fork` nie przyjmują `dynamicTools`. Codex trzyma narzędzia z wątkiem: działają po wznowieniu w nowym procesie i w forkach (sprawdzone na żywo).
   - Skutek: wątek boczny utworzony forkiem wątku głównego widzi też narzędzia orkiestratora (`spawn_thread` itd.). Gateway i tak odrzuca je według poziomu wywołującego (`authorizeBusCall`).
+  - Konektory kont są osobnym lokalnym MCP `canopy_connectors`, aby zmiana ich katalogu mogła wejść na granicy tur przez unsubscribe/resume z historią. Nie zmienia to dynamic tools szyny ani `view_image`; szczegóły w [connectors.md](connectors.md#ograniczenia-sesji-harnessów).
 - Zestaw zależy od poziomu wątku (`ThreadSpec.depth`). Model wątku bocznego nie widzi `spawn_thread` ani narzędzi sterowania.
 - Worker tylko przekazuje wywołania (`AgentToolCall`) do gateway i niczego nie wykonuje lokalnie.
 

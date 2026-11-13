@@ -14,6 +14,7 @@ Gotowe:
 - podpięcie do workera: `WorkerHost` i `serveLink` (`apps/worker/src/runtime`): komendy z gateway (`CreateThread`, `StartTurn`, `InterruptTurn`, `ListDirectory`), kontrola `cwd` względem dozwolonych katalogów, interakcje przez link (ponawiane po ponownym połączeniu), przebudowa runtime'u Codexa przy zmianie konfiguracji, ale nigdy pod turą w toku.
 
 - szyna agentów: narzędzia jako `dynamicTools` przy `thread/start`, wywołania `item/tool/call` przekazywane do gateway (`AgentToolCall`) i odpowiadane wynikiem ([agent-bus.md](agent-bus.md)).
+- konektory: prywatny lokalny MCP `canopy_connectors`; aktualizacja na granicy tur przez unsubscribe/resume tej samej sesji z historią i sprawdzenie jej natywnego katalogu. Sam reload MCP nie odświeża niezmienionego połączenia w 0.164.0 ([connectors.md](connectors.md#ograniczenia-sesji-harnessów)).
 
 - modele, wysiłek i steer: `model/list` (katalog dla każdego profilu; profil CLIProxyAPI także `GET /v1/models` pośrednika, `providers/models.ts`), `turn/start` z `model` i `effort`, `turn/steer` ([protocol.md](protocol.md#modele-effort-i-steer)).
 

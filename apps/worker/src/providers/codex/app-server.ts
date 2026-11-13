@@ -20,6 +20,7 @@ export class CodexAppServerError extends Schema.TaggedError<CodexAppServerError>
 
 /** Requests the adapter uses, with their params and results (bindings from the pinned Codex version). */
 export interface CodexMethods {
+  "mcpServerStatus/list": { params: v2.ListMcpServerStatusParams; result: v2.ListMcpServerStatusResponse };
   "account/read": { params: v2.GetAccountParams; result: v2.GetAccountResponse };
   "thread/start": { params: v2.ThreadStartParams; result: v2.ThreadStartResponse };
   "thread/resume": { params: v2.ThreadResumeParams; result: v2.ThreadResumeResponse };

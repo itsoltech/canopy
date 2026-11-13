@@ -43,7 +43,7 @@
 <Dialog bind:open title="Manage connector access" description="Changes apply to every thread on this worker.">
   <div class={["grid min-w-0 gap-3", className]}>
     {#if error}<Alert tone="error">{error}</Alert>{/if}
-    {#each panel.data?.connectors ?? [] as account (account.accountId)}
+    {#each panel.data?.connectors.filter((account) => account.revision > 0n) ?? [] as account (account.accountId)}
       <div class="flex min-w-0 items-center justify-between gap-3">
         <div class="min-w-0">
           <p class="truncate text-base/6 text-zinc-800 sm:text-sm/6 dark:text-zinc-200" title={account.accountLabel}>

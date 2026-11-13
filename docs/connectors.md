@@ -190,19 +190,18 @@ i paste-code działają jak wcześniej. Disconnect revokuje tokeny na zewnątrz,
 ## Harnessy i zgody
 
 Worker otrzymuje wyłącznie deskryptory: ID konta, nazwę, schemat i opis narzędzia.
-Claude Agent SDK **2.1.316**: narzędzia w istniejącym serwerze MCP w procesie
-workera (`mcp__canopy__…`). Codex **0.164.0**: istniejące `dynamicTools`.
+Claude Agent SDK **0.3.316** / Claude Code **2.1.316**: narzędzia w serwerze MCP
+w procesie workera (`mcp__canopy__…`). Codex **0.164.0**: prywatny lokalny HTTP MCP
+`canopy_connectors`. Grok: lokalny HTTP MCP przekazany przez ACP.
 Nazwy są stabilne i rozdzielone per konto (`github_work_<id>__create_issue`),
 także gdy nazwy dwóch kont są identyczne po normalizacji. Opisy podają typ i konto.
 Rename unieważnia cache opisów; techniczna nazwa narzędzia pozostaje stabilna.
 Wywołanie `AgentToolCall` wraca istniejącym linkiem gRPC do gateway. Gateway
 sprawdza worker, właściciela wątku, bieżącą turę, grant i bieżący katalog konta.
-Zmiana grantów odbiera możliwość wykonania natychmiast; katalog harnessu może
-wymagać nowej sesji (Codex utrwala dynamic tools przy `thread/start`). Zwykłe wątki
-nie zmieniają automatycznie sesji po zmianie kont lub grantów: nie mają gwarancji
-pełnej odbudowy historii w nowej sesji. Istniejący wątek zachowuje kontekst, ale
-nowe narzędzia Codexa wymagają nowego wątku. Odebrany grant blokuje wykonanie
-również wtedy, gdy stary katalog nadal pokazuje narzędzie.
+Zmiana grantów odbiera możliwość wykonania natychmiast. Katalog istniejącego wątku
+aktualizuje się przed następną turą, z zachowaniem historii i bez przerywania pracy
+([mechanizmy adapterów](#ograniczenia-sesji-harnessów)). Odebrany grant blokuje
+wykonanie również wtedy, gdy stary katalog nadal pokazuje narzędzie.
 
 Boty dostają katalog kont ze swoich grantów i wykonują MCP w gateway. Istniejąca
 polityka `safe` przepuszcza tylko `readOnlyHint=true`, bez `destructiveHint=true`;
@@ -348,10 +347,45 @@ nadmiar starszych wiadomości zastępuje jawną notatką, a transkrypt pozostaje
 Worker przekazuje historię nowemu harnessowi jako dane, bez ponawiania narzędzi.
 Sam grant, który nie zmienia katalogu, nie wymusza nowej sesji.
 
-Zwykłe wątki zachowują sesję i jej historię. Codex utrwala dynamic tools przy
-`thread/start`; dodanie konta lub grantu wymaga nowego wątku, aby dostać nowy katalog.
-Nie uruchamiamy pustej sesji w istniejącym wątku. Odebranie grantu jest skuteczne
-natychmiast w gateway, niezależnie od starego katalogu harnessu.
-Claude otrzymuje nazwy narzędzi MCP w `allowedTools`, ponieważ `dontAsk` odmawia
-narzędzi spoza listy przed callbackiem. Każde wykonanie nadal przechodzi przez
-grant i permission mode gateway; READ_ONLY odmawia zapisów.
+Zwykłe wątki otrzymują bieżący katalog w każdym `StartTurn`. Zmiana konta, grantu
+lub narzędzi działa od następnej tury; nie przerywa bieżącej. Gateway nadal odbiera
+dostęp natychmiast, także gdy harness pamięta wcześniejsze nazwy narzędzi.
+
+- Codex 0.164.0 utrwala `dynamicTools` przy `thread/start`; `thread/resume` nie
+  przyjmuje nowej listy. Konektory mają osobny lokalny serwer MCP
+  `canopy_connectors`, bez poświadczeń zewnętrznych. Sam `config/mcpServer/reload`
+  zachowuje katalog niezmienionego połączenia. Worker przy zmianie katalogu wykonuje
+  `thread/unsubscribe`, a następnie `thread/resume` z konfiguracją MCP: bezczynna,
+  nieobserwowana sesja jest odbudowywana z trwałej historii pod tym samym ID.
+  Pusta sesja bez zapisanego rollout może dostać nowe ID; nie ma jeszcze historii.
+  Worker sprawdza `mcpServerStatus/list` dla tego wątku przed potwierdzeniem katalogu.
+- Claude dostaje `mcpServers` przy query/resume. Query utrzymywane przez zadania
+  w tle usuwa i ponownie rejestruje serwer przez `setMcpServers` pomiędzy turami,
+  bez kończenia query. SDK 0.3.316 ignoruje podmianę instancji o tej samej nazwie,
+  dlatego potrzebne są osobne usunięcie i dodanie. `mcpServerStatus` potwierdza narzędzia.
+- Grok przy zmianie katalogu zamyka bezczynny proces ACP i ładuje tę samą sesję
+  przez `session/load` z aktualnym `mcpServers`; historia pozostaje w katalogu sesji.
+
+Journal workera zachowuje ostatni zastosowany katalog po ACK i restarcie. Tylko
+zmiana zestawu dodaje do wejścia następnej tury krótką notatkę `[canopy]` o dodaniu,
+zmianie lub usunięciu konektora. Zdarzenia `connectors_applied` i `connectors_failed`
+pozwalają panelowi wątku odróżnić dostępny katalog, zmianę oczekującą na turę i błąd
+dołączenia. Raporty zawierają identyfikatory i nazwy kont oraz skróty deskryptorów,
+bez endpointów i nagłówków.
+Nieudane dołączenie nie jest potwierdzeniem dostępności; kolejna wiadomość ponawia próbę.
+Starszy worker bez raportów nie potwierdza dostępności.
+
+Claude dopuszcza `mcp__canopy__*` w `allowedTools`, ponieważ `dontAsk` odmawia
+narzędzi spoza listy przed callbackiem. Każde wykonanie nadal przechodzi przez grant
+i permission mode gateway; READ_ONLY odmawia zapisów. Starsze sesje Codexa mogą
+pamiętać nazwy dawnych dynamic tools; wywołanie odebranego narzędzia jest odrzucane
+przez worker/gateway, a nowe narzędzia udostępnia aktualny serwer MCP.
+
+Regresje: `connector-sessions.test.ts` sprawdza trzy adaptery przez gateway i worker,
+dodanie/usunięcie podczas pracy, brak przerwania, identyfikator sesji, panel i notatki
+po restarcie. Codex `connector-refresh.test.ts` używa prawdziwego app-servera i sztucznego
+modelu, sprawdzając natywny katalog oraz pełną historię. Claude `connector-refresh.test.ts`
+sprawdza dodanie i usunięcie w tym samym query prawdziwego SDK/CLI, wraz z oczekiwaniem
+na gotowość katalogu. Opt-in
+`connector-refresh.live.test.ts` (`CANOPY_LIVE=1`) odkrywa i wywołuje nowo dodane
+narzędzie w rzeczywistym modelu Codexa.

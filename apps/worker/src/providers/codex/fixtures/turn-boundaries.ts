@@ -120,6 +120,12 @@ for await (const line of createInterface({ input: process.stdin })) {
     case "model/list":
       send({ id, result: { data: [], nextCursor: null } });
       break;
+    case "mcpServerStatus/list":
+      send({
+        id,
+        result: { data: [{ name: "canopy_connectors", runtimeStatus: "connected", tools: {} }], nextCursor: null },
+      });
+      break;
     case "turn/start":
       void start(id, params);
       break;

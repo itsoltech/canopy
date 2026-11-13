@@ -18,6 +18,7 @@ import { CodexAppServer } from "./app-server.ts";
 import type { CodexAppServerLaunch } from "./launch.ts";
 import { CodexEventMapper } from "./mapping.ts";
 import { RolloutTail } from "./rollout.ts";
+import type { codexConnectorMcp } from "./connector-mcp.ts";
 
 export class CodexThreadError extends Schema.TaggedError<CodexThreadError>()("CodexThreadError", {
   threadId: Schema.String,
@@ -92,6 +93,7 @@ export interface CodexThreadContext {
   byPlatform: Map<string, Entry>;
   byCodex: Map<string, Entry>;
   connectorCatalog: Map<string, ThreadSpec["connectorTools"]>;
+  connectorMcp?: ReturnType<typeof codexConnectorMcp>;
   failure: string | undefined;
 }
 

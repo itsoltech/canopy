@@ -10,8 +10,18 @@ import { managedPlugins } from "../../agent-environment/plugin-loading.ts";
 
 const NO_ROLLOUT = /no rollout found/i;
 
+const announceThread = (ctx: CodexThreadContext, entry: Entry, replaces = "") =>
+  ctx.journal
+    .append(entry.platformId, {
+      body: {
+        case: "threadReady",
+        value: { providerThreadId: entry.codexId, ...(replaces && { replacesProviderThreadId: replaces }) },
+      },
+    })
+    .pipe(Effect.tap((event) => Effect.sync(() => ctx.options.publish(event))));
+
 export function threadSessions(ctx: CodexThreadContext) {
-  const { options, codex, journal, byPlatform, connectorCatalog } = ctx;
+  const { options, codex, byPlatform, connectorCatalog } = ctx;
   const loading = Semaphore.makeUnsafe(1);
 
   const register = (platformId: string, codexId: string, rolloutPath: string | null) =>
@@ -29,23 +39,16 @@ export function threadSessions(ctx: CodexThreadContext) {
     return {
       cwd: spec.cwd,
       // No project root search in scratch: otherwise Codex can collect ~/AGENTS.md on its parent walk.
-      ...(spec.scratch && { config: { project_root_markers: [] } }),
+      config: {
+        ...(spec.scratch && { project_root_markers: [] }),
+        ...ctx.connectorMcp?.config(spec),
+      },
       ...(spec.model && { model: spec.model }),
       ...(spec.instructions && { developerInstructions: spec.instructions }),
       ...codexPermissions(spec.permissionMode),
       ...codexThreadProvider(profile),
     };
   };
-
-  const announce = (entry: Entry, replaces = "") =>
-    journal
-      .append(entry.platformId, {
-        body: {
-          case: "threadReady",
-          value: { providerThreadId: entry.codexId, ...(replaces && { replacesProviderThreadId: replaces }) },
-        },
-      })
-      .pipe(Effect.tap((event) => Effect.sync(() => options.publish(event))));
 
   const startThread = (spec: ThreadSpec, params: ReturnType<typeof threadParams>, operation: string) =>
     codex
@@ -99,13 +102,45 @@ export function threadSessions(ctx: CodexThreadContext) {
       );
 
       const entry = register(spec.threadId, started.thread.id, started.thread.path);
-      yield* announce(entry, spec.providerThreadId).pipe(Effect.mapError(fail(spec.threadId, "journal")));
+      yield* announceThread(ctx, entry, spec.providerThreadId).pipe(Effect.mapError(fail(spec.threadId, "journal")));
 
       return entry;
     }).pipe(loading.withPermit);
 
   return {
     ensureLoaded,
+    reconfigure: (spec: ThreadSpec, entry: Entry) =>
+      Effect.gen(function* () {
+        if (entry.pendingTurns.length || [...entry.codexToPlatform.keys()].some((id) => !entry.finishedTurns.has(id)))
+          return yield* new CodexThreadError({
+            threadId: spec.threadId,
+            operation: "connectors",
+            message: "A turn is still running",
+          });
+        // 0.164 rejoins subscribed sessions and ignores overrides. Unsubscribe first: an idle
+        // session with config overrides is then rebuilt from its durable history, retaining its ID.
+        yield* codex
+          .request("thread/unsubscribe", { threadId: entry.codexId })
+          .pipe(Effect.mapError(fail(spec.threadId, "connectors")));
+        const params = threadParams(spec);
+
+        return yield* codex.request("thread/resume", { threadId: entry.codexId, ...params, excludeTurns: true }).pipe(
+          Effect.as(entry),
+          Effect.catch((error) =>
+            Effect.gen(function* () {
+              if (!NO_ROLLOUT.test(error.message)) return yield* fail(spec.threadId, "connectors")(error);
+              // An empty session has no rollout until its first turn. Recreate only that empty session.
+              const started = yield* startThread(spec, params, "connectors");
+              const replacement = register(spec.threadId, started.thread.id, started.thread.path);
+              yield* announceThread(ctx, replacement, entry.codexId).pipe(
+                Effect.mapError(fail(spec.threadId, "journal")),
+              );
+
+              return replacement;
+            }),
+          ),
+        );
+      }),
     create: Effect.fn("CodexThreads.create")(function* (spec: ThreadSpec, fork?: ForkSpec) {
       const params = yield* Effect.try({
         try: () => threadParams(spec),
@@ -123,7 +158,7 @@ export function threadSessions(ctx: CodexThreadContext) {
         : yield* startThread(spec, params, "create");
 
       const entry = register(spec.threadId, response.thread.id, response.thread.path);
-      yield* announce(entry).pipe(Effect.mapError(fail(spec.threadId, "journal")));
+      yield* announceThread(ctx, entry).pipe(Effect.mapError(fail(spec.threadId, "journal")));
 
       return entry.codexId;
     }),

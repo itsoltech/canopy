@@ -20,6 +20,11 @@ for await (const line of createInterface({ input: process.stdin })) {
   if (request["method"] === "initialize") send({ id, result: { userAgent: "bus-fixture" } });
   else if (request["method"] === "thread/start") send({ id, result: { thread: { id: threadId, path: null } } });
   else if (request["method"] === "model/list") send({ id, result: { data: [], nextCursor: null } });
+  else if (request["method"] === "mcpServerStatus/list")
+    send({
+      id,
+      result: { data: [{ name: "canopy_connectors", runtimeStatus: "connected", tools: {} }], nextCursor: null },
+    });
   else if (request["method"] === "turn/start") {
     const input = params["input"];
     const text = Array.isArray(input) ? jsonString(jsonObject(input[0])?.["text"]) : "";

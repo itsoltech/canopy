@@ -8,6 +8,9 @@ import { startInstanceFixture, type InstanceFixture } from "./support/instance-f
 import { followThread } from "./support/thread-watch.ts";
 import { eventually, watchUntil } from "./support/gateway.ts";
 
+const providerNotices = (state: ui.ThreadSnapshot) =>
+  state.notices.filter((entry) => entry.notice?.code === "httpConnectionFailed");
+
 describe.skipIf(!dockerAvailable)("Codex provider warnings through the gatewayâ†”worker link", () => {
   let f: InstanceFixture;
   beforeAll(async () => {
@@ -28,19 +31,23 @@ describe.skipIf(!dockerAvailable)("Codex provider warnings through the gatewayâ†
 
     try {
       await live.until((state) => state.turns.some((turn) => turn.id === running.id && turn.status === "running"));
+      // Gateway dispatch precedes native admission, including connector inventory checks.
+      expect(
+        await eventually(async () => f.host.runningTurns().some((turn) => turn.turnId === running.id), Boolean),
+      ).toBe(true);
       await f.release("background");
       await live.until(
         (state) =>
-          state.notices.length === 3 &&
+          providerNotices(state).length === 3 &&
           state.steers.some((steer) => steer.backgroundItemIds.length > 0 && steer.status === "delivered"),
       );
-      expect(live.state.notices.every((notice) => notice.turnId === running.id)).toBe(true);
+      expect(providerNotices(live.state).every((notice) => notice.turnId === running.id)).toBe(true);
       expect(live.state.turns.find((turn) => turn.id === running.id)?.status).toBe("running");
       await f.release("provider-warnings");
       await live.until((state) => state.turns.find((turn) => turn.id === running.id)?.status === "completed");
 
       const check = (state: ui.ThreadSnapshot) => {
-        const notices = turnNotices(state.notices, state.turns, state.items);
+        const notices = turnNotices(providerNotices(state), state.turns, state.items);
         expect(notices).toHaveLength(1);
         expect(notices[0]).toMatchObject({ turnId: running.id, recovered: true, count: 3 });
         expect(noticePresentation(notices[0]!.notice!, notices[0])).toMatchObject({
