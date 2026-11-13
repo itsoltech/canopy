@@ -459,6 +459,7 @@ describe.skipIf(!dockerAvailable)("in-place durable thread rewind", () => {
         data: new TextEncoder().encode("notes"),
       })
     ).attachment!;
+
     const clip = (await gw.api.uploadAttachment({ name: "clip.mp4", data: mp4 })).attachment!;
 
     const sent = (
@@ -480,9 +481,11 @@ describe.skipIf(!dockerAvailable)("in-place durable thread rewind", () => {
     expect(result.draft?.quotes[0]?.text).toBe("quoted passage");
     const newFile = result.draft!.attachments[0]!;
     const newClip = result.draft!.attachments[1]!;
+
     expect(newFile.id).not.toBe(file.id);
     expect(newClip.id).not.toBe(clip.id);
     expect(result.draft!.mentions[0]?.name).toBe(newFile.id);
+
     const resent = (
       await gw.api.sendMessage({
         threadId: thread.id,
@@ -493,11 +496,13 @@ describe.skipIf(!dockerAvailable)("in-place durable thread rewind", () => {
         mentions: result.draft!.mentions,
       })
     ).turn!;
+
     expect(resent.attachments.find((attachment) => attachment.id === newClip.id)).toMatchObject({
       kind: "video",
       durationMs: 2000,
-      width: 16,
-      height: 16,
+      width: clip.width,
+      height: clip.height,
+      sha256: clip.sha256,
       hasThumbnail: true,
     });
     await waitTurn(thread.id, 5);
