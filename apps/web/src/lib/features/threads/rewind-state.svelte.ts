@@ -33,12 +33,6 @@ export class ThreadRewind {
   }
 
   async edit(threadId: string, turnId: string, preview: ui.ThreadRewindPreview, restoreFiles: boolean) {
-    if (!this.#composer?.()) {
-      this.error = "Finish sending or uploading files before editing this message.";
-
-      return false;
-    }
-
     return this.run(threadId, {
       action: "rewind",
       turnId,
@@ -66,6 +60,13 @@ export class ThreadRewind {
 
   private async run(threadId: string, action: RewindAction): Promise<boolean> {
     if (this.busy) return false;
+
+    if (!this.#composer?.()) {
+      this.error = "Finish sending or uploading files before editing this message.";
+
+      return false;
+    }
+
     const generation = ++this.#generation;
     this.busy = true;
     this.error = "";
