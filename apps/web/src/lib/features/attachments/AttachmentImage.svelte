@@ -10,6 +10,7 @@
     imageClass,
     class: className,
     onload,
+    onopen,
   }: {
     src: string;
     alt?: string;
@@ -17,6 +18,7 @@
     imageClass?: ClassValue;
     class?: ClassValue;
     onload?: (event: Event) => void;
+    onopen?: (() => void) | undefined;
   } = $props();
 
   let url = $state("");
@@ -59,13 +61,23 @@
       <Button variant="ghost" size="sm" onclick={() => retry++}>Retry</Button>
     </div>
   {:else if url}
-    <img
-      src={url}
-      {alt}
-      {onload}
-      onerror={() => (failure = "Could not show the image. Download it to open it.")}
-      class={imageClass}
-    />
+    {#snippet loadedImage()}<img
+        src={url}
+        {alt}
+        {onload}
+        onerror={() => (failure = "Could not show the image. Download it to open it.")}
+        class={imageClass}
+      />{/snippet}
+    {#if onopen}
+      <button
+        type="button"
+        onclick={onopen}
+        aria-label="Open image: {alt}"
+        class="group h-full w-full min-w-0 overflow-hidden rounded-lg focus-ring">{@render loadedImage()}</button
+      >
+    {:else}
+      {@render loadedImage()}
+    {/if}
   {:else}
     <p role="status" class="p-3">Loading image…</p>
   {/if}

@@ -1220,6 +1220,22 @@ powód, bez zawartości pliku. Błędy nie są cache'owane. Po powrocie połącz
 lub domu pliku otwarty podgląd ponawia odczyt. Szczegóły zgodności starszych
 domów: [linked-computers.md](linked-computers.md#podglądy-załączników).
 
+#### Galerie obrazów agenta
+
+Item `image_gallery` zawiera wyłącznie manifest trwałych załączników: identyfikatory,
+wymiary, alt, podpisy i opcjonalne pary `before`/`after`. Web pokazuje go poza zwiniętą
+aktywnością tury, pod odpowiedzią. Galeria ma dwie kolumny na telefonie i trzy na
+większym ekranie, początkowo najwyżej sześć miniatur oraz „Show all N”. Stała proporcja
+ramki i miejsce na podpis zapobiegają skokom podczas dekodowania.
+
+Wspólny obserwator widoczności włącza pobieranie miniatur dopiero w viewportcie;
+wyjście z widoku przerywa transfer i zwalnia object URL. Pełny obraz jest pobierany
+wyłącznie po otwarciu lightboxa. Lightbox zachowuje klawiaturę, zoom, zamykanie
+Escape i pobieranie; dodaje poprzedni/następny obraz, licznik, opis oraz wybór
+Before/After dla pary. Błąd obrazu ma własne „Retry”, a reconnect ponawia odczyt.
+Wszystkie odczyty korzystają z istniejącego owner-scoped API załączników, również
+dla kwalifikowanych identyfikatorów połączonego komputera; nie czytają workspace.
+
 #### Załączniki w tekście
 
 **Podgląd plików.** Plakietki wiadomości wysłanych, kolejki i kompozytora otwierają

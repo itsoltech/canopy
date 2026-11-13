@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Snippet } from "svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import { windowModal } from "#lib/shared/ui/window-modal.ts";
   import { backdropDismiss } from "#lib/shared/ui/backdrop.ts";
@@ -20,6 +21,10 @@
     entityId,
     video = false,
     poster,
+    alt,
+    caption = "",
+    controls,
+    onNavigate,
   }: {
     open?: boolean;
     src: string;
@@ -29,6 +34,10 @@
     entityId?: string;
     video?: boolean;
     poster?: string | undefined;
+    alt?: string;
+    caption?: string;
+    controls?: Snippet;
+    onNavigate?: (direction: number) => void;
   } = $props();
 
   let dialog = $state<HTMLDialogElement>();
@@ -62,10 +71,17 @@
   aria-label={name}
   class="t-modal top-(--window-safe-top) m-auto max-h-(--window-safe-height) max-w-[min(96vw,100rem)] overflow-visible bg-transparent p-0 backdrop:bg-zinc-950/80 dark:backdrop:bg-black/85 macos:overflow-y-auto"
   onclose={() => (open = false)}
+  onkeydown={(event) => {
+    if (!event.defaultPrevented && onNavigate && ["ArrowLeft", "ArrowRight"].includes(event.key)) {
+      event.preventDefault();
+      zoomed = false;
+      onNavigate(event.key === "ArrowRight" ? 1 : -1);
+    }
+  }}
   {...backdropDismiss(() => (open = false))}
 >
   {#if open || closing}
-    <figure class="grid gap-3">
+    <figure class="grid max-h-(--window-safe-height) grid-rows-[minmax(0,1fr)_auto] gap-3">
       <div
         class="max-h-[calc(var(--window-safe-height)-11rem)] max-w-[96vw] scroll-stable overflow-auto rounded-lg sm:max-h-[calc(var(--window-safe-height)-8rem)]"
       >
@@ -74,7 +90,7 @@
         {:else}
           <AttachmentImage
             {src}
-            alt={name}
+            alt={alt || name}
             {entityId}
             class="min-h-36 rounded-lg bg-zinc-950 text-white"
             imageClass={[
@@ -88,40 +104,44 @@
       </div>
       <!-- Its own dark surface: readable over any page, also while the backdrop fades in. -->
       <figcaption
-        class="grid min-w-0 gap-2 rounded-xl bg-zinc-950/90 py-2 pr-2 pl-3 text-base/6 text-white sm:flex sm:items-center sm:justify-between sm:gap-3 sm:text-sm/6"
+        class="grid max-h-[45vh] min-w-0 gap-2 overflow-auto rounded-xl bg-zinc-950/90 p-3 text-base/6 text-white sm:text-sm/6"
       >
-        <span class="min-w-0">
-          <span class="block truncate font-medium">{name}</span>
-          {#if detail}<span class="block truncate text-white/60 tabular-nums">{detail}</span>{/if}
-        </span>
-        <span class="flex shrink-0 items-center justify-end gap-1">
-          {#if !video}<button
+        {@render controls?.()}
+        {#if caption}<p class="max-w-prose wrap-anywhere">{caption}</p>{/if}
+        <div class="grid min-w-0 gap-2 sm:flex sm:items-center sm:justify-between sm:gap-3">
+          <span class="min-w-0">
+            <span class="block truncate font-medium">{name}</span>
+            {#if detail}<span class="block truncate text-white/60 tabular-nums">{detail}</span>{/if}
+          </span>
+          <span class="flex shrink-0 items-center justify-end gap-1">
+            {#if !video}<button
+                type="button"
+                aria-pressed={zoomed}
+                onclick={() => (zoomed = !zoomed)}
+                class="min-h-12 min-w-20 rounded-md px-2 py-1.5 font-medium focus-ring hover:bg-white/10 sm:min-h-8"
+                >{zoomed ? "Zoom out" : "Zoom in"}</button
+              >
+            {/if}
+            {#if download}
+              <a
+                href={download}
+                download={name}
+                class="relative inline-flex min-h-12 items-center gap-1 rounded-md py-1.5 pr-2.5 pl-2 font-medium text-white focus-ring hover:bg-white/10 sm:min-h-8"
+              >
+                <Icon name="arrow-down" class="shrink-0 text-white" />Download
+              </a>
+            {/if}
+            <button
               type="button"
-              aria-pressed={zoomed}
-              onclick={() => (zoomed = !zoomed)}
-              class="min-w-20 rounded-md px-2 py-1.5 font-medium focus-ring hover:bg-white/10"
-              >{zoomed ? "Zoom out" : "Zoom in"}</button
+              class="relative grid size-9 place-items-center rounded-md focus-ring hover:bg-white/10 sm:size-8"
+              aria-label="Close"
+              onclick={() => (open = false)}
             >
-          {/if}
-          {#if download}
-            <a
-              href={download}
-              download={name}
-              class="relative inline-flex items-center gap-1 rounded-md py-1.5 pr-2.5 pl-2 font-medium text-white focus-ring hover:bg-white/10"
-            >
-              <Icon name="arrow-down" class="shrink-0 text-white" />Download
-            </a>
-          {/if}
-          <button
-            type="button"
-            class="relative grid size-9 place-items-center rounded-md focus-ring hover:bg-white/10 sm:size-8"
-            aria-label="Close"
-            onclick={() => (open = false)}
-          >
-            <Icon name="x-mark" class="text-white" />
-            <TouchTarget />
-          </button>
-        </span>
+              <Icon name="x-mark" class="text-white" />
+              <TouchTarget />
+            </button>
+          </span>
+        </div>
       </figcaption>
     </figure>
   {/if}
