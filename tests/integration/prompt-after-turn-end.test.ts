@@ -5,7 +5,8 @@ import { create } from "@bufbuild/protobuf";
 import { timestampNow } from "@bufbuild/protobuf/wkt";
 import { ThreadEventSchema, TurnOutcome } from "@canopy/contracts";
 import { Ingest } from "@canopy/gateway/store";
-import { Layer, ManagedRuntime } from "effect";
+import { Effect, Layer, ManagedRuntime } from "effect";
+import { SqlClient } from "effect/sql";
 import { decodeJsonObject } from "../../apps/worker/src/providers/json.ts";
 import { answers, eventually, startTestGateway, watchUntil, type TestGateway } from "./support/gateway.ts";
 
@@ -73,6 +74,24 @@ async function runningThread(title: string) {
         },
       },
     });
+
+  // The scripted worker has no durable journal to replay after close(). A steer ACK can arrive
+  // before these events commit, so establish both durable tasks before simulating a gateway crash.
+  const tasks = await eventually(
+    () =>
+      gw.runtime.runPromise(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+
+          return yield* sql<{ item_id: string }>`SELECT item_id FROM thread_items
+            WHERE thread_id = ${thread.id}::uuid AND turn_id = ${turnId}::uuid
+              AND type = 'background_task' AND status = 'in_progress' ORDER BY item_id`;
+        }),
+      ),
+    (rows) => rows.length === 2,
+  );
+
+  expect(tasks.map((task) => task.item_id)).toEqual(["background-one", "background-two"]);
 
   return { threadId: thread.id, turnId };
 }
