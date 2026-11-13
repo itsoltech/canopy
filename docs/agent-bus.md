@@ -83,6 +83,13 @@ workera `thread_image_replies_v1`. Limity, transfer i trwałość:
 [protokół](protocol.md#trwałe-odpowiedzi-obrazami).
 
 Eksporter workera sprawdza bieżący katalog i turę niezależnie od gatewaya.
+Przed uruchomieniem harnessu przypina tożsamości cwd/worktree i katalogu załączników
+oraz ich przodków; ponowna tura ani reconnect nie ustanawiają nowej granicy zaufania.
+Unix otwiera każdy komponent przez `openat(O_NOFOLLOW)` względem zweryfikowanego
+uchwytu rodzica. Windows sprawdza identyfikatory plików i reparse points na uchwytach,
+utrzymując przodków bez `FILE_SHARE_DELETE` do otwarcia pliku. Podmiana katalogu,
+symlinku lub junction po przypisaniu scope kończy się odmową, również przed wydaniem
+snapshotu. Wspólny katalog załączników jest przypięty przy tworzeniu workera.
 Odrzuca traversal, dowiązania, junctions, hardlinki i pliki specjalne; przed
 odczytem sprawdza fizyczną ścieżkę otwartego deskryptora (Linux `/proc`, macOS
 `F_GETPATH`, Windows `GetFinalPathNameByHandleW`). Brak tej kontroli oznacza odmowę.

@@ -31,6 +31,7 @@ export class ThreadCommands {
     }
 
     this.ctx.ops.checkCwd(spec.cwd);
+    this.ctx.state.imageExports.assign(spec.threadId, spec.cwd, this.ctx.state.files.threadDir(spec.threadId));
     this.ctx.state.cwds.set(spec.threadId, spec.cwd);
     void this.ctx.state.heads.track(spec.threadId, spec.cwd);
     this.ctx.state.threadProviders.set(spec.threadId, spec.provider);
@@ -114,6 +115,7 @@ export class ThreadCommands {
     )
       throw new CommandError("FULL_ACCESS_DISABLED", "Full access is turned off on this computer's worker", true);
     this.ctx.ops.checkCwd(spec.cwd);
+    this.ctx.state.imageExports.assign(spec.threadId, spec.cwd, this.ctx.state.files.threadDir(spec.threadId));
     this.ctx.state.cwds.set(spec.threadId, spec.cwd);
     void this.ctx.state.heads.track(spec.threadId, spec.cwd);
     this.ctx.state.threadProviders.set(spec.threadId, spec.provider);

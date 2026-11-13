@@ -1,8 +1,9 @@
-import { closeSync, realpathSync } from "node:fs";
+import { closeSync } from "node:fs";
 import type { ExportThreadImage, ThreadImageExportSchema } from "@canopy/contracts";
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { IMAGE_REPLY_LIMITS } from "@canopy/domain/image-replies";
 import { imageRefusal, openImageSource, snapshotImage } from "./export-source.ts";
+import { pinImageRoot, rootChanged, type ImageRoot } from "./export-root.ts";
 
 interface ImageExport {
   threadId: string;
@@ -21,6 +22,24 @@ interface ImageExport {
 /** Two bounded exports per worker, one per thread. No bytes or descriptors survive a reconnect/restart. */
 export class ThreadImageExports {
   readonly #exports = new Map<string, ImageExport>();
+  readonly #scopes = new Map<string, { cwd: string; attachments: string; roots: ImageRoot[] }>();
+  readonly #attachmentsRoot: ImageRoot | undefined;
+
+  constructor(attachmentsRoot?: string) {
+    this.#attachmentsRoot = attachmentsRoot ? pinImageRoot(attachmentsRoot) : undefined;
+  }
+
+  /** Called before the harness starts; later turns verify the original assignment instead of trusting a new target. */
+  assign(threadId: string, cwd: string, attachments: string): void {
+    this.#attachmentsRoot?.verify();
+    const known = this.#scopes.get(threadId);
+
+    if (known) {
+      if (known.cwd !== cwd || known.attachments !== attachments) throw rootChanged();
+
+      for (const root of known.roots) root.verify();
+    } else this.#scopes.set(threadId, { cwd, attachments, roots: [pinImageRoot(cwd), pinImageRoot(attachments)] });
+  }
 
   async execute(
     request: ExportThreadImage,
@@ -45,10 +64,15 @@ export class ThreadImageExports {
 
     if (!scope.cwd || !scope.running)
       throw imageRefusal("This turn has ended. Ask the agent to show the images again.");
-    const roots = [scope.cwd, scope.attachments];
+    const assigned = this.#scopes.get(request.threadId);
 
-    if (!request.roots.length || request.roots.some((root) => !roots.includes(root)))
+    if (!assigned || assigned.cwd !== scope.cwd || assigned.attachments !== scope.attachments) throw rootChanged();
+    const roots = assigned.roots;
+
+    if (!request.roots.length || request.roots.some((root) => !roots.some((pin) => pin.path === root)))
       throw imageRefusal("This image is outside this thread's directory. Choose a file inside it.");
+
+    for (const root of roots) root.verify();
 
     if (
       !/^[a-f0-9-]{36}$/i.test(request.exportId) ||
@@ -68,13 +92,7 @@ export class ThreadImageExports {
 
       const source = openImageSource(
         request.path,
-        request.roots.map((root) => {
-          try {
-            return realpathSync(root);
-          } catch {
-            return root;
-          }
-        }),
+        request.roots.map((path) => roots.find((root) => root.path === path)!),
         Number(request.maxBytes),
       );
 

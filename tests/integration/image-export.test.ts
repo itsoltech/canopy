@@ -27,7 +27,9 @@ import { eventually, startTestGateway, type TestGateway } from "./support/gatewa
 const temp = tempDirs();
 
 describe.skipIf(!dockerAvailable)("scoped image exports and provider tools over WorkerLink", () => {
-  const root = temp("canopy-image-export-");
+  const base = temp("canopy-image-export-");
+  const parent = join(base, "workspace");
+  const root = join(parent, "repo");
   const attachments = temp("canopy-image-attachments-");
   const outside = temp("canopy-image-outside-");
   const exports = new ThreadImageExports();
@@ -42,6 +44,7 @@ describe.skipIf(!dockerAvailable)("scoped image exports and provider tools over 
   let source: Pick<AgentToolCall, "threadId" | "turnId">;
 
   beforeAll(async () => {
+    mkdirSync(root, { recursive: true });
     writeFileSync(join(root, "screen.png"), png);
     writeFileSync(join(outside, "private.png"), png);
     gw = await startTestGateway({
@@ -66,6 +69,11 @@ describe.skipIf(!dockerAvailable)("scoped image exports and provider tools over 
       (r) => r.thread?.status === "running",
     );
     mkdirSync(join(attachments, thread.id));
+    mkdirSync(join(outside, thread.id));
+    mkdirSync(join(outside, "repo"));
+    writeFileSync(join(outside, thread.id, "private.png"), png);
+    writeFileSync(join(outside, "repo", "private.png"), png);
+    exports.assign(source.threadId, root, join(attachments, thread.id));
     gw.worker.handlers.set("exportThreadImage", async (value, reply) => {
       if (!isMessage(value, ExportThreadImageSchema)) return reply(false);
 
@@ -90,6 +98,46 @@ describe.skipIf(!dockerAvailable)("scoped image exports and provider tools over 
 
   const show = (path: string) =>
     gw.worker.callTool({ ...source, tool: "show_images", args: { images: [{ path, alt: "Effect preview" }] } });
+
+  test("never trusts a replaced cwd, attachment root or ancestor after scope assignment", async () => {
+    const directory = join(attachments, source.threadId);
+
+    for (const { target, path } of [
+      { target: root, path: "private.png" },
+      { target: parent, path: "private.png" },
+      { target: directory, path: join(directory, "private.png") },
+      { target: attachments, path: join(directory, "private.png") },
+    ]) {
+      const saved = `${target}-original`;
+      renameSync(target, saved);
+
+      try {
+        symlinkSync(outside, target, process.platform === "win32" ? "junction" : "dir");
+        const reply = await show(path);
+        expect(reply.isError).toBe(true);
+        expect(reply.content).toContain("directory changed");
+        expect(reply.content).not.toContain('"delivered":true');
+        expect(() => exports.assign(source.threadId, root, directory)).toThrow("directory changed");
+      } finally {
+        rmSync(target);
+        renameSync(saved, target);
+      }
+    }
+
+    // A different real directory, without any symlink, must also fail the pinned identity check.
+    renameSync(root, `${root}-original`);
+
+    try {
+      mkdirSync(root);
+      writeFileSync(join(root, "private.png"), png);
+      expect((await show("private.png")).isError).toBe(true);
+    } finally {
+      rmSync(root, { recursive: true });
+      renameSync(`${root}-original`, root);
+    }
+
+    expect((await show("screen.png")).isError).toBe(false);
+  });
 
   test("rejects traversal, foreign roots, URLs, links, directories, devices and oversized files before publication", async () => {
     symlinkSync(join(outside, "private.png"), join(root, "escape.png"));
