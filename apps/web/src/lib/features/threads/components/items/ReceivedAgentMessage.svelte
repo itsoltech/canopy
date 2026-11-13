@@ -1,7 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
-  import { markdownText } from "@canopy/domain/markdown";
   import CopyButton from "#lib/shared/ui/CopyButton.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import { toast } from "#lib/shared/ui/toast.svelte.ts";
@@ -28,13 +27,12 @@
 
   const directory = useThreadDirectory();
   const drafts = useQuoteDrafts();
-  const passage = $derived(markdownText(text));
 
   function cite() {
     const added = drafts.add(directory.currentId, {
-      text: passage,
+      text,
       // Received inputs have no output item to reveal; the passage still names its receiving thread.
-      source: { itemId: "", threadId: directory.currentId, kind: "agent_message", language: "" },
+      source: { itemId: "", threadId: directory.currentId, kind: "agent_message_markdown", language: "" },
     });
 
     if (!added) toast("A message can carry up to 20 quotes", { tone: "error" });

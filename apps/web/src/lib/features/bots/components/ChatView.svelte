@@ -3,7 +3,6 @@
   import type { Mention, ui } from "@canopy/contracts";
   import CiteLayer from "#lib/features/quotes/CiteLayer.svelte";
   import { useQuoteDrafts } from "#lib/features/quotes/quote-drafts.svelte.ts";
-  import { visibleText } from "#lib/features/quotes/selection.ts";
   import { toast } from "#lib/shared/ui/toast.svelte.ts";
   import type { ClassValue } from "svelte/elements";
   import { rise } from "#lib/shared/ui/motion.ts";
@@ -291,15 +290,12 @@
   }
 
   function reply(message: ChatMessageView) {
-    const region = log?.querySelector(`[data-quote-item="${CSS.escape(message.id)}"] [data-quote-kind]`);
-    const text = region ? visibleText(region) : message.text;
-
     const added = quoteDrafts.add(quoteKey, {
-      text,
+      text: message.text,
       source: {
         itemId: message.id,
         threadId: conversation.id,
-        kind: "agent_message",
+        kind: "agent_message_markdown",
         language: "",
         author: conversation.bots.find((b) => b.id === message.senderId)?.name || "Agent",
         time: message.at.toLocaleString(),

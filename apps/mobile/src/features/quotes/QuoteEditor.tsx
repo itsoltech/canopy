@@ -35,7 +35,7 @@ export function QuoteEditor({
       <Notice>Keep the passage you want to quote, then add a comment.</Notice>
       {quote.pullRequest && (
         <Text selectable style={[styles.meta, { color: colors.muted }]}>
-          {citationPreview({ ...quote, text: "" })}
+          {citationPreview(quote).caption}
         </Text>
       )}
       {quote.text.length > QUOTE_LIMITS.maxTextChars && (

@@ -1533,6 +1533,23 @@ Wiadomość z samym cytatem też można wysłać. Wysłana bańka renderuje taki
 tokeny w tych samych miejscach, z pełną treścią po hoverze lub fokusie. Cytaty
 starszych klientów bez zakresów pozostają osobnymi blokami.
 
+Podglądy kompozytora i wysłanych tokenów współdzielą `CitationPreview`: dopiero
+otwarcie montuje bezpieczny renderer Markdown. Nagłówki używają kompaktowej skali
+nakładek, treść ma limit wysokości i przewijanie; tekst pozostaje zaznaczalny.
+`citationPreview` z domeny zwraca osobno treść, format, podpis źródła, URL i komentarz.
+Podpis zawiera autora, repozytorium z numerem PR, ścieżkę z linią i czas, jeśli są
+dostępne. „Open on GitHub” przechodzi przez `safeHref`. Komentarz użytkownika jest
+zawsze zwykłym tekstem pod podpisem. Mobile stosuje te same reguły w osobnym viewerze.
+
+Markdown obejmuje `pull_request` dla `comment`, `review` i `review_comment` oraz
+`agent_message_markdown` dla całych wiadomości zachowujących źródło. Istniejące
+`agent_message` i `reasoning` zawierają tekst widoczny po renderowaniu, więc pozostają
+literalne. Zaznaczenie tekstu w PR dostaje `text_selection`, zachowując metadane PR;
+nie jest ponownie interpretowane jako Markdown. Logi, wyniki poleceń, kod, diffy
+i nieznane rodzaje również pozostają literalne. Etykiety tokenów i fallback `title`
+usuwają składnię Markdown tylko ze źródeł Markdown, wspólną lekką funkcją domenową,
+bez parsowania dokumentu przy renderowaniu każdego chipu.
+
 Przycisk Cite mieści się między górą feedu a lepką stopką; przy zaznaczeniu tuż nad
 kompozytorem odwraca położenie. `selection.ts` bierze widoczny tekst bez kontrolek
 i znaczników markdown, z wcięciami kodu. Jedno zaznaczenie musi mieścić się w jednym

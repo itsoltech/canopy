@@ -85,7 +85,7 @@ export async function resolvePullRequestCitation(core: GatewayCore, thread: stri
 
   return {
     ...quote,
-    sourceKind: "pull_request",
+    sourceKind: quote.sourceKind === "text_selection" ? "text_selection" : "pull_request",
     sourceThreadId: undefined,
     sourceItemId: undefined,
     sourceAuthor: resolved.sourceAuthor,

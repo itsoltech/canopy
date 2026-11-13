@@ -1,6 +1,6 @@
 import { Text, type TextStyle } from "react-native";
 import { MentionKind, type Mention, type ui } from "@canopy/contracts";
-import { citationLabel } from "@canopy/domain";
+import { citationTokenLabel } from "@canopy/domain";
 import type { InlineElements } from "../../ui/markdown";
 import { font, useColors } from "../../ui/theme";
 import { segmentsOf, type MessageValue } from "./message-value";
@@ -27,7 +27,7 @@ export function MessageSpans({
         <MentionBadge
           key={index}
           text={segment.text}
-          label={`Citation: ${citationLabel(segment.quote.text)}`}
+          label={`Citation: ${citationTokenLabel(segment.quote)}`}
           onPress={() => onQuote(segment.quote!)}
         />
       ) : (
