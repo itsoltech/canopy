@@ -23,10 +23,12 @@
   } = $props();
 </script>
 
-<div class={["grid gap-2 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400", className]}>
-  <PageStatus {page} {busy} {error} {retry} />
-  <div class="flex items-center gap-2">
-    {#if previous}<Button variant="ghost" disabled={busy} onclick={previous}>Previous page</Button>{/if}
-    {#if page?.nextCursor}<Button variant="ghost" disabled={busy} onclick={next}>Next page</Button>{/if}
+{#if error || page?.detail || previous || page?.nextCursor}
+  <div class={["grid gap-2 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400", className]}>
+    {#if error || page?.detail}<PageStatus {page} {busy} {error} {retry} />{/if}
+    {#if previous || page?.nextCursor}<div class="flex items-center gap-2">
+        {#if previous}<Button variant="ghost" disabled={busy} onclick={previous}>Previous page</Button>{/if}
+        {#if page?.nextCursor}<Button variant="ghost" disabled={busy} onclick={next}>Next page</Button>{/if}
+      </div>{/if}
   </div>
-</div>
+{/if}

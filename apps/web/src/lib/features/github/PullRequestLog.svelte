@@ -48,7 +48,7 @@
     ><pre
       class="max-h-96 scroll-stable overflow-auto rounded-lg bg-zinc-950/4 p-3 font-mono text-xs/5 select-text dark:bg-white/5">{pages
         .current?.text ?? ""}</pre>
-    {#if quote.text}<CitationActions {quote} />{/if}
+    {#if quote.text}<CitationActions {quote} url={jobUrl} />{/if}
   </CitationRegion>
   <PageControls
     page={pages.current?.page}

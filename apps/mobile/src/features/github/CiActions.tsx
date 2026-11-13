@@ -1,11 +1,10 @@
 import { Text, View } from "react-native";
-import type { github } from "@canopy/contracts";
+import type { github, ui } from "@canopy/contracts";
 import { ciLabel, ciEffect, ciReason, ciActions, type CiAction } from "@canopy/domain/github-ci";
-import { useState } from "react";
-import { PickerSheet, type PickerOption } from "../../ui/Picker";
+import type { PickerOption } from "../../ui/Picker";
 import { Button, Notice, Sheet } from "../../ui/components";
 import { useColors, useTypography } from "../../ui/theme";
-import { IconAction } from "./IconAction";
+import { CitationActions } from "./CitationActions";
 import { useCiController } from "./useCiController";
 import { ConfirmationCountdown } from "./ConfirmationCountdown";
 import { invalidations } from "./invalidations";
@@ -18,6 +17,8 @@ export function CiActions({
   name = "",
   dialog = false,
   beforeChoose,
+  quote,
+  url = "",
 }: {
   snapshot: github.PullRequestSnapshot;
   runId: string;
@@ -26,6 +27,8 @@ export function CiActions({
   name?: string;
   dialog?: boolean;
   beforeChoose?: (choose: () => void) => void;
+  quote?: ui.Quote;
+  url?: string;
 }) {
   const { controller, state: f, online } = useCiController(snapshot, runId);
 
@@ -33,8 +36,6 @@ export function CiActions({
     type = useTypography();
 
   const options = actionOptions(snapshot, runId, state, jobId, controller, online);
-  const [menu, setMenu] = useState(false);
-  const [pending, setPending] = useState<CiAction>();
   const refresh = () => invalidations.publish(snapshot.summary?.ref?.id ?? "");
 
   const close = () => {
@@ -46,23 +47,17 @@ export function CiActions({
   return (
     <View style={{ flexShrink: 0 }}>
       {!dialog && (
-        <View style={{ width: 44 }}>
-          {!!options.length && (
-            <IconAction icon="ellipsis-horizontal" label="Check actions" onPress={() => setMenu(true)} />
-          )}
-          <PickerSheet<CiAction>
-            title="Check actions"
-            visible={menu}
-            onClose={() => setMenu(false)}
-            onSelect={(action) => {
-              setPending(action);
-              setMenu(false);
-            }}
-            onDismiss={() => {
-              const action = pending;
-              setPending(undefined);
-
-              if (!action) return;
+        <CitationActions
+          name="Check"
+          quote={quote}
+          url={url}
+          actions={options.map((option) => ({
+            label: option.label,
+            disabled: option.disabled,
+            description: option.description,
+            icon: option.icon,
+            run: () => {
+              const action = option.value;
 
               const choose = () => {
                 if (controller?.state.receipt) controller.patch({ open: true });
@@ -71,10 +66,9 @@ export function CiActions({
 
               if (beforeChoose) beforeChoose(choose);
               else choose();
-            }}
-            sections={[{ options }]}
-          />
-        </View>
+            },
+          }))}
+        />
       )}
       {dialog && (
         <Sheet title={f.receipt ? "CI request" : `${ciLabel(f.action)}?`} visible={f.open} onClose={close}>

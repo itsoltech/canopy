@@ -12,7 +12,6 @@ import { PullRequestJobs } from "./PullRequestJobs";
 import { toneColor } from "./presentation";
 import { toast } from "../../ui/Toast";
 import { CiActions } from "./CiActions";
-import { CitationActions } from "./CitationActions";
 import { prCitation, prCheckFailed } from "@canopy/domain";
 
 export function PullRequestCheckRow({
@@ -57,18 +56,23 @@ export function PullRequestCheckRow({
           </View>
           <Icon name={open ? "chevron-down" : "chevron-right"} />
         </Pressable>
-        <CiActions snapshot={snapshot} runId={check.runId} state={check.state} name={check.name} />
-        {prCheckFailed(check.state) && (
-          <CitationActions
-            quote={prCitation(
-              snapshot,
-              "check",
-              check.nodeId || check.url || check.name,
-              `${check.name}: ${check.state}${check.output ? `\n\n${check.output}` : ""}`,
-              { author: check.provider, url: check.url },
-            )}
-          />
-        )}
+        <CiActions
+          snapshot={snapshot}
+          runId={check.runId}
+          state={check.state}
+          name={check.name}
+          quote={
+            prCheckFailed(check.state)
+              ? prCitation(
+                  snapshot,
+                  "check",
+                  check.nodeId || check.url || check.name,
+                  `${check.name}: ${check.state}${check.output ? `\n\n${check.output}` : ""}`,
+                  { author: check.provider, url: check.url },
+                )
+              : undefined
+          }
+        />
       </View>
       {open && (
         <>

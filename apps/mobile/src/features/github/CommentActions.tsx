@@ -67,6 +67,7 @@ export function CommentActions({
       <View style={{ alignItems: "flex-end" }}>
         <CitationActions
           quote={quote}
+          url={comment.url}
           actions={[
             ...(own && comment.viewerCanUpdate
               ? [{ label: "Edit comment", disabled, run: () => setEditing(true) }]

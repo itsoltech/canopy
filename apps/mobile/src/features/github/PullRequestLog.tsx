@@ -7,7 +7,7 @@ import { Overlay } from "../../ui/Overlay";
 import { SheetCloseButton } from "../../ui/SheetDragArea";
 import { usePages } from "./usePages";
 import { PageControls } from "./PageControls";
-import type { github } from "@canopy/contracts";
+import type { github, ui } from "@canopy/contracts";
 import { prCitation } from "@canopy/domain";
 import { CitationActions } from "./CitationActions";
 
@@ -17,7 +17,7 @@ export function PullRequestLog({
   jobUrl,
   jobId,
   onClose,
-  children,
+  renderActions,
   visible = true,
   onDismiss,
 }: {
@@ -26,7 +26,7 @@ export function PullRequestLog({
   jobUrl: string;
   jobId: string;
   onClose: () => void;
-  children?: ReactNode;
+  renderActions?: (quote: ui.Quote | undefined) => ReactNode;
   visible?: boolean;
   onDismiss?: () => void;
 }) {
@@ -42,19 +42,18 @@ export function PullRequestLog({
     ),
   );
 
+  const quote = pages.current?.text
+    ? prCitation(snapshot, "log", jobId, pages.current.text, {
+        firstLine: pages.current.firstLine,
+        url: jobUrl,
+      })
+    : undefined;
+
   return (
     <Overlay visible={visible} onClose={onClose} onDismiss={onDismiss} label="Job log">
       <View style={{ flexDirection: "row", alignItems: "center", padding: 12 }}>
         <Text style={[type.small, { flex: 1, color: c.text }]}>Job {jobId}</Text>
-        {!!pages.current?.text && (
-          <CitationActions
-            quote={prCitation(snapshot, "log", jobId, pages.current.text, {
-              firstLine: pages.current.firstLine,
-              url: jobUrl,
-            })}
-          />
-        )}
-        {children}
+        {renderActions ? renderActions(quote) : <CitationActions quote={quote} url={jobUrl} />}
         <SheetCloseButton label="Close log" />
       </View>
       <FlatList

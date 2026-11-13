@@ -1,15 +1,26 @@
 import { useRef, useState } from "react";
 import { IconButton } from "../../ui/components";
-import { PickerSheet } from "../../ui/Picker";
+import { PickerSheet, type PickerOption } from "../../ui/Picker";
+import type { IconName } from "@canopy/ui/icons";
 
 export interface GitHubAction {
   label: string;
   run: () => void;
   disabled?: boolean;
   danger?: boolean;
+  description?: string;
+  icon?: IconName;
 }
 
-export function GitHubActions({ name, actions }: { name: string; actions: GitHubAction[] }) {
+export function GitHubActions({
+  name,
+  actions,
+  canopyActions = [],
+}: {
+  name: string;
+  actions: GitHubAction[];
+  canopyActions?: GitHubAction[];
+}) {
   const [open, setOpen] = useState(false);
   const pending = useRef<(() => void) | undefined>(undefined);
 
@@ -21,17 +32,15 @@ export function GitHubActions({ name, actions }: { name: string; actions: GitHub
         visible={open}
         onClose={() => setOpen(false)}
         sections={[
+          { title: "Canopy", options: canopyActions.map(actionOption) },
           {
-            options: actions.map((action, value) => ({
-              value,
-              label: action.label,
-              disabled: action.disabled,
-              tone: action.danger ? "danger" : undefined,
-            })),
+            title: "GitHub",
+            separator: true,
+            options: actions.map((action, index) => actionOption(action, canopyActions.length + index)),
           },
         ]}
         onSelect={(value) => {
-          pending.current = actions[value]?.run;
+          pending.current = [...canopyActions, ...actions][value]?.run;
         }}
         onDismiss={() => {
           const run = pending.current;
@@ -41,4 +50,15 @@ export function GitHubActions({ name, actions }: { name: string; actions: GitHub
       />
     </>
   );
+}
+
+function actionOption(action: GitHubAction, value: number): PickerOption<number> {
+  return {
+    value,
+    label: action.label,
+    disabled: action.disabled,
+    description: action.description,
+    icon: action.icon,
+    tone: action.danger ? "danger" : undefined,
+  };
 }
