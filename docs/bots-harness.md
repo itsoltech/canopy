@@ -200,7 +200,7 @@ minimalny katalog (`codexTextCatalog`).
 
 ## Narzędzia i granica bezpieczeństwa
 
-Bot nie dostaje Bash, shella, odczytu/zapisu plików, obrazu lokalnego,
+Bot nie dostaje Bash, shella, natywnego odczytu/zapisu plików hosta, obrazu lokalnego,
 natywnych subagentów, celów ani harmonogramu harnessu. **Web access** jest
 domyślnie włączone: Claude dostaje `WebSearch`/`WebFetch`, Codex `web_search=live`,
 Grok `web_search`/`web_fetch` w curated profilu i allowliście. Wyłączenie usuwa

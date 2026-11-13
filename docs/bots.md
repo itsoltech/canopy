@@ -1,9 +1,12 @@
 # Boty
 
-## Projekt: dostęp do sieci i izolowane pliki
+## Dostęp do sieci i izolowane pliki
 
-Ta sekcja opisuje docelową funkcjonalność; poniższe opisy obecnego runtime'u
-pozostają aktualne do wdrożenia całego stosu. Inferencja nadal działa wyłącznie
+Ustawienia bota w web/desktop i mobile udostępniają przełączniki **Web access**
+i **Files** w sekcji Permissions. Zapis zachowuje obie wartości; otwarcie ustawień
+starszego bota pokazuje domyślne włączenie. Załączniki wysyłane przez bota korzystają
+z tych samych komponentów wiadomości co załączniki użytkownika: metadane, pobranie
+i podgląd obsługiwanych typów. Inferencja nadal działa wyłącznie
 przez oficjalne harnessy workerów: Claude Agent SDK, Codex app-server i Grok ACP.
 Gateway nie wywołuje API modelu. Zmiany nie rozszerzają dostępu do projektów,
 poświadczeń, skilli, pluginów ani plików użytkownika workera.
@@ -50,8 +53,9 @@ izolacji instrukcją w promptcie ani samym ustawieniem cwd.
 Budżet rozmowy wynosi 200 MiB łącznie, z limitem liczby plików i współbieżnych
 operacji. Rezerwacja miejsca poprzedza zapis, dotyczy także downloadów i zapisów
 harnessu; przekroczenie nie może chwilowo zapełnić dysku. Retencja usuwa scratch
-po 7 dniach bezczynności oraz po usunięciu rozmowy/bota; nie usuwa katalogu
-aktywnej tury. Restart uruchamia sprzątanie pozostałości i porzuconych plików
+po 7 dniach bezczynności, również po usunięciu rozmowy/bota; nie usuwa katalogu
+aktywnej tury. Usunięcie bota od razu odbiera dostęp w gatewayu, ale fizyczny scratch
+podlega tej samej retencji. Restart uruchamia sprzątanie pozostałości i porzuconych plików
 tymczasowych. Archiwum pozostaje zwykłym plikiem, nigdy nie jest rozpakowywane
 ani wykonywane. Wyłączenie Files blokuje narzędzia, nie usuwa dostarczonych
 wcześniej załączników z gatewaya.
@@ -204,7 +208,8 @@ przyjmują je przez wklejenie, upuszczenie i **Attach files**; mobile przez
 istniejący intake zdjęć i plików. Upload używa tych samych blobów, miniaturek,
 podglądów i limitów co wątki (domyślnie 20 MiB na plik, 50 MiB i 10 plików
 na wiadomość; ustawienia właściciela mogą je zmienić). Typ rozpoznajemy z bajtów.
-Wiadomość może składać się z samych plików. Bot nadal nie ma narzędzi dyskowych.
+Wiadomość może składać się z samych plików. Bot nie ma dostępu do dysku hosta;
+narzędzia Files obsługują wyłącznie prywatny scratch rozmowy.
 
 | Typ | Claude Agent SDK | Codex app-server | Grok ACP |
 |---|---|---|---|
@@ -601,13 +606,15 @@ wykorzystuje walidację projektu/workspace'u, dostępności instancji i katalogu
 z UI API. Rozmowy i wyniki innych agentów są niezaufanymi danymi, nie instrukcją
 poszerzenia uprawnień. Model nigdy nie dostaje kluczy endpointu ani nagłówków MCP.
 
-Katalog ma **49 narzędzi platformy**. Nowe definicje, statusy i wykonanie są razem
-w `apps/gateway/src/bots/tools/{projects,workers,providers,threads,schedules,settings,create-bot,routines}.ts`;
+Definicje narzędzi platformy, statusy i wykonanie są razem
+w `apps/gateway/src/bots/tools/{projects,workers,providers,threads,schedules,settings,create-bot,routines,workspace,outgoing-files}.ts`;
 rejestr w `tools/index.ts` jest delegatem `PLATFORM_TOOLS` i `botPlatform`. Tworzenie botów
 ma osobny deskryptor `tools/create-bot.ts`. Pozostawione
 nazwy wcześniejszych narzędzi zachowują zgodność. Nie ma meta-narzędzia „opisz obszar”:
-49 krótkich opisów z prefiksem obszaru mieści się w limicie 50 i nie wymaga dodatkowej
-rundy modelu. Lista nie zawiera narzędzi lokalnych ani edycji innych botów; własne ustawienia zmienia `update_self` (niżej).
+Krótkie opisy nie wymagają dodatkowej rundy modelu. Lista nie zawiera dowolnych
+narzędzi hosta ani edycji innych botów; własne ustawienia zmienia `update_self` (niżej).
+Files dodaje sześć ograniczonych narzędzi scratch opisanych na początku dokumentu;
+ich wyłączenie usuwa je z katalogu i blokuje wykonanie po wcześniejszej zgodzie.
 
 Legenda zgód: **R** — odczyt platformy, nigdy nie wymaga karty, także przy `always`;
 **P** — dotychczasowa polityka platformy (`safe`: odwracalna akcja bez karty,

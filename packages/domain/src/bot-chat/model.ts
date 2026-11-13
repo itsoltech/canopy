@@ -142,6 +142,8 @@ export interface ApprovalView {
         provider: string;
         instance: string;
         approvalPolicy: string;
+        webAccess: boolean;
+        files: boolean;
         instructions: string;
       }
     | undefined;

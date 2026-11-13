@@ -209,6 +209,8 @@ export function botApprovals(sql: SqlClient.SqlClient, core: BotCore) {
               `Name: ${config.name}`,
               `Model: ${config.model}`,
               `Effort: ${config.effort || "Model default"}`,
+              `Web access: ${config.webAccess !== false ? "On" : "Off"}`,
+              `Files: ${config.files !== false ? "On" : "Off"}`,
               `Instance: ${config.provider === Provider.CLAUDE ? "Claude" : "Codex"} · ${config.providerInstance}`,
               `Ask for approval: ${BOT_APPROVAL_OPTIONS.find((option) => option.value === config.approvalPolicy)?.label ?? BOT_APPROVAL_OPTIONS[0]!.label}`,
               `Instructions: ${config.instructions || "No additional instructions."}`,
