@@ -287,8 +287,55 @@ ukryty draft z tym samym tytułem, notatkami i flagą prerelease, wskazujący pr
 Artefakt Actions `release-revision` przekazuje ten SHA do osobnego workflow Mobile release;
 `workflow_run.head_sha` może być inne przy dispatchu starszego commita. Mobile pobiera artefakt
 wyłącznie z zakończonego przebiegu z zielonym jobem `release`, przed swoim checkoutem.
-Lustro jest usuwane również po błędzie. Konflikt istniejącego tagu lub notes zatrzymuje push;
-awaria API po pushu może zostawić sam tag, jak w dotychczasowym przepływie.
+Lustro jest usuwane również po błędzie. Konflikt istniejącego tagu lub notes zatrzymuje push.
+Awaria API po pushu może zostawić tag i notes bez GitHub Release; ponowienie odzyskuje
+tę rezerwację według procedury poniżej.
+
+### Limit notatek i odzyskiwanie po awarii draftu
+
+Notatki zawierają wyłącznie nagłówki commitów, bez opisów PR i treści `BREAKING CHANGE`.
+Sekcje pozostają zgodne z parserem What's new: Features, Bug Fixes i Performance Improvements,
+w tej kolejności. Wersję nadal wyznacza analyzer na pełnych commitach, łącznie z breaking changes.
+Wspólny limit `scripts/release-body.mjs` wynosi 124 000 jednostek UTF-16, poniżej limitu
+GitHuba 125 000 znaków. Zbyt długi wynik zachowuje całe wpisy, zaczynając od funkcji i poprawek,
+oraz dopisuje „… and N more changes” i link porównania. Limit obejmuje tworzenie draftu,
+zastępcze generowanie notatek przy uploadzie, końcowy PATCH publikacji i snapshot release-index
+(także po późniejszej ręcznej edycji body). Błąd API pokazuje komunikat oraz pola walidacji
+z odpowiedzi JSON; nie wypisuje żądania, środowiska procesu ani wartości credentiali.
+
+Przed semantic-release wrapper szuka tagu bieżącego kanału **dokładnie na `EXPECTED_SHA`**.
+Jeśli GitHub Release nie istnieje, wymaga zgodnych notes `semantic-release-<tag>` i odtwarza
+notatki od poprzedniego tagu stable lub tego samego kanału. Dry run zwraca tę samą wersję,
+tag i kanał z `published=true`, bez zapisów; właściwy job tworzy brakujący draft.
+Nie wywołuje wtedy semantic-release, nie tworzy kolejnego numeru, nie przesuwa tagu ani notes.
+Istniejący draft wznawia publikację bez ponownego POST; wydanie publiczne kończy plan bez
+nowego wydania. Niezgodny `EXPECTED_VERSION`, brak metadanych kanału, wiele pasujących tagów
+lub przepisana historia kończą przebieg błędem. Błąd odczytu API nie oznacza braku wydania.
+
+`workflow_dispatch.release_branch` wybiera `dev`, `next` lub `main`; domyślne `current`
+zachowuje wybór z ref workflowu. Wspólne blokady używają **gałęzi wydania**, także gdy kod
+workflowu pochodzi z `dev`. Joby plan/release oraz upload używają narzędzi z `github.workflow_sha`,
+ale źródła aplikacji, checki i wszystkie artefakty nadal pochodzą z `EXPECTED_SHA`.
+Artefakt `release-revision` przekazuje Mobile release także gałąź kanału, żeby recovery z `dev`
+nie wybierało nightly zamiast beta/stable. Starsze artefakty nadal korzystają z ref przebiegu.
+Pozwala to naprawić publikację starego SHA bez zmieniania jego tagu ani gałęzi kanału.
+
+Dla osieroconego `v0.2.0-beta.1` na `31c7f87825b9756d8b1adf677f506519f248f770`,
+po merge poprawki do `dev`, maintainer uruchamia **nowy dispatch z `dev`**:
+
+```sh
+gh workflow run release.yml --repo itsoltech/canopy --ref dev \
+  -f release_branch=next \
+  -f expected_sha=31c7f87825b9756d8b1adf677f506519f248f770
+```
+
+Zwykłe Re-run starego przebiegu ani dispatch z niezmienionego `next` nie wczytają poprawki.
+Nie trzeba tworzyć/usuwać tagu, zmieniać notes ani ponownie wykonywać Promote.
+Plan poda `0.2.0-beta.1`; checki i buildy wystartują ponownie, a `release` utworzy draft
+na istniejącym tagu. Dalej obowiązuje zwykła kolejność images → publish-server → publish-desktop
+→ release-index. `backmerge` działa tylko dla stable, a nightly-hygiene tylko dla nightly,
+więc beta pomija oba zgodnie z dotychczasowymi warunkami. Wymagane podpisy i kompletny zestaw
+artefaktów nadal blokują publikację; udane wcześniejsze checki nie omijają tych bramek.
 
 Wszystkie przebiegi danej gałęzi (push, schedule i dispatch) mają wspólną grupę całego workflow
 z `cancel-in-progress: false`: aktywny przebieg kończy się bez anulowania, a spośród oczekujących
