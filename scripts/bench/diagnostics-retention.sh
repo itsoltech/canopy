@@ -13,8 +13,8 @@ case "$task_stage:$task_phase" in
     task_points=(before_lock lock_end released_twenty_seconds)
     ;;
   2:governor|3:governor) task_points=(before_governor end) ;;
-  2:slow_reader|3:slow_reader) task_points=(end) ;;
-  *) printf '%s\n' 'Usage: bash scripts/bench/diagnostics-retention.sh <2|3> <write_failure|write_failure_without_watches|governor|slow_reader> [all|checkpoint]' >&2; exit 1 ;;
+  2:slow_reader|3:slow_reader|6:slow_reader) task_points=(end) ;;
+  *) printf '%s\n' 'Usage: bash scripts/bench/diagnostics-retention.sh <2|3|6> <write_failure|write_failure_without_watches|governor|slow_reader> [all|checkpoint]; stage 6 supports slow_reader only.' >&2; exit 1 ;;
 esac
 if [[ "$task_point" != all ]]; then
   case " ${task_points[*]} " in
@@ -24,6 +24,7 @@ if [[ "$task_point" != all ]]; then
 fi
 task_branch=feat/diagnostics-2-gateway
 if [[ "$task_stage" == 3 ]]; then task_branch=feat/diagnostics-3-workers; fi
+if [[ "$task_stage" == 6 ]]; then task_branch=feat/diagnostics-6-tracing; fi
 if [[ $(git branch --show-current) != "$task_branch" || -n $(git status --porcelain) ]]; then
   printf '%s\n' 'Use the selected stage branch with a clean committed revision.' >&2
   exit 1

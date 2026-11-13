@@ -49,6 +49,22 @@ export const POST: RequestHandler = async ({ params, request, cookies, url }) =>
 
   return call(async (api) => {
     switch (params.operation) {
+      case "trace":
+        return json(
+          encode(
+            ui.DiagnosticsTraceStateSchema,
+            await api.controlDiagnosticsTrace(await readMessage(bounded, ui.DiagnosticsTraceRequestSchema)),
+          ),
+          { headers: { "cache-control": "no-store" } },
+        );
+      case "trace-export":
+        return json(
+          encode(
+            ui.DiagnosticsTraceExportSchema,
+            await api.exportDiagnosticsTrace(await readMessage(bounded, ui.DiagnosticsTraceRequestSchema)),
+          ),
+          { headers: { "cache-control": "no-store" } },
+        );
       case "submit": {
         const batch = await readMessage(bounded, ui.SubmitDiagnosticsRequestSchema);
 

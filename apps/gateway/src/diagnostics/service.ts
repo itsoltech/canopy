@@ -23,6 +23,7 @@ import { WorkerCatalog } from "./worker-catalog.ts";
 import { ClientDiagnostics } from "./clients.ts";
 import { DiagnosticsActions } from "./actions.ts";
 import { DiagnosticsLogs } from "./log-jobs.ts";
+import { DiagnosticsTracing } from "./tracing.ts";
 
 import { validateDiagnostics } from "./validate.ts";
 
@@ -46,6 +47,7 @@ export class Diagnostics {
   readonly clients: ClientDiagnostics;
   readonly actions: DiagnosticsActions;
   readonly logs: DiagnosticsLogs;
+  readonly tracing: DiagnosticsTracing;
 
   constructor(
     readonly core: GatewayCore,
@@ -64,6 +66,7 @@ export class Diagnostics {
     this.workers = new WorkerCatalog(options);
     this.actions = new DiagnosticsActions(core);
     this.logs = new DiagnosticsLogs(core, options);
+    this.tracing = new DiagnosticsTracing(core);
     this.clients = new ClientDiagnostics(
       this.collector,
       () => this.persistence?.epoch ?? this.collector.session,
@@ -297,6 +300,8 @@ export class Diagnostics {
       epoch: this.persistence?.epoch ?? this.collector.session,
       epochStartedAtMs: BigInt(this.persistence?.epochStartedAt ?? 0),
       sampledAtMs: BigInt(cached.at),
+      tracing: this.tracing.state(),
+      tracingSupported: this.collector.enabled,
       sampleAgeMs: Math.max(0, now - cached.at),
       restoring: this.persistence?.restoring ?? false,
       persistedThroughMs: BigInt(this.persistence?.persistedThrough ?? 0),
@@ -437,6 +442,7 @@ export class Diagnostics {
   }
 
   async stop() {
+    await this.tracing.close();
     await this.logs.close();
     this.resources.stop();
     clearInterval(this.#timer);

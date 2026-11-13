@@ -25,3 +25,5 @@ export * from "./epochs.ts";
 export * from "./placement.ts";
 
 export * from "./logs.ts";
+
+export * from "./tracing.ts";

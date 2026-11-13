@@ -12,6 +12,8 @@ service DiagnosticsService {
   rpc ResetDiagnosticsCounters(canopy.ui.v1.ResetDiagnosticsRequest) returns (canopy.ui.v1.DiagnosticsReceipt);
   // Source-only collection, no recursive gather. Requires diagnostics_logs_v1 and its separate grant.
   rpc CollectHomeDiagnosticsLogs(canopy.ui.v1.DiagnosticsHomeLogsRequest) returns (stream canopy.ui.v1.DiagnosticsLogPart);
+  rpc ControlHomeDiagnosticsTrace(canopy.ui.v1.DiagnosticsTraceRequest) returns (canopy.ui.v1.DiagnosticsTraceState);
+  rpc ExportHomeDiagnosticsTrace(canopy.ui.v1.DiagnosticsTraceRequest) returns (canopy.ui.v1.DiagnosticsTraceExport);
 }
 
 // Stage 5. Internal, negotiated methods over the pinned link, never public RPCs.

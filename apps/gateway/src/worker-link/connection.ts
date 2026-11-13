@@ -13,6 +13,7 @@ import { AsyncChannel } from "@canopy/transport";
 import { gatewayMessage, type GatewayPayloadInit } from "./messages.ts";
 import type { RpcObservation } from "../diagnostics/collector.ts";
 import { LogPullClient } from "../diagnostics/log-pull.ts";
+import { TraceWorkerClient } from "../diagnostics/trace-worker.ts";
 
 type KindInit = NonNullable<MessageInitShape<typeof CommandSchema>["kind"]>;
 
@@ -38,6 +39,7 @@ export class WorkerConnection {
   /** Resolves when the stream ends, for any reason. */
   readonly closed: Promise<void>;
   readonly logSource: LogPullClient;
+  readonly tracing: TraceWorkerClient;
 
   readonly #outbound: AsyncChannel<GatewayMessage>;
   readonly #inbound = new AsyncChannel<WorkerMessage>();
@@ -53,6 +55,7 @@ export class WorkerConnection {
     this.workerId = workerId;
     this.hello = hello;
     this.networkRouteStatus = hello.networkRouteStatus;
+    this.tracing = new TraceWorkerClient((command) => this.send({ case: "diagnosticsTraceCommand", value: command }));
     this.logSource = new LogPullClient(crypto.randomUUID(), (command) =>
       this.send({ case: "diagnosticsLogCommand", value: command }),
     );
@@ -112,6 +115,12 @@ export class WorkerConnection {
 
   /** @internal Called by the service for every inbound message. */
   deliver(message: WorkerMessage): void {
+    if (message.payload.case === "diagnosticsTraceReply") {
+      this.tracing.receive(message.payload.value);
+
+      return;
+    }
+
     if (message.payload.case === "diagnosticsLogReply") {
       this.logSource.receive(message.payload.value);
 
@@ -147,6 +156,7 @@ export class WorkerConnection {
   }
 
   #finish(cause: unknown): void {
+    this.tracing.close();
     this.logSource.close();
     this.#inbound.close(cause);
     const reason = new ConnectError(`worker ${this.workerId} disconnected`, Code.Unavailable);

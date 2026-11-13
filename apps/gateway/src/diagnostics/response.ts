@@ -14,6 +14,8 @@ export function diagnosticsResponse(value: ui.ComputerDiagnostics, request: ui.C
       epoch: value.epoch,
       epochStartedAtMs: value.epochStartedAtMs,
       notModified: true,
+      tracing: value.tracing,
+      tracingSupported: value.tracingSupported,
     });
   const budget = request.overviewOnly ? 16 * 1024 : 64 * 1024;
   // The local window cache is shared by readers and persistence; shed only this response.

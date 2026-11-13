@@ -8,6 +8,7 @@ import {
   WORKER_METRIC_IDS,
   SYNC_METRIC_IDS,
   CLIENT_METRICS,
+  traceState,
 } from "@canopy/domain/diagnostics";
 import { RPC_METHODS, LINKED_METHODS, COMMAND_METHODS } from "./registry.ts";
 
@@ -88,6 +89,7 @@ function findingSubject(value: ui.DiagnosticsFinding, links: Set<string>) {
 
 /** Authenticated peers still cannot introduce arbitrary text labels into collected metrics. */
 export function sanitizeSnapshot(value: ui.ComputerDiagnostics) {
+  value.tracing = traceState(value.tracing);
   const calls: ui.DiagnosticsCall[] = [];
   const seen = new Set<string>();
 

@@ -241,6 +241,9 @@ export const computersRemoteMethods: ComputersRemoteMethods = {
 
     if (method.name === "ResetDiagnosticsCounters") feature = "diagnostics_v1";
 
+    if (["ControlHomeDiagnosticsTrace", "ExportHomeDiagnosticsTrace"].includes(method.name))
+      feature = "diagnostics_trace_v1";
+
     if (method.name === "CollectHomeDiagnosticsLogs") feature = "diagnostics_logs_v1";
 
     if (method.name === "CallAgentBus") feature = AGENT_BUS;

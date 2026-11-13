@@ -123,6 +123,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
         ...(this.options.serve ? [REMOTE_THREAD_PANEL] : []),
         ...(this.options.core?.diagnostics.collector.enabled ? ["diagnostics_v1"] : []),
         ...(this.options.core?.diagnostics.logs.enabled ? [DIAGNOSTICS_LOGS] : []),
+        ...(this.options.core?.diagnostics.collector.enabled ? ["diagnostics_trace_v1"] : []),
       ],
     });
   },

@@ -5,7 +5,7 @@ import { Code, ConnectError, type Client } from "@connectrpc/connect";
 
 /** Identical fixed source state in both members; seeded outside measured intervals. */
 export async function benchLogSources() {
-  if (process.env["CANOPY_BENCH_STAGE"] !== "5") return {};
+  if (!["5", "6"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "")) return {};
   const root = process.env["CANOPY_BENCH_STATE_DIR"];
 
   if (!root) throw new Error("Log workload needs fresh member state");
@@ -18,7 +18,7 @@ export async function benchLogSources() {
     await Bun.write(join(directory, `${source}.log`), record.repeat(Math.floor((4 * 1024 * 1024) / record.length)));
   }
 
-  const enabled = process.env["CANOPY_BENCH_DIAGNOSTICS"] === "1";
+  const enabled = process.env["CANOPY_BENCH_STAGE"] === "6" || process.env["CANOPY_BENCH_DIAGNOSTICS"] === "1";
 
   const timer = setInterval(() => {
     for (const source of LOG_SOURCES) if (enabled) logs.write(source, "health check completed");
@@ -32,8 +32,11 @@ export async function benchLogSources() {
 /** One explicit action under concurrent RPC/worker load; no ZIP buffering in the driver. */
 export async function benchLogExport(api: Client<typeof ui.GatewayService>, signal: AbortSignal) {
   const start = performance.now();
+
   // The driver owns MEMBER; DIAGNOSTICS is set only in the gateway/worker child environment.
-  const enabled = process.env["CANOPY_BENCH_MEMBER"] === "B" && process.env["CANOPY_BENCH_CONTROL"] !== "1";
+  const enabled =
+    process.env["CANOPY_BENCH_STAGE"] === "6" ||
+    (process.env["CANOPY_BENCH_MEMBER"] === "B" && process.env["CANOPY_BENCH_CONTROL"] !== "1");
 
   try {
     let job = await api.collectDiagnosticsLogs(

@@ -2,6 +2,7 @@ import type { Client } from "@connectrpc/connect";
 import { ui } from "@canopy/contracts";
 import { benchWatch } from "./diagnostics-clients.ts";
 import { benchLogExport } from "./diagnostics-logs.ts";
+import { benchTracing } from "./diagnostics-tracing.ts";
 
 export type DiagnosticsPhase =
   | "idle"
@@ -13,7 +14,8 @@ export type DiagnosticsPhase =
   | "pool_contention"
   | "governor"
   | "report"
-  | "log_export";
+  | "log_export"
+  | "trace_worker";
 
 /** Fixed offered load with actual gRPC cancellation, reconnects and backpressured watches. */
 export async function diagnosticsLoad<Measurement>(
@@ -32,6 +34,7 @@ export async function diagnosticsLoad<Measurement>(
   const cancel = () => abort.abort();
   signal?.addEventListener("abort", cancel, { once: true });
   const { watches, watchOpenP95Ms } = await warmWatches(api, thread, phase, abort.signal);
+  const tracing = await benchTracing(api, phase, duration);
   workload.openedWatches += watches.length;
   const measurement = await begin();
   const until = performance.now() + duration;
@@ -40,6 +43,7 @@ export async function diagnosticsLoad<Measurement>(
     while (performance.now() < until && !signal?.aborted)
       await Bun.sleep(Math.max(0, Math.min(1000, until - performance.now())));
     signal?.removeEventListener("abort", cancel);
+    await tracing();
 
     return { latencies, measurement, watchOpenP95Ms, ...workload };
   }
@@ -58,7 +62,7 @@ export async function diagnosticsLoad<Measurement>(
     while (performance.now() < until && !signal?.aborted) {
       const started = performance.now();
 
-      if (phase === "log_export" && !logsCollected) {
+      if ((phase === "log_export" || phase === "trace_worker") && !logsCollected) {
         logsCollected = true;
         await benchLogExport(api, signal ?? abort.signal);
       }
@@ -135,6 +139,7 @@ export async function diagnosticsLoad<Measurement>(
   } finally {
     signal?.removeEventListener("abort", cancel);
     abort.abort();
+    await tracing();
     await Promise.all(watches.map((watch) => watch.return?.().catch(() => undefined)));
   }
 

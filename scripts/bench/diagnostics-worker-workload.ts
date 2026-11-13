@@ -14,7 +14,8 @@ import { freshGit, git } from "../../apps/worker/src/git/git.ts";
 export class DiagnosticsWorkerWorkload {
   readonly directory = mkdtempSync(join(tmpdir(), "canopy-diagnostics-worker-"));
   readonly enabled =
-    ["4", "5"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "") || process.env["CANOPY_BENCH_DIAGNOSTICS"] === "1";
+    ["4", "5", "6"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "") ||
+    process.env["CANOPY_BENCH_DIAGNOSTICS"] === "1";
   readonly runtime = ManagedRuntime.make(Journal.layer(join(this.directory, "journal.db"), this.enabled));
   readonly threads = new GrokThreads({
     dataDir: this.directory,

@@ -5,6 +5,7 @@ import { Schema } from "effect";
 import { BenchCommand } from "./diagnostics-protocol.ts";
 import { DiagnosticsWorkerWorkload } from "./diagnostics-worker-workload.ts";
 import { workerDiagnostics } from "../../apps/worker/src/diagnostics/worker.ts";
+import { workerTracing } from "../../apps/worker/src/diagnostics/tracing.ts";
 
 const baseUrl = process.env["CANOPY_BENCH_GATEWAY_URL"];
 const credential = process.env["CANOPY_BENCH_WORKER_CREDENTIAL"];
@@ -12,7 +13,7 @@ const workerId = process.env["CANOPY_BENCH_WORKER_ID"];
 
 if (!baseUrl || !credential || !workerId) throw new Error("Private benchmark worker configuration is required");
 
-const workload = ["3", "4", "5"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "")
+const workload = ["3", "4", "5", "6"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "")
   ? new DiagnosticsWorkerWorkload()
   : undefined;
 
@@ -27,7 +28,7 @@ const connect = async () => {
       journalId: crypto.randomUUID(),
       ...(await workload?.hello()),
       state: WorkerState.ACTIVE,
-      capabilities: ["diagnostics_v1", ...(workload ? ["worker_diagnostics_v1"] : [])],
+      capabilities: ["diagnostics_v1", "diagnostics_trace_v1", ...(workload ? ["worker_diagnostics_v1"] : [])],
     },
   });
 
@@ -98,6 +99,9 @@ process.send?.({ id: 0 });
 try {
   while (!stopping) {
     for await (const { payload } of link.messages) {
+      if (payload.case === "diagnosticsTraceCommand")
+        link.send({ case: "diagnosticsTraceReply", value: workerTracing.receive(payload.value) });
+
       if (payload.case === "config")
         link.send({ case: "configApplied", value: { version: payload.value.version, applied: true } });
 
@@ -112,6 +116,7 @@ try {
     link = await connect();
   }
 } finally {
+  workerTracing.close();
   clearInterval(heartbeat);
   lag.disable();
   await workload?.close();

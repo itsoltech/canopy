@@ -344,6 +344,7 @@ while (!stopping.signal.aborted) {
         // project_sources: new project directories (git init) and clones (InitRepository, CloneRepository).
         capabilities: [
           "diagnostics_logs_v1",
+          "diagnostics_trace_v1",
           "diagnostics_v1",
           "worker_diagnostics_v1",
           "shell_input_v1",

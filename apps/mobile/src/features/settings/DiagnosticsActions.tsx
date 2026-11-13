@@ -10,6 +10,7 @@ import { diagnosticsEpochs } from "./diagnostics-resource";
 import { mobileMeasurements } from "./client-diagnostics";
 import { styles, useColors } from "../../ui/theme";
 import { DiagnosticsLogs } from "./DiagnosticsLogs";
+import { DiagnosticsTracing } from "./DiagnosticsTracing";
 
 export function DiagnosticsActions({
   computers,
@@ -99,6 +100,7 @@ export function DiagnosticsActions({
         ) : null}
       </SettingsGroup>
       <DiagnosticsLogs computers={computers} onReady={setLogsJobId} />
+      {computer ? <DiagnosticsTracing key={computer.computerId} computer={computer} onRefresh={onReset} /> : null}
       {report ? (
         <DiagnosticsReport computers={computers} range={range} logsJobId={logsJobId} onClose={() => setReport(false)} />
       ) : null}

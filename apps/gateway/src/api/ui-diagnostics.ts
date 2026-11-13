@@ -18,6 +18,8 @@ export function diagnosticsHandlers(
   | "resetDiagnostics"
   | "prepareDiagnosticsReport"
   | "investigateDiagnostics"
+  | "controlDiagnosticsTrace"
+  | "exportDiagnosticsTrace"
 > {
   return {
     getDiagnostics: (request) => core.diagnostics.overview(request),
@@ -45,6 +47,26 @@ export function diagnosticsHandlers(
     resetDiagnostics: (request) => diagnosticsGuard(() => core.diagnostics.actions.reset(request)),
     prepareDiagnosticsReport: (request) => core.diagnostics.actions.report(request),
     investigateDiagnostics: (request) => diagnosticsGuard(() => core.diagnostics.actions.investigation(request)),
+    controlDiagnosticsTrace: (request, context) =>
+      diagnosticsGuard(async () => {
+        if (context.protocolName === "canopy.link")
+          throw new ConnectError("Use the explicit home tracing action", Code.PermissionDenied);
+
+        const value = await core.diagnostics.tracing.action(
+          request,
+          false,
+          context.values.get(mobileIdentity)?.deviceId,
+        );
+
+        return value.state!;
+      }),
+    exportDiagnosticsTrace: (request, context) =>
+      diagnosticsGuard(() => {
+        if (context.protocolName === "canopy.link")
+          throw new ConnectError("Use the explicit home tracing export", Code.PermissionDenied);
+
+        return core.diagnostics.tracing.action(request, true, context.values.get(mobileIdentity)?.deviceId);
+      }),
   };
 }
 
