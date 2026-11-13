@@ -1,17 +1,32 @@
-import { useState } from "react";
-import { ActivityIndicator, Platform, Text, View } from "react-native";
+import { useState, type ReactNode } from "react";
+import { ActivityIndicator, Platform, ScrollView, Text, View } from "react-native";
 import { base64Decode } from "@bufbuild/protobuf/wire";
 import { File } from "expo-file-system";
 import { Button, IconButton } from "../../ui/Button";
 import { FullScreenViewer } from "../../ui/FullScreenViewer";
-import { styles, useColors } from "../../ui/theme";
+import { styles, useColors, useTypography } from "../../ui/theme";
 import { ImageCanvas } from "./ImageCanvas";
 import type { ImageSource } from "./image-source";
 import { useImage } from "./useImage";
 import { exportFile } from "./export-file";
 
-export function ImageViewer({ source, name, onClose }: { source: ImageSource; name: string; onClose: () => void }) {
+export function ImageViewer({
+  source,
+  name,
+  alt,
+  caption,
+  controls,
+  onClose,
+}: {
+  source: ImageSource;
+  name: string;
+  alt?: string;
+  caption?: string;
+  controls?: ReactNode;
+  onClose: () => void;
+}) {
   const c = useColors();
+  const type = useTypography();
   const image = useImage(source);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -49,7 +64,7 @@ export function ImageViewer({ source, name, onClose }: { source: ImageSource; na
       }
     >
       {image.uri && !decodeError ? (
-        <ImageCanvas uri={image.uri} name={name} onClose={onClose} onError={() => setDecodeError(true)} />
+        <ImageCanvas uri={image.uri} name={alt || name} onClose={onClose} onError={() => setDecodeError(true)} />
       ) : (
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 20, gap: 12 }}>
           {image.error || decodeError ? (
@@ -70,6 +85,16 @@ export function ImageViewer({ source, name, onClose }: { source: ImageSource; na
           )}
         </View>
       )}
+      {caption || controls ? (
+        <View style={{ padding: 12, gap: 12, borderTopWidth: 1, borderColor: c.rule }}>
+          {controls}
+          {caption ? (
+            <ScrollView style={{ maxHeight: 100 }}>
+              <Text style={[type.small, { color: c.soft }]}>{caption}</Text>
+            </ScrollView>
+          ) : null}
+        </View>
+      ) : null}
       {error ? (
         <Text accessibilityRole="alert" style={[styles.meta, { padding: 12, color: c.danger }]}>
           {error}
