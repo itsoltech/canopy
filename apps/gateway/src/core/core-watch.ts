@@ -1,4 +1,4 @@
-import { create, fromBinary } from "@bufbuild/protobuf";
+import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
@@ -14,6 +14,7 @@ import { coreCheckModel, coreProfileModels } from "./core-models.ts";
 import { coreBus } from "./core-schedules.ts";
 import { coreUiThread } from "./core-titles.ts";
 import { threadHistory, type ThreadHistoryQuery } from "./thread-history.ts";
+import { followOverviewHeads } from "./overview-thread-heads.ts";
 
 export interface CoreWatchMethods {
   movedHistory(threadId: string): Promise<ui.ThreadSnapshot | undefined>;
@@ -25,7 +26,11 @@ export interface CoreWatchMethods {
     includeCursor?: boolean,
     history?: ThreadHistoryQuery,
   ): AsyncGenerator<ui.ThreadUpdate>;
-  watchOverview(signal: AbortSignal, includeSnapshot?: boolean): AsyncGenerator<ui.OverviewUpdate>;
+  watchOverview(
+    signal: AbortSignal,
+    includeSnapshot?: boolean,
+    headIds?: readonly string[],
+  ): AsyncGenerator<ui.OverviewUpdate>;
 }
 
 export const coreWatchMethods: CoreWatchMethods = {
@@ -186,8 +191,18 @@ export const coreWatchMethods: CoreWatchMethods = {
     this: GatewayCore,
     signal: AbortSignal,
     includeSnapshot = false,
+    headIds: readonly string[] = [],
   ): AsyncGenerator<ui.OverviewUpdate> {
     const subscription = this.hub.subscribeOverview();
+
+    const stopHeads = followOverviewHeads(
+      this,
+      headIds,
+      signal,
+      (update) => subscription.updates.push(update, toBinary(ui.OverviewUpdateSchema, update).length),
+      (cause) => subscription.updates.close(cause),
+    );
+
     const detach = this.feeds.attach();
     const close = () => subscription.close();
     signal.addEventListener("abort", close, { once: true });
@@ -215,6 +230,7 @@ export const coreWatchMethods: CoreWatchMethods = {
       yield create(ui.OverviewUpdateSchema, { change: { case: "feeds", value: { pushed: [...OWNER_FEEDS] } } });
       yield* subscription.updates;
     } finally {
+      stopHeads();
       signal.removeEventListener("abort", close);
       subscription.close();
       detach();

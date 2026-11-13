@@ -12,6 +12,7 @@ import { sequenceControls, sequenceMetadata } from "./sequence-metadata.ts";
 import { rangeFailure } from "../computers/range-failure.ts";
 import { coreLog } from "./core-broadcast.ts";
 import { queryFamily } from "../diagnostics/query-context.ts";
+import { warmSequenceThread } from "./warm-sequence-thread.ts";
 
 /** Sequence reads use durable projections, independent of process-local fan-out. */
 export async function* watchSequenceThread(core: GatewayCore, input: ui.WatchThreadRequest, signal: AbortSignal) {
@@ -57,7 +58,8 @@ async function* sequenceThread(core: GatewayCore, input: ui.WatchThreadRequest, 
   const ranges = sequenceRanges(core, store, input.threadId);
 
   try {
-    yield* sequenceView(core, store, ranges, input, signal);
+    if (input.background) yield* warmSequenceThread(store, ranges, input, signal);
+    else yield* sequenceView(core, store, ranges, input, signal);
   } finally {
     ranges.close();
   }

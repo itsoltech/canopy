@@ -8,6 +8,7 @@ import {
   REMOTE_BOTS,
   splitId,
   THREAD_MIRROR,
+  THREAD_RANGES,
 } from "@canopy/domain/computers";
 import { AsyncChannel } from "@canopy/transport";
 import { Code, ConnectError } from "@connectrpc/connect";
@@ -132,7 +133,13 @@ export async function* home(
     return;
   }
 
-  if (method.name === "WatchThread") linkedMessage(ui.WatchThreadRequestSchema, request).mirrorCursor = "";
+  if (method.name === "WatchThread") {
+    const input = linkedMessage(ui.WatchThreadRequestSchema, request);
+    input.mirrorCursor = "";
+
+    if (input.background && !computers.capabilities(nodeId).includes(THREAD_RANGES))
+      throw new ConnectError("This computer does not support bounded cache warming", Code.Unimplemented);
+  }
 
   if (
     yield* mirrorFirst(computers, nodeId, method, request, (input) =>

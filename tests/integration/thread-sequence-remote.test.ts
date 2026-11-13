@@ -76,6 +76,33 @@ test.skipIf(!dockerAvailable)(
 
       expect(cached?.thread?.id).toBe(id);
       expect(cached?.syncCursor?.threadId).toBe(id);
+      const headsAbort = new AbortController();
+
+      try {
+        for await (const update of a.api.watchOverview(
+          { threadHeadIds: [id] },
+          { signal: headsAbort.signal, timeoutMs: 5000 },
+        )) {
+          if (update.change.case !== "threadHeads") continue;
+          expect(update.change.value.heads[0]?.threadId).toBe(id);
+          expect(update.change.value.heads[0]?.epoch).toBe(cached?.syncCursor?.epoch);
+          break;
+        }
+      } finally {
+        headsAbort.abort();
+      }
+
+      await b.api.updateThread({ threadId: thread, title: "Warmed through the linked home" });
+
+      for await (const update of a.api.watchThread(
+        { threadId: id, sequence: true, background: true, syncCursor: cached?.syncCursor },
+        { timeoutMs: 5000 },
+      )) {
+        expect(update.change.case).toBe("batch");
+        cached = applyThreadUpdate(cached, update);
+      }
+
+      expect(cached?.thread?.title).toBe("Warmed through the linked home");
       await home.close();
       expect(await eventually(async () => !local.reachable().includes(node), Boolean)).toBe(true);
       expect((await a.api.getOverview({})).workers.length).toBeGreaterThan(0);

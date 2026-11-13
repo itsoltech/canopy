@@ -47,8 +47,8 @@ export function sequenceRanges(core: GatewayCore, store: RangeSourceStore, threa
 
   return {
     window: (input: ui.WatchThreadRequest) => readers.window.read(input),
-    async read(cursor: ui.ThreadSyncCursor) {
-      const key = `${cursor.epoch}:${cursor.appliedSeq}`;
+    async read(cursor: ui.ThreadSyncCursor, through = 0n) {
+      const key = `${cursor.epoch}:${cursor.appliedSeq}:${through}`;
 
       // Many independently resuming viewers must not create an unbounded I/O cache.
       while (readers.pending.size >= 8 && !readers.pending.has(key)) await Promise.race(readers.pending.values());
@@ -60,7 +60,7 @@ export function sequenceRanges(core: GatewayCore, store: RangeSourceStore, threa
         const version = readers.version;
         const head = readers.headVersion === version ? readers.head : undefined;
 
-        reading = readThreadRange(store, cursor, 0n, "", head)
+        reading = readThreadRange(store, cursor, through, "", head)
           .then((batch) => {
             if (!readers.head || readers.head.epoch !== batch.epoch || readers.head.seq < batch.headSeq)
               readers.head = { epoch: batch.epoch, seq: batch.headSeq };
