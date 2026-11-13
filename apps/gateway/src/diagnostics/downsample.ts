@@ -46,7 +46,13 @@ export const downsampleWrite = (sql: SqlClient.SqlClient, minutes: RollupRow[], 
           row.compacted = true;
         }
 
-      const payload = encodeRollup(compactRollups([...values.values()].map(decodeRollup)));
+      const rollups = [...values.values()].map(decodeRollup);
+
+      const payload = encodeRollup(
+        compactRollups(rollups),
+        rollups.some((value) => value.incomplete),
+      );
+
       result.push({ ...first, resolution: 3600, bucket_start: new Date(at), payload, compacted: true });
     }
 

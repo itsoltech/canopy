@@ -6,6 +6,7 @@ import { instanceMutations, instanceSave } from "./instance-save.ts";
 import { instanceModels } from "./instance-models.ts";
 import { proxyStore } from "./proxies.ts";
 import { proxyEnvMove } from "./proxy-env-move.ts";
+import { queryMethods } from "../diagnostics/query-context.ts";
 
 /**
  * Global provider instances (docs/worker-config.md, section 9). An instance (harness + id) is defined once here
@@ -30,15 +31,17 @@ export class InstanceStore extends Context.Service<InstanceStore, InstanceApi>()
         const saves = instanceSave(sql, core, secretsKey);
         const proxies = proxyStore(sql, secretsKey, core);
 
-        return InstanceStore.of({
-          list: core.list,
-          get: core.get,
-          ...saves,
-          ...instanceMutations(sql, core, secretsKey),
-          ...instanceModels(sql, core),
-          ...proxies,
-          moveInstanceToProxy: proxyEnvMove(sql, secretsKey, core, { ...saves, ...proxies }),
-        });
+        return InstanceStore.of(
+          queryMethods("settings.store", {
+            list: core.list,
+            get: core.get,
+            ...saves,
+            ...instanceMutations(sql, core, secretsKey),
+            ...instanceModels(sql, core),
+            ...proxies,
+            moveInstanceToProxy: proxyEnvMove(sql, secretsKey, core, { ...saves, ...proxies }),
+          }),
+        );
       }),
     );
 }

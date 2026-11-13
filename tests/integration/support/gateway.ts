@@ -54,6 +54,7 @@ import { openGatewayLink, type GatewayLink } from "@canopy/worker/gateway-link";
 import { ThreadSecretFiles } from "@canopy/worker/runtime";
 import { Layer, ManagedRuntime } from "effect";
 import type { SqlClient } from "effect/sql";
+import { DatabaseMonitor, bindDatabaseMonitor, observedSql } from "../../../apps/gateway/src/diagnostics/database.ts";
 import { BotStore } from "../../../apps/gateway/src/bots/store.ts";
 import type { BotModel } from "../../../apps/gateway/src/bots/types.ts";
 
@@ -564,11 +565,15 @@ export async function startTestGateway(
 ): Promise<TestGateway> {
   const pg = options.storage?.pg ?? (await startPostgres({ migrated: true }));
   const secretsKey = options.storage?.secretsKey ?? randomBytes(32);
+  const monitor = options.diagnostics ? new DatabaseMonitor() : undefined;
+  const database = monitor ? observedSql(monitor).pipe(Layer.provideMerge(pg.poolLayer)) : pg.layer;
   const auditDirectory = process.env["CANOPY_SQL_AUDIT_DIR"];
 
   const audit = auditDirectory
-    ? await (await import("../../../scripts/bench/test-audit.ts")).testAudit(pg.layer, auditDirectory)
+    ? await (await import("../../../scripts/bench/test-audit.ts")).testAudit(database, auditDirectory)
     : undefined;
+
+  const measured = audit?.layer ?? database;
 
   const runtime: TestRuntime = ManagedRuntime.make(
     Layer.mergeAll(
@@ -584,8 +589,10 @@ export async function startTestGateway(
       AttachmentStore.layer,
       BackgroundTaskStore.layer,
       BotStore.layer(secretsKey),
-    ).pipe(Layer.provideMerge(audit?.layer ?? pg.layer)),
+    ).pipe(Layer.provideMerge(measured)),
   );
+
+  if (monitor) bindDatabaseMonitor(runtime, monitor);
 
   await runtime.runPromise(migrate);
   audit?.start();

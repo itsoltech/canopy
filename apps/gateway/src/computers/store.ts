@@ -10,6 +10,7 @@ import { encryptSecret, decryptSecret } from "../store/secrets.ts";
 import { certificateIdentity, computerName, generateIdentity, hash, linkAddress } from "./identity.ts";
 import { ROUTE_ORDER } from "./routes.ts";
 import { COMPUTER_CAPABILITY_LIMIT } from "./hello.ts";
+import { queryFamily, queryRpc } from "../diagnostics/query-context.ts";
 
 export type IdentityRow = {
   node_id: string;
@@ -60,7 +61,7 @@ export class ComputerStore {
         const sql = yield* SqlClient.SqlClient;
 
         return yield* sql.unsafe<A>(text, params);
-      }),
+      }).pipe(queryFamily("computers.store"), queryRpc),
     );
   }
   async identity() {
@@ -116,7 +117,7 @@ export class ComputerStore {
             yield* sql`INSERT INTO computer_pairings (id,owner_user_id,secret_hash,expires_at,share_config) VALUES (${id}::uuid,${owner}::uuid,${hash(secret)},now()+interval '10 minutes',${shareConfig})`;
           }),
         );
-      }),
+      }).pipe(queryFamily("computers.store"), queryRpc),
     );
 
     return {
@@ -166,7 +167,7 @@ export class ComputerStore {
             return "ok";
           }),
         );
-      }),
+      }).pipe(queryFamily("computers.store"), queryRpc),
     );
 
     if (result !== "ok")
@@ -240,7 +241,7 @@ export class ComputerStore {
               yield* sql`INSERT INTO computer_revocations (owner_user_id,node_id) VALUES (${owner}::uuid,${nodeId}) ON CONFLICT DO NOTHING`;
           }),
         );
-      }),
+      }).pipe(queryFamily("computers.store"), queryRpc),
     );
   }
   async status(nodeId: string, status: string, updateNodeId = "", at = new Date()) {

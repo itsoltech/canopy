@@ -1,5 +1,28 @@
 import { cpus } from "node:os";
 import { SwapGate, swapCounters, pageSize } from "./diagnostics-swap.ts";
+import { monitorScopes, swapDisabledStage } from "./diagnostics-scope.ts";
+import { kernelNoiseMonitor } from "./diagnostics-kernel.ts";
+
+/** Wait outside pair recording; never stop system maintenance owned by another process. */
+export async function waitForSystemJobs(signal: AbortSignal) {
+  for (;;) {
+    signal.throwIfAborted();
+
+    const child = Bun.spawn(["ps", "-C", "updatedb,plocate-build,mandb,fstrim", "-o", "pid=,comm="], {
+      stdout: "pipe",
+      stderr: "ignore",
+    });
+
+    const processes = (await new Response(child.stdout).text()).trim();
+    const code = await child.exited;
+
+    if (code > 1) throw new Error("Cannot inspect system maintenance before recording");
+
+    if (!processes) return;
+    console.info(JSON.stringify({ phase: "host_jobs_wait", atMs: Date.now(), processes }));
+    await Bun.sleep(5000);
+  }
+}
 
 export function pinnedCommand(env: Record<string, string | undefined>, role: "GATEWAY" | "WORKER", args: string[]) {
   const cpu = env[`CANOPY_BENCH_${role}_CPU`];
@@ -12,24 +35,43 @@ export function pinnedCommand(env: Record<string, string | undefined>, role: "GA
 }
 
 /** vmstat's first data row is since boot; subsequent rows describe the measured second. */
-export async function monitorHost(pair: number, attempt: number) {
+export async function monitorHost(pair: number, attempt: number, postgresScope?: string) {
   const loadavg = (await Bun.file("/proc/loadavg").text()).trim();
   const cpuCount = cpus().length;
   const before = await swapCounters();
   const bytesPerPage = await pageSize();
   const abort = new AbortController();
   const violations: { kind: string; value: string }[] = [];
+  let activity: Promise<void> | undefined;
 
   const reject = (kind: string, value: string) => {
     if (violations.length < 20) violations.push({ kind, value });
+
+    // Capture once at rejection, outside accepted recordings. Never include argv or environment values.
+    if (!abort.signal.aborted) activity = rejectedProcesses(pair, attempt, kind);
     abort.abort();
   };
 
-  const swap = new SwapGate(reject);
+  const swapDisabled = swapDisabledStage();
+  const swap = new SwapGate(reject, swapDisabled);
+  const sampleScopes = await monitorScopes(postgresScope, reject);
+  const scopeBefore = await sampleScopes();
+  const kernelNoise = await kernelNoiseMonitor();
 
   if (Number(loadavg.split(" ")[0]) > cpuCount) reject("load", loadavg);
   console.info(
-    JSON.stringify({ phase: "host_begin", pair, attempt, loadavg, cpus: cpuCount, swap: before, bytesPerPage }),
+    JSON.stringify({
+      phase: "host_begin",
+      member: process.env["CANOPY_BENCH_MEMBER"],
+      pair,
+      attempt,
+      loadavg,
+      cpus: cpuCount,
+      swap: before,
+      bytesPerPage,
+      scopes: scopeBefore,
+      kernelNoise: await kernelNoise(),
+    }),
   );
   const vmstat = Bun.spawn(["vmstat", "-w", "-S", "K", "1"], { stdout: "pipe", stderr: "inherit" });
   let stopping = false;
@@ -60,7 +102,18 @@ export async function monitorHost(pair: number, attempt: number) {
 
         const load = (await Bun.file("/proc/loadavg").text()).trim();
         maxLoad = Math.max(maxLoad, Number(load.split(" ")[0]));
-        console.info(JSON.stringify({ phase: "host_sample", pair, attempt, loadavg: load, vmstat: line }));
+        console.info(
+          JSON.stringify({
+            phase: "host_sample",
+            member: process.env["CANOPY_BENCH_MEMBER"],
+            pair,
+            attempt,
+            loadavg: load,
+            vmstat: line,
+            scopes: await sampleScopes(),
+            kernelNoise: await kernelNoise(),
+          }),
+        );
 
         swap.sample(values[6]!, values[7]!);
         swap.cumulative(((await swapCounters()).output - before.output) * bytesPerPage);
@@ -70,7 +123,7 @@ export async function monitorHost(pair: number, attempt: number) {
     }
 
     if (!stopping) reject("monitor_exited", "vmstat exited before the pair completed");
-  })();
+  })().catch(() => reject("monitor_failed", "Host sampling failed"));
 
   return {
     signal: abort.signal,
@@ -83,29 +136,57 @@ export async function monitorHost(pair: number, attempt: number) {
       await reading;
       await vmstat.exited;
       const after = await swapCounters();
+      const scopeAfter = await sampleScopes();
 
       swap.cumulative((after.output - before.output) * bytesPerPage);
+      await activity;
       const accepted = completed && !abort.signal.aborted;
-      console.info(
-        JSON.stringify({
-          phase: "pair_end",
-          pair,
-          attempt,
-          accepted,
-          maxLoad,
-          samples: samples - 1,
-          swapInPages: after.input - before.input,
-          swapOutPages: after.output - before.output,
-          swapInBytes: (after.input - before.input) * bytesPerPage,
-          swapOutBytes: (after.output - before.output) * bytesPerPage,
-          peakSwapInKiBPerSec: swap.peakInputKiB,
-          peakSwapOutKiBPerSec: swap.peakOutputKiB,
-          longestSwapIn128KiBRun: swap.longestInput,
-          violations,
-        }),
-      );
+
+      const result = {
+        phase: process.env["CANOPY_BENCH_MEMBER"] ? "member_end" : "pair_end",
+        member: process.env["CANOPY_BENCH_MEMBER"],
+        pair,
+        attempt,
+        accepted,
+        maxLoad,
+        samples: samples - 1,
+        swapInPages: after.input - before.input,
+        swapOutPages: after.output - before.output,
+        swapInBytes: (after.input - before.input) * bytesPerPage,
+        swapOutBytes: (after.output - before.output) * bytesPerPage,
+        peakSwapInKiBPerSec: swap.peakInputKiB,
+        peakSwapOutKiBPerSec: swap.peakOutputKiB,
+        swapInSustainedThresholdKiBPerSec: swap.sustainedInputKiB,
+        longestSwapInThresholdRun: swap.longestInput,
+        swapOutThresholdKiBPerSec: swapDisabled ? null : 128,
+        hostSwapOutLogOnly: swapDisabled,
+        scopes: scopeAfter,
+        violations,
+      };
+
+      console.info(JSON.stringify(result));
+
+      if (process.env["CANOPY_BENCH_MEMBER"]) process.send?.(result);
 
       return accepted;
     },
   };
+}
+
+async function rejectedProcesses(pair: number, attempt: number, reason: string) {
+  const atMs = Date.now();
+
+  try {
+    const child = Bun.spawn(["ps", "-eo", "pid,ppid,etimes,pcpu,rss,comm", "--sort=-rss"], {
+      stdout: "pipe",
+      stderr: "ignore",
+    });
+
+    const processes = (await new Response(child.stdout).text()).slice(0, 65536);
+    const exitCode = await child.exited;
+
+    console.info(JSON.stringify({ phase: "host_processes", pair, attempt, atMs, reason, exitCode, processes }));
+  } catch {
+    console.info(JSON.stringify({ phase: "host_processes", pair, attempt, atMs, reason, unavailable: true }));
+  }
 }

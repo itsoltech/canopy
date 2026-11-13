@@ -1,8 +1,8 @@
 import { create, toJson } from "@bufbuild/protobuf";
 import { bots, ItemSchema, Provider } from "@canopy/contracts";
 import { itemStatus, itemType } from "@canopy/domain/items";
-import { PgClient } from "@effect/sql-pg";
 import { Effect } from "effect";
+import { SqlClient } from "effect/sql";
 import { ensureDevUser, gatewayRuntime, migrateDatabase } from "../../apps/gateway/src/runtime.ts";
 import { GatewayStore } from "../../apps/gateway/src/store/index.ts";
 import { longThreadSnapshot } from "../../apps/web/src/lib/features/threads/dev/fixture.ts";
@@ -66,7 +66,7 @@ export async function seedClient(env: Readonly<Record<string, string | undefined
 
     await runtime.runPromise(
       Effect.gen(function* () {
-        const sql = yield* PgClient.PgClient;
+        const sql = yield* SqlClient.SqlClient;
         yield* sql`INSERT INTO projects (id, owner_user_id, name, slug) VALUES (${project}::uuid, ${owner}::uuid, 'Benchmark', 'benchmark')`;
         yield* sql`INSERT INTO project_workspaces (id, project_id, worker_id, root_path) VALUES (${workspace}::uuid, ${project}::uuid, ${worker.workerId}::uuid, '/srv/canopy')`;
         yield* sql`INSERT INTO threads (id, root_thread_id, project_id, owner_user_id, kind, runtime, provider, provider_thread_id, worker_id, workspace_id, cwd, status, title, last_seq)

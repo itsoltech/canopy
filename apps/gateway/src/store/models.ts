@@ -3,6 +3,7 @@ import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { ProfileModelsSchema, Provider, ui, type ModelInfo, type ProfileModels } from "@canopy/contracts";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
+import { queryMethods } from "../diagnostics/query-context.ts";
 
 /**
  * Model catalogs of the workers (docs/ui-api.md, docs/protocol.md#modele-effort-i-steer): the last report
@@ -42,7 +43,7 @@ export class ModelStore extends Context.Service<
           updatedAt: timestampFromDate(new Date(row.updated_at)),
         });
 
-      return ModelStore.of({
+      const store = ModelStore.of({
         save: ({ workerId, configVersion, profiles }) =>
           sql<Row>`
             INSERT INTO worker_model_catalogs (worker_id, config_version, profiles)
@@ -61,6 +62,8 @@ export class ModelStore extends Context.Service<
             ORDER BY m.worker_id`.pipe(Effect.map((rows) => rows.map(toUi)));
         },
       });
+
+      return queryMethods("models.store", store);
     }),
   );
 }

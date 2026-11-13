@@ -7,6 +7,7 @@ import type { CoreRuntime, GatewayCore } from "../core/core.ts";
 import type { GatewayCoreOptions } from "../core/core-context.ts";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import { reachedUpdateVersion } from "@canopy/domain/release/remote-update-state";
+import { queryFamily, queryRpc } from "../diagnostics/query-context.ts";
 
 export function createGatewayDepartures(core: GatewayCore, options: GatewayCoreOptions) {
   return new GatewayDepartures(
@@ -43,7 +44,7 @@ export class GatewayDepartures {
 
         return yield* sql<{ value: JsonValue | null }>`SELECT settings->'gatewayDeparture' AS value
         FROM user_settings WHERE user_id = ${owner}::uuid`;
-      }),
+      }).pipe(queryFamily("updates.store"), queryRpc),
     );
 
     return rows[0]?.value ? fromJson(ui.GatewayDepartureSchema, rows[0].value) : undefined;
@@ -121,7 +122,7 @@ export class GatewayDepartures {
         const sql = yield* SqlClient.SqlClient;
         yield* sql`INSERT INTO user_settings (user_id, settings, version) VALUES (${owner}::uuid, ${json}::jsonb, 1)
         ON CONFLICT (user_id) DO UPDATE SET settings = user_settings.settings || EXCLUDED.settings, updated_at = now()`;
-      }),
+      }).pipe(queryFamily("updates.store"), queryRpc),
     );
     this.publish(value);
   }

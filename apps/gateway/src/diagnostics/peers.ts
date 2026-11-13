@@ -184,7 +184,7 @@ export class DiagnosticsPeers {
     } catch (error) {
       if (this.reads.get(read.key) !== read || this.#closed) return;
 
-      if (ConnectError.from(error).code === Code.PermissionDenied) {
+      if (error instanceof ConnectError && error.code === Code.PermissionDenied) {
         await this.revoke(read.node);
       }
 

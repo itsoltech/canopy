@@ -8,7 +8,8 @@ export type DiagnosticsPhase =
   | "slow_reader"
   | "churn"
   | "write_failure"
-  | "pool_contention";
+  | "pool_contention"
+  | "governor";
 
 /** Fixed offered load with actual gRPC cancellation, reconnects and backpressured watches. */
 export async function diagnosticsLoad<Measurement>(
@@ -52,15 +53,13 @@ export async function diagnosticsLoad<Measurement>(
       const started = performance.now();
 
       if (process.env["CANOPY_BENCH_VIEW"] === "1" && performance.now() >= nextOverview) {
-        await api.getDiagnostics({ windowMinutes: 15 });
+        await readView(api, phase, "overview");
         workload.overviewReads++;
         nextOverview = performance.now() + 5000;
       }
 
       if (process.env["CANOPY_BENCH_VIEW"] === "1" && performance.now() >= nextDetails) {
-        const start = performance.now();
-        await api.getComputerDiagnostics({ windowMinutes: 1440, limit: 32, sortBy: "p95", callKind: "unary" });
-        historyReads.push(performance.now() - start);
+        historyReads.push(await readView(api, phase, "history"));
         workload.detailReads++;
         nextDetails = performance.now() + 10_000;
       }
@@ -124,6 +123,29 @@ export async function diagnosticsLoad<Measurement>(
     historyReadP95Ms: historyReads[Math.max(0, Math.ceil(historyReads.length * 0.95) - 1)] ?? null,
     ...workload,
   };
+}
+
+/** Keep the two serialized view probes visible: an earlier blocked overview can delay history. */
+async function readView(api: Client<typeof ui.GatewayService>, workload: string, view: "overview" | "history") {
+  const start = performance.now();
+
+  if (process.env["CANOPY_BENCH_SOURCE_ROOT"]) await api.listThreads({ sidebarOnly: true });
+  else if (view === "overview") await api.getDiagnostics({ windowMinutes: 15 });
+  else await api.getComputerDiagnostics({ windowMinutes: 1440, limit: 32, sortBy: "p95", callKind: "unary" });
+  const elapsedMs = performance.now() - start;
+  console.info(
+    JSON.stringify({
+      phase: `${view}_read`,
+      workload,
+      member: process.env["CANOPY_BENCH_MEMBER"],
+      atMs: Date.now(),
+      elapsedMs,
+      completed: true,
+      probe: process.env["CANOPY_BENCH_SOURCE_ROOT"] ? "dev_thread_list_sql" : `diagnostics_${view}`,
+    }),
+  );
+
+  return elapsedMs;
 }
 
 /** Exclude initial transcript transfer and its warm-up from the steady offered-load interval. */

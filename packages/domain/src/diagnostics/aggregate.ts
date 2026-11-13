@@ -26,7 +26,7 @@ export class Aggregate {
 
   get bytes() {
     return (
-      1536 +
+      1600 +
       48 *
         (this.duration.indices.length +
           this.requestBytes.indices.length +

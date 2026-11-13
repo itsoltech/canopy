@@ -1,15 +1,16 @@
-import type { PgClient } from "@effect/sql-pg";
+import type { PgClient, PgPool } from "@effect/sql-pg";
 import type { Layer } from "effect";
 import type { SqlClient, SqlError } from "effect/sql";
 import { existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { startTestPostgresServer, testAdmin, testDatabase } from "./testing-server.ts";
+import { startTestPostgresServer, testAdmin, testDatabase, testDatabasePool } from "./testing-server.ts";
 
 export const dockerAvailable = Bun.spawnSync(["docker", "info"], { stdout: "ignore", stderr: "ignore" }).exitCode === 0;
 
 export interface TestPostgres {
   readonly layer: Layer.Layer<PgClient.PgClient | SqlClient.SqlClient, SqlError.SqlError>;
+  readonly poolLayer: Layer.Layer<PgPool.PgPool, SqlError.SqlError>;
   readonly stop: () => Promise<void>;
 }
 
@@ -36,6 +37,7 @@ export async function startPostgres(options: { migrated?: boolean } = {}): Promi
 
   return {
     layer: testDatabase(port, database),
+    poolLayer: testDatabasePool(port, database),
     stop: async () => {
       try {
         await admin.unsafe(`DROP DATABASE ${database} WITH (FORCE)`);

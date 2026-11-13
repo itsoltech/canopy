@@ -6,19 +6,32 @@ export const MAX_COUNT = 0xffff_ffff_ffff_ffffn;
 const MAX_BUCKET = 0xffff_ffff;
 
 export function addCount(left: bigint, right = 1n) {
-  return left + right > MAX_COUNT ? MAX_COUNT : left + right;
+  const next = left + right;
+
+  return next > MAX_COUNT ? MAX_COUNT : next;
 }
 
 export function addCounter(left: number, right = 1) {
   return Math.min(MAX_COUNTER, left + right);
 }
 
+/** Stay allocation-free until the exact integer range is exhausted, then retain uint64 precision. */
+export function addSampleCount(left: number | bigint, right: number | bigint = 1): number | bigint {
+  // Counts are nonnegative: a safe sum also proves both operands were represented exactly.
+  const sum = Number(left) + Number(right);
+
+  if (Number.isSafeInteger(sum)) return sum;
+
+  return addCount(BigInt(left), BigInt(right));
+}
+
 /** Fixed time boundaries in milliseconds; bins 0/129 are underflow/overflow. */
 export class Histogram {
   readonly indices: number[] = [];
-  readonly counts: bigint[] = [];
+  readonly #counts: (number | bigint)[] = [];
   sum = 0;
   max = 0;
+  min = Infinity;
   incomplete = false;
 
   constructor(
@@ -26,6 +39,10 @@ export class Histogram {
     readonly wide = false,
     readonly reserve?: (bytes: number) => boolean,
   ) {}
+
+  get counts() {
+    return this.#counts.map(BigInt);
+  }
 
   record(value: number) {
     if (!Number.isFinite(value) || value < 0) return;
@@ -36,26 +53,31 @@ export class Histogram {
         ? 0
         : Math.min(129, 1 + Math.max(0, Math.ceil(4 * Math.log2(value * 1000))));
 
-    this.#add(index, 1n);
+    this.#add(index, 1);
 
     this.sum = Math.min(Number.MAX_VALUE, this.sum + value);
     this.max = Math.max(this.max, value);
+    this.min = Math.min(this.min, value);
   }
 
   merge(other: ui.DiagnosticsHistogram | Histogram) {
+    const counts = other instanceof Histogram ? other.#counts : other.counts;
+
     for (let at = 0; at < other.indices.length; at++) {
       const index = other.indices[at]!;
 
-      if (index < (this.sizes ? 32 : 130)) this.#add(index, other.counts[at] ?? 0n);
+      if (index < (this.sizes ? 32 : 130)) this.#add(index, counts[at] ?? 0);
     }
 
     if (other instanceof Histogram) this.incomplete ||= other.incomplete;
 
     this.sum = Math.min(Number.MAX_VALUE, this.sum + other.sum);
     this.max = Math.max(this.max, other.max);
+
+    if (counts.some((count) => count > 0)) this.min = Math.min(this.min, other.min ?? 0);
   }
 
-  #add(index: number, value: bigint) {
+  #add(index: number, value: number | bigint) {
     if (!value) return;
     let at = this.indices.indexOf(index);
 
@@ -70,13 +92,13 @@ export class Histogram {
 
       if (at === -1) at = this.indices.length;
       this.indices.splice(at, 0, index);
-      this.counts.splice(at, 0, 0n);
+      this.#counts.splice(at, 0, 0);
     }
 
-    const limit = this.wide ? MAX_COUNT : BigInt(MAX_BUCKET);
-    const count = this.counts[at]! + value;
-    this.incomplete ||= count > limit;
-    this.counts[at] = count > limit ? limit : count;
+    const limit = this.wide ? MAX_COUNT : MAX_BUCKET;
+    const count = addSampleCount(this.#counts[at]!, value);
+    this.incomplete ||= count > limit || count === MAX_COUNT;
+    this.#counts[at] = count > limit ? limit : count;
   }
 
   subtract(other: Histogram) {
@@ -84,11 +106,11 @@ export class Histogram {
       const at = this.indices.indexOf(other.indices[i]!);
 
       if (at === -1) continue;
-      const next = this.counts[at]! - other.counts[i]!;
+      const next = BigInt(this.#counts[at]!) - BigInt(other.#counts[i]!);
 
-      if (next > 0n) this.counts[at] = next;
+      if (next > 0n) this.#counts[at] = next <= MAX_COUNTER ? Number(next) : next;
       else {
-        this.counts.splice(at, 1);
+        this.#counts.splice(at, 1);
         this.indices.splice(at, 1);
       }
     }
@@ -99,30 +121,24 @@ export class Histogram {
   snapshot() {
     return create(ui.DiagnosticsHistogramSchema, {
       indices: this.indices.slice(),
-      counts: this.counts.slice(),
+      counts: this.counts,
       sum: this.sum,
       max: this.max,
+      min: Number.isFinite(this.min) ? this.min : undefined,
     });
   }
 }
 
 /** Merge counts before selecting exact 64-bit ranks, never averaging percentiles. */
-export function percentiles(histograms: readonly ui.DiagnosticsHistogram[], sizes = false) {
-  const counts = new BigUint64Array(sizes ? 32 : 130);
-  let max = 0;
-  let sum = 0;
+export function percentiles(histograms: readonly (ui.DiagnosticsHistogram | Histogram)[], sizes = false) {
+  if (!histograms.length) return create(ui.DiagnosticsPercentilesSchema);
+  // Views multiply this helper by SQL families/RPCs. Merge only present buckets,
+  // rather than allocating and scanning 130 BigInt cells for every distribution.
+  const single = histograms.length === 1 && histograms[0] instanceof Histogram ? histograms[0] : undefined;
+  const merged = single ?? new Histogram(sizes, true);
 
-  for (const histogram of histograms) {
-    max = Math.max(max, histogram.max);
-    sum = Math.min(Number.MAX_VALUE, sum + histogram.sum);
-
-    for (let at = 0; at < histogram.indices.length; at++) {
-      const index = histogram.indices[at]!;
-
-      if (index < counts.length) counts[index] = addCount(counts[index]!, histogram.counts[at] ?? 0n);
-    }
-  }
-
+  if (!single) for (const histogram of histograms) merged.merge(histogram);
+  const counts = merged.counts;
   const samples = counts.reduce((sum, n) => addCount(sum, n), 0n);
 
   let overflowQuantiles = 0;
@@ -132,33 +148,36 @@ export function percentiles(histograms: readonly ui.DiagnosticsHistogram[], size
 
     if (!samples) return 0;
 
-    for (let index = 0; index < counts.length; index++) {
-      rank -= counts[index]!;
+    for (let at = 0; at < merged.indices.length; at++) {
+      const index = merged.indices[at]!;
+      rank -= counts[at]!;
 
       if (rank <= 0n) {
-        const overflow = index === counts.length - 1;
+        const overflow = index === (sizes ? 31 : 129);
 
         if (overflow) overflowQuantiles |= bit;
 
-        return sizes
+        const boundary = sizes
           ? 2 ** (overflow ? index - 1 : index)
           : index
             ? 0.001 * 2 ** ((Math.min(128, index) - 1) / 4)
             : 0.001;
+
+        return Math.max(Math.min(merged.min, merged.max), Math.min(merged.max, boundary));
       }
     }
 
-    return max;
+    return merged.max;
   };
 
   return create(ui.DiagnosticsPercentilesSchema, {
     p50: quantile(50n, 1),
     p95: quantile(95n, 2),
     p99: quantile(99n, 4),
-    max,
-    sum,
+    max: merged.max,
+    sum: merged.sum,
     samples: BigInt(samples),
-    overflow: Boolean(counts[counts.length - 1]),
+    overflow: merged.indices.at(-1) === (sizes ? 31 : 129),
     overflowQuantiles,
   });
 }

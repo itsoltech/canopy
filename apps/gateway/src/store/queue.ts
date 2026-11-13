@@ -3,6 +3,7 @@ import { SqlClient, type SqlError } from "effect/sql";
 import type { SteerRow } from "./steers.ts";
 import { Invalid, NotFound, type TurnRow } from "./store.ts";
 import { DISPATCHED } from "./turn-select.ts";
+import { queryFamily, queryMethods } from "../diagnostics/query-context.ts";
 
 /**
  * The queue a user manages (docs/ui-api.md, "Kolejka"): queued turns waiting behind the running one.
@@ -44,6 +45,7 @@ const read = (sql: SqlClient.SqlClient, ids: readonly string[]) =>
       [ids],
     )
     .pipe(
+      queryFamily("queue.read"),
       Effect.map((rows) => {
         const byId = new Map(rows.map((row) => [row.id, row]));
 
@@ -176,6 +178,7 @@ export class QueueStore extends Context.Service<
           sql<TurnRow>`
             SELECT u.* FROM turns u JOIN threads t ON t.id = u.thread_id
              WHERE u.id = ${turnId}::uuid AND t.owner_user_id = ${ownerUserId}::uuid`.pipe(
+            queryFamily("queue.read"),
             Effect.flatMap((rows) => (rows[0] ? Effect.succeed(rows[0]) : Effect.fail(new NotFound("turn not found")))),
           ),
 
@@ -270,7 +273,7 @@ export class QueueStore extends Context.Service<
           ),
       };
 
-      return QueueStore.of(store);
+      return QueueStore.of(queryMethods("turns.store", store));
     }),
   );
 }

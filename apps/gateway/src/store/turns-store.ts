@@ -6,6 +6,7 @@ import { writeInteractionTimeline } from "./interaction-timeline.ts";
 import type { InteractionRow, TurnRow } from "./rows.ts";
 import { toInteraction } from "./ui-mappers.ts";
 import { DISPATCHED, nextTurn, steerTarget, turnsOf } from "./turn-select.ts";
+import { queryFamily } from "../diagnostics/query-context.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -147,7 +148,7 @@ export function turnStore(sql: SqlClient.SqlClient): TurnStore {
 
     steerTarget: (threadId) => steerTarget(sql, threadId),
 
-    turnsOf: (threadId, ids) => turnsOf(sql, threadId, ids),
+    turnsOf: (threadId, ids) => turnsOf(sql, threadId, ids).pipe(queryFamily("turns.read")),
 
     titleInput: (threadId) =>
       sql<TurnRow>`

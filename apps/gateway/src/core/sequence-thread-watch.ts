@@ -11,6 +11,7 @@ import { readClientWindow } from "./client-window.ts";
 import { sequenceControls, sequenceMetadata } from "./sequence-metadata.ts";
 import { rangeFailure } from "../computers/range-failure.ts";
 import { coreLog } from "./core-broadcast.ts";
+import { queryFamily } from "../diagnostics/query-context.ts";
 
 /** Sequence reads use durable projections, independent of process-local fan-out. */
 export async function* watchSequenceThread(core: GatewayCore, input: ui.WatchThreadRequest, signal: AbortSignal) {
@@ -48,7 +49,7 @@ async function* sequenceThread(core: GatewayCore, input: ui.WatchThreadRequest, 
           const sql = yield* SqlClient.SqlClient;
 
           return yield* sql.unsafe<A>(text, params);
-        }),
+        }).pipe(queryFamily("thread.read")),
       );
     },
   };

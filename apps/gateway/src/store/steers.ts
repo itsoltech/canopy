@@ -9,6 +9,7 @@ import { toUiAttachment } from "./attachments.ts";
 import { createSteer } from "./steer-create.ts";
 import { mentionsFromJson, type StoredMentions } from "../core/mentions.ts";
 import { storedShellResult } from "./shell-input.ts";
+import { queryMethods } from "../diagnostics/query-context.ts";
 
 /**
  * Messages delivered into a running turn (docs/ui-api.md, docs/agent-bus.md): SendMessage with
@@ -238,7 +239,7 @@ export class SteerStore extends Context.Service<
           ),
       };
 
-      return SteerStore.of(store);
+      return SteerStore.of(queryMethods("interactions.store", store));
     }),
   );
 }

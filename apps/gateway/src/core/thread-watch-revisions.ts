@@ -5,6 +5,8 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import type { CoreRuntime } from "./core-context.ts";
 import { threadWatchRevision } from "../store/thread-watch-revision.ts";
+import { queryFamily } from "../diagnostics/query-context.ts";
+import { databaseMonitor } from "../diagnostics/database.ts";
 
 type Watch = { thread: string; cursor: string; send: (cursor: string) => void; fail: (error: Error) => void };
 
@@ -85,11 +87,14 @@ class ThreadWatchRevisions {
         Effect.gen(function* () {
           const sql = yield* SqlClient.SqlClient;
 
-          return yield* sql.unsafe<Revision>(threadWatchRevision, [owner, ids, after.toString()]);
+          return yield* sql
+            .unsafe<Revision>(threadWatchRevision, [owner, ids, after.toString()])
+            .pipe(queryFamily("watch.revision"));
         }),
       );
 
       syncMetrics?.record("sync.watch_revision.query", 0);
+      databaseMonitor(this.runtime)?.collector?.measure(30, 1);
       const byThread = new Map(rows.map((row) => [row.id, row]));
 
       for (const watch of watches) {

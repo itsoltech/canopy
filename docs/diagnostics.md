@@ -136,7 +136,7 @@ właściciela. Metryki nie zmieniają kontraktu ani auth zamrożonego `update/v1
 | Metryka | Definicja i miejsce |
 |---|---|
 | Event-loop lag | Dodatnie opóźnienie wywołania timera względem monotonicznego terminu; histogram ms i max, bez odtwarzania pominiętych ticków. Wzorzec pomiaru w `tests/integration/support/sync-process-entry.ts` używa `monitorEventLoopDelay`; rozdzielczość produkcyjna 20 ms, zgodność Bun sprawdzana w benchmarku. Suspend oznacza lukę, nie serię fikcyjnych próbek. |
-| CPU/pamięć | `Δ(user+system CPU µs) / Δwall µs × 100%`, gdzie 100% = jeden rdzeń; RSS, heap used/total w bajtach, uptime procesu. Ostatnia, średnia ważona czasem i max w oknie; brak pomiaru pamięci harnessów nie oznacza całego kosztu hosta. |
+| CPU/pamięć | `Δ(user+system CPU µs) / Δwall µs × 100%`, gdzie 100% = jeden rdzeń; RSS, heap used/total w bajtach, uptime procesu. Ostatnia, średnia ważona czasem i max w oknie; uptime pokazuje tylko ostatnią wartość. Pokrycie czasowe raz w nagłówku grupy. Brak pomiaru pamięci harnessów nie oznacza całego kosztu hosta. |
 | SQL i pula | `gateway/runtime.ts`: reserve od żądania połączenia do jego otrzymania, także zestawienie; execute od wysłania przez zarezerwowany driver do zakończenia/dekodowania. Liczba, błędy, p50/p95/p99/max per stała rodzina, np. `thread.page`, `watch.revision`, `commands.pending`. Czas transakcji osobno; nie sumować zagnieżdżonych czasów jako kosztu niezależnego. Oczekujący reserve i zajęte połączenia jako gauges. Top 10 według p95 lub sumy czasu z liczbą próbek. |
 | Ingest i kolejki | `core/core-workers.ts`, `store/ingest.ts`, `core/core-commands.ts`: odebrane, czekające, rozpoczęte i zatwierdzone eventy, ms od odbioru do commitu/ACK; głębokość i wiek najstarszego oczekującego eventu/komendy. Obserwować istniejące enqueue/dequeue i ograniczone odczyty outboxa, bez pełnych COUNT/skanów na każdy tick; szacunek ma znacznik jakości. |
 | Subskrypcje/fan-out | `core/hub.ts`, `core/thread-watch-revisions.ts`, `computers/runtime-mirrors.ts`: liczba watchy wątków/overview/luster, liczba wspólnych odczytów rewizji/min, publikacje i próby dostarczenia/min, odbiorcy/publikację, maksimum kolejki w wiadomościach/bajtach i overflow. Liczniki bez id wątków. |
@@ -145,8 +145,245 @@ właściciela. Metryki nie zmieniają kontraktu ani auth zamrożonego `update/v1
 Rodziny SQL nadaje kod magazynu; nie fingerprintujemy dowolnego SQL w hot path.
 Nieznane zapytanie to `other`, a pokrycie rodzin jest jawne. Nie pobieramy
 produkcyjnego `pg_stat_statements`, tekstu SQL, parametrów ani planów automatycznie.
+Wspólne granice magazynów przypisują rodziny także zagnieżdżonym helperom;
+szczegółowa etykieta wewnętrznego call site ma pierwszeństwo. Fixture stałego
+ruchu gRPC wymaga co najmniej 95% sklasyfikowanych wykonań.
 Powiązanie RPC → rodzina DB wymaga kontekstu lokalnego wywołania; bez niego
 można wskazać współwystępowanie, nie „przyczynę”. Nie odejmujemy p95 SQL od p95 RPC.
+
+**Etap 2 — implementacja:** serie wnętrza gatewaya współdzielą pierścienie i limit
+6 MiB etapu 1, przejściowy budżet scalania 512 KiB oraz cache godzin 1 MiB.
+Nie powstaje drugi kolektor ani osobna migracja: nowe pola protobuf mieszczą się
+w istniejących payloadach rollupów. Kontekst rodziny jest referencją Effect,
+a kontekst lokalnego RPC trafia do niej na granicy wykonania; streamy linked
+przekazują kontekst także podczas iteracji. Zapisane identyfikatory metryk są
+liczbowe i stabilne (`packages/domain/src/diagnostics/metrics.ts`).
+Histogramy zapisują opcjonalne minimum i maksimum; wspólny helper ogranicza
+każdy percentyl do tych granic, także dla underflow/overflow. Starsze rollupy bez
+minimum używają dolnej granicy 0. Dodatkowy skalar mieści się w niezmienionych
+limitach: rezerwacja agregatu wynosi 1600 B, histogramu pojedynczej metryki 144 B.
+Pula korzysta z oryginalnego PgClient i jego rezerwacji, z osobnym zakresem
+finalizacji do pomiaru rzeczywistego release; transakcje zachowują savepointy
+i rollback po błędzie COMMIT. Liczniki faz mogą się różnić: transakcja może
+rezerwować połączenie w rodzinie zewnętrznej, a wykonywać zapytania w kilku
+rodzinach wewnętrznych. Rodzina `other` i pokrycie klasyfikacji pozostają jawne.
+Brak miejsca na histogram nie usuwa liczników błędów; rodzina oznacza swój
+niepełny rozkład i nie wyzwala na jego podstawie findingu o wolnym zapytaniu.
+
+Korelacje RPC są opcjonalnym szczegółem: nowe klucze korelacji są pomijane po
+192 wpisach metryk slotu, globalne serie nadal podlegają wspólnemu limitowi RAM.
+Przy przekroczeniu 64 KiB odpowiedzi najpierw wypadają korelacje, potem szczegóły
+governora i rodzin; wiersze RPC pozostają. Rollup przekraczający 64 KiB najpierw
+odrzuca korelacje, potem nowe serie, oznaczając niepełność. Odtworzone gauges
+mają czas próbki i znacznik historyczny; nie reprezentują aktualnych wartości.
+Event loop ma timer 20 ms bez nadrabiania ticków, a opóźnienie ≥10 s oznacza lukę.
+
+Ingest zachowuje tylko monotoniczne czasy do 4096 zdarzeń i 16 połączeń,
+rozliczane w tym samym budżecie. Odebrane/rozpoczęte obejmują retry;
+zatwierdzone oznaczają nowe eventy zwykłego ingestu. BotStore zwraca też replay
+jako obsłużony, więc ACK botów ma czas, ale nie zwiększa tego licznika nowych
+eventów. Outbox pokazuje ostatnią odczytaną ograniczoną stronę i jej najstarszy
+czas utworzenia: to estymata, bez COUNT całej kolejki i bez dodatkowego pollingu.
+Watches, kolejki i overflow obserwują istniejący Hub; lustra obejmują aktywne
+subskrypcje mirrorów wątków/botów, bez pomiaru ich lagu (etap 3).
+
+Nowe findings oceniają świeżą minutę: p99 event loop >100 ms przy ≥1000 próbek
+(critical >500 ms), średnio >0,5 oczekującego reserve przez ≥30 s
+(critical >5), execute p95 rodziny >100 ms przy ≥30 próbkach
+(critical >1 s), governor wait p95 >1 s przy ≥30 admissions i niepustej kolejce.
+Wymagają ≥3 min pokrycia, trzech ocen wejścia i pięciu ocen wyjścia poniżej 70%
+progu; brak świeżości zawiesza ocenę. Ruch ingest/fan-out w tej samej minucie
+dopisuje korelację sync do event loop, bez przypisania przyczyny.
+
+Harness `scripts/bench/diagnostics.ts` przy `CANOPY_BENCH_STAGE=2` pozostawia
+etap 1 włączony w obu członach pary, a `CANOPY_BENCH_DIAGNOSTICS` przełącza
+wyłącznie nowe pomiary. Wariant off korzysta z natywnego klienta DB bez adaptera
+rezerwacji, aby koszt adaptera również należał do porównania. Pozostają bramki
+hosta, idle 10 min i scenariusze
+DB/concurrent, dochodzi faza `governor`: osiem `git --version` co 200 ms,
+cztery sloty i kolejka, bez nakładających się burstów. Narzut tej pracy jest
+w obu członach pary; liczba prób/błędów trafia do artefaktów pomiaru.
+Nagrania rozpoczynają się dopiero po potwierdzeniu spokojnego okna przez maintainera.
+
+Skrócony protokół etapu 2 uruchamia jedna komenda:
+`bash scripts/bench/diagnostics-stage2.sh`. Cztery przyjęte pary mają kolejność
+AB / BA / AB / BA (dwa pełne bloki ABBA), gdzie A wyłącza wyłącznie etap 2, a B go włącza.
+Idle trwa 3 min, każda z sześciu pozostałych faz 90 s, łącznie 96 min obciążenia;
+z preflightem, rozgrzewką i uruchomieniem około 110 min, dłużej po odrzuceniu pary.
+`diagnostics-series.ts` uruchamia każdy człon w osobnym procesie Bun, z nowym
+klastrem PostgreSQL, bazą i prywatnym katalogiem stanu gatewaya/workera. Czeka
+na zakończenie procesu i usunięcie klastra przed kolejnym członem. Log zawiera
+PID, identyfikator bazy, katalog i początkowe liczby wątków/tur/itemów/rollupów.
+Fixture pool contention zajmuje osiem z dziesięciu slotów; ingest może zająć
+dziewiąty, a jeden pozostaje dla odczytów. Dziewięć zablokowanych aktualizacji
+mogło razem z ingestem wyczerpać pulę aż do zwolnienia 70-sekundowej blokady.
+Osobny `diagnostics-focus.sh <2|3> pool <8|9>` zapisuje stany, czasy oczekiwań
+i PID-y blokujących sesji bez treści SQL ani parametrów; nie jest pomiarem narzutu.
+
+Przed bramką każdego etapu `CANOPY_DIAGNOSTICS_CONTROL=1` z tym samym launcherem
+uruchamia dwie pary A/A (około 55 min): wszystkie cztery świeże człony mają
+wyłączony bieżący etap, niższe etapy pozostają włączone. Kontrola etapu 3 musi
+więc zachować etap 2. Zapisane sloty A/B określają kolejność, a osobne `on`
+rzeczywisty stan instrumentacji. `CANOPY_DIAGNOSTICS_AA_REPORT` wskazuje raport
+kontroli podczas bramki A/B. Raport podaje bezwzględną i względną zmianę p95.
+Opisowa granica szumu fazy to największa bezwzględna delta jej dwóch par A/A;
+nie jest przedziałem ufności. Cel RPC to brak regresji powyżej większej z wartości
+0,25 ms i tej granicy. Nie odejmujemy szumu od wyników ani nie odrzucamy na jego
+podstawie par. Mikrobenchmark `diagnostics-rpc-path.ts` obejmuje interceptor,
+kontekst, zegary i zapis rodziny DB; profil rzeczywistej fazy steady przygotowuje
+`diagnostics-focus.sh <2|3> profile`, oddzielnie od nagrań bramki.
+Blokady w fazach write/pool pozostają 70 s; okno obserwacji powrotu do normy
+jest krótsze (20 s), więc retry po następnym rolloverze może wypaść poza fazą.
+Pełny test durability/restart sprawdza odtworzenie niezależnie od tego pomiaru.
+Bramki etapów 2–3 wymagają user scope z `MemorySwapMax=0` dla wszystkich
+procesów pomiaru. Launcher obejmuje sterownik, gatewaye, workery i ich dzieci;
+PostgreSQL działa bezpośrednio z przypiętego pakietu `@embedded-postgres`,
+w oddzielnym user scope, także z `MemorySwapMax=0`. Proces tworzony przez
+daemon Dockera nie dziedziczy scope'u klienta, więc nie uczestniczy w tym protokole.
+Wersja PostgreSQL trafia do metadanych; A i B używają tej samej wersji binarki,
+ale osobnych klastrów.
+Wyniki z nowym PostgreSQL nie są bezpośrednim porównaniem do historycznych
+nagrań z kontenerem PostgreSQL 17. CPU/I/O PostgreSQL pochodzą z jego scope'u.
+Jeśli user manager nie ma delegowanego kontrolera I/O, fizyczne zapisy i podział
+per urządzenie mają wartość `null` z jawnym powodem w metadanych; nie raportujemy
+zera ani estymacji. Liczniki WAL/payloadu z bazy pozostają dostępne. Ten pomiar
+nie potwierdza wtedy bramki fizycznego I/O, lecz nadal mierzy CPU/p95/RSS/heap.
+`memory.swap.max` musi wynosić 0, a `memory.swap.current` w obu scope'ach
+musi wynosić 0 na początku, co sekundę i na końcu każdej pary. Nieczytelny
+licznik albo naruszenie unieważnia parę. Sprawdzamy przynależność gatewaya
+i workera do scope'u sterownika oraz PostgreSQL do własnego user scope'u.
+Swap-in hosta odrzuca parę przy ≥4 MiB/s przez trzy kolejne sekundy.
+Swap-out hosta jest wyłącznie rejestrowany, bez odrzucenia pary przy zerowym
+swapie scope'ów. Load powyżej liczby CPU także unieważnia parę.
+Każda próbka i sumy swap-in/out na parę są zapisywane, również poniżej progów.
+Pierwsze naruszenie zapisuje też PID/PPID, wiek, CPU, RSS i nazwę aktywnych
+procesów z `ps`, bez argumentów ani środowiska. Ten odczyt dotyczy wyłącznie
+odrzuconej pary i nie obciąża przyjętych nagrań.
+Monitor zapisuje też ticki CPU i ostatni CPU wątków kswapd/zram oraz I/O zram.
+`diagnostics-paired-report.ts` raportuje mediany wszystkich przyjętych par
+oraz analizę wrażliwości bez oznaczonych par. Para jest oznaczona, gdy dowolna
+delta CPU, p95, RSS lub heap dla fazy/procesu odbiega od mediany o więcej niż
+2× MAD i szczyt host swap-out tej pary przekracza 4 MiB/s. MAD to mediana
+bezwzględnych odchyleń od mediany; przy MAD=0 każde niezerowe odchylenie spełnia
+warunek. Oznaczenie obejmuje całą parę, nie jest odrzuceniem ani zmianą głównej
+mediany. Raport zachowuje powody, liczebność i wszystkie wyniki bez zaokrągleń.
+Etap 1 zachowuje wcześniejsze bramki. Kryteria narzutu: mediana delty CPU <1 pp,
+RPC p95 bez regresji powyżej max(1 ms, 10% wartości bazowej), odczyt 24 h <50 ms,
+synchroniczne odtworzenie CPU <100 ms. Po profilowaniu cel etapu 2 jest ostrzejszy:
+delta CPU <0,5 pp i RPC p95 <0,5 ms, a zatrzymany heap po pełnym GC różni się
+od samego etapu 1 o najwyżej około 2 MiB w fazach governor i slow receiver.
+Profilowanie jest osobnym przebiegiem: `CANOPY_BENCH_SMOKE=1`,
+`CANOPY_BENCH_STAGE=2`, `CANOPY_BENCH_FORENSICS_DIR` oraz
+`CANOPY_BENCH_FORENSIC_PHASE=steady|slow_reader|governor` wybierają fazę.
+JSC próbuje stos co 1 ms tylko podczas fazy; po fazie zapisujemy statystyki
+przed/po pełnym GC, liczby typów obiektów i heap snapshot w prywatnym katalogu.
+Artefakty mogą zawierać syntetyczne dane i poświadczenia prywatnej bazy testowej;
+nie trafiają do repo ani logów. Launcher końcowy usuwa te flagi: profile, snapshoty
+i wymuszone GC nie uczestniczą w trzech parach akceptacyjnych.
+Odtworzenie pełnej sekwencji ustawia też `CANOPY_BENCH_FORENSIC_CHECKPOINTS=1`
+oraz te same flagi historii, widoków, checkpointów i kompaktowania co launcher.
+Zapisuje slow receiver i governor oraz trzy punkty write failure: przed blokadą,
+pod jej koniec i 20 s po zwolnieniu. Statystyki sprzed snapshotu i po jawnym GC
+obejmują liczbę typów obiektów; sam snapshot JSC także może wykonać GC.
+Snapshoty służą więc ścieżkom retencji, a wcześniejsze statystyki — rozmiarowi
+niezebranych jeszcze obiektów. Nie porównujemy ich CPU/RSS z nagraniem akceptacyjnym.
+
+Skupiony test retencji przygotowuje `bash scripts/bench/diagnostics-retention.sh 2 write_failure`.
+Uruchamiamy go wyłącznie w przyznanym oknie, po aktualizacji stosu do bieżącego dev.
+Każdy checkpoint (przed blokadą, po 65 s blokady i 20 s po zwolnieniu) otrzymuje
+osobny świeży przebieg A/B, z historią, widokami, checkpointami DB i kompaktowaniem.
+Prelude slow receiver trwa 15 s, blokada 70 s, faza awarii 90 s; razem około
+12–18 minut dla trzech checkpointów, zależnie od seedowania i zapisu snapshotów.
+Argument `write_failure_without_watches` jest kontrolą bez otwierania watchy.
+Po punkcie przed blokadą test wykonuje rzeczywisty, owner-scoped INSERT z błędnym
+parametrem JSON 8 MiB rzutowanym na timestamptz. Zwraca tylko bit niepowodzenia;
+błąd, jego message i parametry nie trafiają do IPC ani raportu. Pozwala to
+sprawdzić retencję błędu sterownika niezależnie od wielkości metryk. Dodatkowy
+parametr jest syntetyczny, ale nadal pozostaje wyłącznie w prywatnych artefaktach.
+`CANOPY_DIAGNOSTICS_RETENTION_PROBE=0` wyłącza ten INSERT dla kontroli oryginalnej
+fazy awarii; nie wyłącza 70-sekundowej blokady zapisu diagnostyki.
+`bash scripts/bench/diagnostics-retention.sh 3 governor` przygotowuje oddzielne
+porównanie przed governor i po 90 s obciążenia (około 8–12 minut).
+Etap 2 utrzymuje etap 1 w obu członach; etap 3 utrzymuje etapy 1 i 2.
+Każdy proces pracuje w swap-disabled scope. To przebieg forensyczny, bez statusu
+akceptacji narzutu; nie zastępuje trzech par z bramkami hosta.
+Prywatny katalog ma tryb 0700, artefakty 0600. Plik `post-gc.json` zawiera surowe
+statystyki przed GC, po dwóch `Bun.gc(true)` rozdzielonych oddaniem event loop
+oraz deltę B−A heap/RSS po GC. Natywny snapshot JSC powstaje dopiero po tym odczycie;
+analizator obsługuje także format V8.
+`bun scripts/bench/diagnostics-heap-report.ts off.json on.json` porównuje liczby
+obiektów według konstruktora oraz self bytes, pokazuje 20 największych stringów
+i obiektów wraz z najkrótszą ścieżką od korzenia. Format V8 pozwala pominąć weak edges;
+JSC nie klasyfikuje ich oddzielnie, więc jego ścieżka nie dowodzi silnej retencji.
+Self bytes nie są rozmiarem dominatorów; ścieżki mają limit 100 krawędzi.
+Fixture zachowuje także legacy watch bez flagi `sequence`, aby usunięcie pełnych
+snapshotów w nowym protokole nie ukryło kosztu diagnostyki dla starszych klientów.
+Raport nie wypisuje treści stringów, błędów, nazw closure ani dynamicznych kluczy.
+Nieznane nazwy konstruktorów są hashowane, a nazwy pól pochodzą z allowlisty.
+Snapshoty i surowe liczniki typów pozostają prywatne; mogą zawierać dane testowe
+i poświadczenia prywatnej bazy. Nie dołączamy ich do PR.
+Pamięć etapu 2 mieści się w dotychczasowych
+rezerwacjach; przyrost RSS/VmHWM oraz każdą parę należy pokazać osobno, bez
+uznawania szumu za dodatkowy budżet. Skrypt wymaga czystego commita, zapisuje
+HEAD i zachowuje odrzucone próby; po trzech odrzuceniach tej samej pary kończy pracę.
+
+Zwykłe zapytania korzystają z natywnego `PgPool.use`, bez osobnego scope'u
+i finalizera na zapytanie. Transakcje i strumienie nadal rezerwują sesję;
+rollback, savepoint i błąd COMMIT zachowują semantykę sterownika.
+Instrumentacja nie zachowuje `Exit.Failure`, błędu sterownika ani jego pól;
+reserve/execute/release zapisuje tylko rodzinę, czas, id RPC i bit błędu.
+Rozdzielenie błędu pracy od cleanupu wykorzystuje wyłącznie liczby reasons/defects,
+bez porównywania i hashowania błędów. Callbacki zakończenia nie zamykają SQL,
+parametrów ani fizycznego połączenia. Klasyfikacja RPC czyta tylko kod rozpoznanego
+`ConnectError`; pozostałe wyjątki dają `Unknown`, bez kopiowania message.
+Obserwator governora otrzymuje wyłącznie rodzaj, priorytet, zdarzenie i czas;
+nie dostaje operacji, klucza, wyniku ani błędu. Kolektor jest jedyną referencją
+utrzymywaną przez callback obserwatora. Stop usuwa obserwatora i jego unsubscribe.
+Próbkowanie statystyk puli ma najwyżej jedno zadanie w toku i nie zachowuje
+zakończonych promise'ów ani przyczyn ich błędów.
+Wrappery fizycznych połączeń są w WeakMap, z rezerwacją 4 KiB w istniejącym
+budżecie kolektora dla domyślnej puli dziesięciu sesji. Nie ma map per zapytanie,
+watch ani admission. Hook kończący fazę SQL zapisuje wyłącznie cztery liczby
+w pierścieniu do 1024 próbek: id metryki/bit błędu, czas trwania, id RPC i czas
+obserwacji. Bufor i jego narzut zajmują 33 280 B w istniejących 6 MiB;
+przepełnienie zwiększa dropy i oznacza rozkłady rodziny jako niepełne.
+Wspólny interwał 20 ms przetwarza najwyżej 256 próbek poza ścieżką zapytania;
+odczyt i rollup opróżniają bufor przed utworzeniem widoku. Próbki zachowują
+pierwotny kubełek czasu i nie zawierają SQL, parametrów, wyników ani błędów.
+Hub przy publikacji aktualizuje tylko stałe liczniki i maksima liczbowe,
+rozliczone jako 256 B kolektora; tick 5 s przenosi ich sumy do metryk.
+Próbkowanie event loop nie tworzy kolejnego timera ani closure na każdą próbkę.
+Overview scala z wnętrza gatewaya tylko CPU; nie wylicza odrzucanych potem
+rodzin SQL ani korelacji RPC. Każde okno zachowuje jeden cache: wejście
+w szczegóły zastępuje uboższy widok pełnym, bez drugiej kopii. Rewizja
+odróżnia oba zakresy, aby overview nie potwierdziło niepobranego drill-downu.
+
+Wewnętrzne serie (proces, kolejki, governor, rodziny SQL i ich powiązania z RPC),
+łącznie z odtworzoną historią, mają wspólny podlimit 1 MiB wewnątrz istniejących
+6 MiB kolektora. Podlimit obejmuje obiekty i sparse kubełki, oddaje rezerwacje
+po wygaśnięciu slotu i zwiększa jawne dropy po wyczerpaniu. Rodziny SQL i korelacje
+mają dodatkowy podlimit 512 KiB w tym 1 MiB, aby nie wypierać serii procesu,
+kolejek i governora. Przy presji pamięci szczegóły są niepełne, nie rozszerzają limitu.
+Odtwarzanie historii może wykorzystać najwyżej połowę każdego podlimitu,
+aby zostawić miejsce na bieżące próbki po restarcie.
+Nie powiększa to budżetu: merge widoku nadal korzysta z istniejących 512 KiB, SQL z 33 280 B,
+a wrappery puli z 4 KiB. Callback rezerwacji jest wspólny dla pierścienia,
+zamiast osobnej closure na etykietę i slot. Aktualizacja liczników używa dokładnych
+liczb całkowitych `number`; po przekroczeniu bezpiecznego zakresu przechodzi na
+`BigInt`, zachowując saturację uint64 i format trwały. Percentyle pojedynczego
+histogramu w pamięci nie tworzą jego kopii ani pośredniego protobufu.
+To ogranicza alokacje przy każdym SQL/admission i podczas okresowych odczytów;
+wpływ na CPU, p95 i RSS wymaga nowego pomiaru.
+
+Retry trwałości przechowuje gotowe payloady do 64 KiB, maksymalnie 60 minut
+w istniejącym limicie 4 MiB, razem z rezerwacją 4 KiB na rekord/Map/Uint8Array.
+Nie zatrzymuje większych, nieprzyciętych obiektów rollupu ani błędów sterownika.
+Miejsce jest zwalniane przed dodaniem nowej minuty; usunięcie zwiększa jawny
+licznik dropów i ustawia `persistence_gap`. Podsumowanie checkpointów dekoduje
+po jednej minucie, z limitem 126 watermarków; zapis dekoduje payload dopiero po
+otrzymaniu blokady domu. Flaga niepełności przetrwa retry i kompaktowanie.
+Przycinanie payloadu odejmuje rozmiary usuwanych pól, zamiast kodować cały
+rollup lub odpowiedź ponownie dla każdego usuniętego szczegółu.
 
 ### 3.3 Worker i jakość sieci
 
@@ -414,7 +651,7 @@ atomowo z agregatem sesji odbiorcy. Dwie ostatnie sesje na łącze mieszczą si�
 ograniczonym stanie deduplikacji także przy reconnect w tej samej minucie.
 
 Odczyt scala agregaty w pamięci bez pośrednich kopii protobuf. Sumy zamkniętych
-minut są aktualizowane dodaniem nowego i odjęciem wygasłego slotu; dokładne max
+minut są aktualizowane dodaniem nowego i odjęciem wygasłego slotu; dokładne min/max
 odświeżamy z pozostałych slotów raz na minutę. Odtworzenie lub saturacja wymusza
 ponowne scalenie, bo odjęcie nasyconego licznika nie odtworzyłoby danych.
 Bieżące liczniki i gauges są dodawane od nowa, bez modyfikowania sumy.
@@ -733,7 +970,9 @@ Porównanie off/on na tej samej rewizji, danych syntetycznych, wersji runtime i 
 Procesy gatewaya, workera i PostgreSQL przypinamy do oddzielnych fizycznych rdzeni;
 `nice -n -5` tylko jeśli host pozwala. Nie zmieniamy affinity innych procesów ani
 globalnych cache. Przed każdą parą zapisujemy `/proc/loadavg`, a przez całą parę
-próbkujemy swap-in/out (`vmstat 1`). Load powyżej liczby CPU unieważnia parę.
+próbkujemy swap-in/out (`vmstat 1`). Poniższe progi opisują oryginalny protokół
+etapu 1; etapy 2–3 stosują user scope i nowsze bramki opisane w §3.2.
+Load powyżej liczby CPU unieważnia parę.
 Swap-out ≥128 KiB/s w dowolnej próbce albo ≥1 MiB łącznie na parę także ją
 unieważnia. Swap-in odrzuca parę przy ≥1 MiB/s albo ≥128 KiB/s przez trzy
 kolejne sekundy. Drobne odczyty starych stron swapu są dozwolone i raportowane

@@ -13,6 +13,7 @@ import { GitHubPat } from "./pat.ts";
 import { GitHubPullRequests } from "./pull-requests.ts";
 import { GitHubBackground } from "./background.ts";
 import { GitHubMutations } from "./mutations.ts";
+import { queryRpc } from "../diagnostics/query-context.ts";
 
 /** Product GitHub access. No worker, agent tool or shared-config adapter receives this service. */
 export class GitHubAccounts {
@@ -32,7 +33,7 @@ export class GitHubAccounts {
     publish: (ids: readonly string[]) => Promise<void> = async () => {},
   ) {
     this.run = async (use) => {
-      const result = await runtime.runPromise(Effect.exit(GatewayStore.use((s) => use(s.github))));
+      const result = await runtime.runPromise(Effect.exit(GatewayStore.use((s) => use(s.github)).pipe(queryRpc)));
 
       if (Exit.isFailure(result)) throw Cause.squash(result.cause);
 

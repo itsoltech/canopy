@@ -5,10 +5,12 @@ import type { SqlClient } from "effect/sql";
 import type { Fx } from "./errors.ts";
 import type { OutboxRow } from "./rows.ts";
 import { storageJson } from "./event-text.ts";
+import { queryFamily } from "../diagnostics/query-context.ts";
 
 export interface PendingCommand {
   readonly command: Command;
   readonly expiresAt: Date;
+  readonly createdAt: Date;
 }
 
 export interface OutboxStore {
@@ -38,10 +40,10 @@ export function outboxStore(sql: SqlClient.SqlClient): OutboxStore {
                 ON CONFLICT (id) DO NOTHING`;
 
         return message;
-      }),
+      }).pipe(queryFamily("commands.write")),
 
     pendingCommands: (workerId, afterId) =>
-      sql<Pick<OutboxRow, "id" | "payload"> & { expires_at: Date }>`
+      sql<Pick<OutboxRow, "id" | "payload"> & { expires_at: Date; created_at: Date }>`
         WITH candidates AS MATERIALIZED (
           SELECT id, payload, created_at, expires_at FROM worker_commands
           WHERE worker_id = ${workerId}::uuid AND status IN ('pending', 'delivered') AND expires_at > now()
@@ -52,14 +54,15 @@ export function outboxStore(sql: SqlClient.SqlClient): OutboxStore {
             (ORDER BY b.created_at,b.id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING),0) AS preceding_bytes
           FROM candidates b
         )
-        SELECT b.id,b.payload,b.expires_at FROM budget b
+        SELECT b.id,b.payload,b.expires_at,b.created_at FROM budget b
         WHERE b.preceding_bytes < 524288 ORDER BY b.created_at,b.id`.pipe(
+        queryFamily("commands.pending"),
         Effect.map((rows) =>
           rows.map((row) => {
             const command = fromBinary(CommandSchema, row.payload);
             command.commandId = row.id;
 
-            return { command, expiresAt: row.expires_at };
+            return { command, expiresAt: row.expires_at, createdAt: row.created_at };
           }),
         ),
       ),
@@ -67,6 +70,6 @@ export function outboxStore(sql: SqlClient.SqlClient): OutboxStore {
     commandDone: (commandId, ok, result) =>
       sql`
               UPDATE worker_commands SET status = ${ok ? "completed" : "failed"}, result = ${JSON.stringify(storageJson(result))}::jsonb, completed_at = now()
-               WHERE id = ${commandId}::uuid`.pipe(Effect.asVoid),
+               WHERE id = ${commandId}::uuid`.pipe(queryFamily("commands.write"), Effect.asVoid),
   };
 }

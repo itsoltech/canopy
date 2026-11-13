@@ -84,6 +84,14 @@ licencji ani SBOM/dependency graph aplikacji o natywne biblioteki.
 
 ## Świeżość i testy
 
+Settings → Diagnostics pokazuje lokalne przyjęcia, czas oczekiwania i wykonania,
+odrzucenia oraz aktywne i oczekujące zadania governora. Obserwator przyjmuje
+wyłącznie stałe rodzaje, priorytety i kody zdarzeń; klucze deduplikacji,
+argumenty procesów i błędy nie przekraczają tej granicy. Maksymalnie 16
+obserwatorów nie zmienia decyzji schedulera, a wyjątek obserwatora nie blokuje
+przyjęcia ani zwolnienia miejsca. Serie korzystają ze wspólnego budżetu
+diagnostyki gatewaya; metryki governora workera należą do etapu 3.
+
 Tworzenie i rename również omijają cache: agent może równolegle zmienić gałąź
 lub upstream poza Canopy.
 

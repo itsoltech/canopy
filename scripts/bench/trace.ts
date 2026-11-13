@@ -86,7 +86,7 @@ export const tracedSql = (recorder: Recorder) =>
   Layer.effect(
     SqlClient.SqlClient,
     Effect.gen(function* () {
-      const pg = yield* PgClient.PgClient;
+      const pg = yield* SqlClient.SqlClient;
 
       return yield* SqlClient.make({
         acquirer: pg.reserve.pipe(Effect.map((connection) => traced(connection, recorder))),

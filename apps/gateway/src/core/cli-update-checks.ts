@@ -5,6 +5,7 @@ import { isCheckInterval, nextUpdateCheck } from "@canopy/domain/update-checks";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
+import { queryFamily, queryRpc } from "../diagnostics/query-context.ts";
 import type { CoreRuntime } from "./core.ts";
 import { CliLatestSource, KEYS, type CliLatestOptions, type Latest } from "./cli-latest.ts";
 
@@ -39,7 +40,7 @@ export class CliUpdateChecks {
         LEFT JOIN user_settings s ON s.user_id = w.owner_user_id
         WHERE w.owner_user_id = ${userId}::uuid AND w.archived_at IS NULL AND w.revoked_at IS NULL
           AND (${workerId} = '' OR w.id::text = ${workerId})`;
-      }),
+      }).pipe(queryFamily("workers.store"), queryRpc),
     );
   }
 
@@ -130,7 +131,7 @@ export class CliUpdateChecks {
           const sql = yield* SqlClient.SqlClient;
           yield* sql`UPDATE workers SET capabilities = capabilities || jsonb_build_object('cliUpdateChecks', ${json}::jsonb)
           WHERE id = ${row.id}::uuid AND owner_user_id = ${userId}::uuid`;
-        }),
+        }).pipe(queryFamily("workers.store"), queryRpc),
       );
       this.#latest.set(row.id, latest);
     }
@@ -156,7 +157,7 @@ export class CliUpdateChecks {
         version = c.version + 1, updated_by = ${userId}::uuid, updated_at = now() FROM workers w
         WHERE c.worker_id = w.id AND w.id = ${workerId}::uuid AND w.owner_user_id = ${userId}::uuid
           AND c.version = ${expectedConfigVersion} RETURNING c.worker_id`;
-      }),
+      }).pipe(queryFamily("workers.store"), queryRpc),
     );
 
     if (!rows.length) throw new ConnectError("worker configuration changed; reload and retry", Code.FailedPrecondition);

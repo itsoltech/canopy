@@ -1,12 +1,15 @@
 import { Layer } from "effect";
-import type { TestPostgres } from "@canopy/db/testing";
+import type { SqlClient, SqlError } from "effect/sql";
 import { join } from "node:path";
 import { PlanCapture } from "./plan-capture.ts";
 import { normalizedSql, sqlSourceIndex } from "./sql-inventory.ts";
 import { Recorder, tracedSql } from "./trace.ts";
 
 /** Opt-in diagnostic tests only: no parameters, rows, SQL text or identifiers enter the saved plans. */
-export async function testAudit(database: TestPostgres["layer"], directory: string) {
+export async function testAudit<Services>(
+  database: Layer.Layer<SqlClient.SqlClient | Services, SqlError.SqlError>,
+  directory: string,
+) {
   const sources = await sqlSourceIndex();
   const recorder = new Recorder();
   const plans = new PlanCapture((text) => sources.get(normalizedSql(text)) ?? []);

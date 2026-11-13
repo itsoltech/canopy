@@ -14,6 +14,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import type { WorkerLink } from "../worker-link/index.ts";
+import { queryFamily, queryRpc } from "../diagnostics/query-context.ts";
 import {
   CLI_CACHE_MS,
   CliLatestSource,
@@ -97,7 +98,7 @@ export class CliTools {
   }
 
   #run<A, E>(effect: Effect.Effect<A, E, SqlClient.SqlClient>): Promise<A> {
-    return this.#options.runtime.runPromise(effect);
+    return this.#options.runtime.runPromise(effect.pipe(queryFamily("workers.store"), queryRpc));
   }
 
   /** A worker's report (CliToolsReport) replaces the previous one. */

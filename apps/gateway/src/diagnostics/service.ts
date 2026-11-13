@@ -17,6 +17,8 @@ import { BucketBudget } from "./buckets.ts";
 import { callKey, sortCalls, diagnosticsSorts } from "@canopy/domain/diagnostics";
 import { diagnosticsResponse } from "./response.ts";
 import { DiagnosticsHistory } from "./history.ts";
+import { ProcessDiagnostics } from "./process.ts";
+import { IngestDiagnostics } from "./ingest.ts";
 
 const METHOD_KEYS = new Set(
   [...RPC_METHODS, ...LINKED_METHODS, ...COMMAND_METHODS].map((method) => `${method.layer}:${method.name}`),
@@ -25,6 +27,8 @@ const METHOD_KEYS = new Set(
 export class Diagnostics {
   readonly collector = new RpcCollector([...RPC_METHODS, ...LINKED_METHODS, ...COMMAND_METHODS]);
   readonly interceptor = diagnosticsInterceptor(this.collector);
+  readonly resources: ProcessDiagnostics;
+  readonly ingest = new IngestDiagnostics(this.collector);
   readonly findings = new Findings();
   readonly links = new Map<string, LinkDiagnostics>();
   readonly peers: DiagnosticsPeers;
@@ -36,7 +40,13 @@ export class Diagnostics {
   #unsubscribe: (() => void) | undefined;
   #snapshots = new Map<
     number,
-    { at: number; value: ReturnType<typeof rpcSnapshot>; restored: number; historical: number | undefined }
+    {
+      at: number;
+      value: ReturnType<typeof rpcSnapshot>;
+      restored: number;
+      historical: number | undefined;
+      details: boolean;
+    }
   >();
   #workers: readonly { id: string; name: string; supported: boolean }[] = [];
   #workersAt = 0;
@@ -49,6 +59,11 @@ export class Diagnostics {
     readonly options: GatewayCoreOptions,
   ) {
     this.collector.enabled = options.diagnosticsEnabled ?? true;
+    this.collector.gatewayEnabled = options.gatewayDiagnosticsEnabled ?? true;
+
+    // Hub's fixed scalar fan-out accumulator shares the existing collector allowance.
+    if (this.collector.enabled && this.collector.gatewayEnabled) this.collector.budget.reserve(256);
+    this.resources = new ProcessDiagnostics(this.collector, options.runtime);
     this.peers = new DiagnosticsPeers(core);
   }
 
@@ -56,6 +71,7 @@ export class Diagnostics {
     if (!this.collector.enabled) return;
 
     if (this.#timer) return;
+    this.resources.start();
     const computer = this.core.computers?.hello().nodeId ?? "local";
     this.persistence = new DiagnosticsPersistence(
       new DiagnosticsStore(this.options.runtime, this.options.userId, computer),
@@ -130,6 +146,8 @@ export class Diagnostics {
 
   workerMessage(connection: WorkerConnection, message: WorkerMessage) {
     if (!this.collector.enabled) return message.payload.case === "diagnostics";
+
+    if (message.payload.case === "threadEvent") this.ingest.receive(connection, message.payload.value);
     const link = this.link(connection.workerId, "worker");
 
     if (message.payload.case === "heartbeat") link?.heartbeat();
@@ -149,6 +167,16 @@ export class Diagnostics {
 
   tick() {
     this.collector.tick();
+    const weight = this.resources.sample();
+    this.ingest.sample(weight);
+    const hub = this.core.hub.snapshot();
+    this.collector.measure(28, hub.threads, false, 0, weight);
+    this.collector.measure(29, hub.overview, false, 0, weight);
+    this.collector.measure(40, this.core.computers?.diagnosticsWatches() ?? 0, false, 0, weight);
+    this.collector.measure(34, hub.peakItems);
+    this.collector.measure(34, hub.items, false, 0, weight);
+    this.collector.measure(35, hub.peakBytes);
+    this.collector.measure(35, hub.bytes, false, 0, weight);
 
     for (const link of this.links.values()) link.collector.tick();
     void this.peers.catalog().catch(() => {});
@@ -184,6 +212,7 @@ export class Diagnostics {
 
     if (
       !cached ||
+      (!request.overviewOnly && !cached.details) ||
       now - cached.at >= 5000 ||
       cached.restored !== this.collector.historyRevision ||
       (minutes === 1440 && cached.historical !== this.history?.revision)
@@ -192,7 +221,13 @@ export class Diagnostics {
         at: now,
         restored: this.collector.historyRevision,
         historical: this.history?.revision,
-        value: rpcSnapshot(this.collector, minutes, minutes === 1440 ? this.history?.values.get("gateway") : undefined),
+        details: !request.overviewOnly,
+        value: rpcSnapshot(
+          this.collector,
+          minutes,
+          minutes === 1440 ? this.history?.values.get("gateway") : undefined,
+          request.overviewOnly,
+        ),
       };
       this.#snapshots.set(minutes, cached);
     }
@@ -213,7 +248,7 @@ export class Diagnostics {
         })
       : calls.slice(request.offset, request.offset + limit);
 
-    const revision = `${this.collector.session}:${Math.floor(cached.at / 5000)}:${minutes}:${request.offset}:${request.sortBy}:${request.callKind}:${request.methodKeys.join(",")}`;
+    const revision = `${this.collector.session}:${Math.floor(cached.at / 5000)}:${minutes}:${request.offset}:${request.sortBy}:${request.callKind}:${request.methodKeys.join(",")}:${Number(request.overviewOnly)}`;
     const computer = this.core.computers;
     const links = this.#links(minutes);
 
@@ -246,6 +281,11 @@ export class Diagnostics {
       ),
       detailsAvailable: !request.overviewOnly,
       windowMinutes: minutes,
+      gatewayMeasuresSupported: this.collector.gatewayEnabled,
+      gatewayMeasures: request.overviewOnly
+        ? own.gatewayMeasures.filter((value) => value.metricId === 2)
+        : own.gatewayMeasures,
+      database: request.overviewOnly ? [] : own.database,
     });
 
     return internal ? result : diagnosticsResponse(result, request);
@@ -363,6 +403,7 @@ export class Diagnostics {
   }
 
   async stop() {
+    this.resources.stop();
     clearInterval(this.#timer);
     this.#timer = undefined;
     this.#unsubscribe?.();

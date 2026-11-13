@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/ui/v1/diagnostics.proto.
  */
 export const file_canopy_ui_v1_diagnostics: GenFile = /*@__PURE__*/
-  fileDesc("Ch5jYW5vcHkvdWkvdjEvZGlhZ25vc3RpY3MucHJvdG8SDGNhbm9weS51aS52MSJRChREaWFnbm9zdGljc0hpc3RvZ3JhbRIPCgdpbmRpY2VzGAEgAygNEg4KBmNvdW50cxgCIAMoBBILCgNzdW0YAyABKAESCwoDbWF4GAQgASgBIskDChREaWFnbm9zdGljc0FnZ3JlZ2F0ZRIRCgltZXRob2RfaWQYASABKA0SDwoHc3RhcnRlZBgCIAEoBBIRCgljb21wbGV0ZWQYAyABKAQSDQoFY29kZXMYBCADKAQSNAoIZHVyYXRpb24YBSABKAsyIi5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NIaXN0b2dyYW0SOQoNcmVxdWVzdF9ieXRlcxgGIAEoCzIiLmNhbm9weS51aS52MS5EaWFnbm9zdGljc0hpc3RvZ3JhbRI6Cg5yZXNwb25zZV9ieXRlcxgHIAEoCzIiLmNhbm9weS51aS52MS5EaWFnbm9zdGljc0hpc3RvZ3JhbRI5Cg1maXJzdF9tZXNzYWdlGAggASgLMiIuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzSGlzdG9ncmFtEhgKEHJlcXVlc3RfbWVzc2FnZXMYCSABKAQSGQoRcmVzcG9uc2VfbWVzc2FnZXMYCiABKAQSFQoNbWF4X2luX2ZsaWdodBgLIAEoDRISCgppbmNvbXBsZXRlGAwgASgIEgwKBHNsb3cYDSABKAQSFQoNbWVzc2FnZV9raW5kcxgOIAMoBCJ0ChFEaWFnbm9zdGljc1JvbGx1cBIWCg5zY2hlbWFfdmVyc2lvbhgBIAEoDRIzCglwcm9jZXNzZXMYAiADKAsyIC5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NQcm9jZXNzEhIKCmluY29tcGxldGUYAyABKAgi7gEKEkRpYWdub3N0aWNzUHJvY2VzcxISCgpwcm9jZXNzX2lkGAEgASgJEg8KB3Nlc3Npb24YAiABKAkSEAoIc2VxdWVuY2UYAyABKAQSMwoIY292ZXJhZ2UYBCADKAsyIS5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NDb3ZlcmFnZRIyCgZzZXJpZXMYBSADKAsyIi5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NBZ2dyZWdhdGUSOAoLY2hlY2twb2ludHMYBiADKAsyIy5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NDaGVja3BvaW50IjoKFURpYWdub3N0aWNzQ2hlY2twb2ludBIPCgdzZXNzaW9uGAEgASgJEhAKCHNlcXVlbmNlGAIgASgEIjcKE0RpYWdub3N0aWNzQ292ZXJhZ2USEAoIc3RhcnRfbXMYASABKAMSDgoGZW5kX21zGAIgASgDIiwKEkRpYWdub3N0aWNzUmVxdWVzdBIWCg53aW5kb3dfbWludXRlcxgBIAEoDSLKAQoaQ29tcHV0ZXJEaWFnbm9zdGljc1JlcXVlc3QSEwoLY29tcHV0ZXJfaWQYASABKAkSFgoOd2luZG93X21pbnV0ZXMYAiABKA0SDgoGb2Zmc2V0GAMgASgNEg0KBWxpbWl0GAQgASgNEhAKCHJldmlzaW9uGAUgASgJEhUKDW92ZXJ2aWV3X29ubHkYBiABKAgSDwoHc29ydF9ieRgHIAEoCRIRCgljYWxsX2tpbmQYCCABKAkSEwoLbWV0aG9kX2tleXMYCSADKAkimAEKFkRpYWdub3N0aWNzUGVyY2VudGlsZXMSCwoDcDUwGAEgASgBEgsKA3A5NRgCIAEoARILCgNwOTkYAyABKAESCwoDbWF4GAQgASgBEg8KB3NhbXBsZXMYBSABKAQSEAoIb3ZlcmZsb3cYBiABKAgSCwoDc3VtGAcgASgBEhoKEm92ZXJmbG93X3F1YW50aWxlcxgIIAEoDSK1BAoPRGlhZ25vc3RpY3NDYWxsEg4KBm1ldGhvZBgBIAEoCRINCgVsYXllchgCIAEoCRIOCgZzdHJlYW0YAyABKAgSDwoHc3RhcnRlZBgEIAEoBBIRCgljb21wbGV0ZWQYBSABKAQSGAoQY2FsbHNfcGVyX21pbnV0ZRgGIAEoARINCgVjb2RlcxgHIAMoBBIRCglpbl9mbGlnaHQYCCABKA0SFQoNbWF4X2luX2ZsaWdodBgJIAEoDRI5CgtkdXJhdGlvbl9tcxgKIAEoCzIkLmNhbm9weS51aS52MS5EaWFnbm9zdGljc1BlcmNlbnRpbGVzEjsKDXJlcXVlc3RfYnl0ZXMYCyABKAsyJC5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NQZXJjZW50aWxlcxI8Cg5yZXNwb25zZV9ieXRlcxgMIAEoCzIkLmNhbm9weS51aS52MS5EaWFnbm9zdGljc1BlcmNlbnRpbGVzEj4KEGZpcnN0X21lc3NhZ2VfbXMYDSABKAsyJC5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NQZXJjZW50aWxlcxIYChByZXF1ZXN0X21lc3NhZ2VzGA4gASgEEhkKEXJlc3BvbnNlX21lc3NhZ2VzGA8gASgEEhgKEG9sZGVzdF9hY3RpdmVfbXMYECABKAESEgoKaW5jb21wbGV0ZRgRIAEoCBIMCgRzbG93GBIgASgEEhUKDW1lc3NhZ2Vfa2luZHMYEyADKAQi2wEKEkRpYWdub3N0aWNzRmluZGluZxIPCgdydWxlX2lkGAEgASgJEg8KB3N1YmplY3QYAiABKAkSEAoIc2V2ZXJpdHkYAyABKAkSDQoFdmFsdWUYBCABKAESEQoJdGhyZXNob2xkGAUgASgBEg8KB3NhbXBsZXMYBiABKAQSGAoQb2JzZXJ2ZWRfc2Vjb25kcxgHIAEoARIQCghlbnRlcmluZxgIIAEoDRIPCgdsZWF2aW5nGAkgASgNEhEKCXN1c3BlbmRlZBgKIAEoCBIOCgZhY3RpdmUYCyABKAgiyAIKD0RpYWdub3N0aWNzTGluaxIRCgl0YXJnZXRfaWQYASABKAkSDAoEa2luZBgCIAEoCRIMCgRuYW1lGAMgASgJEhEKCXN1cHBvcnRlZBgEIAEoCBI0CgZydHRfbXMYBSABKAsyJC5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NQZXJjZW50aWxlcxI3CglqaXR0ZXJfbXMYBiABKAsyJC5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NQZXJjZW50aWxlcxJDChVoZWFydGJlYXRfaW50ZXJ2YWxfbXMYByABKAsyJC5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NQZXJjZW50aWxlcxIYChBoZWFydGJlYXRfYWdlX21zGAggASgBEhUKDWVjaG9fdGltZW91dHMYCSABKAQSDgoGb25saW5lGAogASgIIo8GChNDb21wdXRlckRpYWdub3N0aWNzEhMKC2NvbXB1dGVyX2lkGAEgASgJEgwKBG5hbWUYAiABKAkSEwoLYXBwX3ZlcnNpb24YAyABKAkSDgoGc3RhdHVzGAQgASgJEhcKD3Byb2Nlc3Nfc2Vzc2lvbhgFIAEoCRINCgVlcG9jaBgGIAEoCRIVCg1zYW1wbGVkX2F0X21zGAcgASgDEhUKDXNhbXBsZV9hZ2VfbXMYCCABKAESFwoPd2luZG93X3N0YXJ0X21zGAkgASgDEhUKDXdpbmRvd19lbmRfbXMYCiABKAMSGgoScmVzb2x1dGlvbl9zZWNvbmRzGAsgASgNEhgKEG9ic2VydmVkX3NlY29uZHMYDCABKAESLwoEZ2FwcxgNIAMoCzIhLmNhbm9weS51aS52MS5EaWFnbm9zdGljc0NvdmVyYWdlEhEKCXJlc3RvcmluZxgOIAEoCBIcChRwZXJzaXN0ZWRfdGhyb3VnaF9tcxgPIAEoAxIXCg9wZW5kaW5nX21pbnV0ZXMYECABKA0SGgoScGVyc2lzdGVuY2Vfc3RhdHVzGBEgASgJEiwKBWNhbGxzGBIgAygLMh0uY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzQ2FsbBIsCgVsaW5rcxgTIAMoCzIdLmNhbm9weS51aS52MS5EaWFnbm9zdGljc0xpbmsSMgoIZmluZGluZ3MYFCADKAsyIC5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NGaW5kaW5nEhUKDXRvdGFsX21ldGhvZHMYFSABKA0SEwoLbmV4dF9vZmZzZXQYFiABKA0SEAoIcmV2aXNpb24YFyABKAkSFAoMbm90X21vZGlmaWVkGBggASgIEhcKD2Ryb3BwZWRfc2FtcGxlcxgZIAEoBBIZChFkZXRhaWxzX2F2YWlsYWJsZRgaIAEoCBIWCg5yZWNlaXZlZF9hdF9tcxgbIAEoAxIVCg1hZ2VfdW5jZXJ0YWluGBwgASgIEhYKDndpbmRvd19taW51dGVzGB0gASgNIksKE0RpYWdub3N0aWNzU25hcHNob3QSNAoJY29tcHV0ZXJzGAEgAygLMiEuY2Fub3B5LnVpLnYxLkNvbXB1dGVyRGlhZ25vc3RpY3MilQIKEERpYWdub3N0aWNzU3RhdGUSFgoOc2NoZW1hX3ZlcnNpb24YASABKA0SDQoFZXBvY2gYAiABKAkSHAoUcGVyc2lzdGVkX3Rocm91Z2hfbXMYAyABKAMSMgoIZmluZGluZ3MYBCADKAsyIC5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NGaW5kaW5nEjQKCndhdGVybWFya3MYBSADKAsyIC5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NQcm9jZXNzEjkKDnBlZXJfb3ZlcnZpZXdzGAYgAygLMiEuY2Fub3B5LnVpLnYxLkNvbXB1dGVyRGlhZ25vc3RpY3MSFwoPcGVyc2lzdGVuY2VfZ2FwGAcgASgIIkYKF0RpYWdub3N0aWNzR3JhbnRSZXF1ZXN0EhoKEm9yaWdpbl9jb21wdXRlcl9pZBgBIAEoCRIPCgdlbmFibGVkGAIgASgIIi4KEERpYWdub3N0aWNzR3JhbnQSGgoSb3JpZ2luX2NvbXB1dGVyX2lkGAEgASgJIkMKEURpYWdub3N0aWNzR3JhbnRzEi4KBmdyYW50cxgBIAMoCzIeLmNhbm9weS51aS52MS5EaWFnbm9zdGljc0dyYW50ItgBChVXb3JrZXJMaW5rRGlhZ25vc3RpY3MSDwoHc2Vzc2lvbhgBIAEoCRIQCghzZXF1ZW5jZRgCIAEoBBIQCghzdGFydF9tcxgDIAEoAxIOCgZlbmRfbXMYBCABKAMSLwoDcnR0GAUgASgLMiIuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzSGlzdG9ncmFtEjIKBmppdHRlchgGIAEoCzIiLmNhbm9weS51aS52MS5EaWFnbm9zdGljc0hpc3RvZ3JhbRIVCg1lY2hvX3RpbWVvdXRzGAcgASgEYgZwcm90bzM");
+  fileDesc("Ch5jYW5vcHkvdWkvdjEvZGlhZ25vc3RpY3MucHJvdG8SDGNhbm9weS51aS52MSJrChREaWFnbm9zdGljc0hpc3RvZ3JhbRIPCgdpbmRpY2VzGAEgAygNEg4KBmNvdW50cxgCIAMoBBILCgNzdW0YAyABKAESCwoDbWF4GAQgASgBEhAKA21pbhgFIAEoAUgAiAEBQgYKBF9taW4iyQMKFERpYWdub3N0aWNzQWdncmVnYXRlEhEKCW1ldGhvZF9pZBgBIAEoDRIPCgdzdGFydGVkGAIgASgEEhEKCWNvbXBsZXRlZBgDIAEoBBINCgVjb2RlcxgEIAMoBBI0CghkdXJhdGlvbhgFIAEoCzIiLmNhbm9weS51aS52MS5EaWFnbm9zdGljc0hpc3RvZ3JhbRI5Cg1yZXF1ZXN0X2J5dGVzGAYgASgLMiIuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzSGlzdG9ncmFtEjoKDnJlc3BvbnNlX2J5dGVzGAcgASgLMiIuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzSGlzdG9ncmFtEjkKDWZpcnN0X21lc3NhZ2UYCCABKAsyIi5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NIaXN0b2dyYW0SGAoQcmVxdWVzdF9tZXNzYWdlcxgJIAEoBBIZChFyZXNwb25zZV9tZXNzYWdlcxgKIAEoBBIVCg1tYXhfaW5fZmxpZ2h0GAsgASgNEhIKCmluY29tcGxldGUYDCABKAgSDAoEc2xvdxgNIAEoBBIVCg1tZXNzYWdlX2tpbmRzGA4gAygEInQKEURpYWdub3N0aWNzUm9sbHVwEhYKDnNjaGVtYV92ZXJzaW9uGAEgASgNEjMKCXByb2Nlc3NlcxgCIAMoCzIgLmNhbm9weS51aS52MS5EaWFnbm9zdGljc1Byb2Nlc3MSEgoKaW5jb21wbGV0ZRgDIAEoCCKrAgoSRGlhZ25vc3RpY3NQcm9jZXNzEhIKCnByb2Nlc3NfaWQYASABKAkSDwoHc2Vzc2lvbhgCIAEoCRIQCghzZXF1ZW5jZRgDIAEoBBIzCghjb3ZlcmFnZRgEIAMoCzIhLmNhbm9weS51aS52MS5EaWFnbm9zdGljc0NvdmVyYWdlEjIKBnNlcmllcxgFIAMoCzIiLmNhbm9weS51aS52MS5EaWFnbm9zdGljc0FnZ3JlZ2F0ZRI4CgtjaGVja3BvaW50cxgGIAMoCzIjLmNhbm9weS51aS52MS5EaWFnbm9zdGljc0NoZWNrcG9pbnQSOwoIbWVhc3VyZXMYByADKAsyKS5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NNZWFzdXJlQWdncmVnYXRlIooCChtEaWFnbm9zdGljc01lYXN1cmVBZ2dyZWdhdGUSEQoJbWV0cmljX2lkGAEgASgNEhUKDXJwY19tZXRob2RfaWQYAiABKA0SNQoJaGlzdG9ncmFtGAMgASgLMiIuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzSGlzdG9ncmFtEg4KBmV2ZW50cxgEIAEoBBIOCgZlcnJvcnMYBSABKAQSFAoMd2VpZ2h0ZWRfc3VtGAYgASgBEg4KBndlaWdodBgHIAEoARILCgNtYXgYCCABKAESDAoEbGFzdBgJIAEoARIVCg1zYW1wbGVkX2F0X21zGAogASgDEhIKCmluY29tcGxldGUYCyABKAgihQIKEkRpYWdub3N0aWNzTWVhc3VyZRIRCgltZXRyaWNfaWQYASABKA0SOgoMZGlzdHJpYnV0aW9uGAIgASgLMiQuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzUGVyY2VudGlsZXMSDgoGZXZlbnRzGAMgASgEEg4KBmVycm9ycxgEIAEoBBIMCgRtZWFuGAUgASgBEgsKA21heBgGIAEoARIMCgRsYXN0GAcgASgBEhUKDXNhbXBsZWRfYXRfbXMYCCABKAMSGAoQb2JzZXJ2ZWRfc2Vjb25kcxgJIAEoARISCgpoaXN0b3JpY2FsGAogASgIEhIKCmluY29tcGxldGUYCyABKAgijwMKGURpYWdub3N0aWNzRGF0YWJhc2VGYW1pbHkSDgoGZmFtaWx5GAEgASgJEjgKCnJlc2VydmVfbXMYAiABKAsyJC5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NQZXJjZW50aWxlcxI4CgpleGVjdXRlX21zGAMgASgLMiQuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzUGVyY2VudGlsZXMSOAoKcmVsZWFzZV9tcxgEIAEoCzIkLmNhbm9weS51aS52MS5EaWFnbm9zdGljc1BlcmNlbnRpbGVzEjwKDnRyYW5zYWN0aW9uX21zGAUgASgLMiQuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzUGVyY2VudGlsZXMSFgoOcmVzZXJ2ZV9lcnJvcnMYBiABKAQSFgoOZXhlY3V0ZV9lcnJvcnMYByABKAQSFgoOcmVsZWFzZV9lcnJvcnMYCCABKAQSGgoSdHJhbnNhY3Rpb25fZXJyb3JzGAkgASgEEhIKCmluY29tcGxldGUYCiABKAgiOgoVRGlhZ25vc3RpY3NDaGVja3BvaW50Eg8KB3Nlc3Npb24YASABKAkSEAoIc2VxdWVuY2UYAiABKAQiNwoTRGlhZ25vc3RpY3NDb3ZlcmFnZRIQCghzdGFydF9tcxgBIAEoAxIOCgZlbmRfbXMYAiABKAMiLAoSRGlhZ25vc3RpY3NSZXF1ZXN0EhYKDndpbmRvd19taW51dGVzGAEgASgNIsoBChpDb21wdXRlckRpYWdub3N0aWNzUmVxdWVzdBITCgtjb21wdXRlcl9pZBgBIAEoCRIWCg53aW5kb3dfbWludXRlcxgCIAEoDRIOCgZvZmZzZXQYAyABKA0SDQoFbGltaXQYBCABKA0SEAoIcmV2aXNpb24YBSABKAkSFQoNb3ZlcnZpZXdfb25seRgGIAEoCBIPCgdzb3J0X2J5GAcgASgJEhEKCWNhbGxfa2luZBgIIAEoCRITCgttZXRob2Rfa2V5cxgJIAMoCSKYAQoWRGlhZ25vc3RpY3NQZXJjZW50aWxlcxILCgNwNTAYASABKAESCwoDcDk1GAIgASgBEgsKA3A5ORgDIAEoARILCgNtYXgYBCABKAESDwoHc2FtcGxlcxgFIAEoBBIQCghvdmVyZmxvdxgGIAEoCBILCgNzdW0YByABKAESGgoSb3ZlcmZsb3dfcXVhbnRpbGVzGAggASgNIvAECg9EaWFnbm9zdGljc0NhbGwSDgoGbWV0aG9kGAEgASgJEg0KBWxheWVyGAIgASgJEg4KBnN0cmVhbRgDIAEoCBIPCgdzdGFydGVkGAQgASgEEhEKCWNvbXBsZXRlZBgFIAEoBBIYChBjYWxsc19wZXJfbWludXRlGAYgASgBEg0KBWNvZGVzGAcgAygEEhEKCWluX2ZsaWdodBgIIAEoDRIVCg1tYXhfaW5fZmxpZ2h0GAkgASgNEjkKC2R1cmF0aW9uX21zGAogASgLMiQuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzUGVyY2VudGlsZXMSOwoNcmVxdWVzdF9ieXRlcxgLIAEoCzIkLmNhbm9weS51aS52MS5EaWFnbm9zdGljc1BlcmNlbnRpbGVzEjwKDnJlc3BvbnNlX2J5dGVzGAwgASgLMiQuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzUGVyY2VudGlsZXMSPgoQZmlyc3RfbWVzc2FnZV9tcxgNIAEoCzIkLmNhbm9weS51aS52MS5EaWFnbm9zdGljc1BlcmNlbnRpbGVzEhgKEHJlcXVlc3RfbWVzc2FnZXMYDiABKAQSGQoRcmVzcG9uc2VfbWVzc2FnZXMYDyABKAQSGAoQb2xkZXN0X2FjdGl2ZV9tcxgQIAEoARISCgppbmNvbXBsZXRlGBEgASgIEgwKBHNsb3cYEiABKAQSFQoNbWVzc2FnZV9raW5kcxgTIAMoBBI5CghkYXRhYmFzZRgUIAMoCzInLmNhbm9weS51aS52MS5EaWFnbm9zdGljc0RhdGFiYXNlRmFtaWx5IvABChJEaWFnbm9zdGljc0ZpbmRpbmcSDwoHcnVsZV9pZBgBIAEoCRIPCgdzdWJqZWN0GAIgASgJEhAKCHNldmVyaXR5GAMgASgJEg0KBXZhbHVlGAQgASgBEhEKCXRocmVzaG9sZBgFIAEoARIPCgdzYW1wbGVzGAYgASgEEhgKEG9ic2VydmVkX3NlY29uZHMYByABKAESEAoIZW50ZXJpbmcYCCABKA0SDwoHbGVhdmluZxgJIAEoDRIRCglzdXNwZW5kZWQYCiABKAgSDgoGYWN0aXZlGAsgASgIEhMKC2R1cmluZ19zeW5jGAwgASgIIsgCCg9EaWFnbm9zdGljc0xpbmsSEQoJdGFyZ2V0X2lkGAEgASgJEgwKBGtpbmQYAiABKAkSDAoEbmFtZRgDIAEoCRIRCglzdXBwb3J0ZWQYBCABKAgSNAoGcnR0X21zGAUgASgLMiQuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzUGVyY2VudGlsZXMSNwoJaml0dGVyX21zGAYgASgLMiQuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzUGVyY2VudGlsZXMSQwoVaGVhcnRiZWF0X2ludGVydmFsX21zGAcgASgLMiQuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzUGVyY2VudGlsZXMSGAoQaGVhcnRiZWF0X2FnZV9tcxgIIAEoARIVCg1lY2hvX3RpbWVvdXRzGAkgASgEEg4KBm9ubGluZRgKIAEoCCKqBwoTQ29tcHV0ZXJEaWFnbm9zdGljcxITCgtjb21wdXRlcl9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhMKC2FwcF92ZXJzaW9uGAMgASgJEg4KBnN0YXR1cxgEIAEoCRIXCg9wcm9jZXNzX3Nlc3Npb24YBSABKAkSDQoFZXBvY2gYBiABKAkSFQoNc2FtcGxlZF9hdF9tcxgHIAEoAxIVCg1zYW1wbGVfYWdlX21zGAggASgBEhcKD3dpbmRvd19zdGFydF9tcxgJIAEoAxIVCg13aW5kb3dfZW5kX21zGAogASgDEhoKEnJlc29sdXRpb25fc2Vjb25kcxgLIAEoDRIYChBvYnNlcnZlZF9zZWNvbmRzGAwgASgBEi8KBGdhcHMYDSADKAsyIS5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NDb3ZlcmFnZRIRCglyZXN0b3JpbmcYDiABKAgSHAoUcGVyc2lzdGVkX3Rocm91Z2hfbXMYDyABKAMSFwoPcGVuZGluZ19taW51dGVzGBAgASgNEhoKEnBlcnNpc3RlbmNlX3N0YXR1cxgRIAEoCRIsCgVjYWxscxgSIAMoCzIdLmNhbm9weS51aS52MS5EaWFnbm9zdGljc0NhbGwSLAoFbGlua3MYEyADKAsyHS5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NMaW5rEjIKCGZpbmRpbmdzGBQgAygLMiAuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzRmluZGluZxIVCg10b3RhbF9tZXRob2RzGBUgASgNEhMKC25leHRfb2Zmc2V0GBYgASgNEhAKCHJldmlzaW9uGBcgASgJEhQKDG5vdF9tb2RpZmllZBgYIAEoCBIXCg9kcm9wcGVkX3NhbXBsZXMYGSABKAQSGQoRZGV0YWlsc19hdmFpbGFibGUYGiABKAgSFgoOcmVjZWl2ZWRfYXRfbXMYGyABKAMSFQoNYWdlX3VuY2VydGFpbhgcIAEoCBIWCg53aW5kb3dfbWludXRlcxgdIAEoDRI6ChBnYXRld2F5X21lYXN1cmVzGB4gAygLMiAuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzTWVhc3VyZRI5CghkYXRhYmFzZRgfIAMoCzInLmNhbm9weS51aS52MS5EaWFnbm9zdGljc0RhdGFiYXNlRmFtaWx5EiIKGmdhdGV3YXlfbWVhc3VyZXNfc3VwcG9ydGVkGCAgASgIIksKE0RpYWdub3N0aWNzU25hcHNob3QSNAoJY29tcHV0ZXJzGAEgAygLMiEuY2Fub3B5LnVpLnYxLkNvbXB1dGVyRGlhZ25vc3RpY3MilQIKEERpYWdub3N0aWNzU3RhdGUSFgoOc2NoZW1hX3ZlcnNpb24YASABKA0SDQoFZXBvY2gYAiABKAkSHAoUcGVyc2lzdGVkX3Rocm91Z2hfbXMYAyABKAMSMgoIZmluZGluZ3MYBCADKAsyIC5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NGaW5kaW5nEjQKCndhdGVybWFya3MYBSADKAsyIC5jYW5vcHkudWkudjEuRGlhZ25vc3RpY3NQcm9jZXNzEjkKDnBlZXJfb3ZlcnZpZXdzGAYgAygLMiEuY2Fub3B5LnVpLnYxLkNvbXB1dGVyRGlhZ25vc3RpY3MSFwoPcGVyc2lzdGVuY2VfZ2FwGAcgASgIIkYKF0RpYWdub3N0aWNzR3JhbnRSZXF1ZXN0EhoKEm9yaWdpbl9jb21wdXRlcl9pZBgBIAEoCRIPCgdlbmFibGVkGAIgASgIIi4KEERpYWdub3N0aWNzR3JhbnQSGgoSb3JpZ2luX2NvbXB1dGVyX2lkGAEgASgJIkMKEURpYWdub3N0aWNzR3JhbnRzEi4KBmdyYW50cxgBIAMoCzIeLmNhbm9weS51aS52MS5EaWFnbm9zdGljc0dyYW50ItgBChVXb3JrZXJMaW5rRGlhZ25vc3RpY3MSDwoHc2Vzc2lvbhgBIAEoCRIQCghzZXF1ZW5jZRgCIAEoBBIQCghzdGFydF9tcxgDIAEoAxIOCgZlbmRfbXMYBCABKAMSLwoDcnR0GAUgASgLMiIuY2Fub3B5LnVpLnYxLkRpYWdub3N0aWNzSGlzdG9ncmFtEjIKBmppdHRlchgGIAEoCzIiLmNhbm9weS51aS52MS5EaWFnbm9zdGljc0hpc3RvZ3JhbRIVCg1lY2hvX3RpbWVvdXRzGAcgASgEYgZwcm90bzM");
 
 /**
  * Numbers and locally registered identifiers only. Never payloads or error messages.
@@ -37,6 +37,13 @@ export type DiagnosticsHistogram = Message<"canopy.ui.v1.DiagnosticsHistogram"> 
    * @generated from field: double max = 4;
    */
   max: number;
+
+  /**
+   * Absent in older rollups; lower bound is then unknown.
+   *
+   * @generated from field: optional double min = 5;
+   */
+  min?: number | undefined;
 };
 
 /**
@@ -190,6 +197,11 @@ export type DiagnosticsProcess = Message<"canopy.ui.v1.DiagnosticsProcess"> & {
    * @generated from field: repeated canopy.ui.v1.DiagnosticsCheckpoint checkpoints = 6;
    */
   checkpoints: DiagnosticsCheckpoint[];
+
+  /**
+   * @generated from field: repeated canopy.ui.v1.DiagnosticsMeasureAggregate measures = 7;
+   */
+  measures: DiagnosticsMeasureAggregate[];
 };
 
 /**
@@ -198,6 +210,205 @@ export type DiagnosticsProcess = Message<"canopy.ui.v1.DiagnosticsProcess"> & {
  */
 export const DiagnosticsProcessSchema: GenMessage<DiagnosticsProcess> = /*@__PURE__*/
   messageDesc(file_canopy_ui_v1_diagnostics, 3);
+
+/**
+ * Compact internal series share the RPC collector's fixed allocation budget.
+ * IDs are assigned by code; rpc_method_id=0 denotes an unassociated observation.
+ *
+ * @generated from message canopy.ui.v1.DiagnosticsMeasureAggregate
+ */
+export type DiagnosticsMeasureAggregate = Message<"canopy.ui.v1.DiagnosticsMeasureAggregate"> & {
+  /**
+   * @generated from field: uint32 metric_id = 1;
+   */
+  metricId: number;
+
+  /**
+   * @generated from field: uint32 rpc_method_id = 2;
+   */
+  rpcMethodId: number;
+
+  /**
+   * @generated from field: canopy.ui.v1.DiagnosticsHistogram histogram = 3;
+   */
+  histogram?: DiagnosticsHistogram | undefined;
+
+  /**
+   * @generated from field: uint64 events = 4;
+   */
+  events: bigint;
+
+  /**
+   * @generated from field: uint64 errors = 5;
+   */
+  errors: bigint;
+
+  /**
+   * @generated from field: double weighted_sum = 6;
+   */
+  weightedSum: number;
+
+  /**
+   * @generated from field: double weight = 7;
+   */
+  weight: number;
+
+  /**
+   * @generated from field: double max = 8;
+   */
+  max: number;
+
+  /**
+   * @generated from field: double last = 9;
+   */
+  last: number;
+
+  /**
+   * @generated from field: int64 sampled_at_ms = 10;
+   */
+  sampledAtMs: bigint;
+
+  /**
+   * @generated from field: bool incomplete = 11;
+   */
+  incomplete: boolean;
+};
+
+/**
+ * Describes the message canopy.ui.v1.DiagnosticsMeasureAggregate.
+ * Use `create(DiagnosticsMeasureAggregateSchema)` to create a new message.
+ */
+export const DiagnosticsMeasureAggregateSchema: GenMessage<DiagnosticsMeasureAggregate> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_diagnostics, 4);
+
+/**
+ * @generated from message canopy.ui.v1.DiagnosticsMeasure
+ */
+export type DiagnosticsMeasure = Message<"canopy.ui.v1.DiagnosticsMeasure"> & {
+  /**
+   * @generated from field: uint32 metric_id = 1;
+   */
+  metricId: number;
+
+  /**
+   * @generated from field: canopy.ui.v1.DiagnosticsPercentiles distribution = 2;
+   */
+  distribution?: DiagnosticsPercentiles | undefined;
+
+  /**
+   * @generated from field: uint64 events = 3;
+   */
+  events: bigint;
+
+  /**
+   * @generated from field: uint64 errors = 4;
+   */
+  errors: bigint;
+
+  /**
+   * @generated from field: double mean = 5;
+   */
+  mean: number;
+
+  /**
+   * @generated from field: double max = 6;
+   */
+  max: number;
+
+  /**
+   * @generated from field: double last = 7;
+   */
+  last: number;
+
+  /**
+   * @generated from field: int64 sampled_at_ms = 8;
+   */
+  sampledAtMs: bigint;
+
+  /**
+   * @generated from field: double observed_seconds = 9;
+   */
+  observedSeconds: number;
+
+  /**
+   * @generated from field: bool historical = 10;
+   */
+  historical: boolean;
+
+  /**
+   * @generated from field: bool incomplete = 11;
+   */
+  incomplete: boolean;
+};
+
+/**
+ * Describes the message canopy.ui.v1.DiagnosticsMeasure.
+ * Use `create(DiagnosticsMeasureSchema)` to create a new message.
+ */
+export const DiagnosticsMeasureSchema: GenMessage<DiagnosticsMeasure> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_diagnostics, 5);
+
+/**
+ * @generated from message canopy.ui.v1.DiagnosticsDatabaseFamily
+ */
+export type DiagnosticsDatabaseFamily = Message<"canopy.ui.v1.DiagnosticsDatabaseFamily"> & {
+  /**
+   * @generated from field: string family = 1;
+   */
+  family: string;
+
+  /**
+   * @generated from field: canopy.ui.v1.DiagnosticsPercentiles reserve_ms = 2;
+   */
+  reserveMs?: DiagnosticsPercentiles | undefined;
+
+  /**
+   * @generated from field: canopy.ui.v1.DiagnosticsPercentiles execute_ms = 3;
+   */
+  executeMs?: DiagnosticsPercentiles | undefined;
+
+  /**
+   * @generated from field: canopy.ui.v1.DiagnosticsPercentiles release_ms = 4;
+   */
+  releaseMs?: DiagnosticsPercentiles | undefined;
+
+  /**
+   * @generated from field: canopy.ui.v1.DiagnosticsPercentiles transaction_ms = 5;
+   */
+  transactionMs?: DiagnosticsPercentiles | undefined;
+
+  /**
+   * @generated from field: uint64 reserve_errors = 6;
+   */
+  reserveErrors: bigint;
+
+  /**
+   * @generated from field: uint64 execute_errors = 7;
+   */
+  executeErrors: bigint;
+
+  /**
+   * @generated from field: uint64 release_errors = 8;
+   */
+  releaseErrors: bigint;
+
+  /**
+   * @generated from field: uint64 transaction_errors = 9;
+   */
+  transactionErrors: bigint;
+
+  /**
+   * @generated from field: bool incomplete = 10;
+   */
+  incomplete: boolean;
+};
+
+/**
+ * Describes the message canopy.ui.v1.DiagnosticsDatabaseFamily.
+ * Use `create(DiagnosticsDatabaseFamilySchema)` to create a new message.
+ */
+export const DiagnosticsDatabaseFamilySchema: GenMessage<DiagnosticsDatabaseFamily> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_diagnostics, 6);
 
 /**
  * @generated from message canopy.ui.v1.DiagnosticsCheckpoint
@@ -219,7 +430,7 @@ export type DiagnosticsCheckpoint = Message<"canopy.ui.v1.DiagnosticsCheckpoint"
  * Use `create(DiagnosticsCheckpointSchema)` to create a new message.
  */
 export const DiagnosticsCheckpointSchema: GenMessage<DiagnosticsCheckpoint> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_diagnostics, 4);
+  messageDesc(file_canopy_ui_v1_diagnostics, 7);
 
 /**
  * @generated from message canopy.ui.v1.DiagnosticsCoverage
@@ -241,7 +452,7 @@ export type DiagnosticsCoverage = Message<"canopy.ui.v1.DiagnosticsCoverage"> & 
  * Use `create(DiagnosticsCoverageSchema)` to create a new message.
  */
 export const DiagnosticsCoverageSchema: GenMessage<DiagnosticsCoverage> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_diagnostics, 5);
+  messageDesc(file_canopy_ui_v1_diagnostics, 8);
 
 /**
  * @generated from message canopy.ui.v1.DiagnosticsRequest
@@ -260,7 +471,7 @@ export type DiagnosticsRequest = Message<"canopy.ui.v1.DiagnosticsRequest"> & {
  * Use `create(DiagnosticsRequestSchema)` to create a new message.
  */
 export const DiagnosticsRequestSchema: GenMessage<DiagnosticsRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_diagnostics, 6);
+  messageDesc(file_canopy_ui_v1_diagnostics, 9);
 
 /**
  * @generated from message canopy.ui.v1.ComputerDiagnosticsRequest
@@ -323,7 +534,7 @@ export type ComputerDiagnosticsRequest = Message<"canopy.ui.v1.ComputerDiagnosti
  * Use `create(ComputerDiagnosticsRequestSchema)` to create a new message.
  */
 export const ComputerDiagnosticsRequestSchema: GenMessage<ComputerDiagnosticsRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_diagnostics, 7);
+  messageDesc(file_canopy_ui_v1_diagnostics, 10);
 
 /**
  * @generated from message canopy.ui.v1.DiagnosticsPercentiles
@@ -377,7 +588,7 @@ export type DiagnosticsPercentiles = Message<"canopy.ui.v1.DiagnosticsPercentile
  * Use `create(DiagnosticsPercentilesSchema)` to create a new message.
  */
 export const DiagnosticsPercentilesSchema: GenMessage<DiagnosticsPercentiles> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_diagnostics, 8);
+  messageDesc(file_canopy_ui_v1_diagnostics, 11);
 
 /**
  * @generated from message canopy.ui.v1.DiagnosticsCall
@@ -477,6 +688,13 @@ export type DiagnosticsCall = Message<"canopy.ui.v1.DiagnosticsCall"> & {
    * @generated from field: repeated uint64 message_kinds = 19;
    */
   messageKinds: bigint[];
+
+  /**
+   * top 10 measured contributors
+   *
+   * @generated from field: repeated canopy.ui.v1.DiagnosticsDatabaseFamily database = 20;
+   */
+  database: DiagnosticsDatabaseFamily[];
 };
 
 /**
@@ -484,7 +702,7 @@ export type DiagnosticsCall = Message<"canopy.ui.v1.DiagnosticsCall"> & {
  * Use `create(DiagnosticsCallSchema)` to create a new message.
  */
 export const DiagnosticsCallSchema: GenMessage<DiagnosticsCall> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_diagnostics, 9);
+  messageDesc(file_canopy_ui_v1_diagnostics, 12);
 
 /**
  * @generated from message canopy.ui.v1.DiagnosticsFinding
@@ -544,6 +762,13 @@ export type DiagnosticsFinding = Message<"canopy.ui.v1.DiagnosticsFinding"> & {
    * @generated from field: bool active = 11;
    */
   active: boolean;
+
+  /**
+   * Correlation in the evaluated minute, never attribution.
+   *
+   * @generated from field: bool during_sync = 12;
+   */
+  duringSync: boolean;
 };
 
 /**
@@ -551,7 +776,7 @@ export type DiagnosticsFinding = Message<"canopy.ui.v1.DiagnosticsFinding"> & {
  * Use `create(DiagnosticsFindingSchema)` to create a new message.
  */
 export const DiagnosticsFindingSchema: GenMessage<DiagnosticsFinding> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_diagnostics, 10);
+  messageDesc(file_canopy_ui_v1_diagnostics, 13);
 
 /**
  * @generated from message canopy.ui.v1.DiagnosticsLink
@@ -615,7 +840,7 @@ export type DiagnosticsLink = Message<"canopy.ui.v1.DiagnosticsLink"> & {
  * Use `create(DiagnosticsLinkSchema)` to create a new message.
  */
 export const DiagnosticsLinkSchema: GenMessage<DiagnosticsLink> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_diagnostics, 11);
+  messageDesc(file_canopy_ui_v1_diagnostics, 14);
 
 /**
  * @generated from message canopy.ui.v1.ComputerDiagnostics
@@ -765,6 +990,23 @@ export type ComputerDiagnostics = Message<"canopy.ui.v1.ComputerDiagnostics"> & 
    * @generated from field: uint32 window_minutes = 29;
    */
   windowMinutes: number;
+
+  /**
+   * @generated from field: repeated canopy.ui.v1.DiagnosticsMeasure gateway_measures = 30;
+   */
+  gatewayMeasures: DiagnosticsMeasure[];
+
+  /**
+   * top 10 by execute p95
+   *
+   * @generated from field: repeated canopy.ui.v1.DiagnosticsDatabaseFamily database = 31;
+   */
+  database: DiagnosticsDatabaseFamily[];
+
+  /**
+   * @generated from field: bool gateway_measures_supported = 32;
+   */
+  gatewayMeasuresSupported: boolean;
 };
 
 /**
@@ -772,7 +1014,7 @@ export type ComputerDiagnostics = Message<"canopy.ui.v1.ComputerDiagnostics"> & 
  * Use `create(ComputerDiagnosticsSchema)` to create a new message.
  */
 export const ComputerDiagnosticsSchema: GenMessage<ComputerDiagnostics> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_diagnostics, 12);
+  messageDesc(file_canopy_ui_v1_diagnostics, 15);
 
 /**
  * @generated from message canopy.ui.v1.DiagnosticsSnapshot
@@ -789,7 +1031,7 @@ export type DiagnosticsSnapshot = Message<"canopy.ui.v1.DiagnosticsSnapshot"> & 
  * Use `create(DiagnosticsSnapshotSchema)` to create a new message.
  */
 export const DiagnosticsSnapshotSchema: GenMessage<DiagnosticsSnapshot> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_diagnostics, 13);
+  messageDesc(file_canopy_ui_v1_diagnostics, 16);
 
 /**
  * Owner-scoped durable state, replaced atomically with the rollup watermark.
@@ -838,7 +1080,7 @@ export type DiagnosticsState = Message<"canopy.ui.v1.DiagnosticsState"> & {
  * Use `create(DiagnosticsStateSchema)` to create a new message.
  */
 export const DiagnosticsStateSchema: GenMessage<DiagnosticsState> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_diagnostics, 14);
+  messageDesc(file_canopy_ui_v1_diagnostics, 17);
 
 /**
  * @generated from message canopy.ui.v1.DiagnosticsGrantRequest
@@ -860,7 +1102,7 @@ export type DiagnosticsGrantRequest = Message<"canopy.ui.v1.DiagnosticsGrantRequ
  * Use `create(DiagnosticsGrantRequestSchema)` to create a new message.
  */
 export const DiagnosticsGrantRequestSchema: GenMessage<DiagnosticsGrantRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_diagnostics, 15);
+  messageDesc(file_canopy_ui_v1_diagnostics, 18);
 
 /**
  * @generated from message canopy.ui.v1.DiagnosticsGrant
@@ -877,7 +1119,7 @@ export type DiagnosticsGrant = Message<"canopy.ui.v1.DiagnosticsGrant"> & {
  * Use `create(DiagnosticsGrantSchema)` to create a new message.
  */
 export const DiagnosticsGrantSchema: GenMessage<DiagnosticsGrant> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_diagnostics, 16);
+  messageDesc(file_canopy_ui_v1_diagnostics, 19);
 
 /**
  * @generated from message canopy.ui.v1.DiagnosticsGrants
@@ -894,7 +1136,7 @@ export type DiagnosticsGrants = Message<"canopy.ui.v1.DiagnosticsGrants"> & {
  * Use `create(DiagnosticsGrantsSchema)` to create a new message.
  */
 export const DiagnosticsGrantsSchema: GenMessage<DiagnosticsGrants> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_diagnostics, 17);
+  messageDesc(file_canopy_ui_v1_diagnostics, 20);
 
 /**
  * Ephemeral WorkerLink report: no journal, outbox, ACK or arbitrary labels.
@@ -943,5 +1185,5 @@ export type WorkerLinkDiagnostics = Message<"canopy.ui.v1.WorkerLinkDiagnostics"
  * Use `create(WorkerLinkDiagnosticsSchema)` to create a new message.
  */
 export const WorkerLinkDiagnosticsSchema: GenMessage<WorkerLinkDiagnostics> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_diagnostics, 18);
+  messageDesc(file_canopy_ui_v1_diagnostics, 21);
 

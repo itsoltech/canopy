@@ -26,6 +26,13 @@ export class AsyncChannel<T> implements AsyncIterable<T> {
     return this.#closed;
   }
 
+  get queuedItems(): number {
+    return this.#buffer.length;
+  }
+  get queuedBytes(): number {
+    return this.#bytes;
+  }
+
   /** Returns false when the channel is already closed and the value was dropped. */
   push(value: T, size?: number): boolean {
     if (this.#closed) return false;

@@ -1,33 +1,29 @@
 import type { Client } from "@connectrpc/connect";
 import { ui } from "@canopy/contracts";
+import type { BenchPostgres } from "./diagnostics-postgres.ts";
+import { tracePool } from "./diagnostics-pool-trace.ts";
 
 /** Locks only the disposable benchmark DB. Application reads continue during a failed minute write. */
 export async function diagnosticsContention(
-  container: string,
+  postgres: BenchPostgres,
   database: string,
   phase: string,
   api: Client<typeof ui.GatewayService>,
   thread: string,
+  evidence?: (point: string) => Promise<object>,
 ) {
   if (phase !== "write_failure" && phase !== "pool_contention") return;
 
   const query = async (text: string) => {
-    const process = Bun.spawn(["docker", "exec", container, "psql", "-U", "postgres", "-d", database, "-Atqc", text], {
-      stdout: "pipe",
-      stderr: "inherit",
-    });
-
-    const output = await new Response(process.stdout).text();
-
-    if (await process.exited) throw new Error("Contention fixture query failed");
-
-    return output.trim();
+    return (await postgres.query(database, text)).trim();
   };
 
   const lock =
     phase === "write_failure"
       ? "LOCK TABLE diagnostics_state IN EXCLUSIVE MODE"
       : `SELECT id FROM threads WHERE id='${thread}'::uuid FOR UPDATE`;
+
+  if (phase === "write_failure") await evidence?.("before_lock");
 
   const holder = query(
     `SET application_name='canopy-diagnostics-contention'; BEGIN; ${lock}; SELECT pg_sleep(70); COMMIT;`,
@@ -44,11 +40,15 @@ export async function diagnosticsContention(
     await Bun.sleep(50);
   }
 
-  // The default pool has ten slots: nine blocked updates leave one for reads and diagnostics.
+  // Worker ingest can hold one additional row-locked lease. Leave one slot for reads.
+  const blocked = Number(process.env["CANOPY_BENCH_BLOCKED_UPDATES"] ?? 8);
+
+  if (!Number.isInteger(blocked) || blocked < 1 || blocked > 9) throw new Error("Choose 1–9 blocked writes");
+
   const updates =
     phase === "pool_contention"
       ? Promise.all(
-          Array.from({ length: 9 }, (_, index) =>
+          Array.from({ length: blocked }, (_, index) =>
             api.updateThread({ threadId: thread, title: `Pool contender ${index}` }),
           ),
         )
@@ -60,23 +60,49 @@ export async function diagnosticsContention(
         await query(
           "SELECT count(*) FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND application_name='canopy-gateway'",
         ),
-      ) < 9
+      ) < blocked
     ) {
-      if (Date.now() > deadline) throw new Error("Nine blocked gateway connections were not observed");
+      if (Date.now() > deadline) throw new Error("Blocked gateway connections were not observed");
       await Bun.sleep(50);
     }
 
-  const during = Bun.sleep(65_000).then(() => api.getComputerDiagnostics({ limit: 1 }));
+  const status = () =>
+    process.env["CANOPY_BENCH_SOURCE_ROOT"]
+      ? Promise.resolve({ persistenceStatus: "not_available_on_dev", pendingMinutes: 0 })
+      : api.getComputerDiagnostics({ limit: 1 });
+
+  const during = Bun.sleep(65_000).then(status);
+  const stopTrace = await tracePool(postgres, database, phase);
+  const lockAcquiredAtMs = Date.now();
+  let lockReleasedAtMs = 0;
+
+  const lockedHeap =
+    evidence && phase === "write_failure" ? Bun.sleep(65_000).then(() => evidence("lock_end")) : Promise.resolve();
+
+  const releasedHeap =
+    evidence && phase === "write_failure"
+      ? holder
+          .then(() => {
+            lockReleasedAtMs = Date.now();
+
+            return Bun.sleep(20_000);
+          })
+          .then(() => evidence("released_twenty_seconds"))
+      : Promise.resolve();
 
   return async () => {
     await holder;
     await updates;
+    await lockedHeap;
+    await releasedHeap;
     const interrupted = await during;
-    const recovered = await api.getComputerDiagnostics({ limit: 1 });
+    const recovered = await status();
+    await stopTrace();
 
     return {
       lockSeconds: 70,
-      blockedGatewayConnections: phase === "pool_contention" ? 9 : 0,
+      forensic: evidence ? { lockAcquiredAtMs, lockReleasedAtMs } : undefined,
+      blockedGatewayConnections: phase === "pool_contention" ? blocked : 0,
       duringPersistenceStatus: interrupted.persistenceStatus,
       recoveredPersistenceStatus: recovered.persistenceStatus,
       pendingMinutes: recovered.pendingMinutes,

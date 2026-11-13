@@ -20,6 +20,7 @@ import { mapSettingsInstances, settingsValues } from "./settings.ts";
 import type { SettingsRow } from "./settings-apply.ts";
 import { recordWorkers } from "./worker-records.ts";
 import { editedField } from "./intent.ts";
+import { queryFamily, queryRpc } from "../diagnostics/query-context.ts";
 
 export class ConfigSync {
   readonly ahead = new Map<string, number>();
@@ -82,7 +83,11 @@ export class ConfigSync {
         yield* recordConnectors(sql, store.key);
         yield* recordEnvironment(sql);
         yield* recordWorkers(sql, store.owner, self());
-      }).pipe((fx) => Effect.flatMap(SqlClient.SqlClient, (sql) => sql.withTransaction(fx))),
+      }).pipe(
+        (fx) => Effect.flatMap(SqlClient.SqlClient, (sql) => sql.withTransaction(fx)),
+        queryFamily("settings.store"),
+        queryRpc,
+      ),
     );
   }
 
@@ -138,7 +143,7 @@ export class ConfigSync {
             return { ...outcome, workers };
           }),
         );
-      }),
+      }).pipe(queryFamily("settings.store"), queryRpc),
     );
 
     const ahead = clockParts(result.last).wall - Date.now();
@@ -169,7 +174,10 @@ export class ConfigSync {
     if (!fetchBlob) return false;
 
     const missing = await store.runtime.runPromise(
-      Effect.flatMap(SqlClient.SqlClient, (sql) => missingBlobs(sql, store.owner)),
+      Effect.flatMap(SqlClient.SqlClient, (sql) => missingBlobs(sql, store.owner)).pipe(
+        queryFamily("settings.store"),
+        queryRpc,
+      ),
     );
 
     let changed = false;
@@ -188,7 +196,7 @@ export class ConfigSync {
             return yield* sql.withTransaction(
               Effect.andThen(configLock(sql, store.owner), applyWaitingEnvironment(sql, store.owner, blobs)),
             );
-          }),
+          }).pipe(queryFamily("settings.store"), queryRpc),
         )) || changed;
     }
 
@@ -200,7 +208,10 @@ export class ConfigSync {
     const { store, self } = this;
 
     return store.runtime.runPromise(
-      Effect.flatMap(SqlClient.SqlClient, (sql) => sql.withTransaction(recordWorkers(sql, store.owner, self()))),
+      Effect.flatMap(SqlClient.SqlClient, (sql) => sql.withTransaction(recordWorkers(sql, store.owner, self()))).pipe(
+        queryFamily("settings.store"),
+        queryRpc,
+      ),
     );
   }
 
@@ -231,7 +242,7 @@ export class ConfigSync {
             if (changed) yield* saveRecord(sql, store.owner, row, last);
           }),
         );
-      }),
+      }).pipe(queryFamily("settings.store"), queryRpc),
     );
   }
 }

@@ -6,6 +6,7 @@ import { Effect } from "effect";
 import { CLONE_PROGRESS_CAPABILITY, workerLinkCompatible } from "@canopy/domain/release/protocol";
 import type { SqlClient } from "effect/sql";
 import { one, type Fx } from "./errors.ts";
+import { queryFamily } from "../diagnostics/query-context.ts";
 
 export interface WorkerStore {
   // users
@@ -176,7 +177,7 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
                  ORDER BY w.name`;
 
         return rows.map((r) => listedWorker(r, online));
-      }),
+      }).pipe(queryFamily("workers.read")),
   };
 }
 

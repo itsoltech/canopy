@@ -4,6 +4,7 @@ import { SqlClient } from "effect/sql";
 import type { CoreRuntime } from "../core/core.ts";
 import { GatewayStore } from "../store/store.ts";
 import type { AccountRow } from "./records.ts";
+import { queryFamily, queryRpc } from "../diagnostics/query-context.ts";
 
 export class GitHubPat {
   readonly run: <A, E>(effect: Effect.Effect<A, E, GatewayStore | SqlClient.SqlClient>) => Promise<A>;
@@ -12,7 +13,7 @@ export class GitHubPat {
     readonly owner: string,
   ) {
     this.run = async (effect) => {
-      const result = await runtime.runPromise(Effect.exit(effect));
+      const result = await runtime.runPromise(Effect.exit(effect.pipe(queryFamily("github.accounts"), queryRpc)));
 
       if (Exit.isFailure(result)) throw Cause.squash(result.cause);
 

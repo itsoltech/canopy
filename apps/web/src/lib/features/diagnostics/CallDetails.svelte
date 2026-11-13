@@ -1,7 +1,16 @@
 <script lang="ts">
   import type { ui } from "@canopy/contracts";
-  import { bytes, byteRate, messageClasses, duration, grpcCodes, measured } from "@canopy/domain/diagnostics";
+  import {
+    bytes,
+    byteRate,
+    messageClasses,
+    duration,
+    grpcCodes,
+    measured,
+    histogramHelp,
+  } from "@canopy/domain/diagnostics";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
+  import DatabaseFamilies from "./DatabaseFamilies.svelte";
 
   let {
     call,
@@ -78,14 +87,12 @@
         <p>Response messages: {messageClasses(call, "response")}</p>
       </div>{/if}
     <p class="mt-4 text-sm text-muted">
-      Percentiles use fixed histogram buckets with up to 19% quantization. Max is exact.{(call.durationMs?.samples ??
-        0n) < 1000n
-        ? " p99 has a small sample."
-        : ""}
+      {histogramHelp}
     </p>
     {#if call.incomplete}<p class="mt-2 text-sm text-amber-700 dark:text-amber-300">
         Some measurements are missing.
       </p>{/if}
+    <div class="mt-4"><DatabaseFamilies families={call.database} linked /></div>
     <dl class="mt-4 grid gap-2 text-sm tabular-nums">
       {#each call.codes as count, code (code)}
         {#if count}<div class="flex justify-between gap-3">

@@ -3,6 +3,7 @@ import { timestampFromMs, timestampMs } from "@bufbuild/protobuf/wkt";
 import { connectors, ui, type ImportScan } from "@canopy/contracts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
+import { queryFamily } from "../diagnostics/query-context.ts";
 import type { GatewayCore } from "../core/core.ts";
 import { coreState, InvalidError, UnavailableError } from "../core/core-context.ts";
 import { coreWorkerQuery } from "../core/core-mentions.ts";
@@ -66,7 +67,9 @@ export class CliImports {
   }
 
   sql<A, E>(use: (sql: SqlClient.SqlClient) => Effect.Effect<A, E>): Promise<A> {
-    return this.#core[coreState].actions.run(Effect.flatMap(SqlClient.SqlClient, use));
+    return this.#core[coreState].actions.run(
+      Effect.flatMap(SqlClient.SqlClient, use).pipe(queryFamily("imports.store")),
+    );
   }
 
   /** The owner's worker on this computer that can import; otherwise an error the page shows as it is. */

@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
+import { queryRpc } from "../diagnostics/query-context.ts";
 import { BotStore } from "../bots/store.ts";
 import type { BotTurn, StoredCall } from "../bots/types.ts";
 import type { CoreRuntime, CoreServices } from "./core.ts";
@@ -17,7 +18,9 @@ export class ActionContext {
   constructor(readonly runtime: CoreRuntime) {}
 
   run<A, E>(effect: Effect.Effect<A, E, CoreServices>): Promise<A> {
-    return this.#scope.getStore()?.run(effect) ?? this.runtime.runPromise(effect);
+    const observed = queryRpc(effect);
+
+    return this.#scope.getStore()?.run(observed) ?? this.runtime.runPromise(observed);
   }
 
   defer(action: () => void | Promise<void>): boolean {

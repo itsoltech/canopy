@@ -5,6 +5,7 @@ import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { mapIds } from "../computers/remote-ids.ts";
 import { globalIds } from "./worker-records.ts";
+import { queryFamily } from "../diagnostics/query-context.ts";
 
 /** Worker-scoped proxies and their keys belong only to the worker's home. */
 export function proxyIds(sql: SqlClient.SqlClient, owner: string) {
@@ -18,7 +19,7 @@ export function proxyIds(sql: SqlClient.SqlClient, owner: string) {
     const known = new Set(rows.flatMap((r) => [r.id, ids.toGlobal(r.id)]));
 
     return { ...ids, local, known };
-  });
+  }).pipe(queryFamily("settings.store"));
 }
 
 export function mapProxyIds(

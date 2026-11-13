@@ -15,6 +15,7 @@ import { ConfigIds } from "../api/routed-config.ts";
 import { localAgentSender } from "./agents-senders.ts";
 import { PEER_MUTATION_TIMEOUT_MS } from "./timing.ts";
 import { unaryTimeout } from "../api/routed-context.ts";
+import { queryFamily, queryRpc } from "../diagnostics/query-context.ts";
 
 export async function agentsRemoteSnapshot(hostContext: LinkedAgents, id: string): Promise<ui.ThreadSnapshot> {
   const update = await hostContext.ui(
@@ -47,7 +48,7 @@ export const agentsTransportMethods: AgentsTransportMethods = {
         const sql = yield* SqlClient.SqlClient;
 
         return yield* sql.unsafe<A>(statement, parameters);
-      }),
+      }).pipe(queryFamily("agents.store"), queryRpc),
     );
   },
 

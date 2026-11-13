@@ -13,6 +13,7 @@ import {
 } from "@canopy/domain";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
+import { queryMethods } from "../diagnostics/query-context.ts";
 import type { TurnRow } from "./store.ts";
 
 /**
@@ -363,7 +364,7 @@ export class BackgroundTaskStore extends Context.Service<
           ),
       };
 
-      return BackgroundTaskStore.of(store);
+      return BackgroundTaskStore.of(queryMethods("background.store", store));
     }),
   );
 }

@@ -11,9 +11,11 @@ import {
   grpcCodes,
   measured,
   diagnosticsUnavailable,
+  histogramHelp,
 } from "@canopy/domain/diagnostics";
 import { SettingsGroup, SettingsRow } from "./SettingsGroup";
 import { styles, useColors } from "../../ui/theme";
+import { DiagnosticsDatabase } from "./DiagnosticsMetrics";
 
 export function DiagnosticsCalls({
   calls,
@@ -104,10 +106,10 @@ function CallEvidence({ call, observed }: { call: ui.DiagnosticsCall; observed: 
         </View>
       ))}
       <Text style={[styles.workMeta, { color: c.muted }]}>
-        Percentiles use fixed histogram buckets with up to 19% quantization. Max is exact.
-        {(call.durationMs?.samples ?? 0n) < 1000n ? " p99 has a small sample." : ""}
+        {histogramHelp}
         {call.incomplete ? " Some measurements are missing." : ""}
       </Text>
+      <DiagnosticsDatabase families={call.database} linked />
     </View>
   );
 }
