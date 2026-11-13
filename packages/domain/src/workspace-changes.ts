@@ -138,6 +138,8 @@ class Changes {
               continue;
             }
 
+            if (!tab.document.checkRoot(update.rootIdentity)) continue;
+
             if (
               update.revalidateRequired ||
               update.changes.some(
