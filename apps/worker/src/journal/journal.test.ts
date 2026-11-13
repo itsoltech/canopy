@@ -25,6 +25,32 @@ const delta = (chunk: string): ThreadEventInit => ({
 });
 
 describe("Journal", () => {
+  test("turn admission survives completion, ACK and reopening without a command result", async () => {
+    const path = freshPath();
+    await withJournal(path, (j) =>
+      Effect.gen(function* () {
+        expect(yield* j.hasStartedTurn("thread", "turn")).toBe(false);
+        yield* j.append("thread", { turnId: "turn", body: { case: "turnStarted", value: {} } });
+
+        const end = yield* j.append("thread", {
+          turnId: "turn",
+          body: { case: "turnFinished", value: { outcome: TurnOutcome.COMPLETED } },
+        });
+
+        yield* j.ack("thread", end.journalSeq);
+      }),
+    );
+    await withJournal(path, (j) =>
+      Effect.gen(function* () {
+        expect(yield* j.hasStartedTurn("thread", "turn")).toBe(true);
+        expect(yield* j.hasStartedTurn("other", "turn")).toBe(false);
+        expect(yield* j.openTurns()).toEqual([]);
+        expect(yield* j.pending(new Map())).toEqual([]);
+        expect(yield* j.commandResult("turn")).toBeUndefined();
+      }),
+    );
+  });
+
   test("Stop overtaking bot admission survives reopening and fences a replayed run", async () => {
     const path = freshPath();
     await withJournal(path, (j) => j.noteInterrupt("bot", "stopped"));

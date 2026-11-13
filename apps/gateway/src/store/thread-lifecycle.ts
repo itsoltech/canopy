@@ -41,7 +41,10 @@ export function threadLifecycle(sql: SqlClient.SqlClient, dispatch: Dispatch) {
     Effect.gen(function* () {
       const turns = yield* sql<{ id: string; thread_id: string; worker_id: string | null }>`
       SELECT u.id, u.thread_id, t.worker_id FROM turns u JOIN threads t ON t.id = u.thread_id
-      WHERE t.id = ANY(${ids}::uuid[]) AND u.status = 'running'`;
+      WHERE t.id = ANY(${ids}::uuid[]) AND (u.status = 'running' OR
+        (u.status = 'queued' AND EXISTS (SELECT 1 FROM worker_commands c WHERE c.turn_id = u.id
+          AND c.kind = 'startTurn' AND c.status IN ('pending', 'delivered', 'completed'))))
+      ORDER BY u.thread_id, u.ordinal DESC`;
 
       const commands: { workerId: string; command: Command }[] = [];
 

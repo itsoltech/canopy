@@ -262,6 +262,7 @@ export class QueueStore extends Context.Service<
               const head = yield* sql.unsafe<{ id: string }>(
                 `SELECT u.id FROM turns u
                   WHERE u.id = $1::uuid AND u.status = 'queued' AND u.revision = $2 AND NOT ${DISPATCHED}
+                    AND NOT EXISTS (SELECT 1 FROM turns r WHERE r.thread_id = u.thread_id AND r.status = 'running')
                     AND NOT EXISTS (SELECT 1 FROM turns q WHERE q.thread_id = u.thread_id AND q.status = 'queued' AND q.ordinal < u.ordinal)`,
                 [turnId, revision],
               );

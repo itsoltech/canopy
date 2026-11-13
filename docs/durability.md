@@ -89,6 +89,12 @@ Nowy worker ze starym gatewayem po pierwszym drainie ingestu trwale wstrzymuje
 niepotwierdzone journale, zamiast powtarzać pętlę. Aktualizacja gatewaya wznawia
 je automatycznie. Szczegóły: [protocol.md](protocol.md#dostarczanie-transkryptu-at-least-once--idempotencja).
 
+`started_turns` zapisuje receipt `(thread_id, turn_id)` w tej samej transakcji co
+`turn_started`. Receipt przeżywa koniec tury i ACK transkryptu. Zamyka okno awarii
+przed zapamiętaniem `CommandResult`: ponowione `StartTurn`, także z nowym
+`command_id`, nie uruchamia drugi raz tej samej tury po restarcie workera.
+Tura przerwana restartem nadal podlega rekoncyliacji i polityce sekcji 3.4.
+
 ### 3.2 Wątki dostawców
 
 - **Claude:** nowy wątek startuje z `sessionId = thread_id` platformy (identyfikator znany przed pierwszym zdarzeniem); fork przez `forkSession` daje nowy identyfikator. `persistSession: true`. Wznowienie przez `resume: provider_thread_id`.
@@ -226,6 +232,7 @@ sequenceDiagram
 - **Własność połączenia:** `worker_connections(worker_id, instance_id, epoch)`. Nowe połączenie podbija `epoch`, a stara instancja zamyka swoje (fencing). Wynik komendy z nieaktualnego `epoch` jest ignorowany.
 
 - **Jedna tura startuje raz.** Planista tur działa z wielu miejsc naraz (koniec tury, nowa wiadomość, kilka instancji). Unikalny indeks `worker_commands_one_start` dopuszcza jeden żywy `StartTurn` na turę; przegrany przebieg uznaje, że turę wystartował ktoś inny (wcześniej dwa przebiegi mogły wystartować tę samą turę dwa razy).
+- **Kolizja z turą harnessu nie jest błędem tury.** Worker kolejkuje starty per wątek za działającą turą. Jeśli start mimo to zostanie odrzucony jako „already running” (także przez starszy worker), gateway zapisuje wynik odrzuconej komendy i jej następcę w jednej transakcji pod blokadą wątku. Nowe `command_id` omija zapamiętaną odmowę; `turn_id`, notatki, kolejność i pierwotny termin pozostają te same. Następca czeka w outboxie przed ponowieniem po sekundzie i przeżywa restart w tym oknie. Powtórzony wynik nie tworzy kolejnego następcy. Zamknięty wątek ani zakończona tura nie dostają ponowienia. Licznik diagnostyczny `Turn starts requeued` (44) i log `turn_start_requeued` nie zawierają treści wejścia ani błędu harnessu.
 
 ### 4.3 Transkrypt i zdarzenia live
 

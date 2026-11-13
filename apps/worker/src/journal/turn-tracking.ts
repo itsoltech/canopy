@@ -9,6 +9,8 @@ export function turnTracking(
   attempt: <A>(operation: string, run: () => A) => Effect.Effect<A, JournalError>,
 ) {
   const insertTurn = db.query("INSERT OR IGNORE INTO open_turns (thread_id, turn_id) VALUES ($thread, $turn)");
+  const insertStarted = db.query("INSERT OR IGNORE INTO started_turns (thread_id, turn_id) VALUES ($thread, $turn)");
+  const selectStarted = db.query("SELECT 1 FROM started_turns WHERE thread_id = $thread AND turn_id = $turn");
   const deleteTurn = db.query("DELETE FROM open_turns WHERE thread_id = $thread AND turn_id = $turn");
 
   const selectTurns = db.query<{ thread_id: string; turn_id: string }, []>(
@@ -37,7 +39,10 @@ export function turnTracking(
   const trackTurn = (threadId: string, turnId: string, body: ThreadEvent["body"]) => {
     if (!turnId) return;
 
-    if (body.case === "turnStarted") insertTurn.run({ thread: threadId, turn: turnId });
+    if (body.case === "turnStarted") {
+      insertTurn.run({ thread: threadId, turn: turnId });
+      insertStarted.run({ thread: threadId, turn: turnId });
+    }
 
     if (body.case === "turnFinished") {
       deleteTurn.run({ thread: threadId, turn: turnId });
@@ -83,6 +88,10 @@ export function turnTracking(
 
   return {
     trackTurn,
+    wasInterrupted: (threadId: string, turnId: string) =>
+      attempt("wasInterrupted", () => (selectInterrupt.get({ thread: threadId, turn: turnId })?.n ?? 0) > 0),
+    hasStartedTurn: (threadId: string, turnId: string) =>
+      attempt("hasStartedTurn", () => selectStarted.get({ thread: threadId, turn: turnId }) !== null),
     openTurns: Effect.fn("Journal.openTurns")(() =>
       attempt("openTurns", () =>
         selectTurns.all().map((r): OpenTurn => {

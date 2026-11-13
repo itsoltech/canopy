@@ -15,6 +15,7 @@ import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import { queryMethods } from "../diagnostics/query-context.ts";
 import type { TurnRow } from "./store.ts";
+import { DISPATCHED, steerTarget } from "./turn-select.ts";
 
 /**
  * Background tasks of a thread for its agent (docs/execution.md, "Zadania w tle", "Pobudka"):
@@ -199,9 +200,8 @@ const deliver = (
         return { settled: notes.length };
       }
 
-      const running = (yield* sql<{
-        id: string;
-      }>`SELECT id FROM turns WHERE thread_id = ${threadId}::uuid AND status = 'running' LIMIT 1`)[0];
+      // A dispatched StartTurn owns the thread even before turn_started reaches the gateway.
+      const running = yield* steerTarget(sql, threadId);
 
       const harness: string[] = [];
       const ready: NoteRow[] = [];
@@ -232,7 +232,9 @@ const deliver = (
 
       yield* settle(harness, "harness", "the harness started a turn for it itself");
 
-      if (ready.length === 0) return { settled: harness.length };
+      // A dispatched start owns the next input, but cannot accept a steer yet. Keep notes durable until
+      // turn_started (or tick after recovery), rather than bouncing rejected steers back into this same start.
+      if (ready.length === 0 || running?.status === "queued") return { settled: harness.length };
 
       const tasks = (yield* Effect.forEach(ready, (row) => ended(sql, row))).filter(
         (t): t is BackgroundTaskEnd => t !== undefined,
@@ -279,6 +281,8 @@ export class BackgroundTaskStore extends Context.Service<
     find(threadId: string, taskId: string): Fx<{ itemId: string; running: boolean } | undefined>;
     /** Threads with notes deliver() may move now (waiting to wake, or a turn runs that they can join). */
     pendingThreads(): Fx<string[]>;
+    /** A note steer committed before dispatch or before its command result was applied. */
+    pendingSteers(): Fx<string[]>;
     deliver(threadId: string, options: { graceMs: number; now?: Date }): Fx<Delivery>;
     /** The agent stops a task itself (stop_background_task): its end needs no note. */
     stoppedByAgent(threadId: string, itemId: string): Fx<void>;
@@ -328,12 +332,22 @@ export class BackgroundTaskStore extends Context.Service<
           ),
 
         pendingThreads: () =>
-          sql<{ thread_id: string }>`
+          sql
+            .unsafe<{ thread_id: string }>(`
             SELECT DISTINCT n.thread_id FROM background_task_notes n
              WHERE n.status = 'waiting'
-               AND (n.wake OR EXISTS (SELECT 1 FROM turns r WHERE r.thread_id = n.thread_id AND r.status = 'running'))`.pipe(
-            Effect.map((rows) => rows.map((r) => r.thread_id)),
-          ),
+               AND (n.wake OR EXISTS (SELECT 1 FROM turns r WHERE r.thread_id = n.thread_id AND r.status = 'running'))
+            UNION
+            SELECT u.thread_id FROM turns u JOIN threads t ON t.id = u.thread_id
+             WHERE u.trigger = 'background_task' AND u.status = 'queued'
+               AND t.archived_at IS NULL AND t.deleted_at IS NULL AND NOT ${DISPATCHED}`)
+            .pipe(Effect.map((rows) => rows.map((r) => r.thread_id))),
+
+        pendingSteers: () =>
+          sql<{ id: string }>`
+          SELECT s.id FROM turn_steers s JOIN threads t ON t.id = s.thread_id
+          WHERE s.background_note AND s.status = 'pending' AND t.archived_at IS NULL AND t.deleted_at IS NULL
+          ORDER BY s.created_at, s.id`.pipe(Effect.map((rows) => rows.map((r) => r.id))),
 
         deliver: (threadId, options) => deliver(sql, threadId, options),
 

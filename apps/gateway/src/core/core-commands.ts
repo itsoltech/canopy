@@ -97,17 +97,36 @@ export async function coreDeliver(hostContext: GatewayCore, workerId: string, co
   // Callers detach delivery. Observe the whole job, including SQL before dispatch and after the ACK,
   // so disposing the gateway runtime cannot turn interruption into an unhandled promise rejection.
   const exit = await hostContext[coreState].options.runtime.runPromiseExit(
-    Effect.promise(() => deliverCommand(hostContext, workerId, command)),
+    Effect.gen(function* () {
+      let next: Command | undefined = command;
+
+      while (next) {
+        const current: Command = next;
+        next = yield* Effect.promise(() => deliverCommand(hostContext, workerId, current));
+
+        if (next) yield* Effect.sleep("1 second");
+      }
+    }),
   );
 
   if (Exit.isFailure(exit) && !Cause.hasInterruptsOnly(exit.cause))
     coreLog(hostContext, `command ${command.kind.case ?? "unknown"}: delivery or result handling failed`);
 }
 
-async function deliverCommand(hostContext: GatewayCore, workerId: string, command: Command): Promise<void> {
+async function deliverCommand(
+  hostContext: GatewayCore,
+  workerId: string,
+  command: Command,
+): Promise<Command | undefined> {
   const connection = hostContext.link.connections.get(workerId);
 
   if (!connection?.isOpen || !command.kind.case) return;
+
+  if (
+    command.kind.case === "startTurn" &&
+    !(await coreRun(hostContext, (s) => s.turnStartDispatchable(command.commandId)))
+  )
+    return;
 
   if (command.kind.case === "runBotTurn" && !connection.hello.capabilities.includes("bot_harness_v1")) return;
 
@@ -180,15 +199,57 @@ async function deliverCommand(hostContext: GatewayCore, workerId: string, comman
     return; // disconnected or timed out: stays in the outbox, redelivered on reconnect (the worker deduplicates)
   }
 
+  // Older workers remember this rejection as a final command result. A fresh command id is necessary;
+  // the turn id stays the same so notes and every platform source keep their durable delivery identity.
+  if (
+    !result.ok &&
+    command.kind.case === "startTurn" &&
+    (result.errorCode === "TURN_ALREADY_RUNNING" ||
+      (["THREAD_ERROR", "HARNESS_ERROR"].includes(result.errorCode) &&
+        /^(?:a turn of this thread is already running|Grok turn already running)$/i.test(result.errorMessage)))
+  ) {
+    const retry = await coreRun(hostContext, (s) =>
+      s.retryTurnStart(command.commandId, toJson(CommandResultSchema, result)),
+    );
+
+    if (retry) {
+      hostContext.diagnostics.collector.measure(44, 1);
+      coreLog(
+        hostContext,
+        `turn_start_requeued thread=${command.kind.value.thread?.threadId ?? ""} turn=${command.kind.value.turnId}`,
+      );
+    }
+
+    return retry;
+  }
+
   await coreRun(hostContext, (s) => s.commandDone(command.commandId, result.ok, toJson(CommandResultSchema, result)));
 
-  if (command.kind.case === "steerTurn")
-    return coreSteerAnswered(hostContext, command.kind.value.threadId, command.kind.value.inputId, result);
+  if (command.kind.case === "steerTurn") {
+    await coreSteerAnswered(hostContext, command.kind.value.threadId, command.kind.value.inputId, result);
 
-  if (command.kind.case === "setGoal")
-    return coreGoalAnswered(hostContext, command.kind.value.threadId, command.kind.value.goalId, result);
+    return;
+  }
+
+  if (command.kind.case === "setGoal") {
+    await coreGoalAnswered(hostContext, command.kind.value.threadId, command.kind.value.goalId, result);
+
+    return;
+  }
 
   if (result.ok) return;
+
+  await commandFailed(hostContext, workerId, command, result);
+
+  return undefined;
+}
+
+async function commandFailed(
+  hostContext: GatewayCore,
+  workerId: string,
+  command: Command,
+  result: CommandResult,
+): Promise<void> {
   const reason = result.errorMessage || result.errorCode;
 
   switch (command.kind.case) {

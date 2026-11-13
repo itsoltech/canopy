@@ -2,8 +2,9 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { create, toJson } from "@bufbuild/protobuf";
-import { Provider, ProviderProfileKind, ui } from "@canopy/contracts";
+import { CommandSchema, Provider, ProviderProfileKind, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
+import { Effect } from "effect";
 import { GatewayStore, InstanceStore } from "@canopy/gateway/store";
 import { eventually, failure } from "./support/gateway.ts";
 import { startInstanceFixture, type InstanceFixture } from "./support/instance-fixture.ts";
@@ -16,6 +17,151 @@ describe.skipIf(!dockerAvailable)("instance changes at turn boundaries over the 
   afterAll(async () => {
     await f?.close();
   });
+
+  test("Claude serializes concurrent StartTurn deliveries behind a running turn without blocking controls", async () => {
+    await f.save(Provider.CLAUDE, "turn-admission");
+    const thread = await f.thread(Provider.CLAUDE);
+    const held = await f.send(thread.id, "HOLD:admission");
+    await eventually(
+      async () => f.host.runningTurns(),
+      (turns) => turns.some((t) => t.turnId === held.id),
+    );
+
+    const running = await eventually(
+      async () => f.records().filter((r) => r.session === thread.providerThreadId && r.event === "turn"),
+      (rows) => rows.length === 1,
+      15_000,
+    );
+
+    expect(running).toHaveLength(1);
+    const queued = [await f.send(thread.id, "first continuation"), await f.send(thread.id, "second continuation")];
+
+    const spec = await f.gw.runtime.runPromise(
+      GatewayStore.use((s) => s.thread(thread.id).pipe(Effect.map((row) => s.threadSpec(row)))),
+    );
+
+    // Reproduce two starts admitted by a gateway before it sees the provider's running turn.
+    const commands = await Promise.all(
+      queued.map((turn) =>
+        f.gw.runtime.runPromise(
+          GatewayStore.use((s) =>
+            s.enqueueCommand({
+              workerId: f.workerId,
+              threadId: thread.id,
+              turnId: turn.id,
+              ttlSeconds: 60,
+              command: create(CommandSchema, {
+                kind: {
+                  case: "startTurn",
+                  value: {
+                    thread: spec,
+                    turnId: turn.id,
+                    input: { text: turn.inputText },
+                  },
+                },
+              }),
+            }),
+          ),
+        ),
+      ),
+    );
+
+    const connection = f.gw.core.link.connections.get(f.workerId)!;
+
+    const replies = commands.map((command) => {
+      if (command.kind.case !== "startTurn") throw new Error("Expected StartTurn");
+
+      return connection.sendCommand(command.kind, 10_000, command.commandId);
+    });
+
+    try {
+      // A later command on the same stream crosses the worker while both starts wait.
+      await f.gw.api.listDirectory({ workerId: f.workerId, path: f.dir });
+      expect(f.records().filter((r) => r.session === thread.providerThreadId && r.event === "turn")).toHaveLength(1);
+      await f.release("admission");
+      expect((await Promise.all(replies)).map((r) => r.ok)).toEqual([true, true]);
+
+      for (const turn of queued) expect((await f.finished(thread.id, turn.id)).status).toBe("completed");
+      expect(
+        f
+          .records()
+          .filter((r) => r.session === thread.providerThreadId && ["turn", "finish"].includes(r.event))
+          .map((r) => r.event),
+      ).toEqual(["turn", "finish", "turn", "finish", "turn", "finish"]);
+      // Lost acknowledgement: the worker journal returns the saved result without executing another turn.
+      const first = commands[0]!;
+
+      if (first.kind.case !== "startTurn") throw new Error("Expected StartTurn");
+      expect((await connection.sendCommand(first.kind, 10_000, first.commandId)).ok).toBe(true);
+      expect(f.records().filter((r) => r.session === thread.providerThreadId && r.event === "turn")).toHaveLength(3);
+      await f.restartWorker();
+      const restarted = f.gw.core.link.connections.get(f.workerId)!;
+      expect((await restarted.sendCommand(first.kind, 10_000, crypto.randomUUID())).ok).toBe(true);
+      expect(f.records().filter((r) => r.session === thread.providerThreadId && r.event === "turn")).toHaveLength(3);
+    } finally {
+      await f.release("admission");
+      await Promise.allSettled(replies);
+    }
+  }, 60_000);
+
+  test("archiving fences a StartTurn waiting at the worker, including after restart", async () => {
+    await f.save(Provider.CLAUDE, "cancel-admission");
+    const thread = await f.thread(Provider.CLAUDE);
+    const held = await f.send(thread.id, "HOLD:cancel-admission");
+    await eventually(
+      async () => f.records().filter((r) => r.session === thread.providerThreadId && r.event === "turn"),
+      (rows) => rows.length === 1,
+      15_000,
+    );
+    const queued = await f.send(thread.id, "must never enter the harness");
+
+    const spec = await f.gw.runtime.runPromise(
+      GatewayStore.use((s) => s.thread(thread.id).pipe(Effect.map((row) => s.threadSpec(row)))),
+    );
+
+    const command = await f.gw.runtime.runPromise(
+      GatewayStore.use((s) =>
+        s.enqueueCommand({
+          workerId: f.workerId,
+          threadId: thread.id,
+          turnId: queued.id,
+          ttlSeconds: 60,
+          command: create(CommandSchema, {
+            kind: { case: "startTurn", value: { thread: spec, turnId: queued.id, input: { text: queued.inputText } } },
+          }),
+        }),
+      ),
+    );
+
+    const connection = f.gw.core.link.connections.get(f.workerId)!;
+
+    if (command.kind.case !== "startTurn") throw new Error("Expected StartTurn");
+    const reply = connection.sendCommand(command.kind, 10_000, command.commandId);
+
+    try {
+      await f.gw.api.listDirectory({ workerId: f.workerId, path: f.dir });
+      await f.gw.api.setThreadArchived({ threadId: thread.id, archived: true });
+      await eventually(
+        () => f.query<{ status: string }>("SELECT status FROM turns WHERE id=$1", [queued.id]),
+        (rows) => rows[0]?.status === "cancelled",
+      );
+      await f.release("cancel-admission");
+      expect((await reply).ok).toBe(true);
+      expect(f.records().filter((r) => r.session === thread.providerThreadId && r.event === "turn")).toHaveLength(1);
+      await f.finished(thread.id, held.id);
+      await f.restartWorker();
+      const restarted = f.gw.core.link.connections.get(f.workerId)!;
+      expect((await restarted.sendCommand(command.kind, 10_000, crypto.randomUUID())).ok).toBe(true);
+      expect(f.records().filter((r) => r.session === thread.providerThreadId && r.event === "turn")).toHaveLength(1);
+      await f.gw.api.setThreadArchived({ threadId: thread.id, archived: false });
+      const next = await f.send(thread.id, "new work after unarchive");
+      expect((await f.finished(thread.id, next.id)).status).toBe("completed");
+      expect(f.records().filter((r) => r.session === thread.providerThreadId && r.event === "turn")).toHaveLength(2);
+    } finally {
+      await f.release("cancel-admission");
+      await Promise.allSettled([reply]);
+    }
+  }, 60_000);
 
   for (const harness of [Provider.CLAUDE, Provider.CODEX, Provider.GROK]) {
     test(`${Provider[harness]}: native→proxy→native keeps sessions; running turns keep old env and new work waits`, async () => {

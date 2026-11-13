@@ -6,6 +6,7 @@ import type { Fx } from "./errors.ts";
 import type { OutboxRow } from "./rows.ts";
 import { storageJson } from "./event-text.ts";
 import { queryFamily } from "../diagnostics/query-context.ts";
+import { retryTurnStart } from "./retry-turn-start.ts";
 
 export interface PendingCommand {
   readonly command: Command;
@@ -24,10 +25,21 @@ export interface OutboxStore {
   /** Ordered keyset page, at most 2048 commands / about 512 KiB (one oversized command makes progress). */
   pendingCommands(workerId: string, afterId?: string): Fx<PendingCommand[]>;
   commandDone(commandId: string, ok: boolean, result: JsonValue): Fx<void>;
+  retryTurnStart(commandId: string, result: JsonValue): Fx<Command | undefined>;
+  /** Recheck lifecycle after a retry delay or reconnect, before handing a start to the worker. */
+  turnStartDispatchable(commandId: string): Fx<boolean>;
 }
 
 export function outboxStore(sql: SqlClient.SqlClient): OutboxStore {
   return {
+    retryTurnStart: (commandId, result) => retryTurnStart(sql, commandId, result),
+    turnStartDispatchable: (commandId) =>
+      sql`
+      SELECT c.id FROM worker_commands c JOIN turns u ON u.id = c.turn_id JOIN threads t ON t.id = c.thread_id
+      WHERE c.id = ${commandId}::uuid AND c.status IN ('pending', 'delivered') AND c.expires_at > now()
+        AND u.status IN ('queued', 'running') AND t.archived_at IS NULL AND t.deleted_at IS NULL`.pipe(
+        Effect.map((rows) => rows.length > 0),
+      ),
     enqueueCommand: ({ workerId, threadId, turnId, command, ttlSeconds }) =>
       Effect.gen(function* () {
         const message = create(CommandSchema, { ...command });

@@ -392,6 +392,12 @@ describe.skipIf(!dockerAvailable)("managing the queue (gateway + scripted worker
         QueueStore.use((q) => q.whileHead({ threadId: thread.id, turnId, revision }, Effect.succeed("started"))),
       );
 
+    expect(await start(a, 0)).toBeUndefined(); // a provider turn may have won since nextTurn read the head
+    // Apply the end without pumping: exercise the admission check separately from dispatch.
+    await query(
+      "UPDATE turns SET status = 'completed', last_seq = first_seq, completed_at = now() WHERE id = $1::uuid",
+      runningId,
+    );
     expect(await start(a, 0)).toBe("started");
     expect(await start(b, 0)).toBeUndefined(); // not the head
     await gw.api.editQueuedTurn({ turnId: a, text: "A2", expectedRevision: 0 });
