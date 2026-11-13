@@ -13,8 +13,8 @@ export function RewindSheet({ state }: { state: ReturnType<typeof useThreadRewin
   const note = preview
     ? [
         `Rewind ${preview.messages} ${preview.messages === 1 ? "message" : "messages"} and edit this one. You can undo before sending again.`,
-        preview.running || preview.backgroundTasks ? "The agent and its background tasks will stop." : "",
-        "Queued messages and pending requests will be cancelled.",
+        preview.running || preview.backgroundTasks ? "The agent and its background tasks stop." : "",
+        "Canopy cancels queued messages and pending requests.",
         preview.filesAvailable
           ? "Checkpoints cover the agent's file edits. Shell commands and subagents are excluded."
           : "Files stay as they are.",
@@ -27,7 +27,7 @@ export function RewindSheet({ state }: { state: ReturnType<typeof useThreadRewin
 
   return (
     <PickerSheet
-      title={preview?.running ? "Stop and edit" : "Edit from here"}
+      title={preview?.running ? "Stop and edit?" : "Edit from here?"}
       visible={Boolean(state.selected)}
       onClose={state.close}
       note={note}
