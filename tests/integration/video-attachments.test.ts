@@ -5,6 +5,7 @@ import { AttachmentStore, GatewayStore } from "@canopy/gateway/store";
 import { qualifyId } from "@canopy/domain/computers";
 import sharp from "sharp";
 import { attachmentResponse } from "../../apps/web/src/lib/server/attachment-response.ts";
+import { readVideoRequest, type VideoWrite } from "../../apps/mobile/src/features/attachments/video-read.ts";
 import { configComputer, pairConfig } from "./support/config-sync.ts";
 import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
 import { mp4, webm } from "./support/video-fixtures.ts";
@@ -142,6 +143,61 @@ describe.skipIf(!dockerAvailable)("video attachments through the gateway and BFF
     expect(denied.headers.get("cache-control")).toBe("no-store");
   });
 
+  test("native player reads use the authenticated gateway for seeks, denial and cancellation", async () => {
+    const file = (await gw.api.uploadAttachment({ name: "native.mp4", data: mp4 })).attachment!;
+
+    async function nativeRead(id: string, range: string, method = "GET", signal = new AbortController().signal) {
+      const writes: { status: number; headers: Record<string, string>; data: Uint8Array; end: boolean }[] = [];
+
+      const write: VideoWrite = async (status, headers, data, end) => {
+        writes.push({ status, headers, data, end });
+      };
+
+      await readVideoRequest(gw.api, id, { serverId: "test", requestId: "test", method, range }, write, signal);
+
+      return writes;
+    }
+
+    const partial = await nativeRead(file.id, "bytes=8-31");
+    expect(partial[0]).toMatchObject({
+      status: 206,
+      headers: { "Content-Range": `bytes 8-31/${mp4.length}`, "Content-Type": "video/mp4" },
+    });
+    expect(partial[1]?.data).toEqual(new Uint8Array(mp4.subarray(8, 32)));
+    expect(partial[1]?.end).toBe(true);
+    expect((await nativeRead(file.id, "bytes=99999-"))[0]).toMatchObject({ status: 416, end: true });
+    expect(await nativeRead(file.id, "", "HEAD")).toHaveLength(1);
+
+    const html = (
+      await gw.api.uploadAttachment({ name: "fake.mp4", data: new TextEncoder().encode("<html>fake</html>") })
+    ).attachment!;
+
+    expect(await failure(nativeRead(html.id, ""))).toContain("Update the computer");
+
+    const controller = new AbortController();
+    controller.abort();
+    expect(await failure(nativeRead(file.id, "", "GET", controller.signal))).toBeTruthy();
+
+    const stranger = await gw.runtime.runPromise(
+      GatewayStore.use((s) => s.ensureUser("native-video@test", "Stranger")),
+    );
+
+    const foreign = await gw.runtime.runPromise(
+      AttachmentStore.use((s) =>
+        s.create({
+          ownerUserId: stranger,
+          name: "private.mp4",
+          data: mp4,
+          sha256: file.sha256,
+          mimeType: "video/mp4",
+          kind: "video",
+        }),
+      ),
+    );
+
+    expect(await failure(nativeRead(foreign.id, "bytes=8-31"))).toContain("not found");
+  });
+
   test("video limits still apply and workers receive original bytes with a video duration note", async () => {
     const large = Buffer.concat([mp4, Buffer.alloc(4097)]);
     expect(await failure(gw.api.uploadAttachment({ name: "large.mp4", data: large }))).toContain("up to");
@@ -176,6 +232,41 @@ describe.skipIf(!dockerAvailable)("video attachments through the gateway and BFF
     expect(blob.data).toEqual(new Uint8Array(mp4));
   });
 });
+
+test.skipIf(!dockerAvailable)(
+  "native streaming reads a multi-chunk video without losing bytes",
+  async () => {
+    const gw = await startTestGateway();
+
+    try {
+      const data = Buffer.concat([mp4, Buffer.alloc(700_000, 42)]);
+      const file = (await gw.api.uploadAttachment({ name: "long.mp4", data })).attachment!;
+      const chunks: Uint8Array[] = [];
+
+      await readVideoRequest(
+        gw.api,
+        file.id,
+        { serverId: "test", requestId: "test", method: "GET", range: "bytes=1024-690000" },
+        async (status, headers, bytes, end) => {
+          if (status) {
+            expect(status).toBe(206);
+            expect(headers["Content-Length"]).toBe("688977");
+          }
+
+          if (bytes.length) chunks.push(bytes);
+
+          if (end) expect(Buffer.concat(chunks)).toEqual(data.subarray(1024, 690001));
+        },
+        new AbortController().signal,
+      );
+      expect(chunks).toHaveLength(3);
+      expect(Math.max(...chunks.map((chunk) => chunk.length))).toBeLessThanOrEqual(256 * 1024);
+    } finally {
+      await gw.close();
+    }
+  },
+  60_000,
+);
 
 test.skipIf(!dockerAvailable)(
   "video ranges preserve linked home routing and ownership",

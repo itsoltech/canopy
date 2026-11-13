@@ -2,6 +2,8 @@ export { INLINE_IMAGE_TYPES, extensionOf, sniff, type Sniffed, type SniffedKind 
 
 export { videoDurationMs, formatVideoDuration } from "./video.ts";
 
+export { attachmentRange } from "./range.ts";
+
 export {
   DEFAULT_ATTACHMENT_LIMITS,
   attachmentPath,
