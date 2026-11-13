@@ -60,6 +60,8 @@ export interface FeedInput {
   /** Folds open (by fold id: a turn's, or its later segment's, `foldId`), live or ended. */
   readonly openWork: ReadonlySet<string>;
   readonly openGroups?: ReadonlySet<string>;
+  /** Turn and item windows page independently: a turn header alone does not prove its work is empty. */
+  readonly historyItemsHasMore?: boolean;
 }
 
 /** Group of a row for size estimates: items by their content, other rows by kind. */
