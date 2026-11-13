@@ -5,7 +5,7 @@ import { TextInput } from "../../ui/TextInput";
 import { styles, useColors, useTypography } from "../../ui/theme";
 import { FileLookup } from "./FileLookup";
 import { ThreadFileImage } from "./ThreadFileImage";
-import type { ThreadFileState } from "./useThreadFile";
+import type { ThreadFileState } from "./file-state";
 
 export function FilePreview({
   viewer,

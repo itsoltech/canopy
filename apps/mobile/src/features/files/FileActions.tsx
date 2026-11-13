@@ -1,6 +1,6 @@
 import { View } from "react-native";
 import { Button } from "../../ui/Button";
-import type { ThreadFileState } from "./useThreadFile";
+import type { ThreadFileState } from "./file-state";
 
 export function FileActions({
   viewer,

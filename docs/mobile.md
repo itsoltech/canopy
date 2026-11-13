@@ -61,8 +61,9 @@ zdarzenia przewijania podczas przygotowania listy nie nadpisują starego offsetu
 Bardzo długie linie dzieli na fragmenty do 4096 znaków bez utraty treści i par
 surogatów, pod tym samym numerem.
 Edycja pozostaje natywnym polem tekstowym bez kolorów podczas pisania. Tokenizacja
-viewera i Preview changes dochodzą w osobnej warstwie workspace'u; obecny shell
-nie dodaje nowych RPC ani modułu natywnego. Poza wątkiem pozostaje pełnoekranowy viewer.
+viewera i Preview changes korzysta z ograniczonych okien tokenów z workera.
+Nie dodajemy modułu natywnego. Link pliku z izolowanego transkryptu przechodzi do
+workspace'u właściwego wątku; załączniki i bloby zachowują swoje viewery.
 
 `+` obok przełącznika kart otwiera moduły Files, Pull requests, Tasks i Connectors w pełnej
 karcie bieżącego wątku. Modules otwiera arkusz minimalnego modułu z wyborem,
@@ -77,7 +78,7 @@ zmiany trasy. Tasks rozdziela harmonogramy od zadań w tle i otwiera wynik zadan
 w karcie. Connectors zachowuje granty całego workera. Nieaktywne moduły są
 odmontowane, dane korzystają ze współdzielonego cache parowania, a ponowne
 otwarcie sekcji PR korzysta z zapamiętanej prezentacji. Nie zmieniamy konfiguracji
-natywnej ani fingerprintów; kolorowanie plików dochodzi w kolejnej warstwie.
+natywnej ani fingerprintów.
 
 Files używa `FlatList` ze stałą wysokością wiersza co najmniej 48 dp, dostosowaną
 do skali tekstu. Okno montowania ma do 80 wierszy na obsługiwanych viewportach;
@@ -87,7 +88,7 @@ otwiera preview; Keep tab utrwala go w przełączniku kart. Litery statusu Git i
 dostępności uzupełniają kolory. Symlinki i usunięte wpisy są nieaktywne.
 
 Cache drzewa ma osobny limit 1 MiB zakodowanego payloadu, do 30 wątków, po 128
-węzłów katalogów i 32 rozwinięcia. Listowania mają wspólny limit dwóch równoległych
+węzłów katalogów i 30 rozwinięć. Listowania mają wspólny limit dwóch równoległych
 odczytów; po zamknięciu ostatniego widoku odczyty i kursory są zwalniane. Brak
 pollingu w tle. `Reload files` odświeża zmiany spoza Canopy; własny zapis i usunięcie
 unieważniają drzewo wątku. Przekroczenie budżetu lub wygaśnięcie kursora pokazuje

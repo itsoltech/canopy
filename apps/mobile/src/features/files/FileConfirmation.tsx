@@ -3,7 +3,7 @@ import { Button } from "../../ui/Button";
 import { Overlay } from "../../ui/Overlay";
 import { styles, useColors } from "../../ui/theme";
 
-export type FileConfirmationKind = "delete" | "close" | "discard";
+export type FileConfirmationKind = "delete" | "discard";
 
 export function FileConfirmation({
   kind,

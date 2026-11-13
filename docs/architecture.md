@@ -366,6 +366,17 @@ Worker uruchamia kod na prawdziwych maszynach. To główne ryzyko projektu.
 
 ## 10. Struktura repozytorium
 
+Wątek web/desktop i mobile ma lokalny workspace: rozmowę jako pierwszą kartę,
+preview/utrwalone karty plików oraz rejestrowane moduły Files, Pull requests, Tasks
+i Connectors. Na szerokim webie szczegóły dokują w wolnym prawym panelu;
+przy zajętym panelu są przejściową kartą, a na telefonie arkuszem. Metadane kart
+są stanem urządzenia, bez synchronizacji między klientami. Treści i szkice
+pozostają w ograniczonych cache pamięci, niezależnie od dogrzewania transkryptów.
+Gateway wyprowadza zakres plików z właściciela i wątku. Drzewo jest leniwe,
+stronicowane; stream zmian niesie invalidacje wybranego zakresu, bez pełnego
+snapshotu drzewa ani historii. Szczegóły: [ui-api.md](ui-api.md#moduły-workspaceu-wątku)
+i [mobile.md](mobile.md).
+
 Monorepo na Bun workspaces. Każda aplikacja jest osobno wdrażalna, wspólny kod jest w pakietach, kontrakt jest jeden i generowany.
 
 ```text

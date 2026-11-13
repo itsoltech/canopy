@@ -6,7 +6,6 @@
   import { isDesktopRoute, type DesktopWindowControl } from "@canopy/ui/desktop";
   import { onMount } from "svelte";
   import AppShell from "#lib/features/navigation/AppShell.svelte";
-  import FileViewerHost from "#lib/features/files/FileViewerHost.svelte";
   import QuitGuardOverlay from "#lib/features/desktop/QuitGuardOverlay.svelte";
   import WindowControls from "#lib/features/desktop/WindowControls.svelte";
   import { applyWindowState } from "#lib/features/desktop/window-chrome.ts";
@@ -84,7 +83,6 @@
   {@render children()}
 {:else}
   <AppShell>{@render children()}</AppShell>
-  <FileViewerHost />
 {/if}
 {#if windowControl}<WindowControls control={windowControl} />{/if}
 <QuitGuardOverlay />

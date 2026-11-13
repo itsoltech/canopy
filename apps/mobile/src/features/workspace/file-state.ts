@@ -1,5 +1,5 @@
 import type { Workspace, WorkspaceTab } from "@canopy/domain/workspace";
-import type { ThreadFileState } from "../files/useThreadFile";
+import type { ThreadFileState } from "../files/file-state";
 import type { FileConfirmationKind } from "../files/FileConfirmation";
 
 export function workspaceFileState(
