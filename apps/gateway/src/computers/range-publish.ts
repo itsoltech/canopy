@@ -61,10 +61,16 @@ export class ThreadRangePublisher {
           readStarted = Date.now();
           const overview = await rangeOverview(this.store, overviewClock);
 
+          const changed =
+            !overviewClock ||
+            overview.clock.epoch !== overviewClock.epoch ||
+            overview.clock.revision !== overviewClock.revision;
+
           if (overview.changed) yield await rangeOverviewUpdate(serve, signal);
 
           overviewClock = overview.clock;
-          threads = await rangeThreadHeads(this.store);
+
+          if (changed) threads = await rangeThreadHeads(this.store);
           refreshAt = Date.now() + 250;
           const ids = new Set(threads.map((thread) => thread.id));
 
@@ -81,12 +87,7 @@ export class ThreadRangePublisher {
           signal.throwIfAborted();
           const cursor = cursors.get(thread.id) ?? create(ui.ThreadSyncCursorSchema, { threadId: thread.id });
 
-          if (
-            thread.epoch === cursor.epoch &&
-            thread.head !== null &&
-            BigInt(thread.head) === cursor.appliedSeq &&
-            Date.now() - lastHeartbeat < 5000
-          )
+          if (thread.epoch === cursor.epoch && thread.head !== null && BigInt(thread.head) === cursor.appliedSeq)
             continue;
           const signature = `${thread.epoch}:${thread.head}:${thread.version}`;
           const blocked = publicationFailure(thread, signature);
