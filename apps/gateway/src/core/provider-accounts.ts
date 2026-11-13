@@ -12,10 +12,15 @@ interface Report {
   accounts: Map<string, ProviderAccountStatus>;
 }
 
+interface Flight {
+  refresh: boolean;
+  task: Promise<boolean>;
+}
+
 /** Volatile display metadata: never a database row, outbox entry or log message. */
 export class ProviderAccounts {
   readonly #reports = new Map<string, Report>();
-  readonly #flights = new Map<WorkerConnection, Map<string, Promise<boolean>>>();
+  readonly #flights = new Map<WorkerConnection, Map<string, Flight>>();
 
   constructor(readonly core: GatewayCore) {}
 
@@ -79,9 +84,12 @@ export class ProviderAccounts {
     const key = `${version}/${provider}/${id}`;
     const existing = flights.get(key);
 
-    if (existing) return existing;
+    if (existing && (!refresh || existing.refresh)) return existing.task;
 
-    const task = coreRun(this.core, (s) => s.listWorkers(this.core.online, this.core[coreState].options.userId))
+    // A forced refresh cannot reuse a cached read, even while that read is only broadcasting its result.
+    // Queue it after the older read so the older report cannot overwrite the fresh one.
+    const task: Promise<boolean> = (existing?.task ?? Promise.resolve())
+      .then(() => coreRun(this.core, (s) => s.listWorkers(this.core.online, this.core[coreState].options.userId)))
       .then((workers) =>
         workers.some((w) => w.id === connection.workerId)
           ? connection.sendCommand(
@@ -110,9 +118,11 @@ export class ProviderAccounts {
         return true;
       })
       .catch(() => false)
-      .finally(() => flights.delete(key));
+      .finally(() => {
+        if (flights.get(key)?.task === task) flights.delete(key);
+      });
 
-    flights.set(key, task);
+    flights.set(key, { refresh, task });
 
     return task;
   }
