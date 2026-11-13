@@ -4,6 +4,7 @@ import { computerLink as link, ItemSchema, ItemStatus, Provider, ui } from "@can
 import { dockerAvailable } from "@canopy/db/testing";
 import { qualifyId, THREAD_RANGES } from "@canopy/domain/computers";
 import { ThreadSyncGap, validateThreadBatch } from "@canopy/domain/thread-sync";
+import { ConnectError, Code } from "@connectrpc/connect";
 import { remoteServe, uiHandlers } from "@canopy/gateway/api";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { readThreadRange } from "../../apps/gateway/src/computers/range-source.ts";
@@ -392,6 +393,34 @@ describe.skipIf(!dockerAvailable)("durable thread sequence ranges over real gate
 
     const attempts = await failureAttempts();
     expect(attempts).toBeGreaterThan(0);
+
+    const clock = (
+      await source.query<{ epoch: string }>(
+        "SELECT epoch::text FROM thread_replication_clock WHERE thread_id=$1::uuid",
+        [broken],
+      )
+    )[0]!;
+
+    let watchFailure: ConnectError | undefined;
+
+    try {
+      for await (const _ of a.api.watchThread(
+        {
+          threadId: qualifyId(broken, node),
+          sequence: true,
+          syncCursor: { threadId: qualifyId(broken, node), epoch: clock.epoch, appliedSeq: 0n },
+        },
+        { timeoutMs: 5000 },
+      )) {
+        // The good prefix precedes the malformed sealed record.
+      }
+    } catch (cause) {
+      watchFailure = ConnectError.from(cause);
+    }
+
+    expect(watchFailure?.code).toBe(Code.DataLoss);
+    expect(watchFailure?.metadata.get("canopy-sync-reason")).toBe("decode_error");
+    expect(watchFailure?.metadata.get("canopy-frame-bytes")).toBe("1");
     await b.api.updateThread({ threadId: thread, title: "Healthy beside a failed thread" });
     expect(
       await eventually(

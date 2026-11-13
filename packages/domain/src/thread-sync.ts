@@ -4,6 +4,12 @@ import { ui } from "@canopy/contracts";
 export const THREAD_BATCH_RECORDS = 64;
 export const THREAD_BATCH_BYTES = 64 * 1024;
 
+export class ThreadSyncLimit extends Error {
+  constructor(readonly frameBytes: number) {
+    super("Thread batch exceeds its negotiated limit");
+  }
+}
+
 export class ThreadSyncGap extends Error {
   constructor(
     readonly appliedSeq: bigint,
@@ -18,11 +24,9 @@ export class ThreadSyncGap extends Error {
 
 /** Validate before writing anything. Unknown additive record cases still occupy a sequence. */
 export function validateThreadBatch(batch: ui.ThreadSyncBatch, applied: bigint) {
-  if (
-    batch.records.length > THREAD_BATCH_RECORDS ||
-    toBinary(ui.ThreadSyncBatchSchema, batch).length > THREAD_BATCH_BYTES
-  )
-    throw new Error("Thread batch exceeds its negotiated limit");
+  const bytes = toBinary(ui.ThreadSyncBatchSchema, batch).length;
+
+  if (batch.records.length > THREAD_BATCH_RECORDS || bytes > THREAD_BATCH_BYTES) throw new ThreadSyncLimit(bytes);
 
   if (
     batch.baseSeq !== applied ||

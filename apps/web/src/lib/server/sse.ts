@@ -3,6 +3,7 @@ import { syncMetrics, syncCpu, syncCpuMicros } from "@canopy/transport";
 import { computerFailure } from "./gateway-errors.ts";
 import { ConnectError } from "@connectrpc/connect";
 import { bffMeasurements } from "./diagnostics.ts";
+import { threadWatchFailure } from "@canopy/domain/thread-watch-recovery";
 
 const SSE_BUFFER_BYTES = 1024 * 1024;
 
@@ -73,12 +74,21 @@ export function sseResponse<T>(
           }
         } catch (cause) {
           if (!upstream.signal.aborted) {
-            const code = ConnectError.from(cause).code;
+            const error = ConnectError.from(cause);
+
+            const failure = threadWatchFailure(
+              error.code,
+              error.metadata.get("canopy-sync-reason") ?? "",
+              computerFailure(cause),
+              Number(error.metadata.get("canopy-frame-bytes")),
+            );
+
+            const code = failure.code;
 
             if (computerFailure(cause)) send(`event: away\ndata: ${JSON.stringify({ code, computer: true })}\n\n`);
             else {
               console.warn("Event stream failed", { code });
-              send(`event: failure\ndata: ${JSON.stringify({ code, computer: false })}\n\n`);
+              send(`event: failure\ndata: ${JSON.stringify(failure)}\n\n`);
             }
           }
         } finally {

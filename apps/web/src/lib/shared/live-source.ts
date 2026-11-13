@@ -1,5 +1,9 @@
 import { ConnectionRecovery, type RecoverySnapshot } from "@canopy/domain/connection-recovery";
-import { readThreadWatchFailure, type ThreadWatchFailure } from "@canopy/domain/thread-watch-recovery";
+import {
+  readThreadWatchFailure,
+  threadUpdateFailure,
+  type ThreadWatchFailure,
+} from "@canopy/domain/thread-watch-recovery";
 
 export interface LiveSourceHandlers {
   /** Compute a fresh checkpoint on every retry. */
@@ -11,6 +15,7 @@ export interface LiveSourceHandlers {
   readonly onfailure?: () => void;
   readonly onerror?: (failure: ThreadWatchFailure) => boolean;
   readonly onstatus?: (state: RecoverySnapshot) => void;
+  readonly stableMs?: number;
 }
 
 /** A resync was refused by a linked computer; the local gateway answered. */
@@ -55,7 +60,7 @@ export function liveSource(url: string, handlers: LiveSourceHandlers, environmen
   let cancelFailure: (() => void) | undefined;
   let stopped = false;
   let opens = 0;
-  const recovery = new ConnectionRecovery();
+  const recovery = new ConnectionRecovery(handlers.stableMs);
   let ready = false;
   let computerAway = false;
 
@@ -249,8 +254,8 @@ function attachSource(
 
     try {
       handlers.onmessage(message.data);
-    } catch {
-      failed({ code: 15 });
+    } catch (cause) {
+      failed(threadUpdateFailure(cause));
     }
   };
 }

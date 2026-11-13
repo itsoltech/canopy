@@ -336,6 +336,19 @@ describe.skipIf(!dockerAvailable)("bounded client sequence watch over real gRPC"
 
     if (item.content.case === "commandExecution") expect(item.content.value.output.length).toBe(32700);
   });
+  test("a warmed checkpoint ahead of the same home epoch receives one bounded replacement", async () => {
+    const update = await first({
+      threadId: thread,
+      sequence: true,
+      syncCursor: { ...cached.syncCursor!, appliedSeq: cached.syncCursor!.appliedSeq + 999999n },
+    });
+
+    expect(update.change.case).toBe("snapshot");
+    const state = applyThreadUpdate(cached, update);
+    expect(state.syncCursor!.epoch).toBe(cached.syncCursor!.epoch);
+    expect(state.syncCursor!.appliedSeq).toBeLessThan(cached.syncCursor!.appliedSeq + 999999n);
+    expect(state.items.length).toBeLessThanOrEqual(128);
+  });
   test("paging rewinds the sequence so concurrent edits cannot be lost", async () => {
     const checkpoint = cached.cursor;
 

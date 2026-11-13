@@ -1,7 +1,14 @@
 import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { create, toBinary, toJsonString } from "@bufbuild/protobuf";
 import { Provider, ui } from "@canopy/contracts";
-import { ClientMeasurements, clientMetric, DiagnosticsEpochs, Histogram } from "@canopy/domain/diagnostics";
+import {
+  ClientMeasurements,
+  clientMetric,
+  DiagnosticsEpochs,
+  Histogram,
+  recordThreadWatchFailure,
+  threadWatchMetric,
+} from "@canopy/domain/diagnostics";
 import { dockerAvailable } from "@canopy/db/testing";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { SqlClient } from "effect/sql";
@@ -227,6 +234,26 @@ describe.skipIf(!dockerAvailable)("client diagnostics auth, redaction and explic
       ),
     ).toBe(Code.InvalidArgument);
   });
+  test("thread watch reasons and counts survive submission and redacted report export", async () => {
+    const measurements = new ClientMeasurements("mobile", crypto.randomUUID());
+    measurements.clear(sample.epoch);
+    recordThreadWatchFailure(measurements, { code: 8, frameBytes: 70000 }, "size_limit");
+    recordThreadWatchFailure(measurements, { code: 8, frameBytes: 70000 }, "size_limit");
+    const batch = measurements.take();
+    expect(batch.measures.find((row) => row.metricId === threadWatchMetric("mobile", 0))?.events).toBe(2n);
+    expect((await gw.api.submitDiagnostics(batch, { headers })).accepted).toBe(true);
+
+    const value = await eventually(
+      detail,
+      (value) => value.clientMeasures.some((row) => row.metricId === threadWatchMetric("mobile", 0)),
+      10000,
+    );
+
+    const exported = diagnosticReport([value], "json").text;
+    expect(exported).toContain("mobile · Thread update too large");
+    expect(exported).toContain('"samples": "2"');
+    expect(exported).not.toContain(measurements.session);
+  }, 15_000);
 
   test("client checkpoints commit with their observations and reject replay after restart", async () => {
     const measurements = new ClientMeasurements("desktop", crypto.randomUUID());

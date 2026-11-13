@@ -288,6 +288,8 @@ message RemoteResponse {
   string message = 6;
   // Stage 8: the error is "moved": these things live on another computer now. Survives a relay.
   repeated MovedItem moved = 7;
+  // Fixed thread-sync reason and numeric size only; never arbitrary error metadata.
+  ThreadRangeFailure thread_failure = 8;
 }
 // The caller stopped listening (stream closed, timeout). The home aborts the call.
 message RemoteCancel { uint64 call_id = 1; }

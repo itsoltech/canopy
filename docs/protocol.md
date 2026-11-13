@@ -575,6 +575,10 @@ bez zmiany trwałego zapisu zdarzeń. Starsi partnerzy dostają pojedyncze zdarz
 Przepełnienie ograniczonej kolejki kończy dany stream `DataLoss`; odzyskiwanie korzysta
 z atomowego checkpointu, a luka wymusza snapshot. Limit całego łącza zamyka tylko to
 połączenie. Limity i wyjątek dużego snapshotu SSE: [bufory synchronizacji](linked-computers.md#ograniczenia-buforów-synchronizacji).
+Nowi klienci sekwencyjni odtwarzają lukę partii od ostatniego atomowego seq,
+bez pełnego snapshotu historii. Nieaktualna epoka lub przyszły seq daje ograniczone
+okno. `RemoteResponse.thread_failure` (8) przenosi przez łącze wyłącznie kategorię
+błędu i rozmiar ramki, obok istniejącego kodu RPC; starsi partnerzy ignorują to pole.
 Lustra grupują elementy istniejących repeated fields w fragmenty o budżecie około 32 KiB;
 duży pojedynczy element nadal może przekroczyć ten budżet w ramach limitu RPC.
 Oddanie pętli I/O co 16 fragmentów odpowiedzi pozwala opróżniać transport podczas dużego snapshotu.
