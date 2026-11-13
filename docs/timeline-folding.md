@@ -29,6 +29,22 @@ nie z czasu zakończenia. Mobile już grupuje całą turę w jednym wierszu.
 Komunikat dostawcy z JSON `type = error` pokazuje czytelny tekst i status HTTP;
 pełny JSON i dodatkowe dane są zredagowane i zwinięte pod „Show details” na obu klientach.
 
+Komunikaty liczy wspólne `domain/turn-notices.ts`. Jawne `turn_id` ma pierwszeństwo,
+również gdy tura nie należy do odczytanego okna historii. Starszy komunikat bez
+powiązania trafia do jedynej tury obejmującej jego zapisany czas; bez czasu musi
+leżeć między itemami tej samej tury według `first_seq`. Niejednoznaczne wpisy nie
+dostają zgadywanego powiązania. Klienci nie doklejają komunikatów znanych starszych
+tur jako czerwonych kart na końcu bieżącego okna.
+
+Po `status = completed` błędy i ostrzeżenia tej tury są kompaktowymi ostrzeżeniami
+w pracy, we własnym miejscu `seq`, zwijanymi razem z foldem. Identyczne wpisy
+w jednym segmencie pozostają w miejscu pierwszego wystąpienia z licznikiem `×3`.
+Różny kod, poziom lub szczegóły oraz granica steera/odpowiedzi zachowują osobne
+wpisy. Surowa treść pozostaje w „Show details”. Nieudana lub przerwana tura nie
+otrzymuje takiego obniżenia poziomu; karta końca tury zachowuje błąd i akcje.
+Wyliczenie korzysta wyłącznie z itemów, tur i komunikatów snapshotu; reload,
+przyrostowy sync i późne zdarzenie starej tury stosują te same reguły.
+
 „Retry” po nieudanej turze wysyła wyłącznie „Continue”, bez kopii poprzedniego promptu.
 Po rozpoczęciu nowszej tury starszy błąd zostaje jako tytuł i „Show details”;
 opis, wskazówki i wszystkie akcje naprawcze znikają. Wiadomość czekająca w kolejce

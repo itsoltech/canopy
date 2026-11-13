@@ -89,12 +89,15 @@ export function threadTurns(
       const entry = byPlatform.get(threadId);
       const codexTurn = entry?.platformToCodex.get(turnId);
 
-      if (!entry || !codexTurn)
+      if (!entry || !codexTurn || entry.finishedTurns.has(codexTurn))
         return yield* new CodexThreadError({ threadId, operation: "interrupt", message: "turn is not running here" });
+
+      if (entry.interrupting.has(codexTurn)) return;
       entry.interrupting.add(codexTurn);
-      yield* codex
-        .request("turn/interrupt", { threadId: entry.codexId, turnId: codexTurn })
-        .pipe(Effect.mapError(fail(threadId, "interrupt")));
+      yield* codex.request("turn/interrupt", { threadId: entry.codexId, turnId: codexTurn }).pipe(
+        Effect.tapError(() => Effect.sync(() => entry.interrupting.delete(codexTurn))),
+        Effect.mapError(fail(threadId, "interrupt")),
+      );
     }),
 
     steer: Effect.fn("CodexThreads.steer")(function* (

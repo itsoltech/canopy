@@ -9,6 +9,7 @@ import { botFailure, botTool, codexBotConfig } from "./bot-probe.ts";
 import { decodeJsonObject, jsonObject } from "../../../apps/worker/src/providers/json.ts";
 import { HttpMcp, httpTools } from "./instance-mcp.ts";
 import { Schema } from "effect";
+import { turnError } from "../../../apps/worker/src/providers/codex/fixtures/provider-errors.ts";
 
 if (process.argv.includes("--version")) {
   console.log("codex-cli 0.164.0");
@@ -174,7 +175,15 @@ async function turn(
     notify("turn/completed", { threadId, turn: { id: turnId, status: "completed", items: [], error: null } });
     await releaseProbe("HOLD:background");
     notify("item/completed", { threadId, turnId, item: { ...command, status: "completed", exitCode: 0 } });
-  } else notify("turn/completed", { threadId, turn: { id: turnId, status: "completed", items: [], error: null } });
+  } else {
+    if (text.includes("HOLD:provider-warnings"))
+      notify("item/completed", {
+        threadId,
+        turnId,
+        item: { id: `answer-${turnId}`, type: "agentMessage", text: "Finished successfully", phase: "final_answer" },
+      });
+    notify("turn/completed", { threadId, turn: { id: turnId, status: "completed", items: [], error: null } });
+  }
 }
 
 for await (const line of createInterface({ input: process.stdin })) {
@@ -252,6 +261,7 @@ for await (const line of createInterface({ input: process.stdin })) {
     });
   } else if (request.method === "turn/start") void turn(id, params);
   else if (request.method === "turn/interrupt") {
+    recordProbe("codex", "turn/interrupt", params.threadId);
     interrupted.add(params.turnId);
     send({ id, result: {} });
     notify("turn/completed", {
@@ -259,6 +269,16 @@ for await (const line of createInterface({ input: process.stdin })) {
       turn: { id: params.turnId, status: "interrupted", items: [], error: null },
     });
   } else if (request.method === "turn/steer") {
+    recordProbe("codex", "turn/steer", params.threadId);
+
+    if (process.env["PROFILE_PROBE"] === "provider-warnings")
+      for (let attempt = 0; attempt < 3; attempt++)
+        notify("error", {
+          threadId: params.threadId,
+          turnId: "",
+          willRetry: false,
+          error: decodeJsonObject(turnError),
+        });
     recordInput(
       "codex",
       params.input.map((i: { type: string; text?: string; path?: string }) => ({

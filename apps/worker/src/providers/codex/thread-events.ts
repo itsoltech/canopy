@@ -56,9 +56,11 @@ export function threadEvents(ctx: CodexThreadContext) {
   const recordNotification = (entry: Entry, notification: ServerNotification) =>
     Effect.gen(function* () {
       warnLateEvent(ctx, entry, notification);
+
+      // Stop/steer can race rollout reconciliation and journal enrichment. The provider has already ended.
+      if (notification.method === "turn/completed") entry.finishedTurns.add(notification.params.turn.id);
       const notifications = [...(yield* fromRollout(entry, notification)), notification];
 
-      if (notification.method === "turn/completed") entry.finishedTurns.add(notification.params.turn.id);
       const inits = notifications.flatMap((n) => entry.mapper.map(n));
 
       // Where Codex records this turn: read to settle it if its end never arrives (worker restart, crash).

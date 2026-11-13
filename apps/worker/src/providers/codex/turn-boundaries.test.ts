@@ -54,6 +54,30 @@ function finished(events: ThreadEvent[], turnId: string) {
   }).pipe(Effect.timeout("5 seconds"));
 }
 
+test("a completed Codex turn rejects late Stop and steer locally without interrupting the provider", async () => {
+  const events: ThreadEvent[] = [];
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      const threads = yield* CodexThreads;
+      const thread = spec();
+      const turnId = Bun.randomUUIDv7();
+      yield* threads.create(thread);
+      yield* threads.startTurn(thread, turnId, create(UserInputSchema, { text: "Complete before Stop" }));
+      yield* finished(events, turnId);
+      const stopped = yield* threads.interrupt(thread.threadId, turnId).pipe(Effect.flip);
+      expect(stopped.message).toBe("turn is not running here");
+
+      const steered = yield* threads
+        .steer(thread.threadId, turnId, "late-note", create(UserInputSchema, { text: "Background task ended" }))
+        .pipe(Effect.flip);
+
+      expect(steered.code).toBe("STEER_NOT_RUNNING");
+      expect(events.filter((e) => e.body.case === "turnFinished")).toHaveLength(1);
+      expect(events.some((e) => e.body.case === "notice")).toBe(false);
+    }).pipe(Effect.provide(fixture(events, [])), Effect.scoped),
+  );
+});
+
 for (const lost of [false, true])
   test(`a retry keeps its user message short when the provider session is ${lost ? "lost" : "resumed"}`, async () => {
     const events: ThreadEvent[] = [];

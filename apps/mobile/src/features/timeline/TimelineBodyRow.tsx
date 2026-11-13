@@ -33,7 +33,8 @@ export const BodyRowView = memo(function BodyRowView({
 });
 
 function BodyRowContent({ row, steers, ended }: { row: BodyRow; steers: readonly ui.Steer[]; ended: boolean }) {
-  if (row.kind === "notice") return row.notice.notice ? <NoticeRow notice={row.notice.notice} /> : null;
+  if (row.kind === "notice")
+    return row.notice.notice ? <NoticeRow notice={row.notice.notice} state={row.notice} /> : null;
   const content = row.node.item.content;
 
   if (row.steer && content.case === "userMessage") {

@@ -40,6 +40,7 @@ Gotowe:
 - **Rekoncyliacja z rolloutu:** każda tura zapisuje w dzienniku workera ścieżkę rolloutu i id tury Codexa (`turn_harness`). Gdy worker przegapi koniec tury (restart, awaria app-servera), czyta rollout (`transcript.ts`): `event_msg item_completed` przez ten sam mapper co na żywo, koniec z `task_complete` (z `error`: błąd harnessu, kod z `codex_error_info`) albo `turn_aborted`. Gdy app-server kończy się sam, jego tury są rozliczane od razu (bez zapisanego końca: `failed`, `process_exit`), a następna komenda startuje nowy app-server. Przerwanie bez `turn/interrupt` od platformy jest systemowe (Codex przerywa turę także, gdy zamknie mu się wejście). Szczegóły: [durability.md](durability.md#35-rekoncyliacja-z-transkryptu-harnessu).
 - **Wątek bez rolloutu:** Codex zapisuje rollout wątku dopiero z pierwszą turą, więc wątek utworzony tuż przed restartem workera i bez żadnej tury nie da się wznowić (`thread/resume` → `no rollout found for thread id …`). Worker zaczyna wtedy nowy wątek (`thread/start` z tymi samymi parametrami i narzędziami szyny), zapisuje go pod tym samym `thread_id` platformy i zgłasza `thread_ready` z `replaces_provider_thread_id` = stary id; gateway podmienia `provider_thread_id` (dozwolone tylko przed pierwszą turą). Nic nie ginie: stary wątek nie miał historii. Fork bez tury (z historią źródła) wznawia się normalnie. Potwierdzone na żywo (`threads.live.test.ts`, 2026-11-01): pusty wątek i pusty fork po restarcie, potem trzeci proces wznawia nowy wątek.
 - **Przerwanie tury spoza procesu:** `InterruptTurn` dla tury, której ten proces workera nie prowadzi, kończy się `TURN_NOT_RUNNING` (sprawdza `WorkerHost`, wspólnie dla Codexa i Claude).
+- **Wyścig końca z przerwaniem:** adapter sprawdza również `finishedTurns`, zanim wyśle `turn/interrupt`; ponowne Stop tej samej tury nie wysyła drugiego RPC. Otrzymane `turn/completed` oznacza koniec przed odczytem rolloutu i zapisem końcowych zdarzeń. Steer nadal używa wyłącznie `turn/steer`, także dla notatek zadań w tle. Odmowa RPC usuwa znacznik przerwania, aby można było ponowić Stop.
 - **Uprawnienia:**
 
   | Tryb | Polityka zgód | Sandbox |
@@ -78,12 +79,20 @@ Gotowe:
 
 `error` nigdy nie kończy tury, również przy `willRetry = false`: dalsze itemy
 pozostają w tej samej turze, a wynik określa dopiero `turn/completed.status`.
+Diagnostyka z pustym `turnId` dostaje ID ostatniej rozpoczętej tury tego mappera,
+także tuż po jej końcu; jawne ID starej tury pozostaje nadrzędne. Powiązanie jest
+zapisywane w journalu i gatewayu, więc nie zależy od aktualnego stanu interfejsu.
 `systemError`/`idle` w aktywności nie zeruje działającej tury gatewaya. Późny
 koniec starej tury nie zmienia statusu nowszej. `provider-errors.test.ts`
 odtwarza skryptowane sekwencje app-servera, a `provider-error-turns.test.ts`
 sprawdza ich ingest przez gRPC, snapshot/live, pobudkę po `worker_shutdown`
 i położenie stopki starej tury przed działającym foldem. To sekwencje regresji,
 nie nagranie incydentu. Transport proxy: [proxies.md](proxies.md#codex-przerwanie-odpowiedzi-przez-proxy).
+`codex-provider-warnings.test.ts` sprawdza prawdziwy WorkerHost i łącze gRPC ze
+skryptowanym app-serverem: koniec zadania w tle dostarcza jeden platformowy steer
+bez Stop, trzy błędy proxy bez ID zachowują turę, a poprawny koniec daje jedno
+ostrzeżenie po live sync i ponownym odczycie. Spóźnione Stop i steer nie dochodzą
+do app-servera. Nie odtwarza to połączenia upstream ani konkretnego urządzenia.
 
 ## Załączniki i obrazy
 

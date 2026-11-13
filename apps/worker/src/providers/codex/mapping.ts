@@ -77,6 +77,8 @@ export class CodexEventMapper {
   >();
   /** Item ids Codex reported in the current turn. */
   readonly #reported = new Set<string>();
+  /** Last started turn, also for thread-scoped provider diagnostics arriving just after completion. */
+  #latestTurn: string | undefined;
 
   constructor(ctx: MapperContext) {
     this.#ctx = ctx;
@@ -112,6 +114,7 @@ export class CodexEventMapper {
     switch (notification.method) {
       case "turn/started": {
         const { turn } = notification.params;
+        this.#latestTurn = turn.id;
         const turnId = this.#ctx.startTurn(turn.id);
 
         return [
@@ -276,7 +279,7 @@ export class CodexEventMapper {
 
         // Even willRetry=false is a diagnostic, not a turn end. Only turn/completed carries the outcome.
         return [
-          event(turnId, {
+          event(turnId || this.#latestTurn, {
             case: "notice",
             value: {
               level: willRetry ? NoticeLevel.WARNING : NoticeLevel.ERROR,

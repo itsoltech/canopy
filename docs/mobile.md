@@ -1143,6 +1143,12 @@ edytor fragmentu; natywne zaznaczanie nie wymaga nowego modułu. Plakietka zawie
 znak PR, autora i krótki fragment. Podgląd pokazuje repozytorium/numer, plik/linię,
 czas i URL (`Open on GitHub`). Metadane i kontekst diffu są sprawdzane w cache
 właściciela na gatewayu bez żądania GitHub przy wysyłaniu. Cała zmiana pozostaje JS.
+Komunikaty błędów korzystają ze wspólnego `turnNotices`: poprawnie zakończona
+tura zachowuje je jako kompaktowe ostrzeżenia we własnym foldzie pracy, z licznikiem
+powtórzeń i „Show details”. Trwały czas oraz sekwencje itemów naprawiają brakujące
+powiązanie starszych komunikatów; błędy znanych tur spoza okna nie trafiają pod
+ostatnią stopkę. Reguły są wspólne z webem ([timeline-folding.md](timeline-folding.md)).
+
 Oś czasu nadąża za web: grupę pracy otwiera i zwija Settings → Threads → Turn activity
 („While working”, „Tool calls”, „After the turn”, z resetem), według tej samej reguły `workFoldOpen`
 z `@canopy/domain/work-fold` co web; tapnięcie decyduje dalej. Grupy narzędzi domyślnie są

@@ -2,6 +2,7 @@ import { ItemStatus, type Item, type ui } from "@canopy/contracts";
 import { turnProgress, workSegments, type WorkSegment } from "@canopy/domain/work-fold";
 import { currentWorkHint, groupSummary, isToolItem, workCounts } from "@canopy/domain/work-summary";
 import type { IconName } from "@canopy/ui/icons";
+import type { NoticeState } from "@canopy/domain/turn-notices";
 import { itemNodes, type ItemNode } from "./item-nodes";
 
 /** What a fold says about its work (web: work-groups.ts WorkSummary). */
@@ -25,7 +26,12 @@ export type BodyRow =
       readonly steer: boolean;
       readonly completedAt: number | undefined;
     }
-  | { readonly kind: "notice"; readonly key: string; readonly seq: bigint; readonly notice: ui.ThreadNotice };
+  | {
+      readonly kind: "notice";
+      readonly key: string;
+      readonly seq: bigint;
+      readonly notice: ui.ThreadNotice & NoticeState;
+    };
 
 /** What the open fold shows: rows as they are, or tools under a group header (web: workRows). */
 export type WorkRow =
@@ -67,7 +73,7 @@ const ms = (time: { seconds: bigint; nanos: number } | undefined) =>
 export function turnBody(
   turn: ui.Turn,
   entries: readonly ui.TimelineItem[],
-  notices: readonly ui.ThreadNotice[],
+  notices: readonly (ui.ThreadNotice & NoticeState)[],
 ): BodyRow[] {
   const items = entries.flatMap((e) => (e.item ? [e.item] : []));
   const seq = new Map(entries.flatMap((e) => (e.item ? [[e.item.itemId, e.firstSeq] as const] : [])));
