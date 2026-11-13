@@ -39,7 +39,7 @@ describe("citation display forms", () => {
       markdown: true,
       caption: "claude[bot] · itsoltech/canopy#42 · src/safe.ts:3 · 2026-11-13T10:00:00Z",
       url: comment.pullRequest!.url,
-      comment: comment.comment,
+      comment: comment.comment ?? "",
     });
     const title = citationTitle(comment);
     expect(title).toContain("Review changes");
