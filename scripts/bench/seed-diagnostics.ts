@@ -7,7 +7,7 @@ import { generateIdentity } from "../../apps/gateway/src/computers/identity.ts";
 import { loadSecretsKey } from "../../apps/gateway/src/store/secrets.ts";
 import { DiagnosticsStore } from "../../apps/gateway/src/diagnostics/store.ts";
 import { RPC_METHODS } from "../../apps/gateway/src/diagnostics/registry.ts";
-import { syntheticGatewayMeasures } from "./seed-diagnostics-metrics.ts";
+import { syntheticGatewayMeasures, seedDiagnosticWorker, workerPreview } from "./seed-diagnostics-metrics.ts";
 
 /** Synthetic metrics only; the owning client-stack has just created this disposable database. */
 export async function seedDiagnostics(env: Readonly<Record<string, string | undefined>>) {
@@ -18,6 +18,8 @@ export async function seedDiagnostics(env: Readonly<Record<string, string | unde
     const owner = await ensureDevUser(runtime, "dev@localhost");
     const computers = new ComputerStore(runtime, owner, loadSecretsKey(env));
     const self = await computers.identity();
+
+    const worker = await seedDiagnosticWorker(computers, owner);
     await computers.query("UPDATE computer_identity SET name=$1,lan_discovery=false WHERE owner_user_id=$2::uuid", [
       "Development workstation with a deliberately long computer name for diagnostic layout review",
       owner,
@@ -111,6 +113,7 @@ export async function seedDiagnostics(env: Readonly<Record<string, string | unde
         return {
           at: minute,
           processes: [
+            ...workerPreview(worker, minute, index + 1),
             create(ui.DiagnosticsProcessSchema, {
               processId: "gateway",
               session: "synthetic-preview",

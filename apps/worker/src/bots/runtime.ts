@@ -1,4 +1,5 @@
 import { create } from "@bufbuild/protobuf";
+import { workerDiagnostics } from "../diagnostics/worker.ts";
 import { Match } from "effect";
 import { classifyFailure } from "@canopy/domain";
 import {
@@ -206,6 +207,7 @@ export class BotTurns {
         ),
     };
 
+    workerDiagnostics.turns.begin(input.botId, input.turnId, provider);
     void Match.value(provider)
       .pipe(
         Match.when("claude", () => runClaudeBot(context)),
@@ -228,6 +230,7 @@ export class BotTurns {
       .finally(() => {
         this.#files.drop(input.botId);
         release();
+        workerDiagnostics.turns.finish(input.botId, input.turnId, true);
         abort.abort();
         bus.close();
         closed();

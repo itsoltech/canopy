@@ -12,6 +12,7 @@ import { PEER_WATCH_HEARTBEAT_MS } from "./timing.ts";
 import { readMirrorSnapshot } from "./mirror-snapshot.ts";
 import { readRangeMirror } from "./range-read.ts";
 import type { ThreadHistoryQuery } from "../store/thread-window.ts";
+import type { MirrorDiagnostics } from "../diagnostics/sync.ts";
 
 export { commitMirrorUpdate, type State } from "./mirror-persistence.ts";
 
@@ -23,7 +24,10 @@ export const mismatch = () => new ConnectError("Thread mirror cursor mismatch; r
 
 /** A durable, read-only projection. No GatewayCore write ever reads these tables. */
 export class ThreadMirror {
-  constructor(readonly store: ComputerStore) {}
+  constructor(
+    readonly store: ComputerStore,
+    readonly observe?: (node: string) => MirrorDiagnostics | undefined,
+  ) {}
   async state(node: string): Promise<State | undefined> {
     return (
       await this.store.query<State>(
@@ -158,6 +162,7 @@ export class ThreadMirror {
     let resetting = false;
     let overview: Uint8Array | null = null;
     const frames = new MirrorFrames();
+    const diagnostics = this.observe?.(node);
 
     try {
       for await (const message of updates) {
@@ -183,6 +188,7 @@ export class ThreadMirror {
           )
             throw mismatch();
           confirmed();
+          diagnostics?.heartbeat();
           continue;
         }
 
@@ -225,6 +231,7 @@ export class ThreadMirror {
         } else if (update.cursor) throw mismatch();
 
         if (update.deltaStart && (resetting || update.delta?.baseCursor !== state.cursor)) throw mismatch();
+        diagnostics?.received(update);
         const projection = frames.accept(update);
 
         if (!projection) continue;
@@ -254,6 +261,7 @@ export class ThreadMirror {
           resetting = false;
           overview = null;
           notify();
+          diagnostics?.committed();
         }
       }
     } finally {

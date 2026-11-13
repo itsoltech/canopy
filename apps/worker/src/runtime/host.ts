@@ -1,4 +1,5 @@
 import { ThreadSecretFiles } from "./thread-secrets.ts";
+import { workerDiagnostics } from "../diagnostics/worker.ts";
 import {
   Provider,
   type AgentToolResult,
@@ -341,6 +342,9 @@ export class WorkerHost {
 
       return result;
     } catch (error) {
+      if (command.kind.case === "startTurn")
+        workerDiagnostics.turns.finish(command.kind.value.thread?.threadId ?? "", command.kind.value.turnId, true);
+
       // The runtimes went down under it: the next process runs it.
       if (this.#ctx.state.shuttingDown) return undefined;
 

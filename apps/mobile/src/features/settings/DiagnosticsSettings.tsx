@@ -8,6 +8,7 @@ import { DiagnosticsComputer, DiagnosticsFindings } from "./DiagnosticsComputer"
 import { DiagnosticsCalls } from "./DiagnosticsCalls";
 import { DiagnosticsGrants } from "./DiagnosticsGrants";
 import { DiagnosticsMetrics } from "./DiagnosticsMetrics";
+import { DiagnosticsLinks } from "./DiagnosticsLinks";
 import { Button } from "../../ui/components";
 import { MinimumTouchTarget } from "../../ui/density";
 
@@ -103,6 +104,7 @@ export function DiagnosticsSettings() {
             />
           </SettingsGroup>
           {data ? <DiagnosticsMetrics computer={data} /> : null}
+          {data ? <DiagnosticsLinks computer={data} /> : null}
           {data ? <DiagnosticsCalls calls={data.calls} computer={data} /> : null}
           {offset || data?.nextOffset ? (
             <SettingsActions>

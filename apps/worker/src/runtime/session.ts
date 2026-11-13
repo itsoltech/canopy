@@ -4,6 +4,7 @@ import type { WorkerHost } from "./host.ts";
 import type { ManagedRuntime } from "effect";
 import type { Journal } from "../journal/index.ts";
 import type { NetworkRoutes } from "@canopy/contracts";
+import { workerDiagnostics } from "../diagnostics/worker.ts";
 
 export interface SessionEnd {
   /** Set when the gateway asked to reconnect later (Drain). */
@@ -68,7 +69,7 @@ export async function serveLink(
           host.handleBlobChunk(message.payload.value);
           break;
         case "eventAck":
-          await runtime.runPromise(applyAck(message.payload.value));
+          workerDiagnostics.record(106, await runtime.runPromise(applyAck(message.payload.value)));
           break;
         case "drain":
           drainDelayMs = message.payload.value.reconnectAfterMs;

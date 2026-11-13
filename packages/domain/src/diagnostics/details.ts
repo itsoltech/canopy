@@ -9,6 +9,27 @@ export const metricGroups = [
   { id: "governor", title: "Process governor" },
 ] as const;
 
+export const workerMetricGroups = [
+  { id: "process", title: "Worker process" },
+  { id: "journal", title: "Journal and connection" },
+  { id: "harness", title: "Agent turns" },
+  { id: "git", title: "Git operations" },
+  { id: "storage", title: "Storage" },
+] as const;
+
+export const syncMetricGroups = [{ id: "sync", title: "Synchronization" }] as const;
+
+export function measuresObserved(measures: readonly ui.DiagnosticsMeasure[], group: MetricDefinition["group"]) {
+  const seconds = Math.max(
+    0,
+    ...measures.flatMap((value) =>
+      METRIC_DEFINITIONS.get(value.metricId)?.group === group ? [value.observedSeconds] : [],
+    ),
+  );
+
+  return seconds ? `Observed ${Math.floor(seconds / 60)} min` : "";
+}
+
 export function metricValue(value: number, unit: MetricDefinition["unit"]) {
   if (unit === "ms") return duration(value);
 

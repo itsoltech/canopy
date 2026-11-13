@@ -47,9 +47,9 @@ export async function diagnosticsWorker(env: Record<string, string | undefined>)
   });
   await started;
 
-  const run = (action: BenchCommand["action"]) =>
+  const run = (action: BenchCommand["action"], phase?: string) =>
     new Promise<typeof ProcessStats.Type>((resolve, reject) => {
-      const request = { id: ++id, action };
+      const request = { id: ++id, action, ...(phase && { phase }) };
       pending.set(request.id, { resolve, reject });
       child.send(request);
     });
@@ -58,14 +58,35 @@ export async function diagnosticsWorker(env: Record<string, string | undefined>)
     pid: child.pid,
     run,
     async close() {
-      if (child.exitCode !== null || child.signalCode !== null) return;
+      if (child.exitCode !== null || child.signalCode !== null) {
+        if (child.exitCode !== 0) throw new Error("Benchmark worker failed");
+
+        return;
+      }
 
       try {
         await run("stop");
         await child.exited;
+
+        if (child.exitCode !== 0) throw new Error("Benchmark worker failed");
       } finally {
         if (child.exitCode === null && child.signalCode === null) child.kill("SIGTERM");
       }
     },
   };
+}
+
+export function startSeededWorker(
+  env: Record<string, string | undefined>,
+  port: number,
+  seed: { thread: string; turn: string; worker: { workerId: string; credential: string } },
+) {
+  return diagnosticsWorker({
+    ...env,
+    CANOPY_BENCH_GATEWAY_URL: `http://127.0.0.1:${port}`,
+    CANOPY_BENCH_WORKER_ID: seed.worker.workerId,
+    CANOPY_BENCH_WORKER_CREDENTIAL: seed.worker.credential,
+    CANOPY_BENCH_WORKER_THREAD: seed.thread,
+    CANOPY_BENCH_WORKER_TURN: seed.turn,
+  });
 }

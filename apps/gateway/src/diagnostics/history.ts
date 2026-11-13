@@ -59,7 +59,7 @@ export class DiagnosticsHistory {
           if (
             values.size >= 17 ||
             (!process.series.some((series) => this.allowed(process.processId, series.methodId)) &&
-              !(process.processId === "gateway" && process.measures.length))
+              !((process.processId === "gateway" || this.allowed(process.processId, 1)) && process.measures.length))
           ) {
             budget.dropped++;
             continue;
@@ -71,13 +71,12 @@ export class DiagnosticsHistory {
 
         slot.coverage = mergeCoverage([...slot.coverage, ...process.coverage]);
 
-        if (process.processId === "gateway")
-          restoreMeasures(
-            slot,
-            process,
-            (bytes) => budget.reserve(bytes),
-            (id) => this.allowed("gateway", id),
-          );
+        restoreMeasures(
+          slot,
+          process,
+          (bytes) => budget.reserve(bytes),
+          (id) => this.allowed(process.processId, id),
+        );
 
         for (const series of process.series) {
           if (!this.allowed(process.processId, series.methodId)) continue;

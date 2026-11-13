@@ -13,6 +13,7 @@ import {
 import type { GatewayLink } from "../gateway-link/index.ts";
 
 import type { HostContext } from "./host-context.ts";
+import { workerDiagnostics } from "../diagnostics/worker.ts";
 
 export class HostEvents {
   constructor(readonly ctx: HostContext) {}
@@ -51,12 +52,18 @@ export class HostEvents {
   }
 
   interact(request: InteractionRequest, signal?: AbortSignal): Promise<InteractionResponse> {
+    workerDiagnostics.turns.human(request.threadId, request.turnId);
+    let completed = false;
+
     return new Promise((resolve) => {
       const abort = () => {
         const cancelled = create(InteractionRequestSchema, { ...request, cancelled: true });
         this.ctx.state.interactions.set(request.requestId, { request: cancelled, resolve: () => {} });
         this.ctx.ops.send({ case: "interactionRequest", value: cancelled });
         resolve(create(InteractionResponseSchema, { requestId: request.requestId, cancelled: true }));
+
+        if (!completed) workerDiagnostics.turns.humanDone(request.threadId, request.turnId);
+        completed = true;
       };
 
       if (signal?.aborted) {
@@ -69,6 +76,8 @@ export class HostEvents {
       this.ctx.state.interactions.set(request.requestId, {
         request,
         resolve: (response) => {
+          if (!completed) workerDiagnostics.turns.humanDone(request.threadId, request.turnId);
+          completed = true;
           signal?.removeEventListener("abort", abort);
           resolve(response);
         },

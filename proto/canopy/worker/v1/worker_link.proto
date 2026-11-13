@@ -230,6 +230,7 @@ message Welcome {
   repeated ThreadCursor persisted = 1;
   uint32 heartbeat_interval_seconds = 2;
   bool diagnostics_v1 = 3;
+  bool worker_diagnostics_v1 = 4;
 }
 
 // ---------- Konfiguracja zdalna (docs/worker-config.md) ----------

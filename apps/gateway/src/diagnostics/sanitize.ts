@@ -1,6 +1,13 @@
 import { ui } from "@canopy/contracts";
 import { create } from "@bufbuild/protobuf";
-import { DATABASE_FAMILIES, METRIC_DEFINITIONS, GOVERNOR_KINDS, GOVERNOR_PRIORITIES } from "@canopy/domain/diagnostics";
+import {
+  DATABASE_FAMILIES,
+  METRIC_DEFINITIONS,
+  GOVERNOR_KINDS,
+  GOVERNOR_PRIORITIES,
+  WORKER_METRIC_IDS,
+  SYNC_METRIC_IDS,
+} from "@canopy/domain/diagnostics";
 import { RPC_METHODS, LINKED_METHODS, COMMAND_METHODS } from "./registry.ts";
 
 const methods = new Map(
@@ -13,7 +20,7 @@ const governors = new Set(
   GOVERNOR_KINDS.flatMap((kind) => GOVERNOR_PRIORITIES.map((priority) => `${kind}:${priority}`)),
 );
 
-function percentile(value: ui.DiagnosticsPercentiles | undefined) {
+export function percentile(value: ui.DiagnosticsPercentiles | undefined) {
   if (
     !value ||
     ![value.p50, value.p95, value.p99, value.max, value.sum].every((number) => Number.isFinite(number) && number >= 0)
@@ -22,9 +29,9 @@ function percentile(value: ui.DiagnosticsPercentiles | undefined) {
 
   return create(ui.DiagnosticsPercentilesSchema, {
     samples: value.samples,
-    p50: value.p50,
-    p95: value.p95,
-    p99: value.p99,
+    p50: Math.min(value.p50, value.max),
+    p95: Math.min(value.p95, value.max),
+    p99: Math.min(value.p99, value.max),
     max: value.max,
     sum: value.sum,
     overflowQuantiles: value.overflowQuantiles & 7,
@@ -61,6 +68,10 @@ function findingSubject(value: ui.DiagnosticsFinding, links: Set<string>) {
     case "rpc_errors":
       return methods.has(value.subject);
     case "link_slow":
+    case "worker_backlog":
+    case "worker_cpu":
+    case "worker_disk":
+    case "sync_refresh":
       return links.has(value.subject);
     case "event_loop":
     case "db_pool":
@@ -96,38 +107,47 @@ export function sanitizeSnapshot(value: ui.ComputerDiagnostics) {
 
   value.calls = calls;
   value.database = database(value.database);
-  const metricIds = new Set<number>();
-  value.gatewayMeasures = value.gatewayMeasures.slice(0, METRIC_DEFINITIONS.size).flatMap((measure) => {
-    if (
-      !METRIC_DEFINITIONS.has(measure.metricId) ||
-      metricIds.has(measure.metricId) ||
-      ![measure.mean, measure.last, measure.max, measure.observedSeconds].every(
-        (number) => Number.isFinite(number) && number >= 0,
-      )
-    ) {
-      value.droppedSamples++;
 
-      return [];
-    }
+  const measures = (rows: ui.DiagnosticsMeasure[], allowed: ReadonlySet<number>) => {
+    const metricIds = new Set<number>();
 
-    metricIds.add(measure.metricId);
+    return rows.slice(0, allowed.size).flatMap((measure) => {
+      if (
+        !allowed.has(measure.metricId) ||
+        metricIds.has(measure.metricId) ||
+        ![measure.mean, measure.last, measure.max, measure.observedSeconds].every(
+          (number) => Number.isFinite(number) && number >= 0,
+        )
+      ) {
+        value.droppedSamples++;
 
-    return [
-      create(ui.DiagnosticsMeasureSchema, {
-        metricId: measure.metricId,
-        distribution: percentile(measure.distribution),
-        mean: measure.mean,
-        last: measure.last,
-        max: measure.max,
-        observedSeconds: measure.observedSeconds,
-        events: measure.events,
-        errors: measure.errors,
-        sampledAtMs: measure.sampledAtMs,
-        historical: measure.historical,
-        incomplete: measure.incomplete,
-      }),
-    ];
-  });
+        return [];
+      }
+
+      metricIds.add(measure.metricId);
+
+      return [
+        create(ui.DiagnosticsMeasureSchema, {
+          metricId: measure.metricId,
+          distribution: percentile(measure.distribution),
+          mean: measure.mean,
+          last: measure.last,
+          max: measure.max,
+          observedSeconds: measure.observedSeconds,
+          events: measure.events,
+          errors: measure.errors,
+          sampledAtMs: measure.sampledAtMs,
+          historical: measure.historical,
+          incomplete: measure.incomplete,
+        }),
+      ];
+    });
+  };
+
+  value.gatewayMeasures = measures(value.gatewayMeasures, new Set(METRIC_DEFINITIONS.keys()));
+
+  for (const link of value.links)
+    link.measures = measures(link.measures, link.kind === "worker" ? WORKER_METRIC_IDS : SYNC_METRIC_IDS);
   const links = new Set(value.links.map((link) => `${link.kind}:${link.targetId}`));
   value.findings = value.findings.filter(
     (finding) =>

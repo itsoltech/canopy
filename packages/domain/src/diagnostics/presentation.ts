@@ -192,6 +192,17 @@ export function diagnosticsUnavailable(computer: ui.ComputerDiagnostics): [strin
 }
 
 export function findingText(finding: ui.DiagnosticsFinding) {
+  if (finding.ruleId === "worker_backlog")
+    return "Events are waiting to reach the gateway. Check the link and gateway load.";
+
+  if (finding.ruleId === "worker_cpu")
+    return "Worker CPU stays above 90% of one core. Check running turns and git activity.";
+
+  if (finding.ruleId === "worker_disk") return "Disk space is below 10% and 2 GiB. Free space on this computer.";
+
+  if (finding.ruleId === "sync_refresh")
+    return "Thread views keep refreshing. Ask an agent to investigate synchronization.";
+
   if (finding.ruleId === "event_loop")
     return `Event-loop lag p99 is ${duration(finding.value)}${finding.duringSync ? " during sync" : ""}. Check gateway load. Sync activity is a correlation; it does not identify the cause.`;
 
@@ -216,7 +227,13 @@ export function findingText(finding: ui.DiagnosticsFinding) {
 export function diagnosticsFindings(computers: readonly ui.ComputerDiagnostics[]) {
   const values = new Map<
     string,
-    { computer: ui.ComputerDiagnostics; finding: ui.DiagnosticsFinding; observers: string[] }
+    {
+      computer: ui.ComputerDiagnostics;
+      finding: ui.DiagnosticsFinding;
+      title: string;
+      observers: string[];
+      observations: { id: string; name: string; value: number; samples: bigint; coverage: number; freshness: string }[];
+    }
   >();
 
   for (const computer of computers)
@@ -229,10 +246,34 @@ export function diagnosticsFindings(computers: readonly ui.ComputerDiagnostics[]
 
       const key = `${finding.ruleId}:${scope}`;
       const previous = values.get(key);
+      const target = finding.subject.slice(9);
+
+      const peer =
+        computers.find((row) => row.computerId === target)?.name ??
+        computer.links.find((row) => row.targetId === target)?.name ??
+        "the linked computer";
+
+      const title = pair ? `The link between ${computer.name} and ${peer}` : computer.name;
       const observers = [...(previous?.observers ?? []), computer.name];
 
-      if (!previous || finding.value > previous.finding.value) values.set(key, { computer, finding, observers });
-      else previous.observers = observers;
+      const observations = [
+        ...(previous?.observations ?? []),
+        {
+          id: computer.computerId,
+          name: computer.name,
+          value: finding.value,
+          samples: finding.samples,
+          coverage: finding.observedSeconds,
+          freshness: finding.suspended ? "Last known finding" : freshness(computer),
+        },
+      ];
+
+      if (!previous || finding.value > previous.finding.value)
+        values.set(key, { computer, finding, title, observers, observations });
+      else {
+        previous.observers = observers;
+        previous.observations = observations;
+      }
     }
 
   return [...values.values()].sort(

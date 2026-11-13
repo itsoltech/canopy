@@ -4,7 +4,7 @@ import { createGrpcTransport } from "@connectrpc/connect-node";
 import { ui } from "@canopy/contracts";
 import { diagnosticsProcess } from "./diagnostics-process.ts";
 import { seedBenchmark } from "./diagnostics-seed.ts";
-import { diagnosticsWorker } from "./diagnostics-worker-process.ts";
+import { diagnosticsWorker, startSeededWorker } from "./diagnostics-worker-process.ts";
 import { seedDiagnosticsHistory } from "./seed-diagnostics-history.ts";
 import { diagnosticsLoad, type DiagnosticsPhase } from "./diagnostics-load.ts";
 import { diagnosticsContention } from "./diagnostics-contention.ts";
@@ -28,7 +28,7 @@ if (
 const idleMs = Number(process.env["CANOPY_BENCH_IDLE_MS"] ?? 600_000);
 const loadMs = Number(process.env["CANOPY_BENCH_LOAD_MS"] ?? 120_000);
 const series = Number(process.env["CANOPY_BENCH_SERIES"] ?? 5);
-const short = process.env["CANOPY_BENCH_STAGE"] === "2" && process.env["CANOPY_BENCH_SHORT"] === "1";
+const short = ["2", "3"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "") && process.env["CANOPY_BENCH_SHORT"] === "1";
 const minimumContentionMs = short ? 90_000 : 140_000;
 
 if (
@@ -94,7 +94,7 @@ function selectedPhases(): DiagnosticsPhase[] {
       "slow_reader",
       "write_failure",
       "pool_contention",
-      ...(process.env["CANOPY_BENCH_STAGE"] === "2" ? ["governor" as const] : []),
+      ...(["2", "3"].includes(process.env["CANOPY_BENCH_STAGE"] ?? "") ? ["governor" as const] : []),
     ];
 
   if (process.env["CANOPY_BENCH_CONTENTION"] === "1") return ["write_failure", "pool_contention"];
@@ -226,12 +226,7 @@ async function run(on: boolean, index: number) {
   await fixtureIdentity(postgres, database, index + 1, attempt, on, env.CANOPY_BENCH_DIAGNOSTICS === "1");
   await checkpoint(database);
   active = await measuredGateway(env, index + 1, on);
-  worker = await diagnosticsWorker({
-    ...env,
-    CANOPY_BENCH_GATEWAY_URL: `http://127.0.0.1:${gatewayPort}`,
-    CANOPY_BENCH_WORKER_ID: seed.worker.workerId,
-    CANOPY_BENCH_WORKER_CREDENTIAL: seed.worker.credential,
-  });
+  worker = await startSeededWorker(env, gatewayPort, seed);
 
   await recordAffinity(active.pid, worker.pid, index + 1, on);
 
@@ -362,7 +357,7 @@ async function beginPhase(
     await active!.run("governor");
   }
 
-  await worker!.run("begin");
+  await worker!.run("begin", phase);
   const finishContention = await diagnosticsContention(postgres, database, phase, api, thread, forensicCheckpoint());
 
   return { beforePg, before, finishContention };

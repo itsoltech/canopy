@@ -8,6 +8,7 @@ import {
   diagnosticsFindings,
   diagnosticsStatus,
   cpuSummary,
+  duration,
 } from "@canopy/domain/diagnostics";
 import { SettingsGroup, SettingsRow } from "./SettingsGroup";
 import { Button } from "../../ui/components";
@@ -69,18 +70,29 @@ export function DiagnosticsFindings({
 
   return (
     <SettingsGroup title="Findings">
-      {findings.slice(0, expanded ? findings.length : 5).map(({ computer, finding, observers }) => (
-        <SettingsRow
-          key={`${computer.computerId}:${finding.ruleId}:${finding.subject}`}
-          title={`${computer.name} · ${finding.severity}${finding.suspended ? " · Last known finding" : ""}`}
-          description={findingText(finding)}
-        >
-          <Text style={[styles.workMeta, { color: c.muted }]}>
-            {finding.samples.toString()} samples · {Math.floor(finding.observedSeconds / 60)} min observed · Observed by{" "}
-            {observers.join(", ")}
-          </Text>
-        </SettingsRow>
-      ))}
+      {findings
+        .slice(0, expanded ? findings.length : 5)
+        .map(({ computer, finding, title, observers, observations }) => (
+          <SettingsRow
+            key={`${computer.computerId}:${finding.ruleId}:${finding.subject}`}
+            title={`${title} · ${finding.severity}${finding.suspended ? " · Last known finding" : ""}`}
+            description={findingText(finding)}
+          >
+            <Text style={[styles.workMeta, { color: c.muted }]}>
+              {finding.samples.toString()} samples · {Math.floor(finding.observedSeconds / 60)} min observed · Observed
+              by {observers.join(", ")}
+            </Text>
+            {finding.ruleId === "link_slow"
+              ? observations.map((observation) => (
+                  <Text key={observation.id} style={[styles.workMeta, { color: c.muted }]}>
+                    {observation.name}: RTT p95 {duration(observation.value)} · {observation.samples.toString()} samples
+                    {" · "}
+                    {Math.floor(observation.coverage / 60)} min observed · {observation.freshness}
+                  </Text>
+                ))
+              : null}
+          </SettingsRow>
+        ))}
       {findings.length > 5 ? (
         <View style={{ minHeight: 48, justifyContent: "center" }}>
           <Button title={expanded ? "Show fewer" : "Show all"} onPress={onExpand} />

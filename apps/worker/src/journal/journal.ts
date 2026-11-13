@@ -14,7 +14,10 @@ import { Context, Effect, Layer, Schema } from "effect";
 import { turnTracking } from "./turn-tracking.ts";
 import { shellTracking } from "./shell-inputs.ts";
 import { retryContext } from "./retry-context.ts";
+import { commandTracking } from "./commands.ts";
 import { secretEventRedactor } from "../runtime/thread-secrets.ts";
+import { journalStatistics, type JournalStatistics } from "./statistics.ts";
+import { workerDiagnostics } from "../diagnostics/worker.ts";
 
 /**
  * Local durable outbox of the worker (docs/durability.md, 3.1).
@@ -87,6 +90,7 @@ export class Journal extends Context.Service<
     readonly journalId: string;
     rememberRequest: ReturnType<typeof retryContext>["rememberRequest"];
     recoveryInstructions: ReturnType<typeof retryContext>["recoveryInstructions"];
+    readonly statistics?: () => JournalStatistics;
     beginShellInput: ReturnType<typeof shellTracking>["beginShellInput"];
     shellInput: ReturnType<typeof shellTracking>["shellInput"];
     shellPid: ReturnType<typeof shellTracking>["shellPid"];
@@ -126,13 +130,13 @@ export class Journal extends Context.Service<
   }
 >()("canopy/worker/Journal") {
   /** Journal backed by a SQLite file (created if missing). Closed when the scope ends. */
-  static readonly layer = (path: string) =>
+  static readonly layer = (path: string, diagnostics = false) =>
     Layer.effect(
       Journal,
       Effect.acquireRelease(
         Effect.try({ try: () => open(path), catch: (cause) => new JournalError({ operation: "open", cause }) }),
         (db) => Effect.sync(() => db.close()),
-      ).pipe(Effect.map(makeJournal)),
+      ).pipe(Effect.map((db) => makeJournal(db, diagnostics))),
     );
 }
 
@@ -223,7 +227,7 @@ function botAdmission(db: Database, append: (botId: string, event: ThreadEventIn
   });
 }
 
-function makeJournal(db: Database): Journal["Service"] {
+function makeJournal(db: Database, diagnostics: boolean): Journal["Service"] {
   const redact = secretEventRedactor();
   let shuttingDown = false;
 
@@ -313,25 +317,17 @@ function makeJournal(db: Database): Journal["Service"] {
     return out;
   });
 
-  const upsertCommand = db.query(
-    `INSERT INTO processed_commands (command_id, result, processed_at) VALUES ($id, $result, $at)
-     ON CONFLICT (command_id) DO UPDATE SET result = excluded.result, processed_at = excluded.processed_at`,
-  );
-
-  const selectCommand = db.query<{ result: Uint8Array }, { id: string }>(
-    "SELECT result FROM processed_commands WHERE command_id = $id",
-  );
-
-  const purge = db.query("DELETE FROM processed_commands WHERE processed_at < $before");
   const admit = botAdmission(db, appendTx);
 
   return Journal.of({
+    ...commandTracking(db, attempt),
     ...retryContext(db, attempt),
+    ...(diagnostics && { statistics: journalStatistics(db) }),
     ...shellTracking(db, attempt, (threadId, event) => appendTx(threadId, redact(threadId, event))),
     journalId,
     admitBotTurn: (commandId, botId, turnId) => attempt("admitBotTurn", () => admit(commandId, botId, turnId)),
     append: Effect.fn("Journal.append")((threadId: string, event: ThreadEventInit) =>
-      attempt("append", () => appendTx(threadId, redact(threadId, event))),
+      attempt("append", () => measuredAppend(appendTx(threadId, redact(threadId, event)))),
     ),
     ack: Effect.fn("Journal.ack")((threadId: string, ackSeq: bigint) =>
       attempt("ack", () => deleteUpTo.run({ thread: threadId, seq: Number(ackSeq) }).changes),
@@ -341,22 +337,6 @@ function makeJournal(db: Database): Journal["Service"] {
     ),
     pending: Effect.fn("Journal.pending")((persisted: ReadonlyMap<string, bigint>) =>
       attempt("pending", () => pendingTx(persisted)),
-    ),
-    rememberCommand: Effect.fn("Journal.rememberCommand")((result: MessageInitShape<typeof CommandResultSchema>) =>
-      attempt("rememberCommand", () => {
-        const message = create(CommandResultSchema, result);
-        upsertCommand.run({ id: message.commandId, result: toBinary(CommandResultSchema, message), at: Date.now() });
-      }),
-    ),
-    commandResult: Effect.fn("Journal.commandResult")((commandId: string) =>
-      attempt("commandResult", () => {
-        const row = selectCommand.get({ id: commandId });
-
-        return row ? fromBinary(CommandResultSchema, row.result) : undefined;
-      }),
-    ),
-    purgeCommands: Effect.fn("Journal.purgeCommands")((maxAgeMs: number) =>
-      attempt("purgeCommands", () => purge.run({ before: Date.now() - maxAgeMs }).changes),
     ),
     openBackgroundTasks: Effect.fn("Journal.openBackgroundTasks")(() =>
       attempt("openBackgroundTasks", () =>
@@ -374,6 +354,16 @@ function makeJournal(db: Database): Journal["Service"] {
     noteInterrupt: turns.noteInterrupt,
     noteHarness: turns.noteHarness,
   });
+}
+
+function measuredAppend(value: ThreadEvent) {
+  try {
+    workerDiagnostics.turns.event(value);
+  } catch {
+    /* Diagnostics cannot fail an already durable append. */
+  }
+
+  return value;
 }
 
 function backgroundTracking(db: Database) {

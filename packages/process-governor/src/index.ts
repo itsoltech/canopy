@@ -35,6 +35,8 @@ export function governNodeSpawn<T extends ChildProcess>(kind: ProcessKind, start
 }
 
 export interface ProcessInput {
+  /** Numeric diagnostics observe admission; never called for a cache hit or join. */
+  onStart?: () => void;
   argv: readonly string[];
   cwd?: string;
   env?: NodeJS.ProcessEnv;
@@ -101,6 +103,12 @@ export function runProcess(input: ProcessInput, policy: ProcessPolicy): Promise<
 function capture(input: ProcessInput): Promise<ProcessResult> {
   return new Promise((resolve, reject) => {
     input.signal?.throwIfAborted();
+
+    try {
+      input.onStart?.();
+    } catch {
+      /* Observers cannot prevent execution. */
+    }
 
     const child = spawn(input.argv[0]!, input.argv.slice(1), {
       cwd: input.cwd,

@@ -4,7 +4,42 @@ import {
   databaseMetric,
   DATABASE_FAMILIES,
   governorMetric,
+  WORKER_METRIC_IDS,
 } from "@canopy/domain/diagnostics";
+import { create } from "@bufbuild/protobuf";
+import { ui } from "@canopy/contracts";
+import type { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
+
+export async function seedDiagnosticWorker(computers: ComputerStore, owner: string) {
+  const worker = (
+    await computers.query<{ id: string }>("SELECT id FROM workers WHERE owner_user_id=$1::uuid ORDER BY name LIMIT 1", [
+      owner,
+    ])
+  )[0];
+
+  if (worker)
+    await computers.query(
+      `UPDATE workers SET name='Worker with a deliberately long diagnostic name',
+    capabilities=capabilities || '{"diagnosticsV1":true,"workerDiagnosticsV1":true}'::jsonb WHERE id=$1::uuid AND owner_user_id=$2::uuid`,
+      [worker.id, owner],
+    );
+
+  return worker;
+}
+
+export function workerPreview(worker: { id: string } | undefined, minute: number, sequence: number) {
+  return worker
+    ? [
+        create(ui.DiagnosticsProcessSchema, {
+          processId: `worker:${worker.id}`,
+          session: "synthetic-worker-preview",
+          sequence: BigInt(sequence),
+          measures: syntheticWorkerMeasures(minute + 59_000),
+          coverage: [{ startMs: BigInt(minute), endMs: BigInt(minute + 60_000) }],
+        }),
+      ]
+    : [];
+}
 
 /** Numeric, deterministic fixtures for gateway details, including last-known resource samples. */
 export function syntheticGatewayMeasures(at: number, rpc: number) {
@@ -13,7 +48,7 @@ export function syntheticGatewayMeasures(at: number, rpc: number) {
   const families = DATABASE_FAMILIES.slice(0, 8);
 
   for (const definition of METRIC_DEFINITIONS.values()) {
-    if (definition.id >= 1000) continue;
+    if (definition.id >= 100) continue;
     const measure = new Measure();
 
     if (definition.kind === "timing") {
@@ -50,4 +85,34 @@ export function syntheticGatewayMeasures(at: number, rpc: number) {
   }
 
   return result;
+}
+
+export function syntheticWorkerMeasures(at: number) {
+  return [...WORKER_METRIC_IDS].map((id) => {
+    const definition = METRIC_DEFINITIONS.get(id)!;
+    const measure = new Measure();
+
+    if (definition.kind === "timing") for (const duration of [12, 20, 125]) measure.timing(duration, false, at);
+    else if (definition.kind === "counter") measure.counter(id === 105 ? 2 : 20, false, at);
+    else {
+      const sample =
+        id === 120
+          ? 1.5 * 1024 ** 3
+          : id === 121
+            ? 100 * 1024 ** 3
+            : definition.unit === "bytes"
+              ? 96 * 1024 ** 2
+              : id === 2
+                ? 18
+                : id === 6
+                  ? 860
+                  : id === 102
+                    ? 45_000
+                    : 4;
+
+      measure.gauge(sample, 60_000, at);
+    }
+
+    return measure.snapshot(id);
+  });
 }

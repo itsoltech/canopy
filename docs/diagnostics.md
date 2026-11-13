@@ -403,6 +403,53 @@ Utrata nieodebranej partii daje lukę pokrycia, nigdy replay transkryptu.
 Szczegóły łączą zapisane okna z aktualnym agregatem workera, bez wykonywania
 komend git lub modelu. Starszy worker nadal działa, lecz nie ma nowego pomiaru RTT.
 
+**Etap 3 — implementacja:** `worker_diagnostics_v1` negocjuje nowe serie niezależnie
+od echo RTT. Worker ma limit **512 KiB**: 256 KiB na rzadkie agregaty i histogramy,
+256 KiB na indeksy, aktywne czasy i przejściowy raport. Nie utrzymuje historii.
+Indeks prób wysyłki przechowuje najwyżej 256 identyfikatorów wątków (do 80 znaków),
+a pomiary tur najwyżej 64 klucze (do 160 znaków); przekroczenia zwiększają jawny
+licznik drops. Po restarcie lub wyparciu indeksu replay jest niesklasyfikowany,
+nie udaje potwierdzonej redelivery. Oczekiwanie na człowieka używa liczników
+aktywnych tur, bez dodatkowych callbacków utrzymujących interakcje.
+
+Proces próbkowany jest co 5 s, filesystem i trzy znane pliki journala co 60 s.
+Journal utrzymuje dokładne liczniki liczby/bajtów przez transakcyjne triggery TEMP;
+inicjalizacja liczy zastane eventy raz, a wiek bierze z indeksu `created_at`.
+Nie powstaje drugi trwały magazyn diagnostyki. Nowe pomiary nie zmieniają zapisu
+przed wysłaniem, sekwencji, ACK ani prune. Hook trwałego eventu rozpoznaje pierwszy
+tekst asystenta i wynik tury; błąd obserwatora nie unieważnia zapisanego eventu.
+Rodziny git są zamknięte, cache hit/join nie tworzy fikcyjnego czasu wykonania.
+
+Gateway scala serie w **istniejącym wspólnym limicie 2 MiB dla linków**, bez nowego pierścienia.
+Odtwarzanie dopuszcza najwyżej osiem partii z rozliczeniem ich rozmiaru w tym samym
+budżecie; raporty powyżej 32 KiB lub z obcymi identyfikatorami są odrzucane.
+Granica WorkerLink rekonstruuje wyłącznie dozwolone pola liczbowe i usuwa nieznane
+pola protobuf. Znaczniki próbek są przenoszone względem czasu odbioru, bez założenia
+zsynchronizowanych zegarów. Świeżość workerów wynosi 90 s przy raporcie co 30 s;
+przerwa pozostaje widoczna, a zapisane minuty/godziny przeżywają restart gatewaya.
+Findings backlogu wymagają wzrostu i wieku, CPU co najmniej 5 min obserwacji,
+a niski dysk jednocześnie <10% i <2 GiB. Histereza nie postępuje w lukach.
+
+Mirror obserwuje istniejący odbiornik: od wykrycia zmiany do zakończonego atomowego
+commitu lokalnej repliki. Niekompletna delta nie emituje lag ani fałszywego zera
+backlogu; liczba oczekujących zmian jest znana tylko przy wspólnej epoce kursora.
+Powody resubskrypcji pochodzą z istniejącego supervisora, bez nowych probes.
+
+Launcher `bash scripts/bench/diagnostics-stage3.sh` jest gotowy do ręcznego pomiaru
+po potwierdzeniu wolnego hosta. Etapy 1–2 pozostają włączone w obu wariantach,
+zmienia się tylko etap 3. Protokół etapów 2–3: cztery przyjęte pary
+AB/BA/AB/BA, idle po 3 min, pozostałe fazy po 90 s, w tym governor; około **100 min**
+bez odrzuconych par. Wszystkie mierzone procesy działają w user scope'ach
+z `MemorySwapMax=0`; `memory.swap.current` musi wynosić 0 przez całą parę.
+Load ponad liczbę CPU oraz swap-in ≥4 MiB/s przez trzy kolejne sekundy
+odrzucają całą parę. Host swap-out jest wyłącznie rejestrowany. Analiza MAD
+i mediany z oznaczonymi parami oraz bez nich używają wspólnego raportera (§3.2).
+Odrzucenie zapisuje też listę
+procesów bez argv/env. Kryteria kosztu pozostają z §10; gate nie jest domyślnie
+zaakceptowany. Fixture obejmuje prawdziwy journal/ACK/replay, deterministyczny ACP,
+git i lokalny odbiornik mirroru z commitami PostgreSQL. Generowane lokalnie ramki
+mirroru nie zastępują osobnego testu wolnego zdalnego transportu gRPC.
+
 ### 3.4 Połączone komputery i wspólny obraz
 
 Każdy dom utrzymuje i zapisuje własne agregaty gatewaya i swoich workerów (§5).

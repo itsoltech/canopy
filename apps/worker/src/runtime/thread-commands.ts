@@ -10,6 +10,7 @@ import { CommandError, type CommandOutput } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
 import { instanceKey } from "./instance-runtimes.ts";
 import { prepareShellInput } from "./shell-input.ts";
+import { workerDiagnostics } from "../diagnostics/worker.ts";
 
 const TURN_NOT_RUNNING = "TURN_NOT_RUNNING";
 
@@ -100,6 +101,11 @@ export class ThreadCommands {
 
     // UNSPECIFIED (an older gateway): the thread's mode.
     const settings = { model, effort, permissionMode: permissionMode || spec.permissionMode, recoveryContext };
+    workerDiagnostics.turns.queue(
+      spec.threadId,
+      turnId,
+      spec.provider === Provider.CLAUDE ? "claude" : spec.provider === Provider.GROK ? "grok" : "codex",
+    );
 
     if (spec.provider === Provider.GROK)
       await this.ctx.ops.runGrok(

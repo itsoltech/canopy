@@ -1,4 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { workerDiagnostics } from "../diagnostics/worker.ts";
+import type { GitFamily } from "@canopy/domain/diagnostics";
 import {
   processGovernor,
   processKey,
@@ -104,11 +106,32 @@ export async function git(
 
   if (!read) processGovernor.invalidate();
 
+  const family: GitFamily =
+    args[0] === "status" || args[0] === "diff"
+      ? "status"
+      : args[0] === "fetch"
+        ? "fetch"
+        : args[0] === "worktree"
+          ? "worktree"
+          : ["rev-list", "rev-parse", "symbolic-ref", "for-each-ref", "merge-base", "cherry", "show-ref"].includes(
+                args[0] ?? "",
+              )
+            ? "refs"
+            : "other";
+
+  const timing = workerDiagnostics.enabled ? workerDiagnostics.git(family) : undefined;
+  let failed = true;
+
   try {
-    const result = await runProcess(command, {
-      kind: "git",
-      ...(read && !freshness.getStore() && { key: processKey(command), ttlMs: 1_000 }),
-    });
+    const result = await runProcess(
+      { ...command, ...(timing && { onStart: timing.start }) },
+      {
+        kind: "git",
+        ...(read && !freshness.getStore() && { key: processKey(command), ttlMs: 1_000 }),
+      },
+    );
+
+    failed = result.code !== 0;
 
     return { ok: result.code === 0, stdout: result.stdout, stderr: result.stderr };
   } catch (error) {
@@ -120,6 +143,8 @@ export async function git(
       throw new GitError("GIT_TIMEOUT", "git exceeded its time or output limit");
     throw new GitError("GIT_UNAVAILABLE", "git is not installed on this worker");
   } finally {
+    timing?.end(failed);
+
     if (!read) processGovernor.invalidate();
   }
 }

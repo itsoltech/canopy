@@ -104,7 +104,8 @@ export function measureSnapshot(collector: RpcCollector, minutes: number, hourly
           last: value.last,
           sampledAtMs: value.sampledAtMs,
           observedSeconds: value.weight / 1000,
-          historical: Number(value.sampledAtMs) < collector.startedAt || now - Number(value.sampledAtMs) > 10_000,
+          historical:
+            Number(value.sampledAtMs) < collector.startedAt || now - Number(value.sampledAtMs) > collector.freshnessMs,
           incomplete: value.incomplete,
         }),
       ];

@@ -35,7 +35,7 @@ export const resendPending = Effect.fn("delivery.resendPending")(function* (
 
   for (const event of events) {
     before?.(event);
-    link.send({ case: "threadEvent", value: event });
+    link.send({ case: "threadEvent", value: event }, true);
   }
 
   return events.length;

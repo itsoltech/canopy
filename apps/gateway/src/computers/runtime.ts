@@ -1,4 +1,5 @@
 import { create } from "@bufbuild/protobuf";
+import { MirrorDiagnostics } from "../diagnostics/sync.ts";
 
 import { Code, ConnectError, type ConnectRouter } from "@connectrpc/connect";
 
@@ -59,6 +60,14 @@ export class LinkedComputers {
     return this[computersState].mirroring.size + this[computersState].botMirroring.size;
   }
 
+  diagnostics(node: string, metric: number, value: number) {
+    this.options.core?.diagnostics.sync(node, metric, value);
+  }
+
+  watchDiagnostic(node: string, delta: number) {
+    this.options.core?.diagnostics.syncWatch(node, delta);
+  }
+
   readonly mirror: ThreadMirror;
   readonly ranges: ThreadRangeStore;
   readonly rangePublisher: ThreadRangePublisher;
@@ -79,7 +88,11 @@ export class LinkedComputers {
     if (options.core) requireDesktopRole(options.core.role);
     this[computersState].routes = new Routes(options.store);
     options.network.mount("link", linkHandler(this.routes, options.core ? [options.core.diagnostics.interceptor] : []));
-    this.mirror = new ThreadMirror(options.store);
+    this.mirror = new ThreadMirror(options.store, (node) =>
+      options.core && (options.core.diagnostics.options.workerDiagnosticsEnabled ?? true)
+        ? new MirrorDiagnostics((id, value) => this.diagnostics(node, id, value))
+        : undefined,
+    );
     this.ranges = new ThreadRangeStore(options.store);
     this.rangePublisher = new ThreadRangePublisher(options.store);
     this.botMirror = new BotMirror(options.store);

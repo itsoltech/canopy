@@ -20,7 +20,7 @@ export function diagnosticsResponse(value: ui.ComputerDiagnostics, request: ui.C
     calls: value.calls.map((call) => create(ui.DiagnosticsCallSchema, { ...call, database: [...call.database] })),
     gatewayMeasures: [...value.gatewayMeasures],
     database: [...value.database],
-    links: [...value.links],
+    links: value.links.map((link) => create(ui.DiagnosticsLinkSchema, { ...link, measures: [...link.measures] })),
     findings: [...value.findings],
   });
 
@@ -54,6 +54,14 @@ export function diagnosticsResponse(value: ui.ComputerDiagnostics, request: ui.C
         ui.ComputerDiagnosticsSchema,
         create(ui.ComputerDiagnosticsSchema, { database: [removed] }),
       ).length;
+    } else if (value.links.some((link) => link.measures.length)) {
+      const link = value.links.findLast((row) => row.measures.length)!;
+      const removed = link.measures.pop()!;
+      link.droppedSamples++;
+      removedBytes = Math.max(
+        0,
+        toBinary(ui.DiagnosticsLinkSchema, create(ui.DiagnosticsLinkSchema, { measures: [removed] })).length - 12,
+      );
     } else if (value.links.length) {
       const removed = value.links.pop()!;
       removedBytes = toBinary(

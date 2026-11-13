@@ -3,6 +3,8 @@ import { WorkerState } from "@canopy/contracts";
 import { monitorEventLoopDelay } from "node:perf_hooks";
 import { Schema } from "effect";
 import { BenchCommand } from "./diagnostics-protocol.ts";
+import { DiagnosticsWorkerWorkload } from "./diagnostics-worker-workload.ts";
+import { workerDiagnostics } from "../../apps/worker/src/diagnostics/worker.ts";
 
 const baseUrl = process.env["CANOPY_BENCH_GATEWAY_URL"];
 const credential = process.env["CANOPY_BENCH_WORKER_CREDENTIAL"];
@@ -10,12 +12,27 @@ const workerId = process.env["CANOPY_BENCH_WORKER_ID"];
 
 if (!baseUrl || !credential || !workerId) throw new Error("Private benchmark worker configuration is required");
 
-const connect = () =>
-  openGatewayLink({
+const workload = process.env["CANOPY_BENCH_STAGE"] === "3" ? new DiagnosticsWorkerWorkload() : undefined;
+
+await workload?.start();
+
+const connect = async () => {
+  const link = await openGatewayLink({
     baseUrl,
     credential,
-    hello: { workerId, journalId: crypto.randomUUID(), state: WorkerState.ACTIVE, capabilities: ["diagnostics_v1"] },
+    hello: {
+      workerId,
+      journalId: crypto.randomUUID(),
+      ...(await workload?.hello()),
+      state: WorkerState.ACTIVE,
+      capabilities: ["diagnostics_v1", ...(workload ? ["worker_diagnostics_v1"] : [])],
+    },
   });
+
+  await workload?.connected(link);
+
+  return link;
+};
 
 let link = await connect();
 let reconnect = false;
@@ -27,14 +44,15 @@ const lag = monitorEventLoopDelay({ resolution: 20 });
 let cpu = process.cpuUsage();
 let since = performance.now();
 
-process.on("message", (message: BenchCommand) => {
-  const command = Schema.decodeUnknownSync(BenchCommand)(message);
+async function execute(command: BenchCommand) {
+  if (command.action === "end" || command.action === "stop") await workload?.end();
 
   if (command.action === "begin") {
     lag.reset();
     lag.enable();
     cpu = process.cpuUsage();
     since = performance.now();
+    workload?.begin(command.phase ?? "idle");
   }
 
   const used = process.cpuUsage(cpu);
@@ -54,6 +72,7 @@ process.on("message", (message: BenchCommand) => {
   if (command.action === "end") lag.disable();
 
   if (command.action === "reconnect") {
+    workerDiagnostics.record(113, 1);
     reconnect = true;
     link.close();
   }
@@ -63,6 +82,13 @@ process.on("message", (message: BenchCommand) => {
     clearInterval(heartbeat);
     link.close();
   }
+}
+
+process.on("message", (message: BenchCommand) => {
+  void execute(Schema.decodeUnknownSync(BenchCommand)(message)).catch(() => {
+    console.error("Benchmark worker command failed");
+    process.exit(1);
+  });
 });
 
 process.send?.({ id: 0 });
@@ -75,6 +101,8 @@ try {
 
       if (payload.case === "command")
         link.send({ case: "commandResult", value: { commandId: payload.value.commandId, ok: true } });
+
+      if (payload.case === "eventAck") await workload?.ack(payload.value.threadId, payload.value.ackSeq);
     }
 
     if (!reconnect || stopping) break;
@@ -84,5 +112,6 @@ try {
 } finally {
   clearInterval(heartbeat);
   lag.disable();
+  await workload?.close();
   process.disconnect?.();
 }

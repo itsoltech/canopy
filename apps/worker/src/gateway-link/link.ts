@@ -1,4 +1,5 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
+import { workerDiagnostics } from "../diagnostics/worker.ts";
 import { Code, ConnectError, createClient } from "@connectrpc/connect";
 import {
   HelloSchema,
@@ -31,7 +32,7 @@ export interface GatewayLink {
   readonly messages: AsyncIterable<GatewayMessage>;
   /** Resolves when the stream ends; carries the error if it ended abnormally. */
   readonly closed: Promise<{ error?: ConnectError }>;
-  send(payload: WorkerPayloadInit): void;
+  send(payload: WorkerPayloadInit, replay?: boolean): void;
   /** Half-closes the request stream. The gateway ends the call in response. */
   close(): void;
 }
@@ -89,9 +90,21 @@ export async function openGatewayLink(options: GatewayLinkOptions): Promise<Gate
 
   const report = echo
     ? setInterval(() => {
-        if (!outbound.closed) outbound.push(workerMessage({ case: "diagnostics", value: echo.batch() }));
+        if (outbound.closed) return;
+        const value = echo.batch();
+
+        if (
+          first.value?.payload.case === "welcome" &&
+          first.value.payload.value.workerDiagnosticsV1 &&
+          workerDiagnostics.enabled
+        )
+          workerDiagnostics.measurements.report(value);
+
+        outbound.push(workerMessage({ case: "diagnostics", value }));
       }, 30_000)
     : undefined;
+
+  if (echo && first.value.payload.value.workerDiagnosticsV1) workerDiagnostics.measurements.reset();
 
   report?.unref();
 
@@ -124,7 +137,7 @@ export async function openGatewayLink(options: GatewayLinkOptions): Promise<Gate
     welcome: first.value.payload.value,
     messages: inbound,
     closed,
-    send(payload) {
+    send(payload, replay = false) {
       const measured =
         echo && payload.case === "heartbeat"
           ? { ...payload, value: { ...payload.value, echoSequence: echo.send() } }
@@ -133,6 +146,9 @@ export async function openGatewayLink(options: GatewayLinkOptions): Promise<Gate
       if (!outbound.push(workerMessage(measured))) {
         throw new ConnectError("gateway link is closed", Code.Unavailable);
       }
+
+      if (payload.case === "threadEvent")
+        workerDiagnostics.sent(payload.value.threadId ?? "", payload.value.journalSeq ?? 0n, replay);
     },
     close: () => outbound.close(),
   };

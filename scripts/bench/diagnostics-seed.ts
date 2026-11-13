@@ -4,6 +4,7 @@ import { seedClient } from "./seed-client.ts";
 
 const Seed = Schema.Struct({
   thread: Schema.String,
+  turn: Schema.String,
   worker: Schema.Struct({ workerId: Schema.String, credential: Schema.String }),
 });
 
