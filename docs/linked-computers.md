@@ -1163,6 +1163,11 @@ Utracone potwierdzenie jest bezpieczne: retransmisja jest idempotentna, a reconn
 przekazuje kursor odczytany z bazy. Anulowanie, utrata linku i timeout zwalniają
 oczekiwanie producenta oraz subskrypcję. Inne wątki i unary nadal działają.
 
+Po osiągnięciu head producent wysyła osobny heartbeat co 5 s, bez pustej partii,
+transakcji odbiorcy i ACK. Niezmieniony zegar właściciela nie wymaga ponownego
+odczytania listy head wszystkich wątków. Nowy seq, epoka lub zmiana metadanych
+ponownie uruchamia odczyt; początkowy bootstrap nadal wymaga trwałego ACK.
+
 `WatchThreadMirror`, `AckThreadRange` i `GetThreadRange` pozostają przypisane
 do pierwotnego domu dziennika także po przeniesieniu wątku. Kursor, epoka
 i identyfikator subskrypcji nie są żądaniem akcji na obecnym domu wątku.

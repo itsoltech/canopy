@@ -30,6 +30,7 @@ describe.skipIf(!dockerAvailable)("durable thread sequence ranges over real gate
   let initialHeap = 0;
   let pausedAt = 0n;
   let applyFailure: Error | undefined;
+  let heartbeats = 0;
 
   beforeAll(async () => {
     a = await startTestGateway({ role: "desktop" });
@@ -77,6 +78,8 @@ describe.skipIf(!dockerAvailable)("durable thread sequence ranges over real gate
     const publish = home.rangePublisher.publish.bind(home.rangePublisher);
     home.rangePublisher.publish = async function* (...args) {
       for await (const update of publish(...args)) {
+        if (update.heartbeat) heartbeats++;
+
         if (update.rangeBatch?.threadId === thread) {
           batches.push(update.rangeBatch);
           maxBatchBytes = Math.max(maxBatchBytes, toBinary(ui.ThreadSyncBatchSchema, update.rangeBatch).length);
@@ -166,6 +169,20 @@ describe.skipIf(!dockerAvailable)("durable thread sequence ranges over real gate
       heapGrowthBytes: maxHeap - initialHeap,
     });
   }, 40_000);
+
+  test("caught-up mirrors stay live without empty batches or acknowledgments", async () => {
+    await eventually(
+      async () => home.rangePublisher.waiting.size,
+      (size) => size === 0,
+    );
+    const count = batches.length;
+    const heartbeat = heartbeats;
+    await Bun.sleep(6200);
+    expect(batches.length).toBe(count);
+    expect(heartbeats).toBeGreaterThan(heartbeat);
+    expect(home.rangePublisher.waiting.size).toBe(0);
+    expect((await local.computer(node))?.status).toBe("connected");
+  }, 15_000);
 
   test("every batch reports the exact remaining journal count", () => {
     for (const batch of batches) {
