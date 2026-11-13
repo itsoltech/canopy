@@ -30,11 +30,13 @@ export async function sendMessage(
   mentions: readonly Mention[] = [],
   quotes: readonly WireQuote[] = [],
   onWaiting?: () => void,
-  pending?: { signal: AbortSignal; beforeAttempt: () => Promise<void> },
+  pending?: { signal: AbortSignal; beforeAttempt?: () => Promise<void> },
+  draft?: { draftId: string; draftRevision: string },
 ): Promise<ui.SendMessageResponse> {
   const body = {
     text,
     clientRequestId,
+    ...draft,
     ...turn,
     delivery,
     ...(attachmentIds.length > 0 && { attachmentIds }),
@@ -44,8 +46,8 @@ export async function sendMessage(
 
   return resolvePendingSend(
     async () => {
-      await pending?.beforeAttempt();
-      const result = await post(`${threadPath(threadId)}/messages`, body);
+      await pending?.beforeAttempt?.();
+      const result = await requestJson("POST", `${threadPath(threadId)}/messages`, body, 40_000, pending?.signal);
 
       return isJsonObject(result) && result["pending"] === true
         ? undefined
@@ -53,9 +55,10 @@ export async function sendMessage(
     },
     {
       // A lost HTTP response cannot establish whether the BFF/home committed the request.
-      uncertain: (error) => !(error instanceof HttpError) || error.status >= 500,
+      uncertain: (error) => !(error instanceof HttpError) || [408, 502, 503, 504].includes(error.status),
       onWaiting,
       signal: pending?.signal,
+      maxAttempts: pending ? 1 : undefined,
     },
   );
 }

@@ -4,11 +4,14 @@ import { PermissionMode, ui } from "@canopy/contracts";
 import { mentionsFromWire } from "#lib/features/mentions/wire.ts";
 import { readBody } from "#lib/server/body.ts";
 import { gateway, failWith } from "#lib/server/gateway.ts";
+import { gatewayFailure } from "#lib/server/gateway-errors.ts";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { encode } from "#lib/shared/wire.ts";
 import type { RequestHandler } from "./$types";
 
 const Body = Schema.Struct({
+  draftId: Schema.optionalKey(Schema.String.check(Schema.isUUID())),
+  draftRevision: Schema.optionalKey(Schema.String.check(Schema.isPattern(/^\d+$/))),
   // Empty only with attachments (the gateway checks).
   text: Schema.String.check(Schema.isMaxLength(100_000)),
   clientRequestId: Schema.String.check(Schema.isUUID()),
@@ -79,6 +82,7 @@ export const POST: RequestHandler = async ({ request, params }) => {
       {
         threadId: params.threadId,
         ...body,
+        draftRevision: BigInt(body.draftRevision ?? "0"),
         attachmentIds: [...(attachmentIds ?? [])],
         mentions,
         quotes: (quotes ?? []).map((quote) => ({ ...quote })),
@@ -92,9 +96,12 @@ export const POST: RequestHandler = async ({ request, params }) => {
   } catch (cause) {
     const failure = ConnectError.from(cause);
 
+    // A gateway availability rejection has a known outcome; transport loss does not.
+    if (failure.code === Code.Unavailable && failure.cause === undefined) error(409, gatewayFailure(cause).message);
+
     if (
-      [Code.DeadlineExceeded, Code.Unavailable, Code.Canceled, Code.Internal, Code.Unknown].includes(failure.code) ||
-      failure.metadata.get("canopy-error-scope") === "computer"
+      [Code.DeadlineExceeded, Code.Canceled, Code.Unknown].includes(failure.code) ||
+      (failure.code === Code.Unavailable && failure.cause !== undefined)
     ) {
       console.warn("Message delivery awaiting confirmation", {
         clientRequestId: body.clientRequestId,

@@ -73,6 +73,7 @@
     label = "Message",
     placeholder = "Ask anything…",
     disabled = false,
+    readonly = false,
     stopDisabled = false,
     canSend = true,
     blockedReason,
@@ -107,6 +108,7 @@
     label?: string;
     placeholder?: string;
     disabled?: boolean;
+    readonly?: boolean;
     stopDisabled?: boolean;
     canSend?: boolean;
     blockedReason?: string | undefined;
@@ -178,7 +180,7 @@
 
   /** Files become badges at the caret (`point`: where they were dropped). */
   const onfiles = $derived(
-    draft
+    draft && !readonly
       ? (files: File[], point?: { x: number; y: number }) => editor?.insertChips(draft.add(files).map(chipOf), point)
       : undefined,
   );
@@ -236,7 +238,7 @@
     const files = draft;
     const root = box;
 
-    if (!intake || !take || !files || !root || disabled) return;
+    if (!intake || !take || !files || !root || disabled || readonly) return;
 
     return intake.register({
       root,
@@ -346,7 +348,7 @@
           bare
           bind:value
           {placeholder}
-          {disabled}
+          disabled={disabled || readonly}
           {onkeydown}
           autocomplete="off"
           class="px-4 pt-3.5 pb-4 text-base/6 sm:text-sm/6"
@@ -361,7 +363,7 @@
           {quoteKey}
           {placeholder}
           {hint}
-          {disabled}
+          disabled={disabled || readonly}
           {autofocus}
           sources={shellMode ? undefined : sources}
           {triggers}
@@ -406,7 +408,7 @@
             {onfiles}
             {ongoal}
             {triggers}
-            {disabled}
+            disabled={disabled || readonly}
             ontrigger={sources ? (char) => editor?.insertTrigger(char) : undefined}
           />
         {/if}

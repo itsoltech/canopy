@@ -15,6 +15,7 @@ import {
   projectAwayReason,
 } from "@canopy/domain/linked-snapshot";
 import { projectChoices } from "@canopy/domain/projects";
+import { webDrafts } from "#lib/features/drafts/local.svelte.ts";
 
 /** live: stream open and in sync; reconnecting: dropped, retrying; unavailable: the gateway does not answer. */
 export type OverviewConnection = RecoveryStatus;
@@ -175,6 +176,7 @@ export class OverviewState {
       const next = new Map(this.threads);
 
       if (change.value.deletedAt) {
+        webDrafts.removeThread(change.value.id);
         this.#deleted.add(change.value.id);
         next.delete(change.value.id);
       } else {

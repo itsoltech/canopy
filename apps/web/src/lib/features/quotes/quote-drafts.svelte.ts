@@ -4,8 +4,8 @@ import type { QuoteSource } from "./selection.ts";
 import type { ui } from "@canopy/contracts";
 
 /**
- * The quotes of each thread's composer draft, for this tab (like the draft text, nothing is stored in the
- * browser). Cite inserts at the registered editor's caret. The editor serializes their ranges after each edit.
+ * The active quotes of each composer draft, for this tab; WebComposerDraft persists them with the message.
+ * Cite inserts at the registered editor's caret. The editor serializes their ranges after each edit.
  * Within QUOTE_LIMITS: `add` refuses (undefined) past the maximum.
  *
  *   const quotes = useQuoteDrafts();

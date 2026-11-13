@@ -2,9 +2,14 @@
   import CenteredContent from "#lib/shared/ui/CenteredContent.svelte";
   import { enhance } from "$app/forms";
   import { goto } from "$app/navigation";
-  import type { Mention, ui } from "@canopy/contracts";
+  import { PermissionMode, ui } from "@canopy/contracts";
+  import { create, toJsonString } from "@bufbuild/protobuf";
+  import { webDrafts } from "#lib/features/drafts/local.svelte.ts";
+  import DraftPersistence from "#lib/features/drafts/DraftPersistence.svelte";
+  import DraftActions from "#lib/features/drafts/DraftActions.svelte";
+  import { prepareDraftForm, watchDraftForm } from "#lib/features/drafts/form.ts";
   import type { ClassValue } from "svelte/elements";
-  import { AttachmentDraft, limitsOf } from "#lib/features/attachments/draft.svelte.ts";
+  import { limitsOf } from "#lib/features/attachments/draft.svelte.ts";
   import { MentionSources } from "#lib/features/mentions/sources.svelte.ts";
   import { effectiveEffort, type ModelOption } from "#lib/features/models/catalog.ts";
   import ModelControls from "#lib/features/models/ModelControls.svelte";
@@ -19,7 +24,6 @@
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
   import Switch from "#lib/shared/ui/Switch.svelte";
   import { inheritedMode, permissionKey } from "../labels.ts";
-  import { sideThreadDraft, usePermissionDrafts } from "../permission-drafts.svelte.ts";
   import ComposerBox from "./ComposerBox.svelte";
   import HintIcon from "#lib/shared/ui/HintIcon.svelte";
   import PermissionPicker from "./PermissionPicker.svelte";
@@ -33,27 +37,40 @@
   const project = $derived(overview.project(main.projectId));
   const away = $derived(main.nodeId ? awayReason(overview.computer(main.nodeId)) : undefined);
   const offer = useThreadModels(() => ({ thread: main, worker }));
-  let picked = $state<ModelOption>();
+
+  const saved = $derived(
+    webDrafts.get(
+      create(ui.ComposerDraftTargetSchema, {
+        projectId: main.projectId,
+        workspaceId: main.workspaceId,
+        parentThreadId: main.id,
+      }),
+      () => limitsOf(settings.attachmentLimits),
+    ),
+  );
+
+  const picked = $derived(offer.options.find((o) => o.model === saved.choices.model));
   const option = $derived(picked ?? offer.current);
-  let effort = $state<string>();
+  const effort = $derived(saved.choices.effort);
 
   const sentEffort = $derived(
     option && option.efforts.length > 0 ? (effort ?? effectiveEffort(option, main.effort)) : undefined,
   );
 
   // Your pick stays with this side thread's draft (leave and come back); unset = the main thread's mode.
-  const permissions = usePermissionDrafts();
-  const draftKey = $derived(sideThreadDraft(main.id));
 
   // Full access is picked again for a side thread, never taken over from the main thread.
-  const mode = $derived(permissions.get(draftKey) ?? inheritedMode(permissionKey(main.permissionMode)));
+  const mode = $derived(
+    saved.choices.permissionMode
+      ? permissionKey(saved.choices.permissionMode)
+      : inheritedMode(permissionKey(main.permissionMode)),
+  );
+
   let fork = $state(true);
-  let message = $state("");
-  let mentions = $state<Mention[]>([]);
   let busy = $state(false);
-  const clientRequestId = crypto.randomUUID();
+  const clientRequestId = $derived(saved.requestId);
   const sources = new MentionSources(() => ({ threadId: main.id }));
-  const draft = new AttachmentDraft(() => limitsOf(settings.attachmentLimits));
+  const draft = $derived(saved.files);
   const href = $derived(`/threads/${encodeURIComponent(main.id)}`);
   const closed = $derived(main.status === "archived" || Boolean(main.deletedAt));
 
@@ -72,6 +89,7 @@
 </script>
 
 <svelte:window {onkeydown} />
+<DraftPersistence draft={saved} />
 
 <div class={["flex h-full min-w-0 flex-col", className]}>
   <TopBar description={away ? `Read-only. ${away}` : undefined}>
@@ -96,21 +114,40 @@
       method="POST"
       action="?/createSideThread"
       class="grid min-w-0 grid-cols-1 gap-3"
-      use:enhance={({ cancel }) => {
-        if (busy || closed || !option || draft.blocker) return cancel();
+      use:enhance={async ({ cancel, formData, controller }) => {
+        if (busy || saved.preparing || closed || !option || draft.blocker) return cancel();
+        const composer = saved;
         busy = true;
-        const key = draftKey;
+        composer.preparing = true;
+        try {
+          await prepareDraftForm(composer, formData);
+        } catch {
+          composer.preparing = false;
+          busy = false;
+          return cancel();
+        }
+        const outgoingRequestId = composer.requestId;
+        const finish = watchDraftForm(composer, controller, () => (busy = false));
         return async ({ result, update }) => {
           try {
-            if (result.type === "redirect") permissions.clear(key);
+            if (result.type === "redirect" && composer.requestId === outgoingRequestId) composer.clear();
+            if (controller.signal.aborted) return;
+            if (result.type === "failure" && ![408, 502, 504].includes(result.status))
+              composer.cancelSend(result.status === 409 || result.status === 404);
+            if (result.type === "error" && result.status === 500) composer.cancelSend();
             await update({ reset: false });
           } finally {
-            busy = false;
+            finish();
           }
         };
       }}
     >
       <input type="hidden" name="clientRequestId" value={clientRequestId} />
+      <input
+        type="hidden"
+        name="composerContent"
+        value={toJsonString(ui.ComposerDraftContentSchema, saved.outgoing())}
+      />
       <input type="hidden" name="model" value={picked?.model ?? main.model} />
       <input type="hidden" name="effort" value={sentEffort ?? ""} />
       <input type="hidden" name="permissionMode" value={mode} />
@@ -119,11 +156,13 @@
       {#if error}<Alert tone="error">{error}</Alert>{/if}
       <ComposerBox
         shell
-        bind:value={message}
-        bind:mentions
+        bind:value={saved.text}
+        bind:mentions={saved.mentions}
+        quoteKey={saved.quoteKey}
         {sources}
         {draft}
         sending={busy}
+        readonly={saved.locked}
         disabled={busy || closed}
         canSend={Boolean(option) && !draft.blocker}
         autofocus
@@ -139,8 +178,13 @@
           {#if option}
             <ModelControls
               options={offer.options}
-              bind:option={() => option, (next) => (picked = next)}
-              bind:effort
+              bind:option={
+                () => option,
+                (next) => {
+                  if (next) saved.choices = { ...saved.choices, model: next.model };
+                }
+              }
+              bind:effort={() => effort, (next) => (saved.choices = { ...saved.choices, effort: next })}
               inherited={main.effort || undefined}
               workerId={main.workerId}
               class="flex-1 justify-end"
@@ -164,11 +208,12 @@
             />{/if}
           <PermissionPicker
             value={mode}
-            onselect={(next) => permissions.set(draftKey, next)}
+            onselect={(next) => (saved.choices = { ...saved.choices, permissionMode: PermissionMode[next] })}
             class="-mr-1.5 shrink-0"
           />
         {/snippet}
       </ComposerBox>
+      <DraftActions draft={saved} disabled={busy || closed} />
     </form>
   </CenteredContent>
 </div>

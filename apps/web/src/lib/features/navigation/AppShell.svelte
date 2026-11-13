@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { webDrafts } from "#lib/features/drafts/local.svelte.ts";
   import { applicationName } from "#lib/application-name.ts";
   import { connectWorkspace } from "#lib/features/workspace/workspace.svelte.ts";
   import WorkspaceExit from "#lib/features/workspace/WorkspaceExit.svelte";
@@ -149,6 +150,12 @@
           offWorkspace();
         };
       });
+  });
+
+  $effect(() => {
+    const scope = capabilities.clientPreferencesScope;
+
+    if (scope) untrack(() => webDrafts.connect(scope));
   });
 
   $effect(() => {

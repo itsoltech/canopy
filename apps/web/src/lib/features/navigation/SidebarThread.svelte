@@ -1,4 +1,5 @@
 <script lang="ts">
+  import DraftMarker from "#lib/features/drafts/DraftMarker.svelte";
   import type { ui } from "@canopy/contracts";
   import { threadPlace } from "@canopy/domain/git-heads";
   import { threadRowMarks } from "@canopy/ui/thread-row";
@@ -76,16 +77,19 @@
         : undefined}
     />
   </span>
-  <SwapText
-    text={thread.title}
-    live={thread.titleGenerating}
-    class={[
-      "h-5.5 w-full min-w-0 overflow-hidden text-base/5.5 sm:h-5 sm:text-sm/5",
-      thread.titleGenerating
-        ? "text-zinc-500 dark:text-zinc-400"
-        : "text-zinc-800 group-aria-[current=page]:text-zinc-950 group-data-result:text-zinc-950 dark:text-zinc-200 dark:group-aria-[current=page]:text-white dark:group-data-result:text-white",
-    ]}
-  />
+  <div class="flex min-w-0 items-center gap-1 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
+    <SwapText
+      text={thread.title}
+      live={thread.titleGenerating}
+      class={[
+        "h-5.5 w-full min-w-0 overflow-hidden text-base/5.5 sm:h-5 sm:text-sm/5",
+        thread.titleGenerating
+          ? "text-zinc-500 dark:text-zinc-400"
+          : "text-zinc-800 group-aria-[current=page]:text-zinc-950 group-data-result:text-zinc-950 dark:text-zinc-200 dark:group-aria-[current=page]:text-white dark:group-data-result:text-white",
+      ]}
+    />
+    <DraftMarker threadId={thread.id} />
+  </div>
   <span class="flex min-w-0 items-center gap-2 text-sm/5 text-zinc-500 sm:text-xs/4.5 dark:text-zinc-400">
     <Icon
       name="computer-desktop"

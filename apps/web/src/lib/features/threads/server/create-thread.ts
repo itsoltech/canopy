@@ -4,6 +4,7 @@ import { attempt, failed } from "#lib/server/gateway.ts";
 import { mentionsFromWire } from "#lib/features/mentions/wire.ts";
 import { isProviderKey, providerKeyOf } from "../providers.ts";
 import { isPermissionModeName } from "../labels.ts";
+import { fromJsonString } from "@bufbuild/protobuf";
 
 const text = (form: FormData, key: string) => String(form.get(key) ?? "").trim();
 
@@ -47,9 +48,17 @@ export async function createThreadFromForm(
 
   if (!isWorkspaceModeName(workspaceMode)) return fail(400, { action, error: "Unknown workspace" });
   let initialMentions;
+  let content: ui.ComposerDraftContent;
+  let draftRevision: bigint;
 
   try {
     initialMentions = mentionsFromWire(form.get("mentions"));
+    content = fromJsonString(ui.ComposerDraftContentSchema, text(form, "composerContent") || "{}");
+    const revision = text(form, "draftRevision") || "0";
+
+    if (!/^\d{1,20}$/.test(revision))
+      return fail(400, { action, error: "Could not read this draft. Reload the page, then retry." });
+    draftRevision = BigInt(revision);
   } catch {
     return fail(400, { action, error: "The message's mentions could not be read" });
   }
@@ -66,6 +75,9 @@ export async function createThreadFromForm(
         effort: text(form, "effort"),
         permissionMode: PermissionMode[mode],
         initialMessage,
+        initialQuotes: content.quotes,
+        draftId: text(form, "draftId"),
+        draftRevision,
         parentThreadId: parent?.id ?? "",
         fork: Boolean(parent) && form.get("fork") === "on",
         clientRequestId: text(form, "clientRequestId") || crypto.randomUUID(),
