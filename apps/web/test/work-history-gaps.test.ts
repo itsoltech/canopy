@@ -132,6 +132,20 @@ test("streaming retains the completed prefix without treating the live tail as a
   expect(builder.build(input(entries.slice(-1), true)).some((row) => row.key === "work:earlier")).toBe(false);
 });
 
+test("a fresh running turn and newer empty completed turns do not prefetch all older history", () => {
+  const state = input(entries.slice(0, 3), true);
+
+  const newer = [
+    { ...turns[1]!, id: "empty", ordinal: 2 },
+    { ...turns[1]!, id: "starting", ordinal: 3, status: "running" },
+  ];
+
+  const rows = new FeedBuilder().build({ ...state, turns: [turns[0]!, ...newer], working: true });
+  expect(rows.filter((row) => row.kind === "work-gap").map((row) => row.turn.id)).toEqual(["earlier"]);
+  const start = rows.findIndex((row) => row.key === "input:starting");
+  expect(prefetchWorkHistory(rows, start, rows.length)).toBe(false);
+});
+
 test("a derivation mismatch exposes every source row instead of trusting an empty fold", () => {
   const body = buildTimeline(entries, turns, [], new Map()).filter((row) => row.kind === "item");
   const reports: number[] = [];

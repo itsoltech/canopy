@@ -2,7 +2,7 @@ import type { ui } from "@canopy/contracts";
 import type { FeedRow } from "./feed.ts";
 import type { TimelineEntry } from "./thread-types.ts";
 import type { FoldedRow } from "./work-groups.ts";
-import type { TimelineRow } from "./timeline.ts";
+import { isTerminal, type TimelineRow } from "./timeline.ts";
 
 /** Independent item windows must not present an unloaded turn as completed, empty work. */
 export function workHistoryGaps(
@@ -18,10 +18,16 @@ export function workHistoryGaps(
     undefined,
   );
 
+  const frontier = turns.find((turn) => turn.id === first?.turnId);
+
   // The first loaded item can be halfway through a turn, including between steer segments.
+  // A newer turn without items can simply have started; it must not page the entire older transcript.
   return new Set(
     turns.flatMap((turn) =>
-      !turn.withdrawn && turn.status !== "queued" && (!present.has(turn.id) || turn.id === first?.turnId)
+      !turn.withdrawn &&
+      turn.status !== "queued" &&
+      (turn.id === first?.turnId ||
+        (!present.has(turn.id) && (frontier ? turn.ordinal < frontier.ordinal : isTerminal(turn.status))))
         ? [turn.id]
         : [],
     ),
