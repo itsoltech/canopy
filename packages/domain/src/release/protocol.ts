@@ -30,6 +30,9 @@ export const THREAD_DIRECTORY_CAPABILITY = "thread_directory_v1";
 export const THREAD_FILE_HIGHLIGHT_CAPABILITY = "thread_file_highlight_v1";
 export const THREAD_FILES_WATCH_CAPABILITY = "thread_files_watch_v1";
 
+/** Durable image replies, with bounded thread-scoped exports; additive to protocol 1. */
+export const THREAD_IMAGE_REPLIES_CAPABILITY = "thread_image_replies_v1";
+
 /** Transient Git clone progress and cancellation; additive to WorkerLink protocol 1. */
 export const CLONE_PROGRESS_CAPABILITY = "git_clone_progress_v1";
 

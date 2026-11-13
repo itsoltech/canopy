@@ -10,6 +10,10 @@ import {
 } from "@canopy/domain";
 import sharp from "sharp";
 import { Match } from "effect";
+import { AttachmentRejected } from "./rejected.ts";
+import { boundedImageOutput } from "./encoded-output.ts";
+
+export { AttachmentRejected } from "./rejected.ts";
 
 /**
  * An uploaded file as the gateway keeps it (docs/ui-api.md, "Załączniki"):
@@ -19,10 +23,6 @@ import { Match } from "effect";
  * - HEIC/HEIF, AVIF and TIFF become JPEG or PNG when this build can decode them, else they stay files,
  * - images get a small WebP thumbnail for the UI.
  */
-
-export class AttachmentRejected extends Error {
-  override readonly name = "AttachmentRejected";
-}
 
 export interface PreparedAttachment {
   readonly durationMs?: number;
@@ -46,6 +46,7 @@ export async function prepareAttachment(
   rawName: string,
   data: Uint8Array,
   limits: AttachmentLimits,
+  options: { imageReply?: boolean } = {},
 ): Promise<PreparedAttachment> {
   let name = safeFileName(rawName);
 
@@ -85,7 +86,7 @@ export async function prepareAttachment(
   let image: { data: Uint8Array; mimeType: string; width: number; height: number };
 
   try {
-    image = await normalize(data, sniffed.mimeType);
+    image = await normalize(data, sniffed.mimeType, options.imageReply ?? false, limits.maxFileBytes, name);
   } catch (error) {
     if (error instanceof AttachmentRejected) throw error;
 
@@ -94,7 +95,8 @@ export async function prepareAttachment(
     throw new AttachmentRejected(`${name} could not be read as an image`);
   }
 
-  if (sniffed.kind === "convertible") name = withExtension(name, image.mimeType === "image/png" ? "png" : "jpg");
+  if (sniffed.kind === "convertible" || image.mimeType !== sniffed.mimeType)
+    name = withExtension(name, image.mimeType === "image/png" ? "png" : "jpg");
 
   const thumbnail = new Uint8Array(
     await sharp(image.data, { limitInputPixels: MAX_PIXELS })
@@ -122,6 +124,9 @@ const videoPoster = sharp({ create: { width: 320, height: 180, channels: 3, back
 async function normalize(
   data: Uint8Array,
   mimeType: string,
+  firstFrame: boolean,
+  maxBytes: number,
+  name: string,
 ): Promise<{ data: Uint8Array; mimeType: string; width: number; height: number }> {
   const meta = await sharp(data, { limitInputPixels: false }).metadata();
   const width = meta.width ?? 0;
@@ -133,26 +138,29 @@ async function normalize(
     );
 
   // GIF: kept byte for byte (animation; no EXIF to strip).
-  if (mimeType === "image/gif") return { data, mimeType, width, height };
-  const animated = mimeType === "image/webp" && (meta.pages ?? 1) > 1;
+  if (mimeType === "image/gif" && !firstFrame) return { data, mimeType, width, height };
+  const animated = !firstFrame && mimeType === "image/webp" && (meta.pages ?? 1) > 1;
   // rotate(): upright by its EXIF orientation; the output carries no metadata (sharp drops it unless asked).
   const pipeline = sharp(data, { limitInputPixels: MAX_PIXELS, animated }).rotate();
 
   const encoded =
-    mimeType === "image/png" || mimeType === "image/tiff"
+    mimeType === "image/png" || mimeType === "image/tiff" || mimeType === "image/gif"
       ? pipeline.png()
       : mimeType === "image/webp"
         ? pipeline.webp({ quality: 92 })
         : pipeline.jpeg({ quality: 92, mozjpeg: true });
 
-  const { data: out, info } = await encoded.toBuffer({ resolveWithObject: true });
+  const { data: out, info } = firstFrame
+    ? await boundedImageOutput(encoded, maxBytes, name)
+    : await encoded.toBuffer({ resolveWithObject: true });
 
   const outType = Match.value(mimeType).pipe(
     Match.when("image/tiff", () => "image/png"),
+    Match.when("image/gif", () => "image/png"),
     Match.when("image/webp", () => "image/webp"),
     Match.when("image/png", () => "image/png"),
     Match.orElse(() => "image/jpeg"),
   );
 
-  return { data: new Uint8Array(out), mimeType: outType, width: info.width, height: info.pageHeight ?? info.height };
+  return { data: out, mimeType: outType, width: info.width, height: info.pageHeight ?? info.height };
 }

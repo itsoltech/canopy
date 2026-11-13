@@ -111,8 +111,17 @@ export const ingestThread = (
         known.add(incoming.eventId);
         const seq = ++last;
 
-        const rejection =
-          thread.archived_at && !(yield* archivedEventAllowed(sql, incoming))
+        const gatewayGallery =
+          origin === "worker" &&
+          (((incoming.body.case === "itemStarted" || incoming.body.case === "itemCompleted") &&
+            incoming.body.value.item?.content.case === "imageGallery") ||
+            ((incoming.body.case === "itemStarted" || incoming.body.case === "itemCompleted") &&
+              incoming.body.value.item?.itemId.startsWith("gallery-")) ||
+            (incoming.body.case === "itemDelta" && incoming.body.value.itemId.startsWith("gallery-")));
+
+        const rejection = gatewayGallery
+          ? { code: "23514", reason: "data_error" as const }
+          : thread.archived_at && !(yield* archivedEventAllowed(sql, incoming))
             ? { code: "23514", reason: "archived_thread" as const }
             : fallback;
 

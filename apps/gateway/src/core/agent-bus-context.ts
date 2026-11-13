@@ -45,6 +45,7 @@ export interface BusHost {
   /** An agent created or cancelled a schedule: announce it. */
   scheduleChanged(scheduleId: string): Promise<void>;
   requestSecret(source: CallSource, args: AgentBusArgs["request_secret"]): Promise<JsonValue>;
+  showImages(source: CallSource, caller: ThreadRow, args: AgentBusArgs["show_images"]): Promise<JsonValue>;
   /**
    * The provider instances of the thread's worker a subagent can run on (enabled there, with their availability and
    * the pickers' model catalogs); undefined before the worker reported its configuration.
@@ -61,6 +62,7 @@ export const WAIT_POLL_MS = 1_000;
 
 /** Tools that persist their own call (reads store their result together with notification consumption). */
 export const STORES_ITS_CALL = new Set([
+  "show_images",
   "spawn_thread",
   "send_message",
   "schedule_wakeup",
