@@ -108,8 +108,10 @@ test.skipIf(!dockerAvailable || process.env["CANOPY_CHATTER_BENCH"] !== "1")(
       await home.start();
       await home.pair(local.addresses[0]!, (await local.createPairing()).code);
       expect(await eventually(async () => local.reachable().includes(home.hello().nodeId), Boolean, 15_000)).toBe(true);
-      await a.core.diagnostics.start();
-      await b.core.diagnostics.start();
+      for (const gateway of [a, b]) {
+        if (process.env["CANOPY_CHATTER_COLLECT"] === "0") gateway.core.diagnostics.resources.start();
+        else await gateway.core.diagnostics.start();
+      }
 
       if (process.env["CANOPY_CHATTER_TRACE"] === "1")
         for (const gateway of [a, b])
