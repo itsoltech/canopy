@@ -1,13 +1,12 @@
 <script lang="ts">
   import { untrack } from "svelte";
-  import type { github } from "@canopy/contracts";
+  import type { github, ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import { ciLabel, ciEffect, ciReason, ciActions, type CiAction } from "@canopy/domain/github-ci";
-  import IconButton from "#lib/shared/ui/IconButton.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
   import DialogActions from "#lib/shared/ui/DialogActions.svelte";
-  import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
+  import CitationActions from "./CitationActions.svelte";
   import MenuItem from "#lib/shared/ui/MenuItem.svelte";
   import ConfirmationCountdown from "./ConfirmationCountdown.svelte";
   import { ciController } from "./ci-controllers.ts";
@@ -20,6 +19,8 @@
     jobId = "",
     name = "",
     dialog = false,
+    quote,
+    url = "",
     class: className,
   }: {
     snapshot: github.PullRequestSnapshot;
@@ -28,6 +29,8 @@
     jobId?: string;
     name?: string;
     dialog?: boolean;
+    quote?: ui.Quote;
+    url?: string;
     class?: ClassValue;
   } = $props();
 
@@ -82,24 +85,19 @@
   }
 </script>
 
-{#if !dialog}<div class={["w-7 shrink-0", className]}>
-    {#if actions.length || f.receipt}<DropdownMenu label="Check actions" placement="bottom-end" sheet>
-        {#snippet trigger(props)}<IconButton
-            {...props}
-            icon="ellipsis-horizontal"
-            label="Check actions"
-            size="sm"
-          />{/snippet}
-        {#if f.receipt}<MenuItem icon="clock" onselect={() => controller.patch({ open: true })}
-            >Check CI request</MenuItem
-          >{/if}
-        {#each actions as action (action)}<MenuItem
-            icon={action === "cancel" ? "stop" : "arrow-path"}
-            disabled={f.busy || blocked || !!reason(action)}
-            description={reason(action) || undefined}
-            onselect={() => void choose(action)}>{ciLabel(action)}</MenuItem
-          >{/each}
-      </DropdownMenu>{/if}
+{#snippet items()}
+  {#if f.receipt}<MenuItem icon="clock" onselect={() => controller.patch({ open: true })}>Check CI request</MenuItem
+    >{/if}
+  {#each actions as action (action)}<MenuItem
+      icon={action === "cancel" ? "stop" : "arrow-path"}
+      disabled={f.busy || blocked || !!reason(action)}
+      description={reason(action) || undefined}
+      onselect={() => void choose(action)}>{ciLabel(action)}</MenuItem
+    >{/each}
+{/snippet}
+
+{#if !dialog}<div class={["flex shrink-0 justify-end", className]}>
+    <CitationActions {quote} {url} label="Check actions" children={actions.length || f.receipt ? items : undefined} />
   </div>{/if}
 {#if dialog}<Dialog
     bind:open={

@@ -943,7 +943,15 @@ Nie ma offline send ani zapisu po samym logowaniu. Szkic pozostaje po błędzie.
 | Branch i stan PR | Overflow nagłówka: **Update branch**, **Close pull request**/**Reopen pull request** | Update potwierdza merge base do head na GitHub i możliwy nowy CI; bez lokalnego push. Close wymaga potwierdzenia; reopen jest osobną jawną akcją, nie Undo uruchamianym automatycznie |
 | Tytuł i opis | **Edit title and description** przy nagłówku/opisie i w overflow | Edytowalny Markdown z preview, **Save changes**, konflikt przy zewnętrznej edycji nie nadpisuje jej po cichu |
 | Reviewers, assignees, labels | Pola Summary z pickerami i jawnym **Apply** | Request/re-request user lub team, usunięcie requestu, dodanie/usunięcie istniejących labels i assignees; bez tworzenia globalnych etykiet lub zmiany zespołu. Picker informuje o powiadomieniu zespołu |
-| CI i logi | Ikonowe akcje z tooltipami w wierszach checków/jobs Summary i podglądzie logu | **View logs**, **Re-run**, **Re-run failed**, **Cancel run**; kontekst wiersza i dialog rozróżniają cały run od jednego joba. Pokazujemy run/attempt/SHA, zależne joby jako skutek ponowienia i możliwy deploy. Cancel potwierdza cały run i wpływ na pozostałe PR z tym run. Zewnętrzne CI i brak praw wyłączają akcje z przyczyną |
+| CI i logi | Jedno menu w wierszach checków/jobs Summary i podglądzie logu | **View logs**, **Re-run**, **Re-run failed**, **Cancel run**; kontekst wiersza i dialog rozróżniają cały run od jednego joba. Pokazujemy run/attempt/SHA, zależne joby jako skutek ponowienia i możliwy deploy. Cancel potwierdza cały run i wpływ na pozostałe PR z tym run. Zewnętrzne CI i brak praw wyłączają akcje z przyczyną |
+
+Komentarze, podsumowania review, checki, joby i logi używają jednego menu akcji
+w web i mobile. Grupa **Canopy** zawiera **Send to agent** (oraz **Cite** w mobile),
+a po separatorze grupa **GitHub** zawiera akcje zdalne i **Open on GitHub**,
+gdy dany element ma bezpieczny URL. Puste grupy są pomijane. Nie ma osobnego
+skrótu z ikoną wysyłania; stały przycisk menu zostawia miejsce na długie nazwy
+i nie przesuwa **View logs** przy najechaniu lub fokusie. Puste kontrolki
+stronicowania i pusta odpowiedź jobs nie zostawiają odstępu przed linkiem do providera.
 
 Review pending należy do GitHub user ID: po otwarciu doczytujemy istniejący draft z GitHub,
 również utworzony na innym urządzeniu. Rozróżniamy tekst w edytorze (jeszcze lokalny),

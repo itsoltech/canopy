@@ -38,6 +38,7 @@ export interface PickerSection<T> {
   /** Stable identity when separate projects or computers have the same display name. */
   id?: string;
   title?: string;
+  separator?: boolean;
   options: PickerOption<T>[];
 }
 
@@ -108,6 +109,9 @@ export function PickerSheet<T>({
       >
         {shown.map((section, index) => (
           <View key={section.id ?? section.title ?? index} accessibilityRole="list">
+            {index > 0 && section.separator && (
+              <View style={{ height: 1, marginVertical: 4, marginHorizontal: 8, backgroundColor: c.rule }} />
+            )}
             {section.title ? (
               <Text
                 accessibilityRole="header"

@@ -73,7 +73,7 @@ export function TimelineEvent({
               quote={prCommentCitation(snapshot, entry)}
             />
           ) : (
-            <CitationActions quote={prCommentCitation(snapshot, entry, "review")} />
+            <CitationActions quote={prCommentCitation(snapshot, entry, "review")} url={entry.url} />
           )}
         </View>
       )}

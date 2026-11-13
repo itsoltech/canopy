@@ -12,7 +12,6 @@ import { PullRequestLog } from "./PullRequestLog";
 import { toneColor } from "./presentation";
 import type { github } from "@canopy/contracts";
 import { CiActions } from "./CiActions";
-import { CitationActions } from "./CitationActions";
 import { prCitation, prCheckFailed } from "@canopy/domain";
 import { ListSkeleton } from "../../ui/Skeleton";
 
@@ -71,23 +70,24 @@ export function PullRequestJobs({ snapshot, runId }: { snapshot: github.PullRequ
       {pages.current?.jobs.map((job) => {
         const look = checkLook(job.state);
 
+        const quote = prCheckFailed(job.state)
+          ? prCitation(snapshot, "job", job.id, `${job.name}: ${job.state}`, { url: job.url })
+          : undefined;
+
         return (
           <View key={job.id} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <Icon name={look.icon} label={look.label} color={toneColor(c, look.tone)} />
             <Text numberOfLines={2} style={[type.small, { flex: 1, color: c.text }]}>
               {job.name}
             </Text>
-            {prCheckFailed(job.state) && (
-              <CitationActions
-                quote={prCitation(snapshot, "job", job.id, `${job.name}: ${job.state}`, { url: job.url })}
-              />
-            )}
             <CiActions
               snapshot={snapshot}
               runId={runId}
               state={pages.current?.run?.state ?? job.state}
               jobId={job.id}
               name={job.name}
+              url={job.url}
+              quote={quote}
             />
             <Button
               title="View logs"
@@ -123,19 +123,22 @@ export function PullRequestJobs({ snapshot, runId }: { snapshot: github.PullRequ
             setJob("");
             choose?.();
           }}
-        >
-          <CiActions
-            snapshot={snapshot}
-            runId={runId}
-            state={pages.current?.run?.state ?? "unknown"}
-            jobId={jobId}
-            name={pages.current?.jobs.find((job) => job.id === jobId)?.name ?? ""}
-            beforeChoose={(choose) => {
-              pendingLogAction.current = choose;
-              setLogVisible(false);
-            }}
-          />
-        </PullRequestLog>
+          renderActions={(quote) => (
+            <CiActions
+              snapshot={snapshot}
+              runId={runId}
+              state={pages.current?.run?.state ?? "unknown"}
+              jobId={jobId}
+              name={pages.current?.jobs.find((job) => job.id === jobId)?.name ?? ""}
+              quote={quote}
+              url={pages.current?.jobs.find((job) => job.id === jobId)?.url ?? ""}
+              beforeChoose={(choose) => {
+                pendingLogAction.current = choose;
+                setLogVisible(false);
+              }}
+            />
+          )}
+        />
       )}
     </View>
   );

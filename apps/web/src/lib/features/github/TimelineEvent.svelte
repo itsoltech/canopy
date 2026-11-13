@@ -58,7 +58,7 @@
               kind="issue"
               quote={prCommentCitation(snapshot, entry)}
             />
-          {:else}<CitationActions quote={prCommentCitation(snapshot, entry, "review")} />{/if}
+          {:else}<CitationActions quote={prCommentCitation(snapshot, entry, "review")} url={entry.url} />{/if}
         </div></CitationRegion
       >{/if}
   {/if}

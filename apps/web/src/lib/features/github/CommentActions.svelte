@@ -74,15 +74,18 @@
   }
 </script>
 
+{#snippet items()}
+  {@const disabled = busy || snapshot.stale || Boolean(receipt && mutationUnconfirmed(receipt))}
+  {#if comment.viewerCanUpdate}<MenuItem {disabled} onselect={() => (editing = true)}>Edit comment</MenuItem>{/if}
+  {#if comment.viewerCanDelete}<MenuItem {disabled} onselect={() => void prepareDelete()}>Delete comment</MenuItem>{/if}
+{/snippet}
+
 <div class={["grid gap-2", className]}>
-  <CitationActions {quote}>
-    {#if own && (comment.viewerCanUpdate || comment.viewerCanDelete)}
-      {@const disabled = busy || snapshot.stale || Boolean(receipt && mutationUnconfirmed(receipt))}
-      {#if comment.viewerCanUpdate}<MenuItem {disabled} onselect={() => (editing = true)}>Edit comment</MenuItem>{/if}
-      {#if comment.viewerCanDelete}<MenuItem {disabled} onselect={() => void prepareDelete()}>Delete comment</MenuItem
-        >{/if}
-    {/if}
-  </CitationActions>
+  <CitationActions
+    {quote}
+    url={comment.url}
+    children={own && (comment.viewerCanUpdate || comment.viewerCanDelete) ? items : undefined}
+  />
   {#if editing}<CommentComposer
       {snapshot}
       resourceId={comment.id}

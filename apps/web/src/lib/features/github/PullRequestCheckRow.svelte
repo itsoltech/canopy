@@ -9,7 +9,6 @@
   import { toneClasses } from "./presentation.ts";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import CiActions from "./CiActions.svelte";
-  import CitationActions from "./CitationActions.svelte";
   import { prCitation, prCheckFailed } from "@canopy/domain";
 
   let {
@@ -40,16 +39,21 @@
       <p class="max-w-24 truncate text-zinc-500 max-sm:hidden dark:text-zinc-400">{check.provider}</p>
       <Icon name={open ? "chevron-down" : "chevron-right"} />
     </button>
-    <CiActions {snapshot} runId={check.runId} state={check.state} name={check.name} />
-    {#if prCheckFailed(check.state)}<CitationActions
-        quote={prCitation(
-          snapshot,
-          "check",
-          check.nodeId || check.url || check.name,
-          `${check.name}: ${check.state}${check.output ? `\n\n${check.output}` : ""}`,
-          { author: check.provider, url: check.url },
-        )}
-      />{/if}
+    <CiActions
+      {snapshot}
+      runId={check.runId}
+      state={check.state}
+      name={check.name}
+      quote={prCheckFailed(check.state)
+        ? prCitation(
+            snapshot,
+            "check",
+            check.nodeId || check.url || check.name,
+            `${check.name}: ${check.state}${check.output ? `\n\n${check.output}` : ""}`,
+            { author: check.provider, url: check.url },
+          )
+        : undefined}
+    />
   </div>
   {#if open}
     {#if check.runId}<PullRequestJobs {snapshot} runId={check.runId} />
