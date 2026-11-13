@@ -28,7 +28,7 @@ function ignoredRevisions(commit: PromotionCommit, git: GitReader): string[] {
 
 function commitExists(sha: string, git: GitReader): boolean {
   try {
-    return git("cat-file", "-t", sha).trim() === "commit";
+    return git("rev-parse", "--verify", "--quiet", `${sha}^{commit}`).trim() === sha;
   } catch {
     return false;
   }

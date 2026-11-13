@@ -127,9 +127,9 @@ function readyIndex(input: PromotionInput, ceiling: number): number {
     const commit = input.commits[i]!;
 
     if (
-      commit.green &&
       commit.release &&
-      (input.path === "dev-next" || commit.release.readyAt <= input.now - input.soakMs)
+      (input.path === "dev-next" || commit.release.readyAt <= input.now - input.soakMs) &&
+      commit.green
     )
       return i;
   }

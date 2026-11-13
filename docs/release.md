@@ -694,6 +694,15 @@ Angular co Release; nie uruchamiają `semantic-release --dry-run`, który sprawd
    z SHA i powodem (konkretna poprawka oraz PR/SHA/pliki albo etykieta/bloker). Wygasłe holdy
    nie wywołują tego alertu; etykiet i blokerów nie obchodzimy automatycznie.
 
+**Koszt odczytu.** Skrypt stronicuje listę przebiegów `release.yml` i zamkniętych PR-ów
+do `dev`/gałęzi źródłowej, a następnie wiąże je lokalnie przez dokładny SHA. Listę przebiegów
+filtruje lokalnie, aby nie obciąć historii na limicie 1000 wyników filtrowanego wyszukiwania
+Actions. Joby smoke pobiera dopiero dla rozważanego kandydata bez opublikowanego tagu;
+preferencja tagów, najnowszego przebiegu i jego próby pozostaje bez zmian.
+Recheck ponownie odczytuje publikacje, PR-y, CI i blokery. Wykorzystuje wyłącznie niezmienne
+dane git z pierwszego odczytu; zmianę jawnych linków w body PR uwzględnia także w atrybucji.
+Pusty zakres nie pobiera publikacji, PR-ów ani przebiegów. Limit workflow pozostaje 10 minut.
+
 **Konwencja linkowania.** Poprawiając wcześniejszą scaloną zmianę, autor `fix`/`perf`/revert
 podaje oryginalny PR lub SHA squasha w osobnej linii body PR/commita i zachowuje ją w squashu:
 
@@ -718,6 +727,8 @@ wyznacza zakresy pre-image; `git blame --porcelain -w -M -C -L start,end F^ -- <
 sprawdza tylko te zakresy, ignorując whitespace i śledząc przeniesienia/kopie linii.
 Blame pomija też rewizje wymienione w wersji `.git-blame-ignore-revs` z `F^`, żeby
 repozytoryjne formatowanie z przełamaniem linii nie przejmowało autorstwa naprawianego kodu.
+Brakujące rewizje sprzed squasha pomija po cichym sprawdzeniu ich istnienia; pełny checkout
+(`fetch-depth: 0` w obu workflowach) nie przywraca obiektów, które nigdy nie trafiły do historii.
 Zmiana samego whitespace nie tworzy powiązania. Dla hunków będących wyłącznie dopiskiem
 sprawdzamy bezpośrednią linię przed i po wstawieniu: obie muszą wskazywać ten sam commit.
 Na początku/końcu pliku wystarcza jedyny istniejący sąsiad. Przy różnych właścicielach,
