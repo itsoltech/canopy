@@ -133,6 +133,8 @@ export const coreGoalsMethods: CoreGoalsMethods = {
 
     if (thread.archived_at) throw new InvalidError("the thread is archived");
 
+    if (thread.rewind_pending_id) throw new InvalidError("This thread is rewinding. Wait for it to finish.");
+
     if (thread.runtime !== "worker" || !thread.worker_id) throw new InvalidError("goals need a worker thread");
 
     if (thread.provider === "grok") throw new InvalidError("Grok ACP goals are not supported yet");

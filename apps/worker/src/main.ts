@@ -352,6 +352,7 @@ while (!stopping.signal.aborted) {
           "provider_account_status",
           "running_turns",
           "thread_lifecycle_v1",
+          "thread_rewind_v1",
           "attachments",
           STEER_ATTACHMENTS_CAPABILITY,
           "probe_providers",

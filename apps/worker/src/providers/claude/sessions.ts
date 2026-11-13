@@ -82,6 +82,7 @@ export function claudeSessions(
       settings: await claudeInstructionSettings(spec.cwd, spec.scratch, runtime.home, options.baseEnv),
       ...(resume ? { resume: sessionId } : { sessionId }),
       includePartialMessages: true,
+      enableFileCheckpointing: true,
       ...permissions.options,
       canUseTool: canUseTool(spec, turnId, () => session?.autoAllow ?? "none"),
       // dontAsk denies whatever is not pre-approved. Gateway enforces connector grants and permission modes.

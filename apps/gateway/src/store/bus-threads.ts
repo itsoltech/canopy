@@ -291,6 +291,7 @@ export function busThreadStore(sql: SqlClient.SqlClient): BusThreadStore {
                          AND later.type = 'agent_message' AND later.first_seq > i.first_seq) AS final
                 FROM thread_items i LEFT JOIN turns u ON u.id = i.turn_id
                WHERE i.thread_id = ${threadId}::uuid AND i.last_seq > ${afterSeq}
+                 AND u.rewind_id IS NULL
                  AND (${view} = 'items' OR i.type IN ('user_message', 'agent_message'))
                ORDER BY i.first_seq LIMIT ${limit}`;
 

@@ -416,6 +416,9 @@ export class ScriptedWorker {
       }
 
       switch (kind.case) {
+        case "rewindThread":
+          reply(true, { rewind: { providerThreadId: kind.value.restoreProviderThreadId || Bun.randomUUIDv7() } });
+          break;
         case "listDirectory":
           if (kind.value.path.includes("missing"))
             reply(false, { errorCode: "CWD_NOT_FOUND", errorMessage: `${kind.value.path} does not exist` });

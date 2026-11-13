@@ -15,6 +15,7 @@ import { threadCatalog, threadTurnSettings } from "./thread-catalog.ts";
 import { threadSessions } from "./thread-sessions.ts";
 import { threadTurns, threadGoals } from "./thread-turns.ts";
 import { codexConnectorMcp } from "./connector-mcp.ts";
+import type { RewindThread } from "@canopy/contracts";
 
 export { CodexThreadError, type CodexThreadsOptions, type InteractionInit } from "./thread-types.ts";
 
@@ -43,6 +44,7 @@ export class CodexThreads extends Context.Service<
     readAccount(): Effect.Effect<{ email: string; plan: string } | undefined, CodexThreadError>;
     /** Creates the Codex thread (new or fork) and records thread_ready. Returns the Codex thread id. */
     create(spec: ThreadSpec, fork?: ForkSpec): Effect.Effect<string, CodexThreadError>;
+    rewind(request: RewindThread): Effect.Effect<{ providerThreadId?: string }, CodexThreadError>;
     /** Starts a turn; resumes the Codex thread first when this process has not loaded it. */
     startTurn(
       spec: ThreadSpec,
@@ -166,6 +168,7 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
           ),
         ),
       create: sessions.create,
+      rewind: sessions.rewind,
       ...threadTurns(ctx, sessions.ensureLoaded, turnSettings, sessions.reconfigure),
       listModels: catalog.listModels,
       listMentionCatalog: catalog.listMentionCatalog,

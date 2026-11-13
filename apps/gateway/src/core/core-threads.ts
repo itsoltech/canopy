@@ -113,7 +113,7 @@ export async function coreStartThread(hostContext: GatewayCore, row: ThreadRow):
     const last = turns.find((t) => t.id === row.fork_after_turn_id);
     fork = {
       sourceThreadId: source.id,
-      sourceProviderThreadId: source.provider_thread_id ?? "",
+      sourceProviderThreadId: last?.provider_session_id ?? source.provider_thread_id ?? "",
       afterTurnId: last?.id ?? "",
       afterProviderTurnRef: last?.provider_turn_ref ?? "",
     };

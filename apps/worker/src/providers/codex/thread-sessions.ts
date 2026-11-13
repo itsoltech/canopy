@@ -1,12 +1,10 @@
-import type { ForkSpec, ThreadSpec } from "@canopy/contracts";
+import type { ForkSpec, ThreadSpec, RewindThread } from "@canopy/contracts";
 import { Effect, Semaphore } from "effect";
-import { codexThreadProvider } from "./launch.ts";
-import { codexPermissions } from "./permissions.ts";
+import { threadParams as paramsOf } from "./thread-params.ts";
 
 import { CodexThreadError, fail, type Entry, type CodexThreadContext } from "./thread-types.ts";
 import { registerThread } from "./thread-registry.ts";
 import { dynamicTools } from "./dynamic-tools.ts";
-import { managedPlugins } from "../../agent-environment/plugin-loading.ts";
 
 const NO_ROLLOUT = /no rollout found/i;
 
@@ -21,34 +19,13 @@ const announceThread = (ctx: CodexThreadContext, entry: Entry, replaces = "") =>
     .pipe(Effect.tap((event) => Effect.sync(() => ctx.options.publish(event))));
 
 export function threadSessions(ctx: CodexThreadContext) {
-  const { options, codex, byPlatform, connectorCatalog } = ctx;
+  const { options, codex, journal, byPlatform } = ctx;
   const loading = Semaphore.makeUnsafe(1);
 
   const register = (platformId: string, codexId: string, rolloutPath: string | null) =>
     registerThread(ctx, platformId, codexId, rolloutPath);
 
-  const threadParams = (spec: ThreadSpec) => {
-    const home = options.launch.env["CODEX_HOME"];
-
-    if (home) managedPlugins(home, "codex");
-    connectorCatalog.set(spec.threadId, spec.connectorTools);
-    const profile = options.profile(spec.providerProfileId);
-
-    if (!profile) throw new Error(`provider profile "${spec.providerProfileId || "native"}" is not available`);
-
-    return {
-      cwd: spec.cwd,
-      // No project root search in scratch: otherwise Codex can collect ~/AGENTS.md on its parent walk.
-      config: {
-        ...(spec.scratch && { project_root_markers: [] }),
-        ...ctx.connectorMcp?.config(spec),
-      },
-      ...(spec.model && { model: spec.model }),
-      ...(spec.instructions && { developerInstructions: spec.instructions }),
-      ...codexPermissions(spec.permissionMode),
-      ...codexThreadProvider(profile),
-    };
-  };
+  const threadParams = (spec: ThreadSpec) => paramsOf(ctx, spec);
 
   const startThread = (spec: ThreadSpec, params: ReturnType<typeof threadParams>, operation: string) =>
     codex
@@ -141,6 +118,54 @@ export function threadSessions(ctx: CodexThreadContext) {
           ),
         );
       }),
+    rewind: Effect.fn("CodexThreads.rewind")(function* (request: RewindThread) {
+      const spec = request.thread;
+
+      if (!spec) throw new Error("thread spec missing");
+
+      if (request.preview) return {};
+      const previous = byPlatform.get(spec.threadId);
+
+      if (previous) {
+        yield* codex
+          .request("thread/unsubscribe", { threadId: previous.codexId })
+          .pipe(Effect.mapError(fail(spec.threadId, "rewind")));
+        ctx.byCodex.delete(previous.codexId);
+        byPlatform.delete(spec.threadId);
+      }
+
+      if (request.restoreProviderThreadId) {
+        const response = yield* codex
+          .request("thread/resume", { threadId: request.restoreProviderThreadId, ...threadParams(spec) })
+          .pipe(Effect.mapError(fail(spec.threadId, "restore rewind")));
+
+        const entry = register(spec.threadId, response.thread.id, response.thread.path);
+
+        return { providerThreadId: entry.codexId };
+      }
+
+      if (!request.empty && (!request.afterProviderTurnRef || !request.sourceProviderThreadId))
+        return yield* new CodexThreadError({
+          threadId: spec.threadId,
+          operation: "rewind",
+          message: "The rewind point is unavailable. Choose an earlier message.",
+        });
+      const params = threadParams(spec);
+
+      const response = request.empty
+        ? yield* startThread(spec, params, "rewind")
+        : yield* codex
+            .request("thread/fork", {
+              ...params,
+              threadId: request.sourceProviderThreadId,
+              lastTurnId: request.afterProviderTurnRef,
+            })
+            .pipe(Effect.mapError(fail(spec.threadId, "rewind")));
+
+      register(spec.threadId, response.thread.id, response.thread.path);
+
+      return { providerThreadId: response.thread.id };
+    }),
     create: Effect.fn("CodexThreads.create")(function* (spec: ThreadSpec, fork?: ForkSpec) {
       const params = yield* Effect.try({
         try: () => threadParams(spec),

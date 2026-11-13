@@ -8,6 +8,7 @@ import { watchLocalThread } from "../core/local-thread-watch.ts";
 import { coreState } from "../core/core-context.ts";
 import { readRangeContent } from "../computers/range-content-read.ts";
 import { watchSequenceThread } from "../core/sequence-thread-watch.ts";
+import { rewindHandlers } from "./ui-rewinds.ts";
 
 export function threadsHandlers(
   core: GatewayCore,
@@ -34,8 +35,13 @@ export function threadsHandlers(
   | "setThreadArchived"
   | "deleteThread"
   | "restoreThread"
+  | "prepareThreadRewind"
+  | "rewindThread"
+  | "restoreThreadRewind"
+  | "getThreadRewind"
 > {
   return {
+    ...rewindHandlers(core),
     reorderThread: (request) =>
       guard(async () => create(ui.GetThreadResponseSchema, { thread: await core.reorderThread(request) })),
     listThreads: (request) =>

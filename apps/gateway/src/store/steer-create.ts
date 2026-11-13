@@ -8,7 +8,12 @@ export function createSteer(sql: SqlClient.SqlClient, request: Parameters<SteerS
   return sql.withTransaction(
     Effect.gen(function* () {
       const { threadId, turnId, text, userId, clientRequestId, model, effort, permissionMode, input, linked } = request;
-      yield* sql`SELECT id FROM threads WHERE id = ${threadId}::uuid FOR UPDATE`;
+
+      const admission = yield* sql<{ rewind_pending_id: string | null }>`SELECT rewind_pending_id FROM threads
+        WHERE id = ${threadId}::uuid FOR UPDATE`;
+
+      if (admission[0]?.rewind_pending_id)
+        return yield* Effect.fail(new Invalid("This thread is rewinding. Wait for it to finish."));
       const id = Bun.randomUUIDv7();
 
       const rows = yield* sql<{ id: string }>`

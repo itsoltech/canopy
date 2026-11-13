@@ -133,6 +133,21 @@ export function threadStart(
               await claudeContent(
                 settings?.connectorNote ? { ...input, text: `${input.text}\n\n${settings.connectorNote}` } : input,
               ),
+              {
+              uuid: Schema.decodeUnknownSync(
+                Schema.TemplateLiteral([
+                  Schema.String,
+                  "-",
+                  Schema.String,
+                  "-",
+                  Schema.String,
+                  "-",
+                  Schema.String,
+                  "-",
+                  Schema.String,
+                ]),
+              )(turnId),
+              },
             ),
           );
         },

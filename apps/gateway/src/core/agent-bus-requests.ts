@@ -44,6 +44,14 @@ export const busRequestsMethods: BusRequestsMethods = {
 
     if (request.cancelled) return busCancel(this, request, source, workerId);
 
+    const rewound =
+      request.turnId &&
+      (
+        await this[busState].host.run(GatewayStore.use((store) => store.turnsOf(request.threadId, [request.turnId])))
+      ).some((turn) => turn.rewind_id);
+
+    if (calling.rewind_pending_id || rewound) return failure(request.callId, "This message has been rewound.");
+
     const stored = await this[busState].host.run(AgentBusStore.use((s) => s.storedCall(request.callId)));
 
     if (stored && stored.source_thread_id !== calling.id) return failure(request.callId, "Call not found");

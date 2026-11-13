@@ -59,6 +59,7 @@ export function permissionModeName(mode: PermissionMode): string {
 
 export function toUiThread(row: ThreadRow): ui.Thread {
   return create(ui.ThreadSchema, {
+    rewindPending: Boolean(row.rewind_pending_id),
     ...(row.newest_pull_request && {
       newestPullRequest: fromJson(github.PullRequestSummarySchema, row.newest_pull_request),
     }),
@@ -182,6 +183,7 @@ export function toUiTurn(row: TurnRow & { inherited?: boolean }): ui.Turn {
       : undefined;
 
   return create(ui.TurnSchema, {
+    rewindId: row.inherited ? "" : (row.rewind_id ?? ""),
     id: row.id,
     ordinal: row.ordinal,
     status: row.status,

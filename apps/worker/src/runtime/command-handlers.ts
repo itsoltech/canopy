@@ -134,6 +134,8 @@ export class CommandHandlers {
         return this.ctx.ops.interruptBotTurn(kind.value);
       case "createThread":
         return this.ctx.ops.createThread(kind);
+      case "rewindThread":
+        return this.ctx.ops.rewindThread(kind.value);
       case "startTurn":
         return this.ctx.ops.startTurn(kind, command.commandId);
       case "steerTurn":

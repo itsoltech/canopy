@@ -37,9 +37,8 @@ export function outboxStore(sql: SqlClient.SqlClient): OutboxStore {
       sql`
       SELECT c.id FROM worker_commands c JOIN turns u ON u.id = c.turn_id JOIN threads t ON t.id = c.thread_id
       WHERE c.id = ${commandId}::uuid AND c.status IN ('pending', 'delivered') AND c.expires_at > now()
-        AND u.status IN ('queued', 'running') AND t.archived_at IS NULL AND t.deleted_at IS NULL`.pipe(
-        Effect.map((rows) => rows.length > 0),
-      ),
+        AND u.status IN ('queued', 'running') AND u.rewind_id IS NULL AND t.rewind_pending_id IS NULL
+        AND t.archived_at IS NULL AND t.deleted_at IS NULL`.pipe(Effect.map((rows) => rows.length > 0)),
     enqueueCommand: ({ workerId, threadId, turnId, command, ttlSeconds }) =>
       Effect.gen(function* () {
         const message = create(CommandSchema, { ...command });

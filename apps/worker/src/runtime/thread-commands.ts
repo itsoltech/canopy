@@ -107,7 +107,7 @@ export class ThreadCommands {
     if (await this.ctx.state.options.runtime.runPromise(Journal.use((j) => j.wasInterrupted(spec.threadId, turnId))))
       return {};
 
-    if (this.ctx.state.closedThreads.has(spec.threadId))
+    if (this.ctx.state.closedThreads.has(spec.threadId) || this.ctx.state.rewindingThreads.has(spec.threadId))
       throw new CommandError("THREAD_CLOSED", "the thread is archived or deleted", true);
 
     if (
@@ -161,7 +161,7 @@ export class ThreadCommands {
     if (await this.ctx.state.options.runtime.runPromise(Journal.use((j) => j.wasInterrupted(spec.threadId, turnId))))
       return {};
 
-    if (this.ctx.state.closedThreads.has(spec.threadId))
+    if (this.ctx.state.closedThreads.has(spec.threadId) || this.ctx.state.rewindingThreads.has(spec.threadId))
       throw new CommandError("THREAD_CLOSED", "the thread is archived or deleted", true);
     workerDiagnostics.turns.queue(
       spec.threadId,

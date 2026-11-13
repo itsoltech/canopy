@@ -235,6 +235,10 @@ service GatewayService {
   rpc CreateThread(CreateThreadRequest) returns (CreateThreadResponse);
   rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
   rpc InterruptThread(InterruptThreadRequest) returns (InterruptThreadResponse);
+  rpc PrepareThreadRewind(ThreadRewindRequest) returns (ThreadRewindPreview);
+  rpc RewindThread(ThreadRewindRequest) returns (ThreadRewindResponse);
+  rpc RestoreThreadRewind(RestoreThreadRewindRequest) returns (ThreadRewindResponse);
+  rpc GetThreadRewind(RestoreThreadRewindRequest) returns (ThreadRewindResponse);
   rpc AnswerInteraction(AnswerInteractionRequest) returns (AnswerInteractionResponse);
   rpc AnswerThreadSecret(AnswerThreadSecretRequest) returns (ThreadSecretResponse);
   rpc RevokeThreadSecret(RevokeThreadSecretRequest) returns (ThreadSecretResponse);
@@ -649,6 +653,7 @@ enum ThreadKind {
 }
 
 message Thread {
+  bool rewind_pending = 823;
   string id = 1;
   string project_id = 2;
   ThreadKind kind = 3;
@@ -811,8 +816,40 @@ message BusDelivery {
   string status = 5;
 }
 
+message ThreadRewindRequest {
+  string thread_id = 1;
+  string turn_id = 2;
+  string client_request_id = 3;
+  bool restore_files = 4;
+  bool stop_running = 5;
+}
+
+message ThreadRewindPreview {
+  uint32 messages = 1;
+  bool running = 2;
+  uint32 background_tasks = 3;
+  bool files_available = 4;
+  repeated string files = 5;
+  string files_detail = 6;
+}
+
+message ThreadRewindResponse {
+  string rewind_id = 1;
+  // pending | completed | failed | restored
+  string status = 2;
+  Turn draft = 3;
+  string error = 4;
+}
+
+message RestoreThreadRewindRequest {
+  string thread_id = 1;
+  string rewind_id = 2;
+}
+
 message Turn {
   string id = 1;
+  // Durable supersession; inherited copies keep their fork's original history.
+  string rewind_id = 823;
   optional string shell_command = 240;
   canopy.worker.v1.ShellResult shell_result = 241;
   uint32 ordinal = 2;

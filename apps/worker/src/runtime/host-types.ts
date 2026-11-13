@@ -30,6 +30,7 @@ export type DirectoryEntryInit = MessageInitShape<typeof DirectoryEntrySchema>;
 export type ProfileModelsInit = MessageInitShape<typeof ProfileModelsSchema>;
 
 export interface CommandOutput {
+  readonly rewind?: MessageInitShape<typeof CommandResultSchema>["rewind"];
   readonly botFile?: MessageInitShape<typeof CommandResultSchema>["botFile"];
   readonly workspaceCopy?: MessageInitShape<typeof CommandResultSchema>["workspaceCopy"];
   readonly gitPrContext?: MessageInitShape<typeof CommandResultSchema>["gitPrContext"];
@@ -148,6 +149,7 @@ export function commandProvider(command: Command): Provider | undefined {
     case "startTurn":
     case "createThread":
     case "setGoal":
+    case "rewindThread":
       return kind.value.thread?.provider || undefined;
     case "generateText":
     case "runBotTurn":

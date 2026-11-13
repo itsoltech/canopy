@@ -4,7 +4,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { forkSession, getSessionMessages } from "@anthropic-ai/claude-agent-sdk";
 import { readClaudeTurn } from "./transcript.ts";
-import { Schema } from "effect";
+import { Effect, Layer, Schema } from "effect";
+import { create } from "@bufbuild/protobuf";
+import {
+  AgentToolResultSchema,
+  InteractionResponseSchema,
+  RewindThreadSchema,
+  ThreadSpecSchema,
+  Provider,
+} from "@canopy/contracts";
+import { ClaudeThreads } from "./threads.ts";
+import { Journal } from "../../journal/index.ts";
+import { resolveProfiles } from "../profiles.ts";
 import { isString, jsonObject, jsonString } from "../json.ts";
 
 /**
@@ -91,6 +102,69 @@ const texts = (messages: Awaited<ReturnType<typeof getSessionMessages>>) =>
   });
 
 describe("Claude fork at a turn", () => {
+  test("repeated in-place rewind uses the original session with its original UUIDs", async () => {
+    const previous = process.env["CLAUDE_CONFIG_DIR"];
+    process.env["CLAUDE_CONFIG_DIR"] = home;
+    const profile = resolveProfiles([{ id: "native", kind: "native", providers: ["claude"] }])[0]!.resolved!;
+
+    try {
+      const source = session();
+      const first = await readClaudeTurn(home, source.sessionId, source.next("one"));
+      const second = await readClaudeTurn(home, source.sessionId, source.next("two"));
+      source.next("three");
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const threads = yield* ClaudeThreads;
+
+          const thread = create(ThreadSpecSchema, {
+            threadId: Bun.randomUUIDv7(),
+            provider: Provider.CLAUDE,
+            providerThreadId: source.sessionId,
+            cwd,
+          });
+
+          const replacement = yield* threads.rewind(
+            create(RewindThreadSchema, {
+              thread,
+              sourceProviderThreadId: source.sessionId,
+              afterProviderTurnRef: second!.end!.providerTurnRef ?? "",
+            }),
+          );
+
+          thread.providerThreadId = replacement.providerThreadId ?? "";
+
+          const repeated = yield* threads.rewind(
+            create(RewindThreadSchema, {
+              thread,
+              sourceProviderThreadId: source.sessionId,
+              afterProviderTurnRef: first!.end!.providerTurnRef ?? "",
+            }),
+          );
+
+          const kept = yield* Effect.promise(() => getSessionMessages(repeated.providerThreadId ?? "", { dir: cwd }));
+          const original = yield* Effect.promise(() => getSessionMessages(source.sessionId, { dir: cwd }));
+          expect(texts(kept)).toEqual(["message one", "answer one"]);
+          expect(texts(original)).toHaveLength(6);
+        }).pipe(
+          Effect.provide(
+            ClaudeThreads.layer({
+              home,
+              baseEnv: {},
+              nativeTools: { nativeSubagents: false, nativeScheduling: false },
+              profile: () => profile,
+              publish: () => {},
+              interact: async () => create(InteractionResponseSchema),
+              callTool: async () => create(AgentToolResultSchema),
+            }).pipe(Layer.provideMerge(Journal.layer(join(home, "journal.db")))),
+          ),
+          Effect.scoped,
+        ),
+      );
+    } finally {
+      if (previous === undefined) delete process.env["CLAUDE_CONFIG_DIR"];
+      else process.env["CLAUDE_CONFIG_DIR"] = previous;
+    }
+  });
   test("forkSession up to the turn's ref keeps turns 1–2 and drops turn 3", async () => {
     const previous = process.env["CLAUDE_CONFIG_DIR"];
     process.env["CLAUDE_CONFIG_DIR"] = home;

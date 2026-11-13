@@ -17,6 +17,7 @@ import { worktreeStore, type WorktreeStore } from "./worktrees.ts";
 import { worktreeLifecycleStore } from "./worktree-lifecycle.ts";
 import { workspaceCopyStore } from "./workspace-copy.ts";
 import { queryMethods } from "../diagnostics/query-context.ts";
+import { rewindStore, type RewindStore } from "./rewinds.ts";
 
 /**
  * Gateway data access (PostgreSQL). One service, grouped by concern; every query casts uuid
@@ -53,7 +54,8 @@ export class GatewayStore extends Context.Service<
     WorktreeStore &
     ReturnType<typeof worktreeLifecycleStore> &
     ThreadLifecycle &
-    ReturnType<typeof workspaceCopyStore>
+    ReturnType<typeof workspaceCopyStore> &
+    RewindStore
 >()("canopy/gateway/GatewayStore") {
   static readonly layer = (secretsKey: Buffer) =>
     Layer.effect(
@@ -83,6 +85,10 @@ export class GatewayStore extends Context.Service<
             threadSnapshot(sql, () => store),
           ),
           ...queryMethods("commands.write", outboxStore(sql)),
+          ...queryMethods(
+            "threads.lifecycle",
+            rewindStore(sql, () => store),
+          ),
           ...queryMethods(
             "interactions.store",
             interactionStore(sql, () => store),

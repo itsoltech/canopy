@@ -90,8 +90,13 @@ export function turnStore(sql: SqlClient.SqlClient): TurnStore {
 
           if (!text.trim() && attachments.length === 0 && !input?.quotes?.length)
             return yield* Effect.fail(new Invalid("message is empty"));
+
           // Serialize ordinal allocation and admission with queue edits and dispatch.
-          yield* sql`SELECT id FROM threads WHERE id = ${threadId}::uuid FOR UPDATE`;
+          const admission = yield* sql<{ rewind_pending_id: string | null }>`SELECT rewind_pending_id FROM threads
+            WHERE id = ${threadId}::uuid FOR UPDATE`;
+
+          if (admission[0]?.rewind_pending_id)
+            return yield* Effect.fail(new Invalid("This thread is rewinding. Wait for it to finish."));
           const id = Bun.randomUUIDv7();
 
           const rows = yield* sql<TurnRow>`
@@ -154,6 +159,7 @@ export function turnStore(sql: SqlClient.SqlClient): TurnStore {
       sql<TurnRow>`
             SELECT u.* FROM thread_fork_chain(${threadId}::uuid) c JOIN turns u ON u.thread_id = c.thread_id
              WHERE u.trigger IN ('user', 'goal', 'agent_bus')
+               AND thread_turn_visible_at(u.id,coalesce(c.upto_seq,(SELECT last_seq FROM threads WHERE id=${threadId}::uuid)))
                AND COALESCE(u.input->>'message', u.input->>'text', '') <> ''
                AND (c.level = 0 OR (u.status <> 'queued' AND (c.upto_seq IS NULL OR u.last_seq <= c.upto_seq)))
              ORDER BY c.level DESC, u.ordinal LIMIT 1`.pipe(Effect.map((rows) => rows[0])),

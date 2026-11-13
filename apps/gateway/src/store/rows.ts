@@ -4,6 +4,7 @@ import type { StoredQuote } from "./quotes.ts";
 import type { StoredMentions } from "../core/mentions.ts";
 
 export interface ThreadRow {
+  rewind_pending_id?: string | null;
   newest_pull_request?: JsonValue | null;
   pull_request_count?: number;
   pull_request_revision?: bigint;
@@ -117,6 +118,8 @@ export interface ThreadWorktreeColumns {
 }
 
 export interface TurnRow {
+  rewind_id?: string | null;
+  provider_session_id?: string | null;
   id: string;
   /** The bot that started or sent the turn (trigger bot), when the query joins it. */
   bot_id?: string | null;

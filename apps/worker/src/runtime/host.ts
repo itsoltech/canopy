@@ -306,7 +306,7 @@ export class WorkerHost {
     if (this.#ctx.state.shuttingDown) return undefined;
 
     // Leave new work unacknowledged in the durable gateway outbox until the update completes/restarts.
-    const admission = ["startTurn", "createThread", "generateText", "setGoal", "runBotTurn"].includes(
+    const admission = ["startTurn", "createThread", "generateText", "setGoal", "runBotTurn", "rewindThread"].includes(
       command.kind.case ?? "",
     );
 
@@ -337,6 +337,7 @@ export class WorkerHost {
         ...(output.entries && { entries: output.entries }),
         ...(output.directoryPath && { directoryPath: output.directoryPath }),
         ...(output.models && { models: output.models }),
+        ...(output.rewind && { rewind: output.rewind }),
         ...(output.login && { login: output.login }),
         ...(output.providerAccounts && { providerAccounts: output.providerAccounts }),
         ...(output.mentionCatalog && { mentionCatalog: output.mentionCatalog }),

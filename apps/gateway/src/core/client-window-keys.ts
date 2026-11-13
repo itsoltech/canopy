@@ -14,6 +14,7 @@ export function clientWindowKeys(sql: SqlClient.SqlClient, thread: string, reque
       SELECT 'turn' AS kind,u.id::text AS entity_id,(u.ordinal::bigint-c.level::bigint*1000000000) AS position,u.id::text AS turn_id
         FROM thread_fork_chain(${thread}::uuid) c JOIN turns u ON u.thread_id=c.thread_id
         WHERE u.status<>'queued' AND (c.upto_seq IS NULL OR u.last_seq<=c.upto_seq)
+          AND thread_turn_visible_at(u.id,c.upto_seq)
       UNION ALL SELECT kind,entity_id,position,turn_id FROM thread_replication_seed_entities WHERE thread_id=${thread}::uuid AND kind='legacy_turn'
     ) SELECT kind,entity_id,position::text,turn_id FROM candidates WHERE position<coalesce(
       (SELECT position FROM candidates WHERE entity_id=${request.beforeTurnId} LIMIT 1),9223372036854775807)
@@ -22,7 +23,7 @@ export function clientWindowKeys(sql: SqlClient.SqlClient, thread: string, reque
     const items = yield* sql<Key>`WITH candidates AS (
       SELECT 'item' AS kind,i.item_id AS entity_id,(i.first_seq-c.level::bigint*1000000000) AS position,coalesce(i.turn_id::text,'') AS turn_id
         FROM thread_fork_chain(${thread}::uuid) c JOIN thread_items i ON i.thread_id=c.thread_id
-        WHERE c.upto_seq IS NULL OR i.first_seq<=c.upto_seq
+        WHERE (c.upto_seq IS NULL OR i.first_seq<=c.upto_seq) AND thread_turn_visible_at(i.turn_id,c.upto_seq)
       UNION ALL SELECT kind,entity_id,position,turn_id FROM thread_replication_seed_entities WHERE thread_id=${thread}::uuid AND kind='legacy_item'
     ) SELECT kind,entity_id,position::text,turn_id FROM candidates WHERE (position,entity_id)<coalesce(
       (SELECT (position,entity_id) FROM candidates WHERE entity_id=${request.beforeItemId} LIMIT 1),ROW(9223372036854775807,''::text))

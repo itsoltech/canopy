@@ -13,6 +13,9 @@ import { claudeSessions } from "./sessions.ts";
 import { consumeSession } from "./session-consumer.ts";
 import { threadCreation, threadStart, threadControls } from "./thread-commands.ts";
 import { threadCatalog } from "./thread-catalog.ts";
+import { claudeRewind } from "./rewind.ts";
+import type { RewindThread, ThreadRewindResultSchema } from "@canopy/contracts";
+import type { MessageInitShape } from "@bufbuild/protobuf";
 
 export { ClaudeThreadError, type ClaudeThreadsOptions, type ClaudeInstanceRuntime } from "./thread-types.ts";
 
@@ -46,6 +49,7 @@ export class ClaudeThreads extends Context.Service<
   {
     /** Records thread_ready with the session id (forked session for a fork). Returns the session id. */
     create(spec: ThreadSpec, fork?: ForkSpec): Effect.Effect<string, ClaudeThreadError>;
+    rewind(request: RewindThread): Effect.Effect<MessageInitShape<typeof ThreadRewindResultSchema>, ClaudeThreadError>;
     /** Starts a turn and returns once it runs; the turn streams into the journal in the background. */
     startTurn(
       spec: ThreadSpec,
@@ -115,6 +119,7 @@ const make = (options: ClaudeThreadsOptions) =>
     const sessions = claudeSessions(ctx, runtime, (session) => consumeSession(ctx, session, output, turns));
 
     return ClaudeThreads.of({
+      rewind: claudeRewind(ctx, runtime),
       ...threadCreation(ctx, runtime),
       ...threadStart(ctx, sessions, turns.beginTurn, output.record),
       ...threadControls(ctx),

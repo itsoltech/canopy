@@ -1,6 +1,9 @@
 /** Increase only for a breaking WorkerLink contract; additive fields do not need a bump. */
 export const WORKER_LINK_PROTOCOL = 1;
 
+/** Owner-requested, durable conversation replacement with a preserved source session. */
+export const THREAD_REWIND_CAPABILITY = "thread_rewind_v1";
+
 /** Protocol 0 (before negotiation) is deliberately incompatible. Recovery uses UpdateService. */
 export const MIN_WORKER_LINK_PROTOCOL = 1;
 

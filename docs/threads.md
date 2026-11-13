@@ -247,6 +247,63 @@ Przycisk pod zakończoną turą (obok „Copy answer”) albo „Fork thread” 
 
 Zdarzenia źródła nie są kopiowane. Widoczna historia wątku to prefiksy źródeł (rekurencyjnie przez łańcuch forków), każdy do `last_seq` tury forka, plus własne zdarzenia. Zwraca ją funkcja `thread_timeline(thread_id)`. Odziedziczone wiersze mają `inherited = true` i zachowują `thread_id` źródła, więc UI może je oznaczyć.
 
+### Edycja od wiadomości („Edit from here”) — kontrakt
+
+Rewind zachowuje identyfikator, miejsce i ustawienia wątku Canopy. Cofnięta wiadomość
+wraca do kompozytora razem ze wzmiankami, cytatami i załącznikami. Wysłanie rozpoczyna
+nową turę sprzed tej wiadomości. Nie wykonuje ponownie żadnego starego narzędzia.
+
+Zweryfikowane możliwości przypiętych harnessów:
+
+| Harness | Rzeczywista możliwość | Wybór Canopy |
+|---|---|---|
+| Claude Agent SDK 0.3.316 | `resumeSessionAt` zachowuje wpis wskazany UUID włącznie. `forkSession({ upToMessageId })` tworzy trwały prefiks bez inferencji. `enableFileCheckpointing` i `rewindFiles(uuid, { dryRun })` obsługują osobno pliki. | Nowa sesja z prefiksem przed wybraną turą; oryginalna sesja zostaje. Pierwsza własna tura bez zachowanej historii zaczyna pustą sesję. |
+| Codex 0.164.0 | Przypięte typy mają `thread/revert { threadId, beforeTurnId }`, **nie** `thread/rollback`. Operacja zmienia trwałą historię tylko w trybie paginowanym i nie przywraca plików. `thread/fork { lastTurnId }` zachowuje wskazaną turę włącznie. | Fork do poprzedniej zachowanej tury, pod tym samym wątkiem Canopy. Oryginalna sesja zostaje dostępna do cofnięcia rewindu. |
+| Grok CLI 1.0.70, ACP v1 | Dokumentacja CLI opisuje `x.ai/rewind/*`, ale nie podaje kontraktu. Handshake nie ogłasza metod; sprawdzone `x.ai/rewind/list`, `apply` i `restore` zwracają `-32601 Method not found`. Bazowe ACP nie ma rewindu. | Jawne „Edit from here is not available for this agent.” Bez modyfikacji prywatnych plików ani udawania skróconej historii. |
+
+Źródła: typy `sdk.d.ts` z zainstalowanego SDK; [checkpointy Claude](https://code.claude.com/docs/en/agent-sdk/file-checkpointing);
+`packages/codex-protocol/src/gen/v2/ThreadRevertParams.ts` oraz
+[implementacja przypiętego Codexa](https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/app-server/src/request_processors/thread_processor.rs);
+[ACP Groka](https://docs.x.ai/build/cli/headless-scripting) i dołączone do CLI rozdziały
+„Agent mode” oraz „Sessions”. Nie zmieniamy przypiętych wersji.
+
+Gateway egzekwuje właściciela, zapisanie wiadomości i granice historii. Edycja
+obejmuje własne wiadomości rozpoczynające turę; steer nie jest osobną granicą harnessu.
+Boty, subagenci i odziedziczone wiadomości nie podlegają tej operacji. Nie wolno
+przekroczyć granicy celu lub wykonania harmonogramu. Aktywna praca wątku bocznego
+wymaga wcześniejszego zatrzymania. „Stop and edit” zatrzymuje bieżącą turę przed
+cofnięciem. Potwierdzenie mówi o zatrzymaniu zadań w tle i anulowaniu kolejki,
+steerów, oczekujących interakcji oraz ich zaległych dostarczeń.
+
+Domyślnie cofamy wyłącznie historię. Claude oferuje „Conversation and files” tylko
+po udanym podglądzie istniejącego checkpointu; pokazuje znane ścieżki. Dotyczy to
+plików śledzonych przez narzędzia edycji Claude, nie dowolnych efektów shella ani
+edycji subagentów. Stare tury bez checkpointu i Codex pokazują „Files stay as they
+are.” Fork Claude nie kopiuje file-history, więc przywracanie korzysta z sesji
+źródłowej przed przełączeniem. Nie odtwarzamy zgód ani zadań przy cofnięciu rewindu.
+
+Rewind ma trwały zamiar, komendę w outboxie i wynik w journalu workera. Do czasu
+rozstrzygnięcia gateway blokuje nowe wejścia. Commit wyniku przełącza wyłącznie
+sesję dostawcy i oznacza suffix tur jako zastąpiony; nie usuwa zdarzeń, itemów ani
+załączników. Trwałe zdarzenie rewindu i upserty tur docierają przez rosnący seq,
+również do luster i klientów po reconnect. Nie wymagają pełnego snapshotu.
+Domyślna oś czasu ukrywa suffix pod „N messages rewound · Show”. Odczyty dla modelu
+pomijają zastąpione tury. Nowa sesja nie zawiera ich nawet po restarcie workera.
+Cofnięcie rewindu jest możliwe przed rozpoczęciem kolejnej tury; przywraca sesję
+i widoczność historii, pozostawiając pliki w aktualnym stanie.
+
+Lista tur operacji i seq jej wykonania/cofnięcia są trwałe (`thread_rewind_turns`,
+`completed_seq`, `restored_seq`). Fork widzi historię źródła z chwili swojego
+punktu: późniejszy rewind źródła go nie zmienia. Nowy fork pomija wiadomości
+cofnięte przed swoim punktem. UUID granic Claude zawsze jest powiązany z sesją
+zapisaną przy turze; fork SDK zmienia UUID kopii.
+
+Komendy negocjują addytywną capability `thread_rewind_v1`. `WORKER_LINK_PROTOCOL`
+pozostaje 1, a starszy worker dostaje odmowę z instrukcją aktualizacji, zanim
+powstanie zamiar lub zmieni się historia. Zamrożony UpdateService pozostaje bez zmian.
+Web używa zwartego popovera przy akcji z tooltipem „Edit from here”; mobile tej
+samej akcji w menu przytrzymania. Ruch korzysta ze wspólnych tokenów.
+
 ## 4. Cykl życia wątku i tury
 
 ```mermaid

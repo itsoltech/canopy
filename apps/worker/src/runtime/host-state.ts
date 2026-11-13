@@ -72,6 +72,7 @@ export class HostState {
   readonly codexRestart = new Map<string, Promise<void>>();
   readonly running = new Set<string>();
   readonly closedThreads = new Set<string>();
+  readonly rewindingThreads = new Set<string>();
   updateDraining = false;
   admitting = 0;
 
