@@ -852,6 +852,14 @@ treści ani pozycji przewijania; krótki ruch używa tokenów i znika przy reduc
 Każda zakładka zachowuje własną pozycję w cache sesji. Patche zachowują poziome
 przewijanie wewnątrz pliku, bez osobnego pionowego viewportu.
 
+Zmiana rewizji PR w overview wątku i wznowienie overview po przerwie oznaczają
+odświeżenie współdzielonego odczytu, bez usuwania ostatniego snapshotu. Web/desktop
+(panel oraz osobna strona PR) i mobile zachowują zamontowane sekcje, rozwinięcia
+i scroll podczas rewalidacji tego samego PR. Skeleton jest stanem pierwszego
+odczytu bez cache; błąd odświeżenia zachowuje treść i udostępnia Retry. Zmiana
+konta/rewizji dostępu nadal rozdziela cache sekcji, a autorytatywny snapshot domu,
+usunięcie komputera i zmiana parowania zachowują czyszczenie prywatnych danych.
+
 Prawy panel PR korzysta ze wspólnego `ResizeHandle`, tak jak lewy sidebar. Uchwyt na lewej
 krawędzi obsługuje przeciąganie, strzałki (Shift przyspiesza), Home/End oraz reset dwuklikiem
 lub Enter. Domyślna szerokość to 576 px, zakres 320–1200 px; maksimum zostawia 384 px dla
