@@ -28,6 +28,10 @@ describe.skipIf(!dockerAvailable)("Codex provider warnings through the gatewayâ†
 
     try {
       await live.until((state) => state.turns.some((turn) => turn.id === running.id && turn.status === "running"));
+      // Gateway dispatch precedes native admission, including connector inventory checks.
+      expect(
+        await eventually(async () => f.host.runningTurns().some((turn) => turn.turnId === running.id), Boolean),
+      ).toBe(true);
       await f.release("background");
       await live.until(
         (state) =>
