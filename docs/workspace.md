@@ -1,13 +1,12 @@
 # Zakładki wątku i moduł plików
 
-Status: **draft projektu v2; układ oczekuje akceptacji użytkownika po obejrzeniu
-makiety**. Implementacja wymaga osobnego, jawnego polecenia rozpoczęcia prac.
-W proponowanym układzie zakładki dzielą rząd z sygnetem projektu i tytułem wątku.
+Status: **projekt v2 zaakceptowany; implementacja autoryzowana w siedmiu warstwach**.
+Zakładki dzielą rząd z sygnetem projektu i tytułem wątku.
 Pasek ikon obsługuje jeden panel; podsumowanie jest dokowane bez modułu, pływające na żądanie przy module,
 a na wąskim ekranie jest arkuszem. Ustalono jeden zastępowalny czysty preview,
 utrwalany przez Edit/Keep tab/dwuklik, drzewo ograniczone do cwd/worktree wątku
 i mobilną edycję natywną bez kolorów podczas pisania (kolory w viewerze i Preview
-changes). Ten PR opisuje projekt; stos implementacyjny nie został rozpoczęty.
+changes). Ten PR opisuje projekt; kod jest dostarczany w osobnym stosie draft PR.
 
 Cel: czytać i edytować pliki obok kontekstu wątku bez wielokrotnego otwierania modala.
 Priorytet: otwarcie wątku, pisanie i streaming nie płacą za nieotwarte moduły.
@@ -62,8 +61,12 @@ Projekt zachowuje następujące zachowania przy przenoszeniu istniejących powie
   wyświetlania i pozycji ręcznej; aktywacja karty nie zmienia kolejności wątków.
 - Stany Opening/empty/too large/unavailable podglądu używają kompaktowej wielkości
   podpisu pliku, zgodnie z poprawką #634, bez powiększenia przez kontekst dialogu.
-  Przy aktualizacji projektu #634 pozostaje otwarty; reguła jest wymogiem migracji,
-  nie twierdzeniem o jego scaleniu. Treść i cele dotykowe nadal respektują skalę UI.
+  Treść i cele dotykowe nadal respektują skalę UI. Reużywamy poprawione kontrolki
+  wyboru; radio nie otrzymuje stanu indeterminate (#637).
+
+Kolejka kontynuacji zadań w tle i skróty załączników/cytatów w jej wierszach
+(#630/#633) pozostają w istniejącym przepływie rozmowy. Zakładki nie zmieniają
+dyspozycji tur ani projekcji work-fold/feed; ukrycie rozmowy nie gubi kolejki.
 
 Poza zakresem: terminal, language server, uruchamianie kodu, automatyczny zapis,
 tworzenie i przenoszenie plików, pełny edytor projektu, synchronizacja szkiców,
@@ -719,9 +722,8 @@ Sprawdzamy szczeliny, gutter, długie ścieżki i rezerwę dirty/close w obu mot
 
 ## 10. Migracja i stos implementacyjny
 
-Zaakceptowano preview, zakres drzewa i sposób edycji mobilnej. Układ v2 pozostaje
-do obejrzenia i akceptacji; dokumentacyjny PR pozostaje draftem. Dopiero po tej
-akceptacji i osobnym poleceniu rozpoczęcia implementacji poniższe **7 PR** utworzy
+Zaakceptowano układ v2, preview, zakres drzewa i sposób edycji mobilnej oraz
+udzielono osobnej zgody na implementację. Poniższe **7 PR** tworzy
 jeden stos przez `gh stack`, osobny od dokumentacyjnego PR:
 pierwszy bazuje na `dev`, każdy następny na poprzednim. Każda warstwa działa po
 checkout i ma kompletny widoczny rezultat oraz fallback starszych komponentów.
