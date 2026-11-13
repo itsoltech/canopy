@@ -3,7 +3,7 @@ import { MentionKind, type Mention, type ui } from "@canopy/contracts";
 import { citationTokenLabel } from "@canopy/domain";
 import type { InlineElements } from "../../ui/markdown";
 import { font, useColors } from "../../ui/theme";
-import { segmentsOf, type MessageValue } from "./message-value";
+import { rangesOf, segmentsOf, type MessageValue } from "./message-value";
 import { InlineCitation } from "../quotes/InlineCitation";
 
 export type BadgeTone = "uploading" | "failed" | undefined;
@@ -75,14 +75,7 @@ export function mentionElements(
   onAttachment?: (id: string) => void,
   quotes: readonly ui.Quote[] = [],
 ): InlineElements | undefined {
-  const ranges = [
-    ...mentions.map((mention) => ({ start: mention.start, end: mention.end, mention, quote: undefined })),
-    ...quotes.flatMap((quote) =>
-      quote.start !== undefined && quote.end !== undefined
-        ? [{ start: quote.start, end: quote.end, quote, mention: undefined }]
-        : [],
-    ),
-  ].sort((a, b) => a.start - b.start);
+  const ranges = rangesOf({ text, mentions, quotes });
 
   if (ranges.length === 0) return undefined;
 

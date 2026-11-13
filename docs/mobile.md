@@ -1118,6 +1118,11 @@ można wysłać same cytaty bez tekstu. Limity są wspólne z gatewayem: 20 cyta
 poszczególnych fragmentów listy. Wysłane cytaty pozostają w tekście w swoich miejscach;
 dotknięcie pokazuje pełną treść, komentarz i „Jump to source”:
 osobny odczyt strony historii po `target_item_id` odnajduje źródło także poza załadowaną osią.
+Edytor, edytor kolejki i Markdown wysłanych wiadomości korzystają ze wspólnego
+wyliczania zakresów UTF-16. Cytaty z zakresem nie trafiają do starszych bloków nad tekstem;
+cytaty bez zakresu zachowują te bloki, a otwarcie ich w edytorze kolejki zamienia je
+na tokeny przez `inlineLegacyQuotes`. Krótkie etykiety nie zawierają komentarza:
+pełna notatka pozostaje w przewijanym podglądzie, tak jak w karcie webowej.
 W czacie bota odczyt stron rozmowy znajduje pełną wiadomość źródłową, również poza bieżącym oknem.
 Panel PR dodaje `Send to agent` do komentarzy, review, nieudanych checków/jobów
 i wyświetlanych fragmentów logu. Powrót do wątku wstawia cytat przy zapisanym
