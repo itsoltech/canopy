@@ -88,6 +88,7 @@ ruchu. „Load more” pobiera kolejne strony; zwinięcie zostawia w pamięci ty
 archiwizacji po prawej i to samo menu z „Unarchive”. Zwinięcie pozostawia sam nagłówek; jeśli otwarty
 wątek jest archiwalny, sekcja pokazuje jego wyróżniony wiersz i przypina całość u dołu podczas
 przewijania. Wyjątkiem są boczne pod aktywnym rodzicem: pozostają w jego „Previous agents”.
+Archiwizacja otwartego wątku ani wejście w archiwalny wątek nie rozwijają sekcji: wystarcza ten wiersz.
 Indeks startowy nie przesyła całego archiwum. Szczegóły stron: [ui-api.md](ui-api.md#pasek-boczny-i-cykl-życia-wątku).
 
 Menu otwiera prawy przycisk myszy, przytrzymanie na ekranie dotykowym, klawisz Menu lub Shift+F10
