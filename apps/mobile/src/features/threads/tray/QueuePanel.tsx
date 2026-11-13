@@ -2,41 +2,27 @@ import { useRef, useState, type ComponentRef } from "react";
 import { Text, View } from "react-native";
 import Animated from "react-native-reanimated";
 import { PermissionMode, ui } from "@canopy/contracts";
-import { mentionLabel } from "@canopy/domain/mentions";
 import { modelDisplayName } from "@canopy/domain/model-name";
-import { messageOf } from "@canopy/domain/queue";
+import { queuePreview } from "@canopy/domain/queue";
 import { IconButton } from "../../../ui/components";
 import { Icon } from "../../../ui/Icon";
 import { AnchoredOverlay } from "../../../ui/AnchoredOverlay";
 import { useMotion } from "../../../ui/motion";
 import { styles, useColors } from "../../../ui/theme";
-import { segmentsOf } from "../../composer/message-value";
 import { effortLabel } from "../../models/catalog";
 import { permissionLabel } from "../permissions";
 import { TrayPanel } from "./ComposerTray";
 import { QueueMenu } from "./QueueMenu";
+import { QueueSummary } from "./QueueSummary";
 import { TRAY_ROW, TrayHeader, TrayIcon } from "./TrayHeader";
 import type { Queue } from "./useQueue";
 
-/** The text a row shows: the message on one line, each chip (a file's badge, a mention) as its name. */
-export const queuedText = (turn: ui.Turn): string =>
-  (turn.messageText
-    ? segmentsOf({ text: turn.messageText, mentions: turn.mentions })
-        .map((segment) => (segment.mention ? mentionLabel(segment.mention) : segment.text))
-        .join("")
-    : messageOf(turn)
-  )
-    .replace(/\s+/g, " ")
-    .trim();
-
-/** What the message runs with instead of the thread's defaults, and what it carries (web: `overrides`). */
+/** What the message runs with instead of the thread's defaults (web: `overrides`). */
 export function overrides(turn: ui.Turn): string[] {
   return [
     turn.model ? modelDisplayName(turn.model) : "",
     turn.effort ? `${effortLabel(turn.effort)} effort` : "",
     turn.permissionMode !== PermissionMode.UNSPECIFIED ? permissionLabel(turn.permissionMode) : "",
-    turn.attachments.length ? (turn.attachments.length === 1 ? "1 file" : `${turn.attachments.length} files`) : "",
-    turn.quotes.length ? (turn.quotes.length === 1 ? "1 quote" : `${turn.quotes.length} quotes`) : "",
   ].filter(Boolean);
 }
 
@@ -143,14 +129,19 @@ function QueueRow({
   onMore: () => void;
 }) {
   const c = useColors();
-  const text = queuedText(turn);
+  const preview = queuePreview(turn);
 
   return (
     <View style={[styles.row, { minHeight: TRAY_ROW, gap: 4, paddingLeft: 10, paddingRight: 2 }]}>
       <TrayIcon name="queue-list" />
-      <Text numberOfLines={1} style={[styles.meta, { flex: 1, minWidth: 0, marginLeft: 4, color: c.soft }]}>
-        {text || (turn.attachments.length > 0 ? "(only files)" : "(only quotes)")}
-      </Text>
+      <View style={[styles.row, { flex: 1, minWidth: 0, gap: 4 }]}>
+        {preview.text ? (
+          <Text numberOfLines={1} style={[styles.meta, { flex: 1, minWidth: 0, color: c.soft }]}>
+            {preview.text}
+          </Text>
+        ) : null}
+        {preview.summary ? <QueueSummary preview={preview} /> : null}
+      </View>
       {fallback ? (
         <Icon name="exclamation-circle" size={16} color={c.warning} label="Could not join the running turn" />
       ) : null}
