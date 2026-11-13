@@ -47,6 +47,7 @@ export async function worktreeFixture(
   options: {
     botModel?: BotModel;
     role?: "desktop" | "server";
+    diagnostics?: boolean;
     github?: import("../../../apps/gateway/src/github/http.ts").GitHubOptions;
     originUrl?: string;
     worktreeRoots?: WorktreeRoots;
