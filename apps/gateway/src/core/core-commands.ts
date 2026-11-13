@@ -38,7 +38,7 @@ export async function coreRedeliver(hostContext: GatewayCore, workerId: string):
           page
             .slice(offset, offset + 64)
             .map((pending) =>
-              pending.expiresAt.getTime() > Date.now()
+              pending.command.kind.case === "rewindThread" || pending.expiresAt.getTime() > Date.now()
                 ? coreDeliver(hostContext, workerId, pending.command)
                 : undefined,
             ),

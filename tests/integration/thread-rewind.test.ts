@@ -272,7 +272,7 @@ describe.skipIf(!dockerAvailable)("in-place durable thread rewind", () => {
     expect(generated?.case === "generateText" && generated.value.prompt).not.toContain("APPLE");
   });
 
-  test("intent survives a gateway restart and a duplicate result commits once", async () => {
+  test("intent survives a gateway restart past its outbox TTL and a duplicate result commits once", async () => {
     const thread = await createThread();
     const before = await history(thread.id);
 
@@ -291,6 +291,14 @@ describe.skipIf(!dockerAvailable)("in-place durable thread rewind", () => {
 
     expect(await failure(gw.api.sendMessage({ threadId: thread.id, text: "late", clientRequestId: "late" }))).toContain(
       "rewinding",
+    );
+
+    await gw.runtime.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+        yield* sql`UPDATE worker_commands SET expires_at=now()-interval '1 second'
+          WHERE id=${started.operation.command_id}::uuid`;
+      }),
     );
 
     const storage = {

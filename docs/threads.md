@@ -282,8 +282,10 @@ edycji subagentów. Stare tury bez checkpointu i Codex pokazują „Files stay a
 are.” Fork Claude nie kopiuje file-history, więc przywracanie korzysta z sesji
 źródłowej przed przełączeniem. Nie odtwarzamy zgód ani zadań przy cofnięciu rewindu.
 
-Rewind ma trwały zamiar, komendę w outboxie i wynik w journalu workera. Do czasu
-rozstrzygnięcia gateway blokuje nowe wejścia. Commit wyniku przełącza wyłącznie
+Rewind ma trwały zamiar, komendę w outboxie i wynik w journalu workera. Komenda
+pozostaje dostarczalna do potwierdzenia, także po TTL zwykłego outboxu. Dłuższe
+rozłączenie nie pozostawia wątku trwale zablokowanego. Do rozstrzygnięcia gateway
+blokuje nowe wejścia. Commit wyniku przełącza wyłącznie
 sesję dostawcy i oznacza suffix tur jako zastąpiony; nie usuwa zdarzeń, itemów ani
 załączników. Trwałe zdarzenie rewindu i upserty tur docierają przez rosnący seq,
 również do luster i klientów po reconnect. Nie wymagają pełnego snapshotu.
