@@ -211,6 +211,7 @@ export class WorkspaceFile {
       const file = await this.api.read(this.target, this.path, "", controller.signal);
 
       if (controller.signal.aborted || this.file !== base) return;
+
       if (!this.checkRoot(file.rootIdentity)) return;
       this.stale = false;
       this.watchStatus = "";
