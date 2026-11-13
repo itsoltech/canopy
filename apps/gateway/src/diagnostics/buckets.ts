@@ -115,7 +115,7 @@ export class Buckets {
 
     if (!value) {
       // Correlations are optional detail. Global family/resource series keep their space.
-      if (rpc && (slot.correlations ?? 0) >= 192) {
+      if (rpc && (slot.correlations ?? 0) >= 256) {
         this.budget.dropped++;
 
         return;

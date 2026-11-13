@@ -171,7 +171,7 @@ Brak miejsca na histogram nie usuwa liczników błędów; rodzina oznacza swój
 niepełny rozkład i nie wyzwala na jego podstawie findingu o wolnym zapytaniu.
 
 Korelacje RPC są opcjonalnym szczegółem: nowe klucze korelacji są pomijane po
-192 korelacjach slotu; globalne serie nie zużywają tego limitu i nadal podlegają
+256 korelacjach slotu; globalne serie nie zużywają tego limitu i nadal podlegają
 wspólnemu limitowi RAM.
 Przy przekroczeniu 64 KiB odpowiedzi najpierw wypadają korelacje, potem szczegóły
 governora i rodzin; wiersze RPC pozostają. Rollup przekraczający 64 KiB najpierw
