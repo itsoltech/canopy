@@ -8,6 +8,7 @@ import {
   type Hello,
   type WorkerMessage,
   type NetworkRouteStatus,
+  type ThreadFilesUpdate,
 } from "@canopy/contracts";
 import { AsyncChannel } from "@canopy/transport";
 import { gatewayMessage, type GatewayPayloadInit } from "./messages.ts";
@@ -34,6 +35,7 @@ export class WorkerConnection {
   readonly workerId: string;
   readonly hello: Hello;
   readonly threadLifecycle = new Map<string, boolean>();
+  readonly fileWatches = new Map<string, (update?: ThreadFilesUpdate) => void>();
   threadLifecycleRevision = 0;
   networkRouteStatus: NetworkRouteStatus | undefined;
   /** Worker messages after the handshake. CommandResults matched by sendCommand() are not repeated here. */
@@ -117,6 +119,12 @@ export class WorkerConnection {
 
   /** @internal Called by the service for every inbound message. */
   deliver(message: WorkerMessage): void {
+    if (message.payload.case === "threadFilesUpdate") {
+      this.fileWatches.get(message.payload.value.subscriptionId)?.(message.payload.value);
+
+      return;
+    }
+
     if (message.payload.case === "diagnosticsTraceReply") {
       this.tracing.receive(message.payload.value);
 
@@ -170,6 +178,9 @@ export class WorkerConnection {
     }
 
     this.#pending.clear();
+
+    for (const close of this.fileWatches.values()) close();
+    this.fileWatches.clear();
     this.#markClosed();
   }
 }

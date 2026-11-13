@@ -6,9 +6,20 @@ export interface DirectoryGit {
   reason: string;
 }
 
+const revisions = new Map<string, number>();
+
+export function invalidateDirectoryGit(root: string) {
+  const revision = (revisions.get(root) ?? 0) + 1;
+  revisions.delete(root);
+  revisions.set(root, revision);
+
+  while (revisions.size > 64) revisions.delete(revisions.keys().next().value!);
+}
+
 /** One bounded status per checkout; the governor coalesces concurrent requests. */
 export async function directoryGit(root: string): Promise<DirectoryGit> {
   try {
+    const revision = revisions.get(root) ?? 0;
     const signal = AbortSignal.timeout(2000);
 
     const prefixCommand = {
@@ -47,7 +58,7 @@ export async function directoryGit(root: string): Promise<DirectoryGit> {
     };
 
     const result = await withProcessPriority("user", () =>
-      runProcess(command, { kind: "git", key: processKey(command), ttlMs: 2000 }),
+      runProcess(command, { kind: "git", key: `${processKey(command)}:${revision}`, ttlMs: 2000 }),
     );
 
     if (result.code !== 0) return { statuses: new Map(), complete: false, reason: "Status unavailable" };

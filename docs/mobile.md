@@ -1823,6 +1823,14 @@ wznowienie po uśpieniu i odczyt po błędzie tworzą cichą bazę. Boty zarchiw
 wiadomości i aktualnie otwarty czat nie pokazują alertu. To wyłącznie JS w otwartej aplikacji;
 nie rejestruje powiadomień systemowych ani obsługi w tle.
 
+Workspace obserwuje widoczny zakres przez `WatchThreadFiles` przez Connect,
+współdzieląc stream drzewa i aktywnego pliku. `useAppActive` anuluje stream,
+odczyty drzewa i timer ponowienia w tle lub po zakryciu ekranu. Powrót rewaliduje
+aktywny plik i rozwinięte katalogi, bez pełnego drzewa i replay zapisów.
+Zewnętrzna zmiana zachowuje dirty i udostępnia `Compare changes`, `Copy changes`
+oraz potwierdzane `Discard and reload`. Porównanie obu wersji używa tej samej
+wirtualnej listy wierszy; edycja nadal jest natywna, bez live highlighting.
+
 ## Źródła sprawdzone dla tego wdrożenia
 
 - [Expo SDK 58](https://expo.dev/changelog/sdk-58), [expo/fetch i Encoding APIs](https://docs.expo.dev/versions/v58.0.0/sdk/expo/).

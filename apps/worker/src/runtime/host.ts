@@ -86,6 +86,7 @@ const NOT_REMEMBERED: ReadonlySet<Command["kind"]["case"]> = new Set([
   "readFile",
   "listThreadDirectory",
   "getThreadFileHighlight",
+  "watchThreadFiles",
   "openFile",
   "writeFile",
   "deleteFile",

@@ -6,10 +6,12 @@ export function FileActions({
   viewer,
   onDiscard,
   onDelete,
+  saveDisabled = false,
 }: {
   viewer: ThreadFileState;
   onDiscard: () => void;
   onDelete: () => void;
+  saveDisabled?: boolean;
 }) {
   return (
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -20,7 +22,7 @@ export function FileActions({
             size="sm"
             variant="primary"
             busy={viewer.busy}
-            disabled={!viewer.dirty}
+            disabled={!viewer.dirty || saveDisabled}
             onPress={() => void viewer.save()}
           />
           <Button

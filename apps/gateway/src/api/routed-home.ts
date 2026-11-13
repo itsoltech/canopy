@@ -260,6 +260,9 @@ async function* send(
 ): AsyncGenerator<Message> {
   const outbound = clone(method.input, request);
 
+  if (method.name === "WatchThreadFiles" && !computers.capabilities(nodeId).includes("thread_files_watch_v1"))
+    throw new ConnectError("Update Canopy on the linked computer to watch file changes.", Code.Unimplemented);
+
   if (method.name === "CloneProject" && !computers.capabilities(nodeId).includes("git_clone_progress_v1"))
     throw new ConnectError("Update Canopy on the linked computer to see clone progress.", Code.FailedPrecondition);
 

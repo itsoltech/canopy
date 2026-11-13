@@ -27,6 +27,7 @@ const threadFile = ({ file }: CommandResult): ui.ThreadFile =>
         imageHeight: file.imageHeight,
         imagePreviewError: file.imagePreviewError,
         imagePreview: file.imagePreview,
+        rootIdentity: file.rootIdentity,
         matches: file.matches,
         searchedPaths: file.searchedPaths,
         searchIncomplete: file.searchIncomplete,
@@ -66,6 +67,7 @@ export class ThreadFiles {
       workerId: thread.worker_id,
       cwd: thread.cwd,
       preview: connection.hello.capabilities.includes(THREAD_FILE_PREVIEW_CAPABILITY),
+      rootCheckpoint: connection.hello.capabilities.includes("thread_files_watch_v1"),
       request: {
         threadId: thread.id,
         path: joinThreadPath(thread.cwd, path),
@@ -106,26 +108,44 @@ export class ThreadFiles {
   async write(request: ui.WriteThreadFileRequest): Promise<ui.ThreadFile> {
     if (request.content.length > MAX_WRITE_BYTES) throw new InvalidError("This file is too large to save from Canopy.");
     const target = await this.#target(request.threadId, request.path);
+    this.#checkpoint(request.expectedRootIdentity, target.rootCheckpoint);
 
     return threadFile(
       await this.#query(target.workerId, {
         case: "writeFile",
-        value: { target: { ...target.request, expectedSha256: request.expectedSha256 }, content: request.content },
+        value: {
+          target: {
+            ...target.request,
+            expectedSha256: request.expectedSha256,
+            expectedRootIdentity: request.expectedRootIdentity,
+          },
+          content: request.content,
+        },
       }),
     );
   }
 
   async delete(request: ui.ThreadFileRequest): Promise<void> {
     const target = await this.#target(request.threadId, request.path);
+    this.#checkpoint(request.expectedRootIdentity, target.rootCheckpoint);
 
     await this.#query(target.workerId, {
       case: "deleteFile",
-      value: { ...target.request, expectedSha256: request.expectedSha256 },
+      value: {
+        ...target.request,
+        expectedSha256: request.expectedSha256,
+        expectedRootIdentity: request.expectedRootIdentity,
+      },
     });
   }
 
   async open(request: ui.ThreadFileRequest): Promise<void> {
     const target = await this.#target(request.threadId, request.path);
     await this.#query(target.workerId, { case: "openFile", value: target.request });
+  }
+
+  #checkpoint(identity: string, supported: boolean) {
+    if (identity && (!/^[a-f0-9]{64}$/.test(identity) || !supported))
+      throw new InvalidError("Update this computer, then reload the file before changing it.");
   }
 }

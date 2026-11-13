@@ -2,6 +2,7 @@ import { useEffect, useMemo } from "react";
 import { File, Paths } from "expo-file-system";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { WorkspaceStore } from "@canopy/domain/workspace";
+import { WorkspaceFileConflict } from "@canopy/domain/workspace-file";
 import type { routedMobileClient } from "../../api/routes";
 import type { DeviceSession } from "../../storage/session";
 
@@ -16,6 +17,11 @@ export function useWorkspaceStore(client: ReturnType<typeof routedMobileClient> 
     () =>
       new WorkspaceStore(
         {
+          async watchFiles(request, signal, receive) {
+            if (!client) return;
+
+            for await (const update of client.api.watchThreadFiles(request, { signal, timeoutMs: 0 })) receive(update);
+          },
           async listDirectory(request, signal) {
             if (!client) throw new Error("This phone is not paired. Pair it, then reopen Files.");
 
@@ -36,19 +42,29 @@ export function useWorkspaceStore(client: ReturnType<typeof routedMobileClient> 
               { signal, timeoutMs: 40_000 },
             );
           },
-          async write(target, path, text, hash) {
+          async write(target, path, text, hash, root) {
             if (!client) throw new Error("This phone is not paired. Pair it, then reopen the file.");
 
-            return client.api.writeThreadFile(
-              { threadId: target.threadId, path, content: new TextEncoder().encode(text), expectedSha256: hash },
-              { timeoutMs: 40_000 },
+            return fileMutation(() =>
+              client.api.writeThreadFile(
+                {
+                  threadId: target.threadId,
+                  path,
+                  content: new TextEncoder().encode(text),
+                  expectedSha256: hash,
+                  expectedRootIdentity: root ?? "",
+                },
+                { timeoutMs: 40_000 },
+              ),
             );
           },
-          async remove(target, path, hash) {
+          async remove(target, path, hash, root) {
             if (!client) throw new Error("This phone is not paired. Pair it, then reopen the file.");
-            await client.api.deleteThreadFile(
-              { threadId: target.threadId, path, expectedSha256: hash },
-              { timeoutMs: 40_000 },
+            await fileMutation(() =>
+              client.api.deleteThreadFile(
+                { threadId: target.threadId, path, expectedSha256: hash, expectedRootIdentity: root ?? "" },
+                { timeoutMs: 40_000 },
+              ),
             );
           },
         },
@@ -79,6 +95,17 @@ export function useWorkspaceStore(client: ReturnType<typeof routedMobileClient> 
   }, [client, store, scope]);
 
   return store;
+}
+
+async function fileMutation<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (cause) {
+    const error = ConnectError.from(cause);
+
+    if (error.code === Code.Aborted) throw new WorkspaceFileConflict(error.rawMessage);
+    throw cause;
+  }
 }
 
 export function forgetWorkspace(session: DeviceSession | null): void {

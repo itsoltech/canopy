@@ -61,6 +61,7 @@ export const READS = new Set([
   "ReadThreadFile",
   "ListThreadDirectory",
   "GetThreadFileHighlight",
+  "WatchThreadFiles",
   "ListMentionCatalog",
   "SearchFiles",
   "ListGitRefs",

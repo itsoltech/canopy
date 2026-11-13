@@ -6,14 +6,16 @@ import type { Workspace } from "@canopy/domain/workspace";
 import { Button, IconButton, Notice } from "../../ui/components";
 import { styles, useColors } from "../../ui/theme";
 import { WorkspaceTreeRow } from "./WorkspaceTreeRow";
+import { useAppActive } from "../../ui/active";
 
 export function WorkspaceTree({ view, onOpen = () => {} }: { view: Workspace; onOpen?: () => void }) {
   const c = useColors();
+  const active = useAppActive();
   const { fontScale, height } = useWindowDimensions();
   const tree = useMemo(() => workspaceDirectories(view.store, 1024 * 1024).tree(view.threadId), [view]);
   useSyncExternalStore(tree.subscribe, tree.getVersion);
   useSyncExternalStore(view.store.subscribe, view.store.getVersion);
-  useEffect(() => tree.retain(), [tree]);
+  useEffect(() => (active ? tree.retain() : undefined), [tree, active]);
   const rows = tree.rows();
   const rowHeight = Math.max(48, Math.ceil(20 * fontScale + 16));
   const error = [...tree.nodes.values()].find((node) => node.error)?.error;
@@ -44,6 +46,9 @@ export function WorkspaceTree({ view, onOpen = () => {} }: { view: Workspace; on
         />
       </View>
       {!!root.status && <Text style={[styles.meta, { color: c.muted, paddingHorizontal: 16 }]}>{root.status}</Text>}
+      {!!tree.watchStatus && (
+        <Text style={[styles.meta, { color: c.muted, paddingHorizontal: 16 }]}>{tree.watchStatus}</Text>
+      )}
       <FlatList
         data={rows}
         keyExtractor={(row) => row.key}

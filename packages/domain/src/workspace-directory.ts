@@ -7,6 +7,7 @@ import {
 } from "@canopy/contracts";
 import type { WorkspaceStore } from "./workspace.ts";
 import { DirectoryQueue } from "./workspace-directory-queue.ts";
+import { observeWorkspaceDirectory } from "./workspace-directory-watch.ts";
 
 interface Directory {
   path: string;
@@ -110,6 +111,8 @@ export class WorkspaceDirectory {
   users = 0;
   includeIgnored = false;
   rootIdentity = "";
+  watchStatus = "";
+  #stopWatch: (() => void) | undefined;
   #listeners = new Set<() => void>();
   #version = 0;
   #stale = false;
@@ -139,8 +142,12 @@ export class WorkspaceDirectory {
 
     if (this.users === 1 && (!this.nodes.get("")?.revision || this.#stale)) this.invalidate();
 
+    if (this.users === 1) this.#stopWatch = observeWorkspaceDirectory(this);
+
     return () => {
       if (--this.users) return;
+      this.#stopWatch?.();
+      this.#stopWatch = undefined;
       this.#stale = true;
 
       for (const node of this.nodes.values()) this.cancel(node);
@@ -205,8 +212,8 @@ export class WorkspaceDirectory {
       for (const node of this.nodes.values())
         if (node.path === path || node.path.startsWith(`${path}/`)) this.cancel(node);
     } else {
-      if (this.expanded.size >= 32) {
-        this.node("").error = "You have 32 expanded directories. Collapse a directory, then open another.";
+      if (this.expanded.size >= 30) {
+        this.node("").error = "You have 30 expanded directories. Collapse a directory, then open another.";
         this.notify();
 
         return;
@@ -317,7 +324,7 @@ export class WorkspaceDirectory {
     }
   }
 
-  invalidate(): void {
+  invalidate(paths: Iterable<string> = ["", ...this.expanded]): void {
     if (!this.users) {
       this.#stale = true;
 
@@ -326,7 +333,8 @@ export class WorkspaceDirectory {
 
     this.#stale = false;
 
-    for (const path of ["", ...this.expanded]) {
+    for (const path of paths) {
+      if (path && !this.expanded.has(path)) continue;
       const node = this.nodes.get(path);
 
       if (node) {

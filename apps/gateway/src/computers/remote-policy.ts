@@ -197,6 +197,7 @@ export const SERVED = new Set([
   "ReadThreadFile",
   "ListThreadDirectory",
   "GetThreadFileHighlight",
+  "WatchThreadFiles",
   "WriteThreadFile",
   "DeleteThreadFile",
   "WatchThreadMirror",

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick, untrack } from "svelte";
   import type { WorkspaceFile } from "@canopy/domain/workspace-file";
+  import { observeWorkspaceFile } from "@canopy/domain/workspace-changes";
   import { fileName } from "@canopy/domain/file-references";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -11,7 +12,7 @@
   import FileContentView from "#lib/features/files/FileContentView.svelte";
   import FileLookup from "#lib/features/files/FileLookup.svelte";
   import { openInApp } from "#lib/features/files/file-links.svelte.ts";
-  import { workspaceVersion } from "./workspace.svelte.ts";
+  import { workspaceVersion, workspaceStore } from "./workspace.svelte.ts";
   import { keybindings } from "#lib/features/commands/keybindings.svelte.ts";
   import { contributeCommands } from "#lib/features/commands/commands.svelte.ts";
   import { editorMemory, forgetEditor } from "./editor-memory.ts";
@@ -29,6 +30,8 @@
   let goOpen = $state(false);
   let line = $state("");
   let rendered = $state(false);
+  let foreground = $state(!globalThis.document.hidden);
+  let compare = $state<"disk" | "draft" | undefined>();
   const name = $derived(fileName(document.path));
 
   const viewer = $derived.by(() => {
@@ -47,11 +50,29 @@
       editable: document.editable,
       position: document.position,
       positionRevision: document.positionRevision,
+      changedOnDisk: document.changedOnDisk,
+      removedOnDisk: document.removedOnDisk,
+      diskText: document.diskText,
+      watchStatus: document.watchStatus,
     };
+  });
+
+  const watchPath = $derived(viewer.file?.relativePath);
+
+  $effect(() => {
+    void watchPath;
+
+    if (foreground && watchPath) return observeWorkspaceFile(workspaceStore, document);
+  });
+
+  $effect(() => {
+    if (!viewer.changedOnDisk) compare = undefined;
   });
 
   $effect(() => {
     const current = document;
+
+    if (!foreground) return;
     untrack(() => {
       if (!current.file && !current.loading) void current.load();
     });
@@ -99,7 +120,7 @@
       id: "workspace:save-file",
       title: "Save file",
       group: "actions",
-      disabled: !viewer.dirty || viewer.busy,
+      disabled: !viewer.dirty || viewer.busy || viewer.changedOnDisk,
       run: () => void document.save(),
     },
   ]);
@@ -137,12 +158,17 @@
   }
 </script>
 
+<svelte:document onvisibilitychange={() => (foreground = !globalThis.document.hidden)} />
+
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="flex min-h-0 flex-1 flex-col" onkeydowncapture={keydown}>
   <div class="flex flex-wrap items-center gap-2 border-b border-divider bg-surface px-3 py-2">
     {#if viewer.editing}
-      <Button size="sm" variant="primary" disabled={!viewer.dirty || viewer.busy} onclick={() => void document.save()}
-        >Save file</Button
+      <Button
+        size="sm"
+        variant="primary"
+        disabled={!viewer.dirty || viewer.busy || viewer.changedOnDisk}
+        onclick={() => void document.save()}>Save file</Button
       >
       <Button size="sm" disabled={viewer.busy} onclick={discard}
         >{viewer.dirty ? "Discard changes" : "Stop editing"}</Button
@@ -186,6 +212,39 @@
     >
   </div>
   {#if viewer.error}<Alert tone="error" banner>{viewer.error}</Alert>{/if}
+  {#if viewer.watchStatus}<p role="status" class="px-3 py-1 text-sm text-muted">{viewer.watchStatus}</p>{/if}
+  {#if viewer.changedOnDisk}
+    <div class="flex flex-wrap items-center gap-2 border-b border-divider bg-surface px-3 py-2" role="status">
+      <span class="text-sm text-muted">{viewer.removedOnDisk ? "Removed from disk" : "Changed on disk"}</span>
+      {#if viewer.diskText !== undefined && viewer.dirty}<Button
+          size="sm"
+          onclick={() => (compare = compare ? undefined : "disk")}
+          >{compare ? "Keep editing" : "Compare changes"}</Button
+        >{/if}
+      {#if viewer.dirty}<CopyButton text={viewer.draft} label="Copy changes" />{/if}
+      <Button
+        size="sm"
+        disabled={viewer.busy}
+        onclick={() => {
+          if (viewer.dirty) confirmation = "discard";
+          else {
+            document.discard();
+            void document.load();
+          }
+        }}>Discard and reload</Button
+      >
+    </div>
+  {/if}
+  {#if compare}
+    <div class="flex items-center gap-2 border-b border-divider bg-surface px-3 py-2">
+      <Button size="sm" variant={compare === "disk" ? "primary" : "ghost"} onclick={() => (compare = "disk")}
+        >On disk</Button
+      >
+      <Button size="sm" variant={compare === "draft" ? "primary" : "ghost"} onclick={() => (compare = "draft")}
+        >Your changes</Button
+      >
+    </div>
+  {/if}
   {#if viewer.editing}<p role="status" class="h-6 px-3 text-sm text-muted">
       {viewer.dirty ? "Unsaved changes" : ""}
     </p>{/if}
@@ -204,7 +263,16 @@
       if (scroller) document.scroll = scroller.scrollTop;
     }}
   >
-    {#if viewer.editing}
+    {#if compare}
+      {#await import("./WorkspaceSource.svelte") then reader}
+        <reader.default
+          {document}
+          text={compare === "disk" ? (viewer.diskText ?? "") : viewer.draft}
+          path={name}
+          revision={-1}
+        />
+      {/await}
+    {:else if viewer.editing}
       <CodeEditor
         memory={editorMemory(document)}
         workspace
@@ -268,7 +336,10 @@
             onclose();
           }
         } else {
+          const reload = document.changedOnDisk;
           document.discard();
+          if (reload) void document.load();
+          compare = undefined;
           confirmation = undefined;
         }
       }}>{confirmation === "delete" ? "Delete file" : "Discard changes"}</Button

@@ -24,6 +24,7 @@ import { GITHUB_METHODS } from "./remote-policy.ts";
 const FEATURES = new Set([
   "diagnostics_v1",
   "diagnostics_logs_v1",
+  "thread_files_watch_v1",
   REMOTE_THREADS,
   "remote_worktrees",
   REMOTE_BRANCH_SWITCH,

@@ -5,6 +5,7 @@ import type { CommandOutput } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
 import { openInDefaultApp } from "./reveal.ts";
 import { fileImageMetadata } from "../files/file-image.ts";
+import { checkFileRoot } from "../files/file-root.ts";
 
 type FileCommand = Extract<Command["kind"], { case: "readFile" | "openFile" | "writeFile" | "deleteFile" }>;
 
@@ -20,6 +21,8 @@ export async function runFileCommand(ctx: HostContext, kind: FileCommand): Promi
   const target: FileRequest | undefined = kind.case === "writeFile" ? kind.value.target : kind.value;
 
   if (!target) return {};
+  const workspace = target.workspace || target.roots[0] || "";
+  const rootIdentity = checkFileRoot(workspace, target.expectedRootIdentity);
 
   const extraRoots = [ctx.state.files.threadDir(target.threadId)];
 
@@ -30,6 +33,7 @@ export async function runFileCommand(ctx: HostContext, kind: FileCommand): Promi
 
   if (resolution && resolution.resolution !== FileResolution.FOUND) return { file: resolution };
   const path = resolution?.path || resolveThreadFile(target, extraRoots);
+  checkFileRoot(workspace, rootIdentity);
 
   switch (kind.case) {
     case "readFile":
@@ -37,6 +41,7 @@ export async function runFileCommand(ctx: HostContext, kind: FileCommand): Promi
         file: await fileImageMetadata({
           ...readThreadFile(path, target.maxBytes, target.includeBinary),
           ...resolution,
+          rootIdentity,
         }),
       };
     case "openFile":
@@ -44,7 +49,7 @@ export async function runFileCommand(ctx: HostContext, kind: FileCommand): Promi
 
       return {};
     case "writeFile":
-      return { file: writeThreadFile(path, kind.value.content, target.expectedSha256) };
+      return { file: { ...writeThreadFile(path, kind.value.content, target.expectedSha256), rootIdentity } };
     case "deleteFile":
       deleteThreadFile(path, target.expectedSha256);
 

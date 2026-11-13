@@ -12,6 +12,7 @@ import "google/protobuf/timestamp.proto";
 import "canopy/worker/v1/worker_link.proto";
 import "canopy/worker/v1/thread_directory.proto";
 import "canopy/worker/v1/thread_highlight.proto";
+import "canopy/worker/v1/thread_watch.proto";
 import "canopy/ui/v1/bots.proto";
 import "canopy/ui/v1/quotes.proto";
 import "canopy/ui/v1/connectors.proto";
@@ -317,6 +318,7 @@ service GatewayService {
   rpc ReadThreadFile(ThreadFileRequest) returns (ThreadFile);
   rpc ListThreadDirectory(ListThreadDirectoryRequest) returns (canopy.worker.v1.ThreadDirectoryPage);
   rpc GetThreadFileHighlight(ThreadFileHighlightRequest) returns (canopy.worker.v1.ThreadFileHighlight);
+  rpc WatchThreadFiles(WatchThreadFilesRequest) returns (stream canopy.worker.v1.ThreadFilesUpdate);
   rpc WriteThreadFile(WriteThreadFileRequest) returns (ThreadFile);
   rpc DeleteThreadFile(ThreadFileRequest) returns (google.protobuf.Empty);
   // Otwiera plik w domyślnej aplikacji systemu na komputerze workera.
@@ -1078,6 +1080,14 @@ message ListThreadDirectoryRequest {
   bool include_ignored = 5;
   string known_revision = 6;
   bool release = 7;
+}
+
+message WatchThreadFilesRequest {
+  string thread_id = 1;
+  repeated string directories = 2;
+  repeated string files = 3;
+  string root_identity = 4;
+  string cursor = 5;
 }
 
 message ListDirectoryRequest {
@@ -2728,6 +2738,8 @@ message ThreadFileRequest {
   string expected_sha256 = 3;
   // Item źródłowy: wskazówki ścieżek tylko z tej samej tury, sprawdzone na domu.
   string item_id = 4;
+  // Usunięcie: tożsamość korzenia z odczytu; podmiana checkoutu odrzuca mutację.
+  string expected_root_identity = 5;
 }
 
 message WriteThreadFileRequest {
@@ -2736,6 +2748,7 @@ message WriteThreadFileRequest {
   bytes content = 3;
   // SHA-256 z odczytu; inna treść na dysku odrzuca zapis (konflikt).
   string expected_sha256 = 4;
+  string expected_root_identity = 5;
 }
 
 message ThreadFile {
@@ -2757,6 +2770,7 @@ message ThreadFile {
   uint32 image_height = 16;
   string image_preview_error = 17;
   bytes image_preview = 18;
+  string root_identity = 19;
 }
 
 message SwitchThreadBranchRequest {
