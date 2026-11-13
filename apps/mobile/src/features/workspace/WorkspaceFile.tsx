@@ -50,6 +50,7 @@ export function WorkspaceFile({ view, tab }: { view: Workspace; tab: WorkspaceTa
     <View style={{ gap: 8 }}>
       <FileActions
         viewer={viewer}
+        saveDisabled={document.changedOnDisk}
         onDiscard={() => (document.dirty ? setConfirmation("discard") : document.discard())}
         onDelete={() => setConfirmation("delete")}
       />

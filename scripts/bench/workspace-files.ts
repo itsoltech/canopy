@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { FileResolution, type Command, FileContentSchema } from "@canopy/contracts";
+import { FileResolution, type Command, FileContentSchema, type ThreadFilesUpdate } from "@canopy/contracts";
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { CommandResultSchema } from "@canopy/contracts";
 import { workspaceDirectory } from "./workspace-directory.ts";
@@ -14,7 +14,7 @@ const names = [
 
 export const workspaceFileLinks = names.map((name) => `\`${name}:31-40\``).join(" · ");
 
-/** In-memory files only. Enabled explicitly on the disposable renderer fixture, never on a real worker. */
+/** Disposable synthetic files; uses real filesystem enumeration and invalidation, without any provider CLI. */
 export function workspaceFiles() {
   const files = new Map<string, Uint8Array>(
     names.map((name) => [
@@ -33,17 +33,26 @@ export function workspaceFiles() {
   const hash = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
   const directory = workspaceDirectory(files);
 
-  return async (command: Command): Promise<MessageInitShape<typeof CommandResultSchema> | undefined> => {
+  const execute = async (
+    command: Command,
+    send: (update: ThreadFilesUpdate) => void,
+  ): Promise<MessageInitShape<typeof CommandResultSchema> | undefined> => {
     const kind = command.kind;
 
     if (kind.case === "listThreadDirectory")
-      return { commandId: command.commandId, ok: true, threadDirectory: await directory(kind.value) };
+      return { commandId: command.commandId, ok: true, threadDirectory: await directory.list(kind.value) };
+
+    if (kind.case === "watchThreadFiles") {
+      await directory.watch(kind.value, send);
+
+      return { commandId: command.commandId, ok: true };
+    }
 
     if (kind.case !== "readFile" && kind.case !== "writeFile" && kind.case !== "deleteFile") return undefined;
     const target = kind.case === "writeFile" ? kind.value.target : kind.value;
     const path = target?.path ?? "";
     const relative = path.replace(/^\/srv\/canopy\//, "");
-    const content = files.get(relative);
+    const content = files.has(relative) ? directory.read(relative) : undefined;
     const base = { commandId: command.commandId, ok: true };
 
     if (!content) return { ...base, file: { path, relativePath: relative, resolution: FileResolution.NOT_FOUND } };
@@ -59,13 +68,17 @@ export function workspaceFiles() {
 
     if (kind.case === "deleteFile") {
       files.delete(relative);
+      directory.remove(relative);
 
       return base;
     }
 
     const bytes = kind.case === "writeFile" ? kind.value.content : content;
 
-    if (kind.case === "writeFile") files.set(relative, bytes);
+    if (kind.case === "writeFile") {
+      files.set(relative, bytes);
+      directory.write(relative, bytes);
+    }
 
     const file: MessageInitShape<typeof FileContentSchema> = {
       path: `/srv/canopy/${relative}`,
@@ -79,4 +92,6 @@ export function workspaceFiles() {
 
     return { ...base, file };
   };
+
+  return Object.assign(execute, { close: () => directory.close() });
 }

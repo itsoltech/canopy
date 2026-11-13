@@ -120,7 +120,7 @@
       id: "workspace:save-file",
       title: "Save file",
       group: "actions",
-      disabled: !viewer.dirty || viewer.busy,
+      disabled: !viewer.dirty || viewer.busy || viewer.changedOnDisk,
       run: () => void document.save(),
     },
   ]);
@@ -164,8 +164,11 @@
 <div class="flex min-h-0 flex-1 flex-col" onkeydowncapture={keydown}>
   <div class="flex flex-wrap items-center gap-2 border-b border-divider bg-surface px-3 py-2">
     {#if viewer.editing}
-      <Button size="sm" variant="primary" disabled={!viewer.dirty || viewer.busy} onclick={() => void document.save()}
-        >Save file</Button
+      <Button
+        size="sm"
+        variant="primary"
+        disabled={!viewer.dirty || viewer.busy || viewer.changedOnDisk}
+        onclick={() => void document.save()}>Save file</Button
       >
       <Button size="sm" disabled={viewer.busy} onclick={discard}
         >{viewer.dirty ? "Discard changes" : "Stop editing"}</Button

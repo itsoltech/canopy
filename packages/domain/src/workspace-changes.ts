@@ -29,7 +29,11 @@ class WorkspaceChanges {
     store.watchFiles((change) => {
       if (change) return;
 
-      for (const thread of this.threads.values()) thread.stop();
+      for (const thread of this.threads.values()) {
+        thread.scopes.clear();
+        thread.stop();
+      }
+
       this.threads.clear();
     });
   }
