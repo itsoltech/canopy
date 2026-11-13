@@ -6,6 +6,7 @@ import { changeRewind, type RewindAction } from "./rewind-api.ts";
 export class ThreadRewind {
   busy = $state(false);
   error = $state("");
+  canRetry = $state(false);
   draft = $state.raw<ui.Turn>();
   open = $state.raw<ReadonlySet<string>>(new Set());
   #retry: { threadId: string; action: RewindAction } | undefined;
@@ -68,6 +69,7 @@ export class ThreadRewind {
     const generation = ++this.#generation;
     this.busy = true;
     this.error = "";
+    this.canRetry = true;
     this.#retry = { threadId, action };
 
     try {
@@ -86,11 +88,15 @@ export class ThreadRewind {
       if (["pending", "restoring"].includes(result.status))
         throw new Error("The agent is still editing this thread. Retry to check its progress.");
 
-      if (result.error || result.status === "failed")
-        throw new Error(result.error || "Could not edit this thread. Retry.");
+      if (result.error || result.status === "failed") {
+        this.#retry = undefined;
+        this.canRetry = false;
+        throw new Error(result.error || "Could not edit this thread. Choose the message again.");
+      }
 
       if (result.status === "completed" && result.draft) this.draft = result.draft;
       this.#retry = undefined;
+      this.canRetry = false;
 
       return true;
     } catch (cause) {

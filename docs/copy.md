@@ -90,8 +90,14 @@ appear only as the literal name used by an external tool).
 | schedule | a scheduled message or wake-up | cron, job, timer |
 | skill, plugin, marketplace | items in Agent environment | extension, add-on |
 | update channel | Stable, Beta, Nightly | track, ring, branch |
+| rewind | return the conversation to an earlier message in the same thread | rollback, reset |
 
 "host" stays only as part of a network address (`host:port`).
+
+Rewind returns a conversation to an earlier message in the same thread. Its action
+is **Edit from here**; **Stop and edit** includes stopping active work. **Undo** restores
+the conversation before another turn or rewind. Rewinding never silently changes files:
+use **Conversation only** or **Conversation and files** when checkpoints are available.
 
 ## 4. Patterns
 

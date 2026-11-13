@@ -317,7 +317,11 @@
   {#if rewind?.().busy}<p class="text-sm/5 text-muted" role="status">Editing this thread…</p>{/if}
   {#if rewind?.().error}
     <Alert tone="error"
-      >{rewind?.().error}<Button variant="ghost" size="sm" onclick={() => void rewind?.().retry()}>Retry</Button></Alert
+      >{rewind?.().error}{#if rewind?.().canRetry}<Button
+          variant="ghost"
+          size="sm"
+          onclick={() => void rewind?.().retry()}>Retry</Button
+        >{/if}</Alert
     >
   {/if}
   {#if editorRewind.saved.length}

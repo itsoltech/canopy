@@ -43,9 +43,7 @@ export function rewindRows(rows: FeedRow[], turns: readonly ui.Turn[], open: Rea
     const id = turn?.rewindId;
 
     if (!id) {
-      // The compact fold replaces the durable event's generic success notice.
-      if (row.kind !== "timeline" || row.row.kind !== "notice" || row.row.notice.notice.code !== "thread_rewound")
-        result.push(row);
+      result.push(row);
       continue;
     }
 

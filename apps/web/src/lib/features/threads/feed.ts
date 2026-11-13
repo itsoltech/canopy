@@ -262,7 +262,14 @@ function ownRows(
   report?: (count: number) => void,
 ): FeedRow[] {
   return foldTurns(
-    buildTimeline(input.entries, input.turns, input.notices, input.results, nodes, context),
+    buildTimeline(
+      input.entries,
+      input.turns,
+      input.notices.filter((notice) => notice.notice.code !== "thread_rewound"),
+      input.results,
+      nodes,
+      context,
+    ),
     (fold) => input.openWork.has(fold),
     (key) => input.openGroups?.has(key) ?? false,
     gaps,
