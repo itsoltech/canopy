@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { ActivityIndicator, FlatList, ScrollView, Text, View } from "react-native";
 import type { BlobRef } from "@canopy/contracts";
 import { Button } from "../../ui/Button";
-import { FullScreenViewer } from "../../ui/FullScreenViewer";
+import { TextViewerFrame } from "./TextViewerFrame";
 import { styles, useColors, useTypography } from "../../ui/theme";
 import { CopyAction } from "./copy-action";
 import { QuoteAction } from "../quotes/QuoteAction";
@@ -60,6 +60,7 @@ export function TextViewer({
   markdown = false,
   notice,
   toolbar,
+  embedded = false,
 }: {
   text?: string;
   blob?: BlobRef | undefined;
@@ -72,6 +73,7 @@ export function TextViewer({
   markdown?: boolean;
   notice?: string;
   toolbar?: ReactNode;
+  embedded?: boolean;
 }) {
   const c = useColors();
   const { loaded, error, tooLarge, retry } = useTextContent(text, blob, threadId);
@@ -82,7 +84,8 @@ export function TextViewer({
   const chunks = useMemo(() => chunksOf(loaded ?? ""), [loaded]);
 
   return (
-    <FullScreenViewer
+    <TextViewerFrame
+      embedded={embedded}
       title={label}
       onClose={onClose}
       actions={
@@ -163,6 +166,6 @@ export function TextViewer({
           ListEmptyComponent={<Text style={[styles.body, { color: c.muted }]}>No content.</Text>}
         />
       )}
-    </FullScreenViewer>
+    </TextViewerFrame>
   );
 }

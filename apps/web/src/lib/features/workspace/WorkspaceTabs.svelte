@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { tick } from "svelte";
-  import { fileName } from "@canopy/domain/file-references";
+  import { tick, type Snippet } from "svelte";
+  import { tabName, tabPath, tabDirty, tabBusy } from "@canopy/domain/workspace-modules";
   import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import MenuItem from "#lib/shared/ui/MenuItem.svelte";
   import MenuSeparator from "#lib/shared/ui/MenuSeparator.svelte";
@@ -12,16 +12,19 @@
   import WorkspaceClose from "./WorkspaceClose.svelte";
   import WorkspaceCommands from "./WorkspaceCommands.svelte";
   import { usePalette } from "#lib/features/commands/commands.svelte.ts";
+  import WorkspaceModulePicker from "./WorkspaceModulePicker.svelte";
 
   let {
     state: workspace,
     working = false,
     pending = 0,
+    actions,
     class: className = "",
   }: {
     state: ThreadWorkspace;
     working?: boolean;
     pending?: number;
+    actions?: Snippet;
     class?: string;
   } = $props();
 
@@ -40,10 +43,10 @@
       { id: "thread", name: "Thread", path: "Thread", preview: false, dirty: false },
       ...view.tabs.map((tab) => ({
         id: tab.id,
-        name: fileName(tab.document.path),
-        path: tab.document.path,
+        name: tabName(tab),
+        path: tabPath(tab),
         preview: tab.preview,
-        dirty: tab.document.dirty,
+        dirty: tabDirty(tab),
       })),
     ];
   });
@@ -152,11 +155,12 @@
         </div>
       {/each}
     </div>{/if}
+  <div class="order-2 shrink-0"><WorkspaceModulePicker onselect={(target) => view.openModule(target)} /></div>
   <DropdownMenu label="Switch tab" placement="bottom-end" sheet>
     {#snippet trigger(props)}{#if width < 230}<button
           type="button"
           aria-label={`Switch tab (${tabs.length}), ${active.name}${active.dirty ? ", Unsaved changes" : ""}`}
-          class="flex h-9 min-w-0 flex-1 items-center gap-1.5 rounded-md bg-zinc-950/5 px-2 text-sm focus-ring dark:bg-white/10"
+          class="order-1 flex h-9 min-w-0 flex-1 items-center gap-1.5 rounded-md bg-zinc-950/5 px-2 text-sm focus-ring dark:bg-white/10"
           {...props}
         >
           <span class="min-w-0 flex-1 truncate" class:italic={active.preview}>{active.name}</span>
@@ -166,6 +170,7 @@
           <Icon name="chevron-down" />
         </button>{:else}<IconButton
           icon="chevron-down"
+          class="order-3"
           label={`Switch tab (${tabs.length})`}
           {...props}
         />{/if}{/snippet}
@@ -187,10 +192,11 @@
     <MenuItem disabled={tabs.length <= 1} onselect={() => workspace.closeOthers(active.id)}>Close other tabs</MenuItem>
     <MenuItem
       onselect={() => {
-        for (const tab of view.tabs.filter((tab) => !tab.document.dirty && !tab.document.busy)) view.close(tab.id);
+        for (const tab of view.tabs.filter((tab) => !tabDirty(tab) && !tabBusy(tab))) view.close(tab.id);
       }}>Close saved tabs</MenuItem
     >
     {#if palette}<MenuSeparator /><MenuItem onselect={() => palette.show()}>Search and commands</MenuItem>{/if}
+    {#if actions}<MenuSeparator />{@render actions()}{/if}
   </DropdownMenu>
 </div>
 

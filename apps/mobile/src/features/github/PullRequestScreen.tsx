@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useEffectEvent, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { router } from "expo-router";
 import { ScrollView, View } from "react-native";
 import type { github } from "@canopy/contracts";
-import { Code, ConnectError } from "@connectrpc/connect";
+import { ConnectError } from "@connectrpc/connect";
 import { useSession } from "../../state/session";
-import { useSharedQuery } from "../../state/queries";
 import { Button, Notice, ScreenHeader, Segmented } from "../../ui/components";
 import { ScreenFrame, useContentPadding } from "../../ui/ScreenFrame";
 import { ListSkeleton } from "../../ui/Skeleton";
@@ -13,58 +12,31 @@ import { PullRequestSummary } from "./PullRequestSummary";
 import { PullRequestHeader } from "./PullRequestHeader";
 import { PullRequestCode } from "./PullRequestCode";
 import { PullRequestTimeline } from "./PullRequestTimeline";
-import { usePullRequestWatch } from "./usePullRequestWatch";
 import { putContext } from "./context-draft";
 import { CommentComposer } from "./CommentComposer";
 import { invalidations } from "./invalidations";
 import { GITHUB_HOME, splitId } from "@canopy/domain/computers";
 import { RepositoryAccessActions } from "./RepositoryAccessActions";
 import { PrCitationTarget, prCitationSender } from "./citation-target";
+import { usePullRequestRead, deniedRead, accountAccessError } from "./usePullRequestRead";
+import { useWorkspace } from "../workspace/context";
+import { PullRequestView, usePanelView, usePanelScroll } from "./panel-view";
 
-const deniedRead = (code: Code) =>
-  [Code.PermissionDenied, Code.NotFound, Code.FailedPrecondition, Code.Aborted].includes(code);
-
-const accountAccessError = (cause: unknown) => {
-  const error = ConnectError.from(cause);
-
-  return error.code === Code.PermissionDenied ? error.rawMessage : "";
-};
-
-export function PullRequestScreen({ id, threadId }: { id: string; threadId?: string }) {
+export function PullRequestScreen({
+  id,
+  threadId,
+  embedded = false,
+}: {
+  id: string;
+  threadId?: string;
+  embedded?: boolean;
+}) {
   const { client, queries, online } = useSession();
   const key = `GetPullRequest:${id}`;
-  const [denied, setDenied] = useState(false);
-  const [accessError, setAccessError] = useState("");
-  const [tab, setTab] = useState("summary");
-
-  const onUpdate = useCallback(
-    (update: github.PullRequestUpdate) => {
-      if (update.snapshot) queries.set(key, update.snapshot);
-    },
-    [queries, key],
-  );
-
-  usePullRequestWatch(id, onUpdate);
-
-  const read = useSharedQuery<github.PullRequestSnapshot>(
-    key,
-    async () => {
-      try {
-        const value = await client!.api.getPullRequest({ pullRequestId: id });
-        setDenied(false);
-        setAccessError("");
-
-        return value;
-      } catch (cause) {
-        setAccessError(accountAccessError(cause));
-
-        if (deniedRead(ConnectError.from(cause).code)) setDenied(true);
-        throw cause;
-      }
-    },
-    !!client,
-    60_000,
-  );
+  const { read, denied, setDenied, accessError, setAccessError } = usePullRequestRead(id);
+  const { view, tab, select: setTab } = usePanelView(id);
+  const workspace = useWorkspace();
+  const back = () => (embedded && workspace ? workspace.select("thread") : router.back());
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -77,7 +49,7 @@ export function PullRequestScreen({ id, threadId }: { id: string; threadId?: str
     try {
       const current = await client.api.listThreadPullRequests({ threadId });
       await client.api.unlinkThreadPullRequest({ threadId, pullRequestId: id, expectedRevision: current.revision });
-      router.back();
+      back();
     } catch {
       setError("Could not unlink this pull request. Refresh, then retry.");
     } finally {
@@ -118,7 +90,7 @@ export function PullRequestScreen({ id, threadId }: { id: string; threadId?: str
       );
 
       putContext(threadId, context);
-      router.back();
+      back();
     } catch {
       setError("Could not prepare PR context. Check access and attachment limits, then retry.");
     } finally {
@@ -160,11 +132,17 @@ export function PullRequestScreen({ id, threadId }: { id: string; threadId?: str
   );
 
   return (
-    <PrCitationTarget value={prCitationSender(threadId)}>
-      <ScreenFrame header={<ScreenHeader title="Pull request" />}>
-        <PullRequestContent id={id} tab={tab} data={data} header={header} failed={!!read.error} />
-      </ScreenFrame>
-    </PrCitationTarget>
+    <PullRequestView value={view}>
+      <PrCitationTarget value={prCitationSender(threadId, back)}>
+        {embedded ? (
+          <PullRequestContent id={id} tab={tab} data={data} header={header} failed={!!read.error} />
+        ) : (
+          <ScreenFrame header={<ScreenHeader title="Pull request" />}>
+            <PullRequestContent id={id} tab={tab} data={data} header={header} failed={!!read.error} />
+          </ScreenFrame>
+        )}
+      </PrCitationTarget>
+    </PullRequestView>
   );
 }
 
@@ -263,6 +241,11 @@ function PullRequestContent({
 
 function SummaryContent({ children }: { children: React.ReactNode }) {
   const padding = useContentPadding();
+  const scroll = usePanelScroll("summary");
 
-  return <ScrollView contentContainerStyle={{ ...padding, gap: 20 }}>{children}</ScrollView>;
+  return (
+    <ScrollView {...scroll} contentContainerStyle={{ ...padding, gap: 20 }}>
+      {children}
+    </ScrollView>
+  );
 }

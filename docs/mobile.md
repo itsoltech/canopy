@@ -56,6 +56,21 @@ Edycja pozostaje natywnym polem tekstowym bez kolorów podczas pisania. Tokeniza
 viewera i Preview changes dochodzą w osobnej warstwie workspace'u; obecny shell
 nie dodaje nowych RPC ani modułu natywnego. Poza wątkiem pozostaje pełnoekranowy viewer.
 
+`+` obok przełącznika kart otwiera moduły Pull requests, Tasks i Connectors w pełnej
+karcie bieżącego wątku. Modules otwiera arkusz minimalnego modułu z wyborem,
+Open in tab i Close module. Szczegóły wątku mają osobny arkusz; otwarcie jednego
+zamyka drugi. Nie ma dokowanego panelu na telefonie. Wybrany moduł i karty są
+metadanymi urządzenia, a otwartość arkuszy jest przejściowa.
+
+Lista PR przenosi się do modułu Pull requests; w podsumowaniu pozostaje skrót
+najnowszego PR. Pełna karta zachowuje Summary/Timeline/Code i istniejące akcje,
+a przygotowanie kontekstu/cytowanie wybiera Thread i aktualizuje jego szkic bez
+zmiany trasy. Tasks rozdziela harmonogramy od zadań w tle i otwiera wynik zadania
+w karcie. Connectors zachowuje granty całego workera. Nieaktywne moduły są
+odmontowane, dane korzystają ze współdzielonego cache parowania, a ponowne
+otwarcie sekcji PR korzysta z zapamiętanej prezentacji. Nie zmieniamy konfiguracji
+natywnej ani fingerprintów; kolorowanie plików dochodzi w kolejnej warstwie.
+
 Ścieżki plików w wiadomościach agenta (kod inline i linki Markdown) otwierają podgląd przez
 `ReadThreadFile` z ID wątku i elementu źródłowego. Rozstrzygnięcie nazw, wybór spośród kilku dopasowań,
 uprawnienia i limity są wspólne z webem; dla połączonego komputera odczyt wykonuje gateway domowy.

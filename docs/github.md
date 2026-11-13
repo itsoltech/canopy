@@ -905,16 +905,14 @@ odczytu bez cache; błąd odświeżenia zachowuje treść i udostępnia Retry. Z
 konta/rewizji dostępu nadal rozdziela cache sekcji, a autorytatywny snapshot domu,
 usunięcie komputera i zmiana parowania zachowują czyszczenie prywatnych danych.
 
-Prawy panel PR korzysta ze wspólnego `ResizeHandle`, tak jak lewy sidebar. Uchwyt na lewej
-krawędzi obsługuje przeciąganie, strzałki (Shift przyspiesza), Home/End oraz reset dwuklikiem
-lub Enter. Domyślna szerokość to 576 px, zakres 320–1200 px; maksimum zostawia 384 px dla
-wątku i przy małym oknie może ograniczyć panel poniżej minimum. Poniżej `xl` pozostaje arkusz.
-Szerokość jest lokalną preferencją urządzenia (`pullRequestWidth` w tym samym magazynie co
-`sidebarWidth`), bez synchronizacji ustawień konta. Podczas przeciągania aktualizuje się
-wyłącznie zmienna CSS w `requestAnimationFrame`; stan i zapis zmieniają się po puszczeniu
-uchwytu. Animacja kolumny jest w tym czasie wyłączona.
+Pełny PR wątku jest kartą workspace'u. Minimalny moduł Pull requests w prawym
+panelu lub arkuszu pokazuje listę powiązań; Open in tab otwiera pełną kartę.
+Stan panelu i szerokość są lokalne dla urządzenia. Wspólny `ResizeHandle`
+obsługuje przeciąganie, strzałki, Home/End i reset dwuklikiem lub Enter.
+Podsumowanie jest dokowane bez modułu i pływające na żądanie przy module.
+Szczegóły geometrii i lifecycle: [UI API](ui-api.md#moduły-workspaceu-wątku).
 
-1. **Panel wątku.** Pod `ThreadPlacement`/Branch lista **Pull requests**: tytuł, repo gdy potrzebne,
+1. **Moduł Pull requests.** Lista powiązań: tytuł, repo gdy potrzebne,
    `#number`, stan i checki. Domyślnie najnowszy PR bieżącej gałęzi według utworzenia;
    **Show N more** rozwija resztę. Historyczne powiązania są oznaczone osobno, ręczne pozostają
    dostępne po zmianie gałęzi. **Link pull request** otwiera kompaktowy picker repozytorium workspace’u
@@ -1085,8 +1083,9 @@ etapu „nadrobienia mobile”. Konto i instalacje są w Settings, inline auth d
 Systemowa przeglądarka otwiera device flow przez istniejące `expo-linking`, a powrót/AppState
 odczytuje stan próby. Telefon nigdy nie wymienia kodu na token GitHub.
 
-Pod Branch w `ThreadPanel.tsx` jest identyczna zwijana lista PR. Tap otwiera ekran PR z
-Summary/Timeline/Code; Back wraca do wątku ze szkicem. Overflow otwiera arkusz akcji.
+Moduł Pull requests ma identyczną zwijaną listę PR. Tap otwiera kartę z
+Summary/Timeline/Code; Back wybiera Thread ze szkicem. Osobne odnośniki PR poza
+workspace'em zachowują ekran trasy. Overflow otwiera arkusz akcji.
 Timeline i pliki korzystają z list wirtualnych, strony po 50/30, z jedną zakotwiczoną pozycją
 podczas doczytywania. Filtry i wybór commitu są arkuszami/pickerami, nie małymi desktopowymi menu.
 

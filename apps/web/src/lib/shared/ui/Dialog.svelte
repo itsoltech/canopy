@@ -24,6 +24,7 @@
     description,
     size = "md",
     fullscreen = false,
+    sheet = false,
     bare = false,
     dismissible = true,
     onkeydown,
@@ -36,6 +37,8 @@
     description?: string;
     size?: "md" | "lg" | "output";
     fullscreen?: boolean;
+    /** Keep the bottom-sheet placement at larger widths too. */
+    sheet?: boolean;
     bare?: boolean;
     dismissible?: boolean;
     onkeydown?: ((event: KeyboardEvent) => void) | undefined;
@@ -95,11 +98,12 @@
   {...backdropDismiss(() => {
     if (dismissible) open = false;
   })}
-  data-sheet
+  data-sheet={sheet ? "force" : ""}
   inert={closing || undefined}
   class={[
-    "density-standard t-modal top-(--window-safe-top) m-0 mt-auto max-h-[min(90dvh,var(--window-safe-height))] w-full max-w-none min-w-0 scroll-stable overflow-x-hidden overflow-y-auto rounded-t-2xl bg-surface p-0 text-ink shadow-xl ring-1 ring-divider backdrop:bg-zinc-950/40 sm:m-auto sm:rounded-2xl dark:shadow-none dark:backdrop:bg-black/60",
-    size === "output" ? "sm:max-w-[55rem]" : size === "lg" ? "sm:max-w-2xl" : "sm:max-w-lg",
+    "density-standard t-modal top-(--window-safe-top) m-0 mt-auto max-h-[min(90dvh,var(--window-safe-height))] w-full max-w-none min-w-0 scroll-stable overflow-x-hidden overflow-y-auto rounded-t-2xl bg-surface p-0 text-ink shadow-xl ring-1 ring-divider backdrop:bg-zinc-950/40 dark:shadow-none dark:backdrop:bg-black/60",
+    sheet ? "mx-auto sm:max-w-2xl" : "sm:m-auto sm:rounded-2xl",
+    !sheet && (size === "output" ? "sm:max-w-[55rem]" : size === "lg" ? "sm:max-w-2xl" : "sm:max-w-lg"),
     fullscreen && "max-sm:mt-0 max-sm:h-(--window-safe-height) max-sm:max-h-(--window-safe-height) max-sm:rounded-none",
     className,
   ]}
@@ -108,7 +112,7 @@
     onclose={() => {
       if (dismissible) open = false;
     }}
-    class="absolute inset-x-0 top-0 sm:hidden"
+    class={["absolute inset-x-0 top-0", !sheet && "sm:hidden"]}
   />
   {#if bare}
     <h2 id="{id}-title" class="sr-only">{title}</h2>

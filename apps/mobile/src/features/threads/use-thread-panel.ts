@@ -2,7 +2,7 @@ import { ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { useSharedQuery } from "../../state/queries";
 import { useAppActive } from "../../ui/active";
-import { useForegroundInterval } from "../../ui/interval";
+import { useQueryRefresh } from "../../state/query-refresh";
 
 export function useThreadPanel(threadId: string, enabled: boolean) {
   const { client, online, queries } = useSession();
@@ -10,7 +10,7 @@ export function useThreadPanel(threadId: string, enabled: boolean) {
   const watching = enabled && !!client && online && active;
   const key = `GetThreadPanel:${threadId}`;
   const read = useSharedQuery(key, () => client!.api.getThreadPanel({ threadId }), watching, 5000);
-  useForegroundInterval(() => queries.invalidate(key), 5000, watching);
+  useQueryRefresh(key, 5000, watching);
 
   return {
     ...read,

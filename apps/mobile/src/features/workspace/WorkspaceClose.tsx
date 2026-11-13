@@ -8,10 +8,12 @@ export function WorkspaceClose({
   view,
   tabs,
   onClose,
+  onComplete,
 }: {
   view: Workspace;
   tabs: WorkspaceTab[];
   onClose: () => void;
+  onComplete?: () => void;
 }) {
   const c = useColors();
 
@@ -24,9 +26,10 @@ export function WorkspaceClose({
           if (!(await tab.document.save())) return;
         } else tab.document.discard();
       }
-
-      view.close(tab.id);
     }
+
+    for (const tab of tabs) view.close(tab.id);
+    onComplete?.();
 
     onClose();
   };

@@ -14,6 +14,7 @@ import type { github } from "@canopy/contracts";
 import { CommentComposer } from "./CommentComposer";
 import { ListSkeleton } from "../../ui/Skeleton";
 import { Viewport, ViewportContext } from "../../ui/viewport";
+import { usePanelScroll } from "./panel-view";
 
 function useTimelineRead(id: string, kind: string, oldestFirst: boolean, scope: string) {
   const { client } = useSession();
@@ -70,6 +71,7 @@ export function PullRequestTimeline({
     type = useTypography();
 
   const [viewport] = useState(() => new Viewport());
+  const scroll = usePanelScroll("timeline", viewport.refresh);
 
   const [kind, setKind] = useState(""),
     [oldestFirst, setOldest] = useState(false),
@@ -106,8 +108,7 @@ export function PullRequestTimeline({
     <>
       <ViewportContext.Provider value={viewport}>
         <FlatList
-          onScroll={viewport.refresh}
-          scrollEventThrottle={32}
+          {...scroll}
           data={rows}
           keyExtractor={(row) => row.key}
           contentContainerStyle={padding}

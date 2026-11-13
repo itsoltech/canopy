@@ -17,6 +17,8 @@
     cwd,
     source,
     class: className,
+    embedded = false,
+    onclose,
   }: {
     open?: boolean;
     entry: BackgroundEntry;
@@ -24,6 +26,8 @@
     cwd: string;
     source?: Item | undefined;
     class?: ClassValue;
+    embedded?: boolean;
+    onclose?: () => void;
   } = $props();
 
   const task = $derived(entry.item.content.value);
@@ -43,7 +47,7 @@
   );
 </script>
 
-<Dialog bind:open {title} size="output" fullscreen bare class={["h-[min(80dvh,46rem)] overflow-hidden", className]}>
+{#snippet content()}
   {#key entry.id}
     {#snippet notes()}
       {#if task.outputBlob}<p>
@@ -64,8 +68,26 @@
       {#snippet status()}<BackgroundTaskStatus {entry} exitCode={command?.exitCode} />{/snippet}
       {#snippet actions()}
         {#if running}<BackgroundTaskStop {threadId} itemId={entry.id} />{/if}
-        <IconButton icon="x-mark" label="Close" size="sm" onclick={() => (open = false)} />
+        <IconButton
+          icon="x-mark"
+          label="Close task output"
+          size="sm"
+          onclick={() => {
+            if (onclose) onclose();
+            else open = false;
+          }}
+        />
       {/snippet}
     </Terminal>
   {/key}
-</Dialog>
+{/snippet}
+
+{#if embedded}<div class={["flex min-h-0 flex-1 flex-col overflow-hidden", className]}>{@render content()}</div>
+{:else}<Dialog
+    bind:open
+    {title}
+    size="output"
+    fullscreen
+    bare
+    class={["h-[min(80dvh,46rem)] overflow-hidden", className]}>{@render content()}</Dialog
+  >{/if}

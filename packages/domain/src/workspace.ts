@@ -1,21 +1,29 @@
-import { fileLocation, fileName } from "./file-references.ts";
+import { fileLocation } from "./file-references.ts";
 import { objectsOf, parseObject, str } from "./json.ts";
 import { WorkspaceFile, type WorkspaceFileApi, type WorkspaceFileTarget } from "./workspace-file.ts";
+import {
+  fileTab,
+  tabBusy,
+  tabDirty,
+  workspaceModule,
+  type WorkspaceEntry,
+  type WorkspaceModuleTarget,
+  type WorkspaceTab,
+} from "./workspace-modules.ts";
+
+export type { WorkspaceEntry, WorkspaceTab } from "./workspace-modules.ts";
 
 export const WORKSPACE_TAB_LIMIT = 12;
 const METADATA_BYTES = 256 * 1024;
 const DRAFT_BYTES = 4 * 1024 * 1024;
 
-export interface WorkspaceTab {
-  readonly id: string;
-  readonly document: WorkspaceFile;
-  preview: boolean;
-}
-
 /** One thread's tab model. Thread is implicit and always first; focus never follows storage events. */
 export class Workspace {
-  tabs: WorkspaceTab[] = [];
+  tabs: WorkspaceEntry[] = [];
   active = "thread";
+  sidebar: WorkspaceModuleTarget | undefined;
+  panelCollapsed = false;
+  panelWidth = 288;
   error = "";
   #recent: string[] = [];
   #next = 0;
@@ -26,18 +34,61 @@ export class Workspace {
     readonly store: WorkspaceStore,
   ) {}
 
-  get current(): WorkspaceTab | undefined {
+  get current(): WorkspaceEntry | undefined {
     return this.tabs.find((tab) => tab.id === this.active);
   }
+  get currentFile(): WorkspaceTab | undefined {
+    const current = this.current;
+
+    return current?.kind === "file" ? current : undefined;
+  }
+  get files(): WorkspaceTab[] {
+    return this.tabs.filter(fileTab);
+  }
   get dirty(): WorkspaceTab[] {
-    return this.tabs.filter((tab) => tab.document.dirty);
+    return this.files.filter((tab) => tab.document.dirty);
+  }
+
+  openModule(target: WorkspaceModuleTarget): void {
+    const existing = this.tabs.find(
+      (tab) => tab.kind === "module" && tab.module === target.module && tab.resource === target.resource,
+    );
+
+    if (existing) return this.select(existing.id);
+
+    if (this.tabs.length >= WORKSPACE_TAB_LIMIT - 1) {
+      this.error = "You have 12 open tabs. Close a tab, then open the module.";
+      this.store.notify();
+
+      return;
+    }
+
+    const id = `module-${++this.#next}`;
+    this.tabs = [...this.tabs, { ...target, kind: "module", id, preview: false }];
+    this.select(id);
+  }
+
+  setSidebar(target?: WorkspaceModuleTarget): void {
+    this.sidebar = target;
+    this.panelCollapsed = false;
+    this.store.notify(true);
+  }
+
+  collapsePanel(collapsed: boolean): void {
+    this.panelCollapsed = collapsed;
+    this.store.notify(true);
+  }
+
+  sizePanel(width: number): void {
+    this.panelWidth = Math.max(256, Math.min(384, width));
+    this.store.notify(true);
   }
 
   open(target: WorkspaceFileTarget): void {
     const location = fileLocation(target.path);
     const next = { ...target, ...location };
 
-    const existing = this.tabs.find(
+    const existing = this.files.find(
       (tab) =>
         tab.document.target.threadId === target.threadId &&
         (tab.document.path === next.path ||
@@ -52,7 +103,7 @@ export class Workspace {
       return;
     }
 
-    const preview = this.tabs.find((tab) => tab.preview && !tab.document.dirty && !tab.document.busy);
+    const preview = this.files.find((tab) => tab.preview && !tab.document.dirty && !tab.document.busy);
 
     if (!preview && this.tabs.length >= WORKSPACE_TAB_LIMIT - 1) {
       this.error = "You have 12 open tabs. Close a tab, then open the file.";
@@ -71,14 +122,14 @@ export class Workspace {
       (bytes): boolean => this.store.reserveDraft(document, bytes),
     );
 
-    this.tabs = [...this.tabs, { id, document, preview: true }];
+    this.tabs = [...this.tabs, { kind: "file", id, document, preview: true }];
     this.select(id);
   }
 
   select(id: string): void {
     if (id !== "thread" && !this.tabs.some((tab) => tab.id === id)) return;
 
-    if (this.active !== id) this.current?.document.cancel();
+    if (this.active !== id) this.currentFile?.document.cancel();
     this.active = id;
     this.error = "";
     this.#recent = [id, ...this.#recent.filter((key) => key !== id)];
@@ -111,8 +162,9 @@ export class Workspace {
   close(id: string): boolean {
     const tab = this.tabs.find((tab) => tab.id === id);
 
-    if (!tab || tab.document.dirty || tab.document.busy) return false;
-    tab.document.cancel();
+    if (!tab || tabDirty(tab) || tabBusy(tab)) return false;
+
+    if (tab.kind === "file") tab.document.cancel();
     // The remaining documents retain their draft and scroll state.
     this.tabs = this.tabs.filter((entry) => entry.id !== id);
     this.#metadata.delete(id);
@@ -126,13 +178,13 @@ export class Workspace {
   }
 
   private documentChanged(id: string): void {
-    const tab = this.tabs.find((tab) => tab.id === id);
+    const tab = this.files.find((tab) => tab.id === id);
 
     if (!tab) return;
 
     if (tab.document.editing) tab.preview = false;
 
-    const duplicate = this.tabs.find(
+    const duplicate = this.files.find(
       (other) =>
         other !== tab &&
         other.document.target.threadId === tab.document.target.threadId &&
@@ -187,7 +239,7 @@ export class WorkspaceStore {
   }
 
   touch(view: Workspace): void {
-    if (this.#active !== view) this.#active?.current?.document.cancel();
+    if (this.#active !== view) this.#active?.currentFile?.document.cancel();
     this.#active = view;
     this.views.delete(view.threadId);
     this.views.set(view.threadId, view);
@@ -195,9 +247,9 @@ export class WorkspaceStore {
     for (const [id, candidate] of this.views) {
       if (this.views.size <= 30) break;
 
-      if (candidate === view || candidate.tabs.some((tab) => tab.document.editing || tab.document.busy)) continue;
+      if (candidate === view || candidate.files.some((tab) => tab.document.editing || tab.document.busy)) continue;
 
-      for (const tab of candidate.tabs) tab.document.cancel();
+      for (const tab of candidate.files) tab.document.cancel();
       this.views.delete(id);
     }
 
@@ -213,7 +265,7 @@ export class WorkspaceStore {
   }
 
   documents(): WorkspaceFile[] {
-    return [...this.views.values()].flatMap((view) => view.tabs.map((tab) => tab.document));
+    return [...this.views.values()].flatMap((view) => view.files.map((tab) => tab.document));
   }
 
   trim(): void {
@@ -223,7 +275,7 @@ export class WorkspaceStore {
     for (const entry of documents) {
       if (bytes <= this.cleanBytes) break;
 
-      if (entry.editing || entry.busy || this.#active?.current?.document === entry) continue;
+      if (entry.editing || entry.busy || this.#active?.currentFile?.document === entry) continue;
       bytes -= entry.bytes;
       entry.release();
     }
@@ -246,8 +298,26 @@ export class WorkspaceStore {
 
         if (!id || id.length > 1024) continue;
         const view = this.view(id);
+        const sidebar = workspaceModule(str(saved["sidebar"]));
+        view.sidebar = sidebar ? { module: sidebar.id, resource: str(saved["sidebarResource"]) } : undefined;
+        view.panelCollapsed = saved["panelCollapsed"] === true;
+        const width = Number(saved["panelWidth"]);
+
+        if (Number.isFinite(width) && width >= 256 && width <= 384) view.panelWidth = width;
 
         for (const tab of objectsOf(saved["tabs"]).slice(0, WORKSPACE_TAB_LIMIT - 1)) {
+          const module = workspaceModule(str(tab["module"]));
+
+          if (module) {
+            view.openModule({
+              module: module.id,
+              resource: str(tab["resource"]).slice(0, 1024),
+              label: str(tab["label"]).slice(0, 256),
+            });
+
+            continue;
+          }
+
           const path = str(tab["path"]);
           const threadId = str(tab["threadId"]);
 
@@ -278,12 +348,19 @@ export class WorkspaceStore {
     const views = [...this.views.values()].slice(-30).map((view) => ({
       threadId: view.threadId,
       active: view.tabs.findIndex((tab) => tab.id === view.active) + 1,
-      tabs: view.tabs.map((tab) => ({
-        threadId: tab.document.target.threadId,
-        path: tab.document.path,
-        itemId: tab.document.target.itemId ?? "",
-        name: fileName(tab.document.path),
-      })),
+      sidebar: view.sidebar?.module,
+      sidebarResource: view.sidebar?.resource,
+      panelCollapsed: view.panelCollapsed,
+      panelWidth: view.panelWidth,
+      tabs: view.tabs.map((tab) =>
+        tab.kind === "module"
+          ? { module: tab.module, resource: tab.resource, label: tab.label?.slice(0, 256) }
+          : {
+              threadId: tab.document.target.threadId,
+              path: tab.document.path,
+              itemId: tab.document.target.itemId ?? "",
+            },
+      ),
     }));
 
     while (views.length && new TextEncoder().encode(JSON.stringify({ views })).length > METADATA_BYTES) views.shift();

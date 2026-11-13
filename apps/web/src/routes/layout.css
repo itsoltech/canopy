@@ -82,7 +82,7 @@ html:is([data-canopy-platform="linux"], [data-canopy-platform="win32"]) {
 }
 html:is([data-canopy-platform="linux"], [data-canopy-platform="win32"]):not([data-window-fullscreen])
   :is([data-window-titlebar], [data-window-end]):not(dialog *) {
-  padding-right: var(--window-controls-width);
+  padding-right: var(--window-end-inset, var(--window-controls-width));
   @media (prefers-reduced-motion: no-preference) {
     transition: padding-right var(--duration-medium) var(--ease-smooth-out);
   }
