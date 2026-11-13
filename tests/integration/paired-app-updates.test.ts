@@ -103,7 +103,7 @@ describe.skipIf(!dockerAvailable)("paired client updates its gateway's own deskt
     await gateway?.close();
   }, 20_000);
 
-  test("phone and BFF see an actionable home app, while Update all still leaves it alone", async () => {
+  test("phone and BFF include the home app in Update all and require restart confirmation", async () => {
     const snapshot = await phone.getUpdates({});
     const home = homeAppComputer(snapshot)!;
     expect(snapshot.appUpdateSupported).toBe(true);
@@ -111,7 +111,10 @@ describe.skipIf(!dockerAvailable)("paired client updates its gateway's own deskt
     expect(computerAction(home)).toEqual({ action: "app" });
     expect(computerUpdate(home)).toMatchObject({ status: "Available", actionable: true });
     expect(updatesAvailable(snapshot)).toBe(true);
-    expect(bulkUpdatesAvailable(snapshot)).toBe(false);
+    expect(bulkUpdatesAvailable(snapshot)).toBe(true);
+    expect(await errorCode(phone.manageUpdates({ action: "update_all" }))).toBe(Code.FailedPrecondition);
+    expect(app.checks).toBe(0);
+    expect(app.restarts).toBe(0);
     expect((await gateway.api.getUpdates({})).app).toEqual(snapshot.app);
   });
 
