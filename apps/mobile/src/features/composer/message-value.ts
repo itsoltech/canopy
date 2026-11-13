@@ -11,7 +11,7 @@ import { mentionPlaceholder } from "@canopy/domain/mentions";
 export interface MessageValue {
   readonly text: string;
   readonly mentions: readonly Mention[];
-  readonly quotes?: readonly ui.Quote[];
+  readonly quotes?: readonly ui.Quote[] | undefined;
 }
 
 export const emptyValue: MessageValue = { text: "", mentions: [] };
@@ -148,23 +148,26 @@ export function trimValue(value: MessageValue): MessageValue {
 
 export interface Segment {
   readonly text: string;
-  readonly mention?: Mention;
-  readonly quote?: ui.Quote;
+  readonly mention?: Mention | undefined;
+  readonly quote?: ui.Quote | undefined;
 }
 
-/** The text cut at its mentions, for rendering badges in place. */
-export function segmentsOf(value: MessageValue): Segment[] {
-  const out: Segment[] = [];
-  let at = 0;
-
-  const tokens = [
+/** Shared UTF-16 ranges for composer spans and sent-message Markdown elements. */
+export function rangesOf(value: MessageValue) {
+  return [
     ...value.mentions.map((mention) => ({ start: mention.start, end: mention.end, mention, quote: undefined })),
     ...(value.quotes ?? [])
       .filter(isPlacedQuote)
       .map((quote) => ({ start: quote.start, end: quote.end, quote, mention: undefined })),
   ].sort((a, b) => a.start - b.start);
+}
 
-  for (const m of tokens) {
+/** The text cut at its mentions and citations, for rendering badges in place. */
+export function segmentsOf(value: MessageValue): Segment[] {
+  const out: Segment[] = [];
+  let at = 0;
+
+  for (const m of rangesOf(value)) {
     if (m.start < at || m.end > value.text.length) continue;
 
     if (m.start > at) out.push({ text: value.text.slice(at, m.start) });
