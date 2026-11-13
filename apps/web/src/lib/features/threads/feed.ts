@@ -75,7 +75,7 @@ export const feedGroup = (row: FeedRow): string =>
 export const feedInserted = (row: FeedRow): "unfold" | "reveal" | undefined =>
   row.kind === "work" && !row.history
     ? "reveal"
-    : row.kind === "timeline" && row.work && !row.history
+    : (row.kind === "work-group" || (row.kind === "timeline" && row.work)) && !row.history
       ? "unfold"
       : undefined;
 

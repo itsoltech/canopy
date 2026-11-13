@@ -21,6 +21,7 @@ import { newDays } from "./thread-turns";
 import { TimelineEntries } from "./timeline-entries";
 import type { ThreadState } from "./ThreadScreen";
 import { mobileFeedLayout } from "../settings/client-diagnostics";
+import type { WorkFoldChoice } from "@canopy/domain/work-fold";
 
 /** What the timeline's items look up: other threads, items, deliveries, and its tasks by their command. */
 function useTimelineData(state: ThreadState) {
@@ -30,6 +31,7 @@ function useTimelineData(state: ThreadState) {
   quoteAction.current = state.quotes.add;
   const quote = useCallback((value: ui.Quote) => quoteAction.current(value), []);
   const away = state.home.away;
+  const foldChoices = useMemo(() => new Map<string, ReadonlyMap<number, WorkFoldChoice>>(), [thread?.id]);
 
   return useMemo(() => {
     const items = new Map(
@@ -67,10 +69,11 @@ function useTimelineData(state: ThreadState) {
       steers: snapshot?.steers ?? [],
       tasks,
       provider: thread?.provider,
+      foldChoices,
     };
 
     return { directory, context };
-  }, [snapshot, thread, threads, quote, away]);
+  }, [snapshot, thread, threads, quote, away, foldChoices]);
 }
 
 /** Native anchoring/follow-state changes may update the list wrapper without rendering unchanged turns. */

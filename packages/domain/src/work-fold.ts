@@ -4,15 +4,29 @@ export interface WorkFoldPreferences {
   readonly keepAfterTurn: boolean;
 }
 
-/** Manual choices and an active reader take precedence over device defaults. */
-export function workFoldOpen(
-  live: boolean,
-  answerStarted: boolean,
-  preferences: WorkFoldPreferences,
-  manual?: boolean,
-  reading = false,
-): boolean {
-  return manual ?? (reading || (live && !answerStarted ? preferences.expandWhileWorking : preferences.keepAfterTurn));
+/** Durable boundary of a segment: a final answer is identified by its transcript sequence. */
+export interface WorkFoldState {
+  readonly live: boolean;
+  readonly answered: boolean;
+  readonly answerSeq: bigint | undefined;
+}
+
+/** A choice belongs to the boundary at which the reader made it, never to a transient UI event. */
+export interface WorkFoldChoice {
+  readonly open: boolean;
+  readonly state: WorkFoldState;
+}
+
+/** Live choices expire at the final answer or end; choices made after the end survive late items. */
+export function workFoldOpen(state: WorkFoldState, preferences: WorkFoldPreferences, manual?: WorkFoldChoice): boolean {
+  if (
+    manual &&
+    manual.state.live === state.live &&
+    (!state.live || (manual.state.answered === state.answered && manual.state.answerSeq === state.answerSeq))
+  )
+    return manual.open;
+
+  return state.live && !state.answered ? preferences.expandWhileWorking : preferences.keepAfterTurn;
 }
 
 export type TurnProgress = "live" | "completed" | "ended";

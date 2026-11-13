@@ -5,7 +5,7 @@
   import Button from "../Button.svelte";
   import { rise } from "../motion.ts";
   import { UiMemory } from "../memory.ts";
-  import { captureAnchor, readingKeys, type FeedAnchor } from "./feed-anchor.ts";
+  import { captureAnchor, holdAnchor, readingKeys, type FeedAnchor } from "./feed-anchor.ts";
   import { FeedEntrances } from "./feed-entrances.ts";
   import { EndScroll } from "./end-scroll.ts";
   import { publishViewport, rowAttachment } from "./feed-measure.ts";
@@ -554,11 +554,12 @@
    * Makes this row (mounted, on screen) the one that keeps its place while the reader is scrolled up,
    * e.g. before rows are inserted above it that would otherwise push it down.
    */
-  export function hold(rowKey: string): void {
-    const element = elements.get(rowKey);
+  export function hold(rowKey: string, removedKey: string): void {
+    if (focusedKey === removedKey) stuck = false;
 
-    if (stuck || !scroller || !element) return;
-    anchor = { key: rowKey, element, top: element.getBoundingClientRect().top - scroller.getBoundingClientRect().top };
+    if (!stuck && !elements.has(rowKey)) rowTarget = rowKey;
+
+    if (!stuck) anchor = holdAnchor(rowKey, elements, scroller, focusedKey === removedKey) ?? anchor;
   }
 
   /**
@@ -656,6 +657,7 @@
               {memory}
               {measure}
               enter={entrances.take(key(item))}
+              exiting={() => !positions.has(key(item)) && inserted?.(item) === "unfold"}
             >
               {@render row(item, range[0] + offset)}
             </VirtualRow>

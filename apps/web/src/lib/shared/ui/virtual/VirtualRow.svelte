@@ -3,7 +3,7 @@
   import { untrack } from "svelte";
   import type { Attachment } from "svelte/attachments";
   import { provideMemoryScope, type UiMemory } from "../memory.ts";
-  import { stagger } from "../motion.ts";
+  import { expand, stagger } from "../motion.ts";
 
   /**
    * One article of a VirtualFeed: measured while mounted (`measure`), and the scope of the UI memory
@@ -20,6 +20,7 @@
     memory,
     measure,
     enter,
+    exiting,
     children,
   }: {
     key: string;
@@ -28,11 +29,14 @@
     memory: UiMemory;
     measure: Attachment<HTMLElement>;
     enter?: { kind: "rise" | "reveal" | "unfold"; order: number } | undefined;
+    /** Animate removed work rows; virtual unmounts remain immediate. Evaluated when leaving. */
+    exiting: () => boolean;
     children: Snippet;
   } = $props();
 
   const entrance = untrack(() => enter?.kind);
   const delay = untrack(() => (enter?.kind === "unfold" ? stagger(enter.order) : 0));
+  const collapse = (node: HTMLElement) => (exiting() ? expand(node, { instantReduced: true }) : { duration: 0 });
 
   provideMemoryScope(
     untrack(() => key),
@@ -48,6 +52,7 @@
   class={["min-w-0 rounded-lg focus-ring [contain:layout_style]", entrance && `t-${entrance}`]}
   style:--t-delay={delay ? `${delay}ms` : undefined}
   {@attach measure}
+  out:collapse
 >
   {@render children()}
 </article>

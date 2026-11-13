@@ -5,6 +5,22 @@ export interface FeedAnchor {
   top: number;
 }
 
+/** Keep a closing fold's surviving header visible when its work rows disappear. */
+export function holdAnchor(
+  key: string,
+  elements: ReadonlyMap<string, HTMLElement>,
+  scroller: HTMLElement | undefined,
+  focus: boolean,
+): FeedAnchor | undefined {
+  const element = elements.get(key);
+
+  if (!scroller || !element) return undefined;
+
+  if (focus) element.focus({ preventScroll: true });
+
+  return { key, element, top: Math.max(0, element.getBoundingClientRect().top - scroller.getBoundingClientRect().top) };
+}
+
 /** The first mounted row whose bottom is below the top edge (rows are in order), as the anchor. */
 export function captureAnchor(rows: HTMLCollection, edge: number): FeedAnchor | undefined {
   let low = 0;
