@@ -193,7 +193,8 @@ Zmiana względem wcześniejszego szkicu: `agents.worker_id` i `agents.cwd` znika
 Historia rozmowy u dostawcy leży w plikach na urządzeniu (`~/.claude/projects`, `~/.codex/sessions`) i jest związana z katalogiem roboczym. Wznowienie (`resume`, `thread/resume`) i fork (`forkSession`, `thread/fork`) działają tylko tam. Stąd niezmienniki:
 
 - placement wątku (`worker_id`, `workspace_id`, `cwd`, `provider`) jest **niezmienny** (trigger `threads_before_update`),
-- `provider_thread_id` ustawia się raz, przy zdarzeniu `thread_ready`,
+- `provider_thread_id` ustawia zdarzenie `thread_ready`; rewind i Undo mogą przełączyć
+  sesję dostawcy, zachowując identyfikator oraz miejsce wątku Canopy,
 - wątek boczny ma **ten sam** worker i workspace co rodzic; domyślnie dziedziczy katalog/worktree,
   a jawny wybór checkoutu lub własnego worktree podlega triggerom miejsca i właściciela (migracja `0067`),
 - jeśli worker zostanie wycofany, jego wątki stają się tylko do odczytu. Transkrypt w PostgreSQL zostaje.

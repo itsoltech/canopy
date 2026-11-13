@@ -338,7 +338,7 @@ erDiagram
         uuid worker_id FK
         uuid workspace_id FK
         text cwd
-        text provider_thread_id "ustawiany raz"
+        text provider_thread_id "bieżąca sesja dostawcy"
         uuid fork_source_thread_id FK
         uuid fork_after_turn_id FK
         jsonb settings
@@ -434,7 +434,11 @@ W SQL (CHECK, FK, indeksy częściowe):
 W triggerach:
 
 - `threads_before_insert`: wątek boczny dzieli projekt, właściciela, drzewo, worker i workspace z rodzicem, a `depth = rodzic + 1`; od `0068_worktree_automation` katalog/worktree jest domyślnie dziedziczony, ale jawnie może wskazać checkout albo inny worktree tego workspace'u. `threads_worktree_placement` wymaga zgodnego właściciela/projektu/workspace'u/workera i ścieżki rekordu worktree albo poprawnego checkoutu/dziedziczenia; miejsce pozostaje niezmienne. Źródło forka wątku bocznego jest w tym samym drzewie, a forkowanego wątku głównego w tym samym projekcie, u tego samego właściciela i na tym samym workerze; źródło ma tego samego dostawcę; punkt forka to zakończona tura (`completed`, `failed`, `interrupted`); brak punktu ⇒ przypięcie do ostatniej tury `completed`,
-- `threads_before_update`: placement i pochodzenie są niezmienne; `provider_thread_id` ustawia się raz, a podmienić (nie wyczyścić) można go tylko, dopóki żadna tura wątku nie wystartowała (`0012_worker_restart`: Codex bez rolloutu po restarcie workera).
+- `threads_before_update`: placement i pochodzenie są niezmienne. `provider_thread_id`
+  można podmienić przed pierwszą widoczną turą bieżącej sesji (Codex bez rolloutu po
+  restarcie workera) albo przy zatwierdzaniu trwałego rewindu lub Undo (`0135`).
+  Ta druga ścieżka wymaga zgodnego właściciela oraz dokładnej pary sesji zapisanej
+  w oczekującej operacji. Sesji nie można wyczyścić.
 
 - zdarzenie itemu ma `item_id`, inne nie; `event_id` unikalny w wątku (deduplikacja ponowień).
 
