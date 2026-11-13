@@ -8,16 +8,14 @@ import { useSourceIndex } from "./useSourceIndex";
 import { useFileHighlight } from "./useFileHighlight";
 import { syntaxColors } from "./syntax-colors";
 
-/** Virtual chunks keep original line numbers; a 2 MiB single line remains selectable in full. */
-export function WorkspaceText({
-  document,
-  draft,
-  plain = false,
-}: {
+interface WorkspaceTextProps {
   document: WorkspaceFile;
   draft?: string;
   plain?: boolean;
-}) {
+}
+
+/** Virtual chunks keep original line numbers; a 2 MiB single line remains selectable in full. */
+export function WorkspaceText({ document, draft, plain = false }: WorkspaceTextProps) {
   const c = useColors();
   const type = useTypography();
   const source = draft ?? document.text;
