@@ -1,5 +1,120 @@
 # Boty
 
+## Projekt: dostęp do sieci i izolowane pliki
+
+Ta sekcja opisuje docelową funkcjonalność; poniższe opisy obecnego runtime'u
+pozostają aktualne do wdrożenia całego stosu. Inferencja nadal działa wyłącznie
+przez oficjalne harnessy workerów: Claude Agent SDK, Codex app-server i Grok ACP.
+Gateway nie wywołuje API modelu. Zmiany nie rozszerzają dostępu do projektów,
+poświadczeń, skilli, pluginów ani plików użytkownika workera.
+
+### Ustawienia i narzędzia sieciowe
+
+Każdy bot ma niezależne ustawienia **Web access** i **Files**, domyślnie włączone
+także dla dotychczasowych botów. Brak pola konfiguracji oznacza wartość domyślną;
+jawne wyłączenie musi przetrwać zapis, restart i przeniesienie. Ustawienia zmienia
+właściciel przez web/desktop lub mobile, nie model przez `update_self`.
+Zmiany mobile dotyczą wyłącznie JavaScript/TypeScript, bez zmiany fingerprintów
+natywnych. UI używa wspólnych kontrolek i istniejących komponentów załączników.
+
+Worker jawnie konfiguruje narzędzia dla każdej nowej i wznawianej sesji:
+Claude otrzymuje `WebSearch` i `WebFetch`, Codex natywne web search, Grok wyłącznie
+narzędzia wyszukiwania/pobierania rzeczywiście dostępne w przypiętym CLI.
+Transport MCP `search_tool` Groka sam w sobie nie oznacza dostępu do internetu.
+Wyłączenie Web access usuwa natywne narzędzia sieciowe. Nie odbiera osobnych
+grantów connectorów; ich dostęp i zgody nadal egzekwuje gateway.
+Handoff nie otrzymuje żadnych narzędzi, niezależnie od ustawień bota.
+Zmiana uprawnień unieważnia ukrytą sesję przed następną turą; aktywna tura
+zachowuje snapshot ustawień, a wykonawcy platformy ponownie sprawdzają bieżące
+uprawnienia przed skutkiem ubocznym. Starszy worker nie może otrzymać komendy,
+której ograniczeń nie umie egzekwować; gateway wymaga capability i prosi o aktualizację.
+
+### Workspace rozmowy
+
+Każda rozmowa otrzymuje prywatny katalog scratch pod data dir workera.
+Klucz obejmuje właściciela, bota i trwałą tożsamość rozmowy; identyfikator tury
+ani dostawcy nie tworzy nowej rozmowy. Ścieżkę wylicza worker, nigdy model,
+gateway ani ścieżka projektu. Dane logowania i pliki sesji harnessu pozostają
+poza udostępnionym katalogiem. Zmiana Runs on nie przenosi scratch.
+
+Files udostępnia odczyt, tworzenie i edycję wyłącznie w tym katalogu. Nie
+udostępnia dowolnego shella. Codex może użyć `workspace-write` z wyłączoną siecią
+powłoki dopiero po zapewnieniu także ograniczenia odczytu: sam `workspace-write`
+ogranicza zapis, ale nie dowodzi braku odczytu hosta. Claude wymaga jawnej
+walidacji ścieżek Read/Write/Edit, odmowy Bash i pozostałych narzędzi lokalnych.
+Grok wymaga równoważnej, sprawdzonej granicy ACP. Jeśli harness nie potrafi
+zapewnić pełnej izolacji, jego narzędzia lokalne pozostają wyłączone; pliki
+obsługują ograniczone narzędzia platformy na workerze. Nie wolno zastępować
+izolacji instrukcją w promptcie ani samym ustawieniem cwd.
+
+Budżet rozmowy wynosi 200 MiB łącznie, z limitem liczby plików i współbieżnych
+operacji. Rezerwacja miejsca poprzedza zapis, dotyczy także downloadów i zapisów
+harnessu; przekroczenie nie może chwilowo zapełnić dysku. Retencja usuwa scratch
+po 7 dniach bezczynności oraz po usunięciu rozmowy/bota; nie usuwa katalogu
+aktywnej tury. Restart uruchamia sprzątanie pozostałości i porzuconych plików
+tymczasowych. Archiwum pozostaje zwykłym plikiem, nigdy nie jest rozpakowywane
+ani wykonywane. Wyłączenie Files blokuje narzędzia, nie usuwa dostarczonych
+wcześniej załączników z gatewaya.
+
+### Pobieranie i wysyłanie plików
+
+`download_file(url, filename?)` wykonuje worker w scratch rozmowy. Files musi
+być włączone; pobieranie jest jawną operacją sieciową tego narzędzia, niezależną
+od natywnego Web access. Dozwolone są wyłącznie HTTP/HTTPS, bez userinfo,
+ciasteczek i nagłówków uwierzytelniających. Limit to 50 MiB na plik, najwyżej
+5 przekierowań i 60 s całej operacji, z osobnym limitem bezczynności połączenia.
+Content-Length jest sprawdzany przed odczytem, a strumień ma niezależny licznik
+bajtów również bez tego nagłówka. MIME jest zachowywany jako metadane;
+gateway ponownie rozpoznaje typ z bajtów i stosuje zwykłe limity załączników
+właściciela, które mogą być niższe niż limit downloadu. Pobranie nie oznacza wysłania.
+
+Każdy adres i każde przekierowanie przechodzi kontrolę SSRF po rozwiązaniu DNS.
+Odrzucamy odpowiedź zawierającą jakikolwiek adres prywatny, loopback, link-local,
+multicast, zarezerwowany lub metadata, także IPv6 i IPv4 mapowane w IPv6.
+Połączenie musi użyć sprawdzonego adresu IP bez ponownego rozwiązania DNS;
+HTTPS zachowuje oryginalny hostname dla SNI i walidacji certyfikatu. Brak takiej
+możliwości oznacza odmowę, nie fallback do zwykłego fetch. URL-i i treści
+błędów transportu nie zapisujemy w audycie ani nie ujawniamy jako diagnostyki hosta.
+
+`send_attachment(path, caption?)` przyjmuje wyłącznie zwykły plik należący do
+scratch bieżącej rozmowy. Worker odrzuca traversal, ścieżki absolutne spoza
+katalogu, dowiązania i pliki specjalne; kontrola oraz otwarcie muszą być odporne
+na podmianę ścieżki między sprawdzeniem a odczytem. Gateway autoryzuje
+właściciela, bota, workera, aktywną turę, lease i aktualne Files przed uploadem
+oraz zatwierdzeniem wiadomości. Używa istniejącego storage blobów i załączników,
+bez ścieżki workera w publicznym API. Zapis wiadomości, powiązanie załącznika,
+audyt i wynik narzędzia są atomowe i deduplikowane po call id; reconnect nie
+wysyła drugiej kopii. Zwykła polityka zgód pozostaje egzekwowana w gatewayu.
+
+Załącznik pojawia się jako wiadomość bota w web, desktop i mobile: nazwa,
+rozmiar, ikona typu, pobranie i obsługiwany podgląd. Kanały Telegram/Slack lub
+inne kanały dostarczają plik wyłącznie przez istniejący, uprawniony adapter
+obsługujący pliki. Sam grant konta MCP nie tworzy kanału dostarczania.
+Brak obsługi plików daje jawną informację; plik nadal jest dostępny w rozmowie
+Canopy. Sekrety kanałów i connectorów pozostają w gatewayu, nigdy w scratch,
+argumentach modelu ani logach workera.
+
+### Model zagrożeń i weryfikacja
+
+| Zagrożenie | Granica i wymagany dowód |
+|---|---|
+| SSRF i DNS rebinding | Walidacja wszystkich adresów DNS i redirectów, przypięcie IP; lokalne fixture HTTP oraz atrapy DNS obejmują redirect do sieci prywatnej i zmianę odpowiedzi DNS. |
+| Traversal i symlink escape | Walidacja każdego komponentu, bezpieczne otwarcie pliku, odmowa plików specjalnych; próby `..`, ścieżek absolutnych, dowiązań i podmiany ścieżki dla każdego harnessu. |
+| Wyczerpanie dysku | Rezerwacja 200 MiB, limity pojedynczego strumienia, liczby plików i czasu; testy równoległego zapisu, przekroczenia rozmiaru, przerwania i retencji po restarcie. |
+| Eksfiltracja między rozmowami | Tożsamość rozmowy wyliczana poza modelem, odmowa odczytu innego scratch i hosta, kontrola owner scoping w gatewayu; obcy bot, właściciel, worker, zakończona tura i odwołany grant nie uzyskują dostępu. |
+| Niezaufana treść internetu | Dane WWW i pobrane pliki nie udzielają zgód, nie zmieniają konfiguracji i nie są wykonywane; prompt opisuje dostępne narzędzia, limity i granice. |
+
+Wdrożenie jest jednym stosem pięciu PR-ów: dokumentacja, Web access, scratch,
+download/send, UI. Wszystkie pozostają draft do ukończenia i weryfikacji całości;
+stos trafia do dev jednocześnie. Testy adapterów obejmują włączenie/wyłączenie
+narzędzi każdego providera oraz brak narzędzi w handoff. Integracja używa
+prawdziwego gateway↔worker z atrapami CLI, lokalnymi fixture i bez wywołań
+zewnętrznych API. Obejmuje limity, cleanup, owner scoping, restart/deduplikację
+i odczyt wysłanego załącznika przez wspólne API web/mobile. Nie dodajemy testów
+komponentów UI; ręcznie sprawdzamy jasny/ciemny motyw, desktop/telefon i długie
+nazwy. Kontrakty proto są wyłącznie addytywne; migracja jest potrzebna tylko
+przy zmianie schematu, z następnym wolnym numerem na dev w chwili otwarcia PR.
+
 ## Historia na urządzeniu i odczyt przyrostowy
 
 Web przechowuje rozmowy i wymiany w pamięci bieżącej sesji SPA: łącznie 16 widoków,
