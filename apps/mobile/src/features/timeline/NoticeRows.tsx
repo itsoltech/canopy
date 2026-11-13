@@ -3,6 +3,7 @@ import { Text, View } from "react-native";
 import { ItemStatus, NoticeLevel, type Notice } from "@canopy/contracts";
 import { backgroundHeadline, backgroundOutcome, backgroundTitle } from "@canopy/domain/background-tasks";
 import { noticePresentation } from "@canopy/domain/notice-presentation";
+import type { NoticeState } from "@canopy/domain/turn-notices";
 import { Icon } from "../../ui/Icon";
 import { font, styles, useColors } from "../../ui/theme";
 import { useTone } from "../../ui/tone";
@@ -10,14 +11,15 @@ import { useTimelineDirectory } from "./directory";
 import { CodeBlock, MoreButton } from "./CodeBlock";
 
 /** Platform or provider notice (rate limit, retry, restart, provider error) (web: NoticeRow). */
-export function NoticeRow({ notice }: { notice: Notice }) {
+export function NoticeRow({ notice, state = {} }: { notice: Notice; state?: NoticeState }) {
   const c = useColors();
   const rose = useTone("rose").panel;
   const amber = useTone("amber").panel;
-  const error = notice.level === NoticeLevel.ERROR;
-  const warning = notice.level === NoticeLevel.WARNING;
+  const presentation = noticePresentation(notice, state);
+  const level = presentation.level ?? notice.level;
+  const error = level === NoticeLevel.ERROR;
+  const warning = level === NoticeLevel.WARNING;
   const look = error ? rose : warning ? amber : { background: c.well, text: c.soft };
-  const presentation = noticePresentation(notice);
   const [open, setOpen] = useState(false);
 
   return (
@@ -28,9 +30,9 @@ export function NoticeRow({ notice }: { notice: Notice }) {
         {
           alignItems: "flex-start",
           borderRadius: 8,
-          paddingHorizontal: 12,
-          paddingVertical: 8,
-          backgroundColor: look.background,
+          paddingHorizontal: state.recovered ? 0 : 12,
+          paddingVertical: state.recovered ? 4 : 8,
+          backgroundColor: state.recovered ? undefined : look.background,
         },
       ]}
     >
@@ -41,8 +43,9 @@ export function NoticeRow({ notice }: { notice: Notice }) {
         />
       </View>
       <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
-        <Text selectable style={[styles.body, { color: look.text }]}>
+        <Text selectable style={[state.recovered ? styles.work : styles.body, { color: look.text }]}>
           {presentation.message}
+          {presentation.count > 1 ? ` ×${presentation.count}` : ""}
         </Text>
         {presentation.details ? (
           <>

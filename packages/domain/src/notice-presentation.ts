@@ -1,4 +1,5 @@
-import type { Notice } from "@canopy/contracts";
+import { NoticeLevel, type Notice } from "@canopy/contracts";
+import type { NoticeState } from "./turn-notices.ts";
 import { Option, Schema } from "effect";
 import { safeFailureDetail } from "./failures.ts";
 import { humanizeEnum } from "./humanize.ts";
@@ -15,7 +16,7 @@ const decodeError = Schema.decodeUnknownOption(
 );
 
 /** Provider notices are diagnostic events, not turn outcomes. Also handles notices saved by older workers. */
-export function noticePresentation(notice: Pick<Notice, "message" | "code" | "dataJson">) {
+export function noticePresentation(notice: Pick<Notice, "message" | "code" | "dataJson">, state: NoticeState = {}) {
   const wrapped = Option.getOrUndefined(decodeError(notice.message));
 
   const message = wrapped
@@ -23,15 +24,21 @@ export function noticePresentation(notice: Pick<Notice, "message" | "code" | "da
     : notice.message || humanizeEnum(notice.code);
 
   const details =
-    wrapped || notice.dataJson
+    wrapped || notice.dataJson || state.recovered
       ? [
           notice.code && `Code: ${notice.code}`,
           wrapped && JSON.stringify(parseJson(notice.message), null, 2),
+          !wrapped && state.recovered && notice.message,
           notice.dataJson && JSON.stringify(parseJson(notice.dataJson) ?? notice.dataJson, null, 2),
         ]
           .filter(Boolean)
           .join("\n")
       : "";
 
-  return { message: safeFailureDetail(message), details: safeFailureDetail(details) };
+  return {
+    message: state.recovered ? "Turn completed with a warning. No action needed." : safeFailureDetail(message),
+    details: safeFailureDetail(details),
+    level: state.recovered ? NoticeLevel.WARNING : undefined,
+    count: state.count ?? 1,
+  };
 }

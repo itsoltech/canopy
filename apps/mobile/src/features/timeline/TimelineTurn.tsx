@@ -3,6 +3,7 @@ import { View } from "react-native";
 import type { Item, Provider, ui } from "@canopy/contracts";
 import { foldId, workFoldOpen, type WorkFoldChoice, type WorkFoldState } from "@canopy/domain/work-fold";
 import type { WorkGroupChoices } from "@canopy/domain/work-group-choices";
+import type { NoticeState } from "@canopy/domain/turn-notices";
 import { ShellMessage } from "../../ui/ShellMessage";
 import { useDevicePreferences } from "../../state/preferences";
 import { TurnDetails, TurnEnd } from "./TurnEnd";
@@ -18,7 +19,7 @@ import { ThreadScrollItem, useThreadScrollTarget } from "../../ui/thread-scroll-
 
 /** What a turn looks up beyond its own items: the thread's notices and steers, its tasks and provider. */
 export interface TurnContext {
-  readonly notices: readonly ui.ThreadNotice[];
+  readonly notices: readonly (ui.ThreadNotice & NoticeState)[];
   readonly steers: readonly ui.Steer[];
   /** Background tasks by the command item that started them (they own its lifecycle after the turn). */
   readonly tasks: ReadonlyMap<string, Item>;
