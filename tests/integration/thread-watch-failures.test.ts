@@ -326,72 +326,78 @@ describe.skipIf(!dockerAvailable)("thread failures stay scoped over real gRPC", 
     },
   );
 
-  test("progress followed by repeated drops stops retrying and retains increasing backoff", async () => {
-    const recovery = new ThreadWatchRecovery();
+  test.each(["grpc", "mobile"])(
+    "%s keeps increasing backoff across progress followed by repeated drops",
+    async (kind) => {
+      const recovery = new ThreadWatchRecovery();
 
-    for (let attempt = 0; attempt < 5; attempt++) {
-      expect(recovery.failed({ code: 14, computer: true }).action).toBe("resume");
-    }
-
-    const connection = new ConnectionRecovery(10_000);
-    const actions: string[] = [];
-    const delays: number[] = [];
-
-    const server = await startGrpcServer({
-      routes: (router) =>
-        router.service(ui.GatewayService, {
-          async *watchThread(request) {
-            yield create(ui.ThreadUpdateSchema, {
-              change: {
-                case: "snapshot",
-                value: {
-                  thread: { id: request.threadId },
-                  syncCursor: {
-                    threadId: request.threadId,
-                    epoch: crypto.randomUUID(),
-                    appliedSeq: BigInt(actions.length + 1),
-                  },
-                },
-              },
-            });
-            throw new ConnectError("Injected dropped stream", Code.Unavailable);
-          },
-        }),
-    });
-
-    const api = createClient(ui.GatewayService, createGrpcTransport({ baseUrl: server.url }));
-
-    try {
       for (let attempt = 0; attempt < 5; attempt++) {
-        const now = attempt * 5000;
-        connection.begin(now);
-
-        try {
-          for await (const update of api.watchThread({ threadId: thread })) {
-            const state = applyThreadUpdate(undefined, update);
-            recovery.advanced(state.syncCursor!.appliedSeq, now);
-            connection.succeeded(now);
-          }
-        } catch (cause) {
-          const decision = recovery.failed({ code: ConnectError.from(cause).code });
-          actions.push(decision.action);
-          delays.push(connection.failed(now + 1, 1).retryAt! - now - 1);
-
-          if (decision.action === "stop") break;
-        }
+        expect(recovery.failed({ code: 14, computer: true }).action).toBe("resume");
       }
 
-      expect(actions).toEqual(["resume", "resume", "stop"]);
-      expect(delays).toEqual([1000, 2000, 4000]);
-      expect(readThreadWatchFailure('{"code":15,"reason":"secret host/path/token","frameBytes":-1}')).toMatchObject({
-        code: 15,
-        reason: undefined,
-        frameBytes: 0,
+      const connection = new ConnectionRecovery(10_000);
+      const actions: string[] = [];
+      const delays: number[] = [];
+
+      const server = await (kind === "grpc" ? startGrpcServer : startConnectHttpServer)({
+        routes: (router) =>
+          router.service(ui.GatewayService, {
+            async *watchThread(request) {
+              yield create(ui.ThreadUpdateSchema, {
+                change: {
+                  case: "snapshot",
+                  value: {
+                    thread: { id: request.threadId },
+                    syncCursor: {
+                      threadId: request.threadId,
+                      epoch: crypto.randomUUID(),
+                      appliedSeq: BigInt(actions.length + 1),
+                    },
+                  },
+                },
+              });
+              throw new ConnectError("Injected dropped stream", Code.Unavailable);
+            },
+          }),
       });
-    } finally {
-      await server.close();
-    }
-  });
+
+      const api =
+        kind === "grpc"
+          ? createClient(ui.GatewayService, createGrpcTransport({ baseUrl: server.url }))
+          : mobileClient({ gatewayUrl: server.url, development: true, fetch }).api;
+
+      try {
+        for (let attempt = 0; attempt < 5; attempt++) {
+          const now = attempt * 5000;
+          connection.begin(now);
+
+          try {
+            for await (const update of api.watchThread({ threadId: thread })) {
+              const state = applyThreadUpdate(undefined, update);
+              recovery.advanced(state.syncCursor!.appliedSeq, now);
+              connection.succeeded(now);
+            }
+          } catch (cause) {
+            const decision = recovery.failed({ code: ConnectError.from(cause).code });
+            actions.push(decision.action);
+            delays.push(connection.failed(now + 1, 1).retryAt! - now - 1);
+
+            if (decision.action === "stop") break;
+          }
+        }
+
+        expect(actions).toEqual(["resume", "resume", "stop"]);
+        expect(delays).toEqual([1000, 2000, 4000]);
+        expect(readThreadWatchFailure('{"code":15,"reason":"secret host/path/token","frameBytes":-1}')).toMatchObject({
+          code: 15,
+          reason: undefined,
+          frameBytes: 0,
+        });
+      } finally {
+        await server.close();
+      }
+    },
+  );
   test("web SSE preserves the fixed thread reason and size without exposing exception text", async () => {
     const server = await startGrpcServer({
       routes: (router) =>

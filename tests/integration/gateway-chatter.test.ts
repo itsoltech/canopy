@@ -4,6 +4,7 @@ import { Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { QueryCache } from "@canopy/domain/shared-query";
 import { OverviewInvalidation } from "@canopy/domain/shared-query-events";
+import { DATABASE_FAMILIES, databaseMetric, measureKey } from "@canopy/domain/diagnostics";
 import { remoteServe, sharedHost, uiHandlers, uiRoutes } from "@canopy/gateway/api";
 import { startConnectHttpServer } from "@canopy/transport";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
@@ -11,7 +12,39 @@ import { rpcSnapshot } from "../../apps/gateway/src/diagnostics/snapshot.ts";
 import { mobileClient } from "../../apps/mobile/src/api/client.ts";
 import { sseResponse } from "../../apps/web/src/lib/server/sse.ts";
 import { linkedComputers } from "./support/computers.ts";
-import { eventually, startTestGateway } from "./support/gateway.ts";
+import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
+
+function measureGateway(gateway: TestGateway) {
+  const collector = gateway.core.diagnostics.collector;
+  collector.tick();
+  const droppedBeforeRead = collector.budget.dropped;
+  const view = rpcSnapshot(collector, 15);
+  const trace = collector.tracing.export(collector.tracing.state().leaseId);
+
+  const families = Object.fromEntries(
+    DATABASE_FAMILIES.map((family) => {
+      const key = measureKey(databaseMetric(family.name, "execute"));
+      const count = collector.minutes.slots.reduce((sum, slot) => sum + (slot?.measures?.get(key)?.events ?? 0n), 0n);
+
+      return [family.name, Number(count)];
+    }),
+  );
+
+  return {
+    calls: Object.fromEntries(view.calls.map((row) => [`${row.layer}:${row.method}`, Number(row.started)])),
+    families,
+    queries: Number(view.gatewayMeasures.find((row) => row.metricId === 11)?.events ?? 0),
+    unclassified: Number(view.gatewayMeasures.find((row) => row.metricId === 10)?.events ?? 0),
+    dropped: collector.budget.dropped,
+    bytes: collector.budget.used,
+    databaseBytes: collector.databaseBudget.used,
+    measureBytes: collector.measureBudget.used,
+    readDrops: collector.budget.dropped - droppedBeforeRead,
+    minuteLabels: collector.minutes.slots.flatMap((slot) => (slot ? [slot.measures?.size ?? 0] : [])),
+    traceSpans: trace?.spans.length,
+    traceDropped: trace ? Number(trace.droppedSamples) : undefined,
+  };
+}
 
 // Opt-in paired workload, not a UI test. Run the same file against each revision.
 test.skipIf(!dockerAvailable || process.env["CANOPY_CHATTER_BENCH"] !== "1")(
@@ -77,6 +110,10 @@ test.skipIf(!dockerAvailable || process.env["CANOPY_CHATTER_BENCH"] !== "1")(
       expect(await eventually(async () => local.reachable().includes(home.hello().nodeId), Boolean, 15_000)).toBe(true);
       await a.core.diagnostics.start();
       await b.core.diagnostics.start();
+
+      if (process.env["CANOPY_CHATTER_TRACE"] === "1")
+        for (const gateway of [a, b])
+          gateway.core.diagnostics.collector.tracing.start(crypto.randomUUID(), "gateway", 1);
       a.core.bots.start();
       b.core.bots.start();
 
@@ -121,23 +158,7 @@ test.skipIf(!dockerAvailable || process.env["CANOPY_CHATTER_BENCH"] !== "1")(
       for (const task of tasks) void task.catch(() => {});
       await Bun.sleep(5000);
 
-      const measure = () => {
-        for (const gateway of [a, b]) gateway.core.diagnostics.collector.tick();
-
-        return [a, b].map((gateway) => {
-          const collector = gateway.core.diagnostics.collector;
-          const view = rpcSnapshot(collector, 15);
-
-          return {
-            calls: Object.fromEntries(view.calls.map((row) => [`${row.layer}:${row.method}`, Number(row.started)])),
-            families: Object.fromEntries(view.database.map((row) => [row.family, Number(row.executeMs?.samples ?? 0)])),
-            queries: Number(view.gatewayMeasures.find((row) => row.metricId === 11)?.events ?? 0),
-            unclassified: Number(view.gatewayMeasures.find((row) => row.metricId === 10)?.events ?? 0),
-            dropped: collector.budget.dropped,
-            bytes: collector.budget.used,
-          };
-        });
-      };
+      const measure = () => [a, b].map(measureGateway);
 
       const before = measure();
       const seconds = Number(process.env["CANOPY_CHATTER_SECONDS"] ?? 30);
