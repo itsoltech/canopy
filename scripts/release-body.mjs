@@ -5,7 +5,7 @@ const priority = (heading) => ["features", "bug fixes", "performance improvement
 /** Preserve ordinary notes verbatim; oversized bodies retain complete bullets, features and fixes first. */
 export function limitReleaseBody(body, compareUrl = "https://github.com/itsoltech/canopy/releases") {
   if (body.length <= RELEASE_BODY_LIMIT) return body;
-  const originalCompare = /\]\((https:\/\/github\.com\/[^\s)]+\/compare\/[^\s)]+)\)/.exec(body)?.[1];
+  const originalCompare = /https:\/\/github\.com\/[^\s)]+\/compare\/[^\s)]+/.exec(body)?.[0];
 
   const link =
     [originalCompare, compareUrl].find((url) => url && url.length <= 2_048) ??

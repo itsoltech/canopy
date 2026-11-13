@@ -24,6 +24,8 @@ test("large ranges retain complete summaries, prioritize features/fixes and repo
   expect(body).toBe(limitReleaseBody(body, compare));
   expect(body).toContain(`… and ${1500 - entries.length} more changes`);
   expect(body).toContain(compare);
+  const generatedByGithub = original.replace(`# [0.2.0-beta.1](${compare})`, `**Full Changelog**: ${compare}`);
+  expect(limitReleaseBody(generatedByGithub).endsWith(`[Full changelog](${compare})\n`)).toBe(true);
   expect(entries[0]).toMatchObject({ type: "feat", scope: "web", pr: 1 });
   expect(entries.some((entry) => entry.type === "perf")).toBe(false);
   expect(entries.some((entry) => entry.type === "fix")).toBe(true);
