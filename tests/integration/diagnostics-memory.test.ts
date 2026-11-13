@@ -52,13 +52,14 @@ test("governor and SQL series plateau after GC across saturated queues and rolli
 
   for (const sample of samples) {
     expect(sample.used).toBeLessThanOrEqual(6 * MiB);
-    expect(sample.internal).toBeLessThanOrEqual(MiB);
-    expect(sample.database).toBeLessThanOrEqual(MiB / 2);
+    expect(sample.internal).toBeLessThanOrEqual(4 * MiB);
+    expect(sample.database).toBeLessThanOrEqual(3 * MiB);
     expect(sample.active).toBe(0);
     expect(sample.queued).toBe(0);
     expect(sample.slots).toBeLessThanOrEqual(61);
-    expect(sample.measures - baseline.measures).toBeLessThanOrEqual(256);
-    expect(sample.histograms - baseline.histograms).toBeLessThanOrEqual(256);
+    // Rotating slots can vary more with the larger internal allocation; heap growth stays independently bounded.
+    expect(sample.measures - baseline.measures).toBeLessThanOrEqual(512);
+    expect(sample.histograms - baseline.histograms).toBeLessThanOrEqual(512);
   }
 
   console.info(

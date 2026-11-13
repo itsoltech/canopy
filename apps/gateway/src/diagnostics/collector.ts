@@ -38,6 +38,7 @@ export class RpcCollector {
   readonly startedAt: number;
   #lastMono: number;
   #lastUtc: number;
+  #lastDropped = 0;
   #sequence = 0n;
   #activeCount = 0;
   #database: DatabaseMeasurements | undefined;
@@ -48,10 +49,10 @@ export class RpcCollector {
     readonly clock = SYSTEM_CLOCK,
     readonly budget = new BucketBudget(),
   ) {
-    // All internal labels, correlations and restored measurements share 1 MiB inside the original 6 MiB.
-    this.measureBudget = new BucketBudget(1024 * 1024, budget);
+    // Keep the original 6 MiB ceiling while allowing ordinary SQL family/RPC cardinality.
+    this.measureBudget = new BucketBudget(4 * 1024 * 1024, budget);
     // SQL cardinality must not consume the space needed by process/queue/governor series.
-    this.databaseBudget = new BucketBudget(512 * 1024, this.measureBudget);
+    this.databaseBudget = new BucketBudget(3 * 1024 * 1024, this.measureBudget);
     this.short = new Buckets(5_000, 12, budget, this.measureBudget, this.databaseBudget);
     this.minutes = new Buckets(60_000, 61, budget, this.measureBudget, this.databaseBudget);
     this.historyMinutes = new Buckets(60_000, 61, budget, this.measureBudget, this.databaseBudget);
@@ -221,6 +222,7 @@ export class RpcCollector {
     const mono = this.clock.monotonic();
     const utc = this.clock.utc();
     const elapsed = mono - this.#lastMono;
+    const observed = elapsed > 0 && elapsed <= 10_000 && Math.abs(utc - this.#lastUtc - elapsed) < 1000;
 
     if (Math.floor(utc / 60_000) !== Math.floor(this.#lastUtc / 60_000)) this.closedTick++;
 
@@ -232,6 +234,10 @@ export class RpcCollector {
     this.historyMinutes.expire(Math.floor(utc / 60_000) * 60_000 - 3_540_000);
     this.minutes.expire(Math.floor(utc / 60_000) * 60_000 - 3_600_000);
     updateWindows(this);
+    const dropped = this.budget.dropped;
+
+    if (observed) this.measure(45, ((dropped - this.#lastDropped) * 1000) / elapsed, false, 0, elapsed, utc);
+    this.#lastDropped = dropped;
   }
 
   restore(process: ui.DiagnosticsProcess, at: number) {

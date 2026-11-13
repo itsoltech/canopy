@@ -63,8 +63,8 @@ test("family and RPC churn stays inside the internal measure sub-budget and rele
       for (const phase of DATABASE_PHASES)
         collector.recordDatabase(databaseMetric(family.name, phase), minute + 1, true, method.id, now);
     collector.tick();
-    expect(collector.measureBudget.used).toBeLessThanOrEqual(1024 * 1024);
-    expect(collector.databaseBudget.used).toBeLessThanOrEqual(512 * 1024);
+    expect(collector.measureBudget.used).toBeLessThanOrEqual(4 * 1024 * 1024);
+    expect(collector.databaseBudget.used).toBeLessThanOrEqual(3 * 1024 * 1024);
     expect(collector.budget.used).toBeLessThanOrEqual(collector.budget.limit);
   }
 

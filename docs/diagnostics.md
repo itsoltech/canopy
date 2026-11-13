@@ -171,7 +171,8 @@ Brak miejsca na histogram nie usuwa liczników błędów; rodzina oznacza swój
 niepełny rozkład i nie wyzwala na jego podstawie findingu o wolnym zapytaniu.
 
 Korelacje RPC są opcjonalnym szczegółem: nowe klucze korelacji są pomijane po
-192 wpisach metryk slotu, globalne serie nadal podlegają wspólnemu limitowi RAM.
+192 korelacjach slotu; globalne serie nie zużywają tego limitu i nadal podlegają
+wspólnemu limitowi RAM.
 Przy przekroczeniu 64 KiB odpowiedzi najpierw wypadają korelacje, potem szczegóły
 governora i rodzin; wiersze RPC pozostają. Rollup przekraczający 64 KiB najpierw
 odrzuca korelacje, potem nowe serie, oznaczając niepełność. Odtworzone gauges
@@ -359,13 +360,19 @@ w szczegóły zastępuje uboższy widok pełnym, bez drugiej kopii. Rewizja
 odróżnia oba zakresy, aby overview nie potwierdziło niepobranego drill-downu.
 
 Wewnętrzne serie (proces, kolejki, governor, rodziny SQL i ich powiązania z RPC),
-łącznie z odtworzoną historią, mają wspólny podlimit 1 MiB wewnątrz istniejących
+łącznie z odtworzoną historią, mają wspólny podlimit 4 MiB wewnątrz istniejących
 6 MiB kolektora. Podlimit obejmuje obiekty i sparse kubełki, oddaje rezerwacje
 po wygaśnięciu slotu i zwiększa jawne dropy po wyczerpaniu. Rodziny SQL i korelacje
-mają dodatkowy podlimit 512 KiB w tym 1 MiB, aby nie wypierać serii procesu,
+mają dodatkowy podlimit 3 MiB w tych 4 MiB, aby nie wypierać serii procesu,
 kolejek i governora. Przy presji pamięci szczegóły są niepełne, nie rozszerzają limitu.
 Odtwarzanie historii może wykorzystać najwyżej połowę każdego podlimitu,
 aby zostawić miejsce na bieżące próbki po restarcie.
+Poprzednie podlimity 1 MiB / 512 KiB wyczerpywały się przy zwykłej liczbie rodzin
+i korelacji, mimo wolnego miejsca w limicie 6 MiB. Limit korelacji liczy teraz
+wyłącznie korelacje, zamiast także globalnych serii. Metryka
+`Dropped measurements per second` pokazuje przyrost jawnego licznika dropów
+podzielony przez rzeczywiście obserwowany czas ticka; przerwy ponad 10 s i skoki
+zegara nie tworzą sztucznej szybkości. Średnia jest ważona czasem obserwacji.
 Nie powiększa to budżetu: merge widoku nadal korzysta z istniejących 512 KiB, SQL z 33 280 B,
 a wrappery puli z 4 KiB. Callback rezerwacji jest wspólny dla pierścienia,
 zamiast osobnej closure na etykietę i slot. Aktualizacja liczników używa dokładnych
