@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from "react";
 import { File, Paths } from "expo-file-system";
+import { Code, ConnectError } from "@connectrpc/connect";
 import { WorkspaceStore } from "@canopy/domain/workspace";
 import type { routedMobileClient } from "../../api/routes";
 import type { DeviceSession } from "../../storage/session";
@@ -15,6 +16,18 @@ export function useWorkspaceStore(client: ReturnType<typeof routedMobileClient> 
     () =>
       new WorkspaceStore(
         {
+          async listDirectory(request, signal) {
+            if (!client) throw new Error("This phone is not paired. Pair it, then reopen Files.");
+
+            try {
+              return await client.api.listThreadDirectory(request, { signal, timeoutMs: 12_000 });
+            } catch (cause) {
+              const error = ConnectError.from(cause);
+              throw new Error(
+                error.code === Code.Unimplemented ? "Update Canopy on your gateway to browse files." : error.rawMessage,
+              );
+            }
+          },
           async read(target, path, hash, signal) {
             if (!client) throw new Error("This phone is not paired. Pair it, then reopen the file.");
 

@@ -384,6 +384,7 @@ while (!stopping.signal.aborted) {
           // thread_files_v1: read, write, delete and open a thread's files (ReadFile and the others).
           "thread_files_v1",
           "thread_file_preview_v1",
+          "thread_directory_v1",
           // provisional_branches: RenameWorktreeBranch.provisional keeps pushed or switched branches.
           "provisional_branches",
           "project_sources",

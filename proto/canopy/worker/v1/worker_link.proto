@@ -1,6 +1,7 @@
 // Kontrakt gateway <-> worker (v1, przed pierwszym wydaniem).
 // Opis semantyki: docs/protocol.md
 syntax = "proto3";
+import "canopy/worker/v1/thread_directory.proto";
 
 package canopy.worker.v1;
 
@@ -437,6 +438,8 @@ message Command {
     CancelCloneRepository cancel_clone_repository = 226;
     // Read-only, ephemeral, capability git_pr_context_v1. No credentials or network access.
     ReadGitPrContext read_git_pr_context = 227;
+    // Nietrwała, ograniczona enumeracja; capability thread_directory_v1.
+    ListThreadDirectory list_thread_directory = 228;
     // CLI dostawców (sekcja na końcu pliku). Nietrwała: nigdy z outboxa.
     InstallCli install_cli = 800;
     // Nietrwałe metadane konta; capability provider_account_status, bez journala/outboxa.
@@ -708,6 +711,7 @@ message CommandResult {
   // Wynik ReadFile i WriteFile (po zapisie bez treści).
   FileContent file = 222;
   GitPrContext git_pr_context = 227;
+  ThreadDirectoryPage thread_directory = 228;
   ProviderAccountsReport provider_accounts = 810;
   // Wynik ScanImportSources (docs/import.md).
   ImportScan import_scan = 850;

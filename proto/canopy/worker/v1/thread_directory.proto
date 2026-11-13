@@ -1,0 +1,52 @@
+syntax = "proto3";
+package canopy.worker.v1;
+
+// Nietrwały odczyt wyłącznie jednego katalogu cwd/worktree wątku.
+message ListThreadDirectory {
+  string owner_id = 1;
+  string thread_id = 2;
+  string workspace = 3;
+  string directory = 4;
+  uint32 page_size = 5;
+  string page_token = 6;
+  bool include_ignored = 7;
+  string known_revision = 8;
+  bool release = 9;
+}
+
+enum ThreadDirectoryKind {
+  THREAD_DIRECTORY_KIND_UNSPECIFIED = 0;
+  THREAD_DIRECTORY_KIND_FILE = 1;
+  THREAD_DIRECTORY_KIND_DIRECTORY = 2;
+  THREAD_DIRECTORY_KIND_SYMLINK = 3;
+  THREAD_DIRECTORY_KIND_DELETED = 4;
+}
+
+enum ThreadDirectoryError {
+  THREAD_DIRECTORY_ERROR_UNSPECIFIED = 0;
+  THREAD_DIRECTORY_ERROR_CURSOR_EXPIRED = 1;
+  THREAD_DIRECTORY_ERROR_ROOT_CHANGED = 2;
+  THREAD_DIRECTORY_ERROR_DIRECTORY_CHANGED = 3;
+}
+
+message ThreadDirectoryEntry {
+  string name = 1;
+  string path = 2;
+  ThreadDirectoryKind kind = 3;
+  optional uint64 size = 4;
+  optional int64 modified_ms = 5;
+  string git_status = 6;
+}
+
+// Wraz z kopertą maks. 64 KiB protobuf i 200 wpisów; bez treści plików.
+message ThreadDirectoryPage {
+  string root_identity = 1;
+  string directory = 2;
+  string directory_revision = 3;
+  repeated ThreadDirectoryEntry entries = 4;
+  string next_page_token = 5;
+  bool complete = 6;
+  bool git_status_complete = 7;
+  string git_status_reason = 8;
+  ThreadDirectoryError error = 9;
+}

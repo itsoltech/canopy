@@ -39,7 +39,12 @@ function ModulesSheet({
   const active = selection && workspaceModule(selection.module);
 
   return (
-    <Sheet title={active?.label ?? "Modules"} visible={visible} onClose={onClose}>
+    <Sheet
+      title={active?.label ?? "Modules"}
+      visible={visible}
+      onClose={onClose}
+      scroll={selection?.module !== "files"}
+    >
       <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
         <WorkspaceModulePicker view={view} sidebar />
         {selection && (

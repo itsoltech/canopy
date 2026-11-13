@@ -209,6 +209,8 @@ export class Workspace {
 
 /** Bounded per-device store, separate from transcript warming. Persist callbacks receive metadata only. */
 export class WorkspaceStore {
+  readonly api: WorkspaceFileApi;
+  readonly #fileListeners = new Set<(change: { threadId: string; path: string } | null) => void>();
   readonly views = new Map<string, Workspace>();
   #listeners = new Set<() => void>();
   #version = 0;
@@ -216,9 +218,31 @@ export class WorkspaceStore {
   #active: Workspace | undefined;
 
   constructor(
-    readonly api: WorkspaceFileApi,
+    api: WorkspaceFileApi,
     readonly cleanBytes: number,
-  ) {}
+  ) {
+    this.api = {
+      ...api,
+      write: async (target, path, text, hash) => {
+        const file = await api.write(target, path, text, hash);
+
+        for (const listener of this.#fileListeners) listener({ threadId: target.threadId, path });
+
+        return file;
+      },
+      remove: async (target, path, hash) => {
+        await api.remove(target, path, hash);
+
+        for (const listener of this.#fileListeners) listener({ threadId: target.threadId, path });
+      },
+    };
+  }
+
+  watchFiles(listener: (change: { threadId: string; path: string } | null) => void): () => void {
+    this.#fileListeners.add(listener);
+
+    return () => this.#fileListeners.delete(listener);
+  }
 
   subscribe = (listener: () => void): (() => void) => {
     this.#listeners.add(listener);
@@ -336,6 +360,7 @@ export class WorkspaceStore {
   }
 
   clear(): void {
+    for (const listener of this.#fileListeners) listener(null);
     this.#active = undefined;
     this.#persist = undefined;
 

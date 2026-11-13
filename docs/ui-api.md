@@ -2164,6 +2164,28 @@ także undo edytora. `Alt+PageUp/PageDown` przełącza karty poza polem tekstowy
 `Mod+G` i `Mod+S` obsługują pozycję i zapis w pliku. Close/Keep są też komendami
 palety z konfigurowalnymi skrótami. Zapis sprawdza również zakodowany JSON ≤512 KiB.
 
+Moduł `Files` działa w prawym panelu oraz pełnej karcie, ze wspólnym modelem
+drzewa i odczytami. `POST /api/threads/:id/directory` wywołuje addytywne
+`ListThreadDirectory`: bieżący cwd/worktree, jedna strona do 100 dzieci, bez
+rekurencyjnego pobierania. `Load more` dociąga stronę, foldery są przed plikami
+w obrębie wczytanych wpisów. Kolor Git ma także literę i opis dostępności.
+Symlinki i usunięte pliki są oznaczone i nie otwierają edytora.
+
+Web montuje najwyżej 120 wirtualnych wierszy, łącznie z fokusowanym poza oknem;
+strzałki i Home/End obsługują drzewo, kolejne strony zachowują kotwicę po ścieżce.
+Jedno kliknięcie otwiera preview, dwuklik utrwala kartę. Ukryte i ignorowane wpisy
+pomija domyślnie; `Show ignored files` przeładowuje zakres na żądanie.
+
+Cache drzewa ma 2 MiB zakodowanego payloadu na klienta web, oddzielnie od plików
+i historii; do 30 wątków, 128 węzłów katalogów i 32 rozwiniętych folderów na wątek.
+Usuwa nieobserwowane wpisy, a gdy aktywna zawartość wyczerpie limit, pokazuje akcję
+ponownego odczytu folderu od początku. Dwa listowania działają naraz; kolejka ma
+64 miejsca. Niepotrzebne kursory są zwalniane, więc dalsze rozwinięcie może wymagać
+odczytu folderu od początku. Zamknięcie obu widoków anuluje pracę i zwalnia kursory;
+nie ma pollingu. Własny zapis/usunięcie unieważnia tylko drzewo danego wątku.
+Zewnętrzne zmiany odświeża `Reload files`; przy zmianie katalogu podczas paginacji
+`Reload directory`. Treść drzewa pozostaje w pamięci, poza storage i synchronizacją.
+
 Pozostały opis viewera dotyczy wspólnych RPC oraz dotychczasowego modala poza wątkiem.
 
 Ścieżka pliku w wiadomości agenta jest zaznaczalnym linkiem: inline code, który wygląda na plik

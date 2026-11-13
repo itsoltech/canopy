@@ -7,6 +7,7 @@ import { pauseThreadWarming } from "#lib/features/threads/warming.ts";
 
 export const workspaceStore = new WorkspaceStore(
   {
+    listDirectory: async (request, signal) => (await import("./directory-api.ts")).listDirectory(request, signal),
     read: (target, path, hash, signal) => {
       pauseThreadWarming();
 

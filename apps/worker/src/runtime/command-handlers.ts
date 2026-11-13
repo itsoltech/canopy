@@ -11,13 +11,26 @@ import { providerAccounts } from "./account-commands.ts";
 import { withProcessPriority } from "@canopy/process-governor";
 import { revealInFileManager } from "./reveal.ts";
 import { isFileCommand, runFileCommand } from "./file-commands.ts";
+import { ThreadDirectories } from "../files/thread-directory.ts";
 
 export class CommandHandlers {
+  readonly #directories = new ThreadDirectories();
   constructor(readonly ctx: HostContext) {}
+
+  closeDirectories() {
+    return this.#directories.close();
+  }
+
   async execute(command: Command): Promise<CommandOutput> {
     const kind = command.kind;
 
     if (kind.case === "listDirectory") return this.ctx.ops.listDirectory(kind.value.path);
+
+    if (kind.case === "listThreadDirectory") {
+      this.ctx.ops.checkCwd(kind.value.workspace);
+
+      return { threadDirectory: await this.#directories.list(kind.value) };
+    }
 
     if (isFileCommand(kind)) return runFileCommand(this.ctx, kind);
 
