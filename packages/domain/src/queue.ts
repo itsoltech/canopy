@@ -1,5 +1,7 @@
 import type { ui } from "@canopy/contracts";
 
+export { queuePreview, type QueueContentItem } from "./queue-preview.ts";
+
 /**
  * The composer queue's pure parts on web and mobile (docs/ui-api.md, "Kolejka"): which turns it holds, the order
  * shown while a change is on its way, and moves.

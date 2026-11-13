@@ -1,16 +1,17 @@
 <script lang="ts">
   import type { Mention, ui } from "@canopy/contracts";
+  import { queuePreview } from "@canopy/domain/queue";
   import { tick } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import Button from "#lib/shared/ui/Button.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
-  import { carriesMore, messageOf, overrides, ownMessage, queuedText } from "./queue.ts";
+  import { carriesMore, messageOf, overrides, ownMessage } from "./queue.ts";
   import QueueEditor from "./QueueEditor.svelte";
   import QueueHandle from "./QueueHandle.svelte";
   import QueueRowMenu from "./QueueRowMenu.svelte";
-  import AttachmentChipList from "#lib/features/attachments/AttachmentChipList.svelte";
+  import QueueSummary from "./QueueSummary.svelte";
 
   /**
    * One queued message: its handle (the queue icon; the grip on hover or focus, always on touch), the text on
@@ -59,7 +60,8 @@
     class?: ClassValue;
   } = $props();
 
-  const text = $derived(queuedText(turn));
+  const preview = $derived(queuePreview(turn));
+  const text = $derived(preview.text || preview.summary);
   const hints = $derived(overrides(turn));
   const own = $derived(ownMessage(turn));
   let handle = $state<HTMLButtonElement>();
@@ -106,9 +108,19 @@
   {:else}
     <div class="flex min-h-12 items-center gap-1 px-2 py-0.5 sm:min-h-8">
       <QueueHandle label={text} bind:element={handle} {ondragstart} />
-      <p class="min-w-0 flex-1 truncate text-sm/5 text-zinc-700 sm:text-[0.8125rem]/5 dark:text-zinc-300" title={text}>
-        {text || (turn.attachments.length > 0 ? "(only files)" : "(only quotes)")}
-      </p>
+      <div class="flex min-w-0 flex-1 items-center gap-1">
+        {#if preview.text}
+          <p
+            class="min-w-0 flex-1 truncate text-sm/5 text-zinc-700 sm:text-[0.8125rem]/5 dark:text-zinc-300"
+            title={preview.text}
+          >
+            {preview.text}
+          </p>
+        {/if}
+        {#if preview.summary}
+          <QueueSummary {...preview} class={preview.text ? "max-w-1/2" : "max-w-full"} />
+        {/if}
+      </div>
       {#if fallback}
         <span
           class="flex shrink-0"
@@ -121,7 +133,7 @@
       {/if}
       {#if hints.length > 0}
         <p
-          class="max-w-48 shrink-0 truncate text-xs/6 text-zinc-500 max-sm:hidden dark:text-zinc-400"
+          class="max-w-[25%] min-w-0 shrink truncate text-xs/6 text-zinc-500 max-sm:hidden dark:text-zinc-400"
           title="Runs with {hints.join(', ')}"
         >
           {hints.join(" · ")}
@@ -139,6 +151,5 @@
       {/if}
       <QueueRowMenu {index} {count} {hints} {delivery} onedit={own ? onedit : undefined} onmove={move} {ondelivery} />
     </div>
-    {#if turn.attachments.length > 0}<AttachmentChipList attachments={turn.attachments} class="px-10 pb-2" />{/if}
   {/if}
 </div>

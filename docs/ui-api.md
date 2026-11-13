@@ -1001,6 +1001,14 @@ Podczas tego rozwijania `footerMotion` aktualizuje rezerwę na każdej zmierzone
 drugiej animacji wysokości. Pozostałe zmiany naturalnej wysokości composera nadal zatwierdzają
 rezerwę raz i animują powłokę. Czytelnik historii zachowuje pozycję, a koniec śledzi wysokość panelu.
 
+Podgląd wiersza kolejki pomija znaczniki załączników, a cytaty w tekście zastępuje krótką
+etykietą `citationTokenLabel`. Web i mobile używają wspólnego `domain/queue-preview.ts`.
+Obok tekstu pozostaje wyciszone podsumowanie (`2 images · 1 file · 1 citation`), w rozmiarze
+metadanych; przy pustej wiadomości zajmuje miejsce podglądu. Naciśnięcie otwiera listę nazw
+plików i etykiet cytatów, z zawijaniem długich nazw i przewijaniem. Załączniki nie dodają
+drugiego wiersza ani nie zmieniają wysokości kolejki. Metadane ustawień są przycinane
+przed nieruchomymi akcjami; na telefonie pozostają w menu wiersza.
+
 `QuestionForm`, `QuestionOption` i `QuestionSession` obsługują kroki, Back, Skip, Skip all, Dismiss (sync), zwijanie i przełączanie async na wiadomości. Pole odpowiedzi używa placeholdera „Type your own answer, or leave this blank to use the selected option” i przycisku „Submit”; wpisany tekst ma pierwszeństwo przed zaznaczeniami. Rekomendacja jest oznaczeniem, bez automatycznego wyboru. Zwykły szkic wiadomości zostaje zamontowany przy przełączaniu. Natywne pytania poufne zachowują pole hasła i ukryte odpowiedzi w rekordzie osi czasu.
 
 Opcje to semantyczne inputy radio/checkbox ze wspólnego `Input`, z własną grafiką `ChoiceControl`; grupa ma `fieldset`/`legend`. Przy fokusie w grupie 1–9 wybiera opcję, ↑/↓ przenosi fokus, Enter zatwierdza; cyfry w composerze pozostają tekstem. Przejście kroku przenosi fokus na legendę, jeśli użytkownik operował w panelu. Zwijanie ma `aria-expanded`, `aria-controls` i `inert`; ruch korzysta z istniejących `.t-acc-panel`/`.t-acc-chevron` i tokenów `layout.css`, z wyłączeniem przejść dla reduced motion.
