@@ -11,7 +11,7 @@ import { foldId, turnProgress, workSegments, type BodyRow, type WorkSegment } fr
 /**
  * Each turn's work under a stable "Working for …" / "Worked for …" row:
  * the turn's start, its input, the fold, its final agent message and its footer stay; everything else
- * the turn did — tool and command items, reasoning, intermediate messages, steered messages, background
+ * the turn did — tool and command items, reasoning, intermediate messages, background
  * tasks, notices — sits under the fold (`work`), shown after it only while it is open.
  *
  * - A running turn keeps commentary in its work. An unmarked latest message stays outside only while
@@ -22,7 +22,7 @@ import { foldId, turnProgress, workSegments, type BodyRow, type WorkSegment } fr
  *   is the end the reader sees.
  * - Even message-only turns retain the header and the answer slot at completion.
  * - A message marked final that more work follows stays shown: the work after it forms the turn's next
- *   segment (`workSegments`), its leading steers above a fold and answer slot of its own (`fold`: the
+ *   segment (`workSegments`). Every steer also starts a segment, above its fold and answer slot (`fold`: the
  *   segment's fold id, `foldId`).
  * - Empty reasoning and messages add no visible work. Later text deltas can make them visible.
  * - Other turns and background work without a turn keep their own order.
@@ -238,7 +238,7 @@ function segmentRows(
   return out;
 }
 
-/** When a segment ran: from the turn's start or the previous answer's end, to its own answer's end or the turn's. */
+/** Steer boundaries have no durable item timestamp; omit their time instead of changing it on reload. */
 function segmentTimes(fold: TurnFold, index: number): SegmentTimes {
   const { turn, body, segments } = fold;
 
@@ -251,9 +251,10 @@ function segmentTimes(fold: TurnFold, index: number): SegmentTimes {
   const ms = (time: ui.Turn["startedAt"]) => (time ? timestampMs(time) : undefined);
 
   return {
-    startMs: index === 0 ? ms(turn.startedAt) : answerEnd(segments[index - 1]?.answer),
+    startMs:
+      index === 0 ? ms(turn.startedAt) : segments[index]?.inputs ? undefined : answerEnd(segments[index - 1]?.answer),
     endMs: index === segments.length - 1 ? ms(turn.completedAt) : answerEnd(segments[index]?.answer),
-    live: segments[index]?.live ?? false,
+    live: index === segments.length - 1 && (segments[index]?.live ?? false),
   };
 }
 

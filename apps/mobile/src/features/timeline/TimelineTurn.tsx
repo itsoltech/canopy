@@ -55,7 +55,7 @@ export function TimelineTurn({
 
   const state = (index: number): WorkFoldState => {
     const segment = plan[index];
-    const answer = segment?.answered ? body[segment.answer] : undefined;
+    const answer = segment ? body[segment.answerBoundary] : undefined;
 
     return {
       live: segment?.live ?? false,
@@ -96,9 +96,14 @@ export function TimelineTurn({
         const summary = summarize(
           work,
           {
-            startMs: index === 0 ? timestampMs(turn.startedAt) : answerEnd(segments[index - 1]?.answer),
+            startMs:
+              index === 0
+                ? timestampMs(turn.startedAt)
+                : segment.inputs
+                  ? undefined
+                  : answerEnd(segments[index - 1]?.answer),
             endMs: index === segments.length - 1 ? timestampMs(turn.completedAt) : answerEnd(segment.answer),
-            live: segment.live,
+            live: index === segments.length - 1 && segment.live,
           },
           context.tasks,
         );

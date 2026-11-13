@@ -72,24 +72,26 @@ export interface WorkSegment {
   /** Body rows `[start, end)`. */
   readonly start: number;
   readonly end: number;
-  /** Leading steers shown above the fold, like a turn's input (segments after the first). */
+  /** Leading steers shown above the fold, like a turn's input. */
   readonly inputs: number;
   /** Body index of the answer shown below the fold, or -1. */
   readonly answer: number;
-  /** The turn is live and this is its last segment. */
+  /** The turn is live and no later final-answer boundary has ended this stretch of work. */
   readonly live: boolean;
   /** Its answer is marked final: the fold follows "After the turn" instead of "While working". */
   readonly answered: boolean;
+  /** Final answer confirming this work, including segments before a steer; -1 until confirmed. */
+  readonly answerBoundary: number;
 }
 
 /** A segment's fold: the first keeps the turn's id, so its keys predate segments. */
 export const foldId = (turnId: string, segment: number): string => (segment ? `${turnId}/${segment}` : turnId);
 
 /**
- * A turn's body split into segments. A message marked `final_answer` that more rows follow ends its
- * segment and stays its answer: the work after it (a steer, a goal continuation, the agent going on)
- * starts the next one instead of pulling the answer back into the fold. The last segment's answer
- * follows `answerIndex` (`open`: its fold is open). Phases persist, so a reopened turn splits the same.
+ * Split at final answers and before steers, keeping every injected input outside hidden work.
+ * Consecutive leading steers share a segment. A steer does not expire live fold choices: all work
+ * since the previous final answer follows the next answer/end boundary. Only the last segment of
+ * that stretch can supply its answer. Everything derives from persisted rows, including on replay.
  */
 export function workSegments(
   body: readonly BodyRow[],
@@ -97,38 +99,55 @@ export function workSegments(
   open: (segment: number) => boolean,
 ): WorkSegment[] {
   const segments: WorkSegment[] = [];
-  let start = 0;
+  let from = 0;
 
-  const inputs = (from: number, to: number) => {
-    let at = from;
+  const stretch = (end: number) => {
+    const answerBoundary = body[end - 1]?.phase === "final_answer" ? end - 1 : -1;
+    const live = status === "live" && end === body.length;
+    let start = from;
+    let inputs = 0;
 
-    if (segments.length > 0) while (at < to && body[at]!.steer) at++;
+    const push = (to: number) => {
+      const at =
+        to === end
+          ? answerIndex(
+              body.slice(start + inputs, to).map((row) => row.phase),
+              end < body.length ? "completed" : status,
+              open(segments.length),
+            )
+          : -1;
 
-    return at - from;
+      segments.push({
+        start,
+        end: to,
+        inputs,
+        answer: at < 0 ? -1 : start + inputs + at,
+        live,
+        answered: answerBoundary >= 0,
+        answerBoundary,
+      });
+    };
+
+    for (let at = from; at < end; at++) {
+      if (!body[at]!.steer) continue;
+
+      if (at > start + inputs) {
+        push(at);
+        start = at;
+        inputs = 0;
+      }
+
+      inputs++;
+    }
+
+    push(end);
+    from = end;
   };
 
   body.forEach((row, at) => {
-    if (row.phase !== "final_answer" || at === body.length - 1) return;
-    segments.push({ start, end: at + 1, inputs: inputs(start, at), answer: at, live: false, answered: true });
-    start = at + 1;
+    if (row.phase === "final_answer" && at < body.length - 1) stretch(at + 1);
   });
-
-  const rest = body.slice(start);
-
-  const at = answerIndex(
-    rest.map((row) => row.phase),
-    status,
-    open(segments.length),
-  );
-
-  segments.push({
-    start,
-    end: body.length,
-    inputs: inputs(start, body.length),
-    answer: at < 0 ? -1 : start + at,
-    live: status === "live",
-    answered: rest.at(-1)?.phase === "final_answer",
-  });
+  stretch(body.length);
 
   return segments;
 }
