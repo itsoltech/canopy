@@ -27,6 +27,7 @@ interface TreeProps {
   projects: ui.Project[];
   workers: ui.Worker[];
   archived?: boolean;
+  reorder?: boolean;
 }
 
 const openTree = (current: ui.Thread | undefined) => current && (isSide(current) ? current.parentThreadId : current.id);
@@ -38,6 +39,7 @@ const openTree = (current: ui.Thread | undefined) => current && (isSide(current)
 const sameTree = (a: TreeProps, b: TreeProps) =>
   a.thread === b.thread &&
   a.archived === b.archived &&
+  a.reorder === b.reorder &&
   sameItems(a.sideThreads, b.sideThreads) &&
   a.sideThreads.every((side) => Boolean(a.rootIds?.has(side.id)) === Boolean(b.rootIds?.has(side.id))) &&
   (openTree(a.current) === a.thread.id) === (openTree(b.current) === b.thread.id) &&
@@ -47,7 +49,16 @@ const sameTree = (a: TreeProps, b: TreeProps) =>
 export const SidebarThreadTreeRow = memo(SidebarThreadTree, sameTree);
 
 /** One tree owns its side rows and attention, including when the same tree is pinned or archived. */
-function SidebarThreadTree({ thread, sideThreads, rootIds, current, projects, workers, archived = false }: TreeProps) {
+function SidebarThreadTree({
+  thread,
+  sideThreads,
+  rootIds,
+  current,
+  projects,
+  workers,
+  archived = false,
+  reorder = false,
+}: TreeProps) {
   const { sides, subagentsNeedingInput } = sidebarChildren(sideThreads, rootIds);
   const type = useSidebarTypography();
   const [expanded, setExpanded] = useState<boolean>();
@@ -64,6 +75,7 @@ function SidebarThreadTree({ thread, sideThreads, rootIds, current, projects, wo
           project={projects.find((p) => p.id === thread.projectId)}
           worker={workers.find((w) => w.id === thread.workerId)}
           subagentsNeedingInput={archived ? [] : subagentsNeedingInput}
+          reorder={reorder}
         />
       </ThreadArchiveSwipe>
       {hasSides && (

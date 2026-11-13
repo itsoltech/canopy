@@ -16,14 +16,12 @@ import { useAppearance } from "../../state/appearance";
 import { useOverview } from "../../state/overview";
 import { Button, EmptyState, IconButton, Notice, Segmented } from "../../ui/components";
 import { ConnectionBanner } from "./ConnectionStatus";
-import { PickerSheet } from "../../ui/Picker";
-import { ProjectMark } from "../../ui/ProjectMark";
 import { styles, useColors } from "../../ui/theme";
 import { SearchField } from "../../ui/SearchField";
 import { BotListItem } from "../bots/BotListItem";
 import { SettingsThreadList } from "./SettingsThreadList";
 import { useSidebarThreads } from "./useSidebarThreads";
-import { useProjectDetails } from "../computers/project-details";
+import { SidebarOptions } from "./SidebarOptions";
 import { CreateBot } from "../bots/CreateBot";
 import { useDevicePreferences } from "../settings/device-preferences";
 
@@ -128,8 +126,8 @@ function SidebarHeader({ state }: { state: ReturnType<typeof useSidebarState> })
         />
         {section === "threads" && (
           <IconButton
-            icon="funnel"
-            label={projectId ? "Filter projects, filtered" : "Filter projects"}
+            icon="bars-3"
+            label={projectId ? "Thread options, filtered" : "Thread options"}
             color={projectId ? c.accent : undefined}
             onPress={() => setFilterOpen(true)}
           />
@@ -293,9 +291,7 @@ function BotList({ state }: { state: ReturnType<typeof useSidebarState> }) {
 export function AppSidebar() {
   const c = useColors();
   const state = useSidebarState();
-  const { ready, session, workers, stream, filterOpen, setFilterOpen, navigation, projectId, setProjectId } = state;
-  const projects = navigation.choices;
-  const details = useProjectDetails();
+  const { ready, session, workers, stream, filterOpen, setFilterOpen, navigation, projectId } = state;
 
   if (!ready) return <ListSkeleton />;
 
@@ -313,29 +309,11 @@ export function AppSidebar() {
       footer={<SidebarFooter workers={workers} stream={stream} />}
     >
       <SidebarLists state={state} />
-      <PickerSheet
-        title="Show threads from"
+      <SidebarOptions
+        navigation={navigation}
+        projectId={projectId}
         visible={filterOpen}
         onClose={() => setFilterOpen(false)}
-        search={projects.length > 6 ? "Search projects" : undefined}
-        value={projectId}
-        onSelect={setProjectId}
-        sections={[
-          { options: [{ value: "", label: "All projects", icon: "folder-open" as const }] },
-          {
-            options: projects
-              .filter((p) => !p.archivedAt)
-              .map((p) => ({
-                value: p.id,
-                label: p.name,
-                leading: <ProjectMark name={p.name} kind={p.kind} />,
-                badge: navigation.projectAway(p) ? "Offline" : undefined,
-                description: [navigation.projectAway(p), details.detail(p)].filter(Boolean).join(" · "),
-                keywords: p.aliases.join(" "),
-                muted: Boolean(navigation.projectAway(p)),
-              })),
-          },
-        ]}
       />
     </ScreenFrame>
   );

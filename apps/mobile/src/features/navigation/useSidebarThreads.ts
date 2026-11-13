@@ -7,11 +7,13 @@ import { useAppearance } from "../../state/appearance";
 import { useOverview } from "../../state/overview";
 import { useSession } from "../../state/session";
 import { projectAwayReason } from "@canopy/domain/linked-snapshot";
+import { useDevicePreferences } from "../settings/device-preferences";
 
 export function useSidebarThreads(query: string) {
   const { threads, projectChoices: choices, workers, computers } = useOverview();
   const { sidebar, updateSidebar } = useAppearance();
   const { client } = useSession();
+  const { view } = useDevicePreferences();
   const { id } = useGlobalSearchParams<{ id?: string }>();
   const [fetchedCurrent, setFetchedCurrent] = useState<ui.Thread>();
   const settings = { ...sidebar, projectIds: expandProjectIds(sidebar.projectIds, choices) };
@@ -45,7 +47,8 @@ export function useSidebarThreads(query: string) {
     choices,
     projectAway: (project: ui.Project) => projectAwayReason(project, workers, computers),
     settings,
-    filtered: sidebarThreads(threads, settings, query, projectName),
+    sortMode: view.threadSortMode,
+    filtered: sidebarThreads(threads, settings, query, projectName, view.threadSortMode),
     projectName,
     setProjectId: (id: string) => updateSidebar({ projectIds: id ? [id] : [] }),
   };
