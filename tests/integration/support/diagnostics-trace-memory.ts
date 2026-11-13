@@ -31,20 +31,28 @@ function session() {
   return lease;
 }
 
-async function sample(cycle: number, phase: string) {
+async function collect() {
   await Bun.sleep(0);
   Bun.gc(true);
   await Bun.sleep(0);
   Bun.gc(true);
   const stats = heapStats();
 
-  console.info(JSON.stringify({ cycle, phase, heap: process.memoryUsage().heapUsed, objects: stats.objectCount }));
+  return { heap: process.memoryUsage().heapUsed, objects: stats.objectCount };
 }
 
-// Warm protobuf export and sampling code before comparing retained memory.
-for (let cycle = 0; cycle < 3; cycle++) {
+async function sample(cycle: number, phase: string) {
+  console.info(JSON.stringify({ cycle, phase, ...(await collect()) }));
+}
+
+// Warm a full measurement window, including GC and expiry, before taking the
+// baseline. Larger exports can finish JIT compilation after the first sessions.
+for (let cycle = 0; cycle < 12; cycle++) {
   session();
-  trace.clear();
+  await collect();
+  now += 600_001;
+  trace.state();
+  await collect();
 }
 
 await sample(-1, "baseline");
