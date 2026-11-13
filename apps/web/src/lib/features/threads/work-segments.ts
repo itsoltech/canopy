@@ -2,6 +2,7 @@ import type { ui, Item } from "@canopy/contracts";
 import { foldId, turnProgress, workSegments, type BodyRow, type WorkFoldState } from "@canopy/domain/work-fold";
 import type { TimelineEntry, TimelineNotice } from "./thread-types.ts";
 import { isSteerMessage } from "./timeline.ts";
+import { turnNotices } from "@canopy/domain/turn-notices";
 
 /** A message or reasoning with nothing to show yet: it adds no visible work (later deltas can fill it). */
 export function blank(content: Item["content"]): boolean {
@@ -62,7 +63,7 @@ export function planFolds(
     });
   }
 
-  for (const notice of notices)
+  for (const notice of turnNotices(notices, turns, entries))
     add(notice.turnId, `notice:${notice.seq}`, notice.seq, { phase: undefined, steer: false });
   const folds: FoldPlan[] = [];
   const workOf = new Map<string, string>();

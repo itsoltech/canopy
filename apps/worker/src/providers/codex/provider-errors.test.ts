@@ -46,6 +46,22 @@ function harness() {
   };
 }
 
+test("thread-scoped errors persist the active turn link, including a diagnostic just after its end", () => {
+  const h = harness();
+  h.record({ method: "turn/started", params: { threadId: "thread", turn: turn("first") } });
+
+  const diagnostic = {
+    method: "error" as const,
+    params: { threadId: "thread", turnId: "", willRetry: false, error: turnError },
+  };
+
+  h.record(diagnostic);
+  h.record(completed("thread", "first"));
+  h.record(diagnostic);
+  expect(h.state.notices.every((notice) => notice.turnId === h.state.turns[0]!.id)).toBe(true);
+  expect(h.state.turns[0]?.status).toBe("completed");
+});
+
 for (const willRetry of [false, true])
   test(`a provider notice (willRetry=${willRetry}) and more work leave the turn running until completion`, () => {
     const h = harness();

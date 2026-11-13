@@ -3,6 +3,7 @@ import type { TimelineEntry, TimelineNotice, TurnResult } from "./thread-types.t
 import { buildTimeline, type ItemNode, type TimelineRow } from "./timeline.ts";
 import { foldTurns, type WorkSummary } from "./work-groups.ts";
 import { FeedPrefix } from "./feed-prefix.ts";
+import { turnNotices } from "@canopy/domain/turn-notices";
 
 /**
  * The rows of the thread page's virtual feed, in order: a fork's inherited history (a header that folds
@@ -119,6 +120,13 @@ export class FeedBuilder {
   readonly #stable = new WeakMap<FeedRow, FeedRow>();
 
   build(input: FeedInput): FeedRow[] {
+    const loadedTurns = new Set(input.turns.map((turn) => turn.id));
+
+    const notices = turnNotices(input.notices, input.turns, input.entries).filter(
+      (notice) => !notice.turnId || loadedTurns.has(notice.turnId),
+    );
+
+    input = { ...input, notices };
     const next: FeedRow[] = [];
     const open = (fold: string) => input.openWork.has(fold);
     const groupOpen = (key: string) => input.openGroups?.has(key) ?? false;

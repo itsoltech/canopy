@@ -1,5 +1,6 @@
 import type { Item, Notice, Usage, ui } from "@canopy/contracts";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
+import type { NoticeState } from "@canopy/domain/turn-notices";
 
 export interface TimelineEntry {
   readonly id: string;
@@ -17,7 +18,7 @@ export interface TimelineEntry {
 }
 
 /** A notice event (rate limit, retry, provider error, restart); the snapshot brings the latest ones. */
-export interface TimelineNotice {
+export interface TimelineNotice extends NoticeState {
   readonly seq: bigint;
   readonly turnId: string;
   readonly notice: Notice;

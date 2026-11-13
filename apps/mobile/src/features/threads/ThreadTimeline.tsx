@@ -23,6 +23,7 @@ import type { ThreadState } from "./ThreadScreen";
 import { mobileFeedLayout } from "../settings/client-diagnostics";
 import type { WorkFoldChoice } from "@canopy/domain/work-fold";
 import { WorkGroupChoices } from "@canopy/domain/work-group-choices";
+import { turnNotices } from "@canopy/domain/turn-notices";
 import { ThreadScrollItems, ThreadScrollParent, ThreadScrollTarget } from "../../ui/thread-scroll-items";
 import { scrollTurnKey, useThreadScrollMemory } from "./useThreadScrollMemory";
 
@@ -69,7 +70,7 @@ function useTimelineData(state: ThreadState) {
     };
 
     const context: TurnContext = {
-      notices: snapshot?.notices ?? [],
+      notices: turnNotices(snapshot?.notices ?? [], state.turns, snapshot?.items ?? []),
       steers: snapshot?.steers ?? [],
       tasks,
       provider: thread?.provider,
@@ -78,7 +79,7 @@ function useTimelineData(state: ThreadState) {
     };
 
     return { directory, context };
-  }, [snapshot, thread, threads, quote, away, foldChoices, groupChoices]);
+  }, [snapshot, thread, threads, quote, away, foldChoices, groupChoices, state.turns]);
 }
 
 /** Native anchoring/follow-state changes may update the list wrapper without rendering unchanged turns. */
@@ -152,8 +153,7 @@ export function ThreadTimeline({
   const arrival = useArrivals(latestFirst.map(turnKey), Boolean(snapshot), { newestFirst: true });
   const { rise } = useMotion();
   const days = newDays(turns);
-  const turnIds = new Set(turns.map((t) => t.id));
-  const loose = snapshot?.notices.filter((n) => !turnIds.has(n.turnId)).slice(-3) ?? [];
+  const loose = context.notices.filter((n) => !n.turnId);
   const steering = snapshot?.steers.filter((s) => ["pending", "accepted"].includes(s.status)) ?? [];
 
   const [entryIndex] = useState(() => new TimelineEntries());
@@ -217,7 +217,9 @@ export function ThreadTimeline({
               ListHeaderComponent={
                 <>
                   <View style={{ gap: 12, paddingBottom: steering.length || loose.length ? 12 : 0 }}>
-                    {loose.map((n) => (n.notice ? <NoticeRow key={String(n.seq)} notice={n.notice} /> : null))}
+                    {loose.map((n) =>
+                      n.notice ? <NoticeRow key={String(n.seq)} notice={n.notice} state={n} /> : null,
+                    )}
                     {steering.map((s) => (
                       <Animated.View key={s.id} entering={rise.entering} exiting={rise.exiting}>
                         <UserMessageView

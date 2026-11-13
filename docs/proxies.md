@@ -47,6 +47,9 @@ albo `turn/interrupt` (Stop). Steer nie jest implementowany jako Stop + nowa tur
 Sam Codex 0.164.0 wysyła przez transport Responses WebSocket ramkę
 `response.interrupt` z id odpowiedzi i `mode = discard_partial_items`.
 Dotyczy to także wyprzedzającego dostarczenia steera (`instant_interrupt`, domyślnie włączone).
+Platformowe notatki o zakończeniu zadań w tle również dostarcza `turn/steer`;
+mogą więc uruchomić ten mechanizm Codexa bez naciśnięcia Stop. Cele Codexa używają
+`thread/goal/set` lub `thread/goal/clear`, a ich kontynuacje nie wysyłają Stop.
 Źródło: [transport Codexa](https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/codex-api/src/endpoint/responses_websocket.rs).
 
 CLIProxyAPI v8.0.22 ma wyścig na granicy zakończenia odpowiedzi: gdy upstream
@@ -59,6 +62,9 @@ klucza lub modelu ani braku obsługi WebSockets w ogóle. Rozpoznany upstream:
 [obsługa ramki](https://github.com/router-for-me/CLIProxyAPI/blob/6746588/sdk/api/handlers/openai/openai_responses_websocket_input.go).
 Bez wersji proxy i zdarzeń konkretnego wątku nie można potwierdzić, że właśnie
 ten wyścig wywołał pojedynczy incydent.
+Liczba kart na telefonie nie dowodzi liczby wywołań interrupt: dawny nieturowy
+ogon osi pokazywał ostatnie trzy komunikaty. Przy ustalaniu przyczyny trzeba
+porównać surowe zdarzenia i dostarczenia steerów, bez danych profilu ani kluczy.
 
 HTTP/SSE omija te ramki, zachowując `turn/steer` i Stop. Zapisany jawny wybór
 WebSockets pozostaje respektowany; w istniejącym proxy z tym błędem wyłącz
