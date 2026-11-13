@@ -14,6 +14,7 @@ import { coreDeliver } from "../../apps/gateway/src/core/core-commands.ts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
+import { mp4 } from "./support/video-fixtures.ts";
 
 describe.skipIf(!dockerAvailable)("in-place durable thread rewind", () => {
   let gw: TestGateway;
@@ -458,13 +459,14 @@ describe.skipIf(!dockerAvailable)("in-place durable thread rewind", () => {
         data: new TextEncoder().encode("notes"),
       })
     ).attachment!;
+    const clip = (await gw.api.uploadAttachment({ name: "clip.mp4", data: mp4 })).attachment!;
 
     const sent = (
       await gw.api.sendMessage({
         threadId: thread.id,
         text: "Read [notes.txt]",
         clientRequestId: "rich",
-        attachmentIds: [file.id],
+        attachmentIds: [file.id, clip.id],
         quotes: [{ text: "quoted passage", sourceKind: "agent_message" }],
         mentions: [
           { kind: MentionKind.ATTACHMENT, name: file.id, label: file.name, source: "file", start: 5, end: 16 },
@@ -477,15 +479,26 @@ describe.skipIf(!dockerAvailable)("in-place durable thread rewind", () => {
     expect(result.draft?.messageText).toBe("Read [notes.txt]");
     expect(result.draft?.quotes[0]?.text).toBe("quoted passage");
     const newFile = result.draft!.attachments[0]!;
+    const newClip = result.draft!.attachments[1]!;
     expect(newFile.id).not.toBe(file.id);
+    expect(newClip.id).not.toBe(clip.id);
     expect(result.draft!.mentions[0]?.name).toBe(newFile.id);
-    await gw.api.sendMessage({
-      threadId: thread.id,
-      text: result.draft!.messageText,
-      clientRequestId: "rich-resend",
-      attachmentIds: [newFile.id],
-      quotes: result.draft!.quotes,
-      mentions: result.draft!.mentions,
+    const resent = (
+      await gw.api.sendMessage({
+        threadId: thread.id,
+        text: result.draft!.messageText,
+        clientRequestId: "rich-resend",
+        attachmentIds: [newFile.id, newClip.id],
+        quotes: result.draft!.quotes,
+        mentions: result.draft!.mentions,
+      })
+    ).turn!;
+    expect(resent.attachments.find((attachment) => attachment.id === newClip.id)).toMatchObject({
+      kind: "video",
+      durationMs: 2000,
+      width: 16,
+      height: 16,
+      hasThumbnail: true,
     });
     await waitTurn(thread.id, 5);
   });

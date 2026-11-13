@@ -15,8 +15,8 @@ export const rewindDraft = (sql: SqlClient.SqlClient, owner: string, target: Tur
       const id = Bun.randomUUIDv7();
 
       const rows =
-        yield* sql`INSERT INTO attachments(id,owner_user_id,sha256,thumb_sha256,name,mime_type,kind,size_bytes,width,height)
-        SELECT ${id}::uuid,owner_user_id,sha256,thumb_sha256,name,mime_type,kind,size_bytes,width,height
+        yield* sql`INSERT INTO attachments(id,owner_user_id,sha256,thumb_sha256,name,mime_type,kind,size_bytes,width,height,duration_ms)
+        SELECT ${id}::uuid,owner_user_id,sha256,thumb_sha256,name,mime_type,kind,size_bytes,width,height,duration_ms
         FROM attachments WHERE id=${attachment.id}::uuid AND owner_user_id=${owner}::uuid RETURNING id`;
 
       if (!rows.length)
