@@ -231,6 +231,8 @@ Każdy błąd i blokada mają powód oraz `Retry update`; `retry_step` wymaga id
 przebiegu i indeksu kroku, zachowuje sukcesy i ponawia także zablokowane zależności.
 `Update all` po zakończeniu tworzy aktualny plan; podczas pracy zwraca istniejący
 przebieg bez drugiej kolejki. Odczyt postępu nie czeka na odpowiedź instalatora.
+Automatyczna aktualizacja po Hello workera i równoległe Update all współdzielą
+jedno trwałe polecenie; jego wynik nie ginie przez zastąpienie identyfikatora.
 Zmiany przebiegu ogłaszają `updates_changed`; panel i popover współdzielą wyniki,
 bieżącą pozycję, postęp, pominięcia i zakończenie. Timeout kroku to 35 minut. Nie odtwarzamy w ciemno przerwanej
 instalacji CLI; bez raportu po 60 sekundach należy sprawdzić worker i ponowić akcję.

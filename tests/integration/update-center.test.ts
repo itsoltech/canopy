@@ -159,13 +159,21 @@ function cliReport(gateway: TestGateway, version: string, state = "") {
   );
 }
 
-async function workerCommand(f: Awaited<ReturnType<typeof fixture>>) {
+async function workerCommand(f: Awaited<ReturnType<typeof fixture>>, center = f.gateway.core.updateCenter) {
   const abort = new AbortController();
   cleanups.push(() => abort.abort());
   const iterator = f.client.watch(f.hello, { headers: f.headers, signal: abort.signal })[Symbol.asyncIterator]();
   let event = await iterator.next();
 
-  while (!event.value?.command) event = await iterator.next();
+  while (!event.value?.command) {
+    if (event.done) throw new Error("The worker update stream ended before sending a command");
+    event = await iterator.next();
+  }
+
+  // Finish the bulk launch before simulating a result; Hello and bulk must share the durable command.
+  await center.tick();
+  const stored = (await f.gateway.core.updates.options.persistence.workers()).find((w) => w.id === f.gateway.workerId);
+  expect(stored?.command?.id).toBe(event.value.command.id);
 
   return event.value.command;
 }
@@ -341,7 +349,7 @@ describe.skipIf(!dockerAvailable)("ordered update all through authenticated gate
 
     await center.begin();
     expect((await center.status())?.steps.map((s) => s.kind)).toEqual(["worker", "cli", "desktop"]);
-    const command = await workerCommand(f);
+    const command = await workerCommand(f, center);
     await f.client.report(
       { workerId: f.gateway.workerId, commandId: command.id, state: "succeeded", version: "2.0.0" },
       { headers: f.headers },
