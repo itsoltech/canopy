@@ -278,14 +278,12 @@
     {:else if viewer.editing}
       <CodeEditor
         memory={editorMemory(document)}
-        workspace
         position={viewer.position}
         positionRevision={viewer.positionRevision}
         text={viewer.draft}
         fileName={name}
         wrap={false}
         onchange={(text) => document.setDraft(text)}
-        onsave={() => void document.save()}
       />
     {:else if !viewer.file && viewer.lookup && !viewer.loading}
       <FileLookup file={viewer.lookup} path={document.path} onselect={(path) => void document.load(path)} />

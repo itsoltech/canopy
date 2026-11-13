@@ -8,7 +8,7 @@
 
   /**
    * A read file, read-only: Markdown rendered, everything else highlighted by its extension with line numbers
-   * (not selectable). Mod+A in the focused content selects only the file's text (FileViewer, select-all.ts).
+   * (not selectable). Mod+A in the focused workspace selects only the file's text (select-all.ts).
    */
   let {
     file,

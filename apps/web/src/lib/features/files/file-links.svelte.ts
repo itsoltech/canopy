@@ -6,7 +6,8 @@ import { provideFileLinks, type FileLinkHandler } from "#lib/shared/ui/markdown/
 import { toast } from "#lib/shared/ui/toast.svelte.ts";
 import { openFile } from "./api.ts";
 import { fileLocation } from "@canopy/domain/file-references";
-import { useWorkspace } from "#lib/features/workspace/workspace.svelte.ts";
+import { useWorkspace, workspaceStore } from "#lib/features/workspace/workspace.svelte.ts";
+import { goto } from "$app/navigation";
 import type { Workspace } from "@canopy/domain/workspace";
 
 export interface FileTarget {
@@ -16,9 +17,6 @@ export interface FileTarget {
   readonly local: boolean;
   readonly itemId?: string;
 }
-
-/** The file open in the viewer (one at a time, app-wide: FileViewerHost in the root layout shows it). */
-export const openedFile = $state<{ current?: FileTarget | undefined }>({});
 
 /**
  * File paths in an agent's messages open the file: in Canopy's viewer, or (device setting "Open files in") in
@@ -41,7 +39,10 @@ class ThreadFileLinks implements FileLinkHandler {
 
     if (target.local && /[\\/]/.test(path) && devicePreferences.values.fileLinks === "app") void openInApp(target);
     else if (this.workspace) this.workspace().open(target);
-    else openedFile.current = target;
+    else {
+      workspaceStore.view(threadId).open(target);
+      void goto(`/threads/${encodeURIComponent(threadId)}`);
+    }
   }
 }
 

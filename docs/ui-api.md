@@ -11,7 +11,7 @@ domu oznaczamy `stale`, a brak ostatniej odpowiedzi także `unavailable`.
 
 ## Moduły workspace'u wątku
 
-`features/workspace` rejestruje wewnętrzne moduły Pull requests, Tasks i Connectors
+`features/workspace` rejestruje wewnętrzne moduły Files, Pull requests, Tasks i Connectors
 przez wspólne deskryptory `@canopy/domain/workspace-modules`. Klucz pełnej karty
 obejmuje moduł i kwalifikowane id zasobu we właściwym wątku. `+` w nagłówku otwiera
 utrwaloną kartę; `+` prawego panelu zastępuje jego jedyny moduł. Maksymalizacja
@@ -117,8 +117,9 @@ Webowy `Icon` domyślnie używa `--icon-muted`: zinc-500 w jasnym i zinc-400 w c
 Hover, aktywacja, fokus klawiatury i wybrany/rozwinięty stan kontrolki ustawiają
 `--icon-emphasis` (odpowiednio zinc-700 / zinc-300), również w nagłówkach i nawigacji.
 `tone="inherit"` zachowuje kolor semantycznego statusu lub kontrast głównej akcji;
-jawne klasy koloru nadal mają pierwszeństwo. Przełącznik Thread details używa `panel-right`:
-`layout-sidebar-right`, czyli obrysu okna z prawym panelem. `view-columns` używa tego
+jawne klasy koloru nadal mają pierwszeństwo. Przycisk Thread details używa
+`information-circle`; osobne zwinięcie/przywrócenie panelu używa `panel-right`
+(`layout-sidebar-right`, czyli obrysu okna z prawym panelem). `view-columns` używa tego
 samego glifu w komendach i aplikacji mobilnej; `sidebar` używa `layout-sidebar`.
 
 ## Synchronizacja wątku
@@ -2235,7 +2236,10 @@ a `Keep editing` wraca do pola. Nie dodajemy zależności ani konfiguracji natyw
 Oba klienty sprawdzają wymiary i odmowę preview z workera przed utworzeniem
 bitmapy; limit wynosi 16 MP. Podgląd animowanego obrazu jest statyczny.
 
-Pozostały opis viewera dotyczy wspólnych RPC oraz dotychczasowego modala poza wątkiem.
+Pozostały opis dotyczy wspólnych RPC i kart workspace'u. Dawny modal pliku wątku
+nie jest montowany w głównym layoucie. Link z izolowanego widoku transkryptu
+przechodzi do workspace'u właściwego wątku; załączniki, bloby i obrazy botów
+zachowują własne viewery.
 
 Ścieżka pliku w wiadomości agenta jest zaznaczalnym linkiem: inline code, który wygląda na plik
 (`out/report.md`, `C:\work\query.sql`, `~/notes.txt`, `src/app.ts:12`), oraz link Markdown do pliku
@@ -2249,7 +2253,7 @@ Zaznaczenie i kopiowanie zachowują widoczny tekst linków, wzmianek i chipów z
 przeciągnięcie zaznaczenia przez link nie otwiera podglądu.
 
 Ustawienie urządzenia **Open files in** (Settings → Interface, `fileLinks`): **Canopy** otwiera
-przeglądarkę (`features/files/FileViewer.svelte`, jedna naraz, host w głównym layoucie), **Default app**
+kartę workspace'u (`features/workspace/WorkspaceFile.svelte`), **Default app**
 otwiera jawną ścieżkę od razu w domyślnej aplikacji, ale tylko gdy plik leży na tym komputerze (`onThisComputer`: własny gateway desktopu, wątek bez `nodeId`, worker `desktop_bundled`). Goła nazwa najpierw otwiera podgląd, aby umożliwić wybór przy wielu dopasowaniach. Plik innej maszyny zawsze otwiera się w przeglądarce, a przycisk **Open in default app** jest wtedy ukryty.
 
 Przeglądarka czyta plik przez `GET /api/threads/:id/files?path=&itemId=` (`ReadThreadFile`, do 2 MiB).
@@ -2260,9 +2264,10 @@ domowym workerze w katalogu wątku/worktree; pojedyncze dopasowanie otwiera plik
 pozostają błędami połączenia. Tytuł zawiera nazwę, opis ścieżkę względną i komputer; plik w korzeniu ma `./`.
 Obrazy rastrowe pokazują wymiary i rozmiar z ograniczonych bajtów (bez pobierania zasobów zewnętrznych).
 Nieobsługiwane binaria i błędy mają własny stan zamiast pustego pola treści. Markdown
-ma widok Rendered/Source (wspólny z podglądem załączników), reszta jest podświetlona Shiki według
-rozszerzenia. **Edit** ładuje CodeMirror 6 (leniwie, `features/files/code-editor.ts`): język z nazwy pliku
-(`@codemirror/language-data`), kolory z tokenów `--code-*` i palety, więc edytor podąża za motywem.
+ma widok renderowany i źródłowy. Wirtualny viewer oraz dekoracje edytora korzystają
+z tokenizacji poza głównym wątkiem i kolorów `--code-*`. **Edit** ładuje edytor
+leniwie (`features/files/code-editor.ts`); parser języka nie jest uruchamiany
+na głównym wątku. Podgląd załączników zachowuje swój osobny renderer.
 Edycja pokazuje znacznik „Unsaved changes” w zarezerwowanym miejscu, `Mod+S` zapisuje
 (`PUT …/files` z SHA-256 odczytu), zamknięcie z niezapisanymi zmianami pyta o porzucenie. Zmiana na dysku
 od odczytu daje konflikt z akcją „Discard and reload”. **Delete file** potwierdza i usuwa z tym samym

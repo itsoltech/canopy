@@ -12,9 +12,7 @@
     fileName,
     wrap,
     onchange,
-    onsave,
     memory,
-    workspace = false,
     position,
     positionRevision = 0,
   }: {
@@ -22,9 +20,7 @@
     fileName: string;
     wrap: boolean;
     onchange: (text: string) => void;
-    onsave: () => void;
     memory?: CodeEditorMemory;
-    workspace?: boolean;
     position?: FilePosition | undefined;
     positionRevision?: number;
   } = $props();
@@ -55,9 +51,7 @@
                 if (active && created && created.text() !== text) created.reset(text);
               });
             },
-            onsave: () => onsave(),
             memory,
-            workspace,
           }),
         );
         editor = created;
