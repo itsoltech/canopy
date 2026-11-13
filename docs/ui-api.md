@@ -978,6 +978,12 @@ Przy nawigacji TurnRail rezerwa do wyrównania ostatniego wiersza jest liczona r
 
 „Jump to latest” animuje pozostałą odległość do aktualnego końca na każdej klatce (`EndScroll`, `--duration-slow`, `smoothOut`). Pomiar wierszy i zmiana naturalnej wysokości kompozytora aktualizują cel podczas ruchu. Zakończenie animacji uruchamia zwykłe przypinanie dołu bez oczekiwania na natywne `scrollend` ani okno czasowe blokujące korekty. Zmiana skali interfejsu lub safe area aktualizuje pomiar stopki. Gest czytelnika, nawigacja do wiersza i otwarcie foldu przerywają animację; reduced motion i dalekie skoki używają ścieżki natychmiastowej.
 
+Grupy narzędzi w otwartej sekcji pracy są domyślnie zwinięte, także przy jednej grupie.
+Settings → Threads → Turn activity → „Tool calls” ustawia Collapsed albo Expanded niezależnie
+od „While working”. Preferencja jest lokalna dla przeglądarki lub telefonu; ręczny wybór
+grupy przetrwa streaming i wirtualizację. Zwinięty nagłówek zachowuje bieżący krok oraz
+status pracy. Szczegóły: [timeline-folding.md](timeline-folding.md).
+
 ### Pytania nad kompozytorem
 
 `Interaction.asynchronous` i `InteractionPrompt.asynchronous` (pole **250** w odpowiednich wiadomościach) oznaczają pytanie, przy którym agent pracuje dalej. Domyślne `false` zachowuje zachowanie natywnych interakcji. Async pozostaje w `snapshot.interactions` i strumieniu interakcji, lecz nie zwiększa `Thread.pending_interactions` ani komunikatu czytnika ekranu „waiting for you”.

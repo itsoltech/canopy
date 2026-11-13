@@ -19,9 +19,9 @@ export function threadScrollMemory(id: string, compaction: ComposerCompaction, p
     key(identity: string) {
       return current.find((row) => feedScrollKey(row) === identity)?.key ?? identity;
     },
-    prepare(rows: readonly FeedRow[], folds: WorkFolds, historyOpen: boolean): boolean {
+    prepare(rows: readonly FeedRow[], folds: WorkFolds, historyOpen: boolean, expanded = false): boolean {
       current = rows;
-      folds.keepFlat(rows);
+      folds.updateGroups(rows, expanded);
 
       if (prepared) return historyOpen;
       const initial = this.initial;

@@ -1144,8 +1144,11 @@ znak PR, autora i krótki fragment. Podgląd pokazuje repozytorium/numer, plik/l
 czas i URL (`Open on GitHub`). Metadane i kontekst diffu są sprawdzane w cache
 właściciela na gatewayu bez żądania GitHub przy wysyłaniu. Cała zmiana pozostaje JS.
 Oś czasu nadąża za web: grupę pracy otwiera i zwija Settings → Threads → Turn activity
-(„While working”, „After the turn”, z resetem), według tej samej reguły `workFoldOpen`
-z `@canopy/domain/work-fold` co web; tapnięcie decyduje dalej. Preferencje dotyczą tego
+(„While working”, „Tool calls”, „After the turn”, z resetem), według tej samej reguły `workFoldOpen`
+z `@canopy/domain/work-fold` co web; tapnięcie decyduje dalej. Grupy narzędzi domyślnie są
+zwinięte, także pojedyncza grupa. „Tool calls: Expanded” otwiera je podczas pracy niezależnie
+od całej sekcji. Zwinięty nagłówek pokazuje bieżący krok i status. `WorkGroupChoices` zachowuje
+ręczny wybór poza wirtualnymi komórkami, tak jak web ([timeline-folding.md](timeline-folding.md)). Preferencje dotyczą tego
 telefonu i leżą w `device-preferences.json` w katalogu dokumentów aplikacji
 (`src/storage/preferences.ts`), nie w ustawieniach gatewaya. Wiersze pracy mają
 stopień `work` (15/13), komendy są monospace. Tura powłoki (`Turn.shell_command`) ma kartę

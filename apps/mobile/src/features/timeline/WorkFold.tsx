@@ -129,6 +129,7 @@ export function WorkGroup({
   label,
   open,
   running,
+  hint,
   icon,
   status,
   statusCount,
@@ -137,6 +138,7 @@ export function WorkGroup({
   label: string;
   open: boolean;
   running: boolean;
+  hint: string;
   icon: IconName;
   status: ItemStatus;
   statusCount: number;
@@ -160,7 +162,7 @@ export function WorkGroup({
     <Animated.View ref={header} collapsable={false}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={state ? `${label}, ${statusCount} ${state}` : label}
+        accessibilityLabel={`${state ? `${label}, ${statusCount} ${state}` : label}${running && !open ? `, ${hint}` : ""}`}
         accessibilityState={{ expanded: open }}
         onPress={() => toggle(onToggle)}
         style={({ pressed }) => [
@@ -177,15 +179,22 @@ export function WorkGroup({
         <View style={{ height: 24, justifyContent: "center" }}>
           <Icon name={icon} color={c.icon} />
         </View>
-        {running ? (
-          <LiveText containerStyle={{ flex: 1, minWidth: 0 }} style={styles.work}>
-            {label}
-          </LiveText>
-        ) : (
-          <Text numberOfLines={1} style={[styles.work, { flex: 1, minWidth: 0, color: c.soft }]}>
-            {label}
-          </Text>
-        )}
+        <View style={{ flex: 1, minWidth: 0, flexDirection: "row", gap: 8 }}>
+          {running ? (
+            <LiveText containerStyle={{ flex: 1, minWidth: 0 }} style={styles.work}>
+              {label}
+            </LiveText>
+          ) : (
+            <Text numberOfLines={1} style={[styles.work, { flex: 1, minWidth: 0, color: c.soft }]}>
+              {label}
+            </Text>
+          )}
+          {running && !open && (
+            <Text numberOfLines={1} style={[styles.work, { flex: 1, minWidth: 0, color: c.faint }]}>
+              {hint}
+            </Text>
+          )}
+        </View>
         <View style={{ height: 24, width: 40, justifyContent: "center", alignItems: "flex-end", flexShrink: 0 }}>
           <ItemStatusIcon status={status} count={statusCount} />
         </View>
