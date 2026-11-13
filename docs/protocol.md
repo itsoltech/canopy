@@ -498,7 +498,7 @@ odczyt do domu wątku. Worker bez capability wymaga aktualizacji. Komenda nie tr
 do outboxa, dziennika ani synchronizacji metadanych.
 
 Jedna strona obejmuje do 200 bezpośrednich dzieci i 64 KiB protobuf z kopertą;
-klienci żądają 100. Iterator `opendir` ma bufor 32 wpisów i budżet pracy 2 s.
+klienci żądają 100. Iterator natywny ma bufor do 64 KiB i budżet pracy 2 s.
 Nie powstaje pełna lista ani rekurencyjny snapshot. Worker utrzymuje najwyżej
 8 iteratorów; kursor jest jednorazowy, związany z właścicielem, wątkiem, tożsamością
 korzenia, katalogiem i filtrem, wygasa po 30 s. `release` zwalnia go wcześniej,
@@ -509,6 +509,14 @@ błąd i wymaga ponownego odczytu tego katalogu, bez cichego kontynuowania stare
 nie mogą być dowiązaniami. Worker ponownie sprawdza granicę po enumeracji; wpis
 symlinka zawiera typ i nazwę bez celu i nie jest rozwijany. Odpowiedź zawiera wyłącznie
 ścieżki względne i nieujawniający korzenia hash jego tożsamości.
+
+Iterator jest związany z uchwytem zweryfikowanego katalogu. Na Unix każdy komponent,
+także przodkowie kanonicznego korzenia, jest otwierany przez `openat` z `O_NOFOLLOW`;
+`fdopendir` i `fstatat(AT_SYMLINK_NOFOLLOW)` używają tego samego deskryptora.
+Na Windows uchwyty bez `FILE_SHARE_DELETE` przypinają wszystkie komponenty bez
+reparse points; nazwy i metadane zwraca `GetFileInformationByHandleEx` na końcowym
+uchwycie. Chwilowa podmiana przodka nie przekierowuje enumeracji. Zakończenie,
+błąd, zwolnienie kursora i rozłączenie zamykają wszystkie uchwyty.
 
 Git korzysta z process governora: współdzielony status porcelain, limit 1 MiB,
 2 s i cache 2 s, bez procesu dla każdego pliku. Statusy obejmują modyfikację,

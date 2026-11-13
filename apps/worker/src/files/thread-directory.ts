@@ -1,7 +1,4 @@
 import { create, toBinary } from "@bufbuild/protobuf";
-import { lstat, opendir } from "node:fs/promises";
-import type { Dir } from "node:fs";
-import { join } from "node:path";
 import {
   ThreadDirectoryEntrySchema,
   ThreadDirectoryPageSchema,
@@ -13,13 +10,14 @@ import {
 import { CommandError } from "../runtime/host-types.ts";
 import { directoryDeleted, directoryGit, directoryStatus, type DirectoryGit } from "./directory-git.ts";
 import { directoryIdentity, directoryPath, directoryRevision } from "./thread-directory-path.ts";
+import { VerifiedDirectory, type DirectoryHandle } from "./directory-handle.ts";
 
 type Target = Awaited<ReturnType<typeof directoryPath>>;
 
 interface Session {
   key: string;
   target: Target;
-  iterator: Dir;
+  iterator: DirectoryHandle;
   token: string;
   timer: ReturnType<typeof setTimeout>;
   pending?: ThreadDirectoryEntry | undefined;
@@ -92,7 +90,12 @@ export class ThreadDirectories {
       page.gitStatusComplete = git.complete;
       page.gitStatusReason = git.reason;
 
-      if (epoch !== this.#epoch || cursor.closed || (await directoryRevision(target.path)) !== target.revision) {
+      if (
+        epoch !== this.#epoch ||
+        cursor.closed ||
+        (await cursor.iterator.revision()) !== target.revision ||
+        (await directoryRevision(target.path)) !== target.revision
+      ) {
         await this.#close(cursor);
 
         return create(ThreadDirectoryPageSchema, { error: Failure.DIRECTORY_CHANGED });
@@ -136,7 +139,7 @@ export class ThreadDirectories {
     this.#opening++;
 
     try {
-      const iterator = await opendir(target.path, { bufferSize: 32 });
+      const iterator = await VerifiedDirectory.open(target);
 
       const session: Session = {
         key,
@@ -203,33 +206,23 @@ export class ThreadDirectories {
 
       if (entry.name === ".git" || (!ignored && entry.name.startsWith("."))) continue;
       const path = session.target.directory ? `${session.target.directory}/${entry.name}` : entry.name;
-      const status = directoryStatus(git, path, entry.isDirectory());
+      const status = directoryStatus(git, path, entry.kind === "directory");
 
       if (!ignored && status === "!") continue;
 
-      try {
-        const info = await lstat(join(session.target.path, entry.name));
+      const kind = { symlink: Kind.SYMLINK, directory: Kind.DIRECTORY, file: Kind.FILE, other: Kind.UNSPECIFIED }[
+        entry.kind
+      ];
 
-        const kind = info.isSymbolicLink()
-          ? Kind.SYMLINK
-          : info.isDirectory()
-            ? Kind.DIRECTORY
-            : info.isFile()
-              ? Kind.FILE
-              : Kind.UNSPECIFIED;
+      if (kind === Kind.UNSPECIFIED) continue;
 
-        if (kind === Kind.UNSPECIFIED) continue;
-
-        return create(ThreadDirectoryEntrySchema, {
-          name: entry.name,
-          path,
-          kind,
-          gitStatus: status,
-          ...(info.isFile() && { size: BigInt(info.size), modifiedMs: BigInt(Math.trunc(info.mtimeMs)) }),
-        });
-      } catch {
-        // A vanished or unreadable child does not prevent enumerating the remaining names.
-      }
+      return create(ThreadDirectoryEntrySchema, {
+        name: entry.name,
+        path,
+        kind,
+        gitStatus: status,
+        ...(entry.kind === "file" && { size: entry.size, modifiedMs: entry.modifiedMs }),
+      });
     }
 
     const deleted = session.deleted.shift();
