@@ -31,6 +31,7 @@ export type ProfileModelsInit = MessageInitShape<typeof ProfileModelsSchema>;
 
 export interface CommandOutput {
   readonly rewind?: MessageInitShape<typeof CommandResultSchema>["rewind"];
+  readonly threadImageExport?: MessageInitShape<typeof CommandResultSchema>["threadImageExport"];
   readonly botFile?: MessageInitShape<typeof CommandResultSchema>["botFile"];
   readonly workspaceCopy?: MessageInitShape<typeof CommandResultSchema>["workspaceCopy"];
   readonly gitPrContext?: MessageInitShape<typeof CommandResultSchema>["gitPrContext"];

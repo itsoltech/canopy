@@ -97,7 +97,10 @@ export async function botTool(text: string, server: typeof Mcp.Type | undefined,
   // Answer only from the actual system/profile instructions supplied to the controlled CLI.
   if (text.includes("PROBE_INSTRUCTIONS")) return instructions.match(/FIXTURE_REPLY:(\w+)/)?.[1] ?? "FIXTURE_OK";
 
-  if (text.startsWith("[canopy] Owner shell command result")) return text;
+  // Grok includes thread instructions before the current input, unlike the SDK transports.
+  const shell = text.match(/(?:^|\n\n)(\[canopy\] Owner shell command result[\s\S]*)$/)?.[1];
+
+  if (shell) return shell;
 
   const name = text.match(/TOOL:([a-z_0-9]+)/i)?.[1];
 

@@ -87,6 +87,7 @@ const NOT_REMEMBERED: ReadonlySet<Command["kind"]["case"]> = new Set([
   "listThreadDirectory",
   "getThreadFileHighlight",
   "watchThreadFiles",
+  "exportThreadImage",
   "openFile",
   "writeFile",
   "deleteFile",
@@ -212,6 +213,7 @@ export class WorkerHost {
   detach(link: GatewayLink): void {
     if (this.#ctx.state.link === link) {
       this.#ctx.state.link = undefined;
+      this.#ctx.state.imageExports.close();
       void this.#ctx.ops.closeClones();
       void this.#ctx.ops.closeDirectories();
     }
@@ -359,6 +361,7 @@ export class WorkerHost {
         ...(output.file && { file: output.file }),
         ...(output.threadDirectory && { threadDirectory: output.threadDirectory }),
         ...(output.threadFileHighlight && { threadFileHighlight: output.threadFileHighlight }),
+        ...(output.threadImageExport && { threadImageExport: output.threadImageExport }),
       };
 
       if (!NOT_REMEMBERED.has(command.kind.case)) await this.#remember(result);
@@ -395,6 +398,7 @@ export class WorkerHost {
 
   async close(): Promise<void> {
     await this.#ctx.ops.closeDirectories();
+    this.#ctx.state.imageExports.close();
     await this.#ctx.ops.closeClones();
     await this.#copies.close();
     this.#ctx.state.closing = true;
