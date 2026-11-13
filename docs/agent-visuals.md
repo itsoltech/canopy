@@ -1,6 +1,6 @@
 # Obrazy w odpowiedziach i interaktywne visuals
 
-Status: **projekt do decyzji**, bez implementacji. Dokument nie zmienia obecnych
+Status: **projekt zatwierdzony przez użytkownika (2026-11-13)**, bez implementacji. Dokument nie zmienia obecnych
 kontraktów ani uprawnień. Docelowe nazwy narzędzi, capability i pól poniżej są
 propozycjami; nie oznaczają funkcji dostępnych dzisiaj.
 
@@ -521,18 +521,21 @@ heap i pamięć bitmap. Eksport mobilny JS ani fixture Bun nie dowodzą CPU,
 FPS lub zużycia energii natywnego WebView. Dodanie modułu wymaga jawnie
 nowych fingerprintów; parytetu nie zatwierdzamy samym sprawdzeniem webu.
 
-## 7. Otwarte decyzje użytkownika
+## 7. Zatwierdzone decyzje i zakres wykonania
 
-| Pytanie | Rekomendacja i skutek |
+Użytkownik zaakceptował mockup i wszystkie pięć rekomendacji:
+
+| Decyzja | Przyjęty zakres |
 | --- | --- |
-| Czy visuals v1 mogą ograniczać się do gotowych komponentów? | Tak: JSON + zaufany kit. Wystarcza do diagramów i playgroundów; dowolne HTML/JS pozostaje poza v1. |
-| Czy wybór w visualu ma od razu trafiać do agenta? | Nie w v1. Lokalna zabawa działa od razu, wiążącą decyzję zbiera osobne `ask_user`. |
-| Czy udostępnić obrazy jako pierwszą kompletną funkcję? | Tak. Osobny stos obrazów jest mniejszy i nie czeka na nowy mobilny runtime WebView. |
-| Czy przyjąć proponowane sufity publikacji i rendering budgets? | Tak jako wartości startowe; przed merge potwierdzić je pomiarami desktop/iOS/Android i respektować niższe limity właściciela. |
-| Czy headless screenshot kontrolny jest częścią pierwszego wydania? | Nie. Najpierw walidator i ręczny odbiór kitu; preview na workerze jako późniejsza, osobno wyceniona funkcja. |
+| Format visuals v1 | JSON + zaufany kit gotowych komponentów; dowolne HTML/JS poza v1. |
+| Odpowiedź do agenta | Bez bridge'a w v1; lokalny stan visuala i osobne `ask_user`. |
+| Kolejność | Najpierw kompletny stos obrazów, następnie osobny stos visuals. |
+| Limity i budżety | Proponowane wartości przyjęte; pomiary przed merge potwierdzają ich spełnienie, z zachowaniem niższych limitów właściciela. |
+| Samokontrola screenshotem | Poza v1; walidator i ręczny odbiór kitu pozostają w zakresie. |
 
-Projekt jest gotowy do decyzji w powyższych punktach; otwarcie draft PR nie
-stanowi zgody na implementację. Nazwę „Visual” należy dodać do glosariusza copy
+Użytkownik zatwierdził realizację stosu obrazów i późniejszego stosu visuals.
+PR-y implementacyjne pozostają draft do ukończenia i weryfikacji całego stosu;
+stos scala użytkownik jednocześnie. Nazwę „Visual” należy dodać do glosariusza copy
 w PR implementacyjnym. Audyt tekstów projektu: krótkie akcje („Download image”,
 „Open full screen”, „Cite visual”), błędy z „Retry”, brak żargonu sandbox/API
 w chrome użytkownika i brak tekstów humorystycznych. Dokładny audyt widoków
