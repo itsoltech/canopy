@@ -261,7 +261,7 @@ export interface EditorControls {
   insertChips(chips: readonly MentionData[], point?: { readonly x: number; readonly y: number }): void;
   /** Takes out the chips `which` picks (undoable). */
   removeChips(which: (mention: MentionData) => boolean): void;
-  insertQuote(quote: QuoteDraft): void;
+  insertQuote(quote: QuoteDraft): HTMLElement | undefined;
   replaceQuote(chip: HTMLElement, quote?: QuoteDraft): void;
   readonly root: HTMLElement | undefined;
 }

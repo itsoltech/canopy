@@ -11,13 +11,74 @@
   import { ui } from "@canopy/contracts";
   import type { QuoteDraft } from "./quote.ts";
   import EditorCitationPreview from "./EditorCitationPreview.svelte";
+  import { untrack } from "svelte";
+  import { caretAfter } from "#lib/features/mentions/caret.ts";
+  import { useQuoteDrafts } from "./quote-drafts.svelte.ts";
 
-  let { editor, quotes }: { editor: EditorControls | undefined; quotes: readonly QuoteDraft[] } = $props();
+  let {
+    editor,
+    quotes,
+    quoteKey,
+  }: {
+    editor: EditorControls | undefined;
+    quotes: readonly QuoteDraft[];
+    quoteKey?: string | undefined;
+  } = $props();
+
   const revealSource = useCitationSource();
   let selected = $state<{ quote: QuoteDraft; anchor: HTMLElement }>();
   let open = $state(false);
   let excerpt = $state("");
   let comment = $state("");
+  let offset = $state(6);
+  let returnToComposer = true;
+
+  $effect(() => {
+    const root = editor?.root;
+    const chip = selected?.anchor;
+
+    if (!open || !root || !chip) return;
+
+    const measure = () => {
+      offset = 6 + Math.max(0, chip.getBoundingClientRect().top - root.getBoundingClientRect().top);
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(root);
+    observer.observe(chip);
+    root.addEventListener("scroll", measure, { passive: true });
+
+    return () => {
+      observer.disconnect();
+      root.removeEventListener("scroll", measure);
+    };
+  });
+
+  function edit(chip: HTMLElement) {
+    const quote = quoteOf(chip);
+
+    if (!quote) return;
+    selected = { quote, anchor: chip };
+    excerpt = quote.text;
+    comment = quote.comment;
+    returnToComposer = true;
+    open = true;
+  }
+
+  $effect(() => {
+    const key = quoteKey;
+    const controls = editor;
+
+    if (key && controls)
+      return untrack(() =>
+        useQuoteDrafts().connect(key, (quote, shouldEdit) => {
+          const chip = controls.insertQuote(quote);
+
+          if (shouldEdit && chip) edit(chip);
+        }),
+      );
+  });
 
   $effect(() => {
     void quotes;
@@ -34,10 +95,7 @@
       if (!chip || !quote) return;
       event.preventDefault();
       event.stopImmediatePropagation();
-      selected = { quote, anchor: chip };
-      excerpt = quote.text;
-      comment = quote.comment;
-      open = true;
+      edit(chip);
     };
 
     const keydown = (event: KeyboardEvent) => {
@@ -71,8 +129,38 @@
     editor?.replaceQuote(selected.anchor, { ...selected.quote, text: excerpt, comment });
   }
 
+  function closed() {
+    const root = editor?.root;
+
+    if (open || !returnToComposer || !root || !selected) return;
+
+    const chip = [...root.querySelectorAll<HTMLElement>('[data-element="citation"]')].find(
+      (node) => quoteOf(node)?.id === selected?.quote.id,
+    );
+
+    if (!chip) return;
+    root.focus({ preventScroll: true });
+    caretAfter(chip);
+  }
+
+  function keydown(event: KeyboardEvent) {
+    const inComment = event.target instanceof HTMLTextAreaElement && event.target.name === "comment";
+
+    if (
+      event.key === "Enter" &&
+      !event.shiftKey &&
+      !event.isComposing &&
+      (inComment || event.metaKey || event.ctrlKey)
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+      save();
+    }
+  }
+
   async function reveal() {
     if (!selected) return;
+    returnToComposer = false;
     open = false;
 
     if (!(await revealSource(create(ui.QuoteSchema, selected.quote))))
@@ -87,12 +175,17 @@
   label="Edit citation"
   anchor={selected?.anchor}
   placement="top-start"
+  {offset}
+  followMotion
+  panelKeydown={keydown}
+  onclose={closed}
   class="w-80 max-w-[calc(100vw-1rem)]"
 >
   <form
     class="grid gap-3 p-3"
     onsubmit={(event) => {
       event.preventDefault();
+      event.stopPropagation();
       save();
     }}
   >
@@ -102,7 +195,6 @@
       bind:value={excerpt}
       rows={3}
       maxlength={QUOTE_LIMITS.maxTextChars}
-      data-autofocus
       resize={false}
       class="max-h-60"
     />
@@ -112,6 +204,7 @@
       bind:value={comment}
       rows={2}
       maxlength={QUOTE_LIMITS.maxCommentChars}
+      data-autofocus
       resize={false}
     />
     <div class="flex flex-wrap justify-end gap-2">

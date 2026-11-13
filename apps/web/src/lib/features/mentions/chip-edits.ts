@@ -56,7 +56,8 @@ export class ChipEdits {
 
         if (!focused || !rangeIn(node)) restoreCaret(node, this.#last);
         ensureCaret(node);
-        this.insertMarked(`${marked(citationHtml(quote))}&nbsp;`);
+
+        return this.insertMarked(`${marked(citationHtml(quote))}&nbsp;`);
       },
       replaceQuote: (chip, quote) => {
         const node = root();
@@ -160,10 +161,10 @@ export class ChipEdits {
   }
 
   /** HTML with chips marked `data-inserted` at the caret (one undoable edit); the caret after the last one. */
-  private insertMarked(html: string): void {
+  private insertMarked(html: string): HTMLElement | undefined {
     document.execCommand("insertHTML", false, html);
     // Chrome leaves the caret before inserted non-editable content: put it after the chip and its space.
-    const chips = [...(this.root()?.querySelectorAll("[data-inserted]") ?? [])];
+    const chips = [...(this.root()?.querySelectorAll<HTMLElement>("[data-inserted]") ?? [])];
 
     // WebKit's insertHTML can strip contenteditable=false. Restore the chip's atomic
     // boundary before placing the caret, otherwise Backspace edits its label instead.
@@ -176,6 +177,8 @@ export class ChipEdits {
 
     if (last) caretAfter(last);
     this.sync();
+
+    return last;
   }
 }
 

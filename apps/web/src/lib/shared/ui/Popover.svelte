@@ -56,6 +56,7 @@
     label,
     placement = "bottom-start",
     offset = 6,
+    followMotion = false,
     role = "dialog",
     anchor: anchorElement,
     sheet = false,
@@ -74,6 +75,8 @@
     label: string;
     placement?: Placement;
     offset?: number;
+    /** Keep the panel attached while its anchor moves through a layout animation. */
+    followMotion?: boolean;
     /** "none": the content brings its own role (a combobox's listbox). */
     role?: "dialog" | "menu" | "none";
     /** Anchor when there is no `trigger` snippet (a combobox's input). */
@@ -180,7 +183,7 @@
 
     if (!open || !panel || narrow || !target) return;
 
-    return autoPosition(target, panel, { placement, offset });
+    return autoPosition(target, panel, { placement, offset, followMotion });
   });
 
   // Light dismiss: pointer down outside the panel and its trigger.
