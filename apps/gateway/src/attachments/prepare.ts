@@ -10,6 +10,10 @@ import {
 } from "@canopy/domain";
 import sharp from "sharp";
 import { Match } from "effect";
+import { AttachmentRejected } from "./rejected.ts";
+import { boundedImageOutput } from "./encoded-output.ts";
+
+export { AttachmentRejected } from "./rejected.ts";
 
 /**
  * An uploaded file as the gateway keeps it (docs/ui-api.md, "Załączniki"):
@@ -19,10 +23,6 @@ import { Match } from "effect";
  * - HEIC/HEIF, AVIF and TIFF become JPEG or PNG when this build can decode them, else they stay files,
  * - images get a small WebP thumbnail for the UI.
  */
-
-export class AttachmentRejected extends Error {
-  override readonly name = "AttachmentRejected";
-}
 
 export interface PreparedAttachment {
   readonly durationMs?: number;
@@ -86,7 +86,7 @@ export async function prepareAttachment(
   let image: { data: Uint8Array; mimeType: string; width: number; height: number };
 
   try {
-    image = await normalize(data, sniffed.mimeType, options.imageReply ?? false);
+    image = await normalize(data, sniffed.mimeType, options.imageReply ?? false, limits.maxFileBytes, name);
   } catch (error) {
     if (error instanceof AttachmentRejected) throw error;
 
@@ -97,9 +97,6 @@ export async function prepareAttachment(
 
   if (sniffed.kind === "convertible" || image.mimeType !== sniffed.mimeType)
     name = withExtension(name, image.mimeType === "image/png" ? "png" : "jpg");
-
-  if (options.imageReply && image.data.length > limits.maxFileBytes)
-    throw new AttachmentRejected(`${name} exceeds the image limit after processing. Choose a smaller image.`);
 
   const thumbnail = new Uint8Array(
     await sharp(image.data, { limitInputPixels: MAX_PIXELS })
@@ -128,6 +125,8 @@ async function normalize(
   data: Uint8Array,
   mimeType: string,
   firstFrame: boolean,
+  maxBytes: number,
+  name: string,
 ): Promise<{ data: Uint8Array; mimeType: string; width: number; height: number }> {
   const meta = await sharp(data, { limitInputPixels: false }).metadata();
   const width = meta.width ?? 0;
@@ -151,7 +150,9 @@ async function normalize(
         ? pipeline.webp({ quality: 92 })
         : pipeline.jpeg({ quality: 92, mozjpeg: true });
 
-  const { data: out, info } = await encoded.toBuffer({ resolveWithObject: true });
+  const { data: out, info } = firstFrame
+    ? await boundedImageOutput(encoded, maxBytes, name)
+    : await encoded.toBuffer({ resolveWithObject: true });
 
   const outType = Match.value(mimeType).pipe(
     Match.when("image/tiff", () => "image/png"),
@@ -161,5 +162,5 @@ async function normalize(
     Match.orElse(() => "image/jpeg"),
   );
 
-  return { data: new Uint8Array(out), mimeType: outType, width: info.width, height: info.pageHeight ?? info.height };
+  return { data: out, mimeType: outType, width: info.width, height: info.pageHeight ?? info.height };
 }

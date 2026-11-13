@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { isMessage, toJsonString } from "@bufbuild/protobuf";
 import { ExportThreadImageSchema, ItemSchema, Provider, type AgentToolResult } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
@@ -288,6 +288,36 @@ describe.skipIf(!dockerAvailable)("durable image publication over WorkerLink", (
     expect((await show(source)).isError).toBe(true);
     expect(reads).toBe(before);
   });
+
+  test("bounds encoded output when normalized JPEG, PNG and WebP exceed the owner's byte budget", async () => {
+    const source = await turn();
+    const noise = randomBytes(1200 * 1200 * 3);
+    const input = sharp(noise, { raw: { width: 1200, height: 1200, channels: 3 } });
+
+    const fixtures = [
+      { path: "expansion.jpg", data: await input.clone().resize(1800, 1800).jpeg({ quality: 8 }).toBuffer() },
+      { path: "expansion.tiff", data: await input.clone().tiff({ compression: "jpeg", quality: 5 }).toBuffer() },
+      { path: "expansion.webp", data: await input.clone().webp({ quality: 1 }).toBuffer() },
+    ];
+
+    for (const fixture of fixtures) {
+      expect(fixture.data.length, fixture.path).toBeLessThan(300_000);
+      files.set(fixture.path, fixture.data);
+
+      const result = await worker.callTool({
+        ...source,
+        tool: "show_images",
+        args: { images: [{ path: fixture.path, alt: "Compression expansion" }] },
+      });
+
+      expect(result.isError, fixture.path).toBe(true);
+      expect(result.content).toContain("image limit after processing");
+    }
+
+    expect(await query("SELECT id FROM attachments WHERE thread_id=$1::uuid", [source.threadId])).toHaveLength(0);
+    // Aborted native writers release their sink and reservation; subsequent publication remains usable.
+    expect((await show(source)).isError).toBe(false);
+  }, 30_000);
 
   test("strips image metadata, flattens animation and preserves complete before/after captions", async () => {
     const source = await turn();

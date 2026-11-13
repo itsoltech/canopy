@@ -29,6 +29,15 @@ Bajty nie trafiają do modelu, outboxa ani journala.
 Gateway rozpoznaje typ z bajtów i używa pipeline załączników: limit 100 Mpx,
 normalizacja bez EXIF/GPS/XMP i miniatura WebP do 512 px. Publikacja utrwala
 pierwszą klatkę animacji. SVG pozostaje plikiem, nie obrazem galerii.
+Limit bajtów wyniku działa podczas kodowania: Unix używa celu plikowego Sharp
+do prywatnego FIFO i przestaje gromadzić bajty po przekroczeniu budżetu, Windows blokuje
+obowiązkową blokadą pliku zapis od granicy limitu wzwyż. Nie używamy streamu
+wyjściowego Sharp, który także tworzy cały wynik w pamięci. Bufory odebranych
+fragmentów i końcowa konkatenacja mają rozmiar ograniczony limitem; pamięć roboczą
+dekodera/enkodera nadal ogranicza osobny limit pikseli, a nie limit bajtów pliku.
+Prywatny cel jest usuwany po zakończeniu lub błędzie natywnego zapisu.
+Po przekroczeniu limitu FIFO jest nadal opróżniane bez zapisywania fragmentów,
+aby natywny writer nie zablokował się; kodowanie ma timeout 30 s.
 Załączniki, `Item.image_gallery = 25`, audyt i wynik `show_images` powstają
 w jednej transakcji. Call ID daje ten sam wynik także po restarcie i usunięciu
 źródła. Manifest nie zawiera bajtów ani ścieżek workera; przyrostowy sync
