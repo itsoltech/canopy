@@ -15,12 +15,14 @@
     href,
     current = !href,
     mark,
+    markOnly = false,
     class: className,
     children,
   }: {
     href?: string | undefined;
     current?: boolean;
     mark?: Snippet;
+    markOnly?: boolean;
     class?: ClassValue;
     children: Snippet;
   } = $props();
@@ -39,9 +41,11 @@
 >
   {#snippet body()}
     {@render mark?.()}<span
-      class={current
-        ? "min-w-0 truncate"
-        : "line-clamp-1 min-w-[1.25em] break-all lg:min-w-[max(1.25em,min(9rem,var(--natural)))]"}
+      class={markOnly
+        ? "sr-only"
+        : current
+          ? "min-w-0 truncate"
+          : "line-clamp-1 min-w-[1.25em] break-all lg:min-w-[max(1.25em,min(9rem,var(--natural)))]"}
       style:--natural="{natural}px"
       {@attach clipped((fit) => {
         full = fit.clipped;

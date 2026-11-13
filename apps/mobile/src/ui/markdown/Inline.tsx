@@ -6,7 +6,7 @@ import { isString } from "@canopy/domain/json";
 import { useColors, useTypography } from "../theme";
 import { useMarkdownScope } from "./scope";
 import { Faced } from "./text-style";
-import { fileHrefOf, filePathOf } from "@canopy/domain/file-references";
+import { fileLinkHrefOf, filePathOf } from "@canopy/domain/file-references";
 import { useFileLinks } from "./file-links";
 import { Html } from "./Html";
 
@@ -20,7 +20,7 @@ function Link({ href, children }: { href: string; children: ReactNode }) {
   const c = useColors();
   const safe = safeHref(href);
   const files = useFileLinks();
-  const path = files ? fileHrefOf(href) : undefined;
+  const path = files ? fileLinkHrefOf(href) : undefined;
 
   if (!safe && !path) return <>{children}</>;
 
@@ -89,7 +89,7 @@ function InlineToken({ token }: { token: Token }) {
       <Text
         accessibilityRole={path ? "link" : undefined}
         accessibilityHint={path ? `Open ${path}` : undefined}
-        onPress={files && path ? () => files(path) : undefined}
+        onPress={files && path ? () => files(text) : undefined}
         style={{
           fontFamily: type.mono.fontFamily,
           fontSize: type.body.fontSize * 0.875,

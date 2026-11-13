@@ -8,7 +8,7 @@ import { useThreadActions, type ThreadAction } from "./useThreadActions";
 import { ItemComputerMove } from "../settings/ItemComputerMove";
 import type { SidebarMove } from "../navigation/sidebar-order";
 
-type SheetAction = ThreadAction | "move" | SidebarMove;
+type SheetAction = ThreadAction | "move" | "search" | SidebarMove;
 
 function reorderOptions(enabled: boolean): PickerSection<SheetAction> {
   return {
@@ -24,6 +24,18 @@ function reorderOptions(enabled: boolean): PickerSection<SheetAction> {
   };
 }
 
+interface ThreadActionsSheetProps {
+  thread: ui.Thread;
+  visible: boolean;
+  onClose: () => void;
+  onSideThread?: () => void;
+  onGoal?: () => void;
+  goalOpen?: boolean;
+  onReorder?: ((direction: SidebarMove) => void) | undefined;
+  onSearch?: (() => void) | undefined;
+  readOnly?: boolean;
+}
+
 /** Shared by header and sidebar rows. The caller supplies only actions specific to the open screen. */
 export function ThreadActionsSheet({
   thread,
@@ -33,15 +45,9 @@ export function ThreadActionsSheet({
   onGoal,
   goalOpen,
   onReorder,
-}: {
-  thread: ui.Thread;
-  visible: boolean;
-  onClose: () => void;
-  onSideThread?: () => void;
-  onGoal?: () => void;
-  goalOpen?: boolean;
-  onReorder?: ((direction: SidebarMove) => void) | undefined;
-}) {
+  onSearch,
+  readOnly = false,
+}: ThreadActionsSheetProps) {
   const state = useThreadActions(thread);
   const [rename, setRename] = useState(false);
   const [move, setMove] = useState(false);
@@ -50,6 +56,7 @@ export function ThreadActionsSheet({
   const disabled = state.disabled || state.busy;
 
   const sections: PickerSection<SheetAction>[] = [
+    { options: onSearch ? [{ value: "search", label: "Search thread", icon: "magnifying-glass" }] : [] },
     reorderOptions(!!onReorder),
     {
       options: [
@@ -119,7 +126,10 @@ export function ThreadActionsSheet({
         onClose={onClose}
         sections={sections.map((section) => ({
           ...section,
-          options: section.options.map((option) => ({ ...option, disabled: disabled || option.disabled })),
+          options: section.options.map((option) => ({
+            ...option,
+            disabled: option.value === "search" ? false : readOnly || disabled || option.disabled,
+          })),
         }))}
         onSelect={(action) => {
           pending.current = action;
@@ -133,7 +143,8 @@ export function ThreadActionsSheet({
           if (action === "rename") {
             setTitle(thread.title);
             setRename(true);
-          } else if (action === "move") setMove(true);
+          } else if (action === "search") onSearch?.();
+          else if (action === "move") setMove(true);
           else if (action === "side") onSideThread?.();
           else if (action === "goal") onGoal?.();
           else if (action === "up" || action === "down" || action === "top" || action === "bottom") onReorder?.(action);

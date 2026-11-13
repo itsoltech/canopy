@@ -4,6 +4,7 @@
   import { useRemembered } from "../memory.ts";
   import CodeLines from "./CodeLines.svelte";
   import type { LanguageId } from "./languages.ts";
+  import type { FilePosition } from "@canopy/domain/file-references";
 
   /**
    * Code to read (a file the agent read, a script it ran): highlighted in `lang`, with line numbers from
@@ -19,6 +20,7 @@
     max = 24,
     fill = false,
     quoteKind,
+    position,
     class: className,
   }: {
     code: string;
@@ -29,6 +31,7 @@
     /** Fills its container (a file viewer) instead of stopping at 32rem. */
     fill?: boolean;
     quoteKind?: string | undefined;
+    position?: FilePosition | undefined;
     class?: ClassValue;
   } = $props();
 
@@ -73,6 +76,7 @@
       class={["flex-1 py-3 pr-3 text-zinc-800 dark:text-zinc-200", start === undefined && "pl-3"]}><CodeLines
         text={shown}
         {lang}
+        {position}
       /></pre>
   </div>
   {#if cut}

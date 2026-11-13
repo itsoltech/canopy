@@ -4,6 +4,7 @@
   import { languageOfPath } from "#lib/shared/ui/code/languages.ts";
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
   import FileImage from "./FileImage.svelte";
+  import type { FilePosition } from "@canopy/domain/file-references";
 
   /**
    * A read file, read-only: Markdown rendered, everything else highlighted by its extension with line numbers
@@ -16,6 +17,7 @@
     loading,
     rendered,
     local,
+    position,
   }: {
     file: ui.ThreadFile | undefined;
     text: string;
@@ -24,6 +26,7 @@
     rendered: boolean;
     /** The file is on this computer: its default app can show what Canopy cannot. */
     local: boolean;
+    position?: FilePosition | undefined;
   } = $props();
 </script>
 
@@ -51,6 +54,7 @@
     max={Number.MAX_SAFE_INTEGER}
     fill
     class="min-h-full"
+    {position}
   />
 {:else}
   <p class="p-4 text-sm text-muted">This file is empty.</p>

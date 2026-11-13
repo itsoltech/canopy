@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { untrack } from "svelte";
-  import type { CodeEditor } from "./code-editor.ts";
+  import { tick, untrack } from "svelte";
+  import type { CodeEditor, CodeEditorMemory } from "./code-editor.ts";
+  import type { FilePosition } from "@canopy/domain/file-references";
 
   /**
    * CodeMirror for the file viewer; its module loads on first use, so reading files never pays for it.
@@ -12,12 +13,20 @@
     wrap,
     onchange,
     onsave,
+    memory,
+    workspace = false,
+    position,
+    positionRevision = 0,
   }: {
     text: string;
     fileName: string;
     wrap: boolean;
     onchange: (text: string) => void;
     onsave: () => void;
+    memory?: CodeEditorMemory;
+    workspace?: boolean;
+    position?: FilePosition | undefined;
+    positionRevision?: number;
   } = $props();
 
   let host = $state<HTMLDivElement>();
@@ -39,8 +48,16 @@
             text,
             fileName,
             wrap,
-            onchange: (next) => onchange(next),
+            onchange: (next) => {
+              onchange(next);
+              // A bounded draft can reject an edit without changing the text prop.
+              void tick().then(() => {
+                if (active && created && created.text() !== text) created.reset(text);
+              });
+            },
             onsave: () => onsave(),
+            memory,
+            workspace,
           }),
         );
         editor = created;
@@ -64,6 +81,13 @@
     untrack(() => {
       if (editor && editor.text() !== next) editor.reset(next);
     });
+  });
+
+  $effect(() => {
+    if (!editor || !position || memory?.positionRevision === positionRevision) return;
+    editor.locate(position);
+
+    if (memory) memory.positionRevision = positionRevision;
   });
 </script>
 

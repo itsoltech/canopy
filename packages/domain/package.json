@@ -6,6 +6,8 @@
   "exports": {
     "./connector-session": "./src/connector-session.ts",
     "./thread-scroll": "./src/thread-scroll.ts",
+    "./workspace": "./src/workspace.ts",
+    "./workspace-file": "./src/workspace-file.ts",
     "./thread-warmer": "./src/thread-warmer.ts",
     "./thread-warm-set": "./src/thread-warm-set.ts",
     "./thread-cache-tail": "./src/thread-cache-tail.ts",

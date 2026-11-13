@@ -40,6 +40,22 @@ w `apps/mobile` przez `CANOPY_CHANNEL=nightly bunx expo config --type public`.
 
 ## Transport: czy React Native obsługuje gRPC?
 
+W otwartym wątku pliki zajmują lokalne zakładki obok `Thread`. Nagłówek zawiera
+sygnet projektu, skrócony tytuł oraz przycisk aktywnej karty z arkuszem Switch tab.
+Arkusz obsługuje Keep tab, Move up/down i zamykanie z potwierdzeniem szkicu.
+Jeden czysty preview można zastąpić kolejnym plikiem; Edit utrwala go przed edycją.
+Android Back wraca do `Thread` bez zamykania karty. Rozmowa i composer zachowują
+stan podczas czytania pliku. Metadane maks. 12 kart na wątek / 30 wątków / 256 KiB
+są lokalne dla parowania; szkice i zawartość nie trafiają do pliku metadanych.
+Cache czystych plików ma limit 8 MiB, suma baz i szkiców 4 MiB.
+
+Viewer zachowuje Markdown/source, kopiowanie i obrazy. Source jest oknem linii
+z numerami, pozycją i zakresem z linku lub Go to line; bardzo długie linie dzieli
+na fragmenty do 4096 znaków bez utraty treści i par surogatów, pod tym samym numerem.
+Edycja pozostaje natywnym polem tekstowym bez kolorów podczas pisania. Tokenizacja
+viewera i Preview changes dochodzą w osobnej warstwie workspace'u; obecny shell
+nie dodaje nowych RPC ani modułu natywnego. Poza wątkiem pozostaje pełnoekranowy viewer.
+
 Ścieżki plików w wiadomościach agenta (kod inline i linki Markdown) otwierają podgląd przez
 `ReadThreadFile` z ID wątku i elementu źródłowego. Rozstrzygnięcie nazw, wybór spośród kilku dopasowań,
 uprawnienia i limity są wspólne z webem; dla połączonego komputera odczyt wykonuje gateway domowy.

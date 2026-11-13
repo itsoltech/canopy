@@ -17,6 +17,7 @@ import { ModelCatalogCache } from "../features/models/catalog-cache";
 import { QueryCache } from "@canopy/domain/shared-query";
 import { startMobileDiagnostics } from "../features/settings/client-diagnostics";
 import { clearDiagnosticLogs } from "../features/settings/diagnostics-log-file";
+import { useWorkspaceStore, forgetWorkspace } from "../features/workspace/store";
 
 const SHARED_READ_FAILED = "Could not load settings. Check the connection and retry.";
 
@@ -64,16 +65,12 @@ function useSessionState() {
   }, [persistence]);
 
   const client = usePairedClient(session, persistence, setError);
+  const workspace = useWorkspaceStore(client, session);
   useEffect(() => (client ? startMobileDiagnostics(client.api) : undefined), [client]);
 
   const modelCatalog = useMemo(() => new ModelCatalogCache(client?.api), [client]);
   // Reads shared by every screen of this pairing; a new pairing or unpair fences the old one's requests.
-  const queries = useMemo(() => (client ? new QueryCache({ failure: () => SHARED_READ_FAILED }) : unpaired), [client]);
-  // Recent mention searches, apart so they never push shared reads out of the LRU.
-  const searches = useMemo(() => (client ? new QueryCache({ idle: 64 }) : unpaired), [client]);
-
-  useEffect(() => () => queries.dispose(), [queries]);
-  useEffect(() => () => searches.dispose(), [searches]);
+  const { queries, searches } = useSessionQueries(client);
 
   // Connections pooled before a suspension or a network change may be dead without either side knowing. Reset
   // runs inside the event, before React restarts any stream, so the next requests race the routes on new ones.
@@ -114,6 +111,8 @@ function useSessionState() {
   }, [client]);
 
   async function clearHistory(revoked = false) {
+    workspace.clear();
+    forgetWorkspace(session);
     clearDiagnosticLogs();
 
     const cleared = await clearPairedHistory([threadCache, botCache, archivedCache, imageCache], () =>
@@ -135,6 +134,7 @@ function useSessionState() {
     modelCatalog,
     queries,
     searches,
+    workspace,
     threadCache,
     archivedCache,
     botCache,
@@ -170,6 +170,16 @@ function useSessionState() {
     forget: () => clearHistory(),
     expired: () => clearHistory(true),
   };
+}
+
+function useSessionQueries(client: ReturnType<typeof routedMobileClient> | null) {
+  const queries = useMemo(() => (client ? new QueryCache({ failure: () => SHARED_READ_FAILED }) : unpaired), [client]);
+  // Recent mention searches never push shared reads out of the LRU.
+  const searches = useMemo(() => (client ? new QueryCache({ idle: 64 }) : unpaired), [client]);
+  useEffect(() => () => queries.dispose(), [queries]);
+  useEffect(() => () => searches.dispose(), [searches]);
+
+  return { queries, searches };
 }
 
 function historyMessage(cleared: boolean, revoked: boolean) {

@@ -2118,6 +2118,26 @@ Zużyte wejścia szyny mają `withdrawn = consumed` i nie tworzą pustego „Wor
 
 ## Pliki wątku
 
+W obrębie wątku link otwiera teraz zakładkę w jednym rzędzie z sygnetem projektu
+i skracanym tytułem. `Thread` jest pierwszą, niezamykalną kartą; przełącznik
+pokazuje także karty niemieszczące się w nagłówku. Jeden czysty preview jest
+zastępowalny; Edit, Keep tab, dwuklik i Move utrwalają kartę. Close saved tabs
+pomija szkice i trwające zapisy. Metadane do 12 kart na wątek są lokalne dla
+urządzenia i zakresu klienta; zawartość oraz szkice pozostają wyłącznie w pamięci.
+Zmiana karty nie odłącza strumienia wątku ani nie porzuca szkicu composera.
+Zamknięcie brudnej karty pyta o zapis lub porzucenie; wyjście chroni przeglądarka,
+a desktop ma własny dialog. System mobilny może zakończyć proces bez potwierdzenia.
+Linki poza tym kontekstem zachowują istniejący viewer.
+
+Pozycje `:31`, `:31:4`, `:31-40`, `#L31`, `#L31-L40` i `#L31-40` są stanem
+widoku. Parser usuwa je ze ścieżki przed RPC; source podświetla oryginalne linie,
+Go to line przyjmuje linię lub zakres. Powrót do karty zachowuje scroll, a na webie
+także undo edytora. `Alt+PageUp/PageDown` przełącza karty poza polem tekstowym;
+`Mod+G` i `Mod+S` obsługują pozycję i zapis w pliku. Close/Keep są też komendami
+palety z konfigurowalnymi skrótami. Zapis sprawdza również zakodowany JSON ≤512 KiB.
+
+Pozostały opis viewera dotyczy wspólnych RPC oraz dotychczasowego modala poza wątkiem.
+
 Ścieżka pliku w wiadomości agenta jest zaznaczalnym linkiem: inline code, który wygląda na plik
 (`out/report.md`, `C:\work\query.sql`, `~/notes.txt`, `src/app.ts:12`), oraz link Markdown do pliku
 (`[raport](out/report.md)`, `file:///…`). Rozpoznawanie (`shared/ui/markdown/file-paths.ts`) wymaga

@@ -29,12 +29,13 @@ export async function requestJson(
   path: string,
   body?: JsonBody,
   timeoutMs = 40_000,
+  signal?: AbortSignal,
 ): Promise<JsonValue> {
   const response = await fetch(path, {
     method,
     headers: { accept: "application/json", ...(body !== undefined && { "content-type": "application/json" }) },
     ...(body !== undefined && { body: JSON.stringify(body) }),
-    signal: AbortSignal.timeout(timeoutMs),
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs),
   });
 
   const payload = await bodyJson(response).catch(() => null);
