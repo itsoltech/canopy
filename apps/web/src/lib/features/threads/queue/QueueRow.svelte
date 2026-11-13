@@ -104,7 +104,7 @@
       {oncancel}
     />
   {:else}
-    <div class="flex min-h-9 items-center gap-1 px-3 py-0.5">
+    <div class="flex min-h-12 items-center gap-1 px-2 py-0.5 sm:min-h-8">
       <QueueHandle label={text} bind:element={handle} {ondragstart} />
       <p class="min-w-0 flex-1 truncate text-sm/5 text-zinc-700 sm:text-[0.8125rem]/5 dark:text-zinc-300" title={text}>
         {text || (turn.attachments.length > 0 ? "(only files)" : "(only quotes)")}

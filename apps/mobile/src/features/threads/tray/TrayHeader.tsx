@@ -3,7 +3,7 @@ import { Pressable, View } from "react-native";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import type { IconName } from "@canopy/ui/icons";
 import { Icon } from "../../../ui/Icon";
-import { useTween } from "../../../ui/motion";
+import { motion, useTween } from "../../../ui/motion";
 import { useColors } from "../../../ui/theme";
 
 /** Rows of the tray have 40 dp; the hit slop takes their targets to 48 dp. */
@@ -53,9 +53,9 @@ export function TrayHeader({
           minHeight: TRAY_ROW,
           flexDirection: "row",
           alignItems: "center",
-          gap: 8,
-          paddingLeft: 12,
-          paddingRight: trailing ? 4 : 12,
+          gap: 6,
+          paddingLeft: 10,
+          paddingRight: trailing ? 4 : 10,
           opacity: disabled ? 0.5 : 1,
           backgroundColor: pressed ? c.pressed : undefined,
         })}
@@ -72,10 +72,10 @@ export function TrayHeader({
   );
 }
 
-/** The accordion's chevron (web `t-acc-chevron`): down when folded, up when open. */
-function TrayChevron({ open }: { open: boolean }) {
+/** Above-composer disclosures reveal upward and fold downward. */
+export function TrayChevron({ open }: { open: boolean }) {
   const c = useColors();
-  const turn = useTween(open ? 180 : 0);
+  const turn = useTween(open ? 0 : 180, { duration: open ? motion.slow : motion.medium });
   const style = useAnimatedStyle(() => ({ transform: [{ rotate: `${turn.get()}deg` }] }));
 
   return (

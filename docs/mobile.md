@@ -1114,7 +1114,7 @@ z notą „Starting”; pliki tury są odznakami w dymku.
 na powierzchni kompozytora: zaokrąglone tylko górne rogi, wcięcie 16 dp (promień rogu pola),
 więc boki dochodzą do prostej górnej krawędzi pola, a jego obramowanie zamyka stos. Kolejność jak
 w web: cel, subagenci, kolejka, a najbliżej pola to, co czeka na odpowiedź. Każdy panel ma
-nagłówek `TrayHeader` (40 dp, cel dotyku 48 dp, tekst 14, ikona 16, chevron 12) i linię nad sobą;
+nagłówek `TrayHeader` (40 dp, cel dotyku 48 dp, tekst 14, ikona 16, chevron 12, padding poziomy 10 dp) i linię nad sobą;
 obramowanie stosu przykrywa pierwszą. Bez paneli zasobnika nie ma; nie ma go też przy historii
 importu (bez pola). W układzie zostają tylko nagłówki; dotknięcie subagentów lub kolejki otwiera
 osobną nakładkę rosnącą w górę nad historią. Rozwinięcie nie zmienia wysokości zasobnika,
@@ -1136,6 +1136,10 @@ wątek z historią i możliwością dalszej wiadomości. Zakończeni znikają z 
 („N finished”, „Previous subagents”) jest w szczegółach wątku. Otwarcie jest lokalnym stanem
 panelu, bez zapisu preferencji urządzenia i bez aktualizacji całego feedu. Kolejka również
 zaczyna od samego nagłówka. Chip zadań otwiera ten sam rodzaj nakładki z akcjami i podglądem wyjścia.
+Wspólny `TrayChevron` wskazuje w górę przed otwarciem, a w dół po otwarciu. Nakładki kolejki,
+subagentów i zadań używają `disclosure-motion`: wysokość, przenikanie i przesunięcie o
+`distance.micro`, otwarcie na `slow`, zamknięcie na `medium`, z `smoothOut`. Ograniczenie ruchu
+wyłącza te przejścia. Arkusze odpowiedzi zachowują chevron wskazujący przejście do osobnego widoku.
 
 Szczegóły wątku pokazują linię subagentów z webowym grupowaniem z `@canopy/domain/subagents`:
 przy „Keep finished subagents in the list” = Off zakończeni, także archiwalni, są pod rozwijanym

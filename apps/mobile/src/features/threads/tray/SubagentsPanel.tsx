@@ -31,6 +31,7 @@ export function SubagentsPanel({ subagents }: { subagents: readonly Subagent[] }
   return (
     <TrayPanel>
       <AnchoredOverlay
+        disclosure
         visible={expanded}
         onClose={() => setOpen(false)}
         label="Subagents"

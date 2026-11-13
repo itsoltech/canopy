@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
-  import Icon from "#lib/shared/ui/Icon.svelte";
+  import ComposerDisclosureChevron from "./ComposerDisclosureChevron.svelte";
   import TouchTarget from "#lib/shared/ui/TouchTarget.svelte";
 
   /** Shared disclosure rhythm for the stacked panels; the hit area is independent of visual height. */
@@ -27,7 +27,7 @@
 <button
   type="button"
   class={[
-    "t-composer-panel-header relative flex min-h-9 w-full min-w-0 items-center gap-2 rounded-t-2xl px-4 py-1.5 text-left text-sm/5 focus-ring hover:bg-zinc-950/2.5 sm:min-h-8 sm:text-[0.8125rem]/5 dark:hover:bg-white/4",
+    "t-composer-panel-header relative flex min-h-12 w-full min-w-0 items-center gap-2 rounded-t-2xl px-3 py-1 text-left text-sm/5 focus-ring hover:bg-zinc-950/2.5 focus-visible:-outline-offset-2 sm:min-h-7 sm:text-[0.8125rem]/5 dark:hover:bg-white/4",
     className,
   ]}
   aria-expanded={expanded}
@@ -46,11 +46,7 @@
 >
   {@render children()}
   <span class="ml-auto flex h-lh shrink-0 items-center self-start">
-    <Icon
-      name="chevron-down"
-      size="xs"
-      class={["t-acc-chevron fill-zinc-400 dark:fill-zinc-500", expanded && "rotate-180"]}
-    />
+    <ComposerDisclosureChevron {expanded} />
   </span>
   <TouchTarget size="sm" />
 </button>

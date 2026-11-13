@@ -73,6 +73,7 @@ export function QueuePanel({
   return (
     <TrayPanel>
       <AnchoredOverlay
+        disclosure
         visible={expanded}
         onClose={() => setOpen(false)}
         label="Queued messages"
@@ -145,7 +146,7 @@ function QueueRow({
   const text = queuedText(turn);
 
   return (
-    <View style={[styles.row, { minHeight: TRAY_ROW, gap: 4, paddingLeft: 12, paddingRight: 4 }]}>
+    <View style={[styles.row, { minHeight: TRAY_ROW, gap: 4, paddingLeft: 10, paddingRight: 2 }]}>
       <TrayIcon name="queue-list" />
       <Text numberOfLines={1} style={[styles.meta, { flex: 1, minWidth: 0, marginLeft: 4, color: c.soft }]}>
         {text || (turn.attachments.length > 0 ? "(only files)" : "(only quotes)")}

@@ -992,6 +992,15 @@ Pytania asynchroniczne zachowują możliwość odpowiedzi w kolejnej turze.
 
 `ComposerTop` to wspólna powierzchnia/slot nad polem wiadomości: panel subagentów, kolejka i pytania tworzą jeden stos z jednym nachodzeniem na composer. Warianty `embedded` paneli nie dodają własnych obwódek ani przesunięć. `Composer` wybiera najstarszy zestaw blokujący przed async, przechowuje szkice per id zestawu i używa osobnego `MessageComposer` do zwykłych wiadomości.
 
+Panele nad composerem i menu zadań w tle używają wspólnego `ComposerDisclosureChevron`:
+zwinięty wskazuje w górę, rozwinięty w dół. Nagłówek ma 28 px na desktopie, wiersz kolejki
+32 px; na telefonie oba mają minimum 48 px. Obrys fokusu nagłówka mieści się wewnątrz rogu.
+`ComposerPanelBody` rozwija siatkę 0fr → 1fr, z przenikaniem i przesunięciem `distance.micro`:
+otwarcie `slow`, zamknięcie `medium`, `smoothOut`; ograniczenie ruchu wyłącza przejścia.
+Podczas tego rozwijania `footerMotion` aktualizuje rezerwę na każdej zmierzonej klatce bez
+drugiej animacji wysokości. Pozostałe zmiany naturalnej wysokości composera nadal zatwierdzają
+rezerwę raz i animują powłokę. Czytelnik historii zachowuje pozycję, a koniec śledzi wysokość panelu.
+
 `QuestionForm`, `QuestionOption` i `QuestionSession` obsługują kroki, Back, Skip, Skip all, Dismiss (sync), zwijanie i przełączanie async na wiadomości. Pole odpowiedzi używa placeholdera „Type your own answer, or leave this blank to use the selected option” i przycisku „Submit”; wpisany tekst ma pierwszeństwo przed zaznaczeniami. Rekomendacja jest oznaczeniem, bez automatycznego wyboru. Zwykły szkic wiadomości zostaje zamontowany przy przełączaniu. Natywne pytania poufne zachowują pole hasła i ukryte odpowiedzi w rekordzie osi czasu.
 
 Opcje to semantyczne inputy radio/checkbox ze wspólnego `Input`, z własną grafiką `ChoiceControl`; grupa ma `fieldset`/`legend`. Przy fokusie w grupie 1–9 wybiera opcję, ↑/↓ przenosi fokus, Enter zatwierdza; cyfry w composerze pozostają tekstem. Przejście kroku przenosi fokus na legendę, jeśli użytkownik operował w panelu. Zwijanie ma `aria-expanded`, `aria-controls` i `inert`; ruch korzysta z istniejących `.t-acc-panel`/`.t-acc-chevron` i tokenów `layout.css`, z wyłączeniem przejść dla reduced motion.

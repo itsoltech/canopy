@@ -24,6 +24,7 @@ export interface AnchoredContent {
   children: ReactNode;
   modal: boolean;
   maxHeight: number;
+  disclosure: boolean;
 }
 
 const Portal = createContext<{
@@ -83,6 +84,7 @@ export function AnchoredOverlay({
   anchor,
   modal = true,
   maxHeight = 320,
+  disclosure = false,
   triggerRef,
 }: {
   visible: boolean;
@@ -92,6 +94,8 @@ export function AnchoredOverlay({
   anchor?: ReactNode;
   modal?: boolean;
   maxHeight?: number;
+  /** Composer trays reveal their height upward without changing the feed reserve. */
+  disclosure?: boolean;
   triggerRef?: RefObject<ComponentRef<typeof View> | null>;
 }) {
   const portal = useContext(Portal);
@@ -103,10 +107,11 @@ export function AnchoredOverlay({
   if (!portal) throw new Error("Anchored overlays require a ScreenFrame.");
 
   useLayoutEffect(() => {
-    if (visible) portal.show({ id, anchor: ref, label, onClose, children, modal, maxHeight }, !published.current);
+    if (visible)
+      portal.show({ id, anchor: ref, label, onClose, children, modal, maxHeight, disclosure }, !published.current);
     else portal.remove(id);
     published.current = visible;
-  }, [portal, visible, id, ref, label, onClose, children, modal, maxHeight]);
+  }, [portal, visible, id, ref, label, onClose, children, modal, maxHeight, disclosure]);
 
   useLayoutEffect(
     () => () => {
