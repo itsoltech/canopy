@@ -156,9 +156,17 @@ export function foldTurns(
   );
 
   const bodies = new Map<string, TimelineRow[]>();
+  const galleries = new Map<string, TimelineRow[]>();
 
   for (const row of rows) {
     const turnId = turnIdOf(row);
+
+    if (row.kind === "item" && row.node.entry.item.content.case === "imageGallery") {
+      const list = galleries.get(turnId) ?? [];
+      list.push(row);
+      galleries.set(turnId, list);
+      continue;
+    }
 
     if (!turns.has(turnId) || !isBody(row) || isEmpty(row)) continue;
     const list = bodies.get(turnId);
@@ -205,6 +213,8 @@ export function foldTurns(
 
     const derived = fold.segments.flatMap((_, index) => segmentRows(fold, index, isOpen, groupOpen, tasksBySource));
     out.push(...recoverFoldRows(fold.body, derived, report));
+
+    for (const gallery of galleries.get(turnId) ?? []) out.push({ kind: "row", row: gallery, work: false });
 
     // The body is grouped here even when old items arrive after a newer turn. Its footer belongs here too.
     const end = ends.get(turnId);

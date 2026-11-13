@@ -52,6 +52,8 @@ export function planFolds(
 
   for (const entry of entries) {
     const { content, parentItemId } = entry.item;
+
+    if (content.case === "imageGallery") continue;
     const steer = isSteerMessage(entry);
 
     if (parentItemId && parentItemId !== entry.id && ids.has(parentItemId)) continue;
