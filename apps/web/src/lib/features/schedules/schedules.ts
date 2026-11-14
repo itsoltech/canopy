@@ -3,6 +3,9 @@ import type { ui } from "@canopy/contracts";
 import { formatDateTime } from "#lib/shared/format.ts";
 import { humanizeEnum } from "@canopy/domain/humanize";
 import type { Tone } from "#lib/shared/ui/tone.ts";
+import { describeCron } from "@canopy/domain/schedule-display";
+
+export { describeCron } from "@canopy/domain/schedule-display";
 
 /** A schedule that will not run again (it ran out or was cancelled). */
 export const isFinished = (schedule: ui.Schedule): boolean =>
@@ -37,45 +40,13 @@ export function scheduleStatusLook(status: string): StatusLook {
   }
 }
 
-const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const pad = (value: string) => value.padStart(2, "0");
-
-/**
- * Common five-field crons in words ("Every day at 09:00", "Weekdays at 18:30", "Every 15 minutes");
- * anything else stays the expression itself.
- */
-export function describeCron(cron: string): string {
-  const fields = cron.trim().split(/\s+/);
-
-  if (fields.length !== 5) return cron;
-  const [minute = "", hour = "", day = "", month = "", weekday = ""] = fields;
-  const number = /^\d+$/;
-  const at = number.test(minute) && number.test(hour) ? `${pad(hour)}:${pad(minute)}` : undefined;
-  const every = /^\*\/(\d+)$/.exec(minute);
-
-  if (every && hour === "*" && day === "*" && month === "*" && weekday === "*") return `Every ${every[1]} minutes`;
-
-  if (number.test(minute) && hour === "*" && day === "*" && month === "*" && weekday === "*")
-    return `Every hour at :${pad(minute)}`;
-
-  if (!at || month !== "*") return cron;
-
-  if (day === "*" && weekday === "*") return `Every day at ${at}`;
-
-  if (day === "*" && weekday === "1-5") return `Weekdays at ${at}`;
-
-  if (day === "*" && /^[0-7]$/.test(weekday)) return `Every ${DAYS[Number(weekday) % 7]} at ${at}`;
-
-  if (number.test(day) && weekday === "*") return `Monthly on day ${day} at ${at}`;
-
-  return cron;
-}
-
 /** When it runs: "Once, Nov 3, 2026, 9:00 AM" or "Every day at 09:00 (Europe/Warsaw)". */
 export function describeWhen(schedule: ui.Schedule): string {
   if (schedule.kind === "once") return `Once, ${formatDateTime(schedule.runAt)}`;
 
-  return `${describeCron(schedule.cron)}${schedule.timezone ? ` (${schedule.timezone})` : ""}`;
+  const localZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+  return `${describeCron(schedule.cron)}${schedule.timezone && schedule.timezone !== localZone ? ` (${schedule.timezone})` : ""}`;
 }
 
 /** "3 runs", "1 of 5 runs". */

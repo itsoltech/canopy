@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./schedule-display": "./src/schedule-display.ts",
     "./connector-session": "./src/connector-session.ts",
     "./thread-scroll": "./src/thread-scroll.ts",
     "./workspace": "./src/workspace.ts",
