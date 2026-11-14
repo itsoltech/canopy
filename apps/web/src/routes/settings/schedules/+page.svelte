@@ -10,6 +10,7 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import EmptyState from "#lib/shared/ui/EmptyState.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
+  import SegmentedChoice from "#lib/shared/ui/SegmentedChoice.svelte";
   import { decode } from "#lib/shared/wire.ts";
   import type { PageProps } from "./$types";
 
@@ -48,43 +49,34 @@
       );
   });
 
-  let view = $state<"upcoming" | "finished">("upcoming");
+  let view = $state("upcoming");
   const upcoming = $derived(sortSchedules(schedules.filter((s) => !isFinished(s))));
   const finished = $derived(sortSchedules(schedules.filter(isFinished)));
   const shown = $derived(view === "upcoming" ? upcoming : finished);
 
   let creating = $state(false);
   const threads = $derived([...overview.threads.values()].sort((a, b) => a.title.localeCompare(b.title)));
-
-  const tab =
-    "flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-base/6 font-medium text-zinc-600 has-checked:bg-white has-checked:text-zinc-950 has-checked:shadow-xs has-checked:ring-1 has-checked:ring-zinc-950/10 has-focus-visible:outline-2 has-focus-visible:outline-brand-500 pointer-coarse:min-h-12 sm:py-1 sm:text-sm/6 dark:text-zinc-400 dark:has-checked:bg-white/10 dark:has-checked:text-white dark:has-checked:shadow-none dark:has-checked:ring-white/10";
 </script>
 
 <svelte:head><title>Scheduled tasks · Settings · {applicationName}</title></svelte:head>
 
 <div class="grid grid-cols-1 gap-4">
-  <div class="flex flex-wrap items-end justify-between gap-4 px-1">
-    <div class="min-w-0">
-      <h2 class="text-base/7 font-semibold text-zinc-950 dark:text-white">Scheduled tasks</h2>
-      <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-        Messages that start a turn on their own at a set time. You and your agents create them.
-      </p>
-    </div>
+  <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-1">
+    <h2 class="text-base/7 font-semibold text-zinc-950 dark:text-white">Scheduled tasks</h2>
     <Button variant="primary" size="sm" icon="plus" onclick={() => (creating = true)}>New task</Button>
+    <p class="col-span-2 text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+      Messages sent once or on repeat.
+    </p>
   </div>
 
-  <div role="radiogroup" aria-label="Show" class="flex w-fit gap-0.5 rounded-lg bg-zinc-950/5 p-0.5 dark:bg-white/5">
-    <label class={tab}>
-      <input type="radio" name="view" value="upcoming" class="sr-only" bind:group={view} />Upcoming<span
-        class="text-zinc-500 tabular-nums dark:text-zinc-400">{upcoming.length}</span
-      >
-    </label>
-    <label class={tab}>
-      <input type="radio" name="view" value="finished" class="sr-only" bind:group={view} />Finished<span
-        class="text-zinc-500 tabular-nums dark:text-zinc-400">{finished.length}</span
-      >
-    </label>
-  </div>
+  <SegmentedChoice
+    label="Show scheduled tasks"
+    bind:value={view}
+    options={[
+      { value: "upcoming", label: `Upcoming ${upcoming.length}` },
+      { value: "finished", label: `Finished ${finished.length}` },
+    ]}
+  />
 
   {#if shown.length > 0}
     <SettingsGroup>
@@ -99,8 +91,8 @@
       icon="clock"
       title={view === "upcoming" ? "Nothing scheduled" : "No finished tasks"}
       description={view === "upcoming"
-        ? "Send a message to a thread later, once or on repeat. Agents can schedule their own wake-ups too."
-        : "Tasks that ran once or were cancelled appear here."}
+        ? "Create a task to send a message later."
+        : "Completed and cancelled tasks appear here."}
     />
   {/if}
 </div>
