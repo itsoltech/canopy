@@ -2,12 +2,10 @@ import type { JsonValue } from "@canopy/domain";
 import {
   clampVisualHeight,
   connectMessage,
-  parseFrameMessage,
-  RateWindow,
   REVOKED_VISUAL_KITS,
-  validVisualState,
   VISUAL_KIT_VERSION,
   VISUAL_LIMITS,
+  VisualFrameInbox,
   type HostMessage,
 } from "@canopy/domain/visuals";
 import { Result } from "effect";
@@ -78,8 +76,7 @@ export async function mountVisualFrame(container: HTMLElement, options: FrameOpt
   frame.srcdoc = html;
 
   const channel = new MessageChannel();
-  const messages = new RateWindow(VISUAL_LIMITS.messagesPerSecond);
-  const heights = new RateWindow(VISUAL_LIMITS.heightsPerSecond + 1);
+  const inbox = new VisualFrameInbox(decoded.success.domains);
   let connected = false;
   let pendingHeight: number | undefined;
   let frameRequest = 0;
@@ -96,22 +93,17 @@ export async function mountVisualFrame(container: HTMLElement, options: FrameOpt
   };
 
   channel.port1.onmessage = (event: MessageEvent<JsonValue>) => {
-    const now = performance.now();
-
-    if (!messages.allow(now)) return;
-    const message = parseFrameMessage(event.data);
+    const message = inbox.receive(event.data, performance.now());
 
     switch (message?.type) {
       case "ready":
       case "height":
-        if (!heights.allow(now)) return;
         pendingHeight = message.height;
         frameRequest ||= requestAnimationFrame(applyHeight);
 
         return;
       case "local_state":
-        if (validVisualState(decoded.success.domains, message.state))
-          saveVisualState(options.visualId, options.version, message.state);
+        saveVisualState(options.visualId, options.version, message.state);
 
         return;
       case "render_error":

@@ -1946,17 +1946,46 @@ Aktualizacje OTA: [Updates SDK 58](https://docs.expo.dev/versions/v58.0.0/sdk/up
 
 ## Visuals agenta
 
-Aplikacja nie ma jeszcze izolowanego WebView, więc item `visual`
-([agent-visuals.md](agent-visuals.md)) pokazuje kartę `VisualSummary`: tytuł,
-„Version N” i „Open this visual on web or desktop.”, z opisem w etykiecie
-dostępności. Spec nie jest pobierany ani wykonywany. Karta stoi pod odpowiedzią,
-także gdy praca tury jest zwinięta, jak galerie obrazów. Brak zmian natywnych:
-fingerprint iOS i Androida pozostaje bez zmian.
+Item `visual` ([agent-visuals.md](agent-visuals.md)) renderuje `react-native-webview`
+(wersja przypięta przez SDK 58, `14.0.1`). Moduł nie ma config pluginu i nie dodaje
+uprawnień, ale zmienia fingerprint, więc wychodzi tylko w nowym buildzie natywnym.
 
-`@expo/dom-webview` (już linkowany przez `expo`) nie spełnia granicy z §4:
-ładuje tylko URI, na Androidzie wymusza `allowFileAccess` i `allowFileAccessFromFileURLs`,
-nie przechwytuje nawigacji, a jego most `addJavascriptInterface` widzi każda ramka,
-także sandboxowana. Renderer interaktywny wymaga `react-native-webview` (bez dostępu
-do plików i wspólnych cookies, z przechwytywaniem nawigacji i komunikacją tylko
-z zaufanym shellem) oraz nowych buildów natywnych; trafi do jednego buildu razem
-z odtwarzaniem wideo, gdy zostanie zaplanowany.
+- **Dokument.** Klient pobiera spec przez `GetVisual` (Connect), waliduje go ponownie
+  i kompiluje ten sam dokument z tym samym CSP co web (`compileVisual`, tryb `frame`).
+  WebView dostaje `source={{ html }}` bez `baseUrl` (nieprzezroczysty `about:blank`)
+  z zaufanym shellem (`@canopy/domain/visual-shell`), który montuje visual w
+  `<iframe sandbox="allow-scripts" srcdoc>`. Iframe srcdoc dziedziczy CSP shella,
+  dlatego oba dokumenty używają tego samego nonce montażu.
+- **Ustawienia WebView** (`SandboxedWebView.tsx`): bez dostępu file/content/universal,
+  `incognito`, bez shared i third-party cookies, bez DOM storage (kit go nie używa),
+  bez cache, okien (`setSupportMultipleWindows={false}`, pusty `onOpenWindow`),
+  mediów, geolokalizacji, zoomu, podglądu linków, debugowania i `injectedJavaScript`.
+  `originWhitelist={["*"]}` kieruje każdy URL do `onShouldStartLoadWithRequest`
+  (domyślna lista oddałaby inne schematy systemowi), a ten przepuszcza tylko pierwszy
+  `about:blank` i `about:srcdoc` ramki potomnej.
+- **Kanał.** Most React Native może być widoczny w każdej ramce (Android
+  `WebMessageListener` z `*`, iOS `webkit.messageHandlers`), więc shell opakowuje każdą
+  wiadomość portu tokenem montażu, którego ramka nie zna. Host odrzuca wiadomości bez
+  tokenu, większe niż 8 KiB + koperta, a resztę przepuszcza przez wspólny z webem
+  `VisualFrameInbox` (limity 10/s i 4 wysokości/s, parser, walidacja stanu względem
+  spec). Wiadomości hosta (motyw, widoczność, reduced motion) idą przez
+  `postMessage` z tym samym tokenem; shell przyjmuje je tylko bez `event.source`.
+- **Budżet.** Najwyżej 1 aktywny WebView w aplikacji (`visual-slots.ts`). Visual
+  montuje się, gdy jest widoczny i slot jest wolny; „Open visual” zabiera slot innemu
+  visualowi, chyba że ten jest na pełnym ekranie. Poza ekranem pauza od razu,
+  zwolnienie po 5 s; aplikacja w tle zwalnia od razu. Placeholder trzyma ostatnią
+  wysokość. Cache spec LRU 16 / 2 MiB, stan kontrolek 64 wpisy / 256 KiB w
+  `Paths.cache/visual-state.json`.
+- **Chrome hosta.** Nagłówek z tytułem, „Version N”, „Open full screen” i menu
+  „Visual actions”: „Save HTML” (Android, wybrany katalog) / „Share HTML” (iOS),
+  „Copy spec”, „Cite visual” (cytat z `visual:<id>@<wersja>`) i lista wersji.
+  Pełny ekran używa tego samego slotu; Escape z klawiatury go zamyka.
+- **Stare buildy.** `TurboModuleRegistry.get("RNCWebViewModule")` sprawdza moduł przed
+  importem renderera (ładowanego leniwie). Bez modułu zostaje karta `VisualSummary`:
+  tytuł, „Version N” i „Open this visual on web or desktop.”.
+
+Do sprawdzenia na urządzeniach przed udostępnieniem: brak dostępu ramki do mostu
+i do plików, blokada nawigacji (na Androidzie `shouldOverrideUrlLoading` nie obejmuje
+nawigacji http(s) ramek potomnych, a po 250 ms bez odpowiedzi JS przepuszcza; granicą
+pozostają sandbox i CSP), przewijanie wewnątrz iframe w timeline, pamięć jednego
+WebView oraz VoiceOver/TalkBack.

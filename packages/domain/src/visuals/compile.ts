@@ -1,7 +1,9 @@
-import { VISUAL_KIT_VERSION, VISUAL_LIMITS, VISUAL_PROTOCOL_VERSION } from "./limits.ts";
+import type { JsonObject } from "../json.ts";
+import { REVOKED_VISUAL_KITS, VISUAL_KIT_VERSION, VISUAL_LIMITS, VISUAL_PROTOCOL_VERSION } from "./limits.ts";
 import type { VisualDocumentData } from "./protocol.ts";
+import { Result } from "effect";
 import type { DecodedVisual } from "./spec.ts";
-import { utf8Bytes } from "./spec.ts";
+import { parseVisualSpec, utf8Bytes } from "./spec.ts";
 import { validVisualTheme, type VisualTheme } from "./theme-tokens.ts";
 import type { VisualState } from "./types.ts";
 import { validVisualState } from "./semantics.ts";
@@ -60,7 +62,7 @@ export function escapeHtml(text: string): string {
 }
 
 /** JSON safe inside a <script type="application/json"> block: no tag, comment or line-terminator sequences. */
-export function inertJson(value: VisualDocumentData): string {
+export function inertJson(value: VisualDocumentData | JsonObject): string {
   return JSON.stringify(value)
     .replace(/</g, "\\u003c")
     .replace(/>/g, "\\u003e")
@@ -124,4 +126,28 @@ export function visualToken(): string {
   return btoa(String.fromCharCode(...bytes))
     .replace(/\+/g, "-")
     .replace(/\//g, "_");
+}
+
+/**
+ * "Download HTML": the standalone export of a stored version (the pinned kit, the spec and the CSP, in its initial
+ * state, with no host bridge) and a file name from its title. Undefined when the spec doesn't parse or the kit is
+ * revoked.
+ */
+export function compileVisualExport(
+  visual: { readonly title: string; readonly version: number; readonly kitVersion: number },
+  specJson: string,
+  nonce: string,
+): { readonly name: string; readonly html: string } | undefined {
+  const decoded = parseVisualSpec(specJson);
+
+  if (Result.isFailure(decoded) || REVOKED_VISUAL_KITS.has(visual.kitVersion)) return undefined;
+  const html = compileVisual(decoded.success, { title: visual.title, mode: "export", nonce, instance: "export" });
+
+  const stem =
+    visual.title
+      .replace(/[^\p{L}\p{N}]+/gu, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 60) || "visual";
+
+  return { name: `${stem}-v${visual.version}.html`, html };
 }

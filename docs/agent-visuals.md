@@ -328,11 +328,10 @@ wewnątrz renderera, nie `<webview>`. Preload ani IPC nie mogą być dostępne
 subframe'om; eksport i pełny ekran obsługuje wyłącznie host po jego kliknięciu.
 Istniejące blokady `window.open`, nawigacji i uprawnień pozostają aktywne.
 
-Mobile renderuje Markdown natywnie i obecnie nie ma zależności WebView.
-Visual wymaga nowego izolowanego modułu `react-native-webview` oraz nowych
-development/store buildów z innym fingerprintem; nie obiecujemy wdrożenia OTA
-do obecnego runtime. Wersję wybieramy zgodną z przypiętym Expo/RN podczas
-implementacji. Nie migrujemy całej osi czasu do WebView.
+Mobile renderuje Markdown natywnie; WebView służy wyłącznie visualom.
+Visual używa izolowanego modułu `react-native-webview` (14.0.1 dla SDK 58) i wymaga
+nowych development/store buildów z innym fingerprintem; nie obiecujemy wdrożenia OTA
+do starszego runtime. Nie migrujemy całej osi czasu do WebView.
 
 WebView zawiera zaufany shell oraz wewnętrzny iframe z tym samym sandboxem.
 Most React Native jest wyłącznie w shellu; subframe nie może go wywołać ani
@@ -611,4 +610,27 @@ i pomiary produkcyjne pozostają kryteriami przyszłych PR-ów.
 - Testy: `tests/integration/visuals.test.ts` (zapis, replay, wersje, konflikt,
   obcy visual, owner scoping, limity, stary worker, wstrzyknięty item) i
   `visual-harnesses.test.ts` (adaptery Codex, Claude i Grok przez gRPC do PostgreSQL).
+
+### Mobile
+
+- `@canopy/domain/visual-shell`: `mountVisualShell` parsuje spec ponownie, odmawia
+  wycofanego lub nowszego kitu, kompiluje dokument `frame` i owija go w shell
+  (`compileVisualShell`) ze świeżym nonce, instancją i tokenem. Shell ma własny CSP;
+  iframe srcdoc dziedziczy go obok swojego, dlatego nonce jest wspólny.
+- `host.ts` (`@canopy/domain/visuals`): `VisualFrameInbox` (limity, parser, walidacja
+  stanu) używają web i mobile; `shellEnvelope`/`openShellEnvelope` to koperta z tokenem
+  montażu między shellem a natywnym hostem.
+- `compileVisualExport` buduje plik „Download HTML” dla BFF i dla „Save/Share HTML”.
+- Aplikacja: `apps/mobile/src/features/visuals` (opis w [mobile.md](mobile.md#visuals-agenta)).
+- Testy: `host.test.ts` (koperta, inbox, brak tokenu w ramce, inertny tekst, odmowa
+  kitu). Granica WebView na iOS/Androidzie wymaga dowodu na urządzeniach.
+- Cache spec i zapisany stan kontrolek (`visual-state.json`) są czyszczone przy
+  rozparowaniu, wygaśnięciu parowania i nowym parowaniu (`clearVisualCaches`).
+- Zaakceptowane ryzyka resztkowe (przegląd bezpieczeństwa #695):
+  - kod w ramce może zalewać most wiadomościami: most jest widoczny w każdej ramce,
+    a natywnej strony nie da się ograniczyć z JS. Host odrzuca wiadomości bez tokenu
+    i ponad limity, ale koszt ich dostarczenia ponosi proces aplikacji;
+  - Android nie sprawdza nawigacji http(s) ramek potomnych
+    (`shouldOverrideUrlLoading` ich nie widzi), więc granicą pozostają sandbox
+    iframe i CSP dokumentu.
 
