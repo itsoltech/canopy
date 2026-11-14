@@ -112,7 +112,14 @@ wersji). W istniejącym `docker-compose.yml`:
 
 Najprościej pobrać nowy [`deploy/docker-compose.yml`](../deploy/docker-compose.yml) i dopisać w `.env`
 `CANOPY_WEB_ALLOWED_HOSTS`. Bez kroku 1–2 stary kontener `canopy-web` zostaje na ostatniej wydanej
-wersji i rozjeżdża się z gatewayem.
+wersji i rozjeżdża się z gatewayem. Gateway to zauważa: każdy web BFF wysyła swoją wersję
+(nagłówek `canopy-web-version`; starsze nie wysyłają żadnej), więc przy web innej wersji gateway
+loguje ostrzeżenie (najwyżej raz na godzinę na wersję), a przy gatewayu w Settings → App updates
+pojawia się „A web app older than the gateway (…) is connected. Remove the separate web service: the
+gateway serves the web now.” z odnośnikiem do tej sekcji — ten tekst pokazuje także stary web.
+Web od tej wersji sam porównuje swoją wersję z gatewayem i pokazuje nieblokujący baner „This web app
+is older than the gateway…” (albo „…newer…”), z „How to fix” i „Dismiss”. Desktop i web uruchomiony
+ze źródeł (`0.0.0-dev`) go nie pokazują.
 
 Wszystkie zmienne opisuje [`deploy/.env.example`](../deploy/.env.example). `CANOPY_SECRETS_KEY`
 szyfruje klucze providerów i tokeny konektorów w bazie — zachowaj kopię; jego utrata oznacza

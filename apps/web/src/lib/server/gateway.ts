@@ -11,6 +11,9 @@ import { isolatedGatewayTransport } from "./gateway-transport.ts";
 import { gatewayDeadlines } from "./gateway-deadlines.ts";
 import { startBffDiagnostics } from "./diagnostics.ts";
 import { startBffLogs } from "./log-source.ts";
+import { CANOPY_VERSION } from "@canopy/domain/release/version";
+import { WEB_VERSION_HEADER } from "@canopy/domain/release/web-version";
+import { compareVersions } from "@canopy/updater/release";
 
 const desktop = process.env["CANOPY_DESKTOP_CLIENT_TOKEN"]
   ? desktopGateway(process.env["CANOPY_DESKTOP_GATEWAY_ROUTES"] ?? "", process.env["CANOPY_DESKTOP_CLIENT_TOKEN"])
@@ -31,6 +34,7 @@ export async function gatewayCompatibility(): Promise<GatewayCompatibility> {
 
     return {
       state: "ready",
+      webLag: webLag(info.gatewayVersion),
       message: "",
       methods: info.methods,
       gatewayVersion: info.gatewayVersion,
@@ -46,6 +50,23 @@ export async function gatewayCompatibility(): Promise<GatewayCompatibility> {
       gatewayRole: "",
       linkedComputers: false,
     };
+  }
+}
+
+/**
+ * This web app against its gateway (server BFFs only; the desktop pairs its own versions): "older", "newer" or "".
+ * A web run from source (0.0.0-dev) or an unparsable version never warns.
+ */
+function webLag(gatewayVersion: string): "older" | "newer" | "" {
+  if (process.env["CANOPY_WEB_ORIGIN"] || !gatewayVersion || [CANOPY_VERSION, gatewayVersion].includes("0.0.0-dev"))
+    return "";
+
+  try {
+    const order = compareVersions(CANOPY_VERSION, gatewayVersion);
+
+    return order < 0 ? "older" : order > 0 ? "newer" : "";
+  } catch {
+    return "";
   }
 }
 
@@ -81,6 +102,7 @@ export function gateway(): Client<typeof ui.GatewayService> {
               interceptors: [
                 (next) => (request) => {
                   request.header.set("authorization", `Bearer ${token}`);
+                  request.header.set(WEB_VERSION_HEADER, CANOPY_VERSION);
 
                   return next(request);
                 },

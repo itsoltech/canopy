@@ -120,6 +120,7 @@
     "./release/update-plan": "./src/release/update-plan.ts",
     "./release/update-progress": "./src/release/update-progress.ts",
     "./release/remote-update-state": "./src/release/remote-update-state.ts",
+    "./release/web-version": "./src/release/web-version.ts",
     "./release/version": "./src/release/version.ts",
     "./release/identity": "./src/release/identity.ts",
     "./humanize": "./src/humanize.ts",

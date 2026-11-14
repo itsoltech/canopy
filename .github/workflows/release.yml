@@ -423,6 +423,8 @@ jobs:
           docker exec canopy-smoke-gateway canopy-gateway healthcheck || ok=false
           docker exec canopy-smoke-gateway printenv CANOPY_INSTALL_KIND | grep -qx docker || ok=false
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/)" = 200 || ok=false
+          # DNS rebinding guard: an unknown Host name is refused.
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: evil.example' http://127.0.0.1:3000/api/health)" = 421 || ok=false
           docker logs canopy-smoke-gateway 2>&1 | grep -v '^\s' | tail -n 20
           docker rm -f canopy-smoke-gateway canopy-smoke-pg >/dev/null
           "$ok"

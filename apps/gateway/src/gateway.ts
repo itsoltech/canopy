@@ -33,6 +33,7 @@ import { dirname } from "node:path";
 import { EMBEDDED_WEB } from "./web/embedded.ts";
 import { embeddedWebOrigin, embeddedWebWanted } from "./web/config.ts";
 import { EmbeddedWebProcess } from "./web/process.ts";
+import { WebClientVersions } from "./web/clients.ts";
 
 const env = Bun.env;
 
@@ -77,6 +78,9 @@ const embeddedWeb =
         changed: () => core.feeds.updatesChanged(),
       })
     : undefined;
+
+// Web BFFs of another version, e.g. a retired canopy-web container left in an old Compose file.
+const webClients = new WebClientVersions(CANOPY_VERSION, embeddedWeb !== undefined, (m) => console.warn(m));
 
 const runtime = gatewayRuntime(env);
 const logDirectory = runtimeLogDirectory("gateway", env);
@@ -133,7 +137,7 @@ const core = new GatewayCore({
         }),
       ),
     log: (message) => console.info(message),
-    notice: () => embeddedWeb?.notice ?? "",
+    notice: () => [embeddedWeb?.notice, webClients.notice].filter(Boolean).join(" "),
   },
 });
 
@@ -187,7 +191,10 @@ const server = await startGrpcServer({
     workerRoutes(core, router);
     uiRoutes(core)(router);
   },
-  interceptors: [core.diagnostics.interceptor, serviceTokenAuth(serviceToken, core.mobile)],
+  interceptors: [
+    core.diagnostics.interceptor,
+    serviceTokenAuth(serviceToken, core.mobile, (version) => webClients.seen(version)),
+  ],
   host: env["CANOPY_HOST"] ?? "0.0.0.0",
   port: Number(env["CANOPY_PORT"] ?? 7443),
   health: () => ({ healthy: core.updates.service.verdict().healthy, version: CANOPY_VERSION }),
