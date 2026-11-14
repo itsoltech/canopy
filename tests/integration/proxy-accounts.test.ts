@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, setSystemTime, spyOn, test } from "bun:test";
 import { toJsonString } from "@bufbuild/protobuf";
 import { Provider, ProviderProfileKind, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
@@ -11,6 +11,7 @@ import { ProxyAccountsMonitor } from "../../apps/gateway/src/core/proxy-accounts
 const KEY = "fixture-management-key";
 const WRONG = "fixture-wrong-management-key";
 const SECRET = "fixture-inference-secret";
+const NOW = new Date("2026-11-14T10:00:00Z");
 
 /** What a CLIProxyAPI v8 `GET /v0/management/auth-files` returns, including hostile text. */
 const FILES = [
@@ -26,11 +27,11 @@ const FILES = [
     success: 12,
     failed: 1,
     quota: {
-      observed_at: "2026-11-14T10:00:00Z",
+      observed_at: NOW.toISOString(),
       signals: {
         "X-Codex-Primary-Used-Percent": "42",
         "X-Codex-Primary-Window-Minutes": "300",
-        "X-Codex-Primary-Reset-At": "2000000000",
+        "X-Codex-Primary-Reset-At": "1794661200",
         "X-Codex-Secondary-Used-Percent": "7",
         "X-Codex-Secondary-Window-Minutes": "10080",
       },
@@ -155,8 +156,11 @@ describe.skipIf(!dockerAvailable)("CLIProxyAPI upstream accounts through the man
 
   beforeAll(async () => {
     gw = await startTestGateway();
+    // Quota epochs and cache age use this clock; PostgreSQL read leases still use real elapsed time.
+    setSystemTime(NOW);
   }, 60_000);
   afterAll(async () => {
+    setSystemTime();
     await gw?.close();
     await management.stop(true);
   });
@@ -183,7 +187,7 @@ describe.skipIf(!dockerAvailable)("CLIProxyAPI upstream accounts through the man
       expect(byId.get("1")).toMatchObject({ provider: "codex", label: "a@example.test", status: "active" });
       expect(byId.get("1")?.successCount).toBe(12n);
       expect(byId.get("1")?.windows.map((w) => [w.key, w.usedPercent, w.resetsAt?.seconds])).toEqual([
-        ["five_hour", 42, 2000000000n],
+        ["five_hour", 42, 1794661200n],
         ["seven_day", 7, undefined],
       ]);
       expect(byId.get("2")).toMatchObject({ label: "Team", status: "cooling_down", detail: "quota exhausted" });
