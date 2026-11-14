@@ -1094,8 +1094,8 @@ ThreadHeader, MessageComposer/ComposerBox, ThreadPanel, AppearanceSettings,
 BotAvatar, ChatBubble i BotDetailsPanel. Brand assety pochodzą z `apps/web/static`.
 
 Kompozytor wątku (także bocznego) i czatu bota jest nakładką nad feedem, z powierzchnią,
-obramowaniem i cieniem w jasnym motywie oraz wygaszeniem tła na 32 dp jak w web.
-`features/composer/FloatingComposer.tsx` ma osobny pas gradientu o stałej wysokości **32 dp**
+obramowaniem i cieniem w jasnym motywie oraz krótkim wygaszeniem tła.
+`features/composer/FloatingComposer.tsx` ma osobny pas gradientu od **16 dp** w kompakcie do **32 dp** po rozwinięciu
 nad górną krawędzią pola; gradient nie rozciąga się na pełną wysokość kontenera.
 `ComposerCoverage` mierzy cały widoczny stos na wątku UI: pole, toolbar, dolny wiersz,
 zawinięte cytaty, załączniki, podsumowania w kompakcie, zasobnik i statusy. Natywny inset
@@ -1120,8 +1120,9 @@ nakładką poza mierzonym kompozytorem: otwieranie, filtrowanie, doczytywanie i 
 nie zmieniają rezerwy ani pozycji feedu. Nakładka mieści się między nagłówkiem a kompozytorem,
 nad klawiaturą, z uwzględnieniem safe area; ma maksymalnie 240 dp i własne przewijanie bez
 chowania klawiatury. Wejście i wyjście używają `pop`, przy ograniczeniu ruchu są natychmiastowe. Kotwica listy
-pomija ten nagłówek. „Jump to latest” wątku ma stałą kotwicę nad zwiniętą krawędzią
-i znika, gdy kompozytor jest rozwinięty.
+pomija ten nagłówek. „Show latest” wątku jest wyśrodkowany nad zmierzonym stosem,
+8 dp ponad fade, poza klipem i rezerwą osi. Pozostaje widoczny także przy rozwiniętym
+kompozytorze; wejście i wyjście używają `pop` z obsługą ograniczenia ruchu.
 
 Reguły zwijania pochodzą z webowego `ComposerCompaction`: co najmniej 192 dp od końca
 i 96 dp ruchu ku starszym wiadomościom, rozwinięcie do 8 dp od końca albo po tapnięciu,
@@ -1332,7 +1333,7 @@ osobną nakładkę rosnącą w górę nad historią. Rozwinięcie nie zmienia wy
 rezerwy feedu ani jego scrolla. Nagłówki działają także przy zwiniętym kompozytorze.
 Nad zasobnikiem są wiersze statusu
 („Syncing…”, sekrety, „Sending…”, błąd wysyłki, komputer offline) i chip zadań w tle.
-Wiersze statusu i zasobnik leżą na tle kompozytora z własnym wygaszeniem 32 dp, poza pomiarem
+Wiersze statusu i zasobnik leżą na tle kompozytora z własnym wygaszeniem 16–32 dp, poza pomiarem
 pola dla gestów klawiatury. Pomiar całego stosu obejmuje je w każdym stanie: ostatnią
 wiadomość można przewinąć ponad nakładkę. Przy końcu przesuwa się razem z nimi,
 a podczas czytania historii nic się nie przesuwa.
@@ -1710,7 +1711,7 @@ nazwę i rozmiar. Format wynika z MIME i rozszerzenia. Wysokość wiersza jest s
 skracają się z zachowaniem końcówki, a przycisk usuwania ma cel 32 × 56 dp i usuwa też
 plakietkę w tekście. Upload nakłada spinner, błąd dodaje obramowanie i powód; `pop` oraz
 `layout` korzystają ze wspólnych tokenów i respektują ograniczenie ruchu. Pasek nie zmienia
-zasad klawiatury ani gradientu 32 dp. Tapnięcie miniatury obrazu otwiera tę samą
+zasad klawiatury ani gradientu 16–32 dp. Tapnięcie miniatury obrazu otwiera tę samą
 pełnoekranową przeglądarkę co obraz w transkrypcie, także przed zakończeniem uploadu.
 
 URI obrazu z pickera lub data URI ze schowka zostaje w drafcie także po uploadzie.

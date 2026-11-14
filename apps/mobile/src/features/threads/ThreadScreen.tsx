@@ -29,7 +29,7 @@ import { FloatingComposer } from "../composer/FloatingComposer";
 import { useFloatingComposer } from "../composer/useFloatingComposer";
 import { MentionSuggestions } from "../composer/MentionSuggestions";
 import { visibleTurns } from "./thread-turns";
-import { collapsedThreadComposerHeight, threadComposerHeight } from "../composer/geometry";
+import { threadComposerHeight } from "../composer/geometry";
 import { ThreadRequests } from "./ThreadRequests";
 import { ImportedThreadComposer } from "../imports/ImportedThreadComposer";
 import { useQuoteDraft } from "../quotes/useQuoteDraft";
@@ -245,8 +245,7 @@ export function ThreadScreen({ id }: { id: string }) {
                   coverage={following.composerInset}
                   onLayout={composer.measure}
                   onExpand={composer.expand}
-                  onLatest={atBottom || !composer.compact ? undefined : composer.showLatest}
-                  latestInset={collapsedThreadComposerHeight}
+                  onLatest={atBottom ? undefined : composer.showLatest}
                   overlay={<ThreadSuggestions state={state} />}
                   accessory={<ThreadStatus state={state} />}
                   tray={<ThreadTray state={state} onGoal={() => setSheet("goal")} />}

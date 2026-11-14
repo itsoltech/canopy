@@ -53,7 +53,6 @@
     placeholder,
     row,
     footer,
-    footerExpanded = false,
     inserted,
     atEnd = $bindable(true),
     onreaderscroll,
@@ -77,8 +76,6 @@
     placeholder?: Snippet;
     row: Snippet<[T, number]>;
     footer?: Snippet;
-    /** Hide the fixed-position latest button while the expanded composer covers it. */
-    footerExpanded?: boolean;
     /** How a row inserted between shown rows enters (none by default: e.g. older history above). */
     inserted?: (row: T) => "unfold" | "reveal" | undefined;
     /** Out: the reader follows the end (the latest rows are on screen). */
@@ -671,22 +668,9 @@
   <!-- The footer and its fade are siblings of the scroller. Resizing them cannot move a row,
      change the virtual window, or make the browser reveal a contenteditable's flow position. -->
   <div class="pointer-events-none absolute bottom-0 left-0 isolate z-10 [contain:layout]" style:right="{gutter}px">
-    <!-- Keep the latest control on the collapsed rail, independently of the measured end space. -->
-    <div class="relative h-[calc(--spacing(20)+max(--spacing(2),env(safe-area-inset-bottom)))]">
-      {#if !stuck}
-        <div class="pointer-events-none absolute inset-x-0 bottom-full mb-3 flex justify-center" transition:rise>
-          <!-- An opaque backing keeps the secondary button legible over text in both themes. -->
-          <span
-            class="t-feed-latest pointer-events-auto flex rounded-md bg-white shadow-md dark:bg-zinc-900 dark:shadow-black/50"
-            data-covered={footerExpanded || undefined}
-            inert={footerExpanded}
-          >
-            <Button size="sm" icon="arrow-down" onclick={jump}>Jump to latest</Button>
-          </span>
-        </div>
-      {/if}
-      <div bind:this={footerShell} class="absolute inset-x-0 bottom-0 isolate [clip-path:inset(-2rem_-4px_0)]">
-        <div class="absolute inset-x-0 bottom-0">
+    <div class="relative">
+      <div bind:this={footerShell} class="absolute inset-x-0 bottom-0 isolate [--feed-fade:clamp(0.75rem,12.5%,2rem)]">
+        <div class="absolute inset-x-0 bottom-0 [clip-path:inset(-2rem_-4px_0)]">
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div class="mx-auto max-w-(--chat-width) px-4 sm:px-6" {onkeydown}>
             <div
@@ -700,9 +684,19 @@
           </div>
         </div>
         <div
-          class="absolute inset-x-0 bottom-0 -z-10 h-[calc(100%+2rem)] bg-linear-to-t from-white from-[calc(100%-2rem)] to-transparent dark:from-black"
+          class="absolute inset-0 -z-10 bg-canvas before:absolute before:inset-x-0 before:bottom-full before:h-(--feed-fade) before:bg-linear-to-t before:from-canvas before:to-transparent"
           aria-hidden="true"
         ></div>
+        {#if !stuck}
+          <div
+            class="pointer-events-none absolute inset-x-0 bottom-[calc(100%+var(--feed-fade)+--spacing(2))] z-10 flex justify-center"
+            transition:rise
+          >
+            <span class="pointer-events-auto flex rounded-md bg-surface shadow-md ring-1 ring-divider">
+              <Button size="sm" icon="arrow-down" onclick={jump}>Jump to latest</Button>
+            </span>
+          </div>
+        {/if}
       </div>
     </div>
   </div>

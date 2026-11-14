@@ -140,9 +140,12 @@ natywne działanie przeglądarki na zaznaczalnych obszarach.
   odstęp po przewinięciu, a nie wymuszone wyrównanie do dołu. Status wysyłki zajmuje
   miejsce komputera w wierszu kontekstu, bez dodatkowego pustego wiersza pod nim.
   W wątkach spacer osi czasu obejmuje pełną zmierzoną stopkę, także cytaty zawinięte
-  w kilka rzędów i chipy w kompakcie. „Jump to latest” zachowuje stałą kotwicę nad
-  zwiniętym polem (72 px), z odstępem 8 px i dolnym insetem.
-  Przycisk wygasa pod rozwiniętym polem, a tło dochodzi do dolnej krawędzi widoku. Rozmowy
+  w kilka rzędów i chipy w kompakcie. Fade nad stopką ma 12,5% jej wysokości
+  (minimum 12 px, maksimum 32 px), w kolorze płótna wątku. „Jump to latest” jest
+  wyśrodkowany na osi composera, 8 px nad fade, także przy rozwiniętym polu.
+  Przycisk ma własną nieprzezroczystą powierzchnię ponad fade; tło stopki dochodzi
+  do dolnej krawędzi widoku. Mobile stosuje fade 16–32 dp zgodnie ze stanem zwinięcia
+  i tę samą kotwicę nad zmierzoną stopką. Rozmowy
   botów i grup utrzymują koniec po zmianie wysokości composera tylko podczas śledzenia
   najnowszych wiadomości, bez przesuwania czytelnika przeglądającego historię.
   W kompozytorze wątku cytaty przewijają się po osiągnięciu 20 dvh (maks. 192 px),
