@@ -10,6 +10,7 @@ import { ProviderWorker } from "./ProviderWorker";
 import { ProviderModels } from "./ProviderModels";
 import { MoveEnvironment } from "./MoveEnvironment";
 import { useWorkerRecordOptions } from "../computers/worker-options";
+import { proxyThrough } from "./ProxyAccounts";
 
 export function ProviderSettings() {
   const resource = useSettingsResource("ListProviderInstances+ListWorkerRecords", async (api) => {
@@ -18,6 +19,7 @@ export function ProviderSettings() {
     return { ...instances, ...records };
   });
 
+  const proxies = useSettingsResource("ListProxies", (api) => api.listProxies({}));
   const [scope, setScope] = useState("");
   const [harness, setHarness] = useState(Provider.CODEX);
   const [editing, setEditing] = useState<ui.ProviderInstance | "new">();
@@ -63,7 +65,12 @@ export function ProviderSettings() {
             <SettingsRow
               key={instance.id}
               title={instance.label || instance.id}
-              description={`${providerName(instance.harness)} · ${instance.id} · ${instance.workers.filter((w) => w.enabled).length} ${instance.workers.filter((w) => w.enabled).length === 1 ? "worker" : "workers"}`}
+              description={[
+                `${providerName(instance.harness)} · ${instance.id} · ${instance.workers.filter((w) => w.enabled).length} ${instance.workers.filter((w) => w.enabled).length === 1 ? "worker" : "workers"}`,
+                proxyThrough(instance, proxies.data?.proxies),
+              ]
+                .filter(Boolean)
+                .join("\n")}
             >
               <SettingsActions>
                 {!scope && <MoveEnvironment instance={instance} onSaved={changed} />}

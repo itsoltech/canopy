@@ -6,13 +6,21 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import { proxyCall, proxyKinds } from "./proxies.ts";
   import ProxyMappings from "./ProxyMappings.svelte";
+  import ProxyAccounts from "./ProxyAccounts.svelte";
 
   let {
     proxy,
     onedit,
     ondelete,
+    onaccounts,
     class: className,
-  }: { proxy: ui.Proxy; onedit: () => void; ondelete: () => void; class?: ClassValue } = $props();
+  }: {
+    proxy: ui.Proxy;
+    onedit: () => void;
+    ondelete: () => void;
+    onaccounts: (accounts: ui.ProxyAccounts) => void;
+    class?: ClassValue;
+  } = $props();
 
   let testing = $state(false);
   let deleting = $state(false);
@@ -49,8 +57,12 @@
 </script>
 
 <section
+  id={`proxy-${proxy.id}`}
   aria-label={proxy.name}
-  class={["grid min-w-0 gap-3 border-t border-zinc-950/10 py-3 first:border-0 dark:border-white/10", className]}
+  class={[
+    "grid min-w-0 scroll-mt-4 gap-3 border-t border-zinc-950/10 py-3 first:border-0 dark:border-white/10",
+    className,
+  ]}
 >
   <div class="flex flex-wrap items-start justify-between gap-3">
     <div class="min-w-0">
@@ -64,6 +76,7 @@
       ? `Used by ${proxy.usedBy.join(", ")}`
       : "No profiles yet"}
   </p>
+  {#if proxy.kind === "cliproxyapi"}<ProxyAccounts {proxy} onread={onaccounts} />{/if}
   <div class="grid gap-2">
     <h3 class="text-base/6 font-medium text-zinc-950 sm:text-sm/6 dark:text-white">How agents use this proxy</h3>
     <ProxyMappings kind={proxy.kind} baseUrl={proxy.baseUrl} />

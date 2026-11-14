@@ -196,6 +196,14 @@ klientów jako `OverviewUpdate.proxy_accounts` dla jednego proxy; web i mobile p
 ją we współdzielonym `ListProxies` bez ponownego odczytu listy. Odczyt innego procesu
 zmienia skrót `proxies_changed`. BFF: `POST /api/proxies/accounts`.
 
+UI: karta proxy w Settings → Proxies pokazuje **Accounts**: kompaktowe wiersze ze znakiem
+providera, kontem, odznaką statusu, limitami (te same mierniki co limity planu), końcem
+cooldownu i komunikatem, plus **Refresh**. Bez klucza albo przy błędzie zostaje jedna
+krótka podpowiedź. W Settings → Providers instancja z proxy pokazuje „Through <proxy>”
+z podsumowaniem kont tego harnessu (np. „2 Codex accounts · 1 cooling down”) i linkiem
+do karty proxy, zamiast mierników planu. Mobile pokazuje to samo tylko do odczytu.
+Wspólne etykiety i podsumowanie: `@canopy/domain/proxy-accounts`.
+
 `tests/integration/proxy-accounts.test.ts` używa fałszywego serwera Management API:
 parsowanie i sanityzacja kont, zły klucz bez ponowień, wyłączony zdalny dostęp,
 za duże i nie-JSON body, nieosiągalny host, brak klucza, owner scoping, okresowe

@@ -5,7 +5,7 @@
   import ProxyEntry from "#lib/features/proxies/ProxyEntry.svelte";
   import SettingsHeading from "#lib/features/settings/SettingsHeading.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
-  import { replaceProxy, sharedProxies } from "#lib/features/proxies/proxies.ts";
+  import { putProxyAccounts, replaceProxy, sharedProxies } from "#lib/features/proxies/proxies.ts";
   import ConfigNotices from "#lib/features/computers/ConfigNotices.svelte";
   import type { PageProps } from "./$types";
 
@@ -52,6 +52,7 @@
             open = true;
           }}
           ondelete={() => replaceProxy(read, proxy, true)}
+          onaccounts={(accounts) => putProxyAccounts(read, accounts)}
         />{/each}
     </div>
   {/if}

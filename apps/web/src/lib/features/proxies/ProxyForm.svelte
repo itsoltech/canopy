@@ -32,6 +32,8 @@
   let baseUrl = $state(untrack(() => proxy?.baseUrl ?? ""));
   let secret = $state("");
   let action = $state<KeyAction>(untrack(() => (proxy?.secretSet ? "keep" : "replace")));
+  let managementKey = $state("");
+  let managementAction = $state<KeyAction>(untrack(() => (proxy?.managementKeySet ? "keep" : "replace")));
   let websockets = $state(untrack(() => proxy?.codex?.supportsWebsockets ?? false));
 
   let headers = $state(
@@ -44,6 +46,14 @@
 
   let busy = $state(false);
   let failure = $state<string>();
+
+  /** Omitted keeps the stored key; empty removes it (also when the kind has no management API). */
+  function managementChange(): { managementKey?: string } {
+    if (kind !== "cliproxyapi" || managementAction === "clear")
+      return proxy?.managementKeySet ? { managementKey: "" } : {};
+
+    return managementAction === "replace" && managementKey ? { managementKey } : {};
+  }
 
   async function save(event: SubmitEvent) {
     event.preventDefault();
@@ -67,11 +77,13 @@
         kind,
         baseUrl,
         ...(action === "replace" && { secret }),
+        ...managementChange(),
         expectedRevision: proxy?.revision ?? 0n,
         codex: { wireApi: "responses", supportsWebsockets: websockets, extraHeaders },
       });
 
       secret = "";
+      managementKey = "";
 
       if (saved.proxy) onsaved(saved.proxy);
     } catch (error) {
@@ -118,6 +130,20 @@
   <Field label="Secret" description="Encrypted in the gateway. Saved values are never shown again.">
     <SecretValue set={proxy?.secretSet ?? false} bind:action bind:value={secret} name="proxy-secret" />
   </Field>
+  {#if kind === "cliproxyapi"}
+    <Field
+      label="Management key"
+      description="Optional. Lets Canopy show the proxy's accounts and their status. Encrypted in the gateway."
+    >
+      <SecretValue
+        set={proxy?.managementKeySet ?? false}
+        bind:action={managementAction}
+        bind:value={managementKey}
+        name="proxy-management-key"
+        allowClear
+      />
+    </Field>
+  {/if}
   {#if kind !== "anthropic"}
     <Disclosure>
       {#snippet summary()}Advanced: Codex transport{/snippet}

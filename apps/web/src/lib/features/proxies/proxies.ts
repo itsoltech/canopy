@@ -66,3 +66,15 @@ export function replaceProxy(read: ReturnType<typeof sharedProxies>, proxy: ui.P
   const proxies = (read.data?.proxies ?? []).filter((p) => p.id !== proxy.id);
   read.set(create(ui.ListProxiesResponseSchema, { proxies: removed ? proxies : [...proxies, proxy] }));
 }
+
+/** One proxy's freshly read accounts, in place (the list keeps its order). */
+export function putProxyAccounts(read: ReturnType<typeof sharedProxies>, accounts: ui.ProxyAccounts): void {
+  const proxies = read.data?.proxies ?? [];
+
+  if (!proxies.some((p) => p.id === accounts.proxyId)) return;
+  read.set(
+    create(ui.ListProxiesResponseSchema, {
+      proxies: proxies.map((p) => (p.id === accounts.proxyId ? create(ui.ProxySchema, { ...p, accounts }) : p)),
+    }),
+  );
+}
