@@ -99,12 +99,22 @@ export function expand(
   };
 }
 
-/** Mounted accordion content: interpolate the grid track without measuring its height. */
-export function expandGrid(): TransitionConfig {
+/**
+ * Accordion (21) for a `grid grid-rows-[1fr]` wrapper around one clipping child: the wrapper's height
+ * tweens and the 1fr track follows it. A `t fr` track would be wrong here: in an auto-height grid the
+ * browser sizes the wrapper to t × content but the track to t² × content, so the content vanishes
+ * early and leaves a blank band that snaps shut. The child's scroll height is the full content even
+ * mid-transition, so a reversed toggle keeps its scale. Instant with reduced motion.
+ */
+export function expandGrid(node: HTMLElement): TransitionConfig {
+  if (prefersReducedMotion.current) return { duration: 0 };
+  const content = node.firstElementChild;
+  const height = content instanceof HTMLElement ? content.scrollHeight : node.offsetHeight;
+
   return {
-    duration: prefersReducedMotion.current ? 0 : duration("fast"),
+    duration: duration("fast"),
     easing: smoothOut,
-    css: (t) => `display: grid; grid-template-rows: ${t}fr; opacity: ${t}`,
+    css: (t) => `overflow-x: visible; overflow-y: clip; height: ${t * height}px; opacity: ${t}`,
   };
 }
 
