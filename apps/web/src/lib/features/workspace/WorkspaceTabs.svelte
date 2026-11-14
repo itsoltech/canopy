@@ -50,9 +50,11 @@
     focused = active.id;
   });
 
-  // `Thread` is always shown. The other tabs fill the remaining width around the active one; the rest go behind a
-  // `+N` chip that exists only while something is hidden. Tabs shrink and truncate, so an estimate is enough.
-  const room = $derived(Math.max(0, Math.floor((width - 84 - 44) / 120)));
+  let rem = $state(16);
+
+  // Reserve Thread and the overflow chip before adding files at their maximum width (12 rem).
+  // The active file stays visible even in a narrower slot, where its name truncates.
+  const room = $derived(Math.max(0, Math.floor((width / rem - 5.25 - 3.75) / 12.125)));
 
   const shown = $derived.by(() => {
     const files = tabs.slice(1);
@@ -116,13 +118,14 @@
   class={["flex min-w-0 items-center gap-1", className]}
   onkeydown={keydown}
 >
-  <div role="tablist" aria-label="Workspace tabs" class="flex min-w-0 gap-0.5">
+  <span class="pointer-events-none invisible absolute w-[1rem]" bind:clientWidth={rem}></span>
+  <div role="tablist" aria-label="Workspace tabs" class="flex min-w-0 flex-1 gap-0.5">
     {#each visible as tab (tab.id)}
       <div
         class={[
           "flex min-w-0 items-center rounded-md",
-          // The active tab keeps its name; the others truncate first.
-          tab.id === "thread" || tab.id === active.id ? "max-w-48 shrink-0" : "max-w-48 shrink",
+          // Thread keeps its slot; every file, including the active one, must fit the available space.
+          tab.id === "thread" ? "shrink-0" : "max-w-48 flex-1",
           tab.id === active.id ? "bg-zinc-950/5 dark:bg-white/10" : "hover:bg-zinc-950/5 dark:hover:bg-white/5",
         ]}
       >

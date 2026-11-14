@@ -83,6 +83,7 @@
   import { awayReason } from "#lib/features/computers/computers.ts";
   import { ThreadWorkspace } from "#lib/features/workspace/thread-workspace.svelte.ts";
   import WorkspaceTabs from "#lib/features/workspace/WorkspaceTabs.svelte";
+  import WorkspaceFilesToggle from "#lib/features/workspace/WorkspaceFilesToggle.svelte";
   import WorkspaceContent from "#lib/features/workspace/WorkspaceContent.svelte";
   import WorkspaceFilesPanel from "#lib/features/workspace/WorkspaceFilesPanel.svelte";
   import ThreadSummary from "#lib/features/threads/summary/ThreadSummary.svelte";
@@ -561,14 +562,10 @@
               {@render threadActions()}
             </DropdownMenu>
           </div>{/if}
-        <Button
-          variant="ghost"
-          size="sm"
-          icon="folder"
-          class="aria-pressed:bg-zinc-950/5 dark:aria-pressed:bg-white/10"
-          aria-pressed={workspaceState.wide ? workspaceState.filesOpen : undefined}
-          onclick={toggleFiles}>Files</Button
-        >
+        <WorkspaceFilesToggle
+          pressed={workspaceState.wide ? workspaceState.filesOpen : undefined}
+          onclick={toggleFiles}
+        />
       {/snippet}
     </TopBar>
     <ThreadSearch

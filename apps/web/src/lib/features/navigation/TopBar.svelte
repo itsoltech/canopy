@@ -30,7 +30,7 @@
   <nav
     aria-label="Breadcrumb"
     aria-describedby={description ? descriptionId : undefined}
-    class={workspace ? "max-w-[22%] min-w-8 shrink" : "min-w-0 flex-1"}
+    class={workspace ? "max-w-[min(14rem,22%)] min-w-12 shrink-100000" : "min-w-0 flex-1"}
   >
     <ol
       role="list"
@@ -40,7 +40,7 @@
     </ol>
     {#if description}<span id={descriptionId} class="sr-only">{description}</span>{/if}
   </nav>
-  {#if workspace}<div class="min-w-30 flex-1" data-window-no-drag>{@render workspace()}</div>{/if}
+  {#if workspace}<div class="min-w-0 flex-1 basis-80" data-window-no-drag>{@render workspace()}</div>{/if}
   {#if palette || actions}
     <div class="flex shrink-0 items-center gap-1">
       {#if palette && !workspace}

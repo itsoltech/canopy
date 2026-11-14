@@ -95,7 +95,9 @@ systemowe desktopu mają odrębne, zarezerwowane miejsce. Zakładki nie są drag
 Tytuł ma `min-width: 0`, ellipsis i maks. `min(14rem, 22%)` szerokości głównego
 obszaru. Zakładki mają szerokość treści (do 12 rem), stały slot dirty/close i pełną
 ścieżkę w tooltipie. `Thread` jest zawsze widoczny jako pierwsza karta. Aktywna karta
-zachowuje szerokość, pozostałe skracają się pierwsze.
+zachowuje widoczność, ale jej nazwa także skraca się, gdy brakuje miejsca.
+Tytuł oddaje miejsce zakładkom jako pierwszy. Akcje po prawej mają niekurczące się
+sloty, a poniżej 40 rem przycisk `Files` pokazuje samą ikonę z dostępną nazwą.
 
 Pas zakładek nie zawija się ani nie poszerza aplikacji. Po `Thread` pokazuje aktywną
 kartę i sąsiednie karty mieszczące się w reszcie miejsca. Pozostałe są pod chipem
@@ -660,8 +662,8 @@ poniżej 32 rem szerokości obszaru otwiera arkusz zamiast popoveru. Zmiana prog
 zamyka arkusze i zachowuje ich dane, nie ich otwartość.
 
 Zakładki pozostają w jednym rzędzie z sygnetem i skróconym tytułem. Reguły overflow
-z §2 utrzymują aktywną kartę; poniżej 40 rem lub wcześniej, gdy brakuje miejsca,
-zastępuje je przycisk aktywnej karty z licznikiem. Przy 320 px i powiększeniu 200%
+z §2 utrzymują `Thread`, aktywną kartę ze skróconą nazwą i chip `+N` dla pozostałych.
+Przy 320 px i powiększeniu 200%
 nie powstaje poziomy scroll aplikacji; przewija się tylko kod bez wrap. Nawigacja,
 pigułka podsumowania i `Files` nie znikają w overflow plików.
 
