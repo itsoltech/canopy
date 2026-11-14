@@ -75,6 +75,10 @@ nie wykryje. Claude i Grok mają tę samą lukę. Prawdę zna dopiero tura, wię
   ręcznym Refresh;
 - proxy i klucze API nie dostają znacznika: to problem ustawień, nie logowania.
 
+Wyniki tur jednego workera trafiają do kolejki w kolejności zdarzeń: odrzucenie, które
+jeszcze czeka na wymuszony odczyt konta, wykonuje się przed późniejszym sukcesem, więc
+sukces je czyści, zamiast zostać przez nie nadpisany.
+
 Znacznik żyje w pamięci gatewaya, jak cały raport kont; po restarcie gatewaya
 wraca przy następnej odrzuconej turze. `login_revision` nie trafia do klientów.
 
@@ -132,3 +136,7 @@ trwałego journala, proxy bez klucza i odmowa odczytu obcego workera.
 tura kończy się `unauthorized`: konto przechodzi w `expired` w
 `ListProviderInstances` i overview, Refresh tego nie ukrywa, a logowanie z
 aplikacji (device code do domu CLI urządzenia) albo udana tura je czyści.
+Ten sam test sprawdza: odrzucenie czekające na odczyt konta nie nadpisuje późniejszej
+udanej tury, równoczesne starty logowania dają jedno `login_id` z wynikiem w raporcie konta,
+a worker platformowy odmawia logowania. `config-sync-workers.test.ts` sprawdza, że połączony
+komputer nie uruchomi logowania na workerze innego komputera.

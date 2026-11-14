@@ -1,5 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { Provider, ui } from "@canopy/contracts";
+import { isUuid } from "@canopy/domain/humanize";
 import { Effect } from "effect";
 import { harnessOf, InstanceStore } from "../store/index.ts";
 import { coreState, describeError, InvalidError, UnavailableError } from "./core-context.ts";
@@ -212,9 +213,12 @@ export const coreProvidersMethods: CoreProvidersMethods = {
     this: GatewayCore,
     request: ui.StartProviderLoginRequest,
   ): Promise<ui.StartProviderLoginResponse> {
-    const owned = (await coreWorkers(this)).some((w) => w.id === request.workerId);
+    // Signing in replaces the CLI login on that computer: only the worker's own owner may, never on a platform-wide
+    // worker other owners also see (listWorkers), and never for a linked computer (not in remote-policy SERVED).
+    const userId = this[coreState].options.userId;
 
-    if (!owned) throw new InvalidError("worker not found");
+    if (!isUuid(request.workerId) || !(await coreRun(this, (s) => s.ownsWorker(request.workerId, userId))))
+      throw new InvalidError("worker not found");
     const instance = await coreInstance(this, request.harness, request.id);
     const connection = this.link.connections.get(request.workerId);
 
@@ -229,17 +233,26 @@ export const coreProvidersMethods: CoreProvidersMethods = {
     if (!connection.hello.capabilities.includes(capability))
       throw new InvalidError("this worker cannot sign in from the app; update it");
 
-    const result = await connection.sendCommand(
-      { case: "startLogin", value: { provider: request.harness, profileId: request.id } },
-      60_000,
+    // Repeated clicks share one start; the worker also answers a running sign-in with its code.
+    const login = await this.accounts.startLogin(
+      `${userId}/${request.workerId}/${request.harness}/${request.id}`,
+      async () => {
+        const result = await connection.sendCommand(
+          { case: "startLogin", value: { provider: request.harness, profileId: request.id } },
+          60_000,
+        );
+
+        if (!result.ok || !result.login)
+          throw new InvalidError(result.errorMessage || result.errorCode || "the login did not start");
+
+        return result.login;
+      },
     );
 
-    if (!result.ok || !result.login)
-      throw new InvalidError(result.errorMessage || result.errorCode || "the login did not start");
-
     return create(ui.StartProviderLoginResponseSchema, {
-      verificationUrl: result.login.verificationUrl,
-      userCode: result.login.userCode,
+      verificationUrl: login.verificationUrl,
+      userCode: login.userCode,
+      loginId: login.loginId,
     });
   },
 

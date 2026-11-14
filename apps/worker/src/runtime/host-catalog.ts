@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { create } from "@bufbuild/protobuf";
 import { timestampNow } from "@bufbuild/protobuf/wkt";
 import { Provider, ConfigAppliedSchema } from "@canopy/contracts";
-import { instanceShadowHome, type DeviceHomes } from "../config/remote.ts";
+import { instanceShadowHome, type AppliedConfig, type DeviceHomes } from "../config/remote.ts";
 import { prepareCodexHome } from "../providers/codex/home.ts";
 import { codexAppServerLaunch } from "../providers/codex/launch.ts";
 import { startCodexDeviceLogin } from "../providers/codex/login.ts";
@@ -66,6 +66,24 @@ export class HostCatalog {
     if (!config.codex.enabled || !config.codex.executable)
       throw new CommandError("PROVIDER_UNAVAILABLE", config.codex.problem ?? "codex is disabled", false);
 
+    const key = `codex/${status.config.id}`;
+    // One sign-in per instance: another start while it runs gets the same code instead of a second process.
+    const running = this.ctx.state.logins.get(key);
+
+    if (running) return running;
+    const started = this.#startCodex(config, status, key);
+    this.ctx.state.logins.set(key, started);
+    started.catch(() => this.ctx.state.logins.delete(key));
+
+    return started;
+  }
+
+  async #startCodex(
+    config: AppliedConfig,
+    status: AppliedConfig["profiles"][number],
+    key: string,
+  ): Promise<NonNullable<CommandOutput["login"]>> {
+    const runtime = status.config.runtime ?? {};
     const env = Object.fromEntries((status.config.env ?? []).map((v) => [v.name, v.value]));
 
     // The device's own home gets no managed plugins or skill overrides: only Codex's login API runs there.
@@ -95,11 +113,15 @@ export class HostCatalog {
     });
 
     const id = status.config.id;
-    const key = `codex/${id}`;
+    const outcomes = this.ctx.state.loginOutcomes;
+    outcomes.set(id, { loginId: login.loginId, outcome: "pending" });
 
-    const done = login.done.then(async (outcome) => {
+    void login.done.then(async (outcome) => {
       this.ctx.ops.log(`codex sign-in of ${id}: ${outcome.success ? "signed in" : (outcome.error ?? "failed")}`);
       this.ctx.state.logins.delete(key);
+
+      if (outcomes.get(id)?.loginId === login.loginId)
+        outcomes.set(id, { loginId: login.loginId, outcome: outcome.success ? "signed_in" : "failed" });
 
       if (outcome.success) this.ctx.state.loginGenerations.set(id, (this.ctx.state.loginGenerations.get(id) ?? 0) + 1);
       this.ctx.state.accounts.invalidate();
@@ -107,8 +129,6 @@ export class HostCatalog {
       await this.ctx.ops.probe().catch(() => {});
       await this.ctx.ops.reconcileRuntimes().catch(() => {});
     });
-
-    this.ctx.state.logins.set(key, done);
 
     return { verificationUrl: login.verificationUrl, userCode: login.userCode, loginId: login.loginId };
   }

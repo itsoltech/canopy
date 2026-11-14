@@ -1,11 +1,10 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
-  import { timestampDate } from "@bufbuild/protobuf/wkt";
   import type { ui } from "@canopy/contracts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import DeviceCode from "./DeviceCode.svelte";
-  import { DeviceLogin } from "./device-login.svelte.ts";
+  import { DeviceLogin, deviceLoginNote } from "./device-login.svelte.ts";
 
   /**
    * Sign-in from the app for a Codex instance (Codex app-server account/login with a ChatGPT device code): the worker
@@ -25,7 +24,7 @@
     harness: instance.harness,
     id: instance.id,
     workerId: worker.id,
-    report: on.account?.checkedAt ? String(timestampDate(on.account.checkedAt).getTime()) : "",
+    account: on.account,
   }));
 
   $effect(() => login.settle());
@@ -41,7 +40,7 @@
       >
       {#if !worker.online}<p class="text-sm/5 text-zinc-500">The worker is offline.</p>
       {:else if linked}<p class="min-w-0 text-sm/5 text-zinc-500 dark:text-zinc-400">
-          This also signs in the Codex CLI on {worker.name}.
+          {deviceLoginNote(worker.name)}
         </p>{/if}
     </div>
   {/if}

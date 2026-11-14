@@ -9,8 +9,9 @@ import { tempDir } from "@canopy/testing";
 import { journalHello, openGatewayLink, type GatewayLink } from "@canopy/worker/gateway-link";
 import { Journal } from "@canopy/worker/journal";
 import { serveLink, WorkerHost } from "@canopy/worker/runtime";
-import { ManagedRuntime } from "effect";
-import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
+import { Effect, ManagedRuntime } from "effect";
+import { SqlClient } from "effect/sql";
+import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
 /**
  * `codex login status` says "Logged in" while the refresh token is expired; only a turn finds out. The rejected turn
@@ -38,6 +39,16 @@ describe.skipIf(!dockerAvailable)("expired provider sign-in over the gateway↔w
       ?.providerInstances.find((i) => i.harness === Provider.CODEX && i.id === "native")?.account;
 
   const lastTurn = async () => (await gw.api.getThread({ threadId })).thread?.status;
+
+  const sql = <A extends object>(run: (sql: SqlClient.SqlClient) => Effect.Effect<readonly A[], unknown>) =>
+    gw.runtime.runPromise(Effect.flatMap(SqlClient.SqlClient, run));
+
+  const completedTurns = async () =>
+    (
+      await sql<{ n: number }>(
+        (s) => s`SELECT count(*)::int AS n FROM turns WHERE thread_id = ${threadId}::uuid AND status = 'completed'`,
+      )
+    )[0]?.n ?? 0;
 
   async function send(text: string) {
     await eventually(lastTurn, (status) => status === "idle", 15_000);
@@ -117,12 +128,15 @@ describe.skipIf(!dockerAvailable)("expired provider sign-in over the gateway↔w
     expect((await providersAccount())?.state).toBe("expired");
 
     // The built-in instance uses the device login: the app signs the device's Codex in again.
-    const login = await gw.api.startProviderLogin({ harness: Provider.CODEX, id: "native", workerId });
+    // Repeated clicks share one sign-in; the account reports that sign-in's outcome, not just a newer check.
+    const start = () => gw.api.startProviderLogin({ harness: Provider.CODEX, id: "native", workerId });
+    const [login, again] = await Promise.all([start(), start()]);
     expect(login.userCode).toBe("ABCD-1234");
-    expect(await eventually(providersAccount, (a) => a?.state === "signed_in", 20_000)).toMatchObject({
-      state: "signed_in",
-      detail: "",
-    });
+    expect(login.loginId).not.toBe("");
+    expect(again.loginId).toBe(login.loginId);
+    expect(
+      await eventually(providersAccount, (a) => a?.state === "signed_in" && a.loginOutcome === "signed_in", 20_000),
+    ).toMatchObject({ state: "signed_in", detail: "", loginId: login.loginId, loginOutcome: "signed_in" });
     expect((await overviewAccount())?.state).toBe("signed_in");
 
     await send("Continue");
@@ -138,4 +152,52 @@ describe.skipIf(!dockerAvailable)("expired provider sign-in over the gateway↔w
       state: "signed_in",
     });
   }, 60_000);
+
+  test("a rejection still reading the account does not overwrite a later successful turn", async () => {
+    const held = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const handle = host.handleCommand.bind(host);
+
+    // The rejection's forced account read waits, as on a slow worker, while the next turn succeeds.
+    host.handleCommand = async (command) => {
+      if (command.kind.case === "getProviderAccounts" && command.kind.value.refresh) {
+        held.resolve();
+        await release.promise;
+      }
+
+      return handle(command);
+    };
+
+    try {
+      await send("FAIL:auth");
+      await held.promise;
+      const before = await completedTurns();
+      await send("Works after the rejection");
+      await eventually(completedTurns, (n) => n > before, 15_000);
+    } finally {
+      release.resolve();
+      host.handleCommand = handle;
+    }
+
+    // Every queued account update of this worker has run: the success came last and wins, also once the stale
+    // rejection's read has been answered and saved.
+    await gw.core.accounts.afterTurn(workerId, async () => {});
+    const states = new Set<string>();
+
+    for (let i = 0; i < 20; i++) {
+      states.add((await providersAccount())?.state ?? "");
+      await Bun.sleep(100);
+    }
+
+    expect([...states]).toEqual(["signed_in"]);
+  }, 60_000);
+
+  test("a platform-wide worker is visible to owners, but none of them can replace its CLI login", async () => {
+    const platform = await gw.addWorker("platform worker");
+    await sql((s) => s`UPDATE workers SET owner_user_id = NULL WHERE id = ${platform.workerId}::uuid RETURNING id`);
+    expect((await gw.api.getOverview({})).workers.some((w) => w.id === platform.workerId)).toBe(true);
+    expect(
+      await failure(gw.api.startProviderLogin({ harness: Provider.CODEX, id: "native", workerId: platform.workerId })),
+    ).toContain("worker not found");
+  });
 });

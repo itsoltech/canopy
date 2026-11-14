@@ -1,4 +1,10 @@
-import { Provider, ui, type ProviderAccountStatus, type ProviderAccountsReport } from "@canopy/contracts";
+import {
+  Provider,
+  ui,
+  type LoginStarted,
+  type ProviderAccountStatus,
+  type ProviderAccountsReport,
+} from "@canopy/contracts";
 import { REJECTED_LOGIN_DETAIL, sanitizeAccountStatus } from "@canopy/domain/provider-accounts";
 import type { WorkerConnection } from "../worker-link/index.ts";
 import type { GatewayCore } from "./core.ts";
@@ -30,6 +36,9 @@ export class ProviderAccounts {
    * file changes (a new sign-in, a refresh), a turn on it succeeds, or, without a revision, a forced refresh.
    */
   readonly #rejected = new Map<string, string>();
+  /** Per worker: turn outcomes apply in arrival order, so a slow rejection cannot overwrite a later success. */
+  readonly #turnUpdates = new Map<string, Promise<void>>();
+  readonly #loginStarts = new Map<string, Promise<LoginStarted>>();
 
   constructor(readonly core: GatewayCore) {}
 
@@ -97,6 +106,28 @@ export class ProviderAccounts {
   /** A turn on the instance succeeded: its login works. */
   async succeeded(workerId: string, provider: Provider, id: string): Promise<void> {
     if (this.#rejected.delete(`${workerId}/${provider}/${id}`)) await this.#changed();
+  }
+
+  /** Runs after every earlier turn update of this worker; resolves when this one is done. */
+  afterTurn(workerId: string, update: () => Promise<void>): Promise<void> {
+    const next = (this.#turnUpdates.get(workerId) ?? Promise.resolve()).then(update).catch(() => {});
+    this.#turnUpdates.set(workerId, next);
+    void next.then(() => {
+      if (this.#turnUpdates.get(workerId) === next) this.#turnUpdates.delete(workerId);
+    });
+
+    return next;
+  }
+
+  /** One sign-in start per owner and target at a time: concurrent requests share it. */
+  startLogin(key: string, start: () => Promise<LoginStarted>): Promise<LoginStarted> {
+    const running = this.#loginStarts.get(key);
+
+    if (running) return running;
+    const task = start().finally(() => this.#loginStarts.delete(key));
+    this.#loginStarts.set(key, task);
+
+    return task;
   }
 
   /** Cheap check before a thread lookup on every finished turn. */

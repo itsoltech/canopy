@@ -161,6 +161,10 @@ async function readEntry(
         loginExecutable: resolved.kind === "native" ? accountText(query.executable, query.secrets) : "",
         // Read on every report, not cached: the gateway compares it with the login a turn was rejected with.
         loginRevision: loginRevision(harness, loginDir),
+        ...(harness === "codex" && {
+          loginId: ctx.state.loginOutcomes.get(resolved.id)?.loginId ?? "",
+          loginOutcome: ctx.state.loginOutcomes.get(resolved.id)?.outcome ?? "",
+        }),
       },
     });
   } catch {
