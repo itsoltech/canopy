@@ -118,6 +118,15 @@ jedno menu `⋯`: `Keep tab` (dla podglądu), `Reload`, `Go to line`, `Copy path
 po separatorze, `Delete file`. Pasek nie powtarza nazwy pliku w osobnym miejscu
 i nie ma dwóch identycznych przycisków kopiowania.
 
+Pasek ma te same 40 px dla każdego typu pliku. Ścieżka trzyma lewą krawędź, kontrolki
+zachowują kolejność od prawej (`Source`/`Rendered` tylko dla Markdown, od razu po nazwie,
+nieaktywny do wczytania tekstu), więc brakująca kontrolka nie przesuwa ścieżki ani reszty.
+Stany pliku (`Plain text` z `Enable highlighting`, przygotowanie dużego pliku,
+`Showing the first 2 MB`, linia poza podglądem, `Unsaved changes`, stan obserwacji zmian)
+są jedną kompaktową pigułką między ścieżką a kontrolkami, z pełnym zdaniem w tooltipie;
+w wąskim pasku zostaje ikona i akcja. Nie ma wierszy z komunikatami nad tekstem.
+Wyjątkiem są konflikt z dyskiem i błąd: wymagają decyzji, więc pozostają banerem.
+
 Nagłówek nie ma `+`. Wybór pliku z drzewa lub linku otwiera kartę obok `Thread`;
 pełny widok PR otwiera wiersz PR w podsumowaniu (lub link `?pr=`), a wynik zadania
 w tle — wiersz zadania.
@@ -377,7 +386,12 @@ rozmiar body protobuf JSON przed wysłaniem; rozmiar po base64/escapowaniu może
 większy. Brak podnoszenia limitów BFF w ramach nowego layoutu.
 
 Viewer tekstowy wirtualizuje linie z małym overscanem. Najpierw pokazuje zwykły
-tekst, potem tokeny w tych samych wymiarach. Plik powyżej 200 KiB, 10 000 linii
+tekst, potem tokeny w tych samych wymiarach. Wszystko, co wyznacza ramkę, jest znane przy
+pierwszym renderze z jednego przejścia po tekście (`@canopy/syntax/layout`): liczba linii,
+najdłuższa linia i rozmiar. Gutter ma co najmniej 3 cyfry (pliki do 999 linii mają tę samą
+szerokość), dłuższy plik dostaje szerokość z liczby linii od razu; decyzja o zwykłym tekście
+i wysokość przewijania nie zmieniają się po zakończeniu indeksowania. Kolorowanie zmienia
+tylko kolory. Komunikat o przygotowaniu pojawia się dopiero po 300 ms indeksowania. Plik powyżej 200 KiB, 10 000 linii
 lub z linią ponad 2 000 znaków domyślnie używa zwykłego tekstu; nie uruchamiamy
 nieograniczonej tokenizacji. `Enable highlighting` dotyczy tylko dostępnego okna,
 z limitem pracy; nie zwiększa limitu odczytu. Nieznany język pozostaje czytelny.
@@ -701,7 +715,16 @@ Przy reduced motion wszystkie te przejścia są natychmiastowe. Resize nie uruch
 sekwencji przejść.
 
 Przełączenie karty jest natychmiastowe, bez animowania całego dokumentu, blur kodu
-ani płynnego scrolla do linii. Krótko zmienia się tylko wskaźnik wybranej zakładki.
+ani płynnego scrolla do linii. Karta z wczytanym tekstem pokazuje go w tej samej klatce
+(moduł czytnika jest wczytany raz dla wszystkich kart). Plik, który dopiero się wczytuje,
+ma pusty obszar, po 300 ms szkielet linii na siatce czytnika, a tekst przenika (`t-rise`).
+
+Drzewo nie dodaje ani nie usuwa wierszy przy odświeżaniu: odświeżany katalog ma spinner
+w miejscu strzałki, korzeń w nagłówku panelu. Wiersz stanu istnieje tylko dla pierwszego
+odczytu katalogu (szkielet tam, gdzie pojawią się wpisy) i dla kolejnej strony, w miejscu
+`Load more`. Stan Git, obserwacji zmian i błędy są pigułką nad dołem listy, a lista dostaje
+pod nią zapas przewijania. Wiersze mają stały slot strzałki, ikonę folderu lub pliku,
+linie wcięć i skracane nazwy. Krótko zmienia się tylko wskaźnik wybranej zakładki.
 Podczas resize brak animacji.
 Rozwijanie wirtualnego drzewa nie animuje wysokości tysięcy wierszy; strzałka może
 zmienić pozycję według `fast`, a nowe widoczne wiersze przeniknąć przez `rise`.

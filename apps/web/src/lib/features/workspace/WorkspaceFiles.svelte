@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Workspace } from "@canopy/domain/workspace";
-  import Skeleton from "#lib/shared/ui/Skeleton.svelte";
+  import WorkspaceTreeSkeleton from "./WorkspaceTreeSkeleton.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
 
@@ -15,7 +15,9 @@
 {#if capabilities?.methods && !capabilities.methods.includes("ListThreadDirectory")}
   <Alert>Update Canopy on your gateway to browse files.</Alert>
 {:else}{#await load()}
-    <Skeleton class="h-40 w-full" />
+    <!-- Same frame as the tree: the header strip, then placeholder rows. -->
+    <div class="h-12 shrink-0 border-b border-divider"></div>
+    <div class="pt-1"><WorkspaceTreeSkeleton /></div>
   {:then module}
     {#key view}<module.default {view} {root} {onopen} />{/key}
   {:catch}

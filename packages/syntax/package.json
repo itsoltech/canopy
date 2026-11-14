@@ -10,7 +10,8 @@
     "./incremental": "./src/incremental.ts",
     "./window": "./src/window.ts",
     "./source": "./src/source.ts",
-    "./roles": "./src/roles.ts"
+    "./roles": "./src/roles.ts",
+    "./layout": "./src/layout.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
