@@ -2,6 +2,7 @@
   import type { ClassValue } from "svelte/elements";
   import { sidebarUsageAccounts, sidebarUsageGlance } from "@canopy/domain/sidebar-usage";
   import { proxyUsageSections, proxyUsageText } from "@canopy/domain/proxy-accounts";
+  import { proxyCapacityGlance } from "@canopy/domain/proxy-capacity";
   import { sharedProxies } from "#lib/features/proxies/proxies.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
@@ -18,11 +19,12 @@
   let { class: className }: { class?: ClassValue } = $props();
   const overview = useOverview();
   const accounts = $derived(sidebarUsageAccounts(overview.workers, clock.now));
-  const glance = $derived(sidebarUsageGlance(accounts, clock.now));
+  const directGlance = $derived(sidebarUsageGlance(accounts, clock.now));
 
   // Accounts the gateway read from proxies in use; reading the list never calls a proxy.
   const proxies = sharedProxies();
   const sections = $derived(proxyUsageSections(proxies.data?.proxies));
+  const glance = $derived(proxyCapacityGlance(proxies.data?.proxies ?? [], directGlance, clock.now));
 
   const usageProxies = $derived(
     (proxies.data?.proxies ?? []).filter((proxy) => proxy.kind === "cliproxyapi" && proxy.usedBy.length),
