@@ -15,6 +15,7 @@
   import AgentSenderLabel from "./AgentSenderLabel.svelte";
   import ShellMessage from "./ShellMessage.svelte";
   import MessageAttachments from "#lib/features/attachments/MessageAttachments.svelte";
+  import UserMessageDetails from "./UserMessageDetails.svelte";
 
   /**
    * The input of a turn with where it came from (the turn's source): you (a plain message), another
@@ -82,6 +83,9 @@
     files={turn.attachments}
     quotes={turn.quotes}
   />
+  {#if !turn.inherited && !turn.withdrawn && turn.startedAt}
+    <UserMessageDetails {turn} />
+  {/if}
 {:else}
   <div class="flex flex-col items-end gap-1">
     <p

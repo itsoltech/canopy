@@ -1,6 +1,6 @@
 /**
- * Which turn shows its quiet details (the number and time over its input, the footer's duration, model,
- * permission mode and usage): the one under the mouse, the one holding keyboard focus, and those a touch
+ * Which turn shows its quiet details (the actions and time below its input and the answer's actions and
+ * duration): the one under the mouse, the one holding keyboard focus, and those a touch
  * reader opened with the footer's details button (`pinned`). A turn's rows are separate rows of the
  * virtual feed, each marked `data-turn` (FeedRowView), so one pair of delegated listeners follows the
  * pointer and focus across them; the details only fade (opacity), so no row changes height.
