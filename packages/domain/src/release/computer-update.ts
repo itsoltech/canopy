@@ -1,21 +1,17 @@
 import type { ui } from "@canopy/contracts";
-import { compareVersions } from "@canopy/updater/release";
-import { presenceLabel, formatPresenceTime, pairingRequiredReason } from "@canopy/domain/computer-presence";
 import { Match } from "effect";
-import { appCheckPause } from "@canopy/domain/release/update-actions";
-import { currentRemoteUpdate, reachedUpdateVersion } from "@canopy/domain/release/remote-update-state";
+import { presenceLabel, formatPresenceTime, pairingRequiredReason } from "../computer-presence.ts";
+import { appCheckPause } from "./update-actions.ts";
+import { currentRemoteUpdate, newerAppVersion, reachedUpdateVersion } from "./remote-update-state.ts";
+import { restartDetail, type UpdateStatus } from "./update-status.ts";
 
-const newerVersion = (target: string, current: string): boolean => {
-  try {
-    return compareVersions(target, current) > 0;
-  } catch {
-    return false;
-  }
-};
-
-/** A linked computer's app in the updates center: one status, its tone and whether Update applies. */
+/** A computer's Canopy app in the update rows of web and mobile (docs/updates.md): one status (update-status.ts) and whether Update applies. */
 export interface ComputerUpdateView {
-  status: string;
+  /** The shared vocabulary, or an edge state's own words (Offline, Manual update, Checks paused…). */
+  status: UpdateStatus | string;
+  /** Says more than the versions on the row's second line (an announced restart). */
+  line: string;
+  overdue: boolean;
   current: boolean;
   busy: boolean;
   failed: boolean;
@@ -36,28 +32,40 @@ const PRESENCE = new Map([
 /** Phases of an update this or another computer requested; the app's own updater shows while none runs. */
 const REQUESTED = ["queued", "checking", "downloading", "waiting_idle", "restarting"];
 
-const PHASE = new Map([
-  ["queued", "Queued"],
-  ["checking", "Checking"],
-  ["waiting_idle", "Waiting for idle"],
-  ["restarting", "Restarting"],
-  ["failed", "Failed"],
+const PHASE = new Map<string, UpdateStatus>([
+  ["queued", "queued"],
+  ["waiting_idle", "waiting"],
+  ["restarting", "restarting"],
+  ["failed", "failed"],
 ]);
 
-export function computerUpdate(computer: ui.ComputerUpdate, time = formatPresenceTime): ComputerUpdateView {
+export function computerUpdate(
+  computer: ui.ComputerUpdate,
+  time = formatPresenceTime,
+  now = Date.now(),
+): ComputerUpdateView {
   const reported = computer.updates?.app;
   const app = reported && currentRemoteUpdate(reported);
-  const base = { current: false, busy: false, failed: false, actionable: false, target: "", progress: undefined };
+
+  const base = {
+    current: false,
+    busy: false,
+    failed: false,
+    actionable: false,
+    target: "",
+    progress: undefined,
+    line: "",
+    overdue: false,
+  };
+
   const departure = computer.updates?.departure;
 
-  // Announced before it quit for an update: it comes back by itself.
-  if (computer.presence === "updating" || computer.presence === "restarting")
-    return {
-      ...base,
-      status: presenceLabel(computer.presence, computer.presenceSinceMs, time),
-      busy: true,
-      detail: "It reconnects automatically.",
-    };
+  // Announced before it quit for an update: it comes back by itself. Only an overdue restart warns.
+  if (computer.presence === "updating" || computer.presence === "restarting") {
+    const restart = restartDetail(computer.presenceSinceMs, now);
+
+    return { ...base, status: "restarting", busy: true, line: restart.text, overdue: restart.overdue, detail: "" };
+  }
 
   if (computer.presence !== "connected")
     return {
@@ -84,7 +92,7 @@ export function computerUpdate(computer: ui.ComputerUpdate, time = formatPresenc
   if (failedDeparture && !app)
     return {
       ...base,
-      status: departure?.state === "rolled_back" ? "Rolled back" : "Failed",
+      status: "failed",
       failed: true,
       target: departure?.targetVersion ?? "",
       detail: departure?.reason || "The update did not finish. Check again to retry.",
@@ -121,30 +129,22 @@ export function computerUpdate(computer: ui.ComputerUpdate, time = formatPresenc
     app.availableVersion,
   ]
     .filter(Boolean)
-    .find((version) => version && newerVersion(version, app.version));
+    .find((version) => version && newerAppVersion(version, app.version));
 
   const busy = requested || own === "checking" || own === "downloading";
   const failed = app.phase === "failed" || own === "error" || failedDeparture;
   const progress = app.phase === "downloading" ? app.progress : own === "downloading" ? app.updaterProgress : 0;
 
   return {
-    // The same words as "This Canopy app" (CompactAppUpdate.svelte).
+    // The same words as "This computer" (CompactAppUpdate.svelte). A feed check keeps the settled word.
+    ...base,
     status: downloading
-      ? `${Math.round(progress)}%`
+      ? "updating"
       : failedDeparture
-        ? departure?.state === "rolled_back"
-          ? "Rolled back"
-          : "Failed"
+        ? "failed"
         : (PHASE.get(app.phase) ??
-          (own === "error"
-            ? "Failed"
-            : own === "checking"
-              ? "Checking"
-              : ready
-                ? "Ready"
-                : target
-                  ? "Available"
-                  : "Up to date")),
+          (own === "error" ? "failed" : ready ? "downloaded" : target ? "available" : "current")),
+    line: app.phase === "waiting_idle" ? "Restarts after its current turns end." : "",
     current: !busy && !failed && !target && !ready,
     busy,
     failed,

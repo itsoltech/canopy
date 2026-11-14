@@ -120,26 +120,78 @@ i worker aktualizują się razem z aplikacją; serwerowy gateway zachowuje włas
 Na telefonie potwierdzenie otwiera się nad arkuszem Updates, który zostaje otwarty;
 do odpowiedzi gatewaya arkusz pokazuje „Starting update…”, a potem postęp, wynik albo błąd.
 
+### Popover aktualizacji
+
 Popover ma 352 px szerokości i wysokość zależną od zawartości (maksymalnie
-70% okna / 512 px); przewija się lista między nagłówkiem a odnośnikami.
-Nagłówek zawiera Check now i Update all. Każda pozycja ma zwarty wiersz
-z wersjami, stanem i akcją; postęp to cienki kolorowy pasek, a nie pełne
-wypełnienie udające 100%. Kolejność: najpierw komputery („This Canopy app”, w trybie
-serwerowym gateway, potem każdy połączony komputer), potem workery pogrupowane według
-komputera (nagłówek z nazwą, gdy workery są na więcej niż jednym), na końcu zwinięta
-sekcja „Agent CLIs · N” z CLI wszystkich komputerów. Jej podsumowanie ma jedną odznakę:
-„Failed”, „Installing” albo „N available”, wyrównaną z odznakami wierszy. Komputery
-i workery pokazujemy zawsze, także aktualne; dawną grupę „Up to date · N” zastąpiła
-zwinięta sekcja CLI. Wiersz połączonego komputera ma stan Up to date, Available,
-procent pobierania, Ready, Waiting for idle, Restarting, Offline, Failed albo
-Manual update (aplikacja za stara na zdalne aktualizacje lub komputer pośredni), z
-przyczyną pod ikoną informacji. Galeria `/dev/updates` (tylko tryb deweloperski)
-pokazuje centrum i wszystkie stany na danych testowych, a `?view=settings` obie sekcje
-ustawień; `?run=failed` dodaje zatrzymany przebieg z akcjami ponowienia i odrzucenia. Instrukcje
-instalacji i kolejność aktualizacji są pod ikonami informacji. Długie nazwy
-i wersje mają skrót z pełną treścią w podpowiedzi; błędy można rozwinąć.
-Popover nie pokazuje notatek wydań; są w Settings → Workers / App updates razem
-z pełnymi ustawieniami, wymuszeniem restartu i szczegółami instalatorów.
+70% okna / 512 px); przewija się lista między nagłówkiem a stopką.
+
+**Jedno podsumowanie.** Nagłówek ma tytuł, jedną linię stanu i Check now. Linia mówi,
+co użytkownik właśnie uruchomił („Starting update…”), a w trakcie przebiegu podaje
+jeden licznik „Updating · N of M done” (M obejmuje wszystkie zaplanowane kroki, także
+oczekujące; „· K failed” tylko przy błędach). Po przebiegu: „K update(s) failed ·
+N updated” albo przez godzinę „All N updates finished”; w spoczynku „N updates
+available” lub „Up to date · Checked 5:39 PM”. Dolna linia nagłówka jest paskiem
+postępu przebiegu (2 px), więc nie zajmuje miejsca. Popover nie ma osobnego bloku
+postępu, listy aktywnych kroków ani „Update results”; historia kroków z powodami jest
+w Settings → Workers → Updates. Licznik i słownictwo pochodzą z
+`@canopy/domain/release/update-status`, wspólnego dla web i telefonu.
+
+**Wiersze.** Każdy wiersz ma zawsze dwie linie: nazwę z odznaką oraz wersje albo
+zdanie, które mówi więcej (np. „Restarting to update…”). Odznaka ma stały slot, pasek
+postępu leży w dolnym paddingu, a akcja ma stałą kolumnę, więc zmiana stanu tylko
+podmienia tekst (`t-swap`). Rozwija się wyłącznie błąd, na kliknięcie; tam jest też
+Dismiss. Słownictwo: Up to date (cichy tekst, bez pigułki), Available, Downloaded
+(dawne „Ready”: pobrane, czeka na restart), Queued, Starting, Updating, Waiting
+(„Restarts after its current turns end.”), Restarting, Updated i Failed. Zieleń jest
+tylko dla Updated (przez godzinę po kroku; `UpdateStep.finished_at`). Stany brzegowe
+zachowują własne słowa w neutralnej odznace: Offline, Manual update, Checks paused,
+Managed externally, Unavailable. Sprawdzanie feedu nie zmienia odznak wierszy; widać je
+w nagłówku.
+
+**Ikony.** Jedna ikona ma jedno znaczenie: ⟳ (`arrow-path`) to tylko Check now;
+`arrow-down-tray` to Update, `power` to Restart to update, `repeat` to Retry, `plus`
+to Install, `information-circle` pokazuje szczegóły. Każda ma podpowiedź i
+`aria-label` z dokładną akcją („Update Studio”, „Restart to update”,
+„Retry”). Wiersz ma najwyżej jedną akcję; bez akcji kolumna zostaje pusta. W trakcie
+Update all akcje wierszy są wyłączone, także restart tej aplikacji: ten komputer
+restartuje się ostatni, w ramach przebiegu.
+
+**Stopka.** Odnośnik Settings, „What's new” tylko przy nieobejrzanych notatkach
+i po prawej jedna nazwana akcja główna: Update all, Restart to update (sama pobrana
+aplikacja bez przebiegu), Retry failed (akcja `retry_failed`) albo wyłączone
+„Starting…” / „Updating…” ze spinnerem.
+
+**Natychmiastowa odpowiedź.** Klient pokazuje stan od razu, zanim gateway odpowie:
+Update all oznacza wszystkie kroki planu jako Queued (`plannedUpdateRun`, ten sam plan
+co gatewaya), akcja wiersza pokazuje Starting, a Retry failed oznacza ponawiane kroki.
+Odpowiedź gatewaya zastępuje ten stan, a błąd go cofa. W trakcie przebiegu wiersz
+pokazuje dalszy z dwóch stanów: kroku przebiegu i własnego raportu celu, więc późny
+odczyt nie cofa go z Updating do Queued. Odczyty nie zatrzymują się podczas akcji;
+odrzucany jest tylko odczyt rozpoczęty przed odpowiedzią.
+
+**Zapowiedziany restart.** Komputer, który ogłosił restart dla własnej aktualizacji,
+ma odznakę Restarting i linię „Restarting to update…”. Gateway nie dodaje wtedy
+„…is unavailable. Trying again automatically.”. Dopiero po 3 minutach linia zmienia
+się na „Still restarting after N min. Check that computer.”; limit kroku 35 minut
+nadal kończy się Failed z Retry.
+
+Kolejność: najpierw komputery („This computer”, w trybie serwerowym gateway, potem
+każdy połączony komputer), potem workery pogrupowane według komputera, na końcu
+zwinięta sekcja „Agent CLIs · N” z jedną odznaką (najpilniejszy stan jej wierszy).
+Galeria `/dev/updates` (tylko tryb deweloperski) pokazuje centrum i stany na danych
+testowych, a `?view=settings` obie sekcje ustawień; `?run=failed` dodaje zatrzymany
+przebieg z akcjami ponowienia i odrzucenia. Długie nazwy i wersje mają skrót z pełną
+treścią w podpowiedzi. Popover nie pokazuje notatek wydań; są w Settings → Workers /
+App updates razem z pełnymi ustawieniami, wymuszeniem restartu i szczegółami instalatorów.
+
+Ikona w pasku bocznym pokazuje `arrow-down-tray`: wyciszoną w spoczynku, z kropką,
+gdy coś czeka (aktualizacja albo pobrana aplikacja), z pierścieniem postępu w trakcie
+oraz `exclamation-circle` po błędzie. Nigdy nie pokazuje zielonego znacznika ani
+obracającej się ⟳.
+
+Arkusz Updates na telefonie ma te same elementy: nagłówek z linią stanu i paskiem,
+dwuliniowe wiersze z ikoną akcji, stopkę z Settings, warunkowym What's new i akcją
+główną. Telefon nie ma podpowiedzi, więc powód stanu brzegowego trafia do drugiej linii.
 
 Settings → Workers → Updates pokazuje te same wiersze co popover (wspólny komponent
 `UpdateRows`): ten komputer, połączone komputery z akcją Update, workery i Agent CLIs
@@ -242,8 +294,14 @@ Własna aplikacja zawsze jest ostatnia. Samodzielny gateway restartuje się po
 niezależnych zdalnych pozycjach, **przed zależnymi lokalnymi workerami i CLI**:
 ich docelowa wersja musi odpowiadać już działającemu gatewayowi. Po restarcie
 zapisany przebieg kontynuuje te zależności; nie wysyła ich do starego gatewaya.
-Popover i arkusz mobilny pokazują wspólne liczniki „Updating N · N done · N failed”;
-postęp obejmuje sukcesy oraz zakończone błędy/blokady, pomija kroki `skipped`.
+Popover i arkusz mobilny pokazują jeden wspólny licznik „Updating · N of M done”
+(`updateRunSummary`); postęp obejmuje sukcesy oraz zakończone błędy/blokady, pomija
+kroki `skipped`. `begin()` planuje, zapisuje i uruchamia pierwsze kroki przed odpowiedzią,
+więc pierwsza odpowiedź na Update all ma już kroki `running`; odpowiedź wykorzystuje
+snapshot, z którego powstał plan, zamiast czytać wszystkie komputery drugi raz.
+**Retry failed** (`retry_failed` z id bieżącego przebiegu) ponawia jednym trwałym zapisem
+wszystkie kroki `failed` i `blocked`, zachowuje sukcesy i ich wersje oraz wymaga
+`confirm_restart`, jeśli wśród nich jest ta aplikacja.
 Zmiana mobilna pozostaje w JS/TS i korzysta z istniejącej ścieżki OTA.
 
 Nie wymaga migracji. Zależności lokalne zachowują kolejność gateway → workery

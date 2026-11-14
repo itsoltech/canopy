@@ -7,6 +7,7 @@
   import Dialog from "#lib/shared/ui/Dialog.svelte";
   import DialogActions from "#lib/shared/ui/DialogActions.svelte";
   import { hasUnsentWork } from "./unsent-work.ts";
+  import { updateTargetKey } from "@canopy/domain/release/update-status";
   import type { UpdatesState } from "./updates.svelte.ts";
 
   let {
@@ -57,6 +58,9 @@
             : computer.nodeId
               ? { action: "computer", nodeId: computer.nodeId }
               : { action: "app", confirmRestart: true },
+          request
+            ? ""
+            : updateTargetKey(computer.nodeId ? { kind: "computer", nodeId: computer.nodeId } : { kind: "app" }),
         );
       }}>{request?.action === "update_all" ? "Update all" : "Update computer"}</Button
     >

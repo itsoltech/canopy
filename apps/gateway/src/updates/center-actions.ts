@@ -8,16 +8,26 @@ import { linkedMessage, methodNamed } from "../computers/remote.ts";
 import { PEER_UPDATE_INSTALL_TIMEOUT_MS } from "../computers/timing.ts";
 import { requestComputerUpdate, refreshComputerUpdates } from "./linked.ts";
 
-export async function manageUpdateRun(core: GatewayCore, request: ui.ManageUpdatesRequest): Promise<boolean> {
-  if (!["update_all", "retry_step"].includes(request.action)) return false;
+/**
+ * Update all and its retries. Returns false for other actions; otherwise the snapshot Update all planned from, when
+ * there is one, so the answer does not read every computer again.
+ */
+export async function manageUpdateRun(
+  core: GatewayCore,
+  request: ui.ManageUpdatesRequest,
+): Promise<false | { planned: ui.UpdatesSnapshot | undefined }> {
+  if (!["update_all", "retry_step", "retry_failed"].includes(request.action)) return false;
 
   if (request.force || request.allowDowngrade || request.workerId || request.nodeId)
     throw new ConnectError("Bulk updates cannot force a restart or select another target.", Code.InvalidArgument);
 
-  if (request.action === "update_all") await core.updateCenter.begin(request.confirmRestart);
+  if (request.action === "update_all") return { planned: await core.updateCenter.begin(request.confirmRestart) };
+
+  if (request.action === "retry_failed")
+    await core.updateCenter.retryFailed(request.desktopRequestId, request.confirmRestart);
   else await core.updateCenter.retry(request.desktopRequestId, request.updateStepIndex, request.confirmRestart);
 
-  return true;
+  return { planned: undefined };
 }
 
 export async function manageRunWorker(core: GatewayCore, request: ui.ManageUpdatesRequest, nodeId = "") {

@@ -9,24 +9,52 @@ import { WorkerCliRow } from "../settings/WorkerCliRow";
 import { useUpdates } from "./state";
 import { updateHomes } from "./model";
 import { UpdateDetails } from "./UpdateDetails";
+import { updateInProgress, updateTargetKey } from "@canopy/domain/release/update-status";
 
 export function CliUpdates({ snapshot, disabled }: { snapshot: ui.UpdatesSnapshot; disabled: boolean }) {
   const { client } = useSession();
-  const { reload } = useUpdates();
+  const { reload, rowStatus } = useUpdates();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const c = useColors();
 
-  const workers = updateHomes(snapshot).flatMap(({ name, home }) =>
-    home.cliWorkers.map((worker) => ({ worker, name })),
+  const workers = updateHomes(snapshot).flatMap(({ name, nodeId, home }) =>
+    home.cliWorkers.map((worker) => ({ worker, name, nodeId })),
   );
 
   const items = workers.flatMap(({ worker }) => worker.cliTools);
 
   if (!items.length) return null;
-  const count = items.filter((item) => item.updateAvailable).length;
-  const failed = items.some((item) => item.tool?.install?.state === "failed");
-  const installing = items.some((item) => item.tool?.install?.state === "running");
+
+  // One word for the collapsed section: the most urgent of its rows, in the rows' own words.
+  const statuses = workers.flatMap(({ worker, nodeId }) =>
+    worker.cliTools.map((item) =>
+      rowStatus(
+        updateTargetKey({ kind: "cli", nodeId, workerId: worker.id, provider: item.tool?.provider }),
+        item.tool?.install?.state === "running"
+          ? "updating"
+          : item.tool?.install?.state === "failed"
+            ? "failed"
+            : item.updateAvailable
+              ? "available"
+              : "current",
+      ),
+    ),
+  );
+
+  const count = statuses.filter((status) => status === "available").length;
+
+  const word = statuses.includes("failed")
+    ? "Failed"
+    : statuses.some(updateInProgress)
+      ? "Updating"
+      : statuses.includes("queued")
+        ? "Queued"
+        : count
+          ? `${count} available`
+          : statuses.includes("updated")
+            ? "Updated"
+            : "";
 
   async function install(worker: ui.Worker, item: ui.WorkerCliTool) {
     if (!client || pending || !item.tool) return;
@@ -45,9 +73,7 @@ export function CliUpdates({ snapshot, disabled }: { snapshot: ui.UpdatesSnapsho
 
   return (
     <View style={{ borderTopWidth: 1, borderColor: c.line, paddingTop: 8 }}>
-      <SettingsDisclosure
-        title={`Agent CLIs · ${failed ? "Failed" : installing ? "Installing…" : count ? `${count} available` : items.length}`}
-      >
+      <SettingsDisclosure title={`Agent CLIs · ${items.length}${word ? ` · ${word}` : ""}`}>
         {error ? (
           <View style={{ gap: 4 }}>
             <Text accessibilityRole="alert" style={[styles.overlayMeta, { color: c.danger }]}>

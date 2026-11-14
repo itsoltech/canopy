@@ -125,24 +125,28 @@ export async function linkedUpdates(core: GatewayCore): Promise<ui.ComputerUpdat
           reachable,
         );
         item.readState = reachable ? computers.reads.state(peer.nodeId, method, request) : "unavailable";
+        // A computer that announced its own update restart is expected to be away: its row says so calmly.
+        const restarting = ["updating", "restarting"].includes(peer.status);
         item.reason = Match.value(item.readState).pipe(
-          Match.when("unavailable", () => `${name} is unavailable. Trying again automatically.`),
+          Match.when("unavailable", () => (restarting ? "" : `${name} is unavailable. Trying again automatically.`)),
           Match.when("fresh", () => ""),
           Match.orElse(() => `Waiting for ${name}. Local updates are ready.`),
         );
 
         if (!reachable && item.updates) {
+          const away = item.reason || `${name} is restarting to update.`;
+
           if (item.updates.app) item.updates.app.connected = false;
 
           for (const worker of item.updates.workers) {
             worker.connected = false;
-            worker.reason = item.reason;
+            worker.reason = away;
           }
 
           for (const worker of item.updates.cliWorkers) {
             worker.online = false;
 
-            for (const tool of worker.cliTools) tool.blockedReason = item.reason;
+            for (const tool of worker.cliTools) tool.blockedReason = away;
           }
         }
       }

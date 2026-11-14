@@ -18,10 +18,10 @@ import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { methodNamed } from "../../apps/gateway/src/computers/remote.ts";
 import { serveComputerUpdates } from "../../apps/gateway/src/updates/linked.ts";
 import { UpdateRunStore } from "../../apps/gateway/src/updates/run-store.ts";
-import { updatePlan } from "../../apps/gateway/src/updates/center-plan.ts";
+import { bulkUpdateSteps } from "@canopy/domain/release/update-plan";
 import { LocalDesktopControl } from "../../apps/desktop/src/local-control.ts";
 import { PROGRESS_REPORT_MS, RemoteAppUpdate } from "../../apps/desktop/src/remote-app-update.ts";
-import { computerUpdate } from "../../apps/web/src/lib/features/workers/computer-updates.ts";
+import { computerUpdate } from "@canopy/domain/release/computer-update";
 import { linkedComputers } from "./support/computers.ts";
 import { eventually as poll, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
@@ -218,7 +218,7 @@ describe.skipIf(!dockerAvailable)("linked computers' app updates", () => {
     await eventually(async () => (await computer())?.updates?.app?.updaterProgress === 12);
     expect((await computer())?.updates?.app).toMatchObject({ updaterPhase: "downloading", updaterVersion: "1.1.0" });
     expect(computerUpdate((await computer())!)).toMatchObject({
-      status: "12%",
+      status: "updating",
       target: "1.1.0",
       progress: 12,
       busy: true,
@@ -237,11 +237,11 @@ describe.skipIf(!dockerAvailable)("linked computers' app updates", () => {
 
     // Downloaded: Ready with the version it installs, and Update restarts it on A's request.
     updater({ phase: "downloaded", progress: 100, stagedVersion: "1.1.0", message: "Restart to update" });
-    await eventually(async () => computerUpdate((await computer())!).status === "Ready");
+    await eventually(async () => computerUpdate((await computer())!).status === "downloaded");
     expect(computerUpdate((await computer())!)).toMatchObject({ target: "1.1.0", actionable: true, busy: false });
 
     updater({ phase: "error", progress: undefined, error: "The download was interrupted." });
-    await eventually(async () => computerUpdate((await computer())!).status === "Failed");
+    await eventually(async () => computerUpdate((await computer())!).status === "failed");
     expect(computerUpdate((await computer())!).detail).toBe("The download was interrupted.");
     updater({ phase: "idle", error: undefined, stagedVersion: undefined, message: "Update available" });
     await eventually(async () => (await computer())?.updates?.app?.updaterPhase === "idle");
@@ -252,7 +252,7 @@ describe.skipIf(!dockerAvailable)("linked computers' app updates", () => {
     updater({ phase: "downloading", progress: 40, message: "Downloading" });
     await eventually(async () => (await computer())?.updates?.app?.updaterPhase === "");
     expect(computerUpdate((await computer())!)).toMatchObject({
-      status: "Available",
+      status: "available",
       target: "1.1.0",
       progress: undefined,
       actionable: true,
@@ -553,7 +553,7 @@ describe.skipIf(!dockerAvailable)("linked computers' app updates", () => {
     });
     // Update all leaves it out.
     expect(
-      updatePlan(await a.api.getUpdates({})).steps.some((step) => step.kind === "computer" && step.nodeId === bNode),
+      bulkUpdateSteps(await a.api.getUpdates({})).some((step) => step.kind === "computer" && step.nodeId === bNode),
     ).toBe(false);
   }, 40_000);
 

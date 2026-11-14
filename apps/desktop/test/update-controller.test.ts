@@ -11,7 +11,7 @@ import { create, toJsonString } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { writeFileSync } from "node:fs";
 import { ReleaseRateLimit } from "@canopy/domain/release/http";
-import { computerUpdate } from "../../web/src/lib/features/workers/computer-updates.ts";
+import { computerUpdate } from "@canopy/domain/release/computer-update";
 import { appPhase, computerAction } from "../../mobile/src/features/updates/model.ts";
 
 class Clock implements CheckClock {
@@ -192,7 +192,7 @@ test("a rate-limited check stays neutral locally and on linked computers, coales
   // A previous discovery pause must never hide a genuine failure to install a signed update.
   computer.updates!.app!.phase = "failed";
   computer.updates!.app!.reason = "The installer signature is invalid.";
-  expect(computerUpdate(computer)).toMatchObject({ status: "Failed", failed: true });
+  expect(computerUpdate(computer)).toMatchObject({ status: "failed", failed: true });
   expect(appPhase(computer.updates?.app)).toBe("failed");
 });
 

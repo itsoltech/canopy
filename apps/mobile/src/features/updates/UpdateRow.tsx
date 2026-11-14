@@ -1,95 +1,149 @@
-import { Text, View, type StyleProp, type ViewStyle } from "react-native";
-import type { ReactNode } from "react";
-import { updateCheckLabel } from "@canopy/domain/computer-presence";
-import { isRateLimitMessage } from "@canopy/domain/release/http";
+import { useState, type ReactNode } from "react";
+import { Pressable, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import Reanimated from "react-native-reanimated";
+import type { IconName } from "@canopy/ui/icons";
+import { updateBadge, type UpdateStatus } from "@canopy/domain/release/update-status";
 import { Badge } from "../../ui/Badge";
 import { IconButton } from "../../ui/Button";
 import { ProgressBar } from "../../ui/ProgressBar";
+import { useMotion } from "../../ui/motion";
 import { styles, useColors } from "../../ui/theme";
 import { UpdateDetails } from "./UpdateDetails";
 
-/** Compact overlay row: the action keeps its column, and long versions wrap below the name. */
+/** One status word (web: UpdateBadge): settled is quiet text, attention gets a pill; a new word rises in. */
+export function UpdateBadge({ status }: { status: UpdateStatus | string }) {
+  const c = useColors();
+  const m = useMotion();
+  const badge = updateBadge(status);
+
+  return (
+    <Reanimated.View key={badge.label} entering={m.swap.entering}>
+      {badge.tone === "quiet" ? (
+        <Text numberOfLines={1} style={[styles.workMeta, { color: c.muted }]}>
+          {badge.label}
+        </Text>
+      ) : (
+        <Badge tone={badge.tone}>{badge.label}</Badge>
+      )}
+    </Reanimated.View>
+  );
+}
+
+export interface UpdateRowAction {
+  icon: IconName;
+  label: string;
+  disabled: boolean;
+  busy?: boolean;
+  run: () => void;
+}
+
+/**
+ * One update row (web: UpdateItem): always two lines. A state change swaps the badge and the second line; the bar
+ * sits in the bottom padding and the action keeps its slot, so nothing moves. Only an error expands, on request.
+ */
 export function UpdateRow({
   name,
   version,
   target,
-  checkedAt,
   status,
-  failed = false,
+  line,
+  lineTone,
+  error,
   busy = false,
-  reason,
-  notice,
   progress,
   action,
-  children,
+  errorActions,
   style,
 }: {
   name: string;
   version: string;
   target?: string | undefined;
-  checkedAt?: number | undefined;
-  status: string;
-  failed?: boolean;
+  status: UpdateStatus | string;
+  line?: string | undefined;
+  lineTone?: "amber" | undefined;
+  error?: string | undefined;
   busy?: boolean;
-  reason?: string | undefined;
-  notice?: string | undefined;
   progress?: number | undefined;
-  action?: { label: string; disabled: boolean; run: () => void } | undefined;
-  children?: ReactNode;
+  action?: UpdateRowAction | undefined;
+  errorActions?: ReactNode;
   style?: StyleProp<ViewStyle>;
 }) {
   const c = useColors();
+  const m = useMotion();
+  const [expanded, setExpanded] = useState(false);
+
+  const second =
+    line ||
+    (target && target !== version ? `${version || "Version unknown"} → ${target}` : version || "Version unknown");
 
   return (
-    <View style={[{ gap: 6, paddingVertical: 10 }, style]}>
-      <View style={[styles.row, { alignItems: "flex-start", gap: 8 }]}>
-        <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
-          <Text numberOfLines={1} accessibilityLabel={name} style={[styles.overlay, { color: c.strong }]}>
-            {name}
-          </Text>
-          <Text selectable style={[styles.overlayMeta, { color: c.muted, fontVariant: ["tabular-nums"] }]}>
-            {target && target !== version
-              ? `${version || "Version unknown"} → ${target}`
-              : version || "Version unknown"}
-          </Text>
-          {checkedAt !== undefined && (
-            <Text style={[styles.overlayMeta, { color: c.muted, fontVariant: ["tabular-nums"] }]}>
-              {updateCheckLabel(checkedAt)}
+    <View style={[{ paddingVertical: 10 }, style]}>
+      <View style={[styles.row, { gap: 8 }]}>
+        <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+          <View style={[styles.row, { gap: 8 }]}>
+            <Text numberOfLines={1} accessibilityLabel={name} style={[styles.overlay, { color: c.strong, flex: 1 }]}>
+              {name}
             </Text>
+            {/* A fixed slot: a longer word never moves the name. */}
+            <View style={{ width: 96, alignItems: "flex-end" }}>
+              <UpdateBadge status={status} />
+            </View>
+          </View>
+          {error ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ expanded }}
+              accessibilityHint="Shows the full error"
+              onPress={() => setExpanded((value) => !value)}
+            >
+              <Text numberOfLines={1} style={[styles.overlayMeta, { color: c.danger }]}>
+                {error}
+              </Text>
+            </Pressable>
+          ) : (
+            <Reanimated.View key={second} entering={m.swap.entering}>
+              <Text
+                numberOfLines={1}
+                selectable={!line}
+                style={[
+                  styles.overlayMeta,
+                  { color: lineTone === "amber" ? c.warning : c.muted, fontVariant: ["tabular-nums"] },
+                ]}
+              >
+                {second}
+              </Text>
+            </Reanimated.View>
           )}
         </View>
-        <Badge tone={failed ? "rose" : busy ? "amber" : status === "Up to date" ? "emerald" : "neutral"}>
-          {status}
-        </Badge>
-        <View style={{ width: 40, alignItems: "flex-end" }}>
+        <View style={{ width: 44, alignItems: "flex-end" }}>
           {action && (
             <IconButton
+              icon={action.icon}
               label={action.label}
-              icon="arrow-up"
               size="sm"
               disabled={action.disabled}
+              busy={action.busy}
               onPress={action.run}
             />
           )}
         </View>
       </View>
-      {progress !== undefined && (
-        <ProgressBar done={BigInt(Math.round(progress))} total={100n} label={`${name}: ${status}`} />
+      {busy && progress !== undefined && (
+        <Reanimated.View entering={m.rise.entering} style={{ position: "absolute", left: 0, right: 52, bottom: 3 }}>
+          <ProgressBar
+            done={BigInt(Math.round(progress))}
+            total={100n}
+            label={`${name}: ${updateBadge(status).label}`}
+            style={{ height: 2 }}
+          />
+        </Reanimated.View>
       )}
-      {notice && (
-        <Text accessibilityLiveRegion="polite" style={[styles.overlayMeta, { color: c.muted }]}>
-          {notice}
-        </Text>
+      {error && expanded && (
+        <View style={{ gap: 6, paddingTop: 6 }}>
+          <UpdateDetails text={error} />
+          {errorActions}
+        </View>
       )}
-      {reason &&
-        (isRateLimitMessage(reason) ? (
-          <Text accessibilityLiveRegion="polite" style={[styles.overlayMeta, { color: c.muted }]}>
-            {reason}
-          </Text>
-        ) : (
-          <UpdateDetails text={reason} />
-        ))}
-      {children}
     </View>
   );
 }

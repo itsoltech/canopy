@@ -72,7 +72,14 @@ export function workersHandlers(
     manageUpdates: async (request, context) => {
       if (await dismissUpdateFailure(core, request)) return snapshot();
 
-      if (await manageUpdateRun(core, request)) return snapshot();
+      const bulk = await manageUpdateRun(core, request);
+
+      if (bulk) {
+        if (!bulk.planned) return snapshot();
+        bulk.planned.run = await core.updateCenter.status(bulk.planned);
+
+        return bulk.planned;
+      }
 
       // One linked computer's app checks its own feed; it installs nothing, so Update all may be running.
       if (request.action === "computer_check") {

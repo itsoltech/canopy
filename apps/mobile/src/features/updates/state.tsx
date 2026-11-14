@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ConnectError } from "@connectrpc/connect";
 import type { ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
@@ -6,6 +6,54 @@ import { updatesRunning, type UpdateRequest } from "./model";
 import { useOverview } from "../../state/overview";
 import { confirmAppUpdate } from "./confirmation";
 import { useUpdateNotices } from "./use-update-notices";
+import { plannedUpdateRun } from "@canopy/domain/release/update-plan";
+import { furthestStatus, runStatuses, updateTargetKey, type UpdateStatus } from "@canopy/domain/release/update-status";
+
+/** What the user just asked for, shown at once and replaced by the gateway's answer (or reverted by its error). */
+interface Optimistic {
+  run: ui.UpdateRun | undefined;
+  rows: ReadonlyMap<string, UpdateStatus>;
+}
+
+function expected(request: UpdateRequest, snapshot: ui.UpdatesSnapshot | undefined, target: string) {
+  if (request.action === "update_all" && snapshot) return { run: plannedUpdateRun(snapshot, ""), rows: new Map() };
+  const steps = snapshot?.run?.steps ?? [];
+  let retried: ui.UpdateStep[] = [];
+
+  if (request.action === "retry_failed") retried = steps.filter((step) => ["failed", "blocked"].includes(step.state));
+
+  if (request.action === "retry_step") retried = steps.filter((_, index) => index === (request.updateStepIndex ?? 0));
+
+  const rows = new Map<string, UpdateStatus>([
+    ...retried.map((step) => [updateTargetKey(step), "starting"] as const),
+    ...(target ? [[target, "starting"] as const] : []),
+  ]);
+
+  return rows.size ? { run: undefined, rows } : undefined;
+}
+
+/** Web: UpdatesState.run / rowStatus / failedStep. Each row's state from the run and the user's last action. */
+function useRunRows(snapshot: ui.UpdatesSnapshot | undefined, optimistic: Optimistic | undefined, pending: string) {
+  // The run rows follow: the gateway's while it runs, otherwise the one just requested.
+  const run = snapshot?.run?.state === "running" ? snapshot.run : (optimistic?.run ?? snapshot?.run);
+  const statuses = useMemo(() => runStatuses(run), [run]);
+
+  return {
+    run,
+    /** An action is pending or Update all runs: row actions wait (this computer restarts last). */
+    active: !!pending || run?.state === "running",
+    /** A row's badge: the further of its own state, its run step and what the user just started. */
+    rowStatus: (key: string, own: UpdateStatus | string) =>
+      furthestStatus(furthestStatus(own, statuses.get(key)), optimistic?.rows.get(key)),
+    /** A row's failed step in the stopped run, for its Retry; -1 without one. */
+    failedStep: (key: string) =>
+      snapshot?.run && snapshot.run.state !== "running"
+        ? snapshot.run.steps.findIndex(
+            (step) => ["failed", "blocked"].includes(step.state) && updateTargetKey(step) === key,
+          )
+        : -1,
+  };
+}
 
 function useUpdateGeneration() {
   const { client } = useSession();
@@ -27,6 +75,7 @@ function useUpdatesState() {
   const [snapshot, setSnapshot] = useState<ui.UpdatesSnapshot>();
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState("");
+  const [optimistic, setOptimistic] = useState<Optimistic>();
   const [error, setError] = useState("");
   const [details, setDetails] = useState("");
   const [loadError, setLoadError] = useState("");
@@ -56,7 +105,9 @@ function useUpdatesState() {
     [client],
   );
 
-  const busy = !!snapshot && updatesRunning(snapshot);
+  const rows = useRunRows(snapshot, optimistic, pending);
+  // While an action is pending, reads keep going so its progress shows as soon as it starts.
+  const busy = !!pending || (!!snapshot && updatesRunning(snapshot));
   const { pushed, nudge } = useUpdateNotices(active, online);
 
   useEffect(() => {
@@ -80,7 +131,8 @@ function useUpdatesState() {
     };
   }, [client, active, online, reload, open, busy, pushed, nudge]);
 
-  async function manage(request: UpdateRequest) {
+  /** `target`: the row the action belongs to (`updateTargetKey`), shown as Starting until the answer arrives. */
+  async function manage(request: UpdateRequest, target = "") {
     if (!client || running.current) return;
     const current = generation.current;
 
@@ -90,7 +142,7 @@ function useUpdatesState() {
         snapshot,
         overview.threads,
         (confirmed) => {
-          if (current === generation.current) void manage(confirmed);
+          if (current === generation.current) void manage(confirmed, target);
         },
         (message) => {
           setError(message);
@@ -102,6 +154,7 @@ function useUpdatesState() {
     running.current = true;
     snapshotRevision.current++;
     setPending(request.action || "update");
+    setOptimistic(expected(request, snapshot, target));
     setError("");
     setDetails("");
 
@@ -128,6 +181,7 @@ function useUpdatesState() {
       if (current === generation.current) {
         running.current = false;
         setPending("");
+        setOptimistic(undefined);
       }
     }
   }
@@ -141,6 +195,8 @@ function useUpdatesState() {
     details,
     reload,
     manage,
+    optimistic,
+    ...rows,
     dismissError: () => {
       setError("");
       setDetails("");

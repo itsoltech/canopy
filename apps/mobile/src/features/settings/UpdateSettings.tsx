@@ -35,7 +35,7 @@ export function UpdateSettings() {
         {snapshot && (
           <>
             <UpdateRun run={snapshot.run} />
-            <UpdateRows snapshot={snapshot} pending={busy} manage={(request) => void manage(request)} />
+            <UpdateRows snapshot={snapshot} pending={busy} manage={(request, target) => void manage(request, target)} />
             {!snapshot.gatewayBundled && (
               <SettingChoice
                 title="Release channel"

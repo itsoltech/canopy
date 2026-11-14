@@ -8,7 +8,7 @@
   import CompactComputerUpdate from "./CompactComputerUpdate.svelte";
   import CompactGatewayUpdate from "./CompactGatewayUpdate.svelte";
   import UpdateGroupLabel from "./UpdateGroupLabel.svelte";
-  import { homes } from "./computer-updates.ts";
+  import { homes } from "@canopy/domain/release/computer-update";
   import { listedWorkers } from "./compact-updates.ts";
   import type { UpdatesState } from "./updates.svelte.ts";
 
@@ -39,7 +39,7 @@
 </script>
 
 {#if snapshot?.computers.length}<UpdateGroupLabel>Computers</UpdateGroupLabel>{/if}
-{#if app.status || app.error}<CompactAppUpdate updates={app} bundled={bundled && !app.remote} />{/if}
+{#if app.status || app.error}<CompactAppUpdate updates={app} center={updates} bundled={bundled && !app.remote} />{/if}
 {#if local}<CompactComputerUpdate computer={local} {updates} local />{/if}
 {#if snapshot}
   {#if !bundled}<CompactGatewayUpdate {updates} />{@render gateway?.()}{/if}
@@ -50,8 +50,8 @@
         >{group.name}</UpdateGroupLabel
       >{/if}
     {#each group.workers as worker (worker.workerId)}
-      <CompactWorkerUpdate {worker} {updates} home={group.home} {allowForce} />
+      <CompactWorkerUpdate {worker} {updates} home={group.home} nodeId={group.nodeId} {allowForce} />
     {/each}
   {/each}
-  <CompactCliSection {groups} disabled={busy} class="border-t" />
+  <CompactCliSection {groups} {updates} disabled={busy} class="border-t" />
 {/if}

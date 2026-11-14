@@ -8,6 +8,7 @@
   import { updateCenter } from "#lib/features/workers/updates.svelte.ts";
   import { updateIndicator } from "#lib/features/workers/update-indicator.ts";
   import CompactUpdates from "#lib/features/workers/CompactUpdates.svelte";
+  import { updatesHeadline } from "#lib/features/workers/updates-headline.ts";
 
   let { class: className }: { class?: ClassValue } = $props();
   const updates = new DesktopUpdatesState();
@@ -22,9 +23,13 @@
   );
 
   const phase = $derived(summary.phase);
-  const busy = $derived(phase === "checking" || phase === "downloading");
+  const busy = $derived(phase === "checking" || phase === "downloading" || center.run?.state === "running");
+  const failed = $derived(phase === "error" || !!updates.error);
+  const headline = $derived(updatesHeadline(center, updates, phase === "checking"));
 
-  const label = $derived(`Updates: ${summary.message}`);
+  // Something waits for the user: an update to install or a download to restart into.
+  const attention = $derived(!busy && !failed && (phase === "available" || phase === "ready"));
+  const label = $derived(`Updates: ${headline.text}`);
 
   onMount(() => {
     const off = updates.connect();
@@ -66,31 +71,25 @@
   >
     {#snippet trigger(props)}
       <div class="relative">
+        <!-- ⟳ stays Check now's: the trigger shows the download tray, a ring while updating, a dot for attention. -->
         <IconButton
           {...props}
-          icon={phase === "ready"
-            ? "check-circle"
-            : phase === "error" || updates.error
-              ? "exclamation-circle"
-              : phase === "available"
-                ? "arrow-up"
-                : "arrow-path"}
+          icon={failed ? "exclamation-circle" : "arrow-down-tray"}
           {label}
           aria-busy={busy || undefined}
           onclick={() => {
             open = !pinned;
             pinned = open;
           }}
-          iconClass={[
-            busy && "updates-refresh",
-            phase === "ready" && "text-emerald-600 dark:text-emerald-400",
-            phase === "available" && "text-brand-600 dark:text-brand-400",
-            (phase === "error" || updates.error) && "text-rose-600 dark:text-rose-400",
-          ]}
+          iconClass={[failed && "text-rose-600 dark:text-rose-400"]}
         />
-        {#if phase === "downloading"}<div class="pointer-events-none absolute inset-0 grid place-items-center">
-            <ProgressRing label="Update progress" value={summary.progress} class="size-7" />
+        {#if busy && phase !== "checking"}<div class="pointer-events-none absolute inset-0 grid place-items-center">
+            <ProgressRing label="Update progress" value={headline.progress ?? summary.progress} class="t-rise size-7" />
           </div>{/if}
+        {#if attention}<span
+            class="t-rise pointer-events-none absolute top-1.5 right-1.5 size-1.5 rounded-full bg-brand-600 dark:bg-brand-400"
+            aria-hidden="true"
+          ></span>{/if}
       </div>
     {/snippet}
     <CompactUpdates
@@ -103,19 +102,3 @@
     />
   </Popover>
 </div>
-
-<style>
-  :global(.updates-refresh) {
-    animation: updates-refresh calc(var(--duration-very-slow) * 2) var(--ease-linear) infinite;
-  }
-  @keyframes updates-refresh {
-    to {
-      rotate: 360deg;
-    }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    :global(.updates-refresh) {
-      animation: none;
-    }
-  }
-</style>

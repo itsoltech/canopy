@@ -28,6 +28,10 @@ export const icons = {
   star: ["m12 17.75l-6.172 3.245l1.179-6.873l-5-4.867l6.9-1l3.086-6.253l3.086 6.253l6.9 1l-5 4.867l1.179 6.873z"],
   // arrow-back-up
   "arrow-uturn-left": ["m9 14l-4-4l4-4", "M5 10h11a4 4 0 1 1 0 8h-1"],
+  // power: restart to apply a downloaded update
+  power: ["M7 6a7.75 7.75 0 1 0 10 0m-5-2v8"],
+  // repeat: retry a failed update (the circular arrow-path stays Check now)
+  repeat: ["M4 12V9a3 3 0 0 1 3-3h13m-3-3l3 3l-3 3m3 3v3a3 3 0 0 1-3 3H4m3 3l-3-3l3-3"],
   // check
   check: ["m5 12l5 5L20 7"],
   // circle-check

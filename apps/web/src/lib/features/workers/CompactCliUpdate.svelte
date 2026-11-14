@@ -7,14 +7,25 @@
   import { cliCurrent } from "./compact-updates.ts";
   import { cliActions, cliLabel, versionProblem } from "./cli-tools.svelte.ts";
   import { cliExternalInstructions } from "./cli-update-instructions.ts";
-  import { updateTone } from "./updates.svelte.ts";
+  import type { UpdatesState } from "./updates.svelte.ts";
+  import { updateInProgress, updateTargetKey } from "@canopy/domain/release/update-status";
 
   let {
     worker,
     item,
+    updates,
+    nodeId = "",
     disabled = false,
     class: className,
-  }: { worker: ui.Worker; item: ui.WorkerCliTool; disabled?: boolean; class?: ClassValue } = $props();
+  }: {
+    worker: ui.Worker;
+    item: ui.WorkerCliTool;
+    updates: UpdatesState;
+    /** The linked computer the worker belongs to; empty for this computer. */
+    nodeId?: string;
+    disabled?: boolean;
+    class?: ClassValue;
+  } = $props();
 
   const cli = cliActions();
   const tool = $derived(item.tool);
@@ -29,6 +40,27 @@
   const installed = $derived(
     !!tool && tool.method !== CliInstallMethod.NOT_INSTALLED && tool.method !== CliInstallMethod.UNSPECIFIED,
   );
+
+  const rowKey = $derived(updateTargetKey({ kind: "cli", nodeId, workerId: worker.id, provider: tool?.provider }));
+
+  const own = $derived(
+    !worker.online
+      ? "Offline"
+      : busy
+        ? "updating"
+        : error
+          ? "failed"
+          : cliCurrent(item)
+            ? "current"
+            : external || (!item.action && item.managedBy)
+              ? "Managed externally"
+              : item.action
+                ? "available"
+                : "Unavailable",
+  );
+
+  const status = $derived(updates.rowStatus(rowKey, own));
+  const step = $derived(updates.failedStep(rowKey));
 
   const detail = $derived(
     (external ? cliExternalInstructions(item) : "") ||
@@ -47,37 +79,38 @@
     icon="command-line"
     current={tool.version || (installed ? "" : "Not installed")}
     target={item.latest?.version}
-    status={!worker.online
-      ? "Offline"
-      : busy
-        ? "Installing"
-        : error
-          ? "Failed"
-          : cliCurrent(item)
-            ? "Up to date"
-            : external
-              ? "Managed externally"
-              : item.action
-                ? "Available"
-                : item.managedBy
-                  ? "Managed externally"
-                  : "Unavailable"}
-    tone={updateTone({ failed: !!error, busy, current: cliCurrent(item) })}
-    {busy}
-    {error}
-    {detail}
+    {status}
+    error={status === "failed"
+      ? error || updates.snapshot?.run?.steps[step]?.reason || "The update did not finish."
+      : ""}
+    busy={updateInProgress(status)}
     class={[!worker.online && "opacity-50", className]}
   >
     {#snippet action()}
-      {#if item.action && !external && !busy}
+      {#if status === "failed" && (step >= 0 || (item.action && !external))}
         <IconButton
-          icon={item.action === "install" ? "plus" : "arrow-up"}
+          icon="repeat"
           size="sm"
-          label={`${item.action === "install" ? "Install" : "Update"} ${cliLabel(tool.provider)} on ${worker.name}${detail ? `: ${detail}` : ""}`}
+          label="Retry"
+          disabled={disabled || !worker.online || !!item.blockedReason || updates.active}
+          onclick={() => {
+            const run = updates.snapshot?.run;
+
+            if (step >= 0 && run)
+              void updates.manage({ action: "retry_step", desktopRequestId: run.id, updateStepIndex: step }, rowKey);
+            else void cli.install(worker.id, tool.provider);
+          }}
+        />
+      {:else if item.action && !external && !updateInProgress(status)}
+        <IconButton
+          icon={item.action === "install" ? "plus" : "arrow-down-tray"}
+          size="sm"
+          label={`${item.action === "install" ? "Install" : "Update"} ${cliLabel(tool.provider)} on ${worker.name}`}
+          tooltipText={`${item.action === "install" ? "Install" : "Update"} ${cliLabel(tool.provider)} on ${worker.name}${detail ? `. ${detail}` : ""}`}
           disabled={disabled || !worker.online || !!item.blockedReason}
           onclick={() => void cli.install(worker.id, tool.provider)}
         />
-      {:else if detail}<IconButton
+      {:else if detail && !updateInProgress(status)}<IconButton
           icon="information-circle"
           size="sm"
           label={detail}

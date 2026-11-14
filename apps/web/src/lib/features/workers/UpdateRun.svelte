@@ -7,28 +7,20 @@
   import StoppedUpdateActions from "./StoppedUpdateActions.svelte";
   import type { UpdatesState } from "./updates.svelte.ts";
   import UpdateActionButton from "./UpdateActionButton.svelte";
-  import { updateProgress } from "@canopy/domain/release/update-progress";
+  import { updateRunSummary } from "@canopy/domain/release/update-status";
 
   let { run, updates, class: className }: { run: ui.UpdateRun; updates: UpdatesState; class?: ClassValue } = $props();
   const done = $derived(run.steps.filter((s) => s.state === "succeeded").length);
   const skipped = $derived(run.steps.filter((s) => s.state === "skipped").length);
-  const active = $derived(run.steps.filter((step) => step.state === "running"));
-  const progress = $derived(updateProgress(run));
+  const summary = $derived(updateRunSummary(run));
   const total = $derived(run.steps.length - skipped);
 </script>
 
 {#if run.steps.length || run.state === "running" || run.reason}
   <section class={["grid min-w-0 gap-2", className]} aria-label="Update run">
-    {#if run.state === "running"}
-      <p class="text-sm/5 tabular-nums" role="status">{progress.label}</p>
-      <UpdateProgress label="Update all progress" value={total ? (progress.completed / total) * 100 : undefined} />
-      <div class="h-15 min-w-0 text-sm/5 text-muted" role="status">
-        {#each active.slice(0, 3) as step}
-          <p class="truncate" title={step.label}>{step.label} · Updating</p>
-        {/each}
-      </div>
-    {/if}
-    {#if run.state === "succeeded"}<p class="text-sm/5" role="status">Updates complete · {done} updated</p>{/if}
+    <!-- The same single counter as the popover's header; each step's state is in the results below. -->
+    {#if summary}<p class="text-sm/5 tabular-nums" role="status">{summary.text}</p>{/if}
+    {#if run.state === "running"}<UpdateProgress label="Update all progress" value={summary?.progress} />{/if}
     {#if run.reason}<p class="break-anywhere text-sm/5 text-rose-600 select-text dark:text-rose-400" role="status">
         {run.reason}
       </p>{/if}
