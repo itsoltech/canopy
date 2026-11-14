@@ -73,6 +73,7 @@ Stała `CANOPY_VERSION` z `@canopy/domain/release/version` czyta `process.env.CA
 bun scripts/build-binaries.ts                       # host → dist/release/canopy-{gateway,worker}-<os>-<arch>
 bun scripts/build-binaries.ts --target all          # linux/darwin × x64/arm64 + windows-x64 (cross-compile)
 bun scripts/build-binaries.ts --app worker --target linux-arm64 --outdir /tmp/out
+bun scripts/build-web.ts && bun scripts/build-binaries.ts --target all --web dist/web   # gateway z web (Release)
 ```
 
 Nazwy: `canopy-<gateway|worker>-<linux|darwin|windows>-<x64|arm64>`, `.exe` na Windows,
@@ -87,10 +88,16 @@ bez kompresji. Zawartość:
   Pakiety sharp innych platform pobierane są z rejestru npm i weryfikowane `dist.integrity`
   (cache w `.tmp/release-native`),
 - worker uruchamia CLI agentów (`claude`, `codex`, `grok`) z `PATH` (albo ścieżek z konfiguracji);
-  nie są częścią binarki. Claude Agent SDK jest zbundlowany jako JS i dostaje ścieżkę `claude`.
+  nie są częścią binarki. Claude Agent SDK jest zbundlowany jako JS i dostaje ścieżkę `claude`,
+- gateway z `--web <katalog>` osadza wynik `scripts/build-web.ts` tej samej wersji
+  (`canopy-web.json`, inaczej build kończy się błędem) jako jedno archiwum zstd (ok. 13 MiB);
+  web jest niezależny od celu, więc Release buduje go raz. `canopy-gateway web` rozpakowuje je
+  do `CANOPY_WEB_DIR` i uruchamia BFF ([deploy.md](deploy.md#gateway-z-wbudowanym-web-jedna-binarka)).
+  Bez `--web` gateway jest headless — tak budowany jest obraz Docker `canopy-gateway`.
 
 Rozmiary (Bun 1.4.4, 0.0.0-main): linux-x64 124 MiB, linux-arm64 124 MiB,
 darwin-arm64 105 MiB, windows-x64 131 MiB (ok. 95 MiB to runtime Bun, 18 MiB libvips).
+Wbudowany web dodaje do gatewaya ok. 13 MiB (linux-x64 0.3.0-dev: 131,0 → 144,1 MiB).
 
 ### Obrazy Docker
 
@@ -396,7 +403,7 @@ plan ─┬─ checks ───────────────────�
 | --- | --- | --- | --- |
 | `checks` | `ci.yml` | po `plan`; na `dev` tylko gdy `published=true` | — |
 | `plan` | semantic-release **`--dry-run`** na przypiętym lustrze: `version`, `tag`, `channel`, macierz desktop | od razu; grupa `release-version-<ref>` | nic (próba pushu tylko do lustra) |
-| `binaries`, `smoke` | cross-compile wszystkich celów; `--version` każdej binarki na jej OS/arch | po `plan`, równolegle z checkami | — (artefakt Actions) |
+| `binaries`, `smoke` | web raz, potem cross-compile wszystkich celów z web w gatewayu; `--version` każdej binarki i `/api/health` z `canopy-gateway web` na jej OS/arch; na linux-x64 pełny gateway (supervisor, PostgreSQL) z web na porcie 3000 | po `plan`, równolegle z checkami | — (artefakt Actions) |
 | `images-build` | buildx amd64+arm64 do cache GHA (`mode=max`), bez pushu i atestacji | po `plan` | — |
 | `desktop` | Linux, macOS (Apple Silicon), Windows; podpisy i notaryzacja | po `plan` | — (artefakt Actions) |
 | `release` | semantic-release na lustrze, atomowy push tagu/notes i draft przez API GitHuba | po **zielonych `checks`**; grupa `release-version-<ref>` | tag + ukryty draft |

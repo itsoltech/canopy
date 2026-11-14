@@ -235,11 +235,16 @@ jobs:
         with:
           ref: ${{ env.EXPECTED_SHA }}
       - uses: ./.github/actions/setup-bun
+      # The web is target-independent JavaScript: built once, embedded into every gateway binary (docs/deploy.md).
+      - name: Web build
+        env:
+          CANOPY_VERSION: ${{ needs.plan.outputs.version }}
+        run: bun scripts/build-web.ts --outdir dist/web
       # Cross-compiled for every target; sharp's native build per target comes from the npm registry.
       - name: Build
         env:
           CANOPY_VERSION: ${{ needs.plan.outputs.version }}
-        run: bun scripts/build-binaries.ts --target all --outdir dist/release
+        run: bun scripts/build-binaries.ts --target all --outdir dist/release --web dist/web
       - uses: actions/upload-artifact@v4
         with:
           name: binaries
@@ -248,7 +253,8 @@ jobs:
           retention-days: 7
           overwrite: true
 
-  # Each binary starts on its own OS/arch (`--version` already loads the embedded sharp/libvips; `self-check` runs the image-export FFI).
+  # Each binary starts on its own OS/arch (`--version` already loads the embedded sharp/libvips; `self-check` runs the image-export FFI;
+  # `canopy-gateway web` serves the embedded web).
   smoke:
     needs: [plan, binaries]
     if: needs.plan.outputs.published == 'true'
@@ -281,6 +287,66 @@ jobs:
           done
           # Native image-export calls (bun:ffi) on this OS/arch: show_images depends on them.
           "./canopy-worker-${{ matrix.target }}${{ matrix.suffix }}" self-check
+      - name: Embedded web answers with the release version
+        shell: bash
+        env:
+          EXPECTED: ${{ needs.plan.outputs.version }}
+          CANOPY_NATIVE_DIR: ${{ runner.temp }}/canopy-native
+          CANOPY_WEB_DIR: ${{ runner.temp }}/canopy-web
+          CANOPY_WEB_PORT: "39231"
+        run: |
+          # A throwaway service token: `web` only refuses to start without one; no gateway is called.
+          CANOPY_UI_SERVICE_TOKEN="smoke-$RANDOM-$RANDOM-0123456789abcdef0123456789" \
+            "./canopy-gateway-${{ matrix.target }}${{ matrix.suffix }}" web &
+          web=$!
+          health=""
+          for _ in $(seq 1 120); do
+            health="$(curl -fsS "http://127.0.0.1:$CANOPY_WEB_PORT/api/health" || true)"
+            [ -n "$health" ] && break
+            sleep 0.5
+          done
+          echo "$health"
+          kill "$web" || true
+          grep -q "\"version\":\"$EXPECTED\"" <<<"$health"
+      # The installed shape on a Linux server: supervisor, gateway and web from one binary, PostgreSQL alongside.
+      - name: Binary gateway serves its web
+        if: matrix.target == 'linux-x64'
+        shell: bash
+        env:
+          EXPECTED: ${{ needs.plan.outputs.version }}
+          CANOPY_NATIVE_DIR: ${{ runner.temp }}/canopy-native
+          CANOPY_WEB_DIR: ${{ runner.temp }}/canopy-web
+          CANOPY_UPDATE_CACHE_DIR: ${{ runner.temp }}/canopy-releases
+          CANOPY_LOG_DIR: ${{ runner.temp }}/canopy-logs
+          CANOPY_HOST: 127.0.0.1
+          CANOPY_PORT: "7443"
+        run: |
+          docker run -d --name canopy-smoke-pg -e POSTGRES_PASSWORD=smoke -e POSTGRES_DB=canopy \
+            -p 127.0.0.1:5432:5432 postgres:17
+          until docker exec canopy-smoke-pg pg_isready -h 127.0.0.1 -U postgres -d canopy; do sleep 1; done
+          install -m 0755 canopy-gateway-linux-x64 "$RUNNER_TEMP/canopy-gateway"
+          export CANOPY_DATABASE_URL=postgres://postgres:smoke@127.0.0.1:5432/canopy
+          CANOPY_UI_SERVICE_TOKEN="$(openssl rand -hex 32)"
+          CANOPY_SECRETS_KEY="$(openssl rand -base64 32)"
+          export CANOPY_UI_SERVICE_TOKEN CANOPY_SECRETS_KEY
+          "$RUNNER_TEMP/canopy-gateway" >gateway.log 2>&1 &
+          gateway=$!
+          health=""
+          for _ in $(seq 1 120); do
+            health="$(curl -fsS http://127.0.0.1:3000/api/health || true)"
+            [ -n "$health" ] && break
+            sleep 1
+          done
+          echo "$health"
+          ok=true
+          grep -q "\"version\":\"$EXPECTED\"" <<<"$health" || ok=false
+          "$RUNNER_TEMP/canopy-gateway" healthcheck || ok=false
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/)" = 200 || ok=false
+          kill -TERM "$gateway" || ok=false
+          wait "$gateway" || ok=false
+          grep -v '^\s' gateway.log | tail -n 20
+          docker rm -f canopy-smoke-pg >/dev/null
+          "$ok"
 
   # Builds every image layer into the GHA cache next to the checks; nothing is pushed here.
   images-build:

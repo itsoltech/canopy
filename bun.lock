@@ -73,6 +73,7 @@
         "cronstrue": "3.38.0",
         "dns-packet": "5.6.1",
         "effect": "4.1.1",
+        "reflect-metadata": "0.2.2",
         "sharp": "0.35.5",
         "ssh2": "1.17.0",
       },

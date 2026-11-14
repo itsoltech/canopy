@@ -252,8 +252,8 @@ Wykrywanie dotyczy wyłącznie lokalnych aplikacji desktopowych
 
 ## Binaria (systemd)
 
-Assety release: `canopy-gateway-<os>-<arch>`, `canopy-worker-<os>-<arch>` (`linux|darwin|windows`,
-`x64|arm64`), `checksums.txt`, `manifest.json`.
+Assety release: `canopy-gateway-<os>-<arch>` (z wbudowanym web), `canopy-worker-<os>-<arch>`
+(`linux|darwin|windows`, `x64|arm64`), `checksums.txt`, `manifest.json`.
 
 ```sh
 TAG=v0.1.0   # dokładne wydanie; stable/beta/nightly rozwiązuj przez API/UI
@@ -269,46 +269,116 @@ macOS: plik pobrany przeglądarką ma kwarantannę — `xattr -d com.apple.quara
 Przy pierwszym starcie binarka rozpakowuje bibliotekę sharp/libvips do `~/.cache/canopy/native`
 (zmiana: `CANOPY_NATIVE_DIR`).
 
-### Gateway
+### Gateway z wbudowanym web (jedna binarka)
 
-Użytkownik systemowy: `useradd --system --home /var/lib/canopy canopy`. Binarkę umieść w katalogu, do którego
-usługa może pisać — self-update podmienia plik obok (`.bak`, atomowy rename): `install -d -o canopy /opt/canopy/bin`
-i `install -o canopy -m 0755 canopy-gateway-linux-x64 /opt/canopy/bin/canopy-gateway`.
-`/etc/canopy/gateway.env` (0600, właściciel `canopy`):
+Binarka `canopy-gateway-<os>-<arch>` zawiera też web (BFF i SPA) w tej samej wersji. Jedna usługa
+systemd uruchamia supervisor, gateway i web, bez Dockera. Przycisk Update w Settings → App updates
+podmienia całość; logowanie na serwer nie jest potrzebne. PostgreSQL działa jako osobna usługa.
+
+```text
+systemd ─ canopy-gateway            supervisor: rollback, execve po aktualizacji
+            └─ gateway              gRPC :7443 (BFF, workery), migracje, boty
+                 └─ canopy-gateway web   BFF + SPA na 127.0.0.1:3000
+```
+
+Web jest procesem-dzieckiem gatewaya uruchomionym z tej samej binarki (`canopy-gateway web`).
+Przy pierwszym starcie danej wersji binarka rozpakowuje swój build web (ok. 30 MB, kilkaset ms)
+do `CANOPY_WEB_DIR` i zostawia tam trzy ostatnie wersje: otwarte karty starszej wersji dalej
+pobierają swoje chunki po aktualizacji, a rollback używa zachowanego katalogu. Gateway potwierdza
+start nowej wersji dopiero, gdy jej web odpowiada na `/api/health` (ta sama wersja, ten sam proces).
+Web nowej wersji, który nie wstaje, cofa aktualizację, a wynik w Settings → App updates podaje
+powód, np. „Port 3000 is in use by another process…”. Poza aktualizacją problem z web (zajęty
+port, awaria) nie zatrzymuje gatewaya, workerów ani botów: gateway działa bez UI, loguje konkretny
+błąd, pokazuje go przy gatewayu w Settings → App updates (np. z desktopu albo telefonu),
+`canopy-gateway healthcheck` zwraca 1, a web ponawia start z backoffem (1–30 s). Web dziedziczy
+tylko listę zmiennych systemowych i własnych (`CANOPY_WEB_*`, adapter-node); nie dostaje
+`CANOPY_DATABASE_URL`, `CANOPY_SECRETS_KEY` ani klucza TLS, z gatewayem rozmawia tokenem serwisowym.
+
+**Aktualizacja instalacji z osobnym web.** Binarka sprzed tej zmiany nie miała web, więc web
+działał osobno (`bun index.js` z `build-web.ts`, zwykle na porcie 3000). Przed kliknięciem Update
+wybierz jedno: (a) zatrzymaj i wyłącz osobną usługę web — wbudowany web zajmie ten sam port
+z tymi samymi `PROTOCOL_HEADER`/`BODY_SIZE_LIMIT`; dopisz do `gateway.env` nazwy hostów,
+pod którymi otwierasz UI (`CANOPY_WEB_ALLOWED_HOSTS`, niżej); albo (b) zostaw osobny web
+i ustaw `CANOPY_WEB=off`. Bez tego nowa wersja zastanie zajęty port 3000 i aktualizacja
+zostanie cofnięta z tym powodem; `CANOPY_WEB_PORT` z wolnym portem też wystarczy.
+
+**PostgreSQL.** Pakiet dystrybucji (`postgresql`) albo, opcjonalnie, sama baza w Dockerze:
+
+```sh
+docker run -d --name canopy-postgres --restart unless-stopped \
+  -e POSTGRES_USER=canopy -e POSTGRES_PASSWORD='…' -e POSTGRES_DB=canopy \
+  -v canopy-postgres:/var/lib/postgresql/data -p 127.0.0.1:5432:5432 postgres:17
+```
+
+**Instalacja.** Self-update zapisuje obok binarki nowy plik, `.bak` i `.update.json`, więc katalog
+binarki musi być zapisywalny dla użytkownika usługi (bez symlinku do pliku):
+
+```sh
+sudo useradd --system --home /var/lib/canopy --shell /usr/sbin/nologin canopy
+TAG=v0.3.0-nightly.1   # dokładne wydanie; kanał wybierasz później w aplikacji
+curl -fLO https://github.com/itsoltech/canopy/releases/download/$TAG/canopy-gateway-linux-x64
+curl -fLO https://github.com/itsoltech/canopy/releases/download/$TAG/checksums.txt
+sha256sum -c --ignore-missing checksums.txt
+sudo install -d -o canopy -g canopy /opt/canopy/bin
+sudo install -o canopy -g canopy -m 0755 canopy-gateway-linux-x64 /opt/canopy/bin/canopy-gateway
+sudo install -d -m 0700 /etc/canopy
+```
+
+`/etc/canopy/gateway.env` (`root:root`, `0600`; systemd czyta go przed zmianą użytkownika):
 
 ```sh
 CANOPY_DATABASE_URL=postgres://canopy:…@127.0.0.1:5432/canopy
-CANOPY_UI_SERVICE_TOKEN=…        # openssl rand -hex 32, ten sam w web
-CANOPY_SECRETS_KEY=…             # openssl rand -base64 32
-CANOPY_HOST=0.0.0.0
+CANOPY_UI_SERVICE_TOKEN=…        # openssl rand -hex 32; web dostaje go automatycznie
+CANOPY_SECRETS_KEY=…             # openssl rand -base64 32; kopia razem z backupem bazy
+CANOPY_HOST=0.0.0.0              # port gRPC dla workerów (i BFF)
 CANOPY_PORT=7443
-CANOPY_NETWORK_PORT=24443
+CANOPY_UPDATE_CHANNEL=nightly    # kanał początkowy; potem zmieniasz go w aplikacji
+# Web (wartości domyślne):
+# CANOPY_WEB=on
+# CANOPY_WEB_HOST=127.0.0.1
+# CANOPY_WEB_PORT=3000
+# CANOPY_WEB_ALLOWED_HOSTS=canopy.example.com   # nazwy z reverse proxy (adresy IP, localhost i MagicDNS zawsze)
 # CANOPY_OAUTH_REDIRECT_URL=…    # opcjonalnie: własny callback zamiast stałej strony przekierowania OAuth
-# CANOPY_WEB_ORIGIN=http://127.0.0.1:3000  # opcjonalnie: web dla HTTPS over Tailscale (docs/tailscale.md)
 ```
 
-HTTPS over Tailscale na natywnym gatewayu wymaga `CANOPY_WEB_ORIGIN` (origin web BFF na tym hoście),
-web z `PROTOCOL_HEADER=x-forwarded-proto` oraz prawa operatora Tailscale dla użytkownika usługi
-(`sudo tailscale set --operator=canopy`). Bez nich przełącznik w Settings → Network access jest
-niedostępny albo pokazuje, czego brakuje; wykrywanie i nazwa MagicDNS działają bez tego.
+| Zmienna | Domyślnie | Znaczenie |
+| --- | --- | --- |
+| `CANOPY_WEB` | `on` | `off` = gateway bez web (headless). Inne wartości to błąd konfiguracji. |
+| `CANOPY_WEB_HOST` | `127.0.0.1` | Adres nasłuchu web. Adres spoza loopbacku daje w logu ostrzeżenie z tym adresem i przypomnieniem o TLS albo Tailscale Serve. |
+| `CANOPY_WEB_PORT` | `3000` | Port web. |
+| `CANOPY_WEB_DIR` | `$XDG_CACHE_HOME/canopy/web` (`~/.cache/canopy/web`) | Rozpakowane wersje web; może być wspólny dla kilku instancji (gotowa wersja nie jest nadpisywana, a używana — usuwana). Bez prawa zapisu: stały katalog `canopy-web-<uid>` w katalogu tymczasowym i ostrzeżenie. |
+| `GATEWAY_URL` | `http://127.0.0.1:$CANOPY_PORT` | Adres gatewaya dla web; `https` i zaufany `CANOPY_TLS_CERT`, gdy gateway ma TLS. Ustaw ręcznie tylko wtedy, gdy certyfikat nie obejmuje `127.0.0.1`. |
+| `PROTOCOL_HEADER` | `x-forwarded-proto` | Nagłówek protokołu od proxy. Żądanie bez niego to zwykłe HTTP. |
+| `HOST_HEADER` | `x-forwarded-host` | Nagłówek hosta od proxy; bez niego liczy się `Host`. |
+| `BODY_SIZE_LIMIT` | `50M` | Limit uploadu BFF (biblioteka skilli wymaga 50M); proxy musi dopuścić ten sam rozmiar. |
+| `ORIGIN` | brak | Stały origin, np. `https://canopy.example.com`, dla proxy, które nie wysyła nagłówków `X-Forwarded-*`. Jego host jest też dozwolony. |
+| `CANOPY_WEB_ALLOWED_HOSTS` | brak | Nazwy hostów (nagłówek `Host`), pod którymi web odpowiada, rozdzielone przecinkami; `.example.com` obejmuje subdomeny. Zawsze dozwolone: adresy IP, `localhost`, nazwa z `CANOPY_WEB_HOST`, `ORIGIN` i nazwy MagicDNS tego komputera. Inne dostają 421 (ochrona przed DNS rebinding). |
+| `CANOPY_WEB_ORIGIN` | origin wbudowanego web | Cel HTTPS over Tailscale. Bez tej zmiennej gateway używa `http://127.0.0.1:$CANOPY_WEB_PORT`; nie trafia do web. |
+
+`HOST`, `PORT` i `GATEWAY_SERVICE_TOKEN` web wylicza sam z `CANOPY_WEB_*` i `CANOPY_UI_SERVICE_TOKEN`.
 
 `/etc/systemd/system/canopy-gateway.service`:
 
 ```ini
 [Unit]
-Description=Canopy gateway
+Description=Canopy gateway and web
 After=network-online.target postgresql.service
 Wants=network-online.target
 
 [Service]
 User=canopy
+Group=canopy
 EnvironmentFile=/etc/canopy/gateway.env
 Environment=CANOPY_NATIVE_DIR=/var/cache/canopy/native
+Environment=CANOPY_WEB_DIR=/var/cache/canopy/web
+Environment=CANOPY_UPDATE_CACHE_DIR=/var/cache/canopy/releases
 CacheDirectory=canopy
+StateDirectory=canopy
 ExecStart=/opt/canopy/bin/canopy-gateway
 Restart=always
 RestartPreventExitStatus=78
 RestartSec=5
+# Self-update: nowa binarka, .bak, .update.json i blokada obok pliku.
 ReadWritePaths=/opt/canopy/bin
 NoNewPrivileges=true
 ProtectSystem=strict
@@ -319,10 +389,53 @@ PrivateTmp=true
 WantedBy=multi-user.target
 ```
 
-`systemctl daemon-reload && systemctl enable --now canopy-gateway`; kontrola: `canopy-gateway healthcheck`
-(z tymi samymi `CANOPY_HOST`/`CANOPY_PORT`). Web jako usługa: obraz `canopy-web` albo `bun index.js`
-z wyniku `bun scripts/build-web.ts` (zmienne `GATEWAY_URL`, `GATEWAY_SERVICE_TOKEN`, `PORT`,
-`PROTOCOL_HEADER`, `BODY_SIZE_LIMIT`).
+`systemctl daemon-reload && systemctl enable --now canopy-gateway`. Kontrola:
+`curl -s http://127.0.0.1:3000/api/health` (wersja web) i `canopy-gateway healthcheck`
+(z tymi samymi `CANOPY_HOST`/`CANOPY_PORT`); log: `journalctl -u canopy-gateway`.
+`StateDirectory` daje zapisywalny HOME (`/var/lib/canopy`) dla Git i logów; domyślny
+`KillMode=control-group` zatrzymuje także web.
+
+**HTTPS przez Tailscale Serve.** Web zostaje na loopbacku. Najprościej włączyć Settings → Network
+access → Tailscale → „HTTPS over Tailscale”: gateway zna origin wbudowanego web, a jego front
+wpuszcza tylko właściciela komputera w Tailscale ([tailscale.md](tailscale.md)). Użytkownik usługi
+potrzebuje raz `sudo tailscale set --operator=canopy`. Ręczny wpis też działa bez dodatkowej
+konfiguracji: Serve wysyła `X-Forwarded-Proto: https`, a `Host` to nazwa MagicDNS, którą gateway
+zna z Tailscale i przekazuje web:
+
+```sh
+sudo tailscale serve --bg --https=443 http://127.0.0.1:3000
+```
+
+Ręczny wpis wpuszcza każdego, kto w tailnecie ma dostęp do tego hosta, a Canopy nie ma jeszcze
+logowania użytkowników: ogranicz dostęp przez ACL Tailscale. Nigdy nie włączaj Funnel.
+
+**Reverse proxy z TLS.** Proxy na tym samym hoście kieruje do `127.0.0.1:3000` i ustawia
+`X-Forwarded-Proto` oraz `X-Forwarded-Host` (Caddy robi to sam:
+`canopy.example.com { reverse_proxy 127.0.0.1:3000 }`). nginx: `proxy_set_header
+X-Forwarded-Proto $scheme`, `proxy_set_header X-Forwarded-Host $host`,
+`client_max_body_size 50m` i `proxy_buffering off` (SSE). Publiczną nazwę dopisz do
+`CANOPY_WEB_ALLOWED_HOSTS=canopy.example.com`; bez tego web odpowie 421 („This host name isn't
+allowed…”). Web sprawdza surowy `Host`, nie `X-Forwarded-Host`: skrypt na stronie atakującej może
+ustawić nagłówki `X-Forwarded-*`. Proxy bez tych nagłówków wymaga `ORIGIN=https://canopy.example.com`
+(wtedy osobny wpis w `CANOPY_WEB_ALLOWED_HOSTS` nie jest potrzebny). Proxy na innym hoście wymaga `CANOPY_WEB_HOST`
+z adresem prywatnej sieci; wtedy log pokazuje ostrzeżenie, np.
+`web: listening on 10.0.0.5:3000, reachable from other computers. Put a TLS reverse proxy or Tailscale Serve in front of it.`
+
+**Headless.** Web w osobnym miejscu (obraz `canopy-web`, Compose) albo brak UI na tym hoście:
+
+```sh
+# /etc/canopy/gateway.env
+CANOPY_WEB=off
+```
+
+Gateway działa wtedy jak wcześniej, a osobny web dostaje `GATEWAY_URL`, `GATEWAY_SERVICE_TOKEN`
+(= `CANOPY_UI_SERVICE_TOKEN`), `PORT`, `PROTOCOL_HEADER` i `BODY_SIZE_LIMIT`. Obrazy Docker
+(`canopy-gateway`, `canopy-web`) nie zmieniają się: gateway w kontenerze nigdy nie uruchamia
+wbudowanego web. Desktop ma własny web i też go nie używa.
+
+Network access, HTTPS over Tailscale i Git działają tak samo jak w Dockerze. HTTPS over Tailscale
+na natywnym gatewayu z osobnym web (headless) wymaga `CANOPY_WEB_ORIGIN` (origin tego web
+na loopbacku, np. `http://127.0.0.1:3000`) oraz web z `PROTOCOL_HEADER=x-forwarded-proto`.
 
 ### Worker
 
@@ -379,9 +492,16 @@ i nie służy do aktualizacji obrazu.
   `docker compose pull && docker compose up -d`. Gateway migruje bazę przy starcie;
   migracje są tylko w przód — przed aktualizacją wersji `X.Y` zrób kopię bazy (`pg_dump`).
   Powrót do starszej wersji po migracji wymaga przywrócenia kopii.
-- **Binaria**: podmień plik (sprawdź `checksums.txt`) i zrestartuj usługę. Kolejność: gateway,
-  potem web, potem workery. Automatyczna aktualizacja workerów/gatewaya korzysta z `manifest.json`
-  danego kanału (osobna funkcja self-update).
+- **Binaria**: przycisk Update w Settings → App updates (albo Update all). Gateway pobiera
+  binarkę z `manifest.json` kanału, sprawdza SHA-256, zostawia `.bak` i atomowo podmienia plik,
+  czeka na koniec aktywnych tur i restartuje się. Ta sama binarka niesie web, więc jedna
+  aktualizacja podmienia oba; nowy gateway uruchamia web nowej wersji, a otwarte karty pokazują
+  „A new version is available” i do czasu przeładowania pobierają swoje chunki z zachowanych
+  wersji. Jeśli nowy gateway albo jego web nie staną się zdrowe w 90 s, supervisor przywraca
+  `.bak` i wraca poprzednia wersja obu. Potem supervisor przechodzi na nowy kod przez `execve`,
+  bez zmiany PID-u usługi. Ręcznie: podmień plik (sprawdź `checksums.txt`) i
+  `systemctl restart canopy-gateway`. Kolejność: gateway (z web), potem workery. Gateway z
+  `CANOPY_WEB=off` i osobny web aktualizuje się jak wcześniej: gateway, potem web.
 - **Desktop**: instalator nowej wersji z tego samego release (`Canopy-<wersja>-<os>-<arch>.*`).
 - Do przypięcia używaj pełnej wersji (`vX.Y.Z`, `vX.Y.Z-beta.N`, `vX.Y.Z-nightly.N`).
   Nie ma rolling binariów `latest` ani obrazów `sha-*`. Starsze nightly podlegają retencji.

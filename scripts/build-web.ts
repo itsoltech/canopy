@@ -2,6 +2,7 @@
  * The web BFF as a self-contained directory for the Docker image (docs/release.md):
  * `bun scripts/build-web.ts [--outdir dist/web]` → `index.js` + chunks with every dependency bundled, and `client/`.
  * Run it with `bun index.js`; no node_modules needed. adapter-node serves `client/` next to `index.js`.
+ * `canopy-web.json` records the version; `build-binaries.ts --web` embeds this directory into the gateway.
  * CANOPY_VERSION overrides scripts/version.ts; WEB_BUILD_VERSION (SvelteKit's update check) defaults to it.
  */
 import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
@@ -47,6 +48,7 @@ try {
 
   if (existsSync(join(staging, "prerendered")))
     cpSync(join(staging, "prerendered"), join(outdir, "prerendered"), { recursive: true });
+  await Bun.write(join(outdir, "canopy-web.json"), JSON.stringify({ version }));
   console.info(`Canopy web ${version}: ${outdir}`);
 } finally {
   rmSync(staging, { recursive: true, force: true });
