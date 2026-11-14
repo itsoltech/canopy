@@ -215,6 +215,10 @@
   }
   .workspace-tab[data-active="true"] {
     background: var(--color-surface);
+    transition: none;
+  }
+  .workspace-tab button[role="tab"] {
+    transition: color var(--duration-fast) var(--ease-smooth-out);
   }
   .workspace-tab[data-active="false"]:has(button:hover, button:focus-visible) {
     background: var(--color-hover);
@@ -247,6 +251,7 @@
   }
   @media (prefers-reduced-motion: reduce) {
     .workspace-tab,
+    .workspace-tab button[role="tab"],
     .workspace-tab-close {
       transition: none;
     }
