@@ -59,4 +59,4 @@ export function worktreeTooltip(worktree: { readonly path: string; readonly prov
     : `Worktree ${worktree.path}`;
 }
 
-export { branchSwitchReason, placementPath } from "./thread-branch.ts";
+export { branchSwitchReason, distinctUpstream, placementPath } from "./thread-branch.ts";

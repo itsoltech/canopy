@@ -316,7 +316,7 @@
 
   let panelSheet = $state(false);
 
-  // The summary sits in the thread area's top-right corner, only in space the centred chat column leaves free.
+  // The chat column centres on the window between the sidebar and the docked summary (summary-layout.svelte.ts).
   const summary = new SummaryLayout(() => workspaceState.rem);
 
   $effect(() => {
@@ -600,6 +600,9 @@
         inert={Boolean(fileTab)}
         bind:this={feedRegion}
         bind:clientWidth={summary.width}
+        style:--chat-offset={summary.inner ? `${summary.offset}px` : undefined}
+        style:--chat-column={summary.inner ? `${summary.column}px` : undefined}
+        data-chat-settling={summary.settling || undefined}
       >
         <span
           aria-hidden="true"
@@ -609,7 +612,7 @@
         <span
           aria-hidden="true"
           class="pointer-events-none invisible absolute inset-x-0 md:left-9"
-          bind:clientWidth={summary.inner}
+          {@attach summary.measure}
         ></span>
         {#if thread}<ThreadSummary {thread} {tree} floating={summary.floating} docked={summary.docked}
             >{@render threadPanel()}</ThreadSummary

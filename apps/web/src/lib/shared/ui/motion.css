@@ -385,7 +385,15 @@
   transition-duration: var(--duration-quick), var(--duration-quick), 0s;
   transition-delay: 0s, 0s, var(--duration-quick);
 }
+/* The chat column eases to its new place when the docked summary opens or closes (sidebar and window changes
+ * already move it frame by frame). */
+[data-chat-settling] .chat-column {
+  transition:
+    margin-left var(--duration-slow) var(--ease-smooth-out),
+    max-width var(--duration-slow) var(--ease-smooth-out);
+}
 @media (prefers-reduced-motion: reduce) {
+  [data-chat-settling] .chat-column,
   .t-panel-column,
   .t-panel,
   .t-summary,

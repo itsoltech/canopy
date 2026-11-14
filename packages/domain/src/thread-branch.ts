@@ -43,3 +43,15 @@ export function placementPath(path: string, home = "") {
 
   return { parent: split >= 0 ? shown.slice(0, split + 1) : "", name: split >= 0 ? shown.slice(split + 1) : shown };
 }
+
+/**
+ * The ref a worktree branch started from, only when it names a different branch: `origin/feature/x` for the
+ * branch `feature/x` adds nothing and stays hidden.
+ */
+export function distinctUpstream(branch: string, baseRef: string): string {
+  if (!baseRef || baseRef === branch) return "";
+
+  const withoutRemote = baseRef.replace(/^(?:refs\/remotes\/)?(?:origin|upstream)\//, "");
+
+  return withoutRemote === branch ? "" : baseRef;
+}

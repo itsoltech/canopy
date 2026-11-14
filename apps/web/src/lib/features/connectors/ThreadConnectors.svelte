@@ -5,6 +5,9 @@
   import ThreadConnectorDialog from "./ThreadConnectorDialog.svelte";
   import type { useThreadPanel } from "#lib/features/threads/thread-panel.svelte.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
+  import Badge from "#lib/shared/ui/Badge.svelte";
+  import { tooltip } from "#lib/shared/ui/tooltip.ts";
+  import type { Tone } from "#lib/shared/ui/tone.ts";
 
   let {
     thread,
@@ -30,6 +33,26 @@
     panel.error ||
       (!panel.data ? "Loading connections…" : panel.data.unavailable ? "Connect to load connector access." : ""),
   );
+
+  /** A badge only for a known state; an account nobody has used in this thread yet shows just its name. */
+  function sessionLook(account: (typeof accounts)[number]): { label: string; tone: Tone; hint?: string } | undefined {
+    if (account.status !== "connected") return { label: accountStatus(account.status), tone: "amber" };
+
+    switch (account.sessionState) {
+      case "available":
+        return { label: "Available", tone: "emerald" };
+      case "pending":
+        return { label: "Available next turn", tone: "sky" };
+      case "pending_removal":
+        return { label: "Access removed", tone: "amber", hint: "Tools update next turn" };
+      case "unavailable":
+        return { label: "Unavailable", tone: "neutral", hint: "No tools available" };
+      case "failed":
+        return { label: "Error", tone: "rose" };
+      default:
+        return undefined;
+    }
+  }
 </script>
 
 <section aria-label="Connectors" class={["grid min-w-0 gap-1 px-3.5 py-1.5 text-base/6 sm:text-xs/5", className]}>
@@ -51,27 +74,24 @@
     >
   </div>
   {#if status}<p role="status" class="text-zinc-500 dark:text-zinc-400">{status}</p>{/if}
-  {#if accounts.length > 0}<ul role="list" class="grid gap-2">
-      {#each accounts as account (account.accountId)}<li
-          class="grid min-w-0 gap-1"
-          title={accountStatus(account.status)}
-        >
-          <div class="flex min-w-0 items-center gap-2">
+  {#if accounts.length > 0}<ul role="list" class="grid">
+      {#each accounts as account (account.accountId)}
+        {@const state = sessionLook(account)}
+        <li class="grid min-w-0">
+          <div class="flex min-h-7 min-w-0 items-center gap-2">
             <Icon name="link" /><span class="min-w-0 flex-1 truncate"
               >{account.connectorName} · {account.accountLabel}</span
-            >{#if account.status !== "connected"}<span class="shrink-0 text-amber-700 dark:text-amber-400"
-                >{accountStatus(account.status)}</span
+            >{#if state}<span role="status" class="contents" {@attach tooltip(state.hint)}
+                ><Badge compact tone={state.tone}>{state.label}</Badge></span
               >{/if}
           </div>
-          <p class="min-h-5 pl-6 text-zinc-500 dark:text-zinc-400" role="status">
-            {#if account.sessionState === "available"}Available
-            {:else if account.sessionState === "pending"}Available next turn
-            {:else if account.sessionState === "pending_removal"}Access removed · Tools update next turn
-            {:else if account.sessionState === "failed"}{account.sessionDetail}
-            {:else if account.sessionState === "unavailable" && account.status === "connected"}No tools available
-            {:else if !account.sessionState}Send a message to check tool availability{/if}
-          </p>
-        </li>{/each}
+          {#if account.status === "connected" && account.sessionState === "failed" && account.sessionDetail}<p
+              class="pb-1 pl-6 text-pretty text-zinc-500 dark:text-zinc-400"
+            >
+              {account.sessionDetail}
+            </p>{/if}
+        </li>
+      {/each}
     </ul>{/if}
 </section>
 

@@ -158,22 +158,27 @@ tytułu, modelu, uprawnień, kosztu ani statusu obecnych w nagłówku i przy com
 
 ### Podsumowanie wątku
 
-Kolumna rozmowy zawsze jest wyśrodkowana w obszarze `Thread` z własną maksymalną
-szerokością; wiadomości i composer mają tę samą szerokość i wyrównanie. Ani karta,
-ani lewy sidebar, ani panel Files nie przesuwają jej ani nie zmieniają jej szerokości
-(poza zmianą samej szerokości obszaru). Podsumowanie korzysta wyłącznie z wolnego
-miejsca obok kolumny.
+Kolumna rozmowy (`chat-column`) jest wyśrodkowana na **środku okna**, z własną
+maksymalną szerokością; wiadomości i composer zawsze mają tę samą szerokość
+i wyrównanie. Kolumna nie wchodzi na lewy sidebar (z odstępem szyny tur) ani na
+zadokowaną kartę (odstęp 1 rem). Gdy jedna ze stron by kolidowała, kolumna przesuwa
+się tylko tyle, ile trzeba, a dopiero potem zwęża się do minimum 36 rem
+(`SummaryLayout`, `--chat-offset`, `--chat-column`). Sidebar i panel Files zmieniają
+tylko dostępną przestrzeń; gdy kolumna mieści się na środku, nic się nie rusza.
+Otwarcie lub zwinięcie zadokowanej karty przesuwa kolumnę płynnie
+(`--duration-slow`, `--ease-smooth-out`; przy reduced motion natychmiast).
 
 Karta ma stałą szerokość 20 rem i jest zakotwiczona w prawym górnym rogu obszaru
 `Thread` (inset 12 px od góry, 16 px od prawej), niezależnie od prawego panelu.
 Zwija się do **pigułki** w tym samym rogu: gałąź, najnowszy PR ze stanem i checkami
 oraz liczba subagentów. Ma wewnętrzny scroll i jest niemodalna.
 
-- **Dok:** gdy prawy margines obok wyśrodkowanej kolumny mieści 22 rem (karta,
-  inset i odstęp od kolumny), stan karty wynika z jednego wyboru urządzenia
-  (`threadPanelCollapsed`): rozwinięta karta stoi w marginesie, zwinięta to pigułka.
+- **Dok:** gdy obok kolumny o minimalnej szerokości mieści się 22 rem (karta, inset
+  i odstęp), stan karty wynika z jednego wyboru urządzenia (`threadPanelCollapsed`):
+  rozwinięta karta sięga od góry do dołu obszaru (z wewnętrznym scrollem), niezależnie
+  od sidebara; zwinięta to pigułka.
   Pigułka rozwija, przycisk `Collapse thread details` lub Escape zwijają.
-- **Popover:** gdy margines jest węższy, podsumowanie jest zawsze pigułką, bez
+- **Popover:** gdy miejsca jest mniej, podsumowanie jest zawsze pigułką, bez
   względu na zapisany wybór. Pigułka otwiera kartę jako popover pod sobą, z cieniem
   (w ciemnym motywie jaśniejszą powierzchnią) i wewnętrznym scrollem. Zamykają go
   Escape, `Close thread details`, kliknięcie poza nim (fokus zostaje na klikniętym
@@ -342,7 +347,7 @@ nie montują dwóch pollerów PR ani dwóch `GetThreadPanel`.
 Granice web: `ThreadWorkspace`, `WorkspaceTabs`, `WorkspaceFrame` (siatka z kolumną
 Files), `WorkspaceFilesPanel`, `ThreadSummary` (karta i pigułka, `SummaryLayout`)
 z treścią `ThreadPanel`; w Files: `WorkspaceTree`, `WorkspaceFile` i adapter
-edytora. Reużywamy `PanelRow`, `PanelField`, `Popover`, `Dialog`, `DropdownMenu`,
+edytora. Reużywamy `PanelRow`, `Popover`, `Dialog`, `DropdownMenu`,
 `ResizeHandle`, wirtualizatora i tokenów kodu. Mobile ma analogiczne hosty z
 `Sheet`, `FlatList`, natywnym edytorem i istniejącym transportem Connect.
 

@@ -1,14 +1,13 @@
 import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import type { GitRef, ui } from "@canopy/contracts";
-import { branchSwitchReason, headLabel } from "@canopy/domain/git-heads";
+import { branchSwitchReason, distinctUpstream, headLabel } from "@canopy/domain/git-heads";
 import { nodeRef } from "@canopy/domain/computers";
 import { useOverview } from "../../state/overview";
 import { useSession } from "../../state/session";
-import { Icon } from "../../ui/Icon";
 import { PickerSheet } from "../../ui/Picker";
 import { styles, useColors, useTypography } from "../../ui/theme";
-import { ThreadPanelField } from "./ThreadPanelField";
+import { ThreadPanelLine } from "./ThreadPanelLine";
 
 export function ThreadBranch({ thread, worker }: { thread: ui.Thread; worker?: ui.Worker }) {
   const { computers } = useOverview();
@@ -24,6 +23,8 @@ function ThreadBranchPicker({ thread, reason }: { thread: ui.Thread; reason: str
   const type = useTypography();
   const { client } = useSession();
   const head = thread.worktree ?? thread.checkoutHead;
+  const label = head ? headLabel(head) : "Unknown branch";
+  const upstream = thread.worktree ? distinctUpstream(thread.worktree.branch, thread.worktree.baseRef) : "";
   const [refs, setRefs] = useState<GitRef[]>([]);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -81,45 +82,24 @@ function ThreadBranchPicker({ thread, reason }: { thread: ui.Thread; reason: str
 
   return (
     <View style={{ gap: 4 }}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Switch branch"
-        accessibilityHint={reason || undefined}
-        accessibilityState={{ disabled: Boolean(reason) || busy, busy }}
+      <ThreadPanelLine
+        icon="git-fork"
+        trailing={busy ? "arrow-path" : "chevron-down"}
+        label={`Switch branch, ${label}`}
+        hint={reason || (upstream ? `Started from ${upstream}` : undefined)}
         disabled={Boolean(reason) || busy}
+        busy={busy}
         onPress={() => void choose()}
-        style={({ pressed }) => ({ borderRadius: 8, backgroundColor: pressed ? c.pressed : "transparent" })}
-      >
-        <ThreadPanelField
-          icon="git-fork"
-          label="Branch"
-          aside={
-            <View style={{ height: type.mono.lineHeight, justifyContent: "center" }}>
-              <Icon name={busy ? "arrow-path" : "chevron-down"} />
-            </View>
-          }
-          value={
-            <Text selectable style={[type.mono, { color: reason || checkoutReason || busy ? c.muted : c.text }]}>
-              {head ? headLabel(head) : "Unknown branch"}
-            </Text>
-          }
-        >
-          {thread.worktree?.baseRef ? (
-            <View style={{ flexDirection: "row", gap: 4 }}>
-              <Text style={[styles.chromeMeta, { color: c.muted }]}>from</Text>
-              <Text
-                selectable
-                numberOfLines={1}
-                ellipsizeMode="middle"
-                accessibilityLabel={thread.worktree.baseRef}
-                style={[styles.chromeMeta, { fontFamily: type.mono.fontFamily, color: c.muted, flex: 1 }]}
-              >
-                {thread.worktree.baseRef}
-              </Text>
-            </View>
-          ) : null}
-        </ThreadPanelField>
-      </Pressable>
+        value={
+          <Text
+            numberOfLines={1}
+            ellipsizeMode="middle"
+            style={[type.mono, { color: reason || checkoutReason || busy ? c.muted : c.text }]}
+          >
+            {label}
+          </Text>
+        }
+      />
       {reason ? <Text style={[styles.meta, { color: c.muted }]}>{reason}</Text> : null}
       {checkoutReason ? <Text style={[styles.meta, { color: c.muted }]}>{checkoutReason}</Text> : null}
       {error ? (
@@ -129,6 +109,7 @@ function ThreadBranchPicker({ thread, reason }: { thread: ui.Thread; reason: str
       ) : null}
       <PickerSheet
         title="Switch branch"
+        note={upstream ? `Started from ${upstream}` : undefined}
         visible={open && !reason}
         onClose={() => setOpen(false)}
         search="Search branches…"
