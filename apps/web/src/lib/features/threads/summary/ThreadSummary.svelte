@@ -3,9 +3,9 @@
   import type { Attachment } from "svelte/attachments";
   import type { ui } from "@canopy/contracts";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
-  import IconButton from "#lib/shared/ui/IconButton.svelte";
   import { devicePreferences as device } from "#lib/features/settings/device-preferences.svelte.ts";
   import type { ThreadTree } from "../thread-tree.ts";
+  import ThreadSummaryHeader from "./ThreadSummaryHeader.svelte";
   import ThreadSummaryPill from "./ThreadSummaryPill.svelte";
 
   /**
@@ -139,21 +139,7 @@
       inert={!open}
       {@attach escapeCloses}
     >
-      <div
-        class="density-chrome flex h-9 shrink-0 items-center justify-between gap-2 border-b border-zinc-950/5 pr-1 pl-3 dark:border-white/8"
-      >
-        <h2 class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Thread details</h2>
-        <span data-summary-collapse class="contents">
-          {#if pinned}<IconButton
-              icon="chevron-down"
-              iconClass="rotate-180"
-              label="Collapse thread details"
-              aria-expanded="true"
-              aria-controls={id}
-              onclick={() => void hide(true)}
-            />{:else}<IconButton icon="x-mark" label="Close thread details" onclick={() => void hide(true)} />{/if}
-        </span>
-      </div>
+      <ThreadSummaryHeader {pinned} controls={id} onclose={() => void hide(true)} />
       <div class="min-h-0 scroll-stable-both overflow-y-auto overscroll-contain px-1 pb-1">{@render children()}</div>
     </section>
   {/if}

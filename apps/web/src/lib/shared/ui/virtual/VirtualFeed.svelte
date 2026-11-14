@@ -111,6 +111,7 @@
   let scrollTop = $state(0);
   let listTop = $state(0);
   let footerHeight = $state(0);
+
   /** From the footer's bottom to its visible top edge (footer-edge.ts). */
   let footerEdge = $state(0);
 
@@ -264,10 +265,6 @@
 
       for (const element of [scroller, list]) if (element) observer.unobserve(element);
     };
-  });
-
-  $effect(() => {
-    if (footerElement) return watchFooterEdge(footerElement, (edge) => (footerEdge = edge));
   });
 
   $effect(() => () => {
@@ -676,8 +673,7 @@
      change the virtual window, or make the browser reveal a contenteditable's flow position. -->
   <div class="pointer-events-none absolute bottom-0 left-0 isolate z-10 [contain:layout]" style:right="{gutter}px">
     <div class="relative">
-      <!-- The fade only imitates the composer's shadow, in the thread surface colour: 12.5% of the footer
-           (12–32 px), and tall enough to hold Jump to latest above the footer's visible edge. -->
+      <!-- Fade: the composer's shadow in the thread surface colour, 12–32 px, tall enough for Jump to latest. -->
       <div
         bind:this={footerShell}
         class="absolute inset-x-0 bottom-0 isolate [--feed-fade:max(clamp(0.75rem,12.5%,2rem),calc(var(--feed-edge)+--spacing(11)-100%))]"
@@ -688,6 +684,7 @@
           <div class="chat-column px-4 sm:px-6" {onkeydown}>
             <div
               bind:this={footerElement}
+              {@attach (element) => watchFooterEdge(element, (edge) => (footerEdge = edge))}
               class="pointer-events-auto relative composer-bottom"
               onfocusin={() => scrollIntent.reset()}
               onbeforeinput={() => scrollIntent.reset()}
@@ -703,14 +700,12 @@
         {#if !stuck}
           <!-- Centred on the composer's axis (the shared chat column), just above its visible edge. -->
           <div
-            class="pointer-events-none absolute inset-x-0 bottom-[calc(var(--feed-edge)+--spacing(2))] z-10"
+            class="chat-column pointer-events-none absolute inset-x-0 bottom-[calc(var(--feed-edge)+--spacing(2))] z-10 flex justify-center px-4 sm:px-6"
             transition:rise
           >
-            <div class="chat-column flex justify-center px-4 sm:px-6">
-              <span class="pointer-events-auto flex rounded-md bg-surface shadow-md ring-1 ring-divider">
-                <Button size="sm" icon="arrow-down" onclick={jump}>Jump to latest</Button>
-              </span>
-            </div>
+            <span class="pointer-events-auto flex rounded-md bg-surface shadow-md ring-1 ring-divider">
+              <Button size="sm" icon="arrow-down" onclick={jump}>Jump to latest</Button>
+            </span>
           </div>
         {/if}
       </div>

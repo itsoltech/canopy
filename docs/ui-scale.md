@@ -140,11 +140,15 @@ natywne działanie przeglądarki na zaznaczalnych obszarach.
   odstęp po przewinięciu, a nie wymuszone wyrównanie do dołu. Status wysyłki zajmuje
   miejsce komputera w wierszu kontekstu, bez dodatkowego pustego wiersza pod nim.
   W wątkach spacer osi czasu obejmuje pełną zmierzoną stopkę, także cytaty zawinięte
-  w kilka rzędów i chipy w kompakcie. Fade nad stopką ma 12,5% jej wysokości
-  (minimum 12 px, maksimum 32 px), w kolorze płótna wątku. „Jump to latest” jest
-  wyśrodkowany na osi composera, 8 px nad fade, także przy rozwiniętym polu.
-  Przycisk ma własną nieprzezroczystą powierzchnię ponad fade; tło stopki dochodzi
-  do dolnej krawędzi widoku. Mobile stosuje fade 16–32 dp zgodnie ze stanem zwinięcia
+  w kilka rzędów i chipy w kompakcie. Fade nad stopką tylko imituje cień composera:
+  przechodzi od przezroczystości dokładnie do tła wątku (token `surface`, ten sam co
+  obszar wątku), bez widocznej krawędzi pasa. Ma 12,5% wysokości stopki (minimum
+  12 px, maksimum 32 px). „Jump to latest” jest wyśrodkowany na osi composera (we
+  wspólnej `.chat-column`), 8 px nad jego widoczną górną krawędzią: treść stopki
+  oznacza malowane elementy `data-feed-edge` (powierzchnia composera, karta Drafts,
+  panele nad nim), a pusty zarezerwowany pas nad composerem się nie liczy. Gdy
+  przycisk wystaje ponad stopkę, fade rośnie tak, by go obejmował. Przycisk ma
+  własną nieprzezroczystą powierzchnię; tło stopki dochodzi do dolnej krawędzi widoku. Mobile stosuje fade 16–32 dp zgodnie ze stanem zwinięcia
   i tę samą kotwicę nad zmierzoną stopką. Rozmowy
   botów i grup utrzymują koniec po zmianie wysokości composera tylko podczas śledzenia
   najnowszych wiadomości, bez przesuwania czytelnika przeglądającego historię.

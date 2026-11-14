@@ -109,12 +109,16 @@ do nowego aktywnego nagłówka. Nagłówek nie ma `+` ani stałego przełącznik
 Na telefonie tytuł pozostaje skrócony, a nazwa aktywnej karty także ma ellipsis.
 Nie dokładamy drugiego rzędu ani poziomego scrolla strony.
 
-Chrome nagłówka (sygnet, tytuł i akcje) używa tokenu `chrome`, opartego na `panel`
-wybranego motywu. Pas zakładek ma zaokrąglone górne narożniki i odwrócone łuki
-przy dolnej krawędzi; jego `surface` jest dokładnie tłem aktywnej karty i treści
-wątku/pliku. Nie ma między nimi obramowania ani odstępu. Nieaktywne karty mają
-subtelne tło i separatory znikające obok aktywnej, a slot zamknięcia pozostaje
-zarezerwowany również bez hovera. Zmiana stanu korzysta z tokenów ruchu i respektuje
+Chrome nagłówka (sygnet, tytuł, zakładki i akcje) używa tokenu `chrome`, opartego
+na `panel` wybranego motywu. Pas zakładek nie ma własnego tła. Tylko aktywna karta
+jest powierzchnią `surface`: ma zaokrąglone górne narożniki (8 px) i odwrócone łuki
+przy dolnej krawędzi, a jej tło jest dokładnie tłem treści wątku/pliku poniżej, bez
+obramowania ani odstępu. Nieaktywne karty to wyciszony tekst na chrome; hover
+pokazuje cichą wsuniętą pigułkę. Cienki separator stoi tylko między dwiema
+nieaktywnymi kartami i znika przy hoverze. Karta podglądu ma kursywę. Slot
+zamknięcia pozostaje zarezerwowany również bez hovera. Pas sięga do akcji po prawej
+ze zwykłym odstępem chrome; wskaźnik synchronizacji pojawia się tylko podczas
+synchronizacji, po stronie pasa, więc nie przesuwa akcji. Zmiana stanu korzysta z tokenów ruchu i respektuje
 ograniczenie animacji. Na Windows/Linux własne kontrolki okna zachowują rezerwę
 szerokości i dzielą tło chrome; macOS zachowuje traffic lights po lewej.
 
@@ -184,8 +188,8 @@ oraz liczba subagentów. Ma wewnętrzny scroll i jest niemodalna.
 
 - **Dok:** gdy obok kolumny o minimalnej szerokości mieści się 22 rem (karta, inset
   i odstęp), stan karty wynika z jednego wyboru urządzenia (`threadPanelCollapsed`):
-  rozwinięta karta sięga od góry do dołu obszaru (z wewnętrznym scrollem), niezależnie
-  od sidebara; zwinięta to pigułka.
+  rozwinięta karta ma wysokość swojej treści, najwyżej do dołu obszaru (wtedy
+  przewija się w środku), niezależnie od sidebara; zwinięta to pigułka.
   Pigułka rozwija, przycisk `Collapse thread details` lub Escape zwijają.
 - **Popover:** gdy miejsca jest mniej, podsumowanie jest zawsze pigułką, bez
   względu na zapisany wybór. Pigułka otwiera kartę jako popover pod sobą, z cieniem
