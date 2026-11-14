@@ -84,7 +84,7 @@
         {/snippet}
         <div class="grid gap-3 p-3">
           <h2 class="text-sm font-medium text-zinc-500 sm:text-xs dark:text-zinc-400">Provider usage</h2>
-          <div class="grid max-h-[min(28rem,60dvh)] min-w-0 gap-3 overflow-y-auto overscroll-contain">
+          <div class="grid max-h-[min(24rem,50dvh)] min-w-0 gap-3 overflow-y-auto overscroll-contain">
             {#each accounts as account (account.key)}
               {@const provider = providerKeyOf(account.provider)}
               <section class="grid min-w-0 gap-2">
