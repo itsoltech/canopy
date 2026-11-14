@@ -81,8 +81,9 @@ export function TimelineTurn({
 
   const allBody = useMemo(() => turnBody(turn, entries, context.notices), [turn, entries, context.notices]);
 
+  // Published results (image galleries, visuals) stay under the reply, also when its work is folded.
   const gallery = (row: (typeof allBody)[number]) =>
-    row.kind === "item" && row.node.item.content.case === "imageGallery";
+    row.kind === "item" && (row.node.item.content.case === "imageGallery" || row.node.item.content.case === "visual");
 
   const body = allBody.filter((row) => !gallery(row));
   const ended = ["completed", "interrupted", "failed", "cancelled"].includes(turn.status);

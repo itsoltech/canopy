@@ -1892,3 +1892,20 @@ linkiem do pliku, a zdalny obraz linkiem zewnętrznym bez automatycznego pobiera
 Aktualizacje OTA: [Updates SDK 58](https://docs.expo.dev/versions/v58.0.0/sdk/updates/),
 [Fingerprint SDK 58](https://docs.expo.dev/versions/v58.0.0/sdk/fingerprint/) i
 [podpisywanie EAS Update](https://docs.expo.dev/eas-update/code-signing/).
+
+## Visuals agenta
+
+Aplikacja nie ma jeszcze izolowanego WebView, więc item `visual`
+([agent-visuals.md](agent-visuals.md)) pokazuje kartę `VisualSummary`: tytuł,
+„Version N” i „Open this visual on web or desktop.”, z opisem w etykiecie
+dostępności. Spec nie jest pobierany ani wykonywany. Karta stoi pod odpowiedzią,
+także gdy praca tury jest zwinięta, jak galerie obrazów. Brak zmian natywnych:
+fingerprint iOS i Androida pozostaje bez zmian.
+
+`@expo/dom-webview` (już linkowany przez `expo`) nie spełnia granicy z §4:
+ładuje tylko URI, na Androidzie wymusza `allowFileAccess` i `allowFileAccessFromFileURLs`,
+nie przechwytuje nawigacji, a jego most `addJavascriptInterface` widzi każda ramka,
+także sandboxowana. Renderer interaktywny wymaga `react-native-webview` (bez dostępu
+do plików i wspólnych cookies, z przechwytywaniem nawigacji i komunikacją tylko
+z zaufanym shellem) oraz nowych buildów natywnych; trafi do jednego buildu razem
+z odtwarzaniem wideo, gdy zostanie zaplanowany.
