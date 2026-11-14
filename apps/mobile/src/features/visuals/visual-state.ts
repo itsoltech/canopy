@@ -15,6 +15,9 @@ let entries: [string, VisualState][] | undefined;
 let loading: Promise<void> | undefined;
 let writing = Promise.resolve();
 
+// Bumped by a clear, so a read that started before it can't bring the old entries back.
+let generation = 0;
+
 function parse(raw: string): [string, VisualState][] {
   const stored = parseJson(raw);
 
@@ -36,13 +39,19 @@ function parse(raw: string): [string, VisualState][] {
 
 /** Reads the cache file once; later reads come from memory. */
 export function loadVisualStates(): Promise<void> {
+  const started = generation;
+
   loading ??= (async () => {
+    let read: [string, VisualState][] = [];
+
     try {
       const stored = file();
-      entries = stored.exists ? parse(await stored.text()) : [];
+      read = stored.exists ? parse(await stored.text()) : [];
     } catch {
-      entries = [];
+      read = [];
     }
+
+    if (started === generation) entries = read;
   })();
 
   return loading;
@@ -69,4 +78,19 @@ export function saveVisualState(visualId: string, version: number, state: Visual
     })
     // Storage full or unavailable: the visual keeps working from its initial state.
     .catch(() => undefined);
+}
+
+/** Unpairing and a new pairing drop the previous gateway's control state, in memory and on disk. */
+export async function clearVisualStates(): Promise<void> {
+  generation++;
+  entries = [];
+  loading = Promise.resolve();
+
+  await (writing = writing
+    .then(() => {
+      const stored = file();
+
+      if (stored.exists) stored.delete();
+    })
+    .catch(() => undefined));
 }

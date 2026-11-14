@@ -1,5 +1,6 @@
 import type { ui } from "@canopy/contracts";
 import type { Client } from "@connectrpc/connect";
+import { clearVisualStates } from "./visual-state";
 
 /** Specs of recently shown visuals: at most 16 entries and 2 MiB, least recently used first out (web: same). */
 const MAX_ENTRIES = 16;
@@ -17,6 +18,16 @@ function remember(key: string, response: ui.GetVisualResponse): void {
     cache.delete(old);
     bytes -= entry.specJson.length * 2;
   }
+}
+
+/**
+ * Unpairing, an expired pairing and a new pairing drop everything visuals kept from the previous gateway: the
+ * spec cache and the saved control state, in memory and on disk.
+ */
+export async function clearVisualCaches(): Promise<void> {
+  cache.clear();
+  loading.clear();
+  await clearVisualStates();
 }
 
 /**

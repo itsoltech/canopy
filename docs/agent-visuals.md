@@ -624,4 +624,13 @@ i pomiary produkcyjne pozostają kryteriami przyszłych PR-ów.
 - Aplikacja: `apps/mobile/src/features/visuals` (opis w [mobile.md](mobile.md#visuals-agenta)).
 - Testy: `host.test.ts` (koperta, inbox, brak tokenu w ramce, inertny tekst, odmowa
   kitu). Granica WebView na iOS/Androidzie wymaga dowodu na urządzeniach.
+- Cache spec i zapisany stan kontrolek (`visual-state.json`) są czyszczone przy
+  rozparowaniu, wygaśnięciu parowania i nowym parowaniu (`clearVisualCaches`).
+- Zaakceptowane ryzyka resztkowe (przegląd bezpieczeństwa #695):
+  - kod w ramce może zalewać most wiadomościami: most jest widoczny w każdej ramce,
+    a natywnej strony nie da się ograniczyć z JS. Host odrzuca wiadomości bez tokenu
+    i ponad limity, ale koszt ich dostarczenia ponosi proces aplikacji;
+  - Android nie sprawdza nawigacji http(s) ramek potomnych
+    (`shouldOverrideUrlLoading` ich nie widzi), więc granicą pozostają sandbox
+    iframe i CSP dokumentu.
 

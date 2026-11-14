@@ -19,6 +19,7 @@ import { startMobileDiagnostics } from "../features/settings/client-diagnostics"
 import { clearDiagnosticLogs } from "../features/settings/diagnostics-log-file";
 import { useWorkspaceStore, forgetWorkspace } from "../features/workspace/store";
 import { prepareMobileDrafts } from "../features/drafts/storage";
+import { clearVisualCaches } from "../features/visuals/visual-source";
 import type { MobileDrafts } from "../features/drafts/store";
 
 const SHARED_READ_FAILED = "Could not load settings. Check the connection and retry.";
@@ -87,6 +88,7 @@ function useSessionState() {
 
   async function clearHistory(revoked = false) {
     workspace.clear();
+    await clearVisualCaches();
     forgetWorkspace(session);
     await drafts?.close();
     await prepareMobileDrafts(null);
@@ -129,6 +131,7 @@ function useSessionState() {
     // A private tailnet gateway may be reachable even when public internet probes fail.
     online: network.isConnected !== false,
     async pair(value: DeviceSession) {
+      await clearVisualCaches();
       await drafts?.close();
       setDrafts(await prepareMobileDrafts(value));
       await threadCache?.close();

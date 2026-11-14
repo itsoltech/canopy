@@ -75,7 +75,8 @@ export function VisualWebView({
   const web = useRef<WebView<object>>(null);
   const [states, setStates] = useState(false);
   const [failure, setFailure] = useState("");
-  const [loaded, setLoaded] = useState(false);
+  // Per mount token: a new shell starts unloaded, so its first about:blank is allowed again.
+  const [loadedToken, setLoadedToken] = useState("");
   const [height, setHeight] = useState(() => clampVisualHeight(initialHeight, maxHeight));
   const frame = useRef(0);
   // The first appearance is compiled in; later changes travel as host messages once the shell has loaded.
@@ -94,6 +95,7 @@ export function VisualWebView({
   const shell = mounted?.kind === "ready" ? mounted : undefined;
   const inbox = useMemo(() => (shell ? new VisualFrameInbox(shell.domains) : undefined), [shell]);
 
+  const loaded = Boolean(shell) && loadedToken === shell?.token;
   const ready = loaded ? shell : undefined;
 
   useEffect(() => send(web.current, ready, { type: "theme", theme }), [ready, theme]);
@@ -155,7 +157,7 @@ export function VisualWebView({
       html={shell.html}
       height={height}
       loaded={loaded}
-      onLoaded={() => setLoaded(true)}
+      onLoaded={() => setLoadedToken(shell.token)}
       onMessage={onMessage}
       onFailure={() => setFailure("Couldn't open this visual.")}
     />
