@@ -3,6 +3,7 @@
   import { tabPath, type WorkspaceModuleTarget } from "@canopy/domain/workspace-modules";
   import type { ThreadWorkspace } from "./thread-workspace.svelte.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
+  import MenuItem from "#lib/shared/ui/MenuItem.svelte";
   import { refreshActivities } from "#lib/shared/activity.ts";
 
   let { state, module }: { state: ThreadWorkspace; module: Snippet<[WorkspaceModuleTarget]> } = $props();
@@ -31,7 +32,27 @@
             preview={tab.preview}
             onkeep={() => state.view.keep(tab.id)}
             onclose={() => state.close(tab.id)}
-          />{/key}{/await}{/if}
+          >
+            {#snippet tabActions()}
+              <MenuItem
+                icon="chevron-left"
+                disabled={state.view.tabs[0]?.id === tab.id}
+                onselect={() => state.view.move(tab.id, -1)}>Move left</MenuItem
+              >
+              <MenuItem
+                icon="chevron-right"
+                disabled={state.view.tabs.at(-1)?.id === tab.id}
+                onselect={() => state.view.move(tab.id, 1)}>Move right</MenuItem
+              >
+              <MenuItem icon="x-mark" onselect={() => state.close(tab.id)}>Close tab</MenuItem>
+              <MenuItem
+                icon="x-circle"
+                disabled={state.view.tabs.length <= 1}
+                onselect={() => state.closeOthers(tab.id)}>Close other tabs</MenuItem
+              >
+              <MenuItem icon="check-circle" onselect={() => state.closeSaved()}>Close saved tabs</MenuItem>
+            {/snippet}
+          </file.default>{/key}{/await}{/if}
   </div>
 {/if}
 {#if state.view.error}<Alert tone="error" banner>{state.view.error}</Alert>{/if}

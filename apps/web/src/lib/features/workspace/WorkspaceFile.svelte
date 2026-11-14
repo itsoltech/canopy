@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { tick, untrack } from "svelte";
+  import { tick, untrack, type Snippet } from "svelte";
+  import WorkspaceFileToolbar from "./WorkspaceFileToolbar.svelte";
   import type { WorkspaceFile } from "@canopy/domain/workspace-file";
   import { observeWorkspaceFile } from "@canopy/domain/workspace-changes";
   import { fileName } from "@canopy/domain/file-references";
@@ -11,7 +12,6 @@
   import CodeEditor from "#lib/features/files/CodeEditor.svelte";
   import FileContentView from "#lib/features/files/FileContentView.svelte";
   import FileLookup from "#lib/features/files/FileLookup.svelte";
-  import { openInApp } from "#lib/features/files/file-links.svelte.ts";
   import { workspaceVersion, workspaceStore } from "./workspace.svelte.ts";
   import { keybindings } from "#lib/features/commands/keybindings.svelte.ts";
   import { contributeCommands } from "#lib/features/commands/commands.svelte.ts";
@@ -23,7 +23,15 @@
     onclose,
     onkeep,
     preview,
-  }: { document: WorkspaceFile; onclose: () => void; onkeep: () => void; preview: boolean } = $props();
+    tabActions,
+  }: {
+    document: WorkspaceFile;
+    onclose: () => void;
+    onkeep: () => void;
+    preview: boolean;
+    /** Tab management for the file's ⋯ menu (move, close others). */
+    tabActions?: Snippet;
+  } = $props();
 
   let scroller = $state<HTMLDivElement>();
   let confirmation = $state<"discard" | "delete" | undefined>();
@@ -163,55 +171,28 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="flex min-h-0 flex-1 flex-col" onkeydowncapture={keydown}>
-  <div class="flex flex-wrap items-center gap-2 border-b border-divider bg-surface px-3 py-2">
-    {#if viewer.editing}
-      <Button
-        size="sm"
-        variant="primary"
-        disabled={!viewer.dirty || viewer.busy || viewer.changedOnDisk}
-        onclick={() => void document.save()}>Save file</Button
-      >
-      <Button size="sm" disabled={viewer.busy} onclick={discard}
-        >{viewer.dirty ? "Discard changes" : "Stop editing"}</Button
-      >
-    {:else}
-      <Button
-        size="sm"
-        disabled={!viewer.editable || viewer.loading}
-        onclick={() => {
-          onkeep();
-          document.edit();
-        }}>Edit</Button
-      >
-      <Button size="sm" variant="ghost" disabled={viewer.loading || viewer.busy} onclick={() => void document.load()}
-        >Reload</Button
-      >
-      {#if preview}<Button size="sm" variant="ghost" onclick={onkeep}>Keep tab</Button>{/if}
-    {/if}
-    <span class="min-w-0 flex-1 truncate text-sm text-muted" title={document.path}
-      >{viewer.file?.relativePath || document.path}</span
-    >
-    {#if !viewer.editing && viewer.file && !viewer.file.binary}
-      {#if /\.(md|markdown|mdx)$/i.test(name)}<Button size="sm" variant="ghost" onclick={() => (rendered = !rendered)}
-          >{rendered ? "View source" : "Render Markdown"}</Button
-        >{/if}
-      <Button size="sm" variant="ghost" onclick={() => (goOpen = true)}>Go to line</Button>
-    {/if}
-    <CopyButton text={document.path} label="Copy path" />
-    {#if viewer.file && !viewer.file.binary}<CopyButton text={viewer.text} label="Copy text" />{/if}
-    {#if document.target.local}<Button
-        size="sm"
-        variant="ghost"
-        onclick={() => void openInApp({ ...document.target, path: document.path, local: true })}
-        >Open in default app</Button
-      >{/if}
-    <Button
-      size="sm"
-      variant="ghost"
-      disabled={!viewer.file?.sha256 || viewer.busy || viewer.editing}
-      onclick={() => (confirmation = "delete")}>Delete file</Button
-    >
-  </div>
+  <WorkspaceFileToolbar
+    {document}
+    {preview}
+    markdown={/\.(md|markdown|mdx)$/i.test(name) && Boolean(viewer.file) && !viewer.file?.binary}
+    bind:rendered
+    state={{
+      path: viewer.file?.relativePath || document.path,
+      editing: viewer.editing,
+      dirty: viewer.dirty,
+      busy: viewer.busy,
+      loading: viewer.loading,
+      editable: viewer.editable,
+      text: viewer.file && !viewer.file.binary ? viewer.text : undefined,
+      sha256: viewer.file?.sha256,
+      changedOnDisk: viewer.changedOnDisk,
+    }}
+    {onkeep}
+    ongoline={() => (goOpen = true)}
+    ondelete={() => (confirmation = "delete")}
+    ondiscard={discard}
+    {tabActions}
+  />
   {#if viewer.error}<Alert tone="error" banner>{viewer.error}</Alert>{/if}
   {#if viewer.watchStatus}<p role="status" class="px-3 py-1 text-sm text-muted">{viewer.watchStatus}</p>{/if}
   {#if viewer.changedOnDisk}

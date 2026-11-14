@@ -93,23 +93,30 @@ headera (3 rem przy standardowym rozmiarze); obszary przeciągania okna i kontro
 systemowe desktopu mają odrębne, zarezerwowane miejsce. Zakładki nie są drag region.
 
 Tytuł ma `min-width: 0`, ellipsis i maks. `min(14rem, 22%)` szerokości głównego
-obszaru; podczas braku miejsca kurczy się przed zakładką aktywną. Zakładki mają
-etykiety do 14 rem, stały slot dirty/close i pełną ścieżkę w tooltipie/menu.
-`Thread` pozostaje pierwszą przypiętą kartą modelu, nie musi stale zajmować miejsca
-na ekranie, gdy aktywny jest plik. Niezmienny przycisk `Switch tab` z liczbą kart
-obejmuje wszystkie karty, ich kolejność i dirty, także te ukryte.
+obszaru. Zakładki mają szerokość treści (do 12 rem), stały slot dirty/close i pełną
+ścieżkę w tooltipie. `Thread` jest zawsze widoczny jako pierwsza karta. Aktywna karta
+zachowuje szerokość, pozostałe skracają się pierwsze.
 
-Pas zakładek nie zawija się ani nie poszerza aplikacji. W pierwszej kolejności
-pokazuje aktywną kartę i najbliższe karty mieszczące się w reszcie miejsca; pozostałe
-są w przełączniku. Aktywna nigdy nie trafia wyłącznie do overflow: zmiana karty,
-resize i zamknięcie przeliczają widoczny wycinek bez zmiany kolejności modelu.
-Menu i roving tabindex obejmują widoczne nagłówki, a wybór z przełącznika przenosi
-fokus do nowego aktywnego nagłówka. Przy zbyt małej przestrzeni cały pas zastępuje
-jeden przycisk aktywnej karty z licznikiem i chevronem, w tym samym rzędzie.
-Na telefonie tytuł pozostaje skrócony, a nazwa aktywnej karty także ma ellipsis;
-pełne obie nazwy są w arkuszach. `+`, summary i moduły zachowują zarezerwowane cele
-dotykowe. Przy dużej skali tekstu tytuł może skurczyć się wizualnie do sygnetu,
-zachowując dostępną nazwę. Nie dokładamy drugiego rzędu ani poziomego scrolla strony.
+Pas zakładek nie zawija się ani nie poszerza aplikacji. Po `Thread` pokazuje aktywną
+kartę i sąsiednie karty mieszczące się w reszcie miejsca. Pozostałe są pod chipem
+`+N`, który istnieje tylko wtedy, gdy coś jest ukryte; jego menu wymienia ukryte
+karty z pełną ścieżką i dirty. Aktywna nigdy nie trafia wyłącznie do overflow:
+zmiana karty, resize i zamknięcie przeliczają widoczny wycinek bez zmiany kolejności
+modelu. Roving tabindex obejmuje widoczne nagłówki, a wybór z menu przenosi fokus
+do nowego aktywnego nagłówka. Nagłówek nie ma `+` ani stałego przełącznika `⌄`.
+Na telefonie tytuł pozostaje skrócony, a nazwa aktywnej karty także ma ellipsis.
+Nie dokładamy drugiego rzędu ani poziomego scrolla strony.
+
+### Pasek pliku
+
+Nad plikiem jest jeden rząd (40 px): ścieżka (katalog wyciszony, nazwa wyróżniona,
+obie do zaznaczenia), dla Markdown przełącznik `Source`/`Rendered`, `Edit` (podczas
+edycji w tym samym miejscu `Discard changes`/`Stop editing` i `Save file`) oraz
+jedno menu `⋯`: `Keep tab` (dla podglądu), `Reload`, `Go to line`, `Copy path`,
+`Copy text`, `Open in default app` (lokalnie), zarządzanie kartą (`Move left`,
+`Move right`, `Close tab`, `Close other tabs`, `Close saved tabs`) i na końcu,
+po separatorze, `Delete file…`. Pasek nie powtarza nazwy pliku w osobnym miejscu
+i nie ma dwóch identycznych przycisków kopiowania.
 
 Nagłówek nie ma `+`. Wybór pliku z drzewa lub linku otwiera kartę obok `Thread`;
 pełny widok PR otwiera wiersz PR w podsumowaniu (lub link `?pr=`), a wynik zadania
@@ -291,7 +298,7 @@ Dodajemy konteksty workspace/file oraz wykrywanie kolizji; obecne `Mod+K`, `Mod+
 | Akcja | Proponowany skrót / dostępna alternatywa |
 | --- | --- |
 | Wybór zakładki | Left/Right, Home/End w `tablist`; Enter/Space aktywuje, bez uruchamiania odczytu samym fokusem |
-| Następna/poprzednia karta | `Alt+PageDown` / `Alt+PageUp` poza polem tekstowym; picker `Switch tab` jako alternatywa systemowa |
+| Następna/poprzednia karta | `Alt+PageDown` / `Alt+PageUp` poza polem tekstowym; menu `+N` dla ukrytych kart |
 | Zamknięcie | Delete przy fokusie nagłówka karty; menu i paleta dla reszty, dirty guard zawsze działa |
 | Zapis i linia | `Mod+S` tylko w edycji; `Mod+G` tylko przy fokusie viewera/edytora, otwiera `Go to line` |
 | Podsumowanie i Files | `Toggle thread details` i `Toggle Files` w palecie; Escape w karcie podsumowania zwija ją do pigułki |

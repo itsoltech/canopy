@@ -548,12 +548,7 @@
       {:else}
         <Crumb><Skeleton class="h-4 w-48" /></Crumb>
       {/if}
-      {#snippet workspace()}<WorkspaceTabs
-          state={workspaceState}
-          {working}
-          pending={blockingQuestions}
-          actions={threadActions}
-        />{/snippet}
+      {#snippet workspace()}<WorkspaceTabs state={workspaceState} {working} pending={blockingQuestions} />{/snippet}
       {#snippet actions()}
         <div class="max-sm:hidden"><ThreadSyncProgress status={view.syncStatus} /></div>
         {#if thread}<div class="max-sm:hidden">

@@ -1,6 +1,6 @@
 import { untrack } from "svelte";
 import type { Workspace, WorkspaceTab } from "@canopy/domain/workspace";
-import { fileTab, tabBusy } from "@canopy/domain/workspace-modules";
+import { fileTab, tabBusy, tabDirty } from "@canopy/domain/workspace-modules";
 import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
 import { provideWorkspace, workspaceStore, workspaceVersion } from "./workspace.svelte.ts";
 
@@ -42,6 +42,11 @@ export class ThreadWorkspace {
 
   closeOthers(id: string): void {
     this.closeTabs(this.view.tabs.filter((tab) => tab.id !== id).map((tab) => tab.id));
+  }
+
+  /** Closes every tab without unsaved or pending changes. */
+  closeSaved(): void {
+    for (const tab of this.view.tabs.filter((tab) => !tabDirty(tab) && !tabBusy(tab))) this.view.close(tab.id);
   }
 
   /** Files shows as the right column (wide screens only). */
