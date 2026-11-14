@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
   import { sidebarUsageAccounts, sidebarUsageGlance } from "@canopy/domain/sidebar-usage";
-  import { proxyUsageSections, proxyUsageText } from "@canopy/domain/proxy-accounts";
+  import { proxyUsageCounts, proxyUsageSections, proxyUsageText } from "@canopy/domain/proxy-accounts";
   import { sharedProxies } from "#lib/features/proxies/proxies.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
@@ -96,11 +96,15 @@
           {#each sections as section (section.proxyId)}
             <a
               href={`/settings/proxies#proxy-${section.proxyId}`}
+              aria-label={proxyUsageText(section)}
               onclick={() => (open = false)}
-              class="flex min-w-0 items-center gap-2 rounded-md text-base text-zinc-700 focus-ring hover:text-zinc-950 sm:text-sm dark:text-zinc-300 dark:hover:text-white"
+              class="grid min-w-0 gap-0.5 rounded-md focus-ring"
             >
-              <Icon name="link" class="size-4 shrink-0 fill-zinc-500 dark:fill-zinc-400" />
-              <TruncatedText class="flex-1" text={proxyUsageText(section)} />
+              <span class="flex min-w-0 items-center gap-2">
+                <Icon name="link" class="size-4 shrink-0 fill-zinc-500 dark:fill-zinc-400" />
+                <TruncatedText class="flex-1 text-base font-medium sm:text-sm" text={`Through ${section.label}`} />
+              </span>
+              <span class="pl-6 text-sm text-zinc-500 sm:text-xs dark:text-zinc-400">{proxyUsageCounts(section)}</span>
             </a>
           {/each}
           <ButtonLink href="/settings/providers" variant="ghost" onclick={() => (open = false)} class="justify-start"

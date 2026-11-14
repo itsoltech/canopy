@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import type { ui } from "@canopy/contracts";
 import { sidebarUsageAccounts, sidebarUsageGlance } from "@canopy/domain/sidebar-usage";
-import { proxyUsageSections, proxyUsageText } from "@canopy/domain/proxy-accounts";
+import { proxyUsageCounts, proxyUsageSections, proxyUsageText } from "@canopy/domain/proxy-accounts";
 import { Icon } from "../../ui/Icon";
 import { useSettingsResource } from "../settings/resource";
 import { Button } from "../../ui/Button";
@@ -83,6 +83,7 @@ export function SidebarUsage({ workers }: { workers: readonly ui.Worker[] }) {
                   <Pressable
                     key={section.proxyId}
                     accessibilityRole="link"
+                    accessibilityLabel={proxyUsageText(section)}
                     onPress={() => {
                       setOpen(false);
                       openSettingsSection("proxies");
@@ -90,9 +91,12 @@ export function SidebarUsage({ workers }: { workers: readonly ui.Worker[] }) {
                     style={[styles.row, { minHeight: 44 }]}
                   >
                     <Icon name="link" color={c.muted} />
-                    <Text numberOfLines={2} style={[styles.overlayMeta, { color: c.soft, flex: 1 }]}>
-                      {proxyUsageText(section)}
-                    </Text>
+                    <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                      <Text numberOfLines={1} style={[styles.overlayHeading, { color: c.text }]}>
+                        Through {section.label}
+                      </Text>
+                      <Text style={[styles.overlayMeta, { color: c.muted }]}>{proxyUsageCounts(section)}</Text>
+                    </View>
                   </Pressable>
                 ))}
               </ScrollView>

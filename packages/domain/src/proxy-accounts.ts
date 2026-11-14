@@ -107,11 +107,14 @@ export function proxyUsageSections(proxies: readonly ui.Proxy[] | undefined): Pr
   );
 }
 
-/** "Through Team proxy: 6 accounts · 1 cooling down". */
-export const proxyUsageText = (section: ProxyUsageSection) =>
+/** "6 accounts · 1 cooling down": the counts alone, for a second line under the proxy's name. */
+export const proxyUsageCounts = (section: ProxyUsageSection) =>
   [
-    `Through ${section.label}: ${section.accountCount} account${section.accountCount === 1 ? "" : "s"}`,
+    `${section.accountCount} account${section.accountCount === 1 ? "" : "s"}`,
     section.coolingDownCount ? `${section.coolingDownCount} cooling down` : "",
   ]
     .filter(Boolean)
     .join(" · ");
+
+/** "Through Team proxy: 6 accounts · 1 cooling down". */
+export const proxyUsageText = (section: ProxyUsageSection) => `Through ${section.label}: ${proxyUsageCounts(section)}`;
