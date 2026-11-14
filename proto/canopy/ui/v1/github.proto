@@ -233,6 +233,10 @@ message PullRequestLink {
   google.protobuf.Timestamp created_at = 3;
   bool current_branch = 4;
   string evidence = 5;
+  // The summary is the last known one; a background refresh is pending or failed.
+  bool stale = 6;
+  // Why the last refresh failed, written for the user. Empty while it is pending or after success.
+  string detail = 7;
 }
 message ThreadPullRequestsRequest { string thread_id = 1; }
 // The repository and branch are resolved by the home gateway from the owned thread.

@@ -63,6 +63,18 @@ export function pullRequestLook(state: string): PullRequestLook {
   }
 }
 
+/** A linked pull request without known details: still loading, or the last refresh failed with a reason. */
+export function unknownPullRequestLook(detail: string): PullRequestLook {
+  return detail
+    ? look("Pull request unavailable", "exclamation-triangle", "warning")
+    : look("Loading pull request…", "arrow-path", "muted", 4, true);
+}
+
+/** A background refresh is pending: a link shows its last known summary and has no failure reason yet. */
+export function pullRequestsRefreshing(response: github.ThreadPullRequestsResponse | undefined) {
+  return !!response?.links.some((link) => link.stale && !link.detail);
+}
+
 export function reviewerLook(state: string): PullRequestLook {
   switch (state) {
     case "approved":

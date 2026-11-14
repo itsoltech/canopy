@@ -37,6 +37,7 @@ export function pullRequestHandlers(
         const detail = (await core.github.run((s) => s.detectionDetail(core.github.owner, r.threadId)))[0]?.detail;
 
         if (detail) result.detail = detail;
+        prs.refreshStale(result);
 
         return result;
       }),

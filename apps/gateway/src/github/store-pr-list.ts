@@ -34,8 +34,10 @@ export function githubPrList(sql: SqlClient.SqlClient) {
             current_branch: boolean;
             created_at: Date;
             payload: JsonValue | null;
+            last_known: JsonValue | null;
           }
         >`SELECT p.*,l.source,l.evidence,l.created_at,c.payload,
+        CASE WHEN p.summary_account_id=a.id THEN p.summary END AS last_known,
         coalesce((c.payload->>'headRef')=coalesce(nullif(g.context->>'pushRef',''),g.context->>'branch')
           AND nullif(g.context->>'branch','') IS NOT NULL
           AND coalesce(g.context->>'ambiguous','false')='false'
@@ -58,17 +60,22 @@ export function githubPrList(sql: SqlClient.SqlClient) {
           links: rows.map((r) => ({
             summary: r.payload
               ? fromJson(github.PullRequestSnapshotSchema, r.payload).summary
-              : {
-                  ref: {
-                    id: r.id,
-                    host: "github.com",
-                    repositoryId: r.repository_id,
-                    repositoryName: r.repository_name,
-                    number: r.number,
-                    nodeId: r.node_id,
+              : r.last_known
+                ? fromJson(github.PullRequestSummarySchema, r.last_known)
+                : {
+                    ref: {
+                      id: r.id,
+                      host: "github.com",
+                      repositoryId: r.repository_id,
+                      repositoryName: r.repository_name,
+                      number: r.number,
+                      nodeId: r.node_id,
+                    },
+                    state: "unavailable",
                   },
-                  state: "unavailable",
-                },
+            // Without a cache entry for the current access revision the summary is only the last known one.
+            stale: !r.payload,
+            detail: r.payload ? "" : r.refresh_detail,
             source: r.source,
             evidence: r.evidence,
             currentBranch: r.current_branch,

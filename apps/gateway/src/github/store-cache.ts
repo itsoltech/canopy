@@ -96,8 +96,15 @@ export function githubCache(sql: SqlClient.SqlClient) {
     cacheRelease: (row: AccountRow, key: string, lease: string) =>
       sql`UPDATE github_pr_cache SET lease_id=NULL,lease_until=NULL WHERE owner_user_id=${row.owner_user_id}::uuid
         AND account_id=${row.id}::uuid AND access_revision=${row.revision}::bigint AND cache_key=${key} AND lease_id=${lease}::uuid`,
+    /** Lost access also drops the last known summaries this account read. */
     cacheInvalidate: (owner: string, account: string) =>
-      sql`DELETE FROM github_pr_cache WHERE owner_user_id=${owner}::uuid AND account_id=${account}::uuid`,
+      sql.withTransaction(
+        Effect.gen(function* () {
+          yield* sql`DELETE FROM github_pr_cache WHERE owner_user_id=${owner}::uuid AND account_id=${account}::uuid`;
+          yield* sql`UPDATE github_pull_requests SET summary=NULL,summary_account_id=NULL
+            WHERE owner_user_id=${owner}::uuid AND summary_account_id=${account}::uuid`;
+        }),
+      ),
     budget: (user: string, resource: string, now: number) =>
       Effect.gen(function* () {
         yield* sql`INSERT INTO github_api_budgets(github_user_id,resource,window_at,reset_at,retry_at)

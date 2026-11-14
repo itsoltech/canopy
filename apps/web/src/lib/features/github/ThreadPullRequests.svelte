@@ -4,23 +4,17 @@
   import { SharedRead, queries, revalidateEvery } from "#lib/shared/queries.svelte.ts";
   import Button from "#lib/shared/ui/Button.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
-  import { formatTime } from "#lib/shared/format.ts";
   import LinkPullRequest from "./LinkPullRequest.svelte";
   import CreatePullRequest from "./CreatePullRequest.svelte";
-  import PullRequestState from "./PullRequestState.svelte";
+  import LinkedPullRequestRow from "./LinkedPullRequestRow.svelte";
   import * as api from "./api.ts";
+  import { pullRequestsRefreshing } from "@canopy/domain/github-pr";
   import PanelRow from "#lib/features/threads/components/PanelRow.svelte";
-  import CheckStateIcon from "./CheckStateIcon.svelte";
-  import { checkLook } from "@canopy/domain/github-pr";
-  import { pullRequestHref } from "./presentation.ts";
-  import { tooltip } from "#lib/shared/ui/tooltip.ts";
-  import { useWorkspace } from "#lib/features/workspace/workspace.svelte.ts";
 
   let { thread, class: className }: { thread: ui.Thread; class?: ClassValue } = $props();
   let expanded = $state(false);
   let creating = $state(false);
   let error = $state("");
-  const workspace = useWorkspace();
 
   const read = $derived(
     new SharedRead<github.ThreadPullRequestsResponse>(
@@ -32,7 +26,14 @@
 
   const data = $derived(read.data);
 
-  $effect(() => revalidateEvery(read.key, 60_000));
+  // Re-read soon while the gateway refreshes stale links in the background.
+  $effect(() => revalidateEvery(read.key, pullRequestsRefreshing(data) ? 3_000 : 60_000));
+
+  /** The refresh records its reason on the gateway; the list shows it either way. */
+  const retry = async (id: string) => {
+    await api.pullRequest(id, true).catch(() => {});
+    await read.reload().catch(() => {});
+  };
 
   const links = $derived(
     data?.links ??
@@ -45,34 +46,14 @@
   <ul role="list" class="grid min-w-0 gap-0.5">
     {#each expanded ? links : links.slice(0, 1) as link (link.summary?.ref?.id)}
       {@const pr = link.summary}
-      {#if pr?.ref}
-        {@const checks = checkLook(pr.checksState)}
-        <li class="min-w-0 text-sm/5 sm:text-xs/5">
-          <PanelRow
-            icon="git-fork"
-            href={workspace ? undefined : pullRequestHref(thread.id, pr.ref.id)}
-            onclick={workspace
-              ? () =>
-                  workspace().openModule({
-                    module: "pull-requests",
-                    resource: pr.ref!.id,
-                    label: `#${pr.ref!.number} · ${pr.title || pr.ref!.repositoryName}`,
-                  })
-              : undefined}
-            class={link.currentBranch ? "bg-zinc-950/5 dark:bg-white/8" : undefined}
-          >
-            {#snippet lead()}<PullRequestState state={pr.state} iconOnly />{/snippet}
-            <span title={pr.title}>{pr.title || pr.ref.repositoryName}</span>
-            {#snippet aside()}<span class="shrink-0 text-zinc-500 tabular-nums">#{pr.ref!.number}</span><span
-                {@attach tooltip(`Checks: ${checks.label}`)}
-                ><CheckStateIcon look={checks} label={`Checks: ${checks.label}`} /></span
-              >{/snippet}
-          </PanelRow>
-          {#if data?.stale && pr.verifiedAt}<p class="text-zinc-500 dark:text-zinc-400">
-              Last verified {formatTime(pr.verifiedAt)}
-            </p>{/if}
-        </li>
-      {/if}
+      {#if pr?.ref}<LinkedPullRequestRow
+          threadId={thread.id}
+          {link}
+          summary={pr}
+          pullRequest={pr.ref}
+          stale={!!data?.stale}
+          onretry={() => retry(pr.ref!.id)}
+        />{/if}
     {/each}
   </ul>
   {#if links.length > 1}<button
