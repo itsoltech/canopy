@@ -160,7 +160,7 @@ export class CliTools {
    */
   async start(command: InstallCli): Promise<void> {
     if (this.#starting.has(command.provider) || this.#installing.has(command.provider))
-      throw new CliRefused("CLI_INSTALL_RUNNING", "This CLI is already being installed on this worker");
+      throw new CliRefused("CLI_INSTALL_RUNNING", "This agent CLI is already being installed. Wait for it to finish.");
     this.#starting.add(command.provider);
 
     try {
