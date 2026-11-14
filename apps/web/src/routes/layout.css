@@ -45,6 +45,14 @@ html[data-canopy-platform] {
 html[data-canopy-platform="darwin"] {
   --window-controls-inset: calc(80px / var(--window-zoom, 1));
 }
+/* Custom Windows/Linux controls share the right chrome, including when Files owns that edge. */
+html:has([data-workspace-header]) .window-controls {
+  background: var(--color-chrome);
+  height: max(3rem, var(--window-titlebar-height));
+}
+html:has([data-workspace-header]) [data-window-end] {
+  background: var(--color-chrome);
+}
 html[data-canopy-platform][data-window-fullscreen] {
   --window-controls-inset: 0px;
   --window-safe-top: 0px;

@@ -529,7 +529,7 @@
 <svelte:head><title>{thread?.title ?? "Thread"} · {applicationName}</title></svelte:head>
 
 <WorkspaceFrame state={workspaceState}>
-  <div class="relative flex min-h-0 min-w-0 flex-1 flex-col" {@attach intake.zone}>
+  <div class="relative flex min-h-0 min-w-0 flex-1 flex-col bg-surface" {@attach intake.zone}>
     <TopBar description={away ? `Read-only. ${away}` : undefined}>
       {#if thread}
         <Crumb

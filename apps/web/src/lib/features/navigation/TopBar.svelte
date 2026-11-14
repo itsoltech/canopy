@@ -24,7 +24,11 @@
   const palette = usePalette();
 </script>
 
-<div class="flex h-12 shrink-0 items-center gap-2 px-2 sm:px-4" data-window-titlebar>
+<div
+  class={["flex h-12 shrink-0 items-center gap-2 px-2 sm:px-4", workspace && "bg-chrome"]}
+  data-window-titlebar
+  data-workspace-header={workspace ? "" : undefined}
+>
   <IconButton icon="bars-3" label="Open menu" class="lg:hidden" onclick={() => shell.openMenu()} />
   <SidebarToggle />
   <nav
@@ -40,7 +44,7 @@
     </ol>
     {#if description}<span id={descriptionId} class="sr-only">{description}</span>{/if}
   </nav>
-  {#if workspace}<div class="min-w-0 flex-1 basis-80" data-window-no-drag>{@render workspace()}</div>{/if}
+  {#if workspace}<div class="min-w-0 flex-1 basis-80 self-stretch pt-1.5">{@render workspace()}</div>{/if}
   {#if palette || actions}
     <div class="flex shrink-0 items-center gap-1">
       {#if palette && !workspace}

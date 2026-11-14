@@ -115,19 +115,19 @@
 <div
   bind:this={root}
   bind:clientWidth={width}
-  class={["flex min-w-0 items-center gap-1", className]}
+  class={["workspace-tabs relative isolate flex h-full min-w-0 items-center gap-1 rounded-t-xl bg-surface", className]}
   onkeydown={keydown}
 >
   <span class="pointer-events-none invisible absolute w-[1rem]" bind:clientWidth={rem}></span>
-  <div role="tablist" aria-label="Workspace tabs" class="flex min-w-0 gap-0.5">
+  <div role="tablist" aria-label="Workspace tabs" class="flex h-full min-w-0 gap-0.5">
     {#each visible as tab (tab.id)}
       <div
         class={[
-          "flex min-w-0 items-center rounded-md",
+          "workspace-tab relative flex min-w-0 items-center rounded-t-lg",
           // Thread keeps its slot; every file, including the active one, must fit the available space.
           tab.id === "thread" ? "shrink-0" : tab.id === active.id ? "max-w-48 shrink" : "max-w-48 shrink-100000",
-          tab.id === active.id ? "bg-zinc-950/5 dark:bg-white/10" : "hover:bg-zinc-950/5 dark:hover:bg-white/5",
         ]}
+        data-active={tab.id === active.id}
       >
         <button
           type="button"
@@ -141,7 +141,7 @@
           data-workspace-tab
           data-tab-id={tab.id}
           class={[
-            "flex h-8 min-w-0 flex-1 items-center gap-1.5 text-sm focus-ring sm:h-7",
+            "flex h-full min-w-0 flex-1 items-center gap-1.5 rounded-t-lg text-sm focus-ring -outline-offset-2",
             tab.id === "thread" ? "px-2.5" : "pl-2.5",
             tab.id === active.id ? "text-zinc-950 dark:text-white" : "text-muted",
           ]}
@@ -157,7 +157,8 @@
         {#if tab.id !== "thread"}<button
             type="button"
             aria-label={`Close ${tab.name}`}
-            class="mr-0.5 flex size-6 shrink-0 items-center justify-center rounded text-muted focus-ring hover:bg-zinc-950/5 dark:hover:bg-white/10"
+            class="workspace-tab-close mr-0.5 flex size-6 shrink-0 items-center justify-center rounded text-muted focus-ring hover:bg-zinc-950/5 dark:hover:bg-white/10"
+            data-dirty={tab.dirty}
             onclick={() => onclose(tab.id)}
           >
             {#if tab.dirty}<span aria-hidden="true">●</span>{:else}<Icon name="x-mark" />{/if}
@@ -170,7 +171,7 @@
       {#snippet trigger(props)}<button
           type="button"
           aria-label={`${hidden.length} more ${hidden.length === 1 ? "tab" : "tabs"}${hidden.some((tab) => tab.dirty) ? ", Unsaved changes" : ""}`}
-          class="flex h-7 shrink-0 items-center gap-1 rounded-md px-2 text-sm text-muted tabular-nums focus-ring hover:bg-zinc-950/5 sm:h-6 sm:text-xs dark:hover:bg-white/10"
+          class="workspace-overflow flex h-8 shrink-0 items-center gap-1 rounded-lg bg-chrome px-2 text-sm text-muted tabular-nums focus-ring hover:bg-hover sm:text-xs"
           {...props}
           >+{hidden.length}{#if hidden.some((tab) => tab.dirty)}<span aria-hidden="true">●</span>{/if}</button
         >{/snippet}
@@ -187,3 +188,72 @@
   oncancel={() => (workspace.closing = [])}
   onclose={(save) => workspace.confirmClose(save)}
 />
+
+<style>
+  /* The opaque surface continues below the strip. The reverse corners paint over chrome,
+     rather than cutting a transparent hole or relying on a fractional border/shadow. */
+  .workspace-tabs::before,
+  .workspace-tabs::after {
+    position: absolute;
+    bottom: 0;
+    width: 0.5rem;
+    height: 0.5rem;
+    content: "";
+    pointer-events: none;
+  }
+  .workspace-tabs::before {
+    right: 100%;
+    background: radial-gradient(circle at top left, var(--color-chrome) 0.5rem, var(--color-surface) 0.5rem);
+  }
+  .workspace-tabs::after {
+    left: 100%;
+    background: radial-gradient(circle at top right, var(--color-chrome) 0.5rem, var(--color-surface) 0.5rem);
+  }
+  .workspace-tab {
+    background: color-mix(in oklab, var(--color-chrome) 65%, var(--color-surface));
+    transition: background-color var(--duration-fast) var(--ease-smooth-out);
+  }
+  .workspace-tab[data-active="true"] {
+    background: var(--color-surface);
+    transition: none;
+  }
+  .workspace-tab button[role="tab"] {
+    transition: color var(--duration-fast) var(--ease-smooth-out);
+  }
+  .workspace-tab[data-active="false"]:has(button:hover, button:focus-visible) {
+    background: var(--color-hover);
+  }
+  .workspace-tab::after {
+    position: absolute;
+    top: 30%;
+    right: -0.125rem;
+    bottom: 30%;
+    width: 1px;
+    background: var(--color-divider);
+    content: "";
+    pointer-events: none;
+  }
+  .workspace-tab:last-child::after,
+  .workspace-tab[data-active="true"]::after,
+  .workspace-tab:has(+ [data-active="true"])::after {
+    display: none;
+  }
+  .workspace-tab-close {
+    transition: opacity var(--duration-quick) var(--ease-in-out);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .workspace-tab[data-active="false"]:not(:hover, :focus-within) .workspace-tab-close:not([data-dirty="true"]) {
+      opacity: 0;
+    }
+  }
+  .workspace-overflow {
+    margin-inline-end: 0.25rem;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .workspace-tab,
+    .workspace-tab button[role="tab"],
+    .workspace-tab-close {
+      transition: none;
+    }
+  }
+</style>
