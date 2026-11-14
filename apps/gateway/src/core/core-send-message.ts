@@ -128,7 +128,8 @@ export async function admitMessage(
   const { threadId, clientRequestId } = request;
   let prepared = validated;
 
-  // Archived, rewinding, moved or reconfigured since the checks: validate again, now under the lock.
+  // Archived, rewinding, reconfigured, a pull request (un)linked or an import started since the checks: validate
+  // again, now under the lock.
   if (!prepared.replay && admissionKey(state) !== admissionKey(admissionState(prepared.thread)))
     prepared = await prepareMessage(core, request, linked);
   else if (!prepared.replay) {
@@ -227,7 +228,10 @@ function admissionState(thread: ThreadRow): AdmissionState {
     archived: Boolean(thread.archived_at),
     deleted: Boolean(thread.deleted_at),
     rewind_pending_id: thread.rewind_pending_id ?? null,
+    pull_request_revision: String(thread.pull_request_revision ?? 0),
     import_mode: thread.imported?.mode ?? null,
+    // The checks refuse a thread still being imported.
+    importing: false,
   };
 }
 
@@ -242,6 +246,8 @@ function admissionKey(state: AdmissionState): string {
     state.archived,
     state.deleted,
     state.rewind_pending_id,
+    state.pull_request_revision,
     state.import_mode,
+    state.importing,
   ]);
 }

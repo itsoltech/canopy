@@ -184,7 +184,8 @@ describe.skipIf(!dockerAvailable)("thread publication, sends and moves lock orde
         text: "after publication",
         clientRequestId: crypto.randomUUID(),
       });
-      await blockedQuery("AND owner_user_id=", ingestingPid);
+      // Identified by what blocks it, not by its SQL text: only the sender waits on ingest.
+      await blockedQuery("", ingestingPid);
     } finally {
       gate.release();
       await Promise.allSettled([completing, ingesting, sending, gate.done]);
@@ -242,7 +243,7 @@ describe.skipIf(!dockerAvailable)("thread publication, sends and moves lock orde
         gateway.api.sendMessage({ threadId: thread, text: "during move", clientRequestId: crypto.randomUUID() }),
       );
       // The sender queues behind the move's tuple lock, not a wall-clock delay.
-      await blockedQuery("AND owner_user_id=", movingPid);
+      await blockedQuery("", movingPid);
     } finally {
       gate.release();
       await Promise.allSettled([reading, moving, sending, gate.done]);

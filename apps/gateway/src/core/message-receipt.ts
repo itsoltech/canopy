@@ -13,7 +13,7 @@ export interface MessageResponse {
   goal?: ui.Goal;
 }
 
-/** The thread columns a message's checks depend on, read with the admission lock. */
+/** Everything a message's checks read that a writer changes under this thread's lock, read after the lock. */
 export interface AdmissionState {
   worker_id: string | null;
   cwd: string | null;
@@ -23,7 +23,10 @@ export interface AdmissionState {
   archived: boolean;
   deleted: boolean;
   rewind_pending_id: string | null;
+  /** Bumped by every pull request link, unlink and account change: what citations are checked against. */
+  pull_request_revision: string;
   import_mode: string | null;
+  importing: boolean;
 }
 
 /**
@@ -82,22 +85,27 @@ async function receipt(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
 
-      const owned = yield* sql<AdmissionState>`SELECT t.worker_id,t.cwd,t.provider,t.provider_profile_id,
-        coalesce(t.settings->>'model','') AS model,t.archived_at IS NOT NULL AS archived,
-        t.deleted_at IS NOT NULL AS deleted,t.rewind_pending_id,
-        (SELECT ti.mode FROM thread_imports ti WHERE ti.thread_id=t.id) AS import_mode
-        FROM threads t WHERE id=${request.threadId}::uuid AND owner_user_id=${options.userId}::uuid
-        ${lock ? sql`FOR UPDATE` : sql``}`;
+      if (lock) {
+        const owned = yield* sql`SELECT id FROM threads WHERE id=${request.threadId}::uuid
+          AND owner_user_id=${options.userId}::uuid FOR UPDATE`;
 
-      if (!owned.length) return yield* Effect.fail(new NotFound("thread not found"));
+        if (!owned.length) return yield* Effect.fail(new NotFound("thread not found"));
+      }
 
-      // A separate statement: its snapshot follows the lock, so it sees a receipt committed while this waited.
-      const stored = request.clientRequestId
-        ? yield* sql<{ response: Uint8Array }>`SELECT response FROM thread_message_receipts
-          WHERE thread_id=${request.threadId}::uuid AND client_request_id=${request.clientRequestId}`
-        : [];
+      // Separate from the lock: this snapshot follows it, so it sees what committed while the lock waited
+      // (a receipt, an unlinked pull request, an import), not only the thread row itself.
+      const rows = yield* sql<AdmissionState & { response: Uint8Array | null }>`SELECT r.response,t.worker_id,t.cwd,
+        t.provider,t.provider_profile_id,coalesce(t.settings->>'model','') AS model,t.archived_at IS NOT NULL AS archived,
+        t.deleted_at IS NOT NULL AS deleted,t.rewind_pending_id,t.pull_request_revision::text AS pull_request_revision,
+        (SELECT ti.mode FROM thread_imports ti WHERE ti.thread_id=t.id) AS import_mode,
+        EXISTS(SELECT 1 FROM import_items i WHERE i.thread_id=t.id AND i.status IN ('pending','importing')) AS importing
+        FROM threads t LEFT JOIN thread_message_receipts r ON r.thread_id=t.id AND r.client_request_id=${request.clientRequestId}
+        WHERE t.id=${request.threadId}::uuid AND t.owner_user_id=${options.userId}::uuid`;
 
-      return { state: owned[0]!, response: stored[0]?.response };
+      if (!rows.length) return yield* Effect.fail(new NotFound("thread not found"));
+      const { response, ...state } = rows[0]!;
+
+      return { state, response: request.clientRequestId ? response : null };
     }),
   );
 

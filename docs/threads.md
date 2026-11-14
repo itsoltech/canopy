@@ -353,9 +353,14 @@ stateDiagram-v2
    wątku ani nie zajmuje połączenia na czas oczekiwania.
 2. **Krótka transakcja przyjęcia**: `FOR UPDATE` na wątku, ponowne sprawdzenie paragonu
    i natywnej deduplikacji (`turns`/`turn_steers` po `client_request_id`), odczyt wiersza
-   wątku. Jeśli od sprawdzeń zmieniło się coś, od czego zależą (archiwizacja, usunięcie,
-   rewind, worker, cwd, dostawca, model, import), sprawdzenia biegną ponownie pod
-   blokadą. Potem steer, tura w kolejce z `StartTurn` w outboxie albo `/goal`, i paragon,
+   wątku. Jeśli od sprawdzeń zmieniło się coś, od czego zależą, a co inny zapis zmienia
+   pod blokadą tego wątku (archiwizacja, usunięcie, rewind, worker, cwd, dostawca,
+   model, `pull_request_revision` dla cytatów z PR, import w toku), sprawdzenia biegną
+   ponownie pod blokadą. Odczyt stanu to osobna instrukcja po `FOR UPDATE`, więc widzi
+   też zmiany innych tabel zatwierdzone w czasie oczekiwania. Wątki źródłowe cytatów,
+   cele wzmianek, katalogi modeli i możliwości workera nie są chronione blokadą tego
+   wątku, więc ich kolejność względem wysyłki się nie zmienia; załączniki wiąże
+   warunkowy `UPDATE` przy przyjęciu. Potem steer, tura w kolejce z `StartTurn` w outboxie albo `/goal`, i paragon,
    zatwierdzane razem. Kolejność tur i steerów w wątku wyznacza ta blokada; o „turze
    w toku” decyduje odczyt pod nią.
 3. **Dostarczenie po commicie**: komendy workera, pump i powiadomienia ruszają dopiero

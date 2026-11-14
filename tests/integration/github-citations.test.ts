@@ -6,7 +6,10 @@ import { prCitation, prCommentCitation } from "@canopy/domain";
 import { startInstanceFixture } from "./support/instance-fixture.ts";
 import { readFixture } from "./support/github-read.ts";
 import { connectGitHub } from "./support/github-pr.ts";
-import { failure } from "./support/gateway.ts";
+import { eventually, failure } from "./support/gateway.ts";
+import { githubPullRequests } from "../../apps/gateway/src/github/store-pull-requests.ts";
+import { Effect } from "effect";
+import { SqlClient } from "effect/sql";
 import { inputRecords } from "./fixtures/instance-probe.ts";
 
 describe.skipIf(!dockerAvailable)("PR citations through gateway and real harness adapters", () => {
@@ -261,5 +264,61 @@ describe.skipIf(!dockerAvailable)("PR citations through gateway and real harness
     expect(inputRecords(fixture.trace)).toHaveLength(before);
     expect(await fixture.query("SELECT id FROM turns WHERE thread_id=$1::uuid", [thread.id])).toHaveLength(0);
     expect([...github.counts]).toEqual(calls);
+  });
+
+  test("an unlink that commits while a checked citation waits for admission refuses the message", async () => {
+    const thread = await fixture.thread(Provider.CODEX);
+    const snapshot = await link(thread.id);
+    const id = snapshot.summary!.ref!.id;
+    const page = await fixture.gw.api.listPullRequestTimeline({ pullRequestId: id, oldestFirst: true });
+    const comment = page.items.find((i) => i.content.case === "comment")!.content.value!;
+    const quote = prCommentCitation(snapshot, comment);
+    const locked = Promise.withResolvers<number>();
+    const unlink = Promise.withResolvers<void>();
+
+    // Holds the thread the way UnlinkThreadPullRequest does, then unlinks through the same store code.
+    const unlinking = fixture.gw.runtime.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+        yield* sql.withTransaction(
+          Effect.gen(function* () {
+            const prs = githubPullRequests(sql);
+            const current = yield* prs.prThread(fixture.gw.userId, thread.id, true);
+            locked.resolve((yield* sql<{ pid: number }>`SELECT pg_backend_pid() AS pid`)[0]!.pid);
+            yield* Effect.promise(() => unlink.promise);
+            yield* prs.prUnlink(fixture.gw.userId, thread.id, id, BigInt(current.pull_request_revision));
+          }),
+        );
+      }),
+    );
+
+    const unlinkingPid = await locked.promise;
+
+    const sending = failure(
+      fixture.gw.api.sendMessage({
+        threadId: thread.id,
+        text: "[q]",
+        clientRequestId: crypto.randomUUID(),
+        quotes: [{ ...quote, start: 0, end: 3 }],
+      }),
+    );
+
+    try {
+      // The citation passed its check; admission now waits for the thread lock.
+      await eventually(
+        () =>
+          fixture.query<{ pid: number }>(
+            "SELECT pid FROM pg_stat_activity WHERE datname=current_database() AND $1::integer=ANY(pg_blocking_pids(pid))",
+            [String(unlinkingPid)],
+          ),
+        (rows) => rows.length > 0,
+      );
+    } finally {
+      unlink.resolve();
+      await unlinking;
+    }
+
+    expect(await sending).toContain("Citation source unavailable");
+    expect(await fixture.query("SELECT id FROM turns WHERE thread_id=$1::uuid", [thread.id])).toHaveLength(0);
   });
 });
