@@ -26,6 +26,7 @@ import { WorkerUpdates } from "./update-link.ts";
 import { applyShellEnv } from "./cli-tools/shell-env.ts";
 import { endpointOptions, WorkerNetworkRoute } from "./network-route.ts";
 import { workerDiagnostics } from "./diagnostics/worker.ts";
+import { imageExportSelfCheck } from "./images/self-check.ts";
 import { LogExporter, LogPullSource, installLogWriter, registeredLogs, cleanLogSpool } from "@canopy/logs";
 
 const cliArgs = Bun.argv.slice(2);
@@ -33,6 +34,14 @@ const cliArgs = Bun.argv.slice(2);
 if (cliArgs.includes("--version")) {
   console.info(CANOPY_VERSION);
   process.exit(0);
+}
+
+// Release smoke (release.yml): the native image-export calls work on this OS/arch.
+if (cliArgs[0] === "self-check") {
+  const failure = imageExportSelfCheck();
+
+  if (failure) console.error(failure);
+  process.exit(failure ? 1 : 0);
 }
 
 // Docker HEALTHCHECK: healthy while the link to the gateway is up (needs CANOPY_WORKER_STATUS_FILE, see desktop-status.ts).

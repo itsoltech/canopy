@@ -248,7 +248,7 @@ jobs:
           retention-days: 7
           overwrite: true
 
-  # Each binary starts on its own OS/arch (`--version` already loads the embedded sharp/libvips).
+  # Each binary starts on its own OS/arch (`--version` already loads the embedded sharp/libvips; `self-check` runs the image-export FFI).
   smoke:
     needs: [plan, binaries]
     if: needs.plan.outputs.published == 'true'
@@ -279,6 +279,8 @@ jobs:
             echo "$binary: $actual"
             test "$actual" = "$EXPECTED"
           done
+          # Native image-export calls (bun:ffi) on this OS/arch: show_images depends on them.
+          "./canopy-worker-${{ matrix.target }}${{ matrix.suffix }}" self-check
 
   # Builds every image layer into the GHA cache next to the checks; nothing is pushed here.
   images-build:
