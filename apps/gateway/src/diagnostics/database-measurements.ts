@@ -20,7 +20,7 @@ export class DatabaseMeasurements {
 
   record(id: number, elapsed: number, error: boolean, rpc: number, monotonic: number) {
     if (!this.#values.length || this.#size === CAPACITY) {
-      this.collector.budget.dropped++;
+      this.collector.budget.drop("sql_buffer", this.collector.measurementTime(monotonic));
       this.#lost[Math.floor((id - 1000) / 8)] = 1;
 
       return;

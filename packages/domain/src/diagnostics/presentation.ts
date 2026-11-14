@@ -130,6 +130,10 @@ export function messageClasses(call: ui.DiagnosticsCall, direction: "request" | 
     .join(" · ");
 }
 
+export function sufficientDiagnostics(computer: ui.ComputerDiagnostics) {
+  return computer.observedSeconds >= (computer.windowMinutes || 15) * 60 * 0.75;
+}
+
 export function health(computer: ui.ComputerDiagnostics) {
   if (computer.restoring) return "Restoring diagnostics";
 
@@ -142,13 +146,11 @@ export function health(computer: ui.ComputerDiagnostics) {
 
   if (computer.findings.some((finding) => !finding.suspended)) return "Check findings";
 
-  if (
-    computer.observedSeconds < 600 ||
-    computer.droppedSamples ||
-    computer.status !== "online" ||
-    computer.findings.some((finding) => finding.suspended)
-  )
-    return "Not enough data";
+  if (!sufficientDiagnostics(computer) || computer.status !== "online") return "Not enough data";
+
+  if (computer.droppedSamples) return "Partial data";
+
+  if (computer.findings.some((finding) => finding.suspended)) return "Some checks are pending";
 
   return "No issues found";
 }

@@ -1,6 +1,14 @@
 <script lang="ts">
   import type { ui } from "@canopy/contracts";
-  import { freshness, health, measured, diagnosticsStatus, cpuSummary } from "@canopy/domain/diagnostics";
+  import {
+    freshness,
+    health,
+    measured,
+    diagnosticsStatus,
+    cpuSummary,
+    diagnosticsLimits,
+    diagnosticsGap,
+  } from "@canopy/domain/diagnostics";
   import SettingsCard from "#lib/shared/ui/SettingsCard.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
 
@@ -29,9 +37,9 @@
       </span>
     </div>
     <p class="text-sm text-muted">{freshness(computer)}</p>
-    {#if computer.droppedSamples}<p class="text-sm text-muted">
-        Some measurements are missing. Limits were reached.
-      </p>{/if}
+    {#each diagnosticsLimits(computer) as message (message)}
+      <p class="text-sm text-muted">{message} Other measurements remain available.</p>
+    {/each}
     <dl class="grid grid-cols-2 gap-3 text-sm tabular-nums">
       <div>
         <dt class="text-muted">Gateway coverage</dt>
@@ -50,10 +58,16 @@
         >
       </div>
     {/each}
-    {#if computer.gaps.length}<p class="text-sm text-muted">
-        No data during {computer.gaps.length}
-        {computer.gaps.length === 1 ? "period" : "periods"}.
-      </p>{/if}
+    {#if computer.gaps.length}
+      <details class="text-sm text-muted">
+        <summary>No data during {computer.gaps.length} {computer.gaps.length === 1 ? "period" : "periods"}</summary>
+        <ul class="mt-2 grid gap-1">
+          {#each computer.gaps as gap (`${gap.startMs}:${gap.endMs}`)}
+            <li>{diagnosticsGap(gap)}</li>
+          {/each}
+        </ul>
+      </details>
+    {/if}
     {#if !["saved", "not_started", "restoring", ""].includes(computer.persistenceStatus)}
       <p class="text-sm text-amber-700 dark:text-amber-300">
         History could not be saved. Live data is still available.

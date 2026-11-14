@@ -38,6 +38,8 @@ message DiagnosticsProcess {
   repeated DiagnosticsAggregate series = 5;
   repeated DiagnosticsCheckpoint checkpoints = 6;
   repeated DiagnosticsMeasureAggregate measures = 7;
+  uint64 dropped_samples = 8;
+  repeated string limit_reasons = 9;
 }
 // Compact internal series share the RPC collector's fixed allocation budget.
 // IDs are assigned by code; rpc_method_id=0 denotes an unassociated observation.
@@ -200,6 +202,7 @@ message ComputerDiagnostics {
   int64 epoch_started_at_ms = 34;
   DiagnosticsTraceState tracing = 35; // Metadata only. Samples require a separate explicit export.
   bool tracing_supported = 36;
+  repeated string limit_reasons = 37; // Closed reason codes for loss within the selected range.
 }
 
 // One ephemeral lease on one selected local process. Never persisted or relayed onward.

@@ -149,7 +149,7 @@ export class DiagnosticsPersistence {
         this.pending.set(at, { minute: { at, payload }, bytes });
       } catch {
         this.#lost = true;
-        this.collector.budget.dropped++;
+        this.collector.budget.drop("persistence", at);
       }
 
       this.#queuedThrough = at;
@@ -206,7 +206,7 @@ export class DiagnosticsPersistence {
       this.#pendingBytes -= this.pending.get(first)!.bytes;
       this.pending.delete(first);
       this.#lost = true;
-      this.collector.budget.dropped++;
+      this.collector.budget.drop("persistence", first);
     }
   }
 

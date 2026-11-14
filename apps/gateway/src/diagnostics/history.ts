@@ -78,6 +78,8 @@ export class DiagnosticsHistory {
         }
 
         slot.coverage = mergeCoverage([...slot.coverage, ...process.coverage]);
+        slot.droppedSamples = (slot.droppedSamples ?? 0n) + process.droppedSamples;
+        slot.limitReasons = [...new Set([...(slot.limitReasons ?? []), ...process.limitReasons])];
 
         restoreMeasures(
           slot,

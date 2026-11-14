@@ -29,7 +29,13 @@ export function diagnosticsResponse(value: ui.ComputerDiagnostics, request: ui.C
     findings: [...value.findings],
   });
 
-  const initial = toBinary(ui.ComputerDiagnosticsSchema, value).length;
+  let initial = toBinary(ui.ComputerDiagnosticsSchema, value).length;
+
+  if (initial > budget) {
+    value.limitReasons = [...new Set([...value.limitReasons, "response"])];
+    initial = toBinary(ui.ComputerDiagnosticsSchema, value).length;
+  }
+
   // A changed droppedSamples varint needs at most twelve bytes including its tag.
   let upperBound = initial > budget ? initial + 16 : initial;
 

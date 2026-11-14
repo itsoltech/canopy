@@ -1,4 +1,5 @@
 import { create } from "@bufbuild/protobuf";
+import { snapshotLimits } from "./losses.ts";
 import { ui, type WorkerMessage } from "@canopy/contracts";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import { Code, ConnectError } from "@connectrpc/connect";
@@ -313,12 +314,7 @@ export class Diagnostics {
       nextOffset: request.offset + limit < calls.length ? request.offset + limit : 0,
       revision,
       notModified: request.revision === revision,
-      droppedSamples: BigInt(
-        this.collector.budget.dropped +
-          this.linkBudget.dropped +
-          links.dropped +
-          (minutes === 1440 ? (this.history?.dropped ?? 0) : 0),
-      ),
+      ...snapshotLimits(own, this.linkBudget, links.dropped, minutes === 1440 ? (this.history?.dropped ?? 0) : 0),
       detailsAvailable: !request.overviewOnly,
       windowMinutes: minutes,
       gatewayMeasuresSupported: this.collector.gatewayEnabled,
