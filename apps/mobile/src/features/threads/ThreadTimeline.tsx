@@ -21,8 +21,6 @@ import { newDays } from "./thread-turns";
 import { TimelineEntries } from "./timeline-entries";
 import type { ThreadState } from "./ThreadScreen";
 import { mobileFeedLayout } from "../settings/client-diagnostics";
-import type { WorkFoldChoice } from "@canopy/domain/work-fold";
-import { WorkGroupChoices } from "@canopy/domain/work-group-choices";
 import { turnNotices } from "@canopy/domain/turn-notices";
 import { ThreadScrollItems, ThreadScrollParent, ThreadScrollTarget } from "../../ui/thread-scroll-items";
 import { scrollTurnKey, useThreadScrollMemory } from "./useThreadScrollMemory";
@@ -41,8 +39,7 @@ function useTimelineData(state: ThreadState) {
   }, [state.rewind.open]);
   const editFrom = useCallback((turn: ui.Turn) => editAction.current(turn), []);
   const away = state.home.away;
-  const foldChoices = useMemo(() => new Map<string, ReadonlyMap<number, WorkFoldChoice>>(), [thread?.id]);
-  const groupChoices = useMemo(() => new WorkGroupChoices(), [thread?.id]);
+  const { foldChoices, groupChoices } = state.view;
 
   return useMemo(() => {
     const items = new Map(

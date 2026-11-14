@@ -27,7 +27,7 @@ export function useThreadWarming(threads: ui.Thread[], projects: ui.Project[], l
     () =>
       client && threadCache
         ? new ThreadWarmer(
-            threadCache,
+            threadCache.warming,
             (threadId, syncCursor, signal) =>
               client.api.watchThread(
                 { threadId, syncCursor, sequence: true, background: true, pageSize: 24 },

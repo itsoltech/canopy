@@ -812,8 +812,15 @@ skończony `WatchThread(sequence=true, background=true)` od checkpointu z tego s
 trwałego cache. Daleki lub brakujący checkpoint dostaje tylko ograniczony ogon
 (najwyżej 128 itemów); starsza historia pozostaje
 stronicowana. Zapis zachowuje cały checkpoint, razem ze stronami historii wczytanymi
-wcześniej, w limitach cache powyżej. Świeże okno (wątek odjechał o ponad 256 rekordów)
-nadal zastępuje wpis mobile; web zachowuje wtedy strony i wznawia kursor przy otwarciu.
+wcześniej, w limitach cache powyżej. Otwierane widoki korzystają ze wspólnego
+`RetainedThreads`: LRU 12 wątków / 12 MiB protobuf, z osobnymi limitami cache powyżej;
+snapshoty są współdzielone, dopóki dogrzewanie nie potrzebuje osobnego okna.
+Zamontowany ekran jest chroniony przed usunięciem. Po wyjściu lub odświeżeniu w tle
+odroczone zadanie przelicza rozmiar i egzekwuje limity.
+Świeże okno (wątek odjechał o ponad 256 rekordów) nie zastępuje zachowanego widoku:
+strony historii i kursor czytelnika pozostają, a dogrzewanie kontynuuje z własnego
+wpisu cache. Powrót pokazuje zachowany widok i wznawia jego kursor przez przyrostowe
+partie, bez pełnego snapshotu. Restart po utracie retencji korzysta z trwałego cache.
 
 Najwyżej jedno zadanie pracuje naraz i startuje co najmniej 5 s po poprzednim
 (do 12 odczytów/min). Zmiany tego samego headu są scalane, a kolejne wątki mają
@@ -1236,7 +1243,10 @@ Oś czasu nadąża za web: grupę pracy otwiera i zwija Settings → Threads →
 z `@canopy/domain/work-fold` co web; tapnięcie decyduje dalej. Grupy narzędzi domyślnie są
 zwinięte, także pojedyncza grupa. „Tool calls: Expanded” otwiera je podczas pracy niezależnie
 od całej sekcji. Zwinięty nagłówek pokazuje bieżący krok i status. `WorkGroupChoices` zachowuje
-ręczny wybór poza wirtualnymi komórkami, tak jak web ([timeline-folding.md](timeline-folding.md)). Preferencje dotyczą tego
+ręczny wybór poza wirtualnymi komórkami, tak jak web ([timeline-folding.md](timeline-folding.md)).
+Ręczne wybory foldów i grup pozostają także po ponownym otwarciu wątku, w granicach
+retencji widoków; nie są zapisywane na dysku. Pomiary wysokości komórek nadal należą
+do instancji natywnej `FlatList` i nie przechodzą między ekranami. Preferencje dotyczą tego
 telefonu i leżą w `device-preferences.json` w katalogu dokumentów aplikacji
 (`src/storage/preferences.ts`), nie w ustawieniach gatewaya. Wiersze pracy mają
 stopień `work` (15/13), komendy są monospace. Tura powłoki (`Turn.shell_command`) ma kartę

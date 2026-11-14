@@ -26,7 +26,7 @@ import {
 /** Read the durable base before subscribing; every retry uses the latest atomic checkpoint. */
 export function useThreadSnapshot(id: string) {
   const { client, session } = useSession();
-  const { snapshot, setSnapshot, current, loaded, reset } = useThreadPersistence(id);
+  const { snapshot, setSnapshot, current, view, loaded, reset } = useThreadPersistence(id);
   const repair = useMemo(() => new ThreadWatchRecovery(), [id, client]);
   const pageSize = useRef(24);
   const computerAway = useMemo(() => ({ current: false }), [id, client]);
@@ -124,6 +124,7 @@ export function useThreadSnapshot(id: string) {
 
   return {
     snapshot,
+    view,
     history,
     stream: {
       ...stream,

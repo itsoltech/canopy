@@ -51,7 +51,7 @@ export type ThreadState = ReturnType<typeof useThreadState>;
 
 function useThreadState(id: string) {
   const { session, client, ready, online, threadCache } = useSession();
-  const { snapshot, setSnapshot, stream, history, syncStatus } = useThreadSnapshot(id);
+  const { snapshot, setSnapshot, stream, history, syncStatus, view } = useThreadSnapshot(id);
   const { warming } = useOverview();
   useMobileOpening(
     id,
@@ -105,6 +105,7 @@ function useThreadState(id: string) {
     client,
     ready,
     snapshot,
+    view,
     busy,
     waiting,
     error,
