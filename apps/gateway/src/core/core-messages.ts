@@ -2,24 +2,19 @@ import { create } from "@bufbuild/protobuf";
 import { ui, type CommandResult } from "@canopy/contracts";
 import { Effect, Match } from "effect";
 import { mentionsFromJson } from "./mentions.ts";
-import { NotFound, SteerStore, toUiDelivery, toUiSteer, toUiTurn, turnEffort } from "../store/index.ts";
-import { checkedQuotes, coreCheckQuoteSources } from "./quotes.ts";
-import { titleContext } from "./thread-titles.ts";
+import { NotFound, SteerStore, toUiDelivery, toUiSteer, turnEffort } from "../store/index.ts";
 import { coreDispatch } from "./core-commands.ts";
 import { checkedPermissionMode, coreState, InvalidError, TTL } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
 import { coreCheckFullAccess } from "./full-access.ts";
-import { coreMessageAttachments } from "./core-attachments.ts";
-import { coreComposeInput, coreMessageMentions } from "./core-mentions.ts";
 import { coreCheckModel, coreProfileModels } from "./core-models.ts";
-import { coreAutoTitle, coreUiThread } from "./core-titles.ts";
+import { coreUiThread } from "./core-titles.ts";
 import { coreBroadcastThread, coreBroadcastTurn, coreRun } from "./core-broadcast.ts";
 import { coreBus } from "./core-schedules.ts";
 import type { TurnRow } from "../store/rows.ts";
-import { coreShellInput } from "./core-shell.ts";
 import { storedShellResult } from "../store/shell-input.ts";
-import { coreEnqueueTurn } from "./core-enqueue-turn.ts";
-import { messageReceipt } from "./message-receipt.ts";
+import { messageReceipt, type MessageResponse } from "./message-receipt.ts";
+import { admitMessage, prepareMessage } from "./core-send-message.ts";
 import { threadDiagnostic } from "./thread-diagnostics.ts";
 
 /** Internal linked input, prepared by the peer gateway rather than a public UI request. */
@@ -212,167 +207,12 @@ export function coreSteers<A, E>(
 }
 
 export interface CoreMessagesMethods {
-  sendMessage(
-    request: ui.SendMessageRequest,
-    linked?: LinkedMessageInput,
-  ): Promise<{ turn?: ui.Turn; steer?: ui.Steer; goal?: ui.Goal }>;
+  sendMessage(request: ui.SendMessageRequest, linked?: LinkedMessageInput): Promise<MessageResponse>;
   updateThread(request: ui.UpdateThreadRequest): Promise<ui.Thread>;
   interrupt(threadId: string): Promise<void>;
 }
 
-const messageActions: CoreMessagesMethods = {
-  /**
-   * A message: the next turn (queue), or into the running turn (steer; without one it is queued too).
-   * Idempotent by client_request_id across both.
-   */
-  async sendMessage(
-    this: GatewayCore,
-    request: ui.SendMessageRequest,
-    linked?: LinkedMessageInput,
-  ): Promise<{ turn?: ui.Turn; steer?: ui.Steer; goal?: ui.Goal }> {
-    const { threadId, clientRequestId } = request;
-    const thread = await coreRun(this, (s) => s.thread(threadId));
-
-    if (thread.owner_user_id !== this[coreState].options.userId) throw new InvalidError("thread not found");
-
-    if (thread.archived_at) throw new InvalidError("the thread is archived");
-
-    if (thread.rewind_pending_id) throw new InvalidError("This thread is rewinding. Wait for it to finish.");
-
-    // Imported as history (docs/import.md): no provider session to continue in this thread.
-    if (thread.imported?.mode === "history")
-      throw new InvalidError("This thread was imported as history. Continue it in a new thread.");
-
-    // The import still writes it or adopts its session (the database refuses such a turn from any path, too).
-    if (thread.imported && (await this.imports.importing(threadId)))
-      throw new InvalidError("This thread is still being imported. Try again when it's done.");
-    const existingSteer = await coreSteers(this, (s) => s.byClientRequest(threadId, clientRequestId));
-
-    if (existingSteer) return { steer: toUiSteer(existingSteer) };
-    const existingTurn = await coreRun(this, (s) => s.turnByClientRequest(threadId, clientRequestId));
-
-    if (existingTurn) return { turn: toUiTurn(existingTurn) };
-
-    const files =
-      request.attachmentIds.length > 0
-        ? await coreMessageAttachments(this, request.attachmentIds, thread.worker_id ?? "")
-        : undefined;
-
-    const quotes = checkedQuotes(
-      request.quotes,
-      (message) => new InvalidError(message),
-      request.text,
-      request.mentions,
-    );
-
-    await coreCheckQuoteSources(this, quotes, threadId);
-
-    if (!request.text.trim() && !files && quotes.length === 0) throw new InvalidError("message is empty");
-
-    const shell = linked
-      ? undefined
-      : coreShellInput(request.text, Boolean(files || quotes.length || request.mentions.length));
-
-    const { mentions, goal } = await coreMessageMentions(
-      this,
-      { id: thread.id, cwd: thread.cwd ?? "" },
-      request.text,
-      request.mentions,
-      files?.files,
-    );
-
-    if (goal !== undefined) {
-      // The platform's /goal: the rest of the message is the objective (docs/goals.md).
-      if (files || quotes.length > 0) throw new InvalidError("a /goal message cannot carry attachments or quotes");
-
-      return {
-        goal: await this.setGoal(create(ui.SetGoalRequestSchema, { threadId, action: "set", objective: goal })),
-      };
-    }
-
-    // Only the message's own effort is judged: the thread's default falls back when the turn starts (turnEffort).
-    await coreCheckModel(this, { thread }, request.model || thread.settings.model || "", request.effort);
-    const permissionMode = checkedPermissionMode(request.permissionMode);
-    coreCheckFullAccess(this, thread.worker_id, request.permissionMode);
-
-    const input =
-      linked?.input ??
-      shell ??
-      coreComposeInput(
-        this,
-        thread.provider,
-        request.text,
-        mentions,
-        files?.input(threadId, request.text, mentions),
-        quotes,
-      );
-
-    const running = await coreRun(this, (s) => s.steerTarget(threadId));
-
-    if (request.delivery === ui.MessageDelivery.STEER) {
-      if (running && thread.worker_id) {
-        const steer = await this[coreState].actions.transaction(async () => {
-          const created = await coreSteers(this, (s) =>
-            s.create({
-              threadId,
-              turnId: running.id,
-              text: request.text,
-              userId: this[coreState].options.userId,
-              clientRequestId,
-              model: request.model,
-              effort: request.effort,
-              permissionMode,
-              ...(linked && { linked }),
-              ...(input && { input: { ...input, text: input.text ?? request.text } }),
-            }),
-          );
-
-          await coreSendSteer(this, created.id);
-          threadDiagnostic(this, "message_decision", {
-            threadId,
-            turnId: running.id,
-            steerId: created.id,
-            delivery: "steer",
-            reason: "running_turn",
-          });
-
-          return created;
-        });
-
-        return { steer: toUiSteer(await coreSteers(this, (s) => s.steer(steer.id))) };
-      }
-    }
-
-    const turn = await coreEnqueueTurn(this, {
-      threadId,
-      text: request.text,
-      userId: this[coreState].options.userId,
-      clientRequestId,
-      model: request.model,
-      effort: request.effort,
-      permissionMode,
-      ...(linked && { linked }),
-      ...(input && { input }),
-    });
-
-    await this.pump(threadId);
-    threadDiagnostic(this, "message_decision", {
-      threadId,
-      turnId: turn.id,
-      delivery: turn.dispatched ? "new_turn" : "queue",
-      reason: running ? "queue_requested" : turn.dispatched ? "no_running_turn" : "thread_not_ready",
-    });
-
-    if (turn.ordinal === 1)
-      coreAutoTitle(
-        this,
-        threadId,
-        titleContext({ text: request.text, mentions, quotes, attachments: input?.attachments }),
-      );
-
-    return { turn };
-  },
-
+const messageActions: Omit<CoreMessagesMethods, "sendMessage"> = {
   /** The thread's default model, effort and permission mode for turns without an override. */
   async updateThread(this: GatewayCore, request: ui.UpdateThreadRequest): Promise<ui.Thread> {
     const thread = await coreRun(this, (s) => s.thread(request.threadId));
@@ -433,7 +273,14 @@ const messageActions: CoreMessagesMethods = {
 
 export const coreMessagesMethods: CoreMessagesMethods = {
   ...messageActions,
+  /**
+   * A message: the next turn (queue), or into the running turn (steer; without one it is queued too).
+   * Idempotent by client_request_id across both.
+   */
   sendMessage(this: GatewayCore, request, linked) {
-    return messageReceipt(this, request, () => messageActions.sendMessage.call(this, request, linked));
+    return messageReceipt(this, request, {
+      prepare: () => prepareMessage(this, request, linked),
+      admit: (prepared, state) => admitMessage(this, request, linked, prepared, state),
+    });
   },
 };

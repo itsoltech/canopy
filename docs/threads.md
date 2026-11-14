@@ -343,6 +343,38 @@ stateDiagram-v2
 - `turn_id` generuje gateway przed wysłaniem, więc `StartTurn` jest idempotentne. `client_request_id` deduplikuje ponowione akcje z UI.
 - Każda komenda niesie pełny `ThreadSpec` (placement, ustawienia, `provider_thread_id`). Worker może więc wznowić wątek nawet po utracie lokalnego stanu. Baza jest źródłem prawdy, a SQLite workera to dziennik i cache.
 
+### Przyjęcie wiadomości
+
+`SendMessage` ma trzy kroki. Tylko drugi trzyma blokadę wiersza wątku i połączenie z puli:
+
+1. **Sprawdzenia bez blokady**: paragon z `thread_message_receipts` (powtórka zwraca
+   zapisane przyjęcie), stan wątku, załączniki, cytaty, wzmianki, `/goal`, model
+   i tryb uprawnień. Same odczyty, więc wolne sprawdzenie nie blokuje innych zapisów
+   wątku ani nie zajmuje połączenia na czas oczekiwania.
+2. **Krótka transakcja przyjęcia**: `FOR UPDATE` na wątku, ponowne sprawdzenie paragonu
+   i natywnej deduplikacji (`turns`/`turn_steers` po `client_request_id`), odczyt wiersza
+   wątku. Jeśli od sprawdzeń zmieniło się coś, od czego zależą, a co inny zapis zmienia
+   pod blokadą tego wątku (archiwizacja, usunięcie, rewind, worker, cwd, dostawca,
+   model, `pull_request_revision` dla cytatów z PR, import w toku), sprawdzenia biegną
+   ponownie pod blokadą. Odczyt stanu to osobna instrukcja po `FOR UPDATE`, więc widzi
+   też zmiany innych tabel zatwierdzone w czasie oczekiwania. Wątki źródłowe cytatów,
+   cele wzmianek, katalogi modeli i możliwości workera nie są chronione blokadą tego
+   wątku, więc ich kolejność względem wysyłki się nie zmienia; załączniki wiąże
+   warunkowy `UPDATE` przy przyjęciu. Potem steer, tura w kolejce z `StartTurn` w outboxie albo `/goal`, i paragon,
+   zatwierdzane razem. Kolejność tur i steerów w wątku wyznacza ta blokada; o „turze
+   w toku” decyduje odczyt pod nią.
+3. **Dostarczenie po commicie**: komendy workera, pump i powiadomienia ruszają dopiero
+   po zatwierdzeniu (`ActionContext.defer`), bez transakcji. Wynik zapisują osobne,
+   krótkie transakcje obsługi `CommandResult`. Wysyłka do połączonego komputera jest
+   przekazywana przed krokiem 1 i lokalnie nie trzyma ani blokady, ani połączenia.
+
+Awaria między krokami nie zostawia półstanu: przyjęcie i paragon powstają w jednej
+transakcji, a niedostarczona komenda czeka w outboxie na ponowne połączenie workera
+(`StartTurn` jest idempotentne po `turn_id`). Ponowienie z tym samym `client_request_id`
+zwraca to samo przyjęcie, także po restarcie gatewaya. Wywołujący, który ma już własną
+transakcję (akcje botów, połączone wywołania agentów), obejmuje nią wszystkie kroki jak
+dotąd. Testy: `tests/integration/message-admission*.test.ts`.
+
 ### Komendy właściciela
 
 Kompozytor głównego i bocznego wątku interpretuje pierwszy znak `!` jako jawną komendę
