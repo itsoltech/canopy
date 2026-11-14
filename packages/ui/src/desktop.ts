@@ -144,6 +144,8 @@ export function sameDesktopConfiguration(
 }
 
 export interface DesktopBridge {
+  /** Opens untrusted HTML in a separate, network-denied session. Never runs in the app renderer. */
+  openAgentHtml?(specJson: string, title: string): Promise<void>;
   /** Read-only family enumeration; main validates the application origin and main frame. */
   listFonts?(): Promise<string[]>;
   history?: {

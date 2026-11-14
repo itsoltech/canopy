@@ -6,6 +6,7 @@ import {
   VISUAL_KIT_VERSION,
   VISUAL_LIMITS,
   VisualFrameInbox,
+  VISUAL_PERMISSIONS,
   type HostMessage,
 } from "@canopy/domain/visuals";
 import { Result } from "effect";
@@ -18,6 +19,7 @@ export interface FrameOptions {
   readonly visualId: string;
   readonly version: number;
   readonly kitVersion: number;
+  readonly htmlDocument?: boolean;
   readonly specJson: string;
   readonly maxHeight: number;
   readonly onHeight: (height: number) => void;
@@ -41,7 +43,10 @@ export class VisualUnavailable extends Error {}
  * MessagePort to this frame's window after load, then trusts nothing but parsed, rate-limited port messages.
  */
 export async function mountVisualFrame(container: HTMLElement, options: FrameOptions): Promise<FrameHandle> {
-  if (options.kitVersion > VISUAL_KIT_VERSION || REVOKED_VISUAL_KITS.has(options.kitVersion))
+  if (
+    options.kitVersion > (options.htmlDocument ? 2 : VISUAL_KIT_VERSION) ||
+    REVOKED_VISUAL_KITS.has(options.kitVersion)
+  )
     throw new VisualUnavailable("Update Canopy to open this visual.");
 
   const [{ compileVisual, visualToken }, { parseVisualSpec }] = await Promise.all([
@@ -51,33 +56,54 @@ export async function mountVisualFrame(container: HTMLElement, options: FrameOpt
 
   const decoded = parseVisualSpec(options.specJson);
 
-  if (Result.isFailure(decoded)) throw new VisualUnavailable("Couldn't open this visual.");
+  if (!options.htmlDocument && Result.isFailure(decoded)) throw new VisualUnavailable("Couldn't open this visual.");
   const nonce = visualToken();
   const instance = crypto.randomUUID();
 
-  const html = compileVisual(decoded.success, {
-    title: options.title,
-    mode: "frame",
-    nonce,
-    instance,
-    theme: currentVisualTheme(),
-    reducedMotion: prefersReducedMotion(),
-    ...(savedVisualState(options.visualId, options.version) && {
-      state: savedVisualState(options.visualId, options.version),
-    }),
-  });
+  const html = options.htmlDocument
+    ? (await import("./html-document.ts")).htmlFrameDocument(options.specJson, options.title, nonce, instance)
+    : Result.isSuccess(decoded)
+      ? compileVisual(decoded.success, {
+          title: options.title,
+          mode: "frame",
+          nonce,
+          instance,
+          theme: currentVisualTheme(),
+          reducedMotion: prefersReducedMotion(),
+          ...(savedVisualState(options.visualId, options.version) && {
+            state: savedVisualState(options.visualId, options.version),
+          }),
+        })
+      : "";
 
   const frame = document.createElement("iframe");
   frame.setAttribute("sandbox", "allow-scripts");
   frame.setAttribute("referrerpolicy", "no-referrer");
-  frame.setAttribute("allow", "");
+  frame.setAttribute("allow", VISUAL_PERMISSIONS);
   frame.title = options.title;
   frame.className = "block w-full border-0 bg-transparent";
   frame.style.height = `${clampVisualHeight(VISUAL_LIMITS.defaultHeight, options.maxHeight)}px`;
   frame.srcdoc = html;
 
   const channel = new MessageChannel();
-  const inbox = new VisualFrameInbox(decoded.success.domains);
+
+  const inbox = new VisualFrameInbox(
+    Result.isSuccess(decoded) ? decoded.success.domains : new Map(),
+    options.htmlDocument,
+  );
+
+  let lastResponse = performance.now();
+
+  const watchdog = options.htmlDocument
+    ? setInterval(() => {
+        if (!document.hidden && performance.now() - lastResponse > 10000) {
+          frame.remove();
+          channel.port1.close();
+          options.onError("This visual stopped responding.");
+        }
+      }, 1000)
+    : undefined;
+
   let connected = false;
   let pendingHeight: number | undefined;
   let frameRequest = 0;
@@ -95,6 +121,8 @@ export async function mountVisualFrame(container: HTMLElement, options: FrameOpt
 
   channel.port1.onmessage = (event: MessageEvent<JsonValue>) => {
     const message = inbox.receive(event.data, performance.now());
+
+    if (message) lastResponse = performance.now();
 
     switch (message?.type) {
       case "ready":
@@ -148,6 +176,7 @@ export async function mountVisualFrame(container: HTMLElement, options: FrameOpt
     visible: (visible) => post({ type: "visibility", visible }),
     reset: () => post({ type: "reset" }),
     destroy() {
+      clearInterval(watchdog);
       cancelAnimationFrame(frameRequest);
       cancelAnimationFrame(themed);
       stopTheme();

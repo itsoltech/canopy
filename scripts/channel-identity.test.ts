@@ -70,7 +70,7 @@ test("channel presentation preserves Electron installation, crypto, data and upd
   }
 
   // Protect the actual bootstrap, including the crypto name, against accidental use of displayName.
-  const bootstrap = readFileSync(join(desktopDirectory, "src/main.ts"), "utf8");
+  const bootstrap = readFileSync(join(desktopDirectory, "src/desktop-main.ts"), "utf8");
   expect(bootstrap).toContain("app.setName(identity.productName)");
   expect(bootstrap).toContain('app.setPath("userData", desktopUserData(app.getPath("appData")))');
 });

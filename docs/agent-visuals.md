@@ -702,11 +702,20 @@ firewalla dedykowanej sesji. Pobrany dokument nadal jest niezaufanym programem.
 
 ### CSP, hashe i lockdown
 
-Canopy parsuje i odtwarza dokument, usuwa `meta`, `base`, `link`, `iframe`,
+Canopy parsuje i odtwarza dokument, próbując usunąć `meta`, `base`, `link`, `iframe`,
 `frame`, `frameset`, `object`, `embed`, inline handlery i atrybuty nawigacyjne.
+To filtr best-effort, nie granica bezpieczeństwa: różnice parserów i ponowne
+parsowanie mogą odtworzyć usunięty markup (mXSS). Usuwamy też całe `style`
+w MathML/SVG, aby ograniczyć znaną klasę takich mutacji. Ochronę przed wykonaniem
+odtworzonych handlerów zapewnia `script-src-attr 'none'`, a przed ładowaniem,
+osadzaniem i zmianą bazy — właściwe dyrektywy CSP. Nie obiecujemy kompletnej sanitacji DOM.
 Skrypty z `src` oraz moduły są pomijane. Każdy klasyczny skrypt dostaje prefiks
 lockdown, a hash SHA-256 obejmuje **cały** wynik. Bootstrap Canopy również
-zaczyna się lockdownem. Używa się wyłącznie dopasowanych hashy:
+zaczyna się lockdownem. Skrypt zaufanego shella również zaczyna się wspólnym
+lockdownem sieciowym, więc jego hash dziedziczony przez srcdoc nie pozwala
+uruchomić kopii bez blokad w świeżym realmie. Shell zachowuje tylko własny
+most komunikatów mobilnych; opaque ramka go nie ma, a lockdown agenta dodatkowo
+usuwa `ReactNativeWebView`. Używa się wyłącznie dopasowanych hashy:
 
 ```text
 default-src 'none'; script-src 'sha256-…'; script-src-attr 'none';
@@ -795,8 +804,10 @@ tytuł i paletę przez prywatny kanał procesu oraz ograniczone zmienne OS/displ
 ma osobny tymczasowy profil, sprzątany po zakończeniu. Proces appki autoryzuje
 IPC i pozwala na jeden viewer; zakończenie appki kończy także viewer.
 
-Proces viewer’a ustawia przed startem Chromium `host-resolver-rules=MAP * ~NOTFOUND`
-i `disable-network-prediction`. To obejmuje także spekulacyjny DNS w ramkach,
+Proces viewer’a ustawia przed startem Chromium `host-resolver-rules=MAP * ~NOTFOUND`.
+Ochronę tworzą te reguły resolvera, proxy odmawiające połączeń i `webRequest`.
+Nie polegamy na nieudokumentowanym przełączniku `disable-network-prediction`.
+Reguły resolvera obejmują także spekulacyjny DNS w ramkach,
 którego proxy i `webRequest` nie widzą. Nie używamy samego `additionalArguments`
 rendererów: w próbie Electron nie przeniósł tam flagi Blink i DNS nadal działał.
 Nagłówek `X-DNS-Prefetch-Control: off` jest tylko dodatkową wskazówką.
@@ -832,7 +843,10 @@ karty „Run”; samo wejście na oś czasu, zmiana wersji lub ponowne zamontowa
 komponentu nie wykonują kodu. Po błędzie/watchdogu nie ma automatycznego retry.
 Bootstrap zgłasza wysokość co sekundę. Po 10 s
 ciszy host usuwa ramkę/WebView i pokazuje „This visual stopped responding.”;
-Electron main może zakończyć niereagujący renderer. Chromium desktop izoluje
+Proces viewer’a Electron kończy wszystkie renderery z PID-ów jego własnego
+drzewa ramek (także OOPIF), niszczy stare okno i pokazuje komunikat w nowym,
+bez kodu agenta. Zakończenie samego głównego renderera nie wystarczało przy
+pętli w OOPIF. Główny proces aplikacji nie należy do tego drzewa. Chromium desktop izoluje
 opaque sandbox frames procesowo od wersji 127 (Site Isolation), Android WebView
 nie ma OOPIF. Safari, Firefox, Chrome Android i Android WebView mogą wykonywać
 ramkę w tym samym procesie/wątku co host. Pętla lub bomba pamięci może zablokować

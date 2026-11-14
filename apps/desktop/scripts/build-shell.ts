@@ -34,7 +34,7 @@ if (process.platform === "darwin") {
   );
 }
 
-for (const name of ["main", "preload"]) {
+for (const name of ["main", "desktop-main", "html-viewer-process", "preload", "html-preload", "html-compile-worker"]) {
   const result = await Bun.build({
     entrypoints: [resolve(root, `src/${name}.ts`)],
     target: "node",
