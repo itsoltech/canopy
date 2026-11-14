@@ -91,7 +91,7 @@
     note = "";
     // Short files index within a frame; only a slow index earns a notice.
     preparing = false;
-    const slow = setTimeout(() => (preparing = true), 300);
+    const slow = setTimeout(() => (preparing = source.text !== content), 300);
 
     return () => {
       cancelled = true;

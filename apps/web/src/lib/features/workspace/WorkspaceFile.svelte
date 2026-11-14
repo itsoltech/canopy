@@ -267,7 +267,7 @@
   {/if}
   <div
     bind:this={scroller}
-    class="min-h-0 flex-1 overflow-auto overscroll-contain"
+    class="min-h-0 flex-1 overflow-auto overscroll-contain bg-surface"
     onscroll={() => {
       if (scroller) document.scroll = scroller.scrollTop;
     }}
