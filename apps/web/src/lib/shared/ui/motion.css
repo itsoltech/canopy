@@ -465,17 +465,21 @@
 
 /* --- Toast (22): rises with fade + cross-blur on --duration-slow, leaves on --duration-medium. -------- */
 /* Natural sizing switches once; the feed shell clips its resize and each part retains its own motion. */
+/* The thread composer folds with these layout transitions; the composer morph holds them at the
+   reader's scroll progress. The feed's end reserve stays, so no row moves with them. */
 .t-composer-slot {
   min-height: --spacing(44);
+  transition: min-height var(--duration-slow) var(--ease-smooth-out);
 }
 .t-composer-slot[data-compact],
 .t-composer-slot:has([data-pending-decision]) {
   min-height: 0;
+  transition-duration: var(--duration-medium);
 }
-.t-composer-slot .t-composer-editor,
-.t-composer-slot .t-composer-input,
-.t-composer-slot .t-composer-fold {
-  transition: none;
+.t-composer-slot .t-composer-panel-header {
+  transition-property: min-height, padding, font-size, background-color;
+  transition-duration: var(--duration-slow);
+  transition-timing-function: var(--ease-smooth-out);
 }
 .t-composer-slot .t-composer-fold > * {
   min-width: 0;
@@ -569,6 +573,7 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .t-composer-slot,
+  .t-composer-slot .t-composer-panel-header,
   .t-composer-editor,
   .t-composer-input,
   .t-composer-fold,

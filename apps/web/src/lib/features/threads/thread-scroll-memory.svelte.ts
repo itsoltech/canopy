@@ -57,7 +57,7 @@ export function threadScrollMemory(id: string, compaction: ComposerCompaction, p
     },
     restored(following: boolean) {
       if (!following) {
-        compaction.compact = true;
+        compaction.fold();
         publish(true);
       }
     },

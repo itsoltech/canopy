@@ -18,8 +18,8 @@
   import { FEED_END_THRESHOLD, followingAfterScroll, ScrollIntent, scrollOrigin, type ReaderScroll } from "./scroll.ts";
   import { trackEmbedHover } from "./embed-hover.ts";
   import type { FeedViewport } from "./viewport.ts";
-  import { FooterScroll } from "./footer-motion.ts";
   import { watchFooterEdge } from "./footer-edge.ts";
+  import { FooterReserve, type FooterFold } from "./footer-reserve.ts";
   import { FeedScrollOpening, type FeedScrollMemory } from "./feed-scroll-memory.svelte.ts";
   import { answerStart, moveToAnswer } from "./answer-scroll.ts";
 
@@ -54,9 +54,11 @@
     placeholder,
     row,
     footer,
+    footerFit = { fold: "open", margin: 0 },
     inserted,
     atEnd = $bindable(true),
     onreaderscroll,
+    onreaderscrollend,
     onlatest,
     onviewport,
     onwindow,
@@ -77,11 +79,16 @@
     placeholder?: Snippet;
     row: Snippet<[T, number]>;
     footer?: Snippet;
+    /** How the footer's height relates to its full height (only full-height changes move the end reserve),
+     * and the end space above the full footer that absorbs one more strip without moving rows, in px. */
+    footerFit?: { fold: FooterFold; margin: number };
     /** How a row inserted between shown rows enters (none by default: e.g. older history above). */
     inserted?: (row: T) => "unfold" | "reveal" | undefined;
     /** Out: the reader follows the end (the latest rows are on screen). */
     atEnd?: boolean;
     onreaderscroll?: (scroll: ReaderScroll) => void;
+    /** A reader's scroll came to rest (after inertia). */
+    onreaderscrollend?: () => void;
     onlatest?: () => void;
     /** Measured visible rows (no overscan), published at most once per animation frame. */
     onviewport?: (viewport: FeedViewport) => void;
@@ -103,14 +110,15 @@
   let list = $state<HTMLElement>();
   let footerElement = $state<HTMLElement>();
   let footerShell = $state<HTMLElement>();
-  let content = $state<HTMLElement>();
-  const footerScroll = new FooterScroll();
 
   /** Viewport height; 0 until measured (server, hydration): then the last rows render. */
   let viewport = $state(0);
   let scrollTop = $state(0);
   let listTop = $state(0);
+
+  /** The end space under the rows: the footer's full height plus `footerMargin`, not its current height. */
   let footerHeight = $state(0);
+  const footerReserve = new FooterReserve((height) => (footerHeight = height));
 
   /** From the footer's bottom to its visible top edge (footer-edge.ts). */
   let footerEdge = $state(0);
@@ -251,28 +259,21 @@
     // waiting a frame for the observer's first viewport height.
     if (untrack(() => viewport) === 0) viewport = measuredViewport = scroller.clientHeight;
 
-    const disposeFooter = footerScroll.connect(
-      footerShell,
-      () => ({ content, scroller, following: stuck && !endScroll.active }),
-      (height) => (footerHeight = height),
-      setTop,
-    );
-
     for (const element of [scroller, list]) observer.observe(element);
 
     return () => {
-      disposeFooter();
-
       for (const element of [scroller, list]) if (element) observer.unobserve(element);
     };
   });
+
+  // A footer that just finished folding or opening: its settled height is the new baseline.
+  $effect(() => footerReserve.settled(footerFit.fold === "moving" ? undefined : footerShell, footerState, setTop));
 
   $effect(() => () => {
     observer?.disconnect();
     cancelAnimationFrame(commitFrame);
     entrances.dispose();
     endScroll.cancel();
-    footerScroll.cancel();
     clearTimeout(rowTimer);
   });
 
@@ -294,6 +295,15 @@
   let lastTop = 0;
   let smoothUntil = 0;
   const endScroll = new EndScroll();
+
+  // One observer for the footer: its visible edge (Jump to latest, fade) and its height (the end reserve).
+  // Untracked: the attachment measures once synchronously and must not resubscribe to the feed's state.
+  const footerResized = (height: number, first: boolean) =>
+    untrack(() =>
+      first ? footerReserve.start(height, footerState()) : footerReserve.measure(height, footerState(), setTop),
+    );
+
+  const footerState = () => ({ ...footerFit, following: stuck && !endScroll.active, scroller });
 
   function setTop(value: number) {
     if (!scroller) return;
@@ -338,7 +348,7 @@
     }
 
     if (stuck) {
-      footerScroll.follow(content, scroller, setTop);
+      footerReserve.follow(footerFit.margin);
       const end = scroller.scrollHeight - scroller.clientHeight;
 
       if (Math.abs(scroller.scrollTop - end) >= 1) setTop(end);
@@ -405,7 +415,6 @@
   $effect(() => (scroller ? trackEmbedHover(scroller, scrollIntent) : undefined));
 
   function readerGesture() {
-    footerScroll.interrupt(content, scroller, setTop);
     endScroll.cancel();
     rowTarget = undefined;
     clearTimeout(rowTimer);
@@ -425,6 +434,7 @@
     // Frame-driven end navigation writes scrollTop itself, which also emits scrollend.
     if (endScroll.active) return;
     onscroll();
+    onreaderscrollend?.();
     const wasSmooth = smoothUntil > 0;
     smoothUntil = 0;
 
@@ -444,7 +454,6 @@
     alignedKey = undefined;
     onlatest?.();
     stuck = true;
-    footerScroll.follow(content, scroller, setTop);
     const distance = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
     const smooth = distance < viewport * 2 && !matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -631,8 +640,8 @@
     }}
   >
     <div class="chat-column flex min-h-full flex-col px-4 sm:px-6">
-      <!-- Keep a containing block between animations: starting/cancelling a transform must not relayout rows. -->
-      <div bind:this={content} class="flex grow [transform:translateY(0)] flex-col pt-2 pb-8">
+      <!-- A steady containing block: row transitions start and cancel without relayout of the list. -->
+      <div class="flex grow [transform:translateY(0)] flex-col pt-2 pb-8">
         {@render top?.()}
         {#if rows.length === 0 && placeholder}<div class="mt-auto">{@render placeholder()}</div>{/if}
         <!-- Keys and focus bubble up from the focusable articles (WAI-ARIA feed). -->
@@ -665,7 +674,7 @@
           {/each}
         </div>
       </div>
-      <!-- The full target coverage is scrollable; only a following reader moves with the shell. -->
+      <!-- The end reserve (full footer plus margin): the footer folds and grows inside it without moving rows. -->
       <div aria-hidden="true" style:height="{footerSpace}px" class="shrink-0"></div>
     </div>
   </div>
@@ -673,18 +682,19 @@
      change the virtual window, or make the browser reveal a contenteditable's flow position. -->
   <div class="pointer-events-none absolute bottom-0 left-0 isolate z-10 [contain:layout]" style:right="{gutter}px">
     <div class="relative">
-      <!-- Fade: the composer's shadow in the thread surface colour, 12–32 px, tall enough for Jump to latest. -->
+      <!-- Fade: the composer's shadow in the thread surface colour, 12–32 px, tall enough for Jump to latest.
+           The shell takes the footer's natural height; the rows' end space is the separate, steadier reserve. -->
       <div
         bind:this={footerShell}
         class="absolute inset-x-0 bottom-0 isolate [--feed-fade:max(clamp(0.75rem,12.5%,2rem),calc(var(--feed-edge)+--spacing(11)-100%))]"
         style:--feed-edge="{footerEdge}px"
       >
-        <div class="absolute inset-x-0 bottom-0 [clip-path:inset(-2rem_-4px_0)]">
+        <div class="[clip-path:inset(-2rem_-4px_0)]">
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div class="chat-column px-4 sm:px-6" {onkeydown}>
             <div
               bind:this={footerElement}
-              {@attach (element) => watchFooterEdge(element, (edge) => (footerEdge = edge))}
+              {@attach (element) => watchFooterEdge(element, (edge) => (footerEdge = edge), footerResized)}
               class="pointer-events-auto relative composer-bottom"
               onfocusin={() => scrollIntent.reset()}
               onbeforeinput={() => scrollIntent.reset()}

@@ -139,8 +139,18 @@ natywne działanie przeglądarki na zaznaczalnych obszarach.
   `env(safe-area-inset-bottom)`, także od `sm`. Na wyśrodkowanych ekranach to minimalny
   odstęp po przewinięciu, a nie wymuszone wyrównanie do dołu. Status wysyłki zajmuje
   miejsce komputera w wierszu kontekstu, bez dodatkowego pustego wiersza pod nim.
-  W wątkach spacer osi czasu obejmuje pełną zmierzoną stopkę, także cytaty zawinięte
-  w kilka rzędów i chipy w kompakcie. Fade nad stopką tylko imituje cień composera:
+  W wątkach spacer osi czasu to stała rezerwa: pełna wysokość stopki (także cytaty
+  zawinięte w kilka rzędów) plus 40 px zapasu na jeszcze jeden pasek (kolejka,
+  subagenci, załączniki). Composer zwija się i rozwija wewnątrz tej rezerwy, więc
+  treść wątku nigdy nie przesuwa się razem z nim. Rezerwa rośnie od razu dopiero,
+  gdy pełna stopka przekroczy zapas (czytelnik na końcu zostaje na końcu w tej samej
+  klatce, pozostali zachowują `scrollTop`), a maleje dopiero przy powrocie na koniec.
+  Zwijanie jest sprzężone z przewijaniem: 96 px czytania w górę zwija composer
+  liniowo, krok po kroku; zwinięty zostaje zwinięty, a w ostatnich 192 px przed końcem
+  rozwija się w takt powrotu. Pośrednie przejścia CSS samego composera są wstrzymane
+  i ustawiane na postęp przewijania (bez układu wierszy). Po zatrzymaniu (240 ms)
+  kończy się bliższy stan; fokus i pisanie rozwijają composer we własnym tempie.
+  Przy `prefers-reduced-motion` stan przełącza się tylko na krańcach, bez animacji. Fade nad stopką tylko imituje cień composera:
   przechodzi od przezroczystości dokładnie do tła wątku (token `surface`, ten sam co
   obszar wątku), bez widocznej krawędzi pasa. Ma 12,5% wysokości stopki (minimum
   12 px, maksimum 32 px). „Jump to latest” jest wyśrodkowany na osi composera (we

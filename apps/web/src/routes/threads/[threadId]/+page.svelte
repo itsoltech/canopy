@@ -24,7 +24,7 @@
   import { backgroundTasks, backgroundName } from "#lib/features/threads/background-tasks.ts";
   import { provideBackgroundOutput } from "#lib/features/threads/background-output.ts";
   import Composer from "#lib/features/threads/components/Composer.svelte";
-  import { ComposerCompaction, type ComposerActivity } from "#lib/features/threads/components/composer-compaction.ts";
+  import { ComposerFold } from "#lib/features/threads/components/composer-fold.svelte.ts";
   import type { ReaderScroll } from "#lib/shared/ui/virtual/scroll.ts";
   import FeedRowView from "#lib/features/threads/components/FeedRowView.svelte";
   import PendingDecisions from "#lib/features/threads/components/interactions/PendingDecisions.svelte";
@@ -196,34 +196,31 @@
   // Its latest result counts as seen once it has been on screen (the sidebar's "Completed" goes out everywhere).
   let atEnd = $state(true);
 
-  const compaction = $derived.by(() => {
+  // The composer folds in step with the reader's scroll, inside the feed's fixed end reserve.
+  const composer = $derived.by(() => {
     void threadId;
 
-    return new ComposerCompaction();
+    return new ComposerFold(() => feedFooter);
   });
 
-  let compact = $state(false);
+  $effect(() => {
+    const current = composer;
 
-  function expandComposer(activity?: ComposerActivity) {
-    if (activity) compaction.interact(activity);
-    else compaction.expand();
-    compact = false;
-  }
+    return () => current.dispose();
+  });
 
   function readerScroll(scroll: ReaderScroll) {
-    compaction.scroll(scroll);
-    compact = compaction.compact;
+    composer.scroll(scroll);
 
     if (scroll.up && feedViewport.start < 4) void view.history.load();
   }
 
   $effect(() => {
-    compaction.question(
-      view.pending.some((q) => q.kind === InteractionKind.QUESTION && q.status === "pending" && !q.asynchronous),
+    const blocking = view.pending.some(
+      (q) => q.kind === InteractionKind.QUESTION && q.status === "pending" && !q.asynchronous,
     );
 
-    if (atEnd) compaction.expand();
-    compact = compaction.compact;
+    composer.update(blocking, atEnd);
   });
 
   trackSeen(() => {
@@ -254,7 +251,7 @@
   const folds = $derived(memory.folds);
   const builder = $derived(memory.builder);
 
-  const scrollMemory = $derived(threadScrollMemory(threadId, compaction, (value) => (compact = value)));
+  const scrollMemory = $derived(threadScrollMemory(threadId, composer.compaction, (value) => composer.set(value)));
 
   // The composer starts as the thread was left (compact where the reader had scrolled up) in its first frame,
   // not as the previous thread had it.
@@ -266,7 +263,7 @@
       atEnd = !anchored;
 
       if (anchored) opening.restored(false);
-      compact = compaction.compact;
+      composer.set(composer.compaction.compact);
     });
   });
 
@@ -629,6 +626,7 @@
           {#if device.viewLoaded}<VirtualFeed
               bind:this={feed}
               bind:atEnd
+              footerFit={{ fold: composer.footer, margin: 40 }}
               {rows}
               {scrollMemory}
               sizes={memory.sizes}
@@ -640,7 +638,8 @@
               label="Timeline"
               busy={working}
               onreaderscroll={readerScroll}
-              onlatest={expandComposer}
+              onreaderscrollend={() => composer.rest()}
+              onlatest={() => composer.expand()}
               onviewport={(viewport) => {
                 feedViewport = viewport;
               }}
@@ -739,7 +738,7 @@
                           threadId={thread.id}
                           disabled={closed}
                           embedded
-                          {compact}
+                          compact={composer.compact}
                           onchange={(goal) => view.upsertGoal(goal)}
                           ondismiss={() => (dismissedGoals = new Set(dismissedGoals).add(shownGoal.id))}
                         />
@@ -747,13 +746,13 @@
                     {/if}
                     {#if subagents.length > 0}
                       <div class="t-rise" out:subagentPresence|global>
-                        <SubagentsPanel {subagents} {compact} embedded />
+                        <SubagentsPanel {subagents} compact={composer.compact} embedded />
                       </div>
                     {/if}
                     <div inert={Boolean(away)} class={away ? "opacity-60" : undefined}>
                       <QueuePanel
                         {queue}
-                        {compact}
+                        compact={composer.compact}
                         embedded
                         delivery={settings.runningDelivery}
                         ondelivery={(delivery) => void settings.updateRunningDelivery(delivery)}
@@ -764,20 +763,17 @@
                     {#snippet computerStatus()}
                       {#if away}<ComputerAwayBar computer={overview.computer(thread.nodeId)} reason={away} />{/if}
                     {/snippet}
-                    <ThreadComposerSlot {thread} {parent} {compact}>
+                    <ThreadComposerSlot {thread} {parent} compact={composer.compact}>
                       <Composer
                         status={away ? computerStatus : undefined}
-                        {compact}
+                        compact={composer.compact}
                         panelsLabel={queue.rows.length > 0 || subagents.length > 0
                           ? `${subagents.length} agents · ${queue.rows.length} queued`
                           : shownGoal
                             ? "Goal"
                             : undefined}
-                        onexpand={expandComposer}
-                        onfocuschange={(focused) => {
-                          compaction.focus(focused);
-                          compact = compaction.compact;
-                        }}
+                        onexpand={(activity) => composer.expand(activity)}
+                        onfocuschange={(focused) => composer.focus(focused)}
                         class="relative"
                         top={queue.rows.length > 0 || subagents.length > 0 || shownGoal ? composerPanels : undefined}
                         questions={view.pending}
