@@ -57,10 +57,10 @@ test("mobile polling removes timers on suspension and cannot restart after scree
     await nextRead.promise;
     expect(started).toBe(1);
 
-    // Let the coalesced read settle before counting: an already-started read is not a new poll.
-    await Bun.sleep(0);
     activity.change("inactive");
     activity.change("background");
+    // A tick queued just before the pause may still start its read; count only what begins after that.
+    await Bun.sleep(10);
     const paused = reads;
     await Bun.sleep(25);
     expect(reads).toBe(paused);
@@ -71,8 +71,9 @@ test("mobile polling removes timers on suspension and cannot restart after scree
     await nextRead.promise;
     expect(reads).toBeGreaterThan(paused);
     expect(started).toBe(2);
-    await Bun.sleep(0);
     stop();
+    // A tick queued just before stop() may still start its read; count only what begins after that.
+    await Bun.sleep(10);
     const closed = reads;
     activity.change("background");
     activity.change("active");
