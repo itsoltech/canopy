@@ -1,6 +1,6 @@
 <script lang="ts">
   import { beforeNavigate } from "$app/navigation";
-  import { updated } from "$app/state";
+  import { page, updated } from "$app/state";
   import { untrack } from "svelte";
   import { updateNotice, updateState } from "../updates.svelte.ts";
   import Button from "./Button.svelte";
@@ -8,8 +8,11 @@
 
   $effect(() => updateNotice.detect(updated.current));
 
+  // A page that did not download offers its own reload (`+error.svelte`); the version may be the same.
+  const shown = $derived(updateState.available && page.error?.scope !== "assets");
+
   $effect(() => {
-    if (updateState.available) untrack(() => toast("A new version is available", { tone: "info" }));
+    if (shown) untrack(() => toast("A new version is available", { tone: "info" }));
   });
 
   beforeNavigate(({ to, willUnload, cancel }) => {
@@ -20,7 +23,7 @@
   });
 </script>
 
-{#if updateState.available}
+{#if shown}
   <div
     class="fixed inset-x-0 bottom-4 z-50 flex justify-center px-4 macos:max-h-[max(0px,var(--window-safe-height)-2rem)] macos:overflow-y-auto"
     role="status"
