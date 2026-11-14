@@ -3,6 +3,7 @@
   import type { ui } from "@canopy/contracts";
   import { hasComposerContent, matchesComposerTarget } from "@canopy/domain/composer-drafts";
   import Icon from "#lib/shared/ui/Icon.svelte";
+  import Popover from "#lib/shared/ui/Popover.svelte";
   import { remoteDrafts } from "./remote.svelte.ts";
   import { webDrafts } from "./local.svelte.ts";
   import { deleteDraft } from "./api.ts";
@@ -13,18 +14,13 @@
     draft,
     disabled = false,
     class: className = "",
-  }: {
-    draft: WebComposerDraft;
-    disabled?: boolean;
-    class?: string;
-  } = $props();
+  }: { draft: WebComposerDraft; disabled?: boolean; class?: string } = $props();
 
   let open = $state(false);
   let selected = $state("");
   let busy = $state(false);
   let error = $state("");
-  let root = $state<HTMLDivElement>();
-  const id = $props.id();
+  let anchor = $state<HTMLDivElement>();
 
   let rows = $derived(
     remoteDrafts.rows.filter((row) => matchesComposerTarget(row.target, draft.targetKey) && row.id !== draft.id),
@@ -41,20 +37,11 @@
     }
   });
 
-  onMount(() => remoteDrafts.subscribe());
-
   $effect(() => {
     if (rows.some((row) => row.updatedAtMs > draft.publishedAtMs)) untrack(() => (draft.moved = ""));
   });
 
-  function close() {
-    open = false;
-    selected = "";
-  }
-
-  function outside(event: PointerEvent) {
-    if (event.target instanceof Node && !root?.contains(event.target)) close();
-  }
+  onMount(() => remoteDrafts.subscribe());
 
   async function take(row: ui.ComposerDraft, replace = false) {
     if (disabled || draft.locked || !matchesComposerTarget(row.target, draft.targetKey)) return;
@@ -63,7 +50,8 @@
 
     try {
       await draft.take(row, replace);
-      close();
+      open = false;
+      selected = "";
       remoteDrafts.invalidate();
       await remoteDrafts.load();
     } catch {
@@ -89,88 +77,71 @@
   }
 </script>
 
-<svelte:window
-  onpointerdown={outside}
-  onkeydown={(event) => {
-    if (open && event.key === "Escape") {
-      event.preventDefault();
-      close();
-      root?.querySelector<HTMLButtonElement>("[aria-expanded]")?.focus();
-    }
-  }}
-/>
-
 {#if rows.length}
-  <div
-    bind:this={root}
-    class={["pointer-events-none absolute inset-x-0 bottom-full z-30 flex justify-end px-3", className]}
-  >
-    <section
-      class={[
-        "pointer-events-auto -mb-px overflow-hidden rounded-t-xl border border-b-0 border-zinc-950/10 bg-surface text-sm/5 text-zinc-600 sm:text-xs/5 dark:border-white/10 dark:text-zinc-300",
-        open ? "w-full" : "w-auto",
-      ]}
-      aria-label="Drafts"
+  <div bind:this={anchor} class={["relative h-8 w-full", className]}>
+    <Popover
+      bind:open
+      {anchor}
+      label="Drafts"
+      role="none"
+      placement="top-start"
+      offset={-33}
+      followMotion
+      class="drafts-attached"
+      maxHeight="min(40dvh,16rem)"
+      onclose={() => (selected = "")}
     >
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={id}
-        onclick={() => {
-          open = !open;
-          selected = "";
-        }}
-        class="flex min-h-8 w-full items-center gap-2 px-3 text-left focus-ring hover:bg-zinc-950/5 dark:hover:bg-white/5"
-      >
-        <Icon name="document-text" size="sm" /><span class="flex-1">Drafts</span>
-        <span class="text-accent tabular-nums">{rows.length}</span>
-        <span class="draft-chevron" class:expanded={open}><Icon name="chevron-down" size="sm" /></span>
-      </button>
-      <div class="draft-fold" class:expanded={open} inert={!open}>
-        <div class="min-h-0 overflow-hidden">
-          <div {id} class="max-h-[min(40dvh,16rem)] overflow-y-auto overscroll-contain px-1 pb-1">
-            {#each rows as row (row.id)}
-              <DraftRow
-                {row}
-                selected={selected === row.id}
-                disabled={disabled || busy || draft.locked}
-                onselect={() => {
-                  if (hasComposerContent(draft.content())) selected = selected === row.id ? "" : row.id;
-                  else void take(row);
-                }}
-                ontake={(replace) => void take(row, replace)}
-                ondiscard={() => void discard(row)}
-              />
-            {/each}
-            {#if error}<p role="status" class="px-2 py-1 text-rose-600 dark:text-rose-400">{error}</p>{/if}
-          </div>
+      {#snippet trigger(props)}
+        <div class="flex h-8 justify-end pr-3" class:invisible={open}>
+          <button
+            type="button"
+            {...props}
+            class="relative -bottom-px flex h-8 items-center gap-2 rounded-t-xl border border-b-0 border-zinc-950/10 bg-surface px-3 text-sm/5 text-zinc-600 focus-ring sm:text-xs/5 dark:border-white/10 dark:text-zinc-300"
+          >
+            <Icon name="document-text" size="sm" /><span>Drafts</span><span class="text-accent tabular-nums"
+              >{rows.length}</span
+            ><span class="-scale-y-100"><Icon name="chevron-down" size="sm" /></span>
+          </button>
         </div>
-      </div>
-    </section>
+      {/snippet}
+      <section aria-label="Drafts" class="text-sm/5 text-zinc-600 sm:text-xs/5 dark:text-zinc-300">
+        <button
+          type="button"
+          aria-expanded="true"
+          onclick={() => (open = false)}
+          class="flex min-h-8 w-full items-center gap-2 px-3 text-left focus-ring hover:bg-zinc-950/5 dark:hover:bg-white/5"
+        >
+          <Icon name="document-text" size="sm" /><span class="flex-1">Drafts</span><span
+            class="text-accent tabular-nums">{rows.length}</span
+          ><Icon name="chevron-down" size="sm" />
+        </button>
+        <div class="px-1 pb-1">
+          {#each rows as row (row.id)}
+            <DraftRow
+              {row}
+              selected={selected === row.id}
+              disabled={disabled || busy || draft.locked}
+              onselect={() => {
+                if (hasComposerContent(draft.content())) selected = selected === row.id ? "" : row.id;
+                else void take(row);
+              }}
+              ontake={(replace) => void take(row, replace)}
+              ondiscard={() => void discard(row)}
+            />
+          {/each}
+          {#if error}<p role="status" class="px-2 py-1 text-rose-600 dark:text-rose-400">{error}</p>{/if}
+        </div>
+      </section>
+    </Popover>
   </div>
 {/if}
 
 <style>
-  .draft-fold {
-    display: grid;
-    grid-template-rows: 0fr;
-    transition: grid-template-rows var(--duration-fast) var(--ease-smooth-out);
-  }
-  .draft-fold.expanded {
-    grid-template-rows: 1fr;
-  }
-  .draft-chevron {
-    transform: scaleY(-1);
-    display: inline-flex;
-    transition: transform var(--duration-fast) var(--ease-smooth-out);
-  }
-  .draft-chevron.expanded {
-    transform: scaleY(1);
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .draft-fold,
-    .draft-chevron {
-      transition: none;
-    }
+  :global(.drafts-attached) {
+    width: var(--float-anchor-width);
+    border: 1px solid var(--theme-border);
+    border-bottom: 0;
+    border-radius: 12px 12px 0 0;
+    box-shadow: none;
   }
 </style>

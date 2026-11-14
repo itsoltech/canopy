@@ -3,8 +3,8 @@
 Niewysłane szkice synchronizują się automatycznie, są przechowywane przez 30 dni i widoczne wyłącznie na urządzeniach właściciela.
 
 Niewysłane szkice synchronizują się automatycznie po 1,5 s bez edycji oraz przy
-opuszczaniu kompozytora. Inne urządzenie otwarte na tym samym wątku pokazuje
-`Take over` w slocie metadanych. Przejęcie przenosi tekst, pliki i cytaty, a źródło
+opuszczaniu kompozytora. Inne urządzenie otwarte na tym samym wątku udostępnia
+szkic w zakładce kompozytora. Przejęcie przenosi tekst, pliki i cytaty, a źródło
 zachowuje późniejsze edycje jako nowy szkic. Zakładka `Drafts` na górnej krawędzi
 kompozytora pokazuje liczbę szkiców innych urządzeń dla jego pełnego celu. Rozwija
 zwarty panel bez modala; nie pojawia się, gdy nie ma szkiców. Szkice innych wątków

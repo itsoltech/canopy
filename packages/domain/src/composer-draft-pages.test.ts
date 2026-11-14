@@ -30,6 +30,7 @@ test("composer counts include matching drafts beyond the first page and retain m
   const page = await loadComposerDraftPages(
     async (token) => pages[token ? 1 : 0] ?? create(ui.ComposerDraftPageSchema),
   );
+
   expect(
     page.drafts.filter((row) => matchesComposerTarget(row.target, composerTargetKey(target))).map((row) => row.id),
   ).toEqual(["matching"]);
@@ -49,8 +50,10 @@ test("draft pagination stays bounded across changes and repeated cursors", async
   });
 
   expect(page.drafts).toHaveLength(100);
+
   const repeated = await loadComposerDraftPages(async () =>
     create(ui.ComposerDraftPageSchema, { drafts: [{ id: "same" }], nextPageToken: "repeat" }),
   );
+
   expect(repeated.drafts.map((row) => row.id)).toEqual(["same"]);
 });

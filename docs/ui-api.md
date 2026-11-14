@@ -88,8 +88,9 @@ wzmianek i cytatów. `Replace local draft` jest jawną alternatywą. Po przejęc
 znika z pozostałych list. Zakładka zastępuje osobny wskaźnik `Draft from …`.
 Załączniki przechodzą po ID. Współdzielony cache domyka strony do limitu 100 szkiców,
 aby licznik uwzględniał również cele poza pierwszą stroną; watch unieważnia go po zmianie.
-Web nakłada zakładkę na ramkę; mobile rezerwuje stałe 32 punkty i używa niemodalnego
-portalu zakotwiczonego w ramce, bez szczeliny i bez zmiany wysokości osi przy rozwijaniu.
+Oba klienty rezerwują stały slot 32 px/punkty na zakładkę. Web rozwija istniejący
+niemodalny popover w warstwie wierzchniej, mobile używa portalu zakotwiczonego
+w ramce; bez szczeliny i bez zmiany wysokości osi przy rozwijaniu.
 Niepusty kompozytor pokazuje wybór dopisania lub jawnego zastąpienia w wybranym wierszu.
 Szkice innych wątków pozostają dostępne przez znaczniki sidebara.
 Web ponawia zerwany stream z opóźnieniem rosnącym od 2 do 60 s, zachowując kursor;

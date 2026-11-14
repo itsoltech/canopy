@@ -289,7 +289,7 @@
 </script>
 
 <div class={["relative grid grid-cols-1", className]}>
-  {@render drafts?.()}
+  {#if drafts}<div class="relative h-8">{@render drafts()}</div>{/if}
   <div
     class={[
       "group/composer relative isolate rounded-2xl [--composer-send-width:--spacing(9)] sm:[--composer-send-width:--spacing(8)]",
