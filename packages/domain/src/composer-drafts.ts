@@ -85,16 +85,16 @@ export class ComposerLocalStore {
   }
   /** Cross-tab changes affect only their target and never rewrite another tab's data. */
   receive(key: string, raw: string | null) {
-    if (this.#dirty.has(key)) return;
+    if (this.#dirty.has(key)) return false;
     const had = this.#entries.has(key);
 
     try {
       if (raw) {
         const entry = fromJsonString(ui.LocalComposerDraftSchema, raw);
 
-        if (!entry.draft?.target || composerTargetKey(entry.draft.target) !== key) return;
+        if (!entry.draft?.target || composerTargetKey(entry.draft.target) !== key) return false;
 
-        if (Date.now() - Number(entry.touchedAtMs) >= maxAge) return;
+        if (Date.now() - Number(entry.touchedAtMs) >= maxAge) return false;
         this.#entries.set(key, entry);
         this.#serialized.set(key, raw);
       } else {
@@ -103,8 +103,12 @@ export class ComposerLocalStore {
       }
 
       this.#emitKey(key, had !== this.#entries.has(key));
+
+      return true;
     } catch {
       this.error = "Could not restore drafts. Start a new draft.";
+
+      return false;
     }
   }
   load(raw: string | null) {

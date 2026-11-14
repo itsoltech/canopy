@@ -1,5 +1,12 @@
 # Projekty, wątki i wątki boczne
 
+Niewysłane szkice synchronizują się automatycznie po 1,5 s bez edycji oraz przy
+opuszczaniu kompozytora. Inne urządzenie otwarte na tym samym wątku pokazuje
+`Take over` w slocie metadanych. Przejęcie przenosi tekst, pliki i cytaty, a źródło
+zachowuje późniejsze edycje jako nowy szkic. `Open drafts` w sidebarze zbiera szkice
+innych urządzeń ze wszystkich wątków. Szczegóły i zabezpieczenia:
+[ui-api.md](ui-api.md#szkice-kompozytora-i-przekazywanie-między-urządzeniami).
+
 ## Nowy wątek boczny w webie
 
 „New side thread” z panelu szczegółów, menu wątku i palety poleceń otwiera

@@ -22,7 +22,7 @@ export const saveDraft = async (draft: ui.ComposerDraft, mutationId: string) =>
     ),
   );
 
-export const listDrafts = async (deviceId: string, threadId = "", pageToken = "") =>
+export const listDrafts = async (deviceId: string, threadId = "", pageToken = "", sourceDraftIds: string[] = []) =>
   decode(
     ui.ComposerDraftPageSchema,
     await requestJson(
@@ -30,7 +30,7 @@ export const listDrafts = async (deviceId: string, threadId = "", pageToken = ""
       "/api/drafts/list",
       encode(
         ui.ListComposerDraftsRequestSchema,
-        create(ui.ListComposerDraftsRequestSchema, { deviceId, threadId, pageToken, pageSize: 20 }),
+        create(ui.ListComposerDraftsRequestSchema, { deviceId, threadId, pageToken, pageSize: 20, sourceDraftIds }),
       ),
     ),
   );

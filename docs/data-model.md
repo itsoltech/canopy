@@ -13,6 +13,12 @@ miniaturę WebP w istniejącej kolumnie `thumb_sha256`.
 
 ## Szkice kompozytora
 
+Migracja `0142_composer_draft_moves` dodaje beztreściowe receipty przejęcia:
+właściciel, ID szkicu, urządzenie źródła, przejęta rewizja i nazwa odbiorcy.
+Klucz `(owner_user_id, draft_id, source_device_id)` pozwala źródłu rozpoznać
+przeniesiony szkic również po wysłaniu lub usunięciu przez odbiorcę. Retencja
+wynosi 30 dni; kolejne przejęcie usuwa wygasłe receipty właściciela.
+
 Migracja `0140_composer_drafts` dodaje `composer_drafts` (właściciel, urządzenie,
 cel, binarny `ComposerDraft`, rewizja, identyfikator mutacji, przejęcie i potwierdzenie
 wysłania), `composer_draft_attachments` oraz licznik zmian `composer_draft_clock`.

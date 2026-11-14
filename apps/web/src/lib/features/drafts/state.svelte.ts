@@ -9,7 +9,7 @@ import {
 } from "@canopy/domain/composer-drafts";
 import { AttachmentDraft, type DraftFile } from "#lib/features/attachments/draft.svelte.ts";
 import { useQuoteDrafts } from "#lib/features/quotes/quote-drafts.svelte.ts";
-import { saveDraft, deleteDraft, continueDraft } from "./api.ts";
+import { saveDraft, deleteDraft, continueDraft, listDrafts } from "./api.ts";
 import { trimValue } from "#lib/features/mentions/editor.ts";
 import { toWire, type QuoteDraft } from "#lib/features/quotes/quote.ts";
 import { HttpError } from "#lib/shared/http.ts";
@@ -31,6 +31,7 @@ export class WebComposerDraft {
     Pick<ui.ComposerDraftContent, "model" | "effort" | "permissionMode" | "provider" | "providerProfileId">
   >({ provider: 0, providerProfileId: "" });
   error = $state("");
+  moved = $state("");
   pendingSend = $state<ui.SendMessageRequest>();
   pendingForm = $state("");
   preparing = $state(false);
@@ -44,6 +45,7 @@ export class WebComposerDraft {
   #saving: Promise<ui.ComposerDraft> | undefined;
   #published = "";
   #active = false;
+  retired = false;
   #mutation: string = crypto.randomUUID();
   constructor(
     entry: ui.LocalComposerDraft,
@@ -125,6 +127,21 @@ export class WebComposerDraft {
   get locked() {
     return this.preparing || Boolean(this.pendingSend || this.pendingForm);
   }
+  acceptMove(move: ui.ComposerDraftMove) {
+    if (move.id !== this.id || this.revision > move.sourceRevision || this.locked) return;
+    this.activate();
+
+    const unchanged =
+      this.revision === move.sourceRevision &&
+      !this.files.blocker &&
+      this.#published === toJsonString(ui.ComposerDraftContentSchema, this.content(true));
+
+    if (unchanged) this.clear();
+    else this.fork();
+    this.moved = unchanged
+      ? `Draft taken over on ${move.deviceName}`
+      : `Draft taken over on ${move.deviceName}. Your edits are kept here.`;
+  }
   reconcile() {
     return recoverDraft(this);
   }
@@ -194,6 +211,7 @@ export class WebComposerDraft {
     });
   }
   persist() {
+    if (this.retired) return;
     this.files.place(this.mentions);
     const draft = this.#entry.draft;
 
@@ -216,6 +234,8 @@ export class WebComposerDraft {
     this.local.put(this.#entry);
   }
   async publish(): Promise<ui.ComposerDraft> {
+    if (this.retired) throw new Error("Draft changed in another tab");
+
     if (this.pendingSend || this.pendingForm)
       throw new Error("Retry the pending message before handing off this draft.");
 
@@ -262,7 +282,7 @@ export class WebComposerDraft {
     try {
       saved = await this.#saving;
 
-      if (this.id !== outgoing.id) return saved;
+      if (this.retired || this.id !== outgoing.id) return saved;
       this.publishedAtMs = saved.updatedAtMs;
       this.#entry = create(ui.LocalComposerDraftSchema, {
         ...this.#entry,
@@ -276,9 +296,18 @@ export class WebComposerDraft {
       this.error = "";
       this.persist();
     } catch (cause) {
-      if (this.id !== outgoing.id || this.locked) return outgoing;
+      if (this.retired || this.id !== outgoing.id || this.locked) return outgoing;
 
       if (cause instanceof HttpError && [404, 409].includes(cause.status)) {
+        const page = await listDrafts(draft.deviceId, "", "", [outgoing.id]);
+        const move = page.moves.find((row) => row.id === outgoing.id);
+
+        if (move) {
+          this.acceptMove(move);
+
+          return outgoing;
+        }
+
         this.fork();
         this.#saving = undefined;
 
@@ -295,9 +324,6 @@ export class WebComposerDraft {
     } finally {
       this.#saving = undefined;
     }
-
-    if (!this.locked && this.#published !== toJsonString(ui.ComposerDraftContentSchema, this.content(true)))
-      return this.publish();
 
     return saved;
   }

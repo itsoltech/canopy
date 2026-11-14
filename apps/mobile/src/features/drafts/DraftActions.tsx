@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { Text, View } from "react-native";
 import { router } from "expo-router";
-import { Code, ConnectError } from "@connectrpc/connect";
 import { timestampFromMs } from "@bufbuild/protobuf/wkt";
 import type { ui } from "@canopy/contracts";
 import { formatRelative } from "@canopy/domain/format";
@@ -14,12 +14,15 @@ import { useVisibility } from "../../ui/viewport";
 import { PendingDraft } from "./PendingDraft";
 
 interface Props {
-  draft: MobileComposerState;
+  draft?: MobileComposerState;
   threadId?: string;
   disabled?: boolean;
+  overview?: boolean;
+  indicatorOnly?: boolean;
+  children?: ReactNode;
 }
 
-/** A bounded query on open/invalidation; typing never writes to the gateway. */
+/** One bounded query shared by the composer hint and sidebar sheet. */
 function useDraftActions({ draft, threadId = "", disabled = false }: Props) {
   const { client, drafts, active: foreground, epoch } = useSession();
   const active = useVisibility() && foreground;
@@ -29,7 +32,6 @@ function useDraftActions({ draft, threadId = "", disabled = false }: Props) {
   const [next, setNext] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [revision, setRevision] = useState(0);
   const sequence = useRef(0);
   useEffect(() => drafts?.subscribeRemote(() => setRevision((n) => n + 1)), [drafts]);
@@ -39,17 +41,27 @@ function useDraftActions({ draft, threadId = "", disabled = false }: Props) {
     const controller = new AbortController();
     void drafts.remote
       .load(client.api, drafts.deviceId)
-      .then((page) =>
-        setHint(
-          page.drafts.find(
-            (d) =>
-              !controller.signal.aborted &&
-              d.target?.threadId === threadId &&
-              d.id !== draft.id &&
-              d.updatedAtMs > draft.publishedAtMs,
-          ),
-        ),
-      )
+      .then(async (page) => {
+        const rows =
+          page.nextPageToken &&
+          page.threadIds.includes(threadId) &&
+          !page.drafts.some((d) => d.target?.threadId === threadId)
+            ? (
+                await client.api.listComposerDrafts(
+                  { deviceId: drafts.deviceId, threadId, pageSize: 1 },
+                  { signal: controller.signal },
+                )
+              ).drafts
+            : page.drafts;
+
+        if (!controller.signal.aborted)
+          setHint(
+            rows.find(
+              (d) =>
+                d.target?.threadId === threadId && d.id !== draft?.id && d.updatedAtMs > (draft?.publishedAtMs ?? 0n),
+            ),
+          );
+      })
       .catch(() => {});
 
     return () => controller.abort();
@@ -83,7 +95,7 @@ function useDraftActions({ draft, threadId = "", disabled = false }: Props) {
   }
 
   async function take(row: ui.ComposerDraft, replace = false) {
-    if (!client || !drafts || !row.target || disabled || draft.locked) return;
+    if (!client || !drafts || !row.target || disabled || draft?.locked) return;
     setBusy(true);
     setError("");
 
@@ -108,34 +120,20 @@ function useDraftActions({ draft, threadId = "", disabled = false }: Props) {
     }
   }
 
-  async function publish() {
-    if (!client) return;
-    setBusy(true);
-    setError("");
-    setNotice("");
-
-    try {
-      await draft.publish(client.api);
-      await drafts?.flush();
-      setNotice("Draft ready on your other devices");
-    } catch (cause) {
-      setError(
-        ConnectError.from(cause).code === Code.Unimplemented
-          ? "Update Canopy on your gateway to hand off drafts."
-          : "Could not hand off this draft. Check the connection, then retry.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return { drafts, open, setOpen, rows, hint, next, busy, error, notice, take, publish, load };
+  return { drafts, open, setOpen, rows, hint, next, busy, error, take, load };
 }
 
-export function DraftActions({ draft, disabled = false, threadId }: Props) {
+export function DraftActions({
+  draft,
+  disabled = false,
+  threadId,
+  overview = false,
+  indicatorOnly = false,
+  children,
+}: Props) {
   const c = useColors();
 
-  const { drafts, open, setOpen, rows, hint, next, busy, error, notice, take, publish, load } = useDraftActions({
+  const { drafts, open, setOpen, rows, hint, next, busy, error, take, load } = useDraftActions({
     draft,
     threadId,
     disabled,
@@ -143,46 +141,40 @@ export function DraftActions({ draft, disabled = false, threadId }: Props) {
 
   return (
     <>
-      <View style={[styles.row, { flexWrap: "wrap", gap: 0 }]}>
-        <Button
-          title="Open drafts"
-          variant="ghost"
-          size="sm"
-          disabled={disabled || busy}
-          onPress={() => setOpen(true)}
-        />
-        <Button
-          title="Continue on another device"
-          variant="ghost"
-          size="sm"
-          disabled={
-            disabled ||
-            busy ||
-            draft.files.current.some((file) => !file.attachment) ||
-            Boolean(draft.pendingSend || draft.pendingCreate) ||
-            !hasComposerContent(draft.content())
-          }
-          onPress={() => void publish()}
-        />
-      </View>
-      <PendingDraft draft={draft} />
-      {hint ? (
-        <View style={[styles.row, { paddingHorizontal: 6 }]}>
+      {overview ? (
+        <View style={styles.row}>
+          <Button
+            title="Open drafts"
+            variant="ghost"
+            size="sm"
+            disabled={disabled || busy}
+            onPress={() => setOpen(true)}
+          />
+        </View>
+      ) : null}
+      {draft && !indicatorOnly ? <PendingDraft draft={draft} /> : null}
+      {hint && indicatorOnly ? (
+        <View style={[styles.row, { flex: 1, minWidth: 0 }]}>
           <Text numberOfLines={1} style={[styles.meta, { color: c.muted, flex: 1 }]}>
             Draft from {hint.deviceName} · {formatRelative(timestampFromMs(Number(hint.updatedAtMs)))}
           </Text>
           <Button
-            title="Continue"
+            title="Take over"
             variant="ghost"
             size="sm"
             disabled={disabled || busy}
-            onPress={() => void take(hint)}
+            onPress={() => {
+              if (draft && hasComposerContent(draft.content())) setOpen(true);
+              else void take(hint);
+            }}
           />
         </View>
+      ) : indicatorOnly && !draft?.moved ? (
+        children
       ) : null}
-      {notice ? (
-        <Text accessibilityLiveRegion="polite" style={[styles.meta, { color: c.muted }]}>
-          {notice}
+      {draft?.moved && indicatorOnly ? (
+        <Text numberOfLines={1} accessibilityLiveRegion="polite" style={[styles.meta, { color: c.muted, flex: 1 }]}>
+          {draft.moved}
         </Text>
       ) : null}
       {error && !open ? <Notice error>{error}</Notice> : null}
@@ -196,34 +188,11 @@ export function DraftActions({ draft, disabled = false, threadId }: Props) {
             </Text>
           ) : null}
           {rows.map((row) => (
-            <View key={row.id} style={{ gap: 4, paddingBottom: 12, borderBottomWidth: 1, borderColor: c.line }}>
-              <Text numberOfLines={1} style={[styles.label, { color: c.text }]}>
-                {row.title}
-              </Text>
-              <Text numberOfLines={1} style={[styles.meta, { color: c.muted }]}>
-                {row.deviceName} · {formatRelative(timestampFromMs(Number(row.updatedAtMs)))}
-              </Text>
-              <Text numberOfLines={2} style={[styles.body, { color: c.text }]}>
-                {row.content?.text}
-              </Text>
-              {row.content?.attachments.length ? (
-                <Text style={[styles.meta, { color: c.muted }]}>
-                  {row.content.attachments.length} {row.content.attachments.length === 1 ? "attachment" : "attachments"}
-                </Text>
-              ) : null}
-              <View style={[styles.row, { flexWrap: "wrap" }]}>
-                <Button title="Continue here" size="sm" disabled={busy} onPress={() => void take(row)} />
-                {row.target && hasComposerContent(drafts?.local.get(row.target)?.draft?.content) ? (
-                  <Button
-                    title="Replace local draft"
-                    variant="ghost"
-                    size="sm"
-                    disabled={busy}
-                    onPress={() => void take(row, true)}
-                  />
-                ) : null}
-              </View>
-            </View>
+            <DraftRow
+              key={row.id}
+              {...{ row, busy, take }}
+              local={Boolean(row.target && hasComposerContent(drafts?.local.get(row.target)?.draft?.content))}
+            />
           ))}
           <View style={styles.row}>
             <Button
@@ -243,5 +212,50 @@ export function DraftActions({ draft, disabled = false, threadId }: Props) {
         </View>
       </Sheet>
     </>
+  );
+}
+
+function DraftRow({
+  row,
+  busy,
+  take,
+  local,
+}: {
+  row: ui.ComposerDraft;
+  busy: boolean;
+  local: boolean;
+  take: (row: ui.ComposerDraft, replace?: boolean) => Promise<void>;
+}) {
+  const c = useColors();
+
+  return (
+    <View style={{ gap: 4, paddingBottom: 12, borderBottomWidth: 1, borderColor: c.line }}>
+      <Text numberOfLines={1} style={[styles.label, { color: c.text }]}>
+        {row.title}
+      </Text>
+      <Text numberOfLines={1} style={[styles.meta, { color: c.muted }]}>
+        {row.deviceName} · {formatRelative(timestampFromMs(Number(row.updatedAtMs)))}
+      </Text>
+      <Text numberOfLines={2} style={[styles.body, { color: c.text }]}>
+        {row.content?.text}
+      </Text>
+      {row.content?.attachments.length ? (
+        <Text style={[styles.meta, { color: c.muted }]}>
+          {row.content.attachments.length} {row.content.attachments.length === 1 ? "attachment" : "attachments"}
+        </Text>
+      ) : null}
+      <View style={[styles.row, { flexWrap: "wrap" }]}>
+        <Button title={local ? "Append draft" : "Take over"} size="sm" disabled={busy} onPress={() => void take(row)} />
+        {local ? (
+          <Button
+            title="Replace local draft"
+            variant="ghost"
+            size="sm"
+            disabled={busy}
+            onPress={() => void take(row, true)}
+          />
+        ) : null}
+      </View>
+    </View>
   );
 }

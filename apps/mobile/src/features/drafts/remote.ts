@@ -8,7 +8,12 @@ export class MobileRemoteDrafts {
   invalidate() {
     this.#page = undefined;
   }
-  async load(api: Client<typeof ui.GatewayService>, deviceId: string, more = false): Promise<ui.ComposerDraftPage> {
+  async load(
+    api: Client<typeof ui.GatewayService>,
+    deviceId: string,
+    more = false,
+    sourceDraftIds: string[] = [],
+  ): Promise<ui.ComposerDraftPage> {
     if (this.#pending) {
       const page = await this.#pending;
 
@@ -18,7 +23,12 @@ export class MobileRemoteDrafts {
     if (!more && this.#page) return this.#page;
     const previous = this.#page;
     this.#pending = api
-      .listComposerDrafts({ deviceId, pageSize: 20, pageToken: more ? (previous?.nextPageToken ?? "") : "" })
+      .listComposerDrafts({
+        deviceId,
+        pageSize: 20,
+        pageToken: more ? (previous?.nextPageToken ?? "") : "",
+        sourceDraftIds,
+      })
       .then((page) => {
         this.#page =
           more && previous

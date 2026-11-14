@@ -135,6 +135,12 @@ export function composerDraftStore(sql: SqlClient.SqlClient, owner: string) {
           if (row.taken_by || row.sent || row.sending_request_id || BigInt(row.revision) !== request.expectedRevision)
             return yield* Effect.fail(conflict());
           const draft = decodeDraft(row);
+          yield* sql`DELETE FROM composer_draft_moves WHERE owner_user_id=${owner}::uuid AND expires_at<=now()`;
+          yield* sql`INSERT INTO composer_draft_moves(owner_user_id,draft_id,source_device_id,source_revision,device_name)
+            VALUES(${owner}::uuid,${draft.id}::uuid,${row.device_id},${draft.revision},${request.deviceName})
+            ON CONFLICT(owner_user_id,draft_id,source_device_id) DO UPDATE SET
+            source_revision=excluded.source_revision,device_name=excluded.device_name,
+            expires_at=now()+interval '30 days'`;
           draft.revision += 1n;
 
           // A claim starts a new send identity; an in-flight save from the source

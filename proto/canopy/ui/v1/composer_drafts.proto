@@ -5,7 +5,7 @@ import "canopy/worker/v1/worker_link.proto";
 import "canopy/ui/v1/attachments.proto";
 import "canopy/ui/v1/quotes.proto";
 
-// Client-local first. Only explicit handoff/navigation/background publishes this content.
+// Client-local first, automatically synced after an idle debounce and on leaving.
 message ComposerDraftContent {
   string text = 1;
   repeated canopy.worker.v1.Mention mentions = 2;
@@ -49,11 +49,21 @@ message ListComposerDraftsRequest {
   string thread_id = 2;
   uint32 page_size = 3;
   string page_token = 4;
+  // At most 100 local IDs. Returns durable, content-free take-over receipts.
+  repeated string source_draft_ids = 5;
+}
+message ComposerDraftMove {
+  string id = 1;
+  uint64 source_revision = 2;
+  string device_name = 3;
 }
 message ComposerDraftPage {
   repeated ComposerDraft drafts = 1;
   string next_page_token = 2;
   uint64 change_revision = 3;
+  repeated ComposerDraftMove moves = 4;
+  // Bounded by the owner's 100-draft limit; no prompt content in sidebar markers.
+  repeated string thread_ids = 5;
 }
 message ContinueComposerDraftRequest {
   string id = 1;

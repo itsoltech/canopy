@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { AppState } from "react-native";
 import { useIsFocused } from "expo-router";
-import { create } from "@bufbuild/protobuf";
+import { create, toJsonString } from "@bufbuild/protobuf";
+import { ComposerSync } from "@canopy/domain/composer-sync";
 import { ui } from "@canopy/contracts";
 import { composerTargetKey } from "@canopy/domain/composer-drafts";
 import { useSession } from "../../state/session";
@@ -46,11 +47,22 @@ export function usePersistentMessage(target: ui.ComposerDraftTarget, visible = t
   });
 
   useEffect(() => {
+    const sync = new ComposerSync(async () => {
+      if (client) await state.publish(client.api);
+    });
+
+    const update = () => sync.update(toJsonString(ui.ComposerDraftContentSchema, state.content()));
+    update();
+    const stop = state.subscribe(update);
+    state.flush = () => {
+      void sync.flush();
+    };
+
     const save = () => {
       state.persist();
       void drafts?.flush();
 
-      if (client) void state.publish(client.api).catch(() => {});
+      void sync.flush();
     };
 
     if (!focused || !visible) save();
@@ -61,7 +73,10 @@ export function usePersistentMessage(target: ui.ComposerDraftTarget, visible = t
 
     return () => {
       listener.remove();
+      stop();
+      state.flush = undefined;
       save();
+      sync.cancel();
     };
   }, [state, client, focused, visible, drafts]);
 
