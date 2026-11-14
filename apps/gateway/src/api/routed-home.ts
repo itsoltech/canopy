@@ -82,7 +82,7 @@ export async function* forward(
         });
       const computer = await core.computers?.computer(nodeId);
       const announced = computer && announcedDeparture(computer.status);
-      const attachment = method.name === "GetAttachment" || method.name === "GetThreadBlob";
+      const attachment = ["GetAttachment", "GetThreadBlob", "GetVisual"].includes(method.name);
       throw new ConnectError(
         attachment && error.code === Code.Unavailable
           ? `Available when ${computer?.displayName || computer?.name || "the other computer"} is connected.`
@@ -236,7 +236,7 @@ export async function* home(
 
     if (
       !computers.reachable().includes(nodeId) &&
-      (method.name === "GetAttachment" || method.name === "GetThreadBlob")
+      ["GetAttachment", "GetThreadBlob", "GetVisual"].includes(method.name)
     ) {
       const peer = await computers.computer(nodeId);
       throw new ConnectError(

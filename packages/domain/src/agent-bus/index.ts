@@ -23,7 +23,6 @@ export {
 
 export {
   AGENT_BUS_TOOLS,
-  agentBusToolSpecs,
   agentBusToolsFor,
   decodeAgentBusCall,
   isAgentBusTool,
@@ -32,8 +31,9 @@ export {
   type AgentBusCall,
   type AgentBusToolName,
   type SpawnPermissionMode,
-  type ToolJsonSpec,
 } from "./tools.ts";
+
+export { agentBusToolSpecs, type ToolJsonSpec } from "./tool-specs.ts";
 
 export {
   decodeUserAnswers,

@@ -1,9 +1,10 @@
-import { type JsonSchema, Result, Schema } from "effect";
+import { Result, Schema } from "effect";
 import { QUESTION_TOOLS, questionsProblem } from "./questions.ts";
 import { BACKGROUND_TASK_TOOLS } from "./background-tasks.ts";
 import { isEntityId } from "../computers.ts";
 import { IMAGE_TOOLS } from "./images.ts";
 import { RequestSecret } from "./secrets.ts";
+import { RENDER_VISUAL_MAX_ARGUMENTS, renderVisualProblem, VISUAL_TOOLS } from "./visuals.ts";
 
 export { RequestSecret } from "./secrets.ts";
 
@@ -247,6 +248,7 @@ const define = <S extends Schema.Top>(tool: ToolDefinition<S>) => tool;
 export const AGENT_BUS_TOOLS = {
   ...QUESTION_TOOLS,
   ...IMAGE_TOOLS,
+  ...VISUAL_TOOLS,
   request_secret: define({
     name: "request_secret",
     description:
@@ -401,7 +403,7 @@ export function isAgentBusTool(name: string): name is AgentBusToolName {
   return Object.hasOwn(AGENT_BUS_TOOLS, name);
 }
 
-const AGENT_BUS_TOOL_NAMES: readonly AgentBusToolName[] = Object.keys(AGENT_BUS_TOOLS).filter(isAgentBusTool);
+export const AGENT_BUS_TOOL_NAMES: readonly AgentBusToolName[] = Object.keys(AGENT_BUS_TOOLS).filter(isAgentBusTool);
 
 /**
  * Strictly decodes a tool call coming from a model. Unknown tools, unknown properties
@@ -409,6 +411,9 @@ const AGENT_BUS_TOOL_NAMES: readonly AgentBusToolName[] = Object.keys(AGENT_BUS_
  */
 export function decodeAgentBusCall(name: string, argumentsJson: string): Result.Result<AgentBusCall, string> {
   if (!isAgentBusTool(name)) return Result.fail(`unknown agent bus tool "${name}"`);
+
+  if (name === "render_visual" && argumentsJson.length > RENDER_VISUAL_MAX_ARGUMENTS)
+    return Result.fail("render_visual: arguments are larger than the 128 KiB spec limit");
   let raw: unknown;
 
   try {
@@ -427,50 +432,11 @@ export function decodeAgentBusCall(name: string, argumentsJson: string): Result.
   // SAFETY: `decoded` came from AGENT_BUS_TOOLS[name].args, and AgentBusArgs[name] is that schema's Type.
   const call = { tool: name, args: decoded.success } as AgentBusCall;
 
-  if (call.tool === "ask_user") {
-    const problem = questionsProblem(call.args.questions);
+  const problem =
+    (call.tool === "ask_user" && questionsProblem(call.args.questions)) ||
+    (call.tool === "render_visual" && renderVisualProblem(call.args));
 
-    if (problem) return Result.fail(`ask_user: ${problem}`);
-  }
+  if (problem) return Result.fail(`${call.tool}: ${problem}`);
 
   return Result.succeed(call);
-}
-
-export interface ToolJsonSpec {
-  readonly name: string;
-  readonly description: string;
-  readonly inputSchema: JsonSchema.JsonSchema;
-}
-
-/** Tool specs for providers: Codex dynamicTools ({ name, description, inputSchema }) and the Claude MCP server. */
-export function agentBusToolSpecs(names: readonly AgentBusToolName[] = AGENT_BUS_TOOL_NAMES): ToolJsonSpec[] {
-  return names.flatMap((name) => {
-    if (name === "import_image_reply") return [];
-    const tool = AGENT_BUS_TOOLS[name];
-
-    // Old workers may still send permission_mode. Decode it only to narrow access; new models never choose it.
-    const args =
-      tool.name === "spawn_thread"
-        ? SpawnThread.mapFields(({ permission_mode: _legacy, ...fields }) => fields)
-        : tool.args;
-
-    const document = Schema.toJsonSchemaDocument(args, { onExcessProperty: "error" });
-    const schema = document.schema;
-
-    // Providers require an object schema; an empty Struct compiles to "anything but null".
-    const inputSchema =
-      schema["type"] === "object" ? schema : { type: "object", properties: {}, additionalProperties: false };
-
-    return [
-      {
-        name: tool.name,
-        description: tool.description,
-        inputSchema: { ...inputSchema, ...definitions(document) },
-      },
-    ];
-  });
-}
-
-function definitions(document: JsonSchema.Document<"draft-2020-12">): { readonly $defs?: JsonSchema.Definitions } {
-  return document.definitions && Object.keys(document.definitions).length > 0 ? { $defs: document.definitions } : {};
 }

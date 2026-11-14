@@ -69,6 +69,23 @@ po 65 s lub 256 zatrzymanych zdarzeniach; błąd pozostawia tekst i link do plik
 Restart procesu przed zapisem kopii może pozostawić tylko link; potwierdzony
 zapis przeżywa restart i usunięcie pliku. Wewnętrznego narzędzia nie ma
 w katalogach modeli żadnego z trzech harnessów.
+### Interaktywne visuals
+
+`render_visual` jest narzędziem szyny ([agent-bus.md](agent-bus.md#3-narzędzia)):
+worker przekazuje `AgentToolCall`, a gateway waliduje spec i zapisuje wersję.
+Worker ogłasza capability `thread_visuals_v1`; bez niej gateway odpowiada
+„Update this computer to show visuals in Canopy.”, a starszy gateway odrzuca
+nieznane narzędzie. `Welcome.thread_visuals_v1 = 7` mówi workerowi, że gateway
+obsługuje `render_visual`; bez tej flagi worker sam odpowiada „Update Canopy on the
+gateway computer to show visuals.” i nie wysyła wywołania. `WORKER_LINK_PROTOCOL` pozostaje 1.
+
+`Item.visual = 26` (`Visual`) to mały manifest najnowszej wersji: `visual_id`,
+`version`, wersje schematu i kitu, tytuł, opis, wysokość, SHA-256 i rozmiar spec.
+Spec nie trafia do zdarzeń ani `WatchThread`. Wersja, upsert itemu `visual-<id>`,
+zdarzenie `item_completed`, rekord wywołania i audyt powstają w jednej transakcji.
+Aktualizacja zachowuje turę i miejsce itemu z wersji 1. Worker nie może tworzyć
+ani zmieniać itemów `visual`: takie zdarzenia trafiają do kwarantanny.
+`MovedThread.visuals_json = 4` przenosi wersje razem z wątkiem między komputerami.
 
 `AgentToolCall.cancelled` (831) oznacza zakończenie oczekiwania klienta MCP
 (timeout lub anulowanie). Worker ponawia tę samą kopertę do `AgentToolResult`, także

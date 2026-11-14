@@ -23,6 +23,7 @@ import { corePublishSchedule } from "./core-schedules.ts";
 import type { GatewayCore } from "./core.ts";
 import { nameAutomationBranch, prepareScheduledWorkspace, prepareSpawnWorkspace } from "../worktrees/automation.ts";
 import { runBotHarness } from "./bot-harness.ts";
+import { publishThreadVisual } from "./visual-publication.ts";
 import { answerBotThreadApproval } from "./bot-thread-approval.ts";
 import { linkedBotThreadApprovals } from "../computers/bot-thread-approvals.ts";
 import { publishThreadImages } from "./image-publication.ts";
@@ -66,6 +67,7 @@ export function createCoreBus(core: GatewayCore): AgentBus {
     requestSecret: (source, args) => core.secrets.request(source, args),
     showImages: (source, caller, args) => publishThreadImages(core, source, caller, args),
     importImageReply: (source, caller, itemId) => importImageReply(core, source, caller, itemId),
+    renderVisual: (source, caller, args) => publishThreadVisual(core, source, caller, args),
     interrupt: (threadId) => core.interrupt(threadId),
     answer: (by, request) => coreAnswer(core, by, request),
     broadcastThread: (threadId) => coreBroadcastThread(core, threadId),

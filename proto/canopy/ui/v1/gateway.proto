@@ -328,6 +328,8 @@ service GatewayService {
   // Otwiera plik w domyślnej aplikacji systemu na komputerze workera.
   rpc OpenThreadFile(ThreadFileRequest) returns (google.protobuf.Empty);
   rpc GetThreadBlob(GetThreadBlobRequest) returns (GetThreadBlobResponse);
+  // A version of a thread visual, owner-scoped (docs/agent-visuals.md). Capability thread_visuals_v1.
+  rpc GetVisual(GetVisualRequest) returns (GetVisualResponse);
 
   // Kolejka (sekcja na końcu pliku): wiadomości czekające za turą w toku — kolejność, edycja, usunięcie
   // (z cofnięciem) i steer do tury w toku. Działa tylko na turach queued, których gateway jeszcze nie wystartował.
@@ -2475,6 +2477,22 @@ message GetThreadBlobRequest {
 message GetThreadBlobResponse {
   bytes data = 1;
   string mime_type = 2;
+}
+
+message GetVisualRequest {
+  string thread_id = 1;
+  string visual_id = 2;
+  // 0 = latest.
+  uint32 version = 3;
+}
+
+message GetVisualResponse {
+  canopy.worker.v1.Visual visual = 1;
+  // Canonical spec JSON, validated when it was published.
+  string spec_json = 2;
+  // Every published version, oldest first.
+  repeated uint32 versions = 3;
+  google.protobuf.Timestamp created_at = 4;
 }
 
 // ---------- Kolejka ----------

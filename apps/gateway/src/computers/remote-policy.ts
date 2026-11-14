@@ -183,6 +183,7 @@ export const SERVED = new Set([
   "GetAttachment",
   "UploadAttachment",
   "GetThreadBlob",
+  "GetVisual",
   "GetThreadSyncContent",
   "ReorderQueuedTurns",
   "EditQueuedTurn",

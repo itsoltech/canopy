@@ -102,6 +102,7 @@ export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
           ...(await options.welcome(workerId, hello)),
           diagnosticsV1: (options.diagnosticsEnabled?.() ?? true) && hello.capabilities.includes("diagnostics_v1"),
           workerDiagnosticsV1: workerMetricsSupported(options, hello),
+          threadVisualsV1: true,
         },
       }),
     );
