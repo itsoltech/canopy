@@ -19,7 +19,7 @@ export class IngestDiagnostics {
 
     if (!queue) {
       if (this.#queues.size >= 16 || !this.collector.budget.reserve(256)) {
-        this.collector.budget.dropped++;
+        this.collector.budget.drop("collection");
 
         return;
       }
@@ -37,7 +37,7 @@ export class IngestDiagnostics {
     }
 
     if (this.#waiting >= 4096 || !this.collector.budget.reserve(64)) {
-      this.collector.budget.dropped++;
+      this.collector.budget.drop("collection");
 
       return;
     }

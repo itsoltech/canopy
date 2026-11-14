@@ -120,6 +120,8 @@ export function compactRollups(rollups: readonly ui.DiagnosticsRollup[]) {
       coverage: mergeCoverage(values.flatMap((process) => process.coverage)),
       series: [...series].map(([id, aggregates]) => mergeAggregates(aggregates, id)),
       measures: [...measures].map(([key, value]) => value.snapshot(metricOf(key), rpcOf(key))),
+      droppedSamples: values.reduce((sum, process) => sum + process.droppedSamples, 0n),
+      limitReasons: [...new Set(values.flatMap((process) => process.limitReasons))],
     });
   });
 }

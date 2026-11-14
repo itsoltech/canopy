@@ -1,5 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
+import { DiagnosticsLosses, type LimitReason } from "./losses.ts";
 import {
   Aggregate,
   Measure,
@@ -15,20 +16,35 @@ export type Slot = {
   series: Map<number, Aggregate>;
   measures?: Map<number, Measure>;
   correlations?: number;
+  droppedSamples?: bigint;
+  limitReasons?: string[];
 };
 
 /** Allocations, including conservative object/Map overhead, share one process budget. */
 export class BucketBudget {
   used = 0;
   dropped = 0;
+  clock = Date.now;
+  #losses: DiagnosticsLosses | undefined;
   constructor(
     readonly limit = 6 * 1024 * 1024,
     readonly parent?: BucketBudget,
-  ) {}
+  ) {
+    this.clock = parent?.clock ?? Date.now;
+  }
 
-  drop() {
-    this.dropped++;
-    this.parent?.drop();
+  drop(reason: LimitReason = "memory", at = this.clock(), count = 1) {
+    this.dropped += count;
+
+    if (this.parent) this.parent.drop(reason, at, count);
+    else {
+      this.#losses ??= new DiagnosticsLosses();
+      this.#losses.add(reason, at, count);
+    }
+  }
+
+  losses(start: number, end: number) {
+    return this.#losses?.between(start, end) ?? { count: 0, reasons: [] };
   }
 
   reserve(bytes: number) {
@@ -116,7 +132,7 @@ export class Buckets {
     if (!value) {
       // Correlations are optional detail. Global family/resource series keep their space.
       if (rpc && (slot.correlations ?? 0) >= 256) {
-        this.budget.dropped++;
+        this.budget.drop("correlations", now);
 
         return;
       }
@@ -155,7 +171,7 @@ export class Buckets {
               endMs: BigInt(Math.floor(stop)),
             }),
           );
-        else this.budget.dropped++;
+        else this.budget.drop("coverage", at);
       }
 
       at = stop;
@@ -212,7 +228,7 @@ export class Buckets {
     this.slots[Math.floor(oldest.at / this.width) % this.count] = undefined;
     this.#release(oldest);
 
-    return true;
+    return oldest;
   }
 
   #release(slot: Slot) {

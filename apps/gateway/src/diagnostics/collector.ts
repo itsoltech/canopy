@@ -49,6 +49,7 @@ export class RpcCollector {
     readonly clock = SYSTEM_CLOCK,
     readonly budget = new BucketBudget(),
   ) {
+    budget.clock = clock.utc;
     // Keep the original 6 MiB ceiling while allowing ordinary SQL family/RPC cardinality.
     this.measureBudget = new BucketBudget(4 * 1024 * 1024, budget);
     // SQL cardinality must not consume the space needed by process/queue/governor series.
@@ -76,7 +77,7 @@ export class RpcCollector {
     const method = this.methods.get(id);
 
     if (!method) {
-      this.budget.dropped++;
+      this.budget.drop("collection");
 
       return;
     }
@@ -89,7 +90,7 @@ export class RpcCollector {
     const token = Number(++this.#sequence);
 
     if (this.#activeCount >= 4096 || !this.budget.reserve(256)) {
-      this.budget.dropped++;
+      this.budget.drop("collection");
 
       return;
     }
@@ -256,12 +257,14 @@ export class RpcCollector {
       this.measureBudget.used + ring.restoreMeasureBytes(process, at) > this.measureBudget.limit / 2 ||
       this.databaseBudget.used + ring.restoreMeasureBytes(process, at, true) > this.databaseBudget.limit / 2
     ) {
-      if (this.historyMinutes.evictOldest()) {
-        this.budget.dropped++;
+      const evicted = this.historyMinutes.evictOldest();
+
+      if (evicted) {
+        this.budget.drop("history", evicted.at);
         continue;
       }
 
-      this.budget.dropped += process.series.length + process.measures.length;
+      this.budget.drop("history", at, process.series.length + process.measures.length);
 
       return;
     }
@@ -270,6 +273,8 @@ export class RpcCollector {
 
     if (!slot) return;
     slot.coverage = mergeCoverage([...slot.coverage, ...process.coverage]);
+    slot.droppedSamples = (slot.droppedSamples ?? 0n) + process.droppedSamples;
+    slot.limitReasons = [...new Set([...(slot.limitReasons ?? []), ...process.limitReasons])];
 
     for (const value of process.series)
       if (this.methods.has(value.methodId)) ring.series(at, value.methodId)?.merge(value);
@@ -297,6 +302,7 @@ export class RpcCollector {
     const slot = this.minutes.slots.find((value) => value?.at === at);
 
     if (!slot) return;
+    const losses = this.budget.losses(at, at + 59_999);
 
     return create(ui.DiagnosticsProcessSchema, {
       processId: "gateway",
@@ -305,6 +311,8 @@ export class RpcCollector {
       coverage: mergeCoverage(slot.coverage),
       series: [...slot.series].map(([id, value]) => value.snapshot(id)),
       measures: [...(slot.measures ?? [])].map(([key, value]) => value.snapshot(metricOf(key), rpcOf(key))),
+      droppedSamples: BigInt(losses.count),
+      limitReasons: losses.reasons,
     });
   }
 }

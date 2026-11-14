@@ -62,7 +62,7 @@ export function measureSnapshot(collector: RpcCollector, minutes: number, hourly
 
   const reserve = (bytes: number) => {
     if (!collector.windowBudget.reserve(bytes)) {
-      collector.budget.dropped++;
+      collector.budget.drop("memory");
 
       return false;
     }

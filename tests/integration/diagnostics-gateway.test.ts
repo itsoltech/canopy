@@ -407,6 +407,10 @@ describe.skipIf(!dockerAvailable)("gateway diagnostics preserve durable, private
     );
     expect(total).toBeGreaterThan(100n);
     expect(Number(total - other) / Number(total)).toBeGreaterThanOrEqual(0.95);
+    expect(after.droppedSamples).toBe(0n);
+    const overview = await gateway.api.getComputerDiagnostics({ windowMinutes: 15, overviewOnly: true });
+    expect(overview.droppedSamples).toBe(0n);
+    expect(overview.limitReasons).toEqual([]);
   }, 60_000);
 
   test("ingest remains durable while a receiver falls behind and metrics reveal queue pressure", async () => {

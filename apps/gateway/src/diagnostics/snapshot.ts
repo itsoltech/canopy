@@ -61,6 +61,10 @@ export function rpcSnapshot(collector: RpcCollector, minutes: number, hourly?: S
     }
 
   const measured = measureSnapshot(collector, minutes, hourly, overviewOnly);
+  const losses = collector.budget.losses(liveStart, now);
+  const restored = minutes === 1 ? [] : collector.historyMinutes.between(liveStart, now + 1);
+
+  if (hourly) restored.push(hourly);
 
   const calls = [...aggregates].flatMap(([id, aggregate]) => {
     const method = collector.methods.get(id);
@@ -144,6 +148,8 @@ export function rpcSnapshot(collector: RpcCollector, minutes: number, hourly?: S
     windowStartMs: BigInt(start),
     windowEndMs: BigInt(now),
     resolutionSeconds: width / 1000,
+    droppedSamples: BigInt(losses.count) + restored.reduce((sum, slot) => sum + (slot.droppedSamples ?? 0n), 0n),
+    limitReasons: [...new Set([...losses.reasons, ...restored.flatMap((slot) => slot.limitReasons ?? [])])],
   };
 }
 

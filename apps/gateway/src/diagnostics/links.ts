@@ -116,7 +116,7 @@ export class LinkDiagnostics {
       const bytes = reportBytes(value);
 
       if (this.#pending.length < 8 && this.budget.reserve(bytes)) this.#pending.push({ value, source, at, bytes });
-      else this.budget.dropped++;
+      else this.budget.drop("collection", at);
 
       return true;
     }
@@ -130,7 +130,7 @@ export class LinkDiagnostics {
           sequence: value.sequence,
         }),
       );
-      this.budget.dropped++;
+      this.budget.drop("collection", at);
 
       return true;
     }
@@ -205,7 +205,7 @@ export class LinkDiagnostics {
       echoTimeouts: snapshot.calls.find((call) => call.method === "rtt")?.codes[4] ?? 0n,
       measures: snapshot.gatewayMeasures,
       measuresSupported: this.measuresSupported || snapshot.gatewayMeasures.length > 0,
-      droppedSamples: this.reportedDrops + BigInt(this.budget.dropped),
+      droppedSamples: this.reportedDrops + snapshot.droppedSamples,
     });
   }
 }

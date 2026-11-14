@@ -11,6 +11,7 @@ import {
   traceState,
 } from "@canopy/domain/diagnostics";
 import { RPC_METHODS, LINKED_METHODS, COMMAND_METHODS } from "./registry.ts";
+import { LIMIT_REASONS } from "./losses.ts";
 
 const methods = new Map(
   [...RPC_METHODS, ...LINKED_METHODS, ...COMMAND_METHODS].map((value) => [`${value.layer}:${value.name}`, value]),
@@ -89,6 +90,9 @@ function findingSubject(value: ui.DiagnosticsFinding, links: Set<string>) {
 
 /** Authenticated peers still cannot introduce arbitrary text labels into collected metrics. */
 export function sanitizeSnapshot(value: ui.ComputerDiagnostics) {
+  const reasons = new Set<string>([...LIMIT_REASONS, "links", "response", "invalid"]);
+  value.limitReasons = [...new Set(value.limitReasons.filter((reason) => reasons.has(reason)))];
+  const dropped = value.droppedSamples;
   value.tracing = traceState(value.tracing);
   const calls: ui.DiagnosticsCall[] = [];
   const seen = new Set<string>();
@@ -163,6 +167,8 @@ export function sanitizeSnapshot(value: ui.ComputerDiagnostics) {
       Number.isFinite(finding.value) &&
       Number.isFinite(finding.threshold),
   );
+
+  if (value.droppedSamples > dropped && !value.limitReasons.includes("invalid")) value.limitReasons.push("invalid");
 
   return value;
 }

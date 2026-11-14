@@ -6,6 +6,8 @@ export { HeartbeatEcho } from "./echo.ts";
 
 export * from "./presentation.ts";
 
+export * from "./completeness.ts";
+
 export * from "./metrics.ts";
 
 export * from "./details.ts";

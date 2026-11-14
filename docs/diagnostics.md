@@ -616,6 +616,24 @@ Mały deterministyczny moduł domeny otrzymuje agregaty i capability, zwraca
 Bez modelu, zewnętrznych usług i samoczynnego restartowania/zmieniania ustawień.
 Stan karty wynika z najpoważniejszego aktywnego finding; brak pokrycia daje
 `Not enough data`, nie zielone „Healthy”. Stan sieci/offline jest osobny od zdrowia.
+Wystarczające dane oznaczają pokrycie co najmniej 75% wybranego zakresu
+(45 s / 11 min 15 s / 45 min / 18 h). Krótki restart nie zeruje zakresu:
+odtworzone minuty i godziny wchodzą do pokrycia razem z bieżącymi pomiarami.
+Karta pozwala rozwinąć rzeczywiste luki z czasem rozpoczęcia i długością;
+nie przypisuje im przyczyny aktualizacji bez takiego dowodu.
+Utrata pomiarów daje osobne `Partial data`, a zawieszone findings
+`Some checks are pending`, zamiast unieważniać całe pokrycie.
+
+Licznik odrzuceń kolektora pozostaje dożywotni dla pomiarów wewnętrznych.
+Odpowiedź UI liczy odrzucenia wyłącznie z wybranego okna, w ograniczonym
+pierścieniu minutowym, z zamkniętymi kodami `limit_reasons`.
+Liczba i powody utraty w minucie są utrwalane z procesem i sumowane w godzinach,
+więc restart zachowuje również informację o rzeczywistych brakach.
+Pominięcie starego slotu podczas odtwarzania jest przypisane do czasu slotu,
+nie do startu nowego procesu. Przyczyny rozróżniają pamięć, bufor SQL,
+korelacje, pokrycie, historię, kolekcję zdarzeń, zapis, linki, rozmiar
+odpowiedzi i walidację. Tracing ma własne limity i nie ustawia tej flagi.
+Kody nie zawierają nazw hostów, SQL ani tekstów wyjątków.
 
 | Reguła startowa | Próg wejścia i rekomendacja w UI |
 |---|---|
@@ -630,8 +648,9 @@ wyjście po pięciu ocenach poniżej 70% progu; dla CPU/dysku osobne progi powro
 70% i >15% lub >3 GiB. Zmiana severity zachowuje to samo id finding.
 Brak świeżych próbek zawiesza ocenę, nie rozwiązuje problemu. Po pierwszym starcie/reset
 zbieramy wymagane pokrycie, minimum trzy minuty; odtworzenie uwzględnia zapisaną
-historię i wymaga świeżych ocen (§5.3). Dla okna 15 min wymagamy co
-najmniej 10 min obserwacji. p99 przy n<1000 pozostaje liczbą o małej próbie,
+historię i wymaga świeżych ocen (§5.3). Próg wystarczającego pokrycia karty
+jest niezależny od minimum próbek i histerezy poszczególnych findings.
+p99 przy n<1000 pozostaje liczbą o małej próbie,
 z takim oznaczeniem i bez samodzielnej eskalacji. Planowy drain, sen, zmiana
 trasy i legacy revalidation nie uruchamiają alarmu sieci. Deduplikacja per reguła/
 komputer/łącze, bez toastu na każdy tick i bez systemowych powiadomień w tym zakresie.
