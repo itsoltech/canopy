@@ -16,18 +16,12 @@
     panel,
   }: { state: ThreadWorkspace; children: Snippet; panel: Snippet<[number]> } = $props();
 
-  let draft = $state<number>();
-
-  const max = $derived(
-    Math.min(FILES_PANEL_WIDTH.max, Math.max(FILES_PANEL_WIDTH.min, workspace.width - 30 * workspace.rem)),
-  );
-
-  const size = $derived(Math.min(draft ?? device.view.filesPanelWidth, max));
-  const open = $derived(workspace.wide && device.view.filesPanelOpen);
+  const size = $derived(workspace.panelSize);
+  const open = $derived(workspace.filesOpen);
 </script>
 
 <div
-  bind:clientWidth={workspace.width}
+  {@attach workspace.measure}
   class="t-panel-column relative flex h-full min-h-0 min-w-0 grid-rows-1"
   class:grid={workspace.wide}
   style:grid-template-columns={workspace.wide ? `minmax(0,1fr) ${open ? size : 0}px` : undefined}
@@ -44,12 +38,12 @@
         grows="left"
         value={size}
         min={FILES_PANEL_WIDTH.min}
-        {max}
+        max={workspace.panelMax}
         reset={FILES_PANEL_WIDTH.default}
-        onresize={(value) => (draft = value)}
+        onresize={(value) => (workspace.panelDraft = value)}
         onchange={({ size: value }) => {
           device.setView({ filesPanelWidth: value });
-          draft = undefined;
+          workspace.panelDraft = undefined;
         }}
       />
     </div>

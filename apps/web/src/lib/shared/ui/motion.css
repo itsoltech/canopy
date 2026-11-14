@@ -319,14 +319,16 @@
   }
 }
 
-/* --- Panel reveal (07) for the app sidebar: the column (`t-sidebar`) eases its width to the panel's or to
- * 0, opening on --duration-slow and closing faster on --duration-medium; the panel inside (`t-sidebar-panel`)
- * keeps its own width, rides on the column's edge and fades, so its text never re-wraps. Only a toggle, a
- * reset or a snap animates (`data-settling`); a drag and a window resize move it directly. */
-.t-sidebar[data-settling] {
-  transition: width var(--duration-slow) var(--ease-smooth-out);
+/* --- Panel reveal (07) for the app sidebar: the shell (`t-sidebar-shell`) eases `--sidebar-inset`, the column's
+ * width (layout.css), to the panel's or to 0, opening on --duration-slow and closing faster on --duration-medium.
+ * The column (`t-sidebar`) and the thread's chat column both read it, so they move in the same frame (the column's
+ * place is CSS, not a measurement a frame behind). The panel inside (`t-sidebar-panel`) keeps its own width, rides
+ * on the column's edge and fades, so its text never re-wraps. Only a toggle, a reset or a snap animates
+ * (`data-sidebar-settling`); a drag and a window resize move it directly. */
+.t-sidebar-shell[data-sidebar-settling] {
+  transition: --sidebar-inset var(--duration-slow) var(--ease-smooth-out);
 }
-.t-sidebar[data-settling][data-collapsed] {
+.t-sidebar-shell[data-sidebar-settling][data-sidebar-collapsed] {
   transition-duration: var(--duration-medium);
 }
 .t-sidebar-panel {
@@ -338,7 +340,7 @@
 }
 /* Reduced motion: the column and the window-control clearance change at once (layout.css). */
 @media (prefers-reduced-motion: reduce) {
-  .t-sidebar,
+  .t-sidebar-shell,
   .t-sidebar-panel,
   [data-window-titlebar] {
     transition: none !important;
@@ -385,15 +387,14 @@
   transition-duration: var(--duration-quick), var(--duration-quick), 0s;
   transition-delay: 0s, 0s, var(--duration-quick);
 }
-/* The chat column eases to its new place when the docked summary opens or closes (sidebar and window changes
- * already move it frame by frame). */
-[data-chat-settling] .chat-column {
-  transition:
-    margin-left var(--duration-slow) var(--ease-smooth-out),
-    max-width var(--duration-slow) var(--ease-smooth-out);
+/* The chat column eases to its new place when the docked summary opens or closes: the card's space
+ * (`--chat-card-space`, layout.css) eases, and the column's place follows from it in CSS. Sidebar, Files and window
+ * changes already move it frame by frame. */
+[data-chat-settling] {
+  transition: --chat-card-space var(--duration-slow) var(--ease-smooth-out);
 }
 @media (prefers-reduced-motion: reduce) {
-  [data-chat-settling] .chat-column,
+  [data-chat-settling],
   .t-panel-column,
   .t-panel,
   .t-summary,
