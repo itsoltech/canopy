@@ -43,13 +43,6 @@ describe.skipIf(!dockerAvailable)("expired provider sign-in over the gateway↔w
   const sql = <A extends object>(run: (sql: SqlClient.SqlClient) => Effect.Effect<readonly A[], unknown>) =>
     gw.runtime.runPromise(Effect.flatMap(SqlClient.SqlClient, run));
 
-  const completedTurns = async () =>
-    (
-      await sql<{ n: number }>(
-        (s) => s`SELECT count(*)::int AS n FROM turns WHERE thread_id = ${threadId}::uuid AND status = 'completed'`,
-      )
-    )[0]?.n ?? 0;
-
   async function send(text: string) {
     await eventually(lastTurn, (status) => status === "idle", 15_000);
     await gw.api.sendMessage({ threadId, text, clientRequestId: crypto.randomUUID() });
@@ -156,7 +149,30 @@ describe.skipIf(!dockerAvailable)("expired provider sign-in over the gateway↔w
   test("a rejection still reading the account does not overwrite a later successful turn", async () => {
     const held = Promise.withResolvers<void>();
     const release = Promise.withResolvers<void>();
+    const rejectionApplied = Promise.withResolvers<void>();
+    const successQueued = Promise.withResolvers<void>();
+    const successApplied = Promise.withResolvers<void>();
     const handle = host.handleCommand.bind(host);
+    const afterTurn = gw.core.accounts.afterTurn.bind(gw.core.accounts);
+    let updates = 0;
+
+    // A committed turn is visible before ingestion queues its account update. Observe the actual enqueue,
+    // retaining the real per-worker queue, so the rejection stays held until the success is behind it.
+    gw.core.accounts.afterTurn = (id, update) => {
+      const applied = afterTurn(id, update);
+
+      if (id === workerId) {
+        updates++;
+
+        if (updates === 1) void applied.then(rejectionApplied.resolve, rejectionApplied.reject);
+        else if (updates === 2) {
+          successQueued.resolve();
+          void applied.then(successApplied.resolve, successApplied.reject);
+        }
+      }
+
+      return applied;
+    };
 
     // The rejection's forced account read waits, as on a slow worker, while the next turn succeeds.
     host.handleCommand = async (command) => {
@@ -171,25 +187,17 @@ describe.skipIf(!dockerAvailable)("expired provider sign-in over the gateway↔w
     try {
       await send("FAIL:auth");
       await held.promise;
-      const before = await completedTurns();
       await send("Works after the rejection");
-      await eventually(completedTurns, (n) => n > before, 15_000);
+      await successQueued.promise;
     } finally {
       release.resolve();
       host.handleCommand = handle;
+      gw.core.accounts.afterTurn = afterTurn;
     }
 
-    // Every queued account update of this worker has run: the success came last and wins, also once the stale
-    // rejection's read has been answered and saved.
-    await gw.core.accounts.afterTurn(workerId, async () => {});
-    const states = new Set<string>();
-
-    for (let i = 0; i < 20; i++) {
-      states.add((await providersAccount())?.state ?? "");
-      await Bun.sleep(100);
-    }
-
-    expect([...states]).toEqual(["signed_in"]);
+    // Both real updates have finished, including the stale read and its rejection mark. The later success wins.
+    await Promise.all([rejectionApplied.promise, successApplied.promise]);
+    expect((await providersAccount())?.state).toBe("signed_in");
   }, 60_000);
 
   test("a platform-wide worker is visible to owners, but none of them can replace its CLI login", async () => {
