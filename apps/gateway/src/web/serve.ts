@@ -39,15 +39,26 @@ export function previousAssets(current: string, previous: readonly string[]): Ma
   return assets;
 }
 
-function sendAsset(request: IncomingMessage, response: ServerResponse, file: string) {
+/** False when the file is gone (its release pruned by another instance meanwhile): adapter-node answers then. */
+function sendAsset(request: IncomingMessage, response: ServerResponse, file: string): boolean {
+  let size: number;
+
+  try {
+    size = statSync(file).size;
+  } catch {
+    return false;
+  }
+
   response.writeHead(200, {
     "content-type": Bun.file(file).type,
-    "content-length": statSync(file).size,
+    "content-length": size,
     "cache-control": "public,max-age=31536000,immutable",
   });
 
   if (request.method === "HEAD") response.end();
   else pipeline(createReadStream(file), response, () => {});
+
+  return true;
 }
 
 export interface RequestGuards {
@@ -81,7 +92,7 @@ export function wrapRequests(server: Server, guards: RequestGuards): void {
     const path = (request.url ?? "").split("?")[0] ?? "";
     const asset = request.method === "GET" || request.method === "HEAD" ? guards.assets.get(path) : undefined;
 
-    if (asset) return sendAsset(request, response, asset);
+    if (asset && sendAsset(request, response, asset)) return;
 
     if (path === "/api/health" && guards.instance) response.setHeader(WEB_INSTANCE_HEADER, guards.instance);
 

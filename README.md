@@ -123,7 +123,7 @@ flowchart LR
 
 ## Installation
 
-You do not need the source code. Every release on [GitHub Releases](https://github.com/itsoltech/canopy/releases) ships desktop installers, standalone gateway and worker binaries, `checksums.txt` and `manifest.json`. Docker images are published as `ghcr.io/itsoltech/canopy-gateway`, `canopy-web` and `canopy-worker` (amd64 and arm64).
+You do not need the source code. Every release on [GitHub Releases](https://github.com/itsoltech/canopy/releases) ships desktop installers, standalone gateway and worker binaries, `checksums.txt` and `manifest.json`. Docker images are published as `ghcr.io/itsoltech/canopy-gateway` (gateway and web app) and `canopy-worker` (amd64 and arm64). The gateway binary and image serve the web app themselves; the separate `canopy-web` image is no longer released.
 
 > **Agent CLIs are not included.** Install Claude Code (`claude`), Codex (`codex`) or Grok (`grok`) on every machine that runs agents, and sign in or use an API key. The desktop app, worker binaries and images do not bundle them.
 
@@ -182,10 +182,10 @@ Start it:
 
 ```sh
 docker compose up -d
-docker compose ps        # postgres, gateway and web should be healthy
+docker compose ps        # postgres and gateway should be healthy
 ```
 
-The web app listens on `127.0.0.1:3000`. Put a TLS reverse proxy in front of it, for example Caddy:
+The gateway serves the web app on `127.0.0.1:3000`. Put a TLS reverse proxy in front of it and add its public host name to `CANOPY_WEB_ALLOWED_HOSTS` in `.env` (other names get "421 This host name isn't allowed"), for example Caddy:
 
 ```
 canopy.example.com {
@@ -201,7 +201,7 @@ Ports:
 | `GATEWAY_PORT` 7443 | `127.0.0.1` | Gateway for the web app and workers. |
 | `CANOPY_NETWORK_PORT` 24443 | `0.0.0.0` | Network access for phones, desktop clients and remote workers. Raw TCP; do not terminate TLS on a proxy. |
 
-To use Network access, open **Settings → Network access**, turn it on and add the host name or IP address of the server. The gateway runs migrations on start. To update, change `CANOPY_TAG` if needed, then run `docker compose pull && docker compose up -d`.
+To use Network access, open **Settings → Network access**, turn it on and add the host name or IP address of the server. The gateway runs migrations on start. To update, change `CANOPY_TAG` if needed, then run `docker compose pull && docker compose up -d`. If your `docker-compose.yml` still has a separate `web` service, follow the migration steps in [docs/deploy.md](docs/deploy.md#docker-compose-jeden-host) first.
 
 All options are listed in [`deploy/.env.example`](deploy/.env.example). For details, including standalone binaries with systemd and container networking, see [docs/deploy.md](docs/deploy.md) (in Polish).
 

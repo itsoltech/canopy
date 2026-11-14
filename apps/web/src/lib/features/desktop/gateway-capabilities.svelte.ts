@@ -30,6 +30,8 @@ export class GatewayCapabilities {
   methods = $state<string[]>();
   linkedComputers = $state(false);
   clientPreferencesScope = $state("");
+  /** This web app is "older" or "newer" than the gateway; "" when they match or it doesn't apply. */
+  webLag = $state("");
   /** The gateway runs inside this desktop app (local mode): only the desktop role offers linked computers. */
   get ownGateway() {
     return this.linkedComputers;
@@ -65,6 +67,8 @@ export class GatewayCapabilities {
       this.state = value["state"];
 
       if (isString(value["clientPreferencesScope"])) this.clientPreferencesScope = value["clientPreferencesScope"];
+
+      if (this.state !== "unavailable") this.webLag = isString(value["webLag"]) ? value["webLag"] : "";
 
       if (this.state === "pairing") {
         queries.forget((key) => key.startsWith("GetPullRequest:") || key.startsWith("ListThreadPullRequests:"));

@@ -105,7 +105,11 @@ function fakeGitHub() {
         return Response.json(page === 1 ? all.slice(0, 8) : all.slice(8), { headers });
       }
 
-      if (path === "/orgs/itsoltech/packages/container/canopy-gateway/versions")
+      // canopy-web is retired: same prunable rows, never touched.
+      if (
+        path === "/orgs/itsoltech/packages/container/canopy-gateway/versions" ||
+        path === "/orgs/itsoltech/packages/container/canopy-web/versions"
+      )
         return Response.json(
           rows.map(([id, name, tags, hours]) => ({
             id,
@@ -115,8 +119,6 @@ function fakeGitHub() {
             metadata: { package_type: "container", container: { tags } },
           })),
         );
-
-      if (path === "/orgs/itsoltech/packages/container/canopy-web/versions") return Response.json([]);
 
       if (path === "/orgs/itsoltech/packages/container/canopy-worker/versions")
         return Response.json({ message: "Package not found." }, { status: 404 });
@@ -201,7 +203,8 @@ test("hygiene deletes old and abandoned nightlies and only the GHCR versions nob
   ] as const)
     for (const child of children) expect(gateway.indexOf(child)).toBeLessThan(gateway.indexOf(index));
   expect(deletes.some((path) => /canopy-(web|worker)/.test(path))).toBe(false);
-  expect(result.deletedVersions["canopy-web"]).toEqual([]);
+  // The retired canopy-web image keeps every existing version (docs/release.md, "Retencja nightly").
+  expect(result.deletedVersions).not.toHaveProperty("canopy-web");
   // Missing package access is reported clearly; the releases were pruned anyway.
   expect(result.errors).toHaveLength(1);
   expect(result.errors[0]).toContain("GHCR canopy-worker: no access to package versions");

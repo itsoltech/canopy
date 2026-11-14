@@ -1,3 +1,4 @@
+import { WEB_VERSION_HEADER } from "@canopy/domain/release/web-version";
 import { timingSafeEqual } from "node:crypto";
 import { Code, ConnectError, type Interceptor } from "@connectrpc/connect";
 import { ui } from "@canopy/contracts";
@@ -9,7 +10,12 @@ import { mobileIdentity, type MobileDevices } from "../core/mobile-devices.ts";
  * owner UI scope; each core service enforces ownership independently.
  * WorkerLinkService authenticates workers itself and is not affected.
  */
-export function serviceTokenAuth(token: string, mobile?: MobileDevices): Interceptor {
+/** `web` hears the version every service-token caller (a web BFF) reports, "" when it sends none. */
+export function serviceTokenAuth(
+  token: string,
+  mobile?: MobileDevices,
+  web?: (webVersion: string) => void,
+): Interceptor {
   if (token.length < 32) throw new Error("UI service token must have at least 32 characters");
   const expected = Buffer.from(token);
 
@@ -18,7 +24,12 @@ export function serviceTokenAuth(token: string, mobile?: MobileDevices): Interce
       const bearer = /^Bearer\s+(\S+)$/i.exec(request.header.get("authorization") ?? "")?.[1] ?? "";
       const presented = Buffer.from(bearer);
 
-      if (presented.length === expected.length && timingSafeEqual(presented, expected)) return next(request);
+      if (presented.length === expected.length && timingSafeEqual(presented, expected)) {
+        web?.(request.header.get(WEB_VERSION_HEADER) ?? "");
+
+        return next(request);
+      }
+
       const identity = await mobile?.authenticate(bearer);
 
       if (!identity || !mobile) throw new ConnectError("Invalid or revoked device token", Code.Unauthenticated);
