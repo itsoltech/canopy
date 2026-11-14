@@ -33,7 +33,7 @@
     void revision;
 
     return [
-      { id: "thread", name: "Thread", path: "Thread", preview: false, dirty: false },
+      { id: "thread", name: "Thread", path: "", preview: false, dirty: false },
       ...view.tabs.map((tab) => ({
         id: tab.id,
         name: tabName(tab),
@@ -192,8 +192,9 @@
 <style>
   /* Only the active tab is a surface: it rises from the chrome and continues into the content below,
      so its bottom corners curve outwards over the chrome (no border, gap or shadow at the join).
-     Inactive tabs are text on the chrome; hover shows a quiet inset pill, and a hairline separates
-     two inactive neighbours only. */
+     Inactive tabs are text on the chrome; hover gives them the active tab's shape in the hover shade,
+     which sits on the other side of the chrome from the surface, so it never reads as selected. A hairline separates two
+     inactive neighbours only. */
   .workspace-tab {
     --tab-radius: 0.5rem;
   }
@@ -204,35 +205,46 @@
     content: "";
     pointer-events: none;
   }
-  .workspace-tab[data-active="false"]::before {
-    inset: 0.3125rem 0.125rem;
-    border-radius: 0.375rem;
-    background: var(--color-hover);
-    opacity: 0;
-    transition: opacity var(--duration-fast) var(--ease-smooth-out);
+  .workspace-tab {
+    --tab-fill: var(--color-surface);
+    border-radius: var(--tab-radius) var(--tab-radius) 0 0;
   }
-  .workspace-tab[data-active="false"]:has(button:hover, button:focus-visible)::before {
-    opacity: 1;
+  .workspace-tab[data-active="false"] {
+    --tab-fill: var(--color-hover);
+    /* The hover fill paints over the separator hairline (a background image) without replacing it. */
+    box-shadow: inset 0 0 0 100vmax transparent;
+    transition: box-shadow var(--duration-fast) var(--ease-smooth-out);
+  }
+  .workspace-tab[data-active="false"]:has(button:hover, button:focus-visible) {
+    box-shadow: inset 0 0 0 100vmax var(--tab-fill);
   }
   .workspace-tab[data-active="true"] {
-    border-radius: var(--tab-radius) var(--tab-radius) 0 0;
-    background: var(--color-surface);
+    background: var(--tab-fill);
   }
   /* Reverse corners: a 1 px soft edge keeps the curve free of stair-steps at DPR 1 and 2. */
-  .workspace-tab[data-active="true"]::before,
-  .workspace-tab[data-active="true"]::after {
+  .workspace-tab::before,
+  .workspace-tab::after {
     bottom: 0;
     width: var(--tab-radius);
     height: var(--tab-radius);
-    --corner: transparent calc(var(--tab-radius) - 0.5px), var(--color-surface) calc(var(--tab-radius) + 0.5px);
+    --corner: transparent calc(var(--tab-radius) - 0.5px), var(--tab-fill) calc(var(--tab-radius) + 0.5px);
   }
-  .workspace-tab[data-active="true"]::before {
+  .workspace-tab::before {
     right: 100%;
     background: radial-gradient(circle at top left, var(--corner));
   }
-  .workspace-tab[data-active="true"]::after {
+  .workspace-tab::after {
     left: 100%;
     background: radial-gradient(circle at top right, var(--corner));
+  }
+  .workspace-tab[data-active="false"]::before,
+  .workspace-tab[data-active="false"]::after {
+    opacity: 0;
+    transition: opacity var(--duration-fast) var(--ease-smooth-out);
+  }
+  .workspace-tab[data-active="false"]:has(button:hover, button:focus-visible)::before,
+  .workspace-tab[data-active="false"]:has(button:hover, button:focus-visible)::after {
+    opacity: 1;
   }
   .workspace-tab[data-active="false"] + .workspace-tab[data-active="false"] {
     background: linear-gradient(var(--color-divider), var(--color-divider)) left center / 1px 1rem no-repeat;
@@ -260,7 +272,9 @@
     margin-inline-end: 0.25rem;
   }
   @media (prefers-reduced-motion: reduce) {
+    .workspace-tab,
     .workspace-tab::before,
+    .workspace-tab::after,
     .workspace-tab button[role="tab"],
     .workspace-tab-close {
       transition: none;
