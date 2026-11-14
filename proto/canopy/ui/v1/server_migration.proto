@@ -1,0 +1,78 @@
+// Owner administration of a desktop → server migration (docs/desktop-server-migration.md §5, §9).
+// Phones cannot call these; the server side runs only on the server role, the source side only
+// on the desktop's local gateway.
+syntax = "proto3";
+package canopy.ui.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// Shown once on the server; the desktop's controller passes it to its gateway, never in a URL.
+message ServerMigrationInvitation {
+  string session_id = 1;
+  string source_id = 2;
+  string code = 3;
+  string fingerprint = 4;
+  repeated string origins = 5;
+  google.protobuf.Timestamp expires_at = 6;
+  string target_name = 7;
+}
+
+message CreateServerMigrationInvitationRequest {}
+
+message GetServerMigrationRequest {}
+
+message PairServerMigrationRequest {
+  ServerMigrationInvitation invitation = 1;
+}
+
+// The owner compared this pin with the one shown on the other gateway.
+message ConfirmServerMigrationPeerRequest {
+  string session_id = 1;
+  // Server: the home to confirm. Desktop: empty.
+  string source_id = 2;
+  string fingerprint = 3;
+}
+
+message NegotiateServerMigrationRequest {
+  string session_id = 1;
+}
+
+// Server: revoke one home, or abort the session when source_id is empty. Desktop: abort its session.
+message RevokeServerMigrationRequest {
+  string session_id = 1;
+  string source_id = 2;
+}
+
+message ServerMigrationPeer {
+  // Server: the home's source id. Desktop: empty.
+  string id = 1;
+  string node_id = 2;
+  string name = 3;
+  string fingerprint = 4;
+  bool paired = 5;
+  bool confirmed = 6;
+  bool negotiated = 7;
+  bool revoked = 8;
+  string build = 9;
+  string schema = 10;
+  google.protobuf.Timestamp expires_at = 11;
+}
+
+message ServerMigrationSession {
+  string id = 1;
+  // target | source
+  string role = 2;
+  string state = 3;
+  uint32 generation = 4;
+  string build = 5;
+  string schema = 6;
+  uint32 protocol = 7;
+  // Server: the invited homes. Desktop: the server.
+  repeated ServerMigrationPeer peers = 8;
+  google.protobuf.Timestamp created_at = 9;
+}
+
+message ServerMigrationSnapshot {
+  // The open session, if any.
+  ServerMigrationSession session = 1;
+}

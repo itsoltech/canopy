@@ -22,15 +22,17 @@ export function certificateIdentity(pem: string | Uint8Array) {
   };
 }
 
-export async function generateIdentity() {
+/** A new self-signed P-256 identity. Computers keep theirs for years; a migration session certificate
+ * gets its own name and a short validity (docs/desktop-server-migration.md §5). */
+export async function generateIdentity(options: { name?: string; validDays?: number } = {}) {
   // P-256 has broad TLS 1.3 support, including the Bun/Electron platforms.
   const keys = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
 
   const certificate = await X509CertificateGenerator.createSelfSigned({
     serialNumber: crypto.randomUUID().replaceAll("-", ""),
-    name: "CN=Canopy computer",
+    name: `CN=${options.name ?? "Canopy computer"}`,
     notBefore: new Date(Date.now() - 60_000),
-    notAfter: new Date(Date.now() + 20 * 365.25 * 86400_000),
+    notAfter: new Date(Date.now() + (options.validDays ?? 20 * 365.25) * 86400_000),
     signingAlgorithm: { name: "ECDSA", hash: "SHA-256" },
     keys,
     extensions: [

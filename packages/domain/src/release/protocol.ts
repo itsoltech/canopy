@@ -64,3 +64,8 @@ export function workerLinkCompatible(min: number, max: number): boolean {
     min <= WORKER_LINK_PROTOCOL
   );
 }
+
+/** Gateway ↔ gateway desktop → server migration (canopy.migration.v1). Every side must run the same
+ * protocol, build and schema in v1 (docs/desktop-server-migration.md §5, decision 9). */
+export const SERVER_MIGRATION_PROTOCOL = 1;
+export const SERVER_MIGRATION_CAPABILITY = "server_migration_v1";

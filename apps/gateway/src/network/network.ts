@@ -37,7 +37,7 @@ export type NetworkOptions = {
   log?: (message: string) => void;
 };
 
-type Service = "link" | "device";
+type Service = "link" | "device" | "migration";
 
 // Ports a computer picks for itself: below every system's ephemeral range, above the well-known ones.
 const randomPort = () => 20_000 + Math.floor(Math.random() * 12_000);
@@ -77,9 +77,13 @@ export class NetworkAccess {
     return this.options.role ?? "server";
   }
 
-  /** The link service answers computers that present a certificate; the device services everything else. */
+  /** The link service answers computers that present a certificate; the device services everything else.
+   * A server serves no linked computer: its only certificate branch is a desktop's migration session. */
   mount(service: Service, handler: Handler | undefined) {
     if (service === "link" && handler) requireDesktopRole(this.role);
+
+    if (service === "migration" && handler && this.role !== "server")
+      throw new Error("Only a server imports from desktop computers");
 
     if (handler) this.#services.set(service, handler);
     else this.#services.delete(service);
@@ -317,9 +321,10 @@ export class NetworkAccess {
   }
 
   #route(socket: TLSSocket) {
-    if (socket.getPeerCertificate()?.raw && this.role !== "desktop") return undefined;
+    if (!socket.getPeerCertificate()?.raw) return this.#services.get("device");
 
-    return this.#services.get(socket.getPeerCertificate()?.raw ? "link" : "device");
+    // The migration handler admits only an active migration session certificate (server-migration/channel.ts).
+    return this.#services.get(this.role === "desktop" ? "link" : "migration");
   }
 
   /** A new port opens before the old one closes, so a busy port changes nothing. */

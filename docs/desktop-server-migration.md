@@ -502,7 +502,9 @@ ma trwały znacznik przejścia i nie startuje usług lokalnych po restarcie.
 ## 7. Fazy, weryfikacja i punkt bez powrotu
 
 Stan nowej sesji jest trwały po obu stronach: `paired → preflight → copying →
-freezing → verified → prepared → committed → activating → done`. Przed commit
+freezing → verified → prepared → committed → activating → done`. Przed `paired`
+cel ma `invited` (zaproszenie bez wymiany), a źródło `pairing` (klucz sesji
+zapisany przed wywołaniem `Exchange`, aby ponowienie użyło tego samego klucza). Przed commit
 dostępne są `paused`, `blocked`, `aborting → aborted`; błąd po commit oznacza
 `recovering`, nigdy automatyczny abort. Stan każdego źródła i każdego workera
 jest osobny. Przycisk Cancel nie może zmienić committed w aborted.
@@ -763,7 +765,7 @@ w integracji przy dwóch ownerach i znanych cudzych UUID:
    źródło nie ma ścieżki wykonawczej, nawet po restarcie bez sieci.
 
 Obie strony dopisują `audit_log` z nowymi akcjami `server_migration.pair`,
-`.preflight`, `.start`, `.pause`, `.resume`, `.freeze`, `.verify`, `.prepare`,
+`.negotiate`, `.preflight`, `.start`, `.pause`, `.resume`, `.freeze`, `.verify`, `.prepare`,
 `.commit`, `.activate`, `.abort`, `.worker_rebind`, `.client_switch`, `.cleanup`.
 Audit zawiera actor, source/target node, session/generation, fazę, liczniki,
 hash manifestu, decyzję i sklasyfikowany powód. Bez nazw prywatnych repo,
@@ -834,6 +836,46 @@ Funkcja nie jest publikowana częściowo.
 | 4. `feat(migration): fence sources and commit server cutover` | Preflight/freeze/drain/verify, decyzja i activation, bramki wszystkich producentów; `0151_server_migration_cutover.sql`: prepared receipts, niezmienna decyzja i trwałe fencing. Harmonogramy/boty/GitHub polling | Crash matrix, kilka instancji gatewaya, race commit/abort, niepewne MCP, stop/timeout, scheduler dedup. Done: zero mutacji częściowego celu i dokładnie jeden aktywny dom po decyzji |
 | 5. `feat(migration): rebind workers and switch desktop clients` | Addytywny WorkerLink barrier/rebind, bez zmiany frozen update; `0152_server_migration_workers.sql`: stan przekazania UUID i jednorazowych credentiali, bez plaintext. Atomowe checkpointy main/controller, remote BFF, zachowany data_dir, parowania telefonów | WorkerHost/journal/harness adapter integration, restart na każdym kroku, dwa kanały desktop/worker, stare credentials odrzucone, natywna kontrola macOS po zgodzie. Done: te same sesje i rewind, remote bez lokalnej DB/gatewaya na każdym komputerze |
 | 6. `feat(migration): guide desktop moves to a server` | Kompletny UX, reports/errors/resume, read-only banner i cleanup na żądanie; bez nowej migracji SQL. Uzupełnienie docs dla nowej działającej procedury | Bez UI suites; testy gateway scope/progress, pełny crash i large-data test, ręczny copy/accessibility/light-dark/width review. Done: wszystkie kryteria §11, jawny wynik każdego domu/workera, raport czasu i checklist reconnect; stos gotowy do wspólnego review |
+
+### Etap 1: doprecyzowania z implementacji
+
+Etap 1 (`apps/gateway/src/server-migration/`, `proto/canopy/migration/v1`,
+`0147_server_migration_sessions.sql`) ustala następujące szczegóły, których
+projekt wcześniej nie rozstrzygał:
+
+- **Dowód node ID.** `ExchangeMigrationPairing` niesie certyfikat komputera źródła
+  i podpis jego kluczem nad sesją, zaproszeniem, pinem certyfikatu sesji i pinem
+  celu. Sam deklarowany node ID nie wystarcza, a podpis nie działa dla innego
+  serwera ani innego certyfikatu sesji.
+- **Kod.** 256 bitów, w bazie tylko SHA-256; 5 błędnych prób unieważnia
+  zaproszenie. Niezgodna wersja i niepusty cel są odrzucane przed zużyciem kodu,
+  więc po aktualizacji to samo zaproszenie nadal działa.
+- **Kanał mTLS.** Na roli `server` każde połączenie z certyfikatem klienta trafia
+  do gałęzi migracji, która przepuszcza wyłącznie aktywny certyfikat sesji
+  (nieodwołany, nieprzeterminowany, otwarta sesja) i tylko `MigrationService`
+  po HTTP/2 TLS 1.3; wszystko inne dostaje 403, jak dotąd każdy certyfikat na
+  serwerze. Owner i sesja pochodzą z certyfikatu, nie z żądania.
+- **Pusty cel.** Sprawdzenie jest deny-by-default: każda tabela z wierszem blokuje,
+  poza listą bootstrapu (`server-migration/empty-target.ts`). Faktyczny bootstrap
+  nowego serwera obejmuje też zegary i limitery (`config_clock`,
+  `computer_thread_clock`, `computer_thread_changes`, `computer_pairing_budget`,
+  `github_api_slots`) oraz wbudowane wiersze `native` w `provider_instances`
+  i `config_items` i projekt scratch. Drugi użytkownik w bazie oznacza dane obcego
+  ownera, więc też blokuje.
+- **Rezerwacja.** Trigger `server_migration_fence` odrzuca w bazie nowe wiersze
+  tabel-korzeni (wątki, boty, workery i enrollment, sekrety, konta, connectory,
+  proxy, skille/pluginy, harmonogramy, worktree, szkice, importy), niezależnie od
+  klienta. Odstępstwo od §3: sesja, w której żaden dom jeszcze nie sparował,
+  przestaje rezerwować serwer po wygaśnięciu ostatniego zaproszenia; inaczej
+  zapomniane zaproszenie zablokowałoby serwer bez końca. Od pierwszej wymiany
+  rezerwacja trwa do abort lub zakończenia. Etap 2 dodaje jawny wyjątek
+  dla importera.
+- **Potwierdzenie pinów.** Cel odrzuca `Negotiate`, dopóki właściciel na serwerze
+  nie potwierdzi pinu certyfikatu sesji domu; źródło nie wywołuje `Negotiate` bez
+  potwierdzenia pinu celu. Negocjacja jest dry run: wersje i pusty cel, bez danych.
+- **Uprawnienia UI.** RPC migracji są w `GatewayService`; telefon dostaje
+  `PermissionDenied`, desktop client ownera jest dozwolony. Strona celu działa
+  tylko na roli `server`, strona źródła tylko na roli `desktop`.
 
 Nowe SQL mogą zostać podzielone inaczej po szczegółowym review, ale numery muszą
 pozostać monotoniczne. Etapy 1–5 same nie dają prawa do przeniesienia danych

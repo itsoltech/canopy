@@ -565,28 +565,52 @@ export interface TestGateway {
   close(keepDatabase?: boolean): Promise<void>;
 }
 
+export type BareTestGateway = Omit<TestGateway, "worker" | "workerId" | "workerCredential">;
+
+export type TestGatewayOptions = {
+  role?: GatewayCoreOptions["role"];
+  skillSources?: GatewayCoreOptions["skillSources"];
+  cliLatest?: GatewayCoreOptions["cliLatest"];
+  updates?: GatewayCoreOptions["updates"];
+  github?: GatewayCoreOptions["github"];
+  attachmentLimits?: AttachmentLimits;
+  backgroundGraceMs?: number;
+  botModel?: BotModel;
+  botClock?: GatewayCoreOptions["botClock"];
+  worker?: ScriptedWorkerOptions;
+  secretTtlMs?: number;
+  watchProbeMs?: number;
+  log?: GatewayCoreOptions["log"];
+  diagnostics?: boolean;
+  logSources?: GatewayCoreOptions["logSources"];
+  diagnosticsLogDirectory?: string;
+  storage?: { pg: TestPostgres; secretsKey: Buffer; workerId: string; workerCredential: string };
+};
+
 /** Starts PostgreSQL, the gateway (UI API + worker link on one server) and a connected worker "laptop" (root /repo). */
-export async function startTestGateway(
-  options: {
-    role?: GatewayCoreOptions["role"];
-    skillSources?: GatewayCoreOptions["skillSources"];
-    cliLatest?: GatewayCoreOptions["cliLatest"];
-    updates?: GatewayCoreOptions["updates"];
-    github?: GatewayCoreOptions["github"];
-    attachmentLimits?: AttachmentLimits;
-    backgroundGraceMs?: number;
-    botModel?: BotModel;
-    botClock?: GatewayCoreOptions["botClock"];
-    worker?: ScriptedWorkerOptions;
-    secretTtlMs?: number;
-    watchProbeMs?: number;
-    log?: GatewayCoreOptions["log"];
-    diagnostics?: boolean;
-    logSources?: GatewayCoreOptions["logSources"];
-    diagnosticsLogDirectory?: string;
-    storage?: { pg: TestPostgres; secretsKey: Buffer; workerId: string; workerCredential: string };
-  } = {},
-): Promise<TestGateway> {
+export async function startTestGateway(options: TestGatewayOptions = {}): Promise<TestGateway> {
+  const gateway = await startBareGateway(options);
+
+  const laptop = options.storage
+    ? { workerId: options.storage.workerId, credential: options.storage.workerCredential }
+    : await gateway.addWorker("laptop");
+
+  const worker = await gateway.connect(laptop.workerId, laptop.credential, undefined, options.worker);
+  // Directory validation can finish before configuration/catalog delivery. Return a ready fixture.
+  await eventually(
+    () => gateway.api.getOverview({}),
+    (o) => o.workers.some((w) => w.id === laptop.workerId && w.appliedVersion > 0n),
+  );
+  await eventually(
+    () => gateway.api.listModels({}),
+    (r) => r.workers.some((w) => w.workerId === laptop.workerId && w.configVersion > 0n),
+  );
+
+  return { ...gateway, worker, workerId: laptop.workerId, workerCredential: laptop.credential };
+}
+
+/** The same gateway without any worker: a new server, as it is before anyone enrolls one. */
+export async function startBareGateway(options: TestGatewayOptions = {}): Promise<BareTestGateway> {
   const pg = options.storage?.pg ?? (await startPostgres({ migrated: true }));
   const secretsKey = options.storage?.secretsKey ?? randomBytes(32);
   const monitor = options.diagnostics ? new DatabaseMonitor() : undefined;
@@ -720,21 +744,6 @@ export async function startTestGateway(
     return worker;
   };
 
-  const laptop = options.storage
-    ? { workerId: options.storage.workerId, credential: options.storage.workerCredential }
-    : await addWorker("laptop");
-
-  const worker = await connect(laptop.workerId, laptop.credential, undefined, options.worker);
-  // Directory validation can finish before configuration/catalog delivery. Return a ready fixture.
-  await eventually(
-    () => api.getOverview({}),
-    (o) => o.workers.some((w) => w.id === laptop.workerId && w.appliedVersion > 0n),
-  );
-  await eventually(
-    () => api.listModels({}),
-    (r) => r.workers.some((w) => w.workerId === laptop.workerId && w.configVersion > 0n),
-  );
-
   return {
     pg,
     runtime,
@@ -743,9 +752,6 @@ export async function startTestGateway(
     grpcUrl: grpc.url,
     userId,
     secretsKey,
-    worker,
-    workerId: laptop.workerId,
-    workerCredential: laptop.credential,
     addWorker,
     connect,
     close: async (keepDatabase = false) => {

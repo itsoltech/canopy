@@ -26,6 +26,7 @@ import { threadPanelHandlers } from "./ui-thread-panel.ts";
 import { diagnosticsHandlers } from "./ui-diagnostics.ts";
 import { diagnosticsLogHandlers } from "./ui-diagnostics-logs.ts";
 import { composerDraftHandlers } from "./ui-composer-drafts.ts";
+import { serverMigrationHandlers } from "./ui-server-migration.ts";
 import { withDraftDelivery } from "../drafts/delivery.ts";
 
 export { toConnectError } from "./ui-errors.ts";
@@ -72,6 +73,7 @@ function withFeedNudges(core: GatewayCore, handlers: UiHandlers): UiHandlers {
 /** This computer's own GatewayService. Thin: validation and state live in the core and the store. */
 export function uiHandlers(core: GatewayCore): UiHandlers {
   return withFeedNudges(core, {
+    ...serverMigrationHandlers(core),
     ...composerDraftHandlers(core),
     ...diagnosticsHandlers(core),
     ...diagnosticsLogHandlers(core),

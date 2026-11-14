@@ -26,3 +26,5 @@ export * as github from "./gen/canopy/ui/v1/github_pb.ts";
 export * as update from "./gen/canopy/update/v1/update_pb.ts";
 
 export * as computerLink from "./gen/canopy/link/v1/link_pb.ts";
+
+export * as serverMigration from "./gen/canopy/migration/v1/migration_pb.ts";

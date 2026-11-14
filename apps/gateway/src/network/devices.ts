@@ -14,6 +14,9 @@ export function mountMobileNetwork(core: GatewayCore, network: NetworkAccess, se
     routes: (router) => {
       core.mobile.routes(router);
       core.desktopControl.routes(router);
+
+      // Desktop → server migration pairing: public like the other exchanges, only on a server.
+      if (core.role === "server") core.serverMigration.pairingRoutes(router);
       uiRoutes(core)(router);
     },
     interceptors: [core.diagnostics.interceptor, serviceTokenAuth(serviceToken, core.mobile)],
@@ -49,6 +52,8 @@ export function mountMobileNetwork(core: GatewayCore, network: NetworkAccess, se
   };
 
   network.mount("device", handler);
+
+  if (core.role === "server") network.mount("migration", core.serverMigration.handler());
 
   return network.onChange(() => {
     for (const connection of core.link.connections.values()) offerWorkerRoutes(core, connection);

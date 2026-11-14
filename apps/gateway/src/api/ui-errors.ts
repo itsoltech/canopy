@@ -79,6 +79,8 @@ export function toConnectError(cause: unknown): ConnectError {
     error instanceof WorktreeSettingsConflict
   )
     return new ConnectError(error.message, Code.FailedPrecondition);
+
+  if (migrationFenced(cause)) return new ConnectError(MIGRATION_FENCE, Code.FailedPrecondition);
   const constraint = constraintOf(error ?? cause);
 
   if (constraint === "worktree_available")
@@ -113,6 +115,17 @@ export function unwrap(cause: unknown) {
   }
 
   return cause instanceof InstanceConflict ? cause : undefined;
+}
+
+/** The empty-target reservation of a server migration (0147): the database refused new data. */
+export const MIGRATION_FENCE = "Importing from desktop. Changes are paused.";
+
+export function migrationFenced(cause: unknown): boolean {
+  for (let current = cause, i = 0; i < 6 && Predicate.isObject(current); i++, current = current["cause"]) {
+    if (current["code"] === "55000" && current["message"] === MIGRATION_FENCE) return true;
+  }
+
+  return false;
 }
 
 export function constraintOf(cause: unknown): string | undefined {

@@ -35,6 +35,7 @@ import { ProxyAccountsMonitor } from "./proxy-accounts.ts";
 import { AgentEnvironment } from "../agent-environment/service.ts";
 import type { LinkedComputers } from "../computers/runtime.ts";
 import type { NetworkAccess } from "../network/network.ts";
+import { ServerMigrations } from "../server-migration/service.ts";
 import { LinkedAgents } from "../computers/agents.ts";
 import type { GatewayRole } from "../role.ts";
 import { coreState, type GatewayCoreOptions } from "./core-context.ts";
@@ -209,6 +210,18 @@ export class GatewayCore {
   #githubDetection: GitHubDetection | undefined;
   get githubDetection() {
     return (this.#githubDetection ??= new GitHubDetection(this));
+  }
+  #serverMigration: ServerMigrations | undefined;
+  /** Desktop → server migration sessions (docs/desktop-server-migration.md). */
+  get serverMigration() {
+    const { options } = this[coreState];
+
+    return (this.#serverMigration ??= new ServerMigrations({
+      runtime: options.runtime,
+      owner: options.userId,
+      role: this.role,
+      network: () => this.network,
+    }));
   }
 
   readonly secrets: ThreadSecrets;
