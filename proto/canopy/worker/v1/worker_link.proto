@@ -251,6 +251,7 @@ message Welcome {
   // The gateway stores render_visual calls (docs/agent-visuals.md). Older gateways leave it unset, and the worker
   // answers the tool itself with an update message instead of forwarding it.
   bool thread_visuals_v1 = 7;
+  bool thread_html_v1 = 8;
 }
 
 message ThreadLifecycle {
@@ -1256,6 +1257,8 @@ message Visual {
   uint32 height = 7;
   string sha256 = 8;
   uint64 size_bytes = 9;
+  // Untrusted agent HTML instead of a component spec. Requires HTML kit version 2.
+  bool html_document = 10;
 }
 
 // Treść większa niż limit wiadomości trafia do blobu (BlobChunk) i jest wskazywana przez BlobRef.

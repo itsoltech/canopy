@@ -65,6 +65,7 @@ describe("tool sets per level", () => {
       "list_schedules",
       "list_threads",
       "read_thread",
+      "render_html",
       "render_visual",
       "request_secret",
       "schedule_recurring",

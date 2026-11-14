@@ -111,6 +111,7 @@ export function authorizeBusCall(
     case "show_images":
     case "import_image_reply":
     case "render_visual":
+    case "render_html":
     case "request_secret":
       return caller.archived ? deny("this thread is archived") : allow;
     case "ask_user":

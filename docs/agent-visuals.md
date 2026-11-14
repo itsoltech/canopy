@@ -664,3 +664,188 @@ i pomiary produkcyjne pozostają kryteriami przyszłych PR-ów.
     (`shouldOverrideUrlLoading` ich nie widzi), więc granicą pozostają sandbox
     iframe i CSP dokumentu.
 
+## 9. Własny HTML: `render_html`
+
+`render_visual` pozostaje domyślnym wyborem dla wykresów, kart i tabel.
+`render_html` przyjmuje `html` zamiast `spec`: pełny dokument lub body, inline CSS
+i klasyczne skrypty. Pozostałe argumenty i wynik są takie same. Gateway sprawdza
+512 KiB UTF-8 dokumentu oraz 512 KiB + 8 KiB serializowanych argumentów przed
+JSON.parse, licząc bajty bez tworzenia zakodowanej kopii. Obowiązuje wspólny
+budżet 10 publikacji / 1 MiB zapisanych źródeł na turę. Kompilator ogranicza
+liczbę skryptów do 64 i zagnieżdżenie do 100 poziomów; gateway stosuje te same
+limity przed zapisem i zwraca błąd narzędzia zamiast zapisywać niewykonalną wersję.
+
+Źródło `{html}` pozostaje w `thread_visuals`, z `html_document=true`,
+`kit_version=2`. Starszy klient odmawia uruchomienia nieznanego kitu. Odczyt
+`GetVisual` jest owner-scoped; manifest jest trwałym itemem `visual`.
+`expected_version`, historia, cytowanie, eksport HTML i mobilne save/share
+korzystają z tej samej ścieżki. Aktualizacja nie może zmieniać formatu visuala.
+Capability workera to `thread_html_v1`; `Welcome.thread_html_v1` chroni stare
+gatewaye. Narzędzie trafia przez wspólny katalog do wszystkich trzech harnessów.
+
+### Granica zaufania i phishing
+
+HTML jest całkowicie niezaufany: może pochodzić od modelu po prompt injection.
+Kod działa wyłącznie w `iframe sandbox="allow-scripts"`, bez
+`allow-same-origin`, `allow-top-navigation*`, `allow-popups*`, `allow-forms`,
+`allow-modals` i `allow-downloads`. Opaque origin odcina DOM, cookies, storage,
+credentiale i most Canopy. Ramka nigdy nie dostaje sekretów. Własny CSS nie
+może wyjść poza jej prostokąt i przykryć chrome aplikacji.
+
+Zaufana karta/shell pokazuje „Custom HTML from the agent. Don't enter passwords
+or secrets.” Treść może naśladować UI i wyłudzać dane; ostrzeżenie nie jest
+techniczną ochroną przed wpisaniem sekretu. Pobranie odbywa się w Canopy ze
+zapisanej wersji, bez `allow-downloads`. Linki i formularze są nieaktywne.
+Eksport zawiera CSP i lockdown, ale otwarcie pliku `file://` wykonuje kod agenta
+poza sandboxem Canopy. CSP pozostaje aktywna; nie zastępuje opaque origin ani
+firewalla dedykowanej sesji. Pobrany dokument nadal jest niezaufanym programem.
+
+### CSP, hashe i lockdown
+
+Canopy parsuje i odtwarza dokument, usuwa `meta`, `base`, `link`, `iframe`,
+`frame`, `frameset`, `object`, `embed`, inline handlery i atrybuty nawigacyjne.
+Skrypty z `src` oraz moduły są pomijane. Każdy klasyczny skrypt dostaje prefiks
+lockdown, a hash SHA-256 obejmuje **cały** wynik. Bootstrap Canopy również
+zaczyna się lockdownem. Używa się wyłącznie dopasowanych hashy:
+
+```text
+default-src 'none'; script-src 'sha256-…'; script-src-attr 'none';
+style-src 'unsafe-inline'; img-src data: blob:; font-src data:;
+media-src data: blob:; connect-src 'none'; form-action 'none'; base-uri 'none';
+frame-src 'none'; child-src 'none'; object-src 'none'; worker-src 'none';
+manifest-src 'none'
+```
+
+Brak `unsafe-inline` w script-src, `unsafe-eval` i `unsafe-hashes`: agent musi
+używać `addEventListener`, bez `onclick`, URL-i `javascript:`, eval, Function,
+stringowych timerów ani dynamicznych importów. Wszystkie biblioteki muszą być
+inline i mieścić się w limicie. Pierwsza meta CSP jest wstrzykiwana przed
+treścią agenta jako pierwszy węzeł `head`. Zarówno meta, jak i skrypty są węzłami
+drzewa parse5; tekst `<head>`/`</body>` w komentarzach i atrybutach nie wpływa na
+miejsce wstawienia. Polityki CSP składają się przez przecięcie uprawnień: późniejsza
+meta nie może osłabić wcześniejszej, a usunięcie meta nie cofa aktywnej polityki.
+Dokument `srcdoc` dziedziczy również politykę zaufanego shella.
+
+Lockdown używa niekonfigurowalnych, niezapisywalnych właściwości o wartości
+`undefined` dla `RTCPeerConnection`, `webkitRTCPeerConnection`, `RTCDataChannel`,
+`RTCRtpSender`, `RTCRtpReceiver`, `RTCIceCandidate`, `WebTransport`, `WebSocket`,
+`EventSource`, `fetch`, `XMLHttpRequest`, `navigator.mediaDevices` i
+`navigator.sendBeacon`, także na prototypach nawigatora. Usuwa widoczny global
+`ReactNativeWebView` z niezaufanej ramki. Każda dokładna kopia dozwolonego
+skryptu zaczyna się tym samym lockdownem także w nowym realmie.
+
+Samo `frame-src 'none'` **nie** zatrzymuje wszystkich ramek `srcdoc`/about:blank.
+W próbie Chromium 155 takie ramki istniały, ale niezaufany skrypt bez hasha nie
+działał; dostęp z rodzica do ich realmów dawał SecurityError. Dokładna kopia
+dozwolonego skryptu miała już `RTCPeerConnection=undefined`. Usuwanie elementów
+osadzających przy kompilacji jest dodatkową warstwą, a nie dowodem, że JS nie
+utworzy ich ponownie. Worker/blob/import, object/embed i zewnętrzne obrazy są
+objęte osobnymi dyrektywami.
+
+### Zaakceptowane ryzyko sieci na web i mobile
+
+**Nie gwarantujemy braku sieci w zwykłej przeglądarce ani mobilnym WebView.**
+Agent ma już sieć przez własne narzędzia. Dodatkowym zagrożeniem ramki są dane
+wpisane przez użytkownika, IP i obecność urządzenia oglądającego.
+
+CSP nie blokuje transportu WebRTC/STUN jak fetch. Lockdown usuwa znane API,
+lecz nie jest kompletnym firewallem silnika. Ponadto hash w `script-src`
+autoryzuje także zewnętrzny skrypt z pasującym `integrity`. Próba utworzenia
+`script.src` z markerem w query i `integrity` skopiowanym z dozwolonego hasha
+wysłała GET mimo aktywnego CSP i lockdownu; odrzucenie odpowiedzi nie cofa
+wycieku. To udowodniona droga ujawnienia wpisanych danych lub IP. Użytkownik
+zaakceptował to ryzyko poza desktopem; nie opisujemy tych platform jako offline.
+Opaque origin nadal chroni dane Canopy przed odczytem przez ramkę.
+
+Wskazówki sieciowe `dns-prefetch` i `preconnect` tworzone w runtime mogą omijać
+zwykłe ładowanie zasobów i kontrolę CSP. Nazwa DNS może zawierać wpisane dane;
+usunięcie statycznych `link` przy kompilacji nie zatrzymuje ponownego utworzenia
+ich przez JS. To dodatkowe zaakceptowane ryzyko web/mobile.
+
+Kliknięcie w niezaufaną treść może też aktywować funkcje przeglądarki, w tym
+próbę podmiany schowka (pastejacking). Obie ramki jawnie odmawiają uprawnień
+`clipboard-read`, `clipboard-write`, `picture-in-picture`, capture, fullscreen,
+urządzeń i pozostałych funkcji w `VISUAL_PERMISSIONS`. Różnice implementacji
+Permissions Policy pozostają ryzykiem; nie należy wklejać ani wpisywać sekretów.
+
+### Desktop: osobna sesja
+
+Iframe nie może dostać osobnej sesji Electron. W aplikacji desktopowej karta
+otwiera więc dedykowane okno zawierające zaufany shell i opaque iframe.
+Główne okno nigdy nie wykonuje tego HTML; jego ścisła CSP pozostaje bez zmian.
+Przekazanie źródła przez preload wymaga autoryzowanego głównego frame'u appki,
+limitu wejścia i ponownej kompilacji. Viewer ma własną nietrwałą partycję,
+bez cookies/storage aplikacji, `nodeIntegration=false`, `sandbox=true`,
+`contextIsolation=true`, `webSecurity=true`, bez webview i ogólnego mostu IPC.
+
+Sesja ma proxy odmawiające połączeń, bez obejścia loopback, `onBeforeRequest`
+anulujący wszystko poza dokładnym URL-em dokumentu viewer’a oraz `about:`, `data:`, `blob:`, odmowę wszystkich uprawnień
+i urządzeń. WebContents ustawia `disable_non_proxied_udp`, blokuje nowe okna,
+nawigacje, przekierowania i pobrania. Jeden viewer ogranicza liczbę procesów;
+kontrolki wersji/cytowania/pobierania pozostają w głównej karcie.
+Viewer używa prywatnego handlera protokołu `canopy-agent-html` w tej sesji;
+dokument nie jest wielomegabajtowym URL-em `data:`. Handler odpowiada tylko dla
+losowego bieżącego URL-a, bez dostępu do plików/sieci. Tytuł okna pozostaje
+„Custom HTML from the agent — Canopy”, niezależnie od `document.title`.
+Kompilacja odbywa się w osobnym workerze Node z limitem heap 128 MiB i 10 s.
+
+Viewer działa w osobnym procesie przeglądarki Electron. Router startowy wybiera
+go przed inicjalizacją vaulta, usług i sesji appki. Dostaje tylko dokument,
+tytuł i paletę przez prywatny kanał procesu oraz ograniczone zmienne OS/display;
+ma osobny tymczasowy profil, sprzątany po zakończeniu. Proces appki autoryzuje
+IPC i pozwala na jeden viewer; zakończenie appki kończy także viewer.
+
+Proces viewer’a ustawia przed startem Chromium `host-resolver-rules=MAP * ~NOTFOUND`
+i `disable-network-prediction`. To obejmuje także spekulacyjny DNS w ramkach,
+którego proxy i `webRequest` nie widzą. Nie używamy samego `additionalArguments`
+rendererów: w próbie Electron nie przeniósł tam flagi Blink i DNS nadal działał.
+Nagłówek `X-DNS-Prefetch-Control: off` jest tylko dodatkową wskazówką.
+Nie zmieniamy globalnych flag ani sesji głównego procesu aplikacji. Preconnect
+nadal podlega dedykowanej sesji, resolverowi i proxy. JS agenta pozostaje
+w przeglądarkowym iframe; nie dodajemy osobnego interpretera JS.
+
+### Mobile: bez zmiany natywnej
+
+Obowiązuje ten sam model ryzyka co w przeglądarce: hash CSP, lockdown,
+`allow-scripts` i zaufany shell z losową kopertą tokenową z #695.
+`VisualFrameInbox` waliduje i ogranicza częstotliwość komunikatów; HTML nie
+może zapisywać `local_state`. Dozwolone są wysokość/ready, Escape i błąd renderu.
+Token nie trafia do niezaufanego dokumentu. Zachowane ustawienia WebView:
+file/content/universal access off, incognito, brak współdzielonych cookies,
+DOM storage i okien, blokada nawigacji, media capture deny.
+
+`react-native-webview` 14.0.1 nie udostępnia Androidowego `shouldInterceptRequest`
+do blokowania wszystkich subresources ani iOS `WKContentRuleList`.
+Androidowy `onShouldStartLoadWithRequest` nie obejmuje nawigacji child frame.
+`mediaCapturePermissionGrantType="deny"` dotyczy iOS; Androidowy kod biblioteki
+może przyznać już przyznane systemowo camera/microphone permissions.
+Lockdown `mediaDevices` oraz opaque iframe bez grantu permissions policy
+blokują zwykłą drogę WebRTC/media, lecz nie zastępują natywnej odmowy uprawnień.
+Nie dodajemy natywnego modułu, patcha ani pluginu. Twardy firewall i pełna
+odmowa w natywnym permission handlerze mogą powstać w późniejszym native buildzie.
+
+### Zasoby i wygląd
+
+Dotychczasowe sloty (2 web / 1 mobile), cache 16 wpisów / 2 MiB i leniwe
+montowanie nadal obowiązują. HTML na web i mobile zawsze zaczyna od nieaktywnej
+karty „Run”; samo wejście na oś czasu, zmiana wersji lub ponowne zamontowanie
+komponentu nie wykonują kodu. Po błędzie/watchdogu nie ma automatycznego retry.
+Bootstrap zgłasza wysokość co sekundę. Po 10 s
+ciszy host usuwa ramkę/WebView i pokazuje „This visual stopped responding.”;
+Electron main może zakończyć niereagujący renderer. Chromium desktop izoluje
+opaque sandbox frames procesowo od wersji 127 (Site Isolation), Android WebView
+nie ma OOPIF. Safari, Firefox, Chrome Android i Android WebView mogą wykonywać
+ramkę w tym samym procesie/wątku co host. Pętla lub bomba pamięci może zablokować
+także watchdog; przycisk „Run” oznacza świadome uruchomienie tego ryzyka i
+zapobiega pętli blokowania aplikacji przy każdym powrocie do wątku.
+Mobilny watchdog działa po stronie React Native, poza JS WebView, lecz nie daje
+gwarancji przy wspólnej awarii procesu ani presji pamięci.
+Nie ma dostępnej z JS twardej kwoty pamięci iframe/WebView: limity źródła,
+slotów i cache ograniczają wejście, a awarię procesu obsługuje host. To pozostaje
+ograniczeniem, wymagającym prób na urządzeniach i niezależnego przeglądu.
+
+Agent dostaje zmienne `--canopy-canvas`, `--canopy-surface`, `--canopy-panel`,
+`--canopy-ink`, `--canopy-muted`, `--canopy-border`, `--canopy-accent`,
+`--canopy-action`, `--canopy-on-accent` z palety hosta. Kolory są walidowane
+przed wstrzyknięciem; dokument nie dostaje prywatnych klas ani zasobów Canopy.
+

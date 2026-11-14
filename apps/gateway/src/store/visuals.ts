@@ -9,6 +9,7 @@ import {
   type Visual,
 } from "@canopy/contracts";
 import { VISUAL_KIT_VERSION, VISUAL_LIMITS, VISUAL_SCHEMA_VERSION } from "@canopy/domain/visuals";
+import { HTML_KIT_VERSION } from "@canopy/domain/visual-html-source";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { insertCall } from "./agent-bus-queries.ts";
@@ -24,6 +25,7 @@ export interface VisualPublication {
   readonly height: number;
   /** Canonical spec JSON, already validated. */
   readonly spec: string;
+  readonly htmlDocument?: boolean;
   readonly sha256: string;
   readonly update?: { readonly visualId: string; readonly expectedVersion: number };
 }
@@ -45,6 +47,7 @@ export interface VisualRow {
   height: number;
   schema_version: number;
   kit_version: number;
+  html_document: boolean;
   spec: string;
   sha256: string;
   created_at: Date;
@@ -78,6 +81,7 @@ export function visualManifest(row: Omit<VisualRow, "created_at" | "thread_id" |
     version: row.version,
     schemaVersion: row.schema_version,
     kitVersion: row.kit_version,
+    htmlDocument: row.html_document,
     title: row.title,
     description: row.description,
     height: row.height,
@@ -121,13 +125,20 @@ function nextVersion(sql: SqlClient.SqlClient, input: VisualPublication) {
   return Effect.gen(function* () {
     if (!input.update) return { visualId: Bun.randomUUIDv7(), version: 1, itemTurnId: input.source.turnId };
 
-    const rows = yield* sql<{ version: number; thread_id: string }>`SELECT version, thread_id FROM thread_visuals
+    const rows = yield* sql<{
+      version: number;
+      thread_id: string;
+      html_document: boolean;
+    }>`SELECT version, thread_id, html_document FROM thread_visuals
       WHERE visual_id=${input.update.visualId}::uuid ORDER BY version DESC LIMIT 1 FOR UPDATE`;
 
     const latest = rows[0];
 
     if (!latest || latest.thread_id !== input.source.threadId)
       return yield* Effect.fail(new Invalid("Visual not found in this thread. Publish a new visual instead."));
+
+    if (latest.html_document !== Boolean(input.htmlDocument))
+      return yield* Effect.fail(new Invalid("Keep the visual format when updating. Publish a new visual instead."));
 
     if (latest.version !== input.update.expectedVersion)
       return yield* Effect.fail(
@@ -158,10 +169,10 @@ export function publishVisual(sql: SqlClient.SqlClient, input: VisualPublication
       const { source } = input;
 
       yield* sql`INSERT INTO thread_visuals(visual_id,version,thread_id,owner_user_id,turn_id,call_id,item_id,title,
-          description,height,schema_version,kit_version,spec,sha256)
+          description,height,schema_version,kit_version,spec,sha256,html_document)
         VALUES (${visualId}::uuid,${version},${source.threadId}::uuid,${input.ownerId}::uuid,${source.turnId}::uuid,
           ${source.callId}::uuid,${itemId},${input.title},${input.description},${input.height},${VISUAL_SCHEMA_VERSION},
-          ${VISUAL_KIT_VERSION},${input.spec},${input.sha256})`;
+          ${input.htmlDocument ? HTML_KIT_VERSION : VISUAL_KIT_VERSION},${input.spec},${input.sha256},${Boolean(input.htmlDocument)})`;
 
       const visual = visualManifest({
         visual_id: visualId,
@@ -170,7 +181,8 @@ export function publishVisual(sql: SqlClient.SqlClient, input: VisualPublication
         description: input.description,
         height: input.height,
         schema_version: VISUAL_SCHEMA_VERSION,
-        kit_version: VISUAL_KIT_VERSION,
+        kit_version: input.htmlDocument ? HTML_KIT_VERSION : VISUAL_KIT_VERSION,
+        html_document: Boolean(input.htmlDocument),
         sha256: input.sha256,
         spec: input.spec,
       });
@@ -217,9 +229,10 @@ export function publishVisual(sql: SqlClient.SqlClient, input: VisualPublication
         ...(input.update && { visual_id: input.update.visualId, expected_version: input.update.expectedVersion }),
       };
 
-      yield* insertCall(sql, { source, tool: "render_visual", args: audited, status: "completed", result });
+      const tool = input.htmlDocument ? "render_html" : "render_visual";
+      yield* insertCall(sql, { source, tool, args: audited, status: "completed", result });
       yield* sql`INSERT INTO audit_log(id,actor_user_id,action,target_type,target_id,details)
-        VALUES (${source.callId}::uuid,${input.ownerId}::uuid,'thread.render_visual','thread',${source.threadId}::uuid,
+        VALUES (${source.callId}::uuid,${input.ownerId}::uuid,${`thread.${tool}`},'thread',${source.threadId}::uuid,
           ${JSON.stringify({ visual_id: visualId, version, size_bytes: visual.sizeBytes.toString() })}::jsonb)`;
 
       const published: PublishedVisual = { result, seq, event };
@@ -250,7 +263,7 @@ export function readVisual(
 
     const rows = shown.length
       ? yield* sql<VisualRow>`SELECT visual_id,version,thread_id,turn_id,item_id,title,description,height,schema_version,
-            kit_version,spec,sha256,created_at FROM thread_visuals
+            kit_version,spec,sha256,html_document,created_at FROM thread_visuals
           WHERE visual_id=${visualId}::uuid AND owner_user_id=${ownerId}::uuid ORDER BY version`
       : [];
 

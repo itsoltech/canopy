@@ -8,6 +8,9 @@ import { validVisualTheme, type VisualTheme } from "./theme-tokens.ts";
 import type { VisualState } from "./types.ts";
 import { validVisualState } from "./semantics.ts";
 import { KIT_DEFAULT_TOKENS, KIT_SCRIPT, KIT_STYLE } from "./gen/kit.ts";
+import { compileHtml } from "./html-compile.ts";
+
+export { compileHtml } from "./html-compile.ts";
 
 export { KIT_SCRIPT_CSP } from "./gen/kit.ts";
 
@@ -134,14 +137,25 @@ export function visualToken(): string {
  * revoked.
  */
 export function compileVisualExport(
-  visual: { readonly title: string; readonly version: number; readonly kitVersion: number },
+  visual: {
+    readonly title: string;
+    readonly version: number;
+    readonly kitVersion: number;
+    readonly htmlDocument?: boolean;
+  },
   specJson: string,
   nonce: string,
 ): { readonly name: string; readonly html: string } | undefined {
   const decoded = parseVisualSpec(specJson);
 
-  if (Result.isFailure(decoded) || REVOKED_VISUAL_KITS.has(visual.kitVersion)) return undefined;
-  const html = compileVisual(decoded.success, { title: visual.title, mode: "export", nonce, instance: "export" });
+  if ((!visual.htmlDocument && Result.isFailure(decoded)) || REVOKED_VISUAL_KITS.has(visual.kitVersion))
+    return undefined;
+
+  const html = visual.htmlDocument
+    ? compileHtml(specJson, { nonce, instance: "export" }).html
+    : Result.isSuccess(decoded)
+      ? compileVisual(decoded.success, { title: visual.title, mode: "export", nonce, instance: "export" })
+      : "";
 
   const stem =
     visual.title

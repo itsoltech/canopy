@@ -3,7 +3,9 @@ import { create, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { ui } from "@canopy/contracts";
 import type { AgentBusArgs } from "@canopy/domain";
-import { THREAD_VISUALS_CAPABILITY } from "@canopy/domain/release/protocol";
+import { THREAD_VISUALS_CAPABILITY, THREAD_HTML_CAPABILITY } from "@canopy/domain/release/protocol";
+import { htmlDocumentProblem } from "@canopy/domain/visual-html-source";
+import { validateHtmlDocument } from "@canopy/domain/visual-html-compiler";
 import { decodeVisualSpec, VISUAL_LIMITS } from "@canopy/domain/visuals";
 import { Effect, Result } from "effect";
 import { SqlClient } from "effect/sql";
@@ -19,21 +21,39 @@ export async function publishThreadVisual(
   core: GatewayCore,
   source: CallSource,
   caller: ThreadRow,
-  args: AgentBusArgs["render_visual"],
+  args: AgentBusArgs["render_visual"] | AgentBusArgs["render_html"],
 ): Promise<JsonValue> {
   const workerId = caller.worker_id;
   const connection = workerId ? core.link.connections.get(workerId) : undefined;
 
   if (!workerId || !connection?.isOpen) throw new Invalid("This computer is offline. Reconnect it to show visuals.");
 
-  if (!connection.hello.capabilities.includes(THREAD_VISUALS_CAPABILITY))
+  const html = "html" in args;
+
+  if (!connection.hello.capabilities.includes(html ? THREAD_HTML_CAPABILITY : THREAD_VISUALS_CAPABILITY))
     throw new Invalid("Update this computer to show visuals in Canopy.");
 
   if (!UUID.test(source.turnId)) throw new Invalid("Visuals require a running turn.");
-  const decoded = decodeVisualSpec(args.spec);
+  let spec: string;
 
-  if (Result.isFailure(decoded)) throw new Invalid(`spec: ${decoded.failure}`);
-  const spec = decoded.success.json;
+  if ("html" in args) {
+    const problem = htmlDocumentProblem(args.html);
+
+    if (problem) throw new Invalid(problem);
+
+    try {
+      validateHtmlDocument(args.html);
+    } catch (cause) {
+      throw new Invalid(cause instanceof Error ? cause.message : "Invalid HTML document");
+    }
+
+    spec = JSON.stringify({ html: args.html });
+  } else {
+    const decoded = decodeVisualSpec(args.spec);
+
+    if (Result.isFailure(decoded)) throw new Invalid(`spec: ${decoded.failure}`);
+    spec = decoded.success.json;
+  }
 
   const committed = await core[coreState].actions.run(
     Effect.flatMap(SqlClient.SqlClient, (sql) =>
@@ -45,6 +65,7 @@ export async function publishThreadVisual(
         description: args.description,
         height: args.height ?? VISUAL_LIMITS.defaultHeight,
         spec,
+        htmlDocument: html,
         sha256: createHash("sha256").update(spec).digest("hex"),
         ...(args.visual_id !== undefined &&
           args.expected_version !== undefined && {

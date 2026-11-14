@@ -35,6 +35,7 @@ export const THREAD_IMAGE_REPLIES_CAPABILITY = "thread_image_replies_v1";
 
 /** Interactive visuals: render_visual on the worker, GetVisual and the visual item on gateways and clients. */
 export const THREAD_VISUALS_CAPABILITY = "thread_visuals_v1";
+export const THREAD_HTML_CAPABILITY = "thread_html_v1";
 
 /** Transient Git clone progress and cancellation; additive to WorkerLink protocol 1. */
 export const CLONE_PROGRESS_CAPABILITY = "git_clone_progress_v1";

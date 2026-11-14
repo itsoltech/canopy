@@ -1,0 +1,33 @@
+/** Explicitly deny features whose default allowlist includes opaque frames after user activation. */
+export const VISUAL_PERMISSIONS = [
+  "picture-in-picture",
+  "clipboard-read",
+  "clipboard-write",
+  "camera",
+  "microphone",
+  "geolocation",
+  "display-capture",
+  "fullscreen",
+  "payment",
+  "usb",
+  "serial",
+  "hid",
+  "bluetooth",
+  "midi",
+  "accelerometer",
+  "gyroscope",
+  "magnetometer",
+  "screen-wake-lock",
+  "speaker-selection",
+  "idle-detection",
+  "autoplay",
+  "encrypted-media",
+  "xr-spatial-tracking",
+  "web-share",
+  "window-management",
+  "publickey-credentials-create",
+  "publickey-credentials-get",
+  "storage-access",
+]
+  .map((feature) => `${feature} 'none'`)
+  .join("; ");
