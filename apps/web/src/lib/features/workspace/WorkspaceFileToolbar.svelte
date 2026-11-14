@@ -112,7 +112,7 @@
     {#if tabActions}<MenuSeparator />{@render tabActions()}{/if}
     <MenuSeparator />
     <MenuItem icon="trash" danger disabled={!state.sha256 || state.busy || state.editing} onselect={ondelete}
-      >Delete file…</MenuItem
+      >Delete file</MenuItem
     >
   </DropdownMenu>
 </div>

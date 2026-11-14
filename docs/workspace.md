@@ -115,7 +115,7 @@ edycji w tym samym miejscu `Discard changes`/`Stop editing` i `Save file`) oraz
 jedno menu `⋯`: `Keep tab` (dla podglądu), `Reload`, `Go to line`, `Copy path`,
 `Copy text`, `Open in default app` (lokalnie), zarządzanie kartą (`Move left`,
 `Move right`, `Close tab`, `Close other tabs`, `Close saved tabs`) i na końcu,
-po separatorze, `Delete file…`. Pasek nie powtarza nazwy pliku w osobnym miejscu
+po separatorze, `Delete file`. Pasek nie powtarza nazwy pliku w osobnym miejscu
 i nie ma dwóch identycznych przycisków kopiowania.
 
 Nagłówek nie ma `+`. Wybór pliku z drzewa lub linku otwiera kartę obok `Thread`;
