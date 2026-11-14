@@ -4,7 +4,7 @@
   import Alert from "#lib/shared/ui/Alert.svelte";
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
 
-  let { view, onopen = () => {} }: { view: Workspace; onopen?: () => void } = $props();
+  let { view, root, onopen = () => {} }: { view: Workspace; root: string; onopen?: () => void } = $props();
   const capabilities = useGatewayCapabilities();
 
   // Both chunks are needed for the first page; avoid an extra round trip after the tree mounts.
@@ -17,7 +17,7 @@
 {:else}{#await load()}
     <Skeleton class="h-40 w-full" />
   {:then module}
-    {#key view}<module.default {view} {onopen} />{/key}
+    {#key view}<module.default {view} {root} {onopen} />{/key}
   {:catch}
     <Alert tone="error">Could not open Files. Reload Canopy to try again.</Alert>
   {/await}

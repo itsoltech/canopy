@@ -132,6 +132,12 @@ describe("device view persistence for clients of the same owner", () => {
     expect(preferences.values.pullRequestWidth).toBe(320);
     preferences.set({ pullRequestWidth: 0 });
     expect(preferences.values.pullRequestWidth).toBe(0);
+    // Files keeps one width for every thread on the device, inside its bounds.
+    expect(preferences.values.filesPanelWidth).toBe(288);
+    preferences.set({ filesPanelWidth: 9000, filesPanelOpen: true });
+    expect(preferences.values).toMatchObject({ filesPanelWidth: 480, filesPanelOpen: true });
+    preferences.set({ filesPanelWidth: 40 });
+    expect(preferences.values.filesPanelWidth).toBe(256);
   });
 
   test("linked settings exclude disclosures and ignore fields retained by older peers", () => {

@@ -32,10 +32,10 @@
   );
 </script>
 
-<section aria-label="Connectors" class={["grid min-w-0 gap-2 p-3 text-base/6 sm:text-xs/5", className]}>
+<section aria-label="Connectors" class={["grid min-w-0 gap-1 px-3.5 py-1.5 text-base/6 sm:text-xs/5", className]}>
   <div class="flex items-center justify-between gap-2">
     <div class="flex min-w-0 items-center gap-2">
-      <h3 class="font-medium text-zinc-700 dark:text-zinc-300">Connectors</h3>
+      <h2 class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Connectors</h2>
       {#if !status && !accounts.length}<span
           class="text-zinc-500 dark:text-zinc-400"
           role="status"

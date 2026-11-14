@@ -1,46 +1,54 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
+  import { FILES_PANEL_WIDTH } from "@canopy/domain/device-view";
   import type { ThreadWorkspace } from "./thread-workspace.svelte.ts";
   import ResizeHandle from "#lib/shared/ui/ResizeHandle.svelte";
+  import { devicePreferences as device } from "#lib/features/settings/device-preferences.svelte.ts";
 
+  /**
+   * The thread area and the Files panel. On wide screens the grid eases the panel's column open and shut
+   * (motion.css `t-panel-column`); the panel's width and whether it is open are one choice on this device, so
+   * switching threads never moves anything.
+   */
   let {
     state: workspace,
     children,
-    sidebar,
-  }: { state: ThreadWorkspace; children: Snippet; sidebar: Snippet } = $props();
+    panel,
+  }: { state: ThreadWorkspace; children: Snippet; panel: Snippet<[number]> } = $props();
 
   let draft = $state<number>();
 
-  const size = $derived(
-    Math.min(draft ?? workspace.view.panelWidth, Math.max(256, workspace.width - 38 * workspace.rem - 44)),
+  const max = $derived(
+    Math.min(FILES_PANEL_WIDTH.max, Math.max(FILES_PANEL_WIDTH.min, workspace.width - 30 * workspace.rem)),
   );
 
-  const open = $derived(!workspace.view.panelCollapsed);
+  const size = $derived(Math.min(draft ?? device.view.filesPanelWidth, max));
+  const open = $derived(workspace.wide && device.view.filesPanelOpen);
 </script>
 
 <div
   bind:clientWidth={workspace.width}
-  class="relative flex h-full min-h-0 min-w-0 grid-rows-1"
+  class="t-panel-column relative flex h-full min-h-0 min-w-0 grid-rows-1"
   class:grid={workspace.wide}
-  style:grid-template-columns={workspace.wide ? `minmax(0,1fr) ${open ? size + 44 : 44}px` : undefined}
-  data-window-side-panel={workspace.wide && open ? "shown" : undefined}
-  style:--workspace-panel-content-width={`${size}px`}
+  style:grid-template-columns={workspace.wide ? `minmax(0,1fr) ${open ? size : 0}px` : undefined}
+  data-collapsed={!open || undefined}
+  data-window-side-panel={open ? "shown" : undefined}
 >
   <span class="pointer-events-none invisible absolute w-[1rem]" bind:clientWidth={workspace.rem}></span>
   {@render children()}
-  {@render sidebar()}
-  {#if workspace.wide && open}
-    <div class="absolute inset-y-0 z-20" style:right={`${size + 44}px`}>
+  {@render panel(size)}
+  {#if open}
+    <div class="absolute inset-y-0 z-20" style:right={`${size}px`}>
       <ResizeHandle
-        label="Resize workspace panel"
+        label="Resize Files"
         grows="left"
         value={size}
-        min={256}
-        max={Math.min(384, Math.max(256, workspace.width - 38 * workspace.rem - 44))}
-        reset={288}
+        min={FILES_PANEL_WIDTH.min}
+        {max}
+        reset={FILES_PANEL_WIDTH.default}
         onresize={(value) => (draft = value)}
         onchange={({ size: value }) => {
-          workspace.view.sizePanel(value);
+          device.setView({ filesPanelWidth: value });
           draft = undefined;
         }}
       />

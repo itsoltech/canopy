@@ -1,12 +1,12 @@
 # Zakładki wątku i moduł plików
 
-Status: **projekt v2 zaakceptowany; implementacja autoryzowana w siedmiu warstwach**.
-Zakładki dzielą rząd z sygnetem projektu i tytułem wątku.
-Pasek ikon obsługuje jeden panel; podsumowanie jest dokowane bez modułu, pływające na żądanie przy module,
-a na wąskim ekranie jest arkuszem. Ustalono jeden zastępowalny czysty preview,
-utrwalany przez Edit/Keep tab/dwuklik, drzewo ograniczone do cwd/worktree wątku
-i mobilną edycję natywną bez kolorów podczas pisania (kolory w viewerze i Preview
-changes). Ten PR opisuje projekt; kod jest dostarczany w osobnym stosie draft PR.
+Status: **wdrożone; układ v3** (po stosie #640–#648).
+Zakładki dzielą rząd z sygnetem projektu i tytułem wątku. Podsumowanie wątku jest
+**osobnym elementem**: pływającą kartą o stałej szerokości w prawym górnym rogu
+obszaru wątku, niezależną od prawego panelu. Prawy panel zawiera wyłącznie **Files**.
+Ustalono jeden zastępowalny czysty preview, utrwalany przez Edit/Keep tab/dwuklik,
+drzewo ograniczone do cwd/worktree wątku i mobilną edycję natywną bez kolorów podczas
+pisania (kolory w viewerze i Preview changes).
 
 Cel: czytać i edytować pliki obok kontekstu wątku bez wielokrotnego otwierania modala.
 Priorytet: otwarcie wątku, pisanie i streaming nie płacą za nieotwarte moduły.
@@ -73,18 +73,20 @@ tworzenie i przenoszenie plików, pełny edytor projektu, synchronizacja szkicó
 replikacja zawartości dysku i przeglądanie całego komputera. Kontrakt rejestracji
 modułów jest wewnętrzny, bez ładowania zewnętrznych rozszerzeń.
 
-## 2. Ustalony układ v2
+## 2. Układ v3
 
-Jedna samodzielna makieta poza repozytorium zastępuje porównanie wariantów.
-Pokazuje jasną i ciemną paletę Birch oraz desktop, wąskie okno i telefon, w każdym
-przypadku: brak modułu, Files z zamkniętym podsumowaniem i Files z otwartym
-podsumowaniem. Na małych szerokościach podsumowanie jest arkuszem. Dane są
-przykładowe; materiał nie jest dowodem działania funkcji.
+Układ v2 (dok podsumowania w prawej kolumnie, pasek ikon modułów, chip z menu
+modułów, dwa `+`, pop-out i dwa przyciski zwijania) okazał się zbyt złożony:
+podsumowanie zmieniało szerokość razem z panelem, a szerokość i zwinięcie były
+zapisywane osobno dla każdego wątku, więc interfejs skakał przy przełączaniu wątków.
+Część akcji podsumowania (PR, zadania, connectory) trafiła do modułów, dalej
+od ręki. v3 upraszcza układ do dwóch niezależnych elementów: karty podsumowania
+i panelu Files.
 
 ### Jeden rząd nagłówka i przepełnienie
 
-Kolejność: **sygnet/avatar projektu → tytuł wątku → zakładki → `+` → przełącznik
-zakładek → kontrolki podsumowania i panelu**. Nie pokazujemy nazwy projektu ani
+Kolejność: **sygnet/avatar projektu → tytuł wątku → zakładki → przełącznik
+zakładek → akcje wątku → przełącznik `Files`**. Nie pokazujemy nazwy projektu ani
 osobnego rzędu zakładek. Sygnet ma dostępną nazwę projektu i tooltip, tytuł pełną
 nazwę w tooltipie oraz dostępną akcję zmiany tytułu. Nagłówek ma wysokość istniejącego
 headera (3 rem przy standardowym rozmiarze); obszary przeciągania okna i kontrolki
@@ -109,78 +111,76 @@ pełne obie nazwy są w arkuszach. `+`, summary i moduły zachowują zarezerwowa
 dotykowe. Przy dużej skali tekstu tytuł może skurczyć się wizualnie do sygnetu,
 zachowując dostępną nazwę. Nie dokładamy drugiego rzędu ani poziomego scrolla strony.
 
-`+` w głównym nagłówku otwiera `Open module` **w pełnej zakładce**, np. wybrany PR.
-Nie jest akcją tworzenia wątku ani pliku. Wybór pliku z drzewa otwiera kartę obok
-`Thread`; aktywacja modułu w panelu nie zmienia aktywnej karty.
+Nagłówek nie ma `+`. Wybór pliku z drzewa lub linku otwiera kartę obok `Thread`;
+pełny widok PR otwiera wiersz PR w podsumowaniu (lub link `?pr=`), a wynik zadania
+w tle — wiersz zadania.
 
 ### Architektura informacji
 
 Lewy sidebar nadal służy projektom, wątkom i botom. Zakładki w nagłówku wybierają
-**główną treść**. Prawy pasek ikon wybiera **pomocniczy moduł**, jeden naraz.
-Gdy żadnego nie wybrano, prawa kolumna pokazuje **podsumowanie wątku**.
+**główną treść**. Podsumowanie wątku jest **osobnym elementem obszaru wątku**, nie
+częścią prawego panelu. Prawy panel pokazuje tylko **Files**.
 
-| Dzisiaj | Docelowe miejsce | Tryb minimalny → pełna zakładka |
-| --- | --- | --- |
-| Wiadomości i composer | Pierwsza zakładka `Thread` | Bez kopii w sidebarze; szkic, kolejka i oczekujące interakcje pozostają przy rozmowie |
-| Komputer, Open in, Directory/Worktree, Branch, PR, Changes, fork, lineage i subagenci | `Thread details`: dokowane lub pływające według stanu panelu | Krótki kontekst, kopiowanie, istniejące akcje otwierania i picker gałęzi; bez osobnej pełnej zakładki |
-| Lista PR pod Branch i pełny panel PR | Moduł `Pull requests` | Lista powiązań, stan i checki → jeden PR z Summary/Timeline/Code i wszystkimi obecnymi akcjami |
-| Nowe drzewo katalogu | Moduł `Files` | Drzewo i wyszukiwanie → pełny eksplorator; wybrany plik otwiera osobną zakładkę |
-| Connectory | Moduł `Connectors` | Dostępne konta i granty workera → szczegóły dostępu; administracja kontem nadal w Settings |
-| Zadania w tle i harmonogramy | Moduł `Tasks` z oddzielnymi grupami | Aktywne zadania i najbliższe terminy → wynik wskazanego zadania lub lista harmonogramów |
-| Cel, kolejka, prośby o zgodę i sekret | Obecny zasobnik rozmowy; lineage/subagenci również w podsumowaniu | Nie chowamy oczekujących odpowiedzi w module; metadane zapisanych sekretów przez istniejący arkusz |
+| Treść | Miejsce |
+| --- | --- |
+| Wiadomości i composer | Pierwsza zakładka `Thread`; szkic, kolejka i oczekujące interakcje pozostają przy rozmowie |
+| Komputer, Directory/Worktree (kopiowanie, Open folder, Manage worktree), Branch, uwaga o trybie uprawnień | Podsumowanie |
+| Pull requesty: stan, checki, numer, wyróżnienie PR bieżącej gałęzi, `Link pull request`, `Create pull request` | Podsumowanie; wiersz PR otwiera pełny PR w zakładce |
+| Zadania w tle i harmonogramy (pauza, wznowienie, anulowanie, `Schedule a task`) | Podsumowanie; wiersz zadania otwiera jego wynik w zakładce |
+| Connectory: konta z dostępnością i `Manage` | Podsumowanie |
+| Sekrety, fork, lineage, subagenci, `New side thread` | Podsumowanie |
+| Drzewo katalogu | Panel `Files`; wybrany plik otwiera osobną zakładkę |
+| Cel, kolejka, prośby o zgodę i sekret | Obecny zasobnik rozmowy |
 
-Zmiana grantu connectora nadal dotyczy **workera i wszystkich jego wątków**;
-przeniesienie kontrolki nie zawęża tego skutku. `Tasks` nie utożsamia zadania
-w tle z harmonogramem. Zatrzymanie, anulowanie i zarządzanie worktree zachowują
-istniejące potwierdzenia i autoryzację. Szczegóły nie powtarzają modelu,
-uprawnień, kosztu ani statusu już obecnego przy composerze i w nagłówku.
+Moduły `Pull requests`, `Tasks` i `Connectors` w panelu zostały usunięte: ich
+minimalne widoki powtarzały sekcje podsumowania. Zmiana grantu connectora nadal
+dotyczy **workera i wszystkich jego wątków**. Zatrzymanie, anulowanie i zarządzanie
+worktree zachowują istniejące potwierdzenia i autoryzację. Podsumowanie nie powtarza
+tytułu, modelu, uprawnień, kosztu ani statusu obecnych w nagłówku i przy composerze.
 
-Krótki wiersz PR/Changes w podsumowaniu jest linkiem do pełnego zasobu, nie drugą
-listą modułu. Lineage i subagenci pokazują stan i przejście do rozmowy; oczekujące
-interakcje nadal mają sygnalizację w `Thread`. Jedno query dostarcza wspólne metadane.
+### Podsumowanie wątku
 
-### Podsumowanie zależne od panelu
+Karta ma stałą szerokość 20 rem i jest zakotwiczona w prawym górnym rogu obszaru
+`Thread` (inset 12 px od góry, 16 px od prawej). Nie zależy od prawego panelu: jego
+otwarcie, zamknięcie ani zmiana szerokości nie zmieniają jej szerokości ani miejsca.
+Ma wewnętrzny scroll i jest niemodalna. Zwija się do **pigułki** w tym samym rogu:
+gałąź, najnowszy PR ze stanem i checkami oraz liczba subagentów. Rozwinięcie lub
+zwinięcie to jeden wybór urządzenia (`threadPanelCollapsed` w widoku urządzenia),
+wspólny dla wszystkich wątków, więc przełączanie wątków niczego nie przesuwa.
+Escape w karcie zwija ją i oddaje fokus pigułce (otwarty picker ma pierwszeństwo).
+Zdarzenie agenta nie rozwija karty.
 
-| Stan szerokiego okna | Prawa kolumna | Podsumowanie |
-| --- | --- | --- |
-| Żaden moduł nie zajmuje panelu | Dokowane `Thread details`, widoczne domyślnie | Zajmuje normalną kolumnę; niczego nie przykrywa |
-| Files/PR/inny moduł zajmuje panel | Minimalny widok modułu + pasek ikon | Karta pływająca domyślnie zamknięta, przełączana ikoną podsumowania w głównym nagłówku |
-| Ponowne kliknięcie aktywnej ikony albo `Close module` | Moduł oddaje panel; wraca dokowane `Thread details` | Otwarta karta pływająca znika; podsumowanie widoczne w doku |
-| Panel ręcznie zwinięty | Pozostaje pasek ikon; wybrany moduł zachowuje tożsamość | Podsumowanie dostępne pod ikoną, bez automatycznego otwarcia karty |
+Kolumna rozmowy (`chat-column`) centruje się w miejscu na lewo od **pasa** karty
+(21,5 rem, `--chat-lane`). Pas zależy tylko od szerokości obszaru, nie od stanu
+karty: zwinięcie i rozwinięcie nigdy nie przesuwają tekstu. Gdy kolumna i pas się
+nie mieszczą, kolumna trzyma się lewej krawędzi, a karta stoi nad rozmową z cieniem
+i kończy się nad composerem. Poniżej 32 rem szerokości obszaru zostaje sama pigułka,
+która otwiera podsumowanie w arkuszu. Karta należy do zakładki `Thread`; na
+zakładkach plików jest ukryta razem z rozmową.
 
-Zajęcie panelu dotyczy minimalnego modułu, nie kart głównych: otwarty plik lub PR
-w zakładce sam nie usuwa podsumowania z doku. Zmiana modułu zamyka kartę pływającą.
-Otwieranie jej jest przejściowe i nie zapisuje się w preferencjach. `activeModuleId`
-i zwinięcie panelu zapisujemy lokalnie; przy pierwszym wejściu brak modułu i otwarty
-dok. Wyłączenie modułu resetuje zwinięcie i pokazuje dok; świadome zwinięcie samego
-doku może go schować do ponownego użycia kontrolki panelu. Ikona podsumowania przy
-braku modułu przywraca/fokusuje dok, a gdy zajmuje go moduł — przełącza kartę.
+### Panel Files
 
-Karta jest niemodalna, zakotwiczona w **prawym górnym rogu głównej treści**, po
-lewej od panelu i poniżej nagłówka, z insetem 8 px. Nie jest swobodnie przeciągana
-ani przypinana nad treścią. Ma szerokość do 20 rem, wysokość do dostępnej przestrzeni
-i wewnętrzny scroll. Escape, `Close thread details` i kliknięcie poza zamykają kartę;
-Escape/close przywraca fokus ikonie, kliknięcie poza zachowuje fokus klikniętego celu.
-Otwarty picker wewnątrz ma pierwszeństwo Escape. Zdarzenie agenta nie otwiera karty.
-Powrót z arkusza po resize nigdy nie otwiera jej automatycznie.
+Prawy panel zawiera wyłącznie drzewo plików. Jedyną kontrolką jest przycisk `Files`
+w nagłówku wątku (na wąskim ekranie otwiera arkusz). Panel nie ma paska ikon, menu
+modułów, `+`, pop-outu ani własnego przycisku zwijania. Nagłówek panelu (48 px)
+pokazuje `Files` i nazwę katalogu wątku oraz akcje drzewa (`Reload files`, opcje).
+Otwarcie i szerokość (256–480 px, domyślnie 288 px) to jeden wybór urządzenia
+(`filesPanelOpen`, `filesPanelWidth`), wspólny dla wszystkich wątków. Dawne pola
+`sidebar`, `panelCollapsed` i `panelWidth` układu wątku nie są już czytane.
+Panel montuje się przy pierwszym użyciu i potem pozostaje zamontowany.
 
-### Nagłówek prawego panelu
+### Ruch
 
-Ten sam rząd ma aktywny **chip przypominający zakładkę**, przyległe `+`,
-`Open in tab` (ikona maksymalizacji) i `Collapse panel`. Chip zawiera ikonę i
-etykietę `Files`/`Pull requests`/`Tasks`/`Connectors`, ellipsis oraz menu zmiany
-modułu i `Close module`. To jeden aktywny moduł, bez kolejnego trwałego zestawu kart.
-`+` tutaj otwiera `Open sidebar module` i **zastępuje minimalny moduł**; nie tworzy
-karty głównej. Różnica obu `+` wynika z miejsca, etykiety dostępnej i tooltipu.
-
-Maksymalizacja otwiera/aktywuje pełną kartę tego zasobu, zachowując minimalny panel
-i współdzieląc dane. Nie zmienia szerokości kolumny na cały ekran. `Collapse panel`
-chowa powierzchnię bez wyłączenia modułu; przycisk w głównym nagłówku `Show panel`
-przywraca ją. Aktywna ikona modułu wyłącza moduł i dokuje podsumowanie nawet po
-zwinięciu. Przy braku modułu chip nazywa się `Thread details`, maksymalizacji nie
-ma (slot jest zarezerwowany), a `+` nadal wybiera moduł. Kontrolki mają stałe sloty,
-więc długa nazwa i zmiana stanu nie przesuwają przycisków. Na małej szerokości ten
-sam nagłówek występuje w arkuszu modułu; zamiast collapse ma zamknięcie arkusza.
+- Panel Files: siatka obszaru zmienia kolumnę panelu (`t-panel-column`):
+  otwarcie `--duration-slow`, zamknięcie `--duration-medium`, `--ease-smooth-out`.
+  Kolumna wątku płynnie zmienia szerokość. Treść panelu ma stałą szerokość przy
+  lewej krawędzi kolumny i tylko przenika (`t-panel`); zamykana kolumna ją przycina,
+  więc nigdy nie zasłania rozmowy. Przeciąganie uchwytu wyłącza przejście.
+- Podsumowanie: karta rośnie z rogu pigułki (`t-summary`: przezroczystość i skala
+  od `--scale-large`, `--duration-fast`) i wraca szybciej (`--duration-quick`);
+  pigułka przenika w przeciwną stronę. Obie warstwy zostają zamontowane.
+- Zmiana treści (plik, zakładka) to wyłącznie przenikanie, bez dodatkowego `rise`.
+- `prefers-reduced-motion` czyni wszystkie te zmiany natychmiastowymi.
 
 ## 3. Model zakładek i stan urządzenia
 
@@ -188,22 +188,22 @@ sam nagłówek występuje w arkuszu modułu; zamiast collapse ma zamknięcie ark
 
 Pierwsza zakładka ma angielską etykietę `Thread`: jest stale przypięta na pozycji 1,
 bez zamknięcia i przestawiania. W dokumentacji „rozmowa” opisuje jej zawartość;
-w UI używamy słowa `thread` zgodnie ze słownikiem. `+` otwiera kompaktowy picker
-`Open module`. Moduł może mieć kilka zasobów, np. różne PR lub pliki.
+w UI używamy słowa `thread` zgodnie ze słownikiem. Poza plikami zakładki mają
+pełny PR (z wiersza PR) i wynik zadania w tle (z wiersza zadania).
 
 Klucz zakładki pliku zawiera zakres klienta, kwalifikowane id wątku, tożsamość
 korzenia i kanoniczną ścieżkę zwróconą przez worker. Goła nazwa jest najpierw
 tymczasowym żądaniem rozstrzygnięcia. Dwa linki do tego samego pliku nie tworzą
 duplikatów; po rozstrzygnięciu łączymy je, zachowując szkic i nowy cel linii.
-Nie normalizujemy wielkości liter ścieżek na kliencie. Moduły używają własnego
-stabilnego klucza zasobu; sam numer PR lub nazwa pliku nie wystarcza.
+Nie normalizujemy wielkości liter ścieżek na kliencie. Zakładki PR i zadań używają
+własnego stabilnego klucza zasobu; sam numer PR lub nazwa pliku nie wystarcza.
 
 Jedno kliknięcie pliku w drzewie lub linku wiadomości otwiera **jedną zakładkę
 podglądu na wątek**. Jej etykieta jest pochylona, a dostępna nazwa zawiera `Preview`.
 Następny wybór zastępuje wyłącznie czysty podgląd; stary odczyt jest anulowany.
 Dwuklik, `Keep tab`, świadome przesunięcie zakładki lub wejście w `Edit` utrwala ją.
 Na dotyku `Keep tab` jest widoczną akcją w menu, bez zależności od dwukliku.
-PR i inne pełne moduły otwierane przez `+` są od razu utrwalone.
+Zakładki PR i wyników zadań są od razu utrwalone.
 
 Utrwalenie chroni przed zastąpieniem podglądem, nie przed ręcznym zamknięciem.
 Zakładki poza pierwszą można zamknąć i przestawić przeciąganiem lub `Move left` /
@@ -294,7 +294,7 @@ Dodajemy konteksty workspace/file oraz wykrywanie kolizji; obecne `Mod+K`, `Mod+
 | Następna/poprzednia karta | `Alt+PageDown` / `Alt+PageUp` poza polem tekstowym; picker `Switch tab` jako alternatywa systemowa |
 | Zamknięcie | Delete przy fokusie nagłówka karty; menu i paleta dla reszty, dirty guard zawsze działa |
 | Zapis i linia | `Mod+S` tylko w edycji; `Mod+G` tylko przy fokusie viewera/edytora, otwiera `Go to line` |
-| Moduły i szczegóły | `+`, `Open module`, `Toggle thread details` w palecie; Escape zamyka najwyższą nakładkę i wraca do wyzwalacza |
+| Podsumowanie i Files | `Toggle thread details` i `Toggle Files` w palecie; Escape w karcie podsumowania zwija ją do pigułki |
 
 Przestawianie kart ma akcje menu bez gestu; drzewo ma semantykę tree/treeitem,
 strzałki, Home/End i ogłaszanie rozwinięcia. Wirtualizacja utrzymuje fokusowany
@@ -302,34 +302,21 @@ wiersz w oknie. Zakładki mają `aria-controls`, `aria-selected` i roving tabind
 przy zamknięciu fokus przechodzi na wybraną kartę. Numery linii nie wchodzą do
 kopiowanego kodu. Cel linku ogłaszamy raz, np. `Lines 31–40`, bez ogłaszania każdej linii.
 
-## 4. Rejestracja i cykl życia modułów
+## 4. Zakładki PR i zadań
 
-Jedna typowana, statyczna mapa definicji współdzieli id, etykietę, ikonę,
-obsługiwane tryby, capability i regułę tożsamości zasobu. Web oraz mobile mają
-własne fabryki widoków, ale tę samą semantykę komend i serializowanych metadanych.
-Definicja nie zawiera frameworkowych komponentów w pakiecie domeny.
+Poza plikami workspace zna dwa rodzaje zakładek: pełny PR (`pull-requests`) i wynik
+zadania w tle (`tasks`). Otwiera je wiersz w podsumowaniu, nigdy osobny picker.
+Pełny panel PR zachowuje wewnętrzne Summary/Timeline/Code; nie stają się osobnymi
+zakładkami workspace'u. Zapisane zakładki dawnych modułów (`files`, `connectors`) nie
+są odtwarzane. Podsumowanie i pełna karta PR współdzielą query i wynik w toku;
+nie montują dwóch pollerów PR ani dwóch `GetThreadPanel`.
 
-| Część definicji | Kontrakt |
-| --- | --- |
-| Identyfikacja | `id`, etykieta, `IconName`, parser typu zasobu i `resourceKey`; rozróżnienie modułu jednego na wątek od kart poszczególnych zasobów |
-| Dostępność | `supports(context)` na capability gatewaya, domu i workera; przy braku funkcji znany powód zamiast pustego panelu |
-| Tryby | Leniwe `loadCompact` i `loadFull`; jawne `Open in tab` z minimalnego widoku; Files ma także osobny rodzaj karty pliku |
-| Stan i dane | Wersjonowane metadane widoku, shared query po owner/home/thread/resource, obsługa dirty i close guard; treść poza zapisanym stanem widoku |
-| Żywotność | `activate`, `deactivate`, `dispose`, AbortSignal; ukrycie zwalnia subskrypcje i timer, dispose usuwa zasoby; wyjątek stanowi jeden wspólny watch bieżącego wątku |
-
-Rejestr niczego nie pobiera przy imporcie. Pasek ikon i picker czytają wyłącznie
-lekkie definicje. Minimalny panel i pełna karta współdzielą query i wynik w toku;
-nie montują dwóch pollerów PR ani dwóch `GetThreadPanel`. Pełny panel PR zachowuje
-wewnętrzne Summary/Timeline/Code; nie stają się osobnymi zakładkami workspace'u.
-Równocześnie widoczny kompakt i pełna karta używają jednej dzierżawy odczytu.
-
-Proponowane granice web: `ThreadWorkspace`, `WorkspaceTabs`, `ModuleRail`,
-`ModuleHost`, `ThreadDetailsContent` w `ThreadDetailsDock`/`ThreadDetailsPopover`
-lub arkuszu; w Files: `DirectoryTree`, `FileTab`,
-`FileToolbar`, `FileViewport`, adapter edytora. Reużywamy `PanelRow`, `PanelField`,
-`Popover`, `Dialog`, `DropdownMenu`, `ResizeHandle`, wirtualizatora i tokenów kodu.
-Mobile ma analogiczne hosty z `Sheet`, `FlatList`, natywnym edytorem i istniejącym
-transportem Connect. Nie kopiujemy całego `ThreadPanel` do każdego modułu.
+Granice web: `ThreadWorkspace`, `WorkspaceTabs`, `WorkspaceFrame` (siatka z kolumną
+Files), `WorkspaceFilesPanel`, `ThreadSummary` (karta i pigułka, `SummaryLayout`)
+z treścią `ThreadPanel`; w Files: `WorkspaceTree`, `WorkspaceFile` i adapter
+edytora. Reużywamy `PanelRow`, `PanelField`, `Popover`, `Dialog`, `DropdownMenu`,
+`ResizeHandle`, wirtualizatora i tokenów kodu. Mobile ma analogiczne hosty z
+`Sheet`, `FlatList`, natywnym edytorem i istniejącym transportem Connect.
 
 ## 5. Moduł Files
 
@@ -644,28 +631,22 @@ musi respektować aktualne granice zgody; E2E wymaga wcześniejszej zgody użytk
 
 ### Te same pojęcia, inne powierzchnie
 
-Na desktopie układ ma pasek modułów 2.75 rem i domyślnie widoczny panel 18 rem,
-zmieniany w zakresie 16–24 rem. Panel pokazujemy wyłącznie, jeśli po odjęciu lewego
-sidebara pozostaje co najmniej 38 rem głównej treści. Decyduje szerokość kontenera
-i Interface size, nie sam viewport. Wybór PR przez `+` głównego nagłówka otwiera
-pełną kartę; wybór ikony PR w railu zastępuje moduł prawego panelu.
-Resizer zachowuje istniejącą klawiaturę; zapis szerokości następuje po puszczeniu.
+Na desktopie panel Files ma domyślnie 18 rem, zmieniany w zakresie 16–30 rem.
+Panel dokujemy, gdy główna treść (po odjęciu lewego sidebara) ma co najmniej
+46 rem; kolumna wątku zachowuje minimum 30 rem. Decyduje szerokość kontenera
+i Interface size, nie sam viewport. Resizer zachowuje istniejącą klawiaturę;
+zapis szerokości następuje po puszczeniu.
 
-Przy wąskim web/desktop lewa nawigacja nadal staje się drawerem według obecnych
-reguł. **Nie ma dokowanego prawego panelu ani podsumowania**, także przy braku
-modułu. Moduły i podsumowanie otwierają osobne arkusze wyłącznie po akcji.
-Arkusz podsumowania zastępuje arkusz modułu, nie układa się na nim; zamknięcie
-wraca do treści. Wybrany moduł pozostaje wybrany po zamknięciu arkusza, lecz ponowne
-kliknięcie jego ikony/`Close module` wyłącza go. Wyłączenie modułu na telefonie
-nie otwiera podsumowania. Rozszerzenie okna dokuje podsumowanie tylko przy braku
-modułu; z modułem karta pływająca pozostaje zamknięta. Zmiana progu zamyka nakładki
-i zachowuje ich dane, nie ich otwartość.
+Przy węższej treści lewa nawigacja nadal staje się drawerem według obecnych reguł,
+a `Files` otwiera drzewo w arkuszu. Podsumowanie pozostaje pigułką w rogu wątku;
+poniżej 32 rem szerokości obszaru otwiera arkusz zamiast karty. Zmiana progu
+zamyka arkusze i zachowuje ich dane, nie ich otwartość.
 
 Zakładki pozostają w jednym rzędzie z sygnetem i skróconym tytułem. Reguły overflow
 z §2 utrzymują aktywną kartę; poniżej 40 rem lub wcześniej, gdy brakuje miejsca,
 zastępuje je przycisk aktywnej karty z licznikiem. Przy 320 px i powiększeniu 200%
 nie powstaje poziomy scroll aplikacji; przewija się tylko kod bez wrap. Nawigacja,
-`+`, summary i moduły nie znikają w overflow plików.
+pigułka podsumowania i `Files` nie znikają w overflow plików.
 
 W `apps/mobile` przycisk nazwy aktywnej karty otwiera **tab switcher sheet**:
 `Thread`, otwarte pliki/PR, dirty, zamknięcie, `Keep tab` i `Open module`.
@@ -693,24 +674,16 @@ otwarcie nakładki `fast` 250 ms, zamknięcie `quick` 150 ms; panel `slow` / `me
 400 / 350 ms; `smoothOut`. Mobile używa istniejącego `sheetSpring` na wątku UI.
 Nie dodajemy biblioteki animacji ani osobnej skali czasów.
 
-**Dock → float:** wybranie modułu ustala zawartość istniejącej kolumny bez zmiany
-jej szerokości. Podsumowanie wychodzi przez opacity według `quick` 150 ms, moduł
-wchodzi przez transform/opacity według `fast` 250 ms i `smoothOut`. Nie animujemy
-lotu karty przez kod: karta pływająca pozostaje zamknięta. Dopiero kliknięcie ikony
-otwiera ją z kotwicy przez `fast`, a close/outside/Escape zamyka przez `quick`.
-**Float → dock:** wyłączenie modułu zamyka ewentualną kartę przez `quick` i zastępuje
-moduł podsumowaniem przez `fast`; docelowy dock jest widoczny. Nie ma dwóch aktywnych
-kopii treści ani dwóch subskrypcji. Fokus z usuwanego panelu wraca do aktywnej ikony,
-z karty do przycisku summary; inne miejsce fokusu pozostaje bez zmian.
-Zmiana zajęcia nie animuje szerokości; dopiero jawne collapse/restore powierzchni
-używa `medium`/`slow`, z pojedynczą zmianą layoutu i animacją samej powierzchni.
-Przy reduced motion wszystkie te przejścia są natychmiastowe, bez transform,
-przenikania i utrzymywania wychodzącego DOM. Resize nie uruchamia sekwencji przejść.
+Panel Files i karta podsumowania animują się według §2 („Ruch”). Kolumna wątku
+zmienia szerokość płynnie razem z kolumną panelu, a treść panelu ma stałą szerokość
+i tylko przenika, więc nie przeskakuje ani nie zasłania rozmowy. Szerokość
+i otwarcie są globalne dla urządzenia, więc przełączenie wątku niczego nie animuje.
+Przy reduced motion wszystkie te przejścia są natychmiastowe. Resize nie uruchamia
+sekwencji przejść.
 
 Przełączenie karty jest natychmiastowe, bez animowania całego dokumentu, blur kodu
 ani płynnego scrolla do linii. Krótko zmienia się tylko wskaźnik wybranej zakładki.
-Otwarcie panelu ustala końcową szerokość raz i animuje transform/opacity powierzchni,
-bez ponownego zawijania rozmowy w każdej klatce. Podczas resize brak animacji.
+Podczas resize brak animacji.
 Rozwijanie wirtualnego drzewa nie animuje wysokości tysięcy wierszy; strzałka może
 zmienić pozycję według `fast`, a nowe widoczne wiersze przeniknąć przez `rise`.
 
@@ -759,6 +732,12 @@ samego panelu. `Open files in → Default app` zachowuje obecne lokalne znaczeni
 pozostaje osobnym przepływem. Wycofanie nowego klienta nie zmienia plików ani
 starych wiadomości; nowe pola proto mogą zostać zignorowane. Najpierw należy
 rozstrzygnąć dirty szkice, bo rollback procesu ich nie odzyska.
+
+Po wdrożeniu stosu (#640–#648) układ uproszczono do v3 (§2) w osobnym stosie:
+podsumowanie jako samodzielna karta z przywróconymi sekcjami, panel z samym Files
+o globalnej szerokości i płynnym ruchu, prostsze zakładki i menu pliku, ten sam
+model na mobile. Kryterium 3 poniżej opisuje odbiór v2; v3 sprawdzamy w tych samych
+motywach i szerokościach, z naciskiem na brak skoków przy zmianie wątku.
 
 ### Kryteria odbioru implementacji
 

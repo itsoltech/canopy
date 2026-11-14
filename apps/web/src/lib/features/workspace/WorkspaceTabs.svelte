@@ -12,7 +12,6 @@
   import WorkspaceClose from "./WorkspaceClose.svelte";
   import WorkspaceCommands from "./WorkspaceCommands.svelte";
   import { usePalette } from "#lib/features/commands/commands.svelte.ts";
-  import WorkspaceModulePicker from "./WorkspaceModulePicker.svelte";
 
   let {
     state: workspace,
@@ -156,7 +155,6 @@
         </div>
       {/each}
     </div>{/if}
-  <div class="order-2 shrink-0"><WorkspaceModulePicker onselect={(target) => view.openModule(target)} /></div>
   <DropdownMenu label="Switch tab" placement="bottom-end" sheet>
     {#snippet trigger(props)}{#if width < 230}<button
           type="button"

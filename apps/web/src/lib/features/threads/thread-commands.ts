@@ -34,6 +34,7 @@ export interface ThreadCommandContext {
   readonly openPermissions: () => void;
   readonly setGoal: () => void;
   readonly togglePanel: () => void;
+  readonly toggleFiles: () => void;
   /** The thread's page address. */
   readonly link: () => string;
 }
@@ -140,7 +141,7 @@ function threadActionCommands(current: ui.Thread, context: ThreadCommandContext)
   ];
 }
 
-/** The details panel and copying the thread's link, id and working directory. */
+/** The thread summary, Files, and copying the thread's link, id and working directory. */
 function threadDetailCommands(current: ui.Thread, context: ThreadCommandContext): Command[] {
   return [
     {
@@ -148,9 +149,18 @@ function threadDetailCommands(current: ui.Thread, context: ThreadCommandContext)
       title: "Toggle thread details",
       group: "actions",
       icon: "view-columns",
-      keywords: "panel context sidebar",
+      keywords: "summary context branch pull request",
       rank: -6,
       run: context.togglePanel,
+    },
+    {
+      id: "thread:files",
+      title: "Toggle Files",
+      group: "actions",
+      icon: "folder",
+      keywords: "tree directory explorer panel",
+      rank: -6,
+      run: context.toggleFiles,
     },
     {
       id: "thread:copy-link",

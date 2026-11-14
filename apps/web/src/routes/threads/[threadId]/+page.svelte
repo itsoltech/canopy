@@ -84,11 +84,11 @@
   import { ThreadWorkspace } from "#lib/features/workspace/thread-workspace.svelte.ts";
   import WorkspaceTabs from "#lib/features/workspace/WorkspaceTabs.svelte";
   import WorkspaceContent from "#lib/features/workspace/WorkspaceContent.svelte";
-  import WorkspaceSidebar from "#lib/features/workspace/WorkspaceSidebar.svelte";
-  import WorkspaceSummary from "#lib/features/workspace/WorkspaceSummary.svelte";
+  import WorkspaceFilesPanel from "#lib/features/workspace/WorkspaceFilesPanel.svelte";
+  import ThreadSummary from "#lib/features/threads/summary/ThreadSummary.svelte";
+  import { SummaryLayout } from "#lib/features/threads/summary/summary-layout.svelte.ts";
   import WorkspaceFrame from "#lib/features/workspace/WorkspaceFrame.svelte";
-  import WorkspaceFiles from "#lib/features/workspace/WorkspaceFiles.svelte";
-  import type { WorkspaceModuleId, WorkspaceModuleTarget } from "@canopy/domain/workspace-modules";
+  import type { WorkspaceModuleTarget } from "@canopy/domain/workspace-modules";
   import { devicePreferences as device } from "#lib/features/settings/device-preferences.svelte.ts";
 
   let { data }: PageProps = $props();
@@ -310,13 +310,13 @@
 
   const composerNote = $derived(composerAvailability(thread, worker, Boolean(away)));
 
-  // Context panel: beside the chat on wide screens (saved on this device), a sheet
-  // on narrow ones.
+  // A ?pr= link opens that pull request in a tab beside the thread.
   const selectedPr = $derived(page.url.searchParams.get("pr") ?? "");
 
-  const panelOpen = $derived(!workspaceState.view.panelCollapsed);
   let panelSheet = $state(false);
-  let summaryAnchor = $state<HTMLElement>();
+
+  // The summary floats in the thread area's top-right corner, beside or over the chat column.
+  const summary = new SummaryLayout(() => workspaceState.rem);
 
   $effect(() => {
     if (!selectedPr) return;
@@ -330,7 +330,7 @@
     worktreeDialog = true;
   }
 
-  const togglePanel = () => workspaceState.togglePanel(() => (panelSheet = true));
+  const toggleFiles = () => workspaceState.toggleFiles(() => (panelSheet = true));
 
   const canBranch = $derived(!away && Boolean(tree && thread && thread.status !== "archived"));
 
@@ -504,7 +504,8 @@
           openModel: () => (modelOpen = true),
           openPermissions: () => (permissionsOpen = true),
           setGoal: setGoalLater,
-          togglePanel,
+          togglePanel: () => workspaceState.toggleSummary(),
+          toggleFiles,
           link: () => page.url.href,
         })
       : [],
@@ -565,21 +566,16 @@
               {@render threadActions()}
             </DropdownMenu>
           </div>{/if}
-        <WorkspaceSummary
-          view={workspaceState.view}
-          wide={workspaceState.wide}
-          anchor={summaryAnchor}
-          onopen={() => (panelSheet = false)}>{@render threadPanel("summary")}</WorkspaceSummary
+        <Button
+          variant="ghost"
+          size="sm"
+          icon="folder"
+          class="aria-pressed:bg-zinc-950/5 dark:aria-pressed:bg-white/10"
+          aria-pressed={workspaceState.wide ? workspaceState.filesOpen : undefined}
+          onclick={toggleFiles}>Files</Button
         >
-        <IconButton
-          icon="panel-right"
-          label={workspaceState.wide ? (panelOpen ? "Collapse panel" : "Show panel") : "Open modules"}
-          aria-pressed={panelOpen}
-          onclick={togglePanel}
-        />
       {/snippet}
     </TopBar>
-    <span bind:this={summaryAnchor} class="pointer-events-none absolute top-12 right-2"></span>
     <ThreadSearch
       bind:open={searchOpen}
       {view}
@@ -611,7 +607,17 @@
         class:invisible={Boolean(fileTab)}
         inert={Boolean(fileTab)}
         bind:this={feedRegion}
+        bind:clientWidth={summary.width}
+        style:--chat-lane={thread && summary.floating ? `${summary.lane}px` : undefined}
       >
+        <span
+          aria-hidden="true"
+          class="pointer-events-none invisible absolute w-(--chat-width)"
+          bind:clientWidth={summary.chat}
+        ></span>
+        {#if thread}<ThreadSummary {thread} {tree} floating={summary.floating} overlay={summary.overlay}
+            >{@render threadPanel()}</ThreadSummary
+          >{/if}
         {#key threadId}
           {#if turnsOnRail.length >= 3}
             <div class="absolute inset-y-6 left-1 z-20 w-8 max-md:hidden">
@@ -811,15 +817,14 @@
     <FileDropOverlay {intake} />
   </div>
 
-  {#snippet sidebar()}
-    <WorkspaceSidebar
+  {#snippet panel(width: number)}
+    <WorkspaceFilesPanel
       view={workspaceState.view}
+      root={(thread?.worktree?.path || thread?.cwd || "").split(/[\\/]/).filter(Boolean).at(-1) ?? ""}
+      {width}
       wide={workspaceState.wide}
-      module={renderModule}
       bind:sheet={panelSheet}
-    >
-      {#snippet summary()}{@render threadPanel("summary")}{/snippet}
-    </WorkspaceSidebar>
+    />
   {/snippet}
 </WorkspaceFrame>
 
@@ -828,10 +833,9 @@
   <MenuItem icon="magnifying-glass" onselect={() => (searchOpen = true)}>Search thread</MenuItem>
 {/snippet}
 
-{#snippet threadPanel(mode: "summary" | WorkspaceModuleId)}
+{#snippet threadPanel()}
   {#if thread && tree}
     <ThreadPanel
-      {mode}
       onworktree={manageWorktree}
       {thread}
       {tree}
@@ -850,11 +854,10 @@
   {:else}<Skeleton class="h-72 rounded-2xl" />{/if}
 {/snippet}
 
-{#snippet renderModule(target: WorkspaceModuleTarget, full: boolean)}
-  {#if target.module === "files"}<WorkspaceFiles view={workspaceState.view} onopen={() => (panelSheet = false)} />
-  {:else if target.module === "pull-requests" && target.resource && full}
+{#snippet renderModule(target: WorkspaceModuleTarget)}
+  {#if target.module === "pull-requests" && target.resource}
     <PullRequestPanel id={target.resource} {threadId} onclose={() => workspaceState.view.select("thread")} />
-  {:else if target.module === "tasks" && target.resource && full}
+  {:else if target.module === "tasks" && target.resource}
     {@const task = allBackgroundTasks.find((entry) => entry.id === target.resource)}
     {#if task && thread}<BackgroundTaskDialog
         embedded
@@ -866,9 +869,9 @@
       />
     {:else}<EmptyState
         title="Task output is outside the loaded history"
-        description="Open Tasks to choose another task."
+        description="Choose another task in Thread details."
       />{/if}
-  {:else}{@render threadPanel(target.module)}{/if}
+  {:else}<EmptyState title="This tab is no longer available" description="Close it to continue." />{/if}
 {/snippet}
 
 {#if thread?.worktree}
