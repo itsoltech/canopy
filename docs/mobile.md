@@ -328,6 +328,13 @@ Zaplanowane restarty nadal korzystają z osobnego komunikatu i próby co 2,5 s w
 Backoff: 1 / 2 / 4 / 8 / 16 / 30 s z jitterem 80–100%, nigdy ponad 30 s. Czas oczekiwania
 liczy się od zakończenia nieudanej próby. Dla watcha wątku sukces zeruje backoff
 dopiero po 10 s stabilnego live; pojedynczy odebrany batch nie kasuje kolejnych awarii.
+Utrata transportu bez błędu skopowanego do wątku nie wyczerpuje budżetu napraw
+projekcji. Przedwczesny koniec strumienia nadal go zużywa. Widoczny wątek zawsze
+subskrybuje head przez wspólny overview. Wspólny `ThreadWatchLiveness` wykrywa
+10 s bez postępu kursora przy nowszym head i wznawia watch inkrementalnie;
+nie zastępuje zachowanych stron ani kursora checkpointem warmera. Tło/offline
+wstrzymują kontrolę; naprawy mają odstęp 30 s i limit trzech bez postępu.
+Diagnostyka zlicza je w `Timeline recoveries`, log zawiera tylko czas i numer próby.
 Dla pozostałych subskrypcji sukces zeruje go od razu. Zmiana sieci (`expo-network`, bez nowej
 zależności NetInfo), foreground oraz „Reconnect now” zerują backoff. Reset nie usuwa
 decyzji o niedostępności. Wszystkie żądania telefonu dzielą także cooldown po nieudanym

@@ -11,7 +11,8 @@ import { recordThreadWatchFailure } from "@canopy/domain/diagnostics";
 import { tick } from "svelte";
 import { ThreadWatchRecovery, threadWatchMessage, threadSyncStatus } from "@canopy/domain/thread-watch-recovery";
 import { threadWatchReady } from "@canopy/domain/thread-watch-state";
-import { warmCacheHit } from "./warming.ts";
+import { threadOverviewHead, warmCacheHit } from "./warming.ts";
+import { ThreadWatchLiveness } from "@canopy/domain/thread-watch-liveness";
 
 export class ThreadHistory {
   loading = $state(false);
@@ -122,8 +123,25 @@ export class ThreadHistory {
 
     this.#restart = open;
     open();
+    const liveness = new ThreadWatchLiveness();
+
+    const timer = setInterval(() => {
+      if (document.hidden || !navigator.onLine || this.view.connection === "error") {
+        liveness.pause();
+
+        return;
+      }
+
+      const repair = liveness.check(this.read()?.syncCursor, threadOverviewHead(id));
+
+      if (!repair) return;
+      timelineRecovery("stalled_watch");
+      console.warn("Thread watch resumed from applied cursor", repair);
+      open();
+    }, 1000);
 
     return () => {
+      clearInterval(timer);
       opening?.cancel();
       stop();
       this.#abort.abort();

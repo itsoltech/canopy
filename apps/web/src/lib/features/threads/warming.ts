@@ -8,6 +8,14 @@ import { clientMeasurements } from "#lib/features/diagnostics/client.ts";
 import { threadCache } from "./thread-cache.ts";
 
 let current: ThreadWarmer | undefined;
+let overviewHeads: readonly ui.ThreadSyncCursor[] = [];
+
+/** The visible watch compares its own applied cursor with the overview, never the warmer's cache. */
+export const threadOverviewHead = (id: string) => overviewHeads.find((head) => head.threadId === id);
+
+export function receiveThreadHeads(heads: readonly ui.ThreadSyncCursor[]) {
+  overviewHeads = heads;
+}
 
 async function* read(id: string, syncCursor: ui.ThreadSyncCursor | undefined, signal: AbortSignal) {
   const response = await fetch(`/api/threads/${encodeURIComponent(id)}/warm`, {
@@ -56,6 +64,7 @@ export function connectThreadWarming(warmer: ThreadWarmer, live: () => boolean) 
 
   return () => {
     current = undefined;
+    overviewHeads = [];
     warmer.close();
     document.removeEventListener("visibilitychange", update);
     window.removeEventListener("online", update);

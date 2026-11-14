@@ -424,11 +424,25 @@ Awaria samego watcha jest lokalna dla wątku. Cache pozostaje widoczny; błędy
 deterministyczne powodują jedną próbę bez kursora, jedną z mniejszym oknem, potem
 zatrzymanie z „Retry” / „Load from scratch”. Wykryta luka między partiami zachowuje
 ostatni atomowy checkpoint i odtwarza wyłącznie brakujący zakres; trzecia kolejna
-awaria zatrzymuje watch. Krótki sukces ani rosnący seq nie zerują budżetu prób
+awaria zatrzymuje watch. Zwykłe zerwanie transportu (natywne `EventSource.onerror`,
+na mobile nieskopowane `Unavailable`/`DeadlineExceeded`) nie zużywa tego budżetu:
+połączenie ponawia się z backoffem do 30 s. Błąd zgłoszony przez gateway dla wątku
+oraz przedwczesny koniec strumienia nadal zużywają budżet napraw.
+Krótki sukces ani rosnący seq nie zerują budżetu prób
 i backoffu: potrzebne jest 10 s stabilnego live. Niedostępny dom emituje
 `sync_status.reason=computer_unreachable`; zmiana obecności kończy oczekiwanie,
 a klient automatycznie wznawia seq. Awaria watcha przy sprawnym łączu nie zmienia
 obecności komputera ani globalnego stanu gatewaya.
+
+Widoczny wątek zawsze należy do `thread_head_ids`, również poza zestawem dogrzewania.
+Web/desktop i mobile co sekundę porównują head overview z **kursorem zastosowanym
+przez widok**, nigdy z checkpointem cache warmera. Brak postępu przez 10 s przy
+wyższym head w tej samej epoce wznawia watch z zachowanym kursorem; nie czyści
+historii ani nie żąda snapshotu. Kolejne próby mają odstęp co najmniej 30 s,
+najwyżej trzy bez postępu kursora. Tło/offline i jawny błąd wątku wstrzymują kontrolę;
+powrót nie dolicza czasu nieaktywności. Naprawa zwiększa `Timeline recoveries`
+i zapisuje wyłącznie powód `stalled_watch`, czas opóźnienia oraz numer próby,
+bez treści, identyfikatora wątku, hosta i tokenu.
 
 Mobilne Details i web/desktop pokazują konkretny powód awarii wątku. Kod RPC,
 zamknięta kategoria powodu i rozmiar odrzuconej partii przechodzą również przez

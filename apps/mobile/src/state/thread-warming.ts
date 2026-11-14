@@ -58,7 +58,8 @@ export function useThreadWarming(threads: ui.Thread[], projects: ui.Project[], l
     );
   }, [threads, projects, sidebar, query]);
 
-  const selection = [...ids].sort().join(",");
+  const open = pathname.startsWith("/thread/") ? decodeURIComponent(pathname.slice(8)) : "";
+  const selection = [...new Set([open, ...ids])].filter(Boolean).slice(0, 32).sort().join(",");
   const priority = ids.join(",");
 
   useEffect(() => {

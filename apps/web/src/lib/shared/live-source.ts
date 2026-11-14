@@ -243,7 +243,7 @@ function attachSource(
     else handlers.retry(failure.computer);
   };
 
-  source.onerror = () => failed({ code: 14 });
+  source.onerror = () => failed({ code: 14, transport: true });
   source.addEventListener("failure", (event) => failed(readThreadWatchFailure(event.data)));
   source.addEventListener("away", () => {
     failed({ code: 14, computer: true });
