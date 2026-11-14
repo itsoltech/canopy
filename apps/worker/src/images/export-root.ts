@@ -4,11 +4,28 @@ import { imageRefusal } from "./export-source.ts";
 import { unixImageRoot } from "./export-root-unix.ts";
 import { windowsImageRoot } from "./export-root-windows.ts";
 
+export interface ImageStat {
+  readonly size: number;
+  readonly regular: boolean;
+  readonly links: number;
+  /** Changes whenever the content or metadata changes. */
+  readonly version: string;
+}
+
+/** A pinned file. Unix wraps a descriptor; Windows keeps the HANDLE, because Bun's fs calls can't use a CRT fd. */
+export interface ImageFile {
+  stat(): ImageStat;
+  /** Where the OS says the open object lives; never the untrusted pathname. */
+  path(): string;
+  read(buffer: Uint8Array, offset: number, length: number, position: number): number;
+  close(): void;
+}
+
 export interface ImageRoot {
   readonly path: string;
   readonly canonical: string;
   verify(): void;
-  open(parts: readonly string[]): number;
+  open(parts: readonly string[]): ImageFile;
 }
 
 export const rootChanged = () => imageRefusal("The image directory changed. Restore it before showing images.");
@@ -52,9 +69,8 @@ export function pinImageRoot(assigned: string): ImageRoot {
     verify,
     open(parts) {
       verify();
-      const fd = native.open(parts);
 
-      return fd;
+      return native.open(parts);
     },
   };
 }

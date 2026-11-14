@@ -100,6 +100,8 @@ snapshotu. Wspólny katalog załączników jest przypięty przy tworzeniu worker
 Odrzuca traversal, dowiązania, junctions, hardlinki i pliki specjalne; przed
 odczytem sprawdza fizyczną ścieżkę otwartego deskryptora (Linux `/proc`, macOS
 `F_GETPATH`, Windows `GetFinalPathNameByHandleW`). Brak tej kontroli oznacza odmowę.
+Na Windows plik pozostaje uchwytem `HANDLE` (metadane, `ReadFile`, `CloseHandle` przez
+Win32): funkcje `fs` w Bun mają własną tablicę deskryptorów i nie przyjmują deskryptora CRT.
 Probe otwiera plik i zwraca metadane bez alokacji bajtów. Pierwszy read tworzy
 ograniczony snapshot, kontroluje rozmiar i czasy modyfikacji, liczy SHA-256;
 dalsze odczyty używają wyłącznie tego snapshotu. Worker utrzymuje najwyżej dwa

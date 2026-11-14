@@ -38,7 +38,7 @@ if (cliArgs.includes("--version")) {
 
 // Release smoke (release.yml): the native image-export calls work on this OS/arch.
 if (cliArgs[0] === "self-check") {
-  const failure = imageExportSelfCheck();
+  const failure = await imageExportSelfCheck();
 
   if (failure) console.error(failure);
   process.exit(failure ? 1 : 0);

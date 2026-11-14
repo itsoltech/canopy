@@ -146,10 +146,49 @@ jobs:
           bun scripts/build-binaries.ts --target linux-x64
           test "$(dist/release/canopy-gateway-linux-x64 --version)" = "$CANOPY_VERSION"
           test "$(dist/release/canopy-worker-linux-x64 --version)" = "$CANOPY_VERSION"
+          dist/release/canopy-worker-linux-x64 self-check
+      # Image export calls native APIs per OS (bun:ffi); only a binary on that OS proves them.
+      - name: Worker binaries (darwin-arm64, windows-x64)
+        env:
+          CANOPY_VERSION: ${{ steps.version.outputs.version }}
+        run: bun scripts/build-binaries.ts --app worker --target darwin-arm64,windows-x64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: worker-binaries
+          path: |
+            dist/release/canopy-worker-darwin-arm64
+            dist/release/canopy-worker-windows-x64.exe
+          if-no-files-found: error
+          retention-days: 1
+
+  native:
+    name: Worker self-check (${{ matrix.target }})
+    needs: builds
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: darwin-arm64, runner: macos-15 }
+          - { target: windows-x64, runner: windows-2025, suffix: .exe }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: worker-binaries
+      - name: Open, stat, read and export an image through the pinned native calls
+        shell: bash
+        env:
+          CANOPY_NATIVE_DIR: ${{ runner.temp }}/canopy-native
+        run: |
+          binary="./canopy-worker-${{ matrix.target }}${{ matrix.suffix }}"
+          chmod +x "$binary"
+          "$binary" --version
+          "$binary" self-check
 
   check:
     name: Typecheck, tests, builds
-    needs: [changes, static, tests, builds]
+    needs: [changes, static, tests, builds, native]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -160,6 +199,7 @@ jobs:
           STATIC: ${{ needs.static.result }}
           TESTS: ${{ needs.tests.result }}
           BUILDS: ${{ needs.builds.result }}
+          NATIVE: ${{ needs.native.result }}
           FULL: ${{ needs.changes.outputs.full }}
         run: |
           test "$CHANGES" = success
@@ -167,10 +207,12 @@ jobs:
           if [ "$FULL" = true ]; then
             test "$TESTS" = success
             test "$BUILDS" = success
+            test "$NATIVE" = success
           else
             test "$FULL" = false
             test "$TESTS" = skipped
             test "$BUILDS" = skipped
+            test "$NATIVE" = skipped
           fi
       - uses: actions/checkout@v5
         if: needs.changes.outputs.full == 'true'

@@ -1,9 +1,7 @@
-import { closeSync, fstatSync, readSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { createHash } from "node:crypto";
 import { IMAGE_REPLY_LIMITS } from "@canopy/domain/image-replies";
 import { CommandError } from "../runtime/host-types.ts";
-import { descriptorPath } from "./descriptor-path.ts";
 import type { ImageRoot } from "./export-root.ts";
 
 export const imageRefusal = (message: string) => new CommandError("IMAGE_EXPORT_REFUSED", message, true);
@@ -29,22 +27,22 @@ export function openImageSource(path: string, roots: readonly ImageRoot[], maxBy
   if (!root || (process.platform === "win32" && full.slice(2).includes(":")))
     throw imageRefusal("This image is outside this thread's directory. Choose a file inside it.");
   const base = inside(root.path, full) ? root.path : root.canonical;
-  const fd = root.open(relative(base, full).split(sep));
+  const file = root.open(relative(base, full).split(sep));
 
   try {
-    const stat = fstatSync(fd);
-    const actual = descriptorPath(fd);
+    const stat = file.stat();
+    const actual = file.path();
 
-    if (!inside(root.canonical, actual) || !stat.isFile() || stat.nlink !== 1)
+    if (!inside(root.canonical, actual) || !stat.regular || stat.links !== 1)
       throw imageRefusal("The image path changed. Choose a regular file inside this thread's directory.");
     root.verify();
 
     if (stat.size <= 0 || stat.size > maxBytes)
       throw imageRefusal("This image exceeds the remaining image limit. Choose a smaller image.");
 
-    return { fd, stat, root, name: full.slice(dirname(full).length + 1) };
+    return { file, stat, root, name: full.slice(dirname(full).length + 1) };
   } catch (error) {
-    closeSync(fd);
+    file.close();
     throw error;
   }
 }
@@ -58,13 +56,7 @@ export async function snapshotImage(source: ReturnType<typeof openImageSource>, 
   for (let offset = 0; offset < data.length;) {
     if (!valid()) throw imageRefusal("The image transfer expired. Try again.");
 
-    const count = readSync(
-      source.fd,
-      data,
-      offset,
-      Math.min(IMAGE_REPLY_LIMITS.chunkBytes, data.length - offset),
-      offset,
-    );
+    const count = source.file.read(data, offset, Math.min(IMAGE_REPLY_LIMITS.chunkBytes, data.length - offset), offset);
 
     if (!count) throw imageRefusal("The image changed. Try again.");
     hash.update(data.subarray(offset, offset + count));
@@ -74,9 +66,9 @@ export async function snapshotImage(source: ReturnType<typeof openImageSource>, 
 
   if (!valid()) throw imageRefusal("The image transfer expired. Try again.");
   source.root.verify();
-  const after = fstatSync(source.fd);
+  const after = source.file.stat();
 
-  if (after.size !== source.stat.size || after.mtimeMs !== source.stat.mtimeMs || after.ctimeMs !== source.stat.ctimeMs)
+  if (after.size !== source.stat.size || after.version !== source.stat.version)
     throw imageRefusal("The image changed. Try again.");
 
   return { data, sha256: hash.digest("hex") };

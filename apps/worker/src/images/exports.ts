@@ -1,4 +1,3 @@
-import { closeSync } from "node:fs";
 import type { ExportThreadImage, ThreadImageExportSchema } from "@canopy/contracts";
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { IMAGE_REPLY_LIMITS } from "@canopy/domain/image-replies";
@@ -137,7 +136,7 @@ export class ThreadImageExports {
         if (this.#exports.get(request.exportId) !== entry) throw imageRefusal("The image transfer expired. Try again.");
 
         if (entry.source) {
-          closeSync(entry.source.fd);
+          entry.source.file.close();
           entry.source = undefined;
         }
       }
@@ -162,7 +161,7 @@ export class ThreadImageExports {
     this.#exports.delete(id);
     clearTimeout(entry.timer);
 
-    if (entry.source) closeSync(entry.source.fd);
+    if (entry.source) entry.source.file.close();
   }
 
   close(threadId?: string): void {
