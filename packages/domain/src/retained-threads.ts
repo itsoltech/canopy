@@ -45,6 +45,11 @@ export class RetainedThreads<T extends RetainedThread> {
     return { count: this.#entries.size, bytes };
   }
 
+  /** The reader's state, including a view behind the warmer's checkpoint; does not change LRU order. */
+  peek(id: string): T | undefined {
+    return this.#entries.get(id)?.memory;
+  }
+
   /** The thread's retained state, else `create`'s; most recently used. */
   open(id: string, create: () => T): T {
     const entry = this.#entries.get(id) ?? { memory: create(), bytes: 0, shown: 0, behind: false, cancel: () => {} };
@@ -122,7 +127,9 @@ export class RetainedThreads<T extends RetainedThread> {
 
       if (snapshot?.thread && snapshot.cursor) {
         entry.bytes = toBinary(ui.ThreadSnapshotSchema, snapshot).byteLength;
-        this.options.settled?.(snapshot, entry.bytes);
+
+        // An idle leave may finish after a warm fallback; never roll that cache copy back to this old cursor.
+        if (!entry.behind) this.options.settled?.(snapshot, entry.bytes);
       }
 
       this.#trim();

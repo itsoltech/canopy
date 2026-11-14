@@ -1,6 +1,8 @@
 import { fromBinary, toBinary } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { ThreadCache } from "@canopy/domain/thread-cache";
+import { RetainedThreads } from "@canopy/domain/retained-threads";
+import { MobileThreadView } from "./thread-view";
 
 export interface CacheFile {
   name: string;
@@ -37,6 +39,26 @@ export class PersistentThreadCache {
   #writing: Promise<void> = Promise.resolve();
   #closed = false;
   #saving: { snapshot: ui.ThreadSnapshot; promise: Promise<void> } | undefined;
+  readonly views = new RetainedThreads<MobileThreadView>({
+    count: 12,
+    bytes: 12 * 1024 * 1024,
+    idle: (task) => {
+      const timer = setTimeout(task, 0);
+
+      return () => clearTimeout(timer);
+    },
+    settled: (snapshot) => void this.save(snapshot).catch(() => {}),
+  });
+  /** Warming can advance its own window while a reader keeps older pages and their original cursor. */
+  readonly warming = {
+    peek: (id: string) => this.views.snapshot(id) ?? this.#peek(id),
+    load: (id: string) => Promise.resolve(this.views.snapshot(id) ?? this.#load(id)),
+    save: (snapshot: ui.ThreadSnapshot, replaced: boolean) => {
+      if (this.#closed || this.views.refresh(snapshot, replaced)) return Promise.resolve();
+
+      return this.save(snapshot);
+    },
+  };
 
   constructor(
     readonly storage: ThreadCacheStorage,
@@ -48,15 +70,29 @@ export class PersistentThreadCache {
   }
 
   peek(id: string) {
-    return this.#closed ? undefined : this.#memory.get(id);
+    return this.#closed ? undefined : (this.views.peek(id)?.snapshot ?? this.#peek(id));
   }
 
   load(id: string): Promise<ui.ThreadSnapshot | undefined> {
+    return Promise.resolve(this.#closed ? undefined : (this.views.peek(id)?.snapshot ?? this.#load(id)));
+  }
+
+  open(id: string) {
+    if (this.#closed) return new MobileThreadView(undefined);
+
+    return this.views.open(id, () => new MobileThreadView(this.#peek(id)));
+  }
+
+  #peek(id: string) {
+    return this.#closed ? undefined : this.#memory.get(id);
+  }
+
+  #load(id: string): Promise<ui.ThreadSnapshot | undefined> {
     this.#saving = undefined;
 
     return this.#serial(async () => {
       if (this.#closed) return undefined;
-      const cached = this.peek(id);
+      const cached = this.#peek(id);
       const entries = await this.#trim();
       const entry = entries.find((file) => file.id === id);
 
@@ -92,7 +128,7 @@ export class PersistentThreadCache {
     const saved = this.#saving;
 
     // Reducers replace snapshots; periodic saves of the same revision share encoding and disk work.
-    if (saved?.snapshot === snapshot && this.peek(snapshot.thread.id) === snapshot) return saved.promise;
+    if (saved?.snapshot === snapshot && this.#peek(snapshot.thread.id) === snapshot) return saved.promise;
     this.#saving = undefined;
     const bytes = toBinary(ui.ThreadSnapshotSchema, snapshot);
     this.#memory.set(snapshot, bytes.byteLength);
@@ -113,13 +149,14 @@ export class PersistentThreadCache {
     });
 
     // Do not retain an oversized snapshot outside the memory budget.
-    if (this.peek(snapshot.thread.id) === snapshot) this.#saving = { snapshot, promise: saving };
+    if (this.#peek(snapshot.thread.id) === snapshot) this.#saving = { snapshot, promise: saving };
 
     return saving;
   }
 
   close(): Promise<void> {
     this.#closed = true;
+    this.views.clear();
     this.#memory.clear();
     this.#saving = undefined;
 
@@ -127,6 +164,7 @@ export class PersistentThreadCache {
   }
 
   remove(id: string): Promise<void> {
+    this.views.forget(id);
     this.#memory.delete(id);
     this.#saving = undefined;
 

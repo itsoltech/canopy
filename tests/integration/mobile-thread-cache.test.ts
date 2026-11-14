@@ -15,7 +15,7 @@ import { mountMobileNetwork } from "../../apps/gateway/src/network/devices.ts";
 import { encryptSecret, SECRETS_KEY_ID } from "../../apps/gateway/src/store/secrets.ts";
 import { nodePinnedTransport } from "./support/phone.ts";
 import { DiskThreadStorage } from "./support/thread-cache.ts";
-import { SERVICE_TOKEN, startTestGateway, type TestGateway } from "./support/gateway.ts";
+import { SERVICE_TOKEN, startTestGateway, eventually, type TestGateway } from "./support/gateway.ts";
 
 const directory = tempDirs();
 
@@ -77,6 +77,67 @@ describe("durable bounded thread snapshots", () => {
     await cache.save(state);
     expect(await cache.load("thread")).toBeUndefined();
     expect(await storage.list()).toHaveLength(0);
+  });
+
+  test("mobile view retention bounds count and refreshed bytes while protecting the open screen", async () => {
+    const cache = new PersistentThreadCache(new DiskThreadStorage(directory("canopy-cache-views-")));
+    const visible = cache.open("visible");
+    visible.apply(snapshot("visible"));
+    const leave = cache.views.show("visible");
+
+    for (let index = 0; index < 13; index++) {
+      const id = `view-${index}`;
+      cache.open(id).apply(snapshot(id));
+      cache.views.show(id)();
+    }
+
+    await eventually(
+      async () => cache.views.usage.count,
+      (count) => count === 12,
+    );
+    expect(cache.views.peek("visible")).toBe(visible);
+    expect(cache.views.peek("view-0")).toBeUndefined();
+
+    // A refreshed off-screen view can grow beyond the entire retention budget.
+    cache.warming.save(snapshot("view-12", "x".repeat(13 * 1024 * 1024)), false);
+    await eventually(
+      async () => cache.views.peek("view-12"),
+      (view) => view === undefined,
+    );
+    expect(cache.views.usage.bytes).toBeLessThanOrEqual(cache.views.options.bytes);
+    expect(cache.views.peek("visible")).toBe(visible);
+
+    // The same oversized payload is allowed while shown, then evicted on leaving.
+    visible.apply(snapshot("visible", "x".repeat(13 * 1024 * 1024)));
+    expect(cache.views.peek("visible")).toBe(visible);
+    leave();
+    await eventually(
+      async () => cache.views.usage.count,
+      (count) => count === 0,
+    );
+    cache.open("after").apply(snapshot("after"));
+    await cache.close();
+    expect(cache.views.usage.count).toBe(0);
+    expect(await cache.load("after")).toBeUndefined();
+  });
+
+  test("a delayed leave accounts a retained reader without overwriting the warmer's fresh window", async () => {
+    const cache = new PersistentThreadCache(new DiskThreadStorage(directory("canopy-cache-views-idle-")));
+    const loaded = snapshot("reader", "Loaded older pages");
+    const fresh = snapshot("reader", "Fresh warm window");
+    const view = cache.open("reader");
+    view.apply(loaded);
+    cache.views.show("reader")();
+    await cache.warming.save(fresh, true);
+    await eventually(
+      async () => cache.views.usage.bytes,
+      (bytes) => bytes > 0,
+    );
+    expect(cache.peek("reader")).toBe(loaded);
+    expect(await cache.load("reader")).toBe(loaded);
+    expect(cache.warming.peek("reader")).toBe(fresh);
+    expect(await cache.warming.load("reader")).toBe(fresh);
+    await cache.close();
   });
 
   test("an unchanged revision retries a failed write and can be persisted again after eviction", async () => {

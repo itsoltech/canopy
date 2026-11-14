@@ -329,6 +329,11 @@ Dogrzewanie zapisuje cały zaktualizowany checkpoint, ze stronami historii wczyt
 wcześniej; granice ustala cache. Duże treści nadal są odczytywane na żądanie.
 Mobile wybiera 10 ostatnich korzeni, ogranicza zestaw do 16 i rozdziela starty
 o 5 s (najwyżej 12 odczytów/min); używa istniejącego cache trwałego po restarcie.
+Retencja mobilnych widoków korzysta z tego samego `RetainedThreads`: 12 wątków /
+12 MiB protobuf oprócz cache, z ochroną zamontowanego ekranu. Zachowuje strony,
+kursor i ręczne wybory foldów/grup; dalekie okno dogrzewania trafia do osobnej kopii,
+a powrót wznawia kursor widoku przez partie rekordów. Wysokości komórek `FlatList`
+nie są zachowywane między ekranami; wymagają weryfikacji na urządzeniu.
 Szczegóły foreground i wykrywania Low Power Mode: [mobile.md](mobile.md).
 
 Jedno zadanie dogrzewania może działać naraz; starty są oddalone o co najmniej 2 s
