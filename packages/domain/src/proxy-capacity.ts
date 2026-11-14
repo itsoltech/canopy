@@ -1,24 +1,23 @@
-import { Provider, ui, type ProviderUsageWindow } from "@canopy/contracts";
+import { ui, type ProviderUsageWindow } from "@canopy/contracts";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { proxyAccountMark } from "./proxy-accounts.ts";
-import { usageTone, type UsageGlance } from "./sidebar-usage.ts";
 
 const Plan = ui.ProxyAccountPlan;
 
 /**
- * Reviewed 2026-11-14. Units are relative to Claude Pro / Codex Plus, per window.
- * https://support.claude.com/en/articles/11049741-what-is-the-max-plan
- * https://support.claude.com/en/articles/17728952-what-is-the-ultra-plan
- * Max is 5x per five hours and week. Ultra (formerly Max 20x) is 10x weekly;
- * verified Ultra has no five-hour cap. Never invent a missing window.
- * https://help.openai.com/en/articles/9793128-about-chatgpt-pro-tiers
- * https://learn.chatgpt.com/docs/pricing
- * Current Pro 100/200/500 allowances changed; no current numerical ratio is
- * published on these pages. Generic Pro also cannot identify a price tier.
- * https://x.ai/pricing and https://docs.x.ai/x-subscription/usage-limits
- * Grok consumer Plus/Premium/Super/Ultra pools are 1/4/15/50x weekly, but API
- * usage is billed separately. These ratios do not describe proxy API limits.
- * All unverified provider/plan/window combinations use 1x and remain flagged.
+ * Weekly (and five-hour) allowance relative to the provider's $20 plan, from the providers' own statements.
+ * Reviewed 2026-11-15. Plans come only from provider identifiers; a proxy's own multiplier is never read.
+ *
+ * Claude, https://support.claude.com/en/articles/11049741-what-is-the-max-plan and
+ * https://support.claude.com/en/articles/17728952-what-is-the-ultra-plan: Pro 1, Max 5x 5 per five hours and
+ * week, Ultra (formerly Max 20x) 10 per week and no five-hour cap.
+ *
+ * Codex, https://help.openai.com/en/articles/9793128-about-chatgpt-pro-tiers and OpenAI's Codex limits
+ * announcement of 2026-11-08: Plus 1, Pro 100 (`prolite`) 10, Pro 200 (`pro`) 20, Pro 500 (`promax`) 50 times
+ * Plus per week. Pro plans have no five-hour limit, so no five-hour weight is invented for them.
+ *
+ * Grok consumer pools (https://x.ai/pricing) do not describe proxy API limits. Every other
+ * provider/plan/window combination counts as 1 and stays flagged as unknown.
  */
 const weights = new Map<string, number>([
   [`CLAUDE:${Plan.PRO}:five_hour`, 1],
@@ -31,6 +30,9 @@ const weights = new Map<string, number>([
   [`CLAUDE:${Plan.ULTRA}:seven_day`, 10],
   [`CODEX:${Plan.PLUS}:five_hour`, 1],
   [`CODEX:${Plan.PLUS}:seven_day`, 1],
+  [`CODEX:${Plan.PRO_100}:seven_day`, 10],
+  [`CODEX:${Plan.PRO_200}:seven_day`, 20],
+  [`CODEX:${Plan.PRO_500}:seven_day`, 50],
 ]);
 
 export function proxyPlanWeight(account: ui.ProxyAccount, key = "seven_day") {
@@ -177,42 +179,4 @@ export function proxyCapacityGroups(accounts: readonly ui.ProxyAccount[], now = 
       },
     ];
   });
-}
-
-const providers = { CLAUDE: Provider.CLAUDE, CODEX: Provider.CODEX, GROK: Provider.GROK };
-
-/** Combine proxy units across connections, then preserve the worst direct reading. */
-export function proxyCapacityGlance(
-  proxies: readonly ui.Proxy[],
-  direct: readonly UsageGlance[],
-  now = Date.now(),
-): UsageGlance[] {
-  const accounts = proxies.flatMap((proxy) =>
-    proxy.kind === "cliproxyapi" && proxy.usedBy.length && proxy.accounts?.state === "ok"
-      ? proxy.accounts.accounts
-      : [],
-  );
-
-  const groups = proxyCapacityGroups(accounts, now);
-  const result = new Map(direct.map((glance) => [glance.provider, glance]));
-
-  for (const group of groups) {
-    const worst = group.windows[0];
-
-    if (!worst) continue;
-    const provider = providers[group.mark];
-    const previous = result.get(provider);
-    const percent = 100 - worst.percentLeft;
-
-    if (previous?.tone === "extra" || (previous?.percent ?? -1) > percent) continue;
-    result.set(provider, {
-      provider,
-      name: group.name,
-      percent,
-      tone: usageTone(percent),
-      label: `${group.name}: ${Math.round(worst.percentLeft)}% capacity left${worst.unknown ? ", unknown plan weights" : ""}`,
-    });
-  }
-
-  return [...result.values()].sort((a, b) => a.provider - b.provider);
 }

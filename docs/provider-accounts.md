@@ -230,21 +230,23 @@ rodzaj okna i reset w kodzie `usage_limit:<window>:<unix-seconds>`; późniejszy
 raport konta nie zmienia historycznej karty. Szczegóły są w „Show details”.
 
 Dolny pasek sidebara web/desktop i mobile rezerwuje stały slot na kompaktowy
-wskaźnik użycia. Każdy dostawca z danymi ma jeden pasek: najwyższy procent
-aktywnego okna ze wszystkich włączonych instancji. Poniżej 70% jest neutralny,
+wskaźnik użycia. Każdy dostawca z danymi ma jeden pasek: wykorzystanie najbardziej
+ograniczającego okna z wiersza popovera. Poniżej 70% jest neutralny,
 od 70% ostrzegawczy, a od 90% alarmowy. Potwierdzone dodatkowe użycie ma fioletowy
 pasek z przerwą. Dostępność kredytów sama nie oznacza ich używania.
-Hover na desktopie lub dotknięcie otwiera listę instancji i komputerów z oknami,
-czasem do resetu oraz przejściem do Providers. Długie nazwy są skracane.
-Brak danych ukrywa przycisk, zachowując miejsce. Minione okna nie podnoszą
+Hover na desktopie lub dotknięcie otwiera proste podsumowanie
+(`@canopy/domain/usage-summary`): jeden wiersz na dostawcę z procentem pozostałej
+pojemności, jednym paskiem i najbliższym resetem. Bezpośrednie instancje ze wszystkich
+komputerów i konta używanych proxy CLIProxyAPI łączą się w tym wierszu; dla każdego okna
+zostaje niższy odczyt. Krótsze okno pojawia się tylko, gdy ogranicza bardziej niż główne.
+Szczegóły instancji i kont zostają w Providers i Proxies
+([proxies.md](proxies.md#konta-upstream-management-api-cliproxyapi)). Dostawca bez odczytu
+nie ma wiersza. Brak danych ukrywa przycisk, zachowując miejsce. Minione okna nie podnoszą
 alarmu. Dane pochodzą wyłącznie z przyrostowego overview; zegar aktualizuje tylko
-etykiety i wygasanie okien. Instancje proxy nie dają mierników planu. Zamiast nich
-popover ma sekcję `ProxyUsageSection` dla każdego proxy CLIProxyAPI używanego przez
-profil, którego konta gateway już odczytał: „Through <proxy>: N accounts · M cooling
-down” z linkiem do karty proxy ([proxies.md](proxies.md#konta-upstream-management-api-cliproxyapi)).
+etykiety i wygasanie okien. Instancje proxy nie dają mierników planu.
 Odczyt `ListProxies` nie wywołuje proxy; pierwsze sprawdzenie gateway robi ~15 s po
-starcie. Bez planu i z samym proxy przycisk pokazuje ikonę połączenia zamiast pasków. Zmiana mobile obejmuje tylko JS,
-bez zależności i konfiguracji natywnej.
+starcie. Bez odczytu i z samym proxy przycisk pokazuje ikonę połączenia zamiast pasków.
+Zmiana mobile obejmuje tylko JS, bez zależności i konfiguracji natywnej.
 
 ### Proxy, klucz API i własny endpoint
 

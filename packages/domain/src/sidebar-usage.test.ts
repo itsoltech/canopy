@@ -9,7 +9,7 @@ import {
   ui,
 } from "@canopy/contracts";
 import { sidebarUsageAccounts, sidebarUsageGlance, usageTone } from "./sidebar-usage.ts";
-import { proxyUsageSections, proxyUsageText } from "./proxy-accounts.ts";
+import { usageSummary, usageSummaryGlance, usageSummaryNotes } from "./usage-summary.ts";
 
 const now = 1_800_000_000_000;
 const future = timestampFromMs(now + 3_600_000);
@@ -125,14 +125,22 @@ describe("sidebar usage overview projection", () => {
     ]);
   });
 
-  test("proxy sections come only from read accounts of CLIProxyAPI proxies in use, never from plan windows", () => {
+  test("the summary has one row per provider: lowest reading per window, binding window, readable proxies only", () => {
     const accounts = (state: string) =>
       create(ui.ProxyAccountsSchema, {
         state,
         total: 3,
         accounts: [
-          { provider: "claude", status: "active" },
-          { provider: "codex", status: "cooling_down" },
+          {
+            provider: "claude",
+            status: "active",
+            plan: ui.ProxyAccountPlan.MAX_5X,
+            windows: [
+              { key: "seven_day", usedPercent: 40, resetsAt: future },
+              { key: "five_hour", usedPercent: 95, resetsAt: future },
+            ],
+          },
+          { provider: "claude", status: "active", windows: [{ key: "seven_day", usedPercent: 0, resetsAt: future }] },
           { provider: "grok", status: "disabled" },
         ],
       });
@@ -163,10 +171,32 @@ describe("sidebar usage overview projection", () => {
       }),
     ];
 
-    const sections = proxyUsageSections(proxies);
+    const rows = usageSummary([], proxies, now);
 
-    expect(sections).toEqual([{ proxyId: "a", label: "Team", accountCount: 3, coolingDownCount: 1 }]);
-    expect(proxyUsageText(sections[0]!)).toBe("Through Team: 3 accounts · 1 cooling down");
-    expect(proxyUsageText({ ...sections[0]!, accountCount: 1, coolingDownCount: 0 })).toBe("Through Team: 1 account");
+    // Max 5x (5 units, 60% left) + an unknown plan (1 unit, 100% left) = 66.7% weekly; five-hour binds at 5%.
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ name: "Claude", tone: "danger", word: "Low", binding: { name: "5-hour" } });
+    expect(rows[0]?.window?.percentLeft).toBeCloseTo(66.666666);
+    expect(rows[0]?.binding?.percentLeft).toBeCloseTo(5);
+    expect(usageSummaryGlance(rows, now)[0]?.percent).toBeCloseTo(95);
+    expect(usageSummaryGlance(rows, now)[0]?.label).not.toContain("unknown");
+
+    // A direct instance with a lower weekly reading wins that window; the summary keeps one row.
+    const workers = [
+      create(ui.WorkerSchema, {
+        id: "w",
+        name: "Studio",
+        providerInstances: [{ id: "native", harness: Provider.CLAUDE, enabled: true, usage: usage(90) }],
+      }),
+    ];
+
+    const mixed = usageSummary(sidebarUsageAccounts(workers, now), proxies, now);
+    expect(mixed).toHaveLength(1);
+    expect(mixed[0]?.window?.percentLeft).toBe(10);
+
+    expect(usageSummaryNotes(proxies)).toEqual([
+      { proxyId: "c", text: "Canopy can’t read accounts from “No key”.", checking: false },
+      { proxyId: "d", text: "Canopy can’t read accounts from “Rejected”.", checking: false },
+    ]);
   });
 });

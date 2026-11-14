@@ -72,6 +72,7 @@
     "./proxy-capacity": "./src/proxy-capacity.ts",
     "./provider-instances": "./src/provider-instances.ts",
     "./sidebar-usage": "./src/sidebar-usage.ts",
+    "./usage-summary": "./src/usage-summary.ts",
     "./update-checks": "./src/update-checks.ts",
     "./computers": "./src/computers.ts",
     "./diagnostics": "./src/diagnostics/index.ts",

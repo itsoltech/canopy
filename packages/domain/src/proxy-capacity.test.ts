@@ -2,7 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import { timestampFromMs } from "@bufbuild/protobuf/wkt";
 import { ui, ProviderUsageWindowSchema } from "@canopy/contracts";
-import { proxyCapacityGlance, proxyCapacityGroups, proxyPlanWeight, supportedProxyAccounts } from "./proxy-capacity.ts";
+import { proxyCapacityGroups, proxyPlanWeight, supportedProxyAccounts } from "./proxy-capacity.ts";
+import { usageSummary, usageSummaryGlance } from "./usage-summary.ts";
 
 const now = 1_800_000_000_000;
 const future = timestampFromMs(now + 3_600_000);
@@ -79,17 +80,25 @@ describe("proxy subscription capacity", () => {
     expect(proxyCapacityGroups([missing], now)[0]?.windows).toEqual([]);
   });
 
-  test("does not guess unverified plan, provider or window multipliers or create absent windows", () => {
+  test("weights Codex plans by OpenAI's stated multipliers and never invents a missing window or plan", () => {
+    const codex = (id: string, plan: ui.ProxyAccountPlan, percent: number) =>
+      create(ui.ProxyAccountSchema, { ...account(id, plan, percent), provider: "codex" });
+
+    expect(
+      [Plan.PLUS, Plan.PRO_100, Plan.PRO_200, Plan.PRO_500].map((plan) => proxyPlanWeight(codex("c", plan, 0)).units),
+    ).toEqual([1, 10, 20, 50]);
+    // Pro plans have no five-hour limit; a reading there is unverified.
+    expect(proxyPlanWeight(codex("c", Plan.PRO_500, 0), "five_hour")).toEqual({ units: 1, unknown: true });
     expect(proxyPlanWeight(account("legacy", Plan.MAX_20X, 0))).toEqual({ units: 10, unknown: false });
     expect(proxyPlanWeight(account("legacy", Plan.MAX_20X, 0), "five_hour")).toEqual({ units: 1, unknown: true });
-    const codex = create(ui.ProxyAccountSchema, { ...account("codex", Plan.PRO_500, 50), provider: "codex" });
-    const grok = create(ui.ProxyAccountSchema, { ...codex, provider: "xai", plan: Plan.ULTRA });
+    const grok = create(ui.ProxyAccountSchema, { ...codex("g", Plan.ULTRA, 0), provider: "xai" });
 
-    for (const value of [codex, grok, account("unknown", Plan.OTHER, 50)])
+    for (const value of [grok, account("unknown", Plan.OTHER, 50), account("claude", Plan.UNSPECIFIED, 50)])
       expect(proxyPlanWeight(value)).toEqual({ units: 1, unknown: true });
-    const group = proxyCapacityGroups([codex], now)[0]!;
+
+    const group = proxyCapacityGroups([codex("lite", Plan.PRO_100, 50), codex("max", Plan.PRO_500, 0)], now)[0]!;
     expect(group.windows).toHaveLength(1);
-    expect(group.windows[0]).toMatchObject({ total: 1, remaining: 0.5, unknown: 1 });
+    expect(group.windows[0]).toMatchObject({ total: 60, remaining: 55, unknown: 0 });
   });
 
   test("filters unsupported identities and combines cached connections into a provider indicator", () => {
@@ -114,17 +123,15 @@ describe("proxy subscription capacity", () => {
       proxy("two", [account("b", Plan.ULTRA, 0)]),
     ];
 
-    const glance = proxyCapacityGlance(proxies, [], now);
+    const glance = usageSummaryGlance(usageSummary([], proxies, now), now);
     expect(glance).toHaveLength(1);
     expect(glance[0]?.percent).toBeCloseTo(16.666666);
     expect(
-      proxyCapacityGlance(
-        proxies.map((p) => ({ ...p, usedBy: [] })),
+      usageSummary(
         [],
+        proxies.map((p) => ({ ...p, usedBy: [] })),
         now,
       ),
     ).toEqual([]);
-    expect(proxyCapacityGlance(proxies, [{ ...glance[0]!, percent: 95, tone: "danger" }], now)[0]?.percent).toBe(95);
-    expect(proxyCapacityGlance(proxies, [{ ...glance[0]!, tone: "extra" }], now)[0]?.tone).toBe("extra");
   });
 });

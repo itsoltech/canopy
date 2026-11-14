@@ -26,6 +26,7 @@ const AuthFile = Schema.Struct({
   label: Text,
   email: Text,
   account: Text,
+  account_type: Text,
   status: Text,
   status_message: Text,
   disabled: Flag,
@@ -129,15 +130,28 @@ export function proxyAccount(file: AuthFile, now = Date.now(), redact: Redact = 
   return create(ui.ProxyAccountSchema, {
     id: plainText(file.auth_index || file.id || file.name, 120, redact),
     provider: /^[a-z0-9_-]{1,32}$/.test(provider) ? provider : "other",
-    label: plainText(file.email || file.account || file.label || file.name, 120, redact),
+    // For API-key credentials CLIProxyAPI puts the key itself in `account`; it is never a label.
+    label: plainText(
+      file.email || (file.account_type === "api_key" ? "" : file.account) || file.label || file.name,
+      120,
+      redact,
+    ),
     status: status(file, retry, now),
     detail: plainText(file.refresh_error?.message || file.status_message, 160, redact),
     retryAt: retry && retry.getTime() > now ? timestampFromDate(retry) : undefined,
     windows: proxyUsageWindows(signals, observed, now),
-    plan: proxyAccountPlan(file, signals, redact),
+    plan: proxyAccountPlan(provider, file, signals, redact),
     successCount: count(file.success),
     failureCount: count(file.failed),
   });
+}
+
+/** The readable entries of an auth-files listing, capped; entries that do not decode are skipped. */
+export function proxyAccountsOf(files: readonly unknown[], now = Date.now(), redact: Redact = (text) => text) {
+  return files
+    .flatMap((value) => Option.toArray(decodeFile(value)))
+    .slice(0, MAX_ACCOUNTS)
+    .map((file) => proxyAccount(file, now, redact));
 }
 
 /** At most `max` bytes of a body; the rest is cancelled unread. `overflow` marks a body that was longer. */
@@ -216,14 +230,11 @@ export async function readProxyAccounts(
     const listing = await boundedListing(response);
 
     if (Option.isNone(listing)) return result(proxyId, "invalid_response");
-    const files = listing.value.files.flatMap((value) => Option.toArray(decodeFile(value)));
-    const now = Date.now();
-    const redact = secretRedactor([key, ...secrets]);
 
     return result(
       proxyId,
       "ok",
-      files.slice(0, MAX_ACCOUNTS).map((file) => proxyAccount(file, now, redact)),
+      proxyAccountsOf(listing.value.files, Date.now(), secretRedactor([key, ...secrets])),
       listing.value.files.length,
     );
   } catch {
