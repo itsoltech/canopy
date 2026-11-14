@@ -69,6 +69,7 @@
     "./provider-accounts": "./src/provider-accounts.ts",
     "./provider-usage": "./src/provider-usage.ts",
     "./proxy-accounts": "./src/proxy-accounts.ts",
+    "./proxy-capacity": "./src/proxy-capacity.ts",
     "./sidebar-usage": "./src/sidebar-usage.ts",
     "./update-checks": "./src/update-checks.ts",
     "./computers": "./src/computers.ts",

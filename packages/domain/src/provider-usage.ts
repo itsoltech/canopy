@@ -78,7 +78,7 @@ export function activeUsageWindows(snapshot: ProviderUsageSnapshot | undefined, 
   return snapshot?.windows.filter((w) => !w.resetsAt || timestampDate(w.resetsAt).getTime() > now) ?? [];
 }
 
-export function usageReset(window: ProviderUsageWindow, relative = false, now = Date.now()): string {
+export function usageReset(window: Pick<ProviderUsageWindow, "resetsAt">, relative = false, now = Date.now()): string {
   if (!window.resetsAt) return "";
   const date = timestampDate(window.resetsAt);
 

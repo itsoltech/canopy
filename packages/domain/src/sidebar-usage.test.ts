@@ -130,7 +130,11 @@ describe("sidebar usage overview projection", () => {
       create(ui.ProxyAccountsSchema, {
         state,
         total: 3,
-        accounts: [{ status: "active" }, { status: "cooling_down" }, { status: "disabled" }],
+        accounts: [
+          { provider: "claude", status: "active" },
+          { provider: "codex", status: "cooling_down" },
+          { provider: "grok", status: "disabled" },
+        ],
       });
 
     const proxies = [

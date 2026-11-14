@@ -4,6 +4,7 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import type { ui } from "@canopy/contracts";
 import { formatRelative } from "@canopy/domain/format";
 import { usageWindowName } from "@canopy/domain/provider-usage";
+import { supportedProxyAccounts, unsupportedProxyAccountText } from "@canopy/domain/proxy-capacity";
 import {
   proxyAccountLook,
   proxyAccountsHint,
@@ -61,6 +62,8 @@ export function ProxyAccounts({ proxy, onRefresh, busy }: { proxy: ui.Proxy; onR
   const c = useColors();
   const { client } = useSession();
   const accounts = proxy.accounts;
+  const supported = supportedProxyAccounts(accounts?.accounts ?? []);
+  const unsupported = (accounts?.accounts.length ?? 0) - supported.length;
   const hint = proxyAccountsHint(accounts, proxy.managementKeySet);
 
   useEffect(() => {
@@ -69,16 +72,18 @@ export function ProxyAccounts({ proxy, onRefresh, busy }: { proxy: ui.Proxy; onR
 
   return (
     <SettingsRow
-      title={accounts?.state === "ok" ? `Accounts · ${accounts.total}` : "Accounts"}
+      title={accounts?.state === "ok" ? `Accounts · ${supported.length}` : "Accounts"}
       description={
         hint ?? (accounts?.checkedAt ? `Checked ${formatRelative(accounts.checkedAt)}` : "Reading accounts…")
       }
     >
       <View style={{ gap: 8 }}>
-        {accounts?.state === "ok" &&
-          accounts.accounts.map((account) => <AccountRow key={account.id} account={account} />)}
-        {accounts?.state === "ok" && !accounts.accounts.length && (
+        {accounts?.state === "ok" && supported.map((account) => <AccountRow key={account.id} account={account} />)}
+        {accounts?.state === "ok" && !supported.length && !unsupported && (
           <Text style={[styles.chrome, { color: c.muted }]}>The proxy has no accounts yet.</Text>
+        )}
+        {accounts?.state === "ok" && unsupported > 0 && (
+          <Text style={[styles.chrome, { color: c.muted }]}>{unsupportedProxyAccountText(unsupported)}</Text>
         )}
       </View>
       {proxy.managementKeySet && (

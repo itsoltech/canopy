@@ -214,9 +214,9 @@ Web ukrywa tożsamości kont oraz komunikaty kont mogące zawierać login wspól
 komponentem `Sensitive`, tak samo jak adresy w Providers. Kliknięcie lub aktywacja
 klawiaturą odsłania wartość na 30 s; Escape ukrywa ją od razu. Rozmycie nie zmienia
 szerokości tekstu, a ukryta wartość nie trafia do tytułu ani etykiety dostępności.
-Popover **Provider usage** pokazuje konta używanych proxy pogrupowane według providera,
-ich limity (najbardziej wykorzystane najpierw), status inny niż Active oraz czas
-ostatniego sprawdzenia. Długa lista przewija się wewnątrz nakładki. Korzysta wyłącznie
+Popover **Provider usage** pokazuje pojemność używanych proxy pogrupowaną według providera,
+z rozwijaną listą kont, ich limitami (najbardziej wykorzystane najpierw), statusem innym
+niż Active oraz czasem ostatniego sprawdzenia. Długa lista przewija się wewnątrz nakładki. Korzysta wyłącznie
 ze wspólnego `ListProxies` aktualizowanego przez overview; otwarcie nie odpytuje proxy
 ani nie zakłada nowego timera.
 
@@ -232,13 +232,37 @@ jest nieznany: gateway odrzuca datę, a wspólny formatter ukrywa również star
 wartości cache przekraczające tę granicę. Sam odczyt wykorzystania pozostaje widoczny.
 
 Typ planu w `ProxyAccount.plan` to zamknięty enum: Free, Plus, Pro, Team, Business,
-Enterprise, Max, Max 5x, Max 20x, Ultra i Other. Brak danych nie tworzy etykiety.
+Enterprise, Max, Max 5x, Max 20x, Ultra, Pro 100/200/500, Premium, Super i Other.
+Brak danych lub niepotwierdzona waga otrzymuje oznaczenie Unknown plan.
 CLIProxyAPI udostępnia dla Codexa obiekt `id_token.plan_type` oraz nagłówek
 `x-codex-plan-type`; parser nie dekoduje JWT ani nie pobiera plików auth. Jawne pola
 `plan_type`, `chatgpt_plan_type`, `subscription_type`, `rate_limit_tier`, `tier`
 obsługują odpowiedzi, które je udostępniają. Standardowa lista CLIProxyAPI nie
 gwarantuje typu planu Claude, Grok ani Antigravity; nie zgadujemy go z nazwy konta.
 Do UI nie trafiają pozostałe claims ani dowolne teksty planów.
+
+Pojemność liczy `@canopy/domain/proxy-capacity`, osobno dla każdego okna: suma wag
+kont daje jednostki, a suma `waga × (1 − wykorzystanie)` daje dostępne jednostki.
+Jedna tabela wag wraz z datą i źródłami znajduje się w tym module. Nie wyliczamy
+mnożników z cen ani z podobnych nazw planów. Niepotwierdzona kombinacja planu,
+providera i okna liczy się jako ×1 i jest jawnie oznaczona. Dotyczy to również
+niejednoznacznego Pro Codexa oraz limitów API Groka: abonamentowy pool Groka nie
+jest limitem API. Dawne Max 20x Claude jest obecnie Ultra; nazwa ze źródła zostaje
+widoczna przy koncie, lecz waga tygodniowa odpowiada aktualnemu planowi.
+
+Brak pomiaru, brak procentu bez sygnału reached lub miniony reset wyklucza konto
+z mianownika danego okna. UI podaje liczbę raportujących kont. Wyłączone konta,
+wymagające logowania oraz ze statusem błędu lub nieznanym są wykluczone. Cooling
+down i osiągnięcie dowolnego aktualnego limitu zerują dostępną pojemność konta,
+zachowując jego jednostki w oknach, dla których istnieje odczyt. Nie tworzymy
+brakujących okien ani nie zakładamy, że reset sam potwierdził powrót dostępności.
+Ikona paska bocznego pokazuje skumulowane wykorzystanie według providera, łącząc
+konta z używanych proxy; dla bezpośrednich instancji zachowuje bardziej ograniczający
+odczyt. Przy limicie bez procentu samo reached oznacza zerową dostępność.
+
+Listy kont w Settings → Proxies i popoverze, ich podsumowania oraz agregacja
+obsługują wyłącznie Claude, Codex i Grok. Pozostałe konta nie ujawniają tożsamości
+ani abonamentów; zostaje jedynie liczba kont nieobsługiwanego providera.
 
 Źródła sprawdzone 2026-11-14:
 - [CLIProxyAPI: lista i oczyszczone claims](https://github.com/router-for-me/CLIProxyAPI/blob/e96d4c4818851cf0e96d27b2bc8b67379e449d9e/internal/api/handlers/management/auth_files.go),

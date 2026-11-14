@@ -6,6 +6,11 @@ const planNames = new Map<ui.ProxyAccountPlan, string>([
   [ui.ProxyAccountPlan.FREE, "Free"],
   [ui.ProxyAccountPlan.PLUS, "Plus"],
   [ui.ProxyAccountPlan.PRO, "Pro"],
+  [ui.ProxyAccountPlan.PRO_100, "Pro 100"],
+  [ui.ProxyAccountPlan.PRO_200, "Pro 200"],
+  [ui.ProxyAccountPlan.PRO_500, "Pro 500"],
+  [ui.ProxyAccountPlan.PREMIUM, "Premium"],
+  [ui.ProxyAccountPlan.SUPER, "Super"],
   [ui.ProxyAccountPlan.TEAM, "Team"],
   [ui.ProxyAccountPlan.BUSINESS, "Business"],
   [ui.ProxyAccountPlan.ENTERPRISE, "Enterprise"],
@@ -115,8 +120,10 @@ export function proxyUsageSections(proxies: readonly ui.Proxy[] | undefined): Pr
           {
             proxyId: proxy.id,
             label: proxy.name,
-            accountCount: proxy.accounts.total,
-            coolingDownCount: proxy.accounts.accounts.filter((a) => a.status === "cooling_down").length,
+            accountCount: proxy.accounts.accounts.filter((a) => marks.has(a.provider)).length,
+            coolingDownCount: proxy.accounts.accounts.filter(
+              (a) => marks.has(a.provider) && a.status === "cooling_down",
+            ).length,
           },
         ]
       : [],
