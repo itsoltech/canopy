@@ -200,9 +200,8 @@ export class CliTools {
 
     // Checked again after the (async) discovery: a turn may have started meanwhile.
     const resource = installResource(before, plan.recipe);
-    const waiting = [...this.#installing.values()]
-      .filter((item) => item.resource === resource)
-      .map((item) => item.done);
+
+    const waiting = [...this.#installing.values()].flatMap((item) => (item.resource === resource ? [item.done] : []));
 
     if (this.#options.busy(command.provider) > 0)
       throw new CliRefused("CLI_TURNS_RUNNING", `${spec.label} started a turn; try again when it finishes`);
