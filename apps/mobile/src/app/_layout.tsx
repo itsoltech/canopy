@@ -15,6 +15,7 @@ import { useReducedMotion } from "../ui/motion";
 import { DevicePreferencesProvider } from "../features/settings/device-preferences";
 import { InAppAlerts } from "../features/navigation/InAppAlerts";
 import { ConfirmHost } from "../ui/Confirm";
+import { OverlayLayer } from "../ui/overlay-stack";
 import { ToastHost } from "../ui/Toast";
 import { PhoneUpdatesProvider } from "../features/updates/phone";
 import { UpdatesProvider } from "../features/updates/state";
@@ -121,15 +122,17 @@ export default function Layout() {
   return (
     <SafeAreaProvider>
       <KeyboardWindow>
-        <PreferencesProvider>
-          <SessionProvider>
-            <DevicePreferencesProvider>
-              <WhatsNewProvider>
-                <SessionUI />
-              </WhatsNewProvider>
-            </DevicePreferencesProvider>
-          </SessionProvider>
-        </PreferencesProvider>
+        <OverlayLayer.Provider value={ConfirmHost}>
+          <PreferencesProvider>
+            <SessionProvider>
+              <DevicePreferencesProvider>
+                <WhatsNewProvider>
+                  <SessionUI />
+                </WhatsNewProvider>
+              </DevicePreferencesProvider>
+            </SessionProvider>
+          </PreferencesProvider>
+        </OverlayLayer.Provider>
       </KeyboardWindow>
     </SafeAreaProvider>
   );

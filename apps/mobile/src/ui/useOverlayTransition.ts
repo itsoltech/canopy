@@ -4,12 +4,20 @@ import { cancelAnimation, ReduceMotion, useSharedValue, withSpring, withTiming }
 import { scheduleOnRN } from "react-native-worklets";
 import { sheetSpring, useReducedMotion } from "./motion";
 
-/** The exit animation ends before the native modal dismisses; UIKit presentation must wait for both. */
-export function useOverlayTransition(visible: boolean, onDismiss?: () => void) {
+/** Native dismissal callbacks arrive within a frame or two; a lost one must not block later overlays. */
+const DISMISS_FALLBACK = 1000;
+
+/**
+ * The exit animation ends before the native modal dismisses; UIKit presentation must wait for both. `attached`
+ * stays true until the native modal is gone. `hold` keeps the native modal while overlays presented from it remain:
+ * UIKit would dismiss only the topmost one and leave this one on screen, invisible but catching every touch.
+ */
+export function useOverlayTransition(visible: boolean, onDismiss?: () => void, hold = false) {
   const progress = useSharedValue(0);
   const velocity = useSharedValue(0);
   const reduced = useReducedMotion();
   const [mounted, setMounted] = useState(visible);
+  const [attached, setAttached] = useState(visible);
   const [measured, setMeasured] = useState(false);
   const didLayout = useCallback(() => setMeasured(true), []);
   const current = useRef({ visible, onDismiss });
@@ -19,6 +27,10 @@ export function useOverlayTransition(visible: boolean, onDismiss?: () => void) {
   }, [visible, onDismiss]);
 
   if (visible && !mounted) setMounted(true);
+
+  const native = mounted || (hold && attached);
+
+  if (native && !attached) setAttached(true);
 
   if (!mounted && measured) setMeasured(false);
 
@@ -30,7 +42,10 @@ export function useOverlayTransition(visible: boolean, onDismiss?: () => void) {
   }, []);
 
   const didDismiss = useCallback(() => {
-    if (!dismissing.current || current.current.visible) return;
+    if (current.current.visible) return;
+    setAttached(false);
+
+    if (!dismissing.current) return;
     dismissing.current = false;
     current.current.onDismiss?.();
   }, []);
@@ -58,8 +73,15 @@ export function useOverlayTransition(visible: boolean, onDismiss?: () => void) {
   useEffect(() => {
     // RN only emits Modal.onDismiss on iOS. Android removes its unanimated Dialog in the native
     // commit when visible becomes false; invoke the action after that commit, never during exit.
-    if (Platform.OS !== "ios" && !mounted) didDismiss();
-  }, [mounted, didDismiss]);
+    if (Platform.OS !== "ios" && !native) didDismiss();
+  }, [native, didDismiss]);
 
-  return { progress, velocity, mounted, didDismiss, didLayout };
+  useEffect(() => {
+    if (native || !attached) return;
+    const timer = setTimeout(() => setAttached(false), DISMISS_FALLBACK);
+
+    return () => clearTimeout(timer);
+  }, [native, attached]);
+
+  return { progress, velocity, mounted, native, attached, didDismiss, didLayout };
 }
