@@ -1,37 +1,90 @@
 import { useState } from "react";
+import { Text } from "react-native";
 import { create } from "@bufbuild/protobuf";
 import { Provider, ui } from "@canopy/contracts";
-import { Button, Sheet } from "../../ui/components";
-import { SettingsActions, SettingsGroup, SettingsRow, SettingChoice } from "./SettingsGroup";
-import { ResourceState, confirmAction, useSettingsResource } from "./resource";
-import { providerName } from "../models/catalog";
-import { ProviderForm } from "./ProviderForm";
-import { ProviderWorker } from "./ProviderWorker";
-import { ProviderModels } from "./ProviderModels";
-import { MoveEnvironment } from "./MoveEnvironment";
+import { instanceName } from "@canopy/domain/provider-instances";
+import { useOverview } from "../../state/overview";
+import { Alert, Button, IconButton, Sheet } from "../../ui/components";
+import { styles, useColors } from "../../ui/theme";
+import { useTimeLabel } from "../../ui/time";
 import { useWorkerRecordOptions } from "../computers/worker-options";
-import { proxyThrough } from "./ProxyAccounts";
+import { providerName } from "../models/catalog";
+import { InstanceDetail } from "../providers/InstanceDetail";
+import { InstanceRow } from "../providers/InstanceRow";
+import { ConfigNoticesFor } from "./ConfigNoticesFor";
+import { ProviderForm } from "./ProviderForm";
+import { SettingChoice, SettingsGroup } from "./SettingsGroup";
+import { ResourceState, useSettingsResource } from "./resource";
 
+const keyOf = (instance: Pick<ui.ProviderInstance, "harness" | "id">) => `${instance.harness}:${instance.id}`;
+
+/** The overview's live account and plan usage over the listed instance (web: ProvidersState.updateUsage). */
+function live(instance: ui.ProviderInstance, workers: readonly ui.Worker[]): ui.ProviderInstance {
+  return create(ui.ProviderInstanceSchema, {
+    ...instance,
+    workers: instance.workers.map((on) => {
+      const current = workers
+        .find((w) => w.id === on.workerId)
+        ?.providerInstances.find((i) => i.harness === instance.harness && i.id === instance.id);
+
+      return current
+        ? create(ui.InstanceOnWorkerSchema, { ...on, usage: current.usage, account: current.account ?? on.account })
+        : on;
+    }),
+  });
+}
+
+/**
+ * Settings → Providers (web: settings/providers): instances defined once in the gateway and turned on per worker.
+ * The scope picks where changes apply; a row's switch turns the instance on or off there, the row opens its detail.
+ */
 export function ProviderSettings() {
+  const c = useColors();
+  const overview = useOverview();
+
   const resource = useSettingsResource("ListProviderInstances+ListWorkerRecords", async (api) => {
     const [instances, records] = await Promise.all([api.listProviderInstances({}), api.listWorkerRecords({})]);
 
     return { ...instances, ...records };
   });
 
-  const proxies = useSettingsResource("ListProxies", (api) => api.listProxies({}));
   const [scope, setScope] = useState("");
-  const [harness, setHarness] = useState(Provider.CODEX);
-  const [editing, setEditing] = useState<ui.ProviderInstance | "new">();
-  const [selected, setSelected] = useState<ui.ProviderInstance>();
-  const changed = () => void resource.reload();
+  const [selectedKey, setSelected] = useState<string>();
+  const [adding, setAdding] = useState(false);
+  const [toggling, setToggling] = useState<string>();
+  const [refresh, setRefresh] = useState<{ busy: boolean; checked: boolean; skipped: string[] }>();
+  const minute = useTimeLabel((time) => String(Math.floor(time / 60_000)), true);
+  const now = Number(minute) * 60_000;
   const workerOptions = useWorkerRecordOptions(resource.data?.records ?? []);
+  const worker = overview.workers.find((w) => w.id === scope);
+  const changed = () => void resource.reload();
 
-  const instances =
+  const instances = (
     resource.data?.instances ??
     (resource.initialLoading
-      ? [create(ui.ProviderInstanceSchema, { id: "native", label: " ", harness, builtIn: true })]
-      : []);
+      ? [create(ui.ProviderInstanceSchema, { id: "native", label: " ", harness: Provider.CODEX, builtIn: true })]
+      : [])
+  ).map((instance) => live(instance, overview.workers));
+
+  const selected = instances.find((i) => keyOf(i) === selectedKey);
+
+  async function refreshAll() {
+    setRefresh({ busy: true, checked: false, skipped: [] });
+    const result = await resource.run((api) => api.refreshProviders({ workerId: scope }));
+    setRefresh({ busy: false, checked: !!result, skipped: result?.skipped ?? [] });
+  }
+
+  async function toggle(instance: ui.ProviderInstance, enabled: boolean) {
+    setToggling(keyOf(instance));
+    await resource.run<unknown>(
+      (api) =>
+        worker
+          ? api.setInstanceWorker({ harness: instance.harness, id: instance.id, workerId: worker.id, enabled })
+          : api.setInstanceWorkers({ harness: instance.harness, id: instance.id, allWorkers: enabled, workerIds: [] }),
+      `${instanceName(instance)} turned ${enabled ? "on" : "off"} on ${worker?.name ?? "all workers"}`,
+    );
+    setToggling(undefined);
+  }
 
   return (
     <ResourceState resource={resource}>
@@ -41,96 +94,95 @@ export function ProviderSettings() {
         onChange={setScope}
         options={[{ value: "", label: "All workers" }, ...workerOptions]}
       />
-      <Button
-        title="Refresh providers"
-        busy={resource.busy}
-        onPress={() => void resource.run((api) => api.refreshProviders({ workerId: scope }))}
+      <ConfigNoticesFor
+        match={(n) => n.kind === "instance" && n.field === "deleted" && !n.localId}
+        onChanged={changed}
       />
-      <SettingChoice
-        title="Agent"
-        value={harness}
-        onChange={setHarness}
-        options={[Provider.CLAUDE, Provider.CODEX, Provider.GROK].map((value) => ({
-          value,
-          label: providerName(value),
-        }))}
-      />
+      {refresh?.skipped.length ? <Alert tone="info">Not checked: {refresh.skipped.join("; ")}</Alert> : null}
+      {worker && !worker.online ? (
+        <Alert tone="info">{worker.name} is offline. Changes are saved and reach it when it connects.</Alert>
+      ) : null}
       <SettingsGroup
-        title="Provider instances"
-        actions={<Button variant="primary" title="Add instance" onPress={() => setEditing("new")} />}
+        title="Providers"
+        description={refresh?.busy ? "Checking…" : refresh?.checked ? "Checked just now" : undefined}
+        actions={
+          <>
+            <IconButton
+              icon="arrow-path"
+              label="Refresh providers"
+              busy={refresh?.busy}
+              onPress={() => void refreshAll()}
+            />
+            <Button icon="plus" title="Add" label="Add provider" onPress={() => setAdding(true)} />
+          </>
+        }
       >
-        {instances
-          .filter((i) => i.harness === harness)
-          .map((instance) => (
-            <SettingsRow
-              key={instance.id}
-              title={instance.label || instance.id}
-              description={[
-                `${providerName(instance.harness)} · ${instance.id} · ${instance.workers.filter((w) => w.enabled).length} ${instance.workers.filter((w) => w.enabled).length === 1 ? "worker" : "workers"}`,
-                proxyThrough(instance, proxies.data?.proxies),
-              ]
-                .filter(Boolean)
-                .join("\n")}
-            >
-              <SettingsActions>
-                {!scope && <MoveEnvironment instance={instance} onSaved={changed} />}
-                <Button
-                  title={scope ? "Edit worker settings" : "Edit definition"}
-                  onPress={() => (scope ? setSelected(instance) : setEditing(instance))}
-                />
-                {!scope &&
-                  (resource.initialLoading ? (
-                    <Button title="Manage models" disabled onPress={changed} />
-                  ) : (
-                    <ProviderModels instance={instance} onChanged={changed} />
-                  ))}
-                {!instance.builtIn && !scope && (
-                  <Button
-                    variant="danger"
-                    title="Delete instance"
-                    disabled={resource.busy || instance.threadCount > 0}
-                    onPress={() =>
-                      confirmAction(
-                        "Delete instance",
-                        "Threads keep their saved instance. Remove unused instances only.",
-                        () =>
-                          void resource.run((api) =>
-                            api.deleteProviderInstance({
-                              harness: instance.harness,
-                              id: instance.id,
-                              expectedRevision: instance.revision,
-                            }),
-                          ),
-                      )
-                    }
-                  />
-                )}
-              </SettingsActions>
-            </SettingsRow>
-          ))}
-        {resource.data && !resource.data.instances.some((i) => i.harness === harness) && (
-          <SettingsRow title="No instances for this agent yet" />
-        )}
+        {instances.map((instance) => (
+          <InstanceRow
+            key={keyOf(instance)}
+            instance={instance}
+            worker={worker}
+            busy={toggling === keyOf(instance)}
+            disabled={resource.busy}
+            onSelect={() => setSelected(keyOf(instance))}
+            onToggle={(enabled) => void toggle(instance, enabled)}
+          />
+        ))}
+        {resource.data && !instances.length ? (
+          <Text style={[styles.chrome, { color: c.muted }]}>No provider instances yet.</Text>
+        ) : null}
       </SettingsGroup>
       <Sheet
-        title={editing === "new" ? "Add instance" : "Edit definition"}
-        visible={!!editing}
-        onClose={() => setEditing(undefined)}
+        title={selected ? instanceName(selected) : "Provider"}
+        visible={!!selected}
+        onClose={() => setSelected(undefined)}
       >
-        {editing && (
-          <ProviderForm
-            harness={harness}
-            instance={editing === "new" ? undefined : editing}
-            onSaved={() => {
-              setEditing(undefined);
-              changed();
-            }}
+        {selected && (
+          <InstanceDetail
+            key={`${keyOf(selected)}:${scope}`}
+            instance={selected}
+            worker={worker}
+            workers={overview.workers}
+            workerOptions={workerOptions.map((o) => ({ id: o.value, name: o.label }))}
+            now={now}
+            busy={resource.busy}
+            run={resource.run}
+            onChanged={changed}
           />
         )}
       </Sheet>
-      <Sheet title="Worker provider settings" visible={!!selected} onClose={() => setSelected(undefined)}>
-        {selected && <ProviderWorker instance={selected} workerId={scope} onChanged={changed} />}
-      </Sheet>
+      <AddProvider visible={adding} onClose={() => setAdding(false)} onAdded={changed} />
     </ResourceState>
+  );
+}
+
+/** A new instance: its agent first, then the definition and where it runs (web: AddInstanceDialog). */
+function AddProvider({ visible, onClose, onAdded }: { visible: boolean; onClose: () => void; onAdded: () => void }) {
+  const [harness, setHarness] = useState(Provider.CODEX);
+
+  return (
+    <Sheet title="Add provider" visible={visible} onClose={onClose}>
+      {visible && (
+        <>
+          <SettingChoice
+            title="Agent"
+            value={harness}
+            onChange={setHarness}
+            options={[Provider.CLAUDE, Provider.CODEX, Provider.GROK].map((value) => ({
+              value,
+              label: providerName(value),
+            }))}
+          />
+          <ProviderForm
+            key={harness}
+            harness={harness}
+            onSaved={() => {
+              onClose();
+              onAdded();
+            }}
+          />
+        </>
+      )}
+    </Sheet>
   );
 }

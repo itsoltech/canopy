@@ -1,16 +1,12 @@
 <script lang="ts" module>
-  import type { ProviderAccountStatus } from "@canopy/contracts";
-
-  /** False when the harness has nothing to say about the account (Grok, a missing CLI): the row stays empty. */
-  export function hasAccountStatus(account: ProviderAccountStatus | undefined): boolean {
-    return !!account && (account.state !== "unknown" || !!account.authMethod || !!account.detail);
-  }
+  export { hasAccountStatus } from "@canopy/domain/provider-instances";
 </script>
 
 <script lang="ts">
   import { onMount } from "svelte";
   import { timestampDate } from "@bufbuild/protobuf/wkt";
-  import { Provider } from "@canopy/contracts";
+  import { Provider, type ProviderAccountStatus } from "@canopy/contracts";
+  import { accountStateLabel, hasAccountStatus } from "@canopy/domain/provider-instances";
   import { ACCOUNT_ACTION_LABELS, accountAction, providerLoginCommand } from "@canopy/domain/provider-accounts";
   import Sensitive from "#lib/shared/ui/Sensitive.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -55,21 +51,7 @@
   const warn = $derived(expired || account?.state === "signed_out" || account?.state === "error");
   const actionLabel = $derived(ACCOUNT_ACTION_LABELS[accountAction(account, now)]);
 
-  const statusLabel = $derived(
-    rejected
-      ? "Sign-in expired"
-      : expired
-        ? "Expired"
-        : account?.state === "signed_in"
-          ? "Signed in"
-          : account?.state === "stored"
-            ? "Login saved"
-            : account?.state === "signed_out"
-              ? "Not signed in"
-              : account?.state === "error"
-                ? "Check failed"
-                : "",
-  );
+  const statusLabel = $derived(accountStateLabel(account, now));
 
   // The separator belongs to the item after it, so a wrapped line never ends with a lone dot.
   const sep = "before:mr-1.5 before:text-zinc-400 before:content-['·'_/_''] dark:before:text-zinc-500";

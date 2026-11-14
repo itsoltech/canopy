@@ -1,11 +1,19 @@
 import { useState } from "react";
 import { Provider, ProviderProfileKind, type ui } from "@canopy/contracts";
 import { Button, Field } from "../../ui/components";
-import { SettingsGroup, SettingChoice, SettingToggle } from "./SettingsGroup";
-import { SettingsValue } from "./SettingsValue";
+import { SettingsActions, SettingsGroup, SettingChoice, SettingToggle } from "./SettingsGroup";
+import { MoveEnvironment } from "./MoveEnvironment";
+import { ProxyPicker } from "../providers/ProxyPicker";
 import { SettingAccess } from "./SettingAccess";
 import { ResourceState, useSettingsResource } from "./resource";
 import { EnvironmentFields, environmentDrafts, environmentInput } from "./EnvironmentFields";
+
+const deviceLoginText = (harness: Provider) =>
+  harness === Provider.GROK
+    ? "Grok CLI's login on the device (grok login), or XAI_API_KEY in its variables."
+    : harness === Provider.CODEX
+      ? "Use the device's login or sign in here."
+      : "Claude Code's login on the device (or a key in its variables).";
 
 function useProviderForm({
   instance,
@@ -16,11 +24,7 @@ function useProviderForm({
   harness: Provider;
   onSaved: () => void;
 }) {
-  const resource = useSettingsResource("ListProxies+ListWorkerRecords", async (api) => {
-    const [proxies, records] = await Promise.all([api.listProxies({}), api.listWorkerRecords({})]);
-
-    return { ...proxies, ...records };
-  });
+  const resource = useSettingsResource("ListWorkerRecords", (api) => api.listWorkerRecords({}));
 
   const [id, setId] = useState(instance?.id ?? "");
   const [label, setLabel] = useState(instance?.label ?? "");
@@ -53,11 +57,10 @@ function useProviderForm({
         env: environmentInput(env),
         runtime: { ...runtime, launchArgs: runtime.launchArgs.split("\n").filter(Boolean) },
         expectedRevision: instance?.revision ?? 0n,
-        allWorkers,
-        workerIds,
+        // Editing: where it runs is chosen in the Status section and saved there.
+        allWorkers: instance ? instance.allWorkers : allWorkers,
+        workerIds: instance ? instance.workers.filter((w) => w.enabled).map((w) => w.workerId) : workerIds,
       });
-
-      if (instance) await api.setInstanceWorkers({ harness, id, allWorkers, workerIds });
 
       return saved;
     });
@@ -95,10 +98,12 @@ export function ProviderForm({
   instance,
   harness,
   onSaved,
+  onDiscard,
 }: {
   instance?: ui.ProviderInstance;
   harness: Provider;
   onSaved: () => void;
+  onDiscard?: () => void;
 }) {
   const {
     resource,
@@ -134,7 +139,7 @@ export function ProviderForm({
         setAccent={setAccent}
         editing={!!instance}
       />
-      <SettingsGroup title="Connection">
+      <SettingsGroup title="Connection" description="Applies from the next turn. Threads keep their sessions.">
         <SettingChoice
           title="Connection"
           value={kind}
@@ -142,30 +147,9 @@ export function ProviderForm({
           onChange={setKind}
           options={[
             { value: ProviderProfileKind.CLIPROXYAPI, label: "Proxy", description: "A saved compatible connection." },
-            {
-              value: ProviderProfileKind.NATIVE,
-              label: "Device login",
-              description: "Use the CLI login on the worker.",
-            },
+            { value: ProviderProfileKind.NATIVE, label: "Device login", description: deviceLoginText(harness) },
           ]}
         />
-        {kind === ProviderProfileKind.CLIPROXYAPI && (
-          <SettingChoice
-            title="Proxy"
-            value={proxyId}
-            onChange={setProxy}
-            options={[
-              { value: "", label: "Choose proxy" },
-              ...(resource.data?.proxies
-                .filter(
-                  (p) =>
-                    p.kind === "cliproxyapi" ||
-                    (harness === Provider.CLAUDE ? p.kind === "anthropic" : p.kind === "openai"),
-                )
-                .map((p) => ({ value: p.id, label: p.name, description: p.baseUrl })) ?? []),
-            ]}
-          />
-        )}
         {harness === Provider.CODEX && kind === ProviderProfileKind.NATIVE && (
           <SettingToggle
             title="Own login"
@@ -175,29 +159,42 @@ export function ProviderForm({
           />
         )}
       </SettingsGroup>
+      {kind === ProviderProfileKind.CLIPROXYAPI && (
+        <ProxyPicker harness={harness} value={proxyId} onChange={setProxy} />
+      )}
       <ProviderRuntime runtime={runtime} onChange={setRuntime} harness={harness} />
-      <EnvironmentFields value={env} onChange={setEnv} />
-      <SettingsGroup>
-        <SettingAccess
-          title="Workers"
-          description="The instance runs only on the chosen workers."
-          options={(resource.data?.records ?? []).map((w) => ({ id: w.workerId, name: w.name }))}
-          all={allWorkers}
-          ids={workerIds}
-          onChange={(next) => {
-            setAll(next.all);
-            setWorkers(next.all ? [] : [...next.ids]);
-          }}
-        />
+      <SettingsGroup
+        title="Environment"
+        description="Variables of the harness process. A secret is stored encrypted and never shown again."
+      >
+        {instance ? <MoveEnvironment instance={instance} onSaved={onSaved} /> : null}
+        <EnvironmentFields value={env} onChange={setEnv} />
       </SettingsGroup>
-      <SettingsValue title="Saved key" value={instance?.apiKeySet ? "Set · write-only" : "Not set"} />
-      <Button
-        variant="primary"
-        title={instance ? "Save definition" : "Add instance"}
-        busy={resource.busy}
-        disabled={!id.trim() || (kind === ProviderProfileKind.CLIPROXYAPI && !proxyId)}
-        onPress={() => void save()}
-      />
+      {!instance && (
+        <SettingsGroup>
+          <SettingAccess
+            title="Workers"
+            description="The instance runs only on the chosen workers."
+            options={(resource.data?.records ?? []).map((w) => ({ id: w.workerId, name: w.name }))}
+            all={allWorkers}
+            ids={workerIds}
+            onChange={(next) => {
+              setAll(next.all);
+              setWorkers(next.all ? [] : [...next.ids]);
+            }}
+          />
+        </SettingsGroup>
+      )}
+      <SettingsActions>
+        {onDiscard ? <Button variant="ghost" title="Discard changes" onPress={onDiscard} /> : null}
+        <Button
+          variant="primary"
+          title={instance ? "Save for all workers" : "Add instance"}
+          busy={resource.busy}
+          disabled={!id.trim() || (kind === ProviderProfileKind.CLIPROXYAPI && !proxyId)}
+          onPress={() => void save()}
+        />
+      </SettingsActions>
     </ResourceState>
   );
 }
@@ -260,7 +257,7 @@ function ProviderRuntime({
   harness: Provider;
 }) {
   return (
-    <SettingsGroup title="Runtime">
+    <SettingsGroup title="Runtime" description="For every worker; a worker can override paths for its system.">
       <Field
         label="CLI path"
         value={runtime.binaryPath}

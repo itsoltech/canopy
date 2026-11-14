@@ -1,111 +1,101 @@
-import { useEffect } from "react";
-import { Text, View } from "react-native";
-import { timestampDate } from "@bufbuild/protobuf/wkt";
+import { useEffect, useState } from "react";
+import { StyleSheet, Text, View } from "react-native";
 import type { ui } from "@canopy/contracts";
 import { formatRelative } from "@canopy/domain/format";
-import { usageWindowName } from "@canopy/domain/provider-usage";
+import { proxyAccountsHint } from "@canopy/domain/proxy-accounts";
 import { supportedProxyAccounts, unsupportedProxyAccountText } from "@canopy/domain/proxy-capacity";
-import {
-  proxyAccountLook,
-  proxyAccountsHint,
-  proxyAccountsSummary,
-  proxyProviderName,
-} from "@canopy/domain/proxy-accounts";
 import { useSession } from "../../state/session";
-import { Button } from "../../ui/components";
-import { styles, useColors } from "../../ui/theme";
-import { useTone } from "../../ui/tone";
-import { SettingsActions, SettingsRow } from "./SettingsGroup";
-
-const percent = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
-
-/** The limits the proxy last saw, in words: "5-hour 42% · Weekly 7%". */
-const limits = (account: ui.ProxyAccount) =>
-  account.windows
-    .map(
-      (w) =>
-        `${usageWindowName(w.key, w.windowMinutes)} ${w.usedPercent === undefined ? "" : `${percent.format(w.usedPercent)}%`}`,
-    )
-    .join(" · ");
-
-function AccountRow({ account }: { account: ui.ProxyAccount }) {
-  const c = useColors();
-  const look = proxyAccountLook(account.status);
-  const tone = useTone(look.tone).text;
-
-  const until = account.retryAt
-    ? `Until ${timestampDate(account.retryAt).toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" })}`
-    : "";
-
-  const details = [limits(account), until, account.detail].filter(Boolean).join(" · ");
-
-  return (
-    <View style={{ gap: 2 }}>
-      <Text style={[styles.chrome, { color: c.text }]} numberOfLines={1}>
-        {proxyProviderName(account.provider)} · {account.label || "Unnamed account"} ·{" "}
-        <Text style={{ color: tone }}>{look.label}</Text>
-      </Text>
-      {details ? (
-        <Text style={[styles.chrome, { color: c.muted }]} numberOfLines={2}>
-          {details}
-        </Text>
-      ) : null}
-    </View>
-  );
-}
+import { Button, Notice } from "../../ui/components";
+import { font, styles, useColors } from "../../ui/theme";
+import { useTimeLabel } from "../../ui/time";
+import { ProxyAccountRow } from "../proxies/ProxyAccountRow";
 
 /**
- * A CLIProxyAPI proxy's upstream accounts, read-only (web: ProxyAccounts). Opening the screen asks the gateway once;
- * a read under a minute old answers without calling the proxy. Changes arrive with the overview stream.
+ * The upstream accounts of a CLIProxyAPI proxy (web: ProxyAccounts), read by the gateway with the stored management
+ * key. Opening the card asks once (a read under a minute old answers without calling the proxy); Refresh reads now.
+ * Later changes arrive with the overview stream.
  */
-export function ProxyAccounts({ proxy, onRefresh, busy }: { proxy: ui.Proxy; onRefresh: () => void; busy: boolean }) {
+export function ProxyAccounts({ proxy, onRead }: { proxy: ui.Proxy; onRead: () => void }) {
   const c = useColors();
   const { client } = useSession();
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState("");
+  const minute = useTimeLabel((now) => String(Math.floor(now / 60_000)), true);
+  const now = Number(minute) * 60_000;
   const accounts = proxy.accounts;
   const supported = supportedProxyAccounts(accounts?.accounts ?? []);
   const unsupported = (accounts?.accounts.length ?? 0) - supported.length;
   const hint = proxyAccountsHint(accounts, proxy.managementKeySet);
+  const meta = [styles.workMeta, { color: c.muted }];
 
   useEffect(() => {
     if (proxy.managementKeySet && proxy.id) void client?.api.refreshProxyAccounts({ id: proxy.id }).catch(() => {});
   }, [client, proxy.id, proxy.managementKeySet]);
 
+  async function refresh() {
+    if (!client) return;
+    setBusy(true);
+    setFailure("");
+
+    try {
+      await client.api.refreshProxyAccounts({ id: proxy.id, force: true });
+      onRead();
+    } catch {
+      setFailure("Could not read the proxy's accounts. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
-    <SettingsRow
-      title={accounts?.state === "ok" ? `Accounts · ${supported.length}` : "Accounts"}
-      description={
-        hint ?? (accounts?.checkedAt ? `Checked ${formatRelative(accounts.checkedAt)}` : "Reading accounts…")
-      }
-    >
-      <View style={{ gap: 8 }}>
-        {accounts?.state === "ok" && supported.map((account) => <AccountRow key={account.id} account={account} />)}
-        {accounts?.state === "ok" && !supported.length && !unsupported && (
-          <Text style={[styles.chrome, { color: c.muted }]}>The proxy has no accounts yet.</Text>
-        )}
-        {accounts?.state === "ok" && unsupported > 0 && (
-          <Text style={[styles.chrome, { color: c.muted }]}>{unsupportedProxyAccountText(unsupported)}</Text>
-        )}
+    <View style={{ gap: 8, minWidth: 0 }}>
+      <View style={[styles.row, { justifyContent: "space-between" }]}>
+        <Text accessibilityRole="header" style={[styles.chrome, { fontFamily: font.medium, color: c.text }]}>
+          Accounts
+          {accounts?.state === "ok" ? (
+            <Text style={{ fontFamily: font.regular, color: c.muted }}>{` · ${supported.length}`}</Text>
+          ) : null}
+        </Text>
+        {proxy.managementKeySet ? (
+          <Button
+            size="sm"
+            icon="arrow-path"
+            title="Refresh"
+            label="Refresh accounts"
+            busy={busy}
+            onPress={() => void refresh()}
+          />
+        ) : null}
       </View>
-      {proxy.managementKeySet && (
-        <SettingsActions>
-          <Button title="Refresh accounts" busy={busy} onPress={onRefresh} />
-        </SettingsActions>
+      {hint ? <Text style={[styles.chrome, { color: c.muted }]}>{hint}</Text> : null}
+      {failure ? <Notice error>{failure}</Notice> : null}
+      {accounts?.state === "ok" && supported.length > 0 && (
+        <View
+          accessibilityLabel={`Accounts of ${proxy.name}`}
+          style={{ borderWidth: 1, borderColor: c.ring, borderRadius: 10, paddingHorizontal: 12 }}
+        >
+          {supported.map((account, index) => (
+            <View
+              key={account.id}
+              style={{ borderTopWidth: index ? StyleSheet.hairlineWidth : 0, borderColor: c.ring }}
+            >
+              <ProxyAccountRow account={account} now={now} />
+            </View>
+          ))}
+        </View>
       )}
-    </SettingsRow>
+      {accounts?.state === "ok" && supported.length > 0 && accounts.total > accounts.accounts.length && (
+        <Text style={meta}>
+          Showing {accounts.accounts.length} of {accounts.total}.
+        </Text>
+      )}
+      {accounts?.state === "ok" && !supported.length && !unsupported && (
+        <Text style={[styles.chrome, { color: c.muted }]}>The proxy has no accounts yet.</Text>
+      )}
+      {accounts?.state === "ok" && unsupported > 0 && (
+        <Text style={meta}>{unsupportedProxyAccountText(unsupported)}</Text>
+      )}
+      {accounts?.checkedAt ? <Text style={meta}>Checked {formatRelative(accounts.checkedAt)}</Text> : null}
+    </View>
   );
-}
-
-/** "Through <proxy> · 2 Codex accounts · 1 cooling down" for a proxy-backed instance. */
-export function proxyThrough(instance: ui.ProviderInstance, proxies: readonly ui.Proxy[] | undefined) {
-  const proxy = proxies?.find((p) => p.id === instance.proxyId);
-
-  if (!proxy) return "";
-
-  const summary =
-    proxy.kind === "cliproxyapi"
-      ? (proxyAccountsSummary(proxy.accounts, instance.harness) ??
-        proxyAccountsHint(proxy.accounts, proxy.managementKeySet))
-      : undefined;
-
-  return [`Through ${proxy.name}`, summary].filter(Boolean).join(" · ");
 }

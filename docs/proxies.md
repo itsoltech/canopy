@@ -207,7 +207,9 @@ providera, kontem, odznaką statusu, limitami (te same mierniki co limity planu)
 cooldownu i komunikatem, plus **Refresh**. Bez klucza albo przy błędzie zostaje jedna
 krótka podpowiedź. W Settings → Providers instancja z proxy pokazuje „Through <proxy>”
 z podsumowaniem kont tego harnessu (np. „2 Codex accounts · 1 cooling down”) i linkiem
-do karty proxy, zamiast mierników planu. Mobile pokazuje to samo tylko do odczytu.
+do karty proxy, zamiast mierników planu. Mobile ma tę samą strukturę, informacje, stany
+i akcje (karta proxy, management key, Test connection, Refresh, picker proxy w instancji
+i nadpisaniu workera).
 Wspólne etykiety i podsumowanie: `@canopy/domain/proxy-accounts`.
 
 Web ukrywa tożsamości kont oraz komunikaty kont mogące zawierać login wspólnym
@@ -219,6 +221,14 @@ z rozwijaną listą kont, ich limitami (najbardziej wykorzystane najpierw), stat
 niż Active oraz czasem ostatniego sprawdzenia. Długa lista przewija się wewnątrz nakładki. Korzysta wyłącznie
 ze wspólnego `ListProxies` aktualizowanego przez overview; otwarcie nie odpytuje proxy
 ani nie zakłada nowego timera.
+
+Mobile (`apps/mobile/src/ui/Sensitive.tsx`) nie renderuje ukrytej wartości wcale: zamiast
+rozmycia pokazuje kropkę za każdy znak (spacje zostają), więc zrzut ekranu, udostępnianie
+ekranu ani drzewo dostępności nie widzą tekstu; etykieta mówi „… hidden”. Dotknięcie odsłania
+na 30 s, drugie ukrywa; wyjście aplikacji z pierwszego planu, nowa wartość i odmontowanie
+ukrywają od razu. Host w URL proxy jest zamaskowany, schemat i ścieżka zostają. Arkusz
+**Provider usage** w stopce szuflady pokazuje te same sekcje co popover web, bez natywnych
+modułów.
 
 Okna Codexa są nazywane według `window-minutes`, nigdy według pozycji primary/secondary:
 300 → 5-hour, 1440 → Daily, 10080 → Weekly, 43200 → Monthly; inne dodatnie okresy
