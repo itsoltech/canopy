@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { File } from "expo-file-system";
 import * as Crypto from "expo-crypto";
 import type { ui } from "@canopy/contracts";
+import { attachmentPreviewKind } from "@canopy/domain/attachment-preview";
 import { useSession } from "../../state/session";
 import { useAppearance } from "../../state/appearance";
 import { attachmentKind, type AttachmentKind } from "./attachment-display";
@@ -148,7 +149,7 @@ export function useAttachmentDraft(
         { timeoutMs: 120_000 },
       );
 
-      patch(key, { attachment: result.attachment });
+      patch(key, { attachment: result.attachment, kind: uploadedKind(result.attachment, file.kind) });
     } catch {
       patch(key, { error: "Could not upload. Remove it and try again." });
     }
@@ -231,9 +232,15 @@ function preparedFile(attachment: ui.Attachment, rows: DraftFile[], max: typeof 
     key: Crypto.randomUUID(),
     name: attachment.name,
     size: Number(attachment.sizeBytes),
-    kind: "file",
+    kind: uploadedKind(attachment, "file"),
     attachment,
   };
+}
+
+function uploadedKind(attachment: ui.Attachment | undefined, fallback: AttachmentKind): AttachmentKind {
+  if (!attachment) return fallback;
+
+  return attachmentPreviewKind(attachment) === "video" ? "video" : attachment.kind === "image" ? "image" : "file";
 }
 
 async function read(picked: Picked) {

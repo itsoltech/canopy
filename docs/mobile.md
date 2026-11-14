@@ -1659,9 +1659,24 @@ nie dodajemy natywnego generatora miniatur. Rodzaj `video` w szkicu opisuje wyb�
 pickera; upload nadal przesyła nazwę i bajty, a gateway niezależnie rozpoznaje
 kontener i zapisuje `kind = video`. Wysłane filmy mają plakat rastrowy z gatewaya,
 ikonę i znany czas. Plakat używa istniejącego przypiętego transportu i cache obrazów;
-pełny film nie trafia do cache obrazów. Przeglądarka pokazuje Play on a computer
-i Share video (iOS) lub Save video (Android); bajty eksportu pobiera dopiero akcja.
-Ta warstwa nie zmienia fingerprintu ani modułów natywnych; player jest osobną zmianą.
+pełny film nie trafia do cache obrazów. Przeglądarka używa `expo-video` z natywnymi
+kontrolkami odtwarzania, przewijania i pełnego ekranu. Start wymaga Play video,
+dźwięk jest początkowo wyciszony. Zamknięcie, utrata focusu trasy lub przejście aplikacji
+w tło zatrzymuje film. Wejście przeglądarki korzysta z istniejącego ograniczenia ruchu.
+Share video (iOS) lub Save video (Android) pobiera oryginał dopiero po wybraniu akcji.
+
+Natywny player nie dostaje tokenu urządzenia ani adresu gatewaya: lokalny moduł
+`canopy-media-stream` wiąże efemeryczny listener wyłącznie z `127.0.0.1` i losową
+ścieżką dostępu, ważną przez czas otwarcia przeglądarki, do 15 minut bezczynności.
+Każdy GET/HEAD i seek przechodzi przez istniejący przypięty transport `getAttachment`,
+z zachowaniem owner scope i routingu linked computers. Odczyty mają po 256 KiB,
+backpressure i anulowanie przy zamknięciu; maksymalnie cztery połączenia.
+Bridge nie loguje URL ani danych uwierzytelnienia. Android dopuszcza HTTP wyłącznie
+dla loopback; istniejący jawny `CANOPY_DEV_HTTP` nadal dotyczy buildów deweloperskich.
+Dodanie playera i bridge zmienia fingerprint oraz runtime (`policy: fingerprint`),
+więc wymaga nowego buildu natywnego. Nie wolno dostarczać tej zmiany przez OTA
+do poprzednich binarek. Starszy komputer bez odczytów zakresowych wymaga aktualizacji
+albo eksportu filmu do innej aplikacji.
 Pozostałe pliki pokazują ikonę formatu (PDF, archiwum, kod, tekst, arkusz, audio lub plik),
 nazwę i rozmiar. Format wynika z MIME i rozszerzenia. Wysokość wiersza jest stała, nazwy
 skracają się z zachowaniem końcówki, a przycisk usuwania ma cel 32 × 56 dp i usuwa też

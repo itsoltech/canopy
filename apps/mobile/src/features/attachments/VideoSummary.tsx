@@ -8,7 +8,7 @@ import { Button } from "../../ui/Button";
 import { styles, useColors } from "../../ui/theme";
 import { exportFile } from "./export-file";
 import { attachmentFailure } from "./failure";
-import { VideoPoster } from "./VideoPoster";
+import { NativeVideo } from "./NativeVideo";
 
 export function VideoSummary({ file, onClose }: { file: ui.Attachment; onClose: () => void }) {
   const { client } = useSession();
@@ -48,10 +48,7 @@ export function VideoSummary({ file, onClose }: { file: ui.Attachment; onClose: 
       }
     >
       <View style={{ padding: 16, gap: 12 }}>
-        <View style={{ height: 180, borderRadius: 8, overflow: "hidden" }}>
-          <VideoPoster file={file} />
-        </View>
-        <Text style={[styles.body, { color: c.text }]}>Play on a computer</Text>
+        <NativeVideo file={file} />
         <Text style={[styles.caption, { color: c.muted }]}>
           {[formatSize(file.sizeBytes), formatVideoDuration(file.durationMs)].filter(Boolean).join(" · ")}
         </Text>

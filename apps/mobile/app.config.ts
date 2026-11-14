@@ -51,6 +51,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
   },
   plugins: [
+    "./plugins/media-network.cjs",
+    ["expo-video", { supportsBackgroundPlayback: false, supportsPictureInPicture: false }],
     ...(config.plugins ?? []).filter((plugin) => !(Array.isArray(plugin) && plugin[0] === "expo-splash-screen")),
     [
       "expo-splash-screen",
