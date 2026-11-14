@@ -97,7 +97,7 @@
       aria-label="Thread details"
       class={[
         "t-summary pointer-events-auto absolute top-0 right-0 flex w-full flex-col overflow-hidden rounded-xl bg-white ring-1 ring-zinc-950/10 dark:bg-zinc-900 dark:shadow-none dark:ring-white/10",
-        overlay ? "max-h-[calc(100%-9rem)] shadow-lg" : "max-h-full shadow-sm",
+        overlay ? "max-h-[calc(100%-13rem)] shadow-lg" : "max-h-full shadow-sm",
       ]}
       data-hidden={!expanded || undefined}
       inert={!expanded}
