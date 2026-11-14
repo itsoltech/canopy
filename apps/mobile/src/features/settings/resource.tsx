@@ -45,7 +45,10 @@ export function useSettingsResource<T>(key: string, fetch: (api: SettingsApi) =>
 export const workersFollowStream = { reload: async () => {}, error: "", loaded: true };
 
 /** Runs settings mutations one at a time; afterwards only the resource behind them reads again. */
-export function useSettingsAction(resource: { reload: () => Promise<void>; error: string; loaded?: boolean }) {
+export function useSettingsAction(
+  resource: { reload: () => Promise<void>; error: string; loaded?: boolean },
+  failure = "Could not save this change. Settings were refreshed. Check the values and retry.",
+) {
   const { client } = useSession();
   const running = useRef(false);
   const [busy, setBusy] = useState(false);
@@ -68,7 +71,7 @@ export function useSettingsAction(resource: { reload: () => Promise<void>; error
       return result;
     } catch {
       await reload().catch(() => undefined);
-      setError("Could not save this change. Settings were refreshed. Check the values and retry.");
+      setError(failure);
 
       return undefined;
     } finally {

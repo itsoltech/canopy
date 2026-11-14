@@ -755,6 +755,15 @@ działającego OTA ustala wiersz Updates; manifesty i historię grup pokazuje EA
 
 ## Interfejs zgodny z web
 
+Notki **Changed on two computers** używają wspólnej prezentacji
+`@canopy/domain/config-notice`, tak jak web. Nazwy pól, czytelne wartości, informacja
+o właścicielu zachowanej wartości oraz akcje Restore/Dismiss i wybór wersji są wspólne
+dla wszystkich rodzajów konfiguracji. Połączenie instancji pokazuje jeden wiersz
+**Connects with**; sekrety pozostają opisane jako **A different key**. Mobile wykonuje
+`ManageConfigNotice` i odświeża element oraz ustawienia również po częściowym powodzeniu
+akcji zbiorczej. Błąd wskazuje zastosowanie wartości na komputerze i możliwość ponowienia
+lub zmiany w ustawieniach. To zmiana JS zgodna z OTA, bez nowych wejść fingerprintu.
+
 Settings → GitHub ma tę samą obsługę kont co web/desktop: wybór domu, device flow
 z kopiowaniem kodu i otwarciem zweryfikowanego adresu, stany oczekiwania/sukcesu/
 wygaśnięcia/odmowy/anulowania, katalog instalacji i repozytoriów, Install Canopy,

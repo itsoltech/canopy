@@ -168,7 +168,12 @@ const connection = Schema.is(
 );
 
 /** An instance's kind, proxy, endpoint and key, restored together: one phrase, proxies never as ids. */
-function connectionValue(fields: { kind?: string; proxy?: string; baseUrl?: string; apiKey?: string }) {
+function connectionValue(fields: {
+  kind?: string | undefined;
+  proxy?: string | undefined;
+  baseUrl?: string | undefined;
+  apiKey?: string | undefined;
+}) {
   if (fields.kind === "native") return "Device login";
 
   return [
