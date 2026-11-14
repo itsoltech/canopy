@@ -27,7 +27,7 @@
   );
 
   const label = $derived(
-    `Show provider usage. ${[...glance.map((item) => item.label), ...notes.map((note) => note.text)].join(" ")}`,
+    `Show provider usage. ${[...glance.map((item) => `${item.label}.`), ...notes.map((note) => note.text)].join(" ")}`,
   );
 
   let open = $state(false);

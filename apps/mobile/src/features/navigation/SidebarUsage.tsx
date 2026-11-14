@@ -33,7 +33,7 @@ export function SidebarUsage({ workers }: { workers: readonly ui.Worker[] }) {
     [proxies.data],
   );
 
-  const label = `Show provider usage. ${[...glance.map((item) => item.label), ...notes.map((note) => note.text)].join(" ")}`;
+  const label = `Show provider usage. ${[...glance.map((item) => `${item.label}.`), ...notes.map((note) => note.text)].join(" ")}`;
 
   return (
     <View style={{ width: 44, height: 44, flexShrink: 0 }}>
