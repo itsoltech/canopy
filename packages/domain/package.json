@@ -65,6 +65,7 @@
     "./mentions": "./src/mentions/index.ts",
     "./provider-accounts": "./src/provider-accounts.ts",
     "./provider-usage": "./src/provider-usage.ts",
+    "./sidebar-usage": "./src/sidebar-usage.ts",
     "./update-checks": "./src/update-checks.ts",
     "./computers": "./src/computers.ts",
     "./diagnostics": "./src/diagnostics/index.ts",

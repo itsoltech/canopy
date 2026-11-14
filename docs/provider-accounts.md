@@ -165,6 +165,20 @@ resecie stary procent nie oznacza aktualnego wyczerpania. Błąd tury zachowuje
 rodzaj okna i reset w kodzie `usage_limit:<window>:<unix-seconds>`; późniejszy
 raport konta nie zmienia historycznej karty. Szczegóły są w „Show details”.
 
+Dolny pasek sidebara web/desktop i mobile rezerwuje stały slot na kompaktowy
+wskaźnik użycia. Każdy dostawca z danymi ma jeden pasek: najwyższy procent
+aktywnego okna ze wszystkich włączonych instancji. Poniżej 70% jest neutralny,
+od 70% ostrzegawczy, a od 90% alarmowy. Potwierdzone dodatkowe użycie ma fioletowy
+pasek z przerwą. Dostępność kredytów sama nie oznacza ich używania.
+Hover na desktopie lub dotknięcie otwiera listę instancji i komputerów z oknami,
+czasem do resetu oraz przejściem do Providers. Długie nazwy są skracane.
+Brak danych ukrywa przycisk, zachowując miejsce. Minione okna nie podnoszą
+alarmu. Dane pochodzą wyłącznie z przyrostowego overview; zegar aktualizuje tylko
+etykiety i wygasanie okien. Instancje proxy są pomijane. Typ `ProxyUsageSection`
+w `domain/sidebar-usage` pozostawia miejsce na późniejszą sekcję kont upstream;
+nie jest obecnie renderowany ani pobierany. Zmiana mobile obejmuje tylko JS,
+bez zależności i konfiguracji natywnej.
+
 ### Ograniczenia informacji o kredytach
 
 Codex `credits.hasCredits` i `unlimited` oznaczają dostępność, **nie potwierdzenie
