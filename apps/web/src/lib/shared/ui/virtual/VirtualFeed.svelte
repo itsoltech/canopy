@@ -682,11 +682,12 @@
      change the virtual window, or make the browser reveal a contenteditable's flow position. -->
   <div class="pointer-events-none absolute bottom-0 left-0 isolate z-10 [contain:layout]" style:right="{gutter}px">
     <div class="relative">
-      <!-- Fade: the composer's shadow in the thread surface colour, 12–32 px, tall enough for Jump to latest.
+      <!-- Fade: the composer's shadow in the thread surface colour. Solid only below the composer's visible edge,
+           then a gradient that starts right at that edge, so Jump to latest sits on the transition.
            The shell takes the footer's natural height; the rows' end space is the separate, steadier reserve. -->
       <div
         bind:this={footerShell}
-        class="absolute inset-x-0 bottom-0 isolate [--feed-fade:max(clamp(0.75rem,12.5%,2rem),calc(var(--feed-edge)+--spacing(11)-100%))]"
+        class="absolute inset-x-0 bottom-0 isolate [--feed-fade:--spacing(16)]"
         style:--feed-edge="{footerEdge}px"
       >
         <div class="[clip-path:inset(-2rem_-4px_0)]">
@@ -704,7 +705,7 @@
           </div>
         </div>
         <div
-          class="absolute inset-0 -z-10 bg-surface before:absolute before:inset-x-0 before:bottom-full before:h-(--feed-fade) before:bg-linear-to-t before:from-surface before:to-transparent"
+          class="absolute inset-x-0 bottom-0 -z-10 h-(--feed-edge) bg-surface before:absolute before:inset-x-0 before:bottom-full before:h-(--feed-fade) before:bg-linear-to-t before:from-surface before:to-transparent"
           aria-hidden="true"
         ></div>
         {#if !stuck}
