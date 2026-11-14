@@ -111,6 +111,11 @@ natywne działanie przeglądarki na zaznaczalnych obszarach.
 
 ## Zasady
 
+- Akcje wiadomości użytkownika są pod dymkiem, wyrównane do prawej. Wspólny
+  `MessageActionRow` utrzymuje tę samą wysokość i widoczność co akcje odpowiedzi:
+  hover i fokus zmieniają tylko opacity, a na dotyku akcje pozostają widoczne.
+  Czas jest w tym samym wierszu; etykiety celu i początku dnia zostają nad wiadomością.
+
 - Typography zapisuje na urządzeniu osobno font interfejsu i monospace. Presety są na początku
   wyszukiwanego pickera; „Show installed fonts” odczytuje rodziny dopiero po kliknięciu.
   Lista jest wirtualizowana: DOM zawiera widoczne wiersze i mały bufor, a podgląd własnym
