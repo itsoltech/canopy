@@ -32,7 +32,7 @@ export class MobileRemoteDrafts {
         deviceId,
         pageSize: 20,
         pageToken: more ? (previous?.nextPageToken ?? "") : "",
-        sourceDraftIds,
+        sourceDraftIds: sourceDraftIds.slice(0, 100),
       })
       .then((page) => {
         if (generation !== this.#generation) return page;

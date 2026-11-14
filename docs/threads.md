@@ -1,5 +1,7 @@
 # Projekty, wątki i wątki boczne
 
+Niewysłane szkice synchronizują się automatycznie, są przechowywane przez 30 dni i widoczne wyłącznie na urządzeniach właściciela.
+
 Niewysłane szkice synchronizują się automatycznie po 1,5 s bez edycji oraz przy
 opuszczaniu kompozytora. Inne urządzenie otwarte na tym samym wątku pokazuje
 `Take over` w slocie metadanych. Przejęcie przenosi tekst, pliki i cytaty, a źródło

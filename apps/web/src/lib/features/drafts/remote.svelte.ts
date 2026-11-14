@@ -32,7 +32,7 @@ class RemoteDrafts {
 
     if (!more && this.#loaded) return;
     const scope = this.#scope;
-    const sourceIds = webDrafts.local.list().flatMap((entry) => entry.draft?.id ?? []);
+    const sourceIds = webDrafts.local.sourceDraftIds();
     this.#pending = listDrafts(webDrafts.deviceId, "", more ? this.next : "", sourceIds).then((page) => {
       if (scope !== webDrafts.scope) return;
       webDrafts.acceptMoves(page.moves);

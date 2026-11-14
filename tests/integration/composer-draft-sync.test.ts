@@ -52,6 +52,57 @@ describe.skipIf(!dockerAvailable)("automatic composer sync and take-over receipt
       mutationId: crypto.randomUUID(),
     });
 
+  test("an open list transaction does not block sending the listed draft", async () => {
+    const original = await save(draft());
+    await gw.runtime.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+        yield* sql.withTransaction(
+          Effect.gen(function* () {
+            const page = yield* listComposerDrafts(
+              sql,
+              gw.userId,
+              create(ui.ListComposerDraftsRequestSchema, { deviceId: "desktop", threadId }),
+            );
+
+            expect(page.drafts.some((row) => row.id === original.id)).toBe(true);
+
+            const sent = yield* Effect.tryPromise(() =>
+              gw.api.sendMessage(
+                {
+                  threadId,
+                  text: original.content?.text ?? "",
+                  clientRequestId: original.content?.clientRequestId ?? "",
+                  draftId: original.id,
+                  draftRevision: original.revision,
+                },
+                { timeoutMs: 2000 },
+              ),
+            );
+
+            expect(sent.turn?.id).toBeTruthy();
+          }),
+        );
+      }),
+    );
+  });
+
+  test("oversized source receipt requests are truncated without breaking draft lists", async () => {
+    const original = await save(draft());
+    await take(original);
+
+    const page = await gw.api.listComposerDrafts({
+      deviceId: "phone",
+      sourceDraftIds: [
+        original.id,
+        ...Array.from({ length: 99 }, () => crypto.randomUUID()),
+        "ignored-invalid-overflow",
+      ],
+    });
+
+    expect(page.moves.some((move) => move.id === original.id)).toBe(true);
+  });
+
   test("a typing burst sends one save RPC; blur flushes once and clearing removes the remote draft", async () => {
     let current = draft();
     let writes = 0;

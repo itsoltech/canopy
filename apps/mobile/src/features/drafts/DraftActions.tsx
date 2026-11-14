@@ -141,6 +141,10 @@ export function DraftActions({
     disabled,
   });
 
+  useEffect(() => {
+    if (hint) draft?.dismissMove();
+  }, [draft, hint?.id, hint?.revision]);
+
   return (
     <>
       {overview ? (
@@ -174,9 +178,12 @@ export function DraftActions({
         children
       ) : null}
       {draft?.moved && indicatorOnly ? (
-        <Text numberOfLines={1} accessibilityLiveRegion="polite" style={[styles.meta, { color: c.muted, flex: 1 }]}>
-          {draft.moved}
-        </Text>
+        <View style={[styles.row, { flex: 1, minWidth: 0 }]}>
+          <Text numberOfLines={1} accessibilityLiveRegion="polite" style={[styles.meta, { color: c.muted, flex: 1 }]}>
+            {draft.moved}
+          </Text>
+          <Button title="Dismiss" variant="ghost" size="sm" onPress={() => draft.dismissMove()} />
+        </View>
       ) : null}
       {error && !open ? <Notice error>{error}</Notice> : null}
       <Sheet title="Drafts" visible={open} onClose={() => setOpen(false)}>

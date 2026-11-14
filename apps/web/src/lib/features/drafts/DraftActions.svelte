@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import type { Snippet } from "svelte";
   import { timestampFromMs } from "@bufbuild/protobuf/wkt";
   import type { ui } from "@canopy/contracts";
-  import { hasComposerContent } from "@canopy/domain/composer-drafts";
+  import { hasComposerContent, matchesComposerTarget } from "@canopy/domain/composer-drafts";
   import Button from "#lib/shared/ui/Button.svelte";
   import PendingDraft from "./PendingDraft.svelte";
   import { formatRelative } from "#lib/shared/format.ts";
@@ -33,14 +33,23 @@
 
   let newer = $derived(
     [...remoteDrafts.rows, ...(fallback ? [fallback] : [])].find(
-      (row) => row.target?.threadId === threadId && row.id !== draft.id && row.updatedAtMs > draft.publishedAtMs,
+      (row) =>
+        matchesComposerTarget(row.target, draft.targetKey) &&
+        row.id !== draft.id &&
+        row.updatedAtMs > draft.publishedAtMs,
     ),
   );
 
   let busy = $state(false);
 
+  $effect(() => {
+    const incoming = newer;
+
+    if (incoming) untrack(() => (draft.moved = ""));
+  });
+
   async function refresh() {
-    if (!threadId || !webDrafts.ready) return;
+    if (!draft.targetKey || !webDrafts.ready) return;
 
     try {
       await remoteDrafts.load();
@@ -51,6 +60,9 @@
 
   async function take(incoming: ui.ComposerDraft, replace = false) {
     if (disabled || draft.locked) throw new Error("Finish the current composer action, then retry.");
+
+    if (!matchesComposerTarget(incoming.target, draft.targetKey))
+      throw new Error("Open this draft in its own composer.");
     const composer = draft;
     busy = true;
 

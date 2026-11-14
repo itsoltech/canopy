@@ -90,7 +90,7 @@ Niepusty kompozytor otwiera wybór dopisania lub jawnego zastąpienia. Szkic poz
 pierwszą stroną ma osobny ograniczony odczyt aktywnego wątku.
 Web ponawia zerwany stream z opóźnieniem rosnącym od 2 do 60 s, zachowując kursor;
 samo ponowienie połączenia nie przeładowuje listy.
-Wysyłane szkice są pomijane na liście, także podczas blokady wiersza transakcji.
+Lista nie blokuje wierszy szkiców; pomija szkice z zatwierdzonym znacznikiem trwającej wysyłki.
 Przejęcie rezerwuje docelowy kompozytor do zapisania wyniku; w tym czasie wysyłka,
 kolejne przejęcie i lokalne przywracanie czekają, więc nie gubią przejętego szkicu.
 

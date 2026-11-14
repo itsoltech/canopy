@@ -30,7 +30,13 @@ export const listDrafts = async (deviceId: string, threadId = "", pageToken = ""
       "/api/drafts/list",
       encode(
         ui.ListComposerDraftsRequestSchema,
-        create(ui.ListComposerDraftsRequestSchema, { deviceId, threadId, pageToken, pageSize: 20, sourceDraftIds }),
+        create(ui.ListComposerDraftsRequestSchema, {
+          deviceId,
+          threadId,
+          pageToken,
+          pageSize: 20,
+          sourceDraftIds: sourceDraftIds.slice(0, 100),
+        }),
       ),
     ),
   );

@@ -26,12 +26,7 @@ export class MobileDrafts {
           this.#revision = change.revision;
           this.remote.invalidate();
 
-          const page = await this.remote.load(
-            api,
-            this.deviceId,
-            false,
-            this.local.list().flatMap((entry) => entry.draft?.id ?? []),
-          );
+          const page = await this.remote.load(api, this.deviceId, false, this.local.sourceDraftIds());
 
           for (const move of page.moves) {
             for (const entry of this.local.list())

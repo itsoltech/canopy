@@ -4,6 +4,21 @@ import { ui } from "@canopy/contracts";
 export const composerTargetKey = (target: ui.ComposerDraftTarget) =>
   JSON.stringify([target.threadId, target.projectId, target.workspaceId, target.parentThreadId]);
 
+export const matchesComposerTarget = (target: ui.ComposerDraftTarget | undefined, key: string | undefined) =>
+  Boolean(target && key && composerTargetKey(target) === key);
+
+/** Ignore sync metadata when deciding whether the user edited a taken draft. */
+export const sameComposerInput = (a: ui.LocalComposerDraft, b: ui.LocalComposerDraft) =>
+  equals(
+    ui.ComposerDraftContentSchema,
+    a.draft?.content ?? create(ui.ComposerDraftContentSchema),
+    b.draft?.content ?? create(ui.ComposerDraftContentSchema),
+  ) &&
+  a.files.length === b.files.length &&
+  a.files.every((file, index) =>
+    equals(ui.LocalComposerFileSchema, file, b.files[index] ?? create(ui.LocalComposerFileSchema)),
+  );
+
 export const hasComposerContent = (content: ui.ComposerDraftContent | undefined, files = 0) =>
   Boolean(
     content?.text.length || content?.mentions.length || content?.quotes.length || content?.attachments.length || files,
@@ -136,6 +151,12 @@ export class ComposerLocalStore {
     } catch {
       this.error = "Could not restore drafts. Start a new draft.";
     }
+  }
+  sourceDraftIds() {
+    return this.list()
+      .sort((a, b) => Number(b.touchedAtMs - a.touchedAtMs))
+      .flatMap((entry) => entry.draft?.id ?? [])
+      .slice(0, maxEntries);
   }
   list() {
     return [...this.#entries.values()];

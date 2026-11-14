@@ -17,14 +17,16 @@ export function listComposerDrafts(sql: SqlClient.SqlClient, owner: string, requ
       const count = Math.max(1, Math.min(request.pageSize || 20, 50));
       const [time = "", id = ""] = request.pageToken.split("|");
 
-      if (request.sourceDraftIds.length > 100 || request.sourceDraftIds.some((source) => !uuid.test(source)))
+      const sourceDraftIds = request.sourceDraftIds.slice(0, 100);
+
+      if (sourceDraftIds.some((source) => !uuid.test(source)))
         return yield* Effect.fail(new Invalid("Could not load drafts. Refresh the list, then retry."));
 
-      const moves = request.sourceDraftIds.length
+      const moves = sourceDraftIds.length
         ? yield* sql<{ draft_id: string; source_revision: bigint; device_name: string }>`
             SELECT draft_id,source_revision,device_name FROM composer_draft_moves
             WHERE owner_user_id=${owner}::uuid AND source_device_id=${request.deviceId}
-            AND draft_id IN ${sql.in(request.sourceDraftIds)} AND expires_at>now()`
+            AND draft_id IN ${sql.in(sourceDraftIds)} AND expires_at>now()`
         : [];
 
       if (request.pageToken && (!/^\d{10,16}$/.test(time) || !uuid.test(id)))
@@ -36,7 +38,7 @@ export function listComposerDrafts(sql: SqlClient.SqlClient, owner: string, requ
         AND NOT sent AND sending_request_id IS NULL AND expires_at>now()
         AND (${request.threadId}='' OR target_thread_ref=${request.threadId})
         AND (${time}='' OR (updated_at,id)<(to_timestamp(${Number(time || 0) / 1000000}),${id || "00000000-0000-0000-0000-000000000000"}::uuid))
-      ORDER BY updated_at DESC,id DESC LIMIT ${count + 1} FOR UPDATE SKIP LOCKED`;
+      ORDER BY updated_at DESC,id DESC LIMIT ${count + 1}`;
 
       const visible = rows.slice(0, count);
       const last = visible.at(-1);

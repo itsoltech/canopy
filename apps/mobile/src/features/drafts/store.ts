@@ -1,6 +1,11 @@
 import { create, fromBinary, toBinary, toJsonString } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { ComposerLocalStore, hasComposerContent, mergeComposerContent } from "@canopy/domain/composer-drafts";
+import {
+  ComposerLocalStore,
+  hasComposerContent,
+  mergeComposerContent,
+  sameComposerInput,
+} from "@canopy/domain/composer-drafts";
 import { Code, ConnectError, type Client } from "@connectrpc/connect";
 import * as Crypto from "expo-crypto";
 import type { DraftFile } from "../attachments/useAttachmentDraft";
@@ -76,6 +81,13 @@ export class MobileComposerState {
     };
   };
   snapshot = () => this.version;
+  dismissMove() {
+    if (!this.moved) return;
+    this.moved = "";
+    this.version++;
+
+    for (const listener of this.#listeners) listener();
+  }
   reconcile(api: Client<typeof ui.GatewayService>) {
     return recoverDraft(this, api);
   }
@@ -149,6 +161,7 @@ export class MobileComposerState {
   }
   persist = () => {
     if (!this.#entry.draft) return;
+    const previous = this.#entry;
     this.#entry = create(ui.LocalComposerDraftSchema, {
       mutationId: this.#mutation,
       publishedContent: this.#published,
@@ -165,6 +178,8 @@ export class MobileComposerState {
       })),
     });
     this.local.put(this.#entry);
+
+    if (this.moved && !sameComposerInput(previous, this.#entry)) this.moved = "";
     this.version++;
 
     for (const listener of this.#listeners) listener();
@@ -296,6 +311,7 @@ export class MobileComposerState {
 
     if (this.files.current.some((f) => !f.attachment))
       throw new Error("Wait for uploads, or remove the files that could not be attached.");
+    this.moved = "";
 
     const content =
       !replace && hasComposerContent(this.content()) && incoming.content
@@ -329,6 +345,7 @@ export class MobileComposerState {
     this.persist();
   }
   clear() {
+    this.moved = "";
     this.pendingSend = undefined;
     this.pendingCreate = undefined;
     const previous = this.#entry.draft;
@@ -345,12 +362,14 @@ export class MobileComposerState {
     for (const listener of this.#listeners) listener();
   }
   async beginSend(request: ui.SendMessageRequest) {
+    this.moved = "";
     this.deliveryChecked = false;
     this.pendingSend = request;
     this.persist();
     await this.local.checkpoint();
   }
   async beginCreate(request: ui.CreateThreadRequest) {
+    this.moved = "";
     this.deliveryChecked = false;
     this.pendingCreate = request;
     this.persist();

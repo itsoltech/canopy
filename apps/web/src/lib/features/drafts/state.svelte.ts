@@ -6,6 +6,7 @@ import {
   composerTargetKey,
   hasComposerContent,
   mergeComposerContent,
+  sameComposerInput,
 } from "@canopy/domain/composer-drafts";
 import { AttachmentDraft, type DraftFile } from "#lib/features/attachments/draft.svelte.ts";
 import { useQuoteDrafts } from "#lib/features/quotes/quote-drafts.svelte.ts";
@@ -107,6 +108,9 @@ export class WebComposerDraft {
   }
   get revision() {
     return this.#entry.draft?.revision ?? 0n;
+  }
+  get targetKey() {
+    return this.#entry.draft?.target ? composerTargetKey(this.#entry.draft.target) : undefined;
   }
   fork() {
     const draft = this.#entry.draft;
@@ -214,6 +218,7 @@ export class WebComposerDraft {
     if (this.retired) return;
     this.files.place(this.mentions);
     const draft = this.#entry.draft;
+    const previous = this.#entry;
 
     if (!draft) return;
     this.#entry = create(ui.LocalComposerDraftSchema, {
@@ -232,6 +237,8 @@ export class WebComposerDraft {
       })),
     });
     this.local.put(this.#entry);
+
+    if (this.moved && !sameComposerInput(previous, this.#entry)) this.moved = "";
   }
   async publish(): Promise<ui.ComposerDraft> {
     if (this.retired) throw new Error("Draft changed in another tab");
@@ -333,12 +340,14 @@ export class WebComposerDraft {
     return this.#entry.draft;
   }
   async beginSend(request: ui.SendMessageRequest) {
+    this.moved = "";
     this.deliveryChecked = false;
     this.pendingSend = request;
     this.persist();
     await this.local.checkpoint();
   }
   async beginForm(form: FormData) {
+    this.moved = "";
     this.deliveryChecked = false;
     this.pendingForm = new URLSearchParams([...form].map(([key, value]) => [key, String(value)])).toString();
     this.persist();
@@ -381,6 +390,7 @@ export class WebComposerDraft {
     if (this.id === incoming.id && this.revision >= incoming.revision) return;
 
     if (this.files.blocker) throw new Error(this.files.blocker);
+    this.moved = "";
 
     const content =
       !replace && hasComposerContent(this.content()) && incoming.content
@@ -414,6 +424,7 @@ export class WebComposerDraft {
     this.persist();
   }
   clear() {
+    this.moved = "";
     this.pendingSend = undefined;
     this.pendingForm = "";
     const target = this.#entry.draft?.target;
