@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View } from "react-native";
 import Animated from "react-native-reanimated";
-import { ui, type Item } from "@canopy/contracts";
+import { ProviderProfileKind, ui, type Item } from "@canopy/contracts";
 import { useAppearance } from "../../state/appearance";
 import { useOverview } from "../../state/overview";
 import { FeedAnchorProvider, useFeedAnchor } from "../../ui/feed-anchor";
@@ -28,8 +28,15 @@ import { RewindGroup, useRewindTimeline } from "./rewind-timeline";
 
 /** What the timeline's items look up: other threads, items, deliveries, and its tasks by their command. */
 function useTimelineData(state: ThreadState) {
-  const { threads } = useOverview();
+  const { threads, workers } = useOverview();
   const { snapshot, thread } = state;
+
+  const proxy =
+    workers
+      .find((w) => w.id === thread?.workerId)
+      ?.providerInstances.find((i) => i.harness === thread?.provider && i.id === (thread.providerProfileId || "native"))
+      ?.kind === ProviderProfileKind.CLIPROXYAPI;
+
   const quoteAction = useRef(state.quotes.add);
   quoteAction.current = state.quotes.add;
   const quote = useCallback((value: ui.Quote) => quoteAction.current(value), []);
@@ -86,12 +93,13 @@ function useTimelineData(state: ThreadState) {
       steers: snapshot?.steers ?? [],
       tasks,
       provider: thread?.provider,
+      proxy,
       foldChoices,
       groupChoices,
     };
 
     return { directory, context };
-  }, [snapshot, thread, threads, quote, editFrom, away, foldChoices, groupChoices, state.turns]);
+  }, [snapshot, thread, threads, proxy, quote, editFrom, away, foldChoices, groupChoices, state.turns]);
 }
 
 /** Native anchoring/follow-state changes may update the list wrapper without rendering unchanged turns. */

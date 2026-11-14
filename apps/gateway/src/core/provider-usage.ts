@@ -16,7 +16,11 @@ interface UsageRow {
   snapshot: JsonValue;
 }
 
-/** Persist only typed limit data. Reads and writes enforce the same owner and current configuration. */
+/**
+ * Persist only typed limit data. Harness rate limits describe a signed-in plan; through a proxy or endpoint the
+ * account is unknown, so those instances never store or show them, even if an older worker reports them
+ * (docs/provider-accounts.md). Reads and writes enforce the same owner, current configuration and connection.
+ */
 export class ProviderUsage {
   constructor(readonly core: GatewayCore) {}
 
@@ -32,7 +36,9 @@ export class ProviderUsage {
         JOIN worker_configs c ON c.worker_id=w.id AND c.version=u.config_version
         JOIN provider_instances i ON i.id=u.profile_id
           AND i.harness=CASE u.provider WHEN 1 THEN 'claude' WHEN 2 THEN 'codex' ELSE 'grok' END
-        WHERE (w.owner_user_id=${owner}::uuid OR w.owner_user_id IS NULL)
+        LEFT JOIN provider_instance_workers a ON a.worker_id=w.id AND a.harness=i.harness AND a.instance_id=i.id
+        WHERE i.kind='native' AND i.proxy_id IS NULL AND a.proxy_id IS NULL
+          AND (w.owner_user_id=${owner}::uuid OR w.owner_user_id IS NULL)
           AND (i.created_by=${owner}::uuid OR i.created_by IS NULL)
           AND w.archived_at IS NULL AND w.revoked_at IS NULL`;
       }).pipe(queryFamily("workers.store"), queryRpc),
@@ -89,7 +95,7 @@ export class ProviderUsage {
         WHERE w.id=${workerId}::uuid AND c.version=${report.configVersion}
           AND (w.owner_user_id=${owner}::uuid OR w.owner_user_id IS NULL)
           AND (i.created_by=${owner}::uuid OR i.created_by IS NULL)
-          AND coalesce(a.enabled, i.all_workers) AND w.archived_at IS NULL AND w.revoked_at IS NULL
+          AND coalesce(a.enabled, i.all_workers) AND i.kind='native' AND i.proxy_id IS NULL AND a.proxy_id IS NULL AND w.archived_at IS NULL AND w.revoked_at IS NULL
         ON CONFLICT (worker_id, provider, profile_id) DO UPDATE SET
           account_key=EXCLUDED.account_key, config_version=EXCLUDED.config_version,
           snapshot=EXCLUDED.snapshot, observed_at=EXCLUDED.observed_at

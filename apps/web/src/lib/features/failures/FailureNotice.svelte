@@ -55,7 +55,7 @@
 
 <div class="grid min-w-0 gap-2 text-base/6 sm:text-sm/6">
   <p class="font-medium text-rose-700 dark:text-rose-400">
-    {failure.kind === "usage_limit" ? (usageFailureHeading(code) ?? "Usage limit reached") : heading}
+    {failure.kind === "usage_limit" ? (!proxy && usageFailureHeading(code)) || "Usage limit reached" : heading}
   </p>
   {#if !historical}
     <p class="text-pretty text-zinc-600 dark:text-zinc-400">{failure.explanation}</p>

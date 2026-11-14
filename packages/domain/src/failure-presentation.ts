@@ -20,16 +20,19 @@ const explanations: Record<FailureCode, string> = {
   internal: "Canopy had an internal error. Retry. If it happens again, copy the details and report them.",
 };
 
+// Through a proxy, the account behind a rejection or limit is the proxy's, not the user's plan.
+const proxyExplanations = new Map<FailureCode, string>([
+  ["auth_required", "The proxy rejected its credentials. Check its saved connection key, then test the proxy."],
+  ["usage_limit", "The proxy reported a usage limit. Wait for it to reset or check the proxy's accounts, then retry."],
+]);
+
 /** How a turn or bot failure reads for people, from its message and code (web: FailureNotice, mobile: FailureNotice). */
 export function failurePresentation(message: string, code: string, proxy: boolean) {
   const kind = classifyFailure(message, code);
 
   return {
     kind,
-    explanation:
-      kind === "auth_required" && proxy
-        ? "The proxy rejected its credentials. Check its saved connection key, then test the proxy."
-        : explanations[kind],
+    explanation: (proxy && proxyExplanations.get(kind)) || explanations[kind],
     model: kind === "model_unavailable" || kind === "stream_cut_off",
     settings: [
       "auth_required",

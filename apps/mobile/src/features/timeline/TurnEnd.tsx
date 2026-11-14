@@ -46,10 +46,12 @@ const AUTH_HINTS = new Map<Provider, string>([
 export function TurnEnd({
   turn,
   provider,
+  proxy,
   historical,
 }: {
   turn: ui.Turn;
   provider: Provider | undefined;
+  proxy: boolean;
   historical: boolean;
 }) {
   const c = useColors();
@@ -64,6 +66,7 @@ export function TurnEnd({
         classification={turn.errorClass}
         source={turn.errorSource}
         historical={historical}
+        proxy={proxy}
         authHint={
           (provider !== undefined && AUTH_HINTS.get(provider)) ||
           "Sign in from provider settings, or run codex login on the worker using this instance's CLI home."

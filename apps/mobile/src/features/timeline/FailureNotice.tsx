@@ -20,6 +20,7 @@ export function FailureNotice({
   authHint = "",
   heading = "Could not finish this turn",
   historical = false,
+  proxy = false,
 }: {
   message: string;
   code?: string;
@@ -28,12 +29,14 @@ export function FailureNotice({
   authHint?: string;
   heading?: string;
   historical?: boolean;
+  /** Through a proxy, a limit belongs to an upstream account, not the user's plan. */
+  proxy?: boolean;
 }) {
   const c = useColors();
   const type = useTypography();
   const rose = useTone("rose").text;
   const [open, setOpen] = useState(false);
-  const failure = failurePresentation(message, classification || code, false);
+  const failure = failurePresentation(message, classification || code, proxy);
 
   const details = safeFailureDetail(
     [source && `Source: ${source}`, code && `Code: ${code}`, message].filter(Boolean).join("\n"),
@@ -42,7 +45,7 @@ export function FailureNotice({
   return (
     <View accessibilityRole="alert" style={{ gap: 8 }}>
       <Text style={[styles.body, { fontFamily: font.medium, color: rose }]}>
-        {failure.kind === "usage_limit" ? (usageFailureHeading(code) ?? "Usage limit reached") : heading}
+        {failure.kind === "usage_limit" ? (!proxy && usageFailureHeading(code)) || "Usage limit reached" : heading}
       </Text>
       {!historical && <Text style={[styles.body, { color: c.muted }]}>{failure.explanation}</Text>}
       {!historical && failure.kind === "auth_required" && authHint ? (

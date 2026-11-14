@@ -10,7 +10,7 @@ import { type ProfileRuntimeConfig, type ResolvedProfile } from "../providers/pr
 
 import { CommandError, kindOf, taskOf, usableBy, codexProfileGroup, type CodexGroup } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
-import { usageReporter } from "./usage-limits.ts";
+import { reportsPlanUsage, usageReporter } from "./usage-limits.ts";
 
 export class CodexRuntimes {
   constructor(readonly ctx: HostContext) {}
@@ -139,7 +139,14 @@ export class CodexRuntimes {
 
     if (home.problem) this.ctx.ops.log(`codex home: ${home.problem}`);
 
-    const usage = usageReporter(this.ctx, Provider.CODEX, group.id ?? "native", home.path, group.key);
+    const usage = usageReporter(
+      this.ctx,
+      Provider.CODEX,
+      group.id ?? "native",
+      home.path,
+      group.key,
+      reportsPlanUsage(profiles, process.env),
+    );
 
     const layer = CodexThreads.layer({
       launch: codexAppServerLaunch(
