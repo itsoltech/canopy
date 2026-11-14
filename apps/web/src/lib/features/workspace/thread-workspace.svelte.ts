@@ -72,6 +72,11 @@ export class ThreadWorkspace {
     return Math.min(this.panelDraft ?? devicePreferences.view.filesPanelWidth, this.panelMax);
   }
 
+  /** The sidebar's `--sidebar-width`, for the chat column that follows it (layout.css `data-chat-placement`). */
+  get sidebarWidth(): string | undefined {
+    return this.#shell.sidebar?.cssWidth;
+  }
+
   /**
    * How much wider the thread area will be once the sidebar and the Files column have eased open or shut (negative
    * while one opens), px; `areaRight` is the area's right edge, measured in the same callback. Layout decisions

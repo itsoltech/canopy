@@ -601,6 +601,7 @@
         inert={Boolean(fileTab)}
         bind:this={feedRegion}
         bind:clientWidth={summary.width}
+        style:--sidebar-width={workspaceState.sidebarWidth}
         data-chat-placement
         data-chat-card={summary.card || undefined}
         data-chat-settling={summary.settling || undefined}

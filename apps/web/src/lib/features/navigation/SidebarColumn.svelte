@@ -23,6 +23,7 @@
   id={SIDEBAR_ID}
   aria-label="Sidebar"
   class={["t-sidebar relative w-(--sidebar-extent) shrink-0 max-lg:hidden", className]}
+  style:--sidebar-width={sidebar.cssWidth}
   data-collapsed={sidebar.collapsed || undefined}
   inert={sidebar.collapsed && !sidebar.dragging}
 >

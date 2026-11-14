@@ -273,7 +273,8 @@ html[data-canopy-platform]:not(:has(:popover-open, [data-window-no-drag])) {
 /* The desktop sidebar column's live width, 0 below lg where the drawer takes over. Registered and not inherited: only
    the column (`t-sidebar`) and the chat columns compute it, and each eases its own copy on a toggle with the same
    start, duration and curve (motion.css `t-sidebar`), so they agree in every frame while the rest of the page's
-   styles stay untouched. */
+   styles stay untouched. `--sidebar-width` is set only on the column and on the thread area (a drag changes it
+   every frame). */
 @property --sidebar-extent {
   syntax: "<length>";
   inherits: false;
