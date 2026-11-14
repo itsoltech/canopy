@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import * as Crypto from "expo-crypto";
 import { Code, ConnectError } from "@connectrpc/connect";
-import type { ui } from "@canopy/contracts";
+import { ui } from "@canopy/contracts";
+import { create } from "@bufbuild/protobuf";
 import type { ComposerConnection } from "@canopy/domain/composer-connection";
 import type { ComposerPick } from "@canopy/domain/composer-choices";
 import type { MessageDraft } from "../composer/useMessageDraft";
 import type { useQuoteDraft } from "../quotes/useQuoteDraft";
 import { useSession } from "../../state/session";
 import { withSentMessage } from "./sent-message";
-import { confirmMessage } from "./pending-message";
+import { confirmMessage, uncertainDelivery } from "./pending-message";
 
 /** The gateway refused the message; other failures leave delivery uncertain. */
 function deliveryError(failure: ConnectError) {
@@ -33,11 +34,11 @@ export function useThreadSend(options: {
   const sending = useRef(false);
   const pending = useRef<{ key: string; id: string } | null>(null);
   const controller = useRef(new AbortController());
-  const currentClient = useRef(client);
-  currentClient.current = client;
   useEffect(() => {
     const request = new AbortController();
     controller.current = request;
+    sending.current = false;
+    setBusy(false);
 
     return () => request.abort();
   }, [id, session?.deviceId]);
@@ -50,6 +51,7 @@ export function useThreadSend(options: {
       !connection.composerAvailable ||
       (!value && !attachmentIds.length && !quotes.quotes.length) ||
       message.files.blocker ||
+      message.persistent?.preparing ||
       sending.current
     )
       return;
@@ -60,43 +62,78 @@ export function useThreadSend(options: {
     setError("");
     const key = JSON.stringify({ value, delivery, attachmentIds, mentions, quotes: sentQuotes, choices });
 
-    if (pending.current?.key !== key) pending.current = { key, id: Crypto.randomUUID() };
-    const signal = controller.current.signal;
+    if (pending.current?.key !== key)
+      pending.current = { key, id: message.persistent?.requestId ?? Crypto.randomUUID() };
+    const attempt = new AbortController();
+    const view = controller.current;
+    const signal = attempt.signal;
+    const api = client.api;
+
+    if (message.persistent) message.persistent.pendingAbort = () => attempt.abort();
+    let outgoingRequestId = message.persistent?.requestId;
+
+    if (message.persistent) message.persistent.preparing = true;
 
     try {
-      const request = {
-        threadId: id,
-        text: value,
-        delivery,
-        attachmentIds,
-        mentions,
-        quotes: sentQuotes,
-        clientRequestId: pending.current.id,
-        ...choices,
-      };
+      let request = message.persistent?.pendingSend;
+
+      if (!request) {
+        const published = await message.persistent?.publishForSend();
+        request = create(ui.SendMessageRequestSchema, {
+          draftId: published?.id ?? "",
+          draftRevision: published?.revision ?? 0n,
+          threadId: id,
+          text: value,
+          delivery,
+          attachmentIds,
+          mentions,
+          quotes: sentQuotes,
+          clientRequestId: message.persistent?.requestId ?? pending.current.id,
+          ...choices,
+        });
+        await message.persistent?.beginSend(request);
+      }
+
+      outgoingRequestId = request.clientRequestId;
 
       const result = await confirmMessage(
         request,
-        () => currentClient.current?.api,
+        () => api,
         signal,
         () => setWaiting(true),
-        () => connection.waitUntilLive(signal),
       );
 
-      if (signal.aborted) return;
+      if (!message.persistent || message.persistent.requestId === outgoingRequestId) message.clear();
+
+      if (signal.aborted || view.signal.aborted) return;
       setSnapshot((snapshot) => withSentMessage(snapshot, result));
-      message.clear();
       quotes.clear();
 
       if (result.deliveryNote) setError(result.deliveryNote);
       pending.current = null;
     } catch (e) {
-      if (ConnectError.from(e).code === Code.Unauthenticated) await expired();
-      else if (!signal.aborted) setError(deliveryError(ConnectError.from(e)));
-    } finally {
-      sending.current = false;
+      const canceled = signal.aborted || view.signal.aborted;
 
-      if (!signal.aborted) setBusy(false);
+      if (!uncertainDelivery(e)) {
+        const code = ConnectError.from(e).code;
+        message.persistent?.cancelSend([Code.NotFound, Code.FailedPrecondition].includes(code));
+        pending.current = null;
+      }
+
+      if (ConnectError.from(e).code === Code.Unauthenticated) await expired();
+      else if (!canceled) setError(deliveryError(ConnectError.from(e)));
+    } finally {
+      if (message.persistent) {
+        message.persistent.preparing = false;
+        message.persistent.pendingAbort = undefined;
+        message.persistent.persist();
+        void message.persistent.reconcile(api);
+      }
+
+      if (!view.signal.aborted) {
+        sending.current = false;
+        setBusy(false);
+      }
     }
   }
 

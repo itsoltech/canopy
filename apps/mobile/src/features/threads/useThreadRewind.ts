@@ -33,7 +33,7 @@ export function useThreadRewind(id: string, message: MessageDraft, sending: bool
   }, [id]);
 
   async function open(turn: ui.Turn) {
-    if (!client || sending || message.files.blocker || lock.current) {
+    if (!client || sending || message.persistent?.locked || message.files.blocker || lock.current) {
       setError("Finish sending or uploading files before editing this message.");
 
       return;
@@ -65,7 +65,7 @@ export function useThreadRewind(id: string, message: MessageDraft, sending: bool
   }
 
   async function run(intent: Intent) {
-    if (!client || lock.current || sending || message.files.blocker) return;
+    if (!client || lock.current || sending || message.persistent?.locked || message.files.blocker) return;
     lock.current = true;
     setBusy(true);
     setError("");
@@ -92,9 +92,10 @@ export function useThreadRewind(id: string, message: MessageDraft, sending: bool
       if (result.status === "completed" && result.draft) {
         const before = message.snapshot();
 
+        message.restore(rewindDraft(result.draft));
+
         if (before.value.text || before.files.length || before.value.quotes?.length)
           setSaved((all) => [...all, before]);
-        message.restore(rewindDraft(result.draft));
         onReady();
       }
 
@@ -140,9 +141,10 @@ export function useThreadRewind(id: string, message: MessageDraft, sending: bool
     swap: () => {
       const first = saved[0];
 
-      if (!first || sending || message.files.blocker || lock.current) return;
-      setSaved([...saved.slice(1), message.snapshot()]);
+      if (!first || sending || message.persistent?.locked || message.files.blocker || lock.current) return;
+      const current = message.snapshot();
       message.restore(first);
+      setSaved([...saved.slice(1), current]);
       onReady();
     },
   };

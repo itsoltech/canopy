@@ -56,6 +56,7 @@ export function useAttachmentDraft(
     botId?: string;
     imagesOnly?: boolean;
     onChange?: () => void;
+    locked?: () => boolean;
   } = {},
 ) {
   const { client } = useSession();
@@ -93,6 +94,8 @@ export function useAttachmentDraft(
     apply((rows) => rows.map((f) => (f.key === key ? { ...f, ...change } : f)));
 
   async function upload(picked: Picked) {
+    if (options.locked?.()) return discard(picked);
+
     // A system picker can return after its composer has gone away.
     if (!mounted.current && !options.keepAlive) return discard(picked);
 
@@ -166,13 +169,12 @@ export function useAttachmentDraft(
 
   return {
     accept: (attachment: ui.Attachment, contextScope?: string) => {
+      if (options.locked?.()) return;
       const file = { ...preparedFile(attachment, current.current, max), contextScope };
       apply((rows) => [...rows, file]);
       onAdd?.(file);
     },
     files,
-    /** Restore only uploaded bindings; release native preview copies of the previous composer. */
-    replace: (next: DraftFile[]) => apply((rows) => replaceDraftFiles(rows, next)),
     ids: files.flatMap((f) => (f.attachment ? [f.attachment.id] : [])),
     pickPhotos: () => pickPhotos(upload, max.maxFiles - current.current.length, options.imagesOnly),
     pickFiles: () => pickFiles(upload, options.imagesOnly),
@@ -181,22 +183,31 @@ export function useAttachmentDraft(
     /** The largest file the gateway takes: native pastes and drops copy nothing bigger. */
     maxFileBytes: max.maxFileBytes,
     imagesOnly: options.imagesOnly,
-    remove: (key: string) =>
-      apply((rows) => {
-        for (const file of rows) if (file.key === key) discardPreview(file);
-
-        return rows.filter((f) => f.key !== key);
-      }),
-    clear: () => apply((rows) => replaceDraftFiles(rows, [])),
+    remove: (key: string) => {
+      if (!options.locked?.()) apply((rows) => removeFiles(rows, key));
+    },
+    clear: () => apply((rows) => removeFiles(rows)),
+    /** Restore uploaded bindings and release the previous draft's native preview copies. */
+    replace: (next: DraftFile[]) => apply((rows) => replaceFiles(rows, next, options.locked?.())),
     /** Why the message cannot go yet. */
     blocker: attachmentBlocker(files),
   };
 }
 
-function replaceDraftFiles(before: DraftFile[], next: DraftFile[]) {
-  for (const file of before) discardPreview(file);
+function replaceFiles(rows: DraftFile[], next: DraftFile[], locked = false) {
+  if (locked) throw new Error("Retry the pending message before restoring a draft.");
 
-  return next;
+  if (rows.some((file) => !file.attachment) || next.some((file) => !file.attachment || file.error))
+    throw new Error("Wait for uploads, or remove the files that could not be attached.");
+  removeFiles(rows);
+
+  return next.map((file) => ({ ...file, previewUri: undefined, temporary: false }));
+}
+
+function removeFiles(rows: DraftFile[], key?: string) {
+  for (const file of rows) if (key === undefined || file.key === key) discardPreview(file);
+
+  return key === undefined ? [] : rows.filter((file) => file.key !== key);
 }
 
 function attachmentBlocker(files: DraftFile[]) {

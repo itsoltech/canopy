@@ -19,6 +19,8 @@ import {
 } from "./message-value";
 import type { DraftFile } from "../attachments/useAttachmentDraft";
 import { CitationHistory } from "./citation-history";
+import type { MobileComposerState } from "../drafts/store";
+import { snapshotDraft, type MessageSnapshot } from "./draft-snapshot";
 
 /**
  * The next message: its text, the mentions placed in it and its files. A picked file's badge goes in at the caret,
@@ -31,22 +33,22 @@ export function useMessageDraft(
     files?: { current: DraftFile[] };
     onChange?: () => void;
     botId?: string;
+    keepAlive?: boolean;
+    persistent?: MobileComposerState;
   } = {},
 ) {
   const [localValue, setValue] = useState<MessageValue>(emptyValue);
-  // The collapsed caret, for the mention trigger before it (undefined while text is selected).
-  const [caret, setCaret] = useState<number>();
+  const composerSelection = useComposerSelection();
+  const { caret, setCaret, selection, hasSelection, focusAt } = composerSelection;
   // Read at once by picks that land in one tick (several photos at a time).
   const local = useRef<MessageValue>(emptyValue);
   const current = options.value ?? local;
   const value = options.value ? current.current : localValue;
   useUpdateBlocker(() => current.current.text.length > 0);
-  const selection = useRef({ start: 0, end: 0 });
-  const hasSelection = useRef(false);
-  const focusAt = useRef<((caret: number) => void) | undefined>(undefined);
   const history = useRef(new CitationHistory());
 
   const apply = (next: MessageValue) => {
+    if (options.persistent?.locked) return;
     history.current.remember(next);
     current.current = next;
     setValue(next);
@@ -66,55 +68,35 @@ export function useMessageDraft(
     },
     {
       current: options.files,
-      keepAlive: Boolean(options.botId),
+      keepAlive: Boolean(options.botId) || options.keepAlive,
       botId: options.botId,
       onChange: options.onChange,
+      locked: () => Boolean(options.persistent?.locked),
     },
   );
 
-  const badges: ComposerBadges = {
-    ...draftBadges(value, files.files),
-    focusAt,
-    onSelect: (next) => {
-      hasSelection.current = true;
-      selection.current = next;
-      setCaret(next.start === next.end ? next.start : undefined);
-    },
-    editQuote(index: number, quote: ui.Quote) {
-      const placed = replaceCitation(current.current, index, quote);
+  const badges = draftBadges(value, files.files, composerSelection, current, apply);
 
-      if (!placed) return;
-      apply(placed.value);
-      focusAt.current?.(placed.caret);
-    },
-    removeQuote(index: number) {
-      const old = current.current.quotes?.[index];
-
-      if (!old || !isPlacedQuote(old)) return;
-      apply(
-        editText(current.current, current.current.text.slice(0, old.start) + current.current.text.slice(old.end)).value,
-      );
-      focusAt.current?.(old.start);
-    },
-  };
-
-  const inBadge = caret !== undefined && value.mentions.some((m) => m.start < caret && caret <= m.end);
-  const trigger = caret === undefined || inBadge ? undefined : activeTrigger(value.text.slice(0, caret));
+  const trigger = mentionTrigger(value, caret);
 
   return {
+    persistent: options.persistent,
     value,
-    snapshot: () => snapshotDraft(current.current, files.files),
-    restore(next: { value: MessageValue; files: DraftFile[] }) {
-      files.replace(next.files);
-      history.current.clear();
-      selection.current = { start: next.value.text.length, end: next.value.text.length };
-      hasSelection.current = false;
-      setCaret(undefined);
-      apply(next.value);
-      focusAt.current?.(next.value.text.length);
-    },
     files,
     badges,
+    snapshot: () => snapshotDraft(current.current, options.files?.current ?? files.files, options.persistent?.choices),
+    restore(next: MessageSnapshot) {
+      if (options.persistent?.locked) throw new Error("Retry the pending message before restoring a draft.");
+      const restored = snapshotDraft(next.value, next.files, next.choices);
+      files.replace(restored.files);
+      options.persistent?.renewMessage(restored.choices);
+      history.current.clear();
+      selection.current = { start: restored.value.text.length, end: restored.value.text.length };
+      hasSelection.current = false;
+      setCaret(undefined);
+      apply(restored.value);
+      focusAt.current?.(restored.value.text.length);
+    },
     addQuote(quote: ui.Quote) {
       const at = hasSelection.current ? selection.current.start : current.current.text.length;
       const placed = insertCitation(current.current, { start: at, end: at }, quote);
@@ -156,6 +138,7 @@ export function useMessageDraft(
       history.current.clear();
       setCaret(undefined);
       apply(emptyValue);
+      options.persistent?.clear();
     },
     /** What the gateway gets: trimmed text, mentions with stored attachment ids, the files' ids. */
     outgoing: () => outgoingMessage(current.current, files.files),
@@ -164,22 +147,6 @@ export function useMessageDraft(
 
 export type MessageDraft = ReturnType<typeof useMessageDraft>;
 
-function snapshotDraft(value: MessageValue, files: readonly DraftFile[]) {
-  return { value, files: files.map((file) => ({ ...file, previewUri: undefined, temporary: false })) };
-}
-
-function draftBadges(value: MessageValue, files: readonly DraftFile[]) {
-  const status = new Map<string, BadgeTone>(
-    files.map((file) => [file.key, file.error ? "failed" : file.attachment ? undefined : "uploading"]),
-  );
-
-  return {
-    mentions: value.mentions,
-    quotes: value.quotes ?? [],
-    tone: (mention: Mention) => (isAttachment(mention) ? status.get(mention.name) : undefined),
-  };
-}
-
 function replaceCitation(value: MessageValue, index: number, quote: ui.Quote) {
   const old = value.quotes?.[index];
 
@@ -187,6 +154,66 @@ function replaceCitation(value: MessageValue, index: number, quote: ui.Quote) {
   const removed = editText(value, value.text.slice(0, old.start) + value.text.slice(old.end)).value;
 
   return insertCitation(removed, { start: old.start, end: old.start }, quote);
+}
+
+function draftBadges(
+  value: MessageValue,
+  files: readonly DraftFile[],
+  { focusAt, hasSelection, selection, setCaret }: ReturnType<typeof useComposerSelection>,
+  current: { current: MessageValue },
+  apply: (next: MessageValue) => void,
+): ComposerBadges {
+  const status = attachmentTones(files);
+
+  return {
+    mentions: value.mentions,
+    quotes: value.quotes ?? [],
+    focusAt,
+    onSelect: (next) => {
+      hasSelection.current = true;
+      selection.current = next;
+      setCaret(next.start === next.end ? next.start : undefined);
+    },
+    tone: (m) => (isAttachment(m) ? status.get(m.name) : undefined),
+    editQuote(index, quote) {
+      const placed = replaceCitation(current.current, index, quote);
+
+      if (!placed) return;
+      apply(placed.value);
+      focusAt.current?.(placed.caret);
+    },
+    removeQuote(index) {
+      const old = current.current.quotes?.[index];
+
+      if (!old || !isPlacedQuote(old)) return;
+      apply(
+        editText(current.current, current.current.text.slice(0, old.start) + current.current.text.slice(old.end)).value,
+      );
+      focusAt.current?.(old.start);
+    },
+  };
+}
+
+function useComposerSelection() {
+  // The collapsed caret identifies the mention trigger; selections have no trigger.
+  const [caret, setCaret] = useState<number>();
+  const selection = useRef({ start: 0, end: 0 });
+  const hasSelection = useRef(false);
+  const focusAt = useRef<((caret: number) => void) | undefined>(undefined);
+
+  return { caret, setCaret, selection, hasSelection, focusAt };
+}
+
+function attachmentTones(files: readonly DraftFile[]) {
+  return new Map<string, BadgeTone>(
+    files.map((f) => [f.key, f.error ? "failed" : f.attachment ? undefined : "uploading"]),
+  );
+}
+
+function mentionTrigger(value: MessageValue, caret: number | undefined) {
+  const inBadge = caret !== undefined && value.mentions.some((m) => m.start < caret && caret <= m.end);
+
+  return caret === undefined || inBadge ? undefined : activeTrigger(value.text.slice(0, caret));
 }
 
 function outgoingMessage(value: MessageValue, files: readonly DraftFile[]) {

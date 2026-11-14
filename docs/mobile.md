@@ -1,5 +1,41 @@
 # Canopy na iOS i Android
 
+Szkice wątków, nowych wątków i wątków bocznych są trwałe po restarcie aplikacji.
+Wspólny `usePersistentMessage` rozszerza istniejący `useMessageDraft` i adaptery
+załączników/cytatów. Documents zawiera atomowy plik protobuf JSON dla bieżącego
+parowania. Przed usunięciem parowania kończymy zapis i zamykamy magazyn, aby późny
+callback nie odtworzył danych poprzedniego właściciela. Limity: 100 szkiców, 4 MiB,
+30 dni; niedokończony upload wymaga ponownego dodania pliku.
+
+`Open drafts` otwiera arkusz szkiców innych urządzeń z ograniczonym stronicowaniem.
+`Continue here` przejmuje szkic i dopisuje go do istniejącej treści; `Replace local
+draft` zastępuje ją wyłącznie po jawnym wyborze. Gotowe załączniki zachowują ID.
+Przejęcie rezerwuje kompozytor do zapisania wyniku, blokując równoczesną wysyłkę
+i odtwarzanie lokalnego szkicu.
+`Continue on another device`, opuszczenie ekranu i przejście w tło publikują szkic
+do sparowanego gatewaya, bez synchronizacji pisania na żywo. Jedna subskrypcja
+powiadomień działa tylko na pierwszym planie. Sidebar rezerwuje miejsce na `Draft`.
+Nierozstrzygnięte wysłanie zachowuje niezmienny request również po restarcie.
+Opuszczenie wątku nie anuluje HTTP wysyłki. Wynik czyści trwały szkic także po
+nawigacji; po ponownym otwarciu klient sprawdza receipt i przyjęcie wiadomości
+przez `GetComposerDraftDelivery`. W czasie aktywnej wysyłki lub jej sprawdzania
+banner niepotwierdzonego wysłania i akcje edycji/usunięcia są ukryte.
+`Edit draft` przerywa ponawianie i zachowuje treść z nowym ID szkicu oraz wysyłki;
+`Discard draft` usuwa lokalną treść. Komunikat uprzedza, że poprzednia wiadomość
+mogła już zostać wysłana. Jednoznaczna odmowa, także `Internal` lub konflikt,
+odblokowuje edycję. Pozwala to ponownie użyć „Edit from here” i „Swap drafts”.
+Wysyłka nie wywołuje zapisu handoffu. Każdy cel ma osobny plik w Documents;
+zmiana jednego szkicu nie przepisuje pozostałych. Szczegóły API:
+[ui-api.md](ui-api.md#szkice-kompozytora-i-przekazywanie-między-urządzeniami).
+Jeśli gateway nie obsługuje RPC szkiców, zwykłe wysyłanie i lokalna trwałość nadal
+działają; przekazanie między urządzeniami wymaga jego aktualizacji.
+
+`useMessageDraft.snapshot()` / `restore({value, files, choices?})` udostępnia lokalną
+kopię dla odtwarzania wiadomości i zamiany szkiców. Kopia zachowuje wzmianki, cytaty
+i ID gotowych załączników, bez własności natywnych podglądów. Przywrócenie zwalnia
+poprzednie podglądy, resetuje historię edycji i ustawia kursor na końcu. Odnawia
+klucz wysyłki, zachowując bieżącą rewizję gatewaya; blokuje je wysyłanie i uploady.
+
 Zwinięty kompozytor wątku pokazuje ikony z licznikami załączników i rodzajów
 wzmianek przed pierwszą, skróconą linią szkicu. Cytaty są tokenami w tekście, bez
 osobnego licznika. Dotknięcie podsumowania lub tekstu

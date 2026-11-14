@@ -40,6 +40,7 @@ export interface ComposerBoxProps {
   /** Bot replies keep Stop reachable while the next message is being drafted. */
   stopWhileRunning?: boolean;
   disabled?: boolean;
+  readonly?: boolean;
   /** Thread Stop remains reachable during watch recovery, independently of Send. */
   stopDisabled?: boolean;
   busy?: boolean;
@@ -75,6 +76,7 @@ export function ComposerBox({
   running = false,
   stopWhileRunning = false,
   disabled,
+  readonly,
   stopDisabled,
   busy,
   attachment,
@@ -134,7 +136,7 @@ export function ComposerBox({
       <ComposerInput
         text={text}
         onChange={onChange}
-        busy={busy}
+        busy={busy || readonly}
         inline={inline}
         compact={compact}
         pending={pending}

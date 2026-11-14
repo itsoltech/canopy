@@ -17,6 +17,7 @@ import { composerGeometry } from "../composer/geometry";
 import type { useQuoteDraft } from "../quotes/useQuoteDraft";
 import { useComposerSettings } from "./useComposerSettings";
 import { composerPending } from "@canopy/domain/composer-pending";
+import { DraftActions } from "../drafts/DraftActions";
 
 export function MessageComposer({
   thread,
@@ -47,7 +48,7 @@ export function MessageComposer({
 }) {
   const { user } = useAppearance();
   const { focused } = useComposerMotion();
-  const state = useComposerSettings(thread, worker);
+  const state = useComposerSettings(thread, worker, message.persistent);
   const { setPicker } = state;
   const look = permissionLook(state.permissionMode);
 
@@ -78,9 +79,15 @@ export function MessageComposer({
           running={thread?.status === "running"}
           disabled={disabled || Boolean(message.files.blocker)}
           busy={busy}
+          readonly={Boolean(message.persistent?.pendingSend)}
           files={message.files.ids.length + quotes.quotes.length}
           top={<ComposerAttachments message={message} />}
-          attachment={<AttachButton draft={message.files} disabled={disabled || busy} />}
+          attachment={
+            <AttachButton
+              draft={message.files}
+              disabled={disabled || busy || Boolean(message.persistent?.pendingSend)}
+            />
+          }
           controls={<ComposerControls state={state} thread={thread} />}
         />
       </PasteTarget>
@@ -109,6 +116,9 @@ export function MessageComposer({
           />
         </View>
       </ComposerFold>
+      {message.persistent && (
+        <DraftActions draft={message.persistent} threadId={thread?.id} disabled={disabled || busy} />
+      )}
       <ComposerPickers state={state} />
     </>
   );

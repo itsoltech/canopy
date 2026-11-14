@@ -18,6 +18,8 @@ import { QueryCache } from "@canopy/domain/shared-query";
 import { startMobileDiagnostics } from "../features/settings/client-diagnostics";
 import { clearDiagnosticLogs } from "../features/settings/diagnostics-log-file";
 import { useWorkspaceStore, forgetWorkspace } from "../features/workspace/store";
+import { prepareMobileDrafts } from "../features/drafts/storage";
+import type { MobileDrafts } from "../features/drafts/store";
 
 const SHARED_READ_FAILED = "Could not load settings. Check the connection and retry.";
 
@@ -29,6 +31,7 @@ unpaired.dispose();
 function useSessionState() {
   const [session, setSession] = useState<DeviceSession | null>(null);
   const [ready, setReady] = useState(false);
+  const [drafts, setDrafts] = useState<MobileDrafts | null>(null);
   const [threadCache, setThreadCache] = useState<PersistentThreadCache | null>(null);
   const [archivedCache, setArchivedCache] = useState<PersistentArchivedCache | null>(null);
   const [botCache, setBotCache] = useState<PersistentBotCache | null>(null);
@@ -52,6 +55,7 @@ function useSessionState() {
     void persistence
       .load()
       .then(async (value) => {
+        setDrafts(await prepareMobileDrafts(value));
         setThreadCache(await prepareThreadCache(value));
         setArchivedCache(await prepareArchivedCache(value));
         setBotCache(await prepareBotCache(value));
@@ -67,52 +71,26 @@ function useSessionState() {
   const client = usePairedClient(session, persistence, setError);
   const workspace = useWorkspaceStore(client, session);
   useEffect(() => (client ? startMobileDiagnostics(client.api) : undefined), [client]);
+  useEffect(() => {
+    if (!client || !drafts || !active) return;
+    const controller = new AbortController();
+    void drafts.watch(client.api, controller.signal);
+
+    return () => controller.abort();
+  }, [client, drafts, active, epoch]);
 
   const modelCatalog = useMemo(() => new ModelCatalogCache(client?.api), [client]);
   // Reads shared by every screen of this pairing; a new pairing or unpair fences the old one's requests.
   const { queries, searches } = useSessionQueries(client);
 
-  // Connections pooled before a suspension or a network change may be dead without either side knowing. Reset
-  // runs inside the event, before React restarts any stream, so the next requests race the routes on new ones.
-  useEffect(() => {
-    // iOS may pass through "inactive" on the way back.
-    let suspended = AppState.currentState === "background";
-    let path = "";
-
-    const app = AppState.addEventListener("change", (next) => {
-      if (next === "background") suspended = true;
-
-      if (next === "active" && suspended) {
-        suspended = false;
-        client?.reset();
-      }
-
-      setActive(next === "active");
-    });
-
-    const network = addNetworkStateListener((event) => {
-      // VPN toggles can keep Wi-Fi/cellular unchanged. Reachability adds the signal Expo exposes on Android;
-      // iOS mirrors isConnected, so foreground route retries also cover toggles with identical state.
-      const next = `${event.type}:${event.isConnected}:${event.isInternetReachable}`;
-
-      if (path && path !== next) {
-        client?.reset();
-        // Streams on the old network may hang without an error; they subscribe again.
-        setEpoch((n) => n + 1);
-      }
-
-      path = next;
-    });
-
-    return () => {
-      app.remove();
-      network.remove();
-    };
-  }, [client]);
+  useSessionConnections(client, setActive, setEpoch);
 
   async function clearHistory(revoked = false) {
     workspace.clear();
     forgetWorkspace(session);
+    await drafts?.close();
+    await prepareMobileDrafts(null);
+    setDrafts(null);
     clearDiagnosticLogs();
 
     const cleared = await clearPairedHistory([threadCache, botCache, archivedCache, imageCache], () =>
@@ -129,6 +107,7 @@ function useSessionState() {
   }
 
   return {
+    drafts,
     session,
     client,
     modelCatalog,
@@ -150,6 +129,8 @@ function useSessionState() {
     // A private tailnet gateway may be reachable even when public internet probes fail.
     online: network.isConnected !== false,
     async pair(value: DeviceSession) {
+      await drafts?.close();
+      setDrafts(await prepareMobileDrafts(value));
       await threadCache?.close();
       await archivedCache?.close();
       await botCache?.close();
@@ -189,6 +170,46 @@ function historyMessage(cleared: boolean, revoked: boolean) {
       : "Could not clear local storage. Clear Canopy’s app data before pairing again.";
 
   return revoked ? "This device was revoked. Create a new code in Settings → Devices on a paired device." : "";
+}
+
+/** Reset pooled connections inside the event, before React restarts foreground streams. */
+function useSessionConnections(
+  client: ReturnType<typeof routedMobileClient> | null,
+  setActive: (active: boolean) => void,
+  setEpoch: (update: (n: number) => number) => void,
+) {
+  useEffect(() => {
+    let suspended = AppState.currentState === "background";
+    let path = "";
+
+    const app = AppState.addEventListener("change", (next) => {
+      if (next === "background") suspended = true;
+
+      if (next === "active" && suspended) {
+        suspended = false;
+        client?.reset();
+      }
+
+      setActive(next === "active");
+    });
+
+    const network = addNetworkStateListener((event) => {
+      // Reachability also catches Android VPN changes with identical Wi-Fi/cellular state.
+      const next = `${event.type}:${event.isConnected}:${event.isInternetReachable}`;
+
+      if (path && path !== next) {
+        client?.reset();
+        setEpoch((n) => n + 1);
+      }
+
+      path = next;
+    });
+
+    return () => {
+      app.remove();
+      network.remove();
+    };
+  }, [client, setActive, setEpoch]);
 }
 
 function usePairedClient(
