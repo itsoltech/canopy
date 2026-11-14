@@ -23,6 +23,7 @@
 
   const overview = useOverview();
   let open = $state(false);
+  let actions = $state<ScheduleActions>();
   const detailsId = $props.id();
   const home = $derived(splitId(schedule.id).node);
   const computer = $derived(home ? [...overview.computers.values()].find((c) => c.nodeId.startsWith(home)) : undefined);
@@ -115,9 +116,12 @@
           {/if}
           {#if schedule.lastEditedAt}<p>Edited by you · {formatRelative(schedule.lastEditedAt, clock.now)}</p>{/if}
           {#if schedule.recentRuns.length}<ScheduleRuns runs={schedule.recentRuns} threadId={schedule.threadId} />{/if}
+          {#if !reason}<div>
+              <Button size="sm" icon="document-duplicate" onclick={() => actions?.duplicate()}>Duplicate…</Button>
+            </div>{/if}
         </div>
       </div>
     {/if}
   </div>
-  {#if !isFinished(schedule)}<div class="w-8 shrink-0"><ScheduleActions {schedule} compact {onchange} /></div>{/if}
+  <div class="w-8 shrink-0"><ScheduleActions bind:this={actions} {schedule} compact {onchange} /></div>
 </div>

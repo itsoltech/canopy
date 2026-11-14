@@ -17,7 +17,11 @@
   import { splitId } from "@canopy/domain/computers";
   import { awayReason } from "#lib/features/computers/computers.ts";
 
-  /** Shared by all lists. The editor keeps its opening version while live updates arrive. */
+  /**
+   * Shared by all lists. The editor keeps its opening version while live updates arrive. Duplicate works in
+   * every state, so finished and cancelled tasks keep this menu with only that item; `duplicate()` opens it
+   * from elsewhere in the row.
+   */
   let {
     schedule,
     compact = false,
@@ -42,9 +46,20 @@
   const actions = $derived(scheduleActions(schedule.status));
   let busy = $state<ScheduleStatusChange>();
   let confirming = $state(false);
-  let editing = $state(false);
+  let dialog = $state(false);
+  let mode = $state<"edit" | "duplicate">("edit");
   let snapshot = $state<ui.Schedule>();
   let error = $state<string>();
+
+  function open(next: "edit" | "duplicate") {
+    snapshot = clone(ui.ScheduleSchema, schedule);
+    mode = next;
+    dialog = true;
+  }
+
+  export function duplicate() {
+    open("duplicate");
+  }
 
   async function change(status: ScheduleStatusChange) {
     busy = status;
@@ -64,7 +79,7 @@
 </script>
 
 <div class={["shrink-0", className]}>
-  {#if actions.length}
+  {#if schedule.status}
     <DropdownMenu label="Scheduled task actions" placement="bottom-end">
       {#snippet trigger(props)}
         <IconButton
@@ -77,27 +92,24 @@
           title={reason}
         />
       {/snippet}
-      <MenuItem
-        icon="pencil-square"
-        onselect={() => {
-          snapshot = clone(ui.ScheduleSchema, schedule);
-          editing = true;
-        }}>Edit…</MenuItem
-      >
+      {#if actions.includes("edit")}<MenuItem icon="pencil-square" onselect={() => open("edit")}>Edit…</MenuItem>{/if}
+      <MenuItem icon="document-duplicate" onselect={() => open("duplicate")}>Duplicate…</MenuItem>
       {#if actions.includes("resume")}
         <MenuItem icon="play" onselect={() => change("active")}>Resume</MenuItem>
-      {:else}
+      {:else if actions.includes("pause")}
         <MenuItem icon="pause" onselect={() => change("paused")}>Pause</MenuItem>
       {/if}
-      <MenuSeparator />
-      <MenuItem
-        icon="x-mark"
-        danger
-        onselect={() => {
-          error = undefined;
-          confirming = true;
-        }}>Cancel schedule…</MenuItem
-      >
+      {#if actions.includes("cancel")}
+        <MenuSeparator />
+        <MenuItem
+          icon="x-mark"
+          danger
+          onselect={() => {
+            error = undefined;
+            confirming = true;
+          }}>Cancel schedule…</MenuItem
+        >
+      {/if}
     </DropdownMenu>
   {/if}
   {#if error && !confirming}<p class="text-base/6 text-rose-700 sm:text-sm/5 dark:text-rose-400" role="alert">
@@ -105,7 +117,13 @@
     </p>{/if}
 </div>
 
-<ScheduleDialog bind:open={editing} schedule={snapshot} threads={[...overview.threads.values()]} oncreated={onchange} />
+<ScheduleDialog
+  bind:open={dialog}
+  schedule={mode === "edit" ? snapshot : undefined}
+  template={mode === "duplicate" ? snapshot : undefined}
+  threads={[...overview.threads.values()]}
+  oncreated={onchange}
+/>
 <Dialog
   bind:open={confirming}
   title="Cancel scheduled task?"

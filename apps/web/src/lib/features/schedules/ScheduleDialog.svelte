@@ -14,6 +14,7 @@
   import Textarea from "#lib/shared/ui/Textarea.svelte";
   import { createSchedule, updateSchedule } from "./api.ts";
   import { describeCron } from "./schedules.ts";
+  import { duplicateScheduleTimes } from "@canopy/domain/schedule-display";
   import NewThreadScheduleFields from "./NewThreadScheduleFields.svelte";
   import SchedulePreview from "./SchedulePreview.svelte";
   import DialogActions from "#lib/shared/ui/DialogActions.svelte";
@@ -24,13 +25,15 @@
   /**
    * New scheduled task: what to tell the agent, once at a time or repeatedly (a preset or a cron) in a
    * time zone, until a date or for a number of runs. With `threadId` it is for that thread; otherwise
-   * you pick one of `threads`.
+   * you pick one of `threads`. `schedule` edits that task; `template` starts a new task with its settings
+   * (Duplicate), leaving the original as it is.
    */
   let {
     open = $bindable(false),
     threadId: fixedThreadId,
     threads = [],
     schedule: editing,
+    template,
     oncreated,
     class: className,
   }: {
@@ -38,6 +41,7 @@
     threadId?: string | undefined;
     threads?: readonly ui.Thread[];
     schedule?: ui.Schedule | undefined;
+    template?: ui.Schedule | undefined;
     oncreated?: ((schedule: ui.Schedule) => void) | undefined;
     class?: ClassValue;
   } = $props();
@@ -97,31 +101,41 @@
   $effect(() => {
     if (!open) return;
     untrack(() => {
+      const from = editing ?? template;
+      const copied = template && !editing ? duplicateScheduleTimes(template, new Date()) : undefined;
+      const selectable = (id: string) => groups.some((g) => g.threads.some((t) => t.id === id));
       expectedVersion = editing?.version ?? 0;
-      threadId = editing?.threadId || fixedThreadId || groups[0]?.threads[0]?.id || "";
-      target = editing
-        ? editing.target === "new_thread"
+      threadId =
+        editing?.threadId ||
+        fixedThreadId ||
+        (template && selectable(template.threadId) ? template.threadId : "") ||
+        groups[0]?.threads[0]?.id ||
+        "";
+      target = from
+        ? from.target === "new_thread"
           ? "new_thread"
           : "thread"
         : fixedThreadId || groups.length
           ? "thread"
           : "new_thread";
-      newThread = editing?.newThread ? create(ui.NewThreadScheduleSchema, editing.newThread) : undefined;
-      concurrency = editing?.concurrency || "skip_if_running";
-      name = editing?.configuredName ?? "";
-      missedPolicy = editing?.missedPolicy === "skip" ? "skip" : "run_once";
-      prompt = editing?.prompt ?? "";
-      kind = editing?.kind === "recurring" ? "recurring" : "once";
-      runAt = local(editing?.runAt ? timestampDate(editing.runAt) : nextHour());
-      frequency = editing?.kind === "recurring" ? "custom" : "daily";
-      customCron = editing?.cron ?? "";
-      timezone = editing?.timezone || ownZone;
+      newThread = from?.newThread ? create(ui.NewThreadScheduleSchema, from.newThread) : undefined;
+      concurrency = from?.concurrency || "skip_if_running";
+      name = from?.configuredName ?? "";
+      missedPolicy = from?.missedPolicy === "skip" ? "skip" : "run_once";
+      prompt = from?.prompt ?? "";
+      kind = from?.kind === "recurring" ? "recurring" : "once";
+      runAt = local(copied?.runAt ?? (editing?.runAt ? timestampDate(editing.runAt) : nextHour()));
+      frequency = from?.kind === "recurring" ? "custom" : "daily";
+      customCron = from?.cron ?? "";
+      timezone = from?.timezone || ownZone;
       time = "09:00";
       minute = 0;
       weekday = "1";
-      ends = editing?.until ? "until" : editing?.maxRuns ? "count" : "never";
-      until = local(editing?.until ? timestampDate(editing.until) : new Date(Date.now() + 7 * 86_400_000));
-      maxRuns = editing?.maxRuns || 5;
+      ends = from?.until ? "until" : from?.maxRuns ? "count" : "never";
+      until = local(
+        copied?.until ?? (editing?.until ? timestampDate(editing.until) : new Date(Date.now() + 7 * 86_400_000)),
+      );
+      maxRuns = from?.maxRuns || 5;
       error = undefined;
     });
   });
@@ -237,10 +251,12 @@
 
 <Dialog
   bind:open
-  title={editing ? "Edit scheduled task" : "Schedule a task"}
+  title={editing ? "Edit scheduled task" : template ? "Duplicate scheduled task" : "Schedule a task"}
   description={editing
     ? "Changes apply to work that has not started. Editing keeps this task’s status and run history."
-    : "Send a message at a set time, in an existing thread or a fresh thread for each run."}
+    : template
+      ? "Creates a new task with these settings. The original task and its run history stay as they are."
+      : "Send a message at a set time, in an existing thread or a fresh thread for each run."}
   size="lg"
   class={className}
 >
@@ -256,7 +272,7 @@
       />
     </Field>
     {#if target === "new_thread"}
-      {#key editing?.id}<NewThreadScheduleFields bind:value={newThread} homeId={editing?.id} />{/key}
+      {#key (editing ?? template)?.id}<NewThreadScheduleFields bind:value={newThread} homeId={editing?.id} />{/key}
     {:else if editing?.target === "thread"}
       <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
         In {overview.threads.get(editing.threadId)?.title || "the original thread"}. To use another existing thread,
@@ -423,8 +439,11 @@
     {#if error}<Alert tone="error">{error}</Alert>{/if}
     <DialogActions>
       <Button onclick={() => (open = false)}>Cancel</Button>
-      <Button type="submit" variant="primary" icon={editing ? "check" : "clock"} loading={busy}
-        >{editing ? "Save changes" : "Schedule"}</Button
+      <Button
+        type="submit"
+        variant="primary"
+        icon={editing ? "check" : template ? "document-duplicate" : "clock"}
+        loading={busy}>{editing ? "Save changes" : template ? "Duplicate task" : "Schedule"}</Button
       >
     </DialogActions>
   </form>

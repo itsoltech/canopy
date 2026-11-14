@@ -24,10 +24,12 @@ export function ScheduleTaskRow({
   schedule: s,
   reason,
   onActions,
+  onDuplicate,
 }: {
   schedule: ui.Schedule;
   reason?: string;
   onActions: () => void;
+  onDuplicate: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const { threads, workers } = useOverview();
@@ -55,15 +57,13 @@ export function ScheduleTaskRow({
             {heading}
           </Text>
           <Badge>{statuses.get(s.status) ?? s.status}</Badge>
-          {["active", "paused"].includes(s.status) && (
-            <IconButton
-              icon="ellipsis-horizontal"
-              label="Scheduled task actions"
-              size="sm"
-              disabled={!!reason}
-              onPress={onActions}
-            />
-          )}
+          <IconButton
+            icon="ellipsis-horizontal"
+            label="Scheduled task actions"
+            size="sm"
+            disabled={!!reason}
+            onPress={onActions}
+          />
         </View>
         {heading !== s.prompt && (
           <Text numberOfLines={1} style={[type.meta, { color: c.muted }]}>
@@ -110,34 +110,57 @@ export function ScheduleTaskRow({
         </View>
         {reason && <Text style={[type.meta, { color: c.muted }]}>{reason} Read-only</Text>}
         <Accordion open={open} style={{ marginTop: -2 }}>
-          <View style={{ gap: 6, paddingTop: 8 }}>
-            <Text style={[type.meta, { color: c.muted }]}>{when}</Text>
-            {s.maxRuns > 0 && (
-              <Text style={[type.meta, { color: c.muted }]}>
-                {s.runs} of {s.maxRuns} runs
-              </Text>
-            )}
-            <Text style={[type.meta, { color: c.muted }]}>
-              {s.createdBy === "agent" ? "Created by agent" : "Created by you"}
-            </Text>
-            <Text selectable style={[type.chrome, { color: c.text }]}>
-              {s.prompt}
-            </Text>
-            {s.nextRunAt && (
-              <Text style={[type.meta, { color: c.muted }]}>
-                Next run · {timestampDate(s.nextRunAt).toLocaleString()}
-              </Text>
-            )}
-            {s.lastEditedAt && (
-              <Text style={[type.meta, { color: c.muted }]}>
-                Edited by you · {timestampDate(s.lastEditedAt).toLocaleString()}
-              </Text>
-            )}
-            <ScheduleRunHistory runs={s.recentRuns} threadId={s.threadId} />
-          </View>
+          <ScheduleTaskDetails schedule={s} when={when} reason={reason} onDuplicate={onDuplicate} />
         </Accordion>
       </View>
     </SettingsGroup>
+  );
+}
+
+/** The expanded part of a row: full message, state, edits, recent runs and Duplicate. */
+function ScheduleTaskDetails({
+  schedule: s,
+  when,
+  reason,
+  onDuplicate,
+}: {
+  schedule: ui.Schedule;
+  when: string;
+  reason?: string;
+  onDuplicate: () => void;
+}) {
+  const c = useColors();
+  const type = useTypography();
+
+  return (
+    <View style={{ gap: 6, paddingTop: 8 }}>
+      <Text style={[type.meta, { color: c.muted }]}>{when}</Text>
+      {s.maxRuns > 0 && (
+        <Text style={[type.meta, { color: c.muted }]}>
+          {s.runs} of {s.maxRuns} runs
+        </Text>
+      )}
+      <Text style={[type.meta, { color: c.muted }]}>
+        {s.createdBy === "agent" ? "Created by agent" : "Created by you"}
+      </Text>
+      <Text selectable style={[type.chrome, { color: c.text }]}>
+        {s.prompt}
+      </Text>
+      {s.nextRunAt && (
+        <Text style={[type.meta, { color: c.muted }]}>Next run · {timestampDate(s.nextRunAt).toLocaleString()}</Text>
+      )}
+      {s.lastEditedAt && (
+        <Text style={[type.meta, { color: c.muted }]}>
+          Edited by you · {timestampDate(s.lastEditedAt).toLocaleString()}
+        </Text>
+      )}
+      <ScheduleRunHistory runs={s.recentRuns} threadId={s.threadId} />
+      {!reason && (
+        <View style={{ alignSelf: "flex-start" }}>
+          <Button title="Duplicate schedule" size="sm" icon="document-duplicate" onPress={onDuplicate} />
+        </View>
+      )}
+    </View>
   );
 }
 
