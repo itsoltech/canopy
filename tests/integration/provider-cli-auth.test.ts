@@ -197,6 +197,8 @@ describe.skipIf(!dockerAvailable)("official CLI auth over gateway↔worker", () 
 
       expect(finished, logs.join("\n")).toMatchObject({ loginId: login.loginId, loginOutcome: "signed_in" });
       expect(readFileSync(join(device.claude, ".credentials.json"), "utf8")).toBe("fixture-login");
+      // Completion can arrive before every sibling's account probe has drained.
+      await gw.api.refreshProviders({ workerId, accountOnly: true });
     }, 60_000);
 
   test("Grok device flow reports its own result and logout removes only the selected store", async () => {
