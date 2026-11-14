@@ -77,13 +77,13 @@ describe.skipIf(!dockerAvailable)("linked pull requests keep their last known su
     expect(fixture.calls).toBe(after);
   }, 60_000);
 
-  test("a failed refresh keeps the summary and gives a specific reason until Retry succeeds", async () => {
+  test("a transient failure keeps the summary and gives its reason until Retry succeeds", async () => {
     await loseCurrentReads();
     await sql("UPDATE github_pull_requests SET refreshed_at=NULL WHERE owner_user_id=$1::uuid", [gw.userId]);
-    fixture.status(404);
+    fixture.status(429);
 
     const failed = (await eventually(list, (r) => r.links[0]?.detail !== "")).links[0]!;
-    expect(failed.detail).toBe("No access to itsoltech/canopy. Check the GitHub App installation.");
+    expect(failed.detail).toContain("GitHub's request limit is reached. Retry after");
     expect(failed.summary!.title).toContain("Read-only pull request 42");
     expect(failed.stale).toBe(true);
 
@@ -93,16 +93,32 @@ describe.skipIf(!dockerAvailable)("linked pull requests keep their last known su
     await list();
     expect(fixture.calls).toBe(calls);
 
-    const retry = await gw.api.refreshPullRequest({ pullRequestId: pr }).catch(ConnectError.from);
-    expect(retry).toBeInstanceOf(ConnectError);
-    expect(ConnectError.from(retry).code).toBe(Code.PermissionDenied);
-
     fixture.status(200);
+    fixture.advance(61_000);
     await gw.api.refreshPullRequest({ pullRequestId: pr });
     const recovered = (await list()).links[0]!;
     expect(recovered.stale).toBe(false);
     expect(recovered.detail).toBe("");
-  });
+  }, 60_000);
+
+  test("lost access drops the private summary and names the repository to check", async () => {
+    await sql("UPDATE github_pull_requests SET refreshed_at=NULL WHERE owner_user_id=$1::uuid", [gw.userId]);
+    fixture.status(404);
+    const retry = await gw.api.refreshPullRequest({ pullRequestId: pr }).catch(ConnectError.from);
+    expect(ConnectError.from(retry).code).toBe(Code.PermissionDenied);
+
+    const denied = (await list()).links[0]!;
+    expect(denied.detail).toBe("No access to itsoltech/canopy. Check the GitHub App installation.");
+    expect(denied.summary!.title).toBe("");
+    expect(denied.summary!.state).toBe("unavailable");
+    expect(denied.summary!.ref!.number).toBe(42);
+
+    fixture.status(200);
+    await eventually(
+      () => gw.api.refreshPullRequest({ pullRequestId: pr }).then(() => list()),
+      (r) => r.links[0]?.detail === "" && !!r.links[0].summary?.title,
+    );
+  }, 60_000);
 
   test("last known summaries and refresh results stay with their owner", async () => {
     const other = await gw.runtime.runPromise(
@@ -119,7 +135,9 @@ describe.skipIf(!dockerAvailable)("linked pull requests keep their last known su
         ),
       ).toBe(Code.NotFound);
       await foreign.run((s) => s.prRemember(other, pr, account, { title: "Foreign" }));
-      expect(await foreign.run((s) => s.prRefreshFailed(other, "itsoltech/canopy", 42, "Foreign"))).toHaveLength(0);
+      expect(await foreign.run((s) => s.prRefreshFailed(other, "itsoltech/canopy", 42, "Foreign", true))).toHaveLength(
+        0,
+      );
       expect(await foreign.run((s) => s.prRefreshClaim(other, pr))).toHaveLength(0);
       expect(await foreign.run((s) => s.prTouch(other, pr))).toHaveLength(0);
     } finally {

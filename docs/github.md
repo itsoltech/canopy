@@ -282,6 +282,17 @@ Etap 3 dodaje autodetekcję i wyróżnia PR bieżącej gałęzi przed historią;
 obowiązuje data utworzenia PR, nie data linku. Web/desktop i mobile pokazują źródło Auto/Manual
 oraz Current branch/History. Unlink zachowuje trwały tombstone.
 
+Lista powiązanych PR nie zależy wyłącznie od cache bieżącej rewizji dostępu: rotacja tokenu
+(co 8 h) i retencja go unieważniają. Gateway zapisuje ostatnie znane podsumowanie (tytuł, stan,
+checki) w `github_pull_requests`, związane z kontem, które je odczytało. Po restarcie lista
+pokazuje je od razu jako `stale`, a odświeżenie idzie w tle, najwyżej raz na 5 min na PR między
+procesami, i dociera do klientów przez `pull_request_revision` wątku. Nieudane odświeżenie
+zapisuje konkretny powód (`detail` linku) z Retry. Utrata dostępu (403/404) unieważnia cache
+konta razem z ostatnimi znanymi podsumowaniami, które odczytało, i pokazuje
+`No access to <repo>. Check the GitHub App installation.`; błąd sieci lub limit zachowują je.
+Rozłączenie konta także je usuwa. Repozytorium usunięte z instalacji unieważnia tylko własne
+wpisy cache i podsumowania, nie całe konto.
+
 Test live odczytu Summary jest opt-in: z katalogu głównego uruchom
 `CANOPY_LIVE=1 bun test tests/integration/github-pull-requests.live.test.ts`.
 Wypisany publiczny kod device flow trzeba zatwierdzić kontem mającym dostęp do

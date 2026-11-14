@@ -208,7 +208,9 @@ export class GitHubPullRequests {
       }
     } catch (cause) {
       const error = githubFailure(cause);
-      await run((s) => s.prRefreshFailed(owner, name, number, refreshReason(name, error))).catch(() => []);
+      await run((s) =>
+        s.prRefreshFailed(owner, name, number, refreshReason(name, error), error.code === Code.PermissionDenied),
+      ).catch(() => []);
 
       if ([Code.PermissionDenied, Code.FailedPrecondition].includes(error.code)) {
         this.client.memory.clear();
