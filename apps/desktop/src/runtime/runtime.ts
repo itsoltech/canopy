@@ -17,6 +17,7 @@ import { savedStatus, writeConfiguration } from "./saved-status.ts";
 import { stableWebPort } from "./web-port.ts";
 import { HealthChecks } from "./health.ts";
 import { gatewayLiveness, livenessProbes, type LivenessProbe } from "./liveness.ts";
+import { DesktopWeb } from "./web.ts";
 import type { Secrets, RuntimePaths } from "./config.ts";
 
 export type { Secrets, RuntimePaths } from "./config.ts";
@@ -24,7 +25,7 @@ export type { Secrets, RuntimePaths } from "./config.ts";
 export class DesktopRuntime {
   readonly logs: Logs;
   private services: Supervisor;
-  private web: Supervisor;
+  private web: DesktopWeb | undefined;
   private env = serviceEnvironment();
   private webPort = 0;
   private workerStatusFile = "";
@@ -66,7 +67,6 @@ export class DesktopRuntime {
     // Private controller spawn configuration; renderer requests cannot choose a source path.
     Object.assign(this.env, { CANOPY_LOG_DIR: this.logs.directory, CANOPY_LOG_SUPERVISED: "1" });
     this.services = this.makeSupervisor();
-    this.web = this.makeSupervisor();
   }
   get status() {
     return { ...this.state, clis: { ...this.state.clis } };
@@ -75,7 +75,16 @@ export class DesktopRuntime {
     return this.setupOrigin;
   }
   get pids() {
-    return [...this.services.pids, ...this.web.pids];
+    return this.services.pids;
+  }
+  /** Called by the controller: the web shares its process (web.ts). */
+  hostWebInThisProcess() {
+    this.#web().hostInThisProcess();
+  }
+  #web() {
+    this.web ??= new DesktopWeb(this.paths.web, this.logs);
+
+    return this.web;
   }
   // Worker/health polls repeat the same status every second; each event rebuilds the app and tray
   // menus on Electron's UI thread, which also delivers input. Only report real changes.
@@ -92,7 +101,7 @@ export class DesktopRuntime {
 
       if (name === "worker" && !running) this.publish({ worker: "offline" });
 
-      if (!running && this.state.phase === "running" && ["gateway", "postgres", "web"].includes(name))
+      if (!running && this.state.phase === "running" && ["gateway", "postgres"].includes(name))
         this.publish({ phase: "starting" });
 
       if (failed)
@@ -102,36 +111,19 @@ export class DesktopRuntime {
         });
     });
   }
+  /** The bundled UI in this process; a later call only points its BFF at another gateway (web.ts). */
   private async startWeb(gatewayUrl: string, client?: DesktopClientCredential) {
-    await this.web.stop();
-    this.web = this.makeSupervisor();
-    // The local BFF owns no durable state. Browser keep-alive/SSE connections must not delay quit.
-    this.web.start({
-      name: "web",
-      ...this.command(this.paths.web),
-      cwd: dirname(this.paths.web),
-      env: {
-        ...this.env,
-        CANOPY_WEB_ASSETS_DIR: join(dirname(this.paths.web), "web"),
-        HOST: "127.0.0.1",
-        PORT: String(this.webPort),
-        CANOPY_WEB_ORIGIN: this.setupOrigin,
-        GATEWAY_URL: gatewayUrl,
-        // A local random token satisfies BFF env validation; remote RPCs use only client.token.
-        GATEWAY_SERVICE_TOKEN: this.secrets.serviceToken,
-        ...(client && {
-          CANOPY_DESKTOP_CLIENT_TOKEN: client.token,
-          CANOPY_DESKTOP_GATEWAY_ROUTES: JSON.stringify({
-            fingerprint: client.fingerprint,
-            addresses: client.addresses,
-          }),
-        }),
-        BODY_SIZE_LIMIT: "50M",
-      },
-      restart: true,
-      stopSignal: "SIGKILL",
+    await this.#web().start(this.setupOrigin, {
+      gatewayUrl,
+      // A local random token satisfies BFF env validation; remote RPCs use only client.token.
+      serviceToken: this.secrets.serviceToken,
+      ...(client && {
+        desktopClient: {
+          token: client.token,
+          routes: JSON.stringify({ fingerprint: client.fingerprint, addresses: client.addresses }),
+        },
+      }),
     });
-    await until(async () => (await fetch(`${this.setupOrigin}/api/health`, { signal: AbortSignal.timeout(5000) })).ok);
   }
   async initialize(restore = true) {
     this.publish(savedStatus(this.directory));
@@ -191,7 +183,7 @@ export class DesktopRuntime {
     try {
       const healthy = await Promise.all(
         this.probes.map(async ({ name, probe }) => {
-          const supervisor = name === "web" ? this.web : this.services;
+          const supervisor = this.services;
 
           if (!supervisor.alive(name)) return false;
 
@@ -386,7 +378,7 @@ export class DesktopRuntime {
 
       writeConfiguration(this.directory, saved);
       this.configured = true;
-      this.probes = livenessProbes(this.setupOrigin, config.mode === "local" ? gatewayUrl : undefined);
+      this.probes = config.mode === "local" ? livenessProbes(gatewayUrl) : [];
       this.activeClient = client;
 
       if (config.mode === "remote" && client && this.workerStatusFile)
@@ -421,7 +413,6 @@ export class DesktopRuntime {
   }
   killOwned() {
     this.services.killOwned();
-    this.web.killOwned();
   }
   cancelStartup() {
     this.installing?.abort();
@@ -449,8 +440,9 @@ export class DesktopRuntime {
     if (this.statusTimer) clearInterval(this.statusTimer);
 
     if (this.healthTimer) clearInterval(this.healthTimer);
-    // Keep worker → gateway → Postgres ordering within services for flush and clean DB shutdown.
-    await Promise.all([this.services.stop(), this.web.stop()]);
+    // Keep worker → gateway → Postgres ordering within services for flush and clean DB shutdown; the stateless web
+    // closes its connections at once.
+    await Promise.all([this.services.stop(), this.web?.stop()]);
     this.publish({ worker: "offline" });
   }
 }

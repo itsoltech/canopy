@@ -9,15 +9,21 @@ let registered = false;
 let pending = false;
 
 /** One bounded process collector and one timer; failures drop the batch instead of retaining a retry. */
-export function startBffDiagnostics(api: Client<typeof ui.GatewayService>) {
+/** `api` returns the current gateway client: a desktop BFF switches gateways without restarting. */
+export function startBffDiagnostics(api: () => Client<typeof ui.GatewayService>) {
   if (registered) return;
   registered = true;
 
   const timer = setInterval(() => {
     if (pending) return;
     pending = true;
-    void api
-      .submitDiagnostics(bffMeasurements.take(), { headers: { "canopy-diagnostics-client": binding }, timeoutMs: 5000 })
+    void Promise.resolve()
+      .then(() =>
+        api().submitDiagnostics(bffMeasurements.take(), {
+          headers: { "canopy-diagnostics-client": binding },
+          timeoutMs: 5000,
+        }),
+      )
       .then((receipt) => {
         if (!receipt.accepted) bffMeasurements.clear(receipt.epoch);
       })

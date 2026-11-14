@@ -15,19 +15,56 @@ import { startBffLogs } from "./log-source.ts";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import { WEB_VERSION_HEADER } from "@canopy/domain/release/web-version";
 import { compareVersions } from "@canopy/updater/release";
+import { bffTarget } from "@canopy/domain/bff-target";
 
-const desktop = process.env["CANOPY_DESKTOP_CLIENT_TOKEN"]
-  ? desktopGateway(process.env["CANOPY_DESKTOP_GATEWAY_ROUTES"] ?? "", process.env["CANOPY_DESKTOP_CLIENT_TOKEN"])
-  : undefined;
+interface Connection {
+  generation: number;
+  url: string;
+  token: string;
+  desktop: ReturnType<typeof desktopGateway> | undefined;
+  client?: Client<typeof ui.GatewayService>;
+}
+
+let connection: Connection | undefined;
+
+/**
+ * The gateway this BFF talks to. A server BFF reads its environment once; the desktop controller, which hosts the
+ * bundled web in its own process, sets the target (bff-target.ts) and changes it on a mode or computer switch.
+ */
+function current(): Connection {
+  const hosted = bffTarget();
+  const generation = hosted?.generation ?? 0;
+
+  if (connection?.generation === generation) return connection;
+  const target = hosted?.target;
+  const desktopToken = target ? target.desktopClient?.token : process.env["CANOPY_DESKTOP_CLIENT_TOKEN"];
+
+  const desktopRoutes = target
+    ? (target.desktopClient?.routes ?? "")
+    : (process.env["CANOPY_DESKTOP_GATEWAY_ROUTES"] ?? "");
+
+  connection = {
+    generation,
+    url: target?.gatewayUrl ?? GATEWAY_URL,
+    token: target?.serviceToken ?? GATEWAY_SERVICE_TOKEN ?? "",
+    desktop: desktopToken ? desktopGateway(desktopRoutes, desktopToken) : undefined,
+  };
+
+  return connection;
+}
 
 /** A non-secret namespace; backend addresses stay inside the BFF. */
 export function clientPreferencesScope(): string {
+  const { desktop, url } = current();
+
   return createHash("sha256")
-    .update(desktop?.preferencesIdentity ?? GATEWAY_URL)
+    .update(desktop?.preferencesIdentity ?? url)
     .digest("hex");
 }
 
 export async function gatewayCompatibility(): Promise<GatewayCompatibility> {
+  const { desktop } = current();
+
   if (desktop) return desktop.compatibility();
 
   try {
@@ -74,27 +111,31 @@ function webLag(gatewayVersion: string): "older" | "newer" | "" {
  * gRPC client of the gateway, used only on the SvelteKit server (BFF). The browser never sees the
  * gateway address or the service token (docs/ui-api.md).
  */
-let client: Client<typeof ui.GatewayService> | undefined;
-
 export function requireServiceToken(): string {
+  const { desktop, token } = current();
+
   if (desktop) return "";
 
-  if (!GATEWAY_SERVICE_TOKEN)
-    throw new Error("GATEWAY_SERVICE_TOKEN is not set (the gateway's CANOPY_UI_SERVICE_TOKEN)");
+  if (!token) throw new Error("GATEWAY_SERVICE_TOKEN is not set (the gateway's CANOPY_UI_SERVICE_TOKEN)");
 
-  return GATEWAY_SERVICE_TOKEN;
+  return token;
 }
 
 export function gateway(): Client<typeof ui.GatewayService> {
   const token = requireServiceToken();
-  client ??= createClient(
+  const target = current();
+
+  if (target.client) return target.client;
+  const { desktop } = target;
+
+  const client = createClient(
     ui.GatewayService,
     gatewayDeadlines(
       logGatewayFailures(
         desktop?.transport ??
           isolatedGatewayTransport(() =>
             createGrpcTransport({
-              baseUrl: GATEWAY_URL,
+              baseUrl: target.url,
               defaultTimeoutMs: 3000,
               connectTimeoutMs: 3000,
               pingIntervalMs: 10_000,
@@ -113,7 +154,8 @@ export function gateway(): Client<typeof ui.GatewayService> {
     ),
   );
 
-  startBffDiagnostics(client);
+  target.client = client;
+  startBffDiagnostics(gateway);
   startBffLogs(client);
 
   return client;

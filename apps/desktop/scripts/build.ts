@@ -69,19 +69,22 @@ const originDeclaration = "export const origin = undefined;";
 if (!adapterSource.includes(originDeclaration))
   throw new Error("adapter-node layout changed; review the desktop origin override");
 
+// The controller serves the web in its own process (src/runtime/web.ts) and sets the window's origin after loading:
+// handler.js reads `origin` on every request, so a live binding with a setter replaces the constant.
 writeFileSync(
   adapterConfig,
   adapterSource
     .replace(directoryDeclaration, 'export const dir = process.env["CANOPY_WEB_ASSETS_DIR"];')
-    .replace(originDeclaration, 'export const origin = process.env["CANOPY_WEB_ORIGIN"];'),
+    .replace(
+      originDeclaration,
+      'export let origin = process.env["CANOPY_WEB_ORIGIN"];\nexport function setOrigin(value) { origin = value; }',
+    ),
 );
 
-const webEntry = join(runtime, "web/index.js");
+// One module for the controller to import: adapter-node's request handler (no listener of its own) and the setter.
+const webEntry = join(runtime, "web/desktop-entry.js");
 
-writeFileSync(
-  webEntry,
-  'process.stdin.on("end", () => process.emit("SIGTERM")); process.stdin.resume();\n' + readFileSync(webEntry, "utf8"),
-);
+writeFileSync(webEntry, 'export { handler } from "./handler.js";\nexport { setOrigin } from "./adapter-node.js";\n');
 
 copyFileSync(process.execPath, join(runtime, `bun${suffix}`));
 

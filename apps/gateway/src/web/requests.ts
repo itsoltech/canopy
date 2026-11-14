@@ -62,7 +62,8 @@ export interface RequestGuards {
   assets: ReadonlyMap<string, string>;
   /** adapter-node's PROTOCOL_HEADER, lower case; "" when unset. */
   protocolHeader: string;
-  hosts: HostAllowlist;
+  /** Absent for the desktop, whose BFF accepts only its own origin's Host (trustedDesktopRequest). */
+  hosts?: HostAllowlist;
   log: (message: string) => void;
 }
 
@@ -93,7 +94,7 @@ export function webRequestListener(handler: WebHandler, guards: RequestGuards) {
 
   return (request: IncomingMessage, response: ServerResponse): void => {
     try {
-      if (!guards.hosts.allows(request.headers.host)) {
+      if (guards.hosts && !guards.hosts.allows(request.headers.host)) {
         response.writeHead(421, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" });
         response.end("This host name isn't allowed. Add it to CANOPY_WEB_ALLOWED_HOSTS on the Canopy gateway.\n");
 

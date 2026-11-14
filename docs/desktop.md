@@ -8,17 +8,22 @@ Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji
 
 1. **Runtime:** Electron main (Node) uruchamia kontroler Bun przez prywatne stdin/stdout
    z typowanymi komunikatami JSON. Kontroler nadzoruje PostgreSQL → gateway → enrollment
-   → worker → adapter-node SvelteKit. Wszystkie usługi to procesy potomne, z osobnymi
-   grupami procesów i ograniczonym restartem z backoff. Przy zamykaniu worker kończy
-   pracę przed gatewayem, a gateway przed PostgreSQL; bezstanowy BFF kończy się równolegle.
-   Zamknięcie stdin po śmierci Electron uruchamia sprzątanie kontrolera. Renderer ładuje
-   zwykły origin HTTP i dokładnie ten sam build web, bez kopii komponentów. adapter-node 6
-   nie czyta `ORIGIN`, a bez nagłówka proxy przyjmuje `https`, więc build desktopu podmienia
-   w `adapter-node.js` stały origin na `CANOPY_WEB_ORIGIN` (dokładnie `http://127.0.0.1:<port>`
-   okna). Kontrola CSRF formularzy SvelteKit zostaje bez zmian.
+   → worker jako procesy potomne, z osobnymi grupami procesów i ograniczonym restartem
+   z backoff. Web (adapter-node SvelteKit, UI i BFF) działa **w procesie kontrolera**
+   (`runtime/web.ts`), nie jako osobny proces i nigdy z gatewaya: kontroler istnieje
+   w obu trybach i żyje dłużej niż gateway, więc UI z dołączonego buildu działa offline,
+   w trybie remote i podczas restartu lub aktualizacji lokalnego gatewaya. Przy zamykaniu
+   worker kończy pracę przed gatewayem, a gateway przed PostgreSQL; bezstanowy web zamyka
+   swoje połączenia od razu. Zamknięcie stdin po śmierci Electron uruchamia sprzątanie
+   kontrolera. Renderer ładuje zwykły origin HTTP i dokładnie ten sam build web, bez kopii
+   komponentów. adapter-node 6 nie czyta `ORIGIN`, a bez nagłówka proxy przyjmuje `https`,
+   więc build desktopu podmienia w `adapter-node.js` stały origin na `CANOPY_WEB_ORIGIN`
+   i dodaje `setOrigin` (dokładnie `http://127.0.0.1:<port>` okna; kontroler ustawia go po
+   załadowaniu). Kontrola CSRF formularzy SvelteKit zostaje bez zmian.
    Jedyny wyjątek dla obcego origin to nawigacja GET dokumentu na dokładny
    `/api/connectors/oauth/callback`; Host nadal musi się zgadzać. OAuth otwiera
-   przeglądarkę systemową, więc powiązanie rozpoczętej autoryzacji zostaje w procesie BFF,
+   przeglądarkę systemową, więc powiązanie rozpoczętej autoryzacji zostaje w procesie BFF
+   (kontrolera: przetrwa restart gatewaya i zmianę trybu, nie przetrwa restartu aplikacji),
    zamiast w cookie Electrona. Gateway sprawdza jednorazowy state, właściciela,
    konto i TTL. Strona wyniku próbuje `canopy://connectors`; ten stały link
    pokazuje aplikację i otwiera ustawienia konektorów bez parametrów dostawcy.
@@ -97,8 +102,23 @@ pozostają bez zmian.
 
 Tryb lokalny korzysta ze zwykłego `CreateWorkerEnrollment` i `enrollWorker`, zamiast
 tworzyć poświadczenia bezpośrednio w bazie. Oba tryby ładują dołączony frontend
-z lokalnego BFF na loopback. Tryb zdalny uruchamia BFF i worker, bez gatewaya/bazy;
-BFF używa osobnego poświadczenia desktopu przez przypięty TLS Network access.
+z lokalnego BFF na loopback. Tryb zdalny uruchamia tylko worker, bez gatewaya/bazy;
+BFF w kontrolerze używa osobnego poświadczenia desktopu przez przypięty TLS Network access.
+
+**Web w procesie kontrolera.** Kontroler importuje `canopy-web.js` (handler adapter-node
+bez własnego listenera, `scripts/build.ts`) przy pierwszym `initialize` i obsługuje go
+własnym listenerem HTTP na stałym porcie okna. Każde żądanie ma własną granicę błędu
+(500 albo zamknięcie połączenia), a nieobsłużony rejection lub wyjątek z modułu web jest
+logowany zamiast kończyć kontroler z nadzorowanymi usługami
+(`apps/gateway/src/web/faults.ts`, `requests.ts`). Stdout kontrolera to prywatny protokół
+Electronu, więc `console.*` w kontrolerze trafia do logu `web` (`logs/web.log`, to samo źródło
+co wcześniej w Diagnostyce). Zmiana trybu (local ↔ remote) lub sparowanego komputera nie
+restartuje web: kontroler zmienia cel BFF (`@canopy/domain/bff-target`: adres gatewaya,
+token usługi, poświadczenie desktopu i trasy), BFF buduje nowego klienta gRPC, a otwarte
+połączenia okna są zamykane, żeby SSE połączyło się z nowym gatewayem. Web nie ma osobnej
+sondy liveness; sondowany jest tylko lokalny gateway. Pomiary (linux-x64, tryb lokalny):
+web nie jest już osobnym procesem Bun (ok. 74 MB), kontroler rośnie z ok. 64 do ok. 92 MB;
+UI odpowiada po ok. 130–145 ms zamiast 230–300 ms od startu kontrolera.
 Token usługi serwera nie opuszcza serwera. Nowe urządzenie paruje się zaproszeniem
 z Settings → Devices; stara instalacja automatycznie migruje przez zapisane
 uwierzytelnienie własnego desktopowego workera. Szczegóły, ograniczenia i kolejne
@@ -284,14 +304,14 @@ a niedostępny gateway obsługuje istniejący ekran webu; jeśli sam web nie odp
 lokalny ekran startu pokazuje błąd i działania naprawcze.
 
 Procesy uruchamiają się w kolejności: baza → migracje/start gatewaya → enrollment
-→ worker. Lokalny BFF służy także jako ekran konfiguracji przed uruchomieniem bazy.
+→ worker. Lokalny BFF (w kontrolerze) służy także jako ekran konfiguracji przed uruchomieniem bazy.
 Gotowość sprawdzana jest przez SQL, gRPC i HTTP; potem co 5 sekund przez gRPC/HTTP.
 Kontroler wysyła status do Electron tylko przy zmianie; każde zdarzenie przebudowuje menu
 aplikacji i traya w wątku UI, który dostarcza też wejście; ten sam stan nie jest powtarzany co sekundę.
 Nadzorca sprawdza liveness co 5 sekund, z limitem 5 sekund na sondę. Gateway odpowiada
 anonimowym `UpdateService.Check` bez tokenu, zapytań do bazy i odpytywania połączonych
-komputerów. BFF odpowiada istniejącym `/api/health`, bez renderowania strony i wywołań
-gatewaya. `GetOverview` służy danym aplikacji, nigdy kontroli procesu.
+komputerów. Web działa w procesie kontrolera, więc nie ma osobnej sondy ani restartu.
+`GetOverview` służy danym aplikacji, nigdy kontroli procesu.
 Restart wymaga co najmniej 30 sekund kolejnych nieudanych sond; sukces zeruje ten czas.
 Nowy proces, również po restarcie, musi najpierw odpowiedzieć poprawnie. Nadzorca nie
 zabija procesu, który nadal startuje. `suspend` zatrzymuje sondy, a `resume` i `unlock-screen`
@@ -309,7 +329,8 @@ nie powodują jego zabicia; własny reconnect przywraca łącze. PostgreSQL rów
 jest restartowany na podstawie operacji aplikacyjnych. Restart po wyjściu procesu ma
 backoff 1–30 sekund i budżet 8 prób; kod 78 workera nie jest ponawiany.
 
-Zamykanie: worker → gateway → PostgreSQL → BFF. POSIX używa własnych grup procesów
+Zamykanie: worker → gateway → PostgreSQL, a web w kontrolerze zamyka listener i połączenia
+od razu, równolegle. POSIX używa własnych grup procesów
 (Postgres dostaje SIGINT, czyli fast shutdown); Windows zamyka stdin sidecarów
 i wykonuje `pg_ctl stop -m fast`. Po 10 sekundach dla danej usługi następuje
 wymuszone sprzątanie grupy lub `taskkill /PID <owned-pid> /T /F`. Nie ma wyszukiwania
@@ -470,7 +491,7 @@ resources/runtime/
   canopy-controller.js
   canopy-gateway.js
   canopy-worker.js
-  canopy-web.js
+  canopy-web.js             # handler web (UI + BFF) ładowany przez kontroler, bez osobnego procesu
   bun[.exe]
   postgres.json             # dokładna wersja, major, platforma i SHA-512 z bun.lock
   web/                      # assets identycznego adapter-node build
@@ -769,8 +790,9 @@ schowanym sidebarze). Nowa warstwa nad oknem poza `dialog`/`[popover]`: `data-wi
 
 Po rozpoczęciu zamykania main od razu chowa wszystkie okna. Proces Electron pozostaje
 aktywny do zakończenia sprzątania kontrolera; zachowane są limity kontrolera (30 s)
-i main (35 s). Bezstanowy lokalny BFF jest kończony od razu, równolegle z usługami:
-otwarte połączenia HTTP/SSE przeglądarki nie wymagają oczekiwania na drain adapter-node.
+i main (35 s). Bezstanowy lokalny web w kontrolerze zamyka listener i wszystkie połączenia
+od razu, równolegle z usługami: otwarte połączenia HTTP/SSE przeglądarki nie wymagają
+oczekiwania na drain adapter-node.
 Usługi zachowują kolejność worker → gateway → PostgreSQL. Postgres nadal dostaje
 czyste fast shutdown (`SIGINT`, na Windows `pg_ctl stop -m fast`).
 
@@ -1129,9 +1151,11 @@ razem z jego checkpointem; restart zachowuje miejsce początku załadowanej hist
 ## Sprawdzanie runtime i paczek
 
 `apps/desktop/test/runtime.integration.test.ts` kopiuje finalny runtime poza repo,
-uruchamia rzeczywiste gateway/worker/BFF/DB na losowych portach i sprawdza
-enrollment, trwałość po restarcie, WAL recovery, redakcję sekretów oraz sprzątanie
-grup procesów po zamknięciu i utracie stdin kontrolera. Wymaga wcześniejszego
+uruchamia rzeczywiste gateway/worker/DB na losowych portach (web w procesie testu
+albo kontrolera) i sprawdza enrollment, trwałość po restarcie, WAL recovery, redakcję
+sekretów, odpowiedzi UI podczas restartu gatewaya, to, że logi BFF trafiają do `web.log`,
+a nie na stdout kontrolera, oraz sprzątanie grup procesów po zamknięciu i utracie stdin
+kontrolera. Wymaga wcześniejszego
 desktop builda; bez sidecarów test jest pomijany. Osobne integracje obejmują
 SHA-512 pobieranego PostgreSQL, wznowienie HTTP, anulowanie, cache offline
 i blokadę zmiany major. Tryb remote nie pobiera PostgreSQL.
