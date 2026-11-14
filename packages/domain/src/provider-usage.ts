@@ -16,6 +16,10 @@ const names = new Map([
   ["overage", "Extra usage"],
 ]);
 
+/** Quota resets use epoch milliseconds here; implausible upstream or cached dates are unknown. */
+export const isUsageResetPlausible = (resetAt: number, now = Date.now()) =>
+  Number.isFinite(resetAt) && resetAt > 0 && resetAt <= now + 400 * 86_400_000;
+
 export function usageWindowName(key: string, minutes = 0): string {
   if (key === "duration" && Number.isSafeInteger(minutes) && minutes > 0) {
     const number = new Intl.NumberFormat();
@@ -77,6 +81,8 @@ export function activeUsageWindows(snapshot: ProviderUsageSnapshot | undefined, 
 export function usageReset(window: ProviderUsageWindow, relative = false, now = Date.now()): string {
   if (!window.resetsAt) return "";
   const date = timestampDate(window.resetsAt);
+
+  if (!isUsageResetPlausible(date.getTime(), now)) return "";
 
   if (relative) {
     const minutes = Math.max(0, Math.ceil((date.getTime() - now) / 60_000));

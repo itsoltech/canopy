@@ -2,14 +2,71 @@ import { describe, expect, test } from "bun:test";
 import { toJson } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { proxyAccount, secretRedactor } from "./management.ts";
-import { usageWindowName } from "@canopy/domain/provider-usage";
+import { usageWindowName, usageReset } from "@canopy/domain/provider-usage";
 
 const observed = "2026-11-14T10:00:00Z";
+const now = Date.parse(observed);
 
 const account = (signals: Record<string, string>) =>
-  proxyAccount({ provider: "codex", quota: { observed_at: observed, signals } });
+  proxyAccount({ provider: "codex", quota: { observed_at: observed, signals } }, now);
 
 describe("proxy account observations", () => {
+  test("Codex epochs, relative seconds and Claude epochs resolve to realistic reset times", () => {
+    const codex = account({
+      "x-codex-primary-used-percent": "47",
+      "x-codex-primary-window-minutes": "10080",
+      "x-codex-primary-reset-at": "1794823200",
+      "x-codex-secondary-used-percent": "19",
+      "x-codex-secondary-window-minutes": "300",
+      "x-codex-secondary-reset-after-seconds": "10800",
+    });
+
+    const claude = account({
+      "anthropic-ratelimit-unified-5h-utilization": "0.19",
+      "anthropic-ratelimit-unified-5h-reset": "1794661200",
+      "anthropic-ratelimit-unified-7d-utilization": "0.47",
+      "anthropic-ratelimit-unified-7d-reset": "1794823200",
+    });
+
+    expect(codex.windows.map((w) => [w.resetsAt?.seconds, usageReset(w, true, now)])).toEqual([
+      [1794823200n, "Resets in 2 d 0 h"],
+      [1794661200n, "Resets in 3 h"],
+    ]);
+    expect(claude.windows.map((w) => [w.resetsAt?.seconds, usageReset(w, true, now)])).toEqual([
+      [1794661200n, "Resets in 3 h"],
+      [1794823200n, "Resets in 2 d 0 h"],
+    ]);
+  });
+
+  test("implausible resets are unknown, including millisecond epochs and the old review fixture", () => {
+    for (const reset of ["4070908800", "1794661200000", String(now / 1000 + 401 * 86400)]) {
+      expect(
+        account({ "x-codex-primary-used-percent": "47", "x-codex-primary-reset-at": reset }).windows[0]?.resetsAt,
+      ).toBeUndefined();
+      expect(
+        account({ "anthropic-ratelimit-unified-7d-utilization": "0.47", "anthropic-ratelimit-unified-7d-reset": reset })
+          .windows[0]?.resetsAt,
+      ).toBeUndefined();
+    }
+
+    expect(
+      account({ "x-codex-primary-used-percent": "47", "x-codex-primary-reset-after-seconds": String(401 * 86400) })
+        .windows[0]?.resetsAt,
+    ).toBeUndefined();
+
+    const boundary = account({
+      "x-codex-primary-used-percent": "47",
+      "x-codex-primary-reset-after-seconds": String(400 * 86400),
+    }).windows[0]!;
+
+    expect(boundary.resetsAt).toBeDefined();
+
+    const cached = { ...boundary, resetsAt: { ...boundary.resetsAt!, seconds: 4070908800n } };
+
+    expect(usageReset(cached, true, now)).toBe("");
+    expect(usageReset(cached, false, now)).toBe("");
+  });
+
   test("weekly-only Codex plans do not gain a phantom secondary window", () => {
     // CLIProxyAPI's codex.rate_limits fixture: primary=10080, secondary=null.
     // HTTP snapshots can additionally contain a zero secondary watermark without a period or reset.
@@ -38,13 +95,13 @@ describe("proxy account observations", () => {
       const parsed = account({
         "x-codex-secondary-used-percent": "0",
         "x-codex-secondary-window-minutes": String(minutes),
-        "x-codex-secondary-reset-at": "2000000000",
+        "x-codex-secondary-reset-at": "1794661200",
       });
 
       const window = parsed.windows[0]!;
       expect(usageWindowName(window.key, window.windowMinutes)).toBe(label);
       expect(window.usedPercent).toBe(0);
-      expect(window.resetsAt?.seconds).toBe(2000000000n);
+      expect(window.resetsAt?.seconds).toBe(1794661200n);
     }
 
     expect(account({ "x-codex-primary-used-percent": "25" }).windows[0]?.key).toBe("primary_limit");
@@ -55,7 +112,7 @@ describe("proxy account observations", () => {
     const parsed = account({
       "anthropic-ratelimit-unified-5h-utilization": "0",
       "anthropic-ratelimit-unified-7d-utilization": "0.42",
-      "anthropic-ratelimit-unified-7d-reset": "2000000000",
+      "anthropic-ratelimit-unified-7d-reset": "1794823200",
     });
 
     expect(parsed.windows.map((w) => [w.key, w.usedPercent])).toEqual([["seven_day", 42]]);

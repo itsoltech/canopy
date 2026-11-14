@@ -133,7 +133,7 @@ export function proxyAccount(file: AuthFile, now = Date.now(), redact: Redact = 
     status: status(file, retry, now),
     detail: plainText(file.refresh_error?.message || file.status_message, 160, redact),
     retryAt: retry && retry.getTime() > now ? timestampFromDate(retry) : undefined,
-    windows: proxyUsageWindows(signals, observed),
+    windows: proxyUsageWindows(signals, observed, now),
     plan: proxyAccountPlan(file, signals, redact),
     successCount: count(file.success),
     failureCount: count(file.failed),

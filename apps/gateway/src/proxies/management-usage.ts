@@ -1,4 +1,5 @@
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
+import { isUsageResetPlausible } from "@canopy/domain/provider-usage";
 
 const periods = new Map([
   [300, "five_hour"],
@@ -12,14 +13,14 @@ const number = (value: string | undefined) =>
 
 const percent = (value: number | undefined) => (value !== undefined && value >= 0 ? Math.min(value, 100) : undefined);
 
-function reset(seconds: number | undefined) {
-  return seconds !== undefined && seconds > 0 && seconds < 253402300800
+function reset(seconds: number | undefined, now: number) {
+  return seconds !== undefined && isUsageResetPlausible(seconds * 1000, now)
     ? timestampFromDate(new Date(seconds * 1000))
     : undefined;
 }
 
 /** Slot order is not duration: weekly-only Codex plans use primary and can send an empty secondary. */
-export function proxyUsageWindows(signals: ReadonlyMap<string, string>, observed: Date | undefined) {
+export function proxyUsageWindows(signals: ReadonlyMap<string, string>, observed: Date | undefined, now: number) {
   const result = [];
 
   for (const slot of ["primary", "secondary"]) {
@@ -33,8 +34,8 @@ export function proxyUsageWindows(signals: ReadonlyMap<string, string>, observed
     const after = number(signals.get(`${prefix}reset-after-seconds`));
 
     const resetsAt =
-      reset(number(signals.get(`${prefix}reset-at`))) ??
-      (observed && after !== undefined && after >= 0 ? reset(observed.getTime() / 1000 + after) : undefined);
+      reset(number(signals.get(`${prefix}reset-at`)), now) ??
+      (observed && after !== undefined && after >= 0 ? reset(observed.getTime() / 1000 + after, now) : undefined);
 
     if (usedPercent === undefined || (!windowMinutes && !resetsAt && usedPercent === 0)) continue;
     result.push({
@@ -53,7 +54,7 @@ export function proxyUsageWindows(signals: ReadonlyMap<string, string>, observed
     const prefix = `anthropic-ratelimit-unified-${span}-`;
     const utilization = number(signals.get(`${prefix}utilization`));
     const usedPercent = percent(utilization === undefined ? undefined : utilization * 100);
-    const resetsAt = reset(number(signals.get(`${prefix}reset`)));
+    const resetsAt = reset(number(signals.get(`${prefix}reset`)), now);
     const status = signals.get(`${prefix}status`);
     const reached = status === "rejected" || (usedPercent ?? 0) >= 100;
 

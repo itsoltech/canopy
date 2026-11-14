@@ -226,6 +226,10 @@ dostają etykietę z długością. Samo 0% bez okresu i resetu nie tworzy mierni
 Nieznany okres z rzeczywistym odczytem ma nazwę Primary limit / Secondary limit,
 zamiast sugerować ogólne Usage. Claude pomija puste zerowe watermarki bez resetu
 i statusu; zachowuje rzeczywiste 0% i jawne odrzucenie limitu.
+Codex `reset-at` i Claude `…-reset` to epoki w sekundach; Codex
+`reset-after-seconds` to czas względem `observed_at`. Reset odległy o ponad 400 dni
+jest nieznany: gateway odrzuca datę, a wspólny formatter ukrywa również starsze
+wartości cache przekraczające tę granicę. Sam odczyt wykorzystania pozostaje widoczny.
 
 Typ planu w `ProxyAccount.plan` to zamknięty enum: Free, Plus, Pro, Team, Business,
 Enterprise, Max, Max 5x, Max 20x, Ultra i Other. Brak danych nie tworzy etykiety.
