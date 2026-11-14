@@ -27,7 +27,7 @@ export class SidebarLayout {
   viewport = $state<number | undefined>(undefined);
   /** A ResizeHandle drag is going on. */
   dragging = $state(false);
-  /** The column is easing to a new width (toggle, reset, snap), motion.css `t-sidebar[data-settling]`. */
+  /** The column is easing to a new width (toggle, reset, snap), motion.css `t-sidebar`. */
   settling = $state(false);
   #width = $state<number | undefined>(undefined);
   #collapsed = $state<boolean | undefined>(undefined);
@@ -48,6 +48,11 @@ export class SidebarLayout {
     const saved = this.#saved;
 
     return this.viewport === undefined ? saved || SIDEBAR_WIDTH.default : sidebarWidthFor(saved, this.viewport);
+  }
+
+  /** The width the column is easing to, px: 0 when collapsed. */
+  get target(): number {
+    return this.collapsed ? 0 : this.width;
   }
 
   get maxWidth(): number {
@@ -121,4 +126,18 @@ export class SidebarLayout {
     clearTimeout(this.#settleTimer);
     this.#settleTimer = setTimeout(() => (this.settling = false), duration("slow") + 50);
   }
+}
+
+/**
+ * How much wider the desktop sidebar column is now than the width it is easing to (negative while it opens), px;
+ * 0 below `lg`, where the column is hidden. Add it to a width measured in the same callback to get that width at
+ * the end of the easing, so a layout decision (docked card or pill, Files beside or over the thread) is made once,
+ * for where the sidebar is going, instead of flipping while it moves.
+ */
+export function sidebarTravel(sidebar: SidebarLayout | undefined): number {
+  const column = document.getElementById(SIDEBAR_ID);
+
+  if (!sidebar || !column?.checkVisibility()) return 0;
+
+  return column.getBoundingClientRect().width - sidebar.target;
 }

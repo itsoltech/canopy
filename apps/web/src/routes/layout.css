@@ -270,12 +270,50 @@ html[data-canopy-platform]:not(:has(:popover-open, [data-window-no-drag])) {
   /* Keep both sides of a bot conversation together on large screens. */
   --bot-chat-width: 72rem;
 }
-/* The chat column. Centred by default; the thread page places it with --chat-offset and --chat-column (centred on
-   the window, clear of the sidebar and the docked summary). Messages and composer always share it. */
+/* The desktop sidebar column's live width, 0 below lg where the drawer takes over. Registered and not inherited: only
+   the column (`t-sidebar`) and the chat columns compute it, and each eases its own copy on a toggle with the same
+   start, duration and curve (motion.css `t-sidebar`), so they agree in every frame while the rest of the page's
+   styles stay untouched. `--sidebar-width` is set only on the column and on the thread area (a drag changes it
+   every frame). */
+@property --sidebar-extent {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@media (min-width: 64rem) {
+  .t-sidebar-shell:not([data-sidebar-collapsed]) :is(.t-sidebar, .chat-column) {
+    --sidebar-extent: var(--sidebar-width);
+  }
+}
+/* Space the docked thread summary takes from the chat column: a 20rem card, 1rem from the area's edge and 1rem clear
+   of the column (summary-layout.svelte.ts). Eases when the card docks or leaves (motion.css `data-chat-settling`). */
+@property --chat-card-space {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+[data-chat-card] .chat-column {
+  --chat-card-space: 22rem;
+}
+/* The chat column; messages and composer always share it. Centred by default. On the thread page
+   (`data-chat-placement`, set on the thread area with `--chat-area-start`, the turn rail's padding) it centres on
+   the window, clamped between the area's start (clear of the sidebar and the rail) and the docked card: when a side
+   would collide it moves only as far as needed, then narrows. All of it is CSS from the sidebar's live width and the
+   area's width (100% here), so it moves in the same frame as the sidebar and Files, never a frame behind. */
 .chat-column {
-  max-width: var(--chat-column, var(--chat-width));
-  margin-left: var(--chat-offset, auto);
+  max-width: var(--chat-width);
+  margin-left: auto;
   margin-right: auto;
+}
+[data-chat-placement] .chat-column {
+  --chat-room: calc(100% - var(--chat-card-space));
+  --chat-span: min(var(--chat-width), var(--chat-room));
+  max-width: var(--chat-span);
+  margin-left: clamp(
+    0px,
+    50vw - var(--chat-span) / 2 - var(--sidebar-extent) - var(--chat-area-start, 0px),
+    var(--chat-room) - var(--chat-span)
+  );
 }
 @media (min-width: 40rem) {
   :root {

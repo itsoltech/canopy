@@ -6,9 +6,11 @@
   import { SIDEBAR_ID, type SidebarLayout } from "./sidebar-layout.svelte.ts";
 
   /**
-   * The desktop sidebar's column with its resize handle on the edge. The column eases its width (to 0 when
-   * collapsed, motion.css `t-sidebar`); the panel keeps the full width on the column's edge and fades, so
-   * its content never re-wraps. A collapsed column is inert. Hidden below lg (the drawer takes over).
+   * The desktop sidebar's column with its resize handle on the edge. The column's width is `--sidebar-extent`
+   * (layout.css), which eases to 0 when collapsed (motion.css `t-sidebar`); the thread's chat column eases the
+   * same value on the same timing, so both move in one frame. The panel keeps the full width on the column's
+   * edge and fades, so its content never re-wraps. A collapsed column is inert. Hidden below lg (the drawer takes
+   * over).
    */
   let {
     sidebar,
@@ -20,10 +22,9 @@
 <aside
   id={SIDEBAR_ID}
   aria-label="Sidebar"
-  class={["t-sidebar relative w-(--sidebar-width) shrink-0 data-collapsed:w-0 max-lg:hidden", className]}
+  class={["t-sidebar relative w-(--sidebar-extent) shrink-0 max-lg:hidden", className]}
   style:--sidebar-width={sidebar.cssWidth}
   data-collapsed={sidebar.collapsed || undefined}
-  data-settling={sidebar.settling || undefined}
   inert={sidebar.collapsed && !sidebar.dragging}
 >
   <div class="t-sidebar-panel absolute inset-y-0 right-0 w-(--sidebar-width) border-r border-divider bg-panel">

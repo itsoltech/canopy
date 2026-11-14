@@ -316,8 +316,9 @@
 
   let panelSheet = $state(false);
 
-  // The chat column centres on the window between the sidebar and the docked summary (summary-layout.svelte.ts).
-  const summary = new SummaryLayout(() => workspaceState.rem);
+  // The chat column centres on the window between the sidebar and the docked summary (layout.css
+  // `data-chat-placement`); the summary docks only where the column keeps its minimum (summary-layout.svelte.ts).
+  const summary = new SummaryLayout(workspaceState);
 
   $effect(() => {
     if (!selectedPr) return;
@@ -595,20 +596,16 @@
         id={fileTab ? undefined : "workspace-content"}
         role="tabpanel"
         aria-label="Thread"
-        class="absolute inset-0 min-h-0 md:pl-9"
+        class="absolute inset-0 min-h-0 md:pl-9 md:[--chat-area-start:--spacing(9)]"
         class:invisible={Boolean(fileTab)}
         inert={Boolean(fileTab)}
         bind:this={feedRegion}
         bind:clientWidth={summary.width}
-        style:--chat-offset={summary.inner ? `${summary.offset}px` : undefined}
-        style:--chat-column={summary.inner ? `${summary.column}px` : undefined}
+        style:--sidebar-width={workspaceState.sidebarWidth}
+        data-chat-placement
+        data-chat-card={summary.card || undefined}
         data-chat-settling={summary.settling || undefined}
       >
-        <span
-          aria-hidden="true"
-          class="pointer-events-none invisible absolute w-(--chat-width)"
-          bind:clientWidth={summary.chat}
-        ></span>
         <span
           aria-hidden="true"
           class="pointer-events-none invisible absolute inset-x-0 md:left-9"

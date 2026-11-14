@@ -1,15 +1,24 @@
 import { untrack } from "svelte";
+import type { Attachment } from "svelte/attachments";
+import { FILES_PANEL_WIDTH } from "@canopy/domain/device-view";
+import { useShell } from "#lib/features/navigation/shell.ts";
+import { sidebarTravel } from "#lib/features/navigation/sidebar-layout.svelte.ts";
 import type { Workspace, WorkspaceTab } from "@canopy/domain/workspace";
 import { fileTab, tabBusy, tabDirty } from "@canopy/domain/workspace-modules";
 import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
 import { provideWorkspace, workspaceStore, workspaceVersion } from "./workspace.svelte.ts";
 
 export class ThreadWorkspace {
+  /** Width of the thread area and Files together, where the sidebar is going (`measure`). */
   width = $state(0);
   rem = $state(16);
+  /** Files width while its edge is dragged. */
+  panelDraft = $state<number>();
   closing = $state<WorkspaceTab[]>([]);
   #closingView: Workspace | undefined;
   #closingIds: string[] = [];
+  #frame: HTMLElement | undefined;
+  readonly #shell = useShell();
 
   constructor(readonly threadId: () => string) {
     provideWorkspace(() => this.view);
@@ -53,6 +62,48 @@ export class ThreadWorkspace {
   get filesOpen(): boolean {
     return this.wide && devicePreferences.view.filesPanelOpen;
   }
+
+  get panelMax(): number {
+    return Math.min(FILES_PANEL_WIDTH.max, Math.max(FILES_PANEL_WIDTH.min, this.width - 30 * this.rem));
+  }
+
+  /** Width of the Files column when open, px. */
+  get panelSize(): number {
+    return Math.min(this.panelDraft ?? devicePreferences.view.filesPanelWidth, this.panelMax);
+  }
+
+  /** The sidebar's `--sidebar-width`, for the chat column that follows it (layout.css `data-chat-placement`). */
+  get sidebarWidth(): string | undefined {
+    return this.#shell.sidebar?.cssWidth;
+  }
+
+  /**
+   * How much wider the thread area will be once the sidebar and the Files column have eased open or shut (negative
+   * while one opens), px; `areaRight` is the area's right edge, measured in the same callback. Layout decisions
+   * (Files beside the thread, the docked summary) add it, so they are made once for the end state and never flip
+   * while a column moves.
+   */
+  travel(areaRight: number): number {
+    const sidebar = sidebarTravel(this.#shell.sidebar);
+
+    if (!this.#frame || !this.wide) return sidebar;
+
+    return sidebar + this.#frame.getBoundingClientRect().right - areaRight - (this.filesOpen ? this.panelSize : 0);
+  }
+
+  /** Measures the frame (thread area and Files) where the sidebar is going. */
+  measure: Attachment<HTMLElement> = (node) => {
+    this.#frame = node;
+    const update = () => (this.width = node.clientWidth + sidebarTravel(this.#shell.sidebar));
+    const observer = new ResizeObserver(update);
+    observer.observe(node);
+    update();
+
+    return () => {
+      observer.disconnect();
+      this.#frame = undefined;
+    };
+  };
 
   /** The floating thread summary is open or collapsed to its pill: one choice on this device. */
   toggleSummary(): void {
