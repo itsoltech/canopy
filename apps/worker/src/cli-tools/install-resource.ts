@@ -4,10 +4,12 @@ import type { Recipe } from "./recipes.ts";
 
 /** Derived from the actual recipe, never a gateway-supplied path or command. */
 export function installResource(cli: DiscoveredCli, recipe: Recipe): string {
-  if (recipe.kind === "script") return "";
+  if (recipe.kind === "script") return `tool:${cli.spec.name}`;
   const prefix = recipe.argv.indexOf("--prefix");
 
   if (prefix !== -1) return `prefix:${recipe.argv[prefix + 1]}`;
+
+  if (cli.method === CliInstallMethod.NOT_INSTALLED && recipe.argv[1] === "add") return "bun:global";
 
   switch (cli.method) {
     case CliInstallMethod.BUN:
@@ -18,6 +20,6 @@ export function installResource(cli: DiscoveredCli, recipe: Recipe): string {
       // Volta updates its shared tools/user inventory and shims.
       return "volta:inventory";
     default:
-      return "";
+      return `tool:${cli.spec.name}`;
   }
 }

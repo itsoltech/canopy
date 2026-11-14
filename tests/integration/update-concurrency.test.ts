@@ -24,7 +24,7 @@ function fleet(workers = 3, shared = false) {
           version: "1.0.0",
           installable: true,
           method: shared ? CliInstallMethod.NPM : CliInstallMethod.NATIVE,
-          installResource: shared ? "prefix:/fixture/global" : "",
+          installResource: shared ? "prefix:/fixture/global" : `tool:${provider}`,
         },
         latest: { version: "2.0.0" },
         updateAvailable: true,
@@ -99,6 +99,25 @@ function fleet(workers = 3, shared = false) {
 }
 
 describe("durable update scheduler with gated fake workers", () => {
+  test("older workers keep one slot and duplicate tool entries do not launch twice", async () => {
+    const f = fleet(1);
+    const tools = f.snapshot.cliWorkers[0]!.cliTools;
+    tools.forEach((item) => {
+      item.tool!.installResource = "";
+    });
+    tools.push(clone(ui.WorkerCliToolSchema, tools[0]!));
+    await f.center.begin();
+    await f.tick();
+    expect(f.run()?.steps).toHaveLength(2);
+    expect(f.started).toEqual([`worker-0/${Provider.CLAUDE}`]);
+    f.finish(f.started[0]!);
+    await f.tick();
+    expect(f.started).toEqual([`worker-0/${Provider.CLAUDE}`, `worker-0/${Provider.CODEX}`]);
+    f.finish(f.started[1]!);
+    await f.tick();
+    expect(f.run()?.state).toBe("succeeded");
+  });
+
   test("a local gateway drains independent peers before restart, then resumes protocol-dependent workers", async () => {
     const f = fleet(1);
     f.snapshot.gatewayInstallKind = "binary";

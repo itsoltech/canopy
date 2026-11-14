@@ -193,7 +193,10 @@ bash nie działają. Przepisy macOS i Windows nie były sprawdzone na prawdziwyc
 
 - **Egzekwuje gateway**, nie UI: tylko właściciel workera (`workers.owner_user_id`; cudzy i współdzielony worker =
   `NotFound`), worker online z `cli_install`, metoda z przepisem (Homebrew, mise, asdf, Yarn, Docker i `OTHER` są
-  odrzucane niezależnie od tego, co zgłosił worker), brak trwających tur dostawcy, jedna instalacja naraz.
+  odrzucane niezależnie od tego, co zgłosił worker), brak trwających tur dostawcy, jedna instalacja tego
+  samego narzędzia naraz. Różne CLI mogą działać równolegle; worker szereguje tylko wspólny zasób
+  przepisu (`CliTool.install_resource`), obejmując też rollback. Pary i limity opisuje
+  [centrum aktualizacji](updates.md).
   Każde uruchomienie trafia do `audit_log` (`worker.cli.install`: dostawca, wersja, poprzednia, metoda).
 - **Trwające tury: odmowa.** Gateway (tury `running` w bazie) i worker (własne tury i tury właśnie przyjmowane)
   odrzucają instalację z komunikatem „… has N running turns on this worker; try again when they finish”; UI

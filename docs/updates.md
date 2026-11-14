@@ -230,8 +230,9 @@ nie blokują siebie ani Codex instalowanego jako osobny pakiet npm. Homebrew, mi
 asdf i Yarn nie uruchamiają instalatora Canopy. Ten sam provider na tym samym
 workerze jest deduplikowany w planie i ponownie chroniony przez worker przed
 równoległym poleceniem. Worker egzekwuje zasoby także dla pojedynczych instalacji.
-Dla starszych raportów bez zasobu gateway szereguje instalacje tego samego
-globalnego menedżera konserwatywnie. Protokół WorkerLink nie zmienia numeru;
+Dla starszych raportów bez zasobu gateway szereguje wszystkie CLI workera:
+stary worker ma jedną blokadę również dla natywnych instalatorów. Nowe raporty
+oznaczają niezależne narzędzie jako `tool:<nazwa>`. Protokół WorkerLink nie zmienia numeru;
 pole jest addytywne, a zamrożony UpdateService pozostaje bez zmian.
 
 Workery czekają na aktualizację swojego gatewaya, a CLI na aktualizację swojego

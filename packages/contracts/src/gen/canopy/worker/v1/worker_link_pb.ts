@@ -6490,7 +6490,8 @@ export type CliTool = Message<"canopy.worker.v1.CliTool"> & {
   alternatives: CliAlternative[];
 
   /**
-   * Worker-local shared install resource; empty means an independent tool installation.
+   * Worker-local install resource; tool:<name> means an independent tool installation.
+   * Empty is an older worker that only admits one install at a time.
    * Equal nonempty values must not install concurrently (including rollback).
    *
    * @generated from field: string install_resource = 13;

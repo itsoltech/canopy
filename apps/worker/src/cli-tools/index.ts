@@ -200,13 +200,9 @@ export class CliTools {
 
     // Checked again after the (async) discovery: a turn may have started meanwhile.
     const resource = installResource(before, plan.recipe);
-
-    while (resource) {
-      const conflict = [...this.#installing.values()].find((item) => item.resource === resource);
-
-      if (!conflict) break;
-      await conflict.done;
-    }
+    const waiting = [...this.#installing.values()]
+      .filter((item) => item.resource === resource)
+      .map((item) => item.done);
 
     if (this.#options.busy(command.provider) > 0)
       throw new CliRefused("CLI_TURNS_RUNNING", `${spec.label} started a turn; try again when it finishes`);
@@ -223,6 +219,9 @@ export class CliTools {
     const recipe = plan.recipe;
 
     const done = (async () => {
+      // Reserve the provider and acknowledge immediately, including when a shared installer must wait.
+      // Later reservations wait for this whole promise, including validation and rollback.
+      await Promise.all(waiting);
       const buffer: string[] = [];
 
       const flush = () => {

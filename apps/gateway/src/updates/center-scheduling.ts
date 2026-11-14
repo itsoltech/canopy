@@ -1,4 +1,4 @@
-import { CliInstallMethod, type ui } from "@canopy/contracts";
+import type { ui } from "@canopy/contracts";
 
 export const UPDATE_CONCURRENCY = 4;
 export const pendingUpdate = (step: ui.UpdateStep): boolean => ["queued", "running"].includes(step.state);
@@ -35,13 +35,8 @@ function resource(step: ui.UpdateStep, snapshot: ui.UpdatesSnapshot): string {
 
   if (cli.installResource) return cli.installResource;
 
-  // Older workers do not report resources and only admit one installer at a time.
-  // Their package-manager installs conservatively share a slot; native tools remain independent.
-  return [CliInstallMethod.NPM, CliInstallMethod.BUN, CliInstallMethod.PNPM, CliInstallMethod.VOLTA].includes(
-    cli.method,
-  )
-    ? `legacy:${cli.method}`
-    : "";
+  // Older workers do not report resources and only admit one installer, even for native tools.
+  return "legacy:worker";
 }
 
 export function updatesConflict(a: ui.UpdateStep, b: ui.UpdateStep, snapshot: ui.UpdatesSnapshot): boolean {

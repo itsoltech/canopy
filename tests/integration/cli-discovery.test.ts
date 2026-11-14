@@ -308,6 +308,8 @@ for arg in "$@"; do if [ "$previous" = --prefix ]; then prefix="$arg"; fi; previ
     const second = start(Provider.CODEX);
 
     try {
+      await second;
+      await expect(start(Provider.CLAUDE)).rejects.toMatchObject({ code: "CLI_INSTALL_RUNNING" });
       expect(await eventually(async () => existsSync(join(home, "claude-started")), Boolean)).toBe(true);
 
       if (!shared) expect(await eventually(async () => existsSync(join(home, "codex-started")), Boolean)).toBe(true);

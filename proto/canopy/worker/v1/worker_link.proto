@@ -1815,7 +1815,8 @@ message CliTool {
   string version_error = 11;
   // Pozostałe kopie z PATH powłoki logowania i znanych miejsc menedżerów pakietów (bez wybranej).
   repeated CliAlternative alternatives = 12;
-  // Worker-local shared install resource; empty means an independent tool installation.
+  // Worker-local install resource; tool:<name> means an independent tool installation.
+  // Empty is an older worker that only admits one install at a time.
   // Equal nonempty values must not install concurrently (including rollback).
   string install_resource = 13;
 }
