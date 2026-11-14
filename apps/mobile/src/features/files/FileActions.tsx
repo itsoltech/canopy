@@ -15,39 +15,40 @@ export function FileActions({
 }) {
   return (
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-      {viewer.editing ? (
+      {viewer.editable && (
         <>
           <Button
             title="Save file"
             size="sm"
             variant="primary"
             busy={viewer.busy}
-            disabled={!viewer.dirty || saveDisabled}
+            disabled={!viewer.dirty || saveDisabled || viewer.readOnly}
             onPress={() => void viewer.save()}
           />
           <Button
-            title={viewer.dirty ? "Discard changes" : "Stop editing"}
+            title="Discard changes"
             size="sm"
-            disabled={viewer.busy}
+            disabled={viewer.busy || !viewer.dirty}
             onPress={onDiscard}
             style={{ minWidth: 144 }}
           />
         </>
-      ) : (
-        <>
-          {viewer.file && !viewer.file.binary && (
-            <Button title="Edit" size="sm" disabled={!viewer.editable || viewer.loading} onPress={viewer.edit} />
-          )}
-          <Button title="Reload" size="sm" disabled={viewer.busy || viewer.loading} onPress={() => viewer.reload()} />
-          <Button
-            title="Delete file"
-            size="sm"
-            variant="ghost"
-            disabled={!viewer.file?.sha256 || viewer.busy || viewer.loading}
-            onPress={onDelete}
-          />
-        </>
       )}
+      <>
+        <Button
+          title="Reload"
+          size="sm"
+          disabled={viewer.busy || viewer.loading || viewer.dirty}
+          onPress={() => viewer.reload()}
+        />
+        <Button
+          title="Delete file"
+          size="sm"
+          variant="ghost"
+          disabled={!viewer.file?.sha256 || viewer.busy || viewer.loading || viewer.dirty}
+          onPress={onDelete}
+        />
+      </>
     </View>
   );
 }

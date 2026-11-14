@@ -4,7 +4,7 @@
   import type { WorkspaceFile } from "@canopy/domain/workspace-file";
   import { SourceIndex } from "@canopy/syntax/source";
   import { roleNames } from "@canopy/syntax/roles";
-  import { gutterDigits, plainByDefault, sourceShape } from "@canopy/syntax/layout";
+  import { gutterDigits, sourceShape } from "@canopy/syntax/layout";
   import { openHighlight } from "./highlight-client.ts";
   import type { HighlightClient } from "./highlight-client.ts";
   import type { FileNotice } from "./file-notice.ts";
@@ -41,7 +41,7 @@
   });
 
   const shape = $derived(sourceShape(text));
-  const plain = $derived(plainByDefault(shape));
+  const plain = $derived(shape.longest > 2000);
 
   // Vertical inset of the text inside the scroller; rows keep their positions relative to it.
   const inset = 8;
@@ -53,6 +53,14 @@
   let rowHeight = $state(24);
   let client = $state<HighlightClient>();
   let tokens = $state<ReadonlyMap<number, SyntaxLine>>(new Map());
+  let tokenRevision = $state(0);
+
+  const highlighted = $derived.by(() => {
+    void tokenRevision;
+
+    return (line: number) => tokens.get(line);
+  });
+
   let note = $state("");
   const first = $derived(Math.max(0, Math.floor(top / rowHeight) - 8));
 
@@ -158,8 +166,11 @@
     if (indexing || (plain && !highlight)) return;
     const current = openHighlight(path, text);
     client = current;
+    tokens = current.tokens;
+    const unsubscribe = current.subscribe(() => tokenRevision++);
 
     return () => {
+      unsubscribe();
       current.close();
       client = undefined;
     };
@@ -170,14 +181,12 @@
     const start = rows[0]?.line ?? 1;
     const end = rows.at(-1)?.line ?? start;
     let cancelled = false;
-    tokens = new Map();
 
     if (!current) return;
     void current
       .window(start, Math.min(200, end - start + 1))
       .then((result) => {
         if (cancelled) return;
-        tokens = new Map(result.lines.map((line) => [line.line, line]));
         note = result.reason;
       })
       .catch(() => {
@@ -207,7 +216,7 @@
 >
   <div class="relative min-w-full" style:height={`${scrollHeight}px`}>
     {#each rows as row (row.index)}
-      {@const line = tokens.get(row.line)}
+      {@const line = highlighted(row.line)}
       {@const spans = row.continued ? [] : (line?.spans ?? [])}
       {@const selected = position && row.line >= position.line && row.line <= position.end}
       <div

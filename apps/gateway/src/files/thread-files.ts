@@ -28,6 +28,7 @@ const threadFile = ({ file }: CommandResult): ui.ThreadFile =>
         imagePreviewError: file.imagePreviewError,
         imagePreview: file.imagePreview,
         rootIdentity: file.rootIdentity,
+        readOnly: file.readOnly,
         matches: file.matches,
         searchedPaths: file.searchedPaths,
         searchIncomplete: file.searchIncomplete,

@@ -9,49 +9,50 @@ export function workspaceHighlight(path: string) {
     class {
       decorations: DecorationSet = Decoration.none;
       readonly client: HighlightClient;
-      timer: ReturnType<typeof setTimeout> | undefined;
-      generation = 0;
-      closed = false;
+      readonly unsubscribe: () => void;
+      frame = 0;
 
       constructor(readonly view: EditorView) {
         this.client = openHighlight(path, view.state.doc.toString());
-        this.schedule();
+        this.unsubscribe = this.client.subscribe(() => {
+          if (this.frame) return;
+          this.frame = requestAnimationFrame(() => {
+            this.frame = 0;
+            this.paint();
+            this.view.dispatch({});
+          });
+        });
+        this.paint();
       }
 
       update(update: ViewUpdate) {
         if (update.docChanged) {
           const changes: { from: number; to: number; insert: string }[] = [];
+          let first = update.startState.doc.lines;
           update.changes.iterChanges((from, to, _nextFrom, _nextTo, insert) => {
+            first = Math.min(first, update.startState.doc.lineAt(from).number);
             changes.push({ from, to, insert: insert.toString() });
           });
-          this.client.change(changes);
-          this.decorations = Decoration.none;
+          this.client.change(changes, first);
         }
 
-        if (update.docChanged || update.viewportChanged) this.schedule();
+        if (update.docChanged || update.viewportChanged) this.paint();
       }
 
-      schedule() {
-        clearTimeout(this.timer);
-        const generation = ++this.generation;
-        this.timer = setTimeout(() => void this.highlight(generation), 40);
-      }
-
-      async highlight(generation: number) {
+      paint() {
         const doc = this.view.state.doc;
         const start = doc.lineAt(this.view.viewport.from).number;
-        const end = Math.min(start + 199, doc.lineAt(this.view.viewport.to).number);
+        const end = doc.lineAt(this.view.viewport.to).number;
+        const ranges = [];
 
-        try {
-          const result = await this.client.window(start, end - start + 1);
+        for (let number = start; number <= end; number++) {
+          const line = this.client.tokens.get(number);
 
-          if (this.closed || this.generation !== generation || this.view.state.doc !== doc) return;
+          if (!line) continue;
+          const source = doc.line(line.line);
 
-          const ranges = result.lines.flatMap((line) => {
-            if (line.line > doc.lines) return [];
-            const source = doc.line(line.line);
-
-            return line.spans.flatMap((span) =>
+          ranges.push(
+            ...line.spans.flatMap((span) =>
               span.to > source.length
                 ? []
                 : [
@@ -60,20 +61,16 @@ export function workspaceHighlight(path: string) {
                       source.from + span.to,
                     ),
                   ],
-            );
-          });
-
-          this.decorations = Decoration.set(ranges, true);
-          this.view.dispatch({});
-        } catch {
-          // Plain text remains immediately editable; a stale/expired result never changes the document.
+            ),
+          );
         }
+
+        this.decorations = Decoration.set(ranges, true);
       }
 
       destroy() {
-        this.closed = true;
-        this.generation++;
-        clearTimeout(this.timer);
+        cancelAnimationFrame(this.frame);
+        this.unsubscribe();
         this.client.close();
       }
     },

@@ -15,10 +15,23 @@ import { GoToLine } from "./GoToLine";
 import { WorkspaceText } from "./WorkspaceText";
 import { useAppActive } from "../../ui/active";
 import { WorkspaceConflict } from "./WorkspaceConflict";
+import { useOverview } from "../../state/overview";
 
 export function WorkspaceFile({ view, tab }: { view: Workspace; tab: WorkspaceTab }) {
   useSyncExternalStore(view.store.subscribe, view.store.getVersion);
   const document = tab.document;
+  const overview = useOverview();
+  const thread = overview.threads.find((item) => item.id === document.target.threadId);
+  const worker = overview.workers.find((item) => item.id === thread?.workerId);
+  useEffect(() => {
+    document.availability(
+      worker?.nodeId
+        ? "Files on another computer are read only."
+        : worker && !worker.online
+          ? "This computer is offline. Reconnect it to edit files."
+          : "",
+    );
+  }, [document, worker?.nodeId, worker?.online]);
   const active = useAppActive();
   const padding = useContentPadding(0);
   const [confirmation, setConfirmation] = useState<FileConfirmationKind>();
@@ -31,8 +44,8 @@ export function WorkspaceFile({ view, tab }: { view: Workspace; tab: WorkspaceTa
   );
 
   useEffect(() => {
-    if (!document.editing) setPreviewChanges(false);
-  }, [document.editing]);
+    if (!document.editable) setPreviewChanges(false);
+  }, [document.editable]);
 
   useEffect(() => {
     if (!active) return;
@@ -54,7 +67,7 @@ export function WorkspaceFile({ view, tab }: { view: Workspace; tab: WorkspaceTa
         onDiscard={() => (document.dirty ? setConfirmation("discard") : document.discard())}
         onDelete={() => setConfirmation("delete")}
       />
-      {document.editing && (
+      {document.editable && (
         <Button
           size="sm"
           title={previewChanges ? "Keep editing" : "Preview changes"}
@@ -65,7 +78,7 @@ export function WorkspaceFile({ view, tab }: { view: Workspace; tab: WorkspaceTa
     </View>
   );
 
-  const textView = document.file && !document.file.binary && !document.editing;
+  const textView = document.file && !document.file.binary && !viewer.editable;
 
   return (
     <View style={{ flex: 1, ...padding }}>
@@ -79,7 +92,7 @@ export function WorkspaceFile({ view, tab }: { view: Workspace; tab: WorkspaceTa
           }
         }}
       >
-        {document.editing && previewChanges ? (
+        {document.editable && previewChanges ? (
           <>
             <View style={{ padding: 12 }}>{actions}</View>
             <WorkspaceText document={document} draft={document.draft} />

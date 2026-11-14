@@ -694,6 +694,10 @@ i wysyła `roots`: katalog wątku, także gdy jest osobnym worktree. Worker rozw
 i przyjmuje tylko istniejący zwykły plik wewnątrz dozwolonego korzenia (`FILE_OUTSIDE_ROOTS`).
 Starsze komendy bez rozstrzygania podglądu dopuszczają również katalog załączników danego wątku.
 Odczyt zwraca do 2 MiB (`truncated`); przekroczenie limitu nie oblicza hasha całego pliku i zwraca pusty
+`sha256`. `FileContent.read_only` (19), przekazywane do `ThreadFile.read_only` (20),
+informuje o braku prawa zapisu procesu workera (`W_OK`); nie zastępuje kontroli systemu
+plików przy zapisie. Plik tylko do odczytu nie otrzymuje edytowalnego pola.
+Pusty
 `sha256`, więc nie uprawnia do edycji ani usunięcia. Zapis i usunięcie wymagają `expected_sha256` z odczytu; inna treść na
 dysku daje `FILE_CHANGED`, więc edycja nie nadpisze cudzej zmiany. `OpenFile` używa `open`,
 `explorer.exe` albo `xdg-open`. Połączone komputery przekazują do domu wątku odczyt, zapis i usunięcie, ale nie `OpenThreadFile`: plik otworzyłby się na innym komputerze.
