@@ -247,8 +247,8 @@ Jedna tabela wag wraz z datą i źródłami znajduje się w tym module. Nie wyli
 mnożników z cen ani z podobnych nazw planów. Niepotwierdzona kombinacja planu,
 providera i okna liczy się jako ×1 i jest jawnie oznaczona. Dotyczy to również
 niejednoznacznego Pro Codexa oraz limitów API Groka: abonamentowy pool Groka nie
-jest limitem API. Dawne Max 20x Claude jest obecnie Ultra; nazwa ze źródła zostaje
-widoczna przy koncie, lecz waga tygodniowa odpowiada aktualnemu planowi.
+jest limitem API. Dawne Max 20x Claude jest obecnie pokazywane jako Ultra,
+a Max 5x jako Max; waga tygodniowa odpowiada aktualnemu planowi.
 
 Brak pomiaru, brak procentu bez sygnału reached lub miniony reset wyklucza konto
 z mianownika danego okna. UI podaje liczbę raportujących kont. Wyłączone konta,
@@ -259,6 +259,9 @@ brakujących okien ani nie zakładamy, że reset sam potwierdził powrót dostę
 Ikona paska bocznego pokazuje skumulowane wykorzystanie według providera, łącząc
 konta z używanych proxy; dla bezpośrednich instancji zachowuje bardziej ograniczający
 odczyt. Przy limicie bez procentu samo reached oznacza zerową dostępność.
+Okna o nieznanym okresie (Primary limit / Secondary limit) zostają przy koncie,
+ale nie są sumowane. Standardowe klucze okien łączą również starsze odczyty cache
+bez pola długości; niestandardowe okresy wymagają identycznej liczby minut.
 
 Listy kont w Settings → Proxies i popoverze, ich podsumowania oraz agregacja
 obsługują wyłącznie Claude, Codex i Grok. Pozostałe konta nie ujawniają tożsamości

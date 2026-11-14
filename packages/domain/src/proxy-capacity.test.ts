@@ -18,6 +18,28 @@ const account = (id: string, plan: ui.ProxyAccountPlan, percent: number, status 
   });
 
 describe("proxy subscription capacity", () => {
+  test("combines older standard periods but never combines unknown periods or different custom durations", () => {
+    const older = account("older", Plan.PRO, 50);
+    const newer = account("newer", Plan.PRO, 0);
+    newer.windows[0]!.windowMinutes = 10080;
+    expect(proxyCapacityGroups([older, newer], now)[0]?.windows).toMatchObject([{ total: 2, remaining: 1.5 }]);
+
+    const uncertain = create(ui.ProxyAccountSchema, {
+      provider: "codex",
+      status: "active",
+      windows: [
+        { key: "primary_limit", usedPercent: 50 },
+        { key: "secondary_limit", usedPercent: 80 },
+        { key: "duration", windowMinutes: 120, usedPercent: 50 },
+        { key: "duration", windowMinutes: 180, usedPercent: 20 },
+      ],
+    });
+
+    expect(proxyCapacityGroups([uncertain], now)[0]?.windows.map((w) => [w.key, w.windowMinutes, w.total])).toEqual([
+      ["duration", 120, 1],
+      ["duration", 180, 1],
+    ]);
+  });
   test("weights measured windows in base-tier units, keeping the denominator independent of usage", () => {
     const groups = proxyCapacityGroups([account("max", Plan.MAX_5X, 50), account("ultra", Plan.ULTRA, 0)], now);
     expect(groups[0]?.windows[0]).toMatchObject({ total: 15, remaining: 12.5, reporting: 2, unknown: 0 });

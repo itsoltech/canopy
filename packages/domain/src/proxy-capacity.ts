@@ -70,6 +70,23 @@ const current = (window: ProviderUsageWindow, now: number) =>
   (!window.resetsAt || timestampDate(window.resetsAt).getTime() > now) &&
   (window.reached || (window.usedPercent !== undefined && Number.isFinite(window.usedPercent)));
 
+const periods = new Set([
+  "five_hour",
+  "one_day",
+  "seven_day",
+  "thirty_day",
+  "seven_day_opus",
+  "seven_day_sonnet",
+  "seven_day_overage_included",
+]);
+
+const comparable = (window: ProviderUsageWindow) =>
+  periods.has(window.key) || (window.key === "duration" && window.windowMinutes > 0);
+
+// Standard keys already identify the duration, including cached reads from older gateways.
+const windowIdentity = (window: ProviderUsageWindow) =>
+  `${window.key}:${window.key === "duration" ? window.windowMinutes : 0}`;
+
 /**
  * Missing/expired/percentage-free readings never enter a window's denominator.
  * Disabled, sign-in, error and unknown statuses are excluded. Cooling accounts
@@ -88,9 +105,7 @@ function capacityWindow(
   let resetsAt: ProviderUsageWindow["resetsAt"];
 
   for (const account of accounts.filter(eligible)) {
-    const window = account.windows.find(
-      (w) => w.key === sample.key && w.windowMinutes === sample.windowMinutes && current(w, now),
-    );
+    const window = account.windows.find((w) => windowIdentity(w) === windowIdentity(sample) && current(w, now));
 
     if (!window) continue;
     const weight = proxyPlanWeight(account, window.key);
@@ -111,7 +126,7 @@ function capacityWindow(
 
   return {
     key: sample.key,
-    windowMinutes: sample.windowMinutes,
+    windowMinutes: sample.key === "duration" ? sample.windowMinutes : 0,
     total,
     remaining,
     percentLeft: total ? (remaining / total) * 100 : 0,
@@ -136,8 +151,8 @@ export function proxyCapacityGroups(accounts: readonly ui.ProxyAccount[], now = 
     const samples = new Map<string, ProviderUsageWindow>();
 
     for (const account of own.filter(eligible)) {
-      for (const window of account.windows.filter((w) => current(w, now)))
-        samples.set(`${window.key}:${window.windowMinutes}`, window);
+      for (const window of account.windows.filter((w) => comparable(w) && current(w, now)))
+        samples.set(windowIdentity(window), window);
     }
 
     const windows = [...samples.values()]

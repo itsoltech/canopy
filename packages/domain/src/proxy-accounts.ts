@@ -15,8 +15,8 @@ const planNames = new Map<ui.ProxyAccountPlan, string>([
   [ui.ProxyAccountPlan.BUSINESS, "Business"],
   [ui.ProxyAccountPlan.ENTERPRISE, "Enterprise"],
   [ui.ProxyAccountPlan.MAX, "Max"],
-  [ui.ProxyAccountPlan.MAX_5X, "Max 5x"],
-  [ui.ProxyAccountPlan.MAX_20X, "Max 20x"],
+  [ui.ProxyAccountPlan.MAX_5X, "Max"],
+  [ui.ProxyAccountPlan.MAX_20X, "Ultra"],
   [ui.ProxyAccountPlan.ULTRA, "Ultra"],
   [ui.ProxyAccountPlan.OTHER, "Other plan"],
 ]);

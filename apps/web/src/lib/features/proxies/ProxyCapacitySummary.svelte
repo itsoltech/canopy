@@ -67,7 +67,7 @@
         </p>{/if}
     </div>
   {:else}
-    <p class="min-h-5 text-zinc-500 dark:text-zinc-400">No current limit readings.</p>
+    <p class="min-h-5 text-zinc-500 dark:text-zinc-400">No comparable limit readings.</p>
   {/each}
   {#if group.excluded}<p class="text-zinc-500 dark:text-zinc-400">
       {group.excluded} unavailable {group.excluded === 1 ? "account" : "accounts"} excluded
