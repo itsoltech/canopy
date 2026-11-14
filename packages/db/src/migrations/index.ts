@@ -42,6 +42,7 @@ import composerDraftMoves from "./0142_composer_draft_moves.sql" with { type: "t
 import providerUsageEndpoints from "./0143_provider_usage_endpoints.sql" with { type: "text" };
 import threadHtml from "./0144_thread_html.sql" with { type: "text" };
 import proxyManagement from "./0145_proxy_management.sql" with { type: "text" };
+import githubPrLastKnown from "./0146_github_pr_last_known.sql" with { type: "text" };
 import botViewDelta from "./0091_bot_view_delta.sql" with { type: "text" };
 import workerConfig from "./0002_worker_config.sql" with { type: "text" };
 import gatewayRuntime from "./0003_gateway_runtime.sql" with { type: "text" };
@@ -304,6 +305,7 @@ export const migrations = Migrator.fromRecord({
   "0143_provider_usage_endpoints": sqlFile(providerUsageEndpoints),
   "0144_thread_html": sqlFile(threadHtml),
   "0145_proxy_management": sqlFile(proxyManagement),
+  "0146_github_pr_last_known": sqlFile(githubPrLastKnown),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

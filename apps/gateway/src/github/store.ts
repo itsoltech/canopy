@@ -45,6 +45,8 @@ export function githubStore(sql: SqlClient.SqlClient, key: Buffer) {
         if (!rows[0]) return yield* Effect.fail(notFound());
         yield* sql`DELETE FROM github_installations WHERE owner_user_id=${owner}::uuid AND account_id=${id}::uuid`;
         yield* sql`DELETE FROM github_pr_cache WHERE owner_user_id=${owner}::uuid AND account_id=${id}::uuid`;
+        yield* sql`UPDATE github_pull_requests SET summary=NULL,summary_account_id=NULL
+          WHERE owner_user_id=${owner}::uuid AND summary_account_id=${id}::uuid`;
         yield* sql`UPDATE threads SET newest_pull_request=NULL,pull_request_revision=pull_request_revision+1
           WHERE owner_user_id=${owner}::uuid AND id IN (SELECT l.thread_id FROM thread_pull_requests l
           JOIN github_pull_requests p ON p.owner_user_id=l.owner_user_id AND p.id=l.pull_request_id

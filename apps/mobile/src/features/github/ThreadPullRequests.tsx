@@ -1,20 +1,14 @@
 import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
-import { router } from "expo-router";
+import { Text, View } from "react-native";
 import type { ui, github } from "@canopy/contracts";
-import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { useSession } from "../../state/session";
 import { useSharedQuery } from "../../state/queries";
 import { Button, Notice } from "../../ui/components";
 import { styles, useColors } from "../../ui/theme";
 import { LinkPullRequest } from "./LinkPullRequest";
 import { CreatePullRequest } from "./CreatePullRequest";
-import { PullRequestStatus } from "./PullRequestStatus";
-import { checkLook } from "@canopy/domain/github-pr";
-import { CheckStateIcon } from "./CheckStateIcon";
-import { toast } from "../../ui/Toast";
+import { LinkedPullRequestRow } from "./LinkedPullRequestRow";
 import { useQueryRefresh } from "../../state/query-refresh";
-import { useWorkspace } from "../workspace/context";
 
 export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onClose: () => void }) {
   const { client, queries, online } = useSession();
@@ -40,12 +34,17 @@ export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onC
     <View style={{ gap: 10, minWidth: 0 }}>
       <Text style={[styles.label, { color: c.text }]}>Pull requests</Text>
       {(expanded ? links : links.slice(0, 1)).map((link) => (
-        <ThreadPullRequestRow
+        <LinkedPullRequestRow
           key={link.summary?.ref?.id}
           link={link}
           threadId={thread.id}
           stale={!!read.data?.stale}
           onClose={onClose}
+          onRetry={async (id) => {
+            // The refresh records its reason on the gateway; the list shows it either way.
+            await client?.api.refreshPullRequest({ pullRequestId: id }).catch(() => {});
+            await read.reload();
+          }}
         />
       ))}
       {links.length > 1 && (
@@ -92,70 +91,6 @@ export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onC
         oncreated={() => void read.reload()}
         ondrafted={onClose}
       />
-    </View>
-  );
-}
-
-function ThreadPullRequestRow({
-  link,
-  threadId,
-  stale,
-  onClose,
-}: {
-  link: { summary?: github.PullRequestSummary | undefined; source: string; currentBranch: boolean };
-  threadId: string;
-  stale: boolean;
-  onClose: () => void;
-}) {
-  const c = useColors(),
-    pr = link.summary;
-
-  const workspace = useWorkspace();
-
-  if (!pr?.ref) return null;
-
-  return (
-    <View style={{ minWidth: 0 }}>
-      <Pressable
-        onLongPress={() => toast(`${pr.state}, checks ${checkLook(pr.checksState).label}`)}
-        accessibilityRole="button"
-        accessibilityLabel={`${pr.title}, ${pr.state}, checks ${checkLook(pr.checksState).label}`}
-        style={({ pressed }) => ({
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 8,
-          minHeight: 48,
-          borderRadius: 8,
-          paddingHorizontal: 4,
-          backgroundColor: pressed ? c.pressed : link.currentBranch ? c.well : undefined,
-        })}
-        onPress={() => {
-          onClose();
-          const id = pr.ref?.id;
-
-          if (!id) return;
-
-          if (workspace)
-            workspace.openModule({
-              module: "pull-requests",
-              resource: id,
-              label: `#${pr.ref?.number} · ${pr.title || pr.ref?.repositoryName}`,
-            });
-          else router.push({ pathname: "/pull-request/[id]", params: { id, threadId } });
-        }}
-      >
-        <PullRequestStatus state={pr.state} iconOnly />
-        <Text numberOfLines={1} style={[styles.chrome, { flex: 1, color: c.text }]}>
-          {pr.title || pr.ref.repositoryName}
-        </Text>
-        <Text style={[styles.chromeMeta, { color: c.muted }]}>#{pr.ref.number}</Text>
-        <CheckStateIcon look={checkLook(pr.checksState)} label={`Checks: ${checkLook(pr.checksState).label}`} />
-      </Pressable>
-      {stale && pr.verifiedAt && (
-        <Text style={[styles.meta, { color: c.muted }]}>
-          Last verified {timestampDate(pr.verifiedAt).toLocaleString()}
-        </Text>
-      )}
     </View>
   );
 }

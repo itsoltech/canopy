@@ -115,7 +115,8 @@ export class GitHubRepositoryAccounts {
       row.auth_kind === "device" &&
       !(await run((s) => s.repositoryInstalled(owner, row.id, mapping.repository_id))).length
     ) {
-      await run((s) => s.cacheInvalidate(owner, row.id));
+      // Only this repository left the installation; other repositories keep their cached reads.
+      await run((s) => s.cacheInvalidateRepository(owner, row.id, mapping.repository_id));
       throw new ConnectError(`No connected GitHub account can access ${name}.`, Code.PermissionDenied);
     }
 

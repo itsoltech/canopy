@@ -4,6 +4,7 @@ import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import type { AccountRow } from "./records.ts";
 import { githubPrList } from "./store-pr-list.ts";
+import { githubPrSummaries } from "./store-pr-summary.ts";
 
 export interface RepositoryAccountRow {
   repository_id: string;
@@ -18,6 +19,8 @@ export interface PullRequestRow {
   repository_name: string;
   number: number;
   node_id: string;
+  refresh_detail: string;
+  refreshed_at: Date | null;
 }
 
 export interface DetectionEvidence {
@@ -47,7 +50,7 @@ function projectionStore(sql: SqlClient.SqlClient) {
 
   const project = (owner: string, id: string) => sql`WITH projection AS (
     SELECT (SELECT count(*) FROM thread_pull_requests l WHERE l.owner_user_id=${owner}::uuid AND l.thread_id=${id}::uuid AND l.unlinked_at IS NULL) AS count,
-    (SELECT c.payload->'summary' FROM thread_pull_requests l
+    (SELECT coalesce(c.payload->'summary',CASE WHEN p.summary_account_id=a.id THEN p.summary END) FROM thread_pull_requests l
       JOIN github_pull_requests p ON p.owner_user_id=l.owner_user_id AND p.id=l.pull_request_id
       LEFT JOIN github_repository_accounts r ON r.owner_user_id=p.owner_user_id AND r.repository_id=p.repository_id
       LEFT JOIN github_accounts a ON a.owner_user_id=r.owner_user_id AND a.id=r.account_id AND a.status='connected'
@@ -97,6 +100,8 @@ export function githubPullRequests(sql: SqlClient.SqlClient) {
           if (!result[0]) return yield* Effect.fail(conflict());
           yield* sql`DELETE FROM github_pr_cache WHERE owner_user_id=${row.owner_user_id}::uuid
         AND account_id<>${row.id}::uuid AND cache_key LIKE ${`%:${repo}:%`}`;
+          yield* sql`UPDATE github_pull_requests SET summary=NULL,summary_account_id=NULL
+        WHERE owner_user_id=${row.owner_user_id}::uuid AND repository_id=${repo} AND summary_account_id<>${row.id}::uuid`;
           // The account can change while two accounts expose identical small summaries.
           yield* sql`UPDATE threads SET pull_request_revision=pull_request_revision+1
             WHERE owner_user_id=${row.owner_user_id}::uuid AND id IN (
@@ -152,6 +157,7 @@ export function githubPullRequests(sql: SqlClient.SqlClient) {
       JOIN github_pull_requests p ON p.owner_user_id=l.owner_user_id AND p.id=l.pull_request_id WHERE l.owner_user_id=${owner}::uuid
       AND l.unlinked_at IS NULL AND (${repo ?? null}::text IS NULL OR p.repository_id=${repo ?? null})`,
     ...githubPrList(sql),
+    ...githubPrSummaries(sql),
   };
 }
 

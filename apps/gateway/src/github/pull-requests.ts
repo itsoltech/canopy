@@ -8,11 +8,13 @@ import { GitHubRepositoryAccounts, pullRequestUrl } from "./repository-accounts.
 import { SUMMARY_QUERY, summarySnapshot, pullRequestCreatedAt, partialSnapshot } from "./pull-request-query.ts";
 import { githubFailure } from "./http.ts";
 import { uuid } from "./records.ts";
+import { refreshLinked, refreshReason, rememberSummary } from "./last-known.ts";
 
 /** Local links are durable; private summaries remain bound to the selected account/access revision. */
 export class GitHubPullRequests {
   readonly client;
   readonly repositories;
+  readonly #refreshing = new Set<string>();
   constructor(
     readonly accounts: GitHubAccounts,
     readonly publish: (ids: readonly string[]) => Promise<void>,
@@ -35,6 +37,18 @@ export class GitHubPullRequests {
     if (!uuid(threadId)) throw new ConnectError("Thread not found", Code.NotFound);
 
     return this.accounts.run((s) => s.prList(this.accounts.owner, threadId));
+  }
+  /** Linked pull requests shown from their last known summary refresh in the background, never in the read path. */
+  refreshStale(response: github.ThreadPullRequestsResponse) {
+    for (const link of response.links) {
+      const ref = link.summary?.ref;
+
+      if (!link.stale || !ref?.id || this.#refreshing.has(ref.id)) continue;
+      this.#refreshing.add(ref.id);
+      void refreshLinked(this, ref)
+        .catch(() => {})
+        .finally(() => this.#refreshing.delete(ref.id));
+    }
   }
   async link(request: github.LinkThreadPullRequestRequest) {
     const { run, owner } = this.accounts;
@@ -169,6 +183,7 @@ export class GitHubPullRequests {
         const result = await this.client.read(row.id, read, force);
         await this.validate(name, row.id, BigInt(row.revision), BigInt(mapping.revision));
         const snapshot = fromJsonString(github.PullRequestSnapshotSchema, JSON.stringify(result.payload));
+        await rememberSummary(this.accounts, row.id, snapshot);
 
         return snapshot;
       } catch (cause) {
@@ -193,6 +208,7 @@ export class GitHubPullRequests {
       }
     } catch (cause) {
       const error = githubFailure(cause);
+      await run((s) => s.prRefreshFailed(owner, name, number, refreshReason(name, error))).catch(() => []);
 
       if ([Code.PermissionDenied, Code.FailedPrecondition].includes(error.code)) {
         this.client.memory.clear();

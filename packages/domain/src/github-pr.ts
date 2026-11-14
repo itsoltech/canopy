@@ -63,6 +63,13 @@ export function pullRequestLook(state: string): PullRequestLook {
   }
 }
 
+/** A linked pull request without known details: still loading, or the last refresh failed with a reason. */
+export function unknownPullRequestLook(detail: string): PullRequestLook {
+  return detail
+    ? look("Pull request unavailable", "exclamation-triangle", "warning")
+    : look("Loading pull request…", "arrow-path", "muted", 4, true);
+}
+
 export function reviewerLook(state: string): PullRequestLook {
   switch (state) {
     case "approved":
