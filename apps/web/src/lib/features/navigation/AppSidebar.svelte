@@ -84,7 +84,6 @@
     />{/if}
 
   <div class="sidebar-inset flex items-center gap-1 pb-2">
-    {#if section === "threads"}<DraftsOverview />{/if}
     <label
       class="sidebar-row-padding flex min-w-0 flex-1 items-center gap-2 rounded-lg py-2 text-zinc-500 has-focus-visible:outline-2 has-focus-visible:outline-brand-500 sm:py-1.5 dark:text-zinc-400"
     >
@@ -153,6 +152,7 @@
       >
     </a>
     <UpdatesIndicator />
+    {#if section === "threads"}<DraftsOverview />{/if}
     <ConnectionStatus
       recovery={overview.recovery}
       connection={overview.connection}

@@ -5,7 +5,7 @@
   import type { ui } from "@canopy/contracts";
   import { hasComposerContent } from "@canopy/domain/composer-drafts";
   import Button from "#lib/shared/ui/Button.svelte";
-  import Alert from "#lib/shared/ui/Alert.svelte";
+  import PendingDraft from "./PendingDraft.svelte";
   import { formatRelative } from "#lib/shared/format.ts";
   import { clock } from "#lib/shared/clock.svelte.ts";
   import { remoteDrafts } from "./remote.svelte.ts";
@@ -19,7 +19,14 @@
     threadId = "",
     disabled = false,
     children,
-  }: { draft: WebComposerDraft; threadId?: string; disabled?: boolean; children?: Snippet } = $props();
+    indicatorOnly = false,
+  }: {
+    draft: WebComposerDraft;
+    threadId?: string;
+    disabled?: boolean;
+    children?: Snippet;
+    indicatorOnly?: boolean;
+  } = $props();
 
   let open = $state(false);
   let fallback = $state<ui.ComposerDraft>();
@@ -83,37 +90,16 @@
   });
 </script>
 
-{#if (draft.pendingSend || draft.pendingForm) && !draft.preparing && !draft.reconciling && draft.deliveryChecked}
-  <div class="flex min-w-0 items-center gap-2 text-sm/5 text-zinc-500 dark:text-zinc-400">
-    <p class="min-w-0 flex-1">
-      Send not confirmed. The previous message may have been sent. Editing starts a new message.
-    </p>
-    <Button
-      size="sm"
-      variant="ghost"
-      disabled={Boolean(draft.pendingForm) && draft.preparing}
-      onclick={() => draft.cancelSend(true, true)}>Edit draft</Button
-    >
-    <Button
-      size="sm"
-      variant="ghost"
-      disabled={Boolean(draft.pendingForm) && draft.preparing}
-      onclick={() => {
-        draft.cancelSend(true, true);
-        draft.clear();
-      }}>Discard draft</Button
-    >
-  </div>
-{/if}
+{#if !indicatorOnly}<PendingDraft {draft} />{/if}
 {#if newer || draft.moved}
   <div class="flex h-8 w-full min-w-0 items-center gap-1 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
-    <p class="min-w-0 flex-1 truncate">
-      {#if newer}Draft from {newer.deviceName} · {formatRelative(
+    <p class="min-w-0 flex-1 truncate" role="status" title={draft.moved || undefined}>
+      {#if draft.moved}{draft.moved}{:else if newer}Draft from {newer.deviceName} · {formatRelative(
           timestampFromMs(Number(newer.updatedAtMs)),
           clock.now,
-        )}{:else}{draft.moved}{/if}
+        )}{/if}
     </p>
-    {#if newer}
+    {#if newer && !draft.moved}
       <Button
         size="sm"
         variant="ghost"
@@ -134,5 +120,4 @@
     {:else}<Button size="sm" variant="ghost" onclick={() => (draft.moved = "")}>Dismiss</Button>{/if}
   </div>
 {:else}{@render children?.()}{/if}
-{#if draft.error}<Alert tone="error">{draft.error}</Alert>{/if}
 <DraftsDialog bind:open {draft} ontake={take} />

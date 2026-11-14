@@ -7,7 +7,7 @@ import type { ui } from "@canopy/contracts";
 import { formatRelative } from "@canopy/domain/format";
 import { hasComposerContent } from "@canopy/domain/composer-drafts";
 import { useSession } from "../../state/session";
-import { Button, Notice, Sheet } from "../../ui/components";
+import { Button, IconButton, Notice, Sheet } from "../../ui/components";
 import { styles, useColors } from "../../ui/theme";
 import type { MobileComposerState } from "./store";
 import { useVisibility } from "../../ui/viewport";
@@ -105,8 +105,10 @@ function useDraftActions({ draft, threadId = "", disabled = false }: Props) {
       setOpen(false);
       setHint(undefined);
 
-      if (row.target.threadId) router.push({ pathname: "/thread/[id]", params: { id: row.target.threadId } });
-      else if (row.target.parentThreadId)
+      if (row.target.threadId) {
+        if (row.target.threadId !== threadId)
+          router.push({ pathname: "/thread/[id]", params: { id: row.target.threadId } });
+      } else if (row.target.parentThreadId)
         router.push({ pathname: "/thread/[id]", params: { id: row.target.parentThreadId, draftSideThread: "1" } });
       else
         router.push({
@@ -143,17 +145,16 @@ export function DraftActions({
     <>
       {overview ? (
         <View style={styles.row}>
-          <Button
-            title="Open drafts"
-            variant="ghost"
-            size="sm"
+          <IconButton
+            icon="document-text"
+            label="Open drafts"
             disabled={disabled || busy}
             onPress={() => setOpen(true)}
           />
         </View>
       ) : null}
       {draft && !indicatorOnly ? <PendingDraft draft={draft} /> : null}
-      {hint && indicatorOnly ? (
+      {hint && indicatorOnly && !draft?.moved ? (
         <View style={[styles.row, { flex: 1, minWidth: 0 }]}>
           <Text numberOfLines={1} style={[styles.meta, { color: c.muted, flex: 1 }]}>
             Draft from {hint.deviceName} · {formatRelative(timestampFromMs(Number(hint.updatedAtMs)))}

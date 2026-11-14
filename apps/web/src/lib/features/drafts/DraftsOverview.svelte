@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import Button from "#lib/shared/ui/Button.svelte";
+  import IconButton from "#lib/shared/ui/IconButton.svelte";
   import DraftsDialog from "./DraftsDialog.svelte";
   import { remoteDrafts } from "./remote.svelte.ts";
   import { webDrafts } from "./local.svelte.ts";
@@ -14,5 +14,5 @@
   onMount(() => remoteDrafts.subscribe());
 </script>
 
-<Button size="sm" variant="ghost" onclick={() => (open = true)}>Open drafts</Button>
+<IconButton icon="document-text" label="Open drafts" onclick={() => (open = true)} />
 <DraftsDialog bind:open />

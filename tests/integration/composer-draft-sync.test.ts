@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import { Provider, ui } from "@canopy/contracts";
 import { ComposerSync } from "@canopy/domain/composer-sync";
+import { MobileRemoteDrafts } from "../../apps/mobile/src/features/drafts/remote.ts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { GatewayStore } from "@canopy/gateway/store";
 import { Effect } from "effect";
@@ -132,7 +133,10 @@ describe.skipIf(!dockerAvailable)("automatic composer sync and take-over receipt
 
     const edited = create(ui.ComposerDraftSchema, {
       ...original,
-      content: create(ui.ComposerDraftContentSchema, { ...original.content, text: "New source edits" }),
+      content: create(ui.ComposerDraftContentSchema, {
+        ...(original.content ?? create(ui.ComposerDraftContentSchema)),
+        text: "New source edits",
+      }),
     });
 
     const results = await Promise.allSettled([save(edited), take(original)]);
@@ -150,7 +154,10 @@ describe.skipIf(!dockerAvailable)("automatic composer sync and take-over receipt
         ...edited,
         id: crypto.randomUUID(),
         revision: 0n,
-        content: create(ui.ComposerDraftContentSchema, { ...edited.content, clientRequestId: crypto.randomUUID() }),
+        content: create(ui.ComposerDraftContentSchema, {
+          ...(edited.content ?? create(ui.ComposerDraftContentSchema)),
+          clientRequestId: crypto.randomUUID(),
+        }),
       });
 
       expect((await save(fork)).content?.text).toBe("New source edits");
@@ -174,5 +181,35 @@ describe.skipIf(!dockerAvailable)("automatic composer sync and take-over receipt
     expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
     const page = await gw.api.listComposerDrafts({ deviceId: "phone", sourceDraftIds: [original.id] });
     expect(page.moves.length).toBe(results[1]?.status === "fulfilled" ? 1 : 0);
+  });
+
+  test("an invalidation during a page read still delivers the take-over receipt", async () => {
+    const original = await save(draft());
+    const captured = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+
+    const api = {
+      ...gw.api,
+      listComposerDrafts: async (...args: Parameters<typeof gw.api.listComposerDrafts>) => {
+        const page = await gw.api.listComposerDrafts(...args);
+        captured.resolve();
+        await release.promise;
+
+        return page;
+      },
+    };
+
+    const remote = new MobileRemoteDrafts();
+    const pending = remote.load(api, "phone", false, [original.id]);
+
+    try {
+      await captured.promise;
+      await take(original);
+      remote.invalidate();
+    } finally {
+      release.resolve();
+    }
+
+    expect((await pending).moves.some((move) => move.id === original.id)).toBe(true);
   });
 });

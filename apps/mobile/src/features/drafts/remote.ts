@@ -5,7 +5,9 @@ import type { Client } from "@connectrpc/connect";
 export class MobileRemoteDrafts {
   #page: ui.ComposerDraftPage | undefined;
   #pending: Promise<ui.ComposerDraftPage> | undefined;
+  #generation = 0;
   invalidate() {
+    this.#generation++;
     this.#page = undefined;
   }
   async load(
@@ -17,11 +19,14 @@ export class MobileRemoteDrafts {
     if (this.#pending) {
       const page = await this.#pending;
 
-      if (!more) return page;
+      if (!more && this.#page) return page;
+
+      return this.load(api, deviceId, more, sourceDraftIds);
     }
 
     if (!more && this.#page) return this.#page;
     const previous = this.#page;
+    const generation = this.#generation;
     this.#pending = api
       .listComposerDrafts({
         deviceId,
@@ -30,6 +35,7 @@ export class MobileRemoteDrafts {
         sourceDraftIds,
       })
       .then((page) => {
+        if (generation !== this.#generation) return page;
         this.#page =
           more && previous
             ? {
@@ -44,10 +50,14 @@ export class MobileRemoteDrafts {
         return this.#page;
       });
 
+    let page: ui.ComposerDraftPage;
+
     try {
-      return await this.#pending;
+      page = await this.#pending;
     } finally {
       this.#pending = undefined;
     }
+
+    return generation === this.#generation ? page : this.load(api, deviceId, false, sourceDraftIds);
   }
 }
