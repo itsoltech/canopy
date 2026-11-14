@@ -6,7 +6,13 @@ import { AgentToolResultSchema, type AgentToolCall, type AgentToolResult, type W
  * the gateway's "unknown tool" (docs/agent-visuals.md).
  */
 export function gatewayToolRefusal(call: AgentToolCall, welcome: Welcome | undefined): AgentToolResult | undefined {
-  if (call.toolName !== "render_visual" || !welcome || welcome.threadVisualsV1) return undefined;
+  if (!welcome) return undefined;
+
+  const unavailable =
+    (call.toolName === "render_visual" && !welcome.threadVisualsV1) ||
+    (call.toolName === "render_html" && !welcome.threadHtmlV1);
+
+  if (!unavailable) return undefined;
 
   return create(AgentToolResultSchema, {
     callId: call.callId,
