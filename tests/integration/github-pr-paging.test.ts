@@ -53,6 +53,7 @@ describe.skipIf(!dockerAvailable)("bounded linked pull requests", () => {
     expect(first.totalCount).toBe(500);
     expect(first.links).toHaveLength(20);
     expect(first.nextOffset).toBe(20);
+    expect((await gw.core.github.prs.list(thread, 4)).nextOffset).toBe(4);
     expect(first.links.map((l) => l.summary!.ref!.number)).toEqual(Array.from({ length: 20 }, (_, i) => 30 - i));
     const numbers: number[] = [];
 
@@ -96,5 +97,23 @@ describe.skipIf(!dockerAvailable)("bounded linked pull requests", () => {
     const terminal = await gw.api.listThreadPullRequests({ threadId: thread, offset: 100 });
     expect(terminal.links.every((l) => l.summary?.state === "merged")).toBe(true);
     expect(fixture.calls - before).toBe(5);
+  }, 60_000);
+
+  test("a shared rate limit stops the remaining batches and repeated page reads do not retry", async () => {
+    const before = fixture.calls;
+    fixture.status(429);
+    await gw.api.listThreadPullRequests({ threadId: thread, offset: 20 });
+
+    const failed = await eventually(
+      () => gw.core.github.prs.list(thread, 20, 20),
+      (r) => r.links.some((l) => l.detail.includes("request limit")),
+    );
+
+    expect(failed.links.some((l) => l.summary?.title)).toBe(true);
+    expect(fixture.calls - before).toBe(1);
+    await gw.api.listThreadPullRequests({ threadId: thread, offset: 20 });
+    await gw.api.listThreadPullRequests({ threadId: thread, offset: 20 });
+    expect(fixture.calls - before).toBe(1);
+    fixture.status(200);
   }, 60_000);
 });

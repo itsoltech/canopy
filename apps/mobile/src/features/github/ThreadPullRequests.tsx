@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
 import type { ui, github } from "@canopy/contracts";
 import { useSession } from "../../state/session";
@@ -35,6 +35,15 @@ export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onC
     (thread.newestPullRequest ? [{ summary: thread.newestPullRequest, source: "", currentBranch: false }] : []);
 
   const total = read.data?.totalCount ?? thread.pullRequestCount;
+
+  useEffect(() => {
+    setExpanded(false);
+    setOffset(0);
+  }, [thread.id]);
+
+  useEffect(() => {
+    if (read.data && offset >= total && offset > 0) setOffset(0);
+  }, [read.data, offset, total]);
 
   return (
     <View style={{ gap: 10, minWidth: 0 }}>
@@ -103,7 +112,8 @@ export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onC
         threadId={thread.id}
         revision={read.data?.revision ?? thread.pullRequestRevision}
         onlinked={(value) => {
-          queries.set(key, value);
+          setOffset(0);
+          queries.set(`ListThreadPullRequests:${thread.id}:${thread.pullRequestRevision}:0`, value);
         }}
       />
       {!read.data?.hasCurrentBranch && !links.some((link) => link.currentBranch) && (

@@ -119,7 +119,7 @@ export class GitHubPullRequests {
 
       const read = {
         background,
-        ...(prefetched && { prefetched: prefetched.payload }),
+        ...(prefetched && { prefetched: { payload: prefetched.payload, revision: prefetched.revision } }),
         ttl: ["merged", "closed"].includes(previous?.summary?.state ?? "") ? 300_000 : 60_000,
         key,
         path: "/graphql",

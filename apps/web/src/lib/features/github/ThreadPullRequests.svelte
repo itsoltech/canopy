@@ -33,7 +33,7 @@
   const total = $derived(data?.totalCount ?? thread.pullRequestCount);
 
   $effect(() => {
-    const current = `${thread.id}:${thread.pullRequestRevision}`;
+    const current = thread.id;
 
     if (identity !== current) {
       identity = current;
@@ -44,6 +44,10 @@
 
   $effect(() => {
     if (read.data) previous = { thread: thread.id, offset, value: read.data };
+  });
+
+  $effect(() => {
+    if (read.data && offset >= read.data.totalCount && offset > 0) offset = 0;
   });
 
   const collapse = () => {

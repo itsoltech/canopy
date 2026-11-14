@@ -78,9 +78,11 @@ export async function refreshLinkedBatch(prs: GitHubPullRequests, refs: readonly
         const envelope = Schema.decodeUnknownSync(Schema.Struct({ data: Schema.JsonObject }))(result.payload);
 
         for (const [i, ref] of batch.entries()) {
-          const payload: Schema.JsonObject = { data: { repository: envelope.data[`pr${i}`] ?? null } };
+          const payload = {
+            data: { repository: envelope.data[`pr${i}`] ?? null },
+            errors: result.payload?.["errors"] ?? [],
+          };
 
-          if (result.payload?.["errors"]) payload["errors"] = result.payload["errors"];
           // load validates identity, access revisions and partial/error envelopes before saving each cache entry.
           await prs
             .load(ref.repositoryName, ref.number, true, true, true, {

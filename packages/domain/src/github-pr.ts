@@ -72,7 +72,9 @@ export function unknownPullRequestLook(detail: string): PullRequestLook {
 
 /** A background refresh is pending: a link shows its last known summary and has no failure reason yet. */
 export function pullRequestsRefreshing(response: github.ThreadPullRequestsResponse | undefined) {
-  return !!response?.links.some((link) => link.stale && !link.detail);
+  return !!response?.links.some(
+    (link) => link.stale && !link.detail && !["closed", "merged"].includes(link.summary?.state ?? ""),
+  );
 }
 
 export function reviewerLook(state: string): PullRequestLook {

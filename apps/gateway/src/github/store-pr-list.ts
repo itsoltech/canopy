@@ -87,7 +87,7 @@ export function githubPrList(sql: SqlClient.SqlClient) {
                   },
             // Without a cache entry for the current access revision the summary is only the last known one.
             stale: r.expired,
-            detail: r.payload ? "" : r.refresh_detail,
+            detail: r.refresh_detail,
             source: r.source,
             evidence: r.evidence,
             currentBranch: r.current_branch,
