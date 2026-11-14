@@ -1,4 +1,8 @@
-import { STEER_ATTACHMENTS_CAPABILITY, THREAD_VISUALS_CAPABILITY } from "@canopy/domain/release/protocol";
+import {
+  STEER_ATTACHMENTS_CAPABILITY,
+  THREAD_VISUALS_CAPABILITY,
+  THREAD_HTML_CAPABILITY,
+} from "@canopy/domain/release/protocol";
 
 /** What this worker announces in Hello; the gateway sends a command only to workers that announce it. */
 export function workerCapabilities(options: { localWorker: boolean; fullAccess: boolean }): string[] {
@@ -58,6 +62,7 @@ export function workerCapabilities(options: { localWorker: boolean; fullAccess: 
     "thread_files_watch_v1",
     // thread_visuals_v1: render_visual is offered to every harness; the gateway validates and stores it.
     THREAD_VISUALS_CAPABILITY,
+    THREAD_HTML_CAPABILITY,
     // provisional_branches: RenameWorktreeBranch.provisional keeps pushed or switched branches.
     "provisional_branches",
     "project_sources",
