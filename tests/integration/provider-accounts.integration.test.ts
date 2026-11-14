@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Provider, ProviderProfileKind, ui } from "@canopy/contracts";
 import { toJsonString } from "@bufbuild/protobuf";
@@ -10,8 +10,9 @@ import { tempDir } from "@canopy/testing";
 import { journalHello, openGatewayLink, type GatewayLink } from "@canopy/worker/gateway-link";
 import { Journal } from "@canopy/worker/journal";
 import { serveLink, WorkerHost } from "@canopy/worker/runtime";
+import { systemProbe } from "../../apps/worker/src/config/remote.ts";
 import { Effect, ManagedRuntime } from "effect";
-import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
+import { eventually, failure, startTestGateway, watchUntil, type TestGateway } from "./support/gateway.ts";
 
 describe.skipIf(!dockerAvailable)("provider accounts through authenticated gateway and WorkerHost", () => {
   const dir = tempDir("canopy-provider-accounts-");
@@ -32,15 +33,35 @@ describe.skipIf(!dockerAvailable)("provider accounts through authenticated gatew
 
   beforeAll(async () => {
     mkdirSync(join(dir, "data"));
+    mkdirSync(join(dir, "device-claude"));
     writeFileSync(
       executable,
       `#!/usr/bin/env bun
-import { appendFileSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 if (process.argv.includes("--version")) { console.log("1.0.0"); process.exit(0); }
-if (process.argv.slice(2).join(" ") !== "auth status --json") process.exit(1);
+if (process.argv.slice(2).join(" ") !== "auth status --json") {
+  if (process.env.CLAUDE_SECURESTORAGE_CONFIG_DIR !== "" || !process.env.CLAUDE_CONFIG_DIR?.endsWith("different-home")) process.exit(1);
+  await import(${JSON.stringify(join(import.meta.dir, "fixtures/instance-claude.ts"))});
+} else {
 appendFileSync(${JSON.stringify(countFile)}, "x");
 await Bun.sleep(100);
+const modeFile = ${JSON.stringify(join(dir, "login-mode"))};
+if (existsSync(modeFile)) {
+  const mode = readFileSync(modeFile, "utf8");
+  const storage = process.env.CLAUDE_SECURESTORAGE_CONFIG_DIR;
+  const home = storage === "" ? ${JSON.stringify(join(dir, "device-claude"))} : storage ?? process.env.CLAUDE_CONFIG_DIR;
+  const loggedIn = home === ${JSON.stringify(join(dir, "device-claude"))} &&
+    (mode === "keychain" || (mode !== "out" && existsSync(join(home, ".credentials.json"))));
+  console.log(JSON.stringify(mode === "older"
+    ? { loggedIn, authMethod: "claude.ai", email: "qa@example.test", subscriptionType: "max" }
+    : { loggedIn, authMethod: "claude.ai", apiProvider: "firstParty", configDirectory: home,
+        loginExpiresAt: "2026-12-11T17:52:05.803Z", subscriptionType: "max",
+        storedClaudeAiLogin: loggedIn, planTier: "max_20x" }));
+  process.exit(loggedIn ? 0 : 1);
+}
 console.log(JSON.stringify({ loggedIn: true, authMethod: "claude.ai", email: "qa@example.test", orgName: "Example team", subscriptionType: readFileSync(${JSON.stringify(join(dir, "plan"))}, "utf8"), accessToken: "sk-fake-never-send", orgId: "private-org-id" }));
+}
 `,
       { mode: 0o700 },
     );
@@ -66,8 +87,14 @@ console.log(JSON.stringify({ loggedIn: true, authMethod: "claude.ai", email: "qa
       runtime,
       dataDir: join(dir, "data"),
       clientVersion: "test",
+      // macOS leaves file-based availability unknown; the CLI must read the keychain itself.
+      probe: {
+        ...systemProbe,
+        login: (harness, home) => (harness === "claude" ? undefined : systemProbe.login!(harness, home)),
+      },
       deviceHomes: {
         claude: join(dir, "device-claude"),
+        claudeSecureStorage: "",
         codex: join(dir, "device-codex"),
         grok: join(dir, "device-grok"),
       },
@@ -149,6 +176,55 @@ console.log(JSON.stringify({ loggedIn: true, authMethod: "claude.ai", email: "qa
       ).toBeUndefined();
   });
 
+  test("device login checks the source home for keychain, file, signed-out and older CLI responses", async () => {
+    const modeFile = join(dir, "login-mode");
+    const credentials = join(dir, "device-claude", ".credentials.json");
+
+    try {
+      expect(existsSync(credentials)).toBe(false);
+
+      for (const mode of ["keychain", "file", "out", "older"]) {
+        if (mode === "file") writeFileSync(credentials, "{}", { mode: 0o600 });
+        writeFileSync(modeFile, mode);
+        await gw.api.refreshProviders({ workerId, harness: Provider.CLAUDE, id: "native", accountOnly: true });
+        expect(await account()).toMatchObject({
+          state: mode === "out" ? "signed_out" : "signed_in",
+          plan: "max",
+          email: mode === "older" ? "qa@example.test" : "",
+          loginDir: join(dir, "device-claude"),
+          configDir: join(dir, "different-home"),
+        });
+      }
+
+      rmSync(credentials);
+      writeFileSync(modeFile, "keychain");
+      const projectId = (await gw.api.createProject({ name: "Keychain login" })).project!.id;
+      const repo = join(dir, "repo");
+      mkdirSync(repo);
+      const workspaceId = (await gw.api.createWorkspace({ projectId, workerId, rootPath: repo })).workspace!.id;
+      const thread = (await gw.api.createThread({ projectId, workspaceId, provider: Provider.CLAUDE })).thread!;
+      await gw.api.sendMessage({ threadId: thread.id, text: "Check login", clientRequestId: crypto.randomUUID() });
+
+      const turns = (values: ui.ThreadUpdate[]) =>
+        values.flatMap((v) => {
+          if (v.change.case === "snapshot") return v.change.value.turns;
+
+          if (v.change.case === "turn") return [v.change.value];
+
+          return [];
+        });
+
+      const updates = await watchUntil(gw.api, thread.id, (values) =>
+        turns(values).some((turn) => ["completed", "failed", "interrupted"].includes(turn.status)),
+      );
+
+      expect(turns(updates).at(-1)?.status).toBe("completed");
+    } finally {
+      rmSync(modeFile, { force: true });
+      rmSync(credentials, { force: true });
+    }
+  }, 30_000);
+
   test("sign-in targets this worker's own instance home and safely quotes executable and home paths", async () => {
     const ownHome = join(dir, "Claude's home $(unused)");
     await gw.api.saveProviderInstance({
@@ -173,6 +249,16 @@ console.log(JSON.stringify({ loggedIn: true, authMethod: "claude.ai", email: "qa
     expect(command).toBe(`CLAUDE_CONFIG_DIR='${ownHome.replaceAll("'", `'"'"'`)}' '${executable}' auth login`);
     const powershell = providerLoginCommand("claude", report!, "win32");
     expect(powershell).toBe(`$env:CLAUDE_CONFIG_DIR='${ownHome.replaceAll("'", "''")}'; & '${executable}' auth login`);
+
+    const modeFile = join(dir, "login-mode");
+
+    try {
+      writeFileSync(modeFile, "keychain");
+      await gw.api.refreshProviders({ workerId, harness: Provider.CLAUDE, id: "separate-login", accountOnly: true });
+      expect((await separate())?.state).toBe("signed_out");
+    } finally {
+      rmSync(modeFile, { force: true });
+    }
   }, 30_000);
 
   test("a forced refresh waits for an older cached report and then reads the current login", async () => {

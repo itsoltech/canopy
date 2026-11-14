@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { toJsonString } from "@bufbuild/protobuf";
 import { ProviderAccountStatusSchema } from "@canopy/contracts";
 import { AccountStatuses, type AccountQuery } from "../../apps/worker/src/providers/account-status.ts";
+import { serviceEnvironment } from "../../apps/desktop/src/runtime/config.ts";
 
 const cleanups: (() => Promise<void>)[] = [];
 
@@ -65,6 +66,15 @@ throw new Error("Unexpected fake CLI invocation");
 describe("official CLI account adapters", () => {
   test("Claude returns only display metadata; Codex text is enriched through its existing account API; Grok launches nothing", async () => {
     const claude = await fixture("claude");
+
+    // The desktop sidecar inherits only serviceEnvironment; the account command then adds its CLI home.
+    claude.query.env = {
+      ...serviceEnvironment(),
+      COUNT_FILE: claude.query.env["COUNT_FILE"],
+      CLAUDE_CONFIG_DIR: claude.query.configDir,
+      CLAUDE_SECURESTORAGE_CONFIG_DIR: "",
+    };
+
     const status = await claude.statuses.read(claude.query);
     expect(status).toMatchObject({
       state: "signed_in",

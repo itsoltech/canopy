@@ -424,7 +424,7 @@ Wbudowany profil `native` zawsze istnieje (worker dodaje go, gdy konfiguracja go
 Reguły są wspólne dla UI, gateway (odrzuca zapis) i workera (wyłącza profil z powodem): `@canopy/domain`, `profiles/env.ts`.
 
 - Nazwa: `[A-Za-z_][A-Za-z0-9_]*`, do 128 znaków, bez powtórzeń (bez rozróżniania wielkości liter); wartość do 32 KiB, bez NUL; najwyżej 64 zmienne.
-- **Zakazane zawsze** (ustawia je worker; porównanie bez wielkości liter): `HOME`, `USERPROFILE`, `PATH`, `PWD`, `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `CLAUDE_CODE_ENTRYPOINT` oraz prefiks `CANOPY_*` (klucze endpointów dla Codexa, `CANOPY_<ID>_API_KEY`).
+- **Zakazane zawsze** (ustawia je worker; porównanie bez wielkości liter): `HOME`, `USERPROFILE`, `PATH`, `PWD`, `CLAUDE_CONFIG_DIR`, `CLAUDE_SECURESTORAGE_CONFIG_DIR`, `CODEX_HOME`, `CLAUDE_CODE_ENTRYPOINT` oraz prefiks `CANOPY_*` (klucze endpointów dla Codexa, `CANOPY_<ID>_API_KEY`).
 - **Zakazane dla endpointu** (ustawia je profil): `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`. Profil `NATIVE` może je ustawić (np. `ANTHROPIC_API_KEY` zamiast logowania, `CLAUDE_CODE_USE_BEDROCK` + dane AWS).
 - Ten sam prefiks obejmuje ustawienia workera (`CANOPY_*`).
 

@@ -43,10 +43,16 @@ function environment(ctx: HostContext, config: AppliedConfig, resolved: Resolved
       ownLogin: runtime.ownLogin ?? false,
       linkDeviceLogin: config.claude.linkDeviceLogin,
       deviceClaudeHome: runtime.homePath || ctx.state.deviceHomes.claude,
+      ...(!runtime.homePath && { deviceSecureStorage: ctx.state.deviceHomes.claudeSecureStorage }),
     });
 
     configDir = home.path;
-    env = { ...claudeProfileOptions(resolved, env).env, CLAUDE_CONFIG_DIR: configDir };
+
+    env = {
+      ...claudeProfileOptions(resolved, env).env,
+      CLAUDE_CONFIG_DIR: configDir,
+      CLAUDE_SECURESTORAGE_CONFIG_DIR: home.secureStorageDir,
+    };
   } else if (harness === "codex") {
     const home = prepareCodexHome({
       dataDir: ctx.state.options.dataDir,

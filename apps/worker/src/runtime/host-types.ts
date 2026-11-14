@@ -83,6 +83,7 @@ export interface WorkerHostOptions {
    */
   readonly deviceHomes?: {
     readonly claude: string;
+    readonly claudeSecureStorage?: string;
     readonly codex: string;
     readonly grok?: string;
     readonly agents?: string;
