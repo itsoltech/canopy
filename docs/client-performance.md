@@ -155,6 +155,13 @@ Skoki sprawdzaj próbką po malowaniu (rAF, potem zadanie): wpisy `layout-shift`
 obejmują przesunięć wywołanych zmianą `scrollTop`, a odczyt w samym rAF widzi layout
 sprzed korekt ResizeObservera tej klatki. Porównuj pozycje wspólnych wierszy między
 kolejnymi klatkami tego samego scrollera oraz pozycje przy wyjściu i po powrocie.
+Klatka bez żadnego wspólnego wiersza to też skok (np. powrót na koniec), nie brak danych.
+Wpisy `layout-shift` liczą również korekty skompensowane `scrollTop` w tej samej klatce,
+zwłaszcza w trakcie płynnego scrolla. Sprawdzaj kółko, gładzik i Page Up z płynnym
+scrollem: animacja wyprzedza swoje zdarzenia `scroll`. Przewinięcie przyjęte w `settle`
+przed zdarzeniem przesuwa kotwicę o dystans czytelnika, bez ponownego odczytu wierszy z
+niepoprawionym layoutem. Zakres skrócony przez nowe szacunki wierszy powyżej przycina
+pozycję do końca; to layout, nie gest czytelnika, więc nie włącza podążania.
 
 Powrót do wątku odtwarza lokalną kotwicę (klucz elementu i offset wewnątrz),
 bez rozszerzania okna historii. Web czeka na zmierzenie początkowego okna przed

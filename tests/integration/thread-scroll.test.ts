@@ -7,7 +7,7 @@ import {
   THREAD_SCROLL_LIMIT,
   type SavedThreadScroll,
 } from "@canopy/domain/thread-scroll";
-import { followingAfterScroll, ScrollIntent } from "../../apps/web/src/lib/shared/ui/virtual/scroll.ts";
+import { followingAfterScroll, ScrollIntent, scrollOrigin } from "../../apps/web/src/lib/shared/ui/virtual/scroll.ts";
 
 describe("client-local thread reading positions", () => {
   test("history anchors survive reload and new messages without crossing devices or account migration", () => {
@@ -95,5 +95,16 @@ describe("client-local thread reading positions", () => {
     expect(followingAfterScroll(true, "programmatic", 500, 400, false)).toBe(true);
     expect(followingAfterScroll(true, "reader", 500, 400, false)).toBe(false);
     expect(followingAfterScroll(false, "reader", 0, -400, false)).toBe(true);
+  });
+
+  test("a scroll range cut below the reading position is layout, not the reader reaching the end", () => {
+    const intent = new ScrollIntent();
+    intent.gesture(performance.now());
+    // Reading 1200px above the end while rows above are re-estimated 2388px shorter: the browser clamps to the end.
+    const clamped = { scrollTop: 562_116, scrollHeight: 562_968, clientHeight: 852 };
+    expect(scrollOrigin(intent, clamped, 563_304, 0)).toBe("unattributed");
+    // The reader's own scrolls during the same gesture: onto an unchanged end, and up within the range.
+    expect(scrollOrigin(intent, { ...clamped, scrollTop: 564_504, scrollHeight: 565_356 }, 564_000, 0)).toBe("reader");
+    expect(scrollOrigin(intent, { ...clamped, scrollTop: 562_000 }, 562_100, 0)).toBe("reader");
   });
 });

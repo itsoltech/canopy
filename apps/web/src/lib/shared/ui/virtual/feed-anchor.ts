@@ -25,6 +25,18 @@ export function settleAnchor(
   return true;
 }
 
+/** Moves a still mounted anchor with a scroll of `moved` px (positive towards the end); false without one. */
+export function followScroll(
+  anchor: FeedAnchor | undefined,
+  elements: ReadonlyMap<string, HTMLElement>,
+  moved: number,
+): boolean {
+  if (!anchor || !elements.has(anchor.key)) return false;
+  anchor.top -= moved;
+
+  return true;
+}
+
 /** Keep a closing fold's surviving header visible when its work rows disappear. */
 export function holdAnchor(
   key: string,
