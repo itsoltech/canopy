@@ -3,7 +3,7 @@
  * thread's git HEAD and reports changes over gRPC; the gateway stores and broadcasts them.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { Provider } from "@canopy/contracts";
+import { Provider, type ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { GatewayStore } from "@canopy/gateway/store";
 import { tempDir } from "@canopy/testing";
@@ -23,6 +23,25 @@ describe.skipIf(!dockerAvailable)("live git heads over the worker link", () => {
   });
 
   const thread = (threadId: string) => f.gw.api.getThread({ threadId }).then((r) => r.thread!);
+
+  /** The overview stream as the sidebar reads it, collected until the test closes it. */
+  function overview() {
+    const abort = new AbortController();
+    const updates: ui.OverviewUpdate[] = [];
+
+    void (async () => {
+      try {
+        for await (const update of f.gw.api.watchOverview({}, { signal: abort.signal })) updates.push(update);
+      } catch {
+        /* closed by the test */
+      }
+    })();
+
+    const rows = (threadId: string) =>
+      updates.flatMap((u) => (u.change.case === "thread" && u.change.value.id === threadId ? [u.change.value] : []));
+
+    return { updates, rows, [Symbol.dispose]: () => abort.abort() };
+  }
 
   test("a branch the agent creates in the worktree replaces the shown one live; the base stays", async () => {
     const created = await f.tree();
@@ -101,6 +120,60 @@ describe.skipIf(!dockerAvailable)("live git heads over the worker link", () => {
       () => thread(checkout.id),
       (t) => t.checkoutHead?.branch === "main",
     );
+  }, 30_000);
+
+  test("the sidebar gets a workspace branch switch as one thread change; another worker's report reaches nobody", async () => {
+    const checkout = (
+      await f.gw.api.createThread({
+        projectId: f.project.id,
+        workspaceId: f.workspace.id,
+        provider: Provider.CODEX,
+        initialMessage: "Show my branch in the sidebar",
+      })
+    ).thread!;
+
+    await eventually(
+      () => thread(checkout.id),
+      (t) => t.checkoutHead?.branch === "main",
+    );
+    using feed = overview();
+    // Let the stream send its initial state before the change.
+    await Bun.sleep(300);
+    const before = feed.updates.length;
+
+    git(f.repo, "switch", "-q", "-c", "feature/very-long-branch-name-for-the-thread-sidebar-row");
+
+    const row = await eventually(
+      async () => feed.rows(checkout.id).at(-1),
+      (t) => t?.checkoutHead?.branch === "feature/very-long-branch-name-for-the-thread-sidebar-row",
+    );
+
+    // An increment on the existing channel (the thread row), never a snapshot.
+    expect(row?.checkoutHead).toMatchObject({
+      branch: "feature/very-long-branch-name-for-the-thread-sidebar-row",
+      detachedCommit: "",
+    });
+    expect(feed.updates.slice(before).some((u) => /snapshot$/i.test(u.change.case ?? ""))).toBe(false);
+
+    // A report from a worker that does not run this thread changes nothing and is not broadcast.
+    const other = await f.gw.addWorker("Someone else's laptop");
+    const intruder = await f.gw.connect(other.workerId, other.credential);
+    intruder.link.send({ case: "gitHeads", value: { heads: [{ threadIds: [checkout.id], branch: "stolen" }] } });
+    await Bun.sleep(400);
+    expect(feed.rows(checkout.id).some((t) => t.checkoutHead?.branch === "stolen")).toBe(false);
+    expect((await thread(checkout.id)).checkoutHead?.branch).toBe(
+      "feature/very-long-branch-name-for-the-thread-sidebar-row",
+    );
+
+    git(f.repo, "switch", "-q", "main");
+    expect(
+      (
+        await eventually(
+          async () => feed.rows(checkout.id).at(-1),
+          (t) => t?.checkoutHead?.branch === "main",
+        )
+      )?.checkoutHead?.branch,
+    ).toBe("main");
   }, 30_000);
 
   test("reports for threads of another worker, or with a bad branch, change nothing", async () => {

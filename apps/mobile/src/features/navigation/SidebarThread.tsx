@@ -4,13 +4,10 @@ import { ThreadActionsSheet } from "../threads/ThreadActionsSheet";
 import { useGlobalSearchParams, usePathname } from "expo-router";
 import { useLayout } from "../../state/layout";
 import type { ui } from "@canopy/contracts";
-import { Icon } from "../../ui/Icon";
 import { styles, useColors } from "../../ui/theme";
-import { ProviderIcon } from "../../ui/ProviderIcon";
 import { Swap } from "../../ui/MotionViews";
 import { isCalm, needsYou, threadRowLabel } from "@canopy/domain/thread-activity";
-import { threadPlace } from "@canopy/domain/git-heads";
-import { threadRowMarks } from "@canopy/ui/thread-row";
+import { threadRowPlace } from "@canopy/domain/git-heads";
 import { useComputerHome } from "../computers/presence";
 import { SidebarUnread } from "./SidebarUnread";
 import { useSidebarTypography } from "./sidebar-scale";
@@ -19,6 +16,7 @@ import { SidebarThreadStatus } from "./SidebarThreadStatus";
 import { IconButton } from "../../ui/components";
 import { useSidebarDragContext } from "./sidebar-drag";
 import { DraftMarker } from "../drafts/DraftMarker";
+import { SidebarThreadMeta } from "./SidebarThreadMeta";
 
 const rowStyle: ViewStyle = {
   paddingHorizontal: 12,
@@ -56,6 +54,7 @@ export function SidebarThread({
   const active = layout.wide && pathname.startsWith("/thread/") && id === thread.id;
   const needs = !home.away && (needsYou(thread) || subagentsNeedingInput.length > 0);
   const busy = !home.away && !needs && isCalm(thread);
+  const place = threadRowPlace(thread, project);
   const result = thread.unseenResult || (thread.status === "failed" ? "failed" : "");
 
   const statusLabel = home.away
@@ -70,7 +69,7 @@ export function SidebarThread({
     <>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${thread.title || "Untitled thread"}, ${statusLabel ?? threadRowLabel(thread)}${home.away ? `, ${home.reason}` : ""}${thread.markedUnread ? ", Unread" : ""}`}
+        accessibilityLabel={`${thread.title || "Untitled thread"}, ${statusLabel ?? threadRowLabel(thread)}${place.branch ? `, Branch ${place.branch}` : ""}${home.away ? `, ${home.reason}` : ""}${thread.markedUnread ? ", Unread" : ""}`}
         accessibilityState={{ selected: active }}
         onPress={() => void layout.openThread(thread.id)}
         onLongPress={reorder ? undefined : () => setActions(true)}
@@ -132,18 +131,7 @@ export function SidebarThread({
           </Text>
           <DraftMarker threadId={thread.id} />
         </View>
-        <View style={[styles.row, { gap: 8 }]}>
-          <Icon name="computer-desktop" size={16} color={worker?.online ? c.muted : c.faint} />
-          <Text numberOfLines={1} style={[type.meta, { flex: 1, minWidth: 0, color: c.muted }]}>
-            {worker?.name ?? "Unknown worker"} · {threadPlace(thread, project)}
-          </Text>
-          {thread.goalStatus ? <Icon name="flag" size={16} /> : null}
-          <ProviderIcon
-            provider={thread.provider}
-            size={threadRowMarks.icon}
-            opacity={threadRowMarks.providerOpacity}
-          />
-        </View>
+        <SidebarThreadMeta thread={thread} worker={worker} place={place} />
         <SidebarUnread unread={thread.markedUnread} />
       </Pressable>
       <ThreadActionsSheet
