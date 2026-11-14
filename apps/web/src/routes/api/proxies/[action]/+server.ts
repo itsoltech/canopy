@@ -7,7 +7,13 @@ import { proxyActions, type ProxyAction } from "#lib/features/proxies/proxies.ts
 import { encode } from "#lib/shared/wire.ts";
 import type { RequestHandler } from "./$types";
 
-const methods = { save: "saveProxy", delete: "deleteProxy", test: "testProxy" } as const;
+const methods = {
+  save: "saveProxy",
+  delete: "deleteProxy",
+  test: "testProxy",
+  accounts: "refreshProxyAccounts",
+} as const;
+
 const isAction = (value: string): value is ProxyAction => Object.hasOwn(methods, value);
 
 export const POST: RequestHandler = async ({ params, request }) => {
@@ -19,7 +25,7 @@ export const POST: RequestHandler = async ({ params, request }) => {
   const response = await call((api) =>
     // SAFETY: methods and proxyActions pair this method with the schema used to decode body.
     (api[method] as (request: Message, options?: CallOptions) => Promise<Message>)(body, {
-      ...(method === "testProxy" && { timeoutMs: 15_000 }),
+      ...((method === "testProxy" || method === "refreshProxyAccounts") && { timeoutMs: 15_000 }),
     }),
   );
 

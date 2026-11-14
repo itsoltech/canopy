@@ -36,7 +36,9 @@ const CONNECTOR_REVISION = `SELECT md5(coalesce((SELECT string_agg(concat_ws(':'
   FROM connector_accounts a WHERE a.owner_user_id = $1::uuid), '') || '#' ||
   coalesce((SELECT string_agg(o.connector_type, ',' ORDER BY o.connector_type) FROM connector_oauth_apps o WHERE o.owner_user_id = $1::uuid), '')) AS revision`;
 
-const PROXY_REVISION = `SELECT md5(coalesce(string_agg(concat_ws(':', p.id, p.revision, p.updated_at), ',' ORDER BY p.id), '')) AS revision
+// Account reads by another gateway process count too; their read time alone does not.
+const PROXY_REVISION = `SELECT md5(coalesce(string_agg(concat_ws(':', p.id, p.revision, p.updated_at,
+    md5((p.management_status - 'checkedAt')::text)), ',' ORDER BY p.id), '')) AS revision
   FROM proxies p WHERE p.owner_user_id = $1::uuid`;
 
 // Notices can be dismissed without advancing the configuration clock. Include their open set too.

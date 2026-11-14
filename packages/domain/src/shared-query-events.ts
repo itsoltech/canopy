@@ -1,4 +1,4 @@
-import { equals } from "@bufbuild/protobuf";
+import { create, equals } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import type { QueryCache } from "./shared-query.ts";
 
@@ -85,10 +85,30 @@ export class OverviewInvalidation {
       return;
     }
 
+    if (change.case === "proxyAccounts") {
+      this.#proxyAccounts(change.value);
+
+      return;
+    }
+
     if (change.case === "workerRemoved") this.#workers.delete(change.value);
     const stale = change.case ? STALE[change.case] : undefined;
 
     if (stale) this.queries.invalidate(named(stale));
+  }
+
+  /** One proxy's upstream accounts, applied to the loaded proxy list in place: no read of the whole list. */
+  #proxyAccounts(accounts: ui.ProxyAccounts): void {
+    const list = this.queries.snapshot<ui.ListProxiesResponse>("ListProxies").data;
+
+    if (!list?.proxies.some((p) => p.id === accounts.proxyId)) return;
+    this.queries.set<ui.ListProxiesResponse>("ListProxies", (current) =>
+      create(ui.ListProxiesResponseSchema, {
+        proxies: (current?.proxies ?? []).map((p) =>
+          p.id === accounts.proxyId ? create(ui.ProxySchema, { ...p, accounts }) : p,
+        ),
+      }),
+    );
   }
 
   /** A full overview arrived. After a gap in the stream (`gap`) every shared read is stale once. */

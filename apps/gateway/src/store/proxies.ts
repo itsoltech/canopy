@@ -88,6 +88,21 @@ async function detectCliProxy(baseUrl: string): Promise<boolean> {
 export function proxyStore(sql: SqlClient.SqlClient, key: Buffer, core: InstanceCore): ProxyApi {
   const records = proxyRecords(sql, key);
 
+  /** Only CLIProxyAPI has a management API. Omitted keeps the stored key, empty removes it. */
+  const managementRef = (userId: string, request: ui.SaveProxyRequest, previous: ProxyRow | undefined) =>
+    Effect.gen(function* () {
+      const value = request.managementKey;
+
+      if (request.kind !== "cliproxyapi" || value === "") return null;
+
+      if (value === undefined) return previous?.management_secret_id ?? null;
+
+      if (value.length > 4096 || /[\r\n\0]/.test(value))
+        return yield* Effect.fail(new Invalid("Enter a valid management key"));
+
+      return (yield* core.putSecret(userId, value)).secretRef;
+    });
+
   return {
     listProxies: (userId) =>
       Effect.gen(function* () {
@@ -142,19 +157,29 @@ export function proxyStore(sql: SqlClient.SqlClient, key: Buffer, core: Instance
               : { secretRef: previous.secret_id };
 
           const fingerprint = proxyFingerprint(key, root, secret);
+          const management = yield* managementRef(userId, request, previous);
 
           if (previous) {
             yield* sql`UPDATE proxies SET name = ${name}, kind = ${request.kind}, base_url = ${root}, secret_id = ${ref.secretRef}::uuid,
-          fingerprint = ${fingerprint}, codex = ${JSON.stringify(options)}::jsonb, revision = revision + 1, updated_at = now()
+          fingerprint = ${fingerprint}, codex = ${JSON.stringify(options)}::jsonb,
+          management_secret_id = ${management}::uuid, revision = revision + 1, updated_at = now()
           WHERE id = ${id}::uuid AND owner_user_id = ${userId}::uuid`;
           } else {
-            yield* sql`INSERT INTO proxies (id, owner_user_id, name, kind, base_url, secret_id, fingerprint, codex)
-          VALUES (${id}::uuid, ${userId}::uuid, ${name}, ${request.kind}, ${root}, ${ref.secretRef}::uuid, ${fingerprint}, ${JSON.stringify(options)}::jsonb)`;
+            yield* sql`INSERT INTO proxies (id, owner_user_id, name, kind, base_url, secret_id, fingerprint, codex, management_secret_id)
+          VALUES (${id}::uuid, ${userId}::uuid, ${name}, ${request.kind}, ${root}, ${ref.secretRef}::uuid, ${fingerprint},
+            ${JSON.stringify(options)}::jsonb, ${management}::uuid)`;
           }
 
           yield* records.audit(userId, id, previous ? "proxy.updated" : "proxy.created");
 
           if (previous && request.secret !== undefined) yield* records.audit(userId, id, "proxy.secret_replaced");
+
+          if (management !== (previous?.management_secret_id ?? null))
+            yield* records.audit(
+              userId,
+              id,
+              management ? "proxy.management_key_replaced" : "proxy.management_key_removed",
+            );
           const changed = yield* core.sync(userId);
 
           return { proxy: yield* records.toUi(yield* records.get(userId, id)), changed };

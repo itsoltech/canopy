@@ -1726,6 +1726,9 @@ i `proxies_changed` (827). Po każdym otwarciu strumienia przychodzi `feeds` (82
 wypychanych w całości; `bots` jest na niej tylko, gdy każdy osiągalny połączony komputer też je wypycha
 (jego zmiany botów przychodzą z kwalifikowanymi id). Klient bez danej domeny w `feeds` (starszy gateway,
 przerwany strumień) zachowuje zapasowe odpytywanie: lista botów co 15 s, Connectors co 30 s.
+`proxy_accounts` (831) niesie konta upstream jednego proxy CLIProxyAPI po odczycie Management API
+([proxies.md](proxies.md#konta-upstream-management-api-cliproxyapi)); klient podmienia je w
+`ListProxies` bez ponownego odczytu listy.
 Uwagi konfiguracji (`ConfigNotices`) i strona Computers dzielą jeden odczyt `GetComputers`,
 odświeżany przez `computer`, `computer_removed` i `shared_config`, z jednym sprawdzeniem na minutę
 na widocznej stronie; zaproszenie do parowania sprawdza się co 2 s, dopóki jest ważne. Network access
