@@ -43,7 +43,7 @@ export function githubPrList(sql: SqlClient.SqlClient) {
             expired: boolean;
           }
         >`SELECT q.*,bool_or(current_branch) OVER () AS has_current_branch FROM (SELECT p.*,l.source,l.evidence,l.created_at,c.payload,
-        coalesce(c.expires_at<now(),true) AS expired,
+        (c.payload IS NULL OR coalesce(c.expires_at<=now(),true)) AS expired,
         CASE WHEN p.summary_account_id=a.id THEN p.summary END AS last_known,
         coalesce((c.payload->>'headRef')=coalesce(nullif(g.context->>'pushRef',''),g.context->>'branch')
           AND nullif(g.context->>'branch','') IS NOT NULL
@@ -85,7 +85,7 @@ export function githubPrList(sql: SqlClient.SqlClient) {
                     },
                     state: "unavailable",
                   },
-            // Without a cache entry for the current access revision the summary is only the last known one.
+            // A refresh lease without a payload still serves only the last known summary.
             stale: r.expired,
             detail: r.refresh_detail,
             source: r.source,
