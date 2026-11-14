@@ -6,6 +6,7 @@ import { GatewayStore, InstanceStore } from "@canopy/gateway/store";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
+import { ProxyAccountsMonitor } from "../../apps/gateway/src/core/proxy-accounts.ts";
 
 const KEY = "fixture-management-key";
 const WRONG = "fixture-wrong-management-key";
@@ -66,7 +67,35 @@ const FILES = [
   { id: "odd.json", provider: 7, email: ["not text"] },
 ];
 
-let mode: "ok" | "remote" | "huge" | "html" = "ok";
+let mode: "ok" | "remote" | "huge" | "html" | "echo" | "endless403" = "ok";
+
+const base64 = (value: string) => Buffer.from(value).toString("base64");
+
+/** A proxy that echoes the secrets it knows in every text field, raw and encoded. */
+const ECHO = [
+  {
+    id: KEY,
+    auth_index: encodeURIComponent(KEY),
+    provider: KEY,
+    email: `${KEY}@example.test`,
+    label: base64(SECRET),
+    status: "error",
+    status_message: `key ${KEY} secret ${SECRET} url ${encodeURIComponent(SECRET)} b64 ${base64(KEY).replace(/=+$/, "")}`,
+    refresh_error: { message: `${Buffer.from(KEY).toString("base64url")} failed` },
+  },
+];
+
+/** A 403 whose body never ends: only a prefix may be read. */
+const endless = () =>
+  new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode("remote management disabled "));
+    },
+    pull(controller) {
+      controller.enqueue(new Uint8Array(64 * 1024).fill(32));
+    },
+  });
+
 let requests: string[] = [];
 
 const management = Bun.serve({
@@ -81,11 +110,15 @@ const management = Bun.serve({
 
     if (mode === "remote") return Response.json({ error: "remote management disabled" }, { status: 403 });
 
+    if (mode === "endless403") return new Response(endless(), { status: 403 });
+
     if (auth !== `Bearer ${KEY}`) return Response.json({ error: "invalid management key" }, { status: 401 });
 
     if (mode === "huge") return Response.json({ files: [{ id: "x".repeat(5 * 1024 * 1024) }] });
 
     if (mode === "html") return new Response("<html>login</html>", { headers: { "content-type": "text/html" } });
+
+    if (mode === "echo") return Response.json({ files: ECHO });
 
     return Response.json({ observed_at: new Date().toISOString(), files: FILES });
   },
@@ -274,9 +307,80 @@ describe.skipIf(!dockerAvailable)("CLIProxyAPI upstream accounts through the man
     });
     await expect(gw.api.refreshProxyAccounts({ id: crypto.randomUUID() })).rejects.toThrow();
     // The periodic check reads the proxy in use once its last read is no longer fresh.
-    gw.core.proxyAccounts.forget(proxy.id);
+    await query("UPDATE proxies SET management_status = NULL, management_read_at = NULL WHERE id = $1::uuid", [
+      proxy.id,
+    ]);
     requests = [];
     await gw.core.proxyAccounts.check();
     expect(requests).toEqual(["key"]);
   });
+
+  test("echoed management keys and proxy secrets never leave the gateway, raw or encoded", async () => {
+    mode = "echo";
+    await Bun.sleep(5_100);
+    const accounts = await refresh(proxy.id);
+    mode = "ok";
+
+    expect(accounts.state).toBe("ok");
+
+    const sent = [
+      toJsonString(ui.ProxyAccountsSchema, accounts),
+      toJsonString(ui.ListProxiesResponseSchema, await gw.api.listProxies({})),
+    ].join("\n");
+
+    for (const leaked of [
+      KEY,
+      SECRET,
+      encodeURIComponent(KEY),
+      encodeURIComponent(SECRET),
+      base64(KEY),
+      base64(KEY).replace(/=+$/, ""),
+      base64(SECRET),
+      Buffer.from(KEY).toString("base64url"),
+    ])
+      expect(sent).not.toContain(leaked);
+    expect(accounts.accounts[0]?.detail).toContain("[redacted]");
+  }, 30_000);
+
+  test("an endless 403 body is read only as a short prefix", async () => {
+    mode = "endless403";
+    await Bun.sleep(5_100);
+    const started = Date.now();
+    const accounts = await refresh(proxy.id);
+    mode = "ok";
+
+    expect(accounts.state).toBe("remote_disabled");
+    expect(Date.now() - started).toBeLessThan(5_000);
+  }, 30_000);
+
+  test("a rejected key stays rejected after a restart and across gateway processes until the key changes", async () => {
+    proxy = await save(proxy.id, WRONG);
+    await eventually(
+      async () => (await gw.api.listProxies({})).proxies.find((p) => p.id === proxy.id)?.accounts?.state,
+      (state) => state === "unauthorized",
+    );
+    requests = [];
+
+    // Fresh monitors stand for a restarted gateway and a second gateway process: neither sends the key again.
+    for (const restarted of [new ProxyAccountsMonitor(gw.core), new ProxyAccountsMonitor(gw.core)]) {
+      await restarted.check();
+      expect((await restarted.refresh(proxy.id)).state).toBe("unauthorized");
+    }
+
+    expect(requests).toEqual([]);
+
+    // A new key reads again, and two processes opening the view at once send one request.
+    proxy = await save(proxy.id, KEY);
+    await eventually(
+      async () => (await gw.api.listProxies({})).proxies.find((p) => p.id === proxy.id)?.accounts?.state,
+      (state) => state === "ok",
+    );
+    await query("UPDATE proxies SET management_status = NULL, management_read_at = NULL WHERE id = $1::uuid", [
+      proxy.id,
+    ]);
+    requests = [];
+    const [a, b] = [new ProxyAccountsMonitor(gw.core), new ProxyAccountsMonitor(gw.core)];
+    await Promise.all([a.refresh(proxy.id), b.refresh(proxy.id)]);
+    expect(requests).toEqual(["key"]);
+  }, 30_000);
 });

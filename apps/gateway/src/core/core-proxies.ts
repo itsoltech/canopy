@@ -14,24 +14,23 @@ export interface CoreProxyMethods {
 
 export const coreProxyMethods: CoreProxyMethods = {
   async listProxies(this: GatewayCore) {
-    return this.proxyAccounts.decorate(await coreInstances(this, (s) => s.listProxies(this[coreState].options.userId)));
+    return coreInstances(this, (s) => s.listProxies(this[coreState].options.userId));
   },
   async saveProxy(this: GatewayCore, request) {
     const result = await coreInstances(this, (s) => s.saveProxy(this[coreState].options.userId, request));
     await coreConfigsChanged(this, result.changed);
 
     // A new key or URL reads again; the reply does not wait for the proxy.
-    if (request.managementKey !== undefined || request.baseUrl !== result.proxy.baseUrl) {
-      this.proxyAccounts.forget(result.proxy.id);
+    if (
+      result.proxy.managementKeySet &&
+      (request.managementKey !== undefined || request.baseUrl !== result.proxy.baseUrl)
+    )
+      void this.proxyAccounts.refresh(result.proxy.id, true).catch(() => {});
 
-      if (result.proxy.managementKeySet) void this.proxyAccounts.refresh(result.proxy.id, true).catch(() => {});
-    }
-
-    return this.proxyAccounts.decorate([result.proxy])[0]!;
+    return result.proxy;
   },
   async deleteProxy(this: GatewayCore, request) {
     await coreInstances(this, (s) => s.deleteProxy(this[coreState].options.userId, request));
-    this.proxyAccounts.forget(request.id);
   },
   refreshProxyAccounts(this: GatewayCore, request) {
     return this.proxyAccounts.refresh(request.id, request.force);

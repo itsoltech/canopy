@@ -4,6 +4,7 @@ import type { InstanceApi } from "./instance-checks.ts";
 import { instanceReads, instanceSync, instanceWrites } from "./instance-queries.ts";
 import { instanceMutations, instanceSave } from "./instance-save.ts";
 import { instanceModels } from "./instance-models.ts";
+import { proxyManagementStore } from "./proxy-management.ts";
 import { proxyStore } from "./proxies.ts";
 import { proxyEnvMove } from "./proxy-env-move.ts";
 import { queryMethods } from "../diagnostics/query-context.ts";
@@ -39,6 +40,7 @@ export class InstanceStore extends Context.Service<InstanceStore, InstanceApi>()
             ...instanceMutations(sql, core, secretsKey),
             ...instanceModels(sql, core),
             ...proxies,
+            ...proxyManagementStore(sql, secretsKey),
             moveInstanceToProxy: proxyEnvMove(sql, secretsKey, core, { ...saves, ...proxies }),
           }),
         );

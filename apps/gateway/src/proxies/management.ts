@@ -49,16 +49,46 @@ const Listing = Schema.Struct({ files: Schema.Array(Schema.Unknown) });
 const decodeFile = Schema.decodeUnknownOption(AuthFile);
 const decodeListing = Schema.decodeUnknownOption(Listing);
 
-/** Plain text only: control characters, markup and credentials removed, length capped. */
-export function plainText(value: string | null | undefined, max: number): string {
-  const text = redactCredentials(
-    (value ?? "")
-      // oxlint-disable-next-line no-control-regex -- strips control characters from untrusted text
-      .replace(/[\u0000-\u001f\u007f-\u009f]+/g, " ")
-      .replace(/<[^>]{0,200}>/g, " ")
-      .replace(/[<>]/g, "")
-      .replace(/\s+/g, " ")
-      .trim(),
+export type Redact = (text: string) => string;
+
+/**
+ * Removes the exact secrets this read knows (management key, proxy secret) and their usual encodings. A proxy that
+ * echoes a key in an account field must not hand it to clients: patterns alone cannot recognise an opaque key.
+ */
+export function secretRedactor(secrets: readonly string[]): Redact {
+  const forms = [
+    ...new Set(
+      secrets
+        .filter((secret) => secret.length >= 4)
+        .flatMap((secret) => {
+          const base64 = Buffer.from(secret, "utf8").toString("base64");
+
+          return [
+            secret,
+            encodeURIComponent(secret),
+            base64,
+            base64.replace(/=+$/, ""),
+            Buffer.from(secret, "utf8").toString("base64url"),
+          ];
+        }),
+    ),
+  ].sort((a, b) => b.length - a.length);
+
+  return (text) => forms.reduce((value, form) => value.split(form).join("[redacted]"), text);
+}
+
+/** Plain text only: known secrets, control characters, markup and credentials removed, then length capped. */
+export function plainText(value: string | null | undefined, max: number, redact: Redact = (text) => text): string {
+  const text = redact(
+    redactCredentials(
+      redact(value ?? "")
+        // oxlint-disable-next-line no-control-regex -- strips control characters from untrusted text
+        .replace(/[\u0000-\u001f\u007f-\u009f]+/g, " ")
+        .replace(/<[^>]{0,200}>/g, " ")
+        .replace(/[<>]/g, "")
+        .replace(/\s+/g, " ")
+        .trim(),
+    ),
   );
 
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
@@ -137,17 +167,18 @@ function status(file: AuthFile, retry: Date | undefined, now: number) {
 const count = (value: number | null | undefined) => BigInt(Number.isSafeInteger(value) && value! > 0 ? value! : 0);
 
 /** One auth file as a typed, sanitized account; the provider name keeps only a short lower-case token. */
-export function proxyAccount(file: AuthFile, now = Date.now()): ui.ProxyAccount {
+export function proxyAccount(file: AuthFile, now = Date.now(), redact: Redact = (text) => text): ui.ProxyAccount {
   const retry = time(file.next_retry_after);
   const observed = time(file.quota?.observed_at);
-  const provider = (file.provider || file.type || "").toLowerCase();
+  const raw = (file.provider || file.type || "").toLowerCase();
+  const provider = redact(raw) === raw ? raw : "";
 
   return create(ui.ProxyAccountSchema, {
-    id: plainText(file.auth_index || file.id || file.name, 120),
+    id: plainText(file.auth_index || file.id || file.name, 120, redact),
     provider: /^[a-z0-9_-]{1,32}$/.test(provider) ? provider : "other",
-    label: plainText(file.email || file.account || file.label || file.name, 120),
+    label: plainText(file.email || file.account || file.label || file.name, 120, redact),
     status: status(file, retry, now),
-    detail: plainText(file.refresh_error?.message || file.status_message, 160),
+    detail: plainText(file.refresh_error?.message || file.status_message, 160, redact),
     retryAt: retry && retry.getTime() > now ? timestampFromDate(retry) : undefined,
     windows: windows(file, observed),
     successCount: count(file.success),
@@ -155,31 +186,39 @@ export function proxyAccount(file: AuthFile, now = Date.now()): ui.ProxyAccount 
   });
 }
 
-/** Reads at most `MAX_BYTES`; a larger body is rejected rather than parsed partially. */
-async function boundedListing(response: Response) {
+/** At most `max` bytes of a body; the rest is cancelled unread. `overflow` marks a body that was longer. */
+async function readBounded(response: Response, max: number): Promise<{ bytes: Buffer; overflow: boolean }> {
   const reader = response.body?.getReader();
 
-  if (!reader) return Option.none();
+  if (!reader) return { bytes: Buffer.alloc(0), overflow: false };
   const chunks: Uint8Array[] = [];
   let size = 0;
 
   for (;;) {
     const { done, value } = await reader.read();
 
-    if (done) break;
-    size += value.byteLength;
+    if (done) return { bytes: Buffer.concat(chunks), overflow: false };
 
-    if (size > MAX_BYTES) {
-      await reader.cancel();
+    if (size + value.byteLength > max) {
+      chunks.push(value.subarray(0, max - size));
+      await reader.cancel().catch(() => {});
 
-      return Option.none();
+      return { bytes: Buffer.concat(chunks), overflow: true };
     }
 
+    size += value.byteLength;
     chunks.push(value);
   }
+}
+
+/** A larger body than `MAX_BYTES` is rejected rather than parsed partially. */
+async function boundedListing(response: Response) {
+  const body = await readBounded(response, MAX_BYTES);
+
+  if (body.overflow) return Option.none();
 
   try {
-    return decodeListing(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+    return decodeListing(JSON.parse(body.bytes.toString("utf8")));
   } catch {
     return Option.none();
   }
@@ -192,7 +231,12 @@ const result = (proxyId: string, state: string, accounts: ui.ProxyAccount[] = []
  * Lists a CLIProxyAPI proxy's upstream accounts with its management key. The key goes only in this request's
  * header; redirects are refused so it cannot reach another host. Response bodies never leave as text.
  */
-export async function readProxyAccounts(proxyId: string, root: string, key: string): Promise<ui.ProxyAccounts> {
+export async function readProxyAccounts(
+  proxyId: string,
+  root: string,
+  key: string,
+  secrets: readonly string[] = [],
+): Promise<ui.ProxyAccounts> {
   if (!key) return result(proxyId, "no_key");
 
   try {
@@ -203,7 +247,8 @@ export async function readProxyAccounts(proxyId: string, root: string, key: stri
     });
 
     if (!response.ok) {
-      const forbidden = response.status === 403 ? (await response.text().catch(() => "")).slice(0, 512) : "";
+      // Only a short prefix of an error body is read; the rest is never buffered.
+      const forbidden = response.status === 403 ? (await readBounded(response, 512)).bytes.toString("utf8") : "";
       await response.body?.cancel().catch(() => {});
 
       if (response.status === 401) return result(proxyId, "unauthorized");
@@ -219,11 +264,12 @@ export async function readProxyAccounts(proxyId: string, root: string, key: stri
     if (Option.isNone(listing)) return result(proxyId, "invalid_response");
     const files = listing.value.files.flatMap((value) => Option.toArray(decodeFile(value)));
     const now = Date.now();
+    const redact = secretRedactor([key, ...secrets]);
 
     return result(
       proxyId,
       "ok",
-      files.slice(0, MAX_ACCOUNTS).map((file) => proxyAccount(file, now)),
+      files.slice(0, MAX_ACCOUNTS).map((file) => proxyAccount(file, now, redact)),
       listing.value.files.length,
     );
   } catch {

@@ -1,11 +1,12 @@
 import { createHmac } from "node:crypto";
-import { create } from "@bufbuild/protobuf";
+import { create, type JsonValue } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { Invalid, NotFound } from "./store.ts";
 import { InstanceConflict } from "./instance-checks.ts";
 import { decryptSecret } from "./secrets.ts";
+import { storedAccounts } from "./proxy-management.ts";
 
 export type ProxyOptions = {
   wireApi: string;
@@ -21,6 +22,8 @@ export interface ProxyRow {
   base_url: string;
   secret_id: string | null;
   management_secret_id: string | null;
+  management_status: JsonValue | null;
+  management_identity: string | null;
   fingerprint: string;
   codex: ProxyOptions;
   revision: bigint | number | string;
@@ -112,6 +115,7 @@ export function proxyRecords(sql: SqlClient.SqlClient, key: Buffer) {
         baseUrl: row.base_url,
         secretSet: row.secret_id !== null,
         managementKeySet: row.management_secret_id !== null,
+        accounts: storedAccounts(row),
         codex: row.codex,
         revision: BigInt(row.revision),
         usedBy: yield* usedBy(row.id),

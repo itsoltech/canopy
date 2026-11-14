@@ -20,10 +20,6 @@ export interface ProxyApi {
   saveProxy(userId: string, request: ui.SaveProxyRequest): Fx<{ proxy: ui.Proxy; changed: string[] }>;
   deleteProxy(userId: string, request: ui.ProxyIdRequest): Fx<void>;
   testProxy(userId: string, request: ui.ProxyIdRequest): Fx<ui.TestProxyResponse>;
-  /** The root and decrypted management key of the owner's CLIProxyAPI proxy; empty key = none stored. */
-  proxyManagement(userId: string, id: string): Fx<{ root: string; key: string }>;
-  /** The owner's CLIProxyAPI proxies with a management key that a profile uses: the periodic check reads these. */
-  managedProxies(userId: string): Fx<string[]>;
 }
 
 /** Public metadata only. Upstream response bodies and fetch exceptions never become UI diagnostics. */
@@ -215,25 +211,6 @@ export function proxyStore(sql: SqlClient.SqlClient, key: Buffer, core: Instance
         const secret = yield* records.secret(userId, row.secret_id);
 
         return yield* Effect.promise(() => probe(row, secret));
-      }),
-    proxyManagement: (userId, id) =>
-      Effect.gen(function* () {
-        const row = yield* records.get(userId, id);
-
-        return {
-          root: row.base_url,
-          key: row.kind === "cliproxyapi" ? yield* records.secret(userId, row.management_secret_id) : "",
-        };
-      }),
-    managedProxies: (userId) =>
-      Effect.gen(function* () {
-        const rows = yield* sql<{ id: string }>`SELECT p.id::text FROM proxies p
-          WHERE p.owner_user_id = ${userId}::uuid AND p.kind = 'cliproxyapi' AND p.management_secret_id IS NOT NULL
-            AND (EXISTS (SELECT 1 FROM provider_instances i WHERE i.proxy_id = p.id)
-              OR EXISTS (SELECT 1 FROM provider_instance_workers w WHERE w.proxy_id = p.id))
-          ORDER BY p.id`;
-
-        return rows.map((row) => row.id);
       }),
   };
 }

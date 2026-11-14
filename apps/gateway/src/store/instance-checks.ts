@@ -17,6 +17,7 @@ import {
 } from "./instance-config.ts";
 import { Invalid, NotFound } from "./store.ts";
 import type { ProxyApi } from "./proxies.ts";
+import type { ProxyManagementApi } from "./proxy-management.ts";
 import { isCredentialEnv } from "./credential-env.ts";
 
 /** The change started from an older definition, or an instance in use cannot be deleted. */
@@ -180,7 +181,7 @@ export const toUi = (
   });
 };
 
-export interface InstanceApi extends ProxyApi {
+export interface InstanceApi extends ProxyApi, ProxyManagementApi {
   moveInstanceToProxy(
     userId: string,
     request: ui.MoveInstanceToProxyRequest,
