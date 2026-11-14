@@ -83,9 +83,9 @@ export function useFollowingList<Item>(keyboardChat = false, initialComposerHeig
     autoscrollToTopThreshold: FOLLOW_THRESHOLD,
   };
 
-  // UIKit's autoscroll always targets zero, ignoring a negative keyboard inset. At the end an inverted list
-  // follows naturally; enable native row anchoring only while reading history, without that autoscroll.
-  if (keyboardChat && ios) anchor = atBottom ? undefined : { minIndexForVisible: 0 };
+  // UIKit's autoscroll targets zero, ignoring the negative keyboard inset. Keep native anchoring configured
+  // without autoscroll: disabling/re-enabling it can reuse a pre-disclosure first-visible-cell checkpoint.
+  if (keyboardChat && ios) anchor = { minIndexForVisible: 0 };
 
   return {
     list,
