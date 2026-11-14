@@ -53,13 +53,40 @@ identyfikatory organizacji, surowe komunikaty błędów oraz nieznane pola nie
 są częścią kontraktu; metadane są ponownie filtrowane w gateway. Znane
 sekrety profilu i wartości przypominające sekrety są odrzucane z pól tekstowych.
 
+## Login odrzucony w turze
+
+`codex login status` czyta tylko `auth.json`: wygasły refresh token nadal daje
+„Logged in using ChatGPT”, a `account/read` bez odświeżenia tokenu też tego
+nie wykryje. Claude i Grok mają tę samą lukę. Prawdę zna dopiero tura, więc:
+
+- tura zakończona błędem klasy `auth_required` (np. Codex `unauthorized`,
+  „refresh token has expired”) każe gatewayowi wymusić odczyt konta tej
+  instancji na tym workerze i zapamiętać w pamięci znacznik
+  `worker/provider/instancja` z `login_revision` z tego odczytu;
+- `login_revision` to skrót (inode, rozmiar, mtime) pliku logowania w
+  `login_dir` (`auth.json`, `.credentials.json`), nigdy jego treści; worker
+  liczy go przy każdym raporcie, poza cache;
+- dopóki znacznik pasuje, gateway zwraca stan `expired` ze szczegółem „The
+  provider rejected this login during a turn. Sign in again.”; UI pokazuje
+  „Sign-in expired”, a Retry pod błędem tury jest wyłączony;
+- znacznik znika, gdy zmieni się `login_revision` (nowy login z aplikacji
+  albo z terminala, odświeżenie tokenu), gdy tura tej instancji na tym
+  workerze się powiedzie, albo — dla loginu bez pliku (pęk kluczy macOS) — po
+  ręcznym Refresh;
+- proxy i klucze API nie dostają znacznika: to problem ustawień, nie logowania.
+
+Znacznik żyje w pamięci gatewaya, jak cały raport kont; po restarcie gatewaya
+wraca przy następnej odrzuconej turze. `login_revision` nie trafia do klientów.
+
 ## Wiersz statusu w UI
 
 Jedna linia: stan · metoda · plan · organizacja · email (rozmyty) · wygaśnięcie
 („expires in 3 days” przy < 7 dniach) · „checked 8 min ago”, potem ikona
 Refresh. Czas sprawdzenia występuje tylko tu; blok Status instancji nie
 powtarza wiersza „Checked”, gdy wiersz konta jest widoczny. „Sign in” otwiera
-popover z poleceniem logowania i przyciskiem kopiowania. Katalog konfiguracji
+popover z poleceniem logowania i przyciskiem kopiowania; przy zalogowanym koncie
+ten sam popover jest dostępny jako „Sign in again”, bo CLI może uznawać
+odrzucony login za poprawny. Katalog konfiguracji
 worker wysyła tylko dla własnego shadow home (domyślny katalog w danych workera
 nie jest pokazywany); wtedy jest drugą, rozmytą linią. Brak danych z
 zewnętrznego CLI (Grok, brak CLI, starszy worker) nie generuje żadnego tekstu:
@@ -101,3 +128,7 @@ WorkerHost oraz PostgreSQL: odczyty bez spawn, zbieżne odświeżenia,
 wymuszony odczyt przy wstrzymanej wcześniejszej odpowiedzi z cache, zmiana
 home instancji (katalog widoczny tylko dla własnego shadow home), brak
 trwałego journala, proxy bez klucza i odmowa odczytu obcego workera.
+`provider-sign-in-expired.test.ts` uruchamia fake Codex app-server, którego
+tura kończy się `unauthorized`: konto przechodzi w `expired` w
+`ListProviderInstances` i overview, Refresh tego nie ukrywa, a logowanie z
+aplikacji (device code do domu CLI urządzenia) albo udana tura je czyści.

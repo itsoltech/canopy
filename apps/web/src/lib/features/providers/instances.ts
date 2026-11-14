@@ -69,6 +69,9 @@ export function statusOn(on: ui.InstanceOnWorker | undefined, online: boolean): 
       tone: "neutral",
     };
 
+  // The CLI still reports the login, but a turn's harness rejected it (the gateway's account mark).
+  if (on.available && on.account?.state === "expired") return { label: "Sign-in expired", tone: "amber" };
+
   if (on.available)
     return { label: on.authenticated && on.auth ? `Authenticated · ${on.auth}` : "Available", tone: "emerald" };
   const detail = on.detail.toLowerCase();

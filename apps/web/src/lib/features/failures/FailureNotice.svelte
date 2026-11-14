@@ -17,6 +17,8 @@
     onretry,
     onchangemodel,
     onchangeworker,
+    onsignin,
+    signingIn = false,
     signInLabel = "Sign in",
     retrying = false,
     retryDisabled = false,
@@ -33,6 +35,9 @@
     onretry?: (() => void) | undefined;
     onchangemodel?: (() => void) | undefined;
     onchangeworker?: (() => void) | undefined;
+    /** Starts the instance's sign-in here instead of linking to provider settings. */
+    onsignin?: (() => void) | undefined;
+    signingIn?: boolean;
     signInLabel?: string;
     retrying?: boolean;
     retryDisabled?: boolean;
@@ -56,7 +61,9 @@
     {/if}
     <div class="flex flex-wrap items-center gap-2">
       {#if failure.model && onchangemodel}<Button size="sm" onclick={onchangemodel}>Change model</Button>{/if}
-      {#if failure.settings}
+      {#if failure.kind === "auth_required" && !proxy && onsignin}
+        <Button size="sm" variant="ghost" loading={signingIn} onclick={onsignin}>{signInLabel}</Button>
+      {:else if failure.settings}
         <ButtonLink size="sm" variant="ghost" href={providerHref}
           >{failure.kind === "auth_required" && !proxy ? signInLabel : "Open provider settings"}</ButtonLink
         >

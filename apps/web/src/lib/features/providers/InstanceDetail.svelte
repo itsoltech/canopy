@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
-  import { Provider, ProviderProfileKind, type ui } from "@canopy/contracts";
+  import type { ui } from "@canopy/contracts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Badge from "#lib/shared/ui/Badge.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -11,6 +11,7 @@
   import InstanceModels from "./InstanceModels.svelte";
   import { harnessName, instanceName, kindLabel, providerCall, statusOn } from "./instances.ts";
   import LoginPanel from "./LoginPanel.svelte";
+  import { signsInFromApp } from "./device-login.svelte.ts";
   import OverrideForm from "./OverrideForm.svelte";
   import type { ProvidersState } from "./providers-state.svelte.ts";
   import SettingsSection from "./SettingsSection.svelte";
@@ -50,11 +51,7 @@
   const nameOf = (workerId: string) => workers.find((w) => w.id === workerId)?.name ?? workerId.slice(-8);
   const onlineOf = (workerId: string) => workers.find((w) => w.id === workerId)?.online ?? false;
 
-  const ownLogin = $derived(
-    instance.harness === Provider.CODEX &&
-      instance.kind === ProviderProfileKind.NATIVE &&
-      instance.runtime?.ownLogin === true,
-  );
+  const appSignIn = $derived(signsInFromApp(instance.harness, instance.kind));
 
   async function guarded(run: () => Promise<void>) {
     failure = undefined;
@@ -142,8 +139,8 @@
             />
           </dd>{/if}
       </dl>
-      {#if ownLogin && on?.enabled}
-        <LoginPanel {instance} {worker} signedIn={on.authenticated} />
+      {#if appSignIn && on?.enabled}
+        <LoginPanel {instance} {worker} {on} />
       {/if}
     {:else}
       <InsetList label="Status on each worker">

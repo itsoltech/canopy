@@ -1,7 +1,10 @@
 <script lang="ts">
   import { humanizeEnum, isEnumToken } from "@canopy/domain/humanize";
   import type { ui } from "@canopy/contracts";
+  import { timestampDate } from "@bufbuild/protobuf/wkt";
   import { Provider, ProviderProfileKind } from "@canopy/contracts";
+  import DeviceCode from "#lib/features/providers/DeviceCode.svelte";
+  import { DeviceLogin, signsInFromApp } from "#lib/features/providers/device-login.svelte.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import FailureNotice from "#lib/features/failures/FailureNotice.svelte";
   import ThreadModelDialog from "./ThreadModelDialog.svelte";
@@ -29,14 +32,26 @@
   const worker = $derived(thread ? overview.worker(thread.workerId) : undefined);
   const historical = $derived(directory.latestTurnId !== undefined && directory.latestTurnId !== turn.id);
 
-  const proxy = $derived(
-    worker?.providerInstances.some(
-      (instance) =>
-        instance.harness === thread?.provider &&
-        instance.id === (thread.providerProfileId || "native") &&
-        instance.kind === ProviderProfileKind.CLIPROXYAPI,
-    ) ?? false,
+  const instance = $derived(
+    worker?.providerInstances.find(
+      (i) => i.harness === thread?.provider && i.id === (thread.providerProfileId || "native"),
+    ),
   );
+
+  const proxy = $derived(instance?.kind === ProviderProfileKind.CLIPROXYAPI);
+
+  // The gateway marks a login a turn's harness rejected; a retry would only fail the same way.
+  const needsSignIn = $derived(instance?.account?.state === "expired");
+  const appSignIn = $derived(!!instance && signsInFromApp(instance.harness, instance.kind));
+
+  const login = new DeviceLogin(() => ({
+    harness: instance?.harness ?? Provider.UNSPECIFIED,
+    id: instance?.id ?? "",
+    workerId: worker?.id ?? "",
+    report: instance?.account?.checkedAt ? String(timestampDate(instance.account.checkedAt).getTime()) : "",
+  }));
+
+  $effect(() => login.settle());
 
   const providerHref = $derived(
     thread
@@ -132,16 +147,27 @@
         ? "Open provider settings for this worker. Use its sign-in command, then retry."
         : thread?.provider === Provider.GROK
           ? "Run grok login on the worker using this instance's CLI home, then retry."
-          : "Sign in from provider settings, or run codex login on the worker using this instance's CLI home."}
+          : appSignIn
+            ? "Sign in with ChatGPT, then retry."
+            : "Sign in from provider settings, or run codex login on the worker using this instance's CLI home."}
       source={turn.errorSource}
       {historical}
       {proxy}
       {providerHref}
       retrying={continuing === "sending"}
-      retryDisabled={continuing === "sent"}
+      retryDisabled={continuing === "sent" || needsSignIn}
+      onsignin={appSignIn && !directory.readOnly && worker?.online ? () => login.start() : undefined}
+      signingIn={login.busy}
       onretry={!directory.readOnly && !turn.inherited && thread?.status === "idle" ? continueTurn : undefined}
       onchangemodel={!directory.readOnly && !turn.inherited && thread ? () => (modelOpen = true) : undefined}
     />
+    {#if !historical && login.code && worker}
+      <DeviceCode url={login.code.url} userCode={login.code.userCode} workerName={worker.name} />
+    {/if}
+    {#if !historical && login.failure}<p role="alert" class="text-sm text-rose-700 dark:text-rose-400">
+        {login.failure}
+        <a href={providerHref} class="font-medium underline">Open provider settings</a>
+      </p>{/if}
     {#if !historical && continuing === "sent"}<p role="status" class="text-sm text-zinc-500">Retry queued</p>{/if}
     {#if !historical && continuing === "error"}<p role="alert" class="text-sm text-rose-700 dark:text-rose-400">
         Could not queue the retry. Try again.

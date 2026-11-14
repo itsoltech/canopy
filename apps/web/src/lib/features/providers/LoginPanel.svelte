@@ -1,77 +1,49 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
+  import { timestampDate } from "@bufbuild/protobuf/wkt";
   import type { ui } from "@canopy/contracts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
-  import Icon from "#lib/shared/ui/Icon.svelte";
-  import { providerCall } from "./instances.ts";
+  import DeviceCode from "./DeviceCode.svelte";
+  import { DeviceLogin } from "./device-login.svelte.ts";
 
   /**
-   * Sign-in from the app for a Codex instance with its own login (Codex app-server account/login with a ChatGPT device
-   * code): the worker starts it, the user opens the link anywhere and enters the code; the worker finishes it and
-   * reports the login (the status line turns "Authenticated · ChatGPT").
+   * Sign-in from the app for a Codex instance (Codex app-server account/login with a ChatGPT device code): the worker
+   * starts it, the user opens the link anywhere and enters the code; the worker finishes it and reports the login.
+   * An instance on the device login signs the device's Codex in again; one with its own login, only itself.
    */
   let {
     instance,
     worker,
-    signedIn,
+    on,
     class: className,
-  }: { instance: ui.ProviderInstance; worker: ui.Worker; signedIn: boolean; class?: ClassValue } = $props();
+  }: { instance: ui.ProviderInstance; worker: ui.Worker; on: ui.InstanceOnWorker; class?: ClassValue } = $props();
 
-  let code = $state<{ url: string; userCode: string }>();
-  let busy = $state(false);
-  let failure = $state<string>();
+  const linked = $derived(instance.runtime?.ownLogin !== true);
 
-  $effect(() => {
-    if (signedIn) code = undefined;
-  });
+  const login = new DeviceLogin(() => ({
+    harness: instance.harness,
+    id: instance.id,
+    workerId: worker.id,
+    report: on.account?.checkedAt ? String(timestampDate(on.account.checkedAt).getTime()) : "",
+  }));
 
-  async function start() {
-    busy = true;
-    failure = undefined;
-
-    try {
-      const started = await providerCall(
-        "login",
-        { harness: instance.harness, id: instance.id, workerId: worker.id },
-        70_000,
-      );
-
-      code = { url: started.verificationUrl, userCode: started.userCode };
-    } catch (error) {
-      failure = error instanceof Error ? error.message : String(error);
-    } finally {
-      busy = false;
-    }
-  }
+  $effect(() => login.settle());
 </script>
 
 <div class={["grid gap-3", className]}>
-  {#if code}
-    <div class="grid gap-2 rounded-xl bg-zinc-950/2.5 p-4 dark:bg-white/2.5">
-      <p class="text-base/6 text-zinc-700 sm:text-sm/6 dark:text-zinc-300">
-        Open the link, sign in with ChatGPT and enter this code. It expires in 15 minutes.
-      </p>
-      <p class="font-mono text-2xl font-semibold tracking-widest text-zinc-950 select-all dark:text-white">
-        {code.userCode}
-      </p>
-      <a
-        href={code.url}
-        target="_blank"
-        rel="noreferrer noopener"
-        class="inline-flex items-center gap-1.5 text-base/6 font-medium text-brand-700 focus-ring hover:underline sm:text-sm/6 dark:text-brand-400"
-      >
-        {code.url}<Icon name="arrow-top-right-on-square" class="size-4 fill-current" />
-      </a>
-      <p class="text-sm/5 text-zinc-500 dark:text-zinc-400">Waiting for the sign-in on {worker.name}…</p>
-    </div>
+  {#if login.code}
+    <DeviceCode url={login.code.url} userCode={login.code.userCode} workerName={worker.name} />
   {:else}
-    <div class="flex flex-wrap items-center gap-3">
-      <Button icon="user" loading={busy} disabled={!worker.online} onclick={start}
-        >{signedIn ? "Sign in again with ChatGPT" : "Continue with ChatGPT"}</Button
+    <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <Button icon="user" loading={login.busy} disabled={!worker.online} onclick={() => login.start()}
+        >{on.authenticated ? "Sign in again with ChatGPT" : "Continue with ChatGPT"}</Button
       >
-      {#if !worker.online}<p class="text-sm/5 text-zinc-500">The worker is offline.</p>{/if}
+      {#if !worker.online}<p class="text-sm/5 text-zinc-500">The worker is offline.</p>
+      {:else if linked}<p class="min-w-0 text-sm/5 text-zinc-500 dark:text-zinc-400">
+          This also signs in the Codex CLI on {worker.name}.
+        </p>{/if}
     </div>
   {/if}
-  {#if failure}<Alert tone="error">{failure}</Alert>{/if}
+  {#if login.failure}<Alert tone="error">{login.failure}</Alert>{/if}
 </div>

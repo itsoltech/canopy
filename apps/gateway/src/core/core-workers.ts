@@ -22,6 +22,7 @@ import type { IngestFallback } from "../store/ingest-outcomes.ts";
 import { sqlErrorCode } from "../store/event-quarantine.ts";
 import { WorkerIngestQueue } from "./worker-ingest-queue.ts";
 import { syncWorkerThreadLifecycle } from "./worker-thread-lifecycle.ts";
+import { coreTurnLogin } from "./turn-logins.ts";
 
 export function createCoreWorkerLink(core: GatewayCore) {
   return createWorkerLink({
@@ -339,7 +340,10 @@ async function ingestReceived(
   }
 
   for (const stored of result.stored) {
-    if (stored.event.body.case === "turnFinished") await hostContext.bus.onTurnFinished(stored.event.turnId);
+    if (stored.event.body.case !== "turnFinished") continue;
+    await hostContext.bus.onTurnFinished(stored.event.turnId);
+    // Reads the account on the worker again: never holds up ingestion.
+    void coreTurnLogin(hostContext, connection.workerId, stored.threadId, stored.event.body.value);
   }
 
   // A background task ended (its note waits) or a turn started (notes that wait for one can join it).

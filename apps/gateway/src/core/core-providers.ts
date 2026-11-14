@@ -215,16 +215,19 @@ export const coreProvidersMethods: CoreProvidersMethods = {
     const owned = (await coreWorkers(this)).some((w) => w.id === request.workerId);
 
     if (!owned) throw new InvalidError("worker not found");
-    await coreInstance(this, request.harness, request.id);
+    const instance = await coreInstance(this, request.harness, request.id);
     const connection = this.link.connections.get(request.workerId);
 
     if (!connection?.isOpen) throw new UnavailableError("the worker is offline");
 
-    if (!connection.hello.capabilities.includes("codex_device_login"))
-      throw new InvalidError("this worker cannot sign in from the app; update it");
-
     if (request.harness !== Provider.CODEX)
       throw new InvalidError("only Codex signs in from the app; sign in to Claude Code on the device");
+
+    // An instance on the device login signs the device's Codex in again (worker capability codex_device_login_linked).
+    const capability = instance.runtime?.ownLogin ? "codex_device_login" : "codex_device_login_linked";
+
+    if (!connection.hello.capabilities.includes(capability))
+      throw new InvalidError("this worker cannot sign in from the app; update it");
 
     const result = await connection.sendCommand(
       { case: "startLogin", value: { provider: request.harness, profileId: request.id } },

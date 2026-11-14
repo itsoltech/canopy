@@ -43,22 +43,27 @@
   let help = $state(false);
   let now = $state(Date.now());
   const expiry = $derived(account?.expiresAt ? timestampDate(account.expiresAt) : undefined);
-  const expired = $derived(expiry !== undefined && expiry.getTime() <= now);
+
+  // A turn's harness rejected the login (state "expired"), or the CLI's own expiry passed.
+  const rejected = $derived(account?.state === "expired");
+  const expired = $derived(rejected || (expiry !== undefined && expiry.getTime() <= now));
   const soon = $derived(expiry !== undefined && !expired && expiry.getTime() - now < 7 * 86_400_000);
   const proxy = $derived(account?.authMethod === "Proxy");
   const warn = $derived(expired || account?.state === "signed_out" || account?.state === "error");
   const signIn = $derived(!proxy && (expired || account?.state === "signed_out"));
 
   const statusLabel = $derived(
-    expired
-      ? "Expired"
-      : account?.state === "signed_in"
-        ? "Signed in"
-        : account?.state === "signed_out"
-          ? "Not signed in"
-          : account?.state === "error"
-            ? "Check failed"
-            : "",
+    rejected
+      ? "Sign-in expired"
+      : expired
+        ? "Expired"
+        : account?.state === "signed_in"
+          ? "Signed in"
+          : account?.state === "signed_out"
+            ? "Not signed in"
+            : account?.state === "error"
+              ? "Check failed"
+              : "",
   );
 
   // The separator belongs to the item after it, so a wrapped line never ends with a lone dot.
@@ -147,9 +152,17 @@
           onclick={refresh}
         />
       {/if}
-      {#if signIn}
-        <Popover bind:open={help} label="Sign in" placement="bottom-start" class="w-[min(20rem,calc(100vw-1rem))] p-3">
-          {#snippet trigger(props)}<Button {...props} variant="ghost" size="sm">Sign in</Button>{/snippet}
+      {#if !proxy && account.state !== "unknown"}
+        <!-- Always offered: a login the CLI reports as fine can still be rejected by the provider. -->
+        <Popover
+          bind:open={help}
+          label={signIn ? "Sign in" : "Sign in again"}
+          placement="bottom-start"
+          class="w-[min(20rem,calc(100vw-1rem))] p-3"
+        >
+          {#snippet trigger(props)}<Button {...props} variant="ghost" size="sm"
+              >{signIn ? "Sign in" : "Sign in again"}</Button
+            >{/snippet}
           <p class="text-sm/6 text-zinc-600 dark:text-zinc-400">
             {login
               ? `Run this on the worker${os === "win32" ? " in PowerShell" : ""}, then refresh.`

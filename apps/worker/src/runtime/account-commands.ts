@@ -14,7 +14,7 @@ import { prepareCodexHome } from "../providers/codex/home.ts";
 import { claudeProfileOptions } from "../providers/claude/profile.ts";
 import { providersOf, resolveProfiles, type ProfileStatus, type ResolvedProfile } from "../providers/profiles.ts";
 import { CodexThreads } from "../providers/codex/threads.ts";
-import { accountResult } from "../providers/account-parser.ts";
+import { accountResult, loginRevision } from "../providers/account-parser.ts";
 import { codexProfileGroup, CommandError } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
 import type { AccountQuery } from "../providers/account-status.ts";
@@ -143,6 +143,13 @@ async function readEntry(
 
     const account = await ctx.state.accounts.read(query, refresh);
 
+    const loginDir =
+      resolved.kind === "native"
+        ? resolved.runtime.ownLogin
+          ? configDir
+          : resolved.runtime.homePath || ctx.state.deviceHomes[harness] || ""
+        : "";
+
     // Only a custom shadow home is worth showing; the default lives in the worker's data directory.
     return create(ProviderAccountEntrySchema, {
       provider,
@@ -150,14 +157,10 @@ async function readEntry(
       account: {
         ...account,
         configDir: resolved.runtime.shadowHomePath ? account.configDir : "",
-        loginDir:
-          resolved.kind === "native"
-            ? accountText(
-                resolved.runtime.ownLogin ? configDir : resolved.runtime.homePath || ctx.state.deviceHomes[harness],
-                query.secrets,
-              )
-            : "",
+        loginDir: accountText(loginDir, query.secrets),
         loginExecutable: resolved.kind === "native" ? accountText(query.executable, query.secrets) : "",
+        // Read on every report, not cached: the gateway compares it with the login a turn was rejected with.
+        loginRevision: loginRevision(harness, loginDir),
       },
     });
   } catch {

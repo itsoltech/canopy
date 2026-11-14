@@ -60,6 +60,8 @@ export class HostState {
   received: WorkerConfig | undefined;
   /** Sign-ins from the app in progress, by provider/profile. */
   readonly logins = new Map<string, Promise<unknown>>();
+  /** Finished sign-ins per instance id: a new one restarts the instance's Codex process once it is idle. */
+  readonly loginGenerations = new Map<string, number>();
   link: GatewayLink | undefined;
   /** Runtime snapshots per instance; configuration changes drain only the affected instance. */
   readonly codex = new Map<string, ProviderRuntimeHandle<CodexThreads>>();
