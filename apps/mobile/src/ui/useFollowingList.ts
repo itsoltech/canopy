@@ -83,9 +83,9 @@ export function useFollowingList<Item>(keyboardChat = false, initialComposerHeig
     autoscrollToTopThreshold: FOLLOW_THRESHOLD,
   };
 
-  // UIKit's autoscroll targets zero, ignoring the negative keyboard inset. Keep native anchoring configured
-  // without autoscroll: disabling/re-enabling it can reuse a pre-disclosure first-visible-cell checkpoint.
-  if (keyboardChat && ios) anchor = { minIndexForVisible: 0 };
+  // Native autoscroll targets zero (ignoring UIKit's negative inset); on Android it can also react to
+  // asynchronous card measurements near the end. Keep anchoring configured without that extra jump.
+  if (keyboardChat) anchor = { minIndexForVisible: 0 };
 
   return {
     list,

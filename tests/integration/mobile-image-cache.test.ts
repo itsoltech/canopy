@@ -33,6 +33,7 @@ test("immutable images survive remount/restart, keep variants and qualified comp
 
   const key = imageCacheKey(file("computer-a~attachment"), true);
   const uri = await cache.get(key, read, signal());
+  expect(cache.peek(key)).toBe(uri);
   expect(uri.startsWith("file://")).toBe(true);
   expect(await cache.get(key, read, signal())).toBe(uri);
   cache = new ImmutableImageCache(storage, imageHash, limits);
@@ -57,6 +58,7 @@ test("immutable images survive remount/restart, keep variants and qualified comp
   expect(requests).toBe(4);
   expect(await storage.read(uri)).toHaveLength(4);
   await cache.invalidate(key);
+  expect(cache.peek(key)).toBe("");
   await cache.get(key, read, signal());
   expect(requests).toBe(5);
 });
@@ -174,6 +176,8 @@ test("owner-bound pairing scopes cannot collide, and unpair/revoke fences late d
   expect(await rejected).toMatchObject({ name: "AbortError" });
   expect(forgotten).toBe(true);
   expect(cache.usage().memoryEntries).toBe(0);
+  expect(cache.peek("image")).toBe("");
+  expect(next.peek("image")).toBe(newUri);
   expect(archive.peek(filter)).toBeUndefined();
   await archive.reconcile(create(ui.ThreadSchema, { id: "late", status: "archived" }));
   expect(await archiveStorage.list()).toEqual([]);

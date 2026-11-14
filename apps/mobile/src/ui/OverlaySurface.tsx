@@ -1,16 +1,9 @@
 import type { ReactNode } from "react";
-import { Pressable, View, useWindowDimensions } from "react-native";
-import Animated, {
-  LayoutAnimationConfig,
-  useAnimatedStyle,
-  useDerivedValue,
-  useSharedValue,
-  type SharedValue,
-} from "react-native-reanimated";
-import { useKeyboardFrame } from "./KeyboardWindow";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Pressable, View } from "react-native";
+import Animated, { LayoutAnimationConfig, type SharedValue } from "react-native-reanimated";
 import { SheetHandle, SheetDragContext } from "./SheetDragArea";
 import { useSheetGesture } from "./useSheetGesture";
+import { useSheetLayout } from "./useSheetLayout";
 import { useColors } from "./theme";
 
 /** The scrim fills the window independently of keyboard padding. Phone sheets never scale away from its edges. */
@@ -23,6 +16,7 @@ export function OverlaySurface({
   wide,
   fullHeight,
   onLayout,
+  snap,
   children,
 }: {
   visible: boolean;
@@ -33,35 +27,19 @@ export function OverlaySurface({
   wide: boolean;
   fullHeight: boolean;
   onLayout: () => void;
+  snap: boolean;
   children: ReactNode;
 }) {
   const c = useColors();
-  const insets = useSafeAreaInsets();
-  const { width, height } = useWindowDimensions();
-  const keyboard = useKeyboardFrame();
-  const sheetHeight = useSharedValue(height);
 
-  const travel = useDerivedValue(() =>
-    Math.max(1, (wide ? (height + sheetHeight.get()) / 2 : sheetHeight.get()) - keyboard.height.get() + 24),
+  const { width, height, insets, sheetHeight, offset, travel, scrim, viewport, surface, body } = useSheetLayout(
+    progress,
+    wide,
+    fullHeight,
+    snap,
   );
 
-  const handlers = useSheetGesture(progress, velocity, travel, sheetHeight, visible, onClose);
-  const scrim = useAnimatedStyle(() => ({ opacity: Math.max(0, Math.min(1, progress.get())) }));
-
-  const viewport = useAnimatedStyle(() => ({
-    paddingBottom: wide ? Math.max(-keyboard.height.get(), insets.bottom) : -keyboard.height.get(),
-  }));
-
-  const surface = useAnimatedStyle(() => {
-    const t = progress.get();
-    const available = height + keyboard.height.get() - insets.top;
-
-    return {
-      maxHeight: Math.max(0, available * (fullHeight ? 0.94 : wide ? 0.7 : 0.85)),
-      paddingBottom: 8 + (wide ? 0 : insets.bottom * (1 - keyboard.progress.get())),
-      transform: [{ translateY: (1 - t) * travel.get() }],
-    };
-  });
+  const handlers = useSheetGesture(progress, velocity, travel, sheetHeight, visible, onClose, offset, snap && !wide);
 
   return (
     <SheetDragContext.Provider value={{ handlers, close: onClose }}>
@@ -99,7 +77,6 @@ export function OverlaySurface({
             style={[
               {
                 width: wide ? Math.min(fullHeight ? 640 : 420, width - insets.left - insets.right - 48) : "100%",
-                height: fullHeight ? "100%" : undefined,
                 marginHorizontal: wide ? 24 : 0,
                 paddingLeft: wide ? 0 : insets.left,
                 paddingRight: wide ? 0 : insets.right,
@@ -125,10 +102,12 @@ export function OverlaySurface({
                 style={{ position: "absolute", top: "100%", left: 0, right: 0, height, backgroundColor: c.overlay }}
               />
             )}
-            <SheetHandle />
-            <LayoutAnimationConfig skipEntering skipExiting>
-              {children}
-            </LayoutAnimationConfig>
+            <Animated.View style={[{ minHeight: 0, overflow: "hidden" }, body]}>
+              <SheetHandle />
+              <LayoutAnimationConfig skipEntering skipExiting>
+                {children}
+              </LayoutAnimationConfig>
+            </Animated.View>
           </Animated.View>
         </Animated.View>
       </View>

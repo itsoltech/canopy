@@ -53,7 +53,9 @@ export function ComposerCoverage({
   useAnimatedReaction(
     () => height.get(),
     (next) => {
-      if (value) value.set(Math.max(0, next - safe));
+      // Folding changes only the overlay. Releasing the native inset moves an inverted Android feed and
+      // can make its synthetic scroll events look like a gesture back to the end.
+      if (value) value.set(Math.max(value.get(), next - safe, 0));
     },
   );
 

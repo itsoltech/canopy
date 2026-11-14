@@ -17,6 +17,7 @@ export function useComposerScroll<Item>(
 ) {
   const reader = useSharedValue(false);
   const travel = useSharedValue(0);
+  const returning = useSharedValue(0);
   const previous = useSharedValue(0);
   const content = useSharedValue(0);
   const viewport = useSharedValue(0);
@@ -29,23 +30,23 @@ export function useComposerScroll<Item>(
     "worklet";
     reader.set(false);
     travel.set(0);
-  }, [reader, travel]);
+    returning.set(0);
+  }, [reader, travel, returning]);
 
   const onScroll = useAnimatedScrollHandler({
     onBeginDrag: (event) => {
       anchoring.set(false);
       reader.set(!moving.get() && !keyboardMoving.get());
       travel.set(0);
+      returning.set(0);
       previous.set(distance(event.contentOffset.y));
       content.set(event.contentSize.height);
       viewport.set(event.layoutMeasurement.height);
       correction.set(corrections.get());
       inset.set(minimum.get());
     },
-    onEndDrag: (event) => {
-      // Momentum inherits this drag's intent; a native/programmatic momentum event cannot create it.
-      if (Math.abs(event.velocity?.y ?? 0) < 0.05) reset();
-    },
+    // Only the finger can change the composer; taps that stop momentum cannot inherit an old drag.
+    onEndDrag: reset,
     onMomentumEnd: (event) => {
       reset();
       track(event.contentOffset.y);
@@ -68,7 +69,9 @@ export function useComposerScroll<Item>(
 
       if (!reader.get()) return;
 
-      if (fromEnd <= END_DISTANCE) {
+      returning.set(Math.max(0, returning.get() - up));
+
+      if (fromEnd <= END_DISTANCE && returning.get() >= 24) {
         if (fold(false)) reset();
 
         return;

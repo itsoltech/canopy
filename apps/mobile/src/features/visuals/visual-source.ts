@@ -1,6 +1,7 @@
 import type { ui } from "@canopy/contracts";
 import type { Client } from "@connectrpc/connect";
 import { clearVisualStates } from "./visual-state";
+import { clearVisualSession } from "./visual-session";
 
 /** Specs of recently shown visuals: at most 16 entries and 2 MiB, least recently used first out (web: same). */
 const MAX_ENTRIES = 16;
@@ -27,6 +28,7 @@ function remember(key: string, response: ui.GetVisualResponse): void {
 export async function clearVisualCaches(): Promise<void> {
   cache.clear();
   loading.clear();
+  clearVisualSession();
   await clearVisualStates();
 }
 

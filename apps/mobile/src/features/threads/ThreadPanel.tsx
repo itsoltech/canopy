@@ -88,7 +88,7 @@ export function ThreadPanel({
   }
 
   return (
-    <Sheet title="Thread details" visible={visible} onClose={onClose}>
+    <Sheet title="Thread details" visible={visible} onClose={onClose} snap>
       {thread && (
         <>
           {stale && (

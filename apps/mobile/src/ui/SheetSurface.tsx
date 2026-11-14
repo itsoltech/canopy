@@ -15,6 +15,7 @@ export function SheetSurface({
   children,
   scroll = true,
   footer,
+  snap = false,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -23,14 +24,18 @@ export function SheetSurface({
   children: ReactNode;
   scroll?: boolean;
   footer?: ReactNode;
+  snap?: boolean;
 }) {
   return (
-    <Overlay visible={visible} onClose={onClose} label={label} fullHeight>
+    <Overlay visible={visible} onClose={onClose} label={label} fullHeight snap={snap}>
       <PaneInsets.Provider value={contentInsets}>
         <ContentInsets.Provider value={contentInsets}>
           <SheetDragArea>{header}</SheetDragArea>
           {scroll ? (
             <ScrollView
+              style={{ flex: 1, minHeight: 0 }}
+              bounces={false}
+              overScrollMode="never"
               keyboardShouldPersistTaps="handled"
               contentInsetAdjustmentBehavior="never"
               automaticallyAdjustContentInsets={false}

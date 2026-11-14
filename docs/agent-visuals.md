@@ -837,8 +837,12 @@ odmowa w natywnym permission handlerze mogą powstać w późniejszym native bui
 
 Dotychczasowe sloty (2 web / 1 mobile), cache 16 wpisów / 2 MiB i leniwe
 montowanie nadal obowiązują. HTML na web i mobile zawsze zaczyna od nieaktywnej
-karty „Run”; samo wejście na oś czasu, zmiana wersji lub ponowne zamontowanie
-komponentu nie wykonują kodu. Po błędzie/watchdogu nie ma automatycznego retry.
+karty „Run”. Na mobile jawny wybór Run pozostaje w pamięci sesji dla konkretnego
+visuala i wersji, również po przewinięciu, ponownym montowaniu i otwarciu pełnego
+ekranu. Nowa wersja lub nowa sesja wymaga Run; unpair czyści zgody. Błąd procesu
+WebView lub watchdog cofa zgodę, więc powrót do wątku nie uruchamia ponownie
+wadliwego HTML. Na web ponowne montowanie nadal zaczyna od Run.
+Po błędzie/watchdogu nie ma automatycznego retry.
 Bootstrap zgłasza wysokość co sekundę. Po 10 s
 ciszy host usuwa ramkę/WebView i pokazuje „This visual stopped responding.”;
 Proces viewer’a Electron kończy wszystkie renderery z PID-ów jego własnego

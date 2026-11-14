@@ -74,7 +74,7 @@ export function SandboxedWebView({
       bounces={false}
       overScrollMode="never"
       nestedScrollEnabled
-      style={{ height, backgroundColor: "transparent" }}
+      style={{ flex: 0, height, backgroundColor: "transparent" }}
       containerStyle={{ flex: 0, height }}
     />
   );
