@@ -1,6 +1,6 @@
 # Przeniesienie desktopu na serwer
 
-Status: **projekt, etap 0; bez implementacji**. Podstawa: `dev`, commit
+Status: **projekt zatwierdzony; implementacja w stosie PR (§12)**. Podstawa: `dev`, commit
 `64ba4300f251735cb10b1c51fabe32a8e458ec39`, schemat do
 `0146_github_pr_last_known`. Nazwy nowych usług, tabel, capabilities i plików
 w tym dokumencie są propozycjami. Istniejący `DesktopMigrationService` migruje
@@ -8,7 +8,7 @@ poświadczenie klienta UI, a nie bazę desktopu.
 
 Zakres etapu 0: tylko projekt i draft PR; bez kodu, odczytu prawdziwych
 sekretów, operacji na produkcji ani migracji danych.
-Zatwierdzenie tego projektu jest osobnym krokiem przed implementacją.
+Projekt zatwierdzony 2026-11-15 (decyzje w §13); implementacja idzie stosem z §12.
 
 ## 1. Rezultat i granice
 
@@ -27,7 +27,7 @@ Pliki repozytoriów, worktree, logowania CLI i transkrypty harnessów zostają
 na tych samych maszynach. Zapisany w PostgreSQL transkrypt Canopy przechodzi
 w całości; nie zastępujemy go podsumowaniem.
 
-Rekomendacja v1: **pusty cel, jedna osoba, jedna sesja migracji obejmująca
+Decyzja v1 (§13): **pusty cel, jedna osoba, jedna sesja migracji obejmująca
 wszystkie wskazane domy**. Nie obsługujemy scalania z istniejącym kontem
 produkcyjnym ani pomijania niedostępnego domu. Nie przenosimy samego katalogu
 PostgreSQL między macOS i Linuksem ani między głównymi wersjami PostgreSQL.
@@ -423,7 +423,7 @@ jedną krótką transakcją zmiany stanu po kompletnym raporcie, nie transakcją
 ### Zgodność wersji
 
 V1 dopuszcza tylko źródła i cel z nową capability `server_migration_v1`, zgodnym
-manifest schema i pełnym zestawem adapterów. Na pierwsze wydanie rekomendujemy
+manifest schema i pełnym zestawem adapterów. Na pierwsze wydanie wymagamy (§13)
 **dokładnie ten sam build migracyjny** na wszystkich gatewayach i desktopach;
 worker może być starszy tylko przy zgodnym WORKER_LINK_PROTOCOL i obsłudze nowej
 bariery/rebind. Zwykłe oznaczenie `v0.3.0-nightly` nie wystarcza i nie oznacza,
@@ -631,7 +631,7 @@ nie zastępują migracji ani nie zmieniają kanału.
 
 ### Kopia lokalna
 
-Rekomendowany okres to **30 dni od zakończonego cutover**. Lokalny klaster,
+Okres to **co najmniej 30 dni od zakończonego cutover** (§13). Lokalny klaster,
 klucz źródła w safeStorage i manifest pozostają jako niedziałający backup
 z uprawnieniami profilu OS; nie startujemy PostgreSQL tylko dla przeglądania.
 Odczyt awaryjny wymaga izolowanej procedury bez workerów, planistów i egress
@@ -817,7 +817,8 @@ draft do `dev`, bez SQL, kodu, Fixes ani zmiany produkcji. Kryterium: kompletny
 inwentarz i konkretne decyzje do zatwierdzenia, udokumentowane ograniczenia,
 formatowanie i przegląd zgodności ze źródłami.
 
-Poniższe **proponowane** numery zakładają najwyższy aktualny numer 0146.
+Poniższe numery zakładają najwyższy numer 0146 na `dev`
+(sprawdzone 2026-11-15; żaden otwarty PR nie zajmuje 0147–0152).
 Nie są rezerwacją numerów. Przed każdym PR sprawdź aktualne dev; w razie zajęcia
 przenumeruj nowy SQL, import w loaderze i expected list w schema.test.ts.
 Nie zmieniaj zastosowanych migracji. Każdy etap jest osobną gałęzią/PR opartą
@@ -839,52 +840,56 @@ pozostać monotoniczne. Etapy 1–5 same nie dają prawa do przeniesienia danych
 produkcyjnych. Próba na kopii oraz rzeczywisty cutover mają osobne potwierdzenie
 raportu i skutków w produkcie, niezależne od scalenia kodu.
 
-## 13. Otwarte pytania do użytkownika
+## 13. Decyzje użytkownika (2026-11-15)
+
+Użytkownik przyjął wszystkie rekomendacje projektu. Poniższe decyzje są
+wiążące dla etapów 1–6; zmiana którejkolwiek wymaga aktualizacji tego dokumentu.
 
 ### Zakres i dane
 
-1. **Czy cel musi być pusty?** Rekomendacja: tak w v1, z ograniczonym bootstrapem
-   opisanym w §3. Merge z używanym serwerem wymaga osobnego projektu konfliktów.
-2. **Czy migrujemy wszystkie połączone Maki jednym cutover?** Rekomendacja: tak,
-   po jawnym zatwierdzeniu pełnej listy; offline dom blokuje przełączenie.
+1. **Cel musi być pusty w v1**, z ograniczonym bootstrapem opisanym w §3.
+   Scalanie z używanym serwerem wymaga osobnego projektu konfliktów.
+2. **Wszystkie połączone Maki migrują razem, jednym cutover**, po jawnym
+   zatwierdzeniu pełnej listy domów. Offline dom blokuje przełączenie.
    Share configuration off nie jest zgodą na automatyczne scalenie tej grupy.
-3. **Jak długo zachować lokalny backup?** Rekomendacja: co najmniej 30 dni,
-   bez automatycznego usunięcia; po tym terminie usuwać tylko na żądanie.
-4. **Co zrobić z uszkodzonymi lub już brakującymi blobami/sesjami?** Rekomendacja:
-   blokować obietnicę 1:1 do naprawy lub jawnego zaakceptowania konkretnego braku
-   w raporcie. Nie zastępować sesji podsumowaniem ani nową rozmową.
+3. **Lokalny backup zostaje co najmniej 30 dni**, bez automatycznego usunięcia;
+   po tym terminie usuwamy go wyłącznie na żądanie użytkownika.
+4. **Brakujące lub uszkodzone bloby i sesje naprawiamy albo jawnie akceptujemy
+   konkretny brak w raporcie.** Do tego czasu obietnica 1:1 jest zablokowana.
+   Nie zastępujemy sesji podsumowaniem ani nową rozmową.
 
 ### Przełączenie i dostępność
 
-5. **Czy można przerwać pracującą turę po czasie oczekiwania?** Rekomendacja:
-   10 minut czekania, potem decyzja człowieka; domyślnie dalsze czekanie,
-   nigdy automatyczne Stop. Długość freeze potwierdzić po pomiarze dużych danych.
-6. **Czy ponownie sparować telefony i inne desktop remote klienty?** Rekomendacja:
-   tak; nowe credentials i pin celu, bez kopiowania hashy i starego zaufania.
-7. **Czy boty mają działać, gdy Maki są uśpione?** Rekomendacja: gateway na serwerze
-   działa stale, ale inferencja zostaje na dotychczasowych workerach. Jeśli bot
-   ma działać 24/7, potrzebuje osobnego always-on workera i świadomego wyboru
-   loginu/środowiska; to nie jest automatyczny skutek migracji gatewaya.
-8. **Jak udostępnić lokalne proxy/MCP serwerowi?** Rekomendacja: jawne, przypięte
-   i uwierzytelnione endpointy przez istniejącą sieć, po wykazaniu potrzeby;
-   nie wystawiać portów ani nie zmieniać Tailscale ACL/Serve w tle. Niedostępny
-   wymagany connector/Management API wykazać przed zatwierdzeniem.
+5. **Aktywne tury przy freeze: po 10 minutach pytamy człowieka**
+   (Wait / Stop current turns / Cancel migration); domyślnie dalsze czekanie,
+   nigdy automatyczny Stop. Długość freeze potwierdzimy po pomiarze dużych danych.
+6. **Telefony i inne klienty remote parują ponownie** z nowymi credentials
+   i pinem celu, bez kopiowania hashy i starego zaufania.
+7. **Boty przy uśpionych Makach:** gateway na serwerze działa stale, ale inferencja
+   zostaje na dotychczasowych workerach. Bot działający 24/7 wymaga osobnego
+   always-on workera i świadomego wyboru loginu/środowiska; migracja tego
+   nie tworzy automatycznie.
+8. **Lokalne proxy i serwery MCP: jawna konfiguracja osiągalności** — przypięte,
+   uwierzytelnione endpointy przez istniejącą sieć, po wykazaniu potrzeby.
+   Bez automatycznego wystawiania portów i zmian Tailscale ACL/Serve w tle.
+   Niedostępny wymagany connector/Management API wykazujemy przed zatwierdzeniem.
 
 ### Zgodność i konta
 
-9. **Czy aktualizować wszystkie źródła i cel przed migracją?** Rekomendacja:
-   tak, do identycznego wydania z server_migration_v1; obecny napis
-   v0.3.0-nightly nie potwierdza obsługi tej funkcji.
-10. **Czy oba domy używają tego samego GitHub App i zgodnych rejestracji OAuth?**
-    Rekomendacja: zachować aplikację i zarejestrowane redirecty; różnice wykazać
-    jako wymagające reconnect, zamiast obiecywać przeniesienie niezgodnej autoryzacji.
-    Współbieżne tokeny tego samego konta wybrać w dry run, bez losowej rotacji.
-11. **Czy lokalne szkice wszystkich urządzeń są zapisane w gatewayach?**
-    Rekomendacja: przed freeze podłączyć urządzenia i potwierdzić upload;
-    zachować lokalny szkic do receipt migracji, bez czyszczenia na zmianie zakresu.
-12. **Czy istnieją webhooki GitHub poza Canopy?** Rekomendacja: jeśli nie —
-    przenieść wyłącznie istniejący polling. Jeśli tak — jawna checklist zmiany
-    endpointu w cutover; nie dodawać nowego subsystemu webhooków do tej migracji.
+9. **Ten sam build migracyjny na każdej stronie:** wszystkie źródła i cel
+   aktualizujemy do identycznego wydania z `server_migration_v1`; sam napis
+   wersji kanału nie potwierdza obsługi funkcji.
+10. **GitHub i OAuth: zachowujemy zgodne rejestracje** (ta sama GitHub App,
+    zarejestrowane redirecty). Różnice wykazujemy jako wymagające reconnect,
+    zamiast przenosić niezgodną autoryzację. Współbieżne tokeny tego samego
+    konta wybieramy w dry run, bez losowej rotacji.
+11. **Szkice offline: przed freeze podłączamy urządzenia i potwierdzamy zapis
+    szkiców** w gatewayach. Lokalny szkic zostaje do receipt migracji,
+    bez czyszczenia przy zmianie zakresu.
+12. **Zewnętrzne webhooki: osobna checklista.** Canopy dziś używa pollingu,
+    więc przenosimy wyłącznie polling. Webhook skonfigurowany poza Canopy jest
+    pozycją ręcznej checklisty zmiany endpointu w cutover; nie dodajemy
+    nowego subsystemu webhooków.
 
 ## Źródła i ścieżki do dalszego review
 
