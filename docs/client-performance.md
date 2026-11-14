@@ -116,7 +116,11 @@ niczego z tego nie czyści i nie pobiera wątku od początku. Powrót pokazuje t
 w pierwszej klatce: feed mierzy viewport i stopkę synchronicznie przy montowaniu,
 więc ustawia wiersze przed pierwszym malowaniem. Potem watch dosyła tylko przyrost od
 kursora i łata wiersze w miejscu. Wątek poza ekranem dostaje checkpointy z dogrzewania,
-bez nowych subskrypcji. Widoczny wątek nie jest usuwany z LRU. Pierwsze zimne otwarcie
+bez nowych subskrypcji; każde takie odświeżenie przelicza rozmiar i egzekwuje limit LRU.
+Gdy wątek odjechał dalej, niż dogrzewanie odtwarza (ponad 256 rekordów), gateway wysyła
+świeże ograniczone okno. Ono nie zastępuje zachowanych stron: wątek zostaje „w tyle”
+ze swoim kursorem, dogrzewanie kontynuuje z osobnej kopii w cache, a otwarcie wznawia
+własny kursor i dosyła brakujące rekordy. Widoczny wątek nie jest usuwany z LRU. Pierwsze zimne otwarcie
 pozostaje ukryte, dopóki zamontowane okno ma wiersze ładowania brakującej pracy (w ramach
 limitu pozycjonowania), żeby luki nie znikały pod czytelnikiem.
 

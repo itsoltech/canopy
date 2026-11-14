@@ -812,7 +812,8 @@ skończony `WatchThread(sequence=true, background=true)` od checkpointu z tego s
 trwałego cache. Daleki lub brakujący checkpoint dostaje tylko ograniczony ogon
 (najwyżej 128 itemów); starsza historia pozostaje
 stronicowana. Zapis zachowuje cały checkpoint, razem ze stronami historii wczytanymi
-wcześniej, w limitach cache powyżej.
+wcześniej, w limitach cache powyżej. Świeże okno (wątek odjechał o ponad 256 rekordów)
+nadal zastępuje wpis mobile; web zachowuje wtedy strony i wznawia kursor przy otwarciu.
 
 Najwyżej jedno zadanie pracuje naraz i startuje co najmniej 5 s po poprzednim
 (do 12 odczytów/min). Zmiany tego samego headu są scalane, a kolejne wątki mają

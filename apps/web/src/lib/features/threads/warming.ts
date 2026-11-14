@@ -27,19 +27,18 @@ async function* read(id: string, syncCursor: ui.ThreadSyncCursor | undefined, si
 }
 
 /** Threads kept on the client after their screen closed; warming updates them in place. */
-export interface RetainedThreads {
+export interface RetainedSource {
   snapshot(id: string): ui.ThreadSnapshot | undefined;
-  refresh(snapshot: ui.ThreadSnapshot): void;
+  refresh(snapshot: ui.ThreadSnapshot, replaced: boolean): boolean;
 }
 
-export function createThreadWarming(retained: RetainedThreads) {
+export function createThreadWarming(retained: RetainedSource) {
   return new ThreadWarmer(
     {
       peek: (id) => retained.snapshot(id) ?? threadCache.peek(id),
       load: async (id) => retained.snapshot(id) ?? threadCache.load(id),
-      save: (snapshot) => {
-        retained.refresh(snapshot);
-        threadCache.set(snapshot);
+      save: (snapshot, replaced) => {
+        if (!retained.refresh(snapshot, replaced)) threadCache.set(snapshot);
       },
     },
     read,

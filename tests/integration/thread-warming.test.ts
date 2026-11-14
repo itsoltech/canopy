@@ -6,6 +6,8 @@ import { tempDirs } from "@canopy/testing";
 import { applyThreadUpdate } from "@canopy/domain/thread-snapshot";
 import { ThreadCache } from "@canopy/domain/thread-cache";
 import { ThreadWarmer } from "@canopy/domain/thread-warmer";
+import { RetainedThreads } from "@canopy/domain/retained-threads";
+import { prependThreadPage } from "@canopy/domain/history-pages";
 import { threadCacheCurrent, threadWarmSet, THREAD_WARM_LIMITS } from "@canopy/domain/thread-warm-set";
 import { sidebarThreads } from "@canopy/domain/sidebar-threads";
 import { threadSortModes } from "@canopy/domain/thread-order";
@@ -290,6 +292,127 @@ describe.skipIf(!dockerAvailable)("background thread sequence reads", () => {
       await original.close();
     }
   });
+
+  test("a thread kept on the client keeps its loaded pages when it moves more than a warm can replay", async () => {
+    const thread = (await gateway.api.getThread({ threadId: id })).thread!;
+
+    const far = (
+      await gateway.api.createThread({
+        projectId: thread.projectId,
+        workspaceId: thread.workspaceId,
+        provider: Provider.CODEX,
+        title: "Far ahead",
+        clientRequestId: crypto.randomUUID(),
+      })
+    ).thread!.id;
+
+    const insert = (from: number, to: number) =>
+      store.query(
+        `INSERT INTO thread_items(thread_id,item_id,type,status,content,first_seq,last_seq)
+        SELECT $1::uuid,'far-' || n,'agentMessage','completed',jsonb_build_object('itemId','far-' || n,'agentMessage',jsonb_build_object('text','message ' || n)),n,n
+        FROM generate_series($2::int,$3::int) n`,
+        [far, from, to],
+      );
+
+    await insert(1, 300);
+    let opened: ui.ThreadSnapshot | undefined;
+
+    for await (const update of gateway.api.watchThread(
+      { threadId: far, sequence: true, background: true },
+      { timeoutMs: 5000 },
+    ))
+      opened = applyThreadUpdate(opened, update);
+
+    for await (const update of gateway.api.watchThread(
+      {
+        threadId: far,
+        sequence: true,
+        pageSize: 24,
+        beforeItemId: opened!.historyBeforeItemId,
+        beforeTurnId: opened!.historyBeforeTurnId,
+        historyVersion: opened!.historyVersion,
+      },
+      { timeoutMs: 5000 },
+    ))
+      if (update.change.case === "snapshot") opened = prependThreadPage(opened!, update.change.value);
+
+    const loaded = opened!.items.map((entry) => entry.item?.itemId);
+    expect(loaded.length).toBeGreaterThan(128);
+    const memory = { snapshot: opened, apply: (next: ui.ThreadSnapshot) => (memory.snapshot = next) };
+    const cache = new ThreadCache({ count: 2, bytes: 16 * 1024 * 1024 });
+
+    const retained = new RetainedThreads<typeof memory>({
+      count: 2,
+      bytes: 16 * 1024 * 1024,
+      idle: (task) => (task(), () => {}),
+      settled: (snapshot, bytes) => cache.set(snapshot, bytes),
+    });
+
+    retained.open(far, () => memory);
+    await insert(301, 600);
+    const replaced: boolean[] = [];
+
+    const warmer = new ThreadWarmer(
+      {
+        peek: (key) => retained.snapshot(key) ?? cache.peek(key),
+        load: async (key) => retained.snapshot(key) ?? cache.get(key),
+        save: (snapshot, fresh) => {
+          replaced.push(fresh);
+
+          if (!retained.refresh(snapshot, fresh)) cache.set(snapshot);
+        },
+      },
+      async function* (key, cursor, signal) {
+        yield* gateway.api.watchThread(
+          { threadId: key, sequence: true, background: true, syncCursor: cursor },
+          { signal },
+        );
+      },
+      { ...THREAD_WARM_LIMITS, intervalMs: 20, requested: () => {} },
+    );
+
+    try {
+      warmer.select([far]);
+      const heads = await overviewThreadHeads(gateway.core, [far]);
+      warmer.heads(heads.heads);
+      warmer.enable(true);
+      await eventually(async () => threadCacheCurrent(cache.peek(far), heads.heads[0]), Boolean);
+      expect(replaced).toEqual([true]);
+      // The gateway sent a fresh window: the kept thread neither lost its pages nor jumped its cursor.
+      expect(memory.snapshot?.items.map((entry) => entry.item?.itemId)).toEqual(loaded);
+      expect(retained.snapshot(far)).toBeUndefined();
+    } finally {
+      warmer.close();
+    }
+
+    // Opening it resumes its own cursor: only the records it missed, its loaded pages kept.
+    const leave = retained.show(far);
+    const abort = new AbortController();
+    const kinds = new Set<string>();
+    let resumed = memory.snapshot!;
+
+    try {
+      for await (const update of gateway.api.watchThread(
+        { threadId: far, sequence: true, syncCursor: resumed.syncCursor },
+        { signal: abort.signal },
+      )) {
+        kinds.add(update.change.case ?? "");
+        resumed = applyThreadUpdate(resumed, update);
+
+        if (update.change.case === "batch" && update.change.value.caughtUp) abort.abort();
+      }
+    } catch (error) {
+      if (!abort.signal.aborted) throw error;
+    }
+
+    memory.apply(resumed);
+    leave();
+    expect(kinds.has("snapshot")).toBe(false);
+    const ids = resumed.items.map((entry) => entry.item?.itemId);
+    expect(ids.slice(0, loaded.length)).toEqual(loaded);
+    expect(ids.at(-1)).toBe("far-600");
+    expect(retained.snapshot(far)).toBe(resumed);
+  }, 20_000);
 
   async function warm(snapshot?: ui.ThreadSnapshot) {
     const updates: ui.ThreadUpdate[] = [];

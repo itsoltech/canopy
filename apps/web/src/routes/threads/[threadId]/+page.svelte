@@ -43,7 +43,7 @@
   import { forkFrom, lastForkPoint } from "#lib/features/threads/fork.svelte.ts";
   import { providePageDirectory } from "#lib/features/threads/page-directory.ts";
   import { ThreadRewind, provideThreadRewind } from "#lib/features/threads/rewind-state.svelte.ts";
-  import { threadViews } from "#lib/features/threads/thread-views.ts";
+  import { openThreadMemory, threadViews } from "#lib/features/threads/thread-views.ts";
   import { retainTree, treeOf } from "#lib/features/threads/thread-tree.ts";
   import { topLevelEntry } from "#lib/features/threads/timeline.ts";
   import type { FoldReader } from "#lib/features/threads/work-folds.svelte.ts";
@@ -103,7 +103,7 @@
   // and composer render before the stream. Only the thread id selects it: a later `data` refresh (form actions
   // invalidate) must not reconnect.
   const memory = $derived(
-    threadViews.open(
+    openThreadMemory(
       threadId,
       untrack(() => (data.thread ? decode(ui.ThreadSchema, data.thread) : undefined)),
     ),

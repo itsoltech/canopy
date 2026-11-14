@@ -13,6 +13,7 @@
     "./workspace-changes": "./src/workspace-changes.ts",
     "./thread-warmer": "./src/thread-warmer.ts",
     "./thread-warm-set": "./src/thread-warm-set.ts",
+    "./retained-threads": "./src/retained-threads.ts",
     "./thread-cache-tail": "./src/thread-cache-tail.ts",
     "./connection-recovery": "./src/connection-recovery.ts",
     "./composer-connection": "./src/composer-connection.ts",
