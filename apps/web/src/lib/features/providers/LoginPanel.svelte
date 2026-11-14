@@ -7,7 +7,7 @@
   import { DeviceLogin, deviceLoginNote } from "./device-login.svelte.ts";
   import SignInConfirm from "./SignInConfirm.svelte";
   import { providerCall } from "./instances.ts";
-  import { providerLoginCommand } from "@canopy/domain/provider-accounts";
+  import { ACCOUNT_ACTION_LABELS, accountAction, providerLoginCommand } from "@canopy/domain/provider-accounts";
   import { Provider } from "@canopy/contracts";
 
   /**
@@ -25,6 +25,11 @@
 
   const harness = $derived(
     instance.harness === Provider.CLAUDE ? "claude" : instance.harness === Provider.GROK ? "grok" : "codex",
+  );
+
+  // A worker without an account report still says whether the CLI is signed in.
+  const action = $derived(
+    ACCOUNT_ACTION_LABELS[on.account ? accountAction(on.account) : on.authenticated ? "change_account" : "sign_in"],
   );
 
   let confirming = $state<"login" | "logout">();
@@ -67,6 +72,7 @@
       workerName={worker.name}
       {linked}
       harness={instance.harness}
+      {action}
       busy={login.busy}
       onstart={() =>
         login.start().then(() => {
@@ -101,14 +107,16 @@
         disabled={!worker.online}
         onclick={() => {
           confirming = "login";
-        }}>{on.authenticated ? "Sign in again" : "Sign in"}</Button
+        }}>{action}</Button
       >
-      <Button
-        disabled={!worker.online}
-        onclick={() => {
-          confirming = "logout";
-        }}>Sign out</Button
-      >
+      {#if on.account?.state !== "signed_out"}
+        <Button
+          disabled={!worker.online}
+          onclick={() => {
+            confirming = "logout";
+          }}>Sign out</Button
+        >
+      {/if}
       {#if !worker.online}<p class="text-sm/5 text-zinc-500">The worker is offline.</p>
       {:else if linked}<p class="min-w-0 text-sm/5 text-zinc-500 dark:text-zinc-400">
           {deviceLoginNote(worker.name, instance.harness)}

@@ -11,7 +11,7 @@
   import { onMount } from "svelte";
   import { timestampDate } from "@bufbuild/protobuf/wkt";
   import { Provider } from "@canopy/contracts";
-  import { providerLoginCommand } from "@canopy/domain/provider-accounts";
+  import { ACCOUNT_ACTION_LABELS, accountAction, providerLoginCommand } from "@canopy/domain/provider-accounts";
   import Sensitive from "#lib/shared/ui/Sensitive.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import CopyButton from "#lib/shared/ui/CopyButton.svelte";
@@ -27,6 +27,7 @@
     id,
     online,
     os,
+    signInHere = false,
     onupdated,
   }: {
     account?: ProviderAccountStatus;
@@ -35,6 +36,8 @@
     id: string;
     online: boolean;
     os: string;
+    /** The app's own sign-in (LoginPanel) sits next to this row: the command popover would repeat its action. */
+    signInHere?: boolean;
     onupdated?: () => Promise<void>;
   } = $props();
 
@@ -50,7 +53,7 @@
   const soon = $derived(expiry !== undefined && !expired && expiry.getTime() - now < 7 * 86_400_000);
   const proxy = $derived(account?.authMethod === "Proxy");
   const warn = $derived(expired || account?.state === "signed_out" || account?.state === "error");
-  const signIn = $derived(!proxy && (expired || account?.state === "signed_out"));
+  const actionLabel = $derived(ACCOUNT_ACTION_LABELS[accountAction(account, now)]);
 
   const statusLabel = $derived(
     rejected
@@ -154,17 +157,14 @@
           onclick={refresh}
         />
       {/if}
-      {#if !proxy && account.state !== "unknown"}
-        <!-- Always offered: a login the CLI reports as fine can still be rejected by the provider. -->
+      {#if !proxy && !signInHere && account.state !== "unknown"}
         <Popover
           bind:open={help}
-          label={signIn ? "Sign in" : "Sign in again"}
+          label={actionLabel}
           placement="bottom-start"
           class="w-[min(20rem,calc(100vw-1rem))] p-3"
         >
-          {#snippet trigger(props)}<Button {...props} variant="ghost" size="sm"
-              >{signIn ? "Sign in" : "Sign in again"}</Button
-            >{/snippet}
+          {#snippet trigger(props)}<Button {...props} variant="ghost" size="sm">{actionLabel}</Button>{/snippet}
           <p class="text-sm/6 text-zinc-600 dark:text-zinc-400">
             {login
               ? `Run this on the worker${os === "win32" ? " in PowerShell" : ""}, then refresh.`

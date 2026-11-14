@@ -139,10 +139,21 @@ wraca przy następnej odrzuconej turze. `login_revision` nie trafia do klientów
 Jedna linia: stan · metoda · plan · organizacja · email (rozmyty) · wygaśnięcie
 („expires in 3 days” przy < 7 dniach) · „checked 8 min ago”, potem ikona
 Refresh. Czas sprawdzenia występuje tylko tu; blok Status instancji nie
-powtarza wiersza „Checked”, gdy wiersz konta jest widoczny. „Sign in” otwiera
-popover z poleceniem logowania i przyciskiem kopiowania; przy zalogowanym koncie
-ten sam popover jest dostępny jako „Sign in again”, bo CLI może uznawać
-odrzucony login za poprawny. Katalog konfiguracji
+powtarza wiersza „Checked”, gdy wiersz konta jest widoczny. Akcja logowania
+ma jedną nazwę zależną od stanu, wspólną dla web i mobile
+(`accountAction` w `@canopy/domain/provider-accounts`):
+
+- brak loginu, błąd lub nieznany stan: „Sign in”;
+- login wygasł albo tura go odrzuciła (`expired`): „Sign in again”;
+- konto zalogowane lub zapisany login: „Change account”. Potwierdzenie mówi,
+  że zmienia konto CLI na tym komputerze; obok zostaje „Sign out”.
+
+Pod turą z błędem logowania akcja to „Sign in again”, chyba że CLI zgłasza
+brak loginu („Sign in”): tura już pokazała, że login nie działa. „Sign out”
+znika, gdy CLI nie jest zalogowane. Na workerach bez logowania z aplikacji
+ta sama etykieta otwiera popover z poleceniem logowania i przyciskiem kopiowania.
+Gdy obok jest panel logowania z aplikacji, wiersz nie powtarza tej akcji.
+Katalog konfiguracji
 worker wysyła tylko dla własnego shadow home (domyślny katalog w danych workera
 nie jest pokazywany); wtedy jest drugą, rozmytą linią. Brak danych z
 zewnętrznego CLI (Grok, brak CLI, starszy worker) nie generuje żadnego tekstu:
