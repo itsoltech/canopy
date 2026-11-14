@@ -18,14 +18,13 @@
   import ConfigNotices from "#lib/features/computers/ConfigNotices.svelte";
   import ConnectionError from "#lib/features/connectors/ConnectionError.svelte";
   import { workerRecords } from "#lib/features/workers/worker-records.svelte.ts";
+  import { workerAccessOptions } from "#lib/features/access/access-options.ts";
 
   let { data }: PageProps = $props();
   const overview = useOverview();
   const records = workerRecords(overview);
 
-  const workers = $derived(
-    records.workers.map((w) => ({ id: w.id, name: w.name, group: records.name(w), readOnly: records.readOnly(w.id) })),
-  );
+  const workers = $derived(workerAccessOptions(records));
 
   const route = useSettingsRoute();
   let catalog = $state(untrack(() => decode(connectors.ListConnectorsResponseSchema, data.connections)));

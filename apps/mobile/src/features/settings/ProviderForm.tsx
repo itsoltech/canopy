@@ -3,6 +3,7 @@ import { Provider, ProviderProfileKind, type ui } from "@canopy/contracts";
 import { Button, Field } from "../../ui/components";
 import { SettingsGroup, SettingChoice, SettingToggle } from "./SettingsGroup";
 import { SettingsValue } from "./SettingsValue";
+import { SettingAccess } from "./SettingAccess";
 import { ResourceState, useSettingsResource } from "./resource";
 import { EnvironmentFields, environmentDrafts, environmentInput } from "./EnvironmentFields";
 
@@ -176,24 +177,18 @@ export function ProviderForm({
       </SettingsGroup>
       <ProviderRuntime runtime={runtime} onChange={setRuntime} harness={harness} />
       <EnvironmentFields value={env} onChange={setEnv} />
-      <SettingsGroup title="Workers">
-        <SettingToggle
-          title="All workers"
-          description="Includes future workers."
-          value={allWorkers}
-          onChange={setAll}
+      <SettingsGroup>
+        <SettingAccess
+          title="Workers"
+          description="The instance runs only on the chosen workers."
+          options={(resource.data?.records ?? []).map((w) => ({ id: w.workerId, name: w.name }))}
+          all={allWorkers}
+          ids={workerIds}
+          onChange={(next) => {
+            setAll(next.all);
+            setWorkers(next.all ? [] : [...next.ids]);
+          }}
         />
-        {!allWorkers &&
-          resource.data?.records.map((worker) => (
-            <SettingToggle
-              key={worker.workerId}
-              title={worker.name}
-              value={workerIds.includes(worker.workerId)}
-              onChange={(enabled) =>
-                setWorkers(enabled ? [...workerIds, worker.workerId] : workerIds.filter((v) => v !== worker.workerId))
-              }
-            />
-          ))}
       </SettingsGroup>
       <SettingsValue title="Saved key" value={instance?.apiKeySet ? "Set · write-only" : "Not set"} />
       <Button

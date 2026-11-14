@@ -65,12 +65,17 @@
     }
   }
 
-  const setWorkers = (next: { allWorkers: boolean; workerIds: string[] }) =>
-    guarded(async () => {
+  let savingWorkers = $state(false);
+
+  const setWorkers = async (next: { allWorkers: boolean; workerIds: string[] }) => {
+    savingWorkers = true;
+    await guarded(async () => {
       await providerCall("workers", { harness: instance.harness, id: instance.id, ...next });
       await providers.reload();
       await records.reload();
     });
+    savingWorkers = false;
+  };
 
   const setModels = (models: ui.InstanceModels) =>
     guarded(async () =>
@@ -190,7 +195,8 @@
         {records}
         allWorkers={instance.allWorkers}
         workerIds={instance.workers.filter((w) => w.enabled).map((w) => w.workerId)}
-        onchange={setWorkers}
+        saving={savingWorkers}
+        onchange={(next) => void setWorkers(next)}
       />
     {/if}
   </SettingsSection>

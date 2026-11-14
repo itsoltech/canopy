@@ -2,9 +2,9 @@
   import type { ClassValue } from "svelte/elements";
   import { ui } from "@canopy/contracts";
   import Checkbox from "#lib/shared/ui/Checkbox.svelte";
+  import AccessPicker from "#lib/features/access/AccessPicker.svelte";
   import Select from "#lib/shared/ui/Select.svelte";
   import Field from "#lib/shared/ui/Field.svelte";
-  import Disclosure from "#lib/shared/ui/Disclosure.svelte";
   import TagInput from "#lib/shared/ui/TagInput.svelte";
   import AssignmentSummary from "./AssignmentSummary.svelte";
 
@@ -46,32 +46,22 @@
           onchange={(v) => (selector.matchAllTags = v === "all")}
         />
       </Field>{/if}
-    {#if workers.length}<Disclosure>
-        {#snippet summary()}<div class="text-base font-medium sm:text-sm">
-            Or choose specific computers ({selector.workerIds.length})
-          </div>{/snippet}
-        <div class="grid max-h-52 scroll-stable gap-3 overflow-auto py-3 pl-6">
-          {#each workers as worker (worker.workerId)}
-            <Checkbox
-              name="assign-{worker.workerId}"
-              label={worker.name}
-              bind:checked={
-                () => selector.workerIds.includes(worker.workerId),
-                (on) =>
-                  (selector.workerIds = on
-                    ? [...selector.workerIds, worker.workerId]
-                    : selector.workerIds.filter((id) => id !== worker.workerId))
-              }
-            />
-          {:else}<p class="text-base text-zinc-500 sm:text-sm dark:text-zinc-400">
-              Add a worker to choose a computer.
-            </p>{/each}
-          {#if elsewhere}<p class="text-base text-pretty text-zinc-500 sm:text-sm dark:text-zinc-400">
-              Also assigned to {elsewhere}
-              {elsewhere === 1 ? "worker" : "workers"} on linked computers. Change those there.
-            </p>{/if}
-        </div>
-      </Disclosure>{/if}
+    {#if workers.length}
+      <AccessPicker
+        label="Specific computers"
+        description="Chosen computers get it even without matching tags."
+        noun="computers"
+        icon="computer-desktop"
+        allowAll={false}
+        options={workers.map((w) => ({ id: w.workerId, name: w.name, online: w.online }))}
+        ids={selector.workerIds}
+        onchange={(next) => (selector.workerIds = [...next.ids])}
+      />
+      {#if elsewhere}<p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+          Also assigned to {elsewhere}
+          {elsewhere === 1 ? "worker" : "workers"} on linked computers. Change those there.
+        </p>{/if}
+    {/if}
   {/if}
   <TagInput
     label="Exclude tags"
