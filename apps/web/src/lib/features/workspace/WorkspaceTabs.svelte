@@ -1,34 +1,28 @@
 <script lang="ts">
-  import { tick, type Snippet } from "svelte";
-  import { tabName, tabPath, tabDirty, tabBusy } from "@canopy/domain/workspace-modules";
+  import { tick } from "svelte";
+  import { tabName, tabPath, tabDirty } from "@canopy/domain/workspace-modules";
   import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import MenuItem from "#lib/shared/ui/MenuItem.svelte";
-  import MenuSeparator from "#lib/shared/ui/MenuSeparator.svelte";
-  import IconButton from "#lib/shared/ui/IconButton.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import { workspaceVersion } from "./workspace.svelte.ts";
   import type { ThreadWorkspace } from "./thread-workspace.svelte.ts";
   import WorkspaceClose from "./WorkspaceClose.svelte";
   import WorkspaceCommands from "./WorkspaceCommands.svelte";
-  import { usePalette } from "#lib/features/commands/commands.svelte.ts";
 
   let {
     state: workspace,
     working = false,
     pending = 0,
-    actions,
     class: className = "",
   }: {
     state: ThreadWorkspace;
     working?: boolean;
     pending?: number;
-    actions?: Snippet;
     class?: string;
   } = $props();
 
   const view = $derived(workspace.view);
-  const palette = usePalette();
   const onclose = (id: string) => workspace.close(id);
   let width = $state(0);
   let root = $state<HTMLDivElement>();
@@ -56,14 +50,21 @@
     focused = active.id;
   });
 
-  const count = $derived(Math.max(1, Math.floor((width - 40) / 144)));
+  // `Thread` is always shown. The other tabs fill the remaining width around the active one; the rest go behind a
+  // `+N` chip that exists only while something is hidden. Tabs shrink and truncate, so an estimate is enough.
+  const room = $derived(Math.max(0, Math.floor((width - 84 - 44) / 120)));
 
-  const visible = $derived.by(() => {
-    const at = tabs.findIndex((tab) => tab.id === active.id);
-    const start = Math.max(0, Math.min(at, tabs.length - count));
+  const shown = $derived.by(() => {
+    const files = tabs.slice(1);
+    const at = files.findIndex((tab) => tab.id === active.id);
+    const count = Math.max(at >= 0 ? 1 : 0, Math.min(room, files.length));
+    const start = Math.max(0, Math.min(at, files.length - count));
 
-    return tabs.slice(start, start + count);
+    return files.slice(start, start + count);
   });
+
+  const visible = $derived([tabs[0]!, ...shown]);
+  const hidden = $derived(tabs.slice(1).filter((tab) => !shown.includes(tab)));
 
   async function select(id: string) {
     view.select(id);
@@ -115,88 +116,66 @@
   class={["flex min-w-0 items-center gap-1", className]}
   onkeydown={keydown}
 >
-  {#if width >= 230}<div role="tablist" aria-label="Workspace tabs" class="flex min-w-0 flex-1 gap-1">
-      {#each visible as tab (tab.id)}
-        <div
-          class={[
-            "flex max-w-56 min-w-0 flex-1 items-center rounded-md",
-            tab.id === active.id && "bg-zinc-950/5 dark:bg-white/10",
-          ]}
-        >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab.id === active.id}
-            aria-controls="workspace-content"
-            aria-label={`${tab.name}${tab.preview ? ", Preview" : ""}${tab.dirty ? ", Unsaved changes" : ""}${tab.id === "thread" && pending ? `, ${pending} waiting for you` : ""}`}
-            tabindex={tab.id === focused || (!visible.some((entry) => entry.id === focused) && tab.id === active.id)
-              ? 0
-              : -1}
-            data-workspace-tab
-            data-tab-id={tab.id}
-            class="flex h-9 min-w-0 flex-1 items-center gap-1.5 px-2 text-sm focus-ring"
-            onclick={() => view.select(tab.id)}
-            ondblclick={() => view.keep(tab.id)}
-            {@attach tooltip(tab.path)}
-          >
-            <span class="truncate" class:italic={tab.preview}>{tab.name}</span>
-            {#if tab.id === "thread"}<span class="w-3 shrink-0 text-brand-600 dark:text-brand-400"
-                >{pending || (working ? "•" : "")}</span
-              >{/if}
-          </button>
-          {#if tab.id !== "thread"}<button
-              type="button"
-              aria-label={`Close ${tab.name}`}
-              class="flex size-8 shrink-0 items-center justify-center rounded-md text-muted focus-ring hover:bg-zinc-950/5 dark:hover:bg-white/10"
-              onclick={() => onclose(tab.id)}
-            >
-              {#if tab.dirty}<span aria-hidden="true">●</span>{:else}<Icon name="x-mark" />{/if}
-            </button>{/if}
-        </div>
-      {/each}
-    </div>{/if}
-  <DropdownMenu label="Switch tab" placement="bottom-end" sheet>
-    {#snippet trigger(props)}{#if width < 230}<button
-          type="button"
-          aria-label={`Switch tab (${tabs.length}), ${active.name}${active.dirty ? ", Unsaved changes" : ""}`}
-          class="order-1 flex h-9 min-w-0 flex-1 items-center gap-1.5 rounded-md bg-zinc-950/5 px-2 text-sm focus-ring dark:bg-white/10"
-          {...props}
-        >
-          <span class="min-w-0 flex-1 truncate" class:italic={active.preview}>{active.name}</span>
-          <span aria-hidden="true" class="w-4 shrink-0 text-center text-xs text-muted"
-            >{active.dirty ? "●" : tabs.length}</span
-          >
-          <Icon name="chevron-down" />
-        </button>{:else}<IconButton
-          icon="chevron-down"
-          class="order-3"
-          label={`Switch tab (${tabs.length})`}
-          {...props}
-        />{/if}{/snippet}
-    {#each tabs as tab (tab.id)}<MenuItem
-        current={tab.id === active.id}
-        description={tab.id === "thread" ? undefined : tab.path}
-        onselect={() => void select(tab.id)}
-        >{tab.name}{tab.dirty ? " · Unsaved changes" : tab.preview ? " · Preview" : ""}</MenuItem
-      >{/each}
-    {#if active.id !== "thread"}
-      <MenuSeparator />
-      <MenuItem onselect={() => view.keep(active.id)}>Keep tab</MenuItem>
-      <MenuItem disabled={view.tabs[0]?.id === active.id} onselect={() => view.move(active.id, -1)}>Move left</MenuItem>
-      <MenuItem disabled={view.tabs.at(-1)?.id === active.id} onselect={() => view.move(active.id, 1)}
-        >Move right</MenuItem
+  <div role="tablist" aria-label="Workspace tabs" class="flex min-w-0 gap-0.5">
+    {#each visible as tab (tab.id)}
+      <div
+        class={[
+          "flex min-w-0 items-center rounded-md",
+          // The active tab keeps its name; the others truncate first.
+          tab.id === "thread" || tab.id === active.id ? "max-w-48 shrink-0" : "max-w-48 shrink",
+          tab.id === active.id ? "bg-zinc-950/5 dark:bg-white/10" : "hover:bg-zinc-950/5 dark:hover:bg-white/5",
+        ]}
       >
-      <MenuItem onselect={() => onclose(active.id)}>Close tab</MenuItem>
-    {/if}
-    <MenuItem disabled={tabs.length <= 1} onselect={() => workspace.closeOthers(active.id)}>Close other tabs</MenuItem>
-    <MenuItem
-      onselect={() => {
-        for (const tab of view.tabs.filter((tab) => !tabDirty(tab) && !tabBusy(tab))) view.close(tab.id);
-      }}>Close saved tabs</MenuItem
-    >
-    {#if palette}<MenuSeparator /><MenuItem onselect={() => palette.show()}>Search and commands</MenuItem>{/if}
-    {#if actions}<MenuSeparator />{@render actions()}{/if}
-  </DropdownMenu>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab.id === active.id}
+          aria-controls="workspace-content"
+          aria-label={`${tab.name}${tab.preview ? ", Preview" : ""}${tab.dirty ? ", Unsaved changes" : ""}${tab.id === "thread" && pending ? `, ${pending} waiting for you` : ""}`}
+          tabindex={tab.id === focused || (!visible.some((entry) => entry.id === focused) && tab.id === active.id)
+            ? 0
+            : -1}
+          data-workspace-tab
+          data-tab-id={tab.id}
+          class={[
+            "flex h-8 min-w-0 flex-1 items-center gap-1.5 text-sm focus-ring sm:h-7",
+            tab.id === "thread" ? "px-2.5" : "pl-2.5",
+            tab.id === active.id ? "text-zinc-950 dark:text-white" : "text-muted",
+          ]}
+          onclick={() => view.select(tab.id)}
+          ondblclick={() => view.keep(tab.id)}
+          {@attach tooltip(tab.path)}
+        >
+          <span class="truncate" class:italic={tab.preview}>{tab.name}</span>
+          {#if tab.id === "thread" && (pending || working)}<span
+              class="shrink-0 text-brand-600 tabular-nums dark:text-brand-400">{pending || "•"}</span
+            >{/if}
+        </button>
+        {#if tab.id !== "thread"}<button
+            type="button"
+            aria-label={`Close ${tab.name}`}
+            class="mr-0.5 flex size-6 shrink-0 items-center justify-center rounded text-muted focus-ring hover:bg-zinc-950/5 dark:hover:bg-white/10"
+            onclick={() => onclose(tab.id)}
+          >
+            {#if tab.dirty}<span aria-hidden="true">●</span>{:else}<Icon name="x-mark" />{/if}
+          </button>{/if}
+      </div>
+    {/each}
+  </div>
+  {#if hidden.length}
+    <DropdownMenu label="More tabs" placement="bottom-start" sheet class="max-w-80">
+      {#snippet trigger(props)}<button
+          type="button"
+          aria-label={`${hidden.length} more ${hidden.length === 1 ? "tab" : "tabs"}${hidden.some((tab) => tab.dirty) ? ", Unsaved changes" : ""}`}
+          class="flex h-7 shrink-0 items-center gap-1 rounded-md px-2 text-sm text-muted tabular-nums focus-ring hover:bg-zinc-950/5 sm:h-6 sm:text-xs dark:hover:bg-white/10"
+          {...props}
+          >+{hidden.length}{#if hidden.some((tab) => tab.dirty)}<span aria-hidden="true">●</span>{/if}</button
+        >{/snippet}
+      {#each hidden as tab (tab.id)}<MenuItem description={tab.path} onselect={() => void select(tab.id)}
+          >{tab.name}{tab.dirty ? " · Unsaved changes" : tab.preview ? " · Preview" : ""}</MenuItem
+        >{/each}
+    </DropdownMenu>
+  {/if}
 </div>
 
 <WorkspaceCommands {workspace} />

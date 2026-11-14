@@ -1,3 +1,4 @@
+import { copyText } from "#lib/shared/clipboard.ts";
 import type { ui } from "@canopy/contracts";
 import type { Command } from "#lib/features/commands/registry.ts";
 import { toast } from "#lib/shared/ui/toast.svelte.ts";
@@ -39,14 +40,7 @@ export interface ThreadCommandContext {
   readonly link: () => string;
 }
 
-async function copy(value: string) {
-  try {
-    await navigator.clipboard.writeText(value);
-    toast("Copied");
-  } catch {
-    toast("Copying is not allowed here", { tone: "error" });
-  }
-}
+const copy = copyText;
 
 /** The thread's actions in the command palette (the same as its menu, plus Interrupt while it works). */
 export const threadCommands = (thread: ui.Thread, context: ThreadCommandContext): Command[] => [
