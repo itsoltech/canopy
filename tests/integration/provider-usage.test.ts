@@ -1,8 +1,10 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
-import { Provider, ProviderUsageReportSchema, ui } from "@canopy/contracts";
+import { timestampNow } from "@bufbuild/protobuf/wkt";
+import { Provider, ProviderProfileKind, ProviderUsageReportSchema, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { GatewayStore } from "@canopy/gateway/store";
+import { failurePresentation } from "@canopy/domain/failure-presentation";
 import { noticePresentation } from "@canopy/domain/notice-presentation";
 import { usageWarnings, usageFailureHeading } from "@canopy/domain/provider-usage";
 import { eventually, watchUntil } from "./support/gateway.ts";
@@ -176,5 +178,48 @@ describe.skipIf(!dockerAvailable)("official harness account limits over WorkerLi
       (u) => u?.windows.some((w) => w.usedPercent === 20) ?? false,
     );
     expect(usageWarnings(await usage(Provider.CODEX))).toEqual([]);
+  }, 60_000);
+
+  test("a proxy instance never exposes or stores plan windows, and its limit failure names no plan window", async () => {
+    await f.save(Provider.CODEX, "usage-proxy", ProviderProfileKind.CLIPROXYAPI);
+    const thread = await f.thread(Provider.CODEX);
+    const warning = await f.send(thread.id, "LIMIT:warning");
+    await f.finished(thread.id, warning.id);
+    const failed = await f.send(thread.id, "LIMIT:reached");
+    const result = await f.finished(thread.id, failed.id);
+
+    expect(result).toMatchObject({ status: "failed", errorClass: "usage_limit" });
+    expect(result.errorCode).not.toStartWith("usage_limit:");
+    expect(usageFailureHeading(result.errorCode)).toBeUndefined();
+    expect(failurePresentation(result.error, result.errorClass, true).explanation).toStartWith(
+      "The proxy reported a usage limit.",
+    );
+
+    // An older worker may still report windows: the gateway drops them for the proxy instance.
+    const current = (await f.gw.api.getOverview({})).workers.find((w) => w.id === f.workerId)!;
+    await f.gw.core.usage.report(
+      f.gw.core.link.connections.get(f.workerId)!,
+      create(ProviderUsageReportSchema, {
+        provider: Provider.CODEX,
+        profileId: "native",
+        accountKey: "b".repeat(64),
+        configVersion: current.configVersion,
+        snapshot: { observedAt: timestampNow(), windows: [{ key: "seven_day", usedPercent: 1 }] },
+      }),
+    );
+
+    expect(await usage(Provider.CODEX)).toBeUndefined();
+
+    const settings = (await f.gw.api.listProviderInstances({})).instances.find(
+      (i) => i.harness === Provider.CODEX && i.id === "native",
+    );
+
+    expect(settings?.workers.every((w) => w.usage === undefined)).toBe(true);
+    expect(
+      await f.query("SELECT 1 FROM provider_usage WHERE worker_id=$1 AND provider=2 AND config_version=$2", [
+        f.workerId,
+        String(current.configVersion),
+      ]),
+    ).toEqual([]);
   }, 60_000);
 });

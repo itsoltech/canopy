@@ -39,6 +39,7 @@ import imageReplyImports from "./0138_image_reply_imports.sql" with { type: "tex
 import composerDrafts from "./0140_composer_drafts.sql" with { type: "text" };
 import providerUsage from "./0141_provider_usage.sql" with { type: "text" };
 import composerDraftMoves from "./0142_composer_draft_moves.sql" with { type: "text" };
+import providerUsageEndpoints from "./0143_provider_usage_endpoints.sql" with { type: "text" };
 import botViewDelta from "./0091_bot_view_delta.sql" with { type: "text" };
 import workerConfig from "./0002_worker_config.sql" with { type: "text" };
 import gatewayRuntime from "./0003_gateway_runtime.sql" with { type: "text" };
@@ -298,6 +299,7 @@ export const migrations = Migrator.fromRecord({
   "0140_composer_drafts": sqlFile(composerDrafts),
   "0141_provider_usage": sqlFile(providerUsage),
   "0142_composer_draft_moves": sqlFile(composerDraftMoves),
+  "0143_provider_usage_endpoints": sqlFile(providerUsageEndpoints),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

@@ -9,7 +9,7 @@ import type { AppliedConfig } from "../config/remote.ts";
 
 import { CommandError, kindOf } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
-import { usageReporter } from "./usage-limits.ts";
+import { reportsPlanUsage, usageReporter } from "./usage-limits.ts";
 
 export class ClaudeRuntimes {
   constructor(readonly ctx: HostContext) {}
@@ -54,7 +54,14 @@ export class ClaudeRuntimes {
     this.ctx.state.claudeHomes.set(profile.id, home.path);
     const executable = runtime.executablePath || config.claude.executable;
 
-    const usage = usageReporter(this.ctx, Provider.CLAUDE, profile.id, home.path, key);
+    const usage = usageReporter(
+      this.ctx,
+      Provider.CLAUDE,
+      profile.id,
+      home.path,
+      key,
+      reportsPlanUsage([profile], process.env),
+    );
 
     const layer = ClaudeThreads.layer({
       onUsage: usage.report,

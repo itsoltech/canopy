@@ -24,6 +24,8 @@ export interface TurnContext {
   /** Background tasks by the command item that started them (they own its lifecycle after the turn). */
   readonly tasks: ReadonlyMap<string, Item>;
   readonly provider: Provider | undefined;
+  /** The thread's instance connects through a proxy: its failures cannot name the user's plan. */
+  readonly proxy: boolean;
   /** Per timeline, so virtual cell remounts retain manual choices without persisting them to disk. */
   readonly foldChoices: Map<string, ReadonlyMap<number, WorkFoldChoice>>;
   readonly groupChoices: WorkGroupChoices;
@@ -185,7 +187,7 @@ export function TimelineTurn({
       ))}
       {ended && (
         <View style={{ gap: 4, marginTop: answerText.trim() && turn.status === "completed" ? -12 : 0 }}>
-          <TurnEnd turn={turn} provider={context.provider} historical={historical} />
+          <TurnEnd turn={turn} provider={context.provider} proxy={context.proxy} historical={historical} />
           <QuoteItem.Provider value={lastAnswer?.itemId ?? ""}>
             <TurnDetails turn={turn} answer={answerText} />
           </QuoteItem.Provider>

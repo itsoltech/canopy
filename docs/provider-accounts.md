@@ -190,6 +190,19 @@ w `domain/sidebar-usage` pozostawia miejsce na późniejszą sekcję kont upstre
 nie jest obecnie renderowany ani pobierany. Zmiana mobile obejmuje tylko JS,
 bez zależności i konfiguracji natywnej.
 
+### Proxy, klucz API i własny endpoint
+
+Limity harnessu opisują plan zalogowanego konta. Przez proxy (np. CLIProxyAPI),
+klucz API lub własny `*_BASE_URL` należą do konta wybranego przez endpoint, a samo
+konto jest nieznane. Worker nie raportuje ich dla instancji `cliproxyapi` ani
+instancji z `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`,
+`OPENAI_API_KEY`, `OPENAI_BASE_URL`, `CODEX_API_KEY`, `CODEX_BASE_URL` lub
+`CLIPROXY_API_KEY` i nie wpisuje okna do kodu błędu. Gateway odrzuca i ukrywa
+raporty instancji z proxy (także od starszych workerów); migracja 0143 usuwa
+zapisane snapshoty takich instancji. Brak mierników, ostrzeżeń composera
+i „Plan limit reached”. Karta błędu tury zostaje, ale mówi „Usage limit reached”
+i „The proxy reported a usage limit…”, bez nazwy okna planu.
+
 ### Ograniczenia informacji o kredytach
 
 Codex `credits.hasCredits` i `unlimited` oznaczają dostępność, **nie potwierdzenie
@@ -213,8 +226,8 @@ Nie przedstawiamy dostępnego salda jako dowodu rozliczenia.
 `provider-usage.test.ts` i `provider-usage-bots.test.ts` używają prawdziwego WorkerHost, gRPC, PostgreSQL oraz
 fake Codex app-server / Claude CLI czytanego przez prawdziwy Agent SDK. Obejmuje
 odczyt początkowy, zdarzenia, incremental overview, persystencję/restart,
-owner scope, odrzucenie starej konfiguracji, mapowanie błędu i trwały notice
-dodatkowego użycia. Nie wymaga prawdziwych kont ani testów live.
+owner scope, odrzucenie starej konfiguracji, mapowanie błędu, trwały notice
+dodatkowego użycia oraz brak okien planu dla instancji przez proxy. Nie wymaga prawdziwych kont ani testów live.
 
 ## Testy statusu konta
 
