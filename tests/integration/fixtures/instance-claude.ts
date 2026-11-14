@@ -40,7 +40,7 @@ let instructions = "";
 async function turn(text: string): Promise<void> {
   recordProbe("claude", "turn", session, "", inventory.tools);
 
-  if (claudeLimits(text, session, send)) return;
+  if (await claudeLimits(text, session, send)) return;
   send({
     type: "system",
     subtype: "init",

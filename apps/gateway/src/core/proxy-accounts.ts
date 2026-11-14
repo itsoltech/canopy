@@ -4,6 +4,7 @@ import type { GatewayCore } from "./core.ts";
 import { coreState } from "./core-context.ts";
 import { coreInstances } from "./core-providers.ts";
 import { readProxyAccounts } from "../proxies/management.ts";
+import type { ProxyTarget } from "../store/proxy-management.ts";
 
 /** A view that opens, or another gateway process, reuses a read this recent. */
 const FRESH_MS = 60_000;
@@ -75,18 +76,28 @@ export class ProxyAccountsMonitor {
 
     if (running) return running;
 
-    const spacing = force ? FORCE_MS : FRESH_MS;
-    const claimed = await coreInstances(this.core, (s) => s.claimProxyRead(owner, id, target.identity, spacing));
-
-    if (!claimed) return last ?? create(ui.ProxyAccountsSchema, { proxyId: id });
-
-    const flight = readProxyAccounts(id, target.root, target.key, [target.secret])
-      .then((value) => this.#store(id, target.identity, last, value))
-      .finally(() => this.#flights.delete(id));
-
+    // Register before awaiting the lease, so another caller joins instead of returning its stale snapshot.
+    const flight = this.#read(id, target, force).finally(() => this.#flights.delete(id));
     this.#flights.set(id, flight);
 
     return flight;
+  }
+
+  async #read(id: string, target: ProxyTarget, force: boolean): Promise<ui.ProxyAccounts> {
+    const owner = this.core[coreState].options.userId;
+    const spacing = force ? FORCE_MS : FRESH_MS;
+    const claimed = await coreInstances(this.core, (s) => s.claimProxyRead(owner, id, target.identity, spacing));
+
+    if (!claimed) {
+      // The read that held the lease may have finished while our target lookup was still in flight.
+      const current = await coreInstances(this.core, (s) => s.proxyManagement(owner, id));
+
+      return current.last ?? create(ui.ProxyAccountsSchema, { proxyId: id });
+    }
+
+    const value = await readProxyAccounts(id, target.root, target.key, [target.secret]);
+
+    return this.#store(id, target.identity, target.last, value);
   }
 
   /** The periodic check: proxies with a management key that a profile uses, one at a time. */

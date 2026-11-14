@@ -17,10 +17,22 @@ export function codexLimits(percent: number): JsonObject {
   };
 }
 
-export function claudeLimits(text: string, sessionId: string, send: (value: JsonObject) => void): boolean {
+export async function claudeLimits(
+  text: string,
+  sessionId: string,
+  send: (value: JsonObject) => void,
+): Promise<boolean> {
   text = (text.split("\n\nCurrent input:\n").at(-1) ?? text).split("\n")[0] ?? text;
 
   if (!text.startsWith("LIMIT:")) return false;
+  const gate = process.env["USAGE_GATE_URL"];
+
+  if (gate) {
+    const response = await fetch(gate, { method: "POST", body: text });
+
+    if (!response.ok) throw new Error("usage fixture gate rejected input");
+  }
+
   const rejected = text === "LIMIT:reached";
   send({
     type: "rate_limit_event",

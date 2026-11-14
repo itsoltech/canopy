@@ -10,9 +10,11 @@ import { usageWarnings, usageFailureHeading } from "@canopy/domain/provider-usag
 import { eventually, watchUntil } from "./support/gateway.ts";
 import { startInstanceFixture } from "./support/instance-fixture.ts";
 import { usageReset } from "./fixtures/provider-usage.ts";
+import { providerUsageGate } from "./support/provider-usage-gate.ts";
 
 describe.skipIf(!dockerAvailable)("official harness account limits over WorkerLink", () => {
   let f: Awaited<ReturnType<typeof startInstanceFixture>>;
+  let gate: ReturnType<typeof providerUsageGate>;
 
   const usage = async (provider: Provider) =>
     (await f.gw.api.getOverview({})).workers
@@ -20,11 +22,15 @@ describe.skipIf(!dockerAvailable)("official harness account limits over WorkerLi
       ?.providerInstances.find((i) => i.harness === provider && i.id === "native")?.usage;
 
   beforeAll(async () => {
+    gate = providerUsageGate();
     f = await startInstanceFixture();
     await f.save(Provider.CODEX, "usage-codex");
-    await f.save(Provider.CLAUDE, "usage-claude");
+    await f.save(Provider.CLAUDE, "usage-claude", ProviderProfileKind.NATIVE, "native", false, [
+      { name: "USAGE_GATE_URL", value: gate.url },
+    ]);
   }, 60_000);
   afterAll(async () => {
+    await gate?.close();
     await f?.close();
   });
 
@@ -90,8 +96,7 @@ describe.skipIf(!dockerAvailable)("official harness account limits over WorkerLi
   test("Claude SDK events preserve the reached window and an explicit paid-usage notice", async () => {
     await f.restartWorker();
     const thread = await f.thread(Provider.CLAUDE);
-    const turn = await f.send(thread.id, "LIMIT:credits");
-    expect((await f.finished(thread.id, turn.id)).status).toBe("completed");
+    expect((await gate.turn(f, thread.id, "LIMIT:credits"))?.status).toBe("completed");
 
     const paid = await eventually(
       () => usage(Provider.CLAUDE),
@@ -109,8 +114,7 @@ describe.skipIf(!dockerAvailable)("official harness account limits over WorkerLi
             noticePresentation(entry.notice, { recovered: true }).message === "This turn uses extra usage credits.",
         ),
     ).toBe(true);
-    const failed = await f.send(thread.id, "LIMIT:reached");
-    expect(await f.finished(thread.id, failed.id)).toMatchObject({
+    expect(await gate.turn(f, thread.id, "LIMIT:reached")).toMatchObject({
       status: "failed",
       errorClass: "usage_limit",
       errorCode: `usage_limit:seven_day:${usageReset}`,

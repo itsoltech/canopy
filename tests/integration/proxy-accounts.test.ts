@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { toJsonString } from "@bufbuild/protobuf";
 import { Provider, ProviderProfileKind, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
@@ -213,6 +213,55 @@ describe.skipIf(!dockerAvailable)("CLIProxyAPI upstream accounts through the man
       await watching;
     }
   }, 30_000);
+
+  test("a target read that overlaps a completed refresh returns the committed accounts", async () => {
+    await query("UPDATE proxies SET management_status = NULL, management_read_at = NULL WHERE id = $1::uuid", [
+      proxy.id,
+    ]);
+    const store = await gw.runtime.runPromise(InstanceStore);
+    const target = store.proxyManagement;
+    const claim = store.claimProxyRead;
+    const arrived = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const claiming = Promise.withResolvers<void>();
+    let reads = 0;
+
+    const targets = spyOn(store, "proxyManagement").mockImplementation((owner, id) =>
+      target(owner, id).pipe(
+        Effect.tap(() => {
+          if (id !== proxy.id || ++reads !== 2) return Effect.void;
+          arrived.resolve();
+
+          return Effect.promise(() => release.promise);
+        }),
+      ),
+    );
+
+    const claims = spyOn(store, "claimProxyRead").mockImplementation((owner, id, identity, spacing) => {
+      claiming.resolve();
+
+      return Effect.promise(() => arrived.promise).pipe(Effect.andThen(claim(owner, id, identity, spacing)));
+    });
+
+    const monitor = new ProxyAccountsMonitor(gw.core);
+    const first = monitor.refresh(proxy.id, true);
+    await claiming.promise;
+
+    const second = monitor.refresh(proxy.id, true);
+
+    try {
+      const committed = await first;
+      release.resolve();
+      expect(committed).toMatchObject({ proxyId: proxy.id, state: "ok", total: 5 });
+      expect(await second).toEqual(committed);
+    } finally {
+      arrived.resolve();
+      release.resolve();
+      await Promise.allSettled([first, second]);
+      targets.mockRestore();
+      claims.mockRestore();
+    }
+  });
 
   test("the key stays in the gateway: encrypted at rest, absent from every response and audited without values", async () => {
     const responses = [
