@@ -1,6 +1,9 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
+import { Platform } from "react-native";
 import { KeyboardProvider, useKeyboardHandler, type NativeEvent } from "react-native-keyboard-controller";
 import { useSharedValue, type SharedValue } from "react-native-reanimated";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { useAndroidKeyboardFallback } from "./useAndroidKeyboardFallback";
 
 interface KeyboardFrame {
   readonly height: SharedValue<number>;
@@ -13,6 +16,7 @@ const Frame = createContext<KeyboardFrame | null>(null);
 function KeyboardFrames({ children }: { children: ReactNode }) {
   const height = useSharedValue(0);
   const progress = useSharedValue(0);
+  const moving = useSharedValue(false);
   const frame = useMemo(() => ({ height, progress }), [height, progress]);
 
   const track = (event: NativeEvent) => {
@@ -21,17 +25,39 @@ function KeyboardFrames({ children }: { children: ReactNode }) {
     progress.set(event.progress);
   };
 
-  useKeyboardHandler({ onMove: track, onInteractive: track, onEnd: track }, [height, progress]);
+  useKeyboardHandler(
+    {
+      onStart: () => {
+        "worklet";
+        moving.set(true);
+      },
+      onMove: track,
+      onInteractive: track,
+      onEnd: (event) => {
+        "worklet";
+        track(event);
+        moving.set(false);
+      },
+    },
+    [height, progress, moving],
+  );
+  useAndroidKeyboardFallback(height, progress, moving);
 
   return <Frame.Provider value={frame}>{children}</Frame.Provider>;
 }
 
 /** Each native window owns its provider and frame stream, including searchable modal windows. */
 export function KeyboardWindow({ children, preload = true }: { children: ReactNode; preload?: boolean }) {
-  return (
+  const window = (
     <KeyboardProvider statusBarTranslucent navigationBarTranslucent preload={preload}>
       <KeyboardFrames>{children}</KeyboardFrames>
     </KeyboardProvider>
+  );
+
+  return Platform.OS === "android" ? (
+    <GestureHandlerRootView style={{ flex: 1 }}>{window}</GestureHandlerRootView>
+  ) : (
+    window
   );
 }
 

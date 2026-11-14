@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type Ref } from "react";
 import { Platform, FlatList, type FlatListProps, type ScrollViewProps } from "react-native";
-import { KeyboardChatScrollView } from "react-native-keyboard-controller";
+import { KeyboardChatScrollView, useKeyboardContext } from "react-native-keyboard-controller";
 import Animated, {
   useAnimatedScrollHandler,
   useComposedEventHandler,
@@ -16,6 +16,9 @@ import { useContentInsets } from "../../ui/ScreenFrame";
 import { styles } from "../../ui/theme";
 import { useManualFeedAnchor } from "../../ui/feed-anchor";
 import { IOSChatScrollView } from "./IOSChatScrollView";
+import { useKeyboardFrame } from "../../ui/KeyboardWindow";
+
+const android = Platform.OS === "android";
 
 /**
  * Inverted: the oldest end gets the floating header inset; the latest end has its composer reserve. A Reanimated
@@ -40,7 +43,22 @@ export function TimelineList<Item>({
   // thread can measure actual cells, while keeping the component identity stable for this list's lifetime.
   const [AnimatedTimelineList] = useState(() => Animated.createAnimatedComponent(FlatList<Item>));
   const manualAnchor = useManualFeedAnchor();
-  const safePadding = useDerivedValue(() => insets.bottom + (composerInset?.get() ?? 0));
+  const keyboard = useKeyboardFrame();
+  const nativeKeyboard = useKeyboardContext().reanimated;
+
+  const safePadding = useDerivedValue(() => {
+    const reserve = insets.bottom + (composerInset?.get() ?? 0);
+
+    if (!android) return reserve;
+
+    // The chat scroller already adds its native keyboard inset. Only reconcile the difference from
+    // Android's settled bounds, so a missed frame stream cannot leave the latest message under the IME.
+    const settled = Math.max(0, -keyboard.height.get() - insets.bottom * keyboard.progress.get());
+    const native = Math.max(0, -nativeKeyboard.height.get() - insets.bottom * nativeKeyboard.progress.get());
+
+    return reserve + settled - native;
+  });
+
   const [viewport] = useState(() => new ImageViewport());
   const lastCheck = useSharedValue(0);
   const refresh = viewport.refresh;

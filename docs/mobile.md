@@ -2003,6 +2003,19 @@ rezerwę listy na czas otwarcia wątku. Otwarcie przez przewijanie wymaga ruchu 
 w stronę końca; zatrzymanie momentum dotknięciem nie dziedziczy poprzedniego
 gestu. Natywne kotwiczenie wątku nie ma progu autoscroll do zera.
 
+Android uzgadnia końcową wysokość IME również przez zdarzenia `Keyboard` React Native,
+w tym zmianę wysokości bez zamykania klawiatury. Natywne klatki nadal prowadzą animację;
+zdarzenia końcowe zabezpieczają brakującą aktualizację. Wysokość uwzględnia pasek nawigacji
+okna edge-to-edge. Lista dodaje tylko różnicę względem insetu już obsługiwanego przez
+`KeyboardChatScrollView`, bez podwójnej rezerwy klawiatury ani zmiany rezerwy composera.
+iOS zachowuje dotychczasowy strumień i adapter przewijania.
+
+W Androidzie każdy `KeyboardWindow` ma jeden `GestureHandlerRootView`, obejmujący
+zarówno listę pionową, jak i poziome scrolle tabel, kodu oraz diffów. Bloki nie tworzą
+własnych korzeni pod pionowym scrollem; osobne okna modali zachowują własny korzeń.
+Poziomy scroll nadal używa natywnego rozpoznawania kierunku i `nestedScrollEnabled`,
+bez przejmowania każdego dotknięcia lub blokowania pionowych gestów na tabeli.
+
 Arkusz Thread details na telefonie ma pełne położenie oraz położenie odsunięte
 o 40% własnej wysokości. Przeciągnięcie poniżej 65% zamyka go; szybki ruch
 w górę wraca do bliższego położenia. Animacja otwarcia jest oddzielona od offsetu

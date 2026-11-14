@@ -1,10 +1,11 @@
 import type { ReactNode } from "react";
-import type { ScrollViewProps } from "react-native";
+import { Platform, View, type ScrollViewProps } from "react-native";
 import { GestureHandlerRootView, ScrollView } from "react-native-gesture-handler";
 import Animated, { useAnimatedScrollHandler, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import { useColors } from "./theme";
 
 const AnimatedScrollView = Animated.createAnimatedComponent(ScrollView);
+const ScrollFrame = Platform.OS === "android" ? View : GestureHandlerRootView;
 
 /** Native horizontal arbitration inside a vertical feed, including blocks shown in a modal viewer. */
 export function HorizontalScroll({
@@ -27,8 +28,8 @@ export function HorizontalScroll({
   }));
 
   return (
-    // A local root also works in Android Modal windows, outside the application's native view tree.
-    <GestureHandlerRootView style={{ minWidth: 0, maxWidth: "100%" }}>
+    // The native window owns the gesture root, above both this scroller and the vertical feed.
+    <ScrollFrame style={{ minWidth: 0, maxWidth: "100%" }}>
       <AnimatedScrollView
         horizontal
         nestedScrollEnabled
@@ -65,6 +66,6 @@ export function HorizontalScroll({
           edge,
         ]}
       />
-    </GestureHandlerRootView>
+    </ScrollFrame>
   );
 }
