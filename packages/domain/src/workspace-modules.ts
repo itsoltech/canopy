@@ -1,11 +1,10 @@
 import { fileName } from "./file-references.ts";
 import type { WorkspaceFile } from "./workspace-file.ts";
 
+/** Full tabs beside the thread besides files: one pull request, or one background task's output. */
 export const workspaceModules = [
-  { id: "files", label: "Files", icon: "folder" },
   { id: "pull-requests", label: "Pull requests", icon: "git-fork" },
   { id: "tasks", label: "Tasks", icon: "queue-list" },
-  { id: "connectors", label: "Connectors", icon: "link" },
 ] as const;
 
 export type WorkspaceModuleId = (typeof workspaceModules)[number]["id"];

@@ -26,9 +26,6 @@ const DRAFT_BYTES = 4 * 1024 * 1024;
 export class Workspace {
   tabs: WorkspaceEntry[] = [];
   active = "thread";
-  sidebar: WorkspaceModuleTarget | undefined;
-  panelCollapsed = false;
-  panelWidth = 288;
   error = "";
   #recent: string[] = [];
   #next = 0;
@@ -71,22 +68,6 @@ export class Workspace {
     const id = `module-${++this.#next}`;
     this.tabs = [...this.tabs, { ...target, kind: "module", id, preview: false }];
     this.select(id);
-  }
-
-  setSidebar(target?: WorkspaceModuleTarget): void {
-    this.sidebar = target;
-    this.panelCollapsed = false;
-    this.store.notify(true);
-  }
-
-  collapsePanel(collapsed: boolean): void {
-    this.panelCollapsed = collapsed;
-    this.store.notify(true);
-  }
-
-  sizePanel(width: number): void {
-    this.panelWidth = Math.max(256, Math.min(384, width));
-    this.store.notify(true);
   }
 
   open(target: WorkspaceFileTarget): void {
@@ -281,7 +262,6 @@ export class WorkspaceStore {
         if (view) {
           view.tabs = [];
           view.active = "thread";
-          view.sidebar = undefined;
           view.error = "File access ended. Reopen the thread to check access.";
         }
 

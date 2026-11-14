@@ -12,13 +12,8 @@ export function restoreWorkspace(store: WorkspaceStore, raw: string | null): voi
     const id = str(saved["threadId"]);
 
     if (!id || id.length > 1024) continue;
+    // Older layouts also stored a per-thread panel (sidebar, panelCollapsed, panelWidth); Files is device-wide now.
     const view = store.view(id);
-    const sidebar = workspaceModule(str(saved["sidebar"]));
-    view.sidebar = sidebar ? { module: sidebar.id, resource: str(saved["sidebarResource"]).slice(0, 1024) } : undefined;
-    view.panelCollapsed = saved["panelCollapsed"] === true;
-    const width = Number(saved["panelWidth"]);
-
-    if (Number.isFinite(width) && width >= 256 && width <= 384) view.panelWidth = width;
 
     for (const tab of objectsOf(saved["tabs"]).slice(0, WORKSPACE_TAB_LIMIT - 1)) {
       const module = workspaceModule(str(tab["module"]));
@@ -49,10 +44,6 @@ export function workspaceMetadata(store: WorkspaceStore): string {
   const views = [...store.views.values()].slice(-30).map((view) => ({
     threadId: view.threadId,
     active: view.tabs.findIndex((tab) => tab.id === view.active) + 1,
-    sidebar: view.sidebar?.module,
-    sidebarResource: view.sidebar?.resource,
-    panelCollapsed: view.panelCollapsed,
-    panelWidth: view.panelWidth,
     tabs: view.tabs.map((tab) =>
       tab.kind === "module"
         ? { module: tab.module, resource: tab.resource, label: tab.label?.slice(0, 256) }
