@@ -1,14 +1,16 @@
 /**
- * Placement of the floating thread summary in the thread area (all lengths in px).
- * - `floating`: the area fits the 20rem card; narrower areas open the summary as a sheet from its pill.
- * - `lane`: the space the card reserves on the right; the chat column centres left of it (layout.css
- *   `chat-column`). It depends on the area only, never on whether the card is open, so toggling never moves text.
- * - `overlay`: the chat column and the lane do not both fit, so the card stands over the conversation.
+ * Placement of the thread summary in the thread area (all lengths in px). The chat column is always centred in
+ * the area with its own max width; the summary only uses space the column leaves free, so it never moves text.
+ * - `docked`: the right gutter beside the centred column holds the 20rem card plus its inset and a gap, so an
+ *   expanded summary can stay open there.
+ * - `floating`: the area fits a popover under the pill; narrower areas open the summary as a sheet.
  */
 export class SummaryLayout {
   /** Width of the thread area. */
   width = $state(0);
-  /** Width of `--chat-width` measured in the area (the full width for the "full" chat width). */
+  /** Width the chat column centres in: the area without the turn rail's padding. */
+  inner = $state(0);
+  /** `--chat-width` measured in the area (the full width for the "full" chat width). */
   chat = $state(0);
 
   constructor(readonly rem: () => number) {}
@@ -17,15 +19,10 @@ export class SummaryLayout {
     return this.width >= 32 * this.rem();
   }
 
-  get lane(): number {
-    return 21.5 * this.rem();
-  }
+  get docked(): boolean {
+    const column = Math.min(this.chat, this.inner);
 
-  get overlay(): boolean {
-    const rem = this.rem();
-    // The area's left padding keeps room for the turn rail.
-    const column = this.chat >= this.width ? 36 * rem : this.chat;
-
-    return this.width - 2.25 * rem < column + this.lane;
+    // 20rem card, 1rem inset from the area's edge and at least 1rem clear of the column.
+    return this.inner > 0 && (this.inner - column) / 2 >= 22 * this.rem();
   }
 }

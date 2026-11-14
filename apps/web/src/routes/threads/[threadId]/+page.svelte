@@ -315,7 +315,7 @@
 
   let panelSheet = $state(false);
 
-  // The summary floats in the thread area's top-right corner, beside or over the chat column.
+  // The summary sits in the thread area's top-right corner, only in space the centred chat column leaves free.
   const summary = new SummaryLayout(() => workspaceState.rem);
 
   $effect(() => {
@@ -603,14 +603,18 @@
         inert={Boolean(fileTab)}
         bind:this={feedRegion}
         bind:clientWidth={summary.width}
-        style:--chat-lane={thread && summary.floating ? `${summary.lane}px` : undefined}
       >
         <span
           aria-hidden="true"
           class="pointer-events-none invisible absolute w-(--chat-width)"
           bind:clientWidth={summary.chat}
         ></span>
-        {#if thread}<ThreadSummary {thread} {tree} floating={summary.floating} overlay={summary.overlay}
+        <span
+          aria-hidden="true"
+          class="pointer-events-none invisible absolute inset-x-0 md:left-9"
+          bind:clientWidth={summary.inner}
+        ></span>
+        {#if thread}<ThreadSummary {thread} {tree} floating={summary.floating} docked={summary.docked}
             >{@render threadPanel()}</ThreadSummary
           >{/if}
         {#key threadId}

@@ -147,23 +147,33 @@ tytułu, modelu, uprawnień, kosztu ani statusu obecnych w nagłówku i przy com
 
 ### Podsumowanie wątku
 
-Karta ma stałą szerokość 20 rem i jest zakotwiczona w prawym górnym rogu obszaru
-`Thread` (inset 12 px od góry, 16 px od prawej). Nie zależy od prawego panelu: jego
-otwarcie, zamknięcie ani zmiana szerokości nie zmieniają jej szerokości ani miejsca.
-Ma wewnętrzny scroll i jest niemodalna. Zwija się do **pigułki** w tym samym rogu:
-gałąź, najnowszy PR ze stanem i checkami oraz liczba subagentów. Rozwinięcie lub
-zwinięcie to jeden wybór urządzenia (`threadPanelCollapsed` w widoku urządzenia),
-wspólny dla wszystkich wątków, więc przełączanie wątków niczego nie przesuwa.
-Escape w karcie zwija ją i oddaje fokus pigułce (otwarty picker ma pierwszeństwo).
-Zdarzenie agenta nie rozwija karty.
+Kolumna rozmowy zawsze jest wyśrodkowana w obszarze `Thread` z własną maksymalną
+szerokością; wiadomości i composer mają tę samą szerokość i wyrównanie. Ani karta,
+ani lewy sidebar, ani panel Files nie przesuwają jej ani nie zmieniają jej szerokości
+(poza zmianą samej szerokości obszaru). Podsumowanie korzysta wyłącznie z wolnego
+miejsca obok kolumny.
 
-Kolumna rozmowy (`chat-column`) centruje się w miejscu na lewo od **pasa** karty
-(21,5 rem, `--chat-lane`). Pas zależy tylko od szerokości obszaru, nie od stanu
-karty: zwinięcie i rozwinięcie nigdy nie przesuwają tekstu. Gdy kolumna i pas się
-nie mieszczą, kolumna trzyma się lewej krawędzi, a karta stoi nad rozmową z cieniem
-i kończy się nad composerem. Poniżej 32 rem szerokości obszaru zostaje sama pigułka,
-która otwiera podsumowanie w arkuszu. Karta należy do zakładki `Thread`; na
-zakładkach plików jest ukryta razem z rozmową.
+Karta ma stałą szerokość 20 rem i jest zakotwiczona w prawym górnym rogu obszaru
+`Thread` (inset 12 px od góry, 16 px od prawej), niezależnie od prawego panelu.
+Zwija się do **pigułki** w tym samym rogu: gałąź, najnowszy PR ze stanem i checkami
+oraz liczba subagentów. Ma wewnętrzny scroll i jest niemodalna.
+
+- **Dok:** gdy prawy margines obok wyśrodkowanej kolumny mieści 22 rem (karta,
+  inset i odstęp od kolumny), stan karty wynika z jednego wyboru urządzenia
+  (`threadPanelCollapsed`): rozwinięta karta stoi w marginesie, zwinięta to pigułka.
+  Pigułka rozwija, przycisk `Collapse thread details` lub Escape zwijają.
+- **Popover:** gdy margines jest węższy, podsumowanie jest zawsze pigułką, bez
+  względu na zapisany wybór. Pigułka otwiera kartę jako popover pod sobą, z cieniem
+  (w ciemnym motywie jaśniejszą powierzchnią) i wewnętrznym scrollem. Zamykają go
+  Escape, `Close thread details`, kliknięcie poza nim (fokus zostaje na klikniętym
+  celu), zmiana wątku i zmiana układu. Popover nie zmienia zapisanego wyboru, więc
+  tekst nigdy nie zostaje trwale zasłonięty.
+- **Arkusz:** poniżej 32 rem szerokości obszaru pigułka otwiera arkusz.
+
+Stan efektywny zależy więc tylko od zapisanego wyboru i dostępnego miejsca:
+przełączanie wątków i zmiana rozmiaru okna niczego nie przesuwają. Zdarzenie agenta
+nie rozwija karty. Karta należy do zakładki `Thread`; na zakładkach plików jest
+ukryta razem z rozmową.
 
 ### Panel Files
 
@@ -646,7 +656,7 @@ zapis szerokości następuje po puszczeniu.
 
 Przy węższej treści lewa nawigacja nadal staje się drawerem według obecnych reguł,
 a `Files` otwiera drzewo w arkuszu. Podsumowanie pozostaje pigułką w rogu wątku;
-poniżej 32 rem szerokości obszaru otwiera arkusz zamiast karty. Zmiana progu
+poniżej 32 rem szerokości obszaru otwiera arkusz zamiast popoveru. Zmiana progu
 zamyka arkusze i zachowuje ich dane, nie ich otwartość.
 
 Zakładki pozostają w jednym rzędzie z sygnetem i skróconym tytułem. Reguły overflow
