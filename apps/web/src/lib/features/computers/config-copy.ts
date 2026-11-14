@@ -37,6 +37,7 @@ const ITEM_LABELS = new Map(
     label: "Name",
     name: "Name",
     kind: "Connects with",
+    connection: "Connects with",
     baseUrl: "Endpoint",
     proxy: "Proxy",
     accentColor: "Color",
@@ -157,10 +158,34 @@ export function configFieldLabel(field: string, kind = "settings") {
 const object = Schema.is(Schema.Record(Schema.String, Schema.MutableJson));
 const plainVariable = Schema.is(Schema.Struct({ value: Schema.String }));
 
+const connection = Schema.is(
+  Schema.Struct({
+    kind: Schema.optional(Schema.String),
+    proxy: Schema.optional(Schema.String),
+    baseUrl: Schema.optional(Schema.String),
+    apiKey: Schema.optional(Schema.String),
+  }),
+);
+
+/** An instance's kind, proxy, endpoint and key, restored together: one phrase, proxies never as ids. */
+function connectionValue(fields: { kind?: string; proxy?: string; baseUrl?: string; apiKey?: string }) {
+  if (fields.kind === "native") return "Device login";
+
+  return [
+    "Endpoint",
+    fields.proxy ? "through a different proxy" : fields.baseUrl ? `at ${fields.baseUrl}` : "",
+    fields.apiKey === "A different key" ? "with a different key" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 /** Instance and proxy values: references and options are named, never shown as raw ids. */
 export function configItemValue(field: string, value: string) {
   if (value === "A different key") return value;
   const parsed = Schema.decodeUnknownSync(Schema.MutableJson)(JSON.parse(value));
+
+  if (field === "connection" && connection(parsed)) return connectionValue(parsed);
 
   if (field === "proxy") return parsed ? "A different proxy" : "No proxy";
 

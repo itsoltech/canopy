@@ -40,7 +40,7 @@
       : removed
         ? `Deleted on ${notice.nodeName} at ${time}.`
         : notice.reason === "merged"
-          ? `Merged with ${notice.nodeName}.`
+          ? `${notice.ownValue ? "Replaced" : "Not used"} when this computer linked with ${notice.nodeName}.`
           : notice.reason === "resurrected"
             ? `${notice.nodeName} changed it after it was deleted here.`
             : `${notice.nodeName} also changed this at ${time}.`,
@@ -54,8 +54,15 @@
         : configFieldLabel(notice.field, notice.kind),
   );
 
-  const value = $derived(
+  // A lost value Restore brings back: whose it is, so Restore and Keep current say what they do.
+  const lost = $derived(notice.reason === "merged" || notice.reason === "concurrent");
+
+  const shown = $derived(
     removed ? "" : item ? configItemValue(notice.field, notice.value) : configNoticeValue(notice.value),
+  );
+
+  const value = $derived(
+    lost && shown ? `${notice.ownValue ? "This computer’s value" : "Other value"}: ${shown}` : shown,
   );
 </script>
 
@@ -69,16 +76,24 @@
   </div>
   <div class="flex max-w-full shrink-0 flex-wrap gap-2">
     <Button size="sm" disabled={busy} onclick={() => onaction(notice.id, "restore")}
-      >{choice
+      >{choice || (lost && !notice.ownValue)
         ? "Use the other’s"
-        : notice.reason === "resurrected"
-          ? "Delete"
-          : library && removed
-            ? "Keep"
-            : "Restore"}</Button
+        : lost
+          ? "Restore this computer’s"
+          : notice.reason === "resurrected"
+            ? "Delete"
+            : library && removed
+              ? "Keep"
+              : "Restore"}</Button
     >
     <Button size="sm" variant="ghost" disabled={busy} onclick={() => onaction(notice.id, "dismiss")}
-      >{choice ? "Keep this computer’s" : library && removed ? "Accept deletion" : "Dismiss"}</Button
+      >{choice
+        ? "Keep this computer’s"
+        : lost
+          ? "Keep current"
+          : library && removed
+            ? "Accept deletion"
+            : "Dismiss"}</Button
     >
   </div>
 </div>
