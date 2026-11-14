@@ -26,6 +26,8 @@ export const VISUAL_LIMITS = {
   messageBytes: 8 * 1024,
   messagesPerSecond: 10,
   heightsPerSecond: 4,
+  /** The pointer entering or leaving the frame. */
+  hoversPerSecond: 4,
   stateBytes: 4 * 1024,
 } as const;
 

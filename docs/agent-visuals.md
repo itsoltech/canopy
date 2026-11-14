@@ -304,15 +304,24 @@ Początkowe `postMessage` może wymagać `"*"`, ale kierujemy je do konkretnego 
 bez sekretów. Dalszy ruch korzysta tylko z przypiętego portu.
 
 Dozwolone komunikaty v1: host → `theme`, `visibility`, `reduced_motion`, `reset`;
-visual → `ready`, `height`, `local_state`, `render_error`, `escape`
-(wyłącznie klawisz Escape, aby host mógł zamknąć pełny ekran; żadne inne wejście
+visual → `ready`, `height`, `local_state`, `render_error`, `escape`, `hover`
+(`escape` to wyłącznie klawisz Escape, aby host mógł zamknąć pełny ekran; `hover`
+to sam boolean „wskaźnik nad ramką”, bez współrzędnych; żadne inne wejście
 nie jest przekazywane). Ścisły schemat,
-do 8 KiB/komunikat, najwyżej 10/s; `height` najwyżej 4/s. Host odrzuca NaN,
+do 8 KiB/komunikat, najwyżej 10/s; `height` i `hover` najwyżej 4/s. Host odrzuca NaN,
 wartości ujemne, starą wersję/nonce oraz wiadomości innej ramki. ResizeObserver
 w kicie zgłasza naturalną wysokość, host ją ogranicza do 160–720 px i stosuje
 jedną zmianę na klatkę. Bez `vh` lub `height:100%` na korzeniu i bez pętli
 rozmiar → iframe → observer. Po przekroczeniu wysokości treść przewija się
 wewnątrz; „Open full screen” otwiera hostowy modal z tym samym sandboxem.
+
+Przewijanie wątku nad ramką: dokument kitu przewija się tylko wtedy, gdy host
+przyciął ramkę poniżej treści (inaczej `overflow: hidden`, bo dokument zdolny
+przewinąć się choć o piksel przejmuje kółko na cały gest). Kółko i dotyk nad
+ramką przewijają feed przez scroll chaining, ale same zdarzenia zostają w ramce,
+więc feed nie widzi gestu czytelnika i cofałby taki scroll jako zmianę układu.
+Dlatego kit zgłasza `hover`, a feed traktuje scroll pod wskazaną ramką jak
+gest czytelnika; własny ruch wskaźnika w dokumencie hosta zeruje ten stan.
 
 `local_state` zawiera wyłącznie 32 dozwolone wartości do 4 KiB. Host waliduje
 je względem spec, buforuje na urządzeniu i może odtworzyć po ponownym montażu.

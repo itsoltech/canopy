@@ -35,7 +35,12 @@ export type FrameMessage =
   | { readonly type: "local_state"; readonly state: VisualState }
   | { readonly type: "render_error"; readonly message: string }
   /** Escape pressed inside the frame, so the host can close its full-screen dialog. No other input is forwarded. */
-  | { readonly type: "escape" };
+  | { readonly type: "escape" }
+  /**
+   * The pointer entered or left the frame. A wheel or touch scroll over it chains to the host's feed while its input
+   * events stay in the frame; the feed takes a scroll under a hovered frame as the reader's. No coordinates cross.
+   */
+  | { readonly type: "hover"; readonly inside: boolean };
 
 const isBoolean = (value: JsonValue | undefined): value is boolean => typeof value === "boolean";
 
@@ -128,6 +133,8 @@ export function parseFrameMessage(data: JsonValue): FrameMessage | undefined {
 
     case "escape":
       return { type: "escape" };
+    case "hover":
+      return isBoolean(data["inside"]) ? { type: "hover", inside: data["inside"] } : undefined;
     case "render_error": {
       const message = data["message"];
 

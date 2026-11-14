@@ -9,6 +9,7 @@ import {
   type HostMessage,
 } from "@canopy/domain/visuals";
 import { Result } from "effect";
+import { reportEmbedHover } from "#lib/shared/ui/virtual/embed-hover.ts";
 import { savedVisualState, saveVisualState } from "./visual-state.ts";
 import { currentVisualTheme, onVisualThemeChange, prefersReducedMotion } from "./visual-theme.ts";
 
@@ -114,6 +115,10 @@ export async function mountVisualFrame(container: HTMLElement, options: FrameOpt
         options.onEscape?.();
 
         return;
+      case "hover":
+        reportEmbedHover(frame, message.inside);
+
+        return;
     }
   };
 
@@ -149,6 +154,7 @@ export async function mountVisualFrame(container: HTMLElement, options: FrameOpt
       motion.removeEventListener("change", onMotion);
       channel.port1.onmessage = null;
       channel.port1.close();
+      reportEmbedHover(frame, false);
       frame.remove();
     },
   };

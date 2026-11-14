@@ -27,6 +27,8 @@ export function followingAfterScroll(
 export class ScrollIntent {
   private until = 0;
   private expected = Number.NaN;
+  /** The pointer is over an embedded frame (embed-hover.ts): a scroll there is the reader's own. */
+  embedded = false;
 
   gesture(now = performance.now()) {
     this.until = now + 250;
@@ -44,7 +46,7 @@ export class ScrollIntent {
 
     if (ours || now < smoothUntil) return "programmatic";
 
-    if (now >= this.until) return "unattributed";
+    if (now >= this.until && !this.embedded) return "unattributed";
     this.gesture(now);
 
     return "reader";
