@@ -2,7 +2,12 @@
   import { applicationName } from "#lib/application-name.ts";
   import { enhance } from "$app/forms";
   import { page } from "$app/state";
-  import { Provider, type ui } from "@canopy/contracts";
+  import { Provider, PermissionMode, ui } from "@canopy/contracts";
+  import { create, toJsonString } from "@bufbuild/protobuf";
+  import { webDrafts } from "#lib/features/drafts/local.svelte.ts";
+  import DraftPersistence from "#lib/features/drafts/DraftPersistence.svelte";
+  import DraftActions from "#lib/features/drafts/DraftActions.svelte";
+  import { prepareDraftForm, watchDraftForm } from "#lib/features/drafts/form.ts";
   import type { ProjectChoice } from "@canopy/domain/projects";
   import { awayReason } from "#lib/features/computers/computers.ts";
   import Crumb from "#lib/features/navigation/Crumb.svelte";
@@ -16,15 +21,13 @@
   import ComposerBox from "#lib/features/threads/components/ComposerBox.svelte";
   import { FileIntake, provideFileIntake } from "#lib/features/attachments/file-intake.svelte.ts";
   import FileDropOverlay from "#lib/features/attachments/FileDropOverlay.svelte";
-  import { AttachmentDraft, limitsOf } from "#lib/features/attachments/draft.svelte.ts";
+  import { limitsOf } from "#lib/features/attachments/draft.svelte.ts";
   import { MentionSources } from "#lib/features/mentions/sources.svelte.ts";
-  import type { Mention } from "@canopy/contracts";
   import { findOption, modelOptions, type ModelOption } from "#lib/features/models/catalog.ts";
   import { useModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
   import ModelControls from "#lib/features/models/ModelControls.svelte";
   import PermissionPicker from "#lib/features/threads/components/PermissionPicker.svelte";
   import { permissionKey } from "#lib/features/threads/labels.ts";
-  import { NEW_THREAD, usePermissionDrafts } from "#lib/features/threads/permission-drafts.svelte.ts";
   import { profileIdValue, providerKeyOf } from "#lib/features/threads/providers.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
@@ -71,7 +74,11 @@
 
   const workspace = $derived.by(() => {
     if (!project) return undefined;
-    const pick = project.workspaces.find((w) => w.id === placed?.workspaceId);
+
+    const pick = project.workspaces.find(
+      (w) => w.id === (placed?.workspaceId ?? page.url.searchParams.get("workspace")),
+    );
+
     const online = (id: string) => overview.worker(id)?.online ?? false;
 
     return (
@@ -109,7 +116,34 @@
     modelOptions({ worker, catalog: models.of(workerId), threads: overview.threads.values(), defaults }),
   );
 
-  let picked = $state<ModelOption>();
+  const saved = $derived(
+    webDrafts.get(
+      create(ui.ComposerDraftTargetSchema, {
+        projectId: workspace?.projectId ?? project?.id ?? "",
+        workspaceId: workspace?.id ?? "",
+      }),
+      () => limitsOf(settings.attachmentLimits),
+    ),
+  );
+
+  const picked = $derived(
+    options.find(
+      (o) =>
+        o.model === saved.choices.model &&
+        Provider[o.provider] === saved.choices.provider &&
+        o.profileId === saved.choices.providerProfileId,
+    ),
+  );
+
+  function pickModel(option: ModelOption | undefined) {
+    if (option)
+      saved.choices = {
+        ...saved.choices,
+        model: option.model,
+        provider: Provider[option.provider],
+        providerProfileId: option.profileId,
+      };
+  }
 
   const fromDefaults = $derived.by(() => {
     if (!defaultProvider) return undefined;
@@ -134,17 +168,13 @@
 
   // Not picked and the profile's default: "" (the thread follows the profile's default model).
   const model = $derived(!selected || (selected !== picked && selected.isDefault) ? "" : selected.model);
-  let effort = $state<string>();
+  const effort = $derived(saved.choices.effort);
 
   // Only an effort the model takes (switching the workspace can change the model).
   const sentEffort = $derived(effort && selected?.efforts.some((e) => e.id === effort) ? effort : "");
 
   // Your pick stays with the new-thread draft (leave and come back); unset = the defaults (Settings → Threads).
-  const permissions = usePermissionDrafts();
-  const permissionMode = $derived(permissions.get(NEW_THREAD) ?? permissionKey(defaults.permissionMode));
-
-  let message = $state("");
-  let mentions = $state<Mention[]>([]);
+  const permissionMode = $derived(permissionKey(saved.choices.permissionMode ?? defaults.permissionMode));
 
   // Mentions of the first message: commands, skills and files of the chosen worker, folder and agent.
   const sources = new MentionSources(() => {
@@ -161,12 +191,12 @@
   });
 
   // Files of the first message (uploaded as added; their ids go with the form).
-  const draft = new AttachmentDraft(() => limitsOf(settings.attachmentLimits));
+  const draft = $derived(saved.files);
 
   // Files pasted anywhere on the page (outside a text field) or dropped on it attach to the message.
   const intake = provideFileIntake(new FileIntake());
   let busy = $state(false);
-  const clientRequestId = crypto.randomUUID();
+  const clientRequestId = $derived(saved.requestId);
 
   // Why the message cannot go yet (the send button is disabled and this says why).
   const blocker = $derived.by(() => {
@@ -204,6 +234,8 @@
   const blockedReason = $derived(workerNote ?? (place.loading ? workspaceNote : undefined) ?? draft.blocker);
 </script>
 
+<DraftPersistence draft={saved} />
+
 <svelte:head><title>New thread · {applicationName}</title></svelte:head>
 
 <div class="relative flex h-full flex-col" {@attach intake.zone}>
@@ -239,18 +271,41 @@
         method="POST"
         action="?/createThread"
         class="grid gap-3"
-        use:enhance={({ cancel }) => {
-          if (blockedReason) return cancel();
+        use:enhance={async ({ cancel, formData, controller }) => {
+          if (blockedReason || busy || saved.preparing) return cancel();
+          const composer = saved;
           busy = true;
-          return async ({ result, update }) => {
-            if (result.type === "redirect") permissions.clear(NEW_THREAD);
-            await update({ reset: false });
+          composer.preparing = true;
+          try {
+            await prepareDraftForm(composer, formData);
+          } catch {
+            composer.preparing = false;
             busy = false;
+            return cancel();
+          }
+          const outgoingRequestId = composer.requestId;
+          const finish = watchDraftForm(composer, controller, () => (busy = false));
+          return async ({ result, update }) => {
+            try {
+              if (result.type === "redirect" && composer.requestId === outgoingRequestId) composer.clear();
+              if (controller.signal.aborted) return;
+              if (result.type === "failure" && ![408, 502, 504].includes(result.status))
+                composer.cancelSend(result.status === 409 || result.status === 404);
+              if (result.type === "error" && result.status === 500) composer.cancelSend();
+              await update({ reset: false });
+            } finally {
+              finish();
+            }
           };
         }}
       >
         <input type="hidden" name="projectId" value={workspace?.projectId ?? project.id} />
         <input type="hidden" name="clientRequestId" value={clientRequestId} />
+        <input
+          type="hidden"
+          name="composerContent"
+          value={toJsonString(ui.ComposerDraftContentSchema, saved.outgoing())}
+        />
         <input type="hidden" name="provider" value={selected?.provider ?? ""} />
         <input type="hidden" name="profileId" value={selected?.profileId ?? ""} />
         <input type="hidden" name="model" value={model} />
@@ -264,10 +319,12 @@
         {#if form?.error}<Alert tone="error">{form.error}</Alert>{/if}
         <ComposerBox
           shell
-          bind:value={message}
-          bind:mentions
+          bind:value={saved.text}
+          bind:mentions={saved.mentions}
+          quoteKey={saved.quoteKey}
           {sources}
           sending={busy}
+          readonly={busy || saved.locked}
           canSend={!blocker && !draft.blocker}
           {blockedReason}
           autofocus
@@ -278,8 +335,8 @@
             {#if workspace && selected}
               <ModelControls
                 {options}
-                bind:option={() => selected, (option) => (picked = option)}
-                bind:effort
+                bind:option={() => selected, pickModel}
+                bind:effort={() => effort, (next) => (saved.choices = { ...saved.choices, effort: next })}
                 {workerId}
                 class="flex-1 justify-end"
               />
@@ -339,11 +396,15 @@
                 {/if}
               {/snippet}
               {#snippet permissionControl()}
-                <PermissionPicker value={permissionMode} onselect={(mode) => permissions.set(NEW_THREAD, mode)} />
+                <PermissionPicker
+                  value={permissionMode}
+                  onselect={(mode) => (saved.choices = { ...saved.choices, permissionMode: PermissionMode[mode] })}
+                />
               {/snippet}
             </ComposerContextRow>
           {/snippet}
         </ComposerBox>
+        <DraftActions draft={saved} disabled={busy} />
       </form>
     {/if}
   </CenteredContent>

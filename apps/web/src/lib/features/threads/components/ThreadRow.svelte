@@ -1,4 +1,5 @@
 <script lang="ts">
+  import DraftMarker from "#lib/features/drafts/DraftMarker.svelte";
   import type { ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import { clock } from "#lib/shared/clock.svelte.ts";
@@ -53,6 +54,7 @@
       </span>
     {/if}
   </span>
+  <div class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400"><DraftMarker threadId={thread.id} /></div>
   {#if needsYou(thread)}
     <span
       class="flex h-lh shrink-0 items-center gap-1 text-sm/5 font-medium text-amber-700 sm:text-xs/5 dark:text-amber-400"

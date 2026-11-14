@@ -1,5 +1,20 @@
 # Pomiar wydajności klientów
 
+Szkice kompozytora są lokalne: zapis dyskowy jest ograniczony do 100 wpisów/4 MiB
+i opóźniony o 250 ms. Pisanie nie uruchamia RPC. Handoff publikuje wyłącznie przy
+opuszczeniu kompozytora, przejściu w tło lub jawnej akcji. Lista Drafts pobiera strony
+20 rekordów (serwer maksymalnie 50), a powiadomienia przenoszą tylko rewizję.
+Web współdzieli jeden EventSource między podpowiedzią i dialogiem; mobile ma jedną
+subskrypcję na sesję. Oba zatrzymują strumień w tle. Nie dołączamy treści szkiców do
+overview, luster, diagnostyki ani snapshotów historii. Lista ma jeden współdzielony
+odczyt pierwszej strony na klienta. Zapis lokalny serializuje zmieniony wpis raz
+i przepisuje tylko jego klucz/plik. Markery subskrybują własny cel, a sygnał listy
+celów zmienia się wyłącznie przy dodaniu/usunięciu szkicu. Wysyłka to jedno RPC
+bez poprzedzającego zapisu szkicu i bez czekania na zapis już w toku. Spóźniona
+odpowiedź zapisu nie odtwarza wyczyszczonego ani odnowionego kompozytora.
+Powiadomienia gatewaya budzi zatwierdzona zmiana,
+bez okresowych zapytań DB dla każdej subskrypcji.
+
 Narzędzia służą do porównywania zmian renderera web/desktop i kodu JS aplikacji
 mobilnej. Nie są zestawem testów UI. Używają deterministycznych danych syntetycznych;
 nie wymagają kont dostawców ani dostępu do istniejących rozmów. Wyniki liczbowe
