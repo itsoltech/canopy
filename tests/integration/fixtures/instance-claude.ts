@@ -9,6 +9,7 @@ import { recordInput, recordProbe, releaseProbe } from "./instance-probe.ts";
 import { botFailure, botTool, claudeBotConfig } from "./bot-probe.ts";
 import { archivedBackground } from "./instance-background.ts";
 import { sdkInventory } from "./instance-mcp.ts";
+import { claudeLimits } from "./provider-usage.ts";
 
 if (process.argv.includes("--version")) {
   console.log("Claude Code 2.1.316");
@@ -38,6 +39,8 @@ let instructions = "";
 
 async function turn(text: string): Promise<void> {
   recordProbe("claude", "turn", session, "", inventory.tools);
+
+  if (claudeLimits(text, session, send)) return;
   send({
     type: "system",
     subtype: "init",

@@ -30,6 +30,7 @@ import { createUpdateCenter } from "../updates/center-composition.ts";
 import { WorkerSsh } from "./worker-ssh.ts";
 import { CliTools } from "./cli-tools.ts";
 import { ProviderAccounts } from "./provider-accounts.ts";
+import { ProviderUsage } from "./provider-usage.ts";
 import { AgentEnvironment } from "../agent-environment/service.ts";
 import type { LinkedComputers } from "../computers/runtime.ts";
 import type { NetworkAccess } from "../network/network.ts";
@@ -84,6 +85,7 @@ const createCoreGitHub = (core: GatewayCore, options: GatewayCoreOptions) =>
 export class GatewayCore {
   readonly diagnostics: Diagnostics;
   readonly accounts = new ProviderAccounts(this);
+  readonly usage = new ProviderUsage(this);
   readonly role: GatewayRole;
   readonly [coreState] = new GatewayCoreState();
   declare sweep: CoreWorkLoopMethods["sweep"];

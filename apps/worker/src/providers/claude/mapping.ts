@@ -1,4 +1,5 @@
 import { ActiveGoal, goalAnswer, isTaskNotificationAck, type GoalVerdict } from "./goal-mapping.ts";
+import { claudeLimitError } from "../usage-limits.ts";
 
 export { isTaskNotificationAck, startsTurn, type GoalVerdict } from "./goal-mapping.ts";
 
@@ -448,7 +449,11 @@ export class ClaudeEventMapper {
         outcome,
         source,
         ...(outcome === TurnOutcome.FAILED && {
-          errorCode: message.subtype === "success" ? "error_result" : message.subtype,
+          errorCode: claudeLimitError(reason)
+            ? "usage_limit"
+            : message.subtype === "success"
+              ? "error_result"
+              : message.subtype,
         }),
         providerTurnRef: this.#lastUuid ?? "",
         ...(outcome !== TurnOutcome.COMPLETED && reason && { reason }),

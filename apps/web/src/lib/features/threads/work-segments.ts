@@ -67,7 +67,8 @@ export function planFolds(
   }
 
   for (const notice of turnNotices(notices, turns, entries))
-    add(notice.turnId, `notice:${notice.seq}`, notice.seq, { phase: undefined, steer: false });
+    if (notice.notice.code !== "extra_usage")
+      add(notice.turnId, `notice:${notice.seq}`, notice.seq, { phase: undefined, steer: false });
   const folds: FoldPlan[] = [];
   const workOf = new Map<string, string>();
   const last = new Map<string, string>();

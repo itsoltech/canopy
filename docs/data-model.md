@@ -1,5 +1,11 @@
 # Model danych (PostgreSQL)
 
+Migracja `0141_provider_usage` przechowuje ostatnie oczyszczone limity konta
+per `(worker_id, provider, profile_id)`, z niejawnym `account_key` runtime/home,
+wersją konfiguracji i `observed_at`. Snapshot JSON zawiera wyłącznie typowane
+okna i jawne sygnały dodatkowego użycia. Odczyt/zapis ogranicza właściciel workera
+oraz instancji; snapshot dla starej konfiguracji nie trafia do UI.
+
 Migracja `0135_video_attachments` rozszerza `attachments.kind` o `video` i dodaje
 opcjonalny `duration_ms` (dodatnie milisekundy, zakres uint32). Nie przepisuje
 historycznych załączników ani blobów. Nowe filmy zachowują oryginał oraz neutralną

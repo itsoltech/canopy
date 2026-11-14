@@ -1,4 +1,4 @@
-import { TurnEndSource, TurnOrigin, TurnOutcome } from "@canopy/contracts";
+import { NoticeLevel, TurnEndSource, TurnOrigin, TurnOutcome } from "@canopy/contracts";
 import { Schema } from "effect";
 import { decodeJson } from "../json.ts";
 import type { ThreadEventInit } from "../../journal/index.ts";
@@ -49,6 +49,19 @@ export async function consumeSession(
 
       if (!next || next.done) break;
       const message = next.value;
+
+      if (ctx.usage.observe(message, session.query))
+        await record(threadId, {
+          turnId: session.turn?.turnId ?? "",
+          body: {
+            case: "notice",
+            value: {
+              code: "extra_usage",
+              level: NoticeLevel.WARNING,
+              message: "This turn uses extra usage credits.",
+            },
+          },
+        });
 
       if (await suppressWake(session, message)) continue;
 

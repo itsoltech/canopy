@@ -1,5 +1,13 @@
 # API dla UI i architektura frontendu
 
+## Limity kont providerów
+
+`InstanceOnWorker.usage` i `WorkerInstance.usage` mają ostatni snapshot oficjalnego
+harnessu. `WatchOverview.worker` aktualizuje konkretny worker; Settings → Providers
+scala usage bez dodatkowego odczytu listy. Mierniki, ostrzeżenia composera i karty
+błędów web/desktop/mobile korzystają z `domain/provider-usage`. Brak raportu
+nie oznacza zerowego użycia. Zasady źródeł i kredytów: [provider-accounts.md](provider-accounts.md#limity-planu-i-dodatkowe-użycie).
+
 ## Szkice kompozytora i przekazywanie między urządzeniami
 
 `@canopy/domain/composer-drafts` jest wspólnym magazynem lokalnym. Klucz to wątek

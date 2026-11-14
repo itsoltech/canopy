@@ -1,4 +1,4 @@
-import { query, type SDKUserMessage, type SpawnOptions } from "@anthropic-ai/claude-agent-sdk";
+import { query, type SDKUserMessage, type SpawnOptions, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { ClaudeEventMapper } from "../providers/claude/mapping.ts";
 import { claudeProfileOptions } from "../providers/claude/profile.ts";
 import { claudeExecutable } from "../providers/claude/executable.ts";
@@ -9,6 +9,31 @@ import type { BotHarnessContext } from "./types.ts";
 import { BotHarnessFailure } from "./types.ts";
 import { rejectBotToolApproval } from "./failures.ts";
 import { spawnClaude } from "../providers/claude/spawn.ts";
+import { ClaudeUsage } from "../providers/claude/usage.ts";
+import { NoticeLevel } from "@canopy/contracts";
+import { claudeLimitError } from "../providers/usage-limits.ts";
+
+async function observeUsage(ctx: BotHarnessContext, usage: ClaudeUsage, message: SDKMessage) {
+  if (usage.observe(message))
+    await ctx.record({
+      body: {
+        case: "notice",
+        value: { code: "extra_usage", level: NoticeLevel.WARNING, message: "This turn uses extra usage credits." },
+      },
+    });
+}
+
+async function noteSession(ctx: BotHarnessContext, id: string, resumed: boolean) {
+  const path = resumed ? transcriptPath(ctx.session.home, id) : undefined;
+
+  await ctx.noteHarness({
+    harness: "claude",
+    transcript: ctx.session.home,
+    sessionId: id,
+    offset: path ? statSync(path).size : 0,
+    providerTurn: "",
+  });
+}
 
 function botClaudeProcess() {
   let done = Promise.resolve();
@@ -34,14 +59,7 @@ export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
   const resumed = Boolean(session.id && transcriptPath(session.home, session.id));
   const id = resumed ? session.id : crypto.randomUUID();
   session.save(id);
-  const path = resumed ? transcriptPath(session.home, id) : undefined;
-  await ctx.noteHarness({
-    harness: "claude",
-    transcript: session.home,
-    sessionId: id,
-    offset: path ? statSync(path).size : 0,
-    providerTurn: "",
-  });
+  await noteSession(ctx, id, resumed);
   const webTools = input.webAccess ? ["WebSearch", "WebFetch"] : [];
   const allowedTools = [...webTools, ...input.tools.map((t) => `mcp__canopy__${t.name}`)];
   const profile = claudeProfileOptions(ctx.profile, process.env);
@@ -113,8 +131,12 @@ export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
   const textItems = new Set<string>();
 
   try {
+    const usage = new ClaudeUsage(ctx.onUsage, ctx.usageSnapshot);
+
     for await (const message of q) {
       signal.throwIfAborted();
+
+      await observeUsage(ctx, usage, message);
 
       if (message.type === "assistant") {
         if (message.error)
@@ -145,7 +167,11 @@ export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
 
         if (message.subtype !== "success" || message.is_error)
           throw new BotHarnessFailure(
-            message.subtype === "success" ? "error_result" : message.subtype,
+            claudeLimitError(message.subtype === "success" ? message.result : message.errors.join("; "))
+              ? "usage_limit"
+              : message.subtype === "success"
+                ? "error_result"
+                : message.subtype,
             message.subtype === "success" ? message.result : message.errors.join("; "),
           );
 

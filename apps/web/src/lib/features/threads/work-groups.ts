@@ -162,7 +162,10 @@ export function foldTurns(
   for (const row of rows) {
     const turnId = turnIdOf(row);
 
-    if (row.kind === "item" && isReplyResult(row.node.entry.item.content)) {
+    if (
+      (row.kind === "item" && isReplyResult(row.node.entry.item.content)) ||
+      (row.kind === "notice" && row.notice.notice.code === "extra_usage")
+    ) {
       const list = results.get(turnId) ?? [];
       list.push(row);
       results.set(turnId, list);

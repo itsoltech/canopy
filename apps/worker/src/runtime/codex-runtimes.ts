@@ -10,6 +10,7 @@ import { type ProfileRuntimeConfig, type ResolvedProfile } from "../providers/pr
 
 import { CommandError, kindOf, taskOf, usableBy, codexProfileGroup, type CodexGroup } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
+import { usageReporter } from "./usage-limits.ts";
 
 export class CodexRuntimes {
   constructor(readonly ctx: HostContext) {}
@@ -138,6 +139,8 @@ export class CodexRuntimes {
 
     if (home.problem) this.ctx.ops.log(`codex home: ${home.problem}`);
 
+    const usage = usageReporter(this.ctx, Provider.CODEX, group.id ?? "native", home.path, group.key);
+
     const layer = CodexThreads.layer({
       launch: codexAppServerLaunch(
         profiles,
@@ -149,6 +152,7 @@ export class CodexRuntimes {
         runtime.launchArgs,
       ),
       clientVersion: this.ctx.state.options.clientVersion,
+      onUsage: usage.report,
       configuredEffort: () => readCodexConfiguredEffort(deviceHome),
       profile: (id) => profiles.find((p) => p.id === (id || "native")),
       importedResumePath: (spec, provider) =>
@@ -166,7 +170,7 @@ export class CodexRuntimes {
       interact: (request) => this.ctx.ops.interact(request),
       callTool: (call) => this.ctx.ops.callTool(call),
       viewImage: (threadId, path) => this.ctx.ops.viewImage(threadId, this.ctx.state.cwds.get(threadId) ?? "", path),
-      enrich: (init) => this.ctx.state.previews.enrich(init),
+      enrich: (init) => this.ctx.state.previews.enrich(usage.failure(init)),
       connectors: config.nativeTools.nativeConnectors === true,
     });
 

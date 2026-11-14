@@ -58,7 +58,14 @@ export class TextGeneration {
       );
 
       const model = input.model || catalog?.models?.find((m) => m.isDefault)?.id || "";
-      const chosen = { ...input, model };
+      const usageKey = `${input.provider}/${profile.id}`;
+
+      const chosen = {
+        ...input,
+        model,
+        onUsage: this.ctx.state.usageObservers.get(usageKey)?.report,
+        usageSnapshot: this.ctx.state.usage.get(usageKey)?.snapshot,
+      };
 
       const text = await Match.value(provider).pipe(
         Match.when("grok", () =>

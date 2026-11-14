@@ -145,10 +145,13 @@ export class BotTurns {
     active.workspace = session.workspace;
     active.files = input.files;
     const release = session.workspace.hold();
+    const usage = this.ctx.state.usageObservers.get(`${input.provider}/${profile.id}`);
 
     const record = async (event: ThreadEventInit) => {
       const saved = await this.ctx.state.options.runtime.runPromise(
-        Journal.use((j) => j.append(input.botId, { ...botFailureEvent(event), turnId: input.turnId })),
+        Journal.use((j) =>
+          j.append(input.botId, { ...botFailureEvent(usage?.failure(event) ?? event), turnId: input.turnId }),
+        ),
       );
 
       this.ctx.ops.publish(saved);
@@ -189,6 +192,8 @@ export class BotTurns {
     }
 
     const context = {
+      onUsage: usage?.report,
+      usageSnapshot: this.ctx.state.usage.get(`${input.provider}/${profile.id}`)?.snapshot,
       input,
       session,
       profile,

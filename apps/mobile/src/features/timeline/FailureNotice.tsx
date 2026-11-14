@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { safeFailureDetail } from "@canopy/domain/failures";
 import { failurePresentation } from "@canopy/domain/failure-presentation";
+import { usageFailureHeading } from "@canopy/domain/provider-usage";
 import { font, styles, useColors, useTypography } from "../../ui/theme";
 import { useTone } from "../../ui/tone";
 import { Chevron } from "../../ui/MotionViews";
@@ -40,7 +41,9 @@ export function FailureNotice({
 
   return (
     <View accessibilityRole="alert" style={{ gap: 8 }}>
-      <Text style={[styles.body, { fontFamily: font.medium, color: rose }]}>{heading}</Text>
+      <Text style={[styles.body, { fontFamily: font.medium, color: rose }]}>
+        {failure.kind === "usage_limit" ? (usageFailureHeading(code) ?? "Usage limit reached") : heading}
+      </Text>
       {!historical && <Text style={[styles.body, { color: c.muted }]}>{failure.explanation}</Text>}
       {!historical && failure.kind === "auth_required" && authHint ? (
         <Text style={[styles.body, { color: c.muted }]}>{authHint}</Text>

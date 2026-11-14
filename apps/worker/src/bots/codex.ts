@@ -6,6 +6,7 @@ import { CodexAppServer } from "../providers/codex/app-server.ts";
 import { codexAppServerLaunch, codexThreadProvider, type CodexAppServerLaunch } from "../providers/codex/launch.ts";
 import { codexTextOverrides } from "../providers/generate-text.ts";
 import { codexBotCatalog, codexModelEntry } from "./codex-catalog.ts";
+import { codexUsage } from "../providers/usage-limits.ts";
 import type { BotHarnessContext } from "./types.ts";
 import { BotHarnessFailure } from "./types.ts";
 import { codexErrorCode } from "../providers/codex/status-mapping.ts";
@@ -102,6 +103,9 @@ function codexBotProgram(ctx: BotHarnessContext, launch: CodexAppServerLaunch) {
     yield* Effect.forkScoped(
       server.notifications.pipe(
         Stream.runForEach((event) => {
+          if (event.method === "account/rateLimits/updated")
+            return Effect.sync(() => ctx.onUsage?.(codexUsage(event.params.rateLimits)));
+
           if (!("threadId" in event.params) || event.params.threadId !== id) return Effect.void;
 
           if (

@@ -17,6 +17,7 @@ import type { Env, ResolvedProfile } from "../profiles.ts";
 import type { ViewImageResult } from "../../images/index.ts";
 import { ClaudeEventMapper } from "./mapping.ts";
 import type { AutoAllow } from "./permissions.ts";
+import type { ClaudeUsage } from "./usage.ts";
 
 export class ClaudeThreadError extends Schema.TaggedError<ClaudeThreadError>()("ClaudeThreadError", {
   threadId: Schema.String,
@@ -25,6 +26,7 @@ export class ClaudeThreadError extends Schema.TaggedError<ClaudeThreadError>()("
 }) {}
 
 export interface ClaudeThreadsOptions {
+  onUsage?(snapshot: import("@canopy/contracts").ProviderUsageSnapshot): void;
   /** Isolated Claude config dir (CLAUDE_CONFIG_DIR, claude/home.ts). */
   readonly home: string;
   /** How long an idle process that had background tasks waits for a turn Claude starts itself (default 3 s). */
@@ -120,6 +122,7 @@ export interface SessionTurn {
 }
 
 export interface ClaudeThreadContext {
+  usage: ClaudeUsage;
   options: ClaudeThreadsOptions;
   journal: Journal["Service"];
   sessions: Map<string, Session>;

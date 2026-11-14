@@ -2183,6 +2183,7 @@ message InstanceOnWorker {
   canopy.worker.v1.ProviderAccountStatus account = 14;
   // Connection in the worker's actual ConfigApplied report; absent when not reported.
   optional canopy.worker.v1.ProviderProfileKind kind = 15;
+  canopy.worker.v1.ProviderUsageSnapshot usage = 16;
 }
 
 message ProviderInstance {
@@ -2225,6 +2226,7 @@ message WorkerInstance {
   canopy.worker.v1.ProviderAccountStatus account = 10;
   // Full status from this worker's home, also carried over linked overview streams.
   InstanceOnWorker status = 11;
+  canopy.worker.v1.ProviderUsageSnapshot usage = 12;
 }
 
 message ListProviderInstancesRequest {}

@@ -122,7 +122,76 @@ własny frontend i nie pokazuje tych pól. Nie dodano skanera tekstu ani
 rozmywania dowolnych nazw. Nazwa organizacji pozostaje jawna; org ID nie
 jest przesyłane.
 
-## Testy
+## Limity planu i dodatkowe użycie
+
+Limity mają osobny, trwały kontrakt `ProviderUsageReport`, niezależny od statusu
+logowania. Jedynym źródłem są oficjalne harnessy; Canopy nie odpytuje endpointów
+rozliczeniowych ani nie czyta tokenów logowania.
+
+- Codex: protokół app-server **0.164.0**, `account/rateLimits/read` przy starcie
+  procesu i odczycie konta oraz `account/rateLimits/updated` podczas pracy.
+  Czytamy okna `primary`/`secondary`, procent, reset i dostępność kredytów.
+  Odczyt używa `excludeResetCreditDetails:true`; nie ustawiamy
+  `supportsLunaReserve` ani nie wywołujemy komendy zużycia reset-credit.
+- Claude: SDK **0.3.316**, `rate_limit_event` i oficjalne prefiksy
+  `USAGE_LIMIT_ERROR_PREFIXES`, `USAGE_WARNING_PREFIXES`, `USAGE_TRANSITION_PREFIXES`.
+  Pojedyncze okna zdarzeń są scalane w obrębie runtime'u. `utilization`
+  zdarzenia jest ułamkiem, odczytu `/usage` procentem. Opcjonalny odczyt SDK
+  `usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET` działa najwyżej raz
+  na 15 min, przy inicjalizacji sesji lub odczycie konta z istniejącą sesją.
+  Nie uruchamiamy modelu tylko do odczytu limitów. Nowsze zdarzenie wygrywa
+  z wcześniejszym odczytem w locie; brak obsługi metody nie blokuje tury.
+- Grok ACP raportuje użycie kontekstu i koszt sesji, ale nie limity konta.
+  Nie zamieniamy tych danych na limity planu; UI niczego nie dopisuje.
+
+Addytywne `WorkerMessage.provider_usage` nie zmienia `WORKER_LINK_PROTOCOL`.
+Klucz obejmuje provider, profil i skrót tożsamości runtime'u wraz z CLI home.
+Stary runtime podczas drain nie może przepisać danych nowego home. Snapshot
+jest ponawiany po połączeniu. Niezmieniony runtime ponownie wiąże go z nową
+wersją konfiguracji; zmienione konto/home wymaga nowego raportu harnessu.
+
+Gateway zapisuje oczyszczony snapshot w `provider_usage` (migracja 0141),
+osobno dla workera/providera/profilu, z kluczem konta, wersją konfiguracji i czasem
+obserwacji. Zapis i odczyt filtrują właściciela workera i instancji. Starsze
+raporty i inne wersje konfiguracji są odrzucane. UI dostaje zmianę konkretnego
+workera w `WatchOverview`, bez ponownego pobierania wszystkich instancji.
+Restart gatewaya i offline workera nie usuwają ostatniego snapshotu.
+Izolowane harnessy botów i generowania tekstu przekazują zgłoszone zdarzenia
+do tego samego obserwatora konta źródłowego. Nie dodają odczytów okresowych.
+
+Settings → Providers pokazuje mierniki i czas do resetu. Composer web/desktop/mobile
+ostrzega przy ≥90%, ostrzeżeniu harnessu lub wyczerpaniu okna. Po minionym
+resecie stary procent nie oznacza aktualnego wyczerpania. Błąd tury zachowuje
+rodzaj okna i reset w kodzie `usage_limit:<window>:<unix-seconds>`; późniejszy
+raport konta nie zmienia historycznej karty. Szczegóły są w „Show details”.
+
+### Ograniczenia informacji o kredytach
+
+Codex `credits.hasCredits` i `unlimited` oznaczają dostępność, **nie potwierdzenie
+obciążenia tury**. Po wyczerpaniu planu pokazujemy „Plan limit reached. Further
+turns may use credits.”. Saldo nie opuszcza adaptera i nie jest zapisywane.
+Koszt/tokeny również nie dowodzą płatnego fallbacku. Claude może potwierdzić
+go przez `isUsingOverage`/`overageInUse` lub oficjalny komunikat przejścia.
+Wtedy composer i ustawienia mówią „Extra usage credits are active.”, a trwały
+notice tury: „This turn uses extra usage credits.”.
+Sukces tury nie ukrywa notice'u rozliczeniowego jako odzyskanego błędu.
+W osi wątku web/mobile pozostaje on poza zwiniętą sekcją pracy.
+
+Sprawdzone kontrakty nie udostępniają wspieranego przełącznika zabraniającego
+użycia kredytów przy rozpoczęciu tury. Nie dodajemy ustawienia „Stop when the
+plan limit is reached”. Canopy nie może zagwarantować ostrzeżenia przed
+obciążeniem, jeśli harness dopiero po rozpoczęciu pracy ujawnia limit/przejście.
+Nie przedstawiamy dostępnego salda jako dowodu rozliczenia.
+
+## Testy limitów
+
+`provider-usage.test.ts` i `provider-usage-bots.test.ts` używają prawdziwego WorkerHost, gRPC, PostgreSQL oraz
+fake Codex app-server / Claude CLI czytanego przez prawdziwy Agent SDK. Obejmuje
+odczyt początkowy, zdarzenia, incremental overview, persystencję/restart,
+owner scope, odrzucenie starej konfiguracji, mapowanie błędu i trwały notice
+dodatkowego użycia. Nie wymaga prawdziwych kont ani testów live.
+
+## Testy statusu konta
 
 Testy adapterów używają fake CLI, bez prawdziwych kont. Obejmują odpowiedzi
 Claude/Codex, brak loginu, niepoprawny format, timeout,

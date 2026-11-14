@@ -51,20 +51,25 @@ export function coreInstances<A, E>(
 
 /** Workers with their instances (Worker.provider_instances). */
 export async function coreWorkers(hostContext: GatewayCore): Promise<ui.Worker[]> {
-  const [workers, instances] = await Promise.all([
+  const [workers, instances, usage] = await Promise.all([
     coreRun(hostContext, (s) => s.listWorkers(hostContext.online, hostContext[coreState].options.userId)),
     coreInstances(hostContext, (s) => s.workerInstances()),
+    hostContext.usage.read(),
   ]);
 
   for (const worker of workers) {
     worker.providerInstances = instances.get(worker.id) ?? [];
 
     for (const instance of worker.providerInstances) {
+      instance.usage = instance.enabled ? usage.get(`${worker.id}/${instance.harness}/${instance.id}`) : undefined;
       instance.account = instance.enabled
         ? hostContext.accounts.get(worker.id, instance.harness, instance.id, worker.configVersion)
         : undefined;
 
-      if (instance.status) instance.status.account = instance.account;
+      if (instance.status) {
+        instance.status.account = instance.account;
+        instance.status.usage = instance.usage;
+      }
     }
 
     worker.networkRouteStatus = hostContext.link.connections.get(worker.id)?.networkRouteStatus;
@@ -96,7 +101,9 @@ export const coreProvidersMethods: CoreProvidersMethods = {
 
   /** Every global instance with its state on every worker; no secret values, only whether they are set. */
   async listProviderInstances(this: GatewayCore): Promise<ui.ProviderInstance[]> {
-    return this.accounts.decorate(await coreInstances(this, (s) => s.list(this[coreState].options.userId)));
+    return this.usage.decorate(
+      this.accounts.decorate(await coreInstances(this, (s) => s.list(this[coreState].options.userId))),
+    );
   },
 
   /** New or changed instance: new configuration versions for the workers it runs on, sent to the online ones. */

@@ -62,6 +62,7 @@
     "./work-group-choices": "./src/work-group-choices.ts",
     "./mentions": "./src/mentions/index.ts",
     "./provider-accounts": "./src/provider-accounts.ts",
+    "./provider-usage": "./src/provider-usage.ts",
     "./update-checks": "./src/update-checks.ts",
     "./computers": "./src/computers.ts",
     "./diagnostics": "./src/diagnostics/index.ts",

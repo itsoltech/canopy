@@ -19,6 +19,7 @@
   import StatusLine from "./StatusLine.svelte";
   import WorkersField from "./WorkersField.svelte";
   import AccountStatusRow, { hasAccountStatus } from "./AccountStatusRow.svelte";
+  import UsageMeters from "./UsageMeters.svelte";
   import type { WorkerRecords } from "#lib/features/workers/worker-records.svelte.ts";
 
   /**
@@ -139,6 +140,7 @@
             />
           </dd>{/if}
       </dl>
+      <UsageMeters usage={on?.usage} />
       {#if appSignIn && on?.enabled}
         <LoginPanel {instance} {worker} {on} />
       {/if}
@@ -173,6 +175,7 @@
                   onupdated={() => providers.reload()}
                 />
               </div>{/if}
+            <UsageMeters usage={w.usage} class="basis-full" />
           </li>
         {:else}
           <li class="px-3 py-2.5 text-base/6 text-zinc-500 sm:text-sm/6">No workers yet.</li>
