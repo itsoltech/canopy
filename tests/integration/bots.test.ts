@@ -14,6 +14,45 @@ import { botsSuite, reply, tool, lastInput } from "./support/bots.ts";
 describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, exchanges and approvals", () => {
   const { suite, configuration, add, read, settled, send, restart } = botsSuite();
 
+  test("idle preflight is owner-scoped, honors lease deadlines and recovers durable work", async () => {
+    await suite.current.bots.stop();
+    const poll = (owner = suite.gw.userId) => suite.current.bots.run((s) => s.poll(owner, new Date()));
+
+    try {
+      expect(await poll()).toEqual({ ready: false, configured: false });
+      const bot = await add("Queue preflight");
+      expect(await poll()).toEqual({ ready: false, configured: true });
+
+      const turn = await suite.current.bots.run((s) =>
+        s.enqueue(suite.gw.userId, bot.id, "recover", crypto.randomUUID()),
+      );
+
+      expect((await poll()).ready).toBe(true);
+      expect(await poll(crypto.randomUUID())).toEqual({ ready: false, configured: false });
+      await suite.current.bots.run((s) => s.claim(suite.gw.userId));
+      expect(await poll()).toEqual({ ready: false, configured: true });
+
+      const lease = (interval: string) =>
+        suite.gw.runtime.runPromise(
+          Effect.flatMap(
+            SqlClient.SqlClient,
+            (sql) => sql`UPDATE bot_turns SET lease_until=now()+${interval}::interval WHERE id=${turn}::uuid`,
+          ),
+        );
+
+      await lease("1.5 seconds");
+      const waiting = await poll();
+      expect(waiting.ready).toBe(false);
+      await lease("-1 second");
+      expect((await poll()).ready).toBe(true);
+      suite.current.bots.start();
+      expect((await settled(bot.id)).messages.at(-1)?.text).toBe("Reply: recover");
+      await suite.current.bots.remove(bot.id);
+    } finally {
+      suite.current.bots.start();
+    }
+  });
+
   test("create/list/update and one idempotent conversation stream, hidden from Threads", async () => {
     suite.model = async (i) => reply(`Reply: ${lastInput(i)}`);
     const requestId = Bun.randomUUIDv7();
