@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { GitRef, ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
-  import { branchSwitchReason, headLabel } from "@canopy/domain/git-heads";
+  import { branchSwitchReason, distinctUpstream, headLabel } from "@canopy/domain/git-heads";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
   import SearchPicker from "#lib/shared/ui/SearchPicker.svelte";
@@ -9,7 +9,6 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import MiddleTruncatedText from "#lib/shared/ui/MiddleTruncatedText.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
-  import PanelField from "./PanelField.svelte";
   import { threadBranches, switchThreadBranch } from "../branches.ts";
   import { runningAnimation } from "#lib/shared/activity.ts";
 
@@ -17,6 +16,8 @@
   const overview = useOverview();
   const capabilities = useGatewayCapabilities();
   const head = $derived(thread.worktree ?? thread.checkoutHead);
+  const label = $derived(head ? headLabel(head) : "Unknown branch");
+  const upstream = $derived(thread.worktree ? distinctUpstream(thread.worktree.branch, thread.worktree.baseRef) : "");
 
   const reason = $derived(
     branchSwitchReason(thread, worker, overview.computer(thread.nodeId)) ||
@@ -31,6 +32,9 @@
   let error = $state("");
   let checkoutReason = $state("");
   let refs = $state<GitRef[]>([]);
+
+  // The full name, where it started (when that is another branch) and why switching is unavailable.
+  const hint = $derived([label, upstream && `From ${upstream}`, reason || checkoutReason].filter(Boolean).join(" · "));
 
   $effect(() => {
     const id = thread.id;
@@ -82,25 +86,17 @@
 </script>
 
 {#snippet value()}
-  <PanelField icon="git-fork" label="Branch">
-    <p class="font-mono text-sm/5 wrap-anywhere select-text sm:text-xs/5">
-      {head ? headLabel(head) : "Unknown branch"}
-    </p>
-    {#if thread.worktree?.baseRef}<p class="flex min-w-0 gap-1 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
-        <span class="shrink-0">from</span><MiddleTruncatedText
-          text={thread.worktree.baseRef}
-          class="font-mono select-text"
-        />
-      </p>{/if}
-    {#snippet aside()}
-      <span class="flex" {@attach busy ? runningAnimation : undefined}
-        ><Icon
-          name={busy ? "arrow-path" : "chevron-down"}
-          class={["shrink-0", busy && "motion-safe:animate-spin"]}
-        /></span
-      >
-    {/snippet}
-  </PanelField>
+  <span class="flex min-h-9 w-full min-w-0 items-center gap-2 px-2 text-base/5 sm:min-h-8 sm:text-sm/5">
+    <Icon name="git-fork" class="shrink-0" />
+    <MiddleTruncatedText text={label} hint={false} class="flex-1 font-mono" />
+    <!-- Fixed slot: switching shows a spinner in the chevron's place. -->
+    <span class="flex size-4 shrink-0 items-center justify-center" {@attach busy ? runningAnimation : undefined}
+      ><Icon
+        name={busy ? "arrow-path" : "chevron-down"}
+        class={["shrink-0", busy && "motion-safe:animate-spin"]}
+      /></span
+    >
+  </span>
 {/snippet}
 
 <div class={["min-w-0", className]}>
@@ -132,7 +128,7 @@
           reason || checkoutReason || busy ? "text-zinc-500 dark:text-zinc-400" : "text-zinc-700 dark:text-zinc-300",
           "dark:not-aria-disabled:hover:bg-white/5 dark:not-aria-disabled:focus-visible:bg-white/5",
         ]}
-        {@attach tooltip(reason || checkoutReason || undefined)}
+        {@attach tooltip(hint)}
       >
         {@render value()}
       </button>

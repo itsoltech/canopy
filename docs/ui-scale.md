@@ -156,8 +156,13 @@ natywne działanie przeglądarki na zaznaczalnych obszarach.
   i `provideDensity("overlay")`.
 - Panel szczegółów wątku korzysta z `density-chrome`, także w arkuszu telefonu.
   Wiersze mają co najmniej 36 / 32 px, odstęp ikon 8 px i pionowy padding sekcji 4 px.
-  Kopiowanie katalogu pojawia się przy hoverze lub fokusie (na dotyku zawsze),
-  a miejsce na nie i Stop zadania pozostaje zarezerwowane w każdym stanie.
+  Położenie i gałąź mają po jednym wierszu bez osobnej etykiety: worktree pokazuje swoją
+  nazwę, katalog skraca początek ścieżki, gałąź skraca środek; nie łamiemy ścieżek ani nazw.
+  Pełna wartość jest w tooltipie, a kopiowanie, otwieranie folderu i `Manage worktree`
+  w menu wiersza położenia. Chevron gałęzi i miejsce Stop zadania mają stałe sloty.
+  Connectory mają wiersz z samą nazwą; badge pojawia się tylko przy znanym stanie
+  (`Available`, `Available next turn`, `Access removed`, `Unavailable`, `Error`),
+  a powód błędu zajmuje drugą linię.
 - Sidebar ma lokalny wariant `sidebar-scale`: kontrolki, zakładki i wybór projektów
   używają tekstu 16 / 14, podpisów 14 / 12,5. Pole wyszukiwania zachowuje 16 px
   na telefonie, a miejsce przycisku czyszczenia jest zawsze zarezerwowane.

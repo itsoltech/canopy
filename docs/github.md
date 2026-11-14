@@ -1062,7 +1062,7 @@ Fix nie oznacza zgody na komentarz, merge, push ani revert; działają obecne up
 ### Kit, stany i copy
 
 Używamy `shared/ui/{Disclosure,DropdownMenu,Select,Checkbox,SegmentedChoice,Dialog,Popover}.svelte`
-oraz `features/threads/components/{PanelRow,PanelField}.svelte`. Semantyczne zakładki mają
+oraz `features/threads/components/PanelRow.svelte`. Semantyczne zakładki mają
 klawiaturę, role i fokus; przełącznik wyglądu nie zastępuje nawigacji treści.
 Panel ma `density-chrome`, treść skalę czytania, nakładki `density-overlay` z `docs/ui-scale.md`.
 Rezerwujemy miejsce statusów, liczników i akcji; odświeżanie zachowuje dane i geometrię.

@@ -262,6 +262,13 @@ html[data-canopy-platform]:not(:has(:popover-open, [data-window-no-drag])) {
   /* Keep both sides of a bot conversation together on large screens. */
   --bot-chat-width: 72rem;
 }
+/* The chat column. Centred by default; the thread page places it with --chat-offset and --chat-column (centred on
+   the window, clear of the sidebar and the docked summary). Messages and composer always share it. */
+.chat-column {
+  max-width: var(--chat-column, var(--chat-width));
+  margin-left: var(--chat-offset, auto);
+  margin-right: auto;
+}
 @media (min-width: 40rem) {
   :root {
     --chat-bubble-width: 90%;
