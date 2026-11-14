@@ -118,7 +118,7 @@
 
 <svelte:head><title>Long thread benchmark · {applicationName}</title></svelte:head>
 
-<div class="flex h-full min-w-0 flex-col">
+<div class="flex h-full min-w-0 flex-col bg-surface">
   <TopBar>
     <Crumb>{view.thread?.title}</Crumb>
     {#snippet actions()}

@@ -97,7 +97,7 @@
   }}
 >
   {#if top || status || (session && !session.done)}
-    <div class={["px-2 pt-px sm:px-3", !answering && "-mb-4"]}>
+    <div class={["px-2 pt-px sm:px-3", !answering && "-mb-4"]} data-feed-edge>
       <ComposerTop decision={Boolean(answering)}>
         {#if !answering}{@render top?.()}{/if}
         {@render status?.()}
@@ -114,6 +114,7 @@
   <!-- Keep the message draft mounted while answering. It returns intact when switching modes. -->
   {#if approval && !answering}
     <div
+      data-feed-edge
       class="relative flex items-center justify-between gap-2 rounded-2xl bg-surface p-2 text-sm/5 text-zinc-500 dark:text-zinc-400"
     >
       <p>Approval needed</p>

@@ -551,7 +551,7 @@
       {/if}
       {#snippet workspace()}<WorkspaceTabs state={workspaceState} {working} pending={blockingQuestions} />{/snippet}
       {#snippet actions()}
-        <div class="max-sm:hidden"><ThreadSyncProgress status={view.syncStatus} /></div>
+        <ThreadSyncProgress status={view.syncStatus} />
         {#if thread}<div class="max-sm:hidden">
             <DropdownMenu label="Thread actions" placement="bottom-end">
               {#snippet trigger(props)}<IconButton

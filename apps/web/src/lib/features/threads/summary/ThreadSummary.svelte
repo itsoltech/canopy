@@ -3,15 +3,16 @@
   import type { Attachment } from "svelte/attachments";
   import type { ui } from "@canopy/contracts";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
-  import IconButton from "#lib/shared/ui/IconButton.svelte";
   import { devicePreferences as device } from "#lib/features/settings/device-preferences.svelte.ts";
   import type { ThreadTree } from "../thread-tree.ts";
+  import ThreadSummaryHeader from "./ThreadSummaryHeader.svelte";
   import ThreadSummaryPill from "./ThreadSummaryPill.svelte";
 
   /**
    * The thread summary: its own element in the thread area's top-right corner, never part of the right panel, and
    * never in the chat column's way. Where it fits beside the chat column (`docked`), the summary follows one choice
-   * on this device: a fixed-width card from the top to the bottom of the area (it scrolls inside), or a pill. Elsewhere it is always the pill, and the pill opens the card as a
+   * on this device: a fixed-width card as tall as its content, at most to the bottom of the area (it then scrolls
+   * inside), or a pill. Elsewhere it is always the pill, and the pill opens the card as a
    * popover under it that closes on Escape, a click outside, a thread change or a resize; the device choice is
    * untouched. Narrow areas open a sheet instead. The card grows from the pill's corner (motion.css `t-summary`).
    */
@@ -131,28 +132,14 @@
       class={[
         "t-summary pointer-events-auto absolute right-0 flex w-full flex-col overflow-hidden rounded-xl bg-white ring-1 ring-zinc-950/10 dark:shadow-none",
         pinned
-          ? "inset-y-0 shadow-sm dark:bg-zinc-900 dark:ring-white/10"
+          ? "top-0 max-h-full shadow-sm dark:bg-zinc-900 dark:ring-white/10"
           : "top-10 max-h-[max(16rem,calc(100%-14rem))] shadow-xl sm:top-9 dark:bg-zinc-800 dark:ring-white/15",
       ]}
       data-hidden={!open || undefined}
       inert={!open}
       {@attach escapeCloses}
     >
-      <div
-        class="density-chrome flex h-9 shrink-0 items-center justify-between gap-2 border-b border-zinc-950/5 pr-1 pl-3 dark:border-white/8"
-      >
-        <h2 class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Thread details</h2>
-        <span data-summary-collapse class="contents">
-          {#if pinned}<IconButton
-              icon="chevron-down"
-              iconClass="rotate-180"
-              label="Collapse thread details"
-              aria-expanded="true"
-              aria-controls={id}
-              onclick={() => void hide(true)}
-            />{:else}<IconButton icon="x-mark" label="Close thread details" onclick={() => void hide(true)} />{/if}
-        </span>
-      </div>
+      <ThreadSummaryHeader {pinned} controls={id} onclose={() => void hide(true)} />
       <div class="min-h-0 scroll-stable-both overflow-y-auto overscroll-contain px-1 pb-1">{@render children()}</div>
     </section>
   {/if}
