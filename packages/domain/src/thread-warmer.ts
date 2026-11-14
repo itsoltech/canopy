@@ -1,12 +1,15 @@
 import type { ui } from "@canopy/contracts";
 import { applyThreadUpdate } from "./thread-snapshot.ts";
-import { threadCacheTail } from "./thread-cache-tail.ts";
 import { threadCacheCurrent, THREAD_WARM_LIMITS } from "./thread-warm-set.ts";
 
+/**
+ * The cache owns its bounds: it gets the whole updated snapshot, including older pages a reader already loaded.
+ * `replaced`: the gateway sent a fresh bounded window instead of the records after the cached checkpoint.
+ */
 export interface WarmThreadCache {
   peek(id: string): ui.ThreadSnapshot | undefined;
   load(id: string): Promise<ui.ThreadSnapshot | undefined>;
-  save(snapshot: ui.ThreadSnapshot): void | Promise<void>;
+  save(snapshot: ui.ThreadSnapshot, replaced: boolean): void | Promise<void>;
 }
 
 /** One cancelable job, one timer, bounded heads and retry state. Visible views always own their watch. */
@@ -141,6 +144,7 @@ export class ThreadWarmer {
 
     try {
       let snapshot = await this.cache.load(id);
+      let replaced = false;
 
       if (signal.aborted) return;
 
@@ -154,6 +158,7 @@ export class ThreadWarmer {
           if (signal.aborted) return;
 
           if (update.syncStatus?.reason || ++updates > 5) throw new Error("Background thread read is unavailable");
+          replaced ||= update.change.case === "snapshot" && Boolean(snapshot?.syncCursor);
           snapshot = applyThreadUpdate(snapshot, update);
         }
       }
@@ -163,7 +168,7 @@ export class ThreadWarmer {
         const current = this.cache.peek(id)?.syncCursor;
 
         if (current?.epoch === snapshot.syncCursor.epoch && current.appliedSeq > snapshot.syncCursor.appliedSeq) return;
-        await this.cache.save(threadCacheTail(snapshot));
+        await this.cache.save(snapshot, replaced);
 
         if (threadCacheCurrent(snapshot, head) || !head.epoch) this.#satisfied.set(id, signature);
         this.#retry.delete(id);

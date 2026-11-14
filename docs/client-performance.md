@@ -28,7 +28,9 @@ sprząta wyłącznie uruchomione przez siebie procesy i kontener. Usuń swój ka
 tymczasowy po zakończeniu pomiarów. Syntetyczny worker nie uruchamia CLI ani
 inferencji: na wiadomość odpowiada 200 deltami po 25/s przez prawdziwe łącze.
 W nowej, prywatnej bazie tworzy 500 wątków projektu i 1000 tur z 7099 itemami
-w jednym z nich; wypisuje adres tego wątku. Zwykła strona wątku pobiera początkowo
+w jednym z nich; wypisuje adres tego wątku. Do sprawdzania otwierania tworzy też wątek
+z jedną turą (nie wypełnia viewportu) i wątek, którego ostatnia tura ma więcej itemów
+niż pierwsza strona historii; wypisuje ich adresy. Zwykła strona wątku pobiera początkowo
 ostatnią stronę historii, a nie wszystkie 1000 tur. Otwieranie tej strony mierzy
 rzeczywisty snapshot gateway → BFF → SSE; fixture poniżej mierzy cały załadowany feed.
 Tworzy też jednego bota do sprawdzenia otwierania ustawień, bez wysyłania mu wiadomości.
@@ -114,6 +116,26 @@ bez treści, identyfikatorów i kotwic. Sprawdź scroll do granicy niepełnej tu
 reload z cache i przejście z innego wątku: treść ma nadejść bez load-more,
 a tekst już czytany ma zachować pozycję. Pozycjonowanie web ma limit 2 s;
 po nim odsłania aktualną treść nawet bez kompletu pomiarów.
+
+Ostatnio otwarte wątki (LRU 12 wątków / 12 MiB zakodowanego protobuf; heap to około
+czterokrotność) zachowują w pamięci stan klienta: itemy razem z wczytanymi stronami
+historii, foldy, budowniczy feedu i zmierzone wysokości wierszy. Przełączenie wątku
+niczego z tego nie czyści i nie pobiera wątku od początku. Powrót pokazuje ten stan
+w pierwszej klatce: feed mierzy viewport i stopkę synchronicznie przy montowaniu,
+więc ustawia wiersze przed pierwszym malowaniem. Potem watch dosyła tylko przyrost od
+kursora i łata wiersze w miejscu. Wątek poza ekranem dostaje checkpointy z dogrzewania,
+bez nowych subskrypcji; każde takie odświeżenie przelicza rozmiar i egzekwuje limit LRU.
+Gdy wątek odjechał dalej, niż dogrzewanie odtwarza (ponad 256 rekordów), gateway wysyła
+świeże ograniczone okno. Ono nie zastępuje zachowanych stron: wątek zostaje „w tyle”
+ze swoim kursorem, dogrzewanie kontynuuje z osobnej kopii w cache, a otwarcie wznawia
+własny kursor i dosyła brakujące rekordy. Widoczny wątek nie jest usuwany z LRU. Pierwsze zimne otwarcie
+pozostaje ukryte, dopóki zamontowane okno ma wiersze ładowania brakującej pracy (w ramach
+limitu pozycjonowania), żeby luki nie znikały pod czytelnikiem.
+
+Skoki sprawdzaj próbką po malowaniu (rAF, potem zadanie): wpisy `layout-shift` nie
+obejmują przesunięć wywołanych zmianą `scrollTop`, a odczyt w samym rAF widzi layout
+sprzed korekt ResizeObservera tej klatki. Porównuj pozycje wspólnych wierszy między
+kolejnymi klatkami tego samego scrollera oraz pozycje przy wyjściu i po powrocie.
 
 Powrót do wątku odtwarza lokalną kotwicę (klucz elementu i offset wewnątrz),
 bez rozszerzania okna historii. Web czeka na zmierzenie początkowego okna przed
@@ -293,8 +315,9 @@ tych pomiarów; harness Bun ich nie zastępuje.
 ## Pasek boczny i indeks wątków na żywo
 
 Dogrzewanie historii używa jednego `WatchOverview` z najwyżej 32 headami, bez
-subskrypcji poszczególnych wątków. Web/desktop utrzymuje LRU do 32 wpisów i 32 MiB
-zakodowanego protobuf; to budżet payloadu, nie pomiar heapu JS ani RSS. Zestaw obejmuje
+subskrypcji poszczególnych wątków. Web/desktop utrzymuje LRU do 32 wpisów i 16 MiB
+zakodowanego protobuf; to budżet payloadu, nie pomiar heapu JS ani RSS. Pamięć trzyma
+całe snapshoty, dzielone z zachowanymi widokami wątków; dysk Electron dostaje ograniczony ogon. Zestaw obejmuje
 12 ostatnich widocznych korzeni paska, wątki pracujące, nieobejrzane wyniki i przypięcia,
 z twardym limitem 32. Archiwum jest wykluczone. Widoczne ostatnie wątki mają pierwszeństwo.
 „Widoczne” oznacza korzenie po filtrach projektu i wyszukiwania, a nie pozycję
@@ -302,8 +325,8 @@ w viewport. Ostatnie 12 wybieramy zawsze według `Last activity`: `last_reply_at
 z datą utworzenia jako fallbackiem, niezależnie od wybranego `Created` lub `Custom`.
 Ręczne przeciągnięcie i pozycja przypięcia nie zmieniają tej kolejności;
 przypięte wątki dołączają osobno w ramach wspólnego limitu.
-Każdy zachowany wpis jest przycinany do ograniczonego ogona, niezależnie od historii
-stronicowanej na otwartej stronie. Duże treści nadal są odczytywane na żądanie.
+Dogrzewanie zapisuje cały zaktualizowany checkpoint, ze stronami historii wczytanymi
+wcześniej; granice ustala cache. Duże treści nadal są odczytywane na żądanie.
 Mobile wybiera 10 ostatnich korzeni, ogranicza zestaw do 16 i rozdziela starty
 o 5 s (najwyżej 12 odczytów/min); używa istniejącego cache trwałego po restarcie.
 Szczegóły foreground i wykrywania Low Power Mode: [mobile.md](mobile.md).

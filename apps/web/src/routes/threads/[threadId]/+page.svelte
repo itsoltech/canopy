@@ -43,14 +43,13 @@
   import { forkFrom, lastForkPoint } from "#lib/features/threads/fork.svelte.ts";
   import { providePageDirectory } from "#lib/features/threads/page-directory.ts";
   import { ThreadRewind, provideThreadRewind } from "#lib/features/threads/rewind-state.svelte.ts";
-  import { ThreadState } from "#lib/features/threads/thread-state.svelte.ts";
+  import { openThreadMemory, threadViews } from "#lib/features/threads/thread-views.ts";
   import { retainTree, treeOf } from "#lib/features/threads/thread-tree.ts";
   import { topLevelEntry } from "#lib/features/threads/timeline.ts";
-  import { WorkFolds, type FoldReader } from "#lib/features/threads/work-folds.svelte.ts";
+  import type { FoldReader } from "#lib/features/threads/work-folds.svelte.ts";
   import { syncWorkFolds, workHistoryPrefetch } from "#lib/features/threads/thread-feed-effects.svelte.ts";
-  import { timelineRecovery } from "#lib/features/diagnostics/client.ts";
   import { threadScrollMemory } from "#lib/features/threads/thread-scroll-memory.svelte.ts";
-  import { FeedBuilder, feedEstimate, feedGroup, feedInserted, type FeedRow } from "#lib/features/threads/feed.ts";
+  import { feedEstimate, feedGroup, feedInserted, type FeedRow } from "#lib/features/threads/feed.ts";
   import TurnRail from "#lib/features/threads/rail/TurnRail.svelte";
   import { railTurns } from "#lib/features/threads/rail/turn-rail.ts";
   import type { FeedViewport } from "#lib/shared/ui/virtual/viewport.ts";
@@ -99,16 +98,30 @@
   const workspaceState = new ThreadWorkspace(() => threadId);
   const fileTab = $derived(workspaceState.current);
 
-  // A new ThreadState per thread id: navigating between threads of a tree starts clean, seeded with the
-  // thread from GetThread so the header and composer render before the stream's snapshot.
-  // Only the thread id recreates it: a later `data` refresh (form actions invalidate) must not reconnect.
-  const view = $derived.by(() => {
-    const seed = untrack(() => (data.thread ? decode(ui.ThreadSchema, data.thread) : undefined));
+  // Recently opened threads keep their client state (items, older pages, folds, row heights): a return shows it
+  // as it was left and syncs only what changed. A first open is seeded with the thread from GetThread so the header
+  // and composer render before the stream. Only the thread id selects it: a later `data` refresh (form actions
+  // invalidate) must not reconnect.
+  const memory = $derived(
+    openThreadMemory(
+      threadId,
+      untrack(() => (data.thread ? decode(ui.ThreadSchema, data.thread) : undefined)),
+    ),
+  );
 
-    return seed?.id === threadId ? new ThreadState(seed) : new ThreadState();
+  const view = $derived(memory.view);
+
+  $effect(() => {
+    const id = threadId;
+    const current = memory.view;
+    const hide = threadViews.show(id);
+    const disconnect = current.connect(id);
+
+    return () => {
+      disconnect();
+      hide();
+    };
   });
-
-  $effect(() => view.connect(threadId));
 
   const thread = $derived(view.thread);
 
@@ -237,10 +250,24 @@
   let searchOpen = $state(false);
 
   // Ended turns fold their work into "Worked for …"; which folds are open, per thread.
-  const folds = $derived((void threadId, new WorkFolds()));
-  const builder = $derived((void threadId, new FeedBuilder((count) => timelineRecovery("fold_derivation", count))));
+  const folds = $derived(memory.folds);
+  const builder = $derived(memory.builder);
 
   const scrollMemory = $derived(threadScrollMemory(threadId, compaction, (value) => (compact = value)));
+
+  // The composer starts as the thread was left (compact where the reader had scrolled up) in its first frame,
+  // not as the previous thread had it.
+  $effect.pre(() => {
+    const opening = scrollMemory;
+
+    untrack(() => {
+      const anchored = opening.initial?.mode === "anchor";
+      atEnd = !anchored;
+
+      if (anchored) opening.restored(false);
+      compact = compaction.compact;
+    });
+  });
 
   const rows = $derived(
     builder.build({
@@ -603,7 +630,8 @@
               footerExpanded={!compact}
               {rows}
               {scrollMemory}
-              ready={view.loaded && scrollMemory.prepared}
+              sizes={memory.sizes}
+              ready={view.loaded && scrollMemory.prepared && !prefetchHistory.waiting}
               key={(row: FeedRow) => row.key}
               group={feedGroup}
               estimate={feedEstimate}
@@ -615,7 +643,7 @@
               onviewport={(viewport) => {
                 feedViewport = viewport;
               }}
-              onwindow={prefetchHistory}
+              onwindow={prefetchHistory.update}
             >
               {#snippet placeholder()}
                 {#if !view.loaded}<TimelineSkeleton />{/if}

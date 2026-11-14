@@ -809,9 +809,11 @@ Ręczna kolejność i pozycja przypięcia nie zastępują recency; przypięcia d
 osobno w ramach tego samego limitu. Projekt i zapytanie ograniczają wybór korzeni.
 Jeden overview niesie heady tego zestawu; nie otwieramy osobnych subskrypcji wątków. Zmiana headu uruchamia
 skończony `WatchThread(sequence=true, background=true)` od checkpointu z tego samego
-trwałego cache. Daleki lub brakujący checkpoint dostaje tylko ograniczony ogon.
-Zapis zachowuje najwyżej 128 itemów / 384 KiB i do 24 ostatnich tur oraz potrzebne
-zależności w budżecie 64 KiB tur; starsza historia pozostaje stronicowana.
+trwałego cache. Daleki lub brakujący checkpoint dostaje tylko ograniczony ogon
+(najwyżej 128 itemów); starsza historia pozostaje
+stronicowana. Zapis zachowuje cały checkpoint, razem ze stronami historii wczytanymi
+wcześniej, w limitach cache powyżej. Świeże okno (wątek odjechał o ponad 256 rekordów)
+nadal zastępuje wpis mobile; web zachowuje wtedy strony i wznawia kursor przy otwarciu.
 
 Najwyżej jedno zadanie pracuje naraz i startuje co najmniej 5 s po poprzednim
 (do 12 odczytów/min). Zmiany tego samego headu są scalane, a kolejne wątki mają

@@ -57,6 +57,7 @@
   import { sidebarThreads } from "@canopy/domain/sidebar-threads";
   import { expandProjectIds } from "@canopy/domain/projects";
   import { createThreadWarming, connectThreadWarming } from "#lib/features/threads/warming.ts";
+  import { threadViews } from "#lib/features/threads/thread-views.ts";
 
   let { children }: { children: Snippet } = $props();
 
@@ -94,7 +95,7 @@
 
   provideSettings(settings);
 
-  const warming = createThreadWarming();
+  const warming = createThreadWarming(threadViews);
 
   const warmIds = $derived(
     threadWarmSet(

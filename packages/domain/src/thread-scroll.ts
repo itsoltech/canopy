@@ -36,6 +36,7 @@ export function restoreThreadAnchor(position: ThreadScrollPosition | undefined, 
   return index < 0 ? undefined : { index, key: position.key, offset: position.offset };
 }
 
-export function threadAnchorOffset(offset: number, height: number): number {
-  return Math.min(Math.max(0, offset), Math.max(0, height - 1));
+/** Inside the anchor row, or up to `below` px under the top edge (a row that started below it, e.g. the first message). */
+export function threadAnchorOffset(offset: number, height: number, below = 0): number {
+  return Math.min(Math.max(below > 0 ? -below : 0, offset), Math.max(0, height - 1));
 }
