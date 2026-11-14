@@ -2,19 +2,30 @@
   import { create } from "@bufbuild/protobuf";
   import { timestampDate } from "@bufbuild/protobuf/wkt";
   import { ProviderUsageSnapshotSchema, type ui } from "@canopy/contracts";
-  import { proxyAccountLook, proxyAccountMark, proxyProviderName } from "@canopy/domain/proxy-accounts";
+  import { proxyAccountLook, proxyAccountMark, proxyProviderName, proxyPlanName } from "@canopy/domain/proxy-accounts";
   import ProviderIcon from "#lib/features/models/ProviderIcon.svelte";
   import UsageMeters from "#lib/features/providers/UsageMeters.svelte";
   import Badge from "#lib/shared/ui/Badge.svelte";
+  import Sensitive from "#lib/shared/ui/Sensitive.svelte";
 
   /**
    * One upstream account of a proxy: provider mark, account, status badge, the limits the proxy last saw and its
    * last message. Every text is the gateway's sanitized plain text and renders as text, never as HTML.
    */
-  let { account }: { account: ui.ProxyAccount } = $props();
+  let { account, compact = false }: { account: ui.ProxyAccount; compact?: boolean } = $props();
   const look = $derived(proxyAccountLook(account.status));
   const mark = $derived(proxyAccountMark(account.provider));
-  const usage = $derived(create(ProviderUsageSnapshotSchema, { windows: account.windows }));
+  const plan = $derived(proxyPlanName(account.plan));
+
+  const usage = $derived(
+    create(ProviderUsageSnapshotSchema, {
+      windows: compact
+        ? [...account.windows].sort(
+            (a, b) => (b.reached ? 100 : (b.usedPercent ?? -1)) - (a.reached ? 100 : (a.usedPercent ?? -1)),
+          )
+        : account.windows,
+    }),
+  );
 
   const until = $derived(
     account.retryAt
@@ -27,20 +38,22 @@
   );
 </script>
 
-<li class="grid min-w-0 gap-1.5 px-3 py-2">
+<li class={["grid min-w-0 gap-1.5 py-2", !compact && "px-3"]}>
   <div class="flex min-w-0 items-center gap-2">
     {#if mark}<ProviderIcon provider={mark} label={proxyProviderName(account.provider)} class="shrink-0" />{:else}<span
-        class="shrink-0 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
+        class="max-w-24 shrink-0 truncate text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
         >{proxyProviderName(account.provider)}</span
       >{/if}
-    <span class="min-w-0 flex-1 truncate text-base/6 text-zinc-950 sm:text-sm/6 dark:text-white" title={account.label}
-      >{account.label || "Unnamed account"}</span
-    >
-    <Badge tone={look.tone} compact>{look.label}</Badge>
+    {#if plan}<div class="shrink-0 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">{plan}</div>{/if}
+    <div class="min-w-0 flex-1 text-base/6 text-zinc-950 sm:text-sm/6 dark:text-white">
+      {#if account.label}<Sensitive value={account.label} label="Account identity" truncate />{:else}Unnamed account{/if}
+    </div>
+    {#if !compact || account.status !== "active"}<Badge tone={look.tone} compact>{look.label}</Badge>{/if}
   </div>
   {#if until || account.detail}
     <p class="line-clamp-2 text-sm/5 text-pretty break-words text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
-      {[until && `Until ${until}`, account.detail].filter(Boolean).join(" · ")}
+      {#if until}Until {until}{/if}
+      {#if account.detail}<Sensitive value={account.detail} label="Account details" />{/if}
     </p>
   {/if}
   <UsageMeters {usage} />

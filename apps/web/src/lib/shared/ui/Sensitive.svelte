@@ -7,8 +7,9 @@
   let {
     value,
     label = "Private value",
+    truncate = false,
     class: className,
-  }: { value: string; label?: string; class?: ClassValue } = $props();
+  }: { value: string; label?: string; truncate?: boolean; class?: ClassValue } = $props();
 
   let revealed = $state(false);
   let element: HTMLButtonElement | undefined;
@@ -77,8 +78,11 @@
   oncopy={protect}
   oncut={protect}
   oncontextmenu={protect}
+  onkeydown={(event) => {
+    if (event.key === "Escape") hide();
+  }}
 >
-  <span aria-hidden="true" class:hidden-value={!revealed}>{value}</span>
+  <span aria-hidden="true" class:truncate class:hidden-value={!revealed} class="value">{value}</span>
 </button>
 
 <style>
@@ -88,7 +92,12 @@
     -webkit-user-select: none;
     pointer-events: none;
   }
+  .value {
+    display: block;
+  }
   .private-value {
+    min-width: 0;
+    max-width: 100%;
     overflow-wrap: anywhere;
   }
 </style>

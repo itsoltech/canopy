@@ -21,7 +21,10 @@ const percent = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 /** The limits the proxy last saw, in words: "5-hour 42% · Weekly 7%". */
 const limits = (account: ui.ProxyAccount) =>
   account.windows
-    .map((w) => `${usageWindowName(w.key)} ${w.usedPercent === undefined ? "" : `${percent.format(w.usedPercent)}%`}`)
+    .map(
+      (w) =>
+        `${usageWindowName(w.key, w.windowMinutes)} ${w.usedPercent === undefined ? "" : `${percent.format(w.usedPercent)}%`}`,
+    )
     .join(" · ");
 
 function AccountRow({ account }: { account: ui.ProxyAccount }) {

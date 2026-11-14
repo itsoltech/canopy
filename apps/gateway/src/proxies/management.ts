@@ -3,6 +3,8 @@ import { timestampFromDate, timestampNow } from "@bufbuild/protobuf/wkt";
 import { ui } from "@canopy/contracts";
 import { redactCredentials } from "@canopy/domain";
 import { Option, Schema } from "effect";
+import { proxyUsageWindows } from "./management-usage.ts";
+import { PlanFields, proxyAccountPlan } from "./management-plan.ts";
 
 /** Upper bounds for an untrusted management response (docs/proxies.md, "Konta upstream"). */
 const MAX_BYTES = 4 * 1024 * 1024;
@@ -15,6 +17,7 @@ const Count = Schema.optional(Schema.NullOr(Schema.Number));
 
 /** The fields Canopy reads from CLIProxyAPI `GET /v0/management/auth-files` (v8.0.x); the rest is ignored. */
 const AuthFile = Schema.Struct({
+  ...PlanFields.fields,
   id: Text,
   auth_index: Text,
   name: Text,
@@ -100,60 +103,6 @@ const time = (value: string | number | null | undefined) => {
   return date && Number.isFinite(date.getTime()) && date.getTime() > 0 && date.getFullYear() < 9999 ? date : undefined;
 };
 
-const percent = (value: number) => (Number.isFinite(value) ? Math.min(Math.max(value, 0), 100) : undefined);
-
-const WINDOWS = new Map([
-  [300, "five_hour"],
-  [10080, "seven_day"],
-]);
-
-const windowKey = (minutes: number) => WINDOWS.get(minutes) ?? "usage";
-
-/** Codex `x-codex-{primary,secondary}-*` and Claude `anthropic-ratelimit-unified-{5h,7d}-*` headers the proxy saw. */
-function windows(file: AuthFile, observed: Date | undefined) {
-  const signals = new Map(Object.entries(file.quota?.signals ?? {}).map(([k, v]) => [k.toLowerCase(), v.trim()]));
-  const result: { key: string; usedPercent?: number; resetsAt?: Date; reached: boolean }[] = [];
-
-  for (const slot of ["primary", "secondary"]) {
-    const used = signals.get(`x-codex-${slot}-used-percent`);
-
-    if (used === undefined) continue;
-    const after = Number(signals.get(`x-codex-${slot}-reset-after-seconds`));
-    const usedPercent = percent(Number(used));
-
-    const resetsAt =
-      time(Number(signals.get(`x-codex-${slot}-reset-at`)) * 1000) ??
-      (observed && after > 0 ? new Date(observed.getTime() + after * 1000) : undefined);
-
-    result.push({
-      key: windowKey(Number(signals.get(`x-codex-${slot}-window-minutes`))),
-      ...(usedPercent !== undefined && { usedPercent }),
-      ...(resetsAt && { resetsAt }),
-      reached: (usedPercent ?? 0) >= 100,
-    });
-  }
-
-  for (const [span, key] of [
-    ["5h", "five_hour"],
-    ["7d", "seven_day"],
-  ] as const) {
-    const used = signals.get(`anthropic-ratelimit-unified-${span}-utilization`);
-
-    if (used === undefined) continue;
-    const usedPercent = percent(Number(used) * 100);
-    const resetsAt = time(Number(signals.get(`anthropic-ratelimit-unified-${span}-reset`)) * 1000);
-
-    result.push({
-      key,
-      ...(usedPercent !== undefined && { usedPercent }),
-      ...(resetsAt && { resetsAt }),
-      reached: signals.get(`anthropic-ratelimit-unified-${span}-status`) === "rejected" || (usedPercent ?? 0) >= 100,
-    });
-  }
-
-  return result.slice(0, 4).map((w) => ({ ...w, resetsAt: w.resetsAt && timestampFromDate(w.resetsAt) }));
-}
-
 function status(file: AuthFile, retry: Date | undefined, now: number) {
   if (file.disabled || file.status === "disabled") return "disabled";
 
@@ -173,6 +122,10 @@ export function proxyAccount(file: AuthFile, now = Date.now(), redact: Redact = 
   const raw = (file.provider || file.type || "").toLowerCase();
   const provider = redact(raw) === raw ? raw : "";
 
+  const signals = new Map(
+    Object.entries(file.quota?.signals ?? {}).map(([key, value]) => [key.toLowerCase(), value.trim()]),
+  );
+
   return create(ui.ProxyAccountSchema, {
     id: plainText(file.auth_index || file.id || file.name, 120, redact),
     provider: /^[a-z0-9_-]{1,32}$/.test(provider) ? provider : "other",
@@ -180,7 +133,8 @@ export function proxyAccount(file: AuthFile, now = Date.now(), redact: Redact = 
     status: status(file, retry, now),
     detail: plainText(file.refresh_error?.message || file.status_message, 160, redact),
     retryAt: retry && retry.getTime() > now ? timestampFromDate(retry) : undefined,
-    windows: windows(file, observed),
+    windows: proxyUsageWindows(signals, observed, now),
+    plan: proxyAccountPlan(file, signals, redact),
     successCount: count(file.success),
     failureCount: count(file.failed),
   });

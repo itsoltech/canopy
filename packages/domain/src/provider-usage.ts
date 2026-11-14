@@ -5,14 +5,34 @@ import { ProviderUsageSnapshotSchema, type ProviderUsageSnapshot, type ProviderU
 const names = new Map([
   ["usage", "Usage"],
   ["five_hour", "5-hour"],
+  ["one_day", "Daily"],
   ["seven_day", "Weekly"],
+  ["thirty_day", "Monthly"],
+  ["primary_limit", "Primary limit"],
+  ["secondary_limit", "Secondary limit"],
   ["seven_day_opus", "Weekly Opus"],
   ["seven_day_sonnet", "Weekly Sonnet"],
   ["seven_day_overage_included", "Weekly included usage"],
   ["overage", "Extra usage"],
 ]);
 
-export const usageWindowName = (key: string) => names.get(key) ?? "Usage";
+/** Quota resets use epoch milliseconds here; implausible upstream or cached dates are unknown. */
+export const isUsageResetPlausible = (resetAt: number, now = Date.now()) =>
+  Number.isFinite(resetAt) && resetAt > 0 && resetAt <= now + 400 * 86_400_000;
+
+export function usageWindowName(key: string, minutes = 0): string {
+  if (key === "duration" && Number.isSafeInteger(minutes) && minutes > 0) {
+    const number = new Intl.NumberFormat();
+
+    return minutes % 1440 === 0
+      ? `${number.format(minutes / 1440)}-day`
+      : minutes % 60 === 0
+        ? `${number.format(minutes / 60)}-hour`
+        : `${number.format(minutes)}-minute`;
+  }
+
+  return names.get(key) ?? "Usage";
+}
 
 /** Allowlist at both transport boundaries; unavailable percentages remain absent. */
 export function sanitizeProviderUsage(value: ProviderUsageSnapshot): ProviderUsageSnapshot {
@@ -25,14 +45,21 @@ export function sanitizeProviderUsage(value: ProviderUsageSnapshot): ProviderUsa
     observedAt: validDate(value.observedAt),
     windows: value.windows
       .filter((w) => {
-        if (!names.has(w.key) || seen.has(w.key)) return false;
-        seen.add(w.key);
+        const identity = `${w.key}:${w.windowMinutes}`;
+
+        if (
+          (!names.has(w.key) && !(w.key === "duration" && w.windowMinutes > 0 && w.windowMinutes <= 525600)) ||
+          seen.has(identity)
+        )
+          return false;
+        seen.add(identity);
 
         return true;
       })
       .slice(0, 8)
       .map((w) => ({
         key: w.key,
+        windowMinutes: w.windowMinutes,
         usedPercent:
           w.usedPercent !== undefined && Number.isFinite(w.usedPercent) && w.usedPercent >= 0
             ? Math.min(w.usedPercent, 100)
@@ -54,6 +81,8 @@ export function activeUsageWindows(snapshot: ProviderUsageSnapshot | undefined, 
 export function usageReset(window: ProviderUsageWindow, relative = false, now = Date.now()): string {
   if (!window.resetsAt) return "";
   const date = timestampDate(window.resetsAt);
+
+  if (!isUsageResetPlausible(date.getTime(), now)) return "";
 
   if (relative) {
     const minutes = Math.max(0, Math.ceil((date.getTime() - now) / 60_000));
@@ -83,10 +112,10 @@ export function usageWarnings(snapshot: ProviderUsageSnapshot | undefined, now =
 
       const title =
         w.reached || (w.usedPercent ?? 0) >= 100
-          ? `${usageWindowName(w.key)} limit reached`
+          ? `${usageWindowName(w.key, w.windowMinutes)} limit reached`
           : w.usedPercent === undefined
-            ? `${usageWindowName(w.key)} limit is close`
-            : `${usageWindowName(w.key)} limit ${percent}% used`;
+            ? `${usageWindowName(w.key, w.windowMinutes)} limit is close`
+            : `${usageWindowName(w.key, w.windowMinutes)} limit ${percent}% used`;
 
       return [title, usageReset(w)].filter(Boolean).join(" · ");
     });

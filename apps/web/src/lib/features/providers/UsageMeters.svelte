@@ -17,11 +17,11 @@
 
 {#if windows.length || billing}
   <div class={["grid min-w-0 gap-2 text-sm/5 sm:text-xs/5", className]}>
-    {#each windows as window (window.key)}
+    {#each windows as window (`${window.key}:${window.windowMinutes}`)}
       <div class="grid min-w-0 gap-1">
         <div class="flex flex-wrap justify-between gap-x-3 gap-y-0.5 tabular-nums">
           <span class="text-zinc-700 dark:text-zinc-300"
-            >{usageWindowName(window.key)}{window.usedPercent !== undefined
+            >{usageWindowName(window.key, window.windowMinutes)}{window.usedPercent !== undefined
               ? ` · ${new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(window.usedPercent)}% used`
               : window.reached
                 ? " · limit reached"
@@ -32,7 +32,7 @@
         {#if window.usedPercent !== undefined}
           <div
             role="meter"
-            aria-label={`${usageWindowName(window.key)} limit used`}
+            aria-label={`${usageWindowName(window.key, window.windowMinutes)} limit used`}
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={window.usedPercent}

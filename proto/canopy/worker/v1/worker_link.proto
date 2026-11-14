@@ -905,6 +905,8 @@ message ProviderUsageWindow {
   google.protobuf.Timestamp resets_at = 3;
   bool reached = 4;
   bool warning = 5;
+  // Duration reported by the upstream, for windows outside the named standard periods.
+  uint32 window_minutes = 6;
 }
 
 message ProviderUsageSnapshot {
