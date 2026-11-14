@@ -27,7 +27,8 @@ export function accountEmail(value: string | null | undefined, secrets: readonly
 /** A copyable command for the worker's actual login home, including paths with shell metacharacters. */
 export function providerLoginCommand(
   harness: "claude" | "codex" | "grok",
-  account: Pick<ProviderAccountStatus, "loginDir" | "loginExecutable">,
+  account: Pick<ProviderAccountStatus, "loginDir" | "loginExecutable"> &
+    Partial<Pick<ProviderAccountStatus, "loginSecureStorageDir">>,
   os: string,
 ): string {
   if (!account.loginDir) return "";
@@ -40,13 +41,20 @@ export function providerLoginCommand(
   const executable = quote(account.loginExecutable || harness);
   const args = harness === "claude" ? "auth login" : "login";
 
+  const storage =
+    harness === "claude" && account.loginSecureStorageDir !== undefined
+      ? windows
+        ? `$env:CLAUDE_SECURESTORAGE_CONFIG_DIR=${quote(account.loginSecureStorageDir)}; `
+        : `CLAUDE_SECURESTORAGE_CONFIG_DIR=${quote(account.loginSecureStorageDir)} `
+      : "";
+
   return windows
-    ? `$env:${variable}=${quote(account.loginDir)}; & ${executable} ${args}`
-    : `${variable}=${quote(account.loginDir)} ${executable} ${args}`;
+    ? `${storage}$env:${variable}=${quote(account.loginDir)}; & ${executable} ${args}`
+    : `${storage}${variable}=${quote(account.loginDir)} ${executable} ${args}`;
 }
 
 /** "expired": a turn's harness rejected this login (the gateway's mark), whatever the CLI's own status says. */
-const states = new Set(["signed_in", "signed_out", "expired", "unknown", "error"]);
+const states = new Set(["signed_in", "signed_out", "expired", "unknown", "error", "stored"]);
 
 export const REJECTED_LOGIN_DETAIL = "The provider rejected this login during a turn. Sign in again.";
 
@@ -89,6 +97,9 @@ export function sanitizeAccountStatus(
     configDir: accountText(value.configDir, secrets),
     loginDir: accountText(value.loginDir, secrets),
     loginExecutable: accountText(value.loginExecutable, secrets),
+    ...(value.loginSecureStorageDir !== undefined && {
+      loginSecureStorageDir: accountText(value.loginSecureStorageDir, secrets),
+    }),
     proxyName: accountText(value.proxyName, secrets),
     detail: details.has(value.detail) ? value.detail : "",
     loginRevision: /^[0-9a-f]{16}$/.test(value.loginRevision) ? value.loginRevision : "",

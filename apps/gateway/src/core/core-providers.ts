@@ -1,9 +1,9 @@
 import { create } from "@bufbuild/protobuf";
 import { Provider, ui } from "@canopy/contracts";
-import { isUuid } from "@canopy/domain/humanize";
 import { Effect } from "effect";
 import { harnessOf, InstanceStore } from "../store/index.ts";
-import { coreState, describeError, InvalidError, UnavailableError } from "./core-context.ts";
+import { coreState, describeError, InvalidError } from "./core-context.ts";
+import { providerAuthTarget } from "./provider-auth.ts";
 import type { GatewayCore } from "./core.ts";
 import { coreModelCatalogs, corePublishModels } from "./core-models.ts";
 import { coreBroadcastWorkers, coreRun } from "./core-broadcast.ts";
@@ -92,6 +92,8 @@ export interface CoreProvidersMethods extends CoreProxyMethods {
   checkCliUpdates(request: ui.CheckCliUpdatesRequest): Promise<ui.CheckCliUpdatesResponse>;
   setWorkerCliUpdateSettings(request: ui.SetWorkerCliUpdateSettingsRequest): Promise<void>;
   startProviderLogin(request: ui.StartProviderLoginRequest): Promise<ui.StartProviderLoginResponse>;
+  completeProviderLogin(request: ui.CompleteProviderLoginRequest): Promise<ui.CompleteProviderLoginResponse>;
+  logoutProvider(request: ui.LogoutProviderRequest): Promise<ui.LogoutProviderResponse>;
   syncProviderInstances(): Promise<void>;
 }
 
@@ -222,23 +224,7 @@ export const coreProvidersMethods: CoreProvidersMethods = {
   ): Promise<ui.StartProviderLoginResponse> {
     // Signing in replaces the CLI login on that computer: only the worker's own owner may, never on a platform-wide
     // worker other owners also see (listWorkers), and never for a linked computer (not in remote-policy SERVED).
-    const userId = this[coreState].options.userId;
-
-    if (!isUuid(request.workerId) || !(await coreRun(this, (s) => s.ownsWorker(request.workerId, userId))))
-      throw new InvalidError("worker not found");
-    const instance = await coreInstance(this, request.harness, request.id);
-    const connection = this.link.connections.get(request.workerId);
-
-    if (!connection?.isOpen) throw new UnavailableError("the worker is offline");
-
-    if (request.harness !== Provider.CODEX)
-      throw new InvalidError("only Codex signs in from the app; sign in to Claude Code on the device");
-
-    // An instance on the device login signs the device's Codex in again (worker capability codex_device_login_linked).
-    const capability = instance.runtime?.ownLogin ? "codex_device_login" : "codex_device_login_linked";
-
-    if (!connection.hello.capabilities.includes(capability))
-      throw new InvalidError("this worker cannot sign in from the app; update it");
+    const { connection, userId } = await providerAuthTarget(this, request);
 
     // Repeated clicks share one start; the worker also answers a running sign-in with its code.
     const login = await this.accounts.startLogin(
@@ -260,7 +246,45 @@ export const coreProvidersMethods: CoreProvidersMethods = {
       verificationUrl: login.verificationUrl,
       userCode: login.userCode,
       loginId: login.loginId,
+      requiresCode: login.requiresCode,
     });
+  },
+
+  async completeProviderLogin(
+    this: GatewayCore,
+    request: ui.CompleteProviderLoginRequest,
+  ): Promise<ui.CompleteProviderLoginResponse> {
+    const { connection } = await providerAuthTarget(this, request, true);
+
+    if (!/^[\w#.-]{1,4096}$/.test(request.code) || !/^[\w-]{1,64}$/.test(request.loginId))
+      throw new InvalidError("Enter the code from the sign-in page.");
+
+    const result = await connection.sendCommand(
+      {
+        case: "completeLogin",
+        value: { provider: request.harness, profileId: request.id, loginId: request.loginId, code: request.code },
+      },
+      15_000,
+    );
+
+    if (!result.ok) throw new InvalidError(result.errorMessage || "This sign-in is no longer waiting. Start it again.");
+
+    return create(ui.CompleteProviderLoginResponseSchema);
+  },
+
+  async logoutProvider(this: GatewayCore, request: ui.LogoutProviderRequest): Promise<ui.LogoutProviderResponse> {
+    const { connection } = await providerAuthTarget(this, request, true);
+
+    const result = await connection.sendCommand(
+      { case: "logoutProvider", value: { provider: request.harness, profileId: request.id } },
+      60_000,
+    );
+
+    if (!result.ok) throw new InvalidError(result.errorMessage || "The CLI did not sign out. Refresh, then retry.");
+    const config = await coreRun(this, (s) => s.workerConfig(request.workerId));
+    await this.accounts.refresh(connection, BigInt(config?.version ?? 0), true);
+
+    return create(ui.LogoutProviderResponseSchema);
   },
 
   /** Writes the effective instances of every worker that is behind (gateway start; after a migration). */

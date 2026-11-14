@@ -26,10 +26,6 @@ export class QueryCommands {
     return {};
   }
 
-  async startLoginCommand(kind: Extract<Command["kind"], { case: "startLogin" }>): Promise<CommandOutput> {
-    return { login: await this.ctx.ops.startLogin(kind.value.provider, kind.value.profileId) };
-  }
-
   async listMentionCatalog(kind: Extract<Command["kind"], { case: "listMentionCatalog" }>): Promise<CommandOutput> {
     const { provider, refresh } = kind.value;
     const cwd = kind.value.cwd || homedir();

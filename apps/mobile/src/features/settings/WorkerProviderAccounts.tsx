@@ -9,6 +9,7 @@ import { useOverview } from "../../state/overview";
 import { ResourceState, useSettingsAction, workersFollowStream } from "./resource";
 import { useDateTime } from "./display";
 import { useForegroundInterval } from "../../ui/interval";
+import { ProviderLoginActions } from "./ProviderLoginActions";
 
 export function WorkerProviderAccounts({ worker, readOnly }: { worker: ui.Worker; readOnly: string }) {
   // Workers follow the overview stream: their changes after an action arrive there, no read needed.
@@ -43,11 +44,13 @@ export function WorkerProviderAccounts({ worker, readOnly }: { worker: ui.Worker
               ? "Expired"
               : account.state === "signed_in"
                 ? "Signed in"
-                : account.state === "signed_out"
-                  ? "Not signed in"
-                  : account.state === "error"
-                    ? "Check failed"
-                    : "";
+                : account.state === "stored"
+                  ? "Login saved"
+                  : account.state === "signed_out"
+                    ? "Not signed in"
+                    : account.state === "error"
+                      ? "Check failed"
+                      : "";
 
           return (
             <View key={`${i.harness}/${i.id}`} style={{ gap: 12 }}>
@@ -69,6 +72,15 @@ export function WorkerProviderAccounts({ worker, readOnly }: { worker: ui.Worker
                   )
                 }
                 format={format}
+              />
+              <ProviderLoginActions
+                workerId={worker.id}
+                harness={i.harness}
+                id={i.id}
+                kind={i.kind}
+                ownLogin={i.ownLogin}
+                account={account}
+                disabled={resource.busy || !!readOnly || !current.online}
               />
             </View>
           );

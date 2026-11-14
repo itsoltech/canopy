@@ -19,6 +19,8 @@ const methods = {
   models: "setInstanceModels",
   refresh: "refreshProviders",
   login: "startProviderLogin",
+  complete: "completeProviderLogin",
+  logout: "logoutProvider",
   move: "moveInstanceToProxy",
 } as const satisfies Record<ProviderAction, string>;
 

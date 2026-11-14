@@ -18,6 +18,8 @@ export function providersHandlers(
   | "setInstanceModels"
   | "refreshProviders"
   | "startProviderLogin"
+  | "completeProviderLogin"
+  | "logoutProvider"
   | "listProxies"
   | "saveProxy"
   | "deleteProxy"
@@ -91,5 +93,7 @@ export function providersHandlers(
     refreshProviders: (request) => guard(() => core.refreshProviders(request)),
 
     startProviderLogin: (request) => guard(() => core.startProviderLogin(request)),
+    completeProviderLogin: (request) => guard(() => core.completeProviderLogin(request)),
+    logoutProvider: (request) => guard(() => core.logoutProvider(request)),
   };
 }

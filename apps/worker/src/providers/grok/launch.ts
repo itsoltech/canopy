@@ -7,6 +7,7 @@ import { instanceShadowHome } from "../../config/remote.ts";
 import { instructionDirectory } from "../../agent-environment/files.ts";
 import { textOnlyConfig } from "./text-agent.ts";
 import { isolatedHomeEnvironment } from "../home.ts";
+import { grokAuthPath } from "./home.ts";
 
 interface GrokLaunch {
   options: GrokOptions;
@@ -185,13 +186,16 @@ export function grokLaunch(options: {
     const model = options.model || "grok-4.6";
     config += `\n[model.${JSON.stringify(model)}]\nmodel = ${JSON.stringify(model)}\nbase_url = ${JSON.stringify(base)}\nenv_key = "CANOPY_GROK_API_KEY"\napi_backend = "chat_completions"\n`;
   } else if (options.linkDeviceLogin !== false || runtime.ownLogin) {
-    const source =
-      options.bot?.sourceHome ??
-      (runtime.ownLogin
-        ? runtime.shadowHomePath || join(options.dataDir, "homes", `grok-${profile.id}`)
-        : runtime.homePath || (options.baseEnv ?? process.env)["GROK_HOME"] || join(homedir(), ".grok"));
-
-    env["GROK_AUTH_PATH"] = join(source, "auth.json");
+    env["GROK_AUTH_PATH"] =
+      options.bot && runtime.ownLogin
+        ? join(options.bot.sourceHome, "auth.json")
+        : grokAuthPath({
+            dataDir: options.dataDir,
+            id: profile.id,
+            runtime,
+            deviceHome: options.bot?.sourceHome || (options.baseEnv ?? process.env)["GROK_HOME"],
+            deviceAuthPath: (options.baseEnv ?? process.env)["GROK_AUTH_PATH"],
+          });
   }
 
   writeFileSync(join(home, "config.toml"), config, { mode: 0o600 });

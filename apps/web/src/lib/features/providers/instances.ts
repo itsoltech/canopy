@@ -72,6 +72,8 @@ export function statusOn(on: ui.InstanceOnWorker | undefined, online: boolean): 
   // The CLI still reports the login, but a turn's harness rejected it (the gateway's account mark).
   if (on.available && on.account?.state === "expired") return { label: "Sign-in expired", tone: "amber" };
 
+  if (on.account?.state === "stored") return { label: "Login saved", tone: "neutral" };
+
   if (on.available)
     return { label: on.authenticated && on.auth ? `Authenticated · ${on.auth}` : "Available", tone: "emerald" };
   const detail = on.detail.toLowerCase();
@@ -426,6 +428,8 @@ const actions = {
   models: [ui.SetInstanceModelsRequestSchema, ui.SetInstanceModelsResponseSchema],
   refresh: [ui.RefreshProvidersRequestSchema, ui.RefreshProvidersResponseSchema],
   login: [ui.StartProviderLoginRequestSchema, ui.StartProviderLoginResponseSchema],
+  complete: [ui.CompleteProviderLoginRequestSchema, ui.CompleteProviderLoginResponseSchema],
+  logout: [ui.LogoutProviderRequestSchema, ui.LogoutProviderResponseSchema],
   move: [ui.MoveInstanceToProxyRequestSchema, ui.SaveProviderInstanceResponseSchema],
 } as const satisfies Record<string, readonly [DescMessage, DescMessage]>;
 

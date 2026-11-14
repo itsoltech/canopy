@@ -155,6 +155,8 @@ export class GatewayCore {
   declare checkCliUpdates: CoreProvidersMethods["checkCliUpdates"];
   declare setWorkerCliUpdateSettings: CoreProvidersMethods["setWorkerCliUpdateSettings"];
   declare startProviderLogin: CoreProvidersMethods["startProviderLogin"];
+  declare completeProviderLogin: CoreProvidersMethods["completeProviderLogin"];
+  declare logoutProvider: CoreProvidersMethods["logoutProvider"];
   declare syncProviderInstances: CoreProvidersMethods["syncProviderInstances"];
   declare answerInteraction: CoreInteractionsMethods["answerInteraction"];
   declare movedHistory: CoreWatchMethods["movedHistory"];

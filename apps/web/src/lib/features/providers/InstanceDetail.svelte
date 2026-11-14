@@ -114,7 +114,9 @@
     {#if worker}
       {@const status = statusOn(on, worker.online)}
       <dl class="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-base/6 sm:text-sm/6">
-        <dt class="text-zinc-500 dark:text-zinc-400">On {worker.name}</dt>
+        <dt class="max-w-28 truncate text-zinc-500 sm:max-w-48 dark:text-zinc-400" title={worker.name}>
+          On {worker.name}
+        </dt>
         <dd class="text-zinc-950 dark:text-white"><StatusLine {status} /></dd>
         {#if on?.version}<dt class="text-zinc-500 dark:text-zinc-400">Version</dt>
           <dd class="font-mono text-zinc-950 dark:text-white">{on.version}</dd>{/if}

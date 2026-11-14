@@ -4,7 +4,7 @@ import { prepareProviderHome, type ProviderHome } from "../home.ts";
 
 /**
  * Isolated CLAUDE_CONFIG_DIR for platform threads, like CODEX_HOME: the device owner's settings, hooks,
- * plugins and MCP servers do not apply; only their Claude login (.credentials.json) is linked in.
+ * plugins and MCP servers do not apply; secure storage selects the source login independently.
  *
  * CLAUDE_SECURESTORAGE_CONFIG_DIR selects the login independently, including macOS Keychain entries.
  */
@@ -34,9 +34,10 @@ export function prepareClaudeHome(options: ClaudeHomeOptions): ProviderHome & { 
     path,
     loginFile: ".credentials.json",
     deviceHome,
-    linkDeviceLogin: options.linkDeviceLogin,
+    // Secure storage selects the actual file too, not only macOS Keychain. Never copy a refresh token.
+    linkDeviceLogin: false,
     ...(options.ownLogin && { ownLogin: true }),
-    missingLogin: "no Claude login file on this device; run `claude login` or use a CLIProxyAPI profile",
+    missingLogin: "no Claude login file on this device; run `claude auth login` or use a CLIProxyAPI profile",
   });
 
   return {

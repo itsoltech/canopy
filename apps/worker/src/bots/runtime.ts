@@ -10,7 +10,7 @@ import {
   type BotFileOperation,
   type RunBotTurn,
 } from "@canopy/contracts";
-import { instanceShadowHome } from "../config/remote.ts";
+import { instanceShadowHome, type AppliedConfig } from "../config/remote.ts";
 import { Journal, type ThreadEventInit } from "../journal/index.ts";
 import { grokBus } from "../providers/grok/bus.ts";
 import { readHarnessRecord, reconcileEvents } from "../providers/reconcile.ts";
@@ -22,7 +22,7 @@ import { runCodexBot } from "./codex.ts";
 import { runGrokBot } from "./grok.ts";
 import { BotHarnessFailure } from "./types.ts";
 import { botFailureEvent } from "./failures.ts";
-import { providersOf } from "../providers/profiles.ts";
+import { providersOf, type ResolvedProfile } from "../providers/profiles.ts";
 import { botImages } from "./images.ts";
 import { BotFileError, BotWorkspace, cleanupBotWorkspaces } from "./workspace.ts";
 import { BotFileOperations } from "./file-operations.ts";
@@ -38,6 +38,30 @@ function botProvider(provider: Provider) {
 
 const imagesFor = (ctx: HostContext, input: RunBotTurn) => (resumed: boolean) =>
   botImages(input, resumed, ctx.state.files, (sha) => ctx.ops.fetchBlob(input.botId, sha, input.turnId));
+
+function sessionOptions(
+  ctx: HostContext,
+  config: AppliedConfig,
+  profile: ResolvedProfile,
+  provider: "claude" | "codex" | "grok",
+) {
+  const runtime = profile.runtime;
+
+  const sourceHome = runtime.ownLogin
+    ? instanceShadowHome(ctx.state.options.dataDir, provider, profile.id, runtime)!
+    : runtime.homePath || ctx.state.deviceHomes[provider] || "";
+
+  return {
+    dataDir: ctx.state.options.dataDir,
+    sourceHome,
+    ...(provider === "claude" &&
+      !runtime.ownLogin &&
+      !runtime.homePath && {
+        secureStorageDir: ctx.state.deviceHomes.claudeSecureStorage ?? sourceHome,
+      }),
+    linkLogin: profile.kind === "native" && (runtime.ownLogin === true || config[provider].linkDeviceLogin),
+  };
+}
 
 /** Hidden bot sessions own no project workspace and expose only gateway-executed MCP. */
 export class BotTurns {
@@ -129,17 +153,7 @@ export class BotTurns {
         "Bot provider instance is unavailable on this worker",
         true,
       );
-    const runtime = profile.runtime ?? {};
-
-    const sourceHome = runtime.ownLogin
-      ? instanceShadowHome(this.ctx.state.options.dataDir, provider, profile.id, runtime)!
-      : runtime.homePath || this.ctx.state.deviceHomes[provider] || "";
-
-    const session = botSession(input, {
-      dataDir: this.ctx.state.options.dataDir,
-      sourceHome,
-      linkLogin: profile.kind === "native" && (runtime.ownLogin === true || config[provider].linkDeviceLogin),
-    });
+    const session = botSession(input, sessionOptions(this.ctx, config, profile, provider));
 
     const active = this.#active.get(`${input.botId}/${input.turnId}`)!;
     active.workspace = session.workspace;
@@ -198,7 +212,7 @@ export class BotTurns {
       session,
       profile,
       signal: abort.signal,
-      executable: runtime.executablePath || config[provider].executable || provider,
+      executable: profile.runtime.executablePath || config[provider].executable || provider,
       clientVersion: this.ctx.state.options.clientVersion,
       mcp:
         "url" in bus.server

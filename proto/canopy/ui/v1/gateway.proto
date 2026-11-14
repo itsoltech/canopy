@@ -305,6 +305,8 @@ service GatewayService {
   rpc RefreshProviders(RefreshProvidersRequest) returns (RefreshProvidersResponse);
   // Logowanie instancji przez API harnessu (Codex: ChatGPT kodem urządzenia).
   rpc StartProviderLogin(StartProviderLoginRequest) returns (StartProviderLoginResponse);
+  rpc CompleteProviderLogin(CompleteProviderLoginRequest) returns (CompleteProviderLoginResponse);
+  rpc LogoutProvider(LogoutProviderRequest) returns (LogoutProviderResponse);
   // CLI dostawców na workerach (docs/provider-cli.md): instalacja/aktualizacja na kliknięcie i najnowsze wersje.
   rpc InstallCli(InstallCliRequest) returns (InstallCliResponse);
   rpc CheckCliUpdates(CheckCliUpdatesRequest) returns (CheckCliUpdatesResponse);
@@ -2231,6 +2233,7 @@ message WorkerInstance {
   // Full status from this worker's home, also carried over linked overview streams.
   InstanceOnWorker status = 11;
   canopy.worker.v1.ProviderUsageSnapshot usage = 12;
+  bool own_login = 13;
 }
 
 message ListProviderInstancesRequest {}
@@ -2423,7 +2426,24 @@ message StartProviderLoginResponse {
   string user_code = 2;
   // Matches ProviderAccountStatus.login_id: the client waits for this sign-in's outcome.
   string login_id = 3;
+  // Claude CLI accepts the browser's authorization code on stdin; never persisted.
+  bool requires_code = 4;
 }
+
+message CompleteProviderLoginRequest {
+  canopy.worker.v1.Provider harness = 1;
+  string id = 2;
+  string worker_id = 3;
+  string login_id = 4;
+  string code = 5;
+}
+message CompleteProviderLoginResponse {}
+message LogoutProviderRequest {
+  canopy.worker.v1.Provider harness = 1;
+  string id = 2;
+  string worker_id = 3;
+}
+message LogoutProviderResponse {}
 
 // ---------- CLI dostawców (docs/provider-cli.md) ----------
 

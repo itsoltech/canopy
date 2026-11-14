@@ -415,6 +415,8 @@ message Command {
     // Globalne instancje dostawców (sekcja na końcu pliku).
     ProbeProviders probe_providers = 41;
     StartLogin start_login = 42;
+    CompleteLogin complete_login = 43;
+    LogoutProvider logout_provider = 44;
     // Wzmianki w kompozytorze (sekcja na końcu pliku).
     ListMentionCatalog list_mention_catalog = 140;
     SearchFiles search_files = 141;
@@ -881,6 +883,8 @@ message ProviderAccountStatus {
   // "pending", "signed_in" or "failed". Empty when none ran since the worker started.
   string login_id = 14;
   string login_outcome = 15;
+  // Claude: present empty selects the default keychain; a directory selects its isolated file/keychain store.
+  optional string login_secure_storage_dir = 16;
 }
 
 message ProviderAccountEntry {
@@ -1631,6 +1635,19 @@ message LoginStarted {
   string verification_url = 1;
   string user_code = 2;
   string login_id = 3;
+  bool requires_code = 4;
+}
+
+// provider_cli_auth_v1; transient, never journaled. The code goes only to the waiting CLI's stdin.
+message CompleteLogin {
+  Provider provider = 1;
+  string profile_id = 2;
+  string login_id = 3;
+  string code = 4;
+}
+message LogoutProvider {
+  Provider provider = 1;
+  string profile_id = 2;
 }
 
 // ---------- Wzmianki w kompozytorze (docs/protocol.md#wzmianki) ----------

@@ -162,13 +162,9 @@
       message={turn.error}
       code={turn.errorCode}
       classification={turn.errorClass}
-      authHint={thread?.provider === Provider.CLAUDE
-        ? "Open provider settings for this worker. Use its sign-in command, then retry."
-        : thread?.provider === Provider.GROK
-          ? "Run grok login on the worker using this instance's CLI home, then retry."
-          : appSignIn
-            ? "Sign in with ChatGPT, then retry."
-            : "Sign in from provider settings, or run codex login on the worker using this instance's CLI home."}
+      authHint={appSignIn
+        ? "Sign in, then retry."
+        : "Open provider settings for this worker. Use its sign-in command, then retry."}
       source={turn.errorSource}
       {historical}
       {proxy}
@@ -182,6 +178,7 @@
     />
     {#if !historical && confirming && !login.code && worker}
       <SignInConfirm
+        harness={thread?.provider ?? Provider.CODEX}
         workerName={worker.name}
         linked={ownLogin !== true}
         busy={login.busy}
@@ -190,7 +187,13 @@
       />
     {/if}
     {#if !historical && login.code && worker}
-      <DeviceCode url={login.code.url} userCode={login.code.userCode} workerName={worker.name} />
+      <DeviceCode
+        {...login.code}
+        url={login.code.url}
+        workerName={worker.name}
+        busy={login.busy}
+        onsubmit={(code) => login.submit(code)}
+      />
     {/if}
     {#if !historical && login.failure}<p role="alert" class="text-sm text-rose-700 dark:text-rose-400">
         {login.failure}
