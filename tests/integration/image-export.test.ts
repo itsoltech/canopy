@@ -16,6 +16,7 @@ import { tempDirs } from "@canopy/testing";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { Effect, Layer, ManagedRuntime } from "effect";
+import sharp from "sharp";
 import { ThreadImageExports } from "../../apps/worker/src/images/exports.ts";
 import { Journal } from "../../apps/worker/src/journal/index.ts";
 import { claudeBusServer } from "../../apps/worker/src/providers/claude/bus.ts";
@@ -169,6 +170,23 @@ describe.skipIf(!dockerAvailable)("scoped image exports and provider tools over 
 
     expect((await show("screen.png")).isError).toBe(false);
   });
+
+  test("corrupt and decompression-bomb images become tool errors; the worker link stays up for the next image", async () => {
+    const header = Uint8Array.fromBase64("iVBORw0KGgo=");
+    writeFileSync(join(root, "corrupt.png"), Buffer.concat([header, Buffer.alloc(4096, 7)]));
+    // 144 megapixels in under 1 MB: refused from its header, before anything is decoded.
+    const bomb = sharp({ create: { width: 12_000, height: 12_000, channels: 3, background: "#fff" } });
+    writeFileSync(join(root, "bomb.png"), await bomb.png({ compressionLevel: 9 }).toBuffer());
+
+    for (const path of ["corrupt.png", "bomb.png"]) {
+      const result = await show(path);
+      expect(result.isError).toBe(true);
+      expect(result.content).toMatch(/could not be read as an image|megapixels/);
+    }
+
+    expect(gw.core.link.connections.get(gw.workerId)?.isOpen).toBe(true);
+    expect((await show("screen.png")).isError).toBe(false);
+  }, 30_000);
 
   test("binds immutable bytes to an export; replacement, cross-turn reads and journal replay cannot change them", async () => {
     const directory = join(root, "original");
