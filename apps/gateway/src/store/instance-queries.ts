@@ -195,7 +195,7 @@ export function instanceSync(sql: SqlClient.SqlClient, reads: InstanceReads, sec
             DELETE FROM secrets s
              WHERE (s.name LIKE ${`${SECRET_PREFIX}%`} OR s.name LIKE 'profile-%')
                AND NOT EXISTS (SELECT 1 FROM worker_config_secrets r WHERE r.secret_id = s.id)
-               AND NOT EXISTS (SELECT 1 FROM proxies p WHERE p.secret_id = s.id)
+               AND NOT EXISTS (SELECT 1 FROM proxies p WHERE p.secret_id = s.id OR p.management_secret_id = s.id)
                AND NOT EXISTS (
                  SELECT 1 FROM provider_instances i
                   WHERE i.api_key ->> 'secretRef' = s.id::text

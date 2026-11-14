@@ -310,12 +310,14 @@ export const coreWorkLoopMethods: CoreWorkLoopMethods = {
     this.github.device.start();
     this.github.background.start();
     this.githubDetection.start();
+    this.proxyAccounts.start();
   },
 
   async stopSweep(this: GatewayCore): Promise<void> {
     await this.githubDetection.stop();
     const sourcesStopped = Promise.all([this.environment.sources.stop(), this.environment.marketplaces.stop()]);
     this.cli.stop();
+    this.proxyAccounts.stop();
     this.connectors.stop();
     this.secrets.stop();
 

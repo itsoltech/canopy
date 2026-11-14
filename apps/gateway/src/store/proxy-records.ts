@@ -20,6 +20,7 @@ export interface ProxyRow {
   kind: string;
   base_url: string;
   secret_id: string | null;
+  management_secret_id: string | null;
   fingerprint: string;
   codex: ProxyOptions;
   revision: bigint | number | string;
@@ -110,6 +111,7 @@ export function proxyRecords(sql: SqlClient.SqlClient, key: Buffer) {
         kind: row.kind,
         baseUrl: row.base_url,
         secretSet: row.secret_id !== null,
+        managementKeySet: row.management_secret_id !== null,
         codex: row.codex,
         revision: BigInt(row.revision),
         usedBy: yield* usedBy(row.id),

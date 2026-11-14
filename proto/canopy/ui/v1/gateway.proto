@@ -131,6 +131,8 @@ service GatewayService {
   rpc SaveProxy(SaveProxyRequest) returns (ProxyResponse);
   rpc DeleteProxy(ProxyIdRequest) returns (DeleteProxyResponse);
   rpc TestProxy(ProxyIdRequest) returns (TestProxyResponse);
+  // Upstream accounts of a CLIProxyAPI proxy through its management API (docs/proxies.md); the gateway calls it.
+  rpc RefreshProxyAccounts(RefreshProxyAccountsRequest) returns (ProxyAccounts);
   // Move stored endpoint variables without returning their values to the client.
   rpc MoveInstanceToProxy(MoveInstanceToProxyRequest) returns (SaveProviderInstanceResponse);
   rpc GetClientCapabilities(ClientCapabilitiesRequest) returns (ClientCapabilities);
@@ -1097,6 +1099,8 @@ message OverviewUpdate {
     // The update center changed (state, check, a worker's or linked computer's update): read GetUpdates again.
     bool updates_changed = 829;
     ThreadHeads thread_heads = 830;
+    // The upstream accounts of one proxy changed (RefreshProxyAccounts, periodic check).
+    ProxyAccounts proxy_accounts = 831;
   }
 }
 
@@ -2269,6 +2273,43 @@ message Proxy {
   uint64 revision = 7;
   // Human-readable profile references, including worker-specific choices.
   repeated string used_by = 8;
+  // A CLIProxyAPI management key is stored (encrypted, never returned).
+  bool management_key_set = 9;
+  // The gateway's last read of the upstream accounts; absent before the first read.
+  ProxyAccounts accounts = 10;
+}
+// One upstream account (CLIProxyAPI auth file). Text fields are sanitized plain text from an untrusted response.
+message ProxyAccount {
+  // Opaque, stable within the proxy.
+  string id = 1;
+  // Lower-case provider name as the proxy reports it: claude, codex, gemini, xai, …
+  string provider = 2;
+  // Email, account or file name.
+  string label = 3;
+  // active | cooling_down | disabled | sign_in | error
+  string status = 4;
+  // Short status message or last error, redacted and capped.
+  string detail = 5;
+  // A cooldown ends at this time.
+  google.protobuf.Timestamp retry_at = 6;
+  // Passive quota observations from the last upstream response (keys as in ProviderUsageWindow).
+  repeated canopy.worker.v1.ProviderUsageWindow windows = 7;
+  uint64 success_count = 8;
+  uint64 failure_count = 9;
+}
+message ProxyAccounts {
+  string proxy_id = 1;
+  // ok | no_key | unauthorized | remote_disabled | unavailable | unreachable | invalid_response
+  string state = 2;
+  repeated ProxyAccount accounts = 3;
+  google.protobuf.Timestamp checked_at = 4;
+  // Accounts the proxy reported; more than `accounts` when capped.
+  uint32 total = 5;
+}
+message RefreshProxyAccountsRequest {
+  string id = 1;
+  // A Refresh button: read now, also after an auth failure. Otherwise a recent read answers.
+  bool force = 2;
 }
 message ListProxiesRequest {}
 message ListProxiesResponse { repeated Proxy proxies = 1; }
@@ -2282,6 +2323,8 @@ message SaveProxyRequest {
   optional string secret = 5;
   canopy.worker.v1.ProxyCodexOptions codex = 6;
   uint64 expected_revision = 7;
+  // CLIProxyAPI management key. Omitted keeps it, empty removes it. Never returned.
+  optional string management_key = 8;
 }
 message ProxyIdRequest {
   string id = 1;

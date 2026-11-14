@@ -134,7 +134,7 @@ automatycznie szyfrowane również wtedy, gdy starszy klient zapisał je jako zw
 
 ## API i weryfikacja
 
-Addytywne RPC: `ListProxies`, `SaveProxy`, `DeleteProxy`, `TestProxy`,
+Addytywne RPC: `ListProxies`, `SaveProxy`, `DeleteProxy`, `TestProxy`, `RefreshProxyAccounts`,
 `MoveInstanceToProxy`; `ProviderInstance`, `SaveProviderInstanceRequest` i
 `InstanceOverrides[Input]` mają `proxy_id`. `WorkerConfig.profiles.proxy_codex`
 przekazuje wyłącznie publiczne opcje transportu. BFF: `GET /api/proxies`,
@@ -144,6 +144,47 @@ przekazuje wyłącznie publiczne opcje transportu. BFF: `GET /api/proxies`,
 trzech harnessów, izolowany Codex home, szyfrowanie, redakcję, owner scoping,
 rotację, audyt, migrację i przenoszenie env. Nie dodajemy testów UI.
 
-Możliwy dalszy etap, poza tą zmianą: wyświetlanie limitów użycia CLIProxyAPI przez
-Management API. Wymaga osobnej decyzji o poświadczeniu zarządzania i dostępie;
-sekret inferencji nie daje automatycznie uprawnień administracyjnych.
+## Konta upstream (Management API CLIProxyAPI)
+
+Proxy CLIProxyAPI może mieć opcjonalny **management key**. Sekret inferencji nie daje
+uprawnień administracyjnych, więc to osobne pole w Settings → Proxies. Klucz jest
+szyfrowany jak sekret proxy (`proxies.management_secret_id`, migracja 0144), nigdy nie
+wraca do klienta (`Proxy.management_key_set`), nie trafia do workerów, modeli, logów
+ani synchronizacji połączonych komputerów. Pominięty w `SaveProxyRequest` zostaje,
+pusty jest usuwany. Inne rodzaje proxy nie mają Management API i nie przechowują klucza.
+Audyt: `proxy.management_key_replaced` / `proxy.management_key_removed`, bez wartości.
+
+Gateway (właściciel proxy) czyta `GET <root>/v0/management/auth-files` (CLIProxyAPI
+v8.0.x) z `Authorization: Bearer`. Przekierowania są odrzucane, a czas odpowiedzi
+ograniczony do 10 s. Body ponad 4 MiB jest odrzucane, a lista ograniczona do 200 kont.
+Odpowiedź to niezaufane dane: dekodowanie schematem przy granicy, pomijanie wpisów
+o złych typach, tekst bez znaków sterujących i `<>`, zredagowane poświadczenia,
+limity długości. UI nie renderuje z niej HTML. Każde konto (`ProxyAccount`) zawiera:
+providera, email/etykietę, status (`active`, `cooling_down`, `disabled`, `sign_in`,
+`error`), krótki komunikat, koniec cooldownu i liczniki sukcesów/błędów. Okna limitów
+pochodzą z pasywnych nagłówków ostatniej odpowiedzi upstream: Codex
+`x-codex-{primary,secondary}-*`, Claude `anthropic-ratelimit-unified-{5h,7d}-*`.
+Nie używamy `usage-queue`, bo zdejmuje rekordy z kolejki innych odbiorców.
+
+Stan (`ProxyAccounts.state`): `ok`, `no_key`, `unauthorized`, `remote_disabled`
+(403 „remote management disabled”: włącz `remote-management.allow-remote`),
+`unavailable`, `unreachable`, `invalid_response`. Proxy działa dalej niezależnie od
+tego stanu.
+
+Odczyty są rzadkie i trzymane tylko w pamięci gatewaya (`ProxyAccountsMonitor`):
+- `RefreshProxyAccounts` przy otwarciu widoku zwraca odczyt młodszy niż 60 s;
+  przycisk Refresh (`force`) czyta najwyżej co 5 s;
+- co 5 min sprawdzane są proxy z kluczem używane przez profil, z backoffem
+  do 1 h po błędach;
+- zmiana klucza lub URL czyta od nowa.
+
+CLIProxyAPI blokuje adres na 30 min po pięciu złych kluczach. Dlatego `unauthorized`,
+`remote_disabled` i `no_key` czekają na nowy klucz albo Refresh; gateway nie ponawia
+ich sam. Zmieniona lista trafia do klientów jako `OverviewUpdate.proxy_accounts` dla
+jednego proxy; web i mobile podmieniają ją we współdzielonym `ListProxies` bez
+ponownego odczytu listy. BFF: `POST /api/proxies/accounts`.
+
+`tests/integration/proxy-accounts.test.ts` używa fałszywego serwera Management API:
+parsowanie i sanityzacja kont, zły klucz bez ponowień, wyłączony zdalny dostęp,
+za duże i nie-JSON body, nieosiągalny host, brak klucza, owner scoping, okresowe
+sprawdzanie tylko używanych proxy oraz brak klucza w odpowiedziach RPC, bazie i audycie.
