@@ -175,11 +175,21 @@ Kolumna rozmowy (`chat-column`) jest wyśrodkowana na **środku okna**, z własn
 maksymalną szerokością; wiadomości i composer zawsze mają tę samą szerokość
 i wyrównanie. Kolumna nie wchodzi na lewy sidebar (z odstępem szyny tur) ani na
 zadokowaną kartę (odstęp 1 rem). Gdy jedna ze stron by kolidowała, kolumna przesuwa
-się tylko tyle, ile trzeba, a dopiero potem zwęża się do minimum 36 rem
-(`SummaryLayout`, `--chat-offset`, `--chat-column`). Sidebar i panel Files zmieniają
-tylko dostępną przestrzeń; gdy kolumna mieści się na środku, nic się nie rusza.
+się tylko tyle, ile trzeba, a dopiero potem zwęża się do minimum 36 rem.
+Położenie kolumny liczy wyłącznie CSS (`layout.css`, `data-chat-placement`): z bieżącej
+szerokości sidebara (`--sidebar-extent`), szerokości obszaru (`100%`) i miejsca karty
+(`--chat-card-space`). Nie ma pomiaru w JS, więc kolumna rusza się w tej samej klatce
+co sidebar i panel Files, a nie klatkę później. Sidebar i Files zmieniają tylko
+dostępną przestrzeń; gdy kolumna mieści się na środku, nic się nie rusza.
 Otwarcie lub zwinięcie zadokowanej karty przesuwa kolumnę płynnie
 (`--duration-slow`, `--ease-smooth-out`; przy reduced motion natychmiast).
+
+`SummaryLayout` decyduje tylko o doku (karta czy pigułka). Decyzja dotyczy stanu
+**końcowego**: do zmierzonej szerokości dodaje drogę, którą sidebar i Files mają
+jeszcze do przejścia (`sidebarTravel`, `ThreadWorkspace.travel`). Dlatego karta
+lub pigułka zmienia się raz, na początku animacji, i nie miga w jej trakcie. Tak
+samo `ThreadWorkspace.wide` (Files obok wątku czy w arkuszu) liczy szerokość, do
+której zmierza sidebar.
 
 Karta ma stałą szerokość 20 rem i jest zakotwiczona w prawym górnym rogu obszaru
 `Thread` (inset 12 px od góry, 16 px od prawej), niezależnie od prawego panelu.
@@ -217,6 +227,13 @@ Panel montuje się przy pierwszym użyciu i potem pozostaje zamontowany.
 
 ### Ruch
 
+- Lewy sidebar: kolumna (`t-sidebar`) zmienia szerokość `--sidebar-extent`
+  (zarejestrowana, niedziedziczona właściwość): otwarcie `--duration-slow`, zamknięcie
+  `--duration-medium`, `--ease-smooth-out`. Kolumny rozmowy animują własną kopię tej
+  wartości z tym samym czasem i krzywą; obie animacje startują w tej samej zmianie
+  stylu, więc w każdej klatce mają tę samą wartość. Reszta strony nie przelicza
+  stylów co klatkę. `--sidebar-width` jest ustawiane tylko na kolumnie sidebara
+  i obszarze wątku, więc przeciąganie uchwytu też nie przelicza całej strony.
 - Panel Files: siatka obszaru zmienia kolumnę panelu (`t-panel-column`):
   otwarcie `--duration-slow`, zamknięcie `--duration-medium`, `--ease-smooth-out`.
   Kolumna wątku płynnie zmienia szerokość. Treść panelu ma stałą szerokość przy
