@@ -1,5 +1,13 @@
 # Zwijanie pracy na osi wątku
 
+Wejście tury zawsze poprzedza jej pracę. Gateway zapisuje tekst i wiąże załączniki
+przy przyjęciu wiadomości, przed wysłaniem `StartTurn`. Echo `user_message` od
+dostawcy zastępuje placeholder w tym samym miejscu, tuż po początku tury, nawet
+gdy ma późniejszy `seq` niż komunikat `connectors_applied` lub inne itemy pracy.
+Web/desktop i mobile zachowują tę kolejność na żywo, po ponownym odczycie historii
+i przy doczytywaniu stron. `seq` logu nadal opisuje kolejność zapisu zdarzeń;
+steery zachowują swoje miejsce między segmentami, bo dołączają do trwającej tury.
+
 Każda tura od startu ma fold „Working for …”: czas aktualizowany co sekundę i krótki opis aktywnego narzędzia z dotychczasowym shimmerem. Settings → Threads → Turn activity zawiera trzy preferencje urządzenia, każdą z osobnym resetem:
 
 - „While working”: Expanded (domyślnie) lub Collapsed. Decyduje o całej sekcji pracy, zawierającej grupy narzędzi, podsumowania rozumowania i wiadomości postępu.

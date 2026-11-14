@@ -75,12 +75,14 @@ export const isTerminal = (status: string) => TERMINAL.has(status);
 type Element = { seq: bigint; turnId: string } & ({ node: ItemNode } | { notice: TimelineNotice });
 
 /**
- * Orders items and notices by seq and frames each turn: a start row before its first element (marking a
+ * Orders work and notices by seq and frames each turn: a start row before its first element (marking a
  * new day) and an end row (status, usage, the last answer) after its last one. Items of other turns or between turns (background
  * work) keep their place in the sequence. Turns without any element yet keep their ordinal position
  * before the next turn with elements; waiting turns are not rows (the queue panel shows them apart), nor
  * are turns the user took out of the queue (`withdrawn`: deleted, or steered into another turn).
- * `nodes` keeps item nodes between builds: an unchanged item (and nested items) keeps its node object.
+ * The input belongs immediately after its turn's start, even if the provider echoes it after early notices
+ * or work. The gateway has already persisted the input before dispatch; echo arrival does not reorder it.
+ * Steers keep their sequence position. `nodes` keeps unchanged item nodes between builds.
  */
 export function buildTimeline(
   entries: readonly TimelineEntry[],
@@ -132,9 +134,14 @@ export function buildTimeline(
   const lastIndex = new Map<string, number>();
   elements.forEach((element, index) => element.turnId && lastIndex.set(element.turnId, index));
 
-  const echoed = new Set(
-    entries.flatMap((e) => (e.item.content.case === "userMessage" && !isSteerMessage(e) ? [e.turnId] : [])),
-  );
+  const inputs = new Map<string, ItemNode[]>();
+
+  for (const element of elements) {
+    if (!("node" in element) || !isTurnInput(element.node.entry)) continue;
+    const list = inputs.get(element.turnId) ?? [];
+    list.push(element.node);
+    inputs.set(element.turnId, list);
+  }
 
   const answers = new Map<string, string>();
 
@@ -164,7 +171,13 @@ export function buildTimeline(
 
     if (day) lastDay = day;
 
-    if (!echoed.has(turn.id) && turn.inputText) rows.push({ kind: "input", key: `input:${turn.id}`, turn });
+    const echoed = inputs.get(turn.id);
+
+    if (echoed)
+      for (const node of echoed)
+        rows.push({ kind: "item", key: `item:${node.entry.id}`, node, inputOf: turn, steer: false });
+    else if (turn.inputText || turn.messageText || turn.attachments.length || turn.quotes.length)
+      rows.push({ kind: "input", key: `input:${turn.id}`, turn });
   };
 
   const close = (turn: ui.Turn) => {
@@ -194,11 +207,11 @@ export function buildTimeline(
       open(turn);
     }
 
-    if ("node" in element) {
+    if ("node" in element && !(turn && isTurnInput(element.node.entry))) {
       const steer = isSteerMessage(element.node.entry);
       const inputOf = element.node.entry.item.content.case === "userMessage" && !steer ? turn : undefined;
       rows.push({ kind: "item", key: `item:${element.node.entry.id}`, node: element.node, inputOf, steer });
-    } else rows.push({ kind: "notice", key: `notice:${element.seq}`, notice: element.notice });
+    } else if ("notice" in element) rows.push({ kind: "notice", key: `notice:${element.seq}`, notice: element.notice });
 
     if (turn && lastIndex.get(turn.id) === index) close(turn);
   });
@@ -211,3 +224,6 @@ export function buildTimeline(
 
   return rows;
 }
+
+const isTurnInput = (entry: TimelineEntry): boolean =>
+  entry.item.content.case === "userMessage" && !isSteerMessage(entry);
