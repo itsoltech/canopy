@@ -8,6 +8,7 @@ import type { IconName } from "@canopy/ui/icons";
 import { blank } from "./work-segments.ts";
 import { foldId, turnProgress, workSegments, type BodyRow, type WorkSegment } from "@canopy/domain/work-fold";
 import { recoverFoldRows } from "./work-history.ts";
+import { isReplyResult } from "./reply-items.ts";
 
 /**
  * Each turn's work under a stable "Working for …" / "Worked for …" row:
@@ -156,15 +157,15 @@ export function foldTurns(
   );
 
   const bodies = new Map<string, TimelineRow[]>();
-  const galleries = new Map<string, TimelineRow[]>();
+  const results = new Map<string, TimelineRow[]>();
 
   for (const row of rows) {
     const turnId = turnIdOf(row);
 
-    if (row.kind === "item" && row.node.entry.item.content.case === "imageGallery") {
-      const list = galleries.get(turnId) ?? [];
+    if (row.kind === "item" && isReplyResult(row.node.entry.item.content)) {
+      const list = results.get(turnId) ?? [];
       list.push(row);
-      galleries.set(turnId, list);
+      results.set(turnId, list);
       continue;
     }
 
@@ -214,7 +215,7 @@ export function foldTurns(
     const derived = fold.segments.flatMap((_, index) => segmentRows(fold, index, isOpen, groupOpen, tasksBySource));
     out.push(...recoverFoldRows(fold.body, derived, report));
 
-    for (const gallery of galleries.get(turnId) ?? []) out.push({ kind: "row", row: gallery, work: false });
+    for (const result of results.get(turnId) ?? []) out.push({ kind: "row", row: result, work: false });
 
     // The body is grouped here even when old items arrive after a newer turn. Its footer belongs here too.
     const end = ends.get(turnId);

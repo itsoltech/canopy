@@ -3,6 +3,7 @@ import { foldId, turnProgress, workSegments, type BodyRow, type WorkFoldState } 
 import type { TimelineEntry, TimelineNotice } from "./thread-types.ts";
 import { isSteerMessage } from "./timeline.ts";
 import { turnNotices } from "@canopy/domain/turn-notices";
+import { isReplyResult } from "./reply-items.ts";
 
 /** A message or reasoning with nothing to show yet: it adds no visible work (later deltas can fill it). */
 export function blank(content: Item["content"]): boolean {
@@ -53,7 +54,7 @@ export function planFolds(
   for (const entry of entries) {
     const { content, parentItemId } = entry.item;
 
-    if (content.case === "imageGallery") continue;
+    if (isReplyResult(content)) continue;
     const steer = isSteerMessage(entry);
 
     if (parentItemId && parentItemId !== entry.id && ids.has(parentItemId)) continue;

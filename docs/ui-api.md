@@ -1250,6 +1250,36 @@ Obcy lub nieistniejący visual daje `NotFound`. Kwalifikowane ID (`uuid~node`)
 kieruje odczyt do domu wątku jak `GetThreadBlob`; niedostępny dom daje
 „Available when <computer> is connected.”.
 
+Web/desktop (`apps/web/src/lib/features/visuals`): item `visual` stoi pod odpowiedzią
+poza zwiniętą pracą tury (`reply-items.ts`). Spec jest pobierany przez BFF
+`/api/threads/:id/visuals/:visualId?version=N` dopiero po wejściu w viewport i przy
+wolnym slocie; cache LRU 16 wpisów / 2 MiB. Najwyżej 2 aktywne ramki (1 na wąskim
+ekranie); kolejne pokazują opis i „Open visual”, który przejmuje najstarszy slot bez
+fokusu. Wyjście z viewportu wysyła `visibility: false` od razu i usuwa ramkę po 5 s;
+ukryta karta usuwa ją od razu. Ostatnia wysokość pozostaje zarezerwowana.
+Kompilator i kit są ładowane leniwie (`@canopy/domain/visual-compiler`).
+
+`frame-host.ts` tworzy `<iframe sandbox="allow-scripts" referrerpolicy="no-referrer"
+allow="">` przez `srcdoc` z nonce i instancją per montaż, przekazuje jeden
+`MessagePort` po `load` i dalej czyta tylko sparsowane komunikaty z limitem 10/s
+(wysokość 4/s, jedna zmiana na klatkę, 160–720 px). Motyw (Appearance, light/dark,
+Interface size) i reduced motion trafiają do ramki przez port przy zmianie.
+Stan kontrolek (`local_state`) jest walidowany względem spec i zapisywany tylko
+w `localStorage` urządzenia (64 wpisy / 256 KiB) per wersja.
+
+Escape w ramce przychodzi jako komunikat `escape` i zamyka pełny ekran; ramka nie
+przekazuje innych klawiszy. Menu akcji jest na telefonie dolnym arkuszem (`sheet`),
+więc nie wychodzi poza viewport, nawet gdy nagłówek visuala jest pod paskiem wątku.
+
+Chrome hosta: tytuł, „Version N”, „Open full screen” (dialog z tą samą ramką),
+menu „Download HTML” (BFF `?download` kompiluje eksport z CSP, plik
+`text/plain` + `attachment` + `nosniff`), „Copy spec”, „Cite visual” (cytat
+tekstowy z tytułem, wersją, `visual:<id>@<wersja>` i opisem) oraz wybór wersji.
+Nowa wersja zastępuje widok, chyba że ramka ma fokus: wtedy pasek „A new version
+is available.” z „Reload”. Nieznana lub wycofana wersja kitu pokazuje
+„Update Canopy to open this visual.”, błąd ramki „Couldn't open this visual.”
+z „Retry”.
+
 #### Załączniki w tekście
 
 **Podgląd plików.** Plakietki wiadomości wysłanych, kolejki i kompozytora otwierają

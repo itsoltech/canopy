@@ -16,6 +16,7 @@
   import ToolCallView from "./ToolCallView.svelte";
   import UserMessageView from "./UserMessageView.svelte";
   import WebSearchView from "./WebSearchView.svelte";
+  import VisualView from "#lib/features/visuals/VisualView.svelte";
   import { provideItemChildren } from "./item-context.ts";
   import { provideThreadFileLinks } from "#lib/features/files/file-links.svelte.ts";
   import { useThreadDirectory } from "../../thread-directory.ts";
@@ -80,6 +81,8 @@
   <CompactionView compaction={content.value} />
 {:else if content.case === "interactionPrompt"}
   <InteractionPromptView prompt={content.value} status={item.status} />
+{:else if content.case === "visual"}
+  <VisualView visual={content.value} threadId={directory.currentId} itemId={item.itemId} />
 {:else if content.case === "providerItem"}
   <ProviderItemView item={content.value} status={item.status} />
 {/if}

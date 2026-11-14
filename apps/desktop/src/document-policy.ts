@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { Session } from "electron";
+import { KIT_SCRIPT_CSP } from "@canopy/domain/visual-compiler";
 
 export class DocumentPolicy {
   private readonly scriptHashes = new Map<string, Set<string>>();
@@ -33,16 +34,19 @@ export class DocumentPolicy {
           .catch(() => callback({ cancel: true }));
       } else callback({});
     });
-    // Restrict executable code to the selected origin. Svelte needs inline style attributes; no eval.
+    // Restrict executable code to the selected origin. Svelte needs inline style attributes; no eval. Sandboxed
+    // visual frames (srcdoc) inherit this policy, so it also admits exactly the pinned visual kit script.
     session.webRequest.onHeadersReceived(documents, (details, callback) => {
       let headers = details.responseHeaders;
 
       if (details.resourceType === "mainFrame" && origins().includes(new URL(details.url).origin)) {
         const hashes = [...(this.scriptHashes.get(new URL(details.url).origin) ?? [])].join(" ");
+        // KIT_SCRIPT_CSP also admits that one script in the main window itself: srcdoc frames inherit this
+        // policy, so the hash can't be scoped to them. It matches only the pinned visual kit, nothing else inline.
         headers = {
           ...headers,
           "Content-Security-Policy": [
-            `default-src 'self'; script-src 'self' ${hashes}; style-src 'self' 'unsafe-inline' https://rsms.me; font-src 'self' https://rsms.me data:; img-src 'self' data: blob: https:; media-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-src 'none'; frame-ancestors 'none'; form-action 'self'`,
+            `default-src 'self'; script-src 'self' ${hashes} ${KIT_SCRIPT_CSP}; style-src 'self' 'unsafe-inline' https://rsms.me; font-src 'self' https://rsms.me data:; img-src 'self' data: blob: https:; media-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-src 'none'; frame-ancestors 'none'; form-action 'self'`,
           ],
         };
       }
