@@ -21,7 +21,7 @@ import { WebSearchView } from "./items/WebSearchView";
 import { UserMessageView } from "./UserMessageView";
 import { QuoteItem } from "../quotes/QuoteAction";
 import { ImageGallery } from "../attachments/ImageGallery";
-import { VisualSummary } from "./items/VisualSummary";
+import { VisualView } from "../visuals/VisualView";
 
 export { itemNodes, type ItemNode } from "./item-nodes";
 
@@ -100,7 +100,7 @@ export function ItemView({ node, turnEnded = false }: { node: ItemNode; turnEnde
       view = <ImageGallery gallery={content.value} />;
       break;
     case "visual":
-      view = <VisualSummary visual={content.value} />;
+      view = <VisualView visual={content.value} />;
       break;
     case "contextCompaction":
       view = <CompactionView compaction={content.value} />;

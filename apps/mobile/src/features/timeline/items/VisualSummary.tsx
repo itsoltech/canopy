@@ -4,8 +4,8 @@ import { Icon } from "../../../ui/Icon";
 import { font, styles, useColors, useTypography } from "../../../ui/theme";
 
 /**
- * An interactive visual (docs/agent-visuals.md) as this app shows it until it has a sandboxed WebView: the title,
- * its version and where to open it. The spec is never read or run here.
+ * An interactive visual (docs/agent-visuals.md) on a build without the WebView module: the title, its version and
+ * where to open it. The spec is never read or run here.
  */
 export function VisualSummary({ visual }: { visual: Visual }) {
   const c = useColors();
