@@ -3,7 +3,7 @@ import { compileVisual, escapeHtml } from "../src/visuals/compile.ts";
 import { decodeVisualSpec } from "../src/visuals/spec.ts";
 import { visualTheme } from "../src/visuals/theme.ts";
 import { catalogue } from "./visual-gallery-fixtures.ts";
-import { banking } from "./visual-gallery-banking.ts";
+import { banking, legacyBanking } from "./visual-gallery-banking.ts";
 
 // Development-only fixture server, separate from the app and its authentication. Nothing is emitted by app builds.
 const port = Number(process.env["PORT"] ?? 5397);
@@ -13,6 +13,7 @@ const cards: string[] = [];
 for (const [name, spec] of [
   ["Banking and login", banking],
   ["Component catalogue", catalogue],
+  ["Stored v1 banking", legacyBanking],
 ] as const) {
   const decoded = decodeVisualSpec(JSON.parse(JSON.stringify(spec)));
 

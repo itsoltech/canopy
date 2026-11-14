@@ -35,7 +35,7 @@ export const RenderVisual = Schema.Struct({
 const CATALOGUE =
   "Nodes (type + fields; text is plain, never HTML): stack{children,direction?:vertical|horizontal,gap?:xs|sm|md|lg,align?}, " +
   "grid{columns:1-4,children}, card{title?,subtitle?,tone?,children?}, divider, heading{text,level?:1-3}, " +
-  "text{text,variant?:body|muted|small|strong}, code{text,label?}, list{items,ordered?}, badge{text,tone?}, " +
+  "text{text,variant?:body|muted|small|strong}, code{text,label?}, list{items:[string|{label,detail?,value?,tone?}],ordered?}, badge{text,tone?}, " +
   "stat{label,value,detail?,tone?}, callout{text,title?,tone?}, table{columns(≤12),rows(≤100),caption?}, " +
   "button{label,variant?:primary|secondary|ghost,actions:[{action:set,state_key,value}|{action:next|previous|toggle,state_key}|{action:reset}] (≤8)}, " +
   "reset{label?}, tabs{state_key,tabs:[{value,label,children}]}, segmented{state_key,label,options:[string|{value,label}]}, " +

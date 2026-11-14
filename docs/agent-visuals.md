@@ -203,6 +203,10 @@ jasny i ciemny motyw oraz szerokości 360/960 px. Artboardy obejmują telefon,
 tablet, desktop i przeglądarkę; kontrolki pozwalają sprawdzić warianty i stany.
 Każda ramka używa produkcyjnego kompilatora i sandboxa, bez sieci ani kodu modelu.
 Po zmianie kitu wygeneruj `packages/domain/src/visuals/gen/kit.ts` przez `bun run gen`.
+Galeria zawiera także niezmieniony format list tekstowych v1. Sekwencja z
+`step_from` wyznacza zakres dla przycisków `next`/`previous` z liczby wiadomości,
+bez konieczności dodawania osobnego steppera. Jawne wartości starszych specyfikacji
+pozostają dozwolone.
 
 | Format | Co daje | Co utrudnia |
 | --- | --- | --- |

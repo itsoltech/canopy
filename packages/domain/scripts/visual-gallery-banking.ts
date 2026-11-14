@@ -7,8 +7,8 @@ const phone: VisualNode = {
     { type: "heading", text: "Cześć, Anna", level: 2 },
     { type: "stat", label: "Saldo", value: "8 240,50 zł", detail: "Konto główne" },
     {
-      type: "grid",
-      columns: 2,
+      type: "stack",
+      direction: "horizontal",
       children: [
         { type: "button_preview", label: "Przelew" },
         { type: "button_preview", label: "BLIK", variant: "outline" },
@@ -28,7 +28,7 @@ const phone: VisualNode = {
 };
 
 /** The reported composition. Polish content is fixture data from the screenshot, not product copy. */
-export const banking: VisualSpec = {
+const composition = (device: VisualNode): VisualSpec => ({
   schema_version: 1,
   state: { screen: "home", login: 0 },
   root: {
@@ -43,7 +43,7 @@ export const banking: VisualSpec = {
             type: "tabs",
             state_key: "screen",
             tabs: [
-              { value: "home", label: "Start", children: [phone] },
+              { value: "home", label: "Start", children: [device] },
               {
                 value: "transfer",
                 label: "Przelew",
@@ -89,4 +89,19 @@ export const banking: VisualSpec = {
       },
     ],
   },
-};
+});
+
+export const banking = composition(phone);
+
+// Stored v1 content must keep rendering after kit upgrades; strings remain ordinary list items.
+export const legacyBanking = composition({
+  ...phone,
+  children: phone.children.map((child): VisualNode =>
+    child.type === "list"
+      ? {
+          type: "list",
+          items: ["Biedronka: -84,20 zł", "Wypłata: +6 500,00 zł", "Spotify: -23,99 zł"],
+        }
+      : child,
+  ),
+});

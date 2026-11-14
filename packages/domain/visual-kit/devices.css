@@ -9,6 +9,7 @@
 .v-device-screen {
   width: 100%;
   min-width: 0;
+  min-height: min-content;
   padding: 0.75rem;
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -17,7 +18,6 @@
 }
 .v-device[data-device="phone"] > .v-device-screen {
   max-width: 20rem;
-  min-height: 36rem;
   aspect-ratio: 9 / 19.5;
   border-radius: 2rem;
   padding: 0.625rem 0.875rem 1.25rem;
@@ -72,6 +72,6 @@
 .v-device > figcaption {
   padding-top: 0.625rem;
 }
-[data-mode="dark"] .v-device-screen {
+[data-mode="dark"] .v-device > .v-device-screen {
   box-shadow: none;
 }

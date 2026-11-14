@@ -7,6 +7,7 @@ import { parseFrameMessage, parseHostMessage } from "./protocol.ts";
 import { validVisualState } from "./semantics.ts";
 import { decodeVisualSpec, type DecodedVisual } from "./spec.ts";
 import { visualTheme } from "./theme.ts";
+import { Store } from "../../visual-kit/store.ts";
 
 const playground: JsonValue = {
   schema_version: 1,
@@ -49,6 +50,45 @@ function problem(raw: JsonValue): string {
 const withRoot = (root: JsonValue, state: JsonValue = {}): JsonObject => ({ schema_version: 1, state, root });
 
 describe("visual spec validation", () => {
+  test("sequence navigation reaches every message without requiring a stepper", () => {
+    const diagram: JsonValue = {
+      type: "sequence",
+      step_from: "step",
+      participants: [
+        { id: "app", label: "App" },
+        { id: "api", label: "API" },
+      ],
+      messages: [
+        { from: "app", to: "api", label: "Request" },
+        { from: "api", to: "api", label: "Verify", kind: "note" },
+        { from: "api", to: "app", label: "Reply", kind: "reply" },
+      ],
+    };
+
+    const visual = ok(
+      withRoot(
+        {
+          type: "stack",
+          children: [diagram, { type: "button", label: "Next", actions: [{ action: "next", state_key: "step" }] }],
+        },
+        { step: 0 },
+      ),
+    );
+
+    const store = new Store({ step: 0 }, visual.domains, {});
+    store.apply([{ action: "next", state_key: "step" }]);
+    expect(store.get("step")).toBe(1);
+    store.apply([{ action: "next", state_key: "step" }]);
+    store.apply([{ action: "next", state_key: "step" }]);
+    expect(store.get("step")).toBe(2);
+    store.apply([{ action: "previous", state_key: "step" }]);
+    expect(store.get("step")).toBe(1);
+    store.reset();
+    expect(store.get("step")).toBe(0);
+    // Older specs may explicitly use a step beyond the last message: never invalidate them.
+    expect(ok(withRoot(diagram, { step: 7 })).domains.get("step")).toEqual({ kind: "number", min: 0, max: 7 });
+  });
+
   test("accepts stored v1 lists and additive rows in the same compiled document", () => {
     const visual = ok(
       withRoot({
