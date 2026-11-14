@@ -86,7 +86,7 @@ async function receipt(
         coalesce(t.settings->>'model','') AS model,t.archived_at IS NOT NULL AS archived,
         t.deleted_at IS NOT NULL AS deleted,t.rewind_pending_id,
         (SELECT ti.mode FROM thread_imports ti WHERE ti.thread_id=t.id) AS import_mode
-        FROM threads t WHERE t.id=${request.threadId}::uuid AND t.owner_user_id=${options.userId}::uuid
+        FROM threads t WHERE id=${request.threadId}::uuid AND owner_user_id=${options.userId}::uuid
         ${lock ? sql`FOR UPDATE` : sql``}`;
 
       if (!owned.length) return yield* Effect.fail(new NotFound("thread not found"));
