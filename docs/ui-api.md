@@ -2056,6 +2056,13 @@ Zmiana dla skryptu restartu stacka:
 
 Symlink wybiera wydanie dla **następnego procesu**; działający serwer nadal używa własnego katalogu. Rozwiązanie symlinka raz przy uruchomieniu gwarantuje to także dla modułów ładowanych leniwie. Nie usuwać katalogu używanego przez proces i nie pozostawiać starego procesu przez więcej cykli niż okno retencji. Sam restart nadal może dać krótkie 502 na proxy; frontend odzyskuje połączenie automatycznie. Rollback: atomowo ustawić `current` na zachowane wydanie i ponownie uruchomić web z jego rzeczywistej ścieżki.
 
+Binarny gateway z wbudowanym web stosuje to samo okno inaczej: każda wersja binarki rozpakowuje
+swój build do `CANOPY_WEB_DIR/<wersja>-<hash>` i zostawia trzy ostatnie. adapter-node podaje tylko
+własną tabelę plików, więc `canopy-gateway web` przed nią serwuje brakujące `/_app/immutable/*`
+z zachowanych wersji (z nagłówkiem `immutable`). Żądanie bez nagłówka `PROTOCOL_HEADER` traktuje
+jako zwykłe HTTP, więc kontrola `Origin` działa bezpośrednio na loopbacku i za Tailscale Serve
+([deploy.md](deploy.md#gateway-z-wbudowanym-web-jedna-binarka)).
+
 ### Nowa wersja, błędy chunków i przerwy w połączeniu
 
 `version.name` to commit + czas builda, identyczny we wszystkich fazach jednego builda. SvelteKit sprawdza `updated` co 60 s, po powrocie fokusu/widoczności i przez nagłówki odpowiedzi danych. Banner „A new version is available — Reload” oraz toast pojawiają się bez odświeżania bieżącego kompozytora. Następna nawigacja klientowa przechodzi przez pełne `location.href`; kliknięcie Reload jawnie przeładowuje stronę. Zmiana wersji ma pierwszeństwo przed nakładką ustawień.

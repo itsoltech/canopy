@@ -139,7 +139,9 @@ wiersza. Akcje `UpdateNetworkAccess`: `refresh_tailscale`, `set_tailscale_https`
 odmów w `api/auth.ts`); klienty desktopowe i BFF mają zakres właściciela.
 
 `CANOPY_WEB_ORIGIN` na gatewayu (klasa a): origin web BFF na loopbacku. Desktop ustawia go sam;
-natywny serwer może go ustawić (np. `http://127.0.0.1:3000`, web z `PROTOCOL_HEADER=x-forwarded-proto`).
+binarka z wbudowanym web domyślnie używa `http://127.0.0.1:$CANOPY_WEB_PORT`
+([deploy.md](deploy.md#gateway-z-wbudowanym-web-jedna-binarka)). Natywny serwer z osobnym web
+może go ustawić (np. `http://127.0.0.1:3000`, web z `PROTOCOL_HEADER=x-forwarded-proto`).
 Bez niego przełącznik jest niedostępny. Docker zwykle nie widzi Tailscale: stan `not_installed`.
 
 ## Połączone komputery

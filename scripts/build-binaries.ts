@@ -10,6 +10,10 @@
  * directory (CANOPY_NATIVE_DIR, else the user cache dir), keeping sharp's relative layout so its rpath still
  * finds libvips. Other targets' sharp packages come from the npm registry, checked against their integrity.
  * The worker spawns the agent CLIs (claude, codex, grok) from PATH; they are not part of the binary.
+ *
+ * `--web DIR` (a `scripts/build-web.ts` output of the same version) embeds the web into the gateway as one
+ * zstd archive; the binary serves it with `canopy-gateway web` (apps/gateway/src/web, docs/deploy.md).
+ * Without it the gateway is headless (the Docker image, which runs the separate canopy-web image).
  */
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
@@ -17,6 +21,7 @@ import { join, relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { currentVersion } from "./version.ts";
 import { noAgentClis } from "./agent-clis.ts";
+import { packWeb, webBuildVersion } from "../apps/gateway/src/web/archive.ts";
 
 export const TARGETS = ["linux-x64", "linux-arm64", "darwin-arm64", "windows-x64"] as const;
 
@@ -206,12 +211,63 @@ export default binding.exports;
 `;
 }
 
-export function buildBinary(app: App, target: Target, options: { outdir: string; version: string }): Promise<string> {
-  return compile(join(root, APPS[app]), join(options.outdir, binaryName(app, target)), target, options.version);
+/** A packed web build for the gateway (apps/gateway/src/web/embedded.ts). */
+export interface WebArchive {
+  file: string;
+  key: string;
+  version: string;
 }
 
-/** One entry point compiled for a target, with sharp embedded. */
-export async function compile(entry: string, outfile: string, target: Target, version: string): Promise<string> {
+/** Packs a web build once for every gateway target; its version must be the binaries' version. */
+export async function webArchive(build: string, version: string): Promise<WebArchive> {
+  const built = await webBuildVersion(build);
+
+  if (built !== version)
+    throw new Error(`${build} is web ${built}, not ${version}: rebuild it with the same CANOPY_VERSION`);
+  const bytes = await packWeb(build, version);
+  const key = createHash("sha256").update(bytes).digest("hex").slice(0, 16);
+  const directory = join(root, ".tmp/release-web");
+  // One packed build at a time: earlier ones are 13 MiB each.
+  rmSync(directory, { recursive: true, force: true });
+  mkdirSync(directory, { recursive: true });
+  const file = join(directory, `web-${key}.zst`);
+  await Bun.write(file, bytes);
+
+  return { file, key, version };
+}
+
+/** Replaces the gateway's empty EMBEDDED_WEB with the embedded archive. */
+export function embeddedWebPlugin(web: WebArchive): Bun.BunPlugin {
+  return {
+    name: "canopy-embedded-web",
+    setup(builder) {
+      builder.onLoad({ filter: /[/\\]gateway[/\\]src[/\\]web[/\\]embedded\.ts$/ }, () => ({
+        loader: "js",
+        contents: `import file from ${JSON.stringify(web.file)} with { type: "file" };
+export const EMBEDDED_WEB = { file, key: ${JSON.stringify(web.key)}, version: ${JSON.stringify(web.version)} };`,
+      }));
+    },
+  };
+}
+
+export function buildBinary(
+  app: App,
+  target: Target,
+  options: { outdir: string; version: string; web?: WebArchive },
+): Promise<string> {
+  const outfile = join(options.outdir, binaryName(app, target));
+
+  return compile(join(root, APPS[app]), outfile, target, options.version, app === "gateway" ? options.web : undefined);
+}
+
+/** One entry point compiled for a target, with sharp (and, for the gateway, optionally the web) embedded. */
+export async function compile(
+  entry: string,
+  outfile: string,
+  target: Target,
+  version: string,
+  web?: WebArchive,
+): Promise<string> {
   const native = sharpLoader(await sharpFiles(target));
 
   const build = await Bun.build({
@@ -223,6 +279,7 @@ export async function compile(entry: string, outfile: string, target: Target, ve
     compile: { target: `bun-${target}`, outfile },
     plugins: [
       noAgentClis,
+      ...(web ? [embeddedWebPlugin(web)] : []),
       {
         name: "canopy-native-sharp",
         setup(builder) {
@@ -271,7 +328,12 @@ if (import.meta.main) {
   const { values } = parseArgs({
     args: Bun.argv.slice(2),
     strict: true,
-    options: { target: { type: "string" }, app: { type: "string" }, outdir: { type: "string" } },
+    options: {
+      target: { type: "string" },
+      app: { type: "string" },
+      outdir: { type: "string" },
+      web: { type: "string" },
+    },
   });
 
   const host = `${process.platform.replace("win32", "windows")}-${process.arch}`;
@@ -293,11 +355,14 @@ if (import.meta.main) {
   const version = process.env["CANOPY_VERSION"] || currentVersion().version;
   const outdir = resolve(values.outdir ?? join(root, "dist/release"));
   mkdirSync(outdir, { recursive: true });
+  const web = values.web && apps.includes("gateway") ? await webArchive(resolve(values.web), version) : undefined;
+
+  if (web) console.info(`web ${version}: ${(statSync(web.file).size / 1024 ** 2).toFixed(1)} MiB packed`);
 
   for (const target of targets) {
     for (const app of apps) {
       const started = performance.now();
-      const file = await buildBinary(app, target, { outdir, version });
+      const file = await buildBinary(app, target, { outdir, version, ...(web && { web }) });
       console.info(
         `${relative(process.cwd(), file)}  ${(statSync(file).size / 1024 ** 2).toFixed(1)} MiB  ${Math.round(performance.now() - started)} ms`,
       );

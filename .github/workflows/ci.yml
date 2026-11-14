@@ -143,10 +143,27 @@ jobs:
         env:
           CANOPY_VERSION: ${{ steps.version.outputs.version }}
         run: |
-          bun scripts/build-binaries.ts --target linux-x64
+          bun scripts/build-binaries.ts --target linux-x64 --web dist/web
           test "$(dist/release/canopy-gateway-linux-x64 --version)" = "$CANOPY_VERSION"
           test "$(dist/release/canopy-worker-linux-x64 --version)" = "$CANOPY_VERSION"
           dist/release/canopy-worker-linux-x64 self-check
+      - name: Embedded web answers with the build version
+        env:
+          CANOPY_VERSION: ${{ steps.version.outputs.version }}
+          CANOPY_WEB_DIR: ${{ runner.temp }}/canopy-web
+          CANOPY_WEB_PORT: "39231"
+        run: |
+          CANOPY_UI_SERVICE_TOKEN="ci-$RANDOM-$RANDOM-0123456789abcdef0123456789" dist/release/canopy-gateway-linux-x64 web &
+          web=$!
+          health=""
+          for _ in $(seq 1 60); do
+            health="$(curl -fsS "http://127.0.0.1:$CANOPY_WEB_PORT/api/health" || true)"
+            [ -n "$health" ] && break
+            sleep 0.5
+          done
+          echo "$health"
+          kill "$web"
+          grep -q "\"version\":\"$CANOPY_VERSION\"" <<<"$health"
       # Image export calls native APIs per OS (bun:ffi); only a binary on that OS proves them.
       - name: Worker binaries (darwin-arm64, windows-x64)
         env:

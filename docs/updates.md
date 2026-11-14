@@ -709,7 +709,10 @@ menedżer usług. Drukowane unit/plist mają `Restart=always` / `KeepAlive=true`
 Gateway `service` drukuje unit z `EnvironmentFile=%h/.config/canopy/gateway.env`;
 przygotuj ten prywatny plik samodzielnie z istniejącą konfiguracją gatewaya.
 
-Nowy gateway potwierdza start po uruchomieniu DB, listenerów i aktualizatora;
+Nowy gateway potwierdza start po uruchomieniu DB, listenerów i aktualizatora,
+a binarka z wbudowanym web także po odpowiedzi web (`canopy-gateway web`, dziecko
+gatewaya) na `/api/health` tą samą wersją; web jest częścią tej samej binarki, więc
+jedna wymiana i jeden rollback obejmują oba ([deploy.md](deploy.md#gateway-z-wbudowanym-web-jedna-binarka));
 worker po otrzymaniu WorkerLink Welcome. Jeśli proces wcześniej wyjdzie albo
 nie potwierdzi startu w **90 sekund**, supervisor przywraca `.bak` i uruchamia
 poprzednią wersję. Potwierdzenie trafia też przez lokalne IPC do supervisora;

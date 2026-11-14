@@ -156,7 +156,8 @@ Pole `note` pojawia się tylko, gdy coś wymaga działania:
 | `CANOPY_HOST`, `CANOPY_PORT`, `CANOPY_TLS_CERT`, `CANOPY_TLS_KEY` | a | port procesu (BFF/worker) w kontenerze; desktop: loopback |
 | `CANOPY_MIGRATE`, `CANOPY_DEV_USER_EMAIL`, `CANOPY_RELEASE_BASE_URL`, `CANOPY_UPDATE_CACHE_DIR`, `CANOPY_UPDATE_CHANNEL`, `CANOPY_SUPERVISED`, `CANOPY_INSTALL_KIND` | a | bez zmian (wdrożenie/updater) |
 | `CANOPY_NETWORK_PORT` | a | nowe, opcjonalne: port opublikowany przez kontener |
-| `CANOPY_WEB_ORIGIN` (gateway) | a | opcjonalny origin web BFF dla HTTPS over Tailscale; desktop ustawia sam ([tailscale.md](tailscale.md)) |
+| `CANOPY_WEB_ORIGIN` (gateway) | a | opcjonalny origin web BFF dla HTTPS over Tailscale; desktop ustawia sam, binarka z wbudowanym web wylicza go z `CANOPY_WEB_PORT` ([tailscale.md](tailscale.md)) |
+| `CANOPY_WEB`, `CANOPY_WEB_HOST`, `CANOPY_WEB_PORT`, `CANOPY_WEB_DIR` | a | wbudowany web binarnego gatewaya: `off` = headless, loopback `127.0.0.1:3000`, katalog wersji ([deploy.md](deploy.md#gateway-z-wbudowanym-web-jedna-binarka)) |
 | `CANOPY_LINK_HOST`, `CANOPY_LINK_PORT`, `CANOPY_LINK_ADDRESSES` | b | **usunięte** → Network access (etap 1) |
 | `CANOPY_LINK_DISCOVERY` | b | diagnostyka wykrywania desktopu; serwer nigdy nie uruchamia discovery niezależnie od wartości |
 | `CANOPY_MOBILE_PORT`, `CANOPY_MOBILE_GATEWAY_URL` | b | **usunięte** → telefony przez Network access (etap 2) |
