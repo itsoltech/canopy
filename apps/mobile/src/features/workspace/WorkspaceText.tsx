@@ -2,11 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScrollView, Text, View, VirtualizedList, type VirtualizedListInstance } from "react-native";
 import type { WorkspaceFile } from "@canopy/domain/workspace-file";
 import type { SourceIndex, SourceRow } from "@canopy/syntax/source";
+import { plainByDefault, sourceShape } from "@canopy/syntax/layout";
 import { Button } from "../../ui/Button";
 import { useColors, useTypography } from "../../ui/theme";
 import { useSourceIndex } from "./useSourceIndex";
 import { useFileHighlight } from "./useFileHighlight";
 import { syntaxColors } from "./syntax-colors";
+import { FileNoticePill } from "./FileNoticePill";
 
 interface WorkspaceTextProps {
   document: WorkspaceFile;
@@ -30,10 +32,9 @@ export function WorkspaceText({ document, draft, plain = false }: WorkspaceTextP
   const [top, setTop] = useState(Math.floor(document.scroll / height));
   const [enabled, setEnabled] = useState(false);
 
-  const large = useMemo(
-    () => new TextEncoder().encode(source).length > 200 * 1024 || index.lines > 10_000 || index.longest > 2000,
-    [source, index],
-  );
+  // Known before indexing, so the notice and colours never switch once the full index arrives.
+  const large = useMemo(() => plainByDefault(sourceShape(source)), [source]);
+  const [preparing, setPreparing] = useState(false);
 
   const first = index.row(Math.min(top, index.rows - 1)).line;
   const start = Math.floor((first - 1) / 80) * 80 + 1;
@@ -45,6 +46,18 @@ export function WorkspaceText({ document, draft, plain = false }: WorkspaceTextP
   useEffect(() => {
     setEnabled(false);
   }, [source]);
+
+  // Short files index within a frame; only a slow index earns a notice.
+  useEffect(() => {
+    if (!indexing) return setPreparing(false);
+    const timer = setTimeout(() => setPreparing(true), 300);
+
+    return () => clearTimeout(timer);
+  }, [indexing]);
+
+  const notice = preparing
+    ? "Preparing the file…"
+    : note || (large && !plain && !enabled ? "Large files are shown as plain text to keep them responsive." : "");
 
   const restorePosition = useCallback(() => {
     if (indexing || !viewport.current || !list.current || contentHeight.current + 1 < index.rows * height) return;
@@ -67,18 +80,6 @@ export function WorkspaceText({ document, draft, plain = false }: WorkspaceTextP
 
   return (
     <View style={{ flex: 1, minHeight: 0 }}>
-      {(indexing || large || note) && (
-        <View style={{ paddingHorizontal: 12, gap: 4 }}>
-          <Text accessibilityLiveRegion="polite" style={[type.small, { color: c.muted }]}>
-            {indexing
-              ? "Preparing the rest of the file…"
-              : note || "Large files are shown as plain text to keep them responsive."}
-          </Text>
-          {large && !plain && !enabled && (
-            <Button title="Enable highlighting" size="sm" onPress={() => setEnabled(true)} />
-          )}
-        </View>
-      )}
       <VirtualizedList
         ref={list}
         data={index}
@@ -140,6 +141,13 @@ export function WorkspaceText({ document, draft, plain = false }: WorkspaceTextP
           );
         }}
       />
+      {!!notice && (
+        <FileNoticePill text={notice}>
+          {large && !plain && !enabled && !preparing && !note && (
+            <Button title="Enable highlighting" size="sm" onPress={() => setEnabled(true)} />
+          )}
+        </FileNoticePill>
+      )}
     </View>
   );
 }

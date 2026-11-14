@@ -3,9 +3,10 @@ import { FlatList, Text, View, useWindowDimensions } from "react-native";
 import { ThreadDirectoryKind as Kind } from "@canopy/contracts";
 import { workspaceDirectories, type DirectoryRow } from "@canopy/domain/workspace-directory";
 import type { Workspace } from "@canopy/domain/workspace";
-import { Button, IconButton, Notice } from "../../ui/components";
+import { Button, IconButton } from "../../ui/components";
 import { styles, useColors } from "../../ui/theme";
 import { WorkspaceTreeRow } from "./WorkspaceTreeRow";
+import { FileNoticePill } from "./FileNoticePill";
 import { useAppActive } from "../../ui/active";
 
 export function WorkspaceTree({ view, onOpen = () => {} }: { view: Workspace; onOpen?: () => void }) {
@@ -20,6 +21,8 @@ export function WorkspaceTree({ view, onOpen = () => {} }: { view: Workspace; on
   const rowHeight = Math.max(48, Math.ceil(20 * fontScale + 16));
   const error = [...tree.nodes.values()].find((node) => node.error)?.error;
   const root = tree.node("");
+  // Errors, live-update and Git states float over the list; rows never move for them.
+  const status = error || tree.watchStatus || root.status;
 
   function open(row: DirectoryRow) {
     if (row.kind !== "entry") {
@@ -45,10 +48,6 @@ export function WorkspaceTree({ view, onOpen = () => {} }: { view: Workspace; on
           onPress={() => tree.showIgnored(!tree.includeIgnored)}
         />
       </View>
-      {!!root.status && <Text style={[styles.meta, { color: c.muted, paddingHorizontal: 16 }]}>{root.status}</Text>}
-      {!!tree.watchStatus && (
-        <Text style={[styles.meta, { color: c.muted, paddingHorizontal: 16 }]}>{tree.watchStatus}</Text>
-      )}
       <FlatList
         data={rows}
         keyExtractor={(row) => row.key}
@@ -69,12 +68,9 @@ export function WorkspaceTree({ view, onOpen = () => {} }: { view: Workspace; on
         keyboardShouldPersistTaps="handled"
         contentInsetAdjustmentBehavior="never"
         maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+        contentContainerStyle={{ paddingBottom: status ? 64 : 0 }}
       />
-      {!!error && (
-        <View style={{ padding: 16 }}>
-          <Notice>{error}</Notice>
-        </View>
-      )}
+      {!!status && <FileNoticePill text={status} tone={error ? "danger" : undefined} />}
     </View>
   );
 }

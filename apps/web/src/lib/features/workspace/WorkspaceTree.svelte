@@ -4,10 +4,12 @@
   import { ThreadDirectoryKind as Kind } from "@canopy/contracts";
   import type { Workspace } from "@canopy/domain/workspace";
   import { workspaceDirectories, type DirectoryRow } from "@canopy/domain/workspace-directory";
-  import Icon from "#lib/shared/ui/Icon.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import MenuCheckItem from "#lib/shared/ui/MenuCheckItem.svelte";
+  import Spinner from "#lib/shared/ui/Spinner.svelte";
+  import WorkspaceTreeRow from "./WorkspaceTreeRow.svelte";
+  import WorkspaceTreeSkeleton from "./WorkspaceTreeSkeleton.svelte";
   import { workspaceVersion } from "./workspace.svelte.ts";
 
   let { view, root, onopen }: { view: Workspace; root: string; onopen: () => void } = $props();
@@ -49,6 +51,31 @@
     tree.getVersion();
 
     return [...tree.nodes.values()].find((node) => node.error)?.error;
+  });
+
+  // Root reading with nothing listed yet: placeholder rows stand where the first page will appear.
+  const opening = $derived.by(() => {
+    subscribe();
+    tree.getVersion();
+    const root = tree.node("");
+
+    return Boolean(root.read) && !root.entries.length;
+  });
+
+  const refreshing = $derived.by(() => {
+    subscribe();
+    tree.getVersion();
+    const root = tree.node("");
+
+    return Boolean(root.read) && root.entries.length > 0;
+  });
+
+  // Git and live-update states share one pill over the bottom of the list; rows never move for it.
+  const status = $derived.by(() => {
+    subscribe();
+    tree.getVersion();
+
+    return error ?? (tree.watchStatus || tree.node("").status);
   });
 
   let previous: DirectoryRow[] = [];
@@ -129,15 +156,18 @@
     }
   }
 
-  const statusLabel = (status: string) =>
-    ({ M: "Modified", A: "Added", D: "Deleted", R: "Renamed", U: "Conflict", "?": "Untracked", "!": "Ignored" })[
-      status
-    ] ?? "";
+  /** A directory row spins while its listed entries refresh; a first read shows on its placeholder row instead. */
+  function reading(row: DirectoryRow) {
+    const path = row.kind === "entry" ? row.entry.path : row.directory;
+    const node = row.kind === "entry" ? tree.nodes.get(path) : tree.node(path);
+
+    return Boolean(node?.read) && (row.kind !== "entry" || (tree.expanded.has(path) && node!.entries.length > 0));
+  }
 </script>
 
 <svelte:document onvisibilitychange={() => (foreground = !globalThis.document.hidden)} />
 
-<div class="relative flex h-full min-h-60 min-w-0 flex-col" aria-label="Files">
+<div class="density-chrome relative flex h-full min-h-60 min-w-0 flex-col" aria-label="Files">
   <span class="pointer-events-none invisible absolute h-8 pointer-coarse:h-12" bind:clientHeight={rowHeight}></span>
   <!-- The 48px strip lines up with the thread's top bar and keeps clear of the window controls. -->
   <div class="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-divider pr-2 pl-3" data-window-end>
@@ -145,7 +175,10 @@
       <span class="shrink-0 font-medium">Files</span>
       {#if root}<span class="truncate text-muted" title={root}>{root}</span>{/if}
     </p>
-    <div class="flex shrink-0 gap-1">
+    <div class="flex shrink-0 items-center gap-1">
+      <span class="flex size-4 items-center justify-center" aria-hidden="true"
+        >{#if refreshing}<Spinner class="size-3.5 text-muted" />{/if}</span
+      >
       <IconButton icon="arrow-path" label="Reload files" onclick={() => tree.invalidate()} />
       <DropdownMenu label="File tree options" placement="bottom-end">
         {#snippet trigger(props)}<IconButton
@@ -161,88 +194,50 @@
       </DropdownMenu>
     </div>
   </div>
-  {#if (subscribe(), tree.node("").status)}<p class="px-2 py-1 text-xs text-muted">{tree.node("").status}</p>{/if}
-  {#if (subscribe(), tree.watchStatus)}<p role="status" class="px-2 py-1 text-xs text-muted">{tree.watchStatus}</p>{/if}
   <div
     bind:this={scroller}
     bind:clientHeight={height}
     role="tree"
     aria-label="Working directory"
-    class="min-h-0 flex-1 overflow-auto"
+    class="min-h-0 flex-1 overflow-auto pt-1"
     onscroll={() => {
       top = scroller?.scrollTop ?? 0;
     }}
   >
-    <div style:height={`${rows.length * rowHeight}px`} class="relative min-w-0">
-      {#each visible as { row, index } (row.key)}
-        {@const entry = row.kind === "entry" ? row.entry : undefined}
-        {@const node = row.kind !== "entry" ? tree.node(row.directory) : undefined}
-        <button
-          type="button"
-          role="treeitem"
-          aria-level={row.depth + 1}
-          aria-expanded={entry?.kind === Kind.DIRECTORY ? tree.expanded.has(entry.path) : undefined}
-          aria-selected={entry ? selected === entry.path : undefined}
-          aria-disabled={entry ? entry.kind === Kind.SYMLINK || entry.kind === Kind.DELETED : !!node?.read}
-          aria-label={entry
-            ? `${entry.path}${entry.gitStatus ? `, ${statusLabel(entry.gitStatus)}` : ""}${entry.kind === Kind.SYMLINK ? ", Symbolic link" : ""}`
-            : undefined}
-          tabindex={row.key === focused || (!rows.some((entry) => entry.key === focused) && row === rows[0]) ? 0 : -1}
-          data-tree-key={row.key}
-          title={entry?.path ?? node?.error}
-          style:height={`${rowHeight}px`}
-          style:top={`${index * rowHeight}px`}
-          style:padding-left={`${row.depth * 16 + 8}px`}
-          class={[
-            "absolute inset-x-0 flex w-full min-w-0 items-center gap-1.5 pr-2 text-left text-sm focus-ring hover:bg-zinc-950/5 dark:hover:bg-white/10",
-            !!entry && selected === entry.path && "bg-zinc-950/5 dark:bg-white/10",
-            (entry?.gitStatus === "M" || entry?.gitStatus === "R") && "text-amber-700 dark:text-amber-400",
-            (entry?.gitStatus === "A" || entry?.gitStatus === "?") && "text-emerald-700 dark:text-emerald-400",
-            (entry?.gitStatus === "D" || entry?.gitStatus === "U") && "text-rose-700 dark:text-rose-400",
-            entry?.gitStatus === "!" && "text-muted",
-          ]}
-          onkeydown={(event) => keydown(event, row)}
-          onfocus={() => (focused = row.key)}
-          onclick={() => {
-            if (!node?.read) open(row);
-          }}
-          ondblclick={() => {
-            if (entry?.kind === Kind.FILE) {
+    <div style:height={`${rows.length * rowHeight + (status ? 48 : 8)}px`} class="relative min-w-0">
+      {#if opening}
+        <WorkspaceTreeSkeleton {rowHeight} />
+      {:else}
+        {#each visible as { row, index } (row.key)}
+          {@const node = row.kind !== "entry" ? tree.node(row.directory) : undefined}
+          <WorkspaceTreeRow
+            {row}
+            {index}
+            height={rowHeight}
+            expanded={row.kind === "entry" && tree.expanded.has(row.entry.path)}
+            reading={reading(row)}
+            selected={row.kind === "entry" && selected === row.entry.path}
+            tabbable={row.key === focused || (!rows.some((entry) => entry.key === focused) && row === rows[0])}
+            state={{ error: node?.error ?? "", empty: Boolean(node?.complete && !node.entries.length) }}
+            onopen={() => open(row)}
+            onkeep={() => {
               open(row);
               view.keep(view.active);
-            }
-          }}
-        >
-          <Icon
-            name={entry?.kind === Kind.DIRECTORY
-              ? tree.expanded.has(entry.path)
-                ? "chevron-down"
-                : "chevron-right"
-              : entry?.kind === Kind.SYMLINK
-                ? "link"
-                : entry
-                  ? "document-text"
-                  : "ellipsis-horizontal"}
+            }}
+            onkeydown={(event) => keydown(event, row)}
+            onfocus={() => (focused = row.key)}
           />
-          <span class="min-w-0 flex-1 truncate"
-            >{entry?.name ??
-              (node?.read
-                ? "Loading files…"
-                : node?.error
-                  ? "Reload directory"
-                  : node?.complete
-                    ? "Empty directory"
-                    : "Load more")}</span
-          >
-          {#if entry?.gitStatus}<span class="shrink-0 text-xs" aria-hidden="true">{entry.gitStatus}</span>{/if}
-        </button>
-      {/each}
+        {/each}
+      {/if}
     </div>
   </div>
-  {#if error}<p
-      role="alert"
-      class="shrink-0 border-t border-divider px-2 py-2 text-sm text-rose-600 dark:text-rose-400"
+  {#if status}<p
+      role={error ? "alert" : "status"}
+      class={[
+        "t-rise absolute inset-x-2 bottom-2 rounded-md border border-divider bg-surface px-2.5 py-1.5 text-xs shadow-sm",
+        error ? "text-rose-700 dark:text-rose-400" : "text-muted",
+      ]}
     >
-      {error}
+      {status}
     </p>{/if}
 </div>

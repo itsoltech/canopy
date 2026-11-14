@@ -208,9 +208,12 @@ export class WorkspaceDirectory {
         if (entry.kind === ThreadDirectoryKind.DIRECTORY && this.expanded.has(entry.path)) visit(entry.path, depth + 1);
       }
 
-      if (node.read || node.error || (!node.entries.length && node.complete))
+      // A refresh of listed entries adds no row (the directory's own row shows it), so nothing below moves.
+      // A next page reads in place of its `Load more` row, under the same key.
+      if (node.error || (!node.entries.length && (node.read || node.complete)))
         rows.push({ key: `directory:${path}`, kind: "state", directory: path, depth });
-      else if (!node.complete) rows.push({ key: `directory:${path}`, kind: "more", directory: path, depth });
+      else if (!node.complete)
+        rows.push({ key: `directory:${path}`, kind: node.read ? "state" : "more", directory: path, depth });
     };
 
     visit("", 0);

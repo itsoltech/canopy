@@ -1,3 +1,10 @@
+<script module lang="ts">
+  // One import for every file tab: a reader that is already loaded mounts in the same frame as its text.
+  let loadedReader: typeof import("./WorkspaceSource.svelte").default | undefined;
+
+  const reader = import("./WorkspaceSource.svelte").then((module) => (loadedReader = module.default));
+</script>
+
 <script lang="ts">
   import { tick, untrack, type Snippet } from "svelte";
   import WorkspaceFileToolbar from "./WorkspaceFileToolbar.svelte";
@@ -17,6 +24,9 @@
   import { contributeCommands } from "#lib/features/commands/commands.svelte.ts";
   import { editorMemory, forgetEditor } from "./editor-memory.ts";
   import { confineSelectAll } from "#lib/shared/ui/select-all.ts";
+  import Delayed from "#lib/shared/ui/Delayed.svelte";
+  import FileSkeleton from "./FileSkeleton.svelte";
+  import type { FileNotice } from "./file-notice.ts";
 
   let {
     document,
@@ -41,6 +51,14 @@
   let foreground = $state(!globalThis.document.hidden);
   let compare = $state<"disk" | "draft" | undefined>();
   const name = $derived(fileName(document.path));
+  let Reader = $state(loadedReader);
+  let sourceNotice = $state<FileNotice>();
+  let highlight = $state(false);
+
+  // A tab that opens on text it already has shows it at once; text that arrives later fades in.
+  const fade = untrack(() => !document.file);
+
+  if (!loadedReader) void reader.then((value) => (Reader = value));
 
   const viewer = $derived.by(() => {
     void workspaceVersion();
@@ -66,6 +84,26 @@
   });
 
   const watchPath = $derived(viewer.file?.relativePath);
+
+  const notice = $derived.by((): FileNotice | undefined => {
+    const position = viewer.position;
+
+    if (viewer.file && position && position.line > viewer.text.split("\n").length)
+      return {
+        text: "Line outside the preview",
+        detail: "This line is outside the preview. Choose a visible line.",
+        action: { label: "Go to line", run: () => (goOpen = true) },
+      };
+
+    if (viewer.file?.truncated)
+      return { text: "Showing the first 2 MB", detail: "Showing the first 2 MB. This file is read only." };
+
+    if (viewer.editing) return viewer.dirty ? { text: "Unsaved changes" } : undefined;
+
+    if (viewer.watchStatus) return { text: viewer.watchStatus };
+
+    return sourceNotice;
+  });
 
   $effect(() => {
     void watchPath;
@@ -174,7 +212,7 @@
   <WorkspaceFileToolbar
     {document}
     {preview}
-    markdown={/\.(md|markdown|mdx)$/i.test(name) && Boolean(viewer.file) && !viewer.file?.binary}
+    markdown={/\.(md|markdown|mdx)$/i.test(name) && !viewer.file?.binary}
     bind:rendered
     state={{
       path: viewer.file?.relativePath || document.path,
@@ -187,6 +225,7 @@
       sha256: viewer.file?.sha256,
       changedOnDisk: viewer.changedOnDisk,
     }}
+    {notice}
     {onkeep}
     ongoline={() => (goOpen = true)}
     ondelete={() => (confirmation = "delete")}
@@ -194,7 +233,6 @@
     {tabActions}
   />
   {#if viewer.error}<Alert tone="error" banner>{viewer.error}</Alert>{/if}
-  {#if viewer.watchStatus}<p role="status" class="px-3 py-1 text-sm text-muted">{viewer.watchStatus}</p>{/if}
   {#if viewer.changedOnDisk}
     <div class="flex flex-wrap items-center gap-2 border-b border-divider bg-surface px-3 py-2" role="status">
       <span class="text-sm text-muted">{viewer.removedOnDisk ? "Removed from disk" : "Changed on disk"}</span>
@@ -227,67 +265,58 @@
       >
     </div>
   {/if}
-  {#if viewer.editing}<p role="status" class="h-6 px-3 text-sm text-muted">
-      {viewer.dirty ? "Unsaved changes" : ""}
-    </p>{/if}
-  {#if viewer.position && viewer.position.line > viewer.text.split("\n").length && viewer.file}<p
-      class="px-3 py-1 text-sm text-muted"
-    >
-      This line is outside the preview. Choose a visible line.
-    </p>{/if}
-  {#if viewer.file?.truncated}<p class="px-3 py-1 text-sm text-muted">
-      Showing the first 2 MB. This file is read only.
-    </p>{/if}
   <div
     bind:this={scroller}
-    class="min-h-0 flex-1 overflow-auto overscroll-contain"
+    class="min-h-0 flex-1 overflow-auto overscroll-contain bg-surface"
     onscroll={() => {
       if (scroller) document.scroll = scroller.scrollTop;
     }}
   >
-    {#if !foreground}
-      <div class="h-full"></div>
-    {:else if compare}
-      {#await import("./WorkspaceSource.svelte") then reader}
-        <reader.default
-          {document}
-          text={compare === "disk" ? (viewer.diskText ?? "") : viewer.draft}
-          path={name}
-          revision={-1}
+    <div class={["h-full", fade && viewer.file && "t-rise"]}>
+      {#if !foreground}
+        <div class="h-full"></div>
+      {:else if compare}
+        {#if Reader}<Reader
+            {document}
+            text={compare === "disk" ? (viewer.diskText ?? "") : viewer.draft}
+            path={name}
+            revision={-1}
+          />{/if}
+      {:else if viewer.editing}
+        <CodeEditor
+          memory={editorMemory(document)}
+          position={viewer.position}
+          positionRevision={viewer.positionRevision}
+          text={viewer.draft}
+          fileName={name}
+          wrap={false}
+          onchange={(text) => document.setDraft(text)}
         />
-      {/await}
-    {:else if viewer.editing}
-      <CodeEditor
-        memory={editorMemory(document)}
-        position={viewer.position}
-        positionRevision={viewer.positionRevision}
-        text={viewer.draft}
-        fileName={name}
-        wrap={false}
-        onchange={(text) => document.setDraft(text)}
-      />
-    {:else if !viewer.file && viewer.lookup && !viewer.loading}
-      <FileLookup file={viewer.lookup} path={document.path} onselect={(path) => void document.load(path)} />
-    {:else if viewer.file && !viewer.file.binary && !rendered}
-      {#await import("./WorkspaceSource.svelte") then reader}
-        <reader.default
-          {document}
+      {:else if !viewer.file && viewer.lookup && !viewer.loading}
+        <FileLookup file={viewer.lookup} path={document.path} onselect={(path) => void document.load(path)} />
+      {:else if !viewer.file && viewer.loading}
+        <Delayed><FileSkeleton /></Delayed>
+      {:else if viewer.file && !viewer.file.binary && !rendered}
+        {#if Reader}<Reader
+            {document}
+            text={viewer.text}
+            path={viewer.file.relativePath || document.path}
+            revision={viewer.positionRevision}
+            bind:highlight
+            onnotice={(value) => (sourceNotice = value)}
+          />{/if}
+      {:else}
+        <FileContentView
+          file={viewer.file}
           text={viewer.text}
-          path={viewer.file.relativePath || document.path}
-          revision={viewer.positionRevision}
+          {name}
+          loading={viewer.loading}
+          {rendered}
+          local={Boolean(document.target.local)}
+          position={viewer.position}
         />
-      {/await}
-    {:else}
-      <FileContentView
-        file={viewer.file}
-        text={viewer.text}
-        {name}
-        loading={viewer.loading}
-        {rendered}
-        local={Boolean(document.target.local)}
-        position={viewer.position}
-      />
-    {/if}
+      {/if}
+    </div>
   </div>
 </div>
 
