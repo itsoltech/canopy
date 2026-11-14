@@ -1,19 +1,18 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { clock } from "#lib/shared/clock.svelte.ts";
+  import { usageTone } from "@canopy/domain/sidebar-usage";
   import type { ProviderUsageSnapshot } from "@canopy/contracts";
   import { activeUsageWindows, usageWindowName, usageReset, usageBillingNotice } from "@canopy/domain/provider-usage";
   import type { ClassValue } from "svelte/elements";
 
-  let { usage, class: className }: { usage?: ProviderUsageSnapshot; class?: ClassValue } = $props();
-  let now = $state(Date.now());
+  let {
+    usage,
+    now = clock.now,
+    class: className,
+  }: { usage?: ProviderUsageSnapshot; now?: number; class?: ClassValue } = $props();
+
   const windows = $derived(activeUsageWindows(usage, now));
   const billing = $derived(usageBillingNotice(usage, now));
-
-  onMount(() => {
-    const timer = setInterval(() => (now = Date.now()), 60_000);
-
-    return () => clearInterval(timer);
-  });
 </script>
 
 {#if windows.length || billing}
@@ -42,9 +41,9 @@
             <div
               class={[
                 "h-full rounded-full",
-                window.usedPercent >= 100 || window.reached
+                usageTone(window.reached ? 100 : window.usedPercent) === "danger"
                   ? "bg-rose-600 dark:bg-rose-400"
-                  : window.usedPercent >= 90
+                  : usageTone(window.usedPercent) === "warning"
                     ? "bg-amber-600 dark:bg-amber-400"
                     : "bg-zinc-500 dark:bg-zinc-400",
               ]}

@@ -11,6 +11,7 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import ConnectionStatus from "./ConnectionStatus.svelte";
   import UpdatesIndicator from "#lib/features/desktop/UpdatesIndicator.svelte";
+  import SidebarUsage from "#lib/features/providers/SidebarUsage.svelte";
   import SidebarHeader from "./SidebarHeader.svelte";
   import SectionSwitch from "./SectionSwitch.svelte";
   import { sectionMemory, sectionOf, type Section } from "./sections.svelte.ts";
@@ -160,6 +161,7 @@
       >
     </a>
     <UpdatesIndicator />
+    <SidebarUsage />
     <ConnectionStatus
       recovery={overview.recovery}
       connection={overview.connection}
