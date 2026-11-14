@@ -65,7 +65,8 @@ export function pinImageRoot(assigned: string): ImageRoot {
 
   return {
     path: alias,
-    canonical,
+    // Windows reports its own long-name form, the one each opened file's path is checked against.
+    canonical: native.canonical,
     verify,
     open(parts) {
       verify();

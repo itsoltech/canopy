@@ -13,6 +13,17 @@ const native = () =>
 
 let library: ReturnType<typeof native> | undefined;
 
+/** The OS's own long-name, final-case path of the open object; never the 8.3 or differently cased request. */
+function finalPath(handle: bigint): string {
+  const buffer = Buffer.alloc(65536);
+  const length = (library ??= native()).symbols.GetFinalPathNameByHandleW(handle, ptr(buffer), buffer.length / 2, 0);
+
+  if (!length || length >= buffer.length / 2) throw new Error("Image handle is unavailable.");
+  const path = buffer.subarray(0, length * 2).toString("utf16le");
+
+  return path.startsWith("\\\\?\\UNC\\") ? `\\\\${path.slice(8)}` : path.replace(/^\\\\\?\\/, "");
+}
+
 /**
  * The leaf stays a Win32 HANDLE. Bun's fs functions use their own descriptor table, so a CRT descriptor from
  * _open_osfhandle is a bad (or a different) file to them.
@@ -44,13 +55,9 @@ function windowsImageFile(handle: bigint): ImageFile {
       };
     },
     path() {
-      const buffer = Buffer.alloc(65536);
-      const length = open ? symbols.GetFinalPathNameByHandleW(handle, ptr(buffer), buffer.length / 2, 0) : 0;
+      if (!open) throw new Error("Image handle is unavailable.");
 
-      if (!length || length >= buffer.length / 2) throw new Error("Image handle is unavailable.");
-      const path = buffer.subarray(0, length * 2).toString("utf16le");
-
-      return path.startsWith("\\\\?\\UNC\\") ? `\\\\${path.slice(8)}` : path.replace(/^\\\\\?\\/, "");
+      return finalPath(handle);
     },
     read(buffer, offset, length, position) {
       if (!open) throw new Error("Image handle is unavailable.");
@@ -134,11 +141,22 @@ export function windowsImageRoot(path: string): ImageRoot {
     }
   };
 
-  release(walk([], true));
+  const pinned = walk([], true);
+  let canonical: string;
+
+  try {
+    // Compared with each file's final path, so take it from the same API (8.3 names and case resolved).
+    // SAFETY: walk opens the drive root first, so it returns at least one handle.
+    canonical = finalPath(pinned.at(-1)!);
+  } catch {
+    throw rootChanged();
+  } finally {
+    release(pinned);
+  }
 
   return {
     path,
-    canonical: path,
+    canonical,
     verify() {
       release(walk([], false));
     },
