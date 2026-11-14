@@ -40,7 +40,7 @@
 </script>
 
 <div class={["flex items-start gap-1 px-3 py-2", reason && "opacity-50", className]}>
-  <div class="@container grid min-w-0 flex-1 gap-0.5">
+  <div class="@container flex min-w-0 flex-1 flex-col gap-0.5">
     <ScheduleText {schedule} />
     <div
       class="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-2 text-sm/5 text-zinc-500 @xl:grid-cols-[minmax(0,auto)_auto_minmax(0,1fr)_minmax(0,auto)_auto] dark:text-zinc-400"
