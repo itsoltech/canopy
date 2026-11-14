@@ -238,7 +238,12 @@ message PullRequestLink {
   // Why the last refresh failed, written for the user. Empty while it is pending or after success.
   string detail = 7;
 }
-message ThreadPullRequestsRequest { string thread_id = 1; }
+message ThreadPullRequestsRequest {
+  string thread_id = 1;
+  // Bounded to 20; zero uses the same default.
+  uint32 page_size = 2;
+  uint32 offset = 3;
+}
 // The repository and branch are resolved by the home gateway from the owned thread.
 message RepositoryPullRequestsRequest {
   string thread_id = 1;
@@ -275,6 +280,9 @@ message ThreadPullRequestsResponse {
   uint64 revision = 2;
   bool stale = 3;
   string detail = 4;
+  uint32 total_count = 5;
+  uint32 next_offset = 6;
+  bool has_current_branch = 7;
 }
 message LinkThreadPullRequestRequest {
   string thread_id = 1;

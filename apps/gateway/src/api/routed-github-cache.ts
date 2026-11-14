@@ -39,6 +39,7 @@ export async function offlineGitHub(computers: LinkedComputers, node: string, me
     return create(github.ThreadPullRequestsResponseSchema, {
       stale: true,
       revision: thread.pullRequestRevision,
+      totalCount: thread.newestPullRequest ? 1 : 0,
       detail: "This computer is offline. Only the latest mirrored pull request is available.",
       links: thread.newestPullRequest ? [{ summary: thread.newestPullRequest, source: "manual" }] : [],
     });

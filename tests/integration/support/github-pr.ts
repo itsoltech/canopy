@@ -144,7 +144,10 @@ export function githubPrFixture() {
         );
 
       const query = Schema.decodeUnknownSync(
-        Schema.Struct({ query: Schema.String, variables: Schema.Struct({ number: Schema.Number }) }),
+        Schema.Struct({
+          query: Schema.String,
+          variables: Schema.Record(Schema.String, Schema.Union([Schema.String, Schema.Number])),
+        }),
       )(await request.json());
 
       try {
@@ -153,20 +156,30 @@ export function githubPrFixture() {
         return Response.json({ errors: [{ type: "GRAPHQL_PARSE_FAILED" }] }, { status: 400 });
       }
 
-      const number = query.variables.number;
+      const repository = (number: number) => {
+        const state = Match.value(number).pipe(
+          Match.when(43, () => "MERGED"),
+          Match.when(44, () => "CLOSED"),
+          Match.orElse(() => "OPEN"),
+        );
 
-      const state = Match.value(number).pipe(
-        Match.when(43, () => "MERGED"),
-        Match.when(44, () => "CLOSED"),
-        Match.orElse(() => "OPEN"),
-      );
+        const pr = pullRequest(number, state, number === 45);
+        pr.title += ` · account ${user}${echo}`;
 
-      const pr = pullRequest(number, state, number === 45);
-      pr.title += ` · account ${user}${echo}`;
+        return { databaseId: 777, pullRequest: { ...pr, ...(partial && { labels: null }) } };
+      };
+
+      const repositories = query.query.includes("CanopyLinkedPullRequests")
+        ? Object.fromEntries(
+            Object.entries(query.variables)
+              .filter(([key]) => key.startsWith("number"))
+              .map(([key, value]) => [`pr${key.slice(6)}`, repository(Schema.decodeUnknownSync(Schema.Number)(value))]),
+          )
+        : { repository: repository(Schema.decodeUnknownSync(Schema.Number)(query.variables["number"])) };
 
       return Response.json({
         data: {
-          repository: { databaseId: 777, pullRequest: { ...pr, ...(partial && { labels: null }) } },
+          ...repositories,
           rateLimit: { cost: 3, remaining: 4990, resetAt: new Date(auth.options.now!() + 3_600_000).toISOString() },
         },
         ...(partial && { errors: [{ type: "INTERNAL" }] }),

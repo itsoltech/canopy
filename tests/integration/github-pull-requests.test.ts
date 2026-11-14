@@ -57,7 +57,7 @@ describe.skipIf(!dockerAvailable)("manual GitHub PRs over gRPC and controlled HT
     await link(43);
     const items = await list();
     expect(items.links).toHaveLength(2);
-    expect(items.links[0]!.summary!.state).toBe("merged");
+    expect(items.links.map((l) => l.summary!.state)).toEqual(["open", "merged"]);
     expect((await gw.api.getThread({ threadId: thread })).thread!.pullRequestCount).toBe(2);
     const output = inspect([snapshot, linked, gw.worker.commands, gw.worker.configs], { depth: null });
 

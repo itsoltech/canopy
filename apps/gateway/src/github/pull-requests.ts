@@ -9,12 +9,13 @@ import { SUMMARY_QUERY, summarySnapshot, pullRequestCreatedAt, partialSnapshot }
 import { githubFailure } from "./http.ts";
 import { uuid } from "./records.ts";
 import { refreshLinked, refreshReason, rememberSummary } from "./last-known.ts";
+import { refreshLinkedBatch } from "./linked-batch.ts";
 
 /** Local links are durable; private summaries remain bound to the selected account/access revision. */
 export class GitHubPullRequests {
   readonly client;
   readonly repositories;
-  readonly #refreshing = new Set<string>();
+  #refreshing = false;
   constructor(
     readonly accounts: GitHubAccounts,
     readonly publish: (ids: readonly string[]) => Promise<void>,
@@ -33,22 +34,27 @@ export class GitHubPullRequests {
     for (const id of ids) await run((s) => s.prProject(owner, id));
     await this.publish(ids);
   }
-  async list(threadId: string) {
+  async list(threadId: string, pageSize = 20, offset = 0) {
     if (!uuid(threadId)) throw new ConnectError("Thread not found", Code.NotFound);
 
-    return this.accounts.run((s) => s.prList(this.accounts.owner, threadId));
+    return this.accounts.run((s) => s.prList(this.accounts.owner, threadId, pageSize, offset));
   }
   /** Linked pull requests shown from their last known summary refresh in the background, never in the read path. */
   refreshStale(response: github.ThreadPullRequestsResponse) {
-    for (const link of response.links) {
-      const ref = link.summary?.ref;
+    if (this.#refreshing) return;
 
-      if (!link.stale || !ref?.id || this.#refreshing.has(ref.id)) continue;
-      this.#refreshing.add(ref.id);
-      void refreshLinked(this, ref)
-        .catch(() => {})
-        .finally(() => this.#refreshing.delete(ref.id));
-    }
+    const refs = response.links
+      .filter((link) => link.stale && !["closed", "merged"].includes(link.summary?.state ?? ""))
+      .flatMap((link) => (link.summary?.ref?.id ? [link.summary.ref] : []))
+      .slice(0, 20);
+
+    if (!refs.length) return;
+    this.#refreshing = true;
+    void (refs.length === 1 ? refreshLinked(this, refs[0]!) : refreshLinkedBatch(this, refs))
+      .catch(() => {})
+      .finally(() => {
+        this.#refreshing = false;
+      });
   }
   async link(request: github.LinkThreadPullRequestRequest) {
     const { run, owner } = this.accounts;
@@ -95,11 +101,15 @@ export class GitHubPullRequests {
     force = false,
     background = false,
     wait = false,
+    prefetched?: { accountId: string; revision: bigint; payload: Schema.JsonObject },
   ): Promise<github.PullRequestSnapshot> {
     const { run, owner } = this.accounts;
 
     try {
       const { mapping, row } = await this.repositories.selected(name);
+
+      if (prefetched && (prefetched.accountId !== row.id || prefetched.revision !== BigInt(row.revision)))
+        throw new ConnectError("Repository access changed. Refresh, then retry.", Code.FailedPrecondition);
       const key = `summary:${mapping.repository_id}:${number}`;
       const cached = await this.client.cached(row, key);
 
@@ -109,6 +119,7 @@ export class GitHubPullRequests {
 
       const read = {
         background,
+        ...(prefetched && { prefetched: prefetched.payload }),
         ttl: ["merged", "closed"].includes(previous?.summary?.state ?? "") ? 300_000 : 60_000,
         key,
         path: "/graphql",
