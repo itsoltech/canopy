@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
 import type { ui } from "@canopy/contracts";
 import { sidebarUsageAccounts, sidebarUsageGlance } from "@canopy/domain/sidebar-usage";
-import { proxyUsageCounts, proxyUsageSections, proxyUsageText } from "@canopy/domain/proxy-accounts";
+import { proxyUsageSections, proxyUsageText } from "@canopy/domain/proxy-accounts";
+import { proxyCapacityGlance } from "@canopy/domain/proxy-capacity";
 import { Icon } from "../../ui/Icon";
 import { useSettingsResource } from "../settings/resource";
 import { Button } from "../../ui/Button";
@@ -12,24 +13,37 @@ import { styles, useColors } from "../../ui/theme";
 import { useTimeLabel } from "../../ui/time";
 import { openSettingsSection } from "../settings/navigation";
 import { SidebarUsageAccount } from "./SidebarUsageAccount";
+import { ProxyUsageAccounts } from "../proxies/ProxyUsageAccounts";
 import { usageColor } from "./usage-color";
 
 /** Fixed slot: incremental overview reports never move adjacent footer actions. */
 export function SidebarUsage({ workers }: { workers: readonly ui.Worker[] }) {
   const c = useColors();
   const [open, setOpen] = useState(false);
+  const { height } = useWindowDimensions();
   const minute = useTimeLabel((now) => String(Math.floor(now / 60_000)), true);
   const now = Number(minute) * 60_000;
   const accounts = useMemo(() => sidebarUsageAccounts(workers, now), [workers, now]);
-  const glance = useMemo(() => sidebarUsageGlance(accounts, now), [accounts, now]);
+  const direct = useMemo(() => sidebarUsageGlance(accounts, now), [accounts, now]);
   // Accounts the gateway read from proxies in use; reading the list never calls a proxy (web: SidebarUsage).
   const proxies = useSettingsResource("ListProxies", (api) => api.listProxies({}));
   const sections = useMemo(() => proxyUsageSections(proxies.data?.proxies), [proxies.data]);
+
+  const glance = useMemo(
+    () => proxyCapacityGlance(proxies.data?.proxies ?? [], direct, now),
+    [proxies.data, direct, now],
+  );
+
+  const usageProxies = useMemo(
+    () => (proxies.data?.proxies ?? []).filter((proxy) => proxy.kind === "cliproxyapi" && proxy.usedBy.length),
+    [proxies.data],
+  );
+
   const label = `Show provider usage. ${[...glance.map((item) => item.label), ...sections.map(proxyUsageText)].join(". ")}`;
 
   return (
     <View style={{ width: 44, height: 44, flexShrink: 0 }}>
-      {glance.length > 0 || sections.length > 0 ? (
+      {glance.length > 0 || usageProxies.length > 0 ? (
         <>
           <Pressable
             accessibilityRole="button"
@@ -75,29 +89,24 @@ export function SidebarUsage({ workers }: { workers: readonly ui.Worker[] }) {
                 </Text>
                 <SheetCloseButton label="Close provider usage" />
               </SheetDragArea>
-              <ScrollView style={{ maxHeight: 360 }} contentContainerStyle={{ gap: 12 }}>
+              <ScrollView
+                style={{ maxHeight: Math.min(420, height * 0.55) }}
+                contentContainerStyle={{ gap: 12 }}
+                nestedScrollEnabled
+              >
                 {accounts.map((account) => (
                   <SidebarUsageAccount key={account.key} account={account} now={now} />
                 ))}
-                {sections.map((section) => (
-                  <Pressable
-                    key={section.proxyId}
-                    accessibilityRole="link"
-                    accessibilityLabel={proxyUsageText(section)}
-                    onPress={() => {
+                {usageProxies.map((proxy) => (
+                  <ProxyUsageAccounts
+                    key={proxy.id}
+                    proxy={proxy}
+                    now={now}
+                    onOpen={() => {
                       setOpen(false);
                       openSettingsSection("proxies");
                     }}
-                    style={[styles.row, { minHeight: 44 }]}
-                  >
-                    <Icon name="link" color={c.muted} />
-                    <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-                      <Text numberOfLines={1} style={[styles.overlayHeading, { color: c.text }]}>
-                        Through {section.label}
-                      </Text>
-                      <Text style={[styles.overlayMeta, { color: c.muted }]}>{proxyUsageCounts(section)}</Text>
-                    </View>
-                  </Pressable>
+                  />
                 ))}
               </ScrollView>
               <Button

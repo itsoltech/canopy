@@ -180,8 +180,9 @@ Pokryte miejsca:
 Audyt istniejących źródeł web/mobile/desktop nie znalazł renderowanych pól
 email ani org ID: ustawienia użytkownika przechowują preferencje, konta
 konektorów pokazują nazwę nadaną przez użytkownika, a urządzenia/pairing oraz
-listy workerów/klientów desktop pokazują etykiety i dane maszyny. Mobile ma
-własny frontend i nie pokazuje tych pól. Nie dodano skanera tekstu ani
+listy workerów/klientów desktop pokazują etykiety i dane maszyny. Mobile maskuje
+email konta i katalog konfiguracji w Settings → Providers i Workers → Provider accounts
+(zob. [proxies.md](proxies.md#konta-upstream-management-api-cliproxyapi)). Nie dodano skanera tekstu ani
 rozmywania dowolnych nazw. Nazwa organizacji pozostaje jawna; org ID nie
 jest przesyłane.
 

@@ -1,5 +1,7 @@
 import { Provider, type ui } from "@canopy/contracts";
-import { View } from "react-native";
+import { Text, View } from "react-native";
+import { Sensitive } from "../../ui/Sensitive";
+import { styles, useColors } from "../../ui/theme";
 import { useState } from "react";
 import { providerName } from "../models/catalog";
 import { Button, Notice } from "../../ui/components";
@@ -56,11 +58,12 @@ export function WorkerProviderAccounts({ worker, readOnly }: { worker: ui.Worker
             <View key={`${i.harness}/${i.id}`} style={{ gap: 12 }}>
               <SettingsValue
                 title={`${providerName(i.harness)} · ${i.label || i.id}`}
-                value={[state, account.authMethod, account.proxyName, account.plan, account.organization, account.email]
+                value={[state, account.authMethod, account.proxyName, account.plan, account.organization]
                   .filter(Boolean)
                   .join(" · ")}
                 description={account.detail}
               />
+              {account.email ? <PrivateValue title="Email" value={account.email} label="Account email" /> : null}
               <AccountActions
                 worker={current}
                 instance={i}
@@ -121,7 +124,9 @@ function AccountActions({
     <>
       {account.expiresAt && <SettingsValue title="Expires" value={format(account.expiresAt.seconds)} />}
       {account.checkedAt && <SettingsValue title="Last checked" value={format(account.checkedAt.seconds)} />}
-      {account.configDir && <SettingsValue title="Configuration directory" value={account.configDir} />}
+      {account.configDir && (
+        <PrivateValue title="Configuration directory" value={account.configDir} label="Configuration directory" />
+      )}
       {instance.harness !== Provider.GROK && (
         <SettingsActions>
           <Button title={`Refresh ${instance.label || instance.id} account`} disabled={disabled} onPress={refresh} />
@@ -133,5 +138,17 @@ function AccountActions({
         </Notice>
       )}
     </>
+  );
+}
+
+/** A titled personal value, masked until tapped (web: Sensitive in WorkerAccounts). */
+function PrivateValue({ title, value, label }: { title: string; value: string; label: string }) {
+  const c = useColors();
+
+  return (
+    <View style={{ gap: 2 }}>
+      <Text style={[styles.workMeta, { color: c.muted }]}>{title}</Text>
+      <Sensitive value={value} label={label} style={[styles.chrome, { color: c.text }]} />
+    </View>
   );
 }
