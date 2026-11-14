@@ -187,6 +187,23 @@ używa swojego zwykłego połączenia z workerem i telefonu z Connect.
 
 ## 3. Visuals: format i gotowe komponenty
 
+### Kompozycja i galeria deweloperska
+
+Kit korzysta z tokenów motywu Canopy i skali `ui-scale.md`. Makietę aplikacji
+buduj z `device_frame`, krótkich nagłówków, `stat` i list danych zamiast akapitów.
+`list.items` zachowuje obsługę tekstów v1; opcjonalnie przyjmuje obiekty
+`{ label, detail?, value?, tone? }`. Wartość jest wyrównana do prawej i używa cyfr
+tabelarycznych. Kwoty formatuje agent, łącznie ze znakiem i walutą; kolor jest
+dodatkowym sygnałem, nie zastępuje znaku. Nie dodajemy HTML ani dowolnych stylów.
+
+Galeria: `PORT=5397 bun packages/domain/scripts/visual-gallery.ts`.
+Osobny serwer deweloperski wiąże tylko loopback i nie trafia do aplikacji.
+Pokazuje wszystkie typy komponentów, makietę bankową z sekwencją logowania,
+jasny i ciemny motyw oraz szerokości 360/960 px. Artboardy obejmują telefon,
+tablet, desktop i przeglądarkę; kontrolki pozwalają sprawdzić warianty i stany.
+Każda ramka używa produkcyjnego kompilatora i sandboxa, bez sieci ani kodu modelu.
+Po zmianie kitu wygeneruj `packages/domain/src/visuals/gen/kit.ts` przez `bun run gen`.
+
 | Format | Co daje | Co utrudnia |
 | --- | --- | --- |
 | Samowystarczalny HTML + CSS/JS kit | Duża swoboda układu; łatwy eksport; znajomy model generowania. | Agent może ominąć kit, dodać nieograniczoną pętlę JS, DOM lub zasoby. CSP izoluje dane i sieć, lecz nie daje twardego limitu CPU/pamięci iframe. Same klasy nie zapewniają spójności i dostępności. |

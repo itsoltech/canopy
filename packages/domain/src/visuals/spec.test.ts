@@ -49,6 +49,46 @@ function problem(raw: JsonValue): string {
 const withRoot = (root: JsonValue, state: JsonValue = {}): JsonObject => ({ schema_version: 1, state, root });
 
 describe("visual spec validation", () => {
+  test("accepts stored v1 lists and additive rows in the same compiled document", () => {
+    const visual = ok(
+      withRoot({
+        type: "list",
+        items: [
+          "Stored bullet",
+          { label: "Salary", detail: "Incoming transfer", value: "+8 500 zł", tone: "success" },
+          { label: "<img src=x onerror=alert(1)>", value: "−18 zł", tone: "danger" },
+          { label: "Pending" },
+        ],
+      }),
+    );
+
+    const html = compileVisual(visual, {
+      title: "Rows",
+      mode: "export",
+      nonce: "canopy-list-compatibility",
+      instance: "rows",
+    });
+
+    expect(html).toContain("Stored bullet");
+    expect(html).toContain("Incoming transfer");
+    expect(html).not.toContain("<img src=x");
+    expect(ok(withRoot({ type: "list", ordered: true, items: ["One", "Two"] })).spec.schema_version).toBe(1);
+  });
+
+  test("rejects unsafe, unknown and oversized list row fields", () => {
+    for (const row of [
+      { label: "Salary", tone: "pink" },
+      { label: "Salary", html: "<b>unsafe</b>" },
+      { label: "Salary", value: "x".repeat(121) },
+      { label: "" },
+      { value: "12" },
+      { label: "Salary", detail: "x".repeat(501) },
+    ])
+      expect(Result.isFailure(decodeVisualSpec(withRoot({ type: "list", items: [row] })))).toBe(true);
+    const rows = Array.from({ length: 50 }, () => ({ label: "x".repeat(500), detail: "y".repeat(500) }));
+    expect(problem(withRoot({ type: "list", items: rows }))).toContain("text is longer than 32 KiB");
+  });
+
   test("derives state domains from controls", () => {
     const { domains } = ok(playground);
 

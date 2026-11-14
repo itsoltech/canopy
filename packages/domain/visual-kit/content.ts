@@ -1,4 +1,5 @@
 import type { VisualNode } from "../src/visuals/types.ts";
+import { isString } from "../src/json.ts";
 import { renderChildren, type KitContext } from "./context.ts";
 import { append, el, uid } from "./dom.ts";
 
@@ -68,7 +69,22 @@ export function code(node: Of<"code">): HTMLElement {
 export function list(node: Of<"list">): HTMLElement {
   const element = el(node.ordered ? "ol" : "ul", "v-list");
 
-  for (const item of node.items) element.append(el("li", undefined, item));
+  element.dataset["rows"] = String(node.items.some((item) => !isString(item)));
+
+  for (const item of node.items) {
+    if (isString(item)) {
+      element.append(el("li", undefined, item));
+      continue;
+    }
+
+    const row = el("li", "v-list-row");
+    const leading = el("div", "v-list-leading");
+    append(leading, el("span", "v-list-label", item.label), item.detail && el("span", "v-caption", item.detail));
+    const value = el("span", "v-list-value", item.value);
+    value.dataset["tone"] = item.tone ?? "neutral";
+    append(row, leading, value);
+    element.append(row);
+  }
 
   return element;
 }
@@ -158,6 +174,13 @@ export function frame(
     bar.setAttribute("aria-hidden", "true");
     append(bar, el("span"), el("span"), el("span"));
     figure.append(bar);
+  }
+
+  if (device === "phone") {
+    const status = el("div", "v-device-status");
+    status.setAttribute("aria-hidden", "true");
+    append(status, el("span", undefined, "9:41"), el("span", "v-device-island"), el("span", undefined, "100%"));
+    screen.append(status);
   }
 
   screen.append(content);

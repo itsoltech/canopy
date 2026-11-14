@@ -73,7 +73,17 @@ const content = [
   Schema.Struct({ type: Schema.Literal("code"), text: Body, label: optional(Label) }),
   Schema.Struct({
     type: Schema.Literal("list"),
-    items: Schema.Array(Text(500)).check(Schema.isMinLength(1), Schema.isMaxLength(50)),
+    items: Schema.Array(
+      Schema.Union([
+        Text(500),
+        Schema.Struct({
+          label: Text(500),
+          detail: optional(Text(500)),
+          value: optional(Text(120)),
+          tone: optional(Tone),
+        }),
+      ]),
+    ).check(Schema.isMinLength(1), Schema.isMaxLength(50)),
     ordered: optional(Schema.Boolean),
   }),
   Schema.Struct({ type: Schema.Literal("badge"), text: Text(60), tone: optional(Tone) }),

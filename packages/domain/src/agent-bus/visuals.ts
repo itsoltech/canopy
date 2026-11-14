@@ -55,7 +55,8 @@ const STATE =
 const EXAMPLE =
   'Example: {"schema_version":1,"state":{"variant":"primary"},"root":{"type":"stack","children":[' +
   '{"type":"segmented","label":"Variant","state_key":"variant","options":["primary","secondary","ghost"]},' +
-  '{"type":"button_preview","label":"Add worker","variant_from":"variant"}]}}. ';
+  '{"type":"button_preview","label":"Add worker","variant_from":"variant"}]}}. ' +
+  'List example: {"schema_version":1,"root":{"type":"list","items":[{"label":"Salary","detail":"Incoming transfer","value":"+8 500 zł","tone":"success"},{"label":"Coffee","value":"−18 zł","tone":"danger"}]}}. ';
 
 export const VISUAL_TOOLS = {
   render_visual: {
@@ -64,6 +65,8 @@ export const VISUAL_TOOLS = {
       "Show the user an interactive visual in this thread, built from Canopy components: explanations, comparisons, " +
       "diagrams, step-by-step flows, button or layout variants, simple charts. Its controls change the visual locally; " +
       "they never contact you, run code or approve anything (use ask_user for decisions). No HTML, CSS, scripts, URLs or images. " +
+      "Compose a clear heading, metrics and compact cards. Prefer stats over paragraphs and list rows with label/value/tone over bullet text. " +
+      "Use device_frame for app mockups; group related button previews in a horizontal stack. Keep diagram labels short. " +
       CATALOGUE +
       STATE +
       EXAMPLE +

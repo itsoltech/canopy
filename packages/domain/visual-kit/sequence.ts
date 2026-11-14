@@ -21,6 +21,7 @@ export function sequence(ctx: KitContext, node: Sequence): HTMLElement {
     const head = el("div", "v-sequence-participant", participant.label);
     const lifeline = el("div", "v-sequence-lifeline");
     head.style.gridColumn = String(index + 1);
+    head.style.gridRow = "1";
     lifeline.style.gridColumn = String(index + 1);
     lifeline.style.gridRow = `2 / span ${node.messages.length}`;
     lifeline.setAttribute("aria-hidden", "true");

@@ -18,7 +18,7 @@ export function resetButton(ctx: KitContext, node: Of<"reset">): HTMLElement {
     ctx.announce("Reset to the start.");
   });
 
-  element.dataset["variant"] = "ghost";
+  element.dataset["variant"] = "secondary";
 
   return element;
 }
