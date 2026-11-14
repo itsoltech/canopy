@@ -57,10 +57,15 @@
   const slash = $derived(state.path.lastIndexOf("/"));
   const parent = $derived(slash >= 0 ? state.path.slice(0, slash + 1) : "");
   const leaf = $derived(state.path.slice(slash + 1));
+
+  function edit() {
+    onkeep();
+    document.edit();
+  }
 </script>
 
 <div class="@container flex h-10 shrink-0 items-center gap-2 border-b border-divider bg-surface pr-2 pl-3">
-  <p class="min-w-24 flex-1 truncate font-mono text-sm sm:text-xs" title={document.path}>
+  <p class="min-w-20 flex-1 truncate font-mono text-sm sm:text-xs" title={document.path}>
     <span class="text-muted select-text">{parent}</span><span class="font-medium select-text">{leaf}</span>
   </p>
   {#if notice}<FileNoticePill {notice} />{/if}
@@ -87,19 +92,18 @@
       onclick={() => void document.save()}>Save file</Button
     >
   {:else}
-    <Button
-      size="sm"
-      icon="pencil-square"
-      disabled={!state.editable || state.loading}
-      onclick={() => {
-        onkeep();
-        document.edit();
-      }}>Edit</Button
-    >
+    <!-- A phone-width bar keeps Edit as an icon, so the path, view and menu still fit. -->
+    <span class="hidden @md:contents">
+      <Button size="sm" icon="pencil-square" disabled={!state.editable || state.loading} onclick={edit}>Edit</Button>
+    </span>
+    <span class="contents @md:hidden">
+      <IconButton icon="pencil-square" label="Edit" disabled={!state.editable || state.loading} onclick={edit} />
+    </span>
   {/if}
   <DropdownMenu label="File actions" placement="bottom-end">
     {#snippet trigger(props)}<IconButton icon="ellipsis-horizontal" label="File actions" {...props} />{/snippet}
     {#if preview}<MenuItem icon="star" onselect={onkeep}>Keep tab</MenuItem>{/if}
+    {#if notice?.action}<MenuItem icon="sparkles" onselect={notice.action.run}>{notice.action.label}</MenuItem>{/if}
     <MenuItem
       icon="arrow-path"
       disabled={state.loading || state.busy || state.editing}

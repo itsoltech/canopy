@@ -223,7 +223,7 @@
           class={[
             "sticky left-0 z-1 shrink-0 bg-surface pr-4 pl-3 text-right select-none",
             selected
-              ? "text-sky-700 shadow-[inset_2px_0_0_var(--color-sky-500)] dark:text-sky-300"
+              ? "bg-linear-to-r from-sky-500/10 to-sky-500/10 text-sky-700 shadow-[inset_2px_0_0_var(--color-sky-500)] dark:from-sky-400/10 dark:to-sky-400/10 dark:text-sky-300"
               : "text-zinc-400 dark:text-zinc-500",
           ]}
           style:width={`calc(${gutterDigits(shape.lines)}ch + 1.75rem)`}>{row.continued ? "↳" : row.line}</span
