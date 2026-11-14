@@ -15,3 +15,5 @@ export * from "./theme-tokens.ts";
 export * from "./theme.ts";
 
 export type * from "./types.ts";
+
+export { VISUAL_PERMISSIONS } from "./permissions.ts";

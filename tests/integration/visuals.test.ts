@@ -3,7 +3,7 @@ import { toJsonString, type JsonValue } from "@bufbuild/protobuf";
 import { ItemSchema, ItemStatus, Provider, type AgentToolResult } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { GatewayStore } from "@canopy/gateway/store";
-import { THREAD_VISUALS_CAPABILITY } from "@canopy/domain/release/protocol";
+import { THREAD_VISUALS_CAPABILITY, THREAD_HTML_CAPABILITY } from "@canopy/domain/release/protocol";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { readVisual } from "../../apps/gateway/src/store/visuals.ts";
@@ -40,7 +40,9 @@ describe.skipIf(!dockerAvailable)("interactive visuals over WorkerLink", () => {
     gw.runtime.runPromise(Effect.flatMap(SqlClient.SqlClient, (sql) => sql.unsafe<A>(text, params)));
 
   beforeAll(async () => {
-    gw = await startTestGateway({ worker: { hello: { capabilities: [THREAD_VISUALS_CAPABILITY] } } });
+    gw = await startTestGateway({
+      worker: { hello: { capabilities: [THREAD_VISUALS_CAPABILITY, THREAD_HTML_CAPABILITY] } },
+    });
     projectId = (await gw.api.createProject({ name: "Visuals" })).project!.id;
     workspaceId = (await gw.api.createWorkspace({ projectId, workerId: gw.workerId, rootPath: "/repo/visuals" }))
       .workspace!.id;
@@ -103,6 +105,53 @@ describe.skipIf(!dockerAvailable)("interactive visuals over WorkerLink", () => {
 
     expect(json(await render(source, { height: 420 }, callId))).toEqual(published);
     expect(await query("SELECT 1 FROM thread_visuals WHERE visual_id=$1::uuid", [published.visual_id])).toHaveLength(1);
+  });
+
+  test("HTML is durable, owner-scoped, versioned and cannot change format", async () => {
+    const source = await turn("HTML");
+
+    const html =
+      "<button>Next</button><script>document.querySelector('button').addEventListener('click', () => {});</script>";
+
+    const publish = (args: Readonly<Record<string, JsonValue>>) =>
+      gw.worker.callTool({
+        ...source,
+        tool: "render_html",
+        args: { title: "HTML", description: "Custom interaction", html, ...args },
+      });
+
+    const first = json(await publish({}));
+    const read = await gw.api.getVisual({ threadId: source.threadId, visualId: first.visual_id });
+    expect(read.visual).toMatchObject({ htmlDocument: true, kitVersion: 2, version: 1 });
+    expect(JSON.parse(read.specJson)).toEqual({ html });
+    expect(
+      json(await publish({ visual_id: first.visual_id, expected_version: 1, html: "<p>Updated</p>" })).version,
+    ).toBe(2);
+    expect((await publish({ visual_id: first.visual_id, expected_version: 1 })).content).toContain("Version conflict");
+    expect((await render(source, { visual_id: first.visual_id, expected_version: 2 })).content).toContain(
+      "Keep the visual format",
+    );
+    const other = await turn("Other HTML");
+    await expect(gw.api.getVisual({ threadId: other.threadId, visualId: first.visual_id })).rejects.toThrow();
+    await expect(
+      gw.runtime.runPromise(
+        Effect.flatMap(SqlClient.SqlClient, (sql) =>
+          readVisual(sql, Bun.randomUUIDv7(), source.threadId, first.visual_id, 0),
+        ),
+      ),
+    ).rejects.toThrow("visual not found");
+    expect((await publish({ html: "x".repeat(512 * 1024 + 1) })).isError).toBe(true);
+    const before = await query("SELECT 1 FROM thread_visuals WHERE thread_id=$1::uuid", [source.threadId]);
+    const scripts = await publish({ html: "<script></script>".repeat(65) });
+    expect(scripts.isError).toBe(true);
+    expect(scripts.content).toContain("64 scripts");
+    const depth = await publish({ html: "<div>".repeat(101) + "x" + "</div>".repeat(101) });
+    expect(depth.isError).toBe(true);
+    expect(depth.content).toContain("100 levels");
+    expect(await query("SELECT 1 FROM thread_visuals WHERE thread_id=$1::uuid", [source.threadId])).toHaveLength(
+      before.length,
+    );
+    expect(await query("SELECT 1 FROM thread_visuals WHERE visual_id=$1::uuid", [first.visual_id])).toHaveLength(2);
   });
 
   test("updates in place with an expected version and rejects conflicts and foreign visuals", async () => {

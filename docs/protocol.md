@@ -88,6 +88,12 @@ nieznane narzędzie. `Welcome.thread_visuals_v1 = 7` mówi workerowi, że gatewa
 obsługuje `render_visual`; bez tej flagi worker sam odpowiada „Update Canopy on the
 gateway computer to show visuals.” i nie wysyła wywołania. `WORKER_LINK_PROTOCOL` pozostaje 1.
 
+`render_html` korzysta z tego samego RPC i itemu. Worker ogłasza
+`thread_html_v1`, gateway `Welcome.thread_html_v1 = 8`. Pole
+`Visual.html_document = 10` oznacza źródło JSON `{html}` zamiast spec komponentów;
+`kit_version=2` chroni starsze klienty. Limit i zaakceptowane ryzyko sieci
+opisuje [agent-visuals.md §9](agent-visuals.md#9-własny-html-render_html).
+
 `Item.visual = 26` (`Visual`) to mały manifest najnowszej wersji: `visual_id`,
 `version`, wersje schematu i kitu, tytuł, opis, wysokość, SHA-256 i rozmiar spec.
 Spec nie trafia do zdarzeń ani `WatchThread`. Wersja, upsert itemu `visual-<id>`,

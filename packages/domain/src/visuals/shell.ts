@@ -7,6 +7,10 @@ import { connectMessage } from "./protocol.ts";
 import { parseVisualSpec } from "./spec.ts";
 import type { VisualTheme } from "./theme-tokens.ts";
 import type { VisualState, VisualStateDomain } from "./types.ts";
+import { compileHtml, htmlPolicy, htmlScriptHash } from "./html-compile.ts";
+import { HTML_KIT_VERSION } from "./html-source.ts";
+import { VISUAL_PERMISSIONS } from "./permissions.ts";
+import { HTML_NETWORK_LOCKDOWN } from "./html-lockdown.ts";
 
 export interface ShellOptions {
   readonly title: string;
@@ -21,6 +25,8 @@ export interface ShellOptions {
   readonly instance: string;
   /** Random per mount; marks the messages the shell relays to the app. The iframe never sees it. */
   readonly token: string;
+  readonly scriptHashes?: readonly string[];
+  readonly showWarning?: boolean;
 }
 
 /** The shell loads nothing either: only its nonced script and style run, and the srcdoc frame is its one child. */
@@ -44,21 +50,24 @@ export function shellPolicy(nonce: string): string {
 
 const SHELL_STYLE =
   "html,body{margin:0;height:100%;overflow:hidden;background:transparent}" +
-  "iframe{display:block;width:100%;height:100%;border:0;background:transparent}";
+  "iframe{display:block;width:100%;height:100%;border:0;background:transparent}" +
+  ".canopy-html-warning{box-sizing:border-box;margin:0;padding:12px;font:14px/20px system-ui;color:#444;background:#fff}body:has(.canopy-html-warning) iframe{height:calc(100% - 64px)}";
 
 /**
  * The shell's whole program. It never evaluates data: the iframe gets the compiled document as `srcdoc`, the native
  * side gets the iframe's port messages as strings in a token envelope, and host messages are accepted only from the
  * native side (no `source`) with the same token. Dialogs and new windows are disabled before anything else runs.
  */
-const SHELL_SCRIPT = `(function () {
+const SHELL_SCRIPT =
+  HTML_NETWORK_LOCKDOWN +
+  `(function () {
   "use strict";
   var bridge = window.ReactNativeWebView;
   var data = JSON.parse(document.getElementById("canopy-shell-data").textContent);
   var none = function () { return null; };
   window.open = none; window.alert = none; window.confirm = none; window.prompt = none;
-  if (!bridge || typeof bridge.postMessage !== "function") return;
-  var post = bridge.postMessage.bind(bridge);
+  var post = bridge && typeof bridge.postMessage === "function" ? bridge.postMessage.bind(bridge) : null;
+  var parentPort;
   var channel = new MessageChannel();
   var connected = false;
   var windowStart = 0;
@@ -66,7 +75,10 @@ const SHELL_SCRIPT = `(function () {
   var send = function (message) {
     var text;
     try { text = JSON.stringify({ canopy_shell: data.token, message: message }); } catch (error) { return; }
-    if (typeof text === "string" && text.length <= ${SHELL_MESSAGE_CHARS}) post(text);
+    if (typeof text === "string" && text.length <= ${SHELL_MESSAGE_CHARS}) {
+      if (post) post(text);
+      else if (parentPort) parentPort.postMessage(JSON.parse(text).message);
+    }
   };
   channel.port1.onmessage = function (event) {
     var now = Date.now();
@@ -77,7 +89,7 @@ const SHELL_SCRIPT = `(function () {
   var frame = document.createElement("iframe");
   frame.setAttribute("sandbox", "allow-scripts");
   frame.setAttribute("referrerpolicy", "no-referrer");
-  frame.setAttribute("allow", "");
+  frame.setAttribute("allow", ${JSON.stringify(VISUAL_PERMISSIONS)});
   frame.title = data.title;
   frame.addEventListener("load", function () {
     if (connected || !frame.contentWindow) return;
@@ -85,6 +97,13 @@ const SHELL_SCRIPT = `(function () {
     frame.contentWindow.postMessage(data.connect, "*", [channel.port2]);
   });
   var onHost = function (event) {
+    if (!post && !parentPort && event.source === parent && event.data &&
+      event.data.type === "connect" && event.data.instance === data.connect.instance &&
+      event.data.nonce === data.connect.nonce && event.ports[0]) {
+      parentPort = event.ports[0];
+      parentPort.onmessage = function (received) { channel.port1.postMessage(received.data); };
+      return;
+    }
     if (event.source || typeof event.data !== "string" || event.data.length > ${SHELL_MESSAGE_CHARS}) return;
     var envelope;
     try { envelope = JSON.parse(event.data); } catch (error) { return; }
@@ -115,13 +134,16 @@ export function compileVisualShell(options: ShellOptions): string {
     '<html lang="en">',
     "<head>",
     '<meta charset="utf-8">',
-    `<meta http-equiv="Content-Security-Policy" content="${shellPolicy(options.nonce)}">`,
+    `<meta http-equiv="Content-Security-Policy" content="${options.scriptHashes ? htmlPolicy([...options.scriptHashes, htmlScriptHash(SHELL_SCRIPT)]) : shellPolicy(options.nonce)}">`,
     '<meta name="referrer" content="no-referrer">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
     `<title>${escapeHtml(options.title)}</title>`,
     `<style nonce="${options.nonce}">${SHELL_STYLE}</style>`,
     "</head>",
     "<body>",
+    ...(options.showWarning
+      ? ['<p class="canopy-html-warning">Custom HTML from the agent. Don’t enter passwords or secrets.</p>']
+      : []),
     `<script type="application/json" id="canopy-shell-data">${inertJson(data)}</script>`,
     `<script nonce="${options.nonce}">${SHELL_SCRIPT}</script>`,
     "</body>",
@@ -148,12 +170,43 @@ export function mountVisualShell(
   options: {
     readonly title: string;
     readonly kitVersion: number;
+    readonly htmlDocument?: boolean;
+    readonly showWarning?: boolean;
     readonly theme: VisualTheme;
     readonly reducedMotion: boolean;
     readonly state: VisualState | undefined;
     readonly random: () => string;
   },
 ): ShellMountResult {
+  if (options.htmlDocument) {
+    if (options.kitVersion !== HTML_KIT_VERSION || REVOKED_VISUAL_KITS.has(options.kitVersion))
+      return { kind: "update" };
+    const nonce = options.random();
+
+    const instance = options
+      .random()
+      .replace(/[^A-Za-z0-9-]/g, "")
+      .slice(0, 64);
+
+    const token = options.random();
+    const compiled = compileHtml(specJson, { nonce, instance, theme: options.theme });
+
+    return {
+      kind: "ready",
+      token,
+      domains: new Map(),
+      html: compileVisualShell({
+        title: options.title,
+        html: compiled.html,
+        nonce,
+        instance,
+        token,
+        scriptHashes: compiled.hashes,
+        showWarning: options.showWarning ?? false,
+      }),
+    };
+  }
+
   if (options.kitVersion > VISUAL_KIT_VERSION || REVOKED_VISUAL_KITS.has(options.kitVersion)) return { kind: "update" };
   const decoded = parseVisualSpec(specJson);
 

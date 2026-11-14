@@ -127,6 +127,7 @@ Jedna definicja w Effect Schema (`AGENT_BUS_TOOLS`). Z niej powstaje JSON Schema
 | `list_background_tasks` / `get_background_task` | ✓ | ✓ | zadania w tle wątku: status, powód słowami, kod wyjścia, czasy, ogon outputu |
 | `stop_background_task` | ✓ | ✓ | zatrzymanie zadania w tle (jak Stop użytkownika) |
 | `render_visual` | ✓ | ✓ | interaktywny visual w **swoim** wątku: drzewo komponentów kitu Canopy, walidowane i zapisywane wersjami przez gateway; kontrolki działają lokalnie i nie kontaktują agenta ([agent-visuals.md](agent-visuals.md#8-implementacja-visuals)) |
+| `render_html` | ✓ | ✓ | własny HTML, inline CSS i JS w **swoim** wątku, ten sam trwały zapis i wersje; opaque sandbox, hash CSP i lockdown, zaakceptowane ryzyko sieci poza desktopem ([agent-visuals.md §9](agent-visuals.md#9-własny-html-render_html)) |
 
 ### Zadania w tle
 

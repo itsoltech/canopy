@@ -83,9 +83,8 @@ export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
 
     const hello = first.value.payload.value;
 
-    if (hello.workerId !== workerId) {
+    if (hello.workerId !== workerId)
       throw new ConnectError("Hello.worker_id does not match credential", Code.PermissionDenied);
-    }
 
     if (!workerLinkCompatible(hello.minWorkerLinkProtocol, hello.workerLinkProtocol)) {
       throw new ConnectError(
@@ -103,6 +102,7 @@ export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
           diagnosticsV1: (options.diagnosticsEnabled?.() ?? true) && hello.capabilities.includes("diagnostics_v1"),
           workerDiagnosticsV1: workerMetricsSupported(options, hello),
           threadVisualsV1: true,
+          threadHtmlV1: true,
         },
       }),
     );

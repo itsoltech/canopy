@@ -77,9 +77,9 @@ function insertMovedVisuals(
   return Effect.forEach(rows, (json) =>
     sql.unsafe(
       `INSERT INTO thread_visuals (visual_id, version, thread_id, owner_user_id, turn_id, call_id, item_id, title, description,
-        height, schema_version, kit_version, spec, sha256, created_at)
+        height, schema_version, kit_version, spec, sha256, created_at, html_document)
       SELECT visual_id, version, $2::uuid, $3::uuid, $4::uuid, call_id, item_id, title, description, height, schema_version,
-        kit_version, spec, sha256, created_at
+        kit_version, spec, sha256, created_at, coalesce(html_document, false)
       FROM json_populate_record(NULL::thread_visuals, $1::json) ON CONFLICT DO NOTHING`,
       [JSON.stringify(Schema.decodeUnknownSync(JsonRow)(JSON.parse(json))), threadId, owner, turnId],
     ),

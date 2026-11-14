@@ -4,7 +4,8 @@ import { BACKGROUND_TASK_TOOLS } from "./background-tasks.ts";
 import { isEntityId } from "../computers.ts";
 import { IMAGE_TOOLS } from "./images.ts";
 import { RequestSecret } from "./secrets.ts";
-import { RENDER_VISUAL_MAX_ARGUMENTS, renderVisualProblem, VISUAL_TOOLS } from "./visuals.ts";
+import { RENDER_VISUAL_MAX_ARGUMENTS, renderVisualProblem, renderHtmlProblem, VISUAL_TOOLS } from "./visuals.ts";
+import { HTML_DOCUMENT_BYTES, htmlBytes } from "../visuals/html-source.ts";
 
 export { RequestSecret } from "./secrets.ts";
 
@@ -412,6 +413,12 @@ export const AGENT_BUS_TOOL_NAMES: readonly AgentBusToolName[] = Object.keys(AGE
 export function decodeAgentBusCall(name: string, argumentsJson: string): Result.Result<AgentBusCall, string> {
   if (!isAgentBusTool(name)) return Result.fail(`unknown agent bus tool "${name}"`);
 
+  if (
+    name === "render_html" &&
+    (argumentsJson.length > HTML_DOCUMENT_BYTES + 8192 || htmlBytes(argumentsJson) > HTML_DOCUMENT_BYTES + 8192)
+  )
+    return Result.fail("render_html: arguments exceed 512 KiB plus 8 KiB metadata");
+
   if (name === "render_visual" && argumentsJson.length > RENDER_VISUAL_MAX_ARGUMENTS)
     return Result.fail("render_visual: arguments are larger than the 128 KiB spec limit");
   let raw: unknown;
@@ -434,7 +441,8 @@ export function decodeAgentBusCall(name: string, argumentsJson: string): Result.
 
   const problem =
     (call.tool === "ask_user" && questionsProblem(call.args.questions)) ||
-    (call.tool === "render_visual" && renderVisualProblem(call.args));
+    (call.tool === "render_visual" && renderVisualProblem(call.args)) ||
+    (call.tool === "render_html" && renderHtmlProblem(call.args));
 
   if (problem) return Result.fail(`${call.tool}: ${problem}`);
 

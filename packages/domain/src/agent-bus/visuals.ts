@@ -1,6 +1,7 @@
 import { Result, Schema } from "effect";
 import { VISUAL_LIMITS } from "../visuals/limits.ts";
 import { decodeVisualSpec } from "../visuals/spec.ts";
+import { htmlDocumentProblem, HTML_DOCUMENT_BYTES } from "../visuals/html-source.ts";
 
 const Text = (max: number) => Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(max));
 
@@ -59,6 +60,28 @@ const EXAMPLE =
   'List example: {"schema_version":1,"root":{"type":"list","items":[{"label":"Salary","detail":"Incoming transfer","value":"+8 500 zł","tone":"success"},{"label":"Coffee","value":"−18 zł","tone":"danger"}]}}. ';
 
 export const VISUAL_TOOLS = {
+  render_html: {
+    name: "render_html",
+    description:
+      "Show custom HTML in this thread. Prefer render_visual for standard charts, cards and tables; use render_html " +
+      "for layouts or interactivity the component kit cannot express. Pass a complete document or body with inline CSS " +
+      "and classic script blocks. Use addEventListener, no inline handlers, no eval, no modules or external scripts. " +
+      "No network: inline everything, including libraries and images (data URLs). The document and serialized arguments " +
+      "are limited to 512 KiB (plus 8 KiB argument metadata), at most 64 scripts and 100 nesting levels. Do not ask for passwords or secrets. " +
+      "The opaque sandbox cannot access Canopy or approve actions; use ask_user for decisions. " +
+      "Theme variables: --canopy-canvas, --canopy-surface, --canopy-panel, --canopy-ink, --canopy-muted, " +
+      "--canopy-border, --canopy-accent, --canopy-action, --canopy-on-accent; color-scheme follows light/dark. " +
+      "Returns visual_id, item_id, version and citation_ref after durable storage. Update with visual_id and expected_version.",
+    args: Schema.Struct({
+      title: RenderVisual.fields.title,
+      description: RenderVisual.fields.description,
+      height: RenderVisual.fields.height,
+      html: Text(HTML_DOCUMENT_BYTES),
+      visual_id: RenderVisual.fields.visual_id,
+      expected_version: RenderVisual.fields.expected_version,
+    }),
+    mutates: true,
+  },
   render_visual: {
     name: "render_visual",
     description:
@@ -77,6 +100,15 @@ export const VISUAL_TOOLS = {
     mutates: true,
   },
 } as const;
+
+export function renderHtmlProblem(args: Schema.Schema.Type<typeof VISUAL_TOOLS.render_html.args>): string | undefined {
+  return (
+    htmlDocumentProblem(args.html) ??
+    ((args.visual_id === undefined) !== (args.expected_version === undefined)
+      ? "visual_id and expected_version go together"
+      : undefined)
+  );
+}
 
 /** Arguments are checked against the spec limit before they are parsed (title and description add at most 8 KiB). */
 export const RENDER_VISUAL_MAX_ARGUMENTS = VISUAL_LIMITS.specBytes + 8 * 1024;

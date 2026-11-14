@@ -15,11 +15,21 @@ export class VisualFrameInbox {
   private readonly heights = new RateWindow(VISUAL_LIMITS.heightsPerSecond + 1);
   private readonly hovers = new RateWindow(VISUAL_LIMITS.hoversPerSecond);
 
-  constructor(private readonly domains: ReadonlyMap<string, VisualStateDomain>) {}
+  constructor(
+    private readonly domains: ReadonlyMap<string, VisualStateDomain>,
+    private readonly htmlDocument = false,
+  ) {}
 
   receive(data: JsonValue, now: number): FrameMessage | undefined {
     if (!this.messages.allow(now)) return undefined;
-    const message = parseFrameMessage(data);
+    let message: FrameMessage | undefined;
+
+    // MessagePort uses structured clone, which can carry cycles or values outside JSON.
+    try {
+      message = parseFrameMessage(data);
+    } catch {
+      return undefined;
+    }
 
     switch (message?.type) {
       case "ready":
@@ -28,7 +38,7 @@ export class VisualFrameInbox {
       case "hover":
         return this.hovers.allow(now) ? message : undefined;
       case "local_state":
-        return validVisualState(this.domains, message.state) ? message : undefined;
+        return !this.htmlDocument && validVisualState(this.domains, message.state) ? message : undefined;
       default:
         return message;
     }
