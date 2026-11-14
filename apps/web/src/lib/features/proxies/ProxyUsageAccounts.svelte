@@ -10,6 +10,7 @@
   let { proxy, onclose }: { proxy: ui.Proxy; onclose: () => void } = $props();
   const snapshot = $derived(proxy.accounts);
   const hint = $derived(proxyAccountsHint(snapshot, proxy.managementKeySet));
+
   const accounts = $derived(
     [...(snapshot?.accounts ?? [])].sort(
       (a, b) => proxyProviderName(a.provider).localeCompare(proxyProviderName(b.provider)) || a.id.localeCompare(b.id),

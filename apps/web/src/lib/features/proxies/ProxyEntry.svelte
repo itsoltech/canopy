@@ -3,6 +3,7 @@
   import type { ui } from "@canopy/contracts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Badge from "#lib/shared/ui/Badge.svelte";
+  import SensitiveUrl from "#lib/shared/ui/SensitiveUrl.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import { proxyCall, proxyKinds } from "./proxies.ts";
   import ProxyMappings from "./ProxyMappings.svelte";
@@ -67,7 +68,9 @@
   <div class="flex flex-wrap items-start justify-between gap-3">
     <div class="min-w-0">
       <h2 class="text-lg font-semibold text-balance text-zinc-950 dark:text-white">{proxy.name}</h2>
-      <p class="text-base/6 break-all text-zinc-500 sm:text-sm/6 dark:text-zinc-400">{proxy.baseUrl}</p>
+      <p class="text-base/6 break-all text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+        <SensitiveUrl value={proxy.baseUrl} />
+      </p>
     </div>
     <Badge tone={proxy.secretSet ? "emerald" : "amber"}>{proxy.secretSet ? "Secret set" : "Secret missing"}</Badge>
   </div>

@@ -220,6 +220,27 @@ ostatniego sprawdzenia. Długa lista przewija się wewnątrz nakładki. Korzysta
 ze wspólnego `ListProxies` aktualizowanego przez overview; otwarcie nie odpytuje proxy
 ani nie zakłada nowego timera.
 
+Okna Codexa są nazywane według `window-minutes`, nigdy według pozycji primary/secondary:
+300 → 5-hour, 1440 → Daily, 10080 → Weekly, 43200 → Monthly; inne dodatnie okresy
+dostają etykietę z długością. Samo 0% bez okresu i resetu nie tworzy miernika.
+Nieznany okres z rzeczywistym odczytem ma nazwę Primary limit / Secondary limit,
+zamiast sugerować ogólne Usage. Claude pomija puste zerowe watermarki bez resetu
+i statusu; zachowuje rzeczywiste 0% i jawne odrzucenie limitu.
+
+Typ planu w `ProxyAccount.plan` to zamknięty enum: Free, Plus, Pro, Team, Business,
+Enterprise, Max, Max 5x, Max 20x, Ultra i Other. Brak danych nie tworzy etykiety.
+CLIProxyAPI udostępnia dla Codexa obiekt `id_token.plan_type` oraz nagłówek
+`x-codex-plan-type`; parser nie dekoduje JWT ani nie pobiera plików auth. Jawne pola
+`plan_type`, `chatgpt_plan_type`, `subscription_type`, `rate_limit_tier`, `tier`
+obsługują odpowiedzi, które je udostępniają. Standardowa lista CLIProxyAPI nie
+gwarantuje typu planu Claude, Grok ani Antigravity; nie zgadujemy go z nazwy konta.
+Do UI nie trafiają pozostałe claims ani dowolne teksty planów.
+
+Źródła sprawdzone 2026-11-14:
+- [CLIProxyAPI: lista i oczyszczone claims](https://github.com/router-for-me/CLIProxyAPI/blob/e96d4c4818851cf0e96d27b2bc8b67379e449d9e/internal/api/handlers/management/auth_files.go),
+- [CLIProxyAPI: mapowanie okien i nullable secondary](https://github.com/router-for-me/CLIProxyAPI/blob/e96d4c4818851cf0e96d27b2bc8b67379e449d9e/internal/runtime/executor/helps/codex_quota.go),
+- [Codex: pomijanie pustych okien](https://github.com/openai/codex/blob/main/codex-rs/codex-api/src/rate_limits.rs).
+
 `tests/integration/proxy-accounts.test.ts` używa fałszywego serwera Management API:
 parsowanie i sanityzacja kont, zły klucz bez ponowień, wyłączony zdalny dostęp,
 za duże i nie-JSON body, nieosiągalny host, brak klucza, owner scoping, okresowe

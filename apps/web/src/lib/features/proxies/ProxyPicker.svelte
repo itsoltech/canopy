@@ -5,6 +5,7 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import Field from "#lib/shared/ui/Field.svelte";
   import Select from "#lib/shared/ui/Select.svelte";
+  import SensitiveUrl from "#lib/shared/ui/SensitiveUrl.svelte";
   import ProxyDialog from "./ProxyDialog.svelte";
   import { replaceProxy, sharedProxies, supportsHarness } from "./proxies.ts";
 
@@ -30,9 +31,7 @@
 
   const options = $derived([
     ...(inherited ? [{ value: "", label: "Use the instance's proxy" }] : []),
-    ...proxies
-      .filter((p) => supportsHarness(p, harness))
-      .map((p) => ({ value: p.id, label: p.name, description: p.baseUrl })),
+    ...proxies.filter((p) => supportsHarness(p, harness)).map((p) => ({ value: p.id, label: p.name })),
   ]);
 
   const reload = () => void read.reload().catch(() => {});
@@ -48,6 +47,11 @@
       placeholder={loading ? "Loading proxies…" : "Choose a proxy…"}
     />
   </Field>
+  {#if proxies.find((proxy) => proxy.id === value)?.baseUrl}
+    <p class="min-w-0 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
+      <SensitiveUrl value={proxies.find((proxy) => proxy.id === value)?.baseUrl ?? ""} />
+    </p>
+  {/if}
   {#if !loading && !options.length}<p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
       No compatible proxies yet. Add one to continue.
     </p>{/if}

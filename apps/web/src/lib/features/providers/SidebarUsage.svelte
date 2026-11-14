@@ -23,6 +23,7 @@
   // Accounts the gateway read from proxies in use; reading the list never calls a proxy.
   const proxies = sharedProxies();
   const sections = $derived(proxyUsageSections(proxies.data?.proxies));
+
   const usageProxies = $derived(
     (proxies.data?.proxies ?? []).filter((proxy) => proxy.kind === "cliproxyapi" && proxy.usedBy.length),
   );

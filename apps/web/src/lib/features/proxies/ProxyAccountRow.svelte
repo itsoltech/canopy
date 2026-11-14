@@ -2,7 +2,7 @@
   import { create } from "@bufbuild/protobuf";
   import { timestampDate } from "@bufbuild/protobuf/wkt";
   import { ProviderUsageSnapshotSchema, type ui } from "@canopy/contracts";
-  import { proxyAccountLook, proxyAccountMark, proxyProviderName } from "@canopy/domain/proxy-accounts";
+  import { proxyAccountLook, proxyAccountMark, proxyProviderName, proxyPlanName } from "@canopy/domain/proxy-accounts";
   import ProviderIcon from "#lib/features/models/ProviderIcon.svelte";
   import UsageMeters from "#lib/features/providers/UsageMeters.svelte";
   import Badge from "#lib/shared/ui/Badge.svelte";
@@ -15,6 +15,8 @@
   let { account, compact = false }: { account: ui.ProxyAccount; compact?: boolean } = $props();
   const look = $derived(proxyAccountLook(account.status));
   const mark = $derived(proxyAccountMark(account.provider));
+  const plan = $derived(proxyPlanName(account.plan));
+
   const usage = $derived(
     create(ProviderUsageSnapshotSchema, {
       windows: compact
@@ -42,6 +44,7 @@
         class="max-w-24 shrink-0 truncate text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
         >{proxyProviderName(account.provider)}</span
       >{/if}
+    {#if plan}<div class="shrink-0 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">{plan}</div>{/if}
     <div class="min-w-0 flex-1 text-base/6 text-zinc-950 sm:text-sm/6 dark:text-white">
       {#if account.label}<Sensitive value={account.label} label="Account identity" truncate />{:else}Unnamed account{/if}
     </div>

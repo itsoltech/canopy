@@ -1,6 +1,22 @@
-import { Provider, type ui } from "@canopy/contracts";
+import { Provider, ui } from "@canopy/contracts";
 import type { StatusLook } from "./status-look.ts";
 import type { ProxyUsageSection } from "./sidebar-usage.ts";
+
+const planNames = new Map<ui.ProxyAccountPlan, string>([
+  [ui.ProxyAccountPlan.FREE, "Free"],
+  [ui.ProxyAccountPlan.PLUS, "Plus"],
+  [ui.ProxyAccountPlan.PRO, "Pro"],
+  [ui.ProxyAccountPlan.TEAM, "Team"],
+  [ui.ProxyAccountPlan.BUSINESS, "Business"],
+  [ui.ProxyAccountPlan.ENTERPRISE, "Enterprise"],
+  [ui.ProxyAccountPlan.MAX, "Max"],
+  [ui.ProxyAccountPlan.MAX_5X, "Max 5x"],
+  [ui.ProxyAccountPlan.MAX_20X, "Max 20x"],
+  [ui.ProxyAccountPlan.ULTRA, "Ultra"],
+  [ui.ProxyAccountPlan.OTHER, "Other plan"],
+]);
+
+export const proxyPlanName = (plan: ui.ProxyAccountPlan) => planNames.get(plan);
 
 /** How each account status reads (web: ProxyAccountRow, mobile: ProxyAccounts). */
 const looks = new Map<string, StatusLook>([
