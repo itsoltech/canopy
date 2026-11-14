@@ -93,13 +93,6 @@
   $effect(() => handle?.visible(active));
 </script>
 
-{#if response.visual?.htmlDocument}
-  <p
-    class="border-b border-zinc-950/10 px-3 py-2 text-base/7 text-zinc-600 sm:text-sm/6 dark:border-white/10 dark:text-zinc-400"
-  >
-    Custom HTML from the agent. Don't enter passwords or secrets.
-  </p>
-{/if}
 <div bind:this={host} class={["min-w-0", failure && "hidden"]}></div>
 {#if desktopHtml && !failure}
   <div class="flex min-h-40 items-center justify-center p-4">

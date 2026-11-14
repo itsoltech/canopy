@@ -11,7 +11,6 @@ parentPort?.postMessage(
     title: input.title,
     kitVersion: 2,
     htmlDocument: true,
-    showWarning: true,
     reducedMotion: false,
     state: undefined,
     theme: input.theme,
