@@ -262,17 +262,6 @@ html[data-canopy-platform]:not(:has(:popover-open, [data-window-no-drag])) {
   /* Keep both sides of a bot conversation together on large screens. */
   --bot-chat-width: 72rem;
 }
-/* The thread's chat column. It centres in the space left of the floating summary's lane (--chat-lane, set by the
-   thread page); where both do not fit it keeps to the left edge and the summary stands over it. Without a lane it
-   is centred as before. Toggling the summary never changes the lane, so the text never moves. */
-.chat-column {
-  max-width: var(--chat-width);
-  margin-left: max(0px, calc((100% - var(--chat-width) - var(--chat-lane, 0px)) / 2));
-  margin-right: auto;
-}
-:root[data-chat-width="full"] .chat-column {
-  max-width: max(calc(100% - var(--chat-lane, 0px)), min(100%, 36rem));
-}
 @media (min-width: 40rem) {
   :root {
     --chat-bubble-width: 90%;
