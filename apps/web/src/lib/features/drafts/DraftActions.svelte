@@ -1,135 +1,147 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
-  import type { Snippet } from "svelte";
-  import { timestampFromMs } from "@bufbuild/protobuf/wkt";
   import type { ui } from "@canopy/contracts";
   import { hasComposerContent, matchesComposerTarget } from "@canopy/domain/composer-drafts";
-  import Button from "#lib/shared/ui/Button.svelte";
-  import PendingDraft from "./PendingDraft.svelte";
-  import { formatRelative } from "#lib/shared/format.ts";
-  import { clock } from "#lib/shared/clock.svelte.ts";
+  import Icon from "#lib/shared/ui/Icon.svelte";
+  import Popover from "#lib/shared/ui/Popover.svelte";
   import { remoteDrafts } from "./remote.svelte.ts";
   import { webDrafts } from "./local.svelte.ts";
+  import { deleteDraft } from "./api.ts";
   import type { WebComposerDraft } from "./state.svelte.ts";
-  import DraftsDialog from "./DraftsDialog.svelte";
-  import { listDrafts } from "./api.ts";
+  import DraftRow from "./DraftRow.svelte";
 
   let {
     draft,
-    threadId = "",
     disabled = false,
-    children,
-    indicatorOnly = false,
-  }: {
-    draft: WebComposerDraft;
-    threadId?: string;
-    disabled?: boolean;
-    children?: Snippet;
-    indicatorOnly?: boolean;
-  } = $props();
+    class: className = "",
+  }: { draft: WebComposerDraft; disabled?: boolean; class?: string } = $props();
 
   let open = $state(false);
-  let fallback = $state<ui.ComposerDraft>();
+  let selected = $state("");
+  let busy = $state(false);
+  let error = $state("");
+  let anchor = $state<HTMLDivElement>();
 
-  let newer = $derived(
-    [...remoteDrafts.rows, ...(fallback ? [fallback] : [])].find(
-      (row) =>
-        matchesComposerTarget(row.target, draft.targetKey) &&
-        row.id !== draft.id &&
-        row.updatedAtMs > draft.publishedAtMs,
-    ),
+  let rows = $derived(
+    remoteDrafts.rows.filter((row) => matchesComposerTarget(row.target, draft.targetKey) && row.id !== draft.id),
   );
 
-  let busy = $state(false);
-
   $effect(() => {
-    const incoming = newer;
-
-    if (incoming) untrack(() => (draft.moved = ""));
+    if (webDrafts.ready) void remoteDrafts.load().catch(() => {});
   });
 
-  async function refresh() {
-    if (!draft.targetKey || !webDrafts.ready) return;
-
-    try {
-      await remoteDrafts.load();
-    } catch {
-      /* The local draft stays usable while disconnected. */
+  $effect(() => {
+    if (!rows.length) {
+      open = false;
+      selected = "";
     }
-  }
+  });
 
-  async function take(incoming: ui.ComposerDraft, replace = false) {
-    if (disabled || draft.locked) throw new Error("Finish the current composer action, then retry.");
+  $effect(() => {
+    if (rows.some((row) => row.updatedAtMs > draft.publishedAtMs)) untrack(() => (draft.moved = ""));
+  });
 
-    if (!matchesComposerTarget(incoming.target, draft.targetKey))
-      throw new Error("Open this draft in its own composer.");
-    const composer = draft;
+  onMount(() => remoteDrafts.subscribe());
+
+  async function take(row: ui.ComposerDraft, replace = false) {
+    if (disabled || draft.locked || !matchesComposerTarget(row.target, draft.targetKey)) return;
     busy = true;
+    error = "";
 
     try {
-      await composer.take(incoming, replace);
+      await draft.take(row, replace);
+      open = false;
+      selected = "";
       remoteDrafts.invalidate();
       await remoteDrafts.load();
+    } catch {
+      error = "Could not take over this draft. Select it to retry.";
     } finally {
       busy = false;
     }
   }
 
-  $effect(() => {
-    void threadId;
-    void webDrafts.ready;
-    void refresh();
-  });
+  async function discard(row: ui.ComposerDraft) {
+    busy = true;
+    error = "";
 
-  onMount(() => remoteDrafts.subscribe());
-
-  $effect(() => {
-    const missing = !remoteDrafts.rows.some((row) => row.target?.threadId === threadId);
-    const needed = threadId && missing && remoteDrafts.next && remoteDrafts.threadIds.includes(threadId);
-    fallback = undefined;
-
-    if (!needed) return;
-    let cancelled = false;
-    void listDrafts(webDrafts.deviceId, threadId)
-      .then((page) => {
-        if (!cancelled) fallback = page.drafts[0];
-      })
-      .catch(() => {});
-
-    return () => {
-      cancelled = true;
-    };
-  });
+    try {
+      await deleteDraft(row, row.takenByDeviceId || row.deviceId);
+      remoteDrafts.invalidate();
+      await remoteDrafts.load();
+    } catch {
+      error = "Could not discard this draft. Try again.";
+    } finally {
+      busy = false;
+    }
+  }
 </script>
 
-{#if !indicatorOnly}<PendingDraft {draft} />{/if}
-{#if newer || draft.moved}
-  <div class="flex h-8 w-full min-w-0 items-center gap-1 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
-    <p class="min-w-0 flex-1 truncate" role="status" title={draft.moved || undefined}>
-      {#if draft.moved}{draft.moved}{:else if newer}Draft from {newer.deviceName} · {formatRelative(
-          timestampFromMs(Number(newer.updatedAtMs)),
-          clock.now,
-        )}{/if}
-    </p>
-    {#if newer && !draft.moved}
-      <Button
-        size="sm"
-        variant="ghost"
-        disabled={disabled || busy}
-        onclick={() => {
-          const incoming = newer;
-          if (incoming) {
-            if (hasComposerContent(draft.content())) {
-              open = true;
-              return;
-            }
-            void take(incoming).catch(() => {
-              draft.error = "Could not continue this draft. Open Drafts and retry.";
-            });
-          }
-        }}>Take over</Button
-      >
-    {:else}<Button size="sm" variant="ghost" onclick={() => (draft.moved = "")}>Dismiss</Button>{/if}
+{#if rows.length}
+  <div bind:this={anchor} class={["relative h-8 w-full", className]}>
+    <Popover
+      bind:open
+      {anchor}
+      label="Drafts"
+      role="none"
+      placement="top-start"
+      offset={-33}
+      followMotion
+      class="drafts-attached"
+      maxHeight="min(40dvh,16rem)"
+      onclose={() => (selected = "")}
+    >
+      {#snippet trigger(props)}
+        <div class="flex h-8 justify-end pr-3" class:invisible={open}>
+          <button
+            type="button"
+            {...props}
+            class="relative -bottom-px flex h-8 items-center gap-2 rounded-t-xl border border-b-0 border-zinc-950/10 bg-surface px-3 text-sm/5 text-zinc-600 focus-ring sm:text-xs/5 dark:border-white/10 dark:text-zinc-300"
+          >
+            <Icon name="document-text" size="sm" /><span>Drafts</span><span class="text-accent tabular-nums"
+              >{rows.length}</span
+            ><span class="-scale-y-100"><Icon name="chevron-down" size="sm" /></span>
+          </button>
+        </div>
+      {/snippet}
+      <section aria-label="Drafts" class="text-sm/5 text-zinc-600 sm:text-xs/5 dark:text-zinc-300">
+        <button
+          type="button"
+          aria-expanded="true"
+          onclick={() => (open = false)}
+          class="flex min-h-8 w-full items-center gap-2 px-3 text-left focus-ring hover:bg-zinc-950/5 dark:hover:bg-white/5"
+        >
+          <Icon name="document-text" size="sm" /><span class="flex-1">Drafts</span><span
+            class="text-accent tabular-nums">{rows.length}</span
+          ><Icon name="chevron-down" size="sm" />
+        </button>
+        <div class="px-1 pb-1">
+          {#each rows as row (row.id)}
+            <DraftRow
+              {row}
+              selected={selected === row.id}
+              disabled={disabled || busy || draft.locked}
+              onselect={() => {
+                if (hasComposerContent(draft.content())) selected = selected === row.id ? "" : row.id;
+                else void take(row);
+              }}
+              ontake={(replace) => void take(row, replace)}
+              ondiscard={() => void discard(row)}
+            />
+          {/each}
+          {#if error}<p role="status" class="px-2 py-1 text-rose-600 dark:text-rose-400">{error}</p>{/if}
+        </div>
+      </section>
+    </Popover>
   </div>
-{:else}{@render children?.()}{/if}
-<DraftsDialog bind:open {draft} ontake={take} />
+{/if}
+
+<style>
+  :global(.drafts-attached) {
+    width: var(--float-anchor-width);
+    border: 1px solid var(--theme-border);
+    border-bottom: 0;
+    border-radius: 12px 12px 0 0;
+    box-shadow: none;
+  }
+</style>

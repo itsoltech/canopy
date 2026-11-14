@@ -5,11 +5,13 @@ i opóźniony o 250 ms. Synchronizacja publikuje po 1,5 s bez edycji, przy utrac
 fokusu, opuszczeniu kompozytora i przejściu w tło. Seria znaków daje jeden zapis,
 niezmieniona treść nie ponawia zapisu. Lista Drafts pobiera strony
 20 rekordów (serwer maksymalnie 50), a powiadomienia przenoszą tylko rewizję.
-Web współdzieli jeden EventSource między podpowiedzią i dialogiem; mobile ma jedną
+Web współdzieli jeden EventSource między zakładką kompozytora i znacznikami; mobile ma jedną
 subskrypcję na sesję. Oba zatrzymują strumień w tle. Nie dołączamy treści szkiców do
 overview, luster, diagnostyki ani snapshotów historii. Lista ma jeden współdzielony
-odczyt pierwszej strony na klienta i do 100 ID wątków bez tekstu do znaczników sidebaru.
-Aktywny wątek poza pierwszą stroną pobiera własny szkic oddzielnie. Zapis lokalny serializuje zmieniony wpis raz
+odczyt na klienta, domykający strony do limitu 100 szkiców, oraz do 100 ID wątków bez tekstu
+do znaczników sidebaru. Kolejne zamontowane zakładki używają tego samego cache;
+rozwinięcie panelu nie pobiera danych. Panel nie zmienia geometrii kompozytora.
+Zapis lokalny serializuje zmieniony wpis raz
 i przepisuje tylko jego klucz/plik. Markery subskrybują własny cel, a sygnał listy
 celów zmienia się wyłącznie przy dodaniu/usunięciu szkicu. Wysyłka to jedno RPC
 bez poprzedzającego zapisu szkicu i bez czekania na zapis już w toku. Spóźniona

@@ -21,7 +21,7 @@ import { useAppActive } from "./active";
 /** Measure on the UI thread so the portal follows scrolling, folding, rotation and every native keyboard frame. */
 function useAnchorBounds(content: AnchoredContent, host: AnimatedRef<ComponentRef<typeof View>>, insets: EdgeInsets) {
   const keyboard = useKeyboardFrame();
-  const { anchor: anchorRef, maxHeight } = content;
+  const { anchor: anchorRef, maxHeight, attached } = content;
   const bounds = useSharedValue({ left: 0, bottom: 0, width: 0, maxHeight: 0 });
   const [positioned, setPositioned] = useState(false);
   const active = useAppActive();
@@ -31,12 +31,17 @@ function useAnchorBounds(content: AnchoredContent, host: AnimatedRef<ComponentRe
     const anchor = measure(anchorRef);
 
     if (!frame || !anchor) return;
-    const edge = Math.min(anchor.pageY - frame.pageY, frame.height + keyboard.height.get() - insets.bottom);
+
+    const edge = Math.min(
+      anchor.pageY + (attached ? anchor.height : 0) - frame.pageY,
+      frame.height + keyboard.height.get() - insets.bottom,
+    );
+
     const left = Math.max(insets.left + 8, anchor.pageX - frame.pageX);
 
     const next = {
       left,
-      bottom: frame.height - edge + 4,
+      bottom: frame.height - edge + (attached ? -1 : 4),
       width: Math.max(0, Math.min(anchor.width, frame.width - insets.right - 8 - left)),
       maxHeight: Math.max(0, Math.min(maxHeight, (frame.height + keyboard.height.get()) * 0.4, edge - insets.top - 8)),
     };
@@ -134,25 +139,34 @@ export function AnchoredSurface({
             boxShadow: "0px 4px 16px #00000026",
             overflow: "hidden",
           },
+          content.attached && {
+            borderBottomWidth: 0,
+            borderBottomLeftRadius: 0,
+            borderBottomRightRadius: 0,
+            backgroundColor: c.surface,
+            boxShadow: undefined,
+          },
           bounds.style,
         ]}
       >
-        <View {...swipe.handlers} style={[styles.row, { paddingLeft: 12, paddingRight: 4, minHeight: 40 }]}>
-          <Text
-            ref={heading}
-            accessibilityRole="header"
-            numberOfLines={1}
-            style={[styles.overlayHeading, { color: c.muted, flex: 1 }]}
-          >
-            {content.label}
-          </Text>
-          <IconButton
-            icon="x-mark"
-            label={`Close ${content.label.toLowerCase()}`}
-            size="sm"
-            onPress={content.onClose}
-          />
-        </View>
+        {!content.attached && (
+          <View {...swipe.handlers} style={[styles.row, { paddingLeft: 12, paddingRight: 4, minHeight: 40 }]}>
+            <Text
+              ref={heading}
+              accessibilityRole="header"
+              numberOfLines={1}
+              style={[styles.overlayHeading, { color: c.muted, flex: 1 }]}
+            >
+              {content.label}
+            </Text>
+            <IconButton
+              icon="x-mark"
+              label={`Close ${content.label.toLowerCase()}`}
+              size="sm"
+              onPress={content.onClose}
+            />
+          </View>
+        )}
         <ScrollView
           bounces={false}
           nestedScrollEnabled
@@ -163,7 +177,7 @@ export function AnchoredSurface({
           scrollEventThrottle={16}
           {...swipe.scrollHandlers}
           style={{ flexGrow: 0, flexShrink: 1, minHeight: 0 }}
-          contentContainerStyle={{ padding: 4, paddingRight: 12 }}
+          contentContainerStyle={content.attached ? { padding: 4 } : { padding: 4, paddingRight: 12 }}
         >
           {content.children}
         </ScrollView>

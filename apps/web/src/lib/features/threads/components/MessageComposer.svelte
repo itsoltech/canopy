@@ -4,6 +4,7 @@
   import { webDrafts } from "#lib/features/drafts/local.svelte.ts";
   import DraftPersistence from "#lib/features/drafts/DraftPersistence.svelte";
   import DraftActions from "#lib/features/drafts/DraftActions.svelte";
+  import DraftMoveNotice from "#lib/features/drafts/DraftMoveNotice.svelte";
   import PendingDraft from "#lib/features/drafts/PendingDraft.svelte";
   import type { ClassValue } from "svelte/elements";
   import { limitsOf } from "#lib/features/attachments/draft.svelte.ts";
@@ -418,6 +419,10 @@
     quoteKey={thread.id}
     {ongoal}
   >
+    {#snippet drafts()}<DraftActions
+        draft={saved}
+        disabled={disabled || saved.locked || Boolean(rewind?.().busy)}
+      />{/snippet}
     {#snippet controls()}
       <fieldset disabled={disabled || sending} class="contents">
         {#if option}
@@ -437,12 +442,7 @@
     {#snippet meta()}
       <ComposerContextRow>
         {#snippet computerControl()}
-          <DraftActions
-            draft={saved}
-            threadId={thread.id}
-            indicatorOnly
-            disabled={disabled || saved.locked || Boolean(rewind?.().busy)}
-          >
+          <DraftMoveNotice draft={saved}>
             <!-- Delivery feedback shares the location slot so it never adds a blank row below the composer. -->
             <div class="relative w-full min-w-0">
               <div class:invisible={Boolean(deliveryStatus)}>
@@ -457,7 +457,7 @@
                 <span class="truncate">{deliveryStatus ?? ""}</span>
               </p>
             </div>
-          </DraftActions>
+          </DraftMoveNotice>
         {/snippet}
         {#snippet permissionControl()}
           <fieldset disabled={disabled || sending} class="contents">

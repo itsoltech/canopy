@@ -7,6 +7,8 @@
   import { webDrafts } from "#lib/features/drafts/local.svelte.ts";
   import DraftPersistence from "#lib/features/drafts/DraftPersistence.svelte";
   import DraftActions from "#lib/features/drafts/DraftActions.svelte";
+  import PendingDraft from "#lib/features/drafts/PendingDraft.svelte";
+  import DraftMoveNotice from "#lib/features/drafts/DraftMoveNotice.svelte";
   import { prepareDraftForm, watchDraftForm } from "#lib/features/drafts/form.ts";
   import type { ProjectChoice } from "@canopy/domain/projects";
   import { awayReason } from "#lib/features/computers/computers.ts";
@@ -331,6 +333,7 @@
           label="Task for the agent"
           {draft}
         >
+          {#snippet drafts()}<DraftActions draft={saved} disabled={busy} />{/snippet}
           {#snippet controls()}
             {#if workspace && selected}
               <ModelControls
@@ -404,7 +407,8 @@
             </ComposerContextRow>
           {/snippet}
         </ComposerBox>
-        <DraftActions draft={saved} disabled={busy} />
+        <PendingDraft draft={saved} />
+        <DraftMoveNotice draft={saved} />
       </form>
     {/if}
   </CenteredContent>

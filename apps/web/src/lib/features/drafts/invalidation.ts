@@ -39,7 +39,7 @@ function foreground() {
   refresh();
 }
 
-/** One foreground stream shared by mounted composer hints and the open dialog. */
+/** One foreground stream shared by composer tabs and sidebar markers. */
 export function subscribeDraftChanges(listener: () => void) {
   listeners.add(listener);
 

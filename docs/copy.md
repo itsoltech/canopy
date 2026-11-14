@@ -62,7 +62,7 @@ appear only as the literal name used by an external tool).
 | Term | Meaning | Don't write |
 |---|---|---|
 | thread | a conversation with an agent in a project directory | chat, conversation (those are bot words), session |
-| draft | an unsent prompt, including its citations, files and explicit choices; `Open drafts` lists prompts from other devices | message in progress, synced prompt |
+| draft | an unsent prompt, including its citations, files and explicit choices; the `Drafts` tab lists prompts from other devices for the current composer | message in progress, synced prompt |
 | side thread | a thread branched off another thread | sub-thread, child thread, branch |
 | turn | one request and the agent's answer in a thread | run, request, round |
 | citation | an inline token containing a quoted passage; `Cite` inserts it, `quote` names its text | footnote, reference |

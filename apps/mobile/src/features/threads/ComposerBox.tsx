@@ -48,6 +48,7 @@ export interface ComposerBoxProps {
   /** Pinned before the field in inline mode, or to the toolbar's left edge. */
   attachment?: ReactNode;
   controls?: ReactNode;
+  drafts?: ReactNode;
   compact?: boolean;
   pending?: readonly ComposerPendingItem[];
   /** Bot chats keep their one-row pill when expanded; long drafts still grow. */
@@ -82,6 +83,7 @@ export function ComposerBox({
   busy,
   attachment,
   controls,
+  drafts,
   compact = false,
   pending,
   inline = false,
@@ -115,70 +117,73 @@ export function ComposerBox({
   }));
 
   return (
-    <View
-      onTouchStart={onExpand}
-      style={{
-        backgroundColor: c.surface,
-        borderRadius: inline ? 24 : 16,
-        flexDirection: inline ? "row" : "column",
-        alignItems: inline ? "center" : undefined,
-        borderWidth: 1,
-        borderColor: shell ? c.danger : c.line,
-        boxShadow: c.dark ? undefined : "0px 1px 3px #0000001a",
-      }}
-    >
-      {top ? (
-        <ComposerFold open={!compact} expandedHeight={0} hideWhileWriting={false}>
-          {top}
-        </ComposerFold>
-      ) : null}
-      {inline && attachment ? <View style={{ paddingLeft: 4, flexShrink: 0 }}>{attachment}</View> : null}
+    <View style={{ paddingTop: drafts ? 32 : 0 }}>
+      {drafts ? <View style={{ position: "absolute", top: 0, left: 0, right: 0, height: 32 }}>{drafts}</View> : null}
+      <View
+        onTouchStart={onExpand}
+        style={{
+          backgroundColor: c.surface,
+          borderRadius: inline ? 24 : 16,
+          flexDirection: inline ? "row" : "column",
+          alignItems: inline ? "center" : undefined,
+          borderWidth: 1,
+          borderColor: shell ? c.danger : c.line,
+          boxShadow: c.dark ? undefined : "0px 1px 3px #0000001a",
+        }}
+      >
+        {top ? (
+          <ComposerFold open={!compact} expandedHeight={0} hideWhileWriting={false}>
+            {top}
+          </ComposerFold>
+        ) : null}
+        {inline && attachment ? <View style={{ paddingLeft: 4, flexShrink: 0 }}>{attachment}</View> : null}
 
-      <ComposerInput
-        text={text}
-        onChange={onChange}
-        busy={busy || readonly}
-        inline={inline}
-        compact={compact}
-        pending={pending}
-        onExpand={onExpand}
-        placeholder={triggers ? TRIGGER_HINT : placeholder}
-        triggers={triggers}
-        label={label}
-        badges={badges}
-      />
-      {!inline && (
-        <ComposerFold open={!compact} expandedHeight={composerGeometry.toolbar} hideWhileWriting={false}>
-          <ComposerControls
-            shell={shell}
-            files={files}
-            attachment={attachment}
-            sendWidth={running && !empty && onAlternate ? SPLIT_SEND_WIDTH + 14 : 60}
+        <ComposerInput
+          text={text}
+          onChange={onChange}
+          busy={busy || readonly}
+          inline={inline}
+          compact={compact}
+          pending={pending}
+          onExpand={onExpand}
+          placeholder={triggers ? TRIGGER_HINT : placeholder}
+          triggers={triggers}
+          label={label}
+          badges={badges}
+        />
+        {!inline && (
+          <ComposerFold open={!compact} expandedHeight={composerGeometry.toolbar} hideWhileWriting={false}>
+            <ComposerControls
+              shell={shell}
+              files={files}
+              attachment={attachment}
+              sendWidth={running && !empty && onAlternate ? SPLIT_SEND_WIDTH + 14 : 60}
+            >
+              {controls}
+            </ComposerControls>
+          </ComposerFold>
+        )}
+        {!inline || !empty || running ? (
+          <Animated.View
+            style={[
+              styles.row,
+              inline ? { padding: 4, paddingLeft: 0 } : [{ position: "absolute", right: 10 }, sendPosition],
+              { gap: 4 },
+            ]}
           >
-            {controls}
-          </ComposerControls>
-        </ComposerFold>
-      )}
-      {!inline || !empty || running ? (
-        <Animated.View
-          style={[
-            styles.row,
-            inline ? { padding: 4, paddingLeft: 0 } : [{ position: "absolute", right: 10 }, sendPosition],
-            { gap: 4 },
-          ]}
-        >
-          <SendButtons
-            alternate={running && !empty ? onAlternate : undefined}
-            primary={primary}
-            onSend={stop ? onStop : onSend}
-            stop={stop}
-            running={running}
-            disabled={stop ? unavailable : disabled}
-            busy={busy}
-            unavailable={unavailable}
-          />
-        </Animated.View>
-      ) : null}
+            <SendButtons
+              alternate={running && !empty ? onAlternate : undefined}
+              primary={primary}
+              onSend={stop ? onStop : onSend}
+              stop={stop}
+              running={running}
+              disabled={stop ? unavailable : disabled}
+              busy={busy}
+              unavailable={unavailable}
+            />
+          </Animated.View>
+        ) : null}
+      </View>
     </View>
   );
 }

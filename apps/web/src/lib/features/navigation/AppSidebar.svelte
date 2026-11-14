@@ -1,7 +1,8 @@
 <script lang="ts">
   import "./sidebar-rows.css";
-  import DraftsOverview from "#lib/features/drafts/DraftsOverview.svelte";
   import { page } from "$app/state";
+  import { remoteDrafts } from "#lib/features/drafts/remote.svelte.ts";
+  import { webDrafts } from "#lib/features/drafts/local.svelte.ts";
   import LiveBotsNav from "#lib/features/bots/components/LiveBotsNav.svelte";
   import { botList } from "#lib/features/bots/bot-list.svelte.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
@@ -32,6 +33,13 @@
 
   const section = $derived<Section>(sectionOf(page.url.pathname) ?? sectionMemory.current);
   const queries = $state<Record<Section, string>>({ threads: "", bots: "" });
+
+  $effect(() => {
+    if (section !== "threads" || !webDrafts.ready) return;
+    void remoteDrafts.load().catch(() => {});
+
+    return remoteDrafts.subscribe();
+  });
 
   $effect(() => {
     const query = queries.threads;
@@ -152,7 +160,6 @@
       >
     </a>
     <UpdatesIndicator />
-    {#if section === "threads"}<DraftsOverview />{/if}
     <ConnectionStatus
       recovery={overview.recovery}
       connection={overview.connection}
