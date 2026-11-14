@@ -27,7 +27,7 @@ export interface HostHooks {
 export type HostOperations = HostHooks &
   Pick<RewindCommands, "rewindThread"> &
   Pick<BranchCommands, "switchThreadBranch"> &
-  Pick<HostCatalog, "homes" | "probe" | "startLogin" | "publishCatalog" | "listModels"> &
+  Pick<HostCatalog, "homes" | "probe" | "publishCatalog" | "listModels"> &
   Pick<HostFiles, "checkCwd" | "listDirectory" | "ensureAttachments" | "fetchBlob" | "viewImage"> &
   Pick<
     CodexRuntimes,
@@ -54,10 +54,7 @@ export type HostOperations = HostHooks &
   > &
   Pick<HostEvents, "publish" | "sendEvent" | "interact" | "callTool" | "send" | "log"> &
   Pick<ThreadCommands, "createThread" | "startTurn" | "steerTurn" | "interruptTurn"> &
-  Pick<
-    QueryCommands,
-    "listModelsCommand" | "probeProviders" | "startLoginCommand" | "listMentionCatalog" | "searchFiles"
-  > &
+  Pick<QueryCommands, "listModelsCommand" | "probeProviders" | "listMentionCatalog" | "searchFiles"> &
   Pick<TaskCommands, "setGoal" | "stopTask" | "unloadThread"> &
   Pick<TextGeneration, "generateText"> &
   Pick<BotTurns, "runBotTurn" | "interruptBotTurn" | "closeBots" | "botFile"> &
@@ -104,7 +101,6 @@ export class HostContext {
       switchThreadBranch: branches.switchThreadBranch.bind(branches),
       homes: catalog.homes.bind(catalog),
       probe: catalog.probe.bind(catalog),
-      startLogin: catalog.startLogin.bind(catalog),
       publishCatalog: catalog.publishCatalog.bind(catalog),
       listModels: catalog.listModels.bind(catalog),
       checkCwd: files.checkCwd.bind(files),
@@ -143,7 +139,6 @@ export class HostContext {
       interruptTurn: threads.interruptTurn.bind(threads),
       listModelsCommand: queries.listModelsCommand.bind(queries),
       probeProviders: queries.probeProviders.bind(queries),
-      startLoginCommand: queries.startLoginCommand.bind(queries),
       listMentionCatalog: queries.listMentionCatalog.bind(queries),
       searchFiles: queries.searchFiles.bind(queries),
       setGoal: tasks.setGoal.bind(tasks),

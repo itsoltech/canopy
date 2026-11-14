@@ -8,6 +8,7 @@ import { readImportSecret } from "../import/library-secret.ts";
 import { readImportPage } from "../import/pages.ts";
 import type { HostContext } from "./host-context.ts";
 import { providerAccounts } from "./account-commands.ts";
+import { ProviderLogins } from "./provider-logins.ts";
 import { withProcessPriority } from "@canopy/process-governor";
 import { revealInFileManager } from "./reveal.ts";
 import { isFileCommand, runFileCommand } from "./file-commands.ts";
@@ -16,10 +17,13 @@ import { ThreadHighlights } from "../files/thread-highlight.ts";
 import { ThreadFilesWatcher } from "../files/thread-watch.ts";
 
 export class CommandHandlers {
+  readonly #logins: ProviderLogins;
   readonly #directories = new ThreadDirectories();
   readonly #highlights = new ThreadHighlights();
   readonly #filesWatcher = new ThreadFilesWatcher();
-  constructor(readonly ctx: HostContext) {}
+  constructor(readonly ctx: HostContext) {
+    this.#logins = new ProviderLogins(ctx);
+  }
 
   closeDirectories() {
     this.#filesWatcher.close();
@@ -156,7 +160,15 @@ export class CommandHandlers {
       case "probeProviders":
         return this.ctx.ops.probeProviders();
       case "startLogin":
-        return this.ctx.ops.startLoginCommand(kind);
+        return { login: await this.#logins.start(kind.value.provider, kind.value.profileId) };
+      case "completeLogin":
+        this.#logins.complete(kind.value);
+
+        return {};
+      case "logoutProvider":
+        await this.#logins.logout(kind.value);
+
+        return {};
       case "listMentionCatalog":
         return this.ctx.ops.listMentionCatalog(kind);
       case "searchFiles":

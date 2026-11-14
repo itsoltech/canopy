@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, lstatSync, mkdirSync, readlinkSync, rmSync, symlinkSync } from "node:fs";
+import { existsSync, linkSync, lstatSync, mkdirSync, readlinkSync, rmSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
 
 /**
@@ -11,10 +11,10 @@ import { join } from "node:path";
 export interface ProviderHome {
   readonly path: string;
   /**
-   * "linked" (shared token refresh), "copied" (symlinks not permitted, e.g. Windows without privilege), "own" (the
+   * "linked" (shared token refresh), "own" (the
    * instance's own login, kept in this home), or none.
    */
-  readonly login: "linked" | "copied" | "own" | "none";
+  readonly login: "linked" | "own" | "none";
   readonly problem?: string;
 }
 
@@ -51,7 +51,7 @@ export function prepareProviderHome(options: ProviderHomeOptions): ProviderHome 
   const target = join(path, options.loginFile);
 
   if (options.ownLogin) {
-    if (isSymlink(target)) removeIfPresent(target);
+    if (isSharedFile(target)) removeIfPresent(target);
 
     return { path, login: existsSync(target) ? "own" : "none" };
   }
@@ -78,19 +78,31 @@ export function prepareProviderHome(options: ProviderHomeOptions): ProviderHome 
 
     return { path, login: "linked" };
   } catch {
-    copyFileSync(source, target);
+    // Pinned Codex writes auth.json in place. NTFS hard links share refresh writes without symlink privileges.
+    if (process.platform === "win32") {
+      try {
+        linkSync(source, target);
+
+        return { path, login: "linked" };
+      } catch {
+        /* Refuse stale copies. */
+      }
+    }
 
     return {
       path,
-      login: "copied",
-      problem: "symlinks not permitted; login copied, token refresh is not shared with the device CLI",
+      login: "none",
+      problem:
+        "cannot link the device login; allow symbolic links on this computer or use an instance with its own login",
     };
   }
 }
 
-function isSymlink(path: string): boolean {
+function isSharedFile(path: string): boolean {
   try {
-    return lstatSync(path).isSymbolicLink();
+    const stat = lstatSync(path);
+
+    return stat.isSymbolicLink() || stat.nlink > 1;
   } catch {
     return false;
   }

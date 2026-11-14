@@ -1,5 +1,4 @@
 import { useState } from "react";
-import * as Linking from "expo-linking";
 import { ui } from "@canopy/contracts";
 import { create } from "@bufbuild/protobuf";
 import { Button, Field, Notice } from "../../ui/components";
@@ -7,6 +6,8 @@ import { SettingsGroup, SettingToggle } from "./SettingsGroup";
 import { SettingsValue } from "./SettingsValue";
 import { ResourceState, useSettingsResource } from "./resource";
 import { EnvironmentFields, environmentDrafts, environmentInput } from "./EnvironmentFields";
+import { ProviderLoginActions } from "./ProviderLoginActions";
+import { useOverview } from "../../state/overview";
 
 export function ProviderWorker({
   instance,
@@ -21,10 +22,16 @@ export function ProviderWorker({
     api.getInstanceWorker({ workerId, harness: instance.harness, id: instance.id }),
   );
 
-  const [login, setLogin] = useState<ui.StartProviderLoginResponse>();
-
   const worker =
     resource.data?.worker ?? (resource.initialLoading ? create(ui.InstanceOnWorkerSchema, { workerId }) : undefined);
+
+  const overview = useOverview();
+
+  const account =
+    overview.workers
+      .find((w) => w.id === workerId)
+      ?.providerInstances.find((i) => i.harness === instance.harness && i.id === instance.id)?.account ??
+    worker?.account;
 
   const request = { workerId, harness: instance.harness, id: instance.id };
 
@@ -49,11 +56,14 @@ export function ProviderWorker({
             title="Account"
             value={
               [
-                worker.account?.state === "expired" && "Sign-in expired",
-                worker.account?.email,
-                worker.account?.organization,
-                worker.account?.plan,
-                worker.account?.detail,
+                account?.state === "expired" && "Sign-in expired",
+                account?.state === "stored" && "Login saved",
+                account?.state === "signed_out" && "Not signed in",
+                account?.state === "signed_in" && "Signed in",
+                account?.email,
+                account?.organization,
+                account?.plan,
+                account?.detail,
               ]
                 .filter(Boolean)
                 .join(" · ") || worker.auth
@@ -64,23 +74,14 @@ export function ProviderWorker({
             busy={resource.busy}
             onPress={() => void resource.run((api) => api.refreshProviders({ ...request, accountOnly: true }))}
           />
-          <Button
-            title="Sign in"
-            busy={resource.busy}
-            onPress={() =>
-              void resource
-                .run((api) => api.startProviderLogin(request))
-                .then((r) => {
-                  if (r) setLogin(r);
-                })
-            }
+          <ProviderLoginActions
+            key={`${workerId}/${instance.harness}/${instance.id}`}
+            {...request}
+            kind={instance.kind}
+            ownLogin={instance.runtime?.ownLogin ?? false}
+            account={account}
+            disabled={!worker.enabled}
           />
-          {login && (
-            <>
-              <SettingsValue title="Sign-in code" value={login.userCode} />
-              <Button title="Open sign-in page" onPress={() => void Linking.openURL(login.verificationUrl)} />
-            </>
-          )}
           <WorkerOverrides
             key={`${workerId}/${worker.overrides?.$typeName ?? "none"}`}
             instance={instance}

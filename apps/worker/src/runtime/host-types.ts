@@ -45,7 +45,7 @@ export interface CommandOutput {
   readonly generatedText?: string;
   readonly entries?: DirectoryEntryInit[];
   readonly models?: ProfileModelsInit[];
-  readonly login?: { verificationUrl: string; userCode: string; loginId: string };
+  readonly login?: { verificationUrl: string; userCode: string; loginId: string; requiresCode?: boolean };
   readonly mentionCatalog?: MessageInitShape<typeof MentionCatalogSchema>;
   readonly fileSearch?: MessageInitShape<typeof FileSearchResultSchema>;
   readonly gitRefs?: MessageInitShape<typeof GitRefsSchema>;
@@ -86,6 +86,7 @@ export interface WorkerHostOptions {
     readonly claudeSecureStorage?: string;
     readonly codex: string;
     readonly grok?: string;
+    readonly grokAuthPath?: string;
     readonly agents?: string;
     /** The directory of Claude's `.claude.json` when it is not the Claude home (the default home: `~`). */
     readonly claudeAccount?: string;

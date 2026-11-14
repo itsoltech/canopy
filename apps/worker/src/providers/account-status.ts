@@ -1,4 +1,5 @@
 import { create } from "@bufbuild/protobuf";
+import { existsSync } from "node:fs";
 import { ProviderAccountStatusSchema, type ProviderAccountStatus } from "@canopy/contracts";
 import { processKey, runProcess, ProcessTimeoutError } from "@canopy/process-governor";
 import { accountResult, parseClaudeAccount, parseCodexAccount } from "./account-parser.ts";
@@ -108,7 +109,15 @@ export class AccountStatuses {
     if (query.harness === "grok") {
       const status = accountResult("unknown", query.configDir);
 
-      if (query.env["XAI_API_KEY"] || query.env["GROK_CODE_XAI_API_KEY"]) status.authMethod = "API key configured";
+      if (query.env["GROK_AUTH_PATH"]) {
+        status.state = existsSync(query.env["GROK_AUTH_PATH"]) ? "stored" : "signed_out";
+        status.authMethod = "Account";
+      }
+
+      if (query.env["XAI_API_KEY"] || query.env["GROK_CODE_XAI_API_KEY"]) {
+        status.state = "unknown";
+        status.authMethod = "API key configured";
+      }
 
       return status;
     }

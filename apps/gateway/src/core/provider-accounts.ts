@@ -76,7 +76,7 @@ export class ProviderAccounts {
     const rejected = this.#rejected.get(key);
 
     if (rejected !== undefined && rejected !== status.loginRevision) this.#rejected.delete(key);
-    else if (rejected !== undefined && status.state === "signed_in") {
+    else if (rejected !== undefined && ["signed_in", "stored"].includes(status.state)) {
       status.state = "expired";
       status.detail = REJECTED_LOGIN_DETAIL;
     }
@@ -98,7 +98,7 @@ export class ProviderAccounts {
     if (!connection || version === undefined || !(await this.refresh(connection, version, true, provider, id))) return;
     const account = this.#reports.get(workerId)?.accounts.get(`${provider}/${id}`);
 
-    if (!account || account.state !== "signed_in" || !signInMethods.has(account.authMethod)) return;
+    if (!account || !["signed_in", "stored"].includes(account.state) || !signInMethods.has(account.authMethod)) return;
     this.#rejected.set(`${workerId}/${provider}/${id}`, account.loginRevision);
     await this.#changed();
   }

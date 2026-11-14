@@ -38,6 +38,7 @@ export class HostState {
   readonly usageRefreshers = new Map<string, () => void>();
   readonly usageObservers = new Map<string, UsageObserver>();
   readonly accounts = new AccountStatuses();
+  readonly authAbort = new AbortController();
   readonly secrets: ThreadSecretFiles;
   /** Provider CLIs on this device: reports and installs on demand (docs/provider-cli.md). */
   cli!: CliTools;
@@ -63,8 +64,6 @@ export class HostState {
   config: AppliedConfig | undefined;
   /** The configuration as received: checked again on ProbeProviders and after a login from the app. */
   received: WorkerConfig | undefined;
-  /** Sign-ins from the app in progress, by provider/profile. */
-  readonly logins = new Map<string, Promise<{ verificationUrl: string; userCode: string; loginId: string }>>();
   /** The last sign-in from the app per instance id, reported with its account (ProviderAccountStatus.login_*). */
   readonly loginOutcomes = new Map<string, { loginId: string; outcome: "pending" | "signed_in" | "failed" }>();
   /** Finished sign-ins per instance id: a new one restarts the instance's Codex process once it is idle. */
@@ -100,6 +99,7 @@ export class HostState {
     readonly claudeSecureStorage?: string;
     readonly codex: string;
     readonly grok?: string;
+    readonly grokAuthPath?: string;
     readonly agents?: string;
     /** The directory of Claude's `.claude.json` when it is not the Claude home (the default home: `~`). */
     readonly claudeAccount?: string;
@@ -170,6 +170,7 @@ export class HostState {
       claudeSecureStorage: process.env["CLAUDE_SECURESTORAGE_CONFIG_DIR"] ?? process.env["CLAUDE_CONFIG_DIR"] ?? "",
       codex: deviceCodexHome(process.env),
       grok: process.env["GROK_HOME"] || join(homedir(), ".grok"),
+      ...(process.env["GROK_AUTH_PATH"] && { grokAuthPath: process.env["GROK_AUTH_PATH"] }),
       agents: join(homedir(), ".agents", "skills"),
       // Claude keeps `.claude.json` beside its default home (`~`); with CLAUDE_CONFIG_DIR it is inside that.
       ...(claude === join(homedir(), ".claude") && { claudeAccount: homedir() }),

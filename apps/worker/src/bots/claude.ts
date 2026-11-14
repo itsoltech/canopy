@@ -104,6 +104,7 @@ export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
       env: {
         ...profile.env,
         CLAUDE_CONFIG_DIR: session.home,
+        CLAUDE_SECURESTORAGE_CONFIG_DIR: session.secureStorageDir,
         ENABLE_TOOL_SEARCH: "false",
       },
       pathToClaudeCodeExecutable: claudeExecutable(ctx.executable),

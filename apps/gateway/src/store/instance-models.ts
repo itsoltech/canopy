@@ -77,6 +77,7 @@ export function instanceModels(
                   id: row.id,
                   label: row.label,
                   accentColor: row.accent_color,
+                  ownLogin: row.runtime?.ownLogin === true,
                   enabled: enabledOn(row, assignment),
                   available: reported?.available ?? false,
                   detail: reported ? reported.detail : "not reported by the worker yet",

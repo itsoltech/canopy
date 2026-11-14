@@ -288,6 +288,36 @@ describe.skipIf(!dockerAvailable)("worker records and remote worker settings acr
     );
 
     expect(direct).toContain("does not share that action");
+    expect(await failure(a.gateway.api.logoutProvider(request))).not.toBe("");
+    expect(
+      await failure(
+        single(
+          a.links.remote(
+            b.node,
+            methodNamed("LogoutProvider")!,
+            create(ui.LogoutProviderRequestSchema, { ...request, workerId: worker }),
+            AbortSignal.timeout(5000),
+          ),
+        ),
+      ),
+    ).toContain("does not share that action");
+    expect(
+      await failure(
+        single(
+          a.links.remote(
+            b.node,
+            methodNamed("CompleteProviderLogin")!,
+            create(ui.CompleteProviderLoginRequestSchema, {
+              ...request,
+              workerId: worker,
+              loginId: "fixture",
+              code: "fixture-code",
+            }),
+            AbortSignal.timeout(5000),
+          ),
+        ),
+      ),
+    ).toContain("does not share that action");
   }, 30_000);
 
   test("records and edits are this owner's only", async () => {

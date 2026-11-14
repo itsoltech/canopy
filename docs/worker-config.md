@@ -4,6 +4,11 @@ Status kont per instancja i worker (CLI, cache, prywatność):
 [provider-accounts.md](provider-accounts.md). Ochrona przed lawiną procesów:
 [process-governor.md](process-governor.md).
 
+Settings → Providers udostępnia logowanie i wylogowanie Claude, Codexa i Groka
+przez oficjalne CLI. Potwierdzenie wskazuje komputer oraz wpływ na login
+terminala; własny login instancji pozostaje izolowany. Szczegóły przepływów,
+capability i ograniczeń platform są w [provider-accounts.md](provider-accounts.md#logowanie-i-wylogowanie-z-aplikacji).
+
 CLI **Claude Code (`claude`), Codex (`codex`) i Grok (`grok`)** muszą być już
 zainstalowane na komputerze workera. Dotyczy to desktopu, samodzielnych binarek
 i Dockera. Canopy ich nie zawiera ani nie instaluje automatycznie. Na żądanie

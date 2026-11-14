@@ -28,6 +28,7 @@ export function workerCapabilities(options: { localWorker: boolean; fullAccess: 
     "probe_providers",
     "codex_device_login",
     "codex_device_login_linked",
+    "provider_cli_auth_v1",
     "generate_text",
     "bot_harness_v1",
     "bot_web_v1",

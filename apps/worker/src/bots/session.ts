@@ -22,7 +22,10 @@ function directory(parent: string, name: string): string {
 }
 
 /** No project path or device settings; only this instance's login enters the isolated home. */
-export function botSession(input: RunBotTurn, options: { dataDir: string; sourceHome: string; linkLogin: boolean }) {
+export function botSession(
+  input: RunBotTurn,
+  options: { dataDir: string; sourceHome: string; linkLogin: boolean; secureStorageDir?: string },
+) {
   if (!ID.test(input.botId) || !ID.test(input.turnId)) throw new Error("Invalid bot or turn id");
   const root = directory(directory(options.dataDir, "bots"), input.botId);
   const instance = createHash("sha256").update(`${input.provider}/${input.profileId}`).digest("hex");
@@ -64,14 +67,18 @@ export function botSession(input: RunBotTurn, options: { dataDir: string; source
     }
   }
 
-  if (input.provider === Provider.CLAUDE)
-    prepareClaudeHome({
-      dataDir: path,
-      path: home,
-      linkDeviceLogin: options.linkLogin,
-      deviceClaudeHome: options.sourceHome,
-    });
-  else if (input.provider === Provider.CODEX)
+  const claude =
+    input.provider === Provider.CLAUDE
+      ? prepareClaudeHome({
+          dataDir: path,
+          path: home,
+          linkDeviceLogin: options.linkLogin,
+          deviceClaudeHome: options.sourceHome,
+          ...(options.secureStorageDir !== undefined && { deviceSecureStorage: options.secureStorageDir }),
+        })
+      : undefined;
+
+  if (input.provider === Provider.CODEX)
     prepareCodexHome({
       dataDir: path,
       path: home,
@@ -84,6 +91,7 @@ export function botSession(input: RunBotTurn, options: { dataDir: string; source
     workspace,
     home,
     sourceHome: options.sourceHome,
+    secureStorageDir: claude?.secureStorageDir ?? home,
     linkLogin: options.linkLogin,
     id: saved?.key === key ? saved.id : "",
     save(id: string) {

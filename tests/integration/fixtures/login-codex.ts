@@ -3,13 +3,18 @@
  * Codex wire fixture for an expired ChatGPT login: `codex login status` only reads auth.json and says "Logged in", but
  * a turn fails as Codex 0.16x does when the refresh token expired. The device-code sign-in writes a new auth.json.
  */
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import type { JsonObject } from "@canopy/domain";
 
 const home = process.env["CODEX_HOME"]!;
 const auth = join(home, "auth.json");
+
+if (process.argv[2] === "logout") {
+  if (existsSync(auth)) unlinkSync(auth);
+  process.exit();
+}
 
 if (process.argv.includes("--version")) {
   console.log("codex-cli 0.166.0");

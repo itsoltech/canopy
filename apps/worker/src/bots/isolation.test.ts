@@ -76,8 +76,16 @@ test("bot isolation keeps only the selected login and rebuilds pre-isolation ses
     const options = { dataDir: temp("canopy-bot-login-data-"), sourceHome, linkLogin: true };
     const session = botSession(input, options);
 
-    expect(readdirSync(session.home)).toEqual([login]);
-    expect(readlinkSync(join(session.home, login))).toBe(join(sourceHome, login));
+    if (provider === Provider.CLAUDE) {
+      expect(readdirSync(session.home)).toEqual([]);
+      expect(session.secureStorageDir).toBe(sourceHome);
+      expect(botSession(input, { ...options, secureStorageDir: "" }).secureStorageDir).toBe("");
+      const isolated = botSession(input, { ...options, linkLogin: false });
+      expect(isolated.secureStorageDir).toBe(isolated.home);
+    } else {
+      expect(readdirSync(session.home)).toEqual([login]);
+      expect(readlinkSync(join(session.home, login))).toBe(join(sourceHome, login));
+    }
 
     for (const configuration of [
       { model: input.model, tools: input.tools },
@@ -126,6 +134,26 @@ test("Grok login uses the selected auth path; only bots replace the shell home",
     try {
       expect(launch.options.env?.["HOME"]).toBe(bot ? launch.options.env?.["GROK_HOME"] : user.env.HOME);
       expect(launch.options.env?.["GROK_AUTH_PATH"]).toBe(linkDeviceLogin ? auth : undefined);
+    } finally {
+      launch.cleanup();
+    }
+  }
+});
+
+test("Grok carries the terminal's custom auth path into threads and bots", () => {
+  const home = temp("canopy-grok-custom-auth-");
+  const auth = join(home, "custom-login.json");
+
+  for (const bot of [false, true]) {
+    const launch = grokLaunch({
+      dataDir: temp("canopy-grok-custom-data-"),
+      profile: { kind: "native", id: "native", providers: ["grok"], env: {}, runtime: {} },
+      baseEnv: { GROK_HOME: home, GROK_AUTH_PATH: auth },
+      ...(bot && { bot: { cwd: home, sourceHome: home, instructions: "Use Canopy tools." } }),
+    });
+
+    try {
+      expect(launch.options.env?.["GROK_AUTH_PATH"]).toBe(auth);
     } finally {
       launch.cleanup();
     }

@@ -20,6 +20,7 @@ import { codexProfileGroup, CommandError } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
 import type { AccountQuery } from "../providers/account-status.ts";
 import { accountText } from "@canopy/domain/provider-accounts";
+import { grokAuthPath } from "../providers/grok/home.ts";
 
 type Harness = AccountQuery["harness"];
 
@@ -70,10 +71,13 @@ function environment(ctx: HostContext, config: AppliedConfig, resolved: Resolved
 
     // Grok has no read-only account query; only the key variables are inspected, never auth.json.
     if (runtime.ownLogin || config.grok.linkDeviceLogin)
-      env["GROK_AUTH_PATH"] = join(
-        runtime.ownLogin ? configDir : runtime.homePath || ctx.state.deviceHomes.grok || configDir,
-        "auth.json",
-      );
+      env["GROK_AUTH_PATH"] = grokAuthPath({
+        dataDir: ctx.state.options.dataDir,
+        id: resolved.id,
+        runtime,
+        deviceHome: ctx.state.deviceHomes.grok,
+        deviceAuthPath: ctx.state.deviceHomes.grokAuthPath,
+      });
   }
 
   return { configDir, env };
@@ -158,9 +162,12 @@ async function readEntry(
 
     const loginDir =
       resolved.kind === "native"
-        ? resolved.runtime.ownLogin
+        ? resolved.runtime.ownLogin || !config[harness].linkDeviceLogin
           ? configDir
-          : resolved.runtime.homePath || ctx.state.deviceHomes[harness] || ""
+          : (harness === "claude" && env["CLAUDE_SECURESTORAGE_CONFIG_DIR"]) ||
+            resolved.runtime.homePath ||
+            ctx.state.deviceHomes[harness] ||
+            ""
         : "";
 
     // Only a custom shadow home is worth showing; the default lives in the worker's data directory.
@@ -172,12 +179,13 @@ async function readEntry(
         configDir: resolved.runtime.shadowHomePath ? account.configDir : "",
         loginDir: accountText(loginDir, query.secrets),
         loginExecutable: resolved.kind === "native" ? accountText(query.executable, query.secrets) : "",
+        ...(harness === "claude" && {
+          loginSecureStorageDir: accountText(env["CLAUDE_SECURESTORAGE_CONFIG_DIR"], query.secrets),
+        }),
         // Read on every report, not cached: the gateway compares it with the login a turn was rejected with.
         loginRevision: loginRevision(harness, loginDir),
-        ...(harness === "codex" && {
-          loginId: ctx.state.loginOutcomes.get(resolved.id)?.loginId ?? "",
-          loginOutcome: ctx.state.loginOutcomes.get(resolved.id)?.outcome ?? "",
-        }),
+        loginId: ctx.state.loginOutcomes.get(`${harness}/${resolved.id}`)?.loginId ?? "",
+        loginOutcome: ctx.state.loginOutcomes.get(`${harness}/${resolved.id}`)?.outcome ?? "",
       },
     });
   } catch {

@@ -29,7 +29,14 @@ export function wantedRuntimes(ctx: HostContext): Map<string, WantedRuntime> {
       const provider = config[harness];
 
       if (!provider.enabled || !usableBy(profile, harness)) continue;
-      const key = JSON.stringify({ provider, profile, nativeTools: config.nativeTools });
+
+      const key = JSON.stringify({
+        provider,
+        profile,
+        nativeTools: config.nativeTools,
+        login: ctx.state.loginGenerations.get(`${harness}/${profile.id}`) ?? 0,
+      });
+
       wanted.set(`${harness}/${profile.id}`, {
         key,
         start: () =>

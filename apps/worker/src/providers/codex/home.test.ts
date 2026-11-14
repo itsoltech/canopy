@@ -1,5 +1,15 @@
 import { describe, expect, test } from "bun:test";
-import { lstatSync, mkdirSync, mkdtempSync, readlinkSync, statSync, writeFileSync } from "node:fs";
+import {
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readlinkSync,
+  statSync,
+  writeFileSync,
+  readFileSync,
+  renameSync,
+  linkSync,
+} from "node:fs";
 import { join } from "node:path";
 import { tempDir } from "@canopy/testing";
 import { deviceCodexHome, prepareCodexHome } from "./home.ts";
@@ -51,5 +61,32 @@ describe("prepareCodexHome", () => {
   test("device Codex home: $CODEX_HOME or ~/.codex", () => {
     expect(deviceCodexHome({ CODEX_HOME: "/opt/codex" }, "/home/u")).toBe("/opt/codex");
     expect(deviceCodexHome({}, "/home/u")).toBe("/home/u/.codex");
+  });
+
+  test("linked login stays fresh after CLI writes and atomic terminal replacement", () => {
+    const deviceHome = device(true);
+
+    const home = prepareCodexHome({
+      dataDir: mkdtempSync(join(base, "refresh-")),
+      linkDeviceLogin: true,
+      deviceCodexHome: deviceHome,
+    });
+
+    writeFileSync(join(home.path, "auth.json"), "fixture-refreshed-by-worker");
+    expect(readFileSync(join(deviceHome, "auth.json"), "utf8")).toBe("fixture-refreshed-by-worker");
+    writeFileSync(join(deviceHome, "auth.new"), "fixture-refreshed-by-terminal");
+    renameSync(join(deviceHome, "auth.new"), join(deviceHome, "auth.json"));
+    expect(readFileSync(join(home.path, "auth.json"), "utf8")).toBe("fixture-refreshed-by-terminal");
+  });
+
+  test("an own login detaches a Windows-style hard link without changing the device store", () => {
+    const deviceHome = device(true);
+    const shadow = mkdtempSync(join(base, "hardlink-"));
+    linkSync(join(deviceHome, "auth.json"), join(shadow, "auth.json"));
+    writeFileSync(join(shadow, "auth.json"), "fixture-refreshed");
+    expect(readFileSync(join(deviceHome, "auth.json"), "utf8")).toBe("fixture-refreshed");
+    prepareCodexHome({ dataDir: shadow, path: shadow, ownLogin: true, linkDeviceLogin: false });
+    expect(() => lstatSync(join(shadow, "auth.json"))).toThrow();
+    expect(readFileSync(join(deviceHome, "auth.json"), "utf8")).toBe("fixture-refreshed");
   });
 });

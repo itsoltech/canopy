@@ -59,11 +59,13 @@
         ? "Expired"
         : account?.state === "signed_in"
           ? "Signed in"
-          : account?.state === "signed_out"
-            ? "Not signed in"
-            : account?.state === "error"
-              ? "Check failed"
-              : "",
+          : account?.state === "stored"
+            ? "Login saved"
+            : account?.state === "signed_out"
+              ? "Not signed in"
+              : account?.state === "error"
+                ? "Check failed"
+                : "",
   );
 
   // The separator belongs to the item after it, so a wrapped line never ends with a lone dot.

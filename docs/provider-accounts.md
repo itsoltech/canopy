@@ -11,7 +11,7 @@ każdego modelu ani dostępności endpointu.
 | --- | --- | --- |
 | Claude | `claude auth status --json` | `loggedIn`, metoda, email, nazwa organizacji, subskrypcja, opcjonalny termin wygaśnięcia. Nieznane pola są odrzucane. |
 | Codex | `codex login status` | Status w stderr i kod wyjścia; rozpoznawane ChatGPT/API key/managed credentials. Opcjonalnie działający app-server tej samej instancji: `account/read {refreshToken:false}` daje email i plan. Nie uruchamiamy kolejnego app-servera ani nie czytamy `auth.json`. |
-| Grok Build 1.0.70 | brak (nic nie jest uruchamiane) | CLI ma login/logout, ale nie ma read-only auth status/whoami. Raport `unknown` bez komunikatu; przy kluczu w env pokazujemy jedynie „API key configured”. UI nie pokazuje nic poza dostępnością CLI. |
+| Grok Build 1.0.70 | obecność pliku wskazanego przez `GROK_AUTH_PATH` (bez czytania treści) | Brak read-only auth status/whoami. „Login saved” potwierdza zapisany login, nie jego ważność; dopiero tura może go odrzucić. Brak pliku oznacza „Not signed in”. Klucz w env ma osobny opis „API key configured”. |
 | Proxy | konfiguracja instancji | „Proxy: nazwa”, bez uruchamiania auth status i bez tożsamości konta upstream. Nie jest to test poprawności klucza ani połączenia. |
 
 Polecenia i schematy sprawdzono w pomocy zainstalowanych CLI oraz oficjalnym
@@ -31,6 +31,18 @@ bez skrótu katalogu; jawny katalog wybiera wpis z jego skrótem. Własny login
 instancji i wyłączone dowiązanie nadal sprawdzają jej izolowany katalog;
 nie przechodzą na login urządzenia. Brak `.credentials.json` nie oznacza
 wylogowania: rozstrzyga odpowiedź `claude auth status --json`.
+Ta zmienna wybiera również `.credentials.json` na Linuxie i Windowsie.
+Shadow home nie kopiuje ani nie dowiązuje tego pliku: CLI czyta i odświeża
+bezpośrednio źródłowy magazyn, także gdy odświeżenie atomowo zastępuje plik.
+Codex nadal dowiązuje `CODEX_HOME/auth.json`. Na Windowsie, gdy system odmawia
+symlinków, używa twardego dowiązania na tym samym wolumenie; przypięty Codex
+zapisuje odświeżenia w miejscu. Przy kolejnym odczycie konta dowiązanie jest
+uzgadniane ponownie również po zastąpieniu pliku z terminala. Gdy żadne dowiązanie
+nie jest możliwe, worker odmawia kopiowania nieaktualizowanej kopii: trzeba
+włączyć symlinki lub wybrać własny login instancji. Grok używa bezpośredniego
+`GROK_AUTH_PATH`, niezależnie od izolowanego `GROK_HOME`. Jeśli terminal ustawia własny
+`GROK_AUTH_PATH`, worker zachowuje tę ścieżkę dla wbudowanej instancji, odczytu statusu
+oraz logowania i wylogowania. Instancja z własnym loginem zawsze wybiera swój magazyn.
 Odczyt konta i tury instancji dostają ten sam wybór magazynu, bez kopiowania
 tokenów ani zmiany `HOME`. Dostęp do pęku kluczy nadal wymaga uprawnień sesji OS;
 wynik przez SSH nie potwierdza dostępu procesu uruchomionego w sesji graficznej.
@@ -64,7 +76,36 @@ identyfikatory organizacji, surowe komunikaty błędów oraz nieznane pola nie
 są częścią kontraktu; metadane są ponownie filtrowane w gateway. Znane
 sekrety profilu i wartości przypominające sekrety są odrzucane z pól tekstowych.
 
-## Login odrzucony w turze
+## Logowanie i wylogowanie z aplikacji
+
+Web, desktop oraz mobile używają tych samych akcji gatewaya. Claude uruchamia
+`claude auth login`, pokazuje oficjalny URL i przyjmuje kod strony na stdin
+czekającego CLI. SDK 0.3.316 ma odczyt konta, ale nie osobne API logowania.
+Grok 1.0.70 uruchamia `grok login --device-auth`, pokazuje URL i kod urządzenia.
+Codex zachowuje `account/login/start` z #696. Nie implementujemy własnego OAuth.
+Gdy CLI nie udostępni oczekiwanego przepływu, aplikacja podaje logowanie w
+terminalu na nazwanym komputerze. Polecenie Claude zachowuje również wybór
+secure storage, w tym pustą wartość dla domyślnego pęku kluczy.
+
+Przed rozpoczęciem aplikacja nazywa komputer i informuje o zmianie konta CLI,
+także w terminalu. Wylogowanie wymaga osobnego potwierdzenia; worker wykonuje
+`claude auth logout`, `codex logout` lub `grok logout`, potem odświeża status.
+Własny login używa wyłącznie izolowanego magazynu instancji. Zmiana loginu
+uzgadnia runtimes po opróżnieniu aktywnych tur, również innych instancji
+współdzielących to samo konto.
+
+Nowa capability `provider_cli_auth_v1` obejmuje Claude/Grok, przekazanie kodu
+i wylogowanie. Starsze workery dostają komunikat o aktualizacji; dotychczasowe
+capabilities logowania Codexa pozostają zgodne. Wszystkie trzy akcje sprawdzają
+ścisłą własność workera oraz włączoną instancję. Worker platformowy i linked
+peer odmawiają operacji. Jeden magazyn ma najwyżej jedną zmianę loginu w toku;
+wylogowanie jest odrzucane do zakończenia logowania. Każdy wynik jest przypisany do
+konkretnego `login_id`, osobno dla harnessu i instancji. Kod trafia wyłącznie
+do pamięci oraz stdin CLI; polecenia nie trafiają do journala ani outboxa.
+Output CLI ma limit, deadline i jest odrzucany bez logowania. Tokeny nie
+opuszczają magazynu CLI. Zamknięcie workera anuluje proces logowania.
+
+### Login odrzucony w turze
 
 `codex login status` czyta tylko `auth.json`: wygasły refresh token nadal daje
 „Logged in using ChatGPT”, a `account/read` bez odświeżenia tokenu też tego

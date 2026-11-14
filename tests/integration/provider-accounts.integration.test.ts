@@ -246,9 +246,13 @@ console.log(JSON.stringify({ loggedIn: true, authMethod: "claude.ai", email: "qa
     expect(report?.loginDir).toBe(ownHome);
     expect(report?.loginExecutable).toBe(executable);
     const command = providerLoginCommand("claude", report!, "linux");
-    expect(command).toBe(`CLAUDE_CONFIG_DIR='${ownHome.replaceAll("'", `'"'"'`)}' '${executable}' auth login`);
+    expect(command).toBe(
+      `CLAUDE_SECURESTORAGE_CONFIG_DIR='${ownHome.replaceAll("'", `'"'"'`)}' CLAUDE_CONFIG_DIR='${ownHome.replaceAll("'", `'"'"'`)}' '${executable}' auth login`,
+    );
     const powershell = providerLoginCommand("claude", report!, "win32");
-    expect(powershell).toBe(`$env:CLAUDE_CONFIG_DIR='${ownHome.replaceAll("'", "''")}'; & '${executable}' auth login`);
+    expect(powershell).toBe(
+      `$env:CLAUDE_SECURESTORAGE_CONFIG_DIR='${ownHome.replaceAll("'", "''")}'; $env:CLAUDE_CONFIG_DIR='${ownHome.replaceAll("'", "''")}'; & '${executable}' auth login`,
+    );
 
     const modeFile = join(dir, "login-mode");
 

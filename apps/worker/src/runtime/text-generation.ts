@@ -6,6 +6,7 @@ import { codexAppServerLaunch } from "../providers/codex/launch.ts";
 import { generateGrokText } from "../providers/grok/generate-text.ts";
 import { generateClaudeText, generateCodexText } from "../providers/generate-text.ts";
 import { claudeProfileOptions } from "../providers/claude/profile.ts";
+import { prepareClaudeHome } from "../providers/claude/home.ts";
 
 import { CommandError, usableBy, type CommandOutput } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
@@ -53,6 +54,18 @@ export class TextGeneration {
 
       const executable = runtime.executablePath || config[provider].executable;
 
+      const claudeHome =
+        provider === "claude"
+          ? prepareClaudeHome({
+              dataDir: this.ctx.state.options.dataDir,
+              path: sourceHome,
+              ownLogin: runtime.ownLogin ?? false,
+              linkDeviceLogin: config.claude.linkDeviceLogin,
+              deviceClaudeHome: runtime.homePath || this.ctx.state.deviceHomes.claude,
+              ...(!runtime.homePath && { deviceSecureStorage: this.ctx.state.deviceHomes.claudeSecureStorage }),
+            })
+          : undefined;
+
       const catalog = this.ctx.state.catalog?.profiles.find(
         (p) => p.provider === input.provider && p.profileId === (input.profileId || "native"),
       );
@@ -85,7 +98,11 @@ export class TextGeneration {
             chosen,
             {
               cwd: sourceHome,
-              ...claudeProfileOptions(profile, { ...process.env, CLAUDE_CONFIG_DIR: sourceHome }),
+              ...claudeProfileOptions(profile, {
+                ...process.env,
+                CLAUDE_CONFIG_DIR: sourceHome,
+                CLAUDE_SECURESTORAGE_CONFIG_DIR: claudeHome?.secureStorageDir ?? sourceHome,
+              }),
               ...(executable && { pathToClaudeCodeExecutable: executable }),
             },
             abort.signal,

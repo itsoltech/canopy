@@ -68,6 +68,9 @@ const NOT_REMEMBERED: ReadonlySet<Command["kind"]["case"]> = new Set([
   ...QUERIES,
   "installCli",
   "getProviderAccounts",
+  "startLogin",
+  "completeLogin",
+  "logoutProvider",
   "readWorkspaceOrigin",
   "readGitPrContext",
   "initRepository",
@@ -414,6 +417,7 @@ export class WorkerHost {
     await this.#ctx.ops.closeClones();
     await this.#copies.close();
     this.#ctx.state.closing = true;
+    this.#ctx.state.authAbort.abort();
 
     for (const run of this.#ctx.state.shellRuns.values()) run.controller.abort("worker_shutdown");
     await Promise.allSettled([...this.#ctx.state.shellRuns.values()].map((r) => r.pending));

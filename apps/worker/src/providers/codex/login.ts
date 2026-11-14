@@ -23,9 +23,17 @@ export async function startCodexDeviceLogin(options: {
   launch: CodexAppServerLaunch;
   clientVersion: string;
   timeoutMs?: number;
+  signal?: AbortSignal;
 }): Promise<DeviceLogin> {
+  options.signal?.throwIfAborted();
   const scope = await Effect.runPromise(Scope.make());
   const close = () => Effect.runPromise(Scope.close(scope, Exit.void));
+
+  const abort = () => {
+    void close();
+  };
+
+  options.signal?.addEventListener("abort", abort, { once: true });
 
   try {
     const context = await Effect.runPromise(
@@ -72,13 +80,17 @@ export async function startCodexDeviceLogin(options: {
         if (!params) return { success: false, error: "Codex ended the sign-in without an answer" };
 
         return params.success ? { success: true } : { success: false, error: params.error ?? "the sign-in failed" };
+      } catch {
+        return { success: false, error: "The sign-in did not finish. Start it again." };
       } finally {
+        options.signal?.removeEventListener("abort", abort);
         await close();
       }
     })();
 
     return { verificationUrl: started.verificationUrl, userCode: started.userCode, loginId: started.loginId, done };
   } catch (error) {
+    options.signal?.removeEventListener("abort", abort);
     await close();
     throw error;
   }
