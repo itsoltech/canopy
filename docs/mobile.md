@@ -1168,6 +1168,18 @@ więc rodzic może wtedy odmontować cały komponent. Przy zamykaniu przez `visi
 `Overlay` zachowuje ostatnią treść do końca wyjścia. `onDismiss` nadal uruchamia akcje
 prezentujące kolejne okno dopiero po natywnym zamknięciu.
 
+UIKit prezentuje z jednego kontrolera tylko jeden modal: drugi, otwarty z okna aplikacji
+przy otwartym arkuszu, zostaje odrzucony, a React Native i tak uznaje go za pokazany.
+Dlatego `ui/overlay-stack.ts` rejestruje każdy `Overlay` z rodzicem (najbliższy `Overlay`
+albo okno aplikacji). Rodzeństwo prezentuje się po kolei: następne czeka, aż poprzednie
+zniknie natywnie (iOS `Modal.onDismiss`, Android commit; awaryjnie po 1 s). Rodzic
+zachowuje natywny modal, dopóki zagnieżdżone nakładki są na ekranie, bo UIKit zamknąłby
+tylko najwyższą i zostawił niewidoczny arkusz przechwytujący dotyk. `confirm()` pokazuje
+dialog wewnątrz najwyższej otwartej nakładki (`OverlayLayer` renderuje `ConfirmHost`
+w każdym `Overlay`), więc potwierdzenie z arkusza pojawia się nad nim, a arkusz zostaje
+otwarty. Gdy arkusz zamyka się przed pokazaniem dialogu, dialog przechodzi niżej; gdy
+zamyka się pod dialogiem, dialog jest anulowany.
+
 Pusty kompozytor obsługujący triggery pokazuje tylko `/ commands · $ skills · @ files · # threads · ! shell`.
 Podpowiedź jest zawsze jednym wierszem z wielokropkiem na końcu, poza pomiarem tekstu pola;
 nie zmienia treści ani wysokości podczas zwijania i rozwijania. Kompozytory bez triggerów

@@ -31,6 +31,14 @@ export function UpdateFeedback() {
       </View>
     );
 
+  // The request can take a while before the snapshot shows progress.
+  if (snapshot && pending && pending !== "check" && !pending.includes("dismiss"))
+    return (
+      <Text accessibilityLiveRegion="polite" style={[styles.overlayMeta, { color: c.muted, paddingVertical: 8 }]}>
+        Starting update…
+      </Text>
+    );
+
   if (snapshot) return null;
 
   return (

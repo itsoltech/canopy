@@ -117,6 +117,8 @@ Raporty, otwarcie i zamknięcie kanału aplikacji ogłaszają `updates_changed`.
 przebiegu wymaga `confirm_restart=true` i tego samego potwierdzenia oraz ochrony
 szkiców co pojedyncza akcja. Restart domu jest ostatnim krokiem. Dołączony gateway
 i worker aktualizują się razem z aplikacją; serwerowy gateway zachowuje własny updater.
+Na telefonie potwierdzenie otwiera się nad arkuszem Updates, który zostaje otwarty;
+do odpowiedzi gatewaya arkusz pokazuje „Starting update…”, a potem postęp, wynik albo błąd.
 
 Popover ma 352 px szerokości i wysokość zależną od zawartości (maksymalnie
 70% okna / 512 px); przewija się lista między nagłówkiem a odnośnikami.
