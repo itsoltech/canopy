@@ -84,6 +84,15 @@ export function threadCreation(
     createThread: (ownerUserId, request, movedId, automated) =>
       sql.withTransaction(
         Effect.gen(function* () {
+          if (request.clientRequestId) {
+            yield* sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${ownerUserId}:${request.clientRequestId}`}, 9236))`;
+
+            const previous = (yield* sql<{ id: string }>`SELECT id FROM threads
+              WHERE owner_user_id=${ownerUserId}::uuid AND creation_request_id=${request.clientRequestId}`)[0];
+
+            if (previous) return yield* self().thread(previous.id);
+          }
+
           const workspace = yield* one(
             yield* sql<{
               id: string;
@@ -201,12 +210,12 @@ export function threadCreation(
           yield* sql`
                   INSERT INTO threads (id, project_id, owner_user_id, kind, parent_thread_id, root_thread_id, depth, runtime, provider,
                                        provider_profile_id, worker_id, workspace_id, cwd, fork_source_thread_id, fork_after_turn_id, settings, status, title, title_source,
-                                       worktree_id)
+                                       worktree_id, creation_request_id)
                   VALUES (${id}::uuid, ${workspace.project_id}::uuid, ${ownerUserId}::uuid, ${parent ? "side" : "main"},
                           ${parent?.id ?? null}::uuid, ${parent?.root_thread_id ?? id}::uuid, ${parent ? parent.depth + 1 : 0}, 'worker', ${provider},
                           ${request.providerProfileId && request.providerProfileId !== "native" ? request.providerProfileId : null}, ${workspace.worker_id}::uuid, ${workspace.id}::uuid, ${cwd},
                           ${forkSource}::uuid, ${forkAfterTurn}::uuid, ${settings}::jsonb, 'creating', ${request.title.trim() || request.initialMessage.trim().split("\n")[0]?.slice(0, 60) || "New thread"}, ${request.title.trim() ? "user" : "provisional"},
-                          ${worktree?.id ?? inherited?.worktree_id ?? null}::uuid)`;
+                          ${worktree?.id ?? inherited?.worktree_id ?? null}::uuid, ${request.clientRequestId || null})`;
 
           if (request.initialMessage.trim()) {
             yield* sql`

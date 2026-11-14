@@ -1,0 +1,105 @@
+syntax = "proto3";
+package canopy.ui.v1;
+
+import "canopy/worker/v1/worker_link.proto";
+import "canopy/ui/v1/attachments.proto";
+import "canopy/ui/v1/quotes.proto";
+
+// Client-local first. Only explicit handoff/navigation/background publishes this content.
+message ComposerDraftContent {
+  string text = 1;
+  repeated canopy.worker.v1.Mention mentions = 2;
+  repeated Quote quotes = 3;
+  repeated Attachment attachments = 4;
+  optional string model = 5;
+  optional string effort = 6;
+  optional canopy.worker.v1.PermissionMode permission_mode = 7;
+  string client_request_id = 8;
+  string provider_profile_id = 9;
+  canopy.worker.v1.Provider provider = 10;
+}
+
+message ComposerDraftTarget {
+  string thread_id = 1;
+  string project_id = 2;
+  string workspace_id = 3;
+  string parent_thread_id = 4;
+}
+
+message ComposerDraft {
+  string id = 1;
+  ComposerDraftTarget target = 2;
+  string device_id = 3;
+  string device_name = 4;
+  ComposerDraftContent content = 5;
+  uint64 revision = 6;
+  int64 updated_at_ms = 7;
+  string title = 8;
+  string taken_by_device_id = 9;
+  string taken_by_device_name = 10;
+}
+
+message SaveComposerDraftRequest {
+  ComposerDraft draft = 1;
+  uint64 expected_revision = 2;
+  string mutation_id = 3;
+}
+message ListComposerDraftsRequest {
+  string device_id = 1;
+  string thread_id = 2;
+  uint32 page_size = 3;
+  string page_token = 4;
+}
+message ComposerDraftPage {
+  repeated ComposerDraft drafts = 1;
+  string next_page_token = 2;
+  uint64 change_revision = 3;
+}
+message ContinueComposerDraftRequest {
+  string id = 1;
+  uint64 expected_revision = 2;
+  string device_id = 3;
+  string device_name = 4;
+  string mutation_id = 5;
+}
+message DeleteComposerDraftRequest {
+  string id = 1;
+  uint64 expected_revision = 2;
+  string device_id = 3;
+}
+message WatchComposerDraftsRequest { uint64 after_revision = 1; }
+// Invalidation only: clients query the bounded page they currently show.
+message ComposerDraftChange { uint64 revision = 1; }
+
+// Read-only recovery: checks the owner receipt and the target's durable admission.
+message GetComposerDraftDeliveryRequest {
+  string id = 1;
+  string thread_id = 2;
+  string client_request_id = 3;
+  string workspace_id = 4;
+}
+message ComposerDraftDelivery {
+  bool confirmed = 1;
+  bool in_flight = 2;
+}
+
+// Device-private persistence. These messages are never sent to the gateway.
+message LocalComposerFile {
+  string key = 1;
+  string name = 2;
+  uint64 size = 3;
+  string kind = 4;
+  Attachment attachment = 5;
+  string context_scope = 6;
+}
+message LocalComposerDraft {
+  ComposerDraft draft = 1;
+  repeated LocalComposerFile files = 2;
+  int64 touched_at_ms = 3;
+  string mutation_id = 4;
+  bytes pending_send = 5;
+  string published_content = 6;
+  bytes pending_create = 7;
+  string pending_form = 8;
+}
+message LocalComposerDrafts { repeated LocalComposerDraft entries = 1; }

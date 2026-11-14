@@ -6,12 +6,15 @@ export async function resolvePendingSend<A>(
     onWaiting?: () => void;
     signal?: AbortSignal;
     retryMs?: number;
+    maxAttempts?: number;
   },
 ): Promise<A> {
   let waiting = false;
+  let attempts = 0;
 
   while (true) {
     options.signal?.throwIfAborted();
+    attempts++;
 
     try {
       const result = await attempt();
@@ -25,6 +28,8 @@ export async function resolvePendingSend<A>(
       waiting = true;
       options.onWaiting?.();
     }
+
+    if (attempts >= (options.maxAttempts ?? Infinity)) throw new Error("Send outcome unavailable");
 
     await new Promise<void>((resolve, reject) => {
       const cleanup = () => options.signal?.removeEventListener("abort", abort);

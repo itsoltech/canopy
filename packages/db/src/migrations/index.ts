@@ -36,6 +36,7 @@ import threadMirrorRecentRanges from "./0134_thread_mirror_recent_ranges.sql" wi
 import threadRewinds from "./0136_thread_rewinds.sql" with { type: "text" };
 import threadImagePublications from "./0137_thread_image_publications.sql" with { type: "text" };
 import imageReplyImports from "./0138_image_reply_imports.sql" with { type: "text" };
+import composerDrafts from "./0140_composer_drafts.sql" with { type: "text" };
 import botViewDelta from "./0091_bot_view_delta.sql" with { type: "text" };
 import workerConfig from "./0002_worker_config.sql" with { type: "text" };
 import gatewayRuntime from "./0003_gateway_runtime.sql" with { type: "text" };
@@ -292,6 +293,7 @@ export const migrations = Migrator.fromRecord({
   "0137_thread_image_publications": sqlFile(threadImagePublications),
   "0138_image_reply_imports": sqlFile(imageReplyImports),
   "0139_thread_visuals": sqlFile(threadVisuals),
+  "0140_composer_drafts": sqlFile(composerDrafts),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

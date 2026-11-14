@@ -15,6 +15,7 @@
     "./image-replies": "./src/agent-bus/images.ts",
     "./visuals": "./src/visuals/index.ts",
     "./visual-compiler": "./src/visuals/compile.ts",
+    "./composer-drafts": "./src/composer-drafts.ts",
     "./thread-warmer": "./src/thread-warmer.ts",
     "./thread-warm-set": "./src/thread-warm-set.ts",
     "./retained-threads": "./src/retained-threads.ts",

@@ -1,5 +1,20 @@
 # Połączone komputery
 
+## Dom szkiców
+
+Szkice należą do gatewaya, z którym sparowano klienta (dom właściciela dla szkiców),
+także gdy ich cel ma kwalifikowane ID zdalnego wątku. Oba urządzenia muszą korzystać
+z tego samego gatewaya, aby widzieć wzajemne szkice. Lokalny magazyn jest rozdzielony
+według właściciela/gatewaya lub parowania; zmiana parowania nie przenosi szkiców.
+Nie replikujemy treści przez config sync, lustra wątków ani workery.
+
+Zapis zdalnego celu sprawdza dostęp właściciela przez zwykły routing `GetThread`
+lub `GetOverview`. Załączniki pozostają w domu szkicu. Przy wysłaniu zwykły routing
+wiadomości przenosi je do domu wątku. Lokalne ID i rewizja szkicu są sprawdzane przed
+routingiem i nie wychodzą do zdalnego gatewaya. Usunięcie zdalnego wątku czyści
+szkice przez wynik `DeleteThread` i zdarzenie usunięcia w lustrze; pełna odbudowa
+generacji lustra usuwa szkice celów, których już nie ma. Archiwizacja ich nie usuwa.
+
 Settings → Diagnostics grupuje postęp luster według połączonego komputera.
 Pokazuje jego nazwę z aplikacji, stan, liczbę wątków i czas ostatniej zapisanej
 partii. Po rozwinięciu pobiera tylko wątki nadrabiające lub wstrzymane: tytuł,

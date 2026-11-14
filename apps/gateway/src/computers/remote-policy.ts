@@ -148,6 +148,7 @@ export const SERVED = new Set([
   "WatchOverview",
   "ListThreads",
   "GetThread",
+  "GetComposerDraftDelivery",
   "GetThreadPanel",
   "SetThreadConnectorGrant",
   "WatchThread",

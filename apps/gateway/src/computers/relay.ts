@@ -154,7 +154,8 @@ export class ComputerRelay {
     }
   }
   close() {
-    for (const call of this.#active) call.abort.abort(new ConnectError("Relay disconnected", Code.Unavailable));
+    for (const call of this.#active)
+      call.abort.abort(new ConnectError("Relay disconnected", Code.Unavailable, { "canopy-link-closed": "true" }));
   }
 
   async set(recipient: string, homes: string[]) {

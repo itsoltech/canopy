@@ -8,7 +8,7 @@ import { remoteServe, uiHandlers } from "@canopy/gateway/api";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { linkedComputers } from "./support/computers.ts";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
-import { methodId } from "../../apps/gateway/src/diagnostics/registry.ts";
+import { MAX_METHODS, methodId } from "../../apps/gateway/src/diagnostics/registry.ts";
 import { linkedMessage } from "../../apps/gateway/src/computers/remote.ts";
 import { rpcSnapshot } from "../../apps/gateway/src/diagnostics/snapshot.ts";
 
@@ -133,7 +133,7 @@ describe.skipIf(!dockerAvailable)("owner diagnostics over real gRPC and one rela
     expect(await rejectedCode(a.api.getComputerDiagnostics({ methodKeys: ["m".repeat(257)] }))).toBe(
       Code.InvalidArgument,
     );
-    expect(await rejectedCode(a.api.getComputerDiagnostics({ offset: 513 }))).toBe(Code.InvalidArgument);
+    expect(await rejectedCode(a.api.getComputerDiagnostics({ offset: MAX_METHODS + 1 }))).toBe(Code.InvalidArgument);
     expect(await rejectedCode(a.api.getComputerDiagnostics({ methodKeys: ["rpc:/private/prompt"] }))).toBe(
       Code.InvalidArgument,
     );

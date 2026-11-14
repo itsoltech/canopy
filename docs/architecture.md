@@ -1,5 +1,10 @@
 # Canopy — architektura
 
+Szkice kompozytora są prywatnymi danymi właściciela, oddzielonymi od historii.
+Klient zachowuje lokalny szkic dla każdego wątku i celu nowego wątku.
+Gateway przechowuje kopie przekazane między urządzeniami; nie wysyła ich do
+workerów ani modeli. Szczegóły: [ui-api.md](ui-api.md#szkice-kompozytora-i-przekazywanie-między-urządzeniami).
+
 Status: opis działającego gatewaya, workerów i web BFF oraz pierwszej aplikacji
 mobilnej (2026-11-02). Logowanie użytkowników i część docelowych rozszerzeń pozostają w planach.
 

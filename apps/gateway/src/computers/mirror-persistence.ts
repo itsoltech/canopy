@@ -11,6 +11,8 @@ import { applyThreadDelta } from "@canopy/domain/thread-mirror";
 import { mismatch } from "./mirror.ts";
 import { readMirrorSnapshot } from "./mirror-snapshot.ts";
 import { queryFamily, queryRpc } from "../diagnostics/query-context.ts";
+import { qualifyId, nodeRef } from "@canopy/domain/computers";
+import { notifyDraftOwner } from "../drafts/events.ts";
 
 export type State = { cursor: string; generation: string; overview: Uint8Array | null; subscription_id: string };
 
@@ -43,7 +45,9 @@ export async function commitMirrorUpdate(
   update: link.MirrorUpdate,
   nextOverview: Uint8Array | null,
 ): Promise<boolean> {
-  return runtime.runPromise(
+  let draftsChanged = false;
+
+  const committed = await runtime.runPromise(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
 
@@ -97,6 +101,10 @@ export async function commitMirrorUpdate(
           }
 
           if (update.removedThreadId) {
+            const removed = yield* sql`DELETE FROM composer_drafts WHERE owner_user_id=${owner}::uuid
+              AND target_thread_ref=${qualifyId(update.removedThreadId, node)} RETURNING id`;
+
+            draftsChanged ||= removed.length > 0;
             yield* sql`DELETE FROM computer_thread_panels WHERE owner_user_id=${owner}::uuid AND origin_node_id=${node}
               AND thread_id=${update.removedThreadId}::uuid`;
             yield* sql`DELETE FROM computer_mirror_threads WHERE owner_user_id=${owner}::uuid AND origin_node_id=${node}
@@ -104,6 +112,16 @@ export async function commitMirrorUpdate(
           }
 
           if (update.commit) {
+            if (generation !== state.generation) {
+              const removed = yield* sql`DELETE FROM composer_drafts d WHERE d.owner_user_id=${owner}::uuid
+                AND split_part(d.target_thread_ref,'~',2)=${nodeRef(node)} AND NOT EXISTS (
+                  SELECT 1 FROM computer_mirror_threads t WHERE t.owner_user_id=${owner}::uuid
+                  AND t.origin_node_id=${node} AND t.generation=${generation}::uuid
+                  AND t.thread_id::text=split_part(d.target_thread_ref,'~',1)) RETURNING id`;
+
+              draftsChanged ||= removed.length > 0;
+            }
+
             yield* sql`UPDATE computer_mirror_state SET cursor=${update.cursor},generation=${generation}::uuid,overview=coalesce(${nextOverview},overview)
                 WHERE owner_user_id=${owner}::uuid AND origin_node_id=${node}`;
           }
@@ -113,4 +131,8 @@ export async function commitMirrorUpdate(
       );
     }).pipe(queryFamily("mirrors.write"), queryRpc),
   );
+
+  if (committed && draftsChanged) notifyDraftOwner(runtime, owner);
+
+  return committed;
 }

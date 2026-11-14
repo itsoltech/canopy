@@ -46,6 +46,13 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
   for (const method of ui.GatewayService.methods) {
     const handler = own[method.localName]!;
 
+    // Private drafts belong to this owner's connected gateway, including qualified remote targets.
+    // Their handlers authorize the target separately; draft contents never enter mirror/config feeds.
+    if (/ComposerDraft/.test(method.name)) {
+      handlers[method.localName] = handler;
+      continue;
+    }
+
     if (!SERVED.has(method.name)) {
       // Settings, credentials and administration stay per computer in this stage.
       handlers[method.localName] =

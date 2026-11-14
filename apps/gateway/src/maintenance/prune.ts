@@ -3,6 +3,7 @@ import { SqlClient } from "effect/sql";
 import { pruneGitHubCache } from "../github/prune-cache.ts";
 import { pruneDiagnostics } from "./diagnostics.ts";
 import { queryFamily } from "../diagnostics/query-context.ts";
+import { pruneComposerDrafts } from "../drafts/query.ts";
 
 const BATCH = 256;
 
@@ -22,6 +23,7 @@ export const pruneDatabase = (owner: string) =>
 
         if (!claimed.length) return 0;
         let touched = 0;
+        touched += yield* pruneComposerDrafts(sql, owner);
         touched += yield* pruneGitHubCache(sql, owner);
 
         touched += (yield* sql`DELETE FROM github_device_auth WHERE id IN (

@@ -48,6 +48,7 @@ export const READS = new Set([
   "WatchOverview",
   "ListThreads",
   "GetThread",
+  "GetComposerDraftDelivery",
   "GetThreadPanel",
   "WatchThread",
   "ListModels",
