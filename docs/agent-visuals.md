@@ -1,8 +1,8 @@
 # Obrazy w odpowiedziach i interaktywne visuals
 
-Status: **projekt zatwierdzony przez użytkownika (2026-11-13)**, bez implementacji. Dokument nie zmienia obecnych
-kontraktów ani uprawnień. Docelowe nazwy narzędzi, capability i pól poniżej są
-propozycjami; nie oznaczają funkcji dostępnych dzisiaj.
+Status: **projekt zatwierdzony przez użytkownika (2026-11-13)**. Obrazy: stos #651–#663.
+Visuals: implementacja w toku (§8 opisuje to, co już istnieje); pozostałe nazwy
+narzędzi, capability i pól są propozycjami do czasu ich wdrożenia.
 
 ## 1. Rekomendacja i zakres
 
@@ -304,7 +304,9 @@ Początkowe `postMessage` może wymagać `"*"`, ale kierujemy je do konkretnego 
 bez sekretów. Dalszy ruch korzysta tylko z przypiętego portu.
 
 Dozwolone komunikaty v1: host → `theme`, `visibility`, `reduced_motion`, `reset`;
-visual → `ready`, `height`, `local_state`, `render_error`. Ścisły schemat,
+visual → `ready`, `height`, `local_state`, `render_error`, `escape`
+(wyłącznie klawisz Escape, aby host mógł zamknąć pełny ekran; żadne inne wejście
+nie jest przekazywane). Ścisły schemat,
 do 8 KiB/komunikat, najwyżej 10/s; `height` najwyżej 4/s. Host odrzuca NaN,
 wartości ujemne, starą wersję/nonce oraz wiadomości innej ramki. ResizeObserver
 w kicie zgłasza naturalną wysokość, host ją ogranicza do 160–720 px i stosuje
@@ -540,3 +542,45 @@ w PR implementacyjnym. Audyt tekstów projektu: krótkie akcje („Download imag
 „Open full screen”, „Cite visual”), błędy z „Retry”, brak żargonu sandbox/API
 w chrome użytkownika i brak tekstów humorystycznych. Dokładny audyt widoków
 i pomiary produkcyjne pozostają kryteriami przyszłych PR-ów.
+
+## 8. Implementacja visuals
+
+### Spec, walidacja i kit (`@canopy/domain`)
+
+- `src/visuals/types.ts`, `schema.ts`: spec v1 jako Effect Schema. Dekodowanie
+  z `onExcessProperty: "error"`; nieznany komponent, pole lub token jest błędem
+  ze ścieżką (`root.children[2].tone`). Katalog: `stack`, `grid`, `card`,
+  `divider`, `heading`, `text`, `code`, `list`, `badge`, `stat`, `callout`,
+  `table`, `button`, `reset`, `tabs`, `segmented`, `toggle`, `stepper`, `when`,
+  `before_after`, `artboards`, `device_frame`, `button_preview`, `flow`,
+  `sequence`, `chart`.
+- `spec.ts`: kolejność od najtańszego sprawdzenia: rozmiar serializacji
+  (128 KiB), głębokość surowego JSON (bez rekursji), struktura, potem
+  `semantics.ts`: 300 węzłów, 12 poziomów, 32 KiB tekstu (bez tokenów
+  i referencji), referencje stanu, diagramów i wykresów.
+- Stan: `state` deklaruje wartość początkową; typ wynika z niej (tekst = opcje,
+  boolean, liczba całkowita). Dziedzina opcji to wartości kontrolek związanych
+  z kluczem (`segmented`, `tabs`, `artboards`), liczby to indeksy `stepper`.
+  Akcje `set`, `next`/`previous` (opcje i kroki), `toggle` (boolean) i `reset`,
+  najwyżej 8 na przycisk, bez łańcuchów. `validVisualState` sprawdza stan
+  z cache urządzenia i z ramki.
+- `visual-kit/`: zaufany runtime (DOM, tylko `textContent`), CSS kitu i obsługa
+  kanału. `bun run gen` (`scripts/visual-kit.ts`) buduje go Bunem przypiętym
+  w `mise.toml` do `src/visuals/gen/kit.ts`; `gen:check` wykrywa nieaktualny kit.
+  `VISUAL_KIT_VERSION` oznacza zachowanie kitu zapisane z visualem;
+  `REVOKED_VISUAL_KITS` blokuje wykonanie wycofanej wersji.
+- `compile.ts` (`@canopy/domain/visual-compiler`, ładowany leniwie): jeden
+  dokument HTML z CSP z §4, nonce per montaż, escapowanym tytułem i spec jako
+  bezczynnym JSON (`<`, `>`, `&`, U+2028/2029 jako escape). Tryb `frame` czeka
+  na port hosta, `export` działa samodzielnie z domyślnymi tokenami jasnymi
+  i ciemnymi (`prefers-color-scheme`). Limit 2 MiB.
+- `protocol.ts`: handshake `connect` (instancja + nonce, tylko z okna rodzica),
+  parsery komunikatów obu stron, `RateWindow` i ograniczenie wysokości.
+  `theme-tokens.ts` przyjmuje tylko kolory hex lub `color-mix` z hex i skalę
+  0,75–1,5; host buduje je przez `visualTheme(name, mode, scale)`.
+- Kit dzieli układ według szerokości ramki: `grid` przechodzi w 2 i 1 kolumnę,
+  `before_after` w przełącznik, poziomy `flow` w pionowy, gdy warstwy się nie
+  mieszczą. Diagramy i wykresy mają listę połączeń lub tabelę danych.
+  `data-paused` zatrzymuje animacje poza ekranem, `data-reduced-motion`
+  i `prefers-reduced-motion` je wyłączają.
+

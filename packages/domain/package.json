@@ -13,6 +13,8 @@
     "./workspace-changes": "./src/workspace-changes.ts",
     "./markdown-images": "./src/markdown/images.ts",
     "./image-replies": "./src/agent-bus/images.ts",
+    "./visuals": "./src/visuals/index.ts",
+    "./visual-compiler": "./src/visuals/compile.ts",
     "./thread-warmer": "./src/thread-warmer.ts",
     "./thread-warm-set": "./src/thread-warm-set.ts",
     "./retained-threads": "./src/retained-threads.ts",
@@ -129,7 +131,9 @@
     "./markdown": "./src/markdown/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json"
+    "gen": "bun scripts/visual-kit.ts",
+    "gen:check": "bun scripts/visual-kit.ts --check",
+    "typecheck": "tsc -p tsconfig.json && tsc -p visual-kit/tsconfig.json && tsc -p scripts/tsconfig.json"
   },
   "dependencies": {
     "@bufbuild/protobuf": "2.16.0",
