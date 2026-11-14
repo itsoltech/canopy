@@ -18,6 +18,8 @@ import type { useQuoteDraft } from "../quotes/useQuoteDraft";
 import { useComposerSettings } from "./useComposerSettings";
 import { composerPending } from "@canopy/domain/composer-pending";
 import { DraftActions } from "../drafts/DraftActions";
+import { DraftMoveNotice } from "../drafts/DraftMoveNotice";
+import { PendingDraft } from "../drafts/PendingDraft";
 import { UsageWarning } from "./UsageWarning";
 
 export function MessageComposer({
@@ -68,6 +70,7 @@ export function MessageComposer({
       />
       <PasteTarget draft={message.files}>
         <ComposerBox
+          drafts={message.persistent && <DraftActions draft={message.persistent} disabled={disabled || busy} />}
           compact={compact}
           pending={composerPending(0, message.files.files.length, message.value.mentions)}
           onExpand={onExpand}
@@ -103,7 +106,7 @@ export function MessageComposer({
       {/* Only this secondary row gives its height to the field while writing. */}
       <ComposerFold open={!compact && !focused} expandedHeight={composerGeometry.secondary}>
         <View style={[styles.row, { justifyContent: "space-between", paddingHorizontal: 6 }]}>
-          <DraftActions draft={message.persistent} threadId={thread?.id} disabled={disabled || busy} indicatorOnly>
+          <DraftMoveNotice draft={message.persistent}>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -117,7 +120,7 @@ export function MessageComposer({
                 <Skeleton style={{ width: 100, height: composerGeometry.secondary }} />
               )}
             </ScrollView>
-          </DraftActions>
+          </DraftMoveNotice>
           <ComposerPill
             icon={look.icon}
             title={permissionLabel(state.permissionMode)}
@@ -127,7 +130,7 @@ export function MessageComposer({
           />
         </View>
       </ComposerFold>
-      {message.persistent && <DraftActions draft={message.persistent} disabled={disabled || busy} />}
+      {message.persistent && <PendingDraft draft={message.persistent} />}
       <ComposerPickers state={state} />
     </>
   );

@@ -7,6 +7,8 @@
   import { webDrafts } from "#lib/features/drafts/local.svelte.ts";
   import DraftPersistence from "#lib/features/drafts/DraftPersistence.svelte";
   import DraftActions from "#lib/features/drafts/DraftActions.svelte";
+  import PendingDraft from "#lib/features/drafts/PendingDraft.svelte";
+  import DraftMoveNotice from "#lib/features/drafts/DraftMoveNotice.svelte";
   import { prepareDraftForm, watchDraftForm } from "#lib/features/drafts/form.ts";
   import type { ClassValue } from "svelte/elements";
   import { limitsOf } from "#lib/features/attachments/draft.svelte.ts";
@@ -174,6 +176,7 @@
             ? "The main thread's agent is unavailable."
             : undefined}
       >
+        {#snippet drafts()}<DraftActions draft={saved} disabled={busy || closed} />{/snippet}
         {#snippet controls()}
           {#if option}
             <ModelControls
@@ -213,7 +216,8 @@
           />
         {/snippet}
       </ComposerBox>
-      <DraftActions draft={saved} disabled={busy || closed} />
+      <PendingDraft draft={saved} />
+      <DraftMoveNotice draft={saved} />
     </form>
   </CenteredContent>
 </div>

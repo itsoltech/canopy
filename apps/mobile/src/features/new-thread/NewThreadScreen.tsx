@@ -25,6 +25,8 @@ import { ComposerViewport } from "../composer/ComposerViewport";
 import { SkeletonScope } from "../../ui/Skeleton";
 import { useProjectDetails } from "../computers/project-details";
 import { DraftActions } from "../drafts/DraftActions";
+import { DraftMoveNotice } from "../drafts/DraftMoveNotice";
+import { PendingDraft } from "../drafts/PendingDraft";
 
 type State = ReturnType<typeof useNewThread>;
 
@@ -63,6 +65,7 @@ export function NewThreadScreen() {
                       onPick={(option) => message.pickMention(option.mention)}
                     />
                     <ComposerBox
+                      drafts={message.persistent && <DraftActions draft={message.persistent} disabled={state.busy} />}
                       text={message.value.text}
                       onChange={message.setText}
                       badges={message.badges}
@@ -127,7 +130,12 @@ export function NewThreadScreen() {
                 />
               </View>
               <WorkspacePills draft={state.workspaceDraft} />
-              {message.persistent && <DraftActions draft={message.persistent} disabled={state.busy} />}
+              {message.persistent && (
+                <>
+                  <PendingDraft draft={message.persistent} />
+                  <DraftMoveNotice draft={message.persistent} />
+                </>
+              )}
             </SkeletonScope>
             {!state.initialLoading && blocker && blocker !== message.files.blocker ? <Notice>{blocker}</Notice> : null}
             {!state.initialLoading && (

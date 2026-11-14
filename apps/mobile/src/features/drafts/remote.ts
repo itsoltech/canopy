@@ -1,7 +1,8 @@
 import type { ui } from "@canopy/contracts";
 import type { Client } from "@connectrpc/connect";
+import { loadComposerDraftPages } from "@canopy/domain/composer-drafts";
 
-/** A bounded page shared by all mounted composer hints and sheets. */
+/** A bounded list shared by composer tabs and sidebar markers. */
 export class MobileRemoteDrafts {
   #page: ui.ComposerDraftPage | undefined;
   #pending: Promise<ui.ComposerDraftPage> | undefined;
@@ -27,28 +28,30 @@ export class MobileRemoteDrafts {
     if (!more && this.#page) return this.#page;
     const previous = this.#page;
     const generation = this.#generation;
-    this.#pending = api
-      .listComposerDrafts({
-        deviceId,
-        pageSize: 20,
-        pageToken: more ? (previous?.nextPageToken ?? "") : "",
-        sourceDraftIds: sourceDraftIds.slice(0, 100),
-      })
-      .then((page) => {
-        if (generation !== this.#generation) return page;
-        this.#page =
-          more && previous
-            ? {
-                ...page,
-                drafts: [...new Map([...previous.drafts, ...page.drafts].map((row) => [row.id, row])).values()].slice(
-                  0,
-                  100,
-                ),
-              }
-            : page;
+    this.#pending = loadComposerDraftPages(
+      (token) =>
+        api.listComposerDrafts({
+          deviceId,
+          pageSize: 20,
+          pageToken: token,
+          sourceDraftIds: sourceDraftIds.slice(0, 100),
+        }),
+      more ? (previous?.nextPageToken ?? "") : "",
+    ).then((page) => {
+      if (generation !== this.#generation) return page;
+      this.#page =
+        more && previous
+          ? {
+              ...page,
+              drafts: [...new Map([...previous.drafts, ...page.drafts].map((row) => [row.id, row])).values()].slice(
+                0,
+                100,
+              ),
+            }
+          : page;
 
-        return this.#page;
-      });
+      return this.#page;
+    });
 
     let page: ui.ComposerDraftPage;
 

@@ -7,14 +7,18 @@ parowania. Przed usunięciem parowania kończymy zapis i zamykamy magazyn, aby p
 callback nie odtworzył danych poprzedniego właściciela. Limity: 100 szkiców, 4 MiB,
 30 dni; niedokończony upload wymaga ponownego dodania pliku.
 
-`Open drafts` w sidebarze otwiera arkusz szkiców innych urządzeń z ograniczonym stronicowaniem.
-`Take over` przejmuje szkic do pustego kompozytora, `Append draft` dopisuje do istniejącej treści; `Replace local
+Zakładka `Drafts` z licznikiem na górnej krawędzi kompozytora rozwija zwarty,
+niemodalny panel szkiców innych urządzeń dla bieżącego celu. Bez szkiców nie ma
+zakładki. Stały slot 32 punkty zachowuje położenie pola; panel w portalu przylega
+do ramki bez szczeliny i nie zmienia rezerwy osi. Każdy wiersz pokazuje podgląd,
+załączniki, urządzenie, względny czas oraz `Discard draft` (×). Kliknięcie wiersza
+przejmuje szkic do pustego kompozytora, `Append draft` dopisuje do istniejącej treści; `Replace local
 draft` zastępuje ją wyłącznie po jawnym wyborze. Gotowe załączniki zachowują ID.
 Przejęcie rezerwuje kompozytor do zapisania wyniku, blokując równoczesną wysyłkę
 i odtwarzanie lokalnego szkicu.
 Synchronizacja po 1,5 s bez edycji, utrata fokusu, opuszczenie ekranu i przejście w tło
 publikują szkic do sparowanego gatewaya. Nie ma dodatkowego rzędu akcji pod kompozytorem.
-Wskaźnik nowszego szkicu i `Take over` zastępują komputer w istniejącym slocie metadanych.
+Zakładka zastępuje osobny wskaźnik nowszego szkicu; slot komputera pozostaje dostępny.
 Źródło czyści niezmienioną kopię, a późniejsze edycje rozwidla i zachowuje.
 Jedna subskrypcja
 powiadomień działa tylko na pierwszym planie. Sidebar rezerwuje miejsce na `Draft`.

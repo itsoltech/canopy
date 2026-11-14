@@ -8,6 +8,8 @@ import { useLayout } from "../../state/layout";
 import { Button } from "../../ui/components";
 import { usePersistentMessage } from "../drafts/usePersistentMessage";
 import { DraftActions } from "../drafts/DraftActions";
+import { DraftMoveNotice } from "../drafts/DraftMoveNotice";
+import { PendingDraft } from "../drafts/PendingDraft";
 import { createFromDraft } from "../drafts/create";
 import { ComposerBox } from "./ComposerBox";
 import { AttachButton, AttachmentChips } from "../attachments/Attachments";
@@ -107,6 +109,7 @@ function SideThreadForm({ main, onClose }: { main: ui.Thread; onClose: () => voi
         </Text>
       </SheetDragArea>
       <ComposerBox
+        drafts={message.persistent && <DraftActions draft={message.persistent} disabled={busy || closed} />}
         label="Task for the side thread"
         text={message.value.text}
         onChange={message.setText}
@@ -121,7 +124,12 @@ function SideThreadForm({ main, onClose }: { main: ui.Thread; onClose: () => voi
           <AttachButton draft={message.files} disabled={busy || Boolean(message.persistent?.pendingCreate)} />
         }
       />
-      {message.persistent && <DraftActions draft={message.persistent} disabled={busy} />}
+      {message.persistent && (
+        <>
+          <PendingDraft draft={message.persistent} />
+          <DraftMoveNotice draft={message.persistent} />
+        </>
+      )}
       <Checkbox label="Use main thread history" description={hint} checked={fork} onChange={setFork} />
       {closed || error ? (
         <Text accessibilityRole="alert" style={[styles.meta, { color: closed ? c.muted : c.danger }]}>

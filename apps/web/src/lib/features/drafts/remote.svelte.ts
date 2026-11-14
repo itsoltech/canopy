@@ -1,9 +1,10 @@
 import type { ui } from "@canopy/contracts";
+import { loadComposerDraftPages } from "@canopy/domain/composer-drafts";
 import { listDrafts } from "./api.ts";
 import { webDrafts } from "./local.svelte.ts";
 import { subscribeDraftChanges } from "./invalidation.ts";
 
-/** One bounded first page and one refresh per client, shared by all mounted composers. */
+/** One bounded list and one refresh per client, shared by composer tabs and sidebar markers. */
 class RemoteDrafts {
   rows = $state<ui.ComposerDraft[]>([]);
   next = $state("");
@@ -33,7 +34,10 @@ class RemoteDrafts {
     if (!more && this.#loaded) return;
     const scope = this.#scope;
     const sourceIds = webDrafts.local.sourceDraftIds();
-    this.#pending = listDrafts(webDrafts.deviceId, "", more ? this.next : "", sourceIds).then((page) => {
+    this.#pending = loadComposerDraftPages(
+      (token) => listDrafts(webDrafts.deviceId, "", token, sourceIds),
+      more ? this.next : "",
+    ).then((page) => {
       if (scope !== webDrafts.scope) return;
       webDrafts.acceptMoves(page.moves);
       this.threadIds = page.threadIds;

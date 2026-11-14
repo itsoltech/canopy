@@ -86,6 +86,7 @@
     primary = "steer",
     onalternate,
     controls,
+    drafts,
     meta,
     draft,
     sources,
@@ -123,6 +124,7 @@
     /** Queueing on: steer the message (Mod+Enter, the button's menu). */
     onalternate?: (() => void) | undefined;
     controls?: Snippet;
+    drafts?: Snippet;
     meta?: Snippet;
     draft?: AttachmentDraft | undefined;
     sources?: MentionSources | undefined;
@@ -286,7 +288,8 @@
   }
 </script>
 
-<div class={["grid grid-cols-1", className]}>
+<div class={["relative grid grid-cols-1", className]}>
+  {@render drafts?.()}
   <div
     class={[
       "group/composer relative isolate rounded-2xl [--composer-send-width:--spacing(9)] sm:[--composer-send-width:--spacing(8)]",

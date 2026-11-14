@@ -2,6 +2,7 @@ import { create, fromBinary, toBinary, toJsonString } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import {
   ComposerLocalStore,
+  composerTargetKey,
   hasComposerContent,
   mergeComposerContent,
   sameComposerInput,
@@ -96,6 +97,9 @@ export class MobileComposerState {
   }
   get revision() {
     return this.#entry.draft?.revision ?? 0n;
+  }
+  get targetKey() {
+    return this.#entry.draft?.target ? composerTargetKey(this.#entry.draft.target) : undefined;
   }
   get id() {
     return this.#entry.draft?.id ?? "";

@@ -1,6 +1,8 @@
 import { clone, create, equals, fromJsonString, toJsonString } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 
+export { loadComposerDraftPages } from "./composer-draft-pages.ts";
+
 export const composerTargetKey = (target: ui.ComposerDraftTarget) =>
   JSON.stringify([target.threadId, target.projectId, target.workspaceId, target.parentThreadId]);
 

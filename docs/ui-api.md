@@ -77,17 +77,21 @@ ważny 30 dni, niezależny od późniejszego zapisu lub wysłania na odbiorcy.
 | `WatchComposerDrafts` | tylko zmieniona rewizja właściciela, bez treści i pełnych snapshotów; po zatwierdzeniu zapisu hub budzi subskrybentów, bez pollingu DB; reconnect podaje `after_revision` i odczytuje trwały licznik |
 | `GetComposerDraftDelivery` | ID szkicu, `client_request_id` i cel; owner-scoped odczyt `confirmed` / `in_flight`, z routingiem do domu zdalnego wątku; nie ponawia wysyłki |
 
-`Open drafts` w sidebarze otwiera listę z urządzeniem, tytułem, podglądem, liczbą załączników
-i względnym czasem. `Take over` przenosi szkic do pustego kompozytora. `Append draft`
+Zakładka `Drafts` z licznikiem jest przyłączona do górnej krawędzi kompozytora.
+Nie renderuje się bez dostępnych szkiców. Panel zawiera wyłącznie szkice innych
+urządzeń dla pełnego celu kompozytora (wątek, projekt, workspace i rodzic), bez
+modala, pustego stanu ani ręcznego odświeżania. Każdy wiersz ma jednoliniowy podgląd,
+liczbę załączników, urządzenie, względny czas i `Discard draft` (×).
+Kliknięcie wiersza przenosi szkic do pustego kompozytora. `Append draft`
 dodaje go do istniejącej treści, przesuwając zakresy
 wzmianek i cytatów. `Replace local draft` jest jawną alternatywą. Po przejęciu źródło
-znika z pozostałych list. Slot komputera w metadanych kompozytora pokazuje `Draft from … · Take over`
-dla nowszego szkicu innego urządzenia. Porównuje czas dwóch zapisów gatewaya,
-nigdy czas urządzenia z czasem serwera. Załączniki przechodzą po ID. Pierwsza
-strona listy jest współdzielona przez wszystkie zamontowane kompozytory klienta.
-Wskaźnik zajmuje jeden istniejący wiersz, bez przesunięcia pozostałych kontrolek.
-Niepusty kompozytor otwiera wybór dopisania lub jawnego zastąpienia. Szkic poza
-pierwszą stroną ma osobny ograniczony odczyt aktywnego wątku.
+znika z pozostałych list. Zakładka zastępuje osobny wskaźnik `Draft from …`.
+Załączniki przechodzą po ID. Współdzielony cache domyka strony do limitu 100 szkiców,
+aby licznik uwzględniał również cele poza pierwszą stroną; watch unieważnia go po zmianie.
+Web nakłada zakładkę na ramkę; mobile rezerwuje stałe 32 punkty i używa niemodalnego
+portalu zakotwiczonego w ramce, bez szczeliny i bez zmiany wysokości osi przy rozwijaniu.
+Niepusty kompozytor pokazuje wybór dopisania lub jawnego zastąpienia w wybranym wierszu.
+Szkice innych wątków pozostają dostępne przez znaczniki sidebara.
 Web ponawia zerwany stream z opóźnieniem rosnącym od 2 do 60 s, zachowując kursor;
 samo ponowienie połączenia nie przeładowuje listy.
 Lista nie blokuje wierszy szkiców; pomija szkice z zatwierdzonym znacznikiem trwającej wysyłki.
