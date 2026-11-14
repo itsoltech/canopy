@@ -286,7 +286,9 @@ Lista powiązanych PR nie zależy wyłącznie od cache bieżącej rewizji dostę
 (co 8 h) i retencja go unieważniają. Gateway zapisuje ostatnie znane podsumowanie (tytuł, stan,
 checki) w `github_pull_requests`, związane z kontem, które je odczytało. Po restarcie lista
 pokazuje je od razu jako `stale`, a odświeżenie idzie w tle, najwyżej raz na 5 min na PR między
-procesami, i dociera do klientów przez `pull_request_revision` wątku. Nieudane odświeżenie
+procesami, i dociera do klientów przez `pull_request_revision` wątku. Sama dzierżawa odświeżenia
+bez treści cache nadal oznacza `stale`; świeżość wymaga treści i niewygasłego terminu,
+zapisywanych atomowo. Nieudane odświeżenie
 zapisuje konkretny powód (`detail` linku) z Retry. Utrata dostępu (403/404) unieważnia cache
 konta razem z ostatnimi znanymi podsumowaniami, które odczytało, i pokazuje
 `No access to <repo>. Check the GitHub App installation.`; błąd sieci lub limit zachowują je.

@@ -1,8 +1,10 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { dockerAvailable } from "@canopy/db/testing";
 import { GatewayStore } from "@canopy/gateway/store";
+import { toJson } from "@bufbuild/protobuf";
+import { github } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 import { SqlClient } from "effect/sql";
 import { GitHubAccounts } from "../../apps/gateway/src/github/service.ts";
 import { connectGitHub, githubPrFixture, githubThread } from "./support/github-pr.ts";
@@ -39,6 +41,43 @@ describe.skipIf(!dockerAvailable)("linked pull requests keep their last known su
     await sql("UPDATE github_accounts SET revision=revision+1 WHERE owner_user_id=$1::uuid", [gw.userId]);
     await sql("DELETE FROM github_pr_cache WHERE owner_user_id=$1::uuid", [gw.userId]);
   };
+
+  test("a claimed refresh stays stale until its new summary commits", async () => {
+    const previous = (await list()).links[0]!.summary!;
+
+    const payload = Schema.decodeUnknownSync(Schema.JsonObject)({
+      summary: toJson(github.PullRequestSummarySchema, { ...previous, title: `${previous.title} · committed` }),
+    });
+
+    await loseCurrentReads();
+
+    const row = await gw.core.github.run((s) => s.owned(gw.userId, account));
+    const key = `summary:${previous.ref!.repositoryId}:42`;
+    const lease = crypto.randomUUID();
+
+    await gw.runtime.runPromise(
+      Effect.flatMap(SqlClient.SqlClient, (db) =>
+        db.withTransaction(
+          Effect.gen(function* () {
+            // READ COMMITTED sees a later claim, but now() remains the reader's transaction start.
+            yield* db`SELECT now()`;
+            yield* Effect.promise(() => gw.core.github.run((s) => s.cacheClaim(row, key, lease)));
+            const claimed = yield* GatewayStore.use((s) => s.github.prList(gw.userId, thread));
+            expect(claimed.links[0]!.summary!.title).toBe(previous.title);
+            expect(claimed.links[0]!.stale).toBe(true);
+
+            // The writer publishes the payload and expiry in one committed update.
+            yield* Effect.promise(() =>
+              gw.core.github.run((s) => s.cacheFinish(row, key, lease, payload, "", Date.now(), 60_000)),
+            );
+            const finished = yield* GatewayStore.use((s) => s.github.prList(gw.userId, thread));
+            expect(finished.links[0]!.summary!.title).toBe(`${previous.title} · committed`);
+            expect(finished.links[0]!.stale).toBe(false);
+          }),
+        ),
+      ),
+    );
+  });
 
   test("after a restart the summary is available before GitHub answers, then refreshes in the background", async () => {
     await loseCurrentReads();
