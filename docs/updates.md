@@ -213,10 +213,42 @@ zdalne aplikacje pokazują notatki Canopy dla swojego kanału; Claude Code i Cod
 korzystają z publicznych Releases dostawców. Grok nie wskazuje takiego źródła,
 więc panel pokazuje to ograniczenie oraz istniejące wyjście instalatora.
 
-**Update all** zapisuje kolejkę w prywatnym `user_settings.settings.updateRun`.
-Nie zmienia zamrożonego UpdateService ani nie wymaga migracji. Kolejność:
-gateway → workery binarne na wersję uruchomionego gatewaya → zainstalowane CLI
-→ zdalne aplikacje z nowszą dostępną wersją → aplikacje połączonych komputerów
+**Update all** zapisuje przebieg w prywatnym `user_settings.settings.updateRun`.
+Orchestrator gatewaya utrzymuje maksymalnie **4 aktywne pozycje**, łącznie dla
+lokalnych i połączonych komputerów. Różne workery oraz różne CLI tego samego
+workera działają równolegle. Każdy krok jest zapisany przed wysłaniem komendy;
+wolne potwierdzenie nie zatrzymuje planowania ani odczytu postępu. Slot pozostaje
+zajęty do potwierdzonego wyniku, a błędy i limity czasu dotyczą pojedynczej pozycji.
+
+Worker ogłasza `CliTool.install_resource`, wyliczone z rzeczywistego przepisu:
+instalacje npm ze **wspólnym `--prefix`** są szeregowane (także rollback), różne
+prefiksy mogą działać jednocześnie. Pary instalowane przez Bun współdzielą globalny
+projekt i lockfile; pary pnpm współdzielą globalny projekt; pary Volta współdzielą
+inventory i shimy — każda z tych grup ma jeden slot na workerze. Natomiast natywne
+Claude (`claude install`, `~/.local/share/claude/versions`) i Grok (`~/.grok/bin`)
+nie blokują siebie ani Codex instalowanego jako osobny pakiet npm. Homebrew, mise,
+asdf i Yarn nie uruchamiają instalatora Canopy. Ten sam provider na tym samym
+workerze jest deduplikowany w planie i ponownie chroniony przez worker przed
+równoległym poleceniem. Worker egzekwuje zasoby także dla pojedynczych instalacji.
+Dla starszych raportów bez zasobu gateway szereguje wszystkie CLI workera:
+stary worker ma jedną blokadę również dla natywnych instalatorów. Nowe raporty
+oznaczają niezależne narzędzie jako `tool:<nazwa>`. Protokół WorkerLink nie zmienia numeru;
+pole jest addytywne, a zamrożony UpdateService pozostaje bez zmian.
+
+Workery czekają na aktualizację swojego gatewaya, a CLI na aktualizację swojego
+workera i zgodny protokół. Aplikacje komputerów czekają na zakończenie workerów
+i CLI w swoim domu; niezależne aplikacje mogą restartować się jednocześnie.
+Własna aplikacja zawsze jest ostatnia. Samodzielny gateway restartuje się po
+niezależnych zdalnych pozycjach, **przed zależnymi lokalnymi workerami i CLI**:
+ich docelowa wersja musi odpowiadać już działającemu gatewayowi. Po restarcie
+zapisany przebieg kontynuuje te zależności; nie wysyła ich do starego gatewaya.
+Popover i arkusz mobilny pokazują wspólne liczniki „Updating N · N done · N failed”;
+postęp obejmuje sukcesy oraz zakończone błędy/blokady, pomija kroki `skipped`.
+Zmiana mobilna pozostaje w JS/TS i korzysta z istniejącej ścieżki OTA.
+
+Nie wymaga migracji. Zależności lokalne zachowują kolejność gateway → workery
+binarne na wersję uruchomionego gatewaya → zainstalowane CLI; zdalne aplikacje
+i aplikacje połączonych komputerów mogą działać niezależnie od innych domów
 (tryb lokalny, [niżej](#połączone-komputery)). Brakujące CLI instaluje się osobnym
 przyciskiem Install. Własna aplikacja desktopowa restartuje się na samym końcu,
 po powrocie partnerów. Jej dołączony gateway aktualizuje bundle, nie samodzielna
@@ -224,7 +256,7 @@ wymiana binarki. Workery i CLI partnerów należą do odpowiednich etapów przed
 restartami aplikacji. Gotowa paczka jest uwzględniana także bez `available_version`:
 celem jest nowsze `updater_version`, a `ready` pozwala zlecić instalację aplikacji.
 
-Gateway odpytywany co 2 sekundy wznawia zapisaną kolejkę po restarcie. Potwierdzenie
+Gateway odpytywany co 2 sekundy wznawia zapisany przebieg po restarcie. Potwierdzenie
 przyjęcia komendy nie kończy kroku: wymagany jest raport wyniku, nowa wersja i
 zgodny protokół workera. Każda akcja ponownie sprawdza dotychczasowe uprawnienia.
 Błąd nie zatrzymuje niezależnych pozycji. Nieudany gateway blokuje jego workery i CLI;

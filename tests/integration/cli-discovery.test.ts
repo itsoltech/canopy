@@ -5,7 +5,7 @@
  * classify them; the CLI report and the applied configuration must agree. Nothing real is installed or run.
  */
 import { beforeEach, describe, expect, test } from "bun:test";
-import { chmodSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
 import { CliInstallMethod, InstallCliSchema, Provider, WorkerConfigSchema } from "@canopy/contracts";
@@ -18,6 +18,7 @@ import { classify } from "../../apps/worker/src/cli-tools/managers.ts";
 import { planRecipe } from "../../apps/worker/src/cli-tools/recipes.ts";
 import { mergeShellEnv, readShellEnv } from "../../apps/worker/src/cli-tools/shell-env.ts";
 import { applyWorkerConfig, prepareSystemProbe } from "../../apps/worker/src/config/remote.ts";
+import { eventually } from "./support/gateway.ts";
 
 const root = tempDir("canopy-cli-discovery-");
 const codex = CLIS.find((c) => c.name === "codex")!;
@@ -255,6 +256,89 @@ describe("login shell environment", () => {
 });
 
 describe("one source of truth", () => {
+  test.each([false, true])("real worker installers share only equal npm prefixes (shared=%s)", async (shared) => {
+    const { home, env, probe } = device();
+    const configured: Partial<Record<"claude" | "codex" | "grok", string>> = {};
+
+    for (const name of ["claude", "codex"] as const) {
+      const prefix = join(home, shared ? "global" : name);
+      const pkg = name === "claude" ? "@anthropic-ai/claude-code" : "@openai/codex";
+      const executable = join(prefix, "lib/node_modules", pkg, "bin", name);
+      file(executable, "#!/bin/sh\necho 1.0.0\n");
+      configured[name] = join(prefix, "bin", name);
+      link(executable, configured[name]);
+      file(join(home, `new-${name}`), "#!/bin/sh\necho 2.0.0\n");
+      file(
+        join(prefix, "bin/npm"),
+        `#!/bin/sh
+set -e
+for arg in "$@"; do case "$arg" in @anthropic-ai/*) name=claude;; @openai/*) name=codex;; esac; done
+if [ "$name" = codex ] && [ ! -e "$HOME/release-claude" ]; then echo overlap > "$HOME/overlap"; fi
+echo started > "$HOME/$name-started"
+while [ ! -e "$HOME/release-$name" ]; do /bin/sleep 0.01; done
+case "$name" in claude) pkg=@anthropic-ai/claude-code;; codex) pkg=@openai/codex;; esac
+prefix="$2"
+for arg in "$@"; do if [ "$previous" = --prefix ]; then prefix="$arg"; fi; previous="$arg"; done
+# Publish atomically: report probes may still be executing the previous file.
+/bin/cp "$HOME/new-$name" "$prefix/lib/node_modules/$pkg/bin/$name.new"
+/bin/mv "$prefix/lib/node_modules/$pkg/bin/$name.new" "$prefix/lib/node_modules/$pkg/bin/$name"
+`,
+      );
+    }
+
+    const tools = new CliTools({
+      dataDir: join(home, "data"),
+      probe: probe(),
+      env,
+      configured: () => configured,
+      send: () => {},
+      progress: () => {},
+      busy: () => 0,
+      installed: async () => {},
+      log: () => {},
+    });
+
+    const start = (provider: Provider) =>
+      tools.start(
+        create(InstallCliSchema, {
+          installId: crypto.randomUUID(),
+          provider,
+          version: "2.0.0",
+        }),
+      );
+
+    await start(Provider.CLAUDE);
+    const second = start(Provider.CODEX);
+
+    try {
+      await second;
+      await expect(start(Provider.CLAUDE)).rejects.toMatchObject({ code: "CLI_INSTALL_RUNNING" });
+      expect(await eventually(async () => existsSync(join(home, "claude-started")), Boolean)).toBe(true);
+
+      if (!shared) expect(await eventually(async () => existsSync(join(home, "codex-started")), Boolean)).toBe(true);
+      writeFileSync(join(home, "release-claude"), "");
+      await second;
+      expect(await eventually(async () => existsSync(join(home, "codex-started")), Boolean)).toBe(true);
+      writeFileSync(join(home, "release-codex"), "");
+      await tools.settled(Provider.CLAUDE);
+      await tools.settled(Provider.CODEX);
+      expect(existsSync(join(home, "overlap"))).toBe(!shared);
+      const report = await tools.report();
+      expect(report.tools?.find((tool) => tool.provider === Provider.CLAUDE)?.install).toMatchObject({
+        state: "succeeded",
+      });
+      expect(report.tools?.find((tool) => tool.provider === Provider.CODEX)?.install).toMatchObject({
+        state: "succeeded",
+      });
+    } finally {
+      writeFileSync(join(home, "release-claude"), "");
+      writeFileSync(join(home, "release-codex"), "");
+      await second;
+      await tools.settled(Provider.CLAUDE);
+      await tools.settled(Provider.CODEX);
+    }
+  });
+
   test("an install finishing during discovery never reports success with the old version", async () => {
     const { home, env, probe } = device();
     const executable = join(home, ".bun/install/global/node_modules/@openai/codex/bin/codex.js");

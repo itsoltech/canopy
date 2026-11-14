@@ -13,6 +13,7 @@ import { CLIS, cliOf, discoverCli, type CliName, type CliProbe, type DiscoveredC
 import { runInstall } from "./installer.ts";
 import { shellEnvReady } from "./shell-env.ts";
 import { planRecipe, validTarget, type RecipeTools } from "./recipes.ts";
+import { installResource } from "./install-resource.ts";
 
 export { findCli } from "./discovery.ts";
 
@@ -49,14 +50,15 @@ export interface CliToolsOptions {
 }
 
 /**
- * Provider CLIs on this worker (docs/provider-cli.md): discovery reports, and installs on demand. One install at a
- * time; a provider with running turns is refused (nothing waits behind a click), and new turns of a provider being
+ * Provider CLIs on this worker (docs/provider-cli.md): independent tools install concurrently. A provider with
+ * running turns is refused, shared install resources wait, and new turns of a provider being
  * installed wait for it (`settled`).
  */
 export class CliTools {
   readonly #options: CliToolsOptions;
   readonly #status = new Map<Provider, StatusInit>();
-  #installing: { provider: Provider; done: Promise<void> } | undefined;
+  readonly #installing = new Map<Provider, { resource: string; done: Promise<void> }>();
+  readonly #starting = new Set<Provider>();
   #last: ReportInit | undefined;
   #discovering: Promise<ReportInit> | undefined;
   #installRevision = 0;
@@ -138,6 +140,7 @@ export class CliTools {
       version: cli.version,
       configuredPath: cli.configuredPath,
       installable: Boolean(plan.recipe),
+      installResource: plan.recipe ? installResource(cli, plan.recipe) : "",
       manualCommand: plan.manualCommand ?? "",
       detail: [cli.detail, plan.detail].filter(Boolean).join(". "),
       versionError: cli.versionError ?? "",
@@ -148,7 +151,7 @@ export class CliTools {
 
   /** Resolves once no install of this provider is running (new turns of it wait here). */
   async settled(provider: Provider): Promise<void> {
-    while (this.#installing?.provider === provider) await this.#installing.done;
+    while (this.#installing.has(provider)) await this.#installing.get(provider)?.done;
   }
 
   /**
@@ -156,6 +159,18 @@ export class CliTools {
    * progress and the result (a new report with CliTool.install).
    */
   async start(command: InstallCli): Promise<void> {
+    if (this.#starting.has(command.provider) || this.#installing.has(command.provider))
+      throw new CliRefused("CLI_INSTALL_RUNNING", "This agent CLI is already being installed. Wait for it to finish.");
+    this.#starting.add(command.provider);
+
+    try {
+      await this.#start(command);
+    } finally {
+      this.#starting.delete(command.provider);
+    }
+  }
+
+  async #start(command: InstallCli): Promise<void> {
     const spec = cliOf(command.provider);
 
     if (!spec) throw new CliRefused("UNSUPPORTED", "unknown provider");
@@ -165,11 +180,6 @@ export class CliTools {
     if (!validTarget(command.version))
       throw new CliRefused("INVALID_VERSION", `"${command.version}" is not a version (X.Y.Z or latest)`);
 
-    if (this.#installing)
-      throw new CliRefused(
-        "CLI_INSTALL_RUNNING",
-        `${cliOf(this.#installing.provider)?.label ?? "Another CLI"} is being installed on this worker; try again when it finishes`,
-      );
     const busy = this.#options.busy(command.provider);
 
     if (busy > 0)
@@ -189,7 +199,11 @@ export class CliTools {
     }
 
     // Checked again after the (async) discovery: a turn may have started meanwhile.
-    if (this.#installing || this.#options.busy(command.provider) > 0)
+    const resource = installResource(before, plan.recipe);
+
+    const waiting = [...this.#installing.values()].flatMap((item) => (item.resource === resource ? [item.done] : []));
+
+    if (this.#options.busy(command.provider) > 0)
       throw new CliRefused("CLI_TURNS_RUNNING", `${spec.label} started a turn; try again when it finishes`);
 
     const status: StatusInit = {
@@ -204,6 +218,9 @@ export class CliTools {
     const recipe = plan.recipe;
 
     const done = (async () => {
+      // Reserve the provider and acknowledge immediately, including when a shared installer must wait.
+      // Later reservations wait for this whole promise, including validation and rollback.
+      await Promise.all(waiting);
       const buffer: string[] = [];
 
       const flush = () => {
@@ -254,14 +271,14 @@ export class CliTools {
         clearInterval(timer);
         flush();
         this.#installRevision++;
-        this.#installing = undefined;
+        this.#installing.delete(spec.provider);
       }
 
       await this.#options.installed().catch(() => {});
       await this.report().catch(() => undefined);
     })();
 
-    this.#installing = { provider: spec.provider, done };
+    this.#installing.set(spec.provider, { resource, done });
     // The running state goes out at once.
     void this.report().catch(() => undefined);
   }

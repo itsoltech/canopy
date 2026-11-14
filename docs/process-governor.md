@@ -18,7 +18,7 @@ sites przechodzą przez współdzielony pakiet `@canopy/process-governor`.
 | worker `config/remote.ts` | Zastosowanie konfiguracji, ProbeProviders, koniec logowania. Wcześniej synchroniczny `--version` per dostawca/instancja: N × 10 s blokady event loop. | Asynchroniczne przygotowanie wersji, probe ≤2, dedupe i TTL 60 s. Walidacja z wstrzykniętym DeviceProbe pozostaje synchroniczna. |
 | worker `cli-tools/discovery.ts` | Hello/reconnect, ręczne odświeżenie, po instalacji, co 6 h; trzy CLI plus mise shim. Kandydaci sprawdzani po kolei do pierwszego działającego (zwykle 1 sonda na CLI, maks. 8). Raport CLI i konfiguracja dzielą klucz. | probe ≤2, TTL 60 s, pełny kontekst w kluczu. |
 | worker `cli-tools/shell-env.ts` | `$SHELL -l -i -c` raz na start procesu; ponownie przy `ProbeProviders`, najwyżej raz na minutę. | probe ≤2, limit 8 s, 1 MiB, single-flight. |
-| worker `cli-tools/installer.ts` | Wyłącznie jawna instalacja/rollback. | install ≤1, maks. 10 min / rollback 5 min, kill drzewa; cache wersji unieważniany. |
+| worker `cli-tools/installer.ts` | Wyłącznie jawna instalacja/rollback. | install ≤4; wspólne zasoby menedżera szereguje `CliTools`, niezależne CLI działają równolegle. Maks. 10 min / rollback 5 min, kill drzewa; cache wersji unieważniany. |
 | worker `files/search.ts` | Każdy znak w wyszukiwaniu plików; istnieje cache listingu, ale zimne równoległe żądania mogły dublować ls-files. | git ≤4, single-flight i TTL 1 s, limit wyniku/czasu; istniejący cache i fallback spaceru pozostają. |
 | worker Codex app-server, Grok ACP, Claude SDK (sessions/catalog/generate-text) | Długo działające sesje per instancja/wątek, katalogi i krótkie generowanie; reconnect/config może tworzyć runtime. | Osobny budżet harness ≤24, synchroniczne API odmawiają po wyczerpaniu zamiast tworzyć proces bez limitu. Brak dedupe sesji i limitu długości sesji. |
 | updater `binary.ts` | Jeden nadzorowany child, sekwencyjny restart/rollback. `execve` zastępuje proces. | supervisor ≤2, istniejący startup deadline/forwarding/rollback pozostają. |
@@ -32,7 +32,7 @@ różnych komend potrzebnych do skanu.
 ## Budżety, kolejka i bezpieczeństwo
 
 Jeden scheduler na proces worker/gateway: maks. **34** bezpośrednich dzieci,
-w tym maks. **8** krótkich komend. Git 4, probe 2, install 1, utility 2,
+w tym maks. **8** krótkich komend. Git 4, probe 2, install 4, utility 2,
 harness 24, supervisor 2. Długo działające sesje nie zajmują budżetu krótkich
 komend. To nie jest limit hosta między wieloma niezależnymi usługami ani limit
 procesów uruchamianych wewnętrznie przez sam harness/narzędzia modelu.
