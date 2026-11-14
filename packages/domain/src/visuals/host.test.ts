@@ -40,6 +40,18 @@ describe("visual host inbox", () => {
     expect(inbox.receive({ type: "escape" }, 20)).toBeUndefined();
     expect(inbox.receive({ type: "escape" }, 1500)).toEqual({ type: "escape" });
   });
+
+  test("takes hover as a bare boolean, at most hoversPerSecond", () => {
+    const inbox = new VisualFrameInbox(visual().domains);
+
+    expect(inbox.receive({ type: "hover", inside: "yes" }, 0)).toBeUndefined();
+    expect(inbox.receive({ type: "hover" }, 1)).toBeUndefined();
+    expect(inbox.receive({ type: "hover", inside: true, x: 10, y: 20 }, 2)).toEqual({ type: "hover", inside: true });
+
+    const hovers = Array.from({ length: 6 }, (_, i) => inbox.receive({ type: "hover", inside: i % 2 === 0 }, 10 + i));
+    expect(hovers.filter(Boolean)).toHaveLength(VISUAL_LIMITS.hoversPerSecond - 1);
+    expect(inbox.receive({ type: "hover", inside: false }, 1100)).toEqual({ type: "hover", inside: false });
+  });
 });
 
 describe("mobile shell", () => {

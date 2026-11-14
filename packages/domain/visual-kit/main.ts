@@ -32,6 +32,23 @@ function readData(): VisualDocumentData {
   return JSON.parse(source?.textContent ?? "null") as VisualDocumentData;
 }
 
+/** The natural height: the root plus the body's padding, rounded up so the frame never falls a fraction short. */
+function naturalHeight(main: HTMLElement): number {
+  const style = getComputedStyle(document.body);
+
+  return Math.ceil(
+    main.getBoundingClientRect().height + parseFloat(style.paddingTop) + parseFloat(style.paddingBottom),
+  );
+}
+
+/**
+ * The document scrolls only when the host caps the frame below the content. A document that can scroll even a pixel
+ * takes the wheel for the whole gesture, so the reader's thread would stop under the cursor.
+ */
+function fitScroll(main: HTMLElement): void {
+  root.style.overflowY = naturalHeight(main) > window.innerHeight ? "auto" : "hidden";
+}
+
 function heightReporter(main: HTMLElement, send: (message: FrameMessage) => void) {
   let last = 0;
   let pending: number | undefined;
@@ -40,8 +57,7 @@ function heightReporter(main: HTMLElement, send: (message: FrameMessage) => void
 
   const report = () => {
     pending = undefined;
-    const style = getComputedStyle(document.body);
-    const height = Math.ceil(main.offsetHeight + parseFloat(style.paddingTop) + parseFloat(style.paddingBottom));
+    const height = naturalHeight(main);
 
     if (height === reported) return;
     reported = height;
@@ -50,10 +66,41 @@ function heightReporter(main: HTMLElement, send: (message: FrameMessage) => void
   };
 
   return () => {
+    fitScroll(main);
+
     if (pending !== undefined) return;
     const wait = Math.max(0, interval - (performance.now() - last));
     pending = window.setTimeout(report, wait);
   };
+}
+
+/**
+ * Wheel and touch input over the frame stays in the frame while its scroll chains to the host's feed, which tells a
+ * reader's scroll from a layout one by its input. So the kit reports whether the pointer is inside, and nothing more:
+ * at most `hoversPerSecond`, the last report always the current state. The returned function reports it now.
+ */
+function hoverReporter(send: (message: FrameMessage) => void): () => void {
+  const interval = 1000 / VISUAL_LIMITS.hoversPerSecond;
+  let last = -Infinity;
+  let pending: number | undefined;
+  let inside = false;
+
+  const report = () => {
+    pending = undefined;
+    last = performance.now();
+    send({ type: "hover", inside });
+  };
+
+  const update = (next: boolean) => {
+    inside = next;
+
+    if (pending === undefined) pending = window.setTimeout(report, Math.max(0, interval - (performance.now() - last)));
+  };
+
+  root.addEventListener("pointerenter", () => update(true));
+  root.addEventListener("pointerleave", () => update(false));
+
+  return () => update(inside);
 }
 
 function boot(): void {
@@ -98,6 +145,7 @@ function boot(): void {
   const reportHeight = heightReporter(main, send);
   let stateTimer: number | undefined;
   new ResizeObserver(reportHeight).observe(main);
+  window.addEventListener("resize", () => fitScroll(main));
   store.onChange(() => {
     window.clearTimeout(stateTimer);
     stateTimer = window.setTimeout(() => send({ type: "local_state", state: store.snapshot() }), 250);
@@ -131,9 +179,12 @@ function boot(): void {
       }
     };
 
-    send({ type: "ready", height: Math.ceil(main.offsetHeight) });
+    send({ type: "ready", height: naturalHeight(main) });
     reportHeight();
+    reportHover();
   };
+
+  const reportHover = hoverReporter(send);
 
   window.addEventListener("message", onConnect);
   // Keys don't cross the sandbox: Escape alone is forwarded, so a host dialog can close.

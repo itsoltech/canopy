@@ -13,6 +13,7 @@ export class VisualFrameInbox {
   private readonly messages = new RateWindow(VISUAL_LIMITS.messagesPerSecond);
   // One extra height per second for the `ready` that opens the channel.
   private readonly heights = new RateWindow(VISUAL_LIMITS.heightsPerSecond + 1);
+  private readonly hovers = new RateWindow(VISUAL_LIMITS.hoversPerSecond);
 
   constructor(private readonly domains: ReadonlyMap<string, VisualStateDomain>) {}
 
@@ -24,6 +25,8 @@ export class VisualFrameInbox {
       case "ready":
       case "height":
         return this.heights.allow(now) ? message : undefined;
+      case "hover":
+        return this.hovers.allow(now) ? message : undefined;
       case "local_state":
         return validVisualState(this.domains, message.state) ? message : undefined;
       default:

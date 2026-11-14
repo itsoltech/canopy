@@ -5,8 +5,7 @@
   import Button from "../Button.svelte";
   import { rise } from "../motion.ts";
   import { UiMemory } from "../memory.ts";
-  import { captureAnchor, holdAnchor, readingKeys, type FeedAnchor } from "./feed-anchor.ts";
-  import { settleAnchor } from "./feed-anchor.ts";
+  import { captureAnchor, holdAnchor, readingKeys, settleAnchor, type FeedAnchor } from "./feed-anchor.ts";
   import { FeedEntrances } from "./feed-entrances.ts";
   import { EndScroll } from "./end-scroll.ts";
   import { feedObserver, publishViewport, rowAttachment } from "./feed-measure.ts";
@@ -16,6 +15,7 @@
   import { SizeIndex } from "./size-index.ts";
   import VirtualRow from "./VirtualRow.svelte";
   import { FEED_END_THRESHOLD, followingAfterScroll, ScrollIntent, type ReaderScroll } from "./scroll.ts";
+  import { trackEmbedHover } from "./embed-hover.ts";
   import type { FeedViewport } from "./viewport.ts";
   import { FooterScroll } from "./footer-motion.ts";
   import { FeedScrollOpening, type FeedScrollMemory } from "./feed-scroll-memory.svelte.ts";
@@ -397,6 +397,8 @@
       stuck = false;
     }
   }
+
+  $effect(() => (scroller ? trackEmbedHover(scroller, scrollIntent) : undefined));
 
   function readerGesture() {
     footerScroll.interrupt(content, scroller, setTop);
