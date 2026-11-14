@@ -656,11 +656,13 @@ nie powstaje poziomy scroll aplikacji; przewija się tylko kod bez wrap. Nawigac
 pigułka podsumowania i `Files` nie znikają w overflow plików.
 
 W `apps/mobile` przycisk nazwy aktywnej karty otwiera **tab switcher sheet**:
-`Thread`, otwarte pliki/PR, dirty, zamknięcie, `Keep tab` i `Open module`.
-Zmiana kolejności ma akcje `Move up` / `Move down`, nie wymaga drag.
-**Modules sheet** wybiera Files, Pull requests, Tasks lub Connectors i pokazuje
-ich minimalny widok. Pełny zasób staje się aktywną kartą/ekranem bieżącego wątku,
-bez nowego wątku w nawigacji aplikacji. `Thread details` otwiera osobny arkusz.
+`Thread`, otwarte pliki/PR, dirty, zamknięcie i `Keep tab`, bez `Open module`.
+Zmiana kolejności ma akcje `Move up` / `Move down`, nie wymaga drag. Nagłówek ma
+dwa przyciski: `Thread details` otwiera arkusz podsumowania z tymi samymi sekcjami
+co karta na webie (connectory, położenie, PR z `Link`/`Create`, sekrety,
+harmonogramy, zadania w tle, lineage i subagenci), a `Files` — arkusz z drzewem.
+Wiersz PR lub zadania otwiera pełny zasób jako kartę bieżącego wątku, bez nowego
+wątku w nawigacji aplikacji. Arkusza modułów ani pickera modułów już nie ma.
 
 Back najpierw zamyka najwyższy arkusz, potem wraca z pliku/modułu do `Thread`,
 następnie opuszcza wątek. Nie zamyka przy tym zakładki ani szkicu; zamknięcie

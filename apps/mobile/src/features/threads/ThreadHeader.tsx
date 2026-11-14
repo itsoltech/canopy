@@ -14,7 +14,6 @@ import { ThreadSyncStatus } from "./ThreadSyncStatus";
 import { ThreadSyncProgress } from "./ThreadSyncProgress";
 import { useWorkspace } from "../workspace/context";
 import { WorkspaceTabs } from "../workspace/WorkspaceTabs";
-import { WorkspaceModulePicker } from "../workspace/WorkspaceModulePicker";
 
 export function ThreadHeader({
   thread,
@@ -24,7 +23,7 @@ export function ThreadHeader({
   syncing,
   syncStatus,
   onDetails,
-  onModules,
+  onFiles,
   onSideThread,
   onGoal,
   goalOpen,
@@ -38,7 +37,7 @@ export function ThreadHeader({
   syncing: boolean;
   syncStatus?: ui.ThreadSyncStatus;
   onDetails: () => void;
-  onModules: () => void;
+  onFiles: () => void;
   onSideThread: () => void;
   onGoal?: () => void;
   goalOpen: boolean;
@@ -69,7 +68,6 @@ export function ThreadHeader({
         )}
         <ThreadIdentity thread={thread} project={project} syncing={syncing} />
         {workspace && <WorkspaceTabs view={workspace} onThreadActions={() => setSheet("actions")} />}
-        {workspace && <WorkspaceModulePicker view={workspace} />}
         <ThreadSyncProgress status={syncStatus} compact={Boolean(workspace)} />
         {wide && <IconButton icon="magnifying-glass" label="Search thread" onPress={() => setSheet("search")} />}
         {!workspace && (
@@ -81,7 +79,7 @@ export function ThreadHeader({
           />
         )}
         <IconButton icon="information-circle" label="Thread details" onPress={onDetails} />
-        <IconButton icon="view-columns" label="Modules" onPress={onModules} />
+        <IconButton icon="folder" label="Files" onPress={onFiles} />
       </View>
       {thread && (
         <ThreadActionsSheet
