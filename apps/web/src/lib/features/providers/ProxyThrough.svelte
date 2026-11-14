@@ -21,8 +21,11 @@
       : undefined,
   );
 
+  // A primitive: the read's result replaces the proxy, which must not ask again.
+  const readable = $derived(proxy?.managementKeySet && managed ? proxy.id : "");
+
   $effect(() => {
-    const id = proxy?.managementKeySet && managed ? proxy.id : "";
+    const id = readable;
 
     if (id)
       untrack(
@@ -38,6 +41,6 @@
 {#if proxy}
   <p class="min-w-0 text-base/6 text-pretty text-zinc-600 sm:text-sm/6 dark:text-zinc-400">
     Through <TextLink href={`/settings/proxies#proxy-${proxy.id}`} class="break-words">{proxy.name}</TextLink
-    >{#if summary}<span aria-hidden="true"> · </span><span>{summary}</span>{/if}
+    >{#if summary}<span aria-hidden="true">{" · "}</span><span>{summary}</span>{/if}
   </p>
 {/if}
