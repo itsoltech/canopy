@@ -58,7 +58,7 @@ interface Waiting {
 export const PROCESS_LIMITS: Readonly<Record<ProcessKind, number>> = {
   git: 4,
   probe: 2,
-  install: 1,
+  install: 4,
   utility: 2,
   harness: 24,
   supervisor: 2,

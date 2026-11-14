@@ -113,7 +113,7 @@ export function bulkUpdateSteps(snapshot: ui.UpdatesSnapshot): ui.UpdateStep[] {
     });
   }
 
-  // Keep our gateway alive until every linked computer returns from its sequential restart.
+  // Keep our gateway alive until every linked computer returns from its restart.
   for (const computer of snapshot.computers) {
     const app = computer.updates?.app;
 
@@ -143,7 +143,16 @@ export function bulkUpdateSteps(snapshot: ui.UpdatesSnapshot): ui.UpdateStep[] {
       }),
     });
 
-  return steps;
+  return steps.filter(
+    (step, index) =>
+      steps.findIndex(
+        (other) =>
+          other.kind === step.kind &&
+          other.nodeId === step.nodeId &&
+          other.workerId === step.workerId &&
+          other.provider === step.provider,
+      ) === index,
+  );
 }
 
 export const bulkUpdatesAvailable = (snapshot: ui.UpdatesSnapshot): boolean =>

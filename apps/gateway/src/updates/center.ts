@@ -4,6 +4,8 @@ import { ui } from "@canopy/contracts";
 import { reachedUpdateVersion } from "@canopy/domain/release/remote-update-state";
 import { updatePlan } from "./center-plan.ts";
 import { remoteStepCurrent, remoteStepDismissed } from "./remote-outcome.ts";
+import { pendingUpdate, UPDATE_CONCURRENCY, updateDependencies, updatesConflict } from "./center-scheduling.ts";
+import { computerUpdated } from "./computer-completion.ts";
 
 export interface UpdateCenterOptions {
   read(): Promise<ui.UpdateRun | undefined>;
@@ -17,33 +19,18 @@ export interface UpdateCenterOptions {
   computer(nodeId: string): Promise<string>;
 }
 
-/**
- * A linked computer's app is updated when it is back on the link with a version at least the planned one, or reports
- * its request succeeded. While it restarts (offline, "updating") the step waits; this computer's link never restarts.
- */
-function computerUpdated(step: ui.UpdateStep, snapshot: ui.UpdatesSnapshot): boolean {
-  const computer = snapshot.computers.find((c) => c.nodeId === step.nodeId);
-
-  if (!computer) throw new Error("This computer is no longer linked");
-  const app = computer.updates?.app;
-
-  if (computer.presence !== "connected" || !app?.connected) return false;
-
-  if (remoteStepCurrent(step, snapshot)) return true;
-
-  if (remoteStepDismissed(step, snapshot))
-    throw new Error("The app update was dismissed. Request it again to continue.");
-
-  if (app.requestId === step.requestId && app.phase === "failed") throw new Error(app.reason || "App update failed");
-
-  return false;
+interface UpdateLaunch {
+  step: ui.UpdateStep;
+  settled: boolean;
+  error?: Error;
 }
 
-/** One serialized, durable chain. Acknowledgement is not completion; reports/version confirm each step. */
+/** Durable bounded scheduling. Acknowledgement is not completion; reports/version confirm each step. */
 export class UpdateCenter {
   private operation: Promise<void> = Promise.resolve();
   private timer: ReturnType<typeof setInterval> | undefined;
   private ticking: Promise<void> | undefined;
+  private readonly launching = new Map<string, UpdateLaunch>();
   constructor(readonly options: UpdateCenterOptions) {}
 
   start() {
@@ -92,56 +79,118 @@ export class UpdateCenter {
       const run = await this.options.read();
 
       if (run?.state !== "running") return;
-      const step = run.steps.find((s) => ["queued", "running"].includes(s.state));
+      const snapshot = await this.options.snapshot();
 
-      if (!step) {
-        const failed = run.steps.find((item) => ["failed", "blocked"].includes(item.state));
-        run.state = failed?.state || "succeeded";
-        run.reason = failed ? "Some updates failed. Retry the failed items." : "";
-        await this.options.write(run);
+      for (const [index, step] of run.steps.entries()) {
+        if (step.state !== "running") continue;
+        const key = `${run.id}/${index}`;
+        const launch = this.launching.get(key);
 
-        return;
+        try {
+          if (launch?.settled) {
+            this.launching.delete(key);
+            step.requestId = launch.step.requestId;
+
+            if (launch.error) throw launch.error;
+          }
+
+          if ((!launch || launch.settled) && (await this.complete(step, snapshot))) step.state = "succeeded";
+
+          if (Date.now() - Date.parse(step.startedAt) > 35 * 60_000)
+            throw new Error("Timed out waiting for completion. Retry Update all after checking this item.");
+        } catch (cause) {
+          this.fail(step, cause);
+        }
       }
 
-      try {
-        const snapshot = await this.options.snapshot();
+      for (const [index, step] of run.steps.entries()) {
+        if (step.state !== "queued") continue;
+        const dependencies = updateDependencies(step, run.steps);
 
-        if (step.state === "queued") {
-          const dependency = run.steps.find(
-            (item) =>
-              ["failed", "blocked"].includes(item.state) &&
-              item.nodeId === step.nodeId &&
-              ((item.kind === "gateway" && ["worker", "cli"].includes(step.kind)) ||
-                (item.kind === "worker" && step.kind === "cli" && item.workerId === step.workerId)),
-          );
+        if (dependencies.some(pendingUpdate)) continue;
+        const dependency = dependencies.find((item) => ["failed", "blocked"].includes(item.state));
 
-          if (dependency)
-            throw new ConnectError(
+        if (dependency && ["worker", "cli"].includes(step.kind)) {
+          this.fail(
+            step,
+            new ConnectError(
               `Update ${dependency.label} successfully before retrying this item.`,
               Code.FailedPrecondition,
-            );
-          // Persist before sending. A crash never replays an unconfirmed CLI install or desktop restart.
+            ),
+          );
+          continue;
+        }
+
+        const active = run.steps.filter((item) => item.state === "running");
+
+        if (this.activeSlots(run) >= UPDATE_CONCURRENCY || active.some((item) => updatesConflict(step, item, snapshot)))
+          continue;
+
+        // An acknowledgement still in flight holds its slot even if its report timed out.
+        if (
+          [...this.launching.values()].some(
+            (item) =>
+              !item.settled && (updatesConflict(step, item.step, snapshot) || ["app", "gateway"].includes(step.kind)),
+          )
+        )
+          continue;
+
+        try {
           step.state = "running";
           step.startedAt = new Date().toISOString();
+          // Persist every reservation before sending; restart never replays an uncertain install.
           await this.options.write(run);
 
           if (await this.complete(step, snapshot, true)) step.state = "succeeded";
-          else await this.launch(step, snapshot);
-        } else if (await this.complete(step, snapshot)) step.state = "succeeded";
+          else {
+            const launch: UpdateLaunch = {
+              step: clone(ui.UpdateStepSchema, step),
+              settled: false,
+            };
 
-        if (Date.now() - Date.parse(step.startedAt) > 35 * 60_000)
-          throw new Error("Timed out waiting for completion. Retry Update all after checking this item.");
-      } catch (cause) {
-        step.state = cause instanceof ConnectError && cause.code === Code.FailedPrecondition ? "blocked" : "failed";
-        step.reason =
-          cause instanceof ConnectError ? cause.rawMessage : cause instanceof Error ? cause.message : "Update failed";
-        run.reason = "Some updates failed. Other updates continue.";
+            this.launching.set(`${run.id}/${index}`, launch);
+            void this.launch(launch.step, snapshot)
+              .catch((cause: Error) => {
+                launch.error = cause;
+              })
+              .finally(() => {
+                launch.settled = true;
+              });
+          }
+        } catch (cause) {
+          this.fail(step, cause);
+        }
       }
 
+      if (!run.steps.some(pendingUpdate)) {
+        const failed = run.steps.find((item) => ["failed", "blocked"].includes(item.state));
+        run.state = failed?.state || "succeeded";
+        run.reason = failed ? "Some updates failed. Retry the failed items." : "";
+      }
+
+      if (run.state === "running" && run.steps.some((step) => ["failed", "blocked"].includes(step.state)))
+        run.reason = "Some updates failed. Other updates continue.";
       await this.options.write(run);
     }).finally(() => {
       this.ticking = undefined;
     }));
+  }
+
+  private activeSlots(run: ui.UpdateRun): number {
+    const slots = new Set(run.steps.flatMap((step, index) => (step.state === "running" ? [`${run.id}/${index}`] : [])));
+
+    for (const [key, launch] of this.launching) {
+      if (!launch.settled) slots.add(key);
+      else if (!slots.has(key)) this.launching.delete(key);
+    }
+
+    return slots.size;
+  }
+
+  private fail(step: ui.UpdateStep, cause: unknown) {
+    step.state = cause instanceof ConnectError && cause.code === Code.FailedPrecondition ? "blocked" : "failed";
+    step.reason =
+      cause instanceof ConnectError ? cause.rawMessage : cause instanceof Error ? cause.message : "Update failed";
   }
 
   private async launch(step: ui.UpdateStep, snapshot: ui.UpdatesSnapshot) {

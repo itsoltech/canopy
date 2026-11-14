@@ -6,6 +6,7 @@ import { SettingsDisclosure } from "../settings/SettingsDisclosure";
 import { UpdateDetails } from "./UpdateDetails";
 import { useUpdates } from "./state";
 import { bulkUpdatesAvailable, updateLabel } from "./model";
+import { updateProgress } from "@canopy/domain/release/update-progress";
 
 /** Loading and action errors share the same recovery controls in settings and the sheet. */
 export function UpdateFeedback() {
@@ -60,8 +61,9 @@ export function UpdateRun({ run }: { run: ui.UpdateRun | undefined }) {
       initiallyOpen={run.state === "running"}
     >
       <Text accessibilityLiveRegion="polite" style={[styles.overlayMeta, { color: c.muted }]}>
-        {run.steps.filter((step) => step.state === "succeeded").length}/
-        {run.steps.filter((step) => step.state !== "skipped").length} updated
+        {run.state === "running"
+          ? updateProgress(run).label
+          : `${run.steps.filter((step) => step.state === "succeeded").length}/${updateProgress(run).total} updated`}
       </Text>
       {["failed", "blocked"].includes(run.state) && (
         <View style={[styles.row, { flexWrap: "wrap", gap: 8 }]}>

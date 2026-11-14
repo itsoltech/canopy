@@ -203,7 +203,7 @@ async function tickUntil(gateway: TestGateway, predicate: (run: ui.UpdateRun | u
 }
 
 describe.skipIf(!dockerAvailable)("Update all across linked computers with fake updaters", () => {
-  test("ready packages and local/linked CLIs update in order; duplicate clicks and a restart retain the same run", async () => {
+  test("linked apps overlap after their CLIs; duplicate clicks and a restart retain the same run", async () => {
     const a = await gateway();
     const b = await gateway();
     const c = await gateway();
@@ -230,7 +230,8 @@ describe.skipIf(!dockerAvailable)("Update all across linked computers with fake 
       target.worker.handlers.set("installCli", async (value, reply) => {
         if (value.$typeName !== "canopy.worker.v1.InstallCli") throw new Error("Expected CLI command");
         events.push(`${name} CLI ${value.provider}`);
-        await clis(target, ["2.0.0", value.provider === Provider.CODEX ? "2.0.0" : "1.0.0"], "succeeded");
+        const codexDone = name === "local" || events.includes(`${name} CLI ${Provider.CODEX}`);
+        await clis(target, ["2.0.0", codexDone ? "2.0.0" : "1.0.0"], "succeeded");
         reply(true);
       });
     }
@@ -250,13 +251,12 @@ describe.skipIf(!dockerAvailable)("Update all across linked computers with fake 
       ["succeeded", ""],
       ["succeeded", ""],
     ]);
-    expect(events.slice(0, 3)).toEqual([
-      `local CLI ${Provider.CLAUDE}`,
-      `linked CLI ${Provider.CLAUDE}`,
-      `linked CLI ${Provider.CODEX}`,
-    ]);
+    expect(events.filter((event) => event.includes(" CLI ")).sort()).toEqual(
+      [`local CLI ${Provider.CLAUDE}`, `linked CLI ${Provider.CLAUDE}`, `linked CLI ${Provider.CODEX}`].sort(),
+    );
     expect(own.requests).toEqual([]);
-    expect(second.requests).toEqual([]);
+    await tickUntil(a, () => second.requests.length === 1);
+    expect(second.requests).toHaveLength(1);
     await linked.finish();
     refreshComputerUpdates(a.core, nodeId);
     await tickUntil(a, () => second.requests.length === 1);
@@ -264,7 +264,6 @@ describe.skipIf(!dockerAvailable)("Update all across linked computers with fake 
     await second.finish();
     refreshComputerUpdates(a.core, secondNode);
     await tickUntil(a, () => own.requests.length === 1);
-    expect(events.at(-2)).toBe("second linked app");
     expect(events.at(-1)).toBe("own app");
     a.core.updateCenter.stop();
     const resumed = createUpdateCenter(a.core);

@@ -48,7 +48,7 @@
 
     for (const [index, step] of steps.entries()) {
       if (step.state === "skipped") continue;
-      step.state = complete || index === 0 ? "succeeded" : index === 1 ? "running" : "queued";
+      step.state = complete || index === 0 ? "succeeded" : index <= 3 ? "running" : "queued";
     }
 
     steps.push(
