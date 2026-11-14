@@ -8,6 +8,9 @@ import { savedThreadScroll, THREAD_SCROLL_LIMIT, type SavedThreadScroll } from "
 /** Desktop PR geometry in pixels; a narrow window may clamp below the preferred minimum. */
 export const PULL_REQUEST_WIDTH = { default: 576, min: 320, max: 1200, minThread: 384 } as const;
 
+/** Files panel width in pixels: one value for every thread on this device. */
+export const FILES_PANEL_WIDTH = { default: 288, min: 256, max: 480 } as const;
+
 const savedView = Schema.Struct({
   archivedThreadsExpanded: Schema.optionalKey(Schema.Boolean),
   archivedBotsExpanded: Schema.optionalKey(Schema.Boolean),
@@ -15,6 +18,8 @@ const savedView = Schema.Struct({
   threadPanelCollapsed: Schema.optionalKey(Schema.Boolean),
   sidebarWidth: Schema.optionalKey(Schema.Number),
   pullRequestWidth: Schema.optionalKey(Schema.Number),
+  filesPanelOpen: Schema.optionalKey(Schema.Boolean),
+  filesPanelWidth: Schema.optionalKey(Schema.Number),
   projectIds: Schema.optionalKey(Schema.Array(Schema.String)),
   groupByProject: Schema.optionalKey(Schema.Boolean),
   projectOrder: Schema.optionalKey(Schema.Literals([0, 1, 2])),
@@ -38,9 +43,12 @@ export interface DeviceViewValues extends DeviceSidebarValues {
   archivedThreadsExpanded: boolean;
   archivedBotsExpanded: boolean;
   sidebarCollapsed: boolean;
+  /** The floating thread summary is collapsed to its pill. */
   threadPanelCollapsed: boolean;
   sidebarWidth: number;
   pullRequestWidth: number;
+  filesPanelOpen: boolean;
+  filesPanelWidth: number;
 }
 
 export const deviceViewDefaults: DeviceViewValues = {
@@ -54,6 +62,8 @@ export const deviceViewDefaults: DeviceViewValues = {
   threadPanelCollapsed: false,
   sidebarWidth: 0,
   pullRequestWidth: 0,
+  filesPanelOpen: false,
+  filesPanelWidth: FILES_PANEL_WIDTH.default,
   projectIds: [],
   groupByProject: false,
   projectOrder: ui.ProjectOrder.ACTIVITY,
@@ -127,6 +137,7 @@ export class DeviceViewPreferences {
 
   #publish(values: DeviceViewValues): void {
     const width = values.pullRequestWidth;
+    const files = values.filesPanelWidth;
     this.values = {
       ...values,
       threadScroll: values.threadScroll
@@ -137,6 +148,9 @@ export class DeviceViewPreferences {
         Number.isFinite(width) && width > 0
           ? Math.round(Math.min(PULL_REQUEST_WIDTH.max, Math.max(PULL_REQUEST_WIDTH.min, width)))
           : 0,
+      filesPanelWidth: Number.isFinite(files)
+        ? Math.round(Math.min(FILES_PANEL_WIDTH.max, Math.max(FILES_PANEL_WIDTH.min, files)))
+        : FILES_PANEL_WIDTH.default,
     };
     this.changed(this.values);
   }

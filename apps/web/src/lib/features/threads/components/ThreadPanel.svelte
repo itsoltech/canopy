@@ -14,22 +14,20 @@
   import type { BackgroundEntry } from "../background-tasks.ts";
   import type { Item } from "@canopy/contracts";
   import { useThreadDirectory } from "../thread-directory.ts";
-  import ThreadTitleActions from "./ThreadTitleActions.svelte";
   import ThreadPlacement from "./ThreadPlacement.svelte";
   import ThreadPullRequests from "#lib/features/github/ThreadPullRequests.svelte";
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
   import { useThreadPanel } from "../thread-panel.svelte.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { awayReason } from "#lib/features/computers/computers.ts";
-  import { useWorkspace } from "#lib/features/workspace/workspace.svelte.ts";
-  import type { WorkspaceModuleId } from "@canopy/domain/workspace-modules";
 
   const capabilities = useGatewayCapabilities();
 
   /**
-   * Context of a thread: where it runs, its scheduled tasks (pause, resume, cancel, schedule another),
-   * and its lineage — the main
-   * thread with its side threads, agent-started and forked ones marked — plus "New side thread".
+   * Everything about a thread at hand: where it runs, its connectors, pull requests, background tasks,
+   * schedules (pause, resume, cancel, schedule another), secrets and its lineage — the main thread with its side
+   * threads, agent-started and forked ones marked — plus "New side thread". The floating summary card and the
+   * narrow-screen sheet both show it; the title lives in the top bar only.
    */
   let {
     thread,
@@ -46,8 +44,6 @@
     onschedulechange,
     onnewside,
     onworktree,
-    windowTitlebar = false,
-    mode = "summary",
     class: className,
   }: {
     thread: ui.Thread;
@@ -66,8 +62,6 @@
     onschedulechange?: ((schedule: ui.Schedule) => void) | undefined;
     onnewside?: (() => void) | undefined;
     onworktree: () => void;
-    windowTitlebar?: boolean;
-    mode?: "summary" | WorkspaceModuleId;
     class?: ClassValue;
   } = $props();
 
@@ -77,7 +71,6 @@
 
   const lookup = (id: string) => (tree.main.id === id ? tree.main : tree.sides.find((s) => s.id === id));
   const directory = useThreadDirectory();
-  const workspace = useWorkspace();
   const overview = useOverview();
   const panel = useThreadPanel(() => thread.id);
   const homeName = $derived(overview.machine(thread.nodeId) || "this computer");
@@ -99,49 +92,29 @@
   );
 </script>
 
-<div
-  class={[
-    "density-chrome grid min-w-0 grid-cols-1 divide-y divide-zinc-950/5 rounded-2xl bg-white py-1 shadow-sm ring-1 ring-zinc-950/10 dark:divide-white/8 dark:bg-zinc-950 dark:shadow-none dark:ring-white/10",
-    className,
-  ]}
->
-  {#if mode === "summary"}<ThreadTitleActions
-      {thread}
-      compact
-      class={windowTitlebar ? "desktop:hidden" : undefined}
-    />{/if}
+<div class={["density-chrome grid min-w-0 grid-cols-1 divide-y divide-zinc-950/5 py-1 dark:divide-white/8", className]}>
   {#if stale}<p role="status" class="px-3 py-2 text-sm/5 text-zinc-500 dark:text-zinc-400">
       {#if panel.data?.unavailable}Thread details are unavailable. Manage on {homeName}.
       {:else}{away || `Thread details on ${homeName} are unreachable.`} Showing last known details.{/if}
     </p>{/if}
-  {#if mode === "connectors"}<ThreadConnectors {thread} {panel} {homeName} disabled={stale} />{/if}
-  {#if mode === "summary"}<ThreadPlacement {thread} {worker} {onworktree} />{/if}
-  {#if mode === "summary" && thread.permissionModeNote}<p
-      class="px-3 py-2 text-sm text-pretty text-zinc-600 sm:text-xs dark:text-zinc-400"
-    >
+  <ThreadPlacement {thread} {worker} {onworktree} />
+  {#if thread.permissionModeNote}<p class="px-3 py-2 text-sm text-pretty text-zinc-600 sm:text-xs dark:text-zinc-400">
       {thread.permissionModeNote}
     </p>{/if}
-  {#if mode === "pull-requests" && capabilities?.supports("/pull-requests") !== false}<ThreadPullRequests
-      {thread}
-    />{:else if mode === "pull-requests"}<p class="px-3 py-2 text-sm text-zinc-500">
+  {#if capabilities?.supports("/pull-requests") !== false}<ThreadPullRequests {thread} />{:else}<p
+      class="px-3 py-2 text-sm text-zinc-500"
+    >
       Update Canopy on your gateway to link pull requests
     </p>{/if}
 
-  {#if mode === "summary" && thread.newestPullRequest?.ref}
-    {@const resource = thread.newestPullRequest.ref.id}
-    <PanelRow icon="git-fork" onclick={() => workspace?.().openModule({ module: "pull-requests", resource })}>
-      {thread.newestPullRequest.title || `Pull request #${thread.newestPullRequest.ref.number}`}
-    </PanelRow>
-  {/if}
-
-  {#if mode === "tasks" && onbackground}<BackgroundTasksSection
+  {#if onbackground}<BackgroundTasksSection
       tasks={backgroundTasks}
       threadId={thread.id}
       {items}
       onopen={onbackground}
     />{/if}
 
-  {#if mode === "summary" && activeSecrets.length > 0 && onsecretchange}
+  {#if activeSecrets.length > 0 && onsecretchange}
     <section aria-labelledby="secrets-title" class="grid min-w-0 grid-cols-1 px-1.5 py-1">
       <h2 id="secrets-title" class="px-2 py-0.5 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Secrets</h2>
       <ul role="list" class="grid grid-cols-1 gap-0.5">
@@ -152,7 +125,7 @@
     </section>
   {/if}
 
-  {#if mode === "tasks"}
+  {#if onschedule || panelSchedules.length > 0}
     <section aria-labelledby="schedules-title" class="grid min-w-0 grid-cols-1 px-1.5 py-1">
       <h2 id="schedules-title" class="px-2 py-0.5 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
         Scheduled tasks
@@ -184,7 +157,9 @@
     </section>
   {/if}
 
-  {#if mode === "summary" && thread.forkSourceThreadId}
+  <ThreadConnectors {thread} {panel} {homeName} disabled={stale} />
+
+  {#if thread.forkSourceThreadId}
     <section aria-label="Fork" class="grid min-w-0 grid-cols-1 px-1.5 py-1">
       <PanelRow icon="square-2-stack" href="/threads/{thread.forkSourceThreadId}">
         Forked from {source?.title ?? "another thread"}
@@ -199,5 +174,5 @@
     </section>
   {/if}
 
-  {#if mode === "summary"}<ThreadLineage {tree} currentId={thread.id} {onnewside} />{/if}
+  <ThreadLineage {tree} currentId={thread.id} {onnewside} />
 </div>

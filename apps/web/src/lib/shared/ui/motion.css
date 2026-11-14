@@ -345,9 +345,10 @@
   }
 }
 
-/* --- Panel reveal (07) for the thread's details panel, like the app sidebar: the page's grid eases the panel's
+/* --- Panel reveal (07) for the thread's Files panel, like the app sidebar: the workspace grid eases the panel's
  * column (`t-panel-column`, its --panel-width) open on --duration-slow and shut faster on --duration-medium; the
- * panel inside (`t-panel`) keeps its width on the column's left edge and fades, so its text never re-wraps. */
+ * panel inside (`t-panel`) stays mounted, keeps its width on the column's left edge and fades, so its text never
+ * re-wraps and the shrinking column clips it instead of letting it cover the thread. A drag resizes instantly. */
 .t-panel-column {
   transition: grid-template-columns var(--duration-slow) var(--ease-smooth-out);
 }
@@ -364,31 +365,32 @@
   opacity: 0;
   transition-duration: var(--duration-medium);
 }
+
+/* --- Thread summary (popover pattern 03, kept mounted): the card grows from its pill's corner on --duration-fast
+ * and shrinks back on --duration-quick; the pill fades out under the card and back in. Hidden layers keep their
+ * place (no layout change) and leave the tab order once faded. */
+.t-summary,
+.t-summary-pill {
+  transform-origin: top right;
+  transition-property: opacity, scale, visibility;
+  transition-duration: var(--duration-fast), var(--duration-fast), 0s;
+  transition-timing-function: var(--ease-smooth-out);
+}
+.t-summary[data-hidden],
+.t-summary-pill[data-hidden] {
+  opacity: 0;
+  scale: var(--scale-large);
+  visibility: hidden;
+  pointer-events: none;
+  transition-duration: var(--duration-quick), var(--duration-quick), 0s;
+  transition-delay: 0s, 0s, var(--duration-quick);
+}
 @media (prefers-reduced-motion: reduce) {
   .t-panel-column,
-  .t-panel {
+  .t-panel,
+  .t-summary,
+  .t-summary-pill {
     transition: none !important;
-  }
-}
-
-.t-workspace-surface {
-  transition: opacity var(--duration-quick) var(--ease-smooth-out);
-}
-.t-workspace-surface[data-leaving] {
-  opacity: 0;
-}
-.t-workspace-surface:not([data-leaving]) > * {
-  animation: t-rise var(--duration-fast) var(--ease-smooth-out);
-}
-@media (prefers-reduced-motion: reduce) {
-  .workspace-summary {
-    transition: none !important;
-  }
-  .t-workspace-surface {
-    transition: none;
-  }
-  .t-workspace-surface > * {
-    animation: none !important;
   }
 }
 

@@ -626,7 +626,7 @@
       if (["PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown", " "].includes(event.key)) readerGesture();
     }}
   >
-    <div class="mx-auto flex min-h-full max-w-(--chat-width) flex-col px-4 sm:px-6">
+    <div class="chat-column flex min-h-full flex-col px-4 sm:px-6">
       <!-- Keep a containing block between animations: starting/cancelling a transform must not relayout rows. -->
       <div bind:this={content} class="flex grow [transform:translateY(0)] flex-col pt-2 pb-8">
         {@render top?.()}
@@ -685,7 +685,7 @@
       <div bind:this={footerShell} class="absolute inset-x-0 bottom-0 isolate [clip-path:inset(-2rem_-4px_0)]">
         <div class="absolute inset-x-0 bottom-0">
           <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div class="mx-auto max-w-(--chat-width) px-4 sm:px-6" {onkeydown}>
+          <div class="chat-column px-4 sm:px-6" {onkeydown}>
             <div
               bind:this={footerElement}
               class="pointer-events-auto relative composer-bottom"

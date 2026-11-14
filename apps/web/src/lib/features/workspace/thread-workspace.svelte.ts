@@ -1,6 +1,7 @@
 import { untrack } from "svelte";
 import type { Workspace, WorkspaceTab } from "@canopy/domain/workspace";
 import { fileTab, tabBusy } from "@canopy/domain/workspace-modules";
+import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
 import { provideWorkspace, workspaceStore, workspaceVersion } from "./workspace.svelte.ts";
 
 export class ThreadWorkspace {
@@ -32,7 +33,7 @@ export class ThreadWorkspace {
   }
 
   get wide() {
-    return this.width >= 56.75 * this.rem;
+    return this.width >= 46 * this.rem;
   }
 
   close(id: string): void {
@@ -43,8 +44,19 @@ export class ThreadWorkspace {
     this.closeTabs(this.view.tabs.filter((tab) => tab.id !== id).map((tab) => tab.id));
   }
 
-  togglePanel(sheet: () => void): void {
-    if (this.wide) this.view.collapsePanel(!this.view.panelCollapsed);
+  /** Files shows as the right column (wide screens only). */
+  get filesOpen(): boolean {
+    return this.wide && devicePreferences.view.filesPanelOpen;
+  }
+
+  /** The floating thread summary is open or collapsed to its pill: one choice on this device. */
+  toggleSummary(): void {
+    devicePreferences.setView({ threadPanelCollapsed: !devicePreferences.view.threadPanelCollapsed });
+  }
+
+  /** Files is the right column on wide screens (one choice on this device) and a sheet on narrow ones. */
+  toggleFiles(sheet: () => void): void {
+    if (this.wide) devicePreferences.setView({ filesPanelOpen: !devicePreferences.view.filesPanelOpen });
     else sheet();
   }
 

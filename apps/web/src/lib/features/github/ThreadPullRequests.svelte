@@ -40,9 +40,9 @@
   );
 </script>
 
-<section aria-label="Pull requests" class={["grid min-w-0 gap-2 px-3 py-2", className]}>
-  <h2 class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Pull requests</h2>
-  <ul role="list" class="grid min-w-0 gap-2">
+<section aria-label="Pull requests" class={["grid min-w-0 gap-0.5 px-1.5 py-1", className]}>
+  <h2 class="px-2 py-0.5 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Pull requests</h2>
+  <ul role="list" class="grid min-w-0 gap-0.5">
     {#each expanded ? links : links.slice(0, 1) as link (link.summary?.ref?.id)}
       {@const pr = link.summary}
       {#if pr?.ref}

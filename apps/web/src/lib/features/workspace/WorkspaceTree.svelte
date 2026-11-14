@@ -10,7 +10,7 @@
   import MenuCheckItem from "#lib/shared/ui/MenuCheckItem.svelte";
   import { workspaceVersion } from "./workspace.svelte.ts";
 
-  let { view, onopen }: { view: Workspace; onopen: () => void } = $props();
+  let { view, root, onopen }: { view: Workspace; root: string; onopen: () => void } = $props();
   const tree = untrack(() => workspaceDirectories(view.store, 2 * 1024 * 1024).tree(view.threadId));
   const subscribe = createSubscriber((update) => tree.subscribe(update));
 
@@ -139,8 +139,12 @@
 
 <div class="relative flex h-full min-h-60 min-w-0 flex-col" aria-label="Files">
   <span class="pointer-events-none invisible absolute h-8 pointer-coarse:h-12" bind:clientHeight={rowHeight}></span>
-  <div class="flex h-10 shrink-0 items-center justify-between gap-2 border-b border-divider px-2">
-    <span class="truncate text-sm font-medium">Working directory</span>
+  <!-- The 48px strip lines up with the thread's top bar and keeps clear of the window controls. -->
+  <div class="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-divider pr-2 pl-3" data-window-end>
+    <p class="flex min-w-0 items-baseline gap-1.5 text-sm">
+      <span class="shrink-0 font-medium">Files</span>
+      {#if root}<span class="truncate text-muted" title={root}>{root}</span>{/if}
+    </p>
     <div class="flex shrink-0 gap-1">
       <IconButton icon="arrow-path" label="Reload files" onclick={() => tree.invalidate()} />
       <DropdownMenu label="File tree options" placement="bottom-end">
