@@ -142,6 +142,12 @@ writeFileSync(
   JSON.stringify({ packageName, version, major: Number(version.split(".")[0]), target, integrity }, null, 2),
 );
 
+// The packaged SDK is loaded from node_modules at runtime; re-export every name the real module has,
+// so a newly used SDK function can't break the desktop bundle.
+const claudeSdkExports = Object.keys(await import("@anthropic-ai/claude-agent-sdk")).filter(
+  (name) => name !== "default" && /^[A-Za-z_$][\w$]*$/.test(name),
+);
+
 for (const [name, entry] of Object.entries({
   controller: "src/controller.ts",
   gateway: "src/sidecars/gateway.ts",
@@ -192,7 +198,7 @@ for (const [name, entry] of Object.entries({
             contents: `import {createRequire} from 'node:module'; import {dirname,join} from 'node:path';
           const load = createRequire(join(dirname(process.execPath), 'package.json'));
           const library = load(join(dirname(process.execPath), 'node_modules', ${JSON.stringify(path === "sharp" ? "sharp/dist/index.cjs" : "@anthropic-ai/claude-agent-sdk/sdk.mjs")}));
-          ${path === "sharp" ? "export default library;" : "export const {query, forkSession, getSessionMessages, createSdkMcpServer} = library;"}`,
+          ${path === "sharp" ? "export default library;" : `export const {${claudeSdkExports.join(", ")}} = library;`}`,
           }));
           // Match standalone releases: ssh2 falls back to JS without these optional,
           // host-built addons. Do not accidentally copy a build machine's .node file.
