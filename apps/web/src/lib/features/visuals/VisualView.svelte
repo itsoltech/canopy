@@ -117,7 +117,15 @@
       </h3>
     </div>
     <span class="shrink-0 text-sm/5 text-zinc-500 tabular-nums sm:text-xs/5 dark:text-zinc-400">Version {version}</span>
-    <IconButton icon="arrows-pointing-out" label="Open full screen" size="sm" onclick={() => (fullscreen = true)} />
+    <IconButton
+      icon="arrows-pointing-out"
+      label="Open full screen"
+      size="sm"
+      onclick={() => {
+        open();
+        fullscreen = live;
+      }}
+    />
     <VisualMenu
       {threadId}
       {itemId}
