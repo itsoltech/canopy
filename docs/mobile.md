@@ -1952,6 +1952,13 @@ wirtualnej listy wierszy; edycja nadal jest natywna, bez live highlighting.
 
 ## Galerie obrazów agenta
 
+Miniatura zachowuje URI i zamontowany natywny Image po wyjściu poza viewport.
+Zmiana widoczności zatrzymuje tylko niedokończony odczyt. Ponowny montaż korzysta
+synchronicznie z pamięciowego indeksu istniejącego cache załączników, dzięki czemu
+natywny cache bitmap może użyć tego samego pliku bez pustej klatki. Indeks podlega
+tym samym limitom LRU i czyszczeniu przy unpair; nie utrzymujemy bitmap dla całej
+historii ani nie wyłączamy wirtualizacji odległych tur.
+
 Item `image_gallery` pozostaje widoczny pod odpowiedzią, również po zwinięciu
 aktywności tury. Dwie kolumny mieszczą początkowo sześć obrazów; „Show all N”
 rozwija pozostałe. Ramki 16:9 i zarezerwowane miejsce podpisu utrzymują układ.
@@ -1983,6 +1990,24 @@ Aktualizacje OTA: [Updates SDK 58](https://docs.expo.dev/versions/v58.0.0/sdk/up
 [podpisywanie EAS Update](https://docs.expo.dev/eas-update/code-signing/).
 
 ## Visuals agenta
+
+Karta HTML przed Run rezerwuje 112 dp zamiast wysokości dokumentu. Jawna zgoda
+i ostatnia wysokość są stanem pamięci sesji dla visuala i wersji, poza wierszem
+listy i slotem WebView. Błąd lub watchdog cofa zgodę; unpair czyści cały stan.
+Dokument nadal raportuje wysokość przez walidowany kanał shella, a WebView ma
+jawne `flex: 0`. Androidowa lista nie odłącza natywnych podwidoków przez clipping;
+odległe tury nadal są wirtualizowane.
+
+Zwijanie composera zmienia wyłącznie nakładkę, zachowując największą zmierzoną
+rezerwę listy na czas otwarcia wątku. Otwarcie przez przewijanie wymaga ruchu palca
+w stronę końca; zatrzymanie momentum dotknięciem nie dziedziczy poprzedniego
+gestu. Natywne kotwiczenie wątku nie ma progu autoscroll do zera.
+
+Arkusz Thread details na telefonie ma pełne położenie oraz położenie odsunięte
+o 40% własnej wysokości. Przeciągnięcie poniżej 65% zamyka go; szybki ruch
+w górę wraca do bliższego położenia. Animacja otwarcia jest oddzielona od offsetu
+gestu. Zawartość ma stałą wysokość, scroll bez odbijania oraz początkowe safe areas
+przekazane z okna aplikacji, bez oczekiwania na drugi pomiar po prezentacji.
 
 Item `visual` ([agent-visuals.md](agent-visuals.md)) renderuje `react-native-webview`
 (wersja przypięta przez SDK 58, `14.0.1`). Moduł nie ma config pluginu i nie dodaje

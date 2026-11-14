@@ -1,6 +1,6 @@
 import { useCallback, useContext, useId, useLayoutEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Modal, useWindowDimensions } from "react-native";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import { SafeAreaProvider, useSafeAreaFrame, useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardWindow } from "./KeyboardWindow";
 import { OverlaySurface } from "./OverlaySurface";
 import { useOverlayTransition } from "./useOverlayTransition";
@@ -30,6 +30,7 @@ export function Overlay({
   fullHeight = false,
   layer = true,
   children,
+  snap = false,
 }: {
   visible: boolean;
   /** Shared close controls notify the parent after the exit and native dismissal. */
@@ -41,8 +42,12 @@ export function Overlay({
   /** Shared dialogs (confirmations) may present above this overlay. */
   layer?: boolean;
   children: ReactNode;
+  /** Full and partially open resting positions on phones. */
+  snap?: boolean;
 }) {
   const id = useId();
+  const frame = useSafeAreaFrame();
+  const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [closing, setClosing] = useState(false);
   const close = useCallback(() => setClosing(true), []);
@@ -79,7 +84,7 @@ export function Overlay({
       onDismiss={didDismiss}
     >
       <OverlayParent.Provider value={id}>
-        <SafeAreaProvider>
+        <SafeAreaProvider initialMetrics={{ frame, insets }}>
           <KeyboardWindow preload={false}>
             <OverlaySurface
               visible={visible && !closing}
@@ -89,6 +94,7 @@ export function Overlay({
               velocity={velocity}
               wide={width >= WIDE_OVERLAY}
               fullHeight={fullHeight}
+              snap={snap}
               onLayout={didLayout}
             >
               {visible ? children : content.children}

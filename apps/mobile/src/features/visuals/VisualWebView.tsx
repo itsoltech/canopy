@@ -9,7 +9,6 @@ import {
   clampVisualHeight,
   openShellEnvelope,
   shellEnvelope,
-  VISUAL_LIMITS,
   VisualFrameInbox,
   type HostMessage,
   type VisualTheme,
@@ -17,6 +16,7 @@ import {
 import { Button } from "../../ui/Button";
 import { styles, useColors } from "../../ui/theme";
 import { useReducedMotion } from "../../ui/motion";
+import { useAnchoredToggle } from "../../ui/feed-anchor";
 import { SandboxedWebView } from "./SandboxedWebView";
 import { loadVisualStates, savedVisualState, saveVisualState } from "./visual-state";
 
@@ -57,7 +57,7 @@ function useVisualStatesLoaded(): boolean {
 }
 
 function useHtmlWatchdog(enabled: boolean, onFailure: (message: string) => void) {
-  const lastResponse = useRef(Date.now());
+  const lastResponse = useRef(0);
 
   useEffect(() => {
     if (!enabled) return;
@@ -88,6 +88,9 @@ export function VisualWebView({
   onHeight,
   onEscape,
   onRetry,
+  run,
+  onRun,
+  onStop,
 }: {
   response: ui.GetVisualResponse;
   theme: VisualTheme;
@@ -98,12 +101,15 @@ export function VisualWebView({
   onHeight?: (height: number) => void;
   onEscape?: () => void;
   onRetry: () => void;
+  run: boolean;
+  onRun: () => void;
+  onStop: () => void;
 }) {
   const reducedMotion = useReducedMotion();
   const web = useRef<WebView<object>>(null);
   const states = useVisualStatesLoaded();
+  const { header: resizeHeader, toggle: resizeAnchored } = useAnchoredToggle();
   const [failure, setFailure] = useState("");
-  const [run, setRun] = useState(false);
   // Per mount token: a new shell starts unloaded, so its first about:blank is allowed again.
   const [loadedToken, setLoadedToken] = useState("");
   const [height, setHeight] = useState(() => clampVisualHeight(initialHeight, maxHeight));
@@ -127,13 +133,17 @@ export function VisualWebView({
     [shell, response.visual?.htmlDocument],
   );
 
-  const lastResponse = useHtmlWatchdog(
+  const lastResponseRef = useHtmlWatchdog(
     Boolean(shell && response.visual?.htmlDocument && active && !failure),
     setFailure,
   );
 
   const loaded = Boolean(shell) && loadedToken === shell?.token;
   const ready = loaded ? shell : undefined;
+
+  useEffect(() => {
+    if (failure) onStop();
+  }, [failure, onStop]);
 
   useEffect(() => send(web.current, ready, { type: "theme", theme }), [ready, theme]);
   useEffect(() => send(web.current, ready, { type: "reduced_motion", reduced: reducedMotion }), [ready, reducedMotion]);
@@ -146,16 +156,23 @@ export function VisualWebView({
     const visual = response.visual;
 
     if (!message || !visual) return;
-    lastResponse.current = Date.now();
+    lastResponseRef.current = Date.now();
 
     switch (message.type) {
       case "ready":
       case "height": {
         const next = clampVisualHeight(message.height, maxHeight);
+
+        if (next === height) return;
         cancelAnimationFrame(frame.current);
         frame.current = requestAnimationFrame(() => {
-          setHeight(next);
-          onHeight?.(next);
+          const resize = () => {
+            setHeight(next);
+            onHeight?.(next);
+          };
+
+          if (onHeight && active) resizeAnchored(resize);
+          else resize();
         });
 
         return;
@@ -187,12 +204,12 @@ export function VisualWebView({
     );
 
   if (response.visual?.htmlDocument && !run)
-    return <VisualProblem text="Custom HTML from the agent." onRetry={() => setRun(true)} actionLabel="Run" />;
+    return <VisualProblem text="Custom HTML from the agent." onRetry={onRun} actionLabel="Run" />;
 
   if (!shell) return <View style={{ height }} />;
 
   return (
-    <View>
+    <View ref={resizeHeader} collapsable={false}>
       <SandboxedWebView
         key={shell.token}
         ref={web}
@@ -221,7 +238,7 @@ function VisualProblem({
   return (
     <View
       style={{
-        minHeight: VISUAL_LIMITS.minHeight,
+        minHeight: 112,
         alignItems: "center",
         justifyContent: "center",
         gap: 8,

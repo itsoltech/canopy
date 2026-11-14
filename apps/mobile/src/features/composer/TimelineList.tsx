@@ -89,6 +89,9 @@ export function TimelineList<Item>({
       <AnimatedTimelineList
         {...props}
         nestedScrollEnabled
+        // Android clipping detaches native WebViews inside inverted cells, even while React retains the row.
+        // FlatList still virtualizes/unmounts distant turns; this only disables native view detachment.
+        removeClippedSubviews={false}
         maintainVisibleContentPosition={manualAnchor ? { minIndexForVisible: 0 } : props.maintainVisibleContentPosition}
         onScroll={composedScroll}
         onLayout={(event) => {

@@ -29,6 +29,7 @@ interface Flight {
 /** One pairing owns this cache. Only file URIs remain in memory; downloaded byte arrays are released. */
 export class ImmutableImageCache {
   #memory = new Map<string, CachedImage>();
+  #keys = new Map<string, string>();
   #flights = new Map<string, Flight>();
   #memoryBytes = 0;
   #closed = false;
@@ -42,6 +43,13 @@ export class ImmutableImageCache {
 
   usage() {
     return { memoryBytes: this.#memoryBytes, memoryEntries: this.#memory.size, inFlight: this.#flights.size };
+  }
+
+  /** Synchronous remount path: the same immutable URI lets the native bitmap cache reuse its decoder result. */
+  peek(key: string): string {
+    const hashed = this.#keys.get(key);
+
+    return hashed ? (this.#memory.get(hashed)?.uri ?? "") : "";
   }
 
   /** Retry after a decoder failure must replace a damaged file, even if its size is unchanged. */
@@ -82,6 +90,7 @@ export class ImmutableImageCache {
     for (const flight of this.#flights.values()) flight.controller.abort();
     this.#flights.clear();
     this.#memory.clear();
+    this.#keys.clear();
     this.#memoryBytes = 0;
 
     return this.#serial(() => this.storage.clear());
@@ -149,7 +158,7 @@ export class ImmutableImageCache {
 
       await this.storage.touch(image);
       ensureActive();
-      this.#remember(image);
+      this.#remember(key, image);
 
       return image.uri;
     });
@@ -167,7 +176,7 @@ export class ImmutableImageCache {
       ensureActive();
       const image = await this.storage.write(hashed, data);
       ensureActive();
-      this.#remember(image);
+      this.#remember(key, image);
 
       return image.uri;
     });
@@ -191,11 +200,12 @@ export class ImmutableImageCache {
     return kept;
   }
 
-  #remember(image: CachedImage) {
+  #remember(key: string, image: CachedImage) {
     this.#drop(image.key);
 
     if (image.bytes > this.limits.memory) return;
     this.#memory.set(image.key, image);
+    this.#keys.set(key, image.key);
     this.#memoryBytes += image.bytes;
 
     while (this.#memoryBytes > this.limits.memory) {
@@ -209,6 +219,8 @@ export class ImmutableImageCache {
   #drop(key: string) {
     this.#memoryBytes -= this.#memory.get(key)?.bytes ?? 0;
     this.#memory.delete(key);
+
+    for (const [source, hashed] of this.#keys) if (hashed === key) this.#keys.delete(source);
   }
 
   #serial<T>(run: () => Promise<T>): Promise<T> {

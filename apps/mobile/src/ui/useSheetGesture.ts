@@ -72,6 +72,8 @@ export function useSheetGesture(
   height: SharedValue<number>,
   visible: boolean,
   onClose: () => void,
+  offset: SharedValue<number>,
+  twoStops = false,
 ) {
   const reduced = useReducedMotion();
   const keyboard = useKeyboardFrame();
@@ -81,7 +83,9 @@ export function useSheetGesture(
 
   useLayoutEffect(() => {
     enabled.set(visible);
-  }, [enabled, visible]);
+
+    if (visible) offset.set(0);
+  }, [enabled, visible, offset]);
 
   return useMemo(() => {
     const start = () => {
@@ -97,28 +101,40 @@ export function useSheetGesture(
       }
 
       cancelAnimation(progress);
-      origin.set(sheetDragDistance((1 - progress.get()) * travel.get(), height.get()));
+      cancelAnimation(offset);
+
+      const distance = offset.get() + (1 - progress.get()) * travel.get();
+      origin.set(sheetDragDistance(distance, height.get()));
+      offset.set(distance);
+      progress.set(1);
     };
 
     const move = (dy: number) => {
       "worklet";
 
-      if (enabled.get() && !keyboardOnly.get())
-        progress.set(1 - sheetDragOffset(origin.get() + dy, height.get()) / travel.get());
+      if (enabled.get() && !keyboardOnly.get()) offset.set(sheetDragOffset(origin.get() + dy, height.get()));
     };
 
     const finish = (dy: number, vy: number, cancelled: boolean) => {
       "worklet";
 
       if (!enabled.get() || keyboardOnly.get()) return;
-      const offset = sheetDragOffset(origin.get() + dy, height.get());
-      progress.set(1 - offset / travel.get());
+      const distance = sheetDragOffset(origin.get() + dy, height.get());
+      offset.set(distance);
 
-      if (!cancelled && shouldDismissSheet(offset, height.get(), vy)) {
+      const dismiss = twoStops
+        ? distance > height.get() * 0.65 && vy > -300
+        : shouldDismissSheet(distance, height.get(), vy);
+
+      if (!cancelled && dismiss) {
+        // Exit takes over at the exact released position; the resting offset must not be applied twice.
+        progress.set(1 - distance / travel.get());
+        offset.set(0);
         velocity.set(-vy / travel.get());
         scheduleOnRN(onClose);
       } else {
-        progress.set(reduced ? 1 : withSpring(1, { ...sheetSpring, velocity: -vy / travel.get() }));
+        const target = twoStops && distance + (cancelled ? 0 : vy * 0.15) > height.get() * 0.2 ? height.get() * 0.4 : 0;
+        offset.set(reduced ? target : withSpring(target, { ...sheetSpring, velocity: cancelled ? 0 : vy }));
       }
     };
 
@@ -128,5 +144,19 @@ export function useSheetGesture(
       (dy) => scheduleOnUI(move, dy),
       (dy, vy, cancelled) => scheduleOnUI(finish, dy, vy, cancelled),
     );
-  }, [progress, velocity, travel, height, visible, onClose, reduced, keyboard.height, origin, keyboardOnly, enabled]);
+  }, [
+    progress,
+    velocity,
+    travel,
+    height,
+    visible,
+    onClose,
+    reduced,
+    keyboard.height,
+    origin,
+    keyboardOnly,
+    enabled,
+    offset,
+    twoStops,
+  ]);
 }

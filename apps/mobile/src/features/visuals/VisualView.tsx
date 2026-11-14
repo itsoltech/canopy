@@ -11,6 +11,7 @@ import { VisualSummary } from "../timeline/items/VisualSummary";
 import { VisualActions } from "./VisualActions";
 import { useVisualLifecycle } from "./useVisualLifecycle";
 import { useVisualTheme } from "./visual-theme";
+import { useVisualSession } from "./useVisualSession";
 
 /**
  * Builds without the WebView module (an older binary running a newer update) keep the text card. The module is
@@ -38,10 +39,10 @@ function InteractiveVisual({ visual }: { visual: Visual }) {
   const appActive = useAppActive();
   const showing = viewport.visible && appActive;
   const [selected, setSelected] = useState(0);
-  const [height, setHeight] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
   const [actions, setActions] = useState(false);
   const version = selected || visual.version;
+  const session = useVisualSession(visual.visualId, version);
 
   const { live, response, failure, attempt, ready, open, claim, retry } = useVisualLifecycle({
     visual,
@@ -58,7 +59,10 @@ function InteractiveVisual({ visual }: { visual: Visual }) {
     Math.max(VISUAL_LIMITS.minHeight, Math.round(window.height * 0.7)),
   );
 
-  const reserved = height || clampVisualHeight(visual.height || VISUAL_LIMITS.defaultHeight, maxHeight);
+  const reserved =
+    shown.htmlDocument && !session.run
+      ? 112
+      : session.height || clampVisualHeight(shown.height || VISUAL_LIMITS.defaultHeight, maxHeight);
 
   function openFullscreen() {
     claim();
@@ -86,8 +90,11 @@ function InteractiveVisual({ visual }: { visual: Visual }) {
           theme={theme}
           maxHeight={full ? Math.max(VISUAL_LIMITS.minHeight, window.height - 120) : maxHeight}
           initialHeight={full ? VISUAL_LIMITS.defaultHeight : reserved}
+          run={session.run}
+          onRun={session.start}
+          onStop={session.stop}
           active={full || showing}
-          {...(full ? { onEscape: () => setFullscreen(false) } : { onHeight: setHeight })}
+          {...(full ? { onEscape: () => setFullscreen(false) } : { onHeight: session.measure })}
           onRetry={retry}
         />
       </Suspense>
@@ -100,12 +107,14 @@ function InteractiveVisual({ visual }: { visual: Visual }) {
       accessibilityLabel={`Visual: ${shown.title}`}
       style={{ overflow: "hidden", borderRadius: 12, borderWidth: 1, borderColor: c.ring, backgroundColor: c.surface }}
     >
-      <VisualHeader
-        title={shown.title}
-        version={version}
-        onFullscreen={openFullscreen}
-        onActions={() => setActions(true)}
-      />
+      <View ref={session.header} collapsable={false}>
+        <VisualHeader
+          title={shown.title}
+          version={version}
+          onFullscreen={openFullscreen}
+          onActions={() => setActions(true)}
+        />
+      </View>
       <View style={{ minHeight: reserved, justifyContent: "center" }}>
         {ready && !fullscreen ? (
           webView(false)

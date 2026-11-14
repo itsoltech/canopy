@@ -85,6 +85,7 @@ export function Sheet({
   children,
   scroll = true,
   footer,
+  snap = false,
 }: {
   title: string;
   visible: boolean;
@@ -92,12 +93,14 @@ export function Sheet({
   children: ReactNode;
   scroll?: boolean;
   footer?: ReactNode;
+  snap?: boolean;
 }) {
   const c = useColors();
 
   return (
     <SheetSurface
       scroll={scroll}
+      snap={snap}
       visible={visible}
       label={title}
       onClose={onClose}
