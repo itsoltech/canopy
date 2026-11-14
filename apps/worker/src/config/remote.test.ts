@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, symlinkSync } from "node:fs";
+import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { DeviceLogin, Provider, ProviderProfileKind, WorkerConfigSchema } from "@canopy/contracts";
@@ -186,6 +186,41 @@ describe("applyWorkerConfig", () => {
 });
 
 describe("applyWorkerConfig: custom profiles", () => {
+  test("Grok availability uses the same custom auth path as login and respects isolated homes", () => {
+    const device = tempDir("canopy-grok-availability-");
+    const custom = join(device, "custom-login.json");
+    writeFileSync(custom, "fixture-login");
+
+    const result = applyWorkerConfig(
+      config({
+        grok: { enabled: true },
+        profiles: [
+          { id: "native", providers: [Provider.GROK], kind: ProviderProfileKind.NATIVE },
+          { id: "own", providers: [Provider.GROK], kind: ProviderProfileKind.NATIVE, ownLogin: true },
+          {
+            id: "custom-home",
+            providers: [Provider.GROK],
+            kind: ProviderProfileKind.NATIVE,
+            homePath: device,
+          },
+        ],
+      }),
+      { ...probe, which: () => "grok", login: systemProbe.login! },
+      { dataDir: device, claude: device, codex: device, grok: device, env: { GROK_AUTH_PATH: custom } },
+    );
+
+    if (!result.applied) throw new Error("expected applied");
+    const native = result.config.profiles.find((p) => p.config.id === "native" && p.config.providers?.includes("grok"));
+    expect(native?.authenticated).toBe(true);
+    expect(native?.resolved).toBeDefined();
+
+    for (const id of ["own", "custom-home"]) {
+      const isolated = result.config.profiles.find((p) => p.config.id === id);
+      expect(isolated?.authenticated).toBe(false);
+      expect(isolated?.resolved).toBeUndefined();
+    }
+  });
+
   test("carries names, variables and the disabled flag; a bad variable is an issue of that profile only", () => {
     const result = applyWorkerConfig(
       config({

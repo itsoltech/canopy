@@ -236,21 +236,31 @@ export class ProviderLogins {
   }
 
   async #refresh(target: ReturnType<ProviderLogins["target"]>) {
-    for (const profile of target.config.profiles) {
+    const config = this.ctx.state.config;
+    this.ctx.state.accounts.invalidate();
+
+    for (const profile of config?.profiles ?? []) {
       if (!providersOf(profile.config).includes(target.harness)) continue;
 
       if (profile.config.disabled || profile.config.kind !== "native") continue;
 
-      if (!profile.config.runtime?.ownLogin && !target.config[target.harness].linkDeviceLogin) continue;
+      if (!profile.config.runtime?.ownLogin && !config?.[target.harness].linkDeviceLogin) continue;
 
-      const current = this.target(
-        Match.value(target.harness).pipe(
-          Match.when("claude", () => Provider.CLAUDE),
-          Match.when("codex", () => Provider.CODEX),
-          Match.orElse(() => Provider.GROK),
-        ),
-        profile.config.id,
-      );
+      let current: ReturnType<ProviderLogins["target"]>;
+
+      try {
+        current = this.target(
+          Match.value(target.harness).pipe(
+            Match.when("claude", () => Provider.CLAUDE),
+            Match.when("codex", () => Provider.CODEX),
+            Match.orElse(() => Provider.GROK),
+          ),
+          profile.config.id,
+        );
+      } catch {
+        // A sibling that no longer resolves must not suppress the completed login report.
+        continue;
+      }
 
       if (current.key === target.key) {
         const key = `${target.harness}/${current.id}`;
@@ -258,7 +268,6 @@ export class ProviderLogins {
       }
     }
 
-    this.ctx.state.accounts.invalidate();
     await this.ctx.ops.probe().catch(() => {});
     await this.ctx.ops.reconcileRuntimes().catch(() => {});
   }

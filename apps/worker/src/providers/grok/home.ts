@@ -1,7 +1,7 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ProfileRuntimeConfig } from "../profiles.ts";
-import { instanceShadowHome } from "../../config/remote.ts";
+import { instanceShadowHome } from "../../config/homes.ts";
 
 /** CLI auth stays in one durable store, independently of transient ACP configuration. */
 export function grokAuthPath(options: {

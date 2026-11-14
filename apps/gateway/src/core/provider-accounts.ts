@@ -218,7 +218,10 @@ export class ProviderAccounts {
 
     if (!prior || prior.version !== version)
       this.#reports.set(connection.workerId, { connection, version, accounts: new Map() });
-    void this.refresh(connection, version);
+    // ConfigApplied also signals completed CLI auth. A read started before this event
+    // may still contain the pending login, so read again after that report settles.
+    const pending = this.#flights.get(connection)?.get(`${version}/${Provider.UNSPECIFIED}/`);
+    void (pending?.task ?? Promise.resolve()).then(() => this.refresh(connection, version));
   }
 
   #save(

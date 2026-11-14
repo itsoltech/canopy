@@ -98,6 +98,12 @@ describe.skipIf(!dockerAvailable)("official CLI auth over gateway↔worker", () 
 
   test("terminal stores carry over; Claude refresh replaces its file without a stale copy", async () => {
     expect((await account(Provider.GROK))?.state).toBe("stored");
+    expect(existsSync(join(device.grok, "auth.json"))).toBe(false);
+    const grok = (await gw.api.listProviderInstances({})).instances.find((i) => i.harness === Provider.GROK);
+    expect(grok?.workers.find((w) => w.workerId === workerId)).toMatchObject({
+      available: true,
+      authenticated: true,
+    });
     const file = join(device.claude, ".credentials.json");
     writeFileSync(file + ".new", "fixture-refreshed");
     renameSync(file + ".new", file);
@@ -138,6 +144,60 @@ describe.skipIf(!dockerAvailable)("official CLI auth over gateway↔worker", () 
     expect(logs.join("\n")).not.toContain("fixture-secret-must-not-leak");
     expect(logs.join("\n")).not.toContain("fixture-code");
   }, 60_000);
+
+  for (const change of ["disable", "remove"] as const)
+    test(`Claude publishes sign-in completion after a sibling is ${change}d`, async () => {
+      const sibling = request(Provider.CLAUDE, `sibling-${change}`);
+      await gw.api.saveProviderInstance({
+        ...sibling,
+        create: true,
+        label: "Shared Claude login",
+        kind: ProviderProfileKind.NATIVE,
+      });
+      await gw.api.setInstanceWorker({ ...sibling, enabled: true });
+
+      const configured = await eventually(
+        async () => host.config?.profiles.find((p) => p.config.id === sibling.id),
+        (p) => !!p && !p.config.disabled,
+        20_000,
+      );
+
+      expect(configured?.config.disabled).toBeFalsy();
+      expect(configured).toBeDefined();
+      // Drain the new siblings' status probes before reserving a CLI login process.
+      await gw.api.refreshProviders({ workerId, accountOnly: true });
+      const credentials = join(device.claude, ".credentials.json");
+      writeFileSync(credentials, "fixture-refreshed");
+      const login = await gw.api.startProviderLogin(request(Provider.CLAUDE));
+
+      if (change === "disable") await gw.api.setInstanceWorker({ ...sibling, enabled: false });
+      else await gw.api.deleteProviderInstance(sibling);
+
+      const changed = await eventually(
+        async () => host.config?.profiles.find((p) => p.config.id === sibling.id),
+        (p) => !p || !!p.config.disabled,
+        20_000,
+      );
+
+      expect(!changed || changed.config.disabled).toBe(true);
+      await gw.api.completeProviderLogin({ ...request(Provider.CLAUDE), loginId: login.loginId, code: "fixture-code" });
+
+      const saved = await eventually(
+        async () => readFileSync(credentials, "utf8"),
+        (value) => value === "fixture-login",
+      );
+
+      expect(saved).toBe("fixture-login");
+
+      const finished = await eventually(
+        () => account(Provider.CLAUDE),
+        (a) => a?.loginId === login.loginId && a.loginOutcome === "signed_in",
+        20_000,
+      );
+
+      expect(finished, logs.join("\n")).toMatchObject({ loginId: login.loginId, loginOutcome: "signed_in" });
+      expect(readFileSync(join(device.claude, ".credentials.json"), "utf8")).toBe("fixture-login");
+    }, 60_000);
 
   test("Grok device flow reports its own result and logout removes only the selected store", async () => {
     const [login, again] = await Promise.all([

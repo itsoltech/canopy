@@ -303,6 +303,46 @@ console.log(JSON.stringify({ loggedIn: true, authMethod: "claude.ai", email: "qa
     }
   });
 
+  test("ConfigApplied reads accounts again after an earlier report finishes", async () => {
+    const connection = gw.core.link.connections.get(workerId)!;
+    const worker = (await gw.api.getOverview({})).workers.find((w) => w.id === workerId)!;
+    await gw.core.accounts.refresh(connection, worker.configVersion);
+    const captured = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const reread = Promise.withResolvers<void>();
+    const handle = host.handleCommand.bind(host);
+    let reads = 0;
+    host.handleCommand = async (command) => {
+      const result = await handle(command);
+
+      if (command.kind.case === "getProviderAccounts") {
+        reads++;
+
+        if (reads === 1) {
+          captured.resolve();
+          await release.promise;
+        } else reread.resolve();
+      }
+
+      return result;
+    };
+
+    const background = gw.core.accounts.refresh(connection, worker.configVersion);
+
+    try {
+      await captured.promise;
+      gw.core.accounts.applied(connection, worker.configVersion);
+      release.resolve();
+      await reread.promise;
+      expect(reads).toBe(2);
+      expect(await gw.core.accounts.refresh(connection, worker.configVersion)).toBe(true);
+    } finally {
+      release.resolve();
+      await background;
+      host.handleCommand = handle;
+    }
+  });
+
   test("a full provider refresh invalidates login metadata without a configuration version change", async () => {
     writeFileSync(join(dir, "plan"), "enterprise");
     const before = count();

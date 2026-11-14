@@ -17,7 +17,8 @@ export class HostCatalog {
       dataDir: this.ctx.state.options.dataDir,
       claude: this.ctx.state.deviceHomes.claude,
       codex: this.ctx.state.deviceHomes.codex,
-      grok: process.env["GROK_HOME"] || join(homedir(), ".grok"),
+      grok: this.ctx.state.deviceHomes.grok ?? join(homedir(), ".grok"),
+      ...(this.ctx.state.deviceHomes.grokAuthPath && { grokAuthPath: this.ctx.state.deviceHomes.grokAuthPath }),
       env: process.env,
     };
   }

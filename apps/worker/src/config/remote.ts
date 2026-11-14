@@ -23,6 +23,10 @@ import {
 } from "../providers/index.ts";
 import { CLIS, discoverCli, findCli, systemCliProbe, type CliProbe } from "../cli-tools/discovery.ts";
 import { shellEnvReady } from "../cli-tools/shell-env.ts";
+import { grokAuthPath } from "../providers/grok/home.ts";
+import { instanceShadowHome } from "./homes.ts";
+
+export { instanceHome, instanceShadowHome } from "./homes.ts";
 
 /**
  * Async preparation keeps configuration validation synchronous and test probes deterministic. The provider CLIs are
@@ -109,7 +113,7 @@ export interface DeviceProbe {
    * The CLI login kept in a home (Codex auth.json, Claude .credentials.json): how it authenticates, null when there is
    * none, undefined when the device cannot tell (e.g. Claude on macOS keeps it in the Keychain). Absent = cannot tell.
    */
-  login?(harness: "claude" | "codex" | "grok", home: string): string | null | undefined;
+  login?(harness: "claude" | "codex" | "grok", home: string, authPath?: string): string | null | undefined;
 }
 
 /** Where provider instances live on the device (global provider instances, docs/worker-config.md, section 9). */
@@ -120,28 +124,9 @@ export interface DeviceHomes {
   readonly claude: string;
   readonly codex: string;
   readonly grok?: string;
+  readonly grokAuthPath?: string;
   /** The worker process's environment (keys a native Claude may take from it). */
   readonly env?: Readonly<Record<string, string | undefined>>;
-}
-
-/** The isolated home of an instance with its own login or login source when no shadow home is set. */
-export function instanceHome(dataDir: string, harness: "claude" | "codex" | "grok", id: string): string {
-  return join(dataDir, "homes", `${harness}-${id}`);
-}
-
-/**
- * The isolated home an instance runs with: its shadow home, else its own one when it keeps its own login or links
- * another login (two logins cannot share a home), else undefined = the worker's shared home.
- */
-export function instanceShadowHome(
-  dataDir: string,
-  harness: "claude" | "codex" | "grok",
-  id: string,
-  runtime: { readonly shadowHomePath?: string; readonly homePath?: string; readonly ownLogin?: boolean } | undefined,
-): string | undefined {
-  if (runtime?.shadowHomePath) return runtime.shadowHomePath;
-
-  return runtime?.ownLogin || runtime?.homePath ? instanceHome(dataDir, harness, id) : undefined;
 }
 
 export const systemProbe: DeviceProbe = {
@@ -154,14 +139,14 @@ export const systemProbe: DeviceProbe = {
 
     return statSync(real).isDirectory() ? real : undefined;
   },
-  login: (harness, home) => {
+  login: (harness, home, authPath) => {
     if (harness === "claude") {
       if (existsSync(join(home, ".credentials.json"))) return "Claude account";
 
       return process.platform === "darwin" ? undefined : null;
     }
 
-    const file = join(home, "auth.json");
+    const file = authPath ?? join(home, "auth.json");
 
     if (!existsSync(file)) return null;
 
@@ -398,7 +383,18 @@ function inspectProfile(
       ? config.runtime?.homePath || homes[harness]
       : undefined;
 
-  const login = home === undefined ? null : probe.login(harness, home);
+  const authPath =
+    harness === "grok"
+      ? grokAuthPath({
+          dataDir: homes.dataDir,
+          id: config.id,
+          runtime: config.runtime ?? {},
+          deviceHome: homes.grok,
+          deviceAuthPath: homes.grokAuthPath ?? homes.env?.["GROK_AUTH_PATH"],
+        })
+      : undefined;
+
+  const login = home === undefined ? null : probe.login(harness, home, authPath);
 
   if (login === undefined) return versioned;
 
