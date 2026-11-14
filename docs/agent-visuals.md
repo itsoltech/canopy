@@ -23,7 +23,7 @@ w odpowiedzi agenta, otwiera pełny obraz i pobiera go również z telefonu.
 Po prośbie o diagram lub wariant przycisku zmienia kroki, zakładki i warianty
 bez wychodzenia z wątku. Ponowne otwarcie odtwarza opublikowany materiał.
 
-Poza v1: edytor dokumentów, dowolne aplikacje HTML/JS, zależności z CDN,
+Poza komponentowym v1: edytor dokumentów, dowolne aplikacje HTML/JS (osobne `render_html`, §9), zależności z CDN,
 połączenia sieciowe visuala, uruchamianie kodu projektu, współdzielony stan
 przełączników oraz wykonywanie akcji przez przycisk w visualu.
 
@@ -359,17 +359,16 @@ subframe'om; eksport i pełny ekran obsługuje wyłącznie host po jego kliknię
 Istniejące blokady `window.open`, nawigacji i uprawnień pozostają aktywne.
 
 Mobile renderuje Markdown natywnie; WebView służy wyłącznie visualom.
-Visual używa izolowanego modułu `react-native-webview` (14.0.1 dla SDK 58) i wymaga
-nowych development/store buildów z innym fingerprintem; nie obiecujemy wdrożenia OTA
-do starszego runtime. Nie migrujemy całej osi czasu do WebView.
+Visual używa izolowanego modułu `react-native-webview` (14.0.1 dla SDK 58), już
+połączonego w runtime visuals. `render_html` nie dodaje modułów natywnych ani
+zmian natywnych. Nie migrujemy całej osi czasu do WebView.
 
 WebView zawiera zaufany shell oraz wewnętrzny iframe z tym samym sandboxem.
-Most React Native jest wyłącznie w shellu; subframe nie może go wywołać ani
-przekazać komunikatu o dowolnym typie. iOS/Android wymagają osobnego dowodu
+Token mostu React Native jest wyłącznie w shellu; subframe nie może przekazać
+zaakceptowanego komunikatu bez tego tokenu. iOS/Android wymagają osobnego dowodu
 tej granicy przed udostępnieniem funkcji. Wyłączone: dostęp file/universal-file,
-shared cookies, mixed content, okna, formularze, nawigacje i wszelkie żądania
-zasobów poza początkowym lokalnym shellem. Native przechwytuje nawigację
-i requesty, ale CSP oraz brak adresów w schemacie nie zależą od samego callbacka
+shared cookies, mixed content, okna, formularze i nawigacje.
+Native przechwytuje nawigację, ale nie wszystkie żądania zasobów. CSP oraz brak adresów w schemacie komponentów nie zależą od samego callbacka
 `onShouldStartLoadWithRequest` (jego pokrycie różni się między platformami).
 WebView nie otrzymuje tokenu Connect, JS gatewaya, storage ani URL-i załączników.
 
