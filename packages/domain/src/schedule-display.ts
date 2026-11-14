@@ -1,3 +1,4 @@
+import { timestampDate } from "@bufbuild/protobuf/wkt";
 import type { ui } from "@canopy/contracts";
 
 /** The API falls back to the first 60 message characters when no explicit name was saved. */
@@ -56,4 +57,32 @@ export function describeCron(cron: string): string {
   if (number.test(day) && weekday === "*") return `Monthly on day ${day} at ${at}`;
 
   return cron;
+}
+
+const hour = 3_600_000;
+
+/** When a duplicated task first runs (a one-off) and when it ends (an end date). */
+export interface DuplicateScheduleTimes {
+  runAt: Date;
+  until?: Date;
+}
+
+/**
+ * Times for a new task copied from `schedule` (Duplicate): a one-off time that has passed moves to the next
+ * full hour; an end date that has passed keeps the original task's span, counted from `now`.
+ */
+export function duplicateScheduleTimes(
+  schedule: Pick<ui.Schedule, "runAt" | "until" | "createdAt">,
+  now: Date,
+): DuplicateScheduleTimes {
+  const runAt = schedule.runAt ? timestampDate(schedule.runAt) : undefined;
+  const nextHour = new Date(now.getTime() + hour);
+  nextHour.setMinutes(0, 0, 0);
+  const times: DuplicateScheduleTimes = { runAt: runAt && runAt > now ? runAt : nextHour };
+
+  if (!schedule.until) return times;
+  const until = timestampDate(schedule.until);
+  const span = schedule.createdAt ? until.getTime() - timestampDate(schedule.createdAt).getTime() : 0;
+
+  return { ...times, until: until > now ? until : new Date(now.getTime() + (span > 0 ? span : 7 * 24 * hour)) };
 }

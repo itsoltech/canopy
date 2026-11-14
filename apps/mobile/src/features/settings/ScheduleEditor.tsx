@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { create } from "@bufbuild/protobuf";
-import { timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";
+import { timestampDate, timestampFromDate, type Timestamp } from "@bufbuild/protobuf/wkt";
 import { ui } from "@canopy/contracts";
 import { useOverview } from "../../state/overview";
 import { Button, Field } from "../../ui/components";
@@ -15,13 +15,17 @@ import { useWorkerOptions } from "../computers/worker-options";
 import { projectAwayReason } from "@canopy/domain/linked-snapshot";
 import { splitId } from "@canopy/domain/computers";
 import { awayReason, formatPresenceTime } from "@canopy/domain/computer-presence";
+import { duplicateScheduleTimes } from "@canopy/domain/schedule-display";
 
+/** Edits `schedule`, or creates a task: empty, or with the settings of `template` (Duplicate). */
 export function ScheduleEditor({
   schedule,
+  template,
   defaultThreadId,
   onSaved,
 }: {
   schedule?: ui.Schedule;
+  template?: ui.Schedule;
   defaultThreadId?: string;
   onSaved: () => void;
 }) {
@@ -29,17 +33,20 @@ export function ScheduleEditor({
   const overview = useOverview();
   const home = useComputerHome(schedule ? splitId(schedule.id).node : undefined);
 
+  const from = schedule ?? template;
+  const [start] = useState(() => startTimes(schedule, template));
+
   const [draft, setDraft] = useState(() =>
     create(ui.CreateScheduleRequestSchema, {
-      threadId: schedule?.threadId ?? defaultThreadId,
-      ...scheduleDraft(schedule),
+      threadId: from?.threadId || defaultThreadId,
+      ...scheduleDraft(from),
     }),
   );
 
-  const [kind, setKind] = useState(schedule?.kind || "once");
-  const [date, setDate] = useState(schedule?.runAt ? timestampDate(schedule.runAt).toISOString() : "");
-  const [cron, setCron] = useState(schedule?.cron || "0 9 * * 1-5");
-  const [until, setUntil] = useState(schedule?.until ? timestampDate(schedule.until).toISOString() : "");
+  const [kind, setKind] = useState(from?.kind || "once");
+  const [date, setDate] = useState(start.date);
+  const [cron, setCron] = useState(from?.cron || "0 9 * * 1-5");
+  const [until, setUntil] = useState(start.until);
 
   const change = (patch: Partial<ui.CreateScheduleRequest>) =>
     setDraft(create(ui.CreateScheduleRequestSchema, { ...draft, ...patch }));
@@ -53,8 +60,6 @@ export function ScheduleEditor({
     draft.target === "thread"
       ? threadHome.away
       : workspaceHome.away || Boolean(project && projectAwayReason(project, overview.workers, overview.computers));
-
-  const validDate = (text: string) => Number.isFinite(Date.parse(text));
 
   const save = () => {
     const configuration = create(ui.CreateScheduleRequestSchema, {
@@ -129,21 +134,39 @@ export function ScheduleEditor({
       )}
       <Button
         variant="primary"
-        title={schedule ? "Save schedule" : "Create schedule"}
+        title={schedule ? "Save schedule" : template ? "Duplicate schedule" : "Create schedule"}
         busy={resource.busy}
-        disabled={
-          home.away ||
-          targetAway ||
-          !draft.prompt.trim() ||
-          (kind === "once" && !validDate(date)) ||
-          (kind === "recurring" && !cron) ||
-          (!!until && !validDate(until)) ||
-          (draft.target === "thread" && !draft.threadId)
-        }
+        disabled={home.away || targetAway || !complete({ draft, kind, date, cron, until })}
         onPress={save}
       />
     </ResourceState>
   );
+}
+
+const validDate = (text: string) => Number.isFinite(Date.parse(text));
+
+/** The form has everything a save needs (the gateway still validates it). */
+function complete(form: { draft: ui.CreateScheduleRequest; kind: string; date: string; cron: string; until: string }) {
+  const { draft, kind, date, cron, until } = form;
+
+  return (
+    !!draft.prompt.trim() &&
+    (kind !== "once" || validDate(date)) &&
+    (kind !== "recurring" || !!cron) &&
+    (!until || validDate(until)) &&
+    (draft.target !== "thread" || !!draft.threadId)
+  );
+}
+
+/** The run time and end date the form starts with; a duplicate never starts or ends in the past. */
+function startTimes(schedule?: ui.Schedule, template?: ui.Schedule) {
+  const copied = template && !schedule ? duplicateScheduleTimes(template, new Date()) : undefined;
+  const iso = (time?: Timestamp) => (time ? timestampDate(time).toISOString() : "");
+
+  return {
+    date: copied?.runAt.toISOString() ?? iso(schedule?.runAt),
+    until: copied?.until?.toISOString() ?? iso(schedule?.until),
+  };
 }
 
 function scheduleDraft(schedule?: ui.Schedule) {

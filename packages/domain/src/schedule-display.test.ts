@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { describeCron, scheduleHeading } from "./schedule-display.ts";
+import { timestampFromDate } from "@bufbuild/protobuf/wkt";
+import { describeCron, duplicateScheduleTimes, scheduleHeading } from "./schedule-display.ts";
 
 describe("scheduled task presentation", () => {
   test("legacy message prefixes do not become duplicate titles, including mid-word truncation", () => {
@@ -21,5 +22,23 @@ describe("scheduled task presentation", () => {
     expect(describeCron("*/15 * * * *")).toBe("Every 15 minutes");
     expect(describeCron("0 8 1 * *")).toBe("Monthly on day 1 at 08:00");
     expect(describeCron("0 8 * 1-3 1,3")).toBe("0 8 * 1-3 1,3");
+  });
+
+  test("a duplicate never starts in the past and keeps the original span to its end date", () => {
+    const now = new Date(2026, 10, 14, 10, 20);
+    const at = (date: Date) => timestampFromDate(date);
+    const created = new Date(2026, 10, 1, 9, 0);
+    const ended = new Date(2026, 10, 4, 9, 0);
+
+    expect(duplicateScheduleTimes({ runAt: at(new Date(2026, 10, 12, 9, 0)) }, now)).toEqual({
+      runAt: new Date(2026, 10, 14, 11, 0),
+    });
+    expect(duplicateScheduleTimes({ runAt: at(new Date(2026, 10, 20, 9, 0)) }, now).runAt).toEqual(
+      new Date(2026, 10, 20, 9, 0),
+    );
+    expect(duplicateScheduleTimes({ createdAt: at(created), until: at(ended) }, now).until).toEqual(
+      new Date(now.getTime() + 3 * 24 * 3_600_000),
+    );
+    expect(duplicateScheduleTimes({ until: at(new Date(2026, 10, 30)) }, now).until).toEqual(new Date(2026, 10, 30));
   });
 });

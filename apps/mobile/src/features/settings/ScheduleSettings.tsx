@@ -32,7 +32,8 @@ export function ScheduleSettings() {
   };
 
   const [tab, setTab] = useState("upcoming");
-  const [editing, setEditing] = useState<ui.Schedule | "new">();
+  // Edit `schedule`, or create a task, empty or from `template` (Duplicate).
+  const [editing, setEditing] = useState<{ schedule?: ui.Schedule; template?: ui.Schedule }>();
   const [actions, setActions] = useState<ui.Schedule>();
   const upcoming = resource.data?.schedules.filter((s) => ["active", "paused"].includes(s.status)) ?? [];
   const finished = resource.data?.schedules.filter((s) => !["active", "paused"].includes(s.status)) ?? [];
@@ -45,7 +46,7 @@ export function ScheduleSettings() {
 
   return (
     <ResourceState resource={resource} gap={12}>
-      <Button variant="primary" title="New task" onPress={() => setEditing("new")} />
+      <Button variant="primary" title="New task" onPress={() => setEditing({})} />
       <SettingChoice
         title="Schedules"
         value={tab}
@@ -65,7 +66,13 @@ export function ScheduleSettings() {
         />
       )}
       {rows.map((s) => (
-        <ScheduleTaskRow key={s.id} schedule={s} reason={reason(s)} onActions={() => setActions(s)} />
+        <ScheduleTaskRow
+          key={s.id}
+          schedule={s}
+          reason={reason(s)}
+          onActions={() => setActions(s)}
+          onDuplicate={() => setEditing({ template: s })}
+        />
       ))}
       <Sheet title="Scheduled task actions" visible={!!actions} onClose={() => setActions(undefined)}>
         {actions && (
@@ -76,20 +83,25 @@ export function ScheduleSettings() {
             onChanged={() => setActions(undefined)}
             onEdit={() => {
               setActions(undefined);
-              setEditing(actions);
+              setEditing({ schedule: actions });
+            }}
+            onDuplicate={() => {
+              setActions(undefined);
+              setEditing({ template: actions });
             }}
           />
         )}
       </Sheet>
       <Sheet
-        title={editing === "new" ? "Add schedule" : "Edit schedule"}
+        title={editing?.schedule ? "Edit schedule" : editing?.template ? "Duplicate schedule" : "Add schedule"}
         visible={!!editing}
         onClose={() => setEditing(undefined)}
       >
         {editing && (
           <ScheduleEditor
             defaultThreadId={threadId}
-            schedule={editing === "new" ? undefined : editing}
+            schedule={editing.schedule}
+            template={editing.template}
             onSaved={() => {
               setEditing(undefined);
               void resource.reload();
@@ -106,12 +118,14 @@ function ScheduleActions({
   resource,
   disabled,
   onEdit,
+  onDuplicate,
   onChanged,
 }: {
   schedule: ui.Schedule;
   resource: ReturnType<typeof useSettingsResource<ui.ListSchedulesResponse>>;
   disabled: boolean;
   onEdit: () => void;
+  onDuplicate: () => void;
   onChanged: () => void;
 }) {
   async function change(status: string) {
@@ -120,28 +134,35 @@ function ScheduleActions({
     if (result) onChanged();
   }
 
+  const live = ["active", "paused"].includes(schedule.status);
+
   return (
     <>
-      <Button title="Edit schedule" disabled={disabled} onPress={onEdit} />
-      <Button
-        title={schedule.status === "paused" ? "Resume schedule" : "Pause schedule"}
-        busy={resource.busy}
-        disabled={disabled}
-        onPress={() => void change(schedule.status === "paused" ? "active" : "paused")}
-      />
-      <Button
-        variant="danger"
-        title="Cancel schedule"
-        busy={resource.busy}
-        disabled={disabled}
-        onPress={() =>
-          confirmAction(
-            "Cancel schedule",
-            "This stops future messages. Its run history stays.",
-            () => void change("cancelled"),
-          )
-        }
-      />
+      {live && <Button title="Edit schedule" disabled={disabled} onPress={onEdit} />}
+      <Button title="Duplicate schedule" disabled={disabled} onPress={onDuplicate} />
+      {live && (
+        <Button
+          title={schedule.status === "paused" ? "Resume schedule" : "Pause schedule"}
+          busy={resource.busy}
+          disabled={disabled}
+          onPress={() => void change(schedule.status === "paused" ? "active" : "paused")}
+        />
+      )}
+      {live && (
+        <Button
+          variant="danger"
+          title="Cancel schedule"
+          busy={resource.busy}
+          disabled={disabled}
+          onPress={() =>
+            confirmAction(
+              "Cancel schedule",
+              "This stops future messages. Its run history stays.",
+              () => void change("cancelled"),
+            )
+          }
+        />
+      )}
     </>
   );
 }
