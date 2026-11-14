@@ -1,6 +1,9 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
   import { sidebarUsageAccounts, sidebarUsageGlance } from "@canopy/domain/sidebar-usage";
+  import { proxyUsageSections, proxyUsageText } from "@canopy/domain/proxy-accounts";
+  import { sharedProxies } from "#lib/features/proxies/proxies.ts";
+  import Icon from "#lib/shared/ui/Icon.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { providerKeyOf } from "#lib/features/threads/providers.ts";
   import { clock } from "#lib/shared/clock.svelte.ts";
@@ -15,7 +18,15 @@
   const overview = useOverview();
   const accounts = $derived(sidebarUsageAccounts(overview.workers, clock.now));
   const glance = $derived(sidebarUsageGlance(accounts, clock.now));
-  const label = $derived(`Show provider usage. ${glance.map((item) => item.label).join(". ")}`);
+
+  // Accounts the gateway read from proxies in use; reading the list never calls a proxy.
+  const proxies = sharedProxies();
+  const sections = $derived(proxyUsageSections(proxies.data?.proxies));
+
+  const label = $derived(
+    `Show provider usage. ${[...glance.map((item) => item.label), ...sections.map(proxyUsageText)].join(". ")}`,
+  );
+
   let open = $state(false);
   let pinned = $state(false);
   let closeTimer: ReturnType<typeof setTimeout> | undefined;
@@ -23,7 +34,7 @@
   $effect(() => () => clearTimeout(closeTimer));
 
   $effect(() => {
-    if (!accounts.length) open = false;
+    if (!accounts.length && !sections.length) open = false;
   });
 
   function hover(event: PointerEvent) {
@@ -38,7 +49,7 @@
 </script>
 
 <div class={["grid size-9 shrink-0 place-items-center sm:size-8", className]}>
-  {#if glance.length}
+  {#if glance.length || sections.length}
     <div role="group" aria-label="Provider usage" onpointerenter={hover} onpointerleave={leave}>
       <Popover
         bind:open
@@ -60,7 +71,10 @@
               pinned = open;
             }}
           >
-            <UsageGlance {glance} />
+            {#if glance.length}<UsageGlance {glance} />{:else}<Icon
+                name="link"
+                class="size-4 fill-zinc-500 dark:fill-zinc-400"
+              />{/if}
           </button>
         {/snippet}
         <div class="grid gap-3 p-3">
@@ -78,6 +92,16 @@
               </div>
               <UsageMeters usage={account.usage} now={clock.now} />
             </section>
+          {/each}
+          {#each sections as section (section.proxyId)}
+            <a
+              href={`/settings/proxies#proxy-${section.proxyId}`}
+              onclick={() => (open = false)}
+              class="flex min-w-0 items-center gap-2 rounded-md text-base text-zinc-700 focus-ring hover:text-zinc-950 sm:text-sm dark:text-zinc-300 dark:hover:text-white"
+            >
+              <Icon name="link" class="size-4 shrink-0 fill-zinc-500 dark:fill-zinc-400" />
+              <TruncatedText class="flex-1" text={proxyUsageText(section)} />
+            </a>
           {/each}
           <ButtonLink href="/settings/providers" variant="ghost" onclick={() => (open = false)} class="justify-start"
             >Open provider settings</ButtonLink

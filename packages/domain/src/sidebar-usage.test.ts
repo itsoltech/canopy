@@ -9,6 +9,7 @@ import {
   ui,
 } from "@canopy/contracts";
 import { sidebarUsageAccounts, sidebarUsageGlance, usageTone } from "./sidebar-usage.ts";
+import { proxyUsageSections, proxyUsageText } from "./proxy-accounts.ts";
 
 const now = 1_800_000_000_000;
 const future = timestampFromMs(now + 3_600_000);
@@ -122,5 +123,46 @@ describe("sidebar usage overview projection", () => {
     expect(sidebarUsageGlance(sidebarUsageAccounts(workers, now), now)).toMatchObject([
       { name: "Grok", percent: 100, tone: "danger" },
     ]);
+  });
+
+  test("proxy sections come only from read accounts of CLIProxyAPI proxies in use, never from plan windows", () => {
+    const accounts = (state: string) =>
+      create(ui.ProxyAccountsSchema, {
+        state,
+        total: 3,
+        accounts: [{ status: "active" }, { status: "cooling_down" }, { status: "disabled" }],
+      });
+
+    const proxies = [
+      create(ui.ProxySchema, {
+        id: "a",
+        name: "Team",
+        kind: "cliproxyapi",
+        usedBy: ["codex/native"],
+        accounts: accounts("ok"),
+      }),
+      create(ui.ProxySchema, { id: "b", name: "Unused", kind: "cliproxyapi", accounts: accounts("ok") }),
+      create(ui.ProxySchema, { id: "c", name: "No key", kind: "cliproxyapi", usedBy: ["claude/x"] }),
+      create(ui.ProxySchema, {
+        id: "d",
+        name: "Rejected",
+        kind: "cliproxyapi",
+        usedBy: ["claude/y"],
+        accounts: accounts("unauthorized"),
+      }),
+      create(ui.ProxySchema, {
+        id: "e",
+        name: "OpenAI",
+        kind: "openai",
+        usedBy: ["codex/z"],
+        accounts: accounts("ok"),
+      }),
+    ];
+
+    const sections = proxyUsageSections(proxies);
+
+    expect(sections).toEqual([{ proxyId: "a", label: "Team", accountCount: 3, coolingDownCount: 1 }]);
+    expect(proxyUsageText(sections[0]!)).toBe("Through Team: 3 accounts · 1 cooling down");
+    expect(proxyUsageText({ ...sections[0]!, accountCount: 1, coolingDownCount: 0 })).toBe("Through Team: 1 account");
   });
 });
