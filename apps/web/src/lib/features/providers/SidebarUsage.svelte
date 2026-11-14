@@ -5,6 +5,8 @@
   import { providerKeyOf } from "#lib/features/threads/providers.ts";
   import { clock } from "#lib/shared/clock.svelte.ts";
   import Popover from "#lib/shared/ui/Popover.svelte";
+  import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
+  import TruncatedText from "#lib/shared/ui/TruncatedText.svelte";
   import ProviderIcon from "#lib/features/models/ProviderIcon.svelte";
   import UsageGlance from "./UsageGlance.svelte";
   import UsageMeters from "./UsageMeters.svelte";
@@ -68,22 +70,17 @@
             <section class="grid min-w-0 gap-2">
               <div class="flex min-w-0 items-center gap-2">
                 {#if provider}<ProviderIcon {provider} size="sm" />{/if}
-                <span class="min-w-0 flex-1 truncate text-base font-medium sm:text-sm" title={account.label}
-                  >{account.label}</span
-                >
-                <span
-                  class="max-w-[40%] truncate text-sm text-zinc-500 sm:text-xs dark:text-zinc-400"
-                  title={account.computer}>{account.computer}</span
-                >
+                <TruncatedText class="flex-1 text-base font-medium sm:text-sm" text={account.label} />
+                <TruncatedText
+                  class="max-w-[40%] text-sm text-zinc-500 sm:text-xs dark:text-zinc-400"
+                  text={account.computer}
+                />
               </div>
               <UsageMeters usage={account.usage} now={clock.now} />
             </section>
           {/each}
-          <a
-            href="/settings/providers"
-            onclick={() => (open = false)}
-            class="flex min-h-10 items-center rounded-md px-2 text-base text-brand-700 focus-ring hover:bg-zinc-950/5 sm:min-h-7 sm:text-sm dark:text-brand-400 dark:hover:bg-white/5"
-            >Open provider settings</a
+          <ButtonLink href="/settings/providers" variant="ghost" onclick={() => (open = false)} class="justify-start"
+            >Open provider settings</ButtonLink
           >
         </div>
       </Popover>
