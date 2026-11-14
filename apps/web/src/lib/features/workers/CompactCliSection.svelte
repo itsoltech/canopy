@@ -87,7 +87,7 @@
       <!-- The badge lines up with the rows' badges: their action column follows it. -->
       <span class="flex min-w-0 items-center gap-2 pr-10 sm:pr-9">
         <span class="min-w-0 flex-1 truncate">Agent CLIs · {items.length}</span>
-        <span class="flex w-23 shrink-0 justify-end">
+        <span class="flex min-w-28 shrink-0 justify-end sm:min-w-23">
           {#if overall.endsWith("available")}{#key overall}<Badge compact tone="sky" class="t-swap">{overall}</Badge
               >{/key}{:else}<UpdateBadge status={overall} />{/if}
         </span>

@@ -84,8 +84,8 @@ export function UpdateRow({
             <Text numberOfLines={1} accessibilityLabel={name} style={[styles.overlay, { color: c.strong, flex: 1 }]}>
               {name}
             </Text>
-            {/* A fixed slot: a longer word never moves the name. */}
-            <View style={{ width: 96, alignItems: "flex-end" }}>
+            {/* Every shared word fits the slot, so state changes never move the name; a rare long edge word widens it. */}
+            <View style={{ minWidth: 96, alignItems: "flex-end" }}>
               <UpdateBadge status={status} />
             </View>
           </View>

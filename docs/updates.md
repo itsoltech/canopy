@@ -137,7 +137,9 @@ w Settings → Workers → Updates. Licznik i słownictwo pochodzą z
 `@canopy/domain/release/update-status`, wspólnego dla web i telefonu.
 
 **Wiersze.** Każdy wiersz ma zawsze dwie linie: nazwę z odznaką oraz wersje albo
-zdanie, które mówi więcej (np. „Restarting to update…”). Odznaka ma stały slot, pasek
+zdanie, które mówi więcej (np. „Restarting to update…”). Odznaka ma slot o minimalnej
+szerokości, w którym mieści się każde wspólne słowo (rzadkie długie słowo brzegowe go
+poszerza zamiast nachodzić na nazwę), pasek
 postępu leży w dolnym paddingu, a akcja ma stałą kolumnę, więc zmiana stanu tylko
 podmienia tekst (`t-swap`). Rozwija się wyłącznie błąd, na kliknięcie; tam jest też
 Dismiss. Słownictwo: Up to date (cichy tekst, bez pigułki), Available, Downloaded

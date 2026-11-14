@@ -57,8 +57,8 @@
     <div class="min-w-0 flex-1">
       <div class="flex h-5 min-w-0 items-center gap-2">
         <p class="min-w-0 flex-1 truncate text-sm/5 font-medium" {title}>{name}</p>
-        <!-- A fixed slot: a longer word never moves the name. -->
-        <span class="flex w-23 shrink-0 justify-end"><UpdateBadge {status} /></span>
+        <!-- Every shared word fits the slot, so state changes never move the name; a rare long edge word widens it. -->
+        <span class="flex min-w-28 shrink-0 justify-end sm:min-w-23"><UpdateBadge {status} /></span>
       </div>
       {#if error}
         <button
