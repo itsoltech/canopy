@@ -1,13 +1,15 @@
 # Pomiar wydajności klientów
 
 Szkice kompozytora są lokalne: zapis dyskowy jest ograniczony do 100 wpisów/4 MiB
-i opóźniony o 250 ms. Pisanie nie uruchamia RPC. Handoff publikuje wyłącznie przy
-opuszczeniu kompozytora, przejściu w tło lub jawnej akcji. Lista Drafts pobiera strony
+i opóźniony o 250 ms. Synchronizacja publikuje po 1,5 s bez edycji, przy utracie
+fokusu, opuszczeniu kompozytora i przejściu w tło. Seria znaków daje jeden zapis,
+niezmieniona treść nie ponawia zapisu. Lista Drafts pobiera strony
 20 rekordów (serwer maksymalnie 50), a powiadomienia przenoszą tylko rewizję.
 Web współdzieli jeden EventSource między podpowiedzią i dialogiem; mobile ma jedną
 subskrypcję na sesję. Oba zatrzymują strumień w tle. Nie dołączamy treści szkiców do
 overview, luster, diagnostyki ani snapshotów historii. Lista ma jeden współdzielony
-odczyt pierwszej strony na klienta. Zapis lokalny serializuje zmieniony wpis raz
+odczyt pierwszej strony na klienta i do 100 ID wątków bez tekstu do znaczników sidebaru.
+Aktywny wątek poza pierwszą stroną pobiera własny szkic oddzielnie. Zapis lokalny serializuje zmieniony wpis raz
 i przepisuje tylko jego klucz/plik. Markery subskrybują własny cel, a sygnał listy
 celów zmienia się wyłącznie przy dodaniu/usunięciu szkicu. Wysyłka to jedno RPC
 bez poprzedzającego zapisu szkicu i bez czekania na zapis już w toku. Spóźniona

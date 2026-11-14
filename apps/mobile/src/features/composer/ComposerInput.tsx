@@ -106,7 +106,10 @@ export function ComposerInput({
             onExpand?.();
             onFocus(true);
           }}
-          onBlur={() => onFocus(false)}
+          onBlur={() => {
+            onFocus(false);
+            badges?.onBlur?.();
+          }}
           onSelectionChange={badges ? (event) => badges.onSelect(event.nativeEvent.selection) : undefined}
           editable={!busy}
           multiline

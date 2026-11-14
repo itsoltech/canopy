@@ -153,6 +153,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "139_thread_visuals",
       "140_composer_drafts",
       "141_provider_usage",
+      "142_composer_draft_moves",
     ]);
   }, 60_000);
 

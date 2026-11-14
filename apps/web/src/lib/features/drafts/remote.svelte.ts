@@ -7,6 +7,7 @@ import { subscribeDraftChanges } from "./invalidation.ts";
 class RemoteDrafts {
   rows = $state<ui.ComposerDraft[]>([]);
   next = $state("");
+  threadIds = $state<string[]>([]);
   #scope = "";
   #loaded = false;
   #pending: Promise<void> | undefined;
@@ -18,6 +19,7 @@ class RemoteDrafts {
     if (this.#scope !== webDrafts.scope) {
       this.#scope = webDrafts.scope;
       this.rows = [];
+      this.threadIds = [];
       this.next = "";
       this.#loaded = false;
     }
@@ -30,8 +32,11 @@ class RemoteDrafts {
 
     if (!more && this.#loaded) return;
     const scope = this.#scope;
-    this.#pending = listDrafts(webDrafts.deviceId, "", more ? this.next : "").then((page) => {
+    const sourceIds = webDrafts.local.sourceDraftIds();
+    this.#pending = listDrafts(webDrafts.deviceId, "", more ? this.next : "", sourceIds).then((page) => {
       if (scope !== webDrafts.scope) return;
+      webDrafts.acceptMoves(page.moves);
+      this.threadIds = page.threadIds;
       this.rows = more
         ? [...new Map([...this.rows, ...page.drafts].map((row) => [row.id, row])).values()].slice(0, 100)
         : page.drafts;

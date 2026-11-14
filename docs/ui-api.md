@@ -31,8 +31,9 @@ bieżący szkic przed odtworzeniem wysłanej wiadomości i później zamienić o
 rewizji gatewaya. Oczekujące wysłanie i niedokończone uploady blokują przywracanie;
 kopie plików odwołują się do uploadów, bez przejmowania lokalnych URL podglądu.
 
-Gateway zapisuje kopię do handoffu przy opuszczeniu kompozytora, przejściu aplikacji
-w tło oraz po `Continue on another device`, bez żądań przy każdym znaku. Zapis lokalny
+Gateway otrzymuje automatyczną kopię po 1,5 s bez edycji, przy utracie fokusu,
+opuszczeniu kompozytora i przejściu aplikacji w tło. Nie ma akcji przekazania ani
+żądania przy każdym znaku. Zapis lokalny
 jest opóźniony o 250 ms i opróżniany przy opuszczaniu. Operacja oczekującego wysłania
 zachowuje lokalnie niezmienny payload i idempotency key; ponowienie po restarcie
 nie zmienia steer/queue ani ustawień. Taki szkic czeka na rozstrzygnięcie wysłania,
@@ -61,29 +62,35 @@ Po otwarciu oczekującego szkicu `GetComposerDraftDelivery` sprawdza receipt i n
 przyjęcie wiadomości, bez ponownego wysłania. Banner niepotwierdzonej wysyłki jest
 widoczny dopiero po tym sprawdzeniu, gdy klient nie wysyła i gateway nie ma aktywnej
 próby. W czasie zwykłej wysyłki nie pojawia się ani nie przesuwa kompozytora.
-Po przejęciu szkicu przez inne urządzenie źródło rozwidla
-lokalny szkic przy konflikcie, zachowując tekst i pliki. Jawne przekazanie wymaga
-gatewaya obsługującego RPC szkiców.
+Po przejęciu szkicu przez inne urządzenie źródło czyści wyłącznie kopię zgodną
+z ostatnim zatwierdzonym zapisem o przejętej rewizji. Późniejsze edycje zachowuje
+pod nowym ID wraz z plikami i cytatami; pokazuje cichą informację o przejęciu.
+Beztreściowy receipt przejęcia jest prywatny dla właściciela i źródłowego urządzenia,
+ważny 30 dni, niezależny od późniejszego zapisu lub wysłania na odbiorcy.
 
 | RPC | Kontrakt |
 | --- | --- |
 | `SaveComposerDraft` | `draft`, `expected_revision`, `mutation_id`; CAS i idempotentne ponowienie przez to samo urządzenie |
-| `ListComposerDrafts` | szkice innych urządzeń właściciela; opcjonalnie jeden wątek; strony domyślnie 20, maksymalnie 50; keyset token i `change_revision` |
+| `ListComposerDrafts` | szkice innych urządzeń właściciela; opcjonalnie jeden wątek; strony domyślnie 20, maksymalnie 50; keyset token i `change_revision`; `source_draft_ids` (do 100) zwraca receipty przejęcia, `thread_ids` daje komplet znaczników bez tekstu |
 | `ContinueComposerDraft` | ID, rewizja, urządzenie docelowe i mutacja; blokada wiersza, jeden zwycięzca, odzyskanie wyniku na tym samym urządzeniu |
 | `DeleteComposerDraft` | ID, rewizja i urządzenie bieżącego posiadacza; usunięcie treści i referencji plików |
 | `WatchComposerDrafts` | tylko zmieniona rewizja właściciela, bez treści i pełnych snapshotów; po zatwierdzeniu zapisu hub budzi subskrybentów, bez pollingu DB; reconnect podaje `after_revision` i odczytuje trwały licznik |
 | `GetComposerDraftDelivery` | ID szkicu, `client_request_id` i cel; owner-scoped odczyt `confirmed` / `in_flight`, z routingiem do domu zdalnego wątku; nie ponawia wysyłki |
 
-`Open drafts` otwiera listę z urządzeniem, tytułem, podglądem, liczbą załączników
-i względnym czasem. `Continue here` dodaje szkic do lokalnej treści, przesuwając zakresy
+`Open drafts` w sidebarze otwiera listę z urządzeniem, tytułem, podglądem, liczbą załączników
+i względnym czasem. `Take over` przenosi szkic do pustego kompozytora. `Append draft`
+dodaje go do istniejącej treści, przesuwając zakresy
 wzmianek i cytatów. `Replace local draft` jest jawną alternatywą. Po przejęciu źródło
-znika z pozostałych list. Kompozytor wątku pokazuje też `Draft from … · Continue`
+znika z pozostałych list. Slot komputera w metadanych kompozytora pokazuje `Draft from … · Take over`
 dla nowszego szkicu innego urządzenia. Porównuje czas dwóch zapisów gatewaya,
 nigdy czas urządzenia z czasem serwera. Załączniki przechodzą po ID. Pierwsza
 strona listy jest współdzielona przez wszystkie zamontowane kompozytory klienta.
+Wskaźnik zajmuje jeden istniejący wiersz, bez przesunięcia pozostałych kontrolek.
+Niepusty kompozytor otwiera wybór dopisania lub jawnego zastąpienia. Szkic poza
+pierwszą stroną ma osobny ograniczony odczyt aktywnego wątku.
 Web ponawia zerwany stream z opóźnieniem rosnącym od 2 do 60 s, zachowując kursor;
 samo ponowienie połączenia nie przeładowuje listy.
-Wysyłane szkice są pomijane na liście, także podczas blokady wiersza transakcji.
+Lista nie blokuje wierszy szkiców; pomija szkice z zatwierdzonym znacznikiem trwającej wysyłki.
 Przejęcie rezerwuje docelowy kompozytor do zapisania wyniku; w tym czasie wysyłka,
 kolejne przejęcie i lokalne przywracanie czekają, więc nie gubią przejętego szkicu.
 

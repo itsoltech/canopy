@@ -4,6 +4,7 @@
   import { webDrafts } from "#lib/features/drafts/local.svelte.ts";
   import DraftPersistence from "#lib/features/drafts/DraftPersistence.svelte";
   import DraftActions from "#lib/features/drafts/DraftActions.svelte";
+  import PendingDraft from "#lib/features/drafts/PendingDraft.svelte";
   import type { ClassValue } from "svelte/elements";
   import { limitsOf } from "#lib/features/attachments/draft.svelte.ts";
   import { trimValue } from "#lib/features/mentions/editor.ts";
@@ -436,20 +437,27 @@
     {#snippet meta()}
       <ComposerContextRow>
         {#snippet computerControl()}
-          <!-- Delivery feedback shares the location slot so it never adds a blank row below the composer. -->
-          <div class="relative w-full min-w-0">
-            <div class:invisible={Boolean(deliveryStatus)}>
-              <WorkerHoverCard {worker} {note} class="max-w-full" />
+          <DraftActions
+            draft={saved}
+            threadId={thread.id}
+            indicatorOnly
+            disabled={disabled || saved.locked || Boolean(rewind?.().busy)}
+          >
+            <!-- Delivery feedback shares the location slot so it never adds a blank row below the composer. -->
+            <div class="relative w-full min-w-0">
+              <div class:invisible={Boolean(deliveryStatus)}>
+                <WorkerHoverCard {worker} {note} class="max-w-full" />
+              </div>
+              <p
+                class="absolute inset-0 flex min-w-0 items-center"
+                class:pointer-events-none={!deliveryStatus}
+                title={deliveryStatus}
+                aria-hidden="true"
+              >
+                <span class="truncate">{deliveryStatus ?? ""}</span>
+              </p>
             </div>
-            <p
-              class="absolute inset-0 flex min-w-0 items-center"
-              class:pointer-events-none={!deliveryStatus}
-              title={deliveryStatus}
-              aria-hidden="true"
-            >
-              <span class="truncate">{deliveryStatus ?? ""}</span>
-            </p>
-          </div>
+          </DraftActions>
         {/snippet}
         {#snippet permissionControl()}
           <fieldset disabled={disabled || sending} class="contents">
@@ -462,5 +470,5 @@
   <!-- Keep announcements mounted even when the metadata folds in the compact composer. -->
   <p class="sr-only" role="status" aria-atomic="true">{deliveryStatus ?? ""}</p>
 </form>
-<DraftActions draft={saved} threadId={thread.id} disabled={disabled || saved.locked || Boolean(rewind?.().busy)} />
+<PendingDraft draft={saved} />
 <AccountConfigNotices section="composer" />

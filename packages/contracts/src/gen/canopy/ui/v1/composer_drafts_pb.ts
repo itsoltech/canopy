@@ -16,10 +16,10 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/ui/v1/composer_drafts.proto.
  */
 export const file_canopy_ui_v1_composer_drafts: GenFile = /*@__PURE__*/
-  fileDesc("CiJjYW5vcHkvdWkvdjEvY29tcG9zZXJfZHJhZnRzLnByb3RvEgxjYW5vcHkudWkudjEinQMKFENvbXBvc2VyRHJhZnRDb250ZW50EgwKBHRleHQYASABKAkSKwoIbWVudGlvbnMYAiADKAsyGS5jYW5vcHkud29ya2VyLnYxLk1lbnRpb24SIwoGcXVvdGVzGAMgAygLMhMuY2Fub3B5LnVpLnYxLlF1b3RlEi0KC2F0dGFjaG1lbnRzGAQgAygLMhguY2Fub3B5LnVpLnYxLkF0dGFjaG1lbnQSEgoFbW9kZWwYBSABKAlIAIgBARITCgZlZmZvcnQYBiABKAlIAYgBARI+Cg9wZXJtaXNzaW9uX21vZGUYByABKA4yIC5jYW5vcHkud29ya2VyLnYxLlBlcm1pc3Npb25Nb2RlSAKIAQESGQoRY2xpZW50X3JlcXVlc3RfaWQYCCABKAkSGwoTcHJvdmlkZXJfcHJvZmlsZV9pZBgJIAEoCRIsCghwcm92aWRlchgKIAEoDjIaLmNhbm9weS53b3JrZXIudjEuUHJvdmlkZXJCCAoGX21vZGVsQgkKB19lZmZvcnRCEgoQX3Blcm1pc3Npb25fbW9kZSJsChNDb21wb3NlckRyYWZ0VGFyZ2V0EhEKCXRocmVhZF9pZBgBIAEoCRISCgpwcm9qZWN0X2lkGAIgASgJEhQKDHdvcmtzcGFjZV9pZBgDIAEoCRIYChBwYXJlbnRfdGhyZWFkX2lkGAQgASgJIp0CCg1Db21wb3NlckRyYWZ0EgoKAmlkGAEgASgJEjEKBnRhcmdldBgCIAEoCzIhLmNhbm9weS51aS52MS5Db21wb3NlckRyYWZ0VGFyZ2V0EhEKCWRldmljZV9pZBgDIAEoCRITCgtkZXZpY2VfbmFtZRgEIAEoCRIzCgdjb250ZW50GAUgASgLMiIuY2Fub3B5LnVpLnYxLkNvbXBvc2VyRHJhZnRDb250ZW50EhAKCHJldmlzaW9uGAYgASgEEhUKDXVwZGF0ZWRfYXRfbXMYByABKAMSDQoFdGl0bGUYCCABKAkSGgoSdGFrZW5fYnlfZGV2aWNlX2lkGAkgASgJEhwKFHRha2VuX2J5X2RldmljZV9uYW1lGAogASgJInYKGFNhdmVDb21wb3NlckRyYWZ0UmVxdWVzdBIqCgVkcmFmdBgBIAEoCzIbLmNhbm9weS51aS52MS5Db21wb3NlckRyYWZ0EhkKEWV4cGVjdGVkX3JldmlzaW9uGAIgASgEEhMKC211dGF0aW9uX2lkGAMgASgJImgKGUxpc3RDb21wb3NlckRyYWZ0c1JlcXVlc3QSEQoJZGV2aWNlX2lkGAEgASgJEhEKCXRocmVhZF9pZBgCIAEoCRIRCglwYWdlX3NpemUYAyABKA0SEgoKcGFnZV90b2tlbhgEIAEoCSJyChFDb21wb3NlckRyYWZ0UGFnZRIrCgZkcmFmdHMYASADKAsyGy5jYW5vcHkudWkudjEuQ29tcG9zZXJEcmFmdBIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAkSFwoPY2hhbmdlX3JldmlzaW9uGAMgASgEIoIBChxDb250aW51ZUNvbXBvc2VyRHJhZnRSZXF1ZXN0EgoKAmlkGAEgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAIgASgEEhEKCWRldmljZV9pZBgDIAEoCRITCgtkZXZpY2VfbmFtZRgEIAEoCRITCgttdXRhdGlvbl9pZBgFIAEoCSJWChpEZWxldGVDb21wb3NlckRyYWZ0UmVxdWVzdBIKCgJpZBgBIAEoCRIZChFleHBlY3RlZF9yZXZpc2lvbhgCIAEoBBIRCglkZXZpY2VfaWQYAyABKAkiNAoaV2F0Y2hDb21wb3NlckRyYWZ0c1JlcXVlc3QSFgoOYWZ0ZXJfcmV2aXNpb24YASABKAQiJwoTQ29tcG9zZXJEcmFmdENoYW5nZRIQCghyZXZpc2lvbhgBIAEoBCJxCh9HZXRDb21wb3NlckRyYWZ0RGVsaXZlcnlSZXF1ZXN0EgoKAmlkGAEgASgJEhEKCXRocmVhZF9pZBgCIAEoCRIZChFjbGllbnRfcmVxdWVzdF9pZBgDIAEoCRIUCgx3b3Jrc3BhY2VfaWQYBCABKAkiPQoVQ29tcG9zZXJEcmFmdERlbGl2ZXJ5EhEKCWNvbmZpcm1lZBgBIAEoCBIRCglpbl9mbGlnaHQYAiABKAgijwEKEUxvY2FsQ29tcG9zZXJGaWxlEgsKA2tleRgBIAEoCRIMCgRuYW1lGAIgASgJEgwKBHNpemUYAyABKAQSDAoEa2luZBgEIAEoCRIsCgphdHRhY2htZW50GAUgASgLMhguY2Fub3B5LnVpLnYxLkF0dGFjaG1lbnQSFQoNY29udGV4dF9zY29wZRgGIAEoCSL7AQoSTG9jYWxDb21wb3NlckRyYWZ0EioKBWRyYWZ0GAEgASgLMhsuY2Fub3B5LnVpLnYxLkNvbXBvc2VyRHJhZnQSLgoFZmlsZXMYAiADKAsyHy5jYW5vcHkudWkudjEuTG9jYWxDb21wb3NlckZpbGUSFQoNdG91Y2hlZF9hdF9tcxgDIAEoAxITCgttdXRhdGlvbl9pZBgEIAEoCRIUCgxwZW5kaW5nX3NlbmQYBSABKAwSGQoRcHVibGlzaGVkX2NvbnRlbnQYBiABKAkSFgoOcGVuZGluZ19jcmVhdGUYByABKAwSFAoMcGVuZGluZ19mb3JtGAggASgJIkgKE0xvY2FsQ29tcG9zZXJEcmFmdHMSMQoHZW50cmllcxgBIAMoCzIgLmNhbm9weS51aS52MS5Mb2NhbENvbXBvc2VyRHJhZnRiBnByb3RvMw", [file_canopy_worker_v1_worker_link, file_canopy_ui_v1_attachments, file_canopy_ui_v1_quotes]);
+  fileDesc("CiJjYW5vcHkvdWkvdjEvY29tcG9zZXJfZHJhZnRzLnByb3RvEgxjYW5vcHkudWkudjEinQMKFENvbXBvc2VyRHJhZnRDb250ZW50EgwKBHRleHQYASABKAkSKwoIbWVudGlvbnMYAiADKAsyGS5jYW5vcHkud29ya2VyLnYxLk1lbnRpb24SIwoGcXVvdGVzGAMgAygLMhMuY2Fub3B5LnVpLnYxLlF1b3RlEi0KC2F0dGFjaG1lbnRzGAQgAygLMhguY2Fub3B5LnVpLnYxLkF0dGFjaG1lbnQSEgoFbW9kZWwYBSABKAlIAIgBARITCgZlZmZvcnQYBiABKAlIAYgBARI+Cg9wZXJtaXNzaW9uX21vZGUYByABKA4yIC5jYW5vcHkud29ya2VyLnYxLlBlcm1pc3Npb25Nb2RlSAKIAQESGQoRY2xpZW50X3JlcXVlc3RfaWQYCCABKAkSGwoTcHJvdmlkZXJfcHJvZmlsZV9pZBgJIAEoCRIsCghwcm92aWRlchgKIAEoDjIaLmNhbm9weS53b3JrZXIudjEuUHJvdmlkZXJCCAoGX21vZGVsQgkKB19lZmZvcnRCEgoQX3Blcm1pc3Npb25fbW9kZSJsChNDb21wb3NlckRyYWZ0VGFyZ2V0EhEKCXRocmVhZF9pZBgBIAEoCRISCgpwcm9qZWN0X2lkGAIgASgJEhQKDHdvcmtzcGFjZV9pZBgDIAEoCRIYChBwYXJlbnRfdGhyZWFkX2lkGAQgASgJIp0CCg1Db21wb3NlckRyYWZ0EgoKAmlkGAEgASgJEjEKBnRhcmdldBgCIAEoCzIhLmNhbm9weS51aS52MS5Db21wb3NlckRyYWZ0VGFyZ2V0EhEKCWRldmljZV9pZBgDIAEoCRITCgtkZXZpY2VfbmFtZRgEIAEoCRIzCgdjb250ZW50GAUgASgLMiIuY2Fub3B5LnVpLnYxLkNvbXBvc2VyRHJhZnRDb250ZW50EhAKCHJldmlzaW9uGAYgASgEEhUKDXVwZGF0ZWRfYXRfbXMYByABKAMSDQoFdGl0bGUYCCABKAkSGgoSdGFrZW5fYnlfZGV2aWNlX2lkGAkgASgJEhwKFHRha2VuX2J5X2RldmljZV9uYW1lGAogASgJInYKGFNhdmVDb21wb3NlckRyYWZ0UmVxdWVzdBIqCgVkcmFmdBgBIAEoCzIbLmNhbm9weS51aS52MS5Db21wb3NlckRyYWZ0EhkKEWV4cGVjdGVkX3JldmlzaW9uGAIgASgEEhMKC211dGF0aW9uX2lkGAMgASgJIoIBChlMaXN0Q29tcG9zZXJEcmFmdHNSZXF1ZXN0EhEKCWRldmljZV9pZBgBIAEoCRIRCgl0aHJlYWRfaWQYAiABKAkSEQoJcGFnZV9zaXplGAMgASgNEhIKCnBhZ2VfdG9rZW4YBCABKAkSGAoQc291cmNlX2RyYWZ0X2lkcxgFIAMoCSJNChFDb21wb3NlckRyYWZ0TW92ZRIKCgJpZBgBIAEoCRIXCg9zb3VyY2VfcmV2aXNpb24YAiABKAQSEwoLZGV2aWNlX25hbWUYAyABKAkitgEKEUNvbXBvc2VyRHJhZnRQYWdlEisKBmRyYWZ0cxgBIAMoCzIbLmNhbm9weS51aS52MS5Db21wb3NlckRyYWZ0EhcKD25leHRfcGFnZV90b2tlbhgCIAEoCRIXCg9jaGFuZ2VfcmV2aXNpb24YAyABKAQSLgoFbW92ZXMYBCADKAsyHy5jYW5vcHkudWkudjEuQ29tcG9zZXJEcmFmdE1vdmUSEgoKdGhyZWFkX2lkcxgFIAMoCSKCAQocQ29udGludWVDb21wb3NlckRyYWZ0UmVxdWVzdBIKCgJpZBgBIAEoCRIZChFleHBlY3RlZF9yZXZpc2lvbhgCIAEoBBIRCglkZXZpY2VfaWQYAyABKAkSEwoLZGV2aWNlX25hbWUYBCABKAkSEwoLbXV0YXRpb25faWQYBSABKAkiVgoaRGVsZXRlQ29tcG9zZXJEcmFmdFJlcXVlc3QSCgoCaWQYASABKAkSGQoRZXhwZWN0ZWRfcmV2aXNpb24YAiABKAQSEQoJZGV2aWNlX2lkGAMgASgJIjQKGldhdGNoQ29tcG9zZXJEcmFmdHNSZXF1ZXN0EhYKDmFmdGVyX3JldmlzaW9uGAEgASgEIicKE0NvbXBvc2VyRHJhZnRDaGFuZ2USEAoIcmV2aXNpb24YASABKAQicQofR2V0Q29tcG9zZXJEcmFmdERlbGl2ZXJ5UmVxdWVzdBIKCgJpZBgBIAEoCRIRCgl0aHJlYWRfaWQYAiABKAkSGQoRY2xpZW50X3JlcXVlc3RfaWQYAyABKAkSFAoMd29ya3NwYWNlX2lkGAQgASgJIj0KFUNvbXBvc2VyRHJhZnREZWxpdmVyeRIRCgljb25maXJtZWQYASABKAgSEQoJaW5fZmxpZ2h0GAIgASgIIo8BChFMb2NhbENvbXBvc2VyRmlsZRILCgNrZXkYASABKAkSDAoEbmFtZRgCIAEoCRIMCgRzaXplGAMgASgEEgwKBGtpbmQYBCABKAkSLAoKYXR0YWNobWVudBgFIAEoCzIYLmNhbm9weS51aS52MS5BdHRhY2htZW50EhUKDWNvbnRleHRfc2NvcGUYBiABKAki+wEKEkxvY2FsQ29tcG9zZXJEcmFmdBIqCgVkcmFmdBgBIAEoCzIbLmNhbm9weS51aS52MS5Db21wb3NlckRyYWZ0Ei4KBWZpbGVzGAIgAygLMh8uY2Fub3B5LnVpLnYxLkxvY2FsQ29tcG9zZXJGaWxlEhUKDXRvdWNoZWRfYXRfbXMYAyABKAMSEwoLbXV0YXRpb25faWQYBCABKAkSFAoMcGVuZGluZ19zZW5kGAUgASgMEhkKEXB1Ymxpc2hlZF9jb250ZW50GAYgASgJEhYKDnBlbmRpbmdfY3JlYXRlGAcgASgMEhQKDHBlbmRpbmdfZm9ybRgIIAEoCSJIChNMb2NhbENvbXBvc2VyRHJhZnRzEjEKB2VudHJpZXMYASADKAsyIC5jYW5vcHkudWkudjEuTG9jYWxDb21wb3NlckRyYWZ0YgZwcm90bzM", [file_canopy_worker_v1_worker_link, file_canopy_ui_v1_attachments, file_canopy_ui_v1_quotes]);
 
 /**
- * Client-local first. Only explicit handoff/navigation/background publishes this content.
+ * Client-local first, automatically synced after an idle debounce and on leaving.
  *
  * @generated from message canopy.ui.v1.ComposerDraftContent
  */
@@ -226,6 +226,13 @@ export type ListComposerDraftsRequest = Message<"canopy.ui.v1.ListComposerDrafts
    * @generated from field: string page_token = 4;
    */
   pageToken: string;
+
+  /**
+   * At most 100 local IDs. Returns durable, content-free take-over receipts.
+   *
+   * @generated from field: repeated string source_draft_ids = 5;
+   */
+  sourceDraftIds: string[];
 };
 
 /**
@@ -234,6 +241,33 @@ export type ListComposerDraftsRequest = Message<"canopy.ui.v1.ListComposerDrafts
  */
 export const ListComposerDraftsRequestSchema: GenMessage<ListComposerDraftsRequest> = /*@__PURE__*/
   messageDesc(file_canopy_ui_v1_composer_drafts, 4);
+
+/**
+ * @generated from message canopy.ui.v1.ComposerDraftMove
+ */
+export type ComposerDraftMove = Message<"canopy.ui.v1.ComposerDraftMove"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: uint64 source_revision = 2;
+   */
+  sourceRevision: bigint;
+
+  /**
+   * @generated from field: string device_name = 3;
+   */
+  deviceName: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.ComposerDraftMove.
+ * Use `create(ComposerDraftMoveSchema)` to create a new message.
+ */
+export const ComposerDraftMoveSchema: GenMessage<ComposerDraftMove> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_composer_drafts, 5);
 
 /**
  * @generated from message canopy.ui.v1.ComposerDraftPage
@@ -253,6 +287,18 @@ export type ComposerDraftPage = Message<"canopy.ui.v1.ComposerDraftPage"> & {
    * @generated from field: uint64 change_revision = 3;
    */
   changeRevision: bigint;
+
+  /**
+   * @generated from field: repeated canopy.ui.v1.ComposerDraftMove moves = 4;
+   */
+  moves: ComposerDraftMove[];
+
+  /**
+   * Bounded by the owner's 100-draft limit; no prompt content in sidebar markers.
+   *
+   * @generated from field: repeated string thread_ids = 5;
+   */
+  threadIds: string[];
 };
 
 /**
@@ -260,7 +306,7 @@ export type ComposerDraftPage = Message<"canopy.ui.v1.ComposerDraftPage"> & {
  * Use `create(ComposerDraftPageSchema)` to create a new message.
  */
 export const ComposerDraftPageSchema: GenMessage<ComposerDraftPage> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_composer_drafts, 5);
+  messageDesc(file_canopy_ui_v1_composer_drafts, 6);
 
 /**
  * @generated from message canopy.ui.v1.ContinueComposerDraftRequest
@@ -297,7 +343,7 @@ export type ContinueComposerDraftRequest = Message<"canopy.ui.v1.ContinueCompose
  * Use `create(ContinueComposerDraftRequestSchema)` to create a new message.
  */
 export const ContinueComposerDraftRequestSchema: GenMessage<ContinueComposerDraftRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_composer_drafts, 6);
+  messageDesc(file_canopy_ui_v1_composer_drafts, 7);
 
 /**
  * @generated from message canopy.ui.v1.DeleteComposerDraftRequest
@@ -324,7 +370,7 @@ export type DeleteComposerDraftRequest = Message<"canopy.ui.v1.DeleteComposerDra
  * Use `create(DeleteComposerDraftRequestSchema)` to create a new message.
  */
 export const DeleteComposerDraftRequestSchema: GenMessage<DeleteComposerDraftRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_composer_drafts, 7);
+  messageDesc(file_canopy_ui_v1_composer_drafts, 8);
 
 /**
  * @generated from message canopy.ui.v1.WatchComposerDraftsRequest
@@ -341,7 +387,7 @@ export type WatchComposerDraftsRequest = Message<"canopy.ui.v1.WatchComposerDraf
  * Use `create(WatchComposerDraftsRequestSchema)` to create a new message.
  */
 export const WatchComposerDraftsRequestSchema: GenMessage<WatchComposerDraftsRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_composer_drafts, 8);
+  messageDesc(file_canopy_ui_v1_composer_drafts, 9);
 
 /**
  * Invalidation only: clients query the bounded page they currently show.
@@ -360,7 +406,7 @@ export type ComposerDraftChange = Message<"canopy.ui.v1.ComposerDraftChange"> & 
  * Use `create(ComposerDraftChangeSchema)` to create a new message.
  */
 export const ComposerDraftChangeSchema: GenMessage<ComposerDraftChange> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_composer_drafts, 9);
+  messageDesc(file_canopy_ui_v1_composer_drafts, 10);
 
 /**
  * Read-only recovery: checks the owner receipt and the target's durable admission.
@@ -394,7 +440,7 @@ export type GetComposerDraftDeliveryRequest = Message<"canopy.ui.v1.GetComposerD
  * Use `create(GetComposerDraftDeliveryRequestSchema)` to create a new message.
  */
 export const GetComposerDraftDeliveryRequestSchema: GenMessage<GetComposerDraftDeliveryRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_composer_drafts, 10);
+  messageDesc(file_canopy_ui_v1_composer_drafts, 11);
 
 /**
  * @generated from message canopy.ui.v1.ComposerDraftDelivery
@@ -416,7 +462,7 @@ export type ComposerDraftDelivery = Message<"canopy.ui.v1.ComposerDraftDelivery"
  * Use `create(ComposerDraftDeliverySchema)` to create a new message.
  */
 export const ComposerDraftDeliverySchema: GenMessage<ComposerDraftDelivery> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_composer_drafts, 11);
+  messageDesc(file_canopy_ui_v1_composer_drafts, 12);
 
 /**
  * Device-private persistence. These messages are never sent to the gateway.
@@ -460,7 +506,7 @@ export type LocalComposerFile = Message<"canopy.ui.v1.LocalComposerFile"> & {
  * Use `create(LocalComposerFileSchema)` to create a new message.
  */
 export const LocalComposerFileSchema: GenMessage<LocalComposerFile> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_composer_drafts, 12);
+  messageDesc(file_canopy_ui_v1_composer_drafts, 13);
 
 /**
  * @generated from message canopy.ui.v1.LocalComposerDraft
@@ -512,7 +558,7 @@ export type LocalComposerDraft = Message<"canopy.ui.v1.LocalComposerDraft"> & {
  * Use `create(LocalComposerDraftSchema)` to create a new message.
  */
 export const LocalComposerDraftSchema: GenMessage<LocalComposerDraft> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_composer_drafts, 13);
+  messageDesc(file_canopy_ui_v1_composer_drafts, 14);
 
 /**
  * @generated from message canopy.ui.v1.LocalComposerDrafts
@@ -529,5 +575,5 @@ export type LocalComposerDrafts = Message<"canopy.ui.v1.LocalComposerDrafts"> & 
  * Use `create(LocalComposerDraftsSchema)` to create a new message.
  */
 export const LocalComposerDraftsSchema: GenMessage<LocalComposerDrafts> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_composer_drafts, 14);
+  messageDesc(file_canopy_ui_v1_composer_drafts, 15);
 

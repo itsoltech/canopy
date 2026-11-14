@@ -1,7 +1,97 @@
 import { expect, test } from "bun:test";
-import { create } from "@bufbuild/protobuf";
+import { create, toJsonString } from "@bufbuild/protobuf";
 import { PermissionMode, Provider, ui } from "@canopy/contracts";
-import { ComposerLocalStore, mergeComposerContent } from "./composer-drafts.ts";
+import {
+  ComposerLocalStore,
+  composerTargetKey,
+  matchesComposerTarget,
+  mergeComposerContent,
+  sameComposerInput,
+} from "./composer-drafts.ts";
+
+test("incoming drafts match the entire composer target, including new and side threads", () => {
+  const target = create(ui.ComposerDraftTargetSchema, { projectId: "project", workspaceId: "workspace" });
+  const key = composerTargetKey(target);
+  expect(matchesComposerTarget(target, key)).toBe(true);
+
+  for (const patch of [
+    { projectId: "other" },
+    { workspaceId: "other" },
+    { parentThreadId: "parent" },
+    { threadId: "thread" },
+  ])
+    expect(matchesComposerTarget(create(ui.ComposerDraftTargetSchema, { ...target, ...patch }), key)).toBe(false);
+  const side = create(ui.ComposerDraftTargetSchema, { ...target, parentThreadId: "parent" });
+  expect(matchesComposerTarget(side, composerTargetKey(side))).toBe(true);
+  expect(
+    matchesComposerTarget(
+      create(ui.ComposerDraftTargetSchema, { ...side, parentThreadId: "other" }),
+      composerTargetKey(side),
+    ),
+  ).toBe(false);
+  expect(matchesComposerTarget(undefined, key)).toBe(false);
+  expect(matchesComposerTarget(target, undefined)).toBe(false);
+});
+
+test("take-over notice input comparison ignores sync metadata and detects text, quotes and pending files", () => {
+  const before = create(ui.LocalComposerDraftSchema, { draft: { content: { text: "Kept edits" } } });
+  expect(
+    sameComposerInput(
+      before,
+      create(ui.LocalComposerDraftSchema, {
+        ...before,
+        touchedAtMs: 9n,
+        draft: create(ui.ComposerDraftSchema, { ...(before.draft ?? create(ui.ComposerDraftSchema)), revision: 2n }),
+      }),
+    ),
+  ).toBe(true);
+
+  for (const content of [{ text: "Next edit" }, { text: "Kept edits", quotes: [{ text: "Quote" }] }])
+    expect(sameComposerInput(before, create(ui.LocalComposerDraftSchema, { draft: { content } }))).toBe(false);
+  expect(
+    sameComposerInput(
+      before,
+      create(ui.LocalComposerDraftSchema, {
+        ...before,
+        files: [create(ui.LocalComposerFileSchema, { key: "upload" })],
+      }),
+    ),
+  ).toBe(false);
+});
+
+test("move receipt requests stay bounded and newest first before persistence or cross-tab pruning", () => {
+  const store = new ComposerLocalStore(
+    () => {},
+    () => crypto.randomUUID(),
+  );
+
+  const ids: string[] = [];
+
+  for (let index = 0; index < 102; index++) {
+    const target = create(ui.ComposerDraftTargetSchema, { threadId: String(index) });
+
+    const entry = create(ui.LocalComposerDraftSchema, {
+      draft: { id: crypto.randomUUID(), target, content: { text: "Draft" } },
+      touchedAtMs: BigInt(Date.now() - 1000 + index),
+    });
+
+    if (index % 2) store.put(entry);
+    else store.receive(composerTargetKey(target), toJsonString(ui.LocalComposerDraftSchema, entry));
+
+    if (entry.draft) ids.push(entry.draft.id);
+  }
+
+  const expected = store
+    .list()
+    .sort((a, b) => Number(b.touchedAtMs - a.touchedAtMs))
+    .slice(0, 100)
+    .flatMap((entry) => entry.draft?.id ?? []);
+
+  expect(store.sourceDraftIds()).toEqual(expected);
+  expect(store.sourceDraftIds()).toHaveLength(100);
+  expect(store.sourceDraftIds()).not.toContain(ids[0]);
+  store.dispose();
+});
 
 test("drafts survive storage reload with citations, notes, uploads and explicit choices isolated by target", () => {
   const disk = new Map<string, string>();

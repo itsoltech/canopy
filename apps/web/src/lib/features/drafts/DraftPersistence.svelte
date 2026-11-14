@@ -1,10 +1,17 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
+  import { toJsonString } from "@bufbuild/protobuf";
+  import { ui } from "@canopy/contracts";
+  import { ComposerSync } from "@canopy/domain/composer-sync";
   import type { WebComposerDraft } from "./state.svelte.ts";
   import { useWorkspace, workspaceVersion } from "#lib/features/workspace/workspace.svelte.ts";
 
   let { draft }: { draft: WebComposerDraft } = $props();
   const workspace = useWorkspace();
+
+  const sync = new ComposerSync(async () => {
+    await untrack(() => draft.publish());
+  });
 
   $effect(() => {
     workspaceVersion();
@@ -28,6 +35,8 @@
 
   $effect(() => {
     draft.persist();
+    const content = toJsonString(ui.ComposerDraftContentSchema, draft.content());
+    untrack(() => sync.update(content));
   });
 
   $effect(() => {
@@ -40,14 +49,9 @@
   });
 
   onMount(() => {
-    let timer: ReturnType<typeof setTimeout>;
-
     const save = () => {
       draft.local.flush();
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        void untrack(() => draft.publish()).catch(() => {});
-      }, 250);
+      void sync.flush();
     };
 
     const visibility = () => {
@@ -56,11 +60,13 @@
 
     document.addEventListener("visibilitychange", visibility);
     window.addEventListener("pagehide", save);
+    document.addEventListener("focusout", save);
 
     return () => {
-      clearTimeout(timer);
+      sync.cancel();
       document.removeEventListener("visibilitychange", visibility);
       window.removeEventListener("pagehide", save);
+      document.removeEventListener("focusout", save);
     };
   });
 </script>

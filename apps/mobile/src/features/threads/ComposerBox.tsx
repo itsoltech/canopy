@@ -20,6 +20,7 @@ const TRIGGER_HINT = ["/ commands", "$ skills", "@ files", "# threads", "! shell
 
 /** Badges in the text (the message draft's files); without it the field is plain text. */
 export interface ComposerBadges {
+  onBlur?: () => void;
   mentions: readonly Mention[];
   quotes?: readonly ui.Quote[];
   focusAt?: { current: ((caret: number) => void) | undefined };

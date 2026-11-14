@@ -103,19 +103,21 @@ export function MessageComposer({
       {/* Only this secondary row gives its height to the field while writing. */}
       <ComposerFold open={!compact && !focused} expandedHeight={composerGeometry.secondary}>
         <View style={[styles.row, { justifyContent: "space-between", paddingHorizontal: 6 }]}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={styles.row}
-            style={{ flex: 1 }}
-          >
-            {worker ? (
-              <ComposerPill icon="computer-desktop" title={worker.name} onPress={onDetails} />
-            ) : (
-              <Skeleton style={{ width: 100, height: composerGeometry.secondary }} />
-            )}
-          </ScrollView>
+          <DraftActions draft={message.persistent} threadId={thread?.id} disabled={disabled || busy} indicatorOnly>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.row}
+              style={{ flex: 1 }}
+            >
+              {worker ? (
+                <ComposerPill icon="computer-desktop" title={worker.name} onPress={onDetails} />
+              ) : (
+                <Skeleton style={{ width: 100, height: composerGeometry.secondary }} />
+              )}
+            </ScrollView>
+          </DraftActions>
           <ComposerPill
             icon={look.icon}
             title={permissionLabel(state.permissionMode)}
@@ -125,9 +127,7 @@ export function MessageComposer({
           />
         </View>
       </ComposerFold>
-      {message.persistent && (
-        <DraftActions draft={message.persistent} threadId={thread?.id} disabled={disabled || busy} />
-      )}
+      {message.persistent && <DraftActions draft={message.persistent} disabled={disabled || busy} />}
       <ComposerPickers state={state} />
     </>
   );

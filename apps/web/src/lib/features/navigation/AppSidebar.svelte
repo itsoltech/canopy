@@ -1,5 +1,6 @@
 <script lang="ts">
   import "./sidebar-rows.css";
+  import DraftsOverview from "#lib/features/drafts/DraftsOverview.svelte";
   import { page } from "$app/state";
   import LiveBotsNav from "#lib/features/bots/components/LiveBotsNav.svelte";
   import { botList } from "#lib/features/bots/bot-list.svelte.ts";
@@ -151,6 +152,7 @@
       >
     </a>
     <UpdatesIndicator />
+    {#if section === "threads"}<DraftsOverview />{/if}
     <ConnectionStatus
       recovery={overview.recovery}
       connection={overview.connection}

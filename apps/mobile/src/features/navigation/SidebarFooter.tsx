@@ -7,6 +7,7 @@ import { IconButton } from "../../ui/components";
 import { Icon } from "../../ui/Icon";
 import { styles, useColors } from "../../ui/theme";
 import { UpdateCenterButton } from "../updates/UpdateCenter";
+import { DraftActions } from "../drafts/DraftActions";
 
 export function SidebarFooter({ workers, stream }: { workers: ui.Worker[]; stream: StreamState }) {
   const c = useColors();
@@ -26,6 +27,7 @@ export function SidebarFooter({ workers, stream }: { workers: ui.Worker[]; strea
         </Text>
       </Pressable>
       <UpdateCenterButton />
+      <DraftActions overview />
       <View style={[styles.row, { flex: 1, justifyContent: "flex-end" }]}>
         <ConnectionStatus stream={stream} />
       </View>

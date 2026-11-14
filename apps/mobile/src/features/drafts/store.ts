@@ -2,9 +2,9 @@ import { create, fromBinary, toBinary, toJsonString } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import {
   ComposerLocalStore,
-  composerTargetKey,
   hasComposerContent,
   mergeComposerContent,
+  sameComposerInput,
 } from "@canopy/domain/composer-drafts";
 import { Code, ConnectError, type Client } from "@connectrpc/connect";
 import * as Crypto from "expo-crypto";
@@ -12,7 +12,8 @@ import type { DraftFile } from "../attachments/useAttachmentDraft";
 import type { MessageValue } from "../composer/message-value";
 import type { ComposerChoices } from "../composer/draft-snapshot";
 import { recoverDraft } from "./recovery";
-import { MobileRemoteDrafts } from "./remote";
+
+export { MobileDrafts } from "./manager";
 
 export class MobileComposerState {
   value: { current: MessageValue };
@@ -26,6 +27,8 @@ export class MobileComposerState {
   preparing = false;
   reconciling = false;
   deliveryChecked = false;
+  moved = "";
+  flush: (() => void) | undefined;
   pendingAbort: (() => void) | undefined;
   #saving: Promise<ui.ComposerDraft> | undefined;
   #published = "";
@@ -78,6 +81,13 @@ export class MobileComposerState {
     };
   };
   snapshot = () => this.version;
+  dismissMove() {
+    if (!this.moved) return;
+    this.moved = "";
+    this.version++;
+
+    for (const listener of this.#listeners) listener();
+  }
   reconcile(api: Client<typeof ui.GatewayService>) {
     return recoverDraft(this, api);
   }
@@ -111,6 +121,21 @@ export class MobileComposerState {
   get locked() {
     return this.preparing || Boolean(this.pendingSend || this.pendingCreate);
   }
+  acceptMove(move: ui.ComposerDraftMove) {
+    if (move.id !== this.id || this.revision > move.sourceRevision || this.locked) return;
+
+    const unchanged =
+      this.revision === move.sourceRevision &&
+      !this.files.current.some((f) => !f.attachment) &&
+      this.#published === toJsonString(ui.ComposerDraftContentSchema, this.content(true));
+
+    if (unchanged) this.clear();
+    else this.fork();
+    this.moved = unchanged
+      ? `Draft taken over on ${move.deviceName}`
+      : `Draft taken over on ${move.deviceName}. Your edits are kept here.`;
+    this.persist();
+  }
   /** A restored local message gets a new send identity, preserving gateway CAS state. */
   renewMessage(choices?: ComposerChoices) {
     if (this.locked) throw new Error("Retry the pending message before restoring a draft.");
@@ -136,6 +161,7 @@ export class MobileComposerState {
   }
   persist = () => {
     if (!this.#entry.draft) return;
+    const previous = this.#entry;
     this.#entry = create(ui.LocalComposerDraftSchema, {
       mutationId: this.#mutation,
       publishedContent: this.#published,
@@ -152,6 +178,8 @@ export class MobileComposerState {
       })),
     });
     this.local.put(this.#entry);
+
+    if (this.moved && !sameComposerInput(previous, this.#entry)) this.moved = "";
     this.version++;
 
     for (const listener of this.#listeners) listener();
@@ -224,6 +252,15 @@ export class MobileComposerState {
       if (this.id !== draft.id || this.locked) return draft;
 
       if (![Code.NotFound, Code.FailedPrecondition].includes(ConnectError.from(cause).code)) throw cause;
+      const page = await api.listComposerDrafts({ deviceId: draft.deviceId, sourceDraftIds: [draft.id] });
+      const move = page.moves.find((row) => row.id === draft.id);
+
+      if (move) {
+        this.acceptMove(move);
+
+        return draft;
+      }
+
       this.fork();
       this.#saving = undefined;
 
@@ -231,9 +268,6 @@ export class MobileComposerState {
     } finally {
       this.#saving = undefined;
     }
-
-    if (!this.locked && this.#published !== toJsonString(ui.ComposerDraftContentSchema, this.content(true)))
-      return this.publish(api);
 
     return saved;
   }
@@ -277,6 +311,7 @@ export class MobileComposerState {
 
     if (this.files.current.some((f) => !f.attachment))
       throw new Error("Wait for uploads, or remove the files that could not be attached.");
+    this.moved = "";
 
     const content =
       !replace && hasComposerContent(this.content()) && incoming.content
@@ -310,6 +345,7 @@ export class MobileComposerState {
     this.persist();
   }
   clear() {
+    this.moved = "";
     this.pendingSend = undefined;
     this.pendingCreate = undefined;
     const previous = this.#entry.draft;
@@ -326,12 +362,14 @@ export class MobileComposerState {
     for (const listener of this.#listeners) listener();
   }
   async beginSend(request: ui.SendMessageRequest) {
+    this.moved = "";
     this.deliveryChecked = false;
     this.pendingSend = request;
     this.persist();
     await this.local.checkpoint();
   }
   async beginCreate(request: ui.CreateThreadRequest) {
+    this.moved = "";
     this.deliveryChecked = false;
     this.pendingCreate = request;
     this.persist();
@@ -350,95 +388,5 @@ export class MobileComposerState {
 
     if (fork) this.fork();
     this.persist();
-  }
-}
-
-export class MobileDrafts {
-  readonly remote = new MobileRemoteDrafts();
-  #revision = 0n;
-  #live = new Map<string, MobileComposerState>();
-  #remote = new Set<() => void>();
-  subscribeRemote = (listener: () => void) => {
-    this.#remote.add(listener);
-
-    return () => {
-      this.#remote.delete(listener);
-    };
-  };
-  async watch(api: Client<typeof ui.GatewayService>, signal: AbortSignal) {
-    while (!signal.aborted) {
-      try {
-        for await (const change of api.watchComposerDrafts(
-          { afterRevision: this.#revision },
-          { signal, timeoutMs: 0 },
-        )) {
-          this.#revision = change.revision;
-          this.remote.invalidate();
-          await this.remote.load(api, this.deviceId);
-
-          for (const listener of this.#remote) listener();
-        }
-      } catch (cause) {
-        if (ConnectError.from(cause).code === Code.Unimplemented) return;
-      }
-
-      if (signal.aborted) return;
-      await new Promise<void>((resolve) => {
-        const done = () => {
-          clearTimeout(timer);
-          signal.removeEventListener("abort", done);
-          resolve();
-        };
-
-        const timer = setTimeout(done, 2000);
-        signal.addEventListener("abort", done, { once: true });
-
-        if (signal.aborted) done();
-      });
-    }
-  }
-  async close() {
-    this.local.dispose();
-    await this.flush();
-    this.#live.clear();
-  }
-  removeThread(threadId: string) {
-    for (const entry of this.local.list()) {
-      const target = entry.draft?.target;
-
-      if (!target || (target.threadId !== threadId && target.parentThreadId !== threadId)) continue;
-      const key = composerTargetKey(target);
-      this.#live.get(key)?.clear();
-      this.#live.delete(key);
-      this.local.remove(target);
-    }
-
-    void this.flush();
-  }
-  constructor(
-    readonly local: ComposerLocalStore,
-    readonly deviceId: string,
-    readonly deviceName: string,
-    readonly flush: () => Promise<void>,
-  ) {}
-  get(target: ui.ComposerDraftTarget) {
-    const key = composerTargetKey(target);
-    let current = this.#live.get(key);
-
-    if (!current) {
-      if (this.#live.size >= 100) {
-        const idle = [...this.#live].find(
-          ([, value]) =>
-            !value.pendingSend && !value.pendingCreate && !value.files.current.some((f) => !f.attachment && !f.error),
-        );
-
-        if (idle) this.#live.delete(idle[0]);
-      }
-
-      current = new MobileComposerState(this.local.make(target, this.deviceId, this.deviceName), this.local);
-      this.#live.set(key, current);
-    }
-
-    return current;
   }
 }

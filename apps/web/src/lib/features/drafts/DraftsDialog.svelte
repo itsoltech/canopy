@@ -20,8 +20,8 @@
     ontake,
   }: {
     open?: boolean;
-    draft: WebComposerDraft;
-    ontake: (incoming: ui.ComposerDraft, replace?: boolean) => Promise<void>;
+    draft?: WebComposerDraft;
+    ontake?: (incoming: ui.ComposerDraft, replace?: boolean) => Promise<void>;
   } = $props();
 
   let rows = $derived(remoteDrafts.rows);
@@ -68,9 +68,9 @@
     loading = true;
 
     try {
-      const currentTarget = webDrafts.local.list().find((entry) => entry.draft?.id === draft.id)?.draft?.target;
+      const currentTarget = webDrafts.local.list().find((entry) => entry.draft?.id === draft?.id)?.draft?.target;
 
-      if (currentTarget && composerTargetKey(currentTarget) === composerTargetKey(row.target))
+      if (ontake && currentTarget && composerTargetKey(currentTarget) === composerTargetKey(row.target))
         await ontake(row, replace);
       else {
         const destination = webDrafts.get(row.target, () => DEFAULT_ATTACHMENT_LIMITS);
@@ -132,7 +132,11 @@
           </div>
         {/if}
         <div class="flex flex-wrap gap-1">
-          <Button size="sm" disabled={loading} onclick={() => void take(row)}>Continue here</Button>
+          <Button size="sm" disabled={loading} onclick={() => void take(row)}
+            >{row.target && hasComposerContent(webDrafts.local.get(row.target)?.draft?.content)
+              ? "Append draft"
+              : "Take over"}</Button
+          >
           <Button
             size="sm"
             variant="ghost"

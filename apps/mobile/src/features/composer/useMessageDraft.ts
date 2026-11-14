@@ -83,7 +83,7 @@ export function useMessageDraft(
     persistent: options.persistent,
     value,
     files,
-    badges,
+    badges: { ...badges, onBlur: () => options.persistent?.flush?.() },
     snapshot: () => snapshotDraft(current.current, options.files?.current ?? files.files, options.persistent?.choices),
     restore(next: MessageSnapshot) {
       if (options.persistent?.locked) throw new Error("Retry the pending message before restoring a draft.");

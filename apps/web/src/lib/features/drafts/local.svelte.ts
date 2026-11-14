@@ -2,7 +2,7 @@ import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { ComposerLocalStore, composerTargetKey } from "@canopy/domain/composer-drafts";
 import { WebComposerDraft } from "./state.svelte.ts";
-import type { AttachmentLimits } from "@canopy/domain";
+import { DEFAULT_ATTACHMENT_LIMITS, type AttachmentLimits } from "@canopy/domain";
 import { untrack } from "svelte";
 
 class WebDrafts {
@@ -74,7 +74,11 @@ class WebDrafts {
       const receive = (event: StorageEvent) => {
         if (event.storageArea !== localStorage || !event.key?.startsWith(`${key}:`)) return;
         const targetKey = event.key.slice(key.length + 1);
-        this.local.receive(targetKey, event.newValue);
+        const live = this.#live.get(targetKey);
+
+        if (live?.locked || !this.local.receive(targetKey, event.newValue)) return;
+
+        if (live) live.retired = true;
         this.#live.delete(targetKey);
         this.generation++;
       };
@@ -117,6 +121,14 @@ class WebDrafts {
     }
 
     return live;
+  }
+  acceptMoves(moves: ui.ComposerDraftMove[]) {
+    for (const move of moves) {
+      for (const entry of this.local.list()) {
+        if (entry.draft?.id !== move.id || !entry.draft.target) continue;
+        this.get(entry.draft.target, () => DEFAULT_ATTACHMENT_LIMITS).acceptMove(move);
+      }
+    }
   }
   has(threadId: string) {
     void this.version;

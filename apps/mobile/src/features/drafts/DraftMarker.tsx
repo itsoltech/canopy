@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useMemo, useSyncExternalStore, useEffect, useState } from "react";
 import { Text } from "react-native";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
@@ -7,7 +7,21 @@ import { styles, useColors } from "../../ui/theme";
 
 export function DraftMarker({ threadId }: { threadId: string }) {
   const c = useColors();
-  const { drafts } = useSession();
+  const { drafts, client } = useSession();
+  const [remote, setRemote] = useState(false);
+  useEffect(() => {
+    const update = () => {
+      if (client && drafts)
+        void drafts.remote
+          .load(client.api, drafts.deviceId)
+          .then((page) => setRemote(page.threadIds.includes(threadId)))
+          .catch(() => {});
+    };
+
+    update();
+
+    return drafts?.subscribeRemote(update);
+  }, [drafts, client, threadId]);
   const target = useMemo(() => create(ui.ComposerDraftTargetSchema, { threadId }), [threadId]);
 
   const subscribe = useCallback(
@@ -15,7 +29,8 @@ export function DraftMarker({ threadId }: { threadId: string }) {
     [drafts, target],
   );
 
-  const present = useSyncExternalStore(subscribe, () => Boolean(drafts?.local.get(target)));
+  const local = useSyncExternalStore(subscribe, () => Boolean(drafts?.local.get(target)));
+  const present = local || remote;
 
   return (
     <Text

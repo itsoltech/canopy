@@ -18,6 +18,7 @@
     "./visual-compiler": "./src/visuals/compile.ts",
     "./visual-shell": "./src/visuals/shell.ts",
     "./composer-drafts": "./src/composer-drafts.ts",
+    "./composer-sync": "./src/composer-sync.ts",
     "./thread-warmer": "./src/thread-warmer.ts",
     "./thread-warm-set": "./src/thread-warm-set.ts",
     "./retained-threads": "./src/retained-threads.ts",
