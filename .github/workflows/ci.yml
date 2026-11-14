@@ -164,22 +164,26 @@ jobs:
           echo "$health"
           kill "$web"
           grep -q "\"version\":\"$CANOPY_VERSION\"" <<<"$health"
-      # Image export calls native APIs per OS (bun:ffi); only a binary on that OS proves them.
-      - name: Worker binaries (darwin-arm64, windows-x64)
+      # Image export calls native APIs per OS (bun:ffi), and the embedded web listens through the OS's sockets;
+      # only a binary on that OS proves them.
+      - name: Native binaries (darwin-arm64, windows-x64)
         env:
           CANOPY_VERSION: ${{ steps.version.outputs.version }}
-        run: bun scripts/build-binaries.ts --app worker --target darwin-arm64,windows-x64
+        run: |
+          bun scripts/build-binaries.ts --app worker --target darwin-arm64,windows-x64
+          bun scripts/build-binaries.ts --app gateway --target windows-x64 --web dist/web
       - uses: actions/upload-artifact@v4
         with:
-          name: worker-binaries
+          name: native-binaries
           path: |
             dist/release/canopy-worker-darwin-arm64
             dist/release/canopy-worker-windows-x64.exe
+            dist/release/canopy-gateway-windows-x64.exe
           if-no-files-found: error
           retention-days: 1
 
   native:
-    name: Worker self-check (${{ matrix.target }})
+    name: Native checks (${{ matrix.target }})
     needs: builds
     strategy:
       fail-fast: false
@@ -192,7 +196,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v5
         with:
-          name: worker-binaries
+          name: native-binaries
       - name: Open, stat, read and export an image through the pinned native calls
         shell: bash
         env:
@@ -202,6 +206,28 @@ jobs:
           chmod +x "$binary"
           "$binary" --version
           "$binary" self-check
+      # The release smoke's check, on a PR: Windows sockets differ (a reduced environment broke every listen).
+      - name: Embedded web answers with the build version
+        if: matrix.target == 'windows-x64'
+        shell: bash
+        env:
+          CANOPY_WEB_DIR: ${{ runner.temp }}/canopy-web
+          CANOPY_WEB_PORT: "39231"
+        run: |
+          binary="./canopy-gateway-${{ matrix.target }}${{ matrix.suffix }}"
+          chmod +x "$binary"
+          expected="$("$binary" --version | tr -d '\r')"
+          CANOPY_UI_SERVICE_TOKEN="ci-$RANDOM-$RANDOM-0123456789abcdef0123456789" "$binary" web &
+          web=$!
+          health=""
+          for _ in $(seq 1 120); do
+            health="$(curl -fsS "http://127.0.0.1:$CANOPY_WEB_PORT/api/health" || true)"
+            [ -n "$health" ] && break
+            sleep 0.5
+          done
+          echo "$health"
+          kill "$web" || true
+          grep -q "\"version\":\"$expected\"" <<<"$health"
 
   check:
     name: Typecheck, tests, builds

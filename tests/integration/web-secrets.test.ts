@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { webProcessEnv } from "../../apps/gateway/src/web/config.ts";
 
 /**
  * The binary and image gateways run the web BFF in their own process (apps/gateway/src/web/server.ts), so the
@@ -31,4 +32,31 @@ test("web BFF source never reads gateway secrets", () => {
 
   expect(files.length).toBeGreaterThan(100);
   expect(hits).toEqual([]);
+});
+
+test("a standalone web keeps the Windows basics in any case and drops gateway secrets", () => {
+  const env = {
+    SYSTEMROOT: "C:\\Windows",
+    windir: "C:\\Windows",
+    Path: "C:\\Windows\\system32",
+    CANOPY_DATABASE_URL: "postgres://secret",
+    CANOPY_SECRETS_KEY: "secret",
+    CANOPY_UI_SERVICE_TOKEN: "token-0123456789abcdef0123456789abcdef",
+  };
+
+  // Without SystemRoot, Winsock can't load and every listen on Windows fails as "port in use".
+  expect(Object.keys(webProcessEnv(env, "win32")).toSorted()).toEqual(
+    [
+      "GATEWAY_SERVICE_TOKEN",
+      "GATEWAY_URL",
+      "PROTOCOL_HEADER",
+      "HOST_HEADER",
+      "BODY_SIZE_LIMIT",
+      "SYSTEMROOT",
+      "windir",
+      "Path",
+    ].toSorted(),
+  );
+  // Elsewhere names are case-sensitive: only the exact allowlist.
+  expect(Object.keys(webProcessEnv(env, "linux"))).not.toContain("Path");
 });

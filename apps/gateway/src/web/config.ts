@@ -21,10 +21,6 @@ const INHERITED = new Set([
   "TMPDIR",
   "TEMP",
   "TMP",
-  "SystemRoot",
-  "LOCALAPPDATA",
-  "APPDATA",
-  "USERPROFILE",
   "XDG_CACHE_HOME",
   "XDG_STATE_HOME",
   "SSL_CERT_FILE",
@@ -51,6 +47,37 @@ const INHERITED = new Set([
   "KEEP_ALIVE_TIMEOUT",
   "HEADERS_TIMEOUT",
 ]);
+
+/**
+ * Windows basics. Without SystemRoot, Winsock can't load its providers and every listen fails ("port in use").
+ * Windows names are case-insensitive, and Git Bash passes them upper case (SYSTEMROOT, not SystemRoot).
+ */
+const WINDOWS_INHERITED = new Set(
+  [
+    "SystemRoot",
+    "SystemDrive",
+    "windir",
+    "ComSpec",
+    "PATHEXT",
+    "ProgramData",
+    "LOCALAPPDATA",
+    "APPDATA",
+    "USERPROFILE",
+    "USERNAME",
+    "HOMEDRIVE",
+    "HOMEPATH",
+    "COMPUTERNAME",
+  ].map((name) => name.toUpperCase()),
+);
+
+function inherited(key: string, platform: NodeJS.Platform): boolean {
+  if (INHERITED.has(key) || key.startsWith("LC_")) return true;
+
+  if (platform !== "win32") return false;
+  const name = key.toUpperCase();
+
+  return WINDOWS_INHERITED.has(name) || INHERITED.has(name);
+}
 
 export const DEFAULT_WEB_PORT = 3000;
 
@@ -134,11 +161,10 @@ export function webSettings(env: Env) {
  * `canopy-gateway web` on its own (release smoke tests, a separate web): only the allowlisted variables and the
  * web's settings; gateway secrets (database URL, secrets key, TLS key) are left out.
  */
-export function webProcessEnv(env: Env) {
+export function webProcessEnv(env: Env, platform: NodeJS.Platform = process.platform) {
   const out: Record<string, string> = {};
 
-  for (const [key, value] of Object.entries(env))
-    if (value !== undefined && (INHERITED.has(key) || key.startsWith("LC_"))) out[key] = value;
+  for (const [key, value] of Object.entries(env)) if (value !== undefined && inherited(key, platform)) out[key] = value;
   Object.assign(out, webSettings(env));
 
   // A self-signed gateway certificate (CANOPY_TLS_CERT) is trusted for this one local connection.
