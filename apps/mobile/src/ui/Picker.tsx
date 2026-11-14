@@ -45,7 +45,8 @@ export interface PickerSection<T> {
 /**
  * One picker for every choice in the app: a compact sheet (centered card on wide windows) with optional
  * search, section headers and a check on the current value. Choosing closes it. Without `value` it is an
- * action menu.
+ * action menu. With `selected` it is a checklist: rows toggle and the sheet stays open; `header` sits above
+ * the search (an "All" switch).
  */
 export function PickerSheet<T>({
   title,
@@ -54,9 +55,11 @@ export function PickerSheet<T>({
   onDismiss,
   sections,
   value,
+  selected,
   onSelect,
   search,
   note,
+  header,
   footer,
 }: {
   title: string;
@@ -66,10 +69,13 @@ export function PickerSheet<T>({
   onDismiss?: () => void;
   sections: PickerSection<T>[];
   value?: T;
+  /** Checklist mode: the checked values. */
+  selected?: readonly T[];
   onSelect: (value: T) => void;
   /** Placeholder of the search field; without it there is no search. */
   search?: string;
   note?: string;
+  header?: ReactNode;
   footer?: ReactNode;
 }) {
   const c = useColors();
@@ -101,6 +107,7 @@ export function PickerSheet<T>({
           {title}
         </Text>
       </SheetDragArea>
+      {header}
       {search && <SearchField value={query} onChange={setQuery} placeholder={search} />}
       <ScrollView
         keyboardShouldPersistTaps="handled"
@@ -130,10 +137,10 @@ export function PickerSheet<T>({
               <PickerRow
                 key={String(option.value)}
                 option={option}
-                selected={value !== undefined && option.value === value}
-                checkable={value !== undefined}
+                selected={selected ? selected.includes(option.value) : value !== undefined && option.value === value}
+                checkable={selected ? "checkbox" : value !== undefined ? "radio" : false}
                 onPress={() => {
-                  close();
+                  if (!selected) close();
                   onSelect(option.value);
                 }}
               />
@@ -164,7 +171,7 @@ function PickerRow<T>({
 }: {
   option: PickerOption<T>;
   selected: boolean;
-  checkable: boolean;
+  checkable: "radio" | "checkbox" | false;
   onPress: () => void;
 }) {
   const c = useColors();
@@ -173,7 +180,7 @@ function PickerRow<T>({
 
   return (
     <Pressable
-      accessibilityRole={checkable ? "radio" : "menuitem"}
+      accessibilityRole={checkable || "menuitem"}
       accessibilityState={{ selected, checked: checkable ? selected : undefined, disabled: option.disabled }}
       accessibilityLabel={[option.label, option.suffix, option.badge, option.description].filter(Boolean).join(", ")}
       disabled={option.disabled}

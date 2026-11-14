@@ -1,8 +1,9 @@
 import type { connectors } from "@canopy/contracts";
 import { useOverview } from "../../state/overview";
-import { SettingsGroup, SettingToggle } from "./SettingsGroup";
+import { SettingsGroup } from "./SettingsGroup";
 import { ResourceState, useSettingsAction } from "./resource";
 import { useBotList } from "../../state/bot-list";
+import { SettingAccess } from "./SettingAccess";
 
 export function ConnectorAccess({
   account,
@@ -30,53 +31,29 @@ export function ConnectorAccess({
       )
       .then(onChanged);
 
+  const bots = (list.data?.bots ?? [])
+    .filter((bot) => !bot.archived)
+    .map((bot) => ({ id: bot.id, name: bot.configuration?.name || "Bot" }));
+
   return (
     <ResourceState resource={resource}>
-      <SettingsGroup title="Access" description="All includes future workers and bots belonging to you.">
-        <SettingToggle
-          title="All workers"
-          value={account.allWorkers}
+      <SettingsGroup title="Access" description="Only these workers and bots can use this account.">
+        <SettingAccess
+          title="Workers"
+          options={workers.map((w) => ({ id: w.id, name: w.name, online: w.online }))}
+          all={account.allWorkers}
+          ids={account.workerIds}
           disabled={resource.busy}
-          onChange={(allWorkers) => change({ allWorkers })}
+          onChange={(next) => change({ allWorkers: next.all, workerIds: [...next.ids] })}
         />
-        {!account.allWorkers &&
-          workers.map((worker) => (
-            <SettingToggle
-              key={worker.id}
-              title={worker.name}
-              value={account.workerIds.includes(worker.id)}
-              disabled={resource.busy}
-              onChange={(enabled) =>
-                change({
-                  workerIds: enabled
-                    ? [...account.workerIds, worker.id]
-                    : account.workerIds.filter((id) => id !== worker.id),
-                })
-              }
-            />
-          ))}
-        <SettingToggle
-          title="All bots"
-          value={account.allBots}
+        <SettingAccess
+          title="Bots"
+          options={bots}
+          all={account.allBots}
+          ids={account.botIds}
           disabled={resource.busy}
-          onChange={(allBots) => change({ allBots })}
+          onChange={(next) => change({ allBots: next.all, botIds: [...next.ids] })}
         />
-        {!account.allBots &&
-          list.data?.bots
-            .filter((bot) => !bot.archived)
-            .map((bot) => (
-              <SettingToggle
-                key={bot.id}
-                title={bot.configuration?.name || "Bot"}
-                value={account.botIds.includes(bot.id)}
-                disabled={resource.busy}
-                onChange={(enabled) =>
-                  change({
-                    botIds: enabled ? [...account.botIds, bot.id] : account.botIds.filter((id) => id !== bot.id),
-                  })
-                }
-              />
-            ))}
       </SettingsGroup>
     </ResourceState>
   );

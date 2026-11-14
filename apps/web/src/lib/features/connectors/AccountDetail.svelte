@@ -17,8 +17,10 @@
   import MenuSeparator from "#lib/shared/ui/MenuSeparator.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import { expand } from "#lib/shared/ui/motion.ts";
+  import type { AccessChoice } from "@canopy/domain/access-picker";
   import AccountSummary from "./AccountSummary.svelte";
-  import AccessPicker from "./AccessPicker.svelte";
+  import AccessPicker from "#lib/features/access/AccessPicker.svelte";
+  import type { AccessOption } from "#lib/features/access/access-options.ts";
   import ToolCatalog from "./ToolCatalog.svelte";
   import ConnectAccountDialog from "./ConnectAccountDialog.svelte";
   import ConnectionError from "./ConnectionError.svelte";
@@ -36,18 +38,28 @@
     account: connectors.ConnectorAccount;
     oauthCompletion?: connectors.CompleteConnectorOAuthResponse | undefined;
     type: connectors.ConnectorType;
-    workers: readonly { id: string; name: string; group?: string; readOnly?: string }[];
-    bots: readonly { id: string; name: string }[];
+    workers: readonly AccessOption[];
+    bots: readonly AccessOption[];
     onupdate: (account: connectors.ConnectorAccount, alreadyConnected?: boolean) => void;
     onremove: (id: string) => void;
     class?: ClassValue;
   } = $props();
 
   let name = $state(untrack(() => account.name));
-  let allWorkers = $state(untrack(() => account.allWorkers));
-  let workerIds = $state(untrack(() => [...account.workerIds]));
-  let allBots = $state(untrack(() => account.allBots));
-  let botIds = $state(untrack(() => [...account.botIds]));
+
+  /** The access being saved; the pickers show it until the account comes back. */
+  let pending = $state<{ allWorkers: boolean; workerIds: string[]; allBots: boolean; botIds: string[] }>();
+  let savingGroup = $state<"workers" | "bots">();
+
+  const access = $derived(
+    pending ?? {
+      allWorkers: account.allWorkers,
+      workerIds: [...account.workerIds],
+      allBots: account.allBots,
+      botIds: [...account.botIds],
+    },
+  );
+
   let busy = $state("");
   let error = $state("");
   let tools = $state<ConnectorTool[]>();
@@ -64,14 +76,6 @@
     const next = account;
     untrack(() => {
       if (name === previous.name) name = next.name;
-
-      if (allWorkers === previous.allWorkers) allWorkers = next.allWorkers;
-
-      if (allBots === previous.allBots) allBots = next.allBots;
-
-      if (workerIds.join() === previous.workerIds.join()) workerIds = [...next.workerIds];
-
-      if (botIds.join() === previous.botIds.join()) botIds = [...next.botIds];
       previous = next;
     });
   });
@@ -80,7 +84,7 @@
   function actionBody(action: string): JsonObject {
     const expectedRevision = account.revision.toString();
 
-    if (action === "access") return { allWorkers, workerIds, allBots, botIds, expectedRevision };
+    if (action === "access" && pending) return { ...pending, expectedRevision };
 
     if (action === "rename") return { id: account.id, name, expectedRevision };
 
@@ -128,7 +132,20 @@
       if (action === "test") tools = undefined;
     } finally {
       busy = "";
+      pending = undefined;
+      savingGroup = undefined;
     }
+  }
+
+  /** Access saves as soon as a picker closes with a change, like the other switches in Settings. */
+  function saveAccess(group: "workers" | "bots", next: AccessChoice) {
+    const shown = access;
+    savingGroup = group;
+    pending =
+      group === "workers"
+        ? { ...shown, allWorkers: next.all, workerIds: [...next.ids] }
+        : { ...shown, allBots: next.all, botIds: [...next.ids] };
+    void run("access");
   }
 </script>
 
@@ -171,23 +188,30 @@
   </div>
   {#if accessOpen}
     <div transition:expand={{ instantReduced: true }}>
-      <div class="grid gap-4 border-t border-zinc-950/5 p-3 dark:border-white/8">
+      <div class="grid gap-3 border-t border-zinc-950/5 p-3 dark:border-white/8">
         <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
           Only these workers and bots can use this account. Threads also follow their permission mode.
         </p>
         <AccessPicker
           label="Workers"
+          icon="computer-desktop"
           options={workers}
-          bind:all={allWorkers}
-          bind:selected={workerIds}
+          all={access.allWorkers}
+          ids={access.workerIds}
+          saving={savingGroup === "workers"}
           disabled={!!busy}
+          onchange={(next) => saveAccess("workers", next)}
         />
-        <AccessPicker label="Bots" options={bots} bind:all={allBots} bind:selected={botIds} disabled={!!busy} />
-        <div>
-          <Button size="sm" loading={busy === "access"} disabled={!!busy} onclick={() => run("access")}
-            >Save access</Button
-          >
-        </div>
+        <AccessPicker
+          label="Bots"
+          icon="chat-bubble-left-right"
+          options={bots}
+          all={access.allBots}
+          ids={access.botIds}
+          saving={savingGroup === "bots"}
+          disabled={!!busy}
+          onchange={(next) => saveAccess("bots", next)}
+        />
       </div>
     </div>
   {/if}

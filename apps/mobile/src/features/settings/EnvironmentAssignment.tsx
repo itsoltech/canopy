@@ -2,6 +2,7 @@ import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { Field } from "../../ui/components";
 import { SettingsGroup, SettingChoice, SettingToggle } from "./SettingsGroup";
+import { SettingAccess } from "./SettingAccess";
 
 export function EnvironmentAssignment({
   value,
@@ -49,20 +50,15 @@ export function EnvironmentAssignment({
             ]}
             onChange={(value) => change({ matchAllTags: value === "all" })}
           />
-          {workers.map((worker) => (
-            <SettingToggle
-              key={worker.workerId}
-              title={worker.name}
-              value={selector.workerIds.includes(worker.workerId)}
-              onChange={(on) =>
-                change({
-                  workerIds: on
-                    ? [...selector.workerIds, worker.workerId]
-                    : selector.workerIds.filter((id) => id !== worker.workerId),
-                })
-              }
-            />
-          ))}
+          <SettingAccess
+            title="Specific computers"
+            description="Chosen computers get it even without matching tags."
+            noun="computers"
+            allowAll={false}
+            options={workers.map((w) => ({ id: w.workerId, name: w.name, online: w.online }))}
+            ids={selector.workerIds}
+            onChange={(next) => change({ workerIds: [...next.ids] })}
+          />
         </>
       )}
       <Field
