@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
   import { sidebarUsageAccounts, sidebarUsageGlance } from "@canopy/domain/sidebar-usage";
-  import { proxyUsageCounts, proxyUsageSections, proxyUsageText } from "@canopy/domain/proxy-accounts";
+  import { proxyUsageSections, proxyUsageText } from "@canopy/domain/proxy-accounts";
   import { sharedProxies } from "#lib/features/proxies/proxies.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
@@ -13,6 +13,7 @@
   import ProviderIcon from "#lib/features/models/ProviderIcon.svelte";
   import UsageGlance from "./UsageGlance.svelte";
   import UsageMeters from "./UsageMeters.svelte";
+  import ProxyUsageAccounts from "#lib/features/proxies/ProxyUsageAccounts.svelte";
 
   let { class: className }: { class?: ClassValue } = $props();
   const overview = useOverview();
@@ -22,6 +23,9 @@
   // Accounts the gateway read from proxies in use; reading the list never calls a proxy.
   const proxies = sharedProxies();
   const sections = $derived(proxyUsageSections(proxies.data?.proxies));
+  const usageProxies = $derived(
+    (proxies.data?.proxies ?? []).filter((proxy) => proxy.kind === "cliproxyapi" && proxy.usedBy.length),
+  );
 
   const label = $derived(
     `Show provider usage. ${[...glance.map((item) => item.label), ...sections.map(proxyUsageText)].join(". ")}`,
@@ -34,7 +38,7 @@
   $effect(() => () => clearTimeout(closeTimer));
 
   $effect(() => {
-    if (!accounts.length && !sections.length) open = false;
+    if (!accounts.length && !usageProxies.length) open = false;
   });
 
   function hover(event: PointerEvent) {
@@ -49,7 +53,7 @@
 </script>
 
 <div class={["grid size-9 shrink-0 place-items-center sm:size-8", className]}>
-  {#if glance.length || sections.length}
+  {#if glance.length || usageProxies.length}
     <div role="group" aria-label="Provider usage" onpointerenter={hover} onpointerleave={leave}>
       <Popover
         bind:open
@@ -79,34 +83,25 @@
         {/snippet}
         <div class="grid gap-3 p-3">
           <h2 class="text-sm font-medium text-zinc-500 sm:text-xs dark:text-zinc-400">Provider usage</h2>
-          {#each accounts as account (account.key)}
-            {@const provider = providerKeyOf(account.provider)}
-            <section class="grid min-w-0 gap-2">
-              <div class="flex min-w-0 items-center gap-2">
-                {#if provider}<ProviderIcon {provider} size="sm" />{/if}
-                <TruncatedText class="flex-1 text-base font-medium sm:text-sm" text={account.label} />
-                <TruncatedText
-                  class="max-w-[40%] text-sm text-zinc-500 sm:text-xs dark:text-zinc-400"
-                  text={account.computer}
-                />
-              </div>
-              <UsageMeters usage={account.usage} now={clock.now} />
-            </section>
-          {/each}
-          {#each sections as section (section.proxyId)}
-            <a
-              href={`/settings/proxies#proxy-${section.proxyId}`}
-              aria-label={proxyUsageText(section)}
-              onclick={() => (open = false)}
-              class="grid min-w-0 gap-0.5 rounded-md focus-ring"
-            >
-              <span class="flex min-w-0 items-center gap-2">
-                <Icon name="link" class="size-4 shrink-0 fill-zinc-500 dark:fill-zinc-400" />
-                <TruncatedText class="flex-1 text-base font-medium sm:text-sm" text={`Through ${section.label}`} />
-              </span>
-              <span class="pl-6 text-sm text-zinc-500 sm:text-xs dark:text-zinc-400">{proxyUsageCounts(section)}</span>
-            </a>
-          {/each}
+          <div class="grid max-h-[min(28rem,60dvh)] min-w-0 gap-3 overflow-y-auto overscroll-contain">
+            {#each accounts as account (account.key)}
+              {@const provider = providerKeyOf(account.provider)}
+              <section class="grid min-w-0 gap-2">
+                <div class="flex min-w-0 items-center gap-2">
+                  {#if provider}<ProviderIcon {provider} size="sm" />{/if}
+                  <TruncatedText class="flex-1 text-base font-medium sm:text-sm" text={account.label} />
+                  <TruncatedText
+                    class="max-w-[40%] text-sm text-zinc-500 sm:text-xs dark:text-zinc-400"
+                    text={account.computer}
+                  />
+                </div>
+                <UsageMeters usage={account.usage} now={clock.now} />
+              </section>
+            {/each}
+            {#each usageProxies as proxy (proxy.id)}
+              <ProxyUsageAccounts {proxy} onclose={() => (open = false)} />
+            {/each}
+          </div>
           <ButtonLink href="/settings/providers" variant="ghost" onclick={() => (open = false)} class="justify-start"
             >Open provider settings</ButtonLink
           >

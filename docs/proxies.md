@@ -210,6 +210,16 @@ z podsumowaniem kont tego harnessu (np. „2 Codex accounts · 1 cooling down”
 do karty proxy, zamiast mierników planu. Mobile pokazuje to samo tylko do odczytu.
 Wspólne etykiety i podsumowanie: `@canopy/domain/proxy-accounts`.
 
+Web ukrywa tożsamości kont oraz komunikaty kont mogące zawierać login wspólnym
+komponentem `Sensitive`, tak samo jak adresy w Providers. Kliknięcie lub aktywacja
+klawiaturą odsłania wartość na 30 s; Escape ukrywa ją od razu. Rozmycie nie zmienia
+szerokości tekstu, a ukryta wartość nie trafia do tytułu ani etykiety dostępności.
+Popover **Provider usage** pokazuje konta używanych proxy pogrupowane według providera,
+ich limity (najbardziej wykorzystane najpierw), status inny niż Active oraz czas
+ostatniego sprawdzenia. Długa lista przewija się wewnątrz nakładki. Korzysta wyłącznie
+ze wspólnego `ListProxies` aktualizowanego przez overview; otwarcie nie odpytuje proxy
+ani nie zakłada nowego timera.
+
 `tests/integration/proxy-accounts.test.ts` używa fałszywego serwera Management API:
 parsowanie i sanityzacja kont, zły klucz bez ponowień, wyłączony zdalny dostęp,
 za duże i nie-JSON body, nieosiągalny host, brak klucza, owner scoping, okresowe
