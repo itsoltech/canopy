@@ -60,7 +60,7 @@
 </script>
 
 <div class="@container flex h-10 shrink-0 items-center gap-2 border-b border-divider bg-surface pr-2 pl-3">
-  <p class="min-w-16 flex-1 truncate font-mono text-sm sm:text-xs" title={document.path}>
+  <p class="min-w-24 flex-1 truncate font-mono text-sm sm:text-xs" title={document.path}>
     <span class="text-muted select-text">{parent}</span><span class="font-medium select-text">{leaf}</span>
   </p>
   {#if notice}<FileNoticePill {notice} />{/if}

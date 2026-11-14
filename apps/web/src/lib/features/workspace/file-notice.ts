@@ -5,5 +5,6 @@ export interface FileNotice {
   detail?: string;
   /** Work in progress: the pill shows a spinner. */
   busy?: boolean;
-  action?: { label: string; run: () => void };
+  /** `short` replaces the label in a narrow bar. */
+  action?: { label: string; short?: string; run: () => void };
 }

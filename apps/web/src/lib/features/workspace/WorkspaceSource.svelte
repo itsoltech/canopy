@@ -113,7 +113,7 @@
             ? {
                 text: "Plain text",
                 detail: "Large files are shown as plain text to keep them responsive.",
-                action: { label: "Enable highlighting", run: () => (highlight = true) },
+                action: { label: "Enable highlighting", short: "Highlight", run: () => (highlight = true) },
               }
             : undefined,
     );

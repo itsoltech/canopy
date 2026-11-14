@@ -6,7 +6,7 @@
 
   /**
    * The file bar's notice slot: one compact pill beside the controls, so a notice never moves the text below.
-   * In a narrow bar only the icon and the action stay; the sentence is in the tooltip.
+   * In a narrow bar only the icon and a short action stay, so the path keeps its room; the sentence is in the tooltip.
    */
   let { notice }: { notice: FileNotice } = $props();
 </script>
@@ -23,11 +23,15 @@
     {@attach tooltip(notice.detail ?? notice.text)}
   >
     {#if notice.busy}<Spinner class="size-3.5" />{:else}<Icon name="information-circle" size="sm" />{/if}
-    {#key notice.text}<span class="t-swap hidden min-w-0 truncate pr-0.5 @lg:inline">{notice.text}</span>{/key}
+    {#key notice.text}<span class="t-swap hidden min-w-0 truncate pr-0.5 @2xl:inline">{notice.text}</span>{/key}
   </span>
   {#if notice.action}<button
       type="button"
       class="shrink-0 rounded-full px-1.5 font-medium whitespace-nowrap text-zinc-700 focus-ring hover:bg-zinc-950/5 dark:text-zinc-200 dark:hover:bg-white/10"
-      onclick={notice.action.run}>{notice.action.label}</button
+      aria-label={notice.action.label}
+      onclick={notice.action.run}
+      ><span class="hidden @2xl:inline">{notice.action.label}</span><span class="@2xl:hidden"
+        >{notice.action.short ?? notice.action.label}</span
+      ></button
     >{/if}
 </span>
