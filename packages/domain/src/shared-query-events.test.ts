@@ -26,6 +26,30 @@ async function watched(keys: string[]) {
 }
 
 describe("overview events and shared reads", () => {
+  test("mirror commits and last-seen heartbeats do not reload computer settings; changes and reconnect do", async () => {
+    const { queries, reads, invalidation } = await watched(["GetComputers", "ListWorkerRecords"]);
+    const computer = create(ui.LinkedComputerSchema, { nodeId: "home", name: "Computer B", status: "connected" });
+    invalidation.apply(update({ case: "computer", value: computer }));
+    await Bun.sleep(20);
+    reads.clear();
+
+    for (let n = 0; n < 100; n++)
+      invalidation.apply(update({ case: "computer", value: { ...computer, lastSeenMs: BigInt(n) } }));
+    await Bun.sleep(20);
+    expect(reads.size).toBe(0);
+
+    invalidation.apply(update({ case: "computer", value: { ...computer, shareConfig: true } }));
+    await Bun.sleep(20);
+    expect(Object.fromEntries(reads)).toEqual({ GetComputers: 1, ListWorkerRecords: 1 });
+    reads.clear();
+    invalidation.apply(update({ case: "sharedConfig", value: create(ui.SharedConfigSnapshotSchema) }));
+    await Bun.sleep(20);
+    expect(Object.fromEntries(reads)).toEqual({ GetComputers: 1 });
+    invalidation.synced([], true);
+    await Bun.sleep(20);
+    expect(reads.get("GetComputers")).toBe(2);
+    queries.dispose();
+  });
   test.each(["thread", "gap"])("%s revalidation retains mounted PR consumers through a delayed read", async (event) => {
     const queries = new QueryCache({ coalesceMs: 0 });
     const invalidation = new OverviewInvalidation(queries);

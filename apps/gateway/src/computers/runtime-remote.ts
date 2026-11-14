@@ -178,7 +178,7 @@ export const computersRemoteMethods: ComputersRemoteMethods = {
   async computer(this: LinkedComputers, nodeId: string) {
     const peer = await this.store.computer(nodeId);
 
-    return peer && computersComputerMessage(this, peer);
+    return peer && computersComputerMessage(this, peer, [...(await this[computersState].routes.list(nodeId))]);
   },
 
   /** The linked computer of a qualified id's suffix. */

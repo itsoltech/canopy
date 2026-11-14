@@ -1,7 +1,11 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createServer } from "node:net";
 import type { AddressInfo } from "node:net";
+import { create } from "@bufbuild/protobuf";
+import { ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
+import { QueryCache } from "@canopy/domain/shared-query";
+import { OverviewInvalidation } from "@canopy/domain/shared-query-events";
 import { LinkedComputers } from "../../apps/gateway/src/computers/runtime.ts";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { linkedComputers } from "./support/computers.ts";
@@ -104,6 +108,54 @@ describe.skipIf(!dockerAvailable)("route status of two linked gateways", () => {
     expect(onA.connectionDirection).toBe("incoming");
     expect(onA.routes.map((r) => [r.address, r.inUse])).toEqual([[`https://${UNREACHABLE}:${portB}`, false]]);
   });
+
+  test("route-only overview events refresh cached computer routes after add and remove", async () => {
+    const queries = new QueryCache({ coalesceMs: 0 });
+    const invalidation = new OverviewInvalidation(queries);
+    const abort = new AbortController();
+    const nodeId = lb.hello().nodeId;
+    const initial = (await la.computer(nodeId))!;
+    invalidation.apply(create(ui.OverviewUpdateSchema, { change: { case: "computer", value: initial } }));
+
+    let subscribed = false;
+
+    const watching = (async () => {
+      try {
+        for await (const update of a.api.watchOverview({}, { signal: abort.signal })) {
+          invalidation.apply(update);
+          subscribed = true;
+        }
+      } catch (error) {
+        if (!abort.signal.aborted) throw error;
+      }
+    })();
+
+    const stop = queries.watch(
+      "GetComputers",
+      () => a.api.getComputers({}),
+      () => {},
+    );
+
+    const cached = () => queries.snapshot<ui.ComputersSnapshot>("GetComputers").data?.peers[0];
+    const address = `https://${UNREACHABLE}:${await freePort()}`;
+
+    try {
+      await eventually(async () => subscribed && Boolean(cached()));
+      await a.api.manageComputer({ action: "add_route", nodeId, address });
+      await eventually(async () => Boolean(cached()?.routes.some((route) => route.address === address)));
+      expect(cached()?.status).toBe(initial.status);
+      expect(cached()?.name).toBe(initial.name);
+      expect((await la.computer(nodeId))?.routes).toEqual((await peer(a)).routes);
+      await a.api.manageComputer({ action: "remove_route", nodeId, address });
+      await eventually(async () => !cached()?.routes.some((route) => route.address === address));
+      expect(cached()?.status).toBe(initial.status);
+    } finally {
+      abort.abort();
+      await watching;
+      stop();
+      queries.dispose();
+    }
+  }, 20_000);
 
   test("failed outbound routes stay recorded while the partner keeps the link up from its side", async () => {
     // B goes away: A dials B's only announced address and fails.

@@ -39,6 +39,12 @@ const CONNECTOR_REVISION = `SELECT md5(coalesce((SELECT string_agg(concat_ws(':'
 const PROXY_REVISION = `SELECT md5(coalesce(string_agg(concat_ws(':', p.id, p.revision, p.updated_at), ',' ORDER BY p.id), '')) AS revision
   FROM proxies p WHERE p.owner_user_id = $1::uuid`;
 
+// Notices can be dismissed without advancing the configuration clock. Include their open set too.
+const CONFIG_REVISION = `SELECT concat_ws(':',
+  (SELECT epoch::text || '/' || revision FROM config_clock WHERE owner_user_id=$1::uuid),
+  (SELECT md5(coalesce(string_agg(id::text,',' ORDER BY id),'')) FROM config_history
+    WHERE owner_user_id=$1::uuid AND state='open' AND superseded_at>now()-interval '90 days')) AS revision`;
+
 type Row = { id?: string; revision: string };
 
 /**
@@ -58,6 +64,7 @@ export class OwnerFeeds {
   #views = new Map<string, bots.Bot>();
   #connectors: string | undefined;
   #proxies: string | undefined;
+  #config: string | undefined;
   #updates: ReturnType<typeof setTimeout> | undefined;
 
   constructor(
@@ -86,6 +93,7 @@ export class OwnerFeeds {
       this.#views.clear();
       this.#connectors = undefined;
       this.#proxies = undefined;
+      this.#config = undefined;
     };
   }
 
@@ -150,11 +158,12 @@ export class OwnerFeeds {
     const full = this.#full;
     this.#full = false;
 
-    const [clock, cards, connectors, proxies] = await Promise.all([
+    const [clock, cards, connectors, proxies, config] = await Promise.all([
       this.#query(BOT_CLOCK),
       this.#query(BOT_CARDS),
       this.#query(CONNECTOR_REVISION),
       this.#query(PROXY_REVISION),
+      this.#query(CONFIG_REVISION),
     ]);
 
     await this.#compareBots(
@@ -171,6 +180,11 @@ export class OwnerFeeds {
     if (this.#proxies !== undefined && this.#proxies !== proxy) this.#publish({ case: "proxiesChanged", value: true });
     this.#connectors = connector;
     this.#proxies = proxy;
+    const configuration = config[0]?.revision ?? "";
+
+    if (this.#config !== undefined && this.#config !== configuration)
+      this.#publish({ case: "linkedReadCompleted", value: "GetComputers" });
+    this.#config = configuration;
   }
 
   /** Bots named by the journal since the last check, or whose waiting cards changed. */

@@ -1,4 +1,5 @@
-import type { ui } from "@canopy/contracts";
+import { equals } from "@bufbuild/protobuf";
+import { ui } from "@canopy/contracts";
 import type { QueryCache } from "./shared-query.ts";
 
 type Change = NonNullable<ui.OverviewUpdate["change"]["case"]>;
@@ -38,11 +39,23 @@ const workerSignature = (worker: ui.Worker) =>
 export class OverviewInvalidation {
   readonly #workers = new Map<string, string>();
   readonly #pullRequests = new Map<string, bigint>();
+  readonly #computers = new Map<string, ui.LinkedComputer>();
 
   constructor(private readonly queries: QueryCache) {}
 
   apply(update: ui.OverviewUpdate): void {
     const change = update.change;
+
+    if (change.case === "computer") {
+      // Mirror commits and heartbeats repeat presence. Freshness alone does not change settings.
+      const current = { ...change.value, lastSeenMs: 0n };
+      const previous = this.#computers.get(current.nodeId);
+      this.#computers.set(current.nodeId, current);
+
+      if (previous && equals(ui.LinkedComputerSchema, previous, current)) return;
+    }
+
+    if (change.case === "computerRemoved") this.#computers.delete(change.value);
 
     if (change.case === "thread") {
       const thread = change.value;
@@ -81,6 +94,7 @@ export class OverviewInvalidation {
   /** A full overview arrived. After a gap in the stream (`gap`) every shared read is stale once. */
   synced(workers: readonly ui.Worker[], gap: boolean): void {
     this.#workers.clear();
+    this.#computers.clear();
 
     for (const worker of workers) this.#workers.set(worker.id, workerSignature(worker));
 

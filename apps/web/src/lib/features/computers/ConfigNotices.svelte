@@ -1,9 +1,8 @@
 <script lang="ts">
-  import { onMount } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import { ui } from "@canopy/contracts";
   import { requestJson } from "#lib/shared/http.ts";
-  import { revalidateEvery, sharedRead } from "#lib/shared/queries.svelte.ts";
+  import { sharedRead } from "#lib/shared/queries.svelte.ts";
   import { decode } from "#lib/shared/wire.ts";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
@@ -34,7 +33,7 @@
   const capabilities = useGatewayCapabilities();
 
   // One shared computers snapshot for every notice list and the Computers page; computer and configuration
-  // events refresh it, with one 60 s visible check for notices that arrive without an event.
+  // events refresh it. Reconnect invalidates the shared read after a gap.
   const computers = sharedRead("GetComputers", ui.ComputersSnapshotSchema, "/api/computers");
   let error = $state("");
   let busy = $state(false);
@@ -66,8 +65,6 @@
       onchange?.();
     }
   }
-
-  onMount(() => (capabilities?.linkedComputers ? revalidateEvery("GetComputers", 60_000) : undefined));
 </script>
 
 {#if visible.length}
