@@ -128,15 +128,16 @@ export const STATE_TEXT = new Map(
   }),
 );
 
-export async function computerGuard<A>(run: () => Promise<A>): Promise<A> {
+/** For pairing and linking only: the address, the code and Network access are what the user can check. */
+export const LINK_FAILED = "Computer link operation failed. Check the address, code and Network access settings.";
+
+/** Unexpected failures become `failure`, without internal details; the caller names what did not happen. */
+export async function computerGuard<A>(run: () => Promise<A>, failure = LINK_FAILED): Promise<A> {
   try {
     return await run();
   } catch (error) {
     if (error instanceof ConnectError) throw error;
-    throw new ConnectError(
-      "Computer link operation failed. Check the address, code and Network access settings.",
-      Code.FailedPrecondition,
-    );
+    throw new ConnectError(failure, failure === LINK_FAILED ? Code.FailedPrecondition : Code.Internal);
   }
 }
 

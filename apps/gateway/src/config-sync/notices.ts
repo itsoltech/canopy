@@ -27,6 +27,7 @@ type HistoryRow = Field & {
   kind: string;
   global_id: string;
   field: string;
+  node_id: string;
   notice_node_id: string;
   superseded_at: Date;
   secret: boolean;
@@ -79,6 +80,23 @@ const grouped = (r: Pick<HistoryRow, "kind" | "reason">) =>
     CONNECTOR_KINDS.has(r.kind)) &&
   r.reason === "deleted";
 
+/** How an instance connects: restoring one of these alone gives a connection neither computer had. */
+const CONNECTION = ["kind", "proxy", "baseUrl", "apiKey"];
+
+const connection = (r: Pick<HistoryRow, "kind" | "field" | "reason">) =>
+  r.kind === "instance" && r.reason !== "deleted" && CONNECTION.includes(r.field);
+
+const groupKey = (r: HistoryRow) =>
+  grouped(r)
+    ? `${r.kind}\0${r.global_id}`
+    : connection(r)
+      ? `${r.kind}\0${r.global_id}\0${r.reason}\0${r.notice_node_id}\0connection`
+      : r.id;
+
+/** The newest lost version of each field (rows newest first). */
+const newestPerField = <R extends Pick<HistoryRow, "field">>(rows: readonly R[]) =>
+  rows.filter((r, index) => rows.findIndex((other) => other.field === r.field) === index);
+
 const nameOf = (fields: Record<string, { value: JsonValue } | undefined> | null | undefined) => {
   const value = fields?.["label"]?.value ?? fields?.["name"]?.value;
 
@@ -100,30 +118,37 @@ export async function configNotices(sync: ConfigSync) {
   const groups = new Map<string, NoticeRow[]>();
 
   for (const r of await unresolved(sync, rows)) {
-    const key = grouped(r) ? `${r.kind}\0${r.global_id}` : r.id;
+    const key = groupKey(r);
     groups.set(key, [...(groups.get(key) ?? []), r]);
   }
+
+  const shown = (g: NoticeRow) => (g.secret || secretField(g.kind, g.field, g.value) ? "A different key" : g.value);
 
   return [...groups.values()].map((group) => {
     const r = group[0]!;
     const lost = Object.fromEntries(group.map((g) => [g.field, { value: g.value }]));
     const present = r.item && Object.keys(r.item).length > 0;
+    const fields = newestPerField(group);
+    const together = connection(r) && fields.length > 1;
 
     return create(ui.ConfigNoticeSchema, {
       id: r.id,
       kind: r.kind,
       globalId: r.global_id,
-      field: grouped(r) ? "deleted" : r.field,
+      field: grouped(r) ? "deleted" : together ? "connection" : r.field,
       nodeName: r.node_name,
       changedAtMs: BigInt(new Date(r.superseded_at).getTime()),
       value: grouped(r)
         ? JSON.stringify(nameOf(lost))
-        : r.secret || secretField(r.kind, r.field, r.value)
-          ? "A different key"
-          : JSON.stringify(r.value),
+        : together
+          ? JSON.stringify(Object.fromEntries(fields.map((g) => [g.field, shown(g)])))
+          : r.secret || secretField(r.kind, r.field, r.value)
+            ? "A different key"
+            : JSON.stringify(r.value),
       reason: r.reason,
       localId: present ? (r.local_id ?? "") : "",
       itemName: nameOf(r.item) || nameOf(lost),
+      ownValue: r.node_id === sync.self(),
     });
   });
 }
@@ -208,7 +233,12 @@ export async function manageConfigNotice(sync: ConfigSync, id: string, action: s
             ? yield* sql<HistoryRow>`SELECT * FROM config_history WHERE owner_user_id=${store.owner}::uuid
               AND kind=${first.kind} AND global_id=${first.global_id} AND reason='deleted' AND state='open'
               AND superseded_at>now()-interval '90 days' ORDER BY field FOR UPDATE`
-            : [first];
+            : connection(first)
+              ? yield* sql<HistoryRow>`SELECT * FROM config_history WHERE owner_user_id=${store.owner}::uuid
+              AND kind=${first.kind} AND global_id=${first.global_id} AND reason=${first.reason}
+              AND notice_node_id=${first.notice_node_id} AND field=ANY(${CONNECTION}::text[]) AND state='open'
+              AND superseded_at>now()-interval '90 days' ORDER BY superseded_at DESC,field FOR UPDATE`
+              : [first];
 
           let result: { cli: boolean; workers: string[]; environment: boolean } | undefined;
 
@@ -225,10 +255,12 @@ export async function manageConfigNotice(sync: ConfigSync, id: string, action: s
               return yield* Effect.fail(new ConnectError("Not supported on this computer", Code.FailedPrecondition));
             const ciphers = cipherOf(yield* recordCiphers(sql, store.owner, row.kind, row.global_id));
 
+            const latest = connection(first) ? newestPerField(history) : history;
+
             const chosen =
               action === "restore"
-                ? history
-                : history.map((h) => {
+                ? latest
+                : latest.map((h) => {
                     const current = h.field === "deleted" ? row.deleted : row.fields[h.field];
 
                     const ciphertext = current ? (ciphers(h.field, current) ?? null) : null;

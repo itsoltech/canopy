@@ -2348,6 +2348,15 @@ Pozostałe rodzaje rekordów i historia wcześniejszych wersji zachowują dotych
 - Settings → Linked computers zbiera notki w grupie „Changed on two computers”. Dismiss na jednym komputerze
   nie ukrywa notki na innych; historia jest lokalna i wygasa po 90 dniach.
 - Sekret w notce widać wyłącznie jako „A different key”.
+- Połączenie instancji (`kind`, `proxy`, `baseUrl`, `apiKey`) to jedna notka „Connects with” z jedną
+  wartością, np. „Endpoint through a different proxy”. Restore i wybór zapisują te pola razem: samo
+  `kind` albo samo `proxy` dawałoby połączenie, którego nie miał żaden komputer. Instancja `native`
+  nigdy nie dostaje `proxy_id`, nawet gdy rekord nadal je wskazuje.
+- Notka mówi, czyja jest zachowana wartość (`ConfigNotice.own_value`): „This computer’s value: …”
+  z **Restore this computer’s**, albo „Other value: …” z **Use the other’s**. Dismiss to **Keep current**.
+  Notka `merged` brzmi „Replaced when this computer linked with Laptop B.” albo „Not used when…”.
+- Nieoczekiwany błąd Restore/Dismiss mówi „Could not apply this value on this computer…”. Komunikat
+  o adresie, kodzie i Network access dotyczy wyłącznie parowania i łącza.
 
 Równość dotyczy wartości efektywnych: kolejność kluczy JSON nie ma znaczenia, aliasy tego samego
 proxy wskazują jedną rzecz, a sekret porównywany jest po odszyfrowanej wartości wyłącznie wewnątrz

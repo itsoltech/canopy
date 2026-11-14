@@ -77,7 +77,7 @@
     try {
       await action();
     } catch (e) {
-      error = e instanceof Error ? e.message : "Computer link operation failed";
+      error = e instanceof Error ? e.message : "Could not update linked computers. Try again.";
     } finally {
       busy = false;
     }

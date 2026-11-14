@@ -160,6 +160,7 @@ export function applyInstance(sql: SqlClient.SqlClient, owner: string, row: Conf
       ? (yield* sql<ProxyRow>`SELECT * FROM proxies WHERE owner_user_id=${owner}::uuid AND id::text=${proxyRecord.local_id}`)[0]
       : undefined;
 
+    // Only an endpoint uses a proxy: the worker sync copies a linked proxy's address and key onto the instance.
     const endpoint = columns.kind === "endpoint";
     let apiKey: string | null = null;
 
@@ -202,7 +203,7 @@ export function applyInstance(sql: SqlClient.SqlClient, owner: string, row: Conf
         ${JSON.stringify(env)}::jsonb, ${JSON.stringify(runtime)}::jsonb, ${columns.accent},
         ${favorites ?? current?.favorites ?? []}::text[], ${hidden ?? current?.hidden_models ?? []}::text[],
         ${shown ?? current?.shown_models ?? []}::text[], ${custom ?? current?.custom_models ?? []}::text[],
-        ${columns.allWorkers}, ${owner}::uuid, ${proxy?.id ?? null}::uuid)
+        ${columns.allWorkers}, ${owner}::uuid, ${(endpoint && proxy?.id) || null}::uuid)
       ON CONFLICT (harness, id) DO UPDATE SET label=excluded.label, kind=excluded.kind, base_url=excluded.base_url,
         api_key=excluded.api_key, env=excluded.env, runtime=excluded.runtime, accent_color=excluded.accent_color,
         favorites=excluded.favorites, hidden_models=excluded.hidden_models, shown_models=excluded.shown_models,
