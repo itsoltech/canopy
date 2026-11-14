@@ -338,7 +338,11 @@ była tylko dodatkowa warstwa (ten sam użytkownik systemu). BFF czyta wyłączn
 ustawienia (`apps/web/src/env.ts`: `GATEWAY_URL`, `GATEWAY_SERVICE_TOKEN`), nigdy
 `CANOPY_DATABASE_URL`, `CANOPY_SECRETS_KEY` ani klucza TLS; pilnuje tego test
 `tests/integration/web-secrets.test.ts`. `canopy-gateway web` uruchomiony osobno (testy smoke)
-nadal dostaje tylko listę dozwolonych zmiennych.
+nadal dostaje tylko listę dozwolonych zmiennych. Na Windows nazwy zmiennych nie rozróżniają wielkości
+liter (Git Bash przekazuje `SYSTEMROOT`, nie `SystemRoot`), a lista obejmuje podstawy systemu
+(`SystemRoot`, `windir`, `ComSpec` itd.): bez `SystemRoot` Winsock nie ładuje dostawców i każde
+nasłuchiwanie kończy się błędem „port in use”. Job `native` w CI uruchamia `canopy-gateway web`
+z binarki windows-x64 i sprawdza `/api/health`.
 
 **Aktualizacja instalacji z osobnym web.** Binarka sprzed tej zmiany nie miała web, więc web
 działał osobno (`bun index.js` z `build-web.ts`, zwykle na porcie 3000). Przed kliknięciem Update
