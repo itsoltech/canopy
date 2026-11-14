@@ -5,6 +5,7 @@ import { readMessage } from "#lib/server/body.ts";
 import { call } from "#lib/server/gateway.ts";
 import { connectorOAuthBinding } from "#lib/server/connector-oauth.ts";
 import type { RequestHandler } from "./$types";
+import { desktopWebOrigin } from "#lib/server/desktop-origin.ts";
 
 export const POST: RequestHandler = async ({ request, params, url, cookies }) => {
   const body = await readMessage(request, connectors.BeginConnectorOAuthRequestSchema);
@@ -17,13 +18,13 @@ export const POST: RequestHandler = async ({ request, params, url, cookies }) =>
         redirectUri: `${url.origin}/api/connectors/oauth/callback`,
         browserBinding: binding,
         scope: body.scope,
-        desktop: Boolean(process.env["CANOPY_WEB_ORIGIN"]),
+        desktop: Boolean(desktopWebOrigin()),
       },
       { timeoutMs: 60_000 },
     ),
   );
 
-  if (!process.env["CANOPY_WEB_ORIGIN"])
+  if (!desktopWebOrigin())
     cookies.set("canopy-connector-oauth", binding, {
       path: "/api/connectors",
       httpOnly: true,

@@ -12,7 +12,6 @@ import {
   readUpdateRecord,
   rollbackBinary,
   serviceSnippet,
-  superviseBinary,
   UPDATE_RESTART_EXIT_CODE,
 } from "@canopy/updater";
 import { Effect } from "effect";
@@ -32,7 +31,7 @@ import { installLogWriter, runtimeLogDirectory, registeredLogs } from "@canopy/l
 import { dirname } from "node:path";
 import { EMBEDDED_WEB } from "./web/embedded.ts";
 import { embeddedWebOrigin, embeddedWebWanted } from "./web/config.ts";
-import { EmbeddedWebProcess } from "./web/process.ts";
+import { EmbeddedWebServer } from "./web/server.ts";
 import { WebClientVersions } from "./web/clients.ts";
 
 const env = Bun.env;
@@ -56,22 +55,18 @@ if (Bun.argv[2] === "service") {
   process.exit(0);
 }
 
-if (installKind() === "binary" && !process.env["CANOPY_SUPERVISED"]) {
-  process.exit(
-    await superviseBinary({ binaryPath: process.execPath, args: Bun.argv.slice(2), log: (m) => console.warn(m) }),
-  );
-}
-
 // One HTTP/2 server for workers (WorkerLinkService) and the web BFF (GatewayService); docs/ui-api.md.
 const serviceToken = env["CANOPY_UI_SERVICE_TOKEN"];
 
 if (!serviceToken)
   throw new Error("CANOPY_UI_SERVICE_TOKEN is not set (shared with the web BFF): openssl rand -hex 32");
 
-// A binary gateway serves the web from its own build unless CANOPY_WEB=off (docs/deploy.md).
+// A binary or Docker gateway serves the web from its own build, in this process, unless CANOPY_WEB=off
+// (docs/deploy.md).
 const embeddedWeb =
   EMBEDDED_WEB && embeddedWebWanted(env, installKind())
-    ? new EmbeddedWebProcess({
+    ? new EmbeddedWebServer({
+        archive: EMBEDDED_WEB,
         env,
         log: (m) => console.info(m),
         hosts: () => tailscaleHosts(tailscale.snapshot),

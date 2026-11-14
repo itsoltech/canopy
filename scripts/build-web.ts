@@ -1,7 +1,8 @@
 /**
  * The web BFF as a self-contained directory for the Docker image (docs/release.md):
  * `bun scripts/build-web.ts [--outdir dist/web]` → `index.js` + chunks with every dependency bundled, and `client/`.
- * Run it with `bun index.js`; no node_modules needed. adapter-node serves `client/` next to `index.js`.
+ * Run it with `bun index.js`; no node_modules needed. adapter-node serves `client/` next to `index.js`; `handler.js`
+ * exports its request handler without listening.
  * `canopy-web.json` records the version; `build-binaries.ts --web` embeds this directory into the gateway.
  * CANOPY_VERSION overrides scripts/version.ts; WEB_BUILD_VERSION (SvelteKit's update check) defaults to it.
  */
@@ -35,7 +36,9 @@ try {
   rmSync(outdir, { recursive: true, force: true });
 
   const bundle = await Bun.build({
-    entrypoints: [join(staging, "index.js")],
+    // index.js listens by itself (`bun index.js`); handler.js is adapter-node's request handler, which the gateway
+    // mounts in its own process (apps/gateway/src/web/server.ts). They share chunks.
+    entrypoints: [join(staging, "index.js"), join(staging, "handler.js")],
     outdir,
     target: "bun",
     splitting: true,

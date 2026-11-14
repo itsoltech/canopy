@@ -3,7 +3,7 @@ import type { Handle, ServerInit } from "@sveltejs/kit/hooks";
 import { documentAttributes } from "#lib/features/settings/appearance.ts";
 import { shellAppearance } from "#lib/server/shell-appearance.ts";
 import { requireServiceToken } from "#lib/server/gateway.ts";
-import { trustedDesktopRequest } from "#lib/server/desktop-origin.ts";
+import { desktopWebOrigin, trustedDesktopRequest } from "#lib/server/desktop-origin.ts";
 import { shellIdentity } from "#lib/server/channel-identity.ts";
 
 export const init: ServerInit = () => {
@@ -15,7 +15,7 @@ export const init: ServerInit = () => {
  * their first paint. The short cached lookup has a deadline, including when the gateway is down.
  */
 export const handle: Handle = async ({ event, resolve }) => {
-  const desktopOrigin = process.env["CANOPY_WEB_ORIGIN"];
+  const desktopOrigin = desktopWebOrigin();
 
   if (!trustedDesktopRequest(event.request, event.url, desktopOrigin))
     return new Response("Untrusted desktop origin", { status: 403 });

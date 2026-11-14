@@ -10,9 +10,9 @@ import { packWeb } from "../../apps/gateway/src/web/archive.ts";
 import { embeddedWebPlugin } from "../../scripts/build-binaries.ts";
 
 /**
- * A binary gateway serves its embedded web from a child process of the same executable; one self-update
- * replaces both, a web that never becomes healthy rolls both back (docs/deploy.md, "Binaria (systemd)").
- * The web build is a small adapter-node stand-in: the same `server` export, health route and client layout.
+ * A binary gateway serves its embedded web inside its own process; one self-update replaces both, a web that
+ * never becomes healthy rolls both back (docs/deploy.md, "Binaria (systemd)"). The web build is a small
+ * adapter-node stand-in: the same `handler` export, health route and client layout.
  */
 const VERSIONS = ["1.0.0", "2.0.0", "3.0.0"];
 const BROKEN = "3.0.0";
@@ -23,31 +23,35 @@ afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
 });
 
-function webIndex(version: string): string {
+/** adapter-node's `handler.js` stand-in: health, the protocol it saw, client files, and three kinds of failure. */
+function webHandler(version: string): string {
   if (version === BROKEN) return 'throw new Error("broken web build");\n';
 
   return `import { createReadStream, existsSync } from "node:fs";
-import http from "node:http";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 const client = join(dirname(fileURLToPath(import.meta.url)), "client");
-export const server = http.createServer((req, res) => {
+export const handler = (req, res, next) => {
   if (req.url === "/api/health") return res.end(JSON.stringify({ status: "ok", version: ${JSON.stringify(version)} }));
   if (req.url === "/protocol") return res.end(String(req.headers[process.env.PROTOCOL_HEADER]));
+  if (req.url === "/in-process") return res.end(String(process.env.CANOPY_WEB_IN_PROCESS));
+  if (req.url === "/boom") throw new Error("boom in the web");
+  if (req.url === "/async-boom") return Promise.reject(new Error("async failure in the web"));
+  if (req.url === "/stray") {
+    Promise.reject(new Error("stray rejection in the web"));
+    return res.end("ok");
+  }
   const file = join(client, req.url);
   if (req.url.startsWith("/_app/") && existsSync(file)) return createReadStream(file).pipe(res);
-  res.statusCode = 404;
-  res.end();
-});
-server.listen(Number(process.env.PORT), process.env.HOST);
-process.on("SIGTERM", () => server.close(() => process.emit("sveltekit:shutdown")));
+  next();
+};
 `;
 }
 
 async function compileFixture(version: string): Promise<void> {
   const web = join(builds, `web-${version}`);
   await mkdir(join(web, "client/_app/immutable"), { recursive: true });
-  await writeFile(join(web, "index.js"), webIndex(version));
+  await writeFile(join(web, "handler.js"), webHandler(version));
   await writeFile(join(web, `client/_app/immutable/app-${version}.js`), `// ${version}\n`);
   const bytes = await packWeb(web, version);
   const file = join(builds, `web-${version}.zst`);
@@ -232,7 +236,7 @@ describe.skipIf(process.platform === "win32")("binary gateway with embedded web"
     const failed = await readUpdateRecord(f.binaryPath);
     expect(failed).toMatchObject({ state: "failed", version: BROKEN });
     // The update result names the web's own reason, not a generic startup timeout.
-    expect(failed?.reason).toContain(`The web app of ${BROKEN} didn't start: It exited before it became healthy`);
+    expect(failed?.reason).toContain(`The web app of ${BROKEN} didn't start: broken web build`);
     await f.serving("2.0.0");
     const all = await f.events();
     expect(all.some((e) => e.type === "web-failed" && e.version === BROKEN)).toBe(true);
@@ -290,5 +294,24 @@ describe.skipIf(process.platform === "win32")("binary gateway with embedded web"
       expect([host, await statusFor(f.port, host)]).toEqual([host, 421]);
     // Forwarded headers are script-settable on a rebound page: they never allow a host.
     expect(await statusFor(f.port, "evil.example", { "x-forwarded-host": "canopy.example.com" })).toBe(421);
+  }, 30_000);
+
+  test("serves the web in the gateway process and contains the web's failures", async () => {
+    const f = await start();
+    await f.serving("1.0.0");
+    const gateway = (await f.events()).find((e) => e.type === "child")!.pid;
+    // One process serves both: the gateway child has no web child of its own.
+    expect((await Bun.$`ps -o pid= --ppid ${gateway}`.nothrow().text()).trim()).toBe("");
+    expect(await (await fetch(`${f.url}/in-process`)).text()).toBe("1");
+
+    expect((await fetch(`${f.url}/boom`)).status).toBe(500);
+    expect((await fetch(`${f.url}/async-boom`)).status).toBe(500);
+    expect((await fetch(`${f.url}/stray`)).status).toBe(200);
+    await Bun.sleep(100);
+    await f.serving("1.0.0");
+    const all = await f.events();
+    // The same gateway process answers: nothing crashed and nothing restarted it.
+    expect(all.filter((e) => e.type === "child").map((e) => e.pid)).toEqual([gateway]);
+    expect(all.some((e) => e.type === "log" && e.message?.includes("stray rejection in the web"))).toBe(true);
   }, 30_000);
 });

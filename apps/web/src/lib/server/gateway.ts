@@ -5,6 +5,7 @@ import { error, fail, isActionFailure, isHttpError, type ActionFailure } from "@
 import { ui } from "@canopy/contracts";
 import { GATEWAY_SERVICE_TOKEN, GATEWAY_URL } from "$app/env/private";
 import { desktopGateway, type GatewayCompatibility } from "./desktop-gateway.ts";
+import { desktopWebOrigin } from "./desktop-origin.ts";
 import { gatewayFailure } from "./gateway-errors.ts";
 import { logGatewayFailures } from "./gateway-logging.ts";
 import { isolatedGatewayTransport } from "./gateway-transport.ts";
@@ -58,8 +59,7 @@ export async function gatewayCompatibility(): Promise<GatewayCompatibility> {
  * A web run from source (0.0.0-dev) or an unparsable version never warns.
  */
 function webLag(gatewayVersion: string): "older" | "newer" | "" {
-  if (process.env["CANOPY_WEB_ORIGIN"] || !gatewayVersion || [CANOPY_VERSION, gatewayVersion].includes("0.0.0-dev"))
-    return "";
+  if (desktopWebOrigin() || !gatewayVersion || [CANOPY_VERSION, gatewayVersion].includes("0.0.0-dev")) return "";
 
   try {
     const order = compareVersions(CANOPY_VERSION, gatewayVersion);

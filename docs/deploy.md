@@ -302,16 +302,23 @@ Przy pierwszym starcie binarka rozpakowuje bibliotekę sharp/libvips do `~/.cach
 ### Gateway z wbudowanym web (jedna binarka)
 
 Binarka `canopy-gateway-<os>-<arch>` zawiera też web (BFF i SPA) w tej samej wersji. Jedna usługa
-systemd uruchamia supervisor, gateway i web, bez Dockera. Przycisk Update w Settings → App updates
+systemd uruchamia supervisor i jeden proces z gatewayem i web, bez Dockera. Przycisk Update w Settings → App updates
 podmienia całość; logowanie na serwer nie jest potrzebne. PostgreSQL działa jako osobna usługa.
 
 ```text
-systemd ─ canopy-gateway            supervisor: rollback, execve po aktualizacji
-            └─ gateway              gRPC :7443 (BFF, workery), migracje, boty
-                 └─ canopy-gateway web   BFF + SPA na 127.0.0.1:3000
+systemd ─ canopy-gateway      supervisor (ok. 55 MB): rollback, execve po aktualizacji
+            └─ canopy-gateway gateway: gRPC :7443 (BFF, workery), migracje, boty
+                              + web: BFF + SPA na 127.0.0.1:3000, w tym samym procesie
 ```
 
-Web jest procesem-dzieckiem gatewaya uruchomionym z tej samej binarki (`canopy-gateway web`).
+Web działa w procesie gatewaya: gateway importuje handler adapter-node z buildu web i obsługuje go
+własnym listenerem HTTP. Supervisor nie ładuje gatewaya, więc zostaje małym watchdogiem. W obrazie
+Docker nie ma supervisora: kontener to jeden proces. Pomiar na linux-x64 (bezczynnie, z web):
+ok. 200 MB RSS w 2 procesach zamiast ok. 320 MB w 3 (supervisor, gateway, osobny proces web);
+opóźnienia żądań bez zmian, a przepustowość web przy pełnym obciążeniu ok. 10–15% niższa,
+bo BFF i gateway dzielą jeden wątek. BFF łączy się z gatewayem przez gRPC na loopbacku jak
+dotąd (`GATEWAY_URL`).
+
 Przy pierwszym starcie danej wersji binarka rozpakowuje swój build web (ok. 30 MB, kilkaset ms)
 do `CANOPY_WEB_DIR` i zostawia tam trzy ostatnie wersje: otwarte karty starszej wersji dalej
 pobierają swoje chunki po aktualizacji, a rollback używa zachowanego katalogu. Gateway potwierdza
@@ -320,9 +327,18 @@ Web nowej wersji, który nie wstaje, cofa aktualizację, a wynik w Settings → 
 powód, np. „Port 3000 is in use by another process…”. Poza aktualizacją problem z web (zajęty
 port, awaria) nie zatrzymuje gatewaya, workerów ani botów: gateway działa bez UI, loguje konkretny
 błąd, pokazuje go przy gatewayu w Settings → App updates (np. z desktopu albo telefonu),
-`canopy-gateway healthcheck` zwraca 1, a web ponawia start z backoffem (1–30 s). Web dziedziczy
-tylko listę zmiennych systemowych i własnych (`CANOPY_WEB_*`, adapter-node); nie dostaje
-`CANOPY_DATABASE_URL`, `CANOPY_SECRETS_KEY` ani klucza TLS, z gatewayem rozmawia tokenem serwisowym.
+`canopy-gateway healthcheck` zwraca 1, a web ponawia start z backoffem (1–30 s).
+
+Błąd web zostaje przy web: każde żądanie ma własną granicę błędu (500, gdy nic jeszcze nie wysłano,
+inaczej zamknięcie połączenia), a nieobsłużony rejection lub wyjątek z kodu web (jego moduły
+leżą w `CANOPY_WEB_DIR`, więc widać je w stosie) jest logowany i gateway działa dalej. Każdy inny
+taki błąd nadal kończy proces, żeby systemd albo Docker go zrestartował. Web dzieli z gatewayem
+środowisko procesu, więc lista dozwolonych zmiennych już go nie oddziela od sekretów gatewaya; to
+była tylko dodatkowa warstwa (ten sam użytkownik systemu). BFF czyta wyłącznie zadeklarowane
+ustawienia (`apps/web/src/env.ts`: `GATEWAY_URL`, `GATEWAY_SERVICE_TOKEN`), nigdy
+`CANOPY_DATABASE_URL`, `CANOPY_SECRETS_KEY` ani klucza TLS; pilnuje tego test
+`tests/integration/web-secrets.test.ts`. `canopy-gateway web` uruchomiony osobno (testy smoke)
+nadal dostaje tylko listę dozwolonych zmiennych.
 
 **Aktualizacja instalacji z osobnym web.** Binarka sprzed tej zmiany nie miała web, więc web
 działał osobno (`bun index.js` z `build-web.ts`, zwykle na porcie 3000). Przed kliknięciem Update
@@ -377,7 +393,7 @@ CANOPY_UPDATE_CHANNEL=nightly    # kanał początkowy; potem zmieniasz go w apli
 | `CANOPY_WEB_HOST` | `127.0.0.1` | Adres nasłuchu web. Adres spoza loopbacku daje w logu ostrzeżenie z tym adresem i przypomnieniem o TLS albo Tailscale Serve. |
 | `CANOPY_WEB_PORT` | `3000` | Port web. |
 | `CANOPY_WEB_DIR` | `$XDG_CACHE_HOME/canopy/web` (`~/.cache/canopy/web`) | Rozpakowane wersje web; może być wspólny dla kilku instancji (gotowa wersja nie jest nadpisywana, a używana w ostatnich 30 min nie jest usuwana). Bez prawa zapisu: stały katalog `canopy-web-<uid>` w katalogu tymczasowym i ostrzeżenie. |
-| `GATEWAY_URL` | `http://127.0.0.1:$CANOPY_PORT` | Adres gatewaya dla web; `https` i zaufany `CANOPY_TLS_CERT`, gdy gateway ma TLS. Ustaw ręcznie tylko wtedy, gdy certyfikat nie obejmuje `127.0.0.1`. |
+| `GATEWAY_URL` | `http://127.0.0.1:$CANOPY_PORT` | Adres gatewaya dla web; `https`, gdy gateway ma TLS (`CANOPY_TLS_CERT`). Własny certyfikat musi być wtedy zaufany od startu procesu: ustaw w usłudze `NODE_EXTRA_CA_CERTS` na plik certyfikatu, a `GATEWAY_URL` na nazwę z certyfikatu, jeśli nie obejmuje `127.0.0.1`. |
 | `PROTOCOL_HEADER` | `x-forwarded-proto` | Nagłówek protokołu od proxy. Żądanie bez niego to zwykłe HTTP. |
 | `HOST_HEADER` | `x-forwarded-host` | Nagłówek hosta od proxy; bez niego liczy się `Host`. |
 | `BODY_SIZE_LIMIT` | `50M` | Limit uploadu BFF (biblioteka skilli wymaga 50M); proxy musi dopuścić ten sam rozmiar. |
