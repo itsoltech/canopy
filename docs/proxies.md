@@ -189,6 +189,12 @@ opisuje nowego. Odczyty są rzadkie:
   sprawia, że odczyt tej samej tożsamości zaczyna najwyżej jeden proces na 60 s
   (5 s dla Refresh).
 
+W jednym procesie równoczesne odczyty tego samego proxy współdzielą obietnicę
+już podczas zdobywania dzierżawy.
+Ręczny Refresh nie zwraca pustego stanu tylko dlatego, że zapis klucza rozpoczął
+już odczyt w tle. Po odmowie dzierżawy ponownie pobiera zapisany wynik: zwycięski
+odczyt mógł zakończyć się podczas wcześniejszego pobierania celu.
+
 CLIProxyAPI blokuje adres na 30 min po pięciu złych kluczach. Dlatego zapisane
 `unauthorized`, `remote_disabled` i `no_key` czekają na nowy klucz albo Refresh; żaden
 proces gatewaya, także po restarcie, nie ponawia ich sam. Zmieniona lista trafia do

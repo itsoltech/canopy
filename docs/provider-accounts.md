@@ -273,6 +273,11 @@ odczyt początkowy, zdarzenia, incremental overview, persystencję/restart,
 owner scope, odrzucenie starej konfiguracji, mapowanie błędu, trwały notice
 dodatkowego użycia oraz brak okien planu dla instancji przez proxy. Nie wymaga prawdziwych kont ani testów live.
 
+Test zdarzeń Claude używa bariery HTTP w fake CLI: najpierw potwierdza wejście
+do tury, a jej odpowiedź zwalnia dopiero po odebraniu snapshotu WatchThread.
+Budżet obserwacji nie obejmuje kolejki startowej CLI; asercje limitu, wyniku tury
+i trwałego notice pozostają takie same.
+
 ## Testy statusu konta
 
 Testy adapterów używają fake CLI, bez prawdziwych kont. Obejmują odpowiedzi

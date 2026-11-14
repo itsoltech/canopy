@@ -16,7 +16,7 @@ import { inputRecords, probeRecords } from "../fixtures/instance-probe.ts";
 const tempDir = tempDirs();
 
 /** Provider settings of whoever runs the tests (a developer shell, an agent session). */
-const CALLER_PROVIDER_ENV = /^(ANTHROPIC_|CLAUDE|CODEX_|OPENAI_|XAI_|GROK_)/;
+const CALLER_PROVIDER_ENV = /^(ANTHROPIC_|CLAUDE|CODEX_|OPENAI_|XAI_|GROK_|CLIPROXY_API_KEY$)/;
 
 /**
  * The in-process worker hands its own environment to native harnesses. Remove the caller's provider variables for the
@@ -155,6 +155,7 @@ export async function startInstanceFixture(
     kind = ProviderProfileKind.NATIVE,
     id = "native",
     create = false,
+    extraEnv: readonly { name: string; value: string }[] = [],
   ) => {
     const response = await gw.api.saveProviderInstance({
       harness,
@@ -164,6 +165,7 @@ export async function startInstanceFixture(
       kind,
       proxyId: kind === ProviderProfileKind.CLIPROXYAPI ? proxy.id : "",
       env: [
+        ...extraEnv,
         { name: "PROFILE_PROBE", value: probe },
         { name: "INSTANCE_TRACE", value: trace },
         ...(bots ? [{ name: "BOT_TRACE", value: join(dir, "bots.jsonl") }] : []),
