@@ -135,7 +135,7 @@ function loginPrompt(harness: "claude" | "grok", output: string) {
     if (!["accounts.x.ai", "auth.x.ai", "grok.com", "x.ai"].includes(url.hostname)) continue;
 
     const code =
-      plain.match(/(?:code\s*[:=]?\s+)([A-Z0-9]{4}-[A-Z0-9]{4})\b/i)?.[1] ?? url.searchParams.get("user_code");
+      plain.match(/(?:code\s*[:=]?\s+)([A-Z0-9-]{6,32})[ \t]*\r?\n/i)?.[1] ?? url.searchParams.get("user_code");
 
     if (code && /^[A-Z0-9-]{6,32}$/.test(code) && /\/(?:sign-in|login|device|activate)/.test(url.pathname))
       return { verificationUrl: url.href, userCode: code };

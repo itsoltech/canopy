@@ -18,7 +18,7 @@ if (args === "logout") {
 
 if (args === "login --device-auth") {
   console.log("Open this URL in your browser to approve:");
-  console.log("https://accounts.x.ai/sign-in?user_code=ABCD-1234");
+  console.log("https://accounts.x.ai/sign-in");
   console.log("Then enter this code: ABCD-1234");
 
   while (!existsSync(join(home, "complete"))) await Bun.sleep(25);

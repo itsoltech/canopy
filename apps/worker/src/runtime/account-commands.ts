@@ -68,6 +68,7 @@ function environment(ctx: HostContext, config: AppliedConfig, resolved: Resolved
   } else {
     mkdirSync(configDir, { recursive: true, mode: 0o700 });
     env["GROK_HOME"] = configDir;
+    delete env["GROK_AUTH_PATH"];
 
     // Grok has no read-only account query; only the key variables are inspected, never auth.json.
     if (runtime.ownLogin || config.grok.linkDeviceLogin)
