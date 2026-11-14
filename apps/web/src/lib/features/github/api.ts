@@ -121,8 +121,8 @@ export const chooseAccount = async (
     await post("choose-account", { homeId, repositoryName, accountId, expectedRevision: String(expectedRevision) }),
   );
 
-export const pullRequests = async (threadId: string) =>
-  decode(github.ThreadPullRequestsResponseSchema, await post("pull-requests", { threadId }));
+export const pullRequests = async (threadId: string, pageSize = 20, offset = 0) =>
+  decode(github.ThreadPullRequestsResponseSchema, await post("pull-requests", { threadId, pageSize, offset }));
 
 export const repositoryPullRequests = async (threadId: string, query = "", includeClosed = false, cursor = "") =>
   decode(

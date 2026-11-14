@@ -887,6 +887,24 @@ przecinające się capability i istniejące zgody udostępniania; nie dodajemy d
 
 ## 7. Interfejs web i desktop
 
+Lista powiązań w podsumowaniu pokazuje domyślnie 4 PR-y i łączny licznik. Rozwinięcie
+używa animacji `grid-template-rows` na tokenach ruchu, wyłączonej przy reduced motion.
+Jedna strona zawiera maksymalnie 20 wierszy; dalsze strony zastępują poprzednią,
+a nadmiarowe wiersze przewijają się wewnątrz sekcji. Dzięki temu 500 powiązań nie
+powiększa DOM-u ani kosztu animacji. Nie zmieniamy limitu wysokości samej karty.
+Otwarte i draft PR-y są pierwsze, następnie decyduje czas aktualizacji i stabilny ID.
+
+`ListThreadPullRequests` zwraca podsumowania strony, `total_count`, `next_offset`
+oraz `has_current_branch` dla całej listy. `page_size` ma domyślny i maksymalny limit 20;
+`offset` wybiera stronę. Overview/WatchThread nadal przenosi tylko licznik, rewizję
+i jedno najnowsze podsumowanie przez istniejący sync po seq. Zmiana PR-a nie dokłada
+pełnej listy do snapshotu wątku. Odczyt strony nie pobiera danych z GitHub synchronicznie.
+Nieaktualne otwarte powiązania z żądanej strony odświeżają się w tle, najwyżej jedna
+partia na właściciela. GraphQL grupuje po 4 PR-y na żądanie, żeby ograniczyć także
+koszt zagnieżdżonych połączeń checks/reviews. Obowiązują wspólne sloty, budżety,
+backoff i trwałe roszczenia odświeżenia na 5 minut; błąd partii zatrzymuje resztę.
+Closed/merged nie są odświeżane okresowo; Refresh i otwarcie pełnego PR pozostają dostępne.
+
 Pokazane materiały referencyjne przedstawiają neutralny układ: listę PR pod gałęzią,
 osobny widok z nagłówkiem i trzema zakładkami, a także menu akcji przy danym PR.
 Przenosimy przepływ, korzystając z istniejących paneli, nawigacji i komponentów Canopy.

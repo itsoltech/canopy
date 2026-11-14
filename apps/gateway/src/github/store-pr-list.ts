@@ -20,12 +20,16 @@ export function githubPrList(sql: SqlClient.SqlClient) {
       LEFT JOIN LATERAL (SELECT context FROM github_git_contexts
         WHERE owner_user_id=t.owner_user_id AND thread_id=t.id ORDER BY id DESC LIMIT 1) g ON true
       WHERE t.owner_user_id=${owner}::uuid AND t.id=${id}::uuid AND t.deleted_at IS NULL`,
-    prList: (owner: string, id: string) =>
+    prList: (owner: string, id: string, pageSize = 20, offset = 0) =>
       Effect.gen(function* () {
         const current = (yield* sql<{ pull_request_revision: bigint }>`SELECT pull_request_revision FROM threads
         WHERE owner_user_id=${owner}::uuid AND id=${id}::uuid AND deleted_at IS NULL`)[0];
 
         if (!current) return yield* Effect.fail(new ConnectError("Thread not found", Code.NotFound));
+
+        const count =
+          (yield* sql<{ total: number }>`SELECT count(*)::int AS total FROM thread_pull_requests
+          WHERE owner_user_id=${owner}::uuid AND thread_id=${id}::uuid AND unlinked_at IS NULL`)[0]?.total ?? 0;
 
         const rows = yield* sql<
           PullRequestRow & {
@@ -35,8 +39,11 @@ export function githubPrList(sql: SqlClient.SqlClient) {
             created_at: Date;
             payload: JsonValue | null;
             last_known: JsonValue | null;
+            has_current_branch: boolean;
+            expired: boolean;
           }
-        >`SELECT p.*,l.source,l.evidence,l.created_at,c.payload,
+        >`SELECT q.*,bool_or(current_branch) OVER () AS has_current_branch FROM (SELECT p.*,l.source,l.evidence,l.created_at,c.payload,
+        coalesce(c.expires_at<now(),true) AS expired,
         CASE WHEN p.summary_account_id=a.id THEN p.summary END AS last_known,
         coalesce((c.payload->>'headRef')=coalesce(nullif(g.context->>'pushRef',''),g.context->>'branch')
           AND nullif(g.context->>'branch','') IS NOT NULL
@@ -53,10 +60,15 @@ export function githubPrList(sql: SqlClient.SqlClient) {
         LEFT JOIN github_pr_cache c ON c.owner_user_id=a.owner_user_id AND c.account_id=a.id AND c.access_revision=a.revision
           AND c.cache_key='summary:'||p.repository_id||':'||p.number
         WHERE l.owner_user_id=${owner}::uuid AND l.thread_id=${id}::uuid AND l.unlinked_at IS NULL
-        ORDER BY current_branch DESC,p.created_at DESC,p.id`;
+        ) q ORDER BY (coalesce(payload->'summary',last_known)->>'state' IN ('open','draft')) DESC NULLS LAST,
+        coalesce(payload->'summary',last_known)->>'updatedAt' DESC NULLS LAST,id
+        LIMIT ${Math.max(1, Math.min(20, pageSize || 20))} OFFSET ${offset}`;
 
         return create(github.ThreadPullRequestsResponseSchema, {
           revision: BigInt(current.pull_request_revision),
+          totalCount: count,
+          nextOffset: offset + rows.length < count ? offset + rows.length : 0,
+          hasCurrentBranch: rows[0]?.has_current_branch ?? false,
           links: rows.map((r) => ({
             summary: r.payload
               ? fromJson(github.PullRequestSnapshotSchema, r.payload).summary
@@ -74,8 +86,8 @@ export function githubPrList(sql: SqlClient.SqlClient) {
                     state: "unavailable",
                   },
             // Without a cache entry for the current access revision the summary is only the last known one.
-            stale: !r.payload,
-            detail: r.payload ? "" : r.refresh_detail,
+            stale: r.expired,
+            detail: r.refresh_detail,
             source: r.source,
             evidence: r.evidence,
             currentBranch: r.current_branch,

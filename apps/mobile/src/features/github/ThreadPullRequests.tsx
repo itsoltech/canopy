@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
 import type { ui, github } from "@canopy/contracts";
 import { useSession } from "../../state/session";
@@ -15,13 +15,14 @@ export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onC
   const { client, queries, online } = useSession();
   const c = useColors();
   const [expanded, setExpanded] = useState(false);
+  const [offset, setOffset] = useState(0);
   const [linking, setLinking] = useState(false);
   const [creating, setCreating] = useState(false);
-  const key = `ListThreadPullRequests:${thread.id}:${thread.pullRequestRevision}`;
+  const key = `ListThreadPullRequests:${thread.id}:${thread.pullRequestRevision}:${offset}`;
 
   const read = useSharedQuery<github.ThreadPullRequestsResponse>(
     key,
-    () => client!.api.listThreadPullRequests({ threadId: thread.id }),
+    () => client!.api.listThreadPullRequests({ threadId: thread.id, pageSize: 20, offset }),
     !!client,
     60_000,
   );
@@ -33,10 +34,21 @@ export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onC
     read.data?.links ??
     (thread.newestPullRequest ? [{ summary: thread.newestPullRequest, source: "", currentBranch: false }] : []);
 
+  const total = read.data?.totalCount ?? thread.pullRequestCount;
+
+  useEffect(() => {
+    setExpanded(false);
+    setOffset(0);
+  }, [thread.id]);
+
+  useEffect(() => {
+    if (read.data && offset >= total && offset > 0) setOffset(0);
+  }, [read.data, offset, total]);
+
   return (
     <View style={{ gap: 10, minWidth: 0 }}>
-      <Text style={[styles.label, { color: c.text }]}>Pull requests</Text>
-      {(expanded ? links : links.slice(0, 1)).map((link) => (
+      <Text style={[styles.label, { color: c.text }]}>Pull requests · {total}</Text>
+      {(expanded ? links : links.slice(0, 4)).map((link) => (
         <LinkedPullRequestRow
           key={link.summary?.ref?.id}
           link={link}
@@ -50,12 +62,36 @@ export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onC
           }}
         />
       ))}
-      {links.length > 1 && (
+      {expanded && total > 20 && (
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+          <Button
+            variant="ghost"
+            size="sm"
+            title="Previous"
+            disabled={!offset}
+            onPress={() => setOffset(Math.max(0, offset - 20))}
+          />
+          <Text style={{ color: c.text }}>
+            {offset + 1}–{Math.min(offset + 20, total)} of {total}
+          </Text>
+          <Button
+            variant="ghost"
+            size="sm"
+            title="Next"
+            disabled={!read.data?.nextOffset}
+            onPress={() => setOffset(read.data?.nextOffset ?? 0)}
+          />
+        </View>
+      )}
+      {total > 4 && (
         <Button
           variant="ghost"
           size="sm"
-          title={expanded ? "Show less" : `Show ${links.length - 1} more`}
-          onPress={() => setExpanded(!expanded)}
+          title={expanded ? "Show less" : `Show ${total - 4} more`}
+          onPress={() => {
+            if (expanded) setOffset(0);
+            setExpanded(!expanded);
+          }}
         />
       )}
       {!!read.error && (
@@ -76,10 +112,11 @@ export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onC
         threadId={thread.id}
         revision={read.data?.revision ?? thread.pullRequestRevision}
         onlinked={(value) => {
-          queries.set(key, value);
+          setOffset(0);
+          queries.set(`ListThreadPullRequests:${thread.id}:${thread.pullRequestRevision}:0`, value);
         }}
       />
-      {!links.some((link) => link.currentBranch) && (
+      {!read.data?.hasCurrentBranch && !links.some((link) => link.currentBranch) && (
         <Button
           variant="ghost"
           title="Create pull request"

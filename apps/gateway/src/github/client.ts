@@ -37,6 +37,8 @@ export interface GitHubRead {
   query?: string;
   ttl?: number;
   background?: boolean;
+  /** A bounded batch already fetched this envelope through the same account and budget. */
+  prefetched?: { payload: Schema.JsonObject; revision: bigint };
   signal?: AbortSignal;
   project?: (value: Schema.JsonObject, headers: Headers) => Promise<Schema.JsonObject>;
 }
@@ -205,6 +207,12 @@ export class GitHubClient {
     }
   }
   async #request(row: AccountRow, read: GitHubRead, etag: string, signal: AbortSignal) {
+    if (read.prefetched) {
+      if (read.prefetched.revision !== BigInt(row.revision)) throw reconnect();
+
+      return { value: read.prefetched.payload, headers: new Headers(), row, status: 200 };
+    }
+
     if (read.image) return { ...(await this.access.http.image(read.path, etag, signal)), row };
 
     if (read.attachment) {
