@@ -271,14 +271,17 @@ describe("one source of truth", () => {
       file(
         join(prefix, "bin/npm"),
         `#!/bin/sh
+set -e
 for arg in "$@"; do case "$arg" in @anthropic-ai/*) name=claude;; @openai/*) name=codex;; esac; done
-echo started > "$HOME/$name-started"
 if [ "$name" = codex ] && [ ! -e "$HOME/release-claude" ]; then echo overlap > "$HOME/overlap"; fi
+echo started > "$HOME/$name-started"
 while [ ! -e "$HOME/release-$name" ]; do /bin/sleep 0.01; done
 case "$name" in claude) pkg=@anthropic-ai/claude-code;; codex) pkg=@openai/codex;; esac
 prefix="$2"
 for arg in "$@"; do if [ "$previous" = --prefix ]; then prefix="$arg"; fi; previous="$arg"; done
-/bin/cp "$HOME/new-$name" "$prefix/lib/node_modules/$pkg/bin/$name"
+# Publish atomically: report probes may still be executing the previous file.
+/bin/cp "$HOME/new-$name" "$prefix/lib/node_modules/$pkg/bin/$name.new"
+/bin/mv "$prefix/lib/node_modules/$pkg/bin/$name.new" "$prefix/lib/node_modules/$pkg/bin/$name"
 `,
       );
     }
@@ -321,7 +324,12 @@ for arg in "$@"; do if [ "$previous" = --prefix ]; then prefix="$arg"; fi; previ
       await tools.settled(Provider.CODEX);
       expect(existsSync(join(home, "overlap"))).toBe(!shared);
       const report = await tools.report();
-      expect(report.tools?.filter((tool) => tool.install?.state === "succeeded")).toHaveLength(2);
+      expect(report.tools?.find((tool) => tool.provider === Provider.CLAUDE)?.install).toMatchObject({
+        state: "succeeded",
+      });
+      expect(report.tools?.find((tool) => tool.provider === Provider.CODEX)?.install).toMatchObject({
+        state: "succeeded",
+      });
     } finally {
       writeFileSync(join(home, "release-claude"), "");
       writeFileSync(join(home, "release-codex"), "");
