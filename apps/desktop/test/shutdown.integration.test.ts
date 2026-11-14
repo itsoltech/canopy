@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { tempDir } from "@canopy/testing";
 import { DesktopRuntime } from "../src/runtime/runtime.ts";
 
-const web = resolve(import.meta.dir, "../../web/build/index.js");
+const web = resolve(import.meta.dir, "../../web/build/handler.js");
 const directory = tempDir("canopy-desktop-shutdown-");
 
 test.skipIf(!existsSync(web))(
