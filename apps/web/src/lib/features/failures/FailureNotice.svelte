@@ -5,6 +5,7 @@
   import CopyButton from "#lib/shared/ui/CopyButton.svelte";
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
   import { failurePresentation } from "@canopy/domain/failure-presentation";
+  import { usageFailureHeading } from "@canopy/domain/provider-usage";
 
   let {
     message,
@@ -53,7 +54,9 @@
 </script>
 
 <div class="grid min-w-0 gap-2 text-base/6 sm:text-sm/6">
-  <p class="font-medium text-rose-700 dark:text-rose-400">{heading}</p>
+  <p class="font-medium text-rose-700 dark:text-rose-400">
+    {failure.kind === "usage_limit" ? (usageFailureHeading(code) ?? "Usage limit reached") : heading}
+  </p>
   {#if !historical}
     <p class="text-pretty text-zinc-600 dark:text-zinc-400">{failure.explanation}</p>
     {#if failure.kind === "auth_required" && !proxy && authHint}

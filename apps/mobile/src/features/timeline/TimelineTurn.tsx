@@ -9,7 +9,7 @@ import { useDevicePreferences } from "../../state/preferences";
 import { TurnDetails, TurnEnd } from "./TurnEnd";
 import { TurnInput } from "./TurnInput";
 import { TurnStart } from "./TurnStart";
-import { segmentsOf, summarize, timestampMs, turnBody } from "./turn-plan";
+import { segmentsOf, summarize, timestampMs, turnBody, type BodyRow } from "./turn-plan";
 import { WorkFold } from "./WorkFold";
 import { QuoteItem } from "../quotes/QuoteAction";
 import { BodyRowView } from "./TimelineBodyRow";
@@ -28,6 +28,11 @@ export interface TurnContext {
   readonly foldChoices: Map<string, ReadonlyMap<number, WorkFoldChoice>>;
   readonly groupChoices: WorkGroupChoices;
 }
+
+/** Published results and billing notices remain outside collapsed work. */
+const visibleResult = (row: BodyRow) =>
+  (row.kind === "item" && (row.node.item.content.case === "imageGallery" || row.node.item.content.case === "visual")) ||
+  (row.kind === "notice" && row.notice.notice?.code === "extra_usage");
 
 /** Only seed the disclosure that contains the saved row; later toggles retain normal fold rules. */
 function initialFolds(turn: ui.Turn, entries: readonly ui.TimelineItem[], context: TurnContext, target?: string) {
@@ -81,11 +86,7 @@ export function TimelineTurn({
 
   const allBody = useMemo(() => turnBody(turn, entries, context.notices), [turn, entries, context.notices]);
 
-  // Published results (image galleries, visuals) stay under the reply, also when its work is folded.
-  const gallery = (row: (typeof allBody)[number]) =>
-    row.kind === "item" && (row.node.item.content.case === "imageGallery" || row.node.item.content.case === "visual");
-
-  const body = allBody.filter((row) => !gallery(row));
+  const body = allBody.filter((row) => !visibleResult(row));
   const ended = ["completed", "interrupted", "failed", "cancelled"].includes(turn.status);
   const plan = segmentsOf(turn, body, () => false);
 
@@ -179,7 +180,7 @@ export function TimelineTurn({
           </View>
         );
       })}
-      {allBody.filter(gallery).map((row) => (
+      {allBody.filter(visibleResult).map((row) => (
         <BodyRowView key={row.key} row={row} steers={context.steers} ended={ended} />
       ))}
       {ended && (

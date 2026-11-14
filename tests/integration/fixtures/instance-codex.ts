@@ -10,6 +10,9 @@ import { decodeJsonObject, jsonObject } from "../../../apps/worker/src/providers
 import { HttpMcp, httpTools } from "./instance-mcp.ts";
 import { Schema } from "effect";
 import { turnError } from "../../../apps/worker/src/providers/codex/fixtures/provider-errors.ts";
+import { codexLimits } from "./provider-usage.ts";
+
+let usagePercent = 20;
 
 if (process.argv.includes("--version")) {
   console.log("codex-cli 0.164.0");
@@ -77,6 +80,34 @@ async function turn(
 
   send({ id, result: { turn: { id: turnId, status: "inProgress", items: [], error: null } } });
   notify("turn/started", { threadId, turn: { id: turnId, status: "inProgress", items: [], error: null } });
+
+  const limitText = (text.split("\n\nCurrent input:\n").at(-1) ?? text).split("\n")[0] ?? text;
+
+  if (limitText.startsWith("LIMIT:")) {
+    usagePercent = limitText === "LIMIT:reached" ? 100 : 92;
+
+    if (limitText === "LIMIT:read") usagePercent = 75;
+    else notify("account/rateLimits/updated", { rateLimits: codexLimits(usagePercent) });
+
+    if (limitText === "LIMIT:reached") {
+      notify("turn/completed", {
+        threadId,
+        turn: {
+          id: turnId,
+          status: "failed",
+          items: [],
+          error: {
+            message: "Weekly usage limit reached",
+            codexErrorInfo: "usageLimitExceeded",
+            additionalDetails: null,
+          },
+        },
+      });
+
+      return;
+    }
+  }
+
   recordProbe("codex", "turn", threadId, providers.get(threadId), catalogs.get(threadId));
 
   if (text.split("\n\nCurrent input:\n").at(-1)?.includes("STOP_REPLY"))
@@ -193,6 +224,11 @@ for await (const line of createInterface({ input: process.stdin })) {
   const { id, params } = request;
 
   if (request.method === "initialize") send({ id, result: { userAgent: "instance-fixture" } });
+  else if (request.method === "account/rateLimits/read")
+    send({
+      id,
+      result: { rateLimits: codexLimits(usagePercent), rateLimitsByLimitId: null, rateLimitResetCredits: null },
+    });
   else if (request.method === "model/list") send({ id, result: { data: [], nextCursor: null } });
   else if (request.method === "thread/start" || request.method === "thread/resume") {
     const session = params.threadId ?? crypto.randomUUID();

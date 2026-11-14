@@ -18,6 +18,7 @@ import type { useQuoteDraft } from "../quotes/useQuoteDraft";
 import { useComposerSettings } from "./useComposerSettings";
 import { composerPending } from "@canopy/domain/composer-pending";
 import { DraftActions } from "../drafts/DraftActions";
+import { UsageWarning } from "./UsageWarning";
 
 export function MessageComposer({
   thread,
@@ -57,6 +58,14 @@ export function MessageComposer({
 
   return (
     <>
+      <UsageWarning
+        usage={
+          worker?.providerInstances.find(
+            (instance) =>
+              instance.harness === thread?.provider && instance.id === (thread.providerProfileId || "native"),
+          )?.usage
+        }
+      />
       <PasteTarget draft={message.files}>
         <ComposerBox
           compact={compact}

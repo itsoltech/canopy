@@ -15,6 +15,7 @@ import { Effect, ManagedRuntime } from "effect";
 import { Journal } from "../../journal/index.ts";
 import { resolveProfiles } from "../profiles.ts";
 import type { ClaudeThreadContext } from "./thread-types.ts";
+import { ClaudeUsage } from "./usage.ts";
 import { claudeRuntime } from "./session-runtime.ts";
 import { claudeSessions } from "./sessions.ts";
 import { sessionOutput } from "./session-output.ts";
@@ -33,6 +34,7 @@ test("Claude cancels asynchronous session preparation before query creation and 
   const profile = resolveProfiles([{ id: "native", kind: "native", providers: ["claude"] }])[0]!.resolved!;
 
   const ctx: ClaudeThreadContext = {
+    usage: new ClaudeUsage(undefined),
     options: {
       home,
       executable: resolve(import.meta.dir, "../../../../../tests/integration/fixtures/instance-claude.ts"),

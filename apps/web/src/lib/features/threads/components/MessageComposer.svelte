@@ -15,7 +15,7 @@
   import { modelOption, type ModelOption } from "#lib/features/models/catalog.ts";
   import { composerChoices } from "@canopy/domain/composer-choices";
   import { providerKeyOf } from "../providers.ts";
-  import { PermissionMode } from "@canopy/contracts";
+  import { PermissionMode, Provider } from "@canopy/contracts";
   import { useThreadModels } from "#lib/features/models/model-catalog.svelte.ts";
   import ModelControls from "#lib/features/models/ModelControls.svelte";
   import WorkerHoverCard from "#lib/features/overview/WorkerHoverCard.svelte";
@@ -38,6 +38,7 @@
   import { useThreadRewind } from "../rewind-state.svelte.ts";
   import { ComposerRewind } from "../composer-rewind.svelte.ts";
   import Button from "#lib/shared/ui/Button.svelte";
+  import UsageWarning from "#lib/features/providers/UsageWarning.svelte";
 
   /**
    * Message box of a thread. Each send carries an idempotency key, so a retried send never runs
@@ -384,6 +385,12 @@
     </div>
   {/if}
   {#if error}<Alert tone="error">{error}</Alert>{/if}
+  <UsageWarning
+    usage={worker?.providerInstances.find(
+      (instance) => instance.harness === thread.provider && instance.id === (thread.providerProfileId || "native"),
+    )?.usage}
+    href={`/settings/providers?instance=${Provider[thread.provider]}:${encodeURIComponent(thread.providerProfileId || "native")}&worker=${encodeURIComponent(thread.workerId)}`}
+  />
   <ComposerBox
     bind:this={box}
     shell

@@ -9,8 +9,13 @@ import { codexThreadProvider, type CodexAppServerLaunch } from "./codex/launch.t
 import { prepareCodexHome } from "./codex/home.ts";
 import { isClaudeEffort } from "./models.ts";
 import type { ResolvedProfile } from "./profiles.ts";
+import type { ProviderUsageSnapshot } from "@canopy/contracts";
+import { ClaudeUsage } from "./claude/usage.ts";
+import { codexUsage } from "./usage-limits.ts";
 
 export interface TextInput {
+  readonly onUsage?: ((snapshot: ProviderUsageSnapshot) => void) | undefined;
+  readonly usageSnapshot?: ProviderUsageSnapshot | undefined;
   readonly model: string;
   readonly effort: string;
   readonly prompt: string;
@@ -114,7 +119,11 @@ export async function generateClaudeText(
   });
 
   try {
+    const usage = new ClaudeUsage(input.onUsage, input.usageSnapshot);
+
     for await (const message of q) {
+      usage.observe(message);
+
       if (message.type !== "result") continue;
 
       if (message.subtype !== "success" || message.is_error) throw new Error("Claude text generation failed");
@@ -172,6 +181,9 @@ export async function generateCodexText(
       yield* Effect.forkScoped(
         server.notifications.pipe(
           Stream.runForEach((event) => {
+            if (event.method === "account/rateLimits/updated")
+              return Effect.sync(() => input.onUsage?.(codexUsage(event.params.rateLimits)));
+
             if (!("threadId" in event.params) || event.params.threadId !== threadId) return Effect.void;
 
             if (event.method === "item/completed" && event.params.item.type === "agentMessage")

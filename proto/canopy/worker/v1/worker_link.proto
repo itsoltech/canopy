@@ -77,6 +77,7 @@ message WorkerMessage {
     // Transient, capability git_clone_progress_v1; never journaled.
     CloneProgress clone_progress = 841;
     ThreadFilesUpdate thread_files_update = 842;
+    ProviderUsageReport provider_usage = 843;
     canopy.ui.v1.WorkerLinkDiagnostics diagnostics = 850;
     // Ephemeral pull responses; never journaled or put in a command outbox.
     canopy.ui.v1.DiagnosticsLogSourceReply diagnostics_log_reply = 851;
@@ -890,6 +891,33 @@ message ProviderAccountEntry {
 message ProviderAccountsReport {
   uint64 config_version = 1;
   repeated ProviderAccountEntry entries = 2;
+}
+
+// Sanitized official harness data only. Missing values mean unknown, never zero.
+message ProviderUsageWindow {
+  string key = 1;
+  optional double used_percent = 2;
+  google.protobuf.Timestamp resets_at = 3;
+  bool reached = 4;
+  bool warning = 5;
+}
+
+message ProviderUsageSnapshot {
+  repeated ProviderUsageWindow windows = 1;
+  google.protobuf.Timestamp observed_at = 2;
+  optional bool credits_available = 3;
+  optional bool unlimited_credits = 4;
+  // Only explicit harness reports establish actual extra usage.
+  optional bool using_extra_usage = 5;
+}
+
+message ProviderUsageReport {
+  Provider provider = 1;
+  string profile_id = 2;
+  uint64 config_version = 3;
+  // Opaque digest of runtime identity, including the CLI home; never a path or credential.
+  string account_key = 4;
+  ProviderUsageSnapshot snapshot = 5;
 }
 
 message GenerateText {

@@ -1,5 +1,14 @@
 # Protokół gateway ↔ worker
 
+## Limity kont providerów
+
+`WorkerMessage.provider_usage` (843) przenosi `ProviderUsageReport`: provider,
+profil, wersję konfiguracji, niejawny klucz runtime/home i oczyszczony snapshot
+okien limitów. Nie zawiera salda, tokenów ani ścieżki CLI home. Gateway utrwala
+snapshot po sprawdzeniu właściciela, instancji i bieżącej wersji konfiguracji.
+Starsze gatewaye pomijają nowe pole; numer protokołu pozostaje bez zmian.
+Źródła, częstotliwość odczytów i ograniczenia kredytów: [provider-accounts.md](provider-accounts.md#limity-planu-i-dodatkowe-użycie).
+
 Harness Grok: `Provider.PROVIDER_GROK = 3`, `WorkerConfig.grok = 640`; używa istniejących komend, eventów, profili native/CLIProxyAPI, zgód i `AgentToolCall`. ACP pozostaje prywatnym protokołem worker ↔ CLI w `packages/grok-acp`; nie rozszerza kontraktu przeglądarki o JSON-RPC. [Adapter Grok](grok-adapter.md).
 
 Status: **szkic**, kanał i handshake zaimplementowane (`apps/gateway/src/worker-link`, `apps/worker/src/gateway-link`). Kontrakt: [`proto/canopy/worker/v1/worker_link.proto`](../proto/canopy/worker/v1/worker_link.proto).

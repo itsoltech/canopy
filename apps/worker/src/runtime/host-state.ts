@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import {
   Provider,
+  type ProviderUsageReport,
   type AgentToolCall,
   type AgentToolResult,
   type InteractionRequest,
@@ -30,8 +31,12 @@ import { resolveWorktreeRoots, type WorktreeRoots } from "../git/worktree-roots.
 import { ThreadAdmissions } from "./thread-admissions.ts";
 
 import type { ProviderRuntimeHandle, ProfileModelsInit, WorkerHostOptions } from "./host-types.ts";
+import type { UsageObserver } from "./usage-limits.ts";
 
 export class HostState {
+  readonly usage = new Map<string, ProviderUsageReport>();
+  readonly usageRefreshers = new Map<string, () => void>();
+  readonly usageObservers = new Map<string, UsageObserver>();
   readonly accounts = new AccountStatuses();
   readonly secrets: ThreadSecretFiles;
   /** Provider CLIs on this device: reports and installs on demand (docs/provider-cli.md). */

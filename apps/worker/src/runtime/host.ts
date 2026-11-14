@@ -183,6 +183,10 @@ export class WorkerHost {
   attach(link: GatewayLink): void {
     if (link.welcome.threadLifecycle) this.applyThreadLifecycle(link.welcome.threadLifecycle);
     this.#ctx.state.link = link;
+
+    for (const report of this.#ctx.state.usage.values())
+      if (report.configVersion === this.#ctx.state.config?.version)
+        this.#ctx.ops.send({ case: "providerUsage", value: report });
     this.#ctx.state.markdownImages.resume();
     this.environment.refresh(true);
 
@@ -267,6 +271,8 @@ export class WorkerHost {
       this.#ctx.state.config = result.config;
       this.environment.refresh();
       await this.#ctx.ops.reconcileRuntimes();
+
+      for (const refresh of this.#ctx.state.usageRefreshers.values()) refresh();
       void this.#ctx.ops.publishCatalog(message.version);
     }
 

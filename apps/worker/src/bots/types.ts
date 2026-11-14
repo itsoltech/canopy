@@ -1,4 +1,4 @@
-import type { RunBotTurn } from "@canopy/contracts";
+import type { RunBotTurn, ProviderUsageSnapshot } from "@canopy/contracts";
 import type { ThreadEventInit, TurnHarness } from "../journal/index.ts";
 import type { ResolvedProfile } from "../providers/profiles.ts";
 import type { BotSession } from "./session.ts";
@@ -15,6 +15,8 @@ export class BotHarnessFailure extends Error {
 }
 
 export interface BotHarnessContext {
+  onUsage?: ((snapshot: ProviderUsageSnapshot) => void) | undefined;
+  usageSnapshot?: ProviderUsageSnapshot | undefined;
   input: RunBotTurn;
   session: BotSession;
   profile: ResolvedProfile;

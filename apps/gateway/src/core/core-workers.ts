@@ -91,6 +91,9 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
   try {
     for await (const message of connection.messages) {
       switch (message.payload.case) {
+        case "providerUsage":
+          await hostContext.usage.report(connection, message.payload.value);
+          break;
         case "networkRouteStatus":
           connection.networkRouteStatus = message.payload.value;
           await coreBroadcastWorkers(hostContext);

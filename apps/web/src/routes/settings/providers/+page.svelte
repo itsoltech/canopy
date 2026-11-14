@@ -76,6 +76,8 @@
   $effect(() =>
     overview.subscribe((update) => {
       if (update.change.case === "providerInstancesChanged") void providers.reload().catch(() => {});
+
+      if (update.change.case === "worker") providers.updateUsage(update.change.value);
     }),
   );
 

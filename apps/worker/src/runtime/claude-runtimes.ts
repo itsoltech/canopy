@@ -1,4 +1,4 @@
-import { BackgroundTaskKind } from "@canopy/contracts";
+import { BackgroundTaskKind, Provider } from "@canopy/contracts";
 import { Context, Effect, Exit, Layer, Scope } from "effect";
 import { instanceShadowHome } from "../config/remote.ts";
 import { prepareClaudeHome } from "../providers/claude/home.ts";
@@ -9,6 +9,7 @@ import type { AppliedConfig } from "../config/remote.ts";
 
 import { CommandError, kindOf } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
+import { usageReporter } from "./usage-limits.ts";
 
 export class ClaudeRuntimes {
   constructor(readonly ctx: HostContext) {}
@@ -52,7 +53,10 @@ export class ClaudeRuntimes {
     this.ctx.state.claudeHomes.set(profile.id, home.path);
     const executable = runtime.executablePath || config.claude.executable;
 
+    const usage = usageReporter(this.ctx, Provider.CLAUDE, profile.id, home.path, key);
+
     const layer = ClaudeThreads.layer({
+      onUsage: usage.report,
       home: home.path,
       ...(executable && { executable }),
       runtimeOf: () => ({
@@ -77,7 +81,7 @@ export class ClaudeRuntimes {
       attachmentsDir: (threadId) => this.ctx.state.files.threadDir(threadId),
       secretsDir: (threadId) => this.ctx.state.secrets.threadDir(threadId),
       viewImage: (threadId, cwd, path) => this.ctx.ops.viewImage(threadId, cwd, path),
-      enrich: (init) => this.ctx.state.previews.enrich(init),
+      enrich: (init) => this.ctx.state.previews.enrich(usage.failure(init)),
       closingReason: () => this.ctx.ops.stopReason(),
     });
 

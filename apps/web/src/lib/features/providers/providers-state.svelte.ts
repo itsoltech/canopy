@@ -40,6 +40,21 @@ export class ProvidersState {
     this.instances = await listInstances();
   }
 
+  updateUsage(worker: ui.Worker): void {
+    this.instances = this.instances.map((instance) => ({
+      ...instance,
+      workers: instance.workers.map((on) =>
+        on.workerId === worker.id
+          ? {
+              ...on,
+              usage: worker.providerInstances.find((i) => i.harness === instance.harness && i.id === instance.id)
+                ?.usage,
+            }
+          : on,
+      ),
+    }));
+  }
+
   /** Full catalogs again: of the named workers only (a new report), or of every worker. */
   async reloadModels(workerIds?: readonly string[]): Promise<void> {
     if (!workerIds) {

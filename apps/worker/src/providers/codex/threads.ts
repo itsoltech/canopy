@@ -15,6 +15,7 @@ import { threadCatalog, threadTurnSettings } from "./thread-catalog.ts";
 import { threadSessions } from "./thread-sessions.ts";
 import { threadTurns, threadGoals } from "./thread-turns.ts";
 import { codexConnectorMcp } from "./connector-mcp.ts";
+import { codexUsage } from "../usage-limits.ts";
 import type { RewindThread } from "@canopy/contracts";
 
 export { CodexThreadError, type CodexThreadsOptions, type InteractionInit } from "./thread-types.ts";
@@ -118,6 +119,22 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
     };
 
     const { record } = threadEvents(ctx);
+    let usageRevision = 0;
+
+    const readUsage = Effect.suspend(() => {
+      const revision = usageRevision;
+
+      return codex.request("account/rateLimits/read", { excludeResetCreditDetails: true }).pipe(
+        Effect.timeout("3 seconds"),
+        Effect.tap((result) =>
+          Effect.sync(() => {
+            if (usageRevision === revision && result.rateLimits) options.onUsage?.(codexUsage(result.rateLimits));
+          }),
+        ),
+        Effect.ignore,
+      );
+    });
+
     ctx.connectorMcp = codexConnectorMcp(ctx);
     yield* Effect.addFinalizer(() => Effect.sync(() => ctx.connectorMcp?.close()));
     let processing = 0;
@@ -128,6 +145,12 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
     yield* Effect.forkScoped(
       codex.notifications.pipe(
         Stream.runForEach((notification) => {
+          if (notification.method === "account/rateLimits/updated") {
+            usageRevision++;
+
+            return Effect.sync(() => options.onUsage?.(codexUsage(notification.params.rateLimits)));
+          }
+
           const threadId = jsonString(jsonObject(decodeJson(notification.params ?? null))?.["threadId"]);
           const entry = threadId ? ctx.byCodex.get(threadId) : undefined;
 
@@ -145,6 +168,8 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
         }),
       ),
     );
+
+    if (options.onUsage) yield* Effect.forkScoped(readUsage);
     setRoute(serverRequestHandler(ctx));
     const catalog = threadCatalog(ctx);
     const turnSettings = threadTurnSettings(ctx, catalog.loadCatalog);
@@ -153,6 +178,11 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
     return CodexThreads.of({
       readAccount: () =>
         codex.request("account/read", { refreshToken: false }).pipe(
+          Effect.tap(() => {
+            usageRevision = 0;
+
+            return options.onUsage ? readUsage : Effect.void;
+          }),
           Effect.map((result) =>
             result.account?.type === "chatgpt"
               ? { email: result.account.email ?? "", plan: result.account.planType }

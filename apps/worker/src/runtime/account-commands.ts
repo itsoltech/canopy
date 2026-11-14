@@ -15,6 +15,7 @@ import { claudeProfileOptions } from "../providers/claude/profile.ts";
 import { providersOf, resolveProfiles, type ProfileStatus, type ResolvedProfile } from "../providers/profiles.ts";
 import { CodexThreads } from "../providers/codex/threads.ts";
 import { accountResult, loginRevision } from "../providers/account-parser.ts";
+import { ClaudeThreads } from "../providers/claude/threads.ts";
 import { codexProfileGroup, CommandError } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
 import type { AccountQuery } from "../providers/account-status.ts";
@@ -142,6 +143,12 @@ async function readEntry(
     };
 
     const account = await ctx.state.accounts.read(query, refresh);
+    const claude = harness === "claude" ? ctx.state.claude.get(resolved.id) : undefined;
+
+    if (claude && !ctx.state.staleRuntimes.has(`claude/${resolved.id}`))
+      await ctx.state.options.runtime.runPromise(
+        Context.get(claude.context, ClaudeThreads).readUsage().pipe(Effect.timeout("3 seconds"), Effect.ignore),
+      );
 
     const loginDir =
       resolved.kind === "native"
