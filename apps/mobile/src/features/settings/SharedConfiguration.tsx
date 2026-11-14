@@ -1,9 +1,12 @@
 import type { ui } from "@canopy/contracts";
+import { configNotice } from "@canopy/domain/config-notice";
+import { Text } from "react-native";
 import { useAppearance } from "../../state/appearance";
 import { Button, Notice } from "../../ui/components";
+import { useColors, useTypography } from "../../ui/theme";
 import { SettingsActions, SettingsGroup, SettingsRow } from "./SettingsGroup";
-import { SettingsValue } from "./SettingsValue";
-import { ResourceState, useSettingsResource } from "./resource";
+import { ResourceState, useSettingsAction, useSettingsResource } from "./resource";
+import { useDevicePreferences } from "./device-preferences";
 
 export function SharedConfiguration({
   notices,
@@ -17,30 +20,29 @@ export function SharedConfiguration({
   const resource = useSettingsResource("GetComputers", (api) => api.getComputers({}));
   const settings = useAppearance();
 
-  const act = (id: string, action: string) =>
-    void resource
-      .run((api) => api.manageConfigNotice({ id, action }))
-      .then((result) => {
-        if (result) {
-          onChanged();
-          void settings.reload();
-        }
-      });
+  const action = useSettingsAction(
+    resource,
+    "Could not apply this value on this computer. Try again, or change it in its settings.",
+  );
+
+  const act = (ids: string[], operation: "restore" | "dismiss") =>
+    void action.run(async (api) => {
+      try {
+        for (const id of ids) await api.manageConfigNotice({ id, action: operation });
+
+        return true;
+      } finally {
+        // Bulk resolution can succeed for some items before another fails.
+        onChanged();
+        void settings.reload();
+      }
+    });
 
   if (!notices.length) return null;
   const deleted = notices.filter((n) => n.reason === "deleted" && n.field === "deleted");
 
-  const resolveAll = (action: string) =>
-    void resource
-      .run(async (api) => {
-        for (const notice of deleted) await api.manageConfigNotice({ id: notice.id, action });
-
-        return true;
-      })
-      .then(() => onChanged());
-
   return (
-    <ResourceState resource={resource}>
+    <ResourceState resource={{ ...resource, ...action }}>
       <SettingsGroup title="Changed on two computers">
         {library && (
           <Notice>
@@ -50,40 +52,84 @@ export function SharedConfiguration({
         )}
         {library && deleted.length > 1 && (
           <SettingsActions>
-            <Button title="Keep all deleted items" disabled={resource.busy} onPress={() => resolveAll("restore")} />
-            <Button title="Accept all deletions" disabled={resource.busy} onPress={() => resolveAll("dismiss")} />
+            <Button
+              title="Keep all deleted items"
+              disabled={action.busy}
+              onPress={() =>
+                act(
+                  deleted.map((n) => n.id),
+                  "restore",
+                )
+              }
+            />
+            <Button
+              title="Accept all deletions"
+              disabled={action.busy}
+              onPress={() =>
+                act(
+                  deleted.map((n) => n.id),
+                  "dismiss",
+                )
+              }
+            />
           </SettingsActions>
         )}
         {notices.map((notice) => (
-          <SettingsRow
+          <ConfigNoticeRow
             key={notice.id}
-            title={notice.itemName || notice.field}
-            description={
-              notice.reason === "deleted" ? `Deleted on ${notice.nodeName}.` : `${notice.nodeName} · ${notice.reason}`
-            }
-          >
-            <SettingsValue title="Change" value={notice.value} />
-            <SettingsActions>
-              <Button
-                title={
-                  notice.reason === "resurrected"
-                    ? "Delete"
-                    : library && notice.reason === "deleted"
-                      ? "Keep"
-                      : "Restore"
-                }
-                disabled={resource.busy}
-                onPress={() => act(notice.id, "restore")}
-              />
-              <Button
-                title={library && notice.reason === "deleted" ? "Accept deletion" : "Dismiss"}
-                disabled={resource.busy}
-                onPress={() => act(notice.id, "dismiss")}
-              />
-            </SettingsActions>
-          </SettingsRow>
+            notice={notice}
+            library={library}
+            busy={action.busy}
+            onAction={(operation) => act([notice.id], operation)}
+          />
         ))}
       </SettingsGroup>
     </ResourceState>
+  );
+}
+
+function ConfigNoticeRow({
+  notice,
+  library,
+  busy,
+  onAction,
+}: {
+  notice: ui.ConfigNotice;
+  library: boolean;
+  busy: boolean;
+  onAction: (action: "restore" | "dismiss") => void;
+}) {
+  const settings = useAppearance();
+  const { values } = useDevicePreferences();
+  const c = useColors();
+  const type = useTypography();
+
+  const time = new Date(Number(notice.changedAtMs)).toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: values.timeFormat === "system" ? undefined : values.timeFormat === "12h",
+    timeZone: settings.user?.timezone || undefined,
+  });
+
+  const row = configNotice(notice, time, { library });
+
+  return (
+    <SettingsRow title={row.title} description={row.message}>
+      {!!row.value && (
+        <Text selectable style={[type.meta, { color: c.soft }]}>
+          {row.value}
+        </Text>
+      )}
+      <SettingsActions>
+        <Button title={row.restore} style={{ maxWidth: "100%" }} disabled={busy} onPress={() => onAction("restore")} />
+        <Button
+          title={row.dismiss}
+          style={{ maxWidth: "100%" }}
+          variant="ghost"
+          disabled={busy}
+          onPress={() => onAction("dismiss")}
+        />
+      </SettingsActions>
+    </SettingsRow>
   );
 }

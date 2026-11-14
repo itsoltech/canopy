@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./config-notice": "./src/config-notice.ts",
     "./schedule-display": "./src/schedule-display.ts",
     "./connector-session": "./src/connector-session.ts",
     "./thread-scroll": "./src/thread-scroll.ts",
