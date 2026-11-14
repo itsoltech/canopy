@@ -24,7 +24,6 @@
   const overview = useOverview();
   let open = $state(false);
   const detailsId = $props.id();
-  const accordion = (_node: HTMLElement) => expandGrid();
   const home = $derived(splitId(schedule.id).node);
   const computer = $derived(home ? [...overview.computers.values()].find((c) => c.nodeId.startsWith(home)) : undefined);
   const reason = $derived(home ? awayReason(computer, formatPresenceTime) : undefined);
@@ -86,8 +85,8 @@
     </div>
     {#if reason}<p class="text-sm/5 text-zinc-500 dark:text-zinc-400">{reason} Read-only</p>{/if}
     {#if open}
-      <div id={detailsId} class="grid grid-rows-[1fr]" transition:accordion>
-        <div class="grid min-h-0 min-w-0 gap-2 overflow-hidden pt-2 text-sm/5 text-zinc-500 dark:text-zinc-400">
+      <div id={detailsId} class="-mt-0.5 grid grid-rows-[1fr]" transition:expandGrid>
+        <div class="grid min-h-0 min-w-0 gap-2 overflow-hidden pt-2.5 text-sm/5 text-zinc-500 dark:text-zinc-400">
           <p class="wrap-anywhere">{describeWhen(schedule)}</p>
           {#if schedule.maxRuns}<p>{runsLabel(schedule)}</p>{/if}
           <p class="wrap-anywhere whitespace-pre-wrap text-zinc-700 select-text dark:text-zinc-300">

@@ -44,7 +44,7 @@
   $effect(() => memory?.set(open));
 
   function accordion(node: HTMLElement) {
-    return grid ? expandGrid() : expand(node, { instantReduced: true });
+    return grid ? expandGrid(node) : expand(node, { instantReduced: true });
   }
 </script>
 

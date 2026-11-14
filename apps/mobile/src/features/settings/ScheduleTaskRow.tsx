@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
-import Animated from "react-native-reanimated";
 import { router } from "expo-router";
 import type { ui } from "@canopy/contracts";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
@@ -11,7 +10,7 @@ import { Badge } from "../../ui/Badge";
 import { Button, IconButton } from "../../ui/components";
 import { Icon } from "../../ui/Icon";
 import { useColors, useTypography } from "../../ui/theme";
-import { useMotion } from "../../ui/motion";
+import { Accordion } from "../../ui/Accordion";
 import { SettingsGroup } from "./SettingsGroup";
 
 const statuses = new Map([
@@ -34,7 +33,6 @@ export function ScheduleTaskRow({
   const { threads, workers } = useOverview();
   const c = useColors();
   const type = useTypography();
-  const motion = useMotion();
   const heading = scheduleHeading(s);
   const thread = threads.find((t) => t.id === s.threadId);
   const worker = workers.find((w) => w.id === (thread?.workerId || s.recentRuns[0]?.workerId));
@@ -51,7 +49,7 @@ export function ScheduleTaskRow({
 
   return (
     <SettingsGroup style={reason ? { opacity: 0.55 } : undefined}>
-      <Animated.View layout={motion.layout} style={{ gap: 2, minWidth: 0 }}>
+      <View style={{ gap: 2, minWidth: 0 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           <Text numberOfLines={1} style={[type.chrome, { flex: 1, color: c.text }]}>
             {heading}
@@ -111,8 +109,8 @@ export function ScheduleTaskRow({
           )}
         </View>
         {reason && <Text style={[type.meta, { color: c.muted }]}>{reason} Read-only</Text>}
-        {open && (
-          <View style={{ gap: 6, paddingTop: 6 }}>
+        <Accordion open={open} style={{ marginTop: -2 }}>
+          <View style={{ gap: 6, paddingTop: 8 }}>
             <Text style={[type.meta, { color: c.muted }]}>{when}</Text>
             {s.maxRuns > 0 && (
               <Text style={[type.meta, { color: c.muted }]}>
@@ -137,8 +135,8 @@ export function ScheduleTaskRow({
             )}
             <ScheduleRunHistory runs={s.recentRuns} threadId={s.threadId} />
           </View>
-        )}
-      </Animated.View>
+        </Accordion>
+      </View>
     </SettingsGroup>
   );
 }
