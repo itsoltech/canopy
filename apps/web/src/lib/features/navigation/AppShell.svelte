@@ -58,7 +58,7 @@
   import { threadWarmSet } from "@canopy/domain/thread-warm-set";
   import { sidebarThreads } from "@canopy/domain/sidebar-threads";
   import { expandProjectIds } from "@canopy/domain/projects";
-  import { createThreadWarming, connectThreadWarming } from "#lib/features/threads/warming.ts";
+  import { createThreadWarming, connectThreadWarming, receiveThreadHeads } from "#lib/features/threads/warming.ts";
   import { threadViews } from "#lib/features/threads/thread-views.ts";
 
   let { children }: { children: Snippet } = $props();
@@ -112,7 +112,9 @@
     ),
   );
 
-  const headIds = $derived([...warmIds].sort().join(","));
+  const headIds = $derived(
+    [...new Set([page.params.threadId ?? "", ...warmIds])].filter(Boolean).slice(0, 32).sort().join(","),
+  );
 
   $effect(() => {
     const ids = headIds;
@@ -128,7 +130,10 @@
 
   $effect(() =>
     overview.subscribe((update) => {
-      if (update.change.case === "threadHeads") warming.heads(update.change.value.heads);
+      if (update.change.case === "threadHeads") {
+        receiveThreadHeads(update.change.value.heads);
+        warming.heads(update.change.value.heads);
+      }
     }),
   );
 

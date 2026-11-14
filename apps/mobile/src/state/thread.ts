@@ -16,6 +16,7 @@ import {
 import { recordThreadWatchFailure } from "@canopy/domain/diagnostics";
 import { useThreadPersistence } from "./thread-persistence";
 import { threadWatchReady } from "@canopy/domain/thread-watch-state";
+import { useThreadLiveness } from "./thread-liveness";
 import {
   mobileSnapshotStarted,
   mobileSnapshotFinished,
@@ -95,6 +96,11 @@ export function useThreadSnapshot(id: string) {
         Number(error.metadata.get("canopy-frame-bytes")),
       );
 
+      failure.transport =
+        [4, 14].includes(error.code) &&
+        !error.metadata.has("canopy-sync-reason") &&
+        error.metadata.get("canopy-error-scope") !== "thread" &&
+        error.metadata.get("canopy-stream-ended") !== "true";
       const decision = repair.failed(failure);
       recordThreadWatchFailure(mobileMeasurements, failure, decision.reason);
 
@@ -110,6 +116,9 @@ export function useThreadSnapshot(id: string) {
       };
     },
   );
+
+  const connection = syncStatus?.reason ? "error" : stream.connection;
+  useThreadLiveness(id, () => current.current?.syncCursor, connection, stream.retry);
 
   const history = useHistoryPage(id, {
     current,
@@ -128,8 +137,8 @@ export function useThreadSnapshot(id: string) {
     history,
     stream: {
       ...stream,
+      connection,
       ...(syncStatus?.reason && {
-        connection: "error" as const,
         issue: threadWatchMessage(syncStatus.reason, syncStatus.computerName),
       }),
       retry() {

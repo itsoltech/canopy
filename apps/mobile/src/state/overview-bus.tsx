@@ -14,6 +14,7 @@ function useOverviewBusState() {
   const { client, session, queries, modelCatalog, drafts } = useSession();
   const listeners = useRef(new Set<Listener>());
   const snapshots = useRef(0);
+  const heads = useRef<readonly ui.ThreadSyncCursor[]>([]);
   const [headIds, setHeadIds] = useState("");
   const invalidation = useMemo(() => new OverviewInvalidation(queries), [queries]);
 
@@ -27,6 +28,8 @@ function useOverviewBusState() {
       : null,
     (update: ui.OverviewUpdate) => {
       const change = update.change;
+
+      if (change.case === "threadHeads") heads.current = change.value.heads;
 
       if (change.case === "thread" && change.value.deletedAt) drafts?.removeThread(change.value.id);
 
@@ -56,7 +59,9 @@ function useOverviewBusState() {
     [],
   );
 
-  return { stream, subscribe, setHeadIds };
+  const threadHead = useMemo(() => (id: string) => heads.current.find((head) => head.threadId === id), []);
+
+  return { stream, subscribe, setHeadIds, threadHead };
 }
 
 const Context = createContext<ReturnType<typeof useOverviewBusState> | null>(null);
@@ -82,6 +87,7 @@ function useOverviewBus() {
 /** The connection of the shared overview stream. */
 export const useOverviewStream = () => useOverviewBus().stream;
 export const useOverviewHeadSelection = () => useOverviewBus().setHeadIds;
+export const useOverviewThreadHead = () => useOverviewBus().threadHead;
 
 /** Receives every overview update while mounted. Children subscribe before the stream starts. */
 export function useOverviewEvents(listener: Listener) {

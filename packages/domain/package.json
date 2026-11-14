@@ -29,6 +29,7 @@
     "./connection-recovery": "./src/connection-recovery.ts",
     "./composer-connection": "./src/composer-connection.ts",
     "./thread-watch-state": "./src/thread-watch-state.ts",
+    "./thread-watch-liveness": "./src/thread-watch-liveness.ts",
     "./github-pr": "./src/github-pr.ts",
     "./github-pr-picker": "./src/github-pr-picker.ts",
     "./github-read": "./src/github-read.ts",

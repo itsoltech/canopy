@@ -130,7 +130,10 @@ z jedną stroną w toku. Miernik `Earlier work rendered` obejmuje żądanie star
 strony, scalenie, aktualizację Svelte i pierwszy rAF po niej; to proxy gotowości
 renderera, nie potwierdzenie klatki kompozytora. `Timeline recoveries` zlicza
 odtworzenie niepełnego okna, awaryjne pokazanie wierszy przy niezgodności
-derywacji oraz timeout pozycjonowania. Log zawiera wyłącznie stały powód i liczbę,
+derywacji, timeout pozycjonowania oraz wznowienie zatrzymanego watcha (`stalled_watch`).
+Ten ostatni porównuje head overview z kursorem widoku; 10 s bez postępu uruchamia
+wyłącznie wznowienie inkrementalne (odstęp 30 s, do trzech prób bez postępu).
+Log zawiera wyłącznie stały powód, liczbę, czas opóźnienia i numer próby,
 bez treści, identyfikatorów i kotwic. Sprawdź scroll do granicy niepełnej tury,
 reload z cache i przejście z innego wątku: treść ma nadejść bez load-more,
 a tekst już czytany ma zachować pozycję. Pozycjonowanie web ma limit 2 s;

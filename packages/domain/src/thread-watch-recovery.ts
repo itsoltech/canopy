@@ -25,7 +25,14 @@ export const THREAD_WATCH_REASONS = [
   "invalid_record",
 ] as const;
 
-export type ThreadWatchFailure = { code: number; computer?: boolean; reason?: string | undefined; frameBytes?: number };
+export type ThreadWatchFailure = {
+  code: number;
+  computer?: boolean;
+  /** Transport loss is retried by ConnectionRecovery; it is not a failed thread projection. */
+  transport?: boolean;
+  reason?: string | undefined;
+  frameBytes?: number;
+};
 
 /** Only fixed categories and numeric codes cross the diagnostics boundary. */
 export function threadWatchFailure(code: number, reason = "", computer = false, frameBytes = 0): ThreadWatchFailure {
@@ -70,6 +77,9 @@ export class ThreadWatchRecovery {
     this.#liveSince = undefined;
 
     if (failure.computer) return { action: "resume", reason: "computer_unreachable" };
+
+    if (failure.transport && [4, 14].includes(failure.code) && !failure.reason)
+      return { action: "resume", reason: "stream_unavailable" };
 
     this.#failures++;
 
