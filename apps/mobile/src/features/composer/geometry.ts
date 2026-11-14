@@ -10,7 +10,3 @@ export const composerGeometry = {
 };
 
 export const threadComposerHeight = Object.values(composerGeometry).reduce((sum, size) => sum + size, 0);
-
-/** Only the latest-button anchor; the scroll reserve uses the measured whole stack. */
-export const collapsedThreadComposerHeight =
-  44 + composerGeometry.border + composerGeometry.padding + composerGeometry.gap;

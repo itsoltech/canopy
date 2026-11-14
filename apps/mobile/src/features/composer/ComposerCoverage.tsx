@@ -24,10 +24,13 @@ export function ComposerCoverage({
   children,
   value,
   fade,
+  latest,
 }: {
   children: ReactNode;
   value?: SharedValue<number>;
   fade?: ReactNode;
+  /** Floats above the visible stack, outside its clipping and measurement. */
+  latest?: ReactNode;
 }) {
   const stack = useAnimatedRef<Animated.View>();
   const insets = useContentInsets();
@@ -87,6 +90,7 @@ export function ComposerCoverage({
   return (
     <Animated.View collapsable={false} pointerEvents="box-none" style={[{ flexShrink: 1, minHeight: 0 }, size]}>
       {value && fade}
+      {latest}
       <Animated.View style={value ? { flex: 1, overflow: "hidden" } : undefined}>
         <Animated.View
           ref={stack}

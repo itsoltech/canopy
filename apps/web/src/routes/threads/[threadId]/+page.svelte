@@ -629,7 +629,6 @@
           {#if device.viewLoaded}<VirtualFeed
               bind:this={feed}
               bind:atEnd
-              footerExpanded={!compact}
               {rows}
               {scrollMemory}
               sizes={memory.sizes}

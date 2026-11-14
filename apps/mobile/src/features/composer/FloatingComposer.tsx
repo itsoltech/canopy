@@ -6,17 +6,16 @@ import { useMotion } from "../../ui/motion";
 import { useColors } from "../../ui/theme";
 import { IconButton } from "../../ui/components";
 import { useContentInsets } from "../../ui/ScreenFrame";
-import { ComposerMotionContext, type ComposerMotion } from "./ComposerFold";
+import { ComposerMotionContext, useComposerMotion, type ComposerMotion } from "./ComposerFold";
 import { ComposerViewport } from "./ComposerViewport";
 import { ComposerCoverage } from "./ComposerCoverage";
 
-/** Web VirtualFeed's bottom overlay: canvas fading over 32 points, with the timeline continuing underneath. */
+/** Canvas and a short proportional fade, with the timeline continuing underneath. */
 export function FloatingComposer({
   children,
   onLayout,
   onExpand,
   onLatest,
-  latestInset,
   motion,
   overlay,
   accessory,
@@ -38,14 +37,11 @@ export function FloatingComposer({
   onLayout: (event: LayoutChangeEvent) => void;
   onExpand: () => void;
   onLatest?: (() => void) | undefined;
-  /** Thread feeds anchor this control to their fixed collapsed edge, outside the growing overlay. */
-  latestInset?: number;
   /** Whole stack coverage; its safe-area portion is already owned by the native scroll view. */
   coverage?: SharedValue<number>;
 }) {
   const c = useColors();
   const insets = useContentInsets();
-  const { pop } = useMotion();
   const keyboard = useKeyboardFrame();
   const [block, setBlock] = useState(0);
 
@@ -63,39 +59,13 @@ export function FloatingComposer({
           pointerEvents="box-none"
           style={[{ position: "absolute", bottom: 0, left: 0, right: 0, justifyContent: "flex-end" }, bounds]}
         >
-          {onLatest && (
-            // It pops in and out above the composer (web `pop`) without moving it.
-            <Animated.View
-              entering={pop.entering}
-              exiting={pop.exiting}
-              pointerEvents="box-none"
-              style={[
-                { height: 56, flexShrink: 1, alignItems: "center" },
-                latestInset === undefined
-                  ? undefined
-                  : { position: "absolute", bottom: latestInset + insets.bottom, left: 0, right: 0 },
-              ]}
-            >
-              <View
-                style={{
-                  borderRadius: 22,
-                  backgroundColor: c.surface,
-                  borderWidth: 1,
-                  borderColor: c.line,
-                  boxShadow: "0px 2px 8px #0000001a",
-                }}
-              >
-                <IconButton icon="arrow-down" label="Show latest messages" onPress={onLatest} />
-              </View>
-            </Animated.View>
-          )}
           <View
             pointerEvents="box-none"
             style={{ height: 0, zIndex: 2, marginLeft: 12 + insets.left, marginRight: 12 + insets.right }}
           >
             {overlay}
           </View>
-          <ComposerCoverage value={coverage} fade={<Fade />}>
+          <ComposerCoverage value={coverage} fade={<Fade />} latest={onLatest && <LatestButton onPress={onLatest} />}>
             <View pointerEvents="box-none" style={{ zIndex: 1, flexShrink: 1, minHeight: 0 }}>
               {/* Status rows and the tray share the composer's canvas and fade, so the feed passes under them. */}
               <View
@@ -143,21 +113,69 @@ export function FloatingComposer({
   );
 }
 
-/** The canvas fading over 32 points above whatever floats on top of the feed. */
-function Fade() {
+/** Outside the stack's clipping and reserve, on the composer's axis. */
+function LatestButton({ onPress }: { onPress: () => void }) {
   const c = useColors();
+  const insets = useContentInsets();
+  const { pop } = useMotion();
+  const { progress } = useComposerMotion();
+
+  const position = useAnimatedStyle(() => ({ marginBottom: 24 + 16 * progress.get() }));
 
   return (
-    <View
+    <Animated.View
+      entering={pop.entering}
+      exiting={pop.exiting}
+      pointerEvents="box-none"
+      style={[
+        {
+          position: "absolute",
+          bottom: "100%",
+          left: insets.left,
+          right: insets.right,
+          alignItems: "center",
+          zIndex: 3,
+        },
+        position,
+      ]}
+    >
+      <View
+        style={{
+          borderRadius: 22,
+          backgroundColor: c.surface,
+          borderWidth: 1,
+          borderColor: c.line,
+          boxShadow: "0px 2px 8px #0000001a",
+        }}
+      >
+        <IconButton icon="arrow-down" label="Show latest messages" onPress={onPress} />
+      </View>
+    </Animated.View>
+  );
+}
+
+/** The same fade in both states: 16 points compact, 32 expanded. */
+function Fade() {
+  const c = useColors();
+  const { progress } = useComposerMotion();
+
+  const size = useAnimatedStyle(() => ({
+    top: -(16 + 16 * progress.get()),
+    height: 16 + 16 * progress.get(),
+  }));
+
+  return (
+    <Animated.View
       pointerEvents="none"
-      style={{
-        position: "absolute",
-        top: -32,
-        height: 32,
-        left: 0,
-        right: 0,
-        backgroundImage: `linear-gradient(to bottom, ${c.background}00, ${c.background})`,
-      }}
+      style={[
+        {
+          position: "absolute",
+          left: 0,
+          right: 0,
+          backgroundImage: `linear-gradient(to bottom, ${c.background}00, ${c.background})`,
+        },
+        size,
+      ]}
     />
   );
 }

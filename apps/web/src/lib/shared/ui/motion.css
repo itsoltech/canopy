@@ -496,12 +496,6 @@
   translate: 0 var(--distance-base);
   transition-duration: var(--duration-medium);
 }
-.t-feed-latest {
-  transition: opacity var(--duration-fast) var(--ease-smooth-out);
-}
-.t-feed-latest[data-covered] {
-  opacity: 0;
-}
 .t-composer-editor {
   padding: --spacing(3.5) --spacing(4) 0;
   transition: padding-bottom var(--duration-slow) var(--ease-smooth-out);
@@ -564,9 +558,6 @@
   .t-composer-fold,
   .t-composer-fold > *,
   .t-composer-hint {
-    transition: none !important;
-  }
-  .t-feed-latest {
     transition: none !important;
   }
 }
