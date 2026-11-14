@@ -7,7 +7,7 @@ import { Effect, ManagedRuntime, Result } from "effect";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { WorkerState } from "@canopy/contracts";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
-import { STEER_ATTACHMENTS_CAPABILITY } from "@canopy/domain/release/protocol";
+import { STEER_ATTACHMENTS_CAPABILITY, THREAD_VISUALS_CAPABILITY } from "@canopy/domain/release/protocol";
 import { defaultConfigPath, defaultDataDir, loadLocalConfig } from "./config/local.ts";
 import { resolveWorktreeRoots, type WorktreeRoots } from "./git/worktree-roots.ts";
 import { journalHello, openGatewayLink, resendPending, type GatewayLink } from "./gateway-link/index.ts";
@@ -389,6 +389,8 @@ while (!stopping.signal.aborted) {
           "thread_directory_v1",
           "thread_file_highlight_v1",
           "thread_files_watch_v1",
+          // thread_visuals_v1: render_visual is offered to every harness; the gateway validates and stores it.
+          THREAD_VISUALS_CAPABILITY,
           // provisional_branches: RenameWorktreeBranch.provisional keeps pushed or switched branches.
           "provisional_branches",
           "project_sources",
