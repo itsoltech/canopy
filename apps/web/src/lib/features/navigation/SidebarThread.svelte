@@ -1,7 +1,7 @@
 <script lang="ts">
   import DraftMarker from "#lib/features/drafts/DraftMarker.svelte";
   import type { ui } from "@canopy/contracts";
-  import { threadPlace } from "@canopy/domain/git-heads";
+  import { threadRowPlace } from "@canopy/domain/git-heads";
   import { threadRowMarks } from "@canopy/ui/thread-row";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import ProjectMark from "#lib/shared/ui/ProjectMark.svelte";
@@ -11,6 +11,7 @@
   import ThreadGoalMark from "#lib/features/threads/ThreadGoalMark.svelte";
   import SidebarThreadStatus from "./SidebarThreadStatus.svelte";
   import SidebarThreadLink from "./SidebarThreadLink.svelte";
+  import SidebarThreadBranch from "./SidebarThreadBranch.svelte";
   import SwapText from "#lib/shared/ui/SwapText.svelte";
   import ScheduleOrigin from "#lib/features/schedules/ScheduleOrigin.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
@@ -19,7 +20,7 @@
   import { formatCount } from "#lib/shared/format.ts";
 
   /**
-   * One thread in the inbox: project and status, title, then where it runs with its marks
+   * One thread in the inbox: project and status, title, then where it runs (computer, place, branch) with its marks
    * (goal, side threads, started by an agent) and the provider's mark. `sides` = number of side threads under it.
    * What it does leads the row (ThreadActivityMark in the avatar's place, background tasks with their count);
    * working rows keep their text contrast, finished unseen ones and those that need you stand out. Hover,
@@ -45,6 +46,7 @@
   const overview = useOverview();
   const computer = $derived(overview.computer(thread.nodeId));
   const away = $derived(thread.nodeId ? awayReason(computer) : undefined);
+  const row = $derived(threadRowPlace(thread, project));
   const providerName = $derived(provider === "CLAUDE" ? "Claude" : provider === "GROK" ? "Grok" : "Codex");
 </script>
 
@@ -95,12 +97,11 @@
       name="computer-desktop"
       class="size-3.5 {worker?.online ? 'fill-zinc-400 dark:fill-zinc-500' : 'fill-zinc-300 dark:fill-zinc-700'}"
     />
-    <span class="min-w-0 flex-1 truncate"
-      >{worker?.name ?? "Unknown worker"}<span class="text-zinc-400 dark:text-zinc-600">{" · "}</span>{threadPlace(
-        thread,
-        project,
-      )}</span
+    <span class={["min-w-0 truncate", row.branch ? "max-w-2/5" : "flex-1"]}
+      >{worker?.name ?? "Unknown worker"}{#if row.place}<span class="text-zinc-400 dark:text-zinc-600">{" · "}</span
+        >{row.place}{/if}</span
     >
+    {#if row.branch}<SidebarThreadBranch branch={row.branch} label={row.branchLabel} class="flex-1" />{/if}
     <span class="flex shrink-0 items-center gap-2">
       <ThreadGoalMark {thread} />
       <ScheduleOrigin {thread} compact />

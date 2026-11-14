@@ -139,8 +139,8 @@ gałąź checkoutu workspace'u. `ui.Worker.worktrees` = worker ogłosił capabil
 ### Bieżąca gałąź
 
 Gałąź wątku to gałąź, na której checkout **jest teraz**, a nie ta z chwili utworzenia. Agent albo użytkownik
-może w worktree utworzyć i wybrać inną gałąź (`git switch -c …`); nagłówek, panel, karta hover i aplikacja
-mobilna pokazują ją na żywo. „Started from ‹ref›” (`base_ref`) się nie zmienia.
+może w worktree utworzyć i wybrać inną gałąź (`git switch -c …`); nagłówek, panel, wiersz i karta hover
+w sidebarze oraz aplikacja mobilna pokazują ją na żywo. „Started from ‹ref›” (`base_ref`) się nie zmienia.
 
 - **Worker** (capability `git_heads`, `apps/worker/src/git/heads.ts`) śledzi każdy katalog git wątków, które
   zna (CreateThread, StartTurn): jedna obserwacja pliku `HEAD` w katalogu git checkoutu
@@ -377,7 +377,8 @@ Nagłówek wątku: chip z bieżącą gałęzią albo „Detached at ‹commit›
 otwierają wspólny dialog statusu i zarządzania. Karta pokazuje ahead/behind, zmienione pliki,
 niewypchnięte commity, ostatnią aktywność i akcje jak w Settings. Po usunięciu pozostaje informacja
 o usuniętym worktree i historia wątku. Offline akcje workera są wyłączone z przyczyną;
-ścieżkę nadal można skopiować. Karta hover w sidebarze pokazuje gałąź. Panel web/desktop i mobile
+ścieżkę nadal można skopiować. Wiersz i karta hover w sidebarze pokazują gałąź
+([threads.md](threads.md#wiersz-wątku)). Panel web/desktop i mobile
 pokazuje pełną ścieżkę i osobny picker gałęzi opisany wyżej; „Manage worktree” otwiera dialog statusu.
 
 ## Interakcje

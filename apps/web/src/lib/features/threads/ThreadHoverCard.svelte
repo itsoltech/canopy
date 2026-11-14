@@ -109,6 +109,12 @@
           <code class="truncate font-mono" title={thread.worktree.path}>{headLabel(thread.worktree)}</code>
           {#snippet aside()}<span class="text-zinc-500">Worktree</span>{/snippet}
         </SummaryRow>
+      {:else if thread.checkoutHead && project?.kind !== "scratch"}
+        <SummaryRow>
+          {#snippet mark()}<Icon name="git-fork" class={muted} />{/snippet}
+          <code class="truncate font-mono" title={headLabel(thread.checkoutHead)}>{headLabel(thread.checkoutHead)}</code
+          >
+        </SummaryRow>
       {/if}
       <SummaryRow>
         {#snippet mark()}{#if provider}<ProviderIcon {provider} class="size-4 opacity-70" />{:else}<Icon

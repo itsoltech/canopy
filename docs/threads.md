@@ -63,6 +63,27 @@ Przed wysłaniem pierwszej wiadomości katalog scratch jeszcze nie istnieje, wi�
 we wzmiankach jest pusta. Katalog komend i umiejętności pochodzi wtedy z katalogu domowego
 workera; po utworzeniu wątku katalog i wyszukiwanie plików używają jego dokładnego cwd.
 
+## Wiersz wątku
+
+Wiersz w sidebarze ma trzy linie o stałej wysokości: projekt ze statusem, tytuł oraz linię meta
+(komputer, miejsce, gałąź, znaczniki i znak dostawcy). Web/desktop i mobile liczą miejsce i gałąź tą samą
+funkcją (`threadRowPlace`, `packages/domain/src/git-heads.ts`):
+
+- **Gałąź** to bieżąca gałąź checkoutu ([worktrees.md](worktrees.md#bieżąca-gałąź)): `ThreadWorktree`
+  albo `Thread.checkout_head`. Zmiana dociera jako zwykły przyrost `thread` w strumieniu overview, bez
+  odpytywania i bez snapshotu. Odłączony HEAD pokazuje skrócony commit (tytuł i etykieta: „Detached at ‹commit›”).
+- **Każda wartość raz.** Worktree: miejscem jest gałąź, więc linia pokazuje tylko gałąź. Workspace:
+  katalog o nazwie projektu powtarza pierwszą linię, więc znika; inny katalog (podkatalog, inny klon) zostaje
+  przed gałęzią. Pełny katalog i gałąź pokazuje karta hover.
+- **Bez gita** (katalog bez repozytorium, starszy worker, scratch) linia zostaje jak wcześniej: komputer
+  i katalog, bez ikony i bez zastępczego tekstu.
+- Długa nazwa gałęzi traci **środek**: web skraca początek wielokropkiem i zostawia całe ostatnie
+  8 znaków (bez uciętych liter), mobile używa `ellipsizeMode="middle"`. Gałęzie mają zwykle prefiks typu
+  (`feat/`, `fix/`) i wyróżniający koniec, a wspólny bywa środek. Pełna nazwa jest w `title` na web (bez drugiego
+  tooltipa obok karty hover) i w etykiecie dostępności na mobile („Branch ‹nazwa›”).
+- Komputer i katalog zajmują najwyżej 2/5 linii, gałąź resztę. Status w pierwszej linii i slot znaku
+  dostawcy mają stały rozmiar, więc zmiana stanu niczego nie przesuwa.
+
 ## Filtr, menu i archiwum
 
 Tło zaznaczenia w sidebarze wskazuje wyłącznie otwarty wątek, także podczas pracy i najechania.
