@@ -67,7 +67,7 @@ html[data-canopy-platform="darwin"] .canopy-sidebar-header {
 html[data-canopy-platform="darwin"] [data-sidebar="hidden"] [data-window-titlebar]:not([data-window-offset] *) {
   padding-left: calc(var(--window-controls-inset) + 8px);
 }
-/* A toggled sidebar column eases its width (motion.css `t-sidebar-shell`): the header's clearance eases on the same
+/* A toggled sidebar column eases its width (motion.css `t-sidebar`): the header's clearance eases on the same
  * duration and curve, so the header's left edge moves smoothly between the column edge and the clearance and
  * never comes closer to the window controls than the clearance. */
 html[data-canopy-platform="darwin"] [data-sidebar-settling] [data-window-titlebar]:not([data-window-offset] *) {
@@ -270,26 +270,28 @@ html[data-canopy-platform]:not(:has(:popover-open, [data-window-no-drag])) {
   /* Keep both sides of a bot conversation together on large screens. */
   --bot-chat-width: 72rem;
 }
-/* The desktop sidebar column's live width: eased on a toggle (motion.css `t-sidebar-shell`), 0 below lg where the
-   drawer takes over. Registered, so it eases as a length and every reader sees the same value in the same frame. */
-@property --sidebar-inset {
+/* The desktop sidebar column's live width, 0 below lg where the drawer takes over. Registered and not inherited: only
+   the column (`t-sidebar`) and the chat columns compute it, and each eases its own copy on a toggle with the same
+   start, duration and curve (motion.css `t-sidebar`), so they agree in every frame while the rest of the page's
+   styles stay untouched. */
+@property --sidebar-extent {
   syntax: "<length>";
-  inherits: true;
+  inherits: false;
   initial-value: 0px;
 }
 @media (min-width: 64rem) {
-  .t-sidebar-shell:not([data-sidebar-collapsed]) {
-    --sidebar-inset: var(--sidebar-width);
+  .t-sidebar-shell:not([data-sidebar-collapsed]) :is(.t-sidebar, .chat-column) {
+    --sidebar-extent: var(--sidebar-width);
   }
 }
 /* Space the docked thread summary takes from the chat column: a 20rem card, 1rem from the area's edge and 1rem clear
    of the column (summary-layout.svelte.ts). Eases when the card docks or leaves (motion.css `data-chat-settling`). */
 @property --chat-card-space {
   syntax: "<length>";
-  inherits: true;
+  inherits: false;
   initial-value: 0px;
 }
-[data-chat-card] {
+[data-chat-card] .chat-column {
   --chat-card-space: 22rem;
 }
 /* The chat column; messages and composer always share it. Centred by default. On the thread page
@@ -308,7 +310,7 @@ html[data-canopy-platform]:not(:has(:popover-open, [data-window-no-drag])) {
   max-width: var(--chat-span);
   margin-left: clamp(
     0px,
-    50vw - var(--chat-span) / 2 - var(--sidebar-inset) - var(--chat-area-start, 0px),
+    50vw - var(--chat-span) / 2 - var(--sidebar-extent) - var(--chat-area-start, 0px),
     var(--chat-room) - var(--chat-span)
   );
 }

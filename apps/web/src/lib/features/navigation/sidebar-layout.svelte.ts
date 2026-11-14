@@ -27,7 +27,7 @@ export class SidebarLayout {
   viewport = $state<number | undefined>(undefined);
   /** A ResizeHandle drag is going on. */
   dragging = $state(false);
-  /** The column is easing to a new width (toggle, reset, snap), motion.css `t-sidebar-shell[data-sidebar-settling]`. */
+  /** The column is easing to a new width (toggle, reset, snap), motion.css `t-sidebar`. */
   settling = $state(false);
   #width = $state<number | undefined>(undefined);
   #collapsed = $state<boolean | undefined>(undefined);

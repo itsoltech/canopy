@@ -295,8 +295,8 @@
 
 <!-- `data-sidebar`: whether the sidebar clears the page header from the native window controls. While the column
      eases (`data-sidebar-settling`), the header's clearance eases with it (layout.css), so the toggle never jumps.
-     `--sidebar-inset` is the column's live width (layout.css, motion.css `t-sidebar-shell`): the column and the
-     thread's chat column both read it, so they move in the same frame.
+     `--sidebar-width` and the collapse drive the column's live width, `--sidebar-extent` (layout.css, motion.css
+     `t-sidebar`), which the column and the thread's chat column ease in the same frame.
      The shell fills the window and clips: only its own panes scroll, so nothing inside (a live region, an easing
      panel) can give the window a page scrollbar. -->
 <div
