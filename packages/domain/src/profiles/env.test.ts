@@ -9,7 +9,15 @@ describe("profile env rules", () => {
   });
 
   test("rejects what the worker controls, case-insensitively", () => {
-    for (const name of ["HOME", "path", "CLAUDE_CONFIG_DIR", "codex_home", "USERPROFILE", "CLAUDE_CODE_ENTRYPOINT"]) {
+    for (const name of [
+      "HOME",
+      "path",
+      "CLAUDE_CONFIG_DIR",
+      "CLAUDE_SECURESTORAGE_CONFIG_DIR",
+      "codex_home",
+      "USERPROFILE",
+      "CLAUDE_CODE_ENTRYPOINT",
+    ]) {
       expect(envNameProblem("native", name)).toContain("Change the home or CLI path in Runtime instead.");
     }
 

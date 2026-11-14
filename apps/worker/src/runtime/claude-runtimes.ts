@@ -47,6 +47,7 @@ export class ClaudeRuntimes {
       ...(runtime.ownLogin && { ownLogin: true }),
       linkDeviceLogin: config.claude.linkDeviceLogin,
       deviceClaudeHome: runtime.homePath || this.ctx.state.deviceHomes.claude,
+      ...(!runtime.homePath && { deviceSecureStorage: this.ctx.state.deviceHomes.claudeSecureStorage }),
     });
 
     if (home.problem) this.ctx.ops.log(`claude home: ${home.problem}`);
@@ -65,7 +66,7 @@ export class ClaudeRuntimes {
         extraArgs: claudeExtraArgs(runtime.launchArgs ?? []),
       }),
       nativeTools: config.nativeTools,
-      baseEnv: process.env,
+      baseEnv: { ...process.env, CLAUDE_SECURESTORAGE_CONFIG_DIR: home.secureStorageDir },
       configuredEffort: (names) =>
         claudeConfiguredEffort(readClaudeUserSettings(this.ctx.state.deviceHomes.claude), process.env, names),
       profile: (id) => (profile.id === (id || "native") ? profile : undefined),

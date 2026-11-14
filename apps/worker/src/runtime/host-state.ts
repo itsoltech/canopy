@@ -97,6 +97,7 @@ export class HostState {
   /** Taken at start: the Claude runtime points this process's CLAUDE_CONFIG_DIR at the isolated home. */
   readonly deviceHomes: {
     readonly claude: string;
+    readonly claudeSecureStorage?: string;
     readonly codex: string;
     readonly grok?: string;
     readonly agents?: string;
@@ -166,6 +167,7 @@ export class HostState {
 
     this.deviceHomes = options.deviceHomes ?? {
       claude,
+      claudeSecureStorage: process.env["CLAUDE_SECURESTORAGE_CONFIG_DIR"] ?? process.env["CLAUDE_CONFIG_DIR"] ?? "",
       codex: deviceCodexHome(process.env),
       grok: process.env["GROK_HOME"] || join(homedir(), ".grok"),
       agents: join(homedir(), ".agents", "skills"),

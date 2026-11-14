@@ -113,7 +113,7 @@ Pełne wiadomości nigdy nie giną: bez mapowania trafiają do dziennika jako `r
 
 ## Otwarte
 
-1. **macOS:** Claude Code trzyma logowanie w pęku kluczy, nie w pliku, więc dowiązanie nie działa. Na macOS: profil CLIProxyAPI albo `claude setup-token`.
+1. **macOS:** login z pęku kluczy wybiera `CLAUDE_SECURESTORAGE_CONFIG_DIR`, niezależnie od izolowanego `CLAUDE_CONFIG_DIR`. Domyślny login wymaga pustej wartości (bez skrótu katalogu w nazwie wpisu), własny katalog — jego ścieżki. Worker przekazuje ten sam magazyn odczytowi konta i turom instancji; dostęp nadal zależy od uprawnień procesu do pęku kluczy. Nie eksportuje tokenów.
 2. **Sandbox w `FULL_AUTO`** wymaga bubblewrap (Linux) albo Seatbelt (macOS). Na Windows Claude Code go nie udostępnia, więc komendy shella w `FULL_AUTO` pytają o zgodę; gdy Claude Code go tam włączy, wrócić do `failIfUnavailable: true` i pełnej automatycznej zgody.
 3. Cel `/goal` żyje w procesie: nie sprawdzono, czy wznowiona sesja go odtwarza. Werdykty są czytane z wewnętrznego formatu transkryptu.
 4. Zadania w tle typu agent i workflow są mapowane, ale nie testowane (natywni subagenci są domyślnie wyłączeni).

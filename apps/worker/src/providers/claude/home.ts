@@ -6,8 +6,7 @@ import { prepareProviderHome, type ProviderHome } from "../home.ts";
  * Isolated CLAUDE_CONFIG_DIR for platform threads, like CODEX_HOME: the device owner's settings, hooks,
  * plugins and MCP servers do not apply; only their Claude login (.credentials.json) is linked in.
  *
- * On macOS Claude Code keeps the login in the Keychain, not in a file: there the device login is not
- * linked (use a CLIProxyAPI profile or `claude setup-token`); docs/claude-adapter.md.
+ * CLAUDE_SECURESTORAGE_CONFIG_DIR selects the login independently, including macOS Keychain entries.
  */
 
 export interface ClaudeHomeOptions {
@@ -19,19 +18,29 @@ export interface ClaudeHomeOptions {
   readonly linkDeviceLogin: boolean;
   /** Device owner's Claude config dir: $CLAUDE_CONFIG_DIR of the worker process, else ~/.claude. */
   readonly deviceClaudeHome?: string;
+  /** Empty selects the default, unhashed keychain service; a path selects a config-scoped service. */
+  readonly deviceSecureStorage?: string;
 }
 
 export function deviceClaudeHome(env: Readonly<Record<string, string | undefined>>, home = homedir()): string {
   return env["CLAUDE_CONFIG_DIR"] || join(home, ".claude");
 }
 
-export function prepareClaudeHome(options: ClaudeHomeOptions): ProviderHome {
-  return prepareProviderHome({
-    path: options.path ?? join(options.dataDir, "claude-home"),
+export function prepareClaudeHome(options: ClaudeHomeOptions): ProviderHome & { secureStorageDir: string } {
+  const path = options.path ?? join(options.dataDir, "claude-home");
+  const deviceHome = options.deviceClaudeHome ?? deviceClaudeHome(process.env);
+
+  const home = prepareProviderHome({
+    path,
     loginFile: ".credentials.json",
-    deviceHome: options.deviceClaudeHome ?? deviceClaudeHome(process.env),
+    deviceHome,
     linkDeviceLogin: options.linkDeviceLogin,
     ...(options.ownLogin && { ownLogin: true }),
     missingLogin: "no Claude login file on this device; run `claude login` or use a CLIProxyAPI profile",
   });
+
+  return {
+    ...home,
+    secureStorageDir: !options.ownLogin && options.linkDeviceLogin ? (options.deviceSecureStorage ?? deviceHome) : path,
+  };
 }

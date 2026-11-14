@@ -22,8 +22,19 @@ opcjonalnych danych; brak emaila, planu lub daty nie jest błędem logowania.
 
 ## Uruchomienie, cache i transport
 
-Worker przygotowuje ten sam shadow/isolated home, źródło device login,
-zmienne profilu, proxy i executable co runtime instancji. Zapytania przechodzą
+Worker przygotowuje shadow/isolated home, zmienne profilu, proxy i executable
+instancji. Claude zachowuje izolowany `CLAUDE_CONFIG_DIR`, a
+`CLAUDE_SECURESTORAGE_CONFIG_DIR` wskazuje źródłowy magazyn loginu (`home_path`
+albo katalog urządzenia), ponieważ wpis w pęku kluczy macOS nie jest plikiem
+dowiązywanym do shadow home. Pusta wartość zachowuje domyślny wpis pęku kluczy
+bez skrótu katalogu; jawny katalog wybiera wpis z jego skrótem. Własny login
+instancji i wyłączone dowiązanie nadal sprawdzają jej izolowany katalog;
+nie przechodzą na login urządzenia. Brak `.credentials.json` nie oznacza
+wylogowania: rozstrzyga odpowiedź `claude auth status --json`.
+Odczyt konta i tury instancji dostają ten sam wybór magazynu, bez kopiowania
+tokenów ani zmiany `HOME`. Dostęp do pęku kluczy nadal wymaga uprawnień sesji OS;
+wynik przez SSH nie potwierdza dostępu procesu uruchomionego w sesji graficznej.
+Zapytania przechodzą
 przez governor (probe ≤2), mają 8 s na proces, limit 64 KiB stdout+stderr
 i zabicie grupy procesów po timeout. Odpowiedź CLI nigdy nie trafia do logu.
 
@@ -201,6 +212,8 @@ WorkerHost oraz PostgreSQL: odczyty bez spawn, zbieżne odświeżenia,
 wymuszony odczyt przy wstrzymanej wcześniejszej odpowiedzi z cache, zmiana
 home instancji (katalog widoczny tylko dla własnego shadow home), brak
 trwałego journala, proxy bez klucza i odmowa odczytu obcego workera.
+Obejmuje też login Claude bez pliku (pęk kluczy), z plikiem, wylogowanie,
+starszy kształt JSON oraz turę SDK z izolowanym katalogiem i magazynem loginu urządzenia.
 `provider-sign-in-expired.test.ts` uruchamia fake Codex app-server, którego
 tura kończy się `unauthorized`: konto przechodzi w `expired` w
 `ListProviderInstances` i overview, Refresh tego nie ukrywa, a logowanie z
