@@ -5,6 +5,7 @@
   import GatewayUnavailable from "#lib/shared/ui/GatewayUnavailable.svelte";
   import Crumb from "#lib/features/navigation/Crumb.svelte";
   import TopBar from "#lib/features/navigation/TopBar.svelte";
+  import Button from "#lib/shared/ui/Button.svelte";
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import { splitId } from "@canopy/domain/computers";
@@ -25,7 +26,9 @@
     return () => clearTimeout(timer);
   });
 
-  const unavailable = $derived(page.status >= 500 || away);
+  // Part of the app did not download: retrying the gateway cannot help, a reload fetches the app again.
+  const assets = $derived(page.error?.scope === "assets");
+  const unavailable = $derived((page.status >= 500 && !assets) || away);
   let retrying = $state(false);
 
   async function retry() {
@@ -54,7 +57,18 @@
 
 <div class="flex h-full flex-col">
   <TopBar><Crumb>{page.status === 404 ? "Not found" : "Error"}</Crumb></TopBar>
-  {#if unavailable}
+  {#if assets}
+    <div class="grid min-h-0 flex-1 scroll-stable place-items-center overflow-y-auto p-6">
+      <div class="flex max-w-md flex-col items-center text-center">
+        <Icon name="arrow-path" class="fill-zinc-400 dark:fill-zinc-500" />
+        <h1 class="mt-3 text-2xl font-semibold tracking-tight text-balance">{page.error?.message}</h1>
+        <p class="mt-2 text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+          Part of the app did not download. Check the connection, then reload.
+        </p>
+        <div class="mt-6 flex gap-2"><Button variant="primary" onclick={() => location.reload()}>Reload</Button></div>
+      </div>
+    </div>
+  {:else if unavailable}
     <div class="min-h-0 flex-1">
       {#if away}
         <GatewayUnavailable

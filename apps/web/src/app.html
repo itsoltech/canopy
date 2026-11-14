@@ -75,6 +75,39 @@
           width: 0;
         }
       }
+      #canopy-boot [role="alert"],
+      #canopy-boot[data-failed] main > i,
+      #canopy-boot[data-failed] section {
+        display: none;
+      }
+      #canopy-boot[data-failed] [role="alert"] {
+        display: block;
+        max-width: 28rem;
+        margin: 30vh auto 0;
+        text-align: center;
+        font:
+          14px/1.5 InterVariable,
+          system-ui,
+          sans-serif;
+      }
+      #canopy-boot h1 {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 600;
+      }
+      #canopy-boot p {
+        margin: 8px 0 24px;
+        opacity: 0.7;
+      }
+      #canopy-boot button {
+        padding: 6px 12px;
+        border: 0;
+        border-radius: 8px;
+        background: var(--theme-ink);
+        color: var(--theme-canvas);
+        font: inherit;
+        font-weight: 600;
+      }
     </style>
     <script>
       // Gateway palettes are already inline. Only the bundled desktop startup uses its chrome cache.
@@ -126,8 +159,23 @@
       <main>
         <i></i>
         <section><i></i></section>
+        <div role="alert">
+          <h1>Could not start %canopy.applicationName%</h1>
+          <p>Part of the app did not download. Check the connection, then reload.</p>
+          <button type="button" onclick="location.reload()">Reload</button>
+        </div>
       </main>
     </div>
+    <script>
+      // Startup failed (a script did not download): offer a reload, not a skeleton that never ends.
+      // The root layout removes #canopy-boot once it mounts, so later rejections never reach here.
+      addEventListener("unhandledrejection", () => {
+        const boot = document.getElementById("canopy-boot");
+        if (!boot) return;
+        boot.dataset.failed = "";
+        boot.setAttribute("aria-label", "Could not start the application");
+      });
+    </script>
     <div style="display: contents">%sveltekit.body%</div>
   </body>
 </html>

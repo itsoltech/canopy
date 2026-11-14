@@ -5,7 +5,8 @@ declare global {
   namespace App {
     interface Error {
       message: string;
-      scope?: "computer";
+      /** `assets`: part of the app did not download (a dropped connection, a removed release). */
+      scope?: "computer" | "assets";
     }
 
     // interface PageData {}
