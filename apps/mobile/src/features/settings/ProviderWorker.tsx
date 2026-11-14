@@ -48,7 +48,13 @@ export function ProviderWorker({
           <SettingsValue
             title="Account"
             value={
-              [worker.account?.email, worker.account?.organization, worker.account?.plan, worker.account?.detail]
+              [
+                worker.account?.state === "expired" && "Sign-in expired",
+                worker.account?.email,
+                worker.account?.organization,
+                worker.account?.plan,
+                worker.account?.detail,
+              ]
                 .filter(Boolean)
                 .join(" · ") || worker.auth
             }

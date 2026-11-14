@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import { statSync } from "node:fs";
+import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate, timestampNow } from "@bufbuild/protobuf/wkt";
 import { ProviderAccountStatusSchema, type ProviderAccountStatus } from "@canopy/contracts";
@@ -23,6 +26,21 @@ const claudeStatus = z.object({
     .nullable()
     .optional(),
 });
+
+const loginFiles = { claude: ".credentials.json", codex: "auth.json", grok: "auth.json" };
+
+/** Changes when the CLI writes its login file (a new sign-in, a token refresh); metadata only, never the content. */
+export function loginRevision(harness: keyof typeof loginFiles, loginDir: string): string {
+  if (!loginDir) return "";
+
+  try {
+    const stat = statSync(join(loginDir, loginFiles[harness]), { bigint: true });
+
+    return createHash("sha256").update(`${stat.ino}:${stat.size}:${stat.mtimeNs}`).digest("hex").slice(0, 16);
+  } catch {
+    return "";
+  }
+}
 
 export function accountResult(state: string, configDir: string, detail = ""): ProviderAccountStatus {
   return create(ProviderAccountStatusSchema, {

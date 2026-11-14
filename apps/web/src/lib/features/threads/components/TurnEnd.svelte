@@ -2,6 +2,10 @@
   import { humanizeEnum, isEnumToken } from "@canopy/domain/humanize";
   import type { ui } from "@canopy/contracts";
   import { Provider, ProviderProfileKind } from "@canopy/contracts";
+  import DeviceCode from "#lib/features/providers/DeviceCode.svelte";
+  import { DeviceLogin, signsInFromApp } from "#lib/features/providers/device-login.svelte.ts";
+  import SignInConfirm from "#lib/features/providers/SignInConfirm.svelte";
+  import { listInstances } from "#lib/features/providers/instances.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import FailureNotice from "#lib/features/failures/FailureNotice.svelte";
   import ThreadModelDialog from "./ThreadModelDialog.svelte";
@@ -29,14 +33,44 @@
   const worker = $derived(thread ? overview.worker(thread.workerId) : undefined);
   const historical = $derived(directory.latestTurnId !== undefined && directory.latestTurnId !== turn.id);
 
-  const proxy = $derived(
-    worker?.providerInstances.some(
-      (instance) =>
-        instance.harness === thread?.provider &&
-        instance.id === (thread.providerProfileId || "native") &&
-        instance.kind === ProviderProfileKind.CLIPROXYAPI,
-    ) ?? false,
+  const instance = $derived(
+    worker?.providerInstances.find(
+      (i) => i.harness === thread?.provider && i.id === (thread.providerProfileId || "native"),
+    ),
   );
+
+  const proxy = $derived(instance?.kind === ProviderProfileKind.CLIPROXYAPI);
+
+  // The gateway marks a login a turn's harness rejected; a retry would only fail the same way.
+  const needsSignIn = $derived(instance?.account?.state === "expired");
+  const appSignIn = $derived(!!instance && signsInFromApp(instance.harness, instance.kind));
+
+  const login = new DeviceLogin(() => ({
+    harness: instance?.harness ?? Provider.UNSPECIFIED,
+    id: instance?.id ?? "",
+    workerId: worker?.id ?? "",
+    account: instance?.account,
+  }));
+
+  $effect(() => login.settle());
+
+  // A sign-in changes the login on the worker's computer: say which one and how before it starts.
+  let confirming = $state(false);
+  let ownLogin = $state<boolean>();
+
+  async function confirmSignIn() {
+    confirming = true;
+    ownLogin = undefined;
+    const instances = await listInstances().catch(() => []);
+    const found = instances.find((i) => i.harness === instance?.harness && i.id === instance.id);
+    ownLogin = found?.runtime?.ownLogin === true;
+  }
+
+  async function startSignIn() {
+    await login.start();
+
+    if (login.code) confirming = false;
+  }
 
   const providerHref = $derived(
     thread
@@ -132,16 +166,36 @@
         ? "Open provider settings for this worker. Use its sign-in command, then retry."
         : thread?.provider === Provider.GROK
           ? "Run grok login on the worker using this instance's CLI home, then retry."
-          : "Sign in from provider settings, or run codex login on the worker using this instance's CLI home."}
+          : appSignIn
+            ? "Sign in with ChatGPT, then retry."
+            : "Sign in from provider settings, or run codex login on the worker using this instance's CLI home."}
       source={turn.errorSource}
       {historical}
       {proxy}
       {providerHref}
       retrying={continuing === "sending"}
-      retryDisabled={continuing === "sent"}
+      retryDisabled={continuing === "sent" || needsSignIn}
+      onsignin={appSignIn && !directory.readOnly && worker?.online && !login.code ? confirmSignIn : undefined}
+      signingIn={login.busy}
       onretry={!directory.readOnly && !turn.inherited && thread?.status === "idle" ? continueTurn : undefined}
       onchangemodel={!directory.readOnly && !turn.inherited && thread ? () => (modelOpen = true) : undefined}
     />
+    {#if !historical && confirming && !login.code && worker}
+      <SignInConfirm
+        workerName={worker.name}
+        linked={ownLogin !== true}
+        busy={login.busy}
+        onstart={startSignIn}
+        oncancel={() => (confirming = false)}
+      />
+    {/if}
+    {#if !historical && login.code && worker}
+      <DeviceCode url={login.code.url} userCode={login.code.userCode} workerName={worker.name} />
+    {/if}
+    {#if !historical && login.failure}<p role="alert" class="text-sm text-rose-700 dark:text-rose-400">
+        {login.failure}
+        <a href={providerHref} class="font-medium underline">Open provider settings</a>
+      </p>{/if}
     {#if !historical && continuing === "sent"}<p role="status" class="text-sm text-zinc-500">Retry queued</p>{/if}
     {#if !historical && continuing === "error"}<p role="alert" class="text-sm text-rose-700 dark:text-rose-400">
         Could not queue the retry. Try again.

@@ -2376,6 +2376,8 @@ message StartProviderLoginRequest {
 message StartProviderLoginResponse {
   string verification_url = 1;
   string user_code = 2;
+  // Matches ProviderAccountStatus.login_id: the client waits for this sign-in's outcome.
+  string login_id = 3;
 }
 
 // ---------- CLI dostawców (docs/provider-cli.md) ----------

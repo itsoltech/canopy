@@ -33,17 +33,21 @@ export function WorkerProviderAccounts({ worker, readOnly }: { worker: ui.Worker
           const account = i.account;
 
           if (!account) return null;
-          const expired = !!account.expiresAt && Number(account.expiresAt.seconds) * 1000 <= now;
+          // "expired": a turn's harness rejected the login, whatever the CLI reports.
+          const rejected = account.state === "expired";
+          const expired = rejected || (!!account.expiresAt && Number(account.expiresAt.seconds) * 1000 <= now);
 
-          const state = expired
-            ? "Expired"
-            : account.state === "signed_in"
-              ? "Signed in"
-              : account.state === "signed_out"
-                ? "Not signed in"
-                : account.state === "error"
-                  ? "Check failed"
-                  : "";
+          const state = rejected
+            ? "Sign-in expired"
+            : expired
+              ? "Expired"
+              : account.state === "signed_in"
+                ? "Signed in"
+                : account.state === "signed_out"
+                  ? "Not signed in"
+                  : account.state === "error"
+                    ? "Check failed"
+                    : "";
 
           return (
             <View key={`${i.harness}/${i.id}`} style={{ gap: 12 }}>

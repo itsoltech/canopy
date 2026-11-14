@@ -59,7 +59,11 @@ export class HostState {
   /** The configuration as received: checked again on ProbeProviders and after a login from the app. */
   received: WorkerConfig | undefined;
   /** Sign-ins from the app in progress, by provider/profile. */
-  readonly logins = new Map<string, Promise<unknown>>();
+  readonly logins = new Map<string, Promise<{ verificationUrl: string; userCode: string; loginId: string }>>();
+  /** The last sign-in from the app per instance id, reported with its account (ProviderAccountStatus.login_*). */
+  readonly loginOutcomes = new Map<string, { loginId: string; outcome: "pending" | "signed_in" | "failed" }>();
+  /** Finished sign-ins per instance id: a new one restarts the instance's Codex process once it is idle. */
+  readonly loginGenerations = new Map<string, number>();
   link: GatewayLink | undefined;
   /** Runtime snapshots per instance; configuration changes drain only the affected instance. */
   readonly codex = new Map<string, ProviderRuntimeHandle<CodexThreads>>();

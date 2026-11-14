@@ -1,5 +1,11 @@
-import { Provider, ui, type ProviderAccountStatus, type ProviderAccountsReport } from "@canopy/contracts";
-import { sanitizeAccountStatus } from "@canopy/domain/provider-accounts";
+import {
+  Provider,
+  ui,
+  type LoginStarted,
+  type ProviderAccountStatus,
+  type ProviderAccountsReport,
+} from "@canopy/contracts";
+import { REJECTED_LOGIN_DETAIL, sanitizeAccountStatus } from "@canopy/domain/provider-accounts";
 import type { WorkerConnection } from "../worker-link/index.ts";
 import type { GatewayCore } from "./core.ts";
 import { coreProvidersChanged } from "./core-providers.ts";
@@ -17,10 +23,22 @@ interface Flight {
   task: Promise<boolean>;
 }
 
+// Logins that sign in again; a rejected API key or proxy key is a settings problem, not an expired sign-in.
+const signInMethods = new Set(["claude.ai", "Subscription account", "ChatGPT", "Account", ""]);
+
 /** Volatile display metadata: never a database row, outbox entry or log message. */
 export class ProviderAccounts {
   readonly #reports = new Map<string, Report>();
   readonly #flights = new Map<WorkerConnection, Map<string, Flight>>();
+  /**
+   * Logins a turn's harness rejected (`worker/provider/id` → the login file's revision then). CLIs report such a
+   * login as signed in (`codex login status` only reads auth.json), so the account shows "expired" until the login
+   * file changes (a new sign-in, a refresh), a turn on it succeeds, or, without a revision, a forced refresh.
+   */
+  readonly #rejected = new Map<string, string>();
+  /** Per worker: turn outcomes apply in arrival order, so a slow rejection cannot overwrite a later success. */
+  readonly #turnUpdates = new Map<string, Promise<void>>();
+  readonly #loginStarts = new Map<string, Promise<LoginStarted>>();
 
   constructor(readonly core: GatewayCore) {}
 
@@ -52,7 +70,76 @@ export class ProviderAccounts {
     if (this.core.link.connections.get(workerId) !== report.connection) return undefined;
     const value = report.accounts.get(`${provider}/${id}`);
 
-    return value ? sanitizeAccountStatus(value) : undefined;
+    if (!value) return undefined;
+    const status = sanitizeAccountStatus(value);
+    const key = `${workerId}/${provider}/${id}`;
+    const rejected = this.#rejected.get(key);
+
+    if (rejected !== undefined && rejected !== status.loginRevision) this.#rejected.delete(key);
+    else if (rejected !== undefined && status.state === "signed_in") {
+      status.state = "expired";
+      status.detail = REJECTED_LOGIN_DETAIL;
+    }
+
+    // Only the gateway compares revisions; clients get none.
+    status.loginRevision = "";
+
+    return status;
+  }
+
+  /**
+   * A turn on this worker's instance ended because its harness rejected the login. The account is read again first,
+   * so the mark holds the login file as it is now: a sign-in after this clears it.
+   */
+  async rejected(workerId: string, provider: Provider, id: string): Promise<void> {
+    const connection = this.core.link.connections.get(workerId);
+    const version = this.#reports.get(workerId)?.version;
+
+    if (!connection || version === undefined || !(await this.refresh(connection, version, true, provider, id))) return;
+    const account = this.#reports.get(workerId)?.accounts.get(`${provider}/${id}`);
+
+    if (!account || account.state !== "signed_in" || !signInMethods.has(account.authMethod)) return;
+    this.#rejected.set(`${workerId}/${provider}/${id}`, account.loginRevision);
+    await this.#changed();
+  }
+
+  /** A turn on the instance succeeded: its login works. */
+  async succeeded(workerId: string, provider: Provider, id: string): Promise<void> {
+    if (this.#rejected.delete(`${workerId}/${provider}/${id}`)) await this.#changed();
+  }
+
+  /** Runs after every earlier turn update of this worker; resolves when this one is done. */
+  afterTurn(workerId: string, update: () => Promise<void>): Promise<void> {
+    const next = (this.#turnUpdates.get(workerId) ?? Promise.resolve()).then(update).catch(() => {});
+    this.#turnUpdates.set(workerId, next);
+    void next.then(() => {
+      if (this.#turnUpdates.get(workerId) === next) this.#turnUpdates.delete(workerId);
+    });
+
+    return next;
+  }
+
+  /** One sign-in start per owner and target at a time: concurrent requests share it. */
+  startLogin(key: string, start: () => Promise<LoginStarted>): Promise<LoginStarted> {
+    const running = this.#loginStarts.get(key);
+
+    if (running) return running;
+    const task = start().finally(() => this.#loginStarts.delete(key));
+    this.#loginStarts.set(key, task);
+
+    return task;
+  }
+
+  /** Cheap check before a thread lookup on every finished turn. */
+  hasRejected(workerId: string): boolean {
+    for (const key of this.#rejected.keys()) if (key.startsWith(`${workerId}/`)) return true;
+
+    return false;
+  }
+
+  async #changed(): Promise<void> {
+    coreProvidersChanged(this.core);
+    await coreBroadcastWorkers(this.core);
   }
 
   decorate(instances: ui.ProviderInstance[]): ui.ProviderInstance[] {
@@ -111,9 +198,8 @@ export class ProviderAccounts {
         const prior = this.#reports.get(connection.workerId);
 
         if (prior && prior.version > version) return false;
-        this.#save(connection, result.providerAccounts, provider, id);
-        coreProvidersChanged(this.core);
-        await coreBroadcastWorkers(this.core);
+        this.#save(connection, result.providerAccounts, provider, id, refresh);
+        await this.#changed();
 
         return true;
       })
@@ -135,7 +221,13 @@ export class ProviderAccounts {
     void this.refresh(connection, version);
   }
 
-  #save(connection: WorkerConnection, report: ProviderAccountsReport, provider: Provider, id: string): void {
+  #save(
+    connection: WorkerConnection,
+    report: ProviderAccountsReport,
+    provider: Provider,
+    id: string,
+    refresh: boolean,
+  ): void {
     const prior = this.#reports.get(connection.workerId);
 
     const accounts =
@@ -152,7 +244,12 @@ export class ProviderAccounts {
         (id && entry.profileId !== id)
       )
         continue;
-      accounts.set(`${entry.provider}/${entry.profileId}`, sanitizeAccountStatus(entry.account));
+      const account = sanitizeAccountStatus(entry.account);
+      accounts.set(`${entry.provider}/${entry.profileId}`, account);
+
+      // A login kept outside a file (keychain) has no revision: asking for a fresh check is the only sign-in signal.
+      if (refresh && !account.loginRevision)
+        this.#rejected.delete(`${connection.workerId}/${entry.provider}/${entry.profileId}`);
     }
 
     this.#reports.set(connection.workerId, { connection, version: report.configVersion, accounts });

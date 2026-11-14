@@ -101,6 +101,8 @@ export class CodexRuntimes {
         linkDeviceLogin: config.codex.linkDeviceLogin,
         nativeTools: config.nativeTools,
         profiles,
+        // A sign-in from the app: the process starts again with the new login instead of a cached rejection.
+        login: id === undefined ? 0 : (this.ctx.state.loginGenerations.get(id) ?? 0),
       }),
     });
 

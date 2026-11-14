@@ -872,6 +872,13 @@ message ProviderAccountStatus {
   // Local sign-in target, resolved on this worker. Never contains credentials.
   string login_dir = 11;
   string login_executable = 12;
+  // Opaque revision of the login file (inode, size, mtime hashed); changes on a new sign-in or token refresh.
+  // Empty when the CLI keeps the login elsewhere (e.g. the macOS keychain). Never derived from the file's content.
+  string login_revision = 13;
+  // The last sign-in from the app for this instance on this worker (StartLogin): its id and
+  // "pending", "signed_in" or "failed". Empty when none ran since the worker started.
+  string login_id = 14;
+  string login_outcome = 15;
 }
 
 message ProviderAccountEntry {

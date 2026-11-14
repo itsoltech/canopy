@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { create } from "@bufbuild/protobuf";
 import { timestampNow } from "@bufbuild/protobuf/wkt";
 import { Provider, ConfigAppliedSchema } from "@canopy/contracts";
-import { instanceShadowHome, type DeviceHomes } from "../config/remote.ts";
+import { instanceShadowHome, type AppliedConfig, type DeviceHomes } from "../config/remote.ts";
 import { prepareCodexHome } from "../providers/codex/home.ts";
 import { codexAppServerLaunch } from "../providers/codex/launch.ts";
 import { startCodexDeviceLogin } from "../providers/codex/login.ts";
@@ -38,7 +38,11 @@ export class HostCatalog {
     this.ctx.ops.send({ case: "configApplied", value: create(ConfigAppliedSchema, report) });
   }
 
-  /** Codex sign-in from the app for an instance with its own login (device code); finishes in the background. */
+  /**
+   * Codex sign-in from the app (device code); finishes in the background. An instance with its own login signs in
+   * to its shadow home; one that uses the device login signs the device's Codex in again (its CODEX_HOME), as
+   * `codex login` there would.
+   */
   async startLogin(provider: Provider, profileId: string): Promise<NonNullable<CommandOutput["login"]>> {
     const config = this.ctx.state.config;
 
@@ -53,20 +57,46 @@ export class HostCatalog {
     if (!status) throw new CommandError("UNKNOWN_PROFILE", `unknown provider instance codex/${profileId}`, true);
     const runtime = status.config.runtime ?? {};
 
-    if (status.config.kind !== "native" || !runtime.ownLogin)
-      throw new CommandError("UNSUPPORTED", "only an instance with its own login signs in from the app", true);
+    if (status.config.kind !== "native")
+      throw new CommandError("UNSUPPORTED", "an instance with a proxy has no sign-in", true);
+
+    if (!runtime.ownLogin && !config.codex.linkDeviceLogin)
+      throw new CommandError("UNSUPPORTED", "this worker does not use the device's Codex login", true);
 
     if (!config.codex.enabled || !config.codex.executable)
       throw new CommandError("PROVIDER_UNAVAILABLE", config.codex.problem ?? "codex is disabled", false);
 
-    const home = prepareCodexHome({
-      dataDir: this.ctx.state.options.dataDir,
-      path: instanceShadowHome(this.ctx.state.options.dataDir, "codex", status.config.id, runtime)!,
-      ownLogin: true,
-      linkDeviceLogin: false,
-    });
+    const key = `codex/${status.config.id}`;
+    // One sign-in per instance: another start while it runs gets the same code instead of a second process.
+    const running = this.ctx.state.logins.get(key);
 
+    if (running) return running;
+    const started = this.#startCodex(config, status, key);
+    this.ctx.state.logins.set(key, started);
+    started.catch(() => this.ctx.state.logins.delete(key));
+
+    return started;
+  }
+
+  async #startCodex(
+    config: AppliedConfig,
+    status: AppliedConfig["profiles"][number],
+    key: string,
+  ): Promise<NonNullable<CommandOutput["login"]>> {
+    const runtime = status.config.runtime ?? {};
     const env = Object.fromEntries((status.config.env ?? []).map((v) => [v.name, v.value]));
+
+    // The device's own home gets no managed plugins or skill overrides: only Codex's login API runs there.
+    const home = runtime.ownLogin
+      ? prepareCodexHome({
+          dataDir: this.ctx.state.options.dataDir,
+          path: instanceShadowHome(this.ctx.state.options.dataDir, "codex", status.config.id, runtime)!,
+          ownLogin: true,
+          linkDeviceLogin: false,
+        }).path
+      : undefined;
+
+    if (!home) env["CODEX_HOME"] = runtime.homePath || this.ctx.state.deviceHomes.codex;
 
     const login = await startCodexDeviceLogin({
       launch: codexAppServerLaunch(
@@ -74,7 +104,7 @@ export class HostCatalog {
         process.env,
         runtime.executablePath || config.codex.executable,
         config.nativeTools,
-        home.path,
+        home,
         env,
       ),
       clientVersion: this.ctx.state.options.clientVersion,
@@ -82,19 +112,23 @@ export class HostCatalog {
       throw new CommandError("LOGIN_FAILED", cause instanceof Error ? cause.message : String(cause), false);
     });
 
-    const key = `codex/${status.config.id}`;
+    const id = status.config.id;
+    const outcomes = this.ctx.state.loginOutcomes;
+    outcomes.set(id, { loginId: login.loginId, outcome: "pending" });
 
-    const done = login.done.then(async (outcome) => {
-      this.ctx.ops.log(
-        `codex sign-in of ${status.config.id}: ${outcome.success ? "signed in" : (outcome.error ?? "failed")}`,
-      );
+    void login.done.then(async (outcome) => {
+      this.ctx.ops.log(`codex sign-in of ${id}: ${outcome.success ? "signed in" : (outcome.error ?? "failed")}`);
       this.ctx.state.logins.delete(key);
-      this.ctx.state.accounts.invalidate();
-      // The new login shows in the report; Codex processes of the instance pick it up when they restart.
-      await this.ctx.ops.probe().catch(() => {});
-    });
 
-    this.ctx.state.logins.set(key, done);
+      if (outcomes.get(id)?.loginId === login.loginId)
+        outcomes.set(id, { loginId: login.loginId, outcome: outcome.success ? "signed_in" : "failed" });
+
+      if (outcome.success) this.ctx.state.loginGenerations.set(id, (this.ctx.state.loginGenerations.get(id) ?? 0) + 1);
+      this.ctx.state.accounts.invalidate();
+      // The new login shows in the report; the instance's Codex process restarts with it once it is idle.
+      await this.ctx.ops.probe().catch(() => {});
+      await this.ctx.ops.reconcileRuntimes().catch(() => {});
+    });
 
     return { verificationUrl: login.verificationUrl, userCode: login.userCode, loginId: login.loginId };
   }

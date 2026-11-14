@@ -19,6 +19,8 @@ export interface WorkerStore {
   journalCursors(workerId: string, journalId: string): Fx<{ threadId: string; lastSeq: bigint }[]>;
   closedWorkerThreads(workerId: string): Fx<string[]>;
   listWorkers(online: ReadonlySet<string>, ownerUserId?: string): Fx<ui.Worker[]>;
+  /** Strict ownership: the worker is this user's own, not a platform-wide or shared one. */
+  ownsWorker(workerId: string, ownerUserId: string): Fx<boolean>;
 }
 
 interface WorkerListRow {
@@ -184,6 +186,13 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
 
         return rows.map((r) => listedWorker(r, online));
       }).pipe(queryFamily("workers.read")),
+
+    ownsWorker: (workerId, ownerUserId) =>
+      sql<{ id: string }>`SELECT id FROM workers WHERE id = ${workerId}::uuid AND owner_user_id = ${ownerUserId}::uuid
+          AND archived_at IS NULL AND revoked_at IS NULL`.pipe(
+        Effect.map((rows) => rows.length > 0),
+        queryFamily("workers.read"),
+      ),
   };
 }
 

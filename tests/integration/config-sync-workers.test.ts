@@ -270,6 +270,26 @@ describe.skipIf(!dockerAvailable)("worker records and remote worker settings acr
     ).toBe("Studio");
   }, 30_000);
 
+  test("a linked computer cannot start a sign-in that replaces another computer's CLI login", async () => {
+    const request = { workerId: q(), harness: Provider.CODEX, id: "native" };
+    // Through A's own API, the call never leaves A …
+    expect(await failure(a.gateway.api.startProviderLogin(request))).not.toBe("");
+
+    // … and B refuses it over the link too, also when the caller skips its own checks.
+    const direct = await failure(
+      single(
+        a.links.remote(
+          b.node,
+          methodNamed("StartProviderLogin")!,
+          create(ui.StartProviderLoginRequestSchema, { ...request, workerId: worker }),
+          AbortSignal.timeout(5000),
+        ),
+      ),
+    );
+
+    expect(direct).toContain("does not share that action");
+  }, 30_000);
+
   test("records and edits are this owner's only", async () => {
     const other = crypto.randomUUID();
     const foreign = crypto.randomUUID();

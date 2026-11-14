@@ -250,7 +250,6 @@ export const SERVED = new Set([
   "RefreshProviders",
   "InstallCli",
   "CheckCliUpdates",
-  "StartProviderLogin",
   "ListSchedules",
   "CreateSchedule",
   "UpdateSchedule",
@@ -270,6 +269,8 @@ export const UPDATE_METHODS = new Set(["GetComputerUpdates", "RequestComputerUpd
  * configuration. Every worker and workspace id must be the home's; both computers audit the edit.
  * SetInstanceWorkers and SetConnectorAccess with workers of several computers are split by the caller.
  */
+// StartProviderLogin is deliberately absent here and from SERVED: a sign-in replaces the CLI login of that computer,
+// so only its own owner starts it on its own gateway, never a linked computer.
 export const WORKER_SETTINGS = new Set([
   "GetInstanceWorker",
   "GetWorkerEnvironment",
@@ -284,7 +285,6 @@ export const WORKER_SETTINGS = new Set([
   "RefreshProviders",
   "InstallCli",
   "CheckCliUpdates",
-  "StartProviderLogin",
 ]);
 
 /** Stage 8: the two sides of a move, direct partners only (never relayed). */

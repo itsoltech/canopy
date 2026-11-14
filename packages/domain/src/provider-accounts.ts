@@ -45,7 +45,10 @@ export function providerLoginCommand(
     : `${variable}=${quote(account.loginDir)} ${executable} ${args}`;
 }
 
-const states = new Set(["signed_in", "signed_out", "unknown", "error"]);
+/** "expired": a turn's harness rejected this login (the gateway's mark), whatever the CLI's own status says. */
+const states = new Set(["signed_in", "signed_out", "expired", "unknown", "error"]);
+
+export const REJECTED_LOGIN_DETAIL = "The provider rejected this login during a turn. Sign in again.";
 
 const methods = new Set([
   "claude.ai",
@@ -64,6 +67,7 @@ const details = new Set([
   "The account check timed out.",
   "Could not read account status from the CLI.",
   "The instance configuration is unavailable.",
+  REJECTED_LOGIN_DETAIL,
 ]);
 
 /** Apply on both worker and gateway; org IDs and all unknown fields are deliberately absent. */
@@ -87,6 +91,9 @@ export function sanitizeAccountStatus(
     loginExecutable: accountText(value.loginExecutable, secrets),
     proxyName: accountText(value.proxyName, secrets),
     detail: details.has(value.detail) ? value.detail : "",
+    loginRevision: /^[0-9a-f]{16}$/.test(value.loginRevision) ? value.loginRevision : "",
+    loginId: /^[\w-]{1,64}$/.test(value.loginId) ? value.loginId : "",
+    loginOutcome: ["pending", "signed_in", "failed"].includes(value.loginOutcome) ? value.loginOutcome : "",
     expiresAt: validDate(value.expiresAt),
     checkedAt: validDate(value.checkedAt) ?? timestampNow(),
   });
