@@ -82,6 +82,9 @@ describe("client-local thread reading positions", () => {
     expect(threadAnchorOffset(320, 100)).toBe(99);
     expect(threadAnchorOffset(-4, 100)).toBe(0);
     expect(threadAnchorOffset(40, 100)).toBe(40);
+    // The first message rests below the top padding: keep that distance, within half a viewport.
+    expect(threadAnchorOffset(-72, 100, 400)).toBe(-72);
+    expect(threadAnchorOffset(-900, 100, 400)).toBe(-400);
     const intent = new ScrollIntent();
     intent.programmatic(1000);
     expect(intent.origin(1000, 0, 1)).toBe("programmatic");

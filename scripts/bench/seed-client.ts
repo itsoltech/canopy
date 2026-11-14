@@ -1,5 +1,5 @@
 import { create, toJson } from "@bufbuild/protobuf";
-import { bots, ItemSchema, Provider } from "@canopy/contracts";
+import { bots, ItemSchema, Provider, ui } from "@canopy/contracts";
 import { itemStatus, itemType } from "@canopy/domain/items";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
@@ -23,6 +23,7 @@ export async function seedClient(env: Readonly<Record<string, string | undefined
     const project = Bun.randomUUIDv7();
     const workspace = Bun.randomUUIDv7();
     const thread = Bun.randomUUIDv7();
+    const short = Bun.randomUUIDv7();
     const snapshot = longThreadSnapshot({ turns: 1000, answerRepeat: 64 });
 
     if (env["CANOPY_BENCH_WORKSPACE"] === "1") {
@@ -32,45 +33,22 @@ export async function seedClient(env: Readonly<Record<string, string | undefined
         last.item.content.value.text = `Workspace files: ${workspaceFileLinks}`;
     }
 
-    const ids = new Map(snapshot.turns.map((turn) => [turn.id, Bun.randomUUIDv7()]));
+    // Opening checks: one turn that does not fill the viewport, and a last turn larger than a first page.
+    const tail = Bun.randomUUIDv7();
 
-    const items = snapshot.items.flatMap((entry) =>
-      entry.item
-        ? [
-            {
-              id: entry.item.itemId,
-              turn: ids.get(entry.turnId),
-              parent: entry.item.parentItemId || null,
-              type: itemType(entry.item),
-              status: itemStatus(entry.item),
-              content: toJson(ItemSchema, entry.item),
-              seq: String(entry.firstSeq),
-            },
-          ]
-        : [],
-    );
+    const seeded = [
+      seedRows(thread, snapshot),
+      seedRows(short, longThreadSnapshot({ turns: 1 })),
+      seedRows(tail, longLastTurn()),
+    ];
 
-    const ranges = new Map<string, { first: string; last: string }>();
-
-    for (const entry of snapshot.items) {
-      const previous = ranges.get(entry.turnId);
-      ranges.set(entry.turnId, { first: previous?.first ?? String(entry.firstSeq), last: String(entry.lastSeq) });
-    }
-
-    const turns = snapshot.turns.map((turn) => {
-      const range = ranges.get(turn.id);
-
-      if (!range) throw new Error("Fixture turn has no items");
-
-      return { id: ids.get(turn.id), ordinal: turn.ordinal, input: turn.inputText, ...range };
-    });
+    const ids = seeded[0]!.ids;
+    const titles = ["Synthetic thread (1000 turns)", "Synthetic thread (1 turn)", "Synthetic thread (long last turn)"];
 
     const threads = Array.from({ length: 500 }, (_, index) => ({
-      id: index ? Bun.randomUUIDv7() : thread,
-      title: index
-        ? `Synthetic conversation ${index} — sidebar history and long titles`
-        : "Synthetic thread (1000 turns)",
-      seq: index ? "0" : String(snapshot.lastSeq),
+      id: seeded[index]?.thread ?? Bun.randomUUIDv7(),
+      title: titles[index] ?? `Synthetic conversation ${index} — sidebar history and long titles`,
+      seq: seeded[index]?.lastSeq ?? "0",
     }));
 
     await runtime.runPromise(
@@ -81,12 +59,15 @@ export async function seedClient(env: Readonly<Record<string, string | undefined
         yield* sql`INSERT INTO threads (id, root_thread_id, project_id, owner_user_id, kind, runtime, provider, provider_thread_id, worker_id, workspace_id, cwd, status, title, last_seq)
         SELECT id, id, ${project}::uuid, ${owner}::uuid, 'main', 'worker', 'codex', 'benchmark-' || id::text, ${worker.workerId}::uuid, ${workspace}::uuid, '/srv/canopy', 'idle', title, seq
         FROM jsonb_to_recordset(${JSON.stringify(threads)}::jsonb) AS t(id uuid, title text, seq bigint)`;
-        yield* sql`INSERT INTO turns (id, thread_id, ordinal, status, trigger, author_user_id, input, first_seq, last_seq, queued_at, started_at, completed_at)
-        SELECT id, ${thread}::uuid, ordinal, 'completed', 'user', ${owner}::uuid, jsonb_build_object('text', input), first, last, now(), now(), now()
-        FROM jsonb_to_recordset(${JSON.stringify(turns)}::jsonb) AS t(id uuid, ordinal int, input text, first bigint, last bigint)`;
-        yield* sql`INSERT INTO thread_items (thread_id, item_id, turn_id, parent_item_id, type, status, content, first_seq, last_seq)
-        SELECT ${thread}::uuid, id, turn, parent, type, status, content, seq, seq
-        FROM jsonb_to_recordset(${JSON.stringify(items)}::jsonb) AS i(id text, turn uuid, parent text, type text, status text, content jsonb, seq bigint)`;
+
+        for (const rows of seeded) {
+          yield* sql`INSERT INTO turns (id, thread_id, ordinal, status, trigger, author_user_id, input, first_seq, last_seq, queued_at, started_at, completed_at)
+          SELECT id, ${rows.thread}::uuid, ordinal, 'completed', 'user', ${owner}::uuid, jsonb_build_object('text', input), first, last, now(), now(), now()
+          FROM jsonb_to_recordset(${JSON.stringify(rows.turns)}::jsonb) AS t(id uuid, ordinal int, input text, first bigint, last bigint)`;
+          yield* sql`INSERT INTO thread_items (thread_id, item_id, turn_id, parent_item_id, type, status, content, first_seq, last_seq)
+          SELECT ${rows.thread}::uuid, id, turn, parent, type, status, content, seq, seq
+          FROM jsonb_to_recordset(${JSON.stringify(rows.items)}::jsonb) AS i(id text, turn uuid, parent text, type text, status text, content jsonb, seq bigint)`;
+        }
 
         const configuration = toJson(
           bots.BotConfigurationSchema,
@@ -106,8 +87,70 @@ export async function seedClient(env: Readonly<Record<string, string | undefined
       }),
     );
 
-    return { thread, worker, turn: ids.values().next().value! };
+    return { thread, short, tail, worker, turn: ids.values().next().value! };
   } finally {
     await runtime.dispose();
   }
+}
+
+/** Turn and item rows of a fixture snapshot, with gateway ids for its turns. */
+function seedRows(thread: string, snapshot: ReturnType<typeof longThreadSnapshot>) {
+  const ids = new Map(snapshot.turns.map((turn) => [turn.id, Bun.randomUUIDv7()]));
+
+  const items = snapshot.items.flatMap((entry) =>
+    entry.item
+      ? [
+          {
+            id: entry.item.itemId,
+            turn: ids.get(entry.turnId),
+            parent: entry.item.parentItemId || null,
+            type: itemType(entry.item),
+            status: itemStatus(entry.item),
+            content: toJson(ItemSchema, entry.item),
+            seq: String(entry.firstSeq),
+          },
+        ]
+      : [],
+  );
+
+  const ranges = new Map<string, { first: string; last: string }>();
+
+  for (const entry of snapshot.items) {
+    const previous = ranges.get(entry.turnId);
+    ranges.set(entry.turnId, { first: previous?.first ?? String(entry.firstSeq), last: String(entry.lastSeq) });
+  }
+
+  const turns = snapshot.turns.map((turn) => {
+    const range = ranges.get(turn.id);
+
+    if (!range) throw new Error("Fixture turn has no items");
+
+    return { id: ids.get(turn.id), ordinal: turn.ordinal, input: turn.inputText, ...range };
+  });
+
+  return { thread, ids, items, turns, lastSeq: String(snapshot.lastSeq) };
+}
+
+/** Four turns whose last one has 150 more commands: its work starts before the first page of items. */
+function longLastTurn() {
+  const snapshot = longThreadSnapshot({ turns: 4 });
+  const answer = snapshot.items.findLastIndex((entry) => entry.item?.content.case === "agentMessage");
+  const command = snapshot.items.find((entry) => entry.item?.content.case === "commandExecution");
+  const turnId = snapshot.items[answer]?.turnId;
+
+  if (!command?.item || !turnId) throw new Error("Fixture turn has no command");
+  const item = command.item;
+
+  const extra = Array.from({ length: 150 }, (_, index) =>
+    create(ui.TimelineItemSchema, { ...command, turnId, item: { ...item, itemId: `long-turn-command-${index}` } }),
+  );
+
+  snapshot.items.splice(answer, 0, ...extra);
+  snapshot.items.forEach((entry, index) => {
+    entry.firstSeq = BigInt(index + 1);
+    entry.lastSeq = entry.firstSeq;
+  });
+  snapshot.lastSeq = BigInt(snapshot.items.length + 1);
+
+  return snapshot;
 }

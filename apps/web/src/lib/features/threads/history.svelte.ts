@@ -37,7 +37,7 @@ export class ThreadHistory {
   ) {}
 
   connect(id: string) {
-    const current = warmCacheHit(id);
+    const current = warmCacheHit(id, this.read());
     const opening = clientOpening(Boolean(this.read()?.thread), current);
 
     if (current) opening?.current();

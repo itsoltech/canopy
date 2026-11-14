@@ -1,8 +1,8 @@
 import type { ui } from "@canopy/contracts";
 import { applyThreadUpdate } from "./thread-snapshot.ts";
-import { threadCacheTail } from "./thread-cache-tail.ts";
 import { threadCacheCurrent, THREAD_WARM_LIMITS } from "./thread-warm-set.ts";
 
+/** The cache owns its bounds: it gets the whole updated snapshot, including older pages a reader already loaded. */
 export interface WarmThreadCache {
   peek(id: string): ui.ThreadSnapshot | undefined;
   load(id: string): Promise<ui.ThreadSnapshot | undefined>;
@@ -163,7 +163,7 @@ export class ThreadWarmer {
         const current = this.cache.peek(id)?.syncCursor;
 
         if (current?.epoch === snapshot.syncCursor.epoch && current.appliedSeq > snapshot.syncCursor.appliedSeq) return;
-        await this.cache.save(threadCacheTail(snapshot));
+        await this.cache.save(snapshot);
 
         if (threadCacheCurrent(snapshot, head) || !head.epoch) this.#satisfied.set(id, signature);
         this.#retry.delete(id);

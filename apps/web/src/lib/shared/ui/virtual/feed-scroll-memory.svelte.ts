@@ -50,7 +50,7 @@ export class FeedScrollOpening {
       const element = elements.get(target.key);
 
       if (element && (this.#expired || index.isMeasured(target.key))) {
-        const offset = threadAnchorOffset(target.offset, element.getBoundingClientRect().height);
+        const offset = threadAnchorOffset(target.offset, element.getBoundingClientRect().height, viewport / 2);
         anchor = {
           key: target.key,
           identity: this.initial?.mode === "anchor" ? this.initial.key : target.key,

@@ -157,6 +157,11 @@ export class ThreadState {
     if (snapshot) this.connection = "syncing";
   }
 
+  /** The checkpoint the view shows (items, older pages and sync cursor). */
+  get snapshot(): ui.ThreadSnapshot | undefined {
+    return this.#snapshot;
+  }
+
   apply(update: ui.ThreadUpdate): void {
     this.#snapshot = applyThreadUpdate(this.#snapshot, update);
     this.hasMore = this.#snapshot.historyHasMore || this.#snapshot.historyItemsHasMore;
@@ -416,8 +421,6 @@ export class ThreadState {
     return () => {
       disconnect();
       this.composerConnection.reset();
-
-      if (this.#snapshot?.thread && this.#snapshot.cursor) threadCache.set(this.#snapshot);
     };
   }
 }

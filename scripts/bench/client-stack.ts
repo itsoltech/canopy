@@ -141,6 +141,11 @@ try {
   if (!production) console.info(`Renderer fixture: http://127.0.0.1:${webPort}/dev/long-thread?turns=1000`);
 
   if (seeded) console.info(`Seeded thread: http://127.0.0.1:${webPort}/threads/${seeded.thread}`);
+
+  if (seeded) console.info(`Short thread: http://127.0.0.1:${webPort}/threads/${seeded.short}`);
+
+  if (seeded) console.info(`Long last turn: http://127.0.0.1:${webPort}/threads/${seeded.tail}`);
+
   console.info(`Stop this process (${process.pid}) to remove its servers and database.`);
   await Promise.race(children.map((child) => child.exited));
 } finally {

@@ -26,12 +26,21 @@ async function* read(id: string, syncCursor: ui.ThreadSyncCursor | undefined, si
   for (const update of updates) yield decode(ui.ThreadUpdateSchema, update);
 }
 
-export function createThreadWarming() {
+/** Threads kept on the client after their screen closed; warming updates them in place. */
+export interface RetainedThreads {
+  snapshot(id: string): ui.ThreadSnapshot | undefined;
+  refresh(snapshot: ui.ThreadSnapshot): void;
+}
+
+export function createThreadWarming(retained: RetainedThreads) {
   return new ThreadWarmer(
     {
-      peek: (id) => threadCache.peek(id),
-      load: (id) => threadCache.load(id),
-      save: (snapshot) => threadCache.set(snapshot),
+      peek: (id) => retained.snapshot(id) ?? threadCache.peek(id),
+      load: async (id) => retained.snapshot(id) ?? threadCache.load(id),
+      save: (snapshot) => {
+        retained.refresh(snapshot);
+        threadCache.set(snapshot);
+      },
     },
     read,
     { recent: 12, count: 32, intervalMs: 2000, retryMs: 30_000, requested: () => clientMeasurements.record(14, 1) },
@@ -55,8 +64,9 @@ export function connectThreadWarming(warmer: ThreadWarmer, live: () => boolean) 
   };
 }
 
-export function warmCacheHit(id: string) {
-  return !!current?.enabled && threadCacheCurrent(threadCache.get(id), current.head(id));
+/** The open snapshot (retained or cached) is current with the head warming last saw. */
+export function warmCacheHit(id: string, open: ui.ThreadSnapshot | undefined) {
+  return !!current?.enabled && threadCacheCurrent(open ?? threadCache.get(id), current.head(id));
 }
 
 export function pauseThreadWarming() {

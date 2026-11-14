@@ -17,7 +17,7 @@
   import VirtualRow from "./VirtualRow.svelte";
   import { FEED_END_THRESHOLD, followingAfterScroll, ScrollIntent, type ReaderScroll } from "./scroll.ts";
   import type { FeedViewport } from "./viewport.ts";
-  import { footerMotion, FooterScroll } from "./footer-motion.ts";
+  import { FooterScroll } from "./footer-motion.ts";
   import { FeedScrollOpening, type FeedScrollMemory } from "./feed-scroll-memory.svelte.ts";
   import { answerStart, moveToAnswer } from "./answer-scroll.ts";
 
@@ -60,6 +60,7 @@
     onviewport,
     onwindow,
     scrollMemory,
+    sizes,
     ready = true,
   }: {
     rows: readonly T[];
@@ -88,6 +89,8 @@
     /** Mounted rows including overscan, for bounded history prefetch before missing work reaches the reader. */
     onwindow?: (viewport: FeedViewport) => void;
     scrollMemory?: FeedScrollMemory;
+    /** Row heights owned by the caller (kept across remounts, e.g. per thread); the feed's own otherwise. */
+    sizes?: SizeIndex;
     ready?: boolean;
   } = $props();
 
@@ -95,7 +98,7 @@
   const id = `feed-${uid}`;
 
   const memory = new UiMemory();
-  const index = new SizeIndex((name) => untrack(() => estimate(name)));
+  const index = untrack(() => sizes) ?? new SizeIndex((name) => untrack(() => estimate(name)));
 
   let scroller = $state<HTMLElement>();
   let list = $state<HTMLElement>();
@@ -114,8 +117,8 @@
   let gutter = $state(0);
   let measured = $state(0);
 
-  /** Following the end (the reader is at the bottom). */
-  let stuck = $state(true);
+  /** Following the end (the reader is at the bottom); a saved reading position starts away from it. */
+  let stuck = $state(untrack(() => scrollMemory?.initial?.mode !== "anchor"));
   const opening = new FeedScrollOpening(untrack(() => scrollMemory));
 
   $effect(() => opening.connect(() => ({ following: stuck, anchor }), settle));
@@ -168,7 +171,9 @@
   });
 
   const padTop = $derived.by(() => (void layout, index.offset(range[0])));
-  const padBottom = $derived.by(() => (void layout, layout.total - index.offset(range[1])));
+
+  // Both ends from the live index: a measurement not yet committed to `layout` must not leave a gap below the rows.
+  const padBottom = $derived.by(() => (void layout, index.total - index.offset(range[1])));
   const visible = $derived(rows.slice(range[0], range[1]));
 
   $effect(() => {
@@ -240,15 +245,15 @@
   $effect(() => {
     if (!observer || !scroller || !list || !footerShell) return;
 
-    const disposeFooter = footerMotion(footerShell, (change) =>
-      footerScroll.resize(
-        content,
-        scroller,
-        change,
-        stuck && !endScroll.active,
-        (height) => (footerHeight = height),
-        setTop,
-      ),
+    // Rows measured before (a return to a thread) can be positioned before the first paint, without
+    // waiting a frame for the observer's first viewport height.
+    if (untrack(() => viewport) === 0) viewport = measuredViewport = scroller.clientHeight;
+
+    const disposeFooter = footerScroll.connect(
+      footerShell,
+      () => ({ content, scroller, following: stuck && !endScroll.active }),
+      (height) => (footerHeight = height),
+      setTop,
     );
 
     for (const element of [scroller, list]) observer.observe(element);

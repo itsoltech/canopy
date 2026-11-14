@@ -14,6 +14,7 @@ import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { startTestGateway, eventually } from "./support/gateway.ts";
 import { PersistentThreadCache } from "../../apps/mobile/src/storage/thread-cache.ts";
 import { DiskThreadStorage } from "./support/thread-cache.ts";
+import { longThreadSnapshot } from "../../apps/web/src/lib/features/threads/dev/fixture.ts";
 
 const directory = tempDirs();
 
@@ -301,4 +302,59 @@ describe.skipIf(!dockerAvailable)("background thread sequence reads", () => {
 
     return updates;
   }
+});
+
+describe("background warming of a loaded thread", () => {
+  test("keeps the older pages a reader already loaded", async () => {
+    const loaded = longThreadSnapshot({ turns: 60 });
+    const threadId = loaded.thread!.id;
+    loaded.syncCursor = create(ui.ThreadSyncCursorSchema, { threadId, epoch: "epoch", appliedSeq: 40n });
+    const cache = new ThreadCache({ count: 2, bytes: 16 * 1024 * 1024 });
+    cache.set(loaded);
+
+    const warmer = new ThreadWarmer(
+      { peek: (key) => cache.peek(key), load: async (key) => cache.get(key), save: (snapshot) => cache.set(snapshot) },
+      async function* () {
+        yield create(ui.ThreadUpdateSchema, {
+          change: {
+            case: "batch",
+            value: {
+              threadId,
+              epoch: "epoch",
+              baseSeq: 40n,
+              appliedSeq: 41n,
+              headSeq: 41n,
+              caughtUp: true,
+              records: [
+                {
+                  seq: 41n,
+                  key: `thread:${threadId}`,
+                  value: { case: "thread", value: { ...loaded.thread!, title: "Renamed in the background" } },
+                },
+              ],
+            },
+          },
+        });
+      },
+      { ...THREAD_WARM_LIMITS, intervalMs: 20, requested: () => {} },
+    );
+
+    try {
+      warmer.select([threadId]);
+      warmer.heads([create(ui.ThreadSyncCursorSchema, { threadId, epoch: "epoch", appliedSeq: 41n })]);
+      warmer.enable(true);
+
+      const warmed = await eventually(
+        async () => cache.peek(threadId),
+        (snapshot) => snapshot?.syncCursor?.appliedSeq === 41n,
+      );
+
+      expect(loaded.items.length).toBeGreaterThan(128);
+      expect(warmed?.items.map((entry) => entry.item?.itemId)).toEqual(loaded.items.map((entry) => entry.item?.itemId));
+      expect(warmed?.thread?.title).toBe("Renamed in the background");
+      expect(warmed?.historyItemsHasMore).toBe(false);
+    } finally {
+      warmer.close();
+    }
+  });
 });

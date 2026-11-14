@@ -65,7 +65,7 @@ export async function probeThreadSnapshot(threadId: string, repeats = 20) {
 export async function probeThreadNavigation(path: string) {
   if (location.pathname === path) throw new Error("Start this probe from a different route");
   const id = path.startsWith("/threads/") ? decodeURIComponent(path.slice(9)) : "";
-  const cacheCurrent = warmCacheHit(id);
+  const cacheCurrent = warmCacheHit(id, undefined);
   const cache = threadWarmingUsage();
   const started = performance.now();
   await goto(path);

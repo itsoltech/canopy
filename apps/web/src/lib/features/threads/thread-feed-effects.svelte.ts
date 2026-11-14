@@ -32,16 +32,28 @@ export function syncWorkFolds(
   });
 }
 
-/** One bounded page at a time; errors require an explicit retry instead of a request loop. */
+/**
+ * One bounded page at a time; errors require an explicit retry instead of a request loop. `waiting` holds the first
+ * reveal while the mounted window still shows loading rows for work a page will fill (bounded by the feed's
+ * positioning timeout), so a cold open does not show gaps that collapse under the reader.
+ */
 export function workHistoryPrefetch(read: () => { rows: readonly FeedRow[]; history: ThreadHistory }) {
   let window = $state<FeedViewport>({ start: 0, end: 0, height: 0 });
 
-  $effect(() => {
+  const missing = $derived.by(() => {
     const { rows, history } = read();
 
-    if (window.height > 0 && !history.loading && !history.error && prefetchWorkHistory(rows, window.start, window.end))
-      void history.load();
+    return window.height > 0 && !history.error && prefetchWorkHistory(rows, window.start, window.end);
   });
 
-  return (value: FeedViewport) => (window = value);
+  $effect(() => {
+    if (missing && !read().history.loading) void read().history.load();
+  });
+
+  return {
+    update: (value: FeedViewport) => (window = value),
+    get waiting() {
+      return missing;
+    },
+  };
 }

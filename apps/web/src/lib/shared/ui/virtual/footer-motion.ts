@@ -75,17 +75,44 @@ export class FooterScroll {
   cancel() {
     this.#animation?.cancel();
   }
+
+  /** Follows the composer shell: its height is the feed's end reserve, from the feed's first frame. */
+  connect(
+    shell: HTMLElement,
+    read: () => { content: HTMLElement | undefined; scroller: HTMLElement | undefined; following: boolean },
+    reserve: (height: number) => void,
+    write: (top: number) => void,
+  ): () => void {
+    return footerMotion(
+      shell,
+      (change) => {
+        const { content, scroller, following } = read();
+        this.resize(content, scroller, change, following, reserve, write);
+      },
+      (height) => {
+        this.#height = height;
+        reserve(height);
+      },
+    );
+  }
 }
 
 /** Natural composer changes commit once. Tray disclosures already animate their layout, so the
- * shell and reserve follow each measured frame without starting another resize animation. */
-export function footerMotion(shell: HTMLElement, resize: (change: FooterResize) => void): () => void {
+ * shell and reserve follow each measured frame without starting another resize animation.
+ * `initial` gets the height at once, so a new feed's first frame has its backdrop and end reserve. */
+export function footerMotion(
+  shell: HTMLElement,
+  resize: (change: FooterResize) => void,
+  initial: (height: number) => void,
+): () => void {
   const content = shell.firstElementChild;
 
   if (!(content instanceof HTMLElement)) return () => {};
 
   let first = true;
-  let height = 0;
+  let height = content.getBoundingClientRect().height;
+  shell.style.height = `${height}px`;
+  initial(height);
   let shellAnimation: Animation | undefined;
   let disclosing = false;
   const parts = new Map<HTMLElement, { top: number; height: number; animation?: Animation }>();
