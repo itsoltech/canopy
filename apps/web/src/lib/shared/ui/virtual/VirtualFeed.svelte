@@ -684,7 +684,7 @@
           </div>
         </div>
         <div
-          class="absolute inset-0 -z-10 bg-canvas before:absolute before:inset-x-0 before:bottom-full before:h-(--feed-fade) before:bg-linear-to-t before:from-canvas before:to-transparent"
+          class="absolute inset-0 -z-10 bg-surface before:absolute before:inset-x-0 before:bottom-full before:h-(--feed-fade) before:bg-linear-to-t before:from-surface before:to-transparent"
           aria-hidden="true"
         ></div>
         {#if !stuck}

@@ -115,15 +115,15 @@
 <div
   bind:this={root}
   bind:clientWidth={width}
-  class={["workspace-tabs relative isolate flex h-full min-w-0 items-center gap-1 rounded-t-xl bg-surface", className]}
+  class={["relative flex h-full min-w-0 items-center gap-1", className]}
   onkeydown={keydown}
 >
   <span class="pointer-events-none invisible absolute w-[1rem]" bind:clientWidth={rem}></span>
-  <div role="tablist" aria-label="Workspace tabs" class="flex h-full min-w-0 gap-0.5">
+  <div role="tablist" aria-label="Workspace tabs" class="flex h-full min-w-0">
     {#each visible as tab (tab.id)}
       <div
         class={[
-          "workspace-tab relative flex min-w-0 items-center rounded-t-lg",
+          "workspace-tab relative isolate flex min-w-0 items-center",
           // Thread keeps its slot; every file, including the active one, must fit the available space.
           tab.id === "thread" ? "shrink-0" : tab.id === active.id ? "max-w-48 shrink" : "max-w-48 shrink-100000",
         ]}
@@ -142,14 +142,14 @@
           data-tab-id={tab.id}
           class={[
             "flex h-full min-w-0 flex-1 items-center gap-1.5 rounded-t-lg text-sm focus-ring -outline-offset-2",
-            tab.id === "thread" ? "px-2.5" : "pl-2.5",
+            tab.id === "thread" ? "px-3" : "pl-3",
             tab.id === active.id ? "text-zinc-950 dark:text-white" : "text-muted",
           ]}
           onclick={() => view.select(tab.id)}
           ondblclick={() => view.keep(tab.id)}
           {@attach tooltip(tab.path)}
         >
-          <span class="truncate" class:italic={tab.preview}>{tab.name}</span>
+          <span class={["truncate", tab.preview && "pr-0.5 italic"]}>{tab.name}</span>
           {#if tab.id === "thread" && (pending || working)}<span
               class="shrink-0 text-brand-600 tabular-nums dark:text-brand-400">{pending || "•"}</span
             >{/if}
@@ -157,7 +157,7 @@
         {#if tab.id !== "thread"}<button
             type="button"
             aria-label={`Close ${tab.name}`}
-            class="workspace-tab-close mr-0.5 flex size-6 shrink-0 items-center justify-center rounded text-muted focus-ring hover:bg-zinc-950/5 dark:hover:bg-white/10"
+            class="workspace-tab-close mr-1 flex size-6 shrink-0 items-center justify-center rounded text-muted focus-ring hover:bg-zinc-950/5 hover:text-ink dark:hover:bg-white/10"
             data-dirty={tab.dirty}
             onclick={() => onclose(tab.id)}
           >
@@ -171,7 +171,7 @@
       {#snippet trigger(props)}<button
           type="button"
           aria-label={`${hidden.length} more ${hidden.length === 1 ? "tab" : "tabs"}${hidden.some((tab) => tab.dirty) ? ", Unsaved changes" : ""}`}
-          class="workspace-overflow flex h-8 shrink-0 items-center gap-1 rounded-lg bg-chrome px-2 text-sm text-muted tabular-nums focus-ring hover:bg-hover sm:text-xs"
+          class="workspace-overflow flex h-8 shrink-0 items-center gap-1 rounded-lg px-2 text-sm text-muted tabular-nums focus-ring hover:bg-hover sm:text-xs"
           {...props}
           >+{hidden.length}{#if hidden.some((tab) => tab.dirty)}<span aria-hidden="true">●</span>{/if}</button
         >{/snippet}
@@ -190,53 +190,62 @@
 />
 
 <style>
-  /* The opaque surface continues below the strip. The reverse corners paint over chrome,
-     rather than cutting a transparent hole or relying on a fractional border/shadow. */
-  .workspace-tabs::before,
-  .workspace-tabs::after {
+  /* Only the active tab is a surface: it rises from the chrome and continues into the content below,
+     so its bottom corners curve outwards over the chrome (no border, gap or shadow at the join).
+     Inactive tabs are text on the chrome; hover shows a quiet inset pill, and a hairline separates
+     two inactive neighbours only. */
+  .workspace-tab {
+    --tab-radius: 0.5rem;
+  }
+  .workspace-tab::before,
+  .workspace-tab::after {
     position: absolute;
-    bottom: 0;
-    width: 0.5rem;
-    height: 0.5rem;
+    z-index: -1;
     content: "";
     pointer-events: none;
   }
-  .workspace-tabs::before {
-    right: 100%;
-    background: radial-gradient(circle at top left, var(--color-chrome) 0.5rem, var(--color-surface) 0.5rem);
+  .workspace-tab[data-active="false"]::before {
+    inset: 0.3125rem 0.125rem;
+    border-radius: 0.375rem;
+    background: var(--color-hover);
+    opacity: 0;
+    transition: opacity var(--duration-fast) var(--ease-smooth-out);
   }
-  .workspace-tabs::after {
-    left: 100%;
-    background: radial-gradient(circle at top right, var(--color-chrome) 0.5rem, var(--color-surface) 0.5rem);
-  }
-  .workspace-tab {
-    background: color-mix(in oklab, var(--color-chrome) 65%, var(--color-surface));
-    transition: background-color var(--duration-fast) var(--ease-smooth-out);
+  .workspace-tab[data-active="false"]:has(button:hover, button:focus-visible)::before {
+    opacity: 1;
   }
   .workspace-tab[data-active="true"] {
+    border-radius: var(--tab-radius) var(--tab-radius) 0 0;
     background: var(--color-surface);
-    transition: none;
+  }
+  /* Reverse corners: a 1 px soft edge keeps the curve free of stair-steps at DPR 1 and 2. */
+  .workspace-tab[data-active="true"]::before,
+  .workspace-tab[data-active="true"]::after {
+    bottom: 0;
+    width: var(--tab-radius);
+    height: var(--tab-radius);
+    --corner: transparent calc(var(--tab-radius) - 0.5px), var(--color-surface) calc(var(--tab-radius) + 0.5px);
+  }
+  .workspace-tab[data-active="true"]::before {
+    right: 100%;
+    background: radial-gradient(circle at top left, var(--corner));
+  }
+  .workspace-tab[data-active="true"]::after {
+    left: 100%;
+    background: radial-gradient(circle at top right, var(--corner));
+  }
+  .workspace-tab[data-active="false"] + .workspace-tab[data-active="false"] {
+    background: linear-gradient(var(--color-divider), var(--color-divider)) left center / 1px 1rem no-repeat;
+  }
+  .workspace-tab[data-active="false"]:has(button:hover, button:focus-visible),
+  .workspace-tab[data-active="false"]:has(button:hover, button:focus-visible) + .workspace-tab {
+    background-size: 1px 0;
   }
   .workspace-tab button[role="tab"] {
     transition: color var(--duration-fast) var(--ease-smooth-out);
   }
-  .workspace-tab[data-active="false"]:has(button:hover, button:focus-visible) {
-    background: var(--color-hover);
-  }
-  .workspace-tab::after {
-    position: absolute;
-    top: 30%;
-    right: -0.125rem;
-    bottom: 30%;
-    width: 1px;
-    background: var(--color-divider);
-    content: "";
-    pointer-events: none;
-  }
-  .workspace-tab:last-child::after,
-  .workspace-tab[data-active="true"]::after,
-  .workspace-tab:has(+ [data-active="true"])::after {
-    display: none;
+  .workspace-tab[data-active="false"] button[role="tab"]:hover {
+    color: var(--color-ink);
   }
   .workspace-tab-close {
     transition: opacity var(--duration-quick) var(--ease-in-out);
@@ -247,10 +256,11 @@
     }
   }
   .workspace-overflow {
+    margin-inline-start: 0.5rem;
     margin-inline-end: 0.25rem;
   }
   @media (prefers-reduced-motion: reduce) {
-    .workspace-tab,
+    .workspace-tab::before,
     .workspace-tab button[role="tab"],
     .workspace-tab-close {
       transition: none;
