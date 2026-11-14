@@ -48,11 +48,14 @@
   const selectable = $derived(options.filter((o) => !o.readOnly).map((o) => o.id));
   const allOn = $derived(allowAll && choice.all);
   const chosen = $derived(choice.ids.filter((v) => options.some((o) => o.id === v)).length);
-  const everyChosen = $derived(selectable.every((v) => choice.ids.includes(v)));
+
+  // While searching, "Choose all" and "Clear all" act on the matching rows only.
+  const targets = $derived(shown.filter((o) => !o.readOnly).map((o) => o.id));
+  const everyChosen = $derived(targets.every((v) => choice.ids.includes(v)));
 
   function chooseEvery(on: boolean) {
-    const kept = choice.ids.filter((v) => !selectable.includes(v));
-    choice = { all: false, ids: on ? [...kept, ...selectable] : kept };
+    const kept = choice.ids.filter((v) => !targets.includes(v));
+    choice = { all: false, ids: on ? [...kept, ...targets] : kept };
   }
 </script>
 
@@ -129,7 +132,7 @@
       <p class="text-sm/5 text-zinc-500 tabular-nums sm:text-xs/4 dark:text-zinc-400">
         {allOn ? options.length : chosen} of {options.length} chosen
       </p>
-      <Button size="sm" variant="ghost" disabled={allOn} onclick={() => chooseEvery(!everyChosen)}>
+      <Button size="sm" variant="ghost" disabled={allOn || !targets.length} onclick={() => chooseEvery(!everyChosen)}>
         {everyChosen ? "Clear all" : "Choose all"}
       </Button>
     </div>
