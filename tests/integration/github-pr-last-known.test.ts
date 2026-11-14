@@ -64,17 +64,31 @@ describe.skipIf(!dockerAvailable)("linked pull requests keep their last known su
     expect((await gw.api.getThread({ threadId: thread })).thread!.newestPullRequest?.title).toContain("request 42");
 
     const calls = fixture.calls;
+    // The title changed on GitHub while the gateway was down.
+    fixture.echoText(" · renamed");
     release();
     fixture.gate(Promise.resolve());
 
-    // Clients learn about the refresh through the thread's pull request revision.
-    const fresh = await eventually(list, (r) => r.revision > first.revision && r.links[0]?.stale === false);
+    const fresh = await eventually(list, (r) => r.links[0]?.stale === false);
+    expect(fresh.links[0]!.summary!.title).toContain("renamed");
     expect(fresh.links[0]!.detail).toBe("");
     expect(fixture.calls).toBeGreaterThanOrEqual(calls);
+    // The refresh never moves the revision that fences link and unlink.
+    expect(fresh.revision).toBe(first.revision);
+    fixture.echoText("");
     // A fresh list does not start another read.
     const after = fixture.calls;
     await list();
     expect(fixture.calls).toBe(after);
+    expect(
+      (await gw.api.unlinkThreadPullRequest({ threadId: thread, pullRequestId: pr, expectedRevision: fresh.revision }))
+        .links,
+    ).toHaveLength(0);
+    await gw.api.linkThreadPullRequest({
+      threadId: thread,
+      url: "https://github.com/itsoltech/canopy/pull/42",
+      expectedRevision: fresh.revision + 1n,
+    });
   }, 60_000);
 
   test("a transient failure keeps the summary and gives its reason until Retry succeeds", async () => {
@@ -94,7 +108,8 @@ describe.skipIf(!dockerAvailable)("linked pull requests keep their last known su
     expect(fixture.calls).toBe(calls);
 
     fixture.status(200);
-    fixture.advance(61_000);
+    // Past the longest secondary-limit backoff.
+    fixture.advance(16 * 60_000);
     await gw.api.refreshPullRequest({ pullRequestId: pr });
     const recovered = (await list()).links[0]!;
     expect(recovered.stale).toBe(false);
@@ -139,7 +154,6 @@ describe.skipIf(!dockerAvailable)("linked pull requests keep their last known su
         0,
       );
       expect(await foreign.run((s) => s.prRefreshClaim(other, pr))).toHaveLength(0);
-      expect(await foreign.run((s) => s.prTouch(other, pr))).toHaveLength(0);
     } finally {
       await foreign.stop();
     }

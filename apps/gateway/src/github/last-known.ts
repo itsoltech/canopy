@@ -20,7 +20,10 @@ export async function rememberSummary(accounts: GitHubAccounts, account: string,
   await accounts.run((s) => s.prRemember(accounts.owner, summary.ref!.id, account, value));
 }
 
-/** One claimed attempt per pull request and interval; the result reaches clients through the thread revision. */
+/**
+ * One claimed attempt per pull request and interval. It never moves the thread's pull request revision, which
+ * fences link and unlink; clients re-read while a stale link has no reason yet.
+ */
 export async function refreshLinked(prs: GitHubPullRequests, ref: github.PullRequestRef) {
   const { run, owner } = prs.accounts;
 
@@ -28,8 +31,4 @@ export async function refreshLinked(prs: GitHubPullRequests, ref: github.PullReq
 
   // load() records the reason when the read fails.
   await prs.load(ref.repositoryName, ref.number, false, true).catch(() => undefined);
-  const ids = (await run((s) => s.prTouch(owner, ref.id))).map((r) => r.id);
-
-  for (const id of ids) await run((s) => s.prProject(owner, id));
-  await prs.publish(ids);
 }

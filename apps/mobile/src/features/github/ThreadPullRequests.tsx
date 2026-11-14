@@ -8,6 +8,7 @@ import { styles, useColors } from "../../ui/theme";
 import { LinkPullRequest } from "./LinkPullRequest";
 import { CreatePullRequest } from "./CreatePullRequest";
 import { LinkedPullRequestRow } from "./LinkedPullRequestRow";
+import { pullRequestsRefreshing } from "@canopy/domain/github-pr";
 import { useQueryRefresh } from "../../state/query-refresh";
 
 export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onClose: () => void }) {
@@ -17,7 +18,6 @@ export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onC
   const [linking, setLinking] = useState(false);
   const [creating, setCreating] = useState(false);
   const key = `ListThreadPullRequests:${thread.id}:${thread.pullRequestRevision}`;
-  useQueryRefresh(key, 60_000, online);
 
   const read = useSharedQuery<github.ThreadPullRequestsResponse>(
     key,
@@ -25,6 +25,9 @@ export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onC
     !!client,
     60_000,
   );
+
+  // Re-read soon while the gateway refreshes stale links in the background.
+  useQueryRefresh(key, pullRequestsRefreshing(read.data) ? 3_000 : 60_000, online);
 
   const links =
     read.data?.links ??

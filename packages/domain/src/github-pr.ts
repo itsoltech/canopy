@@ -70,6 +70,11 @@ export function unknownPullRequestLook(detail: string): PullRequestLook {
     : look("Loading pull request…", "arrow-path", "muted", 4, true);
 }
 
+/** A background refresh is pending: a link shows its last known summary and has no failure reason yet. */
+export function pullRequestsRefreshing(response: github.ThreadPullRequestsResponse | undefined) {
+  return !!response?.links.some((link) => link.stale && !link.detail);
+}
+
 export function reviewerLook(state: string): PullRequestLook {
   switch (state) {
     case "approved":

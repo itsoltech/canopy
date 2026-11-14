@@ -8,6 +8,7 @@
   import CreatePullRequest from "./CreatePullRequest.svelte";
   import LinkedPullRequestRow from "./LinkedPullRequestRow.svelte";
   import * as api from "./api.ts";
+  import { pullRequestsRefreshing } from "@canopy/domain/github-pr";
   import PanelRow from "#lib/features/threads/components/PanelRow.svelte";
 
   let { thread, class: className }: { thread: ui.Thread; class?: ClassValue } = $props();
@@ -25,7 +26,8 @@
 
   const data = $derived(read.data);
 
-  $effect(() => revalidateEvery(read.key, 60_000));
+  // Re-read soon while the gateway refreshes stale links in the background.
+  $effect(() => revalidateEvery(read.key, pullRequestsRefreshing(data) ? 3_000 : 60_000));
 
   /** The refresh records its reason on the gateway; the list shows it either way. */
   const retry = async (id: string) => {

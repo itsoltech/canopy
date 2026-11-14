@@ -18,10 +18,6 @@ export function githubPrSummaries(sql: SqlClient.SqlClient) {
     prRefreshClaim: (owner: string, id: string) =>
       sql<{ id: string }>`UPDATE github_pull_requests SET refreshed_at=now() WHERE owner_user_id=${owner}::uuid
         AND id=${id}::uuid AND (refreshed_at IS NULL OR refreshed_at<now()-interval '5 minutes') RETURNING id`,
-    prTouch: (owner: string, id: string) =>
-      sql<{ id: string }>`UPDATE threads SET pull_request_revision=pull_request_revision+1
-        WHERE owner_user_id=${owner}::uuid AND deleted_at IS NULL AND id IN (SELECT thread_id FROM thread_pull_requests
-          WHERE owner_user_id=${owner}::uuid AND pull_request_id=${id}::uuid AND unlinked_at IS NULL) RETURNING id`,
     cacheInvalidateRepository: (owner: string, account: string, repo: string) =>
       sql.withTransaction(
         Effect.gen(function* () {
