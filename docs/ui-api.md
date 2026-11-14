@@ -2062,11 +2062,12 @@ Symlink wybiera wydanie dla **następnego procesu**; działający serwer nadal u
 Binarny gateway z wbudowanym web stosuje to samo okno inaczej: każda wersja binarki rozpakowuje
 swój build do `CANOPY_WEB_DIR/<wersja>-<hash>` i zostawia trzy ostatnie (oraz każdą, której działający web
 dotknął w ciągu 30 minut). adapter-node podaje tylko
-własną tabelę plików, więc `canopy-gateway web` przed nią serwuje brakujące `/_app/immutable/*`
+własną tabelę plików, więc listener web gatewaya (`apps/gateway/src/web/requests.ts`, w procesie
+gatewaya, przed handlerem adapter-node) serwuje brakujące `/_app/immutable/*`
 z zachowanych wersji (z nagłówkiem `immutable`). Żądanie bez nagłówka `PROTOCOL_HEADER` traktuje
 jako zwykłe HTTP, więc kontrola `Origin` działa bezpośrednio na loopbacku i za Tailscale Serve.
 Wcześniej sprawdza surowy `Host` (DNS rebinding): adresy IP, `localhost`, `CANOPY_WEB_ALLOWED_HOSTS`,
-`ORIGIN`, nazwa z `CANOPY_WEB_HOST` i nazwy MagicDNS, które gateway przesyła przez IPC; reszta dostaje 421
+`ORIGIN`, nazwa z `CANOPY_WEB_HOST` i bieżące nazwy MagicDNS gatewaya; reszta dostaje 421
 ([deploy.md](deploy.md#gateway-z-wbudowanym-web-jedna-binarka)).
 
 ### Nowa wersja, błędy chunków i przerwy w połączeniu

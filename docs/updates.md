@@ -710,8 +710,8 @@ Gateway `service` drukuje unit z `EnvironmentFile=%h/.config/canopy/gateway.env`
 przygotuj ten prywatny plik samodzielnie z istniejącą konfiguracją gatewaya.
 
 Nowy gateway potwierdza start po uruchomieniu DB, listenerów i aktualizatora,
-a binarka z wbudowanym web także po odpowiedzi web (`canopy-gateway web`, dziecko
-gatewaya) na `/api/health` tą samą wersją i tym samym procesem; web jest częścią tej samej binarki, więc
+a binarka z wbudowanym web także po odpowiedzi web (w tym samym procesie, przez jego listener)
+na `/api/health` tą samą wersją; web jest częścią tej samej binarki, więc
 jedna wymiana i jeden rollback obejmują oba. Kandydat, którego web nie wstaje, sam przywraca `.bak`
 z powodem web (np. zajęty port) w `.update.json` i kończy się kodem 75, więc supervisor uruchamia
 poprzednią wersję ([deploy.md](deploy.md#gateway-z-wbudowanym-web-jedna-binarka));

@@ -2,6 +2,7 @@ import { gateway } from "#lib/server/gateway.ts";
 import { connectorOAuthBinding } from "#lib/server/connector-oauth.ts";
 import { connectorOAuthResult } from "#lib/server/connector-oauth-result.ts";
 import type { RequestHandler } from "./$types";
+import { desktopWebOrigin } from "#lib/server/desktop-origin.ts";
 
 export const GET: RequestHandler = async ({ url, cookies }) => {
   let connectorType: string | undefined;
@@ -23,5 +24,5 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
     /* Codes, tokens and provider errors never enter logs or the result page. */
   }
 
-  return connectorOAuthResult(connectorType, Boolean(process.env["CANOPY_WEB_ORIGIN"]));
+  return connectorOAuthResult(connectorType, Boolean(desktopWebOrigin()));
 };

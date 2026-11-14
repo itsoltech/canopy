@@ -91,8 +91,9 @@ bez kompresji. Zawartość:
   nie są częścią binarki. Claude Agent SDK jest zbundlowany jako JS i dostaje ścieżkę `claude`,
 - gateway z `--web <katalog>` osadza wynik `scripts/build-web.ts` tej samej wersji
   (`canopy-web.json`, inaczej build kończy się błędem) jako jedno archiwum zstd (ok. 13 MiB);
-  web jest niezależny od celu, więc Release buduje go raz. `canopy-gateway web` rozpakowuje je
-  do `CANOPY_WEB_DIR` i uruchamia BFF ([deploy.md](deploy.md#gateway-z-wbudowanym-web-jedna-binarka)).
+  web jest niezależny od celu, więc Release buduje go raz. Gateway rozpakowuje je do
+  `CANOPY_WEB_DIR` i ładuje `handler.js` (handler adapter-node) we własnym procesie; `canopy-gateway web`
+  uruchamia sam web (smoke) ([deploy.md](deploy.md#gateway-z-wbudowanym-web-jedna-binarka)).
   Bez `--web` gateway jest headless — tak budowany jest obraz Docker `canopy-gateway`.
 
 Rozmiary (Bun 1.4.4, 0.0.0-main): linux-x64 124 MiB, linux-arm64 124 MiB,

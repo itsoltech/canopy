@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { desktopWebOrigin } from "./desktop-origin.ts";
 
 // Electron opens sign-in in the system browser, which has a separate cookie jar. The desktop
 // binding stays in this BFF process; the gateway still requires its single-use, owner/account-bound
@@ -6,5 +7,5 @@ import { randomBytes } from "node:crypto";
 const desktopBinding = randomBytes(32).toString("base64url");
 
 export function connectorOAuthBinding(cookie: string | undefined): string {
-  return process.env["CANOPY_WEB_ORIGIN"] ? desktopBinding : (cookie ?? "");
+  return desktopWebOrigin() ? desktopBinding : (cookie ?? "");
 }

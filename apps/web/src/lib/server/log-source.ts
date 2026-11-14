@@ -14,9 +14,18 @@ import { setTimeout as delay } from "node:timers/promises";
 
 let started = false;
 
-/** Service-token only source registration. Remote paired desktop BFFs never register at another home. */
+/**
+ * Service-token only source registration. Remote paired desktop BFFs never register at another home. A web inside
+ * the gateway process writes through the gateway's own log writer.
+ */
 export function startBffLogs(api: Client<typeof ui.GatewayService>) {
-  if (started || process.env["CANOPY_DESKTOP_CLIENT_TOKEN"] || process.env["CANOPY_LOG_SUPERVISED"] === "1") return;
+  if (
+    started ||
+    process.env["CANOPY_DESKTOP_CLIENT_TOKEN"] ||
+    process.env["CANOPY_LOG_SUPERVISED"] === "1" ||
+    process.env["CANOPY_WEB_IN_PROCESS"] === "1"
+  )
+    return;
   started = true;
   const directory = runtimeLogDirectory("web");
   installLogWriter("web", directory, [process.env["GATEWAY_SERVICE_TOKEN"] ?? ""]);

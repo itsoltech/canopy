@@ -15,7 +15,9 @@ export const TOUCH_MS = 10 * 60 * 1000;
 const IN_USE_MS = 3 * TOUCH_MS;
 
 export interface WebRelease {
-  /** The extracted build: index.js, chunks, client/. */
+  /** The directory of all extracted releases (CANOPY_WEB_DIR or its private fallback). */
+  base: string;
+  /** The extracted build: index.js, handler.js, chunks, client/. */
   directory: string;
   /** Older retained releases, newest first (their `client/_app/immutable` assets stay reachable). */
   previous: string[];
@@ -130,5 +132,5 @@ export async function prepareWebRelease(
   for (const old of others.slice(WEB_RELEASES_KEPT - 1))
     if (Date.now() - old.used > IN_USE_MS) await rm(old.directory, { recursive: true, force: true });
 
-  return { directory, previous };
+  return { base, directory, previous };
 }

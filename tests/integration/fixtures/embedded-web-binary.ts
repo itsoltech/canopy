@@ -1,4 +1,4 @@
-/** Standalone gateway fixture with an embedded web: the real supervisor, update runtime, web process and runner. */
+/** Standalone gateway fixture with an embedded web: the real supervisor, update runtime and in-process web server. */
 import { appendFileSync } from "node:fs";
 import { readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
@@ -12,10 +12,11 @@ import {
   UPDATE_RESTART_EXIT_CODE,
 } from "@canopy/updater";
 import { GatewayUpdates } from "../../../apps/gateway/src/updates/runtime.ts";
-import { EmbeddedWebProcess } from "../../../apps/gateway/src/web/process.ts";
+import { EMBEDDED_WEB } from "../../../apps/gateway/src/web/embedded.ts";
+import { EmbeddedWebServer } from "../../../apps/gateway/src/web/server.ts";
 import { serveEmbeddedWeb } from "../../../apps/gateway/src/web/serve.ts";
 
-// The web child inherits only the web's allowlisted environment (web/config.ts): no test directory there.
+// `web` alone keeps only the web's allowlisted environment (web/config.ts): no test directory there.
 const directory = process.env["CANOPY_TEST_DIRECTORY"] ?? "";
 const binaryPath = join(directory, "installed");
 
@@ -45,7 +46,8 @@ if (Bun.argv[2] === "web") {
 } else {
   event("child");
 
-  const web: EmbeddedWebProcess = new EmbeddedWebProcess({
+  const web: EmbeddedWebServer = new EmbeddedWebServer({
+    archive: EMBEDDED_WEB!,
     env: process.env,
     log: (message) => event("log", { message }),
     hosts: () => (process.env["CANOPY_TEST_RUNTIME_HOSTS"] ?? "").split(",").filter(Boolean),

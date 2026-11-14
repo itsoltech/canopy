@@ -3,12 +3,23 @@
 // too late there. Loaded eagerly here, in the entry, it is in place before any of the gateway runs.
 import "reflect-metadata";
 
-// `canopy-gateway web` is the embedded web BFF (src/web), a child of the gateway: it must not load the gateway.
-if (Bun.argv[2] === "web") {
+const command = Bun.argv[2];
+const oneShot = command === "healthcheck" || command === "service" || Bun.argv.includes("--version");
+
+// Neither `canopy-gateway web` (the web alone, src/web/serve.ts) nor the supervisor of a standalone binary loads the
+// gateway: the supervisor stays a small watchdog process next to the one process that runs gateway and web.
+if (command === "web") {
   const { serveEmbeddedWeb } = await import("./web/serve.ts");
   const code = await serveEmbeddedWeb();
 
   if (code !== undefined) process.exit(code);
 } else {
+  const { installKind, superviseBinary } = await import("@canopy/updater");
+
+  if (!oneShot && installKind() === "binary" && !process.env["CANOPY_SUPERVISED"])
+    process.exit(
+      await superviseBinary({ binaryPath: process.execPath, args: Bun.argv.slice(2), log: (m) => console.warn(m) }),
+    );
+
   await import("./gateway.ts");
 }

@@ -1,36 +1,36 @@
-import { createServer } from "node:net";
+import type { Server } from "node:http";
 import { isJsonObject, parseJson } from "@canopy/domain/json";
-import { WEB_INSTANCE_HEADER } from "./protocol.ts";
 
-/**
- * Why the web can't listen on host:port, or undefined when it can. Checked before each start, so an existing
- * web on the port (an older separate install, another app) gives a specific reason instead of a health timeout.
- */
-export function listenProblem(host: string, port: number): Promise<string | undefined> {
-  return new Promise((done) => {
-    const server = createServer();
-    server.once("error", (error: NodeJS.ErrnoException) => {
-      if (error.code === "EADDRINUSE")
-        done(`Port ${port} is in use by another process. Set CANOPY_WEB_PORT to a free port, or CANOPY_WEB=off.`);
-      else if (error.code === "EACCES") done(`Not allowed to listen on port ${port}. Set CANOPY_WEB_PORT above 1023.`);
-      else if (error.code === "EADDRNOTAVAIL")
-        done(`${host} is not an address of this computer. Check CANOPY_WEB_HOST.`);
-      else done(`Can't listen on ${host}:${port}: ${error.message}`);
+/** Why the web couldn't listen, in words an operator can act on (a busy port: often an older separate web). */
+function listenProblem(error: NodeJS.ErrnoException, host: string, port: number): string {
+  if (error.code === "EADDRINUSE")
+    return `Port ${port} is in use by another process. Set CANOPY_WEB_PORT to a free port, or CANOPY_WEB=off.`;
+
+  if (error.code === "EACCES") return `Not allowed to listen on port ${port}. Set CANOPY_WEB_PORT above 1023.`;
+
+  if (error.code === "EADDRNOTAVAIL") return `${host} is not an address of this computer. Check CANOPY_WEB_HOST.`;
+
+  return `Can't listen on ${host}:${port}: ${error.message}`;
+}
+
+/** Binds the server; rejects with listenProblem's reason. */
+export function listen(server: Server, host: string, port: number): Promise<void> {
+  return new Promise((done, fail) => {
+    const failed = (error: NodeJS.ErrnoException) => fail(new Error(listenProblem(error, host, port)));
+    server.once("error", failed);
+    server.listen({ host: host.replace(/^\[|\]$/g, ""), port, exclusive: true }, () => {
+      server.off("error", failed);
+      done();
     });
-    server.listen({ host: host.replace(/^\[|\]$/g, ""), port, exclusive: true }, () =>
-      server.close(() => done(undefined)),
-    );
   });
 }
 
-/** `/api/health` of this exact child (its instance header) with this build's version. */
-export async function healthAnswer(url: string, instance: string, version: string): Promise<string | undefined> {
+/** `/api/health` through the real listener with this build's version: the handler, not only the socket, works. */
+export async function healthAnswer(url: string, version: string): Promise<string | undefined> {
   try {
     const response = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(2000) });
     const body = parseJson(await response.text());
     const answered = isJsonObject(body) ? body["version"] : undefined;
-
-    if (response.headers.get(WEB_INSTANCE_HEADER) !== instance) return "another process answers on the web port";
 
     return response.ok && answered === version ? undefined : `HTTP ${response.status}, version ${String(answered)}`;
   } catch (error) {

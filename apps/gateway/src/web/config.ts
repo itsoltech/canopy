@@ -6,7 +6,7 @@ import type { InstallKind } from "@canopy/updater";
 type Env = Readonly<Record<string, string | undefined>>;
 
 /**
- * The only variables the web process inherits: the system basics, the web's own settings and adapter-node's.
+ * The only variables a standalone `canopy-gateway web` keeps: the system basics, the web's own settings and adapter-node's.
  * Gateway secrets (database URL, secrets key, TLS key) never reach it; it talks to the gateway with the service
  * token. CANOPY_WEB_ORIGIN stays out too: it means the desktop's single-origin BFF.
  */
@@ -112,30 +112,37 @@ function gatewayUrl(env: Env): string {
 }
 
 /**
- * The environment of the embedded web (adapter-node + the BFF), derived from the gateway's env file.
- * Explicit adapter-node settings win; HOST/PORT always come from CANOPY_WEB_HOST/CANOPY_WEB_PORT.
- * The forwarded headers suit Tailscale Serve and the usual reverse proxies; a direct request without them
- * is plain HTTP (the embedded server has no TLS), see wrapRequests in serve.ts.
+ * The web's settings (adapter-node + the BFF), derived from the gateway's env file: the service token, how to
+ * reach the gateway, and forwarded headers that suit Tailscale Serve and the usual reverse proxies (a direct
+ * request without them is plain HTTP, see requests.ts). Explicit adapter-node settings win.
+ */
+export function webSettings(env: Env) {
+  const token = env["CANOPY_UI_SERVICE_TOKEN"] || env["GATEWAY_SERVICE_TOKEN"];
+
+  if (!token) throw new Error("CANOPY_UI_SERVICE_TOKEN is not set (shared with the web BFF): openssl rand -hex 32");
+
+  return {
+    GATEWAY_SERVICE_TOKEN: token,
+    GATEWAY_URL: env["GATEWAY_URL"] || gatewayUrl(env),
+    PROTOCOL_HEADER: env["PROTOCOL_HEADER"] ?? "x-forwarded-proto",
+    HOST_HEADER: env["HOST_HEADER"] ?? "x-forwarded-host",
+    BODY_SIZE_LIMIT: env["BODY_SIZE_LIMIT"] ?? "50M",
+  };
+}
+
+/**
+ * `canopy-gateway web` on its own (release smoke tests, a separate web): only the allowlisted variables and the
+ * web's settings; gateway secrets (database URL, secrets key, TLS key) are left out.
  */
 export function webProcessEnv(env: Env) {
   const out: Record<string, string> = {};
 
   for (const [key, value] of Object.entries(env))
     if (value !== undefined && (INHERITED.has(key) || key.startsWith("LC_"))) out[key] = value;
-  const { host, port } = webListen(env);
-  const token = env["CANOPY_UI_SERVICE_TOKEN"] || env["GATEWAY_SERVICE_TOKEN"];
-
-  if (!token) throw new Error("CANOPY_UI_SERVICE_TOKEN is not set (shared with the web BFF): openssl rand -hex 32");
-  out["HOST"] = host;
-  out["PORT"] = String(port);
-  out["GATEWAY_SERVICE_TOKEN"] = token;
-  out["GATEWAY_URL"] = env["GATEWAY_URL"] || gatewayUrl(env);
-  out["PROTOCOL_HEADER"] = env["PROTOCOL_HEADER"] ?? "x-forwarded-proto";
-  out["HOST_HEADER"] = env["HOST_HEADER"] ?? "x-forwarded-host";
-  out["BODY_SIZE_LIMIT"] = env["BODY_SIZE_LIMIT"] ?? "50M";
+  Object.assign(out, webSettings(env));
 
   // A self-signed gateway certificate (CANOPY_TLS_CERT) is trusted for this one local connection.
-  if (out["GATEWAY_URL"].startsWith("https:") && env["CANOPY_TLS_CERT"] && !env["NODE_EXTRA_CA_CERTS"])
+  if (out["GATEWAY_URL"]?.startsWith("https:") && env["CANOPY_TLS_CERT"] && !env["NODE_EXTRA_CA_CERTS"])
     out["NODE_EXTRA_CA_CERTS"] = env["CANOPY_TLS_CERT"];
 
   return out;
