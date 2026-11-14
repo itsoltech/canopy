@@ -18,6 +18,8 @@ export interface GatewayCompatibility {
   gatewayVersion: string;
   linkedComputers: boolean;
   gatewayRole: string;
+  /** This server BFF's version against the gateway's (gateway.ts); absent for the desktop. */
+  webLag?: "older" | "newer" | "";
 }
 
 /** Server-only bearer, supplied by Electron's controller. No service token from the remote server. */

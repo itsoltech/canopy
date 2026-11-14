@@ -38,6 +38,7 @@
   import BotSettingsHost from "#lib/features/bots/settings/BotSettingsHost.svelte";
   import BotMoveHost from "#lib/features/bots/components/BotMoveHost.svelte";
   import UpdateBanner from "#lib/shared/ui/UpdateBanner.svelte";
+  import WebVersionBanner from "./WebVersionBanner.svelte";
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
   import GatewayUnavailable from "#lib/shared/ui/GatewayUnavailable.svelte";
   import type { Snippet } from "svelte";
@@ -344,5 +345,6 @@
 <BotSettingsHost />
 {#if capabilities.linkedComputers}<BotMoveHost />{/if}
 <UpdateBanner />
+<WebVersionBanner />
 <WhatsNewHost />
 <WorkspaceExit />
