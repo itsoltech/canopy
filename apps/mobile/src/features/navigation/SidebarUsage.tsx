@@ -2,6 +2,9 @@ import { useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import type { ui } from "@canopy/contracts";
 import { sidebarUsageAccounts, sidebarUsageGlance } from "@canopy/domain/sidebar-usage";
+import { proxyUsageCounts, proxyUsageSections, proxyUsageText } from "@canopy/domain/proxy-accounts";
+import { Icon } from "../../ui/Icon";
+import { useSettingsResource } from "../settings/resource";
 import { Button } from "../../ui/Button";
 import { Overlay } from "../../ui/Overlay";
 import { SheetCloseButton, SheetDragArea } from "../../ui/SheetDragArea";
@@ -19,11 +22,14 @@ export function SidebarUsage({ workers }: { workers: readonly ui.Worker[] }) {
   const now = Number(minute) * 60_000;
   const accounts = useMemo(() => sidebarUsageAccounts(workers, now), [workers, now]);
   const glance = useMemo(() => sidebarUsageGlance(accounts, now), [accounts, now]);
-  const label = `Show provider usage. ${glance.map((item) => item.label).join(". ")}`;
+  // Accounts the gateway read from proxies in use; reading the list never calls a proxy (web: SidebarUsage).
+  const proxies = useSettingsResource("ListProxies", (api) => api.listProxies({}));
+  const sections = useMemo(() => proxyUsageSections(proxies.data?.proxies), [proxies.data]);
+  const label = `Show provider usage. ${[...glance.map((item) => item.label), ...sections.map(proxyUsageText)].join(". ")}`;
 
   return (
     <View style={{ width: 44, height: 44, flexShrink: 0 }}>
-      {glance.length > 0 ? (
+      {glance.length > 0 || sections.length > 0 ? (
         <>
           <Pressable
             accessibilityRole="button"
@@ -40,6 +46,7 @@ export function SidebarUsage({ workers }: { workers: readonly ui.Worker[] }) {
               backgroundColor: pressed ? c.pressed : "transparent",
             })}
           >
+            {glance.length === 0 && <Icon name="link" color={c.muted} />}
             {glance.map((item) => (
               <View
                 key={item.provider}
@@ -71,6 +78,26 @@ export function SidebarUsage({ workers }: { workers: readonly ui.Worker[] }) {
               <ScrollView style={{ maxHeight: 360 }} contentContainerStyle={{ gap: 12 }}>
                 {accounts.map((account) => (
                   <SidebarUsageAccount key={account.key} account={account} now={now} />
+                ))}
+                {sections.map((section) => (
+                  <Pressable
+                    key={section.proxyId}
+                    accessibilityRole="link"
+                    accessibilityLabel={proxyUsageText(section)}
+                    onPress={() => {
+                      setOpen(false);
+                      openSettingsSection("proxies");
+                    }}
+                    style={[styles.row, { minHeight: 44 }]}
+                  >
+                    <Icon name="link" color={c.muted} />
+                    <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                      <Text numberOfLines={1} style={[styles.overlayHeading, { color: c.text }]}>
+                        Through {section.label}
+                      </Text>
+                      <Text style={[styles.overlayMeta, { color: c.muted }]}>{proxyUsageCounts(section)}</Text>
+                    </View>
+                  </Pressable>
                 ))}
               </ScrollView>
               <Button

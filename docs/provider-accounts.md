@@ -185,9 +185,12 @@ Hover na desktopie lub dotknięcie otwiera listę instancji i komputerów z okna
 czasem do resetu oraz przejściem do Providers. Długie nazwy są skracane.
 Brak danych ukrywa przycisk, zachowując miejsce. Minione okna nie podnoszą
 alarmu. Dane pochodzą wyłącznie z przyrostowego overview; zegar aktualizuje tylko
-etykiety i wygasanie okien. Instancje proxy są pomijane. Typ `ProxyUsageSection`
-w `domain/sidebar-usage` pozostawia miejsce na późniejszą sekcję kont upstream;
-nie jest obecnie renderowany ani pobierany. Zmiana mobile obejmuje tylko JS,
+etykiety i wygasanie okien. Instancje proxy nie dają mierników planu. Zamiast nich
+popover ma sekcję `ProxyUsageSection` dla każdego proxy CLIProxyAPI używanego przez
+profil, którego konta gateway już odczytał: „Through <proxy>: N accounts · M cooling
+down” z linkiem do karty proxy ([proxies.md](proxies.md#konta-upstream-management-api-cliproxyapi)).
+Odczyt `ListProxies` nie wywołuje proxy; pierwsze sprawdzenie gateway robi ~15 s po
+starcie. Bez planu i z samym proxy przycisk pokazuje ikonę połączenia zamiast pasków. Zmiana mobile obejmuje tylko JS,
 bez zależności i konfiguracji natywnej.
 
 ### Proxy, klucz API i własny endpoint
