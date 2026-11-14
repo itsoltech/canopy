@@ -3,15 +3,16 @@
  *   1. GitHub releases: keeps the 10 newest complete nightly prereleases (with manifest.json); deletes older ones and
  *      incomplete ones (no manifest.json) that are past the grace period and have a newer complete nightly.
  *      Git tags stay: semantic-release needs prerelease counters and channel history.
- *   2. GHCR `canopy-{gateway,web,worker}`: deletes package versions tagged only with nightly versions that are no
+ *   2. GHCR `canopy-{gateway,worker}`: deletes package versions tagged only with nightly versions that are no
  *      longer kept, then the untagged manifests (platforms, attestations) that only their OCI index referenced.
+ *      The retired `canopy-web` image (the gateway serves the web) is left as it is.
  * Anything newer than the grace period stays, as does any version carrying another tag or targeted by an alias.
  * Env: GH_TOKEN (or GITHUB_TOKEN), GITHUB_REPOSITORY; GITHUB_API_URL and CANOPY_REGISTRY_URL default to GitHub's.
  */
 const NIGHTLY = /^v\d+\.\d+\.\d+-nightly\.\d+$/;
 const KEEP_COMPLETE = 10;
 export const GRACE_MS = 6 * 60 * 60 * 1000;
-const APPS = ["gateway", "web", "worker"];
+const APPS = ["gateway", "worker"];
 const ALIASES = ["nightly", "beta", "latest", "stable"];
 const VERSION_ANNOTATION = "org.opencontainers.image.version";
 
