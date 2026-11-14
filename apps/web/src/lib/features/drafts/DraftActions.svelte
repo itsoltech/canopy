@@ -78,7 +78,7 @@
 </script>
 
 {#if rows.length}
-  <div bind:this={anchor} class={["relative h-8 w-full", className]}>
+  <div bind:this={anchor} class={["relative h-8 w-full", className]} data-feed-edge>
     <Popover
       bind:open
       {anchor}
