@@ -7,7 +7,10 @@ import {
   type ExchangeSegment,
   type ParticipantView,
 } from "@canopy/domain/bot-chat";
+import { ProviderProfileKind } from "@canopy/contracts";
 import type { IconName } from "@canopy/ui/icons";
+import { useOverview } from "../../state/overview";
+import { useSession } from "../../state/session";
 import { Icon } from "../../ui/Icon";
 import { LiveText } from "../../ui/LiveText";
 import { font, styles, useColors } from "../../ui/theme";
@@ -135,10 +138,22 @@ export function ChatErrorLine({
   sender: ParticipantView | undefined;
   readOnly: boolean;
 }) {
+  const { bots } = useSession();
+  const { workers } = useOverview();
+  const config = bots.find((bot) => bot.id === error.botId)?.configuration;
+
+  // Through a proxy, auth and limit failures belong to the proxy, not the user's login or plan (web: ChatErrorLine).
+  const proxy =
+    workers
+      .find((w) => w.id === config?.workerId)
+      ?.providerInstances.find((i) => i.harness === config?.provider && i.id === config.providerInstance)?.kind ===
+    ProviderProfileKind.CLIPROXYAPI;
+
   return (
     <View style={{ gap: 8 }}>
       <FailureNotice
         heading={`${sender?.name ?? "The bot"} couldn't reply`}
+        proxy={proxy}
         message={error.detail}
         code={error.code}
         source={error.source}

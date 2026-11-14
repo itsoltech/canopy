@@ -5,6 +5,7 @@ import { Button, Field, Notice, Sheet } from "../../ui/components";
 import { SettingsActions, SettingsGroup, SettingsRow, SettingChoice, SettingToggle } from "./SettingsGroup";
 import { SettingsValue } from "./SettingsValue";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
+import { ProxyAccounts } from "./ProxyAccounts";
 
 export function ProxySettings() {
   const resource = useSettingsResource("ListProxies", (api) => api.listProxies({}));
@@ -33,6 +34,13 @@ export function ProxySettings() {
           <SettingsRow key={proxy.id} title={proxy.name} description={`${proxy.kind} · ${proxy.baseUrl}`}>
             <SettingsValue title="Secret" value={proxy.secretSet ? "Set" : "Not set"} />
             <SettingsValue title="Used by" value={proxy.usedBy.join("\n") || "No providers"} />
+            {proxy.kind === "cliproxyapi" && proxy.id && (
+              <ProxyAccounts
+                proxy={proxy}
+                busy={resource.busy}
+                onRefresh={() => void resource.run((api) => api.refreshProxyAccounts({ id: proxy.id, force: true }))}
+              />
+            )}
             <SettingsActions>
               <Button title="Edit proxy" onPress={() => setEditing(proxy)} />
               <Button

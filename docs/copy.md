@@ -78,6 +78,8 @@ appear only as the literal name used by an external tool).
 | instance | configured access to a provider (Settings → Providers) | account, connection |
 | profile | how an agent reaches its model | config, preset |
 | proxy | a CLIProxyAPI instance from Settings → Proxies | relay, tunnel |
+| proxy account | an upstream provider account a proxy sends requests through (Settings → Proxies → Accounts) | auth file, credential, upstream |
+| management key | the CLIProxyAPI key that lets Canopy read a proxy's accounts | admin key, management password |
 | gateway | Canopy's central service that the UI connects to | server, backend, hub |
 | worker | the Canopy process that runs agents on a computer | runner, agent host, node |
 | computer | a physical machine running Canopy or a worker | machine, host, box, node |

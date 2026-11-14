@@ -20,6 +20,7 @@
   import WorkersField from "./WorkersField.svelte";
   import AccountStatusRow, { hasAccountStatus } from "./AccountStatusRow.svelte";
   import UsageMeters from "./UsageMeters.svelte";
+  import ProxyThrough from "./ProxyThrough.svelte";
   import type { WorkerRecords } from "#lib/features/workers/worker-records.svelte.ts";
 
   /**
@@ -109,6 +110,7 @@
   <InstanceNotices {instance} />
 
   <SettingsSection title="Status">
+    {#if instance.proxyId}<ProxyThrough {instance} />{/if}
     {#if worker}
       {@const status = statusOn(on, worker.online)}
       <dl class="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-base/6 sm:text-sm/6">
