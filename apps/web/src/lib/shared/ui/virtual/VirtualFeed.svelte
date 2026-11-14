@@ -6,6 +6,7 @@
   import { rise } from "../motion.ts";
   import { UiMemory } from "../memory.ts";
   import { captureAnchor, holdAnchor, readingKeys, settleAnchor, type FeedAnchor } from "./feed-anchor.ts";
+  import { followScroll } from "./feed-anchor.ts";
   import { FeedEntrances } from "./feed-entrances.ts";
   import { EndScroll } from "./end-scroll.ts";
   import { feedObserver, publishViewport, rowAttachment } from "./feed-measure.ts";
@@ -14,7 +15,7 @@
   import { feedRowKey, focusFeedRow, navigateFeedKey } from "./feed-keys.ts";
   import { SizeIndex } from "./size-index.ts";
   import VirtualRow from "./VirtualRow.svelte";
-  import { FEED_END_THRESHOLD, followingAfterScroll, ScrollIntent, type ReaderScroll } from "./scroll.ts";
+  import { FEED_END_THRESHOLD, followingAfterScroll, ScrollIntent, scrollOrigin, type ReaderScroll } from "./scroll.ts";
   import { trackEmbedHover } from "./embed-hover.ts";
   import type { FeedViewport } from "./viewport.ts";
   import { FooterScroll } from "./footer-motion.ts";
@@ -349,8 +350,9 @@
     if (!settleAnchor(anchor, elements, scroller, setTop) && (!anchor || !positions.has(anchor.key))) capture();
   }
 
-  function capture() {
-    if (!scroller || !list) return;
+  /** With `moved`, a scroll taken in before its event: the anchor follows it while still mounted. */
+  function capture(moved?: number) {
+    if (!scroller || !list || (moved !== undefined && followScroll(anchor, elements, moved))) return;
     const box = scroller.getBoundingClientRect();
     anchor = captureAnchor(list.children, box.top, box.bottom);
     identifyAnchor();
@@ -360,14 +362,15 @@
     if (anchor) anchor.identity = scrollMemory?.identity?.(anchor.key) ?? anchor.key;
   }
 
-  function onscroll() {
+  /** Without `event`, a scroll taken in before its event: rows on screen may still show uncorrected layout. */
+  function onscroll(event?: Event) {
     if (!scroller) return;
     const top = scroller.scrollTop;
 
     // Multiple observer/effect passes may consume the same pending native scroll event. An
     // unchanged position is neither fresh reader intent nor a reason to recapture the anchor.
     if (Math.abs(top - lastTop) < 0.5) return;
-    const origin = scrollIntent.origin(top, endScroll.active ? Infinity : smoothUntil);
+    const origin = scrollOrigin(scrollIntent, scroller, lastTop, endScroll.active ? Infinity : smoothUntil);
 
     if (origin === "reader") {
       const distance = scroller.scrollHeight - top - scroller.clientHeight;
@@ -377,10 +380,10 @@
       onreaderscroll?.({ distance, up: lastTop - top });
     }
 
-    lastTop = top;
-    scrollTop = top;
-
-    if (!stuck && origin === "reader" && performance.now() >= smoothUntil) capture();
+    // A smooth scroll moves ahead of its events. Taken in by `settle`, after rows above were re-estimated, the
+    // rows on screen are not corrected yet: the anchor moves by the reader's distance and settle restores the rest.
+    if (!stuck && origin === "reader" && performance.now() >= smoothUntil) capture(event ? undefined : top - lastTop);
+    lastTop = scrollTop = top;
     opening.schedule(() => ({ following: stuck, anchor }));
 
     if (origin === "unattributed") settle();

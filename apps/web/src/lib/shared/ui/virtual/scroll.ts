@@ -22,6 +22,23 @@ export function followingAfterScroll(
   return up > 0.5 ? false : following;
 }
 
+/** Rows re-estimated shorter can cut the scroll range below the last position: the browser then pulls the
+ * position back to the new end. That is layout, even during a gesture, never the reader reaching the end. */
+export function clampedByLayout(last: number, top: number, max: number): boolean {
+  return top < last && last > max + 0.5 && Math.abs(top - max) < 1;
+}
+
+type Scroller = { scrollTop: number; scrollHeight: number; clientHeight: number };
+
+/** Origin of the scroll from `last` to the scroller's position; a clamp to a shorter range is layout. */
+export function scrollOrigin(intent: ScrollIntent, scroller: Scroller, last: number, smoothUntil: number) {
+  const top = scroller.scrollTop;
+
+  return clampedByLayout(last, top, scroller.scrollHeight - scroller.clientHeight)
+    ? "unattributed"
+    : intent.origin(top, smoothUntil);
+}
+
 /** A short gesture lease includes touch/trackpad inertia, but never our own scroll writes.
  * Consumed scroll events can arrive through ResizeObserver before the native scroll listener. */
 export class ScrollIntent {
