@@ -109,6 +109,15 @@ do nowego aktywnego nagłówka. Nagłówek nie ma `+` ani stałego przełącznik
 Na telefonie tytuł pozostaje skrócony, a nazwa aktywnej karty także ma ellipsis.
 Nie dokładamy drugiego rzędu ani poziomego scrolla strony.
 
+Chrome nagłówka (sygnet, tytuł i akcje) używa tokenu `chrome`, opartego na `panel`
+wybranego motywu. Pas zakładek ma zaokrąglone górne narożniki i odwrócone łuki
+przy dolnej krawędzi; jego `surface` jest dokładnie tłem aktywnej karty i treści
+wątku/pliku. Nie ma między nimi obramowania ani odstępu. Nieaktywne karty mają
+subtelne tło i separatory znikające obok aktywnej, a slot zamknięcia pozostaje
+zarezerwowany również bez hovera. Zmiana stanu korzysta z tokenów ruchu i respektuje
+ograniczenie animacji. Na Windows/Linux własne kontrolki okna zachowują rezerwę
+szerokości i dzielą tło chrome; macOS zachowuje traffic lights po lewej.
+
 ### Pasek pliku
 
 Nad plikiem jest jeden rząd (40 px): ścieżka (katalog wyciszony, nazwa wyróżniona,

@@ -15,6 +15,7 @@
   --color-zinc-950: var(--theme-zinc-950);
   --color-canvas: var(--theme-canvas);
   --color-surface: var(--theme-surface);
+  --color-chrome: var(--theme-panel);
   --color-panel: var(--theme-panel);
   --color-hover: var(--theme-hover);
   --color-ink: var(--theme-ink);
