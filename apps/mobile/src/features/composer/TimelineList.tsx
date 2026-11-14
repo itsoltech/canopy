@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState, type ComponentProps, type Ref } from "react";
-import { Platform, type FlatList, type FlatListProps, type ScrollViewProps } from "react-native";
+import { useCallback, useEffect, useState, type Ref } from "react";
+import { Platform, FlatList, type FlatListProps, type ScrollViewProps } from "react-native";
 import { KeyboardChatScrollView } from "react-native-keyboard-controller";
 import Animated, {
   useAnimatedScrollHandler,
@@ -8,6 +8,7 @@ import Animated, {
   useSharedValue,
   type ScrollHandlerProcessed,
   type SharedValue,
+  type AnimatedProps,
 } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import { ImageViewport, ImageViewportContext } from "../attachments/image-viewport";
@@ -27,7 +28,7 @@ export function TimelineList<Item>({
   onContentSizeChange,
   composerInset,
   ...props
-}: Omit<ComponentProps<typeof Animated.FlatList<Item>>, "onScroll" | "onLayout" | "onContentSizeChange"> & {
+}: Omit<AnimatedProps<FlatListProps<Item>>, "onScroll" | "onLayout" | "onContentSizeChange"> & {
   ref?: Ref<FlatList<Item>>;
   onScroll?: ScrollHandlerProcessed;
   onLayout?: FlatListProps<Item>["onLayout"];
@@ -35,6 +36,9 @@ export function TimelineList<Item>({
   composerInset?: SharedValue<number>;
 }) {
   const insets = useContentInsets();
+  // Reanimated's convenience FlatList replaces CellRendererComponent. Use its base wrapper so the
+  // thread can measure actual cells, while keeping the component identity stable for this list's lifetime.
+  const [AnimatedTimelineList] = useState(() => Animated.createAnimatedComponent(FlatList<Item>));
   const manualAnchor = useManualFeedAnchor();
   const safePadding = useDerivedValue(() => insets.bottom + (composerInset?.get() ?? 0));
   const [viewport] = useState(() => new ImageViewport());
@@ -82,10 +86,10 @@ export function TimelineList<Item>({
 
   return (
     <ImageViewportContext.Provider value={viewport}>
-      <Animated.FlatList
+      <AnimatedTimelineList
         {...props}
         nestedScrollEnabled
-        maintainVisibleContentPosition={manualAnchor ? undefined : props.maintainVisibleContentPosition}
+        maintainVisibleContentPosition={manualAnchor ? { minIndexForVisible: 0 } : props.maintainVisibleContentPosition}
         onScroll={composedScroll}
         onLayout={(event) => {
           onLayout?.(event);

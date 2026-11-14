@@ -332,6 +332,13 @@ zmiany kierunku: najnowsza tura przy końcu, środek historii, klawiatura otwart
 ograniczenie ruchu i doczytanie starszych tur. Porównaj przewijanie 1000 tur przed i po;
 po rozwinięciu wielu foldów uwzględnij pamięć zachowanych dzieci w oknie FlatList.
 
+Korekta ręcznego rozwinięcia mobile musi być idempotentna: ponowny odczyt tej samej
+geometrii ma dawać ten sam docelowy offset. `measure().pageY` uwzględnia checkpoint
+przewinięcia z drzewa Fabric, który może pozostawać w tyle za natywnym `scrollTo`.
+Nie odejmuj tego samego błędu od optymistycznie aktualizowanego offsetu w kolejnych
+klatkach. Pomiar nagłówka względem jego komórki usuwa wspólny checkpoint; test
+`mobile-disclosure-anchor.test.ts` sprawdza tę matematykę, nie płynność urządzenia.
+
 W narzędziach pamięci platformy nagraj 30 minut przełączania wątków, przechodzenia
 w tło i otwierania/zamykania dużych obrazów. Porównaj heap Hermes, pamięć bitmap
 i pamięć procesu po zamknięciu viewerów. Osobno zmierz odczyt/zapis cache na

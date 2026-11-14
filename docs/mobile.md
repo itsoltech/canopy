@@ -1772,8 +1772,10 @@ więc przejścia web z rozmyciem są tu bez niego.
 Fold pracy i grupy narzędzi korzystają z `features/timeline/TimelineDisclosure`: leniwy
 montaż, zachowanie treści po zamknięciu, naturalna wysokość po otwarciu oraz przejście
 wysokości na UI przez `fast` / `smoothOut` (250 ms w obie strony). Ograniczenie ruchu
-pomija przejście. Kotwica ręcznego przełączenia mierzy nagłówek na UI i na czas ruchu
-wyłącza natywne kotwiczenie komórki. Dotyczy to także ostatniej tury; szczegóły i granice
+pomija przejście. Kotwica ręcznego przełączenia mierzy nagłówek względem rzeczywistej
+komórki na UI i ustawia bezwzględny offset, niezależny od opóźnienia checkpointu
+przewijania Fabric. Natywna kotwica pozostaje włączona, bez autoscrollu podczas ruchu.
+Dotyczy to także ostatniej tury; szczegóły i granice
 zakresu przewijania opisuje [timeline-folding.md](timeline-folding.md).
 
 Presety (`useMotion()`): `rise` (nowy wiersz, tylko przezroczystość), `pop` (coś dodanego, rośnie

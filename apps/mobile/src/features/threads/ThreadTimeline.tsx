@@ -4,7 +4,7 @@ import Animated from "react-native-reanimated";
 import { ProviderProfileKind, ui, type Item } from "@canopy/contracts";
 import { useAppearance } from "../../state/appearance";
 import { useOverview } from "../../state/overview";
-import { FeedAnchorProvider, useFeedAnchor } from "../../ui/feed-anchor";
+import { FeedAnchorCell, FeedAnchorProvider, useFeedAnchor } from "../../ui/feed-anchor";
 import { Notice } from "../../ui/components";
 import { useMotion } from "../../ui/motion";
 import { ArrivingCell, useArrivals } from "../../ui/MotionViews";
@@ -187,6 +187,7 @@ export function ThreadTimeline({
           <FeedAnchorProvider value={anchor}>
             <TimelineList
               {...composer.listProps}
+              CellRendererComponent={FeedAnchorCell}
               onScroll={memory.onScroll}
               onScrollToIndexFailed={memory.onScrollToIndexFailed}
               onViewableItemsChanged={memory.onViewableItemsChanged}

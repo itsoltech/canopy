@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
-import { View } from "react-native";
-import {
+import { View, type FlatListProps } from "react-native";
+import Animated, {
   measure,
   scrollTo,
   useAnimatedRef,
@@ -12,8 +12,9 @@ import { scheduleOnRN, scheduleOnUI } from "react-native-worklets";
 import type { ui } from "@canopy/contracts";
 import type { useFollowingList } from "./useFollowingList";
 import { motion, useReducedMotion } from "./motion";
+import { disclosureOffset, disclosurePosition } from "./disclosure-anchor";
 
-/** Native cell anchoring yields to the tapped header for one disclosure transition. */
+/** One tapped header owns the manual disclosure transition. */
 class AnchorSession {
   #version = 0;
   #manual = false;
@@ -69,21 +70,38 @@ export function useFeedAnchor({
 
 const Anchor = createContext<ReturnType<typeof useFeedAnchor> | null>(null);
 const idle = new AnchorSession();
+const Cell = createContext<ReturnType<typeof useAnimatedRef<View>> | null>(null);
 
-/** Inverted: increasing the offset moves the header down, against growth above the cell's bottom. */
+/** Preserve FlatList's inversion style and layout notifications; expose its actual cell geometry. */
+export function FeedAnchorCell({
+  children,
+  style,
+  onLayout,
+  onFocusCapture,
+}: React.ComponentProps<NonNullable<FlatListProps<ui.Turn>["CellRendererComponent"]>>) {
+  const cell = useAnimatedRef<View>();
+
+  return (
+    <Cell.Provider value={cell}>
+      <Animated.View ref={cell} collapsable={false} style={style} onLayout={onLayout} onFocusCapture={onFocusCapture}>
+        {children}
+      </Animated.View>
+    </Cell.Provider>
+  );
+}
+
+/** Both page measurements contain the same scroll checkpoint, which cancels in their difference. */
 function correctHeader(
   geometry: ReturnType<typeof useFeedAnchor>["geometry"],
-  top: SharedValue<number>,
+  origin: SharedValue<{ offset: number; position: number }>,
   after: number,
 ) {
   "worklet";
-  const delta = after - top.get();
+  const start = origin.get();
+  const next = disclosureOffset(start.offset, start.position, after, geometry.minimum.get());
+  const delta = next - geometry.scrollY.get();
 
   if (Math.abs(delta) < 0.5) return true;
-  const next = Math.max(geometry.minimum.get(), geometry.scrollY.get() - delta);
-
-  // At the physical end there may be no scroll range left to preserve the old position.
-  if (Math.abs(next - geometry.scrollY.get()) < 0.5) top.set(after);
   geometry.scrollY.set(next);
   geometry.corrections.set(geometry.corrections.get() + 1);
   scrollTo(geometry.list, 0, next, false);
@@ -114,9 +132,10 @@ export function useManualFeedAnchor() {
  */
 export function useAnchoredToggle() {
   const anchor = useContext(Anchor);
+  const cell = useContext(Cell);
   const header = useAnimatedRef<View>();
   const reduced = useReducedMotion();
-  const top = useSharedValue(0);
+  const origin = useSharedValue({ offset: 0, position: 0 });
   const started = useSharedValue(0);
   const version = useSharedValue(0);
   const stable = useSharedValue(0);
@@ -139,17 +158,19 @@ export function useAnchoredToggle() {
   const frames = useFrameCallback(() => {
     "worklet";
 
-    if (!geometry || !active.get()) return;
+    if (!geometry || !cell || !active.get()) return;
     const box = measure(header);
+    const frame = measure(cell);
 
-    if (!geometry.anchoring.get() || geometry.generation.get() !== version.get() || !box || box.height <= 0) {
+    if (!geometry.anchoring.get() || geometry.generation.get() !== version.get() || !box || !frame || box.height <= 0) {
       active.set(false);
       scheduleOnRN(finish, version.get());
 
       return;
     }
 
-    stable.set(correctHeader(geometry, top, box.pageY) ? stable.get() + 1 : 0);
+    const position = disclosurePosition(frame.y, frame.height, frame.pageY, box.pageY);
+    stable.set(correctHeader(geometry, origin, position) ? stable.get() + 1 : 0);
 
     const elapsed = Date.now() - started.get();
 
@@ -176,19 +197,24 @@ export function useAnchoredToggle() {
   return {
     header,
     toggle(change: () => void) {
-      if (!anchor || !geometry) return change();
+      if (!anchor || !geometry || !cell) return change();
       const id = anchor.session.begin();
       frames.setActive(true);
       scheduleOnUI(() => {
         const box = measure(header);
+        const frame = measure(cell);
         version.set(id);
         geometry.generation.set(id);
         stable.set(0);
         started.set(Date.now());
-        active.set(Boolean(box && box.height > 0));
+        active.set(Boolean(box && frame && box.height > 0));
         geometry.anchoring.set(active.get());
 
-        if (box) top.set(box.pageY);
+        if (box && frame)
+          origin.set({
+            offset: geometry.scrollY.get(),
+            position: disclosurePosition(frame.y, frame.height, frame.pageY, box.pageY),
+          });
         scheduleOnRN(change);
 
         if (!active.get()) scheduleOnRN(finish, id);
