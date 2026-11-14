@@ -50,6 +50,8 @@ export interface GatewayUpdatesOptions {
   pollMs?: number;
   /** The update center changed: state, a check, or a worker's update report. Clients read it again. */
   changed?(): void;
+  /** A current problem of this gateway's installation shown next to its update state (the embedded web). */
+  notice?(): string;
 }
 
 export class GatewayUpdates {
@@ -219,7 +221,11 @@ export class GatewayUpdates {
       gatewayUpdateAvailable: this.#ahead(this.#available?.version ?? ""),
       gatewayInstallKind: this.kind,
       gatewayState: this.#state,
-      gatewayReason: [this.kind !== "binary" ? managedInstructions(this.kind) : "", this.#reason]
+      gatewayReason: [
+        this.kind !== "binary" ? managedInstructions(this.kind) : "",
+        this.#reason,
+        this.options.notice?.(),
+      ]
         .filter(Boolean)
         .join(" "),
       admin: await this.options.persistence.admin(),

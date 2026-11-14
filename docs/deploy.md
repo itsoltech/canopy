@@ -285,10 +285,22 @@ Web jest procesem-dzieckiem gatewaya uruchomionym z tej samej binarki (`canopy-g
 Przy pierwszym starcie danej wersji binarka rozpakowuje swój build web (ok. 30 MB, kilkaset ms)
 do `CANOPY_WEB_DIR` i zostawia tam trzy ostatnie wersje: otwarte karty starszej wersji dalej
 pobierają swoje chunki po aktualizacji, a rollback używa zachowanego katalogu. Gateway potwierdza
-start dopiero, gdy web odpowiada na `/api/health` tą samą wersją; web, który nie wstaje (np. zajęty
-port), zatrzymuje start usługi z błędem w logu. Awaria samego web restartuje go
-z backoffem (1–30 s), bez restartu gatewaya. Web nie dostaje `CANOPY_DATABASE_URL` ani
-`CANOPY_SECRETS_KEY`; z gatewayem rozmawia wyłącznie tokenem serwisowym.
+start nowej wersji dopiero, gdy jej web odpowiada na `/api/health` (ta sama wersja, ten sam proces).
+Web nowej wersji, który nie wstaje, cofa aktualizację, a wynik w Settings → App updates podaje
+powód, np. „Port 3000 is in use by another process…”. Poza aktualizacją problem z web (zajęty
+port, awaria) nie zatrzymuje gatewaya, workerów ani botów: gateway działa bez UI, loguje konkretny
+błąd, pokazuje go przy gatewayu w Settings → App updates (np. z desktopu albo telefonu),
+`canopy-gateway healthcheck` zwraca 1, a web ponawia start z backoffem (1–30 s). Web dziedziczy
+tylko listę zmiennych systemowych i własnych (`CANOPY_WEB_*`, adapter-node); nie dostaje
+`CANOPY_DATABASE_URL`, `CANOPY_SECRETS_KEY` ani klucza TLS, z gatewayem rozmawia tokenem serwisowym.
+
+**Aktualizacja instalacji z osobnym web.** Binarka sprzed tej zmiany nie miała web, więc web
+działał osobno (`bun index.js` z `build-web.ts`, zwykle na porcie 3000). Przed kliknięciem Update
+wybierz jedno: (a) zatrzymaj i wyłącz osobną usługę web — wbudowany web zajmie ten sam port
+z tymi samymi `PROTOCOL_HEADER`/`BODY_SIZE_LIMIT`; dopisz do `gateway.env` nazwy hostów,
+pod którymi otwierasz UI (`CANOPY_WEB_ALLOWED_HOSTS`, niżej); albo (b) zostaw osobny web
+i ustaw `CANOPY_WEB=off`. Bez tego nowa wersja zastanie zajęty port 3000 i aktualizacja
+zostanie cofnięta z tym powodem; `CANOPY_WEB_PORT` z wolnym portem też wystarczy.
 
 **PostgreSQL.** Pakiet dystrybucji (`postgresql`) albo, opcjonalnie, sama baza w Dockerze:
 
@@ -325,6 +337,7 @@ CANOPY_UPDATE_CHANNEL=nightly    # kanał początkowy; potem zmieniasz go w apli
 # CANOPY_WEB=on
 # CANOPY_WEB_HOST=127.0.0.1
 # CANOPY_WEB_PORT=3000
+# CANOPY_WEB_ALLOWED_HOSTS=canopy.example.com   # nazwy z reverse proxy (adresy IP, localhost i MagicDNS zawsze)
 # CANOPY_OAUTH_REDIRECT_URL=…    # opcjonalnie: własny callback zamiast stałej strony przekierowania OAuth
 ```
 
@@ -333,12 +346,13 @@ CANOPY_UPDATE_CHANNEL=nightly    # kanał początkowy; potem zmieniasz go w apli
 | `CANOPY_WEB` | `on` | `off` = gateway bez web (headless). Inne wartości to błąd konfiguracji. |
 | `CANOPY_WEB_HOST` | `127.0.0.1` | Adres nasłuchu web. Adres spoza loopbacku daje w logu ostrzeżenie z tym adresem i przypomnieniem o TLS albo Tailscale Serve. |
 | `CANOPY_WEB_PORT` | `3000` | Port web. |
-| `CANOPY_WEB_DIR` | `$XDG_CACHE_HOME/canopy/web` (`~/.cache/canopy/web`) | Rozpakowane wersje web. Bez prawa zapisu: katalog tymczasowy i ostrzeżenie (bez starych chunków po restarcie). |
+| `CANOPY_WEB_DIR` | `$XDG_CACHE_HOME/canopy/web` (`~/.cache/canopy/web`) | Rozpakowane wersje web; może być wspólny dla kilku instancji (gotowa wersja nie jest nadpisywana, a używana — usuwana). Bez prawa zapisu: stały katalog `canopy-web-<uid>` w katalogu tymczasowym i ostrzeżenie. |
 | `GATEWAY_URL` | `http://127.0.0.1:$CANOPY_PORT` | Adres gatewaya dla web; `https` i zaufany `CANOPY_TLS_CERT`, gdy gateway ma TLS. Ustaw ręcznie tylko wtedy, gdy certyfikat nie obejmuje `127.0.0.1`. |
 | `PROTOCOL_HEADER` | `x-forwarded-proto` | Nagłówek protokołu od proxy. Żądanie bez niego to zwykłe HTTP. |
 | `HOST_HEADER` | `x-forwarded-host` | Nagłówek hosta od proxy; bez niego liczy się `Host`. |
 | `BODY_SIZE_LIMIT` | `50M` | Limit uploadu BFF (biblioteka skilli wymaga 50M); proxy musi dopuścić ten sam rozmiar. |
-| `ORIGIN` | brak | Stały origin, np. `https://canopy.example.com`, dla proxy, które nie wysyła nagłówków `X-Forwarded-*`. |
+| `ORIGIN` | brak | Stały origin, np. `https://canopy.example.com`, dla proxy, które nie wysyła nagłówków `X-Forwarded-*`. Jego host jest też dozwolony. |
+| `CANOPY_WEB_ALLOWED_HOSTS` | brak | Nazwy hostów (nagłówek `Host`), pod którymi web odpowiada, rozdzielone przecinkami; `.example.com` obejmuje subdomeny. Zawsze dozwolone: adresy IP, `localhost`, nazwa z `CANOPY_WEB_HOST`, `ORIGIN` i nazwy MagicDNS tego komputera. Inne dostają 421 (ochrona przed DNS rebinding). |
 | `CANOPY_WEB_ORIGIN` | origin wbudowanego web | Cel HTTPS over Tailscale. Bez tej zmiennej gateway używa `http://127.0.0.1:$CANOPY_WEB_PORT`; nie trafia do web. |
 
 `HOST`, `PORT` i `GATEWAY_SERVICE_TOKEN` web wylicza sam z `CANOPY_WEB_*` i `CANOPY_UI_SERVICE_TOKEN`.
@@ -385,7 +399,8 @@ WantedBy=multi-user.target
 access → Tailscale → „HTTPS over Tailscale”: gateway zna origin wbudowanego web, a jego front
 wpuszcza tylko właściciela komputera w Tailscale ([tailscale.md](tailscale.md)). Użytkownik usługi
 potrzebuje raz `sudo tailscale set --operator=canopy`. Ręczny wpis też działa bez dodatkowej
-konfiguracji, bo Serve wysyła `X-Forwarded-Proto: https` i `X-Forwarded-Host`:
+konfiguracji: Serve wysyła `X-Forwarded-Proto: https`, a `Host` to nazwa MagicDNS, którą gateway
+zna z Tailscale i przekazuje web:
 
 ```sh
 sudo tailscale serve --bg --https=443 http://127.0.0.1:3000
@@ -398,8 +413,11 @@ logowania użytkowników: ogranicz dostęp przez ACL Tailscale. Nigdy nie włąc
 `X-Forwarded-Proto` oraz `X-Forwarded-Host` (Caddy robi to sam:
 `canopy.example.com { reverse_proxy 127.0.0.1:3000 }`). nginx: `proxy_set_header
 X-Forwarded-Proto $scheme`, `proxy_set_header X-Forwarded-Host $host`,
-`client_max_body_size 50m` i `proxy_buffering off` (SSE). Proxy bez tych nagłówków wymaga
-`ORIGIN=https://canopy.example.com`. Proxy na innym hoście wymaga `CANOPY_WEB_HOST`
+`client_max_body_size 50m` i `proxy_buffering off` (SSE). Publiczną nazwę dopisz do
+`CANOPY_WEB_ALLOWED_HOSTS=canopy.example.com`; bez tego web odpowie 421 („This host name isn't
+allowed…”). Web sprawdza surowy `Host`, nie `X-Forwarded-Host`: skrypt na stronie atakującej może
+ustawić nagłówki `X-Forwarded-*`. Proxy bez tych nagłówków wymaga `ORIGIN=https://canopy.example.com`
+(wtedy osobny wpis w `CANOPY_WEB_ALLOWED_HOSTS` nie jest potrzebny). Proxy na innym hoście wymaga `CANOPY_WEB_HOST`
 z adresem prywatnej sieci; wtedy log pokazuje ostrzeżenie, np.
 `web: listening on 10.0.0.5:3000, reachable from other computers. Put a TLS reverse proxy or Tailscale Serve in front of it.`
 

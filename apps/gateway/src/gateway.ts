@@ -9,6 +9,8 @@ import {
   installKind,
   isStandalone,
   onSupervisorHandover,
+  readUpdateRecord,
+  rollbackBinary,
   serviceSnippet,
   superviseBinary,
   UPDATE_RESTART_EXIT_CODE,
@@ -19,6 +21,7 @@ import { startComputerLinks } from "./computers/start.ts";
 import { lanUnavailable, multicastTransport } from "./computers/lan-transport.ts";
 import { ComputerStore } from "./computers/store.ts";
 import { Tailscale } from "./network/tailscale/tailscale.ts";
+import type { TailscaleSnapshot } from "./network/tailscale/status.ts";
 import { NetworkAccess } from "./network/network.ts";
 import { mountMobileNetwork } from "./network/devices.ts";
 import { loadSecretsKey } from "./store/secrets.ts";
@@ -33,13 +36,19 @@ import { EmbeddedWebProcess } from "./web/process.ts";
 
 const env = Bun.env;
 
+/** This machine's MagicDNS names: what Tailscale Serve sends as Host to the embedded web. */
+const tailscaleHosts = (snapshot: TailscaleSnapshot) => [snapshot.dnsName, ...snapshot.certDomains].filter(Boolean);
+
 if (Bun.argv.includes("--version")) {
   console.info(CANOPY_VERSION);
   process.exit(0);
 }
 
 // Docker HEALTHCHECK / probes: before the supervisor, which would start a second gateway.
-if (Bun.argv[2] === "healthcheck") process.exit(await healthcheck(env));
+if (Bun.argv[2] === "healthcheck")
+  process.exit(
+    await healthcheck(env, EMBEDDED_WEB && embeddedWebWanted(env, installKind()) ? embeddedWebOrigin(env) : undefined),
+  );
 
 if (Bun.argv[2] === "service") {
   console.info(serviceSnippet("gateway", process.platform, process.execPath, isStandalone() ? [] : [Bun.main]));
@@ -61,7 +70,12 @@ if (!serviceToken)
 // A binary gateway serves the web from its own build unless CANOPY_WEB=off (docs/deploy.md).
 const embeddedWeb =
   EMBEDDED_WEB && embeddedWebWanted(env, installKind())
-    ? new EmbeddedWebProcess({ env, log: (m) => console.info(m) })
+    ? new EmbeddedWebProcess({
+        env,
+        log: (m) => console.info(m),
+        hosts: () => tailscaleHosts(tailscale.snapshot),
+        changed: () => core.feeds.updatesChanged(),
+      })
     : undefined;
 
 const runtime = gatewayRuntime(env);
@@ -119,6 +133,7 @@ const core = new GatewayCore({
         }),
       ),
     log: (message) => console.info(message),
+    notice: () => embeddedWeb?.notice ?? "",
   },
 });
 
@@ -136,6 +151,8 @@ const web = webOrigin(env) ?? (embeddedWeb && embeddedWebOrigin(env));
 const tailscale = new Tailscale({ log: (m) => console.info(m) });
 
 void tailscale.start();
+
+tailscale.onChange(() => embeddedWeb?.hostsChanged());
 
 // Phones and linked computers: one pinned TLS listener, switched on in Settings → Network access.
 const network = new NetworkAccess({
@@ -179,8 +196,18 @@ const server = await startGrpcServer({
 
 console.info(`gateway ${CANOPY_VERSION} listening on ${server.url}`);
 
-// Before updates.start confirms this version: a web that never becomes healthy rolls back both.
-await embeddedWeb?.start();
+// Before updates.start confirms this version. An update candidate whose web can't start rolls back both, with the
+// web's reason; otherwise the gateway runs on and the web retries (web/process.ts).
+const record = installKind() === "binary" ? await readUpdateRecord() : undefined;
+const candidate = record?.state === "restarting" && record.version === CANOPY_VERSION;
+
+await embeddedWeb?.start(candidate).catch(async (cause: unknown) => {
+  const reason = `The web app of ${CANOPY_VERSION} didn't start: ${cause instanceof Error ? cause.message : String(cause)}`;
+  console.error(reason);
+  await rollbackBinary(process.execPath, reason);
+  // The supervisor restarts the restored executable; its record already says failed.
+  process.exit(UPDATE_RESTART_EXIT_CODE);
+});
 
 core.scheduler.start();
 

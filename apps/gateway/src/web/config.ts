@@ -5,8 +5,52 @@ import type { InstallKind } from "@canopy/updater";
 
 type Env = Readonly<Record<string, string | undefined>>;
 
-/** Never handed to the web process: it talks to the gateway only with the service token. */
-const GATEWAY_ONLY = ["CANOPY_DATABASE_URL", "CANOPY_SECRETS_KEY", "CANOPY_UI_SERVICE_TOKEN", "CANOPY_TLS_KEY"];
+/**
+ * The only variables the web process inherits: the system basics, the web's own settings and adapter-node's.
+ * Gateway secrets (database URL, secrets key, TLS key) never reach it; it talks to the gateway with the service
+ * token. CANOPY_WEB_ORIGIN stays out too: it means the desktop's single-origin BFF.
+ */
+const INHERITED = new Set([
+  "PATH",
+  "HOME",
+  "USER",
+  "LOGNAME",
+  "LANG",
+  "LANGUAGE",
+  "TZ",
+  "TMPDIR",
+  "TEMP",
+  "TMP",
+  "SystemRoot",
+  "LOCALAPPDATA",
+  "APPDATA",
+  "USERPROFILE",
+  "XDG_CACHE_HOME",
+  "XDG_STATE_HOME",
+  "SSL_CERT_FILE",
+  "SSL_CERT_DIR",
+  "NODE_EXTRA_CA_CERTS",
+  "NO_PROXY",
+  "no_proxy",
+  "CANOPY_CHANNEL",
+  "CANOPY_INSTALL_KIND",
+  "CANOPY_LOG_DIR",
+  "CANOPY_LOG_SUPERVISED",
+  "CANOPY_WEB",
+  "CANOPY_WEB_HOST",
+  "CANOPY_WEB_PORT",
+  "CANOPY_WEB_DIR",
+  "CANOPY_WEB_ALLOWED_HOSTS",
+  "GATEWAY_URL",
+  "ORIGIN",
+  "ADDRESS_HEADER",
+  "XFF_DEPTH",
+  "PORT_HEADER",
+  "SHUTDOWN_TIMEOUT",
+  "IDLE_TIMEOUT",
+  "KEEP_ALIVE_TIMEOUT",
+  "HEADERS_TIMEOUT",
+]);
 
 export const DEFAULT_WEB_PORT = 3000;
 
@@ -71,13 +115,13 @@ function gatewayUrl(env: Env): string {
  * The environment of the embedded web (adapter-node + the BFF), derived from the gateway's env file.
  * Explicit adapter-node settings win; HOST/PORT always come from CANOPY_WEB_HOST/CANOPY_WEB_PORT.
  * The forwarded headers suit Tailscale Serve and the usual reverse proxies; a direct request without them
- * is plain HTTP (the embedded server has no TLS), see webRequestProtocol.
+ * is plain HTTP (the embedded server has no TLS), see wrapRequests in serve.ts.
  */
 export function webProcessEnv(env: Env) {
   const out: Record<string, string> = {};
 
   for (const [key, value] of Object.entries(env))
-    if (value !== undefined && !GATEWAY_ONLY.includes(key) && key !== "CANOPY_WEB_ORIGIN") out[key] = value;
+    if (value !== undefined && (INHERITED.has(key) || key.startsWith("LC_"))) out[key] = value;
   const { host, port } = webListen(env);
   const token = env["CANOPY_UI_SERVICE_TOKEN"] || env["GATEWAY_SERVICE_TOKEN"];
 

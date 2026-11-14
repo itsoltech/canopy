@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { request } from "node:http";
 import { createServer, type AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -73,11 +74,24 @@ async function freePort(): Promise<number> {
   return port;
 }
 
-async function start() {
+/** Status of a GET with this raw Host header (fetch would set its own). */
+function statusFor(port: number, host: string, headers: Record<string, string> = {}): Promise<number> {
+  return new Promise((done, fail) => {
+    const req = request({ host: "127.0.0.1", port, path: "/api/health", headers: { ...headers, host } }, (res) => {
+      res.resume();
+      done(res.statusCode ?? 0);
+    });
+
+    req.on("error", fail);
+    req.end();
+  });
+}
+
+async function start(env: Record<string, string> = {}, port?: number) {
   const directory = await mkdtemp(join(tmpdir(), "canopy-embedded-web-"));
   const binaryPath = join(directory, "installed");
   await copyFile(join(builds, "1.0.0"), binaryPath);
-  const port = await freePort();
+  port ??= await freePort();
   const url = `http://127.0.0.1:${port}`;
 
   const proc = Bun.spawn([binaryPath], {
@@ -88,6 +102,7 @@ async function start() {
       CANOPY_UI_SERVICE_TOKEN: "embedded-web-fixture-token-0123456789",
       CANOPY_WEB_PORT: String(port),
       CANOPY_WEB_DIR: join(directory, "web"),
+      ...env,
     },
     stdout: "ignore",
     stderr: "pipe",
@@ -123,7 +138,9 @@ async function start() {
     await writeFile(join(directory, "restart"), "");
   }
 
-  async function events(): Promise<{ type: string; version: string; pid: number; message?: string }[]> {
+  async function events(): Promise<
+    { type: string; version: string; pid: number; message?: string; state?: string; reason?: string }[]
+  > {
     const text = await readFile(join(directory, "events.jsonl"), "utf8").catch(() => "");
 
     return text
@@ -166,7 +183,18 @@ async function start() {
     throw new Error(`supervisor ${version} not resident: ${JSON.stringify(await events())} ${await errors}`);
   }
 
-  return { proc, url, binaryPath, stage, serving, resident, events };
+  async function until(predicate: (all: Awaited<ReturnType<typeof events>>) => boolean) {
+    const deadline = Date.now() + 20_000;
+
+    while (Date.now() < deadline) {
+      if (predicate(await events())) return;
+      await Bun.sleep(25);
+    }
+
+    throw new Error(`fixture did not reach the expected state: ${JSON.stringify(await events())} ${await errors}`);
+  }
+
+  return { proc, url, port, binaryPath, stage, serving, resident, events, until };
 }
 
 describe.skipIf(process.platform === "win32")("binary gateway with embedded web", () => {
@@ -201,7 +229,10 @@ describe.skipIf(process.platform === "win32")("binary gateway with embedded web"
     const deadline = Date.now() + 20_000;
 
     while ((await readUpdateRecord(f.binaryPath))?.state !== "failed" && Date.now() < deadline) await Bun.sleep(25);
-    expect(await readUpdateRecord(f.binaryPath)).toMatchObject({ state: "failed", version: BROKEN });
+    const failed = await readUpdateRecord(f.binaryPath);
+    expect(failed).toMatchObject({ state: "failed", version: BROKEN });
+    // The update result names the web's own reason, not a generic startup timeout.
+    expect(failed?.reason).toContain(`The web app of ${BROKEN} didn't start: It exited before it became healthy`);
     await f.serving("2.0.0");
     const all = await f.events();
     expect(all.some((e) => e.type === "web-failed" && e.version === BROKEN)).toBe(true);
@@ -217,4 +248,47 @@ describe.skipIf(process.platform === "win32")("binary gateway with embedded web"
       ),
     ).toBe("closed");
   }, 60_000);
+
+  test("a busy web port leaves the gateway running, says why and recovers when the port frees up", async () => {
+    const port = await freePort();
+    const blocker = createServer();
+    await new Promise<void>((resolve) => blocker.listen(port, "127.0.0.1", resolve));
+    const f = await start({}, port);
+    await f.until(
+      (all) =>
+        all.some((e) => e.type === "healthy" && e.version === "1.0.0") &&
+        all.some((e) => e.type === "web-state" && e.state === "failed" && e.reason?.includes(`Port ${port} is in use`)),
+    );
+    // Not an update: nothing to roll back, the gateway confirmed its startup.
+    expect(await readUpdateRecord(f.binaryPath)).toBeUndefined();
+    await new Promise<void>((resolve) => blocker.close(() => resolve()));
+    await f.serving("1.0.0");
+    await f.until((all) => all.some((e) => e.type === "web-state" && e.state === "running"));
+  }, 30_000);
+
+  test("answers only allowed Host names (DNS rebinding)", async () => {
+    const f = await start({
+      CANOPY_WEB_ALLOWED_HOSTS: "canopy.example.com, .corp.example",
+      CANOPY_TEST_RUNTIME_HOSTS: "box.tail1.ts.net",
+    });
+
+    await f.serving("1.0.0");
+
+    const allowed = [
+      `127.0.0.1:${f.port}`,
+      `localhost:${f.port}`,
+      `[::1]:${f.port}`,
+      "10.1.2.3",
+      "canopy.example.com",
+      "a.corp.example:443",
+      "box.tail1.ts.net", // Tailscale Serve keeps the MagicDNS name as Host
+    ];
+
+    for (const host of allowed) expect([host, await statusFor(f.port, host)]).toEqual([host, 200]);
+
+    for (const host of ["evil.example", "corp.example", "canopy.example.com.evil.example", "a b"])
+      expect([host, await statusFor(f.port, host)]).toEqual([host, 421]);
+    // Forwarded headers are script-settable on a rebound page: they never allow a host.
+    expect(await statusFor(f.port, "evil.example", { "x-forwarded-host": "canopy.example.com" })).toBe(421);
+  }, 30_000);
 });
