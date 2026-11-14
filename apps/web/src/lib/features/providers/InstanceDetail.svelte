@@ -145,6 +145,7 @@
               id={instance.id}
               online={worker.online}
               os={worker.os}
+              signInHere={appSignIn}
               onupdated={() => providers.reload()}
             />
           </dd>{/if}

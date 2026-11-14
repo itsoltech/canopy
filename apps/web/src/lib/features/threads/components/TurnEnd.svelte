@@ -1,5 +1,6 @@
 <script lang="ts">
   import { humanizeEnum, isEnumToken } from "@canopy/domain/humanize";
+  import { rejectedSignInLabel } from "@canopy/domain/provider-accounts";
   import type { ui } from "@canopy/contracts";
   import { Provider, ProviderProfileKind } from "@canopy/contracts";
   import DeviceCode from "#lib/features/providers/DeviceCode.svelte";
@@ -44,6 +45,7 @@
   // The gateway marks a login a turn's harness rejected; a retry would only fail the same way.
   const needsSignIn = $derived(instance?.account?.state === "expired");
   const appSignIn = $derived(!!instance && signsInFromApp(instance.harness, instance.kind));
+  const signInLabel = $derived(rejectedSignInLabel(instance?.account));
 
   const login = new DeviceLogin(() => ({
     harness: instance?.harness ?? Provider.UNSPECIFIED,
@@ -163,7 +165,7 @@
       code={turn.errorCode}
       classification={turn.errorClass}
       authHint={appSignIn
-        ? "Sign in, then retry."
+        ? `${signInLabel}, then retry.`
         : "Open provider settings for this worker. Use its sign-in command, then retry."}
       source={turn.errorSource}
       {historical}
@@ -173,6 +175,7 @@
       retryDisabled={continuing === "sent" || needsSignIn}
       onsignin={appSignIn && !directory.readOnly && worker?.online && !login.code ? confirmSignIn : undefined}
       signingIn={login.busy}
+      {signInLabel}
       onretry={!directory.readOnly && !turn.inherited && thread?.status === "idle" ? continueTurn : undefined}
       onchangemodel={!directory.readOnly && !turn.inherited && thread ? () => (modelOpen = true) : undefined}
     />
@@ -181,6 +184,7 @@
         harness={thread?.provider ?? Provider.CODEX}
         workerName={worker.name}
         linked={ownLogin !== true}
+        action={signInLabel}
         busy={login.busy}
         onstart={startSignIn}
         oncancel={() => (confirming = false)}

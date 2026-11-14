@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import { timestampNow } from "@bufbuild/protobuf/wkt";
+import { timestampMs, timestampNow } from "@bufbuild/protobuf/wkt";
 import { ProviderAccountStatusSchema, type ProviderAccountStatus } from "@canopy/contracts";
 
 /** Display fields are explicitly selected. Output, errors and unknown CLI fields never cross this boundary. */
@@ -52,6 +52,33 @@ export function providerLoginCommand(
     ? `${storage}$env:${variable}=${quote(account.loginDir)}; & ${executable} ${args}`
     : `${storage}${variable}=${quote(account.loginDir)} ${executable} ${args}`;
 }
+
+/**
+ * The account's sign-in action, named the same on every surface: "Sign in" without a login, "Sign in again" when
+ * the login expired or a turn's harness rejected it, "Change account" while it is fine (sign-in replaces it).
+ */
+export type AccountAction = "sign_in" | "sign_in_again" | "change_account";
+
+export const ACCOUNT_ACTION_LABELS: Record<AccountAction, string> = {
+  sign_in: "Sign in",
+  sign_in_again: "Sign in again",
+  change_account: "Change account",
+};
+
+export function accountAction(
+  account: Pick<ProviderAccountStatus, "state" | "expiresAt"> | undefined,
+  now = Date.now(),
+): AccountAction {
+  if (account?.state === "expired") return "sign_in_again";
+
+  if (account?.state !== "signed_in" && account?.state !== "stored") return "sign_in";
+
+  return account.expiresAt && timestampMs(account.expiresAt) <= now ? "sign_in_again" : "change_account";
+}
+
+/** Under a turn that failed to authenticate the login is never fine, whatever the CLI reports. */
+export const rejectedSignInLabel = (account: Pick<ProviderAccountStatus, "state" | "expiresAt"> | undefined): string =>
+  ACCOUNT_ACTION_LABELS[accountAction(account) === "sign_in" ? "sign_in" : "sign_in_again"];
 
 /** "expired": a turn's harness rejected this login (the gateway's mark), whatever the CLI's own status says. */
 const states = new Set(["signed_in", "signed_out", "expired", "unknown", "error", "stored"]);

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Provider, ProviderProfileKind, type ProviderAccountStatus } from "@canopy/contracts";
-import { providerLoginCommand } from "@canopy/domain/provider-accounts";
+import { ACCOUNT_ACTION_LABELS, accountAction, providerLoginCommand } from "@canopy/domain/provider-accounts";
 import * as Linking from "expo-linking";
 import { useOverview } from "../../state/overview";
 import { Button, Field, Notice } from "../../ui/components";
@@ -64,15 +64,14 @@ export function ProviderLoginActions({
       ) || cli
     : cli;
 
+  // The same state-aware label as on the web: "Sign in", "Sign in again" or "Change account".
+  const action = ACCOUNT_ACTION_LABELS[accountAction(current)];
+
   function ask(logout: boolean) {
     confirm({
-      title: logout ? "Sign out?" : "Sign in?",
-      description: ownLogin
-        ? `This ${logout ? "signs out" : "signs in"} only this instance on ${name}.`
-        : logout
-          ? `This signs out the CLI on ${name}, including in your terminal.`
-          : `This changes the CLI account on ${name}, as ${cli} does.`,
-      confirm: logout ? "Sign out" : "Sign in",
+      title: logout ? "Sign out?" : `${action}?`,
+      description: confirmText(logout, ownLogin, name, cli),
+      confirm: logout ? "Sign out" : action,
       danger: logout,
       action: () => {
         setFailed(false);
@@ -113,17 +112,19 @@ export function ProviderLoginActions({
       ) : (
         <>
           <Button
-            title="Sign in"
+            title={action}
             disabled={disabled || !worker?.online}
             busy={resource.busy}
             onPress={() => ask(false)}
           />
-          <Button
-            title="Sign out"
-            disabled={disabled || !worker?.online}
-            busy={resource.busy}
-            onPress={() => ask(true)}
-          />
+          {current?.state === "signed_out" ? null : (
+            <Button
+              title="Sign out"
+              disabled={disabled || !worker?.online}
+              busy={resource.busy}
+              onPress={() => ask(true)}
+            />
+          )}
         </>
       )}
       {failed ? <Notice>The sign-in did not finish. Start it again.</Notice> : null}
@@ -134,6 +135,18 @@ export function ProviderLoginActions({
       ) : null}
     </ResourceState>
   );
+}
+
+/** What the sign-in or sign-out changes on the named computer. */
+function confirmText(logout: boolean, ownLogin: boolean, name: string, cli: string): string {
+  if (ownLogin)
+    return logout
+      ? `This signs out only this instance on ${name}.`
+      : `This changes only this instance’s account on ${name}.`;
+
+  return logout
+    ? `This signs out the CLI on ${name}, including in your terminal.`
+    : `This changes the CLI account on ${name}, as ${cli} does.`;
 }
 
 function CodeForm({

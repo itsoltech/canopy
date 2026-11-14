@@ -76,6 +76,7 @@ appear only as the literal name used by an external tool).
 | agent CLI | the provider's tool installed on a worker | provider CLI, binary, tool |
 | provider | Anthropic, OpenAI, xAI and their equivalents | vendor, backend |
 | instance | configured access to a provider (Settings → Providers) | account, connection |
+| provider account | the account an agent CLI is signed in with on a worker; its action is `Sign in` (no login), `Sign in again` (expired or rejected login) or `Change account` (signed in) | switch account, sign in again (while the login is fine) |
 | profile | how an agent reaches its model | config, preset |
 | proxy | a CLIProxyAPI instance from Settings → Proxies | relay, tunnel |
 | proxy account | an upstream provider account a proxy sends requests through (Settings → Proxies → Accounts) | auth file, credential, upstream |
