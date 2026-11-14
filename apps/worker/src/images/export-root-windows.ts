@@ -1,17 +1,84 @@
 import { dlopen, ptr } from "bun:ffi";
 import { join, parse } from "node:path";
-import { pathParts, rootChanged, type ImageRoot } from "./export-root.ts";
+import { pathParts, rootChanged, type ImageFile, type ImageRoot } from "./export-root.ts";
 
 const native = () =>
   dlopen("kernel32.dll", {
     CreateFileW: { args: ["ptr", "u32", "u32", "ptr", "u32", "u32", "u64"], returns: "u64" },
     GetFileInformationByHandleEx: { args: ["u64", "i32", "ptr", "u32"], returns: "i32" },
+    GetFinalPathNameByHandleW: { args: ["u64", "ptr", "u32", "u32"], returns: "u32" },
+    ReadFile: { args: ["u64", "ptr", "u32", "ptr", "ptr"], returns: "i32" },
     CloseHandle: { args: ["u64"], returns: "i32" },
   });
 
 let library: ReturnType<typeof native> | undefined;
-let crt: ReturnType<typeof openCrt> | undefined;
-const openCrt = () => dlopen("ucrtbase.dll", { _open_osfhandle: { args: ["u64", "i32"], returns: "i32" } });
+
+/** The OS's own long-name, final-case path of the open object; never the 8.3 or differently cased request. */
+function finalPath(handle: bigint): string {
+  const buffer = Buffer.alloc(65536);
+  const length = (library ??= native()).symbols.GetFinalPathNameByHandleW(handle, ptr(buffer), buffer.length / 2, 0);
+
+  if (!length || length >= buffer.length / 2) throw new Error("Image handle is unavailable.");
+  const path = buffer.subarray(0, length * 2).toString("utf16le");
+
+  return path.startsWith("\\\\?\\UNC\\") ? `\\\\${path.slice(8)}` : path.replace(/^\\\\\?\\/, "");
+}
+
+/**
+ * The leaf stays a Win32 HANDLE. Bun's fs functions use their own descriptor table, so a CRT descriptor from
+ * _open_osfhandle is a bad (or a different) file to them.
+ */
+function windowsImageFile(handle: bigint): ImageFile {
+  const { symbols } = (library ??= native());
+  let open = true;
+
+  const info = (kind: number, size: number) => {
+    const buffer = Buffer.alloc(size);
+
+    if (!open || !symbols.GetFileInformationByHandleEx(handle, kind, ptr(buffer), size))
+      throw new Error("Image handle is unavailable.");
+
+    return buffer;
+  };
+
+  return {
+    stat() {
+      // FILE_BASIC_INFO: four FILETIMEs and the attributes; FILE_STANDARD_INFO: sizes, links, flags.
+      const basic = info(0, 40);
+      const standard = info(1, 24);
+
+      return {
+        size: Number(standard.readBigInt64LE(8)),
+        regular: !standard[21] && !(basic.readUInt32LE(32) & 0x410),
+        links: standard.readUInt32LE(16),
+        version: `${basic.readBigInt64LE(16)}:${basic.readBigInt64LE(24)}`,
+      };
+    },
+    path() {
+      if (!open) throw new Error("Image handle is unavailable.");
+
+      return finalPath(handle);
+    },
+    read(buffer, offset, length, position) {
+      if (!open) throw new Error("Image handle is unavailable.");
+
+      if (!length) return 0;
+      // OVERLAPPED carries the position; the handle is synchronous, so ReadFile completes before it returns.
+      const overlapped = Buffer.alloc(32);
+      const count = Buffer.alloc(4);
+      overlapped.writeBigUInt64LE(BigInt(position), 16);
+
+      // A failed read (ERROR_HANDLE_EOF included) reads nothing; callers treat a short file as changed.
+      if (!symbols.ReadFile(handle, ptr(buffer, offset), length, ptr(count), ptr(overlapped))) return 0;
+
+      return count.readUInt32LE(0);
+    },
+    close() {
+      if (open) symbols.CloseHandle(handle);
+      open = false;
+    },
+  };
+}
 
 /** Each verified parent remains locked against rename/delete while the next child opens. */
 export function windowsImageRoot(path: string): ImageRoot {
@@ -74,27 +141,33 @@ export function windowsImageRoot(path: string): ImageRoot {
     }
   };
 
-  release(walk([], true));
+  const pinned = walk([], true);
+  let canonical: string;
+
+  try {
+    // Compared with each file's final path, so take it from the same API (8.3 names and case resolved).
+    // SAFETY: walk opens the drive root first, so it returns at least one handle.
+    canonical = finalPath(pinned.at(-1)!);
+  } catch {
+    throw rootChanged();
+  } finally {
+    release(pinned);
+  }
 
   return {
     path,
-    canonical: path,
+    canonical,
     verify() {
       release(walk([], false));
     },
     open(children) {
       const handles = walk(children, false);
+      // SAFETY: walk opens the drive root first, so it returns at least one handle.
+      const leaf = handles.pop()!;
 
-      try {
-        const fd = (crt ??= openCrt()).symbols._open_osfhandle(handles.at(-1)!, 0x8000);
+      release(handles);
 
-        if (fd < 0) throw rootChanged();
-        handles.pop(); // The CRT descriptor now owns the leaf HANDLE; closeSync releases it.
-
-        return fd;
-      } finally {
-        release(handles);
-      }
+      return windowsImageFile(leaf);
     },
   };
 }

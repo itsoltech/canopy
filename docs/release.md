@@ -230,6 +230,11 @@ i nie mają sekretów w CI. Nowy push do PR anuluje cały stary CI, łącznie z 
 wywołania z Release mają osobne grupy (`run_id`). Bun, cache pakietów i zamrożona instalacja
 są we wspólnej akcji `.github/actions/setup-bun`.
 
+Job `builds` kompiluje też workera na darwin-arm64 i windows-x64, a `native` uruchamia
+`canopy-worker self-check` na macOS i Windows. Eksport obrazów woła natywne API każdego
+systemu przez `bun:ffi` (otwarcie, metadane, odczyt, ścieżka, zamknięcie), więc tylko binarka
+na danym systemie to sprawdza; testy na Linuksie tego nie wykryją.
+
 `scripts/test-shards.ts` przypisuje najdłuższe pliki do najmniej obciążonego sharda,
 z deterministycznym rozstrzyganiem remisów i jawną listą ścieżek dla Bun.
 `scripts/test-timings.json` zawiera zmierzone czasy całych plików w milisekundach,

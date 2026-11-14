@@ -1,6 +1,7 @@
 import { dlopen } from "bun:ffi";
-import { closeSync, constants, fstatSync } from "node:fs";
-import { pathParts, rootChanged, type ImageRoot } from "./export-root.ts";
+import { closeSync, constants, fstatSync, readSync } from "node:fs";
+import { descriptorPath } from "./descriptor-path.ts";
+import { pathParts, rootChanged, type ImageFile, type ImageRoot } from "./export-root.ts";
 
 const mac = process.platform === "darwin";
 
@@ -16,6 +17,29 @@ const identity = (fd: number) => {
 
   return `${stat.dev}:${stat.ino}:${stat.birthtimeNs}`;
 };
+
+function unixImageFile(fd: number): ImageFile {
+  let open = true;
+
+  return {
+    stat() {
+      const stat = fstatSync(fd, { bigint: true });
+
+      return {
+        size: Number(stat.size),
+        regular: stat.isFile(),
+        links: Number(stat.nlink),
+        version: `${stat.mtimeNs}:${stat.ctimeNs}`,
+      };
+    },
+    path: () => descriptorPath(fd),
+    read: (buffer, offset, length, position) => readSync(fd, buffer, offset, length, position),
+    close() {
+      if (open) closeSync(fd);
+      open = false;
+    },
+  };
+}
 
 /** Reopen each ancestor relative to its verified parent; no pathname can substitute a different root. */
 export function unixImageRoot(path: string): ImageRoot {
@@ -77,7 +101,7 @@ export function unixImageRoot(path: string): ImageRoot {
           fd = next;
         }
 
-        return fd;
+        return unixImageFile(fd);
       } catch (error) {
         closeSync(fd);
         throw error;
