@@ -31,6 +31,7 @@ function mount(response: ui.GetVisualResponse, theme: VisualTheme, reducedMotion
     return mountVisualShell(response.specJson, {
       title: visual.title,
       kitVersion: visual.kitVersion,
+      htmlDocument: visual.htmlDocument,
       theme,
       reducedMotion,
       state: savedVisualState(visual.visualId, visual.version),
@@ -43,6 +44,33 @@ function mount(response: ui.GetVisualResponse, theme: VisualTheme, reducedMotion
 
 function send(web: WebView<object> | null, shell: ShellMount | undefined, message: HostMessage) {
   if (shell) web?.postMessage(shellEnvelope(shell.token, message));
+}
+
+function useVisualStatesLoaded(): boolean {
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    void loadVisualStates().then(() => setLoaded(true));
+  }, []);
+
+  return loaded;
+}
+
+function useHtmlWatchdog(enabled: boolean, onFailure: (message: string) => void) {
+  const lastResponse = useRef(Date.now());
+
+  useEffect(() => {
+    if (!enabled) return;
+    lastResponse.current = Date.now();
+
+    const watchdog = setInterval(() => {
+      if (Date.now() - lastResponse.current > 10000) onFailure("This visual stopped responding.");
+    }, 1000);
+
+    return () => clearInterval(watchdog);
+  }, [enabled, onFailure]);
+
+  return lastResponse;
 }
 
 /**
@@ -72,9 +100,11 @@ export function VisualWebView({
   onRetry: () => void;
 }) {
   const reducedMotion = useReducedMotion();
+  const colors = useColors();
   const web = useRef<WebView<object>>(null);
-  const [states, setStates] = useState(false);
+  const states = useVisualStatesLoaded();
   const [failure, setFailure] = useState("");
+  const [run, setRun] = useState(false);
   // Per mount token: a new shell starts unloaded, so its first about:blank is allowed again.
   const [loadedToken, setLoadedToken] = useState("");
   const [height, setHeight] = useState(() => clampVisualHeight(initialHeight, maxHeight));
@@ -82,18 +112,26 @@ export function VisualWebView({
   // The first appearance is compiled in; later changes travel as host messages once the shell has loaded.
   const [initial] = useState(() => ({ theme, reducedMotion }));
 
-  useEffect(() => {
-    void loadVisualStates().then(() => setStates(true));
-  }, []);
-
   // Compiled once per mount; Retry remounts with a fresh nonce, instance and token.
   const mounted = useMemo(
-    () => (states ? mount(response, initial.theme, initial.reducedMotion) : undefined),
-    [response, states, initial],
+    () =>
+      states && (!response.visual?.htmlDocument || run)
+        ? mount(response, initial.theme, initial.reducedMotion)
+        : undefined,
+    [response, states, initial, run],
   );
 
   const shell = mounted?.kind === "ready" ? mounted : undefined;
-  const inbox = useMemo(() => (shell ? new VisualFrameInbox(shell.domains) : undefined), [shell]);
+
+  const inbox = useMemo(
+    () => (shell ? new VisualFrameInbox(shell.domains, response.visual?.htmlDocument) : undefined),
+    [shell, response.visual?.htmlDocument],
+  );
+
+  const lastResponse = useHtmlWatchdog(
+    Boolean(shell && response.visual?.htmlDocument && active && !failure),
+    setFailure,
+  );
 
   const loaded = Boolean(shell) && loadedToken === shell?.token;
   const ready = loaded ? shell : undefined;
@@ -109,6 +147,7 @@ export function VisualWebView({
     const visual = response.visual;
 
     if (!message || !visual) return;
+    lastResponse.current = Date.now();
 
     switch (message.type) {
       case "ready":
@@ -148,23 +187,47 @@ export function VisualWebView({
       />
     );
 
+  if (response.visual?.htmlDocument && !run)
+    return (
+      <VisualProblem
+        text="Custom HTML from the agent. Don't enter passwords or secrets."
+        onRetry={() => setRun(true)}
+        actionLabel="Run"
+      />
+    );
+
   if (!shell) return <View style={{ height }} />;
 
   return (
-    <SandboxedWebView
-      key={shell.token}
-      ref={web}
-      html={shell.html}
-      height={height}
-      loaded={loaded}
-      onLoaded={() => setLoadedToken(shell.token)}
-      onMessage={onMessage}
-      onFailure={() => setFailure("Couldn't open this visual.")}
-    />
+    <View>
+      {response.visual?.htmlDocument ? (
+        <Text style={[styles.body, { padding: 12, color: colors.soft }]}>
+          Custom HTML from the agent. Don't enter passwords or secrets.
+        </Text>
+      ) : null}
+      <SandboxedWebView
+        key={shell.token}
+        ref={web}
+        html={shell.html}
+        height={height}
+        loaded={loaded}
+        onLoaded={() => setLoadedToken(shell.token)}
+        onMessage={onMessage}
+        onFailure={() => setFailure("Couldn't open this visual.")}
+      />
+    </View>
   );
 }
 
-function VisualProblem({ text, onRetry }: { text: string; onRetry: (() => void) | undefined }) {
+function VisualProblem({
+  text,
+  onRetry,
+  actionLabel = "Retry",
+}: {
+  text: string;
+  onRetry: (() => void) | undefined;
+  actionLabel?: string;
+}) {
   const c = useColors();
 
   return (
@@ -180,7 +243,7 @@ function VisualProblem({ text, onRetry }: { text: string; onRetry: (() => void) 
       <Text accessibilityRole="alert" style={[styles.body, { textAlign: "center", color: c.soft }]}>
         {text}
       </Text>
-      {onRetry ? <Button variant="secondary" size="sm" title="Retry" onPress={onRetry} /> : null}
+      {onRetry ? <Button variant="secondary" size="sm" title={actionLabel} onPress={onRetry} /> : null}
     </View>
   );
 }
