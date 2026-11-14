@@ -27,7 +27,7 @@
     aria-controls={controls}
     aria-label={pinned ? "Collapse thread details" : "Close thread details"}
     data-summary-collapse
-    class="group/summary-head flex h-9 w-full items-center justify-between gap-2 rounded-t-xl pr-2.5 pl-3 text-left text-sm/5 text-zinc-500 focus-ring -outline-offset-2 transition-colors duration-(--duration-fast) hover:bg-hover hover:text-zinc-700 active:bg-zinc-950/8 motion-reduce:transition-none sm:text-xs/5 dark:text-zinc-400 dark:hover:text-zinc-200 dark:active:bg-white/10"
+    class="group/summary-head flex h-9 w-full items-center justify-between gap-2 rounded-t-xl pr-2.5 pl-3 text-left text-sm/5 text-zinc-500 focus-ring transition-colors duration-(--duration-fast) hover:bg-hover hover:text-zinc-700 focus-visible:-outline-offset-2 active:bg-zinc-950/8 motion-reduce:transition-none sm:text-xs/5 dark:text-zinc-400 dark:hover:text-zinc-200 dark:active:bg-white/10"
     onpointerdown={(event) => (start = { x: event.clientX, y: event.clientY })}
     onclick={click}
   >
