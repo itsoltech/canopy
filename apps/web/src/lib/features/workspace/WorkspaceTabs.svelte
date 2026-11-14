@@ -119,13 +119,13 @@
   onkeydown={keydown}
 >
   <span class="pointer-events-none invisible absolute w-[1rem]" bind:clientWidth={rem}></span>
-  <div role="tablist" aria-label="Workspace tabs" class="flex min-w-0 flex-1 gap-0.5">
+  <div role="tablist" aria-label="Workspace tabs" class="flex min-w-0 gap-0.5">
     {#each visible as tab (tab.id)}
       <div
         class={[
           "flex min-w-0 items-center rounded-md",
           // Thread keeps its slot; every file, including the active one, must fit the available space.
-          tab.id === "thread" ? "shrink-0" : "max-w-48 flex-1",
+          tab.id === "thread" ? "shrink-0" : tab.id === active.id ? "max-w-48 shrink" : "max-w-48 shrink-100000",
           tab.id === active.id ? "bg-zinc-950/5 dark:bg-white/10" : "hover:bg-zinc-950/5 dark:hover:bg-white/5",
         ]}
       >
