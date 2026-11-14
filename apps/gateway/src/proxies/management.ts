@@ -55,6 +55,7 @@ export function plainText(value: string | null | undefined, max: number): string
     (value ?? "")
       // oxlint-disable-next-line no-control-regex -- strips control characters from untrusted text
       .replace(/[\u0000-\u001f\u007f-\u009f]+/g, " ")
+      .replace(/<[^>]{0,200}>/g, " ")
       .replace(/[<>]/g, "")
       .replace(/\s+/g, " ")
       .trim(),

@@ -158,6 +158,7 @@ describe.skipIf(!dockerAvailable)("CLIProxyAPI upstream accounts through the man
       expect(byId.get("3")?.status).toBe("sign_in");
       expect(byId.get("3")?.detail).not.toMatch(/[<>\n]|abc\.def|xyz/);
       expect(byId.get("3")?.detail).not.toContain(String.fromCharCode(7));
+      expect(byId.get("3")?.detail).toStartWith("refresh failed: Bearer [redacted]");
       expect(byId.get("4")).toMatchObject({ provider: "gemini", status: "disabled" });
 
       await eventually(
