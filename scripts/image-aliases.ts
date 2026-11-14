@@ -51,7 +51,8 @@ if (import.meta.main) {
     throw new Error("Set CANOPY_RELEASE_TAG, CANOPY_VERSION (matching), IMAGE_NAMESPACE and GITHUB_SHA");
   const aliases = resolveVersion({ tag, commit }).dockerTags.filter((alias) => alias !== tag);
 
-  for (const app of ["gateway", "web", "worker"]) {
+  // canopy-web is retired (the gateway image serves the web); its aliases stay on its last release.
+  for (const app of ["gateway", "worker"]) {
     const image = `${namespace}/canopy-${app}`;
 
     for (const alias of aliases) {

@@ -1,7 +1,7 @@
 # Wdrożenie
 
-Canopy to PostgreSQL + gateway + web (BFF i SPA) oraz workery na maszynach, które uruchamiają
-agentów. Wersje i kanały: [release.md](release.md). Wszystko pochodzi z
+Canopy to PostgreSQL + gateway, który serwuje też web (BFF i SPA), oraz workery na maszynach,
+które uruchamiają agentów. Wersje i kanały: [release.md](release.md). Wszystko pochodzi z
 `ghcr.io/itsoltech/canopy-*` albo z GitHub Releases `itsoltech/canopy`.
 
 Gateway uruchomiony jako serwer (Docker lub samodzielna binarka) ma rolę `server`.
@@ -94,8 +94,25 @@ curl -LO https://raw.githubusercontent.com/itsoltech/canopy/main/deploy/docker-c
 curl -L -o .env https://raw.githubusercontent.com/itsoltech/canopy/main/deploy/.env.example
 # uzupełnij .env: POSTGRES_PASSWORD, CANOPY_UI_SERVICE_TOKEN, CANOPY_SECRETS_KEY, CANOPY_TAG
 docker compose up -d
-docker compose ps        # postgres, gateway, web: healthy
+docker compose ps        # postgres, gateway: healthy (gateway obejmuje web na porcie 3000)
 ```
+
+**Przejście z osobnego obrazu `canopy-web`.** Od tej wersji obraz `canopy-gateway` serwuje web, a
+`canopy-web` nie jest już wydawany (jego istniejące tagi zostają w GHCR bez zmian, ale nie dostają nowych
+wersji). W istniejącym `docker-compose.yml`:
+
+1. Usuń usługę `web`.
+2. Przenieś jej port do usługi `gateway`: `- "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-3000}:3000"`.
+3. Przenieś do `gateway.environment` zmienne, które ustawiałeś dla web: `BODY_SIZE_LIMIT`, a także
+   `PROTOCOL_HEADER`/`HOST_HEADER`, jeśli miały inne wartości niż `x-forwarded-proto`/`x-forwarded-host`
+   (domyślne w gatewayu), oraz `ORIGIN`. `GATEWAY_URL` i `GATEWAY_SERVICE_TOKEN` nie są potrzebne.
+4. Dodaj `CANOPY_WEB_ALLOWED_HOSTS` z publiczną nazwą reverse proxy (adresy IP i `localhost` działają bez tego).
+5. Opcjonalnie wolumen `gateway-cache:/home/canopy/.cache/canopy` (stare chunki dla otwartych kart).
+6. `docker compose pull && docker compose up -d --remove-orphans`.
+
+Najprościej pobrać nowy [`deploy/docker-compose.yml`](../deploy/docker-compose.yml) i dopisać w `.env`
+`CANOPY_WEB_ALLOWED_HOSTS`. Bez kroku 1–2 stary kontener `canopy-web` zostaje na ostatniej wydanej
+wersji i rozjeżdża się z gatewayem.
 
 Wszystkie zmienne opisuje [`deploy/.env.example`](../deploy/.env.example). `CANOPY_SECRETS_KEY`
 szyfruje klucze providerów i tokeny konektorów w bazie — zachowaj kopię; jego utrata oznacza
@@ -127,13 +144,20 @@ następcy. Pozostaw zapas miejsca na oba indeksy podczas przebudowy i obserwuj
 
 Domyślnie web i port procesu gatewaya są wystawione tylko na `127.0.0.1`:
 
-- **web** (`WEB_PORT`, 3000): postaw przed nim reverse proxy z TLS. BFF sprawdza origin formularzy
-  i bez nagłówka przyjmuje `https`, dlatego compose ustawia `PROTOCOL_HEADER=x-forwarded-proto`
-  i `HOST_HEADER=x-forwarded-host`. Uploady: `BODY_SIZE_LIMIT` ≥ limitu pliku gatewaya;
-  biblioteka skilli wymaga `BODY_SIZE_LIMIT=50M` (folder 25 MiB kodowany base64 w JSON).
-  Dockerfile, compose, `.env.example` i runtime desktopowy ustawiają już 50M.
-  To parametr startowy serwera BFF, nie ustawienie użytkownika; proxy musi dopuścić ten sam rozmiar.
-  Przykład Caddy: `canopy.example.com { reverse_proxy 127.0.0.1:3000 }` (Caddy ustawia `X-Forwarded-*`).
+- **web** (`WEB_PORT`, 3000, w kontenerze gatewaya): obraz `canopy-gateway` uruchamia wbudowany web
+  tak jak binarka ([niżej](#gateway-z-wbudowanym-web-jedna-binarka)); `CANOPY_WEB=off` daje gateway
+  bez web. W kontenerze web słucha na `0.0.0.0:3000` (`CANOPY_WEB_HOST` w obrazie): granicą jest
+  publikacja portu, więc compose publikuje `127.0.0.1:3000:3000` (`WEB_BIND`). Postaw przed nim
+  reverse proxy z TLS albo Tailscale Serve na hoście. BFF sprawdza origin formularzy na podstawie
+  `X-Forwarded-Proto`/`X-Forwarded-Host` (domyślne `PROTOCOL_HEADER`/`HOST_HEADER`); żądanie bez
+  nich to zwykłe HTTP. Web sprawdza też surowy `Host`: adresy IP i `localhost` przechodzą zawsze,
+  publiczną nazwę proxy (albo nazwę MagicDNS przy `tailscale serve` na hoście — gateway w kontenerze
+  nie widzi Tailscale) wpisz w `CANOPY_WEB_ALLOWED_HOSTS` w `.env`; inne dostają 421.
+  Uploady: `BODY_SIZE_LIMIT` ≥ limitu pliku gatewaya; biblioteka skilli wymaga `BODY_SIZE_LIMIT=50M`
+  (folder 25 MiB kodowany base64 w JSON). Web, compose, `.env.example` i runtime desktopowy ustawiają
+  już 50M. To parametr startowy serwera BFF, nie ustawienie użytkownika; proxy musi dopuścić ten sam
+  rozmiar. Przykład Caddy: `canopy.example.com { reverse_proxy 127.0.0.1:3000 }` (Caddy ustawia
+  `X-Forwarded-*`) i `CANOPY_WEB_ALLOWED_HOSTS=canopy.example.com`.
 - **gateway** (`GATEWAY_PORT`, 7443; wewnątrz procesu `CANOPY_PORT`): port dla BFF i istniejących
   lokalnych oraz zdalnych workerów. Nadal obsługuje WorkerLink, Enrollment i zamrożony UpdateService.
   Zachowaj dotychczasowe publikowanie i przekazywanie TCP (również przez tailnet); aktualizacja
@@ -152,8 +176,11 @@ pochodzą wyłącznie z zaszyfrowanego magazynu konektorów gatewaya.
 
 Obraz gatewaya działa bez roota jako UID/GID 65532 (`canopy`), z zapisywalnym
 `HOME=/home/canopy`. Git może tam zapisywać konfigurację, a domyślny cache wydań
-znajduje się w `/home/canopy/.cache/canopy/releases`. Web ma ten sam zapisywalny
-HOME; worker używa istniejącego użytkownika `canopy` (10001) i wolumenu `/home/canopy`.
+znajduje się w `/home/canopy/.cache/canopy/releases`. Web działa w tym samym kontenerze i rozpakowuje
+swoje wersje do `/home/canopy/.cache/canopy/web`; compose montuje `/home/canopy/.cache/canopy` jako wolumen
+`gateway-cache`, więc po `docker compose pull` otwarte karty dalej pobierają chunki poprzedniej wersji, a cache
+aktualizacji przetrwa odtworzenie kontenera. Worker używa istniejącego użytkownika `canopy` (10001) i wolumenu
+`/home/canopy`.
 Opcjonalne `CANOPY_UPDATE_CACHE_DIR` pozwala ustawić inny katalog cache serwera
 (w Compose: `services.gateway.environment`); zamontowany katalog musi być zapisywalny
 dla UID 65532. Bez tej zmiennej gateway respektuje `$XDG_CACHE_HOME/canopy/releases`,
@@ -192,7 +219,7 @@ Boty działają w gatewayu, więc **kontener gatewaya musi sam dosięgnąć endp
 providerów (np. CLIProxyAPI). Endpoint dostępny tylko w prywatnej sieci hosta — typowo adres Tailscale
 (`*.ts.net`, `100.x`) — bywa nieosiągalny z bridge'a Dockera (firewall hosta/Tailscale): bot kończy wtedy
 turę komunikatem „couldn't reach the model provider”, a log gatewaya `bots: turn failed (Model endpoint
-unreachable)`. Workery na hoście działają normalnie. Rozwiązanie: gateway i web w sieci hosta, nasłuchujące
+unreachable)`. Workery na hoście działają normalnie. Rozwiązanie: gateway (z web) w sieci hosta, nasłuchujący
 tylko na loopbacku (`docker-compose.override.yml` obok `docker-compose.yml`):
 
 ```yaml
@@ -207,13 +234,9 @@ services:
       CANOPY_DATABASE_URL: postgres://canopy:${POSTGRES_PASSWORD}@127.0.0.1:7432/canopy
       CANOPY_HOST: 127.0.0.1
       CANOPY_PORT: "7443"
-  web:
-    network_mode: host
-    ports: !reset []
-    environment:
-      GATEWAY_URL: http://127.0.0.1:7443
-      HOST: 127.0.0.1
-      PORT: "3000"
+      # Bez publikacji portów to adres nasłuchu jest granicą: web tylko na loopbacku hosta.
+      CANOPY_WEB_HOST: 127.0.0.1
+      CANOPY_WEB_PORT: "3000"
 ```
 
 Sprawdzenie z sieci Dockera: `docker run --rm --network canopy_default curlimages/curl -sS -o /dev/null -w '%{http_code}\n' <endpoint>/v1/models`.
@@ -346,7 +369,7 @@ CANOPY_UPDATE_CHANNEL=nightly    # kanał początkowy; potem zmieniasz go w apli
 | `CANOPY_WEB` | `on` | `off` = gateway bez web (headless). Inne wartości to błąd konfiguracji. |
 | `CANOPY_WEB_HOST` | `127.0.0.1` | Adres nasłuchu web. Adres spoza loopbacku daje w logu ostrzeżenie z tym adresem i przypomnieniem o TLS albo Tailscale Serve. |
 | `CANOPY_WEB_PORT` | `3000` | Port web. |
-| `CANOPY_WEB_DIR` | `$XDG_CACHE_HOME/canopy/web` (`~/.cache/canopy/web`) | Rozpakowane wersje web; może być wspólny dla kilku instancji (gotowa wersja nie jest nadpisywana, a używana — usuwana). Bez prawa zapisu: stały katalog `canopy-web-<uid>` w katalogu tymczasowym i ostrzeżenie. |
+| `CANOPY_WEB_DIR` | `$XDG_CACHE_HOME/canopy/web` (`~/.cache/canopy/web`) | Rozpakowane wersje web; może być wspólny dla kilku instancji (gotowa wersja nie jest nadpisywana, a używana w ostatnich 30 min nie jest usuwana). Bez prawa zapisu: stały katalog `canopy-web-<uid>` w katalogu tymczasowym i ostrzeżenie. |
 | `GATEWAY_URL` | `http://127.0.0.1:$CANOPY_PORT` | Adres gatewaya dla web; `https` i zaufany `CANOPY_TLS_CERT`, gdy gateway ma TLS. Ustaw ręcznie tylko wtedy, gdy certyfikat nie obejmuje `127.0.0.1`. |
 | `PROTOCOL_HEADER` | `x-forwarded-proto` | Nagłówek protokołu od proxy. Żądanie bez niego to zwykłe HTTP. |
 | `HOST_HEADER` | `x-forwarded-host` | Nagłówek hosta od proxy; bez niego liczy się `Host`. |
@@ -421,7 +444,8 @@ ustawić nagłówki `X-Forwarded-*`. Proxy bez tych nagłówków wymaga `ORIGIN=
 z adresem prywatnej sieci; wtedy log pokazuje ostrzeżenie, np.
 `web: listening on 10.0.0.5:3000, reachable from other computers. Put a TLS reverse proxy or Tailscale Serve in front of it.`
 
-**Headless.** Web w osobnym miejscu (obraz `canopy-web`, Compose) albo brak UI na tym hoście:
+**Headless.** Web w osobnym miejscu (np. wynik `bun scripts/build-web.ts` uruchomiony przez `bun index.js`)
+albo brak UI na tym hoście:
 
 ```sh
 # /etc/canopy/gateway.env
@@ -429,9 +453,8 @@ CANOPY_WEB=off
 ```
 
 Gateway działa wtedy jak wcześniej, a osobny web dostaje `GATEWAY_URL`, `GATEWAY_SERVICE_TOKEN`
-(= `CANOPY_UI_SERVICE_TOKEN`), `PORT`, `PROTOCOL_HEADER` i `BODY_SIZE_LIMIT`. Obrazy Docker
-(`canopy-gateway`, `canopy-web`) nie zmieniają się: gateway w kontenerze nigdy nie uruchamia
-wbudowanego web. Desktop ma własny web i też go nie używa.
+(= `CANOPY_UI_SERVICE_TOKEN`), `PORT`, `PROTOCOL_HEADER` i `BODY_SIZE_LIMIT`. To samo `CANOPY_WEB=off`
+działa w obrazie `canopy-gateway`. Desktop ma własny web i nie używa wbudowanego.
 
 Network access, HTTPS over Tailscale i Git działają tak samo jak w Dockerze. HTTPS over Tailscale
 na natywnym gatewayu z osobnym web (headless) wymaga `CANOPY_WEB_ORIGIN` (origin tego web
@@ -489,7 +512,9 @@ i nie służy do aktualizacji obrazu.
 ## Aktualizacja
 
 - **Docker**: tag kanału (`stable`/`latest`, `beta`, `nightly`, `v1`) wskazuje nowy obraz po wydaniu:
-  `docker compose pull && docker compose up -d`. Gateway migruje bazę przy starcie;
+  `docker compose pull && docker compose up -d`. Obraz `canopy-gateway` niesie też web, więc to jedna
+  aktualizacja; kontener nigdy nie aktualizuje się sam (`CANOPY_INSTALL_KIND=docker`, Settings → App
+  updates pokazuje „Pull the new image tag and recreate this container” zamiast przycisku Update). Gateway migruje bazę przy starcie;
   migracje są tylko w przód — przed aktualizacją wersji `X.Y` zrób kopię bazy (`pg_dump`).
   Powrót do starszej wersji po migracji wymaga przywrócenia kopii.
 - **Binaria**: przycisk Update w Settings → App updates (albo Update all). Gateway pobiera

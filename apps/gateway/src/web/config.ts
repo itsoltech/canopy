@@ -54,15 +54,15 @@ const INHERITED = new Set([
 
 export const DEFAULT_WEB_PORT = 3000;
 
-/** `CANOPY_WEB=off` makes a binary gateway headless; anything but on/off is a configuration error. */
+/** `CANOPY_WEB=off` makes a binary or Docker gateway headless; anything but on/off is a configuration error. */
 export function embeddedWebWanted(env: Env, kind: InstallKind): boolean {
   const value = env["CANOPY_WEB"]?.trim().toLowerCase();
 
   if (value !== undefined && value !== "" && value !== "on" && value !== "off")
     throw new Error("CANOPY_WEB must be on or off");
 
-  // Docker deployments run the canopy-web image; the desktop bundles its own web.
-  return kind === "binary" && value !== "off";
+  // The gateway image serves it like the binary (it only updates by a new image); the desktop bundles its own web.
+  return (kind === "binary" || kind === "docker") && value !== "off";
 }
 
 export interface WebListen {
@@ -70,7 +70,7 @@ export interface WebListen {
   port: number;
 }
 
-/** The embedded web's listener: loopback only unless CANOPY_WEB_HOST says otherwise. */
+/** The embedded web's listener: loopback only unless CANOPY_WEB_HOST says otherwise (the gateway image sets 0.0.0.0). */
 export function webListen(env: Env): WebListen {
   const host = env["CANOPY_WEB_HOST"]?.trim() || "127.0.0.1";
   const port = Number(env["CANOPY_WEB_PORT"] || DEFAULT_WEB_PORT);

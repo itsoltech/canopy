@@ -101,7 +101,7 @@ Wbudowany web dodaje do gatewaya ok. 13 MiB (linux-x64 0.3.0-dev: 131,0 → 144,
 
 ### Obrazy Docker
 
-Jeden `Dockerfile` (kontekst: root repozytorium), cele `gateway`, `web`, `worker`:
+Jeden `Dockerfile` (kontekst: root repozytorium), cele `gateway` (z wbudowanym web) i `worker`:
 
 ```sh
 V=$(bun scripts/version.ts --field version)
@@ -111,12 +111,16 @@ docker buildx build --target gateway --build-arg CANOPY_VERSION=$V --build-arg C
 
 | Obraz | Baza | Zawartość | Użytkownik | Healthcheck |
 | --- | --- | --- | --- | --- |
-| `canopy-gateway` | `debian:bookworm-slim` + git, ca-certificates, libstdc++6 | binarka gateway; Git do źródeł skilli | `canopy` (65532), HOME `/home/canopy` | `canopy-gateway healthcheck` (TCP na `CANOPY_PORT`) |
-| `canopy-web` | `oven/bun:1.4.4-distroless` | `scripts/build-web.ts`: BFF zbundlowany z zależnościami + `client/` | 65532, HOME `/home/canopy` | `GET /api/health` |
+| `canopy-gateway` | `debian:bookworm-slim` + git, ca-certificates, libstdc++6 | binarka gateway z wbudowanym web (`--web`, porty 7443 i 3000, `CANOPY_INSTALL_KIND=docker`, `CANOPY_WEB_HOST=0.0.0.0`); Git do źródeł skilli | `canopy` (65532), HOME `/home/canopy` | `canopy-gateway healthcheck` (TCP na `CANOPY_PORT` i `/api/health` web tej wersji) |
 | `canopy-worker` | `debian:bookworm-slim` + git, curl, ssh, tini | binarka worker | `canopy` (10001) | `canopy-worker healthcheck` (link online wg `CANOPY_WORKER_STATUS_FILE`) |
 
 
 Wszystkie zmienne runtime mają prefiks `CANOPY_`.
+
+Obraz `canopy-web` nie jest już budowany ani wydawany: web jest częścią `canopy-gateway`
+(przejście dla Compose: [deploy.md](deploy.md#docker-compose-jeden-host)). Istniejące wersje i aliasy
+`canopy-web` w GHCR zostają nietknięte — release ich nie przesuwa, a retencja nightly ich nie usuwa;
+ewentualne sprzątanie pakietu należy do maintainera.
 
 Kompilacja zawsze na `BUILDPLATFORM` (cross-compile), więc arm64 nie wymaga emulacji poza
 `apt-get` w obrazie workera.
@@ -404,7 +408,7 @@ plan ─┬─ checks ───────────────────�
 | `checks` | `ci.yml` | po `plan`; na `dev` tylko gdy `published=true` | — |
 | `plan` | semantic-release **`--dry-run`** na przypiętym lustrze: `version`, `tag`, `channel`, macierz desktop | od razu; grupa `release-version-<ref>` | nic (próba pushu tylko do lustra) |
 | `binaries`, `smoke` | web raz, potem cross-compile wszystkich celów z web w gatewayu; `--version` każdej binarki i `/api/health` z `canopy-gateway web` na jej OS/arch; na linux-x64 pełny gateway (supervisor, PostgreSQL) z web na porcie 3000 | po `plan`, równolegle z checkami | — (artefakt Actions) |
-| `images-build` | buildx amd64+arm64 do cache GHA (`mode=max`), bez pushu i atestacji | po `plan` | — |
+| `images-build` | buildx `gateway` i `worker`, amd64+arm64 do cache GHA (`mode=max`), bez pushu i atestacji; obraz gateway amd64 z cache startuje obok PostgreSQL, smoke sprawdza `/api/health` web na porcie 3000, `healthcheck` i `CANOPY_INSTALL_KIND=docker` | po `plan` | — |
 | `desktop` | Linux, macOS (Apple Silicon), Windows; podpisy i notaryzacja | po `plan` | — (artefakt Actions) |
 | `release` | semantic-release na lustrze, atomowy push tagu/notes i draft przez API GitHuba | po **zielonych `checks`**; grupa `release-version-<ref>` | tag + ukryty draft |
 | `images` | ten sam build z cache, push wyłącznie niezmiennego `vX.Y.Z` (SBOM) | po `release` i `images-build` | obraz `vX.Y.Z` |
@@ -908,7 +912,7 @@ oznacza liczbę wersji, nie gwarantowane 10 godzin historii.
    wymagać ręcznego przejścia na zachowany release.
    Drafty są pomijane przez retencję, także gdy mają już serwerowy `manifest.json`;
    pozostają do ponowienia albo ręcznego porządkowania przez maintainera.
-2. **GHCR** (`canopy-gateway`, `canopy-web`, `canopy-worker`, REST
+2. **GHCR** (`canopy-gateway`, `canopy-worker`, REST
    `/orgs/{org}/packages/container/{name}/versions`). Usuwa wersję pakietu (digest) tylko gdy:
    - wszystkie jej tagi to wersje `vX.Y.Z-nightly.N`, których nightly nie jest już zachowany
      (także sprzed lat, bez release'u) i które są starsze od najnowszego ukończonego nightly;
@@ -923,7 +927,8 @@ oznacza liczbę wersji, nie gwarantowane 10 godzin historii.
    gdy wskazuje je usuwany indeks, a żaden pozostający indeks (otagowany lub nie, np. stary indeks aliasu)
    — przed samym indeksem, więc przerwany przebieg dokończy następny. Nieotagowanych wersji bez
    usuwanego rodzica (pochodzenie nieustalone) nie rusza; takie sieroty, np. po ręcznym usunięciu
-   indeksu, usuwa administrator. Błąd odczytu rejestru pomija cały pakiet.
+   indeksu, usuwa administrator. Błąd odczytu rejestru pomija cały pakiet. Wycofany pakiet `canopy-web`
+   nie jest przeglądany: jego wersje zostają.
 
 Najpierw releases, potem GHCR: brak dostępu do pakietu kończy job błędem z opisem dopiero po
 przycięciu releases. Wydanie to nie dotyka — `nightly-hygiene` startuje po `publish-desktop` i nic od
@@ -934,7 +939,7 @@ z release działają naprawdę.
 
 **Uprawnienia GHCR.** Job ma `packages: write`, ale `GITHUB_TOKEN` może listować i usuwać wersje
 pakietu organizacji tylko, gdy repozytorium ma do niego rolę **Admin**: w ustawieniach każdego
-pakietu (`canopy-gateway`, `canopy-web`, `canopy-worker`) → *Manage Actions access* → dodaj
+pakietu (`canopy-gateway`, `canopy-worker`) → *Manage Actions access* → dodaj
 `itsoltech/canopy` z rolą **Admin** (domyślna rola połączonego repozytorium to Write, która wystarcza
 do pushu, nie do usuwania). Bez tego job zgłasza `GHCR canopy-…: no access to package versions`.
 
@@ -950,8 +955,8 @@ do pushu, nie do usuwania). Bez tego job zgłasza `GHCR canopy-…: no access to
   lub `pull-requests: write` według potrzeby. Włącz „Allow GitHub Actions to create and approve
   pull requests” dla PR konfliktowych. Utwórz etykiety **release-blocker** i **promotion-hold**. Proponowana gałąź
   domyślna: **dev** (również dla workflowów schedule/dispatch).
-- Pierwszy push tworzy pakiety GHCR prywatne: w ustawieniach pakietów `canopy-gateway`,
-  `canopy-web`, `canopy-worker` ustaw **Public** (albo daj dostęp konkretnym użytkownikom)
+- Pierwszy push tworzy pakiety GHCR prywatne: w ustawieniach pakietów `canopy-gateway`
+  i `canopy-worker` ustaw **Public** (albo daj dostęp konkretnym użytkownikom)
   i połącz je z repozytorium (etykieta `org.opencontainers.image.source` robi to automatycznie).
   W *Manage Actions access* nadaj repozytorium rolę **Admin** (retencja nightly usuwa wersje,
   [Retencja nightly](#retencja-nightly)).

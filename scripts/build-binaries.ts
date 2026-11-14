@@ -13,7 +13,7 @@
  *
  * `--web DIR` (a `scripts/build-web.ts` output of the same version) embeds the web into the gateway as one
  * zstd archive; the binary serves it with `canopy-gateway web` (apps/gateway/src/web, docs/deploy.md).
- * Without it the gateway is headless (the Docker image, which runs the separate canopy-web image).
+ * Without it the gateway is headless. Release binaries and the gateway image embed it.
  */
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";

@@ -355,7 +355,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [gateway, web, worker]
+        app: [gateway, worker]
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
@@ -380,6 +380,52 @@ jobs:
             CANOPY_REVISION=${{ env.EXPECTED_SHA }}
           cache-from: type=gha,scope=${{ matrix.app }}
           cache-to: type=gha,mode=max,scope=${{ matrix.app }}
+      # The gateway image serves the web too: the amd64 image from the cache, started next to PostgreSQL.
+      - if: matrix.app == 'gateway'
+        uses: docker/build-push-action@v6
+        env:
+          DOCKER_BUILD_RECORD_UPLOAD: false
+          DOCKER_BUILD_SUMMARY: false
+        with:
+          context: .
+          target: gateway
+          platforms: linux/amd64
+          load: true
+          tags: canopy-gateway:smoke
+          provenance: false
+          sbom: false
+          build-args: |
+            CANOPY_VERSION=${{ needs.plan.outputs.version }}
+            CANOPY_REVISION=${{ env.EXPECTED_SHA }}
+          cache-from: type=gha,scope=gateway
+      - name: Gateway image serves its web
+        if: matrix.app == 'gateway'
+        env:
+          EXPECTED: ${{ needs.plan.outputs.version }}
+        run: |
+          docker network create canopy-smoke
+          docker run -d --name canopy-smoke-pg --network canopy-smoke \
+            -e POSTGRES_PASSWORD=smoke -e POSTGRES_DB=canopy postgres:17
+          until docker exec canopy-smoke-pg pg_isready -h 127.0.0.1 -U postgres -d canopy; do sleep 1; done
+          docker run -d --name canopy-smoke-gateway --network canopy-smoke -p 127.0.0.1:3000:3000 \
+            -e CANOPY_DATABASE_URL=postgres://postgres:smoke@canopy-smoke-pg:5432/canopy \
+            -e CANOPY_UI_SERVICE_TOKEN="$(openssl rand -hex 32)" -e CANOPY_SECRETS_KEY="$(openssl rand -base64 32)" \
+            canopy-gateway:smoke
+          health=""
+          for _ in $(seq 1 120); do
+            health="$(curl -fsS http://127.0.0.1:3000/api/health || true)"
+            [ -n "$health" ] && break
+            sleep 1
+          done
+          echo "$health"
+          ok=true
+          grep -q "\"version\":\"$EXPECTED\"" <<<"$health" || ok=false
+          docker exec canopy-smoke-gateway canopy-gateway healthcheck || ok=false
+          docker exec canopy-smoke-gateway printenv CANOPY_INSTALL_KIND | grep -qx docker || ok=false
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/)" = 200 || ok=false
+          docker logs canopy-smoke-gateway 2>&1 | grep -v '^\s' | tail -n 20
+          docker rm -f canopy-smoke-gateway canopy-smoke-pg >/dev/null
+          "$ok"
 
   # After the release tag exists: the same build from the cache, pushed only as the immutable vX.Y.Z.
   # Channel aliases move after publish-desktop, forward only.
@@ -389,7 +435,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [gateway, web, worker]
+        app: [gateway, worker]
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:

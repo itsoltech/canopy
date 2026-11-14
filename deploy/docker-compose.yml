@@ -1,4 +1,5 @@
-# Canopy on one host (docs/deploy.md): PostgreSQL + gateway + web, optionally a worker (profile "worker").
+# Canopy on one host (docs/deploy.md): PostgreSQL + the gateway, which also serves the web app, optionally a worker
+# (profile "worker").
 #   cp .env.example .env   # fill in the secrets
 #   docker compose up -d
 # Put the web port behind a TLS reverse proxy; keep the existing gateway port for workers and self-update.
@@ -36,27 +37,22 @@ services:
       CANOPY_OAUTH_REDIRECT_URL: ${CANOPY_OAUTH_REDIRECT_URL:-}
       CANOPY_GITHUB_APP_CLIENT_ID: ${CANOPY_GITHUB_APP_CLIENT_ID-Iv23liqSybfDzvusCyjP}
       CANOPY_GITHUB_APP_SLUG: ${CANOPY_GITHUB_APP_SLUG-canopy-by-it-sol}
+      # The web app (CANOPY_WEB=off for headless). The reverse proxy's X-Forwarded-Proto/-Host give the public
+      # scheme and host (form submissions check the origin); a request without them is plain HTTP.
+      CANOPY_WEB: ${CANOPY_WEB:-on}
+      # Host names the web answers besides IP addresses and localhost (DNS rebinding): your proxy's public name.
+      CANOPY_WEB_ALLOWED_HOSTS: ${CANOPY_WEB_ALLOWED_HOSTS:-}
+      BODY_SIZE_LIMIT: ${BODY_SIZE_LIMIT:-50M}
+    volumes:
+      # Previous web releases (assets of tabs still open after an update) and the update cache.
+      - gateway-cache:/home/canopy/.cache/canopy
     ports:
+      # The web app: keep 127.0.0.1 behind a reverse proxy or Tailscale Serve on this host.
+      - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-3000}:3000"
       # Bootstrap/compatibility: WorkerLink + Enrollment + frozen UpdateService remain here.
       - "${GATEWAY_BIND:-127.0.0.1}:${GATEWAY_PORT:-7443}:7443"
       # Optional pinned route: enable Network access in Settings and add the host's reachable address.
       - "${NETWORK_BIND:-0.0.0.0}:${CANOPY_NETWORK_PORT:-24443}:${CANOPY_NETWORK_PORT:-24443}"
-
-  web:
-    image: ghcr.io/itsoltech/canopy-web:${CANOPY_TAG:-latest}
-    restart: unless-stopped
-    depends_on:
-      gateway:
-        condition: service_healthy
-    environment:
-      GATEWAY_URL: http://gateway:7443
-      GATEWAY_SERVICE_TOKEN: ${CANOPY_UI_SERVICE_TOKEN}
-      # The reverse proxy tells the BFF the public scheme and host (form submissions check the origin).
-      PROTOCOL_HEADER: x-forwarded-proto
-      HOST_HEADER: x-forwarded-host
-      BODY_SIZE_LIMIT: ${BODY_SIZE_LIMIT:-50M}
-    ports:
-      - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-3000}:3000"
 
   # Optional: `docker compose --profile worker run --rm worker enroll --gateway http://gateway:7443 --token TOKEN`,
   # then `docker compose --profile worker up -d`. The image has no agent CLIs (docs/deploy.md).
@@ -72,4 +68,5 @@ services:
 
 volumes:
   postgres:
+  gateway-cache:
   worker-home:
