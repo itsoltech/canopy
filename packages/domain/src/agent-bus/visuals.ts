@@ -35,7 +35,7 @@ export const RenderVisual = Schema.Struct({
 const CATALOGUE =
   "Nodes (type + fields; text is plain, never HTML): stack{children,direction?:vertical|horizontal,gap?:xs|sm|md|lg,align?}, " +
   "grid{columns:1-4,children}, card{title?,subtitle?,tone?,children?}, divider, heading{text,level?:1-3}, " +
-  "text{text,variant?:body|muted|small|strong}, code{text,label?}, list{items,ordered?}, badge{text,tone?}, " +
+  "text{text,variant?:body|muted|small|strong}, code{text,label?}, list{items:[string|{label,detail?,value?,tone?}],ordered?}, badge{text,tone?}, " +
   "stat{label,value,detail?,tone?}, callout{text,title?,tone?}, table{columns(≤12),rows(≤100),caption?}, " +
   "button{label,variant?:primary|secondary|ghost,actions:[{action:set,state_key,value}|{action:next|previous|toggle,state_key}|{action:reset}] (≤8)}, " +
   "reset{label?}, tabs{state_key,tabs:[{value,label,children}]}, segmented{state_key,label,options:[string|{value,label}]}, " +
@@ -55,7 +55,8 @@ const STATE =
 const EXAMPLE =
   'Example: {"schema_version":1,"state":{"variant":"primary"},"root":{"type":"stack","children":[' +
   '{"type":"segmented","label":"Variant","state_key":"variant","options":["primary","secondary","ghost"]},' +
-  '{"type":"button_preview","label":"Add worker","variant_from":"variant"}]}}. ';
+  '{"type":"button_preview","label":"Add worker","variant_from":"variant"}]}}. ' +
+  'List example: {"schema_version":1,"root":{"type":"list","items":[{"label":"Salary","detail":"Incoming transfer","value":"+8 500 zł","tone":"success"},{"label":"Coffee","value":"−18 zł","tone":"danger"}]}}. ';
 
 export const VISUAL_TOOLS = {
   render_visual: {
@@ -64,6 +65,8 @@ export const VISUAL_TOOLS = {
       "Show the user an interactive visual in this thread, built from Canopy components: explanations, comparisons, " +
       "diagrams, step-by-step flows, button or layout variants, simple charts. Its controls change the visual locally; " +
       "they never contact you, run code or approve anything (use ask_user for decisions). No HTML, CSS, scripts, URLs or images. " +
+      "Compose a clear heading, metrics and compact cards. Prefer stats over paragraphs and list rows with label/value/tone over bullet text. " +
+      "Use device_frame for app mockups; group related button previews in a horizontal stack. Keep diagram labels short. " +
       CATALOGUE +
       STATE +
       EXAMPLE +

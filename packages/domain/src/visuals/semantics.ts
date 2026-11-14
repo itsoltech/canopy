@@ -25,6 +25,8 @@ interface Usage {
   choices: string[];
   /** Largest stepper length bound to a number key. */
   steps: number;
+  /** Diagram extent expands free numeric state without narrowing stored v1 values. */
+  diagramSteps: number;
   booleanControl: boolean;
   /** Values the spec compares or assigns, with where they appear. */
   values: { value: VisualStateValue; path: string }[];
@@ -43,7 +45,16 @@ function collectUsage(spec: VisualSpec): { usage: Map<string, Usage>; problem?: 
     let entry = usage.get(key);
 
     if (!entry) {
-      entry = { choices: [], steps: 0, booleanControl: false, values: [], requires: [], steppedBy: [], bindings: [] };
+      entry = {
+        choices: [],
+        steps: 0,
+        diagramSteps: 0,
+        booleanControl: false,
+        values: [],
+        requires: [],
+        steppedBy: [],
+        bindings: [],
+      };
       usage.set(key, entry);
     }
 
@@ -142,7 +153,11 @@ function nodeUsage(node: VisualNode, path: string, use: (key: string) => Usage):
       if (new Set(node.participants.map((p) => p.id)).size !== node.participants.length)
         return `${path}: participant ids must be unique`;
 
-      if (node.step_from) use(node.step_from).requires.push({ kind: "number", path });
+      if (node.step_from) {
+        const entry = use(node.step_from);
+        entry.requires.push({ kind: "number", path });
+        entry.diagramSteps = Math.max(entry.diagramSteps, node.messages.length);
+      }
 
       return undefined;
     case "chart":
@@ -245,7 +260,11 @@ function keyDomain(
     const numbers = [initial, ...usage.values.map((v) => v.value)].filter(isNumber);
     domain = usage.steps
       ? { kind: "number", min: 0, max: usage.steps - 1 }
-      : { kind: "number", min: Math.min(...numbers), max: Math.max(...numbers) };
+      : {
+          kind: "number",
+          min: Math.min(...numbers, usage.diagramSteps ? 0 : Number.POSITIVE_INFINITY),
+          max: Math.max(...numbers, usage.diagramSteps - 1),
+        };
   } else {
     const extra = [initial, ...usage.values.map((v) => v.value)].filter(isString);
     domain = { kind: "enum", values: usage.choices.length ? usage.choices : [...new Set(extra)] };

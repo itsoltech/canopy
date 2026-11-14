@@ -118,7 +118,7 @@ function draw(node: Chart, width: number, format: (value: number) => string): SV
   const band = plotWidth / node.categories.length;
   const y = (value: number) => 8 + plotHeight - ((onAxis(value) - low) / (high - low)) * plotHeight;
   const every = Math.ceil((node.categories.length * 72) / plotWidth);
-  const root = svg("svg", { width, height: HEIGHT, class: "v-chart-svg" });
+  const root = svg("svg", { width: "100%", height: HEIGHT, viewBox: `0 0 ${width} ${HEIGHT}`, class: "v-chart-svg" });
 
   for (const tick of scale) {
     root.append(svg("line", { x1: left, x2: width - 8, y1: y(tick), y2: y(tick), class: "v-chart-grid" }));

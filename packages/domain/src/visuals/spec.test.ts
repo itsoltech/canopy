@@ -7,6 +7,7 @@ import { parseFrameMessage, parseHostMessage } from "./protocol.ts";
 import { validVisualState } from "./semantics.ts";
 import { decodeVisualSpec, type DecodedVisual } from "./spec.ts";
 import { visualTheme } from "./theme.ts";
+import { Store } from "../../visual-kit/store.ts";
 
 const playground: JsonValue = {
   schema_version: 1,
@@ -49,6 +50,85 @@ function problem(raw: JsonValue): string {
 const withRoot = (root: JsonValue, state: JsonValue = {}): JsonObject => ({ schema_version: 1, state, root });
 
 describe("visual spec validation", () => {
+  test("sequence navigation reaches every message without requiring a stepper", () => {
+    const diagram: JsonValue = {
+      type: "sequence",
+      step_from: "step",
+      participants: [
+        { id: "app", label: "App" },
+        { id: "api", label: "API" },
+      ],
+      messages: [
+        { from: "app", to: "api", label: "Request" },
+        { from: "api", to: "api", label: "Verify", kind: "note" },
+        { from: "api", to: "app", label: "Reply", kind: "reply" },
+      ],
+    };
+
+    const visual = ok(
+      withRoot(
+        {
+          type: "stack",
+          children: [diagram, { type: "button", label: "Next", actions: [{ action: "next", state_key: "step" }] }],
+        },
+        { step: 0 },
+      ),
+    );
+
+    const store = new Store({ step: 0 }, visual.domains, {});
+    store.apply([{ action: "next", state_key: "step" }]);
+    expect(store.get("step")).toBe(1);
+    store.apply([{ action: "next", state_key: "step" }]);
+    store.apply([{ action: "next", state_key: "step" }]);
+    expect(store.get("step")).toBe(2);
+    store.apply([{ action: "previous", state_key: "step" }]);
+    expect(store.get("step")).toBe(1);
+    store.reset();
+    expect(store.get("step")).toBe(0);
+    // Older specs may explicitly use a step beyond the last message: never invalidate them.
+    expect(ok(withRoot(diagram, { step: 7 })).domains.get("step")).toEqual({ kind: "number", min: 0, max: 7 });
+  });
+
+  test("accepts stored v1 lists and additive rows in the same compiled document", () => {
+    const visual = ok(
+      withRoot({
+        type: "list",
+        items: [
+          "Stored bullet",
+          { label: "Salary", detail: "Incoming transfer", value: "+8 500 zł", tone: "success" },
+          { label: "<img src=x onerror=alert(1)>", value: "−18 zł", tone: "danger" },
+          { label: "Pending" },
+        ],
+      }),
+    );
+
+    const html = compileVisual(visual, {
+      title: "Rows",
+      mode: "export",
+      nonce: "canopy-list-compatibility",
+      instance: "rows",
+    });
+
+    expect(html).toContain("Stored bullet");
+    expect(html).toContain("Incoming transfer");
+    expect(html).not.toContain("<img src=x");
+    expect(ok(withRoot({ type: "list", ordered: true, items: ["One", "Two"] })).spec.schema_version).toBe(1);
+  });
+
+  test("rejects unsafe, unknown and oversized list row fields", () => {
+    for (const row of [
+      { label: "Salary", tone: "pink" },
+      { label: "Salary", html: "<b>unsafe</b>" },
+      { label: "Salary", value: "x".repeat(121) },
+      { label: "" },
+      { value: "12" },
+      { label: "Salary", detail: "x".repeat(501) },
+    ])
+      expect(Result.isFailure(decodeVisualSpec(withRoot({ type: "list", items: [row] })))).toBe(true);
+    const rows = Array.from({ length: 50 }, () => ({ label: "x".repeat(500), detail: "y".repeat(500) }));
+    expect(problem(withRoot({ type: "list", items: rows }))).toContain("text is longer than 32 KiB");
+  });
+
   test("derives state domains from controls", () => {
     const { domains } = ok(playground);
 

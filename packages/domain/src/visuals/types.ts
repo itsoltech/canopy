@@ -83,7 +83,19 @@ export type VisualNode =
   | { readonly type: "heading"; readonly text: string; readonly level?: 1 | 2 | 3 }
   | { readonly type: "text"; readonly text: string; readonly variant?: "body" | "muted" | "small" | "strong" }
   | { readonly type: "code"; readonly text: string; readonly label?: string }
-  | { readonly type: "list"; readonly items: readonly string[]; readonly ordered?: boolean }
+  | {
+      readonly type: "list";
+      readonly items: readonly (
+        | string
+        | {
+            readonly label: string;
+            readonly detail?: string;
+            readonly value?: string;
+            readonly tone?: VisualTone;
+          }
+      )[];
+      readonly ordered?: boolean;
+    }
   | { readonly type: "badge"; readonly text: string; readonly tone?: VisualTone }
   | {
       readonly type: "stat";
