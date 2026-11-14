@@ -139,6 +139,7 @@ lines.on("line", (line) => {
         runtime = new DesktopRuntime(request.directory, request.paths, request.secrets, (status) =>
           send({ event: "status", status }),
         );
+        runtime.hostWebInThisProcess();
         const origin = await runtime.initialize(false);
         send({ id, result: { origin, status: runtime.status } });
       } else if (request.action === "restore" && runtime) {

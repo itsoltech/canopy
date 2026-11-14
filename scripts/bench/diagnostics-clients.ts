@@ -21,7 +21,7 @@ export async function benchClients(api: Client<typeof ui.GatewayService>, enable
 
   bffMeasurements.enabled = enabled;
   bffMeasurements.clear((await api.getComputerDiagnostics({})).epoch);
-  startBffDiagnostics(api);
+  startBffDiagnostics(() => api);
   const abort = new AbortController();
   const sources = ["web", "desktop", "mobile"] as const;
   const collectors = sources.map((source) => new ClientMeasurements(source, crypto.randomUUID()));

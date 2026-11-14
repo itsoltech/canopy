@@ -97,7 +97,7 @@ test.skipIf(!existsSync(paths.web))(
       await desktop.initialize(false);
       await desktop.configure({ mode: "remote", gatewayUrl: server.url }, client);
       expect(desktop.status).toMatchObject({ phase: "running", worker: "offline", webUrl: desktop.origin });
-      expect(desktop.pids).toHaveLength(1);
+      expect(desktop.pids).toHaveLength(0); // the UI and its BFF run in this process (runtime/web.ts)
       const pids = desktop.pids;
       const saved = statSync(join(directory, "desktop.json")).mtimeMs;
       const selected = desktop.status.configuration;
@@ -139,7 +139,7 @@ test.skipIf(!existsSync(paths.gateway))(
       await local.configure({ mode: "local", allowNetwork: false, bindHost: "127.0.0.1" });
       local.pids.forEach((pid) => owned.add(pid));
       expect(local.status.worker).toBe("online");
-      expect(local.pids).toHaveLength(4);
+      expect(local.pids).toHaveLength(3); // PostgreSQL, gateway, worker; the web runs in this process
       const pidsBeforeSave = local.pids;
       const configBeforeSave = statSync(join(data, "desktop.json")).mtimeMs;
       await local.configure({ mode: "local", allowNetwork: false, bindHost: "127.0.0.1" });
@@ -155,6 +155,7 @@ test.skipIf(!existsSync(paths.gateway))(
       expect((await fetch(local.status.webUrl!)).ok).toBe(true);
       expect((await formAction(local.status.webUrl!)).body).toContain("Choose a project");
       expect((await formAction(local.status.webUrl!, "http://attacker.example")).status).toBe(403);
+
       const token = (await api.createWorkerEnrollment({ name: "Remote desktop" })).token;
       await api.updateNetworkAccess({ action: "set_enabled", enabled: true });
       await remote.initialize(false);
@@ -208,7 +209,7 @@ test.skipIf(!existsSync(paths.gateway))(
       expect(registry.ranges.length).toBe(beforeRemote);
       expect(existsSync(join(remoteData, "postgres"))).toBe(false);
       remote.pids.forEach((pid) => owned.add(pid));
-      expect(remote.pids).toHaveLength(2); // worker and local frontend/BFF; no gateway or DB
+      expect(remote.pids).toHaveLength(1); // the worker; no gateway or DB, the frontend/BFF runs in this process
       await until(() => remote.drainWorker(true));
       expect(await remote.drainWorker(true)).toBe(true);
       await remote.drainWorker(false);
@@ -251,6 +252,27 @@ test.skipIf(!existsSync(paths.gateway))(
       expect(Number(readFileSync(join(data, "postgres/data/postmaster.pid"), "utf8").split("\n")[0])).not.toBe(
         postgresPid,
       );
+
+      // The UI is not a child of the gateway: while the gateway restarts, the shell keeps answering and the BFF
+      // reports the gateway as unavailable until it is back.
+      if (process.platform !== "win32") {
+        const gatewayPid = local.pids.find((pid) =>
+          Bun.spawnSync(["ps", "-o", "args=", "-p", String(pid)])
+            .stdout.toString()
+            .includes("canopy-gateway.js"),
+        );
+
+        process.kill(gatewayPid!, "SIGKILL");
+        let shellAnswered = 0;
+        await until(async () => {
+          if ((await fetch(local.status.webUrl!)).ok) shellAnswered++;
+
+          return (await fetch(`${local.status.webUrl}/api/overview`)).ok && shellAnswered > 0;
+        }, 30_000);
+        local.pids.forEach((pid) => owned.add(pid));
+        expect(shellAnswered).toBeGreaterThan(0);
+      }
+
       await local.stop();
       remote = new DesktopRuntime(remoteData, paths, secrets(), () => {}, registry);
       await remote.initialize(false);
@@ -295,7 +317,7 @@ test.skipIf(!existsSync(paths.web))(
       expect(desktop.status).toMatchObject({ mode: "local", phase: "error", worker: "offline" });
       expect(desktop.status.error).toBeTruthy();
       expect(readFileSync(join(directory, "desktop.json"), "utf8")).toBe(saved);
-      expect(desktop.pids).toHaveLength(1);
+      expect(desktop.pids).toHaveLength(0);
     } finally {
       await desktop.stop();
     }
@@ -308,7 +330,12 @@ test.skipIf(!existsSync(paths.gateway))(
     const directory = tempDir("canopy-desktop-guardian-");
     const child = spawn(paths.bun, [controllerEntry(runtime)], { stdio: "pipe", env: guardianEnvironment });
     const exited = once(child, "exit");
-    const replies = new Map<number, (message: { result?: { pids: number[] }; error?: string }) => void>();
+
+    const replies = new Map<
+      number,
+      (message: { result?: { pids: number[]; origin?: string }; error?: string }) => void
+    >();
+
     const lines = createInterface({ input: child.stdout });
     lines.on("line", (line) => {
       const message = JSON.parse(line);
@@ -317,7 +344,7 @@ test.skipIf(!existsSync(paths.gateway))(
     });
 
     async function request(id: number, action: string, args: import("../src/controller.ts").ControllerArguments) {
-      const reply = new Promise<{ pids: number[] }>((resolveReply, reject) => {
+      const reply = new Promise<{ pids: number[]; origin?: string }>((resolveReply, reject) => {
         const timer = setTimeout(() => reject(new Error("Guardian RPC timed out")), 90_000);
         replies.set(id, (message) => {
           clearTimeout(timer);
@@ -336,11 +363,15 @@ test.skipIf(!existsSync(paths.gateway))(
     let pids: number[] = [];
 
     try {
-      await request(1, "initialize", { directory, paths, secrets: secrets() });
+      const { origin } = await request(1, "initialize", { directory, paths, secrets: secrets() });
+      // The web runs in the controller: the BFF logs this failed gateway call, which must go to the `web` log and
+      // never onto stdout, the protocol pipe the next replies come through.
+      expect((await fetch(`${origin}/api/overview`)).ok).toBe(false);
       pids = (
         await request(2, "configure", { configuration: { mode: "local", allowNetwork: false, bindHost: "127.0.0.1" } })
       ).pids;
-      expect(pids).toHaveLength(4);
+      expect(pids).toHaveLength(3);
+      expect(readFileSync(join(directory, "logs", "web.log"), "utf8")).toContain("gateway call failed");
       const savedAt = statSync(join(directory, "desktop.json")).mtimeMs;
       expect((await request(3, "configure", { configuration: { mode: "local" } })).pids).toEqual(pids);
       expect(statSync(join(directory, "desktop.json")).mtimeMs).toBe(savedAt);

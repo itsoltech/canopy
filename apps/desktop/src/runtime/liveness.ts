@@ -3,7 +3,7 @@ import { createGrpcTransport } from "@connectrpc/connect-node";
 import { update } from "@canopy/contracts";
 
 export interface LivenessProbe {
-  name: "web" | "gateway";
+  name: "gateway";
   probe: () => Promise<void>;
 }
 
@@ -18,16 +18,7 @@ export function gatewayLiveness(url: string) {
   };
 }
 
-export function livenessProbes(web: string, gateway?: string): LivenessProbe[] {
-  return [
-    {
-      name: "web",
-      probe: async () => {
-        const response = await fetch(`${web}/api/health`, { signal: AbortSignal.timeout(5000) });
-
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      },
-    },
-    ...(gateway ? [{ name: "gateway" as const, probe: gatewayLiveness(gateway) }] : []),
-  ];
+/** The local gateway; the web runs in the controller itself (web.ts), so it has no separate liveness. */
+export function livenessProbes(gateway: string): LivenessProbe[] {
+  return [{ name: "gateway", probe: gatewayLiveness(gateway) }];
 }

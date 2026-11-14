@@ -10,7 +10,7 @@ const runtime = new DesktopRuntime(
   join(directory, "runtime"),
   {
     bun: process.execPath,
-    web: resolve(import.meta.dir, "../../web/build/index.js"),
+    web: resolve(import.meta.dir, "../../web/build/handler.js"),
     gateway: "unused",
     worker: "unused",
     postgres: "unused",
