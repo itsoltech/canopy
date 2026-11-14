@@ -20,7 +20,7 @@ import {
   computerAction,
   updatesAvailable,
 } from "../../apps/mobile/src/features/updates/model.ts";
-import { computerUpdate } from "../../apps/web/src/lib/features/workers/computer-updates.ts";
+import { computerUpdate } from "@canopy/domain/release/computer-update";
 import { LocalApp } from "./support/local-app.ts";
 import { SERVICE_TOKEN, startTestGateway, eventually, type TestGateway } from "./support/gateway.ts";
 
@@ -109,7 +109,7 @@ describe.skipIf(!dockerAvailable)("paired client updates its gateway's own deskt
     expect(snapshot.appUpdateSupported).toBe(true);
     expect(home.updates?.app).toMatchObject({ version: "1.0.0", availableVersion: "1.1.0", connected: true });
     expect(computerAction(home)).toEqual({ action: "app" });
-    expect(computerUpdate(home)).toMatchObject({ status: "Available", actionable: true });
+    expect(computerUpdate(home)).toMatchObject({ status: "available", actionable: true });
     expect(updatesAvailable(snapshot)).toBe(true);
     expect(bulkUpdatesAvailable(snapshot)).toBe(true);
     expect(await errorCode(phone.manageUpdates({ action: "update_all" }))).toBe(Code.FailedPrecondition);
@@ -222,7 +222,7 @@ describe.skipIf(!dockerAvailable)("paired client updates its gateway's own deskt
     };
     await app.coordinator.publish();
     expect(computerUpdate(homeAppComputer(await phone.getUpdates({}))!)).toMatchObject({
-      status: "Failed",
+      status: "failed",
       detail: app.status.error,
     });
     app.status = { ...app.status, phase: "idle", error: undefined, message: "Update available" };

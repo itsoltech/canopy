@@ -3,7 +3,7 @@ import { createClient } from "@connectrpc/connect";
 import { update } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { createGrpcClientTransport } from "@canopy/transport";
-import { updatePlan } from "../../apps/gateway/src/updates/center-plan.ts";
+import { bulkUpdateSteps } from "@canopy/domain/release/update-plan";
 import { updatesSnapshot } from "../../apps/gateway/src/updates/center-composition.ts";
 import { failure, startTestGateway } from "./support/gateway.ts";
 
@@ -65,7 +65,7 @@ describe.skipIf(!dockerAvailable)("the desktop app's bundled gateway and worker 
     expect(byId(snapshot, gateway.workerId).desktop).toBeUndefined();
     expect(byId(snapshot, external)).toMatchObject({ bundled: false, installKind: "binary" });
 
-    expect(updatePlan(snapshot).steps.map((s) => [s.kind, s.workerId])).toEqual([["worker", external]]);
+    expect(bulkUpdateSteps(snapshot).map((s) => [s.kind, s.workerId])).toEqual([["worker", external]]);
 
     // The app's own setting chooses its channel; the bundled gateway refuses its own.
     expect(await failure(gateway.api.manageUpdates({ action: "channel", channel: "stable" }))).toContain(
@@ -82,6 +82,6 @@ describe.skipIf(!dockerAvailable)("the desktop app's bundled gateway and worker 
     expect(byId(snapshot, gateway.workerId).bundled).toBe(false);
     expect(byId(snapshot, gateway.workerId).desktop?.disabledReason).toContain("Pair this desktop app");
     expect(byId(snapshot, external).bundled).toBe(false);
-    expect(updatePlan(snapshot).steps.map((s) => [s.kind, s.workerId])).toEqual([["worker", external]]);
+    expect(bulkUpdateSteps(snapshot).map((s) => [s.kind, s.workerId])).toEqual([["worker", external]]);
   });
 });

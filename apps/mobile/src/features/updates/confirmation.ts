@@ -20,7 +20,9 @@ export function confirmAppUpdate(
     appUpdateAvailable(snapshot.app);
 
   const retryApp =
-    request.action === "retry_step" && snapshot?.run?.steps[request.updateStepIndex ?? 0]?.kind === "app";
+    (request.action === "retry_step" && snapshot?.run?.steps[request.updateStepIndex ?? 0]?.kind === "app") ||
+    (request.action === "retry_failed" &&
+      !!snapshot?.run?.steps.some((step) => step.kind === "app" && ["failed", "blocked"].includes(step.state)));
 
   if (request.action !== "app" && request.action !== "computer" && !bulk && !retryApp) return false;
 

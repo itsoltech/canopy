@@ -155,5 +155,12 @@ export function bulkUpdateSteps(snapshot: ui.UpdatesSnapshot): ui.UpdateStep[] {
   );
 }
 
+/**
+ * The run Update all writes. The gateway persists it; clients show the same steps as "Queued" the moment the user
+ * confirms, before the gateway answers.
+ */
+export const plannedUpdateRun = (snapshot: ui.UpdatesSnapshot, id: string): ui.UpdateRun =>
+  create(ui.UpdateRunSchema, { id, state: "running", steps: bulkUpdateSteps(snapshot) });
+
 export const bulkUpdatesAvailable = (snapshot: ui.UpdatesSnapshot): boolean =>
   bulkUpdateSteps(snapshot).some((step) => step.state === "queued");

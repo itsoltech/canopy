@@ -11,12 +11,13 @@
   import UpdatesPanel from "../UpdatesPanel.svelte";
   import { UpdatesState } from "../updates.svelte.ts";
   import { computerStates, fixtureSnapshot } from "./update-fixtures.ts";
-  import { bulkUpdateSteps } from "@canopy/domain/release/update-plan";
+  import { bulkUpdateSteps, plannedUpdateRun } from "@canopy/domain/release/update-plan";
 
   /**
    * The updates center with fixture data: light/dark with `?dark=1`, the settings sections with `?view=settings`.
    * `client=web` has no Electron bridge; `home` selects a computer state and `name` overrides its name.
-   * Development only.
+   * `state=quiet` makes everything current, `state=starting` shows the instant state of Update all, `restart=1` (or
+   * `slow`) has the linked computer restart for its update. Development only.
    */
   const updates = new UpdatesState();
 
@@ -31,13 +32,54 @@
 
   updates.snapshot.computerName = page.url.searchParams.get("name") || updates.snapshot.computerName;
 
+  const params = page.url.searchParams;
+  const finishedAt = new Date().toISOString();
+
+  if (params.get("state") === "quiet") {
+    const snapshot = updates.snapshot;
+
+    for (const home of [snapshot, ...snapshot.computers.flatMap((computer) => computer.updates ?? [])]) {
+      for (const worker of home.workers) worker.version = home.gatewayVersion;
+
+      for (const item of home.cliWorkers.flatMap((worker) => worker.cliTools)) {
+        if (item.tool && item.latest) item.tool.version = item.latest.version;
+        item.updateAvailable = false;
+        item.action = "";
+      }
+
+      if (home.app) home.app.version = home.app.availableVersion;
+    }
+
+    snapshot.computers = snapshot.computers.filter((computer) => computer.remoteUpdate);
+  }
+
+  if (params.has("restart")) {
+    const studio = updates.snapshot.computers[0];
+
+    if (studio) {
+      studio.presence = "updating";
+      studio.presenceSinceMs = BigInt(Date.now() - (params.get("restart") === "slow" ? 5 * 60_000 : 20_000));
+    }
+  }
+
   if (page.url.searchParams.get("run") === "failed") {
     updates.snapshot.run = create(ui.UpdateRunSchema, {
       id: "failed-fixture",
       state: "failed",
       reason: "Linked computer · Canopy app: The app restarted before the update completed. Request it again.",
       steps: [
-        { kind: "computer", label: "Linked computer · Canopy app", state: "failed", version: "0.43.0-nightly.1" },
+        ...bulkUpdateSteps(updates.snapshot)
+          .filter((step) => step.kind !== "computer" && step.state !== "skipped")
+          .map((step) => ({ ...step, state: "succeeded", finishedAt })),
+        {
+          kind: "computer",
+          nodeId: updates.snapshot.computers[0]?.nodeId,
+          label: "Linked computer · Canopy app",
+          state: "failed",
+          version: "0.43.0-nightly.1",
+          reason: "The app restarted before the update completed. Request it again.",
+          finishedAt,
+        },
       ],
     });
   }
@@ -49,6 +91,7 @@
     for (const [index, step] of steps.entries()) {
       if (step.state === "skipped") continue;
       step.state = complete || index === 0 ? "succeeded" : index <= 3 ? "running" : "queued";
+      step.finishedAt = step.state === "succeeded" ? finishedAt : "";
     }
 
     steps.push(
@@ -64,6 +107,11 @@
       state: complete ? "succeeded" : "running",
       steps,
     });
+  }
+
+  if (params.get("state") === "starting") {
+    updates.optimistic = { run: plannedUpdateRun(updates.snapshot, ""), rows: new Map() };
+    updates.pending = "update_all";
   }
 
   const app = new DesktopUpdatesState();

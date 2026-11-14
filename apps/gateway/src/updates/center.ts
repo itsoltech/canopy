@@ -2,7 +2,7 @@ import { create, clone } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { ui } from "@canopy/contracts";
 import { reachedUpdateVersion } from "@canopy/domain/release/remote-update-state";
-import { updatePlan } from "./center-plan.ts";
+import { plannedUpdateRun } from "@canopy/domain/release/update-plan";
 import { remoteStepCurrent, remoteStepDismissed } from "./remote-outcome.ts";
 import { pendingUpdate, UPDATE_CONCURRENCY, updateDependencies, updatesConflict } from "./center-scheduling.ts";
 import { computerUpdated } from "./computer-completion.ts";
@@ -53,13 +53,17 @@ export class UpdateCenter {
 
     return next;
   }
-  async begin(confirmRestart = false) {
-    if ((await this.options.read())?.state === "running") return;
+  /**
+   * Plans, persists and launches the first steps before it answers, so the caller's first snapshot already shows
+   * them running. Returns the snapshot it planned from (undefined when a run was already going).
+   */
+  async begin(confirmRestart = false): Promise<ui.UpdatesSnapshot | undefined> {
+    if ((await this.options.read())?.state === "running") return undefined;
 
-    return this.serialize(async () => {
-      if ((await this.options.read())?.state === "running") return;
+    const snapshot = await this.serialize(async () => {
+      if ((await this.options.read())?.state === "running") return undefined;
       const snapshot = await this.options.snapshot();
-      const run = updatePlan(snapshot);
+      const run = plannedUpdateRun(snapshot, crypto.randomUUID());
 
       if (!run.steps.some((step) => step.state === "queued"))
         throw new ConnectError(
@@ -70,16 +74,21 @@ export class UpdateCenter {
       if (!confirmRestart && run.steps.some((step) => step.kind === "app" && step.state === "queued"))
         throw new ConnectError("Confirm the computer restart before updating all.", Code.FailedPrecondition);
       await this.options.write(run);
-    }).then(() => {
-      void this.tick().catch(() => undefined);
+
+      return snapshot;
     });
+
+    if (snapshot) await this.tick(snapshot).catch(() => undefined);
+
+    return snapshot;
   }
-  tick() {
+  /** `planned`: a snapshot read moments ago in the same operation, so the first launch does not read it again. */
+  tick(planned?: ui.UpdatesSnapshot) {
     return (this.ticking ??= this.serialize(async () => {
       const run = await this.options.read();
 
       if (run?.state !== "running") return;
-      const snapshot = await this.options.snapshot();
+      const snapshot = planned ?? (await this.options.snapshot());
 
       for (const [index, step] of run.steps.entries()) {
         if (step.state !== "running") continue;
@@ -94,7 +103,7 @@ export class UpdateCenter {
             if (launch.error) throw launch.error;
           }
 
-          if ((!launch || launch.settled) && (await this.complete(step, snapshot))) step.state = "succeeded";
+          if ((!launch || launch.settled) && (await this.complete(step, snapshot))) this.succeed(step);
 
           if (Date.now() - Date.parse(step.startedAt) > 35 * 60_000)
             throw new Error("Timed out waiting for completion. Retry Update all after checking this item.");
@@ -141,7 +150,7 @@ export class UpdateCenter {
           // Persist every reservation before sending; restart never replays an uncertain install.
           await this.options.write(run);
 
-          if (await this.complete(step, snapshot, true)) step.state = "succeeded";
+          if (await this.complete(step, snapshot, true)) this.succeed(step);
           else {
             const launch: UpdateLaunch = {
               step: clone(ui.UpdateStepSchema, step),
@@ -187,8 +196,14 @@ export class UpdateCenter {
     return slots.size;
   }
 
+  private succeed(step: ui.UpdateStep) {
+    step.state = "succeeded";
+    step.finishedAt = new Date().toISOString();
+  }
+
   private fail(step: ui.UpdateStep, cause: unknown) {
     step.state = cause instanceof ConnectError && cause.code === Code.FailedPrecondition ? "blocked" : "failed";
+    step.finishedAt = new Date().toISOString();
     step.reason =
       cause instanceof ConnectError ? cause.rawMessage : cause instanceof Error ? cause.message : "Update failed";
   }
@@ -334,7 +349,9 @@ export class UpdateCenter {
         const dismissed = remoteStepDismissed(step, current);
 
         if (!dismissed && !remoteStepCurrent(step, current)) continue;
-        step.state = dismissed ? "dismissed" : "succeeded";
+
+        if (dismissed) step.state = "dismissed";
+        else this.succeed(step);
         step.reason = "";
         resolved = true;
       }
@@ -354,7 +371,7 @@ export class UpdateCenter {
         failed.length === 1 &&
         failed[0]?.kind === "gateway" &&
         failed[0].reason.includes("Managed externally") &&
-        !updatePlan(current).steps.some((step) => step.state === "queued")
+        !plannedUpdateRun(current, "").steps.some((step) => step.state === "queued")
       )
         return undefined;
     }
@@ -363,55 +380,69 @@ export class UpdateCenter {
   }
 
   retry(requestId: string, index: number, confirmRestart = false) {
+    return this.requeue(requestId, (run) => (run.steps[index] ? [run.steps[index]] : []), confirmRestart);
+  }
+
+  /** Retry failed: every failed or blocked step of the current stopped run, in one durable change. */
+  retryFailed(requestId: string, confirmRestart = false) {
+    return this.requeue(
+      requestId,
+      (run) => run.steps.filter((step) => ["failed", "blocked"].includes(step.state)),
+      confirmRestart,
+    );
+  }
+
+  private requeue(requestId: string, choose: (run: ui.UpdateRun) => ui.UpdateStep[], confirmRestart: boolean) {
     return this.serialize(async () => {
       const run = await this.options.read();
-      const step = run?.steps[index];
+      const steps = run && run.id === requestId && run.state !== "running" ? choose(run) : [];
 
-      if (
-        !run ||
-        run.id !== requestId ||
-        run.state === "running" ||
-        !step ||
-        !["failed", "blocked"].includes(step.state)
-      )
+      if (!run || !steps.length || steps.some((step) => !["failed", "blocked"].includes(step.state)))
         throw new ConnectError("Choose a failed update from the current results.", Code.FailedPrecondition);
 
-      if (step.kind === "app" && !confirmRestart)
+      if (steps.some((step) => step.kind === "app") && !confirmRestart)
         throw new ConnectError("Confirm the computer restart before retrying its app.", Code.FailedPrecondition);
 
-      const current = updatePlan(await this.options.snapshot()).steps.find(
-        (item) =>
-          item.kind === step.kind &&
-          item.workerId === step.workerId &&
-          item.nodeId === step.nodeId &&
-          item.provider === step.provider,
-      );
+      const plan = plannedUpdateRun(await this.options.snapshot(), "").steps;
 
-      if (current && current.state === "skipped") throw new ConnectError(current.reason, Code.FailedPrecondition);
-      // Keep the selected version and successful history. Every launch checks the current owner and target again.
-      step.state = "queued";
-      step.reason = "";
-      step.startedAt = "";
-      step.requestId = "";
+      for (const step of steps) {
+        const current = plan.find(
+          (item) =>
+            item.kind === step.kind &&
+            item.workerId === step.workerId &&
+            item.nodeId === step.nodeId &&
+            item.provider === step.provider,
+        );
 
-      for (const item of run.steps) {
-        if (item.state !== "blocked" || item.nodeId !== step.nodeId) continue;
+        if (current?.state === "skipped") throw new ConnectError(current.reason, Code.FailedPrecondition);
+      }
 
-        if (
-          (step.kind === "worker" && item.kind === "cli" && item.workerId === step.workerId) ||
-          step.kind === "gateway"
-        ) {
-          item.state = "queued";
-          item.reason = "";
+      // Keep the selected versions and successful history. Every launch checks the current owner and target again.
+      for (const step of steps) {
+        step.state = "queued";
+        step.reason = "";
+        step.startedAt = "";
+        step.finishedAt = "";
+        step.requestId = "";
+
+        for (const item of run.steps) {
+          if (item.state !== "blocked" || item.nodeId !== step.nodeId) continue;
+
+          if (
+            (step.kind === "worker" && item.kind === "cli" && item.workerId === step.workerId) ||
+            step.kind === "gateway"
+          ) {
+            item.state = "queued";
+            item.reason = "";
+            item.finishedAt = "";
+          }
         }
       }
 
       run.state = "running";
       run.reason = "";
       await this.options.write(run);
-    }).then(() => {
-      void this.tick().catch(() => undefined);
-    });
+    }).then(() => this.tick().catch(() => undefined));
   }
 
   dismiss(requestId: string, acknowledge?: (step: ui.UpdateStep) => Promise<void>) {

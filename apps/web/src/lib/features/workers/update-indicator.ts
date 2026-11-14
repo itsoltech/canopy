@@ -1,7 +1,7 @@
 import type { DesktopUpdateStatus } from "@canopy/ui/desktop";
 import type { ui } from "@canopy/contracts";
 import { listedWorkers, updatesAvailable, externalUpdatesAvailable } from "./compact-updates.ts";
-import { computerUpdate } from "./computer-updates.ts";
+import { computerUpdate } from "@canopy/domain/release/computer-update";
 import { isRateLimitMessage } from "@canopy/domain/release/http";
 import { homeAppComputer } from "@canopy/domain/release/update-actions";
 

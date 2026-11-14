@@ -3,13 +3,13 @@
   import type { ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import Alert from "#lib/shared/ui/Alert.svelte";
-  import Badge from "#lib/shared/ui/Badge.svelte";
+  import UpdateBadge from "#lib/features/workers/UpdateBadge.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
-  import { computerUpdate } from "#lib/features/workers/computer-updates.ts";
+  import { computerUpdate } from "@canopy/domain/release/computer-update";
   import { presenceTime } from "#lib/features/computers/computers.ts";
-  import { updateCenter, UpdatesState, updateTone } from "#lib/features/workers/updates.svelte.ts";
+  import { updateCenter, UpdatesState } from "#lib/features/workers/updates.svelte.ts";
   import { updateCheckLabel } from "@canopy/domain/computer-presence";
   import { currentRemoteUpdate } from "@canopy/domain/release/remote-update-state";
 
@@ -62,7 +62,7 @@
       {@const channel = CHANNELS.get(app?.channel ?? "")}
       {@const pending = updates.pending === computer.nodeId}
       <!-- A computer too old for remote updates says so once, in the control. -->
-      {@const detail = computer.remoteUpdate || computer.presence !== "connected" ? view.detail : ""}
+      {@const detail = computer.remoteUpdate || computer.presence !== "connected" ? view.line || view.detail : ""}
       <SettingsRow title={computer.name}>
         <!-- The status follows the versions, so its changing width moves nothing after it. -->
         <p class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm/5 text-zinc-500 dark:text-zinc-400">
@@ -70,7 +70,7 @@
             >{version || "Version unknown"}{view.target && view.target !== version ? ` → ${view.target}` : ""}{channel
               ? ` · ${channel}`
               : ""}</span
-          ><Badge compact tone={updateTone(view)}>{view.status}</Badge>
+          ><UpdateBadge status={view.status} />
         </p>
         <p class="text-xs/5 text-muted tabular-nums">{updateCheckLabel(app?.lastCheckedAtMs, presenceTime)}</p>
         {#if detail}<p

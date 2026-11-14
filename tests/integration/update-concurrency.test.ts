@@ -259,4 +259,56 @@ describe("durable update scheduler with gated fake workers", () => {
     expect(f.started.at(-1)).toBe("self");
     expect(f.run()?.steps.at(-1)?.state).toBe("running");
   });
+
+  test("Update all answers with its first steps already running, from the snapshot it planned with", async () => {
+    const f = fleet(3);
+    const planned = await f.center.begin();
+
+    // No tick between the click and the answer: the first slots are reserved and launched before it returns.
+    expect(planned?.workers).toHaveLength(3);
+    expect(f.run()?.steps.filter((step) => step.state === "running")).toHaveLength(4);
+    expect(f.run()?.steps.filter((step) => step.state === "queued")).toHaveLength(2);
+    expect(f.started).toHaveLength(4);
+    expect(await f.center.begin()).toBeUndefined();
+
+    for (const id of f.started) f.finish(id);
+    await f.tick();
+
+    for (const id of f.started) f.finish(id);
+    await f.tick();
+    expect(f.run()?.state).toBe("succeeded");
+    expect(f.run()?.steps.every((step) => !!step.finishedAt)).toBe(true);
+  });
+
+  test("Retry failed requeues every failed step at once and keeps the successes", async () => {
+    const f = fleet(2);
+    await f.center.begin();
+    const [a, b, c, d] = f.started;
+    f.finish(a!, true);
+    f.finish(b!, true);
+    f.finish(c!);
+    f.finish(d!);
+    await f.tick();
+    const run = f.run()!;
+    expect(run.state).toBe("failed");
+    expect(run.steps.filter((step) => step.state === "failed").every((step) => !!step.finishedAt)).toBe(true);
+
+    await expect(f.center.retryFailed("another-run")).rejects.toThrow("Choose a failed update");
+
+    for (const item of f.snapshot.cliWorkers.flatMap((worker) => worker.cliTools)) item.tool!.install = undefined;
+    await f.center.retryFailed(run.id);
+
+    // The answer already shows both retried steps running; the successful ones keep their history.
+    const retried = f.run()!;
+    expect(retried.id).toBe(run.id);
+    expect(retried.steps.map((step) => step.state)).toEqual(["running", "running", "succeeded", "succeeded"]);
+    expect(retried.steps.slice(0, 2).every((step) => !step.finishedAt && !step.reason)).toBe(true);
+    expect(f.started.slice(4)).toEqual([a!, b!]);
+    await expect(f.center.retryFailed(run.id)).rejects.toThrow("Choose a failed update");
+
+    f.finish(a!);
+    f.finish(b!);
+    await f.tick();
+    expect(f.run()?.state).toBe("succeeded");
+  });
 });

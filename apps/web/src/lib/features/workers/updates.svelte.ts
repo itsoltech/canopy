@@ -2,10 +2,19 @@ import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { requestJson } from "#lib/shared/http.ts";
 import { decode, encode } from "#lib/shared/wire.ts";
-import type { Tone } from "#lib/shared/ui/tone.ts";
-import { linkedDownloading } from "./computer-updates.ts";
+import { linkedDownloading } from "@canopy/domain/release/computer-update";
 import { workerUpdateSignature } from "@canopy/domain/update-checks";
 import { hasUnsentWork } from "./unsent-work.ts";
+import { plannedUpdateRun } from "@canopy/domain/release/update-plan";
+import { furthestStatus, runStatuses, updateTargetKey, type UpdateStatus } from "@canopy/domain/release/update-status";
+
+type ManageInput = MessageInitShape<typeof ui.ManageUpdatesRequestSchema>;
+
+/** What the user just asked for, shown at once and replaced by the gateway's answer (or reverted by its error). */
+interface Optimistic {
+  run: ui.UpdateRun | undefined;
+  rows: ReadonlyMap<string, UpdateStatus>;
+}
 
 /** While something updates (a run, a worker, a linked download): its progress arrives with each read. */
 const BUSY_RELOAD_MS = 2000;
@@ -25,14 +34,37 @@ export class UpdatesState {
   snapshot = $state<ui.UpdatesSnapshot>();
   error = $state("");
   pending = $state("");
+  optimistic = $state<Optimistic>();
+  /** The run rows follow: the gateway's while it runs, otherwise the one just requested. */
+  run = $derived(
+    this.snapshot?.run?.state === "running" ? this.snapshot.run : (this.optimistic?.run ?? this.snapshot?.run),
+  );
+  #statuses = $derived(runStatuses(this.run));
   #loading = false;
   #generation = 0;
   #users = 0;
   #stop: (() => void) | undefined;
   #soon: (() => void) | undefined;
   #events: UpdateEvents | undefined;
+  /** A row's badge: the further of its own state, its run step and what the user just started. */
+  rowStatus(key: string, own: UpdateStatus | string): UpdateStatus | string {
+    return furthestStatus(furthestStatus(own, this.#statuses.get(key)), this.optimistic?.rows.get(key));
+  }
+  /** An action is pending or Update all runs: row actions wait (this computer restarts last). */
+  get active(): boolean {
+    return !!this.pending || this.run?.state === "running";
+  }
+  /** A row's failed step in the stopped run, for its Retry; -1 without one. */
+  failedStep(key: string): number {
+    const run = this.snapshot?.run;
+
+    if (!run || run.state === "running") return -1;
+
+    return run.steps.findIndex((step) => ["failed", "blocked"].includes(step.state) && updateTargetKey(step) === key);
+  }
+  /** Reads keep going while an action is pending; one that started before the action's answer is dropped. */
   async reload(): Promise<void> {
-    if (this.#loading || this.pending) return;
+    if (this.#loading) return;
     this.#loading = true;
     const generation = this.#generation;
 
@@ -93,14 +125,15 @@ export class UpdatesState {
     const snapshot = this.snapshot;
 
     return (
-      !!snapshot &&
-      (snapshot.checking ||
-        updateBusy(snapshot.gatewayState) ||
-        snapshot.run?.state === "running" ||
-        snapshot.workers.some((w) => updateBusy(w.state)) ||
-        updateBusy(snapshot.app?.phase ?? "") ||
-        ["checking", "downloading"].includes(snapshot.app?.updaterPhase ?? "") ||
-        linkedDownloading(snapshot))
+      !!this.pending ||
+      (!!snapshot &&
+        (snapshot.checking ||
+          updateBusy(snapshot.gatewayState) ||
+          snapshot.run?.state === "running" ||
+          snapshot.workers.some((w) => updateBusy(w.state)) ||
+          updateBusy(snapshot.app?.phase ?? "") ||
+          ["checking", "downloading"].includes(snapshot.app?.updaterPhase ?? "") ||
+          linkedDownloading(snapshot)))
     );
   }
   #start(): () => void {
@@ -140,7 +173,8 @@ export class UpdatesState {
       document.removeEventListener("visibilitychange", visibility);
     };
   }
-  async manage(input: MessageInitShape<typeof ui.ManageUpdatesRequestSchema>): Promise<void> {
+  /** `target`: the row the action belongs to (`updateTargetKey`), shown as Starting until the answer arrives. */
+  async manage(input: ManageInput, target = ""): Promise<void> {
     if (this.pending) return;
 
     if (input.confirmRestart && hasUnsentWork()) {
@@ -152,6 +186,7 @@ export class UpdatesState {
     this.#generation++;
     this.pending = input.workerId || input.nodeId || input.action || "update";
     this.error = "";
+    this.optimistic = this.#expect(input, target);
 
     try {
       this.snapshot = decode(
@@ -168,7 +203,27 @@ export class UpdatesState {
     } finally {
       this.#generation++;
       this.pending = "";
+      this.optimistic = undefined;
     }
+  }
+  #expect(input: ManageInput, target: string): Optimistic | undefined {
+    const snapshot = this.snapshot;
+
+    if (input.action === "update_all" && snapshot) return { run: plannedUpdateRun(snapshot, ""), rows: new Map() };
+
+    const steps = snapshot?.run?.steps ?? [];
+    let retried: ui.UpdateStep[] = [];
+
+    if (input.action === "retry_failed") retried = steps.filter((step) => ["failed", "blocked"].includes(step.state));
+
+    if (input.action === "retry_step") retried = steps.filter((_, index) => index === (input.updateStepIndex ?? 0));
+
+    const rows = new Map<string, UpdateStatus>([
+      ...retried.map((step) => [updateTargetKey(step), "starting"] as const),
+      ...(target ? [[target, "starting"] as const] : []),
+    ]);
+
+    return rows.size ? { run: undefined, rows } : undefined;
   }
 }
 
@@ -188,7 +243,3 @@ export const updateStateLabel = (state: string, compatible: boolean) =>
     managed_externally: "Managed externally",
     ahead: "Newer than gateway",
   })[state] ?? (compatible ? "Compatible" : "Update required");
-
-/** One badge tone per update state, like settled statuses (status.ts): up to date is emerald everywhere. */
-export const updateTone = ({ failed = false, busy = false, current = false }): Tone =>
-  failed ? "rose" : busy ? "amber" : current ? "emerald" : "neutral";

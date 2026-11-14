@@ -485,7 +485,7 @@ message WorkerRequest { string worker_id = 1; }
 
 message UpdatesRequest {}
 message ManageUpdatesRequest {
-  string action = 1; // check | channel | gateway | worker | all | desktop | update_all | computer | computer_check | app | dismiss_run | app_dismiss | computer_dismiss | desktop_dismiss
+  string action = 1; // check | channel | gateway | worker | all | desktop | update_all | computer | computer_check | app | dismiss_run | app_dismiss | computer_dismiss | desktop_dismiss | retry_step | retry_failed
   string channel = 2;
   string worker_id = 3;
   bool force = 4;
@@ -573,6 +573,7 @@ message UpdateStep {
   string from_version = 9;
   string node_id = 10; // computer: the linked computer
   string request_id = 11; // computer: the app update request on that computer
+  string finished_at = 12; // when the step succeeded, failed or was blocked
 }
 message RenameWorkerRequest { string worker_id = 1; string name = 2; }
 message RotateWorkerCredentialResponse { string credential = 1; }
