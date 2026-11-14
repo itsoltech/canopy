@@ -97,11 +97,11 @@
       name="computer-desktop"
       class="size-3.5 {worker?.online ? 'fill-zinc-400 dark:fill-zinc-500' : 'fill-zinc-300 dark:fill-zinc-700'}"
     />
-    <span class={["min-w-0 truncate", row.branch ? "max-w-1/2" : "flex-1"]}
+    <span class={["min-w-0 truncate", row.branch ? "max-w-2/5" : "flex-1"]}
       >{worker?.name ?? "Unknown worker"}{#if row.place}<span class="text-zinc-400 dark:text-zinc-600">{" · "}</span
         >{row.place}{/if}</span
     >
-    {#if row.branch}<SidebarThreadBranch branch={row.branch} class="flex-1" />{/if}
+    {#if row.branch}<SidebarThreadBranch branch={row.branch} label={row.branchLabel} class="flex-1" />{/if}
     <span class="flex shrink-0 items-center gap-2">
       <ThreadGoalMark {thread} />
       <ScheduleOrigin {thread} compact />

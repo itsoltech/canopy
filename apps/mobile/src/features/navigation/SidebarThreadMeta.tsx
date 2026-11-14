@@ -8,7 +8,7 @@ import { styles, useColors } from "../../ui/theme";
 import { useSidebarTypography } from "./sidebar-scale";
 
 /**
- * The row's last line, as on web (docs/threads.md, "Wiersz wątku"): computer and place take at most half, the live
+ * The row's last line, as on web (docs/threads.md, "Wiersz wątku"): computer and place take at most 2/5, the live
  * branch the rest. Long branch names lose their middle, so the type prefix and the distinguishing end stay visible;
  * the row's accessibility label carries the full name.
  */
@@ -32,7 +32,7 @@ export function SidebarThreadMeta({
         style={[
           type.meta,
           { minWidth: 0, color: c.muted },
-          place.branch ? { flexShrink: 1, maxWidth: "50%" } : { flex: 1 },
+          place.branch ? { flexShrink: 1, maxWidth: "40%" } : { flex: 1 },
         ]}
       >
         {worker?.name ?? "Unknown worker"}

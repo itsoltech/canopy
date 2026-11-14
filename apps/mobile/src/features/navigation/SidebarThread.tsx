@@ -69,7 +69,7 @@ export function SidebarThread({
     <>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${thread.title || "Untitled thread"}, ${statusLabel ?? threadRowLabel(thread)}${place.branch ? `, Branch ${place.branch}` : ""}${home.away ? `, ${home.reason}` : ""}${thread.markedUnread ? ", Unread" : ""}`}
+        accessibilityLabel={`${thread.title || "Untitled thread"}, ${statusLabel ?? threadRowLabel(thread)}${place.branchLabel ? `, ${place.branchLabel}` : ""}${home.away ? `, ${home.reason}` : ""}${thread.markedUnread ? ", Unread" : ""}`}
         accessibilityState={{ selected: active }}
         onPress={() => void layout.openThread(thread.id)}
         onLongPress={reorder ? undefined : () => setActions(true)}
