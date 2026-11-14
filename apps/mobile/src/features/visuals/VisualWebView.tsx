@@ -100,7 +100,6 @@ export function VisualWebView({
   onRetry: () => void;
 }) {
   const reducedMotion = useReducedMotion();
-  const colors = useColors();
   const web = useRef<WebView<object>>(null);
   const states = useVisualStatesLoaded();
   const [failure, setFailure] = useState("");
@@ -188,23 +187,12 @@ export function VisualWebView({
     );
 
   if (response.visual?.htmlDocument && !run)
-    return (
-      <VisualProblem
-        text="Custom HTML from the agent. Don't enter passwords or secrets."
-        onRetry={() => setRun(true)}
-        actionLabel="Run"
-      />
-    );
+    return <VisualProblem text="Custom HTML from the agent." onRetry={() => setRun(true)} actionLabel="Run" />;
 
   if (!shell) return <View style={{ height }} />;
 
   return (
     <View>
-      {response.visual?.htmlDocument ? (
-        <Text style={[styles.body, { padding: 12, color: colors.soft }]}>
-          Custom HTML from the agent. Don't enter passwords or secrets.
-        </Text>
-      ) : null}
       <SandboxedWebView
         key={shell.token}
         ref={web}

@@ -26,7 +26,6 @@ export interface ShellOptions {
   /** Random per mount; marks the messages the shell relays to the app. The iframe never sees it. */
   readonly token: string;
   readonly scriptHashes?: readonly string[];
-  readonly showWarning?: boolean;
 }
 
 /** The shell loads nothing either: only its nonced script and style run, and the srcdoc frame is its one child. */
@@ -50,8 +49,7 @@ export function shellPolicy(nonce: string): string {
 
 const SHELL_STYLE =
   "html,body{margin:0;height:100%;overflow:hidden;background:transparent}" +
-  "iframe{display:block;width:100%;height:100%;border:0;background:transparent}" +
-  ".canopy-html-warning{box-sizing:border-box;margin:0;padding:12px;font:14px/20px system-ui;color:#444;background:#fff}body:has(.canopy-html-warning) iframe{height:calc(100% - 64px)}";
+  "iframe{display:block;width:100%;height:100%;border:0;background:transparent}";
 
 /**
  * The shell's whole program. It never evaluates data: the iframe gets the compiled document as `srcdoc`, the native
@@ -141,9 +139,6 @@ export function compileVisualShell(options: ShellOptions): string {
     `<style nonce="${options.nonce}">${SHELL_STYLE}</style>`,
     "</head>",
     "<body>",
-    ...(options.showWarning
-      ? ['<p class="canopy-html-warning">Custom HTML from the agent. Don’t enter passwords or secrets.</p>']
-      : []),
     `<script type="application/json" id="canopy-shell-data">${inertJson(data)}</script>`,
     `<script nonce="${options.nonce}">${SHELL_SCRIPT}</script>`,
     "</body>",
@@ -171,7 +166,6 @@ export function mountVisualShell(
     readonly title: string;
     readonly kitVersion: number;
     readonly htmlDocument?: boolean;
-    readonly showWarning?: boolean;
     readonly theme: VisualTheme;
     readonly reducedMotion: boolean;
     readonly state: VisualState | undefined;
@@ -202,7 +196,6 @@ export function mountVisualShell(
         instance,
         token,
         scriptHashes: compiled.hashes,
-        showWarning: options.showWarning ?? false,
       }),
     };
   }

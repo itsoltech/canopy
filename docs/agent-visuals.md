@@ -691,9 +691,8 @@ Kod działa wyłącznie w `iframe sandbox="allow-scripts"`, bez
 credentiale i most Canopy. Ramka nigdy nie dostaje sekretów. Własny CSS nie
 może wyjść poza jej prostokąt i przykryć chrome aplikacji.
 
-Zaufana karta/shell pokazuje „Custom HTML from the agent. Don't enter passwords
-or secrets.” Treść może naśladować UI i wyłudzać dane; ostrzeżenie nie jest
-techniczną ochroną przed wpisaniem sekretu. Pobranie odbywa się w Canopy ze
+Karta nie pokazuje osobnego ostrzeżenia nad treścią. Treść może naśladować UI
+i wyłudzać dane; ochroną jest sandbox, a nie komunikat. Pobranie odbywa się w Canopy ze
 zapisanej wersji, bez `allow-downloads`. Linki i formularze są nieaktywne.
 Eksport zawiera CSP i lockdown, ale otwarcie pliku `file://` wykonuje kod agenta
 poza sandboxem Canopy. CSP pozostaje aktywna; nie zastępuje opaque origin ani
