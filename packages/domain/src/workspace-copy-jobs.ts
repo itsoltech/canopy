@@ -16,15 +16,18 @@ export function copyJobPercent(job: ui.WorkspaceCopyJob): number {
   return progress?.totalBytes ? Number((progress.bytes * 100n) / progress.totalBytes) : 0;
 }
 
-/** "Copying web-app → nix-pc", the row's title in every client. */
-export function copyJobTitle(job: ui.WorkspaceCopyJob): string {
+/** "Copying web-app": the part of a row that truncates first. */
+export function copyJobLead(job: ui.WorkspaceCopyJob): string {
   let verb = "Copying";
 
   if (job.status === "failed") verb = "Copy failed:";
   else if (job.status === "completed") verb = "Copied";
 
-  return `${verb} ${job.name} → ${job.targetName || "worker"}`;
+  return `${verb} ${job.name}`;
 }
+
+/** "Copying web-app → nix-pc", the row's title in every client. */
+export const copyJobTitle = (job: ui.WorkspaceCopyJob) => `${copyJobLead(job)} → ${job.targetName || "worker"}`;
 
 /** The short state at the row's end: a percentage while it copies, otherwise one word. */
 export function copyJobState(job: ui.WorkspaceCopyJob): string {
