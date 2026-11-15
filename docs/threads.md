@@ -98,6 +98,10 @@ funkcją (`threadRowPlace`, `packages/domain/src/git-heads.ts`):
   szczegółów (brak konta GitHub) zostaje sama liczba podpiętych PR. Web i mobile liczą znacznik tą samą funkcją
   (`threadPullRequestBadge`, `packages/domain/src/github-pr.ts`); pełny opis („Merged pull request #12, 2 more
   linked”) jest w `title` na web i w etykiecie dostępności wiersza na mobile.
+  Web/desktop dodaje na ikonie małą kropkę znanego statusu checków najnowszego PR, wspólną z kartami PR:
+  zieloną dla sukcesu, czerwoną dla błędu, bursztynową dla kolejki lub wymaganej akcji i pulsującą w kolorze
+  pracy podczas trwania checków. Opis checków uzupełnia `title` i etykietę dostępności. Brak danych albo stan
+  neutralny nie pokazuje kropki; odświeżanie korzysta wyłącznie z overview, bez dodatkowego odpytywania.
 - Karta hover wątku na web/desktop pokazuje pod metadanymi listę podpiętych PR:
   ikonę stanu, numer, tytuł i znany status checków. Wiersz otwiera szczegóły PR
   w danym wątku. Lista ma własne przewijanie, pokazuje do 20 pozycji i dopisek
