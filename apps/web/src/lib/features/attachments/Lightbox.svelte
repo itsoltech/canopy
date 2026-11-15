@@ -69,7 +69,7 @@
   use:windowModal
   bind:this={dialog}
   aria-label={name}
-  class="t-modal top-(--window-safe-top) m-auto max-h-(--window-safe-height) max-w-[min(96vw,100rem)] overflow-visible bg-transparent p-0 backdrop:bg-zinc-950/80 dark:backdrop:bg-black/85 macos:overflow-y-auto"
+  class="t-modal top-(--window-safe-top) m-auto h-(--window-safe-height) max-h-none w-[min(96vw,100rem)] max-w-none overflow-visible bg-transparent p-0 py-3 backdrop:bg-zinc-950/80 dark:backdrop:bg-black/85"
   onclose={() => (open = false)}
   onkeydown={(event) => {
     if (!event.defaultPrevented && onNavigate && ["ArrowLeft", "ArrowRight"].includes(event.key)) {
@@ -81,33 +81,42 @@
   {...backdropDismiss(() => (open = false))}
 >
   {#if open || closing}
-    <figure class="grid max-h-(--window-safe-height) grid-rows-[minmax(0,1fr)_auto] gap-3">
+    <!-- A fixed frame: the media fills the space above, the panel keeps one width and is anchored to
+      the bottom, so its controls stay put whatever the size of the image or the length of the caption.
+      Empty space lets clicks through to the dialog, which closes it like the backdrop. -->
+    <figure class="pointer-events-none flex h-full flex-col items-center gap-3">
       <div
-        class="max-h-[calc(var(--window-safe-height)-11rem)] max-w-[96vw] scroll-stable overflow-auto rounded-lg sm:max-h-[calc(var(--window-safe-height)-8rem)]"
+        class={[
+          "grid min-h-0 w-full flex-1 scroll-stable grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)] overflow-auto rounded-lg",
+          zoomed ? "pointer-events-auto" : "place-items-center",
+        ]}
       >
         {#if video}
-          <VideoPlayer {src} {poster} active={open} />
+          <div class="pointer-events-auto"><VideoPlayer {src} {poster} active={open} /></div>
         {:else}
           <AttachmentImage
             {src}
             alt={alt || name}
             {entityId}
-            class="min-h-36 rounded-lg bg-zinc-950 text-white"
-            imageClass={[
-              "mx-auto w-auto rounded-lg object-contain outline-1 -outline-offset-1 outline-white/10",
+            class={[
+              "text-white *:pointer-events-auto",
               zoomed
-                ? "max-w-none"
-                : "max-h-[calc(var(--window-safe-height)-11rem)] max-w-full sm:max-h-[calc(var(--window-safe-height)-8rem)]",
+                ? "min-h-full w-max min-w-full place-items-center"
+                : "h-full w-full grid-rows-[minmax(0,1fr)] justify-items-center",
+            ]}
+            imageClass={[
+              "rounded-lg object-contain outline-1 -outline-offset-1 outline-white/10",
+              zoomed ? "max-w-none" : "max-h-full max-w-full",
             ]}
           />
         {/if}
       </div>
       <!-- Its own dark surface: readable over any page, also while the backdrop fades in. -->
       <figcaption
-        class="grid max-h-[45vh] min-w-0 gap-2 overflow-auto rounded-xl bg-zinc-950/90 p-3 text-base/6 text-white sm:text-sm/6"
+        class="pointer-events-auto grid w-full max-w-3xl min-w-0 shrink-0 gap-2 rounded-xl bg-zinc-950/90 p-3 text-base/6 text-white sm:text-sm/6"
       >
+        {#if caption}<p class="max-h-[25vh] max-w-prose overflow-y-auto wrap-anywhere">{caption}</p>{/if}
         {@render controls?.()}
-        {#if caption}<p class="max-w-prose wrap-anywhere">{caption}</p>{/if}
         <div class="grid min-w-0 gap-2 sm:flex sm:items-center sm:justify-between sm:gap-3">
           <span class="min-w-0">
             <span class="block truncate font-medium">{name}</span>
