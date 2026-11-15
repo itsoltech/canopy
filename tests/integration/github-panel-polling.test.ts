@@ -2,7 +2,7 @@ import { describe, expect, test, spyOn } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import { github } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
-import { watchPullRequest } from "../../apps/gateway/src/github/watch.ts";
+import { followPullRequestAfterChecks, watchPullRequest } from "../../apps/gateway/src/github/watch.ts";
 import { startTestGateway } from "./support/gateway.ts";
 import { linkedRead } from "./support/github-read.ts";
 import { pollingFixture } from "./support/github-polling.ts";
@@ -216,6 +216,34 @@ describe.skipIf(!dockerAvailable)("visible PR polling request budget", () => {
       controller.abort();
       await gw.close();
       fixture.close();
+    }
+  }, 60_000);
+
+  test("keeps a short metadata follow-up after CI passes so auto-merge reaches the overview", async () => {
+    const fixture = pollingFixture();
+    fixture.state.running = false;
+    const random = spyOn(Math, "random").mockReturnValue(0);
+    const gw = await startTestGateway({ github: fixture.options });
+
+    try {
+      const { pr, thread } = await linkedRead(gw, fixture);
+      await followPullRequestAfterChecks(gw.core.github.prs, pr);
+      const afterInitialFollowUp = fixture.requests.length;
+
+      fixture.state.pr = "MERGED";
+      fixture.state.updatedAt = "2026-11-10T12:03:00Z";
+      fixture.advance(10_000);
+      await gw.core.github.background.tick();
+
+      expect(fixture.requests.slice(afterInitialFollowUp).map((request) => request.resource)).toEqual([
+        `/repos/itsoltech/canopy/pulls/42`,
+        "CanopyPullRequest",
+      ]);
+      expect((await gw.api.listThreadPullRequests({ threadId: thread })).links[0]!.summary?.state).toBe("merged");
+    } finally {
+      await gw.close();
+      fixture.close();
+      random.mockRestore();
     }
   }, 60_000);
 
