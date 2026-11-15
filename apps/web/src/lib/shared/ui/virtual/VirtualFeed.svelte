@@ -674,6 +674,11 @@
             </VirtualRow>
           {/each}
         </div>
+        <div
+          {@attach (end) => (scroller ? extent.watchEnd(scroller, end, footerEdge) : undefined)}
+          aria-hidden="true"
+          class="-mt-px h-px shrink-0"
+        ></div>
       </div>
       <!-- The end reserve (full footer plus margin): the footer folds and grows inside it without moving rows. -->
       <div aria-hidden="true" style:height="{footerSpace}px" class="shrink-0"></div>
@@ -719,7 +724,7 @@
           class="absolute inset-x-0 bottom-0 -z-10 h-(--feed-edge) bg-surface before:absolute before:inset-x-0 before:bottom-full before:h-(--feed-fade) before:bg-linear-to-t before:from-surface before:to-transparent"
           aria-hidden="true"
         ></div>
-        {#if !stuck && extent.overflows}
+        {#if !stuck && extent.overflows && !extent.endVisible}
           <!-- Centred on the composer's axis (the shared chat column), just above its visible edge. -->
           <div
             class="chat-column pointer-events-none absolute inset-x-0 bottom-[calc(var(--feed-edge)+--spacing(2))] z-10 flex justify-center px-4 sm:px-6"
