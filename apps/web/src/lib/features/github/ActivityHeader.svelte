@@ -36,7 +36,7 @@
 <div class={["flex min-w-0 items-center gap-2 text-sm/5 sm:text-xs/5", className]}>
   {#if withAvatar}<GitHubAvatar login={author} url={avatarUrl} {pullRequestId} compact />{/if}
   <p class="min-w-0 truncate font-medium" title={author}>{author || "GitHub"}</p>
-  <span class="shrink-0" {@attach tooltip(look.label)}><CheckStateIcon {look} /></span>
+  <span class="flex shrink-0" {@attach tooltip(look.label)}><CheckStateIcon {look} /></span>
   {#if relative}<a
       href={safeHref(url)}
       target="_blank"

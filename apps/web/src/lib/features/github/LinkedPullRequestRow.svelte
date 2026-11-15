@@ -61,6 +61,7 @@
     class={link.currentBranch ? "bg-zinc-950/5 dark:bg-white/8" : undefined}
   >
     {#snippet lead()}{#if known}<PullRequestState state={summary.state} iconOnly />{:else}<span
+          class="flex shrink-0"
           {@attach tooltip(unknown.label)}><CheckStateIcon look={unknown} /></span
         >{/if}{/snippet}
     {#if known}<span title={summary.title}>{summary.title}</span>{:else}<span
@@ -68,7 +69,7 @@
         title={name}>{unknown.label}</span
       >{/if}
     {#snippet aside()}<span class="shrink-0 text-zinc-500 tabular-nums">#{pullRequest.number}</span><span
-        class="size-4 shrink-0"
+        class="flex size-4 shrink-0"
         {@attach tooltip(known ? `Checks: ${checks.label}` : "")}
         >{#if known}<CheckStateIcon look={checks} label={`Checks: ${checks.label}`} />{/if}</span
       >{/snippet}
