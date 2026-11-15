@@ -1,7 +1,7 @@
 import { Provider, type ProviderUsageWindow, type ui } from "@canopy/contracts";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { activeUsageWindows, usageReset, usageWindowName } from "./provider-usage.ts";
-import { proxyCapacityGroups } from "./proxy-capacity.ts";
+import { proxyCapacityGroups, type CapacitySegment } from "./proxy-capacity.ts";
 import { usageTone, type SidebarUsageAccount, type UsageGlance, type UsageTone } from "./sidebar-usage.ts";
 
 /** One limit window of a provider row: the lowest reading of all its accounts, weighted for proxies. */
@@ -20,6 +20,11 @@ export interface UsageSummaryRow {
   readonly window: SummaryWindow | undefined;
   /** A shorter window with less left than `window`: the limit that binds first. */
   readonly binding: SummaryWindow | undefined;
+  /**
+   * The accounts behind `window`, one bar each, largest plan first. Proxy accounts weigh their plan's units;
+   * a direct sign-in has no known plan and counts as 1, like an unknown proxy plan.
+   */
+  readonly segments: readonly CapacitySegment[];
   readonly tone: UsageTone;
   readonly word: "Low" | "Extra usage" | undefined;
 }
@@ -97,13 +102,33 @@ export function usageSummary(
 
     if (!own.length && !group) return [];
     const windows = new Map<number, SummaryWindow>();
+    const segments = new Map<number, CapacitySegment[]>();
 
-    for (const window of group?.windows ?? [])
+    const segment = (minutes: number, list: readonly CapacitySegment[]) =>
+      segments.set(minutes, [...(segments.get(minutes) ?? []), ...list]);
+
+    // Lowest first: a second proxy window of the same length would count its accounts twice.
+    for (const window of group?.windows ?? []) {
+      const minutes = minutesOf(window.key, window.windowMinutes);
+
+      if (minutes !== undefined && !segments.has(minutes)) segment(minutes, window.segments);
       add(windows, window.key, window.windowMinutes, window.percentLeft, window.resetsAt);
+    }
 
-    for (const window of own.flatMap((account) => activeUsageWindows(account.usage, now))) {
-      if (window.reached || window.usedPercent !== undefined)
-        add(windows, window.key, window.windowMinutes, window.reached ? 0 : 100 - window.usedPercent!, window.resetsAt);
+    for (const account of own) {
+      const lefts = new Map<number, number>();
+
+      for (const window of activeUsageWindows(account.usage, now)) {
+        if (!window.reached && window.usedPercent === undefined) continue;
+        const left = window.reached ? 0 : 100 - window.usedPercent!;
+        const minutes = minutesOf(window.key, window.windowMinutes);
+        add(windows, window.key, window.windowMinutes, left, window.resetsAt);
+
+        if (minutes !== undefined && Number.isFinite(left))
+          lefts.set(minutes, Math.min(lefts.get(minutes) ?? 100, Math.max(0, left)));
+      }
+
+      for (const [minutes, left] of lefts) segment(minutes, [{ units: 1, percentLeft: left }]);
     }
 
     const sorted = [...windows.values()].sort((a, b) => b.minutes - a.minutes);
@@ -117,18 +142,23 @@ export function usageSummary(
     // A provider without a reading is a minor gap: Settings has the per-account detail.
     if (!main && !extra) return [];
 
+    const parts = main ? (segments.get(main.minutes) ?? []) : [];
+
     return [
       {
         provider,
         name,
         window: main,
         binding,
+        segments: main && !parts.length ? [{ units: 1, percentLeft: main.percentLeft }] : byUnits(parts),
         tone,
         word: extra ? "Extra usage" : left !== undefined && left <= 10 ? "Low" : undefined,
       },
     ];
   });
 }
+
+const byUnits = (segments: readonly CapacitySegment[]) => [...segments].sort((a, b) => b.units - a.units);
 
 const whole = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 
@@ -142,10 +172,15 @@ export const summaryWindowText = (window: SummaryWindow, now = Date.now()) =>
 /** "5-hour: 12% left". */
 export const bindingText = (window: SummaryWindow) => `${window.name}: ${percentLeftText(window)}`;
 
+/** "3 accounts" beside the name when the bar is split; a single account needs no count. */
+export const accountsText = (row: UsageSummaryRow) =>
+  row.segments.length > 1 ? `${row.segments.length} accounts` : "";
+
 /** Visible facts of a row in one sentence, for its accessible name and the trigger label. */
 export function usageSummaryLabel(row: UsageSummaryRow, now = Date.now()) {
   const parts = [
     row.window ? `${row.name}: ${percentLeftText(row.window)}` : row.name,
+    accountsText(row),
     row.window ? summaryWindowText(row.window, now) : "",
     row.binding ? bindingText(row.binding) : "",
     row.word ?? "",

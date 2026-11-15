@@ -47,6 +47,12 @@ export const supportedProxyAccounts = (accounts: readonly ui.ProxyAccount[]) =>
 export const unsupportedProxyAccountText = (count: number) =>
   `${count} account${count === 1 ? "" : "s"} for an unsupported provider`;
 
+/** One account's share of a window: its plan units and what it has left. */
+export interface CapacitySegment {
+  readonly units: number;
+  readonly percentLeft: number;
+}
+
 export interface CapacityWindow {
   readonly key: string;
   readonly windowMinutes: number;
@@ -56,6 +62,8 @@ export interface CapacityWindow {
   readonly reporting: number;
   readonly unknown: number;
   readonly resetsAt: ProviderUsageWindow["resetsAt"];
+  /** The reporting accounts, in account order; their units add up to `total`. */
+  readonly segments: readonly CapacitySegment[];
 }
 
 export interface ProxyCapacityGroup {
@@ -105,6 +113,7 @@ function capacityWindow(
   let reporting = 0;
   let unknown = 0;
   let resetsAt: ProviderUsageWindow["resetsAt"];
+  const segments: CapacitySegment[] = [];
 
   for (const account of accounts.filter(eligible)) {
     const window = account.windows.find((w) => windowIdentity(w) === windowIdentity(sample) && current(w, now));
@@ -116,8 +125,11 @@ function capacityWindow(
       account.status === "cooling_down" ||
       account.windows.some((w) => current(w, now) && (w.reached || (w.usedPercent ?? 0) >= 100));
 
+    const left = blocked ? 0 : 100 - Math.max(0, Math.min(100, window.usedPercent ?? 100));
+
     total += weight.units;
-    remaining += blocked ? 0 : weight.units * (1 - Math.max(0, Math.min(100, window.usedPercent ?? 100)) / 100);
+    remaining += (weight.units * left) / 100;
+    segments.push({ units: weight.units, percentLeft: left });
     reporting++;
 
     if (weight.unknown) unknown++;
@@ -135,6 +147,7 @@ function capacityWindow(
     reporting,
     unknown,
     resetsAt,
+    segments,
   };
 }
 
