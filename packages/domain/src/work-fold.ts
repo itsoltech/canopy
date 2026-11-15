@@ -69,7 +69,7 @@ export interface BodyRow {
   readonly phase: BodyPhase;
   readonly steer: boolean;
   /** Context compaction is shown outside the preceding fold and starts the following segment. */
-  readonly boundary?: WorkBoundary;
+  readonly boundary?: WorkBoundary | undefined;
 }
 
 /** One stretch of a turn laid out like a turn of its own: a fold, then its answer (docs/timeline-folding.md). */

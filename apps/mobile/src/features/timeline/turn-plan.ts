@@ -24,7 +24,7 @@ export type BodyRow =
       readonly seq: bigint;
       readonly node: ItemNode;
       readonly steer: boolean;
-      readonly boundary?: WorkBoundary;
+      readonly boundary?: WorkBoundary | undefined;
       readonly completedAt: number | undefined;
     }
   | {
