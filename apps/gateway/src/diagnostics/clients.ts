@@ -12,7 +12,20 @@ import { createHash } from "node:crypto";
 import type { RpcCollector } from "./collector.ts";
 import { cleanHistogram, validHistogram } from "./worker-report.ts";
 
-type Sender = { at: number; bytes: number; session: string; sequence: bigint; retired: string[]; last: number };
+type Sender = {
+  at: number;
+  bytes: number;
+  session: string;
+  sequence: bigint;
+  retired: { session: string; at: number }[];
+  last: number;
+};
+
+/**
+ * Restart allowance window. It exceeds the ±120 s freshness bound in both directions (240 s), so a batch accepted
+ * before its session retired is already stale when the retirement expires and cannot be replayed afterwards.
+ */
+const RESTART_WINDOW_MS = 300_000;
 
 /** Auth-bound senders are capped, and their numeric series use the original fixed collector budget. */
 export class ClientDiagnostics {
@@ -105,19 +118,20 @@ export class ClientDiagnostics {
     state.last = now;
 
     if (request.epoch !== this.epoch()) return create(ui.DiagnosticsReceiptSchema, { epoch: this.epoch() });
+    state.retired = state.retired.filter((retired) => now - retired.at < RESTART_WINDOW_MS);
 
     if (
       request.sequence <= (this.#restored.get(session) ?? 0n) ||
-      state.retired.includes(request.session) ||
+      state.retired.some((retired) => retired.session === request.session) ||
       (state.session === request.session && request.sequence <= state.sequence)
     )
       return create(ui.DiagnosticsReceiptSchema, { epoch: this.epoch() });
 
     if (state.session !== request.session) {
-      // A sender may restart twice within its five-minute lease; never evict a retired session and accept replay.
+      // A sender may restart twice per sliding window; a retired session stays ignored until its window ends.
       if (state.retired.length >= 2)
         throw new ConnectError("Diagnostics session limit reached", Code.ResourceExhausted);
-      state.retired.push(state.session);
+      state.retired.push({ session: state.session, at: now });
       state.session = request.session;
     }
 
