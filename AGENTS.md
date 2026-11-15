@@ -30,6 +30,7 @@ Short rules for agents working in this repository. Details live in `docs/` (most
   - for context-only mentions write `Related: #68` (not parsed, holds nothing).
   Changed-line blame is only a fallback for unlinked fixes.
 - Merges are **squash merges**: one Angular commit per feature. The PR title becomes the commit.
+- When you open a ready (non-draft) PR into `dev`, you may enable auto-merge right away (`gh pr merge <number> --auto --squash`): required CI checks still gate it. Never on drafts or stacked PRs; a stack merges at once (below).
 - `dev` only gets complete, working features: it feeds beta and stable. A plan with several stages ships as **stacked PRs** (`gh stack`, extension `github/gh-stack`):
   - each stage is its own PR, based on the previous stage's branch; the bottom one targets `dev`,
   - keep them drafts until the whole plan is done and verified,
