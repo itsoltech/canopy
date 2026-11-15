@@ -8,6 +8,10 @@ import { SqlClient } from "effect/sql";
 import { pruneDatabase } from "../../apps/gateway/src/maintenance/prune.ts";
 import { startTestGateway, eventually, failure, type TestGateway } from "./support/gateway.ts";
 
+interface CountRow {
+  n: number;
+}
+
 describe.skipIf(!dockerAvailable)("archived thread retention", () => {
   let gateway: TestGateway;
   let projectId: string;
@@ -310,7 +314,14 @@ describe.skipIf(!dockerAvailable)("archived thread retention", () => {
 
     await prune();
     expect((await retentionRow(archived))?.purged_at).toBeNull();
-    expect((await query("SELECT status,deleted_at FROM threads WHERE id=$1::uuid", [active]))[0]).toEqual({
+    expect(
+      (
+        await query<{ status: string; deleted_at: Date | null }>(
+          "SELECT status,deleted_at FROM threads WHERE id=$1::uuid",
+          [active],
+        )
+      )[0],
+    ).toEqual({
       status: "idle",
       deleted_at: null,
     });
@@ -343,23 +354,34 @@ describe.skipIf(!dockerAvailable)("archived thread retention", () => {
     await purgeUntilComplete(thread.id);
     expect((await retentionRow(thread.id))?.purged_at).toBeTruthy();
     expect(
-      (await query("SELECT count(*)::int AS n FROM thread_events WHERE thread_id=$1::uuid", [thread.id]))[0]?.n,
+      (await query<CountRow>("SELECT count(*)::int AS n FROM thread_events WHERE thread_id=$1::uuid", [thread.id]))[0]
+        ?.n,
     ).toBe(0);
     expect(
-      (await query("SELECT count(*)::int AS n FROM thread_items WHERE thread_id=$1::uuid", [thread.id]))[0]?.n,
+      (await query<CountRow>("SELECT count(*)::int AS n FROM thread_items WHERE thread_id=$1::uuid", [thread.id]))[0]
+        ?.n,
     ).toBe(0);
     expect(
-      (await query("SELECT count(*)::int AS n FROM thread_visuals WHERE thread_id=$1::uuid", [thread.id]))[0]?.n,
+      (await query<CountRow>("SELECT count(*)::int AS n FROM thread_visuals WHERE thread_id=$1::uuid", [thread.id]))[0]
+        ?.n,
     ).toBe(0);
     expect(
-      (await query("SELECT count(*)::int AS n FROM thread_blobs WHERE thread_id=$1::uuid", [thread.id]))[0]?.n,
+      (await query<CountRow>("SELECT count(*)::int AS n FROM thread_blobs WHERE thread_id=$1::uuid", [thread.id]))[0]
+        ?.n,
     ).toBe(0);
-    expect((await query("SELECT count(*)::int AS n FROM blobs WHERE sha256=$1", ["a".repeat(64)]))[0]?.n).toBe(0);
     expect(
-      (await query("SELECT count(*)::int AS n FROM thread_blobs WHERE thread_id=$1::uuid", [shared.id]))[0]?.n,
+      (await query<CountRow>("SELECT count(*)::int AS n FROM blobs WHERE sha256=$1", ["a".repeat(64)]))[0]?.n,
+    ).toBe(0);
+    expect(
+      (await query<CountRow>("SELECT count(*)::int AS n FROM thread_blobs WHERE thread_id=$1::uuid", [shared.id]))[0]
+        ?.n,
     ).toBe(1);
-    expect((await query("SELECT count(*)::int AS n FROM blobs WHERE sha256=$1", ["c".repeat(64)]))[0]?.n).toBe(1);
-    expect((await query("SELECT count(*)::int AS n FROM blobs WHERE sha256=$1", [legacySha256]))[0]?.n).toBe(1);
+    expect(
+      (await query<CountRow>("SELECT count(*)::int AS n FROM blobs WHERE sha256=$1", ["c".repeat(64)]))[0]?.n,
+    ).toBe(1);
+    expect((await query<CountRow>("SELECT count(*)::int AS n FROM blobs WHERE sha256=$1", [legacySha256]))[0]?.n).toBe(
+      1,
+    );
     await gateway.runtime.runPromise(
       AttachmentStore.use((store) =>
         store.putThreadBlob(
@@ -372,9 +394,12 @@ describe.skipIf(!dockerAvailable)("archived thread retention", () => {
       ),
     );
     expect(
-      (await query("SELECT count(*)::int AS n FROM thread_blobs WHERE thread_id=$1::uuid", [thread.id]))[0]?.n,
+      (await query<CountRow>("SELECT count(*)::int AS n FROM thread_blobs WHERE thread_id=$1::uuid", [thread.id]))[0]
+        ?.n,
     ).toBe(0);
-    expect((await query("SELECT count(*)::int AS n FROM blobs WHERE sha256=$1", ["e".repeat(64)]))[0]?.n).toBe(0);
+    expect(
+      (await query<CountRow>("SELECT count(*)::int AS n FROM blobs WHERE sha256=$1", ["e".repeat(64)]))[0]?.n,
+    ).toBe(0);
   });
 
   test("protects a fork source while its manually deleted dependent remains restorable", async () => {
@@ -489,13 +514,14 @@ describe.skipIf(!dockerAvailable)("archived thread retention", () => {
     );
 
     const before = (
-      await query<{ n: number }>("SELECT count(*)::int AS n FROM thread_events WHERE thread_id=$1::uuid", [batch.id])
+      await query<CountRow>("SELECT count(*)::int AS n FROM thread_events WHERE thread_id=$1::uuid", [batch.id])
     )[0]!.n;
 
     await prune();
     expect((await retentionRow(batch.id))?.purged_at).toBeTruthy();
     expect(
-      (await query("SELECT count(*)::int AS n FROM thread_events WHERE thread_id=$1::uuid", [batch.id]))[0]?.n,
+      (await query<CountRow>("SELECT count(*)::int AS n FROM thread_events WHERE thread_id=$1::uuid", [batch.id]))[0]
+        ?.n,
     ).toBe(before - 256);
 
     const storage = {
@@ -509,11 +535,12 @@ describe.skipIf(!dockerAvailable)("archived thread retention", () => {
     gateway = await startTestGateway({ storage });
     await prune();
     expect(
-      (await query("SELECT count(*)::int AS n FROM thread_events WHERE thread_id=$1::uuid", [batch.id]))[0]?.n,
+      (await query<CountRow>("SELECT count(*)::int AS n FROM thread_events WHERE thread_id=$1::uuid", [batch.id]))[0]
+        ?.n,
     ).toBe(0);
     await prune();
     expect(
-      (await query("SELECT count(*)::int AS n FROM thread_items WHERE thread_id=$1::uuid", [batch.id]))[0]?.n,
+      (await query<CountRow>("SELECT count(*)::int AS n FROM thread_items WHERE thread_id=$1::uuid", [batch.id]))[0]?.n,
     ).toBe(44);
     await purgeUntilComplete(batch.id);
     expect((await retentionRow(batch.id))?.purge_completed_at).toBeTruthy();
