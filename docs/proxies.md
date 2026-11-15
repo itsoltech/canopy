@@ -1,7 +1,8 @@
 # Współdzielone połączenia proxy
 
 Status: opis działającego kodu na `dev` (2026-11-15), w tym aktywny odczyt limitów
-Claude i wybór odczytów kont i modeli CLIProxyAPI. Dostępność nightly/beta/stable wynika
+Claude, wybór odczytów kont i modeli CLIProxyAPI oraz wyrównanie tożsamości kont
+w web/desktop. Dostępność nightly/beta/stable wynika
 z promocji wydań ([release.md](release.md)).
 
 Settings → **Proxies** przechowuje połączenie raz: nazwę, rodzaj, URL, zaszyfrowany
@@ -260,6 +261,8 @@ Web ukrywa tożsamości kont oraz komunikaty kont mogące zawierać login wspól
 komponentem `Sensitive`, tak samo jak adresy w Providers. Kliknięcie lub aktywacja
 klawiaturą odsłania wartość na 30 s; Escape ukrywa ją od razu. Rozmycie nie zmienia
 szerokości tekstu, a ukryta wartość nie trafia do tytułu ani etykiety dostępności.
+Tożsamość konta jest wyśrodkowana w pionie względem znaku providera; ukrycie
+i odsłonięcie wartości zachowuje to samo wyrównanie, także po skróceniu długiej nazwy.
 Popover **Provider usage** to proste podsumowanie: jeden wiersz na providera ze znakiem,
 nazwą, procentem pozostałej (ważonej) pojemności, jednym paskiem i najbliższym resetem
 (`@canopy/domain/usage-summary`). Konta z używanych proxy i bezpośrednie instancje łączą się

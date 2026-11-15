@@ -58,7 +58,7 @@
     {#if !proxyId || !onread}<div class="max-w-24 shrink-0 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
         {plan ?? "Unknown plan"}{!weight.unknown ? ` · ×${weight.units}` : ""}
       </div>{/if}
-    <div class="min-w-0 flex-1 text-base/6 text-zinc-950 sm:text-sm/6 dark:text-white">
+    <div class="flex min-w-0 flex-1 items-center text-base/6 text-zinc-950 sm:text-sm/6 dark:text-white">
       {#if account.label}<Sensitive value={account.label} label="Account identity" truncate />{:else}Unnamed account{/if}
     </div>
     {#if !compact || account.status !== "active"}<Badge tone={look.tone} compact>{look.label}</Badge>{/if}
