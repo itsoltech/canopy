@@ -4,7 +4,7 @@
   import { keybindings } from "#lib/features/commands/keybindings.svelte.ts";
   import { tabPath } from "@canopy/domain/workspace-modules";
 
-  let { workspace }: { workspace: ThreadWorkspace } = $props();
+  let { workspace, title }: { workspace: ThreadWorkspace; title: string } = $props();
 
   function step(delta: number) {
     const view = workspace.view;
@@ -19,7 +19,7 @@
       title: "Switch tab",
       group: "actions",
       children: () => [
-        { id: "thread", title: "Thread", group: "actions", run: () => workspace.view.select("thread") },
+        { id: "thread", title, group: "actions", run: () => workspace.view.select("thread") },
         ...workspace.view.tabs.map((tab) => ({
           id: tab.id,
           title: tabPath(tab),
