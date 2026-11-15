@@ -278,11 +278,12 @@ describe.skipIf(!dockerAvailable)("background workspace copies over real workers
     );
     expect(await job(id)).toBeUndefined();
 
+    // Start each request only when its expected rejection can be handled immediately.
     for (const call of [
-      gw.api.cancelWorkspaceCopyJob({ id }),
-      gw.api.retryWorkspaceCopyJob({ id }),
-      gw.api.dismissWorkspaceCopyJob({ id }),
+      () => gw.api.cancelWorkspaceCopyJob({ id }),
+      () => gw.api.retryWorkspaceCopyJob({ id }),
+      () => gw.api.dismissWorkspaceCopyJob({ id }),
     ])
-      expect(await failure(call)).toContain("not found");
+      expect(await failure(call())).toContain("not found");
   }, 30_000);
 });
