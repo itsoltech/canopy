@@ -18,6 +18,8 @@ export type TurnOrigin =
   | { readonly kind: "question"; readonly threadId: string; readonly requestId: string }
   /** Background tasks of this thread ended; the platform told the agent how (`itemIds`: their items). */
   | { readonly kind: "background_task"; readonly itemIds: readonly string[] }
+  /** CI checks of a linked pull request moved; the platform told the agent (docs/agent-bus.md, "Checki CI"). */
+  | { readonly kind: "pr_checks"; readonly notes: readonly ui.PullRequestChecksNote[] }
   /** A schedule ran; `setBy` is the thread whose agent set it (empty: you did). */
   | { readonly kind: "schedule"; readonly scheduleId: string; readonly setBy: string }
   /** Another trigger without a known source. */
@@ -37,6 +39,8 @@ export function turnOrigin(turn: ui.Turn): TurnOrigin {
       return { kind: "schedule", scheduleId: turn.scheduleId, setBy: turn.sourceThreadId };
     case "background_task":
       return { kind: "background_task", itemIds: turn.backgroundItemIds };
+    case "pr_checks":
+      return { kind: "pr_checks", notes: turn.prChecks };
     default:
       // Imported turns (docs/import.md) are the user's own prompts from an agent CLI.
       return turn.trigger === "user" || turn.trigger === "import" || !turn.trigger

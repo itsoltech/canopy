@@ -9,7 +9,7 @@ import { styles, useColors, useTypography } from "../../ui/theme";
 import { useTone } from "../../ui/tone";
 import { AgentMessageBubble } from "./AgentMessageBubble";
 import { useTimelineDirectory } from "./directory";
-import { BackgroundNoteRow } from "./NoticeRows";
+import { PlatformNoteRow } from "./NoticeRows";
 import { BotSender, SenderLabel } from "./SenderLabel";
 import { UserMessageView } from "./UserMessageView";
 import { MessageAttachments } from "../attachments/MessageAttachments";
@@ -58,7 +58,7 @@ export function TurnInput({ turn }: { turn: ui.Turn }) {
   const text = turn.quotes.length ? turn.messageText : turn.messageText || turn.inputText;
   const actions = useMessageActions(turn.messageText, "agent_message", fromAgent);
 
-  if (origin.kind === "background_task") return <BackgroundNoteRow itemIds={origin.itemIds} />;
+  if (origin.kind === "background_task" || origin.kind === "pr_checks") return <PlatformNoteRow origin={origin} />;
 
   if (origin.kind === "user")
     return (

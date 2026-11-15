@@ -175,7 +175,10 @@ export function ThreadTimeline({
   const { rise } = useMotion();
   const days = newDays(rewind.shown);
   const loose = context.notices.filter((n) => !n.turnId && n.notice?.code !== "thread_rewound");
-  const steering = snapshot?.steers.filter((s) => ["pending", "accepted"].includes(s.status)) ?? [];
+
+  // Platform notes about CI checks are not messages waiting to join the turn.
+  const steering =
+    snapshot?.steers.filter((s) => ["pending", "accepted"].includes(s.status) && s.prChecks.length === 0) ?? [];
 
   const [entryIndex] = useState(() => new TimelineEntries());
   const entries = useMemo(() => entryIndex.build(snapshot?.items ?? []), [entryIndex, snapshot?.items]);

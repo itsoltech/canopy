@@ -143,6 +143,43 @@ export const busControlItems = (): Item[] => [
     },
     { request_id: "01a19856-ff8e-7015-923e-0d6cb862d72b", status: "declined" },
   ),
+  bus(
+    "watch-checks",
+    "watch_pr_checks",
+    { pull_request: "https://github.com/itsoltech/canopy/pull/792" },
+    {
+      watch_id: "01a1de40-1c2d-7f00-9a3b-6c1d2e3f4a5b",
+      pull_request: "itsoltech/canopy#792",
+      url: "https://github.com/itsoltech/canopy/pull/792",
+      head_sha: "1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b",
+      notify_on: ["failure", "complete"],
+      until: "2026-11-15T10:12:00.000Z",
+      checks: { total: 14, passed: 3, failed: 0, skipped: 0, pending: 11 },
+      failed: [],
+      watching: true,
+    },
+  ),
+  bus(
+    "watch-checks-long",
+    "watch_pr_checks",
+    { pull_request: "#4211", notify_on: ["each"], timeout_minutes: 240 },
+    {
+      pull_request: "a-very-long-organization-name/an-even-longer-repository-name-for-wrapping#4211",
+      watching: false,
+      checks: { total: 6, passed: 6, failed: 0, skipped: 0, pending: 0 },
+      failed: [],
+    },
+  ),
+  bus(
+    "watch-checks-refused",
+    "watch_pr_checks",
+    { pull_request: "#12" },
+    {
+      error:
+        "watch_pr_checks: #12 is not linked to this thread. Pull requests linked to this thread: itsoltech/canopy#792.",
+    },
+    { isError: true },
+  ),
   bus("interrupt", "interrupt_thread", { thread_id: SIDE }, { thread_id: SIDE, interrupted: true }, { target: SIDE }),
   bus(
     "refused",

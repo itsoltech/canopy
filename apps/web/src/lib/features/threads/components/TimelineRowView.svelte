@@ -2,6 +2,7 @@
   import { useThreadDirectory } from "../thread-directory.ts";
   import type { TimelineRow } from "../timeline.ts";
   import BackgroundNoteRow from "./BackgroundNoteRow.svelte";
+  import ChecksNoteRow from "./ChecksNoteRow.svelte";
   import ItemNodeView from "./items/ItemNodeView.svelte";
   import UserMessageView from "./items/UserMessageView.svelte";
   import { STEERED } from "./message-notes.ts";
@@ -40,6 +41,8 @@
   <ShellMessage command={steer.shellCommand} result={steer.shellResult} />
 {:else if row.kind === "item" && row.steer && steer?.backgroundItemIds.length}
   <BackgroundNoteRow itemIds={steer.backgroundItemIds} />
+{:else if row.kind === "item" && row.steer && steer?.prChecks.length}
+  <ChecksNoteRow notes={steer.prChecks} />
 {:else if row.kind === "item" && row.steer && row.node.entry.item.content.case === "userMessage"}
   {@const message = row.node.entry.item.content.value}
   <!-- An agent's steer: its own text (the agent got it after a platform note naming the sender) and who sent it. -->

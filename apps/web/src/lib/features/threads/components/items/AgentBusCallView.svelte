@@ -24,6 +24,7 @@
     transcriptOf,
   } from "@canopy/domain/tools";
   import { scheduleOf, schedulesOf } from "./tools/bus-schedules.ts";
+  import { watchCallFacts } from "@canopy/domain/pr-check-display";
   import MiniTranscript from "./tools/bus/MiniTranscript.svelte";
   import ScheduleSummary from "./tools/bus/ScheduleSummary.svelte";
   import ThreadSummaryList from "./tools/bus/ThreadSummaryList.svelte";
@@ -47,7 +48,7 @@
   const args = $derived(parseObject(call.argumentsJson));
   const result = $derived(parseObject(call.resultJson));
   const running = $derived(status === ItemStatus.IN_PROGRESS);
-  const look = $derived(busLook(tool, args, running, call.isError));
+  const look = $derived(busLook(tool, args, running, call.isError, result));
   const failed = $derived(call.isError || status === ItemStatus.FAILED);
   const directory = useThreadDirectory();
 
@@ -98,6 +99,7 @@
     "schedule_wakeup",
     "schedule_recurring",
     "list_schedules",
+    "watch_pr_checks",
   ]);
 </script>
 
@@ -239,6 +241,8 @@
         Runs in <ThreadLink threadId={schedule.threadId} fallback="Side thread" />
       </p>
     {/if}
+  {:else if tool === "watch_pr_checks"}
+    {#if !call.isError && !running}{@render facts(watchCallFacts(args, result))}{/if}
   {:else if tool === "list_schedules"}
     {@const schedules = schedulesOf(result)}
     {#if schedules.length === 0 && !running && !call.isError}
