@@ -28,7 +28,7 @@ async function botCodexLaunch(ctx: BotHarnessContext): Promise<CodexAppServerLau
     [],
   );
 
-  const base = { ...launch, env: { ...launch.env, ...isolatedHomeEnvironment(session.home) } };
+  const base = { ...launch, env: { ...launch.env, ...isolatedHomeEnvironment(session.home, launch.env) } };
   const catalog = join(session.home, "bot-model.json");
   const entry = await codexModelEntry(base, input.model);
   writeFileSync(catalog, JSON.stringify(codexBotCatalog(input.model, input.effort, entry)), { mode: 0o600 });

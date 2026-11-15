@@ -4,8 +4,8 @@ import { Provider, RunBotTurnSchema } from "@canopy/contracts";
 import { tempDirs } from "@canopy/testing";
 import { Schema } from "effect";
 import { createHash } from "node:crypto";
-import { mkdirSync, readdirSync, readlinkSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, readdirSync, readlinkSync, symlinkSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { grokBus } from "../providers/grok/bus.ts";
 import { resolveProfiles } from "../providers/profiles.ts";
 import { grokLaunch } from "../providers/grok/launch.ts";
@@ -325,4 +325,97 @@ for (const webAccess of [false, true]) {
       25_000,
     );
   }
+}
+
+/** A version manager's shim: it finds the install through its data dir, which defaults to one under HOME. */
+function versionManagerShim(deviceHome: string, name: string, real: string) {
+  const data = join(deviceHome, ".local", "share", "mise");
+  const bin = join(data, "installs", name, "bin");
+  const shim = join(data, "shims", name);
+  mkdirSync(bin, { recursive: true });
+  mkdirSync(dirname(shim), { recursive: true });
+  symlinkSync(real, join(bin, name));
+  writeFileSync(
+    shim,
+    `#!/bin/sh\nexec "\${MISE_DATA_DIR:-$HOME/.local/share/mise}/installs/${name}/bin/${name}" "$@"\n`,
+    { mode: 0o755 },
+  );
+
+  return shim;
+}
+
+for (const provider of [Provider.CODEX, Provider.GROK]) {
+  const name = provider === Provider.CODEX ? "codex" : "grok";
+  const real = Bun.which(name);
+  test.skipIf(!real || process.platform === "win32")(
+    `${name} bot starts through a version-manager shim under its isolated home`,
+    async () => {
+      const deviceHome = temp("canopy-bot-shim-device-");
+      const inference = Promise.withResolvers<void>();
+      const abort = new AbortController();
+
+      const server = Bun.serve({
+        hostname: "127.0.0.1",
+        port: 0,
+        fetch: (request) => {
+          if (request.method === "POST" && /\/(responses|chat\/completions)$/.test(new URL(request.url).pathname))
+            inference.resolve();
+
+          return Response.json({ error: { message: "fixture refuses inference" } }, { status: 400 });
+        },
+      });
+
+      const input = create(RunBotTurnSchema, {
+        botId: crypto.randomUUID(),
+        turnId: crypto.randomUUID(),
+        provider,
+        profileId: "fixture",
+        model: provider === Provider.CODEX ? "gpt-6.1-sol" : "fixture-grok",
+        instructions: "Answer briefly.",
+        historyJson: "[]",
+        input: "Hello",
+      });
+
+      const profile = resolveProfiles([
+        { kind: "cliproxyapi", id: "fixture", baseUrl: server.url.href, apiKey: "fixture", providers: [name] },
+      ]).find((p) => p.config.id === "fixture")!.resolved!;
+
+      const context = {
+        input,
+        // The device's own HOME, as the worker's environment carries it; the bot replaces it.
+        profile: { ...profile, env: { HOME: deviceHome } },
+        executable: versionManagerShim(deviceHome, name, real!),
+        signal: abort.signal,
+        clientVersion: "test",
+        session: botSession(input, {
+          dataDir: temp("canopy-bot-shim-data-"),
+          sourceHome: deviceHome,
+          linkLogin: false,
+        }),
+        mcp: { url: "", headers: {} },
+        record: async () => {},
+        noteHarness: async () => {},
+        content: async () => ({ text: input.input, images: [], documents: [] }),
+      };
+
+      const failed = Promise.withResolvers<never>();
+
+      const done = (provider === Provider.CODEX ? runCodexBot(context) : runGrokBot(context)).then(
+        () => failed.reject(new Error("Turn ended without inference")),
+        (error: Error) => failed.reject(error),
+      );
+
+      const timer = setTimeout(() => failed.reject(new Error("CLI did not send inference")), 20_000);
+
+      try {
+        await Promise.race([inference.promise, failed.promise]);
+      } finally {
+        clearTimeout(timer);
+        abort.abort();
+        await done;
+        await server.stop(true);
+      }
+    },
+    25_000,
+  );
 }
