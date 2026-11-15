@@ -64,7 +64,10 @@ export interface BusHost {
   ): Promise<JsonValue>;
   /** CI check watches of the calling thread's linked pull requests: core/pr-check-watches.ts. */
   prChecks(
-    call: Extract<AgentBusCall, { tool: "watch_pr_checks" | "list_pr_watches" | "cancel_pr_watch" }>,
+    call: Extract<
+      AgentBusCall,
+      { tool: "link_pull_request" | "watch_pr_checks" | "list_pr_watches" | "cancel_pr_watch" }
+    >,
     source: CallSource,
     caller: ThreadRow,
     hops: number,

@@ -61,6 +61,7 @@ describe("tool sets per level", () => {
       "get_background_task",
       "get_thread",
       "import_image_reply",
+      "link_pull_request",
       "list_agents",
       "list_background_tasks",
       "list_pr_watches",
@@ -112,5 +113,6 @@ describe("decodeAgentBusCall", () => {
     expect(failure("schedule_wakeup", { prompt: "x", delay_seconds: 10 })).toContain("delay_seconds");
     expect(failure("watch_pr_checks", { pull_request: "#1", notify_on: ["sometimes"] })).toContain("notify_on");
     expect(failure("watch_pr_checks", { pull_request: "#1", timeout_minutes: 2000 })).toContain("timeout_minutes");
+    expect(failure("link_pull_request", { pull_request: "" })).toContain("pull_request");
   });
 });

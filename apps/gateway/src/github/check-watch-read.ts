@@ -71,7 +71,7 @@ export function matchLinkedPullRequest(
     : "No pull request is linked to this thread yet.";
 
   const hint =
-    "One opened with gh pr create is linked a few seconds after its output; the user can also link one in the thread's Pull requests panel.";
+    "One opened with gh pr create is linked a few seconds after its output. If it is missing, use link_pull_request with its URL or owner/repo#123, then retry watch_pr_checks.";
 
   if (!parts) return { problem: `Name the pull request by its URL, owner/repo#123 or #123. ${listed}` };
   const repository = parts[1]?.toLowerCase();

@@ -141,6 +141,7 @@ export async function busExecute(
     case "get_background_task":
     case "stop_background_task":
       return await hostContext[busState].host.backgroundTask(call, caller.id);
+    case "link_pull_request":
     case "watch_pr_checks":
     case "list_pr_watches":
     case "cancel_pr_watch":

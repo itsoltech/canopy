@@ -192,6 +192,8 @@ export function authorizeBusCall(
       return Result.isFailure(target) ? deny(target.failure) : allow;
     }
 
+    case "link_pull_request":
+      return caller.archived ? deny("this thread is archived") : allow;
     // CI watches of the caller's own linked pull requests; the gateway scopes them to the calling thread.
     case "watch_pr_checks":
       if (caller.archived) return deny("this thread is archived");

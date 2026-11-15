@@ -1,7 +1,7 @@
 <script lang="ts">
   import { ItemStatus, type AgentBusCall } from "@canopy/contracts";
   import { isString, listOf, parseObject, str } from "#lib/shared/json.ts";
-  import { humanizeSeconds, plural } from "@canopy/domain/humanize";
+  import { humanizeEnum, humanizeSeconds, plural } from "@canopy/domain/humanize";
   import { structure, structureJson } from "#lib/shared/structure.ts";
   import Badge from "#lib/shared/ui/Badge.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
@@ -99,6 +99,7 @@
     "schedule_wakeup",
     "schedule_recurring",
     "list_schedules",
+    "link_pull_request",
     "watch_pr_checks",
   ]);
 </script>
@@ -243,6 +244,12 @@
     {/if}
   {:else if tool === "watch_pr_checks"}
     {#if !call.isError && !running}{@render facts(watchCallFacts(args, result))}{/if}
+  {:else if tool === "link_pull_request"}
+    {#if !call.isError && !running}
+      <div class="min-w-0 wrap-anywhere">
+        {@render facts([str(result["pull_request"]) || str(args["pull_request"]), humanizeEnum(str(result["state"]))])}
+      </div>
+    {/if}
   {:else if tool === "list_schedules"}
     {@const schedules = schedulesOf(result)}
     {#if schedules.length === 0 && !running && !call.isError}
