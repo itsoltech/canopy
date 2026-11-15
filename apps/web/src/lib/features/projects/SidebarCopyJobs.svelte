@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { copyJobLead, copyJobPercent, copyJobState, copyJobTitle } from "@canopy/domain/workspace-copy-jobs";
+  import { copyJobPercent, copyJobState, copyJobTitle } from "@canopy/domain/workspace-copy-jobs";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import GrowIn from "#lib/shared/ui/GrowIn.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
@@ -39,6 +39,7 @@
               <button
                 type="button"
                 {...props}
+                aria-label="{copyJobTitle(job)}, {copyJobState(job)}"
                 class="sidebar-row-padding grid w-full gap-1.5 rounded-lg py-1.5 text-left focus-ring hover:bg-hover"
               >
                 <span class="flex min-w-0 items-center gap-2">
@@ -50,8 +51,8 @@
                     ]}
                   />
                   <span class="flex min-w-0 flex-1" title={copyJobTitle(job)}>
-                    <span class="min-w-0 truncate">{copyJobLead(job)}</span>
-                    <span class="max-w-1/2 shrink-0 truncate whitespace-pre"> → {job.targetName || "worker"}</span>
+                    <span class="min-w-0 truncate">{job.name}</span>
+                    <span class="max-w-3/5 shrink-0 truncate whitespace-pre"> → {job.targetName || "worker"}</span>
                   </span>
                   <span class="shrink-0 text-muted tabular-nums">{copyJobState(job)}</span>
                 </span>

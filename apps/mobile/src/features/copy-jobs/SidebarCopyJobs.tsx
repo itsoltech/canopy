@@ -3,7 +3,6 @@ import { Pressable, Text, View } from "react-native";
 import type { ui } from "@canopy/contracts";
 import {
   copyJobAmounts,
-  copyJobLead,
   copyJobPercent,
   copyJobRunning,
   copyJobState,
@@ -50,12 +49,12 @@ export function SidebarCopyJobs() {
               color={item.status === "failed" ? c.danger : c.muted}
             />
             <Text numberOfLines={1} style={[styles.chrome, { flexShrink: 1, color: c.text }]}>
-              {copyJobLead(item)}
+              {item.name}
             </Text>
-            <Text numberOfLines={1} style={[styles.chrome, { flex: 1, maxWidth: "50%", color: c.text }]}>
+            <Text numberOfLines={1} style={[styles.chrome, { flexShrink: 0, maxWidth: "60%", color: c.text }]}>
               {`→ ${item.targetName || "worker"}`}
             </Text>
-            <Text style={[styles.chromeMeta, { color: c.muted, fontVariant: ["tabular-nums"] }]}>
+            <Text style={[styles.chromeMeta, { marginLeft: "auto", color: c.muted, fontVariant: ["tabular-nums"] }]}>
               {copyJobState(item)}
             </Text>
           </View>
