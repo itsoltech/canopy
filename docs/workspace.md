@@ -360,14 +360,17 @@ do wątku i świadomie otwartych linków, bez dziesiątek wpisów po przeglądan
 
 Nowe komendy trafiają do wspólnego `@canopy/ui/keybindings` i istniejącej palety.
 Dodajemy konteksty workspace/file oraz wykrywanie kolizji; obecne `Mod+K`, `Mod+B`,
-`Mod+Shift+O`, skróty modeli i cytowania zachowują znaczenie. Nie przechwytujemy
-`Mod+W`, `Mod+T`, `Mod+1…9` ani `Ctrl+Tab` przeglądarki.
+`Mod+Shift+O`, skróty modeli i cytowania zachowują znaczenie. Desktop domyślnie
+zamyka aktywną kartę przez `Mod+W` (`⌘W` na macOS, `Ctrl+W` na Windows/Linux),
+a `Ctrl+Tab` / `Ctrl+Shift+Tab` przełącza karty także przy fokusie w composerze
+lub edytorze. Przeglądarka zachowuje własne `Mod+W` i `Ctrl+Tab`; ustawienia
+skrótów desktopu i webu korzystają z odrębnych wartości domyślnych.
 
 | Akcja | Proponowany skrót / dostępna alternatywa |
 | --- | --- |
 | Wybór zakładki | Left/Right, Home/End w `tablist`; Enter/Space aktywuje, bez uruchamiania odczytu samym fokusem |
-| Następna/poprzednia karta | `Alt+PageDown` / `Alt+PageUp` poza polem tekstowym; menu `+N` dla ukrytych kart |
-| Zamknięcie | Delete przy fokusie nagłówka karty; menu i paleta dla reszty, dirty guard zawsze działa |
+| Następna/poprzednia karta | Desktop: `Ctrl+Tab` / `Ctrl+Shift+Tab`; także web: `Alt+PageDown` / `Alt+PageUp`, również w polach tekstowych; menu `+N` dla ukrytych kart |
+| Zamknięcie | Desktop: `Mod+W` zamyka aktywną kartę pliku lub modułu; stała karta rozmowy pozostaje otwarta. Delete przy fokusie nagłówka karty, menu i paleta; dirty guard zawsze działa |
 | Zapis i linia | `Mod+S` zapisuje szkic edytowalnego pliku; `Mod+G` tylko przy fokusie viewera/edytora, otwiera `Go to line` |
 | Podsumowanie i Files | `Toggle thread details` i `Toggle Files` w palecie; Escape w karcie podsumowania zwija ją do pigułki |
 

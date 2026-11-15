@@ -102,7 +102,17 @@ export function updateDesktopMenus(options: MenuOptions) {
     },
     { role: "editMenu" },
     windowViewMenu(),
-    { role: "windowMenu" },
+    {
+      role: "windowMenu",
+      submenu: [
+        { role: "minimize" },
+        { role: "zoom" },
+        // Empty removes the Close role's default accelerator so Ctrl+W reaches workspace bindings.
+        ...(process.platform === "darwin"
+          ? [{ type: "separator" as const }, { role: "front" as const }]
+          : [{ role: "close" as const, accelerator: "" }]),
+      ],
+    },
   ];
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));

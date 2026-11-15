@@ -788,6 +788,13 @@ schowanym sidebarze). Nowa warstwa nad oknem poza `dialog`/`[popover]`: `data-wi
 
 ## Zamykanie i skrót Quit
 
+`⌘W` na macOS i `Ctrl+W` na Windows/Linux zamyka aktywną kartę pliku lub modułu
+workspaceu, z potwierdzeniem niezapisanych zmian. Stała karta rozmowy pozostaje
+otwarta. `Ctrl+Tab` / `Ctrl+Shift+Tab` przełącza wszystkie karty, także podczas
+pisania w composerze lub edytorze. Skróty można zmienić w Settings → Keybindings.
+Natywna pozycja zamknięcia okna na Windows/Linux nie ma akceleratora, żeby nie
+przejmowała `Ctrl+W`, również po zmianie lub usunięciu skrótu karty.
+
 Po rozpoczęciu zamykania main od razu chowa wszystkie okna. Proces Electron pozostaje
 aktywny do zakończenia sprzątania kontrolera; zachowane są limity kontrolera (30 s)
 i main (35 s). Bezstanowy lokalny web w kontrolerze zamyka listener i wszystkie połączenia

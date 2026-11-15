@@ -48,7 +48,18 @@
     if (event.defaultPrevented || event.isComposing || document.querySelector("dialog:modal, [role=menu]:popover-open"))
       return;
 
-    if (keybindings.matches(event, "workspace:close") && workspace.current) {
+    const target = event.target;
+
+    if (
+      target instanceof HTMLElement &&
+      (target.isContentEditable || target.closest("input, textarea, [role=textbox]")) &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.altKey
+    )
+      return;
+
+    if (keybindings.matches(event, "workspace:close")) {
       event.preventDefault();
       workspace.close(workspace.view.active);
     }
@@ -57,14 +68,6 @@
       event.preventDefault();
       workspace.view.keep(workspace.view.active);
     }
-
-    const target = event.target;
-
-    if (
-      target instanceof HTMLElement &&
-      (target.isContentEditable || target.closest("input, textarea, [role=textbox]"))
-    )
-      return;
 
     if (keybindings.matches(event, "workspace:next")) {
       event.preventDefault();

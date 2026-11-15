@@ -2436,7 +2436,11 @@ Linki poza tym kontekstem zachowują istniejący viewer.
 Pozycje `:31`, `:31:4`, `:31-40`, `#L31`, `#L31-L40` i `#L31-40` są stanem
 widoku. Parser usuwa je ze ścieżki przed RPC; source podświetla oryginalne linie,
 Go to line przyjmuje linię lub zakres. Powrót do karty zachowuje scroll, a na webie
-także undo edytora. `Alt+PageUp/PageDown` przełącza karty poza polem tekstowym;
+także undo edytora. Desktop domyślnie obsługuje `Mod+W` do zamykania aktywnej karty
+pliku lub modułu oraz `Ctrl+Tab` / `Ctrl+Shift+Tab` do przełączania wszystkich kart,
+również przy fokusie w composerze lub edytorze. Stała karta rozmowy nie zamyka się.
+W webie te kombinacje zachowują funkcje przeglądarki. `Alt+PageUp/PageDown`
+przełącza karty w obu klientach, również w polach tekstowych;
 `Mod+G` i `Mod+S` obsługują pozycję i zapis w pliku. Close/Keep są też komendami
 palety z konfigurowalnymi skrótami. Zapis sprawdza również zakodowany JSON ≤512 KiB.
 

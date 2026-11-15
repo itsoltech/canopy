@@ -71,9 +71,11 @@ export function bindingProblem(value: string, composer = false): string | undefi
   if (!normalizeBinding(value)) return "Use a key such as Mod+Shift+P, Alt+J or F8.";
   const identity = bindingIdentity(value);
   const primary = isApple() ? "Meta" : "Ctrl";
+  const desktop = typeof window !== "undefined" && Boolean(window.canopyDesktop);
 
   if (
-    ["W", "Q", "T", "N", "L", "R"].some((k) => identity === `${primary}+${k}`) ||
+    (!desktop && identity === `${primary}+W`) ||
+    ["Q", "T", "N", "L", "R"].some((k) => identity === `${primary}+${k}`) ||
     identity === "Alt+F4" ||
     identity === `${primary}+Shift+N`
   )
