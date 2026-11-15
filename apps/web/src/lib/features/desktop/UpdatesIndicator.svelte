@@ -48,8 +48,9 @@
     if (event.pointerType === "mouse" && window.matchMedia("(min-width: 40rem)").matches) open = true;
   }
 
-  function leave() {
-    if (!pinned)
+  // Touch fires pointerleave right after the tap, before its click: only a mouse leaving closes the hover popover.
+  function leave(event: PointerEvent) {
+    if (event.pointerType === "mouse" && !pinned)
       closeTimer = setTimeout(() => {
         open = false;
       }, 250);
