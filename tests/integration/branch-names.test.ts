@@ -5,9 +5,20 @@
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { Provider, ui, type GenerateText } from "@canopy/contracts";
+import { create } from "@bufbuild/protobuf";
+import {
+  MentionKind,
+  MentionSchema,
+  Provider,
+  TurnOutcome,
+  ui,
+  type GenerateText,
+  type Mention,
+} from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { tempDir } from "@canopy/testing";
+import { Journal } from "@canopy/worker/journal";
+import sharp from "sharp";
 import { eventually } from "./support/gateway.ts";
 import { commit, git, worktreeFixture } from "./support/worktrees.ts";
 
@@ -15,20 +26,43 @@ describe.skipIf(!dockerAvailable)("generated branch names over the worker link",
   const dir = tempDir("canopy-branch-names-");
   let f: Awaited<ReturnType<typeof worktreeFixture>>;
   const prompts: string[] = [];
+  const logs: string[] = [];
+  let holdTurn = false;
+  let pendingTurn: { threadId: string; turnId: string } | undefined;
+  let failRename = false;
   /** The model's next answers; an Error fails the generation. */
-  let replies: (string | Error)[] = [];
+  let replies: (string | Error | Promise<string>)[] = [];
 
   beforeAll(async () => {
-    f = await worktreeFixture(dir, { capabilities: ["git_heads", "provisional_branches", "generate_text"] });
+    f = await worktreeFixture(dir, {
+      capabilities: ["git_heads", "provisional_branches", "generate_text"],
+      log: (message) => logs.push(message),
+    });
     const host = f.host;
     const handle = host.handleCommand.bind(host);
     host.handleCommand = async (command) => {
+      if (holdTurn && command.kind.case === "startTurn") {
+        const { thread, turnId } = command.kind.value;
+        pendingTurn = { threadId: thread!.threadId, turnId };
+
+        const event = await f.runtime.runPromise(
+          Journal.use((j) => j.append(thread!.threadId, { turnId, body: { case: "turnStarted", value: {} } })),
+        );
+
+        f.send({ case: "threadEvent", value: event });
+
+        return { commandId: command.commandId, ok: true };
+      }
+
+      if (failRename && command.kind.case === "renameWorktreeBranch")
+        return { commandId: command.commandId, ok: false, errorMessage: "private worker diagnostic" };
+
       if (command.kind.case !== "generateText") return handle(command);
       const request: GenerateText = command.kind.value;
 
       if (!request.prompt.includes("Name a git branch")) return handle(command);
       prompts.push(request.prompt);
-      const reply = replies.shift() ?? "unclear";
+      const reply = await (replies.shift() ?? "unclear");
 
       return reply instanceof Error
         ? { commandId: command.commandId, ok: false, errorCode: "GENERATION_FAILED" }
@@ -44,7 +78,12 @@ describe.skipIf(!dockerAvailable)("generated branch names over the worker link",
 
   const thread = (threadId: string) => f.gw.api.getThread({ threadId }).then((r) => r.thread!);
 
-  const start = async (initialMessage: string) => {
+  const start = async (
+    initialMessage: string,
+    attachments: { initialAttachmentIds?: string[]; initialMentions?: Mention[] } = {},
+  ) => {
+    const running = holdTurn;
+
     const created = (
       await f.gw.api.createThread({
         projectId: f.project.id,
@@ -53,12 +92,13 @@ describe.skipIf(!dockerAvailable)("generated branch names over the worker link",
         initialMessage,
         workspaceMode: ui.WorkspaceMode.NEW_WORKTREE,
         baseRef: "main",
+        ...attachments,
       })
     ).thread!;
 
     await eventually(
       () => thread(created.id),
-      (t) => t.status !== "starting" && t.lastTurnStatus !== "",
+      (t) => (running ? t.status === "running" : t.status !== "starting" && t.lastTurnStatus !== ""),
     );
 
     return created;
@@ -92,6 +132,128 @@ describe.skipIf(!dockerAvailable)("generated branch names over the worker link",
     expect(renamed.worktree).toMatchObject({ provisionalBranch: false, path: created.worktree!.path });
     expect(git(created.cwd, "symbolic-ref", "--short", "HEAD")).toBe("fix/login-redirect-loop");
     expect(prompts.at(-1)).toContain("User: Fix the login redirect loop after sign-out");
+  }, 30_000);
+
+  test("an attachment and a fenced name: renames while the first turn is still running", async () => {
+    const image = await sharp({ create: { width: 8, height: 8, channels: 4, background: "#333" } })
+      .png()
+      .toBuffer();
+
+    const file = (await f.gw.api.uploadAttachment({ name: "CleanShot 2026-11-15.png", data: new Uint8Array(image) }))
+      .attachment!;
+
+    const label = `[${file.name}]`;
+    replies = ["```text\nfix/background-jobs-badge-position\n```"];
+    holdTurn = true;
+
+    try {
+      const created = await start(`${label} I think this badge should be closer to the composer`, {
+        initialAttachmentIds: [file.id],
+        initialMentions: [
+          create(MentionSchema, {
+            kind: MentionKind.ATTACHMENT,
+            name: file.id,
+            label: file.name,
+            start: 0,
+            end: label.length,
+            source: "image",
+          }),
+        ],
+      });
+
+      const renamed = await eventually(
+        () => thread(created.id),
+        (t) => t.worktree?.branch === "fix/background-jobs-badge-position",
+      );
+
+      expect(renamed.status).toBe("running");
+      expect(renamed.worktree).toMatchObject({ provisionalBranch: false, path: created.cwd });
+      expect(git(created.cwd, "symbolic-ref", "--short", "HEAD")).toBe("fix/background-jobs-badge-position");
+      expect(prompts.at(-1)).toContain("this badge should be closer to the composer");
+      expect(prompts.at(-1)).not.toContain(f.host.attachmentsRoot);
+    } finally {
+      holdTurn = false;
+
+      if (pendingTurn) {
+        const { threadId, turnId } = pendingTurn;
+        pendingTurn = undefined;
+
+        const event = await f.runtime.runPromise(
+          Journal.use((j) =>
+            j.append(threadId, { turnId, body: { case: "turnFinished", value: { outcome: TurnOutcome.COMPLETED } } }),
+          ),
+        );
+
+        f.send({ case: "threadEvent", value: event });
+      }
+    }
+  }, 30_000);
+
+  test("a turn ending during generation retains the latest conversation for the next attempt", async () => {
+    const first = Promise.withResolvers<string>();
+    replies = [first.promise, "fix/composer-badge-spacing"];
+    const created = await start("hello");
+
+    try {
+      await say(created.id, "Move the background jobs badge closer to the composer");
+      const deferred = `worktree ${created.worktree!.id}: branch name check deferred until current generation completes`;
+      expect(
+        await eventually(
+          async () => logs,
+          (messages) => messages.includes(deferred),
+        ),
+      ).toContain(deferred);
+    } finally {
+      first.resolve("```\nunclear\n```");
+    }
+
+    const renamed = await eventually(
+      () => thread(created.id),
+      (t) => t.worktree?.branch === "fix/composer-badge-spacing",
+    );
+
+    expect(renamed.worktree?.provisionalBranch).toBe(false);
+    expect(prompts.at(-1)).toContain("User: Move the background jobs badge closer to the composer");
+    expect(git(created.cwd, "symbolic-ref", "--short", "HEAD")).toBe("fix/composer-badge-spacing");
+    expect(
+      await f.sql((sql) => sql`SELECT branch_attempts FROM worktrees WHERE id=${created.worktree!.id}::uuid`),
+    ).toMatchObject([{ branch_attempts: 2 }]);
+  }, 30_000);
+
+  test("invalid output and failed renames record safe reasons and preserve the branch", async () => {
+    for (const answer of ["fix/first-line\nprivate model response", "```\nfix/second-line\n***\n``` "]) {
+      replies = [answer];
+      const invalid = await start("Move the badge");
+      const reason = `worktree ${invalid.worktree!.id}: branch name response invalid; kept`;
+      expect(
+        await eventually(
+          async () => logs,
+          (messages) => messages.includes(reason),
+        ),
+      ).toContain(reason);
+      expect((await thread(invalid.id)).worktree?.branch).toBe(invalid.worktree!.branch);
+    }
+
+    replies = ["fix/badge-spacing"];
+    failRename = true;
+
+    try {
+      const failed = await start("Fix the badge spacing");
+      const reason = `worktree ${failed.worktree!.id}: branch rename failed; kept`;
+      expect(
+        await eventually(
+          async () => logs,
+          (messages) => messages.includes(reason),
+        ),
+      ).toContain(reason);
+      expect(git(failed.cwd, "symbolic-ref", "--short", "HEAD")).toBe(failed.worktree!.branch);
+      expect((await thread(failed.id)).worktree?.provisionalBranch).toBe(true);
+    } finally {
+      failRename = false;
+    }
+
+    expect(logs.join("\n")).not.toContain("private model response");
+    expect(logs.join("\n")).not.toContain("private worker diagnostic");
   }, 30_000);
 
   test("a vague first message keeps the provisional name; the next turn's request names it", async () => {

@@ -48,6 +48,7 @@ export async function worktreeFixture(
     botModel?: BotModel;
     role?: "desktop" | "server";
     diagnostics?: boolean;
+    log?: (message: string) => void;
     github?: import("../../../apps/gateway/src/github/http.ts").GitHubOptions;
     originUrl?: string;
     worktreeRoots?: WorktreeRoots;
@@ -125,6 +126,7 @@ export async function worktreeFixture(
           ...(options.capabilities ?? []),
         ],
         worktreesRoot: host.worktreesRoot,
+        attachmentsRoot: host.attachmentsRoot,
         ...(await runtime.runPromise(journalHello())),
       },
     });
