@@ -7,7 +7,7 @@ import { usageColor } from "../navigation/usage-color";
 
 const percent = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 
-/** Plan limit windows (web: UsageMeters): name, % used, time to reset and a 4 dp meter; nothing without data. */
+/** Plan limit windows (web: UsageMeters): name, % left, time to reset and a 4 dp meter; nothing without data. */
 export function UsageMeters({ usage, now }: { usage: ProviderUsageSnapshot | undefined; now: number }) {
   const c = useColors();
   const windows = activeUsageWindows(usage, now);
@@ -26,7 +26,7 @@ export function UsageMeters({ usage, now }: { usage: ProviderUsageSnapshot | und
               <Text style={[styles.overlayMeta, { color: c.soft, fontVariant: ["tabular-nums"] }]}>
                 {name}
                 {window.usedPercent !== undefined
-                  ? ` · ${percent.format(window.usedPercent)}% used`
+                  ? ` · ${percent.format(100 - window.usedPercent)}% left`
                   : window.reached
                     ? " · limit reached"
                     : ""}
@@ -38,14 +38,14 @@ export function UsageMeters({ usage, now }: { usage: ProviderUsageSnapshot | und
             {window.usedPercent !== undefined ? (
               <View
                 accessibilityRole="progressbar"
-                accessibilityLabel={`${name} limit used`}
-                accessibilityValue={{ min: 0, max: 100, now: Math.round(window.usedPercent) }}
+                accessibilityLabel={`${name} limit left`}
+                accessibilityValue={{ min: 0, max: 100, now: Math.round(100 - window.usedPercent) }}
                 style={{ height: 4, borderRadius: 2, overflow: "hidden", backgroundColor: c.ring }}
               >
                 <View
                   style={{
                     height: 4,
-                    width: `${Math.max(0, Math.min(100, window.usedPercent))}%`,
+                    width: `${Math.max(0, Math.min(100, 100 - window.usedPercent))}%`,
                     borderRadius: 2,
                     backgroundColor: usageColor(usageTone(window.reached ? 100 : window.usedPercent), c),
                   }}

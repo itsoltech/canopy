@@ -63,9 +63,9 @@ describe("sidebar usage overview projection", () => {
     const accounts = sidebarUsageAccounts(workers, now);
     const glance = sidebarUsageGlance(accounts, now);
     expect(accounts.map((account) => account.key)).toEqual(["a:2:native", "a:1:work", "b:2:native"]);
-    expect(glance.map(({ name, percent, tone }) => ({ name, percent, tone }))).toEqual([
-      { name: "Claude", percent: 69, tone: "neutral" },
-      { name: "Codex", percent: 94, tone: "danger" },
+    expect(glance.map(({ name, percentLeft, tone }) => ({ name, percentLeft, tone }))).toEqual([
+      { name: "Claude", percentLeft: 31, tone: "neutral" },
+      { name: "Codex", percentLeft: 6, tone: "danger" },
     ]);
     expect(sidebarUsageAccounts(workers, now + 3_600_000)).toEqual([]);
   });
@@ -121,7 +121,7 @@ describe("sidebar usage overview projection", () => {
     ];
 
     expect(sidebarUsageGlance(sidebarUsageAccounts(workers, now), now)).toMatchObject([
-      { name: "Grok", percent: 100, tone: "danger" },
+      { name: "Grok", percentLeft: 0, tone: "danger" },
     ]);
   });
 
@@ -178,7 +178,7 @@ describe("sidebar usage overview projection", () => {
     expect(rows[0]).toMatchObject({ name: "Claude", tone: "danger", word: "Low", binding: { name: "5-hour" } });
     expect(rows[0]?.window?.percentLeft).toBeCloseTo(66.666666);
     expect(rows[0]?.binding?.percentLeft).toBeCloseTo(5);
-    expect(usageSummaryGlance(rows, now)[0]?.percent).toBeCloseTo(95);
+    expect(usageSummaryGlance(rows, now)[0]?.percentLeft).toBeCloseTo(5);
     expect(usageSummaryGlance(rows, now)[0]?.label).not.toContain("unknown");
 
     // A direct instance with a lower weekly reading wins that window; the summary keeps one row.

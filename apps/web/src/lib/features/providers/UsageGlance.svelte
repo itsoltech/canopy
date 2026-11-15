@@ -19,7 +19,7 @@
                 ? "bg-amber-600 dark:bg-amber-400"
                 : "bg-zinc-500 dark:bg-zinc-400",
         ]}
-        style:width={`${item.tone === "extra" ? 100 : (item.percent ?? 0)}%`}
+        style:width={`${item.tone === "extra" ? 100 : (item.percentLeft ?? 0)}%`}
       ></span>
       {#if item.tone === "extra"}<span class="absolute inset-y-0 left-2 w-0.5 bg-surface"></span>{/if}
     </span>

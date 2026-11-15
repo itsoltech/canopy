@@ -14,7 +14,8 @@ export interface SidebarUsageAccount {
 export interface UsageGlance {
   readonly provider: Provider;
   readonly name: string;
-  readonly percent: number | undefined;
+  /** Share of the most restrictive window still available, 0–100. */
+  readonly percentLeft: number | undefined;
   readonly tone: UsageTone;
   readonly label: string;
 }
@@ -69,12 +70,13 @@ export function sidebarUsageGlance(accounts: readonly SidebarUsageAccount[], now
     );
 
     const percent = percentages.length ? Math.max(...percentages) : undefined;
+    const percentLeft = percent === undefined ? undefined : 100 - percent;
     const extra = rows.some((account) => account.usage.usingExtraUsage === true);
 
     const formatted =
-      percent === undefined
+      percentLeft === undefined
         ? undefined
-        : new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(percent);
+        : new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(percentLeft);
 
     const tone = usageTone(percent ?? 0, extra);
 
@@ -82,13 +84,13 @@ export function sidebarUsageGlance(accounts: readonly SidebarUsageAccount[], now
       {
         provider,
         name,
-        percent,
+        percentLeft,
         tone,
         label: extra
           ? `${name}: extra usage active`
           : formatted === undefined
             ? `${name}: usage reported`
-            : `${name}: ${formatted}% used`,
+            : `${name}: ${formatted}% left`,
       },
     ];
   });

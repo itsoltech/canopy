@@ -197,7 +197,7 @@ export const usageSummaryGlance = (rows: readonly UsageSummaryRow[], now = Date.
     return {
       provider: row.provider,
       name: row.name,
-      percent: left === undefined ? undefined : 100 - left,
+      percentLeft: left,
       tone: row.tone,
       label: usageSummaryLabel(row, now),
     };
