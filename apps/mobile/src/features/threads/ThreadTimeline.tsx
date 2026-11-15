@@ -25,6 +25,7 @@ import { turnNotices } from "@canopy/domain/turn-notices";
 import { ThreadScrollItems, ThreadScrollParent, ThreadScrollTarget } from "../../ui/thread-scroll-items";
 import { scrollTurnKey, useThreadScrollMemory } from "./useThreadScrollMemory";
 import { RewindGroup, useRewindTimeline } from "./rewind-timeline";
+import { useThreadSeen } from "./useThreadSeen";
 
 /** What the timeline's items look up: other threads, items, deliveries, and its tasks by their command. */
 function useTimelineData(state: ThreadState) {
@@ -38,12 +39,12 @@ function useTimelineData(state: ThreadState) {
       ?.kind === ProviderProfileKind.CLIPROXYAPI;
 
   const quoteAction = useRef(state.quotes.add);
-  quoteAction.current = state.quotes.add;
   const quote = useCallback((value: ui.Quote) => quoteAction.current(value), []);
   const editAction = useRef(state.rewind.open);
   useEffect(() => {
+    quoteAction.current = state.quotes.add;
     editAction.current = state.rewind.open;
-  }, [state.rewind.open]);
+  }, [state.quotes.add, state.rewind.open]);
   const editFrom = useCallback((turn: ui.Turn) => editAction.current(turn), []);
   const away = state.home.away;
   const { foldChoices, groupChoices } = state.view;
@@ -170,8 +171,9 @@ export function ThreadTimeline({
     composer.restoreReading,
   );
 
-  const turnKey = (turn: ui.Turn) => `${turn.fromThreadId}:${turn.id}`;
-  const arrival = useArrivals(latestFirst.map(turnKey), Boolean(snapshot), { newestFirst: true });
+  useThreadSeen(state, memory.positioned);
+
+  const arrival = useArrivals(latestFirst.map(scrollTurnKey), Boolean(snapshot), { newestFirst: true });
   const { rise } = useMotion();
   const days = newDays(rewind.shown);
   const loose = context.notices.filter((n) => !n.turnId && n.notice?.code !== "thread_rewound");
@@ -211,7 +213,7 @@ export function ThreadTimeline({
               }}
               onEndReachedThreshold={0.3}
               data={latestFirst}
-              keyExtractor={turnKey}
+              keyExtractor={scrollTurnKey}
               style={[styles.fill, { opacity: memory.positioned ? 1 : 0 }]}
               contentContainerStyle={{ maxWidth, paddingTop: 24, flexGrow: 1, gap: 0 }}
               keyboardShouldPersistTaps="handled"
@@ -238,12 +240,12 @@ export function ThreadTimeline({
                 >
                   <TimelineCell
                     turn={item}
-                    entries={entries.get(turnKey(item)) ?? EMPTY_ENTRIES}
+                    entries={entries.get(scrollTurnKey(item)) ?? EMPTY_ENTRIES}
                     context={context}
                     directory={directory}
                     newDay={days.has(item)}
                     historical={index !== 0}
-                    entering={arrival(turnKey(item))}
+                    entering={arrival(scrollTurnKey(item))}
                   />
                 </RewindGroup>
               )}

@@ -933,6 +933,14 @@ przewijania i pokazuje zwinięty kompozytor z „Jump to latest” przy czytaniu
 Nowe wiadomości w tle nie odciągają od zapamiętanej historii, a czytelnik
 podążający za końcem wraca do najnowszej wiadomości. Zapis przy końcu gestu,
 zmianie widocznych tur, wyjściu z ekranu i przejściu w tło zostaje na urządzeniu.
+
+Widoczny koniec rozmowy oznacza jej wynik jako przeczytany przez `MarkThreadSeen`
+po sekundzie, dopiero po ustawieniu pozycji listy i potwierdzeniu live.
+Znacznik obejmuje najwyżej `lastSeq` załadowanej osi czasu. Czytanie historii,
+karta pliku lub modułu, zakryty ekran i aplikacja w tle anulują oczekiwanie.
+Zmiana trafia przez overview również do pozostałych urządzeń. Ręczne
+„Mark as unread” w otwartym wątku pozostaje zachowane jak w web.
+
 Wyszukiwanie obejmuje wejścia i odpowiedzi agenta; wpisane zapytanie doczytuje
 strony do początku historii. Zwykłe otwarcie ani restart nie uruchamia tego odczytu.
 Cache zachowuje całe dotąd załadowane okno z granicą strony i kursorem.
