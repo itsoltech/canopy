@@ -19,6 +19,7 @@ import { classifyFailure, safeFailureDetail } from "@canopy/domain";
 import { timestampMs, type Timestamp } from "@bufbuild/protobuf/wkt";
 import { isFinished, upsertSchedule } from "#lib/features/schedules/schedules.ts";
 import { ComposerConnection } from "@canopy/domain/composer-connection";
+import { lastResult } from "#lib/shared/last-result.ts";
 
 import type { TimelineEntry, TimelineNotice, TurnResult } from "./thread-types.ts";
 
@@ -110,32 +111,26 @@ export class ThreadState {
   failure = $state<string | undefined>(undefined);
   syncStatus = $state.raw<ui.ThreadSyncStatus | undefined>(undefined);
 
-  readonly pending = $derived(this.interactions.filter((i) => i.status === "pending"));
-  readonly upcomingSchedules = $derived(this.schedules.filter((s) => !isFinished(s)));
-  /** The thread's own turns and items; a fork's inherited history is kept apart. */
-  readonly ownTurns = $derived(this.turns.filter((t) => !t.inherited));
-  readonly ownEntries = $derived(this.entries.filter((e) => !e.inherited));
-  readonly inheritedTurns = $derived(this.turns.filter((t) => t.inherited));
-  readonly inheritedEntries = $derived(this.entries.filter((e) => e.inherited));
-  readonly running = $derived(this.ownTurns.some((t) => t.status === "running"));
-  readonly queued = $derived(this.ownTurns.filter((t) => t.status === "queued" && !t.dispatched));
-  /** Background tasks still running (items `background_task` in progress), oldest first. */
-  readonly backgroundTasks = $derived(
-    this.ownEntries.filter((e) => e.item.content.case === "backgroundTask" && e.item.status === ItemStatus.IN_PROGRESS),
+  // Retained views outlive the thread screen that created them (thread-views.ts). No `$derived` here: it would
+  // freeze once that screen's effect is destroyed, showing stale turns and running state after a return.
+  readonly #pending = lastResult((list: ui.Interaction[]) => list.filter((i) => i.status === "pending"));
+  readonly #upcomingSchedules = lastResult((list: ui.Schedule[]) => list.filter((s) => !isFinished(s)));
+  readonly #ownTurns = lastResult((list: ui.Turn[]) => list.filter((t) => !t.inherited));
+  readonly #ownEntries = lastResult((list: TimelineEntry[]) => list.filter((e) => !e.inherited));
+  readonly #inheritedTurns = lastResult((list: ui.Turn[]) => list.filter((t) => t.inherited));
+  readonly #inheritedEntries = lastResult((list: TimelineEntry[]) => list.filter((e) => e.inherited));
+  readonly #queued = lastResult((list: ui.Turn[]) => list.filter((t) => t.status === "queued" && !t.dispatched));
+  readonly #backgroundTasks = lastResult((list: TimelineEntry[]) =>
+    list.filter((e) => e.item.content.case === "backgroundTask" && e.item.status === ItemStatus.IN_PROGRESS),
   );
-  /**
-   * Steers on their way into the running turn: sent or accepted and not yet in the transcript (a
-   * delivered one is a user_message item with `client_id` = its id; a queued one is a queued turn). The platform's
-   * notes about background tasks are not messages: they show once they are in the turn.
-   */
-  readonly steering = $derived.by(() => {
+  readonly #steering = lastResult((entries: TimelineEntry[], steers: ui.Steer[]) => {
     const echoed = new Set(
-      this.ownEntries.flatMap((e) =>
+      entries.flatMap((e) =>
         e.item.content.case === "userMessage" && e.item.content.value.clientId ? [e.item.content.value.clientId] : [],
       ),
     );
 
-    return this.steers.filter(
+    return steers.filter(
       (s) =>
         (s.status === "pending" ||
           s.status === "accepted" ||
@@ -144,6 +139,44 @@ export class ThreadState {
         s.backgroundItemIds.length === 0,
     );
   });
+
+  get pending() {
+    return this.#pending(this.interactions);
+  }
+  get upcomingSchedules() {
+    return this.#upcomingSchedules(this.schedules);
+  }
+  /** The thread's own turns and items; a fork's inherited history is kept apart. */
+  get ownTurns() {
+    return this.#ownTurns(this.turns);
+  }
+  get ownEntries() {
+    return this.#ownEntries(this.entries);
+  }
+  get inheritedTurns() {
+    return this.#inheritedTurns(this.turns);
+  }
+  get inheritedEntries() {
+    return this.#inheritedEntries(this.entries);
+  }
+  get running() {
+    return this.ownTurns.some((t) => t.status === "running");
+  }
+  get queued() {
+    return this.#queued(this.ownTurns);
+  }
+  /** Background tasks still running (items `background_task` in progress), oldest first. */
+  get backgroundTasks() {
+    return this.#backgroundTasks(this.ownEntries);
+  }
+  /**
+   * Steers on their way into the running turn: sent or accepted and not yet in the transcript (a
+   * delivered one is a user_message item with `client_id` = its id; a queued one is a queued turn). The platform's
+   * notes about background tasks are not messages: they show once they are in the turn.
+   */
+  get steering() {
+    return this.#steering(this.ownEntries, this.steers);
+  }
   /**
    * Seeds the header from the client route load before the stream connects. A supplied snapshot (e.g.
    * in a fixture) renders immediately; the stream's first snapshot replaces it.

@@ -152,7 +152,12 @@ bez nowych subskrypcji; każde takie odświeżenie przelicza rozmiar i egzekwuje
 Gdy wątek odjechał dalej, niż dogrzewanie odtwarza (ponad 256 rekordów), gateway wysyła
 świeże ograniczone okno. Ono nie zastępuje zachowanych stron: wątek zostaje „w tyle”
 ze swoim kursorem, dogrzewanie kontynuuje z osobnej kopii w cache, a otwarcie wznawia
-własny kursor i dosyła brakujące rekordy. Widoczny wątek nie jest usuwany z LRU. Pierwsze zimne otwarcie
+własny kursor i dosyła brakujące rekordy. Widoczny wątek nie jest usuwany z LRU.
+Zachowany stan żyje dłużej niż ekran, który go utworzył, więc nie może zawierać `$derived`:
+pochodna należy do efektu aktywnego przy jej utworzeniu i po jego zniszczeniu (np. wyjście
+z ekranu wątku) zwraca już tylko ostatnią wartość (`derived_inert`). Widok pokazywałby wtedy
+stare tury i stan pracy mimo działającego watcha. Takie pola to gettery nad `$state`
+z `lastResult` (`lib/shared/last-result.ts`). Pierwsze zimne otwarcie
 pozostaje ukryte, dopóki zamontowane okno ma wiersze ładowania brakującej pracy (w ramach
 limitu pozycjonowania), żeby luki nie znikały pod czytelnikiem.
 
