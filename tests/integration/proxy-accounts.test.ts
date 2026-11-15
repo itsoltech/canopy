@@ -57,6 +57,23 @@ const FILES = [
     requires_sign_in: true,
     unavailable: true,
     refresh_error: { message: "<img src=x onerror=alert(1)> refresh failed: Bearer abc.def token=xyz\n\u0007" },
+    quota: {
+      observed_at: "2026-11-14T09:00:00Z",
+      signals: {
+        "anthropic-ratelimit-unified-7d-utilization": "0.55",
+        "anthropic-ratelimit-unified-7d-reset": "1794823200",
+      },
+    },
+    model_quotas: {
+      "claude-opus": {
+        observed_at: NOW.toISOString(),
+        signals: {
+          "anthropic-ratelimit-unified-7d-utilization": "0.83",
+          "anthropic-ratelimit-unified-7d-reset": "1794823200",
+        },
+      },
+      malformed: { signals: { invalid: 7 } },
+    },
   },
   {
     id: "gemini.json",
@@ -200,6 +217,7 @@ describe.skipIf(!dockerAvailable)("CLIProxyAPI upstream accounts through the man
       expect(byId.get("2")).toMatchObject({ label: "Team", status: "cooling_down", detail: "quota exhausted" });
       expect(byId.get("2")?.retryAt?.seconds).toBe(BigInt(Date.parse("2099-01-01T00:00:00Z") / 1000));
       expect(byId.get("3")?.status).toBe("sign_in");
+      expect(byId.get("3")?.windows.map((w) => [w.key, w.usedPercent])).toEqual([["seven_day", 83]]);
       expect(byId.get("3")?.detail).not.toMatch(/[<>\n]|abc\.def|xyz/);
       expect(byId.get("3")?.detail).not.toContain(String.fromCharCode(7));
       expect(byId.get("3")?.detail).toStartWith("refresh failed: Bearer [redacted]");

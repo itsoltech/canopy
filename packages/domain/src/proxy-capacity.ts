@@ -133,11 +133,14 @@ const comparable = (window: ProviderUsageWindow) =>
 const windowIdentity = (window: ProviderUsageWindow) =>
   `${window.key}:${window.key === "duration" ? window.windowMinutes : 0}`;
 
+const modelLimits = new Set(["seven_day_opus", "seven_day_sonnet"]);
+
 /**
  * Missing/expired/percentage-free readings never enter a window's denominator.
  * Disabled, sign-in, error and unknown statuses are excluded. Cooling accounts
- * and accounts with any current reached window retain their units but have no
- * available capacity until a fresh reading says otherwise. No resets inferred.
+ * and accounts with a current reached general window retain their units but have
+ * no available capacity until a fresh reading says otherwise. Model limits affect
+ * only their own window. No resets inferred.
  */
 function capacityWindow(
   accounts: readonly ui.ProxyAccount[],
@@ -159,7 +162,12 @@ function capacityWindow(
 
     const blocked =
       account.status === "cooling_down" ||
-      account.windows.some((w) => current(w, now) && (w.reached || (w.usedPercent ?? 0) >= 100));
+      account.windows.some(
+        (w) =>
+          (!modelLimits.has(w.key) || w.key === window.key) &&
+          current(w, now) &&
+          (w.reached || (w.usedPercent ?? 0) >= 100),
+      );
 
     const left = blocked ? 0 : 100 - Math.max(0, Math.min(100, window.usedPercent ?? 100));
 

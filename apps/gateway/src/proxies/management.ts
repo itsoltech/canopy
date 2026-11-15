@@ -4,8 +4,9 @@ import { timestampFromDate, timestampNow } from "@bufbuild/protobuf/wkt";
 import { ui } from "@canopy/contracts";
 import { redactCredentials } from "@canopy/domain";
 import { Option, Schema } from "effect";
-import { proxyUsageWindows } from "./management-usage.ts";
+import { ModelObservations, QuotaObservation, proxyObservations } from "./management-observations.ts";
 import { PlanFields, proxyAccountPlan } from "./management-plan.ts";
+import { readClaudeProxyUsage } from "./management-live-usage.ts";
 
 /** Upper bounds for an untrusted management response (docs/proxies.md, "Konta upstream"). */
 const MAX_BYTES = 4 * 1024 * 1024;
@@ -37,14 +38,8 @@ const AuthFile = Schema.Struct({
   next_retry_after: Text,
   success: Count,
   failed: Count,
-  quota: Schema.optional(
-    Schema.NullOr(
-      Schema.Struct({
-        observed_at: Text,
-        signals: Schema.optional(Schema.NullOr(Schema.Record(Schema.String, Schema.String))),
-      }),
-    ),
-  ),
+  quota: Schema.optional(Schema.NullOr(QuotaObservation)),
+  model_quotas: Schema.optional(Schema.NullOr(ModelObservations)),
   refresh_error: Schema.optional(Schema.NullOr(Schema.Struct({ message: Text }))),
 });
 
@@ -120,7 +115,6 @@ const count = (value: number | null | undefined) => BigInt(Number.isSafeInteger(
 /** One auth file as a typed, sanitized account; the provider name keeps only a short lower-case token. */
 export function proxyAccount(file: AuthFile, now = Date.now(), redact: Redact = (text) => text): ui.ProxyAccount {
   const retry = time(file.next_retry_after);
-  const observed = time(file.quota?.observed_at);
   const raw = (file.provider || file.type || "").toLowerCase();
   const provider = redact(raw) === raw ? raw : "";
   // CLIProxyAPI Auth.ID survives restarts and token refreshes; EnsureIndex is the stable fallback.
@@ -130,9 +124,7 @@ export function proxyAccount(file: AuthFile, now = Date.now(), redact: Redact = 
   const planKey =
     identity && provider ? createHash("sha256").update(provider).update("\0").update(identity).digest("hex") : "";
 
-  const signals = new Map(
-    Object.entries(file.quota?.signals ?? {}).map(([key, value]) => [key.toLowerCase(), value.trim()]),
-  );
+  const { signals, windows } = proxyObservations(file.quota, file.model_quotas, now);
 
   return create(ui.ProxyAccountSchema, {
     id: plainText(file.auth_index || file.id || file.name, 120, redact),
@@ -146,7 +138,7 @@ export function proxyAccount(file: AuthFile, now = Date.now(), redact: Redact = 
     status: status(file, retry, now),
     detail: plainText(file.refresh_error?.message || file.status_message, 160, redact),
     retryAt: retry && retry.getTime() > now ? timestampFromDate(retry) : undefined,
-    windows: proxyUsageWindows(signals, observed, now),
+    windows,
     plan: proxyAccountPlan(provider, file, signals, redact),
     detectedPlan: proxyAccountPlan(provider, file, signals, redact),
     planKey,
@@ -161,6 +153,48 @@ export function proxyAccountsOf(files: readonly unknown[], now = Date.now(), red
     .flatMap((value) => Option.toArray(decodeFile(value)))
     .slice(0, MAX_ACCOUNTS)
     .map((file) => proxyAccount(file, now, redact));
+}
+
+/** OAuth usage is read through the proxy: Canopy sends a token placeholder, never downloads account tokens. */
+async function accountsWithUsage(
+  files: readonly unknown[],
+  root: string,
+  key: string,
+  secrets: readonly string[],
+  signal: AbortSignal,
+) {
+  const now = Date.now();
+  const redact = secretRedactor([key, ...secrets]);
+  const decoded = files.flatMap((value) => Option.toArray(decodeFile(value))).slice(0, MAX_ACCOUNTS);
+  const accounts = decoded.map((file) => proxyAccount(file, now, redact));
+  let cursor = 0;
+
+  const read = async () => {
+    while (cursor < decoded.length && !signal.aborted) {
+      const index = cursor++;
+      const file = decoded[index]!;
+      const account = accounts[index]!;
+
+      if (
+        account.provider !== "claude" ||
+        file.account_type !== "oauth" ||
+        !file.auth_index ||
+        file.auth_index.length > 120 ||
+        redact(file.auth_index) !== file.auth_index ||
+        account.status === "disabled" ||
+        account.status === "sign_in"
+      )
+        continue;
+
+      const windows = await readClaudeProxyUsage(root, key, file.auth_index, signal, now);
+
+      if (windows) account.windows = windows;
+    }
+  };
+
+  await Promise.all(Array.from({ length: Math.min(4, decoded.length) }, read));
+
+  return accounts;
 }
 
 /** At most `max` bytes of a body; the rest is cancelled unread. `overflow` marks a body that was longer. */
@@ -217,9 +251,11 @@ export async function readProxyAccounts(
   if (!key) return result(proxyId, "no_key");
 
   try {
+    const signal = AbortSignal.timeout(TIMEOUT_MS);
+
     const response = await fetch(`${root}/v0/management/auth-files`, {
       headers: { Authorization: `Bearer ${key}`, Accept: "application/json" },
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal,
       redirect: "error",
     });
 
@@ -243,7 +279,7 @@ export async function readProxyAccounts(
     return result(
       proxyId,
       "ok",
-      proxyAccountsOf(listing.value.files, Date.now(), secretRedactor([key, ...secrets])),
+      await accountsWithUsage(listing.value.files, root, key, secrets, signal),
       listing.value.files.length,
     );
   } catch {
