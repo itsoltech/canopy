@@ -310,6 +310,7 @@ export const coreWorkLoopMethods: CoreWorkLoopMethods = {
     this.copyJobs.start();
     this.github.device.start();
     this.github.background.start();
+    this.checkWatches.start();
     this.githubDetection.start();
     this.proxyAccounts.start();
   },
@@ -329,6 +330,7 @@ export const coreWorkLoopMethods: CoreWorkLoopMethods = {
       this.worktreeCleanup.stop(),
       this.imports.runner.stop(),
       this.copyJobs.stop(),
+      this.checkWatches.stop(),
       this.github.stop(),
     ]);
   },

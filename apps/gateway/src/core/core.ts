@@ -4,7 +4,13 @@ import { GitHubAccounts } from "../github/service.ts";
 import { GitHubDetection } from "../github/detection.ts";
 import { Diagnostics } from "../diagnostics/service.ts";
 import { create } from "@bufbuild/protobuf";
-import { createCoreBots, createCoreBus, createCoreScheduler, createCoreUpdates } from "./core-composition.ts";
+import {
+  createCoreBots,
+  createCoreBus,
+  createCoreCheckWatches,
+  createCoreScheduler,
+  createCoreUpdates,
+} from "./core-composition.ts";
 import { ui } from "@canopy/contracts";
 
 import { SettingsStore } from "../store/index.ts";
@@ -12,6 +18,7 @@ import type { WorkerLink } from "../worker-link/index.ts";
 import { DEFAULT_ATTACHMENT_LIMITS, type AttachmentLimits } from "@canopy/domain";
 import { AgentBus } from "./agent-bus.ts";
 import { BackgroundTasks } from "./background-tasks.ts";
+import type { PrCheckWatches } from "./pr-check-watches.ts";
 import { Hub } from "./hub.ts";
 import { OwnerFeeds } from "./owner-feeds.ts";
 import { Scheduler } from "./scheduler.ts";
@@ -233,6 +240,9 @@ export class GatewayCore {
   /** Background tasks for their agents: the tools, and the notes about every end (docs/execution.md, "Pobudka"). */
   readonly backgroundTasks: BackgroundTasks;
 
+  /** CI check watches of linked pull requests for their agents (docs/agent-bus.md, "Checki CI"). */
+  readonly checkWatches: PrCheckWatches;
+
   /** Settings → Import: threads of the agent CLIs on the owner's workers (docs/import.md). */
   readonly imports: CliImports;
 
@@ -351,6 +361,7 @@ export class GatewayCore {
       },
       { ...(options.backgroundGraceMs !== undefined && { graceMs: options.backgroundGraceMs }) },
     );
+    this.checkWatches = createCoreCheckWatches(this);
     // Ticks only after start() (main.ts); tests drive tick() directly.
     this.scheduler = createCoreScheduler(this, options);
     this.worktreeCleanup = new WorktreeCleanupSchedule(this);

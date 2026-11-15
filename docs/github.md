@@ -30,7 +30,7 @@ otwarcia wątku, zapisu zdarzeń, ACK workera ani startu tury.
 | Review | Komentarze ogólne i odpowiedzi, inline i zakresy linii w unified/split, pending review, Comment/Approve/Request changes, resolve/unresolve, edycja/usuwanie własnych komentarzy, Viewed z GitHub | Dismiss cudzych reviews, automatyczne publikowanie uwag agenta |
 | Cykl PR | Create z gałęzi wątku i szkicem agenta do zatwierdzenia, ready/draft, merge/squash/rebase, auto-merge on/off, update branch, close/reopen | Revert, automatyczne usuwanie gałęzi, zarządzanie całym stosem PR jedną akcją |
 | Metadane i CI | Tytuł/opis, request/re-request reviewerów i zespołów, assignees, labels; re-run failed/jobs/run, cancel run, logi checków/jobs | Edycja workflow, sekretów i ustawień repo, uruchamianie dowolnego workflow |
-| Praca agenta | Ask a question, Explain this PR, Fix findings in this thread oraz szkic tytułu/opisu Create PR; użytkownik zatwierdza treść i osobno publikuje | Wywoływanie mutacji nowej integracji przez agentów/boty; wymaga osobnego projektu jawnych zgód |
+| Praca agenta | Ask a question, Explain this PR, Fix findings in this thread oraz szkic tytułu/opisu Create PR; użytkownik zatwierdza treść i osobno publikuje. Odczyt stanu checków podlinkowanych PR przez `watch_pr_checks` ([agent-bus.md](agent-bus.md#checki-ci)) | Wywoływanie mutacji nowej integracji przez agentów/boty; wymaga osobnego projektu jawnych zgód |
 
 Nie tworzymy klienta git, nowego systemu zgód, własnego hostingu diffów ani mechanizmu
 aktualizacji. Każda mutacja jest jawną akcją użytkownika, bez ukrytych zapisów przy auth,
@@ -651,7 +651,8 @@ Analizę ograniczamy do 64 KiB już w projekcji SQL; watermark i dzierżawa prze
 Canopy nie ustawia `GH_TOKEN`, credential helpera ani loginu `gh` na workerze.
 `gh` używa własnej autoryzacji urządzenia, jeśli użytkownik już ją skonfigurował;
 bez niej agent korzysta z istniejącego gatewayowego connectora z odpowiednim grantem.
-Samo połączenie GitHub App nie nadaje agentom ani botom dostępu do konta.
+Samo połączenie GitHub App nie nadaje agentom ani botom dostępu do konta. Jedynym wyjątkiem jest
+odczyt stanu checków PR podlinkowanych do wątku agenta (`watch_pr_checks`, §10).
 
 Dowód merge dla cleanup z nowego klienta jest dostępny wyłącznie dla jawnie wybranego PAT
 z aktualnym grantem konektora dla workera. Wymaga świeżej listy i szczegółu PR, zgodnego
@@ -1202,6 +1203,7 @@ Testy obejmują również echo tokenu w odpowiedzi serwera i redakcję przed cac
 | Funkcja | Decyzja |
 | --- | --- |
 | GitHub MCP dla agentów | Pozostaje obecny PAT/OAuth i granty `connector_worker_grants`/`connector_bot_grants`. Połączenie GitHub App służy API produktu; nie przypisujemy jego tokenu do MCP ani nie dodajemy narzędzi mutacji agentowi. Most AgentToolCall do nowych mutacji jest poza v1 i wymaga osobnego projektu jawnych zgód; dotychczasowe uprawnienia konektora nie są zgodą na nowe konto |
+| Watche checków CI | Narzędzie szyny `watch_pr_checks` ([agent-bus.md](agent-bus.md#checki-ci)) czyta wyłącznie stan checków PR podlinkowanych do wątku wywołującego, kontem przypisanym do repozytorium w domu wątku. Token nie opuszcza gatewaya; agent dostaje nazwy, stany, dostawców, URL i `run_id` checków, bez logów i outputu. Polling idzie przez wspólnego producenta widocznego PR (te same terminy, ETagi, budżety i single-flight), bez nowego pollera. Boty nie mają tego narzędzia |
 | `apps/gateway/src/connectors/merged-pr.ts` | To dziś dodatkowy dowód merge do cleanup przez stałe read-only narzędzia MCP, z weryfikacją branch/ref/head SHA/base repo i grantów workera. Nowy klient może dostarczyć równoważny świeży dowód tylko przy takim samym ograniczeniu konta; brak zgody/niepełny cache nie zezwala na cleanup. Niezależny git fallback i ochrona zmian lokalnych zostają |
 | Worktrees i Branch | Źródłem gałęzi pozostaje `GitHeads` i istniejący `ThreadBranches`/SwitchThreadBranch. Widok/create PR nie zmienia cwd, worktree ani branch. Merge/update branch zmieniają refy na GitHub, bez git push/fetch/reset lokalnego checkoutu; UI wskazuje rozbieżność po zwykłym odczycie git. Kopia checkout nie wykonuje git; branch switch dalej wymaga braku aktywności i czystego checkoutu |
 | Boty | Mogą nadal czytać/tworzyć PR przez przyznany GitHub MCP i istniejącą politykę safe/always/full_auto. Nowe konto produktu nie daje grantu, nowego narzędzia ani dostępu do podglądu dowolnego właściciela. v1 nie dodaje panelu PR botowi ani ukrytego kontekstu do jego rutyn; użytkownik może przekazać jawny załącznik jak dotychczas |

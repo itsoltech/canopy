@@ -193,6 +193,8 @@ const cancelRewindWork = (sql: SqlClient.SqlClient, thread: string) =>
     WHERE thread_id=${thread}::uuid AND answer_delivery IN ('pending','consumed')`;
     yield* sql`UPDATE background_task_notes SET status='cancelled',steer_id=NULL,reason='Message rewound',updated_at=now()
     WHERE thread_id=${thread}::uuid AND status IN ('waiting','steering')`;
+    yield* sql`UPDATE pr_check_notes SET status='cancelled',steer_id=NULL,reason='Message rewound',updated_at=now()
+    WHERE thread_id=${thread}::uuid AND status IN ('waiting','steering')`;
     yield* sql`UPDATE agent_bus_calls SET notify_status='cancelled' WHERE (source_thread_id=${thread}::uuid OR
       target_turn_id IN (SELECT id FROM turns WHERE thread_id=${thread}::uuid AND status IN ('running','cancelled')))
     AND notify_status IN ('pending','steering')`;

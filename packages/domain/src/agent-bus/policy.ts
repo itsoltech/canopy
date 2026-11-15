@@ -192,6 +192,15 @@ export function authorizeBusCall(
       return Result.isFailure(target) ? deny(target.failure) : allow;
     }
 
+    // CI watches of the caller's own linked pull requests; the gateway scopes them to the calling thread.
+    case "watch_pr_checks":
+      if (caller.archived) return deny("this thread is archived");
+
+      return hopsDecision(facts, limits, false);
+    case "list_pr_watches":
+    case "cancel_pr_watch":
+      return allow;
+
     case "cancel_schedule": {
       const schedule = facts.schedule;
 

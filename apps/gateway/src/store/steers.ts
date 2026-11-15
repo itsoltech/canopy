@@ -9,6 +9,7 @@ import { toUiAttachment } from "./attachments.ts";
 import { createSteer } from "./steer-create.ts";
 import { mentionsFromJson, type StoredMentions } from "../core/mentions.ts";
 import { storedShellResult } from "./shell-input.ts";
+import { toUiChecksNote } from "./pr-check-ui.ts";
 import { queryMethods } from "../diagnostics/query-context.ts";
 
 /**
@@ -29,7 +30,14 @@ export interface SteerRow {
   input: { text: string; note?: string; message?: string; quotes?: StoredQuote[] } & StoredMentions &
     Pick<
       TurnRow["input"],
-      "attachments" | "sender" | "sourceKind" | "sourceStatus" | "shellCommand" | "shellInputId" | "shellResult"
+      | "attachments"
+      | "sender"
+      | "sourceKind"
+      | "sourceStatus"
+      | "shellCommand"
+      | "shellInputId"
+      | "shellResult"
+      | "prChecks"
     >;
   author_user_id: string | null;
   agent_call_id: string | null;
@@ -265,6 +273,7 @@ export function toUiSteer(row: SteerRow & SenderColumns): ui.Steer {
     attachments: (row.input.attachments ?? []).map(toUiAttachment),
     mentions: mentionsFromJson(row.input.mentions),
     backgroundItemIds: row.background_item_ids ?? [],
+    prChecks: (row.input.prChecks ?? []).map(toUiChecksNote),
     ...(sender && { sender }),
   });
 }

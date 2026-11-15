@@ -45,3 +45,5 @@ export {
 } from "./questions.ts";
 
 export { BACKGROUND_TASK_TOOLS, isBackgroundTaskTool, type BackgroundTaskToolName } from "./background-tasks.ts";
+
+export { PR_CHECK_TOOLS, isPrCheckTool, type PrCheckToolName } from "./pr-checks.ts";

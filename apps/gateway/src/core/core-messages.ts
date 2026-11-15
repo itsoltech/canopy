@@ -129,6 +129,7 @@ export async function coreQueueSteer(hostContext: GatewayCore, steerId: string, 
       steerId,
       reason || current.reason || "the turn ended before the note could join it",
     );
+    await hostContext.checkWatches.release(current.thread_id, steerId);
 
     if (current.status === "pending" || current.status === "accepted" || current.status === "dropped")
       threadDiagnostic(hostContext, "steer_delivery", {

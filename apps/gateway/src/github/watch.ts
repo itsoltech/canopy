@@ -9,6 +9,8 @@ import { readProbe, terminalSnapshot, watchScope, type ProbeTarget, type ProbeSi
 interface Producer {
   viewers: number;
   panels: number;
+  /** Agent CI watches (core/pr-check-watches.ts) hold the producer like a visible panel. */
+  agents: boolean;
   nextSlow: number;
   nextFast: number;
   index: number;
@@ -27,6 +29,7 @@ const targetKey = (target: ProbeTarget) => `${target.kind}:${target.page}`;
 const newProducer = (): Producer => ({
   viewers: 0,
   panels: 0,
+  agents: false,
   nextSlow: 0,
   nextFast: Infinity,
   index: 0,
@@ -41,9 +44,66 @@ const newProducer = (): Producer => ({
 /** The sweep and streams share the same deadlines and single flight; there is no second header poller. */
 export async function pollVisiblePullRequests(prs: GitHubPullRequests) {
   for (const [id, p] of producers.get(prs) ?? []) {
-    if (!p.viewers && !p.panels) continue;
+    if (!p.viewers && !p.panels && !p.agents) continue;
     await poll(prs, id, p);
   }
+}
+
+const producerOf = (prs: GitHubPullRequests, id: string) => {
+  let entries = producers.get(prs);
+
+  if (!entries) {
+    entries = new Map();
+    producers.set(prs, entries);
+  }
+
+  let p = entries.get(id);
+
+  if (!p) {
+    p = newProducer();
+    entries.set(id, p);
+  }
+
+  return { entries, p };
+};
+
+/** Drops a producer nobody holds any more after the shared 5 minute grace. */
+const idle = (prs: GitHubPullRequests, id: string, p: Producer) => {
+  if (p.viewers || p.panels || p.agents) return;
+  p.controller?.abort();
+  clearTimeout(p.cleanup);
+  p.cleanup = setTimeout(() => producers.get(prs)?.delete(id), 300_000);
+  p.cleanup.unref?.();
+};
+
+/**
+ * Agent CI watches share the visible producer's deadlines, validators and single flight (no second poller): the
+ * pull requests in `ids` are held and polled when due; the others are let go. Returns each held one's latest update.
+ */
+export async function pollAgentWatches(prs: GitHubPullRequests, ids: ReadonlySet<string>) {
+  for (const [id, p] of producers.get(prs) ?? [])
+    if (p.agents && !ids.has(id)) {
+      p.agents = false;
+      idle(prs, id, p);
+    }
+
+  const updates = new Map<string, github.PullRequestUpdate | Error>();
+
+  for (const id of ids) {
+    const { p } = producerOf(prs, id);
+    clearTimeout(p.cleanup);
+    p.agents = true;
+
+    try {
+      await poll(prs, id, p);
+
+      if (p.update) updates.set(id, p.update);
+    } catch (error) {
+      updates.set(id, error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  return updates;
 }
 
 async function probe(scope: ReadScope, p: Producer, target: ProbeTarget, signal: AbortSignal) {
@@ -211,21 +271,8 @@ export async function* watchPullRequest(
   signal.throwIfAborted();
   await watchScope(prs, request.pullRequestId);
   signal.throwIfAborted();
-  let entries = producers.get(prs);
-
-  if (!entries) {
-    entries = new Map();
-    producers.set(prs, entries);
-  }
-
   const id = request.pullRequestId;
-  let p = entries.get(id);
-
-  if (!p) {
-    p = newProducer();
-    entries.set(id, p);
-  }
-
+  const { p } = producerOf(prs, id);
   clearTimeout(p.cleanup);
   const viewing = request.visibility === "view";
   p.viewers += Number(viewing);
@@ -237,12 +284,7 @@ export async function* watchPullRequest(
     released = true;
     p.viewers -= Number(viewing);
     p.panels -= Number(!viewing);
-
-    if (!p.viewers && !p.panels) {
-      p.controller?.abort();
-      p.cleanup = setTimeout(() => entries.delete(id), 300_000);
-      p.cleanup.unref?.();
-    }
+    idle(prs, id, p);
   };
 
   signal.addEventListener("abort", release, { once: true });

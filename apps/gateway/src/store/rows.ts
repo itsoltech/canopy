@@ -1,4 +1,5 @@
 import type { JsonValue } from "@bufbuild/protobuf";
+import type { PrChecksNote } from "@canopy/domain";
 import type { StoredAttachment } from "./attachments.ts";
 import type { StoredQuote } from "./quotes.ts";
 import type { StoredMentions } from "../core/mentions.ts";
@@ -150,6 +151,8 @@ export interface TurnRow {
     sender?: JsonValue;
     sourceKind?: string;
     sourceStatus?: string;
+    /** sourceKind pr_checks: the CI check notes the turn or steer delivered (store/pr-check-notes.ts). */
+    prChecks?: readonly PrChecksNote[];
   } & StoredMentions;
   /** The message's override while queued; the values sent to the worker once started ('' = default). */
   model?: string;

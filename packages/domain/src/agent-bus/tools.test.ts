@@ -55,6 +55,7 @@ describe("tool sets per level", () => {
     expect([...agentBusToolsFor(0)].sort() as string[]).toEqual(Object.keys(AGENT_BUS_TOOLS).sort());
     expect(agentBusToolsFor(1).sort()).toEqual([
       "ask_user",
+      "cancel_pr_watch",
       "cancel_schedule",
       "get_answers",
       "get_background_task",
@@ -62,6 +63,7 @@ describe("tool sets per level", () => {
       "import_image_reply",
       "list_agents",
       "list_background_tasks",
+      "list_pr_watches",
       "list_schedules",
       "list_threads",
       "read_thread",
@@ -74,6 +76,7 @@ describe("tool sets per level", () => {
       "show_images",
       "stop_background_task",
       "wait_threads",
+      "watch_pr_checks",
     ]);
     expect(agentBusToolSpecs(agentBusToolsFor(1)).map((s) => s.name)).not.toContain("spawn_thread");
     expect(agentBusToolSpecs().map((s) => s.name)).not.toContain("import_image_reply");
@@ -107,5 +110,7 @@ describe("decodeAgentBusCall", () => {
     expect(failure("spawn_thread", { title: "t", prompt: "x", interactions: "robot" })).toContain("interactions");
     expect(failure("answer_interaction", { request_id: THREAD, response: "maybe" })).toContain("response");
     expect(failure("schedule_wakeup", { prompt: "x", delay_seconds: 10 })).toContain("delay_seconds");
+    expect(failure("watch_pr_checks", { pull_request: "#1", notify_on: ["sometimes"] })).toContain("notify_on");
+    expect(failure("watch_pr_checks", { pull_request: "#1", timeout_minutes: 2000 })).toContain("timeout_minutes");
   });
 });

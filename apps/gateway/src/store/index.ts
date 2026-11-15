@@ -53,4 +53,6 @@ export {
   type Delivery,
 } from "./background-tasks.ts";
 
+export { PrCheckWatchStore, type PrCheckWatchRow, type WatchProgress } from "./pr-check-watches.ts";
+
 export { toUiQuote, type StoredQuote } from "./quotes.ts";
