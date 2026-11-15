@@ -212,6 +212,8 @@ export class WorkspaceFile {
       this.watchStatus = "";
       const found = file.resolution === FileResolution.FOUND || file.resolution === FileResolution.UNSPECIFIED;
 
+      if (found) this.file = { ...base, readOnly: file.readOnly };
+
       if (found && file.sha256 === base.sha256) {
         this.changedOnDisk = false;
         this.removedOnDisk = false;
