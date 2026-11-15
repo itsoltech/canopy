@@ -1,4 +1,4 @@
-import { useEffect, useMemo, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
 import { PanResponder, Text, View } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import type { ui } from "@canopy/contracts";
@@ -6,6 +6,19 @@ import { useThreadActions } from "../threads/useThreadActions";
 import { Icon } from "../../ui/Icon";
 import { motion, smoothOut, useReducedMotion } from "../../ui/motion";
 import { styles, useColors } from "../../ui/theme";
+
+type ThreadActions = ReturnType<typeof useThreadActions>;
+
+function createLatestActions(initial: ThreadActions) {
+  let current = initial;
+
+  return {
+    get: () => current,
+    update: (next: ThreadActions) => {
+      current = next;
+    },
+  };
+}
 
 /**
  * A left swipe commits the same archive action as the sheet; short or cancelled swipes return to rest. A committed
@@ -15,6 +28,11 @@ import { styles, useColors } from "../../ui/theme";
 export function ThreadArchiveSwipe({ thread, children }: { thread: ui.Thread; children: ReactNode }) {
   const c = useColors();
   const actions = useThreadActions(thread);
+  // Keep one responder instance while letting its event callbacks see action state from the latest render.
+  const [latestActions] = useState(() => createLatestActions(actions));
+  useLayoutEffect(() => {
+    latestActions.update(actions);
+  }, [actions, latestActions]);
   const reduced = useReducedMotion();
   const offset = useSharedValue(0);
   const shown = useSharedValue(1);
@@ -44,7 +62,7 @@ export function ThreadArchiveSwipe({ thread, children }: { thread: ui.Thread; ch
     };
 
     const commit = () => {
-      const pending = actions.commit("archive");
+      const pending = latestActions.get().commit("archive", { requireConfirmation: true });
 
       if (!pending) return reset();
       leave();
@@ -56,8 +74,8 @@ export function ThreadArchiveSwipe({ thread, children }: { thread: ui.Thread; ch
     return PanResponder.create({
       // Capture horizontal movement only. Taps, long presses and vertical list scrolling keep their responders.
       onMoveShouldSetPanResponderCapture: (_, gesture) =>
-        !actions.disabled &&
-        !actions.busy &&
+        !latestActions.get().disabled &&
+        !latestActions.get().busy &&
         gesture.numberActiveTouches === 1 &&
         gesture.dx < -12 &&
         -gesture.dx > Math.abs(gesture.dy) * 1.5,
@@ -69,7 +87,7 @@ export function ThreadArchiveSwipe({ thread, children }: { thread: ui.Thread; ch
       onPanResponderTerminate: reset,
       onPanResponderTerminationRequest: () => true,
     }).panHandlers;
-  }, [actions.disabled, actions.busy, actions.commit, offset, shown, width, reduced]);
+  }, [latestActions, offset, shown, width, reduced]);
 
   return (
     <View

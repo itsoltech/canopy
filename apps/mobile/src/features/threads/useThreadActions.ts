@@ -11,6 +11,8 @@ import { useComputerHome } from "../computers/presence";
 
 export type ThreadAction = "side" | "goal" | "pin" | "rename" | "regenerate" | "read" | "archive" | "delete";
 
+type CommitOptions = { requireConfirmation?: boolean };
+
 export function useThreadActions(thread: ui.Thread) {
   const { client, online, drafts } = useSession();
   const appearance = useAppearance();
@@ -93,7 +95,10 @@ export function useThreadActions(thread: ui.Thread) {
    * Runs the action, or asks first when the settings want a confirmation. Resolves with the outcome when it runs at
    * once; `undefined` when a dialog took over (the caller cannot tell whether it will run).
    */
-  function commit(action: Exclude<ThreadAction, "side" | "goal" | "rename">): Promise<boolean> | undefined {
+  function commit(
+    action: Exclude<ThreadAction, "side" | "goal" | "rename">,
+    options: CommitOptions = {},
+  ): Promise<boolean> | undefined {
     const general = appearance.user?.general;
 
     if (action === "delete" && general?.confirmDelete !== false) {
@@ -103,7 +108,7 @@ export function useThreadActions(thread: ui.Thread) {
         confirm: "Delete thread",
         action: () => void execute(action),
       });
-    } else if (action === "archive" && !archived && general?.confirmArchive) {
+    } else if (action === "archive" && !archived && (options.requireConfirmation || general?.confirmArchive)) {
       confirm({
         title: "Archive thread?",
         description: "This also archives its side threads. Running turns stop and schedules are cancelled.",
