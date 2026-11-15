@@ -195,9 +195,7 @@
       <p class="text-xs/5 text-muted tabular-nums">{detail}</p>
     </div>
   </div>
-</Popover>
-
-{#if kind === "image" || kind === "video"}
+</Popover><!-- No whitespace: the chip before it sits in text. -->{#if kind === "image" || kind === "video"}
   <Lightbox
     bind:open
     src={attachmentUrl(file, kind === "image" ? "image" : undefined)}

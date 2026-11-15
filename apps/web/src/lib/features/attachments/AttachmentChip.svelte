@@ -48,5 +48,8 @@
   >
 {:else}
   <MentionChip {mention} />
-{/if}
-{#if file}<AttachmentPreview {file} {anchor} bind:open />{/if}
+{/if}<!-- No whitespace after the chip: the message's own space separates it from the next. -->{#if file}<AttachmentPreview
+    {file}
+    {anchor}
+    bind:open
+  />{/if}

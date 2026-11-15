@@ -156,7 +156,7 @@
       text={body}
       breaks
       elements={inline.length ? { ranges: inline, render: chip } : undefined}
-      class="text-inherit dark:text-inherit"
+      class="text-inherit dark:text-inherit [&_.mention-chip]:mx-px"
     />
   {/if}
   {@render details?.()}

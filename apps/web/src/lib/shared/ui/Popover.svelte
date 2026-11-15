@@ -254,11 +254,10 @@
   }
 </script>
 
-{@render trigger?.(triggerProps)}
-
-<!-- overflow-x-hidden: on touch screens the 48 px touch targets of buttons at the panel's edge reach a few
+<!-- No whitespace between the trigger and the panel: an inline trigger (a chip in text) would get a space after it.
+     overflow-x-hidden: on touch screens the 48 px touch targets of buttons at the panel's edge reach a few
      pixels past it, which would otherwise scroll the panel sideways (a scrollbar on Android). -->
-{#if mounted}
+{@render trigger?.(triggerProps)}{#if mounted}
   <div
     bind:this={panel}
     {id}
