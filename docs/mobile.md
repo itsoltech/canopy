@@ -1,13 +1,20 @@
 # Canopy na iOS i Android
 
 Status: opis działającego kodu na `dev` (2026-11-15); domyślne wybory nowego wątku
-i filtr ulubionych modeli są zgodne z web, a przesuwanie obrazów wyklucza podwójne
-stuknięcie do powiększania. Dostępność w wydaniach zależy od kanału.
+i filtr ulubionych modeli oraz opcjonalna retencja archiwum są zgodne z web.
+Przesuwanie obrazów wyklucza podwójne stuknięcie do powiększania.
+Dostępność w wydaniach zależy od kanału.
 
 Natywna aplikacja Expo/React Native działa na iOS i Androidzie. Obsługuje wątki,
 boty, pliki i załączniki, zgody oraz ustawienia. Z gatewayem paruje się przez
 Network access: klient przypina certyfikat TLS i dostaje odwoływalny token urządzenia.
 To osobny klient natywny, a nie mobilny widok web.
+
+Settings → Threads → Archived threads zawiera przełącznik automatycznego
+usuwania i dowolną liczbę dni (1–36500); domyślnie jest wyłączony. Edycja tworzy
+szkic ustawienia, a **Save** zapisuje całość do gatewaya. Retencja obejmuje
+istniejące archiwum i trwale usuwa historię, z odroczeniem dla zachowanych forków;
+nie usuwa plików workspace. Szczegóły: [database-retention.md](database-retention.md).
 
 ## Instalacja i dostępność
 

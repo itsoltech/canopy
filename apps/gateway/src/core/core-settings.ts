@@ -119,6 +119,7 @@ export const coreSettingsMethods: CoreSettingsMethods = {
         ...(request.composer && { composer: request.composer }),
         ...(request.general && { general: request.general }),
         ...(request.cliUpdates && { cliUpdates: request.cliUpdates }),
+        ...(request.threadRetention && { threadRetention: request.threadRetention }),
         ...(request.textGeneration && { textGeneration: request.textGeneration }),
         ...(request.sidebar && {
           sidebar: {

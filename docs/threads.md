@@ -1,5 +1,8 @@
 # Projekty, wątki i wątki boczne
 
+Status (2026-11-15): zaimplementowane, w tym opcjonalna retencja archiwum.
+Opis dotyczy kodu; dostępność nightly/beta/stable określają [wydania](release.md).
+
 Niewysłane szkice synchronizują się automatycznie, są przechowywane przez 30 dni i widoczne wyłącznie na urządzeniach właściciela.
 
 Niewysłane szkice synchronizują się automatycznie po 1,5 s bez edycji oraz przy
@@ -161,6 +164,32 @@ Archiwum zachowuje czytelną oś czasu. Zamiast kompozytora pokazuje ikonę, cza
 (użytkownik, agent albo archiwizacja razem z rodzicem), „Unarchive” i odnośnik do rodzica subagenta.
 Przywrócenie płynnie przywraca kompozytor. Starsze archiwum pokazuje tylko znane informacje.
 Gateway odrzuca wiadomości do archiwum.
+
+### Automatyczne usuwanie archiwum
+
+Settings → Threads → **Archived threads** pozwala włączyć automatyczne usuwanie
+po dowolnej liczbie pełnych dni od archiwizacji (1–36500). Domyślnie funkcja jest
+wyłączona. Zmianę zatwierdza osobny przycisk **Save**; obejmuje ona również już
+zarchiwizowane wątki. Ustawienie należy do konta i synchronizuje się przez istniejące
+udostępnianie konfiguracji między komputerami. Każdy gateway sprząta własne dane
+właściciela, także gdy żaden klient nie jest otwarty.
+
+Termin wynika z `archived_at`, nie z ostatniej aktywności. Powtórna archiwizacja
+nie przedłuża czasu; przywrócenie wyłącza wątek z retencji, a kolejna archiwizacja
+rozpoczyna nowy okres. Wyłączenie ustawienia zatrzymuje kwalifikowanie kolejnych
+wątków, ale nie cofa rozpoczętego trwałego usunięcia.
+
+Usunięcie jest nieodwracalne: znika wątek, jego transkrypt i ciężkie dane historii.
+Gateway zachowuje niewielkie znaczniki, relacje i ACK potrzebne do deduplikacji
+oraz odrzucania spóźnionych zdarzeń workera. Nie można użyć `RestoreThread`, aby
+odtworzyć te dane. Retencja nie usuwa plików projektu, katalogów scratch ani sesji CLI.
+Współdzielone bloby pozostają, dopóki inne rozmowy nadal ich używają.
+
+Usuwanie źródła historii czeka na zachowane forki, a usuwanie rodzica na jego
+zachowane dzieci. Trwająca praca i nieukończone operacje również odraczają
+sprzątanie. Gateway sprawdza warunki ponownie pod blokadą, więc równoczesne
+przywrócenie albo wyłączenie retencji nie powoduje usunięcia na podstawie starego
+odczytu. Szczegóły partii i ochrony danych: [database-retention.md](database-retention.md).
 
 Archiwizacja przerywa turę, lecz pozostawia zadania w tle do zakończenia lub
 ręcznego zatrzymania. Wynik zadania nadal zapisuje się w archiwum; ani notatka

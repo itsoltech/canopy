@@ -46,6 +46,7 @@ import githubPrLastKnown from "./0146_github_pr_last_known.sql" with { type: "te
 import workspaceCopyJobs from "./0147_workspace_copy_jobs.sql" with { type: "text" };
 import prCheckWatches from "./0148_pr_check_watches.sql" with { type: "text" };
 import proxyAccountPlans from "./0149_proxy_account_plans.sql" with { type: "text" };
+import threadRetention from "./0150_thread_retention.sql" with { type: "text" };
 import botViewDelta from "./0091_bot_view_delta.sql" with { type: "text" };
 import workerConfig from "./0002_worker_config.sql" with { type: "text" };
 import gatewayRuntime from "./0003_gateway_runtime.sql" with { type: "text" };
@@ -312,6 +313,7 @@ export const migrations = Migrator.fromRecord({
   "0147_workspace_copy_jobs": sqlFile(workspaceCopyJobs),
   "0148_pr_check_watches": sqlFile(prCheckWatches),
   "0149_proxy_account_plans": sqlFile(proxyAccountPlans),
+  "0150_thread_retention": sqlFile(threadRetention),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

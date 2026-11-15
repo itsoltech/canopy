@@ -12,6 +12,7 @@
   import WorkFoldSettings from "#lib/features/settings/WorkFoldSettings.svelte";
   import FollowUpSettings from "#lib/features/settings/FollowUpSettings.svelte";
   import SubagentPermissionSettings from "#lib/features/settings/SubagentPermissionSettings.svelte";
+  import ThreadRetentionSettings from "#lib/features/settings/ThreadRetentionSettings.svelte";
 
   const overview = useOverview();
   const settings = useSettings();
@@ -24,6 +25,7 @@
 <WorkFoldSettings />
 <FollowUpSettings />
 <SubagentPermissionSettings />
+<ThreadRetentionSettings />
 
 <SettingsGroup
   title="New threads"
@@ -50,3 +52,4 @@
 
 <AccountConfigNotices section="threadDefaults" />
 <AccountConfigNotices section="composer" />
+<AccountConfigNotices section="threadRetention" />

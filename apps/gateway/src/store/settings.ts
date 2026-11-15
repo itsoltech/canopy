@@ -47,6 +47,7 @@ interface Stored {
   sidebar?: JsonValue;
   general?: JsonValue;
   cliUpdates?: JsonValue;
+  threadRetention?: JsonValue;
 }
 
 const appearance = (stored: Stored) =>
@@ -78,6 +79,9 @@ const toUser = (row: Row | undefined) => {
     timezone: stored.timezone ?? "",
     appearance: appearance(stored),
     threadDefaults: threadDefaults(stored),
+    threadRetention: fromJson(ui.ThreadRetentionSettingsSchema, stored.threadRetention ?? {}, {
+      ignoreUnknownFields: true,
+    }),
     modelFavorites: modelFavorites(stored),
     composer: composer(stored),
     cliUpdates: stored.cliUpdates
@@ -150,6 +154,7 @@ export class SettingsStore extends Context.Service<
       sidebar?: ui.SidebarSettings;
       general?: ui.GeneralSettings;
       cliUpdates?: ui.CliUpdateSettings;
+      threadRetention?: ui.ThreadRetentionSettings;
       timezone?: string;
       workerGatewayUrl?: string;
       attachmentLimits?: ui.AttachmentLimits;
@@ -194,6 +199,7 @@ export class SettingsStore extends Context.Service<
           sidebar: nextSidebar,
           general,
           cliUpdates,
+          threadRetention,
           timezone,
           workerGatewayUrl,
           attachmentLimits,
@@ -222,6 +228,7 @@ export class SettingsStore extends Context.Service<
                 ...(nextSidebar && { sidebar: toJson(ui.SidebarSettingsSchema, nextSidebar) }),
                 ...(general && { general: toJson(ui.GeneralSettingsSchema, general) }),
                 ...(cliUpdates && { cliUpdates: toJson(ui.CliUpdateSettingsSchema, cliUpdates) }),
+                ...(threadRetention && { threadRetention: toJson(ui.ThreadRetentionSettingsSchema, threadRetention) }),
               };
 
               const row = yield* write({

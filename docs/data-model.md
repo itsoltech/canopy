@@ -1,5 +1,8 @@
 # Model danych (PostgreSQL)
 
+Status (2026-11-15): zaimplementowany model, w tym migracja `0150_thread_retention`;
+dostępność nightly/beta/stable według [release.md](release.md).
+
 Migracja `0141_provider_usage` przechowuje ostatnie oczyszczone limity konta
 per `(worker_id, provider, profile_id)`, z niejawnym `account_key` runtime/home,
 wersją konfiguracji i `observed_at`. Snapshot JSON zawiera wyłącznie typowane
@@ -326,6 +329,14 @@ bez wcześniejszych niezależnych archiwizacji. Operacja blokuje rodzica i obję
 przerwania w outboxie i anuluje ich pracę w tej samej transakcji. Indeks częściowy
 `threads_archived_owner(owner_user_id, archived_at DESC, id DESC)` obsługuje kursorowe strony archiwum.
 Ustawienie `sidebar.archived_expanded` przechowuje rozwinięcie sekcji; nie wymaga migracji danych JSON.
+
+Migracja `0150_thread_retention` dodaje trwałe oznaczenie usunięcia historii
+archiwalnego wątku. `user_settings.settings.threadRetention.archivedThreadDays`
+jest opt-in: `0` lub brak = wyłączone. Po upływie ustawionej liczby dni od
+`archived_at` gateway usuwa ciężkie dane historii partiami, zachowując niewielkie
+rekordy relacji, deduplikacji i ACK. Przywracanie nie odtwarza wyczyszczonych danych.
+Zależności historii forków i aktywne operacje odraczają kwalifikację;
+szczegóły: [database-retention.md](database-retention.md).
 
 Status: **zaimplementowany jako migracje `0001_init` i `0002_worker_config`** (`packages/db/src/migrations`). Niezmienniki są sprawdzane w testach na prawdziwym PostgreSQL (`packages/db/test/schema.test.ts`). Pojęcia i cykl życia wątków: [threads.md](threads.md).
 

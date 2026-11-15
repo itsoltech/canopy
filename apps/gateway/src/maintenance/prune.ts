@@ -4,16 +4,17 @@ import { pruneGitHubCache } from "../github/prune-cache.ts";
 import { pruneDiagnostics } from "./diagnostics.ts";
 import { queryFamily } from "../diagnostics/query-context.ts";
 import { pruneComposerDrafts } from "../drafts/query.ts";
+import { pruneArchivedThreads } from "./thread-retention.ts";
 
 const BATCH = 256;
 
-/** All eligibility decisions use durable facts. No user timeline or deduplication key is deleted. */
-export const pruneDatabase = (owner: string) =>
+/** History is removed only after the owner's explicit archive-retention policy fences its identity. */
+export const pruneDatabase = (owner: string, threadsChanged?: (ids: readonly string[]) => Promise<void>) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
     yield* sql`INSERT INTO database_maintenance(owner_user_id) VALUES(${owner}::uuid) ON CONFLICT DO NOTHING`;
 
-    return yield* sql.withTransaction(
+    const result = yield* sql.withTransaction(
       Effect.gen(function* () {
         yield* sql`SET LOCAL lock_timeout='100ms'`;
         yield* sql`SET LOCAL statement_timeout='1000ms'`;
@@ -21,8 +22,10 @@ export const pruneDatabase = (owner: string) =>
         const claimed = yield* sql`SELECT owner_user_id FROM database_maintenance
       WHERE owner_user_id=${owner}::uuid AND next_run_at<=now() FOR UPDATE SKIP LOCKED`;
 
-        if (!claimed.length) return 0;
+        if (!claimed.length) return { touched: 0, ids: [] };
         let touched = 0;
+        const threads = yield* pruneArchivedThreads(sql, owner);
+        touched += threads.touched;
         touched += yield* pruneComposerDrafts(sql, owner);
         touched += yield* pruneGitHubCache(sql, owner);
 
@@ -58,9 +61,13 @@ export const pruneDatabase = (owner: string) =>
         yield* sql`UPDATE database_maintenance SET next_run_at=now()+make_interval(secs=>${touched ? 1 : 60})
       WHERE owner_user_id=${owner}::uuid`;
 
-        return touched;
+        return { touched, ids: threads.ids };
       }),
     );
+
+    if (result.ids.length && threadsChanged) yield* Effect.promise(() => threadsChanged(result.ids));
+
+    return result.touched;
   }).pipe(queryFamily("retention.prune"));
 
 const pruneHarness = (sql: SqlClient.SqlClient, owner: string) =>

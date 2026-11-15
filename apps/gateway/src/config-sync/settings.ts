@@ -32,6 +32,7 @@ const SECTIONS = {
   textGeneration: ui.TextGenerationSettingsSchema,
   sidebar: ui.SidebarSettingsSchema,
   cliUpdates: ui.CliUpdateSettingsSchema,
+  threadRetention: ui.ThreadRetentionSettingsSchema,
 } satisfies Record<string, DescMessage>;
 
 const PINS = new Set(["sidebar.pinnedThreadIds", "sidebar.pinnedBotIds"]);
@@ -131,6 +132,7 @@ export function settingsRequest(stored: SettingsJson, version: bigint) {
     sidebar: user.sidebar,
     textGeneration: user.textGeneration,
     cliUpdates: user.cliUpdates,
+    threadRetention: user.threadRetention,
     ...(user.timezone && { timezone: user.timezone }),
   });
 }

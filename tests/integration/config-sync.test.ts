@@ -61,6 +61,7 @@ describe.skipIf(!dockerAvailable)("account configuration across three independen
       general: { confirmDelete: false },
       composer: { runningDelivery: ui.MessageDelivery.QUEUE },
       cliUpdates: { intervalMinutes: 60 },
+      threadRetention: { archivedThreadDays: 31 },
       threadDefaults: { useLastAgent: true },
       sidebar: {
         projectIds: [crypto.randomUUID()],
@@ -80,6 +81,9 @@ describe.skipIf(!dockerAvailable)("account configuration across three independen
     });
     expect((await c.settings()).composer?.runningDelivery).toBe(ui.MessageDelivery.QUEUE);
     expect((await c.settings()).cliUpdates?.intervalMinutes).toBe(60);
+    await wait(async () => (await c.settings()).threadRetention?.archivedThreadDays === 31);
+    await a.update({ threadRetention: {} });
+    await wait(async () => (await c.settings()).threadRetention?.archivedThreadDays === 0);
     await wait(async () => (await c.settings()).threadDefaults?.useLastAgent === true);
     await a.update({ threadDefaults: { useLastAgent: false } });
     await wait(async () => (await c.settings()).threadDefaults?.useLastAgent === false);

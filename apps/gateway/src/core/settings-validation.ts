@@ -11,6 +11,11 @@ export function validateUserSettings(request: ui.UpdateUserSettingsRequest) {
 
   if (interval !== undefined && !isCheckInterval(interval)) throw new InvalidError("invalid CLI update check interval");
 
+  const days = request.threadRetention?.archivedThreadDays;
+
+  if (days !== undefined && (!Number.isInteger(days) || days < 0 || days > 36500))
+    throw new InvalidError("Invalid archive retention. Choose 1–36500 days, or turn off auto-delete.");
+
   if (request.workerGatewayUrl !== undefined) checkWorkerGatewayUrl(request.workerGatewayUrl);
 
   if (request.attachmentLimits) {

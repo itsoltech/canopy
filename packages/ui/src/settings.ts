@@ -45,7 +45,7 @@ export const settingsSections: readonly SettingsSection[] = [
     label: "Threads",
     icon: "chat-bubble-left-right",
     group: "General",
-    keywords: "new thread defaults model profile permissions workspace",
+    keywords: "new thread defaults model profile permissions workspace archive retention auto-delete",
   },
   {
     href: "/settings/text-generation",

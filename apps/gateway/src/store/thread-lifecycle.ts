@@ -22,15 +22,18 @@ interface Owned {
   deletion_batch_id: string | null;
   archived_at: Date | null;
   moved_to: string | null;
+  purged_at: Date | null;
 }
 
 const owned = (sql: SqlClient.SqlClient, userId: string, threadId: string, deleted = false) =>
   Effect.gen(function* () {
     const row =
-      (yield* sql<Owned>`SELECT id, parent_thread_id, deleted_at, deletion_batch_id, archived_at, moved_to FROM threads
+      (yield* sql<Owned>`SELECT id, parent_thread_id, deleted_at, deletion_batch_id, archived_at, moved_to, purged_at FROM threads
     WHERE id = ${threadId}::uuid AND owner_user_id = ${userId}::uuid FOR UPDATE`)[0];
 
     if (!row || (!deleted && row.deleted_at)) return yield* Effect.fail(new NotFound("thread not found"));
+
+    if (row.purged_at) return yield* Effect.fail(new Invalid("this thread has been permanently deleted"));
 
     return row;
   });
@@ -168,7 +171,7 @@ export function threadLifecycle(sql: SqlClient.SqlClient, dispatch: Dispatch) {
         status = CASE WHEN archived_at IS NOT NULL THEN 'archived'
           WHEN EXISTS (SELECT 1 FROM turns u WHERE u.thread_id = threads.id AND u.status = 'running') THEN 'running'
           WHEN runtime = 'worker' AND provider_thread_id IS NULL THEN CASE WHEN status_detail IS NULL THEN 'creating' ELSE 'failed' END ELSE 'idle' END
-        WHERE owner_user_id = ${userId}::uuid AND deleted_at IS NOT NULL AND moved_to IS NULL AND
+        WHERE owner_user_id = ${userId}::uuid AND deleted_at IS NOT NULL AND moved_to IS NULL AND purged_at IS NULL AND
         (id = ${threadId}::uuid OR (deletion_batch_id = ${threadId}::uuid AND parent_thread_id = ${threadId}::uuid)) RETURNING id`;
 
           return rows.map((r) => r.id);

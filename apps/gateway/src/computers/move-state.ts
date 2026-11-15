@@ -3,7 +3,7 @@ import { computerLink as link, ui } from "@canopy/contracts";
 import { nodeRef, splitId } from "@canopy/domain/computers";
 import { Effect, Schema } from "effect";
 import { SqlClient } from "effect/sql";
-import { insertRows, JsonRow, threadRowJson, type MoveRow, type Sql } from "./move-payload.ts";
+import { insertRows, JsonRow, MoveRefused, threadRowJson, type MoveRow, type Sql } from "./move-payload.ts";
 import { mapIds, qualify } from "./remote.ts";
 import type { ComputerStore } from "./store.ts";
 
@@ -108,6 +108,12 @@ export function applyThreadRows(
   return transaction(store, (sql) =>
     Effect.gen(function* () {
       const owner = store.owner;
+
+      // Admit before any blob lock: replay cannot allocate bytes after retention fenced this thread.
+      const admitted = yield* sql`SELECT id FROM threads WHERE id=${input.threadId}::uuid
+        AND owner_user_id=${owner}::uuid AND purged_at IS NULL FOR UPDATE`;
+
+      if (!admitted.length) return yield* Effect.fail(new MoveRefused("The thread has been permanently deleted."));
 
       const known = yield* sql.unsafe(`SELECT 1 FROM computer_moved_threads WHERE thread_id = $1::uuid`, [
         input.threadId,
