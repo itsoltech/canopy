@@ -73,6 +73,8 @@ export interface DesktopStatus {
   mode: DesktopMode | null;
   phase: "setup" | "starting" | "running" | "stopping" | "error";
   worker: "offline" | "connecting" | "online";
+  /** Enrolled worker running on this desktop, independent of its connection status. */
+  workerId?: string | undefined;
   clis: { claude: boolean; codex: boolean; grok: boolean };
   error?: string | undefined;
   needsPairing?: boolean | undefined;

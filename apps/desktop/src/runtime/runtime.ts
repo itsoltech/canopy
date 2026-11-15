@@ -286,6 +286,7 @@ export class DesktopRuntime {
       mode: config.mode,
       phase: "starting",
       worker: "offline",
+      workerId: undefined,
       error: undefined,
       database: undefined,
       needsPairing: false,
@@ -325,7 +326,7 @@ export class DesktopRuntime {
         await this.startWeb(client ? gatewayUrl : "http://127.0.0.1:1", client);
       }
 
-      this.workerStatusFile = await startDesktopWorker({
+      const worker = await startDesktopWorker({
         directory: workerDirectory,
         gatewayUrl: config.mode === "remote" && config.enrollmentToken ? config.gatewayUrl : gatewayUrl,
         token,
@@ -337,7 +338,10 @@ export class DesktopRuntime {
         entry: this.paths.worker,
         env: this.env,
       });
+
+      this.workerStatusFile = worker?.statusFile ?? "";
       this.publish({
+        workerId: worker?.workerId,
         mode: config.mode,
         gatewayUrl,
         webUrl,

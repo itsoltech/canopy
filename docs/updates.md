@@ -150,6 +150,15 @@ zachowują własne słowa w neutralnej odznace: Offline, Manual update, Checks p
 Managed externally, Unavailable. Sprawdzanie feedu nie zmienia odznak wierszy; widać je
 w nagłówku.
 
+Desktop w trybie zdalnym pokazuje własną aplikację i jej worker jako jeden wiersz
+z nazwą komputera, również w Settings → Workers → Updates. Dopasowanie korzysta
+wyłącznie z id zapisanego podczas rejestracji workera, przekazanego przez lokalny
+bridge `DesktopStatus.workerId`; nazwa ani wersja nie identyfikują komputera.
+Wiersz zachowuje lokalny postęp pobierania i restart pobranej aplikacji oraz stan
+kroku `desktop` z gatewaya, ponowienie, odrzucenie błędu i wymuszony restart.
+CLI tego workera pozostają na liście Agent CLIs. Gateway i pozostałe workery mają
+własne wiersze; bez id ze starszego bridge'a nie ukrywamy workera.
+
 **Ikony.** Jedna ikona ma jedno znaczenie: ⟳ (`arrow-path`) to tylko Check now;
 `arrow-down-tray` to Update, `power` to Restart to update, `repeat` to Retry, `plus`
 to Install, `information-circle` pokazuje szczegóły. Każda ma podpowiedź i

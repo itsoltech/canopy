@@ -97,6 +97,7 @@ test.skipIf(!existsSync(paths.web))(
       await desktop.initialize(false);
       await desktop.configure({ mode: "remote", gatewayUrl: server.url }, client);
       expect(desktop.status).toMatchObject({ phase: "running", worker: "offline", webUrl: desktop.origin });
+      expect(desktop.status.workerId).toBeUndefined();
       expect(desktop.pids).toHaveLength(0); // the UI and its BFF run in this process (runtime/web.ts)
       const pids = desktop.pids;
       const saved = statSync(join(directory, "desktop.json")).mtimeMs;
@@ -151,6 +152,7 @@ test.skipIf(!existsSync(paths.gateway))(
       const online = (await api.getOverview({})).workers;
       expect(online.filter((worker) => worker.online)).toHaveLength(1);
       const workerId = online[0]!.id;
+      expect(local.status.workerId).toBe(workerId);
       const project = (await api.createProject({ name: "Desktop persistence" })).project!;
       expect((await fetch(local.status.webUrl!)).ok).toBe(true);
       expect((await formAction(local.status.webUrl!)).body).toContain("Choose a project");
@@ -177,10 +179,12 @@ test.skipIf(!existsSync(paths.gateway))(
       const workerPath = join(remoteWorkerDirectory(remoteData, oldConfig), "worker.json");
       const readWorker = () => Result.getOrThrow(parseLocalConfig(readFileSync(workerPath, "utf8")));
       const workerBefore = readWorker();
+      expect(remote.status.workerId).toBe(workerBefore.worker_id);
       // Initial pairing restarts services. The worker may independently migrate to a pinned
       // Network access route, but must preserve its enrollment and durable data directory.
       await remote.configure(oldConfig, client);
       const workerAfter = readWorker();
+      expect(remote.status.workerId).toBe(workerBefore.worker_id);
       expect(
         workerAfter.worker_id === workerBefore.worker_id &&
           workerAfter.credential === workerBefore.credential &&
@@ -239,6 +243,7 @@ test.skipIf(!existsSync(paths.gateway))(
       expect(registry.ranges.length).toBe(beforeRemote);
       local.pids.forEach((pid) => owned.add(pid));
       const restarted = await local.client().getOverview({});
+      expect(local.status.workerId).toBe(workerId);
       expect(restarted.workers.find((worker) => worker.id === workerId)?.online).toBe(true);
       expect(restarted.projects.some((candidate) => candidate.id === project.id)).toBe(true);
       // Crash the tracked PostgreSQL parent: native stale PID validation and WAL recovery keep data.
@@ -279,6 +284,7 @@ test.skipIf(!existsSync(paths.gateway))(
       expect(remote.status).toMatchObject({ mode: "remote", phase: "starting" });
       const reconnectStarted = performance.now();
       await remote.restore(client);
+      expect(remote.status.workerId).toBe(workerBefore.worker_id);
       expect(remote.status.phase).toBe("running");
       expect(performance.now() - reconnectStarted).toBeLessThan(5000);
       expect(existsSync(join(remoteData, "postgres"))).toBe(false);

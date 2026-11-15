@@ -31,15 +31,32 @@
 
   const local = $derived(snapshot && (!app.status || app.remote) ? homeAppComputer(snapshot) : undefined);
 
+  const ownWorker = $derived(
+    app.status && app.remote && app.workerId
+      ? snapshot?.workers.find((worker) => worker.workerId === app.workerId && worker.installKind === "desktop")
+      : undefined,
+  );
+
   const groups = $derived(snapshot ? homes(snapshot) : []);
 
   const workerGroups = $derived(
-    groups.map((g) => ({ ...g, workers: listedWorkers(g.home) })).filter((g) => g.workers.length),
+    groups
+      .map((g) => ({
+        ...g,
+        workers: listedWorkers(g.home).filter((worker) => g.nodeId || worker.workerId !== ownWorker?.workerId),
+      }))
+      .filter((g) => g.workers.length),
   );
 </script>
 
 {#if snapshot?.computers.length}<UpdateGroupLabel>Computers</UpdateGroupLabel>{/if}
-{#if app.status || app.error}<CompactAppUpdate updates={app} center={updates} bundled={bundled && !app.remote} />{/if}
+{#if app.status || app.error}<CompactAppUpdate
+    updates={app}
+    center={updates}
+    worker={ownWorker}
+    {allowForce}
+    bundled={bundled && !app.remote}
+  />{/if}
 {#if local}<CompactComputerUpdate computer={local} {updates} local />{/if}
 {#if snapshot}
   {#if !bundled}<CompactGatewayUpdate {updates} />{@render gateway?.()}{/if}

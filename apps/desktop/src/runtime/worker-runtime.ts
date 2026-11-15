@@ -75,17 +75,18 @@ export async function startDesktopWorker(options: {
       if (local) throw cause;
       logs.write("worker", "Worker enrollment failed. Retry in desktop settings; desktop UI access is independent.");
 
-      return "";
+      return undefined;
     }
 
     logs.protect(enrolled.credential);
-  } else if (!existsSync(configPath)) return "";
+  } else if (!existsSync(configPath)) return undefined;
 
   const worker: JsonValue = JSON.parse(readFileSync(configPath, "utf8"));
 
   if (!isWorkerConfiguration(worker)) throw new Error("Invalid worker configuration");
 
   if (isString(worker["credential"])) logs.protect(worker["credential"]);
+  const identity = Schema.decodeUnknownSync(Schema.Struct({ worker_id: Schema.String.check(Schema.isUUID()) }))(worker);
 
   if (local) {
     writeFileSync(`${configPath}.new`, JSON.stringify({ ...worker, gateway_url: gatewayUrl }), { mode: 0o600 });
@@ -103,5 +104,5 @@ export async function startDesktopWorker(options: {
     restart: true,
   });
 
-  return status;
+  return { statusFile: status, workerId: identity.worker_id };
 }

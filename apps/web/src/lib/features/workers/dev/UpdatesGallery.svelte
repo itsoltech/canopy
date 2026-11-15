@@ -18,6 +18,8 @@
    * `client=web` has no Electron bridge; `home` selects a computer state and `name` overrides its name.
    * `state=quiet` makes everything current, `state=starting` shows the instant state of Update all, `restart=1` (or
    * `slow`) has the linked computer restart for its update. Development only.
+   * `remote=1` identifies this app's worker; `identity=missing` simulates an older desktop bridge.
+   * `app=downloading|downloaded|failed|waiting` exercises the merged current-computer row.
    */
   const updates = new UpdatesState();
 
@@ -126,6 +128,37 @@
     checkIntervalMinutes: 360,
     lastCheckedAt: Date.now() - 60_000,
   };
+
+  if (params.has("remote")) {
+    const worker = updates.snapshot.workers[0];
+
+    app.remote = true;
+    app.workerId = params.get("identity") === "missing" ? undefined : worker?.workerId;
+
+    if (worker && params.get("name")) worker.name = params.get("name") || worker.name;
+
+    if (worker?.desktop) {
+      status.updateVersion = worker.desktop.availableVersion;
+
+      if (params.get("app") === "downloading") {
+        status.phase = "downloading";
+        status.progress = 43;
+      }
+
+      if (params.get("app") === "downloaded") {
+        status.phase = "downloaded";
+        status.stagedVersion = status.updateVersion;
+      }
+
+      if (["failed", "waiting"].includes(params.get("app") || "")) {
+        worker.desktop.phase = params.get("app") === "waiting" ? "waiting_idle" : "failed";
+        worker.desktop.reason =
+          worker.desktop.phase === "failed" ? "The update did not finish. Check again to retry." : "";
+
+        if (params.has("cached")) status.stagedVersion = status.updateVersion;
+      }
+    }
+  }
 
   if (page.url.searchParams.get("client") !== "web") app.status = status;
 

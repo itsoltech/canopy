@@ -3,7 +3,7 @@
   import type { ClassValue } from "svelte/elements";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
-  import Dialog from "#lib/shared/ui/Dialog.svelte";
+  import WorkerRestartConfirmation from "./WorkerRestartConfirmation.svelte";
   import UpdateItem from "./UpdateItem.svelte";
   import { workerCurrent } from "./compact-updates.ts";
   import { appRowTarget, appUpdateTarget } from "@canopy/domain/release/update-plan";
@@ -173,31 +173,4 @@
 {#if desktop?.disabledReason && !inProgress && (status !== "failed" || !!desktop.reason)}
   <p class="mb-2 ml-6 text-xs/5 text-pretty break-words text-muted" role="status">{desktop.disabledReason}</p>
 {/if}
-<Dialog bind:open={confirming} title="Restart Canopy app now?">
-  <div class="grid gap-4">
-    <p class="text-sm/6 text-muted">
-      Restarting stops the running turns on this computer. The app reconnects by itself.
-    </p>
-    <div class="flex flex-wrap justify-end gap-2">
-      <Button size="sm" onclick={() => (confirming = false)}>Keep waiting</Button>
-      <Button
-        size="sm"
-        variant="primary"
-        disabled={!!updates.pending ||
-          snapshot?.run?.state === "running" ||
-          !desktop?.connected ||
-          !!desktop?.disabledReason ||
-          desktop?.phase !== "waiting_idle"}
-        onclick={() => {
-          confirming = false;
-          void updates.manage({
-            action: "desktop",
-            workerId: worker.workerId,
-            force: true,
-            desktopRequestId: desktop?.requestId ?? "",
-          });
-        }}>Restart now</Button
-      >
-    </div>
-  </div>
-</Dialog>
+<WorkerRestartConfirmation bind:open={confirming} {worker} {updates} />
