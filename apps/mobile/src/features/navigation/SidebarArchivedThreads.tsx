@@ -79,6 +79,9 @@ export function useArchivedThreads(navigation: ReturnType<typeof useSidebarThrea
   const saved = archivedCache?.peek(filter);
   const live = useMemo(() => new Map(threads.map((thread) => [thread.id, thread])), [threads]);
   const rows = saved ?? page;
+  // Live updates reach the saved rows at once and the pager only after a refetch: the count follows the rows it
+  // describes, so a row and its "Archived · N" change in the same frame.
+  const total = saved?.totalCount ?? page.totalCount;
 
   const roots = useMemo(() => rows.threads.filter(isArchivedSidebarThread), [rows.threads]);
 
@@ -109,6 +112,7 @@ export function useArchivedThreads(navigation: ReturnType<typeof useSidebarThrea
 
   return {
     page,
+    total,
     expanded,
     roots,
     sideThreads,
@@ -117,7 +121,7 @@ export function useArchivedThreads(navigation: ReturnType<typeof useSidebarThrea
     query,
     projects: rowProjects,
     workers: rowWorkers,
-    visible: page.totalCount !== 0 || !!sticky || !!page.error || roots.length > 0,
+    visible: total !== 0 || !!sticky || !!page.error || roots.length > 0,
     stale: !!saved && (!online || stream.connection !== "live" || !!page.error || page.loading),
     toggle() {
       device.setView({ archivedThreadsExpanded: !expanded });
@@ -137,14 +141,14 @@ export function SidebarArchivedHeader({ archive }: { archive: ArchivedThreads })
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`Archived, ${archive.page.totalCount ?? "loading"}`}
+      accessibilityLabel={`Archived, ${archive.total ?? "loading"}`}
       accessibilityState={{ expanded: archive.expanded }}
       onPress={archive.toggle}
       style={[styles.row, { padding: 12, minHeight: 48, marginTop: 24 }]}
     >
       <Chevron open={archive.expanded} size={14} />
       <Text style={[styles.meta, { color: c.muted, fontVariant: ["tabular-nums"] }]}>
-        Archived · {archive.page.totalCount ?? "–"}
+        Archived · {archive.total ?? "–"}
       </Text>
     </Pressable>
   );

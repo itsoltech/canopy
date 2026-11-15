@@ -4,6 +4,7 @@ import { router, useGlobalSearchParams, usePathname } from "expo-router";
 import { ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { useAppearance } from "../../state/appearance";
+import { useOverview } from "../../state/overview";
 import { confirm } from "../../ui/Confirm";
 import { toast } from "../../ui/Toast";
 import { useComputerHome } from "../computers/presence";
@@ -13,6 +14,7 @@ export type ThreadAction = "side" | "goal" | "pin" | "rename" | "regenerate" | "
 export function useThreadActions(thread: ui.Thread) {
   const { client, online, drafts } = useSession();
   const appearance = useAppearance();
+  const { settleThread } = useOverview();
   const home = useComputerHome(thread.nodeId);
   const { id } = useGlobalSearchParams<{ id?: string }>();
   const path = usePathname();
@@ -45,16 +47,18 @@ export function useThreadActions(thread: ui.Thread) {
       else if (action === "archive") {
         const threadId = archived && thread.archivedBy === "cascade" ? thread.parentThreadId : thread.id;
 
-        await client.api.setThreadArchived({
-          threadId,
-          archived: !archived,
-        });
+        // The response settles the row if the stream does not echo it (stream down, update lost).
+        const { thread: saved } = await client.api.setThreadArchived({ threadId, archived: !archived });
+
+        if (saved) settleThread(saved);
 
         if (!archived)
           toast("Thread archived", {
             label: "Undo",
             run: async () => {
-              await client.api.setThreadArchived({ threadId, archived: false });
+              const { thread: restored } = await client.api.setThreadArchived({ threadId, archived: false });
+
+              if (restored) settleThread(restored);
             },
           });
       } else if (action === "delete") {
@@ -85,7 +89,11 @@ export function useThreadActions(thread: ui.Thread) {
     }
   }
 
-  function run(action: Exclude<ThreadAction, "side" | "goal" | "rename">) {
+  /**
+   * Runs the action, or asks first when the settings want a confirmation. Resolves with the outcome when it runs at
+   * once; `undefined` when a dialog took over (the caller cannot tell whether it will run).
+   */
+  function commit(action: Exclude<ThreadAction, "side" | "goal" | "rename">): Promise<boolean> | undefined {
     const general = appearance.user?.general;
 
     if (action === "delete" && general?.confirmDelete !== false) {
@@ -111,8 +119,14 @@ export function useThreadActions(thread: ui.Thread) {
         danger: false,
         action: () => void execute(action),
       });
-    } else void execute(action);
+    } else return execute(action);
+
+    return undefined;
   }
 
-  return { busy, disabled, pinned, archived, run, rename: (title: string) => execute("rename", title) };
+  function run(action: Exclude<ThreadAction, "side" | "goal" | "rename">) {
+    void commit(action);
+  }
+
+  return { busy, disabled, pinned, archived, run, commit, rename: (title: string) => execute("rename", title) };
 }

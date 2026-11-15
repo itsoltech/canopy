@@ -13,6 +13,7 @@ import { projectChoices } from "@canopy/domain/projects";
 import { useSession } from "./session";
 import { useOverviewEvents, useOverviewStream } from "./overview-bus";
 import { useThreadWarming } from "./thread-warming";
+import { useSettleThread } from "./settle-thread";
 
 const upsertComputer = (rows: ui.LinkedComputer[], value: ui.LinkedComputer) => [
   ...rows.filter((r) => r.nodeId !== value.nodeId),
@@ -173,6 +174,7 @@ function useOverviewState() {
     setWarmQuery,
     reload,
     updateThread,
+    settleThread: useSettleThread(threads, stream.connection === "live", archivedCache, updateThread),
   };
 }
 
