@@ -80,8 +80,10 @@
     !!away || syncStatus?.reason === "computer_unreachable" || !!panel.data?.stale || !!panel.error,
   );
 
+  // The thread stream carries schedule changes immediately, including an empty list after the last
+  // task finishes. The panel's separate read is only a fallback while the home is unreachable.
   const panelSchedules = $derived(
-    thread.nodeId || stale || !schedules.length ? (panel.data?.schedules ?? schedules) : schedules,
+    away || syncStatus?.reason === "computer_unreachable" ? (panel.data?.schedules ?? schedules) : schedules,
   );
 
   // A forked main thread ("Fork from here") is in its own tree: its source is found among the project's threads.

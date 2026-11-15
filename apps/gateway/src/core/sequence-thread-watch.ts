@@ -97,7 +97,6 @@ async function* sequenceView(
     if (paging) return;
   }
 
-  yield await sequenceControls(core, input.threadId);
   const metadata = sequenceMetadata(core, input.threadId);
   const close = () => metadata.close();
   signal.addEventListener("abort", close, { once: true });
@@ -105,6 +104,8 @@ async function* sequenceView(
   let controlsAt = Date.now();
 
   try {
+    yield await sequenceControls(core, input.threadId);
+
     while (!signal.aborted) {
       const version = metadata.version;
 
