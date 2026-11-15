@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, untrack } from "svelte";
+  import { onMount, tick, untrack } from "svelte";
   import { AgentTool, type AgentPreviewTarget, type ui } from "@canopy/contracts";
   import Select from "#lib/shared/ui/Select.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
@@ -12,13 +12,21 @@
   import AgentPreviewCanvas from "./AgentPreviewCanvas.svelte";
   import PreviewToolbar from "./PreviewToolbar.svelte";
   import PreviewUnavailable from "./PreviewUnavailable.svelte";
+  import type { PreviewSelection } from "./automatic-preview.svelte.ts";
 
   let {
     threadId,
     worker,
     active,
+    selection,
     offline = "",
-  }: { threadId: string; worker?: ui.Worker; active: boolean; offline?: string } = $props();
+  }: {
+    threadId: string;
+    worker?: ui.Worker;
+    active: boolean;
+    selection?: PreviewSelection;
+    offline?: string;
+  } = $props();
 
   const session = new PreviewSession();
   let tool = $state(AgentTool.BROWSER);
@@ -31,6 +39,7 @@
   let retry = $state(0);
   let expanded = $state(false);
   let focusAddress = $state<(() => void) | undefined>();
+  let focusedSelection: PreviewSelection | undefined;
   const item = $derived(worker?.agentTools.find((entry) => entry.tool?.tool === tool));
 
   const unavailable = $derived(
@@ -45,6 +54,24 @@
   const allowed = $derived(!unavailable && Boolean(item?.enabled && isPreviewReady(item.tool) && !item.blockedReason));
   const live = $derived(["ready", "frame"].includes(session.state));
   const failed = $derived(["error", "closed"].includes(session.state));
+
+  // A mini preview hands its scope over once; later tool calls preserve the user's sidebar selection.
+  $effect(() => {
+    if (!selection) return;
+    tool = selection.tool;
+    target = selection.target;
+  });
+
+  $effect(() => {
+    const requested = selection;
+    const element = root;
+
+    if (!requested || !active || !element || requested === focusedSelection) return;
+    focusedSelection = requested;
+    void tick().then(() => {
+      if (element.isConnected && untrack(() => active)) element.querySelector("button")?.focus({ preventScroll: true });
+    });
+  });
 
   onMount(() => {
     const sync = () => {

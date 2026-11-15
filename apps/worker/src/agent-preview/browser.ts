@@ -136,10 +136,10 @@ class BrowserPreview implements PreviewBackend {
           throw new Error("Live browser preview requires a Chrome session");
         this.#context.emit({
           ...this.#metadata,
-          state: status.connected ? "ready" : "connecting",
+          state: "ready",
           viewportWidth: this.#width,
           viewportHeight: this.#height,
-          detail: status.connected ? "" : "Waiting for the browser session",
+          detail: status.connected ? "" : "Waiting for a page…",
         });
         break;
       }

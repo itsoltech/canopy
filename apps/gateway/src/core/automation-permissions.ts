@@ -8,6 +8,7 @@ import {
   InteractionRequestSchema,
   type AgentToolCall,
   type AgentToolResult,
+  ui,
 } from "@canopy/contracts";
 import { Schema } from "effect";
 import { coreRun } from "./core-broadcast.ts";
@@ -16,6 +17,7 @@ import { coreState } from "./core-context.ts";
 import { AGENT_WORKER_ID } from "./agent-tools-validation.ts";
 import type { WorkerConnection } from "../worker-link/index.ts";
 import type { GatewayCore } from "./core.ts";
+import { automationActivity } from "./automation-activity.ts";
 
 const Arguments = Schema.fromJsonString(
   Schema.Struct({ tool: Schema.Number, name: Schema.String, arguments: Schema.String }),
@@ -146,6 +148,13 @@ async function execute(core: GatewayCore, request: AgentToolCall, lease: Authori
     await core.agentTools.authorize(workerId, args.tool);
     ensureLive(core, lease);
     allowed = true;
+    const activity = automationActivity(request, workerId, args.tool, args.name, input);
+
+    if (activity)
+      core.hub.publishThread(
+        request.threadId,
+        create(ui.ThreadUpdateSchema, { change: { case: "automationActivity", value: activity } }),
+      );
 
     return create(AgentToolResultSchema, { callId: request.callId, content: "allowed" });
   } catch {

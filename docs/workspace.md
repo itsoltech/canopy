@@ -3,7 +3,8 @@
 Status: **zaimplementowane; układ v3**, kompaktowa typografia zakładek, diagramy Mermaid w trybie
 `Rendered`, bezpieczny HTML i lokalne obrazy w Markdown w web/desktop,
 cytowanie zaznaczeń z plików, przeciąganie plików do wiadomości
-i interaktywny Preview automatyzacji w panelu web/desktop
+i interaktywny Preview automatyzacji w panelu web/desktop oraz automatyczny mini Preview
+pod podsumowaniem wątku
 (2026-11-15; stos #640–#648, potem #710, #711, #737, #740, #787 i #823).
 Opis dotyczy kodu; dostępność nightly/beta/stable określają [wydania](release.md).
 W web/desktop zakładki dzielą rząd z sygnetem projektu, a **tytuł wątku jest pierwszą,
@@ -288,6 +289,18 @@ przełączanie wątków i zmiana rozmiaru okna niczego nie przesuwają. Zdarzeni
 nie rozwija karty. Karta należy do zakładki `Thread`; na zakładkach plików jest
 ukryta razem z rozmową.
 
+Zatwierdzone rzeczywiste wywołanie lokalnego MCP wysyła do bieżącego obserwatora
+wątku przejściową, typowaną aktywność. Mini Preview pojawia się pod kartą albo
+pigułką podsumowania, śledzi najnowsze narzędzie i bezpieczny cel, działa tylko do
+odczytu z limitem 4 klatek na sekundę i nie zmienia viewportu. Czeka na przeglądarkę
+agenta, bez uruchamiania jej ani automatycznej nawigacji. Nowa strona,
+przeładowanie oraz catch-up historii nie odtwarzają starych aktywności. Minimizacja
+pozostaje skuteczna przez życie zamontowanej strony bieżącego wątku, także po
+kolejnych wywołaniach; zmiana wątku resetuje wybór i minimizację. Sygnał nie
+przejmuje fokusu, a kolejne aktywności dla tego samego zakresu zachowują stream.
+Rozpoznawanie celu i granice sesji opisuje
+[automation-tools.md](automation-tools.md#automatyczny-mini-preview).
+
 ### Panel Files/Preview
 
 Prawy panel ma wspólny przełącznik **Files / Preview**. Files zachowuje drzewo,
@@ -310,6 +323,13 @@ trafiają do celu, Escape przenosi fokus na obraz, a utrata fokusu okna lub pola
 zwalnia klawisze i wskaźnik. Wybór narzędzia/celu przetrwa przełączenie na Files,
 lecz zmiana wątku go resetuje. Preview może działać obok karty pliku lub PR.
 Współrzędne myszy i gestów liczymy względem obrazu, z pominięciem pustych marginesów.
+
+Przycisk `Open in sidebar` przekazuje ten sam wątek, narzędzie, bezpieczny cel i
+sesję wątku do większego interaktywnego Preview i ustawia fokus na jego pasku
+narzędzi. Mini Preview zatrzymuje się, gdy sidebar Preview jest widoczny; po jego
+zamknięciu wraca, chyba że wcześniej został zminimalizowany. Ukrycie, offline,
+odebranie grantu, archiwizacja wątku albo utrata właściwego połączenia zatrzymują
+watch mini Preview i usuwają jego klatkę.
 
 Watch działa tylko przy widocznym Preview, kliencie na pierwszym planie,
 dostępnym workerze oraz przyznanym narzędziu. Browser i Desktop wymagają Ready;

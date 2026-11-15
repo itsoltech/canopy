@@ -41,7 +41,7 @@ export class PreviewSession {
     if (this.state === "ready" || this.state === "frame") this.#queue?.push(input);
   }
 
-  connect(threadId: string, scope: RunAgentTool): () => void {
+  connect(threadId: string, scope: RunAgentTool, maxFps = 15): () => void {
     this.#stop?.();
     const controller = new AbortController();
     this.state = "connecting";
@@ -95,7 +95,7 @@ export class PreviewSession {
     void watchAgentPreview(
       threadId,
       scope,
-      15,
+      maxFps,
       (event) => {
         if (stopped) return;
         this.previewId = event.previewId;

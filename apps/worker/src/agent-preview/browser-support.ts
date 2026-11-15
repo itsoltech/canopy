@@ -161,11 +161,6 @@ export function acquireBrowserStream(runtime: PreviewRuntime): Promise<BrowserLe
     let status = streamStatus.parse(await runtime.command(["stream", "status"]));
     let owned = false;
 
-    if (!status.connected) {
-      await runtime.command(["open", "about:blank"]);
-      status = streamStatus.parse(await runtime.command(["stream", "status"]));
-    }
-
     if (!status.enabled) {
       status = streamStatus.parse(await runtime.command(["stream", "enable", "--port", "0"]));
       owned = true;

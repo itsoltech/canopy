@@ -1,6 +1,7 @@
 # Narzędzia automatyzacji agentów
 
-Status (2026-11-15): **narzędzia i interaktywny podgląd wątku zaimplementowane**.
+Status (2026-11-15): **narzędzia, interaktywny Preview i automatyczny mini Preview
+wątku zaimplementowane**.
 Ten opis dotyczy stanu kodu i nie oznacza, że funkcja jest już w wydanym buildzie.
 Dostępność nightly/beta/stable wynika ze zwykłej promocji wydań
 ([release.md](release.md)).
@@ -9,7 +10,8 @@ Narzędzia pozwalają agentowi wykonywać ograniczony zestaw operacji w lokalnej
 przeglądarce, aplikacji desktopowej albo urządzeniu/symulatorze workera. Gateway
 autoryzuje dostęp, a program zawsze uruchamia worker na swojej maszynie. Gateway
 nie wykonuje binarki ani inferencji. Użytkownik obserwuje i bezpośrednio steruje
-tą sesją przez Preview wątku.
+tą sesją przez Preview wątku; zatwierdzone wywołania mogą dodatkowo uruchomić
+automatyczny mini Preview tylko do odczytu pod podsumowaniem.
 
 ## Przypięte narzędzia
 
@@ -170,6 +172,10 @@ nadal działa niezależnie
 | Desktop | Współdzielona, anulowalna pętla zrzutów; lista okien z domyślnym aktywnym oknem i stabilnym wyborem celu. | Kliknięcie i przeciągnięcie są atomowymi operacjami po puszczeniu przycisku; drag obsługuje tylko przycisk główny. Backend nie utrzymuje wciśniętej myszy ani klawisza. Klawisze używają `press`, tekst — świeżego refa aktywnego pola accessibility i `type`, bez schowka systemowego. |
 | Device | Współdzielona, anulowalna pętla zrzutów; domyślnie urządzenie sesji wątku albo jedyne zgodne z platformą. | Tap i swipe głównym wskaźnikiem po puszczeniu, kierunkowy scroll oraz `type`. Enter/Back/Home działają według możliwości backendu; edycję klawiaturą Android opisano niżej. Skróty z modyfikatorami zwracają jawny błąd. |
 
+Samo otwarcie Browser Preview nie uruchamia przeglądarki ani nie nawiguje.
+Bez działającej przeglądarki sesji podgląd czeka na agenta; użytkownik może ją
+uruchomić jawną nawigacją przez pole adresu interaktywnego panelu.
+
 Sterowanie wskaźnikiem Desktop wymaga globalnych współrzędnych wybranego okna.
 Backend zgłasza brak geometrii zamiast wykonywać kliknięcie w innym miejscu.
 
@@ -201,6 +207,43 @@ zmiana wątku, tło klienta, utrata dostępu, odebranie grantu albo zerwanie ł�
 anulują pracę i zwalniają wejście. Sesja jest przypięta do konkretnego
 WorkerLink i nie jest odtwarzana po jego wymianie. Limity klatek, ACK,
 dzierżawy i partii wejścia: [protocol.md](protocol.md#interaktywny-podgląd-wątku).
+
+## Automatyczny mini Preview
+
+Rzeczywiste wywołanie lokalnego MCP `agent-browser`, `agent-device` albo
+`agent-desktop` przez wspólny bridge po przejściu istniejącej autoryzacji powoduje
+publikację typowanej `ThreadUpdate.change = automationActivity` do żywych
+obserwatorów bieżącego wątku. Zdarzenie identyfikuje aktywność, turę, narzędzie, workera i
+bezpieczny cel; nie niesie surowych argumentów, URL-i, tekstu wejściowego,
+ścieżek ani sesji wybranej przez klienta.
+Wszyscy dostawcy korzystają z tej samej ścieżki. Aktywność jest przejściowa:
+nie trafia do transkryptu, snapshotu, journala, lustra ani replayu i nie jest
+odtwarzana przy nowej stronie, przeładowaniu ani catch-upie historii.
+
+Browser zawsze pokazuje aktywną kartę wspólnej sesji wątku. Dla Device bridge
+rozpoznaje jawną platformę i UDID/serial, a dla Desktop — jawne, znane selektory
+aplikacji lub `window_id` z operacji odczytu i przechwytywania. Prywatnego okna
+ukrytego za kwalifikowanym refem nie można wywnioskować; puste selektory używają
+bieżącego lub domyślnego celu sesji. Jawna obca sesja albo nieobsługiwane
+nadpisanie sesji w wywołaniu MCP powodują pominięcie sygnału.
+
+Strona, która aktualnie obserwuje wątek, podąża za ostatnią zatwierdzoną aktywnością.
+Pod podsumowaniem wątku pokazuje mini Preview tylko do odczytu, z limitem 4 klatek
+na sekundę, bez sterowania myszką lub klawiaturą i bez zmiany viewportu. Mini czeka na przeglądarkę
+agenta, bez jej uruchamiania ani automatycznej nawigacji. Używa istniejących
+limitów i autoryzacji Preview, a po kolejnych wywołaniach zmienia narzędzie i
+bezpieczny cel na najnowsze wartości. Aktywności dla tego samego zakresu zachowują
+działający stream. Minimizacja jest stanem bieżącego wątku na zamontowanej stronie:
+kolejne aktywności nie otwierają ponownie mini Preview; zmiana wątku resetuje wybór
+i minimizację. Sam sygnał nigdy nie przejmuje fokusu.
+
+`Open in sidebar` przekazuje ten sam wątek, narzędzie, bezpieczny cel i sesję wątku
+do większego, interaktywnego Preview, przenosi fokus na jego pasek narzędzi i
+zatrzymuje mini Preview na czas jego widoczności.
+Zamknięcie sidebara przywraca mini Preview, chyba że użytkownik je zminimalizował.
+Ukrycie strony lub mini Preview, przejście offline, odebranie grantu, archiwizacja
+wątku albo utrata właściwego połączenia zatrzymują watch i usuwają jego przejściową
+klatkę.
 
 ## Obrazy i trwałość
 

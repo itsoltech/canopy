@@ -23,6 +23,7 @@
     floating,
     docked,
     children,
+    preview,
   }: {
     thread: ui.Thread;
     tree: ThreadTree | undefined;
@@ -31,13 +32,18 @@
     /** The right gutter beside the chat column holds the card. */
     docked: boolean;
     children: Snippet;
+    preview?: Snippet;
   } = $props();
 
   const id = $props.id();
   let pill = $state<HTMLButtonElement>();
   let card = $state<HTMLElement>();
+  let previewRoot = $state<HTMLElement>();
   let sheet = $state(false);
   let popover = $state(false);
+  let cardHeight = $state(0);
+  let pillHeight = $state(0);
+  let previewHeight = $state(0);
   const pinned = $derived(docked && !device.view.threadPanelCollapsed);
   const open = $derived(pinned || (floating && popover));
   const subagents = $derived(tree?.sides.filter((side) => side.spawnedByAgent).length ?? 0);
@@ -104,7 +110,7 @@
     const pointerdown = (event: PointerEvent) => {
       if (!(event.target instanceof Node)) return;
 
-      if (card?.contains(event.target) || pill?.contains(event.target)) return;
+      if (card?.contains(event.target) || pill?.contains(event.target) || previewRoot?.contains(event.target)) return;
 
       // Pickers and menus opened from the card render in the top layer, outside it.
       if (event.target instanceof Element && event.target.closest(".density-overlay, dialog")) return;
@@ -117,11 +123,15 @@
   });
 </script>
 
-<div class="pointer-events-none absolute inset-y-3 right-4 z-30 w-80 max-w-[calc(100%-2rem)]">
+<div
+  class="pointer-events-none absolute inset-y-3 right-4 z-30 w-80 max-w-[calc(100%-2rem)] [--summary-card-top:--spacing(10)] sm:[--summary-card-top:--spacing(9)]"
+  style:--summary-card-top={pinned ? "0px" : undefined}
+>
   <div
     class="t-summary-pill pointer-events-auto absolute top-0 right-0 flex max-w-full justify-end"
     data-hidden={pinned || undefined}
     inert={pinned}
+    bind:clientHeight={pillHeight}
   >
     <ThreadSummaryPill
       {thread}
@@ -135,6 +145,7 @@
   {#if floating}
     <section
       bind:this={card}
+      bind:clientHeight={cardHeight}
       {id}
       aria-label="Thread details"
       class={[
@@ -144,12 +155,27 @@
           : "top-10 max-h-[max(16rem,calc(100%-14rem))] shadow-xl sm:top-9 dark:bg-zinc-800 dark:ring-white/15",
       ]}
       data-hidden={!open || undefined}
+      style:max-height={preview
+        ? `max(0px, calc(100% - ${previewHeight + 12}px - var(--summary-card-top)))`
+        : undefined}
       inert={!open}
       {@attach escapeCloses}
     >
       <ThreadSummaryHeader {pinned} controls={id} onclose={() => void hide(true)} />
       <div class="min-h-0 scroll-stable-both overflow-y-auto overscroll-contain px-1 pb-1">{@render children()}</div>
     </section>
+  {/if}
+  {#if preview}
+    <div
+      bind:this={previewRoot}
+      class="pointer-events-auto absolute right-0 w-full"
+      class:hidden={sheet}
+      inert={sheet}
+      style:top={`calc(${open && floating ? "var(--summary-card-top)" : "0px"} + ${open && floating ? cardHeight : pillHeight}px + .75rem)`}
+      bind:clientHeight={previewHeight}
+    >
+      {@render preview()}
+    </div>
   {/if}
 </div>
 

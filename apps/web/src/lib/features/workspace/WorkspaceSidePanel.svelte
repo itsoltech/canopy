@@ -7,6 +7,7 @@
   import { devicePreferences as device } from "#lib/features/settings/device-preferences.svelte.ts";
   import WorkspaceFiles from "./WorkspaceFiles.svelte";
   import AgentPreviewPanel from "#lib/features/preview/AgentPreviewPanel.svelte";
+  import type { PreviewSelection } from "#lib/features/preview/automatic-preview.svelte.ts";
 
   let {
     state: workspace,
@@ -14,6 +15,7 @@
     width,
     threadId,
     worker,
+    selection,
     offline = "",
     sheet = $bindable(false),
   }: {
@@ -22,6 +24,7 @@
     width: number;
     threadId: string;
     worker?: ui.Worker;
+    selection?: PreviewSelection;
     offline?: string;
     sheet?: boolean;
   } = $props();
@@ -86,6 +89,7 @@
         {#if previewUsed}{#key threadId}<AgentPreviewPanel
               {threadId}
               {worker}
+              {selection}
               {offline}
               active={active && workspace.panelMode === "preview"}
             />{/key}{/if}

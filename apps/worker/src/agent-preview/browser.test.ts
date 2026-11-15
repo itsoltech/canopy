@@ -41,19 +41,22 @@ function fixture(enabled: boolean, connected = true, viewport = { width: 512, he
     websocket: {
       open(socket) {
         sockets.add(socket);
+        const current = JSON.parse(readFileSync(state, "utf8"));
         socket.send(
           JSON.stringify({
             type: "status",
-            connected: true,
+            connected: current.connected,
             viewportWidth: 512,
             viewportHeight: 256,
             engine: "chrome",
           }),
         );
+
+        if (!current.connected) return;
         socket.send(
           JSON.stringify({
             type: "tabs",
-            tabs: [{ tabId: "t7", title: "Fixture", url: "https://fixture.invalid/", active: true }],
+            tabs: [{ tabId: "t7", title: "Fixture", url: current.url || "https://fixture.invalid/", active: true }],
           }),
         );
       },
@@ -76,12 +79,19 @@ const args = process.argv.slice(2).slice(3);
 appendFileSync(${JSON.stringify(log)}, JSON.stringify(args) + "\\n");
 const path = ${JSON.stringify(state)};
 const state = JSON.parse(readFileSync(path, "utf8"));
-if (args[0] === "open") state.connected = true;
+if (args[0] === "open") { state.connected = true; state.url = args[1]; }
 if (args[1] === "enable") state.enabled = true;
 if (args[1] === "disable") state.enabled = false;
 if (args[0] === "set" && args[1] === "viewport") { state.width = Number(args[2]); state.height = Number(args[3]); }
+const data = args[0] === "eval" ? { result: { width: state.width, height: state.height } } : { ...state, port: state.enabled ? state.port : null };
+if (args[1] === "status" && state.openAfterStatus) {
+  appendFileSync(${JSON.stringify(log)}, JSON.stringify(["open", state.openAfterStatus]) + "\\n");
+  state.connected = true;
+  state.url = state.openAfterStatus;
+  delete state.openAfterStatus;
+}
 writeFileSync(path, JSON.stringify(state));
-console.log(JSON.stringify({ success: true, data: args[0] === "eval" ? { result: { width: state.width, height: state.height } } : { ...state, port: state.enabled ? state.port : null } }));
+console.log(JSON.stringify({ success: true, data }));
 `,
   );
 
@@ -125,6 +135,11 @@ console.log(JSON.stringify({ success: true, data: args[0] === "eval" ? { result:
     send: (value: string) => {
       for (const socket of sockets) socket.send(value);
     },
+    openAfterStatus: (url: string) => {
+      const current = JSON.parse(readFileSync(state, "utf8"));
+      writeFileSync(state, JSON.stringify({ ...current, openAfterStatus: url }));
+    },
+    currentUrl: (): string => JSON.parse(readFileSync(state, "utf8")).url ?? "",
     calls: (): string[][] =>
       readFileSync(log, "utf8")
         .trim()
@@ -293,17 +308,43 @@ test("browser paste drains its transport queue and cancels a blocked write", asy
   await expect(blocked).rejects.toMatchObject({ name: "AbortError" });
 });
 
-test("empty browser sessions open once, reject invalid stream dimensions and leave externally owned streams enabled", async () => {
+test("browser preview preserves agent navigation after a disconnected status", async () => {
+  const f = fixture(false, false);
+  const preview = browserPreview(f.context);
+  const url = "https://fixture.invalid/agent-target";
+  f.openAfterStatus(url);
+
+  try {
+    await preview.start();
+    await until(() => f.updates.some((update) => update.url === url));
+    expect(f.calls()).toEqual([
+      ["stream", "status"],
+      ["open", url],
+      ["stream", "enable", "--port", "0"],
+    ]);
+    expect(f.currentUrl()).toBe(url);
+  } finally {
+    await preview.close();
+    f.server.stop(true);
+  }
+});
+
+test("disconnected browser previews allow explicit navigation and leave externally owned streams enabled", async () => {
   const f = fixture(true, false);
   const preview = browserPreview(f.context);
 
   try {
     await preview.start();
-    await until(() => f.sockets.size === 1);
+    await until(() => f.updates.some((update) => update.state === "ready"));
+    expect(f.updates.at(-1)).toMatchObject({ state: "ready", detail: "Waiting for a page…" });
+    expect(f.calls()).toEqual([["stream", "status"]]);
+    expect(f.currentUrl()).toBe("");
+    const url = "https://fixture.invalid/manual-target";
+    await preview.input([input("navigate", { text: url })], "one");
+    expect(f.currentUrl()).toBe(url);
     expect(f.calls()).toEqual([
       ["stream", "status"],
-      ["open", "about:blank"],
-      ["stream", "status"],
+      ["open", url],
     ]);
     f.send(JSON.stringify({ type: "frame", seq: 1, data: "AAAA", metadata: { deviceWidth: 8193, deviceHeight: 1 } }));
     await until(() => f.updates.some((update) => update.state === "error"));

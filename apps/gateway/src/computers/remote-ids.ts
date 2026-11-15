@@ -40,6 +40,18 @@ export function mapIds(
     return;
   }
 
+  // Activity IDs and OS selectors are opaque; only its Canopy scope is routed.
+  if (desc.typeName === "canopy.ui.v1.ThreadAutomationActivity") {
+    for (const name of ["turnId", "workerId"]) {
+      const field = desc.field[name]!;
+      const value = String(record.get(field));
+
+      if (value) record.set(field, map(value, field.name));
+    }
+
+    return;
+  }
+
   // OS window/device identifiers are opaque selectors, even when a simulator UDID is a UUID.
   // Only a copied, qualified Canopy thread session participates in home routing.
   if (desc.typeName === "canopy.worker.v1.RunAgentTool") {

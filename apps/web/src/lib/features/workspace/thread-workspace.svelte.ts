@@ -102,6 +102,14 @@ export class ThreadWorkspace {
     else sheet();
   }
 
+  openPreview(sheet: () => void): void {
+    this.panelMode = "preview";
+    this.panelDraft = undefined;
+
+    if (this.wide) devicePreferences.setView({ filesPanelOpen: true });
+    else sheet();
+  }
+
   /** The sidebar's `--sidebar-width`, for the chat column that follows it (layout.css `data-chat-placement`). */
   get sidebarWidth(): string | undefined {
     return this.#shell.sidebar?.cssWidth;

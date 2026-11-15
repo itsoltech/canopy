@@ -2,7 +2,7 @@
 
 Status: opis zaimplementowanego kodu (2026-11-15): gateway, workery, web BFF,
 Canopy Desktop (tryb lokalny, zdalny, sesja dostępu do BFF i połączone komputery),
-interaktywny podgląd automatyzacji w wątku oraz aplikacja mobilna.
+interaktywny i automatyczny mini podgląd automatyzacji w wątku oraz aplikacja mobilna.
 Logowanie użytkowników nie istnieje; otwarte decyzje są w §11. Ten dokument opisuje
 zachowanie, nie dostępność w wydaniach: funkcje trafiają najpierw do nightly, potem
 do beta i stable ([release.md](release.md)); co zawiera konkretne wydanie, podają
@@ -72,7 +72,10 @@ przenosi obraz i bezpośrednie sterowanie użytkownika przez WorkerLink, gateway
 i BFF (SSE). Browser używa natywnego strumienia WebSocket `agent-browser` dla
 sesji wątku, Desktop/Device — anulowalnych pętli zrzutów. Klient nie łączy się
 z portem ani adresem narzędzia na workerze; gateway egzekwuje właściciela, grant
-i bieżące łącze ([automation-tools.md](automation-tools.md)).
+i bieżące łącze. Po autoryzacji rzeczywistego wywołania lokalnego MCP przez wspólny
+bridge gateway publikuje typowaną, nietrwałą aktywność dla żywych obserwatorów
+wątku i automatycznego mini podglądu; nie zawiera ona surowych argumentów, URL-i ani
+tekstu i nie trafia do historii ([automation-tools.md](automation-tools.md)).
 
 Gateway ma rolę startową: domyślnie `server`; kontroler Canopy Desktop oznacza własny
 sidecar trybu lokalnego jako `desktop`. To wewnętrzna decyzja runtime, bez ustawienia
@@ -105,7 +108,8 @@ Wątek web/desktop i mobile ma lokalny workspace: rozmowę jako pierwszą kartę
 i karty utrwalone), pełnego PR oraz wyniku zadania w tle. Podsumowanie wątku
 to pływająca karta w rogu obszaru rozmowy (pigułka, popover albo arkusz),
 a prawy panel web/desktop łączy drzewo Files z interaktywnym Preview
-(Browser/Desktop/Device); natywny mobile ma przełącznik kart i arkusze
+(Browser/Desktop/Device), a podsumowanie może mieć pod sobą automatyczny mini
+podgląd; natywny mobile ma przełącznik kart i arkusze
 `Thread details` oraz `Files`. Metadane kart są stanem urządzenia,
 bez synchronizacji między klientami. Treści plików i ich niezapisane edycje
 pozostają w ograniczonych cache pamięci, niezależnie od dogrzewania transkryptów.

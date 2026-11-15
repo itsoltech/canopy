@@ -11,13 +11,15 @@ Starsze gatewaye pomijają nowe pole; numer protokołu pozostaje bez zmian.
 
 Harness Grok: `Provider.PROVIDER_GROK = 3`, `WorkerConfig.grok = 640`; używa istniejących komend, eventów, profili native/CLIProxyAPI, zgód i `AgentToolCall`. ACP pozostaje prywatnym protokołem worker ↔ CLI w `packages/grok-acp`; nie rozszerza kontraktu przeglądarki o JSON-RPC. [Adapter Grok](grok-adapter.md).
 
-Status (2026-11-15): kanał, handshake i nietrwały interaktywny podgląd wątku
-zaimplementowane (`apps/gateway/src/worker-link`, `apps/worker/src/gateway-link`);
+Status (2026-11-15): kanał, handshake, nietrwały interaktywny podgląd wątku i
+automatyczny mini podgląd po zatwierdzonych wywołaniach zaimplementowane
+(`apps/gateway/src/worker-link`, `apps/worker/src/gateway-link`);
 stan funkcji i plany opisują poszczególne sekcje. Kontrakt: [`proto/canopy/worker/v1/worker_link.proto`](../proto/canopy/worker/v1/worker_link.proto).
 
 ### Lokalne narzędzia automatyzacji
 
-Status (2026-11-15): **zaimplementowane**, włącznie z interaktywnym Preview.
+Status (2026-11-15): **zaimplementowane**, włącznie z interaktywnym Preview i
+automatycznym mini Preview.
 Szczegóły funkcji są w [automation-tools.md](automation-tools.md); opis stanu
 kodu nie oznacza dostępności w wydaniu. Kanały: [release.md](release.md).
 
@@ -35,6 +37,26 @@ stdio i wystawia prywatny endpoint HTTP na loopbackie dla Claude, Codexa albo
 Grok. Każdy call MCP wraca do gatewaya jako wewnętrzna autoryzacja bieżącej
 tury; gateway sprawdza właściciela, worker, grant i tryb uprawnień przed
 wykonaniem. Nie przekazujemy przez ten bridge kluczy modelu.
+
+Po autoryzacji rzeczywistego wywołania lokalnego MCP przez wspólny bridge gateway
+publikuje do aktualnych obserwatorów `WatchThread` typowany
+`ThreadUpdate.change = automationActivity` (`ThreadAutomationActivity`, proto
+`automation_activity = 816`). Pola to `id`, `turnId`, `tool`, `platform`,
+`deviceId`, `windowId`, `app`, `target` i `workerId`. Payload zawiera tożsamość
+aktywności i bezpieczne selektory celu, bez surowych argumentów, URL-i, tekstu
+wejściowego, ścieżek ani sesji wybranej przez klienta. Działa tak samo dla
+wszystkich dostawców korzystających ze wspólnego bridge'a; jawna obca sesja lub
+nieobsługiwane nadpisanie sesji w MCP tłumi sygnał. Klient sprawdza zgodność
+workera ze swoim bieżącym wątkiem przed użyciem aktywności.
+
+Aktywność jest wyłącznie fan-outem na żywo: nie wchodzi do `ThreadSnapshot`,
+transkryptu, journala, replayu ani lustra i nie jest zwracana przez catch-up
+historii. Nowa strona i przeładowanie nie wywołują mini podglądu na podstawie
+starych wywołań. Gateway zachowuje istniejące sprawdzanie właściciela, workera,
+grantu, stanu wątku i łącza; mini podgląd używa tych samych limitów Preview, z
+limitem klienta 4 klatek na sekundę.
+Zasady rozpoznawania celu i przekazania do interaktywnego panelu:
+[automation-tools.md](automation-tools.md#automatyczny-mini-preview).
 
 ### Interaktywny podgląd wątku
 

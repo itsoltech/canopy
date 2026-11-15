@@ -1527,6 +1527,22 @@ message ThreadEventUpdate {
   uint64 first_seq = 810;
 }
 
+// One approved local automation call, delivered only to current live viewers.
+// Never part of a transcript, snapshot, replication journal or persisted mirror.
+message ThreadAutomationActivity {
+  string id = 1;
+  string turn_id = 2;
+  canopy.worker.v1.AgentTool tool = 3;
+  // Empty selectors use the automation session's current target. No arguments,
+  // URLs, input text, filesystem paths or caller-selected session are exposed.
+  string platform = 4;
+  string device_id = 5;
+  string window_id = 6;
+  string app = 7;
+  string target = 8;
+  string worker_id = 9;
+}
+
 message ThreadUpdate {
   ThreadSyncStatus sync_status = 814;
   // The snapshot is a local mirror; the home's current state is still pending.
@@ -1549,6 +1565,7 @@ message ThreadUpdate {
     ThreadSnapshotDelta delta = 801;
     ThreadSyncBatch batch = 811;
     ThreadControls controls = 815;
+    ThreadAutomationActivity automation_activity = 816;
   }
 }
 
