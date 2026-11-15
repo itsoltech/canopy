@@ -80,7 +80,7 @@
     placeholder?: Snippet;
     row: Snippet<[T, number]>;
     footer?: Snippet;
-    /** A reserved status row just above the footer's visible edge, below Jump to latest. */
+    /** A status control above the footer's visible edge, beside Jump to latest when both fit. */
     footerAccessory?: Snippet;
     /** How the footer's height relates to its full height (only full-height changes move the end reserve),
      * and the end space above the full footer that absorbs one more strip without moving rows, in px. */

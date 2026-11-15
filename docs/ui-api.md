@@ -1177,16 +1177,19 @@ Nieudany shell steer pozostaje widoczny. Szczegóły wykonania i trwałości: [p
 
 ### Kompaktowy kompozytor podczas czytania historii
 
-Status: **zaimplementowane na `dev`** (2026-11-15), w tym osobny wiersz zadań w tle
-przy widocznej krawędzi composera. Dostępność w kanałach określają wydania.
+Status: **zaimplementowane na `dev`** (2026-11-15), w tym adaptacyjny układ zadań w tle
+i przycisku powrotu przy widocznej krawędzi composera. Dostępność w kanałach określają wydania.
 
 Kompozytor wątku zwija się po celowym przewinięciu w górę o co najmniej 96 px, gdy od końca dzieli co najmniej 192 px. Histereza utrzymuje wąski widok aż do powrotu na dół (wspólny próg feedu: 8 px) albo interakcji z kompozytorem. Nowy fokus, kliknięcie edytora, pisanie, upuszczenie/wklejenie pliku, otwarcie kontrolek i „Jump to latest” rozwijają pole. Celowe przewijanie ma pierwszeństwo przed istniejącym fokusem; edytor pozostaje zamontowany i zachowuje fokus również na telefonie.
 
 Web/desktop przekazuje badge „N running in background” jako `VirtualFeed.footerAccessory`,
 poza naturalną wysokością stopki i rezerwą pustego miejsca w `ThreadComposerSlot`.
-Wiersz statusu ma stałe minimum 28 px i stoi 8 px nad zmierzoną widoczną krawędzią;
-„Jump to latest” zajmuje oddzielny wyśrodkowany rząd 8 px wyżej. Wiersz jest
-zarezerwowany również bez aktywnych zadań, więc ich start i koniec nie przesuwają
+Badge stoi po lewej, 8 px nad zmierzoną widoczną krawędzią. „Jump to latest”
+pozostaje wyśrodkowany i dzieli z nim rząd, gdy zmierzona szerokość kolumny
+mieści badge, wyśrodkowany przycisk i odstęp co najmniej 8 px. Przy braku miejsca
+przycisk zajmuje osobny rząd 8 px wyżej. `ResizeObserver` uwzględnia szerokości
+obu kontrolek, kolumny, skalę i font interfejsu. Ostatnie zajęte szerokości
+pozostają zarezerwowane po zniknięciu kontrolek, więc koniec zadań nie przesuwa
 przycisku. Oba elementy pozostają rozdzielone także na telefonie, przy panelach
 nad composerem i podczas jego zwijania. Bez `footerAccessory` inne rozmowy
 zachowują przycisk 8 px nad stopką.
