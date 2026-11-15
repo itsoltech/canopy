@@ -1,5 +1,7 @@
 import { existsSync, linkSync, lstatSync, mkdirSync, readlinkSync, rmSync, symlinkSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
+import type { Env } from "./profiles.ts";
 
 /**
  * Isolated provider homes (CODEX_HOME, CLAUDE_CONFIG_DIR) under the worker's data dir
@@ -19,8 +21,9 @@ export interface ProviderHome {
 }
 
 /** Bots have no shell and can replace HOME to hide device compatibility paths. */
-export function isolatedHomeEnvironment(home: string) {
+export function isolatedHomeEnvironment(home: string, device: Env = process.env, platform = process.platform) {
   return {
+    ...versionManagerEnvironment(device, platform),
     HOME: home,
     USERPROFILE: home,
     XDG_CONFIG_HOME: join(home, ".config"),
@@ -28,6 +31,28 @@ export function isolatedHomeEnvironment(home: string) {
     XDG_CACHE_HOME: join(home, ".cache"),
     CODEX_HOME: home,
     CLAUDE_CONFIG_DIR: home,
+  };
+}
+
+/**
+ * Version managers locate their installs, settings and trust records through HOME and XDG. Their shims (the CLI
+ * discovery chose, or `node` behind a CLI's launcher) must still run under a replaced home, so these keep the
+ * device's directories. They hold tool versions, not provider configuration. Windows managers use LOCALAPPDATA.
+ */
+function versionManagerEnvironment(device: Env, platform: NodeJS.Platform) {
+  if (platform === "win32") return {};
+  const home = device["HOME"] || homedir();
+  const config = device["XDG_CONFIG_HOME"] || join(home, ".config");
+  const data = device["XDG_DATA_HOME"] || join(home, ".local", "share");
+  const state = device["XDG_STATE_HOME"] || join(home, ".local", "state");
+
+  return {
+    MISE_CONFIG_DIR: device["MISE_CONFIG_DIR"] || join(config, "mise"),
+    MISE_DATA_DIR: device["MISE_DATA_DIR"] || join(data, "mise"),
+    MISE_STATE_DIR: device["MISE_STATE_DIR"] || join(state, "mise"),
+    MISE_GLOBAL_CONFIG_ROOT: device["MISE_GLOBAL_CONFIG_ROOT"] || home,
+    ASDF_DATA_DIR: device["ASDF_DATA_DIR"] || join(home, ".asdf"),
+    VOLTA_HOME: device["VOLTA_HOME"] || join(home, ".volta"),
   };
 }
 

@@ -16,7 +16,7 @@ interface GrokLaunch {
 
 /** Hidden bots have no shell and must not discover any device context. */
 function isolateBotEnv(env: NodeJS.ProcessEnv, home: string, webAccess = false): void {
-  Object.assign(env, isolatedHomeEnvironment(home));
+  Object.assign(env, isolatedHomeEnvironment(home, env));
 
   for (const name of [
     "GROK_CLAUDE_AGENTS_ENABLED",

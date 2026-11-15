@@ -96,6 +96,13 @@ Samo `CODEX_HOME` nie izoluje `~/.agents/skills`. Codex ma dodatkowo
 Zmiana izolacji unieważnia cache sesji, żeby odbudowa usunęła wcześniejszy
 kontekst skilli z transkryptu harnessu. Wątki zachowują swoje skille i instrukcje.
 
+Menedżery wersji zachowują katalogi urządzenia (`MISE_DATA_DIR`, `MISE_CONFIG_DIR`,
+`MISE_STATE_DIR`, `MISE_GLOBAL_CONFIG_ROOT`, `ASDF_DATA_DIR`, `VOLTA_HOME`; poza Windows).
+Discovery często wybiera shim (np. `~/.local/share/mise/shims/codex`), a launcher CLI może
+wołać `node` z PATH. Shim szuka instalacji, ustawień i zaufanych konfiguracji pod HOME/XDG,
+więc przy prywatnym HOME kończyłby się od razu, zanim CLI wystartuje. Te katalogi
+zawierają wersje narzędzi, nie konfigurację providera.
+
 Claude zachowuje `HOME`, `USERPROFILE` i XDG procesu workera; izoluje wyłącznie
 `CLAUDE_CONFIG_DIR`. `settingSources: []`, puste pluginy i własny system prompt
 usuwają instrukcje i skille użytkownika także bez zmiany HOME, co sprawdza
