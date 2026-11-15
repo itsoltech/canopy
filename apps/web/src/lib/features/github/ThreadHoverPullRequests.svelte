@@ -1,9 +1,9 @@
 <script lang="ts">
   import type { github, ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
-  import { checkLook, pullRequestsRefreshing, unknownPullRequestLook } from "@canopy/domain/github-pr";
+  import { checkLook, unknownPullRequestLook } from "@canopy/domain/github-pr";
   import { formatCount } from "#lib/shared/format.ts";
-  import { SharedRead, queries, revalidateEvery } from "#lib/shared/queries.svelte.ts";
+  import { SharedRead, queries } from "#lib/shared/queries.svelte.ts";
   import Button from "#lib/shared/ui/Button.svelte";
   import TruncatedText from "#lib/shared/ui/TruncatedText.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
@@ -33,8 +33,6 @@
   $effect(() => {
     if (read.data) previous = { thread: thread.id, value: read.data };
   });
-
-  $effect(() => revalidateEvery(read.key, pullRequestsRefreshing(data) ? 3_000 : 60_000));
 </script>
 
 <section

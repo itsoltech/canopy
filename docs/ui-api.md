@@ -4,6 +4,9 @@ Status (2026-11-15): web/desktop — bezpieczny HTML we wspólnym rendererze Mar
 lokalne obrazy w podglądzie plików, interaktywny Preview wątku i automatyczny mini
 Preview pod podsumowaniem, opcjonalna retencja archiwum oraz poprawione narożniki,
 typografia i ikony stosu paneli nad composerem są zaimplementowane.
+Na `dev` zwijanie composera steruje wyłącznie skończonymi przejściami CSS.
+BFF materializuje overview, indeks wątków i ustawienia ze wspólnego strumienia gRPC,
+aktualizuje wczytane odczyty oraz dogrzewa ogony historii bez cyklicznych HTTP renderera.
 Opis dotyczy kodu, nie wdrożenia; dostępność kanałów według [release.md](release.md).
 
 ## Proponowane odpowiedzi
@@ -1301,9 +1304,14 @@ Nieudany shell steer pozostaje widoczny. Szczegóły wykonania i trwałości: [p
 ### Kompaktowy kompozytor podczas czytania historii
 
 Status: **zaimplementowane na `dev`** (2026-11-15), w tym adaptacyjny układ zadań w tle
-i przycisku powrotu przy widocznej krawędzi composera. Dostępność w kanałach określają wydania.
+i przycisku powrotu przy widocznej krawędzi composera oraz izolacja zapętlonych animacji
+od zwijania. Dostępność w kanałach określają wydania.
 
 Kompozytor wątku zwija się po celowym przewinięciu w górę o co najmniej 96 px, gdy od końca dzieli co najmniej 192 px. Histereza utrzymuje wąski widok aż do powrotu na dół (wspólny próg feedu: 8 px) albo interakcji z kompozytorem. Nowy fokus, kliknięcie edytora, pisanie, upuszczenie/wklejenie pliku, otwarcie kontrolek i „Jump to latest” rozwijają pole. Celowe przewijanie ma pierwszeństwo przed istniejącym fokusem; edytor pozostaje zamontowany i zachowuje fokus również na telefonie.
+
+Sterowanie postępem, kończenie i cofanie zwijania obejmuje tylko oczekujące przejścia
+`CSSTransition` o skończonym czasie końca. Zapętlone animacje potomków, np. spinner
+pracy, zachowują własny przebieg i nie są pauzowane, kończone ani anulowane przez morph.
 
 Web/desktop przekazuje badge „N running in background” jako `VirtualFeed.footerAccessory`,
 poza naturalną wysokością stopki i rezerwą pustego miejsca w `ThreadComposerSlot`.
@@ -1893,6 +1901,33 @@ Lokalna historia i grupowanie: [updates.md](updates.md#whats-new-po-aktualizacji
 
 ### Współdzielone odczyty
 
+BFF utrzymuje jeden model odczytu dla uwierzytelnionego właściciela i celu gatewaya.
+Wspólny `WatchOverview(includeSnapshot: true)` zasila w pamięci overview, indeks
+wątków i ustawienia. Każdy SSE renderera otrzymuje od razu aktualny snapshot,
+potem zmiany; reconnect BFF odbudowuje model ze świeżego snapshotu. Odczyt gotowego
+wątku po id i wpisu cache to O(1); listowanie, klonowanie i kodowanie odpowiedzi
+kosztuje O(rozmiar odpowiedzi). Zimny odczyt czeka na dane. Archiwum, starsza historia,
+pliki i bloby pozostają stronicowane lub pobierane na żądanie.
+
+Wczytane panele, listy PR, proxy, katalogi modeli, boty i aktualizacje dzielą cache
+BFF i odczyt w toku. Zdarzenia unieważniają odpowiedni model, a BFF odświeża go
+raz na serię zmian. Snapshot po zmianie headów zachowuje wczytane projekcje i
+odświeża je w BFF; pełny reset prywatnych danych następuje po rzeczywistej przerwie
+lub zmianie widoczności wątków. Nazwane zdarzenie SSE `read-model` niesie klucz, typ i pełny
+protobuf JSON odpowiedzi; frontend stosuje je bez kolejnego HTTP ani cyklicznego
+odpytywania panelu i list PR. Pełna projekcja zastępuje starszą odpowiedź w toku
+bez końcowego odczytu. Zmiana celu gatewaya zamyka strumienie i czyści prywatny
+stan przed zmianą tożsamości; wyniki poprzedniej sesji nie mogą go odtworzyć.
+Zmiana udostępnienia usuwa odpowiednie prywatne projekcje przed ponownym odczytem.
+Cache BFF obejmuje do 64 modeli / 8 MiB zakodowanego JSON; po przekroczeniu limitu
+wpis jest usuwany z cache i frontend otrzymuje reset. Zbyt duże lub wyparte modele
+są odczytywane na żądanie; ograniczony rejestr invalidacji i reset całego prefiksu
+po jego przepełnieniu zapobiega zachowaniu starej prywatnej projekcji w rendererze.
+SSE `overview-snapshot` zawiera snapshot i rewizję przerw upstream. Zmiana zestawu
+headów nie zwiększa tej rewizji, więc nie unieważnia wszystkich pozostałych odczytów.
+Zerwanie gRPC zamyka subskrypcje SSE; frontend przechodzi przez zwykłe ponawianie.
+Limity cache i pomiary: [client-performance.md](client-performance.md).
+
 Projekty, workery, modele, ustawienia i podobne katalogi zmieniają się tylko po znanych
 zdarzeniach albo akcjach użytkownika. Klient czyta je raz, trzyma w pamięci sesji i
 aktualizuje po zdarzeniu strumienia lub odpowiedzi własnej mutacji. `QueryCache`
@@ -1914,8 +1949,9 @@ aktualizuje po zdarzeniu strumienia lub odpowiedzi własnej mutacji. `QueryCache
 obecność, wersja lub stosowana konfiguracja; broadcast powtarzający niezmienione workery nic nie czyta.
 Web trzyma jeden `QueryCache` na kartę (`lib/shared/queries.svelte.ts`): rekordy workerów
 i środowisko agentów są współdzielone przez strony i pickery, a load trasy korzysta z bieżącej
-wartości (`loadShared`). `OverviewState.resyncs` rośnie tylko przy pierwszej synchronizacji
-i przerwie w strumieniu; zakończony odczyt partnera odświeża overview, ale nie ustawienia ani modele.
+wartości (`loadShared`). `OverviewState.resyncs` rośnie przy pierwszym snapshotcie
+i rzeczywistej przerwie połączenia renderera lub BFF; zmiana zestawu headów tego
+nie zwiększa. Zakończony odczyt partnera odświeża overview, ale nie ustawienia ani modele.
 
 **Wypychane domeny.** Gateway sam wykrywa zmiany botów, konektorów i proxy (`core/owner-feeds.ts`),
 dopóki ktoś obserwuje overview: co 2 s czyta zegar dziennika botów właściciela (`bot_view_clock`,
@@ -2292,7 +2328,7 @@ Pierwsza porażka, również jawne SSE `failure` i nieudana resynchronizacja, po
 Reconnecting… do 3 nieudanych prób lub 12 sekund bez sukcesu. Potem status przechodzi
 w Gateway unavailable i pozostaje w nim do udanej resynchronizacji; kolejna próba,
 focus ani ręczne ponowienie nie cofają go do Reconnecting…. Widok błędu trasy
-stosuje początkowe okno 12 s. Otwarcie SSE overview sprawdza lekkie capabilities,
+stosuje początkowe okno 12 s. Otwarcie SSE overview czeka na gotowy model BFF,
 zamiast powtarzać agregację; pełny overview i lista wątków mają deadline 10 sekund,
 ale czytają wyłącznie lokalne rekordy, zatwierdzone lustra i cache. Żaden lokalny
 odczyt nie czeka na I/O partnera. Pule HTTP/2 lokalnych i zdalnych unary oraz lokalnych i zdalnych streamów

@@ -2,7 +2,7 @@ import { getContext, setContext } from "svelte";
 import { ui } from "@canopy/contracts";
 import { decode } from "#lib/shared/wire.ts";
 import { ComputerAway, liveSource } from "#lib/shared/live-source.ts";
-import { bodyJson, isJsonObject } from "#lib/shared/json.ts";
+import { bodyJson, isJsonObject, isNumber } from "#lib/shared/json.ts";
 import { computerName } from "@canopy/domain/computer-presence";
 import type { RecoverySnapshot, RecoveryStatus } from "@canopy/domain/connection-recovery";
 import {
@@ -17,14 +17,15 @@ import {
 import { projectChoices } from "@canopy/domain/projects";
 import { latestThreadChoices } from "@canopy/domain/new-thread-choices";
 import { webDrafts } from "#lib/features/drafts/local.svelte.ts";
+import { receiveBffRead } from "#lib/shared/queries.svelte.ts";
 
 /** live: stream open and in sync; reconnecting: dropped, retrying; unavailable: the gateway does not answer. */
 export type OverviewConnection = RecoveryStatus;
 
 /**
  * Workers, projects and the active thread index, kept live by the overview SSE stream.
- * Shared with pages through context (one subscription per tab). The stream carries changes only,
- * so every reconnect reloads the full overview and thread index to pick up what happened in between.
+ * Shared with pages through context (one subscription per tab). The BFF seeds its current materialized snapshot
+ * on every connection, then pushes changes and completed shared reads on the same stream.
  */
 export class OverviewState {
   #workers = $state.raw<ui.Worker[]>([]);
@@ -54,8 +55,8 @@ export class OverviewState {
    * schedules, shared reads) reloads too. A background linked read that settles is not a gap.
    */
   resyncs = $state(0);
-  #synced = false;
   #refreshing = false;
+  #revision: number | undefined;
   #listeners = new Set<(update: ui.OverviewUpdate) => void>();
 
   constructor(initial: ui.GetOverviewResponse | undefined, threads: readonly ui.Thread[] = []) {
@@ -121,8 +122,13 @@ export class OverviewState {
   }
 
   apply(update: ui.OverviewUpdate): void {
-    for (const listener of this.#listeners) listener(update);
     const change = update.change;
+
+    if (change.case === "mobileSnapshot" && change.value.overview) {
+      this.#replace(change.value.overview, change.value.threads);
+    }
+
+    for (const listener of this.#listeners) listener(update);
 
     const seedChanged =
       change.case === "thread" &&
@@ -240,7 +246,6 @@ export class OverviewState {
 
     if (this.lastUsedAgent) this.#deleted.delete(this.lastUsedAgent.id);
     this.threads = visible;
-    this.#synced = true;
   }
 
   /** `gap`: the stream reconnected, so state kept elsewhere reads again (`resyncs`); a peer refresh does not. */
@@ -278,28 +283,48 @@ export class OverviewState {
     }
   }
 
-  connect(heads = ""): () => void {
-    let pending: ui.OverviewUpdate[] | undefined;
-    // Replacing a subscription to change its bounded head set also introduces a stream gap.
-    this.#synced = false;
+  connect(heads = "", active = ""): () => void {
+    let ready: (() => void) | undefined;
+    let gap = false;
 
-    return liveSource(`/api/overview/events?${new URLSearchParams({ heads })}`, {
+    return liveSource(`/api/overview/events?${new URLSearchParams({ heads, active })}`, {
       onstatus: (state) => {
         this.recovery = state;
         this.connection = state.status;
       },
-      // A supplied seed is fresh on the first open; otherwise fetch it, and always resync after a gap.
-      onopen: async (reconnected, signal) => {
-        if (!reconnected && this.#synced) this.connection = "live";
-        else {
-          pending = [];
-          await this.#resync(signal);
+      // HTTP ready precedes the shared snapshot; availability is confirmed after that snapshot arrives.
+      onopen: (reconnected, signal) =>
+        new Promise<void>((resolve) => {
+          gap = reconnected;
 
-          if (signal.aborted) return;
+          const finish = () => {
+            signal.removeEventListener("abort", finish);
+            resolve();
+          };
 
-          for (const update of pending) this.apply(update);
-          pending = undefined;
-        }
+          ready = finish;
+          signal.addEventListener("abort", finish, { once: true });
+
+          if (signal.aborted) finish();
+        }),
+      events: {
+        "read-model": receiveBffRead,
+        "overview-snapshot": (data) => {
+          const frame = JSON.parse(data);
+
+          if (!isJsonObject(frame) || !isNumber(frame["revision"]) || frame["update"] === undefined)
+            throw new Error("Invalid overview snapshot");
+          this.apply(decode(ui.OverviewUpdateSchema, frame["update"]));
+
+          if (gap || this.#revision !== frame["revision"]) {
+            this.#revision = frame["revision"];
+            this.resyncs += 1;
+          }
+
+          gap = false;
+
+          ready?.();
+        },
       },
       ondrop: () => {
         this.pushed = new Set();
@@ -309,9 +334,7 @@ export class OverviewState {
       onfailure: () => (this.connection = "unavailable"),
       onmessage: (data) => {
         const update = decode(ui.OverviewUpdateSchema, JSON.parse(data));
-
-        if (pending) pending.push(update);
-        else this.apply(update);
+        this.apply(update);
       },
     });
   }

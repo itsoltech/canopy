@@ -15,7 +15,7 @@ import { startBffLogs } from "./log-source.ts";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import { WEB_VERSION_HEADER } from "@canopy/domain/release/web-version";
 import { compareVersions } from "@canopy/updater/release";
-import { bffTarget } from "@canopy/domain/bff-target";
+import { bffTarget, onBffTargetChange } from "@canopy/domain/bff-target";
 
 interface Connection {
   generation: number;
@@ -26,6 +26,18 @@ interface Connection {
 }
 
 let connection: Connection | undefined;
+const targetListeners = new Set<() => void>();
+
+onBffTargetChange(() => {
+  for (const listener of targetListeners) listener();
+});
+
+/** Process-local read models must release streams and private state before a target can change. */
+export function onGatewayTargetChange(listener: () => void) {
+  targetListeners.add(listener);
+
+  return () => targetListeners.delete(listener);
+}
 
 /**
  * The gateway this BFF talks to. A server BFF reads its environment once; the desktop controller, which hosts the
@@ -36,6 +48,8 @@ function current(): Connection {
   const generation = hosted?.generation ?? 0;
 
   if (connection?.generation === generation) return connection;
+
+  for (const listener of targetListeners) listener();
   const target = hosted?.target;
   const desktopToken = target ? target.desktopClient?.token : process.env["CANOPY_DESKTOP_CLIENT_TOKEN"];
 

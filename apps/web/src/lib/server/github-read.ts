@@ -1,5 +1,6 @@
 import { github } from "@canopy/contracts";
 import { readMessage } from "./body.ts";
+import { bffSession } from "./bff-session.ts";
 import { gateway } from "./gateway.ts";
 import { encode } from "#lib/shared/wire.ts";
 
@@ -20,6 +21,35 @@ export async function githubRead(api: ReturnType<typeof gateway>, operation: str
           options,
         ),
       );
+    case "pull-requests": {
+      const requestMessage = await readMessage(request, github.ThreadPullRequestsRequestSchema);
+
+      // The frontend's shared key assumes the normal page size. Keep custom pages uncached instead of mixing them
+      // into the same entry.
+      if (requestMessage.pageSize && requestMessage.pageSize !== 20)
+        return encode(
+          github.ThreadPullRequestsResponseSchema,
+          await api.listThreadPullRequests(requestMessage, options),
+        );
+
+      const session = bffSession();
+      const thread = await session.overview.thread(requestMessage.threadId);
+
+      if (!thread)
+        return encode(
+          github.ThreadPullRequestsResponseSchema,
+          await api.listThreadPullRequests(requestMessage, options),
+        );
+      const key = `ListThreadPullRequests:${requestMessage.threadId}:${thread.pullRequestRevision}:${requestMessage.offset}`;
+
+      return encode(
+        github.ThreadPullRequestsResponseSchema,
+        await session.reads.read(key, github.ThreadPullRequestsResponseSchema, () =>
+          api.listThreadPullRequests(requestMessage, options),
+        ),
+      );
+    }
+
     case "avatar":
       return encode(
         github.PullRequestAvatarSchema,

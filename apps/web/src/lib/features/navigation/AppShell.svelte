@@ -32,6 +32,7 @@
   import { ModelCatalogState, provideModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
   import { OverviewInvalidation } from "@canopy/domain/shared-query-events";
   import { queries } from "#lib/shared/queries.svelte.ts";
+  import { bffReadKey } from "#lib/shared/bff-reads.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Drawer from "#lib/shared/ui/Drawer.svelte";
   import Toaster from "#lib/shared/ui/Toaster.svelte";
@@ -58,8 +59,7 @@
   import { threadWarmSet } from "@canopy/domain/thread-warm-set";
   import { sidebarThreads } from "@canopy/domain/sidebar-threads";
   import { expandProjectIds } from "@canopy/domain/projects";
-  import { createThreadWarming, connectThreadWarming, receiveThreadHeads } from "#lib/features/threads/warming.ts";
-  import { threadViews } from "#lib/features/threads/thread-views.ts";
+  import { receiveThreadHeads } from "#lib/features/threads/warming.ts";
 
   let { children }: { children: Snippet } = $props();
 
@@ -97,8 +97,6 @@
 
   provideSettings(settings);
 
-  const warming = createThreadWarming(threadViews);
-
   const warmIds = $derived(
     threadWarmSet(
       [...overview.threads.values()],
@@ -118,26 +116,18 @@
 
   $effect(() => {
     const ids = headIds;
+    const active = page.params.threadId ?? "";
 
-    return untrack(() => overview.connect(ids));
+    return untrack(() => overview.connect(ids, active));
   });
-
-  $effect(() => warming.select(warmIds));
-
-  $effect(() => warming.activate(page.params.threadId ?? ""));
-
-  $effect(() => warming.enable(overview.connection === "live" && !document.hidden && navigator.onLine));
 
   $effect(() =>
     overview.subscribe((update) => {
       if (update.change.case === "threadHeads") {
         receiveThreadHeads(update.change.value.heads);
-        warming.heads(update.change.value.heads);
       }
     }),
   );
-
-  onMount(() => connectThreadWarming(warming, () => overview.connection === "live"));
 
   let ready = $state(false);
 
@@ -195,26 +185,31 @@
 
   $effect(() => updateCenter.follow(overview));
 
-  // A new or dropped overview connection (restart, upgrade, revocation) renegotiates the gateway's capabilities.
+  // connect() negotiates initially; genuine stream gaps renegotiate after recovery.
   $effect(() => {
-    void overview.connection;
-    void overview.resyncs;
-    untrack(() => void capabilities.reload());
+    const resyncs = overview.resyncs;
+
+    if (resyncs > 1 || (resyncs > 0 && untrack(() => capabilities.state === "unavailable")))
+      untrack(() => void capabilities.reload());
   });
 
   // Shared reads (worker records, agent environment, …) follow the stream's events and its gaps.
-  const invalidation = new OverviewInvalidation(queries);
+  const invalidation = new OverviewInvalidation(queries, bffReadKey);
 
   $effect(() => overview.subscribe((update) => invalidation.apply(update)));
 
   $effect(() => {
     const resyncs = overview.resyncs;
 
-    if (resyncs > 0) untrack(() => invalidation.synced(overview.workers, resyncs > 1));
+    if (resyncs > 0) untrack(() => invalidation.synced(overview.workers, overview.threads.values(), resyncs > 1));
   });
 
   $effect(() => {
-    if (overview.resyncs > 0) void Promise.allSettled([settings.reload(), models.reload()]).then(() => (ready = true));
+    if (overview.resyncs > 0)
+      void models
+        .reload()
+        .catch(() => {})
+        .then(() => (ready = true));
   });
 
   // The server rendered the appearance into <html>; keep it current (and follow the system for "system").

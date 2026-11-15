@@ -5,7 +5,6 @@ import { WorkspaceFileConflict, WorkspaceAccessRevoked } from "@canopy/domain/wo
 import { HttpError } from "#lib/shared/http.ts";
 import { readFile, writeFile, deleteFile } from "#lib/features/files/api.ts";
 import { toast } from "#lib/shared/ui/toast.svelte.ts";
-import { pauseThreadWarming } from "#lib/features/threads/warming.ts";
 
 export const workspaceStore = new WorkspaceStore(
   {
@@ -13,11 +12,8 @@ export const workspaceStore = new WorkspaceStore(
       fileMutation(async () => (await import("./watch-api.ts")).watchFiles(request, signal, receive)),
     listDirectory: async (request, signal) =>
       fileMutation(async () => (await import("./directory-api.ts")).listDirectory(request, signal)),
-    read: (target, path, hash, signal) => {
-      pauseThreadWarming();
-
-      return fileMutation(() => readFile(target.threadId, path, target.itemId, hash, signal));
-    },
+    read: (target, path, hash, signal) =>
+      fileMutation(() => readFile(target.threadId, path, target.itemId, hash, signal)),
     write: (target, path, text, hash, root) => fileMutation(() => writeFile(target.threadId, path, text, hash, root)),
     remove: (target, path, hash, root) => fileMutation(() => deleteFile(target.threadId, path, hash, root)),
   },

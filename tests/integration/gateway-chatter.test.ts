@@ -133,7 +133,7 @@ test.skipIf(!dockerAvailable || process.env["CANOPY_CHATTER_BENCH"] !== "1")(
           (async () => {
             for await (const update of api.watchOverview({ includeSnapshot: true }, { signal: abort.signal })) {
               if (update.change.case === "mobileSnapshot")
-                invalidation.synced(update.change.value.overview?.workers ?? [], false);
+                invalidation.synced(update.change.value.overview?.workers ?? [], update.change.value.threads, false);
               invalidation.apply(update);
             }
           })(),

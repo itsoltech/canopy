@@ -1,9 +1,10 @@
 import { toJson } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { ClientMeasurements } from "@canopy/domain/diagnostics";
-import { requestJson } from "#lib/shared/http.ts";
+import { SubmitCooldown } from "#lib/shared/diagnostics-cooldown.ts";
+import { HttpError, requestJson } from "#lib/shared/http.ts";
 import { decode } from "#lib/shared/wire.ts";
-import { observeThreadCacheMemory, pauseThreadWarming } from "#lib/features/threads/warming.ts";
+import { observeThreadCacheMemory } from "#lib/features/threads/warming.ts";
 
 export let clientMeasurements = new ClientMeasurements("web", crypto.randomUUID());
 let observed = false;
@@ -20,13 +21,13 @@ export function timelineRecovery(
 
 export function navigationStarted() {
   navigationAt = performance.now();
-  pauseThreadWarming();
 }
 
 /** Installed once while the app is mounted. Only sampled openings enable the per-open observers. */
 export function startClientDiagnostics() {
   if (window.canopyDesktop) clientMeasurements = new ClientMeasurements("desktop", crypto.randomUUID());
   let pending = false;
+  const cooldown = new SubmitCooldown();
   let paint: PerformanceObserver | undefined;
 
   const pause = () => {
@@ -36,7 +37,7 @@ export function startClientDiagnostics() {
   document.addEventListener("visibilitychange", pause);
 
   const timer = setInterval(() => {
-    if (document.hidden || !navigator.onLine || pending) return;
+    if (document.hidden || !navigator.onLine || pending || !cooldown.ready()) return;
     pending = true;
     observeThreadCacheMemory();
     void requestJson(
@@ -48,9 +49,13 @@ export function startClientDiagnostics() {
       .then((value) => {
         const receipt = decode(ui.DiagnosticsReceiptSchema, value);
 
+        cooldown.succeeded();
+
         if (!receipt.accepted) clientMeasurements.clear(receipt.epoch);
       })
-      .catch(() => {})
+      .catch((cause) => {
+        if (cause instanceof HttpError && cause.status === 429) cooldown.limited();
+      })
       .finally(() => {
         pending = false;
       });

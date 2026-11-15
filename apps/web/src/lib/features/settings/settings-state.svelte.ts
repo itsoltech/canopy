@@ -158,6 +158,12 @@ export class SettingsState {
   apply(update: ui.OverviewUpdate): void {
     const change = update.change;
 
+    if (change.case === "mobileSnapshot" && change.value.settings) {
+      this.#replace(change.value.settings);
+      this.loaded = true;
+      this.#syncDeviceTimezone();
+    }
+
     if (change.case === "userSettings" && change.value.version > this.#server.user.version)
       this.#confirmUser(change.value);
 

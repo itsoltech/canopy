@@ -1,5 +1,5 @@
 import { ui } from "@canopy/contracts";
-import { sharedRead, revalidateEvery } from "#lib/shared/queries.svelte.ts";
+import { sharedRead } from "#lib/shared/queries.svelte.ts";
 import { requestJson } from "#lib/shared/http.ts";
 import { decode } from "#lib/shared/wire.ts";
 
@@ -11,8 +11,6 @@ export function useThreadPanel(threadId: () => string) {
       `/api/threads/${encodeURIComponent(threadId())}/panel`,
     ),
   );
-
-  $effect(() => revalidateEvery(read.key, 5000));
 
   return {
     get data() {

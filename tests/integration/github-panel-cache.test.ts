@@ -124,6 +124,27 @@ describe.skipIf(!dockerAvailable)("PR panel cache and actor boundaries", () => {
     }
   });
 
+  test("accepts GitHub avatar version hashes and reuses their normalized cache across restarts", async () => {
+    const url = "https://avatars.githubusercontent.com/u/3064153?s=128&u=c0614bea18d9e204603f79c3428c1ce1e76e51b4&v=4";
+    const before = fixture.counts.get("avatars") ?? 0;
+    const image = await gw.api.getPullRequestAvatar({ pullRequestId: pr, url });
+    expect(image.dataUrl).toStartWith("data:image/png;base64,");
+    expect((fixture.counts.get("avatars") ?? 0) - before).toBe(1);
+    const restarted = new GitHubAccounts(gw.runtime, gw.userId, fixture.options);
+
+    try {
+      expect(
+        await pullRequestAvatar(
+          restarted.prs,
+          create(github.PullRequestAvatarRequestSchema, { pullRequestId: pr, url: url.replace("s=128", "s=64") }),
+        ),
+      ).toEqual(image);
+      expect((fixture.counts.get("avatars") ?? 0) - before).toBe(1);
+    } finally {
+      await restarted.stop();
+    }
+  });
+
   test("a delayed avatar cache miss reuses another service's completed fill", async () => {
     const url = "https://avatars.githubusercontent.com/u/77?v=4";
     const request = create(github.PullRequestAvatarRequestSchema, { pullRequestId: pr, url });
@@ -284,6 +305,7 @@ describe.skipIf(!dockerAvailable)("PR panel cache and actor boundaries", () => {
       "http://avatars.githubusercontent.com/u/4",
       "https://github.com/u/4",
       "https://avatars.githubusercontent.com@127.0.0.1/u/4",
+      "https://avatars.githubusercontent.com/u/4?redirect=https://example.com",
     ])
       await expect(gw.api.getPullRequestAvatar({ pullRequestId: pr, url })).rejects.toThrow();
     fixture.avatarResponse("image/svg+xml", 32);

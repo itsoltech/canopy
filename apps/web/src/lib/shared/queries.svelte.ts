@@ -3,6 +3,8 @@ import type { DescMessage, MessageShape } from "@bufbuild/protobuf";
 import { QueryCache, type QueryFetch, type QuerySnapshot } from "@canopy/domain/shared-query";
 import { requestJson } from "./http.ts";
 import { decode } from "./wire.ts";
+import { bffReadKey, bffReadSchema } from "./bff-reads.ts";
+import { isJsonObject, isString, type JsonValue } from "./json.ts";
 
 /**
  * One shared read of the tab's QueryCache (docs/ui-api.md, "Współdzielone odczyty"). It is watched while an effect
@@ -51,6 +53,29 @@ export const getMessage =
 /** The tab's shared reads. The SPA serves one owner per tab; a new gateway or sign-in reloads the page. */
 export const queries = new QueryCache();
 
+/** Complete BFF projections supersede a request in flight without scheduling another HTTP read. */
+export function receiveBffRead(data: string) {
+  const frame: JsonValue = JSON.parse(data);
+
+  if (!isJsonObject(frame) || !isString(frame["key"]) || !bffReadKey(frame["key"]))
+    throw new Error("Invalid read model update");
+  const key = frame["key"];
+
+  if (frame["reset"] === true) {
+    queries.forget(
+      frame["prefix"] === true ? (candidate) => candidate === key || candidate.startsWith(`${key}:`) : key,
+    );
+
+    return;
+  }
+
+  const schema = bffReadSchema(key);
+
+  if (!schema || frame["type"] !== schema.typeName || frame["value"] === undefined)
+    throw new Error("Invalid read model type");
+  queries.set(key, decode(schema, frame["value"]), true);
+}
+
 /** A shared read of the BFF path. Route loads and components of the tab share one value and one request. */
 export function sharedRead<D extends DescMessage>(key: string, schema: D, path: string): SharedRead<MessageShape<D>> {
   return new SharedRead(queries, key, getMessage(schema, path));
@@ -63,12 +88,14 @@ const revalidating = new Map<string, { users: number; stop: () => void }>();
  * read again every `everyMs` while the page is visible (one timer per key, however many components ask).
  */
 export function revalidateEvery(key: string, everyMs: number): () => void {
+  if (bffReadKey(key)) return () => {};
+
   const current = revalidating.get(key);
 
   if (current) current.users++;
   else {
     const timer = setInterval(() => {
-      if (!document.hidden) queries.invalidate(key);
+      if (!document.hidden && navigator.onLine) queries.invalidate(key);
     }, everyMs);
 
     revalidating.set(key, { users: 1, stop: () => clearInterval(timer) });

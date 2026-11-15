@@ -2,6 +2,8 @@
 
 Projekt i wdrożenie: 2026-11-02. Zakres: konta zdalnych serwerów MCP,
 OAuth w gateway, dostęp wybranych workerów i botów oraz jeden kanał wykonania.
+Status (2026-11-15): panel web/desktop jest odświeżany reaktywnie w pamięci BFF
+i dostarczany przez SSE; dostępność kanałów według [release.md](release.md).
 
 ## Decyzje
 
@@ -245,6 +247,9 @@ po awarii nie powoduje automatycznego powtórzenia zapisu.
 ## UI i audyt
 
 Panel wątku lokalnego i połączonego komputera korzysta z `GetThreadPanel`.
+Web/desktop współdzieli wczytane panele w pamięci BFF. Zmiany konfiguracji, grantów
+i raporty sesji unieważniają odczyt; gotowy panel wraca przez SSE `read-model`,
+bez cyklicznych odczytów HTTP renderera.
 Jego DTO zawiera wyłącznie nazwy, statusy i metadane grantów; nie zawiera URL-i,
 nazw nagłówków, błędów konta ani poświadczeń. „Manage connector access” zmienia
 przez `SetThreadConnectorGrant` dostęp workera w domu wątku, z kontrolą właściciela

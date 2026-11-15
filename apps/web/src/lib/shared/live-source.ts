@@ -11,6 +11,7 @@ export interface LiveSourceHandlers {
   /** The BFF confirmed gateway availability; every reopen needs a resync. */
   readonly onopen?: (reconnected: boolean, signal: AbortSignal) => void | Promise<void>;
   readonly onmessage: (data: string) => void;
+  readonly events?: Readonly<Record<string, (data: string) => void>>;
   readonly ondrop?: () => void;
   readonly onfailure?: () => void;
   readonly onerror?: (failure: ThreadWatchFailure) => boolean;
@@ -143,6 +144,7 @@ export function liveSource(url: string, handlers: LiveSourceHandlers, environmen
       heartbeat,
       retry,
       onmessage: handlers.onmessage,
+      events: handlers.events,
       onerror: handlers.onerror,
       stop,
       onready: async () => {
@@ -222,6 +224,7 @@ function attachSource(
     retry: (away?: boolean) => void;
     onready: () => Promise<void>;
     onmessage: (data: string) => void;
+    events: LiveSourceHandlers["events"];
     onerror: LiveSourceHandlers["onerror"];
     stop: () => void;
   },
@@ -235,6 +238,18 @@ function attachSource(
   source.addEventListener("heartbeat", () => {
     if (handlers.active()) handlers.heartbeat();
   });
+
+  for (const [name, receive] of Object.entries(handlers.events ?? {}))
+    source.addEventListener(name, (event) => {
+      if (!handlers.active() || !(event instanceof MessageEvent)) return;
+      handlers.heartbeat();
+
+      try {
+        receive(event.data);
+      } catch {
+        handlers.retry();
+      }
+    });
 
   const failed = (failure: ThreadWatchFailure) => {
     if (!handlers.active()) return;

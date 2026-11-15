@@ -1,11 +1,13 @@
 # Konto GitHub i pull requesty
 
-Status: **v1 wdrożone**: konta GitHub App i jawny fallback PAT, powiązania PR,
+Status: **v1 wdrożone** (2026-11-15): konta GitHub App i jawny fallback PAT, powiązania PR,
 pełny odczyt, komentarze i review, lifecycle, metadane, sterowanie GitHub Actions
 oraz postęp checków i kroków workflow.
 Podstawowy zakres jest dostępny w web/desktop/mobile. Dodatkowe oznaczenia checków
 w kartach PR i sidebarze oraz podgląd PR w hover card opisane w §7 dotyczą interfejsu web.
-Web/desktop renderuje bezpieczny HTML w Markdown (2026-11-15); dostępność według
+Web/desktop renderuje bezpieczny HTML w Markdown (2026-11-15); na `dev` obsługiwany jest
+też parametr wersji `u` w adresach awatarów GitHub oraz reaktywny cache list PR
+w pamięci BFF. Dostępność według
 promocji kanałów w [release.md](release.md).
 Tokeny użytkownika pozostają w domu wątku; integracja produktu nie nadaje agentom
 praw do mutacji GitHub. `watch_pr_checks` udostępnia wyłącznie obserwację checków (§10).
@@ -783,7 +785,9 @@ nie wyświetlają osobnych etykiet Loading. Refresh ma stałe miejsce w nagłów
 Awatary aktorów pochodzą z `avatarUrl`/`avatar_url` w payloadzie; typ Bot zachowuje
 sufiks `[bot]`. `GetPullRequestAvatar` sprawdza właściciela przed cache i zwraca
 ograniczony raster jako data URL. Gateway akceptuje tylko HTTPS CDN GitHub `/u/{id}`
-lub `/in/{id}`, bez redirectów i credentiali; limit wynosi 128 KiB, TTL 24 h.
+lub `/in/{id}`, z parametrami `s`, `u` i `v`, bez redirectów i credentiali; rozmiar `s`
+normalizuje do 64 px, a hash `u` zachowuje w kluczu cache. Pozostałe parametry są
+odrzucane. Limit wynosi 128 KiB, TTL 24 h.
 Przeglądarka/telefon nie pobierają awatarów z GitHub. Inicjały i nieaktywne checkboxy
 zadań Markdown zachowują normalny kontrast.
 Akcje checka mają jedno menu „…” o stałej szerokości: Cancel tylko dla aktywnego run,
@@ -946,8 +950,15 @@ treści ani pozycji przewijania; krótki ruch używa tokenów i znika przy reduc
 Każda zakładka zachowuje własną pozycję w cache sesji. Patche zachowują poziome
 przewijanie wewnątrz pliku, bez osobnego pionowego viewportu.
 
-Zmiana rewizji PR w overview wątku i wznowienie overview po przerwie oznaczają
-odświeżenie współdzielonego odczytu, bez usuwania ostatniego snapshotu. Web/desktop
+Zmiana rewizji PR w overview wątku unieważnia tylko klucze `ListThreadPullRequests`
+tego wątku, także starsze wersje i strony. Pełny overview zasila mapę rewizji przed
+obsługą zdarzeń live, więc pierwsze zdarzenie z rewizją 0 oraz powtórzona rewizja nie
+uruchamiają odczytów PR z innych wątków. Rzeczywista niezerowa zmiana rewizji nadal
+rewaliduje zachowawczo `GetPullRequest`, ponieważ overview przenosi tylko najnowsze
+podsumowanie, a powiązanie może obejmować starszy PR. Web/desktop materializuje
+wczytane listy w BFF; nowa odpowiedź przychodzi przez SSE `read-model`, bez pollingu
+panelu i hover card. Cache obejmuje wątek, rewizję i offset strony. Wznowienie overview po przerwie
+oznacza odświeżenie współdzielonego odczytu, bez usuwania ostatniego snapshotu. Web/desktop
 (panel oraz osobna strona PR) i mobile zachowują zamontowane sekcje, rozwinięcia
 i scroll podczas rewalidacji tego samego PR. Skeleton jest stanem pierwszego
 odczytu bez cache; błąd odświeżenia zachowuje treść i udostępnia Retry. Zmiana
