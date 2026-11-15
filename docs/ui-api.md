@@ -738,8 +738,13 @@ workspace'u; mobile używa arkusza. `GetWorkspaceCopyManifest` zwraca metadane
 bez treści, z listą pominiętych zależności i podsumowaniem Git. UI pokazuje repozytorium
 jako stałe podsumowanie, a picker wyłącznie dla plików ignorowanych.
 `CopyWorkspace.ignored_selection` wybiera tylko te pliki; całe repozytorium jest
-dodawane automatycznie. `CopyWorkspace` strumieniuje postęp. BFF udostępnia
-`GET /api/workspaces/{id}/copy-manifest` i `POST /api/workspaces/copy` (NDJSON).
+dodawane automatycznie. `StartWorkspaceCopy` uruchamia kopię w tle (trwałe zadanie
+w gatewayu klienta), `ListWorkspaceCopyJobs`, `CancelWorkspaceCopyJob`, `RetryWorkspaceCopyJob`
+i `DismissWorkspaceCopyJob` nią zarządzają, a postęp przychodzi jako
+`OverviewUpdate.workspace_copy_job`. `CopyWorkspace` nadal strumieniuje postęp kopii trzymanej
+przez klienta. BFF udostępnia `GET /api/workspaces/{id}/copy-manifest`,
+`GET`/`POST /api/workspaces/copy-jobs` oraz `POST /api/workspaces/copy-jobs/{id}?action=cancel|retry`
+i `DELETE /api/workspaces/copy-jobs/{id}`.
 Wewnętrzne `WorkspaceCopySource` i `WorkspaceCopyTarget` sprawdzają właściciela
 we właściwym domu. Szczegóły: [workspace-copy.md](workspace-copy.md).
 `UpdateWorkspace` i `RemoveWorkspace` trasują kwalifikowane id do domu workspace'u.

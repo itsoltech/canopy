@@ -16,8 +16,11 @@ export const GIT_BRANCH_SWITCH_CAPABILITY = "git_branch_switch_v1";
 /** Explicit owner action: open a thread's directory in the worker computer's file manager. */
 export const REVEAL_PATH_CAPABILITY = "reveal_path";
 
-/** Bounded transient workspace file transfers, negotiated without breaking protocol 1. */
-export const WORKSPACE_COPY_CAPABILITY = "workspace_copy_scope_v2";
+/** Bounded transient workspace file transfers, negotiated without breaking protocol 1. Batched, resumable frames. */
+export const WORKSPACE_COPY_CAPABILITY = "workspace_copy_batch_v3";
+
+/** The single-chunk transfer that older gateways still drive; workers keep announcing it. */
+export const WORKSPACE_COPY_LEGACY_CAPABILITY = "workspace_copy_scope_v2";
 
 /** Explicit owner actions on a thread's files: read, write, delete, open in the default app. */
 export const THREAD_FILES_CAPABILITY = "thread_files_v1";

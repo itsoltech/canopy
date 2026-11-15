@@ -38,13 +38,14 @@ export function WorkspaceCopyActions({
 
   if (loading) action = <Button variant="primary" title="Reading file list…" busy onPress={() => {}} />;
   else if (progress?.status === "completed") action = <Button variant="primary" title="Done" onPress={onSaved} />;
-  else if (busy)
+  else if (state.running)
     action = (
       <>
-        <Button variant="primary" title="Copying workspace…" busy onPress={() => {}} />
+        <Button variant="primary" title="Run in background" onPress={onSaved} />
         <Button title="Cancel copy" onPress={state.cancel} />
       </>
     );
+  else if (busy) action = <Button variant="primary" title="Starting the copy…" busy onPress={() => {}} />;
   else if (error || cancelled)
     action = <Button variant="primary" title="Refresh file list" onPress={() => void state.load()} />;
   else

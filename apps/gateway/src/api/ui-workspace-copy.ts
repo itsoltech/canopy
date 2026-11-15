@@ -1,3 +1,5 @@
+import { create } from "@bufbuild/protobuf";
+import { EmptySchema } from "@bufbuild/protobuf/wkt";
 import type { GatewayCore } from "../core/core.ts";
 import { copyManifest, copySource } from "../workspace-copy/source.ts";
 import { copyTarget } from "../workspace-copy/target.ts";
@@ -10,8 +12,29 @@ import type { UiHandlers } from "./ui-service.ts";
 
 export function workspaceCopyHandlers(
   core: GatewayCore,
-): Pick<UiHandlers, "getWorkspaceCopyManifest" | "workspaceCopySource" | "workspaceCopyTarget" | "copyWorkspace"> {
+): Pick<
+  UiHandlers,
+  | "getWorkspaceCopyManifest"
+  | "workspaceCopySource"
+  | "workspaceCopyTarget"
+  | "copyWorkspace"
+  | "startWorkspaceCopy"
+  | "listWorkspaceCopyJobs"
+  | "cancelWorkspaceCopyJob"
+  | "retryWorkspaceCopyJob"
+  | "dismissWorkspaceCopyJob"
+> {
   return {
+    startWorkspaceCopy: (request) => copyGuard(() => core.copyJobs.startCopy(request)),
+    listWorkspaceCopyJobs: () => copyGuard(() => core.copyJobs.list()),
+    cancelWorkspaceCopyJob: (request) => copyGuard(() => core.copyJobs.cancel(request.id)),
+    retryWorkspaceCopyJob: (request) => copyGuard(() => core.copyJobs.retry(request.id)),
+    dismissWorkspaceCopyJob: (request) =>
+      copyGuard(async () => {
+        await core.copyJobs.dismiss(request.id);
+
+        return create(EmptySchema);
+      }),
     getWorkspaceCopyManifest: (request) => copyGuard(() => copyManifest(core, request.workspaceId)),
     workspaceCopySource: (request) => copyGuard(() => copySource(core, request)),
     workspaceCopyTarget: (request) => copyGuard(() => copyTarget(core, request)),

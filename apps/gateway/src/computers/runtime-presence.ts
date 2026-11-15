@@ -7,7 +7,11 @@ import { computerLink as link, ui } from "@canopy/contracts";
 
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 
-import { COMPUTER_LINK_PROTOCOL, MIN_COMPUTER_LINK_PROTOCOL } from "@canopy/domain/release/protocol";
+import {
+  COMPUTER_LINK_PROTOCOL,
+  MIN_COMPUTER_LINK_PROTOCOL,
+  WORKSPACE_COPY_CAPABILITY,
+} from "@canopy/domain/release/protocol";
 
 import {
   AGENT_BUS,
@@ -125,6 +129,8 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
         ...(this.options.core?.diagnostics.collector.enabled ? ["diagnostics_v1"] : []),
         ...(this.options.core?.diagnostics.logs.enabled ? [DIAGNOSTICS_LOGS] : []),
         ...(this.options.core?.diagnostics.collector.enabled ? ["diagnostics_trace_v1"] : []),
+        // Batched, resumable workspace copies (docs/workspace-copy.md); peers with the 32-entry guard never see it.
+        ...(this.options.serve ? [WORKSPACE_COPY_CAPABILITY] : []),
       ],
     });
   },

@@ -1,37 +1,44 @@
 import { createHash, type Hash } from "node:crypto";
-import { constants } from "node:fs";
-import { chmod, lstat, mkdir, mkdtemp, open, realpath, rename, rmdir, symlink } from "node:fs/promises";
-import { dirname, isAbsolute, join, resolve } from "node:path";
+import { chmod, lstat, mkdir, mkdtemp, realpath, rename, rmdir } from "node:fs/promises";
+import { join } from "node:path";
 import type {
+  WorkspaceCopyBatch,
   WorkspaceCopyChunk,
   WorkspaceCopyEntry,
   WorkspaceCopyFinish,
   WorkspaceCopyPrepare,
 } from "@canopy/contracts";
-import {
-  COPY_CHUNK_BYTES,
-  COPY_MAX_BYTES,
-  COPY_MAX_ENTRIES,
-  COPY_MAX_FILE_BYTES,
-  COPY_IDLE_MS,
-  copyTotals,
-  copyGenerated,
-} from "@canopy/domain/workspace-copy";
+import { COPY_FRAME_BYTES, COPY_FRAME_FILES, COPY_IDLE_MS } from "@canopy/domain/workspace-copy";
 import { newDirectory } from "../git/project-sources.ts";
 import { freshGit, git } from "../git/git.ts";
-import { copyError, checkedPath, checkedParent, within, sameIdentity } from "./safety.ts";
+import { copyError, checkedPath, sameIdentity } from "./safety.ts";
 import { CopyReceipts, type CopyReceipt } from "./receipts.ts";
+import { mapLimit } from "./limit.ts";
+import {
+  settle,
+  stagedFiles,
+  syncDirectory,
+  syncFiles,
+  validateEntries,
+  writePiece,
+  type Staged,
+} from "./target-files.ts";
 
 interface TargetSession {
   receipt: CopyReceipt;
   entries: Map<string, WorkspaceCopyEntry>;
-  remaining: Set<string>;
-  total: Hash;
-  received: number;
-  expected: number;
-  reading?: { path: string; offset: number; hash: Hash };
+  /** Verified complete files and their SHA-256, the total digest's input. */
+  done: Map<string, string>;
+  /** Files an earlier attempt left; each becomes done when the source confirms the same hash. */
+  staged: Map<string, string>;
+  /** Large files being written piece by piece. */
+  writing: Map<string, { offset: number; hash: Hash }>;
+  dirs: Set<string>;
   timer: ReturnType<typeof setTimeout>;
 }
+
+const WRITE_CONCURRENCY = 8;
+const TARGETS = 4;
 
 export class CopyTargets {
   readonly #sessions = new Map<string, TargetSession>();
@@ -42,7 +49,8 @@ export class CopyTargets {
     this.ready = this.receipts.recover();
   }
 
-  async prepare(request: WorkspaceCopyPrepare) {
+  /** A new private staging directory, or the one an interrupted transfer with this token left (`resume`). */
+  async prepare(request: WorkspaceCopyPrepare): Promise<{ directory: string; staged: Staged[] }> {
     await this.ready;
     const old = await this.receipts.load(request.token);
 
@@ -50,10 +58,15 @@ export class CopyTargets {
       if (!(await sameIdentity(old.target, old.stageDev, old.stageIno)))
         throw copyError("The copied directory changed. Choose another destination.");
 
-      return old.target;
+      return { directory: old.target, staged: [] };
     }
 
-    if (old || this.#sessions.size >= 2) throw copyError("A copy is already in progress. Cancel it before retrying.");
+    if (old && request.resume && old.state === "writing")
+      return { directory: "", staged: await this.#resume(old, request) };
+
+    if (old || this.#sessions.size >= TARGETS)
+      throw copyError("A copy is already in progress. Cancel it before retrying.");
+    await this.receipts.recover(new Set(this.#sessions.keys()));
     validateEntries(request.entries, request.bytes);
     const { parent, target } = newDirectory(request.parentPath, request.name);
     const targetInfo = await lstat(target);
@@ -76,33 +89,15 @@ export class CopyTargets {
       targetIno: targetInfo.ino,
       stageDev: stageInfo.dev,
       stageIno: stageInfo.ino,
+      updated: Date.now(),
     };
 
     try {
       await chmod(stage, 0o700);
       await this.receipts.save(receipt);
-      const entries = new Map(request.entries.map((e) => [e.path, e]));
-      const remaining = new Set(request.entries.filter((e) => !e.directory).map((e) => e.path));
+      await this.#open(receipt, request.entries, []);
 
-      const session: TargetSession = {
-        receipt,
-        entries,
-        remaining,
-        total: createHash("sha256"),
-        received: 0,
-        expected: Number(request.bytes),
-        timer: setTimeout(() => void this.cancel(request.token), COPY_IDLE_MS),
-      };
-
-      session.timer.unref();
-      this.#sessions.set(request.token, session);
-
-      for (const entry of request.entries.filter((e) => e.directory)) {
-        const full = checkedPath(stage, entry.path);
-        await mkdir(full, { recursive: true, mode: 0o700 });
-      }
-
-      return "";
+      return { directory: "", staged: [] };
     } catch (error) {
       await this.cancel(request.token);
       await this.receipts.clean(receipt);
@@ -110,71 +105,125 @@ export class CopyTargets {
     }
   }
 
-  async write(chunk: WorkspaceCopyChunk) {
-    const session = this.#sessions.get(chunk.token);
+  async #resume(receipt: CopyReceipt, request: WorkspaceCopyPrepare) {
+    this.#drop(request.token);
+
+    if (
+      !(await sameIdentity(receipt.stage, receipt.stageDev, receipt.stageIno)) ||
+      !(await sameIdentity(receipt.target, receipt.targetDev, receipt.targetIno))
+    ) {
+      await this.receipts.clean(receipt);
+      throw copyError("The destination changed while copying. Choose another directory.");
+    }
+
+    if (this.#sessions.size >= TARGETS) throw copyError("A copy is already in progress. Cancel it before retrying.");
+    validateEntries(request.entries, request.bytes);
+    const staged = await stagedFiles(receipt.stage, new Map(request.entries.map((e) => [e.path, e])));
+    await this.receipts.save({ ...receipt, updated: Date.now() });
+    await this.#open(receipt, request.entries, staged);
+
+    return staged;
+  }
+
+  async #open(receipt: CopyReceipt, entries: readonly WorkspaceCopyEntry[], staged: readonly Staged[]) {
+    const session: TargetSession = {
+      receipt,
+      entries: new Map(entries.map((e) => [e.path, e])),
+      done: new Map(),
+      staged: new Map(staged.map((s) => [s.path, s.sha256])),
+      writing: new Map(),
+      dirs: new Set(),
+      // Idle: forget the session; the staged files wait for a resume until the receipt expires.
+      timer: setTimeout(() => this.#drop(receipt.token), COPY_IDLE_MS),
+    };
+
+    session.timer.unref();
+    this.#sessions.set(receipt.token, session);
+
+    for (const entry of entries.filter((e) => e.directory))
+      await mkdir(checkedPath(receipt.stage, entry.path), { recursive: true, mode: 0o700 });
+  }
+
+  #drop(token: string) {
+    const session = this.#sessions.get(token);
+
+    if (session) clearTimeout(session.timer);
+    this.#sessions.delete(token);
+  }
+
+  /** The single-chunk write of gateways before workspace_copy_batch_v3. */
+  write(chunk: WorkspaceCopyChunk) {
+    return this.#write(this.#session(chunk.token), chunk);
+  }
+
+  /** One frame of whole files and pieces, written side by side; every path at most once. */
+  async writeBatch(batch: WorkspaceCopyBatch) {
+    const session = this.#session(batch.token);
+    const paths = new Set(batch.chunks.map((c) => c.path));
+
+    if (
+      batch.chunks.length > COPY_FRAME_FILES ||
+      paths.size !== batch.chunks.length ||
+      batch.chunks.some((c) => c.token !== batch.token) ||
+      batch.chunks.reduce((sum, c) => sum + c.data.length, 0) > COPY_FRAME_BYTES
+    )
+      throw copyError("Unexpected transfer chunk.");
+    await mapLimit(batch.chunks, WRITE_CONCURRENCY, (chunk) => this.#write(session, chunk));
+  }
+
+  #session(token: string) {
+    const session = this.#sessions.get(token);
 
     if (!session) throw copyError("The transfer expired. Retry the copy.");
     session.timer.refresh();
+
+    return session;
+  }
+
+  async #write(session: TargetSession, chunk: WorkspaceCopyChunk) {
     const entry = session.entries.get(chunk.path);
 
-    if (!entry || entry.directory || !session.remaining.has(entry.path) || chunk.data.length > COPY_CHUNK_BYTES)
+    if (!entry || entry.directory || session.done.has(entry.path) || chunk.data.length > COPY_FRAME_BYTES)
       throw copyError("Unexpected transfer chunk.");
-    const reading = session.reading ?? { path: entry.path, offset: 0, hash: createHash("sha256") };
+
+    if (chunk.unchanged) {
+      if (chunk.offset !== 0n || !chunk.sha256 || session.staged.get(entry.path) !== chunk.sha256)
+        throw copyError("File integrity check failed. Retry the copy.");
+      session.staged.delete(entry.path);
+      session.done.set(entry.path, chunk.sha256);
+
+      return;
+    }
+
+    const first = chunk.offset === 0n;
+    const writing = first ? { offset: 0, hash: createHash("sha256") } : session.writing.get(entry.path);
 
     if (
-      reading.path !== entry.path ||
-      BigInt(reading.offset) !== chunk.offset ||
+      !writing ||
+      BigInt(writing.offset) !== chunk.offset ||
       chunk.offset + BigInt(chunk.data.length) > entry.size ||
       (chunk.data.length === 0 && !chunk.last)
     )
       throw copyError("The transfer lost its place. Retry the copy.");
-    session.reading = reading;
-    const full = checkedPath(session.receipt.stage, entry.path);
-    await mkdir(dirname(full), { recursive: true, mode: 0o700 });
-    await checkedParent(session.receipt.stage, full);
+    // Claimed before any await: a second piece of the same file cannot pass the offset check meanwhile.
+    session.writing.delete(entry.path);
+    session.staged.delete(entry.path);
+    await writePiece(session.receipt.stage, entry, chunk, session.dirs);
+    writing.hash.update(chunk.data);
+    writing.offset += chunk.data.length;
 
-    if (entry.symlink) {
-      if (!chunk.last || chunk.offset !== 0n || Buffer.from(chunk.data).toString() !== entry.symlink)
-        throw copyError("Invalid symlink payload.");
-    } else {
-      const handle = await open(
-        full,
-        constants.O_WRONLY | constants.O_NOFOLLOW | (reading.offset === 0 ? constants.O_CREAT | constants.O_EXCL : 0),
-        0o600,
-      );
+    if (!chunk.last) {
+      session.writing.set(entry.path, writing);
 
-      try {
-        let written = 0;
-
-        while (written < chunk.data.length) {
-          const result = await handle.write(chunk.data, written, chunk.data.length - written, reading.offset + written);
-
-          if (!result.bytesWritten) throw copyError("The target disk could not accept the file.");
-          written += result.bytesWritten;
-        }
-
-        if (chunk.last) await handle.sync();
-      } finally {
-        await handle.close();
-      }
+      return;
     }
 
-    reading.hash.update(chunk.data);
-    reading.offset += chunk.data.length;
-    session.received += chunk.data.length;
+    const hash = writing.hash.digest("hex");
 
-    if (chunk.last) {
-      const hash = reading.hash.digest("hex");
-
-      if (BigInt(reading.offset) !== entry.size || hash !== chunk.sha256)
-        throw copyError("File integrity check failed. Retry the copy.");
-
-      if (entry.symlink) await symlink(entry.symlink, full);
-      else await chmod(full, entry.mode & 0o777);
-      session.total.update(`${entry.path}\0${entry.size}\0${hash}\n`);
-      session.remaining.delete(entry.path);
-      delete session.reading;
-    }
+    if (BigInt(writing.offset) !== entry.size || hash !== chunk.sha256)
+      throw copyError("File integrity check failed. Retry the copy.");
+    await settle(session.receipt.stage, entry);
+    session.done.set(entry.path, hash);
   }
 
   async finish(request: WorkspaceCopyFinish) {
@@ -191,12 +240,26 @@ export class CopyTargets {
       return receipt.target;
     }
 
-    if (!session || !receipt || session.remaining.size || session.received !== session.expected)
+    const files = session && [...session.entries.values()].filter((e) => !e.directory);
+
+    if (!session || !receipt || !files || files.some((e) => !session.done.has(e.path)))
       throw copyError("The transfer is incomplete. Retry the copy.");
+    const total = createHash("sha256");
 
-    if (session.total.digest("hex") !== request.sha256)
+    for (const e of files) total.update(`${e.path}\0${e.size}\0${session.done.get(e.path)}\n`);
+
+    if (total.digest("hex") !== request.sha256) {
+      await this.cancel(request.token);
       throw copyError("Transfer integrity check failed. Retry the copy.");
+    }
 
+    await this.#publish(session, receipt, request.sha256);
+
+    return receipt.target;
+  }
+
+  async #publish(session: TargetSession, receipt: CopyReceipt, digest: string) {
+    await syncFiles(receipt.stage, session.entries.values());
     const valid = await freshGit(() => git(receipt.stage, ["fsck", "--connectivity-only", "--no-reflogs"]));
 
     if (!valid.ok) throw copyError("The copied Git metadata is incomplete. Refresh the file list and retry.");
@@ -213,26 +276,22 @@ export class CopyTargets {
     )
       throw copyError("The destination changed while copying. Choose another directory.");
     receipt.state = "committing";
-    receipt.digest = request.sha256;
+    receipt.digest = digest;
     await this.receipts.save(receipt);
 
     // Windows cannot rename a directory over an existing directory, even when it is empty.
     if (process.platform === "win32") await rmdir(receipt.target);
     await rename(receipt.stage, receipt.target);
+    await syncDirectory(receipt.parent);
     receipt.state = "committed";
     await this.receipts.save(receipt);
-    clearTimeout(session.timer);
-    this.#sessions.delete(request.token);
-
-    return receipt.target;
+    this.#drop(receipt.token);
   }
 
   async cancel(token: string) {
     await this.ready;
     const session = this.#sessions.get(token);
-
-    if (session) clearTimeout(session.timer);
-    this.#sessions.delete(token);
+    this.#drop(token);
     const receipt = session?.receipt ?? (await this.receipts.load(token));
 
     if (receipt && receipt.state !== "committed") {
@@ -242,44 +301,10 @@ export class CopyTargets {
     }
   }
 
+  /** Shutdown keeps staged files: the transfer continues after the restart. */
   async close() {
     await this.ready;
-    await Promise.all([...this.#sessions.keys()].map((token) => this.cancel(token)));
+
+    for (const token of this.#sessions.keys()) this.#drop(token);
   }
-}
-
-function validateEntries(entries: readonly WorkspaceCopyEntry[], bytes: bigint) {
-  if (entries.length > COPY_MAX_ENTRIES || bytes > COPY_MAX_BYTES || copyTotals(entries).bytes !== bytes)
-    throw copyError("The selection exceeds the 20 GB copy limit.");
-  const paths = new Set<string>();
-
-  for (const e of entries) {
-    checkedPath("/", e.path);
-
-    if (e.ignored && copyGenerated(e.directory || e.symlink ? e.path : dirname(e.path)))
-      throw copyError("Dependencies and build output cannot be copied.");
-
-    if (e.blocked || e.size > COPY_MAX_FILE_BYTES)
-      throw copyError("A selected file cannot be copied (8 GB per-file limit).");
-    const key = e.path.toLowerCase();
-
-    if (paths.has(key)) throw copyError("Two selected paths differ only in letter case.");
-    paths.add(key);
-
-    if (
-      e.symlink &&
-      (isAbsolute(e.symlink) ||
-        e.symlink.includes("\\") ||
-        !within("/copy", resolve("/copy", dirname(e.path), e.symlink)))
-    )
-      throw copyError("A symlink points outside the repository.");
-  }
-
-  const links = entries.filter((e) => e.symlink);
-
-  if (entries.some((e) => links.some((link) => e.path.startsWith(`${link.path}/`))))
-    throw copyError("A selected file is inside a symlink.");
-
-  if (!entries.some((e) => e.path === ".git/HEAD") || !entries.some((e) => e.path === ".git/config"))
-    throw copyError("Include the Git metadata to create a usable checkout.");
 }

@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/worker/v1/workspace_copy.proto.
  */
 export const file_canopy_worker_v1_workspace_copy: GenFile = /*@__PURE__*/
-  fileDesc("CiVjYW5vcHkvd29ya2VyL3YxL3dvcmtzcGFjZV9jb3B5LnByb3RvEhBjYW5vcHkud29ya2VyLnYxIrgBChJXb3Jrc3BhY2VDb3B5RW50cnkSDAoEcGF0aBgBIAEoCRIMCgRzaXplGAIgASgEEgwKBG1vZGUYAyABKA0SDwoHc3ltbGluaxgEIAEoCRIRCglkaXJlY3RvcnkYBSABKAgSDwoHaWdub3JlZBgGIAEoCBIQCghpbmNsdWRlZBgHIAEoCBIOCgZzZWNyZXQYCCABKAgSEAoIbWV0YWRhdGEYCSABKAgSDwoHYmxvY2tlZBgKIAEoCSLzAQoVV29ya3NwYWNlQ29weU1hbmlmZXN0Eg0KBXRva2VuGAEgASgJEjUKB2VudHJpZXMYAiADKAsyJC5jYW5vcHkud29ya2VyLnYxLldvcmtzcGFjZUNvcHlFbnRyeRINCgVieXRlcxgDIAEoBBINCgVmaWxlcxgEIAEoDRIbChNza2lwcGVkX2RpcmVjdG9yaWVzGAUgAygJEg4KBmJyYW5jaBgGIAEoCRIdChB1bnB1c2hlZF9jb21taXRzGAcgASgNSACIAQESFQoNY2hhbmdlZF9maWxlcxgIIAEoDUITChFfdW5wdXNoZWRfY29tbWl0cyImChFXb3Jrc3BhY2VDb3B5U2NhbhIRCglyb290X3BhdGgYASABKAkiQAoRV29ya3NwYWNlQ29weVJlYWQSDQoFdG9rZW4YASABKAkSDAoEcGF0aBgCIAEoCRIOCgZvZmZzZXQYAyABKAQiNgoWV29ya3NwYWNlQ29weUF1dGhvcml6ZRINCgV0b2tlbhgBIAEoCRINCgVwYXRocxgCIAMoCSIuCh1Xb3Jrc3BhY2VDb3B5SWdub3JlZFNlbGVjdGlvbhINCgVwYXRocxgBIAMoCSKOAQoUV29ya3NwYWNlQ29weVByZXBhcmUSDQoFdG9rZW4YASABKAkSEwoLcGFyZW50X3BhdGgYAiABKAkSDAoEbmFtZRgDIAEoCRI1CgdlbnRyaWVzGAQgAygLMiQuY2Fub3B5Lndvcmtlci52MS5Xb3Jrc3BhY2VDb3B5RW50cnkSDQoFYnl0ZXMYBSABKAQibQoSV29ya3NwYWNlQ29weUNodW5rEg0KBXRva2VuGAEgASgJEgwKBHBhdGgYAiABKAkSDgoGb2Zmc2V0GAMgASgEEgwKBGRhdGEYBCABKAwSDAoEbGFzdBgFIAEoCBIOCgZzaGEyNTYYBiABKAkiNAoTV29ya3NwYWNlQ29weUZpbmlzaBINCgV0b2tlbhgBIAEoCRIOCgZzaGEyNTYYAiABKAkimwMKFldvcmtzcGFjZUNvcHlPcGVyYXRpb24SMwoEc2NhbhgBIAEoCzIjLmNhbm9weS53b3JrZXIudjEuV29ya3NwYWNlQ29weVNjYW5IABIzCgRyZWFkGAIgASgLMiMuY2Fub3B5Lndvcmtlci52MS5Xb3Jrc3BhY2VDb3B5UmVhZEgAEjkKB3ByZXBhcmUYAyABKAsyJi5jYW5vcHkud29ya2VyLnYxLldvcmtzcGFjZUNvcHlQcmVwYXJlSAASNQoFd3JpdGUYBCABKAsyJC5jYW5vcHkud29ya2VyLnYxLldvcmtzcGFjZUNvcHlDaHVua0gAEjcKBmZpbmlzaBgFIAEoCzIlLmNhbm9weS53b3JrZXIudjEuV29ya3NwYWNlQ29weUZpbmlzaEgAEhAKBmNhbmNlbBgGIAEoCUgAEhEKB3JlbGVhc2UYByABKAlIABI9CglhdXRob3JpemUYCCABKAsyKC5jYW5vcHkud29ya2VyLnYxLldvcmtzcGFjZUNvcHlBdXRob3JpemVIAEIICgZhY3Rpb24imAEKE1dvcmtzcGFjZUNvcHlSZXN1bHQSOQoIbWFuaWZlc3QYASABKAsyJy5jYW5vcHkud29ya2VyLnYxLldvcmtzcGFjZUNvcHlNYW5pZmVzdBIzCgVjaHVuaxgCIAEoCzIkLmNhbm9weS53b3JrZXIudjEuV29ya3NwYWNlQ29weUNodW5rEhEKCWRpcmVjdG9yeRgDIAEoCWIGcHJvdG8z");
+  fileDesc("CiVjYW5vcHkvd29ya2VyL3YxL3dvcmtzcGFjZV9jb3B5LnByb3RvEhBjYW5vcHkud29ya2VyLnYxIrgBChJXb3Jrc3BhY2VDb3B5RW50cnkSDAoEcGF0aBgBIAEoCRIMCgRzaXplGAIgASgEEgwKBG1vZGUYAyABKA0SDwoHc3ltbGluaxgEIAEoCRIRCglkaXJlY3RvcnkYBSABKAgSDwoHaWdub3JlZBgGIAEoCBIQCghpbmNsdWRlZBgHIAEoCBIOCgZzZWNyZXQYCCABKAgSEAoIbWV0YWRhdGEYCSABKAgSDwoHYmxvY2tlZBgKIAEoCSLzAQoVV29ya3NwYWNlQ29weU1hbmlmZXN0Eg0KBXRva2VuGAEgASgJEjUKB2VudHJpZXMYAiADKAsyJC5jYW5vcHkud29ya2VyLnYxLldvcmtzcGFjZUNvcHlFbnRyeRINCgVieXRlcxgDIAEoBBINCgVmaWxlcxgEIAEoDRIbChNza2lwcGVkX2RpcmVjdG9yaWVzGAUgAygJEg4KBmJyYW5jaBgGIAEoCRIdChB1bnB1c2hlZF9jb21taXRzGAcgASgNSACIAQESFQoNY2hhbmdlZF9maWxlcxgIIAEoDUITChFfdW5wdXNoZWRfY29tbWl0cyImChFXb3Jrc3BhY2VDb3B5U2NhbhIRCglyb290X3BhdGgYASABKAkiaQoRV29ya3NwYWNlQ29weVJlYWQSDQoFdG9rZW4YASABKAkSDAoEcGF0aBgCIAEoCRIOCgZvZmZzZXQYAyABKAQSFAoMa25vd25fc2hhMjU2GAQgASgJEhEKCW1heF9ieXRlcxgFIAEoDSI2ChZXb3Jrc3BhY2VDb3B5QXV0aG9yaXplEg0KBXRva2VuGAEgASgJEg0KBXBhdGhzGAIgAygJIi4KHVdvcmtzcGFjZUNvcHlJZ25vcmVkU2VsZWN0aW9uEg0KBXBhdGhzGAEgAygJIp4BChRXb3Jrc3BhY2VDb3B5UHJlcGFyZRINCgV0b2tlbhgBIAEoCRITCgtwYXJlbnRfcGF0aBgCIAEoCRIMCgRuYW1lGAMgASgJEjUKB2VudHJpZXMYBCADKAsyJC5jYW5vcHkud29ya2VyLnYxLldvcmtzcGFjZUNvcHlFbnRyeRINCgVieXRlcxgFIAEoBBIOCgZyZXN1bWUYBiABKAgigAEKEldvcmtzcGFjZUNvcHlDaHVuaxINCgV0b2tlbhgBIAEoCRIMCgRwYXRoGAIgASgJEg4KBm9mZnNldBgDIAEoBBIMCgRkYXRhGAQgASgMEgwKBGxhc3QYBSABKAgSDgoGc2hhMjU2GAYgASgJEhEKCXVuY2hhbmdlZBgHIAEoCCJbChZXb3Jrc3BhY2VDb3B5UmVhZEJhdGNoEg0KBXRva2VuGAEgASgJEjIKBXJlYWRzGAIgAygLMiMuY2Fub3B5Lndvcmtlci52MS5Xb3Jrc3BhY2VDb3B5UmVhZCJZChJXb3Jrc3BhY2VDb3B5QmF0Y2gSDQoFdG9rZW4YASABKAkSNAoGY2h1bmtzGAIgAygLMiQuY2Fub3B5Lndvcmtlci52MS5Xb3Jrc3BhY2VDb3B5Q2h1bmsiQQoTV29ya3NwYWNlQ29weVN0YWdlZBIMCgRwYXRoGAEgASgJEgwKBHNpemUYAiABKAQSDgoGc2hhMjU2GAMgASgJIjQKE1dvcmtzcGFjZUNvcHlGaW5pc2gSDQoFdG9rZW4YASABKAkSDgoGc2hhMjU2GAIgASgJIpgEChZXb3Jrc3BhY2VDb3B5T3BlcmF0aW9uEjMKBHNjYW4YASABKAsyIy5jYW5vcHkud29ya2VyLnYxLldvcmtzcGFjZUNvcHlTY2FuSAASMwoEcmVhZBgCIAEoCzIjLmNhbm9weS53b3JrZXIudjEuV29ya3NwYWNlQ29weVJlYWRIABI5CgdwcmVwYXJlGAMgASgLMiYuY2Fub3B5Lndvcmtlci52MS5Xb3Jrc3BhY2VDb3B5UHJlcGFyZUgAEjUKBXdyaXRlGAQgASgLMiQuY2Fub3B5Lndvcmtlci52MS5Xb3Jrc3BhY2VDb3B5Q2h1bmtIABI3CgZmaW5pc2gYBSABKAsyJS5jYW5vcHkud29ya2VyLnYxLldvcmtzcGFjZUNvcHlGaW5pc2hIABIQCgZjYW5jZWwYBiABKAlIABIRCgdyZWxlYXNlGAcgASgJSAASPQoJYXV0aG9yaXplGAggASgLMiguY2Fub3B5Lndvcmtlci52MS5Xb3Jrc3BhY2VDb3B5QXV0aG9yaXplSAASPgoKcmVhZF9iYXRjaBgJIAEoCzIoLmNhbm9weS53b3JrZXIudjEuV29ya3NwYWNlQ29weVJlYWRCYXRjaEgAEjsKC3dyaXRlX2JhdGNoGAogASgLMiQuY2Fub3B5Lndvcmtlci52MS5Xb3Jrc3BhY2VDb3B5QmF0Y2hIAEIICgZhY3Rpb24ihAIKE1dvcmtzcGFjZUNvcHlSZXN1bHQSOQoIbWFuaWZlc3QYASABKAsyJy5jYW5vcHkud29ya2VyLnYxLldvcmtzcGFjZUNvcHlNYW5pZmVzdBIzCgVjaHVuaxgCIAEoCzIkLmNhbm9weS53b3JrZXIudjEuV29ya3NwYWNlQ29weUNodW5rEhEKCWRpcmVjdG9yeRgDIAEoCRIzCgViYXRjaBgEIAEoCzIkLmNhbm9weS53b3JrZXIudjEuV29ya3NwYWNlQ29weUJhdGNoEjUKBnN0YWdlZBgFIAMoCzIlLmNhbm9weS53b3JrZXIudjEuV29ya3NwYWNlQ29weVN0YWdlZGIGcHJvdG8z");
 
 /**
  * Transient, owner initiated file transfer. Never journal, log or put these messages in an outbox.
@@ -163,6 +163,20 @@ export type WorkspaceCopyRead = Message<"canopy.worker.v1.WorkspaceCopyRead"> & 
    * @generated from field: uint64 offset = 3;
    */
   offset: bigint;
+
+  /**
+   * Resume: the source hashes the whole file and answers `unchanged` instead of bytes when it matches.
+   *
+   * @generated from field: string known_sha256 = 4;
+   */
+  knownSha256: string;
+
+  /**
+   * Batched reads: at most this many bytes from `offset` (all reads of a frame together stay within the frame).
+   *
+   * @generated from field: uint32 max_bytes = 5;
+   */
+  maxBytes: number;
 };
 
 /**
@@ -243,6 +257,14 @@ export type WorkspaceCopyPrepare = Message<"canopy.worker.v1.WorkspaceCopyPrepar
    * @generated from field: uint64 bytes = 5;
    */
   bytes: bigint;
+
+  /**
+   * Continue an interrupted transfer with the same token: the target keeps complete staged files that are still
+   * selected and reports them in `staged`.
+   *
+   * @generated from field: bool resume = 6;
+   */
+  resume: boolean;
 };
 
 /**
@@ -285,6 +307,13 @@ export type WorkspaceCopyChunk = Message<"canopy.worker.v1.WorkspaceCopyChunk"> 
    * @generated from field: string sha256 = 6;
    */
   sha256: string;
+
+  /**
+   * The file already exists on the target with `sha256`; no data follows.
+   *
+   * @generated from field: bool unchanged = 7;
+   */
+  unchanged: boolean;
 };
 
 /**
@@ -293,6 +322,81 @@ export type WorkspaceCopyChunk = Message<"canopy.worker.v1.WorkspaceCopyChunk"> 
  */
 export const WorkspaceCopyChunkSchema: GenMessage<WorkspaceCopyChunk> = /*@__PURE__*/
   messageDesc(file_canopy_worker_v1_workspace_copy, 7);
+
+/**
+ * Many small files, or one piece of a large file, in one bounded frame (workspace_copy_batch_v1).
+ *
+ * @generated from message canopy.worker.v1.WorkspaceCopyReadBatch
+ */
+export type WorkspaceCopyReadBatch = Message<"canopy.worker.v1.WorkspaceCopyReadBatch"> & {
+  /**
+   * @generated from field: string token = 1;
+   */
+  token: string;
+
+  /**
+   * @generated from field: repeated canopy.worker.v1.WorkspaceCopyRead reads = 2;
+   */
+  reads: WorkspaceCopyRead[];
+};
+
+/**
+ * Describes the message canopy.worker.v1.WorkspaceCopyReadBatch.
+ * Use `create(WorkspaceCopyReadBatchSchema)` to create a new message.
+ */
+export const WorkspaceCopyReadBatchSchema: GenMessage<WorkspaceCopyReadBatch> = /*@__PURE__*/
+  messageDesc(file_canopy_worker_v1_workspace_copy, 8);
+
+/**
+ * @generated from message canopy.worker.v1.WorkspaceCopyBatch
+ */
+export type WorkspaceCopyBatch = Message<"canopy.worker.v1.WorkspaceCopyBatch"> & {
+  /**
+   * @generated from field: string token = 1;
+   */
+  token: string;
+
+  /**
+   * @generated from field: repeated canopy.worker.v1.WorkspaceCopyChunk chunks = 2;
+   */
+  chunks: WorkspaceCopyChunk[];
+};
+
+/**
+ * Describes the message canopy.worker.v1.WorkspaceCopyBatch.
+ * Use `create(WorkspaceCopyBatchSchema)` to create a new message.
+ */
+export const WorkspaceCopyBatchSchema: GenMessage<WorkspaceCopyBatch> = /*@__PURE__*/
+  messageDesc(file_canopy_worker_v1_workspace_copy, 9);
+
+/**
+ * A file the target already holds in its private staging directory; the gateway checks it with the source.
+ *
+ * @generated from message canopy.worker.v1.WorkspaceCopyStaged
+ */
+export type WorkspaceCopyStaged = Message<"canopy.worker.v1.WorkspaceCopyStaged"> & {
+  /**
+   * @generated from field: string path = 1;
+   */
+  path: string;
+
+  /**
+   * @generated from field: uint64 size = 2;
+   */
+  size: bigint;
+
+  /**
+   * @generated from field: string sha256 = 3;
+   */
+  sha256: string;
+};
+
+/**
+ * Describes the message canopy.worker.v1.WorkspaceCopyStaged.
+ * Use `create(WorkspaceCopyStagedSchema)` to create a new message.
+ */
+export const WorkspaceCopyStagedSchema: GenMessage<WorkspaceCopyStaged> = /*@__PURE__*/
+  messageDesc(file_canopy_worker_v1_workspace_copy, 10);
 
 /**
  * @generated from message canopy.worker.v1.WorkspaceCopyFinish
@@ -314,7 +418,7 @@ export type WorkspaceCopyFinish = Message<"canopy.worker.v1.WorkspaceCopyFinish"
  * Use `create(WorkspaceCopyFinishSchema)` to create a new message.
  */
 export const WorkspaceCopyFinishSchema: GenMessage<WorkspaceCopyFinish> = /*@__PURE__*/
-  messageDesc(file_canopy_worker_v1_workspace_copy, 8);
+  messageDesc(file_canopy_worker_v1_workspace_copy, 11);
 
 /**
  * @generated from message canopy.worker.v1.WorkspaceCopyOperation
@@ -371,6 +475,18 @@ export type WorkspaceCopyOperation = Message<"canopy.worker.v1.WorkspaceCopyOper
      */
     value: WorkspaceCopyAuthorize;
     case: "authorize";
+  } | {
+    /**
+     * @generated from field: canopy.worker.v1.WorkspaceCopyReadBatch read_batch = 9;
+     */
+    value: WorkspaceCopyReadBatch;
+    case: "readBatch";
+  } | {
+    /**
+     * @generated from field: canopy.worker.v1.WorkspaceCopyBatch write_batch = 10;
+     */
+    value: WorkspaceCopyBatch;
+    case: "writeBatch";
   } | { case: undefined; value?: undefined };
 };
 
@@ -379,7 +495,7 @@ export type WorkspaceCopyOperation = Message<"canopy.worker.v1.WorkspaceCopyOper
  * Use `create(WorkspaceCopyOperationSchema)` to create a new message.
  */
 export const WorkspaceCopyOperationSchema: GenMessage<WorkspaceCopyOperation> = /*@__PURE__*/
-  messageDesc(file_canopy_worker_v1_workspace_copy, 9);
+  messageDesc(file_canopy_worker_v1_workspace_copy, 12);
 
 /**
  * @generated from message canopy.worker.v1.WorkspaceCopyResult
@@ -399,6 +515,16 @@ export type WorkspaceCopyResult = Message<"canopy.worker.v1.WorkspaceCopyResult"
    * @generated from field: string directory = 3;
    */
   directory: string;
+
+  /**
+   * @generated from field: canopy.worker.v1.WorkspaceCopyBatch batch = 4;
+   */
+  batch?: WorkspaceCopyBatch | undefined;
+
+  /**
+   * @generated from field: repeated canopy.worker.v1.WorkspaceCopyStaged staged = 5;
+   */
+  staged: WorkspaceCopyStaged[];
 };
 
 /**
@@ -406,5 +532,5 @@ export type WorkspaceCopyResult = Message<"canopy.worker.v1.WorkspaceCopyResult"
  * Use `create(WorkspaceCopyResultSchema)` to create a new message.
  */
 export const WorkspaceCopyResultSchema: GenMessage<WorkspaceCopyResult> = /*@__PURE__*/
-  messageDesc(file_canopy_worker_v1_workspace_copy, 10);
+  messageDesc(file_canopy_worker_v1_workspace_copy, 13);
 

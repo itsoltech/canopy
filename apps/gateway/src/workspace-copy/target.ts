@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import { ui } from "@canopy/contracts";
+import { ui, WorkspaceCopyResultSchema } from "@canopy/contracts";
 import { z } from "zod";
 import { copyTotals } from "@canopy/domain/workspace-copy";
 import type { GatewayCore } from "../core/core.ts";
@@ -27,11 +27,19 @@ export async function copyTarget(core: GatewayCore, request: ui.WorkspaceCopyTar
   const token =
     action?.case === "cancel"
       ? action.value
-      : action?.case === "prepare" || action?.case === "write" || action?.case === "finish"
+      : action?.case === "prepare" ||
+          action?.case === "write" ||
+          action?.case === "writeBatch" ||
+          action?.case === "finish"
         ? action.value.token
         : "";
 
   if (!z.uuid().safeParse(token).success) throw new InvalidError("Invalid transfer identifier.");
+
+  const resumed =
+    action?.case === "prepare" &&
+    action.value.resume &&
+    (await coreRun(core, (s) => s.copyJob(owner, token)).catch(() => undefined)) !== undefined;
 
   if (action?.case === "prepare") {
     const totals = copyTotals(action.value.entries);
@@ -65,15 +73,21 @@ export async function copyTarget(core: GatewayCore, request: ui.WorkspaceCopyTar
     throw new InvalidError("This project already has a workspace on this worker.");
 
   if (action?.case === "prepare") {
-    await coreRun(core, (s) => s.auditCopy(owner, token, "workspace_copy.started"));
+    if (!resumed) await coreRun(core, (s) => s.auditCopy(owner, token, "workspace_copy.started"));
     await coreRun(core, (s) => s.updateCopyJob(owner, token, "writing"));
   } else if (job.status !== "writing" && !(action?.case === "finish" && job.status === "committed"))
     throw new InvalidError("This copy has ended. Refresh the file list and retry.");
 
-  const result = job.status === "committed" ? { directory: job.directory } : await command(core, request);
+  const result =
+    job.status === "committed"
+      ? create(WorkspaceCopyResultSchema, { directory: job.directory })
+      : await command(core, request);
 
   if (action?.case !== "finish" && !(action?.case === "prepare" && result?.directory))
-    return create(ui.WorkspaceCopyTargetResponseSchema, { directory: result?.directory ?? "" });
+    return create(ui.WorkspaceCopyTargetResponseSchema, {
+      directory: result?.directory ?? "",
+      staged: result?.staged ?? [],
+    });
   const directory = result?.directory;
 
   if (!directory) throw new InvalidError("The copied directory is unavailable. Retry the copy.");

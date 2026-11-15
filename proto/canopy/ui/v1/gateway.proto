@@ -235,6 +235,12 @@ service GatewayService {
   rpc CopyWorkspace(CopyWorkspaceRequest) returns (stream WorkspaceCopyProgress);
   rpc WorkspaceCopySource(WorkspaceCopySourceRequest) returns (WorkspaceCopySourceResponse);
   rpc WorkspaceCopyTarget(WorkspaceCopyTargetRequest) returns (WorkspaceCopyTargetResponse);
+  // Background copies (docs/workspace-copy.md): progress arrives as OverviewUpdate.workspace_copy_job.
+  rpc StartWorkspaceCopy(CopyWorkspaceRequest) returns (WorkspaceCopyJob);
+  rpc ListWorkspaceCopyJobs(ListWorkspaceCopyJobsRequest) returns (ListWorkspaceCopyJobsResponse);
+  rpc CancelWorkspaceCopyJob(WorkspaceCopyJobRequest) returns (WorkspaceCopyJob);
+  rpc RetryWorkspaceCopyJob(WorkspaceCopyJobRequest) returns (WorkspaceCopyJob);
+  rpc DismissWorkspaceCopyJob(WorkspaceCopyJobRequest) returns (google.protobuf.Empty);
   // Credential-free clone URL of an owner-scoped workspace's origin, read on its worker.
   rpc GetWorkspaceCloneSource(GetWorkspaceCloneSourceRequest) returns (GetWorkspaceCloneSourceResponse);
 
@@ -1104,6 +1110,10 @@ message OverviewUpdate {
     ThreadHeads thread_heads = 830;
     // The upstream accounts of one proxy changed (RefreshProxyAccounts, periodic check).
     ProxyAccounts proxy_accounts = 831;
+    // A background workspace copy started, progressed (at most a few times a second) or ended.
+    WorkspaceCopyJob workspace_copy_job = 832;
+    // A finished background copy was dismissed.
+    string workspace_copy_job_removed = 833;
   }
 }
 

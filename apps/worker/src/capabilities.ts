@@ -2,6 +2,8 @@ import {
   STEER_ATTACHMENTS_CAPABILITY,
   THREAD_VISUALS_CAPABILITY,
   THREAD_HTML_CAPABILITY,
+  WORKSPACE_COPY_CAPABILITY,
+  WORKSPACE_COPY_LEGACY_CAPABILITY,
 } from "@canopy/domain/release/protocol";
 
 /** What this worker announces in Hello; the gateway sends a command only to workers that announce it. */
@@ -69,7 +71,9 @@ export function workerCapabilities(options: { localWorker: boolean; fullAccess: 
     "project_sources",
     "git_clone_progress_v1",
     "workspace_copy_v1",
-    "workspace_copy_scope_v2",
+    WORKSPACE_COPY_LEGACY_CAPABILITY,
+    // workspace_copy_batch_v3: batched frames side by side, resumable staging (docs/workspace-copy.md).
+    WORKSPACE_COPY_CAPABILITY,
     // cli_import_v1: Settings → Import reads the device's CLI homes on request (docs/import.md).
     "cli_import_v1",
     // cli_import_library_v1: the scan also lists settings and library items, and reads them on request.

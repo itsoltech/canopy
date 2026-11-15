@@ -23,7 +23,7 @@ interface SourceLease {
 }
 
 const leases = new WeakMap<GatewayCore, Map<string, SourceLease>>();
-const pathHash = (path: string) => createHash("sha256").update(path).digest("hex");
+export const pathHash = (path: string) => createHash("sha256").update(path).digest("hex");
 
 export async function ownedCopyWorkspace(core: GatewayCore, id: string) {
   const projects = await coreRun(core, (s) => s.listProjects(core[coreState].options.userId));
@@ -161,6 +161,25 @@ export async function copySource(core: GatewayCore, request: ui.WorkspaceCopySou
       entries: selected,
       skipped: lease.manifest.entries.filter((e) => !e.directory && !paths.has(e.path)).length,
     });
+  }
+
+  const batch = request.readBatch;
+
+  if (batch) {
+    if (
+      batch.token !== request.token ||
+      batch.reads.some((r) => r.token !== request.token || !lease.selected.has(r.path))
+    )
+      throw new InvalidError("This file was not selected for copying.");
+
+    const result = await coreWorkerQuery(
+      core,
+      workspace.workerId,
+      { case: "workspaceCopy", value: { action: { case: "readBatch", value: batch } } },
+      60_000,
+    );
+
+    return create(ui.WorkspaceCopySourceResponseSchema, { batch: result.workspaceCopy?.batch });
   }
 
   const read = request.read;
