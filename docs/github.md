@@ -1302,9 +1302,9 @@ Nie dodajemy web UI/component/Playwright testów ani trywialnych testów helper�
 Scenariusze integracyjne używają lokalnego fixture HTTP i bazy testowej.
 Testy z rzeczywistym GitHub są wyłącznie opt-in (`CANOPY_LIVE=1`).
 
-Przed gotowością całego stosu pełna lista sprawdzeń z AGENTS.md musi przejść:
-install, gen:check, typecheck, lint, format:check, check:tmp (pełne testy, w tym integracyjne)
-i web build.
+Przed scaleniem całego stosu muszą przejść wymagane checki GitHub CI dla scalanych
+rewizji. Lokalną weryfikację dobieramy do zmiany według
+[AGENTS.md](../AGENTS.md#testing-policy), bez powtarzania pełnej bramki CI.
 QA UI obejmuje light/dark, desktop/phone/tablet, klawiaturę/czytnik, reduced motion,
 krótkie i długie treści, sticky/scroll oraz iOS/Android z tym samym zestawem funkcji.
 

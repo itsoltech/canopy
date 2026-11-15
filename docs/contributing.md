@@ -97,18 +97,43 @@ Nie polegaj wyłącznie na heurystyce linii. Commitlint dopuszcza powyższe stop
 
 ## Lokalna kontrola
 
-`bun install` instaluje `commit-msg` przez simple-git-hooks. Hook akceptuje
+Pełna bramka weryfikacji działa w GitHub CI: instalacja z zamrożonym lockfile,
+`gen:check`, typy całego repo, lint, formatowanie, testy przez `check:tmp` i buildy
+wybrane przez workflow. Wymagane checki muszą przejść dla rewizji scalanej do gałęzi
+docelowej. Agent sprawdza błędy CI i poprawia te wynikające ze swojej zmiany.
+
+Lokalnie dobieraj najmniejszą kontrolę, która pomaga zweryfikować konkretne zachowanie:
+wybrane pliki testowe, typy zmienionego pakietu lub lint edytowanych plików. Nie ma
+obowiązkowej listy lokalnych kontroli przed oddaniem pracy lub otwarciem PR.
+Pełne `bun run check`, testy, `check:tmp`, wszystkie shardy, kontrole całego repo
+i buildy zostaw CI. Szerszy przebieg lokalny uzasadnia konkretny błąd, którego nie da się
+wyjaśnić węższą kontrolą, albo jawna prośba użytkownika; sam rozmiar zmiany nie wystarcza.
+
+`check:tmp` uruchamia testy i kontroluje sprzątanie zasobów. Przy potrzebie lokalnej
+weryfikacji wybranych testów uruchom z root repo np.:
+
+```sh
+bun run check:tmp ./scripts/release.test.ts
+```
+
+Nie uruchamiaj tych samych testów dodatkowo przez `bun test` bez powodu diagnostycznego.
+Nie powtarzaj zaliczonych kontroli, dopóki ich dane wejściowe się nie zmieniły.
+Formatowanie ogranicz do edytowanych plików obsługiwanych przez oxfmt:
+`bun run format -- <pliki>`. Przy zmianach źródeł generowanego kodu wygeneruj i dodaj
+wyniki do zmiany; pełną kontrolę ich aktualności wykona CI.
+
+Dla samych zmian dokumentacji wystarcza przegląd diffu, treści i odnośników,
+bez instalacji zależności, kontroli kodu, testów i buildów. Markdown jest ignorowany
+przez oxfmt. W opisie PR i przy oddaniu pracy podaj faktycznie wykonane kontrole
+oraz zakres pozostawiony CI; oczekujący CI nie jest zaliczonym sprawdzeniem.
+Zasady dla agentów i testów UI opisuje [AGENTS.md](../AGENTS.md#testing-policy).
+
+`bun install` wykonuj tylko przy brakujących zależnościach albo zmianie manifestów
+lub lockfile. Instaluje też `commit-msg` przez simple-git-hooks. Hook akceptuje
 `feat(web): add a channel` i odrzuca `Web: add a channel`. Workflow **PR title** sprawdza
 tytuł po jego edycji i każdym pushu do PR skierowanego do dev/next/main. Commity merge bota
 mają typ `chore(release)`; nie dopisujemy commitów z numerem wersji.
 Narzędzia commitlint/semantic-release uruchamiają się na Node; używaj **Node 24.10+**
 obok Bun 1.4.4 (CI instaluje Node 24 jawnie).
-
-```sh
-bun install
-printf '%s\n' 'feat(web): add a channel' | bun run commitlint
-bun run typecheck
-bun test packages/updater scripts/release.test.ts scripts/promote.test.ts
-```
 
 Publikację, okres stabilizacji beta i bootstrap **0.1.0** opisuje [release.md](release.md).

@@ -525,9 +525,10 @@ Szacunek nie obejmuje raw HTML, bridge'a do agenta ani headless preview.
 | UI i dostępność | Ręcznie jasny/ciemny, desktop/wąski/telefon, 1/6/10 obrazów, długie nazwy i +40% tekstu, pusty/błąd/offline, klawiatura/czytnik, zoom, reduced motion, kontrolki playgroundu, powrót kotwicy i brak szwów overlay. Bez testów komponentów i E2E UI. |
 
 Przyszłe testy integracyjne i pomiary wykonujemy w uprawnionym etapie
-implementacji; ten PR ich nie uruchamia. Standardowe kontrole implementacji
-obejmą gen/check, typecheck, lint, format, testy i build według polityki repo.
-Projekt dokumentacji wymaga `bun run format:check`. Nie zmienia kodu ani proto.
+implementacji; ten PR ich nie uruchamia. Pełną bramkę implementacji wykonuje
+GitHub CI; lokalne kontrole dobieramy do zmiany według
+[AGENTS.md](../AGENTS.md#testing-policy). Dla projektu dokumentacji wystarcza
+przegląd diffu, treści i odnośników, bez kontroli kodu, testów i buildów.
 
 ### Budżety wydajności i sposób pomiaru
 

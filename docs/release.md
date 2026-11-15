@@ -251,7 +251,9 @@ na danym systemie to sprawdza; testy na Linuksie tego nie wykryją.
 z deterministycznym rozstrzyganiem remisów i jawną listą ścieżek dla Bun.
 `scripts/test-timings.json` zawiera zmierzone czasy całych plików w milisekundach,
 łącznie z hookami; nowy plik dostaje domyślnie 1000 ms i automatycznie trafia do podziału.
-Lokalnie ten sam zestaw uruchamia się przez `bun scripts/test-shards.ts 1` (analogicznie 2–4).
+Do diagnozowania konkretnego błędu CI można lokalnie uruchomić dany shard przez
+`bun scripts/test-shards.ts 1` (analogicznie 2–4). Nie jest to obowiązkowa kontrola
+przed PR; lokalną weryfikację dobieramy według [AGENTS.md](../AGENTS.md#testing-policy).
 `--check` kontroluje podział, a `--verify-reports <katalog>` sprawdza cztery raporty
 `timings-1.json` … `timings-4.json`. Raporty JUnit i natywne pomiary Bun są artefaktami CI
 `test-profile-<numer>` (7 dni). Do odświeżenia wag scal mapy `files` z czterech raportów;

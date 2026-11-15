@@ -1866,17 +1866,13 @@ Na iOS Simulator zachowaj standardowe podpisywanie debug: wyłączenie go przez
 Emulator nie zastępuje kontroli kamery/QR, rzeczywistej klawiatury i odzyskiwania
 połączenia po przejściu w tło na fizycznym telefonie.
 
-Polecenia z root:
+Pełną bramkę repozytorium wykonuje GitHub CI. Lokalnie dobieraj kontrole do zmiany
+według [AGENTS.md](../AGENTS.md#testing-policy); zmiana mobile nie wymaga lokalnego
+buildu web ani pełnych testów repo. Zależności instaluj tylko, gdy ich brakuje lub
+zmieniły się manifesty albo lockfile.
 
-```bash
-bun install
-bun run typecheck
-bun run gen:check
-bun run check:tmp
-bun run --filter @canopy/web build
-```
-
-Z `apps/mobile`:
+Poniższe polecenia z `apps/mobile` służą sprawdzeniu odpowiednich zmian konfiguracji,
+zależności i bundla natywnego; nie są listą do wykonania przy każdej zmianie:
 
 ```bash
 bun run lint
