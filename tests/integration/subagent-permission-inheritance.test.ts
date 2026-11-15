@@ -262,11 +262,13 @@ describe.skipIf(!dockerAvailable)("subagent permission inheritance (gateway + sc
     expect(idle.child.permission_mode).toBe("full_auto");
     expect(idle.apiMode).toBe(PermissionMode.FULL_AUTO);
 
-    const missing = await spawn(parent.id, "missing-turn-id", "missing turn child");
+    const missingTurnId = Bun.randomUUIDv7();
+
+    const missing = await spawn(parent.id, missingTurnId, "missing turn child");
     expect(missing.child.permission_mode).toBe("full_auto");
     expect(missing.apiMode).toBe(PermissionMode.FULL_AUTO);
 
-    const narrowed = await spawn(parent.id, "missing-turn-id", "idle read only", "read_only");
+    const narrowed = await spawn(parent.id, missingTurnId, "idle read only", "read_only");
     expect(narrowed.child.permission_mode).toBe("read_only");
     expect(narrowed.apiMode).toBe(PermissionMode.READ_ONLY);
   });
