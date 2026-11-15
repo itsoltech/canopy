@@ -62,7 +62,7 @@ describe.skipIf(!dockerAvailable)("official harness account limits over WorkerLi
           ),
         Boolean,
       );
-      expect(usageWarnings(await usage(Provider.CODEX)).some((text) => text.includes("Weekly limit 92% used"))).toBe(
+      expect(usageWarnings(await usage(Provider.CODEX)).some((text) => text.includes("Weekly limit 8% left"))).toBe(
         true,
       );
       const failed = await f.send(thread.id, "LIMIT:reached");
