@@ -109,11 +109,12 @@ export async function coreReceiveBlob(
 ): Promise<void> {
   const uploads = hostContext[coreState].uploads.get(connection) ?? new Map();
   hostContext[coreState].uploads.set(connection, uploads);
-  const upload = uploads.get(chunk.sha256) ?? { chunks: [], size: 0, mimeType: chunk.mimeType };
+  const key = `${chunk.threadId}:${chunk.sha256}`;
+  const upload = uploads.get(key) ?? { chunks: [], size: 0, mimeType: chunk.mimeType };
 
   if (BigInt(upload.size) !== chunk.offset) {
     // A gap (a lost or repeated chunk): start over from this one only if it is the first.
-    uploads.delete(chunk.sha256);
+    uploads.delete(key);
 
     if (chunk.offset !== 0n) return;
     upload.chunks = [];
@@ -122,10 +123,10 @@ export async function coreReceiveBlob(
 
   upload.chunks.push(chunk.data);
   upload.size += chunk.data.length;
-  uploads.set(chunk.sha256, upload);
+  uploads.set(key, upload);
 
   if (upload.size > MAX_PREVIEW_BYTES) {
-    uploads.delete(chunk.sha256);
+    uploads.delete(key);
     coreLog(
       hostContext,
       `preview ${chunk.sha256.slice(0, 12)} from worker ${connection.workerId} is over ${formatSize(MAX_PREVIEW_BYTES)}; dropped`,
@@ -135,7 +136,7 @@ export async function coreReceiveBlob(
   }
 
   if (!chunk.last) return;
-  uploads.delete(chunk.sha256);
+  uploads.delete(key);
   const data = Buffer.concat(upload.chunks);
 
   if (sha256Hex(data) !== chunk.sha256 || !PREVIEW_TYPES.has(upload.mimeType)) {
@@ -147,7 +148,11 @@ export async function coreReceiveBlob(
     return;
   }
 
-  await coreAttachments(hostContext, (s) => s.putBlob(chunk.sha256, new Uint8Array(data), upload.mimeType));
+  await coreAttachments(hostContext, (s) =>
+    chunk.threadId
+      ? s.putThreadBlob(connection.workerId, chunk.threadId, chunk.sha256, new Uint8Array(data), upload.mimeType)
+      : s.putUnscopedBlob(chunk.sha256, new Uint8Array(data), upload.mimeType),
+  );
 }
 
 /** An attachment's bytes to the worker that runs its thread, in chunks (FetchBlob). */

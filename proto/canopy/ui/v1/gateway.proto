@@ -1879,6 +1879,12 @@ message UserSettings {
   SidebarSettings sidebar = 270;
   GeneralSettings general = 900;
   CliUpdateSettings cli_updates = 901;
+  ThreadRetentionSettings thread_retention = 902;
+}
+
+message ThreadRetentionSettings {
+  // 0 = disabled; otherwise 1–36500 full days since archiving. Deletion is permanent.
+  uint32 archived_thread_days = 1;
 }
 
 message CliUpdateSettings {
@@ -1959,6 +1965,7 @@ message UpdateUserSettingsRequest {
   SidebarSettings sidebar = 270;
   GeneralSettings general = 900;
   CliUpdateSettings cli_updates = 901;
+  ThreadRetentionSettings thread_retention = 902;
 }
 
 message UpdateUserSettingsResponse {

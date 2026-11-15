@@ -10,12 +10,13 @@ export class DatabaseMaintenance {
   constructor(
     readonly runtime: ReturnType<typeof gatewayRuntime>,
     readonly owner: string,
+    readonly threadsChanged?: (ids: readonly string[]) => Promise<void>,
   ) {}
 
   start() {
     this.#timer ??= setInterval(() => {
       this.#running ??= this.runtime
-        .runPromise(pruneDatabase(this.owner))
+        .runPromise(pruneDatabase(this.owner, this.threadsChanged))
         .then(
           (touched) => {
             if (touched) notifyDraftOwner(this.runtime, this.owner);

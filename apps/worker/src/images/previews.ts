@@ -102,7 +102,9 @@ export class PreviewStore {
     this.#sent.set(link, sent);
 
     for (const ref of previewRefs(item)) {
-      if (sent.has(ref.sha256)) continue;
+      const key = `${event.threadId}:${ref.sha256}`;
+
+      if (sent.has(key)) continue;
       let data: Uint8Array;
 
       try {
@@ -122,7 +124,7 @@ export class PreviewStore {
         });
       }
 
-      sent.add(ref.sha256);
+      sent.add(key);
     }
   }
 

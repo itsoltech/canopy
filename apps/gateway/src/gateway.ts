@@ -215,7 +215,7 @@ core.scheduler.start();
 
 void core.diagnostics.start();
 
-const maintenance = new DatabaseMaintenance(runtime, userId);
+const maintenance = new DatabaseMaintenance(runtime, userId, (ids) => core.threadsChanged(ids));
 
 maintenance.start();
 

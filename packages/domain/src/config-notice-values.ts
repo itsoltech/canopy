@@ -13,6 +13,7 @@ const LABELS = new Map(
     "general.confirmDelete": "Confirm delete",
     "composer.runningDelivery": "Enter during a turn",
     "cliUpdates.intervalMinutes": "CLI update checks",
+    "threadRetention.archivedThreadDays": "Delete archived threads after days",
     "threadDefaults.provider": "Default provider",
     "threadDefaults.providerProfileId": "Default instance",
     "threadDefaults.permissionMode": "Default permissions",

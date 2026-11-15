@@ -1,8 +1,9 @@
 # API dla UI i architektura frontendu
 
 Status (2026-11-15): web/desktop — bezpieczny HTML we wspólnym rendererze Markdown,
-lokalne obrazy w podglądzie plików oraz poprawione narożniki, typografia i ikony stosu paneli
-nad composerem są wdrożone; dostępność kanałów według
+lokalne obrazy w podglądzie plików, opcjonalna retencja archiwum oraz poprawione
+narożniki, typografia i ikony stosu paneli nad composerem są zaimplementowane;
+dostępność kanałów według
 [release.md](release.md).
 
 ## Proponowane odpowiedzi
@@ -1043,6 +1044,18 @@ Migracja `0026_sidebar_threads` dodaje metadane cyklu życia i znacznik nieprzec
 i rozwinięcie sekcji korzystają z JSON ustawień, bez osobnej tabeli.
 BFF: `POST /api/threads/:id/lifecycle`, `action`: `archive`, `unarchive`, `delete`, `restore`, `read`,
 `unread`. UI potwierdza usunięcie i oferuje toast „Undo” przez sześć sekund.
+
+`UserSettings.thread_retention` i `UpdateUserSettingsRequest.thread_retention`
+(pole **902**) zawierają `ThreadRetentionSettings.archived_thread_days` (**1**).
+`0` oznacza wyłączenie (także brak ustawienia), `1–36500` liczbę pełnych dni od
+`archived_at`. Zapis zastępuje tę sekcję z kontrolą `expected_version`; istniejące
+BFF i `OverviewUpdate.user_settings` przenoszą ją bez nowego endpointu.
+Sekcja podlega synchronizacji konfiguracji. Web/desktop i mobile udostępniają
+ustawienie w Settings → Threads → Archived threads, z jawnym zapisem, aby edycja
+liczby nie uruchomiła przypadkowo krótszej retencji.
+Po rozpoczęciu retencji wątek otrzymuje `deleted_at`, więc klienci używają zwykłej
+aktualizacji cyklu życia. `RestoreThread` odrzuca trwale usunięty wątek.
+To osobny kontrakt od odwracalnego ręcznego Delete; [database-retention.md](database-retention.md).
 
 `UpdateThread.title` umożliwia rename (`title_source=user`), a `RegenerateTitle` zleca asynchroniczną generację. Globalne ustawienia `textGeneration`, źródła tytułu i aktualizacje live opisuje [thread-titles.md](thread-titles.md).
 

@@ -21,6 +21,7 @@ type UserSection =
   | "textGeneration"
   | "sidebar"
   | "general"
+  | "threadRetention"
   | "cliUpdates";
 
 const userSchemas = {
@@ -31,6 +32,7 @@ const userSchemas = {
   textGeneration: ui.TextGenerationSettingsSchema,
   sidebar: ui.SidebarSettingsSchema,
   general: ui.GeneralSettingsSchema,
+  threadRetention: ui.ThreadRetentionSettingsSchema,
   cliUpdates: ui.CliUpdateSettingsSchema,
 } as const;
 
@@ -97,6 +99,12 @@ export class SettingsState {
     return this.#writeUser("cliUpdates", () =>
       create(ui.CliUpdateSettingsSchema, { ...(intervalMinutes !== undefined && { intervalMinutes }) }),
     );
+  }
+
+  async updateThreadRetention(archivedThreadDays: number): Promise<boolean> {
+    await this.#writeUser("threadRetention", () => create(ui.ThreadRetentionSettingsSchema, { archivedThreadDays }));
+
+    return this.#server.user.threadRetention?.archivedThreadDays === archivedThreadDays;
   }
 
   updateSidebar(change: Partial<DeviceSidebarValues>): void {

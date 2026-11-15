@@ -107,7 +107,7 @@ function useAppearanceState() {
     saving,
     reload,
     async update(patch: Partial<ui.UpdateUserSettingsRequest>) {
-      if (!client || !user || saving) return;
+      if (!client || !user || saving) return false;
       requests.current++;
       setSaving(true);
       setError("");
@@ -120,12 +120,16 @@ function useAppearanceState() {
 
         requests.current++;
         setUser(result.settings);
+
+        return true;
       } catch {
         setError("Could not save settings. Settings were refreshed; please try again.");
         void client.api
           .getSettings({})
           .then((r) => setUser(r.user))
           .catch(() => undefined);
+
+        return false;
       } finally {
         setSaving(false);
       }

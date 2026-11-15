@@ -65,6 +65,7 @@ export function applySettings(sql: SqlClient.SqlClient, owner: string, row: Conf
       ...(request.sidebar && { sidebar: request.sidebar }),
       ...(request.textGeneration && { textGeneration: request.textGeneration }),
       ...(request.cliUpdates && { cliUpdates: request.cliUpdates }),
+      ...(request.threadRetention && { threadRetention: request.threadRetention }),
       timezone: request.timezone ?? "",
     });
 
