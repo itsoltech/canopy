@@ -1,7 +1,7 @@
 import { clipboard, Menu, shell, type BrowserWindow } from "electron";
 import { contextMenuTemplate } from "./context-menu-template.ts";
 
-export function attachContextMenu(target: BrowserWindow) {
+export function attachContextMenu(target: BrowserWindow, internalOrigins: () => (string | undefined)[]) {
   const contents = target.webContents;
 
   // Chromium emits this only for contextmenu events the renderer has not cancelled.
@@ -15,6 +15,7 @@ export function attachContextMenu(target: BrowserWindow) {
         replaceMisspelling: (word) => contents.replaceMisspelling(word),
       },
       contents.session.isSpellCheckerEnabled(),
+      internalOrigins(),
     );
 
     if (template.length) Menu.buildFromTemplate(template).popup({ window: target });

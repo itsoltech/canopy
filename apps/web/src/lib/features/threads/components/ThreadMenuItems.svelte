@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { browser } from "$app/env";
   import type { ui } from "@canopy/contracts";
   import MenuItem from "#lib/shared/ui/MenuItem.svelte";
   import MenuSeparator from "#lib/shared/ui/MenuSeparator.svelte";
@@ -28,7 +29,7 @@
       Boolean(away),
       capabilities?.linkedComputers ?? false,
       onThisComputer(thread, actions.overview.worker(thread.workerId), capabilities?.ownGateway ?? false),
-    ).filter((item) => !omit.includes(item.id)),
+    ).filter((item) => !omit.includes(item.id) && !(item.id === "open" && browser && window.canopyDesktop)),
   );
 </script>
 

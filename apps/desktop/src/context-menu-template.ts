@@ -18,9 +18,11 @@ type MenuContext = Pick<
 >;
 
 /** External navigation from a message must never launch a local file or another protocol handler. */
-export function browserLink(url: string): boolean {
+export function browserLink(url: string, internalOrigins: readonly (string | undefined)[] = []): boolean {
   try {
-    return ["https:", "http:"].includes(new URL(url).protocol);
+    const parsed = new URL(url);
+
+    return ["https:", "http:"].includes(parsed.protocol) && !internalOrigins.includes(parsed.origin);
   } catch {
     return false;
   }
@@ -30,6 +32,7 @@ export function contextMenuTemplate(
   params: MenuContext,
   actions: ContextMenuActions,
   spellcheck: boolean,
+  internalOrigins: readonly (string | undefined)[] = [],
 ): MenuItemConstructorOptions[] {
   const items: MenuItemConstructorOptions[] = [];
   const flags = params.editFlags;
@@ -57,11 +60,11 @@ export function contextMenuTemplate(
     if (items.length) items.push({ type: "separator" });
     items.push({ label: "Copy link", click: () => actions.copyLink(params.linkURL) });
 
-    if (browserLink(params.linkURL))
+    if (browserLink(params.linkURL, internalOrigins))
       items.push({
         label: "Open link in browser",
         click: () => {
-          if (browserLink(params.linkURL)) actions.openExternal(params.linkURL);
+          if (browserLink(params.linkURL, internalOrigins)) actions.openExternal(params.linkURL);
         },
       });
   }

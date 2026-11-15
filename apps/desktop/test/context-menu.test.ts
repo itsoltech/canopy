@@ -81,3 +81,15 @@ test("spelling suggestions require spellcheck both in the session and in the fie
   expect(contextMenuTemplate({ ...editable, spellcheckEnabled: false }, actions, true)[0]?.role).toBe("undo");
   expect(contextMenuTemplate({ ...editable, isEditable: false }, actions, true)[0]?.role).toBe("copy");
 });
+
+test("internal desktop links never offer browser access", () => {
+  const origin = "http://127.0.0.1:25001";
+  const url = `${origin}/threads/example`;
+  expect(browserLink(url, [origin])).toBe(false);
+  expect(browserLink("https://example.com", [origin])).toBe(true);
+  expect(
+    contextMenuTemplate({ ...context, selectionText: "", linkURL: url }, actions, true, [origin]).map(
+      (item) => item.label,
+    ),
+  ).toEqual(["Copy link"]);
+});

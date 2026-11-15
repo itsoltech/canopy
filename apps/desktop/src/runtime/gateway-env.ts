@@ -1,5 +1,4 @@
-/** The local gateway: loopback only, the desktop role, and the web origin that HTTPS over Tailscale
- * forwards to (docs/tailscale.md). */
+/** The local gateway uses loopback and the desktop role; its BFF session stays private to main/controller. */
 export function localGatewayEnvironment(
   base: NodeJS.ProcessEnv,
   secrets: { secretsKey: string; serviceToken: string },

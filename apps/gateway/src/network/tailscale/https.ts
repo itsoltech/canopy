@@ -113,6 +113,8 @@ export class TailscaleHttps {
     const snapshot = this.options.tailscale.snapshot;
     const text = (value: string, admin = "") => ({ text: value, admin });
 
+    if (this.options.role === "desktop") return text("Open this computer in Canopy. Browser access is unavailable.");
+
     if (!this.options.webOrigin) return text("This gateway doesn't know where its web app runs.");
 
     if (snapshot.state !== "connected") return text("Connect this computer to Tailscale first.");
@@ -121,9 +123,6 @@ export class TailscaleHttps {
       return text("Turn on MagicDNS in the Tailscale admin console.", ADMIN_DNS);
 
     if (!this.options.tailscale.cli) return text("Install the Tailscale command-line tool to turn this on.");
-
-    if (!snapshot.login && this.options.role === "desktop")
-      return text("This computer is tagged in Tailscale, so Canopy can't check who opens it.");
 
     if (!snapshot.certDomains.includes(snapshot.dnsName))
       return text("Turn on HTTPS certificates in the Tailscale admin console.", ADMIN_DNS);

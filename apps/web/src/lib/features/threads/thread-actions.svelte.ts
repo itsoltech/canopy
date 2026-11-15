@@ -64,7 +64,7 @@ export class ThreadActions {
 
       switch (action) {
         case "open":
-          window.open(this.link(thread), "_blank", "noopener,noreferrer");
+          if (!window.canopyDesktop) window.open(this.link(thread), "_blank", "noopener,noreferrer");
           break;
         case "new":
           await goto(`/?project=${encodeURIComponent(thread.projectId)}`);
