@@ -576,7 +576,11 @@ Feed jest obserwowany od montowania do dwóch klatek JS po layout; opóźnienia 
 nie są miarą płynności natywnego UI. Web używa buforowanego Paint Timing dla FCP.
 
 Gateway dopuszcza 30 aktywnych kanałów nadawca/źródło i 30 wspólnych limitów
-nadawców, wygasających po pięciu minutach. Tożsamość pochodzi z tokenu urządzenia
+nadawców, wygasających po pięciu minutach. Kanał przyjmuje najwyżej dwie nowe sesje
+(np. przeładowania strony) w przesuwnym oknie pięciu minut; trzecia dostaje
+`ResourceExhausted`, a wycofana sesja jest ignorowana do końca swojego okna. Okno jest
+dłuższe niż tolerancja świeżości partii (±120 s), więc po jego końcu stare partie nie
+dają się powtórzyć. Tożsamość pochodzi z tokenu urządzenia
 lub HttpOnly cookie nadanego przez BFF. Etykiety mają wyłącznie stałe numery 300–399 i 450–455.
 Numery 450–455 obejmują liczbę odzyskań osi czasu i czas żądanie starszej strony →
 gotowość renderera, osobno dla web, desktop i mobile; nie dodają etykiet z treści.

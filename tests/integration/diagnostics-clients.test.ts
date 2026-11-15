@@ -190,6 +190,42 @@ describe.skipIf(!dockerAvailable)("client diagnostics auth, redaction and explic
     expect(collector.budget.used).toBeLessThanOrEqual(6 * 1024 * 1024);
   });
 
+  test("session restarts are limited per sliding five-minute window and retired sessions stay fenced", () => {
+    const clients = new ClientDiagnostics(gw.core.diagnostics.collector, () => sample.epoch);
+    const start = Date.now();
+    const minute = (n: number) => start + n * 60_000;
+
+    const submit = (session: string, sequence: bigint, now: number, end = now) =>
+      clients.submit(
+        create(ui.SubmitDiagnosticsRequestSchema, {
+          ...sample.take(now),
+          epoch: sample.epoch,
+          session,
+          sequence,
+          startMs: BigInt(end - 30_000),
+          endMs: BigInt(end),
+        }),
+        "restarts",
+        false,
+        now,
+      );
+
+    // A reload every three minutes while each session keeps submitting once per minute.
+    for (let i = 0; i < 8; i++)
+      for (let n = 0; n < 3; n++)
+        expect(submit(`reloaded-session-${i}`, BigInt(n + 1), minute(3 * i + n)).accepted).toBe(true);
+
+    // Session 6 retired at minute 21 and stays ignored; one more restart fits, a third within five minutes does not.
+    expect(submit("reloaded-session-6", 4n, minute(23)).accepted).toBe(false);
+    expect(submit("restart-session-0", 1n, minute(23)).accepted).toBe(true);
+    expect(() => submit("restart-session-1", 1n, minute(24))).toThrow("Diagnostics session limit reached");
+    // When the minute-21 retirement leaves the window, the next restart is accepted; minute 23's is still fenced.
+    expect(submit("restart-session-1", 1n, minute(26) + 1).accepted).toBe(true);
+    expect(submit("reloaded-session-7", 4n, minute(26) + 1).accepted).toBe(false);
+    // Batches accepted before a retirement are stale by the time it expires, so they cannot be replayed.
+    expect(() => submit("reloaded-session-0", 3n, minute(26) + 1, minute(2))).toThrow("schema or size limit");
+  });
+
   test("redacts identifiers and bounds reports with explicit omissions", async () => {
     const value = await detail();
     const secret = "private-name-path-secret";
