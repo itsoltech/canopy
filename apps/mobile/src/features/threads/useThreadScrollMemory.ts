@@ -107,6 +107,8 @@ export function useThreadScrollMemory(
       const item = items.get(initial.key);
 
       if (!item) {
+        // Restoring a reading position: the feed must not pull it back to the end meanwhile.
+        following.restoreReading();
         following.list.current?.scrollToIndex({ index: target.index, animated: false, viewPosition: 1 });
       } else
         following.list.current?.getNativeScrollRef()?.measureInWindow((_x: number, edge: number) => {
@@ -123,6 +125,12 @@ export function useThreadScrollMemory(
     },
     [initial, items, finish],
   );
+
+  // A short thread fills the viewport-high content container both before and after it loads, so no layout or
+  // content size event reports its arrival (a new thread's first message).
+  useEffect(() => {
+    if (loaded) restore();
+  }, [loaded, restore]);
 
   useFocusEffect(
     useCallback(() => {

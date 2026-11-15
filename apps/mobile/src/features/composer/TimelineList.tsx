@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState, type Ref } from "react";
+import { useCallback, useEffect, useState, type ReactElement, type Ref } from "react";
 import { Platform, FlatList, type FlatListProps, type ScrollViewProps } from "react-native";
 import { KeyboardChatScrollView, useKeyboardContext } from "react-native-keyboard-controller";
 import Animated, {
   useAnimatedScrollHandler,
+  useAnimatedStyle,
   useComposedEventHandler,
   useDerivedValue,
   useSharedValue,
@@ -20,6 +21,13 @@ import { useKeyboardFrame } from "../../ui/KeyboardWindow";
 
 const android = Platform.OS === "android";
 
+/** The composer reserve laid out under the latest row (an inverted list's header is its visual bottom). */
+function Reserve({ height }: { height: SharedValue<number> }) {
+  const style = useAnimatedStyle(() => ({ height: height.get() }));
+
+  return <Animated.View pointerEvents="none" style={style} />;
+}
+
 /**
  * Inverted: the oldest end gets the floating header inset; the latest end has its composer reserve. A Reanimated
  * list, so scroll handlers (following, the composer's fold) run on the UI thread.
@@ -30,13 +38,16 @@ export function TimelineList<Item>({
   onLayout,
   onContentSizeChange,
   composerInset,
+  ListHeaderComponent,
   ...props
-}: Omit<AnimatedProps<FlatListProps<Item>>, "onScroll" | "onLayout" | "onContentSizeChange"> & {
+}: Omit<AnimatedProps<FlatListProps<Item>>, "onScroll" | "onLayout" | "onContentSizeChange" | "ListHeaderComponent"> & {
   ref?: Ref<FlatList<Item>>;
   onScroll?: ScrollHandlerProcessed;
   onLayout?: FlatListProps<Item>["onLayout"];
   onContentSizeChange?: FlatListProps<Item>["onContentSizeChange"];
   composerInset?: SharedValue<number>;
+  /** Under the latest row (inverted). */
+  ListHeaderComponent?: ReactElement;
 }) {
   const insets = useContentInsets();
   // Reanimated's convenience FlatList replaces CellRendererComponent. Use its base wrapper so the
@@ -46,17 +57,20 @@ export function TimelineList<Item>({
   const keyboard = useKeyboardFrame();
   const nativeKeyboard = useKeyboardContext().reanimated;
 
-  const safePadding = useDerivedValue(() => {
-    const reserve = insets.bottom + (composerInset?.get() ?? 0);
+  const reserve = useDerivedValue(() => insets.bottom + (composerInset?.get() ?? 0));
 
-    if (!android) return reserve;
+  // Android's chat scroller shows its inset by translating the content natively. React's layout does not see that
+  // offset, so a press in a row cancels on the slightest finger movement, and each inset change scrolls the list by
+  // its delta. The reserve is a row there instead (`Reserve`); the native inset carries only the keyboard.
+  const safePadding = useDerivedValue(() => {
+    if (!android) return reserve.get();
 
     // The chat scroller already adds its native keyboard inset. Only reconcile the difference from
     // Android's settled bounds, so a missed frame stream cannot leave the latest message under the IME.
     const settled = Math.max(0, -keyboard.height.get() - insets.bottom * keyboard.progress.get());
     const native = Math.max(0, -nativeKeyboard.height.get() - insets.bottom * nativeKeyboard.progress.get());
 
-    return reserve + settled - native;
+    return settled - native;
   });
 
   const [viewport] = useState(() => new ImageViewport());
@@ -106,6 +120,16 @@ export function TimelineList<Item>({
     <ImageViewportContext.Provider value={viewport}>
       <AnimatedTimelineList
         {...props}
+        ListHeaderComponent={
+          android ? (
+            <>
+              {ListHeaderComponent}
+              <Reserve height={reserve} />
+            </>
+          ) : (
+            ListHeaderComponent
+          )
+        }
         nestedScrollEnabled
         // Android clipping detaches native WebViews inside inverted cells, even while React retains the row.
         // FlatList still virtualizes/unmounts distant turns; this only disables native view detachment.

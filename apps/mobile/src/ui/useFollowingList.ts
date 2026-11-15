@@ -1,8 +1,15 @@
 import { useCallback, useState } from "react";
 import { Platform, type FlatList, type FlatListProps } from "react-native";
-import { useAnimatedRef, useAnimatedScrollHandler, useDerivedValue, useSharedValue } from "react-native-reanimated";
+import {
+  scrollTo,
+  useAnimatedRef,
+  useAnimatedScrollHandler,
+  useDerivedValue,
+  useSharedValue,
+} from "react-native-reanimated";
 import { useKeyboardFrame } from "./KeyboardWindow";
 import { useContentInsets } from "./ScreenFrame";
+import { useReaderMotion } from "./useReaderMotion";
 import { scheduleOnRN } from "react-native-worklets";
 
 /** Within this distance of the latest message the list counts as at the bottom and keeps following. */
@@ -21,6 +28,7 @@ export function useFollowingList<Item>(keyboardChat = false, initialComposerHeig
   const corrections = useSharedValue(0);
   const bottom = useSharedValue(true);
   const anchoring = useSharedValue(false);
+  const reader = useReaderMotion(anchoring);
   const keyboard = useKeyboardFrame();
   const composerInset = useSharedValue(initialComposerHeight);
   const insets = useContentInsets();
@@ -46,23 +54,37 @@ export function useFollowingList<Item>(keyboardChat = false, initialComposerHeig
 
   const isFollowing = useCallback(() => distance(scrollY.get()) <= FOLLOW_THRESHOLD, [scrollY, distance]);
 
-  /** Records a scroll position (a worklet: scroll handlers call it on the UI thread). */
+  /** Records a scroll position (a worklet: scroll handlers call it on the UI thread). `own`: a position this
+   * feed just set itself (an anchor correction), which the reader then reads from. */
   const track = useCallback(
-    (y: number) => {
+    (y: number, own = false) => {
       "worklet";
+      const away = distance(y);
+
+      if (away <= 0.5) reader.arrived();
+
+      // Android keeps the first visible row in place when rows arrive under it (a sent message, the answer it
+      // starts): a reader following the end stays there instead, as on the web.
+      if (!ios && !own && away > 0.5 && bottom.get() && !anchoring.get() && reader.idle()) {
+        scrollTo(list, 0, minimum.get(), false);
+
+        return;
+      }
+
       scrollY.set(y);
 
       if (anchoring.get()) return;
-      const at = distance(y) <= FOLLOW_THRESHOLD;
+      const at = away <= FOLLOW_THRESHOLD;
 
       if (at === bottom.get()) return;
       bottom.set(at);
       scheduleOnRN(setAtBottom, at);
     },
-    [scrollY, bottom, distance, anchoring],
+    [scrollY, bottom, distance, anchoring, reader, list, minimum, ios],
   );
 
   function jump(animated: boolean) {
+    reader.seek(animated);
     anchoring.set(false);
     corrections.set(corrections.get() + 1);
     const end = minimum.get();
@@ -73,9 +95,14 @@ export function useFollowingList<Item>(keyboardChat = false, initialComposerHeig
   }
 
   const onScroll = useAnimatedScrollHandler({
-    onBeginDrag: () => anchoring.set(false),
+    onBeginDrag: reader.begin,
+    onEndDrag: reader.end,
+    onMomentumBegin: reader.momentum,
     onScroll: (event) => track(event.contentOffset.y),
-    onMomentumEnd: (event) => track(event.contentOffset.y),
+    onMomentumEnd: (event) => {
+      track(event.contentOffset.y);
+      reader.end();
+    },
   });
 
   let anchor: FlatListProps<Item>["maintainVisibleContentPosition"] = {
@@ -95,6 +122,7 @@ export function useFollowingList<Item>(keyboardChat = false, initialComposerHeig
     isFollowing,
     atBottom,
     track,
+    reader,
     distance,
     minimum,
     corrections,

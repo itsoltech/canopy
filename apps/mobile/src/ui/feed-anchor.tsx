@@ -151,7 +151,7 @@ export function useAnchoredToggle() {
     scheduleOnUI(() => {
       if (geometry.generation.get() !== id) return;
       geometry.anchoring.set(false);
-      geometry.track(geometry.scrollY.get());
+      geometry.track(geometry.scrollY.get(), true);
     });
   };
 
