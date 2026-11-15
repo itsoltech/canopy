@@ -353,6 +353,10 @@ Nagłówek: „Applying settings for **[All projects | projekt]** across **[All 
 Każde pole pokazuje wartość efektywną; nadpisane w bieżącym zakresie ma „Reset” (wraca do wartości
 odziedziczonej, opisanej skąd pochodzi). Zapis od razu, z wersją; konflikt przeładowuje.
 
+`?project=<id>` otwiera stronę od razu w zakresie tego projektu. Ustawienia projektu (Settings → Projects →
+projekt) mają grupę **Worktrees** z tym samym Default workspace w zakresie projekt × All computers: wybór
+checkoutu albo nowego worktree per projekt bez szukania zakresu na stronie Worktrees.
+
 ### Kompozytor nowego wątku
 
 Pod polem wiadomości, obok pickera maszyny: **workspace picker** (pill z ikoną gałęzi):

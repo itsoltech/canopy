@@ -1,7 +1,7 @@
 <script lang="ts">
   import { applicationName } from "#lib/application-name.ts";
   import { ui } from "@canopy/contracts";
-  import { setContext } from "svelte";
+  import { setContext, untrack } from "svelte";
   import WorktreeChoiceSetting from "#lib/features/worktrees/WorktreeChoiceSetting.svelte";
   import WorktreeScopeBar from "#lib/features/worktrees/WorktreeScopeBar.svelte";
   import WorktreeSettingRow from "#lib/features/worktrees/WorktreeSettingRow.svelte";
@@ -24,6 +24,7 @@
   import { workerRecords } from "#lib/features/workers/worker-records.svelte.ts";
   import { splitId } from "@canopy/domain/computers";
   import RecordedWorktreeSettings from "#lib/features/worktrees/RecordedWorktreeSettings.svelte";
+  import { useSettingsRoute } from "#lib/features/settings/settings-route.ts";
 
   /** Settings → Worktrees (docs/worktrees.md): creation, branch names and the default for new threads, per scope. */
   const settingsState = new WorktreeSettingsState();
@@ -32,7 +33,13 @@
 
   setContext("worktree-settings", settingsState);
 
-  let scope = $state<WorktreeScope>({ projectId: "", workerId: "" });
+  const route = useSettingsRoute();
+
+  // `?project=` (from the project's settings) opens that project's scope.
+  let scope = $state<WorktreeScope>({
+    projectId: untrack(() => route.url.searchParams.get("project")) ?? "",
+    workerId: "",
+  });
 
   const reason = $derived(records.readOnly(scope.workerId));
 

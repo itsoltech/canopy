@@ -75,6 +75,7 @@ projektów, poświadczeń, zaproszeń ani zasobów. Domyślne „brak” oznacza
 | Text generation | Provider instance; Model; Effort; Thread title instructions | konto: automatic, provider default, provider default, puste | Generowanie tytułów i semantycznych nazw gałęzi |
 | Scheduled tasks | Target; prompt; run time / recurrence; pause/resume; edit/duplicate/cancel | konto/zasób: brak zadań | Harmonogram rzeczywistych tur, nie preferencja UI |
 | Projects | Workspaces (worker/root path); thread defaults | konto/projekt: brak, dziedziczenie | Miejsce uruchomienia i nadpisania nowych wątków w kompozytorze web; nazwa powstaje przy tworzeniu projektu (bez zmiany nazwy w UI) |
+| Projects / Worktrees | Default workspace | projekt × wszystkie komputery: dziedziczenie | Skrót do zakresu projektu z Settings → Worktrees (ta sama wartość); link „Worktree settings” otwiera stronę Worktrees z tym projektem (`?project=`) |
 | Worktrees / Scope | Project; computer | konto: wszystkie × wszystkie | Zakres dziedziczenia ustawień worktree |
 | Worktrees / Creation | Location; Start from remote; Remote | konto/zakres: managed (`~/canopy/worktrees` workera; w zakresie komputera UI pokazuje zgłoszoną ścieżkę), Off, origin | Tworzenie katalogu i wybór podstawy gałęzi |
 | Worktrees / Branches | Branch naming; Branch prefix; default workspace mode | konto/zakres: semantic, canopy, current checkout | Nowe gałęzie i początkowy tryb kompozytora. Opcja Thread title jest „Soon”: nowe wątki nie wysyłają tytułu, a gałąź nie zmienia nazwy po wygenerowaniu tytułu |
