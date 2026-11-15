@@ -204,6 +204,8 @@ export class WorkspaceCopyJobs {
 
   async #run(row: JobRow, running: Running, ready?: PromiseWithResolvers<void>) {
     let failures = 0;
+    // Only the client's own first attempt can be refused outright; later failures are the job's.
+    let answered = false;
 
     for (;;) {
       if (!(await this.store.status(row.id, "copying", { from: [...OPEN_STATUSES] }))) return;
@@ -241,7 +243,9 @@ export class WorkspaceCopyJobs {
 
         if (running.reason === "shutdown") return;
 
-        if (ready && !reporter.started) {
+        answered ||= reporter.started;
+
+        if (ready && !answered) {
           await this.store.status(row.id, "failed", { error: copyMessage(error) });
           await this.store.remove(row.id);
           throw error;
