@@ -340,7 +340,7 @@ wykonaniu; `CHECKOUT` i `NEW_WORKTREE` wybierają miejsce jawnie (`base_ref` opc
 placement `specific`; kopiuje miejsce istniejącego wątku, bez historii. Tworzenie nowego worktree
 wymaga połączonego workera: harmonogram offline zachowuje wystąpienie i ponawia, a checkout lub
 dziedziczenie istniejącego worktree zachowuje dotychczasowy outbox. Nowe rekordy podlegają tym samym
-politykom deleted/settled i ochronie zmian. Szczegóły: [worktrees.md](worktrees.md).
+politykom deleted/archived i ochronie zmian. Szczegóły: [worktrees.md](worktrees.md).
 
 | Polityka | Wybór workspace |
 |---|---|

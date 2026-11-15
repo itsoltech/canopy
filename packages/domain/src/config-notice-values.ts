@@ -93,7 +93,7 @@ const POLICY_LABELS = new Map(
     cleanupDeletedThreads: "Deleted threads",
     cleanupMerged: "Merged branches",
     cleanupInactiveDays: "Inactive for days",
-    cleanupSettled: "Settled threads",
+    cleanupSettled: "Archived threads",
     cleanupUnchanged: "Unchanged worktrees",
     keepLocalChanges: "Keep worktrees with local changes",
     deleteLocalBranch: "Delete safe local branches",

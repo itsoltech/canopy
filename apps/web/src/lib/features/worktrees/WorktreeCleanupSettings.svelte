@@ -28,8 +28,8 @@
     },
     {
       field: "cleanupSettled",
-      title: "Settled threads",
-      description: "Remove worktrees whose threads are archived or have completed their latest turn.",
+      title: "Archived threads",
+      description: "Remove a worktree once all its threads are archived.",
     },
     {
       field: "cleanupUnchanged",
