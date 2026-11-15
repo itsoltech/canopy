@@ -160,6 +160,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "146_github_pr_last_known",
       "147_workspace_copy_jobs",
       "148_pr_check_watches",
+      "149_proxy_account_plans",
     ]);
   }, 60_000);
 

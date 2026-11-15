@@ -1,4 +1,5 @@
 import { ui } from "@canopy/contracts";
+import { create } from "@bufbuild/protobuf";
 import type { GatewayCore } from "./core.ts";
 import { coreState } from "./core-context.ts";
 import { coreConfigsChanged, coreInstances } from "./core-providers.ts";
@@ -9,10 +10,17 @@ export interface CoreProxyMethods {
   deleteProxy(request: ui.ProxyIdRequest): Promise<void>;
   testProxy(request: ui.ProxyIdRequest): Promise<ui.TestProxyResponse>;
   refreshProxyAccounts(request: ui.RefreshProxyAccountsRequest): Promise<ui.ProxyAccounts>;
+  setProxyAccountPlan(request: ui.SetProxyAccountPlanRequest): Promise<ui.ProxyAccounts>;
   moveInstanceToProxy(request: ui.MoveInstanceToProxyRequest): Promise<ui.ProviderInstance>;
 }
 
 export const coreProxyMethods: CoreProxyMethods = {
+  async setProxyAccountPlan(this: GatewayCore, request) {
+    const value = await coreInstances(this, (s) => s.setProxyAccountPlan(this[coreState].options.userId, request));
+    this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "proxyAccounts", value } }));
+
+    return value;
+  },
   async listProxies(this: GatewayCore) {
     return coreInstances(this, (s) => s.listProxies(this[coreState].options.userId));
   },

@@ -153,6 +153,7 @@ export class GatewayCore {
   declare deleteProxy: CoreProvidersMethods["deleteProxy"];
   declare testProxy: CoreProvidersMethods["testProxy"];
   declare refreshProxyAccounts: CoreProvidersMethods["refreshProxyAccounts"];
+  declare setProxyAccountPlan: CoreProvidersMethods["setProxyAccountPlan"];
   declare moveInstanceToProxy: CoreProvidersMethods["moveInstanceToProxy"];
   declare saveProviderInstance: CoreProvidersMethods["saveProviderInstance"];
   declare deleteProviderInstance: CoreProvidersMethods["deleteProviderInstance"];

@@ -8,12 +8,24 @@
   import UsageMeters from "#lib/features/providers/UsageMeters.svelte";
   import Badge from "#lib/shared/ui/Badge.svelte";
   import Sensitive from "#lib/shared/ui/Sensitive.svelte";
+  import ProxyPlanPicker from "./ProxyPlanPicker.svelte";
 
   /**
    * One upstream account of a proxy: provider mark, account, status badge, the limits the proxy last saw and its
    * last message. Every text is the gateway's sanitized plain text and renders as text, never as HTML.
    */
-  let { account, compact = false }: { account: ui.ProxyAccount; compact?: boolean } = $props();
+  let {
+    account,
+    compact = false,
+    proxyId,
+    onread,
+  }: {
+    account: ui.ProxyAccount;
+    compact?: boolean;
+    proxyId?: string;
+    onread?: (accounts: ui.ProxyAccounts) => void;
+  } = $props();
+
   const look = $derived(proxyAccountLook(account.status));
   const mark = $derived(proxyAccountMark(account.provider));
   const plan = $derived(proxyPlanName(account.plan));
@@ -46,14 +58,15 @@
         class="max-w-24 shrink-0 truncate text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
         >{proxyProviderName(account.provider)}</span
       >{/if}
-    <div class="max-w-24 shrink-0 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
-      {plan ?? "Unknown plan"}{!weight.unknown ? ` · ×${weight.units}` : ""}
-    </div>
+    {#if !proxyId || !onread}<div class="max-w-24 shrink-0 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
+        {plan ?? "Unknown plan"}{!weight.unknown ? ` · ×${weight.units}` : ""}
+      </div>{/if}
     <div class="min-w-0 flex-1 text-base/6 text-zinc-950 sm:text-sm/6 dark:text-white">
       {#if account.label}<Sensitive value={account.label} label="Account identity" truncate />{:else}Unnamed account{/if}
     </div>
     {#if !compact || account.status !== "active"}<Badge tone={look.tone} compact>{look.label}</Badge>{/if}
   </div>
+  {#if proxyId && onread}<ProxyPlanPicker {proxyId} {account} {onread} />{/if}
   {#if plan && weight.unknown}<p class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
       Unknown plan · capacity counted as ×1
     </p>{/if}

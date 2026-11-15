@@ -25,6 +25,7 @@ export function providersHandlers(
   | "deleteProxy"
   | "testProxy"
   | "refreshProxyAccounts"
+  | "setProxyAccountPlan"
   | "moveInstanceToProxy"
   | "getInstanceWorker"
 > {
@@ -51,6 +52,7 @@ export function providersHandlers(
       }),
     testProxy: (request) => guard(() => core.testProxy(request)),
     refreshProxyAccounts: (request) => guard(() => core.refreshProxyAccounts(request)),
+    setProxyAccountPlan: (request) => guard(() => core.setProxyAccountPlan(request)),
     moveInstanceToProxy: (request) =>
       guard(async () =>
         create(ui.SaveProviderInstanceResponseSchema, { instance: await core.moveInstanceToProxy(request) }),

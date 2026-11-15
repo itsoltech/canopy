@@ -79,7 +79,7 @@ export function ProxyAccounts({ proxy, onRead }: { proxy: ui.Proxy; onRead: () =
               key={account.id}
               style={{ borderTopWidth: index ? StyleSheet.hairlineWidth : 0, borderColor: c.ring }}
             >
-              <ProxyAccountRow account={account} now={now} />
+              <ProxyAccountRow account={account} now={now} proxyId={proxy.id} onRead={onRead} />
             </View>
           ))}
         </View>

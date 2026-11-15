@@ -11,6 +11,7 @@ export const proxyActions = {
   delete: [ui.ProxyIdRequestSchema, ui.DeleteProxyResponseSchema],
   test: [ui.ProxyIdRequestSchema, ui.TestProxyResponseSchema],
   accounts: [ui.RefreshProxyAccountsRequestSchema, ui.ProxyAccountsSchema],
+  plan: [ui.SetProxyAccountPlanRequestSchema, ui.ProxyAccountsSchema],
 } as const satisfies Record<string, readonly [DescMessage, DescMessage]>;
 
 export type ProxyAction = keyof typeof proxyActions;

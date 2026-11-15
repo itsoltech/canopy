@@ -133,6 +133,7 @@ service GatewayService {
   rpc TestProxy(ProxyIdRequest) returns (TestProxyResponse);
   // Upstream accounts of a CLIProxyAPI proxy through its management API (docs/proxies.md); the gateway calls it.
   rpc RefreshProxyAccounts(RefreshProxyAccountsRequest) returns (ProxyAccounts);
+  rpc SetProxyAccountPlan(SetProxyAccountPlanRequest) returns (ProxyAccounts);
   // Move stored endpoint variables without returning their values to the client.
   rpc MoveInstanceToProxy(MoveInstanceToProxyRequest) returns (SaveProviderInstanceResponse);
   rpc GetClientCapabilities(ClientCapabilitiesRequest) returns (ClientCapabilities);
@@ -2339,6 +2340,7 @@ enum ProxyAccountPlan {
   PROXY_ACCOUNT_PLAN_FREE = 1;
   PROXY_ACCOUNT_PLAN_PLUS = 2;
   PROXY_ACCOUNT_PLAN_PRO = 3;
+  // Claude Team = Max 5x: user-provided equivalence, 2026-11-15 (not provider-verified).
   PROXY_ACCOUNT_PLAN_TEAM = 4;
   PROXY_ACCOUNT_PLAN_BUSINESS = 5;
   PROXY_ACCOUNT_PLAN_ENTERPRISE = 6;
@@ -2372,6 +2374,11 @@ message ProxyAccount {
   uint64 success_count = 8;
   uint64 failure_count = 9;
   ProxyAccountPlan plan = 10;
+  // Detection remains available while a manual plan takes precedence in `plan`.
+  ProxyAccountPlan detected_plan = 11;
+  optional ProxyAccountPlan manual_plan = 12;
+  // Opaque account identity for manual settings; empty when upstream has no stable identity.
+  string plan_key = 13;
 }
 message ProxyAccounts {
   string proxy_id = 1;
@@ -2386,6 +2393,12 @@ message RefreshProxyAccountsRequest {
   string id = 1;
   // A Refresh button: read now, also after an auth failure. Otherwise a recent read answers.
   bool force = 2;
+}
+message SetProxyAccountPlanRequest {
+  string proxy_id = 1;
+  string account_key = 2;
+  // UNSPECIFIED clears the manual choice and returns to detection.
+  ProxyAccountPlan plan = 3;
 }
 message ListProxiesRequest {}
 message ListProxiesResponse { repeated Proxy proxies = 1; }
