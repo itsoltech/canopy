@@ -48,6 +48,7 @@ export function ThreadArchiveSwipe({ thread, children }: { thread: ui.Thread; ch
 
   const handlers = useMemo(() => {
     const timing = (duration: number) => ({ duration, easing: smoothOut });
+
     const reset = () => {
       shown.set(withTiming(1, timing(motion.fast)));
       offset.set(reduced ? 0 : withTiming(0, timing(motion.quick)));
