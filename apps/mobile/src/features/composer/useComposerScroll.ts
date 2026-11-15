@@ -23,7 +23,7 @@ export function useComposerScroll<Item>(
   const viewport = useSharedValue(0);
   const correction = useSharedValue(0);
   const inset = useSharedValue(0);
-  const { track, distance, minimum, corrections, anchoring } = following;
+  const { track, reader: gesture, distance, minimum, corrections } = following;
   const keyboardMoving = useKeyboardMotion(reader, travel);
 
   const reset = useCallback(() => {
@@ -35,7 +35,7 @@ export function useComposerScroll<Item>(
 
   const onScroll = useAnimatedScrollHandler({
     onBeginDrag: (event) => {
-      anchoring.set(false);
+      gesture.begin();
       reader.set(!moving.get() && !keyboardMoving.get());
       travel.set(0);
       returning.set(0);
@@ -46,10 +46,18 @@ export function useComposerScroll<Item>(
       inset.set(minimum.get());
     },
     // Only the finger can change the composer; taps that stop momentum cannot inherit an old drag.
-    onEndDrag: reset,
+    onEndDrag: () => {
+      gesture.end();
+      reset();
+    },
+    onMomentumBegin: gesture.momentum,
     onMomentumEnd: (event) => {
       reset();
       track(event.contentOffset.y);
+      gesture.end();
+
+      // A fling that lands at the end opens the composer, as a drag back there does (web: a reader at the end).
+      if (distance(event.contentOffset.y) <= END_DISTANCE) fold(false);
     },
     onScroll: (event) => {
       const fromEnd = distance(event.contentOffset.y);
