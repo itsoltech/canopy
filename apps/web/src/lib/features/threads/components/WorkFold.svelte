@@ -4,6 +4,8 @@
   import Rule from "#lib/shared/ui/Rule.svelte";
   import LiveTime from "#lib/shared/ui/LiveTime.svelte";
   import { runningAnimation } from "#lib/shared/activity.ts";
+  import { Settled } from "#lib/shared/settled.svelte.ts";
+  import { WORK_HINT_SETTLE_MS } from "@canopy/domain/work-summary";
   import type { ClassValue } from "svelte/elements";
   import type { WorkSummary } from "../work-groups.ts";
   import type { ui } from "@canopy/contracts";
@@ -34,6 +36,8 @@
           : "Worked for",
   );
 
+  const hint = new Settled(() => summary.hint, WORK_HINT_SETTLE_MS);
+
   // An ended turn whose fold holds nothing: the duration as plain text, no chevron, nothing to open.
   const empty = $derived(!summary.live && summary.size === 0);
 </script>
@@ -60,8 +64,8 @@
         return `${label}${!starting && span !== undefined ? `\u00a0${formatSpan(span)}` : ""}`;
       }}
     />
-    {#if summary.live && !starting}<span class="min-w-0 truncate text-zinc-400 dark:text-zinc-500" title={summary.hint}
-        >{summary.hint}</span
+    {#if summary.live && !starting}<span class="min-w-0 truncate text-zinc-400 dark:text-zinc-500" title={hint.current}
+        >{hint.current}</span
       >
     {:else if summary.counts}<span class="min-w-0 truncate text-zinc-400 dark:text-zinc-500">{summary.counts}</span
       >{/if}

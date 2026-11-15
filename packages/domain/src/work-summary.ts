@@ -160,6 +160,12 @@ export function groupSummary(items: readonly Item[]): WorkGroupSummary {
 }
 
 /**
+ * How long a new hint must hold before a header shows it: a short call between thoughts would otherwise flash its
+ * label for a frame or two.
+ */
+export const WORK_HINT_SETTLE_MS = 400;
+
+/**
  * What a live fold is doing now. Only active work supplies a hint; finished calls never read as still running.
  * `running`: whether an item still runs (a command's background task can outlive it).
  */
