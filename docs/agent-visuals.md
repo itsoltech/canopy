@@ -1,6 +1,7 @@
 # Obrazy w odpowiedziach i interaktywne visuals
 
-Status: **obrazy, `render_visual` i `render_html` wdrożone** w web/desktop/mobile.
+Status: **obrazy, `render_visual` i `render_html` wdrożone** w web/desktop/mobile
+(2026-11-15); galerie `show_images` pojawiają się po zakończeniu ich tury.
 Dokument opisuje bieżący kontrakt publikacji, odczytu i izolacji. Limity struktur
 są sprawdzane przez kod; budżety CPU, pamięci klientów i płynności pozostają celami
 wymagającymi pomiarów. Własny HTML ma odrębny model wykonania i ryzyka (§9).
@@ -161,6 +162,14 @@ To jawny, żywy podgląd do 2 MiB: wymaga osiągalnego workera, może zobaczyć 
 treść i przestaje działać po usunięciu pliku. Nie jest podstawą trwałej galerii.
 
 ### Galeria, telefon i połączone komputery
+
+Galerie `show_images` w web/desktop/mobile pojawiają się pod odpowiedzią dopiero
+po zakończeniu swojej tury (`completed`, `interrupted`, `failed`, `cancelled`),
+również przy zwiniętej sekcji pracy. W aktywnej turze nie zajmują miejsca na osi
+czasu i nie pobierają miniatur. Publikacja nadal od razu zapisuje trwałą kopię;
+odłożony jest tylko widok. Przeładowanie wątku stosuje tę samą regułę, a obrazy
+z poprzednich tur pozostają widoczne podczas kolejnej. Interaktywne visuals
+pozostają dostępne w trakcie pracy; obrazy Markdown zachowują pozycję w tekście.
 
 Galeria pokazuje maksymalnie 6 miniatur w 3 kolumnach desktopu i 2 telefonu;
 „Show all 10” rozwija resztę bez pobierania pełnych obrazów. `width`/`height`
