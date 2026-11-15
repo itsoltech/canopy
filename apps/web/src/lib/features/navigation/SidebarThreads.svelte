@@ -42,15 +42,18 @@
     const id = currentThreadId;
     void overview.resyncs;
     let cancelled = false;
-    fetchedCurrent = undefined;
 
-    // An archived main is intentionally absent from the active overview, including on a direct URL.
+    // An archived main is intentionally absent from the active overview, including on a direct URL. The copy
+    // fetched before stays until this one answers (`current` ignores another thread's): a refetch after a
+    // resync would otherwise drop the archived card for a moment and bring it back.
     if (id)
       void requestJson("GET", `/api/threads/${encodeURIComponent(id)}`)
         .then((response) => {
           if (!cancelled) fetchedCurrent = decode(ui.GetThreadResponseSchema, response).thread;
         })
-        .catch(() => undefined);
+        .catch(() => {
+          if (!cancelled) fetchedCurrent = undefined;
+        });
 
     return () => {
       cancelled = true;
