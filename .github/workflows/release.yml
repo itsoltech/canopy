@@ -293,9 +293,12 @@ jobs:
           EXPECTED: ${{ needs.plan.outputs.version }}
           CANOPY_NATIVE_DIR: ${{ runner.temp }}/canopy-native
           CANOPY_WEB_DIR: ${{ runner.temp }}/canopy-web
-          CANOPY_WEB_PORT: "39231"
         run: |
           # A throwaway service token: `web` only refuses to start without one; no gateway is called.
+          # Let the runner choose the port: hosted runners can have fixed high ports in use already.
+          CANOPY_WEB_PORT="$(node -e 'const net=require("node:net"); const server=net.createServer(); server.listen(0,"127.0.0.1",()=>{const address=server.address(); if (!address || typeof address === "string") process.exitCode=1; else process.stdout.write(String(address.port)); server.close();});')"
+          export CANOPY_WEB_PORT
+          echo "Using embedded web port $CANOPY_WEB_PORT"
           CANOPY_UI_SERVICE_TOKEN="smoke-$RANDOM-$RANDOM-0123456789abcdef0123456789" \
             "./canopy-gateway-${{ matrix.target }}${{ matrix.suffix }}" web &
           web=$!
