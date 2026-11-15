@@ -150,7 +150,7 @@
 <div
   bind:this={root}
   bind:clientWidth={width}
-  class={["relative flex h-full min-w-0 items-center gap-1", className]}
+  class={["density-chrome relative flex h-full min-w-0 items-center gap-1", className]}
   onkeydown={keydown}
 >
   <span class="pointer-events-none invisible absolute w-[1rem]" bind:clientWidth={rem}></span>
@@ -183,7 +183,7 @@
           data-tab-id={tab.id}
           class={[
             "flex h-full min-w-0 flex-1 items-center gap-1.5 rounded-t-lg text-sm focus-ring -outline-offset-2",
-            tab.id === "thread" ? "px-3" : "pl-3",
+            tab.id === "thread" ? "px-2.5" : "pl-2.5",
             tab.id === active.id ? "text-zinc-950 dark:text-white" : "text-muted",
           ]}
           onclick={() => view.select(tab.id)}
