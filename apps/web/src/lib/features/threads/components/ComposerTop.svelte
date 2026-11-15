@@ -18,8 +18,8 @@
     className,
   ]}
 >
-  <!-- Decisions own their reading area and fixed actions; other panels share one bounded scroll area. -->
-  <div class={["min-h-0 rounded-t-2xl", !decision && "max-h-[40dvh] scroll-stable overflow-y-auto overscroll-contain"]}>
+  <!-- Each panel owns its reading area; disclosure headers stay outside scrolling and its gutter. -->
+  <div class="min-h-0 rounded-t-2xl">
     <div class="divide-y divide-zinc-950/10 dark:divide-white/10">{@render children()}</div>
   </div>
 </div>

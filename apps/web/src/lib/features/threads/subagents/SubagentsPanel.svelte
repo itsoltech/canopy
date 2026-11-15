@@ -70,10 +70,7 @@
     </span>
   </ComposerPanelHeader>
   <ComposerPanelBody id="{id}-list" open={expanded}>
-    <ul
-      role="list"
-      class="grid max-h-[30dvh] scroll-stable overflow-y-auto border-t border-zinc-950/5 py-1 dark:border-white/10"
-    >
+    <ul role="list" class="grid py-1">
       {#each subagents as subagent (subagent.thread.id)}
         <li data-subagent-row class="t-rise" out:subagentPresence><SubagentRow {subagent} /></li>
       {/each}

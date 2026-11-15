@@ -13,5 +13,11 @@
 </script>
 
 <div {id} class={["t-acc-panel t-composer-disclosure", className]} data-open={open || undefined} inert={!open}>
-  <div>{@render children()}</div>
+  <div>
+    <div
+      class="max-h-[20dvh] scroll-stable overflow-y-auto overscroll-contain border-t border-zinc-950/5 dark:border-white/10"
+    >
+      {@render children()}
+    </div>
+  </div>
 </div>

@@ -106,12 +106,12 @@
       {oncancel}
     />
   {:else}
-    <div class="flex min-h-12 items-center gap-1 px-2 py-0.5 sm:min-h-8">
+    <div class="flex min-h-12 items-center gap-1 px-3 py-0.5 sm:min-h-8">
       <QueueHandle label={text} bind:element={handle} {ondragstart} />
       <div class="flex min-w-0 flex-1 items-center gap-1">
         {#if preview.text}
           <p
-            class="min-w-0 flex-1 truncate text-sm/5 text-zinc-700 sm:text-[0.8125rem]/5 dark:text-zinc-300"
+            class="min-w-0 flex-1 truncate text-sm/5 text-zinc-700 sm:text-(length:--type-compact)/5 dark:text-zinc-300"
             title={preview.text}
           >
             {preview.text}
@@ -133,7 +133,7 @@
       {/if}
       {#if hints.length > 0}
         <p
-          class="max-w-[25%] min-w-0 shrink truncate text-xs/6 text-zinc-500 max-sm:hidden dark:text-zinc-400"
+          class="max-w-[25%] min-w-0 shrink truncate text-xs/5 text-zinc-500 max-sm:hidden dark:text-zinc-400"
           title="Runs with {hints.join(', ')}"
         >
           {hints.join(" · ")}
@@ -141,7 +141,7 @@
       {/if}
       {#if own && running}
         <span class="flex shrink-0" {@attach tooltip("Send it into the running turn now")}>
-          <Button variant="ghost" size="sm" icon="arrow-turn-down-right" onclick={onsteer}
+          <Button variant="text" size="sm" icon="arrow-turn-down-right" onclick={onsteer}
             ><span class="max-sm:sr-only">Steer</span></Button
           >
         </span>
