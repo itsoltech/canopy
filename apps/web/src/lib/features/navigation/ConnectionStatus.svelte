@@ -48,7 +48,8 @@
   );
 </script>
 
-<!-- The width of the longest label stays reserved (no shift when it changes), on the left: the dot keeps to its word. -->
+<!-- The trigger hugs its label (its hover is only as wide as the text); the sidebar pushes it to the right edge,
+     so a longer label grows leftwards into free space and never moves the other footer controls. -->
 <!-- The live region stays mounted while quiet, so a later reconnect is still announced. -->
 <Popover bind:open label="Connection" placement="top-end" sheet class="w-80 max-w-[calc(100vw-1rem)]">
   {#snippet trigger(props)}
@@ -57,12 +58,12 @@
       {...props}
       aria-label={`${look.label}. Show connection details`}
       class={[
-        "flex items-center rounded-md text-sm/5 text-zinc-500 hover:bg-hover sm:text-xs/5 dark:text-zinc-400",
+        "flex items-center rounded-lg text-sm/5 text-zinc-500 focus-ring hover:bg-zinc-950/5 hover:text-zinc-950 sm:text-xs/5 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white",
         className,
       ]}
     >
       {#if !(quietWhenLive && connection === "live")}
-        <span class="flex w-32 max-w-full min-w-0 items-center justify-end gap-2 sm:w-28">
+        <span class="flex min-w-0 items-center gap-2 px-2 py-1.5">
           <StatusDot tone={look.tone} active={connection === "reconnecting"} />
           <span class="truncate">{look.label}</span>
         </span>

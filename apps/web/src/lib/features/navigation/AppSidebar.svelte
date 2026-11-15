@@ -166,7 +166,7 @@
       recovery={overview.recovery}
       connection={overview.connection}
       quietWhenLive={capabilities?.ownGateway ?? false}
-      class="min-w-0 flex-1 justify-end px-2"
+      class="ml-auto min-w-0"
     />
   </div>
 </div>
