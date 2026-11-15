@@ -12,24 +12,20 @@ import { createHash } from "node:crypto";
 import type { RpcCollector } from "./collector.ts";
 import { cleanHistogram, validHistogram } from "./worker-report.ts";
 
-type Sender = {
-  at: number;
-  bytes: number;
-  session: string;
-  sequence: bigint;
-  retired: { session: string; at: number }[];
-  last: number;
-};
+/** One accepted client session of a sender and source: the newest sequence it delivered and when it was last seen. */
+type Session = { sequence: bigint; last: number };
 
 /**
- * Restart allowance window. It exceeds the ±120 s freshness bound in both directions (240 s), so a batch accepted
- * before its session retired is already stale when the retirement expires and cannot be replayed afterwards.
+ * Inactive sessions expire here. It exceeds the ±120 s freshness bound in both directions (240 s), so a batch
+ * accepted before expiry is already stale and cannot be replayed afterwards.
  */
-const RESTART_WINDOW_MS = 300_000;
+const SESSION_TTL_MS = 300_000;
+const MAX_SESSIONS = 30;
 
 /** Auth-bound senders are capped, and their numeric series use the original fixed collector budget. */
 export class ClientDiagnostics {
-  readonly senders = new Map<string, Sender>();
+  /** Keyed by the hash of sender, source and session; concurrent windows and reloads each hold their own slot. */
+  readonly sessions = new Map<string, Session>();
   readonly rates = new Map<string, { at: number; bytes: number; last: number }>();
   readonly #checkpoints = new Map<number, Map<string, ui.DiagnosticsCheckpoint>>();
   readonly #restored = new Map<string, bigint>();
@@ -68,18 +64,19 @@ export class ClientDiagnostics {
 
     if (!this.#metadataReserved) throw new ConnectError("Diagnostics metadata budget reached", Code.ResourceExhausted);
 
-    for (const [key, value] of this.senders)
-      if (now - value.last > 300_000) {
-        this.senders.delete(key);
+    for (const [key, value] of this.sessions)
+      if (now - value.last > SESSION_TTL_MS) {
+        this.sessions.delete(key);
         this.collector.budget.used -= 1024;
       }
 
     for (const [key, value] of this.rates)
-      if (now - value.last > 300_000) {
+      if (now - value.last > SESSION_TTL_MS) {
         this.rates.delete(key);
         this.collector.budget.used -= 256;
       }
 
+    // The byte allowance is shared by everything an authenticated sender submits, whatever its source or session.
     let rate = this.rates.get(sender);
 
     if (!rate) {
@@ -98,45 +95,28 @@ export class ClientDiagnostics {
     rate.last = now;
 
     if (rate.bytes > 60 * 1024) throw new ConnectError("Diagnostics rate limit reached", Code.ResourceExhausted);
-    const key = `${sender}:${source}`;
-    const session = createHash("sha256").update(`${key}:${request.session}`).digest("hex");
-    let state = this.senders.get(key);
-
-    if (!state) {
-      if (this.senders.size >= 30 || !this.collector.budget.reserve(1024))
-        throw new ConnectError("Diagnostics sender limit reached", Code.ResourceExhausted);
-      state = { at: now, bytes: 0, session: request.session, sequence: 0n, retired: [], last: now };
-      this.senders.set(key, state);
-    }
-
-    if (now - state.at >= 60_000) {
-      state.at = now;
-      state.bytes = 0;
-    }
-
-    state.bytes += size;
-    state.last = now;
 
     if (request.epoch !== this.epoch()) return create(ui.DiagnosticsReceiptSchema, { epoch: this.epoch() });
-    state.retired = state.retired.filter((retired) => now - retired.at < RESTART_WINDOW_MS);
+    const session = createHash("sha256").update(`${sender}:${source}:${request.session}`).digest("hex");
+    const known = this.sessions.get(session);
 
-    if (
-      request.sequence <= (this.#restored.get(session) ?? 0n) ||
-      state.retired.some((retired) => retired.session === request.session) ||
-      (state.session === request.session && request.sequence <= state.sequence)
-    )
+    if (known) known.last = now;
+
+    if (request.sequence <= (known?.sequence ?? this.#restored.get(session) ?? 0n))
       return create(ui.DiagnosticsReceiptSchema, { epoch: this.epoch() });
 
-    if (state.session !== request.session) {
-      // A sender may restart twice per sliding window; a retired session stays ignored until its window ends.
-      if (state.retired.length >= 2)
-        throw new ConnectError("Diagnostics session limit reached", Code.ResourceExhausted);
-      state.retired.push({ session: state.session, at: now });
-      state.session = request.session;
+    if (!known && (this.sessions.size >= MAX_SESSIONS || !this.collector.budget.reserve(1024)))
+      throw new ConnectError("Diagnostics session limit reached", Code.ResourceExhausted);
+
+    try {
+      this.#remember(session, request.sequence, now);
+    } catch (cause) {
+      if (!known) this.collector.budget.used -= 1024;
+      throw cause;
     }
 
-    this.#remember(session, request.sequence, now);
-    state.sequence = request.sequence;
+    if (known) known.sequence = request.sequence;
+    else this.sessions.set(session, { sequence: request.sequence, last: now });
     this.collector.mergeMeasures(measures, now);
 
     return create(ui.DiagnosticsReceiptSchema, { epoch: this.epoch(), accepted: true });

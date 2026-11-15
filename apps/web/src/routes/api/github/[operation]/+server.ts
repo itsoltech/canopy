@@ -50,11 +50,6 @@ export const POST: RequestHandler = async ({ params, request, cookies, url }) =>
             options,
           ),
         );
-      case "pull-requests":
-        return encode(
-          github.ThreadPullRequestsResponseSchema,
-          await api.listThreadPullRequests(await readMessage(request, github.ThreadPullRequestsRequestSchema), options),
-        );
       case "link":
         return encode(
           github.ThreadPullRequestsResponseSchema,

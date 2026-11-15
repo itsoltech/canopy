@@ -2,7 +2,8 @@
 
 Status: etapy 1–2 zaimplementowane; etap 3 opisuje pierwotny plan odczytu offline,
 którego aktualne zachowanie dokumentuje [desktop.md](desktop.md#prywatna-kopia-historii).
-Zabezpieczenie lokalnego BFF sesją uruchomienia jest zaimplementowane (2026-11-15).
+Zabezpieczenie lokalnego BFF sesją uruchomienia i współdzielony model odczytu
+w pamięci BFF są zaimplementowane (2026-11-15).
 Opis implementacji nie określa dostępności w nightly/beta/stable; tę podają
 [zasady wydań](release.md) i GitHub Releases.
 
@@ -144,6 +145,11 @@ desktopu, wybór trybu/kanału, quit-guard i interfejs aktualizacji działają o
 (pobieranie aktualizacji wymaga internetu). Wywołania gatewaya mają krótki deadline;
 ekrany danych korzystają z istniejącego stanu „gateway unavailable”. Brak kolejki
 mutacji i automatycznego odtwarzania poleceń po powrocie sieci.
+
+BFF materializuje overview, indeks wątków i ustawienia z gRPC oraz współdzieli
+wczytane projekcje i ograniczone ogony historii między oknami. Ten stan istnieje
+wyłącznie w pamięci i jest usuwany przy zmianie celu gatewaya. Nie dodaje kolejki
+mutacji ani trwałego trybu offline. Szczegóły: [ui-api.md](ui-api.md#współdzielone-odczyty).
 
 Etap 1 nie utrwala rozmów ani danych projektów. Lustra połączonych komputerów
 wymagają lokalnego gatewaya i bazy, więc nie dołączamy ich tylko dla cache BFF.

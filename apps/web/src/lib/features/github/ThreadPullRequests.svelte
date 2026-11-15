@@ -1,14 +1,13 @@
 <script lang="ts">
   import type { ui, github } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
-  import { SharedRead, queries, revalidateEvery } from "#lib/shared/queries.svelte.ts";
+  import { SharedRead, queries } from "#lib/shared/queries.svelte.ts";
   import Button from "#lib/shared/ui/Button.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import LinkPullRequest from "./LinkPullRequest.svelte";
   import CreatePullRequest from "./CreatePullRequest.svelte";
   import LinkedPullRequestRow from "./LinkedPullRequestRow.svelte";
   import * as api from "./api.ts";
-  import { pullRequestsRefreshing } from "@canopy/domain/github-pr";
   import PanelRow from "#lib/features/threads/components/PanelRow.svelte";
 
   let { thread, class: className }: { thread: ui.Thread; class?: ClassValue } = $props();
@@ -54,9 +53,6 @@
     expanded = false;
     offset = 0;
   };
-
-  // Re-read soon while the gateway refreshes stale links in the background.
-  $effect(() => revalidateEvery(read.key, pullRequestsRefreshing(data) ? 3_000 : 60_000));
 
   /** The refresh records its reason on the gateway; the list shows it either way. */
   const retry = async (id: string) => {

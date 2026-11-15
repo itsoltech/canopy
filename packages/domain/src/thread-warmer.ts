@@ -92,6 +92,16 @@ export class ThreadWarmer {
     this.#schedule();
   }
 
+  /** A resnapshot or sharing change invalidates the cached checkpoints and any read already in flight. */
+  reset() {
+    this.#job?.abort.abort();
+    clearTimeout(this.#timer);
+    this.#timer = undefined;
+    this.#heads.clear();
+    this.#retry.clear();
+    this.#satisfied.clear();
+  }
+
   close() {
     this.#closed = true;
     this.enable(false);

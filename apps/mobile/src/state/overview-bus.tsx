@@ -40,7 +40,7 @@ function useOverviewBusState() {
       // A snapshot after a resubscription means the stream had a gap: shared reads are stale once.
       if (change.case === "mobileSnapshot") {
         const gap = snapshots.current++ > 0;
-        invalidation.synced(change.value.overview?.workers ?? [], gap);
+        invalidation.synced(change.value.overview?.workers ?? [], change.value.threads, gap);
 
         if (gap) modelCatalog.invalidate();
       } else invalidation.apply(update);

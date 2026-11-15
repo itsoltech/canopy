@@ -1,6 +1,7 @@
 import { json } from "@sveltejs/kit";
 import { ui } from "@canopy/contracts";
 import { call } from "#lib/server/gateway.ts";
+import { bffSession } from "#lib/server/bff-session.ts";
 import { encode } from "#lib/shared/wire.ts";
 import type { RequestHandler } from "./$types";
 
@@ -9,12 +10,7 @@ export const GET: RequestHandler = async ({ url }) => {
   return json(
     encode(
       ui.ListThreadsResponseSchema,
-      await call((api) =>
-        api.listThreads(
-          { projectId: url.searchParams.get("projectId") ?? "", sidebarOnly: true },
-          { timeoutMs: 10_000 },
-        ),
-      ),
+      await call(() => bffSession().overview.threads(url.searchParams.get("projectId") ?? "")),
     ),
   );
 };

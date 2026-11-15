@@ -6,7 +6,9 @@ Settings → Diagnostics jest dostępne w web/desktop/mobile i pokazuje lokalny
 komputer oraz znane połączone komputery, ich gatewaye, workery i łącza.
 Telefon korzysta ze sparowanego gatewaya. Brak dostępu, starsza wersja i offline
 są odrębnymi stanami. Budżety wydajności poniżej są celami i procedurą pomiaru,
-nie deklaracją zmierzonego narzutu obecnej wersji.
+nie deklaracją zmierzonego narzutu obecnej wersji. Na `dev` (2026-11-15) wysyłka
+pomiarów klientów obsługuje równoległe okna i przeładowania, a web/desktop i BFF
+wstrzymują ją po limicie gatewaya. Dostępność według [wydań](release.md).
 
 Powiązane: [architektura](architecture.md), [protokół](protocol.md), [UI API](ui-api.md),
 [połączone komputery](linked-computers.md), [ustawienia](settings-map.md),
@@ -449,19 +451,28 @@ Brak bufora na dysku i bezterminowego retry; utrata sieci daje luki pokrycia.
 
 **Agregaty klientów:** każdy klient/BFF ma najwyżej 12 histogramów jednej
 partii, bez identyfikatorów wątków, adresów i treści. Jedna wysyłka może być w toku;
-błąd porzuca partię. Suspend czyści obserwacje; partia starsza niż dwie minuty nie
-dostaje nowego czasu próbki. Mobile mierzy pierwszy reducer snapshotu/batcha;
+błąd porzuca partię. Po `ResourceExhausted` (HTTP 429) przeglądarka/desktop i BFF
+wstrzymują wysyłkę wykładniczo: pierwsza przerwa co najmniej 60 s, potem podwajana do
+5 min; odrzucona partia nie jest kolejkowana, a pierwsza przyjęta wysyłka zeruje
+przerwę; kontrakty HTTP i proto się nie zmieniają. Suspend czyści obserwacje; partia
+starsza niż dwie minuty nie dostaje nowego czasu próbki. Mobile mierzy pierwszy reducer snapshotu/batcha;
 dekoder wewnątrz biblioteki Connect nie udostępnia osobnego hooka. Ta seria nosi
 nazwę `First snapshot reducer`, bez deklarowania kosztu decode lub native paint.
 Feed jest obserwowany od montowania do dwóch klatek JS po layout; opóźnienia JS
 nie są miarą płynności natywnego UI. Web używa buforowanego Paint Timing dla FCP.
 
-Gateway dopuszcza 30 aktywnych kanałów nadawca/źródło i 30 wspólnych limitów
-nadawców, wygasających po pięciu minutach. Kanał przyjmuje najwyżej dwie nowe sesje
-(np. przeładowania strony) w przesuwnym oknie pięciu minut; trzecia dostaje
-`ResourceExhausted`, a wycofana sesja jest ignorowana do końca swojego okna. Okno jest
-dłuższe niż tolerancja świeżości partii (±120 s), więc po jego końcu stare partie nie
-dają się powtórzyć. Tożsamość pochodzi z tokenu urządzenia
+Gateway dopuszcza 30 aktywnych sesji (nadawca + źródło + sesja klienta) i 30
+wspólnych limitów nadawców, wygasających po pięciu minutach bez aktywności. Każde
+okno, karta i przeładowanie ma własny checkpoint: hash nadawcy, źródła i sesji
+oraz najnowszą przyjętą sekwencję. Równoległe okna jednego nadawcy są przyjmowane
+niezależnie, a szybkie przeładowania nie wymagają założeń o „wycofanej” sesji;
+powtórzona lub starsza sekwencja tej samej sesji jest ignorowana. Trzydziesta pierwsza
+jednoczesna sesja dostaje `ResourceExhausted`. Wygaśnięcie (300 s)
+jest dłuższe niż tolerancja świeżości partii (±120 s w obie strony, razem 240 s), więc
+po nim stare partie są już nieświeże i nie dają się powtórzyć; checkpointy odtworzone
+po restarcie nadal je zatrzymują. Limit 60 KiB/min jest wspólny dla całego
+uwierzytelnionego nadawcy (BFF, przeglądarka, wszystkie sesje), nie osobny dla źródła.
+Tożsamość pochodzi z tokenu urządzenia
 lub HttpOnly cookie nadanego przez BFF. Etykiety mają wyłącznie stałe numery 300–399 i 450–455.
 Numery 450–455 obejmują liczbę odzyskań osi czasu i czas żądanie starszej strony →
 gotowość renderera, osobno dla web, desktop i mobile; nie dodają etykiet z treści.

@@ -17,7 +17,7 @@ export function avatarUrl(value: string) {
     url.hash ||
     !/^\/(u|in)\/[1-9][0-9]*$/.test(url.pathname) ||
     value.length > 1024 ||
-    [...url.searchParams.keys()].some((key) => !["s", "v"].includes(key))
+    [...url.searchParams.keys()].some((key) => !["s", "u", "v"].includes(key))
   )
     throw new ConnectError("Avatar unavailable", Code.InvalidArgument);
   url.searchParams.set("s", "64");

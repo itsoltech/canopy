@@ -6,9 +6,10 @@ import { OverviewInvalidation } from "./shared-query-events.ts";
 
 const update = (change: ui.OverviewUpdate["change"]) => create(ui.OverviewUpdateSchema, { change });
 const worker = (id: string, appliedVersion = 1n) => create(ui.WorkerSchema, { id, online: true, appliedVersion });
+const overviewThread = (id: string, pullRequestRevision = 0n) => create(ui.ThreadSchema, { id, pullRequestRevision });
 
 /** A cache whose watched keys count their reads. */
-async function watched(keys: string[]) {
+async function watched(keys: string[], managed?: (key: string) => boolean) {
   const queries = new QueryCache({ coalesceMs: 5 });
   const reads = new Map<string, number>();
 
@@ -22,7 +23,7 @@ async function watched(keys: string[]) {
   await Bun.sleep(10);
   reads.clear();
 
-  return { queries, reads, invalidation: new OverviewInvalidation(queries) };
+  return { queries, reads, invalidation: new OverviewInvalidation(queries, managed) };
 }
 
 describe("overview events and shared reads", () => {
@@ -45,7 +46,7 @@ describe("overview events and shared reads", () => {
     invalidation.apply(update({ case: "sharedConfig", value: create(ui.SharedConfigSnapshotSchema) }));
     await Bun.sleep(20);
     expect(Object.fromEntries(reads)).toEqual({ GetComputers: 1 });
-    invalidation.synced([], true);
+    invalidation.synced([], [], true);
     await Bun.sleep(20);
     expect(reads.get("GetComputers")).toBe(2);
     queries.dispose();
@@ -74,11 +75,12 @@ describe("overview events and shared reads", () => {
     );
 
     try {
-      if (event === "gap") invalidation.synced([], true);
-      else
-        invalidation.apply(
-          update({ case: "thread", value: create(ui.ThreadSchema, { id: "thread", pullRequestRevision: 1n }) }),
-        );
+      if (event === "gap") invalidation.synced([], [overviewThread("thread")], true);
+      else {
+        invalidation.synced([], [overviewThread("thread")], false);
+        invalidation.apply(update({ case: "thread", value: overviewThread("thread", 1n) }));
+      }
+
       await Bun.sleep(10);
       expect(reads).toBe(1);
       expect(queries.snapshot(key)).toMatchObject({ data: initial, loaded: true, loading: true });
@@ -153,10 +155,98 @@ describe("overview events and shared reads", () => {
     stop();
     queries.dispose();
   });
+
+  test("full overview revisions suppress empty changes and scope linked-list reads to the changed thread", async () => {
+    const { queries, reads, invalidation } = await watched([
+      "GetPullRequest:pr-a",
+      "GetPullRequest:pr-b",
+      "GetPullRequest:pr-c",
+      "ListThreadPullRequests:thread-a:0:0",
+      "ListThreadPullRequests:thread-a:1:0",
+      "ListThreadPullRequests:thread-b:0:0",
+      "ListThreadPullRequests:thread-c:0:0",
+    ]);
+
+    invalidation.synced([], [overviewThread("thread-a"), overviewThread("thread-b")], false);
+    invalidation.apply(update({ case: "thread", value: overviewThread("thread-b") }));
+    invalidation.apply(update({ case: "thread", value: overviewThread("thread-c") }));
+    await Bun.sleep(20);
+    expect(reads.size).toBe(0);
+
+    invalidation.apply(update({ case: "thread", value: overviewThread("thread-a", 1n) }));
+    await Bun.sleep(20);
+    expect(Object.fromEntries(reads)).toEqual({
+      "GetPullRequest:pr-a": 1,
+      "GetPullRequest:pr-b": 1,
+      "GetPullRequest:pr-c": 1,
+      "ListThreadPullRequests:thread-a:0:0": 1,
+      "ListThreadPullRequests:thread-a:1:0": 1,
+    });
+    expect(reads.has("ListThreadPullRequests:thread-b:0:0")).toBe(false);
+    expect(reads.has("ListThreadPullRequests:thread-c:0:0")).toBe(false);
+    queries.dispose();
+  });
+
+  test("thread panel revalidates for connector, schedule, configuration, and presence changes", async () => {
+    const { queries, reads, invalidation } = await watched(["GetThreadPanel:thread"]);
+
+    const refresh = async (change: ui.OverviewUpdate["change"]) => {
+      invalidation.apply(update(change));
+      await Bun.sleep(20);
+      expect(reads.get("GetThreadPanel:thread")).toBe(1);
+      reads.clear();
+    };
+
+    await refresh({ case: "connectorsChanged", value: true });
+    await refresh({ case: "schedule", value: create(ui.ScheduleSchema, { threadId: "thread" }) });
+    await refresh({ case: "sharedConfig", value: create(ui.SharedConfigSnapshotSchema) });
+    await refresh({ case: "agentEnvironmentChanged", value: true });
+    await refresh({
+      case: "computer",
+      value: create(ui.LinkedComputerSchema, { nodeId: "home", status: "connected" }),
+    });
+
+    const baseline = worker("worker");
+    invalidation.synced([baseline], [], false);
+    invalidation.apply(update({ case: "worker", value: baseline }));
+    await Bun.sleep(20);
+    expect(reads.size).toBe(0);
+    await refresh({ case: "worker", value: worker("worker", 2n) });
+    queries.dispose();
+  });
+
+  test("managed reads skip ordinary invalidation while private forget still clears them", async () => {
+    const { queries, reads, invalidation } = await watched(
+      ["GetPullRequest:managed", "ListConnectors"],
+      (key) => key === "GetPullRequest:managed",
+    );
+
+    invalidation.apply(update({ case: "thread", value: overviewThread("thread", 1n) }));
+    await Bun.sleep(20);
+    expect(reads.size).toBe(0);
+
+    invalidation.synced([], [], true);
+    await Bun.sleep(20);
+    expect(Object.fromEntries(reads)).toEqual({ ListConnectors: 1 });
+    reads.clear();
+
+    // The BFF owns managed snapshot resets; replaying its metadata does not trigger a second HTTP read.
+    invalidation.apply(update({ case: "mobileSnapshot", value: create(ui.MobileOverviewSnapshotSchema) }));
+    await Bun.sleep(20);
+    expect(reads.size).toBe(0);
+
+    invalidation.apply(
+      update({ case: "computerSnapshot", value: create(ui.LinkedComputerSnapshotSchema, { nodeId: "home" }) }),
+    );
+    await Bun.sleep(20);
+    expect(reads.get("GetPullRequest:managed")).toBe(1);
+    queries.dispose();
+  });
+
   test("a broadcast repeating every worker unchanged reads nothing; a changed report reads the library once", async () => {
     const { reads, invalidation } = await watched(["GetAgentEnvironment", "ListWorkerRecords"]);
     const workers = Array.from({ length: 8 }, (_, n) => worker(`w${n}`));
-    invalidation.synced(workers, false);
+    invalidation.synced(workers, [], false);
 
     for (const value of workers) invalidation.apply(update({ case: "worker", value }));
     await Bun.sleep(20);
@@ -188,10 +278,10 @@ describe("overview events and shared reads", () => {
 
   test("a gap in the stream makes every read stale once; the first snapshot does not", async () => {
     const { reads, invalidation } = await watched(["GetComputers", "ListConnectors"]);
-    invalidation.synced([], false);
+    invalidation.synced([], [], false);
     await Bun.sleep(20);
     expect(reads.size).toBe(0);
-    invalidation.synced([], true);
+    invalidation.synced([], [], true);
     await Bun.sleep(20);
     expect(Object.fromEntries(reads)).toEqual({ GetComputers: 1, ListConnectors: 1 });
   });

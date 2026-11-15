@@ -16,6 +16,7 @@ export function sseResponse<T>(
   request: Request,
   source: (signal: AbortSignal) => AsyncIterable<T>,
   encode: (value: T) => JsonValue,
+  event?: (value: T) => string,
 ): Response {
   const upstream = new AbortController();
   const abort = () => upstream.abort();
@@ -70,7 +71,13 @@ export function sseResponse<T>(
             if (measured && !messages++) bffMeasurements.record(8, performance.now() - started);
             const start = syncMetrics && syncCpu();
 
-            if (upstream.signal.aborted || !send(`data: ${JSON.stringify(encode(value))}\n\n`, start)) break;
+            const name = event?.(value);
+
+            if (
+              upstream.signal.aborted ||
+              !send(`${name ? `event: ${name}\n` : ""}data: ${JSON.stringify(encode(value))}\n\n`, start)
+            )
+              break;
           }
         } catch (cause) {
           if (!upstream.signal.aborted) {

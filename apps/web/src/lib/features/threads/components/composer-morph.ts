@@ -5,6 +5,15 @@ type Publish = (compact: boolean, fold: FooterFold) => void;
 
 const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+/** Decorative animations in the subtree keep their own playback, including infinite spinners. */
+function pendingTransition(animation: Animation): boolean {
+  return (
+    animation instanceof CSSTransition &&
+    animation.pending &&
+    Number.isFinite(Number(animation.effect?.getComputedTiming().endTime))
+  );
+}
+
 /** The point in an animation's whole run (delay included) at this fraction, linear in the scroll. */
 function seek(animation: Animation, fraction: number) {
   const timing = animation.effect?.getTiming();
@@ -137,7 +146,7 @@ export class ComposerMorph {
     this.#toward = compact;
     flushSync(() => this.#publish(compact, "moving"));
     // Reading the animations resolves style once: the transitions this flip started are still pending.
-    this.#animations = (this.#root()?.getAnimations({ subtree: true }) ?? []).filter((animation) => animation.pending);
+    this.#animations = (this.#root()?.getAnimations({ subtree: true }) ?? []).filter(pendingTransition);
   }
 
   #end(compact: boolean) {
@@ -158,6 +167,6 @@ export class ComposerMorph {
     for (const animation of animations) animation.cancel();
 
     for (const animation of this.#root()?.getAnimations({ subtree: true }) ?? [])
-      if (animation.pending) animation.cancel();
+      if (pendingTransition(animation)) animation.cancel();
   }
 }

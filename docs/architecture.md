@@ -3,6 +3,8 @@
 Status: opis zaimplementowanego kodu (2026-11-15): gateway, workery, web BFF,
 Canopy Desktop (tryb lokalny, zdalny, sesja dostępu do BFF i połączone komputery),
 interaktywny i automatyczny mini podgląd automatyzacji w wątku oraz aplikacja mobilna.
+BFF materializuje stan odczytu ze wspólnego gRPC overview
+i współdzieli go między oknami; dogrzewanie historii odbywa się w BFF.
 Logowanie użytkowników nie istnieje; otwarte decyzje są w §11. Ten dokument opisuje
 zachowanie, nie dostępność w wydaniach: funkcje trafiają najpierw do nightly, potem
 do beta i stable ([release.md](release.md)); co zawiera konkretne wydanie, podają
@@ -61,6 +63,12 @@ Platforma do zarządzania agentami AI dla wielu użytkowników:
 | **Worker** | edge device: Linux, Omarchy, macOS, Windows (Bun) | Uruchamia wątki w dozwolonych katalogach oraz ukryte sesje tur botów, przez oficjalne harnessy; wznawia i forkuje wątki. Wykonuje także przyznane narzędzia automatyzacji przez lokalny bridge MCP. Normalizuje zdarzenia i strumieniuje je do gateway. |
 | **PostgreSQL** | obok gateway | Użytkownicy, projekty, agenci, workery, wątki, tury, transkrypty, boty, outbox, audyt. |
 | **Dostawcy LLM** | zewnętrznie | Anthropic / OpenAI / xAI. Inferencję wykonują oficjalne CLI/SDK na workerze, również dla botów. |
+
+BFF trzyma w pamięci model odczytu jednego właściciela i celu gatewaya, zasilany
+przez wspólny strumień gRPC. Frontend dostaje snapshoty i zmiany przez SSE, w tym
+gotowe projekcje wczytanych paneli i list. Cache i odczyty w toku są współdzielone
+między oknami procesu; historia ma ograniczony ogon oraz strony na żądanie.
+Zmiana celu zamyka strumienie i usuwa prywatny stan. Szczegóły: [ui-api.md](ui-api.md#współdzielone-odczyty).
 
 Tylko gateway łączy się z bazą. Worker nie ma dostępu do bazy i nie przyjmuje połączeń przychodzących.
 

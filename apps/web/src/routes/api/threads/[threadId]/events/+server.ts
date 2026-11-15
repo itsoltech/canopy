@@ -1,6 +1,6 @@
 import { ui } from "@canopy/contracts";
 import { coalesceDeltas } from "#lib/server/coalesce.ts";
-import { gateway } from "#lib/server/gateway.ts";
+import { bffSession } from "#lib/server/bff-session.ts";
 import { sseResponse } from "#lib/server/sse.ts";
 import { encode } from "#lib/shared/wire.ts";
 import type { RequestHandler } from "./$types";
@@ -17,8 +17,24 @@ export const GET: RequestHandler = async ({ request, params, url }) => {
   return sseResponse(
     request,
     async function* (signal) {
-      yield* coalesceDeltas(
-        gateway().watchThread(
+      const session = bffSession();
+      session.warming.warmer.yieldToNavigation();
+      const generation = session.warming.generation;
+
+      const seed =
+        !cursor &&
+        !url.searchParams.get("from") &&
+        !url.searchParams.get("version") &&
+        url.searchParams.get("smaller") !== "1"
+          ? session.warming.seed(params.threadId)
+          : undefined;
+
+      const seededCursor = seed?.change.case === "snapshot" ? seed.change.value.syncCursor : undefined;
+
+      if (seed) yield seed;
+
+      for await (const update of coalesceDeltas(
+        session.api.watchThread(
           {
             threadId: params.threadId,
             pageSize: url.searchParams.get("smaller") === "1" ? 8 : 24,
@@ -30,6 +46,7 @@ export const GET: RequestHandler = async ({ request, params, url }) => {
                 appliedSeq: BigInt(seq[2]!),
               }),
             }),
+            ...(!seq && seededCursor && { syncCursor: seededCursor }),
             incremental: url.searchParams.get("incremental") === "1",
             cursor: (url.searchParams.get("cursor") ?? "").slice(0, 128),
             fromTurnId: (url.searchParams.get("from") ?? "").slice(0, 128),
@@ -37,7 +54,10 @@ export const GET: RequestHandler = async ({ request, params, url }) => {
           },
           { signal, timeoutMs: 0 },
         ),
-      );
+      )) {
+        session.warming.observe(params.threadId, update, generation);
+        yield update;
+      }
     },
     (update) => encode(ui.ThreadUpdateSchema, update),
   );

@@ -1,5 +1,9 @@
 # Pomiar wydajności klientów
 
+Status (2026-11-15): web/desktop ma współdzielony model odczytu w pamięci BFF,
+reaktywne projekcje panelu i list PR oraz dogrzewanie historii po stronie BFF.
+Opis dotyczy implementacji; dostępność w kanałach według [release.md](release.md).
+
 Szkice kompozytora są lokalne: zapis dyskowy jest ograniczony do 100 wpisów/4 MiB
 i opóźniony o 250 ms. Synchronizacja publikuje po 1,5 s bez edycji, przy utracie
 fokusu, opuszczeniu kompozytora i przejściu w tło. Seria znaków daje jeden zapis,
@@ -147,12 +151,12 @@ historii, foldy, budowniczy feedu i zmierzone wysokości wierszy. Przełączenie
 niczego z tego nie czyści i nie pobiera wątku od początku. Powrót pokazuje ten stan
 w pierwszej klatce: feed mierzy viewport i stopkę synchronicznie przy montowaniu,
 więc ustawia wiersze przed pierwszym malowaniem. Potem watch dosyła tylko przyrost od
-kursora i łata wiersze w miejscu. Wątek poza ekranem dostaje checkpointy z dogrzewania,
-bez nowych subskrypcji; każde takie odświeżenie przelicza rozmiar i egzekwuje limit LRU.
-Gdy wątek odjechał dalej, niż dogrzewanie odtwarza (ponad 256 rekordów), gateway wysyła
-świeże ograniczone okno. Ono nie zastępuje zachowanych stron: wątek zostaje „w tyle”
-ze swoim kursorem, dogrzewanie kontynuuje z osobnej kopii w cache, a otwarcie wznawia
-własny kursor i dosyła brakujące rekordy. Widoczny wątek nie jest usuwany z LRU.
+kursora i łata wiersze w miejscu. Web/desktop zachowuje stan poza ekranem bez
+pobierania historii w tle do renderera. BFF dogrzewa oddzielny, ograniczony ogon.
+Otwarcie z zachowaną historią zawsze wznawia własny kursor i dosyła brakujące rekordy;
+nie zastępuje wczytanych stron ogonem BFF. Zimne otwarcie może dostać ogon BFF
+jako pierwszy snapshot, po którym watch kontynuuje od jego kursora.
+Widoczny wątek nie jest usuwany z LRU.
 Zachowany stan żyje dłużej niż ekran, który go utworzył, więc nie może zawierać `$derived`:
 pochodna należy do efektu aktywnego przy jej utworzeniu i po jego zniszczeniu (np. wyjście
 z ekranu wątku) zwraca już tylko ostatnią wartość (`derived_inert`). Widok pokazywałby wtedy
@@ -366,10 +370,13 @@ tych pomiarów; harness Bun ich nie zastępuje.
 
 ## Pasek boczny i indeks wątków na żywo
 
-Dogrzewanie historii używa jednego `WatchOverview` z najwyżej 32 headami, bez
-subskrypcji poszczególnych wątków. Web/desktop utrzymuje LRU do 32 wpisów i 16 MiB
-zakodowanego protobuf; to budżet payloadu, nie pomiar heapu JS ani RSS. Pamięć trzyma
-całe snapshoty, dzielone z zachowanymi widokami wątków; dysk Electron dostaje ograniczony ogon. Zestaw obejmuje
+BFF współdzieli jeden `WatchOverview(includeSnapshot: true)` między oknami i kartami
+danego procesu oraz celu gatewaya. Materializuje overview, indeks wątków i ustawienia;
+frontend dostaje gotowy snapshot i zmiany przez SSE. Do 32 headów steruje jedną
+kolejką skończonych odczytów historii, bez stałego watcha każdego wątku. BFF trzyma
+LRU 32 ogonów / 16 MiB zakodowanego protobuf; budżet nie jest pomiarem heapu ani RSS.
+Cache renderera i retencja wczytanych stron pozostają oddzielne; Electron zapisuje
+na dysku ograniczony ogon. Zestaw obejmuje
 12 ostatnich widocznych korzeni paska, wątki pracujące, nieobejrzane wyniki i przypięcia,
 z twardym limitem 32. Archiwum jest wykluczone. Widoczne ostatnie wątki mają pierwszeństwo.
 „Widoczne” oznacza korzenie po filtrach projektu i wyszukiwania, a nie pozycję
@@ -377,8 +384,8 @@ w viewport. Ostatnie 12 wybieramy zawsze według `Last activity`: `last_reply_at
 z datą utworzenia jako fallbackiem, niezależnie od wybranego `Created` lub `Custom`.
 Ręczne przeciągnięcie i pozycja przypięcia nie zmieniają tej kolejności;
 przypięte wątki dołączają osobno w ramach wspólnego limitu.
-Dogrzewanie zapisuje cały zaktualizowany checkpoint, ze stronami historii wczytanymi
-wcześniej; granice ustala cache. Duże treści nadal są odczytywane na żądanie.
+BFF zapisuje ograniczony checkpoint bez starszych stron wczytanych przez renderer.
+Duże treści nadal są odczytywane na żądanie.
 Mobile wybiera 10 ostatnich korzeni, ogranicza zestaw do 16 i rozdziela starty
 o 5 s (najwyżej 12 odczytów/min); używa istniejącego cache trwałego po restarcie.
 Retencja mobilnych widoków korzysta z tego samego `RetainedThreads`: 12 wątków /
@@ -388,20 +395,27 @@ a powrót wznawia kursor widoku przez partie rekordów. Wysokości komórek `Fla
 nie są zachowywane między ekranami; wymagają weryfikacji na urządzeniu.
 Szczegóły foreground i wykrywania Low Power Mode: [mobile.md](mobile.md).
 
-Jedno zadanie dogrzewania może działać naraz; starty są oddalone o co najmniej 2 s
-(najwyżej 30 dodatkowych odczytów na minutę). Bez zmian headów nie ma odczytów danych.
+Jedno zadanie dogrzewania może działać naraz; starty w BFF są oddalone
+o co najmniej 2 s (najwyżej 30 dodatkowych odczytów gRPC na minutę, łącznie dla wszystkich
+wątków i okien tego procesu). Renderer nie wysyła żądań HTTP dogrzewania ani nie
+pobiera tych ogonów poza otwarciem wątku. Ten limit dotyczy wyłącznie cache poza ekranem: widoczny wątek zachowuje
+swój strumień, a otwarcie od razu wznawia jego kursor. Przy wielu pracujących wątkach
+cache w tle może pozostawać starszy dłużej; kolejne otwarcie nadrabia brakujące partie.
+Bez zmian headów nie ma odczytów danych.
 Scalenie powtarzających się headów nie tworzy kolejki. Nieudany odczyt czeka 30 s;
 każde zadanie ma timeout 8 s. Rotacja zapobiega zagłodzeniu przez stale rosnący head.
 Nawigacja anuluje zadanie i daje widocznemu widokowi
-co najmniej 500 ms pierwszeństwa. Ukryta karta i utrata połączenia zatrzymują tło.
+co najmniej 500 ms pierwszeństwa. Brak subskrybentów zatrzymuje dogrzewanie;
+połączenie overview utrzymuje model BFF, dopóki proces obsługuje ten sam cel gatewaya.
 Polling headów pozostaje wewnątrz strumienia: najwyżej 30 ograniczonych odczytów SQL
-na minutę i klienta, bez dodatkowych żądań HTTP/gRPC klienta ani odczytów sieciowych domu.
+na minutę i proces BFF, bez dodatkowych żądań HTTP renderera ani odczytów sieciowych domu.
 
 Settings → Diagnostics rozdziela stare proxy drugiej klatki od czasu
 `Thread current state visible`: nawigacja → pierwsze rAF po zastosowaniu danych
 aktualnych względem ostatniego headu. `Warm cache hit` to średnia z 0/100 dla otwarć
 z aktualnym checkpointem w pamięci; stary cache nie jest trafieniem. Rejestr obejmuje
-też licznik `Background thread requests` oraz `Thread cache payload` w bajtach.
+też licznik `Background thread requests` renderera (po przeniesieniu do BFF równy zero)
+oraz `Thread cache payload` renderera w bajtach. Nie obejmują pamięci ani odczytów BFF.
 Otwarcia czasowe zachowują dotychczasowe próbkowanie 10%; hit rate i żądania obejmują
 wszystkie otwarcia i odczyty. Żadne identyfikatory ani treść nie trafiają do metryk.
 Rzeczywisty heap należy mierzyć osobno. rAF jest proxy gotowości renderera, nie

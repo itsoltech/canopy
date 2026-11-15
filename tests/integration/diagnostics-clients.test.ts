@@ -182,18 +182,74 @@ describe.skipIf(!dockerAvailable)("client diagnostics auth, redaction and explic
 
     expect(clients.submit(rate, "rate", true).accepted).toBe(true);
     expect(clients.submit({ ...rate, sequence: rate.sequence + 1n }, "rate", true).accepted).toBe(true);
-    expect(() => clients.submit({ ...rate, sequence: rate.sequence + 2n }, "rate", true)).toThrow();
+
+    const browser = create(ui.SubmitDiagnosticsRequestSchema, {
+      ...batch,
+      $unknown: [{ no: 99, wireType: 2, data: new Uint8Array(2000) }],
+    });
+
+    expect(() => clients.submit(browser, "rate", false)).toThrow("Diagnostics rate limit reached");
 
     for (let i = 0; i < 29; i++) clients.submit(batch, `bounded-${i}`, false);
     expect(() => clients.submit(batch, "overflow", false)).toThrow();
-    expect(clients.senders.size).toBeLessThanOrEqual(30);
+    expect(clients.sessions.size).toBeLessThanOrEqual(30);
     expect(collector.budget.used).toBeLessThanOrEqual(6 * 1024 * 1024);
   });
 
-  test("session restarts are limited per sliding five-minute window and retired sessions stay fenced", () => {
+  test("concurrent windows and reloads of one sender keep independent sequences over gRPC", async () => {
+    const shared = { "canopy-diagnostics-client": "c".repeat(43) };
+
+    const tab = () => {
+      const measurements = new ClientMeasurements("web", crypto.randomUUID());
+      measurements.clear(sample.epoch);
+
+      return measurements;
+    };
+
+    const next = (measurements: ClientMeasurements) => {
+      measurements.record(1, 5);
+
+      return measurements.take();
+    };
+
+    const [first, second] = [tab(), tab()];
+    const [a1, b1] = [next(first), next(second)];
+
+    // Two windows of the same browser interleave; neither displaces the other's slot or sequence.
+    expect((await gw.api.submitDiagnostics(a1, { headers: shared })).accepted).toBe(true);
+    expect((await gw.api.submitDiagnostics(b1, { headers: shared })).accepted).toBe(true);
+    const [a2, b2] = [next(first), next(second)];
+    expect((await gw.api.submitDiagnostics(b2, { headers: shared })).accepted).toBe(true);
+    expect((await gw.api.submitDiagnostics(a2, { headers: shared })).accepted).toBe(true);
+
+    // Replay and out-of-order batches are ignored per session.
+    for (const replay of [a1, a2, b1, b2])
+      expect((await gw.api.submitDiagnostics(replay, { headers: shared })).accepted).toBe(false);
+
+    // Rapid reloads: each new session is accepted while the older windows keep submitting.
+    for (let i = 0; i < 5; i++)
+      expect((await gw.api.submitDiagnostics(next(tab()), { headers: shared })).accepted).toBe(true);
+    expect((await gw.api.submitDiagnostics(next(first), { headers: shared })).accepted).toBe(true);
+
+    // A desktop renderer and its BFF also keep independent checkpoints under the same sender and session id.
+    for (const source of ["desktop", "bff"] as const) {
+      const measurements = new ClientMeasurements(source, first.session);
+      measurements.clear(sample.epoch);
+      measurements.record(source === "bff" ? 6 : 0, 5);
+      const batch = measurements.take();
+      expect((await gw.api.submitDiagnostics(batch, { headers: shared })).accepted).toBe(true);
+      expect((await gw.api.submitDiagnostics(batch, { headers: shared })).accepted).toBe(false);
+    }
+
+    // The same session under another authenticated sender is a different checkpoint.
+    expect(
+      (await gw.api.submitDiagnostics(a1, { headers: { "canopy-diagnostics-client": "d".repeat(43) } })).accepted,
+    ).toBe(true);
+  });
+
+  test("session slots are bounded and expire after five idle minutes without allowing replay", () => {
     const clients = new ClientDiagnostics(gw.core.diagnostics.collector, () => sample.epoch);
     const start = Date.now();
-    const minute = (n: number) => start + n * 60_000;
 
     const submit = (session: string, sequence: bigint, now: number, end = now) =>
       clients.submit(
@@ -205,25 +261,30 @@ describe.skipIf(!dockerAvailable)("client diagnostics auth, redaction and explic
           startMs: BigInt(end - 30_000),
           endMs: BigInt(end),
         }),
-        "restarts",
+        "windows",
         false,
         now,
       );
 
-    // A reload every three minutes while each session keeps submitting once per minute.
-    for (let i = 0; i < 8; i++)
-      for (let n = 0; n < 3; n++)
-        expect(submit(`reloaded-session-${i}`, BigInt(n + 1), minute(3 * i + n)).accepted).toBe(true);
+    const name = (i: number) => `window-session-${String(i).padStart(2, "0")}`;
 
-    // Session 6 retired at minute 21 and stays ignored; one more restart fits, a third within five minutes does not.
-    expect(submit("reloaded-session-6", 4n, minute(23)).accepted).toBe(false);
-    expect(submit("restart-session-0", 1n, minute(23)).accepted).toBe(true);
-    expect(() => submit("restart-session-1", 1n, minute(24))).toThrow("Diagnostics session limit reached");
-    // When the minute-21 retirement leaves the window, the next restart is accepted; minute 23's is still fenced.
-    expect(submit("restart-session-1", 1n, minute(26) + 1).accepted).toBe(true);
-    expect(submit("reloaded-session-7", 4n, minute(26) + 1).accepted).toBe(false);
-    // Batches accepted before a retirement are stale by the time it expires, so they cannot be replayed.
-    expect(() => submit("reloaded-session-0", 3n, minute(26) + 1, minute(2))).toThrow("schema or size limit");
+    for (let i = 0; i < 30; i++) expect(submit(name(i), 1n, start + i * 1_000).accepted).toBe(true);
+    expect(clients.sessions.size).toBe(30);
+    // A thirty-first concurrent session is refused, while existing ones keep going.
+    expect(() => submit(name(30), 1n, start + 31_000)).toThrow("Diagnostics session limit reached");
+    expect(submit(name(0), 2n, start + 32_000).accepted).toBe(true);
+    expect(submit(name(0), 2n, start + 33_000).accepted).toBe(false);
+    expect(clients.sessions.size).toBe(30);
+
+    // Session 1 was last seen at +1 s; it expires after five idle minutes and frees its slot.
+    const later = start + 301_500;
+    expect(submit(name(30), 1n, later).accepted).toBe(true);
+    expect(clients.sessions.size).toBeLessThanOrEqual(30);
+    // A batch accepted before the expiry is stale by then, so it cannot be replayed.
+    expect(() => submit(name(1), 1n, later, start + 1_000)).toThrow("schema or size limit");
+    // A fresh batch of an expired session starts it again once another idle slot has expired.
+    expect(() => submit(name(1), 2n, later)).toThrow("Diagnostics session limit reached");
+    expect(submit(name(1), 2n, later + 1_000).accepted).toBe(true);
   });
 
   test("redacts identifiers and bounds reports with explicit omissions", async () => {

@@ -87,6 +87,16 @@ describe("shared session reads", () => {
     cache.set<string>("GetSettings", (current) => `${current}, updated`);
     expect(cache.snapshot<string>("GetSettings").data).toBe("newest read, updated");
     expect(reader.calls).toHaveLength(2);
+
+    cache.invalidate("GetSettings");
+    await settle();
+    expect(reader.calls).toHaveLength(3);
+    cache.set("GetSettings", "complete server projection", true);
+    reader.calls[2]!.resolve("superseded response");
+    await settle();
+    expect(cache.snapshot("GetSettings")).toMatchObject({ data: "complete server projection", loading: false });
+    expect(reader.calls).toHaveLength(3);
+    cache.dispose();
   });
 
   test("a failed read keeps the last value and reports the error", async () => {
