@@ -146,6 +146,14 @@ edycja tekstu oraz Delete file wymagają hasha odczytu. Nieudany zapis i reconne
 a zamknięcie lub porzucenie zmian wymaga potwierdzenia. Limit odczytu to 2 MiB, edycji 400 KiB.
 Implementacja `features/files` używa istniejących komponentów i modułów; nie zmienia konfiguracji natywnej.
 
+Pełnoekranowy viewer obrazów (`ImageViewer`) obsługuje galerie, obrazy w wiadomościach agenta i wszystkie
+obrazy załączone do jednej wiadomości. Gesty działają na wątku UI (Gesture Handler + Reanimated): przesunięcie
+w bok zmienia obraz i zatrzymuje się na końcach, pinch i podwójne stuknięcie powiększają wokół palców,
+powiększony obraz przesuwa się do krawędzi, a dalej wciąga sąsiedni. Przeciągnięcie w pionie przy dopasowanym
+rozmiarze zamyka viewer, a tło i nagłówek wygaszają się, odsłaniając wątek. Montowane są tylko bieżący obraz
+i sąsiedzi. Przyciski Previous/Next i akcje dostępności (zoom) zostają; przy reduced motion domknięcia są
+natychmiastowe.
+
 Natywne gRPC wymaga HTTP/2 i dostępu do trailers; fetch React Native nie udostępnia
 takiego interfejsu. Nie używamy natywnego transportu gRPC ani biblioteki Node w telefonie.
 `@connectrpc/connect-web@2.3.0` wysyła **Connect z binarnym protobuf** przez jawnie

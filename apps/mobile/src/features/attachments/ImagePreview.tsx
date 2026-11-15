@@ -11,11 +11,14 @@ export function ImagePreview({
   name,
   width = 0,
   height = 0,
+  onOpen,
 }: {
   source: ImageSource;
   name: string;
   width?: number;
   height?: number;
+  /** Open a viewer the caller owns (for example one that swipes through every image of a message). */
+  onOpen?: () => void;
 }) {
   const c = useColors();
   const { ref, onLayout, visible } = useImageVisibility();
@@ -28,7 +31,7 @@ export function ImagePreview({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Open image ${name}`}
-        onPress={() => setOpen(true)}
+        onPress={onOpen ?? (() => setOpen(true))}
         style={{
           width: 240,
           maxWidth: "100%",
@@ -53,7 +56,7 @@ export function ImagePreview({
           <ActivityIndicator accessibilityLabel="Loading preview" color={c.muted} />
         )}
       </Pressable>
-      {open && <ImageViewer source={source} name={name} onClose={() => setOpen(false)} />}
+      {open && <ImageViewer images={[{ key: name, source, name }]} onClose={() => setOpen(false)} />}
     </View>
   );
 }

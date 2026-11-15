@@ -1,16 +1,27 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import type { ui } from "@canopy/contracts";
 import { Icon } from "../../ui/Icon";
 import { styles, useColors } from "../../ui/theme";
 import { ImagePreview } from "./ImagePreview";
 import { AttachmentViewer } from "./AttachmentViewer";
+import { ImageViewer } from "./ImageViewer";
 import { VideoAttachment } from "./VideoAttachment";
 import { attachmentPreviewKind } from "@canopy/domain/attachment-preview";
 
+/** Images open in one viewer, so a message's images swipe from one to the next. */
 export function MessageAttachments({ files, pending }: { files: readonly ui.Attachment[]; pending: boolean }) {
   const c = useColors();
   const [selected, setSelected] = useState<ui.Attachment>();
+  const [image, setImage] = useState<number>();
+
+  const images = useMemo(
+    () =>
+      files
+        .filter((file) => file.kind === "image" && attachmentPreviewKind(file) !== "video")
+        .map((file) => ({ key: file.id, source: { kind: "attachment" as const, file }, name: file.name })),
+    [files],
+  );
 
   return (
     <View
@@ -29,6 +40,7 @@ export function MessageAttachments({ files, pending }: { files: readonly ui.Atta
             name={file.name}
             width={file.width}
             height={file.height}
+            onOpen={() => setImage(images.findIndex((item) => item.key === file.id))}
           />
         ) : (
           <Pressable
@@ -46,6 +58,9 @@ export function MessageAttachments({ files, pending }: { files: readonly ui.Atta
         ),
       )}
       {selected && <AttachmentViewer file={selected} onClose={() => setSelected(undefined)} />}
+      {image !== undefined && images[image] ? (
+        <ImageViewer images={images} index={image} onIndexChange={setImage} onClose={() => setImage(undefined)} />
+      ) : null}
     </View>
   );
 }
