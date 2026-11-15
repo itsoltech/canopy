@@ -21,6 +21,9 @@ export interface NoticeState {
   readonly recovered?: boolean;
 }
 
+/** Durable records kept only for other views: the connector catalog a session started with. */
+const silentCodes = new Set(["connectors_baseline"]);
+
 /** Memoization preserves feed row identity; association, severity and counts use only durable data. */
 const cache = new WeakMap<NoticeEntry, { key: string; value: NoticeEntry & NoticeState }>();
 
@@ -60,7 +63,7 @@ export function turnNotices<N extends NoticeEntry>(
   const grouped = new Map<string, { source: N; turnId: string; count: number; recovered: boolean }>();
 
   for (const entry of [...notices].sort((a, b) => (a.seq < b.seq ? -1 : a.seq > b.seq ? 1 : 0))) {
-    if (!entry.notice) continue;
+    if (!entry.notice || silentCodes.has(entry.notice.code)) continue;
     const turnId = entry.turnId || inferTurn(entry, turns, bounds);
     const turn = byId.get(turnId);
     const recovered = turn?.status === "completed" && entry.notice.level >= NoticeLevel.WARNING;

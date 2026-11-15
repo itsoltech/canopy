@@ -35,8 +35,12 @@ export async function connectorTurn(ctx: HostContext, spec: ThreadSpec, turnId: 
     connectorsReady: async () => {
       if (ready) return;
 
+      // The first catalog of a thread is a silent baseline: it records what the session started with.
       if (changed) {
-        await record("connectors_applied", "Connector tools updated");
+        await record(
+          saved === undefined ? "connectors_baseline" : "connectors_applied",
+          saved === undefined ? "Connector tools loaded" : "Connector tools updated",
+        );
         await run(Journal.use((j) => j.rememberConnectorCatalog(spec.threadId, encoded)));
       }
 

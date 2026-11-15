@@ -5,7 +5,10 @@ import { Effect, Option, Schema } from "effect";
 import type { SqlClient } from "effect/sql";
 import { connectorType } from "./catalog.ts";
 
-/** Durable worker reports are read only after the caller has authorized this thread. */
+/**
+ * Durable worker reports are read only after the caller has authorized this thread. A session's first
+ * catalog arrives as a silent `connectors_baseline` and counts as applied.
+ */
 export function connectorSessionState(
   sql: SqlClient.SqlClient,
   threadId: string,
@@ -14,11 +17,14 @@ export function connectorSessionState(
 ) {
   return Effect.gen(function* () {
     const reports = yield* sql<{ code: string; catalog: string; seq: string }>`
-      SELECT DISTINCT ON (payload->'notice'->>'code') payload->'notice'->>'code' AS code,
-        payload->'notice'->>'dataJson' AS catalog, seq::text
-      FROM thread_events WHERE thread_id=${threadId}::uuid AND kind='notice'
-        AND payload->'notice'->>'code' IN ('connectors_applied','connectors_failed')
-      ORDER BY payload->'notice'->>'code',thread_events.seq DESC`;
+      SELECT DISTINCT ON (code) code, catalog, seq FROM (
+        SELECT CASE payload->'notice'->>'code' WHEN 'connectors_failed' THEN 'connectors_failed'
+            ELSE 'connectors_applied' END AS code,
+          payload->'notice'->>'dataJson' AS catalog, seq::text AS seq, seq AS position
+        FROM thread_events WHERE thread_id=${threadId}::uuid AND kind='notice'
+          AND payload->'notice'->>'code' IN ('connectors_baseline','connectors_applied','connectors_failed')
+      ) reports
+      ORDER BY code, position DESC`;
 
     const applied = reports.find((r) => r.code === "connectors_applied");
     const failed = reports.find((r) => r.code === "connectors_failed");
