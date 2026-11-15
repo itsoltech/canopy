@@ -162,16 +162,7 @@ async function deliverCommand(
     });
 
   try {
-    const body = command.kind.value;
-
-    if (
-      (command.kind.case === "createThread" || command.kind.case === "startTurn") &&
-      "thread" in body &&
-      body.thread
-    ) {
-      const thread = await coreRun(hostContext, (s) => s.thread(body.thread!.threadId));
-      body.thread.connectorTools = await hostContext.connectors.tools(thread.owner_user_id, { workerId });
-    }
+    await prepareThreadTools(hostContext, workerId, command);
 
     const shell =
       (command.kind.case === "startTurn" || command.kind.case === "steerTurn") &&
@@ -260,6 +251,16 @@ async function deliverCommand(
   await commandFailed(hostContext, workerId, command, result);
 
   return undefined;
+}
+
+async function prepareThreadTools(core: GatewayCore, workerId: string, command: Command): Promise<void> {
+  if (command.kind.case !== "createThread" && command.kind.case !== "startTurn") return;
+  const spec = command.kind.value.thread;
+
+  if (!spec) return;
+  const thread = await coreRun(core, (s) => s.thread(spec.threadId));
+  spec.connectorTools = await core.connectors.tools(thread.owner_user_id, { workerId });
+  spec.localMcpTools = await core.agentTools.readyTools(workerId);
 }
 
 async function commandFailed(

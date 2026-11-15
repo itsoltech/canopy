@@ -6,6 +6,7 @@ import { platformToolName } from "./bus.ts";
 import { Match, Option, Schema } from "effect";
 import type { JsonObject, JsonValue } from "@canopy/domain";
 import { decodeJson, isString, isNumber } from "../json.ts";
+import { inlineImages } from "../../images/previews.ts";
 
 const text = (value: JsonValue | undefined): string =>
   isString(value) ? value : value == null ? "" : JSON.stringify(value);
@@ -75,9 +76,23 @@ export class GrokEventMapper {
       const itemId = `${this.turnId}:${tool.toolCallId}`;
       const item = toolItem(itemId, tool, this.cwd);
       this.#items.set(itemId, item);
-      out.push(
-        event({ case: item.status === ItemStatus.IN_PROGRESS ? "itemStarted" : "itemCompleted", value: { item } }),
-      );
+
+      const mapped = event({
+        case: item.status === ItemStatus.IN_PROGRESS ? "itemStarted" : "itemCompleted",
+        value: { item },
+      });
+
+      if (item.status !== ItemStatus.IN_PROGRESS && item.content.case === "toolCall") {
+        const mergedRaw = JSON.stringify(tool);
+
+        if (mergedRaw !== rawJson && inlineImages(mergedRaw, itemId).length > inlineImages(rawJson, itemId).length) {
+          // Retain the exact provider patch before the synthetic completion that carries inherited previews.
+          out.push({ turnId: this.turnId, rawJson });
+          mapped.rawJson = mergedRaw;
+        }
+      }
+
+      out.push(mapped);
     } else if (update.sessionUpdate === "usage_update") {
       out.push(
         event({

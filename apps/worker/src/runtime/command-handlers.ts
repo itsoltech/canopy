@@ -15,6 +15,7 @@ import { isFileCommand, runFileCommand } from "./file-commands.ts";
 import { ThreadDirectories } from "../files/thread-directory.ts";
 import { ThreadHighlights } from "../files/thread-highlight.ts";
 import { ThreadFilesWatcher } from "../files/thread-watch.ts";
+import { agentToolsCommand } from "./agent-tools-commands.ts";
 
 export class CommandHandlers {
   readonly #logins: ProviderLogins;
@@ -133,6 +134,9 @@ export class CommandHandlers {
 
       return {};
     }
+
+    if (kind.case === "installAgentTool" || kind.case === "probeAgentTools" || kind.case === "runAgentTool")
+      return agentToolsCommand(this.ctx, kind);
 
     const config = this.ctx.state.config;
 

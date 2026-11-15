@@ -30,12 +30,13 @@ export function threadTurns(
       if (settings?.canSubmit?.() === false) return "";
       const enteredAt = workerDiagnostics.enabled ? workerDiagnostics.monotonic() : 0;
       const previous = connectorCatalog.get(spec.threadId);
+      const previousAutomation = ctx.automationCatalog.get(spec.threadId);
       let entry = yield* ensureLoaded(spec, settings?.recoveryContext);
       const known = entry.platformToCodex.get(turnId);
 
       if (known) return known; // redelivered StartTurn: the turn already exists
 
-      entry = yield* refreshCodexConnectors(ctx, reconfigure, spec, entry, previous);
+      entry = yield* refreshCodexConnectors(ctx, reconfigure, spec, entry, previous, previousAutomation);
       yield* Effect.tryPromise({
         try: () => settings?.connectorsReady?.() ?? Promise.resolve(),
         catch: () =>

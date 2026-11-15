@@ -856,6 +856,33 @@ egzekwowane w gatewayu; BFF: `POST /api/workers/cli/install`, `POST /api/workers
 w rozwiniętym workerze, „Agent CLI updates” z „Update all” i kropka przy Settings → Workers. Zasady:
 [provider-cli.md](provider-cli.md).
 
+### Narzędzia automatyzacji
+
+Status (2026-11-15): implementacja jest gotowa do udostępnienia w następnym
+nightly; promocja do kolejnych kanałów odbywa się zwykłą ścieżką. Szczegóły
+kontraktu: [automation-tools.md](automation-tools.md).
+
+`Worker` zawiera raport `agent_tools` z wersją, ścieżką, instalacją i readiness
+`agent-browser`, `agent-desktop` oraz `agent-device`. BFF wystawia owner-scoped
+akcje `POST /api/workers/agent-tools/{refresh,install,enable,run}`, które
+wywołują odpowiednio `RefreshAgentTools`, `InstallAgentTool`,
+`SetAgentToolEnabled` i `RunAgentTool`. Gateway sprawdza własność workera,
+online/capability oraz grant przed wysłaniem komendy do workera.
+
+Settings → Workers pokazuje osobny przełącznik **Allow agent access** domyślnie
+wyłączony, status gotowości, log instalacji i ręczne sterowanie. Formularz
+przekazuje sesję (pustą albo `threadId`), operację i wartości ref/tekstu/klawisza;
+desktop ma selektory aplikacji i `window_id`, a device `device_id` i platformy.
+W desktopowych akcjach na kwalifikowany ref panel usuwa selektory aplikacji i
+okna, bo ref przypina właściwe okno. `press` przyjmuje klawisz lub skrót tylko
+dla przeglądarki i desktopu; w device jest akcją na ref.
+Podgląd może okresowo pobierać screenshoty, lecz ręczny wynik `RunAgentTool` jest
+inline i przejściowy (PNG do 4 MiB, tekst do 512 KiB), bez itemu transkryptu,
+outboxa, journala ani galerii. Screenshot zwrócony modelowi przez MCP podlega
+osobnemu limitowi mostka 6 MiB i jest zapisywany w transcript providera oraz
+`PreviewStore`; końcową trwałą galerię tworzy `show_images`. Gdy panel workera
+jest offline lub worker nie ma capability `agent_tools_v1`, akcje są zablokowane.
+
 ## No project i katalogi scratch
 
 `GetOverview.projects` zawiera projekt systemowy właściciela o `Project.kind = "scratch"`

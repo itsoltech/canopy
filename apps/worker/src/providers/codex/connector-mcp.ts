@@ -5,10 +5,21 @@ import type { CodexThreadContext } from "./thread-types.ts";
 import { CodexThreadError, fail, type Entry } from "./thread-types.ts";
 import { connectorSessionCatalog } from "@canopy/domain/connector-session";
 import type { threadSessions } from "./thread-sessions.ts";
+import { automationMcp } from "../local-automation.ts";
 
 /** A private transport per thread; external credentials and authorization remain in the gateway. */
 export function codexConnectorMcp(ctx: CodexThreadContext) {
   const bridges = new Map<string, PlatformMcp>();
+  const automation = new Map<string, { key: string; bridge: ReturnType<typeof automationMcp> }>();
+  const closing = new Set<Promise<void>>();
+
+  const retire = (bridge: ReturnType<typeof automationMcp>) => {
+    if (!bridge) return;
+    const pending = bridge.close().finally(() => closing.delete(pending));
+    closing.add(pending);
+    // Session teardown awaits these promises; handle rejections immediately during catalog replacement.
+    void pending.catch(() => {});
+  };
 
   const config = (spec: ThreadSpec) => {
     ctx.connectorCatalog.set(spec.threadId, spec.connectorTools);
@@ -40,6 +51,23 @@ export function codexConnectorMcp(ctx: CodexThreadContext) {
     }
 
     const server = bridge.server;
+    const key = JSON.stringify(spec.localMcpTools);
+    let local = automation.get(spec.threadId);
+
+    if (!local || local.key !== key) {
+      retire(local?.bridge);
+      local = {
+        key,
+        bridge: automationMcp(ctx.options, spec, () => {
+          const entry = ctx.byPlatform.get(spec.threadId);
+
+          return [...(entry?.codexToPlatform ?? [])].findLast(([id]) => !entry?.finishedTurns.has(id))?.[1] ?? "";
+        }),
+      };
+      automation.set(spec.threadId, local);
+    }
+
+    ctx.automationCatalog.set(spec.threadId, key);
 
     return {
       mcp_servers: {
@@ -50,14 +78,23 @@ export function codexConnectorMcp(ctx: CodexThreadContext) {
           default_tools_approval_mode: "approve",
           required: true,
         },
+        ...Object.fromEntries(
+          (local.bridge?.servers ?? []).map((server) => [
+            server.name,
+            { url: server.url, http_headers: server.headers, default_tools_approval_mode: "approve", required: true },
+          ]),
+        ),
       },
     };
   };
 
   return {
     config,
-    close: () => {
+    close: async () => {
       for (const bridge of bridges.values()) bridge.close();
+      await Promise.all([...closing, ...[...automation.values()].map((local) => local.bridge?.close())]);
+      automation.clear();
+      bridges.clear();
     },
   };
 }
@@ -69,12 +106,14 @@ export const refreshCodexConnectors = (
   spec: ThreadSpec,
   entry: Entry,
   previous: ThreadSpec["connectorTools"] | undefined,
+  previousAutomation?: string,
 ) =>
   Effect.gen(function* () {
     if (
-      previous !== undefined &&
-      JSON.stringify(connectorSessionCatalog(previous ?? [])) !==
-        JSON.stringify(connectorSessionCatalog(spec.connectorTools))
+      (previous !== undefined &&
+        JSON.stringify(connectorSessionCatalog(previous ?? [])) !==
+          JSON.stringify(connectorSessionCatalog(spec.connectorTools))) ||
+      (previousAutomation !== undefined && previousAutomation !== JSON.stringify(spec.localMcpTools))
     )
       entry = yield* reconfigure(spec, entry);
 

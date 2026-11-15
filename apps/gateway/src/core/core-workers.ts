@@ -23,6 +23,7 @@ import { sqlErrorCode } from "../store/event-quarantine.ts";
 import { WorkerIngestQueue } from "./worker-ingest-queue.ts";
 import { syncWorkerThreadLifecycle } from "./worker-thread-lifecycle.ts";
 import { coreTurnLogin } from "./turn-logins.ts";
+import { authorizeLocalAutomation } from "./automation-permissions.ts";
 
 export function createCoreWorkerLink(core: GatewayCore) {
   return createWorkerLink({
@@ -125,6 +126,12 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
           await hostContext.cli.report(workerId, message.payload.value);
           await hostContext.environment.connected(workerId, connection.hello, message.payload.value);
           break;
+        case "agentToolsReport":
+          await hostContext.agentTools.report(workerId, message.payload.value);
+          break;
+        case "agentToolProgress":
+          await hostContext.agentTools.progress(workerId, message.payload.value);
+          break;
         case "cliInstallProgress":
           await hostContext.cli.progress(workerId, message.payload.value);
           break;
@@ -155,11 +162,13 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
           void (
             call.botId
               ? hostContext.bots.harnessTools.handle(call, workerId)
-              : call.cancelled
-                ? hostContext.bus.handle(call, workerId)
-                : call.connectorAccountId
-                  ? hostContext.connectors.handle(call, workerId)
-                  : hostContext.bus.handle(call, workerId)
+              : call.toolName === "authorize_local_automation"
+                ? authorizeLocalAutomation(hostContext, call, connection)
+                : call.cancelled
+                  ? hostContext.bus.handle(call, workerId)
+                  : call.connectorAccountId
+                    ? hostContext.connectors.handle(call, workerId)
+                    : hostContext.bus.handle(call, workerId)
           ).then(
             (result) => {
               try {

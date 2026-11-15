@@ -11,7 +11,30 @@ Starsze gatewaye pomijają nowe pole; numer protokołu pozostaje bez zmian.
 
 Harness Grok: `Provider.PROVIDER_GROK = 3`, `WorkerConfig.grok = 640`; używa istniejących komend, eventów, profili native/CLIProxyAPI, zgód i `AgentToolCall`. ACP pozostaje prywatnym protokołem worker ↔ CLI w `packages/grok-acp`; nie rozszerza kontraktu przeglądarki o JSON-RPC. [Adapter Grok](grok-adapter.md).
 
-Status: **szkic**, kanał i handshake zaimplementowane (`apps/gateway/src/worker-link`, `apps/worker/src/gateway-link`). Kontrakt: [`proto/canopy/worker/v1/worker_link.proto`](../proto/canopy/worker/v1/worker_link.proto).
+Status (2026-11-15): kanał i handshake zaimplementowane (`apps/gateway/src/worker-link`, `apps/worker/src/gateway-link`);
+stan funkcji i plany opisują poszczególne sekcje. Kontrakt: [`proto/canopy/worker/v1/worker_link.proto`](../proto/canopy/worker/v1/worker_link.proto).
+
+### Lokalne narzędzia automatyzacji
+
+Status (2026-11-15): **zaimplementowane; dostępność planowana od następnego
+nightly**, z normalną promocją release. Szczegóły funkcji są w
+[automation-tools.md](automation-tools.md); ten status nie oznacza, że bieżące
+wydanie już ją zawiera.
+
+Worker ogłasza addytywną capability `agent_tools_v1` i wysyła
+`AgentToolsReport` z wykryciem, przypiętą wersją i gotowością trzech narzędzi.
+`probeAgentTools`, `installAgentTool` i `runAgentTool` są bezpośrednimi komendami
+diagnostyczno-operacyjnymi: nie trafiają do outboxa ani do ponawialnego zestawu
+komend workera. Postęp instalacji wraca jako `agent_tool_progress`; gateway
+przechowuje tylko ograniczony, zredagowany log do panelu workera.
+
+Przy tworzeniu wątku i przed startem kolejnej tury gateway owner-scoped dobiera
+gotowe narzędzia z grantu workera i wpisuje wyłącznie ich identyfikatory do
+`ThreadSpec.local_mcp_tools` (pole 521). Worker rozwiązuje binarkę, uruchamia
+stdio i wystawia prywatny endpoint HTTP na loopbackie dla Claude, Codexa albo
+Grok. Każdy call MCP wraca do gatewaya jako wewnętrzna autoryzacja bieżącej
+tury; gateway sprawdza właściciela, worker, grant i tryb uprawnień przed
+wykonaniem. Nie przekazujemy przez ten bridge kluczy modelu.
 
 ### Trwałe odpowiedzi obrazami
 

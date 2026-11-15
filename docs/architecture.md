@@ -18,6 +18,7 @@ Powiązane dokumenty:
 - [worker-config.md](worker-config.md) — zdalna konfiguracja workerów (lokalnie tylko połączenie z gateway)
 - [updates.md](updates.md) — niezależny UpdateService, zgodność protokołów, mirror i rollback binarek
 - [provider-cli.md](provider-cli.md) — CLI dostawców na workerach: wykrywanie, najnowsze wersje, instalacja i aktualizacja na kliknięcie (nigdy dołączane do Canopy)
+- [automation-tools.md](automation-tools.md) — lokalne `agent-browser`, `agent-desktop` i `agent-device`: gotowość, granty, bridge MCP i podgląd
 - [codex-adapter.md](codex-adapter.md) — adapter Codex app-server: protokół, testy na żywo, izolacja `CODEX_HOME`
 - [grok-adapter.md](grok-adapter.md) — własny SDK ACP stdio Grok CLI, native/CLIProxyAPI i MCP narzędzi platformy
 - [ui-api.md](ui-api.md) — API dla UI, SvelteKit jako BFF (HTTP/1.1 + SSE do przeglądarki, gRPC do gateway)
@@ -57,11 +58,17 @@ Platforma do zarządzania agentami AI dla wielu użytkowników:
 | **Desktop** | macOS, Linux, Windows (Electron + kontroler Bun) | Tryb lokalny: kontroler nadzoruje PostgreSQL, gateway (rola `desktop`) i worker, a BFF działa w jego procesie. Tryb zdalny: tylko lokalny BFF połączony ze zdalnym gatewayem ([desktop.md](desktop.md), [desktop-remote-frontend.md](desktop-remote-frontend.md)). |
 | **Mobile** | iOS/Android | Expo development build, Connect protobuf przez streaming `expo/fetch`, token urządzenia w SecureStore. Bez Expo web. |
 | **Gateway** | serwer centralny albo lokalny sidecar desktopu (Bun) | Jedyny punkt kontaktu klientów. Autoryzacja właściciela, API, persystencja, outbox komend do workerów, kolejka i narzędzia botów, proxy connectorów, szyna agent ↔ agent, GitHub. Nie wykonuje inferencji. |
-| **Worker** | edge device: Linux, Omarchy, macOS, Windows (Bun) | Uruchamia wątki w dozwolonych katalogach oraz ukryte sesje tur botów, przez oficjalne harnessy; wznawia i forkuje wątki. Normalizuje zdarzenia i strumieniuje je do gateway. |
+| **Worker** | edge device: Linux, Omarchy, macOS, Windows (Bun) | Uruchamia wątki w dozwolonych katalogach oraz ukryte sesje tur botów, przez oficjalne harnessy; wznawia i forkuje wątki. Wykonuje także przyznane narzędzia automatyzacji przez lokalny bridge MCP. Normalizuje zdarzenia i strumieniuje je do gateway. |
 | **PostgreSQL** | obok gateway | Użytkownicy, projekty, agenci, workery, wątki, tury, transkrypty, boty, outbox, audyt. |
 | **Dostawcy LLM** | zewnętrznie | Anthropic / OpenAI / xAI. Inferencję wykonują oficjalne CLI/SDK na workerze, również dla botów. |
 
 Tylko gateway łączy się z bazą. Worker nie ma dostępu do bazy i nie przyjmuje połączeń przychodzących.
+
+Lokalne narzędzia automatyzacji są wykonywane wyłącznie przez worker. Gateway
+wykrywa gotowość, przechowuje grant per worker i właściciel oraz autoryzuje
+wywołania bieżącej tury; nie uruchamia binarek. Claude, Codex i Grok dostają
+prywatny workerowy bridge MCP na loopbackie
+([automation-tools.md](automation-tools.md)).
 
 Gateway ma rolę startową: domyślnie `server`; kontroler Canopy Desktop oznacza własny
 sidecar trybu lokalnego jako `desktop`. To wewnętrzna decyzja runtime, bez ustawienia

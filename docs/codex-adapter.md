@@ -1,6 +1,7 @@
 # Adapter Codex (app-server)
 
-Status: **w budowie**.
+Status (2026-11-15): runtime wątków i lokalny MCP są zaimplementowane;
+ograniczenia i dalsze prace opisano poniżej. Dostępność wydań według [release.md](release.md).
 
 Gotowe:
 - typy protokołu z przypiętej wersji: `packages/codex-protocol` (Codex 0.164.0),
@@ -15,6 +16,7 @@ Gotowe:
 
 - szyna agentów: narzędzia jako `dynamicTools` przy `thread/start`, wywołania `item/tool/call` przekazywane do gateway (`AgentToolCall`) i odpowiadane wynikiem ([agent-bus.md](agent-bus.md)).
 - konektory: prywatny lokalny MCP `canopy_connectors`; aktualizacja na granicy tur przez unsubscribe/resume tej samej sesji z historią i sprawdzenie jej natywnego katalogu. Sam reload MCP nie odświeża niezmienionego połączenia w 0.164.0 ([connectors.md](connectors.md#ograniczenia-sesji-harnessów)).
+- lokalna automatyzacja: ten sam workerowy bridge wystawia gotowe `agent-browser`, `agent-desktop` i `agent-device` jako prywatne MCP HTTP per `threadId`; gateway autoryzuje każdy call ([automation-tools.md](automation-tools.md)).
 
 - modele, wysiłek i steer: `model/list` (katalog dla każdego profilu; profil CLIProxyAPI także `GET /v1/models` pośrednika, `providers/models.ts`), `turn/start` z `model` i `effort`, `turn/steer` ([protocol.md](protocol.md#modele-effort-i-steer)).
 

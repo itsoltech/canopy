@@ -58,6 +58,8 @@ export interface CommandOutput {
   readonly file?: MessageInitShape<typeof CommandResultSchema>["file"];
   readonly threadDirectory?: MessageInitShape<typeof CommandResultSchema>["threadDirectory"];
   readonly threadFileHighlight?: MessageInitShape<typeof CommandResultSchema>["threadFileHighlight"];
+  readonly agentTool?: MessageInitShape<typeof CommandResultSchema>["agentTool"];
+  readonly agentTools?: MessageInitShape<typeof CommandResultSchema>["agentTools"];
 }
 
 export interface WorkerHostOptions {

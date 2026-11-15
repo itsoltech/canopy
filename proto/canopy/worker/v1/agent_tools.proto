@@ -1,0 +1,82 @@
+syntax = "proto3";
+
+package canopy.worker.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// Local automation binaries installed on, and executed by, the worker.
+// The gateway only forwards the allow-listed tool and operation identifiers.
+enum AgentTool {
+  AGENT_TOOL_UNSPECIFIED = 0;
+  AGENT_TOOL_BROWSER = 1;
+  AGENT_TOOL_DESKTOP = 2;
+  AGENT_TOOL_DEVICE = 3;
+}
+
+message AgentToolInstallStatus {
+  string install_id = 1;
+  string state = 2; // running | succeeded | failed
+  string target_version = 3;
+  string error = 4;
+  google.protobuf.Timestamp started_at = 5;
+  google.protobuf.Timestamp finished_at = 6;
+}
+
+message AgentToolInfo {
+  AgentTool tool = 1;
+  string package_name = 2;
+  string path = 3;
+  string version = 4;
+  bool installed = 5;
+  bool ready = 6;
+  bool installable = 7;
+  string detail = 8;
+  bool screenshot = 9;
+  bool stream = 10;
+  AgentToolInstallStatus install = 11;
+}
+
+message AgentToolsReport {
+  repeated AgentToolInfo tools = 1;
+  string os = 2;
+  string arch = 3;
+  google.protobuf.Timestamp checked_at = 4;
+}
+
+message InstallAgentTool {
+  AgentTool tool = 1;
+  // X.Y.Z; the worker uses the fixed version associated with the tool when empty.
+  string version = 2;
+  string install_id = 3;
+  // agent-browser: also install Chrome for Testing after npm completes.
+  bool install_runtime = 4;
+}
+
+message AgentToolProgress {
+  string install_id = 1;
+  AgentTool tool = 2;
+  repeated string lines = 3;
+}
+
+// A bounded operation set. target/value are interpreted by the worker per tool;
+// they are never assembled into a shell command.
+message RunAgentTool {
+  AgentTool tool = 1;
+  string operation = 2; // open | snapshot | screenshot | click | fill | type | press | close
+  string target = 3;
+  string value = 4;
+  string platform = 5; // agent-device only: ios | android | web | ...
+  // Empty uses the tool's default session; agent sessions use the Canopy thread id.
+  string session = 6;
+  string app = 7;
+  string window_id = 8;
+  string device_id = 9;
+}
+
+message AgentToolOutput {
+  string operation = 1;
+  string text = 2;
+  string mime_type = 3;
+  bytes data = 4;
+  bool truncated = 5;
+}

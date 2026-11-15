@@ -19,6 +19,7 @@ import { deviceCodexHome } from "../providers/codex/home.ts";
 import { CodexThreads } from "../providers/codex/threads.ts";
 import { GrokThreads } from "../providers/grok/threads.ts";
 import { CliTools } from "../cli-tools/index.ts";
+import { AgentTools } from "../agent-tools/index.ts";
 import type { HeadTracker } from "../git/heads.ts";
 import { CatalogCache } from "../mentions/catalog.ts";
 import { AttachmentFiles } from "../attachments/files.ts";
@@ -42,6 +43,8 @@ export class HostState {
   readonly secrets: ThreadSecretFiles;
   /** Provider CLIs on this device: reports and installs on demand (docs/provider-cli.md). */
   cli!: CliTools;
+  /** Local browser, desktop and device automation tools (docs/automation-tools.md). */
+  agentTools!: AgentTools;
   /** The live branch of the threads' checkouts (GitHeads, docs/worktrees.md). */
   heads!: HeadTracker;
   /** Provider per thread (from the commands' ThreadSpec): running turns per provider. */

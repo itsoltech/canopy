@@ -76,6 +76,7 @@ export async function coreWorkers(hostContext: GatewayCore): Promise<ui.Worker[]
   }
 
   await hostContext.cli.decorate(workers);
+  await hostContext.agentTools.decorate(workers);
 
   return workers;
 }

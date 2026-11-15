@@ -1,6 +1,6 @@
 # Adapter Claude (Agent SDK)
 
-Status: **działa** (2026-11-01):
+Status: **działa** (2026-11-15):
 - runtime wątków: `ClaudeThreads` w `apps/worker/src/providers/claude/threads.ts`,
 - mapowanie wiadomości SDK na zdarzenia transkryptu: `ClaudeEventMapper` w `mapping.ts`, z testami na nagranych strumieniach (`fixtures/*.jsonl`),
 - tryby uprawnień: `permissions.ts`,
@@ -9,6 +9,11 @@ Status: **działa** (2026-11-01):
 - profil CLIProxyAPI przez zmienne środowiskowe: `profile.ts`,
 - podpięcie do workera: `WorkerHost` (obok Codexa, wybór po `ThreadSpec.provider`),
 - zadania w tle (background Bash) i cele (`/goal`): sekcja „Praca w tle i cele”.
+
+Lokalna automatyzacja (`agent-browser`, `agent-desktop`, `agent-device`) trafia
+do sesji jako prywatny, workerowy MCP HTTP uruchamiany przez wspólny bridge
+stdio. Gateway sprawdza grant i bieżącą turę przed każdym callem
+([automation-tools.md](automation-tools.md)).
 
 ## Model
 

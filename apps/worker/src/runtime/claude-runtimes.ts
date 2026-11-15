@@ -89,6 +89,7 @@ export class ClaudeRuntimes {
       attachmentsDir: (threadId) => this.ctx.state.files.threadDir(threadId),
       secretsDir: (threadId) => this.ctx.state.secrets.threadDir(threadId),
       viewImage: (threadId, cwd, path) => this.ctx.ops.viewImage(threadId, cwd, path),
+      localMcpServers: (tools, threadId) => this.ctx.state.agentTools.localMcpServers(tools, threadId),
       enrich: (init) => this.ctx.state.previews.enrich(usage.failure(init)),
       closingReason: () => this.ctx.ops.stopReason(),
     });

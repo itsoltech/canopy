@@ -1,6 +1,7 @@
 # Obrazy w odpowiedziach i interaktywne visuals
 
-Status: **obrazy, `render_visual` i `render_html` wdrożone** w web/desktop/mobile.
+Status (2026-11-15): **obrazy, `render_visual` i `render_html` zaimplementowane** w web/desktop/mobile;
+podgląd lokalnej automatyzacji opisano niżej, dostępność kanałów według [release.md](release.md).
 Dokument opisuje bieżący kontrakt publikacji, odczytu i izolacji. Limity struktur
 są sprawdzane przez kod; budżety CPU, pamięci klientów i płynności pozostają celami
 wymagającymi pomiarów. Własny HTML ma odrębny model wykonania i ryzyka (§9).
@@ -88,6 +89,34 @@ odpowiedzi agenta także po zwinięciu pracy. Nie jest schowane wewnątrz tool c
 Tekst narzędzia może prowadzić do tego samego itemu, lecz nie dubluje galerii.
 Wiadomość końcowa może go zacytować przez zwrócone `item_id`. Brak końcowej
 wiadomości lub przerwanie następnego kroku nie usuwa już zatwierdzonego wyniku.
+
+### Zrzuty narzędzi automatyzacji
+
+Trzy ścieżki obrazu mają różną trwałość:
+
+1. Ręczny **RunAgentTool** z Settings → Workers zwraca pojedynczy PNG inline do
+   4 MiB, a tekst do 512 KiB. Jest to przejściowy wynik panelu bez itemu,
+   outboxa, journala i trwałej galerii. Podgląd może pobierać kolejne zrzuty co
+   trzy sekundy, gdy pozostaje widoczny, ale nie jest transmisją wideo.
+2. **MCP używany przez model** zwraca upstreamowe bloki z limitem mostka 6 MiB i
+   zachowuje ich MIME. Wynik trafia do transcriptu providera i journala, a
+   obrazy są kopiowane do workerowego `PreviewStore` przed zapisaniem zdarzenia.
+   Dotyczy to Claude, Codexa i Groka. Ekstrakcja Grok rozpoznaje opakowane bloki
+   ACP oraz `rawOutput` jako obiekt, envelope albo JSON string, wiąże je z
+   `toolCallId`, deduplikuje wspólną treść i scala wcześniejsze patche obrazu przy
+   końcowym itemie, także gdy końcowa aktualizacja status-only nie zawiera
+   `content` ani `rawOutput`. Oryginalne aktualizacje ACP pozostają byte-for-byte
+   w `rawJson`; gdy trzeba odziedziczyć obrazy, mapper zachowuje patch raw-only i
+   dodaje syntetyczne `itemCompleted` dla `PreviewStore`, wyłącznie gdy scalony
+   stan ma więcej obrazów inline niż oryginalne zakończenie. Taki obraz jest
+   trwałym preview itemu narzędzia, ale nie jest automatycznie galerią
+   `image_gallery`.
+3. **`show_images`** publikuje końcową trwałą galerię owner-scoped. Jawny import
+   obrazu Markdown korzysta z tego samego pipeline'u załączników. `view_image`
+   pozostaje narzędziem oglądania obrazu przez model.
+
+Podgląd panelu i publikacja modelu nie powinny być utożsamiane
+([automation-tools.md](automation-tools.md)).
 
 ### Import, przechowywanie i awarie
 

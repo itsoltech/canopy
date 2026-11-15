@@ -4,6 +4,13 @@ Status kont per instancja i worker (CLI, cache, prywatność):
 [provider-accounts.md](provider-accounts.md). Ochrona przed lawiną procesów:
 [process-governor.md](process-governor.md).
 
+Aktualizacja (2026-11-15): lokalne narzędzia `agent-browser` `0.43.0`,
+`agent-desktop` `1.3.1` i `agent-device` `0.21.37` są zaimplementowane i mają
+zostać udostępnione w następnym nightly, a potem promowane zwykłym kanałem.
+Konfiguracja, instalacja per worker, readiness i granty są opisane w
+[automation-tools.md](automation-tools.md). Nie jest to deklaracja, że funkcja
+jest już w wydanym buildzie.
+
 Settings → Providers udostępnia logowanie i wylogowanie Claude, Codexa i Groka
 przez oficjalne CLI. Potwierdzenie wskazuje komputer oraz wpływ na login
 terminala; własny login instancji pozostaje izolowany. Szczegóły przepływów,

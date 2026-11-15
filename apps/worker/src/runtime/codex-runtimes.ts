@@ -175,8 +175,9 @@ export class CodexRuntimes {
         if (this.ctx.state.staleRuntimes.has(`codex/${name}`)) void this.ctx.ops.reconcileRuntimes().catch(() => {});
       },
       interact: (request) => this.ctx.ops.interact(request),
-      callTool: (call) => this.ctx.ops.callTool(call),
+      callTool: (call, signal) => this.ctx.ops.callTool(call, signal),
       viewImage: (threadId, path) => this.ctx.ops.viewImage(threadId, this.ctx.state.cwds.get(threadId) ?? "", path),
+      localMcpServers: (tools, threadId) => this.ctx.state.agentTools.localMcpServers(tools, threadId),
       enrich: (init) => this.ctx.state.previews.enrich(usage.failure(init)),
       connectors: config.nativeTools.nativeConnectors === true,
     });

@@ -72,6 +72,19 @@ everything here”) z przekierowaniami starych id. Cały stos PR-ów pozostaje d
 Opt-in etapu 4 zastępuje [wspólna konfiguracja](#konkretny-protokół-wspólna-konfiguracja)
 (stos `feat/linked-shared-config-N`, wszystkie siedem etapów zaimplementowane).
 
+### Narzędzia automatyzacji na połączonym komputerze
+
+Status (2026-11-15): lokalne narzędzia automatyzacji są zaimplementowane i
+planowane do udostępnienia w następnym nightly; dalsza dostępność podlega
+normalnej promocji kanałów. Ich opis: [automation-tools.md](automation-tools.md).
+
+Worker i jego granty należą do gatewaya domu właściciela. Gdy UI wybiera workera
+na połączonym komputerze, akcja jest trasowana do tego domu i wykonywana przez
+jego workera po jego lokalnych kontrolach gotowości i grantów. Gateway komputera
+wywołującego nie uruchamia binarki, nie wykonuje jej przez własnego workera i nie
+przenosi grantu. Połączenie partnera nie daje dostępu do kluczy modelu ani do
+lokalnego bridge'a MCP; niedostępny dom blokuje wykonanie.
+
 ## Cel
 
 Każdy komputer działa samodzielnie w trybie lokalnym (własny gateway, baza, worker; [desktop.md](desktop.md)).

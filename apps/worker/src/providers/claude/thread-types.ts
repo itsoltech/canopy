@@ -2,6 +2,7 @@ import type { Query, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import type {
   AgentToolCall,
   AgentToolResult,
+  AgentTool,
   InteractionRequest,
   InteractionResponse,
   Mention,
@@ -17,6 +18,7 @@ import type { Env, ResolvedProfile } from "../profiles.ts";
 import type { ViewImageResult } from "../../images/index.ts";
 import { ClaudeEventMapper } from "./mapping.ts";
 import type { AutoAllow } from "./permissions.ts";
+import type { LocalAgentToolMcpServer } from "../../agent-tools/index.ts";
 import type { ClaudeUsage } from "./usage.ts";
 
 export class ClaudeThreadError extends Schema.TaggedError<ClaudeThreadError>()("ClaudeThreadError", {
@@ -65,6 +67,8 @@ export interface ClaudeThreadsOptions {
   secretsDir?(threadId: string): string;
   /** The platform's view_image (worker-side; docs/agent-bus.md). */
   viewImage?(threadId: string, cwd: string, path: string): Promise<ViewImageResult>;
+  /** Local automation MCP servers resolved by the worker from gateway-approved tool ids. */
+  localMcpServers?(tools: readonly AgentTool[], threadId: string): readonly LocalAgentToolMcpServer[];
   /** Adds what the transcript shows of an event (image previews) before it is journaled. */
   enrich?(init: ThreadEventInit): Promise<ThreadEventInit>;
 }

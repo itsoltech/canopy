@@ -218,7 +218,8 @@ interface InlineImage {
  * Images a provider event carries for one item:
  * - Claude: tool_result blocks (tool_use_id = item id) with image blocks `{source: {type: "base64", media_type, data}}`,
  * - Codex dynamic tools (view_image): `contentItems: [{type: "inputImage", imageUrl: "data:...;base64,..."}]`,
- * - Codex MCP tools: `result.content: [{type: "image", data, mimeType}]`.
+ * - Codex MCP tools: `result.content: [{type: "image", data, mimeType}]`,
+ * - Grok ACP tool updates: wrapped `content` blocks or MCP `rawOutput`, scoped by `toolCallId`.
  */
 export function inlineImages(rawJson: string, itemId: string): InlineImage[] {
   if (!rawJson || !rawJson.includes("image")) return [];
@@ -232,6 +233,11 @@ export function inlineImages(rawJson: string, itemId: string): InlineImage[] {
 
   const out: InlineImage[] = [];
 
+  const append = (image: InlineImage) => {
+    if (!out.some((previous) => previous.mimeType === image.mimeType && previous.base64 === image.base64))
+      out.push(image);
+  };
+
   const fromBlock = (block: JsonValue) => {
     const b = jsonObject(block);
 
@@ -239,13 +245,13 @@ export function inlineImages(rawJson: string, itemId: string): InlineImage[] {
     const source = jsonObject(b["source"]);
 
     if (b["type"] === "image" && source?.["type"] === "base64" && isString(source["data"])) {
-      out.push({ mimeType: String(source["media_type"] ?? "image/png"), base64: source["data"] });
+      append({ mimeType: String(source["media_type"] ?? "image/png"), base64: source["data"] });
     } else if (b["type"] === "image" && isString(b["data"])) {
-      out.push({ mimeType: String(b["mimeType"] ?? "image/png"), base64: b["data"] });
+      append({ mimeType: String(b["mimeType"] ?? "image/png"), base64: b["data"] });
     } else if (b["type"] === "inputImage" && isString(b["imageUrl"])) {
       const match = /^data:([^;,]+);base64,(.*)$/s.exec(b["imageUrl"]);
 
-      if (match) out.push({ mimeType: match[1]!, base64: match[2]! });
+      if (match) append({ mimeType: match[1]!, base64: match[2]! });
     }
   };
 
@@ -254,6 +260,30 @@ export function inlineImages(rawJson: string, itemId: string): InlineImage[] {
   const direct = jsonObject(r["result"]);
 
   if (Array.isArray(direct?.["content"])) for (const block of direct["content"]) fromBlock(block);
+
+  const toolId = r["toolCallId"];
+
+  if (
+    (r["sessionUpdate"] === "tool_call" || r["sessionUpdate"] === "tool_call_update") &&
+    isString(toolId) &&
+    toolId &&
+    itemId.endsWith(`:${toolId}`)
+  ) {
+    if (Array.isArray(r["content"]))
+      for (const content of r["content"]) {
+        const block = jsonObject(content);
+
+        if (block?.["type"] === "content") fromBlock(block["content"] ?? null);
+      }
+
+    const output = grokOutput(r["rawOutput"]);
+    const result = jsonObject(output?.["result"]) ?? output;
+
+    if (Array.isArray(result?.["content"])) for (const block of result["content"]) fromBlock(block);
+
+    return out;
+  }
+
   // Claude: a user message with tool results.
   const message = jsonObject(r["message"]);
 
@@ -283,4 +313,14 @@ export function inlineImages(rawJson: string, itemId: string): InlineImage[] {
   }
 
   return out;
+}
+
+function grokOutput(output: JsonValue | undefined): JsonObject | undefined {
+  if (!isString(output)) return jsonObject(output);
+
+  try {
+    return decodeJsonObject(JSON.parse(output));
+  } catch {
+    return undefined;
+  }
 }

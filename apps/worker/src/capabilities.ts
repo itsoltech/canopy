@@ -40,6 +40,8 @@ export function workerCapabilities(options: { localWorker: boolean; fullAccess: 
     "bot_files_v1",
     "thread_secrets",
     "cli_install",
+    // agent_tools_v1: owner-scoped Canopy control of the three local automation binaries.
+    "agent_tools_v1",
     // desktop_bundled: the desktop app's own local-mode worker, updated with the app (docs/updates.md).
     ...(options.localWorker ? ["desktop_bundled"] : ["network_route_migration"]),
     "agent_environment_v1",

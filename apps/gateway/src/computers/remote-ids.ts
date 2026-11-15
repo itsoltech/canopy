@@ -4,7 +4,7 @@ import { isReflectMessage, reflect } from "@bufbuild/protobuf/reflect";
 
 import { MentionKind } from "@canopy/contracts";
 
-import { nodeRef, qualifyId, splitId } from "@canopy/domain/computers";
+import { isEntityId, nodeRef, qualifyId, splitId } from "@canopy/domain/computers";
 
 import { Code, ConnectError } from "@connectrpc/connect";
 
@@ -29,6 +29,17 @@ export function mapIds(
 ): void {
   const record = reflect(desc, message);
   visit?.(desc, message);
+
+  // OS window/device identifiers are opaque selectors, even when a simulator UDID is a UUID.
+  // Only a copied, qualified Canopy thread session participates in home routing.
+  if (desc.typeName === "canopy.worker.v1.RunAgentTool") {
+    const field = desc.field["session"]!;
+    const session = String(record.get(field));
+
+    if (isEntityId(session) && splitId(session).node) record.set(field, map(session, "thread_id"));
+
+    return;
+  }
 
   if (desc.typeName === "canopy.ui.v1.ThreadSyncRecord") {
     const field = desc.field["key"]!;
