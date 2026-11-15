@@ -1,7 +1,14 @@
 # Model danych (PostgreSQL)
 
-Status (2026-11-15): zaimplementowany model, w tym migracja `0150_thread_retention`;
+Status (2026-11-15): zaimplementowany model, w tym migracja `0151_turn_thread_permission_mode`;
 dostępność nightly/beta/stable według [release.md](release.md).
+
+Migracja `0151_turn_thread_permission_mode` zapisuje w `turns.thread_permission_mode`
+domyślny tryb uprawnień wątku z chwili wysłania tury do workera. Oddziela go od
+`turns.permission_mode`, który zawiera efektywny tryb tury, także jawne nadpisanie
+z kompozytora. Dzięki temu subagent dziedziczy uprawnienia tury, a późniejsza
+zmiana domyślnego trybu rodzica nadal ogranicza nowe dzieci. Pusta wartość
+historycznych tur zachowuje dotychczasowy, bardziej restrykcyjny sufit do ich końca.
 
 Migracja `0141_provider_usage` przechowuje ostatnie oczyszczone limity konta
 per `(worker_id, provider, profile_id)`, z niejawnym `account_key` runtime/home,
