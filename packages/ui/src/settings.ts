@@ -30,7 +30,8 @@ export const settingsSections: readonly SettingsSection[] = [
     label: "Appearance",
     icon: "swatch",
     group: "General",
-    keywords: "theme color scheme dark light accent chat width device",
+    keywords:
+      "theme color scheme dark light accent chat width thread width device typography font size interface font interface size monospace font monospace size contrast wrap code blocks wrap diffs effort display render math latex animated mascots",
   },
   {
     href: "/settings/keybindings",
@@ -58,7 +59,8 @@ export const settingsSections: readonly SettingsSection[] = [
     label: "Scheduled tasks",
     icon: "clock",
     group: "General",
-    keywords: "schedule cron recurring repeat wake-up timer automation",
+    keywords:
+      "schedule cron recurring repeat wake-up timer automation time zone timezone preview occurrences end date runs missed message target",
   },
   {
     href: "/settings/diagnostics",
@@ -122,7 +124,8 @@ export const settingsSections: readonly SettingsSection[] = [
     label: "Connectors",
     icon: "link",
     group: "Connections",
-    keywords: "github slack outlook microsoft notion linear google atlassian mcp oauth accounts integrations access",
+    keywords:
+      "github slack outlook microsoft notion linear google atlassian custom mcp server oauth accounts integrations access authentication endpoint url token secret headers client secret scopes",
   },
   {
     href: "/settings/proxies",
@@ -150,7 +153,8 @@ export const settingsSections: readonly SettingsSection[] = [
     label: "Devices",
     icon: "link",
     group: "Connections",
-    keywords: "phone iphone android pairing qr tailscale device revoke mobile desktop app",
+    keywords:
+      "phone iphone android pairing qr tailscale device revoke unpair this phone forget pairing locally mobile desktop app",
   },
   {
     href: "/settings/computers",

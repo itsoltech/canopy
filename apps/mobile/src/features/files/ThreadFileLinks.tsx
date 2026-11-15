@@ -18,7 +18,7 @@ export function ThreadFileLinks({ itemId, children }: { itemId: string; children
           ? (path) => {
               (workspace ?? store.view(currentId)).open({ threadId: currentId, itemId, path });
 
-              if (!workspace) router.push({ pathname: "/threads/[id]", params: { id: currentId } });
+              if (!workspace) router.push({ pathname: "/thread/[id]", params: { id: currentId } });
             }
           : undefined
       }

@@ -25,7 +25,7 @@ type Props = Pick<
   | "label"
   | "badges"
   | "triggers"
->;
+> & { sendInset?: number };
 
 export function ComposerInput({
   text,
@@ -39,6 +39,7 @@ export function ComposerInput({
   label,
   badges,
   triggers,
+  sendInset = 60,
 }: Props) {
   const c = useColors();
   const { progress, writing, room, focused, onFocus } = useComposerMotion();
@@ -73,7 +74,7 @@ export function ComposerInput({
     return {
       minHeight: natural + (writingSize - natural) * writes,
       maxHeight: max + room.get() * writes,
-      paddingRight: inline ? 16 : interpolate(t, [0, 1], [60, 16]),
+      paddingRight: inline ? 16 : interpolate(t, [0, 1], [sendInset, 16]),
       paddingTop: padTop,
       paddingBottom: padBottom,
     };
@@ -140,19 +141,27 @@ export function ComposerInput({
         {compact ? (
           <CompactPreview text={text} label={label} placeholder={placeholder} onExpand={expand} />
         ) : triggers && !text ? (
-          <Text
-            pointerEvents="none"
-            accessible={false}
-            numberOfLines={1}
-            ellipsizeMode="tail"
-            style={[styles.body, inputTypography, { position: "absolute", top: 0, left: 0, right: 0, color: c.faint }]}
-          >
-            {placeholder}
-          </Text>
+          <TriggerPlaceholder placeholder={placeholder} />
         ) : null}
       </View>
       {editor}
     </Animated.View>
+  );
+}
+
+function TriggerPlaceholder({ placeholder }: Pick<Props, "placeholder">) {
+  const c = useColors();
+
+  return (
+    <Text
+      pointerEvents="none"
+      accessible={false}
+      numberOfLines={1}
+      ellipsizeMode="tail"
+      style={[styles.body, inputTypography, { position: "absolute", top: 0, left: 0, right: 0, color: c.faint }]}
+    >
+      {placeholder}
+    </Text>
   );
 }
 

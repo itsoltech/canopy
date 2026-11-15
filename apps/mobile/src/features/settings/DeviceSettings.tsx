@@ -15,7 +15,7 @@ import { useLiveTime } from "../../ui/time";
 
 function useDeviceSettings() {
   const resource = useSettingsResource("GetMobileDevices", (api) => api.getMobileDevices({}));
-  const { client, session, forget } = useSession();
+  const { client, session, forget, unpair } = useSession();
   const [invitation, setInvitation] = useState<ui.CreateMobilePairingResponse>();
 
   const now = useLiveTime(
@@ -48,12 +48,19 @@ function useDeviceSettings() {
   }
 
   async function revoke(id: string) {
-    const result = await resource.run((api) => api.revokeMobileDevice({ id }));
+    if (id === session?.deviceId) {
+      const result = await resource.run(async () => {
+        await unpair();
 
-    if (result && id === session?.deviceId) {
-      await forget();
-      router.replace("/pair");
+        return true;
+      });
+
+      if (result) router.replace("/pair");
+
+      return;
     }
+
+    await resource.run((api) => api.revokeMobileDevice({ id }));
   }
 
   return {

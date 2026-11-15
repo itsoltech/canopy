@@ -19,6 +19,7 @@ import javax.net.ssl.X509TrustManager
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.ConnectionPool
+import okhttp3.Dispatcher
 import okhttp3.Headers.Companion.toHeaders
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
@@ -69,9 +70,24 @@ private fun pinFailure(error: Throwable?): Boolean {
 }
 
 class CanopyPinnedFetchModule : Module() {
+  private data class Clients(val unary: OkHttpClient, val streaming: OkHttpClient)
+
+  private val lifecycle = Any()
+  @Volatile private var destroyed = false
   private val calls = ConcurrentHashMap<String, Call>()
-  private val clients = ConcurrentHashMap<String, OkHttpClient>()
+  private val clients = ConcurrentHashMap<String, Clients>()
   private val probeSockets = ConcurrentHashMap<String, Socket>()
+  // onResponse reads until EOF, so every quiet watch occupies a dispatcher slot. Keep the two
+  // budgets separate: watches must never queue sends, stops or snapshot requests behind themselves.
+  // Share these dispatchers across pins and resets so new pools cannot multiply the concurrency.
+  private val unaryDispatcher = Dispatcher().apply {
+    maxRequests = 16
+    maxRequestsPerHost = 8
+  }
+  private val streamingDispatcher = Dispatcher().apply {
+    maxRequests = 32
+    maxRequestsPerHost = 32
+  }
   private val base by lazy {
     OkHttpClient.Builder()
       .connectTimeout(15, TimeUnit.SECONDS)
@@ -92,33 +108,94 @@ class CanopyPinnedFetchModule : Module() {
    * they run here instead: in parallel, and without delaying requests or other modules. */
   private val probes = Executors.newCachedThreadPool { task -> Thread(task, "canopy-probe").apply { isDaemon = true } }
 
-  /** One client per pin, so connections to the computer are reused and never shared across pins. */
-  private fun client(pin: String) =
-    clients.getOrPut(pin) {
+  /** Separate pools per pin and request kind, with the same certificate verification for both. */
+  private fun client(pin: String, streaming: Boolean): OkHttpClient {
+    val pair = clients.computeIfAbsent(pin) {
       val (context, trust) = context(pin)
-      base.newBuilder()
+      val unary = base.newBuilder()
+        .dispatcher(unaryDispatcher)
         .connectionPool(ConnectionPool())
         .sslSocketFactory(context.socketFactory, trust)
         // The exact certificate pin is stronger than a host name check (addresses change, names are optional).
         .hostnameVerifier { _, _ -> true }
         .build()
+      val streaming = unary.newBuilder()
+        .dispatcher(streamingDispatcher)
+        .connectionPool(ConnectionPool())
+        .build()
+      Clients(unary, streaming)
     }
+    return if (streaming) pair.streaming else pair.unary
+  }
+
+  /** Expo posts OnDestroy before clearing its registry. Serialize bridge access with that boundary. */
+  private fun emit(name: String, body: Map<String, Any?>): Boolean = synchronized(lifecycle) {
+    if (destroyed) false else {
+      sendEvent(name, body)
+      true
+    }
+  }
+
+  private fun evictClients() {
+    clients.values.forEach {
+      it.unary.connectionPool.evictAll()
+      it.streaming.connectionPool.evictAll()
+    }
+    clients.clear()
+  }
+
+  private fun destroy() {
+    synchronized(lifecycle) {
+      if (destroyed) return
+      destroyed = true
+    }
+    // Dispatcher cancels queued calls before running ones can release slots and promote them.
+    unaryDispatcher.cancelAll()
+    streamingDispatcher.cancelAll()
+    calls.values.forEach { it.cancel() }
+    calls.clear()
+    probeSockets.values.forEach {
+      try { it.close() } catch (_: IOException) { /* The bridge is gone; continue closing the other sockets. */ }
+    }
+    probeSockets.clear()
+    probes.shutdownNow()
+    evictClients()
+    // Do not await network threads on Expo's lifecycle thread. Canceled callbacks drain normally;
+    // shutdownNow could discard dispatched calls before their terminal callbacks release resources.
+    unaryDispatcher.executorService.shutdown()
+    streamingDispatcher.executorService.shutdown()
+  }
+
+  private fun release(id: String, call: Call, pool: ConnectionPool) {
+    calls.remove(id, call)
+    // A callback may own an old pool from before reset(). Its canceled connection becomes idle only
+    // after the response closes, so the eviction during OnDestroy alone would miss it.
+    if (destroyed) pool.evictAll()
+  }
 
   override fun definition() = ModuleDefinition {
     Name("CanopyPinnedFetch")
     Events("onResponse", "onData", "onEnd", "onError")
+    OnDestroy { destroy() }
 
     AsyncFunction("start") { id: String, url: String, method: String, headers: Map<String, String>, body: ByteArray?, pin: String ->
-      if (!url.startsWith("https://")) throw IllegalArgumentException("Only HTTPS addresses are allowed")
-      val type = headers.entries.firstOrNull { it.key.equals("content-type", true) }?.value?.toMediaTypeOrNull()
-      val request = Request.Builder()
-        .url(url)
-        .headers(headers.toHeaders())
-        .method(method, if (method == "GET" || method == "HEAD") null else (body ?: ByteArray(0)).toRequestBody(type))
-        .build()
-      val call = client(pin.lowercase()).newCall(request)
-      calls[id] = call
-      call.enqueue(callback(id))
+      synchronized(lifecycle) {
+        check(!destroyed) { "Pinned transport is destroyed" }
+        if (!url.startsWith("https://")) throw IllegalArgumentException("Only HTTPS addresses are allowed")
+        val type = headers.entries.firstOrNull { it.key.equals("content-type", true) }?.value?.toMediaTypeOrNull()
+        val request = Request.Builder()
+          .url(url)
+          .headers(headers.toHeaders())
+          .method(method, if (method == "GET" || method == "HEAD") null else (body ?: ByteArray(0)).toRequestBody(type))
+          .build()
+        // Connect identifies streaming in the request media type, before a response can be queued.
+        // Unary uses application/proto or application/json; parameters and header case are parsed above.
+        val streaming = type?.type == "application" && type.subtype in setOf("connect+proto", "connect+json")
+        val client = client(pin.lowercase(), streaming)
+        val call = client.newCall(request)
+        calls[id] = call
+        call.enqueue(callback(id, client.connectionPool))
+      }
     }
 
     Function("cancel") { id: String -> calls.remove(id)?.cancel() }
@@ -127,17 +204,19 @@ class CanopyPinnedFetchModule : Module() {
     Function("reset") {
       // evictAll() only removes idle connections. A shared pool can still reuse an active, half-open h2
       // connection, so discard the clients and give future requests a separate pool instead.
-      clients.values.forEach { it.connectionPool.evictAll() }
-      clients.clear()
+      synchronized(lifecycle) { if (!destroyed) evictClients() }
     }
 
     // A TLS handshake only: is this route the paired computer, and how fast? Nothing is sent.
     AsyncFunction("probe") { host: String, port: Int, pin: String, timeoutMs: Int, id: String, promise: Promise ->
-      val raw = Socket()
-      probeSockets[id] = raw
-      probes.execute {
-        try { probe(host, port, pin.lowercase(), timeoutMs, raw, promise) }
-        finally { probeSockets.remove(id) }
+      synchronized(lifecycle) {
+        check(!destroyed) { "Pinned transport is destroyed" }
+        val raw = Socket()
+        probeSockets[id] = raw
+        probes.execute {
+          try { probe(host, port, pin.lowercase(), timeoutMs, raw, promise) }
+          finally { probeSockets.remove(id, raw) }
+        }
       }
     }
 
@@ -146,7 +225,7 @@ class CanopyPinnedFetchModule : Module() {
 
   private fun probe(host: String, port: Int, pin: String, timeoutMs: Int, raw: Socket, promise: Promise) {
     val started = System.nanoTime()
-    try {
+    val result = try {
       val (context, _) = context(pin)
       raw.use {
         raw.connect(InetSocketAddress(host, port), timeoutMs)
@@ -154,53 +233,53 @@ class CanopyPinnedFetchModule : Module() {
         (context.socketFactory.createSocket(raw, host, port, false) as SSLSocket).use { tls ->
           tls.startHandshake()
           val leaf = tls.session.peerCertificates.firstOrNull() as? X509Certificate
-          promise.resolve(
-            mapOf(
-              "ok" to true,
-              "fingerprint" to (leaf?.let(::fingerprint) ?: ""),
-              "latencyMs" to ((System.nanoTime() - started) / 1_000_000).toInt(),
-            ),
+          mapOf(
+            "ok" to true,
+            "fingerprint" to (leaf?.let(::fingerprint) ?: ""),
+            "latencyMs" to ((System.nanoTime() - started) / 1_000_000).toInt(),
           )
         }
       }
     } catch (error: Exception) {
-      // Off the module thread nothing rejects the promise for us: every failure must resolve it.
-      promise.resolve(mapOf("ok" to false, "kind" to if (pinFailure(error)) "pin" else "connect", "code" to code(error)))
+      // Off the module thread nothing rejects the promise for us: report failures to a live bridge.
+      mapOf("ok" to false, "kind" to if (pinFailure(error)) "pin" else "connect", "code" to code(error))
     }
+    synchronized(lifecycle) { if (!destroyed) promise.resolve(result) }
   }
 
-  private fun callback(id: String) = object : Callback {
+  private fun callback(id: String, pool: ConnectionPool) = object : Callback {
     override fun onFailure(call: Call, e: IOException) {
-      calls.remove(id)
-      // connect: the computer's app never answered, another route may work.
-      sendEvent(
-        "onError",
-        mapOf("id" to id, "kind" to if (pinFailure(e)) "pin" else "connect", "message" to (e.message ?: ""), "code" to code(e)),
-      )
+      try {
+        // connect: the computer's app never answered, another route may work.
+        emit(
+          "onError",
+          mapOf("id" to id, "kind" to if (pinFailure(e)) "pin" else "connect", "message" to (e.message ?: ""), "code" to code(e)),
+        )
+      } finally { release(id, call, pool) }
     }
 
     override fun onResponse(call: Call, response: Response) {
-      val leaf = response.handshake?.peerCertificates?.firstOrNull() as? X509Certificate
-      val headers = response.headers.names().associate { it.lowercase() to response.headers.values(it).joinToString(", ") }
-      sendEvent(
-        "onResponse",
-        mapOf("id" to id, "status" to response.code, "headers" to headers, "fingerprint" to (leaf?.let(::fingerprint) ?: "")),
-      )
       try {
+        val leaf = response.handshake?.peerCertificates?.firstOrNull() as? X509Certificate
+        val headers = response.headers.names().associate { it.lowercase() to response.headers.values(it).joinToString(", ") }
+        if (!emit(
+          "onResponse",
+          mapOf("id" to id, "status" to response.code, "headers" to headers, "fingerprint" to (leaf?.let(::fingerprint) ?: "")),
+        )) return
         response.body?.byteStream()?.use { stream ->
           val buffer = ByteArray(16 * 1024)
           while (true) {
             val read = stream.read(buffer)
             if (read < 0) break
-            if (read > 0) sendEvent("onData", mapOf("id" to id, "data" to Base64.encodeToString(buffer, 0, read, Base64.NO_WRAP)))
+            if (read > 0 && !emit("onData", mapOf("id" to id, "data" to Base64.encodeToString(buffer, 0, read, Base64.NO_WRAP)))) return
           }
         }
-        sendEvent("onEnd", mapOf("id" to id))
+        emit("onEnd", mapOf("id" to id))
       } catch (e: IOException) {
-        sendEvent("onError", mapOf("id" to id, "kind" to "io", "message" to (e.message ?: ""), "code" to code(e)))
+        emit("onError", mapOf("id" to id, "kind" to "io", "message" to (e.message ?: ""), "code" to code(e)))
       } finally {
-        calls.remove(id)
         response.close()
+        release(id, call, pool)
       }
     }
   }

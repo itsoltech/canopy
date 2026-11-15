@@ -6,6 +6,7 @@ import { Button, Field, Notice } from "../../ui/components";
 import { SettingsGroup, SettingChoice, SettingToggle } from "./SettingsGroup";
 import { SettingsValue } from "./SettingsValue";
 import { ResourceState, useSettingsResource } from "./resource";
+import { ConnectorSecretHeaders } from "./ConnectorSecretHeaders";
 
 function useConnectorForm({
   type,
@@ -33,13 +34,14 @@ function useConnectorForm({
   const method = type.authMethods.find((m) => m.authKind === authKind);
 
   async function save() {
+    setError("");
     const parsed: Record<string, string> = {};
 
     for (const line of headers.split("\n").filter((v) => v.trim())) {
       const colon = line.indexOf(":");
 
       if (colon < 1) {
-        setError("Use one header per line: Header-Name: value.");
+        setError("Use Header-Name: value in each field.");
 
         return;
       }
@@ -81,10 +83,12 @@ function useConnectorForm({
       return response;
     });
 
+    if (!result) return;
+
     setToken("");
     setHeaders("");
 
-    if (result && authKind !== "oauth") onSaved();
+    if (authKind !== "oauth") onSaved();
   }
 
   return {
@@ -224,10 +228,10 @@ export function ConnectorForm({
               void resource
                 .run((api) => api.completeConnectorOAuth({ pastedCode: pasted, browserBinding: binding }))
                 .then((r) => {
-                  setPasted("");
-
-                  if (r?.account) onSaved();
-                  else if (r) setError(r.error || "Sign-in could not finish. Start sign-in again.");
+                  if (r?.account) {
+                    setPasted("");
+                    onSaved();
+                  } else if (r) setError(r.error || "Sign-in could not finish. Start sign-in again.");
                 })
             }
           />
@@ -286,15 +290,7 @@ function ConnectorCredentials({
             autoCapitalize="none"
             autoCorrect={false}
           />
-          <Field
-            label="Secret headers"
-            value={headers}
-            onChangeText={setHeaders}
-            multiline
-            secureTextEntry
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
+          <ConnectorSecretHeaders value={headers} onChange={setHeaders} />
         </>
       )}
       <Notice>
@@ -354,7 +350,9 @@ function ConnectorOAuthApp({
                 (api) => api.saveConnectorOAuthApp({ connectorType: type.id, clientId, clientSecret: secret, issuer }),
                 "OAuth app saved.",
               )
-              .then(() => setSecret(""))
+              .then((result) => {
+                if (result) setSecret("");
+              })
           }
         />
       </ResourceState>
