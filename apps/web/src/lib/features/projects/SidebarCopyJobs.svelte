@@ -52,7 +52,7 @@
                   />
                   <span class="flex min-w-0 flex-1" title={copyJobTitle(job)}>
                     <span class="min-w-0 truncate">{job.name}</span>
-                    <span class="max-w-3/5 shrink-0 truncate whitespace-pre"> → {job.targetName || "worker"}</span>
+                    <span class="max-w-3/5 shrink-0 truncate ps-1">→ {job.targetName || "worker"}</span>
                   </span>
                   <span class="shrink-0 text-muted tabular-nums">{copyJobState(job)}</span>
                 </span>
