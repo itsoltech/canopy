@@ -12,7 +12,7 @@
   const split = $derived(branch.length - Math.min(8, Math.floor(branch.length / 2)));
 </script>
 
-<span class={["flex min-w-0 items-center gap-1", className]} title={label}>
+<span class={["flex min-w-0 items-center gap-1 overflow-hidden", className]} title={label}>
   <Icon name="git-fork" size="sm" class="shrink-0" />
   <span class="flex min-w-0 whitespace-pre" aria-hidden="true"
     ><span class="min-w-0 truncate">{branch.slice(0, split)}</span><span class="shrink-0">{branch.slice(split)}</span

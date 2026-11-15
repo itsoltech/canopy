@@ -314,6 +314,25 @@ export const icons = {
     "M10 18a2 2 0 1 0 4 0a2 2 0 1 0-4 0M5 6a2 2 0 1 0 4 0a2 2 0 1 0-4 0m10 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0",
     "M7 8v2a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V8m-5 4v4",
   ],
+  // git-pull-request
+  "git-pull-request": [
+    "M4 18a2 2 0 1 0 4 0a2 2 0 1 0-4 0M4 6a2 2 0 1 0 4 0a2 2 0 1 0-4 0m12 12a2 2 0 1 0 4 0a2 2 0 1 0-4 0M6 8v8",
+    "M11 6h5a2 2 0 0 1 2 2v8",
+    "m14 9l-3-3l3-3",
+  ],
+  // git-pull-request-draft
+  "git-pull-request-draft": [
+    "M4 18a2 2 0 1 0 4 0a2 2 0 1 0-4 0M4 6a2 2 0 1 0 4 0a2 2 0 1 0-4 0m12 12a2 2 0 1 0 4 0a2 2 0 1 0-4 0M6 8v8m12-5h.01M18 6h.01",
+  ],
+  // git-pull-request-closed
+  "git-pull-request-closed": [
+    "M4 18a2 2 0 1 0 4 0a2 2 0 1 0-4 0M4 6a2 2 0 1 0 4 0a2 2 0 1 0-4 0m12 12a2 2 0 1 0 4 0a2 2 0 1 0-4 0M6 8v8m12-5v5M16 4l4 4m0-4l-4 4",
+  ],
+  // git-merge
+  "git-merge": [
+    "M5 18a2 2 0 1 0 4 0a2 2 0 1 0-4 0M5 6a2 2 0 1 0 4 0a2 2 0 1 0-4 0m10 6a2 2 0 1 0 4 0a2 2 0 1 0-4 0M7 8v8",
+    "M7 8a4 4 0 0 0 4 4h4",
+  ],
 } as const satisfies Record<string, readonly string[]>;
 
 /** 2.25 SVG units = 1.5 CSS pixels at the default 16px size. */
