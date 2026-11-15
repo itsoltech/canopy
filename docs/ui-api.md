@@ -1,7 +1,9 @@
 # API dla UI i architektura frontendu
 
-Status (2026-11-15): web/desktop — bezpieczny HTML we wspólnym rendererze Markdown
-oraz lokalne obrazy w podglądzie plików i opcjonalna retencja archiwum są wdrożone; dostępność kanałów według
+Status (2026-11-15): web/desktop — bezpieczny HTML we wspólnym rendererze Markdown,
+lokalne obrazy w podglądzie plików, opcjonalna retencja archiwum oraz poprawione
+narożniki, typografia i ikony stosu paneli nad composerem są zaimplementowane;
+dostępność kanałów według
 [release.md](release.md).
 
 ## Proponowane odpowiedzi
@@ -1303,6 +1305,13 @@ może zmienić wskazanie, nigdy stan prośby).
 Pytania asynchroniczne zachowują możliwość odpowiedzi w kolejnej turze.
 
 `ComposerTop` to wspólna powierzchnia/slot nad polem wiadomości: panel subagentów, kolejka i pytania tworzą jeden stos z jednym nachodzeniem na composer. Warianty `embedded` paneli nie dodają własnych obwódek ani przesunięć. `Composer` wybiera najstarszy zestaw blokujący przed async, przechowuje szkice per id zestawu i używa osobnego `MessageComposer` do zwykłych wiadomości.
+
+Tylko pierwszy panel stosu ma zaokrąglone górne rogi; trigger dziedziczy je z panelu,
+więc nagłówki między sekcjami mają proste narożniki również przy hover i fokusie.
+Podgląd tekstu promptu w kolejce używa stopnia 13 / 12 px (telefon / desktop),
+o jeden stopień mniejszego od nagłówka; wysokość wiersza i kontrolki pozostają bez zmian.
+Ikona kolejki i zastępujący ją uchwyt mają 14 px, tak jak ikona w nagłówku;
+slot uchwytu zachowuje 16 px i dotychczasowy cel dotykowy.
 
 Panele nad composerem i menu zadań w tle używają wspólnego `ComposerDisclosureChevron`:
 zwinięty wskazuje w górę, rozwinięty w dół. Nagłówek ma 28 px na desktopie, wiersz kolejki
