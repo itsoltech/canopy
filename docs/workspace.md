@@ -1,6 +1,7 @@
 # Zakładki wątku i moduł plików
 
-Status: **wdrożone; układ v3** (stos #640–#648, potem #710, #711, #737, #740 i #787).
+Status: **wdrożone; układ v3**, kompaktowa typografia zakładek (2026-11-15;
+stos #640–#648, potem #710, #711, #737, #740 i #787).
 W web/desktop zakładki dzielą rząd z sygnetem projektu, a **tytuł wątku jest pierwszą,
 niezamykalną kartą** (bez osobnego tytułu i etykiety `Thread`, #787). Mobile pokazuje
 tę kartę w przełączniku jako `Thread`. W tym dokumencie `Thread` oznacza tę pierwszą
@@ -105,7 +106,10 @@ systemowe desktopu mają odrębne, zarezerwowane miejsce. Zakładki nie są drag
 Karta tytułu ma `min-width: 0`, ellipsis i maks. `min(20rem, 50%)`, gdy obok są
 widoczne inne karty, a 20 rem, gdy reszta jest w overflow lub kart nie ma. Jej
 zmierzona szerokość wchodzi do przydziału miejsca dla kart plików. Zakładki mają szerokość treści (do 12 rem),
-stały slot dirty/close i pełną ścieżkę w tooltipie. Karta tytułu jest zawsze widoczna
+stały slot dirty/close i pełną ścieżkę w tooltipie. Pas używa `density-chrome`:
+etykiety kart mają 13 px (`--type-compact`) na telefonie i desktopie, a poziomy
+padding etykiety wynosi 10 px zamiast 12 px przy standardowym rozmiarze interfejsu.
+Rozmiary skalują się razem z Interface size. Karta tytułu jest zawsze widoczna
 na pozycji 1. Aktywna karta zachowuje widoczność, ale jej nazwa także skraca się,
 gdy brakuje miejsca. Akcje po prawej mają niekurczące się
 sloty, a poniżej 40 rem przycisk `Files` pokazuje samą ikonę z dostępną nazwą.
