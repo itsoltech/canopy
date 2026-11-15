@@ -73,7 +73,7 @@
     {#each pages.current?.jobs ?? [] as job (job.id)}
       {@const look = checkLook(job.state)}
       <div class="group/pr flex min-w-0 items-center gap-2 text-sm/5 sm:text-xs/5">
-        <span {@attach tooltip(look.label)}><CheckStateIcon {look} /></span>
+        <span class="flex shrink-0" {@attach tooltip(look.label)}><CheckStateIcon {look} /></span>
         <p class="min-w-0 flex-1 truncate" title={job.name}>{job.name}</p>
         <CiActions
           {snapshot}
