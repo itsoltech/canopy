@@ -8,7 +8,7 @@ import type { WorktreeRow } from "./worktrees.ts";
 export interface WorktreeLifecycleRow extends WorktreeRow {
   last_activity_at: Date;
   all_deleted: boolean;
-  all_settled: boolean;
+  all_archived: boolean;
   busy: boolean;
   removal_token: string | null;
   removal_command: Uint8Array | null;
@@ -25,10 +25,8 @@ const snapshot = `SELECT w.*,
     FROM threads t WHERE t.worktree_id = w.id)) AS last_activity_at,
   EXISTS (SELECT 1 FROM threads t WHERE t.worktree_id = w.id) AND
     NOT EXISTS (SELECT 1 FROM threads t WHERE t.worktree_id = w.id AND t.deleted_at IS NULL) AS all_deleted,
-  EXISTS (SELECT 1 FROM threads t WHERE t.worktree_id = w.id) AND NOT EXISTS (
-    SELECT 1 FROM threads t WHERE t.worktree_id = w.id AND t.deleted_at IS NULL AND t.archived_at IS NULL
-      AND (t.status <> 'idle' OR (SELECT u.status FROM turns u WHERE u.thread_id = t.id ORDER BY u.ordinal DESC LIMIT 1)
-        IS DISTINCT FROM 'completed')) AS all_settled,
+  EXISTS (SELECT 1 FROM threads t WHERE t.worktree_id = w.id AND t.deleted_at IS NULL) AND NOT EXISTS (
+    SELECT 1 FROM threads t WHERE t.worktree_id = w.id AND t.deleted_at IS NULL AND t.archived_at IS NULL) AS all_archived,
   EXISTS (SELECT 1 FROM threads t WHERE t.worktree_id = w.id AND (
     t.status = 'creating' AND t.deleted_at IS NULL OR
     EXISTS (SELECT 1 FROM turns u WHERE u.thread_id = t.id AND u.status IN ('queued', 'running')) OR

@@ -20,7 +20,8 @@ export function cleanupReason(
 ): string {
   if (settings.cleanupDeletedThreads && row.all_deleted) return "All threads deleted";
 
-  if (settings.cleanupSettled && row.all_settled) return "All threads settled";
+  // The proto field keeps its old name; the rule now covers archived threads only.
+  if (settings.cleanupSettled && row.all_archived) return "All threads archived";
 
   if (settings.cleanupMerged && status.merged) return "Branch merged into the default or base branch";
 

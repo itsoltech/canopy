@@ -109,7 +109,7 @@ Pola Cleanup korzystają z tych samych zakresów, dziedziczenia i wersji:
 | `cleanup_deleted_threads` | `false` | Wszystkie wątki współdzielące worktree zostały usunięte. |
 | `cleanup_merged` | `false` | HEAD worktree zawarty w domyślnej lub bazowej gałęzi po fetch. |
 | `cleanup_inactive_days` | `0` | Liczba dni bez aktywności wątków i lokalnego katalogu; 0 wyłącza, maksimum 3650. |
-| `cleanup_settled` | `false` | Wszystkie żywe wątki zarchiwizowane albo idle z ostatnią turą completed. |
+| `cleanup_settled` | `false` | Wszystkie żywe wątki zarchiwizowane (nazwa pola historyczna; zakończona tura nie wystarcza). |
 | `cleanup_unchanged` | `false` | HEAD równy commitowi utworzenia i brak zmian plików. |
 | `keep_local_changes` | `true` | Zmiany lokalne są chronione; wyłączenie wskazuje wymóg ręcznego potwierdzenia, nigdy nie zezwala na automatyczną utratę danych. |
 | `delete_local_branch` | `false` | Po usunięciu checkoutu spróbuj usunąć tylko bezpieczną gałąź. |
@@ -412,7 +412,7 @@ pokazuje pełną ścieżkę i osobny picker gałęzi opisany wyżej; „Manage w
   (baza = gałąź na remote, ta sama nazwa), inaczej kontynuacja z notatką przekazania w checkoutcie
   projektu na celu (etap 5 tego planu).
 - **Archiwizacja i usunięcie wątku:** usunięcie wątku może usunąć jego
-  worktree (ustawienie), archiwizacja liczy się jako „settled”.
+  worktree (ustawienie), archiwizacja wszystkich wątków spełnia regułę `cleanup_settled`.
 
 ## Sprzątanie (etap 2)
 

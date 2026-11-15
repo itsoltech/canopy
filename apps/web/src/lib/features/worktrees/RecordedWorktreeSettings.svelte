@@ -15,7 +15,7 @@
     cleanupDeletedThreads: "Clean up deleted threads",
     cleanupMerged: "Clean up merged branches",
     cleanupInactiveDays: "Inactive days",
-    cleanupSettled: "Clean up settled worktrees",
+    cleanupSettled: "Clean up archived threads",
     cleanupUnchanged: "Clean up unchanged worktrees",
     keepLocalChanges: "Keep local changes",
     deleteLocalBranch: "Delete local branch",

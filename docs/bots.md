@@ -782,7 +782,7 @@ istniejącego wątku tego samego właściciela, projektu i workspace'u. To nowy 
 historii dostawcy. `create_schedule` / `update_schedule` przyjmują te same pola w `new_thread`
 (dziedziczenie wymaga placement `specific`). Ustawienia są rozstrzygane przy wykonaniu, a usunięte
 lub zarezerwowane worktree nie może dostać nowej pracy. Automaty podlegają wspólnym politykom
-sprzątania wątków deleted/settled. Zdalne worktree przez linked computers pozostają odrzucone
+sprzątania wątków deleted/archived. Zdalne worktree przez linked computers pozostają odrzucone
 z czytelnym komunikatem (etap 5). Opcje dostępne przez narzędzia i API, bez nowych kontrolek UI.
 
 | Nazwa | Działanie | Zgoda |
