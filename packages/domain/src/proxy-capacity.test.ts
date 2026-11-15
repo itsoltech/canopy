@@ -123,9 +123,15 @@ describe("proxy subscription capacity", () => {
       proxy("two", [account("b", Plan.ULTRA, 0)]),
     ];
 
-    const glance = usageSummaryGlance(usageSummary([], proxies, now), now);
+    const rows = usageSummary([], proxies, now);
+    const glance = usageSummaryGlance(rows, now);
     expect(glance).toHaveLength(1);
     expect(glance[0]?.percent).toBeCloseTo(16.666666);
+    // One bar per account across proxies, largest plan first, each filled to what it has left.
+    expect(rows[0]?.segments).toEqual([
+      { units: 10, percentLeft: 100 },
+      { units: 5, percentLeft: 50 },
+    ]);
     expect(
       usageSummary(
         [],

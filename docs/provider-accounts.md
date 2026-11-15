@@ -236,16 +236,21 @@ od 70% ostrzegawczy, a od 90% alarmowy. Potwierdzone dodatkowe użycie ma fiolet
 pasek z przerwą. Dostępność kredytów sama nie oznacza ich używania.
 Hover na desktopie lub dotknięcie otwiera proste podsumowanie
 (`@canopy/domain/usage-summary`): jeden wiersz na dostawcę z procentem pozostałej
-pojemności, jednym paskiem i najbliższym resetem. Bezpośrednie instancje ze wszystkich
+pojemności, paskiem głównego okna i najbliższym resetem. Bezpośrednie instancje ze wszystkich
 komputerów i konta używanych proxy CLIProxyAPI łączą się w tym wierszu; dla każdego okna
-zostaje niższy odczyt. Krótsze okno pojawia się tylko, gdy ogranicza bardziej niż główne.
+zostaje niższy odczyt. Pasek dzieli się na odcinki, po jednym na konto z odczytem tego okna,
+od największego planu. Szerokość odcinka to udział jego jednostek planu w sumie grupy
+(`proxyPlanWeight`; np. konta x10 i x50 dają odcinki 10/60 i 50/60), a wypełnienie to
+pozostała część danego konta. Bezpośrednia instancja i nieznany plan liczą się jako 1.
+Przy więcej niż jednym koncie obok nazwy jest ich liczba („2 accounts”).
+Krótsze okno pojawia się tylko, gdy ogranicza bardziej niż główne.
 Szczegóły instancji i kont zostają w Providers i Proxies
 ([proxies.md](proxies.md#konta-upstream-management-api-cliproxyapi)). Dostawca bez odczytu
 nie ma wiersza. Brak danych ukrywa przycisk, zachowując miejsce. Minione okna nie podnoszą
 alarmu. Dane pochodzą wyłącznie z przyrostowego overview; zegar aktualizuje tylko
 etykiety i wygasanie okien. Instancje proxy nie dają mierników planu.
-Odczyt `ListProxies` nie wywołuje proxy; pierwsze sprawdzenie gateway robi ~15 s po
-starcie. Bez odczytu i z samym proxy przycisk pokazuje ikonę połączenia zamiast pasków.
+Odczyt `ListProxies` nie wywołuje proxy; gateway sprawdza używane proxy co minutę
+(pierwszy raz ~15 s po starcie), a zmiana dociera do klientów przez overview. Bez odczytu i z samym proxy przycisk pokazuje ikonę połączenia zamiast pasków.
 Zmiana mobile obejmuje tylko JS, bez zależności i konfiguracji natywnej.
 
 ### Proxy, klucz API i własny endpoint

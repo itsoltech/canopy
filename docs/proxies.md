@@ -180,13 +180,15 @@ tożsamością klucza i URL, z którymi go wykonano (`management_identity` =
 `<id sekretu klucza>|<URL>`; każda wymiana klucza tworzy nowy sekret). Dzięki temu
 widzą go restarty i wszystkie procesy gatewaya, a wynik starego klucza nigdy nie
 opisuje nowego. Odczyty są rzadkie:
-- `RefreshProxyAccounts` przy otwarciu widoku zwraca odczyt młodszy niż 60 s;
+- `RefreshProxyAccounts` przy otwarciu widoku zwraca odczyt młodszy niż 45 s;
   przycisk Refresh (`force`) czyta najwyżej co 5 s;
-- co 5 min sprawdzane są proxy z kluczem używane przez profil, z backoffem
-  do 1 h po błędach; pierwsze sprawdzenie ~15 s po starcie;
+- co minutę sprawdzane są proxy z kluczem używane przez profil; po błędach
+  backoff od 5 min do 1 h; pierwsze sprawdzenie ~15 s po starcie. Próg 45 s jest
+  krótszy od minuty, bo odczyt dostaje czas na końcu i kolejny cykl widziałby go
+  jako świeży;
 - zmiana klucza lub URL czyta od nowa;
 - dzierżawa w tym samym wierszu (`management_read_at`, `management_read_identity`)
-  sprawia, że odczyt tej samej tożsamości zaczyna najwyżej jeden proces na 60 s
+  sprawia, że odczyt tej samej tożsamości zaczyna najwyżej jeden proces na 45 s
   (5 s dla Refresh).
 
 W jednym procesie równoczesne odczyty tego samego proxy współdzielą obietnicę

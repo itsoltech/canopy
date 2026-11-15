@@ -6,15 +6,22 @@ import { coreInstances } from "./core-providers.ts";
 import { readProxyAccounts } from "../proxies/management.ts";
 import type { ProxyTarget } from "../store/proxy-management.ts";
 
-/** A view that opens, or another gateway process, reuses a read this recent. */
-const FRESH_MS = 60_000;
+/** Proxies in use are checked this often, so usage in the sidebar is at most about a minute old. */
+export const PROXY_CHECK_MS = 60_000;
+
+/**
+ * A view that opens, or another gateway process, reuses a read this recent. Shorter than the check interval: a
+ * read stamps its time when it ends, so the next tick sees it slightly under a minute old and must still read.
+ */
+const FRESH_MS = PROXY_CHECK_MS - 15_000;
 
 /** A Refresh button reads again at most this often. */
 const FORCE_MS = 5_000;
 
-/** Proxies in use are checked this often, with backoff after failures. */
-export const PROXY_CHECK_MS = 5 * 60_000;
 const FIRST_CHECK_MS = 15_000;
+
+/** After failures the check waits this long, doubling per failure up to an hour. */
+const RETRY_MS = 5 * 60_000;
 const MAX_BACKOFF_MS = 60 * 60_000;
 
 /**
@@ -114,7 +121,7 @@ export class ProxyAccountsMonitor {
     const failures = this.#failures.get(id);
     const count = failures?.identity === identity ? failures.count : 1;
 
-    return Math.min(PROXY_CHECK_MS * 2 ** (count - 1), MAX_BACKOFF_MS);
+    return Math.min(RETRY_MS * 2 ** (count - 1), MAX_BACKOFF_MS);
   }
 
   async #store(id: string, identity: string, last: ui.ProxyAccounts | undefined, value: ui.ProxyAccounts) {
