@@ -147,7 +147,7 @@ function CopyJobSheet({ job, onClose }: { job: ui.WorkspaceCopyJob; onClose: () 
           </Text>
         ) : job.status === "waiting" ? (
           <Text style={[styles.body, { color: c.muted }]}>
-            {job.error || "Waiting for the computers to be online."}
+            {job.error || "Both workers must be online. The copy continues when they are."}
           </Text>
         ) : running ? (
           <Text numberOfLines={1} ellipsizeMode="middle" style={[styles.body, { color: c.muted }]}>

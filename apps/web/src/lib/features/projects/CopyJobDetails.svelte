@@ -43,7 +43,9 @@
   {#if job.status === "failed" || error}
     <p role="alert" class="text-rose-700 select-text dark:text-rose-400">{error || job.error}</p>
   {:else if job.status === "waiting"}
-    <p role="status" class="text-muted">{job.error || "Waiting for the computers to be online."}</p>
+    <p role="status" class="text-muted">
+      {job.error || "Both workers must be online. The copy continues when they are."}
+    </p>
   {:else if running}
     <p class="truncate text-muted" title={job.progress?.currentFile}>
       {job.progress?.currentFile || "Preparing the destination…"}

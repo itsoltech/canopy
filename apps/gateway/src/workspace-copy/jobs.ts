@@ -256,7 +256,7 @@ export class WorkspaceCopyJobs {
 
         if (!(await this.#reachable(row))) {
           await this.store.status(row.id, "waiting", {
-            error: `Waiting for ${row.target_name || "the computers"} to be online.`,
+            error: "Both workers must be online. The copy continues when they are.",
             from: [...OPEN_STATUSES],
           });
           this.#publish(await this.#row(row.id));
