@@ -43,11 +43,10 @@
   }
 </script>
 
-<div class="grid min-w-0 gap-1">
-  <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-    <div class="max-w-60 min-w-0 flex-1">
+<div class="grid w-60 max-w-full min-w-0 gap-1">
+  <div class="grid min-w-0 gap-0.5">
+    <div class="min-w-0">
       <Select
-        inline
         aria-label="Account plan"
         bind:value
         {options}
@@ -55,7 +54,7 @@
         onchange={(value) => void choose(value)}
       />
     </div>
-    <p class="min-h-5 w-24 shrink-0 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400" role="status">
+    <p class="min-h-5 px-3 text-xs/5 text-zinc-500 dark:text-zinc-400" role="status">
       {busy ? "Saving plan…" : account.manualPlan !== undefined ? "Set manually" : ""}
     </p>
   </div>
