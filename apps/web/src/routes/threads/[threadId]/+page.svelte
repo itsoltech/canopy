@@ -115,7 +115,10 @@
     const id = threadId;
     const current = memory.view;
     const hide = threadViews.show(id);
-    const disconnect = current.connect(id);
+
+    const disconnect = current.connect(id, () =>
+      overview.connection === "live" ? overview.threads.get(id)?.status : undefined,
+    );
 
     return () => {
       disconnect();

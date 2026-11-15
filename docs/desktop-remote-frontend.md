@@ -54,8 +54,11 @@ nawigacja GET dokumentu na dokładny `/api/connectors/oauth/callback`, nadal z
 kontrolą Host. State sprawdza gateway; szczegóły w [connectors.md](connectors.md#oauth).
 Połączenia z gatewayem nie dopuszczają wyjątków TLS, przekierowań ani TOFU.
 Lista tras jest wskazówką; wszystkie trasy muszą dowieść tego samego pinu.
-Przełączenie trasy następuje przed wysłaniem RPC; nie ponawiamy mutacji po
-niejednoznacznej utracie odpowiedzi. Uwierzytelnione informacje o trasach
+Trasę wybiera wyścig sond TLS; zweryfikowana trasa obsługuje kolejne RPC bez
+nowych sond, bo każde nowe połączenie jej transportu i tak sprawdza pin.
+Ponowny wybór następuje przed kolejnym RPC po `Unavailable` albo zamknięciu sesji
+pod wywołaniem, po zmianie listy tras oraz w tle najwyżej co 30 s. Nie ponawiamy
+mutacji po niejednoznacznej utracie odpowiedzi. Uwierzytelnione informacje o trasach
 odświeżają listę, zachowując adres bootstrap jako fallback i niezmienny pin.
 
 ## Migracja i własny worker
