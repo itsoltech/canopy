@@ -1130,7 +1130,7 @@ zgodnie z `AGENTS.md`, nigdy pojedynczy niegotowy etap do `dev`.
 | 3. Workery i synchronizacja | **M**, po 2: journal/redelivery, harness TTFT/turn, git, dysk, mirror lag i resubscribe reasons, oba końce finding linku, szczegóły wszystkich workerów. | Gateway↔worker: reconnect/drain/restart, redelivery bez podwójnego naliczania, luki/mirror commit, symulowana wolna sieć, bez dodatkowych probes. Harness adaptery na deterministycznych CLI, brak prompt/path w wynikach, reuse #386 i #409–#411. |
 | 4. Klienci i raport/agent | **M**, po 3: agregaty BFF, sampled web/desktop/mobile timings, eksport JSON/Markdown, wybór placement i utworzenie zwykłego wątku, reset epoch. | Integracja auth, rate/size/schema, stara sekwencja/epoch, unpair/revoke, redakcja, załącznik na właściwym domu i idempotentne utworzenie. Benchmarki #413–#419 z oddzieleniem JS od native; ręczny copy audit i parity. |
 | 5. Collect logs | **L**, po 4: źródła/rotacja także standalone, lokalna redakcja, autoryzowane zbieranie ze wszystkich domów/workerów, chunk/backpressure, spool/ZIP/manifest/partial/retry, download/share sheet, opcjonalne dołączenie ZIP do akcji agent. | Integracja wielogatewayowa/workerowa: sekrety przecięte chunkami, SQL payload/host/path, odmowa cudzych logów, relay grant/revoke, offline/timeout/rotation, limity/tail, wolny odbiorca/anulowanie, restart cleanup i ZIP bez traversal. Test migracji grants jeśli potrzebna. Test bezpieczeństwa prywatnego kanału desktopu; ręczny download i share, limit załącznika. |
-| 6. Czasowy tracing i domknięcie budżetów | **M**, po 5: lease, spany bez payloadów, opt-in eksport na danym komputerze, auto-off oraz pomiar wszystkich trybów. Aktywne sondy pozostają odłożone do decyzji. | Gateway↔worker: start/stop/expiry/restart, brak tracingu na innym domu bez akcji, ograniczenie pamięci i próbek. Współbieżny sync + eksport logów + RPC: wynik budżetu i brak regresji. Ręczny przegląd wszystkich stanów, copy/parity i pełna lista kontroli z `AGENTS.md`. |
+| 6. Czasowy tracing i domknięcie budżetów | **M**, po 5: lease, spany bez payloadów, opt-in eksport na danym komputerze, auto-off oraz pomiar wszystkich trybów. Aktywne sondy pozostają odłożone do decyzji. | Gateway↔worker: start/stop/expiry/restart, brak tracingu na innym domu bez akcji, ograniczenie pamięci i próbek. Współbieżny sync + eksport logów + RPC: wynik budżetu i brak regresji. Ręczny przegląd wszystkich stanów, copy/parity i wymagane checki GitHub CI według `AGENTS.md`. |
 
 **Pomiar narzutu jest bramką każdego etapu**, nie pracą zostawioną wyłącznie na 6.
 Porównanie off/on na tej samej rewizji, danych syntetycznych, wersji runtime i maszynie,
@@ -1170,11 +1170,10 @@ on/off i własny limit CPU; przy zbyt wysokim koszcie ograniczamy szczegóły,
 częstotliwość lub transfer, nie zwiększamy budżetu bez decyzji.
 
 Testy stosu: istniejące meaningful gRPC/durability/security/harness i migracje,
-bez trywialnych unitów i testów UI. Wdrożenie każdego etapu wymaga pełnej listy
-kontroli z `AGENTS.md`: `bun install`, `bun run gen:check`, `bun run typecheck`,
-`bun run lint`, `bun run format:check`, `bun run check:tmp` (pełny przebieg testów,
-w tym integracyjnych, oraz kontrola czystości katalogu tymczasowego) i build web
-(`bun run --filter @canopy/web build`). Benchmarki uruchamiamy w izolowanych
+bez trywialnych unitów i testów UI. Przed scaleniem wymagane checki GitHub CI
+muszą przejść dla scalanej rewizji. Lokalną weryfikację dobieramy do zmiany według
+[AGENTS.md](../AGENTS.md#testing-policy), bez powtarzania pełnej bramki CI.
+Benchmarki potrzebne do oceny budżetów tej funkcji uruchamiamy w izolowanych
 stosach na własnych portach; ich artefakty nie trafiają do repo.
 
 ## 11. Decyzje maintainera — zaakceptowane 2026-11-10

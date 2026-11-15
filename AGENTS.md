@@ -43,7 +43,7 @@ Short rules for agents working in this repository. Details live in `docs/` (most
 
 ## Contracts and database
 
-- After any proto change run `bun run gen` and commit the generated code; `bun run gen:check` must be clean.
+- After any proto change run `bun run gen` and commit the generated code; CI verifies it with `bun run gen:check`.
 - Proto changes are **additive only**: new fields get new numbers, never reuse or renumber.
 - `proto/canopy/update/v1` is **frozen forever**: it must work across every pair of versions.
 - Worker↔gateway compatibility goes through `WORKER_LINK_PROTOCOL` in `packages/domain/src/release/protocol.ts`.
@@ -62,19 +62,19 @@ Short rules for agents working in this repository. Details live in `docs/` (most
   - harness adapters,
   - opt-in live tests (`CANOPY_LIVE=1`, run from the repo root so the bun preload applies).
 - **No web UI tests** (no component tests, no Playwright suites) and no trivial unit tests.
-- Before handing over, all of these must be clean:
-  - `bun install`
-  - `bun run gen:check`
-  - `bun run typecheck`
-  - `bun run lint` and `bun run format:check`
-  - `bun run check:tmp` (full test run that also checks nothing is left in the temp dir)
-  - the web build
+- GitHub CI owns the full verification gate: frozen dependency install, `gen:check`, repository-wide typecheck, lint, formatting, tests through `check:tmp`, and builds selected by the workflow. Required CI checks must pass for the revision being merged; agents must inspect failures and fix those caused by their changes.
+- Local verification is selective. Run a check only when it gives useful feedback on the changed behavior: affected test files, the affected package's typecheck, or lint on edited files. Choose the smallest useful scope; there is no mandatory local checklist before handoff or opening a PR.
+- Do not routinely run `bun run check`, unrestricted `bun test` or `bun run check:tmp`, all test shards, repository-wide typecheck/lint/format checks, or web/release builds locally. Broaden a local check only to investigate a concrete failure that narrower checks cannot resolve, or when the user explicitly requests it. A large change alone is not a reason to duplicate CI.
+- `check:tmp` runs tests, not just a cleanup check. To check affected tests and their cleanup, use `bun run check:tmp ./path/to/file.test.ts` from the repository root. Do not run the same tests once through `bun test` and again through `check:tmp` without a diagnostic reason.
+- Install dependencies only when missing or when dependency manifests or the lockfile changed. Generate affected outputs when their sources change; leave the subsequent full `gen:check` to CI.
+- Documentation-only changes need a diff and content/link review; do not install dependencies or run code checks, tests, or builds for them. Follow the CI workflow's existing selection of checks.
+- Reuse successful local checks while their inputs remain unchanged. In the handoff/PR, state what ran locally and what is left to CI; do not claim pending CI passed. Domain docs listing the full gate describe CI requirements, not additional local checklists.
 - Look at UI changes yourself in a real browser: light + dark, desktop + phone width.
 
 ## Code quality
 
 - Lint is oxlint with the vendored anti-slop rules (`tools/oxlint/anti-slop`, `oxlint.config.ts`); formatting is oxfmt. CI enforces both. Details and rule notes: `docs/code-quality.md`.
-- Run `bun run format` after editing. Fix lint findings properly: parse data at boundaries instead of `typeof` checks and casts, use real types instead of `unknown`, keep assertions only with a `// SAFETY:` comment that states the invariant.
+- Format edited files supported by oxfmt with `bun run format -- <files>`; avoid formatting the whole repository. Markdown is ignored by oxfmt. Fix lint findings properly: parse data at boundaries instead of `typeof` checks and casts, use real types instead of `unknown`, keep assertions only with a `// SAFETY:` comment that states the invariant.
 - Size limits: 400 code lines per file and 120 per function (tests: 800 per file). Split by responsibility; never disable the size rules.
 - `oxlint-disable-next-line <rule> -- <reason>` only when the fix would be wrong, with a precise reason.
 - Never run plain `oxlint --fix` on the whole repo; use `bun run lint:spacing` for the spacing autofix.

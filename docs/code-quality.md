@@ -3,6 +3,8 @@
 `bun run lint` (oxlint + anti-slop + limity rozmiaru) i `bun run format:check`
 (oxfmt) są wymagane przez CI oraz root `check`. Reguły dla nowego kodu opisuje
 także [AGENTS.md](../AGENTS.md).
+Lokalnie stosujemy [kontrole dobrane do zmiany](contributing.md#lokalna-kontrola),
+bez powtarzania pełnej bramki CI.
 
 ## Narzędzia i polecenia
 
@@ -20,7 +22,8 @@ w konfiguracji lub regule, zachowując lokalne poprawki.
 - `bun run lint` sprawdza cały kod.
 - `bun run lint:spacing` poprawia wyłącznie `require-readable-spacing` przez
   `oxlint.spacing.config.ts`. Nie uruchamiaj globalnego `oxlint --fix`.
-- `bun run format` zapisuje formatowanie, a `bun run format:check` je sprawdza.
+- `bun run format -- <pliki>` zapisuje formatowanie edytowanych plików;
+  `bun run format:check` sprawdza całe repo w CI. Markdown jest ignorowany.
 - `bun run typecheck` obejmuje także `tools/tsconfig.json` z pluginem i konfiguracją.
 
 Osobny config spacing współdzieli `ignorePatterns` z głównym i wyłącza domyślną
