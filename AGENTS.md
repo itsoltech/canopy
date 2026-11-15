@@ -5,17 +5,18 @@ Short rules for agents working in this repository. Details live in `docs/` (most
 ## Project
 
 - **Canopy**: an AI agent platform. Bun + TypeScript monorepo.
-  - `apps/gateway`: gRPC gateway, Postgres; bots run here.
-  - `apps/worker`: runs Claude Agent SDK, Codex app-server and the Grok CLI over ACP.
-  - `apps/web`: SvelteKit BFF + SPA.
-  - `apps/desktop`: Electron.
-  - `apps/mobile`.
+  - `apps/gateway`: gRPC gateway and the only Postgres client: owner-scoped API, worker command outbox, bot queue and tools, connector proxy, GitHub, agent bus. Server builds also serve the web app in-process. It never calls model APIs.
+  - `apps/worker`: runs Claude Agent SDK, Codex app-server and the Grok CLI over ACP, for threads and for hidden bot sessions.
+  - `apps/web`: SvelteKit BFF + SPA, embedded in the server gateway or the desktop controller.
+  - `apps/desktop`: Electron + a Bun controller. Local mode supervises PostgreSQL, a gateway and a worker; remote mode runs only the local BFF against a paired gateway.
+  - `apps/mobile`: Expo app over Connect with a pinned TLS certificate.
   - `packages/*`: contracts, db, domain, updater, …
   - `proto/canopy/*`: the gRPC contracts.
 - The name is **Canopy** everywhere: code, docs, UI, prompts, env vars (`CANOPY_*`), packages (`@canopy/*`), proto (`canopy.*`). No traces of former names, no legacy fallbacks.
 - UI and user-facing text are in English. Docs in `docs/` are in Polish (except `docs/copy.md`, which is in English); keep that when editing them.
 - Don't name other products as inspiration in code, docs, tests or commits. Don't commit analysis, verification, spike or test-run artifacts (reports, screenshots, logs); keep only finished docs, and fold generic lessons into the relevant doc. Never put machine-specific paths, hosts or workarounds in the repo; keep those outside it.
-- Start with `docs/architecture.md`. Then read the doc for the area you touch: `protocol.md`, `worker-config.md`, `bots.md`, `connectors.md`, `updates.md`, `release.md`, `deploy.md`, `ui-api.md`.
+- Start with `docs/architecture.md`. Then read the doc for the area you touch: `protocol.md`, `worker-config.md`, `bots.md`, `connectors.md`, `github.md`, `workspace.md`, `agent-visuals.md`, `desktop.md`, `mobile.md`, `linked-computers.md`, `network-access.md`, `updates.md`, `release.md`, `deploy.md`, `ui-api.md`.
+- A PR that changes behaviour updates that area's doc in the same PR, including its status line. Keep implemented behaviour, plans and release availability (nightly/beta/stable) apart; don't leave a doc calling merged work a draft or plan.
 
 ## Branches, commits, releases
 
@@ -96,7 +97,11 @@ Short rules for agents working in this repository. Details live in `docs/` (most
 ## Security
 
 - Never commit secrets: API keys, tokens, worker credentials, private hosts.
-- Credentials stay in the gateway, encrypted. They never go to workers, browsers, models or logs.
+- Platform credentials are stored only in the gateway, encrypted, and are never sent to browsers, models or logs. They leave the gateway only as follows:
+  - connector and GitHub tokens never leave the gateway; workers and bots get proxied access only;
+  - provider proxy/API keys reach a worker only in `WorkerConfig` over the authenticated link, kept in worker memory and the harness process env, never in reports, logs or config files;
+  - thread secrets (`request_secret`) reach only the asking thread's worker as an expiring private file; the model gets the path, never the value.
+- Agent CLI logins live on the worker machine and never go to the gateway.
 - Every gateway action is owner-scoped. Approvals and grants are enforced in the gateway, not the UI.
 - Never print or log secret values in tools, tests or CI.
 

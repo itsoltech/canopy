@@ -1,7 +1,10 @@
 # Zakładki wątku i moduł plików
 
-Status: **wdrożone; układ v3** (po stosie #640–#648).
-Zakładki dzielą rząd z sygnetem projektu i tytułem wątku. Podsumowanie wątku jest
+Status: **wdrożone; układ v3** (stos #640–#648, potem #710, #711, #737, #740 i #787).
+W web/desktop zakładki dzielą rząd z sygnetem projektu, a **tytuł wątku jest pierwszą,
+niezamykalną kartą** (bez osobnego tytułu i etykiety `Thread`, #787). Mobile pokazuje
+tę kartę w przełączniku jako `Thread`. W tym dokumencie `Thread` oznacza tę pierwszą
+kartę rozmowy, niezależnie od jej etykiety. Podsumowanie wątku jest
 **osobnym elementem**: pływającą kartą o stałej szerokości w prawym górnym rogu
 obszaru wątku, niezależną od prawego panelu. Prawy panel zawiera wyłącznie **Files**.
 Ustalono jeden zastępowalny czysty preview, utrwalany przez pierwszą zmianę/Keep tab/dwuklik,
@@ -18,9 +21,13 @@ Punkty oparcia: [architektura](architecture.md), [UI API](ui-api.md#pliki-wątku
 [połączone komputery](linked-computers.md), [mobile](mobile.md),
 [skala UI](ui-scale.md), [copy](copy.md) i [pomiary](client-performance.md).
 
-## 1. Stan obecny i granice projektu
+## 1. Punkt wyjścia i granice projektu
 
-`features/files/FileViewer.svelte` otwiera jeden plik w modalu. Czyta przez
+Akapity tej sekcji do „Zgodności z bieżącym klientem” opisują stan **przed** stosem
+#640–#648 i uzasadniają zakres. Modal plików wątku usunięto w #648; obecne zachowanie
+opisują §2–§9.
+
+`features/files/FileViewer.svelte` otwierał jeden plik w modalu. Czyta przez
 `ReadThreadFile`, edytuje przez `WriteThreadFile`, usuwa przez `DeleteThreadFile`
 i otwiera lokalną aplikację przez `OpenThreadFile`. Podświetlanie składni i leniwie
 ładowany edytor już istnieją. Odczyt ma limit 2 MiB, a UI pozwala edytować do 400 KiB.
@@ -69,8 +76,9 @@ Kolejka kontynuacji zadań w tle i skróty załączników/cytatów w jej wiersza
 dyspozycji tur ani projekcji work-fold/feed; ukrycie rozmowy nie gubi kolejki.
 
 Poza zakresem: terminal, language server, uruchamianie kodu, automatyczny zapis,
-tworzenie i przenoszenie plików, pełny edytor projektu, synchronizacja szkiców,
-replikacja zawartości dysku i przeglądanie całego komputera. Kontrakt rejestracji
+tworzenie i przenoszenie plików, pełny edytor projektu, synchronizacja niezapisanych
+edycji plików między urządzeniami (szkice kompozytora mają osobny mechanizm:
+[ui-api.md](ui-api.md#szkice-kompozytora-i-przekazywanie-między-urządzeniami)), replikacja zawartości dysku i przeglądanie całego komputera. Kontrakt rejestracji
 modułów jest wewnętrzny, bez ładowania zewnętrznych rozszerzeń.
 
 ## 2. Układ v3
@@ -85,18 +93,21 @@ i panelu Files.
 
 ### Jeden rząd nagłówka i przepełnienie
 
-Kolejność: **sygnet/avatar projektu → tytuł wątku → zakładki → przełącznik
-zakładek → akcje wątku → przełącznik `Files`**. Nie pokazujemy nazwy projektu ani
-osobnego rzędu zakładek. Sygnet ma dostępną nazwę projektu i tooltip, tytuł pełną
-nazwę w tooltipie oraz dostępną akcję zmiany tytułu. Nagłówek ma wysokość istniejącego
+Kolejność: **sygnet/avatar projektu → tytuł wątku jako pierwsza karta → karty plików
+i zasobów → przełącznik zakładek → akcje wątku → przełącznik `Files`**. Nie pokazujemy
+nazwy projektu, osobnego tytułu w breadcrumbs ani osobnego rzędu zakładek. Sygnet ma
+dostępną nazwę projektu i tooltip, karta tytułu pełną nazwę w tooltipie i dostępnej
+nazwie; kliknięcie wraca z pliku do rozmowy, a `Switch tab` używa tego samego tytułu.
+Karta zachowuje animację generowania tytułu i wskaźnik aktywności. Nagłówek ma wysokość istniejącego
 headera (3 rem przy standardowym rozmiarze); obszary przeciągania okna i kontrolki
 systemowe desktopu mają odrębne, zarezerwowane miejsce. Zakładki nie są drag region.
 
-Tytuł ma `min-width: 0`, ellipsis i maks. `min(14rem, 22%)` szerokości głównego
-obszaru. Zakładki mają szerokość treści (do 12 rem), stały slot dirty/close i pełną
-ścieżkę w tooltipie. `Thread` jest zawsze widoczny jako pierwsza karta. Aktywna karta
-zachowuje widoczność, ale jej nazwa także skraca się, gdy brakuje miejsca.
-Tytuł oddaje miejsce zakładkom jako pierwszy. Akcje po prawej mają niekurczące się
+Karta tytułu ma `min-width: 0`, ellipsis i maks. `min(20rem, 50%)`, gdy obok są
+widoczne inne karty, a 20 rem, gdy reszta jest w overflow lub kart nie ma. Jej
+zmierzona szerokość wchodzi do przydziału miejsca dla kart plików. Zakładki mają szerokość treści (do 12 rem),
+stały slot dirty/close i pełną ścieżkę w tooltipie. Karta tytułu jest zawsze widoczna
+na pozycji 1. Aktywna karta zachowuje widoczność, ale jej nazwa także skraca się,
+gdy brakuje miejsca. Akcje po prawej mają niekurczące się
 sloty, a poniżej 40 rem przycisk `Files` pokazuje samą ikonę z dostępną nazwą.
 
 Pas zakładek nie zawija się ani nie poszerza aplikacji. Po `Thread` pokazuje aktywną
@@ -249,9 +260,10 @@ Panel montuje się przy pierwszym użyciu i potem pozostaje zamontowany.
 
 ### Tożsamość, otwieranie i zamykanie
 
-Pierwsza zakładka ma angielską etykietę `Thread`: jest stale przypięta na pozycji 1,
-bez zamknięcia i przestawiania. W dokumentacji „rozmowa” opisuje jej zawartość;
-w UI używamy słowa `thread` zgodnie ze słownikiem. Poza plikami zakładki mają
+Pierwsza zakładka to rozmowa: w web/desktop ma etykietę z tytułem wątku, w przełączniku
+mobile — `Thread`. Jest stale przypięta na pozycji 1, bez zamknięcia i przestawiania.
+W dokumentacji „rozmowa” opisuje jej zawartość; w UI używamy słowa `thread` zgodnie
+ze słownikiem. Poza plikami zakładki mają
 pełny PR (z wiersza PR) i wynik zadania w tle (z wiersza zadania).
 
 Klucz zakładki pliku zawiera zakres klienta, kwalifikowane id wątku, tożsamość
@@ -372,7 +384,9 @@ zadania w tle (`tasks`). Otwiera je wiersz w podsumowaniu, nigdy osobny picker.
 Pełny panel PR zachowuje wewnętrzne Summary/Timeline/Code; nie stają się osobnymi
 zakładkami workspace'u. Zapisane zakładki dawnych modułów (`files`, `connectors`) nie
 są odtwarzane. Podsumowanie i pełna karta PR współdzielą query i wynik w toku;
-nie montują dwóch pollerów PR ani dwóch `GetThreadPanel`.
+nie montują dwóch pollerów PR ani dwóch `GetThreadPanel`. W web/desktop karta PR
+pokazuje ikonę stanu (open, draft, merged, closed) z kropką checków, a karta pliku
+znak typu pliku (#806); stan jest też w tooltipie i dostępnej nazwie.
 
 Granice web: `ThreadWorkspace`, `WorkspaceTabs`, `WorkspaceFrame` (siatka z kolumną
 Files), `WorkspaceFilesPanel`, `ThreadSummary` (karta i pigułka, `SummaryLayout`)
@@ -784,10 +798,14 @@ utrzymują animacji, observerów geometrii ani `will-change` całego panelu.
 Toolbar i przyklejone nagłówki malują nieprzezroczyste tło do krawędzi scrolla.
 Sprawdzamy szczeliny, gutter, długie ścieżki i rezerwę dirty/close w obu motywach.
 
-## 10. Migracja i stos implementacyjny
+## 10. Migracja i stos implementacyjny (historia)
+
+Sekcja zapisuje plan, według którego wdrożono stos #640–#648 (układ v2); szacunki,
+przejściowy przełącznik shellu i kryterium 3 dotyczą tamtego etapu. Moduły,
+rail, chip, oba `+` i dok/float z warstwy 2 zastąpił potem układ v3 (§2).
 
 Zaakceptowano układ v2, preview, zakres drzewa i sposób edycji mobilnej oraz
-udzielono osobnej zgody na implementację. Poniższe **7 PR** tworzy
+udzielono osobnej zgody na implementację. Poniższe **7 PR** tworzyło
 jeden stos przez `gh stack`, osobny od dokumentacyjnego PR:
 pierwszy bazuje na `dev`, każdy następny na poprzednim. Każda warstwa działa po
 checkout i ma kompletny widoczny rezultat oraz fallback starszych komponentów.
@@ -824,9 +842,10 @@ pozostaje osobnym przepływem. Wycofanie nowego klienta nie zmienia plików ani
 starych wiadomości; nowe pola proto mogą zostać zignorowane. Najpierw należy
 rozstrzygnąć dirty szkice, bo rollback procesu ich nie odzyska.
 
-Po wdrożeniu stosu (#640–#648) układ uproszczono do v3 (§2) w osobnym stosie:
-podsumowanie jako samodzielna karta z przywróconymi sekcjami, panel z samym Files
-o globalnej szerokości i płynnym ruchu, prostsze zakładki i menu pliku, ten sam
+Po wdrożeniu stosu (#640–#648) układ uproszczono do v3 (§2): podsumowanie jako
+samodzielna karta z przywróconymi sekcjami (#710), panel z samym Files o globalnej
+szerokości i płynnym ruchu, prostsze zakładki i menu pliku (#711), jedna powierzchnia
+kart i treści (#740), tytuł wątku jako pierwsza karta w web/desktop (#787), ten sam
 model na mobile. Kryterium 3 poniżej opisuje odbiór v2; v3 sprawdzamy w tych samych
 motywach i szerokościach, z naciskiem na brak skoków przy zmianie wątku.
 

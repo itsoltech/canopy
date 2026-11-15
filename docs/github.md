@@ -1,18 +1,11 @@
 # Konto GitHub i pull requesty
 
-Status: **v1 zaimplementowane w draftowym stosie PR; dostępne po scaleniu całego stosu**, 2026-11-10. Etapy 1–3 w stosie implementują konta,
-powiązania ręczne i automatyczne oraz Summary. Etap 4 dodaje pełny odczyt:
-Timeline, review threads, checki/jobs/logi i Code, polling, kontekst composera
-oraz fallback aktualizacji. Etap 5 dodaje jawne komentarze (post/reply/edit/delete)
-i Viewed synchronizowane z GitHub, ze wspólnym preflightem, receiptami i audytem.
-Etap 6 dodaje inline comments i zakresy LEFT/RIGHT, pending review ze wszystkimi
-trzema werdyktami oraz resolve/unresolve. Etap 7 dodaje tworzenie PR z gałęzi wątku,
-ready/draft, merge trzema metodami, kolejkę scalania, auto-merge, update branch i close/reopen.
-Etap 8 dodaje edycję tytułu/opisu, reviewerów (osoby i zespoły), assignees i istniejących labels.
-Etap 9 dodaje sterowanie CI oraz ujednolica wybór reviewerów. Cały stos pozostaje draftem do zakończenia weryfikacji i wspólnego scalenia przez maintenera.
-Decyzje ustalone po przeglądzie: oficjalna GitHub App Canopy organizacji `itsoltech`, device flow,
-wygasające tokeny użytkownika w domu wątku, pełny zakres zapisów opisany poniżej i Viewed
-synchronizowane z GitHub. Implementacja jako jeden stos PR według §11.
+Status: **v1 wdrożone**: konta GitHub App i jawny fallback PAT, powiązania PR,
+pełny odczyt, komentarze i review, lifecycle, metadane oraz sterowanie GitHub Actions.
+Podstawowy zakres jest dostępny w web/desktop/mobile. Dodatkowe oznaczenia checków
+w kartach PR i sidebarze oraz podgląd PR w hover card opisane w §7 dotyczą interfejsu web.
+Tokeny użytkownika pozostają w domu wątku; integracja produktu nie nadaje agentom
+praw do mutacji GitHub. `watch_pr_checks` udostępnia wyłącznie obserwację checków (§10).
 
 ## 1. Wynik i zakres
 
@@ -39,7 +32,7 @@ przyszłego scalenia przez GitHub. Istniejące narzędzia agentów zachowują os
 
 ### Punkty oparcia w kodzie
 
-| Istniejący mechanizm | Wykorzystanie w projekcie |
+| Istniejący mechanizm | Wykorzystanie w integracji |
 | --- | --- |
 | `apps/gateway/src/connectors/{accounts,sealing,runtime,oauth}.ts`, `store/secrets.ts` | Owner scoping, AES-256-GCM z `CANOPY_SECRETS_KEY`, rotacja, redakcja błędów, odwołanie dostępu i deduplikacja efektów. Bez drugiego magazynu kluczy |
 | `connectors/{catalog,auth-methods,sign-in}.ts`, `api/ui-connectors.ts` | Obecny GitHub MCP: PAT lub aplikacja OAuth użytkownika; discovery i PKCE. Nie jest to gotowy GitHub App device flow |
@@ -95,7 +88,7 @@ App ID **`5696311`**, slug **`canopy-by-it-sol`**,
 publiczny Client ID **`Iv23liqSybfDzvusCyjP`**. Webhook jest nieaktywny, bez zdarzeń.
 Nie istnieje client secret ani private key i ten przepływ nigdy ich nie używa.
 
-| Uprawnienie repozytorium | Przyznane | Uzasadnienie i etap użycia |
+| Uprawnienie repozytorium | Przyznane | Uzasadnienie i zakres użycia |
 | --- | --- | --- |
 | Metadata | Read, obowiązkowe | Tożsamość repozytorium i dostęp instalacji |
 | Pull requests | Read and write | Create, ready/draft, close/reopen, tytuł/opis, reviews/inline/resolve, request/re-request użytkowników i zespołów, Viewed oraz auto-merge |
@@ -104,28 +97,29 @@ Nie istnieje client secret ani private key i ten przepływ nigdy ich nie używa.
 | Actions | Read and write | Odczyt runs/jobs/logów, ponowienie joba, nieudanych jobów lub całego run oraz cancel run |
 | Checks | Read | Check runs/suites, output i adnotacje, także od zewnętrznych dostawców |
 | Commit statuses | Read | Starsze statusy commitów, uzupełniające check runs |
-| Merge queues (`merge_queues`) | Read and write | Etap 7: scalanie w repozytoriach wymagających kolejki; bez omijania queue lub branch protection |
+| Merge queues (`merge_queues`) | Read and write | Scalanie w repozytoriach wymagających kolejki; bez omijania queue lub branch protection |
 | Deployments (`deployments`) | Read | Statusy wdrożeń i preview links przy checkach. Przyznane dla przyszłych funkcji; nieużywane do czasu implementacji |
 | Environments (`environments`) | Read | Nazwy i powiązania środowisk dla statusów wdrożeń i preview links. Przyznane dla przyszłych funkcji; nieużywane do czasu implementacji |
 | Code scanning alerts (`security_events`) | Read | Findings code scanning jako dodatkowe źródło dla Fix findings. Przyznane dla przyszłych funkcji; nieużywane do czasu implementacji |
 | Dependabot alerts (`vulnerability_alerts`) | Read | Findings Dependabot jako dodatkowe źródło dla Fix findings. Przyznane dla przyszłych funkcji; nieużywane do czasu implementacji |
 | Discussions (`discussions`) | Read and write | Przyszła obsługa dyskusji repozytorium. Przyznane dla przyszłych funkcji; nieużywane do czasu implementacji |
 
-| Uprawnienie organizacji | Przyznane | Uzasadnienie i etap użycia |
+| Uprawnienie organizacji | Przyznane | Uzasadnienie i zakres użycia |
 | --- | --- | --- |
-| Members (`members`) | Read | Etap 8: pickery osób i zespołów dla reviewerów; później podpowiedzi wzmianek. Bez zmiany członkostwa lub zespołów |
+| Members (`members`) | Read | Pickery osób i zespołów dla reviewerów; później podpowiedzi wzmianek. Bez zmiany członkostwa lub zespołów |
 | Projects (`organization_projects`) | Read and write | Przyszła obsługa tablic Projects. Przyznane dla przyszłych funkcji; nieużywane do czasu implementacji |
 
 Account permissions: **brak**. Przyznane prawa nie rozszerzają allowlisty operacji Canopy.
-Etap 1 korzysta tylko z tożsamości użytkownika i katalogu instalacji/repozytoriów;
-nie odczytuje członków, wdrożeń, środowisk, alertów, dyskusji ani Projects i niczego nimi nie zapisuje.
+Moduł kont korzysta z tożsamości użytkownika i katalogu instalacji/repozytoriów;
+katalog członków i zespołów obsługuje wybór reviewerów. Wdrożenia, środowiska,
+alerty, dyskusje i Projects pozostają poza allowlistą v1.
 
 **Contents: write zwiększa ryzyko kradzieży tokenu:** technicznie pozwala modyfikować kod
 w wybranych repozytoriach. Canopy nie wykonuje nim git push ani zapisu plików/refów przez API;
 allowlista dopuszcza tylko serwerowe merge i update branch. Te akcje zmieniają historię na GitHub,
 nie lokalny checkout. Nie pobieramy Workflows: write, Administration ani uprawnień do e-mail.
 Checks: write nie jest potrzebne i nie daje prawa do ponawiania dowolnego zewnętrznego CI.
-Members: read pozwoli etapowi 8 uzupełnić pickery reviewerów o osoby i zespoły organizacji.
+Members: read uzupełnia pickery reviewerów o osoby i zespoły organizacji.
 Bez tego prawa, również dla PAT, pozostają bieżące przypisania i podpowiedzi dostępnych
 współpracowników repozytorium oraz osób, które już wykonały review. Nie ma dowolnego wpisywania
 loginów ani tworzenia zespołów; GitHub ponownie sprawdza dostęp wybranych osób i zespołów.
@@ -161,8 +155,8 @@ bez próby innym kontem ani ponowienia zapisu.
 Próba należy do właściciela, domu i uwierzytelnionego klienta; ma TTL z odpowiedzi GitHub,
 jednego pollera i atomowe zakończenie. Restart gatewaya wznawia tylko niewygasłą próbę.
 Nie ma callbacku, listenera logowania, przekierowania przez statyczną stronę ani nowego deep linku.
-Istniejące `connectors/sign-in.ts` i `oauth.ts` pozostają adapterami MCP PKCE. Wydzielamy z nich
-wspólne ograniczenia HTTP, redakcję i wzorzec blokowania konta. Nowy adapter device flow działa
+Istniejące `connectors/sign-in.ts` i `oauth.ts` pozostają adapterami MCP PKCE.
+Adapter device flow działa
 w gatewayu; `features/providers/LoginPanel.svelte` jest wzorcem prezentacji kodu,
 ale `apps/worker/src/providers/codex/login.ts` loguje do innej usługi na workerze i nie jest transportem GitHub.
 
@@ -258,7 +252,7 @@ Konfiguracja i pilotaż:
    Nie wpisywać tokenów użytkowników do konfiguracji procesu.
 3. Potwierdzić dostęp do wybranego repozytorium testowego w istniejącej instalacji `itsoltech` przez stronę aplikacji.
    Druga organizacja wymaga akceptacji jej administratora; zanotować ten stan w UX instalacji.
-4. Po wdrożeniu warstwy auth zalogować konto testowe device flow i sprawdzić instalacje,
+4. Przy weryfikacji auth zalogować konto testowe device flow i sprawdzić instalacje,
    odświeżenie, Disconnect i revoke. Test opt-in uruchamia maintener z root:
    `CANOPY_LIVE=1 bun test tests/integration/github-accounts.live.test.ts`.
    Wypisuje wyłącznie URL weryfikacji i publiczny kod użytkownika, po czym czeka na jego ręczne wpisanie
@@ -271,15 +265,14 @@ Konfiguracja i pilotaż:
 
 ## 3. Klient gatewaya, cache i koszt
 
-Etap 2 udostępnia ręczne link/unlink i read-only Summary na web/desktop oraz mobile.
-Katalog instalacji i odczyty PR używają jednego klienta REST/GraphQL, dzierżaw SQL i budżetu.
-Summary zawiera najwyżej pierwsze 100 elementów każdego źródła; `partial` jawnie wskazuje
-niepełny wynik i odsyła na GitHub. Etap 4 dodaje pełną paginację szczegółów,
-watch/polling i rozbudowane metryki. PostgreSQL weryfikuje każdy odczyt, a LRU RAM do 32 MiB
-ogranicza ponowne parsowanie tej samej generacji JSON. Retencja 30 dni i limit 100 MiB
-dotyczą już trwałego cache etapu 2.
-Etap 3 dodaje autodetekcję i wyróżnia PR bieżącej gałęzi przed historią; w każdej grupie
-obowiązuje data utworzenia PR, nie data linku. Web/desktop i mobile pokazują źródło Auto/Manual
+Ręczne link/unlink, Summary i pełne stronicowane szczegóły korzystają ze wspólnego
+klienta REST/GraphQL, dzierżaw SQL i budżetu. Summary zawiera najwyżej pierwsze
+100 elementów każdego źródła; `partial` wskazuje niepełny wynik, a szczegóły mają
+własną paginację. Watch/polling aktualizuje widoczne PR bez pobierania całej historii.
+PostgreSQL weryfikuje każdy odczyt, a LRU RAM do 32 MiB ogranicza ponowne parsowanie
+tej samej generacji JSON. Trwały cache ma retencję i kwoty z §4.
+Autodetekcja wyróżnia PR bieżącej gałęzi przed historią; w każdej grupie obowiązuje
+data utworzenia PR, nie data linku. Web/desktop i mobile pokazują Auto/Manual
 oraz Current branch/History. Unlink zachowuje trwały tombstone.
 
 Lista powiązanych PR nie zależy wyłącznie od cache bieżącej rewizji dostępu: rotacja tokenu
@@ -302,7 +295,7 @@ Wypisany publiczny kod device flow trzeba zatwierdzić kontem mającym dostęp d
 Test tworzy lokalny wątek i link, czyta istniejący PR, a na końcu odłącza lokalne konto;
 nie wykonuje zapisów do GitHub. Zwykłe testy używają wyłącznie kontrolowanego HTTP na loopback.
 
-Nowy moduł domeny `apps/gateway/src/github/` grupuje adapter auth, klienta, store, poller
+Moduł domeny `apps/gateway/src/github/` grupuje adapter auth, klienta, store, poller
 i projekcje; nie tworzymy osobnego procesu, brokera wiadomości ani usługi poświadczeń.
 GraphQL jest pierwszym wyborem dla nagłówka PR, review, timeline i zbiorczych podsumowań
 checków (`statusCheckRollup`, osobne stronicowanie contexts). Stałe zapytania z variables;
@@ -327,7 +320,8 @@ rewizję przez istniejący Hub/owner feed. `QueryCache` web/mobile odrzuca spó�
 ### Obrazy w treści PR
 
 Opis PR, komentarze, review i wątki review na web/desktop oraz mobile jawnie włączają
-obrazy w rendererze markdown. Markdown wątków agentów zachowuje obrazy jako linki.
+obrazy w rendererze markdown. Wątki agentów mają osobny importer lokalnych obrazów Markdown; zewnętrzne URL
+pozostają linkami ([agent-visuals.md](agent-visuals.md#markdown-i-zwykłe-ścieżki)).
 HTML jest parsowany jako dane: obsługujemy `img` (`src`, `alt`, szerokość i wysokość
 do 4096 px) oraz `br`; pozostałe tagi zostawiają tylko tekst. Style i event handlery
 nie trafiają do DOM ani widoków natywnych.
@@ -439,36 +433,36 @@ klienta (do 100 edytorów, izolacja account/PR/target), także po zmianie zakła
 Timeline. Zamknięcie procesu usuwa lokalny szkic; trwały receipt pozostaje w gatewayu.
 Po sprawdzeniu źródła użytkownik może jawnie rozpocząć pusty komentarz/odpowiedź
 albo ponownie otworzyć edycję; ta akcja nie wysyła poprzedniego szkicu.
-W etapie 5 receipt jest związany także z uwierzytelnionym urządzeniem lub przeglądarką;
+Receipt jest związany także z uwierzytelnionym urządzeniem lub przeglądarką;
 linked-home kwalifikuje potwierdzenie i odsyła odczyt receiptu do domu PR.
 Potwierdzenie usunięcia wygasa po 60 s. Nierozstrzygnięty intent po wygaśnięciu
 dzierżawy staje się uncertain, także po restarcie; nie uruchamia drugiego HTTP.
 Odczyt Viewed po odświeżeniu rozstrzyga bieżący checkbox, lecz nie przypisuje sukcesu
 konkretnej niepotwierdzonej operacji. Identyczna treść komentarza również tego nie dowodzi.
 Migracja `0117_github_mutations.sql` dodaje receipty oraz wspólne tempo zapisów.
-Numer jest kolejnym po bazie stosu; jeżeli diagnostyka wprowadzi swoją migrację
-wcześniej, niezaaplikowane migracje stosu wymagają ponownej numeracji przed merge.
 Migracja `0118_github_reviews.sql` rozszerza ten sam receipt i audyt o parametry
 kotwicy, werdyktu oraz rewizji review; nie zapisuje treści komentarza w audycie.
-Jej numer również wymaga sprawdzenia na podstawie stosu przed merge.
 
 ### Polling bez webhooków
 
-Obserwator oznacza widoczny ekran, nie samo otwarte połączenie. Web używa widoczności strony,
+Obserwator UI oznacza widoczny ekran, nie samo otwarte połączenie. Web używa widoczności strony,
 mobile AppState i fokusu ekranu; krótka odnawiana dzierżawa widoku wygasa po 90 s.
-Wiele kart/urządzeń współdzieli najszybszy potrzebny harmonogram.
+Aktywny `watch_pr_checks` podtrzymuje tego samego producenta bez widocznego ekranu.
+Wiele kart/urządzeń i watchy agenta współdzieli najszybszy potrzebny harmonogram.
 
 | Widoczność | Harmonogram startowy | Zakres |
 | --- | --- | --- |
 | Otwarty PR, zakończone checki | Metadata PR na każdym ticku co 60 s oraz jedna rotacyjna strona check-runs/legacy statuses | Edycje komentarzy wykrywane po około 60–66 s; najwyżej 10 warunkowych żądań w 5 min po inicjalizacji |
 | Otwarty PR, trwające checki | Zasoby checków z pending/in progress co 15 s; metadata i jedna pozostała strona CI co 60 s | Bez okresowego GraphQL, timeline ani diffów |
 | Widoczny panel wątku | Ten sam współdzielony harmonogram warunkowy | Bez osobnego pollera nagłówków |
+| Aktywny `watch_pr_checks` | Ten sam współdzielony harmonogram warunkowy | Działa także bez panelu; kończy się po zamknięciu/merge PR, upływie terminu lub anulowaniu |
 | Closed/merged, także widoczny | Brak okresowego pollingu | Zmiany po ręcznym Refresh lub własnej mutacji |
-| Aktywny wątek w tle | Bez okresowego odświeżania danych PR | Rozpoznanie po zmianie checkoutu/pushu pozostaje osobnym zdarzeniem |
+| Aktywny wątek w tle, bez watcha CI | Bez okresowego odświeżania danych PR | Rozpoznanie po zmianie checkoutu/pushu pozostaje osobnym zdarzeniem |
 | Brak obserwatorów i aktywności albo archiwum | Brak okresowego pollingu | Wznowienie po otwarciu, zmianie gałęzi/pushu lub ręcznym Refresh |
 
 Wymagane przez endpoint `x-poll-interval` jest dolną granicą. Terminy watcha mają jitter +0–10%,
-aby nie wyprzedzać TTL cache. Bez widocznego panelu nie odświeżamy okresowo danych PR.
+aby nie wyprzedzać TTL cache. Bez widocznego panelu lub aktywnego watcha CI
+nie odświeżamy okresowo danych PR.
 Metadata, check-runs i legacy statuses mają rzeczywiste ETagi REST; odpowiedź 304 zachowuje
 projekcję. Pierwsze otwarcie może zainicjować walidatory odpowiedziami 200. GraphQL POST
 nie udaje żądania warunkowego: pełne podsumowanie pobieramy dopiero po zmianie
@@ -501,18 +495,20 @@ oznaczoną jako nieaktualna kopię, jak istniejące lustra wątków. Nie obiecuj
 
 ### Budżet wydajności
 
-Założenie do oszacowania: 1 widoczny PR z trwającym CI,
-jedna strona nagłówka/timeline, bez przewijania. Checki to najwyżej 240 odczytów/h,
-nagłówek i timeline po 60/h: **do 360 requestów/h**, około **360–1800 punktów GraphQL/h**
-przy koszcie 1–5. Zbiorcza weryfikacja nagłówków ma osobny TTL 5 min i obejmuje tylko
-widoczne PR; brak widoku oznacza zero okresowych odczytów. Discovery działa na zdarzenie/żądanie.
-Kilka PR jednego repo dzieli partię, różne repo zwiększają koszt liniowo.
-Lokalny miękki limit Canopy to 1500 punktów GraphQL i 1000 requestów REST/h/użytkownika;
-poller wydłuża odstępy, gdy pomiar kosztu nie mieści się w limicie. To budżet Canopy, nie limit GitHub.
+Koszt pollingu wynika z harmonogramu powyżej: przy aktywnym CI jedna aktywna
+strona checków może wymagać do 240 prób REST/h, metadata około 60/h, a rotacyjne
+strony pozostałych źródeł mają wspólny wolny tick. Liczba stron, jobs, zmiany SHA
+oraz ręczne odświeżenia zwiększają koszt. Bez zmian nie ma okresowych odczytów
+GraphQL Timeline/diffów; aktywny `watch_pr_checks` jest osobnym obserwatorem i może
+utrzymywać polling także po zamknięciu panelu. Kilku obserwatorów tego samego PR
+współdzieli producenta, ETagi i budżety.
 
-Typowa odpowiedź ma mieć ≤ 64 KiB; przy 360 odpowiedziach/h to około 23 MiB/h.
-Założone 1–5 ms CPU na walidację/projekcję daje 0,36–1,8 s CPU/h, czyli < 0,1% jednego rdzenia.
-To **szacunki bez pomiaru**, nie gwarancja; strony historii, diffy i logi liczymy osobno.
+Lokalny miękki limit Canopy to 1500 punktów GraphQL i 1000 requestów REST/h/użytkownika.
+To budżet Canopy, nie limit GitHub. Poller respektuje zmierzone zużycie i backoff.
+Przykład oszacowania transferu: 360 odpowiedzi po 64 KiB to około 23 MiB/h;
+przy założeniu 1–5 ms CPU na walidację/projekcję daje to 0,36–1,8 s CPU/h.
+To **szacunki bez pomiaru**, nie wynik benchmarku ani stała liczba żądań pollera.
+Strony historii, diffy, jobs i logi rozliczamy osobno.
 Limity: 2 MiB na odpowiedź upstream/stronę, 32 MiB LRU RAM na gateway, 128 KiB nagłówka PR,
 256 KiB patcha na plik. Parser i renderer nigdy nie otrzymują całego PR w jednym przebiegu.
 Otwarta lista jobs to najwyżej jeden REST GET/15 s tylko podczas aktywnego run (do 240/h,
@@ -529,15 +525,15 @@ Do overview trafia tylko najnowszy PR + count + rewizja, nie lista ani treść P
 Skanowanie wyników narzędzi i polling działają poza transakcją ingestu/ACK i poza blokadą wątku.
 Przy presji SQL/event loop najpierw ograniczamy polling i prefetch.
 
-Warunek wydania implementacji: porównanie baseline/kandydat przy takim samym obciążeniu
+Weryfikacja zmian integracji wymaga porównania baseline/kandydat przy takim samym obciążeniu
 GetOverview/GetThread, dispatch tury, ingest/ACK i renderowania web/mobile, także z niedostępnym
 GitHub i partnerem. Powtarzalny wzrost p95 ponad niepewność pomiaru blokuje wydanie.
 Korzystamy z metod `docs/database-performance.md` i `docs/client-performance.md`.
 
 ## 4. Dane i retencja
 
-Nazwy poniżej są projektem nowych tabel, nie opisem istniejącego schematu.
-Każda relacja ma `owner_user_id`; klucze obce i unikalności obejmują właściciela.
+Poniższe tabele istnieją w schemacie. Dane kont, powiązań i prywatnego cache
+mają `owner_user_id`; klucze obce i unikalności zachowują zakres właściciela.
 Sam UUID, GitHub node ID, repo ID lub URL nigdy nie jest uprawnieniem do odczytu.
 
 | Tabela/relacja | Klucz i dane |
@@ -546,7 +542,7 @@ Sam UUID, GitHub node ID, repo ID lub URL nigdy nie jest uprawnieniem do odczytu
 | `github_installations`, `github_installation_repositories` | Owner + account + installation ID; właściciel instalacji, permissions, selected/all, suspended, repo ID i kanoniczna nazwa, czas weryfikacji. Wiersze instalacji powtarzają się per autoryzowany użytkownik |
 | `github_repository_accounts` | Owner + repo ID → zapamiętane konto i rewizja; automatyczny wybór według indeksu instalacji, opcjonalna zmiana przy kilku dopasowaniach |
 | `github_pull_requests`, `thread_pull_requests` | Kanoniczny PR: owner + host + repository ID + number/node ID. Relacja many-to-many: owner + thread + PR, `source=auto/manual`, evidence=branch/tool_output/product_create, branch/repo/SHA w chwili powiązania, created/last_seen, `unlinked_at` |
-| `github_pr_cache`, `github_pr_pages`, `github_pr_checks` | Cache izolowany account/access revision; nagłówek, ETag, SHA, fetched/verified, completeness, strony timeline/review/files i podsumowania CI. `viewerViewedState` jest polem cache strony GraphQL plików, nie osobną tabelą stanu Canopy |
+| `github_pr_cache` | Cache izolowany account/access revision; nagłówek, ETag, SHA, fetched/verified, completeness, strony timeline/review/files i podsumowania CI. `viewerViewedState` jest polem cache strony GraphQL plików, nie osobną tabelą stanu Canopy |
 | `github_mutation_receipts` | Owner/dom/account + request ID, akcja, fingerprint, oczekiwane SHA/rewizje, potwierdzenie użytkownika, stan, upstream ID/wynik i czasy. Dotyczy wszystkich mutacji; bez tokenów i surowego body |
 
 `unlinked_at` jest tombstone'em, a nie DELETE: blokuje ponowne auto-link dla pary wątek–PR
@@ -557,7 +553,7 @@ nie zmieniamy niezmiennych `threads.cwd` ani `worktree_id`.
 
 Tokeny szyfrujemy istniejącymi `encryptSecret/decryptSecret` (`store/secrets.ts`), z key ID
 i kontrolą owner przed odszyfrowaniem, według `connectors/sealing.ts`. Nie wchodzą do cache DTO.
-Do nowej tabeli prób auth trafiają zaszyfrowany device code, owner/client binding, TTL i stan.
+Tabela `github_device_auth` przechowuje zaszyfrowany device code, owner/client binding, TTL i stan.
 Pending review i komentarze są zasobami GitHub per użytkownik; ich cache jest dodatkowo
 izolowany kontem. Nieudostępnione szkice edytorów pozostają szkicami klienta, nie projekcją
 lustra ani źródłem automatycznego wysłania. Nie tworzymy lokalnej tabeli Viewed.
@@ -575,17 +571,18 @@ Sprzątanie rozszerza `apps/gateway/src/maintenance/{job,prune}.ts`: małe parti
 timeouty i brak I/O sieciowego w transakcji; nie nowy pełnotabelowy skan.
 Unpair czyści cache klienta i partnera. Disconnect/revoke czyści sekrety i dane dostępu;
 usunięcie konta nie kasuje tożsamości powiązań ani ich tombstone'ów.
-Każda migracja w `packages/db/src/migrations/` dostaje **aktualne maksimum + 1** przy implementacji;
-nie rezerwujemy dziś numerów. Po zmianach równoległych renumerujemy nowe pliki, nie ruszamy
-zastosowanych migracji i aktualizujemy `packages/db/test/schema.test.ts`.
+Schemat kont i PR wprowadzają migracje `0113–0119`; indeks dostępu repozytoriów
+uzupełnia `0127_github_repository_access`, a ostatnie podsumowania
+`0146_github_pr_last_known`. Kolejne zmiany wymagają nowej migracji według
+[AGENTS.md](../AGENTS.md#contracts-and-database), bez edycji zastosowanych plików.
 
 ## 5. Wykrywanie i reguły powiązań
 
 1. Dom pobiera kontekst właściwego checkoutu: `Thread.worktree` lub `checkout_head`, workspace,
    aktualną gałąź, pełny HEAD OID, tracking/push remote i znormalizowane repozytoria remotes.
    `ReadWorkspaceOrigin` daje dziś tylko origin, a `GitHeads` gałąź lub skrócony detached commit.
-   Dodajemy capability `git_pr_context_v1` i addytywny, nietrwały odczyt kontekstu,
-   współdzielony dla checkoutu. Nie udajemy, że obecne DTO mają komplet danych.
+   Capability `git_pr_context_v1` udostępnia osobny, nietrwały odczyt kontekstu,
+   współdzielony dla checkoutu; nie polega na niepełnych DTO origin/heads.
 2. Worker odczytuje konfigurację i refy przez istniejący process governor, bez shella, fetch,
    hooków i promptów. Cache 30 s, debounce 1 s po zmianie; limit 2 s, najwyżej 8 remotes.
    Używa `normalizeGitOrigin` z `packages/domain/src/projects.ts`; zwraca tylko tożsamości,
@@ -643,7 +640,7 @@ własnym klientem, sprawdza owner i zgodność repo/head z zapisanym kontekstem 
 Obcy PR pokazuje jako sugestię; wynik narzędzia może cytować cudzy link.
 Rejestracja jest `source=auto`, evidence=`tool_output`, i respektuje unlink.
 Opcjonalne przyszłe narzędzie jawnego linkowania korzysta z tego samego handlera i zgód.
-W etapie 3 dowodem jest ostatni zapisany snapshot checkoutu sprzed zakończenia narzędzia
+Dowodem jest ostatni zapisany snapshot checkoutu sprzed zakończenia narzędzia
 (czas ograniczamy również czasem zapisu eventu w gatewayu). Brak takiego snapshotu daje
 komunikat z propozycją ręcznego Link, zamiast użycia kontekstu odczytanego dopiero po wyniku.
 Analizę ograniczamy do 64 KiB już w projekcji SQL; watermark i dzierżawa przetrwają restart.
@@ -690,8 +687,7 @@ innych PR. Utrata odpowiedzi create pozostaje uncertain do rozstrzygnięcia, tak
 
 Implementacja lifecycle negocjuje `github_pr_lifecycle_v1`. Migracja `0119_github_lifecycle`
 rozszerza wspólny receipt o wątek, repozytorium i potwierdzony upstream ID nowego PR oraz stan
-`accepted`. Numer należy zweryfikować przed scaleniem stosu, jeżeli równolegle dochodzą migracje.
-Po trwałym zapisaniu upstream ID ponowne otwarcie formularza sprawdza tylko receipt i odczytuje PR;
+`accepted`. Po trwałym zapisaniu upstream ID ponowne otwarcie formularza sprawdza tylko receipt i odczytuje PR;
 lokalny link jest transakcyjny i zachowuje tombstone. Brak odpowiedzi bez takiego dowodu nigdy
 nie wywołuje drugiego create. Wszystkie akcje lifecycle wymagają potwierdzenia ważnego 60 s,
 związanego z klientem, kontem, pełnym head/base SHA i parametrami. Enqueue, update branch
@@ -713,7 +709,7 @@ bez retry, a odczyt po zapisie sprawdza wynik. GitHub nie udostępnia atomowego 
 dla tych pól; preflight ogranicza okno wyścigu, ale go nie usuwa. Rozbieżność po zapisie lub utrata
 odpowiedzi pozostaje `uncertain`, bez automatycznego ponowienia. Receipty i audyt wykorzystują
 istniejący store; parametr strukturalny zawiera rewizję/ID/tryb review, bez tytułu/opisu i sekretów.
-Etapy 8–9 nie dodają migracji. Picker reviewerów wstępnie zaznacza bieżące requesty;
+Picker reviewerów wstępnie zaznacza bieżące requesty;
 **Apply** oblicza usunięcia i nowe prośby. Usunięcia i dodania mają osobne receipty,
 z odczytem i sprawdzeniem rewizji pomiędzy nimi. Częściowy lub niepewny wynik zatrzymuje diff
 bez automatycznego wznowienia. **Re-request review** jest osobną akcją ikonową przy osobie,
@@ -725,7 +721,7 @@ wymagają nowej capability na obu końcach bezpośredniego łącza. Run/job ID p
 account/PR/confirmation ID są kwalifikowane domem. Receipty są związane z uwierzytelnionym
 klientem i partnerem, a zapis odbywa się wyłącznie w domu konta. Brak domu nie kolejkuje zapisu.
 
-Rozszerzamy istniejący **`canopy.ui.v1.GatewayService`**, z wiadomościami w nowym
+Integracja używa istniejącego **`canopy.ui.v1.GatewayService`**, z wiadomościami w
 `proto/canopy/ui/v1/github.proto`. To domena w istniejącej usłudze, nie drugi serwer API.
 `api/ui-github.ts` składa handlery analogicznie do `ui-connectors.ts`.
 
@@ -785,12 +781,10 @@ w `ui.Thread`; pełną listę pobiera osobno. Odrębna rewizja PR nie zwiększa 
 Pending review i jego liczniki są prywatnym odczytem konta, bez publikacji w lustrze wątku
 ani owner feed dostępnym przy innym kontekście konta. Capability zapisu jest ogłaszana dopiero
 po dostarczeniu całej grupy v1; starszy dom z samym odczytem nie przyjmuje nowych mutacji.
-Etap 5 ogłasza węższą capability `github_pr_comments_v1` dla siedmiu RPC
-preflight/receipt/comment/Viewed. Nie ogłasza jeszcze `github_pr_write_v1`, która
-oznacza kompletny zakres zapisów. Allowlista linked computers wymaga tej węższej
-capability; workery i boty nie mają dostępu do mutacji przez GatewayService.
-Etap 6 dodaje osobne `github_pr_review_v1`: prywatny pending review i pięć RPC
-inline/submit/discard/resolve. Nadal nie ogłasza kompletnego `github_pr_write_v1`.
+Węższe capabilities `github_pr_comments_v1`, `github_pr_review_v1`,
+`github_pr_lifecycle_v1` i `github_pr_metadata_v1` nadal rozdzielają grupy RPC
+na łączach ze starszymi domami. Obecny gateway ogłasza również kompletne
+`github_pr_write_v1` dla sterowania CI; worker i bot nie są aktorami tych mutacji.
 Gateway odczytuje własny pending review konta, stronicuje komentarze po 50 i przed
 submit/discard ponownie weryfikuje wszystkie strony, ich digest, liczbę i aktualny head.
 Zmiana review na innym urządzeniu wymaga odświeżenia; push wymaga ponownego
@@ -873,7 +867,7 @@ dialog wyjaśnia możliwe ponowne deploymenty. API jobs nie udostępnia grafu `n
 Canopy nie wymyśla zależności na podstawie kolejności ani nazw jobów.
 
 Odpowiedź 201/202 daje receipt **accepted**, nie **succeeded**. Checki i jobs pokazują
-queued/in-progress dopiero po odczycie GitHub przez watch/polling z etapu 4. Akcja **Check current state**
+queued/in-progress dopiero po odczycie GitHub przez wspólny watch/polling. Akcja **Check current state**
 jest odczytem i jawnym odblokowaniem kolejnej decyzji, nigdy ponowieniem poprzedniego POST.
 Utrata odpowiedzi lub restart z opuszczonym in-flight daje **uncertain**, bez replay.
 Stałe endpointy Actions i puste body nie dopuszczają workflow_dispatch, debug logging ani force-cancel.
@@ -909,14 +903,19 @@ koszt zagnieżdżonych połączeń checks/reviews. Obowiązują wspólne sloty, 
 backoff i trwałe roszczenia odświeżenia na 5 minut; błąd partii zatrzymuje resztę.
 Closed/merged nie są odświeżane okresowo; Refresh i otwarcie pełnego PR pozostają dostępne.
 
-Pokazane materiały referencyjne przedstawiają neutralny układ: listę PR pod gałęzią,
-osobny widok z nagłówkiem i trzema zakładkami, a także menu akcji przy danym PR.
-Przenosimy przepływ, korzystając z istniejących paneli, nawigacji i komponentów Canopy.
-Obecny `features/navigation/AppShell.svelte` organizuje widoki trasami, bez ogólnego paska
-kart dokumentów. PR otwiera się w istniejącej prawej kolumnie wątku na desktopie,
-a na wąskim ekranie w arkuszu; parametr `pr` adresu wątku pozwala wrócić do tego panelu.
-Rozmowa, szkic i pozycja przewijania pozostają zamontowane. Mobile używa pushed screen.
-Panel zawiera zakładki Summary, Timeline i Code w tym samym pasku.
+Pełny PR otwiera się w karcie workspace’u wątku, obok rozmowy i plików.
+Moduł Pull requests w panelu/arkuszu pokazuje listę powiązań i akcję **Open in tab**;
+osobna trasa PR nadal jest dostępna. Rozmowa, szkic i pozycja przewijania pozostają
+zamontowane. Mobile ma własny ekran PR oraz kartę modułu workspace’u.
+Wewnątrz pełnego PR dostępne są zakładki Summary, Timeline i Code.
+
+Web dodatkowo pokazuje ikonę stanu PR z kropką checków na karcie workspace’u
+(`PullRequestTabIcon`) i przy najnowszym PR w sidebarze (`SidebarThreadPullRequests`).
+Nieznany stan checków nie ma kropki; tooltip i etykieta dostępności podają stan słownie.
+Sidebar korzysta z małego podsumowania overview, bez dodatkowego odczytu szczegółów.
+Hover card wątku doczytuje współdzieloną listę PR dopiero po otwarciu, z osobnymi
+ikonami PR/checków i informacją o dalszych powiązaniach. Te dodatki prezentacji
+są zaimplementowane w interfejsie web; nie oznaczają parytetu mobilnego sidebara.
 
 Web i desktop przewijają cały panel jednym pionowym obszarem: nagłówek, zakładki
 i treść. Pełny nagłówek zachowuje wysokość w układzie; po przewinięciu go zostaje
@@ -976,7 +975,7 @@ Szczegóły geometrii i lifecycle: [UI API](ui-api.md#moduły-workspaceu-wątku)
    ścieżkę (przy rename starą → nową) i +/−. Patch rozwija się bezpośrednio pod wierszem,
    którego nagłówek pozostaje przyklejony podczas przewijania. Link do GitHub jest ikoną
    w nagłówku; binarne/duże pliki mają krótki komunikat i akcję. Foldery drzewa są zwijane.
-   Etap 5 dodaje Viewed do wiersza i licznik X/N viewed do paska Code. Stan całego PR ma ikonę i tekst w nagłówku;
+   Wiersz zawiera Viewed, a pasek Code licznik X/N viewed. Stan całego PR ma ikonę i tekst w nagłówku;
    pojedyncze statusy wierszy pozostają ikonami z etykietami dostępnymi i tooltipami.
    Checki używają jednego „Show more”, które przezroczyście doczytuje kolejne strony.
    Filtr commitów ma ograniczoną szerokość 28 rem (nie więcej niż viewport minus 1 rem),
@@ -1076,8 +1075,8 @@ wskazanych uwag. Użytkownik widzi zakres, SHA, czas snapshotu i może otworzyć
 
 `PreparePullRequestContext` tworzy własny załącznik przez istniejący store/prepare attachment;
 `AttachmentDraft`, `MentionKind.ATTACHMENT`, `SendMessage.attachment_ids`, notatka platformy
-i workerowy FetchBlob pozostają kanałem dostarczenia. Dodajemy przyjęcie gotowego Attachment DTO
-do szkicu web/mobile, zamiast osobnego transportu plików PR.
+i workerowy FetchBlob pozostają kanałem dostarczenia. Szkic web/mobile przyjmuje gotowy Attachment DTO
+przez istniejący transport załączników.
 
 | Akcja | Zawartość zamrożonego pliku |
 | --- | --- |
@@ -1105,14 +1104,14 @@ Copy pozostaje angielskie, zgodne z [copy.md](copy.md): **Connect GitHub**, **Ch
 **No pull requests yet**, **GitHub access expired. Reconnect your account.**,
 **This repository is not available to this account. Choose another account.**
 **GitHub's request limit is reached. Retry after {time}.** Status ma tekst, nie sam kolor.
-Przegląd copy w implementacji obejmie krótkie i długie nazwy repo/gałęzi, liczbę pojedynczą/mnogą,
+Przegląd copy przy zmianach obejmuje krótkie i długie nazwy repo/gałęzi, liczbę pojedynczą/mnogą,
 phone width i wszystkie stany błędów; wynik trafia do opisu każdego zmieniającego UI PR.
-Ten projekt proponuje teksty, nie zmienia działającego UI.
 
 ## 8. Mobile: ten sam zakres
 
-Każdy etap z funkcją użytkową dostarcza równocześnie web/desktop i mobile; nie ma końcowego
-etapu „nadrobienia mobile”. Konto i instalacje są w Settings, inline auth działa z PR.
+Podstawowy zakres v1 działa w web/desktop i mobile. Konto i instalacje są w Settings,
+inline auth działa z PR. Opisane w §7 oznaczenia checków w kartach i sidebarze
+oraz podgląd hover są rozszerzeniami web; poniższy zakres nie deklaruje ich parytetu na mobile.
 Systemowa przeglądarka otwiera device flow przez istniejące `expo-linking`, a powrót/AppState
 odczytuje stan próby. Telefon nigdy nie wymienia kodu na token GitHub.
 
@@ -1144,11 +1143,10 @@ Copy link/number/checkout korzysta z istniejącego `expo-clipboard`, linki z `ex
 Markdown renderuje `ui/markdown` natywnie, bez WebView; kolorowanie składni nie jest warunkiem
 parytetu, bo obecny mobilny renderer kodu go nie ma. Cele dotykowe mają minimum 48 dp.
 
-Przewidziany zakres jest **JS/TS-only i OTA** dla obecnego Expo 58: nowe ekrany, wygenerowane
-kontrakty, istniejący przypięty Connect i komponenty diff/markdown/attachments.
-Bez nowych permissions, schematu deep link, SDK GitHub, modułu natywnego i storage tokenów
-w SecureStore telefonu (zostaje tam wyłącznie credential Canopy). Zmiana fingerprintu natywnego
-w implementacji wymagałaby jawnego wskazania nowego buildu, nie obietnicy OTA.
+Integracja korzysta z istniejącego Connect i komponentów diff/markdown/attachments
+oraz modułów Expo. Tokeny GitHub pozostają w gatewayu; SecureStore telefonu
+przechowuje credential Canopy. Przy kolejnych zmianach możliwość aktualizacji OTA
+zależy od zgodności runtime i fingerprintu natywnego; zmiana natywna wymaga nowego buildu.
 Poller działa w gatewayu; aplikacja mobilna w tle nie utrzymuje odpytywania.
 
 ## 9. Bezpieczeństwo i audyt
@@ -1159,7 +1157,7 @@ Poller działa w gatewayu; aplikacja mobilna w tle nie utrzymuje odpytywania.
 | Odczyt/zapis cudzego repo, cache lub wątku | Owner scope przed cache i przed efektem, composite FK, weryfikacja repo/installation/account i docelowych comment/review/thread/run/job ID. Własność komentarza porównujemy z GitHub user ID konta, nie loginem ani rolą admin; cudzy zasób zwraca NotFound. Grant ani full auto nie zastępuje owner scope |
 | Przeciek przez worker/linked computers | Tokeny tylko w domu konta. DTO, lustra, protokół workerów i załącznik kontekstu bez credentiali. Allowlist RPC/capabilities, unpair/revoke zamyka streamy i czyści cache |
 | Prompt injection w opisie, diffie, review, logach i szkicu Create PR | Cała treść GitHub oraz wynik modelu są niezaufanymi danymi. Plik kontekstu oznacza pochodzenie i cytowane granice; notatka platformy zabrania traktować PR jako zgodę lub instrukcję systemową. Wynik agenta zasila tylko pola tekstowe formularza; nie ustala konta, repo/base, metody merge ani akcji. Użytkownik ogląda i zatwierdza tekst przed publikacją; linków/poleceń/żądań sekretów nie wykonujemy |
-| XSS, tracking i SSRF | Istniejący tokenowy renderer Markdown: HTML jako tekst, obrazy jako linki, `safeHref` z `@canopy/domain/markdown`. Bez `body_html`, skryptów i proxy dowolnych linków; awatary przechodzą przez ograniczony cache gatewaya, bez credentiali i redirectów (§6). Endpointy API buduje gateway z walidowanych ID |
+| XSS, tracking i SSRF | Tokenowy renderer Markdown i `safeHref` z `@canopy/domain/markdown`; ograniczona obsługa `img`/`br` bez handlerów i stylów. Obrazy PR pobiera gateway wyłącznie z dozwolonych źródeł (§3), awatary z ograniczonego CDN (§6). Bez skryptów i proxy dowolnych linków. Endpointy API buduje gateway z walidowanych ID |
 | Merge/close niewłaściwego PR albo nowego SHA | Preflight na świeżym stanie, jawne potwierdzenie repo/PR/base/head/metody, związane z request ID i SHA; zmiana celu lub expiry wymaga nowego potwierdzenia. GitHub egzekwuje protection/rulesets; brak bypass, kasowania gałęzi i merge innych PR w tle |
 | Cancel/re-run niewłaściwego CI, przerwanie deploy lub powtórzenie skutku | Gateway ustala repo/run/job/attempt/SHA i związek z PR; potwierdzenie cancel dotyczy całego wskazanego run. Re-run jawnie ostrzega o ponownym wykonaniu joba i jego zależności, również deploy. Nie ma force-cancel, debug logging ani workflow dispatch w v1 |
 | Kradzież tokenu z Contents/Actions: write albo logów | Repo instalacji ogranicza zasięg; token szyfrowany tylko w domu, stała allowlista operacji i brak worker/model API do mutacji. Logi i signed URL mają oddzielne limity/redakcję (§6); żadnego wysyłania logów do modelu z samego View logs |
@@ -1204,7 +1202,7 @@ Testy obejmują również echo tokenu w odpowiedzi serwera i redakcję przed cac
 | Funkcja | Decyzja |
 | --- | --- |
 | GitHub MCP dla agentów | Pozostaje obecny PAT/OAuth i granty `connector_worker_grants`/`connector_bot_grants`. Połączenie GitHub App służy API produktu; nie przypisujemy jego tokenu do MCP ani nie dodajemy narzędzi mutacji agentowi. Most AgentToolCall do nowych mutacji jest poza v1 i wymaga osobnego projektu jawnych zgód; dotychczasowe uprawnienia konektora nie są zgodą na nowe konto |
-| Watche checków CI | Narzędzie szyny `watch_pr_checks` ([agent-bus.md](agent-bus.md#checki-ci)) udostępnia agentowi stan checków, który Canopy i tak odczytuje dla panelu PR: tylko PR podlinkowane do wątku wywołującego. Agent nie korzysta z integracji ani nie wykonuje nią operacji; token nie opuszcza gatewaya, a notatka zawiera nazwy, stany, dostawców, URL i `run_id` checków, bez logów i outputu. Odczyty idą kontem przypisanym do repozytorium w domu wątku, przez wspólnego producenta widocznego PR (te same terminy, ETagi, budżety i single-flight), bez nowego pollera. Boty nie mają tego narzędzia |
+| Watche checków CI | Narzędzie szyny `watch_pr_checks` ([agent-bus.md](agent-bus.md#checki-ci)) udostępnia agentowi stan checków, który Canopy i tak odczytuje dla panelu PR: tylko PR podlinkowane do wątku wywołującego. Agent otrzymuje projekcję checków i nie wywołuje mutacji GitHub; token nie opuszcza gatewaya, a notatka zawiera nazwy, stany, dostawców, URL i `run_id` checków, bez logów i outputu. Odczyty idą kontem przypisanym do repozytorium w domu wątku, przez wspólnego producenta widocznego PR (te same terminy, ETagi, budżety i single-flight), bez nowego pollera. Boty nie mają tego narzędzia |
 | `apps/gateway/src/connectors/merged-pr.ts` | To dziś dodatkowy dowód merge do cleanup przez stałe read-only narzędzia MCP, z weryfikacją branch/ref/head SHA/base repo i grantów workera. Nowy klient może dostarczyć równoważny świeży dowód tylko przy takim samym ograniczeniu konta; brak zgody/niepełny cache nie zezwala na cleanup. Niezależny git fallback i ochrona zmian lokalnych zostają |
 | Worktrees i Branch | Źródłem gałęzi pozostaje `GitHeads` i istniejący `ThreadBranches`/SwitchThreadBranch. Widok/create PR nie zmienia cwd, worktree ani branch. Merge/update branch zmieniają refy na GitHub, bez git push/fetch/reset lokalnego checkoutu; UI wskazuje rozbieżność po zwykłym odczycie git. Kopia checkout nie wykonuje git; branch switch dalej wymaga braku aktywności i czystego checkoutu |
 | Boty | Mogą nadal czytać/tworzyć PR przez przyznany GitHub MCP i istniejącą politykę safe/always/full_auto. Nowe konto produktu nie daje grantu, nowego narzędzia ani dostępu do podglądu dowolnego właściciela. v1 nie dodaje panelu PR botowi ani ukrytego kontekstu do jego rutyn; użytkownik może przekazać jawny załącznik jak dotychczas |
@@ -1217,7 +1215,7 @@ Kolejność: istniejący katalog/cache CDN → API releases z tokenem dostępneg
 ścieżka publiczna/cache z backoff, jeśli brak konta lub auth zawiedzie. Nie omijamy poprawnego
 indeksu dodatkowym lookupem API i nie obchodzimy jego wyniku „brak wydania”.
 
-Zalecenie: **on by default**, bez dodatkowego opt-in; **Settings → GitHub account → Use this
+Ustawienie jest **domyślnie włączone**, bez dodatkowego opt-in; **Settings → GitHub account → Use this
 account for update checks** pozwala wyłączyć i wybrać inne własne konto. To ograniczony odczyt
 publicznych metadanych Canopy, który wykorzystuje już udzieloną autoryzację i zmniejsza koszt
 wspólnego limitu IP przy awarii CDN. Osobny opt-in nie zmienia zakresu już udzielonego dostępu,
@@ -1245,25 +1243,15 @@ Publiczny lookup Canopy nie wymaga instalacji w repo użytkownika; zasada wymaga
 z §2 nadal dotyczy funkcji PR. Nie rozszerzamy uprawnień ani nie zmieniamy weryfikacji manifestów,
 hashy/podpisów, mirrora i zamrożonego `update/v1`.
 
-## 11. Wdrożenie jako stos PR
+## 11. Wdrożenie i utrzymanie
 
-Etap 1 ma publiczne wartości domyślne oficjalnej aplikacji Canopy by IT SOL.
-Konfiguracja `CANOPY_GITHUB_APP_CLIENT_ID` i `CANOPY_GITHUB_APP_SLUG` opcjonalnie je nadpisuje.
-Jawnie pusta lub nieprawidłowa wartość jednej z nich daje
-`configured=false` i spokojny stan Settings → GitHub; jawny fallback PAT pozostaje dostępny.
-Web/desktop wiąże próbę z sesją HttpOnly BFF lub tożsamością sparowanego klienta;
-mobile z tożsamością sparowanego urządzenia. Klienci zapamiętują tylko identyfikatory
-próby/żądania, a gateway przechowuje zaszyfrowany `device_code`. Wygasłe próby tracą kod,
-historia prób jest usuwana 24 h po terminie ważności. Niepewna wymiana po utracie dzierżawy
-kończy próbę i wymaga nowego kodu, zamiast ponawiać wymianę.
-
-PAT wskazuje lokalny oficjalny konektor GitHub z metodą `headers` i jego rewizję;
-zmiana lub odłączenie konektora wymaga ponownego jawnego wyboru. Tożsamość jest sprawdzana
-przez `/user`, bez kopiowania poświadczenia. Jedno konto `(owner, host, GitHub user ID, dom)`
-może zmienić wybraną metodę dostępu; ponowny wybór nie tworzy drugiego konta tej samej osoby.
-Przypisanie repozytorium, sprawdzanie praw PAT per repo oraz wspólny klient/cache/budżet
-z §3 są zakresem etapu 2. Katalog etapu 1 ma atomowy snapshot, stronicowanie,
-odświeżanie single-flight, TTL 15 min i cooldown po niepowodzeniu.
+V1 jest częścią działającego kodu; dawny podział na dziewięć PR nie określa już
+kolejności wdrażania. Publiczne domyślne Client ID i slug można nadpisać przez
+`CANOPY_GITHUB_APP_CLIENT_ID` i `CANOPY_GITHUB_APP_SLUG`. Pusta lub nieprawidłowa
+wartość daje `configured=false`; jawny fallback PAT pozostaje dostępny.
+Próby logowania są związane z uwierzytelnionym klientem, wygasają według TTL,
+a po niepewnej wymianie wymagają nowego kodu. PAT wskazuje istniejący lokalny
+konektor i jego rewizję, bez kopiowania poświadczeń do nowego magazynu.
 
 Settings → GitHub pokazuje konta w jednej zwartej liście: avatar z inicjałami jako fallback,
 login, metodę i stan dostępu oraz liczbę instalacji i repozytoriów. Liczniki obejmują cały
@@ -1276,45 +1264,18 @@ Pełna nazwa jest dostępna mimo skrócenia środka; Private/Public pozostaje dy
 Po połączeniu konta akcja **Connect another account** jest drugorzędna; stan pusty zachowuje
 główne **Connect GitHub**. Web/desktop i mobile mają tę samą strukturę i akcje.
 
-**Ustalono jeden stos obejmujący etapy 1–9.** Podstawą stosu jest dokumentacyjny
-PR [#485](https://github.com/itsoltech/canopy/pull/485): gałąź `docs/github-integration` celująca w `dev`.
-Etap 1 bazuje na `docs/github-integration`, każdy następny na poprzednim (`gh stack`, `github/gh-stack`).
-Dokument i wszystkie etapy pozostają draft do zakończenia i weryfikacji
-**całego v1**, potem wspólny `gh stack merge <stack> --squash`, bez merge etap po etapie.
-PR #485 scala się razem z całym stosem, nie osobno przed implementacją.
-Każdy etap ma działający kontrakt gatewaya i parytet web/desktop/mobile, własne testy oraz
-przegląd bezpieczeństwa; brakującej funkcji nie zastępuje nieczynny przycisk.
-Rozmiary to orientacyjne linie kodu z testami, bez generowanych kontraktów; zależności są logiczne,
-a w pojedynczym stosie gałęzie pozostają liniowe. Mutacje PR w GitHub dochodzą po etapach odczytu.
+Przy utrzymaniu zachowujemy granice domu konta, negocjację capabilities,
+wspólny producent odczytów i brak replay niepewnych mutacji. Rozszerzenie uprawnień
+GitHub App wymaga akceptacji instalacji; samo nadanie prawa nie włącza nowej operacji.
+Starsze domy mają jawny stan aktualizacji zamiast zapisu przez obejście integracji.
+Nie ma osobnego, domyślnie wyłączonego pilotażu wymaganego do użycia obecnego v1.
 
-| Etap | Kompletna granica zmiany | Rozmiar / zależność | Dowód przed gotowością |
-| --- | --- | --- | --- |
-| 1. Konto | Schemat kont/instalacji, device flow, refresh/disconnect, Settings i inline auth we wszystkich klientach | L, 1400–2000 linii; na `docs/github-integration` (PR #485) | Migracje, gRPC auth, dwóch ownerów, expiry, równoległy refresh, restart/anulowanie, tokeny poza DTO/logami i partnerami; HTTP fixture |
-| 2. Ręczny PR | Klient GraphQL/REST, wybór konta repo, cache/budżet, link/unlink, panel, Summary read-only, dom i lustro | L, 1600–2400; po 1 | gRPC z prawdziwym store, tombstone race, owner/account/cache, offline/revoke i dwa gatewaye. **Pierwsza wartość PR dla użytkownika**, jeszcze w draft gałęzi |
-| 3. Wykrywanie | Kontekst git, forki/remotes, branch reuse, auto-link, wyniki narzędzi i cleanup proof | L, 1200–1800; po 2 | Gateway↔WorkerHost z rzeczywistymi repo/worktrees, push/ref change, head repo, stos, detached HEAD, tombstone i restart/replay |
-| 4. Pełny odczyt | Stronicowana Timeline/reviews/checki/jobs/logi, Code/commit filter/lazy patch, watch/polling, kontekst trzech akcji composera, retencja/metryki i release fallback po #486 | XL, 3500–5000; po 3 | gRPC paginacji > 100 elementów, 304/429/403/partial, cache/stream gap, binary/truncated/SHA races; SSRF/redakcja/limity logów, attachment/harness, brak tokenu na CDN/redirect; migracje/retencja, restart, p95 i mobile transport |
-| 5. Komentarze i Viewed | Wspólny preflight, trwałe receipty/audyt/uncertain; post/reply/edit/delete własnych komentarzy i synchronizacja Viewed z GitHub | L, 1800–2600; po 4 | gRPC/security: obcy PR/comment, cofnięcie praw, dwa kliknięcia, awaria po HTTP i brak replay; GitHub VIEWED/UNVIEWED/DISMISSED, rollback, offline i dwa urządzenia/konta; migracja receiptów |
-| 6. Pełne review | Inline i zakresy unified/split, pending review/submit Comment/Approve/Request changes, resolve/unresolve i własne edycje/usunięcia | XL, 2500–3500; po 5 | gRPC/security kotwic LEFT/RIGHT/range/SHA i obcych review/thread ID, pending z innego urządzenia, paginacja, push przed submit, autor PR, restart/uncertain oraz deny worker/bot |
-| 7. Lifecycle | Create z gałęzi i szkicem agenta, auto-link, ready/draft, merge/squash/rebase, auto-merge on/off, update branch, close/reopen | XL, 3500–5000; po 5–6 | gRPC create/link crash i duplikat/tombstone; confirmation binding/expiry, push/zmiana konta po preflight, protection/queue/metody, fork head permissions, accepted/uncertain/restart; model nie wywołuje mutacji |
-| 8. Metadane | Tytuł/opis, request/re-request user/team, assignees i istniejące labels, jawne Apply we wszystkich klientach | L, 1200–1800; po 5–7 | gRPC owner/repo/user/team ID, pickery Members i fallback bez tego scope, powiadomienia, obca etykieta, konflikt edycji, revoke, receipty i niepewny wynik |
-| 9. Sterowanie CI | Re-run failed/all/job i cancel run na bazie logów z etapu 4; końcowe domknięcie zapisów, dokumentacji i parytetu | L, 1800–2800; po 4–8 | gRPC/security obcego run/job/attempt/SHA, confirmation cancel, job dependencies, accepted ≠ done, brak dispatch/debug/force-cancel, restart/uncertain; pełne migracje/security/linked, p95 i macierz wszystkich akcji mobile |
-
-Każdy etap utrzymuje zgodność i pionową funkcję w swojej gałęzi. Infrastruktura etapu 1
-nie udaje wartości PR przed etapem 2; wartość na gałęzi nie jest zgodą na wcześniejszy merge.
-Nie dodajemy web UI/component/Playwright testów ani trywialnych testów helperów.
-Scenariusze integracyjne używają lokalnego fixture HTTP i bazy testowej.
-Testy z rzeczywistym GitHub są wyłącznie opt-in (`CANOPY_LIVE=1`).
-
-Przed scaleniem całego stosu muszą przejść wymagane checki GitHub CI dla scalanych
-rewizji. Lokalną weryfikację dobieramy do zmiany według
-[AGENTS.md](../AGENTS.md#testing-policy), bez powtarzania pełnej bramki CI.
-QA UI obejmuje light/dark, desktop/phone/tablet, klawiaturę/czytnik, reduced motion,
-krótkie i długie treści, sticky/scroll oraz iOS/Android z tym samym zestawem funkcji.
-
-Włączanie po merge: capability i flagi domeny domyślnie wyłączone, pilotaż na wybranych kontach,
-obserwacja p95/limitów i dopiero udostępnienie wszystkim. Gateway może wstrzymać polling
-i mutacje bez usuwania powiązań. Rollback wyłącza funkcję i nowe RPC; migracje zostają addytywne,
-starszy klient/gateway nadal obsługuje wątki, a cofnięta funkcja nie ponawia niepewnych zapisów.
+Zmiany weryfikujemy testami gRPC, trwałości, migracji, owner scoping i adapterów;
+rzeczywisty GitHub pozostaje opt-in (`CANOPY_LIVE=1`). UI wymaga ręcznego przeglądu
+light/dark i szerokości klientów objętych zmianą oraz audytu [copy.md](copy.md).
+Pomiar p95 i kosztu pollingu musi mieć własne wyniki i warunki; sama obecność
+implementacji nie potwierdza celów wydajności z §3. Wymagane checki uruchamia
+GitHub CI, lokalny zakres określa [AGENTS.md](../AGENTS.md#testing-policy).
 
 ## 12. Decyzje po przeglądzie
 
@@ -1329,9 +1290,5 @@ starszy klient/gateway nadal obsługuje wątki, a cofnięta funkcja nie ponawia 
 4. **Instalacja repo — zaakceptowane.** Bez zaakceptowanej instalacji nie ma automatycznego
    dostępu PR: Install/Manage repositories, PAT wyłącznie po jawnym wyborze.
 5. **Auth release fallback — zaakceptowane.** Po indeksie CDN scalonym w #486 można użyć
-   konta gatewaya; bez konta aktualizacje nadal działają. Zalecenie ustawienia: domyślnie on,
+   konta gatewaya; bez konta aktualizacje nadal działają. Ustawienie: domyślnie on,
    z widocznym wyłączeniem i wyborem własnego konta (§10), bez dodatkowego opt-in.
-
-**Jeden stos 1–9 — zaakceptowane.** Dokumentacyjny PR #485 jest podstawą stosu;
-etap 1 bazuje na `docs/github-integration`. Dokument i wszystkie etapy scala się razem
-dopiero po weryfikacji pełnego v1, zgodnie z §11 i AGENTS.md.
