@@ -111,7 +111,7 @@
       <div class="flex min-w-0 flex-1 items-center gap-1">
         {#if preview.text}
           <p
-            class="min-w-0 flex-1 truncate text-sm/5 text-zinc-700 sm:text-(length:--type-compact)/5 dark:text-zinc-300"
+            class="min-w-0 flex-1 truncate text-(length:--type-compact)/5 text-zinc-700 sm:text-xs/5 dark:text-zinc-300"
             title={preview.text}
           >
             {preview.text}
