@@ -17,6 +17,10 @@
   const image = $derived(images[selected]);
   const pair = $derived(image?.pair ? images.filter((i) => i.pair === image?.pair) : []);
   const comparison = $derived(pair.length === 2);
+
+  // Keep the Before/After switch's space whenever the gallery has a pair, so moving between images
+  // never reflows the controls.
+  const pairs = $derived(images.some((i) => i.pair));
   const number = new Intl.NumberFormat();
 
   function move(direction: number) {
@@ -43,7 +47,7 @@
     onNavigate={move}
   >
     {#snippet controls()}
-      <div class="flex min-w-0 flex-wrap items-center justify-between gap-3">
+      <div class="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <div class="flex shrink-0 items-center gap-2">
           <button
             type="button"
@@ -61,8 +65,10 @@
             class="relative min-h-12 rounded-md px-2 py-2 focus-ring hover:bg-white/10 sm:min-h-8">Next</button
           >
         </div>
-        {#if comparison}
+        {#if pairs}
           <div
+            inert={!comparison}
+            class:invisible={!comparison}
             class="rounded-lg bg-zinc-100 text-zinc-950 dark:bg-zinc-900 dark:text-white [&_button]:min-h-12 sm:[&_button]:min-h-8"
           >
             <SegmentedChoice
