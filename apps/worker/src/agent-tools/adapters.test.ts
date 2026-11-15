@@ -23,7 +23,7 @@ test("installed CLIs are ready from runtime checks without a marker, using the s
   const found = await discoverAgentTools({ which: f.which, env: f.env, platform: "linux" });
 
   expect(found.map((tool) => tool.ready)).toEqual([true, true, true]);
-  expect(found.map((tool) => agentToolInfo(tool).stream)).toEqual([false, false, false]);
+  expect(found.map((tool) => agentToolInfo(tool).stream)).toEqual([true, false, false]);
   expect(f.calls().every((call) => !call.privateEnv && call.setting === "preserved")).toBe(true);
   expect(f.calls().every((call) => call.displayAuthority === f.env.XAUTHORITY)).toBe(true);
   expect(

@@ -1,7 +1,9 @@
 # Obrazy w odpowiedziach i interaktywne visuals
 
 Status (2026-11-15): **obrazy, `render_visual` i `render_html` zaimplementowane** w web/desktop/mobile;
-podgląd lokalnej automatyzacji opisano niżej, dostępność kanałów według [release.md](release.md).
+interaktywny podgląd lokalnej automatyzacji w wątku web/desktop również jest
+zaimplementowany. To stan kodu, nie deklaracja wdrożenia; dostępność kanałów
+według [release.md](release.md).
 Dokument opisuje bieżący kontrakt publikacji, odczytu i izolacji. Limity struktur
 są sprawdzane przez kod; budżety CPU, pamięci klientów i płynności pozostają celami
 wymagającymi pomiarów. Własny HTML ma odrębny model wykonania i ryzyka (§9).
@@ -94,10 +96,12 @@ wiadomości lub przerwanie następnego kroku nie usuwa już zatwierdzonego wynik
 
 Trzy ścieżki obrazu mają różną trwałość:
 
-1. Ręczny **RunAgentTool** z Settings → Workers zwraca pojedynczy PNG inline do
-   4 MiB, a tekst do 512 KiB. Jest to przejściowy wynik panelu bez itemu,
-   outboxa, journala i trwałej galerii. Podgląd może pobierać kolejne zrzuty co
-   trzy sekundy, gdy pozostaje widoczny, ale nie jest transmisją wideo.
+1. **Preview wątku** przesyła nietrwałe klatki do 2 MiB przez WorkerLink,
+   gateway i BFF, z ACK i dzierżawą. Browser korzysta z natywnego strumienia
+   `agent-browser`, a Desktop/Device ze współdzielonych, anulowalnych pętli
+   zrzutów, bez transmisji wideo. Zamknięcie podglądu usuwa klatki; nie ma
+   itemu, outboxa, journala, lustra ani trwałej galerii. Settings służy
+   instalacji, statusowi i grantom.
 2. **MCP używany przez model** zwraca upstreamowe bloki z limitem mostka 6 MiB i
    zachowuje ich MIME. Wynik trafia do transcriptu providera i journala, a
    obrazy są kopiowane do workerowego `PreviewStore` przed zapisaniem zdarzenia.

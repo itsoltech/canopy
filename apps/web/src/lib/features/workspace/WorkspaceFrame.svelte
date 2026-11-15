@@ -1,16 +1,13 @@
 <script lang="ts">
   import { untrack, type Snippet } from "svelte";
-  import { FILES_PANEL_WIDTH } from "@canopy/domain/device-view";
   import type { ThreadWorkspace } from "./thread-workspace.svelte.ts";
   import ResizeHandle from "#lib/shared/ui/ResizeHandle.svelte";
-  import { devicePreferences as device } from "#lib/features/settings/device-preferences.svelte.ts";
   import { workspaceFileDrag, type WorkspaceFileDrag } from "./file-drag.ts";
   import { useFileIntake } from "#lib/features/attachments/file-intake.svelte.ts";
 
   /**
-   * The thread area and the Files panel. On wide screens the grid eases the panel's column open and shut
-   * (motion.css `t-panel-column`); the panel's width and whether it is open are one choice on this device, so
-   * switching threads never moves anything.
+   * The thread area and shared Files/Preview panel. The grid eases the panel's column open and shut
+   * (motion.css `t-panel-column`); changing threads keeps the selected panel and its geometry.
    */
   let {
     state: workspace,
@@ -94,16 +91,15 @@
   {#if open}
     <div class="absolute inset-y-0 z-20" style:right={`${size}px`}>
       <ResizeHandle
-        label="Resize Files"
+        label="Resize side panel"
         grows="left"
         value={size}
-        min={FILES_PANEL_WIDTH.min}
+        min={workspace.panelMin}
         max={workspace.panelMax}
-        reset={FILES_PANEL_WIDTH.default}
+        reset={workspace.panelDefault}
         onresize={(value) => (workspace.panelDraft = value)}
         onchange={({ size: value }) => {
-          device.setView({ filesPanelWidth: value });
-          workspace.panelDraft = undefined;
+          workspace.setPanelWidth(value);
         }}
       />
     </div>

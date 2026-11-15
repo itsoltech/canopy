@@ -30,6 +30,16 @@ export function mapIds(
   const record = reflect(desc, message);
   visit?.(desc, message);
 
+  // Preview and OS target identifiers are opaque live-session selectors, never Canopy entities.
+  if (["canopy.worker.v1.AgentPreviewEvent", "canopy.worker.v1.AgentPreviewTarget"].includes(desc.typeName)) return;
+
+  if (desc.typeName === "canopy.ui.v1.SendAgentPreviewInputRequest") {
+    const field = desc.field["threadId"]!;
+    record.set(field, map(String(record.get(field)), "thread_id"));
+
+    return;
+  }
+
   // OS window/device identifiers are opaque selectors, even when a simulator UDID is a UUID.
   // Only a copied, qualified Canopy thread session participates in home routing.
   if (desc.typeName === "canopy.worker.v1.RunAgentTool") {

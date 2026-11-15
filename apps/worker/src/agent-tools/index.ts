@@ -15,7 +15,7 @@ import { agentToolInfo, agentToolPlatformSupported, type AgentToolProbe } from "
 import { AGENT_TOOL_SPECS, agentToolSpec } from "./specs.ts";
 import { runAgentToolOperation } from "./operations.ts";
 import { executablePaths, resolveLauncher, toolArgv, toolEnvironment, type ToolEnv } from "./paths.ts";
-import { agentToolOperationArgs } from "./argv.ts";
+import { agentToolOperationArgs, validateAgentToolCommand } from "./argv.ts";
 import { installAgentTool } from "./install.ts";
 import { agentToolSession } from "./scope.ts";
 import { AgentToolDiscoveryCache } from "./cache.ts";
@@ -252,6 +252,38 @@ export class AgentTools {
       this.#cache.invalidate(command.tool);
       throw error;
     }
+  }
+
+  /** Preview backends resolve once, then retain this pinned runtime until their lease ends. */
+  async resolvePreviewScope(scope: RunAgentTool) {
+    validateAgentToolCommand(scope);
+    const spec = agentToolSpec(scope.tool);
+
+    if (this.#installing.has(scope.tool))
+      throw new AgentToolRefused("AGENT_TOOL_INSTALL_RUNNING", `${spec.label} is being installed`);
+    // Discovery uses the active device session; explicit catalog selectors are resolved by the preview backend.
+    const found = await this.#cache.discover(spec, this.#probeOptions(), { session: scope.session });
+
+    // Device discovery can require a selector; its catalog must remain reachable before a target is chosen.
+    const supported = agentToolPlatformSupported(
+      this.#options.probe?.platform ?? process.platform,
+      this.#options.probe?.arch ?? process.arch,
+    );
+
+    if (
+      !found.ready &&
+      !(scope.tool === AgentTool.DEVICE && found.installed && found.version === spec.version && supported)
+    )
+      throw new AgentToolRefused("AGENT_TOOL_NOT_READY", found.detail);
+    const source = this.#probeOptions().env ?? process.env;
+    const { secrets } = installEnv(source);
+
+    return {
+      executable: found.path,
+      env: toolEnvironment(source),
+      scope,
+      redact: (detail: string) => redactLine(detail, secrets),
+    };
   }
 }
 

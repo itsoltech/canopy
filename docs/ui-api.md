@@ -1,8 +1,8 @@
 # API dla UI i architektura frontendu
 
-Status (2026-11-15): web/desktop — bezpieczny HTML we wspólnym rendererze Markdown
-oraz lokalne obrazy w podglądzie plików są wdrożone; dostępność kanałów według
-[release.md](release.md).
+Status (2026-11-15): web/desktop — bezpieczny HTML we wspólnym rendererze Markdown,
+lokalne obrazy w podglądzie plików i interaktywny Preview wątku są zaimplementowane.
+Opis dotyczy kodu, nie wdrożenia; dostępność kanałów według [release.md](release.md).
 
 ## Proponowane odpowiedzi
 
@@ -146,28 +146,26 @@ domu oznaczamy `stale`, a brak ostatniej odpowiedzi także `unavailable`.
 
 ## Moduły workspace'u wątku
 
-`features/workspace` rejestruje wewnętrzne moduły Files, Pull requests, Tasks i Connectors
-przez wspólne deskryptory `@canopy/domain/workspace-modules`. Klucz pełnej karty
-obejmuje moduł i kwalifikowane id zasobu we właściwym wątku. `+` w nagłówku otwiera
-utrwaloną kartę; `+` prawego panelu zastępuje jego jedyny moduł. Maksymalizacja
-aktywuje pełną kartę, zachowując panel. Zamykanie kart nie usuwa PR ani zadań.
-Moduły korzystają z dotychczasowych owner-scoped RPC i wspólnego cache zapytań;
+`features/workspace` utrzymuje rozmowę jako pierwszą kartę oraz karty plików,
+pełnego PR i wyniku zadania w tle. Jeden czysty podgląd pliku na wątek może
+zostać zastąpiony; Keep tab, dwuklik lub pierwsza edycja go utrwalają. Klucz
+zasobu obejmuje kwalifikowane id i zakres wątku. Zamykanie kart nie usuwa PR
+ani zadań. Karty korzystają z owner-scoped RPC i wspólnego cache zapytań;
 nie powstaje drugi watch historii. Nieaktywne pełne moduły są odmontowane.
 
-Na szerokim obszarze wątku pasek ikon wybiera moduł, a ponowny wybór oddaje panel
-podsumowaniu. Bez modułu Thread details jest domyślnie dokowane. Przy module
-przycisk szczegółów otwiera przejściową kartę: outside click/Escape ją zamyka.
-Zwężenie obszaru przenosi moduły i szczegóły do osobnych arkuszy; nie otwiera ich
-automatycznie. Panel pozostawia co najmniej 38 rem głównej treści. Jego szerokość
-256–384 px, zwinięcie, wybrany moduł i karty są lokalne dla urządzenia. Uchwyt
-obsługuje klawiaturę i zapisuje szerokość po zakończeniu zmiany. Zajęcie panelu
-nie zależy od aktywnej karty głównej. Stare odnośniki `?pr=` otwierają kartę PR.
+Podsumowanie jest osobną kartą/pigułką w obszarze rozmowy. Wiersz PR lub zadania
+otwiera pełny zasób jako kartę; `?pr=` zachowuje to samo znaczenie. PR utrzymuje
+Summary/Timeline/Code i dotychczasowe akcje. Granty connectorów nadal obejmują
+workera i wszystkie jego wątki; sekrety i lineage pozostają w podsumowaniu,
+a oczekujące interakcje przy rozmowie.
 
-PR zachowuje Summary/Timeline/Code, akcje wierszy i ostatnią zawartość podczas
-odświeżania. Tasks rozdziela zadania w tle i harmonogramy; wybrany wynik jest
-pełną kartą z istniejącymi akcjami cytowania i zatrzymania. Granty connectorów
-nadal obejmują workera i wszystkie jego wątki. Metadane sekretów i lineage
-pozostają w podsumowaniu; oczekujące interakcje pozostają przy rozmowie.
+Prawy panel web/desktop łączy Files (drzewo otwierające karty plików) i Preview
+(Browser/Desktop/Device). Otwarcie i szerokość Files są stanem urządzenia;
+tryb panelu i szerokość Preview — stanem pamięci strony. Na wąskim ekranie
+panel otwiera arkusz. Podgląd automatyzacji jest oddzielony od zastępowalnej
+karty pliku i nie zmienia jej stanu. Natywny mobile
+zachowuje arkusze Thread details i Files. Układ, fokus i cykl życia Preview:
+[workspace.md](workspace.md#panel-filespreview).
 
 Workspace ogranicza czyste treści do 16 MiB i czterech rozgrzanych plików na webie
 (8 MiB i dwóch na mobile); szkice mają osobny wspólny limit 4 MiB. Ukryte widoki
@@ -858,9 +856,9 @@ w rozwiniętym workerze, „Agent CLI updates” z „Update all” i kropka prz
 
 ### Narzędzia automatyzacji
 
-Status (2026-11-15): implementacja jest gotowa do udostępnienia w następnym
-nightly; promocja do kolejnych kanałów odbywa się zwykłą ścieżką. Szczegóły
-kontraktu: [automation-tools.md](automation-tools.md).
+Status (2026-11-15): narzędzia i interaktywny Preview są zaimplementowane w kodzie;
+dostępność w wydaniach wynika z promocji kanałów. Szczegóły kontraktu:
+[automation-tools.md](automation-tools.md).
 
 `Worker` zawiera raport `agent_tools` z wersją, ścieżką, instalacją i readiness
 `agent-browser`, `agent-desktop` oraz `agent-device`. BFF wystawia owner-scoped
@@ -868,20 +866,37 @@ akcje `POST /api/workers/agent-tools/{refresh,install,enable,run}`, które
 wywołują odpowiednio `RefreshAgentTools`, `InstallAgentTool`,
 `SetAgentToolEnabled` i `RunAgentTool`. Gateway sprawdza własność workera,
 online/capability oraz grant przed wysłaniem komendy do workera.
+Jednorazowy `RunAgentTool` zachowuje ograniczony wynik diagnostyczny inline
+(PNG do 4 MiB, tekst do 512 KiB), bez publikacji w transkrypcie.
 
 Settings → Workers pokazuje osobny przełącznik **Allow agent access** domyślnie
-wyłączony, status gotowości, log instalacji i ręczne sterowanie. Formularz
-przekazuje sesję (pustą albo `threadId`), operację i wartości ref/tekstu/klawisza;
-desktop ma selektory aplikacji i `window_id`, a device `device_id` i platformy.
-W desktopowych akcjach na kwalifikowany ref panel usuwa selektory aplikacji i
-okna, bo ref przypina właściwe okno. `press` przyjmuje klawisz lub skrót tylko
-dla przeglądarki i desktopu; w device jest akcją na ref.
-Podgląd może okresowo pobierać screenshoty, lecz ręczny wynik `RunAgentTool` jest
-inline i przejściowy (PNG do 4 MiB, tekst do 512 KiB), bez itemu transkryptu,
-outboxa, journala ani galerii. Screenshot zwrócony modelowi przez MCP podlega
-osobnemu limitowi mostka 6 MiB i jest zapisywany w transcript providera oraz
-`PreviewStore`; końcową trwałą galerię tworzy `show_images`. Gdy panel workera
-jest offline lub worker nie ma capability `agent_tools_v1`, akcje są zablokowane.
+wyłączony, status gotowości i log instalacji. Sterowanie użytkownika jest
+w Preview wątku.
+
+`WatchAgentPreview` przyjmuje `thread_id`, `scope` i `max_fps`; `scope` wybiera
+wyłącznie narzędzie i cel. Gateway wyprowadza sesję i worker z własnego wątku,
+sprawdza grant i `agent_preview_v1`. `SendAgentPreviewInput` wiąże ograniczoną
+partię wejścia z tym samym `thread_id` i wydanym `preview_id`.
+Device może otworzyć katalog przed Ready po sprawdzeniu instalacji dokładnej
+wersji `0.21.37`, grantu i braku trwającej instalacji; Browser/Desktop oraz
+wywołania modelu/MCP/`RunAgentTool` nadal wymagają Ready.
+
+W Preview Device `scope.device_id` wybiera cel z katalogu również dla Linux/Web;
+worker rozwiązuje go na katalogowy `--device`. Przekazany identyfikator ma
+do 16 KiB UTF-8, bez znaków sterujących, wiodącego `-` ani wartości z samych
+białych znaków. Jednorazowy `RunAgentTool` nadal odrzuca `device_id` dla Linux/Web.
+
+BFF udostępnia `POST /api/threads/[id]/preview/events` jako SSE z ciałem protobuf
+JSON oraz `POST /api/threads/[id]/preview/input` dla wejścia. Anulowanie HTTP
+zamyka watch przez RPC aż do workera. Klatki i wejście nie przechodzą przez
+`WatchThread` ani historię, a klient nie otrzymuje adresu lub portu strumienia
+workera. Granice ACK, dzierżawy i rozmiarów:
+[protocol.md](protocol.md#interaktywny-podgląd-wątku).
+
+Screenshot zwrócony modelowi przez MCP ma osobny limit mostka 6 MiB i jest
+zapisywany w transkrypcie providera oraz `PreviewStore`; końcową trwałą galerię
+tworzy `show_images`. To osobne ścieżki od nietrwałych klatek Preview
+([agent-visuals.md](agent-visuals.md#zrzuty-narzędzi-automatyzacji)).
 
 ## No project i katalogi scratch
 
@@ -2587,8 +2602,8 @@ przełącza karty w obu klientach, również w polach tekstowych;
 `Mod+G` i `Mod+S` obsługują pozycję i zapis w pliku. Close/Keep są też komendami
 palety z konfigurowalnymi skrótami. Zapis sprawdza również zakodowany JSON ≤512 KiB.
 
-Moduł `Files` działa w prawym panelu oraz pełnej karcie, ze wspólnym modelem
-drzewa i odczytami. `POST /api/threads/:id/directory` wywołuje addytywne
+`Files` pokazuje drzewo w prawym panelu lub jego wąskim arkuszu; plik otwiera
+pełną kartę workspace'u. `POST /api/threads/:id/directory` wywołuje addytywne
 `ListThreadDirectory`: bieżący cwd/worktree, jedna strona do 100 dzieci, bez
 rekurencyjnego pobierania. `Load more` dociąga stronę, foldery są przed plikami
 w obrębie wczytanych wpisów. Kolor Git ma także literę i opis dostępności.

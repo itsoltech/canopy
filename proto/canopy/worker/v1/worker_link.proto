@@ -75,6 +75,7 @@ message WorkerMessage {
     AgentEnvironmentReport agent_environment = 820;
     AgentToolsReport agent_tools_report = 821;
     AgentToolProgress agent_tool_progress = 822;
+    AgentPreviewEvent agent_preview = 823;
     // Bieżąca gałąź checkoutów wątków (capability "git_heads", docs/worktrees.md).
     GitHeads git_heads = 840;
     // Transient, capability git_clone_progress_v1; never journaled.
@@ -109,6 +110,7 @@ message GatewayMessage {
     // Only sent to workers advertising "network_route_migration".
     NetworkRoutes network_routes = 802;
     AgentEnvironmentDesired agent_environment = 820;
+    AgentPreviewCommand agent_preview = 823;
     HeartbeatEcho heartbeat_echo = 850;
     canopy.ui.v1.DiagnosticsLogSourceCommand diagnostics_log_command = 851;
     canopy.ui.v1.DiagnosticsWorkerTraceRequest diagnostics_trace_command = 852;

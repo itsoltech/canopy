@@ -1,8 +1,8 @@
 # Canopy — architektura
 
 Status: opis zaimplementowanego kodu (2026-11-15): gateway, workery, web BFF,
-Canopy Desktop (tryb lokalny, zdalny, sesja dostępu do BFF i połączone komputery)
-oraz aplikacja mobilna.
+Canopy Desktop (tryb lokalny, zdalny, sesja dostępu do BFF i połączone komputery),
+interaktywny podgląd automatyzacji w wątku oraz aplikacja mobilna.
 Logowanie użytkowników nie istnieje; otwarte decyzje są w §11. Ten dokument opisuje
 zachowanie, nie dostępność w wydaniach: funkcje trafiają najpierw do nightly, potem
 do beta i stable ([release.md](release.md)); co zawiera konkretne wydanie, podają
@@ -33,7 +33,7 @@ Powiązane dokumenty:
 - [goals.md](goals.md) — cele: silnikiem jest harness (Codex goals, Claude `/goal`), platforma je śledzi i steruje nimi z UI
 - [agent-bus.md](agent-bus.md) — szyna agentów: delegowanie przez wątki boczne, interakcje, harmonogram; natywna orkiestracja dostawców wyłączona
 - [agent-visuals.md](agent-visuals.md) — obrazy w odpowiedziach (`show_images`) i interaktywne visuals (`render_visual`, `render_html`): format, sandbox klientów, trwały zapis
-- [workspace.md](workspace.md) — zakładki wątku, karta podsumowania i panel Files z drzewem i edytorem
+- [workspace.md](workspace.md) — zakładki wątku, karta podsumowania i panel Files/Preview
 - [desktop.md](desktop.md) — Canopy Desktop: kontroler, tryb lokalny, aktualizacje; [desktop-remote-frontend.md](desktop-remote-frontend.md) — tryb zdalny z lokalnym BFF
 - [linked-computers.md](linked-computers.md) — połączone komputery (wyłącznie lokalne gatewaye desktopu); [network-access.md](network-access.md) — wspólny port TLS dla telefonów, desktopów, workerów i komputerów
 - [deploy.md](deploy.md) — wdrożenie serwera (Docker Compose, binarki, reverse proxy)
@@ -67,8 +67,12 @@ Tylko gateway łączy się z bazą. Worker nie ma dostępu do bazy i nie przyjmu
 Lokalne narzędzia automatyzacji są wykonywane wyłącznie przez worker. Gateway
 wykrywa gotowość, przechowuje grant per worker i właściciel oraz autoryzuje
 wywołania bieżącej tury; nie uruchamia binarek. Claude, Codex i Grok dostają
-prywatny workerowy bridge MCP na loopbackie
-([automation-tools.md](automation-tools.md)).
+prywatny workerowy bridge MCP na loopbackie. Osobny, nietrwały podgląd wątku
+przenosi obraz i bezpośrednie sterowanie użytkownika przez WorkerLink, gateway
+i BFF (SSE). Browser używa natywnego strumienia WebSocket `agent-browser` dla
+sesji wątku, Desktop/Device — anulowalnych pętli zrzutów. Klient nie łączy się
+z portem ani adresem narzędzia na workerze; gateway egzekwuje właściciela, grant
+i bieżące łącze ([automation-tools.md](automation-tools.md)).
 
 Gateway ma rolę startową: domyślnie `server`; kontroler Canopy Desktop oznacza własny
 sidecar trybu lokalnego jako `desktop`. To wewnętrzna decyzja runtime, bez ustawienia
@@ -100,8 +104,9 @@ Wątek web/desktop i mobile ma lokalny workspace: rozmowę jako pierwszą kartę
 (w web/desktop pod tytułem wątku), karty plików (jeden zastępowalny preview
 i karty utrwalone), pełnego PR oraz wyniku zadania w tle. Podsumowanie wątku
 to pływająca karta w rogu obszaru rozmowy (pigułka, popover albo arkusz),
-a prawy panel zawiera wyłącznie drzewo Files; mobile ma przełącznik kart
-i arkusze `Thread details` oraz `Files`. Metadane kart są stanem urządzenia,
+a prawy panel web/desktop łączy drzewo Files z interaktywnym Preview
+(Browser/Desktop/Device); natywny mobile ma przełącznik kart i arkusze
+`Thread details` oraz `Files`. Metadane kart są stanem urządzenia,
 bez synchronizacji między klientami. Treści plików i ich niezapisane edycje
 pozostają w ograniczonych cache pamięci, niezależnie od dogrzewania transkryptów.
 Gateway wyprowadza zakres plików z właściciela i wątku. Drzewo jest leniwe,

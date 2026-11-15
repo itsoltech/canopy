@@ -323,6 +323,8 @@ service GatewayService {
   rpc RefreshAgentTools(RefreshAgentToolsRequest) returns (RefreshAgentToolsResponse);
   rpc RunAgentTool(RunAgentToolRequest) returns (RunAgentToolResponse);
   rpc SetAgentToolEnabled(SetAgentToolEnabledRequest) returns (WorkerOperationResponse);
+  rpc WatchAgentPreview(WatchAgentPreviewRequest) returns (stream canopy.worker.v1.AgentPreviewEvent);
+  rpc SendAgentPreviewInput(SendAgentPreviewInputRequest) returns (WorkerOperationResponse);
 
   // Załączniki (sekcja na końcu pliku): plik użytkownika do wiadomości, jego bajty i podglądy obrazów z transkryptu.
   rpc UploadAttachment(UploadAttachmentRequest) returns (UploadAttachmentResponse);
@@ -2648,6 +2650,20 @@ message RunAgentToolRequest {
 
 message RunAgentToolResponse {
   canopy.worker.v1.AgentToolOutput result = 1;
+}
+
+message WatchAgentPreviewRequest {
+  string thread_id = 1;
+  // Only tool/platform/app/window_id/device_id select the target. The gateway
+  // derives the session from the owned thread and refuses command arguments.
+  canopy.worker.v1.RunAgentTool scope = 2;
+  uint32 max_fps = 3;
+}
+
+message SendAgentPreviewInputRequest {
+  string thread_id = 1;
+  string preview_id = 2;
+  repeated canopy.worker.v1.AgentPreviewInput inputs = 3;
 }
 
 // ---------- Załączniki (docs/ui-api.md) ----------

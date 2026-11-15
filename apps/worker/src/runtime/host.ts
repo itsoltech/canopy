@@ -34,6 +34,7 @@ import { recoverShellInputs } from "./shell-input.ts";
 import { UpdateCheckTimer } from "@canopy/domain/update-checks";
 import { WorkspaceCopies } from "../workspace-copy/index.ts";
 import { AgentTools, AgentToolRefused } from "../agent-tools/index.ts";
+import { HostPreviews } from "./host-previews.ts";
 
 export type { WorkerHostOptions } from "./host-types.ts";
 /**
@@ -108,6 +109,7 @@ const NOT_REMEMBERED: ReadonlySet<Command["kind"]["case"]> = new Set([
 ]);
 
 export class WorkerHost {
+  readonly previews: HostPreviews;
   readonly #copies: WorkspaceCopies;
   readonly #cliChecks: UpdateCheckTimer;
   readonly #commands = new Map<string, Promise<CommandResultInit | undefined>>();
@@ -169,6 +171,7 @@ export class WorkerHost {
       send: (report) => this.#ctx.ops.send({ case: "agentToolsReport", value: report }),
       progress: (progress) => this.#ctx.ops.send({ case: "agentToolProgress", value: progress }),
     });
+    this.previews = new HostPreviews(this.#ctx.state.agentTools, (id) => this.threadClosed(id));
   }
   setUpdateDraining(value: boolean): void {
     this.#ctx.state.updateDraining = value;
@@ -195,6 +198,7 @@ export class WorkerHost {
 
   attach(link: GatewayLink): void {
     if (link.welcome.threadLifecycle) this.applyThreadLifecycle(link.welcome.threadLifecycle);
+    this.previews.attach(link);
     this.#ctx.state.link = link;
 
     for (const report of this.#ctx.state.usage.values())
@@ -220,18 +224,13 @@ export class WorkerHost {
   }
 
   applyThreadLifecycle(state: ThreadLifecycle): void {
-    const closed = this.#ctx.state.closedThreads;
-
-    if (state.replace) closed.clear();
-
-    for (const id of state.closedThreadIds) closed.add(id);
-
-    for (const id of state.openedThreadIds) closed.delete(id);
+    this.previews.lifecycle(state, this.#ctx.state.closedThreads);
   }
 
   detach(link: GatewayLink): void {
     if (this.#ctx.state.link === link) {
       this.#ctx.state.link = undefined;
+      this.previews.detach(link);
       this.#ctx.state.imageExports.close();
       void this.#ctx.ops.closeClones();
       void this.#ctx.ops.closeDirectories();
@@ -426,6 +425,7 @@ export class WorkerHost {
   }
 
   async close(): Promise<void> {
+    await this.previews.close();
     await this.#ctx.ops.closeDirectories();
     this.#ctx.state.markdownImages.close();
     this.#ctx.state.imageExports.close();

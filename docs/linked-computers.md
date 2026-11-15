@@ -74,9 +74,9 @@ Opt-in etapu 4 zastępuje [wspólna konfiguracja](#konkretny-protokół-wspólna
 
 ### Narzędzia automatyzacji na połączonym komputerze
 
-Status (2026-11-15): lokalne narzędzia automatyzacji są zaimplementowane i
-planowane do udostępnienia w następnym nightly; dalsza dostępność podlega
-normalnej promocji kanałów. Ich opis: [automation-tools.md](automation-tools.md).
+Status (2026-11-15): lokalne narzędzia automatyzacji i interaktywny Preview
+wątku są zaimplementowane w kodzie; dostępność w wydaniach podlega normalnej
+promocji kanałów. Ich opis: [automation-tools.md](automation-tools.md).
 
 Worker i jego granty należą do gatewaya domu właściciela. Gdy UI wybiera workera
 na połączonym komputerze, akcja jest trasowana do tego domu i wykonywana przez
@@ -84,6 +84,21 @@ jego workera po jego lokalnych kontrolach gotowości i grantów. Gateway kompute
 wywołującego nie uruchamia binarki, nie wykonuje jej przez własnego workera i nie
 przenosi grantu. Połączenie partnera nie daje dostępu do kluczy modelu ani do
 lokalnego bridge'a MCP; niedostępny dom blokuje wykonanie.
+
+`WatchAgentPreview` i `SendAgentPreviewInput` są trasowane według domu wątku.
+Dom wyprowadza sesję z lokalnego id wątku i sprawdza właściciela, grant oraz
+bieżący WorkerLink. `preview_id` i identyfikatory okien/urządzeń są nieprzezroczyste:
+przechodzą bez kwalifikowania ani zamiany, także gdy mają format UUID.
+Stream obrazu i wejście nie trafiają do lustra ani trwałej kolejki; bez domu
+nie ma podglądu offline. Anulowanie, unlink lub odwołanie dostępu kończą stream
+w domu i zwalniają pracę workera. Klient nadal używa BFF, bez bezpośredniego
+adresu lub portu narzędzia partnera. Granice:
+[protocol.md](protocol.md#interaktywny-podgląd-wątku).
+
+Podgląd korzysta ze zwykłej polityki dostępu i relay wątku. Złożona wiadomość
+ma limit 2 MiB + 32 KiB; kolejka odpowiedzi mieści najwyżej dwie wiadomości
+i łącznie ten sam budżet bajtów. Wolny odbiorca dostaje `DataLoss` i wymaga
+ponownego otwarcia Preview, bez checkpointu ani replay.
 
 ## Cel
 

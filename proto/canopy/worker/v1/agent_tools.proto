@@ -80,3 +80,79 @@ message AgentToolOutput {
   bytes data = 4;
   bool truncated = 5;
 }
+
+// Ephemeral, frame-acknowledged previews. These messages never enter a journal,
+// command outbox, transcript, or persisted computer mirror.
+message AgentPreviewTarget {
+  string id = 1;
+  string label = 2;
+  string platform = 3;
+  string app = 4;
+  string window_id = 5;
+  string device_id = 6;
+  bool active = 7;
+}
+
+message StartAgentPreview {
+  string preview_id = 1;
+  string thread_id = 2;
+  RunAgentTool scope = 3;
+  uint32 max_fps = 4;
+}
+
+message StopAgentPreview { string preview_id = 1; }
+message AgentPreviewAck {
+  string preview_id = 1;
+  uint64 frame_id = 2;
+}
+
+message AgentPreviewInput {
+  // pointer-move | pointer-down | pointer-up | wheel | key-down | key-up |
+  // text | navigate | back | forward | reload | home | release | resize
+  string kind = 1;
+  // Coordinates are normalized to the rendered frame, excluding letterboxing.
+  double x = 2;
+  double y = 3;
+  double delta_x = 4;
+  double delta_y = 5;
+  uint32 button = 6; // DOM button: 0 left, 1 middle, 2 right
+  uint32 buttons = 7;
+  string key = 8;
+  string code = 9;
+  string text = 10;
+  uint32 modifiers = 11; // alt=1, control=2, meta=4, shift=8
+  uint32 width = 12;
+  uint32 height = 13;
+}
+
+message AgentPreviewInputBatch {
+  string preview_id = 1;
+  repeated AgentPreviewInput inputs = 2;
+}
+
+message AgentPreviewCommand {
+  oneof kind {
+    StartAgentPreview start = 1;
+    StopAgentPreview stop = 2;
+    AgentPreviewInputBatch input = 3;
+    AgentPreviewAck ack = 4;
+  }
+}
+
+message AgentPreviewEvent {
+  string preview_id = 1;
+  string state = 2; // connecting | ready | frame | error | closed
+  uint64 frame_id = 3;
+  bytes data = 4;
+  string mime_type = 5;
+  uint32 width = 6;
+  uint32 height = 7;
+  uint32 viewport_width = 8;
+  uint32 viewport_height = 9;
+  string url = 10;
+  string title = 11;
+  string detail = 12;
+  repeated AgentPreviewTarget targets = 13;
+  string target_id = 14;
+  string mode = 15; // stream | screenshots
+}

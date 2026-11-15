@@ -24,6 +24,7 @@ export const AGENT_TOOL_LOG_LINES = 200;
 const enabledOf = Schema.decodeUnknownOption(Schema.Record(Schema.String, Schema.Boolean));
 const MAX_TEXT = 512 * 1024;
 const MAX_IMAGE = 4 * 1024 * 1024;
+const DEVICE_PREVIEW_VERSION = "0.21.37";
 
 interface AgentToolRow {
   id: string;
@@ -174,6 +175,23 @@ export class AgentTools {
     validateTool(tool);
     this.#connection(row.id);
     this.#authorize(row, tool);
+  }
+
+  /** Device discovery needs a pinned binary before a target can make doctor ready. */
+  async authorizePreview(id: string, tool: AgentTool): Promise<void> {
+    if (tool !== AgentTool.DEVICE) return this.authorize(id, tool);
+    const row = await this.#owned(workerId(id));
+    this.#connection(row.id);
+
+    if (!row.enabled[String(tool)])
+      throw new ConnectError("enable this automation tool on the worker first", Code.PermissionDenied);
+    const info = row.report?.tools.find((item) => item.tool === tool);
+
+    if (!info?.installed || info.version !== DEVICE_PREVIEW_VERSION || info.install?.state === "running")
+      throw new ConnectError(
+        "install the pinned agent-device version before opening its preview",
+        Code.FailedPrecondition,
+      );
   }
 
   #authorize(row: AgentToolRow, tool: AgentTool) {

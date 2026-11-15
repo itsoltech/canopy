@@ -83,7 +83,7 @@
   import WorkspaceTabs from "#lib/features/workspace/WorkspaceTabs.svelte";
   import WorkspaceFilesToggle from "#lib/features/workspace/WorkspaceFilesToggle.svelte";
   import WorkspaceContent from "#lib/features/workspace/WorkspaceContent.svelte";
-  import WorkspaceFilesPanel from "#lib/features/workspace/WorkspaceFilesPanel.svelte";
+  import WorkspaceSidePanel from "#lib/features/workspace/WorkspaceSidePanel.svelte";
   import ThreadSummary from "#lib/features/threads/summary/ThreadSummary.svelte";
   import { SummaryLayout } from "#lib/features/threads/summary/summary-layout.svelte.ts";
   import WorkspaceFrame from "#lib/features/workspace/WorkspaceFrame.svelte";
@@ -330,7 +330,8 @@
     worktreeDialog = true;
   }
 
-  const toggleFiles = () => workspaceState.toggleFiles(() => (panelSheet = true));
+  const toggleFiles = () => workspaceState.showPanel("files", () => (panelSheet = true));
+  const togglePreview = () => workspaceState.showPanel("preview", () => (panelSheet = true));
 
   const canBranch = $derived(!away && Boolean(tree && thread && thread.status !== "archived"));
 
@@ -528,8 +529,15 @@
             </DropdownMenu>
           </div>{/if}
         <WorkspaceFilesToggle
-          pressed={workspaceState.wide ? workspaceState.filesOpen : undefined}
+          pressed={workspaceState.wide ? workspaceState.filesOpen && workspaceState.panelMode === "files" : undefined}
           onclick={toggleFiles}
+        />
+        <IconButton
+          size="sm"
+          icon="computer-desktop"
+          label={workspaceState.filesOpen && workspaceState.panelMode === "preview" ? "Close preview" : "Open preview"}
+          aria-pressed={workspaceState.filesOpen && workspaceState.panelMode === "preview"}
+          onclick={togglePreview}
         />
       {/snippet}
     </TopBar>
@@ -779,11 +787,13 @@
   </div>
 
   {#snippet panel(width: number)}
-    <WorkspaceFilesPanel
-      view={workspaceState.view}
+    <WorkspaceSidePanel
+      state={workspaceState}
+      {threadId}
+      {worker}
+      offline={away ?? ""}
       root={(thread?.worktree?.path || thread?.cwd || "").split(/[\\/]/).filter(Boolean).at(-1) ?? ""}
       {width}
-      wide={workspaceState.wide}
       bind:sheet={panelSheet}
     />
   {/snippet}

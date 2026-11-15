@@ -1,14 +1,15 @@
 # Narzędzia automatyzacji agentów
 
-Status (2026-11-15): **zaimplementowane; gotowe do udostępnienia w następnym
-nightly**. Ten opis dotyczy stanu kodu i nie oznacza, że funkcja jest już w
-wydanym buildzie. Po nightly obowiązuje zwykła promocja do beta i stable
+Status (2026-11-15): **narzędzia i interaktywny podgląd wątku zaimplementowane**.
+Ten opis dotyczy stanu kodu i nie oznacza, że funkcja jest już w wydanym buildzie.
+Dostępność nightly/beta/stable wynika ze zwykłej promocji wydań
 ([release.md](release.md)).
 
 Narzędzia pozwalają agentowi wykonywać ograniczony zestaw operacji w lokalnej
 przeglądarce, aplikacji desktopowej albo urządzeniu/symulatorze workera. Gateway
 autoryzuje dostęp, a program zawsze uruchamia worker na swojej maszynie. Gateway
-nie wykonuje binarki ani inferencji.
+nie wykonuje binarki ani inferencji. Użytkownik obserwuje i bezpośrednio steruje
+tą sesją przez Preview wątku.
 
 ## Przypięte narzędzia
 
@@ -36,11 +37,11 @@ poza opcjonalnym Chrome for Testing i nie może nadać workerowi uprawnień OS.
 ## Wykrywanie, instalacja i gotowość
 
 Worker najpierw wyszukuje istniejącą binarkę w swoim środowisku oraz w swoim
-zarządzanym katalogu danych. **Każda binarka musi zgłaszać dokładnie przypiętą
-wersję** i przejść sprawdzenie gotowości. Nieprawidłowa wersja znaleziona w PATH
-nie jest używana ani modyfikowana; właściciel może zainstalować właściwą wersję
-w zarządzanym prefiksie workera. Ponowna instalacja w tym prefiksie może zastąpić
-jego wcześniejszą, błędną wersję.
+zarządzanym katalogu danych. **Każda używana binarka musi zgłaszać dokładnie
+przypiętą wersję**; wywołania modelu i `RunAgentTool` wymagają również gotowości.
+Nieprawidłowa wersja znaleziona w PATH nie jest używana ani modyfikowana;
+właściciel może zainstalować właściwą wersję w zarządzanym prefiksie workera.
+Ponowna instalacja w tym prefiksie może zastąpić jego wcześniejszą, błędną wersję.
 
 Jeśli narzędzia brakuje albo wymaga przygotowania, właściciel może opcjonalnie
 uruchomić instalację per worker w **Settings → Workers → Automation tools**.
@@ -143,41 +144,69 @@ lokalny format obrazu. Jeden endpoint przyjmuje najwyżej 32 oczekujące RPC,
 a bridge najwyżej 64 aktywne ciała żądań łącznie. Timer deadline i listenery
 anulowania są usuwane po zakończeniu żądania.
 
-## Sterowanie w Settings → Workers
+## Instalacja i dostęp w Settings → Workers
 
 Panel **Automation tools** pokazuje wykrycie, wersję, gotowość, ścieżkę,
 redagowany log instalacji i przełącznik dostępu dla każdego narzędzia. **Check
 tools** ponawia badanie na wybranym workerze.
 
-Po przygotowaniu narzędzia panel **Manual controls** pozwala:
+Sterowanie należy do wątku, którego worker i sesja wyznaczają zakres podglądu.
 
-- wpisać pustą sesję domyślną albo `threadId` sesji agenta;
-- otworzyć stronę lub aplikację, odczytać `snapshot` i wykonać `screenshot`;
-- wybrać akcję oraz ref elementu lub tekst (`click`, `fill`, `type`, `close`);
-- dla przeglądarki i desktopu podać klawisz lub skrót dla `press`; dla device
-  `press` jest akcją na ref, a `type` pisze do bieżącego pola;
-- dla desktopu wskazać aplikację i `window_id`;
-- dla urządzenia wskazać `device_id` oraz platformę, na przykład iOS,
-  Android albo Web.
+## Interaktywny Preview wątku
 
-Desktopowe akcje na ref (`click`, `fill`, `type`) wymagają kwalifikowanego refa
-ze snapshotu i nie przyjmują `app` ani `window_id`, ponieważ ref przypina
-właściwe okno. Odczyt, zrzut oraz skrót klawiszowy przyjmują aplikację lub okno;
-otwieranie i zamykanie wymagają aplikacji bez selektora okna.
+W web/desktop prawy panel łączy **Files** i **Preview**. Preview wybiera
+**Browser**, **Desktop** albo **Device** i pokazuje kompaktowy wybór celu;
+Browser ma adres oraz `Back`/`Forward`/`Reload page`. Użytkownik działa bezpośrednio
+na obrazie myszą, klawiaturą i gestami. Kliknięcie przejmuje fokus klawiatury,
+tekst obsługuje IME i wklejanie, a Escape zwalnia sterowanie i przenosi fokus
+na obraz. Zmiana rozmiaru, dopasowanie i pełny ekran nie tworzą kolejnej sesji;
+na wąskim ekranie panel otwiera arkusz na cały ekran. Zakładka podglądu pliku
+nadal działa niezależnie
+([workspace.md](workspace.md#panel-filespreview)).
 
-Podgląd pokazuje ostatni zrzut i ma opcjonalny auto-refresh co trzy sekundy.
-Odświeżanie działa tylko wtedy, gdy panel i karta aplikacji są widoczne,
-połączenie jest online i worker jest dostępny; po ukryciu panelu pauzuje.
-To podgląd z kolejnych screenshotów, nie transmisja wideo. Możliwym późniejszym
-kierunkiem jest upstreamowy WebSocket streaming `agent-browser`; natywne live
-streaming wskaźnika/pointera pozostaje poza tym zakresem i wymaga osobnej decyzji.
+| Widok | Obraz i wybór celu | Sterowanie i ograniczenia |
+|---|---|---|
+| Browser | Natywny WebSocket `agent-browser` dla sesji Chrome wątku; automatycznie śledzi aktywną kartę. | Pointer, przyciski, kółko, klawisze i tekst przez natywny strumień; nawigacja przez CLI. Resize ustawia viewport przeglądarki. Zamknięcie Preview zwalnia jego WebSocket i utworzony przez niego stream, zachowując sesję agenta. |
+| Desktop | Współdzielona, anulowalna pętla zrzutów; lista okien z domyślnym aktywnym oknem i stabilnym wyborem celu. | Kliknięcie i przeciągnięcie są atomowymi operacjami po puszczeniu przycisku; drag obsługuje tylko przycisk główny. Backend nie utrzymuje wciśniętej myszy ani klawisza. Klawisze używają `press`, tekst — świeżego refa aktywnego pola accessibility i `type`, bez schowka systemowego. |
+| Device | Współdzielona, anulowalna pętla zrzutów; domyślnie urządzenie sesji wątku albo jedyne zgodne z platformą. | Tap i swipe głównym wskaźnikiem po puszczeniu, kierunkowy scroll oraz `type`. Enter/Back/Home działają według możliwości backendu; edycję klawiaturą Android opisano niżej. Skróty z modyfikatorami zwracają jawny błąd. |
+
+Sterowanie wskaźnikiem Desktop wymaga globalnych współrzędnych wybranego okna.
+Backend zgłasza brak geometrii zamiast wykonywać kliknięcie w innym miejscu.
+
+Android obsługuje także niemodyfikowane Backspace, Delete (usuwanie do przodu),
+Tab, strzałki, End i PageUp/PageDown przez stałą listę kodów już zainstalowanego ADB,
+po sprawdzeniu dokładnie wybranego urządzenia/serialu. Home pozostaje
+przyciskiem systemowym urządzenia. Klawisze edycji z tej listy są niedostępne
+na iOS/Apple; tekst nadal korzysta z `type`. Pozostałe nieobsługiwane klawisze
+dają jawny błąd zamiast pozornego powodzenia. Błąd pojedynczej operacji zwalnia
+wejście tylko tego odbiorcy i pozwala dalej korzystać z podglądu.
+
+Desktop i Device przesyłają kolejne obrazy, nie wideo. Worker pobiera obraz
+lokalnie. Klatki i wejście przechodzą przez istniejący
+WorkerLink → gateway → BFF; BFF wysyła SSE do klienta. Przeglądarka użytkownika
+nie dostaje bezpośredniego URL ani portu strumienia zdalnego workera.
+
+Gateway wyprowadza sesję z właściciela i wątku, wymaga aktualnego grantu
+narzędzia i capability `agent_preview_v1`. Browser i Desktop wymagają Ready.
+Device może otworzyć katalog przed Ready, gdy `agent-device` jest zainstalowany
+w dokładnej wersji `0.21.37`, ma grant i nie trwa jego instalacja. Doctor może
+nie wskazać gotowości przy kilku urządzeniach lub braku aktywnej sesji, dlatego
+użytkownik wybiera cel w katalogu. Worker sprawdza wybrany backend przy
+odczycie katalogu i rzeczywistych komendach. Ten wyjątek dotyczy wyłącznie
+interaktywnego podglądu; model/MCP i jednorazowy `RunAgentTool` nadal wymagają Ready.
+
+Sterowanie użytkownika nie wymaga aktywnej tury modelu; grant oraz stan wątku
+są sprawdzane przy wejściu i w trakcie transmisji. Ukrycie/zamknięcie Preview,
+zmiana wątku, tło klienta, utrata dostępu, odebranie grantu albo zerwanie łącza
+anulują pracę i zwalniają wejście. Sesja jest przypięta do konkretnego
+WorkerLink i nie jest odtwarzana po jego wymianie. Limity klatek, ACK,
+dzierżawy i partii wejścia: [protocol.md](protocol.md#interaktywny-podgląd-wątku).
 
 ## Obrazy i trwałość
 
-Ręczny **RunAgentTool** w Settings → Workers zwraca pojedynczy PNG inline,
-ograniczony do 4 MiB; tekst wyjścia ma limit 512 KiB. Wynik panelu jest
-przejściowy: nie tworzy itemu, outboxa, journala ani trwałej galerii, a plik
-tymczasowy jest usuwany po odczycie.
+Klatki Preview są przejściowe: nie tworzą itemu, outboxa, journala, lustra
+ani trwałej galerii. Pliki tymczasowe zrzutów są sprzątane przy zamknięciu backendu;
+zamknięcie podglądu usuwa jego obraz z klienta.
 
 Modelowy MCP ma inną ścieżkę. Wynik native MCP trafia do transcriptu providera
 i jest zapisywany w journalu. Jeśli wynik zawiera obraz, worker zapisuje blob w
@@ -207,14 +236,15 @@ połączonym komputerze żądanie jest trasowane do tego domu i jego workera;
 gateway komputera wywołującego nie uruchamia lokalnej binarki ani nie zastępuje
 grantu domu. Niedostępny dom wyłącza wykonanie, a nie usuwa zapisanej konfiguracji
 i historii. Szczegóły routingu: [linked-computers.md](linked-computers.md).
-Kwalifikowany identyfikator wątku wpisany jako sesja jest tłumaczony na lokalny
-identyfikator w domu. Identyfikatory okien i urządzeń pozostają literalne,
-także gdy UDID symulatora ma postać UUID.
+`WatchAgentPreview` i wejście są trasowane według kwalifikowanego id wątku;
+dom sam wyprowadza lokalną sesję. Identyfikatory podglądu, okien i urządzeń
+pozostają literalne, także gdy UDID symulatora ma postać UUID. Klatki nie
+wchodzą do lustra i nie są dostępne offline.
 
 Powiązane kontrakty i implementacje:
 
 - [architecture.md](architecture.md) — role gatewaya, workera i linked computers;
-- [protocol.md](protocol.md) — capability `agent_tools_v1`, raport gotowości i komendy;
+- [protocol.md](protocol.md) — capability `agent_tools_v1`/`agent_preview_v1`, raporty i transport;
 - [worker-config.md](worker-config.md) — ustawienia workera i środowisko;
 - [ui-api.md](ui-api.md) — RPC oraz endpointy BFF;
 - [claude-adapter.md](claude-adapter.md), [codex-adapter.md](codex-adapter.md),

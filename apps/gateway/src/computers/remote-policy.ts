@@ -254,6 +254,8 @@ export const SERVED = new Set([
   "RefreshAgentTools",
   "RunAgentTool",
   "SetAgentToolEnabled",
+  "WatchAgentPreview",
+  "SendAgentPreviewInput",
   "ListSchedules",
   "CreateSchedule",
   "UpdateSchedule",

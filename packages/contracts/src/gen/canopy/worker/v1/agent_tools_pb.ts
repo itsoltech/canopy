@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/worker/v1/agent_tools.proto.
  */
 export const file_canopy_worker_v1_agent_tools: GenFile = /*@__PURE__*/
-  fileDesc("CiJjYW5vcHkvd29ya2VyL3YxL2FnZW50X3Rvb2xzLnByb3RvEhBjYW5vcHkud29ya2VyLnYxIsMBChZBZ2VudFRvb2xJbnN0YWxsU3RhdHVzEhIKCmluc3RhbGxfaWQYASABKAkSDQoFc3RhdGUYAiABKAkSFgoOdGFyZ2V0X3ZlcnNpb24YAyABKAkSDQoFZXJyb3IYBCABKAkSLgoKc3RhcnRlZF9hdBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLwoLZmluaXNoZWRfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIpUCCg1BZ2VudFRvb2xJbmZvEikKBHRvb2wYASABKA4yGy5jYW5vcHkud29ya2VyLnYxLkFnZW50VG9vbBIUCgxwYWNrYWdlX25hbWUYAiABKAkSDAoEcGF0aBgDIAEoCRIPCgd2ZXJzaW9uGAQgASgJEhEKCWluc3RhbGxlZBgFIAEoCBINCgVyZWFkeRgGIAEoCBITCgtpbnN0YWxsYWJsZRgHIAEoCBIOCgZkZXRhaWwYCCABKAkSEgoKc2NyZWVuc2hvdBgJIAEoCBIOCgZzdHJlYW0YCiABKAgSOQoHaW5zdGFsbBgLIAEoCzIoLmNhbm9weS53b3JrZXIudjEuQWdlbnRUb29sSW5zdGFsbFN0YXR1cyKMAQoQQWdlbnRUb29sc1JlcG9ydBIuCgV0b29scxgBIAMoCzIfLmNhbm9weS53b3JrZXIudjEuQWdlbnRUb29sSW5mbxIKCgJvcxgCIAEoCRIMCgRhcmNoGAMgASgJEi4KCmNoZWNrZWRfYXQYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wInsKEEluc3RhbGxBZ2VudFRvb2wSKQoEdG9vbBgBIAEoDjIbLmNhbm9weS53b3JrZXIudjEuQWdlbnRUb29sEg8KB3ZlcnNpb24YAiABKAkSEgoKaW5zdGFsbF9pZBgDIAEoCRIXCg9pbnN0YWxsX3J1bnRpbWUYBCABKAgiYQoRQWdlbnRUb29sUHJvZ3Jlc3MSEgoKaW5zdGFsbF9pZBgBIAEoCRIpCgR0b29sGAIgASgOMhsuY2Fub3B5Lndvcmtlci52MS5BZ2VudFRvb2wSDQoFbGluZXMYAyADKAkiwQEKDFJ1bkFnZW50VG9vbBIpCgR0b29sGAEgASgOMhsuY2Fub3B5Lndvcmtlci52MS5BZ2VudFRvb2wSEQoJb3BlcmF0aW9uGAIgASgJEg4KBnRhcmdldBgDIAEoCRINCgV2YWx1ZRgEIAEoCRIQCghwbGF0Zm9ybRgFIAEoCRIPCgdzZXNzaW9uGAYgASgJEgsKA2FwcBgHIAEoCRIRCgl3aW5kb3dfaWQYCCABKAkSEQoJZGV2aWNlX2lkGAkgASgJImYKD0FnZW50VG9vbE91dHB1dBIRCglvcGVyYXRpb24YASABKAkSDAoEdGV4dBgCIAEoCRIRCgltaW1lX3R5cGUYAyABKAkSDAoEZGF0YRgEIAEoDBIRCgl0cnVuY2F0ZWQYBSABKAgqbgoJQWdlbnRUb29sEhoKFkFHRU5UX1RPT0xfVU5TUEVDSUZJRUQQABIWChJBR0VOVF9UT09MX0JST1dTRVIQARIWChJBR0VOVF9UT09MX0RFU0tUT1AQAhIVChFBR0VOVF9UT09MX0RFVklDRRADYgZwcm90bzM", [file_google_protobuf_timestamp]);
+  fileDesc("CiJjYW5vcHkvd29ya2VyL3YxL2FnZW50X3Rvb2xzLnByb3RvEhBjYW5vcHkud29ya2VyLnYxIsMBChZBZ2VudFRvb2xJbnN0YWxsU3RhdHVzEhIKCmluc3RhbGxfaWQYASABKAkSDQoFc3RhdGUYAiABKAkSFgoOdGFyZ2V0X3ZlcnNpb24YAyABKAkSDQoFZXJyb3IYBCABKAkSLgoKc3RhcnRlZF9hdBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLwoLZmluaXNoZWRfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIpUCCg1BZ2VudFRvb2xJbmZvEikKBHRvb2wYASABKA4yGy5jYW5vcHkud29ya2VyLnYxLkFnZW50VG9vbBIUCgxwYWNrYWdlX25hbWUYAiABKAkSDAoEcGF0aBgDIAEoCRIPCgd2ZXJzaW9uGAQgASgJEhEKCWluc3RhbGxlZBgFIAEoCBINCgVyZWFkeRgGIAEoCBITCgtpbnN0YWxsYWJsZRgHIAEoCBIOCgZkZXRhaWwYCCABKAkSEgoKc2NyZWVuc2hvdBgJIAEoCBIOCgZzdHJlYW0YCiABKAgSOQoHaW5zdGFsbBgLIAEoCzIoLmNhbm9weS53b3JrZXIudjEuQWdlbnRUb29sSW5zdGFsbFN0YXR1cyKMAQoQQWdlbnRUb29sc1JlcG9ydBIuCgV0b29scxgBIAMoCzIfLmNhbm9weS53b3JrZXIudjEuQWdlbnRUb29sSW5mbxIKCgJvcxgCIAEoCRIMCgRhcmNoGAMgASgJEi4KCmNoZWNrZWRfYXQYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wInsKEEluc3RhbGxBZ2VudFRvb2wSKQoEdG9vbBgBIAEoDjIbLmNhbm9weS53b3JrZXIudjEuQWdlbnRUb29sEg8KB3ZlcnNpb24YAiABKAkSEgoKaW5zdGFsbF9pZBgDIAEoCRIXCg9pbnN0YWxsX3J1bnRpbWUYBCABKAgiYQoRQWdlbnRUb29sUHJvZ3Jlc3MSEgoKaW5zdGFsbF9pZBgBIAEoCRIpCgR0b29sGAIgASgOMhsuY2Fub3B5Lndvcmtlci52MS5BZ2VudFRvb2wSDQoFbGluZXMYAyADKAkiwQEKDFJ1bkFnZW50VG9vbBIpCgR0b29sGAEgASgOMhsuY2Fub3B5Lndvcmtlci52MS5BZ2VudFRvb2wSEQoJb3BlcmF0aW9uGAIgASgJEg4KBnRhcmdldBgDIAEoCRINCgV2YWx1ZRgEIAEoCRIQCghwbGF0Zm9ybRgFIAEoCRIPCgdzZXNzaW9uGAYgASgJEgsKA2FwcBgHIAEoCRIRCgl3aW5kb3dfaWQYCCABKAkSEQoJZGV2aWNlX2lkGAkgASgJImYKD0FnZW50VG9vbE91dHB1dBIRCglvcGVyYXRpb24YASABKAkSDAoEdGV4dBgCIAEoCRIRCgltaW1lX3R5cGUYAyABKAkSDAoEZGF0YRgEIAEoDBIRCgl0cnVuY2F0ZWQYBSABKAgihAEKEkFnZW50UHJldmlld1RhcmdldBIKCgJpZBgBIAEoCRINCgVsYWJlbBgCIAEoCRIQCghwbGF0Zm9ybRgDIAEoCRILCgNhcHAYBCABKAkSEQoJd2luZG93X2lkGAUgASgJEhEKCWRldmljZV9pZBgGIAEoCRIOCgZhY3RpdmUYByABKAgiegoRU3RhcnRBZ2VudFByZXZpZXcSEgoKcHJldmlld19pZBgBIAEoCRIRCgl0aHJlYWRfaWQYAiABKAkSLQoFc2NvcGUYAyABKAsyHi5jYW5vcHkud29ya2VyLnYxLlJ1bkFnZW50VG9vbBIPCgdtYXhfZnBzGAQgASgNIiYKEFN0b3BBZ2VudFByZXZpZXcSEgoKcHJldmlld19pZBgBIAEoCSI3Cg9BZ2VudFByZXZpZXdBY2sSEgoKcHJldmlld19pZBgBIAEoCRIQCghmcmFtZV9pZBgCIAEoBCLVAQoRQWdlbnRQcmV2aWV3SW5wdXQSDAoEa2luZBgBIAEoCRIJCgF4GAIgASgBEgkKAXkYAyABKAESDwoHZGVsdGFfeBgEIAEoARIPCgdkZWx0YV95GAUgASgBEg4KBmJ1dHRvbhgGIAEoDRIPCgdidXR0b25zGAcgASgNEgsKA2tleRgIIAEoCRIMCgRjb2RlGAkgASgJEgwKBHRleHQYCiABKAkSEQoJbW9kaWZpZXJzGAsgASgNEg0KBXdpZHRoGAwgASgNEg4KBmhlaWdodBgNIAEoDSJhChZBZ2VudFByZXZpZXdJbnB1dEJhdGNoEhIKCnByZXZpZXdfaWQYASABKAkSMwoGaW5wdXRzGAIgAygLMiMuY2Fub3B5Lndvcmtlci52MS5BZ2VudFByZXZpZXdJbnB1dCL0AQoTQWdlbnRQcmV2aWV3Q29tbWFuZBI0CgVzdGFydBgBIAEoCzIjLmNhbm9weS53b3JrZXIudjEuU3RhcnRBZ2VudFByZXZpZXdIABIyCgRzdG9wGAIgASgLMiIuY2Fub3B5Lndvcmtlci52MS5TdG9wQWdlbnRQcmV2aWV3SAASOQoFaW5wdXQYAyABKAsyKC5jYW5vcHkud29ya2VyLnYxLkFnZW50UHJldmlld0lucHV0QmF0Y2hIABIwCgNhY2sYBCABKAsyIS5jYW5vcHkud29ya2VyLnYxLkFnZW50UHJldmlld0Fja0gAQgYKBGtpbmQivQIKEUFnZW50UHJldmlld0V2ZW50EhIKCnByZXZpZXdfaWQYASABKAkSDQoFc3RhdGUYAiABKAkSEAoIZnJhbWVfaWQYAyABKAQSDAoEZGF0YRgEIAEoDBIRCgltaW1lX3R5cGUYBSABKAkSDQoFd2lkdGgYBiABKA0SDgoGaGVpZ2h0GAcgASgNEhYKDnZpZXdwb3J0X3dpZHRoGAggASgNEhcKD3ZpZXdwb3J0X2hlaWdodBgJIAEoDRILCgN1cmwYCiABKAkSDQoFdGl0bGUYCyABKAkSDgoGZGV0YWlsGAwgASgJEjUKB3RhcmdldHMYDSADKAsyJC5jYW5vcHkud29ya2VyLnYxLkFnZW50UHJldmlld1RhcmdldBIRCgl0YXJnZXRfaWQYDiABKAkSDAoEbW9kZRgPIAEoCSpuCglBZ2VudFRvb2wSGgoWQUdFTlRfVE9PTF9VTlNQRUNJRklFRBAAEhYKEkFHRU5UX1RPT0xfQlJPV1NFUhABEhYKEkFHRU5UX1RPT0xfREVTS1RPUBACEhUKEUFHRU5UX1RPT0xfREVWSUNFEANiBnByb3RvMw", [file_google_protobuf_timestamp]);
 
 /**
  * @generated from message canopy.worker.v1.AgentToolInstallStatus
@@ -322,6 +322,367 @@ export type AgentToolOutput = Message<"canopy.worker.v1.AgentToolOutput"> & {
  */
 export const AgentToolOutputSchema: GenMessage<AgentToolOutput> = /*@__PURE__*/
   messageDesc(file_canopy_worker_v1_agent_tools, 6);
+
+/**
+ * Ephemeral, frame-acknowledged previews. These messages never enter a journal,
+ * command outbox, transcript, or persisted computer mirror.
+ *
+ * @generated from message canopy.worker.v1.AgentPreviewTarget
+ */
+export type AgentPreviewTarget = Message<"canopy.worker.v1.AgentPreviewTarget"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string label = 2;
+   */
+  label: string;
+
+  /**
+   * @generated from field: string platform = 3;
+   */
+  platform: string;
+
+  /**
+   * @generated from field: string app = 4;
+   */
+  app: string;
+
+  /**
+   * @generated from field: string window_id = 5;
+   */
+  windowId: string;
+
+  /**
+   * @generated from field: string device_id = 6;
+   */
+  deviceId: string;
+
+  /**
+   * @generated from field: bool active = 7;
+   */
+  active: boolean;
+};
+
+/**
+ * Describes the message canopy.worker.v1.AgentPreviewTarget.
+ * Use `create(AgentPreviewTargetSchema)` to create a new message.
+ */
+export const AgentPreviewTargetSchema: GenMessage<AgentPreviewTarget> = /*@__PURE__*/
+  messageDesc(file_canopy_worker_v1_agent_tools, 7);
+
+/**
+ * @generated from message canopy.worker.v1.StartAgentPreview
+ */
+export type StartAgentPreview = Message<"canopy.worker.v1.StartAgentPreview"> & {
+  /**
+   * @generated from field: string preview_id = 1;
+   */
+  previewId: string;
+
+  /**
+   * @generated from field: string thread_id = 2;
+   */
+  threadId: string;
+
+  /**
+   * @generated from field: canopy.worker.v1.RunAgentTool scope = 3;
+   */
+  scope?: RunAgentTool | undefined;
+
+  /**
+   * @generated from field: uint32 max_fps = 4;
+   */
+  maxFps: number;
+};
+
+/**
+ * Describes the message canopy.worker.v1.StartAgentPreview.
+ * Use `create(StartAgentPreviewSchema)` to create a new message.
+ */
+export const StartAgentPreviewSchema: GenMessage<StartAgentPreview> = /*@__PURE__*/
+  messageDesc(file_canopy_worker_v1_agent_tools, 8);
+
+/**
+ * @generated from message canopy.worker.v1.StopAgentPreview
+ */
+export type StopAgentPreview = Message<"canopy.worker.v1.StopAgentPreview"> & {
+  /**
+   * @generated from field: string preview_id = 1;
+   */
+  previewId: string;
+};
+
+/**
+ * Describes the message canopy.worker.v1.StopAgentPreview.
+ * Use `create(StopAgentPreviewSchema)` to create a new message.
+ */
+export const StopAgentPreviewSchema: GenMessage<StopAgentPreview> = /*@__PURE__*/
+  messageDesc(file_canopy_worker_v1_agent_tools, 9);
+
+/**
+ * @generated from message canopy.worker.v1.AgentPreviewAck
+ */
+export type AgentPreviewAck = Message<"canopy.worker.v1.AgentPreviewAck"> & {
+  /**
+   * @generated from field: string preview_id = 1;
+   */
+  previewId: string;
+
+  /**
+   * @generated from field: uint64 frame_id = 2;
+   */
+  frameId: bigint;
+};
+
+/**
+ * Describes the message canopy.worker.v1.AgentPreviewAck.
+ * Use `create(AgentPreviewAckSchema)` to create a new message.
+ */
+export const AgentPreviewAckSchema: GenMessage<AgentPreviewAck> = /*@__PURE__*/
+  messageDesc(file_canopy_worker_v1_agent_tools, 10);
+
+/**
+ * @generated from message canopy.worker.v1.AgentPreviewInput
+ */
+export type AgentPreviewInput = Message<"canopy.worker.v1.AgentPreviewInput"> & {
+  /**
+   * pointer-move | pointer-down | pointer-up | wheel | key-down | key-up |
+   * text | navigate | back | forward | reload | home | release | resize
+   *
+   * @generated from field: string kind = 1;
+   */
+  kind: string;
+
+  /**
+   * Coordinates are normalized to the rendered frame, excluding letterboxing.
+   *
+   * @generated from field: double x = 2;
+   */
+  x: number;
+
+  /**
+   * @generated from field: double y = 3;
+   */
+  y: number;
+
+  /**
+   * @generated from field: double delta_x = 4;
+   */
+  deltaX: number;
+
+  /**
+   * @generated from field: double delta_y = 5;
+   */
+  deltaY: number;
+
+  /**
+   * DOM button: 0 left, 1 middle, 2 right
+   *
+   * @generated from field: uint32 button = 6;
+   */
+  button: number;
+
+  /**
+   * @generated from field: uint32 buttons = 7;
+   */
+  buttons: number;
+
+  /**
+   * @generated from field: string key = 8;
+   */
+  key: string;
+
+  /**
+   * @generated from field: string code = 9;
+   */
+  code: string;
+
+  /**
+   * @generated from field: string text = 10;
+   */
+  text: string;
+
+  /**
+   * alt=1, control=2, meta=4, shift=8
+   *
+   * @generated from field: uint32 modifiers = 11;
+   */
+  modifiers: number;
+
+  /**
+   * @generated from field: uint32 width = 12;
+   */
+  width: number;
+
+  /**
+   * @generated from field: uint32 height = 13;
+   */
+  height: number;
+};
+
+/**
+ * Describes the message canopy.worker.v1.AgentPreviewInput.
+ * Use `create(AgentPreviewInputSchema)` to create a new message.
+ */
+export const AgentPreviewInputSchema: GenMessage<AgentPreviewInput> = /*@__PURE__*/
+  messageDesc(file_canopy_worker_v1_agent_tools, 11);
+
+/**
+ * @generated from message canopy.worker.v1.AgentPreviewInputBatch
+ */
+export type AgentPreviewInputBatch = Message<"canopy.worker.v1.AgentPreviewInputBatch"> & {
+  /**
+   * @generated from field: string preview_id = 1;
+   */
+  previewId: string;
+
+  /**
+   * @generated from field: repeated canopy.worker.v1.AgentPreviewInput inputs = 2;
+   */
+  inputs: AgentPreviewInput[];
+};
+
+/**
+ * Describes the message canopy.worker.v1.AgentPreviewInputBatch.
+ * Use `create(AgentPreviewInputBatchSchema)` to create a new message.
+ */
+export const AgentPreviewInputBatchSchema: GenMessage<AgentPreviewInputBatch> = /*@__PURE__*/
+  messageDesc(file_canopy_worker_v1_agent_tools, 12);
+
+/**
+ * @generated from message canopy.worker.v1.AgentPreviewCommand
+ */
+export type AgentPreviewCommand = Message<"canopy.worker.v1.AgentPreviewCommand"> & {
+  /**
+   * @generated from oneof canopy.worker.v1.AgentPreviewCommand.kind
+   */
+  kind: {
+    /**
+     * @generated from field: canopy.worker.v1.StartAgentPreview start = 1;
+     */
+    value: StartAgentPreview;
+    case: "start";
+  } | {
+    /**
+     * @generated from field: canopy.worker.v1.StopAgentPreview stop = 2;
+     */
+    value: StopAgentPreview;
+    case: "stop";
+  } | {
+    /**
+     * @generated from field: canopy.worker.v1.AgentPreviewInputBatch input = 3;
+     */
+    value: AgentPreviewInputBatch;
+    case: "input";
+  } | {
+    /**
+     * @generated from field: canopy.worker.v1.AgentPreviewAck ack = 4;
+     */
+    value: AgentPreviewAck;
+    case: "ack";
+  } | { case: undefined; value?: undefined };
+};
+
+/**
+ * Describes the message canopy.worker.v1.AgentPreviewCommand.
+ * Use `create(AgentPreviewCommandSchema)` to create a new message.
+ */
+export const AgentPreviewCommandSchema: GenMessage<AgentPreviewCommand> = /*@__PURE__*/
+  messageDesc(file_canopy_worker_v1_agent_tools, 13);
+
+/**
+ * @generated from message canopy.worker.v1.AgentPreviewEvent
+ */
+export type AgentPreviewEvent = Message<"canopy.worker.v1.AgentPreviewEvent"> & {
+  /**
+   * @generated from field: string preview_id = 1;
+   */
+  previewId: string;
+
+  /**
+   * connecting | ready | frame | error | closed
+   *
+   * @generated from field: string state = 2;
+   */
+  state: string;
+
+  /**
+   * @generated from field: uint64 frame_id = 3;
+   */
+  frameId: bigint;
+
+  /**
+   * @generated from field: bytes data = 4;
+   */
+  data: Uint8Array;
+
+  /**
+   * @generated from field: string mime_type = 5;
+   */
+  mimeType: string;
+
+  /**
+   * @generated from field: uint32 width = 6;
+   */
+  width: number;
+
+  /**
+   * @generated from field: uint32 height = 7;
+   */
+  height: number;
+
+  /**
+   * @generated from field: uint32 viewport_width = 8;
+   */
+  viewportWidth: number;
+
+  /**
+   * @generated from field: uint32 viewport_height = 9;
+   */
+  viewportHeight: number;
+
+  /**
+   * @generated from field: string url = 10;
+   */
+  url: string;
+
+  /**
+   * @generated from field: string title = 11;
+   */
+  title: string;
+
+  /**
+   * @generated from field: string detail = 12;
+   */
+  detail: string;
+
+  /**
+   * @generated from field: repeated canopy.worker.v1.AgentPreviewTarget targets = 13;
+   */
+  targets: AgentPreviewTarget[];
+
+  /**
+   * @generated from field: string target_id = 14;
+   */
+  targetId: string;
+
+  /**
+   * stream | screenshots
+   *
+   * @generated from field: string mode = 15;
+   */
+  mode: string;
+};
+
+/**
+ * Describes the message canopy.worker.v1.AgentPreviewEvent.
+ * Use `create(AgentPreviewEventSchema)` to create a new message.
+ */
+export const AgentPreviewEventSchema: GenMessage<AgentPreviewEvent> = /*@__PURE__*/
+  messageDesc(file_canopy_worker_v1_agent_tools, 14);
 
 /**
  * Local automation binaries installed on, and executed by, the worker.

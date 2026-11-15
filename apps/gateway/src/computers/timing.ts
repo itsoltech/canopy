@@ -29,4 +29,5 @@ export const PEER_LONG_CALL_TIMEOUTS = new Map([
   ["CleanupWorktrees", 300_000],
   ["RunAgentTool", 105_000],
   ["RefreshAgentTools", 45_000],
+  ["SendAgentPreviewInput", 10_000],
 ]);

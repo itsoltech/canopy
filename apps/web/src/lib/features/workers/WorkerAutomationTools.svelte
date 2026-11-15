@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
   import { create, type DescMessage, type MessageInitShape, type MessageShape } from "@bufbuild/protobuf";
-  import { AgentTool, RunAgentToolSchema, ui, type RunAgentTool } from "@canopy/contracts";
+  import { AgentTool, ui } from "@canopy/contracts";
   import Button from "#lib/shared/ui/Button.svelte";
   import CodeBlock from "#lib/shared/ui/CodeBlock.svelte";
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
@@ -9,7 +9,6 @@
   import Select from "#lib/shared/ui/Select.svelte";
   import ActionNote from "./ActionNote.svelte";
   import AutomationToolStatus from "./automation/AutomationToolStatus.svelte";
-  import AutomationToolControls from "./automation/AutomationToolControls.svelte";
   import WorkerSection from "./WorkerSection.svelte";
   import { requestJson } from "#lib/shared/http.ts";
   import { decode, encode } from "#lib/shared/wire.ts";
@@ -20,7 +19,6 @@
   let detail = $state("");
   let note = $state("");
   let selected = $state(String(AgentTool.BROWSER));
-  let drafts = $state<Record<string, { command: RunAgentTool; destination: string }>>({});
   let controller: AbortController | undefined;
   let destroyed = false;
 
@@ -29,22 +27,11 @@
 
   const available = $derived(worker.agentTools.filter((item) => item.tool && item.tool.tool !== AgentTool.UNSPECIFIED));
   const item = $derived(available.find((entry) => String(entry.tool?.tool) === selected) ?? available[0]);
-  const draft = $derived(item?.tool ? drafts[`${worker.id}/${item.tool.tool}`] : undefined);
   const online = $derived(worker.online && !readOnly);
   const disabled = $derived(!online || Boolean(pending));
 
   $effect(() => {
-    for (const entry of available) {
-      const tool = entry.tool;
-      const key = `${worker.id}/${tool?.tool}`;
-
-      if (tool && !drafts[key])
-        drafts[key] = { command: create(RunAgentToolSchema, { tool: tool.tool, operation: "click" }), destination: "" };
-    }
-  });
-
-  $effect(() => {
-    if (!online || (pending === "run" && !item?.enabled)) controller?.abort();
+    if (!online) controller?.abort();
   });
 
   onDestroy(() => {
@@ -93,19 +80,6 @@
       ui.WorkerOperationResponseSchema,
       { workerId: worker.id, tool, enabled },
     );
-  }
-
-  async function run(operation: RunAgentTool, signal?: AbortSignal) {
-    const result = await request(
-      "run",
-      "run the tool",
-      ui.RunAgentToolRequestSchema,
-      ui.RunAgentToolResponseSchema,
-      { workerId: worker.id, operation },
-      signal,
-    );
-
-    return result?.result;
   }
 
   async function request<Req extends DescMessage, Res extends DescMessage>(
@@ -183,22 +157,7 @@
       {#if !worker.online}<p class="text-sm/5 text-zinc-500 dark:text-zinc-400" role="status">
           Worker offline. Reconnect it to use automation tools.
         </p>{/if}
-      {#if item.tool.ready && !item.enabled}<p class="text-sm/5 text-zinc-500 dark:text-zinc-400">
-          Turn on Allow agent access to use manual controls.
-        </p>{/if}
-      {#if item.tool.ready && draft}
-        {#key `${worker.id}/${item.tool.tool}`}
-          <AutomationToolControls
-            bind:command={draft.command}
-            bind:destination={draft.destination}
-            tool={item.tool}
-            online={online && item.enabled && !item.blockedReason}
-            busy={Boolean(pending)}
-            failed={Boolean(error)}
-            onrun={run}
-          />
-        {/key}
-      {/if}
+      <p class="text-sm/5 text-zinc-500 dark:text-zinc-400">Open Preview in a thread to view and control its screen.</p>
     {/if}
   {:else}
     <div>

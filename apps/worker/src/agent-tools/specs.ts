@@ -19,7 +19,7 @@ export const AGENT_TOOL_SPECS: readonly AgentToolSpec[] = [
     version: "0.43.0",
     label: "agent-browser",
     screenshot: true,
-    stream: false,
+    stream: true,
     runtime: true,
   },
   {

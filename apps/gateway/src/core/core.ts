@@ -40,6 +40,7 @@ import { WorkerSsh } from "./worker-ssh.ts";
 import { CliTools } from "./cli-tools.ts";
 import { type AgentTools, coreAgentToolsMethods, type CoreAgentToolsMethods } from "./agent-tools.ts";
 import { createCoreAgentTools } from "./automation-composition.ts";
+import { AgentPreviews } from "./agent-previews.ts";
 import { ProviderAccounts } from "./provider-accounts.ts";
 import { ProviderUsage } from "./provider-usage.ts";
 import { ProxyAccountsMonitor } from "./proxy-accounts.ts";
@@ -219,6 +220,7 @@ export class GatewayCore {
   /** Provider CLIs on the owner's workers: reports, latest versions, installs (docs/provider-cli.md). */
   readonly cli: CliTools;
   readonly agentTools: AgentTools;
+  readonly agentPreviews: AgentPreviews;
   readonly environment: AgentEnvironment;
 
   readonly connectors: ConnectorsRuntime;
@@ -328,6 +330,7 @@ export class GatewayCore {
       log: (message) => coreLog(this, message),
     });
     this.agentTools = createCoreAgentTools(this, options);
+    this.agentPreviews = new AgentPreviews(this);
     this.environment = new AgentEnvironment({
       ...(options.skillSources && { sources: options.skillSources }),
       runtime: options.runtime,
