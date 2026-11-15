@@ -48,10 +48,14 @@
   let confirmation = $state<"discard" | "delete" | undefined>();
   let goOpen = $state(false);
   let line = $state("");
-  let rendered = $state(false);
+  const name = $derived(fileName(document.path));
+  const markdownName = $derived(/\.(md|markdown|mdx)$/i.test(name));
+
+  // Markdown opens rendered, unless it opens on a line or with unsaved changes: those need the source.
+  let rendered = $state(untrack(() => markdownName && !document.file?.binary && !document.position && !document.dirty));
+  let seenPosition = untrack(() => document.positionRevision);
   let foreground = $state(!globalThis.document.hidden);
   let compare = $state<"disk" | "draft" | undefined>();
-  const name = $derived(fileName(document.path));
   let Reader = $state(loadedReader);
   let sourceNotice = $state<FileNotice>();
   let highlight = $state(false);
@@ -96,6 +100,7 @@
     };
   });
 
+  const markdown = $derived(markdownName && !viewer.file?.binary);
   const watchPath = $derived(viewer.file?.relativePath);
 
   const notice = $derived.by((): FileNotice | undefined => {
@@ -153,6 +158,14 @@
 
     if (!root) return;
     root.scrollTop = untrack(() => document.scroll);
+  });
+
+  $effect(() => {
+    // A line opened later (a link, Go to line) shows in the source.
+    if (viewer.positionRevision === seenPosition) return;
+    seenPosition = viewer.positionRevision;
+
+    if (viewer.position) rendered = false;
   });
 
   $effect(() => {
@@ -230,7 +243,7 @@
   <WorkspaceFileToolbar
     {document}
     {preview}
-    markdown={/\.(md|markdown|mdx)$/i.test(name) && !viewer.file?.binary}
+    {markdown}
     bind:rendered
     state={{
       path: viewer.file?.relativePath || document.path,
