@@ -161,6 +161,8 @@ export interface TurnRow {
   effort?: string;
   /** Same as model: the override ('' = the thread's default), then the mode sent (PermissionMode enum name). */
   permission_mode?: string;
+  /** Thread default at dispatch; distinguishes a turn override from a later change to the parent. */
+  thread_permission_mode?: string;
   error: string | null;
   /** failed: platform | harness; interrupted: user | system (docs/durability.md, "Stany tury i wątku"). */
   error_source?: string | null;
