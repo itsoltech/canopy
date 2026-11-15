@@ -1,7 +1,10 @@
-import { json } from "@sveltejs/kit";
+import { isHttpError, json } from "@sveltejs/kit";
+import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { call } from "#lib/server/gateway.ts";
 import { encode } from "#lib/shared/wire.ts";
+import { bffStorage, bffStorageWorker } from "@canopy/domain/bff-storage";
+import { bffTarget } from "@canopy/domain/bff-target";
 import type { RequestHandler } from "./$types";
 
 export const GET: RequestHandler = async ({ url }) => {
@@ -28,7 +31,34 @@ export const GET: RequestHandler = async ({ url }) => {
       { headers },
     );
 
-  return json(encode(ui.DiagnosticsSnapshotSchema, await call((api) => api.getDiagnostics({ windowMinutes }))), {
+  const snapshot = await call((api) => api.getDiagnostics({ windowMinutes })).catch((cause) => {
+    // The controller can measure its own files while the paired gateway is unavailable.
+    if (!bffTarget()?.target.desktopClient || !bffStorage() || !isHttpError(cause) || cause.status < 500) throw cause;
+
+    return create(ui.DiagnosticsSnapshotSchema);
+  });
+
+  const worker = bffStorageWorker();
+
+  const reported =
+    worker &&
+    snapshot.computers.some((computer) =>
+      computer.links.some(
+        (link) =>
+          computer.status === "online" &&
+          link.kind === "worker" &&
+          link.targetId === worker &&
+          link.online &&
+          link.storage?.component === "desktop" &&
+          ["ready", "partial"].includes(link.storage.status) &&
+          link.storage.sampleAgeMs <= 5 * 60_000,
+      ),
+    );
+
+  // Only this desktop can inspect its local files. A local gateway already reports the same app.
+  snapshot.desktopStorage = bffTarget()?.target.desktopClient && !reported ? bffStorage() : undefined;
+
+  return json(encode(ui.DiagnosticsSnapshotSchema, snapshot), {
     headers,
   });
 };

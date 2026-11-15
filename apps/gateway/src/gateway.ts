@@ -33,6 +33,7 @@ import { EMBEDDED_WEB } from "./web/embedded.ts";
 import { embeddedWebOrigin, embeddedWebWanted } from "./web/config.ts";
 import { EmbeddedWebServer } from "./web/server.ts";
 import { WebClientVersions } from "./web/clients.ts";
+import { gatewayStorageOptions } from "./diagnostics/storage-roots.ts";
 
 const env = Bun.env;
 
@@ -98,6 +99,13 @@ const userId = await ensureDevUser(runtime, env["CANOPY_DEV_USER_EMAIL"] ?? "dev
 const core = new GatewayCore({
   role: gatewayRole(env),
   runtime,
+  diagnosticsStorage: gatewayStorageOptions(env, {
+    logs: logDirectory,
+    spool: () => core.diagnostics.logs.directory,
+    updates: () => core.updates.cacheDirectory,
+    web: () => embeddedWeb?.storageDirectory,
+    kind: installKind(),
+  }),
   diagnosticsLogDirectory: dirname(logDirectory),
   logSources: [
     ...registeredLogs(

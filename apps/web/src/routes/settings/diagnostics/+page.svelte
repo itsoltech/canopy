@@ -12,6 +12,7 @@
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
   import ComputerHealth from "#lib/features/diagnostics/ComputerHealth.svelte";
   import Findings from "#lib/features/diagnostics/Findings.svelte";
+  import Storage from "#lib/features/diagnostics/Storage.svelte";
   import Calls from "#lib/features/diagnostics/Calls.svelte";
   import Grants from "#lib/features/diagnostics/Grants.svelte";
   import GatewayMetrics from "#lib/features/diagnostics/GatewayMetrics.svelte";
@@ -45,7 +46,7 @@
 
 <svelte:head><title>Diagnostics · Settings · {applicationName}</title></svelte:head>
 <div class="grid min-w-0 grid-cols-1 gap-6">
-  <SettingsGroup title="Diagnostics" description="Check performance across your computers." cards>
+  <SettingsGroup title="Diagnostics" description="Check performance and Canopy storage across your computers." cards>
     {#snippet actions()}<div class="w-28">
         <Select
           aria-label="Time range"
@@ -85,6 +86,7 @@
     {/if}
   </SettingsGroup>
   {#if overview.data}
+    <Storage snapshot={overview.data} />
     <Findings computers={overview.data.computers} />
     <ReportActions
       {logsJobId}

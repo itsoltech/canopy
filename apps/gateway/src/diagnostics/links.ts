@@ -1,12 +1,12 @@
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { HeartbeatEcho, Histogram } from "@canopy/domain/diagnostics";
+import { HeartbeatEcho, Histogram, sanitizeStorage } from "@canopy/domain/diagnostics";
 import { RpcCollector } from "./collector.ts";
 import { rpcSnapshot } from "./snapshot.ts";
 import type { BucketBudget, Slot } from "./buckets.ts";
 import type { Connection } from "../computers/runtime-context.ts";
 import type { WorkerConnection } from "../worker-link/connection.ts";
-import { workerMeasures, cleanHistogram, validHistogram, reportBytes } from "./worker-report.ts";
+import { workerMeasures, workerStorage, cleanHistogram, validHistogram, reportBytes } from "./worker-report.ts";
 
 const METHODS = ["rtt", "jitter", "heartbeat"].map((name, index) => ({
   id: index + 1,
@@ -37,6 +37,10 @@ export class LinkDiagnostics {
   reportedDrops = 0n;
   activeWatches = 0;
   resetAt = 0;
+  #storage: ui.DiagnosticsStorage | undefined;
+  #storageSession = "";
+  #storageAt = 0n;
+  #storageReceived = 0;
 
   reset() {
     this.collector.reset();
@@ -92,6 +96,7 @@ export class LinkDiagnostics {
       measures,
       workerMeasuresSupported: value.workerMeasuresSupported,
       droppedSamples: value.droppedSamples,
+      storage: this.kind === "worker" ? workerStorage(value) : undefined,
     });
 
     if (source && source !== this.#source) {
@@ -143,6 +148,7 @@ export class LinkDiagnostics {
     this.collector.mergeMeasures(measures, at);
     this.measuresSupported = value.workerMeasuresSupported;
     this.reportedDrops = value.droppedSamples;
+    this.#acceptStorage(value, at);
     this.watermark = create(ui.DiagnosticsProcessSchema, {
       processId: `${this.kind}:${this.target}`,
       session: value.session,
@@ -162,6 +168,58 @@ export class LinkDiagnostics {
     for (const at of this.#watermarks.keys()) if (at < minute - 3_600_000) this.#watermarks.delete(at);
 
     return true;
+  }
+
+  #acceptStorage(value: ui.WorkerLinkDiagnostics, at: number) {
+    const storage = value.storage;
+
+    if (!storage) return;
+
+    if (this.#storageSession === value.session && storage.sampledAtMs <= this.#storageAt) return;
+    const sampledAt = storage.sampledAtMs ? BigInt(at) - (value.endMs - storage.sampledAtMs) : 0n;
+
+    if (sampledAt < 0n || (storage.sampledAtMs > 0n && sampledAt === 0n)) return;
+
+    if (this.#storage && sampledAt <= this.#storage.sampledAtMs) return;
+    this.#storageAt = storage.sampledAtMs;
+    this.#storageSession = value.session;
+    this.#storageReceived = performance.now();
+    this.#storage = create(ui.DiagnosticsStorageSchema, {
+      ...storage,
+      sampledAtMs: sampledAt,
+      sampleAgeMs: sampledAt ? Math.max(0, at - Number(sampledAt)) : 0,
+    });
+  }
+
+  restoreStorage(value: ui.DiagnosticsStorage | undefined) {
+    const storage = sanitizeStorage(value);
+
+    if (!storage || !["worker", "desktop"].includes(storage.component) || !storage.sampledAtMs) return;
+
+    if (this.#storage && storage.sampledAtMs <= this.#storage.sampledAtMs) return;
+    const now = Date.now();
+    const age = Math.max(storage.sampleAgeMs, now - Number(storage.sampledAtMs));
+    this.#storage = create(ui.DiagnosticsStorageSchema, {
+      ...storage,
+      sampledAtMs: storage.sampledAtMs > BigInt(now) ? BigInt(Math.max(1, Math.trunc(now - age))) : storage.sampledAtMs,
+      sampleAgeMs: age,
+    });
+    this.#storageReceived = performance.now();
+  }
+
+  storageSnapshot() {
+    return (
+      this.#storage &&
+      create(ui.DiagnosticsStorageSchema, {
+        ...this.#storage,
+        sampleAgeMs: this.#storage.sampledAtMs
+          ? Math.max(
+              this.#storage.sampleAgeMs + Math.max(0, performance.now() - this.#storageReceived),
+              Date.now() - Number(this.#storage.sampledAtMs),
+            )
+          : 0,
+      })
+    );
   }
 
   resume() {
@@ -206,6 +264,7 @@ export class LinkDiagnostics {
       measures: snapshot.gatewayMeasures,
       measuresSupported: this.measuresSupported || snapshot.gatewayMeasures.length > 0,
       droppedSamples: this.reportedDrops + snapshot.droppedSamples,
+      storage: this.storageSnapshot(),
     });
   }
 }

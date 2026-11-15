@@ -1,6 +1,6 @@
 import { create, toBinary } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { WORKER_METRIC_IDS, METRIC_DEFINITIONS } from "@canopy/domain/diagnostics";
+import { WORKER_METRIC_IDS, METRIC_DEFINITIONS, sanitizeStorage } from "@canopy/domain/diagnostics";
 
 export function validHistogram(histogram: ui.DiagnosticsHistogram) {
   return (
@@ -28,10 +28,20 @@ export function reportBytes(value: ui.WorkerLinkDiagnostics) {
 
   return (
     4096 +
+    (value.storage ? 1024 : 0) +
     histogramBytes(value.rtt) +
     histogramBytes(value.jitter) +
     value.measures.reduce((sum, row) => sum + 256 + histogramBytes(row.histogram), 0)
   );
+}
+
+/** A scan can predate this batch; carry its age to the gateway clock without trusting wall-clock sync. */
+export function workerStorage(value: ui.WorkerLinkDiagnostics) {
+  const storage = sanitizeStorage(value.storage);
+
+  if (!storage || !["worker", "desktop"].includes(storage.component) || storage.sampledAtMs > value.endMs) return;
+
+  return storage;
 }
 
 /** Rebuild at the untrusted WorkerLink boundary: no unknown fields, text or RPC identities survive. */

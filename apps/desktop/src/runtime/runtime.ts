@@ -20,6 +20,7 @@ import { HealthChecks } from "./health.ts";
 import { gatewayLiveness, livenessProbes, type LivenessProbe } from "./liveness.ts";
 import { DesktopWeb } from "./web.ts";
 import type { Secrets, RuntimePaths } from "./config.ts";
+import { desktopStorage } from "./storage.ts";
 
 export type { Secrets, RuntimePaths } from "./config.ts";
 
@@ -47,6 +48,7 @@ export class DesktopRuntime {
   private probes: LivenessProbe[] = [];
   private state = initialStatus();
   private setupOrigin = "";
+  private readonly storage: ReturnType<typeof desktopStorage>;
   private installing: AbortController | undefined;
   private command(entry: string) {
     return { command: this.paths.bun, args: [entry] };
@@ -61,6 +63,7 @@ export class DesktopRuntime {
   ) {
     mkdirSync(directory, { recursive: true, mode: 0o700 });
     this.logs = new Logs(join(directory, "logs"));
+    this.storage = desktopStorage(directory, paths, this.env, () => this.state.workerId);
     this.health = new HealthChecks((name, message) => this.logs.write(name, message));
     this.logs.protect(...Object.values(secrets), webToken);
     this.env["PATH"] = `${dirname(paths.bun)}${delimiter}${this.env["PATH"]}`;
@@ -440,6 +443,7 @@ export class DesktopRuntime {
     this.cancelStartup();
     this.generation++;
     this.health.reset();
+    this.storage.close();
     this.configured = false;
     this.publish({ phase: "stopping" });
 

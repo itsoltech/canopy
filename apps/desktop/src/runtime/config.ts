@@ -18,6 +18,9 @@ export interface RuntimePaths {
   worker: string;
   web: string;
   postgres: string;
+  /** Packaged installation only; development never scans the source checkout. */
+  application?: string;
+  updateCache?: string;
 }
 
 export function isWorkerStatus(value: unknown): value is { status?: string; time?: number } {

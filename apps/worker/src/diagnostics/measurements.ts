@@ -1,6 +1,7 @@
 import { Measure, METRIC_DEFINITIONS, WORKER_METRIC_IDS } from "@canopy/domain/diagnostics";
-import { toBinary } from "@bufbuild/protobuf";
+import { create, toBinary } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
+import type { StorageSnapshot } from "@canopy/logs/storage";
 
 /** One ephemeral report. 256 KiB for sparse measures, 256 KiB for indices, active timings and drain. */
 export class WorkerMeasurements {
@@ -9,6 +10,8 @@ export class WorkerMeasurements {
   used = 256 * 1024;
   dropped = 0;
   readonly limit = 512 * 1024;
+
+  constructor(readonly storage?: () => StorageSnapshot | undefined) {}
 
   reserve = (bytes: number) => {
     if (this.used + bytes > this.limit) {
@@ -67,6 +70,18 @@ export class WorkerMeasurements {
     value.measures = this.drain(Number(value.endMs));
     value.workerMeasuresSupported = true;
     value.droppedSamples = BigInt(this.dropped);
+    const storage = this.storage?.();
+
+    if (storage && (!storage.sampledAtMs || storage.sampledAtMs <= Number(value.endMs)))
+      value.storage = create(ui.DiagnosticsStorageSchema, {
+        status: storage.status,
+        sampledAtMs: BigInt(Math.max(0, Math.trunc(storage.sampledAtMs))),
+        sampleAgeMs: storage.sampledAtMs ? Math.max(0, Number(value.endMs) - Math.trunc(storage.sampledAtMs)) : 0,
+        categories: storage.categories.map((category) =>
+          create(ui.DiagnosticsStorageCategorySchema, { category: category.category, bytes: category.bytes }),
+        ),
+        component: storage.component ?? "worker",
+      });
 
     while (toBinary(ui.WorkerLinkDiagnosticsSchema, value).length > 32 * 1024 && value.measures.length) {
       value.measures.pop();

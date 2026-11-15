@@ -58,6 +58,7 @@ export class EmbeddedWebServer {
   #touch: ReturnType<typeof setInterval> | undefined;
   #state: EmbeddedWebState = "starting";
   #reason = "";
+  #storageDirectory: string | undefined;
   readonly url: string;
   readonly #listen: { host: string; port: number };
   constructor(readonly options: EmbeddedWebOptions) {
@@ -70,6 +71,10 @@ export class EmbeddedWebServer {
   }
   get reason(): string {
     return this.#reason;
+  }
+  /** Actual extracted release root; the configured directory can be replaced by a private fallback. */
+  get storageDirectory(): string | undefined {
+    return this.#storageDirectory;
   }
   /** One line for Settings → App updates while the web isn't serving; "" otherwise. */
   get notice(): string {
@@ -112,6 +117,7 @@ export class EmbeddedWebServer {
       Object.assign(process.env, webSettings(this.options.env), { CANOPY_WEB_IN_PROCESS: "1" });
       const root = webDirectory(this.options.env);
       const release = await prepareWebRelease(this.options.archive, root, this.options.log);
+      this.#storageDirectory = release.base;
 
       if (!this.options.standalone) containWebFaults(release.base, this.options.log);
       this.#touch = setInterval(() => void touchWebRelease(release.directory).catch(() => {}), TOUCH_MS);

@@ -5,6 +5,7 @@ import type { GatewayCore } from "../core/core.ts";
 import type { PeerRow } from "../computers/store.ts";
 import { linkedMessage } from "../computers/remote.ts";
 import { sanitizeSnapshot } from "./sanitize.ts";
+import { advanceStorage, receiveStorage } from "./storage-clock.ts";
 
 type Cached = { value: ui.ComputerDiagnostics; received: number; bytes: number };
 
@@ -173,10 +174,16 @@ export class DiagnosticsPeers {
         if (this.reads.get(read.key) !== read || this.#closed) return;
 
         if (value.notModified && old) {
+          old.value = advanceStorage(old.value, performance.now() - old.received);
           old.received = performance.now();
           old.value.sampleAgeMs = value.sampleAgeMs;
           old.value.receivedAtMs = BigInt(Date.now());
-        } else this.#put(read.key, { ...value, computerId: read.node, receivedAtMs: BigInt(Date.now()) }, bytes);
+        } else
+          this.#put(
+            read.key,
+            { ...receiveStorage(value), computerId: read.node, receivedAtMs: BigInt(Date.now()) },
+            bytes,
+          );
       }
 
       read.delay = 0;
@@ -259,7 +266,9 @@ export class DiagnosticsPeers {
               : "online";
 
     return create(ui.ComputerDiagnosticsSchema, {
-      ...(entry?.value ?? create(ui.ComputerDiagnosticsSchema)),
+      ...(entry
+        ? advanceStorage(entry.value, performance.now() - entry.received)
+        : create(ui.ComputerDiagnosticsSchema)),
       computerId: peer.node_id,
       name: peer.display_name || peer.name,
       appVersion: peer.app_version,
@@ -275,7 +284,7 @@ export class DiagnosticsPeers {
       this.#put(
         `${value.computerId}:overview:${value.windowMinutes || 15}`,
         create(ui.ComputerDiagnosticsSchema, {
-          ...value,
+          ...advanceStorage(value, Math.max(0, Date.now() - Number(value.receivedAtMs || value.sampledAtMs))),
           sampleAgeMs: value.sampleAgeMs + Math.max(0, Date.now() - Number(value.receivedAtMs || value.sampledAtMs)),
           ageUncertain: true,
           receivedAtMs: BigInt(Date.now()),

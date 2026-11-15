@@ -9,6 +9,8 @@ są odrębnymi stanami. Budżety wydajności poniżej są celami i procedurą po
 nie deklaracją zmierzonego narzutu obecnej wersji. Na `dev` (2026-11-15) wysyłka
 pomiarów klientów obsługuje równoległe okna i przeładowania, a web/desktop i BFF
 wstrzymują ją po limicie gatewaya. Dostępność według [wydań](release.md).
+Na `dev` widok obejmuje też bieżącą zajętość plików Canopy, oddzielnie dla
+gatewaya/desktopu i workerów, z wyłączeniem plików projektów, worktree i scratch (§3.3.1).
 
 Powiązane: [architektura](architecture.md), [protokół](protocol.md), [UI API](ui-api.md),
 [połączone komputery](linked-computers.md), [ustawienia](settings-map.md),
@@ -339,6 +341,81 @@ Pomiar workerów ma osobny launcher `diagnostics-stage3.sh`; utrzymuje pozostał
 warstwy w obu wariantach. Fixture używa prawdziwego journala/ACK/replay,
 deterministycznego ACP, git i lokalnego odbiornika mirroru z commitami PostgreSQL.
 Lokalne ramki mirroru nie zastępują próby wolnego zdalnego transportu gRPC.
+
+### 3.3.1 Bieżąca zajętość plików Canopy
+
+`DiagnosticsStorage` jest aktualnym snapshotem, niezależnym od okna metryk.
+Ma zamknięte kategorie `logs`, `data`, `cache`, `application`, `database`, czas,
+wiek próbki i stan `measuring`, `ready`, `partial` albo `unavailable`.
+Nie sumujemy komponentów ani próbek w czasie. Kategorie mierzą długości zwykłych
+plików, bez narzutu bloków, kompresji, klonów CoW i rozmiarów katalogów.
+Zagnieżdżony root ma pierwszeństwo przed rodzicem; wspólne inode plików i katalogów
+są liczone raz w obrębie skanu. Symlinki, w tym rooty z symlinkiem w ścieżce,
+nie są śledzone. Nazwy plików, ścieżki i treści nie przekraczają granicy źródła.
+
+Wspólny `StorageSampler` wykonuje asynchroniczny skan najwyżej raz na minutę,
+koalescuje odczyty i oddaje event loop co 64 wpisy. Budżet skanu to 100 000 wpisów
+lub 2 s; limit czasu jest kooperacyjny, sprawdzany między operacjami metadanych,
+i nie przerywa trwającego systemowego `lstat` ani innego odczytu metadanych.
+Przekroczenie daje `partial` i dolne ograniczenie rozmiaru. Odczyt API
+zwraca od razu poprzedni snapshot i uruchamia odświeżenie w tle. Nie uruchamia
+`du`, nie czyta zawartości plików ani nie blokuje RPC oczekiwaniem na skan.
+
+Gateway serwerowy rejestruje własne logi, spool eksportu diagnostyki, rzeczywiście
+wybrany cache wydań i rozpakowanego web, także prywatny fallback tymczasowy.
+Instalacja binarna dodaje plik wykonywalny, jego kopię rollback `.bak` oraz znane
+pliki stanu i blokady aktualizacji; nie skanuje całego katalogu instalacji.
+Checkout źródeł i uruchamiający go Bun nie są aplikacją do policzenia.
+`pg_database_size(current_database())` jest osobną kategorią poza sumą plików hosta:
+baza może działać na innym komputerze,
+a wynik SQL nie obejmuje WAL ani całego klastra. Obraz kontenera nie jest skanowany.
+
+Gateway desktopu korzysta z katalogów przekazanych prywatnie przez kontroler:
+`CANOPY_DESKTOP_DATA_DIR`, opcjonalnego `CANOPY_DESKTOP_APP_PATH` i cache aktualizacji
+`CANOPY_DESKTOP_UPDATE_CACHE`. Liczy pliki `postgres/data` jako bazę, bez dodatkowej
+sumy SQL. Desktop obejmuje zarejestrowane, zarządzane wpisy katalogu danych:
+wspólne logi, profil, cache, instalację i dane workerów, także zachowane instancje
+zdalne. Nieznane wpisy, w tym umieszczony tam projekt, są pomijane. Osobny wiersz
+workera pokazuje szczegół danych już uwzględnionych w sumie desktopu i nie jest
+do niej dodawany ponownie. Rooty są współdzielone z lokalnym BFF.
+
+Przed skanem gateway pobiera owner-scoped ścieżki workspace, cwd wątków i worktree
+i wyklucza je z rootów. Lista jest ograniczona do 4096 wpisów, odczyt do 3 s,
+pojedynczy SQL do 1 s. Niepełna lista, ścieżka względna lub błąd blokuje nowy skan i zachowuje
+poprzedni pomiar jako `partial`, z pierwotnym czasem; bez poprzedniego wyniku
+stan jest `unavailable`. Absolutne ścieżki innych systemów operacyjnych są poprawnymi
+metadanymi workerów; do lokalnego skanera trafiają tylko ścieżki natywne gatewaya.
+Ścieżka Windows zależna od bieżącego katalogu dysku, np. `C:project`, jest względna.
+Stałe wykluczenia workera i desktopu obejmują scratch,
+zarządzane worktree i robocze workspace botów, również wewnątrz katalogu danych.
+
+Worker przesyła wynik istniejącym uwierzytelnionym raportem WorkerLink, bez
+journala i outboxa. Gateway rekonstruuje zamknięte pola, odrzuca niepoprawne
+kategorie i zachowuje reguły sesji, sekwencji oraz trwałego baseline. Wiek skanu
+przenosi względem końca partii na zegar gatewaya; ponowne przesłanie tego samego
+skanu nie odświeża jego czasu. Początkowy `measuring` po zmianie sesji nie zastępuje
+ostatniego poprawnego wyniku, podobnie jak próbka starsza po przeliczeniu jej daty
+na zegar gatewaya. Istniejący trwały stan diagnostyki zapisuje maksymalnie 16
+ostatnich pomiarów workerów, także pełnych sum zdalnego desktopu, oddzielnie od
+sesji i sekwencji chroniących przed replay. Po restarcie gatewaya wynik i czas
+pozostają dostępne dla workera offline. Wiek odtworzonej próbki nie maleje poniżej
+zapisanego wieku; po cofnięciu zegara przyszła data jest przesuwana ostrożnie
+wstecz, a dalszy upływ czasu jest mierzony monotonicznie.
+Połączone komputery udostępniają dane przez istniejący
+snapshot i grant `diagnostics_read`, bez nowego portu ani uprawnienia logów.
+Odbiorca przesuwa datę próbki na własny zegar, a wiek zwiększa czasem pobytu
+w cache mierzonym monotonicznie; po odtworzeniu cache oznacza niepewność wieku.
+
+Desktop remote przesyła sumę całej aplikacji przez uwierzytelniony raport
+bundlowanego workera jako komponent `desktop`, więc domowy gateway udostępnia
+ją także swoim klientom web/mobile i połączonym komputerom z dostępem do
+diagnostyki. Zwykły worker oraz worker lokalnego desktopu raportują komponent
+`worker`. Gdy własny worker desktopu nie dostarcza sumy aplikacji, lokalny BFF
+dodaje zapasowy snapshot `DiagnosticsSnapshot.desktop_storage` przez istniejącą
+sesję main/kontrolera. Ten fallback pozostaje prywatny dla urządzenia i znika,
+gdy dostępny jest raport całej aplikacji, aby nie powielać wiersza. Osobny zwykły
+BFF nie otrzymuje ścieżek desktopu. Lokalny BFF może zwrócić ten pomiar także przy
+niedostępnym zdalnym gatewayu; błędy uwierzytelnienia nadal odrzucają żądanie.
 
 ### 3.4 Połączone komputery i wspólny obraz
 
@@ -963,6 +1040,7 @@ jest lokalnym stanem widoku, nie synchronizowaną preferencją konta.
 | Obszar | Zachowanie |
 |---|---|
 | Overview | Karty wszystkich komputerów: gateway, workery, linki, status kolorem **i tekstem**, ostatnia aktualizacja, top finding, CPU i RTT. Filtr komputera oraz `1 min / 15 min / 1 h / 24 h` (domyślnie 15 min). Historia 15 min/1 h/24 h przetrwa restart, przerwy mają jawne oznaczenie. Offline zachowuje ostatnie liczby jako nieaktualne; `Update to see diagnostics` zamiast pustej zielonej karty. |
+| Canopy storage | Zaraz po overview, przed findings: oddzielne sumy i kategorie logów/danych/cache/aplikacji/bazy dla gatewaya lub desktopu oraz każdego workera. Są to bieżące rozmiary plików, niezależne od okna czasu, bez plików projektów/worktree. Nie sumujemy komponentów: mogą nakładać się albo należeć do różnych komputerów. Desktop obejmuje dane własnych workerów, także nieaktywnych. Gateway pokazuje bazę SQL osobno, poza sumą plików; baza może działać na innym komputerze. Desktop wlicza własne pliki PostgreSQL w sumę. Każdy pomiar ma czas i stan; starszy niż 5 min jest nieaktualny, offline/stale zachowuje ostatnie wartości. `Partial` i `At least` oznaczają dolne ograniczenie, brak pomiaru/kategorii nie staje się zerem. Starszy build dostaje polecenie aktualizacji. Web pokazuje `This desktop` wyłącznie przy lokalnym `desktopStorage`. Web i mobile pokazują też pełne zużycie aplikacji zdalnego desktopu zgłoszone przez jego worker: etykieta `Desktop`, własna nazwa workera i informacja o uwzględnieniu danych workerów. |
 | Findings | Najpierw critical/warning, potem info; max 5 na początku, rozwinięcie reszty. Wartość, okno, prosty powód i zalecana akcja; techniczne dowody pod `Show details`. Wspólny finding pary linku ma obie obserwacje. |
 | RPC i DB | Sekcja `Calls`, tabela sortowana po calls/min, p50/p95/p99/max, błędach i in-flight, z nazwą metody i komputerem. Grupowanie per dom, bez sumowania warstw BFF/home/transport. W drill-down `RPC details`, streamy oddzielnie, kody i payload sizes; top 10 rodzin SQL i pool wait. Na telefonie wybór sortowania i karty wierszy zamiast tabeli szerszej niż ekran. |
 | Linki/zasoby | RTT/jitter, backlog/lag, reconnect/resubscribe, CPU/RSS/dysk jako tabele i grupy liczb z jednostką, pokryciem oraz rozkładem. Brak pomiaru ≠ 0. Szczegóły komputera/workerów zachowują filtr i czas. Sparklines nie są częścią obecnego widoku. |

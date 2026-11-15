@@ -5,6 +5,15 @@ import { sanitizeSnapshot } from "./sanitize.ts";
 
 export const REPORT_BYTES = 256 * 1024;
 
+const storageReport = (storage: ui.DiagnosticsStorage | undefined) =>
+  storage && {
+    status: storage.status,
+    component: storage.component,
+    sampledAtMs: String(storage.sampledAtMs),
+    sampleAgeMs: storage.sampleAgeMs,
+    categories: storage.categories.map((row) => ({ category: row.category, bytes: String(row.bytes) })),
+  };
+
 /** Explicit projection: no user names, IDs, versions, sessions, paths or unknown protobuf fields. */
 export function diagnosticReport(computers: readonly ui.ComputerDiagnostics[], format: string) {
   const omitted: string[] = [];
@@ -44,6 +53,7 @@ export function diagnosticReport(computers: readonly ui.ComputerDiagnostics[], f
       windowMinutes: computer.windowMinutes,
       observedSeconds: computer.observedSeconds,
       sampleAgeMs: computer.sampleAgeMs,
+      storage: storageReport(computer.storage),
       gaps: computer.gaps.map((gap) => ({ start: String(gap.startMs), end: String(gap.endMs) })),
       dropped: String(computer.droppedSamples),
       restoring: computer.restoring,
@@ -72,6 +82,7 @@ export function diagnosticReport(computers: readonly ui.ComputerDiagnostics[], f
         supported: link.supported,
         rttP95Ms: link.rttMs?.p95,
         metrics: link.measures.map(metric),
+        storage: storageReport(link.storage),
       })),
       database: computer.database.map((family) => ({
         family: family.family,
