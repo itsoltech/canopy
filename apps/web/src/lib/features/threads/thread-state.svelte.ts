@@ -415,8 +415,8 @@ export class ThreadState {
   }
 
   /** Subscribes to the BFF event stream; returns the cleanup for $effect. */
-  connect(threadId: string): () => void {
-    const disconnect = this.history.connect(threadId);
+  connect(threadId: string, overviewStatus?: () => string | undefined): () => void {
+    const disconnect = this.history.connect(threadId, overviewStatus);
 
     return () => {
       disconnect();

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
+import { connect, createServer, type AddressInfo, type Socket } from "node:net";
 import { create, toJsonString } from "@bufbuild/protobuf";
 import { createClient } from "@connectrpc/connect";
 import { createGrpcTransport } from "@connectrpc/connect-node";
@@ -206,6 +207,48 @@ describe.skipIf(!dockerAvailable)("desktop client: owner-scoped pairing and pinn
       expect(routed.connection().addresses).not.toContain("https://attacker.invalid");
     } finally {
       await falseRoute.close();
+    }
+  });
+
+  test("a verified route is reused without a TLS probe per call and replaced after it fails", async () => {
+    const real = new URL(routes().addresses[0]!);
+    const sockets = new Set<Socket>();
+    let connections = 0;
+
+    // Counts every TCP connection to the route: each TLS probe and each HTTP/2 session.
+    const relay = createServer((socket) => {
+      connections++;
+      const upstream = connect(Number(real.port), real.hostname);
+      sockets.add(socket).add(upstream);
+      socket.pipe(upstream).pipe(socket);
+
+      for (const side of [socket, upstream])
+        side.on("error", () => {}).on("close", () => (socket.destroy(), upstream.destroy()));
+    });
+
+    await new Promise<void>((resolve) => relay.listen(0, "127.0.0.1", resolve));
+    const port = (relay.address() as AddressInfo).port;
+
+    try {
+      const client = await pair();
+      const routed = routedPinnedTransport({ ...routes(), addresses: [`https://127.0.0.1:${port}`] }, client.token);
+      const api = createClient(ui.GatewayService, routed.transport);
+
+      for (let call = 0; call < 5; call++) await api.getOverview({});
+      expect(connections).toBe(2);
+
+      // The route dies: one call fails on it, the next one probes again and moves to a reachable route.
+      relay.close();
+
+      for (const socket of sockets) socket.destroy();
+      routed.update({ fingerprint: network.fingerprint, addresses: [real.origin] });
+      expect(await failure(api.getOverview({}))).not.toBe("");
+      expect((await api.getOverview({})).workers.length).toBeGreaterThan(0);
+      expect(routed.connection().lastAddress).toBe(real.origin);
+    } finally {
+      relay.close();
+
+      for (const socket of sockets) socket.destroy();
     }
   });
 

@@ -131,8 +131,10 @@ strony, scalenie, aktualizację Svelte i pierwszy rAF po niej; to proxy gotowoś
 renderera, nie potwierdzenie klatki kompozytora. `Timeline recoveries` zlicza
 odtworzenie niepełnego okna, awaryjne pokazanie wierszy przy niezgodności
 derywacji, timeout pozycjonowania oraz wznowienie zatrzymanego watcha (`stalled_watch`).
-Ten ostatni porównuje head overview z kursorem widoku; 10 s bez postępu uruchamia
-wyłącznie wznowienie inkrementalne (odstęp 30 s, do trzech prób bez postępu).
+Ten ostatni porównuje head overview z kursorem widoku, a status wątku z overview
+z turami widoku; 10 s rozbieżności uruchamia najpierw dwa wznowienia inkrementalne,
+potem przeładowanie okna jak po odświeżeniu strony. Odstęp rośnie od 30 s do 5 min;
+naprawy nie ustają, dopóki rozbieżność trwa.
 Log zawiera wyłącznie stały powód, liczbę, czas opóźnienia i numer próby,
 bez treści, identyfikatorów i kotwic. Sprawdź scroll do granicy niepełnej tury,
 reload z cache i przejście z innego wątku: treść ma nadejść bez load-more,

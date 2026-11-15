@@ -1,6 +1,6 @@
 import type { JsonValue } from "@bufbuild/protobuf";
 import { syncMetrics, syncCpu, syncCpuMicros } from "@canopy/transport";
-import { computerFailure } from "./gateway-errors.ts";
+import { computerFailure, transportLoss } from "./gateway-errors.ts";
 import { ConnectError } from "@connectrpc/connect";
 import { bffMeasurements } from "./diagnostics.ts";
 import { threadWatchFailure } from "@canopy/domain/thread-watch-recovery";
@@ -86,6 +86,9 @@ export function sseResponse<T>(
             const code = failure.code;
 
             if (computerFailure(cause)) send(`event: away\ndata: ${JSON.stringify({ code, computer: true })}\n\n`);
+            // Closing the response is a dropped connection to the browser: it reconnects with backoff, without
+            // spending the thread's repair budget on a gateway restart or a network blip.
+            else if (transportLoss(cause)) console.warn("Event stream lost the gateway connection", { code });
             else {
               console.warn("Event stream failed", { code });
               send(`event: failure\ndata: ${JSON.stringify(failure)}\n\n`);

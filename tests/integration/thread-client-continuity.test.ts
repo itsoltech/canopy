@@ -141,7 +141,11 @@ test.skipIf(!dockerAvailable)(
       expect(desktop.received).toBe(received);
       expect(guard.check(applied, head, 0)).toBeUndefined();
       expect(guard.check(applied, head, THREAD_STALL_MS - 1)).toBeUndefined();
-      expect(guard.check(applied, head, THREAD_STALL_MS)).toEqual({ lagMs: THREAD_STALL_MS, attempt: 1 });
+      expect(guard.check(applied, head, THREAD_STALL_MS)).toEqual({
+        lagMs: THREAD_STALL_MS,
+        attempt: 1,
+        reload: false,
+      });
       desktop.open(id);
       await visible(missed);
       expect(desktop.requests.at(-1)).toBe(`range:${applied!.epoch}:${applied!.appliedSeq}`);

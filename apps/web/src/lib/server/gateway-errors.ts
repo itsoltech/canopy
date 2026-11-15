@@ -48,6 +48,19 @@ export function computerFailure(cause: unknown): boolean {
   );
 }
 
+/**
+ * The connection to the gateway broke under a call the BFF did not abort: a reset or closed HTTP/2 session (e.g. a
+ * gateway restart surfaces as Canceled, Internal or a stream without status) or an unreachable gateway. Watch
+ * failures the gateway means carry `canopy-error-scope`; access errors use other codes. Neither counts.
+ */
+export function transportLoss(cause: unknown): boolean {
+  return (
+    cause instanceof ConnectError &&
+    !cause.metadata.has("canopy-error-scope") &&
+    [Code.Canceled, Code.Unavailable, Code.Internal].includes(cause.code)
+  );
+}
+
 function publicMessage(message: string): string {
   return (
     message

@@ -333,7 +333,7 @@ projekcji. Przedwczesny koniec strumienia nadal go zużywa. Widoczny wątek zaws
 subskrybuje head przez wspólny overview. Wspólny `ThreadWatchLiveness` wykrywa
 10 s bez postępu kursora przy nowszym head i wznawia watch inkrementalnie;
 nie zastępuje zachowanych stron ani kursora checkpointem warmera. Tło/offline
-wstrzymują kontrolę; naprawy mają odstęp 30 s i limit trzech bez postępu.
+wstrzymują kontrolę; odstęp napraw rośnie od 30 s do 5 min i nie ma limitu prób.
 Diagnostyka zlicza je w `Timeline recoveries`, log zawiera tylko czas i numer próby.
 Dla pozostałych subskrypcji sukces zeruje go od razu. Zmiana sieci (`expo-network`, bez nowej
 zależności NetInfo), foreground oraz „Reconnect now” zerują backoff. Reset nie usuwa

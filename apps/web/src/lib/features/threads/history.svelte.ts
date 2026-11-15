@@ -12,7 +12,7 @@ import { tick } from "svelte";
 import { ThreadWatchRecovery, threadWatchMessage, threadSyncStatus } from "@canopy/domain/thread-watch-recovery";
 import { threadWatchReady } from "@canopy/domain/thread-watch-state";
 import { threadOverviewHead, warmCacheHit } from "./warming.ts";
-import { ThreadWatchLiveness } from "@canopy/domain/thread-watch-liveness";
+import { ThreadWatchLiveness, threadViewDiverged } from "@canopy/domain/thread-watch-liveness";
 
 export class ThreadHistory {
   loading = $state(false);
@@ -37,7 +37,8 @@ export class ThreadHistory {
     readonly reset: () => void,
   ) {}
 
-  connect(id: string) {
+  /** `overviewStatus`: the thread's status from a live overview, a second witness of a stalled watch. */
+  connect(id: string, overviewStatus: () => string | undefined = () => undefined) {
     const current = warmCacheHit(id, this.read());
     const opening = clientOpening(Boolean(this.read()?.thread), current);
 
@@ -132,11 +133,14 @@ export class ThreadHistory {
         return;
       }
 
-      const repair = liveness.check(this.read()?.syncCursor, threadOverviewHead(id));
+      const diverged = threadViewDiverged(overviewStatus(), this.view.running);
+      const repair = liveness.check(this.read()?.syncCursor, threadOverviewHead(id), Date.now(), diverged);
 
       if (!repair) return;
       timelineRecovery("stalled_watch");
-      console.warn("Thread watch resumed from applied cursor", repair);
+      console.warn(repair.reload ? "Thread watch reloaded" : "Thread watch resumed from applied cursor", repair);
+
+      if (repair.reload) this.reset();
       open();
     }, 1000);
 

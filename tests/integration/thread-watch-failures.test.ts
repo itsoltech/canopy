@@ -398,6 +398,41 @@ describe.skipIf(!dockerAvailable)("thread failures stay scoped over real gRPC", 
       }
     },
   );
+  test("web SSE closes like a dropped connection when the gateway session ends under the watch", async () => {
+    let watching!: () => void;
+    const started = new Promise<void>((resolve) => (watching = resolve));
+
+    const server = await startGrpcServer({
+      routes: (router) =>
+        router.service(ui.GatewayService, {
+          ...uiHandlers(gateway.core),
+          async *watchThread(_request, context) {
+            yield create(ui.ThreadUpdateSchema, { change: { case: "thread", value: { id: thread } } });
+            watching();
+            await new Promise((resolve) => context.signal.addEventListener("abort", resolve, { once: true }));
+          },
+        }),
+    });
+
+    const api = createClient(ui.GatewayService, createGrpcTransport({ baseUrl: server.url }));
+
+    const response = sseResponse(
+      new Request("http://localhost/events"),
+      (signal) => api.watchThread({ threadId: thread, sequence: true }, { signal }),
+      () => null,
+    );
+
+    const text = response.text();
+    await started;
+    // A restarting gateway destroys its sessions; the BFF did not abort, so this is not a thread failure.
+    await server.close(1);
+    const body = await text;
+    expect(body).toContain("event: ready");
+    expect(body).toContain("data: null");
+    expect(body).not.toContain("event: failure");
+    expect(body).not.toContain("event: away");
+  });
+
   test("web SSE preserves the fixed thread reason and size without exposing exception text", async () => {
     const server = await startGrpcServer({
       routes: (router) =>
