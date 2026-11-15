@@ -10,6 +10,7 @@ const bearer = (ctx: HandlerContext) =>
   /^Bearer\s+(\S+)$/i.exec(ctx.requestHeader.get("authorization") ?? "")?.[1] ?? "";
 
 const OFFLINE = "Desktop app is offline. Open Canopy on that computer and reconnect to this gateway.";
+const UNSUPPORTED = "This app version does not support remote updates. Update it manually in Settings → App updates.";
 
 /** A desktop app's report about itself: bounded text, its own version and channel, a known phase. */
 export function validDesktopState(state: ui.DesktopUpdateState, hello: ui.DesktopHello) {
@@ -195,7 +196,7 @@ export class DesktopControl {
             disabledReason: !connected
               ? OFFLINE
               : !session.hello.remoteUpdate
-                ? "Update this desktop app manually to enable remote updates."
+                ? UNSUPPORTED
                 : (session.disabledReason ?? row.state.disabledReason),
           };
         }),
@@ -234,10 +235,7 @@ export class DesktopControl {
       const disabledReason = session.disabledReason ?? row.state.disabledReason;
 
       if (!session.hello.remoteUpdate || disabledReason)
-        throw new ConnectError(
-          disabledReason || "Update this desktop app manually to enable remote updates.",
-          Code.FailedPrecondition,
-        );
+        throw new ConnectError(disabledReason || UNSUPPORTED, Code.FailedPrecondition);
 
       if (request.allowDowngrade) throw new ConnectError("Remote downgrade is forbidden", Code.InvalidArgument);
       let command = row.command;

@@ -152,7 +152,7 @@ export function remoteDesktopSnapshot(): ui.UpdatesSnapshot {
     {
       name: "Canopy · Older Mac",
       connected: true,
-      disabledReason: "Update this desktop app manually to enable remote updates.",
+      disabledReason: "This app version does not support remote updates. Update it manually in Settings → App updates.",
     },
   ];
 
