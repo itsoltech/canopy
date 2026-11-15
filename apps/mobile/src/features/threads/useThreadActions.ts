@@ -85,7 +85,11 @@ export function useThreadActions(thread: ui.Thread) {
     }
   }
 
-  function run(action: Exclude<ThreadAction, "side" | "goal" | "rename">) {
+  /**
+   * Runs the action, or asks first when the settings want a confirmation. Resolves with the outcome when it runs at
+   * once; `undefined` when a dialog took over (the caller cannot tell whether it will run).
+   */
+  function commit(action: Exclude<ThreadAction, "side" | "goal" | "rename">): Promise<boolean> | undefined {
     const general = appearance.user?.general;
 
     if (action === "delete" && general?.confirmDelete !== false) {
@@ -111,8 +115,14 @@ export function useThreadActions(thread: ui.Thread) {
         danger: false,
         action: () => void execute(action),
       });
-    } else void execute(action);
+    } else return execute(action);
+
+    return undefined;
   }
 
-  return { busy, disabled, pinned, archived, run, rename: (title: string) => execute("rename", title) };
+  function run(action: Exclude<ThreadAction, "side" | "goal" | "rename">) {
+    void commit(action);
+  }
+
+  return { busy, disabled, pinned, archived, run, commit, rename: (title: string) => execute("rename", title) };
 }

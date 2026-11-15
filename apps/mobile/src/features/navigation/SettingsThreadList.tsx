@@ -4,7 +4,7 @@ import { ui } from "@canopy/contracts";
 import { sidebarEntries } from "@canopy/domain/sidebar-entries";
 import { styles, useColors } from "../../ui/theme";
 import { useContentPadding } from "../../ui/ScreenFrame";
-import Animated from "react-native-reanimated";
+import Animated, { LayoutAnimationConfig } from "react-native-reanimated";
 import { Chevron, useArrivals } from "../../ui/MotionViews";
 import { useMotion } from "../../ui/motion";
 import { SidebarThreadTreeRow } from "./SidebarThreadTree";
@@ -83,41 +83,43 @@ export function SettingsThreadList({
 
   return (
     <SidebarDragContext.Provider value={drag.context}>
-      <GestureHandlerRootView style={styles.fill}>
-        <GestureDetector gesture={drag.gesture}>
-          <Animated.View ref={drag.frame} style={styles.fill}>
-            <ThreadFlatList
-              ref={drag.list}
-              data={data}
-              CellRendererComponent={SidebarOrderCell}
-              keyExtractor={(entry) => entry.key}
-              contentInsetAdjustmentBehavior="never"
-              automaticallyAdjustContentInsets={false}
-              contentContainerStyle={[padding, { flexGrow: 1 }]}
-              initialNumToRender={12}
-              maxToRenderPerBatch={8}
-              windowSize={7}
-              onScroll={drag.scroll}
-              scrollEventThrottle={16}
-              onContentSizeChange={(_, height) => drag.context.content.set(height)}
-              onEndReached={archive.more}
-              onEndReachedThreshold={0.4}
-              renderItem={({ item }) => (
-                <Animated.View
-                  entering={arrival(item.key)}
-                  exiting={item.section === "archived" ? rise.exiting : undefined}
-                >
-                  <SidebarListEntryView
-                    {...{ item, navigation, archive, rootIds, projects, workers, empty, workingOpen }}
-                    onWorking={() => setWorkingOpen(!workingOpen)}
-                  />
-                </Animated.View>
-              )}
-            />
-            <SidebarDragFeedback entries={entries} />
-          </Animated.View>
-        </GestureDetector>
-      </GestureHandlerRootView>
+      {/* Switching to Bots unmounts the whole list: its rows leave at once instead of fading over the next list. */}
+      <LayoutAnimationConfig skipExiting>
+        <GestureHandlerRootView style={styles.fill}>
+          <GestureDetector gesture={drag.gesture}>
+            <Animated.View ref={drag.frame} style={styles.fill}>
+              <ThreadFlatList
+                ref={drag.list}
+                data={data}
+                CellRendererComponent={SidebarOrderCell}
+                keyExtractor={(entry) => entry.key}
+                contentInsetAdjustmentBehavior="never"
+                automaticallyAdjustContentInsets={false}
+                contentContainerStyle={[padding, { flexGrow: 1 }]}
+                initialNumToRender={12}
+                maxToRenderPerBatch={8}
+                windowSize={7}
+                onScroll={drag.scroll}
+                scrollEventThrottle={16}
+                onContentSizeChange={(_, height) => drag.context.content.set(height)}
+                onEndReached={archive.more}
+                onEndReachedThreshold={0.4}
+                renderItem={({ item }) => (
+                  // Every entry that leaves (an archived row, the archived section at 0, the empty state) fades out while
+                  // the cells below glide up (`SidebarOrderCell`), so archiving never jumps the list.
+                  <Animated.View entering={arrival(item.key)} exiting={rise.exiting}>
+                    <SidebarListEntryView
+                      {...{ item, navigation, archive, rootIds, projects, workers, empty, workingOpen }}
+                      onWorking={() => setWorkingOpen(!workingOpen)}
+                    />
+                  </Animated.View>
+                )}
+              />
+              <SidebarDragFeedback entries={entries} />
+            </Animated.View>
+          </GestureDetector>
+        </GestureHandlerRootView>
+      </LayoutAnimationConfig>
     </SidebarDragContext.Provider>
   );
 }
