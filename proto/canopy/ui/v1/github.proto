@@ -398,6 +398,11 @@ message PullRequestChecksPage {
   repeated PullRequestCheck checks = 1;
   PullRequestPageInfo page = 2;
 }
+message PullRequestJobStep {
+  string name = 1;
+  string state = 2;
+  uint32 number = 3;
+}
 message PullRequestJob {
   string id = 1;
   string run_id = 2;
@@ -406,6 +411,7 @@ message PullRequestJob {
   string state = 5;
   string url = 6;
   string head_sha = 7;
+  repeated PullRequestJobStep steps = 8;
 }
 message PullRequestJobsPage {
   repeated PullRequestJob jobs = 1;

@@ -1,7 +1,8 @@
 # Konto GitHub i pull requesty
 
 Status: **v1 wdrożone**: konta GitHub App i jawny fallback PAT, powiązania PR,
-pełny odczyt, komentarze i review, lifecycle, metadane oraz sterowanie GitHub Actions.
+pełny odczyt, komentarze i review, lifecycle, metadane, sterowanie GitHub Actions
+oraz postęp checków i kroków workflow.
 Podstawowy zakres jest dostępny w web/desktop/mobile. Dodatkowe oznaczenia checków
 w kartach PR i sidebarze oraz podgląd PR w hover card opisane w §7 dotyczą interfejsu web.
 Web/desktop renderuje bezpieczny HTML w Markdown (2026-11-15); dostępność według
@@ -522,8 +523,9 @@ To **szacunki bez pomiaru**, nie wynik benchmarku ani stała liczba żądań pol
 Strony historii, diffy, jobs i logi rozliczamy osobno.
 Limity: 2 MiB na odpowiedź upstream/stronę, 32 MiB LRU RAM na gateway, 128 KiB nagłówka PR,
 256 KiB patcha na plik. Parser i renderer nigdy nie otrzymują całego PR w jednym przebiegu.
-Otwarta lista jobs to najwyżej jeden REST GET/15 s tylko podczas aktywnego run (do 240/h,
-zamiast dublowania pollingu tych samych checków). Logi wyłącznie na żądanie, bez tailingu w tle:
+Widoczny Summary może wykonać po jednym odczycie stron jobs dla każdego powiązanego workflowu
+co 15 s podczas aktywnego run; rozwinięcie checka używa tego samego zweryfikowanego zakresu
+run/attempt/SHA. Logi wyłącznie na żądanie, bez tailingu w tle:
 jedno pobranie joba ≤ 8 MiB i strony Canopy ≤ 64 KiB/1000 linii (§6), bez archiwum całego run.
 Przy założeniu 5–20 ms CPU/MiB dekodowanie limitu kosztuje 40–160 ms na żądanie, porcjami
 poza ścieżką ACK; pomiar musi potwierdzić brak blokowania event loop. Wspólne limity i priorytety
@@ -859,6 +861,9 @@ Limit pobrania i rozkodowanego tekstu: 8 MiB lub 50 000 linii/job, czas 20 s; pr
 daje **Log truncated. Open on GitHub for the full log.** Bez pobierania ZIP całego run.
 Ściągamy log ukończonego joba; dla niedostępnego/trwającego/expired logu podajemy stan i Retry,
 bez obietnicy live tail. Nowy attempt nie dopisuje się do starego snapshotu.
+Odpowiedź jobs zachowuje również numer, nazwę i stan każdego kroku z `steps[]`.
+Widoczny Summary doczytuje bieżące strony jobs dla powiązanych workflowów, aby policzyć
+postęp kroków bez rozwijania każdego checka; odświeżenie trwa co 15 s podczas pracy.
 
 Signed URL pozostaje w gatewayu, jest traktowany jak sekret i nie trafia do DTO, logów ani modeli.
 Do GitHub API idzie token, do zweryfikowanego HTTPS storage wskazanego przez GitHub — żadne
@@ -967,10 +972,15 @@ Szczegóły geometrii i lifecycle: [UI API](ui-api.md#moduły-workspaceu-wątku)
    Kopiowanie nie uruchamia komendy ani nie zmienia lokalnej gałęzi. Długi tytuł ma dwie linie;
    po przewinięciu nagłówek jest kompaktowy, ale zachowuje stan i nawigację.
 3. **Summary.** Reviewers, assignees i labels z edycją według praw, opis Markdown, checki i komentarze.
-   Checki pokazują queued/in progress/success/failure/cancelled/skipped/neutral/timed out,
+   Summary pokazuje procent ukończonych checków i kroków workflow; checki pokazują
+   queued/in progress/success/failure/cancelled/skipped/neutral/timed out,
    nazwę wykonawcy, SHA i link. Brak checków/niepełny odczyt nie jest „All checks passed”.
-   Wynik zbiorczy dotyczy wykonanych checków, nie gwarantuje spełnienia branch protection.
-   Wiersz checka rozwija jobs i logi; ikonowe akcje checka/run/joba mają tooltipy.
+   Przy podsumowaniu są krótkie wartości ukończenia checków i kroków jobów jako
+   „wykonane / razem · procent”. Kroki obejmują także „Set up job” i „Complete job”;
+   wynik 100% oznacza zakończenie, nie powodzenie, więc tekst podsumowania nadal pokazuje
+   awarie. Przy nieznanej liczbie checków lub pustej kolejce jobów interfejs pomija
+   niedostępną wartość. Wiersz checka rozwija jobs i logi, a job pokazuje własny licznik
+   kroków; ikonowe akcje checka/run/joba mają tooltipy.
 4. **Timeline.** Zdarzenia, commity, komentarze i reviews od najnowszych. Rozwinięcie review
    doczytuje dyskusje i odpowiedzi; zachowuje identyfikatory, autorów, permalink i oznaczenie
    outdated/resolved. Paginacja nie przesuwa właśnie czytanego zdarzenia.
@@ -1145,7 +1155,7 @@ wybór zakresu zachowuje kotwicę przy przejściu między stronami.
 | Viewed | Checkbox przy pliku zapisuje na GitHub; optymistyczny stan/rollback, `DISMISSED` i blokada offline identyczne jak §7; zmiana AppState/fokusu rewaliduje stronę |
 | Create i lifecycle | **Create pull request** pod Branch; pełnoekranowy formularz base/head/konto/draft z **Draft with agent**, edycją propozycji i osobnym Create. Nagłówek i arkusz overflow mają ready/draft, update branch, close/reopen, merge/squash/rebase i auto-merge on/off; dialog merge pokazuje metodę/SHA i blokady, close/update/enable auto-merge wymagają takich samych potwierdzeń jak web |
 | Metadane | **Edit title and description** otwiera edytor z preview; reviewers (users/teams), request/re-request, assignees i labels mają arkusze wyszukiwania z Apply. Podpowiedzi/slug zespołu i ostrzeżenie o powiadomieniu działają bez desktopowego hover |
-| CI | Check rozwija stronicowane jobs; **View logs** otwiera wirtualną listę tekstu z następnymi stronami i stanem truncated/unavailable. Ikonowe akcje run/joba oraz nagłówka logu: re-run failed/all/job i cancel; run/attempt/SHA, informacja o skutkach i potwierdzenie cancel pozostają w arkuszu. Długie przytrzymanie podaje etykietę; dotknięcie wyłączonej akcji podaje powód |
+| CI | Podsumowanie pokazuje procent ukończonych checków i kroków workflow; check rozwija stronicowane jobs, a job pokazuje licznik kroków. **View logs** otwiera wirtualną listę tekstu z następnymi stronami i stanem truncated/unavailable. Ikonowe akcje run/joba oraz nagłówka logu: re-run failed/all/job i cancel; run/attempt/SHA, informacja o skutkach i potwierdzenie cancel pozostają w arkuszu. Długie przytrzymanie podaje etykietę; dotknięcie wyłączonej akcji podaje powód |
 
 Żadna mutacja nie jest przypisana wyłącznie do hover, prawego przycisku ani przeciągania.
 Bottom sheet respektuje safe area i klawiaturę; potwierdzenie destrukcyjnej akcji jest osobnym

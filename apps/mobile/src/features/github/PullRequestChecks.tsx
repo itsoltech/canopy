@@ -10,6 +10,7 @@ import { usePages } from "./usePages";
 import { PageStatus } from "./PageStatus";
 import { PullRequestCheckRow } from "./PullRequestCheckRow";
 import { CiActions } from "./CiActions";
+import { PullRequestProgress } from "./PullRequestProgress";
 
 export function PullRequestChecks({ snapshot }: { snapshot: github.PullRequestSnapshot }) {
   const { client } = useSession();
@@ -33,6 +34,7 @@ export function PullRequestChecks({ snapshot }: { snapshot: github.PullRequestSn
 
   const checks = sortedChecks(pages.pages.length ? pages.pages.flatMap((p) => p.checks) : snapshot.checks);
   const runs = [...new Set(checks.map((check) => check.runId).filter(Boolean))];
+  const checksComplete = snapshot.completeness === "complete" && !pages.current?.page?.nextCursor;
 
   async function more() {
     if (visible < checks.length) setVisible(checks.length);
@@ -55,6 +57,7 @@ export function PullRequestChecks({ snapshot }: { snapshot: github.PullRequestSn
         </Text>
         <Text style={[type.meta, { color: c.muted }]}>on {headSha.slice(0, 7)}</Text>
       </View>
+      <PullRequestProgress snapshot={snapshot} checks={checks} runs={runs} checksComplete={checksComplete} />
       {checks.slice(0, visible).map((check) => (
         <PullRequestCheckRow
           key={check.nodeId || `${check.runId}:${check.provider}:${check.name}`}

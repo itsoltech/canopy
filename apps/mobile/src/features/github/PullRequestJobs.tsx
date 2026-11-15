@@ -1,6 +1,6 @@
 import { useCallback, useState, useRef } from "react";
 import { Text, View } from "react-native";
-import { checkLook } from "@canopy/domain/github-pr";
+import { checkLook, jobStepsProgress } from "@canopy/domain/github-pr";
 import { useSession } from "../../state/session";
 import { useColors, useTypography } from "../../ui/theme";
 import { Button } from "../../ui/components";
@@ -54,6 +54,8 @@ export function PullRequestJobs({ snapshot, runId }: { snapshot: github.PullRequ
       )}
       {pages.current?.jobs.map((job) => {
         const look = checkLook(job.state);
+        const stepProgress = jobStepsProgress([job]);
+        const stepPercent = stepProgress ? Math.round((stepProgress.done / stepProgress.total) * 100) : undefined;
 
         const quote = prCheckFailed(job.state)
           ? prCitation(snapshot, "job", job.id, `${job.name}: ${job.state}`, { url: job.url })
@@ -65,6 +67,11 @@ export function PullRequestJobs({ snapshot, runId }: { snapshot: github.PullRequ
             <Text numberOfLines={2} style={[type.small, { flex: 1, color: c.text }]}>
               {job.name}
             </Text>
+            {stepProgress && (
+              <Text style={[type.meta, { color: c.muted, fontVariant: ["tabular-nums"] }]}>
+                {stepProgress.done}/{stepProgress.total} · {stepPercent}%
+              </Text>
+            )}
             <CiActions
               snapshot={snapshot}
               runId={runId}
