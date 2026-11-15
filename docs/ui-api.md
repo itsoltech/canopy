@@ -5,6 +5,7 @@ lokalne obrazy w podglądzie plików, interaktywny Preview wątku i automatyczny
 Preview pod podsumowaniem, opcjonalna retencja archiwum oraz poprawione narożniki,
 typografia i ikony stosu paneli nad composerem są zaimplementowane.
 Na `dev` zwijanie composera steruje wyłącznie skończonymi przejściami CSS.
+Settings → Devices grupuje revokowane urządzenia w domyślnie zwiniętej sekcji.
 BFF materializuje overview, indeks wątków i ustawienia ze wspólnego strumienia gRPC,
 aktualizuje wczytane odczyty oraz dogrzewa ogony historii bez cyklicznych HTTP renderera.
 Opis dotyczy kodu, nie wdrożenia; dostępność kanałów według [release.md](release.md).
@@ -558,6 +559,8 @@ przeglądarka nadal komunikuje się wyłącznie z BFF. Telefon nigdy nie otrzymu
 
 Settings → Devices tworzy 10-minutowy kod/QR, listuje urządzenia i odwołuje
 zaproszenia/tokeny przez BFF `/api/mobile-devices` i `/api/mobile-devices/:id`.
+Aktywne urządzenia są widoczne od razu; revokowane rekordy pozostają w domyślnie
+zwiniętej sekcji `Revoked devices`.
 RPC administracyjne to `GetMobileDevices`, `CreateMobilePairing`, `RevokeMobilePairing`
 i `RevokeMobileDevice`; są dostępne z service tokenem lub odwoływalnym poświadczeniem
 sparowanego telefonu albo desktopu. Publiczne

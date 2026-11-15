@@ -15,6 +15,8 @@
   import NetworkAccessSummary from "#lib/features/network/NetworkAccessSummary.svelte";
   import { useNetworkAccess } from "#lib/features/network/network-access.svelte.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
+  import Badge from "#lib/shared/ui/Badge.svelte";
+  import Disclosure from "#lib/shared/ui/Disclosure.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
   import { useConnectionRequest } from "#lib/features/network/connection-request.svelte.ts";
@@ -28,6 +30,8 @@
   );
 
   const setup = $derived(request.data);
+  const activeDevices = $derived(setup.devices.filter((device) => !device.revokedAt));
+  const revokedDevices = $derived(setup.devices.filter((device) => Boolean(device.revokedAt)));
   let invitation = $state<ui.CreateMobilePairingResponse>();
   let open = $state(false);
   let qr = $state("");
@@ -201,35 +205,54 @@
     })}
 />
 <SettingsGroup title="Paired devices">
-  {#each setup.devices as device (device.id)}
+  {#each activeDevices as device (device.id)}
     <SettingsRow
       title={device.name}
-      description={`${device.clientKind === "desktop" ? "Desktop app · " : ""}${device.platform} · ${device.pairingVersion < 2 ? "Pair again to use this computer's secure network connection." : device.revokedAt ? "Revoked" : device.lastSeenAt ? `Last seen ${formatDateTime(device.lastSeenAt)}` : "Not connected yet"}`}
+      description={`${device.clientKind === "desktop" ? "Desktop app · " : ""}${device.platform} · ${device.pairingVersion < 2 ? "Pair again to use this computer's secure network connection." : device.lastSeenAt ? `Last seen ${formatDateTime(device.lastSeenAt)}` : "Not connected yet"}`}
     >
       {#snippet control()}{#if device.pairingVersion < 2}<Button
             size="sm"
             disabled={busy}
             onclick={() => void pair(device.clientKind === "desktop" ? "desktop" : "mobile")}>Pair again</Button
           >
-        {:else if !device.revokedAt}<Button
-            size="sm"
-            variant="ghost"
-            disabled={busy}
-            onclick={() => void revoke(device.id, "device")}>Revoke access</Button
+        {:else}<Button size="sm" variant="ghost" disabled={busy} onclick={() => void revoke(device.id, "device")}
+            >Revoke access</Button
           >{/if}{/snippet}
     </SettingsRow>
   {:else}<SettingsRow
-      title={request.loaded
-        ? "No devices paired yet"
-        : request.error
-          ? "Paired devices unavailable"
-          : "Loading devices…"}
-      description={request.loaded
-        ? "Pair a phone or desktop app. Revoke its access here at any time."
-        : request.error
-          ? "Retry the paired devices request above."
-          : undefined}
+      title={request.loaded && revokedDevices.length
+        ? "No active devices"
+        : request.loaded
+          ? "No devices paired yet"
+          : request.error
+            ? "Paired devices unavailable"
+            : "Loading devices…"}
+      description={request.loaded && revokedDevices.length
+        ? "Pair a phone or desktop app to connect it to Canopy."
+        : request.loaded
+          ? "Pair a phone or desktop app. Revoke its access here at any time."
+          : request.error
+            ? "Retry the paired devices request above."
+            : undefined}
     />{/each}
+  {#if revokedDevices.length}
+    <Disclosure summaryClass="px-4 py-3.5 text-base/6 sm:text-sm/6">
+      {#snippet summary()}
+        <span class="flex min-w-0 items-center gap-2">
+          <span>Revoked devices</span>
+          <Badge compact>{revokedDevices.length}</Badge>
+        </span>
+      {/snippet}
+      <div class="divide-y divide-zinc-950/5 dark:divide-white/8">
+        {#each revokedDevices as device (device.id)}
+          <SettingsRow
+            title={device.name}
+            description={`${device.clientKind === "desktop" ? "Desktop app · " : ""}${device.platform} · Revoked`}
+          />
+        {/each}
+      </div>
+    </Disclosure>
+  {/if}
 </SettingsGroup>
 {#if pending.length}
   <SettingsGroup title="Pending pairing codes">
