@@ -421,6 +421,12 @@ plan ─┬─ checks ───────────────────�
 | `stop-builds` | `gh run cancel` własnego przebiegu | checki czerwone albo `release` bez wydania/anulowany | — |
 | `nightly-hygiene`, `backmerge` | jak wcześniej | po `publish-desktop`; brak wydania pomija oba | — |
 
+**Dobór portu smoke: zaimplementowany w workflow dla wszystkich kanałów.** Test samodzielnego
+`canopy-gateway web` prosi system o wolny port na `127.0.0.1` przez tymczasowy listener Node
+na porcie `0`, odczytuje przydzielony numer i zamyka listener przed startem binarki. Ten sam
+numer trafia do `CANOPY_WEB_PORT` i sondy `/api/health`, która nadal wymaga wersji z `plan`.
+Konfiguracja pochodzi z rewizji workflow; nie wymaga wydania nowej wersji aplikacji.
+
 **Nic nie jest publikowane przed zielonymi testami.** Równolegle z `checks` powstają wyłącznie artefakty
 Actions i cache buildx (prywatne dla repozytorium). Tag, GitHub Release, obraz w GHCR, assety
 release i aliasy obrazów zależą od `release`, a ten od `checks`. Dry run nie tworzy tagu ani notes;
