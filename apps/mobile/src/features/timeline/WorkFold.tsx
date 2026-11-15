@@ -15,6 +15,8 @@ import { ItemStatusIcon } from "./ItemStatusIcon";
 import { activityHeader } from "./activity-header";
 import { useLiveTime } from "../../ui/time";
 import { useViewportVisibility } from "../../ui/viewport";
+import { useSettled } from "../../ui/useSettled";
+import { WORK_HINT_SETTLE_MS } from "@canopy/domain/work-summary";
 
 export type { WorkSummary } from "./turn-plan";
 
@@ -74,7 +76,8 @@ export function WorkFold({
 
   const title = `${label}${!starting && span !== undefined ? ` ${formatSpan(span)}` : ""}`;
   const empty = !summary.live && summary.size === 0;
-  const detail = summary.live && !starting ? summary.hint : summary.counts;
+  const hint = useSettled(summary.hint, WORK_HINT_SETTLE_MS);
+  const detail = summary.live && !starting ? hint : summary.counts;
 
   const content = (
     <View style={[styles.row, { flex: 1, minWidth: 0, alignItems: "flex-start" }]}>
