@@ -2,8 +2,7 @@
   import type { Snippet } from "svelte";
   import { tick, untrack } from "svelte";
   import { whenIdle } from "../../idle.ts";
-  import Button from "../Button.svelte";
-  import { rise } from "../motion.ts";
+  import FeedFooterActions from "./FeedFooterActions.svelte";
   import { UiMemory } from "../memory.ts";
   import { captureAnchor, holdAnchor, readingKeys, settleAnchor, type FeedAnchor } from "./feed-anchor.ts";
   import { followScroll } from "./feed-anchor.ts";
@@ -55,6 +54,7 @@
     placeholder,
     row,
     footer,
+    footerAccessory,
     footerFit = { fold: "open", margin: 0 },
     inserted,
     atEnd = $bindable(true),
@@ -80,6 +80,8 @@
     placeholder?: Snippet;
     row: Snippet<[T, number]>;
     footer?: Snippet;
+    /** A status control above the footer's visible edge, beside Jump to latest when both fit. */
+    footerAccessory?: Snippet;
     /** How the footer's height relates to its full height (only full-height changes move the end reserve),
      * and the end space above the full footer that absorbs one more strip without moving rows, in px. */
     footerFit?: { fold: FooterFold; margin: number };
@@ -593,9 +595,7 @@
     identifyAnchor();
   }
 
-  function onkeydown(event: KeyboardEvent) {
-    navigateFeedKey(event, footerElement, scroller, positions, focusRow);
-  }
+  const onkeydown = (event: KeyboardEvent) => navigateFeedKey(event, footerElement, scroller, positions, focusRow);
 </script>
 
 <div class="relative h-full">
@@ -724,17 +724,11 @@
           class="absolute inset-x-0 bottom-0 -z-10 h-(--feed-edge) bg-surface before:absolute before:inset-x-0 before:bottom-full before:h-(--feed-fade) before:bg-linear-to-t before:from-surface before:to-transparent"
           aria-hidden="true"
         ></div>
-        {#if !stuck && extent.overflows && !extent.endVisible}
-          <!-- Centred on the composer's axis (the shared chat column), just above its visible edge. -->
-          <div
-            class="chat-column pointer-events-none absolute inset-x-0 bottom-[calc(var(--feed-edge)+--spacing(2))] z-10 flex justify-center px-4 sm:px-6"
-            transition:rise
-          >
-            <span class="pointer-events-auto flex rounded-md bg-surface shadow-md ring-1 ring-divider">
-              <Button size="sm" icon="arrow-down" onclick={jump}>Jump to latest</Button>
-            </span>
-          </div>
-        {/if}
+        <FeedFooterActions
+          accessory={footerAccessory}
+          showJump={!stuck && extent.overflows && !extent.endVisible}
+          onjump={jump}
+        />
       </div>
     </div>
   </div>
