@@ -39,6 +39,17 @@ const reason = (call: AgentBusCall, f: BusFacts) => {
   return d.allowed ? "allowed" : d.reason;
 };
 
+test("linking a PR stays local at the hop limit and refuses archived threads", () => {
+  const call: AgentBusCall = { tool: "link_pull_request", args: { pull_request: "owner/repo#123" } };
+
+  for (const caller of [root, a]) {
+    expect(authorizeBusCall(call, facts(caller, { callerHops: DEFAULT_BUS_LIMITS.maxHops }))).toEqual({
+      allowed: true,
+    });
+    expect(reason(call, facts({ ...caller, archived: true }))).toBe("this thread is archived");
+  }
+});
+
 describe("subagent permissions", () => {
   const spawn = (permission_mode?: "read_only" | "ask" | "accept_edits" | "full_auto"): AgentBusCall => ({
     tool: "spawn_thread",

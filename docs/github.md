@@ -2,7 +2,8 @@
 
 Status: **v1 wdrożone** (2026-11-15): konta GitHub App i jawny fallback PAT, powiązania PR,
 pełny odczyt, komentarze i review, lifecycle, metadane, sterowanie GitHub Actions
-oraz postęp checków i kroków workflow.
+oraz postęp checków i kroków workflow. Zaimplementowane jest też jawne lokalne
+linkowanie PR przez agenta (`link_pull_request`) jako fallback automatycznej detekcji.
 Podstawowy zakres jest dostępny w web/desktop/mobile. Dodatkowe oznaczenia checków
 w kartach PR i sidebarze oraz podgląd PR w hover card opisane w §7 dotyczą interfejsu web.
 Web/desktop renderuje bezpieczny HTML w Markdown (2026-11-15); na `dev` obsługiwany jest
@@ -10,7 +11,8 @@ też parametr wersji `u` w adresach awatarów GitHub oraz reaktywny cache list P
 w pamięci BFF. Dostępność według
 promocji kanałów w [release.md](release.md).
 Tokeny użytkownika pozostają w domu wątku; integracja produktu nie nadaje agentom
-praw do mutacji GitHub. `watch_pr_checks` udostępnia wyłącznie obserwację checków (§10).
+praw do mutacji GitHub. `link_pull_request` zmienia tylko lokalne powiązanie z wątkiem,
+a `watch_pr_checks` udostępnia wyłącznie obserwację checków (§10).
 
 ## 1. Wynik i zakres
 
@@ -28,7 +30,7 @@ otwarcia wątku, zapisu zdarzeń, ACK workera ani startu tury.
 | Review | Komentarze ogólne i odpowiedzi, inline i zakresy linii w unified/split, pending review, Comment/Approve/Request changes, resolve/unresolve, edycja/usuwanie własnych komentarzy, Viewed z GitHub | Dismiss cudzych reviews, automatyczne publikowanie uwag agenta |
 | Cykl PR | Create z gałęzi wątku i szkicem agenta do zatwierdzenia, ready/draft, merge/squash/rebase, auto-merge on/off, update branch, close/reopen | Revert, automatyczne usuwanie gałęzi, zarządzanie całym stosem PR jedną akcją |
 | Metadane i CI | Tytuł/opis, request/re-request reviewerów i zespołów, assignees, labels; re-run failed/jobs/run, cancel run, logi checków/jobs | Edycja workflow, sekretów i ustawień repo, uruchamianie dowolnego workflow |
-| Praca agenta | Ask a question, Explain this PR, Fix findings in this thread oraz szkic tytułu/opisu Create PR; użytkownik zatwierdza treść i osobno publikuje. Odczyt stanu checków podlinkowanych PR przez `watch_pr_checks` ([agent-bus.md](agent-bus.md#checki-ci)) | Wywoływanie mutacji nowej integracji przez agentów/boty; wymaga osobnego projektu jawnych zgód |
+| Praca agenta | Ask a question, Explain this PR, Fix findings in this thread oraz szkic tytułu/opisu Create PR; użytkownik zatwierdza treść i osobno publikuje. Agent może też lokalnie podlinkować PR bieżącego repo przez `link_pull_request` jako fallback po `gh pr create`, a następnie odczytywać checki przez `watch_pr_checks` ([agent-bus.md](agent-bus.md#checki-ci)) | Wywoływanie mutacji GitHub nowej integracji przez agentów/boty; wymaga osobnego projektu jawnych zgód |
 
 Nie tworzymy klienta git, nowego systemu zgód, własnego hostingu diffów ani mechanizmu
 aktualizacji. Każda mutacja jest jawną akcją użytkownika, bez ukrytych zapisów przy auth,
@@ -556,7 +558,7 @@ Sam UUID, GitHub node ID, repo ID lub URL nigdy nie jest uprawnieniem do odczytu
 | `github_accounts` | UUID, owner, host, GitHub user ID/login, nazwa, dom, auth kind, status, access revision; zaszyfrowana para tokenów albo FK do własnego PAT connectora, nigdy oba |
 | `github_installations`, `github_installation_repositories` | Owner + account + installation ID; właściciel instalacji, permissions, selected/all, suspended, repo ID i kanoniczna nazwa, czas weryfikacji. Wiersze instalacji powtarzają się per autoryzowany użytkownik |
 | `github_repository_accounts` | Owner + repo ID → zapamiętane konto i rewizja; automatyczny wybór według indeksu instalacji, opcjonalna zmiana przy kilku dopasowaniach |
-| `github_pull_requests`, `thread_pull_requests` | Kanoniczny PR: owner + host + repository ID + number/node ID. Relacja many-to-many: owner + thread + PR, `source=auto/manual`, evidence=branch/tool_output/product_create, branch/repo/SHA w chwili powiązania, created/last_seen, `unlinked_at` |
+| `github_pull_requests`, `thread_pull_requests` | Kanoniczny PR: owner + host + repository ID + number/node ID. Relacja many-to-many: owner + thread + PR, `source=auto/manual`, evidence=branch/tool_output/product_create/agent_tool, branch/repo/SHA w chwili powiązania, created/last_seen, `unlinked_at` |
 | `github_pr_cache` | Cache izolowany account/access revision; nagłówek, ETag, SHA, fetched/verified, completeness, strony timeline/review/files i podsumowania CI. `viewerViewedState` jest polem cache strony GraphQL plików, nie osobną tabelą stanu Canopy |
 | `github_mutation_receipts` | Owner/dom/account + request ID, akcja, fingerprint, oczekiwane SHA/rewizje, potwierdzenie użytkownika, stan, upstream ID/wynik i czasy. Dotyczy wszystkich mutacji; bez tokenów i surowego body |
 
@@ -654,11 +656,19 @@ URL jest **niezaufaną wskazówką**: tylko dokładny host `github.com`, ścież
 własnym klientem, sprawdza owner i zgodność repo/head z zapisanym kontekstem tury.
 Obcy PR pokazuje jako sugestię; wynik narzędzia może cytować cudzy link.
 Rejestracja jest `source=auto`, evidence=`tool_output`, i respektuje unlink.
-Opcjonalne przyszłe narzędzie jawnego linkowania korzysta z tego samego handlera i zgód.
 Dowodem jest ostatni zapisany snapshot checkoutu sprzed zakończenia narzędzia
 (czas ograniczamy również czasem zapisu eventu w gatewayu). Brak takiego snapshotu daje
 komunikat z propozycją ręcznego Link, zamiast użycia kontekstu odczytanego dopiero po wyniku.
 Analizę ograniczamy do 64 KiB już w projekcji SQL; watermark i dzierżawa przetrwają restart.
+
+Awaryjne lokalne powiązanie przez `link_pull_request` zapisuje `source=auto`, `evidence=agent_tool` oraz audyt
+`github.agent_link`, nie zmienia GitHub i również
+respektuje tombstone po unlinku; ponowienie aktywnego linku jest idempotentne.
+Gateway sprawdza repozytorium bazowe lub źródłowe PR względem origin workspace’u i remotes
+`origin`, `upstream`, push oraz upstream z ostatniego zapisanego kontekstu Git wątku.
+Nie wymaga zgodnego head ref/SHA, więc obsługuje stosy i PR z forka do upstreamu.
+Brak znanego repo lub obcy PR daje odmowę z podpowiedzią Link w panelu Pull requests.
+Konflikt rewizji po równoległej detekcji lub akcji UI ponawia odczyt i zapis raz.
 
 Canopy nie ustawia `GH_TOKEN`, credential helpera ani loginu `gh` na workerze.
 `gh` używa własnej autoryzacji urządzenia, jeśli użytkownik już ją skonfigurował;
@@ -1201,11 +1211,13 @@ na inny origin. Link checka do zewnętrznego CI jest zwykłą nawigacją po jawn
 nigdy żądaniem gatewaya z tokenem. Plik kontekstu może zawierać prywatny kod: dodaje go
 użytkownik, widzi zakres przed Send, a dalsze przekazanie do providera podlega zasadom wątku.
 
-Mutacje nowej integracji przyjmują wyłącznie uwierzytelnione żądania UI użytkownika przez
+Mutacje GitHub nowej integracji przyjmują wyłącznie uwierzytelnione żądania UI użytkownika przez
 obecny BFF/Connect/routing domu; credential workera, AgentToolCall i bot nie są uprawnionymi
-aktorami tych RPC. Pole `actor=user` w body nie jest dowodem. v1 **nie** wprowadza zgody,
-która pozwalałaby agentowi wykonać te mutacje; taki most wymaga osobnego przyszłego projektu.
-Dotyczy to również szkicu Create PR, trybu full auto i kontekstu Fix findings.
+aktorami tych RPC. Pole `actor=user` w body nie jest dowodem. v1 nie wprowadza zgody na wykonanie
+tych mutacji przez agenta, także przy szkicu Create PR, full auto i kontekście Fix findings.
+`link_pull_request` wykonuje odrębną lokalną operację: wiąże PR z repozytorium znanym workspace’owi
+lub zapisanemu kontekstowi Git wątku (§5). Nie wykonuje mutacji GitHub, nie udostępnia tokenu
+i nie odwraca unlinku użytkownika.
 
 `PreparePullRequestMutation` zapisuje krótko ważne (60 s), jednorazowe potwierdzenie dla
 merge, close, cancel run, enable auto-merge, update branch i usunięcia komentarza/pending review.
@@ -1236,6 +1248,7 @@ Testy obejmują również echo tokenu w odpowiedzi serwera i redakcję przed cac
 | --- | --- |
 | GitHub MCP dla agentów | Pozostaje obecny PAT/OAuth i granty `connector_worker_grants`/`connector_bot_grants`. Połączenie GitHub App służy API produktu; nie przypisujemy jego tokenu do MCP ani nie dodajemy narzędzi mutacji agentowi. Most AgentToolCall do nowych mutacji jest poza v1 i wymaga osobnego projektu jawnych zgód; dotychczasowe uprawnienia konektora nie są zgodą na nowe konto |
 | Watche checków CI | Narzędzie szyny `watch_pr_checks` ([agent-bus.md](agent-bus.md#checki-ci)) udostępnia agentowi stan checków, który Canopy i tak odczytuje dla panelu PR: tylko PR podlinkowane do wątku wywołującego. Agent otrzymuje projekcję checków i nie wywołuje mutacji GitHub; token nie opuszcza gatewaya, a notatka zawiera nazwy, stany, dostawców, URL i `run_id` checków, bez logów i outputu. Odczyty idą kontem przypisanym do repozytorium w domu wątku, przez wspólnego producenta widocznego PR (te same terminy, ETagi, budżety i single-flight), bez nowego pollera. Boty nie mają tego narzędzia |
+| Linkowanie PR z agenta | `link_pull_request` ([agent-bus.md](agent-bus.md#checki-ci)) jest lokalnym fallbackiem dla automatycznego wykrywania wyniku `gh pr create`: sprawdza repozytorium bazowe lub źródłowe PR względem workspace’u i zapisanego kontekstu Git wątku (§5), zapisuje relację owner-scoped z `evidence=agent_tool`, respektuje unlink i nie wykonuje zapisu do GitHub. Boty nie mają tego narzędzia |
 | `apps/gateway/src/connectors/merged-pr.ts` | To dziś dodatkowy dowód merge do cleanup przez stałe read-only narzędzia MCP, z weryfikacją branch/ref/head SHA/base repo i grantów workera. Nowy klient może dostarczyć równoważny świeży dowód tylko przy takim samym ograniczeniu konta; brak zgody/niepełny cache nie zezwala na cleanup. Niezależny git fallback i ochrona zmian lokalnych zostają |
 | Worktrees i Branch | Źródłem gałęzi pozostaje `GitHeads` i istniejący `ThreadBranches`/SwitchThreadBranch. Widok/create PR nie zmienia cwd, worktree ani branch. Merge/update branch zmieniają refy na GitHub, bez git push/fetch/reset lokalnego checkoutu; UI wskazuje rozbieżność po zwykłym odczycie git. Kopia checkout nie wykonuje git; branch switch dalej wymaga braku aktywności i czystego checkoutu |
 | Boty | Mogą nadal czytać/tworzyć PR przez przyznany GitHub MCP i istniejącą politykę safe/always/full_auto. Nowe konto produktu nie daje grantu, nowego narzędzia ani dostępu do podglądu dowolnego właściciela. v1 nie dodaje panelu PR botowi ani ukrytego kontekstu do jego rutyn; użytkownik może przekazać jawny załącznik jak dotychczas |

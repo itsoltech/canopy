@@ -97,6 +97,12 @@ const LOOKS = new Map<string, Look>(
       tried: "watch CI checks",
       icon: "eye",
     },
+    link_pull_request: {
+      doing: "Linking a pull request",
+      done: "Linked a pull request",
+      tried: "link a pull request",
+      icon: "link",
+    },
     list_pr_watches: {
       doing: "Listing CI check watches",
       done: "Listed CI check watches",
@@ -144,6 +150,9 @@ export function busLook(
   // Every check had already passed: no watch started.
   if (tool === "watch_pr_checks" && !running && result["watching"] === false)
     return { title: "Checked CI checks", icon: look.icon };
+
+  if (tool === "link_pull_request" && !running && result["already_linked"] === true)
+    return { title: "Pull request already linked", icon: look.icon };
 
   if (tool === "list_threads" && str(args["scope"]) === "tree")
     return { title: running ? "Listing the thread tree" : "Listed the thread tree", icon: look.icon };

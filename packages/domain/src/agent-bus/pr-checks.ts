@@ -30,6 +30,13 @@ export const WatchPrChecks = Schema.Struct({
   ),
 });
 
+export const LinkPullRequest = Schema.Struct({
+  pull_request: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(300)).annotate({
+    description:
+      "A pull request to link to this thread: its URL (https://github.com/owner/repo/pull/123) or owner/repo#123.",
+  }),
+});
+
 export const ListPrWatches = Schema.Struct({});
 
 export const CancelPrWatch = Schema.Struct({
@@ -39,11 +46,22 @@ export const CancelPrWatch = Schema.Struct({
 });
 
 export const PR_CHECK_TOOLS = {
+  link_pull_request: {
+    name: "link_pull_request",
+    description:
+      "Link a GitHub pull request to this thread so watch_pr_checks can observe it. Use its URL from gh pr create " +
+      "or owner/repo#123. Its base or head repository must match this thread's workspace or recorded Git remotes. This only changes " +
+      "the Canopy thread link; it does not modify GitHub. If the user deliberately unlinked it, ask them to link " +
+      "it in the thread's Pull requests panel instead. Safe to repeat when it is already linked.",
+    args: LinkPullRequest,
+    mutates: true,
+  },
   watch_pr_checks: {
     name: "watch_pr_checks",
     description:
       "Watch the CI checks of a pull request linked to this thread and get a message here when they fail or finish, " +
-      "instead of polling or sleeping. A pull request you open with gh pr create is linked automatically. Uses the " +
+      "instead of polling or sleeping. A pull request you open with gh pr create is linked automatically; if that " +
+      "does not happen, link it with link_pull_request first. Uses the " +
       "user's GitHub account in Canopy. Follows new commits pushed to the pull request; ends when every check passes, " +
       "the pull request is merged or closed, or after timeout_minutes. Messages name the failed checks with their " +
       "run ids (read a log with gh run view <run_id> --log-failed). Returns at once with watch_id and the current state.",

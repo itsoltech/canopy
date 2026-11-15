@@ -5,14 +5,16 @@
  * watch. Cancelling, replacing and a merged pull request end watches.
  */
 import { describe, expect, test } from "bun:test";
+import { create } from "@bufbuild/protobuf";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import type { AgentToolResult, ui } from "@canopy/contracts";
+import { GitPrContextSchema, type AgentToolResult, type ui } from "@canopy/contracts";
 import type { JsonObject } from "@canopy/domain";
 import { dockerAvailable } from "@canopy/db/testing";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { eventually, startTestGateway, watchUntil, type TestGateway } from "./support/gateway.ts";
 import { pollingFixture } from "./support/github-polling.ts";
+import { connectGitHub, githubPrData, githubPrFixture, githubThread } from "./support/github-pr.ts";
 import { linkedRead } from "./support/github-read.ts";
 
 const json = (result: AgentToolResult) => JSON.parse(result.content) as JsonObject;
@@ -193,6 +195,225 @@ describe.skipIf(!dockerAvailable)("CI check watches (gateway + scripted worker +
 
       expect(merged?.text).toContain("The pull request was merged, so the watch ended.");
       expect(merged?.text).toContain(`This watch is over (watch_id ${second})`);
+    } finally {
+      await gw.close();
+      fixture.close();
+    }
+  }, 90_000);
+
+  test("link_pull_request links and watches beyond the first page and respects unlink", async () => {
+    const fixture = pollingFixture();
+    const gw = await startTestGateway({ github: fixture.options });
+
+    try {
+      const account = await connectGitHub(gw, fixture);
+      const thread = await githubThread(gw);
+      await gw.api.setGitHubRepositoryAccount({ repositoryName: "itsoltech/canopy", accountId: account });
+      await gw.runtime.runPromise(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+
+          yield* sql`UPDATE project_workspaces SET git_origin='github.com/itsoltech/canopy'
+            WHERE id=(SELECT workspace_id FROM threads WHERE id=${thread}::uuid)`;
+        }),
+      );
+      await eventually(
+        () => gw.api.getThread({ threadId: thread }),
+        (r) => r.thread?.status === "idle",
+      );
+
+      // The target is older than a complete page of existing links.
+      fixture.state.updatedAt = "2026-11-01T12:00:00Z";
+
+      for (let number = 1; number <= 21; number++) {
+        const current = await gw.api.listThreadPullRequests({ threadId: thread });
+        await gw.api.linkThreadPullRequest({
+          threadId: thread,
+          url: `https://github.com/itsoltech/canopy/pull/${number}`,
+          expectedRevision: current.revision,
+        });
+      }
+
+      const linked = await gw.worker.callTool({
+        threadId: thread,
+        tool: "link_pull_request",
+        args: { pull_request: "https://github.com/itsoltech/canopy/pull/42" },
+      });
+
+      expect(linked.isError).toBe(false);
+      expect(json(linked)).toMatchObject({
+        pull_request: "itsoltech/canopy#42",
+        linked: true,
+        state: "open",
+      });
+
+      const repeated = await gw.worker.callTool({
+        threadId: thread,
+        tool: "link_pull_request",
+        args: { pull_request: "itsoltech/canopy#42" },
+      });
+
+      expect(json(repeated)).toMatchObject({ already_linked: true, linked: true });
+
+      const firstPage = await gw.api.listThreadPullRequests({ threadId: thread });
+      expect(firstPage.links.some((link) => link.summary?.ref?.number === 42)).toBe(false);
+      const links = await gw.api.listThreadPullRequests({ threadId: thread, offset: firstPage.nextOffset });
+      const target = links.links.find((link) => link.summary?.ref?.number === 42);
+      const pullRequestId = target?.summary?.ref?.id;
+
+      expect(target).toMatchObject({ source: "auto", evidence: "agent_tool" });
+      expect(pullRequestId).toBeTruthy();
+
+      const watched = await gw.worker.callTool({
+        threadId: thread,
+        tool: "watch_pr_checks",
+        args: { pull_request: "itsoltech/canopy#42" },
+      });
+
+      expect(watched.isError).toBe(false);
+      expect(json(watched)).toMatchObject({ watching: true });
+      const beforeUnlink = await gw.api.listThreadPullRequests({ threadId: thread });
+      await gw.api.unlinkThreadPullRequest({
+        threadId: thread,
+        pullRequestId: pullRequestId!,
+        expectedRevision: beforeUnlink.revision,
+      });
+
+      const refused = await gw.worker.callTool({
+        threadId: thread,
+        tool: "link_pull_request",
+        args: { pull_request: "itsoltech/canopy#42" },
+      });
+
+      expect(refused.isError).toBe(true);
+      expect(refused.content).toContain("previously unlinked");
+      expect(refused.content).not.toContain("Settings");
+
+      const audits = await gw.runtime.runPromise(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+
+          return yield* sql`SELECT id FROM audit_log WHERE actor_user_id=${gw.userId}::uuid
+            AND target_id=${pullRequestId!}::uuid AND action='github.agent_link'`;
+        }),
+      );
+
+      expect(audits).toHaveLength(1);
+    } finally {
+      await gw.close();
+      fixture.close();
+    }
+  }, 90_000);
+
+  test("link_pull_request rejects unrelated repositories and allows a fork's upstream PR", async () => {
+    const fixture = githubPrFixture();
+    const gw = await startTestGateway({ github: fixture.options });
+
+    try {
+      const account = await connectGitHub(gw, fixture);
+      const thread = await githubThread(gw);
+      await gw.api.setGitHubRepositoryAccount({ repositoryName: "itsoltech/canopy", accountId: account });
+      await gw.runtime.runPromise(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+
+          yield* sql`UPDATE project_workspaces SET git_origin='github.com/example/unrelated'
+            WHERE id=(SELECT workspace_id FROM threads WHERE id=${thread}::uuid)`;
+        }),
+      );
+      await eventually(
+        () => gw.api.getThread({ threadId: thread }),
+        (r) => r.thread?.status === "idle",
+      );
+
+      const args = { threadId: thread, tool: "link_pull_request", args: { pull_request: "itsoltech/canopy#42" } };
+      const refused = await gw.worker.callTool(args);
+
+      expect(refused.isError).toBe(true);
+      expect(refused.content).toContain("outside this thread's workspace repositories");
+      expect(refused.content).not.toContain("Settings");
+      expect((await gw.api.listThreadPullRequests({ threadId: thread })).links).toHaveLength(0);
+
+      fixture.pullRequest((number, state, draft) => ({
+        ...githubPrData(number, state, draft),
+        headRepository: { databaseId: 888, nameWithOwner: "example/unrelated" },
+      }));
+      // Pause the fresh read so another action changes the link revision before the write.
+      const gate = Promise.withResolvers<void>();
+      fixture.gate(gate.promise);
+      const calls = fixture.calls;
+      const linking = gw.worker.callTool({ ...args, args: { pull_request: "itsoltech/canopy#99" } });
+
+      try {
+        await eventually(
+          async () => fixture.calls,
+          (count) => count > calls,
+        );
+        await gw.runtime.runPromise(
+          Effect.gen(function* () {
+            const sql = yield* SqlClient.SqlClient;
+
+            yield* sql`UPDATE threads SET pull_request_revision=pull_request_revision+1 WHERE id=${thread}::uuid`;
+          }),
+        );
+      } finally {
+        gate.resolve();
+      }
+
+      const fork = await linking;
+
+      expect(fork.isError, fork.content).toBe(false);
+      expect(json(fork)).toMatchObject({ pull_request: "itsoltech/canopy#99", linked: true });
+      expect(fixture.calls).toBeGreaterThan(calls + 1);
+    } finally {
+      await gw.close();
+      fixture.close();
+    }
+  }, 90_000);
+
+  test("link_pull_request needs GitHub access and can use the thread's recorded Git context", async () => {
+    const fixture = pollingFixture();
+    const gw = await startTestGateway({ github: fixture.options });
+
+    try {
+      const thread = await githubThread(gw);
+      await eventually(
+        () => gw.api.getThread({ threadId: thread }),
+        (r) => r.thread?.status === "idle",
+      );
+      const call = { threadId: thread, tool: "link_pull_request", args: { pull_request: "itsoltech/canopy#42" } };
+      const noRepo = await gw.worker.callTool(call);
+
+      expect(noRepo.isError).toBe(true);
+      expect(noRepo.content).toContain("no detected GitHub workspace repository");
+      await gw.core.github.run((s) =>
+        s.detectionSaveContext(
+          gw.userId,
+          thread,
+          create(GitPrContextSchema, {
+            pushRemote: "origin",
+            remotes: [{ name: "origin", pushRepositories: ["github.com/itsoltech/canopy"] }],
+          }),
+        ),
+      );
+      const noAccount = await gw.worker.callTool(call);
+
+      expect(noAccount.isError).toBe(true);
+      expect(noAccount.content).toContain("Settings → GitHub account");
+      const account = await connectGitHub(gw, fixture);
+      await gw.api.setGitHubRepositoryAccount({ repositoryName: "itsoltech/canopy", accountId: account });
+
+      for (const pull_request of ["#42", "https://github.com/itsoltech/canopy/pull/42?x=1"]) {
+        const malformed = await gw.worker.callTool({ ...call, args: { pull_request } });
+
+        expect(malformed.isError).toBe(true);
+        expect(malformed.content).toContain("URL or owner/repo#123");
+      }
+
+      const linked = await gw.worker.callTool(call);
+
+      expect(linked.isError).toBe(false);
+      expect(json(linked)).toMatchObject({ linked: true, pull_request: "itsoltech/canopy#42" });
     } finally {
       await gw.close();
       fixture.close();

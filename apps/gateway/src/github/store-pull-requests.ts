@@ -32,6 +32,12 @@ export interface DetectionEvidence {
   kind: "branch" | "tool_output";
 }
 
+export interface AgentLinkEvidence {
+  kind: "agent_tool";
+}
+
+export type PullRequestLinkEvidence = DetectionEvidence | AgentLinkEvidence;
+
 const conflict = () => new ConnectError("Pull requests changed. Refresh, then retry.", Code.Aborted);
 const missing = () => new ConnectError("Pull request or thread not found", Code.NotFound);
 
@@ -135,8 +141,11 @@ export function githubPullRequests(sql: SqlClient.SqlClient) {
       expected: bigint,
       source: "manual" | "auto" = "manual",
       snapshot?: github.PullRequestSnapshot,
-      evidence?: DetectionEvidence,
+      evidence?: PullRequestLinkEvidence,
     ) => linkPullRequest(sql, owner, id, pr, expected, source, snapshot, evidence),
+    prLinkState: (owner: string, id: string, pr: string) => sql<{ unlinked_at: Date | null }>`
+      SELECT unlinked_at FROM thread_pull_requests
+      WHERE owner_user_id=${owner}::uuid AND thread_id=${id}::uuid AND pull_request_id=${pr}::uuid`,
     prUnlink: (owner: string, id: string, pr: string, expected: bigint) =>
       sql.withTransaction(
         Effect.gen(function* () {
@@ -169,7 +178,7 @@ function linkPullRequest(
   expected: bigint,
   source: "manual" | "auto",
   snapshot?: github.PullRequestSnapshot,
-  evidence?: DetectionEvidence,
+  evidence?: PullRequestLinkEvidence,
 ) {
   const { thread, project } = projectionStore(sql);
 
@@ -179,9 +188,11 @@ function linkPullRequest(
 
       if (BigInt(current.pull_request_revision) !== expected) return yield* Effect.fail(conflict());
 
-      if (evidence) {
+      const detection = evidence?.kind === "agent_tool" ? undefined : evidence;
+
+      if (detection) {
         const valid = yield* sql`SELECT 1 FROM github_detection_jobs WHERE owner_user_id=${owner}::uuid
-          AND thread_id=${id}::uuid AND lease_id=${evidence.lease}::uuid AND lease_until>now()`;
+          AND thread_id=${id}::uuid AND lease_id=${detection.lease}::uuid AND lease_until>now()`;
 
         if (!valid.length) return yield* Effect.fail(conflict());
       }
@@ -197,12 +208,14 @@ function linkPullRequest(
 
       const linked =
         yield* sql`INSERT INTO thread_pull_requests(owner_user_id,thread_id,pull_request_id,source,evidence,head_repository_id,head_ref,head_oid,context_id)
-      VALUES (${owner}::uuid,${id}::uuid,${pr}::uuid,${source},${evidence?.kind ?? (source === "manual" ? "manual" : "branch")},${evidence?.repository ?? ""},${evidence?.ref ?? ""},${evidence?.sha ?? ""},${evidence?.context ?? null}::bigint)
+      VALUES (${owner}::uuid,${id}::uuid,${pr}::uuid,${source},${evidence?.kind ?? (source === "manual" ? "manual" : "branch")},${detection?.repository ?? ""},${detection?.ref ?? ""},${detection?.sha ?? ""},${detection?.context ?? null}::bigint)
       ON CONFLICT(owner_user_id,thread_id,pull_request_id) DO UPDATE SET unlinked_at=NULL,last_seen_at=now(),
         source=CASE WHEN thread_pull_requests.source='manual' THEN 'manual' ELSE excluded.source END
-      WHERE ${source === "manual"} OR thread_pull_requests.unlinked_at IS NULL RETURNING pull_request_id`;
+      WHERE ${source === "manual" && evidence?.kind !== "agent_tool"} OR thread_pull_requests.unlinked_at IS NULL RETURNING pull_request_id`;
 
       if (linked.length) yield* project(owner, id);
+
+      return linked.length > 0;
     }),
   );
 }

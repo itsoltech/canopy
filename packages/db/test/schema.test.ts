@@ -163,6 +163,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "149_proxy_account_plans",
       "150_thread_retention",
       "151_turn_thread_permission_mode",
+      "152_agent_link_pull_request",
     ]);
   }, 60_000);
 

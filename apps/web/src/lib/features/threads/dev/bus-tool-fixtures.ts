@@ -88,8 +88,69 @@ export const busThreadItems = (): Item[] => [
   ),
 ];
 
+/** Pull request linking: short, typical and long references, an existing link and a refusal. */
+const linkPullRequestItems = (): Item[] => [
+  bus(
+    "link-pr-short",
+    "link_pull_request",
+    { pull_request: "a/b#1" },
+    { pull_request: "a/b#1", url: "https://github.com/a/b/pull/1", linked: true, state: "open" },
+  ),
+  bus(
+    "link-pr-typical",
+    "link_pull_request",
+    { pull_request: "https://github.com/itsoltech/canopy/pull/814" },
+    {
+      pull_request: "itsoltech/canopy#814",
+      url: "https://github.com/itsoltech/canopy/pull/814",
+      linked: true,
+      state: "draft",
+      head_ref: "feat/link-pull-request",
+      note: "Pull request linked to the thread.",
+    },
+  ),
+  bus(
+    "link-pr-long",
+    "link_pull_request",
+    {
+      pull_request:
+        "https://github.com/a-very-long-organization-name/a-repository-with-a-very-long-name-for-reviewing-pull-request-reference-wrapping-on-narrow-screens/pull/2147483647",
+    },
+    {
+      pull_request:
+        "a-very-long-organization-name/a-repository-with-a-very-long-name-for-reviewing-pull-request-reference-wrapping-on-narrow-screens#2147483647",
+      linked: true,
+      state: "merged",
+    },
+  ),
+  bus(
+    "link-pr-already-linked",
+    "link_pull_request",
+    { pull_request: "itsoltech/canopy#792" },
+    {
+      pull_request: "itsoltech/canopy#792",
+      url: "https://github.com/itsoltech/canopy/pull/792",
+      linked: true,
+      already_linked: true,
+      state: "closed",
+      note: "This pull request was already linked to the thread.",
+    },
+  ),
+  bus(
+    "link-pr-refused",
+    "link_pull_request",
+    { pull_request: "another-team/canopy#12" },
+    {
+      error:
+        "link_pull_request: This pull request is outside this thread's workspace repositories. Link it from this thread's Pull requests panel.",
+    },
+    { isError: true },
+  ),
+];
+
 /** Agent bus schedules, interactions, interrupts and a refused call. */
 export const busControlItems = (): Item[] => [
+  ...linkPullRequestItems(),
   bus(
     "wakeup",
     "schedule_wakeup",

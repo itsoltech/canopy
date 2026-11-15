@@ -1,4 +1,6 @@
-import type { JsonObject, JsonValue } from "@bufbuild/protobuf";
+import { fromJsonString, type JsonObject, type JsonValue } from "@bufbuild/protobuf";
+import { GitPrContextSchema } from "@canopy/contracts";
+import { Code } from "@connectrpc/connect";
 import {
   checkOutcome,
   DEFAULT_PR_CHECK_EVENTS,
@@ -8,16 +10,21 @@ import {
   type PrCheckEvent,
 } from "@canopy/domain";
 import { matchLinkedPullRequest, readWatchedChecks, type LinkedPullRequest } from "../github/check-watch-read.ts";
+import { githubName } from "../github/discovery.ts";
 import { githubFailure } from "../github/http.ts";
 import type { CallSource, PrCheckWatchRow, ThreadRow } from "../store/index.ts";
 import type { PrCheckWatches } from "./pr-check-watches.ts";
 
 /**
- * The agent's CI watch tools (docs/agent-bus.md, "Checki CI"): watch_pr_checks, list_pr_watches, cancel_pr_watch.
+ * The agent's pull request tools (docs/agent-bus.md, "Checki CI"): link_pull_request, watch_pr_checks,
+ * list_pr_watches, cancel_pr_watch.
  * Scoped to the calling thread and its linked pull requests; reads use the owner's GitHub account in the gateway.
  */
 
-export type PrCheckCall = Extract<AgentBusCall, { tool: "watch_pr_checks" | "list_pr_watches" | "cancel_pr_watch" }>;
+export type PrCheckCall = Extract<
+  AgentBusCall,
+  { tool: "link_pull_request" | "watch_pr_checks" | "list_pr_watches" | "cancel_pr_watch" }
+>;
 
 const MAX_ACTIVE_PER_THREAD = 10;
 const DEFAULT_TIMEOUT_MINUTES = 60;
@@ -36,7 +43,87 @@ const EVENT_WORDS: Record<PrCheckEvent, string> = {
   each: "each check finishes",
 };
 
+const URL_FORM = /^https:\/\/github\.com\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\/pull\/([1-9][0-9]{0,9})\/?$/i;
+const SHORT_FORM = /^([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)#([1-9][0-9]{0,9})$/;
+
 export const pullRequestUrl = (repository: string, number: number) => `https://github.com/${repository}/pull/${number}`;
+
+function linkReference(value: string) {
+  const match = URL_FORM.exec(value.trim()) ?? SHORT_FORM.exec(value.trim());
+
+  if (!match || Number(match[2]) > 2_147_483_647)
+    throw new Refusal("Name the pull request by its URL or owner/repo#123.");
+
+  const repository = match[1]!.toLowerCase();
+  const number = Number(match[2]);
+
+  return { repository, number, url: pullRequestUrl(repository, number) };
+}
+
+async function threadRepositories(watches: PrCheckWatches, threadId: string) {
+  const { run, owner } = watches.github;
+  const workspace = (await run((s) => s.prPickerContext(owner, threadId)))[0];
+  const saved = (await run((s) => s.detectionContext(owner, threadId)))[0];
+  const repositories = new Set([githubName(workspace?.git_origin ?? "")]);
+
+  if (saved) {
+    const context = fromJsonString(GitPrContextSchema, JSON.stringify(saved.context));
+
+    for (const remote of context.remotes)
+      if (["origin", "upstream", context.pushRemote, context.upstreamRemote].includes(remote.name))
+        for (const name of [...remote.fetchRepositories, ...remote.pushRepositories])
+          repositories.add(githubName(name));
+  }
+
+  repositories.delete("");
+
+  if (!repositories.size)
+    throw new Refusal(
+      "This thread has no detected GitHub workspace repository. Link the pull request from this thread's Pull requests panel.",
+    );
+
+  return repositories;
+}
+
+async function link(
+  watches: PrCheckWatches,
+  call: Extract<PrCheckCall, { tool: "link_pull_request" }>,
+  caller: ThreadRow,
+): Promise<JsonValue> {
+  const reference = linkReference(call.args.pull_request);
+  const repositories = await threadRepositories(watches, caller.id);
+
+  try {
+    const result = await watches.github.prs.linkFromAgent(caller.id, reference.url, repositories);
+    const summary = result.summary;
+    const ref = summary.ref;
+
+    if (!ref) throw new Refusal("The pull request has no repository reference. Retry link_pull_request.");
+
+    return {
+      pull_request: `${ref.repositoryName}#${ref.number}`,
+      url: pullRequestUrl(ref.repositoryName, ref.number),
+      linked: true,
+      ...(result.alreadyLinked && { already_linked: true }),
+      state: summary.state,
+      ...(result.headRef && { head_ref: result.headRef }),
+      ...(summary.headSha && { head_sha: summary.headSha }),
+      note: result.alreadyLinked
+        ? "This pull request was already linked to the thread."
+        : "Pull request linked to the thread.",
+    };
+  } catch (cause) {
+    if (cause instanceof Refusal) throw cause;
+    const failure = githubFailure(cause);
+
+    if (failure.code === Code.PermissionDenied || failure.code === Code.Unauthenticated)
+      throw new Refusal(
+        "Canopy cannot access this pull request. Check the account and repository access in Settings → GitHub account.",
+      );
+
+    throw new Refusal(failure.rawMessage);
+  }
+}
 
 export function watchView(row: PrCheckWatchRow): JsonObject {
   return {
@@ -54,13 +141,22 @@ export function watchView(row: PrCheckWatchRow): JsonObject {
 }
 
 async function linkedPullRequests(watches: PrCheckWatches, threadId: string): Promise<LinkedPullRequest[]> {
-  const list = await watches.github.prs.list(threadId, 50);
+  const found: LinkedPullRequest[] = [];
+  let offset = 0;
 
-  return list.links.flatMap((link) => {
-    const ref = link.summary?.ref;
+  do {
+    const list = await watches.github.prs.list(threadId, 20, offset);
 
-    return ref?.id ? [{ id: ref.id, repository: ref.repositoryName, number: ref.number }] : [];
-  });
+    for (const link of list.links) {
+      const ref = link.summary?.ref;
+
+      if (ref?.id) found.push({ id: ref.id, repository: ref.repositoryName, number: ref.number });
+    }
+
+    offset = list.nextOffset;
+  } while (offset);
+
+  return found;
 }
 
 /** The linked pull request the call names; a pull request the agent just opened may take a few seconds to link. */
@@ -172,6 +268,9 @@ export async function prCheckTool(
   hops: number,
 ): Promise<JsonValue> {
   switch (call.tool) {
+    case "link_pull_request":
+      return link(watches, call, caller);
+
     case "watch_pr_checks":
       return watch(watches, call, source, caller, hops);
 

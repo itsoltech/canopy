@@ -70,6 +70,58 @@ export class GitHubPullRequests {
 
     return this.list(request.threadId);
   }
+  async linkFromAgent(threadId: string, url: string, repositories: ReadonlySet<string>) {
+    const { run, owner } = this.accounts;
+    const reference = pullRequestUrl(url);
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const current = await this.list(threadId);
+      const snapshot = await this.load(reference.name, reference.number, true);
+      const summary = snapshot.summary;
+      const id = summary?.ref?.id;
+
+      if (!summary || !id)
+        throw new ConnectError("This pull request is unavailable. Check the URL and repository access.", Code.NotFound);
+
+      if (
+        !repositories.has(summary.ref?.repositoryName.toLowerCase() ?? "") &&
+        !repositories.has(snapshot.headRepositoryName.toLowerCase())
+      )
+        throw new ConnectError(
+          "This pull request is outside this thread's workspace repositories. Link it from this thread's Pull requests panel.",
+          Code.InvalidArgument,
+        );
+
+      const existing = (await run((s) => s.prLinkState(owner, threadId, id)))[0];
+
+      if (existing?.unlinked_at)
+        throw new ConnectError(
+          "This pull request was previously unlinked from this thread. Link it from this thread's Pull requests panel.",
+          Code.FailedPrecondition,
+        );
+
+      if (existing) return { summary, alreadyLinked: true, headRef: snapshot.headRef };
+
+      try {
+        const saved = await run((s) =>
+          s.prLink(owner, threadId, id, current.revision, "auto", snapshot, { kind: "agent_tool" }),
+        );
+
+        if (!saved) continue;
+      } catch (cause) {
+        if (cause instanceof ConnectError && cause.code === Code.Aborted && attempt === 0) continue;
+
+        throw cause;
+      }
+
+      await run((s) => s.audit(owner, "agent_link", id));
+      await this.publish([threadId]);
+
+      return { summary, alreadyLinked: false, headRef: snapshot.headRef };
+    }
+
+    throw new ConnectError("Pull request changed. Refresh, then retry.", Code.Aborted);
+  }
   async unlink(request: github.UnlinkThreadPullRequestRequest) {
     if (!uuid(request.threadId) || !uuid(request.pullRequestId))
       throw new ConnectError("Pull request not found", Code.NotFound);
