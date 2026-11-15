@@ -119,11 +119,7 @@ export function createCodeEditor(parent: HTMLElement, options: CodeEditorOptions
     focus: () => view.focus(),
     readOnly(value) {
       view.dispatch({
-        effects: events.reconfigure([
-          ...editorEvents(options, () => resetting),
-          EditorState.readOnly.of(value),
-          EditorView.editable.of(!value),
-        ]),
+        effects: events.reconfigure(editorEvents({ ...options, readonly: value }, () => resetting)),
       });
     },
     locate(position) {
