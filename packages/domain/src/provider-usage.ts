@@ -78,6 +78,35 @@ export function activeUsageWindows(snapshot: ProviderUsageSnapshot | undefined, 
   return snapshot?.windows.filter((w) => !w.resetsAt || timestampDate(w.resetsAt).getTime() > now) ?? [];
 }
 
+const windowDurations = new Map([
+  ["five_hour", 300],
+  ["one_day", 1440],
+  ["seven_day", 10080],
+  ["seven_day_opus", 10080],
+  ["seven_day_sonnet", 10080],
+  ["seven_day_overage_included", 10080],
+  ["thirty_day", 43200],
+]);
+
+/**
+ * Compare the latest reported balance with even use until reset, not a forecast of future consumption.
+ * Old snapshots may omit the duration of named windows. Unknown periods and expired readings have no pace.
+ */
+export function usagePace(window: ProviderUsageWindow, now = Date.now()) {
+  const minutes = window.windowMinutes || windowDurations.get(window.key);
+  const used = window.reached ? 100 : window.usedPercent;
+
+  if (!minutes || minutes <= 0 || used === undefined || !Number.isFinite(used) || !window.resetsAt) return undefined;
+  const reset = timestampDate(window.resetsAt).getTime();
+  const remaining = reset - now;
+  const duration = minutes * 60_000;
+
+  if (!isUsageResetPlausible(reset, now) || remaining <= 0 || remaining > duration) return undefined;
+  const expectedLeft = (remaining / duration) * 100;
+
+  return { expectedLeft, difference: Math.round(100 - used - expectedLeft) };
+}
+
 export function usageReset(window: Pick<ProviderUsageWindow, "resetsAt">, relative = false, now = Date.now()): string {
   if (!window.resetsAt) return "";
   const date = timestampDate(window.resetsAt);

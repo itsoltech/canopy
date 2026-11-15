@@ -3,6 +3,7 @@ import { toJsonString } from "@bufbuild/protobuf";
 import { Provider, ProviderProfileKind, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { GatewayStore, InstanceStore } from "@canopy/gateway/store";
+import { usagePace } from "@canopy/domain/provider-usage";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
@@ -190,6 +191,12 @@ describe.skipIf(!dockerAvailable)("CLIProxyAPI upstream accounts through the man
         ["five_hour", 42, 1794661200n],
         ["seven_day", 7, undefined],
       ]);
+      const fiveHour = byId.get("1")!.windows.find((window) => window.key === "five_hour")!;
+      const weekly = byId.get("1")!.windows.find((window) => window.key === "seven_day")!;
+      expect(usagePace(fiveHour, NOW.getTime())).toEqual({ expectedLeft: 60, difference: -2 });
+      expect(usagePace(fiveHour, NOW.getTime() + 30 * 60_000)).toEqual({ expectedLeft: 50, difference: 8 });
+      expect(usagePace(fiveHour, NOW.getTime() + 3 * 3_600_000)).toBeUndefined();
+      expect(usagePace(weekly, NOW.getTime())).toBeUndefined();
       expect(byId.get("2")).toMatchObject({ label: "Team", status: "cooling_down", detail: "quota exhausted" });
       expect(byId.get("2")?.retryAt?.seconds).toBe(BigInt(Date.parse("2099-01-01T00:00:00Z") / 1000));
       expect(byId.get("3")?.status).toBe("sign_in");
