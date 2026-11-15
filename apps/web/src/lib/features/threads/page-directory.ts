@@ -3,6 +3,7 @@ import { turnQuoteTime } from "#lib/features/quotes/inline.ts";
 import { provideThreadDirectory } from "./thread-directory.ts";
 import type { ThreadState } from "./thread-state.svelte.ts";
 import { isTerminal } from "./timeline.ts";
+import { replyDirectory } from "./reply-directory.ts";
 
 /** Live timeline context shared by message actions, quotes and provider items. */
 export function providePageDirectory(
@@ -21,6 +22,10 @@ export function providePageDirectory(
     },
     get readOnly() {
       return source().readOnly;
+    },
+    ...replyDirectory(source),
+    get replySuggestions() {
+      return source().view.replySuggestions;
     },
     get latestTurnId() {
       return source().view.turns.findLast(

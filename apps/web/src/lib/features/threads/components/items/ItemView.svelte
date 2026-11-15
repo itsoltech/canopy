@@ -52,7 +52,7 @@
 {#if content.case === "userMessage"}
   <UserMessageView message={content.value} />
 {:else if content.case === "agentMessage"}
-  <AgentMessageView message={content.value} {streaming} />
+  <AgentMessageView message={content.value} itemId={item.itemId} {streaming} />
 {:else if content.case === "reasoning"}
   <ReasoningView reasoning={content.value} {streaming} />
 {:else if content.case === "commandExecution"}

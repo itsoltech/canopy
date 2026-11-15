@@ -3,6 +3,7 @@ import { codexThreadProvider } from "./launch.ts";
 import { codexPermissions } from "./permissions.ts";
 import { managedPlugins } from "../../agent-environment/plugin-loading.ts";
 import type { CodexThreadContext } from "./thread-types.ts";
+import { threadInstructions } from "../thread-instructions.ts";
 
 /** Shared placement and permission parameters for start, resume and prefix replacement. */
 export function threadParams(ctx: CodexThreadContext, spec: ThreadSpec) {
@@ -22,7 +23,7 @@ export function threadParams(ctx: CodexThreadContext, spec: ThreadSpec) {
       ...ctx.connectorMcp?.config(spec),
     },
     ...(spec.model && { model: spec.model }),
-    ...(spec.instructions && { developerInstructions: spec.instructions }),
+    developerInstructions: threadInstructions(spec.instructions),
     ...codexPermissions(spec.permissionMode),
     ...codexThreadProvider(profile),
   };

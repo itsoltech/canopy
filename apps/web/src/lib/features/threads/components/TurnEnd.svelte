@@ -19,6 +19,8 @@
   import type { TurnResult } from "../thread-state.svelte.ts";
   import { turnReveal } from "../turn-reveal.svelte.ts";
   import TurnDetails from "./TurnDetails.svelte";
+  import ReplySuggestions from "./ReplySuggestions.svelte";
+  import { splitReplySuggestions } from "@canopy/domain/reply-suggestions";
 
   /**
    * How a turn ended. A turn that did not complete always shows its status, who interrupted it or where
@@ -29,6 +31,7 @@
    */
   let { turn, result, answer }: { turn: ui.Turn; result: TurnResult | undefined; answer: string } = $props();
   const directory = useThreadDirectory();
+  const replySource = $derived(turn.status === "completed" ? directory.replySource?.(turn.id) : undefined);
   const overview = useOverview();
   const thread = $derived(directory.thread(directory.currentId));
   const worker = $derived(thread ? overview.worker(thread.workerId) : undefined);
@@ -242,6 +245,7 @@
       {/if}
     </div>
   {/if}
-  <TurnDetails {turn} {result} {answer} />
+  <TurnDetails {turn} {result} answer={replySource ? splitReplySuggestions(replySource.text).text : answer} />
+  {#if replySource}<ReplySuggestions source={replySource} class="pt-1" />{/if}
 </div>
 {#if modelOpen && thread}<ThreadModelDialog bind:open={modelOpen} {thread} {worker} />{/if}

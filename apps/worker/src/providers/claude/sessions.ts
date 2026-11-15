@@ -15,6 +15,7 @@ import { callKey, fileSize } from "./session-io.ts";
 import { claudeInstructionSettings, managedClaudeInstructions } from "./instructions.ts";
 import { claudeConnectorRefresh } from "./connector-mcp.ts";
 import { TurnAdmissionCancelled } from "../turn-input.ts";
+import { threadInstructions } from "../thread-instructions.ts";
 
 export function claudeSessions(
   ctx: ClaudeThreadContext,
@@ -55,7 +56,11 @@ export function claudeSessions(
     const attachments = options.attachmentsDir?.(spec.threadId);
     const secrets = options.secretsDir?.(spec.threadId);
 
-    const instructions = [managedClaudeInstructions(runtime.home), spec.instructions, !resume && recoveryContext]
+    const instructions = [
+      managedClaudeInstructions(runtime.home),
+      threadInstructions(spec.instructions),
+      !resume && recoveryContext,
+    ]
       .filter(Boolean)
       .join("\n\n");
 
@@ -98,6 +103,8 @@ export function claudeSessions(
       systemPrompt: {
         type: "preset",
         preset: "claude_code",
+        // A recorded prompt otherwise ignores a changed append on resume, including platform instructions.
+        snapshot: false,
         ...(instructions && { append: instructions }),
       },
       abortController: abort,

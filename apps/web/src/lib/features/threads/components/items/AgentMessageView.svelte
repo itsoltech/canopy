@@ -4,16 +4,20 @@
   import { runningAnimation } from "#lib/shared/activity.ts";
   import MessageImage from "./MessageImage.svelte";
   import GalleryLightbox from "#lib/features/attachments/GalleryLightbox.svelte";
+  import { splitReplySuggestions } from "@canopy/domain/reply-suggestions";
+  import { useThreadDirectory } from "../../thread-directory.ts";
 
   /** Agent prose stays the primary reading content, inside work folds and in the answer slot. */
-  let { message, streaming }: { message: AgentMessage; streaming: boolean } = $props();
+  let { message, streaming, itemId }: { message: AgentMessage; streaming: boolean; itemId: string } = $props();
+  const directory = useThreadDirectory();
   let open = $state(false);
   let selected = $state(0);
+  const text = $derived(directory.isReplySource?.(itemId) ? splitReplySuggestions(message.text).text : message.text);
 </script>
 
 <div data-quote-kind="agent_message" class="min-w-0" aria-busy={streaming}>
   <!-- While it streams, it shows line by line and each new block resolves in; the caret breathes. -->
-  <Markdown text={message.text} {streaming}>
+  <Markdown {text} {streaming}>
     {#snippet image(value)}<MessageImage
         {value}
         {message}

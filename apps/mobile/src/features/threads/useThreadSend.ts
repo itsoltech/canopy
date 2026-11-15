@@ -10,6 +10,7 @@ import type { useQuoteDraft } from "../quotes/useQuoteDraft";
 import { useSession } from "../../state/session";
 import { withSentMessage } from "./sent-message";
 import { confirmMessage, uncertainDelivery } from "./pending-message";
+import { useReplySuggestionSend } from "./useReplySuggestionSend";
 
 /** The gateway refused the message; other failures leave delivery uncertain. */
 function deliveryError(failure: ConnectError) {
@@ -25,6 +26,7 @@ export function useThreadSend(options: {
   connection: ComposerConnection;
   setSnapshot: (update: (previous: ui.ThreadSnapshot | undefined) => ui.ThreadSnapshot | undefined) => void;
   onSend: () => void;
+  replySourceId?: string;
 }) {
   const { client, session, expired } = useSession();
   const { id, message, quotes, connection, setSnapshot } = options;
@@ -34,6 +36,18 @@ export function useThreadSend(options: {
   const sending = useRef(false);
   const pending = useRef<{ key: string; id: string } | null>(null);
   const controller = useRef(new AbortController());
+
+  const replies = useReplySuggestionSend({
+    ...options,
+    sourceId: options.replySourceId,
+    sendingRef: sending,
+    lifetime: controller,
+    draftLocked: () => Boolean(message.persistent?.locked || message.persistent?.reconciling),
+    setBusy,
+    setWaiting,
+    setError,
+  });
+
   useEffect(() => {
     const request = new AbortController();
     controller.current = request;
@@ -52,10 +66,12 @@ export function useThreadSend(options: {
       (!value && !attachmentIds.length && !quotes.quotes.length) ||
       message.files.blocker ||
       message.persistent?.preparing ||
+      replies.unconfirmed ||
       sending.current
     )
       return;
     sending.current = true;
+    replies.invalidate();
     options.onSend();
     setBusy(true);
     setWaiting(!connection.live);
@@ -137,5 +153,5 @@ export function useThreadSend(options: {
     }
   }
 
-  return { send, busy, waiting, error, setError };
+  return { send, busy, waiting, error, setError, replies };
 }

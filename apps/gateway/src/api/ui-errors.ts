@@ -1,5 +1,5 @@
 import { Code, ConnectError } from "@connectrpc/connect";
-import { RequestExpired } from "../store/errors.ts";
+import { ReplySuggestionExpired, RequestExpired } from "../store/errors.ts";
 import { Predicate } from "effect";
 import { isErrorObject } from "../core/error-cause.ts";
 import { ConnectorFailure } from "../connectors/store.ts";
@@ -65,6 +65,8 @@ export function toConnectError(cause: unknown): ConnectError {
   if (error instanceof NotFound) return new ConnectError(error.message, Code.NotFound);
 
   if (error instanceof RequestExpired) return new ConnectError(error.message, Code.FailedPrecondition);
+
+  if (error instanceof ReplySuggestionExpired) return new ConnectError(error.message, Code.FailedPrecondition);
 
   if (error instanceof Invalid || error instanceof InvalidError)
     return new ConnectError(error.message, Code.InvalidArgument);

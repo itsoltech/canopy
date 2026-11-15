@@ -27,7 +27,13 @@ export interface SteerRow {
   thread_id: string;
   turn_id: string;
   /** text = what the model gets; with quotes, note (the quotes) + message (the user's text) for the UI. */
-  input: { text: string; note?: string; message?: string; quotes?: StoredQuote[] } & StoredMentions &
+  input: {
+    text: string;
+    note?: string;
+    message?: string;
+    quotes?: StoredQuote[];
+    admittedAfterSeq?: string;
+  } & StoredMentions &
     Pick<
       TurnRow["input"],
       | "attachments"

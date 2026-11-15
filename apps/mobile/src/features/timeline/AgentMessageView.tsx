@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import { Animated, Pressable, Text } from "react-native";
 import type { AgentMessage } from "@canopy/contracts";
 import { Markdown } from "../../ui/markdown";
@@ -10,6 +10,8 @@ import { useViewportVisibility } from "../../ui/viewport";
 import { ThreadFileLinks } from "../files/ThreadFileLinks";
 import { MessageImage } from "./MessageImage";
 import { GalleryViewer } from "../attachments/GalleryViewer";
+import { splitReplySuggestions } from "@canopy/domain/reply-suggestions";
+import { ReplyMessageContext } from "./ReplySuggestions";
 
 /** Agent prose stays primary reading content, inside work folds and in the answer slot (web: AgentMessageView). */
 export function AgentMessageView({
@@ -21,7 +23,15 @@ export function AgentMessageView({
   streaming: boolean;
   itemId: string;
 }) {
-  const actions = useMessageActions(message.text, "agent_message", !streaming);
+  const replies = useContext(ReplyMessageContext);
+  const final = replies.itemId === itemId;
+
+  const text = useMemo(() => (final ? splitReplySuggestions(message.text).text : message.text), [final, message.text]);
+
+  useEffect(() => {
+    if (final) replies.resolve(itemId, message.text);
+  }, [final, itemId, message.text, replies]);
+  const actions = useMessageActions(text, "agent_message", !streaming);
   const colors = useColors();
   const type = useTypography();
   const [selected, setSelected] = useState<number>();
@@ -30,7 +40,7 @@ export function AgentMessageView({
     <ThreadFileLinks itemId={itemId}>
       <Pressable {...actions.trigger} accessibilityState={{ busy: streaming }}>
         <Markdown
-          text={message.text}
+          text={text}
           selectable={!actions.available}
           image={(value) => (
             <MessageImage

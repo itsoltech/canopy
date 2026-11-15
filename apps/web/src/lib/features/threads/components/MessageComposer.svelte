@@ -41,6 +41,7 @@
   import { ComposerRewind } from "../composer-rewind.svelte.ts";
   import Button from "#lib/shared/ui/Button.svelte";
   import UsageWarning from "#lib/features/providers/UsageWarning.svelte";
+  import { useThreadDirectory } from "../thread-directory.ts";
 
   /**
    * Message box of a thread. Each send carries an idempotency key, so a retried send never runs
@@ -93,6 +94,7 @@
   const offer = useThreadModels(() => ({ thread, worker }));
 
   const settings = useSettings();
+  const directory = useThreadDirectory();
 
   const saved = $derived(
     webDrafts.get(create(ui.ComposerDraftTargetSchema, { threadId: thread.id }), () =>
@@ -237,6 +239,7 @@
     if (
       (!message && draft.attached.length === 0 && quotes.length === 0) ||
       sending ||
+      directory.replySuggestions?.sending ||
       composer.preparing ||
       disabled ||
       !composerAvailable
@@ -403,7 +406,7 @@
     bind:mentions={saved.mentions}
     {sources}
     placeholder={running ? "Steer the agent, or queue for the next turn…" : "Ask anything…"}
-    disabled={disabled || sending || !composerAvailable}
+    disabled={disabled || sending || !composerAvailable || directory.replySuggestions?.sending}
     readonly={saved.locked}
     stopDisabled={disabled}
     {sending}

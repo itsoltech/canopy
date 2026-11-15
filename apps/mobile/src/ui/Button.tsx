@@ -57,6 +57,7 @@ export function Button({
   style,
   label,
   hint,
+  multiline = false,
 }: {
   title: string;
   onPress: () => void;
@@ -69,6 +70,7 @@ export function Button({
   style?: StyleProp<ViewStyle>;
   label?: string;
   hint?: string;
+  multiline?: boolean;
 }) {
   const c = useColors();
   const type = useTypography();
@@ -113,7 +115,7 @@ export function Button({
           <Icon name={icon} color={l.icon} />
         ) : null}
         <Text
-          numberOfLines={1}
+          numberOfLines={multiline ? undefined : 1}
           style={[
             size === "md" ? type.body : type.small,
             { fontFamily: font.medium, color: l.text, flexShrink: 1, textAlign: "center" },

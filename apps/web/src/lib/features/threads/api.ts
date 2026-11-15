@@ -24,7 +24,7 @@ export async function sendMessage(
   threadId: string,
   text: string,
   clientRequestId: string,
-  turn: { model?: string; effort?: string; permissionMode?: PermissionModeKey } = {},
+  turn: { model?: string; effort?: string; permissionMode?: PermissionModeKey; replySuggestionItemId?: string } = {},
   delivery: Delivery = "queue",
   attachmentIds: readonly string[] = [],
   mentions: readonly Mention[] = [],

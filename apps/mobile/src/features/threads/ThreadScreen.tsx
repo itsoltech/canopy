@@ -46,6 +46,7 @@ import { WorkspaceModule } from "../workspace/WorkspaceModule";
 import { useThreadRewind } from "./useThreadRewind";
 import { RewindSheet } from "./RewindSheet";
 import { Button } from "../../ui/Button";
+import { activeReplySource } from "./reply-suggestions";
 
 export type ThreadState = ReturnType<typeof useThreadState>;
 
@@ -71,13 +72,14 @@ function useThreadState(id: string) {
     online && stream.connection === "live",
   );
 
-  const { send, busy, waiting, error, setError } = useThreadSend({
+  const { send, busy, waiting, error, setError, replies } = useThreadSend({
     id,
     message,
     quotes,
     connection,
     setSnapshot,
     onSend: following.resumeFollowing,
+    replySourceId: activeReplySource(snapshot),
   });
 
   const { stop, stopping } = useThreadStop(id, snapshot, connection, setError);
@@ -89,7 +91,7 @@ function useThreadState(id: string) {
   const tray = useThreadTray({ id, snapshot, setSnapshot, thread, threads });
 
   const turns = useMemo(() => visibleTurns(snapshot), [snapshot]);
-  const rewind = useThreadRewind(id, message, busy, following.resumeFollowing);
+  const rewind = useThreadRewind(id, message, busy || replies.unconfirmed, following.resumeFollowing);
 
   const hardBlocked =
     home.away ||
@@ -99,7 +101,14 @@ function useThreadState(id: string) {
     thread.status === "archived" ||
     stream.connection === "error";
 
-  const blocked = hardBlocked || busy || !available || rewind.busy || Boolean(thread?.rewindPending);
+  const blocked =
+    hardBlocked || busy || replies.unconfirmed || !available || rewind.busy || Boolean(thread?.rewindPending);
+
+  const replyDisabled =
+    blocked ||
+    !online ||
+    stream.connection !== "live" ||
+    Boolean(message.persistent?.locked || message.persistent?.reconciling);
 
   return {
     id,
@@ -131,6 +140,21 @@ function useThreadState(id: string) {
     message,
     quotes,
     rewind,
+    replies: {
+      activeId: replyDisabled ? undefined : replies.activeId,
+      send: (itemId: string, text: string) => {
+        if (!replyDisabled) replies.send(itemId, text);
+      },
+      unconfirmed: replies.unconfirmed,
+      retry: replies.retry,
+      retryDisabled:
+        hardBlocked ||
+        busy ||
+        !online ||
+        rewind.busy ||
+        Boolean(thread?.rewindPending || message.persistent?.locked || message.persistent?.reconciling) ||
+        stream.connection !== "live",
+    },
   };
 }
 
@@ -278,6 +302,9 @@ function ThreadStatus({ state }: { state: ThreadState }) {
         <Notice>{state.waiting ? `Still waiting for ${home.name || "this computer"}…` : "Sending…"}</Notice>
       ) : null}
       {error ? <Notice error>{error}</Notice> : null}
+      {state.replies.unconfirmed && (
+        <Button title="Retry" variant="ghost" disabled={state.replies.retryDisabled} onPress={state.replies.retry} />
+      )}
       {state.rewind.busy ? <Notice>Editing this thread…</Notice> : null}
       {state.rewind.error && !state.rewind.selected ? <Notice error>{state.rewind.error}</Notice> : null}
       {state.rewind.error && state.rewind.canRetry && !state.rewind.selected ? (

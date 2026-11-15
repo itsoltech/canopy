@@ -1,5 +1,27 @@
 # API dla UI i architektura frontendu
 
+## Proponowane odpowiedzi
+
+Agent może zakończyć odpowiedź maksymalnie trzema linkami `[Create the PR](canopy:reply)`.
+Każdy link zajmuje osobny akapit lub linię końcowego bloku. Etykieta to pełna treść
+wiadomości wysyłanej po kliknięciu, w języku rozmowy. Parser `domain/reply-suggestions`
+rozpoznaje wyłącznie końcowe akapity najwyższego poziomu; kod, cytaty, listy i zwykłe
+linki pozostają treścią. Etykieta ma do 500 znaków, bez formatowania, znaków sterujących
+ani komend `!` i `/goal`. Historia zachowuje oryginalny Markdown.
+
+Web/desktop i mobile pokazują propozycje pod zakończoną turą. Kliknięcie wysyła zwykłe
+`SendMessage` z `reply_suggestion_item_id` i nowym kluczem idempotencji. Nie zmienia
+szkicu w kompozytorze. Wybór natychmiast blokuje pozostałe przyciski; ponowienie po
+niepewnym wyniku używa tego samego klucza i tej samej treści. Każda kolejna wiadomość,
+także zakolejkowana albo steered, unieważnia poprzednią grupę. Nieaktywne propozycje
+pozostają w historii, ale nie można ich wysłać.
+
+Gateway pod blokadą przyjęcia wiadomości sprawdza właściciela, źródłowy item, dokładną
+treść propozycji i aktualność ostatniej zakończonej własnej tury. Stare, odziedziczone,
+cofnięte oraz niezakończone źródła są odrzucane. Dzięki temu przeładowanie strony,
+opóźniony klient i równoczesny wybór na dwóch urządzeniach nie przywracają starych akcji.
+Opis przekazywania możliwości harnessom: [worker-config.md](worker-config.md).
+
 ## Limity kont providerów
 
 `InstanceOnWorker.usage` i `WorkerInstance.usage` mają ostatni snapshot oficjalnego

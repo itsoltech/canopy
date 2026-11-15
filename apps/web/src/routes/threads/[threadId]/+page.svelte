@@ -757,6 +757,7 @@
                           rewind.busy}
                         note={composerNote}
                         onsent={(response) => {
+                          if (response.turn) view.upsertTurn(response.turn);
                           if (response.steer) view.upsertSteer(response.steer);
                         }}
                         ongoal={canGoal && !openGoal ? () => (goalDialog = true) : undefined}
