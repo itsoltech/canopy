@@ -9,6 +9,7 @@ export interface BindingDefinition {
   context: BindingContext;
   when: string;
   defaults: readonly string[];
+  desktopDefaults?: readonly string[];
 }
 
 const define = (
@@ -18,7 +19,8 @@ const define = (
   context: BindingContext,
   when: string,
   defaults: string[] = [],
-): BindingDefinition => ({ id, title, group, context, when, defaults });
+  desktopDefaults?: string[],
+): BindingDefinition => ({ id, title, group, context, when, defaults, ...(desktopDefaults && { desktopDefaults }) });
 
 export const bindingCatalogue: readonly BindingDefinition[] = [
   define("command-palette", "Open command palette", "Navigation", "global", "Anywhere, including dialogs", ["Mod+K"]),
@@ -27,18 +29,25 @@ export const bindingCatalogue: readonly BindingDefinition[] = [
   ]),
   define("toggle-sidebar", "Toggle sidebar", "Navigation", "global", "Outside modal dialogs", ["Mod+B"]),
   define("open-settings", "Open settings", "Navigation", "global", "Outside modal dialogs"),
-  define("workspace:next", "Switch to next tab", "Navigation", "workspace", "In a workspace, outside text fields", [
-    "Alt+PageDown",
-  ]),
+  define(
+    "workspace:next",
+    "Switch to next tab",
+    "Navigation",
+    "workspace",
+    "In a workspace",
+    ["Alt+PageDown"],
+    ["Ctrl+Tab", "Alt+PageDown"],
+  ),
   define(
     "workspace:previous",
     "Switch to previous tab",
     "Navigation",
     "workspace",
-    "In a workspace, outside text fields",
+    "In a workspace",
     ["Alt+PageUp"],
+    ["Ctrl+Shift+Tab", "Alt+PageUp"],
   ),
-  define("workspace:close", "Close active tab", "Navigation", "workspace", "A file tab is active"),
+  define("workspace:close", "Close active tab", "Navigation", "workspace", "A workspace tab is active", [], ["Mod+W"]),
   define("workspace:keep", "Keep preview tab", "Navigation", "workspace", "A preview tab is active"),
   define("file:go-line", "Go to line", "Navigation", "file", "Focus is inside the file viewer or editor", ["Mod+G"]),
   define("file:save", "Save file", "Navigation", "file", "Focus is inside the file editor", ["Mod+S"]),
@@ -105,7 +114,11 @@ export const bindingCatalogue: readonly BindingDefinition[] = [
 export function contextsOverlap(a: BindingContext, b: BindingContext): boolean {
   if (a === b || a === "global" || b === "global") return true;
 
-  if ((a === "workspace" && b === "file") || (b === "workspace" && a === "file")) return true;
+  if (
+    (a === "workspace" && (b === "file" || b === "composer")) ||
+    (b === "workspace" && (a === "file" || a === "composer"))
+  )
+    return true;
 
   return (a === "thread" && b !== "models") || (b === "thread" && a !== "models");
 }
