@@ -29,7 +29,7 @@
     name?: string;
     required?: boolean;
     placeholder?: string;
-    inline?: boolean;
+    inline?: boolean | "muted";
   };
 
   let {

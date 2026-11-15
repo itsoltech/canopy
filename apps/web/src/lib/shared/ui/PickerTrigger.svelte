@@ -14,7 +14,8 @@
     leadingIcon?: IconName | undefined;
     element?: HTMLButtonElement | undefined;
     class?: ClassValue;
-    inline?: boolean;
+    /** Muted inline controls keep label-sized visuals, with the kit's expanded touch target. */
+    inline?: boolean | "muted";
   };
 
   let {
@@ -41,16 +42,19 @@
   aria-invalid={rest["aria-invalid"] ?? (field?.invalid || undefined)}
   {@attach tooltip(title ?? undefined)}
   class={[
-    inline
-      ? "rounded px-1 py-1 text-brand-600 focus-ring hover:bg-zinc-950/5 disabled:opacity-40 dark:text-brand-400 dark:hover:bg-white/5"
-      : controlClasses,
-    "ui-control relative flex items-center gap-2 text-left",
+    inline === "muted"
+      ? "rounded px-0.5 text-sm/5 text-zinc-500 focus-ring hover:bg-zinc-950/5 disabled:opacity-40 sm:text-xs/5 dark:text-zinc-400 dark:hover:bg-white/5"
+      : inline
+        ? "rounded px-1 py-1 text-brand-600 focus-ring hover:bg-zinc-950/5 disabled:opacity-40 dark:text-brand-400 dark:hover:bg-white/5"
+        : controlClasses,
+    "relative flex items-center gap-2 text-left",
+    inline !== "muted" && "ui-control",
     !inline && "pointer-coarse:min-h-12",
     className,
   ]}
 >
   {#if leadingIcon}<Icon name={leadingIcon} />{/if}
   <span class="min-w-0 flex-1 truncate">{text}</span>
-  <Icon name={icon} class="fill-zinc-500 dark:fill-zinc-400" />
+  <Icon name={icon} class={["fill-zinc-500 dark:fill-zinc-400", inline === "muted" && "size-3"]} />
   <TouchTarget />
 </button>

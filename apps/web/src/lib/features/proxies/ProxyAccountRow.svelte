@@ -53,14 +53,8 @@
 </script>
 
 <li class={["grid min-w-0 gap-1.5 py-2", !compact && "px-3"]}>
-  {#if proxyId && onread}
-    <div class="flex min-w-0 items-start gap-2">
-      <div class="flex h-11 shrink-0 items-center sm:h-8">{@render providerMark()}</div>
-      <ProxyPlanPicker {proxyId} {account} {onread} />
-    </div>
-  {/if}
   <div class="flex min-w-0 items-center gap-2">
-    {#if !proxyId || !onread}{@render providerMark()}{/if}
+    {@render providerMark()}
     {#if !proxyId || !onread}<div class="max-w-24 shrink-0 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
         {plan ?? "Unknown plan"}{!weight.unknown ? ` · ×${weight.units}` : ""}
       </div>{/if}
@@ -69,6 +63,7 @@
     </div>
     {#if !compact || account.status !== "active"}<Badge tone={look.tone} compact>{look.label}</Badge>{/if}
   </div>
+  {#if proxyId && onread}<ProxyPlanPicker {proxyId} {account} {onread} />{/if}
   {#if plan && weight.unknown}<p class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
       Unknown plan · capacity counted as ×1
     </p>{/if}
