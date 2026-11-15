@@ -327,7 +327,6 @@ describe.skipIf(!dockerAvailable)("scoped file invalidations over the real worke
     view.open({ threadId: q(), path: "folder/source.txt" });
     const document = view.currentFile!.document;
     await document.load();
-    document.edit();
     document.setDraft("my unsaved changes");
     const stop = observeWorkspaceFile(store, document);
 
@@ -340,7 +339,6 @@ describe.skipIf(!dockerAvailable)("scoped file invalidations over the real worke
       expect(await document.save()).toBe(false);
       document.discard();
       await document.load();
-      document.edit();
       document.setDraft("another draft");
       stop();
       await eventually(
@@ -393,7 +391,6 @@ describe.skipIf(!dockerAvailable)("scoped file invalidations over the real worke
     view.open({ threadId: q(), path: "folder/source.txt" });
     const document = view.currentFile!.document;
     await document.load();
-    document.edit();
     document.setDraft("private unsaved text");
     const tree = workspaceDirectories(store, 1024 * 1024).tree(q());
     const releaseTree = tree.retain();
@@ -433,7 +430,6 @@ describe.skipIf(!dockerAvailable)("scoped file invalidations over the real worke
     view.open({ threadId: id, path: "folder/source.txt" });
     const document = view.currentFile!.document;
     await document.load();
-    document.edit();
     document.setDraft("private draft");
     const release = observeWorkspaceFile(store, document);
 
@@ -464,7 +460,6 @@ describe.skipIf(!dockerAvailable)("scoped file invalidations over the real worke
     view.open({ threadId: q(), path: "folder/source.txt" });
     const document = view.currentFile!.document;
     await document.load();
-    document.edit();
     document.setDraft("draft from old worktree");
     const release = observeWorkspaceFile(store, document);
     const backup = `${thread.cwd}-moved`;

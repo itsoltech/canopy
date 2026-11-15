@@ -61,6 +61,11 @@ export function WorkspaceReader({
         {document.file?.truncated && (
           <Text style={[styles.caption, { color: c.muted }]}>Showing the first 2 MB. This file is read only.</Text>
         )}
+        {!document.editable && !document.file?.truncated && (
+          <Text style={[styles.caption, { color: c.muted }]}>
+            {document.readOnlyReason || "This file is read only."}
+          </Text>
+        )}
         {document.error ? (
           <Text accessibilityRole="alert" style={[styles.body, { color: c.danger }]}>
             {document.error}

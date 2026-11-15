@@ -1,5 +1,16 @@
 import { createHash } from "node:crypto";
-import { closeSync, existsSync, openSync, readSync, realpathSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  accessSync,
+  constants,
+  closeSync,
+  existsSync,
+  openSync,
+  readSync,
+  realpathSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join } from "node:path";
 import type { FileContentSchema, FileRequest } from "@canopy/contracts";
@@ -116,6 +127,16 @@ function completeUtf8(bytes: Uint8Array): Uint8Array {
   return end > 0 && width > back + 1 ? bytes.subarray(0, end - 1) : bytes;
 }
 
+function readOnly(path: string): boolean {
+  try {
+    accessSync(path, constants.W_OK);
+
+    return false;
+  } catch {
+    return true;
+  }
+}
+
 export function readThreadFile(path: string, maxBytes: number, includeBinary = false): FileContentInit {
   const limit = Math.min(maxBytes > 0 ? maxBytes : DEFAULT_MAX_BYTES, DEFAULT_MAX_BYTES);
   const truncated = statSync(path).size > limit;
@@ -137,6 +158,7 @@ export function readThreadFile(path: string, maxBytes: number, includeBinary = f
     mimeType: detected.mimeType,
     binary: !text,
     truncated,
+    readOnly: readOnly(path),
   };
 }
 

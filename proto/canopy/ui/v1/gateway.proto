@@ -2928,6 +2928,7 @@ message ThreadFile {
   string image_preview_error = 17;
   bytes image_preview = 18;
   string root_identity = 19;
+  bool read_only = 20;
 }
 
 message SwitchThreadBranchRequest {

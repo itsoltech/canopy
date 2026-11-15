@@ -13,8 +13,8 @@
   import type { FileNotice } from "./file-notice.ts";
 
   /**
-   * One row above a file: its path, Source/Rendered for Markdown, Edit (Save and Discard while editing, in the
-   * same place) and one menu with everything else. Destructive actions sit last, after a separator.
+   * One row above a file: its path, Source/Rendered for Markdown, Save and one menu with everything else.
+   * Discard is available for dirty files; destructive actions sit last, after a separator.
    * The bar is 40px for every file: the path holds the left edge, controls keep their order from the right edge,
    * and a notice is a pill between them, never a row above the text.
    */
@@ -37,7 +37,6 @@
     rendered?: boolean;
     state: {
       path: string;
-      editing: boolean;
       dirty: boolean;
       busy: boolean;
       loading: boolean;
@@ -57,11 +56,6 @@
   const slash = $derived(state.path.lastIndexOf("/"));
   const parent = $derived(slash >= 0 ? state.path.slice(0, slash + 1) : "");
   const leaf = $derived(state.path.slice(slash + 1));
-
-  function edit() {
-    onkeep();
-    document.edit();
-  }
 </script>
 
 <div class="@container flex h-10 shrink-0 items-center gap-2 border-b border-divider bg-surface pr-2 pl-3">
@@ -69,7 +63,7 @@
     <span class="text-muted select-text">{parent}</span><span class="font-medium select-text">{leaf}</span>
   </p>
   {#if notice}<FileNoticePill {notice} />{/if}
-  {#if markdown && !state.editing}
+  {#if markdown}
     <SegmentedChoice
       label="View"
       class="shrink-0"
@@ -81,23 +75,22 @@
       ]}
     />
   {/if}
-  {#if state.editing}
-    <Button size="sm" disabled={state.busy} onclick={ondiscard}
-      >{state.dirty ? "Discard changes" : "Stop editing"}</Button
-    >
-    <Button
-      size="sm"
-      variant="primary"
-      disabled={!state.dirty || state.busy || state.changedOnDisk}
-      onclick={() => void document.save()}>Save file</Button
-    >
-  {:else}
-    <!-- A phone-width bar keeps Edit as an icon, so the path, view and menu still fit. -->
+  {#if state.editable}
     <span class="hidden @md:contents">
-      <Button size="sm" icon="pencil-square" disabled={!state.editable || state.loading} onclick={edit}>Edit</Button>
+      <Button
+        size="sm"
+        variant="primary"
+        disabled={!state.dirty || state.busy || state.changedOnDisk}
+        onclick={() => void document.save()}>Save file</Button
+      >
     </span>
     <span class="contents @md:hidden">
-      <IconButton icon="pencil-square" label="Edit" disabled={!state.editable || state.loading} onclick={edit} />
+      <IconButton
+        icon="arrow-down-tray"
+        label="Save file"
+        disabled={!state.dirty || state.busy || state.changedOnDisk}
+        onclick={() => void document.save()}
+      />
     </span>
   {/if}
   <DropdownMenu label="File actions" placement="bottom-end">
@@ -106,11 +99,11 @@
     {#if notice?.action}<MenuItem icon="sparkles" onselect={notice.action.run}>{notice.action.label}</MenuItem>{/if}
     <MenuItem
       icon="arrow-path"
-      disabled={state.loading || state.busy || state.editing}
+      disabled={state.loading || state.busy || state.dirty}
       onselect={() => void document.load()}>Reload</MenuItem
     >
-    {#if state.text !== undefined && !state.editing}<MenuItem icon="bars-3" onselect={ongoline}>Go to line</MenuItem
-      >{/if}
+    {#if state.dirty}<MenuItem icon="arrow-uturn-left" onselect={ondiscard}>Discard changes</MenuItem>{/if}
+    {#if state.text !== undefined}<MenuItem icon="bars-3" onselect={ongoline}>Go to line</MenuItem>{/if}
     <MenuSeparator />
     <MenuItem icon="copy" onselect={() => void copyText(document.path)}>Copy path</MenuItem>
     {#if state.text !== undefined}<MenuItem icon="document-duplicate" onselect={() => void copyText(state.text ?? "")}
@@ -123,7 +116,7 @@
       >{/if}
     {#if tabActions}<MenuSeparator />{@render tabActions()}{/if}
     <MenuSeparator />
-    <MenuItem icon="trash" danger disabled={!state.sha256 || state.busy || state.editing} onselect={ondelete}
+    <MenuItem icon="trash" danger disabled={!state.sha256 || state.busy || state.dirty} onselect={ondelete}
       >Delete file</MenuItem
     >
   </DropdownMenu>

@@ -4,7 +4,7 @@ Status: **wdrożone; układ v3** (po stosie #640–#648).
 Zakładki dzielą rząd z sygnetem projektu i tytułem wątku. Podsumowanie wątku jest
 **osobnym elementem**: pływającą kartą o stałej szerokości w prawym górnym rogu
 obszaru wątku, niezależną od prawego panelu. Prawy panel zawiera wyłącznie **Files**.
-Ustalono jeden zastępowalny czysty preview, utrwalany przez Edit/Keep tab/dwuklik,
+Ustalono jeden zastępowalny czysty preview, utrwalany przez pierwszą zmianę/Keep tab/dwuklik,
 drzewo ograniczone do cwd/worktree wątku i mobilną edycję natywną bez kolorów podczas
 pisania (kolory w viewerze i Preview changes).
 
@@ -356,7 +356,7 @@ Dodajemy konteksty workspace/file oraz wykrywanie kolizji; obecne `Mod+K`, `Mod+
 | Wybór zakładki | Left/Right, Home/End w `tablist`; Enter/Space aktywuje, bez uruchamiania odczytu samym fokusem |
 | Następna/poprzednia karta | `Alt+PageDown` / `Alt+PageUp` poza polem tekstowym; menu `+N` dla ukrytych kart |
 | Zamknięcie | Delete przy fokusie nagłówka karty; menu i paleta dla reszty, dirty guard zawsze działa |
-| Zapis i linia | `Mod+S` tylko w edycji; `Mod+G` tylko przy fokusie viewera/edytora, otwiera `Go to line` |
+| Zapis i linia | `Mod+S` zapisuje szkic edytowalnego pliku; `Mod+G` tylko przy fokusie viewera/edytora, otwiera `Go to line` |
 | Podsumowanie i Files | `Toggle thread details` i `Toggle Files` w palecie; Escape w karcie podsumowania zwija ją do pigułki |
 
 Przestawianie kart ma akcje menu bez gestu; drzewo ma semantykę tree/treeitem,
@@ -422,16 +422,25 @@ przy `truncated` albo pustym hashu. Sprawdzamy również limit nowej treści ora
 rozmiar body protobuf JSON przed wysłaniem; rozmiar po base64/escapowaniu może być
 większy. Brak podnoszenia limitów BFF w ramach nowego layoutu.
 
+Edytowalny tekst otwiera od razu edytor, bez trybu `Edit`. Zapis i porzucenie zmian
+pozostawiają edytor otwarty; dopiero pierwsza zmiana przypina kartę preview.
+Czysty dokument może zostać usunięty z cache. Binaria, obrazy, pliki ucięte,
+przekraczające limit edycji lub bez prawa zapisu oraz pliki innego komputera
+i workera offline pozostają tylko do odczytu. Utrata dostępności nie usuwa szkicu.
+
 Viewer tekstowy wirtualizuje linie z małym overscanem. Najpierw pokazuje zwykły
 tekst, potem tokeny w tych samych wymiarach. Wszystko, co wyznacza ramkę, jest znane przy
 pierwszym renderze z jednego przejścia po tekście (`@canopy/syntax/layout`): liczba linii,
 najdłuższa linia i rozmiar. Gutter ma co najmniej 3 cyfry (pliki do 999 linii mają tę samą
 szerokość), dłuższy plik dostaje szerokość z liczby linii od razu; decyzja o zwykłym tekście
 i wysokość przewijania nie zmieniają się po zakończeniu indeksowania. Kolorowanie zmienia
-tylko kolory. Komunikat o przygotowaniu pojawia się dopiero po 300 ms indeksowania. Plik powyżej 200 KiB, 10 000 linii
-lub z linią ponad 2 000 znaków domyślnie używa zwykłego tekstu; nie uruchamiamy
-nieograniczonej tokenizacji. `Enable highlighting` dotyczy tylko dostępnego okna,
-z limitem pracy; nie zwiększa limitu odczytu. Nieznany język pozostaje czytelny.
+tylko kolory. Komunikat o przygotowaniu pojawia się dopiero po 300 ms indeksowania.
+Web przygotowuje kolejne partie do 200 linii w tle, także dla dużych plików.
+Tokeny pozostają w cache wersji dokumentu (budżet 8 MiB szacowanych danych tokenów
+w wykonawcy); przewinięcie nie usuwa tokenów ani nie uruchamia tokenizacji ponownie.
+Linia ponad 2 000 znaków lub wyczerpanie budżetu zatrzymuje kolorowanie dalszego
+tekstu z informacją; nie zwiększa limitu odczytu. Nieznany język pozostaje czytelny.
+Mobilny viewer zachowuje próg plain text 200 KiB/10 000 linii i jawne włączenie kolorów.
 
 Web/desktop: jeden leniwy Web Worker z obecnym silnikiem JavaScript, gramatyki według
 rozszerzenia i tokeny `--code-*`. Nie przenosimy runtime'u highlightera do początkowego
@@ -444,7 +453,10 @@ Zadanie przekraczające 100 ms jest anulowane, a worker może zostać odtworzony
 Edytor pozostaje leniwy. Adapter edytora stosuje dekoracje tokenów z tego
 samego wykonawcy, bez drugiego pełnego parsera synchronicznego na głównym wątku.
 Wpisanie znaku natychmiast aktualizuje tekst/undo; dekoracje dochodzą po krótkim
-debounce, ze sprawdzeniem rewizji. Nie przesyłamy całej treści na każdy znak.
+opóźnieniu wykonawcy, ze sprawdzeniem rewizji. Nie przesyłamy całej treści na każdy znak.
+Zmiana unieważnia tokeny od zmienionej linii; wykonawca wraca do checkpointu
+gramatyki i odbudowuje sufiks partiami. Dekoracje okna powstają synchronicznie
+z cache, bez debounce i żądania kolorów podczas scrolla.
 Wirtualizację, IME, selekcję, Tab i undo trzeba zweryfikować przed uznaniem
 tego adaptera za gotowy; istniejąca konfiguracja edytora tego jeszcze nie zapewnia.
 

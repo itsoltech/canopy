@@ -38,19 +38,19 @@ export function FilePreview({
             {viewer.error}
           </Text>
         ) : null}
-        {viewer.editing && viewer.error && <Button title="Discard and reload" onPress={onDiscard} />}
-        {viewer.editing && (
+        {viewer.editable && viewer.error && <Button title="Discard and reload" onPress={onDiscard} />}
+        {viewer.editable && (
           <Text style={[styles.caption, { color: c.muted }]}>{viewer.dirty ? "Unsaved changes" : " "}</Text>
         )}
       </View>
       {viewer.loading ? (
         <ActivityIndicator accessibilityLabel="Opening the file" color={c.muted} />
-      ) : viewer.editing ? (
+      ) : viewer.editable ? (
         <TextInput
           multiline
           value={viewer.draft}
           onChangeText={viewer.setDraft}
-          editable={!viewer.busy}
+          editable={!viewer.busy && !viewer.readOnly}
           accessibilityLabel={`Edit ${name}`}
           autoCapitalize="none"
           autoCorrect={false}

@@ -43,6 +43,7 @@ export interface CodeEditor {
   focus(): void;
   locate(position: FilePosition): void;
   destroy(): void;
+  readOnly(value: boolean): void;
 }
 
 export interface CodeEditorMemory {
@@ -57,6 +58,7 @@ export interface CodeEditorOptions {
   wrap: boolean;
   onchange: (text: string) => void;
   memory?: CodeEditorMemory | undefined;
+  readonly?: boolean;
 }
 
 export function createCodeEditor(parent: HTMLElement, options: CodeEditorOptions): CodeEditor {
@@ -115,6 +117,11 @@ export function createCodeEditor(parent: HTMLElement, options: CodeEditorOptions
       resetting = false;
     },
     focus: () => view.focus(),
+    readOnly(value) {
+      view.dispatch({
+        effects: events.reconfigure(editorEvents({ ...options, readonly: value }, () => resetting)),
+      });
+    },
     locate(position) {
       const line = view.state.doc.line(Math.min(position.line, view.state.doc.lines));
       const end = view.state.doc.line(Math.min(position.end, view.state.doc.lines));
@@ -134,6 +141,8 @@ export function createCodeEditor(parent: HTMLElement, options: CodeEditorOptions
 
 function editorEvents(options: CodeEditorOptions, resetting: () => boolean) {
   return [
+    EditorState.readOnly.of(options.readonly ?? false),
+    EditorView.editable.of(!options.readonly),
     EditorView.updateListener.of((update) => {
       if (update.docChanged && !resetting()) options.onchange(update.state.doc.toString());
     }),

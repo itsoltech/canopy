@@ -8,12 +8,12 @@ let active: { task: HighlightTask; value: WindowHighlighter } | undefined;
 
 function trim() {
   const expiry = Date.now() - 30_000;
-  let bytes = [...sessions.values()].reduce((sum, session) => sum + session.bytes, 0);
+  let bytes = [...sessions.values()].reduce((sum, session) => sum + session.bytes + session.value.tokenBytes, 0);
 
   for (const [key, session] of sessions) {
     if (session.touched > expiry && sessions.size <= 8 && bytes <= 8 * 1024 * 1024) continue;
     sessions.delete(key);
-    bytes -= session.bytes;
+    bytes -= session.bytes + session.value.tokenBytes;
   }
 }
 
@@ -32,6 +32,7 @@ self.onmessage = async (event: MessageEvent<HighlightCommand>) => {
 
     try {
       reply({ id: current.task.id, result: current.value.render(current.task.start, current.task.count) });
+      trim();
     } catch {
       reply({ id: current.task.id, error: "Highlighting is unavailable. The file remains readable." });
     }

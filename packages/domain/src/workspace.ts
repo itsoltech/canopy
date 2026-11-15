@@ -168,7 +168,7 @@ export class Workspace {
 
     if (!tab) return;
 
-    if (tab.document.editing) tab.preview = false;
+    if (tab.document.dirty) tab.preview = false;
 
     const duplicate = this.files.find(
       (other) =>
@@ -293,7 +293,7 @@ export class WorkspaceStore {
     for (const [id, candidate] of this.views) {
       if (this.views.size <= 30) break;
 
-      if (candidate === view || candidate.files.some((tab) => tab.document.editing || tab.document.busy)) continue;
+      if (candidate === view || candidate.files.some((tab) => tab.document.dirty || tab.document.busy)) continue;
 
       for (const tab of candidate.files) tab.document.dispose();
       this.views.delete(id);
@@ -323,7 +323,7 @@ export class WorkspaceStore {
     for (const entry of documents) {
       if (bytes <= this.cleanBytes && warm.size <= warmLimit) break;
 
-      if (entry.editing || entry.busy || this.#active?.currentFile?.document === entry) continue;
+      if (entry.dirty || entry.busy || this.#active?.currentFile?.document === entry) continue;
       bytes -= entry.bytes;
       warm.delete(entry);
       entry.release();

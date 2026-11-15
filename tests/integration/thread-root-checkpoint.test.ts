@@ -68,7 +68,6 @@ describe.skipIf(!dockerAvailable)("document root checkpoints across watch lifeti
       await document.load();
       const original = document.file!;
       expect(original.rootIdentity).toMatch(/^[a-f0-9]{64}$/);
-      document.edit();
       document.setDraft("draft from the previous checkout");
       let release = observeWorkspaceFile(workspace, document);
       const watches = () => home.gw.core.link.connections.get(home.workerId)!.fileWatches.size;
@@ -121,7 +120,6 @@ describe.skipIf(!dockerAvailable)("document root checkpoints across watch lifeti
         expect(await document.remove()).toBe(false);
         await document.load();
         expect(document.file?.rootIdentity).not.toBe(original.rootIdentity);
-        document.edit();
         document.setDraft("accepted after explicit reload");
         expect(await document.save()).toBe(true);
         expect(readFileSync(file, "utf8")).toBe("accepted after explicit reload");

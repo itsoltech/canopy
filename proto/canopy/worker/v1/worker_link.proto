@@ -2026,6 +2026,7 @@ message FileContent {
   // Pierwsza klatka GIF jako PNG, maks. 2 MiB. Oryginalne content i hash pozostają bez zmian.
   bytes image_preview = 17;
   string root_identity = 18;
+  bool read_only = 19;
 }
 
 enum FileResolution {

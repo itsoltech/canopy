@@ -47,7 +47,6 @@ export class WorkspaceFile {
   text = "";
   draft = "";
   draftRevision = 0;
-  editing = false;
   loading = false;
   busy = false;
   error = "";
@@ -66,6 +65,7 @@ export class WorkspaceFile {
   diskText: string | undefined;
   watchStatus = "";
   stale = false;
+  readOnlyReason = "";
 
   constructor(
     readonly target: WorkspaceFileTarget,
@@ -78,18 +78,30 @@ export class WorkspaceFile {
   }
 
   get dirty(): boolean {
-    return this.editing && this.draft !== this.text;
+    return this.draft !== this.text;
   }
   get editable(): boolean {
     return Boolean(
-      this.file?.sha256 && !this.file.binary && !this.file.truncated && this.file.size <= BigInt(FILE_EDIT_BYTES),
+      !this.readOnlyReason &&
+      this.file?.sha256 &&
+      !this.file.binary &&
+      !this.file.truncated &&
+      !this.file.readOnly &&
+      !this.file.mimeType.startsWith("image/") &&
+      this.file.size <= BigInt(FILE_EDIT_BYTES),
     );
   }
   get bytes(): number {
     return this.file?.content.byteLength ?? 0;
   }
+
+  availability(reason: string): void {
+    if (reason === this.readOnlyReason) return;
+    this.readOnlyReason = reason;
+    this.changed();
+  }
   get draftBytes(): number {
-    return this.editing
+    return this.dirty
       ? encoder.encode(this.text).byteLength +
           encoder.encode(this.draft).byteLength +
           encoder.encode(this.diskText ?? "").byteLength
@@ -131,8 +143,7 @@ export class WorkspaceFile {
         this.file = file;
         this.path = file.path;
         this.text = file.binary ? "" : decoder.decode(file.content);
-        this.draft = "";
-        this.editing = false;
+        this.draft = this.text;
         this.changedOnDisk = false;
         this.removedOnDisk = false;
         this.diskText = undefined;
@@ -151,23 +162,8 @@ export class WorkspaceFile {
     }
   }
 
-  edit(): void {
-    if (this.#disposed || !this.editable || this.loading || this.busy || this.changedOnDisk) return;
-
-    if (!this.reserveDraft(this.bytes * 2)) {
-      this.error = "The draft limit was reached. Save or discard another draft, then retry.";
-      this.changed();
-
-      return;
-    }
-
-    this.draft = this.text;
-    this.editing = true;
-    this.changed();
-  }
-
   setDraft(text: string): void {
-    if (this.#disposed || !this.editing || this.busy) return;
+    if (this.#disposed || !this.editable || this.busy) return;
     const bytes = encoder.encode(text).byteLength;
 
     if (
@@ -186,8 +182,7 @@ export class WorkspaceFile {
 
   discard(): void {
     if (this.busy) return;
-    this.draft = "";
-    this.editing = false;
+    this.draft = this.text;
     this.error = "";
     this.diskText = undefined;
     this.changed();
@@ -217,6 +212,8 @@ export class WorkspaceFile {
       this.watchStatus = "";
       const found = file.resolution === FileResolution.FOUND || file.resolution === FileResolution.UNSPECIFIED;
 
+      if (found) this.file = { ...base, readOnly: file.readOnly };
+
       if (found && file.sha256 === base.sha256) {
         this.changedOnDisk = false;
         this.removedOnDisk = false;
@@ -239,7 +236,7 @@ export class WorkspaceFile {
         this.file = this.lookup = file;
         this.text = file.binary ? "" : decoder.decode(file.content);
 
-        if (this.editing) this.draft = this.text;
+        this.draft = this.text;
         this.changedOnDisk = false;
         this.diskText = undefined;
       }
@@ -260,7 +257,7 @@ export class WorkspaceFile {
   async save(): Promise<boolean> {
     const file = this.file;
 
-    if (this.#disposed || !file?.sha256 || !this.dirty || this.busy) return false;
+    if (this.#disposed || !this.editable || !file?.sha256 || !this.dirty || this.busy) return false;
 
     if (this.changedOnDisk) {
       this.error = "The file changed on disk. Compare or copy your changes before discarding and reloading.";
@@ -286,8 +283,6 @@ export class WorkspaceFile {
         rootIdentity: file.rootIdentity,
       };
       this.text = this.draft;
-      this.editing = false;
-      this.draft = "";
 
       return true;
     } catch (cause) {
@@ -360,7 +355,7 @@ export class WorkspaceFile {
   }
 
   release(): void {
-    if (this.editing || this.busy) return;
+    if (this.dirty || this.busy) return;
     this.cancel();
     this.file = undefined;
     this.lookup = undefined;
@@ -378,7 +373,6 @@ export class WorkspaceFile {
     this.file = this.lookup = undefined;
     this.text = this.draft = "";
     this.diskText = undefined;
-    this.editing = false;
     this.error = "File access ended. Reopen the thread to check access.";
   }
 }

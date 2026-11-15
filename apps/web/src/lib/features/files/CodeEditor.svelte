@@ -4,7 +4,7 @@
   import type { FilePosition } from "@canopy/domain/file-references";
 
   /**
-   * CodeMirror for the file viewer; its module loads on first use, so reading files never pays for it.
+   * CodeMirror loads when an editable text file opens; read-only previews keep the smaller reader.
    * `text` is the starting content: later changes of the prop replace the content (a reload).
    */
   let {
@@ -15,6 +15,7 @@
     memory,
     position,
     positionRevision = 0,
+    readonly = false,
   }: {
     text: string;
     fileName: string;
@@ -23,6 +24,7 @@
     memory?: CodeEditorMemory;
     position?: FilePosition | undefined;
     positionRevision?: number;
+    readonly?: boolean;
   } = $props();
 
   let host = $state<HTMLDivElement>();
@@ -52,6 +54,7 @@
               });
             },
             memory,
+            readonly,
           }),
         );
         editor = created;
@@ -69,6 +72,8 @@
   });
 
   // A reload brings new content: replace it unless it is already what the editor shows.
+  $effect(() => editor?.readOnly(readonly));
+
   $effect(() => {
     const next = text;
 

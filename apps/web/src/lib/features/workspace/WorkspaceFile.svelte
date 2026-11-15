@@ -27,6 +27,7 @@
   import Delayed from "#lib/shared/ui/Delayed.svelte";
   import FileSkeleton from "./FileSkeleton.svelte";
   import type { FileNotice } from "./file-notice.ts";
+  import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
 
   let {
     document,
@@ -54,6 +55,19 @@
   let Reader = $state(loadedReader);
   let sourceNotice = $state<FileNotice>();
   let highlight = $state(false);
+  const overview = useOverview();
+  const thread = $derived(overview.threads.get(document.target.threadId));
+  const worker = $derived(thread ? overview.worker(thread.workerId) : undefined);
+
+  $effect(() => {
+    document.availability(
+      worker?.nodeId
+        ? "Files on another computer are read only."
+        : worker && !worker.online
+          ? "This computer is offline. Reconnect it to edit files."
+          : "",
+    );
+  });
 
   // A tab that opens on text it already has shows it at once; text that arrives later fades in.
   const fade = untrack(() => !document.file);
@@ -68,7 +82,6 @@
       lookup: document.lookup,
       text: document.text,
       draft: document.draft,
-      editing: document.editing,
       dirty: document.dirty,
       loading: document.loading,
       busy: document.busy,
@@ -98,9 +111,14 @@
     if (viewer.file?.truncated)
       return { text: "Showing the first 2 MB", detail: "Showing the first 2 MB. This file is read only." };
 
-    if (viewer.editing) return viewer.dirty ? { text: "Unsaved changes" } : undefined;
+    if (document.readOnlyReason) return { text: "Read only", detail: document.readOnlyReason };
+
+    if (viewer.dirty) return { text: "Unsaved changes" };
 
     if (viewer.watchStatus) return { text: viewer.watchStatus };
+
+    if (viewer.file && !viewer.editable && !viewer.file.binary)
+      return { text: "Read only", detail: "This file cannot be edited in Canopy." };
 
     return sourceNotice;
   });
@@ -127,7 +145,7 @@
   });
 
   $effect(() => {
-    if (!viewer.editing) forgetEditor(document);
+    if (!viewer.file) forgetEditor(document);
   });
 
   $effect(() => {
@@ -145,7 +163,7 @@
       !position ||
       !viewer.file ||
       viewer.loading ||
-      viewer.editing ||
+      viewer.editable ||
       rendered ||
       document.readerPositionRevision === viewer.positionRevision
     )
@@ -166,7 +184,7 @@
       id: "workspace:save-file",
       title: "Save file",
       group: "actions",
-      disabled: !viewer.dirty || viewer.busy || viewer.changedOnDisk,
+      disabled: !viewer.editable || !viewer.dirty || viewer.busy || viewer.changedOnDisk,
       run: () => void document.save(),
     },
   ]);
@@ -186,7 +204,7 @@
       goOpen = true;
     }
 
-    if (viewer.editing && keybindings.matches(event, "file:save")) {
+    if (viewer.editable && keybindings.matches(event, "file:save")) {
       event.preventDefault();
       event.stopPropagation();
       void document.save();
@@ -216,12 +234,11 @@
     bind:rendered
     state={{
       path: viewer.file?.relativePath || document.path,
-      editing: viewer.editing,
       dirty: viewer.dirty,
       busy: viewer.busy,
       loading: viewer.loading,
       editable: viewer.editable,
-      text: viewer.file && !viewer.file.binary ? viewer.text : undefined,
+      text: viewer.file && !viewer.file.binary ? viewer.draft : undefined,
       sha256: viewer.file?.sha256,
       changedOnDisk: viewer.changedOnDisk,
     }}
@@ -282,7 +299,7 @@
             path={name}
             revision={-1}
           />{/if}
-      {:else if viewer.editing}
+      {:else if (viewer.editable || viewer.dirty) && !rendered}
         <CodeEditor
           memory={editorMemory(document)}
           position={viewer.position}
@@ -290,7 +307,11 @@
           text={viewer.draft}
           fileName={name}
           wrap={false}
-          onchange={(text) => document.setDraft(text)}
+          readonly={!viewer.editable || viewer.busy}
+          onchange={(text) => {
+            document.setDraft(text);
+            if (document.dirty) onkeep();
+          }}
         />
       {:else if !viewer.file && viewer.lookup && !viewer.loading}
         <FileLookup file={viewer.lookup} path={document.path} onselect={(path) => void document.load(path)} />
@@ -308,7 +329,7 @@
       {:else}
         <FileContentView
           file={viewer.file}
-          text={viewer.text}
+          text={viewer.draft}
           {name}
           loading={viewer.loading}
           {rendered}

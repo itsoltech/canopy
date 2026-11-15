@@ -8,13 +8,12 @@ export interface ThreadFileState {
   draft: string;
   dirty: boolean;
   editable: boolean;
-  editing: boolean;
+  readOnly: boolean;
   loading: boolean;
   busy: boolean;
   error: string;
   setDraft(text: string): void;
   reload(selected?: string): void;
-  edit(): void;
   discard(): void;
   save(): Promise<boolean>;
   remove(): Promise<boolean>;

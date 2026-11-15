@@ -37,6 +37,10 @@ export class WindowHighlighter {
   #tokenize: LineTokenizer | undefined;
   #index: SourceIndex;
   #blocked = Infinity;
+  readonly #lines = new Map<number, SyntaxLine>();
+  #bytes = 0;
+  #next = 1;
+  #state: GrammarState | undefined;
   readonly #states = new Map<number, GrammarState | undefined>([[1, undefined]]);
 
   constructor(
@@ -57,6 +61,14 @@ export class WindowHighlighter {
     }
   }
 
+  get lineCount(): number {
+    return this.#index.lines;
+  }
+
+  get tokenBytes(): number {
+    return this.#bytes;
+  }
+
   change(changes: readonly SourceChange[]) {
     let text = this.#index.text;
     let earliest = Infinity;
@@ -71,6 +83,17 @@ export class WindowHighlighter {
     this.#index = new SourceIndex(text);
 
     for (const line of this.#states.keys()) if (line > earliest) this.#states.delete(line);
+    this.#next = 1;
+
+    for (const line of this.#states.keys()) if (line <= earliest && line > this.#next) this.#next = line;
+    this.#state = this.#states.get(this.#next);
+
+    for (const [number, line] of this.#lines) {
+      if (number < this.#next) continue;
+      this.#bytes -= 32 + line.spans.length * 24;
+      this.#lines.delete(number);
+    }
+
     this.#blocked = Math.min(this.#blocked, earliest) === earliest ? Infinity : this.#blocked;
   }
 
@@ -78,10 +101,8 @@ export class WindowHighlighter {
     if (!this.#tokenize) return { lines: [], incomplete: false, reason: "No highlighting for this file type." };
     const lines: SyntaxLine[] = [];
     const end = Math.min(this.#index.lines + 1, start + Math.min(200, count));
-    let next = 1;
-
-    for (const line of this.#states.keys()) if (line <= start && line > next) next = line;
-    let state = this.#states.get(next);
+    let next = this.#next;
+    let state = this.#state;
     const deadline = performance.now() + 70;
     let bytes = 0;
 
@@ -95,14 +116,26 @@ export class WindowHighlighter {
 
       const result = this.#tokenize(this.#index.text.slice(from, to), state);
       state = result.state;
+      const spans = semanticSpans(result.tokens);
+      const line: SyntaxLine = { $typeName: "canopy.worker.v1.SyntaxLine", line: next, spans };
+      const cost = 32 + spans.length * 24;
+
+      if (this.#bytes + cost > 8 * 1024 * 1024) {
+        this.#blocked = next;
+        break;
+      }
+
+      this.#bytes += cost;
+      this.#lines.set(next, line);
 
       if (next >= start) {
-        const spans = semanticSpans(result.tokens);
         // Each span has three bounded varints; reserve protobuf envelopes and revision fields.
         bytes += 16 + spans.length * 18;
 
-        if (bytes > 60 * 1024) break;
-        lines.push({ $typeName: "canopy.worker.v1.SyntaxLine", line: next, spans });
+        if (bytes > 60 * 1024) {
+          next++;
+          break;
+        }
       }
 
       next++;
@@ -112,12 +145,26 @@ export class WindowHighlighter {
       if (performance.now() >= deadline) break;
     }
 
+    this.#next = next;
+    this.#state = state;
+    this.#remember(next, state);
+
+    bytes = 0;
+
+    for (let number = start; number < end; number++) {
+      const line = this.#lines.get(number);
+
+      if (!line || bytes + 16 + line.spans.length * 18 > 60 * 1024) break;
+      bytes += 16 + line.spans.length * 18;
+      lines.push(line);
+    }
+
     return {
       lines,
       incomplete: next < end,
       reason:
         this.#blocked < end
-          ? "Long lines are shown as plain text to keep this file responsive."
+          ? "Highlighting stopped at the file’s preview limit. The remaining text is readable."
           : next < end
             ? "This window is shown as plain text while highlighting catches up."
             : "",
