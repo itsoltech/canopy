@@ -1,4 +1,4 @@
-import type { McpSdkServerConfigWithInstance, Query } from "@anthropic-ai/claude-agent-sdk";
+import type { McpServerConfig, Query } from "@anthropic-ai/claude-agent-sdk";
 import type { ConnectorTool } from "@canopy/contracts";
 import { connectorSessionCatalog } from "@canopy/domain/connector-session";
 import { BUS_SERVER } from "./mapping.ts";
@@ -7,13 +7,14 @@ import { BUS_SERVER } from "./mapping.ts";
 export function claudeConnectorRefresh(
   query: Pick<Query, "setMcpServers" | "mcpServerStatus">,
   initial: readonly ConnectorTool[],
-  servers: (tools: readonly ConnectorTool[]) => Record<string, McpSdkServerConfigWithInstance>,
+  servers: (tools: readonly ConnectorTool[]) => Record<string, McpServerConfig>,
+  initialRevision = "",
 ) {
-  let catalog: string | undefined = JSON.stringify(connectorSessionCatalog(initial));
+  let catalog: string | undefined = JSON.stringify([connectorSessionCatalog(initial), initialRevision]);
   let previous = initial.map((t) => t.name);
 
-  return async (tools: readonly ConnectorTool[]) => {
-    const next = JSON.stringify(connectorSessionCatalog(tools));
+  return async (tools: readonly ConnectorTool[], revision = initialRevision) => {
+    const next = JSON.stringify([connectorSessionCatalog(tools), revision]);
     const names = tools.map((t) => t.name);
 
     try {

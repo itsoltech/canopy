@@ -26,6 +26,7 @@ import { threadPanelHandlers } from "./ui-thread-panel.ts";
 import { diagnosticsHandlers } from "./ui-diagnostics.ts";
 import { diagnosticsLogHandlers } from "./ui-diagnostics-logs.ts";
 import { composerDraftHandlers } from "./ui-composer-drafts.ts";
+import { agentToolsHandlers } from "./ui-agent-tools.ts";
 import { withDraftDelivery } from "../drafts/delivery.ts";
 
 export { toConnectError } from "./ui-errors.ts";
@@ -73,6 +74,7 @@ function withFeedNudges(core: GatewayCore, handlers: UiHandlers): UiHandlers {
 export function uiHandlers(core: GatewayCore): UiHandlers {
   return withFeedNudges(core, {
     ...composerDraftHandlers(core),
+    ...agentToolsHandlers(core),
     ...diagnosticsHandlers(core),
     ...diagnosticsLogHandlers(core),
     ...agentEnvironmentHandlers(core),

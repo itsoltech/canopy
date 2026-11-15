@@ -30,6 +30,9 @@ export async function serveLink(
   try {
     for await (const message of link.messages) {
       switch (message.payload.case) {
+        case "agentPreview":
+          host.previews.accept(message.payload.value);
+          break;
         case "threadLifecycle":
           host.applyThreadLifecycle(message.payload.value);
           break;

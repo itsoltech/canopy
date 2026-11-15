@@ -9,6 +9,7 @@ import {
   type Mention,
   type ThreadEvent,
   type ThreadSpec,
+  type AgentTool,
 } from "@canopy/contracts";
 import type { ViewImageResult } from "../../images/index.ts";
 import { Predicate, Schema, type Semaphore } from "effect";
@@ -19,6 +20,7 @@ import type { CodexAppServerLaunch } from "./launch.ts";
 import { CodexEventMapper } from "./mapping.ts";
 import { RolloutTail } from "./rollout.ts";
 import type { codexConnectorMcp } from "./connector-mcp.ts";
+import type { LocalAgentToolMcpServer } from "../../agent-tools/index.ts";
 
 export class CodexThreadError extends Schema.TaggedError<CodexThreadError>()("CodexThreadError", {
   threadId: Schema.String,
@@ -47,11 +49,13 @@ export interface CodexThreadsOptions {
   /** Asks the platform (gateway -> user or parent agent) and waits for the answer. */
   interact(request: InteractionRequest): Promise<InteractionResponse>;
   /** Runs an agent bus tool call on the gateway (docs/agent-bus.md) and waits for its result. */
-  callTool(call: AgentToolCall): Promise<AgentToolResult>;
+  callTool(call: AgentToolCall, signal?: AbortSignal): Promise<AgentToolResult>;
   /** The device owner's default reasoning effort (their config.toml, default-effort.ts); read on every use. */
   configuredEffort?(): string | undefined;
   /** The platform's view_image (worker-side; docs/agent-bus.md), offered to every new thread as a dynamic tool. */
   viewImage?(threadId: string, path: string): Promise<ViewImageResult>;
+  /** Local automation MCP servers resolved by the worker from gateway-approved tool ids. */
+  localMcpServers?(tools: readonly AgentTool[], threadId: string): readonly LocalAgentToolMcpServer[];
   /** Adds what the transcript shows of an event (image previews) before it is journaled. */
   enrich?(init: ThreadEventInit): Promise<ThreadEventInit>;
   /** Account connectors (Codex apps) are on for this worker (NativeToolsConfig.connectors): list them for mentions. */
@@ -94,6 +98,7 @@ export interface CodexThreadContext {
   byPlatform: Map<string, Entry>;
   byCodex: Map<string, Entry>;
   connectorCatalog: Map<string, ThreadSpec["connectorTools"]>;
+  automationCatalog: Map<string, string>;
   connectorMcp?: ReturnType<typeof codexConnectorMcp>;
   failure: string | undefined;
 }

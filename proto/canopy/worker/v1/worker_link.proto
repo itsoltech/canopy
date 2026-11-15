@@ -9,6 +9,7 @@ package canopy.worker.v1;
 
 import "google/protobuf/timestamp.proto";
 import "canopy/worker/v1/agent_environment.proto";
+import "canopy/worker/v1/agent_tools.proto";
 import "canopy/worker/v1/cli_import.proto";
 import "canopy/worker/v1/workspace_copy.proto";
 import "canopy/ui/v1/diagnostics.proto";
@@ -72,6 +73,9 @@ message WorkerMessage {
     CliInstallProgress cli_install_progress = 801;
     NetworkRouteStatus network_route_status = 802;
     AgentEnvironmentReport agent_environment = 820;
+    AgentToolsReport agent_tools_report = 821;
+    AgentToolProgress agent_tool_progress = 822;
+    AgentPreviewEvent agent_preview = 823;
     // Bieżąca gałąź checkoutów wątków (capability "git_heads", docs/worktrees.md).
     GitHeads git_heads = 840;
     // Transient, capability git_clone_progress_v1; never journaled.
@@ -106,6 +110,7 @@ message GatewayMessage {
     // Only sent to workers advertising "network_route_migration".
     NetworkRoutes network_routes = 802;
     AgentEnvironmentDesired agent_environment = 820;
+    AgentPreviewCommand agent_preview = 823;
     HeartbeatEcho heartbeat_echo = 850;
     canopy.ui.v1.DiagnosticsLogSourceCommand diagnostics_log_command = 851;
     canopy.ui.v1.DiagnosticsWorkerTraceRequest diagnostics_trace_command = 852;
@@ -460,6 +465,10 @@ message Command {
     ExportThreadImage export_thread_image = 231;
     // CLI dostawców (sekcja na końcu pliku). Nietrwała: nigdy z outboxa.
     InstallCli install_cli = 800;
+    // Local automation tools. These commands are transient and never enter the outbox.
+    InstallAgentTool install_agent_tool = 870;
+    ProbeAgentTools probe_agent_tools = 871;
+    RunAgentTool run_agent_tool = 872;
     // Nietrwałe metadane konta; capability provider_account_status, bez journala/outboxa.
     GetProviderAccounts get_provider_accounts = 810;
     // Capability bot_harness_v1. Trwałe, odizolowane od wątków projektowych.
@@ -500,6 +509,9 @@ enum PermissionMode {
 message ThreadSpec {
   // Katalog bez poświadczeń. Wykonanie zawsze autoryzuje gateway.
   repeated ConnectorTool connector_tools = 520;
+  // Lokalne serwery MCP automatyzacji wybrane przez gateway na podstawie gotowości workera.
+  // Zawiera wyłącznie identyfikatory; worker rozwiązuje binarki i uruchamia je przez stdio.
+  repeated AgentTool local_mcp_tools = 521;
   // Utwórz zarządzany katalog scratch przed uruchomieniem harnessu.
   bool scratch = 410;
   string thread_id = 1;
@@ -766,7 +778,11 @@ message CommandResult {
   // Wynik ReadImportSecret.
   ImportSecretValue import_secret = 854;
   BotFileResult bot_file = 832;
+  AgentToolOutput agent_tool = 870;
+  AgentToolsReport agent_tools = 871;
 }
+
+message ProbeAgentTools {}
 
 // A single immutable export, scoped to the source turn. Roots come from the gateway,
 // and the worker independently verifies its current thread directory and turn.

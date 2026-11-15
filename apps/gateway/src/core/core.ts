@@ -38,6 +38,9 @@ import { createUpdateCenter } from "../updates/center-composition.ts";
 import { releaseFound } from "../updates/found.ts";
 import { WorkerSsh } from "./worker-ssh.ts";
 import { CliTools } from "./cli-tools.ts";
+import { type AgentTools, coreAgentToolsMethods, type CoreAgentToolsMethods } from "./agent-tools.ts";
+import { createCoreAgentTools } from "./automation-composition.ts";
+import { AgentPreviews } from "./agent-previews.ts";
 import { ProviderAccounts } from "./provider-accounts.ts";
 import { ProviderUsage } from "./provider-usage.ts";
 import { ProxyAccountsMonitor } from "./proxy-accounts.ts";
@@ -164,6 +167,10 @@ export class GatewayCore {
   declare installCli: CoreProvidersMethods["installCli"];
   declare checkCliUpdates: CoreProvidersMethods["checkCliUpdates"];
   declare setWorkerCliUpdateSettings: CoreProvidersMethods["setWorkerCliUpdateSettings"];
+  declare installAgentTool: CoreAgentToolsMethods["installAgentTool"];
+  declare refreshAgentTools: CoreAgentToolsMethods["refreshAgentTools"];
+  declare runAgentTool: CoreAgentToolsMethods["runAgentTool"];
+  declare setAgentToolEnabled: CoreAgentToolsMethods["setAgentToolEnabled"];
   declare startProviderLogin: CoreProvidersMethods["startProviderLogin"];
   declare completeProviderLogin: CoreProvidersMethods["completeProviderLogin"];
   declare logoutProvider: CoreProvidersMethods["logoutProvider"];
@@ -212,6 +219,8 @@ export class GatewayCore {
 
   /** Provider CLIs on the owner's workers: reports, latest versions, installs (docs/provider-cli.md). */
   readonly cli: CliTools;
+  readonly agentTools: AgentTools;
+  readonly agentPreviews: AgentPreviews;
   readonly environment: AgentEnvironment;
 
   readonly connectors: ConnectorsRuntime;
@@ -320,6 +329,8 @@ export class GatewayCore {
       changed: () => coreBroadcastWorkers(this),
       log: (message) => coreLog(this, message),
     });
+    this.agentTools = createCoreAgentTools(this, options);
+    this.agentPreviews = new AgentPreviews(this);
     this.environment = new AgentEnvironment({
       ...(options.skillSources && { sources: options.skillSources }),
       runtime: options.runtime,
@@ -406,6 +417,7 @@ for (const methods of [
   coreTitlesMethods,
   coreModelsMethods,
   coreProvidersMethods,
+  coreAgentToolsMethods,
   coreInteractionsMethods,
   coreWatchMethods,
   coreSettingsMethods,

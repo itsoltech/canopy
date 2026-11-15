@@ -103,6 +103,17 @@ export async function gather<A extends Message>(
               worker.providerInstances = known.providerInstances;
             }
 
+            if (known && reachable.has(nodeId) && computers.reads.state(nodeId, method, request) === "fresh") {
+              if (!worker.agentTools.length) worker.agentTools = known.agentTools;
+              else
+                for (const item of worker.agentTools) {
+                  const live = known.agentTools.find((candidate) => candidate.tool?.tool === item.tool?.tool);
+
+                  if (item.tool?.install?.installId && item.tool.install.installId === live?.tool?.install?.installId)
+                    item.log = live.log;
+                }
+            }
+
             // Older mirrors omit public update metadata, including the revision required by edits.
             if (known && known.configVersion > worker.configVersion) {
               worker.configVersion = known.configVersion;

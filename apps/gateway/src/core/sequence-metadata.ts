@@ -36,7 +36,9 @@ export function sequenceMetadata(core: GatewayCore, thread: string) {
           ? `schedule:${change.value.id}`
           : change.case === "event" && change.value.event?.body.case === "usageUpdated"
             ? "usage"
-            : undefined;
+            : change.case === "automationActivity"
+              ? "automation"
+              : undefined;
 
     if (!key) return;
     let bytes = metadataSizes.get(update);

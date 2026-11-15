@@ -83,7 +83,9 @@
   import WorkspaceTabs from "#lib/features/workspace/WorkspaceTabs.svelte";
   import WorkspaceFilesToggle from "#lib/features/workspace/WorkspaceFilesToggle.svelte";
   import WorkspaceContent from "#lib/features/workspace/WorkspaceContent.svelte";
-  import WorkspaceFilesPanel from "#lib/features/workspace/WorkspaceFilesPanel.svelte";
+  import WorkspaceSidePanel from "#lib/features/workspace/WorkspaceSidePanel.svelte";
+  import AgentPreviewMini from "#lib/features/preview/AgentPreviewMini.svelte";
+  import { AutomaticPreview, type PreviewSelection } from "#lib/features/preview/automatic-preview.svelte.ts";
   import ThreadSummary from "#lib/features/threads/summary/ThreadSummary.svelte";
   import { SummaryLayout } from "#lib/features/threads/summary/summary-layout.svelte.ts";
   import WorkspaceFrame from "#lib/features/workspace/WorkspaceFrame.svelte";
@@ -109,6 +111,8 @@
   );
 
   const view = $derived(memory.view);
+  const automaticPreview = new AutomaticPreview(() => view);
+  let sidebarSelection = $state<PreviewSelection>();
 
   $effect(() => {
     const id = threadId;
@@ -330,7 +334,26 @@
     worktreeDialog = true;
   }
 
-  const toggleFiles = () => workspaceState.toggleFiles(() => (panelSheet = true));
+  const toggleFiles = () => workspaceState.showPanel("files", () => (panelSheet = true));
+  const togglePreview = () => workspaceState.showPanel("preview", () => (panelSheet = true));
+
+  const previewOpen = $derived(
+    workspaceState.panelMode === "preview" && (workspaceState.wide ? workspaceState.filesOpen : panelSheet),
+  );
+
+  const miniEligible = $derived(
+    Boolean(
+      automaticPreview.selection &&
+      automaticPreview.workerId === worker?.id &&
+      !thread?.archivedAt &&
+      !thread?.deletedAt,
+    ),
+  );
+
+  $effect(() => {
+    void threadId;
+    sidebarSelection = undefined;
+  });
 
   const canBranch = $derived(!away && Boolean(tree && thread && thread.status !== "archived"));
 
@@ -528,8 +551,15 @@
             </DropdownMenu>
           </div>{/if}
         <WorkspaceFilesToggle
-          pressed={workspaceState.wide ? workspaceState.filesOpen : undefined}
+          pressed={workspaceState.wide ? workspaceState.filesOpen && workspaceState.panelMode === "files" : undefined}
           onclick={toggleFiles}
+        />
+        <IconButton
+          size="sm"
+          icon="computer-desktop"
+          label={workspaceState.filesOpen && workspaceState.panelMode === "preview" ? "Close preview" : "Open preview"}
+          aria-pressed={workspaceState.filesOpen && workspaceState.panelMode === "preview"}
+          onclick={togglePreview}
         />
       {/snippet}
     </TopBar>
@@ -575,8 +605,12 @@
           class="pointer-events-none invisible absolute inset-x-0 md:left-9"
           {@attach summary.measure}
         ></span>
-        {#if thread}<ThreadSummary {thread} {tree} floating={summary.floating} docked={summary.docked}
-            >{@render threadPanel()}</ThreadSummary
+        {#if thread}<ThreadSummary
+            {thread}
+            {tree}
+            floating={summary.floating}
+            docked={summary.docked}
+            preview={miniEligible && !previewOpen ? miniPreview : undefined}>{@render threadPanel()}</ThreadSummary
           >{/if}
         {#key threadId}
           {#if turnsOnRail.length >= 3}
@@ -779,11 +813,14 @@
   </div>
 
   {#snippet panel(width: number)}
-    <WorkspaceFilesPanel
-      view={workspaceState.view}
+    <WorkspaceSidePanel
+      state={workspaceState}
+      {threadId}
+      {worker}
+      selection={sidebarSelection}
+      offline={away ?? ""}
       root={(thread?.worktree?.path || thread?.cwd || "").split(/[\\/]/).filter(Boolean).at(-1) ?? ""}
       {width}
-      wide={workspaceState.wide}
       bind:sheet={panelSheet}
     />
   {/snippet}
@@ -792,6 +829,26 @@
 {#snippet threadActions()}
   {#if thread}<ThreadMenuItems {thread} omit={["open"]} />{/if}
   <MenuItem icon="magnifying-glass" onselect={() => (searchOpen = true)}>Search thread</MenuItem>
+{/snippet}
+
+{#snippet miniPreview()}
+  {#if automaticPreview.selection}
+    <AgentPreviewMini
+      {threadId}
+      {worker}
+      tool={automaticPreview.selection.tool}
+      target={automaticPreview.selection.target}
+      active={miniEligible && !previewOpen && !fileTab}
+      minimized={automaticPreview.minimized}
+      offline={away ?? ""}
+      onminimize={() => (automaticPreview.minimized = !automaticPreview.minimized)}
+      onexpand={(target) => {
+        if (!automaticPreview.selection) return;
+        sidebarSelection = { ...automaticPreview.selection, target: target ?? automaticPreview.selection.target };
+        workspaceState.openPreview(() => (panelSheet = true));
+      }}
+    />
+  {/if}
 {/snippet}
 
 {#snippet threadPanel()}

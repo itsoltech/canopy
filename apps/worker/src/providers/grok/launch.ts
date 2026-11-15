@@ -161,11 +161,17 @@ export function grokLaunch(options: {
   config += '\n[ui]\npermission_mode = "ask"\nremember_tool_approvals = false\n';
 
   // This server only forwards calls to the gateway, which enforces approvals and connector grants.
-  // Native tools and all other MCP servers keep their existing permission checks.
-  if (!options.textOnly)
-    config += options.bot?.webAccess
-      ? '\n[permission]\nallow = ["MCPTool(canopy__*)", "WebSearch(*)", "WebFetch(*)"]\n'
-      : '\n[permission]\nallow = ["MCPTool(canopy__*)"]\n';
+  // Native tools and all other MCP servers keep their existing permission checks. Local automation
+  // has a second, gateway-owned authorization step, so the exact MCP prefixes avoid a duplicate ACP prompt.
+  if (!options.textOnly) {
+    const allowed = ["MCPTool(canopy__*)"];
+
+    if (options.bot?.webAccess) allowed.push("WebSearch(*)", "WebFetch(*)");
+    else if (!options.bot)
+      allowed.push("MCPTool(agent_browser__*)", "MCPTool(agent_desktop__*)", "MCPTool(agent_device__*)");
+
+    config += `\n[permission]\nallow = ${JSON.stringify(allowed)}\n`;
+  }
 
   // Grok auto-allows mkdir/touch before asking ACP. Explicit denies also cover workspaces under /tmp.
   if (options.textOnly) config += textOnlyConfig(env, home);

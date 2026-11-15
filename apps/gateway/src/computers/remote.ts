@@ -80,7 +80,13 @@ function join(parts: Uint8Array[]): Uint8Array {
   return out;
 }
 
-type Outgoing = { channel: AsyncChannel<Uint8Array>; parts: Uint8Array[]; size: number; streaming: boolean };
+type Outgoing = {
+  channel: AsyncChannel<Uint8Array>;
+  parts: Uint8Array[];
+  size: number;
+  streaming: boolean;
+  limit: number;
+};
 
 type Served = { method: string; route: RelayRoute; parts: Uint8Array[]; size: number; abort?: AbortController };
 
@@ -147,14 +153,22 @@ export class RemoteCalls {
     if (this.#outgoing.size >= MAX_SERVED)
       throw new ConnectError("Too many calls to this computer at once", Code.ResourceExhausted);
     const id = this.#next++;
+    const preview = method.name === "WatchAgentPreview";
+    const limit = preview ? 2 * 1024 * 1024 + 32 * 1024 : MAX_MESSAGE;
 
     const channel = new AsyncChannel<Uint8Array>({
-      maxItems: 256,
-      maxBytes: 64 * 1024 * 1024,
-      overflow: () => new ConnectError("Linked subscription fell behind; resume from its checkpoint", Code.DataLoss),
+      maxItems: preview ? 2 : 256,
+      maxBytes: preview ? limit : 64 * 1024 * 1024,
+      overflow: () =>
+        new ConnectError(
+          preview
+            ? "Preview fell behind. Reopen it to continue."
+            : "Linked subscription fell behind; resume from its checkpoint",
+          Code.DataLoss,
+        ),
     });
 
-    this.#outgoing.set(id, { channel, parts: [], size: 0, streaming: method.methodKind !== "unary" });
+    this.#outgoing.set(id, { channel, parts: [], size: 0, streaming: method.methodKind !== "unary", limit });
 
     const stop = () =>
       channel.close(
@@ -212,7 +226,7 @@ export class RemoteCalls {
 
     call.size += r.payload.length;
 
-    if (call.size > MAX_MESSAGE) {
+    if (call.size > call.limit) {
       call.channel.close(new ConnectError("Response is too large", Code.ResourceExhausted));
 
       return;

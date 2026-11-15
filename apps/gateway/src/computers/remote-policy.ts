@@ -250,6 +250,12 @@ export const SERVED = new Set([
   "RefreshProviders",
   "InstallCli",
   "CheckCliUpdates",
+  "InstallAgentTool",
+  "RefreshAgentTools",
+  "RunAgentTool",
+  "SetAgentToolEnabled",
+  "WatchAgentPreview",
+  "SendAgentPreviewInput",
   "ListSchedules",
   "CreateSchedule",
   "UpdateSchedule",
@@ -285,6 +291,10 @@ export const WORKER_SETTINGS = new Set([
   "RefreshProviders",
   "InstallCli",
   "CheckCliUpdates",
+  "InstallAgentTool",
+  "RefreshAgentTools",
+  "RunAgentTool",
+  "SetAgentToolEnabled",
 ]);
 
 /** Stage 8: the two sides of a move, direct partners only (never relayed). */

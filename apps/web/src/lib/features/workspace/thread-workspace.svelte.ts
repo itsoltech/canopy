@@ -14,6 +14,8 @@ export class ThreadWorkspace {
   rem = $state(16);
   /** Files width while its edge is dragged. */
   panelDraft = $state<number>();
+  panelMode = $state<"files" | "preview">("files");
+  previewWidth = $state(520);
   closing = $state<WorkspaceTab[]>([]);
   #closingView: Workspace | undefined;
   #closingIds: string[] = [];
@@ -64,12 +66,48 @@ export class ThreadWorkspace {
   }
 
   get panelMax(): number {
-    return Math.min(FILES_PANEL_WIDTH.max, Math.max(FILES_PANEL_WIDTH.min, this.width - 30 * this.rem));
+    return Math.min(
+      this.panelMode === "preview" ? 1100 : FILES_PANEL_WIDTH.max,
+      Math.max(this.panelMin, this.width - (this.panelMode === "preview" ? 26 : 30) * this.rem),
+    );
   }
 
-  /** Width of the Files column when open, px. */
+  get panelMin(): number {
+    return this.panelMode === "preview" ? 320 : FILES_PANEL_WIDTH.min;
+  }
+  get panelDefault(): number {
+    return this.panelMode === "preview" ? 520 : FILES_PANEL_WIDTH.default;
+  }
+
+  /** Width of the selected side panel when open, px. */
   get panelSize(): number {
-    return Math.min(this.panelDraft ?? devicePreferences.view.filesPanelWidth, this.panelMax);
+    return Math.min(
+      this.panelDraft ?? (this.panelMode === "preview" ? this.previewWidth : devicePreferences.view.filesPanelWidth),
+      this.panelMax,
+    );
+  }
+
+  setPanelWidth(value: number): void {
+    if (this.panelMode === "preview") this.previewWidth = value;
+    else devicePreferences.setView({ filesPanelWidth: value });
+    this.panelDraft = undefined;
+  }
+
+  showPanel(mode: "files" | "preview", sheet: () => void): void {
+    const same = this.panelMode === mode;
+    this.panelMode = mode;
+    this.panelDraft = undefined;
+
+    if (this.wide) devicePreferences.setView({ filesPanelOpen: same ? !this.filesOpen : true });
+    else sheet();
+  }
+
+  openPreview(sheet: () => void): void {
+    this.panelMode = "preview";
+    this.panelDraft = undefined;
+
+    if (this.wide) devicePreferences.setView({ filesPanelOpen: true });
+    else sheet();
   }
 
   /** The sidebar's `--sidebar-width`, for the chat column that follows it (layout.css `data-chat-placement`). */

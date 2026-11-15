@@ -1,8 +1,10 @@
-# Zakładki wątku i moduł plików
+# Zakładki wątku i panel Files/Preview
 
-Status: **wdrożone; układ v3**, kompaktowa typografia zakładek, diagramy Mermaid w trybie
+Status: **zaimplementowane; układ v3**, kompaktowa typografia zakładek, diagramy Mermaid w trybie
 `Rendered`, bezpieczny HTML i lokalne obrazy w Markdown w web/desktop,
-cytowanie zaznaczeń z plików i przeciąganie plików do wiadomości
+cytowanie zaznaczeń z plików, przeciąganie plików do wiadomości
+i interaktywny Preview automatyzacji w panelu web/desktop oraz automatyczny mini Preview
+pod podsumowaniem wątku
 (2026-11-15; stos #640–#648, potem #710, #711, #737, #740, #787 i #823).
 Opis dotyczy kodu; dostępność nightly/beta/stable określają [wydania](release.md).
 W web/desktop zakładki dzielą rząd z sygnetem projektu, a **tytuł wątku jest pierwszą,
@@ -10,10 +12,11 @@ niezamykalną kartą** (bez osobnego tytułu i etykiety `Thread`, #787). Mobile 
 tę kartę w przełączniku jako `Thread`. W tym dokumencie `Thread` oznacza tę pierwszą
 kartę rozmowy, niezależnie od jej etykiety. Podsumowanie wątku jest
 **osobnym elementem**: pływającą kartą o stałej szerokości w prawym górnym rogu
-obszaru wątku, niezależną od prawego panelu. Prawy panel zawiera wyłącznie **Files**.
-Ustalono jeden zastępowalny czysty preview, utrwalany przez pierwszą zmianę/Keep tab/dwuklik,
-drzewo ograniczone do cwd/worktree wątku i mobilną edycję natywną bez kolorów podczas
-pisania (kolory w viewerze i Preview changes).
+obszaru wątku, niezależną od prawego panelu. Prawy panel web/desktop łączy
+**Files** i **Preview** (Browser/Desktop/Device). Podgląd pliku nadal jest jedną
+zastępowalną czystą kartą, utrwalaną przez pierwszą zmianę/Keep tab/dwuklik.
+Drzewo pozostaje ograniczone do cwd/worktree wątku; mobilna edycja jest natywna
+i bez kolorów podczas pisania (kolory w viewerze i Preview changes).
 
 Cel: czytać i edytować pliki obok kontekstu wątku bez wielokrotnego otwierania modala.
 Priorytet: otwarcie wątku, pisanie i streaming nie płacą za nieotwarte moduły.
@@ -93,12 +96,12 @@ podsumowanie zmieniało szerokość razem z panelem, a szerokość i zwinięcie 
 zapisywane osobno dla każdego wątku, więc interfejs skakał przy przełączaniu wątków.
 Część akcji podsumowania (PR, zadania, connectory) trafiła do modułów, dalej
 od ręki. v3 upraszcza układ do dwóch niezależnych elementów: karty podsumowania
-i panelu Files.
+i prawego panelu, obecnie z widokami Files i Preview.
 
 ### Jeden rząd nagłówka i przepełnienie
 
 Kolejność: **sygnet/avatar projektu → tytuł wątku jako pierwsza karta → karty plików
-i zasobów → przełącznik zakładek → akcje wątku → przełącznik `Files`**. Nie pokazujemy
+i zasobów → przełącznik zakładek → akcje wątku → przełączniki `Files` i `Preview`**. Nie pokazujemy
 nazwy projektu, osobnego tytułu w breadcrumbs ani osobnego rzędu zakładek. Sygnet ma
 dostępną nazwę projektu i tooltip, karta tytułu pełną nazwę w tooltipie i dostępnej
 nazwie; kliknięcie wraca z pliku do rozmowy, a `Switch tab` używa tego samego tytułu.
@@ -115,7 +118,7 @@ padding etykiety wynosi 10 px zamiast 12 px przy standardowym rozmiarze interfej
 Rozmiary skalują się razem z Interface size. Karta tytułu jest zawsze widoczna
 na pozycji 1. Aktywna karta zachowuje widoczność, ale jej nazwa także skraca się,
 gdy brakuje miejsca. Akcje po prawej mają niekurczące się
-sloty, a poniżej 40 rem przycisk `Files` pokazuje samą ikonę z dostępną nazwą.
+sloty, a poniżej 40 rem przyciski panelu pokazują same ikony z dostępnymi nazwami.
 
 Pas zakładek nie zawija się ani nie poszerza aplikacji. Po `Thread` pokazuje aktywną
 kartę i sąsiednie karty mieszczące się w reszcie miejsca. Pozostałe są pod chipem
@@ -220,7 +223,8 @@ Te gesty dotyczą web/desktop, bez rozszerzenia natywnego klienta mobile.
 
 Lewy sidebar nadal służy projektom, wątkom i botom. Zakładki w nagłówku wybierają
 **główną treść**. Podsumowanie wątku jest **osobnym elementem obszaru wątku**, nie
-częścią prawego panelu. Prawy panel pokazuje tylko **Files**.
+częścią prawego panelu. Prawy panel przełącza **Files** i **Preview**;
+Preview nie jest kartą pliku ani modułem pełnej karty.
 
 | Treść | Miejsce |
 | --- | --- |
@@ -231,6 +235,7 @@ częścią prawego panelu. Prawy panel pokazuje tylko **Files**.
 | Connectory: konta z dostępnością i `Manage` | Podsumowanie |
 | Sekrety, fork, lineage, subagenci, `New side thread` | Podsumowanie |
 | Drzewo katalogu | Panel `Files`; wybrany plik otwiera osobną zakładkę |
+| Przeglądarka, okno desktopowe lub urządzenie workera | `Preview` w tym samym prawym panelu; bezpośrednie sterowanie w sesji wątku |
 | Cel, kolejka, prośby o zgodę i sekret | Obecny zasobnik rozmowy |
 
 Moduły `Pull requests`, `Tasks` i `Connectors` w panelu zostały usunięte: ich
@@ -249,16 +254,16 @@ się tylko tyle, ile trzeba, a dopiero potem zwęża się do minimum 36 rem.
 Położenie kolumny liczy wyłącznie CSS (`layout.css`, `data-chat-placement`): z bieżącej
 szerokości sidebara (`--sidebar-extent`), szerokości obszaru (`100%`) i miejsca karty
 (`--chat-card-space`). Nie ma pomiaru w JS, więc kolumna rusza się w tej samej klatce
-co sidebar i panel Files, a nie klatkę później. Sidebar i Files zmieniają tylko
+co sidebar i prawy panel, a nie klatkę później. Sidebar i panel zmieniają tylko
 dostępną przestrzeń; gdy kolumna mieści się na środku, nic się nie rusza.
 Otwarcie lub zwinięcie zadokowanej karty przesuwa kolumnę płynnie
 (`--duration-slow`, `--ease-smooth-out`; przy reduced motion natychmiast).
 
 `SummaryLayout` decyduje tylko o doku (karta czy pigułka). Decyzja dotyczy stanu
-**końcowego**: do zmierzonej szerokości dodaje drogę, którą sidebar i Files mają
+**końcowego**: do zmierzonej szerokości dodaje drogę, którą sidebar i prawy panel mają
 jeszcze do przejścia (`sidebarTravel`, `ThreadWorkspace.travel`). Dlatego karta
 lub pigułka zmienia się raz, na początku animacji, i nie miga w jej trakcie. Tak
-samo `ThreadWorkspace.wide` (Files obok wątku czy w arkuszu) liczy szerokość, do
+samo `ThreadWorkspace.wide` (panel obok wątku czy w arkuszu) liczy szerokość, do
 której zmierza sidebar.
 
 Karta ma stałą szerokość 20 rem i jest zakotwiczona w prawym górnym rogu obszaru
@@ -284,16 +289,56 @@ przełączanie wątków i zmiana rozmiaru okna niczego nie przesuwają. Zdarzeni
 nie rozwija karty. Karta należy do zakładki `Thread`; na zakładkach plików jest
 ukryta razem z rozmową.
 
-### Panel Files
+Zatwierdzone rzeczywiste wywołanie lokalnego MCP wysyła do bieżącego obserwatora
+wątku przejściową, typowaną aktywność. Mini Preview pojawia się pod kartą albo
+pigułką podsumowania, śledzi najnowsze narzędzie i bezpieczny cel, działa tylko do
+odczytu z limitem 4 klatek na sekundę i nie zmienia viewportu. Czeka na przeglądarkę
+agenta, bez uruchamiania jej ani automatycznej nawigacji. Nowa strona,
+przeładowanie oraz catch-up historii nie odtwarzają starych aktywności. Minimizacja
+pozostaje skuteczna przez życie zamontowanej strony bieżącego wątku, także po
+kolejnych wywołaniach; zmiana wątku resetuje wybór i minimizację. Sygnał nie
+przejmuje fokusu, a kolejne aktywności dla tego samego zakresu zachowują stream.
+Rozpoznawanie celu i granice sesji opisuje
+[automation-tools.md](automation-tools.md#automatyczny-mini-preview).
 
-Prawy panel zawiera wyłącznie drzewo plików. Jedyną kontrolką jest przycisk `Files`
-w nagłówku wątku (na wąskim ekranie otwiera arkusz). Panel nie ma paska ikon, menu
-modułów, `+`, pop-outu ani własnego przycisku zwijania. Nagłówek panelu (48 px)
-pokazuje `Files` i nazwę katalogu wątku oraz akcje drzewa (`Reload files`, opcje).
-Otwarcie i szerokość (256–480 px, domyślnie 288 px) to jeden wybór urządzenia
-(`filesPanelOpen`, `filesPanelWidth`), wspólny dla wszystkich wątków. Dawne pola
-`sidebar`, `panelCollapsed` i `panelWidth` układu wątku nie są już czytane.
-Panel montuje się przy pierwszym użyciu i potem pozostaje zamontowany.
+### Panel Files/Preview
+
+Prawy panel ma wspólny przełącznik **Files / Preview**. Files zachowuje drzewo,
+nazwę katalogu i akcje `Reload files`/opcje; wybrany plik otwiera kartę głównej
+treści. Otwarcie panelu i szerokość Files (256–480 px, domyślnie 288 px)
+pozostają wspólnym wyborem urządzenia (`filesPanelOpen`, `filesPanelWidth`).
+Tryb panelu i szerokość Preview (320–1100 px, domyślnie 520 px, ograniczona
+dostępnym miejscem) pozostają w pamięci zamontowanej strony, również przy
+zmianie wątku. Nowa strona zaczyna od Files. Wybór Preview nie zmienia kolejności
+kart, podglądu pliku ani niezapisanych edycji; drzewo Files zachowuje montaż
+i scroll. Uchwyt zmienia szerokość, a na wąskim ekranie ta sama zawartość
+otwiera arkusz na cały ekran. Panel ma wspólną akcję `Close side panel`.
+
+Preview wybiera **Browser / Desktop / Device**, a kompaktowy pasek pokazuje
+cel, adres i nawigację właściwe dla narzędzia oraz dopasowanie/pełny ekran.
+Browser śledzi aktywną kartę sesji wątku i dopasowuje viewport do obszaru obrazu;
+Desktop i Device wybierają cele z metadanych backendu, bez wpisywania surowych
+identyfikatorów. Kliknięcie obrazu aktywuje klawiaturę; IME i wklejany tekst
+trafiają do celu, Escape przenosi fokus na obraz, a utrata fokusu okna lub pola
+zwalnia klawisze i wskaźnik. Wybór narzędzia/celu przetrwa przełączenie na Files,
+lecz zmiana wątku go resetuje. Preview może działać obok karty pliku lub PR.
+Współrzędne myszy i gestów liczymy względem obrazu, z pominięciem pustych marginesów.
+
+Przycisk `Open in sidebar` przekazuje ten sam wątek, narzędzie, bezpieczny cel i
+sesję wątku do większego interaktywnego Preview i ustawia fokus na jego pasku
+narzędzi. Mini Preview zatrzymuje się, gdy sidebar Preview jest widoczny; po jego
+zamknięciu wraca, chyba że wcześniej został zminimalizowany. Ukrycie, offline,
+odebranie grantu, archiwizacja wątku albo utrata właściwego połączenia zatrzymują
+watch mini Preview i usuwają jego klatkę.
+
+Watch działa tylko przy widocznym Preview, kliencie na pierwszym planie,
+dostępnym workerze oraz przyznanym narzędziu. Browser i Desktop wymagają Ready;
+Device pozwala wybrać cel przed Ready po sprawdzeniu instalacji przypiętej wersji
+([wyjątek odkrywania urządzeń](automation-tools.md#interaktywny-preview-wątku)).
+Zamknięcie panelu, zmiana Files/Preview lub wątku, tło klienta, rozłączenie
+i odebranie dostępu anulują stream i usuwają klatki. Obrazy oraz wejście nie są
+zapisywane w stanie workspace'u ani transkrypcie. Szczegóły backendów i grantów:
+[automation-tools.md](automation-tools.md#interaktywny-preview-wątku).
 
 ### Ruch
 
@@ -304,7 +349,7 @@ Panel montuje się przy pierwszym użyciu i potem pozostaje zamontowany.
   stylu, więc w każdej klatce mają tę samą wartość. Reszta strony nie przelicza
   stylów co klatkę. `--sidebar-width` jest ustawiane tylko na kolumnie sidebara
   i obszarze wątku, więc przeciąganie uchwytu też nie przelicza całej strony.
-- Panel Files: siatka obszaru zmienia kolumnę panelu (`t-panel-column`):
+- Panel Files/Preview: siatka obszaru zmienia kolumnę panelu (`t-panel-column`):
   otwarcie `--duration-slow`, zamknięcie `--duration-medium`, `--ease-smooth-out`.
   Kolumna wątku płynnie zmienia szerokość. Treść panelu ma stałą szerokość przy
   lewej krawędzi kolumny i tylko przenika (`t-panel`); zamykana kolumna ją przycina,
@@ -451,7 +496,7 @@ pokazuje ikonę stanu (open, draft, merged, closed) z kropką checków, a karta 
 znak typu pliku (#806); stan jest też w tooltipie i dostępnej nazwie.
 
 Granice web: `ThreadWorkspace`, `WorkspaceTabs`, `WorkspaceFrame` (siatka z kolumną
-Files), `WorkspaceFilesPanel`, `ThreadSummary` (karta i pigułka, `SummaryLayout`)
+Files/Preview), `WorkspaceSidePanel`, `ThreadSummary` (karta i pigułka, `SummaryLayout`)
 z treścią `ThreadPanel`; w Files: `WorkspaceTree`, `WorkspaceFile` i adapter
 edytora. Reużywamy `PanelRow`, `Popover`, `Dialog`, `DropdownMenu`,
 `ResizeHandle`, wirtualizatora i tokenów kodu. Mobile ma analogiczne hosty z
@@ -787,22 +832,24 @@ musi respektować aktualne granice zgody; E2E wymaga wcześniejszej zgody użytk
 
 ### Te same pojęcia, inne powierzchnie
 
-Na desktopie panel Files ma domyślnie 18 rem, zmieniany w zakresie 16–30 rem.
+W web/desktop panel Files/Preview ma szerokość zmienianą uchwytem.
 Panel dokujemy, gdy główna treść (po odjęciu lewego sidebara) ma co najmniej
-46 rem; kolumna wątku zachowuje minimum 30 rem. Decyduje szerokość kontenera
-i Interface size, nie sam viewport. Resizer zachowuje istniejącą klawiaturę;
+46 rem; szerokość panelu pozostawia co najmniej 26 rem głównej treści.
+Decyduje szerokość kontenera i Interface size, nie sam viewport.
+Resizer zachowuje istniejącą klawiaturę;
 zapis szerokości następuje po puszczeniu.
 
 Przy węższej treści lewa nawigacja nadal staje się drawerem według obecnych reguł,
-a `Files` otwiera drzewo w arkuszu. Podsumowanie pozostaje pigułką w rogu wątku;
-poniżej 32 rem szerokości obszaru otwiera arkusz zamiast popoveru. Zmiana progu
+a przełącznik panelu otwiera Files/Preview w arkuszu na cały ekran.
+Podsumowanie pozostaje pigułką w rogu wątku; poniżej 32 rem szerokości obszaru
+otwiera arkusz zamiast popoveru. Zmiana progu
 zamyka arkusze i zachowuje ich dane, nie ich otwartość.
 
 Zakładki pozostają w jednym rzędzie z sygnetem i skróconym tytułem. Reguły overflow
 z §2 utrzymują `Thread`, aktywną kartę ze skróconą nazwą i chip `+N` dla pozostałych.
 Przy 320 px i powiększeniu 200%
 nie powstaje poziomy scroll aplikacji; przewija się tylko kod bez wrap. Nawigacja,
-pigułka podsumowania i `Files` nie znikają w overflow plików.
+pigułka podsumowania i przełącznik panelu nie znikają w overflow plików.
 
 W `apps/mobile` przycisk nazwy aktywnej karty otwiera **tab switcher sheet**:
 `Thread`, otwarte pliki/PR, dirty, zamknięcie i `Keep tab`, bez `Open module`.
@@ -832,10 +879,11 @@ otwarcie nakładki `fast` 250 ms, zamknięcie `quick` 150 ms; panel `slow` / `me
 400 / 350 ms; `smoothOut`. Mobile używa istniejącego `sheetSpring` na wątku UI.
 Nie dodajemy biblioteki animacji ani osobnej skali czasów.
 
-Panel Files i karta podsumowania animują się według §2 („Ruch”). Kolumna wątku
+Panel Files/Preview i karta podsumowania animują się według §2 („Ruch”). Kolumna wątku
 zmienia szerokość płynnie razem z kolumną panelu, a treść panelu ma stałą szerokość
 i tylko przenika, więc nie przeskakuje ani nie zasłania rozmowy. Szerokość
-i otwarcie są globalne dla urządzenia, więc przełączenie wątku niczego nie animuje.
+i otwarcie Files są wspólne dla urządzenia; Preview zachowuje szerokość w pamięci
+strony. Zmiana wątku nie wymusza innego układu panelu.
 Przy reduced motion wszystkie te przejścia są natychmiastowe. Resize nie uruchamia
 sekwencji przejść.
 

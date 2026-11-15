@@ -4,6 +4,8 @@ export * from "./gen/canopy/worker/v1/worker_link_pb.ts";
 
 export * from "./gen/canopy/worker/v1/agent_environment_pb.ts";
 
+export * from "./gen/canopy/worker/v1/agent_tools_pb.ts";
+
 export * from "./gen/canopy/worker/v1/cli_import_pb.ts";
 
 export * from "./gen/canopy/worker/v1/workspace_copy_pb.ts";

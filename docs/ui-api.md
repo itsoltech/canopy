@@ -1,10 +1,10 @@
 # API dla UI i architektura frontendu
 
 Status (2026-11-15): web/desktop — bezpieczny HTML we wspólnym rendererze Markdown,
-lokalne obrazy w podglądzie plików, opcjonalna retencja archiwum oraz poprawione
-narożniki, typografia i ikony stosu paneli nad composerem są zaimplementowane;
-dostępność kanałów według
-[release.md](release.md).
+lokalne obrazy w podglądzie plików, interaktywny Preview wątku i automatyczny mini
+Preview pod podsumowaniem, opcjonalna retencja archiwum oraz poprawione narożniki,
+typografia i ikony stosu paneli nad composerem są zaimplementowane.
+Opis dotyczy kodu, nie wdrożenia; dostępność kanałów według [release.md](release.md).
 
 ## Proponowane odpowiedzi
 
@@ -148,28 +148,41 @@ domu oznaczamy `stale`, a brak ostatniej odpowiedzi także `unavailable`.
 
 ## Moduły workspace'u wątku
 
-`features/workspace` rejestruje wewnętrzne moduły Files, Pull requests, Tasks i Connectors
-przez wspólne deskryptory `@canopy/domain/workspace-modules`. Klucz pełnej karty
-obejmuje moduł i kwalifikowane id zasobu we właściwym wątku. `+` w nagłówku otwiera
-utrwaloną kartę; `+` prawego panelu zastępuje jego jedyny moduł. Maksymalizacja
-aktywuje pełną kartę, zachowując panel. Zamykanie kart nie usuwa PR ani zadań.
-Moduły korzystają z dotychczasowych owner-scoped RPC i wspólnego cache zapytań;
+`features/workspace` utrzymuje rozmowę jako pierwszą kartę oraz karty plików,
+pełnego PR i wyniku zadania w tle. Jeden czysty podgląd pliku na wątek może
+zostać zastąpiony; Keep tab, dwuklik lub pierwsza edycja go utrwalają. Klucz
+zasobu obejmuje kwalifikowane id i zakres wątku. Zamykanie kart nie usuwa PR
+ani zadań. Karty korzystają z owner-scoped RPC i wspólnego cache zapytań;
 nie powstaje drugi watch historii. Nieaktywne pełne moduły są odmontowane.
 
-Na szerokim obszarze wątku pasek ikon wybiera moduł, a ponowny wybór oddaje panel
-podsumowaniu. Bez modułu Thread details jest domyślnie dokowane. Przy module
-przycisk szczegółów otwiera przejściową kartę: outside click/Escape ją zamyka.
-Zwężenie obszaru przenosi moduły i szczegóły do osobnych arkuszy; nie otwiera ich
-automatycznie. Panel pozostawia co najmniej 38 rem głównej treści. Jego szerokość
-256–384 px, zwinięcie, wybrany moduł i karty są lokalne dla urządzenia. Uchwyt
-obsługuje klawiaturę i zapisuje szerokość po zakończeniu zmiany. Zajęcie panelu
-nie zależy od aktywnej karty głównej. Stare odnośniki `?pr=` otwierają kartę PR.
+Podsumowanie jest osobną kartą/pigułką w obszarze rozmowy. Wiersz PR lub zadania
+otwiera pełny zasób jako kartę; `?pr=` zachowuje to samo znaczenie. PR utrzymuje
+Summary/Timeline/Code i dotychczasowe akcje. Granty connectorów nadal obejmują
+workera i wszystkie jego wątki; sekrety i lineage pozostają w podsumowaniu,
+a oczekujące interakcje przy rozmowie.
 
-PR zachowuje Summary/Timeline/Code, akcje wierszy i ostatnią zawartość podczas
-odświeżania. Tasks rozdziela zadania w tle i harmonogramy; wybrany wynik jest
-pełną kartą z istniejącymi akcjami cytowania i zatrzymania. Granty connectorów
-nadal obejmują workera i wszystkie jego wątki. Metadane sekretów i lineage
-pozostają w podsumowaniu; oczekujące interakcje pozostają przy rozmowie.
+`ThreadState` przyjmuje `ThreadUpdate.change = automationActivity` wyłącznie z
+żywego watcha bieżącego wątku. Stan nie jest odtwarzany ze snapshotu,
+przeładowania ani catch-upu historii, więc stare wywołania nie otwierają mini
+Preview. `AutomaticPreview` śledzi ostatnią zatwierdzoną aktywność, a strona
+sprawdza zgodność workera przed pokazaniem `AgentPreviewMini` pod podsumowaniem.
+Mini renderuje nietrwały obraz tylko do odczytu, z limitem 4 klatek na sekundę,
+bez zmiany viewportu, uruchamiania przeglądarki ani automatycznej nawigacji.
+Ten sam zakres zachowuje stream. Minimizacja pozostaje w
+pamięci zamontowanej strony bieżącego wątku przy kolejnych sygnałach; zmiana
+wątku resetuje wybór i minimizację. Jawne otwarcie mini w sidebarze przekazuje ten
+sam wątek, narzędzie, cel i sesję wątku do `AgentPreviewPanel` oraz przenosi fokus
+na pasek narzędzi; sam sygnał nie przejmuje fokusu. Mini watch zatrzymuje się,
+gdy sidebar Preview jest widoczny, i wraca po jego zamknięciu, chyba że został
+zminimalizowany. Ukrycie, offline, odebranie grantu lub archiwizacja kończą watch.
+
+Prawy panel web/desktop łączy Files (drzewo otwierające karty plików) i Preview
+(Browser/Desktop/Device). Otwarcie i szerokość Files są stanem urządzenia;
+tryb panelu i szerokość Preview — stanem pamięci strony. Na wąskim ekranie
+panel otwiera arkusz. Podgląd automatyzacji jest oddzielony od zastępowalnej
+karty pliku i nie zmienia jej stanu. Natywny mobile
+zachowuje arkusze Thread details i Files. Układ, fokus i cykl życia Preview:
+[workspace.md](workspace.md#panel-filespreview).
 
 Workspace ogranicza czyste treści do 16 MiB i czterech rozgrzanych plików na webie
 (8 MiB i dwóch na mobile); szkice mają osobny wspólny limit 4 MiB. Ukryte widoki
@@ -857,6 +870,50 @@ blokady. `InstallCli` (jeden worker albo `all_workers` dla dostawcy) i `CheckCli
 egzekwowane w gatewayu; BFF: `POST /api/workers/cli/install`, `POST /api/workers/cli/check`. UI: sekcja „Agent CLIs”
 w rozwiniętym workerze, „Agent CLI updates” z „Update all” i kropka przy Settings → Workers. Zasady:
 [provider-cli.md](provider-cli.md).
+
+### Narzędzia automatyzacji
+
+Status (2026-11-15): narzędzia i interaktywny Preview są zaimplementowane w kodzie;
+dostępność w wydaniach wynika z promocji kanałów. Szczegóły kontraktu:
+[automation-tools.md](automation-tools.md).
+
+`Worker` zawiera raport `agent_tools` z wersją, ścieżką, instalacją i readiness
+`agent-browser`, `agent-desktop` oraz `agent-device`. BFF wystawia owner-scoped
+akcje `POST /api/workers/agent-tools/{refresh,install,enable,run}`, które
+wywołują odpowiednio `RefreshAgentTools`, `InstallAgentTool`,
+`SetAgentToolEnabled` i `RunAgentTool`. Gateway sprawdza własność workera,
+online/capability oraz grant przed wysłaniem komendy do workera.
+Jednorazowy `RunAgentTool` zachowuje ograniczony wynik diagnostyczny inline
+(PNG do 4 MiB, tekst do 512 KiB), bez publikacji w transkrypcie.
+
+Settings → Workers pokazuje osobny przełącznik **Allow agent access** domyślnie
+wyłączony, status gotowości i log instalacji. Sterowanie użytkownika jest
+w Preview wątku.
+
+`WatchAgentPreview` przyjmuje `thread_id`, `scope` i `max_fps`; `scope` wybiera
+wyłącznie narzędzie i cel. Gateway wyprowadza sesję i worker z własnego wątku,
+sprawdza grant i `agent_preview_v1`. `SendAgentPreviewInput` wiąże ograniczoną
+partię wejścia z tym samym `thread_id` i wydanym `preview_id`.
+Device może otworzyć katalog przed Ready po sprawdzeniu instalacji dokładnej
+wersji `0.21.37`, grantu i braku trwającej instalacji; Browser/Desktop oraz
+wywołania modelu/MCP/`RunAgentTool` nadal wymagają Ready.
+
+W Preview Device `scope.device_id` wybiera cel z katalogu również dla Linux/Web;
+worker rozwiązuje go na katalogowy `--device`. Przekazany identyfikator ma
+do 16 KiB UTF-8, bez znaków sterujących, wiodącego `-` ani wartości z samych
+białych znaków. Jednorazowy `RunAgentTool` nadal odrzuca `device_id` dla Linux/Web.
+
+BFF udostępnia `POST /api/threads/[id]/preview/events` jako SSE z ciałem protobuf
+JSON oraz `POST /api/threads/[id]/preview/input` dla wejścia. Anulowanie HTTP
+zamyka watch przez RPC aż do workera. Klatki i wejście nie przechodzą przez
+`WatchThread` ani historię, a klient nie otrzymuje adresu lub portu strumienia
+workera. Granice ACK, dzierżawy i rozmiarów:
+[protocol.md](protocol.md#interaktywny-podgląd-wątku).
+
+Screenshot zwrócony modelowi przez MCP ma osobny limit mostka 6 MiB i jest
+zapisywany w transkrypcie providera oraz `PreviewStore`; końcową trwałą galerię
+tworzy `show_images`. To osobne ścieżki od nietrwałych klatek Preview
+([agent-visuals.md](agent-visuals.md#zrzuty-narzędzi-automatyzacji)).
 
 ## No project i katalogi scratch
 
@@ -2000,6 +2057,13 @@ Trasy:
 - Załączniki: `POST api/attachments` (surowe bajty w ciele, nazwa w `x-file-name` zakodowana URI, wymagany nagłówek `x-requested-with: canopy`, a `Origin`, jeśli jest, musi wskazywać ten host → `Attachment`), `GET api/attachments/[id]` (`?thumbnail`, `?download`, `?preview`, `?image`), `GET api/threads/[id]/blobs/[sha256]` (podgląd z transkryptu). Odpowiedzi z bajtami: `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; sandbox`, `Cross-Origin-Resource-Policy: same-origin`, `Cache-Control: private, immutable`; inline PNG, JPEG, GIF i WebP oraz SVG wyłącznie przez `?image` do elementu `<img>`. Pozostałe pliki mają `Content-Disposition: attachment` (SVG domyślnie jako `application/octet-stream`, tekst i HTML jako `text/plain`). `?preview` zwraca ograniczony prefiks do odczytu jako tekst. `POST api/threads/[id]/messages` przyjmuje `attachmentIds` (tekst może być pusty), formularz nowego wątku pola `attachmentId`.
 - SSE: `api/overview/events`, `api/threads/[id]/events`. Overview po zerwaniu zaczyna od świeżego snapshotu. Watch wątku otwiera nowy `EventSource` z ostatnim atomowym kursorem kopii klienta; gateway zwraca deltę albo pełny snapshot według reguł opisanych wyżej. W `api/threads/[id]/events` BFF łączy kolejne `item_delta` tego samego itemu i pola w jedno zdarzenie (`lib/server/coalesce.ts`): wychodzi, gdy fragment niesie koniec linii, po 200 ms, przed każdą inną zmianą i na końcu strumienia; kolejność i wynik reduktora są te same co dla pojedynczych delt, scalone zdarzenie ma `seq` ostatniej delty i puste `raw_json`.
 
+`ThreadUpdate.change = automationActivity` przechodzi tą samą ścieżką SSE jako
+sygnał tylko na żywo. Nie tworzy wpisu w snapshotach, transkrypcie, journalu,
+lustrze ani replayu. Niesie identyfikatory aktywności i tury, narzędzie, workera
+i bezpieczny cel, bez surowych argumentów, URL-i ani tekstu. Kontrakt i granice
+autoryzacji:
+[protocol.md](protocol.md#lokalne-narzędzia-automatyzacji).
+
 Strumieniowany tekst (wiadomość agenta, rozumowanie, wyjście komendy, narzędzia i zadania w tle) pojawia się linia po linii (`lib/shared/ui/streaming`: `LineReveal`, reguły w `line-buffer.ts`): stan trzyma pełny tekst, a widok pokazuje go do ostatniego końca linii; niepełna linia dochodzi po 300 ms od ostatniego odsłonięcia (do ostatniego pełnego słowa), a całość od razu, gdy item się kończy albo kończy się jego tura (`ThreadDirectory.turnEnded`). Nagłówek tabeli czeka na wiersz separatora, niepełny płot kodu i wiersz tabeli nie są pokazywane jako surowy markdown, otwarty płot renderuje się jako kod. Markdown jest parsowany tylko przy zmianie widocznego tekstu; `StreamingTokens` zachowuje niezależny prefiks i ponownie parsuje ostatni blok. Edycje, zmiana opcji, normalizacja CR i składnia referencji używają pełnego parsera. Niezmienione tokeny niezależnych bloków, punktów list i wierszy tabel zachowują tożsamość (`shareTokens`); późna definicja referencji wymaga odświeżenia także wcześniejszych bloków. Każdy nowy blok, punkt listy, wiersz tabeli i linia kodu (`code/CodeLines`) wchodzi raz przez `t-stream` (wyostrzenie z przenikaniem, `--duration-medium`); przy `prefers-reduced-motion` od razu. `CodeBlock` dzieli zwykłe wyjście na niezmienne grupy 32 linii, zachowując pełny tekst, zaznaczenie i przewijanie bez dodatkowego opóźnienia. Zasady i pomiary: [client-performance.md](client-performance.md#strumieniowanie-osi-czasu).
 
 Markdown na żywo w kompozytorze (`features/mentions`): pole formatuje markdown podczas pisania, a tekst zostaje dokładnie ten sam (`value` trzyma backticki i płoty). **Kod inline**: fragment w pojedynczych backtickach w jednej linii (`markdown.ts` `codeSpans`) staje się `<code>` w chwili wpisania zamykającego backticka; backticki zostają tekstem obok, wyciszone przez CSS Custom Highlight API (bez znaczników, więc kursor i pisanie są nietknięte). Po każdej edycji linie, w których DOM nie zgadza się z tekstem (dopisany lub usunięty backtick, `<font>` / `<span style>` zostawione przez przeglądarkę), są pisane od nowa przez `insertHTML` — jeden krok cofania: Ctrl+Z najpierw zdejmuje formatowanie; samo cofanie i ponawianie nie jest formatowane. Chip, `<br>` i blok kończą fragment, więc wzmianki obok kodu działają, a wewnątrz kodu wyzwalacze się nie otwierają. **Blok kodu**: linia samego płotu (`` ``` `` albo `` ```ts ``) i Enter zamienia ją w blok (jedna edycja przeglądarki); wklejony albo przywrócony kompletny płot też jest blokiem. Blok to nieedytowalny element z kodem i językiem w atrybutach `data-*` (z nich czyta serializacja), w który montuje się `CodeBlockField`: pigułka języka (`LanguagePicker`: wyszukiwanie po nazwie i aliasach, wybór zapisuje krótki tag, np. `ts`, „Plain text” — żaden), przycisk usuwania i `<textarea>` z przezroczystym tekstem nad podświetloną kopią (`CodeLines`, leniwie i przyrostowo), więc pisanie, IME, wklejanie (dosłowne), cofanie i klawiatury telefonów są natywne. Klawisze w bloku: Enter / Shift+Enter nowa linia z wcięciem poprzedniej (nigdy nie wysyła; Mod+Enter wysyła), Tab / Shift+Tab wcięcie / cofnięcie wcięcia linii albo zaznaczonych linii (2 spacje), ArrowDown w ostatniej linii, ArrowRight na końcu, Enter w pustej ostatniej linii albo wpisany płot zamykający wychodzą pod blok, ArrowUp w pierwszej linii i ArrowLeft na początku nad blok, Backspace w pustym bloku go usuwa. W tekście: Backspace na początku linii za blokiem i ArrowUp z niej wchodzą na koniec bloku, Delete na końcu linii przed blokiem i ArrowDown z niej — na początek (przeglądarka usunęłaby go w całości albo przeskoczyła). Blok na początku pola albo zaraz za innym blokiem ma przed sobą niewidoczną linię (spacja zerowej szerokości, serializacja ją pomija): bez niej przeglądarka nie usunie elementu nieedytowalnego ani nie postawi kursora nad nim. Serializacja: blok to dokładnie ```` ```lang\nkod\n``` ```` (pusty kod: ```` ```lang\n``` ````); kod z własną linią backticków dostaje dłuższy płot. Tylko płoty, które blok zapisze z powrotem tak samo, stają się blokami (niezamknięte, `~~~`, info ze spacjami zostają tekstem), więc tekst zawsze wraca bez zmian. Kopiowanie i wycinanie z pola dają tekst wiadomości (płoty, znaczniki wzmianek). **Pogrubienie i kursywa** są formatowane na żywo w tym samym edytorze Threads i Bots (`inlineSpans`, lexer używany też przez renderer wiadomości); znaczniki pozostają edytowalnym tekstem. Listy pozostają zwykłym tekstem.
@@ -2581,8 +2645,8 @@ przełącza karty w obu klientach, również w polach tekstowych;
 `Mod+G` i `Mod+S` obsługują pozycję i zapis w pliku. Close/Keep są też komendami
 palety z konfigurowalnymi skrótami. Zapis sprawdza również zakodowany JSON ≤512 KiB.
 
-Moduł `Files` działa w prawym panelu oraz pełnej karcie, ze wspólnym modelem
-drzewa i odczytami. `POST /api/threads/:id/directory` wywołuje addytywne
+`Files` pokazuje drzewo w prawym panelu lub jego wąskim arkuszu; plik otwiera
+pełną kartę workspace'u. `POST /api/threads/:id/directory` wywołuje addytywne
 `ListThreadDirectory`: bieżący cwd/worktree, jedna strona do 100 dzieci, bez
 rekurencyjnego pobierania. `Load more` dociąga stronę, foldery są przed plikami
 w obrębie wczytanych wpisów. Kolor Git ma także literę i opis dostępności.

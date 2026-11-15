@@ -69,6 +69,8 @@ function endFields(status: string | undefined, finished: TurnFinished) {
 
 export class ThreadState {
   readonly replySuggestions = new ReplySuggestionsState();
+  /** Approved automation observed live; never part of the cached snapshot or transcript. */
+  automationActivity = $state.raw<ui.ThreadAutomationActivity>();
   #snapshot: ui.ThreadSnapshot | undefined;
   readonly #entryPositions = new Map<string, number>();
   readonly history = new ThreadHistory(
@@ -208,6 +210,9 @@ export class ThreadState {
       : update.change;
 
     switch (change.case) {
+      case "automationActivity":
+        this.automationActivity = change.value;
+        break;
       case "snapshot": {
         const snapshot = change.value;
         this.thread = snapshot.thread;

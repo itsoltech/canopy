@@ -114,6 +114,13 @@ export function safeOverview(value: ui.GetOverviewResponse): ui.GetOverviewRespo
       cliUpdatesCheckedAt: w.cliUpdatesCheckedAt,
       cliUpdatesNextCheckAt: w.cliUpdatesNextCheckAt,
       cliTools: w.cliTools,
+      agentTools: w.agentTools.map((item) => ({
+        tool: item.tool,
+        enabled: item.enabled,
+        action: item.action,
+        blockedReason: item.blockedReason,
+        // Installation output is live UI state and must not become durable mirror history.
+      })),
       providerInstances: w.providerInstances.map((instance) => ({
         harness: instance.harness,
         id: instance.id,

@@ -11,10 +11,95 @@ Starsze gatewaye pomijają nowe pole; numer protokołu pozostaje bez zmian.
 
 Harness Grok: `Provider.PROVIDER_GROK = 3`, `WorkerConfig.grok = 640`; używa istniejących komend, eventów, profili native/CLIProxyAPI, zgód i `AgentToolCall`. ACP pozostaje prywatnym protokołem worker ↔ CLI w `packages/grok-acp`; nie rozszerza kontraktu przeglądarki o JSON-RPC. [Adapter Grok](grok-adapter.md).
 
-Status (2026-11-15): kanał, handshake i opisane rozszerzenia są zaimplementowane
-(`apps/gateway/src/worker-link`, `apps/worker/src/gateway-link`), w tym przypisanie
-uploadu podglądu do wątku przed zdarzeniem. Dostępność kanałów według [release.md](release.md).
-Kontrakt: [`proto/canopy/worker/v1/worker_link.proto`](../proto/canopy/worker/v1/worker_link.proto).
+Status (2026-11-15): kanał, handshake, nietrwały interaktywny podgląd wątku i
+automatyczny mini podgląd po zatwierdzonych wywołaniach oraz przypisanie uploadu
+podglądu do wątku przed zdarzeniem są zaimplementowane
+(`apps/gateway/src/worker-link`, `apps/worker/src/gateway-link`);
+stan funkcji i plany opisują poszczególne sekcje. Kontrakt: [`proto/canopy/worker/v1/worker_link.proto`](../proto/canopy/worker/v1/worker_link.proto).
+
+### Lokalne narzędzia automatyzacji
+
+Status (2026-11-15): **zaimplementowane**, włącznie z interaktywnym Preview i
+automatycznym mini Preview.
+Szczegóły funkcji są w [automation-tools.md](automation-tools.md); opis stanu
+kodu nie oznacza dostępności w wydaniu. Kanały: [release.md](release.md).
+
+Worker ogłasza addytywną capability `agent_tools_v1` i wysyła
+`AgentToolsReport` z wykryciem, przypiętą wersją i gotowością trzech narzędzi.
+`probeAgentTools`, `installAgentTool` i `runAgentTool` są bezpośrednimi komendami
+diagnostyczno-operacyjnymi: nie trafiają do outboxa ani do ponawialnego zestawu
+komend workera. Postęp instalacji wraca jako `agent_tool_progress`; gateway
+przechowuje tylko ograniczony, zredagowany log do panelu workera.
+
+Przy tworzeniu wątku i przed startem kolejnej tury gateway owner-scoped dobiera
+gotowe narzędzia z grantu workera i wpisuje wyłącznie ich identyfikatory do
+`ThreadSpec.local_mcp_tools` (pole 521). Worker rozwiązuje binarkę, uruchamia
+stdio i wystawia prywatny endpoint HTTP na loopbackie dla Claude, Codexa albo
+Grok. Każdy call MCP wraca do gatewaya jako wewnętrzna autoryzacja bieżącej
+tury; gateway sprawdza właściciela, worker, grant i tryb uprawnień przed
+wykonaniem. Nie przekazujemy przez ten bridge kluczy modelu.
+
+Po autoryzacji rzeczywistego wywołania lokalnego MCP przez wspólny bridge gateway
+publikuje do aktualnych obserwatorów `WatchThread` typowany
+`ThreadUpdate.change = automationActivity` (`ThreadAutomationActivity`, proto
+`automation_activity = 816`). Pola to `id`, `turnId`, `tool`, `platform`,
+`deviceId`, `windowId`, `app`, `target` i `workerId`. Payload zawiera tożsamość
+aktywności i bezpieczne selektory celu, bez surowych argumentów, URL-i, tekstu
+wejściowego, ścieżek ani sesji wybranej przez klienta. Działa tak samo dla
+wszystkich dostawców korzystających ze wspólnego bridge'a; jawna obca sesja lub
+nieobsługiwane nadpisanie sesji w MCP tłumi sygnał. Klient sprawdza zgodność
+workera ze swoim bieżącym wątkiem przed użyciem aktywności.
+
+Aktywność jest wyłącznie fan-outem na żywo: nie wchodzi do `ThreadSnapshot`,
+transkryptu, journala, replayu ani lustra i nie jest zwracana przez catch-up
+historii. Nowa strona i przeładowanie nie wywołują mini podglądu na podstawie
+starych wywołań. Gateway zachowuje istniejące sprawdzanie właściciela, workera,
+grantu, stanu wątku i łącza; mini podgląd używa tych samych limitów Preview, z
+limitem klienta 4 klatek na sekundę.
+Zasady rozpoznawania celu i przekazania do interaktywnego panelu:
+[automation-tools.md](automation-tools.md#automatyczny-mini-preview).
+
+### Interaktywny podgląd wątku
+
+Capability `agent_preview_v1` dopuszcza `GatewayMessage.agent_preview = 823`
+(`AgentPreviewCommand`: start, stop, input, ack) oraz
+`WorkerMessage.agent_preview = 823` (`AgentPreviewEvent`: connecting, ready,
+frame, error, closed). UI używa `WatchAgentPreview` i `SendAgentPreviewInput`.
+To addytywne pola i RPC z wygenerowanymi kontraktami; `WORKER_LINK_PROTOCOL`
+pozostaje bez zmian, zamrożone `update/v1` nie jest zmieniane.
+
+Gateway wyprowadza worker i sesję z należącego do właściciela wątku. Klient
+wybiera tylko narzędzie i cel (platforma/aplikacja/okno/urządzenie), bez
+argumentów komendy ani własnej sesji. Gateway sprawdza grant, capability,
+otwarty wątek bez cofania i dokładnie tę samą żywą instancję WorkerLink przy
+starcie, wejściu, wysyłce danych i cyklicznie podczas watcha. Nie wymaga aktywnej
+tury modelu. Archiwizacja/usunięcie, odebranie dostępu, anulowanie klienta albo
+wymiana łącza kończą podgląd; wejście nie trafia do następnego połączenia.
+
+`authorizePreview` wymaga Ready dla Browser/Desktop. Dla Device dopuszcza
+odkrywanie celów przed Ready, ale wymaga grantu, zainstalowanego dokładnie
+`agent-device` `0.21.37` i braku trwającej instalacji. Worker weryfikuje katalog
+i komendy wybranego backendu. Wyjątek nie obejmuje MCP/modelu ani `RunAgentTool`.
+
+| Granica | Kontrakt |
+|---|---|
+| Sesje | Najwyżej 4 watchy na worker, 64 łącznie w gatewayu; podglądy tego samego celu współdzielą backend workera. |
+| Częstotliwość | `max_fps` 1–20, domyślnie 12; faktyczna częstotliwość zależy od backendu i odbiorcy. |
+| Klatki | Do 2 MiB PNG/JPEG; wymiary obrazu i viewportu do 8192 na oś. Worker normalizuje obrazy do JPEG o dłuższej krawędzi najwyżej 1600 px. |
+| Metadane | Do 32 KiB bez bajtów obrazu, najwyżej 64 cele. |
+| Wejście | Do 64 zdarzeń i 32 KiB zakodowanej partii, tekst pojedynczego zdarzenia do 8 KiB, `key`/`code` do 128 B. |
+| Wskaźnik | Współrzędne znormalizowane 0–1 względem obrazu bez letterboxingu; skończone delty kółka o wartości bezwzględnej do 100 000, `button` 0–2, maska `buttons` do 7, `modifiers` do 15. |
+| Tempo wejścia | Na podgląd: 256 zdarzeń/s, z zapasem na jednorazową serię 256 zdarzeń. |
+| ACK i dzierżawa | Jedna niepotwierdzona klatka i najnowsza oczekująca; wyłącznie ACK jej `frame_id` zwalnia następną wysyłkę. Znany ACK, również 0 przed pierwszą klatką, odnawia 15-sekundową dzierżawę. Gateway potwierdza klatkę, gdy odbiorca pobiera kolejną wiadomość po `yield`, i co sekundę ponawia ostatni taki ACK. |
+| Trwałość | Klatki, wejście i sterowanie mają wyłącznie przejściowy stan bieżącej sesji: bez outboxa, journala, transkryptu, replay ani lustra komputera. Tymczasowe pliki zrzutów są sprzątane przy zamknięciu backendu. |
+
+Błąd pojedynczej operacji wejścia wraca jako `ready` z `detail` i zwalnia
+wejście danego odbiorcy bez zamykania podglądu. `error` i `closed` kończą watch.
+
+Browser odbiera natywny strumień WebSocket `agent-browser` na workerze; Desktop
+i Device używają anulowalnych pętli zrzutów. Oba tryby mają ten sam transport
+WorkerLink → gateway → BFF SSE, bez wystawiania klientowi portów narzędzia.
+Obsługiwane wejście i ograniczenia backendów: [automation-tools.md](automation-tools.md#interaktywny-preview-wątku).
 
 ### Trwałe odpowiedzi obrazami
 

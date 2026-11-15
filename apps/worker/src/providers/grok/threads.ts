@@ -1,11 +1,8 @@
-import { create } from "@bufbuild/protobuf";
 import { workerDiagnostics } from "../../diagnostics/worker.ts";
 import { Schema } from "effect";
 import { classifyFailure, safeFailureDetail, type JsonValue } from "@canopy/domain";
-import { GrokClient, type PermissionRequest, type PermissionResult, type SessionResult } from "@canopy/grok-acp";
+import { GrokClient, type SessionResult } from "@canopy/grok-acp";
 import {
-  InteractionKind,
-  InteractionRequestSchema,
   ItemStatus,
   PermissionMode,
   TurnEndSource,
@@ -17,6 +14,7 @@ import {
   type InteractionResponse,
   type ThreadEvent,
   type ThreadSpec,
+  type AgentTool,
   type UserInput,
 } from "@canopy/contracts";
 import type { ThreadEventInit } from "../../journal/index.ts";
@@ -30,6 +28,9 @@ import { grokLaunch } from "./launch.ts";
 import { grokBus, platformToolName } from "./bus.ts";
 import { GrokEventMapper } from "./mapping.ts";
 import { ModelDiscovery, effortRank } from "./model-discovery.ts";
+import { automationMcp } from "../local-automation.ts";
+import type { LocalAgentToolMcpServer } from "../../agent-tools/index.ts";
+import { closeGrokResources, grokPermission } from "./lifecycle.ts";
 
 const ToolInput = Schema.Struct({
   tool_name: Schema.optionalKey(Schema.String),
@@ -46,6 +47,8 @@ interface Options {
   interact(request: InteractionRequest, signal?: AbortSignal): Promise<InteractionResponse>;
   callTool(call: AgentToolCall, signal?: AbortSignal): Promise<AgentToolResult>;
   viewImage?(threadId: string, cwd: string, path: string): Promise<ViewImageResult>;
+  /** Local automation MCP servers resolved by the worker from gateway-approved tool ids. */
+  localMcpServers?(tools: readonly AgentTool[], threadId: string): readonly LocalAgentToolMcpServer[];
 }
 
 interface Entry {
@@ -89,7 +92,7 @@ export class GrokThreads {
       permissionMode: settings?.permissionMode || spec.permissionMode,
     };
 
-    const key = JSON.stringify({ ...chosen, connectorTools: spec.connectorTools });
+    const key = JSON.stringify({ ...chosen, connectorTools: spec.connectorTools, localMcpTools: spec.localMcpTools });
     const previous = this.#entries.get(spec.threadId);
 
     if (previous?.turnId) throw new Error("Grok turn already running");
@@ -121,52 +124,66 @@ export class GrokThreads {
     });
 
     let entry: Entry | undefined;
-
-    const bus = grokBus({
-      threadId: spec.threadId,
-      depth: spec.depth,
-      agentBus: spec.enableAgentBus,
-      turnId: () => entry?.turnId ?? "",
-      callTool: this.options.callTool,
-      connectorTools: spec.connectorTools,
-      record: (event) => this.options.record(spec.threadId, event),
-      ...(this.options.viewImage && {
-        viewImage: (path: string) => this.options.viewImage!(spec.threadId, spec.cwd, path),
-      }),
-      toolUseId: (name, args) => {
-        for (const [id, use] of entry?.toolUses ?? [])
-          if (use.name === name && JSON.stringify(use.args) === JSON.stringify(args)) {
-            entry?.toolUses.delete(id);
-
-            return `${entry?.turnId}:${id}`;
-          }
-
-        return undefined;
-      },
-    });
-
-    const client = new GrokClient({
-      ...launch.options,
-      callbacks: { requestPermission: (request, signal) => this.#permission(spec, entry, request, signal) },
-    });
+    let automation: ReturnType<typeof automationMcp> | undefined;
+    let bus: ReturnType<typeof grokBus> | undefined;
+    let client: GrokClient | undefined;
+    let disposed: Promise<void> | undefined;
 
     const dispose = async () => {
       clearTimeout(entry?.idleTimer);
-
-      try {
-        await client.dispose();
-      } finally {
-        bus?.close();
-        launch.cleanup();
-      }
+      disposed ??= closeGrokResources([
+        () => client?.dispose(),
+        () => bus?.close(),
+        () => automation?.close(),
+        launch.cleanup,
+      ]);
+      await disposed;
     };
 
     try {
+      automation = automationMcp(this.options, spec, () => entry?.turnId ?? "");
+      bus = grokBus({
+        threadId: spec.threadId,
+        depth: spec.depth,
+        agentBus: spec.enableAgentBus,
+        turnId: () => entry?.turnId ?? "",
+        callTool: this.options.callTool,
+        connectorTools: spec.connectorTools,
+        record: (event) => this.options.record(spec.threadId, event),
+        ...(this.options.viewImage && {
+          viewImage: (path: string) => this.options.viewImage!(spec.threadId, spec.cwd, path),
+        }),
+        toolUseId: (name, args) => {
+          for (const [id, use] of entry?.toolUses ?? [])
+            if (use.name === name && JSON.stringify(use.args) === JSON.stringify(args)) {
+              entry?.toolUses.delete(id);
+
+              return `${entry?.turnId}:${id}`;
+            }
+
+          return undefined;
+        },
+      });
+      client = new GrokClient({
+        ...launch.options,
+        callbacks: {
+          requestPermission: (request, signal) => grokPermission(spec, entry, request, signal, this.options.interact),
+        },
+      });
       const info = await client.initialize();
 
-      if (bus && !info.agentCapabilities?.mcpCapabilities?.http)
+      if ((bus || automation) && !info.agentCapabilities?.mcpCapabilities?.http)
         throw new Error("Installed Grok lacks HTTP MCP support");
-      const servers = bus ? [bus.server] : [];
+
+      const servers = [
+        ...(bus ? [bus.server] : []),
+        ...(automation?.servers.map((server) => ({
+          type: "http" as const,
+          name: server.name,
+          url: server.url,
+          headers: Object.entries(server.headers).map(([name, value]) => ({ name, value })),
+        })) ?? []),
+      ];
 
       const session = sessionId
         ? await client.loadSession(sessionId, spec.cwd, servers)
@@ -189,58 +206,18 @@ export class GrokThreads {
 
       return entry;
     } catch (error) {
-      await dispose();
+      let cleanupError: unknown;
+
+      try {
+        await dispose();
+      } catch (closeError) {
+        cleanupError = closeError;
+      }
+
+      if (cleanupError) throw new AggregateError([error, cleanupError], "Grok session setup and cleanup failed");
+
       throw error;
     }
-  }
-  async #permission(
-    spec: ThreadSpec,
-    entry: Entry | undefined,
-    request: PermissionRequest,
-    signal: AbortSignal,
-  ): Promise<PermissionResult> {
-    const selected = (allow: boolean): PermissionResult => {
-      const option =
-        request.options.find((o) => o.kind === (allow ? "allow_once" : "reject_once")) ??
-        request.options.find((o) => o.kind === (allow ? "allow_always" : "reject_always"));
-
-      return option
-        ? { outcome: { outcome: "selected", optionId: option.optionId } }
-        : { outcome: { outcome: "cancelled" } };
-    };
-
-    if (!entry?.turnId || signal.aborted) return { outcome: { outcome: "cancelled" } };
-
-    if (entry.mode === PermissionMode.READ_ONLY) return selected(false);
-
-    if (entry.mode === PermissionMode.FULL_AUTO || entry.mode === PermissionMode.FULL_ACCESS) return selected(true);
-
-    if (
-      entry.mode === PermissionMode.ACCEPT_EDITS &&
-      (request.toolCall.kind === "edit" ||
-        /^(write_file|edit_file|apply_patch|str_replace_editor)$/.test(request.toolCall.title ?? ""))
-    )
-      return selected(true);
-    const approval = JSON.stringify([request.toolCall.title, request.toolCall.rawInput]);
-
-    if (entry.approvals.has(approval)) return selected(true);
-
-    const answer = await this.options.interact(
-      create(InteractionRequestSchema, {
-        requestId: crypto.randomUUID(),
-        threadId: spec.threadId,
-        turnId: entry.turnId,
-        itemId: `${entry.turnId}:${request.toolCall.toolCallId}`,
-        kind: InteractionKind.PERMISSION,
-        toolName: request.toolCall.title ?? "Grok tool",
-        requestJson: JSON.stringify({ input: request.toolCall.rawInput }),
-      }),
-      signal,
-    );
-
-    if (answer.allow && answer.allowForSession && !signal.aborted) entry.approvals.add(approval);
-
-    return signal.aborted || answer.cancelled ? { outcome: { outcome: "cancelled" } } : selected(answer.allow);
   }
   async startTurn(spec: ThreadSpec, turnId: string, input: UserInput, settings?: TurnSettings): Promise<void> {
     // The outbox replays StartTurn after a reconnect while the original prompt may still await an interaction.
@@ -414,8 +391,7 @@ export class GrokThreads {
         ),
       };
     } finally {
-      await client.dispose();
-      launch.cleanup();
+      await closeGrokResources([() => client.dispose(), launch.cleanup]);
     }
   }
 }

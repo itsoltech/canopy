@@ -20,6 +20,7 @@ import {
   TurnOutcome,
   ui,
   type AgentToolResult,
+  type AgentPreviewCommand,
   type Command,
   type CommandResultSchema,
   type InputAttachment,
@@ -52,7 +53,7 @@ import type { AttachmentLimits, JsonValue } from "@canopy/domain";
 import { startGrpcServer } from "@canopy/transport";
 import { applyWorkerConfig } from "@canopy/worker/config";
 import { openGatewayLink, type GatewayLink } from "@canopy/worker/gateway-link";
-import { ThreadSecretFiles } from "@canopy/worker/runtime";
+import { ThreadSecretFiles } from "../../../apps/worker/src/runtime/thread-secrets.ts";
 import { Layer, ManagedRuntime } from "effect";
 import type { SqlClient } from "effect/sql";
 import { DatabaseMonitor, bindDatabaseMonitor, observedSql } from "../../../apps/gateway/src/diagnostics/database.ts";
@@ -135,6 +136,8 @@ export class ScriptedWorker {
   readonly commands: CommandKind[] = [];
   /** Custom behaviour per command kind (e.g. a turn that keeps running); the default answers otherwise. */
   readonly handlers = new Map<string, CommandHandler>();
+  readonly previewCommands: AgentPreviewCommand[] = [];
+  previewHandler?: (command: AgentPreviewCommand) => void;
   readonly interactionAnswers: { requestId: string; allow: boolean }[] = [];
   readonly interactionResponses = new Map<string, InteractionResponse>();
   /** Threads this worker was asked to create, with their cwd. */
@@ -309,6 +312,12 @@ export class ScriptedWorker {
   async #loop(): Promise<void> {
     for await (const message of this.link.messages) {
       const payload = message.payload;
+
+      if (payload.case === "agentPreview") {
+        this.previewCommands.push(payload.value);
+        this.previewHandler?.(payload.value);
+        continue;
+      }
 
       if (payload.case === "diagnosticsTraceCommand" && this.options.tracing) {
         this.link.send({ case: "diagnosticsTraceReply", value: this.options.tracing.receive(payload.value) });

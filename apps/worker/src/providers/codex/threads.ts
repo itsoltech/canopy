@@ -115,6 +115,7 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
       byPlatform: new Map(),
       byCodex: new Map(),
       connectorCatalog: new Map(),
+      automationCatalog: new Map(),
       failure: undefined,
     };
 
@@ -136,7 +137,11 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
     });
 
     ctx.connectorMcp = codexConnectorMcp(ctx);
-    yield* Effect.addFinalizer(() => Effect.sync(() => ctx.connectorMcp?.close()));
+    yield* Effect.addFinalizer(() =>
+      Effect.promise(async () => {
+        await ctx.connectorMcp?.close();
+      }),
+    );
     let processing = 0;
     const settleAfterExit = threadExit(ctx);
     // Interrupted (before the process is killed) when the runtime closes on purpose.

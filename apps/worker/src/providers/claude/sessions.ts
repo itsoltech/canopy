@@ -1,9 +1,8 @@
 import { query, type Options, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
-import type { ConnectorTool, PermissionMode, ThreadSpec } from "@canopy/contracts";
+import type { PermissionMode, ThreadSpec } from "@canopy/contracts";
 import { AsyncChannel } from "@canopy/transport";
 import { claudeNativeToolOptions } from "../native-tools.ts";
-import { CLAUDE_VIEW_IMAGE_TOOL, claudeBusServer, claudeBusToolNames } from "./bus.ts";
-import { BUS_SERVER, ClaudeEventMapper } from "./mapping.ts";
+import { ClaudeEventMapper } from "./mapping.ts";
 import { claudePermissions } from "./permissions.ts";
 import { switchSessionMode } from "./mode-switch.ts";
 import { transcriptPath } from "./transcript.ts";
@@ -11,11 +10,12 @@ import { transcriptPath } from "./transcript.ts";
 import type { ClaudeThreadContext, Session } from "./thread-types.ts";
 import type { claudeRuntime } from "./session-runtime.ts";
 import { sessionPermissions } from "./session-permissions.ts";
-import { callKey, fileSize } from "./session-io.ts";
+import { fileSize } from "./session-io.ts";
 import { claudeInstructionSettings, managedClaudeInstructions } from "./instructions.ts";
 import { claudeConnectorRefresh } from "./connector-mcp.ts";
 import { TurnAdmissionCancelled } from "../turn-input.ts";
 import { threadInstructions } from "../thread-instructions.ts";
+import { claudeSessionMcp } from "./session-mcp.ts";
 
 export function claudeSessions(
   ctx: ClaudeThreadContext,
@@ -47,12 +47,6 @@ export function claudeSessions(
     let session: Session | undefined;
     const turnId = () => session?.turn?.turnId ?? "";
 
-    const busTools = [
-      ...(spec.enableAgentBus ? claudeBusToolNames(spec.depth) : []),
-      ...(options.viewImage ? [CLAUDE_VIEW_IMAGE_TOOL] : []),
-      `mcp__${BUS_SERVER}__*`,
-    ];
-
     const attachments = options.attachmentsDir?.(spec.threadId);
     const secrets = options.secretsDir?.(spec.threadId);
 
@@ -64,18 +58,8 @@ export function claudeSessions(
       .filter(Boolean)
       .join("\n\n");
 
-    const servers = (tools: readonly ConnectorTool[]) => ({
-      [BUS_SERVER]: claudeBusServer({
-        threadId: spec.threadId,
-        depth: spec.depth,
-        agentBus: spec.enableAgentBus,
-        connectorTools: tools,
-        turnId,
-        toolUseId: (tool, args) => busCalls.get(callKey(tool, args))?.shift(),
-        callTool: options.callTool,
-        ...(options.viewImage && { viewImage: (path: string) => options.viewImage!(spec.threadId, spec.cwd, path) }),
-      }),
-    });
+    const settings = await claudeInstructionSettings(spec.cwd, spec.scratch, runtime.home, options.baseEnv);
+    const mcp = claudeSessionMcp(options, spec, turnId, busCalls);
 
     const queryOptions: Options = {
       cwd: spec.cwd,
@@ -86,20 +70,20 @@ export function claudeSessions(
       ...(model && { model }),
       ...(effort && { effort }),
       ...queryRuntime(profile, runtime),
-      settings: await claudeInstructionSettings(spec.cwd, spec.scratch, runtime.home, options.baseEnv),
+      settings,
       ...(resume ? { resume: sessionId } : { sessionId }),
       includePartialMessages: true,
       enableFileCheckpointing: true,
       ...permissions.options,
       canUseTool: canUseTool(spec, turnId, () => session?.autoAllow ?? "none"),
       // dontAsk denies whatever is not pre-approved. Gateway enforces connector grants and permission modes.
-      allowedTools: busTools,
+      allowedTools: mcp.allowedTools,
       ...claudeNativeToolOptions(options.nativeTools),
       // The platform stops background tasks one by one (StopTask): an interrupt spares them.
       perTaskStopAffordance: true,
       // Only the platform's MCP servers: the device owner's would leak their tools and accounts.
       strictMcpConfig: true,
-      mcpServers: servers(spec.connectorTools),
+      mcpServers: mcp.servers(spec.connectorTools),
       systemPrompt: {
         type: "preset",
         preset: "claude_code",
@@ -110,12 +94,19 @@ export function claudeSessions(
       abortController: abort,
     };
 
-    if (!canSubmit()) throw new TurnAdmissionCancelled();
-    const q = query({ prompt: input, options: queryOptions });
-    const refreshConnectors = claudeConnectorRefresh(q, spec.connectorTools, servers);
+    if (!canSubmit()) {
+      await mcp.close();
+      throw new TurnAdmissionCancelled();
+    }
+
+    const q = await openQuery(input, queryOptions, mcp.close);
+    const refreshConnectors = claudeConnectorRefresh(q, spec.connectorTools, mcp.servers, mcp.key);
     const transcript = transcriptPath(runtime.home, sessionId);
     session = {
-      refreshConnectors: (current) => refreshConnectors(current.connectorTools),
+      refreshConnectors: async (current) => {
+        await mcp.refresh(current);
+        await refreshConnectors(current.connectorTools, mcp.key);
+      },
       threadId: spec.threadId,
       sessionId,
       cwd: spec.cwd,
@@ -138,7 +129,7 @@ export function claudeSessions(
       closeTimer: undefined,
       done: Promise.resolve(),
     };
-    session.done = consume(session);
+    session.done = consume(session).finally(mcp.close);
     sessions.set(spec.threadId, session);
 
     return session;
@@ -147,4 +138,13 @@ export function claudeSessions(
   const switchMode = (session: Session, mode: PermissionMode) => switchSessionMode(session, mode);
 
   return { open, switchMode };
+}
+
+async function openQuery(input: AsyncChannel<SDKUserMessage>, options: Options, close: () => Promise<void>) {
+  try {
+    return query({ prompt: input, options });
+  } catch (cause) {
+    await close();
+    throw cause;
+  }
 }

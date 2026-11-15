@@ -4,7 +4,7 @@ import { isReflectMessage, reflect } from "@bufbuild/protobuf/reflect";
 
 import { MentionKind } from "@canopy/contracts";
 
-import { nodeRef, qualifyId, splitId } from "@canopy/domain/computers";
+import { isEntityId, nodeRef, qualifyId, splitId } from "@canopy/domain/computers";
 
 import { Code, ConnectError } from "@connectrpc/connect";
 
@@ -29,6 +29,39 @@ export function mapIds(
 ): void {
   const record = reflect(desc, message);
   visit?.(desc, message);
+
+  // Preview and OS target identifiers are opaque live-session selectors, never Canopy entities.
+  if (["canopy.worker.v1.AgentPreviewEvent", "canopy.worker.v1.AgentPreviewTarget"].includes(desc.typeName)) return;
+
+  if (desc.typeName === "canopy.ui.v1.SendAgentPreviewInputRequest") {
+    const field = desc.field["threadId"]!;
+    record.set(field, map(String(record.get(field)), "thread_id"));
+
+    return;
+  }
+
+  // Activity IDs and OS selectors are opaque; only its Canopy scope is routed.
+  if (desc.typeName === "canopy.ui.v1.ThreadAutomationActivity") {
+    for (const name of ["turnId", "workerId"]) {
+      const field = desc.field[name]!;
+      const value = String(record.get(field));
+
+      if (value) record.set(field, map(value, field.name));
+    }
+
+    return;
+  }
+
+  // OS window/device identifiers are opaque selectors, even when a simulator UDID is a UUID.
+  // Only a copied, qualified Canopy thread session participates in home routing.
+  if (desc.typeName === "canopy.worker.v1.RunAgentTool") {
+    const field = desc.field["session"]!;
+    const session = String(record.get(field));
+
+    if (isEntityId(session) && splitId(session).node) record.set(field, map(session, "thread_id"));
+
+    return;
+  }
 
   if (desc.typeName === "canopy.ui.v1.ThreadSyncRecord") {
     const field = desc.field["key"]!;
