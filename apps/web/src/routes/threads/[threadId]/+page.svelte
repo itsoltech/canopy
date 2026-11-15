@@ -704,6 +704,13 @@
                   }}
                 />
               {/snippet}
+              {#snippet footerAccessory()}
+                {#if runningBackgroundTasks.length > 0}
+                  <GrowIn overlay>
+                    <BackgroundTasksChip tasks={runningBackgroundTasks} onjump={(task) => openOutput(task.id)} />
+                  </GrowIn>
+                {/if}
+              {/snippet}
               {#snippet footer()}
                 <!-- What comes and goes above the composer grows in and out (each carries its own gap below). -->
                 <div class="grid grid-cols-1 pt-2" bind:this={feedFooter}>
@@ -729,11 +736,6 @@
                           {parent}
                         />
                       </div>
-                    </GrowIn>
-                  {/if}
-                  {#if view.backgroundTasks.length > 0}
-                    <GrowIn overlay class="justify-self-start pb-3">
-                      <BackgroundTasksChip tasks={runningBackgroundTasks} onjump={(task) => openOutput(task.id)} />
                     </GrowIn>
                   {/if}
                   {#snippet composerPanels()}

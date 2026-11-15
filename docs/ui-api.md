@@ -1177,7 +1177,19 @@ Nieudany shell steer pozostaje widoczny. Szczegóły wykonania i trwałości: [p
 
 ### Kompaktowy kompozytor podczas czytania historii
 
+Status: **zaimplementowane na `dev`** (2026-11-15), w tym osobny wiersz zadań w tle
+przy widocznej krawędzi composera. Dostępność w kanałach określają wydania.
+
 Kompozytor wątku zwija się po celowym przewinięciu w górę o co najmniej 96 px, gdy od końca dzieli co najmniej 192 px. Histereza utrzymuje wąski widok aż do powrotu na dół (wspólny próg feedu: 8 px) albo interakcji z kompozytorem. Nowy fokus, kliknięcie edytora, pisanie, upuszczenie/wklejenie pliku, otwarcie kontrolek i „Jump to latest” rozwijają pole. Celowe przewijanie ma pierwszeństwo przed istniejącym fokusem; edytor pozostaje zamontowany i zachowuje fokus również na telefonie.
+
+Web/desktop przekazuje badge „N running in background” jako `VirtualFeed.footerAccessory`,
+poza naturalną wysokością stopki i rezerwą pustego miejsca w `ThreadComposerSlot`.
+Wiersz statusu ma stałe minimum 28 px i stoi 8 px nad zmierzoną widoczną krawędzią;
+„Jump to latest” zajmuje oddzielny wyśrodkowany rząd 8 px wyżej. Wiersz jest
+zarezerwowany również bez aktywnych zadań, więc ich start i koniec nie przesuwają
+przycisku. Oba elementy pozostają rozdzielone także na telefonie, przy panelach
+nad composerem i podczas jego zwijania. Bez `footerAccessory` inne rozmowy
+zachowują przycisk 8 px nad stopką.
 
 Wąski widok pozostawia pierwszą linię tego samego edytora i przycisk wysyłania/zatrzymania; narzędzia i metadane są zwinięte i `inert`. Nad nim pozostają gęstsze nagłówki subagentów, kolejki i pytań asynchronicznych. Ich treść jest zwinięta i zachowuje stan, a kliknięcie nagłówka rozwija kompozytor i wybrany panel. Synchroniczne `ask_user` utrzymuje pełny widok. Szkic, wzmianki i historia cofania nie są odtwarzane z kopii.
 

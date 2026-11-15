@@ -154,7 +154,7 @@ natywne działanie przeglądarki na zaznaczalnych obszarach.
   przechodzi od przezroczystości dokładnie do tła wątku (token `surface`, ten sam co
   obszar wątku), bez widocznej krawędzi pasa. Ma 12,5% wysokości stopki (minimum
   12 px, maksimum 32 px). „Jump to latest” jest wyśrodkowany na osi composera (we
-  wspólnej `.chat-column`), 8 px nad jego widoczną górną krawędzią: treść stopki
+  wspólnej `.chat-column`), domyślnie 8 px nad jego widoczną górną krawędzią: treść stopki
   oznacza malowane elementy `data-feed-edge` (powierzchnia composera, karta Drafts,
   panele nad nim), a pusty zarezerwowany pas nad composerem się nie liczy. Gdy
   przycisk wystaje ponad stopkę, fade rośnie tak, by go obejmował. Przycisk ma
@@ -164,6 +164,11 @@ natywne działanie przeglądarki na zaznaczalnych obszarach.
   najnowszych wiadomości, bez przesuwania czytelnika przeglądającego historię.
   W kompozytorze wątku cytaty przewijają się po osiągnięciu 20 dvh (maks. 192 px),
   a tekst po 25 dvh (maks. 288 px), aby ich połączenie zostawiało miejsce na wiadomość.
+- W wątkach web/desktop badge zadań w tle ma osobny, zarezerwowany wiersz wysokości
+  28 px, wyrównany do lewej krawędzi composera i 8 px nad jego widoczną powierzchnią.
+  „Jump to latest” pozostaje wyśrodkowany w osobnym rzędzie 8 px wyżej. Pojawienie
+  się badge’a ani jego zniknięcie nie przesuwa przycisku; oba rzędy podążają za
+  widoczną krawędzią także przy zwijaniu composera i w wąskim oknie.
 - Wiersze nakładek mają jedną linię na pole: nazwy użytkownika (projekty, workery, gałęzie, modele)
   kończą się wielokropkiem, a pełna nazwa jest w tooltipie (`TruncatedText`; robią to `PickerRow`,
   `MenuItemText`, opcje `Select` i `Checkbox` w nakładce). Druga linia jest tylko tam, gdzie wiersz ją
