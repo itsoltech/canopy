@@ -14,8 +14,7 @@ export async function connectorTurn(ctx: HostContext, spec: ThreadSpec, turnId: 
   const previous = saved ? Schema.decodeUnknownSync(Schema.fromJsonString(ConnectorSessionCatalog))(saved) : [];
   const next = connectorSessionCatalog(spec.connectorTools);
   const encoded = JSON.stringify(next);
-  // A thread that never had connectors starts from an empty catalog, so its first turn changes nothing.
-  const changed = encoded !== (saved ?? JSON.stringify([]));
+  const changed = encoded !== saved;
   let ready = false;
 
   const record = async (code: string, message: string) => {
@@ -36,8 +35,12 @@ export async function connectorTurn(ctx: HostContext, spec: ThreadSpec, turnId: 
     connectorsReady: async () => {
       if (ready) return;
 
+      // The first catalog of a thread is a silent baseline: it records what the session started with.
       if (changed) {
-        await record("connectors_applied", "Connector tools updated");
+        await record(
+          saved === undefined ? "connectors_baseline" : "connectors_applied",
+          saved === undefined ? "Connector tools loaded" : "Connector tools updated",
+        );
         await run(Journal.use((j) => j.rememberConnectorCatalog(spec.threadId, encoded)));
       }
 
