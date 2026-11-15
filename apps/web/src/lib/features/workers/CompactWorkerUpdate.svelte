@@ -6,7 +6,7 @@
   import Dialog from "#lib/shared/ui/Dialog.svelte";
   import UpdateItem from "./UpdateItem.svelte";
   import { workerCurrent } from "./compact-updates.ts";
-  import { appUpdateTarget } from "@canopy/domain/release/update-plan";
+  import { appRowTarget, appUpdateTarget } from "@canopy/domain/release/update-plan";
   import type { UpdatesState } from "./updates.svelte.ts";
   import { updateInProgress, updateTargetKey, type UpdateStatus } from "@canopy/domain/release/update-status";
 
@@ -110,11 +110,7 @@
   name={worker.name}
   icon={desktop ? "computer-desktop" : "server"}
   current={desktop?.version || worker.version}
-  target={desktop
-    ? appUpdateTarget(desktop) || desktop.targetVersion
-    : worker.state !== "ahead"
-      ? snapshot?.gatewayVersion
-      : ""}
+  target={desktop ? appRowTarget(desktop) : worker.state !== "ahead" ? snapshot?.gatewayVersion : ""}
   {status}
   line={status === "waiting" ? "Restarts after its current turns end." : ""}
   error={status === "failed"

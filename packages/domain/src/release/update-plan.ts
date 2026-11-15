@@ -14,6 +14,16 @@ export function appUpdateTarget(app: ui.DesktopUpdateState | undefined): string 
   );
 }
 
+/**
+ * The version a desktop app's row shows as its target: only one newer than the running app. A finished request's
+ * target_version is history; after the app updated past it another way, it would read as a downgrade.
+ */
+export function appRowTarget(app: ui.DesktopUpdateState | undefined): string {
+  if (!app) return "";
+
+  return appUpdateTarget(app) || (newerAppVersion(app.targetVersion, app.version) ? app.targetVersion : "");
+}
+
 export function appUpdateAvailable(app: ui.DesktopUpdateState | undefined): boolean {
   return !!app && (!!appUpdateTarget(app) || app.ready || app.updaterPhase === "downloaded");
 }
