@@ -14,7 +14,8 @@ export async function connectorTurn(ctx: HostContext, spec: ThreadSpec, turnId: 
   const previous = saved ? Schema.decodeUnknownSync(Schema.fromJsonString(ConnectorSessionCatalog))(saved) : [];
   const next = connectorSessionCatalog(spec.connectorTools);
   const encoded = JSON.stringify(next);
-  const changed = encoded !== saved;
+  // A thread that never had connectors starts from an empty catalog, so its first turn changes nothing.
+  const changed = encoded !== (saved ?? JSON.stringify([]));
   let ready = false;
 
   const record = async (code: string, message: string) => {
