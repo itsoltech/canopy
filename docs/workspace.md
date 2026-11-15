@@ -4,7 +4,7 @@ Status: **wdrożone; układ v3** (po stosie #640–#648).
 Zakładki dzielą rząd z sygnetem projektu i tytułem wątku. Podsumowanie wątku jest
 **osobnym elementem**: pływającą kartą o stałej szerokości w prawym górnym rogu
 obszaru wątku, niezależną od prawego panelu. Prawy panel zawiera wyłącznie **Files**.
-Ustalono jeden zastępowalny czysty preview, utrwalany przez Edit/Keep tab/dwuklik,
+Ustalono jeden zastępowalny czysty preview, utrwalany przez pierwszą zmianę/Keep tab/dwuklik,
 drzewo ograniczone do cwd/worktree wątku i mobilną edycję natywną bez kolorów podczas
 pisania (kolory w viewerze i Preview changes).
 
