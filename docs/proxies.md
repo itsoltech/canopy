@@ -278,7 +278,7 @@ wykryty plan. Picker pokazuje plany o znanej wadze z tabeli; Grok ma obecnie tyl
 Automatic, ponieważ nie ma potwierdzonych wag. Brak trwałego ID blokuje zapis.
 Emaile pozostają chronione przez Sensitive.
 
-Migracja `0148_proxy_account_plans` dodaje mapę `proxies.account_plans`. Wiersz proxy
+Migracja `0149_proxy_account_plans` dodaje mapę `proxies.account_plans`. Wiersz proxy
 zapewnia owner scoping i usunięcie ustawień razem z proxy. Klucz to SHA-256 providera
 i upstream `id` (fallback: `auth_index`), bez emaila, tokena i etykiety. Upstream
 [Auth.ID / EnsureIndex](https://github.com/router-for-me/CLIProxyAPI/blob/main/sdk/cliproxy/auth/types.go)
