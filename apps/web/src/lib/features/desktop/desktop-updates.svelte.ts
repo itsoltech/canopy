@@ -1,4 +1,4 @@
-import type { DesktopUpdateStatus } from "@canopy/ui/desktop";
+import type { DesktopStatus, DesktopUpdateStatus } from "@canopy/ui/desktop";
 
 /** Each mounted consumer owns its bridge subscription; updater work stays in main. */
 export class DesktopUpdatesState {
@@ -7,6 +7,7 @@ export class DesktopUpdatesState {
   error = $state("");
   restarting = $state(false);
   remote = $state(false);
+  workerId = $state<string>();
 
   connect() {
     const bridge = window.canopyDesktop;
@@ -20,15 +21,17 @@ export class DesktopUpdatesState {
 
     const off = bridge.onUpdates(receive);
 
-    const offStatus = bridge.onStatus((value) => {
-      if (active) this.remote = value.mode === "remote";
-    });
+    const receiveStatus = (value: DesktopStatus) => {
+      if (!active) return;
+      this.remote = value.mode === "remote";
+      this.workerId = value.workerId;
+    };
+
+    const offStatus = bridge.onStatus(receiveStatus);
 
     void bridge
       .status()
-      .then((value) => {
-        if (active) this.remote = value.mode === "remote";
-      })
+      .then(receiveStatus)
       .catch(() => {});
     void bridge
       .updates()
