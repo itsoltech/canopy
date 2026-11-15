@@ -36,10 +36,12 @@
 >
   <Icon
     name="queue-list"
+    size="sm"
     class="col-start-1 row-start-1 fill-inherit group-focus-within/row:opacity-0 pointer-coarse:opacity-0 pointer-fine:group-hover/row:opacity-0"
   />
   <Icon
     name="bars-2"
+    size="sm"
     class="col-start-1 row-start-1 fill-inherit opacity-0 group-focus-within/row:opacity-100 pointer-coarse:opacity-100 pointer-fine:group-hover/row:opacity-100"
   />
   <TouchTarget size="sm" />

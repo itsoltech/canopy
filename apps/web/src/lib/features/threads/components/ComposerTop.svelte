@@ -20,6 +20,8 @@
 >
   <!-- Each panel owns its reading area; disclosure headers stay outside scrolling and its gutter. -->
   <div class="min-h-0 rounded-t-2xl">
-    <div class="divide-y divide-zinc-950/10 dark:divide-white/10">{@render children()}</div>
+    <div class="divide-y divide-zinc-950/10 dark:divide-white/10 [&>:first-child]:rounded-t-2xl">
+      {@render children()}
+    </div>
   </div>
 </div>

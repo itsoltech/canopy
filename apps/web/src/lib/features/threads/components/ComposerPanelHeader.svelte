@@ -27,7 +27,7 @@
 <button
   type="button"
   class={[
-    "t-composer-panel-header relative flex min-h-12 w-full min-w-0 items-center gap-2 rounded-t-2xl px-3 py-1 text-left text-sm/5 focus-ring hover:bg-zinc-950/2.5 focus-visible:-outline-offset-2 sm:min-h-7 sm:text-[0.8125rem]/5 dark:hover:bg-white/4",
+    "t-composer-panel-header relative flex min-h-12 w-full min-w-0 items-center gap-2 rounded-t-[inherit] px-3 py-1 text-left text-sm/5 focus-ring hover:bg-zinc-950/2.5 focus-visible:-outline-offset-2 sm:min-h-7 sm:text-[0.8125rem]/5 dark:hover:bg-white/4",
     className,
   ]}
   aria-expanded={expanded}
