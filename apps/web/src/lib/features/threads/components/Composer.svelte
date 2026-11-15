@@ -88,7 +88,9 @@
   data-composer
   data-pending-decision={Boolean(answering || approval) || undefined}
   data-compact={folded || undefined}
-  onfocusin={() => {
+  onfocusin={(event) => {
+    // Panels that open on their own (subagents) leave the compact composer folded.
+    if (event.target instanceof Element && event.target.closest("[data-keeps-compact]")) return;
     onfocuschange?.(true);
     onexpand?.();
   }}
