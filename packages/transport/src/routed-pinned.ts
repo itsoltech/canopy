@@ -60,6 +60,9 @@ export function routedPinnedTransport(initial: PinnedRoutes, token?: string) {
           ca: selected.certificate,
           fingerprint,
           connectTimeoutMs: 1500,
+          // Without PINGs a session left half-open by sleep or a route change looks alive forever:
+          // its streams stop silently and new ones queue on it. A failed PING ends the session.
+          pingIntervalMs: 10_000,
         });
         transports.set(last, transport);
       }
