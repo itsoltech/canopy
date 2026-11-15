@@ -11,13 +11,19 @@ import { single, stream, unary, unaryTimeout, withSignal, type Handler } from ".
 import { localProjectIds } from "./routed-config.ts";
 import { forward } from "./routed-home.ts";
 import { PEER_BACKOFF_MS, PEER_READ_REFRESH_MS } from "../computers/timing.ts";
+import { latestThreadChoices } from "@canopy/domain/new-thread-choices";
 
 /** Other computers' overviews in this one. A shared project is listed once, with every computer's workspaces. */
 export function absorb(
-  overview: { workers: ui.Worker[]; projects: ui.Project[] },
+  overview: { workers: ui.Worker[]; projects: ui.Project[]; lastUsedAgent?: ui.Thread | undefined },
   others: readonly ui.GetOverviewResponse[],
   global: ReadonlySet<string>,
 ) {
+  overview.lastUsedAgent = latestThreadChoices([
+    ...(overview.lastUsedAgent ? [overview.lastUsedAgent] : []),
+    ...others.flatMap((other) => (other.lastUsedAgent ? [other.lastUsedAgent] : [])),
+  ]);
+
   for (const other of others) {
     overview.workers.push(...other.workers);
 

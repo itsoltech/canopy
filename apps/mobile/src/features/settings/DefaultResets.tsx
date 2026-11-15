@@ -22,8 +22,8 @@ export function DefaultResets({
     "Project and worker": workspace,
     Worker: workspace,
     Agent: {
-      changed: value.provider !== Provider.UNSPECIFIED,
-      patch: { provider: Provider.UNSPECIFIED, providerProfileId: "" },
+      changed: value.provider !== Provider.UNSPECIFIED || value.useLastAgent !== undefined,
+      patch: { provider: Provider.UNSPECIFIED, providerProfileId: "", useLastAgent: undefined },
     },
     Permissions: {
       changed:

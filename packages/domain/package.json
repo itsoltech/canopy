@@ -52,6 +52,7 @@
     "./attachment-preview": "./src/attachments/preview.ts",
     "./pending-send": "./src/pending-send.ts",
     "./composer-choices": "./src/composer-choices.ts",
+    "./new-thread-choices": "./src/new-thread-choices.ts",
     "./composer-pending": "./src/composer-pending.ts",
     "./sidebar-threads": "./src/sidebar-threads.ts",
     "./thread-order": "./src/thread-order.ts",

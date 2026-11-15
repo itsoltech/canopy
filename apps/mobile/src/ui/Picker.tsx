@@ -61,6 +61,7 @@ export function PickerSheet<T>({
   note,
   header,
   footer,
+  onQueryChange,
 }: {
   title: string;
   visible: boolean;
@@ -77,6 +78,8 @@ export function PickerSheet<T>({
   note?: string;
   header?: ReactNode;
   footer?: ReactNode;
+  /** Observe search text when the caller needs to expand the search scope. */
+  onQueryChange?: (query: string) => void;
 }) {
   const c = useColors();
   const [query, setQuery] = useState("");
@@ -95,8 +98,13 @@ export function PickerSheet<T>({
     }))
     .filter((section) => section.options.length > 0);
 
+  function changeQuery(next: string) {
+    setQuery(next);
+    onQueryChange?.(next);
+  }
+
   function close() {
-    setQuery("");
+    changeQuery("");
     onClose();
   }
 
@@ -108,7 +116,7 @@ export function PickerSheet<T>({
         </Text>
       </SheetDragArea>
       {header}
-      {search && <SearchField value={query} onChange={setQuery} placeholder={search} />}
+      {search && <SearchField value={query} onChange={changeQuery} placeholder={search} />}
       <ScrollView
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ paddingHorizontal: 8, paddingVertical: 4 }}

@@ -5,8 +5,9 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { linkedMessage, methodNamed, type RemoteServe } from "./remote.ts";
 import { safeOverview } from "./mirror-projection.ts";
 import type { PublicationFailureRow } from "./range-publication-failure.ts";
+import { lastUsedAgentKey } from "./last-used-agent.ts";
 
-export type RangeOverviewClock = { revision: string; epoch: string };
+export type RangeOverviewClock = { revision: string; epoch: string; lastUsedChoice?: string };
 
 export type RangeThreadHead = PublicationFailureRow & {
   id: string;
@@ -36,7 +37,7 @@ export async function rangeOverviewUpdate(serve: RemoteServe, signal: AbortSigna
   throw new ConnectError("Missing computer overview", Code.Internal);
 }
 
-/** Transcript edits do not invalidate the worker/project picker metadata. */
+/** Transcript edits refresh picker metadata only when they change the latest own user choice. */
 export async function rangeOverview(store: RangeSourceStore, previous?: RangeOverviewClock) {
   const clock = (
     await store.query<RangeOverviewClock>(
@@ -46,9 +47,12 @@ export async function rangeOverview(store: RangeSourceStore, previous?: RangeOve
     )
   )[0] ?? { revision: "0", epoch: "" };
 
-  if (!previous || clock.epoch !== previous.epoch) return { clock, changed: true };
+  if (previous && clock.epoch === previous.epoch && clock.revision === previous.revision)
+    return { clock: previous, changed: false };
 
-  if (clock.revision === previous.revision) return { clock, changed: false };
+  clock.lastUsedChoice = await lastUsedAgentKey(store);
+
+  if (!previous || clock.epoch !== previous.epoch) return { clock, changed: true };
 
   const changes = (
     await store.query<{ count: string; metadata: boolean }>(
@@ -62,6 +66,9 @@ export async function rangeOverview(store: RangeSourceStore, previous?: RangeOve
   // A retained range must be contiguous; otherwise refresh conservatively.
   return {
     clock,
-    changed: changes.metadata || BigInt(changes.count) !== BigInt(clock.revision) - BigInt(previous.revision),
+    changed:
+      changes.metadata ||
+      clock.lastUsedChoice !== previous.lastUsedChoice ||
+      BigInt(changes.count) !== BigInt(clock.revision) - BigInt(previous.revision),
   };
 }

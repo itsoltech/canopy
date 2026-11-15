@@ -93,7 +93,7 @@ export async function commitMirrorUpdate(
           }
 
           if (update.snapshot?.thread) {
-            const metadata = create(ui.ThreadSchema, { ...update.snapshot.thread, lastUserTurnChoices: undefined });
+            const metadata = create(ui.ThreadSchema, update.snapshot.thread);
 
             yield* sql`INSERT INTO computer_mirror_threads(owner_user_id,origin_node_id,generation,thread_id,snapshot,thread_metadata)
                 VALUES(${owner}::uuid,${node},${generation}::uuid,${update.snapshot.thread.id}::uuid,${toBinary(ui.ThreadSnapshotSchema, update.snapshot)},${toBinary(ui.ThreadSchema, metadata)})

@@ -20,6 +20,7 @@ export interface ModelChoice {
   isDefault: boolean;
   aliases: string[];
   resolvedModel: string;
+  favorite: boolean;
 }
 
 export interface ModelSection {
@@ -59,9 +60,9 @@ export const effortLabel = (id: string) =>
 const instanceLabel = (instance: ui.WorkerInstance) =>
   instance.label || (instance.id === "native" ? "Device login" : instance.id);
 
-const profileValue = (id: string) => (id === "native" ? "" : id);
+export const profileValue = (id: string) => (id === "native" ? "" : id);
 
-function choice(provider: Provider, profileId: string, m: ModelInfo): ModelChoice {
+function choice(provider: Provider, profileId: string, m: ModelInfo, favorites: string[]): ModelChoice {
   return {
     key: `${provider}:${profileId}:${m.id}`,
     provider,
@@ -73,6 +74,7 @@ function choice(provider: Provider, profileId: string, m: ModelInfo): ModelChoic
     isDefault: m.isDefault,
     aliases: m.aliases,
     resolvedModel: m.resolvedModel,
+    favorite: favorites.includes(m.id) || m.aliases.some((alias) => favorites.includes(alias)),
   };
 }
 
@@ -86,7 +88,15 @@ export function modelSections(
     catalog
       .find((p) => p.provider === provider && profileValue(p.profileId) === profileId)
       ?.models.filter((m) => !m.hidden)
-      .map((m) => choice(provider, profileId, m)) ?? [];
+      .map((m) =>
+        choice(
+          provider,
+          profileId,
+          m,
+          worker?.providerInstances.find((i) => i.harness === provider && profileValue(i.id) === profileId)
+            ?.favorites ?? [],
+        ),
+      ) ?? [];
 
   if (only) {
     const own = worker?.providerInstances.find(
@@ -125,7 +135,7 @@ export function findChoice(section: ModelSection | undefined, model: string) {
 
   if (!model) return choices.find((c) => c.isDefault) ?? choices[0];
 
-  return choices.find((c) => c.model === model || c.aliases.includes(model));
+  return choices.find((c) => c.model === model || c.resolvedModel === model || c.aliases.includes(model));
 }
 
 /**

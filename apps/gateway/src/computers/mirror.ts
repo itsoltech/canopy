@@ -13,6 +13,7 @@ import { readMirrorSnapshot } from "./mirror-snapshot.ts";
 import { readRangeMirror } from "./range-read.ts";
 import type { ThreadHistoryQuery } from "../store/thread-window.ts";
 import type { MirrorDiagnostics } from "../diagnostics/sync.ts";
+import { lastUsedAgentKey } from "./last-used-agent.ts";
 
 export { commitMirrorUpdate, type State } from "./mirror-persistence.ts";
 
@@ -316,6 +317,7 @@ export class ThreadMirror {
 
     let cursor = request.cursor;
     let lastHeartbeat = 0;
+    let lastUsedChoice = "";
 
     while (!signal.aborted) {
       const head = await clock();
@@ -328,6 +330,9 @@ export class ThreadMirror {
           : undefined;
 
       const contiguous = changes && BigInt(changes.count) === BigInt(head.revision) - seq;
+
+      const choiceKey =
+        !contiguous || BigInt(changes!.count) > 0n ? await lastUsedAgentKey(this.store) : lastUsedChoice;
 
       if (!contiguous) {
         // Capture the cursor BEFORE reading projections: concurrent changes are replayed afterwards.
@@ -347,6 +352,7 @@ export class ThreadMirror {
         }
 
         cursor = cursorOf(head);
+        lastUsedChoice = choiceKey;
         yield create(link.MirrorUpdateSchema, { cursor, commit: true });
       } else {
         // Coalesce repeated invalidations (e.g. streaming deltas) into one projection per poll.
@@ -363,6 +369,8 @@ export class ThreadMirror {
 
         const threadIds = new Set([...changes!.threads, ...ids.map((t) => t.id)]);
 
+        if (choiceKey !== lastUsedChoice) threadIds.add(null);
+
         for (const threadId of threadIds) {
           if (signal.aborted) return;
 
@@ -378,6 +386,7 @@ export class ThreadMirror {
         if (BigInt(changes!.count) > 0n) {
           yield create(link.MirrorUpdateSchema, { previousCursor: cursor, cursor: cursorOf(head), commit: true });
           cursor = cursorOf(head);
+          lastUsedChoice = choiceKey;
         }
       }
 

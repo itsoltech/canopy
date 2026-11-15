@@ -5,12 +5,14 @@ import { PermissionMode, ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { useOverview } from "../../state/overview";
 import { useAppearance } from "../../state/appearance";
-import { findChoice, modelSections, useModelCatalog } from "../models/catalog";
+import { modelSections, useModelCatalog } from "../models/catalog";
+import { effectiveThreadDefaults } from "@canopy/domain/new-thread-choices";
 import { usePersistentMessage } from "../drafts/usePersistentMessage";
 import { createFromDraft } from "../drafts/create";
 import { useWorkerPresence } from "../computers/presence";
 import { useWorkspaceDraft } from "./useWorkspaceDraft";
-import { defaultProject, defaultWorkspace, effectiveDefaults, modelFor } from "./placement";
+import { defaultProject, defaultWorkspace } from "./placement";
+import { newThreadChoices } from "./choices";
 import { projectAwayReason } from "@canopy/domain/linked-snapshot";
 
 /**
@@ -35,7 +37,7 @@ export function useNewThread() {
     projects.find((p) => p.projectIds.includes(picks.projectId ?? params.project ?? "")) ??
     defaultProject(projects, overview.threads, userDefaults?.workspaceId ?? "");
 
-  const defaults = effectiveDefaults(userDefaults, project ? settings.projectDefaults(project.id) : undefined);
+  const defaults = effectiveThreadDefaults(userDefaults, project ? settings.projectDefaults(project.id) : undefined);
 
   const workspace = project
     ? (project.workspaces.find((w) => w.id === (picks.workspaceId ?? params.workspace)) ??
@@ -50,7 +52,6 @@ export function useNewThread() {
   );
 
   const persistent = message.persistent;
-  const effort = persistent?.choices.effort ?? "";
   const permission = persistent?.choices.permissionMode;
 
   const worker = overview.workers.find((w) => w.id === workspace?.workerId);
@@ -58,16 +59,14 @@ export function useNewThread() {
   const workspaceDraft = useWorkspaceDraft(workspace?.id, presence(worker).online);
   const choices = sections.flatMap((s) => s.choices);
 
-  const fromDefaults = defaultChoice(sections, defaults);
+  const lastUsedAgent = overview.lastUsedAgent;
 
-  const picked = choices.find(
-    (c) =>
-      c.model === persistent?.choices.model &&
-      c.provider === persistent.choices.provider &&
-      c.profileId === persistent.choices.providerProfileId,
-  );
+  const choiceThreads =
+    lastUsedAgent && !overview.threads.some((thread) => thread.id === lastUsedAgent.id)
+      ? [...overview.threads, lastUsedAgent]
+      : overview.threads;
 
-  const selected = picked ?? fromDefaults ?? findChoice(sections[0], "");
+  const { selected, model, effort } = newThreadChoices(sections, defaults, choiceThreads, persistent?.choices);
 
   // A new message each render is fine: the suggestions key their requests by the scope's values.
   const mentionScope =
@@ -102,8 +101,8 @@ export function useNewThread() {
           workspaceId: workspace.id,
           provider: selected.provider,
           providerProfileId: selected.profileId,
-          model: !picked && selected.isDefault ? "" : selected.model,
-          effort: selected.efforts.includes(effort) ? effort : "",
+          model,
+          effort,
           permissionMode,
           ...workspaceDraft.form,
           clientRequestId: persistent?.requestId ?? "",
@@ -121,7 +120,7 @@ export function useNewThread() {
     worker,
     sections,
     selected,
-    effort: selected?.efforts.includes(effort) ? effort : selected?.defaultEffort || "",
+    effort,
     permissionMode,
     message,
     workspaceDraft,
@@ -138,19 +137,27 @@ export function useNewThread() {
       const choice = choices.find((c) => c.key === key);
 
       if (choice)
-        persistent?.setChoices({ model: choice.model, provider: choice.provider, providerProfileId: choice.profileId });
+        persistent?.setChoices({
+          model: choice.model,
+          provider: choice.provider,
+          providerProfileId: choice.profileId,
+          effort:
+            choice.provider === selected?.provider &&
+            choice.profileId === selected.profileId &&
+            choice.efforts.includes(effort)
+              ? effort
+              : "",
+        });
     },
-    setEffort: (next: string) => persistent?.setChoices({ effort: next }),
+    setEffort: (next: string) =>
+      persistent?.setChoices({
+        effort: next,
+        provider: selected?.provider,
+        providerProfileId: selected?.profileId,
+      }),
     setPermission: (next: PermissionMode) => persistent?.setChoices({ permissionMode: next }),
     create,
   };
-}
-
-function defaultChoice(sections: ReturnType<typeof modelSections>, defaults: ReturnType<typeof effectiveDefaults>) {
-  const ofProvider = sections.filter((s) => s.provider === defaults.provider);
-  const section = ofProvider.find((s) => s.profileId === defaults.providerProfileId) ?? ofProvider[0];
-
-  return section ? findChoice(section, modelFor(defaults, section.provider)) : undefined;
 }
 
 function useNewThreadSubmit(

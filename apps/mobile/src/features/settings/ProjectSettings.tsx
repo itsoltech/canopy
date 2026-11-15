@@ -138,18 +138,32 @@ function ProjectDefaults({ project, resource }: { project: ui.Project; resource:
             ),
           ]}
         />
-        <SettingChoice
+        <SettingChoice<Provider | "last" | "any">
           title="Agent"
-          value={value.provider}
-          onChange={(provider) => save({ provider, providerProfileId: "" })}
+          value={
+            value.useLastAgent === true
+              ? "last"
+              : value.provider || (value.useLastAgent === false ? "any" : Provider.UNSPECIFIED)
+          }
+          onChange={(provider) =>
+            save(
+              provider === "last"
+                ? { provider: Provider.UNSPECIFIED, providerProfileId: "", useLastAgent: true }
+                : provider === "any"
+                  ? { provider: Provider.UNSPECIFIED, providerProfileId: "", useLastAgent: false }
+                  : { provider, providerProfileId: "", useLastAgent: provider ? false : undefined },
+            )
+          }
           options={[
             { value: Provider.UNSPECIFIED, label: "Use my default" },
+            { value: "last", label: "Last used" },
+            { value: "any", label: "Any available" },
             { value: Provider.CLAUDE, label: "Claude" },
             { value: Provider.CODEX, label: "Codex" },
             { value: Provider.GROK, label: "Grok" },
           ]}
         />
-        {!!value.provider && <DefaultModels value={value} onChange={save} />}
+        {value.useLastAgent !== true && !!value.provider && <DefaultModels value={value} onChange={save} />}
         <SettingsRow
           title="Permissions"
           description="New threads of this project use this approval policy."

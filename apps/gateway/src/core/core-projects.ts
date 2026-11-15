@@ -8,6 +8,7 @@ import type { GatewayCore } from "./core.ts";
 import { coreWorkerQuery } from "./core-mentions.ts";
 import { coreWorkers } from "./core-providers.ts";
 import { coreRun } from "./core-broadcast.ts";
+import { coreUiThread } from "./core-titles.ts";
 import { decorateOrigins } from "./workspace-origins.ts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
@@ -54,14 +55,20 @@ export const coreProjectsMethods: CoreProjectsMethods = {
   // ------------------------------------------------------------------ UI operations
 
   async overview(this: GatewayCore): Promise<ui.GetOverviewResponse> {
-    const [workers, projects] = await Promise.all([
+    const [workers, projects, lastUsed] = await Promise.all([
       coreWorkers(this),
       coreRun(this, (s) => s.listProjects(this[coreState].options.userId)),
+      coreRun(this, (s) => s.lastUsedAgent(this[coreState].options.userId)),
     ]);
 
     await decorateOrigins(this, projects);
 
-    return create(ui.GetOverviewResponseSchema, { workers, projects, agents: [] });
+    return create(ui.GetOverviewResponseSchema, {
+      workers,
+      projects,
+      agents: [],
+      ...(lastUsed && { lastUsedAgent: coreUiThread(this, lastUsed) }),
+    });
   },
 
   async listDirectory(this: GatewayCore, workerId: string, path: string): Promise<ui.ListDirectoryResponse> {

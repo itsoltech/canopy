@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { PickerSheet } from "../../ui/Picker";
+import { Segmented } from "../../ui/Segmented";
 import { ProviderIcon } from "../../ui/ProviderIcon";
 import { type ModelChoice, type ModelSection } from "./catalog";
 import { useEffortLabel } from "../settings/display";
@@ -10,6 +12,7 @@ export function ModelPickerSheet({
   sections,
   value,
   onSelect,
+  preferFavorites = false,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -17,8 +20,20 @@ export function ModelPickerSheet({
   /** `ModelChoice.key` of the current model. */
   value: string | undefined;
   onSelect: (choice: ModelChoice) => void;
+  preferFavorites?: boolean;
 }) {
   const choices = sections.flatMap((s) => s.choices);
+  const hasFavorites = choices.some((choice) => choice.favorite);
+  const [filter, setFilter] = useState<"favorites" | "all">();
+  const [query, setQuery] = useState("");
+  const activeFilter = hasFavorites ? (filter ?? (preferFavorites ? "favorites" : "all")) : "all";
+
+  const shown = sections
+    .map((section) => ({
+      ...section,
+      choices: section.choices.filter((choice) => query.trim() || activeFilter === "all" || choice.favorite),
+    }))
+    .filter((section) => section.choices.length);
 
   return (
     <PickerSheet
@@ -26,14 +41,29 @@ export function ModelPickerSheet({
       visible={visible}
       onClose={onClose}
       search={choices.length > 6 ? "Search models" : undefined}
+      onQueryChange={setQuery}
       value={value}
+      header={
+        hasFavorites ? (
+          <Segmented
+            compact
+            style={{ marginHorizontal: 16, marginVertical: 8 }}
+            options={[
+              { value: "favorites", label: "Favorites" },
+              { value: "all", label: "All" },
+            ]}
+            value={activeFilter}
+            onChange={setFilter}
+          />
+        ) : undefined
+      }
       onSelect={(key) => {
         const picked = choices.find((c) => c.key === key);
 
         if (picked) onSelect(picked);
       }}
       note={choices.length ? undefined : "The worker has not listed its models yet."}
-      sections={sections.map((section) => ({
+      sections={shown.map((section) => ({
         title: sections.length > 1 ? section.title : undefined,
         options: section.choices.map((c) => ({
           value: c.key,

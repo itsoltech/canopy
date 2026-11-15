@@ -15,6 +15,7 @@ import {
   projectAwayReason,
 } from "@canopy/domain/linked-snapshot";
 import { projectChoices } from "@canopy/domain/projects";
+import { latestThreadChoices } from "@canopy/domain/new-thread-choices";
 import { webDrafts } from "#lib/features/drafts/local.svelte.ts";
 
 /** live: stream open and in sync; reconnecting: dropped, retrying; unavailable: the gateway does not answer. */
@@ -31,6 +32,8 @@ export class OverviewState {
   projectChoices = $derived(projectChoices(this.projects));
   /** Active threads and Previous agents, plus archived rows observed live or fetched on demand. */
   threads = $state.raw<ReadonlyMap<string, ui.Thread>>(new Map());
+  /** Latest own choice also survives archiving the thread and reopening the app. */
+  lastUsedAgent = $state.raw<ui.Thread>();
   warmQuery = $state("");
   /** Linked computers by node id. Mirror-capable peers remain listed while offline. */
   computers = $state.raw<ReadonlyMap<string, ui.LinkedComputer>>(new Map());
@@ -69,6 +72,13 @@ export class OverviewState {
 
   projectChoice(id: string) {
     return this.projectChoices.find((project) => project.projectIds.includes(id));
+  }
+
+  get agentChoiceThreads(): readonly ui.Thread[] {
+    const seed = this.lastUsedAgent;
+    const threads = [...this.threads.values()];
+
+    return seed && !this.threads.has(seed.id) && !this.#deleted.has(seed.id) ? [...threads, seed] : threads;
   }
 
   projectAway(project: ui.Project) {
@@ -114,11 +124,23 @@ export class OverviewState {
     for (const listener of this.#listeners) listener(update);
     const change = update.change;
 
+    const seedChanged =
+      change.case === "thread" &&
+      change.value.id === this.lastUsedAgent?.id &&
+      (change.value.deletedAt ||
+        change.value.lastUserTurnChoices?.turnId !== this.lastUsedAgent.lastUserTurnChoices?.turnId);
+
+    const seedComputerChanged =
+      this.lastUsedAgent?.nodeId &&
+      ((change.case === "computerRemoved" && change.value === this.lastUsedAgent.nodeId) ||
+        (change.case === "computerSnapshot" && change.value.nodeId === this.lastUsedAgent.nodeId));
+
     if (change.case === "feeds") this.pushed = new Set(change.value.pushed);
 
     if (
-      change.case === "linkedReadCompleted" &&
-      ["GetOverview", "ListThreads"].includes(change.value) &&
+      (seedChanged ||
+        seedComputerChanged ||
+        (change.case === "linkedReadCompleted" && ["GetOverview", "ListThreads"].includes(change.value))) &&
       !this.#refreshing
     ) {
       this.#refreshing = true;
@@ -131,6 +153,11 @@ export class OverviewState {
 
     if (change.case === "computerSnapshot") {
       const { nodeId, overview, threads } = change.value;
+      this.lastUsedAgent = latestThreadChoices([
+        ...(this.lastUsedAgent && this.lastUsedAgent.nodeId !== nodeId ? [this.lastUsedAgent] : []),
+        ...(overview?.lastUsedAgent ? [overview.lastUsedAgent] : []),
+      ]);
+
       const visible = new Set(threads.map((t) => t.id));
 
       for (const thread of this.threads.values()) {
@@ -149,6 +176,7 @@ export class OverviewState {
           next.set(thread.id, thread);
         }
 
+      if (overview?.lastUsedAgent) this.#deleted.delete(overview.lastUsedAgent.id);
       this.threads = next;
     }
 
@@ -190,12 +218,14 @@ export class OverviewState {
 
   /** An authoritative home snapshot or unlink replaces that home's rows. */
   #forget(nodeId: string): void {
+    if (this.lastUsedAgent?.nodeId === nodeId) this.lastUsedAgent = undefined;
     this.#workers = this.#workers.filter((w) => w.nodeId !== nodeId);
     this.projects = forgetComputerProjects(this.projects, nodeId);
     this.threads = new Map([...this.threads].filter(([, t]) => t.nodeId !== nodeId));
   }
 
   #replace(overview: ui.GetOverviewResponse, threads: readonly ui.Thread[]): void {
+    this.lastUsedAgent = overview.lastUsedAgent;
     this.computers = new Map(overview.computers.map((c) => [c.nodeId, c]));
     this.#workers = retainLinkedRows(this.#workers, overview.workers, overview.computers);
     this.projects = retainProjects(this.projects, overview.projects, overview.computers);
@@ -207,6 +237,8 @@ export class OverviewState {
       if (!visible.has(id) && thread.status !== "archived") this.#deleted.add(id);
 
     for (const id of visible.keys()) this.#deleted.delete(id);
+
+    if (this.lastUsedAgent) this.#deleted.delete(this.lastUsedAgent.id);
     this.threads = visible;
     this.#synced = true;
   }

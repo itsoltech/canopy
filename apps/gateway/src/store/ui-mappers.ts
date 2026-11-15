@@ -12,6 +12,7 @@ import { providerOf } from "./instance-config.ts";
 import { threadNotice } from "./thread-notice.ts";
 import { toUiChecksNote } from "./pr-check-ui.ts";
 import type { InteractionRow, ThreadRow, TurnRow } from "./rows.ts";
+import type { ComposerChoiceColumns } from "./composer-choice-select.ts";
 
 export function toInteraction(row: InteractionRow): ui.Interaction {
   return create(ui.InteractionSchema, {
@@ -58,8 +59,19 @@ export function permissionModeName(mode: PermissionMode): string {
   return mode === PermissionMode.UNSPECIFIED ? "" : (PermissionMode[mode] ?? "");
 }
 
+export function toUiComposerChoices(row: ComposerChoiceColumns): ui.ComposerTurnChoices {
+  return create(ui.ComposerTurnChoicesSchema, {
+    turnId: row.turn_id,
+    createdAt: timestampFromDate(new Date(row.created_at)),
+    model: row.model,
+    effort: row.effort,
+    permissionMode: permissionModeOf(row.permission_mode),
+  });
+}
+
 export function toUiThread(row: ThreadRow): ui.Thread {
   return create(ui.ThreadSchema, {
+    ...(row.last_user_turn_choices && { lastUserTurnChoices: toUiComposerChoices(row.last_user_turn_choices) }),
     rewindPending: Boolean(row.rewind_pending_id),
     ...(row.newest_pull_request && {
       newestPullRequest: fromJson(github.PullRequestSummarySchema, row.newest_pull_request),

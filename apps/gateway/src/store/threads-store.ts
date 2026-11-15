@@ -13,8 +13,10 @@ import { storageText } from "./event-text.ts";
 import type { AutomatedAccess } from "./automated-permissions.ts";
 import { queryFamily } from "../diagnostics/query-context.ts";
 import { reorderThread } from "./thread-order.ts";
+import { LAST_USED_AGENT_SELECT } from "./composer-choice-select.ts";
 
 export interface ThreadStore {
+  lastUsedAgent(ownerUserId: string): Fx<ThreadRow | undefined>;
   threadByCreation(owner: string, requestId: string): Fx<ThreadRow | undefined>;
   reorderThread(ownerUserId: string, request: ui.ReorderThreadRequest): Fx<void>;
   /** `id`: a thread moved here from a linked computer keeps its id (docs/linked-computers.md, stage 8). */
@@ -107,6 +109,12 @@ const archivedThreads = (sql: SqlClient.SqlClient, ownerUserId: string, request:
 
 export function threadStore(sql: SqlClient.SqlClient): Omit<ThreadStore, "createThread"> {
   const store: Omit<ThreadStore, "createThread"> = {
+    lastUsedAgent: (ownerUserId) =>
+      sql
+        .unsafe<ThreadRow>(listThreadSelect(`WHERE t.id=(SELECT id FROM (${LAST_USED_AGENT_SELECT}) choice)`), [
+          ownerUserId,
+        ])
+        .pipe(Effect.map((rows) => rows[0])),
     threadByCreation: (owner, requestId) =>
       requestId
         ? sql

@@ -3,6 +3,7 @@ import { create } from "@bufbuild/protobuf";
 import { PermissionMode, Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { composerChoices } from "@canopy/domain/composer-choices";
+import { latestThreadChoices } from "@canopy/domain/new-thread-choices";
 import { GatewayCore } from "@canopy/gateway/core";
 import { GatewayStore } from "@canopy/gateway/store";
 import { Effect } from "effect";
@@ -94,13 +95,16 @@ describe.skipIf(!dockerAvailable)("durable composer choices", () => {
       model: "gpt-6.1-sol",
       effort: "high",
       permissionMode: PermissionMode.READ_ONLY,
+      createdAt: sent.turn!.queuedAt,
     };
 
+    expect(expected.createdAt).toBeDefined();
     expect(view.thread?.lastUserTurnChoices).toMatchObject(expected);
-    expect((await gw.api.getThread({ threadId: thread.id })).thread?.lastUserTurnChoices).toBeUndefined();
+    expect((await gw.api.getThread({ threadId: thread.id })).thread?.lastUserTurnChoices).toMatchObject(expected);
     expect(
       (await gw.api.listThreads({ projectId })).threads.find((t) => t.id === thread.id)?.lastUserTurnChoices,
-    ).toBeUndefined();
+    ).toMatchObject(expected);
+    expect(latestThreadChoices((await gw.api.listThreads({ projectId })).threads)?.id).toBe(thread.id);
     // Thread defaults and a second thread keep their own settings.
     expect([view.thread?.model, view.thread?.effort, view.thread?.permissionMode]).toEqual([
       "gpt-5.5",
@@ -119,7 +123,7 @@ describe.skipIf(!dockerAvailable)("durable composer choices", () => {
     ).toBeUndefined();
   });
 
-  test("an open watch refreshes choices on turn and title changes while overview metadata omits them", async () => {
+  test("thread and overview watches refresh choices on turn and title changes", async () => {
     const thread = await createThread("Live choices");
     const controller = new AbortController();
     const updates = gw.core.watchThread(thread.id, controller.signal);
@@ -147,6 +151,7 @@ describe.skipIf(!dockerAvailable)("durable composer choices", () => {
           turnId: sent.turn!.id,
           effort: "high",
           permissionMode: PermissionMode.READ_ONLY,
+          createdAt: sent.turn!.queuedAt,
         });
         sawTurn = true;
       }
@@ -168,7 +173,14 @@ describe.skipIf(!dockerAvailable)("durable composer choices", () => {
         const update = (await overview.next()).value;
 
         if (update?.change.case !== "thread" || update.change.value.id !== thread.id) continue;
-        expect(update.change.value.lastUserTurnChoices).toBeUndefined();
+
+        if (update.change.value.lastUserTurnChoices?.turnId !== sent.turn!.id) continue;
+
+        expect(update.change.value.lastUserTurnChoices).toMatchObject({
+          turnId: sent.turn!.id,
+          effort: "high",
+          createdAt: sent.turn!.queuedAt,
+        });
         sawOverview = true;
       }
     } finally {
@@ -247,5 +259,62 @@ describe.skipIf(!dockerAvailable)("durable composer choices", () => {
     ).toMatchObject({ option: { model: "gpt-5.5" }, effort: "medium" });
     expect(composerChoices(saved, [{ ...options[0]!, efforts: [], defaultEffort: "" }]).effort).toBe("");
     expect(composerChoices(saved, [])).toMatchObject({ option: undefined, effort: "" });
+  });
+
+  test("overview reload remembers archived choices, excludes deleted threads and stays owner scoped", async () => {
+    const project = (await gw.api.createProject({ name: "Archived choices" })).project!;
+
+    const workspace = (
+      await gw.api.createWorkspace({ projectId: project.id, workerId: gw.workerId, rootPath: "/repo/archived-picks" })
+    ).workspace!;
+
+    async function pickedThread(title: string, effort: string) {
+      const thread = (
+        await gw.api.createThread({
+          projectId: project.id,
+          workspaceId: workspace.id,
+          title,
+          provider: Provider.CODEX,
+          model: "gpt-5.5",
+          clientRequestId: crypto.randomUUID(),
+        })
+      ).thread!;
+
+      const sent = await gw.api.sendMessage({
+        threadId: thread.id,
+        text: "Remember this agent",
+        effort,
+        clientRequestId: crypto.randomUUID(),
+      });
+
+      await eventually(
+        () => snapshot(gw.core, thread.id),
+        (view) => view.turns.some((turn) => turn.id === sent.turn!.id && turn.status === "completed"),
+      );
+
+      return { thread, sent };
+    }
+
+    const older = await pickedThread("Earlier pick", "low");
+    const latest = await pickedThread("Latest pick", "high");
+    await gw.api.setThreadArchived({ threadId: latest.thread.id, archived: true });
+    const fresh = new GatewayCore({ runtime: gw.runtime, instanceId: "archived-composer-restart", userId: gw.userId });
+    expect((await fresh.listThreads("")).some((thread) => thread.id === latest.thread.id)).toBe(false);
+    expect((await fresh.overview()).lastUsedAgent).toMatchObject({
+      id: latest.thread.id,
+      lastUserTurnChoices: {
+        turnId: latest.sent.turn!.id,
+        createdAt: latest.sent.turn!.queuedAt,
+        effort: "high",
+      },
+    });
+    await gw.api.archiveProject({ projectId: project.id });
+    expect((await fresh.overview()).lastUsedAgent?.id).toBe(latest.thread.id);
+    await gw.api.deleteThread({ threadId: latest.thread.id });
+    expect((await fresh.overview()).lastUsedAgent?.id).toBe(older.thread.id);
+
+    const owner = await gw.runtime.runPromise(GatewayStore.use((s) => s.ensureUser("no-picks@test", "No picks")));
+    const stranger = new GatewayCore({ runtime: gw.runtime, instanceId: "no-picks-overview", userId: owner });
+    expect((await stranger.overview()).lastUsedAgent).toBeUndefined();
   });
 });
