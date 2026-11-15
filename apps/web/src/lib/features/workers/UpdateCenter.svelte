@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Provider } from "@canopy/contracts";
+  import { appRowTarget } from "@canopy/domain/release/update-plan";
   import type { ClassValue } from "svelte/elements";
   import Button from "#lib/shared/ui/Button.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
@@ -120,10 +121,9 @@
         />
         <UpdateNotes
           current={step?.fromVersion || worker.desktop?.version || worker.version}
-          target={worker.desktop?.targetVersion ||
-            step?.version ||
-            worker.desktop?.availableVersion ||
-            (worker.state === "ahead" ? "" : snapshot.gatewayVersion)}
+          target={worker.desktop
+            ? appRowTarget(worker.desktop)
+            : step?.version || (worker.state === "ahead" ? "" : snapshot.gatewayVersion)}
           channel={worker.desktop?.channel || snapshot.channel}
           expanded={updateBusy(worker.state) ||
             ["downloading", "waiting_idle", "restarting"].includes(worker.desktop?.phase ?? "")}

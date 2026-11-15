@@ -28,6 +28,7 @@ import { answerBotThreadApproval } from "./bot-thread-approval.ts";
 import { linkedBotThreadApprovals } from "../computers/bot-thread-approvals.ts";
 import { publishThreadImages } from "./image-publication.ts";
 import { importImageReply } from "./image-markdown.ts";
+import { releaseFound } from "../updates/found.ts";
 
 export function createCoreBots(core: GatewayCore, options: GatewayCoreOptions): BotsRuntime {
   return new BotsRuntime({
@@ -155,6 +156,7 @@ export function createCoreUpdates(core: GatewayCore, options: GatewayCoreOptions
     },
     persistence,
     changed: () => core.feeds.updatesChanged(),
+    found: (release) => releaseFound(core, release),
     authenticate: (credential) => coreRun(core, (s) => s.authenticateWorker(credential)),
   });
 }

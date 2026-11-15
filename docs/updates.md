@@ -436,6 +436,25 @@ dla poświadczenia desktopu; przerwana próba po restarcie kończy się błędem
 a start docelowej wersji po restarting — sukcesem. Nieczytelna historia blokuje
 zdalne odtwarzanie, zachowując plik i możliwość uruchomienia aplikacji.
 
+**Check now** na gatewayu wysyła też `DesktopUpdateCommand.check` do każdej sparowanej,
+podłączonej aplikacji (bez trwającego żądania, z włączonym updaterem; najwyżej raz na 10 s
+na aplikację) i nie czeka na wynik: raporty przychodzą jako `desktop_update`. Wcześniej
+sprawdzał tylko feed gatewaya, więc pozostałe aplikacje pokazywały „Up to date” do
+własnego timera.
+
+**Wspólne wykrycie wydania.** Gdy gateway albo jedna aplikacja zgłosi nowszą wersję
+(`available_version`/`updater_version` powyżej uruchomionej), gateway prosi pozostałe
+aplikacje na tym samym kanale, które jej jeszcze nie znają, o sprawdzenie własnego feedu,
+raz na wydanie i aplikację; samodzielny gateway na tym samym kanale sprawdza się raz
+(cache indeksu wydań może to opóźnić do 15 min). Gateway przekazuje wyłącznie sygnał,
+nie listę wydań ani wersję: każda aplikacja nadal sama weryfikuje podpisany feed swojej
+platformy, a paczka platformy może pojawić się później niż release. Po tym jednym
+sprawdzeniu Update all obejmuje wszystkie aplikacje naraz.
+
+Wiersz aplikacji wśród workerów (web, telefon, Settings) pokazuje jako cel tylko wersję
+nowszą od uruchomionej (`appRowTarget`). `target_version` zakończonego żądania to historia:
+po aktualizacji tej aplikacji inną drogą wyglądałby jak downgrade.
+
 Tryb lokalny nie otwiera tego strumienia; połączone komputery używają osobnego kanału
 aplikacji z dołączonym gatewayem ([niżej](#połączone-komputery)).
 

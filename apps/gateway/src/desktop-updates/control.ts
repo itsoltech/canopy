@@ -5,6 +5,12 @@ import { AsyncChannel } from "@canopy/transport";
 import { mobileGuard, type MobileDevices } from "../core/mobile-devices.ts";
 import { DesktopUpdateStore } from "./store.ts";
 import { currentRemoteUpdate } from "@canopy/domain/release/remote-update-state";
+import { versionAhead } from "../updates/versions.ts";
+
+const CHECK_THROTTLE_MS = 10_000;
+
+/** A release some computer found on a channel; others on it check their own feeds once for it. */
+export type FoundRelease = { channel: string; version: string };
 
 const bearer = (ctx: HandlerContext) =>
   /^Bearer\s+(\S+)$/i.exec(ctx.requestHeader.get("authorization") ?? "")?.[1] ?? "";
@@ -58,6 +64,24 @@ export function validDesktopHello(hello: ui.DesktopHello) {
 export const busy = (phase: string) =>
   ["queued", "checking", "downloading", "waiting_idle", "restarting"].includes(phase);
 
+/** The newest release this app's own updater reports above its running version, if any. */
+function foundRelease(hello: ui.DesktopHello, state: ui.DesktopUpdateState): FoundRelease | undefined {
+  const version = [state.availableVersion, state.updaterVersion]
+    .filter((v) => versionAhead(v, hello.version))
+    .reduce((newest, v) => (!newest || versionAhead(v, newest) ? v : newest), "");
+
+  return version ? { channel: hello.channel, version } : undefined;
+}
+
+/** A found release this app should hear about: same channel, newer than all it knows, not announced to it yet. */
+function releaseNews(release: FoundRelease, session: Session, state: ui.DesktopUpdateState) {
+  return (
+    release.channel === session.hello.channel &&
+    release.version !== session.nudged &&
+    [session.hello.version, state.availableVersion].filter(Boolean).every((v) => versionAhead(release.version, v))
+  );
+}
+
 type Session = {
   id: string;
   deviceId: string;
@@ -65,16 +89,20 @@ type Session = {
   confirmed: boolean;
   disabledReason?: string;
   channel: AsyncChannel<ui.DesktopControlEvent>;
+  checkedAt?: number;
+  nudged?: string;
 };
 
 export class DesktopControl {
   readonly sessions = new Map<string, Session>();
   private queue = Promise.resolve();
+  private readonly announced = new Set<string>();
   constructor(
     readonly store: DesktopUpdateStore,
     readonly mobile: MobileDevices,
     readonly publish: (state: ui.DesktopUpdateState) => void,
     readonly authenticateWorker: (token: string) => Promise<string | undefined>,
+    readonly found: (release: FoundRelease) => void = () => {},
   ) {}
 
   private serialize<A>(run: () => Promise<A>): Promise<A> {
@@ -99,7 +127,13 @@ export class DesktopControl {
       report: (report, ctx) =>
         mobileGuard(async () => {
           const identity = await this.identity(ctx);
-          await this.serialize(() => this.report(identity.deviceId, report));
+          const found = await this.serialize(() => this.report(identity.deviceId, report));
+
+          // Announce each release once, outside the queue: the fan-out serializes its own reads.
+          if (found && !this.announced.has(`${found.channel}@${found.version}`)) {
+            this.announced.add(`${found.channel}@${found.version}`);
+            this.found(found);
+          }
 
           return create(ui.DesktopAckSchema);
         }),
@@ -280,13 +314,15 @@ export class DesktopControl {
 
     validDesktopState(state, session.hello);
     session.disabledReason = state.disabledReason;
+    const found = foundRelease(session.hello, state);
     const row = (await this.store.list()).find((r) => r.deviceId === deviceId);
 
-    if (row?.command.requestId && !state.requestId) return;
+    if (row?.command.requestId && !state.requestId) return found;
 
-    if (!row || (state.requestId && state.requestId !== row.command.requestId)) return;
+    if (!row || (state.requestId && state.requestId !== row.command.requestId)) return found;
 
-    if (state.requestId && state.revision <= row.state.revision && state.requestId === row.state.requestId) return;
+    if (state.requestId && state.revision <= row.state.revision && state.requestId === row.state.requestId)
+      return found;
 
     // The row keeps the requested update; the updater's live state is for linked computers (local.ts).
     const value = {
@@ -306,6 +342,39 @@ export class DesktopControl {
 
     if (await this.store.save(row.workerId, deviceId, value, undefined, outcome ? "desktop.update.outcome" : undefined))
       this.publish(value);
+
+    return found;
+  }
+  /**
+   * Ask connected desktop apps to check their own feeds: the owner's Check now, or a release another computer
+   * found on their channel (each app is asked once per such release). Installs nothing and grants no version.
+   */
+  async check(release?: FoundRelease) {
+    await this.serialize(async () => {
+      const rows = await this.store.list();
+
+      for (const session of this.sessions.values()) {
+        const row = rows.find((r) => r.deviceId === session.deviceId);
+
+        if (
+          !row ||
+          !session.confirmed ||
+          session.channel.closed ||
+          !session.hello.remoteUpdate ||
+          (session.disabledReason ?? row.state.disabledReason) ||
+          busy(row.state.phase) ||
+          Date.now() - (session.checkedAt ?? 0) < CHECK_THROTTLE_MS ||
+          (release && !releaseNews(release, session, row.state))
+        )
+          continue;
+        session.checkedAt = Date.now();
+
+        if (release) session.nudged = release.version;
+        session.channel.push(
+          create(ui.DesktopControlEventSchema, { sessionId: session.id, confirmed: true, command: { check: true } }),
+        );
+      }
+    });
   }
   close() {
     for (const session of this.sessions.values()) session.channel.close();

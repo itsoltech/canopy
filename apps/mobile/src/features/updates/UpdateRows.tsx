@@ -5,6 +5,7 @@ import { homeAppComputer } from "@canopy/domain/release/update-actions";
 import { isRateLimitMessage } from "@canopy/domain/release/http";
 import { computerUpdate } from "@canopy/domain/release/computer-update";
 import { currentRemoteUpdate } from "@canopy/domain/release/remote-update-state";
+import { appRowTarget } from "@canopy/domain/release/update-plan";
 import {
   isUpdateStatus,
   updateInProgress,
@@ -253,9 +254,7 @@ function WorkerRows({
             key={worker.workerId}
             name={worker.name}
             version={app?.version || worker.version}
-            target={
-              app?.targetVersion || app?.availableVersion || (worker.state === "ahead" ? "" : home.gatewayVersion)
-            }
+            target={app ? appRowTarget(app) : worker.state === "ahead" ? "" : home.gatewayVersion}
             status={status}
             line={status === "waiting" ? WAITING : isUpdateStatus(status) ? undefined : reason}
             error={status === "failed" ? reason || run?.steps[step]?.reason || "The update did not finish." : undefined}

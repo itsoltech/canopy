@@ -28,6 +28,7 @@ import { GatewayUpdates } from "../updates/runtime.ts";
 import { createGatewayDepartures, type GatewayDepartures } from "../updates/departures.ts";
 import { UpdateCenter } from "../updates/center.ts";
 import { createUpdateCenter } from "../updates/center-composition.ts";
+import { releaseFound } from "../updates/found.ts";
 import { WorkerSsh } from "./worker-ssh.ts";
 import { CliTools } from "./cli-tools.ts";
 import { ProviderAccounts } from "./provider-accounts.ts";
@@ -271,6 +272,7 @@ export class GatewayCore {
           }),
         ),
       (credential) => coreRun(this, (s) => s.authenticateWorker(credential)),
+      (release) => releaseFound(this, release),
     );
     this.appControl = new LocalAppControl(options.runtime, options.userId, () => this.feeds.updatesChanged());
     this.connectors = new ConnectorsRuntime({

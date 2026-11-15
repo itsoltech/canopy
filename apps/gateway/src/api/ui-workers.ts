@@ -114,6 +114,8 @@ export function workersHandlers(
 
       if (request.action === "check") {
         await checkLinkedUpdates(core);
+        // Desktop apps paired with this gateway check their own feeds too; their reports arrive as they finish.
+        await core.desktopControl.check();
 
         if (core.role === "desktop") {
           await core.appControl.check();
