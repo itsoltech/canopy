@@ -9,8 +9,8 @@
 
   /**
    * Markdown from agents, rendered from marked's token tree by Svelte components. Nothing is
-   * injected as HTML: raw HTML in the source shows as text, links are limited to http(s)/mailto and
-   * images are not loaded (they render as links).
+   * injected as HTML: allowlisted source elements become inert trees rendered by Svelte. Links and
+   * images use the caller’s existing file handlers and image policy; scripts and source styles are dropped.
    *
    * `breaks`: preserve prose whitespace, including single line breaks, spaces and tabs (people and bus messages).
    *

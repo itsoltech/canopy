@@ -1,7 +1,8 @@
 # Zakładki wątku i moduł plików
 
 Status: **wdrożone; układ v3**, kompaktowa typografia zakładek, diagramy Mermaid w trybie
-`Rendered` (2026-11-15; stos #640–#648, potem #710, #711, #737, #740, #787 i #823).
+`Rendered` oraz bezpieczny HTML i lokalne obrazy w Markdown w web/desktop (2026-11-15;
+stos #640–#648, potem #710, #711, #737, #740, #787 i #823).
 W web/desktop zakładki dzielą rząd z sygnetem projektu, a **tytuł wątku jest pierwszą,
 niezamykalną kartą** (bez osobnego tytułu i etykiety `Thread`, #787). Mobile pokazuje
 tę kartę w przełączniku jako `Thread`. W tym dokumencie `Thread` oznacza tę pierwszą
@@ -164,6 +165,26 @@ Kolory, czcionka i kształty pochodzą z aktywnego motywu Canopy (`mermaid-theme
 zmiana motywu lub trybu jasny/ciemny rysuje diagram ponownie. Nagłówek bloku ma
 `Show source`/`Show diagram` i `Copy code`; diagram z błędem składni pokazuje źródło z
 krótką notką. Szeroki diagram zmniejsza się najwyżej do 90% i dalej przewija w poziomie.
+
+W web/desktop `Rendered` obsługuje również bezpieczny HTML w Markdown: nagłówki,
+akapity, formatowanie inline, listy, tabele, `details`/`summary`, linki i `align`
+(`left`, `center`, `right`). Wspólny renderer parsuje HTML jako dane (`parse5`),
+buduje drzewo dozwolonych elementów i renderuje je komponentami Svelte, bez
+wstrzykiwania źródłowego HTML. Zachowuje zagnieżdżenie także przy mieszaniu HTML
+z blokami Markdown. Zagnieżdżenie HTML jest ograniczone do 64 poziomów; głębsze
+opakowania są spłaszczane z zachowaniem tekstu. Skrypty, style, handlery zdarzeń, formularze, ramki i obce
+przestrzenie nazw są usuwane; kod w backtickach pozostaje literalny.
+
+Obrazy Markdown i HTML `img` w podglądzie pliku są pobierane leniwie przez istniejący,
+autoryzowany odczyt plików wątku. Ścieżki względne liczymy od katalogu oglądanego
+pliku, a nie od katalogu wątku. Obowiązują limity podglądu plików (2 MiB), rastrów
+(16 Mpx) i wymiarów z HTML (4096 px). SVG trafia wyłącznie do `<img>` przez URL
+bloba, nigdy jako aktywny dokument ani inline SVG. Ścieżki zawierające `..` nie są
+ładowane automatycznie. Zewnętrzne obrazy pozostają linkami; błąd lokalnego obrazu
+pokazuje alt i pozwala otworzyć plik. To zachowanie dotyczy podglądu plików,
+nie importera trwałych obrazów odpowiedzi agentów ([agent-visuals.md](agent-visuals.md)).
+Zmiana jest zaimplementowana; dostępność w nightly/beta/stable wynika z promocji
+wydań ([release.md](release.md)).
 
 Nagłówek nie ma `+`. Wybór pliku z drzewa lub linku otwiera kartę obok `Thread`;
 pełny widok PR otwiera wiersz PR w podsumowaniu (lub link `?pr=`), a wynik zadania

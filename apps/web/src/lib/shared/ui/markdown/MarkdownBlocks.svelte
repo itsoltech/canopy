@@ -1,13 +1,12 @@
 <script lang="ts">
   import ChoiceControl from "../ChoiceControl.svelte";
   import MathView from "./Math.svelte";
-  import { isMathToken } from "@canopy/domain/markdown";
+  import { isMathToken, normalizeHtmlTokens, isHtmlToken } from "@canopy/domain/markdown";
   import type { Token, Tokens } from "marked";
   import CodeFence from "../code/CodeFence.svelte";
   import MarkdownBlocks from "./MarkdownBlocks.svelte";
   import MarkdownInline from "./MarkdownInline.svelte";
   import { useInlineElements } from "./inline-elements.ts";
-  import { useImages } from "./images.ts";
   import MarkdownHtml from "./MarkdownHtml.svelte";
   import MermaidDiagram from "./MermaidDiagram.svelte";
   import { useDiagrams } from "./diagrams.ts";
@@ -21,7 +20,7 @@
   }: { tokens: Token[]; streaming?: boolean; breaks?: boolean } = $props();
 
   const elements = useInlineElements();
-  const images = useImages();
+  const normalized = $derived(normalizeHtmlTokens(tokens));
   const diagrams = useDiagrams();
 
   const headingSize = new Map<number, string>([
@@ -37,8 +36,10 @@
     value === "center" ? "text-center" : value === "right" ? "text-right" : "text-left";
 </script>
 
-{#each tokens as token, index (index)}
-  {#if isMathToken(token)}
+{#each normalized as token, index (index)}
+  {#if isHtmlToken(token)}
+    <MarkdownHtml nodes={token.nodes} {streaming} {breaks} />
+  {:else if isMathToken(token)}
     <MathView text={token.text} raw={token.raw} display={token.display} />
   {:else if token.type === "paragraph"}
     <p class={breaks ? "whitespace-pre-wrap" : undefined}>
@@ -149,9 +150,5 @@
     <hr class="border-zinc-950/10 dark:border-white/10" />
   {:else if token.type === "text"}
     <p class={breaks ? "whitespace-pre-wrap" : undefined}><MarkdownInline tokens={inline(token as Tokens.Text)} /></p>
-  {:else if token.type === "html"}
-    <p class="whitespace-pre-wrap">
-      {#if images.render}<MarkdownHtml text={token.raw} />{:else}{token.raw}{/if}
-    </p>
   {/if}
 {/each}

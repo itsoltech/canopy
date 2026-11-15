@@ -1,5 +1,9 @@
 # API dla UI i architektura frontendu
 
+Status (2026-11-15): web/desktop — bezpieczny HTML we wspólnym rendererze Markdown
+oraz lokalne obrazy w podglądzie plików są wdrożone; dostępność kanałów według
+[release.md](release.md).
+
 ## Proponowane odpowiedzi
 
 Agent może zakończyć odpowiedź maksymalnie trzema linkami `[Create the PR](canopy:reply)`.
@@ -1475,7 +1479,10 @@ z „Retry”.
 obrazy w `Lightbox` (powiększanie, nazwa, rozmiar, pobieranie), a pliki tekstowe w
 dialogu z numerami wierszy na szerokim ekranie, zawijaniem, kopiowaniem i pobieraniem.
 Markdown korzysta z tego samego `Markdown` co oś czasu; wybór „Rendered” / „Source”
-zapisuje się w preferencjach urządzenia. Surowy HTML pozostaje tekstem. SVG wyświetla
+zapisuje się w preferencjach urządzenia. W web/desktop dozwolony HTML wewnątrz Markdown
+renderuje się jako bezpieczne drzewo elementów Svelte (nagłówki, formatowanie, listy,
+tabele, `details`/`summary` i `align`), bez skryptów, stylów i handlerów zdarzeń.
+Samodzielne pliki HTML nadal pokazują źródło. SVG wyświetla
 się wyłącznie w `<img>`; BFF udostępnia jego typ przez `?image`, nadal z CSP sandbox
 i `nosniff`. Pozostałe pliki zachowują pobieranie lub kartę composera.
 

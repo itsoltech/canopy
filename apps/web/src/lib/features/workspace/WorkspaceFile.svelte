@@ -341,6 +341,7 @@
           />{/if}
       {:else}
         <FileContentView
+          target={document.target}
           file={viewer.file}
           text={viewer.draft}
           {name}
