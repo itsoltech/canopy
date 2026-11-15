@@ -161,6 +161,15 @@ z `lastResult` (`lib/shared/last-result.ts`). Pierwsze zimne otwarcie
 pozostaje ukryte, dopóki zamontowane okno ma wiersze ładowania brakującej pracy (w ramach
 limitu pozycjonowania), żeby luki nie znikały pod czytelnikiem.
 
+Także callbacki gestów i operacje asynchroniczne mogą przeżyć swój widok.
+Nasłuchy na `window` usuwamy przy odmontowaniu oraz wymianie obsługiwanego stanu;
+anulowanie gestu nie zatwierdza akcji. Otwieranie cytatu sprawdza aktualność widoku
+po każdym oczekiwaniu na historię lub render, zanim ponownie odczyta pochodne.
+Wysyłka może dokończyć się po nawigacji, ale odbiorca i szkic muszą być przechwycone
+przed pierwszym `await`; późniejszy wynik nie zmienia stanu nowo otwartej rozmowy.
+Nie zastępujemy wszystkich `$derived` getterami: pochodne o cyklu życia komponentu
+pozostają poprawne, gdy żaden callback nie odczytuje ich po jego zamknięciu.
+
 Skoki sprawdzaj próbką po malowaniu (rAF, potem zadanie): wpisy `layout-shift` nie
 obejmują przesunięć wywołanych zmianą `scrollTop`, a odczyt w samym rAF widzi layout
 sprzed korekt ResizeObservera tej klatki. Porównuj pozycje wspólnych wierszy między

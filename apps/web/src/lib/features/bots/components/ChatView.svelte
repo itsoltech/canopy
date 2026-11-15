@@ -284,8 +284,7 @@
   function send(text: string, mentions: Mention[], quotes: ui.Quote[]) {
     following = true;
 
-    if (composerDraft) void composerDraft.send(onsend);
-    else void onsend(text, mentions, quotes);
+    void onsend(text, mentions, quotes);
     void tick().then(() => toEnd());
   }
 

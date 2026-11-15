@@ -17,15 +17,24 @@ export class QueueDrag {
   readonly #list: () => HTMLElement | undefined;
   readonly #onmove: (id: string, index: number) => void;
   readonly #ondrop: (id: string) => void;
+  readonly #oncancel: () => void;
+  #stop: (() => void) | undefined;
 
   constructor(options: {
     list: () => HTMLElement | undefined;
     onmove: (id: string, index: number) => void;
     ondrop: (id: string) => void;
+    oncancel: () => void;
   }) {
     this.#list = options.list;
     this.#onmove = options.onmove;
     this.#ondrop = options.ondrop;
+    this.#oncancel = options.oncancel;
+  }
+
+  /** The panel or its queue was replaced: release the gesture without calling its old callbacks. */
+  dispose(): void {
+    this.#stop?.();
   }
 
   start(event: PointerEvent, id: string): void {
@@ -40,6 +49,7 @@ export class QueueDrag {
     // Where in the row the pointer took it, so the row does not jump to the pointer.
     const grab = event.clientY - row.getBoundingClientRect().top;
     let pointerY = event.clientY;
+    let active = true;
 
     const rows = () => [...list.querySelectorAll<HTMLElement>("[data-queue-row]")];
 
@@ -60,22 +70,37 @@ export class QueueDrag {
 
       if (index !== rows().indexOf(row)) {
         this.#onmove(id, index);
-        void tick().then(place);
+        void tick().then(() => {
+          if (active) place();
+        });
       }
+    };
+
+    const stop = () => {
+      active = false;
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", cancel);
+      this.id = undefined;
+      this.offset = 0;
+      this.#stop = undefined;
     };
 
     const end = (last: PointerEvent) => {
       if (last.pointerId !== event.pointerId) return;
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", end);
-      window.removeEventListener("pointercancel", end);
-      this.id = undefined;
-      this.offset = 0;
+      stop();
       this.#ondrop(id);
     };
 
+    const cancel = (last: PointerEvent) => {
+      if (last.pointerId !== event.pointerId) return;
+      stop();
+      this.#oncancel();
+    };
+
+    this.#stop = stop;
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", end);
-    window.addEventListener("pointercancel", end);
+    window.addEventListener("pointercancel", cancel);
   }
 }
