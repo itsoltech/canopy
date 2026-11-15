@@ -1,7 +1,7 @@
 # Zakładki wątku i moduł plików
 
-Status: **wdrożone; układ v3**, kompaktowa typografia zakładek (2026-11-15;
-stos #640–#648, potem #710, #711, #737, #740 i #787).
+Status: **wdrożone; układ v3**, kompaktowa typografia zakładek, diagramy Mermaid w trybie
+`Rendered` (2026-11-15; stos #640–#648, potem #710, #711, #737, #740, #787 i #823).
 W web/desktop zakładki dzielą rząd z sygnetem projektu, a **tytuł wątku jest pierwszą,
 niezamykalną kartą** (bez osobnego tytułu i etykiety `Thread`, #787). Mobile pokazuje
 tę kartę w przełączniku jako `Thread`. W tym dokumencie `Thread` oznacza tę pierwszą
