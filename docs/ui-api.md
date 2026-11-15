@@ -202,8 +202,10 @@ zredagowany podgląd JSON/Markdown do 256 KiB. `InvestigateDiagnostics` wymaga
 podpisanego podglądu i jawnego wyboru istniejącego projektu/workspace/workera
 na tym domu; atomowo tworzy zwykły wątek ASK z załącznikiem i receipt idempotencji.
 `ResetDiagnostics` utrwala baseline wybranego procesu przed ACK, bez zmiany
-runtime governora. Sterowanie linked działa tylko po bezpośrednim połączeniu
-z `diagnostics_control_v1`, nigdy przez relay.
+runtime governora. Reset linked wymaga bezpośredniego połączenia
+z `diagnostics_v1`. Wywołania linked dla `ControlDiagnosticsTrace`
+i `ExportDiagnosticsTrace` wymagają `diagnostics_trace_v1` i również działają
+wyłącznie bezpośrednio, bez relay.
 
 ## Ikony
 
@@ -535,9 +537,10 @@ Revoke kończy otwarte streamy w procesie gatewaya. Starsze parowania wymagają 
 `GetPullRequestImage` i BFF `POST /api/github/image` udostępniają obrazy z opisu PR,
 komentarzy i review. Gateway sprawdza właściciela, wybrane konto i przynależność
 węzła do PR, rozwiązuje prywatny URL przez `bodyHTML`, a zwraca wyłącznie ograniczony
-raster jako data URL. Podpisy URL i poświadczenia pozostają w gatewayu. Wspólny
-renderer ładuje obrazy tylko po jawnym przekazaniu renderera przez widoki GitHub;
-treści wątków agentów zachowują dotychczasowe linki. Limity i cache: [github.md](github.md#obrazy-w-treści-pr).
+raster jako data URL. Podpisy URL i poświadczenia pozostają w gatewayu. Widoki GitHub
+jawnie włączają obsługę obrazów PR we wspólnym rendererze;
+wątki agentów mają osobny importer lokalnych obrazów Markdown, a zewnętrzne URL
+pozostają linkami. Limity i cache: [github.md](github.md#obrazy-w-treści-pr).
 
 Settings → GitHub na web/desktop i mobile korzysta z ośmiu RPC opisanych w
 `proto/canopy/ui/v1/github.proto`: konta, start/status/cancel device flow,

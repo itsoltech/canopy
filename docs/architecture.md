@@ -1,13 +1,11 @@
 # Canopy — architektura
 
-Szkice kompozytora są prywatnymi danymi właściciela, oddzielonymi od historii.
-Klient zachowuje lokalny szkic dla każdego wątku i celu nowego wątku.
-Gateway przechowuje automatycznie synchronizowane kopie; urządzenie odbierające
-wybiera przejęcie. Nie wysyła ich do
-workerów ani modeli. Szczegóły: [ui-api.md](ui-api.md#szkice-kompozytora-i-przekazywanie-między-urządzeniami).
-
-Status: opis działającego gatewaya, workerów i web BFF oraz pierwszej aplikacji
-mobilnej (2026-11-02). Logowanie użytkowników i część docelowych rozszerzeń pozostają w planach.
+Status: opis działającego kodu na `dev` (2026-11-15): gateway, workery, web BFF,
+Canopy Desktop (tryb lokalny, zdalny i połączone komputery) oraz aplikacja mobilna.
+Logowanie użytkowników nie istnieje; otwarte decyzje są w §11. Ten dokument opisuje
+zachowanie, nie dostępność w wydaniach: funkcje trafiają najpierw do nightly, potem
+do beta i stable ([release.md](release.md)); co zawiera konkretne wydanie, podają
+GitHub Releases.
 
 Powiązane dokumenty:
 
@@ -22,7 +20,7 @@ Powiązane dokumenty:
 - [codex-adapter.md](codex-adapter.md) — adapter Codex app-server: protokół, testy na żywo, izolacja `CODEX_HOME`
 - [grok-adapter.md](grok-adapter.md) — własny SDK ACP stdio Grok CLI, native/CLIProxyAPI i MCP narzędzi platformy
 - [ui-api.md](ui-api.md) — API dla UI, SvelteKit jako BFF (HTTP/1.1 + SSE do przeglądarki, gRPC do gateway)
-- [diagnostics.md](diagnostics.md) — projekt wspólnego widoku wydajności komputerów, metryk RPC, zaleceń i zbierania zredagowanych logów
+- [diagnostics.md](diagnostics.md) — Settings → Diagnostics: wspólny widok wydajności komputerów, metryki RPC i łączy, zalecenia, tracing i zbieranie zredagowanych logów
 - [mobile.md](mobile.md) — Canopy iOS/Android, Connect przez przypięty TLS, parowanie i automatyczne trasy
 - [tailscale.md](tailscale.md) — wykrywanie Tailscale, nazwa MagicDNS jako pierwszy adres i opcjonalne HTTPS over Tailscale dla web UI
 - [threads.md](threads.md) — projekty, wątki, wątki boczne i forki
@@ -32,15 +30,19 @@ Powiązane dokumenty:
 - [execution.md](execution.md) — tury, praca w tle, subagenci, interakcje, limity
 - [goals.md](goals.md) — cele: silnikiem jest harness (Codex goals, Claude `/goal`), platforma je śledzi i steruje nimi z UI
 - [agent-bus.md](agent-bus.md) — szyna agentów: delegowanie przez wątki boczne, interakcje, harmonogram; natywna orkiestracja dostawców wyłączona
-- [agent-visuals.md](agent-visuals.md) — projekt obrazów w odpowiedziach i interaktywnych visuals; rekomendacje, granice i plan dostarczenia, bez implementacji
+- [agent-visuals.md](agent-visuals.md) — obrazy w odpowiedziach (`show_images`) i interaktywne visuals (`render_visual`, `render_html`): format, sandbox klientów, trwały zapis
+- [workspace.md](workspace.md) — zakładki wątku, karta podsumowania i panel Files z drzewem i edytorem
+- [desktop.md](desktop.md) — Canopy Desktop: kontroler, tryb lokalny, aktualizacje; [desktop-remote-frontend.md](desktop-remote-frontend.md) — tryb zdalny z lokalnym BFF
+- [linked-computers.md](linked-computers.md) — połączone komputery (wyłącznie lokalne gatewaye desktopu); [network-access.md](network-access.md) — wspólny port TLS dla telefonów, desktopów, workerów i komputerów
+- [deploy.md](deploy.md) — wdrożenie serwera (Docker Compose, binarki, reverse proxy)
 - [durability.md](durability.md) — trwałość, graceful shutdown, aktualizacje w trakcie działania
-- [`proto/canopy/worker/v1/worker_link.proto`](../proto/canopy/worker/v1/worker_link.proto) — szkic kontraktu
+- [`proto/canopy/worker/v1/worker_link.proto`](../proto/canopy/worker/v1/worker_link.proto) — kontrakt łącza gateway ↔ worker
 
 ## 1. Cel
 
 Platforma do zarządzania agentami AI dla wielu użytkowników:
 
-- uruchamianie agentów kodujących (Claude Agent SDK, Codex app-server) na wielu maszynach i w wielu katalogach, opcjonalnie przez CLIProxyAPI,
+- uruchamianie agentów kodujących (Claude Agent SDK, Codex app-server, Grok CLI przez ACP) na wielu maszynach i w wielu katalogach, opcjonalnie przez CLIProxyAPI,
 - boty czatowe z ukrytymi, izolowanymi sesjami harnessów na workerach i trwałą kolejką w gatewayu,
 - agenci globalni (dla wszystkich) i prywatni (dla właściciela),
 - projekty z wątkami przypiętymi do dostawcy, workera i katalogu; wątki boczne w tym samym katalogu z opcjonalnym forkiem historii,
@@ -50,11 +52,12 @@ Platforma do zarządzania agentami AI dla wielu użytkowników:
 
 | Komponent | Gdzie działa | Odpowiedzialność |
 |---|---|---|
-| **Web UI** | przeglądarka | SPA Svelte 5 / SvelteKit (`ssr = false`): lista agentów, czaty, transkrypty na żywo, uprawnienia i workery. adapter-node podaje powłokę z wyglądem użytkownika, wersjonowane assety oraz BFF (`/api/*`, SSE i akcje formularzy) do gRPC gateway. |
+| **Web UI + BFF** | przeglądarka; BFF w procesie gatewaya (serwer) albo kontrolera desktopu | SPA Svelte 5 / SvelteKit (`ssr = false`): wątki, boty, transkrypty na żywo, uprawnienia, ustawienia. adapter-node podaje powłokę z wyglądem użytkownika, wersjonowane assety oraz BFF (`/api/*`, SSE i akcje formularzy) do gRPC gateway. Gateway serwerowy (binarka i obraz) uruchamia BFF we własnym procesie; `CANOPY_WEB=off` daje gateway bez web ([deploy.md](deploy.md#gateway-z-wbudowanym-web-jedna-binarka)). |
+| **Desktop** | macOS, Linux, Windows (Electron + kontroler Bun) | Tryb lokalny: kontroler nadzoruje PostgreSQL, gateway (rola `desktop`) i worker, a BFF działa w jego procesie. Tryb zdalny: tylko lokalny BFF połączony ze zdalnym gatewayem ([desktop.md](desktop.md), [desktop-remote-frontend.md](desktop-remote-frontend.md)). |
 | **Mobile** | iOS/Android | Expo development build, Connect protobuf przez streaming `expo/fetch`, token urządzenia w SecureStore. Bez Expo web. |
-| **Gateway** | serwer centralny (Bun) | Jedyny punkt kontaktu UI. Auth, autoryzacja, API, persystencja, routing komend do workerów, runtime agentów czatowych, szyna agent ↔ agent. |
-| **Worker** | edge device: Linux, Omarchy, macOS, Windows (Bun) | Uruchamia wątki agentów SDK w dozwolonych katalogach, wznawia je i forkuje. Normalizuje zdarzenia SDK i strumieniuje je do gateway. |
-| **PostgreSQL** | obok gateway | Użytkownicy, projekty, agenci, workery, wątki, tury, transkrypty, outbox, audyt. |
+| **Gateway** | serwer centralny albo lokalny sidecar desktopu (Bun) | Jedyny punkt kontaktu klientów. Autoryzacja właściciela, API, persystencja, outbox komend do workerów, kolejka i narzędzia botów, proxy connectorów, szyna agent ↔ agent, GitHub. Nie wykonuje inferencji. |
+| **Worker** | edge device: Linux, Omarchy, macOS, Windows (Bun) | Uruchamia wątki w dozwolonych katalogach oraz ukryte sesje tur botów, przez oficjalne harnessy; wznawia i forkuje wątki. Normalizuje zdarzenia i strumieniuje je do gateway. |
+| **PostgreSQL** | obok gateway | Użytkownicy, projekty, agenci, workery, wątki, tury, transkrypty, boty, outbox, audyt. |
 | **Dostawcy LLM** | zewnętrznie | Anthropic / OpenAI / xAI. Inferencję wykonują oficjalne CLI/SDK na workerze, również dla botów. |
 
 Tylko gateway łączy się z bazą. Worker nie ma dostępu do bazy i nie przyjmuje połączeń przychodzących.
@@ -77,77 +80,167 @@ i mobile stosują wspólne reguły `domain/linked-snapshot.ts`. BFF ma oddzielne
 HTTP/2 dla lokalnych i zdalnych unary oraz lokalnych i zdalnych subskrypcji, więc wisząca zdalna
 akcja lub stream nie zajmuje lokalnych slotów. Szczegóły i czasy: [linked-computers.md](linked-computers.md#zsumowany-widok).
 
+### Stan klienta: szkice i workspace wątku
+
+Szkice kompozytora są prywatnymi danymi właściciela, oddzielonymi od historii.
+Klient zachowuje lokalny szkic dla każdego wątku i celu nowego wątku.
+Gateway przechowuje automatycznie synchronizowane kopie; urządzenie odbierające
+wybiera przejęcie. Nie wysyła ich do workerów ani modeli. Szczegóły:
+[ui-api.md](ui-api.md#szkice-kompozytora-i-przekazywanie-między-urządzeniami).
+
+Wątek web/desktop i mobile ma lokalny workspace: rozmowę jako pierwszą kartę
+(w web/desktop pod tytułem wątku), karty plików (jeden zastępowalny preview
+i karty utrwalone), pełnego PR oraz wyniku zadania w tle. Podsumowanie wątku
+to pływająca karta w rogu obszaru rozmowy (pigułka, popover albo arkusz),
+a prawy panel zawiera wyłącznie drzewo Files; mobile ma przełącznik kart
+i arkusze `Thread details` oraz `Files`. Metadane kart są stanem urządzenia,
+bez synchronizacji między klientami. Treści plików i ich niezapisane edycje
+pozostają w ograniczonych cache pamięci, niezależnie od dogrzewania transkryptów.
+Gateway wyprowadza zakres plików z właściciela i wątku. Drzewo jest leniwe,
+stronicowane; stream zmian niesie invalidacje wybranego zakresu, bez pełnego
+snapshotu drzewa ani historii. Szczegóły: [workspace.md](workspace.md),
+[ui-api.md](ui-api.md#moduły-workspaceu-wątku) i [mobile.md](mobile.md).
+
 ## 3. Diagram komponentów i połączeń
+
+Diagram logiczny pokazuje role, niezależnie od sposobu wdrożenia. Trzy topologie
+poniżej pokazują, gdzie działają procesy.
 
 ```mermaid
 flowchart LR
-    subgraph Client["Klient"]
-        UI["Web UI<br/>(przeglądarka)"]
+    subgraph Clients["Klienci"]
+        UI["Przeglądarka /<br/>okno desktopu"]
         M["Canopy iOS / Android"]
     end
 
-    subgraph Central["Serwer centralny"]
-        GW["Gateway (Bun)<br/>API · Auth · Router<br/>Chat runtime · Agent bus"]
-        PG[("PostgreSQL")]
-        BFF["SvelteKit BFF"]
+    BFF["Web BFF (SvelteKit)"]
+
+    subgraph GWBox["Gateway (Bun)"]
+        GW["API · autoryzacja właściciela<br/>outbox komend · szyna agentów<br/>kolejka i narzędzia botów<br/>proxy connectorów · GitHub"]
     end
 
-    subgraph Edge1["Edge: serwer Linux"]
-        W1["Worker"]
-        A1["Claude Agent SDK<br/>~/repo-a"]
-        A2["Codex app-server<br/>~/repo-b"]
+    PG[("PostgreSQL")]
+
+    subgraph Edge["Workery"]
+        W["Worker"]
+        H["Claude Agent SDK · Codex app-server · Grok ACP<br/>wątki i ukryte sesje botów"]
     end
 
-    subgraph Edge2["Edge: macOS / Windows / Omarchy"]
-        W2["Worker"]
-        A3["Claude Agent SDK<br/>C:\\work\\app"]
-    end
-
-    LLM["Anthropic API<br/>OpenAI API"]
+    LLM["Anthropic / OpenAI / xAI<br/>albo CLIProxyAPI"]
 
     UI -- "HTTP: JSON / SSE" --> BFF
-    BFF -- "gRPC HTTP/2, service token" --> GW
-    M -- "Connect + device token<br/>przypięty TLS, Network access" --> GW
-    GW -- "SQL (TLS)" --> PG
-    W1 -- "gRPC bidi stream (HTTP/2 + TLS)<br/>połączenie inicjuje worker" --> GW
-    W2 -- "gRPC bidi stream (HTTP/2 + TLS)<br/>połączenie inicjuje worker" --> GW
-    W1 --- A1
-    W1 --- A2
-    W2 --- A3
-    A1 & A2 & A3 -- "HTTPS (poświadczenia urządzenia)" --> LLM
+    BFF -- "gRPC HTTP/2" --> GW
+    M -- "Connect, przypięty TLS<br/>token urządzenia" --> GW
+    GW -- "SQL" --> PG
+    W -- "gRPC bidi stream<br/>połączenie inicjuje worker" --> GW
+    W --- H
+    H -- "HTTPS" --> LLM
 ```
+
+### Topologia: serwer (Docker Compose albo binarka)
+
+```mermaid
+flowchart LR
+    B["Przeglądarka"] -- "HTTPS" --> RP["Reverse proxy TLS<br/>albo Tailscale Serve"]
+    RP -- "HTTP 127.0.0.1:3000" --> WEB
+    subgraph G["Proces gatewaya (rola server)"]
+        WEB["Web BFF + SPA"]
+        GW["Gateway gRPC :7443"]
+        NA["Network access<br/>(Compose: :24443)"]
+    end
+    WEB -- "gRPC, token usługi" --> GW
+    GW --> PG[("PostgreSQL")]
+    P["Telefon"] -- "Connect, pin, token urządzenia" --> NA
+    D["Desktop remote"] -- "gRPC, pin, token desktop" --> NA
+    WR["Zdalny worker"] -- "WorkerLink, pin z enrollmentu" --> NA
+    WO["Worker (istniejący adres)"] -- "WorkerLink" --> GW
+```
+
+Serwer nie uruchamia linkowania komputerów. Wydania sprzed wbudowanego web mają
+w Compose osobną usługę `web` z tym samym BFF; migracja: [deploy.md](deploy.md#docker-compose-jeden-host).
+
+### Topologia: Canopy Desktop w trybie lokalnym
+
+```mermaid
+flowchart LR
+    subgraph App["Canopy Desktop"]
+        E["Electron main + okno"]
+        subgraph C["Kontroler Bun"]
+            WEB["Web BFF<br/>127.0.0.1"]
+        end
+        PG[("PostgreSQL")]
+        GW["Gateway (rola desktop)"]
+        W["Lokalny worker"]
+    end
+    E -- "HTTP" --> WEB
+    WEB -- "gRPC, lokalny token usługi" --> GW
+    C -. "nadzoruje" .-> PG & GW & W
+    GW --> PG
+    W -- "WorkerLink, loopback" --> GW
+    X["Telefony, desktop remote,<br/>zdalne workery"] -- "Network access" --> GW
+```
+
+W trybie zdalnym kontroler uruchamia tylko BFF: nie startuje lokalnego gatewaya,
+bazy ani workera. BFF łączy się ze zdalnym gatewayem przez Network access,
+sprawdza pin certyfikatu i używa odwoływalnego tokenu rodzaju `desktop`
+z parowania, nigdy tokenu usługi serwera ([desktop-remote-frontend.md](desktop-remote-frontend.md)).
+
+### Topologia: połączone komputery
+
+```mermaid
+flowchart LR
+    subgraph A["Desktop A (lokalny)"]
+        GA["Gateway A"]
+        WA["Worker A"]
+    end
+    subgraph B["Desktop B (lokalny)"]
+        GB["Gateway B"]
+        WB["Worker B"]
+    end
+    GA <-- "gRPC, wzajemny przypięty TLS 1.3<br/>Network access" --> GB
+    WA --> GA
+    WB --> GB
+    P["Telefon sparowany z A"] -- "Connect" --> GA
+```
+
+Każda rzecz ma dom na jednym komputerze; akcje są trasowane do domu, a partnerzy
+czytają lustra do odczytu offline. Telefon i klienty widzą zsumowany zbiór przez
+gateway, z którym są sparowane ([linked-computers.md](linked-computers.md)).
 
 ### Tabela połączeń
 
 | Od → do | Protokół | Kto inicjuje | Uwagi |
 |---|---|---|---|
-| Przeglądarka ⇄ SvelteKit (BFF) | HTTPS (HTTP/1.1): strony, akcje, JSON; SSE dla zmian na żywo | przeglądarka | Prywatny adres BFF i token usługi zostają na serwerze; UI pokazuje publiczny adres gRPC dla workerów i jednorazowe sekrety enrollment/rotacji ([ui-api.md](ui-api.md)). |
-| SvelteKit → Gateway | gRPC (HTTP/2), `GatewayService`, token usługi | SvelteKit | Komendy i strumienie (`WatchThread`, `WatchOverview`); ten sam serwer co workery. |
+| Przeglądarka ⇄ SvelteKit (BFF) | HTTPS (HTTP/1.1): strony, akcje, JSON; SSE dla zmian na żywo | przeglądarka | Prywatny adres gRPC BFF i token usługi zostają na serwerze; UI pokazuje publiczne adresy dla workerów (z pinem Network access) i jednorazowe sekrety enrollment/rotacji ([ui-api.md](ui-api.md)). |
+| SvelteKit → Gateway | gRPC (HTTP/2), `GatewayService`, token usługi | SvelteKit | Komendy i strumienie (`WatchThread`, `WatchOverview`); ten sam serwer co workery. Web wbudowany w gateway bierze adres i token z konfiguracji gatewaya; lokalny desktop dostaje je od kontrolera. |
+| Desktop remote (lokalny BFF) → Gateway | gRPC (HTTP/2) przez przypięty TLS, port Network access | kontroler desktopu | Odwoływalny token rodzaju `desktop` z parowania (kod + pin), pełny zakres UI właściciela; bez tokenu usługi ([desktop-remote-frontend.md](desktop-remote-frontend.md)). |
 | Mobile → Gateway | HTTPS Connect, przypięty certyfikat | aplikacja | Unary i server streaming przez natywny transport TLS. Jeden listener Network access, automatyczne trasy i osobny odwoływalny token urządzenia; administracja urządzeniami tylko przez BFF. |
 | Gateway ⇄ połączony komputer | gRPC HTTP/2, wzajemny przypięty TLS 1.3, port [dostępu sieciowego](network-access.md) | oba | Jeden przełącznik Settings → Network access; adresy wykrywane i ogłaszane łączem ([linked-computers.md](linked-computers.md)). |
 | Worker ↔ Gateway | gRPC, jeden strumień dwukierunkowy, HTTP/2 + TLS | **Worker** | Nowe zdalne workery używają Network access i pinu z enrollmentu. Istniejące zachowują port serwera; automatycznie przechodzą na osiągalny przypięty adres i zachowują fallback. Lokalny worker desktopu używa loopback. Szczegóły: [protocol.md](protocol.md). |
 | Worker → Gateway (aktualizacje) | osobny gRPC `canopy.update.v1.UpdateService`, ten sam port HTTP/2 | **Worker** | Zamrożony kontrakt działa także po odmowie WorkerLink. Werdykt, polecenia, postęp, mirror binarki; [updates.md](updates.md). |
 | Gateway → PostgreSQL | SQL po TLS | Gateway | Pula połączeń. Opcjonalnie `LISTEN/NOTIFY` przy wielu instancjach gateway. |
-| Worker → LLM | HTTPS (przez SDK/CLI) | Worker | Poświadczenia zostają na urządzeniu (login Claude Code / Codex lub klucz API). |
+| Worker → LLM | HTTPS (przez SDK/CLI) | Worker | Login CLI (Claude Code / Codex / Grok) zostaje na urządzeniu. Klucz proxy lub endpointu API przychodzi z gateway w `WorkerConfig` i jest trzymany tylko w pamięci workera i env procesu harnessu ([proxies.md](proxies.md)). |
 
 ### Dlaczego worker inicjuje połączenie
 
 Edge device zwykle stoi za NAT-em, ma dynamiczne IP lub jest laptopem. Gateway nie może się do niego dodzwonić. Worker otwiera więc jeden długożyjący strumień gRPC do gateway. Komendy z gateway płyną w dół tym samym strumieniem. Na urządzeniu nie trzeba otwierać portów.
 
-## 4. Dwa tryby agentów
+## 4. Wątki i boty
 
-| Cecha | Agent SDK (`kind = sdk`) | Agent czatowy (`kind = chat`) |
+| Cecha | Wątek (projekt, wątek główny lub boczny) | Bot |
 |---|---|---|
-| Runtime wątku | Worker na edge device (`runtime = worker`) | Ukryta sesja na przypiętym workerze; kolejka i rozmowa w gatewayu |
-| Silnik | Claude Agent SDK, Codex app-server, Grok CLI przez ACP | Te same oficjalne harnessy, z usuniętymi narzędziami lokalnymi i Canopy MCP |
-| Dostęp do plików i shella | Tak, w `cwd` wątku (w dozwolonych katalogach workera) | Nie |
-| Miejsce uruchomienia | wątek: worker + workspace + `cwd`, niezmienne | Runs on + izolowany home i pusty scratch per bot/instancja |
-| Poświadczenia | Urządzenia (worker): logowanie CLI albo profil CLIProxyAPI | Login instancji lub proxy obsługiwane przez harness; brak credentiali w kontekście bota |
-| Transkrypt | Worker → gRPC → gateway → DB + UI | Worker journal → gRPC → `bot_harness_events` → rozmowa bota |
+| Runtime | Worker na edge device | Ukryta sesja harnessu na workerze z ustawienia Runs on; kolejka tur, rozmowa i narzędzia w gatewayu |
+| Silnik | Claude Agent SDK, Codex app-server, Grok CLI przez ACP | Te same oficjalne harnessy; narzędzia platformy przez Canopy MCP |
+| Pliki i shell | Tak, w `cwd` wątku (w dozwolonych katalogach workera) | Brak dostępu do projektów i plików użytkownika workera. Przełącznik Files ogranicza narzędzia plikowe do prywatnego scratch rozmowy (200 MiB) i daje `download_file` oraz wysyłanie plików jako załączników; Web access włącza natywne narzędzia sieciowe harnessu ([bots.md](bots.md#dostęp-do-sieci-i-izolowane-pliki)) |
+| Miejsce uruchomienia | wątek: worker + workspace + `cwd`, niezmienne | Runs on + izolowany home i scratch per rozmowa; zmiana Runs on nie przenosi scratch |
+| Poświadczenia | Login CLI na workerze albo klucz proxy z `WorkerConfig` | Login instancji lub proxy obsługiwane przez harness; brak credentiali w kontekście bota |
+| Transkrypt | `thread_events` + projekcja `thread_items` | Journal workera → `bot_harness_events` → `bot_messages` w rozmowie bota |
 
 Agent to szablon bez miejsca uruchomienia. Wątek przypina agenta (snapshot konfiguracji) do dostawcy, workera i katalogu. Szczegóły: [threads.md](threads.md).
 
-Oba tryby zapisują transkrypt w tym samym formacie (`thread_events`). UI nie musi rozróżniać trybów przy wyświetlaniu.
+Boty mają własne tabele (`bots`, `bot_turns`, `bot_messages`, `bot_harness_*` i inne),
+a nie projekt ani wątek; ich rozmowa nie trafia do `thread_events`. Szczegóły:
+[bots.md](bots.md), [bots-harness.md](bots-harness.md).
 
 Wątki używają komend workera; boty mają osobną trwałą komendę `RunBotTurn`, bez
 sztucznego projektu lub wątku. Gateway wykonuje narzędzia i autoryzuje efekty;
@@ -372,30 +465,29 @@ Worker uruchamia kod na prawdziwych maszynach. To główne ryzyko projektu.
 
 ## 10. Struktura repozytorium
 
-Wątek web/desktop i mobile ma lokalny workspace: rozmowę jako pierwszą kartę,
-preview/utrwalone karty plików oraz rejestrowane moduły Files, Pull requests, Tasks
-i Connectors. Na szerokim webie szczegóły dokują w wolnym prawym panelu;
-przy zajętym panelu są przejściową kartą, a na telefonie arkuszem. Metadane kart
-są stanem urządzenia, bez synchronizacji między klientami. Treści i szkice
-pozostają w ograniczonych cache pamięci, niezależnie od dogrzewania transkryptów.
-Gateway wyprowadza zakres plików z właściciela i wątku. Drzewo jest leniwe,
-stronicowane; stream zmian niesie invalidacje wybranego zakresu, bez pełnego
-snapshotu drzewa ani historii. Szczegóły: [ui-api.md](ui-api.md#moduły-workspaceu-wątku)
-i [mobile.md](mobile.md).
-
 Monorepo na Bun workspaces. Każda aplikacja jest osobno wdrażalna, wspólny kod jest w pakietach, kontrakt jest jeden i generowany.
 
 ```text
 canopy/
 ├── apps/
-│   ├── gateway/          # serwer centralny (API, gRPC server, chat runtime, agent bus)
-│   ├── worker/           # agent na edge device (gRPC client, adaptery SDK)
-│   └── web/              # UI (framework do wyboru, jeszcze nie ma)
+│   ├── gateway/          # gRPC/Connect, API, outbox, boty, connectory, GitHub, szyna agentów; wbudowany web
+│   ├── worker/           # klient WorkerLink, adaptery Claude / Codex / Grok, journal, pliki wątków
+│   ├── web/              # SvelteKit: SPA + BFF
+│   ├── desktop/          # Electron + kontroler Bun (tryb lokalny i zdalny)
+│   └── mobile/           # Expo, iOS/Android
 ├── packages/
 │   ├── contracts/        # kod TS wygenerowany z /proto (protoc-gen-es), strict
 │   ├── transport/        # serwer/klient HTTP/2 (Connect/gRPC), AsyncChannel
-│   ├── db/               # schemat, migracje, zapytania (jeszcze nie ma)
-│   └── domain/           # typy domenowe, polityki dostępu (jeszcze nie ma)
+│   ├── db/               # migracje SQL i dostęp przez @effect/sql-pg
+│   ├── domain/           # typy domenowe i reguły wspólne dla aplikacji
+│   ├── codex-protocol/   # typy app-server generowane z przypiętej wersji Codexa
+│   ├── grok-acp/         # klient ACP stdio Grok CLI
+│   ├── updater/          # katalog wydań, weryfikacja i mirror binarek
+│   ├── logs/             # zapis, redakcja i eksport logów
+│   ├── process-governor/ # wspólne limity procesów potomnych
+│   ├── syntax/           # podświetlanie i układ tekstu kodu
+│   ├── ui/               # wspólne zasoby UI (ikony, fonty, skróty)
+│   └── testing/          # pomocnicze narzędzia testów
 ├── tests/integration/    # testy przekrojowe gateway ↔ worker, interop
 ├── proto/                # źródłowe pliki .proto (kontrakt)
 └── docs/
@@ -403,18 +495,25 @@ canopy/
 
 Zasady zależności:
 
-- `apps/*` → `packages/*`. Aplikacje nie importują siebie nawzajem.
+- `apps/*` → `packages/*`. Aplikacje nie importują siebie nawzajem w kodzie; gateway i desktop uruchamiają gotowy build `apps/web`.
 - Typy protokołu tylko z `@canopy/contracts`. Ręcznie pisane typy dublujące protokół są niedozwolone.
 - `tests/integration` może importować publiczne wejścia aplikacji (`exports` w `package.json`), np. `@canopy/gateway/worker-link`.
 
-## 11. Decyzje do podjęcia
+<a id="11-decyzje-do-podjęcia"></a>
 
-1. **Biblioteka gRPC w Bun:** ConnectRPC (`@connectrpc/connect` + `connect-node`) na `node:http2`. Strumień dwukierunkowy działa po h2c i TLS, także z `@grpc/grpc-js` na Node. Reguły transportu i zamykania: [protocol.md](protocol.md#transport-http2).
-2. **Dystrybucja workera.** `bun build --compile` daje jeden plik na OS. Claude Agent SDK i Codex app-server uruchamiają jednak własne procesy (CLI). Trzeba sprawdzić, czy działa to z poziomu skompilowanej binarki.
-3. ~~**Interaktywne uprawnienia w Codexie.**~~ **Rozstrzygnięte:** zamiast Codex SDK (tylko statyczne `approvalPolicy`) używamy `codex app-server`, który wysyła prośby o zgodę jako żądania JSON-RPC. **Ryzyko:** app-server jest oznaczony jako eksperymentalny. Ograniczamy je przypięciem wersji Codexa na workerze, typami generowanymi z tej wersji i zgłaszaniem wersji w `Hello.providers`.
-4. **Organizacje/zespoły.** Teraz: użytkownicy + role `admin`/`user`. Czy potrzebny poziom organizacji (tenant) od początku? Dodanie `org_id` później jest kosztowne.
-5. **Czy admin widzi prywatnych agentów i rozmowy innych użytkowników?** Wpływa na prywatność i audyt.
-6. **Logowanie użytkowników.** Własne konta, OAuth/OIDC czy biblioteka typu Better Auth.
-7. **ORM / migracje.** Np. Drizzle albo czyste SQL.
-8. **Framework UI.**
-9. ~~**Skalowanie gateway.**~~ **Rozstrzygnięte przez wymaganie trwałości:** gateway bez stanu tylko w pamięci, N ≥ 1 instancji, outbox komend w PostgreSQL i `LISTEN/NOTIFY`, fencing połączeń workerów. Otwarte decyzje trwałości: [durability.md](durability.md#11-decyzje-do-podjęcia).
+## 11. Decyzje
+
+### Rozstrzygnięte
+
+- **Biblioteka gRPC w Bun:** ConnectRPC (`@connectrpc/connect` + `connect-node`) na `node:http2`. Strumień dwukierunkowy działa po h2c i TLS, także z `@grpc/grpc-js` na Node. Reguły transportu i zamykania: [protocol.md](protocol.md#transport-http2).
+- **Dystrybucja workera:** samodzielne binarki `canopy-worker-<os>-<arch>` w każdym wydaniu oraz obraz `canopy-worker`. CLI dostawców nie są dołączane; worker uruchamia zainstalowane na urządzeniu ([provider-cli.md](provider-cli.md), [release.md](release.md)).
+- **Interaktywne uprawnienia w Codexie:** zamiast Codex SDK (tylko statyczne `approvalPolicy`) używamy `codex app-server`, który wysyła prośby o zgodę jako żądania JSON-RPC. **Ryzyko:** app-server jest oznaczony jako eksperymentalny. Ograniczamy je przypięciem wersji Codexa, typami generowanymi z tej wersji (`@canopy/codex-protocol`) i zgłaszaniem wersji w `Hello.providers`.
+- **Migracje i dostęp do bazy:** czyste pliki SQL w `packages/db/src/migrations` i zapytania przez `@effect/sql-pg`, bez ORM.
+- **Framework UI:** Svelte 5 / SvelteKit z adapter-node (web i desktop), Expo (mobile).
+- **Skalowanie gateway** (z wymagania trwałości): gateway bez stanu tylko w pamięci, N ≥ 1 instancji, outbox komend w PostgreSQL i `LISTEN/NOTIFY`, fencing połączeń workerów. Otwarte decyzje trwałości: [durability.md](durability.md#11-decyzje-do-podjęcia).
+
+### Otwarte
+
+1. **Logowanie użytkowników.** Własne konta, OAuth/OIDC czy biblioteka zewnętrzna. Do tego czasu dostęp do web chroni loopback, ACL Tailscale lub uwierzytelnianie na reverse proxy, a klienci zdalni używają tokenów urządzeń ([deploy.md](deploy.md)).
+2. **Organizacje/zespoły.** Teraz: użytkownicy + role `admin`/`user`. Czy potrzebny poziom organizacji (tenant)? Dodanie `org_id` później jest kosztowne.
+3. **Czy admin widzi prywatnych agentów i rozmowy innych użytkowników?** Wpływa na prywatność i audyt.

@@ -1,33 +1,35 @@
 # Obrazy w odpowiedziach i interaktywne visuals
 
-Status: **projekt zatwierdzony przez użytkownika (2026-11-13)**. Obrazy: stos #651–#663.
-Visuals: implementacja w toku (§8 opisuje to, co już istnieje); pozostałe nazwy
-narzędzi, capability i pól są propozycjami do czasu ich wdrożenia.
+Status: **obrazy, `render_visual` i `render_html` wdrożone** w web/desktop/mobile.
+Dokument opisuje bieżący kontrakt publikacji, odczytu i izolacji. Limity struktur
+są sprawdzane przez kod; budżety CPU, pamięci klientów i płynności pozostają celami
+wymagającymi pomiarów. Własny HTML ma odrębny model wykonania i ryzyka (§9).
 
 ## 1. Rekomendacja i zakres
 
-Agent ma umieć pokazać wynik pracy bez odsyłania użytkownika do dysku workera.
+Agent pokazuje wynik pracy przez trwałą publikację w wątku.
 Obrazy publikujemy jako trwałe załączniki, a interaktywne materiały nazywamy
 **visuals** (w UI pojedynczy „Visual”). Każdy wynik należy do wątku i jego domu.
 
-| Decyzja | Rekomendacja |
+| Obszar | Bieżący kontrakt |
 | --- | --- |
 | Publikacja obrazów | `show_images` jako główna droga; lokalne obrazy Markdown przechodzą ten sam import; zwykłe ścieżki pozostają linkami/chipami. |
 | Trwałość | Kopia w storage załączników gatewaya. Odczyt nie zależy od istnienia pliku ani dostępności workera po publikacji. |
 | Format visuals v1 | Wersjonowane drzewo komponentów JSON, kompilowane do samowystarczalnego HTML z zaufanym kitem Canopy. |
 | Interakcje | Lokalny stan komponentów, bez wywołań agenta lub API. `ask_user` pozostaje osobną interakcją poza visualem. |
-| Dostarczenie | Najpierw kompletny stos obrazów; później osobny kompletny stos visuals z parytetem mobile. |
+| Klienci | Galerie oraz komponentowe visuals w web/desktop/mobile; własny HTML w przeglądarkowym iframe, osobnym viewerze desktopu lub mobilnym WebView (§9). |
 
 Kryterium użytkowe: po prośbie o wygląd zmian użytkownik widzi wybrane zrzuty
 w odpowiedzi agenta, otwiera pełny obraz i pobiera go również z telefonu.
 Po prośbie o diagram lub wariant przycisku zmienia kroki, zakładki i warianty
 bez wychodzenia z wątku. Ponowne otwarcie odtwarza opublikowany materiał.
 
-Poza komponentowym v1: edytor dokumentów, dowolne aplikacje HTML/JS (osobne `render_html`, §9), zależności z CDN,
-połączenia sieciowe visuala, uruchamianie kodu projektu, współdzielony stan
-przełączników oraz wykonywanie akcji przez przycisk w visualu.
+Komponentowe v1 nie przyjmuje dowolnego HTML/JS, kodu projektu, URL-i ani zależności
+z CDN. Własny HTML i inline JS obsługuje osobne, wdrożone `render_html` (§9),
+z inną granicą ryzyka. Współdzielony stan kontrolek i bridge wykonujący akcje
+Canopy z wnętrza visuala pozostają poza zakresem obu formatów.
 
-### Istniejące elementy do wykorzystania
+### Współdzielone elementy
 
 Źródła: [architektura](architecture.md), [narzędzia szyny §3 i §9](agent-bus.md),
 [pliki botów](bots.md#pobieranie-i-wysyłanie-plików),
@@ -35,7 +37,7 @@ przełączników oraz wykonywanie akcji przez przycisk w visualu.
 [mobile](mobile.md), [połączone komputery](linked-computers.md#podglądy-załączników),
 [copy](copy.md), [skala UI](ui-scale.md), [pomiary](client-performance.md).
 
-`view_image` służy dziś do **oglądania przez model**: wykonuje je worker,
+`view_image` służy do **oglądania przez model**: wykonuje je worker,
 wynik obrazu trafia do harnessu, a na osi czasu pozostaje „Viewed image”.
 Podgląd może być pomniejszony do 2000 px i około 3,75 MB. Nie zmieniamy znaczenia
 tego narzędzia ani nie przedstawiamy jego miniatury jako pełnego wyniku QA.
@@ -61,7 +63,7 @@ w pary przed/po i opisuje resztę. Pełny zestaw publikuje partiami wyłącznie
 gdy użytkownik go potrzebuje; narzędzie nie rozwija globów ani katalogów.
 Nie tworzymy galerii automatycznie z wyników `ls`, bloków kodu lub logów.
 
-### Proponowany kontrakt `show_images`
+### Kontrakt `show_images`
 
 ```ts
 show_images({
@@ -92,8 +94,9 @@ wiadomości lub przerwanie następnego kroku nie usuwa już zatwierdzonego wynik
 1. Gateway rezerwuje limity oraz receipt po `(thread_id, turn_id, call_id)`
    i autoryzuje aktywną turę, przypisanie workera oraz politykę publikacji.
 2. Worker bezpiecznie otwiera wskazane pliki i tworzy ograniczony snapshot
-   eksportu. Czyta te same uchwyty przez cały transfer, z licznikiem bajtów,
-   hashem i wykrywaniem zmian. Zmiana pliku daje odmowę i ponowienie przez agenta.
+   eksportu. Czyta ze sprawdzonego uchwytu do ograniczonego bufora, z licznikiem
+   bajtów, hashem i kontrolą zmiany pliku. Transfer korzysta z tego snapshotu;
+   zmiana podczas odczytu daje odmowę i wymaga ponowienia przez agenta.
 3. Gateway odbiera porcje z backpressure, sprawdza hash i długość, rozpoznaje
    typ z bajtów i przepuszcza pliki przez istniejący pipeline załączników.
 4. Jedna transakcja wiąże wszystkie załączniki, manifest galerii, zdarzenie,
@@ -101,8 +104,8 @@ wiadomości lub przerwanie następnego kroku nie usuwa już zatwierdzonego wynik
 5. UI pobiera miniatury przez owner-scoped `GetAttachment`, pełny obraz dopiero
    po otwarciu. Eksport oraz osierocone uploady są sprzątane po błędzie/retry.
 
-Używamy istniejącego wzorca eksportu botów, ale nowa komenda wątku musi być
-addytywna i dostępna wyłącznie dla przypisanego workera. Nie wysyłamy dużych
+Eksport używa addytywnej komendy `ExportThreadImage` (231) i wyniku
+`thread_image_export` (231), dostępnych wyłącznie dla przypisanego workera. Nie wysyłamy dużych
 obrazów jako JSON/base64 w `AgentToolCall` lub `WatchThread`. Porcje eksportu
 mają najwyżej 256 KiB, najwyżej dwa importy na worker i jeden na wątek;
 timeout operacji 60 s, bezczynności 10 s. Rezerwacja obejmuje dane wejściowe
@@ -118,9 +121,9 @@ globalnej deduplikacji ujawniającej istnienie pliku innego właściciela.
 
 ### Granice plików i treści
 
-| Granica | Reguła projektu |
+| Granica | Reguła |
 | --- | --- |
-| Korzenie | Rzeczywiste `cwd`/workspace bieżącego wątku, jego przypięte worktree i jawnie przydzielony mu scratch/załączniki. Osobne worktree nie daje dostępu do nadrzędnego checkoutu ani scratch innego wątku. Nie dopuszczamy całego systemowego katalogu tymczasowego. |
+| Korzenie | Rzeczywisty katalog bieżącego wątku (`cwd`, także worktree/scratch, jeśli wątek tam działa) oraz jego własny katalog załączników pod `attachmentsRoot/thread_id`. Import Markdown dopuszcza tylko katalog roboczy zapisany przy wiadomości. Nie obejmuje innych checkoutów, scratch innego wątku ani całego systemowego katalogu tymczasowego. |
 | Otwieranie | Ścieżki względne od `cwd`; absolutne tylko wewnątrz tych samych korzeni. Odrzucenie traversal, NUL, dowiązań w komponentach ścieżki, plików specjalnych i junction/reparse escape na Windows. Otwarcie względem zaufanego katalogu z kontrolą uchwytu; sam `realpath` przed późniejszym `readFile` nie chroni przed wyścigiem. Brak bezpiecznego prymitywu na danej platformie = odmowa. |
 | Rozmiary | Minimum z limitów właściciela i sufitu narzędzia: 10 obrazów, 20 MiB/pliki wejściowe i wynikowe, 50 MiB/partię, 100 Mpx/obraz. Limit dekodera i współbieżności chroni także przed bombami dekompresji. Do 100 obrazów i 200 MiB na turę; brak automatycznego obejścia kolejnym wywołaniem. |
 | Typy | Sniffing przed dekodowaniem, obrót EXIF, usunięcie EXIF/GPS/XMP i miniatura. V1 publikuje PNG/JPEG/WebP; inne obsługiwane rastry konwertuje, animacje spłaszcza do pierwszej klatki. GIF nie korzysta tu z istniejącej ścieżki zachowującej oryginał. SVG jest plikiem do pobrania, nigdy aktywnym DOM, `object` ani iframe; nie wchodzi do galerii. |
@@ -213,14 +216,14 @@ pozostają dozwolone.
 | Samowystarczalny HTML + CSS/JS kit | Duża swoboda układu; łatwy eksport; znajomy model generowania. | Agent może ominąć kit, dodać nieograniczoną pętlę JS, DOM lub zasoby. CSP izoluje dane i sieć, lecz nie daje twardego limitu CPU/pamięci iframe. Same klasy nie zapewniają spójności i dostępności. |
 | Drzewo komponentów JSON | Ścisła walidacja, konsekwentny wygląd, ograniczona liczba węzłów i przejść. Zaufany runtime renderuje HTML i interakcje, wspólny dla klientów. | Węższy katalog; nowy typ wymaga wersji kitu. Nie zastąpi dowolnej aplikacji ani fragmentu Svelte. |
 
-**Rekomendacja: drzewo JSON w v1.** Użytkownik otrzymuje interaktywny HTML,
+**Komponentowe v1 używa drzewa JSON.** Użytkownik otrzymuje interaktywny HTML,
 ale nie wykonujemy kodu wygenerowanego przez agenta. Przyciski mają lokalne
 przejścia stanu realizowane przez skrypty kitu wewnątrz sandboxa. Diagram
 przepływu, wybór artboardu i playground przycisków mieszczą się w tym zakresie.
-Wolny HTML może wrócić jako osobna decyzja po potwierdzeniu izolacji zasobów;
-nie dodajemy ukrytego pola `html`, `script`, `style` ani `onClick` do v1.
+Własny HTML ma osobne narzędzie `render_html` i kontrakt z §9; spec komponentów
+nie ma ukrytych pól `html`, `script`, `style` ani `onClick`.
 
-### Proponowany kontrakt `render_visual`
+### Kontrakt `render_visual`
 
 ```ts
 render_visual({
@@ -259,10 +262,10 @@ HTML z przypiętym kitem na eksport. Przekroczenie to błąd z limitem, bez uci�
 | Dane | Wykres słupkowy/liniowy do 200 punktów łącznie i 6 serii, legenda oraz dostępna tabela danych. Bez bibliotek pobieranych z sieci i kodu formattera. |
 
 Spec używa tokenów zamiast arbitralnych rozmiarów i klas. Akcje lokalne to
-`set`, ograniczony `next`/`previous`, `reset` i pokazanie panelu po wartości
+`set`, ograniczony `next`/`previous`, `toggle`, `reset` i pokazanie panelu po wartości
 stanu. Brak wyrażeń JS, rekurencji, pętli, dynamicznego kodu oraz timerów
 definiowanych przez model. Referencje do kluczy i opcji są sprawdzane przed
-zapisem; jedna akcja ma najwyżej 8 zmian, bez łańcuchów efektów. Zaufane
+zapisem; przycisk ma najwyżej 8 akcji, bez łańcuchów efektów. Zaufane
 komponenty mogą animować zmianę według tokenów ruchu.
 
 V1 nie przyjmuje URL-i, lokalnych ścieżek ani obrazów `data:` w spec. Obrazy
@@ -293,19 +296,22 @@ Zmiana kontrolki nie przesuwa jej ani sąsiednich akcji.
 
 ## 4. Sandbox i klienci
 
-Web/desktop montuje dokument wygenerowany przez zaufany kompilator w
+Poniższa granica dotyczy komponentowego `render_visual`; własny HTML ma dodatkowe
+ograniczenia i osobny viewer desktopu opisane w §9. Web/desktop montuje dokument
+wygenerowany przez zaufany kompilator w
 `<iframe sandbox="allow-scripts" referrerpolicy="no-referrer">` przez `srcdoc`.
 Bez `allow-same-origin`, formularzy, popupów, nawigacji top i downloads.
 To osobny, opaque origin: brak DOM Canopy, cookies, localStorage aplikacji,
 tokenów i API. Zwykły załącznik `.html` nadal jest plikiem/tekstem, nie visualem.
 
-Shell hosta i CSP powstają poza danymi modelu; przykład polityki dokumentu:
+Shell hosta i CSP powstają poza danymi modelu; polityka dokumentu komponentowego:
 
 ```text
 default-src 'none'; script-src 'nonce-<per-mount>'; script-src-attr 'none';
 style-src 'nonce-<per-mount>'; img-src 'none'; font-src 'none';
 connect-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none';
-worker-src 'none'; base-uri 'none'; form-action 'none'
+child-src 'none'; worker-src 'none'; manifest-src 'none';
+base-uri 'none'; form-action 'none'
 ```
 
 Nonce ma tylko przypięty runtime kitu, style oraz style tokenów. Dane spec
@@ -365,8 +371,8 @@ zmian natywnych. Nie migrujemy całej osi czasu do WebView.
 
 WebView zawiera zaufany shell oraz wewnętrzny iframe z tym samym sandboxem.
 Token mostu React Native jest wyłącznie w shellu; subframe nie może przekazać
-zaakceptowanego komunikatu bez tego tokenu. iOS/Android wymagają osobnego dowodu
-tej granicy przed udostępnieniem funkcji. Wyłączone: dostęp file/universal-file,
+zaakceptowanego komunikatu bez tego tokenu. Weryfikacja zmian tej granicy wymaga
+osobnego przeglądu na iOS i Androidzie. Wyłączone: dostęp file/universal-file,
 shared cookies, mixed content, okna, formularze i nawigacje.
 Native przechwytuje nawigację, ale nie wszystkie żądania zasobów. CSP oraz brak adresów w schemacie komponentów nie zależą od samego callbacka
 `onShouldStartLoadWithRequest` (jego pokrycie różni się między platformami).
@@ -398,15 +404,16 @@ silnika przeglądarki. Watchdog jest diagnostyką, nie granicą bezpieczeństwa.
 
 ## 5. Trwały zapis, wersje, cytowanie i harnessy
 
-Gateway zapisuje immutable spec po walidacji oraz manifest itemu `visual`:
-`visual_id`, `version`, `schema_version`, `kit_version`, tytuł, opis, wysokość,
-hash, rozmiar, `content_ref`, autor/tura i seq. Treść nie jest zwykłym
+Gateway zapisuje immutable źródło po walidacji w `thread_visuals` oraz mały
+manifest itemu `visual`: `visual_id`, `version`, `schema_version`, `kit_version`,
+`html_document`, tytuł, opis, wysokość, SHA-256 i rozmiar spec. Powiązanie z wątkiem,
+turą i itemem przechowuje baza, a kolejność zapewnia seq zdarzenia. Treść nie jest zwykłym
 załącznikiem HTML. Kompilator używa przypiętej wersji kitu; aktualizacja
 klienta nie zmienia po cichu semantyki historycznego materiału.
 Luka bezpieczeństwa może unieważnić kit: pozostają opis, spec i pobranie,
 wykonanie jest zablokowane do bezpiecznej migracji lub zgodnego renderera.
 
-Nowe `render_visual` domyślnie tworzy nowy item. Aktualizacja podaje opcjonalne
+Nowe `render_visual` lub `render_html` domyślnie tworzy nowy item. Aktualizacja podaje opcjonalne
 `visual_id` i `expected_version`; może dotyczyć tylko visuala tego wątku.
 Gateway atomowo dopisuje wersję i upsertuje manifest itemu w tym samym miejscu.
 Stara wersja pozostaje cytowalna; rozbieżna wersja daje konflikt, nie last-write-wins.
@@ -414,13 +421,13 @@ Retry po call ID zwraca ten sam wynik. Użytkownik widzi „Version 2”
 i może otworzyć historię; nowa wersja nie resetuje scrolla i nie przeładowuje
 ramki z aktywnym fokusem bez informacji „A new version is available.” oraz „Reload”.
 
-`GetVisual(visual_id, version)` (proponowane) sprawdza ownera, wątek i referencję
-do wersji; publiczny hash nie uprawnia do odczytu. Watch przesyła wyłącznie
+`GetVisual(thread_id, visual_id, version)` (0 = najnowsza) sprawdza ownera, wątek
+i referencję do wersji; publiczny hash nie uprawnia do odczytu. Watch przesyła wyłącznie
 mały manifest/upsert lub tombstone i przesuwa seq atomowo po zastosowaniu.
 Reconnect nadrabia zakresy; brak kursora/nowa epoka daje ograniczone okno,
 nigdy pełny snapshot całej historii. Duża treść jest pobierana osobno.
-To zależy od docelowego protokołu okien opisanego w [UI API](ui-api.md#docelowe-okna-i-wznowienie-po-seq),
-a nie od starszego fallbacku pełnych snapshotów. Galerie używają tej samej zasady.
+Synchronizacja korzysta z wdrożonych [okien i wznowienia po seq](ui-api.md#docelowe-okna-i-wznowienie-po-seq).
+Galerie używają tej samej zasady.
 
 Połączone komputery replikują manifesty, seq i referencje wersji, a bajty
 pobierają z domu z kontrolą właściciela; nowe odczyty wymagają capability
@@ -429,46 +436,45 @@ bloby istniejącym mechanizmem, bez ponownego czytania workspace.
 Brak domu oznacza ostatni cache z informacją o niedostępności, bez live tool call.
 Usunięcie i revocation unieważniają dostęp oraz cache tak jak inne dane wątku.
 
-„Copy visual link” i „Cite visual” wskazują kwalifikowane ID wątku, item i wersję,
-np. opis „Button variants · Version 2”. Nie tworzą publicznego linku.
+„Cite visual” dodaje cytat z tytułem, wersją, opisem oraz
+`visual:<visual_id>@<version>`, związany z itemem i wątkiem. Nie tworzy publicznego linku.
 Cytat do agenta zawiera tytuł, wersję i opis; odczyt spec wymaga tego samego
 owner-scoped dostępu, bez screenshotu dokładanego do każdego promptu.
-„Download HTML” kompiluje samowystarczalny plik z kitem, spec i CSP;
+Dla komponentowego visuala „Download HTML” kompiluje samowystarczalny plik z kitem, spec i CSP;
 działa offline, bez bridge'a i sekretów, w początkowym stanie. „Copy spec”
-kopiuje JSON. Eksport `.html` otwarty poza Canopy ma inną granicę zaufania,
+kopiuje JSON. Eksport komponentowego `.html` otwarty poza Canopy ma inną granicę zaufania,
 dlatego pozostaje bez adresów, dowolnego kodu modelu i dostępu sieciowego.
+Eksport własnego HTML wykonuje kod agenta zgodnie z ograniczeniami §9.
 Przycisk pobrania jest w chrome hosta, nie w sandboxie.
 
 ### Wszystkie trzy harnessy
 
-Wspólne ścisłe schematy trafiają do `packages/domain/src/agent-bus`.
-`show_images` i `render_visual` są dostępne na obu poziomach drzewa,
+Wspólne ścisłe schematy znajdują się w `packages/domain/src/agent-bus`.
+`show_images`, `render_visual` i `render_html` są dostępne na obu poziomach drzewa,
 także w wątkach bocznych; wynik publikują w **swoim** wątku. Rodzic dostaje
 referencję/cytat, nie nową kopię plików. Gateway wykonuje autoryzację i zapis;
 worker lokalnie wykonuje tylko zlecony bezpieczny eksport.
 
 | Harness | Ekspozycja i zgodność |
 | --- | --- |
-| Claude Agent SDK | `mcp__canopy__show_images` i `mcp__canopy__render_visual` w istniejącym `createSdkMcpServer`; dopuszczenie narzędzi zachowuje egzekucję polityki w gatewayu. |
+| Claude Agent SDK | `mcp__canopy__show_images`, `mcp__canopy__render_visual` i `mcp__canopy__render_html` w istniejącym `createSdkMcpServer`; dopuszczenie narzędzi zachowuje egzekucję polityki w gatewayu. |
 | Codex app-server | `dynamicTools` w przestrzeni `canopy`, z tych samych schematów; adapter przekazuje `AgentToolCall/AgentToolResult`. `thread/resume`/`fork` nie dodają narzędzi do starego katalogu. Stary wątek zachowuje linki do plików; UI wyjaśnia potrzebę nowego wątku, bez obietnicy narzędzia po samym reconnect. |
 | Grok ACP | Ten sam lokalny HTTP MCP w `session/new`/`session/load`, wspólny dispatcher gatewaya i wynik strukturalny. Brak zależności od natywnego generowania obrazów lub HTML przez CLI. |
 
-Proponowane capability `thread_image_replies_v1` (eksport i import Markdown)
-oraz `thread_visuals_v1` są negocjowane end-to-end: worker, gateway domu,
-łącze i klient. Narzędzia ogłaszamy tylko gdy runtime umie wykonać kontrakt;
-odmowa starszej strony jest jawna. Nowe pola proto i enumy wyłącznie addytywnie,
-z `bun run gen`, bez zmian zamrożonego UpdateService. Numer migracji ustalamy
-z aktualnego `dev` przy implementacji, nie rezerwujemy go w projekcie.
+Capabilities `thread_image_replies_v1` (eksport i import Markdown),
+`thread_visuals_v1` i `thread_html_v1` chronią odpowiednie operacje workera.
+`Welcome.thread_visuals_v1 = 7` i `thread_html_v1 = 8` pozwalają workerowi
+odmówić wywołania na starszym gatewayu. Odczyt wersji przez linked computers
+wymaga `thread_visuals_v1`, a format manifestu i wersja kitu chronią klienta.
+Protokół pozostaje addytywny, `WORKER_LINK_PROTOCOL = 1`; UpdateService jest zamrożony.
+Zapis galerii/Markdown wprowadzają migracje `0137_thread_image_publications`
+i `0138_image_reply_imports`, a wersje visuals — `0139_thread_visuals`.
 
-Opisy narzędzi mają rozróżniać oglądanie od publikacji. Proponowana instrukcja
-systemowa (English, krótka, wraz z opisami i przykładami kitu):
-
-> Use view_image to inspect an image yourself. Use show_images to show images
-> to the user. Pick representative screenshots and describe what changed.
-> Local Markdown images are copied only after the message finishes.
-> Use render_visual for an interactive explanation or comparison with Canopy
-> components. Its controls change the visual locally; they do not contact you.
-> Use ask_user when you need a decision. Never use a visual as an approval.
+Instrukcja obrazów i opisy narzędzi rozróżniają oglądanie przez model od publikacji:
+`view_image` ogląda, `show_images` publikuje trwałą kopię, a Markdown czeka do
+zakończenia wiadomości. `render_visual` opisuje katalog komponentów i lokalny stan;
+`render_html` opisuje inline CSS/skrypty i własne limity. Decyzje użytkownika
+należą do `ask_user`, nie do przycisku wewnątrz visuala.
 
 Tool description podaje zakres ścieżek, limity i `delivered`; `render_visual`
 podaje wersję schematu, katalog oraz przykłady flow/stepper/button preview.
@@ -494,45 +500,31 @@ Wymaga zgody na osobną zależność i koszt runtime; nie jest warunkiem galerii
 
 ## 6. Dostarczenie i kryteria odbioru
 
-Etap projektu to osobny draft PR dokumentacji. Mockup jest materiałem poza
-repozytorium, nie implementacją ani raportem testowym. Późniejsze prace tworzą
-dwa kompletne stosy; każdy kolejny PR opiera się na poprzednim, dolny na `dev`.
-Wszystkie warstwy stosu pozostają draft do ukończenia całości, potem squash merge
-całego stosu. Obrazy można dostarczyć przed rozpoczęciem niezależnego stosu visuals.
+Obrazy, komponentowe visuals i własny HTML są częściami działającej aplikacji.
+Dawne stosy i szacunki realizacji zastępują granice utrzymania: atomowa publikacja,
+owner scoping, zgodność wersji, ograniczone odczyty oraz izolacja każdego formatu.
+Rozszerzenia katalogu, kompilatora, eksportu lub WebView wymagają ponownej
+weryfikacji dotkniętej granicy. Bridge do agenta i automatyczny headless preview
+pozostają poza zakresem (§5).
 
-| Stos / PR | Zakres i kryterium końca | Szacunek |
-| --- | --- | --- |
-| Obrazy 1 | Kontrakty/capability, bezpieczny eksport, atomowy import i receipt, testy gateway↔worker. | 3–4 dni robocze |
-| Obrazy 2 | Trwały manifest Markdown, galeria/lightbox/pary, mobile i linked computers, dostępność, copy. | 3–4 dni robocze |
-| Visuals 1 | Wersjonowany schemat i kit, zapis/odczyt, cytaty, przyrostowy sync, owner scoping. | 4–6 dni roboczych |
-| Visuals 2 | Web/Electron sandbox, port/resize, eksport/full screen, limity widoczności i pomiary. | 3–5 dni roboczych |
-| Visuals 3 | Mobile WebView, nowe buildy, sandbox/bridge na obu platformach, dostępność, parytet i pomiary. | 4–6 dni roboczych |
-
-Łącznie obrazy 6–8, visuals 11–17 dni roboczych jednej osoby, plus czas
-review i dystrybucji natywnych buildów. Zakładamy istniejący eksport botów
-i dostępny przyrostowy protokół okien. Jeśli ten protokół nie jest jeszcze
-wdrożony, staje się osobną zależnością stosu; nie cofamy się do pełnych snapshotów.
-Szacunek nie obejmuje raw HTML, bridge'a do agenta ani headless preview.
-
-### Dowody wymagane przy implementacji
+### Weryfikacja zmian
 
 | Obszar | Weryfikacja bez testów UI |
 | --- | --- |
 | Import obrazów | Integracja prawdziwego gatewaya i workera z atrapami CLI: traversal, symlink/junction i podmiana ścieżki, pliki specjalne, cudzy scratch/owner/worker, usunięcie źródła, sniffing i SVG, EXIF/GPS, piksele, limity bajtów i liczby, równoległa rezerwacja, przerwany transfer. |
 | Trwałość i dostawcy | Restart przed/po commicie, replay call ID, brak podwójnego itemu, anulowanie tury, fork/GC, Markdown poza kodem i zdalne URL bez fetch. Adaptery wszystkich trzech harnessów, stary katalog Codexa i brak capability. |
 | Visuals i sync | Walidacja struktury i przejść, XSS w tekście/serializacji, limity, konflikt wersji, obcy visual, dedup, incremental catch-up/gap/epoka/tombstone, kwalifikowane ID, dom offline, eksport bez sekretów i brak blobu w watchu. |
-| Granica wykonania | Ręcznie w web/Electron/iOS/Android: próby fetch/WebSocket, form, popup/top/self-navigation, iframe, file URL, parent DOM, cookies, preload/IPC, podrobiony postMessage, flood resize; brak dostępu i sieci. Audyt kodu shellu/kompilatora to warunek publikacji. |
+| Granica wykonania | Ręcznie w web/Electron/iOS/Android: próby fetch/WebSocket, form, popup/top/self-navigation, iframe, file URL, parent DOM, cookies, preload/IPC, podrobiony postMessage i flood resize. Wynik oceniamy według formatu: komponenty z §4, własny HTML i zaakceptowane ryzyka sieci/zasobów z §9. Audyt shellu/kompilatora nie dowodzi pełnego firewalla web/mobile. |
 | UI i dostępność | Ręcznie jasny/ciemny, desktop/wąski/telefon, 1/6/10 obrazów, długie nazwy i +40% tekstu, pusty/błąd/offline, klawiatura/czytnik, zoom, reduced motion, kontrolki playgroundu, powrót kotwicy i brak szwów overlay. Bez testów komponentów i E2E UI. |
 
-Przyszłe testy integracyjne i pomiary wykonujemy w uprawnionym etapie
-implementacji; ten PR ich nie uruchamia. Pełną bramkę implementacji wykonuje
-GitHub CI; lokalne kontrole dobieramy do zmiany według
-[AGENTS.md](../AGENTS.md#testing-policy). Dla projektu dokumentacji wystarcza
-przegląd diffu, treści i odnośników, bez kontroli kodu, testów i buildów.
+Testy integracyjne dotyczą kontraktu, trwałości, owner scoping i adapterów;
+UI oraz granice natywne sprawdzamy ręcznie. Wymagane checki wykonuje GitHub CI,
+a lokalny zakres określa [AGENTS.md](../AGENTS.md#testing-policy). Dla korekty
+samej dokumentacji wystarcza przegląd diffu, treści i odnośników.
 
 ### Budżety wydajności i sposób pomiaru
 
-Poniższe wartości to **cele odbioru**, nie wyniki tego projektu. Porównanie
+Poniższe wartości to **cele wydajności**, nie zmierzone wyniki obecnej wersji. Porównanie
 przed/po korzysta z [procedur klienta](client-performance.md), tego samego
 produkcyjnego buildu, sprzętu, viewportu, cache i deterministycznego fixture.
 Do PR trafiają liczby i ograniczenia; ślady oraz screenshoty zostają poza repo.
@@ -549,28 +541,23 @@ Sync mierzymy oddzielnie z `CANOPY_SYNC_METRICS=1`: nowa wersja wysyła jeden
 mały manifest, bez całej spec lub historii; odbiór bloba nie zajmuje kolejki
 tekstowych delt. Mierzymy payloady, RPC/min, main-thread busy, layout/paint ms/s,
 heap i pamięć bitmap. Eksport mobilny JS ani fixture Bun nie dowodzą CPU,
-FPS lub zużycia energii natywnego WebView. Dodanie modułu wymaga jawnie
-nowych fingerprintów; parytetu nie zatwierdzamy samym sprawdzeniem webu.
+FPS lub zużycia energii natywnego WebView. Zmiana modułu natywnego wymaga
+nowego buildu i fingerprintów; parytetu nie zatwierdzamy samym sprawdzeniem webu.
 
 ## 7. Zatwierdzone decyzje i zakres wykonania
 
-Użytkownik zaakceptował mockup i wszystkie pięć rekomendacji:
-
-| Decyzja | Przyjęty zakres |
+| Decyzja | Utrzymywana granica |
 | --- | --- |
-| Format visuals v1 | JSON + zaufany kit gotowych komponentów; dowolne HTML/JS poza v1. |
-| Odpowiedź do agenta | Bez bridge'a w v1; lokalny stan visuala i osobne `ask_user`. |
-| Kolejność | Najpierw kompletny stos obrazów, następnie osobny stos visuals. |
-| Limity i budżety | Proponowane wartości przyjęte; pomiary przed merge potwierdzają ich spełnienie, z zachowaniem niższych limitów właściciela. |
-| Samokontrola screenshotem | Poza v1; walidator i ręczny odbiór kitu pozostają w zakresie. |
+| Format komponentów | JSON + zaufany kit; dowolny HTML/JS wyłącznie przez osobne `render_html` (§9). |
+| Odpowiedź do agenta | Bez bridge'a: lokalny stan visuala i osobne `ask_user`. |
+| Publikacja obrazów | Trwałe kopie po potwierdzeniu narzędzia; lokalny Markdown dopiero po zakończeniu wiadomości. |
+| Limity i budżety | Walidowane limity danych z niższymi limitami właściciela; wydajność wymaga osobnych pomiarów. |
+| Samokontrola screenshotem | Automatyczny preview poza v1; walidator i ręczny przegląd kitu nie zastępują pomiaru natywnego klienta. |
 
-Użytkownik zatwierdził realizację stosu obrazów i późniejszego stosu visuals.
-PR-y implementacyjne pozostają draft do ukończenia i weryfikacji całego stosu;
-stos scala użytkownik jednocześnie. Nazwę „Visual” należy dodać do glosariusza copy
-w PR implementacyjnym. Audyt tekstów projektu: krótkie akcje („Download image”,
-„Open full screen”, „Cite visual”), błędy z „Retry”, brak żargonu sandbox/API
-w chrome użytkownika i brak tekstów humorystycznych. Dokładny audyt widoków
-i pomiary produkcyjne pozostają kryteriami przyszłych PR-ów.
+Copy widoków podlega [copy.md](copy.md): krótkie akcje „Download image”,
+„Open full screen”, „Cite visual”, błędy z „Retry” oraz opisowe teksty alternatywne.
+Zmiana UI wymaga przeglądu klienta i audytu copy; obecność kontraktu nie jest
+dowodem przejścia pomiarów produkcyjnych.
 
 ## 8. Implementacja visuals
 
@@ -615,12 +602,15 @@ i pomiary produkcyjne pozostają kryteriami przyszłych PR-ów.
 
 ### Gateway i zapis
 
-- `render_visual` (`packages/domain/src/agent-bus/visuals.ts`) jest w `AGENT_BUS_TOOLS`,
-  więc trafia do wszystkich trzech harnessów. Opis narzędzia zawiera katalog,
-  zasady stanu, przykład i limity. Dekoder szyny odrzuca argumenty większe niż
-  limit spec przed parsowaniem, potem waliduje spec jak `decodeVisualSpec`.
+- `render_visual` i `render_html` (`packages/domain/src/agent-bus/visuals.ts`) są w `AGENT_BUS_TOOLS`,
+  więc trafiają do wszystkich trzech harnessów. Opis `render_visual` zawiera katalog,
+  zasady stanu, przykład i limity; `render_html` opisuje kontrakt dokumentu HTML.
+  Dekoder szyny odrzuca argumenty większe niż
+  limit źródła przed parsowaniem, potem waliduje spec przez `decodeVisualSpec`
+  albo HTML przez `validateHtmlDocument`.
 - Gateway (`core/visual-publication.ts`, `store/visuals.ts`) wymaga uruchomionej
-  tury, przypiętego workera z `thread_visuals_v1` i niearchiwizowanego wątku.
+  tury, przypiętego workera z `thread_visuals_v1` (komponenty) lub `thread_html_v1`
+  (HTML) i niearchiwizowanego wątku.
   Nowy visual dostaje UUIDv7 i wersję 1; aktualizacja wymaga `visual_id`
   i `expected_version` tego samego wątku. Rozbieżność daje konflikt z numerem
   aktualnej wersji, nigdy last-write-wins. Retry po call ID zwraca ten sam wynik.
@@ -630,7 +620,7 @@ i pomiary produkcyjne pozostają kryteriami przyszłych PR-ów.
 
 ### Worker i harnessy
 
-- Worker ogłasza `thread_visuals_v1`. Nie wykonuje niczego lokalnie: Claude
+- Worker ogłasza `thread_visuals_v1` i `thread_html_v1`. Nie kompiluje visuals lokalnie: Claude
   (`mcp__canopy__render_visual`), Codex (dynamic tool w przestrzeni `canopy`)
   i Grok (lokalny HTTP MCP) budują listę z tych samych `AGENT_BUS_TOOLS`
   i przekazują `AgentToolCall` do gateway. Wątki Codexa utworzone wcześniej
@@ -653,7 +643,7 @@ i pomiary produkcyjne pozostają kryteriami przyszłych PR-ów.
 - `compileVisualExport` buduje plik „Download HTML” dla BFF i dla „Save/Share HTML”.
 - Aplikacja: `apps/mobile/src/features/visuals` (opis w [mobile.md](mobile.md#visuals-agenta)).
 - Testy: `host.test.ts` (koperta, inbox, brak tokenu w ramce, inertny tekst, odmowa
-  kitu). Granica WebView na iOS/Androidzie wymaga dowodu na urządzeniach.
+  kitu). Zmiany granicy WebView na iOS/Androidzie wymagają przeglądu na urządzeniach.
 - Cache spec i zapisany stan kontrolek (`visual-state.json`) są czyszczone przy
   rozparowaniu, wygaśnięciu parowania i nowym parowaniu (`clearVisualCaches`).
 - Zaakceptowane ryzyka resztkowe (przegląd bezpieczeństwa #695):
@@ -743,9 +733,9 @@ Lockdown używa niekonfigurowalnych, niezapisywalnych właściwości o wartości
 skryptu zaczyna się tym samym lockdownem także w nowym realmie.
 
 Samo `frame-src 'none'` **nie** zatrzymuje wszystkich ramek `srcdoc`/about:blank.
-W próbie Chromium 155 takie ramki istniały, ale niezaufany skrypt bez hasha nie
-działał; dostęp z rodzica do ich realmów dawał SecurityError. Dokładna kopia
-dozwolonego skryptu miała już `RTCPeerConnection=undefined`. Usuwanie elementów
+Takie ramki mogą istnieć; CSP nadal wymaga dozwolonego hasha skryptu,
+a opaque origin ogranicza dostęp do ich realmów. Kopia dozwolonego skryptu
+zaczyna się lockdownem. Usuwanie elementów
 osadzających przy kompilacji jest dodatkową warstwą, a nie dowodem, że JS nie
 utworzy ich ponownie. Worker/blob/import, object/embed i zewnętrzne obrazy są
 objęte osobnymi dyrektywami.
@@ -758,11 +748,10 @@ wpisane przez użytkownika, IP i obecność urządzenia oglądającego.
 
 CSP nie blokuje transportu WebRTC/STUN jak fetch. Lockdown usuwa znane API,
 lecz nie jest kompletnym firewallem silnika. Ponadto hash w `script-src`
-autoryzuje także zewnętrzny skrypt z pasującym `integrity`. Próba utworzenia
-`script.src` z markerem w query i `integrity` skopiowanym z dozwolonego hasha
-wysłała GET mimo aktywnego CSP i lockdownu; odrzucenie odpowiedzi nie cofa
-wycieku. To udowodniona droga ujawnienia wpisanych danych lub IP. Użytkownik
-zaakceptował to ryzyko poza desktopem; nie opisujemy tych platform jako offline.
+autoryzuje także zewnętrzny skrypt z pasującym `integrity`. Utworzenie takiego
+`script.src` może wysłać GET mimo aktywnego CSP i lockdownu; odrzucenie odpowiedzi
+nie cofa wycieku wpisanych danych lub IP. To zaakceptowane ryzyko web/mobile;
+nie opisujemy tych platform jako offline.
 Opaque origin nadal chroni dane Canopy przed odczytem przez ramkę.
 
 Wskazówki sieciowe `dns-prefetch` i `preconnect` tworzone w runtime mogą omijać
@@ -808,7 +797,7 @@ Ochronę tworzą te reguły resolvera, proxy odmawiające połączeń i `webRequ
 Nie polegamy na nieudokumentowanym przełączniku `disable-network-prediction`.
 Reguły resolvera obejmują także spekulacyjny DNS w ramkach,
 którego proxy i `webRequest` nie widzą. Nie używamy samego `additionalArguments`
-rendererów: w próbie Electron nie przeniósł tam flagi Blink i DNS nadal działał.
+rendererów: nie zapewniają ustawienia resolvera całego procesu przeglądarki.
 Nagłówek `X-DNS-Prefetch-Control: off` jest tylko dodatkową wskazówką.
 Nie zmieniamy globalnych flag ani sesji głównego procesu aplikacji. Preconnect
 nadal podlega dedykowanej sesji, resolverowi i proxy. JS agenta pozostaje

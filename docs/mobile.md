@@ -1,5 +1,28 @@
 # Canopy na iOS i Android
 
+Natywna aplikacja Expo/React Native działa na iOS i Androidzie. Obsługuje wątki,
+boty, pliki i załączniki, zgody oraz ustawienia. Z gatewayem paruje się przez
+Network access: klient przypina certyfikat TLS i dostaje odwoływalny token urządzenia.
+To osobny klient natywny, a nie mobilny widok web.
+
+## Instalacja i dostępność
+
+- **iOS:** dystrybucja przez TestFlight. Workflow wydania wysyła nowy build,
+  jeśli zmienił się runtime natywny; dostęp do TestFlight wymaga zaproszenia.
+- **Android:** instalacja ręcznie zbudowanego APK. Publikacja wydania nie tworzy
+  APK automatycznie; maintainer buduje zgodny runtime osobno.
+- **Aktualizacje OTA:** zgodne zmiany JS i assetów trafiają do zainstalowanej
+  aplikacji właściwego kanału. Zmiana runtime wymaga nowego IPA/APK.
+- **Development:** lokalny development build Expo, nie Expo Go ani Expo web.
+
+Procedury: [development build Androida](#android-emulator-lokalny-development-build),
+[iPhone i symulator iOS](#iphone-i-ios-simulator),
+[wydania TestFlight i OTA](#wydania-mobilne-testflight-i-ota).
+Opis funkcji poniżej dotyczy bieżącego `dev`; ich dostępność zależy od wersji
+gatewaya i klienta, kanału oraz runtime zainstalowanego buildu.
+
+## Szkice i kompozytor
+
 Szkice wątków, nowych wątków i wątków bocznych są trwałe po restarcie aplikacji.
 Wspólny `usePersistentMessage` rozszerza istniejący `useMessageDraft` i adaptery
 załączników/cytatów. Documents zawiera atomowy plik protobuf JSON dla bieżącego
@@ -49,7 +72,7 @@ osobnego licznika. Dotknięcie podsumowania lub tekstu
 rozwija nakładkę i ustawia fokus w polu. Pełne chipy pozostają zamontowane w zwijanym
 obszarze; rezerwa osi czasu nie zależy od ich liczby ani stanu rozwinięcia.
 
-Pierwsza wersja to **development build** Expo, nie Expo Go ani Expo web.
+Do lokalnego uruchomienia używamy **development build** Expo, nie Expo Go ani Expo web.
 Identyfikatory: iOS `tech.itsol.canopy-remote`, Android `tech.itsol.canopy_remote` (Android nie dopuszcza myślnika w identyfikatorze); scheme: `canopy`.
 Konfiguracja: `apps/mobile/app.json`, `app.config.ts`, `eas.json`.
 
@@ -452,7 +475,7 @@ Otwórz **Settings → Devices → Pair a phone**. Jeśli dostęp sieciowy jest 
 przycisk włącza go i generuje QR jednym kliknięciem. Port zostaje zapisany; wykryte adresy
 LAN i VPN odświeżają się automatycznie. Nazwy DNS i porty przekierowane dodaje się w
 **Settings → Network access → Add hostname**. W kontenerze opublikuj port TCP według
-[deploy.md](deploy.md#dostęp-sieciowy-telefony-i-połączone-komputery).
+[deploy.md](deploy.md#dostęp-sieciowy-telefony-klienty-desktopowe-i-workery).
 Na telefonie i komputerze musi istnieć przynajmniej jedna wspólna trasa sieciowa.
 
 Overview i listy połączonych komputerów korzystają z lokalnej projekcji gatewaya,

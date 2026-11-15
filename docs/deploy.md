@@ -1,7 +1,9 @@
 # Wdrożenie
 
-Canopy to PostgreSQL + gateway, który serwuje też web (BFF i SPA), oraz workery na maszynach,
-które uruchamiają agentów. Wersje i kanały: [release.md](release.md). Wszystko pochodzi z
+Canopy to PostgreSQL + gateway + web (BFF i SPA) oraz workery na maszynach,
+które uruchamiają agentów. W nightly web jest wbudowany w gateway; obecne stable i beta
+uruchamiają osobną usługę web. Ten dokument opisuje kod na `dev`; poniższe instrukcje
+pobierania domyślnie wybierają stable. Wersje i kanały: [release.md](release.md). Wszystko pochodzi z
 `ghcr.io/itsoltech/canopy-*` albo z GitHub Releases `itsoltech/canopy`.
 
 Gateway uruchomiony jako serwer (Docker lub samodzielna binarka) ma rolę `server`.
@@ -41,6 +43,19 @@ Wersję widać w Settings (dół nawigacji), w `GET /api/health`, w `--version` 
 `latest` jest aliasem stable, nie buildu main HEAD. Piny wybierają wyłącznie stable.
 Updater beta/nightly wybiera także nowsze stable według semver; obrazy Docker beta/nightly
 są aliasami ostatniego wydania własnego kanału. Aby przejść kontenerem na stable, zmień CANOPY_TAG.
+
+Pliki wdrożenia muszą pochodzić z tej samej gałęzi co wybrany kanał obrazów:
+
+| Kanał | Compose i `.env.example` | `CANOPY_TAG` | Web |
+| --- | --- | --- | --- |
+| stable | [`main/deploy`](https://github.com/itsoltech/canopy/tree/main/deploy) | `latest` lub `stable` | obecnie osobna usługa `canopy-web` |
+| beta | [`next/deploy`](https://github.com/itsoltech/canopy/tree/next/deploy) | `beta` | obecnie osobna usługa `canopy-web` |
+| nightly | [`dev/deploy`](https://github.com/itsoltech/canopy/tree/dev/deploy) | `nightly` | wbudowany w `canopy-gateway` |
+| konkretne wydanie | ten sam tag wydania | ten sam tag | zgodnie z plikami tego wydania |
+
+Wbudowany web trafi do beta i stable przez promocję. Samo ustawienie `CANOPY_TAG=nightly`
+w starym Compose nie zastępuje migracji pliku. Tak samo Compose z `dev` nie pasuje
+do starszego obrazu `latest`, który nie zawiera web.
 
 ## Docker Compose (jeden host)
 
@@ -90,16 +105,24 @@ nie test prawdziwego systemd/launchd; te wymagają sesji właściwego systemu.
 
 ```sh
 mkdir canopy && cd canopy
-curl -LO https://raw.githubusercontent.com/itsoltech/canopy/main/deploy/docker-compose.yml
-curl -L -o .env https://raw.githubusercontent.com/itsoltech/canopy/main/deploy/.env.example
+CANOPY_REF=main        # next dla beta, dev dla nightly, albo dokładny tag wydania
+curl -fLO "https://raw.githubusercontent.com/itsoltech/canopy/$CANOPY_REF/deploy/docker-compose.yml"
+curl -fL -o .env "https://raw.githubusercontent.com/itsoltech/canopy/$CANOPY_REF/deploy/.env.example"
 # uzupełnij .env: POSTGRES_PASSWORD, CANOPY_UI_SERVICE_TOKEN, CANOPY_SECRETS_KEY, CANOPY_TAG
+# CANOPY_TAG musi odpowiadać CANOPY_REF: latest/stable, beta, nightly albo dokładny tag
 docker compose up -d
-docker compose ps        # postgres, gateway: healthy (gateway obejmuje web na porcie 3000)
+docker compose ps        # sprawdź usługi z Compose wybranego wydania
 ```
 
-**Przejście z osobnego obrazu `canopy-web`.** Od tej wersji obraz `canopy-gateway` serwuje web, a
-`canopy-web` nie jest już wydawany (jego istniejące tagi zostają w GHCR bez zmian, ale nie dostają nowych
-wersji). W istniejącym `docker-compose.yml`:
+Web pod `127.0.0.1:3000` działa jako właściciel, bez logowania użytkowników.
+Udostępniaj go w prywatnej sieci z ograniczonym dostępem (np. ACL Tailscale) albo
+przez proxy z uwierzytelnianiem. TLS szyfruje połączenie; nie ogranicza dostępu.
+Dotyczy to osobnego i wbudowanego web.
+
+**Przejście z osobnego obrazu `canopy-web` na wydanie z wbudowanym web (obecnie nightly).**
+W tym wariancie obraz `canopy-gateway` serwuje web i nie używa osobnego obrazu `canopy-web`.
+Stable/beta nadal korzystają ze swojego osobnego obrazu web; poniższe kroki dotyczą
+dopiero przejścia na wydanie z wbudowanym web. W istniejącym `docker-compose.yml`:
 
 1. Usuń usługę `web`.
 2. Przenieś jej port do usługi `gateway`: `- "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-3000}:3000"`.
@@ -110,7 +133,8 @@ wersji). W istniejącym `docker-compose.yml`:
 5. Opcjonalnie wolumen `gateway-cache:/home/canopy/.cache/canopy` (stare chunki dla otwartych kart).
 6. `docker compose pull && docker compose up -d --remove-orphans`.
 
-Najprościej pobrać nowy [`deploy/docker-compose.yml`](../deploy/docker-compose.yml) i dopisać w `.env`
+Najprościej pobrać Compose i `.env.example` z gałęzi lub tagu wybranego wydania
+z wbudowanym web (tabela powyżej), zachować własne sekrety i dopisać w `.env`
 `CANOPY_WEB_ALLOWED_HOSTS`. Bez kroku 1–2 stary kontener `canopy-web` zostaje na ostatniej wydanej
 wersji i rozjeżdża się z gatewayem. Gateway to zauważa: każdy web BFF wysyła swoją wersję
 (nagłówek `canopy-web-version`; starsze nie wysyłają żadnej), więc przy web innej wersji gateway
@@ -149,7 +173,10 @@ administratora. Zastąpiony indeks jest usuwany dopiero po poprawnym zbudowaniu
 następcy. Pozostaw zapas miejsca na oba indeksy podczas przebudowy i obserwuj
 `pg_stat_progress_create_index`; długie transakcje mogą opóźniać zakończenie.
 
-Domyślnie web i port procesu gatewaya są wystawione tylko na `127.0.0.1`:
+Domyślnie web i port procesu gatewaya są wystawione tylko na `127.0.0.1`.
+W stable/beta port web publikuje osobna usługa `web`, która dostaje `GATEWAY_URL`,
+`GATEWAY_SERVICE_TOKEN`, `PROTOCOL_HEADER`, `HOST_HEADER` i `BODY_SIZE_LIMIT`.
+`CANOPY_WEB*` z poniższego opisu dotyczy nightly z wbudowanym web:
 
 - **web** (`WEB_PORT`, 3000, w kontenerze gatewaya): obraz `canopy-gateway` uruchamia wbudowany web
   tak jak binarka ([niżej](#gateway-z-wbudowanym-web-jedna-binarka)); `CANOPY_WEB=off` daje gateway
@@ -163,8 +190,9 @@ Domyślnie web i port procesu gatewaya są wystawione tylko na `127.0.0.1`:
   Uploady: `BODY_SIZE_LIMIT` ≥ limitu pliku gatewaya; biblioteka skilli wymaga `BODY_SIZE_LIMIT=50M`
   (folder 25 MiB kodowany base64 w JSON). Web, compose, `.env.example` i runtime desktopowy ustawiają
   już 50M. To parametr startowy serwera BFF, nie ustawienie użytkownika; proxy musi dopuścić ten sam
-  rozmiar. Przykład Caddy: `canopy.example.com { reverse_proxy 127.0.0.1:3000 }` (Caddy ustawia
-  `X-Forwarded-*`) i `CANOPY_WEB_ALLOWED_HOSTS=canopy.example.com`.
+  rozmiar. Caddy ustawia `X-Forwarded-*`; publiczny dostęp wymaga też uwierzytelniania
+  na proxy (przykład w sekcji [Dostęp do web](#dostęp-do-web-reverse-proxy-i-tailscale)).
+  `CANOPY_WEB_ALLOWED_HOSTS=canopy.example.com` sprawdza nazwę hosta, nie tożsamość użytkownika.
 - **gateway** (`GATEWAY_PORT`, 7443; wewnątrz procesu `CANOPY_PORT`): port dla BFF i istniejących
   lokalnych oraz zdalnych workerów. Nadal obsługuje WorkerLink, Enrollment i zamrożony UpdateService.
   Zachowaj dotychczasowe publikowanie i przekazywanie TCP (również przez tailnet); aktualizacja
@@ -280,6 +308,38 @@ i włączonym Network access. Nie otwieraj UDP 5353 dla linkowania serwerów.
 Wykrywanie dotyczy wyłącznie lokalnych aplikacji desktopowych
 ([linked-computers.md](linked-computers.md#konkretny-protokół-etapu-6)).
 
+## Dostęp do web: reverse proxy i Tailscale
+
+Ta sekcja dotyczy wszystkich kanałów i obu sposobów uruchamiania BFF.
+Web działa jako właściciel i nie ma jeszcze logowania użytkowników. Sam TLS
+nie ogranicza dostępu: użyj prywatnej sieci z ACL albo uwierzytelniania na proxy.
+
+**Reverse proxy z TLS.** Przykład Caddy na tym samym hoście (hash wygeneruj
+przez `caddy hash-password`):
+
+```caddyfile
+canopy.example.com {
+  basic_auth {
+    canopy <PASSWORD_HASH>
+  }
+  reverse_proxy 127.0.0.1:3000
+}
+```
+
+Caddy ustawia `X-Forwarded-Proto` i `X-Forwarded-Host`. nginx wymaga
+`proxy_set_header X-Forwarded-Proto $scheme`, `proxy_set_header X-Forwarded-Host $host`,
+`client_max_body_size 50m` i `proxy_buffering off` dla SSE oraz własnej konfiguracji
+uwierzytelniania. Przy wbudowanym web (obecnie nightly) dopisz publiczny host
+do `CANOPY_WEB_ALLOWED_HOSTS`; to ochrona nazwy hosta, nie logowanie.
+
+Uwierzytelnianie proxy obejmuje też `/install/*`. Instalator workera musi mieć
+dostęp do tych tras: pobierz go z uwierzytelnieniem albo wybierz instalację ręczną/SSH.
+
+**Tailscale Serve.** Web może pozostać na loopbacku, a Serve udostępniać go przez
+HTTPS wewnątrz tailnetu. Ręczna konfiguracja wpuszcza osoby mające dostęp do hosta;
+ogranicz ten dostęp przez ACL Tailscale. Nigdy nie włączaj Funnel. Integrację
+w Settings → Network access i różnice konfiguracji origin opisuje [tailscale.md](tailscale.md).
+
 ## Binaria (systemd)
 
 Assety release: `canopy-gateway-<os>-<arch>` (z wbudowanym web), `canopy-worker-<os>-<arch>`
@@ -300,6 +360,10 @@ Przy pierwszym starcie binarka rozpakowuje bibliotekę sharp/libvips do `~/.cach
 (zmiana: `CANOPY_NATIVE_DIR`).
 
 ### Gateway z wbudowanym web (jedna binarka)
+
+**Dostępność: nightly; do beta/stable trafi przez promocję.** Poniższe zmienne
+`CANOPY_WEB*` i procedura przejścia dotyczą wydania z wbudowanym web. Binarki
+starszych wydań wymagają osobnego BFF.
 
 Binarka `canopy-gateway-<os>-<arch>` zawiera też web (BFF i SPA) w tej samej wersji. Jedna usługa
 systemd uruchamia supervisor i jeden proces z gatewayem i web, bez Dockera. Przycisk Update w Settings → App updates
@@ -459,11 +523,9 @@ sudo tailscale serve --bg --https=443 http://127.0.0.1:3000
 Ręczny wpis wpuszcza każdego, kto w tailnecie ma dostęp do tego hosta, a Canopy nie ma jeszcze
 logowania użytkowników: ogranicz dostęp przez ACL Tailscale. Nigdy nie włączaj Funnel.
 
-**Reverse proxy z TLS.** Proxy na tym samym hoście kieruje do `127.0.0.1:3000` i ustawia
-`X-Forwarded-Proto` oraz `X-Forwarded-Host` (Caddy robi to sam:
-`canopy.example.com { reverse_proxy 127.0.0.1:3000 }`). nginx: `proxy_set_header
-X-Forwarded-Proto $scheme`, `proxy_set_header X-Forwarded-Host $host`,
-`client_max_body_size 50m` i `proxy_buffering off` (SSE). Publiczną nazwę dopisz do
+**Reverse proxy wbudowanego web.** Podstawowa konfiguracja TLS i uwierzytelniania
+jest w sekcji [Dostęp do web](#dostęp-do-web-reverse-proxy-i-tailscale).
+Publiczną nazwę dopisz do
 `CANOPY_WEB_ALLOWED_HOSTS=canopy.example.com`; bez tego web odpowie 421 („This host name isn't
 allowed…”). Web sprawdza surowy `Host`, nie `X-Forwarded-Host`: skrypt na stronie atakującej może
 ustawić nagłówki `X-Forwarded-*`. Proxy bez tych nagłówków wymaga `ORIGIN=https://canopy.example.com`
