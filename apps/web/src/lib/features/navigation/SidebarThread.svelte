@@ -12,6 +12,7 @@
   import SidebarThreadStatus from "./SidebarThreadStatus.svelte";
   import SidebarThreadLink from "./SidebarThreadLink.svelte";
   import SidebarThreadBranch from "./SidebarThreadBranch.svelte";
+  import SidebarThreadPullRequests from "./SidebarThreadPullRequests.svelte";
   import SwapText from "#lib/shared/ui/SwapText.svelte";
   import ScheduleOrigin from "#lib/features/schedules/ScheduleOrigin.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
@@ -21,7 +22,7 @@
 
   /**
    * One thread in the inbox: project and status, title, then where it runs (computer, place, branch) with its marks
-   * (goal, side threads, started by an agent) and the provider's mark. `sides` = number of side threads under it.
+   * (goal, side threads, started by an agent, linked pull requests) and the provider's mark. `sides` = number of side threads under it.
    * What it does leads the row (ThreadActivityMark in the avatar's place, background tasks with their count);
    * working rows keep their text contrast, finished unseen ones and those that need you stand out. Hover,
    * focus or tap-and-hold shows its summary (ThreadHoverCard).
@@ -113,6 +114,7 @@
           class="size-3.5 text-violet-500 dark:text-violet-400"
           label="Started by an agent"
         />{/if}
+      <SidebarThreadPullRequests {thread} />
       <span class="flex size-3.5 shrink-0 items-center justify-center">
         {#if provider}<span
             class="sidebar-swap-resting flex"

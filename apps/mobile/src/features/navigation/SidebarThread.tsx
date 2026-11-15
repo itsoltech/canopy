@@ -8,6 +8,7 @@ import { styles, useColors } from "../../ui/theme";
 import { Swap } from "../../ui/MotionViews";
 import { isCalm, needsYou, threadRowLabel } from "@canopy/domain/thread-activity";
 import { threadRowPlace } from "@canopy/domain/git-heads";
+import { threadPullRequestBadge } from "@canopy/domain/github-pr";
 import { useComputerHome } from "../computers/presence";
 import { SidebarUnread } from "./SidebarUnread";
 import { useSidebarTypography } from "./sidebar-scale";
@@ -55,6 +56,7 @@ export function SidebarThread({
   const needs = !home.away && (needsYou(thread) || subagentsNeedingInput.length > 0);
   const busy = !home.away && !needs && isCalm(thread);
   const place = threadRowPlace(thread, project);
+  const pullRequests = threadPullRequestBadge(thread);
   const result = thread.unseenResult || (thread.status === "failed" ? "failed" : "");
 
   const statusLabel = home.away
@@ -69,7 +71,7 @@ export function SidebarThread({
     <>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${thread.title || "Untitled thread"}, ${statusLabel ?? threadRowLabel(thread)}${place.branchLabel ? `, ${place.branchLabel}` : ""}${home.away ? `, ${home.reason}` : ""}${thread.markedUnread ? ", Unread" : ""}`}
+        accessibilityLabel={`${thread.title || "Untitled thread"}, ${statusLabel ?? threadRowLabel(thread)}${place.branchLabel ? `, ${place.branchLabel}` : ""}${pullRequests ? `, ${pullRequests.label}` : ""}${home.away ? `, ${home.reason}` : ""}${thread.markedUnread ? ", Unread" : ""}`}
         accessibilityState={{ selected: active }}
         onPress={() => void layout.openThread(thread.id)}
         onLongPress={reorder ? undefined : () => setActions(true)}
@@ -131,7 +133,7 @@ export function SidebarThread({
           </Text>
           <DraftMarker threadId={thread.id} />
         </View>
-        <SidebarThreadMeta thread={thread} worker={worker} place={place} />
+        <SidebarThreadMeta pullRequests={pullRequests} thread={thread} worker={worker} place={place} />
         <SidebarUnread unread={thread.markedUnread} />
       </Pressable>
       <ThreadActionsSheet

@@ -92,6 +92,12 @@ funkcją (`threadRowPlace`, `packages/domain/src/git-heads.ts`):
   8 znaków (bez uciętych liter), mobile używa `ellipsizeMode="middle"`. Gałęzie mają zwykle prefiks typu
   (`feat/`, `fix/`) i wyróżniający koniec, a wspólny bywa środek. Pełna nazwa jest w `title` na web (bez drugiego
   tooltipa obok karty hover) i w etykiecie dostępności na mobile („Branch ‹nazwa›”).
+- **Pull requesty** podpięte do wątku stoją przed znakiem dostawcy: ikona stanu najnowszego PR (open, draft,
+  merged, closed, w kolorach z `pullRequestLook`), jego numer i `+N` dla pozostałych. Dane to
+  `Thread.newest_pull_request` i `Thread.pull_request_count` z overview, bez dodatkowych zapytań. Bez znanych
+  szczegółów (brak konta GitHub) zostaje sama liczba podpiętych PR. Web i mobile liczą znacznik tą samą funkcją
+  (`threadPullRequestBadge`, `packages/domain/src/github-pr.ts`); pełny opis („Merged pull request #12, 2 more
+  linked”) jest w `title` na web i w etykiecie dostępności wiersza na mobile.
 - Komputer i katalog zajmują najwyżej 2/5 linii, gałąź resztę. Status w pierwszej linii i slot znaku
   dostawcy mają stały rozmiar, więc zmiana stanu niczego nie przesuwa.
 

@@ -51,16 +51,62 @@ export function checkLook(state: string): PullRequestLook {
 export function pullRequestLook(state: string): PullRequestLook {
   switch (state) {
     case "open":
-      return look("Open", "git-fork", "success");
+      return look("Open", "git-pull-request", "success");
     case "merged":
-      return look("Merged", "git-fork", "merged");
+      return look("Merged", "git-merge", "merged");
     case "closed":
-      return look("Closed", "x-circle", "danger");
+      return look("Closed", "git-pull-request-closed", "danger");
     case "draft":
-      return look("Draft", "document-text", "muted");
+      return look("Draft", "git-pull-request-draft", "muted");
     default:
       return look("Unavailable", "question-mark-circle", "muted");
   }
+}
+
+export interface ThreadPullRequestBadge {
+  look: PullRequestLook;
+  /** The newest linked pull request's number; zero while its details are unknown. */
+  number: number;
+  /** Linked pull requests besides the newest one; all of them while `number` is zero. */
+  more: number;
+  /** The whole badge in words: the row's tooltip and accessible name. */
+  label: string;
+}
+
+/**
+ * The sidebar row's pull request mark (docs/threads.md, "Wiersz wątku"): the newest linked pull request's state and
+ * number, and `+N` for the others. Without known details (no GitHub account yet) it shows only how many are linked.
+ */
+export function threadPullRequestBadge(thread: {
+  newestPullRequest?: github.PullRequestSummary | undefined;
+  pullRequestCount: number;
+}): ThreadPullRequestBadge | undefined {
+  const count = thread.pullRequestCount;
+  const pr = thread.newestPullRequest;
+  const number = pr?.ref?.number ?? 0;
+
+  if (count === 0 && !number) return undefined;
+
+  const total = Math.max(count, 1);
+
+  if (!pr || !number) {
+    return {
+      look: look("Linked", "git-pull-request", "muted"),
+      number: 0,
+      more: total,
+      label: total === 1 ? "1 linked pull request" : `${total} linked pull requests`,
+    };
+  }
+
+  const state = pullRequestLook(pr.state);
+  const more = total - 1;
+
+  return {
+    look: state,
+    number,
+    more,
+    label: `${state.label} pull request #${number}${more ? `, ${more} more linked` : ""}`,
+  };
 }
 
 /** A linked pull request without known details: still loading, or the last refresh failed with a reason. */
