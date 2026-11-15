@@ -122,10 +122,17 @@ export class PrCheckWatchStore extends Context.Service<
                head_changed = ${p.headChanged}, seen = ${JSON.stringify(p.seen)}::jsonb, settled = ${p.settled}, updated_at = now()
          WHERE id = ${id}::uuid AND status = 'active'`;
 
+      // The thread's pull request list shows active watches: its revision moves when one starts or ends.
+      const listChanged = (threadId: string) =>
+        sql`UPDATE threads SET pull_request_revision = pull_request_revision + 1 WHERE id = ${threadId}::uuid`;
+
       const end = (id: string, reason: string, cancelNotes: boolean) =>
         Effect.gen(function* () {
-          yield* sql`UPDATE pr_check_watches SET status = 'ended', end_reason = ${reason}, ended_at = now(), updated_at = now()
-                      WHERE id = ${id}::uuid AND status = 'active'`;
+          const ended = yield* sql<{ thread_id: string }>`
+            UPDATE pr_check_watches SET status = 'ended', end_reason = ${reason}, ended_at = now(), updated_at = now()
+             WHERE id = ${id}::uuid AND status = 'active' RETURNING thread_id`;
+
+          if (ended[0]) yield* listChanged(ended[0].thread_id);
 
           if (cancelNotes)
             yield* sql`UPDATE pr_check_notes SET status = 'cancelled', reason = ${`watch ${reason}`}, updated_at = now()
@@ -151,6 +158,7 @@ export class PrCheckWatchStore extends Context.Service<
                 VALUES (${w.id}::uuid, ${w.ownerUserId}::uuid, ${w.threadId}::uuid, ${w.pullRequestId}::uuid, ${w.callId}::uuid,
                         ${[...w.notifyOn]}::text[], ${w.hops}, ${w.expiresAt}, ${w.headSha}, ${JSON.stringify(w.seen)}::jsonb,
                         ${w.settled})`;
+              yield* listChanged(w.threadId);
 
               // SAFETY: the row was inserted above in this transaction.
               return (yield* byCall(w.callId))!;

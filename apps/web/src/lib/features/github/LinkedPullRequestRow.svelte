@@ -1,5 +1,7 @@
 <script lang="ts">
   import type { github } from "@canopy/contracts";
+  import type { Timestamp } from "@bufbuild/protobuf/wkt";
+  import Icon from "#lib/shared/ui/Icon.svelte";
   import { checkLook, unknownPullRequestLook } from "@canopy/domain/github-pr";
   import Button from "#lib/shared/ui/Button.svelte";
   import { formatTime } from "#lib/shared/format.ts";
@@ -20,7 +22,7 @@
     onretry,
   }: {
     threadId: string;
-    link: { currentBranch: boolean; detail?: string; stale?: boolean };
+    link: { currentBranch: boolean; detail?: string; stale?: boolean; watchedUntil?: Timestamp | undefined };
     summary: github.PullRequestSummary;
     pullRequest: github.PullRequestRef;
     stale: boolean;
@@ -34,6 +36,9 @@
   const unknown = $derived(unknownPullRequestLook(detail));
   const checks = $derived(checkLook(summary.checksState));
   const name = $derived(`${pullRequest.repositoryName} #${pullRequest.number}`);
+
+  // An agent of this thread hears about these checks (watch_pr_checks).
+  const watching = $derived(link.watchedUntil ? `Agent watches checks until ${formatTime(link.watchedUntil)}` : "");
 
   const retry = async () => {
     retrying = true;
@@ -68,7 +73,9 @@
         class="text-zinc-500 dark:text-zinc-400"
         title={name}>{unknown.label}</span
       >{/if}
-    {#snippet aside()}<span class="shrink-0 text-zinc-500 tabular-nums">#{pullRequest.number}</span><span
+    {#snippet aside()}{#if watching}<span class="flex shrink-0" {@attach tooltip(watching)}
+          ><Icon name="eye" size="sm" label={watching} /></span
+        >{/if}<span class="shrink-0 text-zinc-500 tabular-nums">#{pullRequest.number}</span><span
         class="flex size-4 shrink-0"
         {@attach tooltip(known ? `Checks: ${checks.label}` : "")}
         >{#if known}<CheckStateIcon look={checks} label={`Checks: ${checks.label}`} />{/if}</span
