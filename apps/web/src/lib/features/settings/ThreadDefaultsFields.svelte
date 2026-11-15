@@ -33,6 +33,8 @@
   const records = workerRecords(overview);
   let confirming = $state<() => void>();
   const provider = $derived(providerKeyOf(value.provider));
+  const useLastAgent = $derived(value.useLastAgent ?? (!inherited && !provider));
+  const agentValue = $derived(useLastAgent ? "last" : (provider ?? (value.useLastAgent === false ? "any" : "")));
 
   // Profiles any worker offers for the provider (the thread's worker decides when it starts).
   const profiles = $derived(
@@ -40,7 +42,11 @@
   );
 
   const inheritedAgent = $derived(
-    inherited && inherited.provider !== Provider.UNSPECIFIED ? providerLabel(inherited.provider) : "any available",
+    inherited && (inherited.useLastAgent ?? inherited.provider === Provider.UNSPECIFIED)
+      ? "last used"
+      : inherited && inherited.provider !== Provider.UNSPECIFIED
+        ? providerLabel(inherited.provider)
+        : "any available",
   );
 
   const set = (change: Partial<Omit<ui.ThreadDefaults, "$typeName">>) =>
@@ -84,28 +90,34 @@
 </PreferenceRow>
 <PreferenceRow
   title="Agent"
-  description="New threads use an agent available on the workspace's worker."
-  changed={value.provider !== Provider.UNSPECIFIED}
-  onreset={() => set({ provider: Provider.UNSPECIFIED, providerProfileId: "" })}
+  description="Use the last agent, model and reasoning effort, or set a default."
+  changed={value.provider !== Provider.UNSPECIFIED || value.useLastAgent !== undefined}
+  onreset={() => set({ provider: Provider.UNSPECIFIED, providerProfileId: "", useLastAgent: undefined })}
 >
   {#snippet control()}
     <Select
       name="provider"
       aria-label="Default agent"
-      value={provider ?? ""}
+      value={agentValue}
       onchange={(key) => {
         // The profile belongs to the agent; models are kept per agent.
-        set({ provider: isProviderKey(key) ? Provider[key] : Provider.UNSPECIFIED, providerProfileId: "" });
+        set({
+          provider: isProviderKey(key) ? Provider[key] : Provider.UNSPECIFIED,
+          providerProfileId: "",
+          useLastAgent: key === "last" ? true : key === "" ? undefined : false,
+        });
       }}
       class="w-56 sm:w-48"
       options={[
-        { value: "", label: inherited ? `Use my default (${inheritedAgent})` : "Any available" },
+        ...(inherited ? [{ value: "", label: `Use my default (${inheritedAgent})` }] : []),
+        { value: "last", label: "Last used" },
+        { value: "any", label: "Any available" },
         ...providerKeys.map((key) => ({ value: key, label: providerLabel(Provider[key]) })),
       ]}
     />
   {/snippet}
 </PreferenceRow>
-{#if provider}
+{#if provider && !useLastAgent}
   <PreferenceRow
     title="Profile"
     description="New threads use this profile to reach the provider."

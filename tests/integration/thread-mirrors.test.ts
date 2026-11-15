@@ -244,15 +244,28 @@ describe.skipIf(!dockerAvailable)("durable read-only thread mirrors across two g
     await eventually(async () => (await la.mirror.snapshot(node, own))?.thread?.lastUserTurnChoices?.effort === "high");
     expect((await la.mirror.snapshot(node, own))?.thread?.lastUserTurnChoices).toMatchObject({
       turnId: q(sent.turn!.id),
+      createdAt: sent.turn!.queuedAt,
       model: "gpt-5.5",
       effort: "high",
       permissionMode: PermissionMode.READ_ONLY,
     });
-    expect((await la.mirror.thread(node, own))?.lastUserTurnChoices).toBeUndefined();
+    expect((await la.mirror.thread(node, own))?.lastUserTurnChoices).toMatchObject({
+      turnId: q(sent.turn!.id),
+      createdAt: sent.turn!.queuedAt,
+    });
     expect(
       (await la.mirror.threads(node, create(ui.ListThreadsRequestSchema))).find((t) => t.id === q(own))
         ?.lastUserTurnChoices,
-    ).toBeUndefined();
+    ).toMatchObject({ turnId: q(sent.turn!.id), createdAt: sent.turn!.queuedAt });
+    await eventually(async () => (await la.mirror.overview(node)).lastUsedAgent?.id === q(own));
+    await b.api.setThreadArchived({ threadId: own, archived: true });
+    await caughtUp();
+    expect((await la.mirror.overview(node)).lastUsedAgent).toMatchObject({
+      id: q(own),
+      lastUserTurnChoices: { turnId: q(sent.turn!.id), createdAt: sent.turn!.queuedAt },
+    });
+    await b.api.deleteThread({ threadId: own });
+    await eventually(async () => (await la.mirror.overview(node)).lastUsedAgent?.id !== q(own));
   });
 
   test("online opens show the mirror while the home snapshot is blocked, then hand over to live updates", async () => {

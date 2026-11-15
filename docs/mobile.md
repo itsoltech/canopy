@@ -1,5 +1,8 @@
 # Canopy na iOS i Android
 
+Status: opis działającego kodu na `dev` (2026-11-15); domyślne wybory nowego wątku
+i filtr ulubionych modeli są zgodne z web. Dostępność w wydaniach zależy od kanału.
+
 Natywna aplikacja Expo/React Native działa na iOS i Androidzie. Obsługuje wątki,
 boty, pliki i załączniki, zgody oraz ustawienia. Z gatewayem paruje się przez
 Network access: klient przypina certyfikat TLS i dostaje odwoływalny token urządzenia.
@@ -1491,7 +1494,28 @@ kompozytorem i informacja o niedostępnym komputerze zachowują własne miejsca.
 
 New thread to jeden ekran jak w web: kompozytor z modelem, effort i plikami, pod nim projekt,
 worker (offline z notą, która blokuje wysyłkę) i uprawnienia. Wartości startowe biorą domyślne
-projektu nad Settings → Threads, potem ostatnio użyte (`features/new-thread/placement.ts`).
+projektu nad Settings → Threads (`domain/new-thread-choices`). Ustawienie agenta
+„Last used” jest domyślne dla nowego konta; istniejący jawny wybór agenta pozostaje stały.
+Stały agent projektu je zastępuje, a projekt
+może też jawnie wybrać ostatniego agenta albo odziedziczyć ustawienie konta.
+Profil i model w ustawieniach są ukryte podczas korzystania z ostatniego agenta.
+Nowy wątek bierze dostawcę, profil i model z ostatniej własnej wiadomości użytkownika,
+nie z aktywności agenta ani zakończenia tury. Jawne wybory szkicu mają pierwszeństwo.
+`GetOverview` i snapshot mobilny przekazują też ostatni wybór z wątków zarchiwizowanych,
+więc ponowne uruchomienie zachowuje tego samego agenta. Bieżące metadane danego wątku
+zastępują zapisany wybór, także po wycofaniu wiadomości lub usunięciu wątku.
+Snapshot połączonego komputera porównuje także jego ostatni wybór z wyborem innych
+komputerów; usunięcie połączenia usuwa wskazanie z tego komputera. Zmiana lub usunięcie
+zapamiętanej wiadomości odświeża wskazanie, aby odnaleźć poprzedni wybór w archiwum.
+Odłączenie komputera z zapamiętanym wyborem lub zastąpienie jego snapshotu także
+odczytuje bieżący wybór z gatewaya, uwzględniając archiwa pozostałych komputerów.
+Brak modelu w katalogu wybiera oferowany model domyślny; aliasy są akceptowane.
+Poziom rozumowania wraca tylko dla tego samego dostawcy i profilu, jeśli model go obsługuje.
+Uprawnienia pochodzą wyłącznie ze szkicu albo ustawień konta/projektu.
+Picker modeli nowego wątku otwiera „Favorites”, jeśli wybrany worker oferuje ulubione;
+„All” pokazuje wszystkie dostępne modele. Ręczna zmiana filtra pozostaje podczas
+kolejnych otwarć na tym ekranie. Bez ulubionych od razu widać wszystkie modele.
+Wpisanie wyszukiwania obejmuje wszystkie oferowane modele, również poza ulubionymi.
 Picker workera pokazuje płaską listę jak w web: dostępne workery najpierw, potem pozostałe,
 w obu grupach po nazwie. Kropka i opis pokazują stan oraz system, a cichy sufiks komputera
 rozróżnia tylko powtarzające się nazwy. Zamknięta kontrolka pokazuje samą nazwę workera.

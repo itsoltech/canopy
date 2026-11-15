@@ -31,6 +31,7 @@ export function ThreadDefaultsSettings({ settings }: { settings: Settings }) {
   const workerOptions = useWorkerOptions();
   const [picker, setPicker] = useState<"workspace" | "agent" | "permission" | null>(null);
   const defaults = settings.user?.threadDefaults;
+  const useLastAgent = defaults?.useLastAgent ?? !defaults?.provider;
   const close = () => setPicker(null);
 
   const save = (patch: Partial<ui.ThreadDefaults>) =>
@@ -70,14 +71,22 @@ export function ThreadDefaultsSettings({ settings }: { settings: Settings }) {
               <SelectField
                 label="Agent"
                 hideLabel
-                value={defaults?.provider ? providerName(defaults.provider) : "Any available"}
-                leading={defaults?.provider ? <ProviderIcon provider={defaults.provider} size={16} /> : undefined}
+                value={
+                  useLastAgent ? "Last used" : defaults?.provider ? providerName(defaults.provider) : "Any available"
+                }
+                leading={
+                  !useLastAgent && defaults?.provider ? (
+                    <ProviderIcon provider={defaults.provider} size={16} />
+                  ) : undefined
+                }
                 onPress={() => setPicker("agent")}
                 disabled={!settings.user}
               />
             }
           />
-          {!!defaults?.provider && <DefaultModels value={create(ui.ThreadDefaultsSchema, defaults)} onChange={save} />}
+          {!useLastAgent && !!defaults?.provider && (
+            <DefaultModels value={create(ui.ThreadDefaultsSchema, defaults)} onChange={save} />
+          )}
           <SettingsRow
             title="Permissions"
             description="New threads use this approval policy unless the project overrides it."
@@ -117,25 +126,7 @@ export function ThreadDefaultsSettings({ settings }: { settings: Settings }) {
             })),
         ]}
       />
-      <PickerSheet
-        title="Agent"
-        visible={picker === "agent"}
-        onClose={close}
-        value={defaults?.provider ?? Provider.UNSPECIFIED}
-        onSelect={(provider) => save({ provider, providerProfileId: "" })}
-        sections={[
-          {
-            options: [
-              { value: Provider.UNSPECIFIED, label: "Any available" },
-              ...[Provider.CODEX, Provider.CLAUDE, Provider.GROK].map((provider) => ({
-                value: provider,
-                label: providerName(provider),
-                leading: <ProviderIcon provider={provider} size={18} />,
-              })),
-            ],
-          },
-        ]}
-      />
+      <DefaultAgentPicker visible={picker === "agent"} onClose={close} defaults={defaults} onChange={save} />
       <PermissionPickerSheet
         visible={picker === "permission"}
         onClose={close}
@@ -143,5 +134,52 @@ export function ThreadDefaultsSettings({ settings }: { settings: Settings }) {
         onSelect={(permissionMode) => save({ permissionMode })}
       />
     </View>
+  );
+}
+
+function DefaultAgentPicker({
+  visible,
+  onClose,
+  defaults,
+  onChange,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  defaults: ui.ThreadDefaults | undefined;
+  onChange: (patch: Partial<ui.ThreadDefaults>) => void;
+}) {
+  const useLastAgent = defaults?.useLastAgent ?? !defaults?.provider;
+
+  return (
+    <PickerSheet<Provider | "last">
+      title="Agent"
+      visible={visible}
+      onClose={onClose}
+      value={useLastAgent ? "last" : (defaults?.provider ?? Provider.UNSPECIFIED)}
+      onSelect={(provider) =>
+        onChange(
+          provider === "last"
+            ? { provider: Provider.UNSPECIFIED, providerProfileId: "", useLastAgent: true }
+            : { provider, providerProfileId: "", useLastAgent: false },
+        )
+      }
+      sections={[
+        {
+          options: [
+            {
+              value: "last",
+              label: "Last used",
+              description: "Reuse the agent and model from your last message.",
+            },
+            { value: Provider.UNSPECIFIED, label: "Any available" },
+            ...[Provider.CODEX, Provider.CLAUDE, Provider.GROK].map((provider) => ({
+              value: provider,
+              label: providerName(provider),
+              leading: <ProviderIcon provider={provider} size={18} />,
+            })),
+          ],
+        },
+      ]}
+    />
   );
 }

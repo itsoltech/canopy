@@ -89,6 +89,7 @@ export function* deltaFrames(delta: ui.ThreadSnapshotDelta, previousCursor: stri
 export function safeOverview(value: ui.GetOverviewResponse): ui.GetOverviewResponse {
   // Explicit allowlist: public picker/update metadata only; provider config and credentials never enter mirrors.
   return create(ui.GetOverviewResponseSchema, {
+    lastUsedAgent: value.lastUsedAgent,
     workers: value.workers.map((w) => ({
       id: w.id,
       name: w.name,

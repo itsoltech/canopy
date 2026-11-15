@@ -191,6 +191,7 @@ function NewThreadPickers({ state, picker, close }: { state: State; picker: Pick
         onSelect={state.pickWorkspace}
       />
       <ModelPickerSheet
+        preferFavorites
         visible={picker === "model"}
         onClose={close}
         sections={sections}

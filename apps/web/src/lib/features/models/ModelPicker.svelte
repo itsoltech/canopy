@@ -34,6 +34,7 @@
     catalog,
     open = $bindable(false),
     allowCustom = true,
+    preferFavorites = false,
     notice,
     refreshing = false,
     onrefresh,
@@ -50,6 +51,7 @@
     open?: boolean;
     /** Offer "Use “…”" for a model id typed in the search. */
     allowCustom?: boolean;
+    preferFavorites?: boolean;
     /** Note in the footer (e.g. why the last refresh failed). */
     notice?: string | undefined;
     refreshing?: boolean;
@@ -77,11 +79,13 @@
 
   const current = $derived(
     section ??
-      (selected
-        ? instanceKeyOf(selected)
-        : favoriteOptions.length > 0
-          ? "favorites"
-          : (instances[0]?.key ?? "favorites")),
+      (preferFavorites && favoriteOptions.length > 0
+        ? "favorites"
+        : selected
+          ? instanceKeyOf(selected)
+          : favoriteOptions.length > 0
+            ? "favorites"
+            : (instances[0]?.key ?? "favorites")),
   );
 
   const searching = $derived(query.trim().length > 0);

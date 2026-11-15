@@ -795,6 +795,8 @@ message ComposerTurnChoices {
   string model = 2;
   string effort = 3;
   canopy.worker.v1.PermissionMode permission_mode = 4;
+  // Creation time of the selected user turn, independent of later thread activity.
+  google.protobuf.Timestamp created_at = 5;
 }
 
 message ThreadImport {
@@ -1055,6 +1057,9 @@ message GetOverviewResponse {
   repeated Worker workers = 1;
   repeated Project projects = 2;
   repeated Agent agents = 3;
+  // Latest own user choice, including archived threads/projects, excluding deleted
+  // threads. Metadata only; combine with live threads by the choice creation time.
+  Thread last_used_agent = 4;
   // Połączone komputery: nazwy i obecność dla znaczków maszyny i zdalnych wątków.
   repeated LinkedComputer computers = 800;
 }
@@ -1846,6 +1851,10 @@ message ThreadDefaults {
   repeated ProviderModel models = 6;
   // Tylko ustawienia użytkownika: UNSPECIFIED = tryb rodzica; jawny tryb ogranicza nowe subagenty.
   canopy.worker.v1.PermissionMode subagent_permission_mode = 7;
+  // User: absent uses latest unless a provider is configured. Project: absent inherits; an explicit provider fixes
+  // the agent unless true explicitly requests the latest user choices.
+  // Project false with no provider explicitly selects any available agent.
+  optional bool use_last_agent = 8;
 }
 
 message ProviderModel {

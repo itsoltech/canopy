@@ -14,6 +14,7 @@ import { useSession } from "./session";
 import { useOverviewEvents, useOverviewStream } from "./overview-bus";
 import { useThreadWarming } from "./thread-warming";
 import { useSettleThread } from "./settle-thread";
+import { useLastUsedAgent } from "./last-used-agent";
 
 const upsertComputer = (rows: ui.LinkedComputer[], value: ui.LinkedComputer) => [
   ...rows.filter((r) => r.nodeId !== value.nodeId),
@@ -21,8 +22,9 @@ const upsertComputer = (rows: ui.LinkedComputer[], value: ui.LinkedComputer) => 
 ];
 
 function useOverviewState() {
-  const { client, modelCatalog, archivedCache } = useSession();
+  const { client, archivedCache } = useSession();
   const [threads, setThreads] = useState<ui.Thread[]>([]);
+  const { value: lastUsedAgent, receive: receiveLastUsedAgent } = useLastUsedAgent();
   const [projects, setProjects] = useState<ui.Project[]>([]);
   const [workers, setWorkers] = useState<ui.Worker[]>([]);
   const [computers, setComputers] = useState<ui.LinkedComputer[]>([]);
@@ -39,13 +41,7 @@ function useOverviewState() {
     if (loaded) void archivedCache?.rememberMetadata(projects, workers)?.catch(() => {});
   }, [archivedCache, loaded, projects, workers]);
 
-  // Warm model names and effort choices while the thread list is visible, before a composer mounts.
-  useEffect(() => {
-    if (!client) return;
-
-    for (const worker of workersWithAvailability(workers, computers))
-      if (worker.online) void modelCatalog.load(worker.id).catch(() => {});
-  }, [client, modelCatalog, workers, computers]);
+  useWarmModels(workers, computers);
 
   const reload = useCallback(async () => {
     if (!client) return;
@@ -60,9 +56,10 @@ function useOverviewState() {
     setProjects((rows) => retainProjects(rows, overview.projects, overview.computers));
     setWorkers((rows) => retainLinkedRows(rows, overview.workers, overview.computers));
     setComputers(overview.computers);
+    receiveLastUsedAgent(overview.lastUsedAgent);
     setThreads((rows) => retainLinkedRows(rows, list.threads, overview.computers));
     setLoaded(true);
-  }, [client]);
+  }, [client, receiveLastUsedAgent]);
 
   useEffect(() => {
     const requests = generation;
@@ -163,6 +160,7 @@ function useOverviewState() {
 
   return {
     threads: client ? threads : [],
+    lastUsedAgent: client ? lastUsedAgent : undefined,
     projects,
     projectChoices: choices,
     workers: available,
@@ -176,6 +174,17 @@ function useOverviewState() {
     updateThread,
     settleThread: useSettleThread(threads, stream.connection === "live", archivedCache, updateThread),
   };
+}
+
+/** Warm model names and efforts before a composer mounts. */
+function useWarmModels(workers: ui.Worker[], computers: ui.LinkedComputer[]) {
+  const { client, modelCatalog } = useSession();
+  useEffect(() => {
+    if (!client) return;
+
+    for (const worker of workersWithAvailability(workers, computers))
+      if (worker.online) void modelCatalog.load(worker.id).catch(() => {});
+  }, [client, modelCatalog, workers, computers]);
 }
 
 const Context = createContext<ReturnType<typeof useOverviewState> | null>(null);

@@ -16,7 +16,7 @@
   import TopBar from "#lib/features/navigation/TopBar.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
-  import { effectiveDefaults, modelFor } from "#lib/features/settings/thread-defaults.ts";
+  import { effectiveDefaults } from "#lib/features/settings/thread-defaults.ts";
   import { defaultProject, defaultWorkspace } from "#lib/features/projects/placement.ts";
   import ProjectPicker from "#lib/features/projects/ProjectPicker.svelte";
   import WorkerPicker from "#lib/features/projects/WorkerPicker.svelte";
@@ -25,12 +25,12 @@
   import FileDropOverlay from "#lib/features/attachments/FileDropOverlay.svelte";
   import { limitsOf } from "#lib/features/attachments/draft.svelte.ts";
   import { MentionSources } from "#lib/features/mentions/sources.svelte.ts";
-  import { findOption, modelOptions, type ModelOption } from "#lib/features/models/catalog.ts";
+  import { modelOptions, type ModelOption } from "#lib/features/models/catalog.ts";
+  import { newThreadModel } from "#lib/features/models/new-thread-model.ts";
   import { useModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
   import ModelControls from "#lib/features/models/ModelControls.svelte";
   import PermissionPicker from "#lib/features/threads/components/PermissionPicker.svelte";
   import { permissionKey } from "#lib/features/threads/labels.ts";
-  import { profileIdValue, providerKeyOf } from "#lib/features/threads/providers.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
   import EmptyState from "#lib/shared/ui/EmptyState.svelte";
@@ -106,7 +106,6 @@
 
   const pickProject = (next: ProjectChoice) => (picks = { requested, projectId: next.id });
   const pickWorkspace = (next: ui.Workspace) => (picks = { requested, projectId: project?.id, workspaceId: next.id });
-  const defaultProvider = $derived(providerKeyOf(defaults.provider));
 
   // Model options (provider × profile × model) from the worker's catalog. Until you pick one: the defaults'
   // provider, profile and model (the profile's default model when the list lacks it), else the defaults'
@@ -144,36 +143,23 @@
         model: option.model,
         provider: Provider[option.provider],
         providerProfileId: option.profileId,
+        effort: effort && option.efforts.some((e) => e.id === effort) ? effort : "",
       };
   }
 
-  const fromDefaults = $derived.by(() => {
-    if (!defaultProvider) return undefined;
-    const ofProvider = options.filter((o) => o.provider === defaultProvider);
-    const profile = defaults.providerProfileId ? profileIdValue(defaults.providerProfileId) : undefined;
-
-    const profileId =
-      profile !== undefined && ofProvider.some((o) => o.profileId === profile) ? profile : ofProvider[0]?.profileId;
-
-    if (profileId === undefined) return undefined;
-
-    return (
-      findOption(options, defaultProvider, profileId, modelFor(defaults, Provider[defaultProvider])) ??
-      findOption(options, defaultProvider, profileId, "")
-    );
-  });
-
-  const offered = (option: ModelOption | undefined) =>
-    option && options.some((o) => o.provider === option.provider && o.profileId === option.profileId);
-
-  const selected = $derived(offered(picked) ? picked : (fromDefaults ?? options[0]));
+  const initial = $derived(newThreadModel(options, defaults, overview.agentChoiceThreads));
+  const selected = $derived(picked ?? initial.option);
 
   // Not picked and the profile's default: "" (the thread follows the profile's default model).
-  const model = $derived(!selected || (selected !== picked && selected.isDefault) ? "" : selected.model);
-  const effort = $derived(saved.choices.effort);
+  const model = $derived(!selected || (!picked && !initial.remembered && selected.isDefault) ? "" : selected.model);
+  const requestedEffort = $derived(saved.choices.effort ?? (!picked ? initial.effort : undefined));
+
+  const effort = $derived(
+    requestedEffort && selected?.efforts.some((e) => e.id === requestedEffort) ? requestedEffort : undefined,
+  );
 
   // Only an effort the model takes (switching the workspace can change the model).
-  const sentEffort = $derived(effort && selected?.efforts.some((e) => e.id === effort) ? effort : "");
+  const sentEffort = $derived(effort ?? "");
 
   // Your pick stays with the new-thread draft (leave and come back); unset = the defaults (Settings → Threads).
   const permissionMode = $derived(permissionKey(saved.choices.permissionMode ?? defaults.permissionMode));
@@ -339,7 +325,8 @@
               <ModelControls
                 {options}
                 bind:option={() => selected, pickModel}
-                bind:effort={() => effort, (next) => (saved.choices = { ...saved.choices, effort: next })}
+                bind:effort={() => effort, (next) => (saved.choices = { ...saved.choices, effort: next ?? "" })}
+                preferFavorites
                 {workerId}
                 class="flex-1 justify-end"
               />

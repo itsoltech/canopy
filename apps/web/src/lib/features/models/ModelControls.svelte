@@ -19,6 +19,7 @@
     inherited,
     workerId,
     allowCustom = true,
+    preferFavorites = false,
     class: className,
   }: {
     options: readonly ModelOption[];
@@ -30,6 +31,8 @@
     /** Worker whose catalog the options come from. */
     workerId?: string | undefined;
     allowCustom?: boolean;
+    /** Open on favorites when choosing the agent of a new thread. */
+    preferFavorites?: boolean;
     class?: ClassValue;
   } = $props();
 
@@ -58,6 +61,7 @@
       value={option?.key}
       catalog={workerId ? models.of(workerId) : undefined}
       {allowCustom}
+      {preferFavorites}
       notice={workerId ? models.errors.get(workerId) : undefined}
       refreshing={workerId ? models.refreshing.has(workerId) : false}
       onrefresh={workerId ? () => void models.refresh(workerId) : undefined}
