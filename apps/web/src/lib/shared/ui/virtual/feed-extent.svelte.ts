@@ -7,6 +7,8 @@ import { FEED_END_THRESHOLD } from "./scroll.ts";
  */
 export class FeedExtent {
   overflows = $state(true);
+  /** The end of the last row is on screen above the composer (no "Jump to latest" then). */
+  endVisible = $state(true);
   private height = 0;
 
   /** Measures the rows at a settle: whether the reader follows the end now (still, or back at it). */
@@ -23,5 +25,25 @@ export class FeedExtent {
     const end = scroller.scrollHeight - scroller.clientHeight;
 
     if (Math.abs(scroller.scrollTop - end) >= 1) setTop(end);
+  }
+
+  /**
+   * Tracks `endVisible`. `sentinel` is the list's last pixel (1px tall, pulled up by 1px), right after the rows:
+   * an unmounted last row leaves the list's bottom padding in front of it, so it counts as off screen. The root
+   * ends at the composer's visible edge (`edge`, footer-edge.ts), so a row covered by up to 1px still counts.
+   */
+  watchEnd(scroller: HTMLElement, sentinel: HTMLElement, edge: number): () => void {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries.at(-1);
+
+        if (entry) this.endVisible = entry.isIntersecting;
+      },
+      { root: scroller, rootMargin: `0px 0px ${-edge}px 0px` },
+    );
+
+    observer.observe(sentinel);
+
+    return () => observer.disconnect();
   }
 }
