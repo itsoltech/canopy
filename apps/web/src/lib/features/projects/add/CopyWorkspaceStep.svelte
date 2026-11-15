@@ -213,7 +213,7 @@
   onsubmit={submit}
   {actionLabel}
   disabledReason={actionDisabledReason}
-  busy={busy || loading || running}
+  busy={busy || loading}
 >
   <h2 class="min-w-0 flex-1 truncate py-3 font-medium" title={name}>
     {done

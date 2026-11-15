@@ -3,6 +3,7 @@
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import GrowIn from "#lib/shared/ui/GrowIn.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
+  import MiddleTruncatedText from "#lib/shared/ui/MiddleTruncatedText.svelte";
   import Popover from "#lib/shared/ui/Popover.svelte";
   import CopyJobDetails from "./CopyJobDetails.svelte";
   import { copyJobs } from "./copy-jobs.svelte.ts";
@@ -49,7 +50,7 @@
                       job.status === "failed" ? "text-rose-600 dark:text-rose-400" : "text-icon-muted",
                     ]}
                   />
-                  <span class="min-w-0 flex-1 truncate">{copyJobTitle(job)}</span>
+                  <MiddleTruncatedText text={copyJobTitle(job)} hint={false} class="flex-1" />
                   <span class="shrink-0 text-muted tabular-nums">{copyJobState(job)}</span>
                 </span>
                 {#if job.status !== "failed"}
