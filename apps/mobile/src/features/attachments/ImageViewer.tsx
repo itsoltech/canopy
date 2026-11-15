@@ -1,36 +1,54 @@
 import { useState, type ReactNode } from "react";
-import { ActivityIndicator, Platform, ScrollView, Text, View } from "react-native";
+import { Platform, ScrollView, Text, View } from "react-native";
+import Animated, { useAnimatedStyle, useDerivedValue } from "react-native-reanimated";
 import { base64Decode } from "@bufbuild/protobuf/wire";
 import { File } from "expo-file-system";
 import { Button, IconButton } from "../../ui/Button";
 import { FullScreenViewer } from "../../ui/FullScreenViewer";
 import { styles, useColors, useTypography } from "../../ui/theme";
-import { ImageCanvas } from "./ImageCanvas";
-import type { ImageSource } from "./image-source";
+import { ImagePager, type ViewerImage } from "./ImagePager";
+import { useImagePagerModel } from "./image-pager-model";
 import { useImage } from "./useImage";
 import { exportFile } from "./export-file";
 
+export type { ViewerImage };
+
+/**
+ * Full-screen images: swipe between them, pinch or double-tap to zoom, drag down to close. With more than one
+ * image, Previous and Next stay as buttons for screen readers and one-handed use; they wrap around, swipes stop
+ * at either end.
+ */
 export function ImageViewer({
-  source,
-  name,
-  alt,
-  caption,
+  images,
+  index = 0,
+  onIndexChange,
   controls,
   onClose,
 }: {
-  source: ImageSource;
-  name: string;
-  alt?: string;
-  caption?: string;
+  images: readonly ViewerImage[];
+  index?: number;
+  onIndexChange?: (index: number) => void;
   controls?: ReactNode;
   onClose: () => void;
 }) {
   const c = useColors();
   const type = useTypography();
-  const image = useImage(source);
+  const [own, setOwn] = useState(index);
+  const selected = onIndexChange ? index : own;
+  const select = onIndexChange ?? setOwn;
+  const current = images[selected]!;
+  const image = useImage(current.source);
+  const model = useImagePagerModel(selected, images.length, select);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [decodeError, setDecodeError] = useState(false);
+  const caption = current.caption;
+  const move = (direction: number) => select((selected + direction + images.length) % images.length);
+
+  const fade = useDerivedValue(
+    () => 1 - Math.min(1, Math.abs(model.dismissY.get()) / ((model.viewport.get().height || 1) * 0.6)),
+  );
+
+  const chrome = useAnimatedStyle(() => ({ opacity: fade.get() }));
 
   async function save() {
     if (busy || !image.uri) return;
@@ -41,7 +59,7 @@ export function ImageViewer({
       const match = /^data:([^;]+);base64,(.*)$/s.exec(image.uri);
       const encoded = match?.[2];
       const bytes = encoded !== undefined ? base64Decode(encoded) : await new File(image.uri).bytes();
-      await exportFile(name, bytes, match?.[1] || "application/octet-stream");
+      await exportFile(current.name, bytes, match?.[1] || "application/octet-stream");
     } catch {
       setError("Could not export the image. Try again.");
     } finally {
@@ -51,8 +69,9 @@ export function ImageViewer({
 
   return (
     <FullScreenViewer
-      title={name}
+      title={current.name}
       onClose={onClose}
+      fade={fade}
       actions={
         <IconButton
           icon="arrow-down"
@@ -63,37 +82,28 @@ export function ImageViewer({
         />
       }
     >
-      {image.uri && !decodeError ? (
-        <ImageCanvas uri={image.uri} name={alt || name} onClose={onClose} onError={() => setDecodeError(true)} />
-      ) : (
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 20, gap: 12 }}>
-          {image.error || decodeError ? (
-            <>
-              <Text accessibilityRole="alert" style={[styles.body, { color: c.muted }]}>
-                {decodeError ? "Could not display the image. Retry, or export it to open in another app." : image.error}
+      <ImagePager model={model} images={images} index={selected} onClose={onClose} />
+      {caption || controls || images.length > 1 ? (
+        <Animated.View style={[{ padding: 12, gap: 12, borderTopWidth: 1, borderColor: c.rule }, chrome]}>
+          {images.length > 1 ? (
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              <Button title="Previous" label="Previous image" variant="ghost" onPress={() => move(-1)} />
+              <Text
+                accessibilityLiveRegion="polite"
+                style={[type.small, { color: c.text, fontVariant: ["tabular-nums"] }]}
+              >
+                {(selected + 1).toLocaleString()} / {images.length.toLocaleString()}
               </Text>
-              <Button
-                title="Retry"
-                onPress={() => {
-                  setDecodeError(false);
-                  image.retry();
-                }}
-              />
-            </>
-          ) : (
-            <ActivityIndicator accessibilityLabel="Loading image" color={c.muted} />
-          )}
-        </View>
-      )}
-      {caption || controls ? (
-        <View style={{ padding: 12, gap: 12, borderTopWidth: 1, borderColor: c.rule }}>
+              <Button title="Next" label="Next image" variant="ghost" onPress={() => move(1)} />
+            </View>
+          ) : null}
           {controls}
           {caption ? (
             <ScrollView style={{ maxHeight: 100 }}>
               <Text style={[type.small, { color: c.soft }]}>{caption}</Text>
             </ScrollView>
           ) : null}
-        </View>
+        </Animated.View>
       ) : null}
       {error ? (
         <Text accessibilityRole="alert" style={[styles.meta, { padding: 12, color: c.danger }]}>

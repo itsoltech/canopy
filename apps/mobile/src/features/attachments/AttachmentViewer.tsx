@@ -21,7 +21,7 @@ export function AttachmentViewer({ file, onClose }: { file: ui.Attachment; onClo
   if (attachmentPreviewKind(file) === "video") return <VideoSummary file={file} onClose={onClose} />;
 
   return file.kind === "image" ? (
-    <ImageViewer source={{ kind: "attachment", file }} name={file.name} onClose={onClose} />
+    <ImageViewer images={[{ key: file.id, source: { kind: "attachment", file }, name: file.name }]} onClose={onClose} />
   ) : (
     <FileViewer file={file} onClose={onClose} />
   );
