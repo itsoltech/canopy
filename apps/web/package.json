@@ -36,6 +36,7 @@
     "effect": "4.1.1",
     "katex": "0.16.28",
     "marked": "18.1.2",
+    "mermaid": "12.3.0",
     "qrcode": "1.5.4",
     "simple-icons": "16.37.0"
   },

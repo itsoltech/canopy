@@ -5,6 +5,7 @@
   import { provideInlineElements, withSentinels, type InlineElements } from "./inline-elements.ts";
   import { StreamingTokens } from "./streaming-tokens.ts";
   import { provideImages, type ImageRenderer } from "./images.ts";
+  import { provideDiagrams } from "./diagrams.ts";
 
   /**
    * Markdown from agents, rendered from marked's token tree by Svelte components. Nothing is
@@ -19,6 +20,8 @@
    * list item, table row and code line resolves in (motion.css `t-stream`).
    *
    * `elements`: the caller's inline elements over ranges of `text` (mention chips; inline-elements.ts).
+   *
+   * `diagrams`: draw ` ```mermaid ` fences as diagrams (`MermaidDiagram`) once the text is complete.
    */
   let {
     text,
@@ -26,6 +29,7 @@
     breaks = false,
     elements,
     image,
+    diagrams = false,
     class: className,
   }: {
     text: string;
@@ -33,12 +37,19 @@
     breaks?: boolean;
     elements?: InlineElements | undefined;
     image?: ImageRenderer;
+    diagrams?: boolean;
     class?: ClassValue;
   } = $props();
 
   provideImages({
     get render() {
       return image;
+    },
+  });
+
+  provideDiagrams({
+    get enabled() {
+      return diagrams && !streaming;
     },
   });
 

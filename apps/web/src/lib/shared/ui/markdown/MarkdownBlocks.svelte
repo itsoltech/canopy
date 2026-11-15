@@ -9,6 +9,9 @@
   import { useInlineElements } from "./inline-elements.ts";
   import { useImages } from "./images.ts";
   import MarkdownHtml from "./MarkdownHtml.svelte";
+  import MermaidDiagram from "./MermaidDiagram.svelte";
+  import { useDiagrams } from "./diagrams.ts";
+  import { isMermaidFence } from "./mermaid.ts";
 
   /** `streaming`: the text is still arriving (code blocks reveal per line, `CodeFence`). */
   let {
@@ -19,6 +22,7 @@
 
   const elements = useInlineElements();
   const images = useImages();
+  const diagrams = useDiagrams();
 
   const headingSize = new Map<number, string>([
     [1, "text-lg/7 sm:text-base/7"],
@@ -53,6 +57,9 @@
     >
       <MarkdownInline tokens={inline(heading)} />
     </p>
+  {:else if token.type === "code" && diagrams?.enabled && isMermaidFence((token as Tokens.Code).lang)}
+    {@const code = token as Tokens.Code}
+    <MermaidDiagram code={code.text} lang={code.lang ?? "mermaid"} />
   {:else if token.type === "code"}
     {@const code = token as Tokens.Code}
     <CodeFence code={elements ? elements.restore(code.text) : code.text} lang={code.lang} {streaming} />

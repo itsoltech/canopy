@@ -43,7 +43,7 @@
 {:else if rendered}
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
   <div class="min-h-full p-4 focus-ring" tabindex="0" role="region" aria-label={name} data-select-content>
-    <Markdown {text} />
+    <Markdown {text} diagrams />
   </div>
 {:else if text}
   <CodeView
