@@ -28,7 +28,8 @@ export class DiagnosticsPersistence {
     readonly store: DiagnosticsStore,
     readonly collector: RpcCollector,
     readonly host: {
-      state(): Pick<ui.DiagnosticsState, "findings" | "watermarks" | "peerOverviews">;
+      state(): Pick<ui.DiagnosticsState, "findings" | "watermarks" | "peerOverviews"> &
+        Partial<Pick<ui.DiagnosticsState, "workerStorage">>;
       restore(state: ui.DiagnosticsState): void;
       restoreProcess(process: ui.DiagnosticsProcess, at: number): void;
       processes(at: number): ui.DiagnosticsProcess[];

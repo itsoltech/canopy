@@ -164,6 +164,19 @@ message DiagnosticsLink {
   repeated DiagnosticsMeasure measures = 11;
   bool measures_supported = 12;
   uint64 dropped_samples = 13;
+  DiagnosticsStorage storage = 14;
+}
+// Current Canopy-owned file sizes. No paths or filenames cross the source boundary.
+message DiagnosticsStorage {
+  string status = 1; // measuring, ready, partial or unavailable
+  int64 sampled_at_ms = 2;
+  repeated DiagnosticsStorageCategory categories = 3;
+  string component = 4; // gateway, worker or desktop
+  double sample_age_ms = 5; // Source-computed age at response time; independent of receiver clock offset.
+}
+message DiagnosticsStorageCategory {
+  string category = 1; // logs, data, cache, application or database
+  uint64 bytes = 2;
 }
 message ComputerDiagnostics {
   string computer_id = 1;
@@ -203,6 +216,7 @@ message ComputerDiagnostics {
   DiagnosticsTraceState tracing = 35; // Metadata only. Samples require a separate explicit export.
   bool tracing_supported = 36;
   repeated string limit_reasons = 37; // Closed reason codes for loss within the selected range.
+  DiagnosticsStorage storage = 38;
 }
 
 // One ephemeral lease on one selected local process. Never persisted or relayed onward.
@@ -245,6 +259,7 @@ message DiagnosticsWorkerTraceReply {
 }
 message DiagnosticsSnapshot {
   repeated ComputerDiagnostics computers = 1;
+  DiagnosticsStorage desktop_storage = 2; // Added only by this desktop's local BFF; never forwarded to a gateway.
 }
 // Owner-scoped durable state, replaced atomically with the rollup watermark.
 message DiagnosticsState {
@@ -257,6 +272,11 @@ message DiagnosticsState {
   bool persistence_gap = 7;
   int64 epoch_started_at_ms = 8;
   repeated DiagnosticsBaseline baselines = 9; // At most 17 local process baselines; fences worker batches across restart.
+  repeated DiagnosticsWorkerStorage worker_storage = 10; // At most 16 last-known worker or remote-desktop samples.
+}
+message DiagnosticsWorkerStorage {
+  string worker_id = 1;
+  DiagnosticsStorage storage = 2;
 }
 message DiagnosticsBaseline {
   string process_id = 1;
@@ -414,4 +434,5 @@ message WorkerLinkDiagnostics {
   repeated DiagnosticsMeasureAggregate measures = 8;
   bool worker_measures_supported = 9;
   uint64 dropped_samples = 10;
+  DiagnosticsStorage storage = 11;
 }

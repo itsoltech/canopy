@@ -9,6 +9,7 @@ import {
   SYNC_METRIC_IDS,
   CLIENT_METRICS,
   traceState,
+  sanitizeStorage,
 } from "@canopy/domain/diagnostics";
 import { RPC_METHODS, LINKED_METHODS, COMMAND_METHODS } from "./registry.ts";
 import { LIMIT_REASONS } from "./losses.ts";
@@ -94,6 +95,7 @@ export function sanitizeSnapshot(value: ui.ComputerDiagnostics) {
   value.limitReasons = [...new Set(value.limitReasons.filter((reason) => reasons.has(reason)))];
   const dropped = value.droppedSamples;
   value.tracing = traceState(value.tracing);
+  value.storage = sanitizeStorage(value.storage);
   const calls: ui.DiagnosticsCall[] = [];
   const seen = new Set<string>();
 
@@ -157,8 +159,14 @@ export function sanitizeSnapshot(value: ui.ComputerDiagnostics) {
   );
   value.clientMeasures = measures(value.clientMeasures, new Set(CLIENT_METRICS.map((metric) => metric.id)));
 
-  for (const link of value.links)
+  for (const link of value.links) {
     link.measures = measures(link.measures, link.kind === "worker" ? WORKER_METRIC_IDS : SYNC_METRIC_IDS);
+    link.storage =
+      link.kind === "worker" && ["worker", "desktop"].includes(link.storage?.component ?? "")
+        ? sanitizeStorage(link.storage)
+        : undefined;
+  }
+
   const links = new Set(value.links.map((link) => `${link.kind}:${link.targetId}`));
   value.findings = value.findings.filter(
     (finding) =>

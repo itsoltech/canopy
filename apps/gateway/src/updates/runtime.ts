@@ -79,6 +79,10 @@ export class GatewayUpdates {
   get draining(): boolean {
     return this.#draining;
   }
+  /** Selected runtime directory, including a private temporary fallback after prepare(). */
+  get cacheDirectory(): string {
+    return this.#cache.directory;
+  }
   constructor(readonly options: GatewayUpdatesOptions) {
     this.version = options.version ?? CANOPY_VERSION;
     this.kind = options.kind ?? installKind();

@@ -11,6 +11,7 @@ import { eventually, startTestGateway, type TestGateway } from "./support/gatewa
 import { MAX_METHODS, methodId } from "../../apps/gateway/src/diagnostics/registry.ts";
 import { linkedMessage } from "../../apps/gateway/src/computers/remote.ts";
 import { rpcSnapshot } from "../../apps/gateway/src/diagnostics/snapshot.ts";
+import { tempDir } from "@canopy/testing";
 
 const rejectedCode = (promise: Promise<object>) =>
   promise.then(
@@ -19,6 +20,7 @@ const rejectedCode = (promise: Promise<object>) =>
   );
 
 describe.skipIf(!dockerAvailable)("owner diagnostics over real gRPC and one relay", () => {
+  const storageDirectory = tempDir("canopy-linked-diagnostics-storage-");
   let a: TestGateway;
   let b: TestGateway;
   let c: TestGateway;
@@ -51,7 +53,11 @@ describe.skipIf(!dockerAvailable)("owner diagnostics over real gRPC and one rela
       diagnostics: true,
       worker: { hello: { capabilities: ["diagnostics_v1"] } },
     });
-    c = await startTestGateway({ role: "desktop", diagnostics: true });
+    c = await startTestGateway({
+      role: "desktop",
+      diagnostics: true,
+      diagnosticsStorage: { roots: () => [{ path: storageDirectory, category: "data" }] },
+    });
 
     for (const gateway of [a, b, c]) {
       const computer = runtime(gateway);
@@ -207,6 +213,14 @@ describe.skipIf(!dockerAvailable)("owner diagnostics over real gRPC and one rela
       received.push(linkedMessage(ui.ComputerDiagnosticsSchema, response));
     expect(received[0]?.computerId).toBe(target());
     expect(received[0]?.calls).toEqual([]);
+
+    const measured = await eventually(
+      () => c.api.getComputerDiagnostics({}),
+      (value) => Boolean(value.storage?.sampledAtMs),
+    );
+
+    expect(measured.storage?.categories.find((row) => row.category === "database")?.bytes).toBeGreaterThan(0n);
+    expect(received[0]?.storage?.component).toBe("gateway");
     expect(received[0]?.links.some((value) => value.targetId === nodes[0]!.hello().nodeId)).toBe(false);
 
     for (const read of a.core.diagnostics.peers.reads.values()) read.due = 0;

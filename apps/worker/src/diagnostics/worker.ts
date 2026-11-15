@@ -1,13 +1,25 @@
 import { stat, statfs } from "node:fs/promises";
 import { join } from "node:path";
+import { StorageSampler } from "@canopy/logs/storage";
+import { workerStorageOptions } from "@canopy/logs/worker-storage";
+import type { StorageRoot, StorageSamplerOptions } from "@canopy/logs/storage";
 import { WorkerMeasurements } from "./measurements.ts";
 import { WorkerTurns } from "./turns.ts";
 import { gitMetric, METRIC_DEFINITIONS, type GitFamily } from "@canopy/domain/diagnostics";
 import type { JournalStatistics } from "../journal/statistics.ts";
 
+export interface WorkerStorageSetup {
+  readonly logDirectory?: string;
+  readonly worktreeRoots?: readonly string[];
+  readonly externalProviderHomes?: readonly string[];
+  readonly additionalRoots?: readonly StorageRoot[];
+  readonly samplerOptions?: StorageSamplerOptions;
+}
+
 export class WorkerDiagnostics {
   enabled = false;
-  readonly measurements = new WorkerMeasurements();
+  #storage: StorageSampler | undefined;
+  readonly measurements: WorkerMeasurements;
   readonly turns = new WorkerTurns(this);
   readonly #sent = new Map<string, bigint>();
   #cpu = process.cpuUsage();
@@ -18,7 +30,9 @@ export class WorkerDiagnostics {
   constructor(
     readonly monotonic = () => performance.now(),
     readonly utc = () => Date.now(),
-  ) {}
+  ) {
+    this.measurements = new WorkerMeasurements(() => this.#storage?.snapshot());
+  }
 
   record(id: number, value: number, error = false, weight = 0) {
     if (this.enabled)
@@ -31,8 +45,18 @@ export class WorkerDiagnostics {
       );
   }
 
-  start(dataDir: string, journal?: () => JournalStatistics) {
+  start(dataDir: string, journal?: () => JournalStatistics, storage: WorkerStorageSetup = {}) {
     if (this.#timer) return;
+    this.#storage = new StorageSampler(
+      storage.samplerOptions ??
+        workerStorageOptions({
+          dataDir,
+          ...(storage.logDirectory && { logDirectory: storage.logDirectory }),
+          ...(storage.worktreeRoots && { worktreeRoots: storage.worktreeRoots }),
+          ...(storage.externalProviderHomes && { externalProviderHomes: storage.externalProviderHomes }),
+          ...(storage.additionalRoots && { additionalRoots: storage.additionalRoots }),
+        }),
+    );
     this.enabled = true;
     this.#at = this.monotonic();
     this.#cpu = process.cpuUsage();
@@ -138,6 +162,7 @@ export class WorkerDiagnostics {
     clearInterval(this.#timer);
     this.#timer = undefined;
     this.enabled = false;
+    this.#storage?.close();
     this.turns.active.clear();
     this.#sent.clear();
     this.measurements.reset();

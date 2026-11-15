@@ -25,6 +25,8 @@ import { ClientDiagnostics } from "./clients.ts";
 import { DiagnosticsActions } from "./actions.ts";
 import { DiagnosticsLogs } from "./log-jobs.ts";
 import { DiagnosticsTracing } from "./tracing.ts";
+import { GatewayStorage } from "./storage.ts";
+import { workerStorageState, restoreDiagnosticsState } from "./worker-storage-state.ts";
 
 import { validateDiagnostics } from "./validate.ts";
 
@@ -49,6 +51,7 @@ export class Diagnostics {
   readonly actions: DiagnosticsActions;
   readonly logs: DiagnosticsLogs;
   readonly tracing: DiagnosticsTracing;
+  readonly storage: GatewayStorage;
 
   constructor(
     readonly core: GatewayCore,
@@ -68,6 +71,7 @@ export class Diagnostics {
     this.actions = new DiagnosticsActions(core);
     this.logs = new DiagnosticsLogs(core, options);
     this.tracing = new DiagnosticsTracing(core);
+    this.storage = new GatewayStorage(options.runtime, options.userId, options.diagnosticsStorage);
     this.clients = new ClientDiagnostics(
       this.collector,
       () => this.persistence?.epoch ?? this.collector.session,
@@ -95,28 +99,12 @@ export class Diagnostics {
           findings: [...this.findings.states.values()],
           watermarks: [],
           peerOverviews: this.#peerState(),
+          workerStorage: workerStorageState(this.links.values()),
         }),
         saved: (state) => {
           if (state.peerOverviews.length) this.#cacheSavedAt = Date.now();
         },
-        restore: (state) => {
-          this.clients.restore(state.watermarks);
-          this.findings.restore(state.findings);
-          this.peers.restore(state.peerOverviews);
-
-          for (const link of this.links.values())
-            link.resetAt = this.persistence?.baselines.get(`${link.kind}:${link.target}`) ?? 0;
-
-          for (const watermark of state.watermarks) {
-            const [kind, target] = watermark.processId.split(":");
-
-            if (target && (kind === "worker" || kind === "computer")) {
-              const link = this.link(target, kind);
-
-              link?.restoreWatermark(watermark);
-            }
-          }
-        },
+        restore: (state) => restoreDiagnosticsState(this, state),
         restoreProcess: (process, at) => {
           const [kind, target] = process.processId.split(":");
 
@@ -178,6 +166,7 @@ export class Diagnostics {
       ) {
         message.payload.value.measures = [];
         message.payload.value.workerMeasuresSupported = false;
+        message.payload.value.storage = undefined;
       }
 
       if (connection.hello.capabilities.includes("diagnostics_v1")) link?.report(message.payload.value, connection);
@@ -325,6 +314,7 @@ export class Diagnostics {
         ? []
         : own.gatewayMeasures.filter((measure) => METRIC_DEFINITIONS.get(measure.metricId)?.group === "clients"),
       database: request.overviewOnly ? [] : own.database,
+      storage: this.storage.snapshot(),
     });
 
     return internal ? result : diagnosticsResponse(result, request);
@@ -438,6 +428,7 @@ export class Diagnostics {
   }
 
   async stop() {
+    this.storage.close();
     await this.tracing.close();
     await this.logs.close();
     this.resources.stop();
@@ -456,9 +447,5 @@ export class Diagnostics {
     return this.local(request);
   }
 
-  #peerState() {
-    if (Date.now() - this.#cacheSavedAt < 300_000) return [];
-
-    return this.peers.persisted();
-  }
+  #peerState = () => (Date.now() - this.#cacheSavedAt < 300_000 ? [] : this.peers.persisted());
 }

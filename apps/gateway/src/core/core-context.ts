@@ -71,6 +71,7 @@ export interface GatewayCoreOptions {
   readonly clientDiagnosticsEnabled?: boolean;
   readonly logsDiagnosticsEnabled?: boolean;
   readonly diagnosticsLogDirectory?: string;
+  readonly diagnosticsStorage?: import("../diagnostics/storage.ts").GatewayStorageOptions;
   readonly logSources?: readonly import("@canopy/logs").LogRegistration[];
   readonly role?: GatewayRole;
   readonly skillSources?: import("../agent-environment/source-discovery.ts").SourceOptions;

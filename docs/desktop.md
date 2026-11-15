@@ -1,6 +1,7 @@
 # Canopy Desktop
 
-Status: opis zaimplementowanego runtime (2026-11-15), w tym sesji dostępu do lokalnego BFF.
+Status: opis zaimplementowanego runtime (2026-11-15), w tym sesji dostępu do lokalnego BFF
+i podglądu bieżącej zajętości plików Canopy w Diagnostics.
 Dostępność w nightly/beta/stable określają [zasady wydań](release.md) i GitHub Releases.
 
 Implementacja: `apps/desktop`. Cele wydania na każdym kanale: **Linux x64,
@@ -416,6 +417,26 @@ logs/                       # redakcja sekretów; 5 MiB + 3 rotacje na usługę
 
 Nowe worktree lokalnego workera nie leżą w tym katalogu, tylko w `~/canopy/worktrees`. Starsze zostają w
 `local-worker/data/worktrees` i pozostają zarządzane ([worktrees.md](worktrees.md#położenie)).
+
+Settings → Diagnostics pokazuje bieżące rozmiary plików Canopy w kategoriach
+logów, danych, cache, aplikacji i bazy. Lokalny gateway otrzymuje rooty przez
+prywatne środowisko kontrolera; wspólny rejestr skanuje wyłącznie znane, zarządzane
+wpisy katalogu danych, pomijając nieznane wpisy i projekty. Wyklucza też scratch,
+worktree oraz robocze workspace botów. Dane workerów, również
+zachowanych instancji zdalnych, należą do sumy desktopu; osobnych wierszy
+workerów nie dodaje się ponownie. `postgres/data` jest mierzony na dysku,
+bez dodatkowej sumy SQL. Wersje runtime PostgreSQL są aplikacją.
+
+W trybie remote bundlowany worker raportuje rozmiary całej aplikacji przez
+uwierzytelniony WorkerLink do wybranego gatewaya. Widzą je także klienci web/mobile
+tego gatewaya i połączone komputery z dostępem do diagnostyki. Gdy taki raport
+nie jest dostępny, lokalny BFF dodaje zapasowy snapshot `This desktop`, dostępny
+przez tę samą sesję uruchomienia co pozostałe API, również przy niedostępnym zdalnym
+gatewayu; błędy uwierzytelnienia nadal odrzucają żądanie. Samego fallbacku nie przesyła
+dalej. Po nadejściu sumy aplikacji z workera zapasowy wiersz znika. Oba tryby używają
+ograniczonego, asynchronicznego skanu najwyżej raz na minutę i zwracają cache bez
+czekania na odczyt dysku; częściowy wynik oraz czas próbki pozostają jawne.
+Szczegóły zakresu i limitów: [diagnostics.md](diagnostics.md#331-bieżąca-zajętość-plików-canopy).
 
 ### Settings → Linked computers
 

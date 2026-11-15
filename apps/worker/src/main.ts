@@ -28,6 +28,7 @@ import { endpointOptions, WorkerNetworkRoute } from "./network-route.ts";
 import { workerDiagnostics } from "./diagnostics/worker.ts";
 import { imageExportSelfCheck } from "./images/self-check.ts";
 import { LogExporter, LogPullSource, installLogWriter, registeredLogs, cleanLogSpool } from "@canopy/logs";
+import { desktopStorageOptions } from "@canopy/logs/desktop-storage";
 
 const cliArgs = Bun.argv.slice(2);
 
@@ -173,12 +174,6 @@ const logSource = new LogPullSource(
 const workerMetricsEnabled = process.env["CANOPY_BENCH_WORKER_DIAGNOSTICS"] !== "0";
 const runtime = ManagedRuntime.make(Journal.layer(join(dataDir, "journal.db"), workerMetricsEnabled));
 
-if (workerMetricsEnabled)
-  workerDiagnostics.start(
-    dataDir,
-    await runtime.runPromise(Journal.use((journal) => Effect.succeed(journal.statistics))),
-  );
-
 const { journalId } = await runtime.runPromise(journalHello());
 let worktreeRoots: WorktreeRoots;
 
@@ -201,6 +196,39 @@ const host = new WorkerHost({
   log: (m) => console.info(m),
   fullAccess: local.full_access !== false,
 });
+
+if (workerMetricsEnabled)
+  workerDiagnostics.start(
+    dataDir,
+    await runtime.runPromise(Journal.use((journal) => Effect.succeed(journal.statistics))),
+    {
+      ...(Bun.env["CANOPY_DESKTOP_DATA_DIR"] &&
+        Bun.env["CANOPY_LOCAL_WORKER"] === "0" && {
+          samplerOptions: desktopStorageOptions(
+            Bun.env["CANOPY_DESKTOP_DATA_DIR"],
+            Bun.env["CANOPY_DESKTOP_APP_PATH"],
+            Bun.env["CANOPY_DESKTOP_UPDATE_CACHE"],
+          ),
+        }),
+      ...(Bun.env["CANOPY_LOG_SUPERVISED"] !== "1" && { logDirectory }),
+      worktreeRoots: worktreeRoots.managed,
+      externalProviderHomes: [
+        Bun.env["CLAUDE_CONFIG_DIR"] || join(homedir(), ".claude"),
+        Bun.env["CODEX_HOME"] || join(homedir(), ".codex"),
+        Bun.env["GROK_HOME"] || join(homedir(), ".grok"),
+        join(homedir(), ".agents"),
+      ],
+      additionalRoots: [
+        { path: resolve(configPath), category: "application" },
+        ...(installKind() === "binary"
+          ? [
+              { path: process.execPath, category: "application" as const },
+              { path: process.execPath + ".bak", category: "application" as const },
+            ]
+          : []),
+      ],
+    },
+  );
 
 console.info(
   `worker ${local.worker_id} (Canopy ${CANOPY_VERSION}), gateway ${local.gateway_url}, data ${dataDir}, journal ${journalId}`,

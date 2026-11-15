@@ -596,6 +596,7 @@ export async function startTestGateway(
     diagnostics?: boolean;
     logSources?: GatewayCoreOptions["logSources"];
     diagnosticsLogDirectory?: string;
+    diagnosticsStorage?: GatewayCoreOptions["diagnosticsStorage"];
     storage?: { pg: TestPostgres; secretsKey: Buffer; workerId: string; workerCredential: string };
   } = {},
 ): Promise<TestGateway> {
@@ -667,6 +668,7 @@ export async function startTestGateway(
     sshSecretsKey: secretsKey,
     ...(options.logSources && { logSources: options.logSources }),
     ...(options.diagnosticsLogDirectory && { diagnosticsLogDirectory: options.diagnosticsLogDirectory }),
+    ...(options.diagnosticsStorage && { diagnosticsStorage: options.diagnosticsStorage }),
     ...(cliRegistry && {
       cliLatest: {
         sources: { claude: cliRegistry.url.href, codex: cliRegistry.url.href, grok: cliRegistry.url.href },

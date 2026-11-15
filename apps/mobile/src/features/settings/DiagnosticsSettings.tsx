@@ -11,6 +11,7 @@ import { DiagnosticsCalls } from "./DiagnosticsCalls";
 import { DiagnosticsGrants } from "./DiagnosticsGrants";
 import { DiagnosticsMetrics } from "./DiagnosticsMetrics";
 import { DiagnosticsLinks } from "./DiagnosticsLinks";
+import { DiagnosticsStorage } from "./DiagnosticsStorage";
 import { Button } from "../../ui/components";
 import { MinimumTouchTarget } from "../../ui/density";
 
@@ -70,7 +71,7 @@ export function DiagnosticsSettings() {
   return (
     <MinimumTouchTarget.Provider value={48}>
       <ResourceState resource={overview}>
-        <SettingsGroup title="Diagnostics" description="Check performance across your computers.">
+        <SettingsGroup title="Diagnostics" description="Check performance and Canopy storage across your computers.">
           <SettingChoice
             title="Time range"
             value={range}
@@ -92,6 +93,7 @@ export function DiagnosticsSettings() {
         {overview.data?.computers.map((item) => (
           <DiagnosticsComputer key={item.computerId} computer={item} onSelect={() => select(item.computerId)} />
         ))}
+        {overview.data ? <DiagnosticsStorage computers={overview.data.computers} /> : null}
         {overview.data ? (
           <DiagnosticsFindings
             computers={overview.data.computers}

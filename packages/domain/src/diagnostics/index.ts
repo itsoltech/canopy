@@ -31,3 +31,7 @@ export * from "./placement.ts";
 export * from "./logs.ts";
 
 export * from "./tracing.ts";
+
+export * from "./storage.ts";
+
+export * from "./storage-display.ts";

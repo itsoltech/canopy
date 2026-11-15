@@ -134,6 +134,7 @@
     "./release/remote-update-state": "./src/release/remote-update-state.ts",
     "./release/web-version": "./src/release/web-version.ts",
     "./bff-target": "./src/bff-target.ts",
+    "./bff-storage": "./src/bff-storage.ts",
     "./release/version": "./src/release/version.ts",
     "./release/identity": "./src/release/identity.ts",
     "./humanize": "./src/humanize.ts",
