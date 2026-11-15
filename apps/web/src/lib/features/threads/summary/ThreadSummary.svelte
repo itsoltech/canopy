@@ -3,6 +3,7 @@
   import type { Attachment } from "svelte/attachments";
   import type { ui } from "@canopy/contracts";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
+  import { refreshActivities } from "#lib/shared/activity.ts";
   import { devicePreferences as device } from "#lib/features/settings/device-preferences.svelte.ts";
   import type { ThreadTree } from "../thread-tree.ts";
   import ThreadSummaryHeader from "./ThreadSummaryHeader.svelte";
@@ -40,6 +41,13 @@
   const pinned = $derived(docked && !device.view.threadPanelCollapsed);
   const open = $derived(pinned || (floating && popover));
   const subagents = $derived(tree?.sides.filter((side) => side.spawnedByAgent).length ?? 0);
+
+  // Both layers stay mounted: changing inert alone does not notify the activity observer.
+  $effect(() => {
+    void pinned;
+    void open;
+    void tick().then(refreshActivities);
+  });
 
   // A popover is transient: another thread or another placement closes it.
   $effect(() => {
