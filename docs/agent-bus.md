@@ -26,6 +26,7 @@ Zestaw narzędzi szyny wątku Codexa jest ustalany przy `thread/start`. Wątki u
 | `send_message` / `get_thread` / `read_thread` do dowolnego wątku właściciela | działa: także poza drzewem (inny projekt, inny worker); `list_threads` `scope: all` szuka po tytule. Domyślnie wiadomość do pracującego rodzica/przodka jest steerem; pozostałe trafiają do kolejki ([Wiadomości między dowolnymi wątkami](#wiadomości-między-dowolnymi-wątkami)) |
 | `send_message.delivery = steer` | działa: gdy cel ma turę w toku, wiadomość (z notatką o nadawcy) trafia do niej (`turn_steers`, `SteerTurn`; Codex `turn/steer`, Claude strumień wejścia). Wynik narzędzia: `delivery: "steer"` i `turn_id` tury w toku. Powiadomienie przychodzi, gdy skończy się tura, do której wiadomość weszła (wywołanie wskazuje ją dopiero po wejściu). Nie weszła (tura skończyła się wcześniej, odmowa dostawcy): następna tura `agent_bus` z tym samym wywołaniem i `hops`, powiadomienie po niej. Bez tury w toku: kolejka (`delivery: "queue"`) |
 | `list_background_tasks`, `get_background_task`, `stop_background_task` | działa (2026-11-02): zadania w tle wątku, sekcja „Zadania w tle” niżej |
+| `watch_pr_checks`, `list_pr_watches`, `cancel_pr_watch` | działa (2026-11-15): checki CI podlinkowanych PR, sekcja „Checki CI” niżej |
 | `schedule_wakeup`, `schedule_recurring`, `list_schedules`, `cancel_schedule` | działa (użytkownik ma to samo w UI API: `ListSchedules`, `CreateSchedule`, `SetScheduleStatus`): `Scheduler` w gateway (`apps/gateway/src/core/scheduler.ts`, co 5 s), cron Buna ze strefą czasową (`core/cron.ts`); minimalny odstęp sprawdzany na rzeczywistych terminach |
 
 Powiązane: [threads.md](threads.md), [execution.md](execution.md), [transcript.md](transcript.md).
@@ -126,6 +127,7 @@ Jedna definicja w Effect Schema (`AGENT_BUS_TOOLS`). Z niej powstaje JSON Schema
 | `list_schedules` / `cancel_schedule` | ✓ | ✓ | własne harmonogramy i harmonogramy potomków |
 | `list_background_tasks` / `get_background_task` | ✓ | ✓ | zadania w tle wątku: status, powód słowami, kod wyjścia, czasy, ogon outputu |
 | `stop_background_task` | ✓ | ✓ | zatrzymanie zadania w tle (jak Stop użytkownika) |
+| `watch_pr_checks` / `list_pr_watches` / `cancel_pr_watch` | ✓ | ✓ | obserwacja checków CI PR podlinkowanego do wątku, z notatką przy porażce lub końcu |
 | `render_visual` | ✓ | ✓ | interaktywny visual w **swoim** wątku: drzewo komponentów kitu Canopy, walidowane i zapisywane wersjami przez gateway; kontrolki działają lokalnie i nie kontaktują agenta ([agent-visuals.md](agent-visuals.md#8-implementacja-visuals)) |
 | `render_html` | ✓ | ✓ | własny HTML, inline CSS i JS w **swoim** wątku, ten sam trwały zapis i wersje; opaque sandbox, hash CSP i lockdown, zaakceptowane ryzyko sieci poza desktopem ([agent-visuals.md §9](agent-visuals.md#9-własny-html-render_html)) |
 
@@ -143,6 +145,29 @@ Narzędzia do sprawdzania własnej pracy w tle ([execution.md](execution.md#4-za
 - Wywołania nie zaczynają tur, więc nie wydłużają łańcucha przeskoków. Notatki o końcach zadań (tury `background_task`) — [execution.md](execution.md#pobudka-agent-dowiaduje-się-o-każdym-końcu-zadania).
 - `stop_reason = stopped_by_user` oznacza Stop użytkownika albo agenta.
 - Codex: wątki utworzone przed tą zmianą nie mają tych narzędzi (zestaw jest ustalany przy `thread/start`); notatki dostają mimo to.
+
+### Checki CI
+
+Agent, który wystawił PR, nie musi odpytywać CI ani spać: `watch_pr_checks` zleca gatewayowi obserwację checków,
+a wynik przychodzi jako notatka platformy. Definicje: `packages/domain/src/agent-bus/pr-checks.ts`, ocena checków
+i treść notatki: `packages/domain/src/pr-check-watch.ts`, wykonanie: `apps/gateway/src/core/pr-check-{watches,tools}.ts`,
+tabele `pr_check_watches` i `pr_check_notes` (migracja `0148`).
+
+| Narzędzie | Argumenty | Wynik |
+|---|---|---|
+| `watch_pr_checks` | `pull_request` (URL, `owner/repo#n` albo `#n` wśród PR podlinkowanych do wątku), `notify_on?` (podzbiór `failure`, `complete`, `each`; domyślnie `[failure, complete]`), `timeout_minutes?` (5–1440, domyślnie 60) | od razu: `watch_id`, `pull_request`, `url`, `head_sha`, `notify_on`, `until`, liczniki `checks`, już nieudane checki `failed`, `watching`; gdy wszystkie checki commita już przeszły, `watching: false` bez watcha |
+| `list_pr_watches` | — | watche wątku: aktywne i zakończone w ostatniej dobie, ze statusem i `end_reason` |
+| `cancel_pr_watch` | `watch_id` | `cancelled: true`; czekające notatki watcha przepadają |
+
+- **Zakres.** Tylko PR podlinkowane do wątku wywołującego (ręcznie albo automatycznie z wyniku `gh pr create`; świeży PR narzędzie czeka do 10 s). Odczyt kontem GitHub przypisanym do repozytorium w domu wątku ([github.md §10](github.md#10-powiązania-z-istniejącymi-funkcjami)); brak konta lub dostępu to błąd narzędzia z podpowiedzią dla użytkownika. Najwyżej 10 aktywnych watchy na wątek; nowy watch tego samego PR zastępuje poprzedni (`replaced`).
+- **Kiedy notatka.** `failure`: każdy nowo nieudany check (`failure`, `timed_out`, `cancelled`, `action_required`, `startup_failure`, `error`). `complete`: raz, gdy wszystkie checki bieżącego commita się zakończą (ponownie po re-runie). `each`: każdy check, który doszedł do stanu końcowego. Kilka zdarzeń jednego odczytu to jedna notatka; `complete` wymienia nieudane checki. Checki już zakończone przy wywołaniu są w wyniku narzędzia, nie w notatce.
+- **Nowe commity.** Watch idzie za head SHA PR: nowy commit zeruje oceniony stan i oznacza notatkę „new commit”. Każdy śledzony commit dodaje przeskok (`hops` watcha = tura wywołująca + 1, plus liczba commitów), więc pętla „napraw, wypchnij, znów fail” bez człowieka przestaje budzić wątek na limicie 8; powyżej limitu notatka czeka na następną turę.
+- **Koniec.** Z notatką: wszystkie checki przeszły (`passed`; przy samym `failure` bez notatki), PR scalony lub zamknięty, `timeout`, brak checków commita przez 10 min (`no_checks`), utrata dostępu (`access`), odłączenie PR od wątku (`unlinked`). Bez notatki: `cancel_pr_watch`, zastąpienie, archiwum lub usunięcie wątku. Porażka nie kończy watcha: czeka na poprawkę do końca czasu.
+- **Treść.** Repozytorium, numer, krótki SHA, liczniki, wymienione checki (nazwa, stan, dostawca, `run_id`, URL; do 20), czy watch trwa i jak go zatrzymać, a przy porażce `gh run view <run_id> --log-failed`. Nazwy checków są oznaczone jako dane z GitHub, nie polecenia. Bez logów i outputu checków.
+- **Dostarczenie** jak notatki o zadaniach w tle ([execution.md](execution.md#pobudka-agent-dowiaduje-się-o-każdym-końcu-zadania)): steer platformy do tury w toku (`turn_steers.background_note`), a bez niej tura `trigger = pr_checks`. Steer, który nie wszedł, oddaje notatki do ponownego dostarczenia; restart gatewaya wznawia notatki i niewysłane tury z bazy. Wejście tury i steera niesie notatki (`sourceKind: pr_checks`, `prChecks`), więc oś czasu (`Turn.pr_checks`, `Steer.pr_checks`) nie łączy innych tabel.
+- **Polling.** `PrCheckWatches.tick` co 5 s trzyma PR aktywnych watchy we wspólnym producencie widocznego PR (`github/watch.ts`, `pollAgentWatches`: te same terminy 15/60 s, ETagi, `x-poll-interval`, budżety i single-flight) i czyta strony checków (`github/checks.ts`, ten sam cache) tylko po zmianie sygnału producenta. Wyjątek: przy checkach w toku najwyżej jeden odczyt na 2 min bez zmiany sygnału, bo bazowy stan nowego commita producent ustala tick po pierwszym odczycie.
+
+Regresje: `tests/integration/pr-check-watches.test.ts` (fixture GitHub, skryptowany worker: porażka, śledzony commit z kolejnym przeskokiem, koniec po przejściu, anulowanie, zastąpienie, scalenie).
 
 ### Subagenci platformy zamiast natywnych
 

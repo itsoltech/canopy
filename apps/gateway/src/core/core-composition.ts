@@ -3,6 +3,7 @@ import { ui } from "@canopy/contracts";
 import { toUiSteer, toUiTurn } from "../store/index.ts";
 import { AgentBus } from "./agent-bus.ts";
 import { Scheduler } from "./scheduler.ts";
+import { PrCheckWatches } from "./pr-check-watches.ts";
 import { scheduleWorkerEligible } from "@canopy/domain";
 import { titleContext } from "./thread-titles.ts";
 import { BotsRuntime } from "../bots/runtime.ts";
@@ -90,10 +91,25 @@ export function createCoreBus(core: GatewayCore): AgentBus {
     scheduleChanged: (scheduleId) => corePublishSchedule(core, scheduleId),
     spawnInstances: (thread) => coreSpawnInstances(core, thread),
     backgroundTask: (call, callerId) => core.backgroundTasks.tool(call, callerId),
+    prChecks: (call, source, caller, hops) => core.checkWatches.tool(call, source, caller, hops),
     fallbackSteer: async (steerId) => {
       await coreQueueSteer(core, steerId, "the notification could not join its turn");
       await core.pump((await coreSteers(core, (s) => s.steer(steerId))).thread_id);
     },
+  });
+}
+
+export function createCoreCheckWatches(core: GatewayCore): PrCheckWatches {
+  return new PrCheckWatches({
+    run: (effect) => core[coreState].options.runtime.runPromise(effect),
+    github: core.github,
+    pump: (threadId) => core.pump(threadId),
+    queued: async (threadId, turn) => {
+      await coreBroadcastTurn(core, threadId, turn.id); // re-read: the UI gets the turn with its source
+      await core.pump(threadId);
+    },
+    steered: (steerId) => coreSendSteer(core, steerId),
+    log: (message) => coreLog(core, message),
   });
 }
 

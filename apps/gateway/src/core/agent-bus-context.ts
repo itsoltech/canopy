@@ -62,6 +62,13 @@ export interface BusHost {
     call: Extract<AgentBusCall, { tool: "list_background_tasks" | "get_background_task" | "stop_background_task" }>,
     callerId: string,
   ): Promise<JsonValue>;
+  /** CI check watches of the calling thread's linked pull requests: core/pr-check-watches.ts. */
+  prChecks(
+    call: Extract<AgentBusCall, { tool: "watch_pr_checks" | "list_pr_watches" | "cancel_pr_watch" }>,
+    source: CallSource,
+    caller: ThreadRow,
+    hops: number,
+  ): Promise<JsonValue>;
 }
 
 export const WAIT_POLL_MS = 1_000;

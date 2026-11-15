@@ -875,7 +875,7 @@ message Turn {
   uint32 ordinal = 2;
   // queued | running | completed | interrupted | failed | cancelled
   string status = 3;
-  // user | agent_bus | schedule | interaction | goal | provider | recovery | background_task
+  // user | agent_bus | schedule | interaction | goal | provider | recovery | background_task | pr_checks
   string trigger = 4;
   string input_text = 5;
   string error = 6;
@@ -893,7 +893,7 @@ message Turn {
   // Skąd przyszło wejście tury (puste dla użytkownika i tur dostawcy):
   // task (spawn_thread) | message (send_message) | report (powiadomienie: wątek docelowy skończył turę)
   // | question (wątek boczny pyta rodzica) | schedule (harmonogram)
-  // | background_task (zadania w tle się zakończyły: background_item_ids)
+  // | background_task (zadania w tle się zakończyły: background_item_ids) | pr_checks (checki CI PR: pr_checks)
   string source_kind = 14;
   // Wątek, od którego tura pochodzi: zlecający (task, message), raportujący (report), pytający (question),
   // a dla harmonogramu agenta wątek, który go utworzył.
@@ -965,6 +965,43 @@ message Turn {
 
   // Numery od 470: tura zlecona albo wysłana przez bota (trigger bot): jego id; nazwę, kształt i kolor UI bierze z listy botów.
   string bot_id = 470;
+
+  // Numery od 480: tura z notatką platformy o checkach CI podlinkowanych PR (trigger pr_checks, source_kind pr_checks;
+  // docs/agent-bus.md, „Checki CI”): notatki watchy, które w niej dotarły do agenta.
+  repeated PullRequestChecksNote pr_checks = 480;
+}
+
+// Notatka watcha checków CI (watch_pr_checks) dla osi czasu. Treść dla modelu jest w input_text / platform_note.
+message PullRequestChecksNote {
+  string watch_id = 1;
+  string pull_request_id = 2;
+  string repository = 3;
+  uint32 number = 4;
+  string url = 5;
+  string head_sha = 6;
+  // Od poprzedniej notatki watcha pojawił się nowy commit.
+  bool head_changed = 7;
+  // failure | each | complete | ended
+  string event = 8;
+  // Powód zakończenia (pusty, gdy watch trwa): passed | merged | closed | timeout | no_checks | access | unlinked
+  string reason = 9;
+  bool watching = 10;
+  uint32 total = 11;
+  uint32 passed = 12;
+  uint32 failed = 13;
+  uint32 skipped = 14;
+  uint32 pending = 15;
+  // Checki wymienione w notatce (nieudane albo zakończone), najwyżej 20; omitted = pozostałe.
+  repeated PullRequestChecksNoteCheck checks = 16;
+  uint32 omitted = 17;
+}
+
+message PullRequestChecksNoteCheck {
+  string name = 1;
+  string state = 2;
+  string provider = 3;
+  string url = 4;
+  string run_id = 5;
 }
 
 // Item na osi czasu z zakresem seq (first_seq..last_seq).
@@ -1971,6 +2008,9 @@ message Steer {
   // Numery od 230: notatka platformy o zakończonych zadaniach w tle wstrzyknięta do tury w toku (bez autora):
   // item_id tych itemów background_task.
   repeated string background_item_ids = 230;
+
+  // Numery od 480: notatka platformy o checkach CI wstrzyknięta do tury w toku (bez autora).
+  repeated PullRequestChecksNote pr_checks = 480;
 }
 
 // Katalog modeli jednego workera (z ostatniego raportu workera).

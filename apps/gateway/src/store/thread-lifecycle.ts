@@ -3,6 +3,7 @@ import type { MessageInitShape } from "@bufbuild/protobuf";
 import { Effect } from "effect";
 import type { SqlClient, SqlError } from "effect/sql";
 import { Invalid, NotFound } from "./store.ts";
+import { closeCheckWatches } from "./pr-check-notes.ts";
 
 type Fx<A> = Effect.Effect<A, SqlError.SqlError | Invalid | NotFound>;
 
@@ -73,6 +74,7 @@ export function threadLifecycle(sql: SqlClient.SqlClient, dispatch: Dispatch) {
       WHERE thread_id = ANY(${ids}::uuid[]) AND answer_delivery IN ('pending', 'consumed')`;
       yield* sql`UPDATE background_task_notes SET status = 'cancelled', steer_id = NULL, reason = 'thread closed', updated_at = now()
       WHERE thread_id = ANY(${ids}::uuid[]) AND status IN ('waiting', 'steering')`;
+      yield* closeCheckWatches(sql, ids);
 
       return commands;
     });

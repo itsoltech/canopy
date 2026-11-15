@@ -15,6 +15,8 @@ export function pollingFixture(paginatedChecks = false) {
   const state = {
     pr: "OPEN",
     running: true,
+    /** The check's conclusion once it stopped running. */
+    conclusion: "SUCCESS",
     legacyRunning: false,
     head: readHead,
     updatedAt: "2026-11-10T12:00:00Z",
@@ -65,10 +67,10 @@ export function pollingFixture(paginatedChecks = false) {
                     nodes: [
                       {
                         __typename: "CheckRun",
-                        id: "CHECK_1",
+                        id: `CHECK_${state.head.slice(0, 4)}`,
                         name: "Build",
                         status: state.running ? "IN_PROGRESS" : "COMPLETED",
-                        conclusion: state.running ? null : "SUCCESS",
+                        conclusion: state.running ? null : state.conclusion,
                         checkSuite: { app: { name: "Actions" }, workflowRun: { databaseId: 123 } },
                       },
                     ],

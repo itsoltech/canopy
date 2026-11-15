@@ -1,6 +1,7 @@
 import { Result, Schema } from "effect";
 import { QUESTION_TOOLS, questionsProblem } from "./questions.ts";
 import { BACKGROUND_TASK_TOOLS } from "./background-tasks.ts";
+import { PR_CHECK_TOOLS } from "./pr-checks.ts";
 import { isEntityId } from "../computers.ts";
 import { IMAGE_TOOLS } from "./images.ts";
 import { RequestSecret } from "./secrets.ts";
@@ -373,6 +374,8 @@ export const AGENT_BUS_TOOLS = {
   }),
   // The thread's own background work (list, inspect, stop): background-tasks.ts.
   ...BACKGROUND_TASK_TOOLS,
+  // CI checks of the thread's linked pull requests (watch, list, cancel): pr-checks.ts.
+  ...PR_CHECK_TOOLS,
 } as const;
 
 /** Tools that only make sense for a thread that can have side threads (level 0). */

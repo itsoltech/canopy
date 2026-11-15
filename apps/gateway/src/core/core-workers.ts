@@ -360,6 +360,10 @@ async function ingestReceived(
 
   for (const threadId of new Set(notes.map((s) => s.threadId))) await hostContext.backgroundTasks.deliver(threadId);
 
+  // CI check notes waiting for a turn (hop limit, a dispatched start) can join one that started.
+  for (const { threadId } of result.stored.filter(({ event: { body } }) => body.case === "turnStarted"))
+    await hostContext.checkWatches.deliver(threadId);
+
   const failure = result.failedThreads[0];
 
   return failure ? (sqlErrorCode(failure.error) ?? "58000") : undefined;

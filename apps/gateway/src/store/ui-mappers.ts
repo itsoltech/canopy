@@ -10,6 +10,7 @@ import { toUiQuote } from "./quotes.ts";
 import { mentionsFromJson } from "../core/mentions.ts";
 import { providerOf } from "./instance-config.ts";
 import { threadNotice } from "./thread-notice.ts";
+import { toUiChecksNote } from "./pr-check-ui.ts";
 import type { InteractionRow, ThreadRow, TurnRow } from "./rows.ts";
 
 export function toInteraction(row: InteractionRow): ui.Interaction {
@@ -211,6 +212,7 @@ export function toUiTurn(row: TurnRow & { inherited?: boolean }): ui.Turn {
     questionKind: row.question_kind ?? "",
     questionTool: row.question_tool ?? "",
     backgroundItemIds: row.background_item_ids ?? [],
+    prChecks: (row.input?.prChecks ?? []).map(toUiChecksNote),
     botId: sender?.botId || row.bot_id || row.answer_bot_id || "",
     sourceKind: row.input?.sourceKind ?? row.source_kind ?? "",
     sourceThreadId: sender?.threadId || row.source_thread_id || "",

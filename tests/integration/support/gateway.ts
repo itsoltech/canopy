@@ -41,6 +41,7 @@ import {
   GatewayStore,
   GoalStore,
   Ingest,
+  PrCheckWatchStore,
   ModelStore,
   InstanceStore,
   QueueStore,
@@ -74,6 +75,7 @@ export type TestRuntime = ManagedRuntime.ManagedRuntime<
   | InstanceStore
   | AttachmentStore
   | BackgroundTaskStore
+  | PrCheckWatchStore
   | BotStore
   | SqlClient.SqlClient,
   unknown
@@ -612,6 +614,7 @@ export async function startTestGateway(
       InstanceStore.layer(secretsKey),
       AttachmentStore.layer,
       BackgroundTaskStore.layer,
+      PrCheckWatchStore.layer,
       BotStore.layer(secretsKey),
     ).pipe(Layer.provideMerge(measured)),
   );

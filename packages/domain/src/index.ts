@@ -16,6 +16,8 @@ export * from "./quotes/index.ts";
 
 export * from "./background-tasks/index.ts";
 
+export * from "./pr-check-watch.ts";
+
 export * from "./platform.ts";
 
 export * from "./failures.ts";

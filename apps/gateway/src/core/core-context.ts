@@ -8,6 +8,7 @@ import { AttachmentStore, THREAD_BLOB_BYTES } from "../store/attachments.ts";
 import {
   AgentBusStore,
   BackgroundTaskStore,
+  PrCheckWatchStore,
   GatewayStore,
   GoalStore,
   harnessOf,
@@ -53,6 +54,7 @@ export type CoreServices =
   | InstanceStore
   | AttachmentStore
   | BackgroundTaskStore
+  | PrCheckWatchStore
   | BotStore
   | SqlClient.SqlClient;
 

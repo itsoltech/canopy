@@ -8,6 +8,7 @@ import {
   AttachmentStore,
   BackgroundTaskStore,
   GatewayStore,
+  PrCheckWatchStore,
   GoalStore,
   Ingest,
   loadSecretsKey,
@@ -55,6 +56,7 @@ export function gatewayServices(secretsKey: Buffer) {
     InstanceStore.layer(secretsKey),
     AttachmentStore.layer,
     BackgroundTaskStore.layer,
+    PrCheckWatchStore.layer,
     BotStore.layer(secretsKey),
   );
 }

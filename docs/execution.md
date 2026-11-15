@@ -58,6 +58,7 @@ Jeden status nie wystarczy, bo wątek może nie mieć tury, a mieć zadania w tl
 | `goal` | gateway | Claude: komenda `/goal …` jako tura celu (`goal_id`); kontynuacje Codexa są turami `provider` z `goal_id` — [goals.md](goals.md) |
 | `provider` | worker | dostawca sam zaczyna turę: Claude po `task_notification` zadania w tle, Codex przy aktywnym celu; nigdy nie jest `queued` |
 | `background_task` | gateway | notatka platformy o zakończonych zadaniach w tle wątku (sekcja 4, „Pobudka”); `hops` tury startowej zadania + 1 |
+| `pr_checks` | gateway | notatka platformy o checkach CI podlinkowanego PR (`watch_pr_checks`) — [agent-bus.md](agent-bus.md#checki-ci); `hops` watcha + liczba śledzonych commitów |
 | `recovery` | worker | automatyczne wznowienie przerwanej tury (`resumes_turn_id`, `resume_reason`) |
 
 Worker zna tylko pochodzenie tury (`TurnStarted.origin`: `COMMAND`, `PROVIDER`, `RECOVERY`). Wyzwalacz platformy zapisuje gateway. Dla `provider` / `recovery` gateway tworzy wiersz `turns` przy `turn_started` od workera.
