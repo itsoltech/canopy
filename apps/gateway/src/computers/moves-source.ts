@@ -12,6 +12,7 @@ import {
   exportThread,
   freezeBot,
   freezeThread,
+  MOVE_COLUMNS,
   MoveRefused,
   moveRow,
   redirectItem,
@@ -304,7 +305,7 @@ export const movesSourceMethods: MovesSourceMethods = {
       : ids.length
         ? await movesRows(this, "id=ANY($2::uuid[])", [ids])
         : await this[movesState].store.query<MoveRow>(
-            `SELECT * FROM computer_moves WHERE owner_user_id=$1::uuid ORDER BY updated_at DESC LIMIT 100`,
+            `SELECT ${MOVE_COLUMNS} FROM computer_moves WHERE owner_user_id=$1::uuid ORDER BY updated_at DESC LIMIT 100`,
             [this[movesState].store.owner],
           );
 

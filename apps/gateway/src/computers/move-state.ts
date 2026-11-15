@@ -9,6 +9,7 @@ import type { ComputerStore } from "./store.ts";
 
 export {
   botRowsJson,
+  MOVE_COLUMNS,
   MoveRefused,
   payloadOf,
   qualifiedNew,

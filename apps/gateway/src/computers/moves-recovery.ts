@@ -4,7 +4,14 @@ import { Code, ConnectError } from "@connectrpc/connect";
 
 import { computerLink as link } from "@canopy/contracts";
 
-import { decideTarget, discardTarget, restoreSource, unfreezeSource, type MoveRow } from "./move-state.ts";
+import {
+  decideTarget,
+  discardTarget,
+  MOVE_COLUMNS,
+  restoreSource,
+  unfreezeSource,
+  type MoveRow,
+} from "./move-state.ts";
 import { ACTIVE, ASK_AFTER_MS, DECIDE_TIMEOUT_MS, movesState, type MovePhase } from "./moves-context.ts";
 import { movesChanged, movesDrive, movesSettle } from "./moves-source.ts";
 import { movesApply } from "./moves-target.ts";
@@ -16,7 +23,7 @@ export function movesCore(hostContext: ComputerMoves) {
 
 export async function movesRows(hostContext: ComputerMoves, where: string, params: unknown[] = []) {
   return hostContext[movesState].store.query<MoveRow>(
-    `SELECT * FROM computer_moves WHERE owner_user_id=$1::uuid AND ${where} ORDER BY created_at, id`,
+    `SELECT ${MOVE_COLUMNS} FROM computer_moves WHERE owner_user_id=$1::uuid AND ${where} ORDER BY created_at, id`,
     [hostContext[movesState].store.owner, ...params],
   );
 }

@@ -1,6 +1,7 @@
-import { create, fromBinary, toBinary, type JsonObject } from "@bufbuild/protobuf";
-import { bots, computerLink as link } from "@canopy/contracts";
+import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
+import { bots, type computerLink as link } from "@canopy/contracts";
 import { Effect, Schema } from "effect";
+import { MOVED_FILE_COLUMNS, movedFilesSize, readMovedFile, type MovedFileRow } from "./move-files.ts";
 import { insertRows, JsonRow, MAX_FILES, MoveRefused, type Sql } from "./move-payload.ts";
 import type { ComputerStore } from "./store.ts";
 
@@ -21,34 +22,19 @@ export async function exportBotComposer(store: ComputerStore, botId: string) {
       })
     : undefined;
 
-  const files = await store.query<{
-    row: JsonObject;
-    data: Uint8Array;
-    mime_type: string;
-    thumbnail: Uint8Array | null;
-    thumbnail_mime_type: string | null;
-  }>(
-    `SELECT row_to_json(a) AS row, b.data, b.mime_type, t.data AS thumbnail, t.mime_type AS thumbnail_mime_type
+  const files = await store.query<MovedFileRow>(
+    `SELECT ${MOVED_FILE_COLUMNS}
       FROM attachments a JOIN blobs b ON b.sha256=a.sha256 LEFT JOIN blobs t ON t.sha256=a.thumb_sha256
-      WHERE a.owner_user_id=$2::uuid AND (a.bot_id=$1::uuid OR a.id=ANY($3::uuid[]))`,
+      WHERE a.owner_user_id=$2::uuid AND (a.bot_id=$1::uuid OR a.id=ANY($3::uuid[])) AND b.data IS NOT NULL`,
     [botId, store.owner, draft?.attachments.map((a) => a.id) ?? []],
   );
 
-  if (files.reduce((n, f) => n + f.data.length + (f.thumbnail?.length ?? 0), 0) > MAX_FILES)
-    throw new MoveRefused("The bot's images are too large to move (over 40 MiB).");
+  if (movedFilesSize(files) > MAX_FILES) throw new MoveRefused("The bot's images are too large to move (over 40 MiB).");
+  const moved: link.MovedFile[] = [];
 
-  return {
-    draft,
-    files: files.map((f) =>
-      create(link.MovedFileSchema, {
-        attachmentJson: JSON.stringify(f.row),
-        data: f.data,
-        mimeType: f.mime_type,
-        thumbnail: f.thumbnail ?? new Uint8Array(),
-        thumbnailMimeType: f.thumbnail_mime_type ?? "",
-      }),
-    ),
-  };
+  for (const file of files) moved.push(await readMovedFile(store, file));
+
+  return { draft, files: moved };
 }
 
 /** Runs inside the move transaction, after turns exist and before the bot becomes visible. */
