@@ -279,7 +279,8 @@ Lista powiązanych PR nie zależy wyłącznie od cache bieżącej rewizji dostę
 (co 8 h) i retencja go unieważniają. Gateway zapisuje ostatnie znane podsumowanie (tytuł, stan,
 checki) w `github_pull_requests`, związane z kontem, które je odczytało. Po restarcie lista
 pokazuje je od razu jako `stale`, a odświeżenie idzie w tle, najwyżej raz na 5 min na PR między
-procesami, i dociera do klientów przez `pull_request_revision` wątku. Sama dzierżawa odświeżenia
+procesami, a krótki follow-up po zakończeniu CI sprawdza przejście auto-merge częściej przez
+warunkowe żądania metadanych. Wynik dociera do klientów przez `pull_request_revision` wątku. Sama dzierżawa odświeżenia
 bez treści cache nadal oznacza `stale`; świeżość wymaga treści i niewygasłego terminu,
 zapisywanych atomowo. Nieudane odświeżenie
 zapisuje konkretny powód (`detail` linku) z Retry. Utrata dostępu (403/404) unieważnia cache
@@ -456,6 +457,7 @@ Wiele kart/urządzeń i watchy agenta współdzieli najszybszy potrzebny harmono
 | Otwarty PR, trwające checki | Zasoby checków z pending/in progress co 15 s; metadata i jedna pozostała strona CI co 60 s | Bez okresowego GraphQL, timeline ani diffów |
 | Widoczny panel wątku | Ten sam współdzielony harmonogram warunkowy | Bez osobnego pollera nagłówków |
 | Aktywny `watch_pr_checks` | Ten sam współdzielony harmonogram warunkowy | Działa także bez panelu; kończy się po zamknięciu/merge PR, upływie terminu lub anulowaniu |
+| Zakończenie CI z aktywnym auto-merge | Natychmiastowy probe metadanych, potem co około 10 s przez najwyżej 2 min | Tylko warunkowe REST metadata; pełne podsumowanie i publikacja do overview po wykryciu zmiany |
 | Closed/merged, także widoczny | Brak okresowego pollingu | Zmiany po ręcznym Refresh lub własnej mutacji |
 | Aktywny wątek w tle, bez watcha CI | Bez okresowego odświeżania danych PR | Rozpoznanie po zmianie checkoutu/pushu pozostaje osobnym zdarzeniem |
 | Brak obserwatorów i aktywności albo archiwum | Brak okresowego pollingu | Wznowienie po otwarciu, zmianie gałęzi/pushu lub ręcznym Refresh |
@@ -463,6 +465,10 @@ Wiele kart/urządzeń i watchy agenta współdzieli najszybszy potrzebny harmono
 Wymagane przez endpoint `x-poll-interval` jest dolną granicą. Terminy watcha mają jitter +0–10%,
 aby nie wyprzedzać TTL cache. Bez widocznego panelu lub aktywnego watcha CI
 nie odświeżamy okresowo danych PR.
+Po pomyślnym zakończeniu `watch_pr_checks` istniejący producent utrzymuje przez najwyżej 2 min
+krótki follow-up metadanych, ponieważ GitHub może wykonać auto-merge chwilę po zakończeniu checków.
+Probe używa ETag i kończy się natychmiast po wykryciu `merged`/`closed` albo po upływie tego okna;
+nie tworzy osobnego pollera ani nie pobiera stron checków, timeline lub diffów.
 Metadata, check-runs i legacy statuses mają rzeczywiste ETagi REST; odpowiedź 304 zachowuje
 projekcję. Pierwsze otwarcie może zainicjować walidatory odpowiedziami 200. GraphQL POST
 nie udaje żądania warunkowego: pełne podsumowanie pobieramy dopiero po zmianie
@@ -901,7 +907,8 @@ Nieaktualne otwarte powiązania z żądanej strony odświeżają się w tle, naj
 partia na właściciela. GraphQL grupuje po 4 PR-y na żądanie, żeby ograniczyć także
 koszt zagnieżdżonych połączeń checks/reviews. Obowiązują wspólne sloty, budżety,
 backoff i trwałe roszczenia odświeżenia na 5 minut; błąd partii zatrzymuje resztę.
-Closed/merged nie są odświeżane okresowo; Refresh i otwarcie pełnego PR pozostają dostępne.
+Closed/merged nie są odświeżane okresowo; wyjątkiem jest krótkie okno follow-up po zakończeniu CI.
+Refresh i otwarcie pełnego PR pozostają dostępne.
 
 Pełny PR otwiera się w karcie workspace’u wątku, obok rozmowy i plików.
 Moduł Pull requests w panelu/arkuszu pokazuje listę powiązań i akcję **Open in tab**;

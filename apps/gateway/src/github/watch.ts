@@ -20,11 +20,16 @@ interface Producer {
   flight?: Promise<void> | undefined;
   cleanup?: ReturnType<typeof setTimeout> | undefined;
   controller?: AbortController;
+  mergeFollowUpUntil: number;
+  nextMergeFollowUp: number;
+  mergeFollowUpTimer?: ReturnType<typeof setTimeout> | undefined;
 }
 
 const producers = new WeakMap<GitHubPullRequests, Map<string, Producer>>();
 const jitter = (ms: number) => ms * (1 + Math.random() * 0.1);
 const targetKey = (target: ProbeTarget) => `${target.kind}:${target.page}`;
+const MERGE_FOLLOW_UP_MS = 2 * 60_000;
+const MERGE_FOLLOW_UP_INTERVAL_MS = 10_000;
 
 const newProducer = (): Producer => ({
   viewers: 0,
@@ -39,12 +44,16 @@ const newProducer = (): Producer => ({
     { kind: "statuses", page: 1 },
   ],
   signals: new Map(),
+  mergeFollowUpUntil: 0,
+  nextMergeFollowUp: Infinity,
 });
+
+const mergeFollowUpActive = (prs: GitHubPullRequests, p: Producer) => p.mergeFollowUpUntil > prs.accounts.http.now();
 
 /** The sweep and streams share the same deadlines and single flight; there is no second header poller. */
 export async function pollVisiblePullRequests(prs: GitHubPullRequests) {
   for (const [id, p] of producers.get(prs) ?? []) {
-    if (!p.viewers && !p.panels && !p.agents) continue;
+    if (!p.viewers && !p.panels && !p.agents && !mergeFollowUpActive(prs, p)) continue;
     await poll(prs, id, p);
   }
 }
@@ -69,12 +78,56 @@ const producerOf = (prs: GitHubPullRequests, id: string) => {
 
 /** Drops a producer nobody holds any more after the shared 5 minute grace. */
 const idle = (prs: GitHubPullRequests, id: string, p: Producer) => {
-  if (p.viewers || p.panels || p.agents) return;
+  if (p.viewers || p.panels || p.agents || mergeFollowUpActive(prs, p)) return;
   p.controller?.abort();
+  clearTimeout(p.mergeFollowUpTimer);
   clearTimeout(p.cleanup);
   p.cleanup = setTimeout(() => producers.get(prs)?.delete(id), 300_000);
   p.cleanup.unref?.();
 };
+
+function scheduleMergeFollowUp(prs: GitHubPullRequests, id: string, p: Producer) {
+  clearTimeout(p.mergeFollowUpTimer);
+
+  if (!mergeFollowUpActive(prs, p)) {
+    p.mergeFollowUpUntil = 0;
+    p.nextMergeFollowUp = Infinity;
+    idle(prs, id, p);
+
+    return;
+  }
+
+  const delay = Math.max(250, p.nextMergeFollowUp - prs.accounts.http.now());
+  p.mergeFollowUpTimer = setTimeout(() => {
+    p.mergeFollowUpTimer = undefined;
+    void poll(prs, id, p)
+      .then(() => scheduleMergeFollowUp(prs, id, p))
+      .catch(() => {
+        if (mergeFollowUpActive(prs, p)) {
+          p.nextMergeFollowUp = prs.accounts.http.now() + jitter(MERGE_FOLLOW_UP_INTERVAL_MS);
+          scheduleMergeFollowUp(prs, id, p);
+        }
+      });
+  }, delay);
+  p.mergeFollowUpTimer.unref?.();
+}
+
+/**
+ * After CI passes, auto-merge may still need a short time to update the PR state. Keep the existing producer alive
+ * for conditional metadata probes so the thread overview catches that transition without a second poller.
+ */
+export async function followPullRequestAfterChecks(prs: GitHubPullRequests, id: string) {
+  const { p } = producerOf(prs, id);
+  clearTimeout(p.cleanup);
+  p.mergeFollowUpUntil = Math.max(p.mergeFollowUpUntil, prs.accounts.http.now() + MERGE_FOLLOW_UP_MS);
+  p.nextMergeFollowUp = prs.accounts.http.now();
+
+  await poll(prs, id, p).catch(() => {
+    p.nextMergeFollowUp = prs.accounts.http.now() + jitter(MERGE_FOLLOW_UP_INTERVAL_MS);
+  });
+
+  scheduleMergeFollowUp(prs, id, p);
+}
 
 /**
  * Agent CI watches share the visible producer's deadlines, validators and single flight (no second poller): the
@@ -106,9 +159,9 @@ export async function pollAgentWatches(prs: GitHubPullRequests, ids: ReadonlySet
   return updates;
 }
 
-async function probe(scope: ReadScope, p: Producer, target: ProbeTarget, signal: AbortSignal) {
+async function probe(scope: ReadScope, p: Producer, target: ProbeTarget, signal: AbortSignal, force = false) {
   signal.throwIfAborted();
-  const result = await readProbe(scope, target, signal);
+  const result = await readProbe(scope, target, signal, force);
   p.signals.set(targetKey(target), result);
 
   for (let page = 2; page <= Math.min(30, result.pages); page++)
@@ -158,6 +211,7 @@ async function poll(prs: GitHubPullRequests, id: string, p: Producer) {
     signal.throwIfAborted();
     let scope = await watchScope(prs, id);
     const now = prs.accounts.http.now();
+    const mergeFollowUp = mergeFollowUpActive(prs, p);
     const previous = p.update?.snapshot;
 
     if (
@@ -183,24 +237,31 @@ async function poll(prs: GitHubPullRequests, id: string, p: Producer) {
 
     if (terminalSnapshot(scope.snapshot)) {
       p.nextSlow = p.nextFast = Infinity;
+      p.mergeFollowUpUntil = 0;
+      p.nextMergeFollowUp = Infinity;
+      clearTimeout(p.mergeFollowUpTimer);
 
       return;
     }
 
-    const initial = !p.signals.size;
+    const initial = !p.signals.size && !mergeFollowUp;
 
-    if (!initial && now < Math.min(p.nextSlow, p.nextFast)) return;
+    if (!mergeFollowUp && !initial && now < Math.min(p.nextSlow, p.nextFast)) return;
 
     let metadataChanged = false,
       checksChanged = false;
 
-    const targets = initial
-      ? [...p.targets]
-      : now >= p.nextFast
-        ? p.targets.filter((target) => p.signals.get(targetKey(target))?.running)
-        : [];
+    const targets = mergeFollowUp
+      ? now >= p.nextMergeFollowUp
+        ? p.targets.filter((target) => target.kind === "metadata")
+        : []
+      : initial
+        ? [...p.targets]
+        : now >= p.nextFast
+          ? p.targets.filter((target) => p.signals.get(targetKey(target))?.running)
+          : [];
 
-    if (!initial && now >= p.nextSlow) {
+    if (!mergeFollowUp && !initial && now >= p.nextSlow) {
       const metadata = p.targets.find((target) => target.kind === "metadata");
 
       if (metadata && !targets.includes(metadata)) targets.push(metadata);
@@ -215,7 +276,7 @@ async function poll(prs: GitHubPullRequests, id: string, p: Producer) {
     }
 
     for (const target of targets) {
-      if (await probe(scope, p, target, signal)) {
+      if (await probe(scope, p, target, signal, mergeFollowUp && target.kind === "metadata")) {
         if (target.kind === "metadata") metadataChanged = true;
         else checksChanged = true;
       }
@@ -244,6 +305,17 @@ async function poll(prs: GitHubPullRequests, id: string, p: Producer) {
     }
 
     if (metadataChanged || checksChanged) publish(p, scope.snapshot, invalidated);
+
+    if (mergeFollowUp) {
+      p.nextMergeFollowUp = Math.min(p.mergeFollowUpUntil, now + jitter(MERGE_FOLLOW_UP_INTERVAL_MS));
+
+      if (terminalSnapshot(scope.snapshot)) {
+        p.mergeFollowUpUntil = 0;
+        p.nextMergeFollowUp = Infinity;
+      }
+
+      return;
+    }
 
     if (initial || now >= p.nextSlow)
       p.nextSlow = Math.max(now + jitter(60_000), p.signals.get("metadata:1")?.expires ?? 0);

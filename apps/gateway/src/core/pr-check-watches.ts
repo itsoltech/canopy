@@ -18,7 +18,7 @@ import type { Effect } from "effect";
 import { readWatchedChecks } from "../github/check-watch-read.ts";
 import { githubFailure } from "../github/http.ts";
 import type { GitHubAccounts } from "../github/service.ts";
-import { pollAgentWatches } from "../github/watch.ts";
+import { followPullRequestAfterChecks, pollAgentWatches } from "../github/watch.ts";
 import {
   PrCheckWatchStore,
   type CallSource,
@@ -204,6 +204,8 @@ export class PrCheckWatches {
     });
 
     await this.#note(w, next, body, end);
+
+    if (end === "passed") await followPullRequestAfterChecks(this.github.prs, w.pull_request_id);
   }
 
   /** The watch ends for a reason the agent hears about (with the last known progress). */

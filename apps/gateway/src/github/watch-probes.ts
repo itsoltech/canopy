@@ -63,7 +63,7 @@ export function metadataRevision(snapshot: github.PullRequestSnapshot) {
 }
 
 /** Real REST validators, never a fictional ETag on GraphQL POST. Keep their payloads lightweight. */
-export async function readProbe(scope: ReadScope, target: ProbeTarget, abort: AbortSignal) {
+export async function readProbe(scope: ReadScope, target: ProbeTarget, abort: AbortSignal, force = false) {
   const { prs, pr, row, head, root } = scope;
   const key = `watch:${pr.repository_id}:${pr.number}:${scope.binding}:${target.kind}:${target.page}`;
   const previous = await prs.client.cached(row, key);
@@ -73,50 +73,54 @@ export async function readProbe(scope: ReadScope, target: ProbeTarget, abort: Ab
       ? `${root}/pulls/${pr.number}`
       : `${root}/commits/${head}/${target.kind === "checks" ? "check-runs" : "status"}?per_page=100&page=${target.page}`;
 
-  const value = await prs.client.read(row.id, {
-    key,
-    path,
-    background: true,
-    signal: abort,
-    ttl: target.kind === "metadata" ? 60_000 : 15_000,
-    project: async (value, headers) => {
-      if (target.kind === "metadata") {
-        const data = Schema.decodeUnknownSync(metadata)(value);
+  const value = await prs.client.read(
+    row.id,
+    {
+      key,
+      path,
+      background: true,
+      signal: abort,
+      ttl: target.kind === "metadata" ? 60_000 : 15_000,
+      project: async (value, headers) => {
+        if (target.kind === "metadata") {
+          const data = Schema.decodeUnknownSync(metadata)(value);
 
-        if (data.node_id !== pr.node_id)
-          throw new ConnectError("Pull request changed. Refresh.", Code.FailedPrecondition);
+          if (data.node_id !== pr.node_id)
+            throw new ConnectError("Pull request changed. Refresh.", Code.FailedPrecondition);
+
+          return {
+            revision: digest(
+              JSON.stringify([
+                new Date(data.updated_at).toISOString(),
+                data.head.sha,
+                data.base.sha,
+                data.merged ? "merged" : data.state === "closed" ? "closed" : data.draft ? "draft" : "open",
+              ]),
+            ),
+            running: false,
+            pages: 1,
+          };
+        }
+
+        const data =
+          target.kind === "checks"
+            ? Schema.decodeUnknownSync(checkRuns)(value)
+            : Schema.decodeUnknownSync(statuses)(value);
+
+        const running =
+          "check_runs" in data
+            ? data.check_runs.some((item) => item.status !== "completed")
+            : data.statuses.some((item) => item.state === "pending");
 
         return {
-          revision: digest(
-            JSON.stringify([
-              new Date(data.updated_at).toISOString(),
-              data.head.sha,
-              data.base.sha,
-              data.merged ? "merged" : data.state === "closed" ? "closed" : data.draft ? "draft" : "open",
-            ]),
-          ),
-          running: false,
-          pages: 1,
+          revision: headers.get("etag") || digest(JSON.stringify(value)),
+          running,
+          pages: Math.max(1, Math.ceil(data.total_count / 100)),
         };
-      }
-
-      const data =
-        target.kind === "checks"
-          ? Schema.decodeUnknownSync(checkRuns)(value)
-          : Schema.decodeUnknownSync(statuses)(value);
-
-      const running =
-        "check_runs" in data
-          ? data.check_runs.some((item) => item.status !== "completed")
-          : data.statuses.some((item) => item.state === "pending");
-
-      return {
-        revision: headers.get("etag") || digest(JSON.stringify(value)),
-        running,
-        pages: Math.max(1, Math.ceil(data.total_count / 100)),
-      };
+      },
     },
-  });
+    force,
+  );
 
   const current = Schema.decodeUnknownSync(signal)(value.payload);
   const prior = previous?.payload ? Schema.decodeUnknownSync(signal)(previous.payload) : undefined;
