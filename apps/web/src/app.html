@@ -162,13 +162,15 @@
         <div role="alert">
           <h1>Could not start %canopy.applicationName%</h1>
           <p>Part of the app did not download. Check the connection, then reload.</p>
-          <button type="button" onclick="location.reload()">Reload</button>
+          <button type="button">Reload</button>
         </div>
       </main>
     </div>
     <script>
       // Startup failed (a script did not download): offer a reload, not a skeleton that never ends.
       // The root layout removes #canopy-boot once it mounts, so later rejections never reach here.
+      // A listener, not an onclick attribute: the desktop CSP admits hashed scripts but no inline handlers.
+      document.querySelector("#canopy-boot button").addEventListener("click", () => location.reload());
       addEventListener("unhandledrejection", () => {
         const boot = document.getElementById("canopy-boot");
         if (!boot) return;
