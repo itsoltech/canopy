@@ -3,6 +3,8 @@
 Status: opis działającego kodu na `dev` (2026-11-15); domyślne wybory nowego wątku
 i filtr ulubionych modeli oraz opcjonalna retencja archiwum są zgodne z web.
 Przesuwanie obrazów wyklucza podwójne stuknięcie do powiększania.
+Galerie agenta czekają na koniec swojej tury,
+a kompaktowanie kontekstu rozdziela sekcje pracy.
 Dostępność w wydaniach zależy od kanału.
 
 Natywna aplikacja Expo/React Native działa na iOS i Androidzie. Obsługuje wątki,
@@ -1396,6 +1398,11 @@ powłoki (obramowanie rose, nota w miejscu kontrolek). Wiadomość czekająca w 
 turą na osi czasu (jak w web): pokazuje ją kolejka w zasobniku, a tura pojawia się po `dispatched`
 z notą „Starting”; pliki tury są odznakami w dymku.
 
+Kompaktowanie kontekstu jest granicą segmentu, tak jak steer. Wiersz
+„Context compacted” stoi między poprzednią a dalszą pracą, poza zwijanymi foldami
+i grupami narzędzi. Pozostaje widoczny po zwinięciu aktywności oraz po ponownym
+otwarciu wątku; podział wynika z zapisanego itemu `context_compaction`.
+
 **Zasobnik nad kompozytorem** (`features/threads/tray`, web: `ComposerTop`) to jeden stos paneli
 na powierzchni kompozytora: zaokrąglone tylko górne rogi, wcięcie 16 dp (promień rogu pola),
 więc boki dochodzą do prostej górnej krawędzi pola, a jego obramowanie zamyka stos. Kolejność jak
@@ -2053,8 +2060,12 @@ natywny cache bitmap może użyć tego samego pliku bez pustej klatki. Indeks po
 tym samym limitom LRU i czyszczeniu przy unpair; nie utrzymujemy bitmap dla całej
 historii ani nie wyłączamy wirtualizacji odległych tur.
 
-Item `image_gallery` pozostaje widoczny pod odpowiedzią, również po zwinięciu
-aktywności tury. Dwie kolumny mieszczą początkowo sześć obrazów; „Show all N”
+Item `image_gallery` pojawia się pod odpowiedzią po zakończeniu swojej tury,
+także po przerwaniu, błędzie lub anulowaniu, i pozostaje widoczny po zwinięciu
+aktywności. Podczas aktywnej tury nie zajmuje miejsca ani nie pobiera miniatur;
+trwała kopia jest zapisana już przy publikacji. Galerie wcześniejszych tur
+pozostają widoczne, gdy agent pracuje dalej. Interaktywne visuals są dostępne
+w trakcie pracy. Dwie kolumny mieszczą początkowo sześć obrazów; „Show all N”
 rozwija pozostałe. Ramki 16:9 i zarezerwowane miejsce podpisu utrzymują układ.
 Istniejący viewport włącza miniatury tylko w widocznym obszarze, a prywatny cache
 załączników i anulowanie odczytów obowiązują także dla zdalnych identyfikatorów.

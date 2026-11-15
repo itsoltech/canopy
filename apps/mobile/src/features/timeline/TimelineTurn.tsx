@@ -37,12 +37,18 @@ const visibleResult = (row: BodyRow) =>
   (row.kind === "item" && (row.node.item.content.case === "imageGallery" || row.node.item.content.case === "visual")) ||
   (row.kind === "notice" && row.notice.notice?.code === "extra_usage");
 
+/** Gallery files are already saved, but their reply waits until the turn ends. */
+const replyResults = (body: readonly BodyRow[], ended: boolean) =>
+  body.filter(
+    (row) => visibleResult(row) && (ended || row.kind !== "item" || row.node.item.content.case !== "imageGallery"),
+  );
+
 /** Only seed the disclosure that contains the saved row; later toggles retain normal fold rules. */
 function initialFolds(turn: ui.Turn, entries: readonly ui.TimelineItem[], context: TurnContext, target?: string) {
   const saved = context.foldChoices.get(turn.id);
 
   if (saved || !target) return saved ?? new Map<number, WorkFoldChoice>();
-  const body = turnBody(turn, entries, context.notices);
+  const body = turnBody(turn, entries, context.notices).filter((row) => !visibleResult(row));
   const choices = new Map<number, WorkFoldChoice>();
 
   segmentsOf(turn, body, () => false).forEach((segment, index) => {
@@ -184,7 +190,7 @@ export function TimelineTurn({
             </View>
           );
         })}
-        {allBody.filter(visibleResult).map((row) => (
+        {replyResults(allBody, ended).map((row) => (
           <BodyRowView key={row.key} row={row} steers={context.steers} ended={ended} />
         ))}
         {ended && <TurnFooter {...{ turn, context, historical, answerText }} itemId={replies.answerItemId} />}

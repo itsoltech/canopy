@@ -61,10 +61,15 @@ export function answerIndex(body: readonly BodyPhase[], status: TurnProgress, op
   return phase === "final_answer" || (!phase && open) ? at : -1;
 }
 
-/** A row of a turn's body for `workSegments`: its `BodyPhase`, and whether it is a steer (a message that joined the running turn). */
+/** A persisted row that starts a new visible segment boundary. */
+export type WorkBoundary = "compaction";
+
+/** A row of a turn's body for `workSegments`: its phase, steer marker and optional visible boundary. */
 export interface BodyRow {
   readonly phase: BodyPhase;
   readonly steer: boolean;
+  /** Context compaction is shown outside the preceding fold and starts the following segment. */
+  readonly boundary?: WorkBoundary;
 }
 
 /** One stretch of a turn laid out like a turn of its own: a fold, then its answer (docs/timeline-folding.md). */
@@ -72,7 +77,7 @@ export interface WorkSegment {
   /** Body rows `[start, end)`. */
   readonly start: number;
   readonly end: number;
-  /** Leading steers shown above the fold, like a turn's input. */
+  /** Leading visible boundary rows shown above the fold, like a turn's input. */
   readonly inputs: number;
   /** Body index of the answer shown below the fold, or -1. */
   readonly answer: number;
@@ -88,8 +93,8 @@ export interface WorkSegment {
 export const foldId = (turnId: string, segment: number): string => (segment ? `${turnId}/${segment}` : turnId);
 
 /**
- * Split at final answers and before steers, keeping every injected input outside hidden work.
- * Consecutive leading steers share a segment. A steer does not expire live fold choices: all work
+ * Split at final answers and before visible boundaries, keeping every injected input outside hidden work.
+ * Consecutive leading boundaries share a segment. A boundary does not expire live fold choices: all work
  * since the previous final answer follows the next answer/end boundary. Only the last segment of
  * that stretch can supply its answer. Everything derives from persisted rows, including on replay.
  */
@@ -129,7 +134,7 @@ export function workSegments(
     };
 
     for (let at = from; at < end; at++) {
-      if (!body[at]!.steer) continue;
+      if (!body[at]!.steer && body[at]!.boundary === undefined) continue;
 
       if (at > start + inputs) {
         push(at);

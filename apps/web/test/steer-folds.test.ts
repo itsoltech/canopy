@@ -35,9 +35,11 @@ function entries(kinds: readonly string[]): TimelineEntry[] {
         content:
           kind === "steer" || kind === "platform"
             ? { case: "userMessage", value: { text: id, clientId: id } }
-            : kind === "final" || kind === "message"
-              ? { case: "agentMessage", value: { text: id, phase: kind === "final" ? "final_answer" : "" } }
-              : content,
+            : kind === "compaction"
+              ? { case: "contextCompaction", value: { summary: "Compacted" } }
+              : kind === "final" || kind === "message"
+                ? { case: "agentMessage", value: { text: id, phase: kind === "final" ? "final_answer" : "" } }
+                : content,
       }),
     };
   });
@@ -200,5 +202,37 @@ describe("steered input outside work", () => {
     const notice = rows.find((row) => row.key === "item:platform-1");
     expect(notice).toMatchObject({ kind: "timeline", work: false, row: { steer: true, node: { entry: items[1] } } });
     expect(planFolds(state.turns, items, []).workOf.has("item:platform-1")).toBe(false);
+  });
+
+  test("context compaction stays visible between work segments on web and mobile", () => {
+    const items = entries(["work", "compaction", "work", "final"]);
+    const current = { ...turn, status: "running" };
+    const web = planFolds([current], items, []);
+
+    const mobile = items.map((entry) =>
+      create(ui.TimelineItemSchema, { item: entry.item, turnId: entry.turnId, firstSeq: entry.firstSeq }),
+    );
+
+    const body = turnBody(current, mobile, []);
+    const segments = segmentsOf(current, body, () => false);
+
+    expect(web.folds.map(({ live, answered, answerSeq }) => ({ live, answered, answerSeq }))).toEqual([
+      { live: true, answered: true, answerSeq: 4n },
+      { live: true, answered: true, answerSeq: 4n },
+    ]);
+    expect(segments.map(({ start, end, inputs, answer }) => ({ start, end, inputs, answer }))).toEqual([
+      { start: 0, end: 1, inputs: 0, answer: -1 },
+      { start: 1, end: 4, inputs: 1, answer: 3 },
+    ]);
+
+    const rows = new FeedBuilder().build(input(items));
+    expect(rows.find((row) => row.key === "item:compaction-1")).toMatchObject({
+      kind: "timeline",
+      work: false,
+    });
+    expect(web.workOf.has("item:compaction-1")).toBe(false);
+    expect(web.workOf.get("item:work-0")).toBe("turn");
+    expect(web.workOf.get("item:work-2")).toBe("turn/1");
+    expect(itemKeys(rows)).toEqual(["item:compaction-1", "item:final-3"]);
   });
 });

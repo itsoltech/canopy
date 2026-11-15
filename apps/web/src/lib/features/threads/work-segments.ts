@@ -63,6 +63,7 @@ export function planFolds(
     add(entry.turnId, `item:${entry.id}`, entry.firstSeq, {
       phase: content.case === "agentMessage" ? content.value.phase : undefined,
       steer,
+      boundary: content.case === "contextCompaction" ? "compaction" : undefined,
     });
   }
 
