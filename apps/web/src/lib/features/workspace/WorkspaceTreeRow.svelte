@@ -5,6 +5,7 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
   import Spinner from "#lib/shared/ui/Spinner.svelte";
+  import { endWorkspaceFileDrag, startWorkspaceFileDrag } from "./file-drag.ts";
 
   /**
    * One row of the virtual file tree at a fixed height and offset. Every row keeps a chevron slot, so names line up
@@ -12,6 +13,7 @@
    */
   let {
     row,
+    threadId,
     index,
     height,
     expanded,
@@ -25,6 +27,7 @@
     onfocus,
   }: {
     row: DirectoryRow;
+    threadId: string;
     index: number;
     height: number;
     expanded: boolean;
@@ -69,6 +72,12 @@
     : label}
   tabindex={tabbable ? 0 : -1}
   data-tree-key={row.key}
+  draggable={entry?.kind === Kind.FILE}
+  ondragstart={(event) => {
+    if (entry?.kind !== Kind.FILE || !event.dataTransfer) return;
+    startWorkspaceFileDrag(event.dataTransfer, threadId, entry.path);
+  }}
+  ondragend={endWorkspaceFileDrag}
   title={entry?.path ?? (state.error || undefined)}
   style:height={`${height}px`}
   style:top={`${index * height}px`}

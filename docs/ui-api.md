@@ -1689,6 +1689,9 @@ Wątek wspomniany przez użytkownika agent może czytać (`get_thread`, `read_th
 
 ### Cytaty
 
+Status: **zaimplementowane na `dev`** (2026-11-15), w tym cytaty z plików workspace'u
+w web/desktop; dostępność w kanałach według [release.md](release.md).
+
 `Quote` ma wspólny kontrakt w `quotes.proto` (dotychczasowe `ui.Quote` i numery pól
 bez zmian). Boty przesyłają go przez `SendBotMessage.quotes` / `BotMessage.quotes`
 (451), zapisują osobno od tekstu i używają tego samego składania cytatów w tekście.
@@ -1698,7 +1701,7 @@ Użytkownik cytuje fragment tego, co agent wytworzył w wątku (odpowiedź, wcze
 
 | Pole | Co robi |
 |---|---|
-| `Quote` | `text` (zaznaczony lub edytowany fragment, bez znaczników markdown, z podziałami linii), `comment` (opcjonalny), `source_item_id`, `source_thread_id` (item i jego wątek, także odziedziczona historia forka), `source_kind` (`agent_message` \| `reasoning` \| `command_output` \| `tool_call` \| `code` \| `diff`, pusty = tekst), `language` (blok kodu z językiem). Opcjonalne `start` (7), `end` (8) wskazują zakres `[start,end)` znacznika cytatu w jednostkach UTF-16 tekstu wiadomości. `source_author` (9), `source_time` (10) to etykiety źródła dla UI, bez znaczenia dla autoryzacji |
+| `Quote` | `text` (zaznaczony lub edytowany fragment, bez znaczników markdown, z podziałami linii), `comment` (opcjonalny), `source_item_id`, `source_thread_id` (item i jego wątek, także odziedziczona historia forka), `source_kind` (`agent_message` \| `reasoning` \| `command_output` \| `tool_call` \| `code` \| `diff` \| `file`, pusty = tekst), `language` (blok kodu z językiem). Opcjonalne `start` (7), `end` (8) wskazują zakres `[start,end)` znacznika cytatu w jednostkach UTF-16 tekstu wiadomości. `source_author` (9), `source_time` (10) to etykiety źródła dla UI, bez znaczenia dla autoryzacji |
 | `SendMessage.quotes` (150) | cytaty wiadomości, do 20; tekst cytatu niepusty i do 20 000 znaków, komentarz do 4 000 (`QUOTE_LIMITS`, `packages/domain`). Wiadomość może mieć same cytaty. Działa z `delivery = STEER` (cytaty są w tekście, więc steer ich nie kolejkuje) |
 | `Turn.quotes`, `Steer.quotes` (150) | cytaty wiadomości dla bańki użytkownika; `message_text` / `Steer.text` to sama treść użytkownika. Steer, który nie wszedł do tury, staje się turą z tymi samymi cytatami |
 
@@ -1708,6 +1711,21 @@ Gateway porządkuje cytaty po `start` i odrzuca niepełne zakresy, nakładanie s
 lub wzmianek oraz zakresy poza tekstem. Wskazany wątek źródłowy musi należeć do
 właściciela wiadomości. Referencja nie udostępnia cudzej historii. Tekst, metadane
 źródła i zakresy wracają w snapshotach bez zmian.
+
+`source_kind = file` oznacza migawkę zaznaczenia z podglądu/edytora pliku.
+`source_thread_id` wskazuje jego wątek, `source_item_id` jest pusty, a `source_author`
+przechowuje ścieżkę względną (do 4096 znaków zamiast limitu 200 dla autorów).
+To metadane pochodzenia od klienta, bez dodatkowego dostępu do dysku lub autoryzacji.
+Model otrzymuje etykietę `File path:` i fragment w bloku kodu, z językiem źródła
+albo `text`; tekst źródłowy zachowuje wcięcia i białe znaki. Rendered przekazuje tekst
+widoczny bez znaczników Markdown. `Jump to source` otwiera kartę pliku.
+Wstawienie cytatu z karty wraca do rozmowy i używa istniejącego kursora szkicu.
+
+Przeciąganie z drzewa `Files` nie dodaje kontraktu ani załącznika: web/desktop
+wstawia zwykłą wzmiankę `Mention.kind = FILE` z nazwą względną, identyczną z wyborem
+przez `@`. Lokalna sesja przeciągania jest związana z wątkiem; obca strona/wątek
+nie może użyć jej jako wzmianki. Gateway nadal rozwiązuje ścieżkę i sprawdza zakres
+jak dla każdej wzmianki. Szczegóły interakcji: [workspace.md](workspace.md#pliki-w-wiadomości).
 
 **Cytaty w tekście.** Kompozytor przechowuje krótki znacznik `[“początek fragmentu…”]`
 i zakres cytatu. Cite (przycisk, menu zaznaczenia lub skrót) oraz cytowanie z panelu PR

@@ -32,6 +32,7 @@
   import type { github } from "@canopy/contracts";
   import { composerPending } from "@canopy/domain/composer-pending";
   import ComposerPending from "./ComposerPending.svelte";
+  import { isWorkspaceFileDrag, workspaceFileDrag } from "#lib/features/workspace/file-drag.ts";
 
   export async function acceptContext(context: github.PullRequestContextResponse) {
     if (!draft || !context.attachment) return;
@@ -63,6 +64,7 @@
    * Mentions (`sources`, docs/ui-api.md "Wzmianki"): the text field takes "/", "$", "@" and "#" chips
    * (MentionEditor); `mentions` are their ranges in `value`. The "+" menu offers the same triggers.
    * In a form, `name` submits the trimmed text and `mentions` (protobuf JSON) for a plain form post.
+   * `fileThreadId` accepts Files tree drags from that thread as `@` file mentions, without uploading the file.
    * Block-level elements of the draft (attachments; quotes) render above the text: `elements` goes there, and
    * `elementCount` says how many it holds — with any, a message may go without text (and steer).
    */
@@ -90,6 +92,7 @@
     meta,
     draft,
     sources,
+    fileThreadId,
     elements,
     elementCount = 0,
     quoteKey,
@@ -128,6 +131,8 @@
     meta?: Snippet;
     draft?: AttachmentDraft | undefined;
     sources?: MentionSources | undefined;
+    /** Workspace file drags may only mention files from this thread. */
+    fileThreadId?: string | undefined;
     elements?: Snippet;
     elementCount?: number;
     quoteKey?: string;
@@ -209,8 +214,42 @@
   let dragging = $state(false);
   const carriesFiles = (event: DragEvent) => event.dataTransfer?.types.includes("Files") ?? false;
 
+  const canMentionFile = $derived(Boolean(fileThreadId && sources && !disabled && !readonly && !secret && !shellMode));
+
+  function mentionFile(path: string, point?: { x: number; y: number }) {
+    onexpand?.("drop");
+    editor?.insertChips([{ kind: MentionKind.FILE, name: path, label: "", path: "", source: "", isDir: false }], point);
+  }
+
+  function ondragover(event: DragEvent) {
+    if (isWorkspaceFileDrag(event.dataTransfer)) {
+      event.preventDefault();
+      dragging = canMentionFile && Boolean(workspaceFileDrag(event.dataTransfer, fileThreadId));
+
+      if (event.dataTransfer) event.dataTransfer.dropEffect = dragging ? "copy" : "none";
+
+      if (dragging) onexpand?.("drop");
+
+      return;
+    }
+
+    if (!onfiles || !carriesFiles(event)) return;
+    event.preventDefault();
+    dragging = true;
+    onexpand?.("drop");
+  }
+
   function ondrop(event: DragEvent) {
     dragging = false;
+
+    if (isWorkspaceFileDrag(event.dataTransfer)) {
+      event.preventDefault();
+      const file = canMentionFile ? workspaceFileDrag(event.dataTransfer, fileThreadId, true) : undefined;
+
+      if (file) mentionFile(file.path, { x: event.clientX, y: event.clientY });
+
+      return;
+    }
 
     if (!onfiles || !carriesFiles(event)) return;
     event.preventDefault();
@@ -240,7 +279,7 @@
     const files = draft;
     const root = box;
 
-    if (!intake || !take || !files || !root || disabled || readonly) return;
+    if (!intake || !take || !files || !root || !editor || disabled || readonly) return;
 
     return intake.register({
       root,
@@ -249,6 +288,7 @@
         take(list);
       },
       notice: (text) => (files.notice = text),
+      workspace: canMentionFile && fileThreadId ? { threadId: fileThreadId, mention: mentionFile } : undefined,
     });
   });
 
@@ -315,12 +355,7 @@
     style:--composer-send-width={sendWidth === undefined ? undefined : `${sendWidth}px`}
     role="group"
     aria-label={onfiles ? `${label}, drop files to attach` : undefined}
-    ondragover={(event) => {
-      if (!onfiles || !carriesFiles(event)) return;
-      event.preventDefault();
-      dragging = true;
-      onexpand?.("drop");
-    }}
+    {ondragover}
     ondragleave={(event) => {
       if (!event.currentTarget.contains(event.relatedTarget as Node | null)) dragging = false;
     }}

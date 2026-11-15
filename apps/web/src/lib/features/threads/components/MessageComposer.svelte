@@ -420,6 +420,7 @@
     deliveryNotice={outcome}
     elementCount={quotes.length}
     quoteKey={thread.id}
+    fileThreadId={thread.id}
     {ongoal}
   >
     {#snippet drafts()}<DraftActions

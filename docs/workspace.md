@@ -1,8 +1,10 @@
 # Zakładki wątku i moduł plików
 
 Status: **wdrożone; układ v3**, kompaktowa typografia zakładek, diagramy Mermaid w trybie
-`Rendered` oraz bezpieczny HTML i lokalne obrazy w Markdown w web/desktop (2026-11-15;
-stos #640–#648, potem #710, #711, #737, #740, #787 i #823).
+`Rendered`, bezpieczny HTML i lokalne obrazy w Markdown w web/desktop,
+cytowanie zaznaczeń z plików i przeciąganie plików do wiadomości
+(2026-11-15; stos #640–#648, potem #710, #711, #737, #740, #787 i #823).
+Opis dotyczy kodu; dostępność nightly/beta/stable określają [wydania](release.md).
 W web/desktop zakładki dzielą rząd z sygnetem projektu, a **tytuł wątku jest pierwszą,
 niezamykalną kartą** (bez osobnego tytułu i etykiety `Thread`, #787). Mobile pokazuje
 tę kartę w przełączniku jako `Thread`. W tym dokumencie `Thread` oznacza tę pierwszą
@@ -189,6 +191,30 @@ wydań ([release.md](release.md)).
 Nagłówek nie ma `+`. Wybór pliku z drzewa lub linku otwiera kartę obok `Thread`;
 pełny widok PR otwiera wiersz PR w podsumowaniu (lub link `?pr=`), a wynik zadania
 w tle — wiersz zadania.
+
+### Pliki w wiadomości
+
+W web/desktop zaznaczenie treści pliku pokazuje wspólną akcję `Cite`; dostępne są
+także menu kontekstowe i `Alt+Q`. Działa w `Rendered`, źródle i edytorze kodu.
+Akcja wraca do rozmowy, wstawia cytat przy zapamiętanym kursorze istniejącego szkicu
+i otwiera edytor komentarza. Cytat zachowuje tekst oraz ścieżkę względem katalogu
+wątku; `Jump to source` ponownie otwiera plik. Dla edytora kodu treść pochodzi
+z zaznaczenia w modelu, również poza widocznym oknem. Rendered cytuje widoczny tekst,
+bez znaczników Markdown. Cytat jest migawką zaznaczenia, nie odczytem pliku na nowo
+przy wysłaniu; może zawierać niezapisane edycje. Binaria i kontrolki podglądu
+nie są źródłami cytatów. Limity pozostają wspólne z cytatami rozmowy.
+
+Plik z panelu `Files` można przeciągnąć na pole wiadomości lub obszar rozmowy.
+Powstaje ta sama wzmianka `FILE` co przy wyborze przez `@`, bez przesyłania kopii
+pliku. Upuszczenie na pole umieszcza wzmiankę w punkcie upuszczenia; na rozmowę —
+przy zapamiętanym kursorze. Gdy otwarta jest karta pliku, upuszczenie na jej
+treść wraca do rozmowy i dodaje wzmiankę. Jeżeli pole wiadomości dopiero się
+przygotowuje, zweryfikowany drop czeka na jego rejestrację i dodaje wzmiankę raz;
+opuszczenie wątku usuwa oczekujące dropy. Nakładka rozmowy pokazuje `Drop file to mention`.
+Gest jest ograniczony do tej samej strony i źródłowego wątku; katalogi, symlinki
+i usunięte wpisy nie są przeciągane. Bezpośredni drop na rozmowę wymaga dostępnego kompozytora.
+Pliki przeciągnięte z systemu nadal korzystają ze zwykłego przepływu załączników.
+Te gesty dotyczą web/desktop, bez rozszerzenia natywnego klienta mobile.
 
 ### Architektura informacji
 

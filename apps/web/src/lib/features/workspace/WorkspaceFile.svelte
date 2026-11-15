@@ -26,25 +26,32 @@
   import { confineSelectAll } from "#lib/shared/ui/select-all.ts";
   import Delayed from "#lib/shared/ui/Delayed.svelte";
   import FileSkeleton from "./FileSkeleton.svelte";
+  import FileCitations from "./FileCitations.svelte";
   import type { FileNotice } from "./file-notice.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
 
   let {
     document,
+    threadId,
     onclose,
     onkeep,
     preview,
     tabActions,
+    oncite,
   }: {
     document: WorkspaceFile;
+    threadId: string;
     onclose: () => void;
     onkeep: () => void;
     preview: boolean;
     /** Tab management for the file's ⋯ menu (move, close others). */
     tabActions?: Snippet;
+    oncite: () => Promise<void>;
   } = $props();
 
   let scroller = $state<HTMLDivElement>();
+  let editor = $state<CodeEditor>();
+  let source = $state<import("./WorkspaceSource.svelte").default>();
   let confirmation = $state<"discard" | "delete" | undefined>();
   let goOpen = $state(false);
   let line = $state("");
@@ -302,11 +309,19 @@
       if (scroller) document.scroll = scroller.scrollTop;
     }}
   >
-    <div class={["h-full", fade && viewer.file && "t-rise"]}>
+    <FileCitations
+      {document}
+      {threadId}
+      {rendered}
+      selectedText={() => editor?.selectedText() ?? source?.selectedText()}
+      beforeinsert={oncite}
+      class={fade && viewer.file ? "t-rise" : undefined}
+    >
       {#if !foreground}
         <div class="h-full"></div>
       {:else if compare}
         {#if Reader}<Reader
+            bind:this={source}
             {document}
             text={compare === "disk" ? (viewer.diskText ?? "") : viewer.draft}
             path={name}
@@ -314,6 +329,7 @@
           />{/if}
       {:else if (viewer.editable || viewer.dirty) && !rendered}
         <CodeEditor
+          bind:this={editor}
           memory={editorMemory(document)}
           position={viewer.position}
           positionRevision={viewer.positionRevision}
@@ -332,6 +348,7 @@
         <Delayed><FileSkeleton /></Delayed>
       {:else if viewer.file && !viewer.file.binary && !rendered}
         {#if Reader}<Reader
+            bind:this={source}
             {document}
             text={viewer.text}
             path={viewer.file.relativePath || document.path}
@@ -351,7 +368,7 @@
           position={viewer.position}
         />
       {/if}
-    </div>
+    </FileCitations>
   </div>
 </div>
 

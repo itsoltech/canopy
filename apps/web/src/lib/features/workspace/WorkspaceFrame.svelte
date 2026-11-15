@@ -1,9 +1,11 @@
 <script lang="ts">
-  import type { Snippet } from "svelte";
+  import { untrack, type Snippet } from "svelte";
   import { FILES_PANEL_WIDTH } from "@canopy/domain/device-view";
   import type { ThreadWorkspace } from "./thread-workspace.svelte.ts";
   import ResizeHandle from "#lib/shared/ui/ResizeHandle.svelte";
   import { devicePreferences as device } from "#lib/features/settings/device-preferences.svelte.ts";
+  import { workspaceFileDrag, type WorkspaceFileDrag } from "./file-drag.ts";
+  import { useFileIntake } from "#lib/features/attachments/file-intake.svelte.ts";
 
   /**
    * The thread area and the Files panel. On wide screens the grid eases the panel's column open and shut
@@ -18,10 +20,68 @@
 
   const size = $derived(workspace.panelSize);
   const open = $derived(workspace.filesOpen);
+  const intake = useFileIntake();
+  let pending = $state<WorkspaceFileDrag[]>([]);
+  let root = $state<HTMLDivElement>();
+  let visibility = $state(0);
+
+  $effect(() => {
+    if (!root || pending.length === 0) return;
+    const observer = new MutationObserver(() => visibility++);
+    observer.observe(root, {
+      attributes: true,
+      attributeFilter: ["class", "style", "hidden", "inert"],
+      childList: true,
+      subtree: true,
+    });
+
+    return () => observer.disconnect();
+  });
+
+  $effect.pre(() => {
+    workspace.threadId();
+
+    return () => (pending = []);
+  });
+
+  $effect(() => {
+    if (workspace.current || pending.length === 0) return;
+    void visibility;
+    const target = intake?.target?.workspace;
+
+    if (!target || target.threadId !== workspace.threadId()) return;
+    const files = pending;
+    pending = [];
+    untrack(() => {
+      for (const file of files) if (file.threadId === target.threadId) target.mention(file.path);
+    });
+  });
+
+  function overFile(event: DragEvent) {
+    return workspace.current && event.target instanceof Element && event.target.closest("#workspace-content");
+  }
 </script>
 
 <div
+  bind:this={root}
   {@attach workspace.measure}
+  ondragovercapture={(event) => {
+    if (!overFile(event) || !workspaceFileDrag(event.dataTransfer, workspace.threadId())) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+  }}
+  ondropcapture={(event) => {
+    if (!overFile(event)) return;
+    const file = workspaceFileDrag(event.dataTransfer, workspace.threadId(), true);
+
+    if (!file) return;
+    event.preventDefault();
+    event.stopPropagation();
+    pending = [...pending, { threadId: file.threadId, path: file.path }];
+    workspace.view.select("thread");
+  }}
   class="t-panel-column relative flex h-full min-h-0 min-w-0 grid-rows-1"
   class:grid={workspace.wide}
   style:grid-template-columns={workspace.wide ? `minmax(0,1fr) ${open ? size : 0}px` : undefined}

@@ -24,11 +24,13 @@
     root,
     avoid,
     beforeinsert,
+    select = selectedQuote,
   }: {
     threadId: string;
     root: HTMLElement | undefined;
     avoid?: HTMLElement | undefined;
     beforeinsert?: () => Promise<void>;
+    select?: (selection: Selection | null) => SelectedQuote | undefined;
   } = $props();
 
   const CITE_HOTKEY = $derived(keybindings.get("message:quote")[0] ?? "");
@@ -47,7 +49,7 @@
 
   function read() {
     const selection = getSelection();
-    const found = selectedQuote(selection);
+    const found = select(selection);
     const live = found && selection ? selection.getRangeAt(0) : undefined;
 
     if (!found || !live || !root?.contains(live.commonAncestorContainer)) {
@@ -192,7 +194,7 @@
   }
 </script>
 
-<SelectionMenu {root} shortcut={CITE_HOTKEY} oncite={insert} />
+<SelectionMenu {root} shortcut={CITE_HOTKEY} oncite={insert} {select} />
 
 {#if quote}
   <CiteButton

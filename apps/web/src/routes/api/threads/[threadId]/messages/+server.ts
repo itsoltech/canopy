@@ -37,7 +37,7 @@ const Body = Schema.Struct({
         language: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(40))),
         start: Schema.optionalKey(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
         end: Schema.optionalKey(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
-        sourceAuthor: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(200))),
+        sourceAuthor: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(4096))),
         sourceTime: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(100))),
         pullRequest: Schema.optionalKey(
           Schema.Struct({

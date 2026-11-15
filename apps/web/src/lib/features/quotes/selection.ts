@@ -249,16 +249,19 @@ export interface SelectedQuote {
 }
 
 /** The current selection as a quote, or undefined when it is empty or not inside one quotable region. */
-export function selectedQuote(selection: Selection | null): SelectedQuote | undefined {
+export function selectedQuote(
+  selection: Selection | null,
+  options: { source?: QuoteSource; text?: string; pre?: boolean } = {},
+): SelectedQuote | undefined {
   if (!selection || selection.isCollapsed || selection.rangeCount !== 1) return undefined;
   const range = selection.getRangeAt(0);
   const common = range.commonAncestorContainer;
   const element = common instanceof Element ? common : common.parentElement;
-  const source = quoteSourceOf(element);
+  const source = options.source ?? quoteSourceOf(element);
 
   if (!source || !element) return undefined;
-  const pre = element.closest("pre, .code-surface, .whitespace-pre-wrap") !== null;
-  const text = visibleText(range.cloneContents(), pre);
+  const pre = options.pre ?? element.closest("pre, .code-surface, .whitespace-pre-wrap") !== null;
+  const text = options.text ?? visibleText(range.cloneContents(), pre);
 
   if (!text.trim()) return undefined;
   const rects = [...range.getClientRects()].filter((r) => r.width > 0 || r.height > 0);

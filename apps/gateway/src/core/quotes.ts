@@ -69,7 +69,9 @@ export function checkedQuotes(
         ...(quote.sourceKind && { sourceKind: quote.sourceKind }),
         ...(quote.language && { language: quote.language }),
         ...(quote.start !== undefined && quote.end !== undefined && { start: quote.start, end: quote.end }),
-        ...(quote.sourceAuthor && { sourceAuthor: quote.sourceAuthor.slice(0, 200) }),
+        ...(quote.sourceAuthor && {
+          sourceAuthor: quote.sourceAuthor.slice(0, quote.sourceKind === "file" ? 4096 : 200),
+        }),
         ...(quote.sourceTime && { sourceTime: quote.sourceTime.slice(0, 100) }),
         ...(quote.pullRequest && { pullRequest: quote.pullRequest }),
       };

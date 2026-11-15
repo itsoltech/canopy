@@ -38,6 +38,7 @@ const theme = EditorView.theme({
 
 export interface CodeEditor {
   text(): string;
+  selectedText(): string | undefined;
   /** Replaces the content (a reload) without counting as an edit of the user's. */
   reset(text: string): void;
   focus(): void;
@@ -111,6 +112,13 @@ export function createCodeEditor(parent: HTMLElement, options: CodeEditorOptions
 
   return {
     text: () => view.state.doc.toString(),
+    selectedText: () => {
+      const selection = view.state.selection;
+
+      return selection.ranges.length === 1 && !selection.main.empty
+        ? view.state.sliceDoc(selection.main.from, selection.main.to)
+        : undefined;
+    },
     reset(text) {
       resetting = true;
       view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } });

@@ -211,6 +211,7 @@
         {#each visible as { row, index } (row.key)}
           {@const node = row.kind !== "entry" ? tree.node(row.directory) : undefined}
           <WorkspaceTreeRow
+            threadId={view.threadId}
             {row}
             {index}
             height={rowHeight}
