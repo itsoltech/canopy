@@ -1,5 +1,9 @@
 # Współdzielone połączenia proxy
 
+Status: opis działającego kodu na `dev` (2026-11-15), w tym aktywny odczyt limitów
+Claude i wybór odczytów kont i modeli CLIProxyAPI. Dostępność nightly/beta/stable wynika
+z promocji wydań ([release.md](release.md)).
+
 Settings → **Proxies** przechowuje połączenie raz: nazwę, rodzaj, URL, zaszyfrowany
 sekret i opcje transportu Codexa. W Settings → Providers połączenie instancji to
 **Device login** albo **Proxy** z pickerem zapisanych połączeń i przyciskiem **Add proxy**.
@@ -166,8 +170,33 @@ go klientom. Każde body, także błędu 403, czytamy ograniczonym czytnikiem; r
 anulowana bez buforowania. UI nie renderuje z niej HTML. Każde konto (`ProxyAccount`) zawiera:
 providera, email/etykietę, status (`active`, `cooling_down`, `disabled`, `sign_in`,
 `error`), krótki komunikat, koniec cooldownu i liczniki sukcesów/błędów. Okna limitów
-pochodzą z pasywnych nagłówków ostatniej odpowiedzi upstream: Codex
+pochodzą z pasywnych nagłówków odpowiedzi upstream w `quota` i `model_quotas`: Codex
 `x-codex-{primary,secondary}-*`, Claude `anthropic-ratelimit-unified-{5h,7d}-*`.
+Każde okno wybiera najnowszy poprawny odczyt według własnego `observed_at`;
+zbiorcze `quota` konta może być starsze od odczytu modelu. Procent, status i reset
+pochodzą z tego samego odczytu, a brak innego okna w nowszej odpowiedzi nie usuwa
+jego wcześniejszego raportu. Przy równych lub brakujących datach wybieramy większe
+zużycie. Nowszy odczyt może obniżyć zużycie po resecie; nie bierzemy historycznego
+maksimum. Niepoprawny wpis modelu jest pomijany bez odrzucania konta. Czas pobrania
+listy i `checked_at` nie zastępują czasu obserwacji upstream.
+
+Dla kont Claude OAuth z `auth_index` gateway dodatkowo wywołuje
+`POST <root>/v0/management/api-call`: stałe `GET https://api.anthropic.com/api/oauth/usage`,
+`Authorization: Bearer $TOKEN$` i `anthropic-beta: oauth-2025-04-20`. CLIProxyAPI
+podstawia token konta u siebie; Canopy nie pobiera plików auth ani tokenów.
+Poprawna odpowiedź dostawcy zastępuje pasywne okna: jej `utilization` jest
+procentem 0–100, a nie ułamkiem jak w nagłówkach. Dzięki temu odczyt uwzględnia
+pracę poza proxy i nie zależy od kolejności kończenia streamów inferencji.
+Odczyt obejmuje 5h, tydzień oraz raportowane okna Opus/Sonnet. Nie wysyła promptu
+ani nie zużywa tokenów inferencji. Wyczerpanie okna Opus/Sonnet zeruje tylko jego
+pojemność; wspólne okna konta zachowują własny odczyt, a ich wyczerpanie nadal
+blokuje wszystkie modele. Pomijamy konta wyłączone, wymagające logowania
+i konta API-key. Brak obsługi `api-call`, wygasły token, 429 lub niepoprawna odpowiedź
+pozostawiają pasywny raport; nie zmieniają stanu klucza Management API.
+Maksymalnie cztery odczyty biegną równocześnie w jednym budżecie 10 s wspólnym
+z pobraniem listy. Każda odpowiedź aktywna ma limit 512 KiB i przechodzi walidację;
+do UI trafiają wyłącznie znane okna z procentem i datą resetu, bez surowego body
+lub nagłówków. Dotychczasowe limity częstotliwości i dzierżawa obejmują cały odczyt.
 Nie używamy `usage-queue`, bo zdejmuje rekordy z kolejki innych odbiorców.
 
 Stan (`ProxyAccounts.state`): `ok`, `no_key`, `unauthorized`, `remote_disabled`
@@ -334,8 +363,9 @@ jako Ultra, a Max 5x jako Max; waga tygodniowa odpowiada aktualnemu planowi.
 Brak pomiaru, brak procentu bez sygnału reached lub miniony reset wyklucza konto
 z mianownika danego okna. Wyłączone konta,
 wymagające logowania oraz ze statusem błędu lub nieznanym są wykluczone. Cooling
-down i osiągnięcie dowolnego aktualnego limitu zerują dostępną pojemność konta,
-zachowując jego jednostki w oknach, dla których istnieje odczyt. Nie tworzymy
+down i osiągnięcie aktualnego limitu wspólnego zerują dostępną pojemność konta,
+zachowując jego jednostki w oknach, dla których istnieje odczyt. Limit Opus/Sonnet
+zeruje tylko odpowiadające mu okno. Nie tworzymy
 brakujących okien ani nie zakładamy, że reset sam potwierdził powrót dostępności.
 Ikona paska bocznego pokazuje dla każdego providera najbardziej ograniczające okno
 z wiersza popovera, więc zgadza się z tym, co popover pokazuje. Przy limicie bez procentu samo reached oznacza zerową dostępność.
@@ -349,8 +379,14 @@ ani abonamentów; zostaje jedynie liczba kont nieobsługiwanego providera.
 
 Źródła sprawdzone 2026-11-14 (plany Claude w upstream: 2026-11-15):
 - [CLIProxyAPI: lista i oczyszczone claims](https://github.com/router-for-me/CLIProxyAPI/blob/e96d4c4818851cf0e96d27b2bc8b67379e449d9e/internal/api/handlers/management/auth_files.go),
+- [CLIProxyAPI: odczyt przez `api-call` i podstawienie tokenu (sprawdzone 2026-11-15)](https://github.com/router-for-me/CLIProxyAPI/blob/67465884ca179a8f9098328d03a361b50003fdd7/internal/api/handlers/management/api_tools.go),
 - [CLIProxyAPI: mapowanie okien i nullable secondary](https://github.com/router-for-me/CLIProxyAPI/blob/e96d4c4818851cf0e96d27b2bc8b67379e449d9e/internal/runtime/executor/helps/codex_quota.go),
 - [Codex: pomijanie pustych okien](https://github.com/openai/codex/blob/main/codex-rs/codex-api/src/rate_limits.rs).
+
+`tests/integration/proxy-account-usage.test.ts` sprawdza aktywny odczyt Claude przez
+gRPC i Management API: pierwszeństwo bieżącego zużycia, zero po resecie, limity
+modeli bez zerowania wspólnego salda, cache, redakcję oraz fallback przy błędach
+dostawcy, braku endpointu, niepoprawnym lub zbyt dużym body i przekierowaniu.
 
 `tests/integration/proxy-accounts.test.ts` używa fałszywego serwera Management API:
 parsowanie i sanityzacja kont, zły klucz bez ponowień, wyłączony zdalny dostęp,

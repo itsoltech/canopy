@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { toJson } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { proxyAccount, secretRedactor } from "./management.ts";
+import { proxyAccount, proxyAccountsOf, secretRedactor } from "./management.ts";
 import { usageWindowName, usageReset } from "@canopy/domain/provider-usage";
 
 const observed = "2026-11-14T10:00:00Z";
@@ -11,6 +11,65 @@ const account = (signals: Record<string, string>) =>
   proxyAccount({ provider: "codex", quota: { observed_at: observed, signals } }, now);
 
 describe("proxy account observations", () => {
+  test("model observations decode independently and choose a complete latest reading per window", () => {
+    const quota = (observed_at: string, utilization: string, reset: string) => ({
+      observed_at,
+      signals: {
+        "Anthropic-Ratelimit-Unified-7d-Utilization": utilization,
+        "Anthropic-Ratelimit-Unified-7d-Reset": reset,
+      },
+    });
+
+    const parsed = proxyAccountsOf(
+      [
+        {
+          provider: "claude",
+          quota: {
+            ...quota("2026-11-14T09:00:00Z", "0.55", "1794823200"),
+            signals: {
+              ...quota("", "0.55", "1794823200").signals,
+              "anthropic-ratelimit-unified-5h-utilization": "0.22",
+              "anthropic-ratelimit-unified-5h-reset": "1794661200",
+            },
+          },
+          model_quotas: {
+            opus: quota(observed, "0.83", "1794909600"),
+            older: quota("2026-11-14T08:00:00Z", "0.95", "1794823200"),
+            malformed: { signals: { invalid: 123 } },
+            missing: null,
+          },
+        },
+      ],
+      now,
+    );
+
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]?.windows.map((window) => [window.key, window.usedPercent, window.resetsAt?.seconds])).toEqual([
+      ["seven_day", 83, 1794909600n],
+      ["five_hour", 22, 1794661200n],
+    ]);
+
+    // A later reset or manual refill must be able to lower usage, including all the way to zero.
+    const reset = proxyAccount({
+      quota: quota(observed, "0", "1795255200"),
+      model_quotas: { older: quota("2026-11-14T09:00:00Z", "0.95", "1794823200") },
+    });
+
+    expect(reset.windows[0]?.usedPercent).toBe(0);
+    expect(reset.windows[0]?.resetsAt?.seconds).toBe(1795255200n);
+
+    for (const entries of [
+      [quota("", "0.55", "1794823200"), quota("", "0.83", "1794823200")],
+      [quota(observed, "0.55", "1794823200"), quota(observed, "0.83", "1794823200")],
+    ]) {
+      for (const order of [entries, entries.toReversed()]) {
+        const account = proxyAccount({ model_quotas: Object.fromEntries(order.map((value, index) => [index, value])) });
+
+        expect(account.windows[0]?.usedPercent).toBe(83);
+      }
+    }
+  });
+
   test("Codex epochs, relative seconds and Claude epochs resolve to realistic reset times", () => {
     const codex = account({
       "x-codex-primary-used-percent": "47",
