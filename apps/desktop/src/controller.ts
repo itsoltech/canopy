@@ -12,6 +12,7 @@ export interface ControllerArguments {
   directory?: string;
   paths?: RuntimePaths;
   secrets?: Secrets;
+  webToken?: string;
   configuration?: ConfigurationInput;
   state?: string;
   targetVersion?: string | undefined;
@@ -21,7 +22,7 @@ export interface ControllerArguments {
 }
 
 type ControllerRequest = { id: number } & (
-  | { action: "initialize"; directory: string; paths: RuntimePaths; secrets: Secrets }
+  | { action: "initialize"; directory: string; paths: RuntimePaths; secrets: Secrets; webToken: string }
   | { action: "restore"; remoteClient?: DesktopClientCredential }
   | { action: "configure"; configuration: ConfigurationInput; remoteClient?: DesktopClientCredential }
   | { action: "presence"; state: string; targetVersion?: string }
@@ -136,8 +137,13 @@ lines.on("line", (line) => {
       if (ending) throw new Error("Desktop is stopping");
 
       if (request.action === "initialize" && !runtime) {
-        runtime = new DesktopRuntime(request.directory, request.paths, request.secrets, (status) =>
-          send({ event: "status", status }),
+        runtime = new DesktopRuntime(
+          request.directory,
+          request.paths,
+          request.secrets,
+          (status) => send({ event: "status", status }),
+          undefined,
+          request.webToken,
         );
         runtime.hostWebInThisProcess();
         const origin = await runtime.initialize(false);

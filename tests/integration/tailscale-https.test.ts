@@ -156,7 +156,7 @@ describe.skipIf(!dockerAvailable)("HTTPS over Tailscale on a gateway", () => {
   const webOriginValue = `http://127.0.0.1:${web.port}`;
 
   function open() {
-    network = new NetworkAccess({ store, role: "desktop", host: "127.0.0.1", tailscale, webOrigin: webOriginValue });
+    network = new NetworkAccess({ store, role: "server", host: "127.0.0.1", tailscale, webOrigin: webOriginValue });
 
     return network.start();
   }
@@ -172,7 +172,7 @@ describe.skipIf(!dockerAvailable)("HTTPS over Tailscale on a gateway", () => {
   };
 
   beforeAll(async () => {
-    gw = await startTestGateway({ role: "desktop" });
+    gw = await startTestGateway();
     store = new ComputerStore(gw.runtime, gw.userId, gw.secretsKey);
     await tailscale.start();
     await open();
@@ -184,6 +184,38 @@ describe.skipIf(!dockerAvailable)("HTTPS over Tailscale on a gateway", () => {
     await web.stop(true);
     await gw?.close();
   }, 15_000);
+
+  test("desktop gateways refuse browser access without changing existing Serve entries", async () => {
+    const desktop = new NetworkAccess({
+      store,
+      role: "desktop",
+      host: "127.0.0.1",
+      tailscale,
+      webOrigin: webOriginValue,
+    });
+
+    const before = fake.calls().length;
+    const entries = fake.serve();
+
+    try {
+      await desktop.start();
+      const state = (await desktop.update(update("refresh_tailscale"))).tailscale!.https!;
+      expect(state.unavailable).toBe("Open this computer in Canopy. Browser access is unavailable.");
+      expect(state.url).toBe("");
+      expect(await rejected(desktop.update(update("set_tailscale_https", { enabled: true })))).toMatchObject({
+        code: Code.FailedPrecondition,
+      });
+      expect(fake.serve()).toEqual(entries);
+      expect(
+        fake
+          .calls()
+          .slice(before)
+          .filter((args) => args[0] === "serve"),
+      ).toEqual([]);
+    } finally {
+      await desktop.close();
+    }
+  });
 
   test("without HTTPS certificates the switch explains the one admin action and changes nothing", async () => {
     expect(await https()).toMatchObject({

@@ -8,6 +8,7 @@ import type { AppRoutes } from "./app-routes.ts";
 import type { WindowPlacement } from "./window-state.ts";
 import { allowedFontAccess, allowedPermission } from "./window-permissions.ts";
 import { attachContextMenu } from "./context-menu.ts";
+import { browserLink } from "./context-menu-template.ts";
 import { attachWorkspaceClose } from "./workspace-close.ts";
 
 interface WindowOptions {
@@ -53,9 +54,9 @@ export function isTrustedDesktopEvent(
   }
 }
 
-function external(url: string) {
+function external(url: string, internalOrigins: (string | undefined)[]) {
   try {
-    if (["https:", "http:", "mailto:"].includes(new URL(url).protocol)) void shell.openExternal(url);
+    if (browserLink(url, internalOrigins) || new URL(url).protocol === "mailto:") void shell.openExternal(url);
   } catch {
     /* Invalid link. */
   }
@@ -94,7 +95,8 @@ export function createDesktopWindow(options: WindowOptions) {
   attachWorkspaceClose(target);
   trackAppRoutes(target, options.appRoutes);
   attachWindowChrome(target);
-  attachContextMenu(target);
+  const trusted = () => [options.setupOrigin(), options.webUrl()];
+  attachContextMenu(target, trusted);
   options.placement?.track(target);
   const updateBackground = () => applyWindowAppearance(target);
   nativeTheme.on("updated", updateBackground);
@@ -115,7 +117,7 @@ export function createDesktopWindow(options: WindowOptions) {
   });
   target.on("closed", () => options.enrollmentReady.delete(contentId));
   target.webContents.setWindowOpenHandler(({ url }) => {
-    external(url);
+    external(url, trusted());
 
     return { action: "deny" };
   });
@@ -129,7 +131,7 @@ export function createDesktopWindow(options: WindowOptions) {
     }
 
     event.preventDefault();
-    external(url);
+    external(url, trusted());
   });
   target.webContents.on("will-redirect", (event, url) => {
     try {
@@ -139,10 +141,9 @@ export function createDesktopWindow(options: WindowOptions) {
     }
 
     event.preventDefault();
-    external(url);
+    external(url, trusted());
   });
   target.webContents.on("will-attach-webview", (event) => event.preventDefault());
-  const trusted = () => [options.setupOrigin(), options.webUrl()];
   target.webContents.session.setPermissionRequestHandler((contents, permission, callback, details) =>
     callback(
       permission === "local-fonts"

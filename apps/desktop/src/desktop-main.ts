@@ -11,7 +11,7 @@ import { desktopLink } from "./desktop-link.ts";
 import { holdConnectorOAuth, registerConnectorOAuthIpc } from "./connector-oauth-ipc.ts";
 import type { ControllerArguments, ControllerResult } from "./controller.ts";
 import { ControllerConnection } from "./controller-connection.ts";
-import { loadSecrets } from "./vault.ts";
+import { initializeController } from "./controller-initialize.ts";
 import { savedRemoteClient } from "./client-vault.ts";
 import { closeModeChooser, configureDesktopMode, openModeChooser } from "./mode-configuration.ts";
 import { Logs } from "./runtime/log.ts";
@@ -30,6 +30,7 @@ import { createDesktopWindow, isTrustedDesktopEvent, windowSizeLimits } from "./
 import { registerHtmlViewer } from "./html-viewer-launcher.ts";
 import { windowPlacement } from "./window-state.ts";
 import { DocumentPolicy } from "./document-policy.ts";
+import { DesktopWebSession } from "./web-session.ts";
 import type { RemoteAppUpdate } from "./remote-app-update.ts";
 import { acceptRemoteUpdate, remoteAppUpdate, registerUpdateIpc } from "./update-ipc.ts";
 import { desktopHistory, registerHistoryIpc } from "./history-ipc.ts";
@@ -114,7 +115,8 @@ const quitGuard = new QuitGuard(
   process.platform,
 );
 
-const policy = new DocumentPolicy();
+const webSession = new DesktopWebSession(() => setupOrigin);
+const policy = new DocumentPolicy(webSession);
 const appRoutes = new AppRoutes();
 
 function rpc(action: string, args: ControllerArguments = {}) {
@@ -124,7 +126,7 @@ function rpc(action: string, args: ControllerArguments = {}) {
 }
 
 const isTrusted = (event: IpcMainInvokeEvent | IpcMainEvent, setupOnly = false) =>
-  isTrustedDesktopEvent(event, [window, settingsWindow], setupOrigin, status.webUrl, setupOnly);
+  !controllerExited && isTrustedDesktopEvent(event, [window, settingsWindow], setupOrigin, status.webUrl, setupOnly);
 
 function authorize(event: IpcMainInvokeEvent | IpcMainEvent, setupOnly = false) {
   if (!isTrusted(event, setupOnly)) throw new Error("Untrusted desktop request");
@@ -283,6 +285,7 @@ app.on("before-quit", (event) => {
 
   if (requestWorkspaceQuit()) return;
   quitting = true;
+  webSession.revoke([window?.webContents, settingsWindow?.webContents]);
   stopPower();
   quitGuard.cancel();
 
@@ -342,6 +345,7 @@ function startController() {
     },
     () => {
       controllerExited = true;
+      webSession.revoke([window?.webContents, settingsWindow?.webContents]);
 
       if (!quitting) {
         status = { ...status, phase: "error", worker: "offline", error: "Desktop services stopped. Restart Canopy." };
@@ -445,24 +449,19 @@ async function start() {
   stopPower = monitorPower(powerMonitor, async (state) => {
     await rpc("presence", { state });
   });
-  const secrets = await loadSecrets(app.getPath("userData"));
-  logs.protect(...Object.values(secrets));
-  const paths = startController();
+  const initialized = await initializeController(app.getPath("userData"), startController, webSession.token, rpc, logs);
   remoteUpdate = remoteAppUpdate(updates, rpc);
   await remoteUpdate.publish();
-  const initialized = await rpc("initialize", { directory: app.getPath("userData"), secrets, paths });
-
-  if (!initialized.origin || !initialized.status) throw new Error("Invalid desktop initialization response");
 
   setupOrigin = initialized.origin;
   status = initialized.status;
   registerIpc();
   window = createWindow(true);
+  webSession.attach(window.webContents.session, () => [window?.webContents, settingsWindow?.webContents]);
   await policy.prepare(`${setupOrigin}/desktop`);
 
   policy.attach(window.webContents.session, () => [setupOrigin, status.webUrl]);
-  const image = nativeImage.createFromPath(iconPath).resize({ width: 20, height: 20 });
-  tray = new Tray(image);
+  tray = new Tray(nativeImage.createFromPath(iconPath).resize({ width: 20, height: 20 }));
   tray.on("click", showMain);
   app.setAsDefaultProtocolClient(identity.scheme);
   void updates.start();

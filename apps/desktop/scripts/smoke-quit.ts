@@ -2,9 +2,11 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { DesktopRuntime } from "../src/runtime/runtime.ts";
+import { randomBytes } from "node:crypto";
 
 // Opt-in real Electron input/IPC smoke. No gateway, worker, DB or fixed ports.
 const directory = mkdtempSync(join(tmpdir(), "canopy-quit-smoke-"));
+const webToken = randomBytes(32).toString("hex");
 
 const runtime = new DesktopRuntime(
   join(directory, "runtime"),
@@ -20,6 +22,9 @@ const runtime = new DesktopRuntime(
     secretsKey: "quit-smoke-fixture",
     serviceToken: "quit-smoke-fixture".repeat(3),
   },
+  undefined,
+  undefined,
+  webToken,
 );
 
 try {
@@ -52,9 +57,12 @@ try {
     ],
     {
       env: { ...process.env, CANOPY_QUIT_SMOKE_DIR: directory, CANOPY_QUIT_SMOKE_WEB: web },
-      stdio: ["ignore", "inherit", "inherit"],
+      stdio: ["pipe", "inherit", "inherit"],
     },
   );
+
+  child.stdin.write(webToken + "\n");
+  child.stdin.end();
 
   const timeout = setTimeout(() => child.kill("SIGTERM"), 30_000);
 

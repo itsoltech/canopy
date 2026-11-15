@@ -1,5 +1,8 @@
 # Canopy Desktop
 
+Status: opis zaimplementowanego runtime (2026-11-15), w tym sesji dostępu do lokalnego BFF.
+Dostępność w nightly/beta/stable określają [zasady wydań](release.md) i GitHub Releases.
+
 Implementacja: `apps/desktop`. Cele wydania na każdym kanale: **Linux x64,
 macOS arm64 i Windows x64**. Linux arm64 pozostaje eksperymentalny.
 Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji.
@@ -19,9 +22,12 @@ Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji
    komponentów. adapter-node 6 nie czyta `ORIGIN`, a bez nagłówka proxy przyjmuje `https`,
    więc build desktopu podmienia w `adapter-node.js` stały origin na `CANOPY_WEB_ORIGIN`
    i dodaje `setOrigin` (dokładnie `http://127.0.0.1:<port>` okna; kontroler ustawia go po
-   załadowaniu). Kontrola CSRF formularzy SvelteKit zostaje bez zmian.
-   Jedyny wyjątek dla obcego origin to nawigacja GET dokumentu na dokładny
-   `/api/connectors/oauth/callback`; Host nadal musi się zgadzać. OAuth otwiera
+   załadowaniu). Dostęp do BFF wymaga sekretu sesji uruchomienia, sprawdzanego przed
+   adapter-node także dla plików statycznych, setupu, API i SSE (szczegóły poniżej).
+   Kontrola CSRF formularzy SvelteKit zostaje bez zmian. Jedyny wyjątek bez sekretu
+   sesji i dla obcego origin to GET dokładnej ścieżki `/api/connectors/oauth/callback`;
+   Host nadal musi się zgadzać, a obecne nagłówki Fetch Metadata muszą wskazywać
+   nawigację dokumentu (`navigate`/`document`). OAuth otwiera
    przeglądarkę systemową, więc powiązanie rozpoczętej autoryzacji zostaje w procesie BFF
    (kontrolera: przetrwa restart gatewaya i zmianę trybu, nie przetrwa restartu aplikacji),
    zamiast w cookie Electrona. Gateway sprawdza jednorazowy state, właściciela,
@@ -42,9 +48,12 @@ Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji
    uprawnienie `notifications` jest rezerwą dla Notification API strony.
    Natywne menu kontekstowe (`context-menu.ts`) daje Copy dla zaznaczenia oraz role
    Undo, Redo, Cut, Copy, Paste i Select All w polach edycji. Przy włączonym sprawdzaniu
-   pisowni pokazuje propozycje poprawek. Linki mają Copy link i Open link in browser;
-   otwieranie dopuszcza wyłącznie `http:` i `https:`. Własne menu renderera i chronione
-   wartości nadal blokują menu systemowe przez lokalne `contextmenu.preventDefault()`.
+   pisowni pokazuje propozycje poprawek. Linki mają Copy link, a zewnętrzne linki
+   `http:` i `https:` także Open link in browser. Wewnętrzne adresy setupu i BFF
+   nie mogą być otwierane w przeglądarce, również przez `window.open`.
+   Akcja wątku Open in new tab jest ukryta na desktopie w menu i palecie poleceń.
+   Własne menu renderera i chronione wartości nadal blokują menu systemowe przez
+   lokalne `contextmenu.preventDefault()`.
    Nie ma dodatkowego IPC ani zmiany izolacji renderera.
    Typography korzysta najpierw z `window.queryLocalFonts()`. Uprawnienie `local-fonts`
    jest dostępne wyłącznie głównej ramce web UI; setup, iframe i obce originy nie mają
@@ -68,7 +77,9 @@ Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji
    oznaczenie beta; sam serwer PostgreSQL to wydanie 18.6. Zmiana głównej wersji wymaga
    osobnej procedury eksportu/upgrade, nie automatycznego usuwania katalogu.
 3. **Dane i sekrety:** wszystko pod `app.getPath('userData')`. Klucz szyfrowania gatewaya,
-   token BFF i hasło bazy powstają raz. Plik 0600 zawiera wyłącznie ciphertext
+   token usługi BFF → gateway i hasło bazy powstają raz. Sekret sesji Electron → BFF
+   powstaje przy każdym uruchomieniu i pozostaje wyłącznie w pamięci main/kontrolera.
+   Plik 0600 zawiera wyłącznie ciphertext
    asynchronicznego `safeStorage` (Keychain na macOS, DPAPI na Windows,
    Secret Service/KWallet na Linuxie). Backend
    `basic_text` jest odrzucany; aplikacja wymaga działającego magazynu kluczy.
@@ -82,9 +93,11 @@ Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji
    przypina certyfikat komputera; zmiany sieci odświeżają ogłaszane adresy.
    Dawny wybór interfejsu w Desktop settings został usunięty; zapisane stare ustawienia
    nie otwierają listenera HTTP. BFF i baza pozostają na loopback.
-   Gateway dostaje ten sam `CANOPY_WEB_ORIGIN` co BFF: opcjonalne HTTPS over Tailscale przekazuje
-   żądania z tailnetu przez lokalny front gatewaya do BFF, z originem przepisanym dopiero po
-   sprawdzeniu tożsamości i originu przeglądarki ([tailscale.md](tailscale.md#https-over-tailscale)).
+   HTTPS over Tailscale jest niedostępne dla gatewaya z rolą `desktop`: gateway ani proxy
+   nie dostają sekretu sesji BFF. Istniejący wpis Serve nie daje dostępu do aplikacji;
+   automatyczne przejście w stan niedostępności nie zmienia tego wpisu.
+   Network access i przypięte połączenia sparowanych klientów nadal działają,
+   także przez Tailscale ([tailscale.md](tailscale.md#https-over-tailscale)).
 5. **Pakowanie:** electron-builder, AppImage + deb na Linuxie, dmg + zip na macOS, NSIS
    na Windows x64.
    Osobny build zasobów dla każdej pary OS/arch; Bun i natywne zależności nie mogą
@@ -92,6 +105,35 @@ Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji
    nie zmieniają protokołu aktualizacji gatewaya/workera.
 
 ## Granice i zgodność
+
+**Sesja lokalnego BFF.** Electron main generuje losowy 256-bitowy sekret na każde
+uruchomienie i przekazuje go kontrolerowi prywatnym stdin. `web-session.ts` dodaje
+`X-Canopy-Desktop-Session` wyłącznie do żądań na dokładny origin BFF, z głównego
+okna lub okna ustawień i ich głównej ramki. Hook obejmuje wszystkie typy zasobów;
+żądania niezaufanych ramek do BFF są blokowane. Nagłówek jest usuwany przed
+wysłaniem do innych celów, także przy przekierowaniach.
+Przy rozpoczynaniu zamykania aplikacji main unieważnia sesję przed zatrzymaniem
+kontrolera. Po nieoczekiwanym wyjściu kontrolera robi to natychmiast i odmawia IPC.
+Unieważnienie zatrzymuje ładowanie własnych okien; hook blokuje kolejne żądania do BFF, a bezpośredni
+fetch nie otrzymuje nagłówka, dzięki czemu przejęcie zwolnionego portu nie ujawnia sekretu.
+
+Surowy listener HTTP kontrolera (`runtime/web-auth.ts`) sprawdza Host, Origin,
+Fetch Metadata i sekret, porównywany w stałym czasie przy zgodnej długości.
+Działa przed adapter-node, więc obejmuje również statyczne assety i `/desktop`.
+Odmowa to 403 z `Cache-Control: no-store`; nagłówek jest usuwany przed przekazaniem
+żądania handlerowi. Jedynym wyjątkiem bez sekretu jest opisany wyżej callback OAuth,
+który nadal wymaga prawidłowego state i powiązania z rozpoczętym logowaniem.
+
+Sekret sesji nie trafia do renderera, URL, cookies, localStorage, plików, logów
+ani gatewaya. Jest oddzielny od trwałego tokenu usługi i poświadczenia sparowanego
+klienta. Przeglądarka i lokalny klient HTTP bez sekretu nie uzyskają dostępu do UI
+ani API. Origin, profil Chromium i zapisany port pozostają bez zmian; preferencje,
+szkice i metadane workspace zachowują dotychczasowe magazyny i zakresy.
+
+To ochrona przed nieuprawnionymi żądaniami HTTP, nie izolacja od procesu tego samego
+użytkownika zdolnego odczytać pamięć aplikacji lub podłączyć debugger. Samo gniazdo
+Unix nie usuwa tego ograniczenia. Runtime używa tego samego mechanizmu loopback
+z sekretem na Linuxie, macOS i Windows.
 
 Visuals (docs/agent-visuals.md) są iframe `srcdoc` w rendererze, nie `<webview>`.
 Dokument `srcdoc` dziedziczy CSP okna, więc `DocumentPolicy` dopuszcza dokładnie
@@ -169,9 +211,11 @@ może wykonać wyłącznie lokalna strona `/desktop`.
 
 Polityka CSP dopuszcza skrypty z wybranego originu i hashe skryptów startowych
 SvelteKit, bez `unsafe-eval` i `unsafe-inline` dla skryptów. Przy przeładowaniu dokumentu
-main ponownie pobiera lokalny HTML, aby policzyć hashe. Okno nie ładuje zdalnego webu.
-Hooki `webRequest` mają filtr `types: ["mainFrame"]`: skrypty, fetch i fonty nie czekają
-na proces main, który na macOS obsługuje też wejście z klawiatury i myszy.
+main ponownie pobiera lokalny HTML, aby policzyć hashe. `DocumentPolicy.prepare`
+wykonuje fetch poza sesją Chromium, więc dodaje nagłówek sesji bezpośrednio i odrzuca
+przekierowania. Okno nie ładuje zdalnego webu. Hooki CSP mają filtr
+`types: ["mainFrame"]`; osobny hook `onBeforeSendHeaders` autoryzuje wszystkie typy
+zasobów i usuwa prywatny nagłówek na innych originach.
 
 Migracja 0057 dodaje rodzaj klienta i jednorazowe migracje desktopów; proto rozszerza
 parowanie i handshake addytywnie. `packages/ui/desktop` jest opcjonalnym

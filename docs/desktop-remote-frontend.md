@@ -1,8 +1,10 @@
 # Lokalny frontend desktopu ze zdalnym gatewayem
 
-Status: etapy 1–2 zaimplementowane; etap 3 jest planowany. Zakres etapu 2:
-zdalna aktualizacja aplikacji, weryfikacja i lokalny commit na etapie 1;
-bez push, PR i wdrożenia.
+Status: etapy 1–2 zaimplementowane; etap 3 opisuje pierwotny plan odczytu offline,
+którego aktualne zachowanie dokumentuje [desktop.md](desktop.md#prywatna-kopia-historii).
+Zabezpieczenie lokalnego BFF sesją uruchomienia jest zaimplementowane (2026-11-15).
+Opis implementacji nie określa dostępności w nightly/beta/stable; tę podają
+[zasady wydań](release.md) i GitHub Releases.
 
 ## Decyzja
 
@@ -46,12 +48,35 @@ Nie ma parametru pozwalającego klientowi wybrać właściciela. Zapytania core/
 pozostają ograniczone do właściciela gatewaya. Nie zmieniamy sekretów dostawców
 ani ich granic przechowywania.
 
-BFF słucha wyłącznie na loopback. Per-launch origin oraz kontrola Host/Origin
-chronią także GET i SSE przed DNS rebinding i obcym webem; formularze zachowują
-CSRF SvelteKit. IPC wymaga własnego głównego frame i lokalnego originu, a operacje
-konfiguracji — strony `/desktop`. Jedyny wyjątek dla obcego origin w BFF to
-nawigacja GET dokumentu na dokładny `/api/connectors/oauth/callback`, nadal z
-kontrolą Host. State sprawdza gateway; szczegóły w [connectors.md](connectors.md#oauth).
+BFF słucha wyłącznie na loopback i wymaga `X-Canopy-Desktop-Session` z losowym
+256-bitowym sekretem uruchomienia. Electron main przekazuje go kontrolerowi prywatnym
+stdin; sekret pozostaje w pamięci tych procesów. Nie trafia do renderera, gatewaya,
+plików, logów, URL ani magazynów przeglądarki. Jest niezależny od
+poświadczenia urządzenia i tokenu usługi. Main dodaje nagłówek tylko na dokładny
+origin BFF, dla własnego głównego okna i ustawień oraz ich głównej ramki, dla
+wszystkich typów zasobów. Na innych celach i przekierowaniach usuwa nagłówek.
+`DocumentPolicy` dodaje go bezpośrednio do własnego fetch HTML.
+
+Listener kontrolera przed adapter-node sprawdza sekret w stałym czasie przy zgodnej
+długości oraz Host/Origin i Fetch Metadata, również dla statycznych assetów, setupu,
+GET, API i SSE. Usuwa nagłówek przed handlerem; odmowa daje 403 z `no-store`.
+Origin i profil Chromium pozostają stałe, więc localStorage i stan workspace nie
+wymagają migracji. Formularze zachowują CSRF SvelteKit. IPC wymaga własnego głównego
+frame i lokalnego originu, a operacje konfiguracji — strony `/desktop`.
+
+Jedyny wyjątek bez sekretu sesji i dla obcego origin to GET dokładnego
+`/api/connectors/oauth/callback`, z kontrolą Host i nawigacji dokumentu
+(`navigate`/`document`, gdy nagłówki Fetch Metadata są obecne). Gateway nadal sprawdza
+jednorazowy state, binding, właściciela, konto i TTL; szczegóły w
+[connectors.md](connectors.md#oauth). Pozostałe UI i API są niedostępne dla zwykłej
+przeglądarki i lokalnych żądań HTTP bez sekretu. Open in new tab jest ukryte na
+desktopie, a main i menu kontekstowe blokują otwarcie wewnętrznego adresu w przeglądarce.
+HTTPS over Tailscale jest niedostępne dla roli `desktop`; sekret nie trafia do proxy.
+Automatyczna odmowa pozostawia istniejące wpisy Serve, a sparowane połączenia
+Network access działają bez zmian. Proces tego samego użytkownika zdolny odczytać
+pamięć lub użyć debuggera pozostaje poza tą granicą ochrony; samo gniazdo Unix
+nie daje takiej izolacji. Szczegóły: [desktop.md](desktop.md#granice-i-zgodność).
+
 Połączenia z gatewayem nie dopuszczają wyjątków TLS, przekierowań ani TOFU.
 Lista tras jest wskazówką; wszystkie trasy muszą dowieść tego samego pinu.
 Trasę wybiera wyścig sond TLS; zweryfikowana trasa obsługuje kolejne RPC bez

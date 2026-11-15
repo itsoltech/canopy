@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, session } from "electron";
 import { join } from "node:path";
 import { strict as assert } from "node:assert";
 import { setTimeout as delay } from "node:timers/promises";
@@ -6,6 +6,9 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { QuitGuard } from "../src/quit-guard.ts";
 import { initialStatus } from "../src/runtime/config.ts";
 import { until } from "../src/runtime/process.ts";
+import { createInterface } from "node:readline";
+import { DesktopWebSession } from "../src/web-session.ts";
+import { registerAppearanceIpc } from "../src/window-appearance.ts";
 
 const directory = process.env["CANOPY_QUIT_SMOKE_DIR"]!;
 
@@ -32,6 +35,13 @@ function registerSmokeIpc(guard: QuitGuard, delivered: { phase: string; surface:
 async function smoke() {
   await app.whenReady();
   const windows: BrowserWindow[] = [];
+
+  const webToken = await new Promise<string>((resolve) =>
+    createInterface({ input: process.stdin }).once("line", resolve),
+  );
+
+  const webSession = new DesktopWebSession(() => process.env["CANOPY_QUIT_SMOKE_WEB"]!, webToken);
+  webSession.attach(session.defaultSession, () => windows.map((window) => window.webContents));
   const delivered: { phase: string; surface: string }[] = [];
   let quits = 0;
 
@@ -60,6 +70,7 @@ async function smoke() {
   );
 
   registerSmokeIpc(guard, delivered);
+  registerAppearanceIpc((event) => assert.ok(windows.some((window) => window.webContents === event.sender)));
 
   for (const name of ["main", "settings"]) {
     const target = new BrowserWindow({
@@ -160,7 +171,10 @@ async function checkProductionOverlay(windows: BrowserWindow[], guard: QuitGuard
   for (const win of windows) {
     await win.loadURL(`${process.env["CANOPY_QUIT_SMOKE_WEB"]}/desktop`);
     await until(
-      async () => await win.webContents.executeJavaScript("document.body.innerText.includes('Desktop shortcuts')"),
+      async () =>
+        await win.webContents.executeJavaScript(
+          "document.querySelector('h1')?.textContent === 'Your agents, on your terms' && Boolean(document.querySelector('form'))",
+        ),
       5_000,
     );
   }

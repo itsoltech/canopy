@@ -1,9 +1,14 @@
 # Tailscale
 
+Status: opis zaimplementowanego zachowania (2026-11-15), w tym niedostępności
+HTTPS over Tailscale dla roli `desktop`. Dostępność w nightly/beta/stable określają
+[zasady wydań](release.md) i GitHub Releases.
+
 Canopy sam wykrywa Tailscale na komputerze gatewaya i korzysta z niego bez dodatkowej konfiguracji:
 nazwa MagicDNS staje się pierwszym adresem Network access, a opcjonalny przełącznik **HTTPS over
-Tailscale** udostępnia web UI pod `https://<nazwa-magicdns>` z ważnym certyfikatem. Canopy nigdy nie
-loguje do Tailscale, nie zmienia ACL, kluczy, exit node ani preferencji i **nigdy nie włącza Funnel**.
+Tailscale** na gatewayu serwerowym udostępnia web UI pod `https://<nazwa-magicdns>` z ważnym
+certyfikatem. Canopy nigdy nie loguje do Tailscale, nie zmienia ACL, kluczy, exit node ani preferencji
+i **nigdy nie włącza Funnel**.
 
 Powiązane: [network-access.md](network-access.md) (listener, adresy), [linked-computers.md](linked-computers.md)
 (trasy), [worker-config.md](worker-config.md) (adres gatewaya dla workerów, instalacja przez SSH),
@@ -65,9 +70,17 @@ komunikat błędu podaje adres MagicDNS do użycia. Ręcznie zapisany adres dla 
 
 ## HTTPS over Tailscale
 
-Opcjonalny przełącznik (domyślnie wyłączony) w Settings → Network access → Tailscale, na desktopie
-i natywnych gatewayach. Daje przeglądarkom i telefonom w tailnecie ważny certyfikat dla web UI, bez
-przypinania: `https://<nazwa-magicdns>` (port 443) albo `https://<nazwa-magicdns>:<port>`.
+Opcjonalny przełącznik (domyślnie wyłączony) w Settings → Network access → Tailscale,
+dostępny dla gatewayów z rolą `server`. Daje przeglądarkom w tailnecie ważny certyfikat
+dla web UI, bez przypinania: `https://<nazwa-magicdns>` (port 443) albo
+`https://<nazwa-magicdns>:<port>`.
+
+Dla roli `desktop` funkcja jest niedostępna: lokalny BFF wymaga sekretu sesji
+uruchomienia, którego nie otrzymują gateway ani proxy. Próba włączenia jest odrzucana;
+zapisane włączenie przechodzi w stan `unavailable`, bez uruchamiania frontu ani
+modyfikowania istniejących wpisów Serve. Sam wpis Serve nie daje dostępu do BFF.
+Sparowane telefony, desktop remote, workery i połączone komputery nadal korzystają
+z Network access przez przypięty TLS, także pod nazwą MagicDNS i adresem Tailscale.
 
 ### Mechanizm
 
@@ -92,22 +105,25 @@ przeglądarka ──HTTPS (cert Tailscale)──▶ tailscaled (Serve)
 
 ### Front: kto może otworzyć
 
-Front przyjmuje tylko żądania, które przyszły przez wpis Serve Canopy:
+Front serwerowego webu sprawdza żądania przekazywane przez wpis Serve Canopy:
 
 - `Host` musi być nazwą MagicDNS (z portem, gdy nie 443);
 - żądania Funnel (`Tailscale-Funnel-Request`) są zawsze odrzucane;
 - `Tailscale-User-Login` (nagłówek tożsamości, który tailscaled ustawia i którego klient nie może
   podrobić przez Serve) musi być loginem właściciela tego komputera w Tailscale. Inni użytkownicy
-  tailnetu i urządzenia z tagami dostają 403. Węzeł z tagami nie ma właściciela: na desktopie
-  przełącznik jest wtedy niedostępny; na serwerze front przyjmuje każde żądanie z tailnetu
-  (jak dotychczasowy port web serwera);
+  tailnetu i urządzenia z tagami dostają 403. Węzeł z tagami nie ma właściciela:
+  serwerowy front przyjmuje wtedy każde żądanie z tailnetu (jak port web serwera);
 - `Origin` (gdy jest) musi być originem HTTPS tego wpisu, a `Sec-Fetch-Site` nie może być `cross-site`.
 
 Dopiero wtedy front przepisuje `Host`, `Origin` i `X-Forwarded-*` na origin web BFF i przekazuje
 strumieniowo (także SSE). Nagłówki `Tailscale-*` nie trafiają do BFF. Przekierowania na origin BFF
-wracają z originem tailnetu. Dzięki temu BFF desktopu zostaje na loopbacku z dokładnym originem
-`CANOPY_WEB_ORIGIN`, a kontrola CSRF SvelteKit i `trustedDesktopRequest` działają bez zmian:
-sprawdzenie originu przeglądarki robi front, zanim go przepisze.
+wracają z originem tailnetu. Front sprawdza origin przeglądarki przed przepisaniem go
+dla kontroli CSRF SvelteKit.
+
+Nagłówki tożsamości są wiarygodne w ruchu przez Serve, ale lokalny proces może je
+podrobić, łącząc się bezpośrednio z loopbackowym frontem. Front nie izoluje od
+złośliwego lokalnego procesu. Dlatego nie otrzymuje sekretu sesji desktopowego BFF
+i nie może służyć jako alternatywne wejście do desktopu.
 
 gRPC workerów **nie** idzie przez Serve: Serve kończy TLS certyfikatem Tailscale, więc worker straciłby
 przypięty certyfikat gatewaya, a HTTP/2 do backendu wymagałby `h2c`. Workery i telefony dalej używają
@@ -122,7 +138,7 @@ listenera Network access z pinem, pod nazwą MagicDNS.
 | Tailscale nie jest połączony | „Connect this computer to Tailscale first.” |
 | brak CLI (tylko LocalAPI) | „Install the Tailscale command-line tool to turn this on.” |
 | gateway nie zna originu web (`CANOPY_WEB_ORIGIN`) | „This gateway doesn't know where its web app runs.” |
-| desktop z tagami | „This computer is tagged in Tailscale, so Canopy can't check who opens it.” |
+| gateway z rolą `desktop` | „Open this computer in Canopy. Browser access is unavailable.” |
 | `CertDomains` puste | „Turn on HTTPS certificates in the Tailscale admin console.” + link do DNS |
 
 Błąd uprawnień (`Access denied`, brak operatora) → „Tailscale didn't let Canopy change Serve. Run
@@ -138,8 +154,8 @@ wiersza. Akcje `UpdateNetworkAccess`: `refresh_tailscale`, `set_tailscale_https`
 `set_tailscale_https_port` (`port`, 0 = automatyczny). Telefony nie mają dostępu do tych RPC (lista
 odmów w `api/auth.ts`); klienty desktopowe i BFF mają zakres właściciela.
 
-`CANOPY_WEB_ORIGIN` na gatewayu (klasa a): origin web BFF na loopbacku. Desktop ustawia go sam;
-binarka z wbudowanym web domyślnie używa `http://127.0.0.1:$CANOPY_WEB_PORT`
+`CANOPY_WEB_ORIGIN` na gatewayu serwerowym: origin web BFF na loopbacku.
+Binarka z wbudowanym web domyślnie używa `http://127.0.0.1:$CANOPY_WEB_PORT`
 ([deploy.md](deploy.md#gateway-z-wbudowanym-web-jedna-binarka)). Natywny serwer z osobnym web
 może go ustawić (np. `http://127.0.0.1:3000`, web z `PROTOCOL_HEADER=x-forwarded-proto`).
 Bez niego przełącznik jest niedostępny. Docker zwykle nie widzi Tailscale: stan `not_installed`.

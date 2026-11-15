@@ -1,12 +1,19 @@
 import { createHash } from "node:crypto";
 import type { Session } from "electron";
 import { KIT_SCRIPT_CSP } from "@canopy/domain/visual-compiler";
+import type { DesktopWebSession } from "./web-session.ts";
 
 export class DocumentPolicy {
   private readonly scriptHashes = new Map<string, Set<string>>();
 
+  constructor(private readonly webSession: DesktopWebSession) {}
+
   async prepare(url: string) {
-    const response = await fetch(url, { signal: AbortSignal.timeout(3000), redirect: "error" });
+    const response = await fetch(url, {
+      headers: this.webSession.headers(url),
+      signal: AbortSignal.timeout(3000),
+      redirect: "error",
+    });
 
     if (!response.ok) throw new Error("The Canopy web address did not return an application page");
     const html = await response.text();

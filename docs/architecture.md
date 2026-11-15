@@ -1,7 +1,8 @@
 # Canopy — architektura
 
-Status: opis działającego kodu na `dev` (2026-11-15): gateway, workery, web BFF,
-Canopy Desktop (tryb lokalny, zdalny i połączone komputery) oraz aplikacja mobilna.
+Status: opis zaimplementowanego kodu (2026-11-15): gateway, workery, web BFF,
+Canopy Desktop (tryb lokalny, zdalny, sesja dostępu do BFF i połączone komputery)
+oraz aplikacja mobilna.
 Logowanie użytkowników nie istnieje; otwarte decyzje są w §11. Ten dokument opisuje
 zachowanie, nie dostępność w wydaniach: funkcje trafiają najpierw do nightly, potem
 do beta i stable ([release.md](release.md)); co zawiera konkretne wydanie, podają
@@ -22,7 +23,7 @@ Powiązane dokumenty:
 - [ui-api.md](ui-api.md) — API dla UI, SvelteKit jako BFF (HTTP/1.1 + SSE do przeglądarki, gRPC do gateway)
 - [diagnostics.md](diagnostics.md) — Settings → Diagnostics: wspólny widok wydajności komputerów, metryki RPC i łączy, zalecenia, tracing i zbieranie zredagowanych logów
 - [mobile.md](mobile.md) — Canopy iOS/Android, Connect przez przypięty TLS, parowanie i automatyczne trasy
-- [tailscale.md](tailscale.md) — wykrywanie Tailscale, nazwa MagicDNS jako pierwszy adres i opcjonalne HTTPS over Tailscale dla web UI
+- [tailscale.md](tailscale.md) — wykrywanie Tailscale, nazwa MagicDNS jako pierwszy adres i opcjonalne HTTPS over Tailscale dla serwerowego web UI
 - [threads.md](threads.md) — projekty, wątki, wątki boczne i forki
 - [notifications.md](notifications.md) — alerty systemowe wątków i botów: teksty, podglądy, fokus, dźwięk i brak duplikatów
 - [worktrees.md](worktrees.md) — git worktrees: ustawienia w zakresach, tworzenie, status, bezpieczne sprzątanie i zarządzanie
@@ -172,13 +173,26 @@ flowchart LR
         GW["Gateway (rola desktop)"]
         W["Lokalny worker"]
     end
-    E -- "HTTP" --> WEB
+    E -- "HTTP, sekret sesji uruchomienia" --> WEB
     WEB -- "gRPC, lokalny token usługi" --> GW
     C -. "nadzoruje" .-> PG & GW & W
     GW --> PG
     W -- "WorkerLink, loopback" --> GW
     X["Telefony, desktop remote,<br/>zdalne workery"] -- "Network access" --> GW
 ```
+
+BFF desktopu wymaga `X-Canopy-Desktop-Session` z losowym 256-bitowym sekretem
+uruchomienia, wspólnym wyłącznie dla Electron main i kontrolera przez prywatne stdin.
+Listener HTTP sprawdza sekret oraz Host/Origin przed adapter-node, także dla setupu,
+statycznych assetów, API i SSE; odrzuca żądania bez autoryzacji kodem 403 z `no-store`.
+Main dodaje nagłówek tylko dla własnych okien i głównej ramki na dokładny origin BFF,
+a przed handlerem kontroler go usuwa. Jedyny wyjątek bez sekretu to dokładny GET
+callbacku OAuth z kontrolą Host i nawigacji dokumentu oraz state/binding/TTL w gatewayu.
+Zwykła przeglądarka nie ma dostępu do aplikacji. Origin i magazyny profilu pozostają
+bez zmian. HTTPS over Tailscale jest niedostępne dla roli `desktop`, a Network access
+sparowanych klientów nadal działa. Ochrona nie izoluje od procesu tego samego
+użytkownika zdolnego czytać pamięć lub użyć debuggera; szczegóły w
+[desktop.md](desktop.md#granice-i-zgodność).
 
 W trybie zdalnym kontroler uruchamia tylko BFF: nie startuje lokalnego gatewaya,
 bazy ani workera. BFF łączy się ze zdalnym gatewayem przez Network access,
@@ -212,6 +226,7 @@ gateway, z którym są sparowane ([linked-computers.md](linked-computers.md)).
 | Od → do | Protokół | Kto inicjuje | Uwagi |
 |---|---|---|---|
 | Przeglądarka ⇄ SvelteKit (BFF) | HTTPS (HTTP/1.1): strony, akcje, JSON; SSE dla zmian na żywo | przeglądarka | Prywatny adres gRPC BFF i token usługi zostają na serwerze; UI pokazuje publiczne adresy dla workerów (z pinem Network access) i jednorazowe sekrety enrollment/rotacji ([ui-api.md](ui-api.md)). |
+| Okno desktopu ⇄ lokalny BFF | HTTP na loopback: dokumenty, assety, JSON, SSE | Electron | Sekret sesji uruchomienia w nagłówku dodawanym przez main; bez dostępu z przeglądarki poza wąskim callbackiem OAuth ([desktop.md](desktop.md#granice-i-zgodność)). |
 | SvelteKit → Gateway | gRPC (HTTP/2), `GatewayService`, token usługi | SvelteKit | Komendy i strumienie (`WatchThread`, `WatchOverview`); ten sam serwer co workery. Web wbudowany w gateway bierze adres i token z konfiguracji gatewaya; lokalny desktop dostaje je od kontrolera. |
 | Desktop remote (lokalny BFF) → Gateway | gRPC (HTTP/2) przez przypięty TLS, port Network access | kontroler desktopu | Odwoływalny token rodzaju `desktop` z parowania (kod + pin), pełny zakres UI właściciela; bez tokenu usługi ([desktop-remote-frontend.md](desktop-remote-frontend.md)). |
 | Mobile → Gateway | HTTPS Connect, przypięty certyfikat | aplikacja | Unary i server streaming przez natywny transport TLS. Jeden listener Network access, automatyczne trasy i osobny odwoływalny token urządzenia; administracja urządzeniami tylko przez BFF. |
@@ -514,6 +529,6 @@ Zasady zależności:
 
 ### Otwarte
 
-1. **Logowanie użytkowników.** Własne konta, OAuth/OIDC czy biblioteka zewnętrzna. Do tego czasu dostęp do web chroni loopback, ACL Tailscale lub uwierzytelnianie na reverse proxy, a klienci zdalni używają tokenów urządzeń ([deploy.md](deploy.md)).
+1. **Logowanie użytkowników.** Własne konta, OAuth/OIDC czy biblioteka zewnętrzna. Do tego czasu dostęp do serwerowego web chroni loopback, ACL Tailscale lub uwierzytelnianie na reverse proxy, lokalny BFF desktopu wymaga sekretu sesji uruchomienia, a klienci zdalni używają tokenów urządzeń ([deploy.md](deploy.md), [desktop.md](desktop.md#granice-i-zgodność)).
 2. **Organizacje/zespoły.** Teraz: użytkownicy + role `admin`/`user`. Czy potrzebny poziom organizacji (tenant)? Dodanie `org_id` później jest kosztowne.
 3. **Czy admin widzi prywatnych agentów i rozmowy innych użytkowników?** Wpływa na prywatność i audyt.

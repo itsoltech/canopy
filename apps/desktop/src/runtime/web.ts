@@ -7,6 +7,7 @@ import { containWebFaults } from "../../../gateway/src/web/faults.ts";
 import { listen } from "../../../gateway/src/web/probe.ts";
 import { webRequestListener, type WebHandler } from "../../../gateway/src/web/requests.ts";
 import type { Logs } from "./log.ts";
+import { desktopWebListener } from "./web-auth.ts";
 
 /** canopy-web.js (scripts/build.ts): adapter-node's handler and the setter of the desktop's fixed origin. */
 interface WebModule {
@@ -27,6 +28,7 @@ export class DesktopWeb {
   constructor(
     readonly entry: string,
     readonly logs: Logs,
+    private readonly token: string,
   ) {}
   /** Serves the UI at `origin` (the window's stable loopback origin) against `target`; the first call loads it. */
   async start(origin: string, target: BffTarget): Promise<void> {
@@ -45,7 +47,8 @@ export class DesktopWeb {
 
     if (!handler) throw new Error("The desktop web build has no request handler");
     const log = (line: string) => this.logs.write("web", line);
-    const server = createServer(webRequestListener(handler, { assets: new Map(), protocolHeader: "", log }));
+    const listener = webRequestListener(handler, { assets: new Map(), protocolHeader: "", log });
+    const server = createServer(desktopWebListener(origin, this.token, listener));
     await listen(server, "127.0.0.1", Number(new URL(origin).port));
     this.#server = server;
   }

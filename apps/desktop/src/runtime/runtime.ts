@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { delimiter, dirname, join } from "node:path";
 import { hostname } from "node:os";
+import { randomBytes } from "node:crypto";
 import { createClient } from "@connectrpc/connect";
 import { createGrpcTransport } from "@connectrpc/connect-node";
 import { ui } from "@canopy/contracts";
@@ -56,11 +57,12 @@ export class DesktopRuntime {
     private readonly secrets: Secrets,
     private readonly changed: (status: DesktopStatus) => void = () => {},
     private readonly testing?: PostgresTestOptions,
+    private readonly webToken = randomBytes(32).toString("hex"),
   ) {
     mkdirSync(directory, { recursive: true, mode: 0o700 });
     this.logs = new Logs(join(directory, "logs"));
     this.health = new HealthChecks((name, message) => this.logs.write(name, message));
-    this.logs.protect(...Object.values(secrets));
+    this.logs.protect(...Object.values(secrets), webToken);
     this.env["PATH"] = `${dirname(paths.bun)}${delimiter}${this.env["PATH"]}`;
     // Sidecars live in the signed app bundle: the app's own updater replaces them, never gateway/worker self-update.
     this.env["CANOPY_INSTALL_KIND"] = "desktop";
@@ -82,7 +84,7 @@ export class DesktopRuntime {
     this.#web().hostInThisProcess();
   }
   #web() {
-    this.web ??= new DesktopWeb(this.paths.web, this.logs);
+    this.web ??= new DesktopWeb(this.paths.web, this.logs, this.webToken);
 
     return this.web;
   }

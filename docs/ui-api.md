@@ -630,8 +630,10 @@ do gateway. Wynik callbacku jest jawny
 (`account` albo bezpieczny `error`) i kończy się małą stroną wyniku, również po
 odmowie/wygaśnięciu. Strona nie wyświetla treści błędów dostawcy. Desktop pozwala
 na cross-site wyłącznie dla `GET /api/connectors/oauth/callback` z nawigacją
-dokumentu (`Sec-Fetch-Mode: navigate`, `Sec-Fetch-Dest: document`, jeżeli obecne);
-Host nadal musi odpowiadać `CANOPY_WEB_ORIGIN`. To wspólna ścieżka dla wszystkich
+dokumentu (`Sec-Fetch-Mode: navigate`, `Sec-Fetch-Dest: document`, jeżeli obecne).
+To jedyny wyjątek bez sekretu sesji desktopowego BFF; Host nadal musi odpowiadać
+`CANOPY_WEB_ORIGIN`, a gateway wymaga rozpoczętego logowania, jednorazowego state,
+bindingu, właściciela, konta i TTL. To wspólna ścieżka dla wszystkich
 konektorów OAuth, także aplikacji GitHub i własnych MCP. Parowanie urządzeń nie
 korzysta z przekierowań do BFF i nie ma wyjątku od kontroli origin.
 
@@ -1043,7 +1045,10 @@ BFF: `POST /api/threads/:id/lifecycle`, `action`: `archive`, `unarchive`, `delet
 
 `UpdateThread.title` umożliwia rename (`title_source=user`), a `RegenerateTitle` zleca asynchroniczną generację. Globalne ustawienia `textGeneration`, źródła tytułu i aktualizacje live opisuje [thread-titles.md](thread-titles.md).
 
-Status: **zaimplementowane na `dev`** (2026-11-15; domyślne „Last used” i ulubione w nowym wątku; dostępność w kanałach według [release.md](release.md)):
+Status: **zaimplementowane** (2026-11-15; sesja dostępu do desktopowego BFF,
+domyślne „Last used” i ulubione w nowym wątku; dostępność w nightly/beta/stable
+według [release.md](release.md) i GitHub Releases):
+
 - kontrakt: `proto/canopy/ui/v1/gateway.proto`,
 - rdzeń: `apps/gateway/src/core`,
 - dane: `apps/gateway/src/store`,
@@ -1069,6 +1074,27 @@ flowchart LR
 - **Frontend jest SPA (`ssr = false` w głównym `+layout.ts`).** adapter-node podaje powłokę i pliki statyczne, przekazuje `/api/*` do gateway i obsługuje istniejące akcje formularzy. Dane tras pobierają klientowe `+page.ts` przez `/api/*`; overview, ustawienia i katalog modeli pobierają stany funkcji. Akcje tworzenia wątku i workspace pozostają po stronie BFF: `enhance` zachowuje walidację, błędy pól i przekierowania bez SSR. Projekt dodaje dialog Add project przez `POST /api/projects`.
 - Gateway podaje `GatewayService` na tym samym serwerze HTTP/2 co `WorkerLinkService`, a opcjonalnie także na mobilnym HTTP/1.1 listenerze. Interceptor (`serviceTokenAuth`) przyjmuje token usługi BFF (`CANOPY_UI_SERVICE_TOKEN`, porównanie odporne na pomiar czasu) lub aktywny token urządzenia, mapowany na obecnego pojedynczego właściciela. Administracja parowaniem wymaga tokenu usługi. Workery uwierzytelniają się osobno, w handlerze `WorkerLinkService`.
 - BFF zapisuje błędy unary RPC o statusie HTTP 5xx jako `gateway call failed`: nazwa metody (`method`), czas wywołania (`durationMs`), status i oczyszczony komunikat. Log nie zawiera payloadu, metadanych uwierzytelnienia ani przyczyny transportowej.
+
+### Dostęp do lokalnego BFF desktopu
+
+Surowy listener kontrolera przed adapter-node wymaga `X-Canopy-Desktop-Session`
+z losowym 256-bitowym sekretem generowanym przy uruchomieniu przez Electron main.
+Sprawdza go w stałym czasie przy zgodnej długości wraz z Host/Origin i Fetch Metadata,
+również dla plików statycznych, `/desktop`, API i SSE. Odrzucenie daje 403 z `no-store`;
+nagłówek znika przed handlerem. Jedyny wyjątek to opisany wyżej GET callbacku OAuth.
+
+Main przekazuje sekret kontrolerowi prywatnym stdin i dodaje nagłówek tylko do żądań
+własnego głównego okna i ustawień oraz ich głównej ramki na dokładny origin BFF.
+Hook obejmuje wszystkie zasoby, usuwa nagłówek na innych celach i przekierowaniach;
+`DocumentPolicy` dodaje go osobno do własnego fetch HTML. Sekret pozostaje w pamięci
+main/kontrolera, poza rendererem, URL, cookies, localStorage, plikami i logami.
+Origin i magazyny profilu Chromium zachowują preferencje, szkice i stan workspace.
+
+Desktop ukrywa Open in new tab w menu wątku i palecie poleceń. Main i menu kontekstowe
+blokują otwarcie wewnętrznych adresów BFF/setupu w systemowej przeglądarce; zewnętrzne
+linki pozostają dostępne. HTTPS over Tailscale jest niedostępne dla roli `desktop`,
+a sparowane połączenia Network access działają bez zmian. Granica ochrony i ograniczenie
+wobec procesu tego samego użytkownika: [desktop.md](desktop.md#granice-i-zgodność).
 
 ## 2. `GatewayService`
 

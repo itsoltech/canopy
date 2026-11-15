@@ -1,4 +1,5 @@
 import { afterAll, expect, test } from "bun:test";
+import { DESKTOP_SESSION_HEADER } from "../src/web-session.ts";
 import { cpSync, copyFileSync, readFileSync, existsSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { randomBytes } from "node:crypto";
@@ -17,6 +18,14 @@ import { postgresArchive, postgresRegistry } from "./postgres-fixture.ts";
 import { migrateDesktopClient } from "../src/client-migration.ts";
 import { remoteWorkerDirectory, type DesktopClientCredential } from "../src/remote-client.ts";
 import { parseLocalConfig } from "../../worker/src/config/local.ts";
+
+const webToken = randomBytes(32).toString("hex");
+
+const webFetch = (url: string, options: RequestInit = {}) =>
+  fetch(url, {
+    ...options,
+    headers: { ...Object.fromEntries(new Headers(options.headers)), [DESKTOP_SESSION_HEADER]: webToken },
+  });
 
 const data = tempDir("canopy-desktop-local-");
 const remoteData = tempDir("canopy-desktop-remote-");
@@ -45,7 +54,7 @@ const secrets = (): Secrets => ({
 
 // The window's own form action passes SvelteKit's CSRF origin check (a validation failure, not a 403); a foreign origin does not.
 async function formAction(origin: string, from = origin) {
-  const response = await fetch(`${origin}/?/createThread`, {
+  const response = await webFetch(`${origin}/?/createThread`, {
     method: "POST",
     headers: { origin: from, accept: "application/json", "x-sveltekit-action": "true" },
     body: new URLSearchParams({ projectId: "" }),
@@ -84,7 +93,7 @@ test.skipIf(!existsSync(paths.web))(
         }),
     });
 
-    const desktop = new DesktopRuntime(directory, paths, secrets());
+    const desktop = new DesktopRuntime(directory, paths, secrets(), undefined, undefined, webToken);
 
     const client: DesktopClientCredential = {
       token: "test-desktop-client",
@@ -108,7 +117,8 @@ test.skipIf(!existsSync(paths.web))(
       await desktop.configure(selected);
       expect(desktop.pids).toEqual(pids);
       expect(statSync(join(directory, "desktop.json")).mtimeMs).toBe(saved);
-      expect((await fetch(`${desktop.origin}/api/overview`)).ok).toBe(true);
+      expect((await fetch(`${desktop.origin}/api/overview`)).status).toBe(403);
+      expect((await webFetch(`${desktop.origin}/api/overview`)).ok).toBe(true);
       expect(existsSync(join(directory, "postgres"))).toBe(false);
     } finally {
       await desktop.stop();
@@ -122,7 +132,7 @@ test.skipIf(!existsSync(paths.gateway))(
   "bundled stack: local enrollment, gRPC online, remote enrollment, restart durability and complete shutdown",
   async () => {
     const keys = secrets();
-    let local = new DesktopRuntime(data, paths, keys, () => {}, registry);
+    let local = new DesktopRuntime(data, paths, keys, () => {}, registry, webToken);
 
     let remote = new DesktopRuntime(
       remoteData,
@@ -130,6 +140,7 @@ test.skipIf(!existsSync(paths.gateway))(
       secrets(),
       () => {},
       registry,
+      webToken,
     );
 
     const owned = new Set<number>();
@@ -154,7 +165,7 @@ test.skipIf(!existsSync(paths.gateway))(
       const workerId = online[0]!.id;
       expect(local.status.workerId).toBe(workerId);
       const project = (await api.createProject({ name: "Desktop persistence" })).project!;
-      expect((await fetch(local.status.webUrl!)).ok).toBe(true);
+      expect((await webFetch(local.status.webUrl!)).ok).toBe(true);
       expect((await formAction(local.status.webUrl!)).body).toContain("Choose a project");
       expect((await formAction(local.status.webUrl!, "http://attacker.example")).status).toBe(403);
 
@@ -203,11 +214,11 @@ test.skipIf(!existsSync(paths.gateway))(
       expect(readFileSync(workerPath, "utf8") === migratedWorker).toBe(true);
       expect(remote.status.webUrl).toBe(remote.origin);
       expect(remote.status.webUrl).not.toBe(local.status.webUrl);
-      expect((await fetch(`${remote.origin}/api/overview`)).ok).toBe(true);
+      expect((await webFetch(`${remote.origin}/api/overview`)).ok).toBe(true);
       expect(
-        (await fetch(`${remote.origin}/api/overview`, { headers: { origin: "https://attacker.invalid" } })).status,
+        (await webFetch(`${remote.origin}/api/overview`, { headers: { origin: "https://attacker.invalid" } })).status,
       ).toBe(403);
-      expect((await fetch(`${remote.origin}/api/overview`, { headers: { host: "attacker.invalid" } })).status).toBe(
+      expect((await webFetch(`${remote.origin}/api/overview`, { headers: { host: "attacker.invalid" } })).status).toBe(
         403,
       );
       expect(registry.ranges.length).toBe(beforeRemote);
@@ -228,13 +239,14 @@ test.skipIf(!existsSync(paths.gateway))(
         .map((name) => readFileSync(join(data, "logs", name), "utf8"))
         .join("\n");
 
-      for (const key of [...Object.values(keys), token, client!.token]) expect(logs.includes(key)).toBe(false);
+      for (const key of [...Object.values(keys), webToken, token, client!.token])
+        expect(logs.includes(key)).toBe(false);
       expect(readFileSync(join(remoteData, "desktop.json"), "utf8").includes(client!.token)).toBe(false);
       await remote.stop();
       await local.stop();
 
       for (const pid of owned) expect(gone(pid)).toBe(true);
-      local = new DesktopRuntime(data, paths, keys, () => {}, registry);
+      local = new DesktopRuntime(data, paths, keys, () => {}, registry, webToken);
       registry.offline(true);
       await local.initialize(false);
       expect(local.status).toMatchObject({ mode: "local", phase: "starting" });
@@ -270,16 +282,16 @@ test.skipIf(!existsSync(paths.gateway))(
         process.kill(gatewayPid!, "SIGKILL");
         let shellAnswered = 0;
         await until(async () => {
-          if ((await fetch(local.status.webUrl!)).ok) shellAnswered++;
+          if ((await webFetch(local.status.webUrl!)).ok) shellAnswered++;
 
-          return (await fetch(`${local.status.webUrl}/api/overview`)).ok && shellAnswered > 0;
+          return (await webFetch(`${local.status.webUrl}/api/overview`)).ok && shellAnswered > 0;
         }, 30_000);
         local.pids.forEach((pid) => owned.add(pid));
         expect(shellAnswered).toBeGreaterThan(0);
       }
 
       await local.stop();
-      remote = new DesktopRuntime(remoteData, paths, secrets(), () => {}, registry);
+      remote = new DesktopRuntime(remoteData, paths, secrets(), () => {}, registry, webToken);
       await remote.initialize(false);
       expect(remote.status).toMatchObject({ mode: "remote", phase: "starting" });
       const reconnectStarted = performance.now();
@@ -288,9 +300,9 @@ test.skipIf(!existsSync(paths.gateway))(
       expect(remote.status.phase).toBe("running");
       expect(performance.now() - reconnectStarted).toBeLessThan(5000);
       expect(existsSync(join(remoteData, "postgres"))).toBe(false);
-      expect((await fetch(`${remote.origin}/desktop`)).ok).toBe(true);
-      expect((await fetch(remote.origin)).ok).toBe(true);
-      expect((await fetch(`${remote.origin}/api/overview`)).status).toBe(503);
+      expect((await webFetch(`${remote.origin}/desktop`)).ok).toBe(true);
+      expect((await webFetch(remote.origin)).ok).toBe(true);
+      expect((await webFetch(`${remote.origin}/api/overview`)).status).toBe(503);
       remote.pids.forEach((pid) => owned.add(pid));
     } finally {
       registry.offline(false);
@@ -369,10 +381,10 @@ test.skipIf(!existsSync(paths.gateway))(
     let pids: number[] = [];
 
     try {
-      const { origin } = await request(1, "initialize", { directory, paths, secrets: secrets() });
+      const { origin } = await request(1, "initialize", { directory, paths, secrets: secrets(), webToken });
       // The web runs in the controller: the BFF logs this failed gateway call, which must go to the `web` log and
       // never onto stdout, the protocol pipe the next replies come through.
-      expect((await fetch(`${origin}/api/overview`)).ok).toBe(false);
+      expect((await webFetch(`${origin}/api/overview`)).ok).toBe(false);
       pids = (
         await request(2, "configure", { configuration: { mode: "local", allowNetwork: false, bindHost: "127.0.0.1" } })
       ).pids;
@@ -429,7 +441,7 @@ test.skipIf(!existsSync(paths.gateway))(
         child,
         exited: once(child, "exit"),
         start: async () => {
-          await request(1, "initialize", { directory, paths, secrets: keys });
+          await request(1, "initialize", { directory, paths, secrets: keys, webToken });
 
           return (
             await request(2, "configure", {
