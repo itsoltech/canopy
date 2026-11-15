@@ -23,7 +23,19 @@
 
   const id = $props.id();
   let open = $state(false);
-  const expanded = $derived(open && !compact);
+
+  // The compact composer keeps its fold: the list opens on its own there. Opened that way, it stays
+  // open once the composer opens too.
+  let peek = $state(false);
+  const expanded = $derived(compact ? peek : open);
+
+  $effect.pre(() => {
+    if (compact || !peek) return;
+
+    open = true;
+    peek = false;
+  });
+
   const summary = $derived(subagentSummary(subagents));
 
   const providers = $derived([
@@ -33,10 +45,18 @@
 
 <section
   data-subagents-panel
+  data-keeps-compact
   aria-labelledby="{id}-summary"
   class={[!embedded && "rounded-t-2xl bg-white ring-1 ring-zinc-950/10 dark:bg-zinc-950 dark:ring-white/10", className]}
 >
-  <ComposerPanelHeader {expanded} controls="{id}-list" onclick={(wasExpanded) => (open = !wasExpanded)}>
+  <ComposerPanelHeader
+    {expanded}
+    controls="{id}-list"
+    onclick={(wasExpanded) => {
+      if (compact) peek = !wasExpanded;
+      else open = !wasExpanded;
+    }}
+  >
     <Icon name="sparkles" size="sm" class="text-violet-500 dark:text-violet-400" />
     <p
       id="{id}-summary"
