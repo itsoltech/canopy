@@ -157,6 +157,14 @@ są jedną kompaktową pigułką między ścieżką a kontrolkami, z pełnym zda
 w wąskim pasku zostaje ikona i akcja. Nie ma wierszy z komunikatami nad tekstem.
 Wyjątkiem są konflikt z dyskiem i błąd: wymagają decyzji, więc pozostają banerem.
 
+W trybie `Rendered` bloki ` ```mermaid ` są rysowane jako diagramy (`MermaidDiagram`,
+opcja `diagrams` komponentu `Markdown`); czat i strumieniowany tekst zostawiają je jako kod.
+Biblioteka ładuje się leniwie przy pierwszym diagramie i działa z `securityLevel: "strict"`.
+Kolory, czcionka i kształty pochodzą z aktywnego motywu Canopy (`mermaid-theme.ts`), więc
+zmiana motywu lub trybu jasny/ciemny rysuje diagram ponownie. Nagłówek bloku ma
+`Show source`/`Show diagram` i `Copy code`; diagram z błędem składni pokazuje źródło z
+krótką notką. Szeroki diagram zmniejsza się najwyżej do 90% i dalej przewija w poziomie.
+
 Nagłówek nie ma `+`. Wybór pliku z drzewa lub linku otwiera kartę obok `Thread`;
 pełny widok PR otwiera wiersz PR w podsumowaniu (lub link `?pr=`), a wynik zadania
 w tle — wiersz zadania.
