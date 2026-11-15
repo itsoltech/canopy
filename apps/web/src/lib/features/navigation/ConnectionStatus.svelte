@@ -70,12 +70,12 @@
       {/if}
     </button>
   {/snippet}
-  <div class="grid gap-3 p-4">
+  <div class="grid gap-3 p-3 text-base/6 sm:text-sm/5">
     <div class="flex items-center gap-2" role="status">
       <StatusDot tone={look.tone} />
       <h2 class="font-medium">{look.label}</h2>
     </div>
-    <p class="h-15 text-muted">
+    <p class="h-12 text-muted sm:h-10">
       {connection === "live"
         ? "Live updates are on."
         : "Canopy shows the last known state and reconnects automatically."}
