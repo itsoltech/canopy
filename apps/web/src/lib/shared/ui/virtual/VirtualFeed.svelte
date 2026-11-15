@@ -16,6 +16,7 @@
   import { SizeIndex } from "./size-index.ts";
   import VirtualRow from "./VirtualRow.svelte";
   import { FEED_END_THRESHOLD, followingAfterScroll, ScrollIntent, scrollOrigin, type ReaderScroll } from "./scroll.ts";
+  import { FeedExtent } from "./feed-extent.svelte.ts";
   import { trackEmbedHover } from "./embed-hover.ts";
   import type { FeedViewport } from "./viewport.ts";
   import { watchFooterEdge } from "./footer-edge.ts";
@@ -145,9 +146,9 @@
     return whenIdle(() => (overscanLimit = Math.min(fullOverscan, overscanLimit + OVERSCAN_STEP)), 1000);
   });
 
-  $effect(() => {
-    atEnd = stuck;
-  });
+  const extent = new FeedExtent();
+
+  $effect(() => void (atEnd = stuck || !extent.overflows));
 
   let focusedKey = $state<string>();
 
@@ -347,18 +348,18 @@
       }
     }
 
-    if (stuck) {
-      footerReserve.follow(footerFit.margin);
-      const end = scroller.scrollHeight - scroller.clientHeight;
+    if (!extent.follows(scroller, stuck)) {
+      if (anchor) anchor.key = scrollMemory?.key?.(anchor.identity ?? anchor.key) ?? anchor.key;
 
-      if (Math.abs(scroller.scrollTop - end) >= 1) setTop(end);
+      if (!settleAnchor(anchor, elements, scroller, setTop) && (!anchor || !positions.has(anchor.key))) capture();
 
       return;
     }
 
-    if (anchor) anchor.key = scrollMemory?.key?.(anchor.identity ?? anchor.key) ?? anchor.key;
+    stuck = true;
 
-    if (!settleAnchor(anchor, elements, scroller, setTop) && (!anchor || !positions.has(anchor.key))) capture();
+    footerReserve.follow(footerFit.margin);
+    extent.pin(scroller, setTop);
   }
 
   /** With `moved`, a scroll taken in before its event: the anchor follows it while still mounted. */
@@ -718,7 +719,7 @@
           class="absolute inset-x-0 bottom-0 -z-10 h-(--feed-edge) bg-surface before:absolute before:inset-x-0 before:bottom-full before:h-(--feed-fade) before:bg-linear-to-t before:from-surface before:to-transparent"
           aria-hidden="true"
         ></div>
-        {#if !stuck}
+        {#if !stuck && extent.overflows}
           <!-- Centred on the composer's axis (the shared chat column), just above its visible edge. -->
           <div
             class="chat-column pointer-events-none absolute inset-x-0 bottom-[calc(var(--feed-edge)+--spacing(2))] z-10 flex justify-center px-4 sm:px-6"
