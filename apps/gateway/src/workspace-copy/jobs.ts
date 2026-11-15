@@ -13,7 +13,8 @@ import { queryFamily } from "../diagnostics/query-context.ts";
 import { peerOf } from "../api/routed-home.ts";
 import { Invalid, NotFound } from "../store/index.ts";
 import { unwrap } from "../api/ui-errors.ts";
-import { copyAttempt, type CopyAttemptProgress, type CopySelection } from "./attempt.ts";
+import { copyAttempt, type CopySelection } from "./attempt.ts";
+import { AttemptReporter } from "./jobs-progress.ts";
 import { CopyJobStore, jobMessage, OPEN_STATUSES, type JobRow } from "./jobs-store.ts";
 import { ownedCopyWorkspace, pathHash } from "./source.ts";
 import { targetCall } from "./routes.ts";
@@ -21,10 +22,6 @@ import { targetCall } from "./routes.ts";
 /** Background copies running at once; more wait as queued. Each one holds at most COPY_LANES frames. */
 const RUNNING = 3;
 const TICK_MS = 10_000;
-
-/** Progress reaches clients a few times a second and the database every few seconds. */
-const PUBLISH_MS = 250;
-const PERSIST_MS = 2_000;
 
 /** Attempts in a row without progress before a copy fails; progress resets the count. */
 const ATTEMPTS = 3;
@@ -212,8 +209,14 @@ export class WorkspaceCopyJobs {
       const live = { row: await this.#row(row.id), currentFile: "" };
       this.#live.set(row.id, live);
       this.#publish(live.row);
-      const before = live.row.files;
-      const reporter = this.#reporter(live, ready);
+      const before = { files: live.row.files, bytes: live.row.bytes };
+
+      const reporter = new AttemptReporter(
+        live,
+        (job, file) => this.#publish(job, file),
+        (id, progress) => this.store.progress(id, progress),
+        ready,
+      );
 
       try {
         const result = await copyAttempt(
@@ -252,7 +255,8 @@ export class WorkspaceCopyJobs {
         }
 
         this.#fresh.delete(row.id);
-        failures = live.row.files > before || reporter.progressed ? 0 : failures + 1;
+        // Only progress past what the job already showed counts; re-confirming staged files does not.
+        failures = live.row.files > before.files || live.row.bytes > before.bytes ? 0 : failures + 1;
 
         if (!(await this.#reachable(row))) {
           await this.store.status(row.id, "waiting", {
@@ -278,52 +282,6 @@ export class WorkspaceCopyJobs {
         if (running.reason === "shutdown") return;
       }
     }
-  }
-
-  /** Throttled progress: published a few times a second, persisted every few seconds. */
-  #reporter(live: { row: JobRow; currentFile: string }, ready?: PromiseWithResolvers<void>) {
-    let published = 0;
-    let persisted = Date.now();
-    let first: CopyAttemptProgress | undefined;
-
-    const state = {
-      started: false,
-      progressed: false,
-      report: (progress: CopyAttemptProgress) => {
-        first ??= progress;
-        state.started = true;
-        state.progressed ||= progress.bytes > (first?.bytes ?? 0n);
-        ready?.resolve();
-        live.row = {
-          ...live.row,
-          status: progress.status === "finishing" ? "finishing" : "copying",
-          bytes: progress.bytes,
-          total_bytes: progress.totalBytes,
-          files: progress.files,
-          total_files: progress.totalFiles,
-          skipped: progress.skipped,
-        };
-        live.currentFile = progress.currentFile;
-        const now = Date.now();
-
-        if (now - published >= PUBLISH_MS || progress.status !== "copying") {
-          published = now;
-          this.#publish(live.row, live.currentFile);
-        }
-
-        if (now - persisted >= PERSIST_MS) {
-          persisted = now;
-          void this.store.progress(live.row.id, progressOf(live.row)).catch(() => {});
-        }
-      },
-      flush: async (done?: CopyAttemptProgress) => {
-        if (done) state.report(done);
-
-        if (state.started) await this.store.progress(live.row.id, progressOf(live.row)).catch(() => {});
-      },
-    };
-
-    return state;
   }
 
   async #cancelled(row: JobRow) {
@@ -395,14 +353,6 @@ export class WorkspaceCopyJobs {
     );
   }
 }
-
-const progressOf = (row: JobRow) => ({
-  bytes: row.bytes,
-  totalBytes: row.total_bytes,
-  files: row.files,
-  totalFiles: row.total_files,
-  skipped: row.skipped,
-});
 
 /** Only messages written for people reach the job; anything else gets a generic line. */
 function copyMessage(cause: unknown) {

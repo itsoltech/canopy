@@ -12,7 +12,7 @@ import { Button } from "../../ui/Button";
 import { Icon } from "../../ui/Icon";
 import { ProgressBar } from "../../ui/ProgressBar";
 import { Sheet } from "../../ui/components";
-import { styles, useColors } from "../../ui/theme";
+import { styles, useColors, useTypography } from "../../ui/theme";
 import { useSession } from "../../state/session";
 import { dropCopyJob, mergeCopyJob, useCopyJobs } from "./store";
 
@@ -36,7 +36,7 @@ export function SidebarCopyJobs() {
           style={({ pressed }) => ({
             minHeight: 44,
             justifyContent: "center",
-            gap: 6,
+            gap: 4,
             paddingHorizontal: 8,
             borderRadius: 8,
             backgroundColor: pressed ? c.pressed : "transparent",
@@ -45,13 +45,13 @@ export function SidebarCopyJobs() {
           <View style={styles.row}>
             <Icon
               name={item.status === "failed" ? "exclamation-circle" : "document-duplicate"}
-              size={16}
+              size={14}
               color={item.status === "failed" ? c.danger : c.muted}
             />
-            <Text numberOfLines={1} style={[styles.chrome, { flexShrink: 1, color: c.text }]}>
+            <Text numberOfLines={1} style={[styles.chromeMeta, { flexShrink: 1, color: c.muted }]}>
               {item.name}
             </Text>
-            <Text numberOfLines={1} style={[styles.chrome, { flexShrink: 0, maxWidth: "60%", color: c.text }]}>
+            <Text numberOfLines={1} style={[styles.chromeMeta, { flexShrink: 0, maxWidth: "60%", color: c.muted }]}>
               {`→ ${item.targetName || "worker"}`}
             </Text>
             <Text style={[styles.chromeMeta, { marginLeft: "auto", color: c.muted, fontVariant: ["tabular-nums"] }]}>
@@ -70,6 +70,7 @@ export function SidebarCopyJobs() {
 
 function CopyJobSheet({ job, onClose }: { job: ui.WorkspaceCopyJob; onClose: () => void }) {
   const c = useColors();
+  const type = useTypography();
   const { client } = useSession();
   const [pending, setPending] = useState("");
   const [error, setError] = useState("");
@@ -120,9 +121,10 @@ function CopyJobSheet({ job, onClose }: { job: ui.WorkspaceCopyJob; onClose: () 
             />
           ) : (
             <>
-              <Button title="Dismiss" disabled={!!pending} onPress={() => void act("dismiss")} />
+              <Button size="sm" title="Dismiss" disabled={!!pending} onPress={() => void act("dismiss")} />
               {job.status === "failed" && (
                 <Button
+                  size="sm"
                   title="Retry"
                   variant="primary"
                   busy={pending === "retry"}
@@ -136,21 +138,21 @@ function CopyJobSheet({ job, onClose }: { job: ui.WorkspaceCopyJob; onClose: () 
       }
     >
       <View style={{ gap: 12, paddingHorizontal: 20, paddingVertical: 12 }}>
-        <Text numberOfLines={1} style={[styles.body, { color: c.muted }]}>
+        <Text numberOfLines={1} style={[styles.meta, { color: c.muted }]}>
           To {job.targetName || "worker"} · {job.name}
         </Text>
         {running && <ProgressBar done={BigInt(copyJobPercent(job))} total={100n} label="Copy progress" />}
-        <Text style={[styles.body, { color: c.muted, fontVariant: ["tabular-nums"] }]}>{copyJobAmounts(job)}</Text>
+        <Text style={[styles.meta, { color: c.muted, fontVariant: ["tabular-nums"] }]}>{copyJobAmounts(job)}</Text>
         {job.status === "failed" || error ? (
-          <Text accessibilityRole="alert" selectable style={[styles.body, { color: c.danger }]}>
+          <Text accessibilityRole="alert" selectable style={[styles.meta, { color: c.danger }]}>
             {error || job.error}
           </Text>
         ) : job.status === "waiting" ? (
-          <Text style={[styles.body, { color: c.muted }]}>
+          <Text style={[styles.meta, { color: c.muted }]}>
             {job.error || "Both workers must be online. The copy continues when they are."}
           </Text>
         ) : running ? (
-          <Text numberOfLines={1} ellipsizeMode="middle" style={[styles.body, { color: c.muted }]}>
+          <Text numberOfLines={1} ellipsizeMode="middle" style={[type.mono, { color: c.muted }]}>
             {job.progress?.currentFile || "Preparing the destination…"}
           </Text>
         ) : null}

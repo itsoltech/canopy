@@ -104,6 +104,34 @@ describe.skipIf(!dockerAvailable)("background workspace copies over real workers
       60_000,
     );
 
+  /** Progress of one job as the overview stream delivers it. */
+  function watchProgress(id: string) {
+    const controller = new AbortController();
+    const updates: ui.WorkspaceCopyProgress[] = [];
+
+    const done = (async () => {
+      try {
+        for await (const update of gw.api.watchOverview({}, { signal: controller.signal })) {
+          const change = update.change;
+
+          if (change.case === "workspaceCopyJob" && change.value.id === id && change.value.progress)
+            updates.push(change.value.progress);
+        }
+      } catch {
+        /* Stopped below. */
+      }
+    })();
+
+    return {
+      stop: async () => {
+        controller.abort();
+        await done;
+
+        return updates;
+      },
+    };
+  }
+
   /** Holds every frame after the first `frames` until released. */
   function hold(frames: number) {
     let seen = 0;
@@ -159,6 +187,7 @@ describe.skipIf(!dockerAvailable)("background workspace copies over real workers
 
   test("resumes after the target and source workers restart mid-copy, without resending staged files", async () => {
     const input = await request("worker-restart");
+    const seen = watchProgress(input.transferKey);
     const pause = hold(4);
     await gw.api.startWorkspaceCopy(input);
     await pause.reached;
@@ -171,6 +200,18 @@ describe.skipIf(!dockerAvailable)("background workspace copies over real workers
     pause.release();
     await settled(input.transferKey);
     expectCopy("worker-restart");
+    const updates = await seen.stop();
+    expect(updates.length).toBeGreaterThan(1);
+    // Files count as they are written and verified, long before the copy is published.
+    expect(updates.some((u) => u.files > 0 && u.files < u.totalFiles)).toBe(true);
+
+    // Counters never step back while staged files are confirmed again after the restarts.
+    for (const [i, update] of updates.entries()) {
+      const previous = updates[i - 1] ?? update;
+      expect(update.files).toBeGreaterThanOrEqual(previous.files);
+      expect(update.bytes).toBeGreaterThanOrEqual(previous.bytes);
+    }
+
     // The frames held at the restart are lost; staged files are confirmed by hash, not sent again.
     expect(resent).toBeGreaterThan(0);
     expect(resent).toBeLessThan(pause.frames() + 40);

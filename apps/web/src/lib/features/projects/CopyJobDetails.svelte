@@ -3,6 +3,7 @@
   import { copyJobAmounts, copyJobPercent, copyJobRunning } from "@canopy/domain/workspace-copy-jobs";
   import Button from "#lib/shared/ui/Button.svelte";
   import ProgressBar from "#lib/shared/ui/ProgressBar.svelte";
+  import MiddleTruncatedText from "#lib/shared/ui/MiddleTruncatedText.svelte";
   import { copyJobs } from "./copy-jobs.svelte.ts";
 
   /** A background copy's progress and its actions: Cancel while it runs; Retry and Dismiss after it failed. */
@@ -25,33 +26,35 @@
   }
 </script>
 
-<div class="grid gap-3 p-4">
-  <div class="grid gap-0.5">
-    <h2 class="truncate font-medium" title={job.name}>
+<div class="grid min-w-0 gap-2 p-3">
+  <div class="grid min-w-0 gap-0.5">
+    <h2 class="truncate text-base/6 font-medium sm:text-sm/5" title={job.name}>
       {job.status === "failed"
         ? "Copy failed"
         : job.status === "completed"
           ? "Workspace copied"
           : `Copying ${job.name}`}
     </h2>
-    <p class="truncate text-muted" title="{job.parentPath}/{job.name}">To {job.targetName || "worker"} · {job.name}</p>
+    <p class="truncate text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400" title="{job.parentPath}/{job.name}">
+      To {job.targetName || "worker"} · {job.name}
+    </p>
   </div>
   {#if running}
-    <ProgressBar value={copyJobPercent(job)} label="Copy progress" />
+    <ProgressBar value={copyJobPercent(job)} label="Copy progress" class="my-1" />
   {/if}
-  <p class="text-muted tabular-nums">{copyJobAmounts(job)}</p>
+  <p class="text-sm/5 text-zinc-500 tabular-nums sm:text-xs/5 dark:text-zinc-400">{copyJobAmounts(job)}</p>
   {#if job.status === "failed" || error}
-    <p role="alert" class="text-rose-700 select-text dark:text-rose-400">{error || job.error}</p>
+    <p role="alert" class="text-sm/5 text-rose-700 select-text sm:text-xs/5 dark:text-rose-400">{error || job.error}</p>
   {:else if job.status === "waiting"}
-    <p role="status" class="text-muted">
+    <p role="status" class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
       {job.error || "Both workers must be online. The copy continues when they are."}
     </p>
   {:else if running}
-    <p class="truncate text-muted" title={job.progress?.currentFile}>
-      {job.progress?.currentFile || "Preparing the destination…"}
+    <p class="flex min-w-0 font-mono text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
+      <MiddleTruncatedText text={job.progress?.currentFile || "Preparing the destination…"} />
     </p>
   {/if}
-  <div class="flex justify-end gap-2">
+  <div class="flex justify-end gap-2 pt-1">
     {#if running}
       <Button size="sm" loading={pending === "cancel"} disabled={!!pending} onclick={() => void act("cancel")}
         >Cancel copy</Button

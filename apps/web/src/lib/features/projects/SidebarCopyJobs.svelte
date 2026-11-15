@@ -33,20 +33,20 @@
             label="Workspace copy"
             placement="top-start"
             sheet
-            class="w-[min(22rem,calc(100vw-1rem))]"
+            class="w-[min(21rem,calc(100vw-1rem))]"
           >
             {#snippet trigger(props)}
               <button
                 type="button"
                 {...props}
                 aria-label="{copyJobTitle(job)}, {copyJobState(job)}"
-                class="sidebar-row-padding grid w-full gap-1.5 rounded-lg py-1.5 text-left focus-ring hover:bg-hover"
+                class="sidebar-row-padding grid w-full gap-1 rounded-lg py-1.5 text-left text-sm/5 text-zinc-500 focus-ring hover:bg-hover sm:text-xs/5 dark:text-zinc-400"
               >
-                <span class="flex min-w-0 items-center gap-2">
+                <span class="flex min-w-0 items-center gap-1.5">
                   <Icon
                     name={job.status === "failed" ? "exclamation-circle" : "document-duplicate"}
                     class={[
-                      "size-4 shrink-0",
+                      "size-3.5 shrink-0",
                       job.status === "failed" ? "text-rose-600 dark:text-rose-400" : "text-icon-muted",
                     ]}
                   />
@@ -54,7 +54,7 @@
                     <span class="min-w-0 truncate">{job.name}</span>
                     <span class="max-w-3/5 shrink-0 truncate ps-1">→ {job.targetName || "worker"}</span>
                   </span>
-                  <span class="shrink-0 text-muted tabular-nums">{copyJobState(job)}</span>
+                  <span class="shrink-0 tabular-nums">{copyJobState(job)}</span>
                 </span>
                 {#if job.status !== "failed"}
                   <span

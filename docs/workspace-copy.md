@@ -121,7 +121,7 @@ finalizacji/podpięcia jako istniejący katalog; ponowne finalizowanie go nie na
 ## Kopiowanie w tle
 
 `StartWorkspaceCopy` zakłada trwałe zadanie w gatewayu, z którym rozmawia klient
-(`workspace_copy_jobs`, migracja 0153), i odpowiada po autoryzacji wyboru
+(`workspace_copy_jobs`, migracja 0147), i odpowiada po autoryzacji wyboru
 i przygotowaniu celu, więc błędy wyboru (niepotwierdzony sekret, zajęty katalog)
 widać w dialogu, a zadanie znika. Wiersz trzyma właściciela, końce, katalog,
 nazwę workera celu, liczniki i stan (`queued`, `copying`, `finishing`, `waiting`,

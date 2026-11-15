@@ -52,12 +52,18 @@ export async function transferFiles(
   };
 
   const hashes = new Map<string, string>();
-  const queue = plan(files);
+  const items = plan(files);
+  const packs = items.filter((item) => item.kind === "pack");
+  const larges = items.filter((item) => item.kind === "large");
   const stop = new AbortController();
   const both = AbortSignal.any([signal, stop.signal]);
 
-  const lane = async () => {
-    for (let item = queue.shift(); item; item = queue.shift()) {
+  // Half the lanes take packed small files first, half large ones: files complete (and count) from the start
+  // even when a few large assets come first in the manifest, and large files still move in parallel.
+  const lane = async (index: number) => {
+    const [first, second] = index % 2 === 0 ? [packs, larges] : [larges, packs];
+
+    for (let item = first.shift() ?? second.shift(); item; item = first.shift() ?? second.shift()) {
       both.throwIfAborted();
 
       if (item.kind === "pack") await pack(item.files);
@@ -132,7 +138,7 @@ export async function transferFiles(
   }
 
   try {
-    await Promise.all(Array.from({ length: COPY_LANES }, lane));
+    await Promise.all(Array.from({ length: COPY_LANES }, (_, index) => lane(index)));
   } catch (error) {
     stop.abort();
     throw error;
