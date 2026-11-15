@@ -4,10 +4,11 @@ import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { create, toJsonString } from "@bufbuild/protobuf";
 import { createClient } from "@connectrpc/connect";
-import { ui } from "@canopy/contracts";
+import { ui, update } from "@canopy/contracts";
+import { bulkUpdateSteps } from "@canopy/domain/release/update-plan";
 import { dockerAvailable } from "@canopy/db/testing";
 import { tempDirs } from "@canopy/testing";
-import { routedPinnedTransport } from "@canopy/transport";
+import { createGrpcClientTransport, routedPinnedTransport } from "@canopy/transport";
 import type { DesktopUpdateStatus } from "@canopy/ui/desktop";
 import { Effect } from "effect";
 import { SqlClient, type SqlConnection } from "effect/sql";
@@ -65,7 +66,9 @@ describe.skipIf(!dockerAvailable)("gateway ↔ desktop app updates over pinned T
   }
 
   beforeAll(async () => {
-    gw = await startTestGateway();
+    gw = await startTestGateway({
+      updates: { version: "1.0.0", source: { fetch: async () => Response.json([]) } },
+    });
     await openNetwork();
   }, 60_000);
   afterAll(async () => {
@@ -81,9 +84,18 @@ describe.skipIf(!dockerAvailable)("gateway ↔ desktop app updates over pinned T
 
   async function fixture() {
     const worker = await gw.addWorker("Canopy desktop");
-    await query(
-      "UPDATE workers SET capabilities = jsonb_set(capabilities, '{update}', '{\"installKind\":\"desktop\"}') WHERE id = $1",
-      [worker.workerId],
+    const updates = createClient(update.UpdateService, createGrpcClientTransport({ baseUrl: gw.grpcUrl }));
+    await updates.check(
+      {
+        workerId: worker.workerId,
+        version: "1.0.0",
+        installKind: "desktop",
+        os: "darwin",
+        arch: "arm64",
+        minWorkerLinkProtocol: 1,
+        workerLinkProtocol: 1,
+      },
+      { headers: { authorization: `Bearer ${worker.credential}` } },
     );
 
     let client = await pairDesktop(
@@ -190,6 +202,7 @@ describe.skipIf(!dockerAvailable)("gateway ↔ desktop app updates over pinned T
       stage: (version: string) => {
         status = { ...status, phase: "downloaded", updateVersion: version };
       },
+      publish: () => coordinator.publish(),
       stop: () => {
         coordinator.stop();
         control.stop();
@@ -216,6 +229,39 @@ describe.skipIf(!dockerAvailable)("gateway ↔ desktop app updates over pinned T
       },
     };
   }
+
+  test("discovery and Update all use desktop control without the worker update stream", async () => {
+    const app = await fixture();
+    app.stage("1.1.0-beta.1");
+    await app.publish();
+    const snapshot = await gw.api.getUpdates({});
+    const worker = snapshot.workers.find((worker) => worker.workerId === app.workerId)!;
+
+    expect(worker).toMatchObject({
+      installKind: "desktop",
+      bundled: false,
+      connected: false,
+      reason: "",
+      desktop: { connected: true, version: "1.0.0", availableVersion: "1.1.0-beta.1", disabledReason: "" },
+    });
+    expect(bulkUpdateSteps(snapshot).filter((step) => step.state === "queued")).toMatchObject([
+      { kind: "desktop", workerId: app.workerId, version: "1.1.0-beta.1" },
+    ]);
+    const started = await gw.api.manageUpdates({ action: "update_all", confirmRestart: true });
+    expect(started.run?.steps).toMatchObject([{ kind: "desktop", workerId: app.workerId }]);
+    await gw.core.updateCenter.tick();
+    await until(async () => (await state(app.workerId))?.phase === "downloading");
+    app.downloaded();
+    await until(async () => (await state(app.workerId))?.phase === "waiting_idle");
+    await gw.core.updateCenter.tick();
+    expect((await gw.api.getUpdates({})).run?.state).toBe("running");
+    app.idle();
+    await until(async () => app.counts().restarts === 1);
+    await app.reconnect("1.1.0-beta.1", "1.1.0-beta.1");
+    await gw.core.updateCenter.tick();
+    await until(async () => (await gw.api.getUpdates({})).run?.state === "succeeded");
+    app.stop();
+  }, 20_000);
 
   test("request, progress, deduplication, idle wait, restart/reconnect and durable owner audit", async () => {
     const app = await fixture();
@@ -301,9 +347,17 @@ describe.skipIf(!dockerAvailable)("gateway ↔ desktop app updates over pinned T
 
   test("offline, unpaired, unsupported, foreign owner and revoked desktops cannot be updated", async () => {
     const app = await fixture();
+    app.stage("1.1.0-beta.1");
+    await app.publish();
     app.stop();
     await until(async () => !(await state(app.workerId))?.connected);
     expect((await state(app.workerId))?.disabledReason).toContain("offline");
+    expect((await state(app.workerId))?.disabledReason).toContain("Open Canopy");
+    expect(bulkUpdateSteps(await gw.api.getUpdates({})).find((step) => step.workerId === app.workerId)).toMatchObject({
+      kind: "desktop",
+      state: "skipped",
+      reason: expect.stringContaining("Open Canopy"),
+    });
     expect(await failure(manage(app.workerId))).toContain("offline");
     expect(await failure(manage(gw.workerId))).toContain("Pair");
     await app.reconnect();

@@ -438,6 +438,15 @@ zdalne odtwarzanie, zachowując plik i możliwość uruchomienia aplikacji.
 
 Tryb lokalny nie otwiera tego strumienia; połączone komputery używają osobnego kanału
 aplikacji z dołączonym gatewayem ([niżej](#połączone-komputery)).
+
+W popoverze i Settings → Workers → Updates zdalny desktop pokazuje akcję
+„Update Canopy app”, gdy własny updater zgłosi nowszą wersję. Dostępność zależy
+od potwierdzonego kanału desktopu, nie od osobnego strumienia UpdateService workera
+ani wersji gatewaya. Aktualny worker ma krótką informację, że aktualizuje się z aplikacją
+i następne wydanie można zainstalować stąd. Brak połączenia pokazuje widoczne zalecenie
+otwarcia aplikacji i ponownego połączenia; brak powiązania wskazuje parowanie lub
+jednorazową aktualizację w App updates. Update all pomija niedostępny desktop z powodem,
+a po przyjęciu żądania czeka na raport wyniku po restarcie.
 `canopy.update.v1` nie zmienia się. Integracja gateway ↔ desktop zastępuje updater
 na jego granicy; rzeczywisty podpis, instalację i restart trzeba sprawdzić na macOS
 oraz Windows. Po ponownym uruchomieniu Windows ten sam journal zgłasza nową wersję

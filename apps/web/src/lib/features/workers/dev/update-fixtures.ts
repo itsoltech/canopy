@@ -133,6 +133,48 @@ export function fixtureSnapshot(): ui.UpdatesSnapshot {
   return snapshot;
 }
 
+/** Remote-mode desktops: their app control stays independent of the worker's binary-update stream. */
+export function remoteDesktopSnapshot(): ui.UpdatesSnapshot {
+  const states = [
+    { name: "Canopy · Damians-Mac", availableVersion: "0.43.0-nightly.1", connected: true },
+    { name: "Canopy · Mac", availableVersion: "0.42.0-nightly.7", connected: true },
+    {
+      name: "Canopy · Mac-Studio-in-the-render-room-on-the-third-floor.local",
+      connected: false,
+      disabledReason: "Desktop app is offline. Open Canopy on that computer and reconnect to this gateway.",
+    },
+    {
+      name: "Canopy · Unpaired Mac",
+      connected: false,
+      disabledReason:
+        "Pair this desktop app with this gateway. If already paired, update it once in Settings → App updates.",
+    },
+    {
+      name: "Canopy · Older Mac",
+      connected: true,
+      disabledReason: "This app version does not support remote updates. Update it manually in Settings → App updates.",
+    },
+  ];
+
+  return create(ui.UpdatesSnapshotSchema, {
+    gatewayVersion: "0.42.0-nightly.7",
+    availableVersion: "0.42.0-nightly.7",
+    gatewayInstallKind: "binary",
+    gatewayState: "idle",
+    channel: "nightly",
+    admin: true,
+    workers: states.map(({ name, ...state }, index) => ({
+      workerId: `remote-desktop-${index}`,
+      name,
+      installKind: "desktop",
+      state: "managed_externally",
+      compatibility: "compatible",
+      version: "0.42.0-nightly.7",
+      desktop: { version: "0.42.0-nightly.7", phase: "idle", channel: "nightly", ...state },
+    })),
+  });
+}
+
 /** One linked computer per state of its app. */
 export const computerStates = () => [
   computer("Up to date", "1", { version: "0.42.0", availableVersion: "0.42.0" }),

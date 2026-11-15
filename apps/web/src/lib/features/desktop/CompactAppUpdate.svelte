@@ -58,7 +58,7 @@
 
 {#if status}
   <UpdateItem
-    name="This computer"
+    name={bundled ? "This Canopy app" : "This computer"}
     title="This computer’s Canopy app"
     icon="computer-desktop"
     current={status.version}

@@ -60,7 +60,7 @@
 
 <!-- A computer's Canopy app: its own gateway and worker update with it (docs/updates.md). -->
 <UpdateItem
-  name={local ? "This computer" : computer.name}
+  name={local ? "This Canopy app" : computer.name}
   title={computer.name}
   icon="computer-desktop"
   current={app?.version || computer.version}

@@ -9,6 +9,9 @@ import { currentRemoteUpdate } from "@canopy/domain/release/remote-update-state"
 const bearer = (ctx: HandlerContext) =>
   /^Bearer\s+(\S+)$/i.exec(ctx.requestHeader.get("authorization") ?? "")?.[1] ?? "";
 
+const OFFLINE = "Desktop app is offline. Open Canopy on that computer and reconnect to this gateway.";
+const UNSUPPORTED = "This app version does not support remote updates. Update it manually in Settings → App updates.";
+
 /** A desktop app's report about itself: bounded text, its own version and channel, a known phase. */
 export function validDesktopState(state: ui.DesktopUpdateState, hello: ui.DesktopHello) {
   if (
@@ -167,7 +170,7 @@ export class DesktopControl {
         this.sessions.delete(identity.deviceId);
         const row = (await this.store.list()).find((r) => r.deviceId === identity.deviceId);
 
-        if (row) this.publish({ ...row.state, connected: false, disabledReason: "Desktop app is offline." });
+        if (row) this.publish({ ...row.state, connected: false, disabledReason: OFFLINE });
       }
     }
   }
@@ -191,9 +194,9 @@ export class DesktopControl {
             workerId: row.workerId,
             connected,
             disabledReason: !connected
-              ? "Desktop app is offline."
+              ? OFFLINE
               : !session.hello.remoteUpdate
-                ? "Update this desktop app manually to enable remote updates."
+                ? UNSUPPORTED
                 : (session.disabledReason ?? row.state.disabledReason),
           };
         }),
@@ -227,16 +230,12 @@ export class DesktopControl {
         return;
       }
 
-      if (!session?.confirmed || session.channel.closed)
-        throw new ConnectError("Desktop app is offline.", Code.FailedPrecondition);
+      if (!session?.confirmed || session.channel.closed) throw new ConnectError(OFFLINE, Code.FailedPrecondition);
 
       const disabledReason = session.disabledReason ?? row.state.disabledReason;
 
       if (!session.hello.remoteUpdate || disabledReason)
-        throw new ConnectError(
-          disabledReason || "Update this desktop app manually to enable remote updates.",
-          Code.FailedPrecondition,
-        );
+        throw new ConnectError(disabledReason || UNSUPPORTED, Code.FailedPrecondition);
 
       if (request.allowDowngrade) throw new ConnectError("Remote downgrade is forbidden", Code.InvalidArgument);
       let command = row.command;

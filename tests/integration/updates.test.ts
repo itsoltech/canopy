@@ -718,7 +718,7 @@ describe("independent update service and gateway mirror", () => {
     });
     expect(snapshot.workers.find((w) => w.workerId === "desktop")).toMatchObject({
       state: "managed_externally",
-      reason: expect.stringContaining("desktop app"),
+      reason: expect.stringContaining("Updates with the Canopy app"),
     });
     await expect(
       runtime.manage(create(ui.ManageUpdatesRequestSchema, { action: "worker", workerId: "ahead" })),

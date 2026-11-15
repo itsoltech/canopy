@@ -6,6 +6,7 @@
   import Dialog from "#lib/shared/ui/Dialog.svelte";
   import UpdateItem from "./UpdateItem.svelte";
   import { workerCurrent } from "./compact-updates.ts";
+  import { appUpdateTarget } from "@canopy/domain/release/update-plan";
   import type { UpdatesState } from "./updates.svelte.ts";
   import { updateInProgress, updateTargetKey, type UpdateStatus } from "@canopy/domain/release/update-status";
 
@@ -32,26 +33,24 @@
   const snapshot = $derived(home ?? updates.snapshot);
   const linked = $derived(!!home && home !== updates.snapshot);
   const desktop = $derived(worker.desktop);
+  const connected = $derived(desktop ? desktop.connected : worker.connected);
   const current = $derived(workerCurrent(worker, snapshot?.gatewayVersion ?? ""));
 
   const failed = $derived(worker.state === "failed" || desktop?.phase === "failed");
   const external = $derived(worker.installKind !== "binary" && !desktop);
 
   const reason = $derived(
-    desktop?.disabledReason ||
-      desktop?.reason ||
-      worker.reason.replace(/^Managed externally\.\s*/, "") ||
-      (!worker.connected ? "Update channel offline" : ""),
+    desktop
+      ? desktop.disabledReason ||
+          desktop.reason ||
+          (current ? "Updates with the Canopy app. You can update it here when a new version is available." : "")
+      : worker.reason.replace(/^Managed externally\.\s*/, "") || (!connected ? "Update channel offline" : ""),
   );
 
   // A linked computer's remote desktop apps update from that computer only.
   const actionable = $derived(
     desktop
-      ? !linked &&
-          desktop.connected &&
-          !desktop.disabledReason &&
-          !!desktop.availableVersion &&
-          desktop.availableVersion !== desktop.version
+      ? !linked && desktop.connected && !desktop.disabledReason && !!appUpdateTarget(desktop)
       : worker.connected &&
           worker.installKind === "binary" &&
           !!snapshot?.admin &&
@@ -76,20 +75,22 @@
 
   // A feed check keeps the settled word; the header shows the check.
   const own = $derived(
-    !worker.connected
-      ? "Offline"
-      : external && !current
-        ? "Managed externally"
-        : current
-          ? "current"
-          : (PHASE.get(desktop ? desktop.phase : worker.state) ??
-            (worker.state === "managed_externally"
-              ? "Managed externally"
-              : worker.state === "ahead"
-                ? "Newer than gateway"
-                : actionable
-                  ? "available"
-                  : "Unavailable")),
+    desktop
+      ? (PHASE.get(desktop.phase) ?? (current ? "current" : actionable ? "available" : "Unavailable"))
+      : !connected
+        ? "Offline"
+        : external && !current
+          ? "Managed externally"
+          : current
+            ? "current"
+            : (PHASE.get(worker.state) ??
+              (worker.state === "managed_externally"
+                ? "Managed externally"
+                : worker.state === "ahead"
+                  ? "Newer than gateway"
+                  : actionable
+                    ? "available"
+                    : "Unavailable")),
   );
 
   const status = $derived(updates.rowStatus(key, own));
@@ -109,17 +110,19 @@
   name={worker.name}
   icon={desktop ? "computer-desktop" : "server"}
   current={desktop?.version || worker.version}
-  target={desktop?.targetVersion ||
-    desktop?.availableVersion ||
-    (worker.state !== "ahead" ? snapshot?.gatewayVersion : "")}
+  target={desktop
+    ? appUpdateTarget(desktop) || desktop.targetVersion
+    : worker.state !== "ahead"
+      ? snapshot?.gatewayVersion
+      : ""}
   {status}
   line={status === "waiting" ? "Restarts after its current turns end." : ""}
   error={status === "failed"
-    ? reason || updates.snapshot?.run?.steps[step]?.reason || "The update did not finish."
+    ? desktop?.reason || reason || updates.snapshot?.run?.steps[step]?.reason || "The update did not finish."
     : ""}
   busy={inProgress}
   progress={desktop?.phase === "downloading" ? desktop.progress : undefined}
-  class={[!worker.connected && "opacity-50", className]}
+  class={[!connected && "opacity-50", className]}
 >
   {#snippet action()}
     {#if status === "failed" && (step >= 0 || (!linked && (failed || actionable)))}
@@ -127,7 +130,7 @@
         icon="repeat"
         size="sm"
         label="Retry"
-        disabled={updates.active || !worker.connected}
+        disabled={updates.active || !connected || !!desktop?.disabledReason}
         loading={updates.pending === worker.workerId || updates.pending === "retry_step"}
         onclick={retry}
       />
@@ -135,8 +138,8 @@
       <IconButton
         icon="arrow-down-tray"
         size="sm"
-        label={`Update ${worker.name}`}
-        disabled={updates.active || !worker.connected || (desktop && (!desktop.connected || !!desktop.disabledReason))}
+        label={desktop ? "Update Canopy app" : `Update ${worker.name}`}
+        disabled={updates.active || !connected || !!desktop?.disabledReason}
         loading={updates.pending === worker.workerId}
         onclick={() => void updates.manage({ action: desktop ? "desktop" : "worker", workerId: worker.workerId }, key)}
       />
@@ -148,7 +151,7 @@
         disabled={updates.active}
         onclick={() => (confirming = true)}
       />
-    {:else if reason && !inProgress}<IconButton
+    {:else if reason && !desktop?.disabledReason && !inProgress}<IconButton
         icon="information-circle"
         size="sm"
         label={reason}
@@ -171,6 +174,9 @@
     {/if}
   {/snippet}
 </UpdateItem>
+{#if desktop?.disabledReason && !inProgress && (status !== "failed" || !!desktop.reason)}
+  <p class="mb-2 ml-6 text-xs/5 text-pretty break-words text-muted" role="status">{desktop.disabledReason}</p>
+{/if}
 <Dialog bind:open={confirming} title="Restart Canopy app now?">
   <div class="grid gap-4">
     <p class="text-sm/6 text-muted">
