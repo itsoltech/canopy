@@ -50,6 +50,8 @@ export interface GatewayUpdatesOptions {
   pollMs?: number;
   /** The update center changed: state, a check, or a worker's update report. Clients read it again. */
   changed?(): void;
+  /** This gateway found a newer release on its channel: other computers on it can check their own feeds. */
+  found?(release: { channel: string; version: string }): void;
   /** A current problem of this gateway's installation shown next to its update state (the embedded web). */
   notice?(): string;
 }
@@ -183,6 +185,9 @@ export class GatewayUpdates {
         clearTimeout(this.#retryTimer);
         this.#available = await this.source.resolve(this.#channel);
         this.#checkError = "";
+
+        if (this.#ahead(this.#available.version))
+          this.options.found?.({ channel: this.#channel, version: this.#available.version });
 
         if (!["waiting_idle", "downloading", "restarting", "failed"].includes(this.#state)) this.#reason = "";
 

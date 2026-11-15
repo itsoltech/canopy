@@ -122,6 +122,7 @@ describe.skipIf(!dockerAvailable)("gateway ↔ desktop app updates over pinned T
     let restarts = 0;
     let notifications = 0;
     let checks = 0;
+    let feedChecks = 0;
     let result: "signed" | "unsigned" | "older" | "current" = "signed";
     let releaseDownload: (() => void) | undefined;
     let control: RemoteDesktopControl;
@@ -174,7 +175,9 @@ describe.skipIf(!dockerAvailable)("gateway ↔ desktop app updates over pinned T
       coordinator.selectDevice(client.deviceId);
       coordinators.push(coordinator);
       control = new RemoteDesktopControl(client, directory, (command) => {
-        void coordinator.command(command);
+        // Like the app's IPC: a check-only command runs the app's own feed check and never reaches the coordinator.
+        if (command.check) feedChecks++;
+        else void coordinator.command(command);
       });
       controls.push(control);
       await coordinator.publish();
@@ -192,6 +195,7 @@ describe.skipIf(!dockerAvailable)("gateway ↔ desktop app updates over pinned T
       },
       reports,
       counts: () => ({ checks, restarts, notifications }),
+      feedChecks: () => feedChecks,
       result: (value: typeof result) => {
         result = value;
       },
@@ -261,6 +265,29 @@ describe.skipIf(!dockerAvailable)("gateway ↔ desktop app updates over pinned T
     await gw.core.updateCenter.tick();
     await until(async () => (await gw.api.getUpdates({})).run?.state === "succeeded");
     app.stop();
+  }, 20_000);
+
+  test("Check now reaches paired apps; a release one app finds makes the others check once", async () => {
+    const finder = await fixture();
+    const other = await fixture();
+    // This test gateway never starts its own updater, so its part of Check now fails after asking the apps.
+    const check = () => gw.api.manageUpdates({ action: "check" }).catch(() => undefined);
+    await check();
+    await until(async () => finder.feedChecks() === 1 && other.feedChecks() === 1);
+
+    // Within the throttle a second press asks nobody again.
+    await check();
+
+    for (const session of gw.core.desktopControl.sessions.values()) session.checkedAt = 0;
+
+    finder.stage("1.2.0-beta.7");
+    await finder.publish();
+    await until(async () => other.feedChecks() === 2);
+    await finder.publish();
+    await Bun.sleep(100);
+    expect([finder.feedChecks(), other.feedChecks()]).toEqual([1, 2]);
+    finder.stop();
+    other.stop();
   }, 20_000);
 
   test("request, progress, deduplication, idle wait, restart/reconnect and durable owner audit", async () => {
