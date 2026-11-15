@@ -4,6 +4,7 @@
   import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import MenuItem from "#lib/shared/ui/MenuItem.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
+  import LiveText from "#lib/shared/ui/LiveText.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import { workspaceVersion } from "./workspace.svelte.ts";
   import type { ThreadWorkspace } from "./thread-workspace.svelte.ts";
@@ -12,11 +13,15 @@
 
   let {
     state: workspace,
+    title,
+    titleGenerating = false,
     working = false,
     pending = 0,
     class: className = "",
   }: {
     state: ThreadWorkspace;
+    title: string;
+    titleGenerating?: boolean;
     working?: boolean;
     pending?: number;
     class?: string;
@@ -25,6 +30,7 @@
   const view = $derived(workspace.view);
   const onclose = (id: string) => workspace.close(id);
   let width = $state(0);
+  let threadWidth = $state(0);
   let root = $state<HTMLDivElement>();
   let focused = $state("thread");
   const revision = $derived(workspaceVersion());
@@ -33,7 +39,7 @@
     void revision;
 
     return [
-      { id: "thread", name: "Thread", path: "", preview: false, dirty: false },
+      { id: "thread", name: title, path: "", preview: false, dirty: false },
       ...view.tabs.map((tab) => ({
         id: tab.id,
         name: tabName(tab),
@@ -52,9 +58,16 @@
 
   let rem = $state(16);
 
-  // Reserve Thread and the overflow chip before adding files at their maximum width (12 rem).
+  // Reserve the measured title and overflow chip before adding files at their maximum width (12 rem).
   // The active file stays visible even in a narrower slot, where its name truncates.
-  const room = $derived(Math.max(0, Math.floor((width / rem - 5.25 - 3.75) / 12.125)));
+  const room = $derived(Math.max(0, Math.floor(((width - threadWidth) / rem - 3.75) / 12.125)));
+
+  function measureThread(node: HTMLElement) {
+    const observer = new ResizeObserver(() => (threadWidth = node.clientWidth));
+    observer.observe(node);
+
+    return () => observer.disconnect();
+  }
 
   const shown = $derived.by(() => {
     const files = tabs.slice(1);
@@ -119,15 +132,21 @@
   onkeydown={keydown}
 >
   <span class="pointer-events-none invisible absolute w-[1rem]" bind:clientWidth={rem}></span>
-  <div role="tablist" aria-label="Workspace tabs" class="flex h-full min-w-0">
+  <div role="tablist" aria-label="Workspace tabs" class="flex h-full min-w-0 flex-1">
     {#each visible as tab (tab.id)}
       <div
         class={[
           "workspace-tab relative isolate flex min-w-0 items-center",
-          // Thread keeps its slot; every file, including the active one, must fit the available space.
-          tab.id === "thread" ? "shrink-0" : tab.id === active.id ? "max-w-48 shrink" : "max-w-48 shrink-100000",
+          tab.id === "thread"
+            ? shown.length
+              ? "max-w-[min(20rem,50%)] shrink-0"
+              : "max-w-80"
+            : tab.id === active.id
+              ? "max-w-48 shrink"
+              : "max-w-48 shrink-100000",
         ]}
         data-active={tab.id === active.id}
+        {@attach tab.id === "thread" ? measureThread : undefined}
       >
         <button
           type="button"
@@ -147,12 +166,16 @@
           ]}
           onclick={() => view.select(tab.id)}
           ondblclick={() => view.keep(tab.id)}
-          {@attach tooltip(tab.path)}
+          {@attach tooltip(tab.id === "thread" ? title : tab.path)}
         >
-          <span class={["truncate", tab.preview && "pr-0.5 italic"]}>{tab.name}</span>
-          {#if tab.id === "thread" && (pending || working)}<span
-              class="shrink-0 text-brand-600 tabular-nums dark:text-brand-400">{pending || "•"}</span
-            >{/if}
+          {#if tab.id === "thread"}
+            <LiveText text={title} active={titleGenerating} />
+            <span class="min-w-3 shrink-0 text-brand-600 tabular-nums dark:text-brand-400"
+              >{pending || (working ? "•" : "")}</span
+            >
+          {:else}
+            <span class={["truncate", tab.preview && "pr-0.5 italic"]}>{tab.name}</span>
+          {/if}
         </button>
         {#if tab.id !== "thread"}<button
             type="button"
@@ -182,7 +205,7 @@
   {/if}
 </div>
 
-<WorkspaceCommands {workspace} />
+<WorkspaceCommands {workspace} {title} />
 <WorkspaceClose
   tabs={workspace.closing}
   oncancel={() => (workspace.closing = [])}

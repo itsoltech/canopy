@@ -2406,7 +2406,8 @@ Zużyte wejścia szyny mają `withdrawn = consumed` i nie tworzą pustego „Wor
 ## Pliki wątku
 
 W obrębie wątku link otwiera teraz zakładkę w jednym rzędzie z sygnetem projektu
-i skracanym tytułem. `Thread` jest pierwszą, niezamykalną kartą; przełącznik
+i skracanym tytułem. W web/desktop tytuł wątku jest pierwszą, niezamykalną kartą,
+bez osobnego tytułu w breadcrumbs i dodatkowej etykiety `Thread`; przełącznik
 pokazuje także karty niemieszczące się w nagłówku. Jeden czysty preview jest
 zastępowalny; Edit, Keep tab, dwuklik i Move utrwalają kartę. Close saved tabs
 pomija szkice i trwające zapisy. Metadane do 12 kart na wątek są lokalne dla

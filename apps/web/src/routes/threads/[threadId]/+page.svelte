@@ -3,7 +3,6 @@
   import { InteractionKind, ItemStatus, Provider, ui } from "@canopy/contracts";
   import { tick, untrack } from "svelte";
   import { page } from "$app/state";
-  import LiveText from "#lib/shared/ui/LiveText.svelte";
   import { goto } from "$app/navigation";
   import { contributeCommands } from "#lib/features/commands/commands.svelte.ts";
   import { requestThreadInterrupt, threadCommands } from "#lib/features/threads/thread-commands.ts";
@@ -543,11 +542,16 @@
                 <ProjectMark name={project?.name ?? "?"} kind={project?.kind} />
               </ThreadSyncStatus>{/key}{/snippet}<span class="sr-only">{project?.name ?? "Project"}</span></Crumb
         >
-        <Crumb><LiveText text={thread.title} active={thread.titleGenerating} /></Crumb>
       {:else}
-        <Crumb><Skeleton class="h-4 w-48" /></Crumb>
+        <Crumb><Skeleton class="size-5" /></Crumb>
       {/if}
-      {#snippet workspace()}<WorkspaceTabs state={workspaceState} {working} pending={blockingQuestions} />{/snippet}
+      {#snippet workspace()}<WorkspaceTabs
+          state={workspaceState}
+          title={thread?.title ?? "Thread"}
+          titleGenerating={thread?.titleGenerating}
+          {working}
+          pending={blockingQuestions}
+        />{/snippet}
       {#snippet actions()}
         <ThreadSyncProgress status={view.syncStatus} />
         {#if thread}<div class="max-sm:hidden">

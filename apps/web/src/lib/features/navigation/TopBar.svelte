@@ -34,7 +34,7 @@
   <nav
     aria-label="Breadcrumb"
     aria-describedby={description ? descriptionId : undefined}
-    class={workspace ? "max-w-[min(14rem,22%)] min-w-12 shrink-100000" : "min-w-0 flex-1"}
+    class={workspace ? "shrink-0" : "min-w-0 flex-1"}
   >
     <ol
       role="list"
@@ -44,7 +44,10 @@
     </ol>
     {#if description}<span id={descriptionId} class="sr-only">{description}</span>{/if}
   </nav>
-  {#if workspace}<div class="min-w-0 flex-1 basis-80 self-stretch pt-1.5">{@render workspace()}</div>{/if}
+  {#if workspace}
+    <span aria-hidden="true" class="shrink-0 text-zinc-300 dark:text-zinc-700">/</span>
+    <div class="min-w-0 flex-1 self-stretch pt-1.5">{@render workspace()}</div>
+  {/if}
   {#if palette || actions}
     <div class="flex shrink-0 items-center gap-1">
       {#if palette && !workspace}
