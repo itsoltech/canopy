@@ -1,5 +1,7 @@
 import { create } from "@bufbuild/protobuf";
-import { ui } from "@canopy/contracts";
+import type { Http2ServerRequest } from "node:http2";
+import { TLSSocket } from "node:tls";
+import { serverMigration, ui } from "@canopy/contracts";
 import { connectNodeAdapter } from "@connectrpc/connect-node";
 import { serviceTokenAuth, uiRoutes } from "../api/index.ts";
 import type { GatewayCore } from "../core/core.ts";
@@ -7,6 +9,11 @@ import type { Handler } from "./listener.ts";
 import type { NetworkAccess } from "./network.ts";
 import { offerWorkerRoutes } from "./workers.ts";
 import { workerRoutes } from "../worker-link/routes.ts";
+
+const MIGRATION_PAIRING = `/${serverMigration.MigrationPairingService.typeName}/`;
+
+const modernTls = (request: Http2ServerRequest) =>
+  request.httpVersionMajor === 2 && request.socket instanceof TLSSocket && request.socket.getProtocol() === "TLSv1.3";
 
 /** Native RPCs only: reject browser origins and authenticate every service at its boundary. */
 export function mountMobileNetwork(core: GatewayCore, network: NetworkAccess, serviceToken: string) {
@@ -40,6 +47,14 @@ export function mountMobileNetwork(core: GatewayCore, network: NetworkAccess, se
     }
 
     const path = request.url?.split("?")[0] ?? "";
+
+    // Migration pairing carries a one-time code: HTTP/2 over TLS 1.3 only. Phones elsewhere may use TLS 1.2.
+    if (path.startsWith(MIGRATION_PAIRING) && !modernTls(request)) {
+      response.writeHead(403);
+      response.end();
+
+      return;
+    }
 
     if (
       path.startsWith("/canopy.worker.v1.") ||

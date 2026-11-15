@@ -19,6 +19,8 @@ export type ServerMigrationOptions = {
   network: () => NetworkAccess | undefined;
   /** This gateway's build; the release version by default. */
   build?: string;
+  /** Lets development builds migrate (local stacks and tests). Default: CANOPY_SERVER_MIGRATION_DEV_BUILDS=1. */
+  allowDevBuilds?: boolean;
 };
 
 const sourcePeer = (row: SourceRow) =>
@@ -72,14 +74,21 @@ export class ServerMigrations {
 
   constructor(options: ServerMigrationOptions) {
     this.store = new MigrationStore(options.runtime, options.owner);
-    const context = new MigrationContext(this.store, options.role, options.network, options.build ?? CANOPY_VERSION);
+
+    const context = new MigrationContext(
+      this.store,
+      options.role,
+      options.network,
+      options.build ?? CANOPY_VERSION,
+      options.allowDevBuilds ?? process.env["CANOPY_SERVER_MIGRATION_DEV_BUILDS"] === "1",
+    );
+
     this.target = new MigrationTarget(context);
     this.source = new MigrationSource(context);
   }
 
   /** The owner's open session on this gateway, either side. */
   async snapshot() {
-    await this.store.closeUnpairedTarget();
     const target = await this.store.openSession("target");
 
     if (target)
@@ -87,7 +96,7 @@ export class ServerMigrations {
         session: sessionView(target, (await this.store.sources(target.id)).map(sourcePeer)),
       });
     const source = await this.store.openSession("source");
-    const row = source && (await this.store.target(source.id));
+    const row = source && (await this.source.targets.target(source.id));
 
     return create(ui.ServerMigrationSnapshotSchema, {
       ...(source && row && { session: sessionView(source, [targetPeer(row)]) }),

@@ -1,7 +1,6 @@
 import { Code, ConnectError } from "@connectrpc/connect";
 import type { NetworkAccess } from "../network/network.ts";
 import type { GatewayRole } from "../role.ts";
-import { occupiedTarget } from "./empty-target.ts";
 import type { MigrationStore } from "./store.ts";
 import { localVersions, type Versions } from "./versions.ts";
 
@@ -14,6 +13,8 @@ export class MigrationContext {
     readonly role: GatewayRole,
     readonly network: () => NetworkAccess | undefined,
     readonly build: string,
+    /** Development builds (no release version) may migrate only when this gateway allows it explicitly. */
+    readonly allowDevBuilds: boolean,
   ) {}
 
   async versions(): Promise<Versions> {
@@ -31,8 +32,9 @@ export class MigrationContext {
       );
   }
 
-  /** §3: only the bootstrap of a new server may exist before an import. Never deleted automatically. */
+  /** §3: only the bootstrap of a new server may exist before an import (0147 server_migration_occupied).
+   * Never deleted automatically. Reservation steps repeat this check under their lock (reservation.ts). */
   async requireEmptyTarget() {
-    if ((await occupiedTarget(this.store)).length) throw new ConnectError(TARGET_NOT_EMPTY, Code.FailedPrecondition);
+    if ((await this.store.occupied()).length) throw new ConnectError(TARGET_NOT_EMPTY, Code.FailedPrecondition);
   }
 }

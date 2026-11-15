@@ -7,7 +7,10 @@ import { certificateIdentity } from "../computers/identity.ts";
 import { verifyBinding } from "./binding.ts";
 import type { MigrationPeer } from "./channel.ts";
 import type { MigrationContext } from "./context.ts";
-import { MigrationStore, type SourceRow } from "./store.ts";
+import { Predicate } from "effect";
+import { TARGET_NOT_EMPTY } from "./context.ts";
+import { closeSession, exchangeInvitation, reserveInvitation } from "./reservation.ts";
+import { MigrationStore, Refused, type SourceRow } from "./store.ts";
 import {
   requirePinnedVersions,
   requireSameVersions,
@@ -27,6 +30,15 @@ function uuid(value: string) {
   if (!UUID.test(value)) throw new ConnectError(INVALID_CODE, Code.PermissionDenied);
 
   return value;
+}
+
+/** A second active pairing of the same home in one session (server_migration_sources_home). */
+function uniqueViolation(error: Error): boolean {
+  for (let current: unknown = error, i = 0; i < 6 && Predicate.isObject(current); i++, current = current["cause"]) {
+    if (current["code"] === "23505") return true;
+  }
+
+  return false;
 }
 
 /** Malformed certificates and signatures get the same answer as a wrong code. */
@@ -54,31 +66,23 @@ export class MigrationTarget {
 
     if (!network?.listening || !origins.length)
       throw new ConnectError("Turn on Network access on this server first.", Code.FailedPrecondition);
-    await this.store.closeUnpairedTarget();
-    let session = await this.store.openSession("target");
+    const code = randomBytes(32).toString("base64url");
 
-    if (session && session.state !== "invited" && session.state !== "paired")
+    const reserved = await reserveInvitation(
+      this.store,
+      await this.context.versions(),
+      codeHash(code),
+      crypto.randomUUID(),
+    );
+
+    if (reserved instanceof Refused)
       throw new ConnectError(
-        "This server is already copying. Add every computer before copying starts.",
+        reserved.reason === "copying"
+          ? "This server is already copying. Add every computer before copying starts."
+          : TARGET_NOT_EMPTY,
         Code.FailedPrecondition,
       );
-    await this.context.requireEmptyTarget();
-
-    if (!session) {
-      const versions = await this.context.versions();
-
-      try {
-        await this.store.createSession("target", crypto.randomUUID(), "invited", versions);
-      } catch {
-        // Another invitation opened the session at the same time; both use it.
-      }
-
-      session = await this.store.openSession("target");
-    }
-
-    if (!session) throw new ConnectError(NOT_FOUND, Code.Aborted);
-    const code = randomBytes(32).toString("base64url");
-    const source = await this.store.addSource(session.id, codeHash(code));
+    const { session, source } = reserved;
     const identity = await network.options.store.identity();
     await this.store.audit("pair", session.id, {
       phase: "invited",
@@ -121,12 +125,12 @@ export class MigrationTarget {
     const local = await this.context.versions();
     const remote = versionsOf(request.versions);
     // Refused before the code is used: after an update the same invitation still works.
-    requireSameVersions(local, remote);
+    requireSameVersions(local, remote, this.context.allowDevBuilds);
     await this.context.requireEmptyTarget();
     let paired;
 
     try {
-      paired = await this.store.exchange({
+      paired = await exchangeInvitation(this.store, {
         sessionId: request.sessionId,
         sourceId: request.sourceId,
         codeHash: codeHash(request.code),
@@ -137,9 +141,14 @@ export class MigrationTarget {
         certificate: session.certificate,
         pin: sessionPin,
       });
-    } catch {
-      throw new ConnectError("This computer is already paired with this server.", Code.AlreadyExists);
+    } catch (error) {
+      if (error instanceof Error && uniqueViolation(error))
+        throw new ConnectError("This computer is already paired with this server.", Code.AlreadyExists);
+      throw error;
     }
+
+    // Data appeared, or the unpaired reservation lapsed: the code stays unused.
+    if (paired instanceof Refused) throw new ConnectError(TARGET_NOT_EMPTY, Code.FailedPrecondition);
 
     if (!paired) throw new ConnectError(INVALID_CODE, Code.PermissionDenied);
     const owner = new MigrationStore(this.store.runtime, paired.row.owner_user_id);
@@ -196,7 +205,7 @@ export class MigrationTarget {
 
     try {
       requirePinnedVersions(session, local);
-      requireSameVersions(local, versionsOf(request.versions));
+      requireSameVersions(local, versionsOf(request.versions), this.context.allowDevBuilds);
       await this.context.requireEmptyTarget();
     } catch (error) {
       const reason = error instanceof VersionSkewError ? `version_${error.reason}` : "target_not_empty";
@@ -228,7 +237,7 @@ export class MigrationTarget {
     }
 
     if (!(await this.store.session(sessionId))) throw new ConnectError(NOT_FOUND, Code.NotFound);
-    await this.store.close(sessionId, "owner");
+    await closeSession(this.store, sessionId, "owner");
     await this.store.audit("abort", sessionId, { scope: "session" });
   }
 

@@ -6,7 +6,11 @@ import { SERVER_MIGRATION_CAPABILITY, SERVER_MIGRATION_PROTOCOL } from "@canopy/
 export type Versions = { protocol: number; build: string; schema: string; capabilities: string[] };
 
 /** Why two gateways can't migrate together. Shown in audit records; never contains data. */
-export type SkewReason = "protocol" | "capability" | "build" | "schema";
+export type SkewReason = "protocol" | "capability" | "build" | "schema" | "dev_build";
+
+/** A build without a release version (CANOPY_VERSION unset) says nothing about its code: two such builds
+ * would match although they differ. They migrate only when the gateway explicitly allows dev builds. */
+export const isDevBuild = (build: string) => !build || build.startsWith("0.0.0-dev");
 
 export const versionsMessage = (versions: Versions) => create(migration.MigrationVersionsSchema, versions);
 
@@ -25,8 +29,10 @@ export function versionsOf(message: migration.MigrationVersions | undefined): Ve
 
 /** V1 (docs/desktop-server-migration.md §5, decision 9): the same migration build on every side. A later
  * source N → target N+1 range needs an explicit adapter and its test matrix; a downgrade is never allowed. */
-export function versionSkew(local: Versions, remote: Versions): SkewReason | undefined {
+export function versionSkew(local: Versions, remote: Versions, allowDevBuilds = false): SkewReason | undefined {
   if (remote.protocol !== local.protocol) return "protocol";
+
+  if (!allowDevBuilds && (isDevBuild(local.build) || isDevBuild(remote.build))) return "dev_build";
 
   if (!remote.capabilities.includes(SERVER_MIGRATION_CAPABILITY)) return "capability";
 
@@ -44,16 +50,20 @@ export class VersionSkewError extends ConnectError {
     remote: Versions,
   ) {
     super(
-      reason === "protocol" || reason === "capability"
-        ? "Update Canopy on this computer and the server before moving. One of them can't move data yet."
-        : `Update Canopy so both computers run the same version. This gateway runs ${local.build} (${local.schema}), the other ${remote.build || "an unknown version"} (${remote.schema || "unknown schema"}).`,
+      reason === "dev_build"
+        ? "Development builds of Canopy can't move data. Install a released version on both computers."
+        : reason === "protocol" || reason === "capability"
+          ? "Update Canopy on this computer and the server before moving. One of them can't move data yet."
+          : `Update Canopy so both computers run the same version. This gateway runs ${local.build} (${local.schema}), the other ${remote.build || "an unknown version"} (${remote.schema || "unknown schema"}).`,
       Code.FailedPrecondition,
     );
   }
 }
 
-export function requireSameVersions(local: Versions, remote: Versions) {
-  const reason = versionSkew(local, remote);
+/** Peer assertions, not attestation: they stop accidental skew. Trust rests on the pins, the session
+ * certificate and both owners' confirmations (docs/desktop-server-migration.md §5). */
+export function requireSameVersions(local: Versions, remote: Versions, allowDevBuilds: boolean) {
+  const reason = versionSkew(local, remote, allowDevBuilds);
 
   if (reason) throw new VersionSkewError(reason, local, remote);
 }

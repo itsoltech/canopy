@@ -585,6 +585,8 @@ export type TestGatewayOptions = {
   logSources?: GatewayCoreOptions["logSources"];
   diagnosticsLogDirectory?: string;
   storage?: { pg: TestPostgres; secretsKey: Buffer; workerId: string; workerCredential: string };
+  /** The owner's email; another one on shared storage is a second owner of the same database. */
+  ownerEmail?: string;
 };
 
 /** Starts PostgreSQL, the gateway (UI API + worker link on one server) and a connected worker "laptop" (root /repo). */
@@ -644,7 +646,10 @@ export async function startBareGateway(options: TestGatewayOptions = {}): Promis
 
   await runtime.runPromise(migrate);
   audit?.start();
-  const userId = await runtime.runPromise(GatewayStore.use((s) => s.ensureUser("dev@localhost", "Dev")));
+
+  const userId = await runtime.runPromise(
+    GatewayStore.use((s) => s.ensureUser(options.ownerEmail ?? "dev@localhost", "Dev")),
+  );
 
   const addWorker = async (name: string, allowedRoots?: string[]) => {
     const added = await runtime.runPromise(GatewayStore.use((s) => s.addWorker({ name, ownerUserId: userId })));

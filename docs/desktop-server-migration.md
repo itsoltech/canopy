@@ -428,7 +428,9 @@ manifest schema i pełnym zestawem adapterów. Na pierwsze wydanie wymagamy (§1
 worker może być starszy tylko przy zgodnym WORKER_LINK_PROTOCOL i obsłudze nowej
 bariery/rebind. Zwykłe oznaczenie `v0.3.0-nightly` nie wystarcza i nie oznacza,
 że migracja już istnieje. Cel i Maki trzeba najpierw zaktualizować do wydania
-z tą funkcją. Dry run pokazuje dokładny build i schemat każdej strony.
+z tą funkcją. Dry run pokazuje dokładny build i schemat każdej strony. Te wersje
+to deklaracje strony przeciwnej, nie atestacja buildu: chronią przed przypadkową
+niezgodnością, a nie przed zmodyfikowanym gatewayem (etap 1 w §12).
 
 Późniejszy zakres source N → target N+1 wymaga jawnego adaptera i testu macierzy;
 downgrade danych target < source jest odrzucony. Brak negocjacji/nieznana rodzina
@@ -743,7 +745,7 @@ nazw, focus/keyboard/reduced motion, bez testów web UI.
 | Podszyty lub wrogi serwer | Pin z zaufanego UI przed kodem/sekretem, jawny wybór celu i zakresu na obu stronach. Pin chroni tożsamość, nie uczciwość operatora: zatwierdzony serwer otrzymuje dane i sekrety, więc należy do granicy zaufania |
 | MITM, przejęta trasa | TLS 1.3, wzajemny pin, bez TOFU/redirect/TLS exceptions; MagicDNS/Tailscale tylko jako transport. Błąd pinu nigdy nie uruchamia fallbacku bez tego samego pinu |
 | Częściowa kopia, crash, split brain | Trwałe ACK/checkpoint, staging, pełna weryfikacja, prepared fence na wszystkich źródłach i jedna niezmienna decyzja celu; brak automatycznego odmrożenia przy nieznanej decyzji |
-| Replay, downgrade, podmiana źródła | Session/source/generation/owner/manifest w każdym RPC, hash klucza idempotencji, jednorazowe parowanie, expiry/revoke, pin wersji adaptera. Stara komenda workera nie omija rebind/fence |
+| Replay, downgrade, podmiana źródła | Session/source/generation/owner/manifest w każdym RPC, hash klucza idempotencji, jednorazowe parowanie, expiry/revoke, pin wersji adaptera. Stara komenda workera nie omija rebind/fence. Wersje są deklaracjami peera, nie atestacją: zmodyfikowany peer przechodzi kontrolę wersji, ale nie piny, certyfikat sesji ani potwierdzenia ownerów |
 | Logi, temp, nieograniczony import | Re-encryption przed persistence, brak payload logs/traces/error echo, typowane limity rozmiaru i backpressure, izolacja ownera, deny unknown family, brak arbitralnego storage_url/SQL/ścieżki |
 
 Dowód owner scope opiera się na następujących niezmiennikach, sprawdzanych
@@ -849,27 +851,67 @@ projekt wcześniej nie rozstrzygał:
   serwera ani innego certyfikatu sesji.
 - **Kod.** 256 bitów, w bazie tylko SHA-256; 5 błędnych prób unieważnia
   zaproszenie. Niezgodna wersja i niepusty cel są odrzucane przed zużyciem kodu,
-  więc po aktualizacji to samo zaproszenie nadal działa.
+  więc po aktualizacji to samo zaproszenie nadal działa. `ExchangeMigrationPairing`
+  przyjmuje wyłącznie HTTP/2 po TLS 1.3; pozostałe trasy urządzeń nadal
+  dopuszczają TLS 1.2 dla starszych telefonów.
+- **Próba parowania na źródle.** Klucz sesji, `source_id` zaproszenia i szyfrowane
+  adresy celu są zapisywane w jednej transakcji przed `Exchange`. To samo
+  zaproszenie ponownie (utracona odpowiedź) używa tego samego klucza. Inne
+  zaproszenie, gdy nic nie zostało wymienione, atomowo zastępuje próbę nowym
+  kluczem i nowym `source_id`; zmieniony pin przy tym samym `source_id` jest
+  odmową. Dopóki sesja jest w `pairing`, każda próba przypina wersje bieżącego
+  buildu (aktualizacja między próbami nie jest downgrade'em, bo nic nie sparowano);
+  od wymiany wersje są przypięte, a zmiana wymaga nowej sesji.
+- **Adresy celu.** Origins Network access serwera są adresami prywatnymi:
+  na źródle leżą wyłącznie jako koperta AES-GCM kluczem sekretów gatewaya
+  i są odszyfrowywane tylko do połączenia. Uszkodzona lub obca koperta to odmowa
+  „pair again”, bez ujawniania wartości.
 - **Kanał mTLS.** Na roli `server` każde połączenie z certyfikatem klienta trafia
   do gałęzi migracji, która przepuszcza wyłącznie aktywny certyfikat sesji
   (nieodwołany, nieprzeterminowany, otwarta sesja) i tylko `MigrationService`
   po HTTP/2 TLS 1.3; wszystko inne dostaje 403, jak dotąd każdy certyfikat na
   serwerze. Owner i sesja pochodzą z certyfikatu, nie z żądania.
-- **Pusty cel.** Sprawdzenie jest deny-by-default: każda tabela z wierszem blokuje,
-  poza listą bootstrapu (`server-migration/empty-target.ts`). Faktyczny bootstrap
-  nowego serwera obejmuje też zegary i limitery (`config_clock`,
-  `computer_thread_clock`, `computer_thread_changes`, `computer_pairing_budget`,
-  `github_api_slots`) oraz wbudowane wiersze `native` w `provider_instances`
-  i `config_items` i projekt scratch. Drugi użytkownik w bazie oznacza dane obcego
-  ownera, więc też blokuje.
-- **Rezerwacja.** Trigger `server_migration_fence` odrzuca w bazie nowe wiersze
-  tabel-korzeni (wątki, boty, workery i enrollment, sekrety, konta, connectory,
-  proxy, skille/pluginy, harmonogramy, worktree, szkice, importy), niezależnie od
-  klienta. Odstępstwo od §3: sesja, w której żaden dom jeszcze nie sparował,
-  przestaje rezerwować serwer po wygaśnięciu ostatniego zaproszenia; inaczej
-  zapomniane zaproszenie zablokowałoby serwer bez końca. Od pierwszej wymiany
-  rezerwacja trwa do abort lub zakończenia. Etap 2 dodaje jawny wyjątek
-  dla importera.
+- **Pusty cel.** `server_migration_occupied(owner)` (SQL, 0147) jest deny-by-default:
+  każda tabela z wierszem blokuje, poza tabelami runtime
+  (`server_migration_runtime_tables()`: tożsamość i Network access serwera,
+  zegary i limitery, diagnostyka, urządzenia operatora, audit, tabele migracji)
+  i dokładnymi wierszami bootstrapu (`server_migration_default_row`): projekt
+  scratch, nietknięte wbudowane `native` w `provider_instances` i ich nietknięte
+  rekordy `config_items`. Zmieniony wiersz `native` (np. favorites), edytowany
+  scratch, `user_settings` czy drugi użytkownik to dane.
+- **Rezerwacja.** Jeden wiersz `server_migration_reservation` na bazę. Każdy
+  chroniony zapis trzyma do commit współdzieloną blokadę transakcyjną (advisory,
+  tylko w pamięci, bez zapisu wiersza). Rezerwacja, wymiana kodu i abort biorą ją
+  wyłącznie i dopiero potem, w nowej instrukcji, sprawdzają pusty cel: czekają
+  na zapisy w toku i widzą to, co zatwierdziły. Zapis rozpoczęty później czeka
+  i widzi rezerwację. Zapis poza READ COMMITTED dodatkowo blokuje wiersz
+  `FOR SHARE`, więc starszy snapshot kończy się błędem serializacji zamiast
+  przejść. Wybraliśmy to zamiast SERIALIZABLE, bo nie zmienia izolacji reszty
+  gatewaya, a koszt to blokada w pamięci przy insertach do tabel-korzeni.
+- **Zakres ochrony.** `server_migration_fence_plan()` liczy pokrycie z katalogu:
+  tabele bootstrapu mają trigger na INSERT, UPDATE i DELETE (wiersz domyślny
+  i niezmieniony UPDATE przechodzą, więc restart serwera działa), pozostałe
+  tabele-korzenie trigger na INSERT. Tabela z nieodraczalnym kluczem obcym
+  NOT NULL do tabeli chronionej nie może dostać wiersza, więc gorące tabele
+  (zdarzenia, itemy, komendy) nie mają triggera; UPDATE/DELETE w pustych
+  tabelach nic nie zmienia. Migracja dodająca tabelę wywołuje
+  `SELECT server_migration_install_fences();`;
+  `packages/db/test/server-migration-fence.test.ts` nie przejdzie dla tabeli
+  ani runtime, ani chronionej, ani pokrytej.
+- **Wygaśnięcie.** Odstępstwo od §3: sesja, w której żaden dom jeszcze nie
+  sparował, przestaje rezerwować serwer po wygaśnięciu ostatniego zaproszenia;
+  inaczej zapomniane zaproszenie zablokowałoby serwer bez końca. Wymiana kodu
+  po wygaśnięciu albo nad nowymi danymi jest odrzucona. Od pierwszej wymiany
+  rezerwacja trwa do abort lub zakończenia. Etap 2 dodaje jawny wyjątek dla
+  importera.
+- **Wersje to deklaracje, nie atestacja.** Protokół, capability, build i schemat
+  w `Exchange`/`Negotiate` deklaruje strona przeciwna; zmodyfikowany gateway może
+  skłamać. Sprawdzenie chroni przed przypadkową niezgodnością, a bezpieczeństwo
+  opiera się na pinach, certyfikacie sesji, potwierdzeniu obu ownerów i kontroli
+  ownera w celu. Build bez wersji wydania (`0.0.0-dev`, brak `CANOPY_VERSION`)
+  nie mówi nic o kodzie: taka strona jest odrzucana, chyba że gateway jawnie
+  dopuszcza buildy deweloperskie (`CANOPY_SERVER_MIGRATION_DEV_BUILDS=1`,
+  lokalne stacki i testy).
 - **Potwierdzenie pinów.** Cel odrzuca `Negotiate`, dopóki właściciel na serwerze
   nie potwierdzi pinu certyfikatu sesji domu; źródło nie wywołuje `Negotiate` bez
   potwierdzenia pinu celu. Negocjacja jest dry run: wersje i pusty cel, bez danych.

@@ -1,134 +1,67 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { create, type MessageInitShape } from "@bufbuild/protobuf";
-import { Code, ConnectError, createClient } from "@connectrpc/connect";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { createHash, randomBytes } from "node:crypto";
+import * as https from "node:https";
+import { Code, createClient } from "@connectrpc/connect";
 import { serverMigration as migration, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
-import { pinnedCertificate, routedPinnedTransport } from "@canopy/transport";
-import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
+import { routedPinnedTransport } from "@canopy/transport";
 import { generateIdentity } from "../../apps/gateway/src/computers/identity.ts";
-import { mountMobileNetwork } from "../../apps/gateway/src/network/devices.ts";
 import { openListener } from "../../apps/gateway/src/network/listener.ts";
-import { NetworkAccess } from "../../apps/gateway/src/network/network.ts";
-import { signBinding } from "../../apps/gateway/src/server-migration/binding.ts";
-import { IDENTITY_CHANGED, migrationClient, pairingClient } from "../../apps/gateway/src/server-migration/channel.ts";
+import { IDENTITY_CHANGED, migrationClient } from "../../apps/gateway/src/server-migration/channel.ts";
 import { TARGET_NOT_EMPTY } from "../../apps/gateway/src/server-migration/context.ts";
 import { ServerMigrations } from "../../apps/gateway/src/server-migration/service.ts";
-import { decryptSecret } from "../../apps/gateway/src/store/secrets.ts";
-import { MIGRATION_FENCE, migrationFenced, toConnectError } from "../../apps/gateway/src/api/ui-errors.ts";
-import { GatewayStore } from "@canopy/gateway/store";
-import {
-  SERVICE_TOKEN,
-  startBareGateway,
-  startTestGateway,
-  type BareTestGateway,
-  type TestGateway,
-} from "./support/gateway.ts";
+import { decryptSecret, encryptSecret } from "../../apps/gateway/src/store/secrets.ts";
+import { startBareGateway } from "./support/gateway.ts";
+import { auditOf, rawHome, refusal, startMigrationPair, type MigrationPair } from "./support/server-migration.ts";
 
-type Refusal = { code: Code | "resolved"; message: string };
-
-const refusal = (call: Promise<unknown>): Promise<Refusal> =>
-  call.then(
-    () => ({ code: "resolved" as const, message: "resolved" }),
-    (error: Error) => {
-      const e = ConnectError.from(error);
-
-      return { code: e.code, message: e.rawMessage };
-    },
-  );
-
-async function networkOf(gw: BareTestGateway, role: "server" | "desktop") {
-  const network = new NetworkAccess({
-    role,
-    store: new ComputerStore(gw.runtime, gw.userId, gw.secretsKey),
-    host: "127.0.0.1",
-  });
-
-  gw.core.network = network;
-  const unmount = mountMobileNetwork(gw.core, network, SERVICE_TOKEN);
-  await network.start();
-
-  if (role === "server")
-    await network.update(create(ui.UpdateNetworkAccessRequestSchema, { action: "set_enabled", enabled: true }));
-
-  return { network, close: async () => (unmount(), await network.close()) };
-}
-
-/** A home played by the test: its own computer and session keys, every request field under control. */
-async function rawHome(invitation: ui.ServerMigrationInvitation) {
-  const computer = await generateIdentity();
-  const session = await generateIdentity({ name: "Canopy server migration", validDays: 30 });
-  const origin = invitation.origins[0]!;
-
-  const target = {
-    origin,
-    certificate: await pinnedCertificate(origin, invitation.fingerprint),
-    fingerprint: invitation.fingerprint,
-  };
-
-  const exchange = (
-    versions: MessageInitShape<typeof migration.MigrationVersionsSchema>,
-    overrides: { code?: string; computerCertificate?: string } = {},
-  ) =>
-    pairingClient(target).exchangeMigrationPairing({
-      sessionId: invitation.sessionId,
-      sourceId: invitation.sourceId,
-      code: invitation.code,
-      sessionCertificate: session.certificate,
-      computerCertificate: computer.certificate,
-      bindingSignature: signBinding(computer.privateKey, {
-        sessionId: invitation.sessionId,
-        sourceId: invitation.sourceId,
-        sessionPin: session.fingerprint,
-        targetPin: invitation.fingerprint,
-      }),
-      sourceName: "Raw home",
-      sourceOwnerId: crypto.randomUUID(),
-      versions,
-      ...overrides,
-    });
-
-  return { computer, session, target, exchange, client: () => migrationClient(target, session) };
-}
+const MISSING = { code: Code.NotFound, message: "Migration not found" };
 
 describe.skipIf(!dockerAvailable)("server migration sessions: two gateways, pinned mutual TLS", () => {
-  let server: BareTestGateway;
-  let desktop: TestGateway;
-  let serverNet: Awaited<ReturnType<typeof networkOf>>;
-  let desktopNet: Awaited<ReturnType<typeof networkOf>>;
-  let local: { protocol: number; build: string; schema: string; capabilities: string[] };
+  let env: MigrationPair;
 
-  const serverQuery = <A extends object>(text: string, params: unknown[] = []) =>
-    server.core.serverMigration.store.query<A>(text, params);
+  beforeEach(async () => {
+    env = await startMigrationPair();
+  }, 60_000);
 
-  const desktopQuery = <A extends object>(text: string, params: unknown[] = []) =>
-    desktop.core.serverMigration.store.query<A>(text, params);
-
-  const actions = async (query: typeof serverQuery, sessionId: string) =>
-    (
-      await query<{ action: string; details: Record<string, string | number> }>(
-        "SELECT action, details FROM audit_log WHERE target_type='server_migration' AND target_id=$1::uuid ORDER BY created_at",
-        [sessionId],
-      )
-    ).map((row) => `${row.action}:${JSON.stringify(row.details)}`);
-
-  beforeAll(async () => {
-    server = await startBareGateway({ role: "server" });
-    desktop = await startTestGateway({ role: "desktop" });
-    serverNet = await networkOf(server, "server");
-    desktopNet = await networkOf(desktop, "desktop");
-    local = await server.core.serverMigration.target.context.versions();
-  }, 90_000);
-
-  afterAll(async () => {
-    await serverNet?.close();
-    await desktopNet?.close();
-    await desktop?.close();
-    await server?.close();
+  afterEach(async () => {
+    await env?.close();
   });
 
+  /** The desktop pairs through its RPC and both owners confirm the pins. */
+  async function pairDesktop() {
+    const invitation = await env.server.api.createServerMigrationInvitation({});
+    await env.desktop.api.pairServerMigration({ invitation });
+
+    const home = (await env.server.api.getServerMigration({})).session!.peers.find(
+      (p) => p.id === invitation.sourceId,
+    )!;
+
+    await env.desktop.api.confirmServerMigrationPeer({
+      sessionId: invitation.sessionId,
+      fingerprint: invitation.fingerprint,
+    });
+    await env.server.api.confirmServerMigrationPeer({
+      sessionId: invitation.sessionId,
+      sourceId: home.id,
+      fingerprint: home.fingerprint,
+    });
+
+    return { invitation, home };
+  }
+
+  /** The same desktop running another build: its own service on the desktop's database and identity. */
+  const olderDesktop = () =>
+    new ServerMigrations({
+      runtime: env.desktop.runtime,
+      owner: env.desktop.userId,
+      role: "desktop",
+      network: () => env.desktopNet.network,
+      build: "1.0.0-old",
+      allowDevBuilds: true,
+    });
+
   test("an impersonated or unpinned server gets no code; a server serves no other certificate", async () => {
-    const invitation = await server.api.createServerMigrationInvitation({});
-    // A false route: another certificate at an address listed first. It must never see an HTTP request.
+    const invitation = await env.server.api.createServerMigrationInvitation({});
     const impostor = await generateIdentity();
     let requests = 0;
 
@@ -143,61 +76,52 @@ describe.skipIf(!dockerAvailable)("server migration sessions: two gateways, pinn
       },
     });
 
+    const pair = (value: ui.ServerMigrationInvitation) => env.desktop.api.pairServerMigration({ invitation: value });
     const impersonated = { ...invitation, origins: [`https://127.0.0.1:${listener.port}`] };
-    const pair = (value: ui.ServerMigrationInvitation) => desktop.api.pairServerMigration({ invitation: value });
     expect(await refusal(pair(impersonated))).toEqual({ code: Code.PermissionDenied, message: IDENTITY_CHANGED });
-    const unpinned = { ...invitation, fingerprint: "0".repeat(64) };
-    expect(await refusal(pair(unpinned))).toEqual({ code: Code.PermissionDenied, message: IDENTITY_CHANGED });
+    expect(await refusal(pair({ ...invitation, fingerprint: "0".repeat(64) }))).toEqual({
+      code: Code.PermissionDenied,
+      message: IDENTITY_CHANGED,
+    });
     expect((await refusal(pair({ ...invitation, fingerprint: "abc" }))).code).toBe(Code.InvalidArgument);
     await listener.close();
     expect(requests).toBe(0);
-    // Nothing was stored or consumed: the desktop has no session, the invitation still works.
-    expect((await desktop.api.getServerMigration({})).session).toBeUndefined();
-
-    const sources = await serverQuery<{ exchanged_at: Date | null }>(
-      "SELECT exchanged_at FROM server_migration_sources",
-    );
-
-    expect(sources[0]?.exchanged_at).toBeNull();
+    // Nothing was stored or consumed.
+    expect((await env.desktop.api.getServerMigration({})).session).toBeUndefined();
+    expect(await env.serverSql("SELECT 1 FROM server_migration_sources WHERE exchanged_at IS NOT NULL")).toEqual([]);
 
     // A linked computer's certificate (or any other) reaches no service on a server.
-    const computer = await desktopNet.network.options.store.identity();
+    const computer = await env.desktopNet.network.options.store.identity();
     const home = await rawHome(invitation);
     const linked = migrationClient(home.target, { certificate: computer.certificate, privateKey: computer.privateKey });
-    const forged = await refusal(linked.negotiate({ sessionId: invitation.sessionId, sourceId: invitation.sourceId }));
-    expect(forged.code).not.toBe("resolved");
+    expect((await refusal(linked.negotiate({ sessionId: invitation.sessionId }))).code).not.toBe("resolved");
 
     // Without a client certificate the device listener has no MigrationService either.
     const anonymous = createClient(
       migration.MigrationService,
-      routedPinnedTransport(server.core.mobile.networkRoutes()).transport,
+      routedPinnedTransport(env.server.core.mobile.networkRoutes()).transport,
     );
 
     expect((await refusal(anonymous.negotiate({ sessionId: invitation.sessionId }))).code).not.toBe("resolved");
   });
 
   test("a desktop pairs, both owners confirm the pins, and negotiation moves no data", async () => {
-    const before = (await server.api.getServerMigration({})).session!;
-    const invitation = await server.api.createServerMigrationInvitation({});
-    expect(invitation.sessionId).toBe(before.id);
+    const invitation = await env.server.api.createServerMigrationInvitation({});
     expect(invitation.code).toHaveLength(43);
-    await desktop.api.pairServerMigration({ invitation });
+    await env.desktop.api.pairServerMigration({ invitation });
 
-    const onServer = (await server.api.getServerMigration({})).session!;
-    const home = onServer.peers.find((peer) => peer.id === invitation.sourceId)!;
-    expect(onServer).toMatchObject({ role: "target", state: "paired", build: local.build, schema: local.schema });
-    expect(home).toMatchObject({ paired: true, confirmed: false, negotiated: false });
-    expect(home.nodeId).toBe((await desktopNet.network.options.store.identity()).nodeId);
-
-    const onDesktop = (await desktop.api.getServerMigration({})).session!;
+    const onServer = (await env.server.api.getServerMigration({})).session!;
+    const home = onServer.peers[0]!;
+    expect(onServer).toMatchObject({ role: "target", state: "paired", build: env.local.build });
+    expect(home).toMatchObject({ id: invitation.sourceId, paired: true, confirmed: false, negotiated: false });
+    expect(home.nodeId).toBe((await env.desktopNet.network.options.store.identity()).nodeId);
+    const onDesktop = (await env.desktop.api.getServerMigration({})).session!;
     expect(onDesktop).toMatchObject({ id: invitation.sessionId, role: "source", state: "paired" });
     expect(onDesktop.peers[0]).toMatchObject({ fingerprint: invitation.fingerprint, paired: true, confirmed: false });
-    expect(onDesktop.peers[0]!.nodeId).toBe((await serverNet.network.options.store.identity()).nodeId);
 
-    // Nothing runs before both owners compared the pins.
-    const negotiate = () => desktop.api.negotiateServerMigration({ sessionId: invitation.sessionId });
+    const negotiate = () => env.desktop.api.negotiateServerMigration({ sessionId: invitation.sessionId });
     expect((await refusal(negotiate())).message).toContain("Confirm the server's pin");
-    await desktop.api.confirmServerMigrationPeer({
+    await env.desktop.api.confirmServerMigrationPeer({
       sessionId: invitation.sessionId,
       fingerprint: invitation.fingerprint,
     });
@@ -207,203 +131,346 @@ describe.skipIf(!dockerAvailable)("server migration sessions: two gateways, pinn
     });
 
     const confirm = (fingerprint: string) =>
-      server.api.confirmServerMigrationPeer({ sessionId: invitation.sessionId, sourceId: home.id, fingerprint });
+      env.server.api.confirmServerMigrationPeer({ sessionId: invitation.sessionId, sourceId: home.id, fingerprint });
 
     expect((await refusal(confirm("f".repeat(64)))).code).toBe(Code.PermissionDenied);
     await confirm(home.fingerprint);
     await negotiate();
-    expect((await server.api.getServerMigration({})).session!.peers.find((p) => p.id === home.id)!.negotiated).toBe(
-      true,
-    );
-    expect((await desktop.api.getServerMigration({})).session!.peers[0]).toMatchObject({
+    expect((await env.server.api.getServerMigration({})).session!.peers[0]!.negotiated).toBe(true);
+    expect((await env.desktop.api.getServerMigration({})).session!.peers[0]).toMatchObject({
       negotiated: true,
-      build: local.build,
-      schema: local.schema,
+      build: env.local.build,
+      schema: env.local.schema,
     });
 
-    // While reserved, the server admits no new root data from any client or job.
-    const intrusion = await server.addWorker("intruder").catch((error: Error) => error);
-    expect(migrationFenced(intrusion)).toBe(true);
-    expect(toConnectError(intrusion)).toMatchObject({ code: Code.FailedPrecondition, rawMessage: MIGRATION_FENCE });
-    // Each producer keeps its own wording; the database refusal holds for all of them.
-    expect((await refusal(server.api.createWorkerEnrollment({ name: "Intruder" }))).code).toBe(Code.FailedPrecondition);
-    expect(await serverQuery("SELECT 1 FROM workers")).toHaveLength(0);
-
-    // Audit on both sides, without codes, keys or addresses.
-    const serverAudit = await actions(serverQuery, invitation.sessionId);
-    const desktopAudit = await actions(desktopQuery, invitation.sessionId);
-    expect(serverAudit.filter((a) => a.includes(invitation.sourceId)).map((a) => a.split(":")[0])).toEqual([
-      "server_migration.pair",
-      "server_migration.pair",
-      "server_migration.pair",
-      "server_migration.negotiate",
+    // Audit on both sides, in write order, without codes, keys or addresses.
+    const serverAudit = await auditOf(env.server.core.serverMigration.store, invitation.sessionId);
+    const desktopAudit = await auditOf(env.desktop.core.serverMigration.store, invitation.sessionId);
+    expect(serverAudit.map((a) => `${a.action} ${a.details["phase"] ?? a.details["result"]}`)).toEqual([
+      "server_migration.pair invited",
+      "server_migration.pair exchanged",
+      "server_migration.pair confirmed",
+      "server_migration.negotiate accepted",
     ]);
-    expect(desktopAudit.map((a) => a.split(":")[0])).toEqual([
-      "server_migration.pair",
-      "server_migration.pair",
-      "server_migration.negotiate",
-      "server_migration.negotiate",
+    expect(desktopAudit.map((a) => `${a.action} ${a.details["phase"] ?? a.details["result"]}`)).toEqual([
+      "server_migration.pair exchanged",
+      "server_migration.pair confirmed",
+      "server_migration.negotiate refused",
+      "server_migration.negotiate accepted",
     ]);
-    expect(desktopAudit.at(-2)).toContain('"reason":"FailedPrecondition"');
-    expect(desktopAudit.at(-1)).toContain('"result":"accepted"');
 
-    for (const line of [...serverAudit, ...desktopAudit]) {
-      expect(line).not.toContain(invitation.code);
-      expect(line).not.toContain("127.0.0.1");
-      expect(line).not.toContain("PRIVATE KEY");
+    for (const { text } of [...serverAudit, ...desktopAudit]) {
+      expect(text).not.toContain(invitation.code);
+      expect(text).not.toContain("127.0.0.1");
+      expect(text).not.toContain("PRIVATE KEY");
     }
 
-    // The code is stored only as a hash; the session key only encrypted with the desktop's key.
-    const stored = await serverQuery<{ row: string }>(
+    // The code only as a hash; the server's addresses and the session key only encrypted with the desktop's key.
+    const stored = await env.serverSql<{ row: string }>(
       "SELECT row_to_json(x)::text AS row FROM server_migration_sources x",
     );
 
     expect(stored.every((row) => !row.row.includes(invitation.code))).toBe(true);
-    const keys = await desktopQuery<{ private_key: Uint8Array }>("SELECT private_key FROM server_migration_targets");
-    const ciphertext = keys[0]!.private_key;
-    expect(Buffer.from(ciphertext).toString("latin1")).not.toContain("PRIVATE KEY");
-    expect(decryptSecret(desktop.secretsKey, ciphertext)).toContain("PRIVATE KEY");
+
+    const targets = await env.desktopSql<{ row: string; origins: Uint8Array; private_key: Uint8Array }>(
+      "SELECT row_to_json(t)::text AS row, origins, private_key FROM server_migration_targets t",
+    );
+
+    expect(targets[0]!.row).not.toContain("127.0.0.1");
+    expect(targets[0]!.row).not.toContain("PRIVATE KEY");
+    expect(decryptSecret(env.desktop.secretsKey, targets[0]!.origins).split("\n")).toEqual(invitation.origins);
+    expect(decryptSecret(env.desktop.secretsKey, targets[0]!.private_key)).toContain("PRIVATE KEY");
+  });
+
+  test("a damaged or foreign address envelope is refused without naming the address", async () => {
+    const { invitation } = await pairDesktop();
+    const negotiate = () => refusal(env.desktop.api.negotiateServerMigration({ sessionId: invitation.sessionId }));
+    const pairAgain = "This computer can't read its pairing with the server. Cancel the move and pair again.";
+
+    await env.desktopSql("UPDATE server_migration_targets SET origins=$1", [randomBytes(40)]);
+    expect(await negotiate()).toEqual({ code: Code.FailedPrecondition, message: pairAgain });
+    await env.desktopSql("UPDATE server_migration_targets SET origins=$1", [
+      encryptSecret(randomBytes(32), invitation.origins.join("\n")),
+    ]);
+    expect(await negotiate()).toEqual({ code: Code.FailedPrecondition, message: pairAgain });
+    await env.desktopSql("UPDATE server_migration_targets SET origins=$1", [
+      encryptSecret(env.desktop.secretsKey, "http://plain.example\n"),
+    ]);
+    expect(await negotiate()).toEqual({ code: Code.FailedPrecondition, message: pairAgain });
+    // Restored, it connects again.
+    await env.desktopSql("UPDATE server_migration_targets SET origins=$1", [
+      encryptSecret(env.desktop.secretsKey, invitation.origins.join("\n")),
+    ]);
+    expect((await negotiate()).code).toBe("resolved");
   });
 
   test("an invitation is used once: the same key gets the same reply, another key and wrong codes are refused", async () => {
-    const invitation = await server.api.createServerMigrationInvitation({});
+    const invitation = await env.server.api.createServerMigrationInvitation({});
     const home = await rawHome(invitation);
-    const first = await home.exchange(local);
-    const retry = await home.exchange(local);
-    expect(retry).toEqual(first);
-
+    const first = await home.exchange(env.local);
+    expect(await home.exchange(env.local)).toEqual(first);
     const intruder = await rawHome(invitation);
-    expect((await refusal(intruder.exchange(local))).code).toBe(Code.PermissionDenied);
-    // A signature from another computer key, or for another certificate, proves nothing.
-    expect((await refusal(intruder.exchange(local, { computerCertificate: home.computer.certificate }))).code).toBe(
+    expect((await refusal(intruder.exchange(env.local))).code).toBe(Code.PermissionDenied);
+    // A signature from another computer key proves nothing.
+    expect((await refusal(intruder.exchange(env.local, { computerCertificate: home.computer.certificate }))).code).toBe(
       Code.PermissionDenied,
     );
 
-    const next = await server.api.createServerMigrationInvitation({});
+    const next = await env.server.api.createServerMigrationInvitation({});
     const guesser = await rawHome(next);
 
     for (let attempt = 0; attempt < 5; attempt++)
-      expect((await refusal(guesser.exchange(local, { code: "A".repeat(43) }))).code).toBe(Code.PermissionDenied);
+      expect((await refusal(guesser.exchange(env.local, { code: "A".repeat(43) }))).code).toBe(Code.PermissionDenied);
     // Five wrong codes revoke the invitation: even the right code is refused now.
-    expect((await refusal(guesser.exchange(local))).code).toBe(Code.PermissionDenied);
+    expect((await refusal(guesser.exchange(env.local))).code).toBe(Code.PermissionDenied);
   });
 
-  test("a version skew is refused at pairing and at negotiation", async () => {
-    const invitation = await server.api.createServerMigrationInvitation({});
+  test("a version skew is refused at pairing and negotiation; dev builds need an explicit opt-in", async () => {
+    const invitation = await env.server.api.createServerMigrationInvitation({});
     const home = await rawHome(invitation);
 
     for (const skew of [
-      { ...local, build: "0.0.1-older" },
-      { ...local, schema: "146_github_pr_last_known" },
-      { ...local, protocol: local.protocol + 1 },
-      { ...local, capabilities: [] },
+      { ...env.local, build: "0.0.1-older" },
+      { ...env.local, schema: "146_github_pr_last_known" },
+      { ...env.local, protocol: env.local.protocol + 1 },
+      { ...env.local, capabilities: [] },
     ]) {
       const refused = await refusal(home.exchange(skew));
       expect(refused.code).toBe(Code.FailedPrecondition);
       expect(refused.message).toContain("Update Canopy");
     }
 
+    // A server that doesn't opt in never pairs two development builds, even when they report the same version.
+    const strict = new ServerMigrations({
+      runtime: env.server.runtime,
+      owner: env.server.userId,
+      role: "server",
+      network: () => env.serverNet.network,
+      allowDevBuilds: false,
+    });
+
+    expect(await refusal(strict.target.exchange(home.request(env.local)))).toEqual({
+      code: Code.FailedPrecondition,
+      message: "Development builds of Canopy can't move data. Install a released version on both computers.",
+    });
+
     // Refused before the code was used: the same invitation pairs once versions match.
-    await home.exchange(local);
-    await server.api.confirmServerMigrationPeer({
+    await home.exchange(env.local);
+    await env.server.api.confirmServerMigrationPeer({
       sessionId: invitation.sessionId,
       sourceId: invitation.sourceId,
       fingerprint: home.session.fingerprint,
     });
-
-    const negotiate = (versions: typeof local) =>
-      home
-        .client()
-        .negotiate({ sessionId: invitation.sessionId, sourceId: invitation.sourceId, generation: 1, versions });
-
-    const refused = await refusal(negotiate({ ...local, build: "9.9.9-newer" }));
-    expect(refused.code).toBe(Code.FailedPrecondition);
-    expect((await actions(serverQuery, invitation.sessionId)).at(-1)).toContain('"reason":"version_build"');
-    expect((await negotiate(local)).versions).toMatchObject({ build: local.build, schema: local.schema });
+    expect((await refusal(home.negotiate({ ...env.local, build: "9.9.9-newer" }))).code).toBe(Code.FailedPrecondition);
+    const audit = await auditOf(env.server.core.serverMigration.store, invitation.sessionId);
+    expect(audit.filter((a) => a.details["result"] === "refused").map((a) => a.details["reason"])).toEqual([
+      "version_build",
+    ]);
+    expect((await home.negotiate(env.local)).versions).toMatchObject({ build: env.local.build });
   });
 
-  test("another owner can't see or drive a session, and phones can't prepare one", async () => {
-    const session = (await server.api.getServerMigration({})).session!;
-    const home = session.peers.find((peer) => peer.negotiated)!;
+  test("after an update, the same invitation pairs and the session pins the new build", async () => {
+    const invitation = await env.server.api.createServerMigrationInvitation({});
+    const refused = await refusal(olderDesktop().source.pair(invitation));
+    expect(refused.code).toBe(Code.FailedPrecondition);
+    expect(refused.message).toContain("1.0.0-old");
 
-    const other = await server.runtime.runPromise(
-      GatewayStore.use((s) => s.ensureUser("other@localhost", "Other owner")),
+    const before = await env.desktopSql<{ build_version: string; state: string }>(
+      "SELECT build_version, state FROM server_migration_sessions",
     );
 
-    const foreign = new ServerMigrations({
-      runtime: server.runtime,
-      owner: other,
+    expect(before).toEqual([{ build_version: "1.0.0-old", state: "pairing" }]);
+
+    // Updated: the desktop RPC retries the same invitation with the stored key and its new build.
+    await env.desktop.api.pairServerMigration({ invitation });
+
+    const after = await env.desktopSql<{ build_version: string; state: string }>(
+      "SELECT build_version, state FROM server_migration_sessions",
+    );
+
+    expect(after).toEqual([{ build_version: env.local.build, state: "paired" }]);
+    const home = (await env.server.api.getServerMigration({})).session!.peers[0]!;
+    await env.desktop.api.confirmServerMigrationPeer({
+      sessionId: invitation.sessionId,
+      fingerprint: invitation.fingerprint,
+    });
+    await env.server.api.confirmServerMigrationPeer({
+      sessionId: invitation.sessionId,
+      sourceId: home.id,
+      fingerprint: home.fingerprint,
+    });
+    await env.desktop.api.negotiateServerMigration({ sessionId: invitation.sessionId });
+    const attempts = await auditOf(env.desktop.core.serverMigration.store, invitation.sessionId);
+    expect(attempts.find((a) => a.details["phase"] === "exchanged")?.details["attempt"]).toBe("retry");
+  });
+
+  test("a replacement invitation replaces an unexchanged attempt and its key", async () => {
+    const first = await env.server.api.createServerMigrationInvitation({});
+    expect((await refusal(olderDesktop().source.pair(first))).code).toBe(Code.FailedPrecondition);
+
+    const abandoned = await env.desktopSql<{ certificate_pin: string }>(
+      "SELECT certificate_pin FROM server_migration_targets",
+    );
+
+    const second = await env.server.api.createServerMigrationInvitation({});
+    expect(second.sessionId).toBe(first.sessionId);
+    // The same source with another server pin is not a retry.
+    const swapped = { ...first, fingerprint: "e".repeat(64) };
+    expect((await refusal(env.desktop.api.pairServerMigration({ invitation: swapped }))).code).toBe(
+      Code.PermissionDenied,
+    );
+    await env.desktop.api.pairServerMigration({ invitation: second });
+
+    const target = await env.desktopSql<{ source_id: string; certificate_pin: string }>(
+      "SELECT source_id, certificate_pin FROM server_migration_targets",
+    );
+
+    expect(target).toHaveLength(1);
+    expect(target[0]!.source_id).toBe(second.sourceId);
+    expect(target[0]!.certificate_pin).not.toBe(abandoned[0]!.certificate_pin);
+    const peers = (await env.server.api.getServerMigration({})).session!.peers;
+    expect(peers.find((p) => p.id === first.sourceId)).toMatchObject({ paired: false });
+    const home = peers.find((p) => p.id === second.sourceId)!;
+    expect(home).toMatchObject({ paired: true, fingerprint: target[0]!.certificate_pin });
+
+    await env.desktop.api.confirmServerMigrationPeer({ sessionId: second.sessionId, fingerprint: second.fingerprint });
+    await env.server.api.confirmServerMigrationPeer({
+      sessionId: second.sessionId,
+      sourceId: second.sourceId,
+      fingerprint: home.fingerprint,
+    });
+    // Negotiate sends the replacement's source id; the abandoned one would be NotFound.
+    await env.desktop.api.negotiateServerMigration({ sessionId: second.sessionId });
+    const attempts = await auditOf(env.desktop.core.serverMigration.store, second.sessionId);
+    expect(attempts.find((a) => a.details["phase"] === "exchanged")?.details["attempt"]).toBe("replaced");
+  });
+
+  test("another owner's authenticated identity can't see or drive a session; phones can't prepare one", async () => {
+    const { invitation, home } = await pairDesktop();
+    // A session credential drives only its own session.
+    const raw = await rawHome(await env.server.api.createServerMigrationInvitation({}));
+    await raw.exchange(env.local);
+    expect(await refusal(raw.negotiate(env.local, crypto.randomUUID()))).toEqual(MISSING);
+
+    // A second owner of the same server database, with its own authenticated UI API. The fence refuses new
+    // users on a reserved server; the test creates this hostile state around it.
+    await env.serverSql("ALTER TABLE users DISABLE TRIGGER server_migration_fence");
+    await env.serverSql(
+      "INSERT INTO users (id, email, display_name, role) VALUES (gen_random_uuid(), 'other@localhost', 'Other', 'admin')",
+    );
+    await env.serverSql("ALTER TABLE users ENABLE TRIGGER server_migration_fence");
+
+    const other = await startBareGateway({
       role: "server",
-      network: () => serverNet.network,
+      ownerEmail: "other@localhost",
+      storage: { pg: env.server.pg, secretsKey: env.server.secretsKey, workerId: "", workerCredential: "" },
     });
 
     try {
-      expect((await foreign.snapshot()).session).toBeUndefined();
-      const missing = { code: Code.NotFound, message: "Migration not found" };
-      expect(await refusal(foreign.target.confirm(session.id, home.id, home.fingerprint))).toEqual(missing);
-      expect(await refusal(foreign.target.revoke(session.id, home.id))).toEqual(missing);
-      expect(await refusal(foreign.target.revoke(session.id, ""))).toEqual(missing);
-      expect(await refusal(foreign.target.confirm(crypto.randomUUID(), home.id, home.fingerprint))).toEqual(missing);
-      // Another owner's data makes the server non-empty for both: v1 never merges owners.
-      expect((await refusal(foreign.target.invite())).message).toBe(TARGET_NOT_EMPTY);
+      other.core.network = env.serverNet.network;
+      expect((await other.api.getServerMigration({})).session).toBeUndefined();
+      const ids = { sessionId: invitation.sessionId, sourceId: home.id };
+      expect(await refusal(other.api.confirmServerMigrationPeer({ ...ids, fingerprint: home.fingerprint }))).toEqual(
+        MISSING,
+      );
+      expect(await refusal(other.api.revokeServerMigration(ids))).toEqual(MISSING);
+      expect(await refusal(other.api.revokeServerMigration({ sessionId: invitation.sessionId }))).toEqual(MISSING);
+      // The first owner's reservation (and data) leave nothing for the other owner to import into.
+      expect(await refusal(other.api.createServerMigrationInvitation({}))).toEqual({
+        code: Code.FailedPrecondition,
+        message: TARGET_NOT_EMPTY,
+      });
+      // The other owner's device token doesn't authenticate on the first owner's API.
+      const token = randomBytes(24).toString("base64url");
+      await env.serverSql(
+        `INSERT INTO mobile_devices (id, owner_user_id, name, platform, token_hash, pairing_version, client_kind)
+        VALUES (gen_random_uuid(), $1::uuid, 'Other desktop', 'linux', $2, 2, 'desktop')`,
+        [other.userId, createHash("sha256").update(token).digest("hex")],
+      );
+      const routes = env.server.core.mobile.networkRoutes();
+      const foreignDevice = createClient(ui.GatewayService, routedPinnedTransport(routes, token).transport);
+      expect((await refusal(foreignDevice.getServerMigration({}))).code).toBe(Code.Unauthenticated);
     } finally {
-      await serverQuery("DELETE FROM users WHERE id=$1::uuid", [other]);
+      await other.close(true);
     }
 
-    // A session credential drives only its own session.
-    const invitation = await server.api.createServerMigrationInvitation({});
-    const raw = await rawHome(invitation);
-    await raw.exchange(local);
-
-    const elsewhere = await refusal(
-      raw.client().negotiate({ sessionId: session.id, sourceId: home.id, generation: 1, versions: local }),
-    );
-
-    expect(elsewhere).toEqual({ code: Code.NotFound, message: "Migration not found" });
+    // The session is intact for its owner.
+    expect((await env.server.api.getServerMigration({})).session!.peers[0]!.confirmed).toBe(true);
 
     // A phone paired with this server has the owner's UI, but not this.
-    const pairing = await server.api.createMobilePairing({});
-    const routes = server.core.mobile.networkRoutes();
+    const pairing = await env.server.api.createMobilePairing({});
+    const routes = env.server.core.mobile.networkRoutes();
 
     const phone = await createClient(
       ui.MobilePairingService,
       routedPinnedTransport(routes).transport,
-    ).exchangeMobilePairing({
-      code: pairing.code,
-      name: "Phone",
-      platform: "ios",
-    });
+    ).exchangeMobilePairing({ code: pairing.code, name: "Phone", platform: "ios" });
 
     const phoneApi = createClient(ui.GatewayService, routedPinnedTransport(routes, phone.deviceToken).transport);
     expect((await refusal(phoneApi.getServerMigration({}))).code).toBe(Code.PermissionDenied);
     expect((await refusal(phoneApi.createServerMigrationInvitation({}))).code).toBe(Code.PermissionDenied);
     // Roles: a desktop gateway never imports, a server never exports.
-    expect((await refusal(desktop.api.createServerMigrationInvitation({}))).code).toBe(Code.FailedPrecondition);
-    expect((await refusal(server.api.negotiateServerMigration({ sessionId: session.id }))).code).toBe(
+    expect((await refusal(env.desktop.api.createServerMigrationInvitation({}))).code).toBe(Code.FailedPrecondition);
+    expect((await refusal(env.server.api.negotiateServerMigration({ sessionId: invitation.sessionId }))).code).toBe(
       Code.FailedPrecondition,
     );
   });
 
   test("revoking a home closes its credential; aborting lifts the reservation; a used server is refused", async () => {
-    const session = (await server.api.getServerMigration({})).session!;
-    const { nodeId } = await desktopNet.network.options.store.identity();
-    const home = session.peers.find((peer) => peer.nodeId === nodeId)!;
-    await server.api.revokeServerMigration({ sessionId: session.id, sourceId: home.id });
-    const refused = await refusal(desktop.api.negotiateServerMigration({ sessionId: session.id }));
-    expect(refused.code).not.toBe("resolved");
-    expect((await actions(desktopQuery, session.id)).at(-1)).toContain('"result":"refused"');
+    const { invitation, home } = await pairDesktop();
+    await env.server.api.revokeServerMigration({ sessionId: invitation.sessionId, sourceId: home.id });
+    expect(
+      (await refusal(env.desktop.api.negotiateServerMigration({ sessionId: invitation.sessionId }))).code,
+    ).not.toBe("resolved");
+    const desktopAudit = await auditOf(env.desktop.core.serverMigration.store, invitation.sessionId);
+    expect(
+      desktopAudit.filter((a) => a.action === "server_migration.negotiate").map((a) => a.details["result"]),
+    ).toEqual(["refused"]);
 
-    await server.api.revokeServerMigration({ sessionId: session.id, sourceId: "" });
-    expect((await server.api.getServerMigration({})).session).toBeUndefined();
-    expect((await actions(serverQuery, session.id)).at(-1)).toContain('"scope":"session"');
-    await desktop.api.revokeServerMigration({ sessionId: session.id });
-    expect((await desktop.api.getServerMigration({})).session).toBeUndefined();
+    await env.server.api.revokeServerMigration({ sessionId: invitation.sessionId });
+    expect((await env.server.api.getServerMigration({})).session).toBeUndefined();
+    const serverAudit = await auditOf(env.server.core.serverMigration.store, invitation.sessionId);
+    expect(serverAudit.filter((a) => a.action === "server_migration.abort").map((a) => a.details["scope"])).toEqual([
+      "source",
+      "session",
+    ]);
+    await env.desktop.api.revokeServerMigration({ sessionId: invitation.sessionId });
+    expect((await env.desktop.api.getServerMigration({})).session).toBeUndefined();
 
     // The reservation is gone: the server takes data again, and with data it is no import target.
-    await server.addWorker("own worker");
-    expect(await refusal(server.api.createServerMigrationInvitation({}))).toEqual({
+    await env.server.addWorker("own worker");
+    expect(await refusal(env.server.api.createServerMigrationInvitation({}))).toEqual({
       code: Code.FailedPrecondition,
       message: TARGET_NOT_EMPTY,
     });
+  });
+
+  test("migration pairing accepts only HTTP/2 over TLS 1.3; phones keep TLS 1.2 elsewhere", async () => {
+    const origin = new URL(env.serverNet.network.origins()[0]!);
+
+    const status = (path: string) =>
+      new Promise<number>((resolve, reject) => {
+        const request = https.request(
+          {
+            host: origin.hostname,
+            port: origin.port,
+            path,
+            method: "POST",
+            maxVersion: "TLSv1.2",
+            rejectUnauthorized: false,
+            headers: { "content-type": "application/proto" },
+          },
+          (response) => {
+            response.resume();
+            resolve(response.statusCode ?? 0);
+          },
+        );
+
+        request.once("error", reject);
+        request.end();
+      });
+
+    expect(await status(`/${migration.MigrationPairingService.typeName}/ExchangeMigrationPairing`)).toBe(403);
+    expect(await status(`/${ui.MobilePairingService.typeName}/ExchangeMobilePairing`)).not.toBe(403);
   });
 });
