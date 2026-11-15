@@ -68,6 +68,19 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SHA256 = /^[0-9a-f]{64}$/;
 export const THREAD_BLOB_BYTES = 8 * 1024 ** 2;
 
+/**
+ * The database driver refuses a server message over 16 MiB, while an attachment may be 20 MB, so a blob is read in
+ * parts of this size (small enough even if bytea came back hex-encoded, two characters a byte).
+ */
+export const BLOB_PART_BYTES = 4 * 1024 ** 2;
+
+/** What a blob read needs before its bytes: `stored` is null when the bytes are not in the database. */
+interface BlobMeta {
+  readonly mime_type: string;
+  readonly size_bytes: number | string | bigint;
+  readonly stored: number | string | null;
+}
+
 export class AttachmentStore extends Context.Service<
   AttachmentStore,
   {
@@ -101,21 +114,31 @@ export class AttachmentStore extends Context.Service<
         sql`INSERT INTO blobs (sha256, size_bytes, mime_type, data) VALUES (${sha256}, ${data.length}, ${mimeType}, ${data})
             ON CONFLICT (sha256) DO NOTHING`.pipe(Effect.asVoid);
 
-      const readBlob = (
-        rows: readonly { data: Uint8Array | null; mime_type: string; size_bytes?: number | string | bigint }[],
-        what: string,
-      ) => {
-        const row = rows[0];
+      /** Bytes `[offset, offset + maxBytes)` of a blob found by `rows` (its metadata), read in parts. */
+      const readBlob = (rows: readonly BlobMeta[], what: string, sha256: string, maxBytes?: number, offset = 0) =>
+        Effect.gen(function* () {
+          const row = rows[0];
 
-        // Blobs moved to object storage (storage_url) are not served yet.
-        if (!row?.data) return Effect.fail(new NotFound(`${what} not found`));
+          // Blobs moved to object storage (storage_url) are not served yet.
+          if (!row || row.stored === null) return yield* Effect.fail(new NotFound(`${what} not found`));
+          const length = Math.max(0, Math.min(maxBytes ?? Infinity, Number(row.stored) - offset));
+          const data = new Uint8Array(length);
+          let read = 0;
 
-        return Effect.succeed({
-          data: new Uint8Array(row.data),
-          mimeType: row.mime_type,
-          totalSize: BigInt(row.size_bytes ?? row.data.length),
+          while (read < length) {
+            const parts = yield* sql<{ data: Uint8Array | null }>`
+              SELECT substring(data FROM ${offset + read + 1}::integer FOR ${Math.min(BLOB_PART_BYTES, length - read)}::integer) AS data
+                FROM blobs WHERE sha256 = ${sha256}`;
+
+            const part = parts[0]?.data;
+
+            if (!part?.length) return yield* Effect.fail(new NotFound(`${what} not found`));
+            data.set(part, read);
+            read += part.length;
+          }
+
+          return { data, mimeType: row.mime_type, totalSize: BigInt(row.size_bytes) };
         });
-      };
 
       const store = AttachmentStore.of({
         putBlob,
@@ -176,21 +199,15 @@ export class AttachmentStore extends Context.Service<
 
         blob: (sha256, maxBytes, offset = 0) =>
           SHA256.test(sha256)
-            ? sql<{
-                data: Uint8Array | null;
-                mime_type: string;
-                size_bytes: number;
-              }>`SELECT substring(data FROM ${offset + 1}::integer FOR ${maxBytes ?? 2_147_483_647}::integer) AS data,
-                        mime_type, size_bytes FROM blobs WHERE sha256 = ${sha256}`.pipe(
-                Effect.flatMap((rows) => readBlob(rows, "blob")),
+            ? sql<BlobMeta>`SELECT octet_length(data) AS stored, mime_type, size_bytes FROM blobs WHERE sha256 = ${sha256}`.pipe(
+                Effect.flatMap((rows) => readBlob(rows, "blob", sha256, maxBytes, offset)),
               )
             : Effect.fail(new NotFound("blob not found")),
 
         threadBlob: (ownerUserId, threadId, sha256) =>
           UUID.test(threadId) && SHA256.test(sha256)
-            ? sql<{ data: Uint8Array | null; mime_type: string; size_bytes: number }>`
-                SELECT CASE WHEN b.size_bytes <= ${THREAD_BLOB_BYTES} THEN b.data END AS data,
-                       b.mime_type, b.size_bytes FROM blobs b
+            ? sql<BlobMeta>`
+                SELECT octet_length(b.data) AS stored, b.mime_type, b.size_bytes FROM blobs b
                  WHERE b.sha256 = ${sha256}
                    AND EXISTS (
                      SELECT 1 FROM thread_blobs tb JOIN threads t ON t.id = tb.thread_id
@@ -199,34 +216,34 @@ export class AttachmentStore extends Context.Service<
                 Effect.flatMap((rows): Fx<{ data: Uint8Array; mimeType: string }> =>
                   rows[0] && Number(rows[0].size_bytes) > THREAD_BLOB_BYTES
                     ? Effect.fail(new Invalid("This content exceeds the 8 MB viewing limit."))
-                    : readBlob(rows, "content"),
+                    : readBlob(rows, "content", sha256),
                 ),
               )
             : Effect.fail(new NotFound("content not found")),
 
         workerBlob: (workerId, threadId, sha256) =>
           UUID.test(threadId) && SHA256.test(sha256)
-            ? sql<{ data: Uint8Array | null; mime_type: string }>`
-                SELECT b.data, b.mime_type FROM blobs b
+            ? sql<BlobMeta>`
+                SELECT octet_length(b.data) AS stored, b.mime_type, b.size_bytes FROM blobs b
                  WHERE b.sha256 = ${sha256}
                    AND EXISTS (SELECT 1 FROM attachments a JOIN threads t ON t.id = a.thread_id
                                 WHERE a.sha256 = b.sha256 AND a.thread_id = ${threadId}::uuid AND t.worker_id = ${workerId}::uuid AND t.deleted_at IS NULL)`.pipe(
-                Effect.flatMap((rows) => readBlob(rows, "attachment")),
+                Effect.flatMap((rows) => readBlob(rows, "attachment", sha256)),
                 Effect.map((blob) => blob.data),
               )
             : Effect.fail(new NotFound("attachment not found")),
 
         workerBotBlob: (workerId, botId, turnId, sha256) =>
           UUID.test(botId) && UUID.test(turnId) && SHA256.test(sha256)
-            ? sql<{ data: Uint8Array | null; mime_type: string }>`
-                SELECT bl.data, bl.mime_type FROM blobs bl WHERE bl.sha256=${sha256}
+            ? sql<BlobMeta>`
+                SELECT octet_length(bl.data) AS stored, bl.mime_type, bl.size_bytes FROM blobs bl WHERE bl.sha256=${sha256}
                 AND EXISTS (SELECT 1 FROM attachments a JOIN bots b ON b.id=a.bot_id
                   JOIN bot_harness_turns h ON h.bot_id=b.id JOIN bot_turns t ON t.id=h.turn_id
                   WHERE a.sha256=bl.sha256 AND b.id=${botId}::uuid
                     AND a.owner_user_id=b.owner_user_id AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL
                     AND h.turn_id=${turnId}::uuid AND h.worker_id=${workerId}::uuid
                     AND h.outcome IS NULL AND t.status='running')`.pipe(
-                Effect.flatMap((rows) => readBlob(rows, "attachment")),
+                Effect.flatMap((rows) => readBlob(rows, "attachment", sha256)),
                 Effect.map((blob) => blob.data),
               )
             : Effect.fail(new NotFound("attachment not found")),

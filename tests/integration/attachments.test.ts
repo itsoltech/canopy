@@ -372,6 +372,17 @@ describe.skipIf(!dockerAvailable)("attachments", () => {
       expect((await api.getAttachment({ attachmentId: short.id, preview: true })).truncated).toBe(false);
     });
 
+    test("a blob over the database driver's 16 MiB message limit is read whole", async () => {
+      const data = new Uint8Array(17 * 1024 ** 2).map((_, i) => (i * 7919) % 251);
+      const sha256 = new Bun.CryptoHasher("sha256").update(data).digest("hex");
+      await gw.runtime.runPromise(AttachmentStore.use((s) => s.putBlob(sha256, data, "video/mp4")));
+      const whole = await gw.runtime.runPromise(AttachmentStore.use((s) => s.blob(sha256)));
+      expect(whole.totalSize).toBe(BigInt(data.length));
+      expect(Buffer.from(whole.data).equals(data)).toBe(true);
+      const tail = await gw.runtime.runPromise(AttachmentStore.use((s) => s.blob(sha256, 10, data.length - 4)));
+      expect(tail.data).toEqual(data.subarray(data.length - 4));
+    }, 30_000);
+
     test("an attachment is readable only by its owner", async () => {
       const mine = (await api.uploadAttachment({ name: "mine.txt", data: text("mine") })).attachment!;
       expect((await api.getAttachment({ attachmentId: mine.id })).mimeType).toBe("text/plain");

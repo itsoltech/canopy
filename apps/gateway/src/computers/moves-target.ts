@@ -196,7 +196,7 @@ export async function movesApplyThread(
   move: MoveRow,
   self: { nodeId: string; name: string },
 ) {
-  const prepare = payloadOf(move);
+  const prepare = await payloadOf(hostContext[movesState].store, move);
   const threads = prepare.thread!.threads;
   const ids = threads.map((t) => threadRowJson(t.rowJson).id);
 

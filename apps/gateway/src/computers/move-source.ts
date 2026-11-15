@@ -6,6 +6,7 @@ import { Effect } from "effect";
 
 import {
   MAX_FILES,
+  MOVE_COLUMNS,
   MoveRefused,
   type BotRows,
   type Frozen,
@@ -14,6 +15,7 @@ import {
   type ThreadRowJson,
 } from "./move-payload.ts";
 
+import { MOVED_FILE_COLUMNS, movedFilesSize, readMovedFile, readStoredBlob, type MovedFileRow } from "./move-files.ts";
 import { audit, redirect, transaction } from "./move-state.ts";
 import type { ComputerStore } from "./store.ts";
 import { exportBotComposer } from "./move-bot-composer.ts";
@@ -240,42 +242,35 @@ export async function exportThread(
     );
   }
 
-  const files = await store.query<{
-    row: JsonObject;
-    data: Uint8Array | null;
-    mime_type: string;
-    thumbnail: Uint8Array | null;
-    thumbnail_mime_type: string | null;
-  }>(
-    `SELECT row_to_json(a) AS row, b.data, b.mime_type, t.data AS thumbnail, t.mime_type AS thumbnail_mime_type FROM attachments a
+  const files = await store.query<MovedFileRow>(
+    `SELECT ${MOVED_FILE_COLUMNS} FROM attachments a
       JOIN blobs b ON b.sha256 = a.sha256 LEFT JOIN blobs t ON t.sha256 = a.thumb_sha256
      WHERE a.owner_user_id = $2::uuid AND a.thread_id = ANY($1::uuid[]) AND b.data IS NOT NULL`,
     [family, owner],
   );
 
-  const blobs = await store.query<{ sha256: string; mime_type: string; data: Uint8Array }>(
-    `SELECT DISTINCT b.sha256, b.mime_type, b.data FROM thread_blobs tb
+  const blobs = await store.query<{ sha256: string; mime_type: string; size: number | string }>(
+    `SELECT DISTINCT b.sha256, b.mime_type, octet_length(b.data) AS size FROM thread_blobs tb
     JOIN blobs b ON b.sha256 = tb.sha256 WHERE tb.thread_id = ANY($1::uuid[]) AND b.data IS NOT NULL`,
     [family],
   );
 
-  const size =
-    files.reduce((n, f) => n + (f.data?.length ?? 0) + (f.thumbnail?.length ?? 0), 0) +
-    blobs.reduce((n, b) => n + b.data.length, 0);
+  if (movedFilesSize(files) + blobs.reduce((n, b) => n + Number(b.size), 0) > MAX_FILES)
+    throw new MoveRefused("The thread's files are too large to move (over 40 MiB).");
+  const moved = create(link.ThreadMoveSchema, { threads, sourceName });
 
-  if (size > MAX_FILES) throw new MoveRefused("The thread's files are too large to move (over 40 MiB).");
+  for (const file of files) moved.files.push(await readMovedFile(store, file));
 
-  return create(link.ThreadMoveSchema, {
-    threads,
-    sourceName,
-    files: files.map((f) => ({
-      attachmentJson: JSON.stringify(f.row),
-      data: f.data ?? new Uint8Array(),
-      mimeType: f.mime_type,
-      ...(f.thumbnail && { thumbnail: f.thumbnail, thumbnailMimeType: f.thumbnail_mime_type ?? "" }),
-    })),
-    blobs: blobs.map((b) => ({ sha256: b.sha256, mimeType: b.mime_type, data: b.data })),
-  });
+  for (const b of blobs)
+    moved.blobs.push(
+      create(link.MovedBlobSchema, {
+        sha256: b.sha256,
+        mimeType: b.mime_type,
+        data: await readStoredBlob(store, b.sha256, Number(b.size)),
+      }),
+    );
+
+  return moved;
 }
 
 /** The rows of a frozen bot. Connector grants and MCP servers stay here; their names tell the user what to connect again. */
@@ -320,7 +315,7 @@ export function commitSource(
       const owner = store.owner;
 
       const locked = (yield* sql.unsafe<MoveRow>(
-        `SELECT * FROM computer_moves WHERE owner_user_id = $1::uuid AND id = $2::uuid FOR UPDATE`,
+        `SELECT ${MOVE_COLUMNS} FROM computer_moves WHERE owner_user_id = $1::uuid AND id = $2::uuid FOR UPDATE`,
         [owner, move.id],
       ))[0];
 
@@ -379,7 +374,7 @@ export function unfreezeSource(
       const owner = store.owner;
 
       const move = (yield* sql.unsafe<MoveRow>(
-        `SELECT * FROM computer_moves WHERE owner_user_id = $1::uuid AND id = $2::uuid AND role = 'source' FOR UPDATE`,
+        `SELECT ${MOVE_COLUMNS} FROM computer_moves WHERE owner_user_id = $1::uuid AND id = $2::uuid AND role = 'source' FOR UPDATE`,
         [owner, moveId],
       ))[0];
 

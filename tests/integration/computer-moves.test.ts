@@ -263,9 +263,11 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
     await Promise.allSettled([a?.close(), b?.close(), c?.close()]);
   }, 30000);
 
-  async function moveThreadWithHistory() {
+  async function moveThreadWithHistory(run: number) {
     const t = await thread(a, aProject, aWorkspace, "Feature work", "remember the cat called Mruczek");
-    const upload = await a.api.uploadAttachment({ name: "notes.txt", data: new TextEncoder().encode("moved bytes") });
+    // Run 1 moves a file over the database driver's 16 MiB message limit (export, staged move, read on the new home).
+    const data = new TextEncoder().encode(run === 1 ? "moved bytes\n".repeat(1_500_000) : "moved bytes");
+    const upload = await a.api.uploadAttachment({ name: "notes.txt", data });
     await a.api.sendMessage({
       threadId: t,
       text: "see the notes",
@@ -331,9 +333,7 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
       history.notices.some((n) => n.notice?.code === "moved" && n.notice.message === "Moved from Laptop A to Laptop C"),
     ).toBe(true);
     expect(history.turns.length).toBe(2);
-    expect(new TextDecoder().decode((await c.api.getAttachment({ attachmentId: upload.attachment!.id })).data)).toBe(
-      "moved bytes",
-    );
+    expect((await c.api.getAttachment({ attachmentId: upload.attachment!.id })).data).toEqual(data);
     expect((await c.api.listSchedules({ threadId: t })).schedules.map((s) => s.id)).toContain(schedule.id);
     expect((await c.api.getVisual({ threadId: t, visualId })).visual?.title).toBe("Moved visual");
     expect(

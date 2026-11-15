@@ -4,7 +4,15 @@ import { computerLink as link } from "@canopy/contracts";
 
 import { Effect } from "effect";
 
-import { botRowsJson, insertRows, payloadOf, threadRowJson, type MoveRow, type Sql } from "./move-payload.ts";
+import {
+  botRowsJson,
+  insertRows,
+  MOVE_COLUMNS,
+  payloadOf,
+  threadRowJson,
+  type MoveRow,
+  type Sql,
+} from "./move-payload.ts";
 
 import { audit, redirect, transaction } from "./move-state.ts";
 import type { ComputerStore } from "./store.ts";
@@ -23,7 +31,7 @@ export function stage(
       const owner = store.owner;
 
       const known = (yield* sql.unsafe<MoveRow>(
-        `SELECT * FROM computer_moves WHERE owner_user_id = $1::uuid AND id = $2::uuid`,
+        `SELECT ${MOVE_COLUMNS} FROM computer_moves WHERE owner_user_id = $1::uuid AND id = $2::uuid`,
         [owner, prepare.moveId],
       ))[0];
 
@@ -61,10 +69,10 @@ export function stage(
 
 export async function moveRow(store: ComputerStore, id: string) {
   return (
-    await store.query<MoveRow>(`SELECT * FROM computer_moves WHERE owner_user_id = $1::uuid AND id = $2::uuid`, [
-      store.owner,
-      id,
-    ])
+    await store.query<MoveRow>(
+      `SELECT ${MOVE_COLUMNS} FROM computer_moves WHERE owner_user_id = $1::uuid AND id = $2::uuid`,
+      [store.owner, id],
+    )
   )[0];
 }
 
@@ -75,7 +83,7 @@ export async function decideTarget(store: ComputerStore, peer: string, moveId: s
       const owner = store.owner;
 
       const move = (yield* sql.unsafe<MoveRow>(
-        `SELECT * FROM computer_moves WHERE owner_user_id = $1::uuid AND id = $2::uuid AND role = 'target' FOR UPDATE`,
+        `SELECT ${MOVE_COLUMNS} FROM computer_moves WHERE owner_user_id = $1::uuid AND id = $2::uuid AND role = 'target' FOR UPDATE`,
         [owner, moveId],
       ))[0];
 
@@ -112,8 +120,8 @@ export const discardTarget = (store: ComputerStore, move: MoveRow) =>
   transaction(store, (sql) => discard(sql, store.owner, move));
 
 /** Applies a staged bot in one transaction: it becomes this computer's, with its conversation, routines and reminders. */
-export function applyBot(store: ComputerStore, move: MoveRow, self: { nodeId: string; name: string }) {
-  const prepare = payloadOf(move);
+export async function applyBot(store: ComputerStore, move: MoveRow, self: { nodeId: string; name: string }) {
+  const prepare = await payloadOf(store, move);
   const rows = botRowsJson(prepare.bot!.rowsJson);
 
   return transaction(store, (sql) =>

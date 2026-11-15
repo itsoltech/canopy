@@ -8,6 +8,10 @@ import { computerLink as link } from "@canopy/contracts";
 
 import { qualifyId } from "@canopy/domain/computers";
 
+import { readMovePayload } from "./move-files.ts";
+
+import type { ComputerStore } from "./store.ts";
+
 /**
  * Stage 8 of docs/linked-computers.md: the database side of moving a thread (with its side threads)
  * or a bot. The source freezes, exports and commits; the target stages and applies. Every step is
@@ -95,7 +99,6 @@ export type MoveRow = {
   title: string;
   state: string;
   placement: { workspaceId?: string; projectId?: string };
-  payload: Uint8Array | null;
   redo: string[];
   frozen: Frozen;
   error: string;
@@ -105,7 +108,15 @@ export type MoveRow = {
 
 export class MoveRefused extends Error {}
 
-export const payloadOf = (move: MoveRow) => fromBinary(link.MovePrepareSchema, move.payload!);
+/**
+ * The columns of a `MoveRow`. Never `SELECT *`: a target's staged export (`payload`) can be larger than the database
+ * driver takes in one row, so only `payloadOf` reads it, in parts.
+ */
+export const MOVE_COLUMNS =
+  "id, role, peer_node_id, kind, item_id, batch_id, title, state, placement, redo, frozen, error, created_at, updated_at";
+
+export const payloadOf = async (store: ComputerStore, move: MoveRow) =>
+  fromBinary(link.MovePrepareSchema, await readMovePayload(store, move.id));
 
 /** Rows from another computer of the same schema: only the columns both have, defaults for the rest. */
 export function insertRows(
