@@ -6,6 +6,7 @@ export type HighlightCommand =
   | { kind: "window"; revision: number; id: number; start: number; count: number };
 
 export type HighlightReply =
+  | { kind: "working"; revision: number }
   | { kind: "tokens"; revision: number; result: HighlightWindow }
   | { kind: "ready"; revision: number }
   | { kind: "window"; revision: number; id: number; result: HighlightWindow }

@@ -65,6 +65,10 @@ export class WindowHighlighter {
     return this.#index.lines;
   }
 
+  get tokenBytes(): number {
+    return this.#bytes;
+  }
+
   change(changes: readonly SourceChange[]) {
     let text = this.#index.text;
     let earliest = Infinity;

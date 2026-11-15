@@ -15,6 +15,7 @@ function prepare() {
     if (!current || next > total) return;
 
     try {
+      reply({ kind: "working", revision });
       const result = current.render(next, 200);
       reply({ kind: "tokens", revision, result });
       const last = result.lines.at(-1)?.line;

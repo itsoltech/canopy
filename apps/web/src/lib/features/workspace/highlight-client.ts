@@ -22,6 +22,7 @@ export class HighlightClient {
   #closed = false;
   #timer: ReturnType<typeof setTimeout> | undefined;
   #initializing: ReturnType<typeof setTimeout> | undefined;
+  #background: ReturnType<typeof setTimeout> | undefined;
   #pending:
     | {
         command: Extract<HighlightCommand, { kind: "window" }>;
@@ -37,12 +38,17 @@ export class HighlightClient {
 
       if (reply.revision !== this.#revision || this.#closed) return;
 
-      if (reply.kind === "ready") {
+      if (reply.kind === "working") {
+        clearTimeout(this.#background);
+        this.#background = setTimeout(() => this.close(), 100);
+      } else if (reply.kind === "ready") {
         clearTimeout(this.#initializing);
         this.#ready = reply.revision;
         this.#send();
       } else if (reply.kind === "error") this.close();
       else if (reply.kind === "tokens" || reply.id === this.#pending?.command.id) {
+        if (reply.kind === "tokens") clearTimeout(this.#background);
+
         for (const line of reply.result.lines) this.tokens.set(line.line, line);
 
         for (const listener of this.#listeners) listener();
@@ -112,10 +118,10 @@ export class HighlightClient {
     if (this.#closed) return;
     this.#closed = true;
     clearTimeout(this.#initializing);
+    clearTimeout(this.#background);
     this.#cancel();
     this.#worker.terminate();
     this.#listeners.clear();
-    this.tokens.clear();
 
     if (active === this) active = undefined;
   }

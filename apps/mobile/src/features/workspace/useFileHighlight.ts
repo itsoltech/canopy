@@ -67,6 +67,7 @@ export function useFileHighlight(document: WorkspaceFile, start: number, enabled
         // Keep native JS memory bounded; the session LRU still serves earlier windows immediately.
         while (next.size > 1000) {
           const oldest = next.keys().next().value;
+
           if (oldest === undefined) break;
           next.delete(oldest);
         }

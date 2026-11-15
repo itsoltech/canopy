@@ -184,7 +184,7 @@
       id: "workspace:save-file",
       title: "Save file",
       group: "actions",
-      disabled: !viewer.dirty || viewer.busy || viewer.changedOnDisk,
+      disabled: !viewer.editable || !viewer.dirty || viewer.busy || viewer.changedOnDisk,
       run: () => void document.save(),
     },
   ]);
@@ -238,7 +238,7 @@
       busy: viewer.busy,
       loading: viewer.loading,
       editable: viewer.editable,
-      text: viewer.file && !viewer.file.binary ? viewer.text : undefined,
+      text: viewer.file && !viewer.file.binary ? viewer.draft : undefined,
       sha256: viewer.file?.sha256,
       changedOnDisk: viewer.changedOnDisk,
     }}
@@ -329,7 +329,7 @@
       {:else}
         <FileContentView
           file={viewer.file}
-          text={viewer.text}
+          text={viewer.draft}
           {name}
           loading={viewer.loading}
           {rendered}
