@@ -27,7 +27,7 @@ export interface ThreadDirectory {
   /** Its turns can be forked from ("Fork from here"): a thread on a worker that started at its provider. */
   readonly canFork?: boolean;
   readonly canRewind?: boolean;
-  /** Scrolls to the item a quote came from and highlights it; false when it is not in this thread any more. */
+  /** Reveals and highlights a quote's source. False means missing; navigation cancellation is handled silently. */
   revealQuote?(quote: ui.Quote): Promise<boolean>;
 }
 

@@ -44,6 +44,13 @@
       queue.announce(queue.rows.findIndex((t) => t.id === id));
       void queue.commit();
     },
+    oncancel: () => (queue.order = undefined),
+  });
+
+  $effect(() => {
+    void queue;
+
+    return () => drag.dispose();
   });
 
   /** The dragged row is placed by the pointer, not by the glide. */

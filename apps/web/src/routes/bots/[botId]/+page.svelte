@@ -41,6 +41,8 @@
   let { data }: PageProps = $props();
   const settings = useSettings();
   const composerDraft = $derived(botComposerDraft(data.bot.id, () => limitsOf(settings.attachmentLimits)));
+  const scopeId = $derived(data.bot.id);
+  const lifetime = $derived({ botId: scopeId, active: true });
   const capabilities = useGatewayCapabilities();
   const catalogs = useModelCatalog();
   let snapshot = $state.raw(create(bots.BotConversationSchema));
@@ -193,27 +195,33 @@
   });
 
   $effect(() => {
-    const id = data.bot.id;
+    const view = lifetime;
     pending = [];
     connection = "";
+    sending = false;
 
     return () => {
-      if (observedBotId === id) observedBotId = undefined;
+      view.active = false;
+
+      if (observedBotId === view.botId) observedBotId = undefined;
     };
   });
 
-  async function deliver(item: {
-    id: string;
-    text: string;
-    mentions: Mention[];
-    quotes: ui.Quote[];
-    attachments: ui.Attachment[];
-    revision: bigint | undefined;
-  }) {
-    sending = true;
+  async function deliver(
+    view: { botId: string; active: boolean },
+    item: {
+      id: string;
+      text: string;
+      mentions: Mention[];
+      quotes: ui.Quote[];
+      attachments: ui.Attachment[];
+      revision: bigint | undefined;
+    },
+  ) {
+    if (view.active) sending = true;
 
     try {
-      await requestJson("POST", `/api/bots/${data.bot.id}/messages`, {
+      await requestJson("POST", `/api/bots/${view.botId}/messages`, {
         text: item.text,
         mentions: mentionsToWire(item.mentions),
         quotes: item.quotes.map((q) => encode(ui.QuoteSchema, q)),
@@ -224,49 +232,48 @@
 
       return true;
     } catch {
-      pending = pending.map((p) => (p.id === item.id ? { ...p, failed: true } : p));
+      if (view.active) pending = pending.map((p) => (p.id === item.id ? { ...p, failed: true } : p));
 
       return false;
     } finally {
-      sending = false;
+      if (view.active) sending = false;
     }
   }
 
-  async function send(
-    text: string,
-    mentions: Mention[],
-    quotes: ui.Quote[],
-    attachments: ui.Attachment[] = [],
-    requestId: string = crypto.randomUUID(),
-    revision?: bigint,
-  ) {
-    if (!canAct) return false;
+  function send() {
+    if (!canAct) return;
+    // The draft flush may finish after navigation. Delivery belongs to the bot selected now.
+    const view = lifetime;
+    const baseline = yours.length;
 
-    const item = {
-      id: requestId,
-      text,
-      mentions,
-      quotes,
-      attachments,
-      revision,
-      at: new Date(),
-      baseline: yours.length,
-      failed: false,
-    };
+    return composerDraft.send((text, mentions, quotes, attachments, requestId, revision) => {
+      const item = {
+        id: requestId,
+        text,
+        mentions,
+        quotes,
+        attachments,
+        revision,
+        at: new Date(),
+        baseline,
+        failed: false,
+      };
 
-    pending = [...pending.filter((p) => p.id !== item.id), item];
+      if (view.active) pending = [...pending.filter((p) => p.id !== item.id), item];
 
-    return deliver(item);
+      return deliver(view, item);
+    });
   }
 
   function resend() {
     const failed = pending.find((p) => p.failed);
 
     if (!failed) return;
+    const draft = composerDraft;
+    const view = lifetime;
     pending = pending.map((p) => (p === failed ? { ...p, failed: false } : p));
-    void deliver(failed).then(async (accepted) => {
-      if (accepted && composerDraft.sync.value.clientRequestId === failed.id)
-        await composerDraft.sync.sent(composerDraft.sync.value);
+    void deliver(view, failed).then(async (accepted) => {
+      if (accepted && draft.sync.value.clientRequestId === failed.id) await draft.sync.sent(draft.sync.value);
     });
   }
 

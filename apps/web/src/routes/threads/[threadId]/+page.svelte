@@ -44,7 +44,7 @@
   import { ThreadRewind, provideThreadRewind } from "#lib/features/threads/rewind-state.svelte.ts";
   import { openThreadMemory, threadViews } from "#lib/features/threads/thread-views.ts";
   import { retainTree, treeOf } from "#lib/features/threads/thread-tree.ts";
-  import { topLevelEntry } from "#lib/features/threads/timeline.ts";
+  import { createQuoteReveal } from "#lib/features/threads/quote-reveal.svelte.ts";
   import type { FoldReader } from "#lib/features/threads/work-folds.svelte.ts";
   import { syncWorkFolds, workHistoryPrefetch } from "#lib/features/threads/thread-feed-effects.svelte.ts";
   import { threadScrollMemory } from "#lib/features/threads/thread-scroll-memory.svelte.ts";
@@ -63,7 +63,6 @@
   import { FileIntake, provideFileIntake } from "#lib/features/attachments/file-intake.svelte.ts";
   import FileDropOverlay from "#lib/features/attachments/FileDropOverlay.svelte";
   import GrowIn from "#lib/shared/ui/GrowIn.svelte";
-  import { duration } from "#lib/shared/ui/motion.ts";
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
   import { toast } from "#lib/shared/ui/toast.svelte.ts";
   import VirtualFeed from "#lib/shared/ui/virtual/VirtualFeed.svelte";
@@ -416,49 +415,10 @@
   // The sticky part at the feed's bottom (waiting cards, goal, composer): the Cite button keeps clear of it.
   let feedFooter = $state<HTMLElement>();
 
-  async function revealQuote(itemId: string): Promise<boolean> {
-    if (!view.entries.some((entry) => entry.id === itemId)) await view.history.load(itemId);
-    const own = view.ownEntries.find((e) => e.id === itemId);
-    const inherited = own ? undefined : view.inheritedEntries.find((e) => e.id === itemId);
-    const entry = own ?? inherited;
-
-    if (!entry) return false;
-    const top = topLevelEntry(own ? view.ownEntries : view.inheritedEntries, entry);
-
-    if (inherited && !historyOpen) historyOpen = true;
-    const rewound = own && view.ownTurns.find((turn) => turn.id === own.turnId)?.rewindId;
-
-    if (rewound) rewind.show(rewound);
-
-    const fold = folds.foldOf(top.id);
-
-    if (fold && !folds.open.has(fold)) folds.toggle(fold, true);
-    await tick();
-    const group = rows.find((row) => row.kind === "work-group" && row.items.includes(`item:${top.id}`));
-
-    if (group) folds.toggleGroup(group.key.replace(/^history:[^:]+:/, ""), true);
-    await tick();
-
-    const target = rows.find(
-      (row) =>
-        (row.kind === "timeline" || row.kind === "answer") &&
-        row.row?.kind === "item" &&
-        row.row.node.entry.id === top.id,
-    );
-
-    if (!target || !(await feed?.reveal(target.key))) return false;
-    await tick();
-    const element = feedRegion?.querySelector<HTMLElement>(`[data-quote-item="${CSS.escape(entry.id)}"]`);
-
-    if (!element) return true;
-    element.scrollIntoView({ block: "nearest" });
-    element.removeAttribute("data-flash");
-    void element.offsetWidth; // replay when it is still flashing
-    element.setAttribute("data-flash", "");
-    setTimeout(() => element.removeAttribute("data-flash"), duration("very-slow") * 3);
-
-    return true;
-  }
+  const revealQuote = createQuoteReveal(
+    () => threadId,
+    () => ({ view, folds, rewind, rows, feed, region: feedRegion, openHistory: () => (historyOpen = true) }),
+  );
 
   syncWorkFolds(() => ({ folds, view, reader: feed, preferences: device.values }));
 
