@@ -31,6 +31,10 @@
   let editor = $state<CodeEditor>();
   let failed = $state(false);
 
+  export function selectedText(): string | undefined {
+    return editor?.selectedText();
+  }
+
   $effect(() => {
     const parent = host;
 

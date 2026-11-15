@@ -2,6 +2,7 @@ import { getContext, setContext } from "svelte";
 import type { ui } from "@canopy/contracts";
 import { useThreadDirectory } from "#lib/features/threads/thread-directory.ts";
 import { safeHref } from "@canopy/domain/markdown";
+import { useWorkspace } from "#lib/features/workspace/workspace.svelte.ts";
 
 type RevealCitation = (quote: ui.Quote) => Promise<boolean>;
 
@@ -11,12 +12,19 @@ export const provideCitationSource = (reveal: RevealCitation) => setContext(KEY,
 
 export function useCitationSource(): RevealCitation {
   const directory = useThreadDirectory();
+  const workspace = useWorkspace();
 
   const reveal =
     getContext<RevealCitation | undefined>(KEY) ??
     ((quote: ui.Quote) => directory.revealQuote?.(quote) ?? Promise.resolve(false));
 
   return async (quote) => {
+    if (quote.sourceKind === "file" && quote.sourceAuthor && workspace) {
+      workspace().open({ threadId: quote.sourceThreadId || directory.currentId, path: quote.sourceAuthor });
+
+      return true;
+    }
+
     if (quote.pullRequest?.url) {
       const url = safeHref(quote.pullRequest.url);
 

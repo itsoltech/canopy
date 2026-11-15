@@ -1,7 +1,7 @@
 /**
  * Quotes end to end on PostgreSQL (docs/ui-api.md, "Cytaty"): a message quotes passages of the thread with
- * comments; the agent gets them in the platform note before the user's text (StartTurn and SteerTurn), and the
- * UI gets them structured on the turn and the steer.
+ * comments; the agent gets inline citations or a legacy platform note (StartTurn and SteerTurn), and the UI
+ * gets them structured on the turn and the steer.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { PermissionMode, Provider, ui } from "@canopy/contracts";
@@ -124,6 +124,55 @@ describe.skipIf(!dockerAvailable)("quotes (gateway + scripted worker)", () => {
     // Quotes alone are a message; the agent gets only the note.
     const only = await gw.api.sendMessage({ threadId: thread.id, text: "", clientRequestId: "q-2", quotes: [output] });
     expect([only.turn?.messageText, only.turn?.inputText]).toEqual(["", quotesNote([output])]);
+  });
+
+  test("a file citation preserves its long workspace path and exact selection through StartTurn and reload", async () => {
+    gw.worker.holdTurns = false;
+    const thread = await newThread("file-citation");
+    const path = `src/${"nested workspace directory/".repeat(10)}example.ts`;
+    const selection = "\n\tconst snippet = `literal`;  \n  ```ts\n\tindented();  \n  ```\n\n";
+    const text = "Review [file] please.";
+
+    const quote = {
+      text: selection,
+      sourceKind: "file",
+      sourceAuthor: path,
+      sourceThreadId: thread.id,
+      language: "ts",
+      start: 7,
+      end: 13,
+    };
+
+    expect(path.length).toBeGreaterThan(200);
+
+    const sent = await gw.api.sendMessage({
+      threadId: thread.id,
+      text,
+      quotes: [quote],
+      clientRequestId: "file-citation-1",
+    });
+
+    const turn = sent.turn!;
+
+    const expected =
+      `Review \n\n[canopy citation 1]\nFile ${path}:\n\`\`\`\`ts\n` +
+      "\n\tconst snippet = `literal`;  \n  ```ts\n\tindented();  \n  ```\n\n````\n[/canopy citation 1]\n\n please.";
+
+    expect(turn.messageText).toBe(text);
+    expect(turn.inputText).toBe(expected);
+    await eventually(
+      () => turns(thread.id),
+      (t) => t[0]?.status === "completed",
+    );
+    expect(gw.worker.inputs.get(thread.id)).toEqual([expected]);
+    expect(gw.worker.started.get(turn.id)?.text).toBe(expected);
+
+    const updates = await watchUntil(gw.api, thread.id, (u) => u.length >= 1);
+    const snapshot = updates[0]!.change.case === "snapshot" ? updates[0]!.change.value : undefined;
+    const stored = snapshot?.turns.find((t) => t.id === turn.id);
+    expect(stored?.messageText).toBe(text);
+    expect(stored?.quotes).toHaveLength(1);
+    expect(stored?.quotes[0]).toMatchObject(quote);
   });
 
   test("quotes are checked: count, empty text, unknown source kind", async () => {

@@ -26,7 +26,12 @@ export function citationPreview(quote: NotedQuote) {
     // Selections often carry the surrounding line breaks; they would only pad the card.
     text: quote.text.trim(),
     markdown: citationHasMarkdown(quote),
-    caption: [quote.sourceAuthor || "Agent", pr && `${pr.repository}#${pr.number}`, location, quote.sourceTime]
+    caption: [
+      quote.sourceAuthor || (quote.sourceKind === "file" ? "File" : "Agent"),
+      pr && `${pr.repository}#${pr.number}`,
+      location,
+      quote.sourceTime,
+    ]
       .filter(Boolean)
       .join(" · "),
     url: pr?.url ?? "",

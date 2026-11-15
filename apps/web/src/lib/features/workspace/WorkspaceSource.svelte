@@ -62,6 +62,32 @@
   });
 
   let note = $state("");
+
+  /** Read exact source offsets, independent of highlighted spans and decorative line numbers. */
+  export function selectedText(): string | undefined {
+    const selection = getSelection();
+
+    if (!selection || selection.isCollapsed || selection.rangeCount !== 1) return;
+    const range = selection.getRangeAt(0);
+
+    const offset = (node: Node, at: number) => {
+      const element = node instanceof Element ? node : node.parentElement;
+      const content = element?.closest<HTMLElement>("[data-source-from]");
+
+      if (!content || !root?.contains(content)) return;
+      const prefix = globalThis.document.createRange();
+      prefix.selectNodeContents(content);
+      prefix.setEnd(node, at);
+
+      return Number(content.dataset.sourceFrom) + prefix.toString().length;
+    };
+
+    const start = offset(range.startContainer, range.startOffset);
+    const end = offset(range.endContainer, range.endOffset);
+
+    return start !== undefined && end !== undefined ? text.slice(start, end) : undefined;
+  }
+
   const first = $derived(Math.max(0, Math.floor(top / rowHeight) - 8));
 
   // Until the full index exists, the known line count holds the scroll height, so the scrollbar does not jump.
@@ -205,6 +231,7 @@
   bind:clientHeight={height}
   role="region"
   aria-label={path}
+  data-select-content
   tabindex="0"
   class="h-full min-h-0 overflow-auto overscroll-contain font-mono text-[length:var(--canopy-mono-size)] leading-[1.6] focus-ring focus-visible:-outline-offset-2"
   style:color="var(--code-fg)"
@@ -237,7 +264,7 @@
           ]}
           style:width={`calc(${gutterDigits(shape.lines)}ch + 1.75rem)`}>{row.continued ? "↳" : row.line}</span
         >
-        <span data-select-content class="pr-4 selection:bg-sky-500/25"
+        <span data-select-content data-source-from={row.from} class="pr-4 selection:bg-sky-500/25"
           >{#each spans as span, index (`${row.line}:${span.from}`)}{text.slice(
               row.from + (spans[index - 1]?.to ?? 0),
               row.from + span.from,

@@ -2,7 +2,7 @@ import { Match } from "effect";
 
 /**
  * Quotes (docs/ui-api.md, "Cytaty"): passages of what an agent produced in a thread — its answer, reasoning,
- * command output, a tool call, a code block, a diff — that the user selected and sends back with a message,
+ * command output, a tool call, a code block, a diff — or workspace file text selected and sent with a message,
  * each with an optional comment. Inline ranges expand where the user placed them (`composeQuotes`);
  * older clients keep the platform note before the user's text, in the stable format of `quotesNote`.
  */
@@ -16,6 +16,7 @@ export const QUOTE_SOURCE_KINDS = [
   "tool_call",
   "code",
   "diff",
+  "file",
   "pull_request",
 ] as const;
 
@@ -29,11 +30,12 @@ export interface NotedQuote {
   readonly comment?: string | undefined;
   /** "" or unknown = plain text. */
   readonly sourceKind?: string | undefined;
-  /** Language of a code block (code, diff). */
+  /** Language of a code block (code, diff, file). */
   readonly language?: string | undefined;
   readonly start?: number | undefined;
   readonly end?: number | undefined;
   readonly pullRequest?: PullRequestCitation | undefined;
+  /** Display provenance; for file quotes, the relative workspace path also sent to the model. */
   readonly sourceAuthor?: string | undefined;
   readonly sourceTime?: string | undefined;
 }
@@ -56,9 +58,9 @@ export function isQuoteSourceKind(kind: string): kind is QuoteSourceKind {
   return QUOTE_SOURCE_KINDS.some((known) => known === kind);
 }
 
-/** Output, calls, code and diffs reach the agent as a fenced block, so their whitespace stays exact. */
+/** Output, calls, code, diffs and files reach the agent as a fenced block. */
 export function isCodeQuote(kind: string | undefined): boolean {
-  return kind === "command_output" || kind === "tool_call" || kind === "code" || kind === "diff";
+  return kind === "command_output" || kind === "tool_call" || kind === "code" || kind === "diff" || kind === "file";
 }
 
 const origins: Record<QuoteSourceKind, string> = {
@@ -70,6 +72,7 @@ const origins: Record<QuoteSourceKind, string> = {
   tool_call: "a tool call",
   code: "a code block",
   diff: "a diff",
+  file: "a file",
   pull_request: "a pull request",
 };
 
@@ -82,13 +85,18 @@ export function fenceFor(text: string): string {
 
 /** The quoted text as markdown: a fenced block for code-like sources, else a blockquote (every line marked). */
 export function quoteBlock(quote: NotedQuote): string {
-  const text = quote.text.replace(/\r\n?/g, "\n").replace(/\n+$/, "");
+  const text = quote.sourceKind === "file" ? quote.text : quote.text.replace(/\r\n?/g, "\n").replace(/\n+$/, "");
 
   if (isCodeQuote(quote.sourceKind)) {
     const fence = fenceFor(text);
     const language = (quote.language || (quote.sourceKind === "diff" ? "diff" : "text")).replace(/[^\w+#.-]/g, "");
 
-    return `${fence}${language}\n${text}\n${fence}`;
+    const path = quote.sourceAuthor ?? "";
+    const caption = /\p{Cc}/u.test(path) ? JSON.stringify(path) : path;
+    const label = quote.sourceKind === "file" ? `File${caption ? ` ${caption}` : ""}:\n` : "";
+    const separator = quote.sourceKind === "file" && text.endsWith("\n") ? "" : "\n";
+
+    return `${label}${fence}${language}\n${text}${separator}${fence}`;
   }
 
   const block = text

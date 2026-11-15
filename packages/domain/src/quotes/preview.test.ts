@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { citationLabel } from "./inline.ts";
+import { citationLabel, composeQuotes } from "./inline.ts";
 import { citationHasMarkdown, citationPreview, citationTitle, citationTokenLabel } from "./preview.ts";
-import type { NotedQuote } from "./quotes.ts";
+import { isQuoteSourceKind, quoteBlock, type NotedQuote } from "./quotes.ts";
 
 const comment: NotedQuote = {
   text: "**Claude finished the task in 55s**\n\n---\n### Re-review\n- [x] Review [changes](https://github.com/itsoltech/canopy)\n- [ ] Run `bun test`\n\n```ts\nconst ready = true;\n```",
@@ -59,6 +59,7 @@ describe("citation display forms", () => {
       "diff",
       "command_output",
       "tool_call",
+      "file",
       "",
       "future_kind",
     ]) {
@@ -74,5 +75,70 @@ describe("citation display forms", () => {
     }
 
     expect(citationHasMarkdown({ text, sourceKind: "agent_message_markdown" })).toBe(true);
+  });
+});
+
+describe("file citations in model input", () => {
+  const file: NotedQuote = {
+    text: "\n\tconst value = `literal`;  \n\n",
+    sourceKind: "file",
+    sourceAuthor: "src/nested folder/example.ts",
+    language: "ts",
+    comment: "  Keep the indentation.  ",
+  };
+
+  test("inline composition includes the workspace path and exact selection at the marker", () => {
+    const message = "Review [file] please.";
+    const result = composeQuotes(message, [], [{ ...file, start: 7, end: 13 }]);
+
+    expect(isQuoteSourceKind("file")).toBe(true);
+    expect(result.message).toBe(
+      "Review \n\n[canopy citation 1]\nFile src/nested folder/example.ts:\n```ts\n" +
+        "\n\tconst value = `literal`;  \n\n```\n\nComment: Keep the indentation.\n[/canopy citation 1]\n\n please.",
+    );
+    expect(result.note).toBe("");
+  });
+
+  test("legacy notes include the file path and preserve selection whitespace", () => {
+    const result = composeQuotes("Review this file.", [], [{ ...file, language: "" }]);
+
+    expect(result.message).toBe("Review this file.");
+    expect(result.note).toContain(
+      "Quote 1, from a file:\nFile src/nested folder/example.ts:\n```text\n" +
+        "\n\tconst value = `literal`;  \n\n```\n\nComment: Keep the indentation.",
+    );
+  });
+
+  test.each(["\t```ts\nvalue\n```\n", "before ````` after\r\n\tvalue  \r\n\r\n"])(
+    "embedded backticks cannot close the file fence: %s",
+    (text) => {
+      const block = quoteBlock({ ...file, text });
+      const fence = text.includes("`````") ? "``````" : "````";
+
+      expect(block).toBe(`File src/nested folder/example.ts:\n${fence}ts\n${text}${fence}`);
+    },
+  );
+
+  test.each(["value", "value\n", "value\n\n"])("file fences do not add blank lines: %j", (text) => {
+    expect(quoteBlock({ ...file, text })).toBe(
+      `File src/nested folder/example.ts:\n\`\`\`ts\n${text}${text.endsWith("\n") ? "" : "\n"}\`\`\``,
+    );
+  });
+
+  test("line breaks in filenames stay in the provenance label", () => {
+    expect(quoteBlock({ ...file, sourceAuthor: "src/first\nsecond.ts", text: "value" })).toBe(
+      'File "src/first\\nsecond.ts":\n```ts\nvalue\n```',
+    );
+  });
+
+  test("preview keeps literal file contents and uses the relative path as provenance", () => {
+    expect(citationPreview(file)).toEqual({
+      text: "const value = `literal`;",
+      markdown: false,
+      caption: "src/nested folder/example.ts",
+      url: "",
+      comment: "Keep the indentation.",
+    });
+    expect(citationPreview({ ...file, sourceAuthor: "" }).caption).toBe("File");
   });
 });

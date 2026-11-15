@@ -10,11 +10,13 @@
     root,
     shortcut,
     oncite,
+    select = selectedQuote,
     class: className,
   }: {
     root: HTMLElement | undefined;
     shortcut: string;
     oncite: (quote: SelectedQuote) => void;
+    select?: (selection: Selection | null) => SelectedQuote | undefined;
     class?: ClassValue;
   } = $props();
 
@@ -31,7 +33,7 @@
       // Touch keeps the system's selection handles and menu; its floating Cite action remains available.
       if (matchMedia("(pointer: coarse)").matches) return;
       const selection = getSelection();
-      const quote = selectedQuote(selection);
+      const quote = select(selection);
       const range = selection?.rangeCount ? selection.getRangeAt(0) : undefined;
 
       if (!quote || !range || !node.contains(range.commonAncestorContainer)) return;

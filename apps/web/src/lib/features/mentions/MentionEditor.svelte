@@ -39,6 +39,7 @@
   import EditorCitations from "#lib/features/quotes/EditorCitations.svelte";
   import { useQuoteDrafts } from "#lib/features/quotes/quote-drafts.svelte.ts";
   import { untrack } from "svelte";
+  import { isWorkspaceFileDrag } from "#lib/features/workspace/file-drag.ts";
 
   /**
    * The composer's text field with inline mentions (docs/ui-api.md, "Wzmianki"): a contenteditable whose model is
@@ -518,6 +519,8 @@
   }
 
   function ondrop(event: DragEvent) {
+    if (isWorkspaceFileDrag(event.dataTransfer)) return;
+
     if (event.defaultPrevented || event.dataTransfer?.types.includes("Files") || inBlockArea(event.target)) return;
     const text = event.dataTransfer?.getData("text/plain");
     event.preventDefault();

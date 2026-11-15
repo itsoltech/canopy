@@ -29,9 +29,14 @@
           tab,
         )}{/key}{:else}{#await import("./WorkspaceFile.svelte") then file}{#key tab.document}<file.default
             document={tab.document}
+            threadId={state.threadId()}
             preview={tab.preview}
             onkeep={() => state.view.keep(tab.id)}
             onclose={() => state.close(tab.id)}
+            oncite={async () => {
+              state.view.select("thread");
+              await tick();
+            }}
           >
             {#snippet tabActions()}
               <MenuItem

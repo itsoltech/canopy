@@ -1,13 +1,15 @@
-import { getContext, setContext } from "svelte";
+import { getContext, setContext, untrack } from "svelte";
 import type { Attachment } from "svelte/attachments";
 import { pastedFiles, UNREACHABLE_FILES } from "./clipboard.ts";
 import { filesOf } from "./draft.svelte.ts";
+import { isWorkspaceFileDrag, workspaceFileDrag } from "#lib/features/workspace/file-drag.ts";
 
-/** A composer that takes files (while `root` shows): `files` attach them, `notice` says why none could be read. */
+/** A visible composer: `files` attach uploads, `workspace` inserts mentions from its thread's Files tree. */
 export interface FileTarget {
   readonly root: HTMLElement;
   files(files: File[], how: "paste" | "drop"): void;
   notice(text: string): void;
+  readonly workspace?: { readonly threadId: string; mention(path: string): void } | undefined;
 }
 
 const KEY = Symbol("file-intake");
@@ -51,21 +53,24 @@ const editable = (target: Element) =>
  * A paste into a text field stays there: the composer's own field handles its pastes.
  * Files dragged from outside the page onto the area drop there too (`dragging` shows the overlay); a drop on the
  * composer itself places the badges where it lands. Drags that start in the page (text, images) are not files to add.
+ * A workspace file drag instead adds the same FILE mention as `@`, only to a visible composer of its source thread.
  */
 export class FileIntake {
   dragging = $state(false);
-  // Read when a paste comes, never rendered: a plain list (composers register from their effects).
-  #targets: FileTarget[] = [];
+  referencing = $state(false);
+  // Pending file-tab drops observe registration; events still resolve the visible target when they arrive.
+  #targets = $state.raw<FileTarget[]>([]);
 
   get target(): FileTarget | undefined {
     return this.#targets.findLast(({ root }) => root.checkVisibility() && !root.closest("[inert]"));
   }
 
   register(target: FileTarget): () => void {
-    this.#targets.push(target);
+    // Registration runs in a composer's effect; changing the registry must not subscribe that effect to it.
+    untrack(() => (this.#targets = [...this.#targets, target]));
 
     return () => {
-      this.#targets = this.#targets.filter((t) => t !== target);
+      untrack(() => (this.#targets = this.#targets.filter((t) => t !== target)));
     };
   }
 
@@ -94,11 +99,28 @@ export class FileIntake {
     const stop = () => {
       clearTimeout(hide);
       this.dragging = false;
+      this.referencing = false;
     };
 
     const takes = (event: DragEvent) => !internal && carriesFiles(event) && this.target !== undefined;
 
     const ondragover = (event: DragEvent) => {
+      if (isWorkspaceFileDrag(event.dataTransfer)) {
+        const target = this.target?.workspace;
+        const file = target && workspaceFileDrag(event.dataTransfer, target.threadId);
+        event.preventDefault();
+
+        if (event.dataTransfer) event.dataTransfer.dropEffect = file ? "copy" : "none";
+
+        if (!file) return stop();
+        clearTimeout(hide);
+        hide = setTimeout(stop, HOVER_GRACE_MS);
+        this.referencing = true;
+        this.dragging = true;
+
+        return;
+      }
+
       if (!takes(event)) return;
       event.preventDefault();
 
@@ -117,13 +139,28 @@ export class FileIntake {
       stop();
       const target = this.target;
 
+      if (isWorkspaceFileDrag(event.dataTransfer)) {
+        if (event.defaultPrevented) return;
+        event.preventDefault();
+        const workspace = target?.workspace;
+        const file = workspace && workspaceFileDrag(event.dataTransfer, workspace.threadId, true);
+
+        if (file) workspace?.mention(file.path);
+
+        return;
+      }
+
       if (event.defaultPrevented || !target || !takes(event)) return;
       event.preventDefault();
       target.files(filesOf(event.dataTransfer), "drop");
     };
 
     const ondragstart = () => (internal = true);
-    const ondragend = () => (internal = false);
+
+    const ondragend = () => {
+      internal = false;
+      stop();
+    };
 
     document.addEventListener("paste", onpaste);
     document.addEventListener("dragstart", ondragstart);
