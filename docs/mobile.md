@@ -1,7 +1,8 @@
 # Canopy na iOS i Android
 
 Status: opis działającego kodu na `dev` (2026-11-15); domyślne wybory nowego wątku
-i filtr ulubionych modeli są zgodne z web. Dostępność w wydaniach zależy od kanału.
+i filtr ulubionych modeli są zgodne z web, a przesuwanie obrazów wyklucza podwójne
+stuknięcie do powiększania. Dostępność w wydaniach zależy od kanału.
 
 Natywna aplikacja Expo/React Native działa na iOS i Androidzie. Obsługuje wątki,
 boty, pliki i załączniki, zgody oraz ustawienia. Z gatewayem paruje się przez
@@ -178,7 +179,9 @@ w bok zmienia obraz i zatrzymuje się na końcach, pinch i podwójne stuknięcie
 powiększony obraz przesuwa się do krawędzi, a dalej wciąga sąsiedni. Przeciągnięcie w pionie przy dopasowanym
 rozmiarze zamyka viewer, a tło i nagłówek wygaszają się, odsłaniając wątek. Montowane są tylko bieżący obraz
 i sąsiedzi. Przyciski Previous/Next i akcje dostępności (zoom) zostają; przy reduced motion domknięcia są
-natychmiastowe.
+natychmiastowe. Pinch i pan mogą działać jednocześnie; podwójne stuknięcie konkuruje z nimi,
+więc rozpoznane przesunięcie anuluje oczekujący zoom. Ruch palca większy niż próg rozpoczęcia
+przesuwania (8 dp) nie jest stuknięciem, także podczas szybkich zmian kierunku.
 
 Natywne gRPC wymaga HTTP/2 i dostępu do trailers; fetch React Native nie udostępnia
 takiego interfejsu. Nie używamy natywnego transportu gRPC ani biblioteki Node w telefonie.
