@@ -7,8 +7,9 @@ import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { once } from "node:events";
 import { Result } from "effect";
+import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { startGrpcServer } from "@canopy/transport";
+import { AsyncChannel, startGrpcServer } from "@canopy/transport";
 import { generateIdentity } from "../../gateway/src/computers/identity.ts";
 import { tempDir } from "@canopy/testing";
 import { DesktopRuntime, type RuntimePaths, type Secrets } from "../src/runtime/runtime.ts";
@@ -83,6 +84,23 @@ test.skipIf(!existsSync(paths.web))(
       tls: { cert: identity.certificate, key: identity.privateKey },
       routes: (router) =>
         router.service(ui.GatewayService, {
+          async *watchOverview(_request, context) {
+            const updates = new AsyncChannel<ui.OverviewUpdate>();
+            const close = () => updates.close();
+            context.signal.addEventListener("abort", close, { once: true });
+
+            try {
+              yield create(ui.OverviewUpdateSchema, {
+                change: {
+                  case: "mobileSnapshot",
+                  value: { overview: create(ui.GetOverviewResponseSchema) },
+                },
+              });
+              yield* updates;
+            } finally {
+              context.signal.removeEventListener("abort", close);
+            }
+          },
           getClientCapabilities: () => ({
             minProtocol: 1,
             maxProtocol: 1,
@@ -382,9 +400,11 @@ test.skipIf(!existsSync(paths.gateway))(
 
     try {
       const { origin } = await request(1, "initialize", { directory, paths, secrets: secrets(), webToken });
-      // The web runs in the controller: the BFF logs this failed gateway call, which must go to the `web` log and
-      // never onto stdout, the protocol pipe the next replies come through.
+      // The web runs in the controller: a failed unary BFF call must go to the `web` log and never onto stdout, the
+      // protocol pipe the next replies come through. Overview now uses a stream, so it does not exercise unary
+      // failure logging on its own.
       expect((await webFetch(`${origin}/api/overview`)).ok).toBe(false);
+      expect((await webFetch(`${origin}/api/providers`)).ok).toBe(false);
       pids = (
         await request(2, "configure", { configuration: { mode: "local", allowNetwork: false, bindHost: "127.0.0.1" } })
       ).pids;
