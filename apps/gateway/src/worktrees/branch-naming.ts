@@ -22,12 +22,20 @@ const RENAME_TIMEOUT_MS = 20_000;
  * about (the same text is not asked twice, e.g. a first turn that ended without an answer). The database claim
  * counts the attempts.
  */
-const naming = new WeakMap<GatewayCore, { running: Set<string>; asked: Map<string, string> }>();
+interface NamingJob {
+  readonly thread: ThreadRow;
+  readonly context: () => Promise<string>;
+}
+
+const naming = new WeakMap<
+  GatewayCore,
+  { running: Set<string>; asked: Map<string, string>; pending: Map<string, NamingJob> }
+>();
 
 function namingState(hostContext: GatewayCore) {
   let state = naming.get(hostContext);
 
-  if (!state) naming.set(hostContext, (state = { running: new Set(), asked: new Map() }));
+  if (!state) naming.set(hostContext, (state = { running: new Set(), asked: new Map(), pending: new Map() }));
 
   return state;
 }
@@ -64,16 +72,33 @@ async function attempt(
 
   asked.set(worktreeId, text);
   const answer = await coreGenerateText(hostContext, thread, () => branchPrompt(text));
-  const name = unclearBranch(answer) ? undefined : semanticBranch(answer);
 
-  if (!name || name === worktree.branch) return; // unclear or unusable: the next turn tries again
+  if (unclearBranch(answer)) {
+    coreLog(hostContext, `worktree ${worktreeId}: task unclear; branch name deferred`);
+
+    return;
+  }
+
+  const name = semanticBranch(answer);
+
+  if (!name) {
+    coreLog(hostContext, `worktree ${worktreeId}: branch name response invalid; kept`);
+
+    return;
+  }
+
+  if (name === worktree.branch) return;
   await rename(hostContext, worktree, name, capable);
 }
 
 async function rename(hostContext: GatewayCore, worktree: WorktreeRow, name: string, provisional: boolean) {
   const connection = hostContext.link.connections.get(worktree.worker_id);
 
-  if (!connection?.isOpen) return;
+  if (!connection?.isOpen) {
+    coreLog(hostContext, `worktree ${worktree.id}: branch rename worker offline; kept`);
+
+    return;
+  }
 
   const result = await connection.sendCommand(
     {
@@ -89,7 +114,12 @@ async function rename(hostContext: GatewayCore, worktree: WorktreeRow, name: str
     RENAME_TIMEOUT_MS,
   );
 
-  if (!result.ok) return; // git busy or offline: a later turn may try again
+  if (!result.ok) {
+    coreLog(hostContext, `worktree ${worktree.id}: branch rename failed; kept`);
+
+    return; // git busy or offline: a later turn may try again
+  }
+
   const renamed = result.worktree?.renamed ? result.worktree.branch : undefined;
 
   namingState(hostContext).asked.delete(worktree.id);
@@ -97,6 +127,7 @@ async function rename(hostContext: GatewayCore, worktree: WorktreeRow, name: str
   if (!renamed) {
     // The worker refused for good: pushed, upstream, switched or renamed by hand.
     await coreRun(hostContext, (s) => s.keepBranch(worktree.id));
+    coreLog(hostContext, `worktree ${worktree.id}: branch rename refused; kept`);
 
     return;
   }
@@ -107,13 +138,25 @@ async function rename(hostContext: GatewayCore, worktree: WorktreeRow, name: str
 }
 
 function launch(hostContext: GatewayCore, thread: ThreadRow, worktreeId: string, context: () => Promise<string>) {
-  const { running } = namingState(hostContext);
+  const { running, pending } = namingState(hostContext);
 
-  if (running.has(worktreeId)) return;
+  if (running.has(worktreeId)) {
+    pending.set(worktreeId, { thread, context });
+    coreLog(hostContext, `worktree ${worktreeId}: branch name check deferred until current generation completes`);
+
+    return;
+  }
+
   running.add(worktreeId);
   void attempt(hostContext, thread, worktreeId, context)
     .catch(() => coreLog(hostContext, `worktree ${worktreeId}: branch name unavailable; kept`))
-    .finally(() => running.delete(worktreeId));
+    .finally(() => {
+      running.delete(worktreeId);
+      const next = pending.get(worktreeId);
+      pending.delete(worktreeId);
+
+      if (next) launch(hostContext, next.thread, worktreeId, next.context);
+    });
 }
 
 /** Right after creation, from the first message: the thread is already running on the provisional name. */

@@ -5,12 +5,14 @@ Kopiowanie workspace'u na nowy worker tworzy samodzielny checkout także ze
 wybór obejmuje tylko ignorowane pliki lokalne bez zależności i wyniku builda. Ograniczenia Git:
 [workspace-copy.md](workspace-copy.md).
 
-Status: **etapy 1–3 zaimplementowane** (2026-11-04). Etap 1: ustawienia (Creation, Branches,
+Status: **etapy 1–3 zaimplementowane** (2026-11-15). Etap 1: ustawienia (Creation, Branches,
 domyślny tryb), operacje git na workerze (refy, tworzenie worktree z bazy, start z remote, nazwy gałęzi
 z semantycznym prefiksem), pickery w kompozytorze nowego wątku i wyświetlanie worktree wątku. Etap 2:
 sprzątanie według polityk, podgląd skutków, status i akcje pojedynczego worktree (pierwotny etap 3),
 lista w Settings i poprawiony układ pickerów. Etap 3: automatyzacja przez szynę, boty i harmonogramy
-oraz wykrywanie squash/rebase merge. Reszta w [planie etapów](#plan-etapów).
+oraz wykrywanie squash/rebase merge. Generowanie nazw gałęzi przyjmuje także odpowiedzi w bloku kodu
+i zachowuje ponowienie z nowszą rozmową, gdy tura kończy się w trakcie generacji.
+Reszta w [planie etapów](#plan-etapów).
 
 Migracje stosu następują po `0064_worker_enrollment_tags` (#75) i `0065_instance_connections` (#85):
 etap 1 używa `0066_worktrees`, etap 2 `0067_worktree_lifecycle`, a etap 3 `0068_worktree_automation`.
@@ -292,10 +294,16 @@ aplikacji (`Worker.desktop_bundled`). Inaczej folder otworzyłby się na innej m
   2. po każdej kolejnej turze (także nieudanej) z rozmowy: pierwsze i ostatnie 3 prośby użytkownika
      (do 600 znaków każda) i ostatnia odpowiedź agenta (do 800 znaków), jako dane w prompcie;
   3. łącznie najwyżej 3 próby (`worktrees.branch_attempts`, atomowy claim w bazie, jedna generacja naraz na
-     worktree); ta sama rozmowa nie jest wysyłana dwa razy.
+     worktree); ta sama rozmowa nie jest wysyłana dwa razy. Jeśli tura kończy się podczas generacji,
+     gateway zachowuje oczekujące sprawdzenie i po jej zakończeniu odczytuje najnowszą rozmowę.
+     Kilka takich sygnałów scala w jedno sprawdzenie; limit 3 prób nadal obowiązuje.
 
   `unclear`, odpowiedź spoza formatu, błąd albo timeout zostawiają nazwę tymczasową; następna tura próbuje
   ponownie, aż skończą się próby. Żaden błąd generacji ani zmiany nazwy nie przerywa wątku.
+  Jednoliniowa nazwa albo `unclear` może być otoczona blokiem kodu Markdown (także z oznaczeniem języka);
+  dodatkowa treść w osobnych liniach jest odrzucana. Opis błędu, oczekiwanego zachowania lub zmiany UI
+  określa zadanie również jako pytanie albo opinia. Nazwy załączników są kontekstem; model nazywa zmianę,
+  nie załącznik. Generowanie używa tekstu prośby, bez obrazu i ścieżek załączników.
 
   Przykłady (prefiks `canopy`):
   - „Fix the login redirect loop after sign-out” → `canopy/fix-the-login-k3f9`, kilka sekund później
@@ -331,7 +339,9 @@ aplikacji (`Worker.desktop_bundled`). Inaczej folder otworzyłby się na innej m
   Generowanie nazwy przechodzi wyłącznie przez oficjalny harness workera, także
   dla Groka native i proxy (izolowana sesja CLI przez ACP, bez narzędzi i kontekstu repozytorium).
   CLIProxyAPI może być konfiguracją harnessu; gateway ani worker nie wywołuje bezpośrednio API modelu.
-  Prompty i odpowiedzi nie trafiają do logów; log zawiera tylko id worktree i ogólny powód.
+  Prompty i odpowiedzi nie trafiają do logów; log zawiera tylko id worktree i ogólny powód: niejasne
+  zadanie, nieprawidłowy format odpowiedzi, niedostępna generacja, worker offline przed zmianą nazwy,
+  błąd komendy albo odmowa zmiany nazwy. Surowe błędy harnessu i workera nie trafiają do tego logu.
 
 ## Przepływy UI
 
