@@ -15,6 +15,7 @@ import { useWorkerLabel } from "../computers/presence";
 import { useWorkerOptions } from "../computers/worker-options";
 import { FollowUpSettings } from "./FollowUpSettings";
 import { SubagentPermissionSettings } from "./SubagentPermissionSettings";
+import { ThreadRetentionSettings } from "./ThreadRetentionSettings";
 
 type Settings = ReturnType<typeof useAppearance>;
 
@@ -45,6 +46,7 @@ export function ThreadDefaultsSettings({ settings }: { settings: Settings }) {
     <View style={{ gap: 20 }}>
       <FollowUpSettings settings={settings} />
       <SubagentPermissionSettings settings={settings} />
+      <ThreadRetentionSettings settings={settings} />
       <DefaultResets
         value={create(ui.ThreadDefaultsSchema, defaults)}
         onChange={save}

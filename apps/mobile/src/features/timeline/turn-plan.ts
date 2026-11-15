@@ -1,5 +1,5 @@
 import { ItemStatus, type Item, type ui } from "@canopy/contracts";
-import { turnProgress, workSegments, type WorkSegment } from "@canopy/domain/work-fold";
+import { turnProgress, workSegments, type WorkBoundary, type WorkSegment } from "@canopy/domain/work-fold";
 import { currentWorkHint, groupSummary, isToolItem, workCounts } from "@canopy/domain/work-summary";
 import type { IconName } from "@canopy/ui/icons";
 import type { NoticeState } from "@canopy/domain/turn-notices";
@@ -24,6 +24,7 @@ export type BodyRow =
       readonly seq: bigint;
       readonly node: ItemNode;
       readonly steer: boolean;
+      readonly boundary?: WorkBoundary | undefined;
       readonly completedAt: number | undefined;
     }
   | {
@@ -91,6 +92,7 @@ export function turnBody(
         key: `item:${item.itemId}`,
         node,
         steer,
+        boundary: item.content.case === "contextCompaction" ? "compaction" : undefined,
         completedAt: done.get(item.itemId),
         seq: seq.get(item.itemId) ?? 0n,
       },
@@ -112,7 +114,11 @@ export const segmentsOf = (
   open: (segment: number) => boolean,
 ): WorkSegment[] =>
   workSegments(
-    body.map((row) => ({ phase: phaseOf(row), steer: row.kind === "item" && row.steer })),
+    body.map((row) => ({
+      phase: phaseOf(row),
+      steer: row.kind === "item" && row.steer,
+      boundary: row.kind === "item" ? row.boundary : undefined,
+    })),
     turnProgress(turn.status),
     open,
   );

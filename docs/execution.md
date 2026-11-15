@@ -1,6 +1,6 @@
 # Wykonanie wątku: tury, praca w tle, subagenci, interakcje
 
-Status: **częściowo zaimplementowane**. Tury, interakcje, steer i **praca w tle** (sekcja 4: procesy Codexa, background Bash Claude, zatrzymanie z UI, notatki dla agenta o każdym końcu zadania, narzędzia agenta) działają. Subagenci pierwszoplanowi, `BackgroundItem` (Ctrl+B) i limity zasobów (sekcja 7) jeszcze nie.
+Status: **częściowo zaimplementowane** (2026-11-15). Tury, interakcje, steer, widoczna granica `context_compaction` i **praca w tle** (sekcja 4: procesy Codexa, background Bash Claude, zatrzymanie z UI, notatki dla agenta o każdym końcu zadania, narzędzia agenta) działają. Subagenci pierwszoplanowi, `BackgroundItem` (Ctrl+B) i limity zasobów (sekcja 7) jeszcze nie.
 
 Powiązane: [threads.md](threads.md), [transcript.md](transcript.md), [durability.md](durability.md).
 

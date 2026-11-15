@@ -87,7 +87,7 @@ async function receipt(
 
       if (lock) {
         const owned = yield* sql`SELECT id FROM threads WHERE id=${request.threadId}::uuid
-          AND owner_user_id=${options.userId}::uuid FOR UPDATE`;
+          AND owner_user_id=${options.userId}::uuid AND purged_at IS NULL FOR UPDATE`;
 
         if (!owned.length) return yield* Effect.fail(new NotFound("thread not found"));
       }
@@ -100,7 +100,7 @@ async function receipt(
         (SELECT ti.mode FROM thread_imports ti WHERE ti.thread_id=t.id) AS import_mode,
         EXISTS(SELECT 1 FROM import_items i WHERE i.thread_id=t.id AND i.status IN ('pending','importing')) AS importing
         FROM threads t LEFT JOIN thread_message_receipts r ON r.thread_id=t.id AND r.client_request_id=${request.clientRequestId}
-        WHERE t.id=${request.threadId}::uuid AND t.owner_user_id=${options.userId}::uuid`;
+        WHERE t.id=${request.threadId}::uuid AND t.owner_user_id=${options.userId}::uuid AND t.purged_at IS NULL`;
 
       if (!rows.length) return yield* Effect.fail(new NotFound("thread not found"));
       const { response, ...state } = rows[0]!;

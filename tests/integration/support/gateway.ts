@@ -281,7 +281,7 @@ export class ScriptedWorker {
   }
 
   /** Uploads a preview (BlobChunk) in chunks of `chunkBytes`, as a worker does before the event that shows it. */
-  uploadPreview(sha256: string, data: Uint8Array, mimeType: string, chunkBytes = 64 * 1024): void {
+  uploadPreview(sha256: string, data: Uint8Array, mimeType: string, chunkBytes = 64 * 1024, threadId = ""): void {
     for (let offset = 0; offset < data.length; offset += chunkBytes) {
       const end = Math.min(offset + chunkBytes, data.length);
       this.link.send({
@@ -292,6 +292,7 @@ export class ScriptedWorker {
           data: data.subarray(offset, end),
           last: end === data.length,
           mimeType,
+          threadId,
         },
       });
     }

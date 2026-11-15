@@ -2,7 +2,8 @@
 
 Status (2026-11-15): web/desktop — bezpieczny HTML we wspólnym rendererze Markdown,
 lokalne obrazy w podglądzie plików, interaktywny Preview wątku i automatyczny mini
-Preview pod podsumowaniem są zaimplementowane.
+Preview pod podsumowaniem, opcjonalna retencja archiwum oraz poprawione narożniki,
+typografia i ikony stosu paneli nad composerem są zaimplementowane.
 Opis dotyczy kodu, nie wdrożenia; dostępność kanałów według [release.md](release.md).
 
 ## Proponowane odpowiedzi
@@ -1101,6 +1102,18 @@ i rozwinięcie sekcji korzystają z JSON ustawień, bez osobnej tabeli.
 BFF: `POST /api/threads/:id/lifecycle`, `action`: `archive`, `unarchive`, `delete`, `restore`, `read`,
 `unread`. UI potwierdza usunięcie i oferuje toast „Undo” przez sześć sekund.
 
+`UserSettings.thread_retention` i `UpdateUserSettingsRequest.thread_retention`
+(pole **902**) zawierają `ThreadRetentionSettings.archived_thread_days` (**1**).
+`0` oznacza wyłączenie (także brak ustawienia), `1–36500` liczbę pełnych dni od
+`archived_at`. Zapis zastępuje tę sekcję z kontrolą `expected_version`; istniejące
+BFF i `OverviewUpdate.user_settings` przenoszą ją bez nowego endpointu.
+Sekcja podlega synchronizacji konfiguracji. Web/desktop i mobile udostępniają
+ustawienie w Settings → Threads → Archived threads, z jawnym zapisem, aby edycja
+liczby nie uruchomiła przypadkowo krótszej retencji.
+Po rozpoczęciu retencji wątek otrzymuje `deleted_at`, więc klienci używają zwykłej
+aktualizacji cyklu życia. `RestoreThread` odrzuca trwale usunięty wątek.
+To osobny kontrakt od odwracalnego ręcznego Delete; [database-retention.md](database-retention.md).
+
 `UpdateThread.title` umożliwia rename (`title_source=user`), a `RegenerateTitle` zleca asynchroniczną generację. Globalne ustawienia `textGeneration`, źródła tytułu i aktualizacje live opisuje [thread-titles.md](thread-titles.md).
 
 Status: **zaimplementowane** (2026-11-15; sesja dostępu do desktopowego BFF,
@@ -1349,6 +1362,13 @@ może zmienić wskazanie, nigdy stan prośby).
 Pytania asynchroniczne zachowują możliwość odpowiedzi w kolejnej turze.
 
 `ComposerTop` to wspólna powierzchnia/slot nad polem wiadomości: panel subagentów, kolejka i pytania tworzą jeden stos z jednym nachodzeniem na composer. Warianty `embedded` paneli nie dodają własnych obwódek ani przesunięć. `Composer` wybiera najstarszy zestaw blokujący przed async, przechowuje szkice per id zestawu i używa osobnego `MessageComposer` do zwykłych wiadomości.
+
+Tylko pierwszy panel stosu ma zaokrąglone górne rogi; trigger dziedziczy je z panelu,
+więc nagłówki między sekcjami mają proste narożniki również przy hover i fokusie.
+Podgląd tekstu promptu w kolejce używa stopnia 13 / 12 px (telefon / desktop),
+o jeden stopień mniejszego od nagłówka; wysokość wiersza i kontrolki pozostają bez zmian.
+Ikona kolejki i zastępujący ją uchwyt mają 14 px, tak jak ikona w nagłówku;
+slot uchwytu zachowuje 16 px i dotychczasowy cel dotykowy.
 
 Panele nad composerem i menu zadań w tle używają wspólnego `ComposerDisclosureChevron`:
 zwinięty wskazuje w górę, rozwinięty w dół. Nagłówek ma 28 px na desktopie, wiersz kolejki

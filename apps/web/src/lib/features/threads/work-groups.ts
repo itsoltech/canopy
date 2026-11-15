@@ -104,6 +104,7 @@ const bodyRow = (row: TimelineRow): BodyRow => {
   return {
     phase: content?.case === "agentMessage" ? content.value.phase : undefined,
     steer: row.kind === "item" && row.steer,
+    boundary: content?.case === "contextCompaction" ? "compaction" : undefined,
   };
 };
 
@@ -218,7 +219,11 @@ export function foldTurns(
     const derived = fold.segments.flatMap((_, index) => segmentRows(fold, index, isOpen, groupOpen, tasksBySource));
     out.push(...recoverFoldRows(fold.body, derived, report));
 
-    for (const result of results.get(turnId) ?? []) out.push({ kind: "row", row: result, work: false });
+    for (const result of results.get(turnId) ?? []) {
+      if (!ends.has(turnId) && result.kind === "item" && result.node.entry.item.content.case === "imageGallery")
+        continue;
+      out.push({ kind: "row", row: result, work: false });
+    }
 
     // The body is grouped here even when old items arrive after a newer turn. Its footer belongs here too.
     const end = ends.get(turnId);

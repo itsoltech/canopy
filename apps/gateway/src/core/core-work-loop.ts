@@ -142,50 +142,7 @@ export async function corePumpQueued(hostContext: GatewayCore, threadId: string)
 export async function coreStartTurn(hostContext: GatewayCore, thread: ThreadRow, turn: TurnRow): Promise<boolean> {
   const threadId = thread.id;
   const workerId = thread.worker_id ?? "";
-  const spec = await coreRun(hostContext, (s) => Effect.succeed(s.threadSpec(thread)));
-  // The message's override, else the thread's default; an effort the model does not take is left out
-  // (turnEffort). Recorded on the turn as what it ran with.
-  const model = turn.model || thread.settings.model || "";
-
-  const effort = turnEffort(
-    (await coreProfileModels(hostContext, { thread })).models,
-    model,
-    turn.effort || thread.settings.effort || "",
-  );
-
-  // The permission mode the same way: the message's override, else the thread's default (always explicit).
-  const permissionMode =
-    turn.permission_mode || permissionModeName(permissionModeOf(thread.settings.permissionMode)) || "ASK";
-
-  const command = create(CommandSchema, {
-    kind: {
-      case: "startTurn",
-      value: {
-        thread: spec,
-        turnId: turn.id,
-        input: {
-          text: turn.input.text ?? "",
-          shellCommand: turn.input.shellCommand,
-          shellInputId: turn.input.shellInputId ?? "",
-          shellResult: storedShellResult(turn.input.shellResult),
-          authorUserId: hostContext[coreState].options.userId,
-          mentions: mentionsFromJson(turn.input.delivered),
-          attachments: (turn.input.attachments ?? []).map((a) => ({
-            attachmentId: a.id,
-            sha256: a.sha256,
-            sizeBytes: BigInt(a.sizeBytes),
-            mimeType: a.mimeType,
-            name: a.name,
-            path: a.path,
-            kind: a.kind,
-          })),
-        },
-        model,
-        effort,
-        permissionMode: permissionModeOf(permissionMode),
-      },
-    },
-  });
+  const models = (await coreProfileModels(hostContext, { thread })).models;
 
   let stored: Command | undefined;
 
@@ -198,6 +155,42 @@ export async function coreStartTurn(hostContext: GatewayCore, thread: ThreadRow,
             Effect.gen(function* () {
               // Read context under the admission lock: a branch switch may have completed while this turn queued.
               const current = yield* s.thread(threadId);
+              const spec = s.threadSpec(current);
+              const model = turn.model || current.settings.model || "";
+              const effort = turnEffort(models, model, turn.effort || current.settings.effort || "");
+              const threadPermissionMode = permissionModeName(spec.permissionMode) || "ASK";
+              const permissionMode = turn.permission_mode || threadPermissionMode;
+
+              const command = create(CommandSchema, {
+                kind: {
+                  case: "startTurn",
+                  value: {
+                    thread: spec,
+                    turnId: turn.id,
+                    input: {
+                      text: turn.input.text ?? "",
+                      shellCommand: turn.input.shellCommand,
+                      shellInputId: turn.input.shellInputId ?? "",
+                      shellResult: storedShellResult(turn.input.shellResult),
+                      authorUserId: hostContext[coreState].options.userId,
+                      mentions: mentionsFromJson(turn.input.delivered),
+                      attachments: (turn.input.attachments ?? []).map((a) => ({
+                        attachmentId: a.id,
+                        sha256: a.sha256,
+                        sizeBytes: BigInt(a.sizeBytes),
+                        mimeType: a.mimeType,
+                        name: a.name,
+                        path: a.path,
+                        kind: a.kind,
+                      })),
+                    },
+                    model,
+                    effort,
+                    permissionMode: permissionModeOf(permissionMode),
+                  },
+                },
+              });
+
               const note = current.settings.branchNote;
 
               if (note && command.kind.case === "startTurn" && command.kind.value.input) {
@@ -223,9 +216,10 @@ export async function coreStartTurn(hostContext: GatewayCore, thread: ThreadRow,
               if (
                 model !== (turn.model ?? "") ||
                 effort !== (turn.effort ?? "") ||
-                permissionMode !== (turn.permission_mode ?? "")
+                permissionMode !== (turn.permission_mode ?? "") ||
+                threadPermissionMode !== (turn.thread_permission_mode ?? "")
               ) {
-                yield* s.setTurnSettings(turn.id, { model, effort, permissionMode });
+                yield* s.setTurnSettings(turn.id, { model, effort, permissionMode, threadPermissionMode });
               }
 
               return yield* s.enqueueCommand({

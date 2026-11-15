@@ -1,5 +1,9 @@
 # Szyna agentów: delegowanie, interakcje, harmonogram
 
+Status (2026-11-15): zaimplementowane dziedziczenie efektywnego trybu tury rodzica,
+także szerszego nadpisania z kompozytora; dostępność nightly/beta/stable według
+[release.md](release.md).
+
 Grok CLI ma ten sam zestaw narzędzi przez lokalny HTTP MCP przekazany w ACP `session/new` / `session/load`. Gateway nadal wykonuje i autoryzuje wywołania; instancję wybiera się jako `grok/<id>`, także w `spawn_thread` z Claude/Codex i w przeciwnym kierunku. [Adapter i ograniczenia](grok-adapter.md).
 
 Szyna działa dla Codexa i Claude; Claude korzysta z serwera MCP w procesie workera
@@ -198,7 +202,7 @@ komputery wybór worktree lub dziedziczenia jest jawnie odrzucany do etapu 5; ch
 
 Reguły (`authorizeBusCall` i gateway):
 - głębokość: dwa poziomy (subagent nie tworzy kolejnych), limity jak w sekcji 6,
-- uprawnienia: `read_only` < `ask` < `accept_edits` < `full_auto` < `full_access`. Model nie wybiera trybu. Settings → Threads → Subagents: **Same as parent** (domyślnie) albo stały tryb, zapisany w `user_settings.settings.threadDefaults.subagentPermissionMode`. Gateway w transakcji blokuje i ponownie odczytuje rodzica, rozstrzyga uprawnienia i zapisuje je w ustawieniach dziecka. Obowiązuje tryb tury wywołującej (potem tury w toku, potem wątku); obniżenie bieżącego domyślnego trybu rodzica natychmiast ogranicza nowe dzieci. Stały wybór nie przekracza tego sufitu. Podniesienie domyślnego trybu nie podnosi uprawnień już działającej tury ani istniejących dzieci. Full access dziedziczy się na workerze z capability `full_access`; bez niej gateway ogranicza go do Full auto. Powód ograniczenia jest w `Thread.permission_mode_note`, widocznym w szczegółach web/mobile. Dawne `permission_mode` pozostaje tylko w dekoderze zgodności: może zawęzić wybór właściciela, próba eskalacji ponad rodzica jest odrzucana. Rodzic musi należeć do tego samego właściciela, także przy odtwarzaniu wywołania,
+- uprawnienia: `read_only` < `ask` < `accept_edits` < `full_auto` < `full_access`. Model nie wybiera trybu. Settings → Threads → Subagents: **Same as parent** (domyślnie) albo stały tryb, zapisany w `user_settings.settings.threadDefaults.subagentPermissionMode`. Gateway w transakcji blokuje i ponownie odczytuje rodzica, rozstrzyga uprawnienia i zapisuje je w ustawieniach dziecka. Obowiązuje tryb tury wywołującej (potem tury w toku, potem wątku), także szersze nadpisanie z kompozytora: tura Full auto w wątku z domyślnym Ask first tworzy dziecko Full auto. Gateway zapisuje domyślny tryb z chwili wysłania tury w `turns.thread_permission_mode`; jeżeli bieżący domyślny tryb rodzica różni się od tego snapshotu, ogranicza nowe dzieci do węższego z niego i trybu tury. Stały wybór nie przekracza tego sufitu. Podniesienie domyślnego trybu nie podnosi uprawnień już działającej tury ani istniejących dzieci. Tury rozpoczęte przed dodaniem snapshotu zachowują dotychczasowy, bardziej restrykcyjny sufit do ich końca. Full access dziedziczy się na workerze z capability `full_access`; bez niej gateway ogranicza go do Full auto. Powód ograniczenia jest w `Thread.permission_mode_note`, widocznym w szczegółach web/mobile. Dawne `permission_mode` pozostaje tylko w dekoderze zgodności: może zawęzić wybór właściciela, próba eskalacji ponad rodzica jest odrzucana. Rodzic musi należeć do tego samego właściciela, także przy odtwarzaniu wywołania,
 - dostawca, model i wysiłek: patrz [Subagenci dowolnego dostawcy](#subagenci-dowolnego-dostawcy); fork zachowuje dostawcę i instancję,
 - rola (`instructions`) dopisuje się do instrukcji wywołującego.
 

@@ -1,12 +1,24 @@
 # Canopy na iOS i Android
 
 Status: opis działającego kodu na `dev` (2026-11-15); domyślne wybory nowego wątku
-i filtr ulubionych modeli są zgodne z web. Dostępność w wydaniach zależy od kanału.
+i filtr ulubionych modeli oraz opcjonalna retencja archiwum są zgodne z web.
+Przesuwanie obrazów wyklucza podwójne stuknięcie do powiększania.
+Galerie agenta czekają na koniec swojej tury,
+a kompaktowanie kontekstu rozdziela sekcje pracy.
+Edytor cytatu ma podgląd fragmentu i stałą stopkę z komentarzem oraz zapisem ponad
+klawiaturą; przycinanie fragmentu otwiera osobny tryb edycji w tym samym arkuszu.
+Dostępność w wydaniach zależy od kanału.
 
 Natywna aplikacja Expo/React Native działa na iOS i Androidzie. Obsługuje wątki,
 boty, pliki i załączniki, zgody oraz ustawienia. Z gatewayem paruje się przez
 Network access: klient przypina certyfikat TLS i dostaje odwoływalny token urządzenia.
 To osobny klient natywny, a nie mobilny widok web.
+
+Settings → Threads → Archived threads zawiera przełącznik automatycznego
+usuwania i dowolną liczbę dni (1–36500); domyślnie jest wyłączony. Edycja tworzy
+szkic ustawienia, a **Save** zapisuje całość do gatewaya. Retencja obejmuje
+istniejące archiwum i trwale usuwa historię, z odroczeniem dla zachowanych forków;
+nie usuwa plików workspace. Szczegóły: [database-retention.md](database-retention.md).
 
 ## Instalacja i dostępność
 
@@ -178,7 +190,9 @@ w bok zmienia obraz i zatrzymuje się na końcach, pinch i podwójne stuknięcie
 powiększony obraz przesuwa się do krawędzi, a dalej wciąga sąsiedni. Przeciągnięcie w pionie przy dopasowanym
 rozmiarze zamyka viewer, a tło i nagłówek wygaszają się, odsłaniając wątek. Montowane są tylko bieżący obraz
 i sąsiedzi. Przyciski Previous/Next i akcje dostępności (zoom) zostają; przy reduced motion domknięcia są
-natychmiastowe.
+natychmiastowe. Pinch i pan mogą działać jednocześnie; podwójne stuknięcie konkuruje z nimi,
+więc rozpoznane przesunięcie anuluje oczekujący zoom. Ruch palca większy niż próg rozpoczęcia
+przesuwania (8 dp) nie jest stuknięciem, także podczas szybkich zmian kierunku.
 
 Natywne gRPC wymaga HTTP/2 i dostępu do trailers; fetch React Native nie udostępnia
 takiego interfejsu. Nie używamy natywnego transportu gRPC ani biblioteki Node w telefonie.
@@ -1338,7 +1352,14 @@ tekst UTF-8 do 128 KiB i 2000 wierszy (Markdown także renderowany), pozostałe 
 przez Share na iOS albo zapis do wskazanego katalogu na Androidzie. Nie renderujemy PDF
 ani plików biurowych wewnątrz aplikacji; web również udostępnia ich pobranie.
 Akcja „Quote passage” przy odpowiedzi, rozumowaniu, kodzie, wyniku i diffie otwiera
-edytowalny fragment z opcjonalnym komentarzem. Systemowego menu zaznaczenia tekstu
+arkusz z przewijanym podglądem fragmentu i źródłem. Jawnie oznaczony Markdown
+jest renderowany, a zwykły tekst i kod zachowują swój format. Komentarz opcjonalny
+oraz główny przycisk „Add quote” / „Save quote” są w stałej stopce ponad klawiaturą;
+podgląd oddaje im miejsce przy jej otwieraniu. Długi komentarz przewija się wewnątrz
+pola. „Edit passage” otwiera natywne pole fragmentu w pozostałym obszarze arkusza;
+„Use passage” wraca do podglądu, zachowując komentarz. „Jump to source” i link PR
+są przy podglądzie, a usuwanie cytatu ma osobny przycisk obok zapisu.
+Systemowego menu zaznaczenia tekstu
 nie rozszerzamy modułem natywnym. Zapis wstawia cytat w ostatnim miejscu kursora
 (bez kursora — na końcu), a fokus wraca za token. Cytat używa tego samego tekstowego
 modelu plakietek co wzmianki `@` i `$`: krótki fragment w tekście, pełna treść i źródło
@@ -1385,6 +1406,11 @@ bez wierszy ma nieinteraktywny nagłówek „Worked for …”. `!` na początku
 powłoki (obramowanie rose, nota w miejscu kontrolek). Wiadomość czekająca w kolejce nie jest
 turą na osi czasu (jak w web): pokazuje ją kolejka w zasobniku, a tura pojawia się po `dispatched`
 z notą „Starting”; pliki tury są odznakami w dymku.
+
+Kompaktowanie kontekstu jest granicą segmentu, tak jak steer. Wiersz
+„Context compacted” stoi między poprzednią a dalszą pracą, poza zwijanymi foldami
+i grupami narzędzi. Pozostaje widoczny po zwinięciu aktywności oraz po ponownym
+otwarciu wątku; podział wynika z zapisanego itemu `context_compaction`.
 
 **Zasobnik nad kompozytorem** (`features/threads/tray`, web: `ComposerTop`) to jeden stos paneli
 na powierzchni kompozytora: zaokrąglone tylko górne rogi, wcięcie 16 dp (promień rogu pola),
@@ -1583,7 +1609,8 @@ Potwierdzenia korzystają z preferencji użytkownika. „Undo” po usunięciu w
 Przesunięcie wiersza w lewo archiwizuje wątek, a w archiwum przywraca go tą samą akcją
 co arkusz. Gest działa też dla wątków bocznych; krótkie lub anulowane przesunięcie wraca
 do początku. Pionowe przewijanie i dotknięcie zachowują swoje działanie.
-Potwierdzenia i brak połączenia blokują skrót tak samo jak menu. Toast „Thread archived”
+Swipe archiwizacji zawsze wymaga potwierdzenia, niezależnie od preferencji „Confirm archive”;
+brak połączenia blokuje skrót tak samo jak menu. Toast „Thread archived"
 z „Undo” cofa archiwizację przez `SetThreadArchived`, bez wznawiania tur i harmonogramów.
 Gest korzysta z istniejących React Native PanResponder i Reanimated, bez zmian zależności
 natywnych i fingerprintów EAS. Ograniczenie ruchu wyłącza animację powrotu wiersza.
@@ -2042,8 +2069,12 @@ natywny cache bitmap może użyć tego samego pliku bez pustej klatki. Indeks po
 tym samym limitom LRU i czyszczeniu przy unpair; nie utrzymujemy bitmap dla całej
 historii ani nie wyłączamy wirtualizacji odległych tur.
 
-Item `image_gallery` pozostaje widoczny pod odpowiedzią, również po zwinięciu
-aktywności tury. Dwie kolumny mieszczą początkowo sześć obrazów; „Show all N”
+Item `image_gallery` pojawia się pod odpowiedzią po zakończeniu swojej tury,
+także po przerwaniu, błędzie lub anulowaniu, i pozostaje widoczny po zwinięciu
+aktywności. Podczas aktywnej tury nie zajmuje miejsca ani nie pobiera miniatur;
+trwała kopia jest zapisana już przy publikacji. Galerie wcześniejszych tur
+pozostają widoczne, gdy agent pracuje dalej. Interaktywne visuals są dostępne
+w trakcie pracy. Dwie kolumny mieszczą początkowo sześć obrazów; „Show all N”
 rozwija pozostałe. Ramki 16:9 i zarezerwowane miejsce podpisu utrzymują układ.
 Istniejący viewport włącza miniatury tylko w widocznym obszarze, a prywatny cache
 załączników i anulowanie odczytów obowiązują także dla zdalnych identyfikatorów.

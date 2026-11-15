@@ -175,6 +175,16 @@ export const job = Schema.Struct({
   status: Schema.String,
   conclusion: Schema.NullOr(Schema.String),
   html_url: Schema.String,
+  steps: Schema.optional(
+    Schema.Array(
+      Schema.Struct({
+        name: Schema.String,
+        status: Schema.String,
+        conclusion: Schema.NullOr(Schema.String),
+        number: Schema.Number,
+      }),
+    ),
+  ),
 });
 
 export async function jobs(scope: ReadScope) {
@@ -213,6 +223,12 @@ export async function jobs(scope: ReadScope) {
             state: (j.conclusion || j.status).toLowerCase(),
             url: j.html_url,
             headSha: j.head_sha,
+            steps:
+              j.steps?.map((step) => ({
+                name: step.name,
+                state: (step.conclusion || step.status).toLowerCase(),
+                number: step.number,
+              })) ?? [],
           })),
           page: scope.page(
             index < 100 && index * 30 < list.total_count ? String(index + 1) : "",

@@ -235,17 +235,20 @@ export const scheduleSelect = `
 
 /**
  * The caller's effective permission mode: the mode its calling turn runs with (a message may override the
- * thread's default for one turn), else its running turn's, else the thread's default. Lowering the
- * thread's current default also lowers this ceiling immediately for newly created children.
+ * thread's default for one turn), else its running turn's, else the thread's default. A default changed
+ * since dispatch caps new children; an unchanged default must not undo the owner's per-turn override.
  */
 export const callerMode = (sql: SqlClient.SqlClient, source: CallSource, caller: ThreadRow) =>
-  sql<{ permission_mode: string }>`
-    SELECT permission_mode FROM turns
+  sql<{ permission_mode: string; thread_permission_mode: string }>`
+    SELECT permission_mode, thread_permission_mode FROM turns
      WHERE permission_mode <> '' AND (id = ${turnRef(sql, source)} OR (thread_id = ${caller.id}::uuid AND status = 'running'))
      ORDER BY (id = ${turnRef(sql, source)}) DESC NULLS LAST LIMIT 1`.pipe(
     Effect.map((rows) => {
       const current = busPermissionMode(caller.settings.permissionMode);
       const turn = busPermissionMode(rows[0]?.permission_mode || caller.settings.permissionMode);
+      const snapshot = rows[0]?.thread_permission_mode;
+
+      if (snapshot && busPermissionMode(snapshot) === current) return turn;
 
       return SPAWN_PERMISSION_MODES.indexOf(current) < SPAWN_PERMISSION_MODES.indexOf(turn) ? current : turn;
     }),

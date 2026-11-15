@@ -2,7 +2,8 @@
 
 Status (2026-11-15): **obrazy, `render_visual` i `render_html` zaimplementowane** w web/desktop/mobile;
 interaktywny podgląd lokalnej automatyzacji w wątku web/desktop również jest
-zaimplementowany. To stan kodu, nie deklaracja wdrożenia; dostępność kanałów
+zaimplementowany. Galerie `show_images` pojawiają się po zakończeniu ich tury.
+To stan kodu, nie deklaracja wdrożenia; dostępność kanałów
 według [release.md](release.md).
 Dokument opisuje bieżący kontrakt publikacji, odczytu i izolacji. Limity struktur
 są sprawdzane przez kod; budżety CPU, pamięci klientów i płynności pozostają celami
@@ -194,6 +195,14 @@ To jawny, żywy podgląd do 2 MiB: wymaga osiągalnego workera, może zobaczyć 
 treść i przestaje działać po usunięciu pliku. Nie jest podstawą trwałej galerii.
 
 ### Galeria, telefon i połączone komputery
+
+Galerie `show_images` w web/desktop/mobile pojawiają się pod odpowiedzią dopiero
+po zakończeniu swojej tury (`completed`, `interrupted`, `failed`, `cancelled`),
+również przy zwiniętej sekcji pracy. W aktywnej turze nie zajmują miejsca na osi
+czasu i nie pobierają miniatur. Publikacja nadal od razu zapisuje trwałą kopię;
+odłożony jest tylko widok. Przeładowanie wątku stosuje tę samą regułę, a obrazy
+z poprzednich tur pozostają widoczne podczas kolejnej. Interaktywne visuals
+pozostają dostępne w trakcie pracy; obrazy Markdown zachowują pozycję w tekście.
 
 Galeria pokazuje maksymalnie 6 miniatur w 3 kolumnach desktopu i 2 telefonu;
 „Show all 10” rozwija resztę bez pobierania pełnych obrazów. `width`/`height`

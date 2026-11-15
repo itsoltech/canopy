@@ -4,6 +4,7 @@ import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import { queryMethods } from "../diagnostics/query-context.ts";
 import { Invalid, NotFound } from "./store.ts";
+import { blobWriter, previewBlobWriters } from "./blob-writes.ts";
 
 /**
  * Attachments and blobs (docs/ui-api.md, "Załączniki"; docs/data-model.md).
@@ -96,6 +97,10 @@ export class AttachmentStore extends Context.Service<
     ): Fx<{ data: Uint8Array; mimeType: string; totalSize: bigint }>;
     /** Stores a blob (idempotent: the same content is the same blob). */
     putBlob(sha256: string, data: Uint8Array, mimeType: string): Fx<void>;
+    /** A preview is bound before its event; deleted-thread uploads cannot recreate retained content. */
+    putThreadBlob(workerId: string, threadId: string, sha256: string, data: Uint8Array, mimeType: string): Fx<void>;
+    /** Older workers do not identify preview ownership; keep these hashes out of retention. */
+    putUnscopedBlob(sha256: string, data: Uint8Array, mimeType: string): Fx<void>;
     /** A transcript blob the owner may read through this thread (or another thread of its tree). */
     threadBlob(ownerUserId: string, threadId: string, sha256: string): Fx<{ data: Uint8Array; mimeType: string }>;
     /** An attachment's bytes for a worker: only of a thread that runs on that worker. */
@@ -110,9 +115,7 @@ export class AttachmentStore extends Context.Service<
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
 
-      const putBlob = (sha256: string, data: Uint8Array, mimeType: string) =>
-        sql`INSERT INTO blobs (sha256, size_bytes, mime_type, data) VALUES (${sha256}, ${data.length}, ${mimeType}, ${data})
-            ON CONFLICT (sha256) DO NOTHING`.pipe(Effect.asVoid);
+      const putBlob = blobWriter(sql);
 
       /** Bytes `[offset, offset + maxBytes)` of a blob found by `rows` (its metadata), read in parts. */
       const readBlob = (rows: readonly BlobMeta[], what: string, sha256: string, maxBytes?: number, offset = 0) =>
@@ -142,6 +145,7 @@ export class AttachmentStore extends Context.Service<
 
       const store = AttachmentStore.of({
         putBlob,
+        ...previewBlobWriters(sql, putBlob),
 
         create: (input) =>
           sql.withTransaction(

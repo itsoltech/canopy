@@ -12,7 +12,8 @@ Starsze gatewaye pomijają nowe pole; numer protokołu pozostaje bez zmian.
 Harness Grok: `Provider.PROVIDER_GROK = 3`, `WorkerConfig.grok = 640`; używa istniejących komend, eventów, profili native/CLIProxyAPI, zgód i `AgentToolCall`. ACP pozostaje prywatnym protokołem worker ↔ CLI w `packages/grok-acp`; nie rozszerza kontraktu przeglądarki o JSON-RPC. [Adapter Grok](grok-adapter.md).
 
 Status (2026-11-15): kanał, handshake, nietrwały interaktywny podgląd wątku i
-automatyczny mini podgląd po zatwierdzonych wywołaniach zaimplementowane
+automatyczny mini podgląd po zatwierdzonych wywołaniach oraz przypisanie uploadu
+podglądu do wątku przed zdarzeniem są zaimplementowane
 (`apps/gateway/src/worker-link`, `apps/worker/src/gateway-link`);
 stan funkcji i plany opisują poszczególne sekcje. Kontrakt: [`proto/canopy/worker/v1/worker_link.proto`](../proto/canopy/worker/v1/worker_link.proto).
 
@@ -642,7 +643,7 @@ Na żywo Claude (SDK stream-json) i Codex (`turn/start`) poprawnie wskazały lic
 
 Zgodność: wiadomość bez pozycji działa jak dotąd (notatka bez numerów, Grok dokleja pliki za tekstem). Starszy worker ignoruje nieznany rodzaj wzmianki: dostaje pliki jak dawniej i czytelne znaczniki z numerami z notatki. Bez zmiany `WORKER_LINK_PROTOCOL`. Połączone komputery: capability `inline_attachments` ([linked-computers.md](linked-computers.md#załączniki-w-tekście)).
 
-**Podglądy obrazów (worker → gateway).** Każdy obraz, który widział model (`view_image` platformy, natywne `view_image` Codexa, obraz w wyniku narzędzia, np. `Read` Claude), dostaje podgląd: worker zapisuje go w `<data_dir>/previews/<sha256>` przed zapisem zdarzenia w dzienniku, a przed wysłaniem zdarzenia (także przy ponownym wysłaniu z dziennika po `Welcome`) wysyła `BlobChunk` (`sha256`, `offset`, `data`, `last`, `mime_type`) raz na połączenie. Gateway składa fragmenty, sprawdza sha256, typ (PNG, JPEG, WebP, GIF) i limit 8 MiB, i zapisuje blob; przy ingeście wiąże go z wątkiem (`thread_blobs`). Brakujący podgląd nie blokuje zdarzenia (UI pokazuje „preview not available”). Podglądy starsze niż 7 dni worker usuwa przy starcie.
+**Podglądy obrazów (worker → gateway).** Każdy obraz, który widział model (`view_image` platformy, natywne `view_image` Codexa, obraz w wyniku narzędzia, np. `Read` Claude), dostaje podgląd: worker zapisuje go w `<data_dir>/previews/<sha256>` przed zapisem zdarzenia w dzienniku, a przed wysłaniem zdarzenia (także przy ponownym wysłaniu z dziennika po `Welcome`) wysyła `BlobChunk` (`sha256`, `offset`, `data`, `last`, `mime_type`, `thread_id`) raz na wątek i połączenie. Gateway składa fragmenty, sprawdza sha256, typ (PNG, JPEG, WebP, GIF) i limit 8 MiB. Pod blokadą wątku sprawdza przypisanie workera i zapisuje blob wraz z `thread_blobs` w jednej transakcji, przed nadejściem zdarzenia. Upload do usuniętego wątku jest odrzucany bez odtwarzania treści. `BlobChunk.thread_id` ma addytywny numer **8**; `WORKER_LINK_PROTOCOL` pozostaje bez zmian. Bloby ze starszych workerów bez tego pola pozostają wyłączone z retencji, ponieważ gateway nie zna ich właściciela przed ingestem. Brakujący podgląd nie blokuje zdarzenia (UI pokazuje „preview not available”). Podglądy starsze niż 7 dni worker usuwa przy starcie.
 
 ## Wzmianki
 

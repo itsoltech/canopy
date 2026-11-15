@@ -41,8 +41,11 @@ export interface TurnStore {
   }): Fx<TurnRow>;
   /** A user turn with this client request id, if any (SendMessage idempotency across queue and steer). */
   turnByClientRequest(threadId: string, clientRequestId: string): Fx<TurnRow | undefined>;
-  /** Records the model, effort and permission mode a turn is started with. */
-  setTurnSettings(turnId: string, settings: { model: string; effort: string; permissionMode: string }): Fx<void>;
+  /** Records the turn's settings and the thread default at dispatch, before any later owner change. */
+  setTurnSettings(
+    turnId: string,
+    settings: { model: string; effort: string; permissionMode: string; threadPermissionMode: string },
+  ): Fx<void>;
   /** Oldest queued user turn of an idle, ready thread with no StartTurn in the outbox yet. */
   nextTurn(threadId: string): Fx<TurnRow | undefined>;
   runningTurn(threadId: string): Fx<TurnRow | undefined>;
@@ -139,10 +142,9 @@ export function turnStore(sql: SqlClient.SqlClient): TurnStore {
             .pipe(Effect.map((rows) => rows[0]))
         : Effect.succeed(undefined),
 
-    setTurnSettings: (turnId, { model, effort, permissionMode }) =>
-      sql`UPDATE turns SET model = ${model}, effort = ${effort}, permission_mode = ${permissionMode} WHERE id = ${turnId}::uuid`.pipe(
-        Effect.asVoid,
-      ),
+    setTurnSettings: (turnId, { model, effort, permissionMode, threadPermissionMode }) =>
+      sql`UPDATE turns SET model = ${model}, effort = ${effort}, permission_mode = ${permissionMode},
+          thread_permission_mode = ${threadPermissionMode} WHERE id = ${turnId}::uuid`.pipe(Effect.asVoid),
 
     nextTurn: (threadId) => nextTurn(sql, threadId),
 

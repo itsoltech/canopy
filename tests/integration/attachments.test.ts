@@ -423,7 +423,15 @@ describe.skipIf(!dockerAvailable)("attachments", () => {
       );
 
       const digest = sha(preview);
-      worker.uploadPreview(digest, preview, "image/webp", 1000);
+      worker.uploadPreview(digest, preview, "image/webp", 1000, thread.id);
+
+      // Ownership commits with the bytes, before the timeline event can reference them.
+      const uploaded = await eventually(
+        () => api.getThreadBlob({ threadId: thread.id, sha256: digest }).catch(() => undefined),
+        (blob) => blob !== undefined,
+      );
+
+      expect(uploaded && sha(uploaded.data)).toBe(digest);
       const turnId = (await api.sendMessage({ threadId: thread.id, text: "look", clientRequestId: "pv-1" })).turn!.id;
       worker.emit(thread.id, turnId, {
         case: "itemCompleted",

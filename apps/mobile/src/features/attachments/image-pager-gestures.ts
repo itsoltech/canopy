@@ -1,4 +1,10 @@
-import { usePanGesture, usePinchGesture, useSimultaneousGestures, useTapGesture } from "react-native-gesture-handler";
+import {
+  useCompetingGestures,
+  usePanGesture,
+  usePinchGesture,
+  useSimultaneousGestures,
+  useTapGesture,
+} from "react-native-gesture-handler";
 import { useSharedValue, withDecay, type SharedValue } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import type { ImagePagerModel } from "./image-pager-model";
@@ -12,6 +18,7 @@ const PAGE_VELOCITY = 500;
 const DISMISS_DISTANCE = 120;
 const DISMISS_VELOCITY = 800;
 const ZOOMED = 1.01;
+const DRAG_DISTANCE = 8;
 
 const Mode = { none: 0, pan: 1, page: 2, dismiss: 3 } as const;
 
@@ -27,7 +34,8 @@ export function useImagePagerGestures(model: ImagePagerModel, onClose: () => voi
   const pan = usePan(model, mode, pinching, onClose);
   const doubleTap = useDoubleTap(model);
 
-  return useSimultaneousGestures(pinch, pan, doubleTap);
+  // Pinch and pan share two-finger input, but a page swipe and double-tap must choose one action.
+  return useCompetingGestures(useSimultaneousGestures(pinch, pan), doubleTap);
 }
 
 function centred(model: ImagePagerModel, x: number, y: number): Point {
@@ -104,7 +112,7 @@ function usePan(
   onClose: () => void,
 ) {
   return usePanGesture({
-    minDistance: 8,
+    minDistance: DRAG_DISTANCE,
     onActivate: () => {
       "worklet";
       model.claim();
@@ -192,6 +200,8 @@ function release(model: ImagePagerModel, velocity: number, completed: boolean, o
 function useDoubleTap(model: ImagePagerModel) {
   return useTapGesture({
     numberOfTaps: 2,
+    // A movement large enough to pan cannot also count as a tap.
+    maxDistance: DRAG_DISTANCE,
     onActivate: (event) => {
       "worklet";
       model.claim();

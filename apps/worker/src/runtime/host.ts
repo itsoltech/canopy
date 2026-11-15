@@ -265,7 +265,9 @@ export class WorkerHost {
 
   /** Previews an event points to, sent on `link` before the event (journal resend after Welcome). */
   sendPreviews(link: GatewayLink, event: ThreadEvent): void {
-    this.#ctx.state.previews.sendFor(link, event, (chunk) => link.send({ case: "blobChunk", value: chunk }));
+    this.#ctx.state.previews.sendFor(link, event, (chunk) =>
+      link.send({ case: "blobChunk", value: { ...chunk, threadId: event.threadId } }),
+    );
   }
 
   canSendEvent(event: ThreadEvent): boolean {
