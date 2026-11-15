@@ -222,5 +222,9 @@ natywne działanie przeglądarki na zaznaczalnych obszarach.
   insetami wierszy; zewnętrzny popover nie dodaje guttera. Tło panelu obejmuje gutter,
   a lepkie nagłówki i stopki pozostają przy krawędzi przewijanego obszaru.
   Paski nakładkowe nie rezerwują miejsca.
+  Panele subagentów i kolejki nad composerem przewijają wyłącznie rozwinięte listy
+  (każda do 20 dvh). Wspólny `ComposerPanelBody` rezerwuje gutter wewnątrz listy;
+  nagłówki accordionów i zewnętrzny kontener nie przewijają się ani nie rezerwują
+  miejsca na pasek, więc tło nagłówka dochodzi do prawej krawędzi panelu.
   Panel szczegółów wątku używa `scroll-stable-both` (`stable both-edges`) do symetrycznych
   insetów kart. Sidebar i pozostałe duże obszary mają gutter na końcu.

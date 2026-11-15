@@ -45,7 +45,7 @@
   }}
 >
   {@render children()}
-  <span class="ml-auto flex h-lh shrink-0 items-center self-start">
+  <span class="ml-auto flex h-lh shrink-0 items-center">
     <ComposerDisclosureChevron {expanded} />
   </span>
   <TouchTarget size="sm" />
