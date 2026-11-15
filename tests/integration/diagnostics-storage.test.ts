@@ -91,7 +91,7 @@ describe.skipIf(!dockerAvailable)("Canopy storage through authenticated diagnost
 
   test("scans native runtime roots despite Windows absolute metadata, excludes projects and separates SQL size", async () => {
     const first = await gateway.api.getComputerDiagnostics({});
-    expect(["measuring", "ready"]).toContain(first.storage?.status);
+    expect(["measuring", "ready"]).toContain(first.storage?.status ?? "");
 
     const value = await eventually(
       () => gateway.api.getComputerDiagnostics({}),
