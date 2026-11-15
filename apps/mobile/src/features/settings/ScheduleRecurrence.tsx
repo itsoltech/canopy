@@ -6,6 +6,7 @@ import { Button, Field, Notice } from "../../ui/components";
 import { SettingChoice } from "./SettingsGroup";
 import { ResourceState, useSettingsResource } from "./resource";
 import { ScheduleDate } from "./ScheduleDate";
+import { useDevicePreferences } from "./device-preferences";
 
 export function ScheduleRecurrence({
   cron,
@@ -27,28 +28,18 @@ export function ScheduleRecurrence({
   setMaxRuns: (v: number) => void;
 }) {
   const resource = useSettingsResource("ListSchedules", (api) => api.listSchedules({}));
-  const [preview, setPreview] = useState<ui.PreviewScheduleResponse>();
   const [ends, setEnds] = useState(until ? "until" : maxRuns ? "count" : "never");
   const zones = [...new Set([timezone, "UTC", ...timeZones])];
 
   return (
     <ResourceState resource={resource}>
-      <SchedulePattern
-        cron={cron}
-        onChange={(value) => {
-          setCron(value);
-          setPreview(undefined);
-        }}
-      />
+      <SchedulePattern cron={cron} onChange={setCron} />
       <SettingChoice
         title="Time zone"
         value={timezone}
         search="Search time zones"
         options={zones.map((value) => ({ value, label: value }))}
-        onChange={(value) => {
-          setTimezone(value);
-          setPreview(undefined);
-        }}
+        onChange={setTimezone}
       />
       <SettingChoice
         title="Ends"
@@ -78,22 +69,50 @@ export function ScheduleRecurrence({
           {cron} in {timezone}. Runs at least 5 minutes apart.
         </Notice>
       )}
+      <SchedulePreview
+        key={JSON.stringify([cron, timezone])}
+        cron={cron}
+        timezone={timezone}
+        busy={resource.busy}
+        load={() => resource.run((api) => api.previewSchedule({ cron, timezone, count: 5 }))}
+      />
+    </ResourceState>
+  );
+}
+
+/** A changed pattern or zone remounts the preview, fencing late responses from the previous inputs. */
+function SchedulePreview({
+  cron,
+  timezone,
+  busy,
+  load,
+}: {
+  cron: string;
+  timezone: string;
+  busy: boolean;
+  load: () => Promise<ui.PreviewScheduleResponse | undefined>;
+}) {
+  const [preview, setPreview] = useState<ui.PreviewScheduleResponse>();
+  const { values } = useDevicePreferences();
+
+  return (
+    <>
       <Button
         title="Preview occurrences"
-        busy={resource.busy}
+        busy={busy}
         disabled={!cron || !timezone}
-        onPress={() =>
-          void resource
-            .run((api) => api.previewSchedule({ cron, timezone, count: 5 }))
-            .then((r) => {
-              if (r) setPreview(r);
-            })
-        }
+        onPress={() => void load().then(setPreview)}
       />
       {preview?.nextRuns.map((value, index) => (
-        <Notice key={index}>{timestampDate(value).toLocaleString()}</Notice>
+        <Notice key={index}>
+          {timestampDate(value).toLocaleString(undefined, {
+            timeZone: timezone,
+            hour12: values.timeFormat === "system" ? undefined : values.timeFormat === "12h",
+          })}{" "}
+          · {timezone}
+        </Notice>
       ))}
-    </ResourceState>
+    </>
   );
 }
 

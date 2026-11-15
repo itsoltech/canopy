@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { AppState } from "react-native";
 import { addNetworkStateListener, useNetworkState } from "expo-network";
+import { Code, ConnectError } from "@connectrpc/connect";
 import { routedMobileClient } from "../api/routes";
 import { pinnedTransport } from "../api/pinned";
 import { SessionPersistence, type DeviceSession } from "../storage/session";
@@ -108,6 +109,8 @@ function useSessionState() {
     setError(historyMessage(cleared, revoked));
   }
 
+  const removal = useSessionRemoval(client, session?.deviceId, clearHistory);
+
   return {
     drafts,
     session,
@@ -151,8 +154,79 @@ function useSessionState() {
       setSession(value);
       setError("");
     },
-    forget: () => clearHistory(),
-    expired: () => clearHistory(true),
+    ...removal,
+  };
+}
+
+/** One removal per pairing; expected stream failures wait for the unpair RPC's outcome. */
+class SessionRemoval {
+  #unpairing = false;
+  #unauthenticated = false;
+  #clearing: Promise<void> | undefined;
+
+  constructor(readonly client: ReturnType<typeof routedMobileClient> | null) {}
+
+  forget(clearHistory: (revoked?: boolean) => Promise<void>) {
+    return this.#clear(clearHistory);
+  }
+
+  async unpair(revoke: () => Promise<void>, clearHistory: (revoked?: boolean) => Promise<void>) {
+    if (this.#unpairing || this.#clearing) return;
+    // Set intent synchronously, before revocation can end any of this pairing's streams.
+    this.#unpairing = true;
+
+    try {
+      await revoke();
+    } catch (error) {
+      this.#unpairing = false;
+
+      // Failed unpairing does not suppress evidence of an actual revoked token.
+      if (this.#unauthenticated || ConnectError.from(error).code === Code.Unauthenticated)
+        await this.#clear(clearHistory, true);
+
+      throw error;
+    }
+
+    await this.#clear(clearHistory);
+  }
+
+  expired(clearHistory: (revoked?: boolean) => Promise<void>) {
+    if (this.#clearing) return this.#clearing;
+
+    if (this.#unpairing) {
+      this.#unauthenticated = true;
+
+      return Promise.resolve();
+    }
+
+    return this.#clear(clearHistory, true);
+  }
+
+  #clear(clearHistory: (revoked?: boolean) => Promise<void>, revoked = false) {
+    return (this.#clearing ??= clearHistory(revoked));
+  }
+}
+
+function useSessionRemoval(
+  client: ReturnType<typeof routedMobileClient> | null,
+  deviceId: string | undefined,
+  clearHistory: (revoked?: boolean) => Promise<void>,
+) {
+  const removal = useMemo(() => new SessionRemoval(client), [client]);
+
+  return {
+    forget: () => removal.forget(clearHistory),
+    unpair: () =>
+      client && deviceId
+        ? removal.unpair(async () => {
+            await client.api.revokeMobileDevice({ id: deviceId });
+          }, clearHistory)
+        : Promise.resolve(),
+    expired(source: ReturnType<typeof routedMobileClient> | null = client) {
+      if (!client || source !== removal.client) return Promise.resolve();
+
+      return removal.expired(clearHistory);
+    },
   };
 }
 

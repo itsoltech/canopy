@@ -95,7 +95,7 @@ export function ScheduleTaskRow({
           <Pressable
             accessibilityRole="link"
             disabled={!s.threadId}
-            onPress={() => router.push(`/threads/${s.threadId}`)}
+            onPress={() => router.push(`/thread/${s.threadId}`)}
             style={{ flex: 1, minWidth: 0 }}
           >
             <Text numberOfLines={1} style={[type.meta, { color: c.soft }]}>
@@ -181,7 +181,7 @@ function ScheduleRunHistory({ runs, threadId }: { runs: readonly ui.ScheduleRun[
           <Pressable
             accessibilityRole={run.threadId ? "link" : "text"}
             disabled={!run.threadId}
-            onPress={() => router.push(`/threads/${run.threadId}`)}
+            onPress={() => router.push(`/thread/${run.threadId}`)}
             style={{ flexDirection: "row", minHeight: 44, alignItems: "center", gap: 6 }}
           >
             <Icon name={run.outcome === "started" ? "play" : "exclamation-circle"} size={14} />

@@ -37,7 +37,7 @@ export function useStream<T>(
   const { planned } = useGatewayDeparture();
   const start = useEffectEvent((signal: AbortSignal) => watch!(signal));
   const onReceive = useEffectEvent(receive);
-  const onExpired = useEffectEvent(expired);
+  const onExpired = useEffectEvent((source: typeof client) => expired(source));
   const onThreadFailure = useEffectEvent((error: ConnectError) => threadFailure?.(error));
   const scoped = Boolean(threadFailure);
   const recovery = useMemo(() => new ConnectionRecovery(scoped ? 10_000 : 0), [key, client, scoped]);
@@ -102,7 +102,7 @@ export function useStream<T>(
       },
       failed: (error) =>
         streamFailure(error, {
-          expired: onExpired,
+          expired: () => onExpired(client),
           scoped: onThreadFailure,
           update: (change) => setState((current) => ({ ...current, key: subscriptionKey, ...change })),
           stop: () => clearTimeout(timer),

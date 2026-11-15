@@ -1,4 +1,4 @@
-import { useRef, type ComponentRef, type ReactNode } from "react";
+import { useRef, useState, type ComponentRef, type ReactNode } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import Animated, { interpolate, useAnimatedStyle } from "react-native-reanimated";
 import { Skeleton } from "../../ui/Skeleton";
@@ -10,7 +10,7 @@ import { ComposerFold, useComposerMotion } from "../composer/ComposerFold";
 import { ComposerInput } from "../composer/ComposerInput";
 import type { ComposerPendingItem } from "@canopy/domain/composer-pending";
 import { composerGeometry } from "../composer/geometry";
-import { SendButtons, SPLIT_SEND_WIDTH } from "./SendButtons";
+import { SendButtons } from "./SendButtons";
 import { useTween } from "../../ui/motion";
 
 /** What each trigger character does, as on the web; no-break spaces keep each item on one line. */
@@ -48,6 +48,7 @@ export interface ComposerBoxProps {
   /** Pinned before the field in inline mode, or to the toolbar's left edge. */
   attachment?: ReactNode;
   controls?: ReactNode;
+  /** Draft actions reserve their own height only while their tab is visible. */
   drafts?: ReactNode;
   compact?: boolean;
   pending?: readonly ComposerPendingItem[];
@@ -98,6 +99,8 @@ export function ComposerBox({
   canSend = true,
 }: ComposerBoxProps) {
   const c = useColors();
+  const [sendWidth, setSendWidth] = useState(36);
+  const sendInset = Math.max(60, sendWidth + 14);
   const empty = !text.trim() && files === 0;
   // A leading "!" runs the text as a shell command on the worker when it is delivered (docs/ui-api.md).
   const shell = shellCommands && text.startsWith("!");
@@ -117,8 +120,8 @@ export function ComposerBox({
   }));
 
   return (
-    <View style={{ paddingTop: drafts ? 32 : 0 }}>
-      {drafts ? <View style={{ position: "absolute", top: 0, left: 0, right: 0, height: 32 }}>{drafts}</View> : null}
+    <View>
+      {drafts}
       <View
         onTouchStart={onExpand}
         style={{
@@ -150,21 +153,18 @@ export function ComposerBox({
           triggers={triggers}
           label={label}
           badges={badges}
+          sendInset={sendInset}
         />
         {!inline && (
           <ComposerFold open={!compact} expandedHeight={composerGeometry.toolbar} hideWhileWriting={false}>
-            <ComposerControls
-              shell={shell}
-              files={files}
-              attachment={attachment}
-              sendWidth={running && !empty && onAlternate ? SPLIT_SEND_WIDTH + 14 : 60}
-            >
+            <ComposerControls shell={shell} files={files} attachment={attachment} sendWidth={sendInset}>
               {controls}
             </ComposerControls>
           </ComposerFold>
         )}
         {!inline || !empty || running ? (
           <Animated.View
+            onLayout={(event) => setSendWidth(event.nativeEvent.layout.width)}
             style={[
               styles.row,
               inline ? { padding: 4, paddingLeft: 0 } : [{ position: "absolute", right: 10 }, sendPosition],

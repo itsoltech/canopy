@@ -1,5 +1,6 @@
 import { useCallback, useContext, useId, useLayoutEffect, useState, useSyncExternalStore, type ReactNode } from "react";
-import { Modal, useWindowDimensions } from "react-native";
+import { Keyboard, Modal, Platform, TextInput, useWindowDimensions } from "react-native";
+import { KeyboardController } from "react-native-keyboard-controller";
 import { SafeAreaProvider, useSafeAreaFrame, useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardWindow } from "./KeyboardWindow";
 import { OverlaySurface } from "./OverlaySurface";
@@ -51,6 +52,22 @@ export function Overlay({
   const { width } = useWindowDimensions();
   const [closing, setClosing] = useState(false);
   const close = useCallback(() => setClosing(true), []);
+
+  const requestClose = useCallback(() => {
+    // Predictive Back can hide the IME before onRequestClose while RN still owns the input's focus.
+    if (
+      Platform.OS === "android" &&
+      (Keyboard.isVisible() || KeyboardController.isVisible() || TextInput.State.currentlyFocusedInput())
+    ) {
+      Keyboard.dismiss();
+      void KeyboardController.dismiss();
+
+      return;
+    }
+
+    close();
+  }, [close]);
+
   const presented = useKeyboardPresentation(visible);
   const allowed = useSyncExternalStore(subscribeOverlays, () => mayPresent(id));
   const nested = useSyncExternalStore(subscribeOverlays, () => overlayNested(id));
@@ -80,7 +97,7 @@ export function Overlay({
       animationType="none"
       statusBarTranslucent
       navigationBarTranslucent
-      onRequestClose={close}
+      onRequestClose={requestClose}
       onDismiss={didDismiss}
     >
       <OverlayParent.Provider value={id}>

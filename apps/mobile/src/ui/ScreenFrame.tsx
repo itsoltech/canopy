@@ -78,7 +78,7 @@ export function ScreenFrame({
                   paddingTop: insets.top,
                   paddingLeft: insets.left,
                   paddingRight: insets.right,
-                  backgroundColor: `${background}f2`,
+                  backgroundColor: background,
                 }}
               >
                 <View onLayout={(event) => setHeaderSize(event.nativeEvent.layout.height)}>{header}</View>
@@ -94,7 +94,7 @@ export function ScreenFrame({
                   paddingBottom: insets.bottom,
                   paddingLeft: insets.left,
                   paddingRight: insets.right,
-                  backgroundColor: `${background}f2`,
+                  backgroundColor: background,
                 }}
               >
                 <View onLayout={(event) => setFooterSize(event.nativeEvent.layout.height)}>{footer}</View>

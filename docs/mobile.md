@@ -35,7 +35,7 @@ callback nie odtworzył danych poprzedniego właściciela. Limity: 100 szkiców,
 
 Zakładka `Drafts` z licznikiem na górnej krawędzi kompozytora rozwija zwarty,
 niemodalny panel szkiców innych urządzeń dla bieżącego celu. Bez szkiców nie ma
-zakładki. Stały slot 32 punkty zachowuje położenie pola; panel w portalu przylega
+zakładki ani pustej rezerwy. Slot 32 punkty zajmuje tylko widoczna zakładka; panel w portalu przylega
 do ramki bez szczeliny i nie zmienia rezerwy osi. Każdy wiersz pokazuje podgląd,
 załączniki, urządzenie, względny czas oraz `Discard draft` (×). Kliknięcie wiersza
 przejmuje szkic do pustego kompozytora, `Append draft` dopisuje do istniejącej treści; `Replace local
@@ -194,6 +194,17 @@ wysłaniem kodu lub tokenu; nie ufa systemowym CA ani nazwie hosta. Odrzuca prze
 nie używa cookies i przekazuje porcje odpowiedzi do `ReadableStream` z anulowaniem.
 `WatchOverview` i `WatchThread` nie czekają na zakończenie całej odpowiedzi. Moduł wymaga
 nowego development buildu; poprzedni build z samym `expo/fetch` nie wystarczy.
+
+Android rozdziela ograniczone pule żądań unary i streamów Connect przed wysłaniem,
+według `Content-Type`. Unary ma limit 16 żądań łącznie i 8 na host, a streamy 32
+łącznie i na host. Dispatchery są wspólne dla klientów przypiętych do certyfikatów
+i przeżywają reset połączeń, więc długie subskrypcje nie zajmują slotów wysyłania,
+zatrzymywania zadań ani pozostałych akcji. Odczyt streamu pozostaje w callbacku
+OkHttp i zajmuje slot do końca odpowiedzi; anulowanie nadal zamyka własne wywołanie.
+Zniszczenie modułu Expo anuluje aktywne i oczekujące RPC, zamyka sockety probe,
+zwalnia pule oraz zatrzymuje executory. Granica cyklu życia blokuje późne zdarzenia
+i odpowiedzi promise do usuniętego mostu, także po wcześniejszym resecie połączeń.
+Zmiana tej konfiguracji wymaga nowego APK; aktualizacja samego JS nie wystarczy.
 
 Telefon korzysta z tego samego listenera [Network access](network-access.md), co połączone
 komputery, bez certyfikatu klienta. Ten listener obsługuje HTTP/1.1 i HTTP/2, GatewayService
@@ -468,6 +479,10 @@ wysyła i telefon czyta wtedy GetSettings raz po snapshocie. Wersje ustawień ty
 starsza odpowiedź nie zastępuje nowszego zdarzenia.
 
 Unpair w aplikacji najpierw odwołuje dostęp na gatewayu, potem usuwa SecureStore.
+Intencję rozparowania zapisuje przed RPC; oczekiwane `Unauthenticated` streamów
+czekają na jego wynik, zamiast pokazywać komunikat o nieoczekiwanym odwołaniu dostępu.
+Nieudane RPC zachowuje parowanie, chyba że otrzymano rzeczywiste odrzucenie tokenu.
+Późny błąd streamu poprzedniego klienta nie usuwa nowej sesji.
 Gdy gateway jest niedostępny, **Forget pairing locally** wymaga potwierdzenia i wyraźnie
 informuje o konieczności revoke w web. iOS Keychain może przetrwać reinstalację aplikacji;
 usunięcie aplikacji nie zastępuje odwołania urządzenia na serwerze.
@@ -1112,9 +1127,9 @@ Przekroczenie progu szerokości odtwarza kolumnę sidebara od razu w docelowym s
 bez oczekiwania na callback zamknięcia. Powrót do pionu nie rezerwuje więc miejsca na
 znikający sidebar i nie zwęża przejściowo wątku. Ręczny przycisk nadal animuje panel.
 `ui/ScreenFrame.tsx` stosuje insets do kontrolek, bez obcinania tła ani viewportu listy.
-Nagłówki i stopka sidebara są półprzezroczystymi nakładkami; ich zmierzona wysokość
+Nagłówki i stopka sidebara są nieprzezroczystymi nakładkami; ich zmierzona wysokość
 powiększa padding końców list, więc pierwszy i ostatni wiersz są dostępne w całości.
-Podczas przewijania wiersze przechodzą pod nagłówkiem i paskiem stanu. Ikony paska stanu
+Podczas przewijania wiersze przechodzą pod nagłówkiem i paskiem stanu bez prześwitu. Ikony paska stanu
 zmieniają jasność wraz z motywem, a powierzchnia nagłówka utrzymuje ich kontrast.
 `ScreenScroll` stosuje padding treści w New thread, Pair, Settings i arkuszach szczegółów.
 Timeline wątku i bota ma odwrócone końce: górny inset jest na najstarszym końcu,
@@ -1685,6 +1700,11 @@ konektory, workery, urządzenia i połączone komputery. Zapis używa wersji/rev
 po konflikcie odświeża dane i zachowuje szkic do poprawienia. Sekrety połączeń pozostają
 write-only; UI pokazuje obecność i pozwala zastąpić/usunąć wartość. Plugin wymaga osobnego
 potwierdzenia dokładnego checksumu. Rozwiązywanie driftu używa obejrzanego checksumu.
+Nagłówki konektora mają osobne jednoliniowe pola z natywnym maskowaniem oraz akcje
+dodania, usunięcia i jawnego wklejenia całego zestawu. Wklejenie zachowuje podziały
+wierszy; błąd zapisu nie czyści tokenu, nagłówków, client secret ani kodu OAuth.
+W modalnych formularzach pierwszy Android Back chowa klawiaturę i usuwa fokus pola,
+zachowując edycję; kolejne cofnięcie zamyka arkusz.
 Keybindings jest wyszukiwalną referencją dla klawiatur sprzętowych, bez edycji skrótów
 przeglądarki. Kontrolki lokalnego procesu Electron i jego updatera są ukryte jak w web
 remote; aktualizacje gatewaya/workera pozostają w Workers. Powiadomienia systemowe są
@@ -1710,6 +1730,10 @@ a po zakończeniu podgląd czyta się raz.
 Formularz harmonogramu ma własny kalendarz, godzinę i gotowe częstotliwości oraz tryb cron.
 Katalog stref IANA w `packages/ui/src/timezones.json` jest wspólny z web, bo Hermes nie
 udostępnia `Intl.supportedValuesOf`. Wybór daty sprawdza też nieistniejące godziny przy zmianie czasu.
+Podgląd wystąpień formatuje daty w wybranej strefie i podaje jej nazwę przy wynikach.
+Zmiana wzorca lub strefy usuwa poprzedni podgląd; spóźniona odpowiedź go nie przywraca.
+Wyszukiwanie Settings uwzględnia słowa kluczowe ustawień wewnątrz sekcji, m.in.
+fonty, kontrast, strefy czasowe i nagłówki konektorów.
 Zmiana gatewaya/nazwy telefonu wymaga ponownego parowania. Boty mają
 listę, czat ze streamem, wysyłanie/stop, karty pytań/zgód z odpowiedziami oraz sheet
 szczegółów z włączaniem, pauzowaniem i usuwaniem rutyn oraz anulowaniem przypomnień. „Bot settings”
