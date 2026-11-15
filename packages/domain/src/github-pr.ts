@@ -187,6 +187,45 @@ export function timelineLook(kind: string, state: string, category = ""): PullRe
 export const sortedChecks = (checks: readonly github.PullRequestCheck[]) =>
   [...checks].sort((a, b) => checkLook(a.state).rank - checkLook(b.state).rank);
 
+const terminalCheckStates = new Set([
+  "success",
+  "failure",
+  "error",
+  "timed_out",
+  "action_required",
+  "cancelled",
+  "skipped",
+  "neutral",
+  "completed",
+]);
+
+export interface PullRequestProgress {
+  done: number;
+  total: number;
+}
+
+export const checkComplete = (state: string) => terminalCheckStates.has(state.toLowerCase());
+
+export function checksProgress(checks: readonly github.PullRequestCheck[], total = checks.length) {
+  if (total === 0) return undefined;
+
+  return {
+    done: Math.min(total, checks.filter((check) => checkComplete(check.state)).length),
+    total,
+  } satisfies PullRequestProgress;
+}
+
+export function jobStepsProgress(jobs: readonly github.PullRequestJob[]) {
+  const steps = jobs.flatMap((job) => job.steps);
+
+  if (steps.length === 0) return undefined;
+
+  return {
+    done: steps.filter((step) => checkComplete(step.state)).length,
+    total: steps.length,
+  } satisfies PullRequestProgress;
+}
+
 export function checksSummary(snapshot: github.PullRequestSnapshot) {
   const states = snapshot.checks.map((c) => checkLook(c.state));
   const failing = states.filter((s) => s.rank === 0).length;

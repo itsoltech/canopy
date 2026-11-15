@@ -2,7 +2,7 @@
   import { untrack } from "svelte";
   import { create } from "@bufbuild/protobuf";
   import { github } from "@canopy/contracts";
-  import { checkLook } from "@canopy/domain/github-pr";
+  import { checkLook, jobStepsProgress } from "@canopy/domain/github-pr";
   import type { ClassValue } from "svelte/elements";
   import CheckStateIcon from "./CheckStateIcon.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -72,9 +72,14 @@
       </div>{/if}
     {#each pages.current?.jobs ?? [] as job (job.id)}
       {@const look = checkLook(job.state)}
+      {@const stepProgress = jobStepsProgress([job])}
+      {@const stepPercent = stepProgress ? Math.round((stepProgress.done / stepProgress.total) * 100) : undefined}
       <div class="group/pr flex min-w-0 items-center gap-2 text-sm/5 sm:text-xs/5">
         <span class="flex shrink-0" {@attach tooltip(look.label)}><CheckStateIcon {look} /></span>
         <p class="min-w-0 flex-1 truncate" title={job.name}>{job.name}</p>
+        {#if stepProgress}<span class="shrink-0 font-mono text-zinc-500"
+            >{stepProgress.done}/{stepProgress.total} · {stepPercent}%</span
+          >{/if}
         <CiActions
           {snapshot}
           {runId}

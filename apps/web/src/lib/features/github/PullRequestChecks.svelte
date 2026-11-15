@@ -3,7 +3,13 @@
   import { create } from "@bufbuild/protobuf";
   import { github } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
-  import { checksSummary, sortedChecks } from "@canopy/domain/github-pr";
+  import {
+    checkComplete,
+    checksProgress,
+    checksSummary,
+    jobStepsProgress,
+    sortedChecks,
+  } from "@canopy/domain/github-pr";
   import Button from "#lib/shared/ui/Button.svelte";
   import { PullRequestPages } from "./pages.svelte.ts";
   import PageStatus from "./PageStatus.svelte";
@@ -50,6 +56,9 @@
 
   const checks = $derived(sortedChecks(pages.pages.length ? pages.pages.flatMap((p) => p.checks) : snapshot.checks));
   const runs = $derived([...new Set(checks.map((check) => check.runId).filter(Boolean))]);
+  let jobs = $state<github.PullRequestJob[]>([]);
+  let stepsPartial = $state(false);
+  let stepsRequest = 0;
 
   async function more() {
     if (visible < checks.length) visible = checks.length;
@@ -67,11 +76,95 @@
       }),
     ),
   );
+
+  const checkTotal = $derived(
+    snapshot.completeness === "complete" && !pages.current?.page?.nextCursor
+      ? checks.length
+      : Math.max(checks.length, snapshot.summary?.checksCount ?? 0),
+  );
+
+  const checkProgress = $derived(checksProgress(checks, checkTotal));
+  const stepProgress = $derived(stepsPartial ? undefined : jobStepsProgress(jobs));
+
+  const checkPercent = $derived(
+    checkProgress ? Math.round((checkProgress.done / checkProgress.total) * 100) : undefined,
+  );
+
+  const stepPercent = $derived(stepProgress ? Math.round((stepProgress.done / stepProgress.total) * 100) : undefined);
+
+  async function loadStepProgress(runIds: readonly string[], refresh = false) {
+    const request = ++stepsRequest;
+
+    const responses = await Promise.allSettled(
+      runIds.map(async (runId) => {
+        const result: github.PullRequestJob[] = [];
+        let cursor = "";
+
+        for (let page = 0; page < 100; page++) {
+          const response = await api.page(
+            "jobs",
+            github.PullRequestJobsPageSchema,
+            create(github.PullRequestPageRequestSchema, {
+              pullRequestId: id,
+              resourceId: runId,
+              headSha,
+              cursor,
+              refresh,
+            }),
+          );
+
+          result.push(...response.jobs);
+          cursor = response.page?.nextCursor ?? "";
+
+          if (!cursor) return { jobs: result, complete: true };
+        }
+
+        return { jobs: result, complete: false };
+      }),
+    );
+
+    if (request !== stepsRequest) return;
+
+    jobs = responses.flatMap((response) => (response.status === "fulfilled" ? response.value.jobs : []));
+    stepsPartial = responses.some(
+      (response) => response.status === "rejected" || (response.status === "fulfilled" && !response.value.complete),
+    );
+  }
+
+  $effect(() => {
+    const runIds = runs;
+    stepsRequest++;
+    jobs = [];
+    stepsPartial = false;
+
+    if (!id || !runIds.length) {
+      return;
+    }
+
+    void loadStepProgress(runIds);
+
+    const timer = setInterval(() => {
+      const running =
+        checks.some((check) => !checkComplete(check.state)) || jobs.some((job) => !checkComplete(job.state));
+
+      if (document.visibilityState === "visible" && running) void loadStepProgress(runIds, true);
+    }, 15_000);
+
+    return () => clearInterval(timer);
+  });
 </script>
 
 <section aria-label="Checks" class={["grid min-w-0 gap-2", className]}>
   <div class="flex min-w-0 items-center justify-between gap-2 text-sm/5 sm:text-xs/5">
-    <h3 class="font-medium">{summary}</h3>
+    <h3 class="min-w-0 font-medium">
+      {summary}
+      {#if checkProgress}<span class="font-mono text-zinc-500">
+          · {checkProgress.done}/{checkProgress.total} checks · {checkPercent}%</span
+        >{/if}
+      {#if stepProgress}<span class="font-mono text-zinc-500">
+          · {stepProgress.done}/{stepProgress.total} steps · {stepPercent}%</span
+        >{/if}
+    </h3>
     <p class="shrink-0 font-mono text-zinc-500" title={snapshot.summary?.headSha}>
       on {snapshot.summary?.headSha.slice(0, 7)}
     </p>
