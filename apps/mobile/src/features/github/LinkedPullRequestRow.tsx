@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { router } from "expo-router";
 import type { github } from "@canopy/contracts";
-import { timestampDate } from "@bufbuild/protobuf/wkt";
+import { timestampDate, type Timestamp } from "@bufbuild/protobuf/wkt";
 import { checkLook, unknownPullRequestLook } from "@canopy/domain/github-pr";
 import { Button } from "../../ui/components";
 import { styles, useColors } from "../../ui/theme";
@@ -10,6 +10,7 @@ import { toast } from "../../ui/Toast";
 import { useWorkspace } from "../workspace/context";
 import { PullRequestStatus } from "./PullRequestStatus";
 import { CheckStateIcon } from "./CheckStateIcon";
+import { Icon } from "../../ui/Icon";
 
 /** One linked pull request: its last known summary, or why its details are missing, with Retry. */
 export function LinkedPullRequestRow({
@@ -19,7 +20,12 @@ export function LinkedPullRequestRow({
   onClose,
   onRetry,
 }: {
-  link: { summary?: github.PullRequestSummary | undefined; currentBranch: boolean; detail?: string };
+  link: {
+    summary?: github.PullRequestSummary | undefined;
+    currentBranch: boolean;
+    detail?: string;
+    watchedUntil?: Timestamp | undefined;
+  };
   threadId: string;
   stale: boolean;
   onClose: () => void;
@@ -37,7 +43,13 @@ export function LinkedPullRequestRow({
   const detail = link.detail ?? "";
   const unknown = unknownPullRequestLook(detail);
   const checks = checkLook(pr.checksState);
-  const status = known ? `${pr.state}, checks ${checks.label}` : unknown.label;
+
+  // An agent of this thread hears about these checks (watch_pr_checks).
+  const watching = link.watchedUntil
+    ? `Agent watches checks until ${timestampDate(link.watchedUntil).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`
+    : "";
+
+  const status = [known ? `${pr.state}, checks ${checks.label}` : unknown.label, watching].filter(Boolean).join(". ");
 
   return (
     <View style={{ minWidth: 0 }}>
@@ -70,6 +82,7 @@ export function LinkedPullRequestRow({
         <Text numberOfLines={1} style={[styles.chrome, { flex: 1, color: known ? c.text : c.muted }]}>
           {known ? pr.title : unknown.label}
         </Text>
+        {watching ? <Icon name="eye" size={14} color={c.muted} /> : null}
         <Text style={[styles.chromeMeta, { color: c.muted }]}>#{ref.number}</Text>
         {known ? (
           <CheckStateIcon look={checks} label={`Checks: ${checks.label}`} />

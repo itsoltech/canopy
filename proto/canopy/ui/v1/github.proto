@@ -237,6 +237,8 @@ message PullRequestLink {
   bool stale = 6;
   // Why the last refresh failed, written for the user. Empty while it is pending or after success.
   string detail = 7;
+  // An agent of this thread watches the pull request's CI checks (watch_pr_checks) until then; unset without one.
+  google.protobuf.Timestamp watched_until = 8;
 }
 message ThreadPullRequestsRequest {
   string thread_id = 1;

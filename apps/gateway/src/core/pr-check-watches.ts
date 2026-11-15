@@ -51,6 +51,8 @@ export interface PrCheckWatchesHost {
   /** A steer was stored: send it to the worker. */
   steered(steerId: string): Promise<void>;
   log(message: string): void;
+  /** A watch started or ended: the thread's pull request list (its active watches) changed. */
+  changed(threadId: string): Promise<void>;
 }
 
 const TICK_MS = 5_000;
@@ -93,8 +95,12 @@ export class PrCheckWatches {
     return this.#host.run(PrCheckWatchStore.use(use));
   }
 
-  tool(call: PrCheckCall, source: CallSource, caller: ThreadRow, hops: number): Promise<JsonValue> {
-    return prCheckTool(this, call, source, caller, hops);
+  async tool(call: PrCheckCall, source: CallSource, caller: ThreadRow, hops: number): Promise<JsonValue> {
+    const result = await prCheckTool(this, call, source, caller, hops);
+
+    if (call.tool !== "list_pr_watches") await this.#host.changed(caller.id);
+
+    return result;
   }
 
   /** Polls the active watches once, then hands waiting notes over (single flight). */
@@ -185,6 +191,8 @@ export class PrCheckWatches {
     if (!verdict.event && end !== "no_checks") {
       await this.run((s) => (end ? s.end(w.id, end, false) : s.progress(w.id, next)));
 
+      if (end) await this.#host.changed(w.thread_id);
+
       return;
     }
 
@@ -229,6 +237,8 @@ export class PrCheckWatches {
     const wake = hops <= DEFAULT_BUS_LIMITS.maxHops;
     await this.run((s) => s.note(w.id, progress, { body, wake, hops, ...(end && { end }) }));
     await this.deliver(w.thread_id);
+
+    if (end) await this.#host.changed(w.thread_id);
   }
 
   /** Hands the thread's waiting notes to its agent (idempotent; one pass per thread at a time). */

@@ -1,4 +1,5 @@
 import { create, fromJson, type JsonValue } from "@bufbuild/protobuf";
+import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { github } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Effect } from "effect";
@@ -41,9 +42,12 @@ export function githubPrList(sql: SqlClient.SqlClient) {
             last_known: JsonValue | null;
             has_current_branch: boolean;
             expired: boolean;
+            watched_until: Date | null;
           }
         >`SELECT q.*,bool_or(current_branch) OVER () AS has_current_branch FROM (SELECT p.*,l.source,l.evidence,l.created_at,c.payload,
         (c.payload IS NULL OR coalesce(c.expires_at<=now(),true)) AS expired,
+        (SELECT max(w.expires_at) FROM pr_check_watches w WHERE w.owner_user_id=l.owner_user_id AND w.thread_id=l.thread_id
+          AND w.pull_request_id=l.pull_request_id AND w.status='active') AS watched_until,
         CASE WHEN p.summary_account_id=a.id THEN p.summary END AS last_known,
         coalesce((c.payload->>'headRef')=coalesce(nullif(g.context->>'pushRef',''),g.context->>'branch')
           AND nullif(g.context->>'branch','') IS NOT NULL
@@ -92,6 +96,7 @@ export function githubPrList(sql: SqlClient.SqlClient) {
             evidence: r.evidence,
             currentBranch: r.current_branch,
             createdAt: { seconds: BigInt(Math.floor(Number(new Date(r.created_at)) / 1000)) },
+            ...(r.watched_until && { watchedUntil: timestampFromDate(new Date(r.watched_until)) }),
           })),
         });
       }),

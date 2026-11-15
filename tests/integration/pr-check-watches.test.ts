@@ -5,6 +5,7 @@
  * watch. Cancelling, replacing and a merged pull request end watches.
  */
 import { describe, expect, test } from "bun:test";
+import { timestampDate } from "@bufbuild/protobuf/wkt";
 import type { AgentToolResult, ui } from "@canopy/contracts";
 import type { JsonObject } from "@canopy/domain";
 import { dockerAvailable } from "@canopy/db/testing";
@@ -83,6 +84,12 @@ describe.skipIf(!dockerAvailable)("CI check watches (gateway + scripted worker +
         checks: { total: 1, pending: 1 },
       });
 
+      // The thread's pull request list marks the watched pull request until the watch ends.
+      const marked = (await gw.api.listThreadPullRequests({ threadId: thread })).links[0];
+      expect(marked?.watchedUntil && timestampDate(marked.watchedUntil).toISOString()).toBe(
+        String(json(started)["until"]),
+      );
+
       // The run fails: one note for the commit (complete names the failed check), as a turn of its own.
       fixture.state.running = false;
       fixture.state.conclusion = "FAILURE";
@@ -127,6 +134,7 @@ describe.skipIf(!dockerAvailable)("CI check watches (gateway + scripted worker +
 
       const listed = json(await gw.worker.callTool({ threadId: thread, tool: "list_pr_watches", args: {} }));
       expect(listed["watches"]).toMatchObject([{ watch_id: watchId, status: "ended", end_reason: "passed" }]);
+      expect((await gw.api.listThreadPullRequests({ threadId: thread })).links[0]?.watchedUntil).toBeUndefined();
 
       // The timeline gets the notes from the turns' input (no join), with their counts.
       const updates = await watchUntil(gw.api, thread, (u) => u.some((x) => x.change.case === "snapshot"));

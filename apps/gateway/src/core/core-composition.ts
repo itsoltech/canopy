@@ -110,6 +110,7 @@ export function createCoreCheckWatches(core: GatewayCore): PrCheckWatches {
     },
     steered: (steerId) => coreSendSteer(core, steerId),
     log: (message) => coreLog(core, message),
+    changed: (threadId) => coreBroadcastThread(core, threadId),
   });
 }
 
