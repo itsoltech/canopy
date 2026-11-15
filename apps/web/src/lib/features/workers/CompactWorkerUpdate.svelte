@@ -118,7 +118,7 @@
   {status}
   line={status === "waiting" ? "Restarts after its current turns end." : ""}
   error={status === "failed"
-    ? reason || updates.snapshot?.run?.steps[step]?.reason || "The update did not finish."
+    ? desktop?.reason || reason || updates.snapshot?.run?.steps[step]?.reason || "The update did not finish."
     : ""}
   busy={inProgress}
   progress={desktop?.phase === "downloading" ? desktop.progress : undefined}
@@ -174,7 +174,7 @@
     {/if}
   {/snippet}
 </UpdateItem>
-{#if desktop?.disabledReason && !inProgress}
+{#if desktop?.disabledReason && !inProgress && (status !== "failed" || !!desktop.reason)}
   <p class="mb-2 ml-6 text-xs/5 text-pretty break-words text-muted" role="status">{desktop.disabledReason}</p>
 {/if}
 <Dialog bind:open={confirming} title="Restart Canopy app now?">
