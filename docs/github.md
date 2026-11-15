@@ -4,6 +4,8 @@ Status: **v1 wdrożone**: konta GitHub App i jawny fallback PAT, powiązania PR,
 pełny odczyt, komentarze i review, lifecycle, metadane oraz sterowanie GitHub Actions.
 Podstawowy zakres jest dostępny w web/desktop/mobile. Dodatkowe oznaczenia checków
 w kartach PR i sidebarze oraz podgląd PR w hover card opisane w §7 dotyczą interfejsu web.
+Web/desktop renderuje bezpieczny HTML w Markdown (2026-11-15); dostępność według
+promocji kanałów w [release.md](release.md).
 Tokeny użytkownika pozostają w domu wątku; integracja produktu nie nadaje agentom
 praw do mutacji GitHub. `watch_pr_checks` udostępnia wyłącznie obserwację checków (§10).
 
@@ -322,9 +324,12 @@ rewizję przez istniejący Hub/owner feed. `QueryCache` web/mobile odrzuca spó�
 Opis PR, komentarze, review i wątki review na web/desktop oraz mobile jawnie włączają
 obrazy w rendererze markdown. Wątki agentów mają osobny importer lokalnych obrazów Markdown; zewnętrzne URL
 pozostają linkami ([agent-visuals.md](agent-visuals.md#markdown-i-zwykłe-ścieżki)).
-HTML jest parsowany jako dane: obsługujemy `img` (`src`, `alt`, szerokość i wysokość
-do 4096 px) oraz `br`; pozostałe tagi zostawiają tylko tekst. Style i event handlery
-nie trafiają do DOM ani widoków natywnych.
+HTML jest parsowany jako dane. Web/desktop używa wspólnego drzewa dozwolonych
+elementów Markdown: nagłówki, akapity, formatowanie, listy, tabele, `details`/`summary`,
+linki i `align`; `img` zachowuje `src`, `alt` oraz wymiary do 4096 px. Mobile nadal
+obsługuje `img` i `br`, a z pozostałych tagów zachowuje tekst. Style i event handlery
+nie trafiają do DOM ani widoków natywnych; web usuwa również aktywne elementy
+i ich poddrzewa. Zasady pobierania obrazów PR pozostają wspólne dla klientów.
 
 `GetPullRequestImage` sprawdza owner PR i konto wybrane dla repozytorium, a następnie
 przynależność węzła GitHub do tego PR. Gateway pobiera `bodyHTML` tego węzła przez
@@ -1157,7 +1162,7 @@ Poller działa w gatewayu; aplikacja mobilna w tle nie utrzymuje odpytywania.
 | Odczyt/zapis cudzego repo, cache lub wątku | Owner scope przed cache i przed efektem, composite FK, weryfikacja repo/installation/account i docelowych comment/review/thread/run/job ID. Własność komentarza porównujemy z GitHub user ID konta, nie loginem ani rolą admin; cudzy zasób zwraca NotFound. Grant ani full auto nie zastępuje owner scope |
 | Przeciek przez worker/linked computers | Tokeny tylko w domu konta. DTO, lustra, protokół workerów i załącznik kontekstu bez credentiali. Allowlist RPC/capabilities, unpair/revoke zamyka streamy i czyści cache |
 | Prompt injection w opisie, diffie, review, logach i szkicu Create PR | Cała treść GitHub oraz wynik modelu są niezaufanymi danymi. Plik kontekstu oznacza pochodzenie i cytowane granice; notatka platformy zabrania traktować PR jako zgodę lub instrukcję systemową. Wynik agenta zasila tylko pola tekstowe formularza; nie ustala konta, repo/base, metody merge ani akcji. Użytkownik ogląda i zatwierdza tekst przed publikacją; linków/poleceń/żądań sekretów nie wykonujemy |
-| XSS, tracking i SSRF | Tokenowy renderer Markdown i `safeHref` z `@canopy/domain/markdown`; ograniczona obsługa `img`/`br` bez handlerów i stylów. Obrazy PR pobiera gateway wyłącznie z dozwolonych źródeł (§3), awatary z ograniczonego CDN (§6). Bez skryptów i proxy dowolnych linków. Endpointy API buduje gateway z walidowanych ID |
+| XSS, tracking i SSRF | Tokenowy renderer Markdown i `safeHref` z `@canopy/domain/markdown`; drzewo dozwolonych elementów HTML w web/desktop (`img`/`br` w mobile), bez handlerów i stylów. Obrazy PR pobiera gateway wyłącznie z dozwolonych źródeł (§3), awatary z ograniczonego CDN (§6). Bez skryptów i proxy dowolnych linków. Endpointy API buduje gateway z walidowanych ID |
 | Merge/close niewłaściwego PR albo nowego SHA | Preflight na świeżym stanie, jawne potwierdzenie repo/PR/base/head/metody, związane z request ID i SHA; zmiana celu lub expiry wymaga nowego potwierdzenia. GitHub egzekwuje protection/rulesets; brak bypass, kasowania gałęzi i merge innych PR w tle |
 | Cancel/re-run niewłaściwego CI, przerwanie deploy lub powtórzenie skutku | Gateway ustala repo/run/job/attempt/SHA i związek z PR; potwierdzenie cancel dotyczy całego wskazanego run. Re-run jawnie ostrzega o ponownym wykonaniu joba i jego zależności, również deploy. Nie ma force-cancel, debug logging ani workflow dispatch w v1 |
 | Kradzież tokenu z Contents/Actions: write albo logów | Repo instalacji ogranicza zasięg; token szyfrowany tylko w domu, stała allowlista operacji i brak worker/model API do mutacji. Logi i signed URL mają oddzielne limity/redakcję (§6); żadnego wysyłania logów do modelu z samego View logs |
