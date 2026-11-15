@@ -73,7 +73,7 @@
       {#if account.detail}<Sensitive value={account.detail} label="Account details" />{/if}
     </p>
   {/if}
-  <UsageMeters {usage} />
+  <UsageMeters {usage} showPace={!compact} />
 </li>
 
 {#snippet providerMark()}

@@ -63,6 +63,12 @@
       <InsetList label={`Accounts of ${proxy.name}`}>
         {#each supported as account (account.id)}<ProxyAccountRow {account} proxyId={proxy.id} {onread} />{/each}
       </InsetList>
+      {#if supported.some((account) => account.windows.length)}<p
+          class="text-sm/5 text-pretty text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
+        >
+          Pace compares the latest reported usage with even use until reset. Slow usage when ahead of pace. Differences
+          use percentage points (pp).
+        </p>{/if}
       {#if accounts.total > accounts.accounts.length}<p class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
           Showing {accounts.accounts.length} of {accounts.total}.
         </p>{/if}

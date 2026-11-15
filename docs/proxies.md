@@ -214,6 +214,19 @@ i akcje (karta proxy, management key, Test connection, Refresh, picker proxy w i
 i nadpisaniu workera).
 Wspólne etykiety i podsumowanie: `@canopy/domain/proxy-accounts`.
 
+W Accounts na web/desktop każde raportowane okno, także 5-hour, zachowuje własny
+pasek pozostałego limitu i czas resetu. Przy znanej długości, dacie resetu i zużyciu
+`usagePace` z `@canopy/domain/provider-usage` wylicza pozostały limit przy równym
+zużyciu do resetu: `(reset − teraz) / długość okna`. Pionowy znacznik pokazuje ten
+poziom, a podpis porównuje ostatni raport z nim w punktach procentowych (pp):
+**Ahead of pace**, **Spare capacity** albo **On pace** (różnica zaokrąglona do 0 pp).
+Przekroczenie tempa jest bursztynowe; osiągnięty limit pozostaje czerwony.
+To porównanie do równomiernego zużycia, nie prognoza na podstawie historii.
+Nieznana długość, brak resetu i daty poza bieżącym oknem nie dostają tempa;
+wygasłe odczyty są pomijane. Brak raportu 5h nie tworzy pustego ani zerowego limitu.
+Podpis tempa ma stałe miejsce dla wszystkich jego stanów. Kompaktowy widok kont
+i mierniki instancji Providers pozostają bez szczegółów tempa.
+
 Web ukrywa tożsamości kont oraz komunikaty kont mogące zawierać login wspólnym
 komponentem `Sensitive`, tak samo jak adresy w Providers. Kliknięcie lub aktywacja
 klawiaturą odsłania wartość na 30 s; Escape ukrywa ją od razu. Rozmycie nie zmienia
