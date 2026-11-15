@@ -108,14 +108,14 @@ export function usageWarnings(snapshot: ProviderUsageSnapshot | undefined, now =
   const warnings = windows
     .filter((w) => w.reached || w.warning || (w.usedPercent ?? 0) >= 90)
     .map((w) => {
-      const percent = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(w.usedPercent ?? 0);
+      const left = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(100 - (w.usedPercent ?? 0));
 
       const title =
         w.reached || (w.usedPercent ?? 0) >= 100
           ? `${usageWindowName(w.key, w.windowMinutes)} limit reached`
           : w.usedPercent === undefined
             ? `${usageWindowName(w.key, w.windowMinutes)} limit is close`
-            : `${usageWindowName(w.key, w.windowMinutes)} limit ${percent}% used`;
+            : `${usageWindowName(w.key, w.windowMinutes)} limit ${left}% left`;
 
       return [title, usageReset(w)].filter(Boolean).join(" · ");
     });

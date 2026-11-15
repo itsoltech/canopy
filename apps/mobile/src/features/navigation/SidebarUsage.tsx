@@ -62,7 +62,7 @@ export function SidebarUsage({ workers }: { workers: readonly ui.Worker[] }) {
               >
                 <View
                   style={{
-                    width: `${item.tone === "extra" ? 100 : (item.percent ?? 0)}%`,
+                    width: `${item.tone === "extra" ? 100 : (item.percentLeft ?? 0)}%`,
                     minWidth: 2,
                     height: 4,
                     borderRadius: 2,

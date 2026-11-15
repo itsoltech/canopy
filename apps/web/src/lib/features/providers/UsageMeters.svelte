@@ -22,7 +22,7 @@
         <div class="flex flex-wrap justify-between gap-x-3 gap-y-0.5 tabular-nums">
           <span class="text-zinc-700 dark:text-zinc-300"
             >{usageWindowName(window.key, window.windowMinutes)}{window.usedPercent !== undefined
-              ? ` · ${new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(window.usedPercent)}% used`
+              ? ` · ${new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(100 - window.usedPercent)}% left`
               : window.reached
                 ? " · limit reached"
                 : ""}</span
@@ -32,10 +32,10 @@
         {#if window.usedPercent !== undefined}
           <div
             role="meter"
-            aria-label={`${usageWindowName(window.key, window.windowMinutes)} limit used`}
+            aria-label={`${usageWindowName(window.key, window.windowMinutes)} limit left`}
             aria-valuemin={0}
             aria-valuemax={100}
-            aria-valuenow={window.usedPercent}
+            aria-valuenow={100 - window.usedPercent}
             class="h-1 overflow-hidden rounded-full bg-zinc-950/10 dark:bg-white/10"
           >
             <div
@@ -47,7 +47,7 @@
                     ? "bg-amber-600 dark:bg-amber-400"
                     : "bg-zinc-500 dark:bg-zinc-400",
               ]}
-              style:width={`${window.usedPercent}%`}
+              style:width={`${100 - window.usedPercent}%`}
             ></div>
           </div>
         {/if}
