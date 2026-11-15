@@ -5,6 +5,8 @@ i filtr ulubionych modeli oraz opcjonalna retencja archiwum są zgodne z web.
 Przesuwanie obrazów wyklucza podwójne stuknięcie do powiększania.
 Galerie agenta czekają na koniec swojej tury,
 a kompaktowanie kontekstu rozdziela sekcje pracy.
+Edytor cytatu ma podgląd fragmentu i stałą stopkę z komentarzem oraz zapisem ponad
+klawiaturą; przycinanie fragmentu otwiera osobny tryb edycji w tym samym arkuszu.
 Dostępność w wydaniach zależy od kanału.
 
 Natywna aplikacja Expo/React Native działa na iOS i Androidzie. Obsługuje wątki,
@@ -1350,7 +1352,14 @@ tekst UTF-8 do 128 KiB i 2000 wierszy (Markdown także renderowany), pozostałe 
 przez Share na iOS albo zapis do wskazanego katalogu na Androidzie. Nie renderujemy PDF
 ani plików biurowych wewnątrz aplikacji; web również udostępnia ich pobranie.
 Akcja „Quote passage” przy odpowiedzi, rozumowaniu, kodzie, wyniku i diffie otwiera
-edytowalny fragment z opcjonalnym komentarzem. Systemowego menu zaznaczenia tekstu
+arkusz z przewijanym podglądem fragmentu i źródłem. Jawnie oznaczony Markdown
+jest renderowany, a zwykły tekst i kod zachowują swój format. Komentarz opcjonalny
+oraz główny przycisk „Add quote” / „Save quote” są w stałej stopce ponad klawiaturą;
+podgląd oddaje im miejsce przy jej otwieraniu. Długi komentarz przewija się wewnątrz
+pola. „Edit passage” otwiera natywne pole fragmentu w pozostałym obszarze arkusza;
+„Use passage” wraca do podglądu, zachowując komentarz. „Jump to source” i link PR
+są przy podglądzie, a usuwanie cytatu ma osobny przycisk obok zapisu.
+Systemowego menu zaznaczenia tekstu
 nie rozszerzamy modułem natywnym. Zapis wstawia cytat w ostatnim miejscu kursora
 (bez kursora — na końcu), a fokus wraca za token. Cytat używa tego samego tekstowego
 modelu plakietek co wzmianki `@` i `$`: krótki fragment w tekście, pełna treść i źródło

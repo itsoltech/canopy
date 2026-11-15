@@ -1,15 +1,15 @@
 import { useState } from "react";
-import { View } from "react-native";
+import { Text, View, useWindowDimensions } from "react-native";
 import type { ui } from "@canopy/contracts";
 import { QUOTE_LIMITS } from "@canopy/domain";
-import { Button, Field, Sheet } from "../../ui/components";
-import { Notice } from "../../ui/Alert";
-import { QuoteSource } from "./QuoteSource";
-import { citationPreview } from "@canopy/domain";
-import { Text } from "react-native";
+import { KeyboardController, useKeyboardState } from "react-native-keyboard-controller";
+import { Button } from "../../ui/Button";
+import { SheetSurface } from "../../ui/SheetSurface";
+import { SheetCloseButton } from "../../ui/SheetDragArea";
 import { styles, useColors } from "../../ui/theme";
-import * as Linking from "expo-linking";
-import { safeHref } from "@canopy/domain/markdown";
+import { QuoteSource } from "./QuoteSource";
+import { QuotePassage } from "./QuotePassage";
+import { QuoteEditorFooter } from "./QuoteEditorFooter";
 
 /** Native selection menus cannot add actions in JS. This editable passage lets the reader keep any excerpt. */
 export function QuoteEditor({
@@ -27,66 +27,80 @@ export function QuoteEditor({
 }) {
   const [text, setText] = useState(quote.text.slice(0, QUOTE_LIMITS.maxTextChars));
   const [comment, setComment] = useState(quote.comment);
+  const [editingPassage, setEditingPassage] = useState(false);
   const [source, setSource] = useState(false);
-  const colors = useColors();
+  const c = useColors();
+  const { width, height } = useWindowDimensions();
+  const keyboardHeight = useKeyboardState((state) => state.height);
+  const compact = height < 700 || height - keyboardHeight < 500;
+  const title = editing ? "Edit citation" : "Quote passage";
+
+  function preview() {
+    void KeyboardController.dismiss();
+    setEditingPassage(false);
+  }
 
   return (
-    <Sheet title={editing ? "Edit citation" : "Quote passage"} visible onClose={onClose}>
-      <Notice>Keep the passage you want to quote, then add a comment.</Notice>
-      {quote.pullRequest && (
-        <Text selectable style={[styles.meta, { color: colors.muted }]}>
-          {citationPreview(quote).caption}
-        </Text>
-      )}
-      {quote.text.length > QUOTE_LIMITS.maxTextChars && (
-        <Notice>Quotes can contain up to 20,000 characters. Keep a shorter passage.</Notice>
-      )}
-      <Field
-        label="Passage"
-        value={text}
-        onChangeText={setText}
-        multiline
-        maxLength={QUOTE_LIMITS.maxTextChars}
-        style={{ minHeight: 120, maxHeight: 280 }}
-      />
-      <Field
-        label="Comment (optional)"
-        value={comment}
-        onChangeText={setComment}
-        multiline
-        maxLength={QUOTE_LIMITS.maxCommentChars}
-      />
-      <View style={{ alignItems: "flex-end" }}>
-        {quote.pullRequest && (
-          <Button
-            title="Open on GitHub"
-            onPress={() => {
-              const url = safeHref(quote.pullRequest?.url ?? "");
-
-              if (url) void Linking.openURL(url);
-            }}
-          />
-        )}
-        {editing && quote.sourceItemId ? <Button title="Jump to source" onPress={() => setSource(true)} /> : null}
-        {onRemove ? (
-          <Button
-            title="Remove citation"
-            onPress={() => {
-              onRemove();
-              onClose();
-            }}
-          />
-        ) : null}
-        <Button
-          title={editing ? "Save quote" : "Add quote"}
-          disabled={!text.trim()}
-          onPress={() => {
-            onSave({ ...quote, text, comment });
-            onClose();
+    <SheetSurface
+      label={title}
+      visible
+      onClose={onClose}
+      scroll={false}
+      header={
+        <View style={{ minHeight: 44, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <Text accessibilityRole="header" numberOfLines={2} style={[styles.heading, { flex: 1, color: c.text }]}>
+            {title}
+          </Text>
+          <SheetCloseButton label={`Close ${title}`} />
+        </View>
+      }
+      footer={
+        <View
+          style={{
+            paddingHorizontal: 16,
+            paddingVertical: compact ? 4 : 16,
+            borderTopWidth: 1,
+            borderColor: c.line,
+            backgroundColor: c.surface,
           }}
+        >
+          {editingPassage ? (
+            <Button title="Use passage" variant="primary" disabled={!text.trim()} onPress={preview} />
+          ) : (
+            <QuoteEditorFooter
+              comment={comment}
+              onChangeComment={setComment}
+              editing={editing}
+              compact={compact}
+              inline={width > height}
+              disabled={!text.trim()}
+              onSave={() => {
+                onSave({ ...quote, text, comment });
+                onClose();
+              }}
+              onRemove={
+                onRemove &&
+                (() => {
+                  onRemove();
+                  onClose();
+                })
+              }
+            />
+          )}
+        </View>
+      }
+    >
+      <View style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+        <QuotePassage
+          quote={quote}
+          text={text}
+          onChangeText={setText}
+          editing={editingPassage}
+          onEdit={() => setEditingPassage(true)}
+          onSource={() => setSource(true)}
         />
       </View>
       {source && <QuoteSource quote={quote} onClose={() => setSource(false)} />}
-    </Sheet>
+    </SheetSurface>
   );
 }
