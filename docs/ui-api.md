@@ -1089,6 +1089,14 @@ używa wspólnych pickerów modelu/instancji, wysiłku i uprawnień, ogranicza w
 i podaje aktualnie kwalifikujące się workery. Z panelu wątku domyślnie wybiera „In this thread”.
 Lista pokazuje projekt, politykę, model i historię z linkiem do wątku i nazwą workera. Zmiany harmonogramów
 nowych wątków przychodzą w `OverviewUpdate.schedule`; istniejących również w `ThreadUpdate.schedule`.
+Panel szczegółów wątku korzysta z listy harmonogramów aktualizowanej przez `WatchThread`, także
+dla połączonego komputera i pustej listy po wykonaniu ostatniego zadania. Osobny odczyt `GetThreadPanel`
+służy jako zapasowa lista wyłącznie wtedy, gdy komputer wątku jest nieosiągalny; nie zastępuje
+aktualizacji na żywo starszym wynikiem odczytu.
+Sam błąd `GetThreadPanel` nie oznacza utraty strumienia: również w desktopie w trybie remote
+nie wolno wtedy ukrywać nowych harmonogramów za ostatnią zapisaną, np. pustą listą panelu.
+Strumień sekwencyjny subskrybuje zmiany harmonogramów przed odczytem początkowego `controls`,
+żeby utworzenie zadania podczas otwierania widoku nie czekało na okresowe odświeżenie.
 Przy braku workera puli ponawianie trwa co 5 s; po 2 minutach `skip` pomija, `run_once` zachowuje
 jedno zaległe wykonanie (do `until`, jeśli ustawione). `specific` może utworzyć wątek na offline workerze,
 korzystając z jego ostatniej dostępności instancji. Szczegóły: [agent-bus.md, sekcja 5](agent-bus.md#5-harmonogram).
