@@ -91,6 +91,24 @@ const LOOKS = new Map<string, Look>(
       tried: "cancel a schedule",
       icon: "calendar-days",
     },
+    watch_pr_checks: {
+      doing: "Starting to watch CI checks",
+      done: "Watching CI checks",
+      tried: "watch CI checks",
+      icon: "eye",
+    },
+    list_pr_watches: {
+      doing: "Listing CI check watches",
+      done: "Listed CI check watches",
+      tried: "list CI check watches",
+      icon: "eye",
+    },
+    cancel_pr_watch: {
+      doing: "Stopping a CI check watch",
+      done: "Stopped a CI check watch",
+      tried: "stop a CI check watch",
+      icon: "eye-slash",
+    },
   } satisfies Record<string, Look>),
 );
 
@@ -110,12 +128,22 @@ export interface BusLook {
 }
 
 /** Title and icon of a bus call; a tool this UI does not know shows its name in words. */
-export function busLook(tool: string, args: JsonObject, running: boolean, refused = false): BusLook {
+export function busLook(
+  tool: string,
+  args: JsonObject,
+  running: boolean,
+  refused = false,
+  result: JsonObject = {},
+): BusLook {
   const look = LOOKS.get(tool);
 
   if (!look) return { title: humanizeToolName(tool), icon: "sparkles" };
 
   if (refused) return { title: `Tried to ${look.tried}`, icon: look.icon };
+
+  // Every check had already passed: no watch started.
+  if (tool === "watch_pr_checks" && !running && result["watching"] === false)
+    return { title: "Checked CI checks", icon: look.icon };
 
   if (tool === "list_threads" && str(args["scope"]) === "tree")
     return { title: running ? "Listing the thread tree" : "Listed the thread tree", icon: look.icon };

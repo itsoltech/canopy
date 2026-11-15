@@ -33,7 +33,7 @@ export function AgentBusCallView({ call, status }: { call: AgentBusCall; status:
   const result = parseObject(call.resultJson);
   const running = status === ItemStatus.IN_PROGRESS;
   const failed = call.isError || status === ItemStatus.FAILED;
-  const look = busLook(tool, args, running, call.isError);
+  const look = busLook(tool, args, running, call.isError, result);
   const target = call.targetThreadId || str(result["thread_id"]) || str(args["thread_id"]);
   const waitingFor = listOf(args["thread_ids"]).filter(isString);
   const fallback = str(args["title"]) || "Side thread";

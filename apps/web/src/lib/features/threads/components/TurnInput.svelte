@@ -9,6 +9,7 @@
   import { useThreadDirectory } from "../thread-directory.ts";
   import { turnOrigin } from "@canopy/domain/turn-origin";
   import BackgroundNoteRow from "./BackgroundNoteRow.svelte";
+  import ChecksNoteRow from "./ChecksNoteRow.svelte";
   import ThreadLink from "./items/ThreadLink.svelte";
   import UserMessageView from "./items/UserMessageView.svelte";
   import ReceivedAgentMessage from "./items/ReceivedAgentMessage.svelte";
@@ -69,6 +70,9 @@
 {:else if origin.kind === "background_task"}
   <!-- The platform's note about ended background tasks: a system line, not a message. -->
   <BackgroundNoteRow itemIds={origin.itemIds} />
+{:else if origin.kind === "pr_checks"}
+  <!-- The platform's note about a linked pull request's CI checks: a system line, not a message. -->
+  <ChecksNoteRow notes={origin.notes} />
 {:else if origin.kind === "user"}
   <!-- With attachments, mentions or quotes the agent got a platform note (file paths, threads, the quoted passages) or a
        reordered command: the message shows as written, with its files, chips and quotes, and the full text folds. -->

@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { Text, View } from "react-native";
-import { ItemStatus, NoticeLevel, type Notice } from "@canopy/contracts";
+import { Linking, Text, View } from "react-native";
+import { ItemStatus, NoticeLevel, type Notice, type ui } from "@canopy/contracts";
+import { checksNoteLine } from "@canopy/domain/pr-check-display";
+import type { TurnOrigin } from "@canopy/domain/turn-origin";
 import { backgroundHeadline, backgroundOutcome, backgroundTitle } from "@canopy/domain/background-tasks";
 import { noticePresentation } from "@canopy/domain/notice-presentation";
 import type { NoticeState } from "@canopy/domain/turn-notices";
@@ -92,5 +94,59 @@ export function BackgroundNoteRow({ itemIds }: { itemIds: readonly string[] }) {
         );
       })}
     </View>
+  );
+}
+
+/**
+ * The platform told the agent how the CI checks of a linked pull request moved (a turn of its own, or a note steered
+ * into the running turn): one compact system line per note, linking to the pull request (web: ChecksNoteRow).
+ */
+export function ChecksNoteRow({ notes }: { notes: readonly ui.PullRequestChecksNote[] }) {
+  const c = useColors();
+  const failed = useTone("rose").dot;
+  const passed = useTone("emerald").dot;
+
+  return (
+    <View style={{ gap: 4 }}>
+      {notes.map((note, index) => {
+        const line = checksNoteLine(note);
+
+        return (
+          <View key={`${note.watchId}:${index}`} style={{ flexDirection: "row", gap: 8 }}>
+            <View style={{ height: 20, justifyContent: "center" }}>
+              <Icon
+                name={line.icon}
+                size={14}
+                color={line.tone === "failed" ? failed : line.tone === "passed" ? passed : c.muted}
+              />
+            </View>
+            <Text style={[styles.meta, { flex: 1, color: c.muted }]}>
+              {line.text} ·{" "}
+              <Text
+                accessibilityRole="link"
+                onPress={() => void Linking.openURL(note.url)}
+                style={{ fontFamily: font.medium, color: c.soft, textDecorationLine: "underline" }}
+              >
+                {line.pullRequest}
+              </Text>
+              {line.commit ? ` · ${line.commit}` : ""}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+/** A turn whose input is the platform's note (ended background tasks, CI checks): its system lines. */
+export function PlatformNoteRow({
+  origin,
+}: {
+  origin: Extract<TurnOrigin, { kind: "background_task" | "pr_checks" }>;
+}) {
+  return origin.kind === "pr_checks" ? (
+    <ChecksNoteRow notes={origin.notes} />
+  ) : (
+    <BackgroundNoteRow itemIds={origin.itemIds} />
   );
 }

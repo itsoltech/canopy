@@ -136,7 +136,8 @@ export class ThreadState {
           s.status === "accepted" ||
           (s.status === "failed" && s.shellCommand !== undefined)) &&
         !echoed.has(s.id) &&
-        s.backgroundItemIds.length === 0,
+        s.backgroundItemIds.length === 0 &&
+        s.prChecks.length === 0,
     );
   });
 

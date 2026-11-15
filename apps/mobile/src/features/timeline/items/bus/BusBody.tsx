@@ -10,6 +10,7 @@ import {
   type ThreadSummary,
 } from "@canopy/domain/tools";
 import { statusLook } from "@canopy/domain/status-look";
+import { watchCallFacts } from "@canopy/domain/pr-check-display";
 import { Badge, StatusDot } from "../../../../ui/Badge";
 import { Markdown } from "../../../../ui/markdown";
 import { font, styles, useColors } from "../../../../ui/theme";
@@ -246,6 +247,8 @@ export function BusBody({
     case "schedule_wakeup":
     case "schedule_recurring":
       return str(args["prompt"]) ? <AgentWell label="Prompt" text={str(args["prompt"])} /> : null;
+    case "watch_pr_checks":
+      return settled ? <Facts lines={watchCallFacts(args, result)} /> : null;
     default:
       return null;
   }

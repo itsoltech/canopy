@@ -137,6 +137,7 @@
     "./humanize": "./src/humanize.ts",
     "./tools": "./src/tools/index.ts",
     "./turn-origin": "./src/turn-origin.ts",
+    "./pr-check-display": "./src/pr-check-display.ts",
     "./work-summary": "./src/work-summary.ts",
     "./status-look": "./src/status-look.ts",
     "./import-look": "./src/import-look.ts",
