@@ -1,37 +1,33 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
-  import { sidebarUsageAccounts, sidebarUsageGlance } from "@canopy/domain/sidebar-usage";
-  import { proxyUsageSections, proxyUsageText } from "@canopy/domain/proxy-accounts";
-  import { proxyCapacityGlance } from "@canopy/domain/proxy-capacity";
+  import { sidebarUsageAccounts } from "@canopy/domain/sidebar-usage";
+  import { usageSummary, usageSummaryGlance, usageSummaryNotes } from "@canopy/domain/usage-summary";
   import { sharedProxies } from "#lib/features/proxies/proxies.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
-  import { providerKeyOf } from "#lib/features/threads/providers.ts";
   import { clock } from "#lib/shared/clock.svelte.ts";
   import Popover from "#lib/shared/ui/Popover.svelte";
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
-  import TruncatedText from "#lib/shared/ui/TruncatedText.svelte";
-  import ProviderIcon from "#lib/features/models/ProviderIcon.svelte";
+  import TextLink from "#lib/shared/ui/TextLink.svelte";
   import UsageGlance from "./UsageGlance.svelte";
-  import UsageMeters from "./UsageMeters.svelte";
-  import ProxyUsageAccounts from "#lib/features/proxies/ProxyUsageAccounts.svelte";
+  import UsageSummaryRow from "./UsageSummaryRow.svelte";
 
   let { class: className }: { class?: ClassValue } = $props();
   const overview = useOverview();
   const accounts = $derived(sidebarUsageAccounts(overview.workers, clock.now));
-  const directGlance = $derived(sidebarUsageGlance(accounts, clock.now));
 
   // Accounts the gateway read from proxies in use; reading the list never calls a proxy.
   const proxies = sharedProxies();
-  const sections = $derived(proxyUsageSections(proxies.data?.proxies));
-  const glance = $derived(proxyCapacityGlance(proxies.data?.proxies ?? [], directGlance, clock.now));
+  const rows = $derived(usageSummary(accounts, proxies.data?.proxies ?? [], clock.now));
+  const glance = $derived(usageSummaryGlance(rows, clock.now));
+  const notes = $derived(usageSummaryNotes(proxies.data?.proxies ?? []));
 
   const usageProxies = $derived(
     (proxies.data?.proxies ?? []).filter((proxy) => proxy.kind === "cliproxyapi" && proxy.usedBy.length),
   );
 
   const label = $derived(
-    `Show provider usage. ${[...glance.map((item) => item.label), ...sections.map(proxyUsageText)].join(". ")}`,
+    `Show provider usage. ${[...glance.map((item) => `${item.label}.`), ...notes.map((note) => note.text)].join(" ")}`,
   );
 
   let open = $state(false);
@@ -87,22 +83,24 @@
         <div class="grid gap-3 p-3">
           <h2 class="text-sm font-medium text-zinc-500 sm:text-xs dark:text-zinc-400">Provider usage</h2>
           <div class="grid max-h-[min(24rem,50dvh)] min-w-0 gap-3 overflow-y-auto overscroll-contain">
-            {#each accounts as account (account.key)}
-              {@const provider = providerKeyOf(account.provider)}
-              <section class="grid min-w-0 gap-2">
-                <div class="flex min-w-0 items-center gap-2">
-                  {#if provider}<ProviderIcon {provider} size="sm" />{/if}
-                  <TruncatedText class="flex-1 text-base font-medium sm:text-sm" text={account.label} />
-                  <TruncatedText
-                    class="max-w-[40%] text-sm text-zinc-500 sm:text-xs dark:text-zinc-400"
-                    text={account.computer}
-                  />
-                </div>
-                <UsageMeters usage={account.usage} now={clock.now} />
-              </section>
-            {/each}
-            {#each usageProxies as proxy (proxy.id)}
-              <ProxyUsageAccounts {proxy} onclose={() => (open = false)} />
+            {#if rows.length}
+              <ul role="list" class="grid min-w-0 gap-3">
+                {#each rows as row (row.provider)}<UsageSummaryRow {row} />{/each}
+              </ul>
+            {:else if !notes.length}
+              <p class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">No limit readings yet.</p>
+            {/if}
+            {#each notes as note (note.proxyId)}
+              <p
+                role={note.checking ? "status" : undefined}
+                class="text-sm/5 text-pretty text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
+              >
+                {note.text}
+                {#if !note.checking}<TextLink
+                    href={`/settings/proxies#proxy-${note.proxyId}`}
+                    onclick={() => (open = false)}>Check proxy settings</TextLink
+                  >{/if}
+              </p>
             {/each}
           </div>
           <ButtonLink href="/settings/providers" variant="ghost" onclick={() => (open = false)} class="justify-start"

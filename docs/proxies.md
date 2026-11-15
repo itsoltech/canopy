@@ -216,18 +216,23 @@ Web ukrywa tożsamości kont oraz komunikaty kont mogące zawierać login wspól
 komponentem `Sensitive`, tak samo jak adresy w Providers. Kliknięcie lub aktywacja
 klawiaturą odsłania wartość na 30 s; Escape ukrywa ją od razu. Rozmycie nie zmienia
 szerokości tekstu, a ukryta wartość nie trafia do tytułu ani etykiety dostępności.
-Popover **Provider usage** pokazuje pojemność używanych proxy pogrupowaną według providera,
-z rozwijaną listą kont, ich limitami (najbardziej wykorzystane najpierw), statusem innym
-niż Active oraz czasem ostatniego sprawdzenia. Długa lista przewija się wewnątrz nakładki. Korzysta wyłącznie
-ze wspólnego `ListProxies` aktualizowanego przez overview; otwarcie nie odpytuje proxy
-ani nie zakłada nowego timera.
+Popover **Provider usage** to proste podsumowanie: jeden wiersz na providera ze znakiem,
+nazwą, procentem pozostałej (ważonej) pojemności, jednym paskiem i najbliższym resetem
+(`@canopy/domain/usage-summary`). Konta z używanych proxy i bezpośrednie instancje łączą się
+w jednym wierszu; dla każdego okna zostaje niższy odczyt. Krótsze okno (np. 5-hour) pojawia
+się w tym samym wierszu tylko wtedy, gdy ogranicza bardziej niż główne. Niska pojemność to
+kolor liczby i paska oraz jedno słowo „Low”. Popover nie pokazuje list kont, jednostek,
+liczby raportujących kont ani nieznanych planów; szczegóły zostają w Settings → Proxies
+i Providers. Proxy w użyciu, którego kont nie da się odczytać, dostaje jedno krótkie zdanie
+z linkiem do jego karty. Korzysta wyłącznie ze wspólnego `ListProxies` aktualizowanego przez
+overview; otwarcie nie odpytuje proxy ani nie zakłada nowego timera.
 
 Mobile (`apps/mobile/src/ui/Sensitive.tsx`) nie renderuje ukrytej wartości wcale: zamiast
 rozmycia pokazuje kropkę za każdy znak (spacje zostają), więc zrzut ekranu, udostępnianie
 ekranu ani drzewo dostępności nie widzą tekstu; etykieta mówi „… hidden”. Dotknięcie odsłania
 na 30 s, drugie ukrywa; wyjście aplikacji z pierwszego planu, nowa wartość i odmontowanie
 ukrywają od razu. Host w URL proxy jest zamaskowany, schemat i ścieżka zostają. Arkusz
-**Provider usage** w stopce szuflady pokazuje te same sekcje co popover web, bez natywnych
+**Provider usage** w stopce szuflady pokazuje te same wiersze co popover web, bez natywnych
 modułów.
 
 Okna Codexa są nazywane według `window-minutes`, nigdy według pozycji primary/secondary:
@@ -244,40 +249,64 @@ wartości cache przekraczające tę granicę. Sam odczyt wykorzystania pozostaje
 Typ planu w `ProxyAccount.plan` to zamknięty enum: Free, Plus, Pro, Team, Business,
 Enterprise, Max, Max 5x, Max 20x, Ultra, Pro 100/200/500, Premium, Super i Other.
 Brak danych lub niepotwierdzona waga otrzymuje oznaczenie Unknown plan.
-CLIProxyAPI udostępnia dla Codexa obiekt `id_token.plan_type` oraz nagłówek
-`x-codex-plan-type`; parser nie dekoduje JWT ani nie pobiera plików auth. Jawne pola
-`plan_type`, `chatgpt_plan_type`, `subscription_type`, `rate_limit_tier`, `tier`
-obsługują odpowiedzi, które je udostępniają. Standardowa lista CLIProxyAPI nie
-gwarantuje typu planu Claude, Grok ani Antigravity; nie zgadujemy go z nazwy konta.
-Do UI nie trafiają pozostałe claims ani dowolne teksty planów.
+Plan pochodzi wyłącznie z identyfikatorów samych providerów; własnych mnożników ani pól
+pojemności proxy nie czytamy. CLIProxyAPI udostępnia dla Codexa obiekt `id_token.plan_type`
+oraz nagłówek `X-Codex-Plan-Type` (identyfikatory OpenAI); parser nie dekoduje JWT ani nie
+pobiera plików auth. Dla Codexa nagłówek ma pierwszeństwo, bo opisuje ostatnią odpowiedź,
+a zapisany claim może pochodzić sprzed zmiany planu. Identyfikatory Codexa: `plus` → Plus,
+`prolite` → Pro 100, `pro` → Pro 200 (pierwotny Pro za 200 USD), `promax` → Pro 500.
+Jawne pola `plan_type`, `chatgpt_plan_type`, `subscription_type`, `rate_limit_tier`, `tier`
+obsługują odpowiedzi, które je udostępniają.
+
+Claude: upstream CLIProxyAPI (sprawdzone 2026-11-15) nie ma w `auth-files` żadnego
+identyfikatora planu ani profilu. Sygnały Claude to tylko `Anthropic-Ratelimit-Unified-*`
+i `Retry-After` (także w `model_quotas`), `account_type` to `oauth` lub `api_key`, a
+`id_token` dotyczy tylko Codexa. Plan Claude jest więc nieznany i liczy się jako ×1;
+nie zgadujemy go z nazwy konta. To samo dotyczy Grok i Antigravity.
+Do UI nie trafiają pozostałe claims ani dowolne teksty planów. Dla poświadczeń
+`account_type: api_key` CLIProxyAPI wpisuje sam klucz w `account`, więc to pole nigdy
+nie staje się etykietą konta.
 
 Pojemność liczy `@canopy/domain/proxy-capacity`, osobno dla każdego okna: suma wag
 kont daje jednostki, a suma `waga × (1 − wykorzystanie)` daje dostępne jednostki.
 Jedna tabela wag wraz z datą i źródłami znajduje się w tym module. Nie wyliczamy
-mnożników z cen ani z podobnych nazw planów. Niepotwierdzona kombinacja planu,
-providera i okna liczy się jako ×1 i jest jawnie oznaczona. Dotyczy to również
-niejednoznacznego Pro Codexa oraz limitów API Groka: abonamentowy pool Groka nie
-jest limitem API. Dawne Max 20x Claude jest obecnie pokazywane jako Ultra,
-a Max 5x jako Max; waga tygodniowa odpowiada aktualnemu planowi.
+mnożników z cen ani z podobnych nazw planów. Wagi według deklaracji providerów
+(sprawdzone 2026-11-15):
+
+| Provider | Plan | Tydzień | 5 godzin |
+|---|---|---|---|
+| Claude | Pro | 1 | 1 |
+| Claude | Max (Max 5x) | 5 | 5 |
+| Claude | Ultra (dawne Max 20x) | 10 | brak limitu |
+| Codex | Plus | 1 | 1 |
+| Codex | Pro 100 (`prolite`) | 10 | brak limitu |
+| Codex | Pro 200 (`pro`) | 20 | brak limitu |
+| Codex | Pro 500 (`promax`) | 50 | brak limitu |
+
+Źródła: strony pomocy Claude o planach Max i Ultra, strona pomocy OpenAI o planach Pro
+oraz ogłoszenie OpenAI o limitach Codexa z 2026-11-08 (Pro 100/200/500 = 10/20/50 × Plus,
+bez limitu 5-godzinnego). Niepotwierdzona kombinacja planu, providera i okna liczy się
+jako ×1 i jest oznaczona w danych; popover tego nie pokazuje. Dotyczy to limitów API Groka:
+abonamentowy pool Groka nie jest limitem API. Dawne Max 20x Claude jest obecnie pokazywane
+jako Ultra, a Max 5x jako Max; waga tygodniowa odpowiada aktualnemu planowi.
 
 Brak pomiaru, brak procentu bez sygnału reached lub miniony reset wyklucza konto
-z mianownika danego okna. UI podaje liczbę raportujących kont. Wyłączone konta,
+z mianownika danego okna. Wyłączone konta,
 wymagające logowania oraz ze statusem błędu lub nieznanym są wykluczone. Cooling
 down i osiągnięcie dowolnego aktualnego limitu zerują dostępną pojemność konta,
 zachowując jego jednostki w oknach, dla których istnieje odczyt. Nie tworzymy
 brakujących okien ani nie zakładamy, że reset sam potwierdził powrót dostępności.
-Ikona paska bocznego pokazuje skumulowane wykorzystanie według providera, łącząc
-konta z używanych proxy; dla bezpośrednich instancji zachowuje bardziej ograniczający
-odczyt. Przy limicie bez procentu samo reached oznacza zerową dostępność.
+Ikona paska bocznego pokazuje dla każdego providera najbardziej ograniczające okno
+z wiersza popovera, więc zgadza się z tym, co popover pokazuje. Przy limicie bez procentu samo reached oznacza zerową dostępność.
 Okna o nieznanym okresie (Primary limit / Secondary limit) zostają przy koncie,
 ale nie są sumowane. Standardowe klucze okien łączą również starsze odczyty cache
 bez pola długości; niestandardowe okresy wymagają identycznej liczby minut.
 
-Listy kont w Settings → Proxies i popoverze, ich podsumowania oraz agregacja
+Listy kont w Settings → Proxies, podsumowania oraz agregacja
 obsługują wyłącznie Claude, Codex i Grok. Pozostałe konta nie ujawniają tożsamości
 ani abonamentów; zostaje jedynie liczba kont nieobsługiwanego providera.
 
-Źródła sprawdzone 2026-11-14:
+Źródła sprawdzone 2026-11-14 (plany Claude w upstream: 2026-11-15):
 - [CLIProxyAPI: lista i oczyszczone claims](https://github.com/router-for-me/CLIProxyAPI/blob/e96d4c4818851cf0e96d27b2bc8b67379e449d9e/internal/api/handlers/management/auth_files.go),
 - [CLIProxyAPI: mapowanie okien i nullable secondary](https://github.com/router-for-me/CLIProxyAPI/blob/e96d4c4818851cf0e96d27b2bc8b67379e449d9e/internal/runtime/executor/helps/codex_quota.go),
 - [Codex: pomijanie pustych okien](https://github.com/openai/codex/blob/main/codex-rs/codex-api/src/rate_limits.rs).

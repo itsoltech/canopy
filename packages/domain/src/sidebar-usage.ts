@@ -3,14 +3,6 @@ import { activeUsageWindows, usageBillingNotice } from "./provider-usage.ts";
 
 export type UsageTone = "neutral" | "warning" | "danger" | "extra";
 
-/** Extension point for upstream status; never infer proxy quotas from plan windows. */
-export interface ProxyUsageSection {
-  readonly proxyId: string;
-  readonly label: string;
-  readonly accountCount: number;
-  readonly coolingDownCount: number;
-}
-
 export interface SidebarUsageAccount {
   readonly key: string;
   readonly provider: Provider;

@@ -1,6 +1,5 @@
 import { Provider, ui } from "@canopy/contracts";
 import type { StatusLook } from "./status-look.ts";
-import type { ProxyUsageSection } from "./sidebar-usage.ts";
 
 const planNames = new Map<ui.ProxyAccountPlan, string>([
   [ui.ProxyAccountPlan.FREE, "Free"],
@@ -108,39 +107,6 @@ export function proxyAccountsSummary(accounts: ui.ProxyAccounts | undefined, har
 
   return parts.join(" · ");
 }
-
-/**
- * The sidebar usage popover's proxy sections (`ProxyUsageSection`, web: SidebarUsage, mobile: SidebarUsage): CLIProxyAPI
- * proxies a profile uses whose accounts the gateway has read. Plan windows are never inferred from them.
- */
-export function proxyUsageSections(proxies: readonly ui.Proxy[] | undefined): ProxyUsageSection[] {
-  return (proxies ?? []).flatMap((proxy) =>
-    proxy.kind === "cliproxyapi" && proxy.usedBy.length && proxy.accounts?.state === "ok"
-      ? [
-          {
-            proxyId: proxy.id,
-            label: proxy.name,
-            accountCount: proxy.accounts.accounts.filter((a) => marks.has(a.provider)).length,
-            coolingDownCount: proxy.accounts.accounts.filter(
-              (a) => marks.has(a.provider) && a.status === "cooling_down",
-            ).length,
-          },
-        ]
-      : [],
-  );
-}
-
-/** "6 accounts · 1 cooling down": the counts alone, for a second line under the proxy's name. */
-export const proxyUsageCounts = (section: ProxyUsageSection) =>
-  [
-    `${section.accountCount} account${section.accountCount === 1 ? "" : "s"}`,
-    section.coolingDownCount ? `${section.coolingDownCount} cooling down` : "",
-  ]
-    .filter(Boolean)
-    .join(" · ");
-
-/** "Through Team proxy: 6 accounts · 1 cooling down". */
-export const proxyUsageText = (section: ProxyUsageSection) => `Through ${section.label}: ${proxyUsageCounts(section)}`;
 
 /** Kind picker options; `compatibility` is the hint under the picker: which agents can use the kind. */
 export const proxyKinds = [

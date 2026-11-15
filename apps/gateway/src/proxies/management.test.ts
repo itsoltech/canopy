@@ -143,7 +143,7 @@ describe("proxy account observations", () => {
     expect(proxyAccount({ plan_type: "fixture-secret" }, Date.now(), secretRedactor(["fixture-secret"])).plan).toBe(
       ui.ProxyAccountPlan.OTHER,
     );
-    expect(account({ "x-codex-plan-type": "pro" }).plan).toBe(ui.ProxyAccountPlan.PRO);
+    expect(account({ "x-codex-plan-type": "pro" }).plan).toBe(ui.ProxyAccountPlan.PRO_200);
     expect(proxyAccount({ id_token: { plan_type: "pro_100" } }).plan).toBe(ui.ProxyAccountPlan.PRO_100);
     expect(proxyAccount({ chatgpt_plan_type: "Pro 500" }).plan).toBe(ui.ProxyAccountPlan.PRO_500);
     expect(proxyAccount({ subscription_type: "super" }).plan).toBe(ui.ProxyAccountPlan.SUPER);

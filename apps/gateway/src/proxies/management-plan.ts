@@ -36,14 +36,29 @@ const plans = new Map<string, ui.ProxyAccountPlan>([
   ["ultra", ui.ProxyAccountPlan.ULTRA],
 ]);
 
+/**
+ * OpenAI's own Codex plan identifiers (`X-Codex-Plan-Type`, `chatgpt_plan_type`), reviewed 2026-11-15: `prolite` is
+ * Pro 100, `promax` is Pro 500, and plain `pro` is the original $200 Pro plan.
+ */
+const codexPlans = new Map<string, ui.ProxyAccountPlan>([
+  ["pro", ui.ProxyAccountPlan.PRO_200],
+  ["prolite", ui.ProxyAccountPlan.PRO_100],
+  ["promax", ui.ProxyAccountPlan.PRO_500],
+]);
+
 export function proxyAccountPlan(
+  provider: string,
   file: typeof PlanFields.Type,
   signals: ReadonlyMap<string, string>,
   redact: (text: string) => string,
 ): ui.ProxyAccountPlan {
   const claims = Option.getOrUndefined(Schema.decodeUnknownOption(Claims)(file.id_token));
+  const codex = provider === "codex";
+  // The response header is the freshest Codex reading; stored fields can predate a plan change.
+  const header = signals.get("x-codex-plan-type");
 
   const raw =
+    (codex && header) ||
     file.chatgpt_plan_type ||
     file.plan_type ||
     claims?.plan_type ||
@@ -51,12 +66,13 @@ export function proxyAccountPlan(
     file.rate_limit_tier ||
     file.subscription_type ||
     file.tier ||
-    signals.get("x-codex-plan-type");
+    header;
 
   if (!raw?.trim()) return ui.ProxyAccountPlan.UNSPECIFIED;
 
   // Only a closed enum leaves this boundary; unknown, hostile and secret-bearing names are never echoed.
   if (redact(raw) !== raw || raw.length > 80) return ui.ProxyAccountPlan.OTHER;
+  const key = raw.trim().toLowerCase().replace(/\s+/g, "_");
 
-  return plans.get(raw.trim().toLowerCase().replace(/\s+/g, "_")) ?? ui.ProxyAccountPlan.OTHER;
+  return (codex ? codexPlans.get(key) : undefined) ?? plans.get(key) ?? ui.ProxyAccountPlan.OTHER;
 }
