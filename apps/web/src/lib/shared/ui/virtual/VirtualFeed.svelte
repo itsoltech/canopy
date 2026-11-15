@@ -678,6 +678,16 @@
       <div aria-hidden="true" style:height="{footerSpace}px" class="shrink-0"></div>
     </div>
   </div>
+  <!-- Top fade: rows scrolled under the header blend into the thread surface, so the active tab continues into the
+       thread and the edge hints that there is more above. Hidden at the very top, where nothing is above. -->
+  <div
+    aria-hidden="true"
+    class={[
+      "pointer-events-none absolute top-0 left-0 z-10 h-6 bg-linear-to-b from-surface to-transparent transition-opacity duration-(--duration-fast) ease-smooth-out motion-reduce:transition-none",
+      scrollTop < 1 && "opacity-0",
+    ]}
+    style:right="{gutter}px"
+  ></div>
   <!-- The footer and its fade are siblings of the scroller. Resizing them cannot move a row,
      change the virtual window, or make the browser reveal a contenteditable's flow position. -->
   <div class="pointer-events-none absolute bottom-0 left-0 isolate z-10 [contain:layout]" style:right="{gutter}px">
