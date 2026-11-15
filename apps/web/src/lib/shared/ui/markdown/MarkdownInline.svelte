@@ -1,25 +1,27 @@
 <script lang="ts">
   import type { Token, Tokens } from "marked";
   import Math from "./Math.svelte";
-  import { isMathToken, safeHref } from "@canopy/domain/markdown";
+  import { isMathToken, safeHref, normalizeHtmlTokens, isHtmlToken } from "@canopy/domain/markdown";
   import MarkdownInline from "./MarkdownInline.svelte";
   import { splitSentinels, useInlineElements } from "./inline-elements.ts";
   import { tooltip } from "../tooltip.ts";
   import { useFileLinks } from "./file-links.ts";
   import { fileLinkHrefOf, filePathOf } from "./file-paths.ts";
   import InlineLink from "../InlineLink.svelte";
-  import { useImages } from "./images.ts";
   import MarkdownHtml from "./MarkdownHtml.svelte";
-  import { fileHrefOf, imageFilePathOf } from "@canopy/domain/file-references";
+  import MarkdownImage from "./MarkdownImage.svelte";
+  import { imageFilePathOf } from "@canopy/domain/file-references";
 
   let { tokens }: { tokens: Token[] } = $props();
   const elements = useInlineElements();
   const files = useFileLinks();
-  const images = useImages();
+  const normalized = $derived(normalizeHtmlTokens(tokens));
 </script>
 
-{#each tokens as token, index (index)}
-  {#if isMathToken(token)}
+{#each normalized as token, index (index)}
+  {#if isHtmlToken(token)}
+    <MarkdownHtml nodes={token.nodes} inline />
+  {:else if isMathToken(token)}
     <Math text={token.text} raw={token.raw} display={token.display} />
   {:else if token.type === "strong"}
     <strong class="font-semibold text-zinc-950 dark:text-white"
@@ -68,28 +70,9 @@
     {/if}
   {:else if token.type === "image"}
     {@const image = token as Tokens.Image}
-    {@const href = safeHref(image.href)}
-    {#if images.render}
-      {@render images.render({ src: image.href, alt: image.text })}
-    {:else if files && fileHrefOf(image.href)}
-      <InlineLink
-        onactivate={() => files.open(fileHrefOf(image.href)!)}
-        class="text-sky-700 underline focus-ring dark:text-sky-400">{image.text || image.href}</InlineLink
-      >
-    {:else if href}
-      <InlineLink
-        {href}
-        target="_blank"
-        rel="noopener noreferrer nofollow"
-        class="text-sky-700 underline underline-offset-2 dark:text-sky-400">{image.text || href}</InlineLink
-      >
-    {:else}
-      {image.text}
-    {/if}
+    <MarkdownImage value={{ src: image.href, alt: image.text }} />
   {:else if token.type === "br"}
     <br />
-  {:else if token.type === "html" && images.render}
-    <MarkdownHtml text={token.raw} />
   {:else if token.type === "text" && "tokens" in token && token.tokens}
     <MarkdownInline tokens={token.tokens} />
   {:else if token.type === "escape" || token.type === "text"}

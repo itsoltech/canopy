@@ -2,9 +2,10 @@
   import type { ui } from "@canopy/contracts";
   import CodeView from "#lib/shared/ui/code/CodeView.svelte";
   import { languageOfPath } from "#lib/shared/ui/code/languages.ts";
-  import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
+  import WorkspaceMarkdown from "./WorkspaceMarkdown.svelte";
   import FileImage from "./FileImage.svelte";
   import type { FilePosition } from "@canopy/domain/file-references";
+  import type { WorkspaceFileTarget } from "@canopy/domain/workspace-file";
 
   /**
    * A read file, read-only: Markdown rendered, everything else highlighted by its extension with line numbers
@@ -18,6 +19,7 @@
     rendered,
     local,
     position,
+    target,
   }: {
     file: ui.ThreadFile | undefined;
     text: string;
@@ -27,6 +29,7 @@
     /** The file is on this computer: its default app can show what Canopy cannot. */
     local: boolean;
     position?: FilePosition | undefined;
+    target: WorkspaceFileTarget;
   } = $props();
 </script>
 
@@ -43,7 +46,7 @@
 {:else if rendered}
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
   <div class="min-h-full p-4 focus-ring" tabindex="0" role="region" aria-label={name} data-select-content>
-    <Markdown {text} diagrams />
+    <WorkspaceMarkdown {text} {target} path={file.path || file.relativePath || target.path} />
   </div>
 {:else if text}
   <CodeView
