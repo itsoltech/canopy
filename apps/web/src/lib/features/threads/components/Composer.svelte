@@ -97,7 +97,7 @@
   }}
 >
   {#if top || status || (session && !session.done)}
-    <div class={["px-2 pt-px sm:px-3", !answering && "-mb-4"]} data-feed-edge>
+    <div class={["px-2 pt-px sm:px-3", !answering && "-mb-4"]} data-feed-edge data-composer-tray>
       <ComposerTop decision={Boolean(answering)}>
         {#if !answering}{@render top?.()}{/if}
         {@render status?.()}
@@ -147,3 +147,19 @@
     />
   </div>
 </div>
+
+<style>
+  /* The tray slides under the composer's top edge. The composer's empty Drafts reserve would leave a gap
+     between them, so it folds; a tray already sits above, so arriving drafts move the tray, not the composer. */
+  [data-composer]:has(> [data-composer-tray]) :global([data-drafts-slot]:not(:has([data-drafts-tab]))) {
+    height: 0;
+  }
+  /* With the Drafts tab showing, the tray stands on its own above it instead of overlapping it. */
+  [data-composer]:has(:global([data-drafts-tab])) > [data-composer-tray] {
+    margin-bottom: calc(var(--spacing) * 1);
+  }
+  [data-composer]:has(:global([data-drafts-tab])) > [data-composer-tray] > :global([data-composer-panels]) {
+    padding-bottom: 0;
+    border-radius: var(--radius-2xl);
+  }
+</style>

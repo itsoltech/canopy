@@ -289,7 +289,7 @@
 </script>
 
 <div class={["relative grid grid-cols-1", className]}>
-  {#if drafts}<div class="relative h-8">{@render drafts()}</div>{/if}
+  {#if drafts}<div class="relative h-8" data-drafts-slot>{@render drafts()}</div>{/if}
   <div
     data-feed-edge
     class={[

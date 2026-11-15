@@ -78,7 +78,7 @@
 </script>
 
 {#if rows.length}
-  <div bind:this={anchor} class={["relative h-8 w-full", className]} data-feed-edge>
+  <div bind:this={anchor} class={["relative h-8 w-full", className]} data-feed-edge data-drafts-tab>
     <Popover
       bind:open
       {anchor}
