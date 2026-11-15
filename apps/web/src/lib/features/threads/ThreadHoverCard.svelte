@@ -29,6 +29,7 @@
   import ScheduleOrigin from "#lib/features/schedules/ScheduleOrigin.svelte";
   import ComputerAwayBar from "#lib/features/computers/ComputerAwayBar.svelte";
   import { awayReason } from "#lib/features/computers/computers.ts";
+  import ThreadHoverPullRequests from "#lib/features/github/ThreadHoverPullRequests.svelte";
 
   /**
    * A thread's summary next to its row in lists: title, project, worker, folder, agent
@@ -56,7 +57,10 @@
   placement={beside.current ? "right-start" : "bottom-start"}
   {touch}
   {disabled}
-  class="w-80"
+  class={thread.pullRequestCount || thread.newestPullRequest ? "w-96 max-w-[calc(100vw-1rem)]" : "w-80"}
+  maxHeight={thread.pullRequestCount || thread.newestPullRequest
+    ? "var(--float-available-height, calc(100dvh - 1rem))"
+    : undefined}
 >
   {#snippet trigger(props)}{@render row(props)}{/snippet}
   {@const project = overview.project(thread.projectId)}
@@ -159,6 +163,9 @@
         </SummaryRow>
       {/if}
     </ul>
+    {#if thread.pullRequestCount || thread.newestPullRequest}
+      <ThreadHoverPullRequests {thread} class="border-t border-zinc-950/5 pt-2 dark:border-white/8" />
+    {/if}
     {#if sides.length > 0}
       <div class="grid gap-1.5 border-t border-zinc-950/5 pt-3 dark:border-white/8">
         <p class="text-zinc-500">{sides.length} side {sides.length === 1 ? "thread" : "threads"}</p>

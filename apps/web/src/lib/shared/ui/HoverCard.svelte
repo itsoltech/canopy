@@ -46,6 +46,7 @@
     closeDelay = 200,
     touch = "tap",
     disabled = false,
+    maxHeight,
     class: className,
     trigger: renderTrigger,
     children,
@@ -57,6 +58,7 @@
     /** tap: the trigger is a button that toggles the card; press: tap-and-hold opens it (links). */
     touch?: "tap" | "press" | "none";
     disabled?: boolean;
+    maxHeight?: string | undefined;
     class?: ClassValue;
     trigger: Snippet<[HoverTriggerProps]>;
     children: Snippet;
@@ -117,7 +119,7 @@
 </script>
 
 <!-- A caller's class replaces the default width (no conflicting width utilities). -->
-<Popover bind:open {label} {placement} focusOnOpen={false} class={className ?? "w-72"}>
+<Popover bind:open {label} {placement} {maxHeight} focusOnOpen={false} class={className ?? "w-72"}>
   {#snippet trigger(props)}
     {@render renderTrigger({
       ...(touch === "press"

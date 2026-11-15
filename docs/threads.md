@@ -98,6 +98,12 @@ funkcją (`threadRowPlace`, `packages/domain/src/git-heads.ts`):
   szczegółów (brak konta GitHub) zostaje sama liczba podpiętych PR. Web i mobile liczą znacznik tą samą funkcją
   (`threadPullRequestBadge`, `packages/domain/src/github-pr.ts`); pełny opis („Merged pull request #12, 2 more
   linked”) jest w `title` na web i w etykiecie dostępności wiersza na mobile.
+- Karta hover wątku na web/desktop pokazuje pod metadanymi listę podpiętych PR:
+  ikonę stanu, numer, tytuł i znany status checków. Wiersz otwiera szczegóły PR
+  w danym wątku. Lista ma własne przewijanie, pokazuje do 20 pozycji i dopisek
+  `+X more` dla pozostałych, bez paginacji ani rozwijania. Odczyt
+  montuje się dopiero po otwarciu karty i współdzieli cache z panelem szczegółów.
+  Nieaktualne dane pozostają widoczne podczas odświeżania; brak odpowiedzi daje Retry.
 - Komputer i katalog zajmują najwyżej 2/5 linii, gałąź resztę. Status w pierwszej linii i slot znaku
   dostawcy mają stały rozmiar, więc zmiana stanu niczego nie przesuwa.
 
