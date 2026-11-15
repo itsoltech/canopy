@@ -24,6 +24,7 @@ export interface ProxyRow {
   management_secret_id: string | null;
   management_status: JsonValue | null;
   management_identity: string | null;
+  account_plans: Record<string, ui.ProxyAccountPlan>;
   fingerprint: string;
   codex: ProxyOptions;
   revision: bigint | number | string;

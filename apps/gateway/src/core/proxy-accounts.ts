@@ -133,10 +133,15 @@ export class ProxyAccountsMonitor {
     else this.#failures.delete(id);
 
     await coreInstances(this.core, (s) => s.storeProxyAccounts(owner, id, identity, value));
+    // A manual change made during the remote read must win in both the reply and overview.
+    const current = await coreInstances(this.core, (s) => s.proxyManagement(owner, id));
+    const effective = current.last ?? create(ui.ProxyAccountsSchema, { proxyId: id });
 
-    if (!sameAccounts(last, value))
-      this.core.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "proxyAccounts", value } }));
+    if (!sameAccounts(last, effective))
+      this.core.hub.publishOverview(
+        create(ui.OverviewUpdateSchema, { change: { case: "proxyAccounts", value: effective } }),
+      );
 
-    return value;
+    return effective;
   }
 }

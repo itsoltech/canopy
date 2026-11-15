@@ -1,6 +1,6 @@
 import { ui, type ProviderUsageWindow } from "@canopy/contracts";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { proxyAccountMark } from "./proxy-accounts.ts";
+import { proxyAccountMark, proxyPlanName } from "./proxy-accounts.ts";
 
 const Plan = ui.ProxyAccountPlan;
 
@@ -11,6 +11,8 @@ const Plan = ui.ProxyAccountPlan;
  * Claude, https://support.claude.com/en/articles/11049741-what-is-the-max-plan and
  * https://support.claude.com/en/articles/17728952-what-is-the-ultra-plan: Pro 1, Max 5x 5 per five hours and
  * week, Ultra (formerly Max 20x) 10 per week and no five-hour cap.
+ * Team = Max 5x (5 per week and five hours): user-provided equivalence, 2026-11-15;
+ * not independently confirmed by Anthropic.
  *
  * Codex, https://help.openai.com/en/articles/9793128-about-chatgpt-pro-tiers and OpenAI's Codex limits
  * announcement of 2026-11-08: Plus 1, Pro 100 (`prolite`) 10, Pro 200 (`pro`) 20, Pro 500 (`promax`) 50 times
@@ -26,6 +28,8 @@ const weights = new Map<string, number>([
   [`CLAUDE:${Plan.MAX}:seven_day`, 5],
   [`CLAUDE:${Plan.MAX_5X}:five_hour`, 5],
   [`CLAUDE:${Plan.MAX_5X}:seven_day`, 5],
+  [`CLAUDE:${Plan.TEAM}:five_hour`, 5],
+  [`CLAUDE:${Plan.TEAM}:seven_day`, 5],
   [`CLAUDE:${Plan.MAX_20X}:seven_day`, 10],
   [`CLAUDE:${Plan.ULTRA}:seven_day`, 10],
   [`CODEX:${Plan.PLUS}:five_hour`, 1],
@@ -39,6 +43,38 @@ export function proxyPlanWeight(account: ui.ProxyAccount, key = "seven_day") {
   const units = weights.get(`${proxyAccountMark(account.provider)}:${account.plan}:${key}`);
 
   return { units: units ?? 1, unknown: units === undefined };
+}
+
+export function proxyAutomaticPlanLabel(account: ui.ProxyAccount) {
+  const weight = proxyPlanWeight({ ...account, plan: account.detectedPlan });
+  const name = proxyPlanName(account.detectedPlan) ?? "Unknown plan";
+
+  return `Automatic · ${name}${weight.unknown ? "" : ` · ×${weight.units}`}`;
+}
+
+/** Manual choices use the same confirmed weights as the capacity projection. Grok has no known weights. */
+export function proxyPlanOptions(provider: string) {
+  const mark = proxyAccountMark(provider);
+
+  const choices = {
+    CLAUDE: [
+      [Plan.PRO, "Pro"],
+      [Plan.MAX_5X, "Max 5x"],
+      [Plan.TEAM, "Team"],
+      [Plan.ULTRA, "Ultra"],
+    ],
+    CODEX: [
+      [Plan.PLUS, "Plus"],
+      [Plan.PRO_100, "Pro 100"],
+      [Plan.PRO_200, "Pro 200"],
+      [Plan.PRO_500, "Pro 500"],
+    ],
+    GROK: [],
+  } satisfies Record<string, [ui.ProxyAccountPlan, string][]>;
+
+  const plans = mark ? choices[mark] : [];
+
+  return plans.map(([plan, name]) => ({ plan, label: `${name} · ×${weights.get(`${mark}:${plan}:seven_day`)}` }));
 }
 
 export const supportedProxyAccounts = (accounts: readonly ui.ProxyAccount[]) =>

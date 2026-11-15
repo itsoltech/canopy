@@ -61,7 +61,7 @@
   {#if accounts?.state === "ok"}
     {#if supported.length}
       <InsetList label={`Accounts of ${proxy.name}`}>
-        {#each supported as account (account.id)}<ProxyAccountRow {account} />{/each}
+        {#each supported as account (account.id)}<ProxyAccountRow {account} proxyId={proxy.id} {onread} />{/each}
       </InsetList>
       {#if accounts.total > accounts.accounts.length}<p class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
           Showing {accounts.accounts.length} of {accounts.total}.

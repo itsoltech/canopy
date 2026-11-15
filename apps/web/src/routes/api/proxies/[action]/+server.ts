@@ -12,6 +12,7 @@ const methods = {
   delete: "deleteProxy",
   test: "testProxy",
   accounts: "refreshProxyAccounts",
+  plan: "setProxyAccountPlan",
 } as const;
 
 const isAction = (value: string): value is ProxyAction => Object.hasOwn(methods, value);

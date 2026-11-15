@@ -9,6 +9,7 @@ import { ProviderIcon } from "../../ui/ProviderIcon";
 import { Sensitive } from "../../ui/Sensitive";
 import { styles, useColors } from "../../ui/theme";
 import { UsageMeters } from "../providers/UsageMeters";
+import { ProxyPlanPicker } from "./ProxyPlanPicker";
 
 export const markProvider = { CLAUDE: Provider.CLAUDE, CODEX: Provider.CODEX, GROK: Provider.GROK } as const;
 
@@ -23,10 +24,14 @@ export function ProxyAccountRow({
   account,
   now,
   compact = false,
+  proxyId,
+  onRead,
 }: {
   account: ui.ProxyAccount;
   now: number;
   compact?: boolean;
+  proxyId?: string;
+  onRead?: () => void;
 }) {
   const c = useColors();
   const look = proxyAccountLook(account.status);
@@ -50,10 +55,12 @@ export function ProxyAccountRow({
             {proxyProviderName(account.provider)}
           </Text>
         )}
-        <Text numberOfLines={1} style={[styles.overlayMeta, { color: c.muted, maxWidth: 96, flexShrink: 0 }]}>
-          {plan ?? "Unknown plan"}
-          {weight.unknown ? "" : ` · ×${weight.units}`}
-        </Text>
+        {!proxyId || !onRead ? (
+          <Text numberOfLines={1} style={[styles.overlayMeta, { color: c.muted, maxWidth: 96, flexShrink: 0 }]}>
+            {plan ?? "Unknown plan"}
+            {weight.unknown ? "" : ` · ×${weight.units}`}
+          </Text>
+        ) : null}
         <View style={{ flex: 1, minWidth: 0 }}>
           {account.label ? (
             <Sensitive
@@ -68,6 +75,7 @@ export function ProxyAccountRow({
         </View>
         {!compact || account.status !== "active" ? <Badge tone={look.tone}>{look.label}</Badge> : null}
       </View>
+      {proxyId && onRead ? <ProxyPlanPicker {...{ proxyId, account, onRead }} /> : null}
       {plan && weight.unknown ? (
         <Text style={[styles.overlayMeta, { color: c.muted }]}>Unknown plan · capacity counted as ×1</Text>
       ) : null}

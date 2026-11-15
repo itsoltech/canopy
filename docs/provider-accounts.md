@@ -1,5 +1,11 @@
 # Status kont dostawców
 
+Konta proxy mają osobny ręczny wybór planu w Settings → Proxies → Accounts (web i mobile).
+Wybór wygrywa z wykrywaniem i zasila ważoną pojemność; **Automatic** go usuwa.
+Claude Team liczy się jako ×5 według deklaracji użytkownika z 2026-11-15,
+nie niezależnie potwierdzonego limitu providera. Szczegóły zapisu i detekcji:
+[proxies.md](proxies.md#ręczny-plan-konta).
+
 Settings → Providers pokazuje status osobno dla instancji i workera. Workers
 pokazuje te same metadane w rozwiniętej karcie maszyny. Raport dostępności
 CLI pozostaje osobny: obecność loginu nie oznacza poprawnego działania

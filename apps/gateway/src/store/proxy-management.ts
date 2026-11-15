@@ -1,9 +1,11 @@
-import { fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
+import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
+import { proxyPlanOptions } from "@canopy/domain/proxy-capacity";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import type { Fx } from "./instance-checks.ts";
 import { proxyRecords, type ProxyRow } from "./proxy-records.ts";
+import { Invalid, NotFound } from "./store.ts";
 
 export interface ProxyTarget {
   readonly root: string;
@@ -29,6 +31,7 @@ export interface ProxyManagementApi {
   claimProxyRead(userId: string, id: string, identity: string, spacingMs: number): Fx<boolean>;
   /** Stores a read for the identity it was made with; a key or URL changed meanwhile keeps it out. */
   storeProxyAccounts(userId: string, id: string, identity: string, accounts: ui.ProxyAccounts): Fx<void>;
+  setProxyAccountPlan(userId: string, request: ui.SetProxyAccountPlanRequest): Fx<ui.ProxyAccounts>;
 }
 
 export const managementIdentity = (row: Pick<ProxyRow, "management_secret_id" | "base_url">) =>
@@ -42,7 +45,16 @@ export function storedAccounts(row: ProxyRow): ui.ProxyAccounts | undefined {
     return undefined;
 
   try {
-    return fromJson(ui.ProxyAccountsSchema, row.management_status, { ignoreUnknownFields: true });
+    const value = fromJson(ui.ProxyAccountsSchema, row.management_status, { ignoreUnknownFields: true });
+
+    return create(ui.ProxyAccountsSchema, {
+      ...value,
+      accounts: value.accounts.map((account) => {
+        const manualPlan = row.account_plans[account.planKey];
+
+        return { ...account, detectedPlan: account.plan, manualPlan, plan: manualPlan ?? account.plan };
+      }),
+    });
   } catch {
     return undefined;
   }
@@ -52,6 +64,34 @@ export function proxyManagementStore(sql: SqlClient.SqlClient, key: Buffer): Pro
   const records = proxyRecords(sql, key);
 
   return {
+    setProxyAccountPlan: (userId, request) =>
+      sql.withTransaction(
+        Effect.gen(function* () {
+          const row = yield* records.get(userId, request.proxyId);
+          const accounts = storedAccounts(row);
+          const matches = accounts?.accounts.filter((account) => account.planKey === request.accountKey) ?? [];
+          const account = matches[0];
+
+          if (!request.accountKey || !account || matches.length !== 1 || accounts?.state !== "ok")
+            return yield* Effect.fail(new NotFound("Account not found. Refresh accounts and try again."));
+
+          if (
+            request.plan !== ui.ProxyAccountPlan.UNSPECIFIED &&
+            !proxyPlanOptions(account.provider).some((option) => option.plan === request.plan)
+          )
+            return yield* Effect.fail(new Invalid("Choose a plan available for this provider."));
+
+          const plans = { ...row.account_plans };
+
+          if (request.plan === ui.ProxyAccountPlan.UNSPECIFIED) delete plans[request.accountKey];
+          else plans[request.accountKey] = request.plan;
+          yield* sql`UPDATE proxies SET account_plans = ${JSON.stringify(plans)}::jsonb
+        WHERE id = ${row.id}::uuid AND owner_user_id = ${userId}::uuid`;
+          yield* records.audit(userId, row.id, "proxy.account_plan_set");
+
+          return storedAccounts({ ...row, account_plans: plans })!;
+        }),
+      ),
     proxyManagement: (userId, id) =>
       Effect.gen(function* () {
         const row = yield* records.get(userId, id);

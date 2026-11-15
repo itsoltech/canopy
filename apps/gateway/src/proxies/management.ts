@@ -1,4 +1,5 @@
 import { create } from "@bufbuild/protobuf";
+import { createHash } from "node:crypto";
 import { timestampFromDate, timestampNow } from "@bufbuild/protobuf/wkt";
 import { ui } from "@canopy/contracts";
 import { redactCredentials } from "@canopy/domain";
@@ -122,6 +123,12 @@ export function proxyAccount(file: AuthFile, now = Date.now(), redact: Redact = 
   const observed = time(file.quota?.observed_at);
   const raw = (file.provider || file.type || "").toLowerCase();
   const provider = redact(raw) === raw ? raw : "";
+  // CLIProxyAPI Auth.ID survives restarts and token refreshes; EnsureIndex is the stable fallback.
+  // Hash rather than expose the raw identity (which may include an auth file path).
+  const identity = file.id || file.auth_index;
+
+  const planKey =
+    identity && provider ? createHash("sha256").update(provider).update("\0").update(identity).digest("hex") : "";
 
   const signals = new Map(
     Object.entries(file.quota?.signals ?? {}).map(([key, value]) => [key.toLowerCase(), value.trim()]),
@@ -141,6 +148,8 @@ export function proxyAccount(file: AuthFile, now = Date.now(), redact: Redact = 
     retryAt: retry && retry.getTime() > now ? timestampFromDate(retry) : undefined,
     windows: proxyUsageWindows(signals, observed, now),
     plan: proxyAccountPlan(provider, file, signals, redact),
+    detectedPlan: proxyAccountPlan(provider, file, signals, redact),
+    planKey,
     successCount: count(file.success),
     failureCount: count(file.failed),
   });

@@ -135,7 +135,7 @@ automatycznie szyfrowane również wtedy, gdy starszy klient zapisał je jako zw
 ## API i weryfikacja
 
 Addytywne RPC: `ListProxies`, `SaveProxy`, `DeleteProxy`, `TestProxy`, `RefreshProxyAccounts`,
-`MoveInstanceToProxy`; `ProviderInstance`, `SaveProviderInstanceRequest` i
+`SetProxyAccountPlan`, `MoveInstanceToProxy`; `ProviderInstance`, `SaveProviderInstanceRequest` i
 `InstanceOverrides[Input]` mają `proxy_id`. `WorkerConfig.profiles.proxy_codex`
 przekazuje wyłącznie publiczne opcje transportu. BFF: `GET /api/proxies`,
 `POST /api/proxies/{save,delete,test}`, `POST /api/providers/move`.
@@ -251,7 +251,7 @@ wartości cache przekraczające tę granicę. Sam odczyt wykorzystania pozostaje
 Typ planu w `ProxyAccount.plan` to zamknięty enum: Free, Plus, Pro, Team, Business,
 Enterprise, Max, Max 5x, Max 20x, Ultra, Pro 100/200/500, Premium, Super i Other.
 Brak danych lub niepotwierdzona waga otrzymuje oznaczenie Unknown plan.
-Plan pochodzi wyłącznie z identyfikatorów samych providerów; własnych mnożników ani pól
+Wykryty plan pochodzi wyłącznie z identyfikatorów samych providerów; własnych mnożników ani pól
 pojemności proxy nie czytamy. CLIProxyAPI udostępnia dla Codexa obiekt `id_token.plan_type`
 oraz nagłówek `X-Codex-Plan-Type` (identyfikatory OpenAI); parser nie dekoduje JWT ani nie
 pobiera plików auth. Dla Codexa nagłówek ma pierwszeństwo, bo opisuje ostatnią odpowiedź,
@@ -263,11 +263,36 @@ obsługują odpowiedzi, które je udostępniają.
 Claude: upstream CLIProxyAPI (sprawdzone 2026-11-15) nie ma w `auth-files` żadnego
 identyfikatora planu ani profilu. Sygnały Claude to tylko `Anthropic-Ratelimit-Unified-*`
 i `Retry-After` (także w `model_quotas`), `account_type` to `oauth` lub `api_key`, a
-`id_token` dotyczy tylko Codexa. Plan Claude jest więc nieznany i liczy się jako ×1;
+`id_token` dotyczy tylko Codexa. Automatyczny plan Claude jest więc nieznany i liczy się jako ×1;
 nie zgadujemy go z nazwy konta. To samo dotyczy Grok i Antigravity.
 Do UI nie trafiają pozostałe claims ani dowolne teksty planów. Dla poświadczeń
 `account_type: api_key` CLIProxyAPI wpisuje sam klucz w `account`, więc to pole nigdy
 nie staje się etykietą konta.
+
+### Ręczny plan konta
+
+Każdy wiersz w Accounts (web i mobile) ma kompaktowy picker planu. **Automatic**
+zachowuje wykrywanie; ręczny wybór ma podpis **Set manually** i wygrywa także po
+późniejszej zmianie wykrytego planu. Powrót do Automatic od razu przywraca aktualnie
+wykryty plan. Picker pokazuje plany o znanej wadze z tabeli; Grok ma obecnie tylko
+Automatic, ponieważ nie ma potwierdzonych wag. Brak trwałego ID blokuje zapis.
+Emaile pozostają chronione przez Sensitive.
+
+Migracja `0149_proxy_account_plans` dodaje mapę `proxies.account_plans`. Wiersz proxy
+zapewnia owner scoping i usunięcie ustawień razem z proxy. Klucz to SHA-256 providera
+i upstream `id` (fallback: `auth_index`), bez emaila, tokena i etykiety. Upstream
+[Auth.ID / EnsureIndex](https://github.com/router-for-me/CLIProxyAPI/blob/main/sdk/cliproxy/auth/types.go)
+(sprawdzone 2026-11-15) opisuje ID jako trwałe między restartami, a indeks jako
+pochodną nazwy pliku/tożsamości credentialu. Odświeżenie tokena nie zmienia ID pliku;
+zmiana nazwy pliku tworzy nową tożsamość ustawienia. Nie czytamy pól specyficznych dla forków.
+Wpisy nieobecnych kont są ignorowane; zapis wymaga jednoznacznego konta w bieżącym odczycie.
+
+`SetProxyAccountPlan` waliduje plan dla providera pod blokadą wiersza proxy;
+`UNSPECIFIED` usuwa wybór. Snapshot detekcji pozostaje osobny od ustawień, więc Refresh
+nie nadpisuje ręcznego planu. `ProxyAccount.plan` jest planem efektywnym,
+`detected_plan` zachowuje detekcję, a `manual_plan` wskazuje ręczny wybór.
+Odpowiedź, ListProxies i overview używają tej samej projekcji, także po restarcie gatewaya.
+BFF: `POST /api/proxies/plan`. Waga zasila wspólne podsumowanie użycia web i mobile.
 
 Pojemność liczy `@canopy/domain/proxy-capacity`, osobno dla każdego okna: suma wag
 kont daje jednostki, a suma `waga × (1 − wykorzystanie)` daje dostępne jednostki.
@@ -279,6 +304,7 @@ mnożników z cen ani z podobnych nazw planów. Wagi według deklaracji provider
 |---|---|---|---|
 | Claude | Pro | 1 | 1 |
 | Claude | Max (Max 5x) | 5 | 5 |
+| Claude | Team (równoważność podana przez użytkownika, 2026-11-15) | 5 | 5 |
 | Claude | Ultra (dawne Max 20x) | 10 | brak limitu |
 | Codex | Plus | 1 | 1 |
 | Codex | Pro 100 (`prolite`) | 10 | brak limitu |
