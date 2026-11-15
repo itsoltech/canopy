@@ -65,6 +65,8 @@ async function workerConnected(hostContext: GatewayCore, connection: WorkerConne
   void hostContext.worktreeCleanup.tick(workerId);
   // A paused import continues on this worker (docs/import.md).
   void hostContext.imports.runner.tick(workerId).catch(() => undefined);
+  // A background copy waiting for this worker continues (docs/workspace-copy.md).
+  void hostContext.copyJobs.tick();
   await hostContext.secrets.sync(workerId, true);
   // The outbox is read first: the turns started below (queued behind a lost one) are delivered once.
   await coreRedeliver(hostContext, workerId).catch((cause: unknown) =>

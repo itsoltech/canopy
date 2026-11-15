@@ -31,6 +31,10 @@ message WorkspaceCopyRead {
   string token = 1;
   string path = 2;
   uint64 offset = 3;
+  // Resume: the source hashes the whole file and answers `unchanged` instead of bytes when it matches.
+  string known_sha256 = 4;
+  // Batched reads: at most this many bytes from `offset` (all reads of a frame together stay within the frame).
+  uint32 max_bytes = 5;
 }
 // The source validates the complete repository before allowing any reads.
 message WorkspaceCopyAuthorize {
@@ -45,6 +49,9 @@ message WorkspaceCopyPrepare {
   string name = 3;
   repeated WorkspaceCopyEntry entries = 4;
   uint64 bytes = 5;
+  // Continue an interrupted transfer with the same token: the target keeps complete staged files that are still
+  // selected and reports them in `staged`.
+  bool resume = 6;
 }
 message WorkspaceCopyChunk {
   string token = 1;
@@ -53,6 +60,23 @@ message WorkspaceCopyChunk {
   bytes data = 4;
   bool last = 5;
   string sha256 = 6;
+  // The file already exists on the target with `sha256`; no data follows.
+  bool unchanged = 7;
+}
+// Many small files, or one piece of a large file, in one bounded frame (workspace_copy_batch_v1).
+message WorkspaceCopyReadBatch {
+  string token = 1;
+  repeated WorkspaceCopyRead reads = 2;
+}
+message WorkspaceCopyBatch {
+  string token = 1;
+  repeated WorkspaceCopyChunk chunks = 2;
+}
+// A file the target already holds in its private staging directory; the gateway checks it with the source.
+message WorkspaceCopyStaged {
+  string path = 1;
+  uint64 size = 2;
+  string sha256 = 3;
 }
 message WorkspaceCopyFinish {
   string token = 1;
@@ -68,10 +92,14 @@ message WorkspaceCopyOperation {
     string cancel = 6;
     string release = 7;
     WorkspaceCopyAuthorize authorize = 8;
+    WorkspaceCopyReadBatch read_batch = 9;
+    WorkspaceCopyBatch write_batch = 10;
   }
 }
 message WorkspaceCopyResult {
   WorkspaceCopyManifest manifest = 1;
   WorkspaceCopyChunk chunk = 2;
   string directory = 3;
+  WorkspaceCopyBatch batch = 4;
+  repeated WorkspaceCopyStaged staged = 5;
 }

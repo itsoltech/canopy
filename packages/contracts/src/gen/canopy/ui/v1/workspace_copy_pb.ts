@@ -4,7 +4,7 @@
 
 import type { GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
-import type { WorkspaceCopyChunk, WorkspaceCopyEntry, WorkspaceCopyIgnoredSelection, WorkspaceCopyManifest, WorkspaceCopyOperation, WorkspaceCopyRead } from "../../worker/v1/workspace_copy_pb.ts";
+import type { WorkspaceCopyBatch, WorkspaceCopyChunk, WorkspaceCopyEntry, WorkspaceCopyIgnoredSelection, WorkspaceCopyManifest, WorkspaceCopyOperation, WorkspaceCopyRead, WorkspaceCopyReadBatch, WorkspaceCopyStaged } from "../../worker/v1/workspace_copy_pb.ts";
 import { file_canopy_worker_v1_workspace_copy } from "../../worker/v1/workspace_copy_pb.ts";
 import type { Message } from "@bufbuild/protobuf";
 
@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/ui/v1/workspace_copy.proto.
  */
 export const file_canopy_ui_v1_workspace_copy: GenFile = /*@__PURE__*/
-  fileDesc("CiFjYW5vcHkvdWkvdjEvd29ya3NwYWNlX2NvcHkucHJvdG8SDGNhbm9weS51aS52MSI3Ch9HZXRXb3Jrc3BhY2VDb3B5TWFuaWZlc3RSZXF1ZXN0EhQKDHdvcmtzcGFjZV9pZBgBIAEoCSJdCiBHZXRXb3Jrc3BhY2VDb3B5TWFuaWZlc3RSZXNwb25zZRI5CghtYW5pZmVzdBgBIAEoCzInLmNhbm9weS53b3JrZXIudjEuV29ya3NwYWNlQ29weU1hbmlmZXN0Ip4CChRDb3B5V29ya3NwYWNlUmVxdWVzdBISCgpzb3VyY2VfcmVmGAEgASgJEhIKCnRhcmdldF9yZWYYAiABKAkSEwoLcHJvamVjdF9yZWYYAyABKAkSFgoObWFuaWZlc3RfdG9rZW4YBCABKAkSEQoFcGF0aHMYBSADKAlCAhgBEhkKEWNvbmZpcm1lZF9zZWNyZXRzGAYgAygJEhMKC3BhcmVudF9wYXRoGAcgASgJEgwKBG5hbWUYCCABKAkSFAoMdHJhbnNmZXJfa2V5GAkgASgJEkoKEWlnbm9yZWRfc2VsZWN0aW9uGAogASgLMi8uY2Fub3B5Lndvcmtlci52MS5Xb3Jrc3BhY2VDb3B5SWdub3JlZFNlbGVjdGlvbiKtAQoVV29ya3NwYWNlQ29weVByb2dyZXNzEg0KBWJ5dGVzGAEgASgEEhMKC3RvdGFsX2J5dGVzGAIgASgEEg0KBWZpbGVzGAMgASgNEhMKC3RvdGFsX2ZpbGVzGAQgASgNEhQKDGN1cnJlbnRfZmlsZRgFIAEoCRIOCgZzdGF0dXMYBiABKAkSFQoNd29ya3NwYWNlX3JlZhgHIAEoCRIPCgdza2lwcGVkGAggASgNIpICChpXb3Jrc3BhY2VDb3B5U291cmNlUmVxdWVzdBIUCgx3b3Jrc3BhY2VfaWQYASABKAkSDQoFdG9rZW4YAiABKAkSEQoFcGF0aHMYAyADKAlCAhgBEhkKEWNvbmZpcm1lZF9zZWNyZXRzGAQgAygJEhEKCWF1dGhvcml6ZRgFIAEoCBIxCgRyZWFkGAYgASgLMiMuY2Fub3B5Lndvcmtlci52MS5Xb3Jrc3BhY2VDb3B5UmVhZBIPCgdyZWxlYXNlGAcgASgIEkoKEWlnbm9yZWRfc2VsZWN0aW9uGAggASgLMi8uY2Fub3B5Lndvcmtlci52MS5Xb3Jrc3BhY2VDb3B5SWdub3JlZFNlbGVjdGlvbiKaAQobV29ya3NwYWNlQ29weVNvdXJjZVJlc3BvbnNlEjUKB2VudHJpZXMYASADKAsyJC5jYW5vcHkud29ya2VyLnYxLldvcmtzcGFjZUNvcHlFbnRyeRIzCgVjaHVuaxgCIAEoCzIkLmNhbm9weS53b3JrZXIudjEuV29ya3NwYWNlQ29weUNodW5rEg8KB3NraXBwZWQYAyABKA0ilAEKGldvcmtzcGFjZUNvcHlUYXJnZXRSZXF1ZXN0EhEKCXdvcmtlcl9pZBgBIAEoCRISCgpwcm9qZWN0X2lkGAIgASgJEhIKCnNvdXJjZV9yZWYYAyABKAkSOwoJb3BlcmF0aW9uGAQgASgLMiguY2Fub3B5Lndvcmtlci52MS5Xb3Jrc3BhY2VDb3B5T3BlcmF0aW9uIkcKG1dvcmtzcGFjZUNvcHlUYXJnZXRSZXNwb25zZRIRCglkaXJlY3RvcnkYASABKAkSFQoNd29ya3NwYWNlX3JlZhgCIAEoCWIGcHJvdG8z", [file_canopy_worker_v1_workspace_copy]);
+  fileDesc("CiFjYW5vcHkvdWkvdjEvd29ya3NwYWNlX2NvcHkucHJvdG8SDGNhbm9weS51aS52MSI3Ch9HZXRXb3Jrc3BhY2VDb3B5TWFuaWZlc3RSZXF1ZXN0EhQKDHdvcmtzcGFjZV9pZBgBIAEoCSJdCiBHZXRXb3Jrc3BhY2VDb3B5TWFuaWZlc3RSZXNwb25zZRI5CghtYW5pZmVzdBgBIAEoCzInLmNhbm9weS53b3JrZXIudjEuV29ya3NwYWNlQ29weU1hbmlmZXN0IrMCChRDb3B5V29ya3NwYWNlUmVxdWVzdBISCgpzb3VyY2VfcmVmGAEgASgJEhIKCnRhcmdldF9yZWYYAiABKAkSEwoLcHJvamVjdF9yZWYYAyABKAkSFgoObWFuaWZlc3RfdG9rZW4YBCABKAkSEQoFcGF0aHMYBSADKAlCAhgBEhkKEWNvbmZpcm1lZF9zZWNyZXRzGAYgAygJEhMKC3BhcmVudF9wYXRoGAcgASgJEgwKBG5hbWUYCCABKAkSFAoMdHJhbnNmZXJfa2V5GAkgASgJEkoKEWlnbm9yZWRfc2VsZWN0aW9uGAogASgLMi8uY2Fub3B5Lndvcmtlci52MS5Xb3Jrc3BhY2VDb3B5SWdub3JlZFNlbGVjdGlvbhITCgt0YXJnZXRfbmFtZRgLIAEoCSKtAQoVV29ya3NwYWNlQ29weVByb2dyZXNzEg0KBWJ5dGVzGAEgASgEEhMKC3RvdGFsX2J5dGVzGAIgASgEEg0KBWZpbGVzGAMgASgNEhMKC3RvdGFsX2ZpbGVzGAQgASgNEhQKDGN1cnJlbnRfZmlsZRgFIAEoCRIOCgZzdGF0dXMYBiABKAkSFQoNd29ya3NwYWNlX3JlZhgHIAEoCRIPCgdza2lwcGVkGAggASgNItACChpXb3Jrc3BhY2VDb3B5U291cmNlUmVxdWVzdBIUCgx3b3Jrc3BhY2VfaWQYASABKAkSDQoFdG9rZW4YAiABKAkSEQoFcGF0aHMYAyADKAlCAhgBEhkKEWNvbmZpcm1lZF9zZWNyZXRzGAQgAygJEhEKCWF1dGhvcml6ZRgFIAEoCBIxCgRyZWFkGAYgASgLMiMuY2Fub3B5Lndvcmtlci52MS5Xb3Jrc3BhY2VDb3B5UmVhZBIPCgdyZWxlYXNlGAcgASgIEkoKEWlnbm9yZWRfc2VsZWN0aW9uGAggASgLMi8uY2Fub3B5Lndvcmtlci52MS5Xb3Jrc3BhY2VDb3B5SWdub3JlZFNlbGVjdGlvbhI8CgpyZWFkX2JhdGNoGAkgASgLMiguY2Fub3B5Lndvcmtlci52MS5Xb3Jrc3BhY2VDb3B5UmVhZEJhdGNoIs8BChtXb3Jrc3BhY2VDb3B5U291cmNlUmVzcG9uc2USNQoHZW50cmllcxgBIAMoCzIkLmNhbm9weS53b3JrZXIudjEuV29ya3NwYWNlQ29weUVudHJ5EjMKBWNodW5rGAIgASgLMiQuY2Fub3B5Lndvcmtlci52MS5Xb3Jrc3BhY2VDb3B5Q2h1bmsSDwoHc2tpcHBlZBgDIAEoDRIzCgViYXRjaBgEIAEoCzIkLmNhbm9weS53b3JrZXIudjEuV29ya3NwYWNlQ29weUJhdGNoIpQBChpXb3Jrc3BhY2VDb3B5VGFyZ2V0UmVxdWVzdBIRCgl3b3JrZXJfaWQYASABKAkSEgoKcHJvamVjdF9pZBgCIAEoCRISCgpzb3VyY2VfcmVmGAMgASgJEjsKCW9wZXJhdGlvbhgEIAEoCzIoLmNhbm9weS53b3JrZXIudjEuV29ya3NwYWNlQ29weU9wZXJhdGlvbiJ+ChtXb3Jrc3BhY2VDb3B5VGFyZ2V0UmVzcG9uc2USEQoJZGlyZWN0b3J5GAEgASgJEhUKDXdvcmtzcGFjZV9yZWYYAiABKAkSNQoGc3RhZ2VkGAMgAygLMiUuY2Fub3B5Lndvcmtlci52MS5Xb3Jrc3BhY2VDb3B5U3RhZ2VkIpECChBXb3Jrc3BhY2VDb3B5Sm9iEgoKAmlkGAEgASgJEhIKCnNvdXJjZV9yZWYYAiABKAkSEgoKdGFyZ2V0X3JlZhgDIAEoCRITCgtwcm9qZWN0X3JlZhgEIAEoCRIMCgRuYW1lGAUgASgJEhMKC3RhcmdldF9uYW1lGAYgASgJEhMKC3BhcmVudF9wYXRoGAcgASgJEg4KBnN0YXR1cxgIIAEoCRI1Cghwcm9ncmVzcxgJIAEoCzIjLmNhbm9weS51aS52MS5Xb3Jrc3BhY2VDb3B5UHJvZ3Jlc3MSDQoFZXJyb3IYCiABKAkSEgoKY3JlYXRlZF9tcxgLIAEoAxISCgp1cGRhdGVkX21zGAwgASgDIh4KHExpc3RXb3Jrc3BhY2VDb3B5Sm9ic1JlcXVlc3QiTQodTGlzdFdvcmtzcGFjZUNvcHlKb2JzUmVzcG9uc2USLAoEam9icxgBIAMoCzIeLmNhbm9weS51aS52MS5Xb3Jrc3BhY2VDb3B5Sm9iIiUKF1dvcmtzcGFjZUNvcHlKb2JSZXF1ZXN0EgoKAmlkGAEgASgJYgZwcm90bzM", [file_canopy_worker_v1_workspace_copy]);
 
 /**
  * @generated from message canopy.ui.v1.GetWorkspaceCopyManifestRequest
@@ -106,6 +106,13 @@ export type CopyWorkspaceRequest = Message<"canopy.ui.v1.CopyWorkspaceRequest"> 
    * @generated from field: canopy.worker.v1.WorkspaceCopyIgnoredSelection ignored_selection = 10;
    */
   ignoredSelection?: WorkspaceCopyIgnoredSelection | undefined;
+
+  /**
+   * Display only: the destination worker's name as the client shows it (StartWorkspaceCopy).
+   *
+   * @generated from field: string target_name = 11;
+   */
+  targetName: string;
 };
 
 /**
@@ -214,6 +221,11 @@ export type WorkspaceCopySourceRequest = Message<"canopy.ui.v1.WorkspaceCopySour
    * @generated from field: canopy.worker.v1.WorkspaceCopyIgnoredSelection ignored_selection = 8;
    */
   ignoredSelection?: WorkspaceCopyIgnoredSelection | undefined;
+
+  /**
+   * @generated from field: canopy.worker.v1.WorkspaceCopyReadBatch read_batch = 9;
+   */
+  readBatch?: WorkspaceCopyReadBatch | undefined;
 };
 
 /**
@@ -241,6 +253,11 @@ export type WorkspaceCopySourceResponse = Message<"canopy.ui.v1.WorkspaceCopySou
    * @generated from field: uint32 skipped = 3;
    */
   skipped: number;
+
+  /**
+   * @generated from field: canopy.worker.v1.WorkspaceCopyBatch batch = 4;
+   */
+  batch?: WorkspaceCopyBatch | undefined;
 };
 
 /**
@@ -295,6 +312,11 @@ export type WorkspaceCopyTargetResponse = Message<"canopy.ui.v1.WorkspaceCopyTar
    * @generated from field: string workspace_ref = 2;
    */
   workspaceRef: string;
+
+  /**
+   * @generated from field: repeated canopy.worker.v1.WorkspaceCopyStaged staged = 3;
+   */
+  staged: WorkspaceCopyStaged[];
 };
 
 /**
@@ -303,4 +325,134 @@ export type WorkspaceCopyTargetResponse = Message<"canopy.ui.v1.WorkspaceCopyTar
  */
 export const WorkspaceCopyTargetResponseSchema: GenMessage<WorkspaceCopyTargetResponse> = /*@__PURE__*/
   messageDesc(file_canopy_ui_v1_workspace_copy, 7);
+
+/**
+ * A copy that runs in the background at the client-facing gateway, owned by one user. It survives closed clients
+ * and restarts of the gateway and both workers, and continues from the files the target already holds.
+ *
+ * @generated from message canopy.ui.v1.WorkspaceCopyJob
+ */
+export type WorkspaceCopyJob = Message<"canopy.ui.v1.WorkspaceCopyJob"> & {
+  /**
+   * The transfer key of the request.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string source_ref = 2;
+   */
+  sourceRef: string;
+
+  /**
+   * @generated from field: string target_ref = 3;
+   */
+  targetRef: string;
+
+  /**
+   * @generated from field: string project_ref = 4;
+   */
+  projectRef: string;
+
+  /**
+   * The new directory's name and the destination worker's name, for "Copying <name> → <target>".
+   *
+   * @generated from field: string name = 5;
+   */
+  name: string;
+
+  /**
+   * @generated from field: string target_name = 6;
+   */
+  targetName: string;
+
+  /**
+   * @generated from field: string parent_path = 7;
+   */
+  parentPath: string;
+
+  /**
+   * queued, copying, finishing, waiting (a worker or computer is away), completed, failed, cancelled.
+   *
+   * @generated from field: string status = 8;
+   */
+  status: string;
+
+  /**
+   * Bytes, files, the current file and, once completed, workspace_ref.
+   *
+   * @generated from field: canopy.ui.v1.WorkspaceCopyProgress progress = 9;
+   */
+  progress?: WorkspaceCopyProgress | undefined;
+
+  /**
+   * @generated from field: string error = 10;
+   */
+  error: string;
+
+  /**
+   * @generated from field: int64 created_ms = 11;
+   */
+  createdMs: bigint;
+
+  /**
+   * @generated from field: int64 updated_ms = 12;
+   */
+  updatedMs: bigint;
+};
+
+/**
+ * Describes the message canopy.ui.v1.WorkspaceCopyJob.
+ * Use `create(WorkspaceCopyJobSchema)` to create a new message.
+ */
+export const WorkspaceCopyJobSchema: GenMessage<WorkspaceCopyJob> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_workspace_copy, 8);
+
+/**
+ * @generated from message canopy.ui.v1.ListWorkspaceCopyJobsRequest
+ */
+export type ListWorkspaceCopyJobsRequest = Message<"canopy.ui.v1.ListWorkspaceCopyJobsRequest"> & {
+};
+
+/**
+ * Describes the message canopy.ui.v1.ListWorkspaceCopyJobsRequest.
+ * Use `create(ListWorkspaceCopyJobsRequestSchema)` to create a new message.
+ */
+export const ListWorkspaceCopyJobsRequestSchema: GenMessage<ListWorkspaceCopyJobsRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_workspace_copy, 9);
+
+/**
+ * @generated from message canopy.ui.v1.ListWorkspaceCopyJobsResponse
+ */
+export type ListWorkspaceCopyJobsResponse = Message<"canopy.ui.v1.ListWorkspaceCopyJobsResponse"> & {
+  /**
+   * @generated from field: repeated canopy.ui.v1.WorkspaceCopyJob jobs = 1;
+   */
+  jobs: WorkspaceCopyJob[];
+};
+
+/**
+ * Describes the message canopy.ui.v1.ListWorkspaceCopyJobsResponse.
+ * Use `create(ListWorkspaceCopyJobsResponseSchema)` to create a new message.
+ */
+export const ListWorkspaceCopyJobsResponseSchema: GenMessage<ListWorkspaceCopyJobsResponse> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_workspace_copy, 10);
+
+/**
+ * @generated from message canopy.ui.v1.WorkspaceCopyJobRequest
+ */
+export type WorkspaceCopyJobRequest = Message<"canopy.ui.v1.WorkspaceCopyJobRequest"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.WorkspaceCopyJobRequest.
+ * Use `create(WorkspaceCopyJobRequestSchema)` to create a new message.
+ */
+export const WorkspaceCopyJobRequestSchema: GenMessage<WorkspaceCopyJobRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_workspace_copy, 11);
 

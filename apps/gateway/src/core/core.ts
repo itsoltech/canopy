@@ -1,4 +1,5 @@
 import { CliImports } from "../imports/index.ts";
+import { WorkspaceCopyJobs } from "../workspace-copy/jobs.ts";
 import { GitHubAccounts } from "../github/service.ts";
 import { GitHubDetection } from "../github/detection.ts";
 import { Diagnostics } from "../diagnostics/service.ts";
@@ -234,9 +235,13 @@ export class GatewayCore {
   /** Settings → Import: threads of the agent CLIs on the owner's workers (docs/import.md). */
   readonly imports: CliImports;
 
+  /** Background workspace copies (docs/workspace-copy.md). */
+  readonly copyJobs: WorkspaceCopyJobs;
+
   constructor(options: GatewayCoreOptions) {
     this.role = options.role ?? "server";
     this.imports = new CliImports(this);
+    this.copyJobs = new WorkspaceCopyJobs(this);
     this[coreState].options = options;
     this.diagnostics = new Diagnostics(this, options);
     this[coreState].actions = new ActionContext(options.runtime);

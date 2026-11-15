@@ -19,6 +19,8 @@ message CopyWorkspaceRequest {
   string name = 8;
   string transfer_key = 9;
   canopy.worker.v1.WorkspaceCopyIgnoredSelection ignored_selection = 10;
+  // Display only: the destination worker's name as the client shows it (StartWorkspaceCopy).
+  string target_name = 11;
 }
 message WorkspaceCopyProgress {
   uint64 bytes = 1;
@@ -41,11 +43,13 @@ message WorkspaceCopySourceRequest {
   canopy.worker.v1.WorkspaceCopyRead read = 6;
   bool release = 7;
   canopy.worker.v1.WorkspaceCopyIgnoredSelection ignored_selection = 8;
+  canopy.worker.v1.WorkspaceCopyReadBatch read_batch = 9;
 }
 message WorkspaceCopySourceResponse {
   repeated canopy.worker.v1.WorkspaceCopyEntry entries = 1;
   canopy.worker.v1.WorkspaceCopyChunk chunk = 2;
   uint32 skipped = 3;
+  canopy.worker.v1.WorkspaceCopyBatch batch = 4;
 }
 message WorkspaceCopyTargetRequest {
   string worker_id = 1;
@@ -56,4 +60,33 @@ message WorkspaceCopyTargetRequest {
 message WorkspaceCopyTargetResponse {
   string directory = 1;
   string workspace_ref = 2;
+  repeated canopy.worker.v1.WorkspaceCopyStaged staged = 3;
+}
+
+// A copy that runs in the background at the client-facing gateway, owned by one user. It survives closed clients
+// and restarts of the gateway and both workers, and continues from the files the target already holds.
+message WorkspaceCopyJob {
+  // The transfer key of the request.
+  string id = 1;
+  string source_ref = 2;
+  string target_ref = 3;
+  string project_ref = 4;
+  // The new directory's name and the destination worker's name, for "Copying <name> → <target>".
+  string name = 5;
+  string target_name = 6;
+  string parent_path = 7;
+  // queued, copying, finishing, waiting (a worker or computer is away), completed, failed, cancelled.
+  string status = 8;
+  // Bytes, files, the current file and, once completed, workspace_ref.
+  WorkspaceCopyProgress progress = 9;
+  string error = 10;
+  int64 created_ms = 11;
+  int64 updated_ms = 12;
+}
+message ListWorkspaceCopyJobsRequest {}
+message ListWorkspaceCopyJobsResponse {
+  repeated WorkspaceCopyJob jobs = 1;
+}
+message WorkspaceCopyJobRequest {
+  string id = 1;
 }

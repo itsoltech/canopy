@@ -14,11 +14,19 @@ const receiptSchema = z.object({
   stageIno: z.number(),
   state: z.enum(["writing", "committing", "committed"]),
   digest: z.string().default(""),
+  // Last prepare or resume (ms); receipts of older workers have none and are not resumed.
+  updated: z.number().default(0),
 });
+
+/** An interrupted transfer waits this long for its gateway to resume it; then its staged files are removed. */
+export const COPY_RESUME_MS = 24 * 60 * 60_000;
 
 export type CopyReceipt = z.infer<typeof receiptSchema>;
 
-/** Receipts contain only our directory identities, never transferred file names or contents. */
+/**
+ * Receipts contain only our directory identities, never transferred file names or contents. A transfer that was
+ * writing survives a restart for COPY_RESUME_MS: its gateway resumes it with the same token.
+ */
 export class CopyReceipts {
   readonly root: string;
   constructor(dataDir: string) {
@@ -56,18 +64,20 @@ export class CopyReceipts {
     await rm(join(this.root, receipt.token), { force: true });
   }
 
-  async recover() {
+  /** At startup, and before each new transfer for the ones abandoned since (`active` are in use). */
+  async recover(active: ReadonlySet<string> = new Set()) {
     await mkdir(this.root, { recursive: true, mode: 0o700 });
 
     for (const token of await readdir(this.root)) {
-      if (!z.uuid().safeParse(token).success) continue;
+      if (!z.uuid().safeParse(token).success || active.has(token)) continue;
       const receipt = await this.load(token);
 
       if (!receipt || receipt.state === "committed") continue;
 
       if (receipt.state === "committing" && (await sameIdentity(receipt.target, receipt.stageDev, receipt.stageIno))) {
         await this.save({ ...receipt, state: "committed" });
-      } else await this.clean(receipt);
+      } else if (receipt.state !== "writing" || receipt.updated < Date.now() - COPY_RESUME_MS)
+        await this.clean(receipt);
     }
   }
 }

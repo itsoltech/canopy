@@ -307,6 +307,7 @@ export const coreWorkLoopMethods: CoreWorkLoopMethods = {
     this.environment.sources.start();
     this.worktreeCleanup.start();
     this.imports.runner.start();
+    this.copyJobs.start();
     this.github.device.start();
     this.github.background.start();
     this.githubDetection.start();
@@ -323,7 +324,13 @@ export const coreWorkLoopMethods: CoreWorkLoopMethods = {
 
     if (this[coreState].sweepTimer) clearInterval(this[coreState].sweepTimer);
     this[coreState].sweepTimer = undefined;
-    await Promise.all([sourcesStopped, this.worktreeCleanup.stop(), this.imports.runner.stop(), this.github.stop()]);
+    await Promise.all([
+      sourcesStopped,
+      this.worktreeCleanup.stop(),
+      this.imports.runner.stop(),
+      this.copyJobs.stop(),
+      this.github.stop(),
+    ]);
   },
 
   /** Starts the next queued turn of a thread when it is ready and nothing else runs. */

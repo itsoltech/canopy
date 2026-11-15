@@ -3,7 +3,11 @@ import { create, fromJson, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { ConfigAppliedSchema, Provider, ui, type Hello } from "@canopy/contracts";
 import { Effect } from "effect";
-import { CLONE_PROGRESS_CAPABILITY, workerLinkCompatible } from "@canopy/domain/release/protocol";
+import {
+  CLONE_PROGRESS_CAPABILITY,
+  WORKSPACE_COPY_CAPABILITY,
+  workerLinkCompatible,
+} from "@canopy/domain/release/protocol";
 import type { SqlClient } from "effect/sql";
 import { one, type Fx } from "./errors.ts";
 import { queryFamily } from "../diagnostics/query-context.ts";
@@ -125,7 +129,7 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
           // New project directories and clones (InitRepository, CloneRepository).
           projectSources: hello.capabilities.includes("project_sources"),
           cloneProgress: hello.capabilities.includes(CLONE_PROGRESS_CAPABILITY),
-          workspaceCopy: hello.capabilities.includes("workspace_copy_scope_v2"),
+          workspaceCopy: hello.capabilities.includes(WORKSPACE_COPY_CAPABILITY),
           // Threads, settings and libraries of the device's CLIs (docs/import.md).
           cliImport: hello.capabilities.includes("cli_import_v1"),
           branchSwitch: hello.capabilities.includes("git_branch_switch_v1"),

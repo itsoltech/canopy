@@ -1,18 +1,37 @@
 import { createHash, type Hash } from "node:crypto";
-import { lstat, readlink } from "node:fs/promises";
-import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
-import { WorkspaceCopyChunkSchema, type WorkspaceCopyRead, type WorkspaceCopyAuthorize } from "@canopy/contracts";
-import { COPY_CHUNK_BYTES, COPY_IDLE_MS, COPY_MAX_FILE_BYTES } from "@canopy/domain/workspace-copy";
-import { readHandle, copyError } from "./safety.ts";
+import {
+  WorkspaceCopyBatchSchema,
+  WorkspaceCopyChunkSchema,
+  type WorkspaceCopyAuthorize,
+  type WorkspaceCopyEntry,
+  type WorkspaceCopyRead,
+  type WorkspaceCopyReadBatch,
+} from "@canopy/contracts";
+import {
+  COPY_CHUNK_BYTES,
+  COPY_FRAME_BYTES,
+  COPY_FRAME_FILES,
+  COPY_IDLE_MS,
+  COPY_MAX_FILE_BYTES,
+} from "@canopy/domain/workspace-copy";
+import { copyError } from "./safety.ts";
 import { scanWorkspace, type CopyScan } from "./scan.ts";
+import { hashFile, readRange, readSymlink } from "./source-read.ts";
+import { mapLimit } from "./limit.ts";
 
 interface SourceSession {
   scan: CopyScan;
+  entries: Map<string, WorkspaceCopyEntry>;
   expires: number;
   selected?: Set<string>;
-  reading?: { path: string; offset: number; hash: Hash };
+  /** Large files read piece by piece, in order; a few at once (one per gateway lane). */
+  reading: Map<string, { offset: number; hash: Hash }>;
 }
+
+/** Files of one frame read at the same time; local disks and network filesystems both gain from some overlap. */
+const READ_CONCURRENCY = 8;
+const OPEN_LARGE_FILES = 32;
 
 export class CopySources {
   readonly #sessions = new Map<string, SourceSession>();
@@ -27,7 +46,12 @@ export class CopySources {
 
     try {
       const scan = await scanWorkspace(root);
-      this.#sessions.set(scan.manifest.token, { scan, expires: Date.now() + COPY_IDLE_MS });
+      this.#sessions.set(scan.manifest.token, {
+        scan,
+        entries: new Map(scan.manifest.entries.map((e) => [e.path, e])),
+        expires: Date.now() + COPY_IDLE_MS,
+        reading: new Map(),
+      });
 
       return scan.manifest;
     } finally {
@@ -40,9 +64,7 @@ export class CopySources {
   }
 
   authorize(request: WorkspaceCopyAuthorize) {
-    const session = this.#sessions.get(request.token);
-
-    if (!session || session.expires < Date.now()) throw copyError("The file list expired. Refresh it before copying.");
+    const session = this.#session(request.token);
     delete session.selected;
     const paths = new Set(request.paths);
     const entries = session.scan.manifest.entries;
@@ -53,72 +75,97 @@ export class CopySources {
     if (entries.filter((e) => paths.has(e.path) && !e.blocked).length !== paths.size)
       throw copyError("The selection includes an unavailable file.");
     session.selected = paths;
-    session.expires = Date.now() + COPY_IDLE_MS;
+    session.reading.clear();
   }
 
-  async read(request: WorkspaceCopyRead) {
-    const session = this.#sessions.get(request.token);
+  /** The single-chunk read of gateways before workspace_copy_batch_v3. */
+  read(request: WorkspaceCopyRead) {
+    return this.#read(this.#session(request.token), request, COPY_CHUNK_BYTES);
+  }
+
+  /** One frame: whole small files and pieces of large ones, never more than the frame size in total. */
+  async readBatch(request: WorkspaceCopyReadBatch) {
+    const session = this.#session(request.token);
+    const paths = new Set(request.reads.map((r) => r.path));
+
+    if (
+      request.reads.length > COPY_FRAME_FILES ||
+      paths.size !== request.reads.length ||
+      request.reads.reduce((sum, r) => sum + r.maxBytes, 0) > COPY_FRAME_BYTES
+    )
+      throw copyError("The transfer frame is too large. Retry the copy.");
+
+    const chunks = await mapLimit(request.reads, READ_CONCURRENCY, (read) =>
+      this.#read(session, read, Math.max(1, read.maxBytes)),
+    );
+
+    return create(WorkspaceCopyBatchSchema, { token: request.token, chunks });
+  }
+
+  #session(token: string) {
+    const session = this.#sessions.get(token);
 
     if (!session || session.expires < Date.now()) throw copyError("The file list expired. Refresh it before copying.");
     session.expires = Date.now() + COPY_IDLE_MS;
-    const entry = session.scan.manifest.entries.find((e) => e.path === request.path);
 
-    if (!entry || entry.directory || entry.blocked || !session.selected?.has(request.path))
+    return session;
+  }
+
+  async #read(session: SourceSession, request: WorkspaceCopyRead, limit: number) {
+    const entry = session.entries.get(request.path);
+
+    if (
+      request.token !== session.scan.manifest.token ||
+      !entry ||
+      entry.directory ||
+      entry.blocked ||
+      !session.selected?.has(request.path)
+    )
       throw copyError("This file was not selected for copying.");
 
     if (entry.size > COPY_MAX_FILE_BYTES) throw copyError("A selected file exceeds the 8 GB per-file limit.");
+    const file = session.scan.files.get(entry.path);
     const offset = Number(request.offset);
-    const reading = offset === 0 ? { path: entry.path, offset: 0, hash: createHash("sha256") } : session.reading;
 
-    if (!reading || reading.path !== entry.path || reading.offset !== offset)
-      throw copyError("The transfer lost its place. Retry the copy.");
-    session.reading = reading;
-    let data: Uint8Array;
+    if (!file) throw copyError("The file list changed. Refresh it.");
 
-    if (entry.symlink) {
-      if (offset !== 0) throw copyError("Invalid symlink offset.");
-      const file = session.scan.files.get(entry.path);
+    if (request.knownSha256 && offset === 0) {
+      const sha256 = entry.symlink
+        ? createHash("sha256")
+            .update(await readSymlink(file, entry.symlink))
+            .digest("hex")
+        : await hashFile(file);
 
-      if (!file || (await readlink(join(file.root, file.path))) !== entry.symlink)
-        throw copyError("A symlink changed after the preview. Refresh the file list.");
-      // Symlinks are never followed; their literal target is the payload.
-      data = Buffer.from(entry.symlink);
-    } else {
-      const file = session.scan.files.get(entry.path);
-
-      if (!file) throw copyError("The file list changed. Refresh it.");
-      const { handle, info } = await readHandle(file.root, file.path);
-
-      try {
-        if (info.size !== file.size || info.mtimeMs !== file.mtime || info.ino !== file.ino || info.dev !== file.dev)
-          throw copyError("A file changed after the preview. Refresh the file list and retry.");
-
-        if (offset < 0 || offset > file.size) throw copyError("Invalid file offset.");
-        const buffer = Buffer.alloc(Math.min(COPY_CHUNK_BYTES, file.size - offset));
-        const { bytesRead } = await handle.read(buffer, 0, buffer.length, offset);
-        data = buffer.subarray(0, bytesRead);
-        const after = await lstat(join(file.root, file.path));
-
-        if (after.mtimeMs !== file.mtime || after.ino !== file.ino)
-          throw copyError("A file changed while copying. Refresh and retry.");
-      } finally {
-        await handle.close();
-      }
+      if (sha256 === request.knownSha256)
+        return create(WorkspaceCopyChunkSchema, { ...base(request), last: true, sha256, unchanged: true });
     }
 
+    const reading = offset === 0 ? { offset: 0, hash: createHash("sha256") } : session.reading.get(entry.path);
+
+    if (!reading || reading.offset !== offset) throw copyError("The transfer lost its place. Retry the copy.");
+
+    if (entry.symlink && offset !== 0) throw copyError("Invalid symlink offset.");
+    const data = entry.symlink ? await readSymlink(file, entry.symlink) : await readRange(file, offset, limit);
     reading.hash.update(data);
     reading.offset += data.byteLength;
     const last = reading.offset === Number(entry.size);
 
     if (!last && data.length === 0) throw copyError("A file changed while copying. Refresh and retry.");
 
+    if (last) session.reading.delete(entry.path);
+    else {
+      if (!session.reading.has(entry.path) && session.reading.size >= OPEN_LARGE_FILES)
+        throw copyError("Too many files are being read at once. Retry the copy.");
+      session.reading.set(entry.path, reading);
+    }
+
     return create(WorkspaceCopyChunkSchema, {
-      token: request.token,
-      path: entry.path,
-      offset: request.offset,
+      ...base(request),
       data,
       last,
       sha256: last ? reading.hash.digest("hex") : "",
     });
   }
 }
+
+const base = (request: WorkspaceCopyRead) => ({ token: request.token, path: request.path, offset: request.offset });

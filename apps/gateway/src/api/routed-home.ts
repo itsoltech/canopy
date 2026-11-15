@@ -10,6 +10,7 @@ import {
   THREAD_MIRROR,
 } from "@canopy/domain/computers";
 import { AsyncChannel } from "@canopy/transport";
+import { WORKSPACE_COPY_CAPABILITY } from "@canopy/domain/release/protocol";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Match } from "effect";
 import { linkedMessage, mapIds, methodNamed, movedItems, qualify, unqualify } from "../computers/remote.ts";
@@ -276,7 +277,7 @@ async function* send(
 
   if (
     ["GetWorkspaceCopyManifest", "WorkspaceCopySource", "WorkspaceCopyTarget"].includes(method.name) &&
-    !computers.capabilities(nodeId).includes("workspace_copy_scope_v2")
+    !computers.capabilities(nodeId).includes(WORKSPACE_COPY_CAPABILITY)
   )
     throw new ConnectError("Update this computer to copy files", Code.FailedPrecondition);
   await carryAttachments(core, nodeId, method, outbound, signal);

@@ -60,7 +60,7 @@ export async function workspaceWorker(
         ...(clone.progress ? ["git_clone_progress_v1"] : []),
         "worktrees",
         "workspace_copy_v1",
-        ...(copy ? ["workspace_copy_scope_v2"] : []),
+        ...(copy ? ["workspace_copy_scope_v2", "workspace_copy_batch_v3"] : []),
       ],
       ...(await runtime.runPromise(journalHello())),
     },

@@ -7,7 +7,11 @@ import { computerLink as link, ui } from "@canopy/contracts";
 
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 
-import { COMPUTER_LINK_PROTOCOL, MIN_COMPUTER_LINK_PROTOCOL } from "@canopy/domain/release/protocol";
+import {
+  COMPUTER_LINK_PROTOCOL,
+  MIN_COMPUTER_LINK_PROTOCOL,
+  WORKSPACE_COPY_CAPABILITY,
+} from "@canopy/domain/release/protocol";
 
 import {
   AGENT_BUS,
@@ -94,6 +98,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
               "git_clone_progress_v1",
               "workspace_copy_v1",
               "workspace_copy_scope_v2",
+              WORKSPACE_COPY_CAPABILITY,
               GITHUB_ACCOUNTS,
               GITHUB_PR,
               GITHUB_COMMENTS,
