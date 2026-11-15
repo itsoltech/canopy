@@ -54,8 +54,9 @@ test("shared screenshot viewers capture once, gate on exact ACK, and stopThread 
 
   try {
     start("one");
+    await eventually(() => events.filter((update) => update.state === "frame").length === 1);
     start("two");
-    await eventually(() => events.filter((update) => update.state === "frame").length === 2);
+    await eventually(() => events.filter((update) => update.state === "frame").length === 2, 250);
     const frames = events.filter((update) => update.state === "frame");
     expect(frames.map((frame) => [frame.width, frame.height, frame.viewportWidth, frame.viewportHeight])).toEqual([
       [1600, 800, 1200, 600],

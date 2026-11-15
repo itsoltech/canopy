@@ -54,6 +54,7 @@
   );
 
   const caption = $derived(target?.label || session.title);
+  const workerId = $derived(worker?.id ?? "");
   const item = $derived(worker?.agentTools.find((entry) => entry.tool?.tool === tool));
   const ready = $derived(isPreviewReady(item?.tool));
   const installing = $derived(item?.tool?.install?.state === "running");
@@ -117,7 +118,7 @@
   $effect(() => {
     const id = threadId;
     const scope = previewScope(tool, target);
-    void worker?.id;
+    void workerId;
     void retry;
 
     if (!watching) return;

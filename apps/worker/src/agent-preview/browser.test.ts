@@ -3,11 +3,21 @@ import type { ServerWebSocket } from "bun";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
-import { AgentPreviewInputSchema, AgentTool, RunAgentToolSchema } from "@canopy/contracts";
+import {
+  AgentPreviewCommandSchema,
+  AgentPreviewEventSchema,
+  AgentPreviewInputSchema,
+  AgentTool,
+  RunAgentToolSchema,
+  type AgentPreviewEvent,
+} from "@canopy/contracts";
 import { tempDirs } from "@canopy/testing";
 import sharp from "sharp";
 import { executable } from "../agent-tools/fixtures.test-support.ts";
+import { AgentTools } from "../agent-tools/index.ts";
+import { agentToolSpec } from "../agent-tools/specs.ts";
 import { browserPreview } from "./browser.ts";
+import { AgentPreviews } from "./index.ts";
 import { sendBrowserText } from "./browser-support.ts";
 import { PreviewRuntime } from "./runtime.ts";
 import type { PreviewContext, PreviewUpdate } from "./types.ts";
@@ -75,6 +85,7 @@ function fixture(enabled: boolean, connected = true, viewport = { width: 512, he
     join(root, "browser-cli"),
     `
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+if (process.argv.includes("doctor")) { console.log(JSON.stringify({ success: true, checks: [{ id: "launch.elapsed", status: "pass", message: "Ready" }] })); process.exit(0); }
 const args = process.argv.slice(2).slice(3);
 appendFileSync(${JSON.stringify(log)}, JSON.stringify(args) + "\\n");
 const path = ${JSON.stringify(state)};
@@ -129,6 +140,17 @@ console.log(JSON.stringify({ success: true, data }));
     server,
     sockets,
     controller,
+    tools: new AgentTools({
+      dataDir: root,
+      env: {},
+      probe: {
+        platform: "linux",
+        which: (name) => (name === "agent-browser" ? cli : null),
+        version: async () => ({ line: agentToolSpec(AgentTool.BROWSER).version }),
+      },
+      send: () => {},
+      progress: () => {},
+    }),
     capacity: () => {
       active = true;
     },
@@ -150,6 +172,81 @@ console.log(JSON.stringify({ success: true, data }));
 
 const input = (kind: string, init: Parameters<typeof create<typeof AgentPreviewInputSchema>>[1] = {}) =>
   create(AgentPreviewInputSchema, { ...init, kind });
+
+test("browser group replays one bounded frame to late viewers without a repaint and clears it on tab change and close", async () => {
+  const f = fixture(true);
+  const events: AgentPreviewEvent[] = [];
+
+  const manager = new AgentPreviews({
+    tools: f.tools,
+    send: (update) => {
+      events.push(create(AgentPreviewEventSchema, update));
+    },
+  });
+
+  const start = (id: string) =>
+    manager.accept(
+      create(AgentPreviewCommandSchema, {
+        kind: {
+          case: "start",
+          value: { previewId: id, threadId: "thread", scope: { tool: AgentTool.BROWSER }, maxFps: 12 },
+        },
+      }),
+    );
+
+  const frames = (id: string) => events.filter((update) => update.previewId === id && update.state === "frame");
+
+  const jpeg = await sharp({ create: { width: 512, height: 256, channels: 3, background: "white" } })
+    .jpeg()
+    .toBuffer();
+
+  try {
+    start("one");
+    await until(() => events.some((update) => update.targetId === "t7" || update.state === "error"));
+    expect(events.filter((update) => update.state === "error")).toEqual([]);
+    f.send(
+      JSON.stringify({
+        type: "frame",
+        seq: 41,
+        data: jpeg.toString("base64"),
+        metadata: { deviceWidth: 512, deviceHeight: 256 },
+      }),
+    );
+    await until(() => frames("one").length === 1);
+    start("two");
+    await until(() => frames("two").length === 1);
+    expect(frames("two")[0]).toMatchObject({ frameId: 1n, targetId: "t7", mimeType: "image/jpeg" });
+    expect(frames("two")[0]?.data).toEqual(frames("one")[0]?.data);
+    expect(f.sockets.size).toBe(1);
+    expect(f.calls().filter((args) => args[0] === "eval")).toHaveLength(1);
+    f.send(JSON.stringify({ type: "tabs", tabs: [{ tabId: "t8", title: "Next", url: "about:blank", active: true }] }));
+    await until(() => events.some((update) => update.targetId === "t8"));
+    start("three");
+    await until(() => events.some((update) => update.previewId === "three" && update.targetId === "t8"));
+    expect(frames("three")).toHaveLength(0);
+    manager.accept(
+      create(AgentPreviewCommandSchema, { kind: { case: "ack", value: { previewId: "one", frameId: 1n } } }),
+    );
+    await until(() => f.messages.some((message) => JSON.parse(message).seq === 41));
+    f.send(
+      JSON.stringify({
+        type: "frame",
+        seq: 42,
+        data: jpeg.toString("base64"),
+        metadata: { deviceWidth: 512, deviceHeight: 256 },
+      }),
+    );
+    await until(() => frames("three").length === 1);
+    manager.stopThread("thread");
+    await until(() => f.sockets.size === 0);
+    start("fresh");
+    await until(() => events.some((update) => update.previewId === "fresh" && update.targetId === "t7"));
+    expect(frames("fresh")).toHaveLength(0);
+  } finally {
+    await manager.close();
+    f.server.stop(true);
+  }
+});
 
 test("native browser input shares a stream, maps CSS coordinates, paces frames and releases only its owner's holds", async () => {
   const f = fixture(false);

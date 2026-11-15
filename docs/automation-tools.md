@@ -1,7 +1,8 @@
 # Narzędzia automatyzacji agentów
 
 Status (2026-11-15): **narzędzia, interaktywny Preview i automatyczny mini Preview
-wątku zaimplementowane**.
+wątku zaimplementowane**, z zachowaniem watch po aktualizacji statusu tego samego
+workera i ostatnią klatką dla nowego odbiorcy aktywnej grupy.
 Ten opis dotyczy stanu kodu i nie oznacza, że funkcja jest już w wydanym buildzie.
 Dostępność nightly/beta/stable wynika ze zwykłej promocji wydań
 ([release.md](release.md)).
@@ -233,7 +234,11 @@ na sekundę, bez sterowania myszką lub klawiaturą i bez zmiany viewportu. Mini
 agenta, bez jej uruchamiania ani automatycznej nawigacji. Używa istniejących
 limitów i autoryzacji Preview, a po kolejnych wywołaniach zmienia narzędzie i
 bezpieczny cel na najnowsze wartości. Aktywności dla tego samego zakresu zachowują
-działający stream. Minimizacja jest stanem bieżącego wątku na zamontowanej stronie:
+działający stream; aktualizacja statusu tego samego workera także go zachowuje.
+Nowy odbiorca aktywnej grupy Preview od razu dostaje jej ostatnią klatkę, bez
+czekania na zmianę obrazu. Grupa trzyma tylko jedną ograniczoną klatkę w pamięci;
+zmiana celu, utrata celu Desktop/Device i zamknięcie grupy ją usuwają.
+Minimizacja jest stanem bieżącego wątku na zamontowanej stronie:
 kolejne aktywności nie otwierają ponownie mini Preview; zmiana wątku resetuje wybór
 i minimizację. Sam sygnał nigdy nie przejmuje fokusu.
 

@@ -33,6 +33,7 @@ export class PreviewGroup {
   readonly #ready: Promise<PreviewBackend>;
   #backend: PreviewBackend | undefined;
   #metadata: PreviewUpdate = { state: "connecting" };
+  #frame: PreviewUpdate | undefined;
   #closed: Promise<void> | undefined;
 
   constructor(tools: AgentTools, scope: RunAgentTool, fail: (detail: string) => void) {
@@ -60,6 +61,17 @@ export class PreviewGroup {
       emit: (update: PreviewUpdate) => {
         if (signal.aborted) return;
         const bounded = previewMetadata(update);
+        const targetChanged = bounded.targetId !== undefined && bounded.targetId !== this.#metadata.targetId;
+
+        if (targetChanged || (scope.tool !== AgentTool.BROWSER && !bounded.targetId)) this.#frame = undefined;
+
+        if (bounded.state === "error" || bounded.state === "closed") this.#frame = undefined;
+        else if (
+          bounded.state === "frame" &&
+          bounded.data?.byteLength &&
+          (scope.tool === AgentTool.BROWSER || bounded.targetId)
+        )
+          this.#frame = bounded;
         const { data: _data, ...metadata } = bounded;
         this.#metadata = { ...this.#metadata, ...metadata, state: "ready" };
 
@@ -81,6 +93,8 @@ export class PreviewGroup {
     this.watches.set(watch.id, watch);
     this.input.add(watch.id);
     watch.offer(this.#metadata);
+
+    if (this.#frame) watch.offer(this.#frame);
   }
 
   async remove(id: string): Promise<void> {
@@ -92,6 +106,7 @@ export class PreviewGroup {
 
   close(): Promise<void> {
     if (this.#closed) return this.#closed;
+    this.#frame = undefined;
     this.#abort.abort();
     this.#closed = this.#finish();
 
