@@ -1,9 +1,12 @@
 <script lang="ts">
   import { tick } from "svelte";
   import { tabName, tabPath, tabDirty } from "@canopy/domain/workspace-modules";
+  import PullRequestTabIcon from "#lib/features/github/PullRequestTabIcon.svelte";
   import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import MenuItem from "#lib/shared/ui/MenuItem.svelte";
+  import FileIcon from "#lib/shared/ui/FileIcon.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
+  import Spinner from "#lib/shared/ui/Spinner.svelte";
   import LiveText from "#lib/shared/ui/LiveText.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import { workspaceVersion } from "./workspace.svelte.ts";
@@ -35,17 +38,36 @@
   let focused = $state("thread");
   const revision = $derived(workspaceVersion());
 
-  const tabs = $derived.by(() => {
+  /** A pull request tab's state and checks in words, reported by its icon. */
+  let statuses = $state<Record<string, string>>({});
+
+  interface TabRow {
+    id: string;
+    name: string;
+    path: string;
+    preview: boolean;
+    dirty: boolean;
+    busy: boolean;
+    error: string;
+    file?: string | undefined;
+    pullRequest?: string | undefined;
+  }
+
+  const tabs = $derived.by((): TabRow[] => {
     void revision;
 
     return [
-      { id: "thread", name: title, path: "", preview: false, dirty: false },
+      { id: "thread", name: title, path: "", preview: false, dirty: false, busy: false, error: "" },
       ...view.tabs.map((tab) => ({
         id: tab.id,
         name: tabName(tab),
         path: tabPath(tab),
         preview: tab.preview,
         dirty: tabDirty(tab),
+        busy: tab.kind === "file" && tab.document.busy,
+        error: tab.kind === "file" ? tab.document.error : "",
+        file: tab.kind === "file" ? tab.document.path : undefined,
+        pullRequest: tab.kind === "module" && tab.module === "pull-requests" ? tab.resource : undefined,
       })),
     ];
   });
@@ -153,7 +175,7 @@
           role="tab"
           aria-selected={tab.id === active.id}
           aria-controls="workspace-content"
-          aria-label={`${tab.name}${tab.preview ? ", Preview" : ""}${tab.dirty ? ", Unsaved changes" : ""}${tab.id === "thread" && pending ? `, ${pending} waiting for you` : ""}`}
+          aria-label={`${tab.name}${statuses[tab.id] ? `, ${statuses[tab.id]}` : ""}${tab.preview ? ", Preview" : ""}${tab.busy ? ", Saving" : tab.error ? `, ${tab.error}` : tab.dirty ? ", Unsaved changes" : ""}${tab.id === "thread" && pending ? `, ${pending} waiting for you` : ""}`}
           tabindex={tab.id === focused || (!visible.some((entry) => entry.id === focused) && tab.id === active.id)
             ? 0
             : -1}
@@ -166,7 +188,9 @@
           ]}
           onclick={() => view.select(tab.id)}
           ondblclick={() => view.keep(tab.id)}
-          {@attach tooltip(tab.id === "thread" ? title : tab.path)}
+          {@attach tooltip(
+            tab.id === "thread" ? title : [tab.path, statuses[tab.id], tab.error].filter(Boolean).join(" · "),
+          )}
         >
           {#if tab.id === "thread"}
             <LiveText text={title} active={titleGenerating} />
@@ -174,6 +198,14 @@
               >{pending || (working ? "•" : "")}</span
             >
           {:else}
+            {#if tab.busy}<Spinner class="size-4 text-muted" />{:else if tab.error}<Icon
+                name="exclamation-triangle"
+                tone="inherit"
+                class="text-amber-700 dark:text-amber-400"
+              />{:else if tab.file}<FileIcon path={tab.file} />{:else if tab.pullRequest}<PullRequestTabIcon
+                id={tab.pullRequest}
+                onlabel={(label) => (statuses[tab.id] = label)}
+              />{:else}<Icon name="command-line" />{/if}
             <span class={["truncate", tab.preview && "pr-0.5 italic"]}>{tab.name}</span>
           {/if}
         </button>

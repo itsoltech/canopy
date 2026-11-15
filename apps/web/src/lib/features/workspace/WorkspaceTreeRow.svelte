@@ -1,6 +1,7 @@
 <script lang="ts">
   import { ThreadDirectoryKind as Kind, type ThreadDirectoryEntry } from "@canopy/contracts";
   import type { DirectoryRow } from "@canopy/domain/workspace-directory";
+  import FileIcon from "#lib/shared/ui/FileIcon.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
   import Spinner from "#lib/shared/ui/Spinner.svelte";
@@ -107,19 +108,20 @@
     <Skeleton class="h-2.5 w-24" />
     <span class="sr-only">{label}</span>
   {:else}
-    <Icon
-      name={directory
-        ? expanded
-          ? "folder-open"
-          : "folder"
-        : entry?.kind === Kind.SYMLINK
-          ? "link"
+    {#if entry && !directory && entry.kind !== Kind.SYMLINK}<FileIcon
+        path={entry.path}
+        class={[(entry.kind === Kind.DELETED || status === "!") && "opacity-60"]}
+      />{:else}<Icon
+        name={directory
+          ? expanded
+            ? "folder-open"
+            : "folder"
           : entry
-            ? "document-text"
+            ? "link"
             : state.error
               ? "arrow-path"
               : "ellipsis-horizontal"}
-    />
+      />{/if}
     <span class="min-w-0 flex-1 truncate">{label}</span>
   {/if}
   <span class="w-3 shrink-0 text-center text-xs" aria-hidden="true">{status}</span>

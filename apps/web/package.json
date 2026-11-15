@@ -36,7 +36,8 @@
     "effect": "4.1.1",
     "katex": "0.16.28",
     "marked": "18.1.2",
-    "qrcode": "1.5.4"
+    "qrcode": "1.5.4",
+    "simple-icons": "16.37.0"
   },
   "devDependencies": {
     "@sveltejs/adapter-node": "6.0.1",
