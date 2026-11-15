@@ -91,7 +91,7 @@ Short rules for agents working in this repository. Details live in `docs/` (most
 - Keep components small and reusable; extract repeated UI.
 - Check UI with short, typical and long/worst-case texts (names, branches, labels) at desktop, narrow and phone widths, where it matters; truncation and wrapping must stay tidy. Use the `design`, `componentize` and `transitions-dev` skills for UI work.
 - Check overlays, sticky headers and scroll areas for gaps and see-through seams (stray padding, margins or offsets).
-- UI text follows `docs/copy.md`. Run its copy audit (§8) for every feature that changes UI text and put the result in the PR description; no separate copy review is needed.
+- UI text follows `docs/copy.md`. Run its copy audit (§8) for every feature that changes UI text, fix every failed item before opening the PR and put the result in the PR description; an item left failing needs its reason in the PR. No separate copy review is needed.
 
 ## Security
 

@@ -274,9 +274,11 @@ marks and justifies each one. When in doubt, write it plainly.
 
 ## 8. Copy audit after a feature (checklist)
 
-Run it for every feature that changes UI text, before opening the PR. Put the result
-(before → after, a short reason) in the PR description. No separate copy review is
-needed.
+Run it for every feature that changes UI text, before opening the PR. The audit is a
+gate, not a report: fix every failed item in the same PR before opening it. Put the
+result (before → after, a short reason) in the PR description. Leave an item failing
+only when the fix would be wrong; name it in the PR with the reason. No separate copy
+review is needed.
 
 1. Every new or changed text: one idea per sentence, length limits, active voice,
    sentence case, punctuation (§2).
