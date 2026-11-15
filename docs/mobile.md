@@ -1583,7 +1583,8 @@ Potwierdzenia korzystają z preferencji użytkownika. „Undo” po usunięciu w
 Przesunięcie wiersza w lewo archiwizuje wątek, a w archiwum przywraca go tą samą akcją
 co arkusz. Gest działa też dla wątków bocznych; krótkie lub anulowane przesunięcie wraca
 do początku. Pionowe przewijanie i dotknięcie zachowują swoje działanie.
-Potwierdzenia i brak połączenia blokują skrót tak samo jak menu. Toast „Thread archived”
+Swipe archiwizacji zawsze wymaga potwierdzenia, niezależnie od preferencji „Confirm archive”;
+brak połączenia blokuje skrót tak samo jak menu. Toast „Thread archived"
 z „Undo” cofa archiwizację przez `SetThreadArchived`, bez wznawiania tur i harmonogramów.
 Gest korzysta z istniejących React Native PanResponder i Reanimated, bez zmian zależności
 natywnych i fingerprintów EAS. Ograniczenie ruchu wyłącza animację powrotu wiersza.
