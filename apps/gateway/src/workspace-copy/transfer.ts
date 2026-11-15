@@ -74,6 +74,7 @@ export async function transferFiles(
     const batch = await io.read(entries.map((e) => read(e, 0n, Number(e.size), known(e))));
 
     if (batch.chunks.length !== entries.length) throw lost();
+
     const chunks = entries.map((entry, i) => {
       // SAFETY: the length matches `entries` (checked above).
       const chunk = batch.chunks[i]!;

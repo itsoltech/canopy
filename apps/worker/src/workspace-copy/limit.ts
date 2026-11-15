@@ -1,6 +1,6 @@
 /** Runs `run` over `items` with at most `limit` in flight; results keep the input order. */
 export async function mapLimit<T, R>(items: readonly T[], limit: number, run: (item: T) => Promise<R>): Promise<R[]> {
-  const results = new Array<R>(items.length);
+  const results: R[] = [];
   let next = 0;
 
   const lane = async () => {

@@ -69,6 +69,7 @@ describe.skipIf(!dockerAvailable)("background workspace copies over real workers
 
   afterAll(async () => {
     gw.core.copyJobs.beforeWrite = () => {};
+
     await source?.close();
     await target?.close();
     await gw?.close();
@@ -180,12 +181,14 @@ describe.skipIf(!dockerAvailable)("background workspace copies over real workers
     const pause = hold(3);
     await gw.api.startWorkspaceCopy(input);
     await pause.reached;
+
     const storage = {
       pg: gw.pg,
       secretsKey: gw.secretsKey,
       workerId: gw.workerId,
       workerCredential: gw.workerCredential,
     };
+
     const stopping = gw.close(true);
     pause.release();
     await stopping;
@@ -222,6 +225,7 @@ describe.skipIf(!dockerAvailable)("background workspace copies over real workers
     const foreign = await gw.runtime.runPromise(
       GatewayStore.use((s) => s.ensureUser("copy-jobs-other@fixture", "Other")),
     );
+
     const id = Bun.randomUUIDv7();
     await gw.runtime.runPromise(
       Effect.flatMap(

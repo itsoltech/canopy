@@ -21,9 +21,11 @@ import { targetCall } from "./routes.ts";
 /** Background copies running at once; more wait as queued. Each one holds at most COPY_LANES frames. */
 const RUNNING = 3;
 const TICK_MS = 10_000;
+
 /** Progress reaches clients a few times a second and the database every few seconds. */
 const PUBLISH_MS = 250;
 const PERSIST_MS = 2_000;
+
 /** Attempts in a row without progress before a copy fails; progress resets the count. */
 const ATTEMPTS = 3;
 const BACKOFF_MS = [1_000, 3_000, 5_000];
@@ -279,6 +281,7 @@ export class WorkspaceCopyJobs {
     let published = 0;
     let persisted = Date.now();
     let first: CopyAttemptProgress | undefined;
+
     const state = {
       started: false,
       progressed: false,

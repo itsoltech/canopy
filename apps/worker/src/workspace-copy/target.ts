@@ -305,6 +305,6 @@ export class CopyTargets {
   async close() {
     await this.ready;
 
-    for (const token of [...this.#sessions.keys()]) this.#drop(token);
+    for (const token of this.#sessions.keys()) this.#drop(token);
   }
 }

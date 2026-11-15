@@ -17,6 +17,7 @@
   import { sectionMemory, sectionOf, type Section } from "./sections.svelte.ts";
   import SidebarThreads from "./SidebarThreads.svelte";
   import SidebarProjectFilter from "./SidebarProjectFilter.svelte";
+  import SidebarCopyJobs from "#lib/features/projects/SidebarCopyJobs.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import { keybindings } from "#lib/features/commands/keybindings.svelte.ts";
   import { useAddProject } from "#lib/features/projects/add/add-project.svelte.ts";
@@ -140,6 +141,8 @@
       <LiveBotsNav query={queries.bots} />
     {/if}
   </nav>
+
+  <SidebarCopyJobs />
 
   <div class="sidebar-inset flex shrink-0 items-center gap-1 border-t border-zinc-950/5 py-2 dark:border-white/5">
     <a

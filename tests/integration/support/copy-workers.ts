@@ -30,6 +30,7 @@ export async function copyWorker(gateway: TestGateway, dir: string, name: string
   const data = join(dir, ".worker");
   mkdirSync(data, { recursive: true });
   const runtime = ManagedRuntime.make(Journal.layer(join(data, "journal.db")));
+
   const start = () =>
     new WorkerHost({ runtime, dataDir: data, clientVersion: "test", deviceHomes: { codex: dir, claude: dir } });
 
@@ -57,7 +58,10 @@ export async function copyWorker(gateway: TestGateway, dir: string, name: string
         ...(await runtime.runPromise(journalHello())),
       },
     });
-    serving = serveLink(link, host, runtime).catch(() => {});
+    serving = serveLink(link, host, runtime).then(
+      () => {},
+      () => {},
+    );
     await eventually(
       () => to.api.getOverview({}),
       (o) => o.workers.some((w) => w.id === worker.workerId && w.online && w.appliedVersion > 0n),

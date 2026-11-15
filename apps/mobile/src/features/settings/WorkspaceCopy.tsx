@@ -134,7 +134,9 @@ function CopyProgress({
   return (
     <>
       <Text accessibilityLiveRegion="polite" style={[type.body, { color: c.text }]}>
-        {progress?.status === "finishing" ? "Adding the workspace…" : "Copying files…"}
+        {progress?.status === "finishing"
+          ? "Adding the workspace…"
+          : "Copying files… It continues in the background if you close this sheet."}
       </Text>
       <Text
         style={[type.body, { color: c.text }]}

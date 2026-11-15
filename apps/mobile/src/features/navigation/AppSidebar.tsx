@@ -7,6 +7,7 @@ import { ListSkeleton } from "../../ui/Skeleton";
 import { Redirect, router } from "expo-router";
 import { ScreenFrame, useContentPadding } from "../../ui/ScreenFrame";
 import { SidebarFooter } from "./SidebarFooter";
+import { SidebarCopyJobs } from "../copy-jobs/SidebarCopyJobs";
 import { bots as botContract } from "@canopy/contracts";
 import { timestampMs } from "@bufbuild/protobuf/wkt";
 import { compareConversations } from "@canopy/domain/bot-chat";
@@ -306,7 +307,12 @@ export function AppSidebar() {
           <ConnectionBanner overlay />
         </>
       }
-      footer={<SidebarFooter workers={workers} stream={stream} />}
+      footer={
+        <>
+          <SidebarCopyJobs />
+          <SidebarFooter workers={workers} stream={stream} />
+        </>
+      }
     >
       <SidebarLists state={state} />
       <SidebarOptions

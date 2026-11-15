@@ -3,10 +3,13 @@ import type { WorkspaceCopyEntry, WorkspaceCopyManifest } from "@canopy/contract
 export { copyTree, visibleCopyTree, toggleCopyNode, type CopyTreeNode } from "./workspace-copy-tree.ts";
 
 export const COPY_CHUNK_BYTES = 128 * 1024;
+
 /** One batched frame on the worker and computer links: many small files, or one piece of a large file. */
 export const COPY_FRAME_BYTES = 1024 ** 2;
+
 /** Small files packed into one frame at most; resumed files cost a local hash, not a transfer. */
 export const COPY_FRAME_FILES = 256;
+
 /** Frames in flight per copy; with the frame size this bounds the memory of one copy. */
 export const COPY_LANES = 6;
 export const COPY_MAX_BYTES = 20 * 1024 ** 3;

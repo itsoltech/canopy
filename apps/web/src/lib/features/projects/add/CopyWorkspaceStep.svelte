@@ -16,7 +16,8 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import Checkbox from "#lib/shared/ui/Checkbox.svelte";
   import StepHeader from "./StepHeader.svelte";
-  import { streamWorkspaceCopy } from "./workspace-copy.ts";
+  import { copyJobRunning } from "@canopy/domain/workspace-copy-jobs";
+  import { copyJobs } from "../copy-jobs.svelte.ts";
 
   let {
     project,
@@ -45,9 +46,14 @@
   let error = $state("");
   let confirming = $state(false);
   let confirmed = $state(false);
-  let cancelled = $state(false);
-  let progress = $state.raw<ui.WorkspaceCopyProgress>();
-  let controller: AbortController | undefined;
+  let jobId = $state("");
+  let cancelling = $state(false);
+
+  // The copy runs in the gateway: closing this dialog or reloading the page does not stop it.
+  const job = $derived(jobId ? copyJobs.jobs.get(jobId) : undefined);
+  const progress = $derived(job?.progress);
+  const cancelled = $derived(job?.status === "cancelled");
+  const running = $derived(!!job && copyJobRunning(job));
   const entries = $derived(copySelection(manifest?.entries ?? [], selected));
   const totals = $derived(copyTotals(entries));
   const secrets = $derived(entries.filter((e) => e.secret && !e.directory));
@@ -57,23 +63,26 @@
     (manifest?.entries ?? []).filter((e) => copySelectable(e) && !e.directory && !selected.has(e.path)).length,
   );
 
-  const done = $derived(progress?.status === "completed");
+  const done = $derived(job?.status === "completed");
+  const ended = $derived(Boolean(error) || cancelled || job?.status === "failed");
   const percent = $derived(progress?.totalBytes ? Number((progress.bytes * 100n) / progress.totalBytes) : 0);
 
   const actionLabel = $derived(
     done
       ? "Done"
-      : error || cancelled
-        ? "Refresh file list"
-        : confirming
-          ? "Copy these files"
-          : secrets.length
-            ? "Review secrets"
-            : "Copy workspace",
+      : running
+        ? "Run in background"
+        : ended
+          ? "Refresh file list"
+          : confirming
+            ? "Copy these files"
+            : secrets.length
+              ? "Review secrets"
+              : "Copy workspace",
   );
 
   const actionDisabledReason = $derived(
-    done || error || cancelled
+    done || ended || running
       ? undefined
       : loading
         ? "Reading the file list…"
@@ -85,8 +94,8 @@
   function submit() {
     if (busy || actionDisabledReason) return;
 
-    if (done) onclose();
-    else if (error || cancelled) void load();
+    if (done || running) onclose();
+    else if (ended) void load();
     else void copy();
   }
 
@@ -103,8 +112,7 @@
   });
 
   onDestroy(() => {
-    controller?.abort();
-    void release();
+    if (!jobId) void release();
   });
 
   async function release() {
@@ -115,13 +123,12 @@
   }
 
   async function load() {
-    await release();
+    if (!jobId) await release();
     loading = true;
     error = "";
     confirming = false;
     confirmed = false;
-    cancelled = false;
-    progress = undefined;
+    jobId = "";
 
     try {
       manifest = decode(
@@ -150,7 +157,6 @@
       return;
     }
 
-    controller = new AbortController();
     busy = true;
     onbusy(true);
     error = "";
@@ -165,20 +171,29 @@
       parentPath: parent,
       name,
       transferKey: crypto.randomUUID(),
+      targetName: worker.name,
     };
 
     try {
-      await streamWorkspaceCopy(
-        create(ui.CopyWorkspaceRequestSchema, input),
-        controller.signal,
-        (event) => (progress = event),
-      );
+      // The gateway owns the file list from here on (and releases it).
+      jobId = (await copyJobs.start(create(ui.CopyWorkspaceRequestSchema, input))).id;
     } catch (cause) {
-      if (controller.signal.aborted) cancelled = true;
-      else error = cause instanceof Error ? cause.message : "Workspace copy failed. Refresh the file list and retry.";
+      error = cause instanceof Error ? cause.message : "Workspace copy failed. Refresh the file list and retry.";
     } finally {
       busy = false;
       onbusy(false);
+    }
+  }
+
+  async function cancel() {
+    cancelling = true;
+
+    try {
+      await copyJobs.cancel(jobId);
+    } catch (cause) {
+      error = cause instanceof Error ? cause.message : "Could not cancel the copy. Retry.";
+    } finally {
+      cancelling = false;
     }
   }
 </script>
@@ -186,7 +201,7 @@
 <svelte:window {onkeydown} />
 
 <StepHeader
-  onback={!busy && !done
+  onback={!busy && !running && !done
     ? () => {
         if (confirming) {
           confirming = false;
@@ -198,14 +213,14 @@
   onsubmit={submit}
   {actionLabel}
   disabledReason={actionDisabledReason}
-  busy={busy || loading}
+  busy={busy || loading || running}
 >
   <h2 class="min-w-0 flex-1 truncate py-3 font-medium" title={name}>
     {done
       ? "Workspace copied"
-      : busy
+      : busy || running
         ? "Copying workspace"
-        : error
+        : error || job?.status === "failed"
           ? "Copy failed"
           : cancelled
             ? "Copy cancelled"
@@ -228,8 +243,16 @@
         )}.
       </p>
       <p class="text-zinc-500 dark:text-zinc-400">The workspace is ready for new threads.</p>
-    {:else if busy}
-      <p role="status">{progress?.status === "finishing" ? "Adding the workspace…" : "Copying files…"}</p>
+    {:else if busy || running}
+      <p role="status">
+        {job?.status === "finishing"
+          ? "Adding the workspace…"
+          : job?.status === "waiting"
+            ? job.error
+            : job?.status === "queued"
+              ? "Starts when another copy ends."
+              : "Copying files… It continues in the background if you close this dialog."}
+      </p>
       <div
         role="progressbar"
         aria-label="Copy progress"
@@ -247,9 +270,9 @@
       <p class="truncate text-zinc-500 dark:text-zinc-400" title={progress?.currentFile}>
         {progress?.currentFile || "Preparing the destination…"}
       </p>
-    {:else if error || cancelled}
-      <p role={error ? "alert" : "status"} class={error ? "text-rose-700 select-text dark:text-rose-400" : ""}>
-        {error || "Copy cancelled. Partial files are removed automatically."}
+    {:else if ended}
+      <p role={cancelled ? "status" : "alert"} class={cancelled ? "" : "text-rose-700 select-text dark:text-rose-400"}>
+        {error || job?.error || "Copy cancelled. Partial files are removed automatically."}
       </p>
     {:else if confirming}
       <p>These files may contain passwords, tokens or private keys. Copy them only to a computer you trust.</p>
@@ -279,9 +302,11 @@
   {:else if done}
     <Button variant="primary" class="w-full" onclick={onclose}>Done</Button>
   {:else if busy}
-    <Button variant="primary" loading class="w-full">Copying workspace…</Button>
-    <Button class="w-full" onclick={() => controller?.abort()}>Cancel copy</Button>
-  {:else if error || cancelled}
+    <Button variant="primary" loading class="w-full">Starting the copy…</Button>
+  {:else if running}
+    <Button variant="primary" class="w-full" onclick={onclose}>Run in background</Button>
+    <Button class="w-full" loading={cancelling} disabled={cancelling} onclick={() => void cancel()}>Cancel copy</Button>
+  {:else if ended}
     <Button variant="primary" class="w-full" onclick={() => void load()}>Refresh file list</Button>
   {:else if manifest}
     {#if confirming}

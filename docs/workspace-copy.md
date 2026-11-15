@@ -64,10 +64,11 @@ wielkości liter są odrzucane.
 
 ## Transfer i trwałość
 
-Nowy zakres negocjuje capability workera i gatewaya `workspace_copy_scope_v2`,
-obok dotychczasowego `workspace_copy_v1`. `WORKER_LINK_PROTOCOL`
-i zamrożony `update/v1` pozostają bez zmian. Starszy worker pokazuje
-**Update this worker to copy files**. Routing źródła i celu jest niezależny,
+Transfer negocjuje capability workera i gatewaya `workspace_copy_batch_v3`
+(`WORKSPACE_COPY_CAPABILITY`); workery nadal ogłaszają `workspace_copy_scope_v2`
+i `workspace_copy_v1` dla starszych gatewayów, które prowadzą pojedyncze porcje.
+`WORKER_LINK_PROTOCOL` i zamrożony `update/v1` pozostają bez zmian. Starszy worker
+albo połączony komputer pokazuje **Update this worker to copy files**. Routing źródła i celu jest niezależny,
 z istniejącymi aliasami projektów i wymaganiem Share configuration. Dom celu
 autoryzuje projekt/worker i publikuje workspace standardowym AddProject.
 
@@ -79,14 +80,25 @@ Addytywna operacja `WorkspaceCopyOperation.authorize` (8) wiąże token podgląd
 z pełną listą przed odczytem. Starsze workery i połączone gatewaye wymagają aktualizacji.
 
 Źródło → gateway → opcjonalny połączony gateway → cel używa istniejących łączy.
-Jedna porcja 128 KiB czeka na zapis przed następnym odczytem, do 8 MiB/s.
-Gateway dopuszcza dwie kopie, worker dwa cele i cztery podglądy. I/O jest
-asynchroniczne, Git przechodzi przez process governor. Porcje nie trafiają
-do outboxa, journalu, modeli, logów, audytu ani diagnostyki.
+Gateway prowadzi `COPY_LANES` (6) ramek naraz; ramka ma do `COPY_FRAME_BYTES`
+(1 MiB) i do 256 plików. Małe pliki (do ¼ ramki) są pakowane po kilkaset w jedną
+ramkę (`WorkspaceCopyOperation.read_batch` / `write_batch`), duże idą ramkami
+po kolei w jednym torze. Pamięć jednej kopii ogranicza się do torów × ramka;
+backpressure daje to, że tor czyta następną ramkę dopiero po zapisie poprzedniej.
+Worker czyta i zapisuje pliki ramki równolegle (8 naraz), ramki tej samej kopii
+mogą się przeplatać, a prepare/finish/cancel czekają na nie i działają same.
+Nie ma już limitu przepustowości ani fsync przy każdym pliku: cel synchronizuje
+wszystkie pliki jednym ograniczonym przebiegiem (32 naraz) przed publikacją.
+Dawna pojedyncza porcja (`read`/`write`, 128 KiB) zostaje dla starszych gatewayów.
+Kopie prowadzone strumieniem klienta (`CopyWorkspace`) są najwyżej dwie, worker
+przyjmuje cztery cele i cztery podglądy. Git przechodzi przez process governor.
+Porcje nie trafiają do outboxa, journalu, modeli, logów, audytu ani diagnostyki.
 
 Limity: 20 GiB na wybór, 8 GiB na plik, 100 000 wpisów, 8 MiB manifestu,
-10 minut bezczynności. Pliki mają SHA-256; całość ma SHA-256 uporządkowanego
-ciągu `path\0size\0hash\n`. UI pokazuje bajty/pliki i bieżącą ścieżkę;
+10 minut bezczynności. Pliki mają SHA-256 liczone przez źródło; cel liczy je
+ze swoich bajtów i odrzuca niezgodny plik, gateway sprawdza rozmiary. Całość ma
+SHA-256 ciągu `path\0size\0hash\n` w kolejności manifestu, liczone przez gateway
+i cel przed publikacją. UI pokazuje bajty/pliki i bieżącą ścieżkę;
 sekretne ścieżki zastępuje etykietą **Local configuration**.
 
 Cel rezerwuje nowy pusty katalog regułami `project-sources.ts`, zapisuje
@@ -94,11 +106,48 @@ do sąsiedniego prywatnego `.canopy-copy-*`, weryfikuje sumy i wykonuje rename.
 Na Windows pustą rezerwację celu usuwa tuż przed rename, ponieważ system nie
 pozwala zastąpić istniejącego katalogu; ukończony checkout nadal publikuje atomowo.
 Receipt zapisuje wyłącznie identyfikator transferu, ścieżki i tożsamości
-(device/inode) katalogów oraz stan. Po błędzie, anulowaniu lub restarcie
-cleanup usuwa tylko katalogi o zapisanej tożsamości. Po rename zachowuje
-ukończony katalog do finalizacji/podpięcia jako istniejący katalog.
-Ponowne finalizowanie nie nadpisuje go; przerwane porcje ponawia się od nowego
-podglądu, bez wznawiania części pliku.
+(device/inode) katalogów, stan i czas ostatniego prepare. Anulowanie albo błąd
+sumy całości usuwa tylko katalogi o zapisanej tożsamości. Przerwany transfer
+w stanie `writing` (restart workera, bezczynność, wyłączenie) zostaje na
+`COPY_RESUME_MS` (24 h): `WorkspaceCopyPrepare.resume` z tym samym tokenem
+podejmuje go, cel usuwa pliki spoza nowego wyboru, innego typu i rozmiaru,
+a resztę haszuje i zwraca w `staged`. Gateway czyta je ze źródła z
+`known_sha256`: źródło haszuje plik lokalnie i odpowiada `unchanged` bez danych,
+cel przyjmuje go po zgodnym haszu. Częściowe pliki zaczynają się od nowa.
+Starsze receipty i przeterminowane transfery są usuwane przy starcie workera
+i przed nowym transferem. Po rename cel zachowuje ukończony katalog do
+finalizacji/podpięcia jako istniejący katalog; ponowne finalizowanie go nie nadpisuje.
+
+## Kopiowanie w tle
+
+`StartWorkspaceCopy` zakłada trwałe zadanie w gatewayu, z którym rozmawia klient
+(`workspace_copy_jobs`, migracja 0153), i odpowiada po autoryzacji wyboru
+i przygotowaniu celu, więc błędy wyboru (niepotwierdzony sekret, zajęty katalog)
+widać w dialogu, a zadanie znika. Wiersz trzyma właściciela, końce, katalog,
+nazwę workera celu, liczniki i stan (`queued`, `copying`, `finishing`, `waiting`,
+`completed`, `failed`, `cancelled`). Wybór jest zapisany wyłącznie jako SHA-256
+ścieżek wybranych plików ignorowanych i potwierdzonych sekretów, bez nazw;
+bieżąca ścieżka nie jest zapisywana.
+
+Zamknięcie dialogu, przeładowanie strony i restart gatewaya nie przerywają
+kopii. Runner (`WorkspaceCopyJobs`) prowadzi do trzech kopii naraz, kolejne
+czekają jako `queued`. Każda próba czyta świeżą listę plików, wybiera pliki
+po haszach ścieżek, wznawia staging celu i wysyła tylko brakujące pliki.
+Niedostępny worker albo komputer daje `waiting`; kopia rusza po połączeniu
+workera i co 10 s. Trzy próby z rzędu bez postępu kończą się `failed` z
+komunikatem; staging zostaje, więc **Retry** wznawia. **Cancel copy** usuwa
+staging celu, a offline cel usuwa go sam po wygaśnięciu receiptu. Zakończone
+i anulowane zadania są usuwane po 7 dniach, lista pokazuje dzień.
+
+Postęp idzie `OverviewUpdate.workspace_copy_job` najwyżej cztery razy na
+sekundę, do bazy co 2 s; `workspace_copy_job_removed` po **Dismiss**. Klienci
+czytają `ListWorkspaceCopyJobs` raz po synchronizacji strumienia. Sidebar web
+i mobile pokazuje nad stopką wiersz na kopię („Copying web-app → nix-pc · 42%”)
+z cienkim paskiem; wiersz otwiera szczegóły z postępem, bieżącym plikiem,
+**Cancel copy** albo **Retry** i **Dismiss** po błędzie. Ukończenie kopii,
+którą klient widział w trakcie, daje cichy toast; workspace jest już dodany
+standardowym AddProject. Dialog kopiowania pokazuje postęp zadania i ma
+**Run in background**, które zamyka dialog bez anulowania.
 
 `workspace_copies` i audyt rozpoczęcia/zakończenia/anulowania zapisują kto,
 źródło, worker celu, liczbę plików i bajtów. Nie zapisują nazw ani treści

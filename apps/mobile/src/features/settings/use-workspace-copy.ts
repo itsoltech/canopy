@@ -3,7 +3,9 @@ import { ConnectError } from "@connectrpc/connect";
 import { ui, type WorkspaceCopyManifest } from "@canopy/contracts";
 import { copySelection, copySelectable, copyTotals, copyUnavailableReason } from "@canopy/domain/workspace-copy";
 import * as Crypto from "expo-crypto";
+import { copyJobRunning } from "@canopy/domain/workspace-copy-jobs";
 import { useSession } from "../../state/session";
+import { mergeCopyJob, useCopyJobs } from "../copy-jobs/store";
 
 export interface WorkspaceCopyProps {
   project: ui.Project;
@@ -23,13 +25,14 @@ export function useWorkspaceCopy(props: WorkspaceCopyProps) {
   const [manifest, setManifest] = useState<WorkspaceCopyManifest>();
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [loading, setLoading] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [starting, setStarting] = useState(false);
+  const [failure, setFailure] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
-  const [cancelled, setCancelled] = useState(false);
-  const [progress, setProgress] = useState<ui.WorkspaceCopyProgress>();
-  const abort = useRef<AbortController | undefined>(undefined);
+  const [jobId, setJobId] = useState("");
+  const { running, progress, cancelled, jobError } = useCopyJob(jobId);
+  const busy = starting || running;
+  const error = failure || jobError;
   const manifestToken = useRef("");
   const entries = useMemo(() => copySelection(manifest?.entries ?? [], selected), [manifest, selected]);
   const totals = useMemo(() => copyTotals(entries), [entries]);
@@ -43,8 +46,6 @@ export function useWorkspaceCopy(props: WorkspaceCopyProps) {
 
   useEffect(
     () => () => {
-      abort.current?.abort();
-
       void releaseCopy(client, props.workspace.id, manifestToken.current);
     },
     [client, props.workspace.id],
@@ -53,11 +54,10 @@ export function useWorkspaceCopy(props: WorkspaceCopyProps) {
   async function load() {
     if (!client) return;
     setLoading(true);
-    setError("");
-    setCancelled(false);
+    setFailure("");
     setConfirming(false);
     setConfirmed(false);
-    setProgress(undefined);
+    setJobId("");
 
     try {
       await releaseCopy(client, props.workspace.id, manifestToken.current);
@@ -70,7 +70,7 @@ export function useWorkspaceCopy(props: WorkspaceCopyProps) {
       manifestToken.current = result?.token ?? "";
       setSelected(new Set(result?.entries.filter((e) => copySelectable(e) && e.included).map((e) => e.path)));
     } catch (cause) {
-      setError(copyMessage(cause));
+      setFailure(copyMessage(cause));
     } finally {
       setLoading(false);
     }
@@ -85,15 +85,12 @@ export function useWorkspaceCopy(props: WorkspaceCopyProps) {
       return;
     }
 
-    const controller = new AbortController();
-    abort.current = controller;
-    setBusy(true);
+    setStarting(true);
     props.onBusy(true);
-    setError("");
-    let finished = false;
+    setFailure("");
 
     try {
-      for await (const event of client.api.copyWorkspace(
+      const started = await client.api.startWorkspaceCopy(
         {
           sourceRef: props.workspace.id,
           targetRef: props.worker.id,
@@ -103,20 +100,20 @@ export function useWorkspaceCopy(props: WorkspaceCopyProps) {
           confirmedSecrets: confirmed ? secrets.map((e) => e.path) : [],
           parentPath: parent,
           name,
+          targetName: props.worker.name,
           transferKey: Crypto.randomUUID(),
         },
-        { signal: controller.signal, timeoutMs: 60 * 60_000 },
-      )) {
-        setProgress(event);
-        finished ||= event.status === "completed";
-      }
+        { timeoutMs: 140_000 },
+      );
 
-      if (!finished) setError("The copy was interrupted. Refresh the file list and retry.");
+      // The gateway owns the file list from here on and releases it.
+      manifestToken.current = "";
+      mergeCopyJob(started);
+      setJobId(started.id);
     } catch (cause) {
-      if (controller.signal.aborted) setCancelled(true);
-      else setError(copyMessage(cause));
+      setFailure(copyMessage(cause));
     } finally {
-      setBusy(false);
+      setStarting(false);
       props.onBusy(false);
     }
   }
@@ -144,7 +141,8 @@ export function useWorkspaceCopy(props: WorkspaceCopyProps) {
     skipped,
     load,
     copy,
-    cancel: () => abort.current?.abort(),
+    running,
+    cancel: () => void cancelCopy(client, jobId).catch((cause: unknown) => setFailure(copyMessage(cause))),
   };
 }
 
@@ -155,4 +153,20 @@ function copyMessage(cause: unknown) {
 async function releaseCopy(client: ReturnType<typeof useSession>["client"], workspaceId: string, token: string) {
   if (token)
     await client?.api.workspaceCopySource({ workspaceId, token, release: true }, { timeoutMs: 15_000 }).catch(() => {});
+}
+
+/** The started copy, followed live; it runs in the gateway, so leaving the screen does not stop it. */
+function useCopyJob(id: string) {
+  const job = useCopyJobs().jobs.get(id);
+
+  return {
+    running: !!job && copyJobRunning(job),
+    progress: job?.progress,
+    cancelled: job?.status === "cancelled",
+    jobError: job?.status === "failed" ? job.error : "",
+  };
+}
+
+async function cancelCopy(client: ReturnType<typeof useSession>["client"], id: string) {
+  if (client && id) mergeCopyJob(await client.api.cancelWorkspaceCopyJob({ id }, { timeoutMs: 40_000 }));
 }

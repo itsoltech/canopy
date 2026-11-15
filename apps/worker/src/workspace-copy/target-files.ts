@@ -46,6 +46,7 @@ export async function stagedFiles(stage: string, entries: ReadonlyMap<string, Wo
     // SAFETY: `kept` holds only paths found in `entries` above.
     const entry = entries.get(path)!;
     const full = join(stage, path);
+
     const sha256 = entry.symlink
       ? createHash("sha256")
           .update(await readlink(full))
@@ -111,6 +112,7 @@ export async function writePiece(
   }
 
   const first = chunk.offset === 0n;
+
   const handle = await open(
     full,
     constants.O_WRONLY | constants.O_NOFOLLOW | (first ? constants.O_CREAT | constants.O_TRUNC : 0),
@@ -194,7 +196,7 @@ export function validateEntries(entries: readonly WorkspaceCopyEntry[], bytes: b
       throw copyError("A symlink points outside the repository.");
   }
 
-  const links = new Set(entries.filter((e) => e.symlink).map((e) => e.path));
+  const links = new Set(entries.flatMap((e) => (e.symlink ? [e.path] : [])));
 
   for (const e of entries) {
     const parts = e.path.split("/");

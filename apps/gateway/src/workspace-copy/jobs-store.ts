@@ -6,6 +6,7 @@ import { z } from "zod";
 
 /** Statuses that a runner continues after a restart. */
 export const OPEN_STATUSES = ["queued", "copying", "finishing", "waiting"] as const;
+
 export type JobStatus = (typeof OPEN_STATUSES)[number] | "completed" | "failed" | "cancelled";
 
 const rowSchema = z.object({
@@ -80,6 +81,7 @@ export class CopyJobStore {
 
   async get(id: string): Promise<JobRow | undefined> {
     if (!z.uuid().safeParse(id).success) return undefined;
+
     const rows = await this.run(
       (sql) =>
         sql`SELECT ${sql.literal(COLUMNS)} FROM workspace_copy_jobs WHERE id=${id}::uuid AND owner_user_id=${this.owner()}::uuid`,
@@ -119,6 +121,7 @@ export class CopyJobStore {
     details: { error?: string; workspaceRef?: string; from?: JobStatus[] } = {},
   ) {
     const from = details.from?.join(",") ?? null;
+
     const rows = await this.run(
       (sql) => sql`
       UPDATE workspace_copy_jobs SET status=${status}, error=${details.error ?? ""},
