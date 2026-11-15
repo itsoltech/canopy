@@ -66,7 +66,7 @@ async function start(id: JsonObject[string], params: JsonObject) {
       content: [{ type: "text", text, text_elements: [] }],
     },
   });
-  message(threadId, turnId, instructions ? `Context: ${instructions}` : `Echo: ${text}`);
+  message(threadId, turnId, text === "Continue" && instructions ? `Context: ${instructions}` : `Echo: ${text}`);
 
   if (!previous)
     notify("item/started", {
@@ -114,8 +114,13 @@ for await (const line of createInterface({ input: process.stdin })) {
       send({ id, result: { thread: { id: "fixture-thread", path: null } } });
       break;
     case "thread/resume":
+      instructions = jsonString(params["developerInstructions"]) ?? "";
+
       if (params["threadId"] === "missing-rollout") send({ id, error: { code: -32600, message: "no rollout found" } });
       else send({ id, result: { thread: { id: "fixture-thread", path: null } } });
+      break;
+    case "thread/inject_items":
+      send({ id, result: {} });
       break;
     case "model/list":
       send({ id, result: { data: [], nextCursor: null } });

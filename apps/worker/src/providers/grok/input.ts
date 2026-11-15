@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import type { UserInput } from "@canopy/contracts";
 import type { Content } from "@canopy/grok-acp";
 import { interleave, isInlineImage, placedIds } from "../../attachments/inline.ts";
+import { threadInstructions } from "../thread-instructions.ts";
 
 /**
  * Grok's ACP prompt (docs/grok-adapter.md): the thread's instructions before the text; images as ACP image blocks
@@ -14,7 +15,7 @@ export async function grokPrompt(
   input: Pick<UserInput, "text" | "mentions" | "attachments">,
   images: boolean,
 ): Promise<Content[]> {
-  const prefix = instructions ? `Canopy thread instructions:\n${instructions}` : "";
+  const prefix = `Canopy thread instructions:\n${threadInstructions(instructions)}`;
   const prompt: Content[] = [];
 
   for (const part of interleave(input, (a) => images && isInlineImage(a))) {

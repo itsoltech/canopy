@@ -1,6 +1,7 @@
 import { getContext, setContext } from "svelte";
 import type { Item, ui } from "@canopy/contracts";
 import { provideThreadFileLinks } from "#lib/features/files/file-links.svelte.ts";
+import type { ReplySuggestionsState } from "./reply-suggestions.svelte.ts";
 
 /** Lets timeline items name and link other threads of the project (agent bus targets, parents). */
 export interface ThreadDirectory {
@@ -9,6 +10,11 @@ export interface ThreadDirectory {
   readonly readOnly?: boolean;
   /** Latest visible turn, excluding messages still waiting in the queue. */
   readonly latestTurnId?: string;
+  readonly replySuggestions?: ReplySuggestionsState;
+  replySource?(turnId: string): { itemId: string; text: string } | undefined;
+  isReplySource?(itemId: string): boolean;
+  canReply?(itemId: string): boolean;
+  messageSent?(response: ui.SendMessageResponse): void;
   thread(id: string): ui.Thread | undefined;
   /** A pending interaction (approval, question) is about this item. */
   awaiting(itemId: string): boolean;

@@ -104,14 +104,15 @@ for (const lost of [false, true])
         const inputs = messages.flatMap((content) => (content?.case === "userMessage" ? [content.value.text] : []));
         expect(inputs).toEqual(["Continue"]);
         expect(inputs.join("\n")).not.toContain(request);
-        expect(messages).toContainEqual(
-          expect.objectContaining({
-            case: "agentMessage",
-            value: expect.objectContaining({ text: lost ? `Context: ${recoveryContext}` : "Echo: Continue" }),
-          }),
-        );
+        const answer = messages.find((content) => content?.case === "agentMessage");
+        const text = answer?.case === "agentMessage" ? answer.value.text : "";
+        expect(text).toContain("[Create the PR](canopy:reply)");
+        expect(text.includes(request)).toBe(lost);
 
-        if (lost) expect(recoveryContext).toContain(JSON.stringify(request));
+        if (lost) {
+          expect(recoveryContext).toContain(JSON.stringify(request));
+          expect(text).toContain(recoveryContext);
+        }
       }).pipe(Effect.provide(fixture(events, [])), Effect.scoped),
     );
   });

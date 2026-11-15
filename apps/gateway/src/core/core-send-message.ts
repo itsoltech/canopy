@@ -16,6 +16,7 @@ import { coreEnqueueTurn } from "./core-enqueue-turn.ts";
 import { coreSendSteer, coreSteers, type LinkedMessageInput } from "./core-messages.ts";
 import { threadDiagnostic } from "./thread-diagnostics.ts";
 import type { AdmissionState, MessageResponse } from "./message-receipt.ts";
+import { checkReplySuggestion } from "./reply-suggestions.ts";
 
 /** A validated message, admitted later under the thread lock. `thread` is the row it was validated against. */
 export type PreparedMessage =
@@ -139,6 +140,7 @@ export async function admitMessage(
   }
 
   if (prepared.replay) return prepared.replay;
+  await checkReplySuggestion(core, request);
   const { thread } = prepared;
 
   if (prepared.goal !== undefined)

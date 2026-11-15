@@ -16,6 +16,7 @@ import { BodyRowView } from "./TimelineBodyRow";
 import { WorkRail } from "./WorkRail";
 import { TimelineDisclosure } from "./TimelineDisclosure";
 import { ThreadScrollItem, useThreadScrollTarget } from "../../ui/thread-scroll-items";
+import { ReplyMessageContext, ReplySuggestions, useTurnReplySuggestions } from "./ReplySuggestions";
 
 /** What a turn looks up beyond its own items: the thread's notices and steers, its tasks and provider. */
 export interface TurnContext {
@@ -81,6 +82,7 @@ export function TimelineTurn({
 }) {
   const { workFold, values } = useDevicePreferences();
   const target = useThreadScrollTarget();
+  const replies = useTurnReplySuggestions(turn, entries);
 
   const [folds, setFolds] = useState<ReadonlyMap<number, WorkFoldChoice>>(() =>
     initialFolds(turn, entries, context, target),
@@ -107,8 +109,7 @@ export function TimelineTurn({
 
   const segments = segmentsOf(turn, body, open);
   const hasInput = Boolean(turn.inputText || turn.messageText || turn.attachments.length || turn.quotes.length);
-  const lastAnswer = entries.findLast((entry) => entry.item?.content.case === "agentMessage")?.item;
-  const answerText = lastAnswer?.content.case === "agentMessage" ? lastAnswer.content.value.text : "";
+  const answerText = replies.answerText;
 
   const answerEnd = (at: number | undefined) => {
     const row = at === undefined ? undefined : body[at];
@@ -117,82 +118,107 @@ export function TimelineTurn({
   };
 
   return (
-    <View style={{ gap: 12, paddingBottom: 12 }}>
-      <View style={{ marginBottom: -8 }}>
-        <TurnStart turn={turn} newDay={newDay} />
-      </View>
-      {turn.shellCommand !== undefined ? (
-        <ShellMessage command={turn.shellCommand} result={turn.shellResult} status={turn.status} error={turn.error} />
-      ) : hasInput ? (
-        <ThreadScrollItem id="input">
-          <TurnInput turn={turn} />
-        </ThreadScrollItem>
-      ) : null}
-      {segments.map((segment, index) => {
-        const id = foldId(turn.id, index);
-        const answer = segment.answer >= 0 ? body[segment.answer] : undefined;
-        const work = body.slice(segment.start + segment.inputs, segment.end).filter((row) => row !== answer);
-        const isOpen = open(index);
-
-        const summary = summarize(
-          work,
-          {
-            startMs:
-              index === 0
-                ? timestampMs(turn.startedAt)
-                : segment.inputs
-                  ? undefined
-                  : answerEnd(segments[index - 1]?.answer),
-            endMs: index === segments.length - 1 ? timestampMs(turn.completedAt) : answerEnd(segment.answer),
-            live: index === segments.length - 1 && segment.live,
-          },
-          context.tasks,
-        );
-
-        return (
-          <View key={id} style={{ gap: 12 }}>
-            {body.slice(segment.start, segment.start + segment.inputs).map((row) => (
-              <BodyRowView key={row.key} row={row} steers={context.steers} ended={ended} />
-            ))}
-            <View>
-              <ThreadScrollItem id={`work:${id}`}>
-                <WorkFold
-                  summary={summary}
-                  starting={turn.status === "queued" && turn.dispatched}
-                  open={isOpen}
-                  onToggle={() => {
-                    const next = new Map(folds).set(index, { open: !isOpen, state: state(index) });
-                    context.foldChoices.set(turn.id, next);
-                    setFolds(next);
-                  }}
-                />
-              </ThreadScrollItem>
-              <TimelineDisclosure open={isOpen && work.length > 0}>
-                <WorkRail
-                  work={work}
-                  steers={context.steers}
-                  ended={ended}
-                  expanded={values.workToolCalls === "expanded"}
-                  choices={context.groupChoices}
-                />
-              </TimelineDisclosure>
-            </View>
-            {/* Out of the fold the answer mounts anew, so it fades in where it lands (web: the answer slot). */}
-            {answer && <BodyRowView row={answer} steers={context.steers} ended={ended} />}
-          </View>
-        );
-      })}
-      {allBody.filter(visibleResult).map((row) => (
-        <BodyRowView key={row.key} row={row} steers={context.steers} ended={ended} />
-      ))}
-      {ended && (
-        <View style={{ gap: 4, marginTop: answerText.trim() && turn.status === "completed" ? -12 : 0 }}>
-          <TurnEnd turn={turn} provider={context.provider} proxy={context.proxy} historical={historical} />
-          <QuoteItem.Provider value={lastAnswer?.itemId ?? ""}>
-            <TurnDetails turn={turn} answer={answerText} />
-          </QuoteItem.Provider>
+    <ReplyMessageContext.Provider value={replies.context}>
+      <View style={{ gap: 12, paddingBottom: 12 }}>
+        <View style={{ marginBottom: -8 }}>
+          <TurnStart turn={turn} newDay={newDay} />
         </View>
-      )}
+        {turn.shellCommand !== undefined ? (
+          <ShellMessage command={turn.shellCommand} result={turn.shellResult} status={turn.status} error={turn.error} />
+        ) : hasInput ? (
+          <ThreadScrollItem id="input">
+            <TurnInput turn={turn} />
+          </ThreadScrollItem>
+        ) : null}
+        {segments.map((segment, index) => {
+          const id = foldId(turn.id, index);
+          const answer = segment.answer >= 0 ? body[segment.answer] : undefined;
+          const work = body.slice(segment.start + segment.inputs, segment.end).filter((row) => row !== answer);
+          const isOpen = open(index);
+
+          const summary = summarize(
+            work,
+            {
+              startMs:
+                index === 0
+                  ? timestampMs(turn.startedAt)
+                  : segment.inputs
+                    ? undefined
+                    : answerEnd(segments[index - 1]?.answer),
+              endMs: index === segments.length - 1 ? timestampMs(turn.completedAt) : answerEnd(segment.answer),
+              live: index === segments.length - 1 && segment.live,
+            },
+            context.tasks,
+          );
+
+          return (
+            <View key={id} style={{ gap: 12 }}>
+              {body.slice(segment.start, segment.start + segment.inputs).map((row) => (
+                <BodyRowView key={row.key} row={row} steers={context.steers} ended={ended} />
+              ))}
+              <View>
+                <ThreadScrollItem id={`work:${id}`}>
+                  <WorkFold
+                    summary={summary}
+                    starting={turn.status === "queued" && turn.dispatched}
+                    open={isOpen}
+                    onToggle={() => {
+                      const next = new Map(folds).set(index, { open: !isOpen, state: state(index) });
+                      context.foldChoices.set(turn.id, next);
+                      setFolds(next);
+                    }}
+                  />
+                </ThreadScrollItem>
+                <TimelineDisclosure open={isOpen && work.length > 0}>
+                  <WorkRail
+                    work={work}
+                    steers={context.steers}
+                    ended={ended}
+                    expanded={values.workToolCalls === "expanded"}
+                    choices={context.groupChoices}
+                  />
+                </TimelineDisclosure>
+              </View>
+              {/* Out of the fold the answer mounts anew, so it fades in where it lands (web: the answer slot). */}
+              {answer && <BodyRowView row={answer} steers={context.steers} ended={ended} />}
+            </View>
+          );
+        })}
+        {allBody.filter(visibleResult).map((row) => (
+          <BodyRowView key={row.key} row={row} steers={context.steers} ended={ended} />
+        ))}
+        {ended && <TurnFooter {...{ turn, context, historical, answerText }} itemId={replies.answerItemId} />}
+        {replies.itemId && replies.replies.length > 0 && (
+          <ReplySuggestions
+            itemId={replies.itemId}
+            replies={replies.replies}
+            disabled={historical || turn.inherited || Boolean(turn.rewindId)}
+          />
+        )}
+      </View>
+    </ReplyMessageContext.Provider>
+  );
+}
+
+function TurnFooter({
+  turn,
+  context,
+  historical,
+  answerText,
+  itemId,
+}: {
+  turn: ui.Turn;
+  context: TurnContext;
+  historical: boolean;
+  answerText: string;
+  itemId: string;
+}) {
+  return (
+    <View style={{ gap: 4, marginTop: answerText.trim() && turn.status === "completed" ? -12 : 0 }}>
+      <TurnEnd turn={turn} provider={context.provider} proxy={context.proxy} historical={historical} />
+      <QuoteItem.Provider value={itemId}>
+        <TurnDetails turn={turn} answer={answerText} />
+      </QuoteItem.Provider>
     </View>
   );
 }

@@ -20,6 +20,7 @@ import { timestampMs, type Timestamp } from "@bufbuild/protobuf/wkt";
 import { isFinished, upsertSchedule } from "#lib/features/schedules/schedules.ts";
 import { ComposerConnection } from "@canopy/domain/composer-connection";
 import { lastResult } from "#lib/shared/last-result.ts";
+import { ReplySuggestionsState } from "./reply-suggestions.svelte.ts";
 
 import type { TimelineEntry, TimelineNotice, TurnResult } from "./thread-types.ts";
 
@@ -67,6 +68,7 @@ function endFields(status: string | undefined, finished: TurnFinished) {
 }
 
 export class ThreadState {
+  readonly replySuggestions = new ReplySuggestionsState();
   #snapshot: ui.ThreadSnapshot | undefined;
   readonly #entryPositions = new Map<string, number>();
   readonly history = new ThreadHistory(

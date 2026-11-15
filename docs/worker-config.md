@@ -523,6 +523,38 @@ Pickery (nowy wątek i wątek) pokazują dla wybranego workera tylko instancje `
 
 ### Środowisko agentów
 
+Worker dopisuje wspólną instrukcję proponowanych odpowiedzi do instrukcji wątków
+(`providers/thread-instructions.ts`). Agent może zakończyć odpowiedź 1–3 opcjonalnymi,
+przydatnymi następnymi zadaniami, tylko gdy pomagają wybrać konkretny kolejny krok;
+nie dodaje ich rutynowo. Każda propozycja to osobny akapit najwyższego poziomu
+`[Create the PR](canopy:reply)`, poza kodem, cytatami i listami. Pełna etykieta linku
+jest dokładną wiadomością użytkownika wysyłaną po kliknięciu i używa języka rozmowy.
+Etykieta ma do 500 znaków zwykłego tekstu, bez formatowania i nowych linii;
+nie zaczyna się od `!` ani `/goal`, a nawiasy kwadratowe i backslash wymagają escape.
+Propozycje nie zastępują wykonania pracy już zleconej ani nie tworzą wymogu zgody;
+nie trafiają do komentarzy w toku ani raportów dziecka do rodzica. UI wygasza cały
+zestaw po wybraniu jednej propozycji lub wysłaniu dowolnej nowej wiadomości użytkownika.
+
+Claude dostaje tę instrukcję w `systemPrompt.append`, obok instrukcji wątku i
+zarządzanego bloku biblioteki, przy każdym otwarciu `query`, także z `resume`.
+`snapshot: false` pozwala zastosować bieżący append również w istniejącej sesji;
+domyślny snapshot SDK zachowywałby stary prompt do kompakcji. Zmiana instrukcji
+może przez to unieważnić prefiks cache promptu i wcześniejsze extended thinking.
+Proces utrzymywany przez zadania w tle zachowuje prompt do ponownego otwarcia.
+Codex dostaje ją jako `developerInstructions` przy `thread/start`, `thread/fork`
+i zimnym `thread/resume`, także gdy brak rolloutu wymusza odtworzenie pustej sesji.
+Ponieważ resume zachowuje wcześniejsze wiadomości developer w historii modelu,
+worker po zimnym wznowieniu, forku i odtworzeniu historii przy cofaniu dopisuje
+aktualne instrukcje przez `thread/inject_items`
+jako wiadomość developer, bez inferencji i bez zastępowania historii.
+Już załadowana sesja zachowuje instrukcje do ponownego załadowania. Grok dodaje
+instrukcje do prefiksu tekstowego każdego `session/prompt`, również po `session/load`;
+ACP nie dostaje osobnego system promptu. Aktualizacja workera odtwarza procesy
+harnessów i wznawia istniejące sesje z bieżącą instrukcją, zachowując historię.
+Składnia nie wymaga nowego narzędzia ani odświeżenia utrwalonego katalogu narzędzi
+starych sesji Codexa. Ten blok dotyczy wątków; boty i generowanie tytułów mają
+oddzielne ścieżki instrukcji.
+
 Settings → Agent environment przechowuje w DB wersjonowane dokumenty, skille, pluginy i tagi;
 to osobny oczekiwany stan z capability `agent_environment_v1`, nie pole konfiguracji
 CLI ani zmienna procesu. Instrukcje trafiają do domyślnych izolowanych domów i

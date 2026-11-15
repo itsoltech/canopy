@@ -15,6 +15,7 @@ const Body = Schema.Struct({
   // Empty only with attachments (the gateway checks).
   text: Schema.String.check(Schema.isMaxLength(100_000)),
   clientRequestId: Schema.String.check(Schema.isUUID()),
+  replySuggestionItemId: Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
   // This turn only; missing or "" = the thread's defaults.
   model: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(200))),
   effort: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(40))),

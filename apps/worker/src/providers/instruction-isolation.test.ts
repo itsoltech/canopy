@@ -271,6 +271,7 @@ for (const [name, provider] of [
 
           // Inspect the entire request: Claude delivers memory as user context, not only system text.
           for (const marker of globals) expect(body.includes(marker), `Global context leaked: ${marker}`).toBe(false);
+          expect(body).toContain("[Create the PR](canopy:reply)");
           expect(body.includes(managed)).toBe(assigned);
           expect(body.includes(projectRule)).toBe(project);
 

@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./reply-suggestions": "./src/reply-suggestions.ts",
     "./config-notice": "./src/config-notice.ts",
     "./schedule-display": "./src/schedule-display.ts",
     "./connector-session": "./src/connector-session.ts",

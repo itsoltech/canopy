@@ -57,6 +57,16 @@ function reconfigureThread(ctx: CodexThreadContext, spec: ThreadSpec, entry: Ent
   });
 }
 
+/** Resume retains the original developer messages even when its configuration overrides change. */
+function resumeInstructions(ctx: CodexThreadContext, spec: ThreadSpec, codexId: string, instructions: string) {
+  return ctx.codex
+    .request("thread/inject_items", {
+      threadId: codexId,
+      items: [{ type: "message", role: "developer", content: [{ type: "input_text", text: instructions }] }],
+    })
+    .pipe(Effect.mapError(fail(spec.threadId, "instructions")));
+}
+
 export function threadSessions(ctx: CodexThreadContext) {
   const { options, codex, byPlatform } = ctx;
   const loading = Semaphore.makeUnsafe(1);
@@ -106,14 +116,21 @@ export function threadSessions(ctx: CodexThreadContext) {
           ),
         );
 
-      if (resumed) return register(spec.threadId, resumed.id, resumed.path);
+      if (resumed) {
+        yield* resumeInstructions(ctx, spec, resumed.id, params.developerInstructions);
+
+        return register(spec.threadId, resumed.id, resumed.path);
+      }
 
       // Codex writes a thread's rollout with its first turn: a thread that never had one is gone with the
       // process that created it. Nothing is lost by starting it again; the gateway keeps the platform
       // thread and takes the new Codex id (thread_ready replaces the old one).
       const started = yield* startThread(
         spec,
-        { ...params, developerInstructions: [spec.instructions, recoveryContext].filter(Boolean).join("\n\n") },
+        {
+          ...params,
+          developerInstructions: [params.developerInstructions, recoveryContext].filter(Boolean).join("\n\n"),
+        },
         "resume",
       );
 
@@ -143,10 +160,13 @@ export function threadSessions(ctx: CodexThreadContext) {
       }
 
       if (request.restoreProviderThreadId) {
+        const params = threadParams(spec);
+
         const response = yield* codex
-          .request("thread/resume", { threadId: request.restoreProviderThreadId, ...threadParams(spec) })
+          .request("thread/resume", { threadId: request.restoreProviderThreadId, ...params })
           .pipe(Effect.mapError(fail(spec.threadId, "restore rewind")));
 
+        yield* resumeInstructions(ctx, spec, response.thread.id, params.developerInstructions);
         const entry = register(spec.threadId, response.thread.id, response.thread.path);
 
         return { providerThreadId: entry.codexId };
@@ -170,6 +190,7 @@ export function threadSessions(ctx: CodexThreadContext) {
             })
             .pipe(Effect.mapError(fail(spec.threadId, "rewind")));
 
+      if (!request.empty) yield* resumeInstructions(ctx, spec, response.thread.id, params.developerInstructions);
       register(spec.threadId, response.thread.id, response.thread.path);
 
       return { providerThreadId: response.thread.id };
@@ -190,6 +211,7 @@ export function threadSessions(ctx: CodexThreadContext) {
             .pipe(Effect.mapError(fail(spec.threadId, "fork")))
         : yield* startThread(spec, params, "create");
 
+      if (fork) yield* resumeInstructions(ctx, spec, response.thread.id, params.developerInstructions);
       const entry = register(spec.threadId, response.thread.id, response.thread.path);
       yield* announceThread(ctx, entry).pipe(Effect.mapError(fail(spec.threadId, "journal")));
 

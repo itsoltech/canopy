@@ -9,16 +9,25 @@ export function createSteer(sql: SqlClient.SqlClient, request: Parameters<SteerS
     Effect.gen(function* () {
       const { threadId, turnId, text, userId, clientRequestId, model, effort, permissionMode, input, linked } = request;
 
-      const admission = yield* sql<{ rewind_pending_id: string | null }>`SELECT rewind_pending_id FROM threads
+      const admission = yield* sql<{
+        rewind_pending_id: string | null;
+        last_seq: bigint;
+      }>`SELECT rewind_pending_id,last_seq FROM threads
         WHERE id = ${threadId}::uuid FOR UPDATE`;
 
-      if (admission[0]?.rewind_pending_id)
+      const thread = admission[0];
+
+      if (!thread) return yield* Effect.fail(new NotFound("thread not found"));
+
+      if (thread.rewind_pending_id)
         return yield* Effect.fail(new Invalid("This thread is rewinding. Wait for it to finish."));
       const id = Bun.randomUUIDv7();
+      // Admission order survives even a failed steer with no user_message or fallback turn.
+      const stored = { ...(input ?? { text }), admittedAfterSeq: String(thread.last_seq) };
 
       const rows = yield* sql<{ id: string }>`
         INSERT INTO turn_steers (id, thread_id, turn_id, input, author_user_id, client_request_id, model, effort, permission_mode, linked_call_id, hops)
-        VALUES (${id}::uuid, ${threadId}::uuid, ${turnId}::uuid, ${JSON.stringify(input ?? { text })}::jsonb, ${linked ? null : userId}::uuid,
+        VALUES (${id}::uuid, ${threadId}::uuid, ${turnId}::uuid, ${JSON.stringify(stored)}::jsonb, ${linked ? null : userId}::uuid,
                 ${clientRequestId || null}, ${model}, ${effort}, ${permissionMode}, ${linked?.callId ?? null}::uuid, ${linked?.hops ?? 0})
         ON CONFLICT (thread_id, client_request_id) WHERE client_request_id IS NOT NULL DO NOTHING RETURNING id`;
 

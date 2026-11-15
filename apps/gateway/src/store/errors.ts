@@ -16,6 +16,13 @@ export class RequestExpired extends Invalid {
   }
 }
 
+/** A reply choice whose source is no longer the thread's current final answer. */
+export class ReplySuggestionExpired extends Invalid {
+  constructor() {
+    super("This suggested reply is no longer available. Write a message to continue.");
+  }
+}
+
 export type Fx<A> = Effect.Effect<A, SqlError.SqlError | NotFound | Invalid>;
 
 export const one = <A>(rows: ReadonlyArray<A>, what: string): Effect.Effect<A, NotFound> =>

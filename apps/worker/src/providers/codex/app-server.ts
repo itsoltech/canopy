@@ -25,6 +25,7 @@ export interface CodexMethods {
   "account/read": { params: v2.GetAccountParams; result: v2.GetAccountResponse };
   "thread/start": { params: v2.ThreadStartParams; result: v2.ThreadStartResponse };
   "thread/resume": { params: v2.ThreadResumeParams; result: v2.ThreadResumeResponse };
+  "thread/inject_items": { params: v2.ThreadInjectItemsParams; result: v2.ThreadInjectItemsResponse };
   "thread/fork": { params: v2.ThreadForkParams; result: v2.ThreadForkResponse };
   "thread/unsubscribe": { params: v2.ThreadUnsubscribeParams; result: v2.ThreadUnsubscribeResponse };
   "turn/start": { params: v2.TurnStartParams; result: v2.TurnStartResponse };

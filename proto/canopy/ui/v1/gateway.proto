@@ -1385,6 +1385,9 @@ message SendMessageRequest {
   // Gateway podaje je agentowi przed treścią wiadomości (docs/ui-api.md, "Cytaty"); działa też ze steer.
   // Wiadomość może składać się z samych cytatów (pusty text).
   repeated Quote quotes = 150;
+  // Wybrana propozycja odpowiedzi z końcowej wiadomości agenta w tym wątku.
+  // Gateway atomowo sprawdza źródło, aktualność i zgodność text z propozycją.
+  optional string reply_suggestion_item_id = 930;
 }
 
 message SendMessageResponse {
