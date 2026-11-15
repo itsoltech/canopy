@@ -6,8 +6,6 @@ import { updateBusy } from "./updates.svelte.ts";
 export { bulkUpdatesAvailable as updatesAvailable } from "@canopy/domain/release/update-plan";
 
 export function workerCurrent(worker: ui.WorkerUpdate, gatewayVersion: string): boolean {
-  if (worker.state === "failed" || updateBusy(worker.state) || worker.compatibility !== "compatible") return false;
-
   if (worker.desktop) {
     const app = worker.desktop;
 
@@ -19,6 +17,8 @@ export function workerCurrent(worker: ui.WorkerUpdate, gatewayVersion: string): 
       app.availableVersion === app.version
     );
   }
+
+  if (worker.state === "failed" || updateBusy(worker.state) || worker.compatibility !== "compatible") return false;
 
   return worker.connected && !!worker.version && worker.version === gatewayVersion;
 }

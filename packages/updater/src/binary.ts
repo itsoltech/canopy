@@ -46,7 +46,7 @@ export function installKind(env: NodeJS.ProcessEnv = process.env, executable = p
 }
 
 export function managedInstructions(kind: string): string {
-  if (kind === "desktop") return "Managed by the Canopy desktop app: it updates itself (Settings → App updates).";
+  if (kind === "desktop") return "Updates with the Canopy app. You can update it here when a new version is available.";
 
   return kind === "docker"
     ? "Managed externally. Pull the new image tag and recreate this container."

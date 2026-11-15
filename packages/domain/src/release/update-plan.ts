@@ -18,6 +18,13 @@ export function appUpdateAvailable(app: ui.DesktopUpdateState | undefined): bool
   return !!app && (!!appUpdateTarget(app) || app.ready || app.updaterPhase === "downloaded");
 }
 
+function desktopUpdateBlocked(app: ui.DesktopUpdateState | undefined): string {
+  return (
+    app?.disabledReason ||
+    (!app?.connected ? "Desktop app is offline. Open Canopy on that computer and reconnect." : "")
+  );
+}
+
 /** Shared eligibility for every Update all control and the owner gateway's durable plan. */
 export function bulkUpdateSteps(snapshot: ui.UpdatesSnapshot): ui.UpdateStep[] {
   const steps: ui.UpdateStep[] = [];
@@ -108,8 +115,7 @@ export function bulkUpdateSteps(snapshot: ui.UpdatesSnapshot): ui.UpdateStep[] {
       label: `${worker.name} · Canopy app`,
       version: appUpdateTarget(worker.desktop),
       fromVersion: worker.desktop?.version || "",
-      ...(worker.desktop?.connected &&
-        worker.desktop.disabledReason && { state: "skipped", reason: worker.desktop.disabledReason }),
+      ...(desktopUpdateBlocked(worker.desktop) && { state: "skipped", reason: desktopUpdateBlocked(worker.desktop) }),
     });
   }
 

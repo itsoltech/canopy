@@ -10,7 +10,7 @@
   import CompactComputerUpdate from "../CompactComputerUpdate.svelte";
   import UpdatesPanel from "../UpdatesPanel.svelte";
   import { UpdatesState } from "../updates.svelte.ts";
-  import { computerStates, fixtureSnapshot } from "./update-fixtures.ts";
+  import { computerStates, fixtureSnapshot, remoteDesktopSnapshot } from "./update-fixtures.ts";
   import { bulkUpdateSteps, plannedUpdateRun } from "@canopy/domain/release/update-plan";
 
   /**
@@ -21,7 +21,7 @@
    */
   const updates = new UpdatesState();
 
-  updates.snapshot = fixtureSnapshot();
+  updates.snapshot = page.url.searchParams.has("remote") ? remoteDesktopSnapshot() : fixtureSnapshot();
 
   const home = computerStates().find((computer) => computer.name === page.url.searchParams.get("home"));
 

@@ -22,8 +22,11 @@ export async function updatesSnapshot(core: GatewayCore, linked = true) {
       states.find((s) => s.workerId === worker.workerId) ??
       create(ui.DesktopUpdateStateSchema, {
         workerId: worker.workerId,
-        disabledReason: "Pair this desktop app, or update it manually to enable remote updates.",
+        version: worker.version,
+        disabledReason:
+          "Pair this desktop app with this gateway. If already paired, update it once in Settings → App updates.",
       });
+    worker.reason = worker.desktop.disabledReason;
   }
 
   if (core.role === "desktop") {
