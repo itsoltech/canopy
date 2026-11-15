@@ -2,6 +2,7 @@
   import { untrack } from "svelte";
   import { ui } from "@canopy/contracts";
   import { expandProjectIds } from "@canopy/domain/projects";
+  import type { Attachment } from "svelte/attachments";
   import type { ClassValue } from "svelte/elements";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
@@ -9,7 +10,7 @@
   import { requestJson } from "#lib/shared/http.ts";
   import { whenIdle } from "#lib/shared/idle.ts";
   import { decode } from "#lib/shared/wire.ts";
-  import { expand, reorder, resizeHeightToContent, rise, stagger } from "#lib/shared/ui/motion.ts";
+  import { duration, expand, reorder, resizeHeightToContent, rise, stagger } from "#lib/shared/ui/motion.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import SidebarArchivedSkeleton from "./SidebarArchivedSkeleton.svelte";
@@ -134,16 +135,34 @@
     node.inert = false;
     node.removeAttribute("aria-hidden");
   }
+
+  // The list and the card share one cell and cross over; each counts as present until its exit ends. The section pins
+  // (sticky) while the card is there without the list, also while the card leaves: never next to the list, or a
+  // pinned section as tall as the list would ride up over the threads.
+  const present = $state({ list: false, card: false });
+  const pinned = $derived(present.card && !present.list);
+
+  const presence =
+    (part: keyof typeof present): Attachment<HTMLElement> =>
+    () => {
+      present[part] = true;
+
+      return () => {
+        present[part] = false;
+      };
+    };
 </script>
 
 <!-- Nothing archived (and the open thread is not): no section at all, an empty "Archived · 0" only takes room.
-     Sticky: down to the list's very edge (-bottom-3 over its pb-3), so no rows scroll by underneath. -->
+     The section reaches the list's very edge (-mb-3 pb-3 over its pb-3) whether pinned or not, so pinning moves
+     nothing, and a pinned one covers that edge (-bottom-3: sticky insets start inside the padding): no rows
+     scroll by underneath. -->
 {#if pageState.totalCount !== 0 || sticky || pageState.error}
   <section
     aria-label="Archived"
     data-archived-section
-    data-sticky={sticky ? "true" : undefined}
-    class={["pt-2", sticky && "sticky -bottom-3 z-10 bg-panel pb-4", className]}
+    data-sticky={pinned ? "true" : undefined}
+    class={["-mb-3 pt-2 pb-3", pinned && "sticky -bottom-3 z-10 bg-panel", className]}
   >
     <h2>
       <button
@@ -171,12 +190,19 @@
         />
       </button>
     </h2>
-    <!-- Overlap the outgoing sticky card and the entering list so their heights never add together. -->
+    <!-- Overlap the outgoing sticky card and the entering list so their heights never add together. Neither stretches to
+         the shared row, so each transition measures its own height, not the other's. -->
     <div {id} class="grid grid-cols-1">
       {#if expanded}
         <!-- The list mounts with what the pager has (usually the prefetched page) and expands to it; rows or
            pages that arrive later ease its height (t-resize-height) and rise in. -->
-        <div class="col-start-1 row-start-1 min-w-0" transition:expand onoutrostart={outgoing} onintrostart={incoming}>
+        <div
+          class="col-start-1 row-start-1 min-w-0 self-start"
+          transition:expand
+          onoutrostart={outgoing}
+          onintrostart={incoming}
+          {@attach presence("list")}
+        >
           <div class="t-resize-height" {@attach resizeHeightToContent}>
             <div>
               <ul
@@ -225,12 +251,15 @@
           </div>
         </div>
       {:else if sticky}
+        <!-- Height and fade both ways: the header glides when the open thread stops (or starts) being archived. Outside
+             a disclosure toggle it waits a beat, past the frame that renders the newly opened thread. -->
         <div
           data-archived-current
-          class="col-start-1 row-start-1 min-w-0"
-          transition:rise
+          class="col-start-1 row-start-1 min-w-0 self-start"
+          transition:expand={{ delay: expanded || present.list ? 0 : duration("micro") }}
           onoutrostart={outgoing}
           onintrostart={incoming}
+          {@attach presence("card")}
         >
           <SidebarArchivedThread thread={sticky} current />
         </div>

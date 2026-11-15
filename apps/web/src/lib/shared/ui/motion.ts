@@ -72,7 +72,9 @@ function length(name: string, fallbackPx: number): number {
 /**
  * Accordion expand / collapse (21) for content mounted with its disclosure: height from and to 0 with a
  * quiet fade, on --duration-fast both ways (one reversible motion). Clips only vertically, so rows that
- * bleed sideways with negative margins keep their edges while the height animates.
+ * bleed sideways with negative margins keep their edges while the height animates. Content that is still
+ * empty when it opens (rows on their way) only fades: a height pinned at 0 would hide them until the end
+ * and then snap to their full height.
  */
 export function expand(
   node: HTMLElement,
@@ -82,8 +84,10 @@ export function expand(
 
   if (prefersReducedMotion.current)
     return { delay: instantReduced ? 0 : delay, duration: instantReduced ? 0 : ms, css: (t) => `opacity: ${t}` };
-  const style = getComputedStyle(node);
   const height = node.offsetHeight;
+
+  if (height === 0) return { delay, duration: ms, easing: smoothOut, css: (t) => `opacity: ${t}` };
+  const style = getComputedStyle(node);
   const padTop = Number.parseFloat(style.paddingTop);
   const padBottom = Number.parseFloat(style.paddingBottom);
   const marginTop = Number.parseFloat(style.marginTop);
