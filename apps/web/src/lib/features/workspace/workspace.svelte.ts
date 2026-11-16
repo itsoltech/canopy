@@ -5,6 +5,7 @@ import { WorkspaceFileConflict, WorkspaceAccessRevoked } from "@canopy/domain/wo
 import { HttpError } from "#lib/shared/http.ts";
 import { readFile, writeFile, deleteFile } from "#lib/features/files/api.ts";
 import { toast } from "#lib/shared/ui/toast.svelte.ts";
+import { connectDiffDrafts } from "./diff-drafts.svelte.ts";
 
 export const workspaceStore = new WorkspaceStore(
   {
@@ -43,6 +44,7 @@ export function workspaceVersion(): number {
 /** No storage-event listener: another window may seed a new session, never steal focus. */
 export function connectWorkspace(scope: string): () => void {
   const key = `canopy.workspace.v1.${encodeURIComponent(scope)}`;
+  const disconnectDiffDrafts = connectDiffDrafts(scope);
 
   try {
     workspaceStore.connect(localStorage.getItem(key), (raw) => {
@@ -66,6 +68,7 @@ export function connectWorkspace(scope: string): () => void {
 
   return () => {
     window.removeEventListener("beforeunload", unload);
+    disconnectDiffDrafts();
     workspaceStore.clear();
   };
 }

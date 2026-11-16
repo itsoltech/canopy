@@ -63,7 +63,7 @@ export class ThreadWorkspace {
   get panelMode() {
     return this.view.panel.mode;
   }
-  set panelMode(mode: "files" | "preview") {
+  set panelMode(mode: "files" | "diff" | "preview") {
     this.view.panel.mode = mode;
     workspaceStore.notify(true);
   }
@@ -144,7 +144,7 @@ export class ThreadWorkspace {
     this.panelDraft = undefined;
   }
 
-  showPanel(mode: "files" | "preview"): void {
+  showPanel(mode: "files" | "diff" | "preview"): void {
     if (mode === "preview" && this.previewTabActive) {
       this.view.select("thread");
       this.panelOpen = true;

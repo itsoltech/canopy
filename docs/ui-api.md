@@ -1,6 +1,7 @@
 # API dla UI i architektura frontendu
 
-Status (2026-11-17): podsumowanie wątku web/desktop pokazuje lokalne zmiany Git
+Status (2026-11-17): API workspace udostępnia stabilne, stronicowane zmiany Git wątku;
+podsumowanie wątku web/desktop pokazuje lokalne zmiany Git
 i pozwala pobrać origin przez bezpieczny fast-forward;
 kompozytor przełącza gałęzie checkoutu i wybranego worktree.
 Lokalne zmiany przy przełączaniu wymagają potwierdzenia stash & pop, także w podsumowaniu wątku.
@@ -254,7 +255,8 @@ na pasek narzędzi; sam sygnał nie przejmuje fokusu. Mini watch zatrzymuje się
 gdy sidebar Preview jest widoczny, i wraca po jego zamknięciu, chyba że został
 zminimalizowany. Ukrycie, offline, odebranie grantu lub archiwizacja kończą watch.
 
-Prawy panel web/desktop łączy Files (drzewo otwierające karty plików) i Preview
+Prawy panel web/desktop łączy Files (drzewo otwierające karty plików), Diff
+(lista zmian Git otwierająca wspólną kartę diffów) i Preview
 (Browser/Desktop/Device). Otwarcie i szerokość Files są stanem urządzenia;
 tryb panelu i szerokość Preview — stanem pamięci strony. Na wąskim ekranie
 panel otwiera arkusz. Podgląd automatyzacji jest oddzielony od zastępowalnej
@@ -2967,3 +2969,34 @@ podczas odczytu oznacza najwyżej jeden odczyt po jego zakończeniu, bez nakład
 Mutacja zapisuje nowy wynik do tego samego cache. Worker dodatkowo współdzieli odczyt całego checkoutu
 między różnymi wątkami i oknami. Szczegóły:
 [worktrees.md](worktrees.md#status-zmian-i-pull-z-origin).
+
+## API zmian Git w workspace wątku
+
+Status (2026-11-17): zaimplementowane w kodzie; kanały wydań wynikają z promocji
+nightly/beta/stable. `ListThreadDiff` i `ReadThreadDiff` są odczytami owner-scoped,
+trasowanymi tak samo jak `ListThreadDirectory`, również do domu połączonego komputera.
+
+`POST /api/threads/:id/diff` wywołuje `ListThreadDiff({thread_id})` i zwraca
+zakodowany protobuf `ThreadDiffSnapshot`. Metadane każdego pliku zawierają
+ścieżkę, starą ścieżkę dla zmiany nazwy, status Git, liczby dodanych/usuniętych
+linii, dokładną liczbę wierszy podglądu i flagę binarną. `complete=false` i enum
+`error` oznaczają jawny brak pełnego wyniku; BFF nie przycina listy.
+
+`POST /api/threads/:id/diff/read` przyjmuje
+`{snapshotId, path, offset, limit}` i zwraca `ThreadDiffPage` z wierszami,
+zerowym offsetem, `lineCount` oraz ewentualnym błędem. Wiersze mają `kind`
+(context/addition/deletion/hunk/meta), `text`, opcjonalne `oldLine` i `newLine`.
+Limit wynosi 1–200, domyślny klient używa 128; budżet 64 KiB może skrócić stronę,
+ale nie pełną treść zmiany. Kolejną stronę wyznacza liczba otrzymanych wierszy.
+
+Klient `features/workspace/diff-api.ts` udostępnia
+`listThreadDiff(threadId, signal?)` i
+`readThreadDiff(threadId, snapshotId, path, offset, limit, signal?)`
+oraz eksportuje wygenerowane typy i enumy. Oba odczyty respektują AbortSignal.
+Snapshot powstaje na workerze i przechowuje stabilne strony na dysku przez
+maksymalnie pięć minut; udane odświeżenie zastępuje poprzedni snapshot wątku.
+Archiwalny wątek nadal pozwala odświeżać listę i czytać zmiany po zakończeniu
+sprzątania zasobów workera; archiwizacja wygasza wcześniejszy snapshot.
+Usunięty wątek jest odrzucany przez gateway.
+Gateway nie zapisuje patchy w bazie. Szczegóły granic i limitów:
+[protocol.md](protocol.md#migawki-zmian-git-wątku).

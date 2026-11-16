@@ -66,6 +66,8 @@ appear only as the literal name used by an external tool).
 | suggested reply | an optional user message proposed by the agent; clicking it sends its full text | quick action, command |
 | side thread | a thread branched off another thread | sub-thread, child thread, branch |
 | turn | one request and the agent's answer in a thread | run, request, round |
+| diff | changes in the thread’s directory compared with Git HEAD | patch viewer |
+| review | a draft of comments on a diff, sent to the agent together | feedback batch |
 | citation | an inline token containing a quoted passage; `Cite` inserts it, `quote` names its text | footnote, reference |
 | visual | an interactive explanation the agent publishes in a thread; controls change it locally (`Visual` in titles) | widget, app, embed, applet |
 | shell command | an owner's command entered with a leading `!`; runs when delivered | terminal message, bash mode |

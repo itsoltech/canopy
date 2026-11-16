@@ -62,6 +62,8 @@ export const READS = new Set([
   "GetThreadSyncContent",
   "ReadThreadFile",
   "ListThreadDirectory",
+  "ListThreadDiff",
+  "ReadThreadDiff",
   "GetThreadFileHighlight",
   "WatchThreadFiles",
   "ListMentionCatalog",

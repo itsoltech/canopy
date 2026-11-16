@@ -58,6 +58,8 @@ export interface CommandOutput {
   readonly importLibraryContent?: MessageInitShape<typeof CommandResultSchema>["importLibraryContent"];
   readonly importSecret?: MessageInitShape<typeof CommandResultSchema>["importSecret"];
   readonly file?: MessageInitShape<typeof CommandResultSchema>["file"];
+  readonly threadDiff?: MessageInitShape<typeof CommandResultSchema>["threadDiff"];
+  readonly threadDiffPage?: MessageInitShape<typeof CommandResultSchema>["threadDiffPage"];
   readonly threadDirectory?: MessageInitShape<typeof CommandResultSchema>["threadDirectory"];
   readonly threadFileHighlight?: MessageInitShape<typeof CommandResultSchema>["threadFileHighlight"];
   readonly agentTool?: MessageInitShape<typeof CommandResultSchema>["agentTool"];

@@ -207,6 +207,8 @@ export const SERVED = new Set([
   "RevealWorktree",
   "ReadThreadFile",
   "ListThreadDirectory",
+  "ListThreadDiff",
+  "ReadThreadDiff",
   "GetThreadFileHighlight",
   "WatchThreadFiles",
   "WriteThreadFile",

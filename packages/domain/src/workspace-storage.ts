@@ -17,10 +17,12 @@ export function restoreWorkspace(store: WorkspaceStore, raw: string | null): voi
     const panel = objectOf(saved["panel"]);
     view.panel = {
       open: panel["open"] === true,
-      mode: panel["mode"] === "preview" ? "preview" : "files",
+      mode: "files",
       tool:
         panel["tool"] === AgentTool.DESKTOP || panel["tool"] === AgentTool.DEVICE ? panel["tool"] : AgentTool.BROWSER,
     };
+
+    if (panel["mode"] === "preview" || panel["mode"] === "diff") view.panel.mode = panel["mode"];
 
     for (const tab of objectsOf(saved["tabs"]).slice(0, WORKSPACE_TAB_LIMIT - 1)) {
       const module = workspaceModule(str(tab["module"]));

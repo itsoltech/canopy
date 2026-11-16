@@ -2,6 +2,7 @@
 // Opis semantyki: docs/protocol.md
 syntax = "proto3";
 import "canopy/worker/v1/thread_directory.proto";
+import "canopy/worker/v1/thread_diff.proto";
 import "canopy/worker/v1/thread_highlight.proto";
 import "canopy/worker/v1/thread_watch.proto";
 
@@ -514,6 +515,9 @@ message Command {
     // Transient, git_status_v1; pull is an explicit owner action, never queued or replayed.
     ThreadGitRequest get_thread_git_status = 232;
     ThreadGitRequest pull_thread_origin = 233;
+    // Transient, thread_diff_v1; immutable disk-backed pages, never queued or replayed.
+    ListThreadDiff list_thread_diff = 234;
+    ReadThreadDiff read_thread_diff = 235;
     // CLI dostawców (sekcja na końcu pliku). Nietrwała: nigdy z outboxa.
     InstallCli install_cli = 800;
     // Local automation tools. These commands are transient and never enter the outbox.
@@ -824,6 +828,8 @@ message CommandResult {
   FileContent file = 222;
   GitPrContext git_pr_context = 227;
   ThreadDirectoryPage thread_directory = 228;
+  ThreadDiffSnapshot thread_diff = 234;
+  ThreadDiffPage thread_diff_page = 235;
   ThreadFileHighlight thread_file_highlight = 229;
   ThreadImageExport thread_image_export = 231;
   ProviderAccountsReport provider_accounts = 810;

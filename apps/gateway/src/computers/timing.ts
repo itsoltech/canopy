@@ -21,6 +21,7 @@ export const PEER_WATCH_LEGACY_PROBE_MS = 30_000;
 
 /** Explicit operations can be slow without delaying any local list or page. */
 export const PEER_LONG_CALL_TIMEOUTS = new Map([
+  ["ListThreadDiff", 40_000],
   ["ReadThreadFile", 35_000],
   ["SwitchThreadBranch", 150_000],
   ["GetThreadGitStatus", 35_000],

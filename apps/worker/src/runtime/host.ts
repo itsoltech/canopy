@@ -374,6 +374,8 @@ export class WorkerHost {
         ...(output.importLibraryContent && { importLibraryContent: output.importLibraryContent }),
         ...(output.importSecret && { importSecret: output.importSecret }),
         ...(output.file && { file: output.file }),
+        ...(output.threadDiff && { threadDiff: output.threadDiff }),
+        ...(output.threadDiffPage && { threadDiffPage: output.threadDiffPage }),
         ...(output.threadDirectory && { threadDirectory: output.threadDirectory }),
         ...(output.threadFileHighlight && { threadFileHighlight: output.threadFileHighlight }),
         ...(output.threadImageExport && { threadImageExport: output.threadImageExport }),

@@ -1,11 +1,12 @@
 import { fileName } from "./file-references.ts";
 import type { WorkspaceFile } from "./workspace-file.ts";
 
-/** Full tabs beside the thread: pull requests, task output, and the thread's live Preview. */
+/** Full tabs beside the thread: pull requests, task output, live Preview, and local Git changes. */
 export const workspaceModules = [
   { id: "pull-requests", label: "Pull requests", icon: "git-fork" },
   { id: "tasks", label: "Tasks", icon: "queue-list" },
   { id: "preview", label: "Preview", icon: "globe-alt" },
+  { id: "diff", label: "Diff", icon: "arrows-right-left" },
 ] as const;
 
 export type WorkspaceModuleId = (typeof workspaceModules)[number]["id"];
@@ -45,7 +46,7 @@ export const tabPath = (tab: WorkspaceEntry) =>
     : tab.module === "preview"
       ? "Preview"
       : tab.label ||
-        (tab.resource
+        (tab.resource && tab.module !== "diff"
           ? tab.module === "pull-requests"
             ? "Pull request"
             : "Task output"

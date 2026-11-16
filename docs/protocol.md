@@ -1029,3 +1029,62 @@ a raportowane CPU dotyczy wyłącznie wyznaczonego okna. Próbki w `.cpuprofile`
 lokalizacji stosów; sekundy w raporcie Markdown profilera nie zastępują procesowego CPU,
 zwłaszcza przy długim oczekiwaniu na I/O. Uruchamiaj pliki wielogatewayowe kolejno i usuń
 profile po analizie. Nie zapisuj ich ani wyników pomiaru w repozytorium.
+
+## Migawki zmian Git wątku
+
+Status (2026-11-17): zaimplementowane w kodzie; dostępność nightly/beta/stable
+wynika z promocji wydań. Addytywna capability `thread_diff_v1` nie zmienia
+`WORKER_LINK_PROTOCOL = 1`.
+
+Nietrwałe komendy `ListThreadDiff` (234) i `ReadThreadDiff` (235) zwracają
+`CommandResult.thread_diff` (234) i `thread_diff_page` (235). Gateway wyznacza
+właściciela, worker i cwd z wątku; klient nie wybiera dowolnego katalogu ani
+workera. Oba RPC działają także przez połączony komputer domu i kontrolują
+właściciela przed wysłaniem komendy. Starszy worker bez capability wymaga
+aktualizacji. Treść nigdy nie trafia do outboxa ani journala.
+
+Lista porównuje końcowy stan plików śledzonych (index i worktree łącznie) z HEAD
+oraz dodaje nieignorowane pliki nieśledzone; pusty HEAD oznacza puste drzewo.
+Zmiana nazwy zachowuje `old_path`; pliki binarne, symlinki i submoduły mają
+jawne metadane zamiast odczytu celu linku. Odczyt zwykłego pliku przypina
+przodków bez podążania za symlinkami na Unix i Windows. Zakres podkatalogu pozostaje
+ograniczony do cwd wątku. Zduplikowane ścieżki po usunięciu z indexu i ponownym
+utworzeniu pliku składają się w jedną zmianę.
+
+`ThreadDiffSnapshot` zawiera `snapshot_id`, kompletną listę metadanych
+`{path, old_path, status, additions, deletions, line_count, binary}`, `complete`
+i jawny `error`. `ThreadDiffPage` przyjmuje identyfikator, ścieżkę, zerowy
+`offset` i `limit` (domyślnie 128, maksymalnie 200). Linia ma rodzaj
+context/addition/deletion/hunk/meta, tekst i opcjonalne numery starej/nowej
+linii. `line_count` obejmuje wszystkie wiersze, także nagłówki hunk i metadane.
+Strona ma maksymalnie 64 KiB protobuf; może zwrócić mniej wierszy niż limit,
+więc następny offset wynika z liczby otrzymanych wierszy.
+
+Worker zapisuje linie na prywatnym dysku z rzadkim indeksem co 128 rekordów;
+milion zmienionych linii nie wymaga przesłania ani zatrzymania całego patcha
+w pamięci klienta. Snapshot zachowuje treść stron po kolejnych edycjach plików,
+wiąże ją z właścicielem, wątkiem, cwd i tożsamością katalogu. Wygasa po pięciu
+minutach, restarcie lub zamknięciu wątku. Udane odświeżenie zastępuje poprzedni
+snapshot tego wątku; równoległe odświeżenia są współdzielone. Błędne odświeżenie
+zachowuje poprzedni snapshot do jego wygaśnięcia. Przejście do kolejnych wątków
+usuwa najdawniej używany snapshot, zamiast blokować odczyt piątego wątku.
+Po restarcie worker usuwa prywatny katalog snapshotów pozostałych po awarii.
+Archiwizacja anuluje trwające budowy i usuwa istniejące snapshoty; po zakończeniu
+sprzątania autoryzowane odczyty mogą utworzyć nowy snapshot archiwalnego wątku.
+Nie otwiera to sesji harnessu. Trwające sprzątanie nadal blokuje nowe odczyty,
+a gateway odrzuca usunięte wątki przed wysłaniem komendy.
+
+Limity workera: cztery snapshoty/otwarcia, 2000 plików, 512 KiB metadanych,
+256 MiB przetworzonych bajtów na budowę, 48 KiB na linię i 30 sekund na budowę.
+Procesy Git podlegają governorowi; stderr nie opuszcza procesu, a anulowanie
+zabija wyłącznie własną grupę procesu. Worker najpierw odczytuje nazwy sterowników
+filtrów ze skutecznej konfiguracji Git (również globalnej i include), a następnie
+wyłącza `clean`, `process` i `required` każdego sterownika we wszystkich
+poleceniach odczytujących repozytorium lub pliki. Wyłącza także fsmonitor,
+zewnętrzny diff i textconv; `GIT_NO_LAZY_FETCH=1` blokuje automatyczne pobieranie
+brakujących obiektów i uruchamianie helperów zdalnego repozytorium w partial clone.
+Sam odczyt zmian nie wykonuje tych komend konfiguracji.
+Wymuszone znaczniki patcha i `diff.suppressBlankEmpty=false` utrzymują prawidłowe
+numery linii niezależnie od lokalnych ustawień wyświetlania Git. Przekroczenie limitu daje `TOO_LARGE`
+z `complete=false`, bez niejawnie przyciętej listy lub częściowego patcha.
+Pozostałe jawne wyniki to `NOT_REPOSITORY`, `SNAPSHOT_EXPIRED`, `BUSY` i `CHANGED`.

@@ -1,0 +1,63 @@
+syntax = "proto3";
+package canopy.worker.v1;
+
+message ListThreadDiff {
+  string owner_id = 1;
+  string thread_id = 2;
+  string workspace = 3;
+}
+message ReadThreadDiff {
+  string owner_id = 1;
+  string thread_id = 2;
+  string workspace = 3;
+  string snapshot_id = 4;
+  string path = 5;
+  uint32 offset = 6;
+  uint32 limit = 7;
+}
+enum ThreadDiffError {
+  THREAD_DIFF_ERROR_UNSPECIFIED = 0;
+  THREAD_DIFF_ERROR_NOT_REPOSITORY = 1;
+  THREAD_DIFF_ERROR_TOO_LARGE = 2;
+  THREAD_DIFF_ERROR_SNAPSHOT_EXPIRED = 3;
+  THREAD_DIFF_ERROR_BUSY = 4;
+  THREAD_DIFF_ERROR_CHANGED = 5;
+}
+enum ThreadDiffLineKind {
+  THREAD_DIFF_LINE_KIND_UNSPECIFIED = 0;
+  THREAD_DIFF_LINE_KIND_CONTEXT = 1;
+  THREAD_DIFF_LINE_KIND_ADDITION = 2;
+  THREAD_DIFF_LINE_KIND_DELETION = 3;
+  THREAD_DIFF_LINE_KIND_HUNK = 4;
+  THREAD_DIFF_LINE_KIND_META = 5;
+}
+message ThreadDiffFile {
+  string path = 1;
+  string old_path = 2;
+  // A, M, D, R, T, U, or ? (untracked).
+  string status = 3;
+  uint32 additions = 4;
+  uint32 deletions = 5;
+  uint32 line_count = 6;
+  bool binary = 7;
+}
+message ThreadDiffSnapshot {
+  string snapshot_id = 1;
+  repeated ThreadDiffFile files = 2;
+  bool complete = 3;
+  ThreadDiffError error = 4;
+}
+message ThreadDiffLine {
+  ThreadDiffLineKind kind = 1;
+  string text = 2;
+  optional uint32 old_line = 3;
+  optional uint32 new_line = 4;
+}
+message ThreadDiffPage {
+  string snapshot_id = 1;
+  string path = 2;
+  uint32 offset = 3;
+  repeated ThreadDiffLine lines = 4;
+  uint32 line_count = 5;
+  ThreadDiffError error = 6;
+}

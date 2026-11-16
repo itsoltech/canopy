@@ -1,6 +1,7 @@
-# Zakładki wątku i panel Files/Preview
+# Zakładki wątku i panel Files/Diff/Preview
 
-Status (2026-11-17): **zaimplementowane; układ v3**, karta Preview w web/desktop
+Status (2026-11-17): **zaimplementowane; układ v3**, panel Diff z wirtualizowanym przeglądem zmian Git
+i lokalnym szkicem review wysyłanym agentowi jako jedna wiadomość, karta Preview w web/desktop
 i różne ikony skali 1:1 oraz dopasowania, kompaktowa typografia zakładek, diagramy Mermaid w trybie
 `Rendered`, bezpieczny HTML i lokalne obrazy w Markdown w web/desktop,
 cytowanie zaznaczeń z plików, przeciąganie plików do wiadomości
@@ -19,7 +20,7 @@ a od 600 dp dostępnego nagłówka także kartę rozmowy obok pliku. W tym dokum
 kartę rozmowy, niezależnie od jej etykiety. Podsumowanie wątku jest
 **osobnym elementem**: pływającą kartą o stałej szerokości w prawym górnym rogu
 obszaru wątku, niezależną od prawego panelu. Prawy panel web/desktop łączy
-**Files** i **Preview** (Browser/Desktop/Device). Podgląd pliku nadal jest jedną
+**Files**, **Diff** i **Preview** (Browser/Desktop/Device). Podgląd pliku nadal jest jedną
 zastępowalną czystą kartą, utrwalaną przez pierwszą zmianę/Keep tab/dwuklik.
 Drzewo pozostaje ograniczone do cwd/worktree wątku; mobilna edycja jest natywna
 i bez kolorów podczas pisania (kolory w viewerze i Preview changes).
@@ -111,12 +112,12 @@ podsumowanie zmieniało szerokość razem z panelem, a szerokość i zwinięcie 
 zapisywane osobno dla każdego wątku, więc interfejs skakał przy przełączaniu wątków.
 Część akcji podsumowania (PR, zadania, connectory) trafiła do modułów, dalej
 od ręki. v3 upraszcza układ do dwóch niezależnych elementów: karty podsumowania
-i prawego panelu, obecnie z widokami Files i Preview.
+i prawego panelu, obecnie z widokami Files, Diff i Preview.
 
 ### Jeden rząd nagłówka i przepełnienie
 
 Kolejność: **sygnet/avatar projektu → tytuł wątku jako pierwsza karta → karty plików
-i zasobów → przełącznik zakładek → akcje wątku → przełączniki `Files` i `Preview`**. Nie pokazujemy
+i zasobów → przełącznik zakładek → akcje wątku → przełączniki `Files`, `Diff` i `Preview`**. Nie pokazujemy
 nazwy projektu, osobnego tytułu w breadcrumbs ani osobnego rzędu zakładek. Sygnet ma
 dostępną nazwę projektu i tooltip, karta tytułu pełną nazwę w tooltipie i dostępnej
 nazwie; kliknięcie wraca z pliku do rozmowy, a `Switch tab` używa tego samego tytułu.
@@ -238,7 +239,7 @@ Te gesty dotyczą web/desktop, bez rozszerzenia natywnego klienta mobile.
 
 Lewy sidebar nadal służy projektom, wątkom i botom. Zakładki w nagłówku wybierają
 **główną treść**. Podsumowanie wątku jest **osobnym elementem obszaru wątku**, nie
-częścią prawego panelu. Prawy panel przełącza **Files** i **Preview**;
+częścią prawego panelu. Prawy panel przełącza **Files**, **Diff** i **Preview**;
 Preview można przenieść do pełnej karty głównego obszaru w web/desktop.
 
 | Treść | Miejsce |
@@ -250,6 +251,7 @@ Preview można przenieść do pełnej karty głównego obszaru w web/desktop.
 | Connectory: konta z dostępnością i `Manage` | Podsumowanie |
 | Sekrety, fork, lineage, subagenci, `New side thread` | Podsumowanie |
 | Drzewo katalogu | Panel `Files`; wybrany plik otwiera osobną zakładkę |
+| Zmiany Git i review dla agenta | Panel `Diff`; wybór pliku otwiera wspólną kartę wszystkich diffów i przewija do pliku |
 | Przeglądarka, okno desktopowe lub urządzenie workera | `Preview` w prawym panelu lub pełnej karcie web/desktop; bezpośrednie sterowanie w sesji wątku |
 | Cel, kolejka, prośby o zgodę i sekret | Obecny zasobnik rozmowy |
 
@@ -258,6 +260,41 @@ minimalne widoki powtarzały sekcje podsumowania. Zmiana grantu connectora nadal
 dotyczy **workera i wszystkich jego wątków**. Zatrzymanie, anulowanie i zarządzanie
 worktree zachowują istniejące potwierdzenia i autoryzację. Podsumowanie nie powtarza
 tytułu, modelu, uprawnień, kosztu ani statusu obecnych w nagłówku i przy composerze.
+
+### Diff i review dla agenta
+
+Panel `Diff` pokazuje zmiany w katalogu wątku względem `HEAD`: łącznie staged,
+unstaged oraz nieignorowane nowe pliki. Bez pierwszego commita punktem wyjścia jest
+puste drzewo. Zakres pozostaje ograniczony do cwd/worktree wątku.
+Jeden wybór pliku otwiera utrwaloną kartę `Diff` i przewija do jego nagłówka.
+Kolejne wybory używają tej samej karty; przewijanie przechodzi przez wszystkie pliki.
+Na telefonie wybór zamyka arkusz listy i pokazuje kartę diffów.
+
+Lista plików i wspólny czytnik są wirtualizowane. Pozycje plików wynikają z liczby
+wierszy w metadanych; worker dostarcza tylko strony widocznej treści z buforem.
+Cache stron ma limit, a logiczna wysokość przewijania jest skalowana do wysokości
+obsługiwanej przez przeglądarkę. Dzięki temu miliony wierszy nie tworzą milionów
+węzłów DOM ani jednego wielkiego odczytu do przeglądarki. Binaria i zmiany samych
+metadanych mają jawny opis zamiast pustego diffu.
+
+Odczyty odnoszą się do nietrwałej migawki zmian na workerze. `Refresh changes` tworzy
+nową migawkę, zamiast mieszać strony ze zmieniających się plików. Brak repozytorium,
+wygaśnięcie migawki, niedostępność komputera lub przekroczenie limitu odczytu mają
+jawny stan i akcję odzyskiwania; limit nigdy nie oznacza kompletnego pustego diffu.
+
+Komentarz wybiera linię i stronę diffu oraz zachowuje ścieżkę, numer, tekst kodu
+i tożsamość migawki. Szkic review pozwala przejrzeć, poprawić i usunąć uwagi przed
+`Send review`. Odświeżenie zmian nie przenosi starych komentarzy na nowe linie:
+pozostawia ich pierwotny kontekst. Zamykanie karty i zmiana wątku nie usuwa szkicu.
+Szkice są lokalne dla urządzenia, zakresu właściciela/połączenia i wątku; nie trafiają
+do agenta ani do GitHub przed wysłaniem.
+
+`Send review` wysyła podsumowanie i wszystkie zapisane komentarze jako jedną
+zwykłą wiadomość wątku, przez istniejącą kolejkę wiadomości. Ponowienie niepewnego
+wysłania zachowuje klucz idempotencji. Błąd zachowuje szkic; sukces usuwa wyłącznie
+wysłany zestaw. Archiwizacja lub brak dostępu blokują wysyłanie.
+Funkcja dotyczy web/desktop; natywny mobile zachowuje dotychczasowe moduły.
+Dostępność nightly/beta/stable wynika z [promocji wydań](release.md).
 
 ### Podsumowanie wątku
 

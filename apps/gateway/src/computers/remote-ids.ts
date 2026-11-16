@@ -11,7 +11,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 // ------------------------------------------------------------------ ids
 
 export const idField = (name: string) =>
-  name !== "global_id" && (name === "id" || name.endsWith("_id") || name.endsWith("_ids"));
+  !["global_id", "snapshot_id"].includes(name) && (name === "id" || name.endsWith("_id") || name.endsWith("_ids"));
 
 export const STAMPED = new Set([
   "canopy.ui.v1.Thread",

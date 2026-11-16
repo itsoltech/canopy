@@ -32,12 +32,14 @@
   let used = $state(false);
   let filesUsed = $state(false);
   let previewUsed = $state(false);
+  let diffUsed = $state(false);
 
   $effect.pre(() => {
     void threadId;
     used = false;
     filesUsed = false;
     previewUsed = false;
+    diffUsed = false;
   });
 
   $effect(() => {
@@ -46,6 +48,8 @@
     if (used && workspace.panelMode === "files") filesUsed = true;
 
     if (used && workspace.panelMode === "preview") previewUsed = true;
+
+    if (used && workspace.panelMode === "diff") diffUsed = true;
   });
 </script>
 
@@ -57,12 +61,26 @@
         bind:value={workspace.panelMode}
         options={[
           { value: "files", label: "Files" },
+          { value: "diff", label: "Diff" },
           { value: "preview", label: "Preview" },
         ]}
       />
       <IconButton size="sm" icon="x-mark" label="Close side panel" onclick={() => (workspace.panelOpen = false)} />
     </div>
     <div class="min-h-0 flex-1">
+      <div class="h-full min-h-0" class:hidden={workspace.panelMode !== "diff"} inert={workspace.panelMode !== "diff"}>
+        {#if diffUsed}
+          {#await import("./WorkspaceDiffList.svelte") then module}
+            {#key workspace.view}<module.default
+                view={workspace.view}
+                active={active && workspace.panelMode === "diff"}
+                onopen={() => {
+                  if (!workspace.wide) workspace.panelOpen = false;
+                }}
+              />{/key}
+          {/await}
+        {/if}
+      </div>
       <div
         class="h-full min-h-0"
         class:hidden={workspace.panelMode !== "files"}
@@ -112,7 +130,12 @@
     </div>
   </aside>
 {:else}
-  <Dialog bind:open={() => sheet, (value) => (workspace.panelOpen = value)} title="Files and preview" bare fullscreen>
+  <Dialog
+    bind:open={() => sheet, (value) => (workspace.panelOpen = value)}
+    title="Files, diff and preview"
+    bare
+    fullscreen
+  >
     {#if sheet}<div class="h-(--window-safe-height) min-h-0 pt-3">{@render content(true)}</div>{/if}
   </Dialog>
 {/if}
