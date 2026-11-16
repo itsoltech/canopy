@@ -1,42 +1,63 @@
-import { useEffect, useState, useSyncExternalStore } from "react";
-import { Pressable, Text, View } from "react-native";
-import type { Workspace, WorkspaceTab, WorkspaceEntry } from "@canopy/domain/workspace";
-import { fileTab, tabName, tabPath, tabDirty, tabBusy } from "@canopy/domain/workspace-modules";
+import { useState, useSyncExternalStore } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import type { Workspace, WorkspaceEntry } from "@canopy/domain/workspace";
+import { tabName, tabPath, tabDirty } from "@canopy/domain/workspace-modules";
 import { PickerSheet } from "../../ui/Picker";
 import { Button } from "../../ui/Button";
-import { WorkspaceClose } from "./WorkspaceClose";
-import { styles, useColors } from "../../ui/theme";
+import { Icon } from "../../ui/Icon";
+import { MinimumTouchTarget } from "../../ui/density";
+import { Skeleton } from "../../ui/Skeleton";
+import { font, styles, useColors, useTypography } from "../../ui/theme";
+import { WorkspaceTabActions } from "./WorkspaceTabActions";
 
-export function WorkspaceTabs({ view, onThreadActions }: { view: Workspace; onThreadActions?: () => void }) {
+export function WorkspaceTabs({
+  view,
+  title,
+  loading = false,
+  expanded = false,
+  onThreadActions,
+}: {
+  view: Workspace;
+  title: string;
+  loading?: boolean;
+  expanded?: boolean;
+  onThreadActions?: () => void;
+}) {
   useSyncExternalStore(view.store.subscribe, view.store.getVersion);
   const c = useColors();
   const [open, setOpen] = useState(false);
   const [actions, setActions] = useState<WorkspaceEntry>();
-  const [closing, setClosing] = useState<WorkspaceTab[]>([]);
-  const [closingModules, setClosingModules] = useState<string[]>([]);
+  const [observedError, setObservedError] = useState(view.error);
   const current = view.current;
-  const name = current ? tabName(current) : "Thread";
+  const name = current ? tabName(current) : title;
+  const count = view.tabs.length + 1;
+  const dirty = Boolean(current && tabDirty(current));
 
-  useEffect(() => {
+  if (view.error !== observedError) {
+    setObservedError(view.error);
+
     if (view.error) setOpen(true);
-  }, [view.error]);
+  }
 
   return (
-    <>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Switch tab, ${name}, ${view.tabs.length + 1} tabs${current && tabDirty(current) ? ", Unsaved changes" : ""}`}
-        onPress={() => setOpen(true)}
-        style={{ flex: 1, minWidth: 64, minHeight: 48, justifyContent: "center", paddingHorizontal: 8 }}
-      >
-        <Text
-          numberOfLines={1}
-          style={[styles.body, { color: c.text, fontStyle: current?.preview ? "italic" : "normal" }]}
-        >
-          {name}
-          {current && tabDirty(current) ? " ●" : ""} ▾
-        </Text>
-      </Pressable>
+    <MinimumTouchTarget.Provider value={48}>
+      <View style={s.tabs}>
+        {expanded && current && (
+          <TabButton name={title} label={title} active={false} onPress={() => view.select("thread")} />
+        )}
+        <TabButton
+          name={name}
+          label={`Switch tab, ${name}${current ? `, ${tabPath(current)}` : ""}, ${count} ${count === 1 ? "tab" : "tabs"}${dirty ? ", Unsaved changes" : ""}${current?.preview ? ", Preview" : ""}`}
+          active
+          switcher
+          expanded={open}
+          dirty={dirty}
+          preview={current?.preview}
+          loading={loading}
+          onPress={() => setOpen(true)}
+          onLongPress={current ? () => setActions(current) : onThreadActions}
+        />
+      </View>
       <PickerSheet
         title="Switch tab"
         visible={open}
@@ -45,7 +66,7 @@ export function WorkspaceTabs({ view, onThreadActions }: { view: Workspace; onTh
         sections={[
           {
             options: [
-              { value: "thread", label: "Thread" },
+              { value: "thread", label: title },
               ...view.tabs.map((tab) => ({
                 value: tab.id,
                 label: tabName(tab),
@@ -60,7 +81,7 @@ export function WorkspaceTabs({ view, onThreadActions }: { view: Workspace; onTh
           setOpen(false);
         }}
         footer={
-          <View style={{ gap: 8 }}>
+          <View style={s.footer}>
             {onThreadActions && (
               <Button
                 title="Thread actions"
@@ -87,64 +108,90 @@ export function WorkspaceTabs({ view, onThreadActions }: { view: Workspace; onTh
           </View>
         }
       />
-      <PickerSheet
-        title={actions ? tabName(actions) : "Tab actions"}
-        visible={Boolean(actions)}
-        onClose={() => setActions(undefined)}
-        sections={[
-          {
-            options: [
-              { value: "keep", label: "Keep tab" },
-              { value: "up", label: "Move up" },
-              { value: "down", label: "Move down" },
-              { value: "close", label: "Close tab" },
-              { value: "others", label: "Close other tabs" },
-              { value: "saved", label: "Close saved tabs" },
-            ],
-          },
-        ]}
-        onSelect={(action) => {
-          if (!actions) return;
-          applyAction(view, actions, action, (entries) => {
-            setClosing(entries.filter(fileTab));
-            setClosingModules(entries.filter((entry) => entry.kind === "module").map((entry) => entry.id));
-          });
-          setActions(undefined);
-        }}
-      />
-      <WorkspaceClose
-        view={view}
-        tabs={closing}
-        onComplete={() => {
-          for (const id of closingModules) view.close(id);
-        }}
-        onClose={() => {
-          setClosing([]);
-          setClosingModules([]);
-        }}
-      />
-    </>
+      <WorkspaceTabActions view={view} tab={actions} onClose={() => setActions(undefined)} />
+    </MinimumTouchTarget.Provider>
   );
 }
 
-function applyAction(view: Workspace, tab: WorkspaceEntry, action: string, confirm: (tabs: WorkspaceEntry[]) => void) {
-  if (action === "keep") view.keep(tab.id);
+function TabButton({
+  name,
+  label,
+  active,
+  switcher = false,
+  expanded,
+  dirty = false,
+  preview = false,
+  loading = false,
+  onPress,
+  onLongPress,
+}: {
+  name: string;
+  label: string;
+  active: boolean;
+  switcher?: boolean;
+  expanded?: boolean;
+  dirty?: boolean;
+  preview?: boolean;
+  loading?: boolean;
+  onPress: () => void;
+  onLongPress?: () => void;
+}) {
+  const c = useColors();
+  const type = useTypography();
 
-  if (action === "up") view.move(tab.id, -1);
-
-  if (action === "down") view.move(tab.id, 1);
-
-  if (action === "close") {
-    if (tabDirty(tab)) confirm([tab]);
-    else view.close(tab.id);
-  }
-
-  if (action === "others") {
-    const entries = view.tabs.filter((entry) => entry.id !== tab.id && !tabBusy(entry));
-
-    if (entries.some(tabDirty)) confirm(entries);
-    else for (const entry of entries) view.close(entry.id);
-  }
-
-  if (action === "saved") for (const entry of view.tabs) if (!tabDirty(entry)) view.close(entry.id);
+  return (
+    <Pressable
+      accessibilityRole={switcher ? "button" : "tab"}
+      accessibilityLabel={label}
+      accessibilityState={{ expanded: switcher ? expanded : undefined, selected: active, disabled: loading }}
+      disabled={loading}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      style={({ pressed }) => [s.tab, { backgroundColor: pressed ? c.pressed : active ? c.background : "transparent" }]}
+    >
+      {loading ? (
+        <View style={s.name}>
+          <Skeleton style={{ width: "80%", height: 16 }} />
+        </View>
+      ) : (
+        <Text
+          numberOfLines={1}
+          style={[
+            type.chrome,
+            s.name,
+            { color: active ? c.text : c.muted },
+            preview &&
+              (type.chrome.fontFamily === font.regular ? { fontFamily: font.regularItalic } : { fontStyle: "italic" }),
+          ]}
+        >
+          {name}
+        </Text>
+      )}
+      {switcher && (
+        <>
+          <View style={s.dirty}>{dirty && <View style={[s.dot, { backgroundColor: c.text }]} />}</View>
+          <Icon name="chevron-down" color={c.icon} />
+        </>
+      )}
+    </Pressable>
+  );
 }
+
+const s = StyleSheet.create({
+  tabs: { flex: 1, minWidth: 0, flexDirection: "row", alignSelf: "stretch" },
+  tab: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+  },
+  name: { flex: 1, minWidth: 0 },
+  dirty: { width: 8, flexShrink: 0, alignItems: "center" },
+  dot: { width: 5, height: 5, borderRadius: 3 },
+  footer: { padding: 8, gap: 8 },
+});

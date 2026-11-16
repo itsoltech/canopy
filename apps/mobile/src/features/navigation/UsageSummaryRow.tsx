@@ -10,6 +10,7 @@ import {
 } from "@canopy/domain/usage-summary";
 import { ProviderIcon } from "../../ui/ProviderIcon";
 import { styles, useColors } from "../../ui/theme";
+import { useUsageTypography } from "../providers/usage-typography";
 import { usageColor } from "./usage-color";
 
 const toneOf = (left: number): UsageTone => (left <= 10 ? "danger" : left <= 30 ? "warning" : "neutral");
@@ -20,6 +21,7 @@ const toneOf = (left: number): UsageTone => (left <= 10 ? "danger" : left <= 30 
  */
 export function UsageSummaryRow({ row, now }: { row: Row; now: number }) {
   const c = useColors();
+  const type = useUsageTypography();
   const tone = (value: UsageTone) => (value === "neutral" ? c.soft : usageColor(value, c));
   const left = row.window?.percentLeft;
   const tabular = { fontVariant: ["tabular-nums" as const] };
@@ -28,20 +30,20 @@ export function UsageSummaryRow({ row, now }: { row: Row; now: number }) {
 
   return (
     <View accessible accessibilityLabel={usageSummaryLabel(row, now)} style={{ gap: 6, minWidth: 0 }}>
-      <View style={styles.row}>
-        <ProviderIcon provider={row.provider} />
-        <View style={[styles.row, { flex: 1, minWidth: 0 }]}>
-          <Text numberOfLines={1} style={[styles.overlayHeading, { flexShrink: 1, color: c.text }]}>
+      <View style={[styles.row, { flexWrap: "wrap", justifyContent: "space-between", rowGap: 2 }]}>
+        <View style={[styles.row, { flexGrow: 1, flexShrink: 1, flexBasis: 144, minWidth: 0 }]}>
+          <ProviderIcon provider={row.provider} />
+          <Text numberOfLines={1} style={[type.heading, { flexShrink: 1, minWidth: 0, color: c.text }]}>
             {row.name}
           </Text>
-          {count ? <Text style={[styles.overlayMeta, { color: c.muted }]}>{count}</Text> : null}
+          {count ? <Text style={[type.meta, { flexShrink: 0, color: c.muted }]}>{count}</Text> : null}
         </View>
-        {row.word ? <Text style={[styles.overlayMeta, { color: tone(row.tone) }]}>{row.word}</Text> : null}
-        {row.window && left !== undefined ? (
-          <Text style={[styles.overlayHeading, tabular, { color: tone(toneOf(left)) }]}>
-            {percentLeftText(row.window)}
-          </Text>
-        ) : null}
+        <View style={[styles.row, { flexShrink: 0 }]}>
+          {row.word ? <Text style={[type.meta, { color: tone(row.tone) }]}>{row.word}</Text> : null}
+          {row.window && left !== undefined ? (
+            <Text style={[type.heading, tabular, { color: tone(toneOf(left)) }]}>{percentLeftText(row.window)}</Text>
+          ) : null}
+        </View>
       </View>
       <View style={{ flexDirection: "row", gap: 4, height: 4 }}>
         {row.window ? (
@@ -71,12 +73,12 @@ export function UsageSummaryRow({ row, now }: { row: Row; now: number }) {
           <View style={{ flex: 1, borderRadius: 2, backgroundColor: c.agent }} />
         )}
       </View>
-      <View style={[styles.row, { justifyContent: "space-between", minHeight: 18 }]}>
-        <Text numberOfLines={1} style={[styles.overlayMeta, tabular, { flexShrink: 1, color: c.muted }]}>
+      <View style={[styles.row, { justifyContent: "space-between", flexWrap: "wrap", rowGap: 2, minHeight: 20 }]}>
+        <Text style={[type.meta, tabular, { flexShrink: 1, color: c.muted }]}>
           {row.window ? summaryWindowText(row.window, now) : ""}
         </Text>
         {row.binding ? (
-          <Text style={[styles.overlayMeta, tabular, { color: tone(toneOf(row.binding.percentLeft)) }]}>
+          <Text style={[type.meta, tabular, { flexShrink: 0, color: tone(toneOf(row.binding.percentLeft)) }]}>
             {bindingText(row.binding)}
           </Text>
         ) : null}

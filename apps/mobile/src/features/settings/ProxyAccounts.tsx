@@ -84,6 +84,12 @@ export function ProxyAccounts({ proxy, onRead }: { proxy: ui.Proxy; onRead: () =
           ))}
         </View>
       )}
+      {accounts?.state === "ok" && supported.some((account) => account.windows.length) ? (
+        <Text style={meta}>
+          Pace compares the latest reported usage with even use until reset. Slow usage when ahead of pace. Differences
+          use percentage points (pp).
+        </Text>
+      ) : null}
       {accounts?.state === "ok" && supported.length > 0 && accounts.total > accounts.accounts.length && (
         <Text style={meta}>
           Showing {accounts.accounts.length} of {accounts.total}.

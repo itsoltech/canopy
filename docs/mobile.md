@@ -13,6 +13,11 @@ Galerie agenta czekają na koniec swojej tury,
 a kompaktowanie kontekstu rozdziela sekcje pracy.
 Edytor cytatu ma podgląd fragmentu i stałą stopkę z komentarzem oraz zapisem ponad
 klawiaturą; przycinanie fragmentu otwiera osobny tryb edycji w tym samym arkuszu.
+Nagłówek wątku używa tytułu rozmowy jako karty, a wskaźniki limitów w sidebarze
+mają szerokość 40 dp, zgodną z web/desktop. Preview obsługuje Browser/Desktop/Device
+przez natywny transport, z wyborem celu i bezpośrednim sterowaniem.
+Szczegóły wątku pokazują stan connectorów w bieżącej turze oraz nadpisanie
+Auto-archive after merge.
 Dostępność w wydaniach zależy od kanału.
 
 Natywna aplikacja Expo/React Native działa na iOS i Androidzie. Obsługuje wątki,
@@ -128,10 +133,45 @@ Konfiguracja natywna oraz assety wpływają na fingerprint; stare IPA/APK pozost
 starą tożsamością do instalacji nowej binarki. Publiczną konfigurację można sprawdzić
 w `apps/mobile` przez `CANOPY_CHANNEL=nightly bunx expo config --type public`.
 
+## Podgląd automatyzacji i limity kont
+
+`Open preview` obok Files otwiera natywny arkusz Preview. Browser, Desktop i Device
+korzystają z `WatchAgentPreview` i `SendAgentPreviewInput` przez ten sam Connect
+z przypiętym TLS co pozostałe odczyty aplikacji. Telefon nie dostaje adresu ani
+portu narzędzia na workerze. Gateway nadal sprawdza właściciela wątku, grant,
+stan archiwizacji i bieżące łącze workera.
+
+Arkusz wybiera kartę przeglądarki, okno lub urządzenie. Obraz zachowuje proporcje
+i dopasowuje się do wolnego miejsca; letterboxing nie jest obszarem sterowania.
+Tap wysyła kliknięcie, swipe — drag, a jawne kontrolki pozwalają przewijać,
+wpisywać tekst i wysyłać Enter/Escape oraz Back/Home urządzenia. Browser ma adres
+i Back/Forward/Reload page. Na niskim ekranie obraz i kontrolki przewijają się razem;
+w pionie kontrolki mają własny przewijany obszar, pozostawiający miejsce na obraz.
+
+Subskrypcja ma maks. 5 klatek/s, przechowuje tylko bieżącą klatkę w pamięci
+i kończy się po zamknięciu arkusza, zmianie zakresu, utracie dostępu lub przejściu
+aplikacji w tło. Kolejka wejścia ma ograniczone partie, wykonuje je sekwencyjnie
+i nie odtwarza ich po zerwaniu łącza. Retry preview otwiera nową subskrypcję.
+Instalację i granty narzędzi ustawia się w Settings → Workers na web/desktop.
+Automatyczny mini Preview pod podsumowaniem i zmiana wymiarów viewportu pozostają
+funkcjami web/desktop; mobile udostępnia ręcznie otwierany arkusz.
+
+Wskaźniki limitów w sidebarze mają 40 dp w stałym slocie 56 dp; nadejście odczytu
+nie przesuwa przycisków stopki. Arkusz Provider usage zachowuje pełną szerokość
+telefonu i kartę do 420 dp na tablecie, kompaktowy tekst zgodny z preferencjami
+fontu i rozmiaru interfejsu oraz zawijanie statusów i resetu. Konta proxy pokazują
+pace i steady-use target tak jak web. Limit osiągnięty oznacza 0% pozostałego
+limitu również bez liczby użytego procentu.
+
 ## Transport: czy React Native obsługuje gRPC?
 
-W otwartym wątku pliki zajmują lokalne zakładki obok `Thread`. Nagłówek zawiera
-sygnet projektu, skrócony tytuł oraz przycisk aktywnej karty z arkuszem Switch tab.
+W otwartym wątku pliki zajmują lokalne zakładki obok rozmowy. Nagłówek ma jedno
+tło chrome, sygnet projektu i aktywną kartę z arkuszem Switch tab. Kartą rozmowy
+jest tytuł wątku, także na liście kart; nie dublujemy go etykietą `Thread`.
+Aktywna karta łączy się kolorem z obszarem treści. Telefon pokazuje aktywną kartę,
+a od 600 dp rzeczywistej szerokości nagłówka obok otwartego pliku widać również
+kartę rozmowy. Długie tytuły i ścieżki mają ellipsis oraz pełne dostępne nazwy;
+wskaźnik niezapisanej zmiany ma zarezerwowane miejsce. Akcje mają cele 48 dp.
 Arkusz obsługuje Keep tab, Move up/down i zamykanie z potwierdzeniem szkicu.
 Jeden czysty preview można zastąpić kolejnym plikiem; Edit utrwala go przed edycją.
 Android Back wraca do `Thread` bez zamykania karty. Rozmowa i composer zachowują

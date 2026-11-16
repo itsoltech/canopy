@@ -86,7 +86,7 @@ export function ProxyAccountRow({
           {account.detail ? <Sensitive value={account.detail} label="Account details" /> : null}
         </Text>
       ) : null}
-      <UsageMeters usage={usage} now={now} />
+      <UsageMeters usage={usage} now={now} showPace={!compact} />
     </View>
   );
 }

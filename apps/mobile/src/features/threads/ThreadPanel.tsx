@@ -15,6 +15,7 @@ import { useComputerHome } from "../computers/presence";
 import { useSession } from "../../state/session";
 import { openSettingsSection } from "../settings/navigation";
 import { ThreadPullRequests } from "../github/ThreadPullRequests";
+import { ThreadAutoArchive } from "./ThreadAutoArchive";
 
 export function PanelRow({
   title,
@@ -117,7 +118,12 @@ export function ThreadPanel({
               <Text style={[styles.meta, { color: c.muted }]}>{thread.permissionModeNote}</Text>
             )}
           </View>
-          {visible && <ThreadPullRequests thread={thread} onClose={onClose} />}
+          {visible && (
+            <View style={{ gap: 4, minWidth: 0 }}>
+              <ThreadPullRequests thread={thread} onClose={onClose} />
+              <ThreadAutoArchive key={thread.id} thread={thread} disabled={stale} />
+            </View>
+          )}
           {visible && <SecretGrants secrets={snapshot?.secrets ?? []} disabled={home.away || !online} />}
           {snapshot && (
             <ThreadSchedules
