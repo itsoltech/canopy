@@ -2,9 +2,10 @@ import { expect, test } from "bun:test";
 import { createServer } from "node:http";
 import { once } from "node:events";
 import type { AddressInfo } from "node:net";
-import type { Session, WebContents } from "electron";
+import type { BrowserWindow, Session, WebContents } from "electron";
 import { DesktopWebSession, DESKTOP_SESSION_HEADER } from "../src/web-session.ts";
 import { desktopWebListener } from "../src/runtime/web-auth.ts";
+import { windowContents } from "../src/window-message.ts";
 
 test("the desktop listener authenticates documents, assets, API, mutations and SSE before the handler", async () => {
   let origin = "";
@@ -165,5 +166,85 @@ test("Electron only adds the capability to its own top frame and strips it on ex
   expect(stopped).toBe(true);
   expect(send({ resourceType: "mainFrame", frame: null }).cancel).toBe(true);
   expect(send().cancel).toBe(true);
+  expect(() => capability.headers(origin)).toThrow("Desktop services stopped");
+});
+
+test("closing the main window preserves authentication for settings and cannot prevent session revocation", () => {
+  const origin = "http://127.0.0.1:25001";
+  const capability = new DesktopWebSession(() => origin);
+  let closed = false;
+  let stopped = 0;
+
+  let before:
+    | ((
+        details: Electron.OnBeforeSendHeadersListenerDetails,
+        callback: (response: Electron.BeforeSendResponse) => void,
+      ) => void)
+    | undefined;
+
+  // SAFETY: the session fixture only implements the header hook used by attach.
+  const session = {
+    webRequest: {
+      onBeforeSendHeaders: (_filter: Electron.WebRequestFilter, listener: typeof before) => {
+        before = listener;
+      },
+    },
+  } as Session;
+
+  // SAFETY: session authentication and revocation only use id, isDestroyed and stop.
+  const contents = {
+    id: 1,
+    isDestroyed: () => closed,
+    stop: () => {
+      stopped++;
+    },
+  } as WebContents;
+
+  // SAFETY: reproduce Electron's throwing native getter after BrowserWindow destruction.
+  const main = {
+    isDestroyed: () => closed,
+    get webContents() {
+      if (closed) throw new TypeError("Object has been destroyed");
+
+      return contents;
+    },
+  } as BrowserWindow;
+
+  // SAFETY: the surviving settings window only exposes the fields used by windowContents.
+  const settings = {
+    isDestroyed: () => false,
+    webContents: { ...contents, id: 2, isDestroyed: () => false },
+  } as BrowserWindow;
+
+  const windows = () => [windowContents(main), windowContents(settings)];
+  capability.attach(session, windows);
+
+  const request = (webContentsId: number) => {
+    let response: Electron.BeforeSendResponse | undefined;
+    // SAFETY: main-frame requests do not use any other Electron metadata in the header hook.
+    before!(
+      {
+        url: origin,
+        resourceType: "mainFrame",
+        webContentsId,
+        requestHeaders: {},
+      } as Electron.OnBeforeSendHeadersListenerDetails,
+      (result) => {
+        response = result;
+      },
+    );
+
+    return response;
+  };
+
+  expect(request(1)?.requestHeaders?.[DESKTOP_SESSION_HEADER]).toBe(capability.token);
+  closed = true;
+  expect(request(1)).toEqual({ cancel: true });
+  expect(request(2)?.requestHeaders?.[DESKTOP_SESSION_HEADER]).toBe(capability.token);
+  expect(request(3)).toEqual({ cancel: true });
+
+  capability.revoke(windows());
+  expect(stopped).toBe(1);
+  expect(request(2)).toEqual({ cancel: true });
   expect(() => capability.headers(origin)).toThrow("Desktop services stopped");
 });

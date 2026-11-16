@@ -3,6 +3,7 @@
 Status (2026-11-16): web/desktop — zmiana uprawnień bieżącej tury Claude działa bez restartu;
 opcjonalny wskaźnik kontekstu composera ma tryby Off / Circle / Text / Bar w Appearance,
 a pickery modelu i wysiłku dopasowują się do dostępnej szerokości;
+lokalne preferencje sidebara zachowują zakres po restarcie gatewaya desktopu na innym porcie;
 przełączanie wątków zachowuje status połączenia,
 a zapowiedziana aktualizacja gatewaya pokazuje w wątku spokojny komunikat bez akcji odzyskiwania,
 a wygaszany kompozytor zachowuje własny szkic bez odczytu nieaktywnego derived.
@@ -1131,6 +1132,13 @@ pliku JSON z zakresem certyfikatu i parowania. Brakujące pola są jednorazowo k
 ze starych lokalnych i synchronizowanych wartości, potem nie podążają za gatewayem.
 Dawne pola pozostają w proto i DB dla starszych klientów, ale synchronizacja konfiguracji
 ich nie eksportuje ani nie stosuje. `archived` nie steruje listą.
+Lokalny BFF desktopu używa stałej tożsamości zakresu w swoim profilu przeglądarki,
+nie tymczasowego portu lokalnego gatewaya. Restart lub ponowne uruchomienie lokalnej
+konfiguracji zachowuje grupowanie, kolejność projektów i sekcję Working. Zdalny desktop
+nadal identyfikuje gateway odciskiem certyfikatu, a serwerowy web — adresem gatewaya.
+Stare klucze lokalnego desktopu zawierają hash dawnego adresu gatewaya i nie dają
+pewnego przypisania do nowego zakresu. Po aktualizacji może być potrzebny jednorazowy
+ponowny wybór preferencji; kolejne restarty zachowują już ten wybór.
 `UpdateUserSettings.sidebar` nadal zastępuje sekcję z kontrolą `expected_version`;
 nowe klienty zachowują stare pola przy zapisie przypięć, a `WatchOverview.user_settings`
 dostarcza zmiany przypięć innym urządzeniom.

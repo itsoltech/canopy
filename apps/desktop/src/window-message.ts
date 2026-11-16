@@ -4,6 +4,15 @@ function isDestroyedObjectError(error: Error): boolean {
   return error instanceof Error && error.message.includes("Object has been destroyed");
 }
 
+/** A BrowserWindow can outlive its native object; optional chaining alone is not a liveness check. */
+export function windowContents(target: BrowserWindow | undefined): WebContents | undefined {
+  if (!target || target.isDestroyed()) return undefined;
+
+  const contents = target.webContents;
+
+  return contents.isDestroyed() ? undefined : contents;
+}
+
 /** Electron can destroy WebContents between the liveness check and send(). */
 export function sendWebContentsMessage(target: WebContents | undefined, send: (target: WebContents) => void): void {
   if (!target || target.isDestroyed()) return;
@@ -23,6 +32,5 @@ export function sendWindowsMessage(
 }
 
 export function sendWindowMessage(target: BrowserWindow | undefined, send: (target: WebContents) => void): void {
-  if (!target || target.isDestroyed()) return;
-  sendWebContentsMessage(target.webContents, send);
+  sendWebContentsMessage(windowContents(target), send);
 }

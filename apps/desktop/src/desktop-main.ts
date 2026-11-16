@@ -36,7 +36,7 @@ import { acceptRemoteUpdate, remoteAppUpdate, registerUpdateIpc } from "./update
 import { desktopHistory, registerHistoryIpc } from "./history-ipc.ts";
 import { registerFontsIpc } from "./fonts-ipc.ts";
 import { startupFailure } from "./startup-error.ts";
-import { sendWindowMessage, sendWindowsMessage } from "./window-message.ts";
+import { sendWindowMessage, sendWindowsMessage, windowContents } from "./window-message.ts";
 import { registerSecondInstance, relaunchAfterQuit } from "./relaunch.ts";
 
 const identity = desktopIdentity();
@@ -281,7 +281,7 @@ app.on("before-quit", (event) => {
 
   if (requestWorkspaceQuit()) return;
   quitting = true;
-  webSession.revoke([window?.webContents, settingsWindow?.webContents]);
+  webSession.revoke([windowContents(window), windowContents(settingsWindow)]);
   stopPower();
   quitGuard.cancel();
 
@@ -344,7 +344,7 @@ function startController() {
     },
     () => {
       controllerExited = true;
-      webSession.revoke([window?.webContents, settingsWindow?.webContents]);
+      webSession.revoke([windowContents(window), windowContents(settingsWindow)]);
 
       if (!quitting) {
         status = { ...status, phase: "error", worker: "offline", error: "Desktop services stopped. Restart Canopy." };
@@ -386,7 +386,7 @@ function registerIpc() {
     )
       return;
     quitLog(
-      `feedback phase=${phase} surface=${surface} window=${event.sender === settingsWindow?.webContents ? "settings" : "main"}`,
+      `feedback phase=${phase} surface=${surface} window=${event.sender === windowContents(settingsWindow) ? "settings" : "main"}`,
     );
   });
   ipcMain.handle("canopy:set-quit-shortcut", (event, value: QuitShortcut) => {
@@ -455,7 +455,7 @@ async function start() {
   status = initialized.status;
   registerIpc();
   window = createWindow(true);
-  webSession.attach(window.webContents.session, () => [window?.webContents, settingsWindow?.webContents]);
+  webSession.attach(window.webContents.session, () => [windowContents(window), windowContents(settingsWindow)]);
   await policy.prepare(`${setupOrigin}/desktop`);
 
   policy.attach(window.webContents.session, () => [setupOrigin, status.webUrl]);
