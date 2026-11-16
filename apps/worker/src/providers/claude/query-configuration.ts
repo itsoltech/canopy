@@ -17,12 +17,16 @@ export async function claudeQueryConfiguration(
   try {
     const exclusions = await claudeInstructionSettings(cwd, scratch, runtime.home, env);
 
-    const settings = await user.settingsFile({
+    const combined = {
       ...user.settings,
       ...exclusions,
       // User skill bodies must not execute inline shell substitutions before Canopy permissions run.
       disableSkillShellExecution: true,
-    });
+    };
+
+    // Hook settings must stay in a private file so they never enter SDK argv. Inline settings are safe when the
+    // inherited hook decoder did not contribute a hooks object, and preserve the legacy isolated startup path.
+    const settings = Object.hasOwn(user.settings, "hooks") ? await user.settingsFile(combined) : combined;
 
     const instructions = [user.instructions, managedClaudeInstructions(runtime.platformHome ?? runtime.home)]
       .filter(Boolean)

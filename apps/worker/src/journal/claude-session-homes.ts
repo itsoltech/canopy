@@ -29,7 +29,15 @@ export function claudeSessionTracking(
     "SELECT has_history FROM claude_session_history WHERE thread_id = ? AND session_id = ?",
   );
 
-  const started = db.query("SELECT 1 FROM started_turns WHERE thread_id = ? LIMIT 1");
+  // A shell-backed first turn is recorded in open_turns before Claude opens. It must not make that new session look
+  // like an older session whose transcript went missing; completed or otherwise settled turns remain authoritative.
+  const started = db.query(
+    `SELECT 1 FROM started_turns AS s
+     WHERE s.thread_id = ?
+       AND NOT EXISTS (
+         SELECT 1 FROM open_turns AS o WHERE o.thread_id = s.thread_id AND o.turn_id = s.turn_id
+       ) LIMIT 1`,
+  );
 
   const remember = db.query(
     `INSERT INTO claude_session_history VALUES (?, ?, ?) ON CONFLICT(thread_id, session_id)
