@@ -5,7 +5,7 @@ import recorded from "./test-timings.json";
 import type { JsonObject, JsonValue } from "@canopy/domain";
 
 const root = resolve(import.meta.dir, "..");
-export const shardCount = 4;
+export const shardCount = 8;
 
 function testFiles(): string[] {
   const tracked = Bun.spawnSync(["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"], { cwd: root });
@@ -94,8 +94,8 @@ if (import.meta.main) {
   } else if (selection !== "--check") {
     const shard = shards[Number(selection) - 1];
 
-    if (!shard || !/^[1-4]$/.test(selection ?? ""))
-      throw new Error("Usage: bun scripts/test-shards.ts <1..4|--check> [bun test arguments]");
+    if (!shard || !/^[1-9]\d*$/.test(selection ?? ""))
+      throw new Error(`Usage: bun scripts/test-shards.ts <1..${shardCount}|--check> [bun test arguments]`);
 
     console.log(shard.files.join("\n"));
 

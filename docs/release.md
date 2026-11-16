@@ -1,5 +1,9 @@
 # Wydania: wersje, CI, artefakty
 
+Status: opis zaimplementowanego workflow (2026-11-16), z ośmioma shardami i wagami
+odświeżonymi z pełnych raportów CI. Pomiary poniżej opisują przebieg sprzed tej zmiany;
+wpływ na czas CI wymaga pomiaru kolejnych przebiegów.
+
 Jedna wersja dla wszystkich aplikacji (gateway, worker, web, desktop, mobile). Wersję wyznacza
 semantic-release z commitów Angular po squash merge. Wdrożenie: [deploy.md](deploy.md).
 Zasady commitów i wybór gałęzi: [contributing.md](contributing.md).
@@ -221,7 +225,7 @@ Publiczny release od początku zawiera komplet assetów i feedów wszystkich wym
 `.github/workflows/ci.yml` (pull requesty; wywoływany też przez Release) uruchamia równolegle:
 
 - `static`: `gen:check`, `typecheck`, lint, format i kontrolę podziału plików testowych;
-- cztery joby `tests`: każdy uruchamia własne `check:tmp`, JUnit i pomiar czasu plików;
+- osiem jobów `tests`: każdy uruchamia własne `check:tmp`, JUnit i pomiar czasu plików;
 - `builds`: build web i binaria linux-x64 z kontrolą `--version`.
 
 Końcowy job **Typecheck, tests, builds** wymaga powodzenia wszystkich wybranych części.
@@ -252,12 +256,24 @@ z deterministycznym rozstrzyganiem remisów i jawną listą ścieżek dla Bun.
 `scripts/test-timings.json` zawiera zmierzone czasy całych plików w milisekundach,
 łącznie z hookami; nowy plik dostaje domyślnie 1000 ms i automatycznie trafia do podziału.
 Do diagnozowania konkretnego błędu CI można lokalnie uruchomić dany shard przez
-`bun scripts/test-shards.ts 1` (analogicznie 2–4). Nie jest to obowiązkowa kontrola
+`bun scripts/test-shards.ts 1` (analogicznie 2–8). Nie jest to obowiązkowa kontrola
 przed PR; lokalną weryfikację dobieramy według [AGENTS.md](../AGENTS.md#testing-policy).
-`--check` kontroluje podział, a `--verify-reports <katalog>` sprawdza cztery raporty
-`timings-1.json` … `timings-4.json`. Raporty JUnit i natywne pomiary Bun są artefaktami CI
-`test-profile-<numer>` (7 dni). Do odświeżenia wag scal mapy `files` z czterech raportów;
+`--check` kontroluje podział, a `--verify-reports <katalog>` sprawdza osiem raportów
+`timings-1.json` … `timings-8.json`. Raporty JUnit i natywne pomiary Bun są artefaktami CI
+`test-profile-<numer>` (7 dni). Do odświeżenia wag scal mapy `files` ze wszystkich raportów;
 nie używaj raportu jednego sharda jako całej mapy.
+
+Podział na osiem shardów obowiązuje zarówno PR-y, jak i Release. Każdy plik nadal
+wykonuje się dokładnie raz; nie filtrujemy testów według zmienionych pakietów.
+Podwojenie liczby runnerów skraca najdłuższy job testowy, ale zwiększa łączny koszt
+checkoutów, instalacji i uruchomienia baz; rzeczywisty czas zależy też od kolejki runnerów.
+Statyczne checki i buildy pozostają równoległe; końcowa bramka nadal wymaga wszystkich
+ośmiu raportów oraz sukcesu każdej wybranej części CI.
+Pełne CI ostatnich PR-ów przed zmianą trwało około 11–12 minut
+([przykładowy przebieg](https://github.com/itsoltech/canopy/actions/runs/43827887639));
+statyczne checki i buildy kończyły się po około 2–3 minutach od startu jobów.
+Przy dostępnych runnerach osiem shardów daje prognozę około 5–7 minut na pełne CI;
+to szacunek, wymagający potwierdzenia po zmianie, a nie wynik zmierzonego przebiegu.
 
 `check:tmp` zarządza jednym PostgreSQL 17 na przebieg/shard i usuwa kontener po zakończeniu
 procesu testowego. Każdy fixture dostaje osobną bazę. Gatewaye klonują niemodyfikowalny,
@@ -547,14 +563,26 @@ Bundla web nie współdzielimy między jobami desktop: osobny job buildu opóźn
 | Etap | Od startu aktywnego Release (bez oczekiwania na cron/kolejkę) |
 | --- | --- |
 | `plan` gotowy, start buildów | ~1 min |
-| `checks` zielone | ~4,5–5 min |
-| `release` (tag), start `images` | ~5,5–6 min |
-| obrazy `vX.Y.Z` w GHCR (build z cache) | ~7–8 min |
-| binaria i `manifest.json` na ukrytym drafcie | ~9–11 min |
-| artefakt desktop Linux gotowy do uploadu | ~12–14 min |
-| **kompletny publiczny release i aliasy obrazów** (po macOS i Windows) | **~30–35 min**, zależnie od podpisów/notaryzacji |
+| artefakt desktop Linux gotowy do uploadu | ~5 min |
+| `checks` zielone | ~13,5 min |
+| `release` (tag), start `images` | ~14,5 min |
+| obrazy `vX.Y.Z` w GHCR (build z cache) | ~15,5 min |
+| binaria i `manifest.json` na ukrytym drafcie | ~16 min |
+| **kompletny publiczny release i aliasy obrazów** (po macOS i Windows) | **~20,5 min**, zależnie od podpisów/notaryzacji |
+| cały workflow, w tym indeks Pages i retencja | ~21,5 min |
 
-Czasy są orientacyjne; CI startujące po planie wymaga potwierdzenia na GitHubie.
+Czasy są orientacyjne; punktem odniesienia jest pełny
+[przebieg nightly z 16 listopada 2026](https://github.com/itsoltech/canopy/actions/runs/43799913460).
+`checks` używa teraz ośmiu równoległych shardów. Wagi odświeżone z tego przebiegu dają
+prognozę około 251 s testów na każdy shard zamiast zmierzonych 277/484/581/663 s
+w starym podziale na cztery shardy (samo odświeżenie wag dałoby około 501 s przy czterech);
+to prognoza z sum czasów plików, bez checkoutu, instalacji i narzutu runnera.
+Nowy plik bez pomiaru nadal dostaje 1000 ms. Odświeżenie wag i zwiększenie liczby
+shardów nie zmieniają zakresu testów; rzeczywisty zysk potwierdzą kolejne przebiegi.
+Najdłuższą ścieżkę wyznaczał `desktop (darwin-arm64)`: od rozpoczęcia podpisywania
+do sukcesu notaryzacji minęło około 12,5 minuty, a weryfikacja zapakowanego runtime
+dodała około 2 minuty. CI i pozostałe buildy już pracują równolegle z macOS, więc
+nowy podział skraca bramkę CI, ale w tym przebiegu nie skróciłby czasu publikacji.
 Merge do `dev` czeka na najbliższy cykl godzinowy, a nowy przebieg dodatkowo na zakończenie
 całego aktywnego nightly. Ręczny dispatch omija oczekiwanie na cron, ale nie blokadę przebiegów.
 
