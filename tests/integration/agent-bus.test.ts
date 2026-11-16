@@ -81,8 +81,8 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
     expect([side.kind, side.parentThreadId, side.spawnedByAgent, side.cwd]).toEqual([2, mainId, true, "/repo/app"]);
     const childSpec = await gw.worker.createdThread(sideId);
     expect(childSpec).toMatchObject({ depth: 1, enableAgentBus: true });
-    expect(childSpec.instructions).toContain("default to working silently until your final answer");
-    expect(childSpec.instructions).toContain("identify the concrete action the recipient must take before you finish");
+    expect(childSpec?.instructions).toContain("default to working silently until your final answer");
+    expect(childSpec?.instructions).toContain("identify the concrete action the recipient must take before you finish");
 
     // The side thread ran its task...
     const sideTurns = await eventually(
