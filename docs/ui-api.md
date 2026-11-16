@@ -8,6 +8,7 @@ typografia i ikony stosu paneli nad composerem są zaimplementowane.
 Na `dev` zwijanie composera steruje wyłącznie skończonymi przejściami CSS.
 Settings → Devices grupuje revokowane urządzenia w domyślnie zwiniętej sekcji.
 Komunikaty w osi czasu używają skali wierszy pracy; szczegóły techniczne są o stopień mniejsze.
+Sekcja Working uwzględnia ponownie pracujące wątki i ignoruje wyniki zakończonych subagentów.
 BFF materializuje overview, indeks wątków i ustawienia ze wspólnego strumienia gRPC,
 aktualizuje wczytane odczyty oraz dogrzewa ogony historii bez cyklicznych HTTP renderera.
 Opis dotyczy kodu, nie wdrożenia; dostępność kanałów według [release.md](release.md).
@@ -1065,6 +1066,11 @@ także w „Working”, „Pinned” i archiwum. Nadal należą do indeksu: pyta
 człowieka wyróżnia rodzica, pokazuje „Subagent needs input” i wyłącza drzewo z „Working”.
 Pytania pozostają w istniejącym panelu nad kompozytorem; wyszukiwanie wątków i bezpośrednie linki
 nadal prowadzą do subagentów. Wątki boczne utworzone przez użytkownika zachowują dotychczasowe zachowanie.
+Wspólny selektor sekcji `@canopy/domain/sidebar-entries` ignoruje nieprzeczytane wyniki
+subagentów oraz wcześniejszych tur wątków, które już pracują ponownie. Pytania do użytkownika
+mają pierwszeństwo; wynik zakończonego wątku głównego lub bocznego użytkownika nadal
+wyłącza drzewo z Working, także przy samych zadaniach w tle. Licznik Working obejmuje
+wyłącznie drzewa w tej sekcji; przypięte pozostają w Pinned.
 
 Lineage w panelu szczegółów pozostawia wątki boczne użytkownika widoczne. Subagenci mają jeden
 domyślnie zwinięty nagłówek „Subagents” z licznikami pracujących, oczekujących na odpowiedź
