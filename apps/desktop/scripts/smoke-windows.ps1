@@ -15,6 +15,9 @@ function Invoke-SmokeProcess([string]$File, [string]$Arguments, [int]$Timeout = 
   $info.RedirectStandardInput = $true
   $info.RedirectStandardOutput = $true
   $info.RedirectStandardError = $true
+  # Exercise NSIS's Windows PowerShell check rather than the tasklist fallback.
+  $info.Environment['PSModulePath'] = Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/Modules'
+  $info.Environment['PSExecutionPolicyPreference'] = 'Bypass'
   $process = [System.Diagnostics.Process]::Start($info)
   $stdout = $process.StandardOutput.ReadToEndAsync()
   $stderr = $process.StandardError.ReadToEndAsync()
@@ -33,12 +36,44 @@ function Invoke-SmokeProcess([string]$File, [string]$Arguments, [int]$Timeout = 
   }
 }
 
+function Test-SingleProcessUpdate([string]$Bun) {
+  $powershell = Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/powershell.exe'
+  Invoke-SmokeProcess $powershell '-NoProfile -NonInteractive -C "Get-Command Get-CimInstance -ErrorAction Stop | Out-Null; if ((Get-ExecutionPolicy -Scope Process) -eq [System.Management.Automation.ExecutionPolicy]::Restricted) { exit 1 }"'
+  $info = [System.Diagnostics.ProcessStartInfo]::new($Bun)
+  $info.UseShellExecute = $false
+  $info.CreateNoWindow = $true
+  $info.ArgumentList.Add('-e')
+  $info.ArgumentList.Add('setInterval(() => {}, 1000)')
+  $held = [System.Diagnostics.Process]::Start($info)
+  try {
+    if ($held.WaitForExit(250)) { throw 'Installed Bun exited before the update check' }
+    $processes = @(Get-CimInstance -ClassName Win32_Process | Where-Object {
+      $_.ExecutablePath -and $_.ExecutablePath.StartsWith($installation, [StringComparison]::OrdinalIgnoreCase)
+    })
+    if ($processes.Count -ne 1 -or $processes[0].ProcessId -ne $held.Id) {
+      throw 'Expected exactly one owned process in the installation directory'
+    }
+    # Omit --force-run so the smoke never launches the desktop UI.
+    Invoke-SmokeProcess $installers[0].FullName "/S --updated /D=$installation"
+    if (-not $held.WaitForExit(5000)) { throw 'NSIS did not stop the single installed process' }
+    Invoke-SmokeProcess $Bun '--version'
+    Write-Output 'Updated the installation with one remaining Bun process'
+  } finally {
+    if (-not $held.HasExited) {
+      $held.Kill($true)
+      $held.WaitForExit()
+    }
+    $held.Dispose()
+  }
+}
+
 try {
   Invoke-SmokeProcess $installers[0].FullName "/S /D=$installation"
   if (-not (Test-Path "$installation/canopy.exe" -PathType Leaf)) { throw 'NSIS did not install the app' }
   $runtime = Join-Path $installation 'resources/runtime'
   $bun = Join-Path $runtime 'bun.exe'
   Invoke-SmokeProcess $bun '--version'
+  Test-SingleProcessUpdate $bun
   foreach ($app in @('gateway', 'worker')) {
     $entry = Join-Path $runtime "canopy-$app.js"
     $actual = Invoke-SmokeProcess $bun "`"$entry`" --version" 60000

@@ -1,6 +1,7 @@
 # Canopy Desktop
 
-Status: opis zaimplementowanego runtime (2026-11-16), w tym ręcznego odzyskiwania aktualizacji Windows
+Status: opis zaimplementowanego runtime (2026-11-16), w tym wykrywania pojedynczego procesu przez instalator Windows,
+ręcznego odzyskiwania aktualizacji Windows
 i odmowy startu lokalnej bazy z uprawnieniami administratora, sesji dostępu do lokalnego BFF,
 podglądu bieżącej zajętości plików Canopy w Diagnostics oraz własnego HTML w rozmowie
 z odizolowanego renderera offscreen, bezpiecznego zamykania po zniszczeniu głównego okna
@@ -1125,6 +1126,17 @@ Gdy nie może zamknąć aplikacji, domyślnie anuluje instalację. Nie zastępuj
 naszego shutdown: worker i gateway zamykają stdin, Postgres dostaje
 `pg_ctl stop -m fast`, a nadzorca czeka na zamknięcie procesów i używa
 `taskkill /PID <owned-pid> /T /F` po limicie. Dopiero wyjście kontrolera uruchamia NSIS.
+Przypięte `app-builder-lib` 26.18.0 ma patch w `patches/`, zarejestrowany
+w `package.json` i `bun.lock`: `FIND_PROCESS` opakowuje wynik `Get-CimInstance`
+w `@(...)`. Windows PowerShell 5.1 bez tego zwraca pusty `.Count` dla pojedynczego
+`CimInstance`, przez co instalator przeocza ostatni proces, a deinstalator może
+zakończyć wymianę zablokowanych plików kodem 2. Patch obejmuje nowe instalatory
+i deinstalatory; stary zainstalowany deinstalator nie jest przepisywany.
+Windows smoke ponownie instaluje paczkę z jednym pozostawionym procesem Bun
+z jej katalogu i sprawdza jego zakończenie oraz uruchomienie sidecarów z `--version`.
+Przyczynę błędu konkretnej instalacji nadal trzeba potwierdzić stanem procesów
+lub logiem instalatora; sam kod 2 nie identyfikuje blokującego procesu.
+Zgłoszenie upstream: [electron-builder #10454](https://github.com/electron-userland/electron-builder/issues/10454).
 Źródła **electron-builder 26.18.0**:
 [konfiguracja NSIS](https://github.com/electron-userland/electron-builder/blob/electron-builder%4026.18.0/website/docs/nsis.md),
 [tryb i poprzedni katalog](https://github.com/electron-userland/electron-builder/blob/electron-builder%4026.18.0/packages/app-builder-lib/templates/nsis/assistedInstaller.nsh),
