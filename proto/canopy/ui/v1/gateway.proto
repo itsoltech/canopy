@@ -340,6 +340,8 @@ service GatewayService {
   rpc RevealWorktree(RemoveWorktreeRequest) returns (google.protobuf.Empty);
   rpc ListGitRefs(ListGitRefsRequest) returns (ListGitRefsResponse);
   // Bieżący checkout wątku, capability git_branch_switch_v1 workera i domu.
+  rpc ListWorkspaceBranches(WorkspaceBranchesRequest) returns (ListGitRefsResponse);
+  rpc SwitchWorkspaceBranch(SwitchWorkspaceBranchRequest) returns (SwitchWorkspaceBranchResponse);
   rpc ListThreadBranches(ThreadBranchesRequest) returns (ListGitRefsResponse);
   rpc SwitchThreadBranch(SwitchThreadBranchRequest) returns (SwitchThreadBranchResponse);
   // Otwiera katalog wątku menedżerem plików na komputerze workera (capability reveal_path).
@@ -638,6 +640,8 @@ message Worker {
   bool cli_import = 807;
   // Bieżący checkout można bezpiecznie przełączyć (git_branch_switch_v1).
   bool branch_switch = 808;
+  bool branch_stash = 871;
+  bool workspace_branch_switch = 872;
   optional uint32 cli_update_check_minutes = 900; // nadpisanie; brak = konto
   uint32 effective_cli_update_check_minutes = 901;
   google.protobuf.Timestamp cli_updates_checked_at = 902;
@@ -3080,6 +3084,24 @@ message ListGitRefsRequest {
   string workspace_id = 1;
 }
 
+message WorkspaceBranchesRequest {
+  string workspace_id = 1;
+  string worktree_id = 2;
+}
+
+message SwitchWorkspaceBranchRequest {
+  string workspace_id = 1;
+  string worktree_id = 2;
+  string branch = 3;
+  bool remote = 4;
+  bool stash_changes = 5;
+}
+
+message SwitchWorkspaceBranchResponse {
+  canopy.worker.v1.GitRefs refs = 1;
+  string detail = 2;
+}
+
 message ThreadBranchesRequest {
   string thread_id = 1;
 }
@@ -3131,10 +3153,12 @@ message SwitchThreadBranchRequest {
   string thread_id = 1;
   string branch = 2;
   bool remote = 3;
+  bool stash_changes = 4;
 }
 
 message SwitchThreadBranchResponse {
   Thread thread = 1;
+  string detail = 2;
 }
 
 message ListGitRefsResponse {

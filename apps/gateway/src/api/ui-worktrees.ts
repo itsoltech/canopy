@@ -1,6 +1,7 @@
 import { type GatewayCore } from "../core/core.ts";
 import { guard, toConnectError } from "./ui-errors.ts";
 import type { UiHandlers } from "./ui-service.ts";
+import { WorkspaceBranches } from "../worktrees/workspace-branches.ts";
 import { ThreadBranches } from "../worktrees/thread-branches.ts";
 import { ThreadFiles } from "../files/thread-files.ts";
 import { ThreadDirectory } from "../files/thread-directory.ts";
@@ -15,6 +16,8 @@ export function worktreesHandlers(
   | "getWorktreeSettings"
   | "updateWorktreeSettings"
   | "listGitRefs"
+  | "listWorkspaceBranches"
+  | "switchWorkspaceBranch"
   | "listThreadBranches"
   | "switchThreadBranch"
   | "listWorktrees"
@@ -31,12 +34,15 @@ export function worktreesHandlers(
   | "openThreadFile"
 > {
   const branches = new ThreadBranches(core);
+  const workspaceBranches = new WorkspaceBranches(core);
   const files = new ThreadFiles(core);
   const directory = new ThreadDirectory(core);
   const highlight = new ThreadHighlight(core);
   const watch = new ThreadWatch(core);
 
   return {
+    listWorkspaceBranches: (request) => guard(() => workspaceBranches.list(request)),
+    switchWorkspaceBranch: (request) => guard(() => workspaceBranches.switch(request)),
     listThreadBranches: (request) => guard(() => branches.list(request)),
     switchThreadBranch: (request) => guard(() => branches.switch(request)),
     getWorktreeSettings: (request) => guard(() => core.getWorktreeSettings(request)),

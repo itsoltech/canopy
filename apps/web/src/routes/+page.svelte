@@ -40,6 +40,7 @@
   import HintIcon from "#lib/shared/ui/HintIcon.svelte";
   import RefPicker from "#lib/features/worktrees/RefPicker.svelte";
   import WorkspacePicker from "#lib/features/worktrees/WorkspacePicker.svelte";
+  import WorkspaceBranch from "#lib/features/worktrees/WorkspaceBranch.svelte";
   import ImportSuggestion from "#lib/features/imports/ImportSuggestion.svelte";
   import ComposerContextRow from "#lib/features/threads/components/ComposerContextRow.svelte";
   import { WorkspaceDraft } from "#lib/features/worktrees/workspace-draft.svelte.ts";
@@ -104,8 +105,15 @@
       : undefined,
   );
 
-  const pickProject = (next: ProjectChoice) => (picks = { requested, projectId: next.id });
-  const pickWorkspace = (next: ui.Workspace) => (picks = { requested, projectId: project?.id, workspaceId: next.id });
+  let branchBusy = $state(false);
+
+  const pickProject = (next: ProjectChoice) => {
+    if (!branchBusy) picks = { requested, projectId: next.id };
+  };
+
+  const pickWorkspace = (next: ui.Workspace) => {
+    if (!branchBusy) picks = { requested, projectId: project?.id, workspaceId: next.id };
+  };
 
   // Model options (provider × profile × model) from the worker's catalog. Until you pick one: the defaults'
   // provider, profile and model (the profile's default model when the list lacks it), else the defaults'
@@ -219,7 +227,9 @@
     place.loading ? "Loading workspace options…" : place.error ? place.error : place.refs?.detail || undefined,
   );
 
-  const blockedReason = $derived(workerNote ?? (place.loading ? workspaceNote : undefined) ?? draft.blocker);
+  const blockedReason = $derived(
+    branchBusy ? "Switching branch…" : (workerNote ?? (place.loading ? workspaceNote : undefined) ?? draft.blocker),
+  );
 </script>
 
 <DraftPersistence draft={saved} />
@@ -313,7 +323,7 @@
           {sources}
           sending={busy}
           readonly={busy || saved.locked}
-          canSend={!blocker && !draft.blocker}
+          canSend={!blocker && !draft.blocker && !branchBusy}
           {blockedReason}
           autofocus
           label="Task for the agent"
@@ -368,7 +378,9 @@
                     choice={place.choice}
                     worktrees={place.worktrees}
                     onopen={() => void place.refresh()}
-                    onselect={(choice) => place.choose(choice)}
+                    onselect={(choice) => {
+                      if (!branchBusy) place.choose(choice);
+                    }}
                     class="w-full max-w-full"
                     note={workspaceNote}
                     warning={Boolean(place.error)}
@@ -376,7 +388,7 @@
                 {/if}
               {/snippet}
               {#snippet branchControl()}
-                {#if place.gitRefs}
+                {#if place.gitRefs && place.choice.kind === "new"}
                   <RefPicker
                     refs={place.gitRefs}
                     branch={place.branch}
@@ -384,6 +396,8 @@
                     onselect={(ref) => place.chooseBase(ref.name)}
                     class="w-full max-w-full"
                   />
+                {:else if place.gitRefs && workspace}
+                  <WorkspaceBranch {place} {workspace} {worker} onbusy={(value) => (branchBusy = value)} />
                 {/if}
               {/snippet}
               {#snippet permissionControl()}

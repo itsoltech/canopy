@@ -28,6 +28,26 @@ export async function listGitRefs(workspaceId: string): Promise<ui.ListGitRefsRe
   return decode(ui.ListGitRefsResponseSchema, await requestJson("POST", "/api/worktrees/refs", body, 25_000));
 }
 
+export async function workspaceBranches(workspaceId: string, worktreeId: string): Promise<ui.ListGitRefsResponse> {
+  const body = encode(
+    ui.WorkspaceBranchesRequestSchema,
+    create(ui.WorkspaceBranchesRequestSchema, { workspaceId, worktreeId }),
+  );
+
+  return decode(ui.ListGitRefsResponseSchema, await requestJson("POST", "/api/worktrees/branches", body, 40_000));
+}
+
+export async function switchWorkspaceBranch(
+  request: MessageInitShape<typeof ui.SwitchWorkspaceBranchRequestSchema>,
+): Promise<ui.SwitchWorkspaceBranchResponse> {
+  const body = encode(ui.SwitchWorkspaceBranchRequestSchema, create(ui.SwitchWorkspaceBranchRequestSchema, request));
+
+  return decode(
+    ui.SwitchWorkspaceBranchResponseSchema,
+    await requestJson("PUT", "/api/worktrees/branches", body, 135_000),
+  );
+}
+
 export async function listWorktrees(
   request: MessageInitShape<typeof ui.ListWorktreesRequestSchema>,
 ): Promise<ui.ListWorktreesResponse> {

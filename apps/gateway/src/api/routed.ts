@@ -87,7 +87,7 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
             if (WORKER_SETTINGS.has(method.name)) return sendWorkerSetting(core, method, request, node, context.signal);
 
             const home = await peerOf(core, node, method, request);
-            refuseRemoteBranchSwitch(method, core.computers?.capabilities(home) ?? []);
+            refuseRemoteBranchSwitch(method, core.computers?.capabilities(home) ?? [], request);
             refuseRemoteWorktree(method, request, core.computers?.capabilities(home).includes(REMOTE_WORKTREES));
 
             const response = await linkedWrite(method, request, home, "sender", () =>
@@ -197,7 +197,7 @@ export function remoteServe(local: UiHandlers, core?: GatewayCore): RemoteServe 
   const own = local as Record<string, Handler>;
 
   return async function* (method, request, signal, peerNodeId) {
-    if (peerNodeId) refuseRemoteBranchSwitch(method, core?.computers?.hello().capabilities ?? []);
+    if (peerNodeId) refuseRemoteBranchSwitch(method, core?.computers?.hello().capabilities ?? [], request);
 
     if (peerNodeId)
       refuseRemoteWorktree(method, request, core?.computers?.hello().capabilities.includes(REMOTE_WORKTREES));

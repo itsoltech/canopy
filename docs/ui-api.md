@@ -1,6 +1,8 @@
 # API dla UI i architektura frontendu
 
-Status (2026-11-16): web/desktop — zmiana uprawnień bieżącej tury Claude działa bez restartu;
+Status (2026-11-17): web/desktop — kompozytor przełącza gałęzie checkoutu i wybranego worktree;
+lokalne zmiany wymagają potwierdzenia stash & pop, także w podsumowaniu wątku.
+Web/desktop — zmiana uprawnień bieżącej tury Claude działa bez restartu;
 opcjonalny wskaźnik kontekstu composera ma tryby Off / Circle / Text / Bar w Appearance,
 a pickery modelu i wysiłku dopasowują się do dostępnej szerokości;
 lokalne preferencje sidebara zachowują zakres po restarcie gatewaya desktopu na innym porcie;
@@ -712,9 +714,17 @@ lokalnych i znanych zdalnych gałęzi; nazwa nie jest skracana, baza „from …
 Odłączony HEAD ma tekst „Detached at ‹commit›”. Podczas pracy oraz dla starszego/offline workera
 wybór jest wyłączony z powodem. Te same zasady obowiązują w mobile.
 
-`GET /api/threads/[threadId]/branches` → `ListThreadBranches`; `POST` z `{ branch, remote }` →
-`SwitchThreadBranch`. Mobile wywołuje RPC bez BFF. Gateway sprawdza właściciela i aktywność całego
-checkoutu; worker wymaga czystego statusu, bez auto-stash. Połączone wątki wykonują operację na domu,
+`GET /api/threads/[threadId]/branches` → `ListThreadBranches`; `POST` z `{ branch, remote, stashChanges }` →
+`SwitchThreadBranch`. `stashChanges` jest opcjonalne i domyślnie wyłączone. Web/desktop pyta o zgodę
+na przeniesienie lokalnych zmian na wybraną gałąź. Mobile wywołuje RPC bez BFF i wymaga czystego checkoutu.
+Kompozytor korzysta z `POST /api/worktrees/branches` → `ListWorkspaceBranches` oraz `PUT` →
+`SwitchWorkspaceBranch`; oba przyjmują `workspaceId` i opcjonalne `worktreeId`, zapis dodaje `branch`,
+`remote`, `stashChanges`. Odczyt dotyczy wybranego katalogu, również zewnętrznego worktree.
+Odpowiedź przełączenia zawiera `detail`, gdy przywrócenie zmian albo końcowy hook Git wymagają uwagi.
+UI pokazuje ostrzeżenie i rozwijane „Show details” z kopiowaniem wskazówek odzyskiwania.
+W kompozytorze ostrzeżenie otwiera dialog „Review branch switch”, aby zachować układ wiersza lokalizacji.
+Gateway sprawdza właściciela i aktywność całego checkoutu; worker sprawdza świeży status przed zmianą.
+Połączone wątki i workspace'y wykonują operację na domu,
 z negocjacją capabilities. Komunikat trafia do osi czasu, a notatka do następnej tury agenta.
 Szczegóły: [worktrees.md](worktrees.md#przełączanie-gałęzi-z-podsumowania).
 

@@ -138,6 +138,8 @@ export function safeOverview(value: ui.GetOverviewResponse): ui.GetOverviewRespo
       workspaceCopy: w.workspaceCopy,
       cliImport: w.cliImport,
       branchSwitch: w.branchSwitch,
+      branchStash: w.branchStash,
+      workspaceBranchSwitch: w.workspaceBranchSwitch,
     })),
     projects: value.projects,
   });

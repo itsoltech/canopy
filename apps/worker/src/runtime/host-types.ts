@@ -35,6 +35,7 @@ export interface CommandOutput {
   readonly botFile?: MessageInitShape<typeof CommandResultSchema>["botFile"];
   readonly workspaceCopy?: MessageInitShape<typeof CommandResultSchema>["workspaceCopy"];
   readonly gitPrContext?: MessageInitShape<typeof CommandResultSchema>["gitPrContext"];
+  readonly branchSwitchWarning?: string;
   readonly switchedHead?: MessageInitShape<typeof CommandResultSchema>["switchedHead"];
   readonly workspaceOrigin?: string;
   readonly workspaceCloneUrl?: string;

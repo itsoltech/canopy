@@ -23,7 +23,7 @@ export class BranchCommands {
   async #switch(request: SwitchThreadBranch): Promise<CommandOutput> {
     const { state } = this.ctx;
     this.ctx.ops.checkCwd(request.cwd);
-    const known = state.cwds.get(request.threadId);
+    const known = request.threadId ? state.cwds.get(request.threadId) : undefined;
 
     if (known && realpathSync(known) !== realpathSync(request.cwd))
       throw new CommandError("INVALID_CHECKOUT", "This thread uses another directory. Refresh the thread.", true);
@@ -32,11 +32,24 @@ export class BranchCommands {
 
     if (!root) throw new CommandError("NOT_A_REPOSITORY", "This directory is not a git checkout.", true);
 
+    if (request.expectedCheckout && request.expectedCheckout !== root)
+      throw new CommandError("INVALID_CHECKOUT", "The working directory changed. Refresh and try again.", true);
+
+    this.ctx.ops.checkCwd(request.cwd);
+
     if (state.switchingPaths.has(root))
       throw new CommandError("CHECKOUT_BUSY", "A branch switch is in progress. Wait for it to finish.", true);
     state.switchingPaths.add(root);
 
     try {
+      if (request.workspaceRepo) {
+        const discovered = await state.worktreeDiscovery.list(request.workspaceRepo, true);
+        const selected = discovered.worktrees.find((tree) => tree.path === root);
+
+        if (!selected || selected.unavailableReason || selected.locked || selected.prunable || selected.missing)
+          throw new CommandError("INVALID_CHECKOUT", "Worktree unavailable. Refresh and choose a worktree.", true);
+      }
+
       const paths = new Set(matchingCheckoutPaths(root, [...state.cwds.values()]));
       const ids = new Set([...state.cwds].flatMap(([id, cwd]) => (paths.has(cwd) ? [id] : [])));
 
@@ -52,11 +65,13 @@ export class BranchCommands {
       )
         throw new CommandError("CHECKOUT_BUSY", "A thread is using this directory. Wait for its turn to finish.", true);
 
-      const switchedHead = await switchBranch(request);
-      await state.heads.check(request.threadId);
+      const result = await switchBranch({ ...request, cwd: root });
 
-      return { switchedHead };
+      for (const id of ids) await state.heads.check(id);
+
+      return result;
     } finally {
+      state.worktreeDiscovery.clear();
       state.switchingPaths.delete(root);
     }
   }

@@ -13,6 +13,9 @@ const freshness = new AsyncLocalStorage<boolean>();
 export const freshGit = <T>(run: () => Promise<T>): Promise<T> => freshness.run(true, run);
 const deadline = new AsyncLocalStorage<AbortSignal>();
 
+/** Complete data recovery even after the original mutation deadline expires. */
+export const recoverGit = <T>(run: () => Promise<T>): Promise<T> => deadline.exit(run);
+
 /** Includes governor admission, every validation and the mutation; expired commands never spawn git. */
 export function boundedGit<T>(expiresAt: bigint, run: () => Promise<T>): Promise<T> {
   const remaining = Math.min(90_000, Number(expiresAt) - Date.now());

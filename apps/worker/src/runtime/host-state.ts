@@ -21,6 +21,7 @@ import { CodexThreads } from "../providers/codex/threads.ts";
 import { GrokThreads } from "../providers/grok/threads.ts";
 import { CliTools } from "../cli-tools/index.ts";
 import { AgentTools } from "../agent-tools/index.ts";
+import { WorktreeDiscovery } from "../git/discovery.ts";
 import type { HeadTracker } from "../git/heads.ts";
 import { CatalogCache } from "../mentions/catalog.ts";
 import { AttachmentFiles } from "../attachments/files.ts";
@@ -157,6 +158,7 @@ export class HostState {
   readonly switchingPaths = new Set<string>();
   /** Managed git worktree roots (docs/worktrees.md, "Położenie"). */
   readonly worktreeRoots: WorktreeRoots;
+  readonly worktreeDiscovery = new WorktreeDiscovery();
   /** Attachments being fetched (FetchBlob), by request id. */
   readonly fetches = new Map<
     string,
