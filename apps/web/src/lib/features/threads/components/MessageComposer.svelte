@@ -96,11 +96,22 @@
   const settings = useSettings();
   const directory = useThreadDirectory();
 
-  const saved = $derived(
-    webDrafts.get(create(ui.ComposerDraftTargetSchema, { threadId: thread.id }), () =>
-      limitsOf(settings?.attachmentLimits),
+  // The keyed feed keeps the outgoing composer alive while its rows transition out. A derived cache lookup would
+  // become inert at that point, while the outgoing draft persistence still reads it. Keep the selected draft in raw
+  // state and switch it before the next render when the thread or draft store changes.
+  let saved = $state.raw(
+    untrack(() =>
+      webDrafts.get(create(ui.ComposerDraftTargetSchema, { threadId: thread.id }), () =>
+        limitsOf(settings?.attachmentLimits),
+      ),
     ),
   );
+
+  $effect.pre(() => {
+    saved = webDrafts.get(create(ui.ComposerDraftTargetSchema, { threadId: thread.id }), () =>
+      limitsOf(settings?.attachmentLimits),
+    );
+  });
 
   const mine = $derived(saved.choices);
 

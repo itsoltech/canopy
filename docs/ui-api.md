@@ -1,7 +1,9 @@
 # API dla UI i architektura frontendu
 
-Status (2026-11-16): web/desktop — tekst streamowany wyłącznie pełnymi liniami, kursor inline,
-bezpieczny HTML we wspólnym rendererze Markdown,
+Status (2026-11-16): web/desktop — przełączanie wątków zachowuje status połączenia,
+a wygaszany kompozytor zachowuje własny szkic bez odczytu nieaktywnego derived.
+Tekst jest streamowany wyłącznie pełnymi liniami, z kursorem inline.
+Bezpieczny HTML we wspólnym rendererze Markdown,
 lokalne obrazy w podglądzie plików, interaktywny Preview wątku i automatyczny mini
 Preview pod podsumowaniem, opcjonalna retencja archiwum oraz poprawione narożniki,
 typografia i ikony stosu paneli nad composerem są zaimplementowane.
@@ -93,6 +95,9 @@ znana odmowa dostępności komputera zwalnia ją od razu.
 Zawieszony fetch formularza tworzenia wątku jest przerywany po 110 s, aby odsłonić
 akcje odzyskania szkicu bez odświeżania aplikacji.
 Zmiana wątku nie anuluje wysyłki; jej wynik czyści trwały szkic także po nawigacji.
+Kompozytor wybiera obiekt szkicu przed renderem i zachowuje go przez wygaszanie
+poprzedniego widoku. Końcowy zapis lokalny i synchronizacja dotyczą opuszczanego
+wątku, bez ponownego odczytu derived należącego do nieaktywnego komponentu.
 Po otwarciu oczekującego szkicu `GetComposerDraftDelivery` sprawdza receipt i natywne
 przyjęcie wiadomości, bez ponownego wysłania. Banner niepotwierdzonej wysyłki jest
 widoczny dopiero po tym sprawdzeniu, gdy klient nie wysyła i gateway nie ma aktywnej
@@ -1936,6 +1941,11 @@ są odczytywane na żądanie; ograniczony rejestr invalidacji i reset całego pr
 po jego przepełnieniu zapobiega zachowaniu starej prywatnej projekcji w rendererze.
 SSE `overview-snapshot` zawiera snapshot i rewizję przerw upstream. Zmiana zestawu
 headów nie zwiększa tej rewizji, więc nie unieważnia wszystkich pozostałych odczytów.
+Planowana zmiana headów lub aktywnego wątku zastępuje SSE bez pokazywania
+`Reconnecting…`: ostatni status dostępności obowiązuje do snapshotu albo rzeczywistego
+błędu. Zachowuje również `Gateway unavailable` podczas awarii; samo otwarcie nowego
+strumienia nie potwierdza odzyskania połączenia. Brak snapshotu nadal podlega
+dotychczasowemu limitowi 12 s i przechodzi w niedostępność.
 Zerwanie gRPC zamyka subskrypcje SSE; frontend przechodzi przez zwykłe ponawianie.
 Limity cache i pomiary: [client-performance.md](client-performance.md).
 
@@ -2177,6 +2187,10 @@ Upuszczanie działa na tym samym obszarze (`FileIntake.zone`): oś czasu, nagł�
 Pliki nie zmieniają wybranego trybu wysyłania ani domyślnej preferencji: wiadomość może wejść do trwającej tury przez kompozytor albo „Steer now” w kolejce, także na mobile. Starszy worker lub dom oraz odmowa harnessu oznaczają kolejkę z rzeczywistym powodem; koniec tury oznacza następną turę. Grok ACP korzysta z kolejki, bo nie obsługuje wejścia w trakcie tury. Wiadomość użytkownika na osi czasu (także steer) pokazuje umieszczone pliki jako te same plakietki w tych samych miejscach (`AttachmentChip`: obrazy i pliki tekstowe otwierają podgląd z pobieraniem, pozostałe pliki się pobierają), a pozostałe pliki (wiadomości bez pozycji) jako miniatury i chipy pod tekstem jak dotąd; pełny tekst z notatką platformy jest zwinięty pod „Full text the agent received”. Item `image` pokazuje podgląd tego, co zobaczył model („Viewed image” dla `view_image`, „Image” dla natywnego odczytu, „Generated image”), z wymiarami oryginału, gdy obraz był zmniejszony; nieudany `view_image` pokazuje powód. Item narzędzia z obrazami w wyniku (np. `Read` Claude) pokazuje je pod wejściem.
 
 Strona wątku przewija historię w jednym kontenerze (`VirtualFeed`): wirtualizowana oś `role="feed"` (artykuły z `aria-posinset` / `aria-setsize`). Nakładka kompozytora, gradient i „Jump to latest” są poza nim. `ResizeObserver` mierzy zamontowane wiersze, viewport i stałą rezerwę zwiniętego pola. Do pierwszego snapshotu SSE w miejscu wiadomości stoi `TimelineSkeleton`; snapshot montuje ostatnie wiersze i przypina dół przed malowaniem. Nie ma serwerowego pobrania końca wątku ani skryptu przed hydratacją. Gradient ma geometrię nakładki bez opóźnienia pomiaru. Nowe wiersze animują transform/przezroczystość; wiersze spoza widoku i dołożone na początku nie animują, a wstawione pośrodku tylko według `inserted` (`t-unfold`). Dół pozostaje przypięty podczas strumieniowania i zmiany viewportu przez klawiaturę; wzrost kompozytora nie przesuwa osi, a czytanie wyżej kotwiczy pierwszy widoczny wiersz. Klawiatura: Page Up/Down, Home/End w obszarze przewijania, Page Up/Down między artykułami, Ctrl+End do kompozytora. `/dev/long-thread` (tylko development) dostarcza syntetyczną historię i pomiary.
+
+Obsługa kółka w `VirtualFeed` jest pasywna i ograniczona do życia zamontowanego
+kontenera. Nadal rozpoznaje gest czytelnika i zwalnia przypięcie końca przy ruchu
+w górę, bez blokowania natywnego przewijania.
 
 **Paleta poleceń i skróty klawiszowe** (`features/commands`). Mod+K (⌘K na Macu, Ctrl+K gdzie indziej) albo przycisk lupy w górnym pasku (wąskie i dotykowe ekrany) otwiera panel nad przyciemnioną stroną: wyszukiwarka „Search commands, projects, and threads…”, lista w grupach Actions, Recent threads, Projects, Settings (puste zapytanie: akcje i 8 ostatnich wątków głównych; projekty tylko w wynikach wyszukiwania), stopka z podpowiedziami klawiszy. Pisanie filtruje dopasowaniem rozmytym (znaki zapytania po kolei, premie za początek słowa i ciągłość, odrzucane dopasowania rozsiane po środku słów; każde słowo zapytania musi pasować do tytułu albo słów kluczowych — wątek znajdzie się też po projekcie, workerze i katalogu); grupy zachowują kolejność, w grupie decyduje wynik, dopasowane znaki tytułu są podświetlone, limity: 30 wątków i 10 projektów. Szukanie znajduje też wpisy podmenu oznaczonych `searchChildren` (np. „Change theme › Lagoon · Light”), ale tylko po ich własnej nazwie. Podmenu (›) otwiera się w miejscu z okruszkiem; Backspace przy pustym zapytaniu, ← albo przycisk wstecz wraca i przywraca poprzednie zapytanie. Klawisze: ↑↓ (zawijają), Home/End, PageUp/PageDown, Enter, → (wejście do podmenu), Escape zamyka; najechanie myszą podświetla, kliknięcie / dotknięcie wybiera. Wzorzec WAI-ARIA combobox + listbox (fokus zostaje w polu, `aria-activedescendant`, grupy `role="group"`, licznik wyników w `role="status"`); modalny `<dialog>` trzyma fokus, po zamknięciu wraca on do elementu, który był aktywny przed otwarciem (chyba że polecenie otworzyło inny dialog). Polecenia z `href` są prawdziwymi linkami (`<a role="option">`), więc nawigacja idzie zwykłą drogą linków (router, nowa karta z modyfikatorem). Ruch: otwarcie i zamknięcie jak dialogi zestawu (`t-modal`), zmiana poziomu podmenu wjeżdża z boku (`pageIn`, „page side-by-side”), filtrowanie bez animacji wierszy; przy `prefers-reduced-motion` tylko przenikanie.
 

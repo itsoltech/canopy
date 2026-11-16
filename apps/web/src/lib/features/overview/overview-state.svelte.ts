@@ -286,9 +286,14 @@ export class OverviewState {
   connect(heads = "", active = ""): () => void {
     let ready: (() => void) | undefined;
     let gap = false;
+    // Changing the watched heads or active thread replaces a healthy SSE stream. Keep its last availability
+    // until the replacement supplies a snapshot or actually fails; opening it is not a dropped connection.
+    let replacing = this.resyncs > 0;
 
     return liveSource(`/api/overview/events?${new URLSearchParams({ heads, active })}`, {
       onstatus: (state) => {
+        if (replacing && state.status === "reconnecting") return;
+        replacing = false;
         this.recovery = state;
         this.connection = state.status;
       },
@@ -327,6 +332,7 @@ export class OverviewState {
         },
       },
       ondrop: () => {
+        replacing = false;
         this.pushed = new Set();
 
         if (this.connection === "live") this.connection = "reconnecting";
