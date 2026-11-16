@@ -2,6 +2,7 @@
   import type { ClassValue } from "svelte/elements";
   import { LineReveal } from "../streaming/line-reveal.svelte.ts";
   import MarkdownBlocks from "./MarkdownBlocks.svelte";
+  import StreamingCaret from "./StreamingCaret.svelte";
   import { provideInlineElements, withSentinels, type InlineElements } from "./inline-elements.ts";
   import { StreamingTokens } from "./streaming-tokens.ts";
   import { provideImages, type ImageRenderer } from "./images.ts";
@@ -19,6 +20,8 @@
    * (`StreamingTokens`); unchanged tokens retain their identity. Each new block,
    * list item, table row and code line resolves in (motion.css `t-stream`).
    *
+   * `caret`: show the activity marker at the end of the visible text while streaming.
+   *
    * `elements`: the caller's inline elements over ranges of `text` (mention chips; inline-elements.ts).
    *
    * `diagrams`: draw ` ```mermaid ` fences as diagrams (`MermaidDiagram`) once the text is complete.
@@ -30,6 +33,7 @@
     elements,
     image,
     diagrams = false,
+    caret = false,
     class: className,
   }: {
     text: string;
@@ -38,6 +42,7 @@
     elements?: InlineElements | undefined;
     image?: ImageRenderer;
     diagrams?: boolean;
+    caret?: boolean;
     class?: ClassValue;
   } = $props();
 
@@ -79,5 +84,6 @@
     className,
   ]}
 >
-  <MarkdownBlocks {tokens} {streaming} {breaks} />
+  {#snippet tail()}<StreamingCaret />{/snippet}
+  <MarkdownBlocks {tokens} {streaming} {breaks} tail={caret && streaming ? tail : undefined} />
 </div>
