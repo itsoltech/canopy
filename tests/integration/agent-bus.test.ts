@@ -79,7 +79,10 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
 
     const side = (await gw.api.listThreads({ projectId })).threads.find((t) => t.id === sideId)!;
     expect([side.kind, side.parentThreadId, side.spawnedByAgent, side.cwd]).toEqual([2, mainId, true, "/repo/app"]);
-    expect(await gw.worker.createdThread(sideId)).toMatchObject({ depth: 1, enableAgentBus: true });
+    const childSpec = await gw.worker.createdThread(sideId);
+    expect(childSpec).toMatchObject({ depth: 1, enableAgentBus: true });
+    expect(childSpec?.instructions).toContain("default to working silently until your final answer");
+    expect(childSpec?.instructions).toContain("identify the concrete action the recipient must take before you finish");
 
     // The side thread ran its task...
     const sideTurns = await eventually(
@@ -89,6 +92,7 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
 
     expect(sideTurns[0]).toMatchObject({ trigger: "agent_bus", hops: 1 });
     expect(sideTurns[0]?.text).toContain("Review the diff");
+    expect(sideTurns[0]?.text).toContain("Do not send progress reports");
     // The UI's subagent card reads the result from the thread; main threads carry none.
     const listed = (await gw.api.listThreads({ projectId: side.projectId })).threads;
     expect(listed.find((t) => t.id === sideId)?.lastMessage).toStartWith("Echo: [canopy] Task from");
@@ -622,7 +626,7 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
     expect(await gw.worker.createdThread(result.thread_id)).toMatchObject({
       model: "gpt-5.5",
       instructions: expect.stringContaining(
-        "You are a strict reviewer.\n\nYour final message is reported to your parent automatically.",
+        "You are a strict reviewer.\n\nAs a subagent, default to working silently until your final answer.",
       ),
       permissionMode: PermissionMode.READ_ONLY,
     });

@@ -145,6 +145,13 @@ function currentInstructions(name: Harness, raw: string): string {
   );
 }
 
+function expectReportingRules(instructions: string) {
+  expect(instructions).toContain("default to working silently until your final answer");
+  expect(instructions).toContain("identify the concrete action the recipient must take before you finish");
+  expect(instructions).toContain("Do not send progress reports");
+  expect(instructions).toContain("Use notify: false for mid-task messages to your parent");
+}
+
 function fixture(name: Harness, provider: Provider, modelId: string) {
   const root = temp(`canopy-${name}-reply-instructions-`);
   const cwd = join(root, "workspace");
@@ -205,6 +212,7 @@ for (const [name, provider, modelId] of [
           expect(instructions).toContain("Do all work already authorized");
           expect(instructions).toContain('delivery: \\"steer\\"');
           expect(instructions).toContain("finish without another user-facing message");
+          expectReportingRules(instructions);
 
           if (phase === "RESUMED") expect(request).toContain("FIXTURE_REPLY_FIRST");
         }
@@ -254,6 +262,7 @@ test.skipIf(!Bun.which("claude"))(
       expect(instructions.includes("FIXTURE_CURRENT_APPEND")).toBe(true);
       expect(instructions.includes("FIXTURE_LEGACY_APPEND")).toBe(false);
       expect(instructions).toContain("[Create the PR](canopy:reply)");
+      expectReportingRules(instructions);
       expect(request).toContain("FIXTURE_REPLY_LEGACY");
     } finally {
       await model.stop();
@@ -282,6 +291,7 @@ test.skipIf(!Bun.which("codex"))(
       const request = model.requests.at(-1)!;
       expect(currentInstructions("codex", request)).toContain("FIXTURE_FORK_INSTRUCTIONS");
       expect(currentInstructions("codex", request)).toContain("[Create the PR](canopy:reply)");
+      expectReportingRules(currentInstructions("codex", request));
       expect(request).toContain("FIXTURE_FORK_SOURCE");
       expect(child.providerThreadId).not.toBe(spec.providerThreadId);
     } finally {

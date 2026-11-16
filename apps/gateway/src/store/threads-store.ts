@@ -1,5 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { ThreadSpecSchema, ui, type ThreadSpec } from "@canopy/contracts";
+import { SUBAGENT_REPORTING_RULES } from "@canopy/domain";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { Invalid, NotFound, one, type Fx } from "./errors.ts";
@@ -191,7 +192,7 @@ export function threadStore(sql: SqlClient.SqlClient): Omit<ThreadStore, "create
           row.settings.handoff,
           (row.origin === "agent" && row.depth > 0) ||
           (row.remote_parent_ref && row.remote_parent_kind === "thread" && !row.remote_parent_detached)
-            ? "Your final message is reported to your parent automatically. Use send_message with notify: false to your parent only for updates it must act on mid-task; use ask_user for questions."
+            ? SUBAGENT_REPORTING_RULES
             : undefined,
         ]
           .filter(Boolean)

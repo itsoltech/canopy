@@ -1,6 +1,6 @@
 import { type JsonValue } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { agentKey, fuzzyRank, type AgentBusArgs, type SpawnTarget } from "@canopy/domain";
+import { agentKey, fuzzyRank, SUBAGENT_REPORTING_RULES, type AgentBusArgs, type SpawnTarget } from "@canopy/domain";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { type ThreadRow, type TurnRow } from "./store.ts";
@@ -117,9 +117,7 @@ const spawn = (
                     ${worktreeId}::uuid)`;
 
       const input: TurnInput = {
-        note:
-          `[canopy] Task from the thread "${caller.title}" (thread_id: ${caller.id}). ` +
-          "Your final message is reported to that thread automatically. Use send_message with notify: false to your parent only for updates it must act on mid-task; use ask_user for questions.",
+        note: `[canopy] Task from the thread "${caller.title}" (thread_id: ${caller.id}). ` + SUBAGENT_REPORTING_RULES,
         message: args.prompt,
       };
 
