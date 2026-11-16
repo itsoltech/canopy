@@ -17,6 +17,7 @@
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import PanelRow from "./PanelRow.svelte";
   import ThreadBranch from "./ThreadBranch.svelte";
+  import ThreadGit from "./ThreadGit.svelte";
 
   let {
     thread,
@@ -79,5 +80,8 @@
       >{/if}
     {#if thread.worktree}<MenuItem icon="cog-6-tooth" onselect={onworktree}>Manage worktree</MenuItem>{/if}
   </DropdownMenu>
-  {#if thread.worktree || thread.checkoutHead}<ThreadBranch {thread} {worker} />{/if}
+  {#if thread.worktree || thread.checkoutHead}
+    <ThreadBranch {thread} {worker} />
+    {#key thread.id}<ThreadGit {thread} {worker} />{/key}
+  {/if}
 </section>

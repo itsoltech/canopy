@@ -511,6 +511,9 @@ message Command {
     ThreadFilesWatch watch_thread_files = 230;
     // Transient, thread_image_replies_v1; bytes never enter the outbox or journal.
     ExportThreadImage export_thread_image = 231;
+    // Transient, git_status_v1; pull is an explicit owner action, never queued or replayed.
+    ThreadGitRequest get_thread_git_status = 232;
+    ThreadGitRequest pull_thread_origin = 233;
     // CLI dostawców (sekcja na końcu pliku). Nietrwała: nigdy z outboxa.
     InstallCli install_cli = 800;
     // Local automation tools. These commands are transient and never enter the outbox.
@@ -815,6 +818,7 @@ message CommandResult {
   string workspace_clone_url = 220;
   WorkspaceCopyResult workspace_copy = 221;
   ThreadGitHead switched_head = 219;
+  ThreadGitStatus thread_git_status = 232;
   // Wynik ReadFile i WriteFile (po zapisie bez treści).
   FileContent file = 222;
   GitPrContext git_pr_context = 227;
@@ -2246,4 +2250,30 @@ message RemoveImportedCopy {
   string agent_cli = 1;
   string profile_id = 2;
   string session_id = 3;
+}
+
+// Gateway derives cwd from the owner-scoped thread, never from UI input.
+message ThreadGitRequest {
+  string thread_id = 1;
+  string cwd = 2;
+  uint64 expires_at_ms = 3;
+}
+
+// Dirty index/worktree paths plus untracked files; net lines versus HEAD, ignored files excluded.
+message ThreadGitStatus {
+  bool is_repo = 1;
+  uint32 added = 2;
+  uint32 modified = 3;
+  uint32 deleted = 4;
+  uint32 renamed = 5;
+  uint32 conflicted = 6;
+  uint32 files = 7;
+  uint32 additions = 8;
+  uint32 deletions = 9;
+  uint32 binary_files = 10;
+  bool lines_complete = 11;
+  bool has_origin = 12;
+  string pull_branch = 13;
+  string pull_disabled_reason = 14;
+  string branch = 15;
 }

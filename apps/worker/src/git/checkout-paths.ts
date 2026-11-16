@@ -24,3 +24,18 @@ export function matchingCheckoutPaths(root: string, paths: readonly string[]): s
     }
   });
 }
+
+/** Cheap, canonical scan identity before admission; no git subprocess or recursive source walk. */
+export function canonicalCheckoutRoot(path: string): string {
+  let current = realpathSync(path);
+  const original = current;
+
+  while (!existsSync(join(current, ".git"))) {
+    const parent = dirname(current);
+
+    if (parent === current) return original;
+    current = parent;
+  }
+
+  return current;
+}

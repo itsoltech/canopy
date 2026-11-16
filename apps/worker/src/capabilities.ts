@@ -63,6 +63,7 @@ export function workerCapabilities(options: { localWorker: boolean; fullAccess: 
     "git_heads",
     "git_pr_context_v1",
     "git_branch_switch_v1",
+    "git_status_v1",
     // reveal_path: RevealPath opens a thread's directory in this computer's file manager.
     "reveal_path",
     // thread_files_v1: read, write, delete and open a thread's files (ReadFile and the others).

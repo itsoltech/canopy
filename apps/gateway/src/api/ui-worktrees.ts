@@ -17,6 +17,8 @@ export function worktreesHandlers(
   | "listGitRefs"
   | "listThreadBranches"
   | "switchThreadBranch"
+  | "getThreadGitStatus"
+  | "pullThreadOrigin"
   | "listWorktrees"
   | "cleanupWorktrees"
   | "removeWorktree"
@@ -38,6 +40,8 @@ export function worktreesHandlers(
 
   return {
     listThreadBranches: (request) => guard(() => branches.list(request)),
+    getThreadGitStatus: (request) => guard(() => branches.status(request)),
+    pullThreadOrigin: (request) => guard(() => branches.pull(request)),
     switchThreadBranch: (request) => guard(() => branches.switch(request)),
     getWorktreeSettings: (request) => guard(() => core.getWorktreeSettings(request)),
     updateWorktreeSettings: (request) => guard(() => core.updateWorktreeSettings(request)),

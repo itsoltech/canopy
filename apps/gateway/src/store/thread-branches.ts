@@ -84,10 +84,13 @@ export function takeBranchNote(
   });
 }
 
-export function branchSwitchNotices(ids: readonly string[], branch: string) {
+export function branchSwitchNotices(ids: readonly string[], branch: string, originBranch?: string) {
   return Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
-    const note = `The user switched this checkout to branch ${branch}. Check the files before continuing.`;
+
+    const note = originBranch
+      ? `The user pulled origin/${originBranch} into branch ${branch}. Check the files before continuing.`
+      : `The user switched this checkout to branch ${branch}. Check the files before continuing.`;
 
     const rows = yield* sql<{ id: string; last_seq: bigint }>`UPDATE threads SET last_seq=last_seq+1,
       settings=jsonb_set(settings, '{branchNote}', ${JSON.stringify(note)}::jsonb)
@@ -102,7 +105,11 @@ export function branchSwitchNotices(ids: readonly string[], branch: string) {
         occurredAt: timestampNow(),
         body: {
           case: "notice",
-          value: { level: NoticeLevel.INFO, code: "branch_switched", message: `Branch switched to ${branch} by you` },
+          value: {
+            level: NoticeLevel.INFO,
+            code: originBranch ? "origin_pulled" : "branch_switched",
+            message: originBranch ? `Pulled origin/${originBranch} by you` : `Branch switched to ${branch} by you`,
+          },
         },
       });
 

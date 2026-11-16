@@ -16,6 +16,9 @@ export const MIN_WORKER_LINK_PROTOCOL = 1;
 /** Additive WorkerLink capability: write and verify attachments before invoking a running turn's steer. */
 export const STEER_ATTACHMENTS_CAPABILITY = "steer_attachments_v1";
 
+/** On-demand checkout summary and owner-requested safe origin fast-forward. */
+export const GIT_STATUS_CAPABILITY = "git_status_v1";
+
 /** Explicit owner action in an idle thread's checkout; no automatic stash or force. */
 export const GIT_BRANCH_SWITCH_CAPABILITY = "git_branch_switch_v1";
 

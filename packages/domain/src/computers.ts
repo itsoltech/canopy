@@ -18,6 +18,7 @@ export const GITHUB_WRITE = "github_pr_write_v1";
 /** Routing-only marker for account lists and sign-in before an account exists. */
 export const GITHUB_HOME = "00000000-0000-4000-8000-000000000001";
 export const REMOTE_WORKTREES = "remote_worktrees";
+export const REMOTE_GIT_STATUS = "remote_git_status_v1";
 export const REMOTE_BRANCH_SWITCH = "remote_branch_switch_v1";
 export const THREAD_MIRROR = "thread_mirror";
 export const THREAD_MIRROR_DELTA = "thread_mirror_delta";

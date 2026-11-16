@@ -17,7 +17,7 @@ const deadline = new AsyncLocalStorage<AbortSignal>();
 export function boundedGit<T>(expiresAt: bigint, run: () => Promise<T>): Promise<T> {
   const remaining = Math.min(90_000, Number(expiresAt) - Date.now());
 
-  if (remaining <= 0) throw new GitError("SWITCH_EXPIRED", "The branch switch expired. Try again.");
+  if (remaining <= 0) throw new GitError("SWITCH_EXPIRED", "The Git operation expired. Try again.");
 
   return deadline.run(AbortSignal.timeout(remaining), run);
 }
@@ -75,7 +75,7 @@ export async function git(
 ): Promise<GitResult> {
   const signal = deadline.getStore();
 
-  if (signal?.aborted) throw new GitError("SWITCH_EXPIRED", "The branch switch expired. Try again.");
+  if (signal?.aborted) throw new GitError("SWITCH_EXPIRED", "The Git operation expired. Try again.");
 
   const read =
     !input?.text &&
@@ -96,7 +96,8 @@ export async function git(
       (args[0] === "config" && args[1] === "--get"));
 
   const command = {
-    argv: ["git", ...args],
+    // git diff can refresh worktree index stat entries even with GIT_OPTIONAL_LOCKS=0.
+    argv: ["git", "-c", "diff.autoRefreshIndex=false", ...args],
     cwd,
     env: { ...process.env, ...GIT_ENV, ...input?.env },
     timeoutMs,
@@ -135,7 +136,7 @@ export async function git(
 
     return { ok: result.code === 0, stdout: result.stdout, stderr: result.stderr };
   } catch (error) {
-    if (signal?.aborted) throw new GitError("SWITCH_EXPIRED", "The branch switch expired. Try again.");
+    if (signal?.aborted) throw new GitError("SWITCH_EXPIRED", "The Git operation expired. Try again.");
 
     if (error instanceof ProcessBusyError) throw new GitError("GIT_BUSY", error.message);
 

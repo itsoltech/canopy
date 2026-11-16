@@ -2,7 +2,13 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Provider, ui } from "@canopy/contracts";
-import { qualifyId, splitId, REMOTE_WORKTREES, REMOTE_BRANCH_SWITCH } from "@canopy/domain/computers";
+import {
+  qualifyId,
+  splitId,
+  REMOTE_WORKTREES,
+  REMOTE_BRANCH_SWITCH,
+  REMOTE_GIT_STATUS,
+} from "@canopy/domain/computers";
 import { dockerAvailable } from "@canopy/db/testing";
 import { remoteServe, uiHandlers } from "@canopy/gateway/api";
 import { tempDir } from "@canopy/testing";
@@ -10,7 +16,7 @@ import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import type { LinkedComputers } from "../../apps/gateway/src/computers/runtime.ts";
 import { linkedComputers } from "./support/computers.ts";
 import { eventually, failure, startTestGateway, watchUntil } from "./support/gateway.ts";
-import { git, worktreeFixture } from "./support/worktrees.ts";
+import { commit, git, worktreeFixture } from "./support/worktrees.ts";
 
 describe.skipIf(!dockerAvailable)("external worktrees on a linked computer", () => {
   const dir = tempDir("canopy-linked-worktrees-");
@@ -26,7 +32,7 @@ describe.skipIf(!dockerAvailable)("external worktrees on a linked computer", () 
     mkdirSync(data);
     home = await worktreeFixture(data, {
       role: "desktop",
-      capabilities: ["git_worktree_discovery", "git_heads", "git_branch_switch_v1"],
+      capabilities: ["git_worktree_discovery", "git_heads", "git_branch_switch_v1", "git_status_v1"],
     });
     git(home.repo, "worktree", "add", "-qb", "external/linked", external);
     caller = await startTestGateway({ role: "desktop" });
@@ -130,6 +136,34 @@ describe.skipIf(!dockerAvailable)("external worktrees on a linked computer", () 
       "Update the thread's home computer",
     );
     b.options.capabilities = previous;
+  });
+
+  test("git summary and origin pull run only at home and require the new capability", async () => {
+    const local = await home.tree();
+    const id = q(local.id);
+    const branch = local.worktree!.branch;
+    git(local.cwd, "push", "-qu", "origin", "HEAD");
+    git(home.repo, "checkout", "-qb", `writer-${local.id}`, `origin/${branch}`);
+    const next = commit(home.repo, "linked-pull", "remote\n");
+    git(home.repo, "push", "-q", "origin", `HEAD:refs/heads/${branch}`);
+    expect((await caller.api.getThreadGitStatus({ threadId: id })).status).toMatchObject({
+      isRepo: true,
+      branch,
+      pullBranch: branch,
+      files: 0,
+    });
+    const previous = b.hello().capabilities;
+    b.options.capabilities = previous.filter((capability) => capability !== REMOTE_GIT_STATUS);
+    expect(await failure(caller.api.getThreadGitStatus({ threadId: id }))).toContain(
+      "Update the thread's home computer",
+    );
+    expect(await failure(caller.api.pullThreadOrigin({ threadId: id }))).toContain("Update the thread's home computer");
+    expect(git(local.cwd, "rev-parse", "HEAD")).not.toBe(next);
+    b.options.capabilities = previous;
+    const result = await caller.api.pullThreadOrigin({ threadId: id });
+    expect(result.status).toMatchObject({ files: 0, branch });
+    expect(git(local.cwd, "rev-parse", "HEAD")).toBe(next);
+    expect(readFileSync(join(local.cwd, "linked-pull"), "utf8")).toBe("remote\n");
   });
 
   test("a home without worktree support refuses placement even with stale caller capabilities", async () => {

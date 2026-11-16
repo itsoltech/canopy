@@ -7,8 +7,9 @@ i interaktywny Preview automatyzacji w panelu web/desktop oraz automatyczny mini
 pod podsumowaniem wątku, przywracanie mini Preview oraz osobnego stanu prawego panelu
 po powrocie do wątku bez animacji panelu, kompaktowe pola wymiarów Preview bez +/−
 oraz kompaktowy przełącznik automatycznej archiwizacji po merge z ikoną informacji w podsumowaniu,
+lokalne zmiany Git i grupa przycisków Git z akcją Pull pod gałęzią,
 wyrównany nagłówek natywnego mobile i ręczny arkusz Preview Browser/Desktop/Device
-(2026-11-16; stos #640–#648, potem #710, #711, #737, #740, #787 i #823).
+(2026-11-17; stos #640–#648, potem #710, #711, #737, #740, #787 i #823).
 Opis dotyczy kodu; dostępność nightly/beta/stable określają [wydania](release.md).
 W web/desktop zakładki dzielą rząd z sygnetem projektu, a **tytuł wątku jest pierwszą,
 niezamykalną kartą** (bez osobnego tytułu i etykiety `Thread`, #787). Mobile używa tego samego
@@ -296,6 +297,26 @@ oraz liczba subagentów. Ma wewnętrzny scroll i jest niemodalna.
   celu), zmiana wątku i zmiana układu. Popover nie zmienia zapisanego wyboru, więc
   tekst nigdy nie zostaje trwale zasłonięty.
 - **Arkusz:** poniżej 32 rem szerokości obszaru pigułka otwiera arkusz.
+
+W sekcji położenia web/desktop pod gałęzią pokazuje **Local changes**: liczbę
+niezacommitowanych plików, podział new / modified / deleted / renamed / conflicted
+oraz bilans dodanych i usuniętych linii. Zliczanie obejmuje indeks, drzewo robocze
+i pliki untracked, pomija ignorowane. Pliki binarne mają osobny licznik;
+niepełny odczyt linii jest oznaczony. Panel czyta status przy otwarciu, zmianie
+HEAD i przejściu stanu tury; **Refresh local changes** odświeża go ręcznie.
+Ukryty lub zwinięty panel nie skanuje repozytorium cyklicznie.
+
+**Pull from origin** pobiera gałąź śledzoną na origin, a bez takiej konfiguracji
+bieżącą gałąź o tej samej nazwie. Aktualizuje checkout wyłącznie przez fast-forward,
+bez rebase ani automatycznego stash. Niezacommitowane zmiany, odłączony HEAD,
+brak origin oraz aktywna praca w checkoutcie blokują akcję z powodem w podpowiedzi.
+Ostateczne sprawdzenie odbywa się na gatewayu i workerze, niezależnie od stanu UI.
+Pull jest kompaktowym przyciskiem w grupie **Git actions**. Pełny cel i powody blokady
+są w tooltipie (fokus klawiatury lub długie przytrzymanie na dotyku), bez opisów
+pod przyciskiem. Błąd daje krótki status **Pull failed** / **Refresh failed**,
+a szczegóły są w podpowiedzi. Starszy worker lub komputer domowy pokazuje
+krótkie **Unavailable**, z instrukcją aktualizacji w podpowiedzi.
+Kontrakty i zabezpieczenia: [worktrees.md](worktrees.md#status-zmian-i-pull-z-origin).
 
 Stan efektywny zależy więc tylko od zapisanego wyboru i dostępnego miejsca:
 przełączanie wątków i zmiana rozmiaru okna niczego nie przesuwają. Zdarzenie agenta
@@ -722,7 +743,9 @@ sesję; klient odświeża tylko używane strony i zachowuje kotwicę po ścieżc
 Status Git jest jednym współdzielonym ograniczonym odczytem na checkout przez
 process governor: timeout 2 s, najwyżej 1 MiB wyjścia, cache 2 s podczas aktywnego
 modułu. Przekroczenie nie blokuje listowania: `git_status_complete=false`.
-Nie uruchamiamy skanu całego repo przy wejściu do `Thread` ani dla zamkniętego Files.
+Moduł Files nie uruchamia tego odczytu przy wejściu do `Thread` ani gdy Files jest
+zamknięty. Osobny odczyt **Local changes** działa tylko przy widocznym podsumowaniu
+według sekcji [Podsumowanie wątku](#podsumowanie-wątku).
 
 ### Zmiany bez pełnego snapshotu
 
