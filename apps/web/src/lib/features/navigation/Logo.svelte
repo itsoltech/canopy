@@ -19,7 +19,7 @@
 >
   <img src="/canopy-logo.png" alt="" width="24" height="24" class="size-6 shrink-0 rounded-md" />
   <div class="min-w-0">
-    <div class="truncate">Canopy</div>
+    <div class="truncate leading-5">Canopy</div>
     {@render subtitle?.()}
   </div>
 </a>
