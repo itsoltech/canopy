@@ -33,6 +33,7 @@
     needsAttention = needsYou(thread),
     compact = false,
     quickArchive = false,
+    groupedWorktree = false,
     inlineProvider = false,
     dense = false,
     class: className,
@@ -43,6 +44,7 @@
     needsAttention?: boolean;
     compact?: boolean;
     quickArchive?: boolean;
+    groupedWorktree?: boolean;
     inlineProvider?: boolean;
     dense?: boolean;
     class?: ClassValue;
@@ -169,11 +171,8 @@
       <span
         {...via === "button" ? anchorOnly(menu) : {}}
         class={[
-          "sidebar-swap-action absolute flex rounded-lg bg-white shadow-xs ring-1 ring-zinc-950/10 dark:bg-zinc-800 dark:shadow-none dark:ring-white/10 pointer-coarse:hidden",
-          inlineProvider
-            ? "top-0.5 right-[calc(var(--sidebar-row-padding)+1.5rem)] sm:top-0"
-            : "right-[calc(var(--sidebar-row-padding)-(--spacing(1.5)))]",
-          !inlineProvider && (compact || dense ? "top-1.5 sm:top-1" : "top-2"),
+          "sidebar-swap-action absolute right-[calc(var(--sidebar-row-padding)-(--spacing(1.5)))] flex rounded-lg bg-white shadow-xs ring-1 ring-zinc-950/10 dark:bg-zinc-800 dark:shadow-none dark:ring-white/10 pointer-coarse:hidden",
+          inlineProvider ? "top-0.5 sm:top-0" : compact || dense ? "top-1.5 sm:top-1" : "top-2",
         ]}
       >
         <IconButton
@@ -193,7 +192,7 @@
           }}
         />
       </span>
-      {#if quickArchive}
+      {#if quickArchive && !groupedWorktree}
         <SidebarQuickArchive
           archived={thread.status === "archived"}
           label="{thread.status === 'archived' ? 'Unarchive' : 'Archive'} thread {thread.title}"
