@@ -1,6 +1,7 @@
 <script lang="ts" generics="T">
   import type { Snippet } from "svelte";
   import { tick, untrack } from "svelte";
+  import { on } from "svelte/events";
   import { whenIdle } from "../../idle.ts";
   import FeedFooterActions from "./FeedFooterActions.svelte";
   import { UiMemory } from "../memory.ts";
@@ -614,7 +615,7 @@
     tabindex="0"
     {onscroll}
     {onscrollend}
-    {onwheel}
+    {@attach (node) => on(node, "wheel", onwheel, { passive: true })}
     ontouchmove={readerGesture}
     onpointerdown={(event) => {
       if (event.target === scroller) readerGesture();
