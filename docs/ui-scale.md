@@ -58,8 +58,10 @@ kontekstu (np. `sm` w nagłówku dialogu).
 - **Kontrolki standardowe**: miejsca, gdzie się coś wypełnia lub zatwierdza: formularze, dialogi
   (także otwarte z menu), wiersze ustawień. Ustawienia są gęstszym wariantem z własnym rytmem
   (`features/settings/density.css`) na tych samych stopniach.
-- **Wiersze pracy**: aktywność tury pod „Working for …” (narzędzia, komendy, zmiany plików). Tekst
-  jest o stopień mniejszy od wiadomości, bo to tło dla odpowiedzi.
+- **Wiersze pracy**: aktywność tury pod „Working for …” (narzędzia, komendy, zmiany plików)
+  i komunikaty w osi czasu, w tym ostrzeżenia o ponownym łączeniu. Tekst jest o stopień
+  mniejszy od wiadomości, bo to tło dla odpowiedzi. Szczegóły techniczne komunikatów
+  używają stopnia drugorzędnego (13 / 12) z wysokością linii 20.
 - **Chrome kompaktowe**: stała nawigacja i paski wokół treści: sidebar, top bar, paski narzędzi,
   wiersz kontekstu composera. Tekst jest o stopień mniejszy od strony obok.
 - **Nakładki**: wszystko, co otwiera się nad stroną i znika po wyborze. Zawsze kompaktowe: mniejszy
