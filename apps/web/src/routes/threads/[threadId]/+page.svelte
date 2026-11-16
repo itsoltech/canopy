@@ -583,7 +583,7 @@
     {#if thread?.status === "failed" && thread.statusDetail}
       <Alert tone="error" banner title="The thread failed">{thread.statusDetail}</Alert>
     {/if}
-    <ThreadWatchNotice {view} />
+    <ThreadWatchNotice {view} departure={overview.gatewayDeparture} />
 
     <div class="relative flex min-h-0 flex-1 flex-col">
       <div

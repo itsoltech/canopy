@@ -2,6 +2,7 @@
 
 Status (2026-11-16): web/desktop — zmiana uprawnień bieżącej tury Claude działa bez restartu;
 przełączanie wątków zachowuje status połączenia,
+a zapowiedziana aktualizacja gatewaya pokazuje w wątku spokojny komunikat bez akcji odzyskiwania,
 a wygaszany kompozytor zachowuje własny szkic bez odczytu nieaktywnego derived.
 Tekst jest streamowany wyłącznie pełnymi liniami, z kursorem inline.
 Bezpieczny HTML we wspólnym rendererze Markdown,

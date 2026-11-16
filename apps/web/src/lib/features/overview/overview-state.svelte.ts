@@ -45,6 +45,8 @@ export class OverviewState {
   #deleted = new Set<string>();
   connection = $state<OverviewConnection>("reconnecting");
   recovery = $state.raw<RecoverySnapshot>({ status: "reconnecting", retrying: false, retryAt: undefined });
+  /** A planned local gateway update or restart, shown while its thread streams reconnect. */
+  gatewayDeparture = $state.raw<ui.GatewayDeparture>();
   /**
    * Domains the open stream pushes completely (`OverviewUpdate.feeds`): their readers stop polling. Empty while
    * the stream is down or the gateway is older.
@@ -123,6 +125,8 @@ export class OverviewState {
 
   apply(update: ui.OverviewUpdate): void {
     const change = update.change;
+
+    if (change.case === "gatewayDeparture" && !change.value.nodeId) this.gatewayDeparture = change.value;
 
     if (change.case === "mobileSnapshot" && change.value.overview) {
       this.#replace(change.value.overview, change.value.threads);

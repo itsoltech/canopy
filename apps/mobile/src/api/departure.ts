@@ -1,15 +1,10 @@
 import { create, equals, fromJsonString, toJsonString } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { DEPARTURE_WINDOW_MS } from "@canopy/domain/computer-presence";
+import { plannedGatewayDeparture } from "@canopy/domain/computer-presence";
 import { reachedUpdateVersion } from "@canopy/domain/release/remote-update-state";
 
 export function plannedDeparture(value: ui.GatewayDeparture | undefined, now = Date.now()) {
-  return (
-    !!value &&
-    ["updating", "restarting"].includes(value.state) &&
-    Number(value.startedAtMs) <= now &&
-    now < Number(value.startedAtMs) + Math.min(value.windowMs, DEPARTURE_WINDOW_MS)
-  );
+  return plannedGatewayDeparture(value, now);
 }
 
 /** One connected gateway only: peer announcements must never pin this phone's route. */
