@@ -26,10 +26,11 @@
   let response = $state<ui.GetVisualResponse>();
   let failure = $state("");
   let height = $state(0);
-  let frame = $state<HTMLIFrameElement>();
+  let frame = $state<HTMLElement>();
   let fullscreen = $state(false);
   let linger: ReturnType<typeof setTimeout> | undefined;
 
+  const visualId = $derived(visual.visualId);
   const reserved = $derived(height || clampVisualHeight(visual.height || VISUAL_LIMITS.defaultHeight));
   const version = $derived(selected || shownVersion || visual.version);
 
@@ -38,7 +39,7 @@
   const behind = $derived(!selected && shownVersion !== 0 && shownVersion < visual.version);
 
   const slot: VisualSlot = {
-    focused: () => Boolean(frame && document.activeElement === frame),
+    focused: () => Boolean(frame && frame.contains(document.activeElement)),
     evict: () => (live = false),
   };
 
@@ -72,7 +73,7 @@
     let cancelled = false;
     failure = "";
 
-    loadVisual(threadId, visual.visualId, wanted).then(
+    loadVisual(threadId, visualId, wanted).then(
       (loaded) => {
         if (!cancelled) response = loaded;
       },

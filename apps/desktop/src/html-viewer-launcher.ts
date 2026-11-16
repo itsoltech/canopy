@@ -1,82 +1,95 @@
-import { app, ipcMain, nativeTheme, type IpcMainInvokeEvent } from "electron";
-import { spawn, type ChildProcess } from "node:child_process";
-import { mkdtempSync } from "node:fs";
-import { rm } from "node:fs/promises";
-import { join } from "node:path";
-import { Schema, Option } from "effect";
-import { visualTheme } from "@canopy/domain/visuals";
-import { ViewerInput } from "./html-viewer-input.ts";
+import { app, ipcMain, nativeTheme, type IpcMainInvokeEvent, type WebContents } from "electron";
+import { Schema, Result } from "effect";
+import { visualTheme, RateWindow } from "@canopy/domain/visuals";
+import type { DesktopHtmlEvent } from "@canopy/ui/desktop";
+import {
+  ViewerInput,
+  ViewerStart,
+  ViewerCommand,
+  ViewerId,
+  ViewerRequest,
+  ViewerResponse,
+} from "./html-viewer-input.ts";
+import { spawnViewer } from "./html-viewer-child.ts";
 import { windowAppearance } from "./window-appearance.ts";
 
-const ViewerStatus = Schema.Literals(["ready", "opened", "error"]);
+type OpenRequest = Exclude<typeof ViewerRequest.Type, { type: "command" }>;
 
-/** A separate Electron browser process lets DNS restrictions cover all of its frame processes. */
-export function registerHtmlViewer(authorize: (event: IpcMainInvokeEvent) => void) {
-  let viewer: ChildProcess | undefined;
-  app.on("before-quit", () => viewer?.kill("SIGKILL"));
-  ipcMain.handle("canopy:agent-html-open", async (event, specJson: string, title: string) => {
-    authorize(event);
-    const input = Schema.decodeUnknownSync(ViewerInput)({ specJson, title });
-    const appearance = windowAppearance();
+function currentTheme() {
+  const appearance = windowAppearance();
 
-    const mode =
-      appearance.scheme === "dark" || (appearance.scheme === "system" && nativeTheme.shouldUseDarkColors)
-        ? "dark"
-        : "light";
+  const mode =
+    appearance.scheme === "dark" || (appearance.scheme === "system" && nativeTheme.shouldUseDarkColors)
+      ? "dark"
+      : "light";
 
-    const theme = visualTheme(appearance[mode], mode);
-    viewer?.kill("SIGKILL");
-    const directory = mkdtempSync(join(app.getPath("temp"), "canopy-agent-html-"));
-    const environment: NodeJS.ProcessEnv = {};
+  return visualTheme(appearance[mode], mode);
+}
 
-    // Only OS/display configuration; no Canopy credentials, Node options or app configuration.
-    for (const key of [
-      "PATH",
-      "HOME",
-      "USER",
-      "LOGNAME",
-      "TMPDIR",
-      "TEMP",
-      "TMP",
-      "SystemRoot",
-      "WINDIR",
-      "DISPLAY",
-      "WAYLAND_DISPLAY",
-      "XDG_RUNTIME_DIR",
-      "XDG_SESSION_TYPE",
-      "XAUTHORITY",
-      "DBUS_SESSION_BUS_ADDRESS",
-      "LANG",
-      "LC_ALL",
-    ])
-      if (process.env[key] !== undefined) environment[key] = process.env[key];
+/** Main owns routing and lifetime. A renderer can control only its own current stream. */
+class ViewerLaunch {
+  private readonly process = spawnViewer();
+  readonly child = this.process.child;
+  readonly cleaned = this.process.cleaned;
+  private readonly rate = new RateWindow(240);
+  private framePending = false;
+  private ended = false;
+  private opened = false;
 
-    const child = spawn(
-      process.execPath,
-      [
-        ...(process.defaultApp ? [app.getAppPath()] : []),
-        ...["ozone-platform", "headless", "disable-gpu", "disable-gpu-compositing"].flatMap((flag) =>
-          app.commandLine.hasSwitch(flag) ? [`--${flag}=${app.commandLine.getSwitchValue(flag)}`] : [],
-        ),
-        "--canopy-agent-html-viewer",
-        `--canopy-html-profile=${directory}`,
-      ],
-      { env: environment, stdio: ["ignore", "ignore", "ignore", "ipc"] },
-    );
+  constructor(
+    readonly owner: WebContents,
+    readonly id: string | undefined,
+  ) {
+    owner.on("did-start-navigation", this.navigation);
+    owner.once("destroyed", this.stop);
+    owner.once("render-process-gone", this.stop);
+  }
 
-    viewer = child;
-    child.once("exit", () => {
-      if (viewer === child) viewer = undefined;
-      void rm(directory, { recursive: true, force: true });
-    });
-    child.once("error", () => {
-      void rm(directory, { recursive: true, force: true });
-    });
+  private readonly navigation = (_event: Electron.Event, _url: string, _inPlace: boolean, mainFrame: boolean) => {
+    if (mainFrame) this.stop();
+  };
 
-    await new Promise<void>((resolve, reject) => {
+  readonly stop = () => {
+    if (this.ended) return;
+    this.ended = true;
+    this.detach();
+    this.child.kill("SIGKILL");
+  };
+
+  private detach() {
+    this.owner.removeListener("did-start-navigation", this.navigation);
+    this.owner.removeListener("destroyed", this.stop);
+    this.owner.removeListener("render-process-gone", this.stop);
+  }
+
+  emit(event: Omit<DesktopHtmlEvent, "id"> | typeof ViewerResponse.Type) {
+    if (this.ended || !this.id || this.owner.isDestroyed()) return;
+    this.owner.send("canopy:agent-html-event", { ...event, id: this.id });
+  }
+
+  command(command: typeof ViewerCommand.Type) {
+    if (this.ended || !this.opened || !this.id) return;
+
+    if (command.type === "ack") {
+      if (!this.framePending) return;
+      this.framePending = false;
+    }
+
+    // Input floods must never consume ACK or lifecycle delivery slots.
+    if (
+      command.type === "input" &&
+      (command.event.type === "mouseMove" || command.event.type === "mouseWheel") &&
+      !this.rate.allow(Date.now())
+    )
+      return;
+    this.child.send({ type: "command", command }, () => {});
+  }
+
+  start(input: OpenRequest) {
+    return new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => {
-        child.kill("SIGKILL");
-        reject(new Error("Couldn't open this visual."));
+        fail();
+        this.stop();
       }, 15000);
 
       const fail = () => {
@@ -84,25 +97,105 @@ export function registerHtmlViewer(authorize: (event: IpcMainInvokeEvent) => voi
         reject(new Error("Couldn't open this visual."));
       };
 
-      child.once("error", fail);
-      child.once("exit", fail);
-      child.on("message", (message) => {
-        const status = Schema.decodeUnknownOption(ViewerStatus)(message);
+      this.child.once("error", () => {
+        fail();
+        this.stop();
+      });
+      this.child.once("exit", () => {
+        fail();
 
-        if (Option.isNone(status)) return;
+        if (!this.ended) this.emit({ type: "error", message: "This visual stopped responding." });
+        this.ended = true;
+        this.detach();
+      });
+      this.child.on("message", (raw) => {
+        const decoded = Schema.decodeUnknownResult(ViewerResponse)(raw);
 
-        if (status.value === "ready") child.send({ ...input, theme });
+        if (Result.isFailure(decoded) || this.ended) return;
+        const event = decoded.success;
 
-        if (status.value === "opened") {
-          clearTimeout(timeout);
-          resolve();
+        switch (event.type) {
+          case "ready":
+            this.child.send(input, () => {});
+
+            return;
+          case "opened":
+            clearTimeout(timeout);
+            this.opened = true;
+            resolve();
+
+            return;
+          case "frame":
+            if (this.framePending) return;
+            this.framePending = true;
+            break;
+          case "error":
+            this.emit(event);
+            fail();
+            this.stop();
+
+            return;
         }
 
-        if (status.value === "error") {
-          child.kill("SIGKILL");
-          fail();
-        }
+        this.emit(event);
       });
     });
+  }
+}
+
+export function registerHtmlViewer(authorize: (event: IpcMainInvokeEvent) => void) {
+  let viewer: ViewerLaunch | undefined;
+  const profiles = new Set<Promise<void>>();
+
+  const authorized = (event: IpcMainInvokeEvent) => {
+    authorize(event);
+
+    if (event.senderFrame !== event.sender.mainFrame) throw new Error("Untrusted desktop request");
+  };
+
+  const replace = (event: IpcMainInvokeEvent, input: OpenRequest) => {
+    viewer?.emit({ type: "replaced" });
+    viewer?.stop();
+    const next = new ViewerLaunch(event.sender, input.type === "start" ? input.id : undefined);
+    viewer = next;
+    profiles.add(next.cleaned);
+    void next.cleaned.then(() => profiles.delete(next.cleaned));
+
+    return next.start(input);
+  };
+
+  app.on("before-quit", () => viewer?.stop());
+  app.on("will-quit", (event) => {
+    if (!profiles.size) return;
+    event.preventDefault();
+    viewer?.stop();
+    viewer = undefined;
+    // Let Electron finish canceling this quit before requesting the next one.
+    void Promise.all(profiles).finally(() => setImmediate(() => app.quit()));
+  });
+  ipcMain.handle("canopy:agent-html-open", (event, specJson: string, title: string) => {
+    authorized(event);
+    const input = Schema.decodeUnknownSync(ViewerInput)({ specJson, title });
+
+    return replace(event, { type: "open", ...input, theme: currentTheme() });
+  });
+  ipcMain.handle("canopy:agent-html-start", (event, raw: typeof ViewerStart.Type) => {
+    authorized(event);
+    const input = Schema.decodeUnknownSync(ViewerStart)(raw);
+
+    return replace(event, { ...input, type: "start", theme: input.theme ?? currentTheme() });
+  });
+  ipcMain.handle("canopy:agent-html-command", (event, id: string, raw: typeof ViewerCommand.Type) => {
+    authorized(event);
+    const key = Schema.decodeUnknownSync(ViewerId)(id);
+    const command = Schema.decodeUnknownSync(ViewerCommand)(raw);
+
+    if (viewer?.owner === event.sender && viewer.id === key) viewer.command(command);
+  });
+  ipcMain.handle("canopy:agent-html-stop", (event, id: string) => {
+    authorized(event);
+    const key = Schema.decodeUnknownSync(ViewerId)(id);
+
+    if (viewer?.owner === event.sender && viewer.id === key) viewer.stop();
   });
 }

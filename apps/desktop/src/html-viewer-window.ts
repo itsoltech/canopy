@@ -1,10 +1,12 @@
 import { app, BrowserWindow, type Session } from "electron";
 import { join } from "node:path";
 
-export function createViewerWindow(isolated: Session): BrowserWindow {
+export function createViewerWindow(isolated: Session, inline?: { width: number; height: number }): BrowserWindow {
   const target = new BrowserWindow({
-    width: 900,
-    height: 700,
+    width: inline?.width ?? 900,
+    height: inline?.height ?? 700,
+    useContentSize: true,
+    show: !inline,
     title: "Custom HTML from the agent — Canopy",
     webPreferences: {
       session: isolated,
@@ -14,9 +16,14 @@ export function createViewerWindow(isolated: Session): BrowserWindow {
       nodeIntegration: false,
       webSecurity: true,
       webviewTag: false,
+      offscreen: Boolean(inline),
+      // Hidden viewers must keep heartbeats alive; the main-process watchdog is independent.
+      backgroundThrottling: false,
     },
   });
 
+  // Hidden offscreen windows can initialize at 1×1 before their native bounds are applied.
+  if (inline) target.setContentSize(inline.width, inline.height);
   target.on("page-title-updated", (event) => event.preventDefault());
   target.webContents.setWebRTCIPHandlingPolicy("disable_non_proxied_udp");
   target.webContents.setWindowOpenHandler(() => ({ action: "deny" }));

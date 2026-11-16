@@ -1,5 +1,7 @@
 <script lang="ts">
   import type { ui } from "@canopy/contracts";
+  import { untrack } from "svelte";
+  import { clampVisualHeight, VISUAL_LIMITS } from "@canopy/domain/visuals";
   import Button from "#lib/shared/ui/Button.svelte";
   import { mountVisualFrame, VisualUnavailable, type FrameHandle } from "./frame-host.ts";
 
@@ -19,7 +21,7 @@
     maxHeight: number;
     active: boolean;
     onheight?: ((height: number) => void) | undefined;
-    onframe?: ((frame: HTMLIFrameElement | undefined) => void) | undefined;
+    onframe?: ((frame: HTMLElement | undefined) => void) | undefined;
     onescape?: (() => void) | undefined;
   } = $props();
 
@@ -28,17 +30,20 @@
   let failure = $state("");
   let attempt = $state(0);
   let run = $state(false);
+  let stageHeight = $state(0);
+  let footer = $state<HTMLElement>();
+  let footerHeight = $state(0);
 
-  const desktopHtml = $derived(
-    response.visual?.htmlDocument && typeof window !== "undefined" && Boolean(window.canopyDesktop),
+  const reserved = $derived(
+    stageHeight || clampVisualHeight(response.visual?.height || VISUAL_LIMITS.defaultHeight, maxHeight),
   );
 
-  async function openDesktopHtml() {
-    if (!window.canopyDesktop?.openAgentHtml) {
-      failure = "Update Canopy to open this visual.";
+  const desktopHtml = $derived(
+    response.visual?.htmlDocument && typeof window !== "undefined" && !!window.canopyDesktop,
+  );
 
-      return;
-    }
+  async function openWindow() {
+    if (!window.canopyDesktop?.openAgentHtml) return;
 
     try {
       await window.canopyDesktop.openAgentHtml(response.specJson, response.visual?.title ?? "Visual");
@@ -52,8 +57,9 @@
     const visual = response.visual;
     void attempt;
 
-    if (!element || !visual || desktopHtml || failure || (visual.htmlDocument && !run)) return;
+    if (!element || !visual || failure || (visual.htmlDocument && !run)) return;
     let cancelled = false;
+    const abort = new AbortController();
     let mounted: FrameHandle | undefined;
 
     mountVisualFrame(element, {
@@ -64,12 +70,15 @@
       htmlDocument: visual.htmlDocument,
       specJson: response.specJson,
       maxHeight,
-      onHeight: (height) => onheight?.(height),
+      initialHeight: untrack(() => reserved),
+      signal: abort.signal,
+      onHeight: (height) => (stageHeight = height),
       onError: (message) => {
         failure = message;
         mounted?.destroy();
       },
       onEscape: () => onescape?.(),
+      onReplaced: () => (run = false),
     }).then(
       (frame) => {
         if (cancelled) return frame.destroy();
@@ -84,6 +93,7 @@
 
     return () => {
       cancelled = true;
+      abort.abort();
       mounted?.destroy();
       handle = undefined;
       onframe?.(undefined);
@@ -91,21 +101,31 @@
   });
 
   $effect(() => handle?.visible(active));
+
+  $effect(() => onheight?.(reserved + footerHeight));
+
+  $effect(() => {
+    if (!footer) return;
+    const observer = new ResizeObserver(([entry]) => (footerHeight = entry?.borderBoxSize[0]?.blockSize ?? 0));
+
+    observer.observe(footer);
+
+    return () => observer.disconnect();
+  });
 </script>
 
 <div bind:this={host} class={["min-w-0", failure && "hidden"]}></div>
-{#if desktopHtml && !failure}
-  <div class="flex min-h-40 items-center justify-center p-4">
-    <Button variant="secondary" size="sm" onclick={openDesktopHtml}>Open visual in a separate window</Button>
-  </div>
-{/if}
-{#if response.visual?.htmlDocument && !desktopHtml && !run}
-  <div class="flex min-h-40 items-center justify-center p-4">
+{#if response.visual?.htmlDocument && !run && !failure}
+  <div class="flex items-center justify-center p-4" style:min-height="{reserved}px">
     <Button variant="secondary" size="sm" onclick={() => (run = true)}>Run</Button>
   </div>
 {/if}
 {#if failure}
-  <div role="alert" class="flex min-h-40 flex-col items-center justify-center gap-2 p-4 text-center">
+  <div
+    role="alert"
+    class="flex flex-col items-center justify-center gap-2 p-4 text-center"
+    style:min-height="{reserved}px"
+  >
     <p class="text-base/7 text-zinc-700 sm:text-sm/6 dark:text-zinc-300">{failure}</p>
     {#if !failure.startsWith("Update")}<Button
         variant="secondary"
@@ -115,5 +135,10 @@
           attempt++;
         }}>Retry</Button
       >{/if}
+  </div>
+{/if}
+{#if desktopHtml && window.canopyDesktop?.openAgentHtml}
+  <div bind:this={footer} class="flex justify-end border-t border-zinc-950/5 p-1 dark:border-white/5">
+    <Button variant="ghost" size="sm" onclick={openWindow}>Open in window</Button>
   </div>
 {/if}

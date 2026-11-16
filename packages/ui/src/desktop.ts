@@ -1,5 +1,16 @@
 /** Optional, capability-limited Electron bridge. No filesystem, secrets or generic IPC. */
 import type { ThemeName } from "./themes.ts";
+import type { DesktopHtmlStart, DesktopHtmlCommand, DesktopHtmlEvent } from "./desktop-html.ts";
+
+export type {
+  DesktopHtmlTheme,
+  DesktopHtmlStart,
+  DesktopHtmlModifier,
+  DesktopHtmlInput,
+  DesktopHtmlHostMessage,
+  DesktopHtmlCommand,
+  DesktopHtmlEvent,
+} from "./desktop-html.ts";
 
 export { isDesktopRoute } from "./desktop-route.ts";
 
@@ -148,6 +159,11 @@ export function sameDesktopConfiguration(
 export interface DesktopBridge {
   /** Opens untrusted HTML in a separate, network-denied session. Never runs in the app renderer. */
   openAgentHtml?(specJson: string, title: string): Promise<void>;
+  /** Inline pixels from the same isolated browser process; replaces any separate viewer. */
+  startAgentHtml?(input: DesktopHtmlStart): Promise<void>;
+  commandAgentHtml?(id: string, command: DesktopHtmlCommand): Promise<void>;
+  stopAgentHtml?(id: string): Promise<void>;
+  onAgentHtml?(listener: (event: DesktopHtmlEvent) => void): () => void;
   /** Read-only family enumeration; main validates the application origin and main frame. */
   listFonts?(): Promise<string[]>;
   history?: {

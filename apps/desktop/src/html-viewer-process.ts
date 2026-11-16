@@ -1,8 +1,7 @@
 import { app } from "electron";
-import { Schema } from "effect";
-import { createHtmlViewer } from "./html-viewer.ts";
-import { ViewerInput } from "./html-viewer-input.ts";
-import type { VisualTheme } from "@canopy/domain/visuals";
+import { Schema, Result } from "effect";
+import { HtmlViewer } from "./html-viewer.ts";
+import { ViewerRequest } from "./html-viewer-input.ts";
 
 const directory = process.argv
   .find((arg) => arg.startsWith("--canopy-html-profile="))
@@ -19,17 +18,31 @@ else {
   process.on("disconnect", () => app.exit(0));
   app.on("window-all-closed", () => app.quit());
   void app.whenReady().then(() => {
-    const open = createHtmlViewer();
-    process.once("message", async (message: { specJson: string; title: string; theme: VisualTheme }) => {
+    const viewer = new HtmlViewer();
+    let started = false;
+    process.on("message", async (message) => {
+      const decoded = Schema.decodeUnknownResult(ViewerRequest)(message);
+
+      if (Result.isFailure(decoded)) return;
+      const input = decoded.success;
+
+      if (input.type === "command") {
+        viewer.command(input.command);
+
+        return;
+      }
+
+      if (started) return;
+      started = true;
+
       try {
-        const input = Schema.decodeUnknownSync(ViewerInput)(message);
-        await open(input.specJson, input.title, message.theme);
-        process.send?.("opened");
+        await viewer.open(input.specJson, input.title, input.theme, input.type === "start" ? input : undefined);
+        process.send?.({ type: "opened" });
       } catch {
-        process.send?.("error");
+        process.send?.({ type: "error", message: "Couldn't open this visual." });
         app.exit(1);
       }
     });
-    process.send?.("ready");
+    process.send?.({ type: "ready" });
   });
 }

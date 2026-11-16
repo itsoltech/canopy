@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type {
   DesktopBridge,
+  DesktopHtmlEvent,
   DesktopStatus,
   DesktopUpdateStatus,
   DesktopWindowState,
@@ -26,6 +27,10 @@ function subscribe<T>(channel: string, listener: (data: T) => void) {
 
 const bridge: DesktopBridge = {
   openAgentHtml: (specJson, title) => ipcRenderer.invoke("canopy:agent-html-open", specJson, title),
+  startAgentHtml: (input) => ipcRenderer.invoke("canopy:agent-html-start", input),
+  commandAgentHtml: (id, command) => ipcRenderer.invoke("canopy:agent-html-command", id, command),
+  stopAgentHtml: (id) => ipcRenderer.invoke("canopy:agent-html-stop", id),
+  onAgentHtml: (listener) => subscribe<DesktopHtmlEvent>("canopy:agent-html-event", listener),
   listFonts: () => ipcRenderer.invoke("canopy:fonts"),
   history: {
     read: (key) => ipcRenderer.invoke("canopy:history-read", key),

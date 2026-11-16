@@ -1,7 +1,8 @@
 # Obrazy w odpowiedziach i interaktywne visuals
 
-Status (2026-11-15): **obrazy, `render_visual` i `render_html` zaimplementowane** w web/desktop/mobile;
-interaktywny podgląd lokalnej automatyzacji w wątku web/desktop również jest
+Status (2026-11-16): **obrazy, `render_visual` i `render_html` zaimplementowane** w web/desktop/mobile;
+własny HTML na desktopie ma interaktywny podgląd w rozmowie z odizolowanego procesu.
+Interaktywny podgląd lokalnej automatyzacji w wątku web/desktop również jest
 zaimplementowany. Galerie `show_images` pojawiają się po zakończeniu ich tury.
 To stan kodu, nie deklaracja wdrożenia; dostępność kanałów
 według [release.md](release.md).
@@ -21,7 +22,7 @@ Obrazy publikujemy jako trwałe załączniki, a interaktywne materiały nazywamy
 | Trwałość | Kopia w storage załączników gatewaya. Odczyt nie zależy od istnienia pliku ani dostępności workera po publikacji. |
 | Format visuals v1 | Wersjonowane drzewo komponentów JSON, kompilowane do samowystarczalnego HTML z zaufanym kitem Canopy. |
 | Interakcje | Lokalny stan komponentów, bez wywołań agenta lub API. `ask_user` pozostaje osobną interakcją poza visualem. |
-| Klienci | Galerie oraz komponentowe visuals w web/desktop/mobile; własny HTML w przeglądarkowym iframe, osobnym viewerze desktopu lub mobilnym WebView (§9). |
+| Klienci | Galerie oraz komponentowe visuals w web/desktop/mobile; własny HTML w przeglądarkowym iframe, podglądzie desktopu w rozmowie lub mobilnym WebView (§9). |
 
 Kryterium użytkowe: po prośbie o wygląd zmian użytkownik widzi wybrane zrzuty
 w odpowiedzi agenta, otwiera pełny obraz i pobiera go również z telefonu.
@@ -339,7 +340,7 @@ Zmiana kontrolki nie przesuwa jej ani sąsiednich akcji.
 ## 4. Sandbox i klienci
 
 Poniższa granica dotyczy komponentowego `render_visual`; własny HTML ma dodatkowe
-ograniczenia i osobny viewer desktopu opisane w §9. Web/desktop montuje dokument
+ograniczenia i odizolowany renderer desktopu opisane w §9. Web/desktop montuje dokument
 wygenerowany przez zaufany kompilator w
 `<iframe sandbox="allow-scripts" referrerpolicy="no-referrer">` przez `srcdoc`.
 Bez `allow-same-origin`, formularzy, popupów, nawigacji top i downloads.
@@ -809,9 +810,12 @@ Permissions Policy pozostają ryzykiem; nie należy wklejać ani wpisywać sekre
 
 ### Desktop: osobna sesja
 
-Iframe nie może dostać osobnej sesji Electron. W aplikacji desktopowej karta
-otwiera więc dedykowane okno zawierające zaufany shell i opaque iframe.
-Główne okno nigdy nie wykonuje tego HTML; jego ścisła CSP pozostaje bez zmian.
+Iframe nie może dostać osobnej sesji Electron. Dlatego po Run aplikacja
+uruchamia istniejący renderer w osobnym procesie Electron w trybie offscreen,
+z zaufanym shellem i opaque iframe. Karta w rozmowie pokazuje jego klatki PNG
+na canvasie i przekazuje ograniczone wejście myszy, scrolla oraz klawiatury.
+Główne okno nigdy nie wykonuje HTML agenta; jego CSP pozostaje bez zmian,
+bez dopisywania hashy agenta ani rozszerzania `frame-src`.
 Przekazanie źródła przez preload wymaga autoryzowanego głównego frame'u appki,
 limitu wejścia i ponownej kompilacji. Viewer ma własną nietrwałą partycję,
 bez cookies/storage aplikacji, `nodeIntegration=false`, `sandbox=true`,
@@ -821,7 +825,22 @@ Sesja ma proxy odmawiające połączeń, bez obejścia loopback, `onBeforeReques
 anulujący wszystko poza dokładnym URL-em dokumentu viewer’a oraz `about:`, `data:`, `blob:`, odmowę wszystkich uprawnień
 i urządzeń. WebContents ustawia `disable_non_proxied_udp`, blokuje nowe okna,
 nawigacje, przekierowania i pobrania. Jeden viewer ogranicza liczbę procesów;
-kontrolki wersji/cytowania/pobierania pozostają w głównej karcie.
+uruchomienie kolejnego podglądu zatrzymuje poprzedni i przywraca jego Run.
+Kontrolki wersji/cytowania/pobierania pozostają w głównej karcie.
+
+Podgląd ma najwyżej 1600 × 1000 px, 15 klatek/s i 4 MiB PNG na klatkę.
+Producent czeka na ACK po odczycie klatki; nie kolejkuje obrazów, gdy host jest
+wolniejszy. Niewidoczna karta zatrzymuje malowanie, a odmontowanie, zmiana
+wersji, nawigacja głównego okna lub jego zamknięcie kończą proces podglądu.
+Komendy i zdarzenia są związane z losowym ID montażu i autoryzowanym
+`webContents` właściciela. Zakończenie starego montażu nie zamyka nowego.
+Wejście jest walidowane w main oraz w procesie podglądu; nie ma ogólnego IPC
+ani wykonania skryptu z argumentów wejścia. Escape oddaje klawiaturę rozmowie.
+
+Canvas nie przenosi drzewa dostępności ani natywnego zaznaczania tekstu.
+Akcja Open in window pozostaje dostępną alternatywą do pełnego dokumentu,
+czytnika ekranu i natywnej edycji. Otwiera jedną kopię zamiast podglądu,
+w tym samym modelu odizolowanego procesu; nie uruchamia obu równocześnie.
 Viewer używa prywatnego handlera protokołu `canopy-agent-html` w tej sesji;
 dokument nie jest wielomegabajtowym URL-em `data:`. Handler odpowiada tylko dla
 losowego bieżącego URL-a, bez dostępu do plików/sieci. Tytuł okna pozostaje
@@ -868,18 +887,20 @@ odmowa w natywnym permission handlerze mogą powstać w późniejszym native bui
 ### Zasoby i wygląd
 
 Dotychczasowe sloty (2 web / 1 mobile), cache 16 wpisów / 2 MiB i leniwe
-montowanie nadal obowiązują. HTML na web i mobile zawsze zaczyna od nieaktywnej
-karty „Run”. Na mobile jawny wybór Run pozostaje w pamięci sesji dla konkretnego
-visuala i wersji, również po przewinięciu, ponownym montowaniu i otwarciu pełnego
+montowanie nadal obowiązują. Desktop ma jeden proces własnego HTML;
+pozostałe sloty komponentowych visuals działają niezależnie. HTML na web,
+desktop i mobile zaczyna od nieaktywnej karty „Run”. Na mobile jawny wybór Run
+pozostaje w pamięci sesji dla konkretnego visuala i wersji, również po przewinięciu, ponownym montowaniu i otwarciu pełnego
 ekranu. Nowa wersja lub nowa sesja wymaga Run; unpair czyści zgody. Błąd procesu
 WebView lub watchdog cofa zgodę, więc powrót do wątku nie uruchamia ponownie
 wadliwego HTML. Na web ponowne montowanie nadal zaczyna od Run.
 Po błędzie/watchdogu nie ma automatycznego retry.
 Bootstrap zgłasza wysokość co sekundę. Po 10 s
-ciszy host usuwa ramkę/WebView i pokazuje „This visual stopped responding.”;
+ciszy host usuwa ramkę/WebView i pokazuje „This visual stopped responding.”.
 Proces viewer’a Electron kończy wszystkie renderery z PID-ów jego własnego
-drzewa ramek (także OOPIF), niszczy stare okno i pokazuje komunikat w nowym,
-bez kodu agenta. Zakończenie samego głównego renderera nie wystarczało przy
+drzewa ramek (także OOPIF). W podglądzie inline main kończy też proces i karta
+pokazuje błąd z Retry; w osobnym oknie niszczy stare okno i pokazuje komunikat
+w nowym, bez kodu agenta. Zakończenie samego głównego renderera nie wystarczało przy
 pętli w OOPIF. Główny proces aplikacji nie należy do tego drzewa. Chromium desktop izoluje
 opaque sandbox frames procesowo od wersji 127 (Site Isolation), Android WebView
 nie ma OOPIF. Safari, Firefox, Chrome Android i Android WebView mogą wykonywać

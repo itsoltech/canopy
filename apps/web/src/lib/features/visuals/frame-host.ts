@@ -22,14 +22,17 @@ export interface FrameOptions {
   readonly htmlDocument?: boolean;
   readonly specJson: string;
   readonly maxHeight: number;
+  readonly initialHeight?: number;
+  readonly signal?: AbortSignal;
   readonly onHeight: (height: number) => void;
   readonly onError: (message: string) => void;
   /** Escape pressed inside the frame; the only key a frame forwards. */
   readonly onEscape?: (() => void) | undefined;
+  readonly onReplaced?: (() => void) | undefined;
 }
 
 export interface FrameHandle {
-  readonly frame: HTMLIFrameElement;
+  readonly frame: HTMLElement;
   visible(visible: boolean): void;
   reset(): void;
   destroy(): void;
@@ -37,17 +40,25 @@ export interface FrameHandle {
 
 export class VisualUnavailable extends Error {}
 
+function checkVisualKit(options: FrameOptions) {
+  if (
+    options.kitVersion > (options.htmlDocument ? 2 : VISUAL_KIT_VERSION) ||
+    REVOKED_VISUAL_KITS.has(options.kitVersion)
+  )
+    throw new VisualUnavailable("Update Canopy to open this visual.");
+}
+
 /**
  * Mounts a compiled visual in an opaque-origin sandbox (docs/agent-visuals.md §4): `allow-scripts` only, no
  * same-origin, forms, popups, navigation or downloads. The document's own CSP blocks every load. The host hands one
  * MessagePort to this frame's window after load, then trusts nothing but parsed, rate-limited port messages.
  */
 export async function mountVisualFrame(container: HTMLElement, options: FrameOptions): Promise<FrameHandle> {
-  if (
-    options.kitVersion > (options.htmlDocument ? 2 : VISUAL_KIT_VERSION) ||
-    REVOKED_VISUAL_KITS.has(options.kitVersion)
-  )
-    throw new VisualUnavailable("Update Canopy to open this visual.");
+  options.signal?.throwIfAborted();
+  checkVisualKit(options);
+
+  if (options.htmlDocument && window.canopyDesktop)
+    return (await import("./desktop-html-host.ts")).mountDesktopHtmlFrame(container, options);
 
   const [{ compileVisual, visualToken }, { parseVisualSpec }] = await Promise.all([
     import("@canopy/domain/visual-compiler"),
@@ -82,7 +93,7 @@ export async function mountVisualFrame(container: HTMLElement, options: FrameOpt
   frame.setAttribute("allow", VISUAL_PERMISSIONS);
   frame.title = options.title;
   frame.className = "block w-full border-0 bg-transparent";
-  frame.style.height = `${clampVisualHeight(VISUAL_LIMITS.defaultHeight, options.maxHeight)}px`;
+  frame.style.height = `${clampVisualHeight(options.initialHeight || VISUAL_LIMITS.defaultHeight, options.maxHeight)}px`;
   frame.srcdoc = html;
 
   const channel = new MessageChannel();

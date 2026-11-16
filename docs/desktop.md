@@ -1,7 +1,8 @@
 # Canopy Desktop
 
-Status: opis zaimplementowanego runtime (2026-11-15), w tym sesji dostępu do lokalnego BFF
-i podglądu bieżącej zajętości plików Canopy w Diagnostics.
+Status: opis zaimplementowanego runtime (2026-11-16), w tym sesji dostępu do lokalnego BFF,
+podglądu bieżącej zajętości plików Canopy w Diagnostics oraz własnego HTML w rozmowie
+z odizolowanego renderera offscreen.
 Dostępność w nightly/beta/stable określają [zasady wydań](release.md) i GitHub Releases.
 
 Implementacja: `apps/desktop`. Cele wydania na każdym kanale: **Linux x64,
@@ -141,7 +142,12 @@ Dokument `srcdoc` dziedziczy CSP okna, więc `DocumentPolicy` dopuszcza dokładn
 hash przypiętego skryptu kitu (`KIT_SCRIPT_CSP`); inne skrypty inline pozostają
 zablokowane. `frame-src 'none'` nie blokuje `srcdoc`. Ramka bez `allow-same-origin`
 nie widzi preloadu, IPC ani DOM okna; `setWindowOpenHandler` i blokady nawigacji
-pozostają bez zmian.
+pozostają bez zmian. Własny HTML (`render_html`) ma podgląd w rozmowie przez
+canvas z klatek osobnego procesu Electron, który zachowuje prywatny profil,
+odmowę sieci i DNS oraz niezależny watchdog. Główne okno przyjmuje wyłącznie
+klatki i przekazuje walidowane wejście, bez wykonania HTML agenta ani zmiany CSP.
+Open in window pozostaje alternatywą dla natywnej dostępności i zaznaczania tekstu;
+uruchomienie jednej formy zamyka drugą. Granice i limity: [agent-visuals.md §9](agent-visuals.md#9-własny-html-render_html).
 
 Tryb lokalny korzysta ze zwykłego `CreateWorkerEnrollment` i `enrollWorker`, zamiast
 tworzyć poświadczenia bezpośrednio w bazie. Oba tryby ładują dołączony frontend
