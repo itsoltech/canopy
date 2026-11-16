@@ -35,6 +35,7 @@
     open = $bindable(false),
     allowCustom = true,
     preferFavorites = false,
+    adaptive = false,
     notice,
     refreshing = false,
     onrefresh,
@@ -52,6 +53,7 @@
     /** Offer "Use “…”" for a model id typed in the search. */
     allowCustom?: boolean;
     preferFavorites?: boolean;
+    adaptive?: boolean;
     /** Note in the footer (e.g. why the last refresh failed). */
     notice?: string | undefined;
     refreshing?: boolean;
@@ -246,17 +248,23 @@
     <PillButton
       {...props}
       class={["pl-1.5", className]}
+      chevronClass={adaptive ? "@max-[16rem]/model-controls:hidden" : undefined}
       aria-label="Model: {selected?.name ?? 'none'}{selected
         ? ` · ${selected.profileName} · ${selected.model}`
         : ''}{effort ? `, ${effort} effort` : ''}"
     >
-      {#if selected}<span class="relative shrink-0"
+      {#if selected}<span
+          class={["relative shrink-0", adaptive && "@min-[9rem]/model-controls:@max-[16rem]/model-controls:hidden"]}
           ><ProviderIcon provider={selected.provider} class="size-3.5" />{#if selectedInstance}<AccentDot
               accent={selectedInstance.accent}
               class="absolute -right-0.5 -bottom-0.5 size-1.5 ring-1 ring-surface"
             />{/if}</span
         >{/if}
-      <span class="truncate text-zinc-800 dark:text-zinc-200"
+      <span
+        class={[
+          "truncate text-zinc-800 dark:text-zinc-200",
+          adaptive && selected && "@max-[9rem]/model-controls:hidden",
+        ]}
         >{selected?.name ?? "Choose a model"}{#if selectedInstance}<span class="text-zinc-500 dark:text-zinc-400"
             >&nbsp;· {selectedInstance.profileName}</span
           >{/if}</span

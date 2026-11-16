@@ -323,6 +323,7 @@
           {#snippet controls()}
             {#if workspace && selected}
               <ModelControls
+                adaptive
                 {options}
                 bind:option={() => selected, pickModel}
                 bind:effort={() => effort, (next) => (saved.choices = { ...saved.choices, effort: next ?? "" })}

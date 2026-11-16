@@ -424,6 +424,7 @@
       <fieldset disabled={disabled || sending} class="contents">
         {#if option}
           <ModelControls
+            adaptive
             options={offer.options}
             bind:option={() => option, pickModel}
             bind:effort={() => effort, pickEffort}

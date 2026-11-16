@@ -36,7 +36,7 @@
   <div
     class={[
       "flex shrink-0 items-center justify-center",
-      mode === "text" ? "w-22" : mode === "bar" ? "w-20" : "w-8",
+      mode === "text" ? "w-22 @max-[24rem]/composer:w-16" : mode === "bar" ? "w-20 @max-[24rem]/composer:w-16" : "w-8",
       className,
     ]}
     data-context-indicator={mode}
@@ -58,11 +58,18 @@
             ]}
           >
             {#if mode === "text"}
-              <span aria-hidden="true" class="whitespace-nowrap"
-                >{compact.format(measurement.used)} / {compact.format(measurement.limit)}</span
+              <span
+                aria-hidden="true"
+                class="flex gap-1 whitespace-nowrap @max-[24rem]/composer:flex-col @max-[24rem]/composer:gap-0 @max-[24rem]/composer:leading-3.5"
               >
+                <span>{compact.format(measurement.used)}</span>
+                <span>/ {compact.format(measurement.limit)}</span>
+              </span>
             {:else if mode === "bar"}
-              <span aria-hidden="true" class="h-1 w-9 overflow-hidden rounded-full bg-zinc-950/10 dark:bg-white/10">
+              <span
+                aria-hidden="true"
+                class="h-1 w-9 overflow-hidden rounded-full bg-zinc-950/10 @max-[24rem]/composer:w-5 dark:bg-white/10"
+              >
                 <span class="block h-full rounded-full bg-current" style:width={`${measurement.fill}%`}></span>
               </span>
               <span aria-hidden="true" class="w-8 text-right">{measurement.percent}%</span>

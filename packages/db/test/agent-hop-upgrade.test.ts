@@ -99,11 +99,16 @@ test.skipIf(!dockerAvailable)(
         table: "schema_migrations",
       });
 
+      const upgrade = Migrator.make({})({
+        loader: migrations.pipe(Effect.map((all) => all.filter(([id]) => id <= 160))),
+        table: "schema_migrations",
+      });
+
       await runtime.runPromise(previous);
       const turn = await runtime.runPromise(seedLegacyBotTurn);
       const before = await runtime.runPromise(hopColumns);
       const invariants = await runtime.runPromise(otherInvariants);
-      expect(await runtime.runPromise(migrate)).toEqual([[160, "agent_hop_policy"]]);
+      expect(await runtime.runPromise(upgrade)).toEqual([[160, "agent_hop_policy"]]);
       expect(await runtime.runPromise(otherInvariants)).toEqual(invariants);
       const after = await runtime.runPromise(hopColumns);
       expect(after.map((column) => column.table_name)).toEqual(Object.keys(hopBounds));
@@ -135,6 +140,8 @@ test.skipIf(!dockerAvailable)(
           }
         }),
       );
+      expect(await runtime.runPromise(upgrade)).toEqual([]);
+      await runtime.runPromise(migrate);
       expect(await runtime.runPromise(migrate)).toEqual([]);
     } finally {
       await runtime.dispose();

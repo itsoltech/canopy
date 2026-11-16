@@ -1,7 +1,8 @@
 # API dla UI i architektura frontendu
 
 Status (2026-11-16): web/desktop — zmiana uprawnień bieżącej tury Claude działa bez restartu;
-opcjonalny wskaźnik kontekstu composera ma tryby Off / Circle / Text / Bar w Appearance;
+opcjonalny wskaźnik kontekstu composera ma tryby Off / Circle / Text / Bar w Appearance,
+a pickery modelu i wysiłku dopasowują się do dostępnej szerokości;
 przełączanie wątków zachowuje status połączenia,
 a zapowiedziana aktualizacja gatewaya pokazuje w wątku spokojny komunikat bez akcji odzyskiwania,
 a wygaszany kompozytor zachowuje własny szkic bez odczytu nieaktywnego derived.
@@ -83,6 +84,15 @@ wskaźnik, zachowując stały slot, aby nadejście danych nie przesuwało kontro
 Hover, fokus klawiatury i dotknięcie otwierają szczegóły z dokładnymi liczbami
 oraz informacją, że jest to ostatni raport providera bez bieżącego szkicu.
 Warianty wizualne mają pełną etykietę dostępną dla czytników ekranu.
+Pickery composera reagują na własne dostępne miejsce, także w wąskim panelu na
+desktopie: najpierw ukrywają ozdobne ikony i strzałki, potem pokazują wysiłek jako
+paski, a przy najmniejszej szerokości model jako znak providera. Pełne nazwy zostają
+w dostępnych etykietach, podpowiedziach i otwieranych pickerach. Ustawienie Effort
+display pozostaje niezmienione. Minimalna szerokość pary kontrolek zapobiega
+nakładaniu. Poniżej 24 rem szerokości composera Steer/Queue zachowuje ikonę i menu,
+Text układa licznik i limit w dwóch liniach, a Bar skraca pasek. Dodatkowe kontrolki,
+np. informacja o załącznikach, mogą zawinąć pasek z zachowaniem miejsca na wysyłanie.
+Skróty dostarczania znikają według szerokości composera, niezależnie od viewportu.
 Odczyt po kompaktowaniu i cofnięciu rozmowy: [transcript.md](transcript.md).
 
 ## Limity kont providerów

@@ -180,6 +180,7 @@
         {#snippet controls()}
           {#if option}
             <ModelControls
+              adaptive
               options={offer.options}
               bind:option={
                 () => option,
