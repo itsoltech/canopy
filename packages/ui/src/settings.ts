@@ -1,12 +1,27 @@
 import type { IconName } from "./icons.ts";
 
-/** Settings sections with search keywords (the nav filter matches label and keywords). */
+/** Settings sections with labels and aliases shared by navigation and command search. */
 export interface SettingsSection {
   readonly href: string;
   readonly label: string;
   readonly icon: IconName;
   readonly group: "General" | "Code" | "Connections";
   readonly keywords: string;
+}
+
+/** Match every query word in any order, ignoring case, punctuation and extra spaces. */
+export function matchesSettingsSection(section: SettingsSection, query: string): boolean {
+  const normalize = (value: string) =>
+    value
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, " ")
+      .trim();
+
+  const text = normalize(`${section.label} ${section.keywords}`);
+
+  return normalize(query)
+    .split(/\s+/)
+    .every((word) => text.includes(word));
 }
 
 export const settingsSections: readonly SettingsSection[] = [
@@ -45,7 +60,8 @@ export const settingsSections: readonly SettingsSection[] = [
     label: "Threads",
     icon: "chat-bubble-left-right",
     group: "General",
-    keywords: "new thread defaults model profile permissions workspace archive retention auto-delete",
+    keywords:
+      "new thread defaults project worker agent model profile permissions workspace archived threads retention auto-delete delete after days cleanup clean up history subagents finished list turn activity while working after turn tool calls reasoning progress expanded collapsed messages steer queue delivery",
   },
   {
     href: "/settings/text-generation",
@@ -82,7 +98,8 @@ export const settingsSections: readonly SettingsSection[] = [
     label: "Worktrees",
     icon: "git-fork",
     group: "Code",
-    keywords: "git worktree branch base ref remote prefix semantic checkout location",
+    keywords:
+      "git worktree branch base ref remote prefix semantic checkout location creation default workspace cleanup clean up automatic hourly remove delete deleted archived threads merged branches unchanged inactive days keep local changes safe local branches preview run now managed worktrees",
   },
   {
     href: "/settings/providers",

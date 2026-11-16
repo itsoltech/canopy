@@ -3,6 +3,8 @@
 Status: opis działającego kodu na `dev` (2026-11-16); „What's new” sortuje notatki
 metodami dostępnymi w Hermesie bez `Array.prototype.toSorted`.
 Sidebar ma zwijane grupy projektów i worktree, zwarte wiersze oraz jeden wybór „Group by”.
+Wyszukiwanie ustawień współdzieli z web/desktop dopasowanie słów niezależne od
+kolejności i interpunkcji oraz słowa kluczowe sprzątania w Threads i Worktrees.
 Domyślne wybory nowego wątku
 i filtr ulubionych modeli oraz opcjonalna retencja archiwum są zgodne z web.
 Przesuwanie obrazów wyklucza podwójne stuknięcie do powiększania.
