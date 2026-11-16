@@ -36,7 +36,14 @@
 
   const entrance = untrack(() => enter?.kind);
   const delay = untrack(() => (enter?.kind === "unfold" ? stagger(enter.order) : 0));
-  const collapse = (node: HTMLElement) => (exiting() ? expand(node, { instantReduced: true }) : { duration: 0 });
+
+  const collapse = (node: HTMLElement) => {
+    const config = exiting() ? expand(node, { instantReduced: true }) : { duration: 0 };
+
+    // Defer completion until Svelte has registered the whole each-block outro group. Mixing synchronous
+    // zero-duration exits with animated rows otherwise leaves removed rows waiting in that group forever.
+    return () => config;
+  };
 
   provideMemoryScope(
     untrack(() => key),
