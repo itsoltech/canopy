@@ -10,7 +10,7 @@ export interface SidebarEntry {
   working?: boolean;
   groupedProject?: boolean;
   depth?: 1 | 2;
-  projectId?: string;
+  projectId?: string | undefined;
   groupKind?: "project" | "worktree";
   groupTitle?: string;
   count?: number;
