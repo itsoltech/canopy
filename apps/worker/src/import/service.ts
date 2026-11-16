@@ -4,6 +4,7 @@ import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { ImportScanSchema, type ImportRootSchema, type ImportScan } from "@canopy/contracts";
 import type { AppliedConfig } from "../config/remote.ts";
+import { providerConfigurationPath } from "../providers/claude/configuration-homes.ts";
 import { collectLibrary } from "./library-collect.ts";
 import type { LibraryItemInit } from "./library-scan.ts";
 import { loadMasker, type Masker } from "./masking.ts";
@@ -34,6 +35,8 @@ export interface ImportHomes {
 }
 
 type RootInit = MessageInitShape<typeof ImportRootSchema>;
+
+type SourcePath = { readonly path: string; readonly expand: boolean };
 
 /**
  * The worker side of the CLI import (docs/import.md). Roots come only from this worker: the device owner's CLI
@@ -82,14 +85,9 @@ export class WorkerImport {
 
       if (!config) return true;
 
-      const roots = [
-        this.#homes()[agentCli],
-        ...config.profiles.flatMap((profile) =>
-          (profile.config.providers ?? ["claude", "codex"]).includes(agentCli) && profile.config.runtime?.homePath
-            ? [profile.config.runtime.homePath]
-            : [],
-        ),
-      ];
+      const roots = this.#sourcePaths(agentCli).map(({ path, expand }) =>
+        expand ? providerConfigurationPath(path) : path,
+      );
 
       return roots.some(
         (root) => intersects(resolve(path), resolve(root)) || intersects(cleanupRoot(path), cleanupRoot(root)),
@@ -107,7 +105,6 @@ export class WorkerImport {
 
   /** Existing CLI homes, by real path and without duplicates; plus the ones that are missing (with a problem). */
   roots(only: readonly string[] = []) {
-    const homes = this.#homes();
     const config = this.#config();
     const roots: ImportRootPath[] = [];
     const listed: RootInit[] = [];
@@ -116,16 +113,24 @@ export class WorkerImport {
     for (const cli of CLIS) {
       if (only.length > 0 && !only.includes(cli)) continue;
 
-      const paths = [
-        homes[cli],
-        ...(config?.profiles ?? []).flatMap((p) =>
-          (p.config.providers ?? ["claude", "codex"]).includes(cli) && p.config.runtime?.homePath
-            ? [p.config.runtime.homePath]
-            : [],
-        ),
-      ];
+      for (const candidate of this.#sourcePaths(cli)) {
+        let path = candidate.path;
 
-      for (const path of paths) {
+        if (candidate.expand) {
+          try {
+            path = providerConfigurationPath(path);
+          } catch {
+            listed.push({
+              id: "",
+              agentCli: cli,
+              path,
+              cliVersion: config?.[cli].version ?? "",
+              problem: "Invalid directory",
+            });
+            continue;
+          }
+        }
+
         const real = realDirectory(path);
         const cliVersion = config?.[cli].version ?? "";
 
@@ -145,6 +150,22 @@ export class WorkerImport {
     }
 
     return { roots, listed };
+  }
+
+  #sourcePaths(cli: AgentCli): SourcePath[] {
+    const paths: SourcePath[] = [{ path: this.#homes()[cli], expand: false }];
+
+    for (const { config } of this.#config()?.profiles ?? []) {
+      if (!(config.providers ?? ["claude", "codex"]).includes(cli)) continue;
+      const runtime = config.runtime;
+
+      if (runtime?.homePath) paths.push({ path: runtime.homePath, expand: false });
+
+      if (cli === "claude" && runtime?.userConfiguration?.sourcePath)
+        paths.push({ path: runtime.userConfiguration.sourcePath, expand: true });
+    }
+
+    return paths;
   }
 
   /** `~/.agents` of this device as a library root (Codex's shared skills), when it exists. */

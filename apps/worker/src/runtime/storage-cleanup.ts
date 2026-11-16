@@ -4,7 +4,7 @@ import { Journal, type StorageCleanupGrant } from "../journal/index.ts";
 import { runtimeBusy, runtimeKeys } from "./instance-runtimes.ts";
 import type { HostContext } from "./host-context.ts";
 import { isManagedStorageHome, removeThreadStorage } from "./storage-files.ts";
-import { providersOf } from "../providers/profiles.ts";
+import { cleanupHome, validatedCleanupHome } from "./storage-cleanup-homes.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ID = /^[a-z0-9][a-z0-9_-]{0,159}$/i;
@@ -82,9 +82,14 @@ export class WorkerStorageCleanup {
           continue;
 
         if (![Provider.CODEX, Provider.CLAUDE, Provider.GROK].includes(scope.provider)) continue;
-        const home = this.#homeFor(scope.provider, scope.providerProfileId || "native");
+
+        const home = await cleanupHome(this.ctx, {
+          ...scope,
+          providerProfileId: scope.providerProfileId || "native",
+        });
 
         if (!home) continue;
+
         await this.ctx.state.options.runtime.runPromise(
           Journal.use((j) =>
             j.grantStorageCleanup({
@@ -230,17 +235,22 @@ export class WorkerStorageCleanup {
       const provider =
         grant.provider === Provider.CODEX ? "codex" : grant.provider === Provider.CLAUDE ? "claude" : "grok";
 
-      if (
-        isManagedStorageHome(state.options.dataDir, grant.homePath, grant.provider) &&
-        state.imports.hasImportRootIntersection(provider, grant.homePath)
-      )
-        continue;
+      const home = await validatedCleanupHome(this.ctx, grant);
+
+      const source =
+        isManagedStorageHome(state.options.dataDir, home, grant.provider) &&
+        state.imports.hasImportRootIntersection(provider, home);
 
       const protectedSessionIds = new Set(
-        grant.providerThreadIds.filter((id) => state.imports.hasCopyManifest(provider, id)),
+        grant.providerThreadIds.filter(
+          (id) =>
+            // Claude bindings persist paths, not ownership or directory identity. A historical SHARED home can
+            // have a managed-looking path after policy changes, so preserve native files without that proof.
+            grant.provider === Provider.CLAUDE || source || state.imports.hasCopyManifest(provider, id),
+        ),
       );
 
-      removeThreadStorage(state.options.dataDir, grant, grant.homePath, protectedSessionIds);
+      removeThreadStorage(state.options.dataDir, grant, home, protectedSessionIds);
       await state.options.runtime.runPromise(Journal.use((j) => j.completeStorageCleanup(grant.threadId)));
 
       for (const request of this.#requests.values()) {
@@ -249,29 +259,6 @@ export class WorkerStorageCleanup {
     }
 
     this.#replyRequests();
-  }
-
-  #homeFor(provider: Provider, profileId: string): string | undefined {
-    const state = this.ctx.state;
-
-    if (!state.config) return undefined;
-    const name = provider === Provider.CODEX ? "codex" : provider === Provider.CLAUDE ? "claude" : "grok";
-
-    if (
-      !state.config.profiles.some(
-        (profile) => profile.config.id === profileId && providersOf(profile.config).includes(name),
-      )
-    )
-      return undefined;
-
-    const home =
-      provider === Provider.CODEX
-        ? state.codexHome(profileId)
-        : provider === Provider.CLAUDE
-          ? state.claudeHome(profileId)
-          : state.grokSessions(profileId);
-
-    return home;
   }
 
   #replyRequests(): void {

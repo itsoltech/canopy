@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { isBigInt } from "@canopy/testing";
-import { Provider, ProviderProfileKind, type ui } from "@canopy/contracts";
+import { Provider, ProviderConfigurationMode, ProviderProfileKind, type ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
+import { qualifyId } from "@canopy/domain/computers";
 import { configAllowed } from "../../apps/gateway/src/computers/runtime-config.ts";
 import { decryptSecret } from "../../apps/gateway/src/store/secrets.ts";
 import {
@@ -225,6 +226,92 @@ describe.skipIf(!dockerAvailable)("provider instances, models and proxies across
     await wait(async () => (await instanceOf(a, Provider.CODEX, "team"))?.label === "Named on A");
     expect((await profile(a, "team")).apiKey).toBe(KEY_A);
     expect((await profile(b, "team")).apiKey).toBe(KEY_A);
+  }, 40_000);
+
+  test("Claude configuration choices sync while source paths and worker overrides remain local", async () => {
+    const local = {
+      mode: ProviderConfigurationMode.LOCAL,
+      sourcePath: "/configuration/computer-a",
+      instructions: true,
+      skills: true,
+      hooks: false,
+    };
+
+    await createInstance(a, {
+      harness: Provider.CLAUDE,
+      id: "configured-sync",
+      label: "Configured Claude",
+      kind: ProviderProfileKind.NATIVE,
+      runtime: { userConfiguration: local },
+    });
+    await wait(
+      async () =>
+        (await instanceOf(b, Provider.CLAUDE, "configured-sync"))?.runtime?.userConfiguration?.mode === local.mode,
+    );
+    const onB = (await instanceOf(b, Provider.CLAUDE, "configured-sync"))!;
+    expect(onB.runtime?.userConfiguration).toMatchObject({ ...local, sourcePath: "" });
+    await editInstance(b, Provider.CLAUDE, "configured-sync", {
+      runtime: { userConfiguration: { ...local, sourcePath: "/configuration/computer-b" } },
+    });
+    const shared = { ...local, mode: ProviderConfigurationMode.SHARED, hooks: true };
+    await editInstance(a, Provider.CLAUDE, "configured-sync", { runtime: { userConfiguration: shared } });
+    await wait(
+      async () =>
+        (await instanceOf(b, Provider.CLAUDE, "configured-sync"))?.runtime?.userConfiguration?.mode === shared.mode,
+    );
+    expect((await instanceOf(b, Provider.CLAUDE, "configured-sync"))?.runtime?.userConfiguration).toMatchObject({
+      ...shared,
+      sourcePath: "/configuration/computer-b",
+    });
+    await wait(
+      async () =>
+        b.gateway.worker.configs.at(-1)?.profiles.find((p) => p.id === "configured-sync")?.userConfiguration
+          ?.sourcePath === "/configuration/computer-b",
+    );
+    await b.gateway.api.setInstanceWorker({
+      harness: Provider.CLAUDE,
+      id: "configured-sync",
+      workerId: b.gateway.workerId,
+      overrides: { userConfiguration: { mode: ProviderConfigurationMode.ISOLATED } },
+    });
+    await wait(
+      async () =>
+        b.gateway.worker.configs.at(-1)?.profiles.find((p) => p.id === "configured-sync")?.userConfiguration?.mode ===
+        ProviderConfigurationMode.ISOLATED,
+    );
+    expect(
+      (await instanceOf(a, Provider.CLAUDE, "configured-sync"))?.workers[0]?.overrides?.userConfiguration,
+    ).toBeUndefined();
+
+    const inherited = await a.gateway.api.getInstanceWorker({
+      harness: Provider.CLAUDE,
+      id: "configured-sync",
+      workerId: qualifyId(b.gateway.workerId, b.node),
+    });
+
+    expect(inherited.inheritedRuntime?.userConfiguration).toMatchObject({
+      ...shared,
+      sourcePath: "/configuration/computer-b",
+    });
+    expect(inherited.worker?.overrides?.userConfiguration?.mode).toBe(ProviderConfigurationMode.ISOLATED);
+    await b.restart();
+    await synced(a, b);
+    expect((await instanceOf(b, Provider.CLAUDE, "configured-sync"))?.runtime?.userConfiguration?.sourcePath).toBe(
+      "/configuration/computer-b",
+    );
+    expect((await instanceOf(a, Provider.CLAUDE, "configured-sync"))?.runtime?.userConfiguration?.sourcePath).toBe(
+      local.sourcePath,
+    );
+
+    const records = json([
+      await a.store.query("SELECT fields FROM config_items"),
+      await b.store.query("SELECT fields FROM config_items"),
+      await a.store.query("SELECT value FROM config_history"),
+      await b.store.query("SELECT value FROM config_history"),
+    ]);
+
+    expect(records).not.toContain("/configuration/computer-a");
+    expect(records).not.toContain("/configuration/computer-b");
   }, 40_000);
 
   test("with sharing off, keys and instances stay on their computer", async () => {

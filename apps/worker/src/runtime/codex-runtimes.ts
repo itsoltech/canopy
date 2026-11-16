@@ -135,6 +135,7 @@ export class CodexRuntimes {
       ...(runtime.ownLogin && { ownLogin: true }),
       linkDeviceLogin: config.codex.linkDeviceLogin,
       deviceCodexHome: deviceHome,
+      protectedDeviceHome: this.ctx.state.deviceHomes.codex,
     });
 
     if (home.problem) this.ctx.ops.log(`codex home: ${home.problem}`);

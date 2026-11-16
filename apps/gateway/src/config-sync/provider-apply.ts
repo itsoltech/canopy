@@ -138,7 +138,7 @@ export function applyInstance(sql: SqlClient.SqlClient, owner: string, row: Conf
     }
 
     const values = valuesOf(row.fields);
-    const columns = instanceColumns(values, current);
+    const columns = instanceColumns(values, current, harness);
 
     if (!columns) return void (row.unsupported = NOT_SUPPORTED);
 
@@ -189,10 +189,13 @@ export function applyInstance(sql: SqlClient.SqlClient, owner: string, row: Conf
     const runtime = { ...current?.runtime };
     delete runtime.launchArgs;
     delete runtime.ownLogin;
+    delete runtime.userConfiguration;
 
     if (columns.launchArgs.length) runtime.launchArgs = columns.launchArgs;
 
     if (columns.ownLogin) runtime.ownLogin = true;
+
+    if (columns.userConfiguration) runtime.userConfiguration = columns.userConfiguration;
     const [favorites, hidden, shown, custom] = columns.models;
     const baseUrl = endpoint ? (proxy?.base_url ?? columns.baseUrl) : "";
     const key = apiKey ? JSON.stringify({ secretRef: apiKey }) : null;

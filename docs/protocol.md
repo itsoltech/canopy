@@ -1,5 +1,41 @@
 # Protokół gateway ↔ worker
 
+## Konfiguracja użytkownika Claude
+
+Status (2026-11-16): zaimplementowana w kodzie. Dostępność nightly/beta/stable
+wynika z promocji wydań; nie zmienia się `WORKER_LINK_PROTOCOL`.
+
+Addytywne `ProviderProfileConfig.user_configuration` (15) przenosi
+`ProviderUserConfiguration`: `mode` (1), `source_path` (2), `instructions` (3),
+`skills` (4) oraz `hooks` (5). `ProviderConfigurationMode` ma wartości
+`UNSPECIFIED=0`, `ISOLATED=1`, `LOCAL=2`, `SHARED=3`. Brak wiadomości i tryb 0
+zachowują izolację starszych zapisów. Nadpisanie instancji na workerze jest
+opcjonalną całą wiadomością: brak dziedziczy politykę definicji, obecność
+zastępuje ją wraz z wartościami `false`.
+
+Worker zachowuje politykę w efektywnym runtime. Sam rozwija `~`, `~/…` oraz
+`~\…`; gateway nie interpretuje katalogu domowego innego komputera. Nieprawidłowy
+tryb, źródło niebędące katalogiem lub błąd inspekcji ścieżek wyłącza pojedynczą
+instancję, pozostawiając pozostałą konfigurację aktywną. Codex/Grok dopuszczają
+wyłącznie `ISOLATED`. Capability `claude_user_configuration_v1` potwierdza obsługę
+polityki. Dla workera bez niej gateway wysyła profile `LOCAL`/`SHARED` jako
+wyłączone i pokazuje wymóg aktualizacji; inne profile nadal działają. Dotyczy to
+zarówno konfiguracji początkowej, jak i późniejszych zmian. Żądana polityka
+pozostaje zapisana bez zmian. Konfiguracja z aktywną polityką jest wysyłana także
+przy zgodnej wersji w `Hello`, aby ponownie zastosować negocjację capability.
+
+`SHARED` wybiera katalog źródłowy jako rzeczywisty katalog sesji Claude.
+Prywatny home platformy jest przygotowywany oddzielnie; współdzielony katalog
+nie trafia do funkcji przygotowania loginu. Ustawienia są oczyszczane jak
+w `LOCAL`, z zachowaniem źródeł project/local i osobnych zgód na instrukcje,
+skille oraz hooki. Login nadal wybiera niezależne secure storage.
+
+`ProviderProfile` w `ConfigApplied` dodaje pola `login_home_path` (11),
+`configuration_home_path` (12), `session_home_path` (13), `private_home_path` (14).
+Gateway przekazuje je właścicielowi w stanie instancji bez odczytywania plików
+workera. Starsze raporty mają puste pola. Szczegóły polityki i trwałego
+powiązania sesji: [worker-config.md](worker-config.md#konfiguracja-użytkownika-claude).
+
 ## Limity kont providerów
 
 `WorkerMessage.provider_usage` (843) przenosi `ProviderUsageReport`: provider,

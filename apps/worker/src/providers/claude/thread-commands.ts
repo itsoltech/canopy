@@ -12,28 +12,56 @@ import type { sessionOutput } from "./session-output.ts";
 import type { sessionTurns } from "./session-turns.ts";
 import { userMessage } from "./session-io.ts";
 import { submitClaudeTurn } from "./turn-admission.ts";
+import { claudeSessionHomes, requireClaudeSessionHome } from "./session-home.ts";
 
 export function threadCreation(ctx: ClaudeThreadContext, runtime: ReturnType<typeof claudeRuntime>) {
   const { options, journal } = ctx;
   const { runtimeOf, inHome } = runtime;
+  const homes = claudeSessionHomes(journal);
 
   return {
     create: Effect.fn("ClaudeThreads.create")(function* (spec: ThreadSpec, fork?: ForkSpec) {
-      const forkProfile = fork ? options.profile(spec.providerProfileId) : undefined;
-      const forkHome = forkProfile ? runtimeOf(forkProfile).home : options.home;
+      const sessionId = yield* Effect.tryPromise({
+        catch: fail(spec.threadId, fork ? "fork" : "create"),
+        try: async () => {
+          const profile = options.profile(spec.providerProfileId);
+          const instance = profile ? runtimeOf(profile) : { home: options.home };
+          const current = instance.home;
+          // Source lookup is read-only: asking for a fork must not bind its parent to today's policy.
+          const source = fork ? await homes.lookup(fork.sourceThreadId) : undefined;
 
-      const sessionId = fork
-        ? yield* Effect.tryPromise({
-            try: () =>
-              inHome(forkHome, () =>
-                forkSession(fork.sourceProviderThreadId, {
-                  dir: spec.cwd,
-                  ...(fork.afterProviderTurnRef && { upToMessageId: fork.afterProviderTurnRef }),
-                }),
-              ).then((r) => r.sessionId),
-            catch: fail(spec.threadId, "fork"),
-          })
-        : spec.threadId;
+          if (source) requireClaudeSessionHome(source);
+          const legacy = instance.platformHome ?? options.home;
+
+          const legacySource =
+            fork &&
+            !source &&
+            legacy !== current &&
+            (await runtime.sessionExists(fork.sourceProviderThreadId, spec.cwd, legacy));
+
+          const home = await homes.bind(
+            spec.threadId,
+            source ?? (legacySource ? legacy : current),
+            fork ? undefined : spec,
+          );
+
+          const sessionId = fork
+            ? (
+                await inHome(home, () =>
+                  forkSession(fork.sourceProviderThreadId, {
+                    dir: spec.cwd,
+                    ...(fork.afterProviderTurnRef && { upToMessageId: fork.afterProviderTurnRef }),
+                  }),
+                )
+              ).sessionId
+            : spec.providerThreadId || spec.threadId;
+
+          if (fork || sessionId !== spec.threadId)
+            await Effect.runPromise(journal.rememberClaudeSession(spec.threadId, sessionId));
+
+          return sessionId;
+        },
+      });
 
       yield* journal
         .append(spec.threadId, { body: { case: "threadReady", value: { providerThreadId: sessionId } } })

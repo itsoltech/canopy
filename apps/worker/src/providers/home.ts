@@ -1,7 +1,8 @@
-import { existsSync, linkSync, lstatSync, mkdirSync, readlinkSync, rmSync, symlinkSync } from "node:fs";
+import { existsSync, linkSync, lstatSync, mkdirSync, readlinkSync, statSync, unlinkSync, symlinkSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Env } from "./profiles.ts";
+import { providerHomeProblem } from "./home-paths.ts";
 
 /**
  * Isolated provider homes (CODEX_HOME, CLAUDE_CONFIG_DIR) under the worker's data dir
@@ -63,6 +64,8 @@ export interface ProviderHomeOptions {
   readonly loginFile: string;
   /** The device owner's home of the same CLI. */
   readonly deviceHome: string;
+  /** Actual device CLI home, protected even when deviceHome selects a custom login source. */
+  readonly protectedDeviceHome?: string;
   readonly linkDeviceLogin: boolean;
   /** The home keeps its own login (e.g. signed in from the app): a link left from before goes, its own file stays. */
   readonly ownLogin?: boolean;
@@ -72,22 +75,30 @@ export interface ProviderHomeOptions {
 
 export function prepareProviderHome(options: ProviderHomeOptions): ProviderHome {
   const { path } = options;
+  const problem = providerHomeProblem(path, options.deviceHome, options.protectedDeviceHome);
+
+  if (problem) throw new Error(problem);
   mkdirSync(path, { recursive: true, mode: 0o700 });
   const target = join(path, options.loginFile);
+  const source = join(options.deviceHome, options.loginFile);
+  const protectedSource = join(options.protectedDeviceHome ?? options.deviceHome, options.loginFile);
+  const shared = isSharedFile(target, [source, protectedSource]);
 
   if (options.ownLogin) {
-    if (isSharedFile(target)) removeIfPresent(target);
+    if (shared) removeIfPresent(target);
 
     return { path, login: existsSync(target) ? "own" : "none" };
   }
+
+  // A regular login may belong to the user or an instance with its own login. Never replace it implicitly.
+  if (existsSync(target) && !shared)
+    throw new Error("The shadow home already contains a login. Use its own login or choose a different shadow home.");
 
   if (!options.linkDeviceLogin) {
     removeIfPresent(target);
 
     return { path, login: "none" };
   }
-
-  const source = join(options.deviceHome, options.loginFile);
 
   if (!existsSync(source)) {
     removeIfPresent(target);
@@ -123,11 +134,23 @@ export function prepareProviderHome(options: ProviderHomeOptions): ProviderHome 
   }
 }
 
-function isSharedFile(path: string): boolean {
+function isSharedFile(path: string, sources: readonly string[]): boolean {
   try {
     const stat = lstatSync(path);
 
-    return stat.isSymbolicLink() || stat.nlink > 1;
+    if (stat.isSymbolicLink()) return true;
+
+    if (!stat.isFile() || stat.nlink < 2) return false;
+
+    return sources.some((source) => {
+      try {
+        const device = statSync(source);
+
+        return device.isFile() && device.dev === stat.dev && device.ino === stat.ino;
+      } catch {
+        return false;
+      }
+    });
   } catch {
     return false;
   }
@@ -148,5 +171,5 @@ function removeIfPresent(path: string): void {
     return;
   }
 
-  rmSync(path, { force: true });
+  unlinkSync(path);
 }

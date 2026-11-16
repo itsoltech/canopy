@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
-  import type { ui } from "@canopy/contracts";
+  import { Provider, type ui } from "@canopy/contracts";
   import { untrack } from "svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -12,6 +12,7 @@
   import EnvVarEditor from "./EnvVarEditor.svelte";
   import { draftOf, draftProblems, hasProblems, kindLabel, providerCall, saveRequest } from "./instances.ts";
   import RuntimeFields from "./RuntimeFields.svelte";
+  import UserConfigurationFields from "./UserConfigurationFields.svelte";
   import SettingsSection from "./SettingsSection.svelte";
   import MoveEnvironment from "./MoveEnvironment.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
@@ -115,6 +116,12 @@
       prefix="def"
     />
   </SettingsSection>
+
+  {#if instance.harness === Provider.CLAUDE}
+    <SettingsSection title="Claude configuration">
+      <UserConfigurationFields bind:value={draft.userConfiguration} prefix="def" />
+    </SettingsSection>
+  {/if}
 
   <SettingsSection
     title="Environment"

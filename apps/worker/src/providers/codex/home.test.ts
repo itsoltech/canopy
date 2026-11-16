@@ -85,8 +85,87 @@ describe("prepareCodexHome", () => {
     linkSync(join(deviceHome, "auth.json"), join(shadow, "auth.json"));
     writeFileSync(join(shadow, "auth.json"), "fixture-refreshed");
     expect(readFileSync(join(deviceHome, "auth.json"), "utf8")).toBe("fixture-refreshed");
-    prepareCodexHome({ dataDir: shadow, path: shadow, ownLogin: true, linkDeviceLogin: false });
+    prepareCodexHome({
+      dataDir: shadow,
+      path: shadow,
+      ownLogin: true,
+      linkDeviceLogin: false,
+      deviceCodexHome: deviceHome,
+    });
     expect(() => lstatSync(join(shadow, "auth.json"))).toThrow();
     expect(readFileSync(join(deviceHome, "auth.json"), "utf8")).toBe("fixture-refreshed");
+  });
+
+  test("refuses to use the device home as the shadow home", () => {
+    const deviceHome = device(true);
+
+    expect(() =>
+      prepareCodexHome({
+        dataDir: deviceHome,
+        path: deviceHome,
+        linkDeviceLogin: true,
+        deviceCodexHome: deviceHome,
+      }),
+    ).toThrow("shadow home is also the device CLI home");
+    expect(readFileSync(join(deviceHome, "auth.json"), "utf8")).toBe('{"tokens":{}}');
+  });
+
+  test("protects an existing login in an isolated home", () => {
+    const shadow = mkdtempSync(join(base, "existing-login-"));
+    const login = join(shadow, "auth.json");
+    writeFileSync(login, "fixture-own-login");
+
+    expect(() =>
+      prepareCodexHome({
+        dataDir: shadow,
+        path: shadow,
+        linkDeviceLogin: false,
+      }),
+    ).toThrow("already contains a login");
+    expect(readFileSync(login, "utf8")).toBe("fixture-own-login");
+  });
+
+  test("an unrelated hardlinked login remains protected when linking or selecting own login", () => {
+    const shadow = mkdtempSync(join(base, "unrelated-hardlink-"));
+    const source = device(true);
+    const backup = join(base, `${Bun.randomUUIDv7()}.json`);
+    const target = join(shadow, "auth.json");
+    writeFileSync(backup, "fixture-unrelated-login");
+    linkSync(backup, target);
+
+    expect(() =>
+      prepareCodexHome({ dataDir: shadow, path: shadow, deviceCodexHome: source, linkDeviceLogin: true }),
+    ).toThrow("already contains a login");
+    expect(readFileSync(target, "utf8")).toBe("fixture-unrelated-login");
+
+    const own = prepareCodexHome({
+      dataDir: shadow,
+      path: shadow,
+      deviceCodexHome: source,
+      ownLogin: true,
+      linkDeviceLogin: false,
+    });
+
+    expect(own.login).toBe("own");
+    expect(readFileSync(target, "utf8")).toBe("fixture-unrelated-login");
+    expect(statSync(target).ino).toBe(statSync(backup).ino);
+    expect(readFileSync(join(source, "auth.json"), "utf8")).toBe('{"tokens":{}}');
+  });
+
+  test("a custom login source cannot expose the actual device home to shadow preparation", () => {
+    const actual = device(true);
+    const source = device(true);
+
+    expect(() =>
+      prepareCodexHome({
+        dataDir: actual,
+        path: actual,
+        deviceCodexHome: source,
+        protectedDeviceHome: actual,
+        ownLogin: true,
+        linkDeviceLogin: false,
+      }),
+    ).toThrow("shadow home is also the device CLI home");
+    expect(readFileSync(join(actual, "auth.json"), "utf8")).toBe('{"tokens":{}}');
   });
 });

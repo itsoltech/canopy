@@ -1,5 +1,6 @@
 import {
   CLAUDE_LIVE_PERMISSIONS_CAPABILITY,
+  CLAUDE_USER_CONFIGURATION_CAPABILITY,
   STEER_ATTACHMENTS_CAPABILITY,
   THREAD_VISUALS_CAPABILITY,
   THREAD_HTML_CAPABILITY,
@@ -23,6 +24,7 @@ export function workerCapabilities(options: { localWorker: boolean; fullAccess: 
     "worker_diagnostics_v1",
     "shell_input_v1",
     "provider_account_status",
+    CLAUDE_USER_CONFIGURATION_CAPABILITY,
     "running_turns",
     "thread_lifecycle_v1",
     "thread_storage_cleanup_v1",

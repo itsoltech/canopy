@@ -1,7 +1,7 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import type { ClassValue } from "svelte/elements";
-  import { ui, ProviderProfileKind } from "@canopy/contracts";
+  import { ui, Provider, ProviderProfileKind } from "@canopy/contracts";
   import { requestJson } from "#lib/shared/http.ts";
   import { decode } from "#lib/shared/wire.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
@@ -12,6 +12,9 @@
   import { joinArgs, overrideDraftOf, overrideProblems, overrideRequest, providerCall } from "./instances.ts";
   import RuntimeFields from "./RuntimeFields.svelte";
   import SettingsSection from "./SettingsSection.svelte";
+  import UserConfigurationFields from "./UserConfigurationFields.svelte";
+  import { configurationDraftOf } from "./user-configuration.ts";
+  import ReportedRuntimePaths from "./ReportedRuntimePaths.svelte";
 
   /**
    * One worker's overrides of an instance (scope = that worker): paths and arguments for its system, its own
@@ -135,6 +138,9 @@
       <div><Button {loading} onclick={load}>Refresh status</Button></div>
     {/if}
   {:else}
+    {#if instance.harness === Provider.CLAUDE}
+      <ReportedRuntimePaths status={on} />
+    {/if}
     <fieldset class="contents" disabled={!!readOnly || loading || (!!worker.nodeId && !loaded)}>
       {#if endpoint}
         <SettingsSection
@@ -159,6 +165,16 @@
           prefix="ovr"
         />
       </SettingsSection>
+
+      {#if instance.harness === Provider.CLAUDE}
+        <SettingsSection title="Claude configuration on {worker.name}">
+          <UserConfigurationFields
+            bind:value={draft.userConfiguration}
+            inherited={configurationDraftOf((worker.nodeId ? remoteRuntime : instance.runtime)?.userConfiguration)}
+            prefix="ovr"
+          />
+        </SettingsSection>
+      {/if}
 
       <SettingsSection
         title="Environment on {worker.name}"

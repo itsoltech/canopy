@@ -1,10 +1,12 @@
 import { getSessionMessages, type Options } from "@anthropic-ai/claude-agent-sdk";
+import type { ThreadSpec } from "@canopy/contracts";
 import { claudeExecutable } from "./executable.ts";
 import type { ResolvedProfile } from "../profiles.ts";
 import { claudeProfileOptions } from "./profile.ts";
 import { claudeSkillPlugins } from "./skill-plugin.ts";
 import { managedPlugins } from "../../agent-environment/plugin-loading.ts";
 import { spawnClaude } from "./spawn.ts";
+import { claudeSessionHomes } from "./session-home.ts";
 
 import type { ClaudeInstanceRuntime, ClaudeThreadContext } from "./thread-types.ts";
 
@@ -13,10 +15,11 @@ let helpers: Promise<unknown> = Promise.resolve();
 
 export function claudeRuntime(ctx: ClaudeThreadContext) {
   const { options } = ctx;
+  const homes = claudeSessionHomes(ctx.journal);
 
   /** The runtime of a profile: its own (an instance with its own config dir or executable), else the runtime's. */
-  const runtimeOf = (profile: ResolvedProfile): ClaudeInstanceRuntime =>
-    options.runtimeOf?.(profile) ?? {
+  const runtimeOf = (profile: ResolvedProfile, spec?: ThreadSpec): ClaudeInstanceRuntime =>
+    options.runtimeOf?.(profile, spec) ?? {
       home: options.home,
       ...(options.executable && { executable: options.executable }),
     };
@@ -32,7 +35,10 @@ export function claudeRuntime(ctx: ClaudeThreadContext) {
     ...claudeProfileOptions(profile, { ...options.baseEnv, CLAUDE_CONFIG_DIR: runtime.home }),
     pathToClaudeCodeExecutable: claudeExecutable(runtime.executable, options.baseEnv),
     ...(runtime.extraArgs && Object.keys(runtime.extraArgs).length > 0 && { extraArgs: runtime.extraArgs }),
-    plugins: [...claudeSkillPlugins(runtime.home), ...managedPlugins(runtime.home, "claude")],
+    plugins: [
+      ...claudeSkillPlugins(runtime.platformHome ?? runtime.home),
+      ...managedPlugins(runtime.platformHome ?? runtime.home, "claude"),
+    ],
   });
 
   /**
@@ -65,5 +71,20 @@ export function claudeRuntime(ctx: ClaudeThreadContext) {
     }
   };
 
-  return { runtimeOf, queryRuntime, inHome, sessionExists };
+  const sessionRuntime = async (profile: ResolvedProfile, spec: ThreadSpec): Promise<ClaudeInstanceRuntime> => {
+    const current = runtimeOf(profile, spec);
+    const existing = await homes.lookup(spec.threadId);
+    const legacy = current.platformHome ?? options.home;
+
+    const legacySession =
+      !existing &&
+      legacy !== current.home &&
+      (await sessionExists(spec.providerThreadId || spec.threadId, spec.cwd, legacy));
+
+    const home = await homes.bind(spec.threadId, legacySession ? legacy : current.home, spec);
+
+    return { ...current, home };
+  };
+
+  return { runtimeOf, sessionRuntime, homes, queryRuntime, inHome, sessionExists };
 }

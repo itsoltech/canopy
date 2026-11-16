@@ -67,10 +67,17 @@ export class ProviderLogins {
             join(this.ctx.state.options.dataDir, `${harness}-home`),
     );
 
-    mkdirSync(home, { recursive: true, mode: 0o700 });
+    if (!runtime.ownLogin || harness === "grok") mkdirSync(home, { recursive: true, mode: 0o700 });
 
     if (runtime.ownLogin && harness === "codex")
-      prepareCodexHome({ dataDir: this.ctx.state.options.dataDir, path: home, ownLogin: true, linkDeviceLogin: false });
+      prepareCodexHome({
+        dataDir: this.ctx.state.options.dataDir,
+        path: home,
+        ownLogin: true,
+        linkDeviceLogin: false,
+        deviceCodexHome: runtime.homePath || this.ctx.state.deviceHomes.codex,
+        protectedDeviceHome: this.ctx.state.deviceHomes.codex,
+      });
 
     if (runtime.ownLogin && harness === "claude")
       prepareClaudeHome({
@@ -78,6 +85,8 @@ export class ProviderLogins {
         path: home,
         ownLogin: true,
         linkDeviceLogin: false,
+        deviceClaudeHome: runtime.homePath || this.ctx.state.deviceHomes.claude,
+        protectedDeviceHome: this.ctx.state.deviceHomes.claude,
       });
     const env: NodeJS.ProcessEnv = { ...process.env };
 

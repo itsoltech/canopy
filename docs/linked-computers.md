@@ -78,6 +78,10 @@ everything here”) z przekierowaniami starych id. Cały stos PR-ów pozostaje d
 Opt-in etapu 4 zastępuje [wspólna konfiguracja](#konkretny-protokół-wspólna-konfiguracja)
 (stos `feat/linked-shared-config-N`, wszystkie siedem etapów zaimplementowane).
 
+Aktualizacja (2026-11-16): polityka konfiguracji użytkownika Claude jest zapisywana
+i synchronizowana jako całość; ścieżka źródłowa pozostaje lokalna. Zachowanie
+jest zaimplementowane w kodzie, a dostępność nightly/beta/stable wynika z promocji wydań.
+
 ### Narzędzia automatyzacji na połączonym komputerze
 
 Status (2026-11-15): lokalne narzędzia automatyzacji i interaktywny Preview
@@ -2495,11 +2499,22 @@ w istniejącym JSONB rekordów. Migracja **0110_config_field_ancestry** dodaje `
 aby jawny wybór zachował również przechodnich autorów alternatywy po restarcie i przekazaniu przez
 trzeci komputer. Starsze wpisy historii mają pustą ancestry i nadal można je przywrócić.
 
-Ścieżki CLI, `homePath`, `shadowHomePath`, pliki logowania i magazyn systemowy logowania pozostają
+Ścieżki CLI, `homePath`, `shadowHomePath`, `userConfiguration.sourcePath`, pliki logowania i magazyn systemowy logowania pozostają
 na komputerze wykonującym CLI. Definicja instancji (w tym argumenty i wybór własnego logowania)
 jest wspólna, ale `ownLogin` nie przenosi żadnego logowania. Włączenie i nadpisania konkretnego
 workera stosuje tylko jego dom; kopia rekordu workera u partnera nigdy nie staje się konfiguracją
 lokalnego workera. Zmienne wskazujące domy CLI są zastrzeżone i nie są zwykłymi zmiennymi instancji.
+
+`userConfiguration` synchronizuje tryb Claude (`ISOLATED`, `LOCAL`, `SHARED`) i wybór
+instrukcji, skilli oraz hooków jako jedno pole. Odbiorca zachowuje własny katalog
+źródłowy, a nowa instancja korzysta z domyślnego katalogu CLI urządzenia. Nadpisanie
+workera zastępuje całą politykę; brak nadpisania oznacza dziedziczenie instancji.
+Brak polityki w starszym zapisie zachowuje izolację. Codex i Grok dopuszczają tylko
+tryb izolowany. Rekord wspólnej definicji nie zawiera katalogu źródłowego;
+zdalny odczyt `GetInstanceWorker` nadal zwraca runtime domu wybranego workera.
+Ścieżka może być bezwzględna, równa `~` albo zaczynać się od `~/` lub `~\`; rozwinięcie następuje
+na workerze, nigdy względem katalogu domowego gatewaya.
+Zmiana nadpisania workera sprawdza jego właściciela; cudzy worker nie jest celem zapisu.
 
 Elementy o różnych id, ale tej samej **tożsamości**, stają się jednym elementem. Scalenie jest deterministyczne:
 kanoniczne id to mniejsze, drugie jest aliasem, a pola scalają się per pole. Każdy komputer liczy ten sam
@@ -2802,7 +2817,7 @@ bazami PostgreSQL i kluczami sekretów, przypięte mTLS, skryptowane workery. Be
    gatewaya i przy każdym lokalnym zapisie w tej samej transakcji (`config-sync/provider-records.ts`); pole
    bez wersji dostaje HLC z `updated_at` wiersza. Lokalny zapis najpierw blokuje `config_clock`, tak jak
    przyjmowana partia. Pola instancji: `label`, `kind`, `baseUrl` (bez proxy), `proxy` (globalne id),
-   `accentColor`, `launchArgs`, `ownLogin`, `allWorkers`, `favorites`, `hidden`, `shown`, `custom`, `apiKey`,
+   `accentColor`, `launchArgs`, `ownLogin`, `userConfiguration` (bez `sourcePath`), `allWorkers`, `favorites`, `hidden`, `shown`, `custom`, `apiKey`,
    `env.<NAZWA>`. Pola proxy: `name`, `kind`, `baseUrl`, `codex`, `secret`. Instancje endpoint są i tak
    zamieniane na zapisane proxy, więc ich klucz zwykle jest sekretem proxy. Nowe zmienne przychodzą
    w kolejności nazw; potem każdy komputer zachowuje swoją kolejność. Partia przyjmuje proxy przed

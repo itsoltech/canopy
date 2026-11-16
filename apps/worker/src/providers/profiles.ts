@@ -1,5 +1,11 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
-import { Provider, ProviderProfileKind, type ProviderProfileSchema, type ProxyCodexOptions } from "@canopy/contracts";
+import {
+  Provider,
+  ProviderProfileKind,
+  type ProviderProfileSchema,
+  type ProviderUserConfiguration,
+  type ProxyCodexOptions,
+} from "@canopy/contracts";
 import { envListProblems } from "@canopy/domain";
 import { Match } from "effect";
 
@@ -28,6 +34,7 @@ interface ProfileConfigBase {
 }
 
 export interface ProfileRuntimeConfig {
+  readonly userConfiguration?: ProfileUserConfiguration;
   /** The harness executable of this instance (else the provider's). */
   readonly executablePath?: string;
   /** The device owner's CLI home the login is linked from (else the worker's CODEX_HOME / CLAUDE_CONFIG_DIR, ~). */
@@ -38,6 +45,11 @@ export interface ProfileRuntimeConfig {
   /** The instance's own login kept in its shadow home (no device login linked). */
   readonly ownLogin?: boolean;
 }
+
+export type ProfileUserConfiguration = Pick<
+  ProviderUserConfiguration,
+  "mode" | "sourcePath" | "instructions" | "skills" | "hooks"
+>;
 
 export interface ProfileEnvVarConfig {
   readonly name: string;
@@ -99,6 +111,10 @@ export interface ProfileStatus {
   readonly version?: string;
   readonly auth?: string;
   readonly authenticated?: boolean;
+  readonly loginHomePath?: string;
+  readonly configurationHomePath?: string;
+  readonly sessionHomePath?: string;
+  readonly privateHomePath?: string;
 }
 
 /** The instance overrides the worker's executable, home, login or launch arguments. */
@@ -108,6 +124,7 @@ export function hasOwnRuntime(runtime: ProfileRuntimeConfig): boolean {
     runtime.homePath ||
     runtime.shadowHomePath ||
     runtime.launchArgs?.length ||
+    runtime.userConfiguration ||
     runtime.ownLogin,
   );
 }
@@ -213,6 +230,10 @@ export function toProfileReport(status: ProfileStatus): MessageInitShape<typeof 
     ...(status.version && { version: status.version }),
     ...(status.auth && { auth: status.auth }),
     ...(status.authenticated && { authenticated: true }),
+    loginHomePath: status.loginHomePath ?? "",
+    configurationHomePath: status.configurationHomePath ?? "",
+    sessionHomePath: status.sessionHomePath ?? "",
+    privateHomePath: status.privateHomePath ?? "",
   };
 }
 

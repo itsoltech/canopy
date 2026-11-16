@@ -4,6 +4,8 @@ import { timestampNow } from "@bufbuild/protobuf/wkt";
 import { Provider, type Command } from "@canopy/contracts";
 import { Effect } from "effect";
 import { claudeCatalogStamp } from "../providers/claude/catalog.ts";
+import { claudeConfigurationHomes } from "../providers/claude/configuration-homes.ts";
+import { providersOf } from "../providers/profiles.ts";
 import { searchFiles } from "../files/search.ts";
 
 import type { CommandOutput } from "./host-types.ts";
@@ -42,7 +44,7 @@ export class QueryCommands {
                 Effect.promise(() =>
                   this.ctx.state.catalogs.get(
                     `claude|${profileId}|${folder}`,
-                    `${this.ctx.state.claude.get(profileId)?.key}|${claudeCatalogStamp(folder, this.ctx.state.claudeHomes.get(profileId) ?? "")}`,
+                    this.#claudeStamp(folder, profileId),
                     () => this.ctx.ops.runIn(threads.listMentionCatalog(profileId, folder)),
                     refresh,
                   ),
@@ -65,6 +67,21 @@ export class QueryCommands {
         listedAt: timestampNow(),
       },
     };
+  }
+
+  #claudeStamp(folder: string, profileId: string): string {
+    const profile = this.ctx.state.config?.profiles.find(
+      (entry) => entry.config.id === profileId && providersOf(entry.config).includes("claude"),
+    );
+
+    const selected = claudeConfigurationHomes(
+      this.ctx.state.options.dataDir,
+      profileId,
+      profile?.config.runtime,
+      this.ctx.state.deviceHomes.claude,
+    );
+
+    return `${this.ctx.state.claude.get(profileId)?.key}|${claudeCatalogStamp(folder, selected.sourceHome)}|${claudeCatalogStamp(folder, selected.platformHome)}`;
   }
 
   async searchFiles(kind: Extract<Command["kind"], { case: "searchFiles" }>): Promise<CommandOutput> {

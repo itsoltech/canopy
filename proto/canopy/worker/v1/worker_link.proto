@@ -229,6 +229,13 @@ message ProviderProfile {
   string auth = 9;
   // Instancja ma poświadczenia (logowanie, klucz); false + detail mówi, czego brakuje.
   bool authenticated = 10;
+  // Effective directories resolved on the worker, never inferred from configuration by clients.
+  // Empty = not reported. These paths contain no credentials.
+  string login_home_path = 11;
+  string configuration_home_path = 12;
+  // Default store for new sessions; existing sessions can retain a previously bound store.
+  string session_home_path = 13;
+  string private_home_path = 14;
 }
 
 message ProviderInfo {
@@ -321,6 +328,23 @@ enum DeviceLogin {
   DEVICE_LOGIN_NONE = 2;
 }
 
+// Claude user configuration, independent of the login source and private session home.
+enum ProviderConfigurationMode {
+  PROVIDER_CONFIGURATION_MODE_UNSPECIFIED = 0; // Existing isolated behavior.
+  PROVIDER_CONFIGURATION_MODE_ISOLATED = 1;
+  PROVIDER_CONFIGURATION_MODE_LOCAL = 2; // Read selected local configuration into a private home.
+  PROVIDER_CONFIGURATION_MODE_SHARED = 3; // Use the source directory directly; never prepare or clean it.
+}
+
+message ProviderUserConfiguration {
+  ProviderConfigurationMode mode = 1;
+  // Empty = the worker's detected Claude configuration directory, independent of home_path.
+  string source_path = 2;
+  bool instructions = 3;
+  bool skills = 4;
+  bool hooks = 5;
+}
+
 message ProviderProfileConfig {
   string id = 1;
   ProviderProfileKind kind = 2;
@@ -354,6 +378,8 @@ message ProviderProfileConfig {
   bool own_login = 13;
   // Public transport options; keys remain in api_key, never in headers or argv.
   ProxyCodexOptions proxy_codex = 14;
+  // Claude only. Absent or UNSPECIFIED = existing isolated configuration.
+  ProviderUserConfiguration user_configuration = 15;
 }
 
 message ProxyCodexOptions {

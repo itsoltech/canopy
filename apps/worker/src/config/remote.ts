@@ -7,7 +7,6 @@ import {
   ConfigAppliedSchema,
   DeviceLogin,
   Provider,
-  ProviderProfileKind,
   type ConfigIssue,
   type ProviderConfig,
   type WorkerConfig,
@@ -19,12 +18,13 @@ import {
   type NativeToolPolicy,
   providersOf,
   type ProfileStatus,
-  type ProviderProfileConfig,
 } from "../providers/index.ts";
 import { CLIS, discoverCli, findCli, systemCliProbe, type CliProbe } from "../cli-tools/discovery.ts";
 import { shellEnvReady } from "../cli-tools/shell-env.ts";
 import { grokAuthPath } from "../providers/grok/home.ts";
 import { instanceShadowHome } from "./homes.ts";
+import { profileConfig } from "./profile-config.ts";
+import { inspectProfilePaths } from "./profile-paths.ts";
 
 export { instanceHome, instanceShadowHome } from "./homes.ts";
 
@@ -358,7 +358,14 @@ function inspectProfile(
     version = line.match(/\d+\.\d+\.\d+(?:[-+][\w.]+)?/)?.[0] ?? version;
   }
 
-  const versioned = { ...status, ...(version !== undefined && { version }) };
+  const versioned = inspectProfilePaths(
+    { ...status, ...(version !== undefined && { version }) },
+    harness,
+    homes,
+    runtime.linkDeviceLogin,
+  );
+
+  if (!versioned.resolved) return versioned;
 
   if (config.kind === "cliproxyapi")
     return status.resolved
@@ -415,58 +422,4 @@ function inspectProfile(
   }
 
   return { ...versioned, auth: login, authenticated: true };
-}
-
-function profileConfig(
-  profile: WorkerConfig["profiles"][number],
-  index: number,
-  issue: (path: string, message: string, fatal?: boolean) => void,
-): ProviderProfileConfig | undefined {
-  const common = {
-    id: profile.id,
-    ...(profile.providers.length > 0 && {
-      providers: profile.providers.map((p) =>
-        Match.value(p).pipe(
-          Match.when(Provider.CLAUDE, () => "claude" as const),
-          Match.when(Provider.GROK, () => "grok" as const),
-          Match.orElse(() => "codex" as const),
-        ),
-      ),
-    }),
-    ...(profile.displayName && { displayName: profile.displayName }),
-    ...(profile.env.length > 0 && {
-      env: profile.env.map((v) => ({ name: v.name, value: v.value, secret: v.secret })),
-    }),
-    ...(profile.disabled && { disabled: true }),
-    ...((profile.executablePath ||
-      profile.homePath ||
-      profile.shadowHomePath ||
-      profile.launchArgs.length > 0 ||
-      profile.ownLogin) && {
-      runtime: {
-        ...(profile.executablePath && { executablePath: profile.executablePath }),
-        ...(profile.homePath && { homePath: profile.homePath }),
-        ...(profile.shadowHomePath && { shadowHomePath: profile.shadowHomePath }),
-        ...(profile.launchArgs.length > 0 && { launchArgs: [...profile.launchArgs] }),
-        ...(profile.ownLogin && { ownLogin: true }),
-      },
-    }),
-  };
-
-  switch (profile.kind) {
-    case ProviderProfileKind.NATIVE:
-      return { kind: "native", ...common };
-    case ProviderProfileKind.CLIPROXYAPI:
-      return {
-        kind: "cliproxyapi",
-        ...common,
-        baseUrl: profile.baseUrl,
-        apiKey: profile.apiKey,
-        ...(profile.proxyCodex && { codex: profile.proxyCodex }),
-      };
-    default:
-      issue(`profiles[${index}].kind`, `unsupported profile kind for "${profile.id}"`);
-
-      return undefined;
-  }
 }

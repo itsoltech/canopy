@@ -21,6 +21,7 @@
     type DraftProblems,
   } from "./instances.ts";
   import RuntimeFields from "./RuntimeFields.svelte";
+  import UserConfigurationFields from "./UserConfigurationFields.svelte";
   import WorkersField from "./WorkersField.svelte";
 
   /**
@@ -221,6 +222,9 @@
               error={shown.workers}
               onchange={(w) => ((draft.allWorkers = w.allWorkers), (draft.workerIds = w.workerIds))}
             />
+            {#if draft.harness === Provider.CLAUDE}
+              <UserConfigurationFields bind:value={draft.userConfiguration} prefix="new" />
+            {/if}
             <Disclosure summaryClass="text-base/6 font-medium sm:text-sm/6">
               {#snippet summary()}Runtime and launch arguments{/snippet}
               <div class="pt-3">
@@ -234,12 +238,6 @@
                 />
               </div>
             </Disclosure>
-            {#if draft.harness === Provider.CLAUDE}
-              <p class="text-sm/5 text-pretty text-zinc-500 dark:text-zinc-400">
-                Claude Code has no sign-in through its API: use the device's login, a key in the variables, or an
-                endpoint.
-              </p>
-            {/if}
           {/if}
         </div>
       {/key}

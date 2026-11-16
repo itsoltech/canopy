@@ -7,6 +7,9 @@ export const THREAD_REWIND_CAPABILITY = "thread_rewind_v1";
 /** Owner-requested permission and sandbox changes on the exact running Claude turn. */
 export const CLAUDE_LIVE_PERMISSIONS_CAPABILITY = "claude_live_permissions_v1";
 
+/** Claude configuration policy and independent login, configuration, session, and private homes. */
+export const CLAUDE_USER_CONFIGURATION_CAPABILITY = "claude_user_configuration_v1";
+
 /** Protocol 0 (before negotiation) is deliberately incompatible. Recovery uses UpdateService. */
 export const MIN_WORKER_LINK_PROTOCOL = 1;
 

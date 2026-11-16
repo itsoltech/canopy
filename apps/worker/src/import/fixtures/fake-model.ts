@@ -8,6 +8,7 @@ import { decodeJson, isJsonObject, isString, jsonObject, jsonString } from "../.
  *
  * Markers in the newest user text choose the answer:
  * - FIXTURE_TOOL: a shell tool call (`echo FIXTURE_TOOL_OUTPUT`), then a text answer after its result;
+ * - FIXTURE_TOOL_WRITE: Claude writes `fixture-write.txt` to test permission enforcement;
  * - FIXTURE_THINK: reasoning, then text;
  * - FIXTURE_AGENT: Claude's subagent tool with the task FIXTURE_SUBTASK;
  * - anything else: a short text answer naming the marker it saw last.
@@ -32,7 +33,7 @@ const text = (value: JsonValue | undefined): string => {
 
 /** The newest user turn, as text; a tool result after it means "answer the result". */
 function last(messages: readonly JsonValue[]) {
-  const tail = messages.at(-1);
+  const tail = messages.findLast((message) => jsonObject(message)?.["role"] !== "system");
   const object = jsonObject(tail);
   const content = object?.["content"];
 
@@ -76,7 +77,12 @@ function anthropic(body: JsonObject, n: number): Response {
       type: "tool_use",
       id: `toolu_fixture_${n}`,
       name: "Bash",
-      input: { command: "echo FIXTURE_TOOL_OUTPUT", description: "Print the fixture marker" },
+      input: {
+        command: said.includes("FIXTURE_TOOL_WRITE")
+          ? "printf FIXTURE_TOOL_OUTPUT > fixture-write.txt"
+          : "echo FIXTURE_TOOL_OUTPUT",
+        description: "Print the fixture marker",
+      },
     });
   else if (!toolResult && said.includes("FIXTURE_AGENT")) {
     const tools = Array.isArray(body["tools"]) ? body["tools"] : [];

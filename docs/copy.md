@@ -79,6 +79,7 @@ appear only as the literal name used by an external tool).
 | instance | configured access to a provider (Settings → Providers) | account, connection |
 | provider account | the account an agent CLI is signed in with on a worker; its action is `Sign in` (no login), `Sign in again` (expired or rejected login) or `Change account` (signed in) | switch account, sign in again (while the login is fine) |
 | profile | how an agent reaches its model | config, preset |
+| user configuration | personal Claude settings and optional global instructions, skills and hooks | user profile |
 | proxy | a CLIProxyAPI instance from Settings → Proxies | relay, tunnel |
 | proxy account | an upstream provider account a proxy sends requests through (Settings → Proxies → Accounts) | auth file, credential, upstream |
 | pace | reported limit use compared with even use until reset; differences use percentage points (pp) | burn rate, velocity |

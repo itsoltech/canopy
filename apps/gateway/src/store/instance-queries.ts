@@ -22,6 +22,7 @@ import { SECRET_PREFIX, checkArgs, checkPath, toUi, type ConfigRow, type WorkerR
 import { migrateProxies } from "./proxy-migration.ts";
 import { isCredentialEnv, protectCredentialEnv } from "./credential-env.ts";
 import { recordProviders } from "../config-sync/provider-records.ts";
+import { normalizeUserConfiguration, userConfigurationProblem } from "./instance-user-configuration.ts";
 
 /** Instances, assignments and workers as stored, and the settings view of them. */
 export function instanceReads(sql: SqlClient.SqlClient) {
@@ -142,13 +143,14 @@ export function instanceWrites(sql: SqlClient.SqlClient, secretsKey: Buffer, rea
       return env;
     });
 
-  const runtimeFrom = (runtime: ui.InstanceRuntime | undefined) =>
+  const runtimeFrom = (harness: Harness, runtime: ui.InstanceRuntime | undefined) =>
     Effect.gen(function* () {
       const problem =
         checkPath("binary path", runtime?.binaryPath) ??
         checkPath("home path", runtime?.homePath) ??
         checkPath("shadow home path", runtime?.shadowHomePath) ??
-        checkArgs(runtime?.launchArgs ?? []);
+        checkArgs(runtime?.launchArgs ?? []) ??
+        (runtime?.userConfiguration && userConfigurationProblem(harness, runtime.userConfiguration));
 
       if (problem) return yield* Effect.fail(new Invalid(problem));
       const stored: StoredRuntime = {};
@@ -162,6 +164,8 @@ export function instanceWrites(sql: SqlClient.SqlClient, secretsKey: Buffer, rea
       if (runtime?.launchArgs.length) stored.launchArgs = [...runtime.launchArgs];
 
       if (runtime?.ownLogin) stored.ownLogin = true;
+
+      if (runtime?.userConfiguration) stored.userConfiguration = normalizeUserConfiguration(runtime.userConfiguration);
 
       return stored;
     });

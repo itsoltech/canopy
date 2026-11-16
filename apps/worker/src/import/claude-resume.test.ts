@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { existsSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
 import {
@@ -21,6 +21,7 @@ import { adoptImportedSession } from "./adopt.ts";
 import { startFakeModel } from "./fixtures/fake-model.ts";
 import { installFixtureHome, treeFingerprint } from "./fixtures/install.ts";
 import { WorkerImport } from "./service.ts";
+import { durableImportHomes } from "./session-homes.ts";
 
 /**
  * Native continue with the real Claude Code (docs/import.md, "Kontynuacja"): an imported session copied into the
@@ -31,7 +32,7 @@ import { WorkerImport } from "./service.ts";
 const temp = tempDirs();
 
 test.skipIf(!Bun.which("claude"))(
-  "the real Claude Code resumes an imported session from Canopy's private home",
+  "the real Claude Code resumes the pinned import after home changes and worker restart",
   async () => {
     const root = temp("canopy-import-claude-resume-");
     const home = join(root, "home");
@@ -59,16 +60,31 @@ test.skipIf(!Bun.which("claude"))(
     const privateHome = join(dataDir, "claude-home");
     const homes = { claudeHome: () => privateHome, codexHome: () => privateHome, grokSessions: () => privateHome };
 
+    const journalPath = join(dataDir, "journal.db");
+
     const adopt = () =>
-      adoptImportedSession(
-        service,
-        homes,
-        create(AdoptImportedSessionSchema, { sourceKey: summary.sourceKey, snapshot: summary.snapshot }),
+      Effect.runPromise(
+        Journal.use((journal) =>
+          Effect.sync(() =>
+            adoptImportedSession(
+              service,
+              durableImportHomes(journal, homes, true),
+              create(AdoptImportedSessionSchema, {
+                sourceKey: summary.sourceKey,
+                snapshot: summary.snapshot,
+                profileId: "fixture",
+              }),
+            ),
+          ),
+        ).pipe(Effect.provide(Journal.layer(journalPath))),
       );
 
-    const sessionId = adopt();
+    const sessionId = await adopt();
+    const nextHome = join(dataDir, "new-profile-home");
+    mkdirSync(nextHome);
+    homes.claudeHome = () => nextHome;
     // Adopting again keeps the same copy (a retried page or a resumed run).
-    expect(adopt()).toBe(sessionId);
+    expect(await adopt()).toBe(sessionId);
 
     const fake = startFakeModel();
 
@@ -113,18 +129,18 @@ test.skipIf(!Bun.which("claude"))(
           publish: () => {},
           interact: async () => create(InteractionResponseSchema, { allow: false }),
           callTool: async () => create(AgentToolResultSchema, { isError: true }),
-          home: privateHome,
+          home: nextHome,
           baseEnv: env,
           executable: Bun.which("claude")!,
           nativeTools: DEFAULT_NATIVE_TOOL_POLICY,
-        }).pipe(Layer.provide(Journal.layer(join(dataDir, "journal.db")))),
+        }).pipe(Layer.provide(Journal.layer(journalPath))),
       ),
     );
 
-    const running = Effect.runPromise(program, { signal: abort.signal }).catch(() => undefined);
+    const running = Effect.runPromise(program, { signal: abort.signal });
 
     try {
-      await answered;
+      await Promise.race([answered, running]);
       const request = fake.requests.find((r) => r.includes("FIXTURE_RESUME"));
       expect(request).toBeDefined();
       // The imported history reached the model as Claude replays it: the compaction summary and the turns after it.
@@ -133,7 +149,7 @@ test.skipIf(!Bun.which("claude"))(
       expect(request).not.toContain("with FIXTURE_AFTER");
     } finally {
       abort.abort();
-      await running;
+      await running.catch(() => undefined);
       await fake.stop();
     }
 
@@ -146,6 +162,7 @@ test.skipIf(!Bun.which("claude"))(
       .find(existsSync);
 
     expect(copy && (await Bun.file(copy).text())).toContain("FIXTURE_RESUME");
+    expect(existsSync(join(nextHome, "projects"))).toBe(false);
   },
   60_000,
 );

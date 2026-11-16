@@ -50,8 +50,10 @@
   </Field>
   <Field
     layout="row"
-    label={harness === Provider.GROK ? "GROK_HOME path" : codex ? "CODEX_HOME path" : "Claude config dir"}
-    description="The device's CLI home the login is linked from."
+    label={harness === Provider.GROK ? "GROK_HOME path" : codex ? "CODEX_HOME path" : "Login source"}
+    description={harness === Provider.CLAUDE
+      ? "Uses the Claude account signed in here, independently of user configuration."
+      : "The device's CLI home the login is linked from."}
   >
     <Input
       name="{prefix}-home"
@@ -64,10 +66,12 @@
   </Field>
   <Field
     layout="row"
-    label="Shadow home path"
+    label={harness === Provider.CLAUDE ? "Private state directory" : "Shadow home path"}
     description={harness === Provider.GROK
       ? "Login home for an instance with its own login. ACP sessions live in the worker's data directory."
-      : "Isolated home the harness runs in: sessions and state, the login linked or its own."}
+      : harness === Provider.CLAUDE
+        ? "Stores private thread history and state when user configuration is isolated or local."
+        : "Isolated home the harness runs in: sessions and state, the login linked or its own."}
   >
     <Input
       name="{prefix}-shadow"

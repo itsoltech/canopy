@@ -20,6 +20,7 @@ export interface CodexHomeOptions {
   readonly linkDeviceLogin: boolean;
   /** Device owner's Codex home: $CODEX_HOME of the worker process, else ~/.codex. */
   readonly deviceCodexHome?: string;
+  readonly protectedDeviceHome?: string;
 }
 
 export type CodexHome = ProviderHome;
@@ -33,6 +34,7 @@ export function prepareCodexHome(options: CodexHomeOptions): CodexHome {
     path: options.path ?? join(options.dataDir, "codex-home"),
     loginFile: "auth.json",
     deviceHome: options.deviceCodexHome ?? deviceCodexHome(process.env),
+    protectedDeviceHome: options.protectedDeviceHome ?? deviceCodexHome(process.env),
     linkDeviceLogin: options.linkDeviceLogin,
     ...(options.ownLogin && { ownLogin: true }),
     missingLogin: "no Codex login on this device; run `codex login` or use a CLIProxyAPI profile",

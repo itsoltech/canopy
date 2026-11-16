@@ -11,6 +11,7 @@ const INSTANCE_DEFAULTS = {
   accentColor: "",
   launchArgs: [],
   ownLogin: false,
+  userConfiguration: null,
   allWorkers: true,
   favorites: [],
   hidden: [],

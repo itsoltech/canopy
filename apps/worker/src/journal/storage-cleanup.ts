@@ -7,7 +7,7 @@ export interface StorageCleanupGrant {
   readonly provider: number;
   readonly providerProfileId: string;
   readonly providerThreadIds: readonly string[];
-  /** Captured after WorkerConfig was applied; empty means an unresolved grant that must stay pending. */
+  /** Locally resolved store; an empty or unverified home allows platform attachments cleanup only. */
   readonly homePath: string;
 }
 
