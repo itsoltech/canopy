@@ -50,7 +50,7 @@ export function aggregateNotes(index: NotesIndex, from: string, to: string): Not
   if (!appVersionIncreased(from, to)) return result;
   const channel = releaseChannel(to);
   const previousChannel = releaseChannel(from);
-  const ordered = index.releases.toSorted((a, b) => compare(b.version, a.version));
+  const ordered = [...index.releases].sort((a, b) => compare(b.version, a.version));
 
   const releases = ordered.filter(
     (release) =>
