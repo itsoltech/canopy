@@ -3,6 +3,7 @@ import { claudeLimitError } from "../usage-limits.ts";
 
 export { isTaskNotificationAck, startsTurn, type GoalVerdict } from "./goal-mapping.ts";
 
+import { ClaudeContextUsage } from "./context-usage.ts";
 import { ClaudeBackgroundMapper } from "./background-mapping.ts";
 import { emptyContent, textContent, toolContent, withOutput, resultText } from "./content-mapping.ts";
 
@@ -63,6 +64,7 @@ type Block = JsonObject;
 const decodeBlocks = Schema.decodeUnknownSync(Schema.Array(Schema.JsonObject));
 
 export class ClaudeEventMapper {
+  readonly #context = new ClaudeContextUsage();
   readonly #background = new ClaudeBackgroundMapper();
   #turnId: string | undefined;
   /** Blocks of the message being streamed, by index. */
@@ -163,6 +165,10 @@ export class ClaudeEventMapper {
   }
 
   map(message: SDKMessage): ThreadEventInit[] {
+    return [...this.#context.map(message, this.#turnId), ...this.#map(message)];
+  }
+
+  #map(message: SDKMessage): ThreadEventInit[] {
     const rawJson = JSON.stringify(message);
 
     const event = (body: ThreadEventInit["body"] | undefined): ThreadEventInit => ({

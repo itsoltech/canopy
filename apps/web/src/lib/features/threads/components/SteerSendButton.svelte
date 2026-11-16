@@ -51,7 +51,7 @@
         name={steerFirst ? "arrow-up" : "queue-list"}
         tone="inherit"
       />{/if}
-    {steerFirst ? "Steer" : "Queue"}
+    <span class="@max-[24rem]/composer:hidden">{steerFirst ? "Steer" : "Queue"}</span>
     <TouchTarget />
   </button>
   <span class="h-4 w-px bg-white/30" aria-hidden="true"></span>

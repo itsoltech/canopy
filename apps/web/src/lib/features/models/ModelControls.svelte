@@ -20,6 +20,7 @@
     workerId,
     allowCustom = true,
     preferFavorites = false,
+    adaptive = false,
     class: className,
   }: {
     options: readonly ModelOption[];
@@ -33,6 +34,8 @@
     allowCustom?: boolean;
     /** Open on favorites when choosing the agent of a new thread. */
     preferFavorites?: boolean;
+    /** Composer controls collapse their labels as their available width shrinks. */
+    adaptive?: boolean;
     class?: ClassValue;
   } = $props();
 
@@ -53,7 +56,7 @@
   }
 </script>
 
-<span class={["flex min-w-0 items-center gap-1", className]}>
+<span class={["flex items-center gap-1", adaptive ? "@container/model-controls min-w-21" : "min-w-0", className]}>
   <span class="flex max-w-48 min-w-0 shrink items-center">
     <ModelPicker
       bind:open={modelOpen}
@@ -62,6 +65,7 @@
       catalog={workerId ? models.of(workerId) : undefined}
       {allowCustom}
       {preferFavorites}
+      {adaptive}
       notice={workerId ? models.errors.get(workerId) : undefined}
       refreshing={workerId ? models.refreshing.has(workerId) : false}
       onrefresh={workerId ? () => void models.refresh(workerId) : undefined}
@@ -76,6 +80,7 @@
         bind:value={effort}
         {option}
         {inherited}
+        {adaptive}
         onmodel={() => (modelOpen = true)}
       />
     </span>

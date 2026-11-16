@@ -2,7 +2,8 @@
 
 Status (2026-11-16): opis zaimplementowanej skali web/desktop, w tym dwuliniowych
 kart sidebara, ich jednoliniowego wariantu w worktree, ikon projektów, wcięć i linii hierarchii
-oraz kompaktowego wariantu przełącznika. Dostępność kanałów: [release.md](release.md).
+oraz kompaktowego wariantu przełącznika i adaptacyjnych pickerów composera.
+Dostępność kanałów: [release.md](release.md).
 
 Jedna skala dla całego web UI. Każdy fragment interfejsu należy do jednego **kontekstu**; kontekst
 wyznacza rozmiar tekstu, wysokość wierszy, odstępy, ikony i kontrolki. Nie ustawiamy rozmiarów
@@ -44,6 +45,16 @@ telefonie zawsze 16 px (iOS powiększa stronę przy fokusie mniejszego pola), ta
 i sidebarze.
 
 ## Kontrolki
+
+Para pickerów modelu i wysiłku w composerze ma własny kontener szerokości
+i minimum 5,25 rem. Przy mniej niż 16 rem pomija strzałki i dodatkowe ikony;
+poniżej 12 rem wysiłek pokazuje paski, a poniżej 9 rem model zachowuje sam znak
+providera. W przedziale 9–16 rem nazwę modelu chroni pominięcie jego znaku.
+Pełne nazwy pozostają w aria-label i podpowiedziach. Poza composerem pickery
+zachowują dotychczasowy wygląd. Poniżej 24 rem szerokości composera odstęp paska
+maleje do 4 px, Steer/Queue pokazuje ikonę i menu, Text składa licznik i limit w dwie
+linie, a Bar skraca pasek. Gdy dodatkowe kontrolki nadal nie mieszczą się obok
+minimalnej pary, pasek zawija wiersz, zachowując miejsce na Send/Steer/Queue.
 
 | Kontrolka | Standard | Nakładka (domyślnie) |
 | --- | --- | --- |

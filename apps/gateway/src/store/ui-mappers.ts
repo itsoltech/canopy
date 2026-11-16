@@ -1,6 +1,6 @@
 import { create, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { InteractionKind, PermissionMode, UsageSchema, ui, github } from "@canopy/contracts";
+import { ContextUsageSchema, InteractionKind, PermissionMode, UsageSchema, ui, github } from "@canopy/contracts";
 import { storedShellResult } from "./shell-input.ts";
 import { fromJson } from "@bufbuild/protobuf";
 import { Match, Predicate } from "effect";
@@ -71,6 +71,7 @@ export function toUiComposerChoices(row: ComposerChoiceColumns): ui.ComposerTurn
 
 export function toUiThread(row: ThreadRow): ui.Thread {
   return create(ui.ThreadSchema, {
+    ...(row.context_usage && { contextUsage: fromJson(ContextUsageSchema, row.context_usage) }),
     ...(row.last_user_turn_choices && { lastUserTurnChoices: toUiComposerChoices(row.last_user_turn_choices) }),
     rewindPending: Boolean(row.rewind_pending_id),
     ...(row.newest_pull_request && {

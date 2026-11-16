@@ -34,6 +34,17 @@
   ]}
 />
 <DeviceChoiceRow
+  preference="contextDisplay"
+  title="Context display"
+  description="Show the latest reported context use in every thread's message box on this device."
+  options={[
+    { value: "off", label: "Off" },
+    { value: "circle", label: "Circle" },
+    { value: "text", label: "Text" },
+    { value: "bar", label: "Bar" },
+  ]}
+/>
+<DeviceChoiceRow
   preference="renderMath"
   title="Render math"
   description="Show LaTeX formulas in messages and previews."

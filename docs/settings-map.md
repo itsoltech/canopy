@@ -2,7 +2,7 @@
 
 Status (2026-11-16): mapa zaimplementowanych ustawień, w tym wspólnego wyboru
 grupowania sidebara w web/desktop i mobile, opcjonalnej retencji archiwum wątków
-oraz wspólnego dopasowania słów w wyszukiwaniu ustawień;
+oraz wspólnego dopasowania słów w wyszukiwaniu ustawień i opcjonalnego wskaźnika kontekstu w composerze web/desktop;
 dostępność kanałów według [release.md](release.md).
 
 ## Nawigacja
@@ -64,6 +64,7 @@ bez zmian. Opcja wyboru bez działania jest wyłączona z opisem „Soon”.
 | Appearance / Interface | Contrast | urządzenie | Standard | Wzmocnienie kontrastu tekstu pomocniczego i obrysów w obu schematach |
 | Appearance / Interface | Thread width | konto | Comfortable | Szerokość wątku i kompozytora |
 | Appearance / Interface | Effort display | urządzenie | Name | Nazwa lub paski w kontrolkach wysiłku modelu, z dostępną nazwą |
+| Appearance / Interface | Context display | urządzenie | Off | Off / Circle / Text / Bar we wszystkich wątkach web/desktop; ostatni raport zajętości i limitu kontekstu, szczegóły po hoverze, fokusie klawiatury lub dotknięciu. Nie uwzględnia szkicu; brak pomiaru ukrywa wskaźnik, zachowując miejsce. Reset pola i całej strony przywraca Off |
 | Appearance / Interface | Render math | urządzenie | On | LaTeX w wiadomościach; wyłączenie pokazuje źródło |
 | Appearance / Interface | Animated mascots | urządzenie | On | Istniejąca animacja botów, respektuje reduced motion |
 | Appearance / Typography | Interface font; Interface size | urządzenie | Canopy (Inter); 14 px | Rodzina i skala typografii interfejsu web/desktop |

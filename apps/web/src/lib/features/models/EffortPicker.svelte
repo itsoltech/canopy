@@ -25,6 +25,7 @@
     inherited,
     open = $bindable(false),
     onmodel,
+    adaptive = false,
     class: className,
   }: {
     option: ModelOption;
@@ -34,6 +35,7 @@
     open?: boolean;
     /** Open the model picker (the model line in the popover). */
     onmodel: () => void;
+    adaptive?: boolean;
     class?: ClassValue;
   } = $props();
 
@@ -68,13 +70,25 @@
     <PillButton
       {...props}
       class={["pl-1.5", className]}
+      chevronClass={adaptive ? "@max-[16rem]/model-controls:hidden" : undefined}
       aria-label="Reasoning effort: {label}{isDefault && current ? ' (default)' : ''}"
     >
       <Icon
         name="light-bulb"
-        class={["size-3.5", value ? "fill-zinc-500 dark:fill-zinc-400" : "fill-zinc-400 dark:fill-zinc-500"]}
+        class={[
+          "size-3.5",
+          adaptive && "@max-[16rem]/model-controls:hidden",
+          value ? "fill-zinc-500 dark:fill-zinc-400" : "fill-zinc-400 dark:fill-zinc-500",
+        ]}
       />
-      <EffortLabel label={pillLabel} rank={pillRank} total={option.efforts.length} />
+      <span class={adaptive ? "@max-[12rem]/model-controls:hidden" : undefined}>
+        <EffortLabel label={pillLabel} rank={pillRank} total={option.efforts.length} />
+      </span>
+      {#if adaptive}
+        <span class="flex items-center @min-[12rem]/model-controls:hidden">
+          <EffortLabel label={pillLabel} rank={pillRank} total={option.efforts.length} display="bars" />
+        </span>
+      {/if}
     </PillButton>
   {/snippet}
 

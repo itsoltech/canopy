@@ -1,5 +1,6 @@
 import { clone, create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import {
+  ContextUsageSchema,
   ItemSchema,
   ItemStatus,
   PermissionMode,
@@ -202,6 +203,12 @@ export const applySideEffects = (sql: SqlClient.SqlClient, threadId: string, seq
            WHERE id = ${threadId}::uuid
              AND (provider_thread_id IS NULL OR provider_thread_id = ${body.value.replacesProviderThreadId || null})
         `;
+
+        return;
+      case "usageUpdated":
+        if (body.value.contextUsage)
+          yield* sql`UPDATE threads SET context_usage = ${JSON.stringify(toJson(ContextUsageSchema, body.value.contextUsage))}::jsonb
+            WHERE id = ${threadId}::uuid`;
 
         return;
       case "turnStarted":

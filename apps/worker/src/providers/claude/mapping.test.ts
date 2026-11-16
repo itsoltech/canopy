@@ -120,12 +120,98 @@ describe("Claude event mapping on recorded turns", () => {
     expect(items.every((i) => i.status === ItemStatus.COMPLETED)).toBe(true);
     // Redacted thinking (empty text, signature only) does not become an empty item.
     expect(items.some((i) => i.content.case === "reasoning")).toBe(false);
+
     // Partial tool input and signatures are not journaled; message-level events are.
-    const raw = events.map((e) => JSON.parse(e.rawJson) as { type: string; event?: { delta?: { type?: string } } });
+    const raw = events
+      .filter((e) => e.body.case !== "usageUpdated")
+      .map((e) => JSON.parse(e.rawJson) as { type: string; event?: { delta?: { type?: string } } });
+
     expect(raw.some((m) => m.type === "stream_event" && m.event?.delta?.type === "input_json_delta")).toBe(false);
     expect(raw.filter((m) => m.type === "assistant").length).toBe(
       fixture("tools-turn").filter((m) => m.type === "assistant").length,
     );
+  });
+
+  test("main context follows the last response, including caches and final streamed output", () => {
+    const messages = fixture("tools-turn");
+    const { events } = replay(messages);
+
+    const observations = events.flatMap((event) =>
+      event.body.case === "usageUpdated" ? [event.body.value.contextUsage] : [],
+    );
+
+    expect(observations.at(-1)).toMatchObject({ usedTokens: 16891n, limitTokens: 1000000n });
+    expect(observations[0]?.limitTokens).toBeUndefined();
+    // The first response's final output count (310) arrives after its assistant blocks.
+    expect(observations.some((usage) => usage?.usedTokens === 16400n)).toBe(true);
+
+    const mapper = new ClaudeEventMapper("next");
+    const assistant = messages.find((message) => message.type === "assistant")!;
+    const child = mapper.map({ ...assistant, parent_tool_use_id: "child" });
+    expect(child.some((event) => event.body?.case === "usageUpdated")).toBe(false);
+    const result = messages.find((message) => message.type === "result")!;
+    const unmapped = mapper.map({ ...result, modelUsage: {} });
+    expect(unmapped.some((event) => event.body?.case === "usageUpdated")).toBe(false);
+  });
+
+  test("compaction invalidates the previous context until the next main-model report", () => {
+    const mapper = new ClaudeEventMapper("compact");
+    const messages = fixture("text-turn");
+
+    for (const message of messages) mapper.map(message);
+
+    const events = mapper.map({
+      type: "system",
+      subtype: "compact_boundary",
+      uuid: "00000000-0000-4000-8000-000000000000",
+      session_id: "session",
+      compact_metadata: { trigger: "auto", pre_tokens: 16011 },
+    });
+
+    expect(events[0]?.body).toEqual({ case: "usageUpdated", value: { contextUsage: {} } });
+    const result = messages.find((message) => message.type === "result")!;
+    expect(mapper.map(result).some((event) => event.body?.case === "usageUpdated")).toBe(false);
+
+    for (const message of messages) mapper.map(message);
+
+    const reset = mapper.map({
+      type: "conversation_reset",
+      new_conversation_id: "00000000-0000-4000-8000-000000000001",
+      uuid: "00000000-0000-4000-8000-000000000002",
+      session_id: "session",
+      trigger: "clear",
+    });
+
+    expect(reset[0]?.body).toEqual({ case: "usageUpdated", value: { contextUsage: {} } });
+    expect(mapper.map(result).some((event) => event.body?.case === "usageUpdated")).toBe(false);
+  });
+
+  test("partial message_delta usage preserves the response's cached input", () => {
+    const messages = fixture("text-turn").map((message): SDKMessage =>
+      message.type === "stream_event" && message.event.type === "message_delta"
+        ? {
+            ...message,
+            event: {
+              ...message.event,
+              usage: {
+                ...message.event.usage,
+                input_tokens: 2,
+                output_tokens: 20,
+                cache_creation_input_tokens: null,
+                cache_read_input_tokens: null,
+              },
+            },
+          }
+        : message,
+    );
+
+    const { events } = replay(messages);
+
+    const last = events
+      .flatMap((event) => (event.body.case === "usageUpdated" ? [event.body.value.contextUsage] : []))
+      .at(-1);
+
+    expect(last?.usedTokens).toBe(16027n);
   });
 
   test("only the text of a message that stops with end_turn is marked final_answer, once it ends", () => {

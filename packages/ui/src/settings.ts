@@ -46,7 +46,7 @@ export const settingsSections: readonly SettingsSection[] = [
     icon: "swatch",
     group: "General",
     keywords:
-      "theme color scheme dark light accent chat width thread width device typography font size interface font interface size monospace font monospace size contrast wrap code blocks wrap diffs effort display render math latex animated mascots",
+      "theme color scheme dark light accent chat width thread width device typography font size interface font interface size monospace font monospace size contrast wrap code blocks wrap diffs effort display context window tokens circle text bar render math latex animated mascots",
   },
   {
     href: "/settings/keybindings",

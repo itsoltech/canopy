@@ -1197,8 +1197,17 @@ message Usage {
   uint64 context_window_tokens = 5;
 }
 
+// Latest provider observation of the main session context, independent of accounting totals.
+// Missing fields mean unknown. Zero used_tokens is a valid observation.
+message ContextUsage {
+  optional uint64 used_tokens = 1;
+  optional uint64 limit_tokens = 2;
+}
+
 message UsageUpdated {
   Usage usage = 1;
+  // Replacement observation; an empty message invalidates a previous observation.
+  ContextUsage context_usage = 2;
 }
 
 enum NoticeLevel {

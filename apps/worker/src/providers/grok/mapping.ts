@@ -98,8 +98,12 @@ export class GrokEventMapper {
         event({
           case: "usageUpdated",
           value: {
+            contextUsage: {
+              ...(Number.isSafeInteger(update.used) && update.used >= 0 && { usedTokens: BigInt(update.used) }),
+              ...(Number.isSafeInteger(update.size) && update.size > 0 && { limitTokens: BigInt(update.size) }),
+            },
             usage: {
-              contextWindowTokens: BigInt(Math.max(0, Math.trunc(update.size))),
+              contextWindowTokens: Number.isSafeInteger(update.size) && update.size > 0 ? BigInt(update.size) : 0n,
               ...(update.cost?.currency === "USD" && { costUsd: update.cost.amount }),
             },
           },

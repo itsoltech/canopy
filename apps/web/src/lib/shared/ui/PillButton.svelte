@@ -12,10 +12,11 @@
   type Props = Omit<HTMLButtonAttributes, "class" | "children"> & {
     class?: ClassValue;
     chevron?: boolean;
+    chevronClass?: ClassValue;
     children: Snippet;
   };
 
-  let { class: className, chevron = true, type = "button", children, title, ...rest }: Props = $props();
+  let { class: className, chevron = true, chevronClass, type = "button", children, title, ...rest }: Props = $props();
 </script>
 
 <button
@@ -28,6 +29,6 @@
   {@attach tooltip(title ?? rest["aria-label"] ?? undefined)}
 >
   {@render children()}
-  {#if chevron}<Icon name="chevron-down" class="size-3.5 fill-zinc-400 dark:fill-zinc-500" />{/if}
+  {#if chevron}<Icon name="chevron-down" class={["size-3.5 fill-zinc-400 dark:fill-zinc-500", chevronClass]} />{/if}
   <TouchTarget />
 </button>

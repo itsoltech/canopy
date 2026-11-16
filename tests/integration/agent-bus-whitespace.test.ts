@@ -30,11 +30,11 @@ import { busText as prompt, textChunks } from "./support/bus-text.ts";
 
 const temp = tempDirs();
 
-/** SDK event fields consumed here; usage, signatures and inference metadata are immaterial to this transcript. */
+/** SDK event fields consumed by transcript and context mapping; signatures and other metadata are omitted. */
 interface StreamFixtureEvent {
   type: string;
   index?: number;
-  message?: { id: string };
+  message?: { id: string; model: string; usage: { input_tokens: number; output_tokens: number } };
   content_block?: { type: string; id?: string; name?: string; input?: JsonObject; text?: string };
   delta?: { type: string; text?: string; partial_json?: string };
 }
@@ -185,7 +185,10 @@ describe.skipIf(!dockerAvailable)("agent bus whitespace through harnesses, Postg
         event,
       } as Parameters<ClaudeEventMapper["map"]>[0]);
 
-    stream({ type: "message_start", message: { id: "tool-message" } });
+    stream({
+      type: "message_start",
+      message: { id: "tool-message", model: "fixture", usage: { input_tokens: 0, output_tokens: 0 } },
+    });
     stream({
       type: "content_block_start",
       index: 0,
@@ -240,7 +243,10 @@ describe.skipIf(!dockerAvailable)("agent bus whitespace through harnesses, Postg
         usage: { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: null, cache_read_input_tokens: null },
       },
     } as Parameters<ClaudeEventMapper["map"]>[0]);
-    stream({ type: "message_start", message: { id: "streamed-message" } });
+    stream({
+      type: "message_start",
+      message: { id: "streamed-message", model: "fixture", usage: { input_tokens: 0, output_tokens: 0 } },
+    });
     stream({ type: "content_block_start", index: 0, content_block: { type: "text", text: "" } });
 
     for (const text of textChunks)

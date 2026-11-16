@@ -99,7 +99,7 @@ export class ThreadState {
   /** The thread's open goal, else its last finished one (undefined: never had one). */
   goal = $state.raw<ui.Goal | undefined>(undefined);
   turnResults = $state.raw<ReadonlyMap<string, TurnResult>>(new Map());
-  /** Latest token usage of the thread (usage_updated), live only; carries the context window. */
+  /** Latest accounting usage, live only. Context use is persisted separately on Thread. */
   usage = $state.raw<Usage | undefined>(undefined);
   readonly composerConnection = new ComposerConnection();
   #connection = $state<Connection>("connecting");
@@ -268,7 +268,7 @@ export class ThreadState {
         this.steers = snapshot.steers;
         this.deliveries = new Map(snapshot.busDeliveries.map((d) => [d.callId, d]));
         this.goal = snapshot.goal;
-        // Live usage (context window) is not in the snapshot: keep what this tab saw before the reconnect.
+        // Accounting usage is live only: keep what this tab saw before the reconnect.
         this.loaded = true;
         break;
       }
@@ -380,7 +380,7 @@ export class ThreadState {
 
         return;
       case "usageUpdated":
-        this.usage = body.value.usage;
+        if (body.value.usage) this.usage = body.value.usage;
 
         return;
       default:

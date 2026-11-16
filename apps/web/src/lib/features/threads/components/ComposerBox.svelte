@@ -88,6 +88,7 @@
     primary = "steer",
     onalternate,
     controls,
+    context,
     drafts,
     meta,
     draft,
@@ -127,6 +128,7 @@
     /** Queueing on: steer the message (Mod+Enter, the button's menu). */
     onalternate?: (() => void) | undefined;
     controls?: Snippet;
+    context?: Snippet;
     drafts?: Snippet;
     meta?: Snippet;
     draft?: AttachmentDraft | undefined;
@@ -328,7 +330,7 @@
   }
 </script>
 
-<div class={["relative grid grid-cols-1", className]}>
+<div class={["@container/composer relative grid grid-cols-1", className]}>
   {#if drafts}<div class="relative h-8" data-drafts-slot>{@render drafts()}</div>{/if}
   <div
     data-feed-edge
@@ -429,11 +431,11 @@
       />{/if}
     <ComposerFold open={!compact}>
       <div
-        class="flex min-h-13 items-center justify-end gap-2 p-2.5 pr-[calc(var(--composer-send-width)+--spacing(5))] pl-3"
+        class="flex min-h-13 flex-wrap items-center gap-2 p-2.5 pr-[calc(var(--composer-send-width)+--spacing(5))] pl-3 @max-[24rem]/composer:gap-1"
       >
         {#if steerMode}
           <p
-            class="flex shrink-0 items-center gap-1.5 text-xs/5 text-zinc-500 max-sm:hidden dark:text-zinc-400 pointer-coarse:hidden"
+            class="flex shrink-0 items-center gap-1.5 text-xs/5 text-zinc-500 max-sm:hidden @max-[40rem]/composer:hidden dark:text-zinc-400 pointer-coarse:hidden"
             aria-hidden="true"
             in:rise
           >
@@ -458,6 +460,7 @@
             warning={Boolean(draft?.notice || shellBlocker)}
           />
         {/if}
+        {@render context?.()}
         {@render controls?.()}
       </div>
     </ComposerFold>
