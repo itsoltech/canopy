@@ -75,7 +75,7 @@ export class DesktopUpdates {
               noLink: true,
             })
           ).response === 1,
-        prepare: (channel, downgrade, signal) => this.prepare(channel, downgrade, signal),
+        prepare: (channel, downgrade, signal, refresh) => this.prepare(channel, downgrade, signal, refresh),
         changed: this.changed,
         checking: () => this.schedule.save(this.schedule.minutes, Date.now()),
         beforeInstall: () => checkAppUpdateInstall(this.stagedUpdater),
@@ -274,9 +274,9 @@ export class DesktopUpdates {
     }
   }
 
-  private async prepare(channel: DesktopChannel, allowDowngrade: boolean, signal: AbortSignal) {
+  private async prepare(channel: DesktopChannel, allowDowngrade: boolean, signal: AbortSignal, refresh: boolean) {
     const updater = this.updater;
-    const result = await this.feed.resolve(channel, allowDowngrade, signal);
+    const result = await this.feed.resolve(channel, allowDowngrade, signal, refresh);
     signal.throwIfAborted();
     const { release, feed } = result;
 

@@ -9,6 +9,7 @@ import type { RequestHandler } from "./$types";
 const Body = Schema.Struct({
   branch: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(255)),
   remote: Schema.Boolean,
+  stashChanges: Schema.optional(Schema.Boolean),
 });
 
 export const GET: RequestHandler = async ({ params }) =>

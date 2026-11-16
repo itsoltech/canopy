@@ -10,7 +10,7 @@ export class DesktopUpdateFeed {
     private readonly catalog: ReleaseCatalog = releaseCatalog,
   ) {}
 
-  async resolve(channel: DesktopChannel, allowDowngrade: boolean, signal: AbortSignal) {
+  async resolve(channel: DesktopChannel, allowDowngrade: boolean, signal: AbortSignal, refresh = false) {
     const suffix =
       process.platform === "darwin"
         ? "-mac"
@@ -21,7 +21,7 @@ export class DesktopUpdateFeed {
     const feed = channelFeed(channel);
     const feedFile = `${feed}${suffix}.yml`;
     signal.throwIfAborted();
-    const releases = await this.catalog.releases();
+    const releases = await this.catalog.releases(refresh);
     signal.throwIfAborted();
     const current = this.version();
     const release = newestRelease(releases, current, channel, feedFile, allowDowngrade);

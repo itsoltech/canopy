@@ -13,6 +13,24 @@ statusu przed i po fetch. Starszy worker nie dostaje nowych komend;
 `WORKER_LINK_PROTOCOL` pozostaje bez zmian. Szczegóły i limity:
 [worktrees.md](worktrees.md#status-zmian-i-pull-z-origin).
 
+## Przełączanie gałęzi i lokalne zmiany
+
+Status (2026-11-17): zaimplementowane; dostępność nightly/beta/stable wynika z promocji wydań
+([release.md](release.md)). `WORKER_LINK_PROTOCOL` pozostaje bez zmian.
+
+`SwitchThreadBranch.stash_changes` jest addytywną zgodą użytkownika na zachowanie i przywrócenie
+lokalnych zmian. Brak pola zachowuje wymaganie czystego checkoutu. Worker ogłasza
+`git_branch_stash_v1`; gateway nie wysyła zgody do starszego workera. Addytywne pole wyniku
+`CommandResult.branch_switch_warning` rozdziela zmianę HEAD zakończoną sukcesem od problemu
+z odzyskaniem zmian; gateway zapisuje HEAD i notatki także wtedy, gdy stash wymaga ręcznej obsługi.
+
+`workspace_branch_switch_v1` rozszerza tę samą komendę o przełączanie z kompozytora bez istniejącego
+wątku. Gateway rozwiązuje id workspace'u i opcjonalnego worktree, nigdy ścieżkę klienta.
+Nowe UI RPC to `ListWorkspaceBranches` i `SwitchWorkspaceBranch`; powiązane połączone komputery
+wymagają `remote_workspace_branch_switch_v1`, a zgoda stash także `remote_branch_stash_v1`.
+`ui.Worker.branch_stash` i `workspace_branch_switch` przekazują capabilities klientom i lustrom.
+Szczegóły blokad, odzyskiwania i prywatnego refa: [worktrees.md](worktrees.md#przełączanie-gałęzi-z-podsumowania).
+
 ## Konfiguracja użytkownika Claude
 
 Status (2026-11-16): zaimplementowana w kodzie. Dostępność nightly/beta/stable

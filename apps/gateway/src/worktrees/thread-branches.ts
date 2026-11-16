@@ -1,16 +1,17 @@
 import { create } from "@bufbuild/protobuf";
-import { ui, type CommandResult } from "@canopy/contracts";
-import {
-  GIT_BRANCH_SWITCH_CAPABILITY,
-  GIT_STATUS_CAPABILITY,
-  REVEAL_PATH_CAPABILITY,
-} from "@canopy/domain/release/protocol";
+import { ui } from "@canopy/contracts";
+import { GIT_STATUS_CAPABILITY, REVEAL_PATH_CAPABILITY } from "@canopy/domain/release/protocol";
 import type { GatewayCore } from "../core/core.ts";
-import { coreRun, coreBroadcastThread } from "../core/core-broadcast.ts";
+import { coreRun } from "../core/core-broadcast.ts";
 import { coreState, InvalidError } from "../core/core-context.ts";
 import { coreWorkerQuery } from "../core/core-mentions.ts";
 import { coreUiThread } from "../core/core-titles.ts";
-import { branchCheckoutPaths, branchSwitchNotices, lockBranchCheckout } from "../store/thread-branches.ts";
+import {
+  branchSwitchReason,
+  listCheckoutBranches,
+  switchCheckoutBranch,
+  pullCheckoutOrigin,
+} from "./branch-checkout.ts";
 
 export class ThreadBranches {
   constructor(readonly core: GatewayCore) {}
@@ -26,33 +27,13 @@ export class ThreadBranches {
     return { ...thread, worker_id: thread.worker_id, cwd: thread.cwd };
   }
 
-  #reason(workerId: string, status = false) {
-    const connection = this.core.link.connections.get(workerId);
-
-    if (!connection?.isOpen) return "This computer is offline. Reconnect it to use Git actions.";
-
-    if (!connection.hello.capabilities.includes(status ? GIT_STATUS_CAPABILITY : GIT_BRANCH_SWITCH_CAPABILITY))
-      return status
-        ? "Update this computer to read changes and pull from origin."
-        : "Update this computer to switch branches.";
-
-    return undefined;
-  }
-
   async list(request: ui.ThreadBranchesRequest): Promise<ui.ListGitRefsResponse> {
     const thread = await this.#thread(request.threadId);
-    const detail = this.#reason(thread.worker_id);
+    const detail = branchSwitchReason(this.core, thread.worker_id);
 
     if (detail) return create(ui.ListGitRefsResponseSchema, { detail });
 
-    const result = await coreWorkerQuery(
-      this.core,
-      thread.worker_id,
-      { case: "listGitRefs", value: { repoPath: thread.cwd, branchesOnly: true } },
-      30_000,
-    );
-
-    return create(ui.ListGitRefsResponseSchema, { supported: Boolean(result.gitRefs?.isRepo), refs: result.gitRefs });
+    return listCheckoutBranches(this.core, thread.worker_id, thread.cwd);
   }
 
   /** Opens the thread's directory in the file manager of its worker's computer. */
@@ -67,9 +48,20 @@ export class ThreadBranches {
     await coreWorkerQuery(this.core, thread.worker_id, { case: "revealPath", value: { path: thread.cwd } }, 20_000);
   }
 
+  #gitReason(workerId: string) {
+    const connection = this.core.link.connections.get(workerId);
+
+    if (!connection?.isOpen) return "This computer is offline. Reconnect it to use Git actions.";
+
+    if (!connection.hello.capabilities.includes(GIT_STATUS_CAPABILITY))
+      return "Update this computer to read changes and pull from origin.";
+
+    return undefined;
+  }
+
   async status(request: ui.ThreadBranchesRequest): Promise<ui.ThreadGitStatusResponse> {
     const thread = await this.#thread(request.threadId);
-    const detail = this.#reason(thread.worker_id, true);
+    const detail = this.#gitReason(thread.worker_id);
 
     if (detail) return create(ui.ThreadGitStatusResponseSchema, { detail });
 
@@ -87,81 +79,22 @@ export class ThreadBranches {
   }
 
   async pull(request: ui.ThreadBranchesRequest): Promise<ui.ThreadGitStatusResponse> {
-    const result = await this.#mutate(request, true);
+    const thread = await this.#thread(request.threadId);
+    const detail = this.#gitReason(thread.worker_id);
+
+    if (detail) throw new InvalidError(detail);
+    const result = await pullCheckoutOrigin(this.core, thread);
 
     return create(ui.ThreadGitStatusResponseSchema, { supported: true, status: result.threadGitStatus });
   }
 
   async switch(request: ui.SwitchThreadBranchRequest): Promise<ui.SwitchThreadBranchResponse> {
-    await this.#mutate(request, false, request);
+    const thread = await this.#thread(request.threadId);
+    const detail = await switchCheckoutBranch(this.core, thread, request);
 
     return create(ui.SwitchThreadBranchResponseSchema, {
-      thread: coreUiThread(this.core, await this.#thread(request.threadId)),
+      thread: coreUiThread(this.core, await this.#thread(thread.id)),
+      detail,
     });
-  }
-
-  async #mutate(
-    request: { threadId: string },
-    pull: boolean,
-    selection?: ui.SwitchThreadBranchRequest,
-  ): Promise<CommandResult> {
-    const thread = await this.#thread(request.threadId);
-    const detail = this.#reason(thread.worker_id, pull);
-
-    if (detail) throw new InvalidError(detail);
-    const actions = this.core[coreState].actions;
-    const knownPaths = await actions.run(branchCheckoutPaths(thread.worker_id));
-
-    const rootResult = await coreWorkerQuery(
-      this.core,
-      thread.worker_id,
-      { case: "listGitRefs", value: { repoPath: thread.cwd, worktreesOnly: true, branchesOnly: true, knownPaths } },
-      30_000,
-    );
-
-    if (!rootResult.gitRefs?.repoRoot) throw new InvalidError("This directory is not a git checkout.");
-
-    const { stored, result } = await actions.transaction(async () => {
-      const ids = await actions.run(
-        lockBranchCheckout(this.core[coreState].options.userId, thread, rootResult.gitRefs?.sameCheckoutPaths ?? []),
-      );
-
-      if (!ids.includes(thread.id)) throw new InvalidError("The working directory changed. Refresh the thread.");
-      const value = { threadId: thread.id, cwd: thread.cwd, expiresAtMs: BigInt(Date.now() + 90_000) };
-
-      const result = await coreWorkerQuery(
-        this.core,
-        thread.worker_id,
-        pull
-          ? { case: "pullThreadOrigin", value }
-          : {
-              case: "switchThreadBranch",
-              value: { ...value, branch: selection?.branch ?? "", remote: selection?.remote ?? false },
-            },
-        120_000,
-      );
-
-      const head = result.switchedHead;
-
-      if (!head?.branch) throw new InvalidError("Could not read the current branch. Refresh the thread.");
-      await coreRun(this.core, (s) => s.saveGitHead(thread.worker_id, ids, head));
-
-      const stored = await actions.run(
-        branchSwitchNotices(ids, head.branch, pull ? result.threadGitStatus?.pullBranch : undefined),
-      );
-
-      return { stored, result };
-    });
-
-    for (const event of stored) {
-      this.core.githubDetection.request(event.threadId);
-      this.core.hub.publishThread(
-        event.threadId,
-        create(ui.ThreadUpdateSchema, { change: { case: "event", value: { seq: event.seq, event: event.event } } }),
-      );
-      await coreBroadcastThread(this.core, event.threadId);
-    }
-
-    return result;
   }
 }

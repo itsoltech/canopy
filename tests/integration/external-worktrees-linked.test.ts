@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Provider, ui } from "@canopy/contracts";
 import {
@@ -8,6 +8,8 @@ import {
   REMOTE_WORKTREES,
   REMOTE_BRANCH_SWITCH,
   REMOTE_GIT_STATUS,
+  REMOTE_BRANCH_STASH,
+  REMOTE_WORKSPACE_BRANCH_SWITCH,
 } from "@canopy/domain/computers";
 import { dockerAvailable } from "@canopy/db/testing";
 import { remoteServe, uiHandlers } from "@canopy/gateway/api";
@@ -32,7 +34,14 @@ describe.skipIf(!dockerAvailable)("external worktrees on a linked computer", () 
     mkdirSync(data);
     home = await worktreeFixture(data, {
       role: "desktop",
-      capabilities: ["git_worktree_discovery", "git_heads", "git_branch_switch_v1", "git_status_v1"],
+      capabilities: [
+        "git_worktree_discovery",
+        "git_heads",
+        "git_branch_switch_v1",
+        "git_status_v1",
+        "git_branch_stash_v1",
+        "workspace_branch_switch_v1",
+      ],
     });
     git(home.repo, "worktree", "add", "-qb", "external/linked", external);
     caller = await startTestGateway({ role: "desktop" });
@@ -63,6 +72,44 @@ describe.skipIf(!dockerAvailable)("external worktrees on a linked computer", () 
     await caller?.close();
     await home?.close();
   }, 30_000);
+
+  test("composer branch changes route to an unregistered worktree at home with explicit stash consent", async () => {
+    const workspaceId = q(home.workspace.id);
+    const tree = (await caller.api.listGitRefs({ workspaceId })).worktrees.find((tree) => tree.path === external)!;
+    git(home.repo, "branch", "external/composer-choice");
+    const request = { workspaceId, worktreeId: tree.id };
+    expect((await caller.api.listWorkspaceBranches(request)).refs?.currentBranch).toBe("external/linked");
+    writeFileSync(join(external, "composer-work.txt"), "linked local work\n");
+    expect(
+      await failure(caller.api.switchWorkspaceBranch({ ...request, branch: "external/composer-choice" })),
+    ).toContain("uncommitted changes");
+
+    const result = await caller.api.switchWorkspaceBranch({
+      ...request,
+      branch: "external/composer-choice",
+      stashChanges: true,
+    });
+
+    expect(result.refs?.currentBranch).toBe("external/composer-choice");
+    expect(result.detail).toBe("");
+    expect(readFileSync(join(external, "composer-work.txt"), "utf8")).toBe("linked local work\n");
+    expect(git(home.repo, "branch", "--show-current")).toBe("main");
+    const stored = await home.sql((sql) => sql`SELECT id FROM worktrees WHERE id=${splitId(tree.id).id}::uuid`);
+    expect(stored).toHaveLength(0);
+    rmSync(join(external, "composer-work.txt"));
+    await caller.api.switchWorkspaceBranch({ ...request, branch: "external/linked" });
+
+    const previous = b.hello().capabilities;
+    b.options.capabilities = previous.filter((capability) => capability !== REMOTE_WORKSPACE_BRANCH_SWITCH);
+    expect(await failure(caller.api.listWorkspaceBranches(request))).toContain("Update the workspace's home computer");
+    b.options.capabilities = previous.filter((capability) => capability !== REMOTE_BRANCH_STASH);
+    expect(
+      await failure(
+        caller.api.switchWorkspaceBranch({ ...request, branch: "external/composer-choice", stashChanges: true }),
+      ),
+    ).toContain("Update the home computer to stash");
+    b.options.capabilities = previous;
+  });
 
   test("discovery, adoption and settings run at the checkout's home with qualified ids", async () => {
     const refs = await caller.api.listGitRefs({ workspaceId: q(home.workspace.id) });

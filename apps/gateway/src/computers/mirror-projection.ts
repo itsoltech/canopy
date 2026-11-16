@@ -139,6 +139,8 @@ export function safeOverview(value: ui.GetOverviewResponse): ui.GetOverviewRespo
       cliImport: w.cliImport,
       branchSwitch: w.branchSwitch,
       gitStatus: w.gitStatus,
+      branchStash: w.branchStash,
+      workspaceBranchSwitch: w.workspaceBranchSwitch,
     })),
     projects: value.projects,
   });

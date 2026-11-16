@@ -22,6 +22,10 @@ export const GIT_STATUS_CAPABILITY = "git_status_v1";
 /** Explicit owner action in an idle thread's checkout; no automatic stash or force. */
 export const GIT_BRANCH_SWITCH_CAPABILITY = "git_branch_switch_v1";
 
+/** Explicit consent to save and restore dirty checkout contents. */
+export const GIT_BRANCH_STASH_CAPABILITY = "git_branch_stash_v1";
+export const WORKSPACE_BRANCH_SWITCH_CAPABILITY = "workspace_branch_switch_v1";
+
 /** Explicit owner action: open a thread's directory in the worker computer's file manager. */
 export const REVEAL_PATH_CAPABILITY = "reveal_path";
 

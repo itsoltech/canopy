@@ -198,6 +198,8 @@ export const SERVED = new Set([
   "ListThreadBranches",
   "GetThreadGitStatus",
   "PullThreadOrigin",
+  "ListWorkspaceBranches",
+  "SwitchWorkspaceBranch",
   "SwitchThreadBranch",
   "ListWorktrees",
   "CleanupWorktrees",

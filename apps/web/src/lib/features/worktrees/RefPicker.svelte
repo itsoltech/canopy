@@ -11,8 +11,7 @@
 
   /**
    * The branch next to the workspace pill (docs/worktrees.md). For a new worktree it is the base ref and can be
-   * searched; for the checkout or a previous worktree it only shows the branch: switching the checkout here could
-   * change files under threads that work in it.
+   * searched. Checkout and existing worktree switching use WorkspaceBranch with admission checks and stash consent.
    */
   let {
     refs,

@@ -818,7 +818,8 @@ message CommandResult {
   string workspace_clone_url = 220;
   WorkspaceCopyResult workspace_copy = 221;
   ThreadGitHead switched_head = 219;
-  ThreadGitStatus thread_git_status = 232;
+  ThreadGitStatus thread_git_status = 233;
+  string branch_switch_warning = 232;
   // Wynik ReadFile i WriteFile (po zapisie bez treści).
   FileContent file = 222;
   GitPrContext git_pr_context = 227;
@@ -1984,6 +1985,9 @@ message SwitchThreadBranch {
   bool remote = 4;
   // Bezpiecznik opóźnionej dostawy; worker kończy operację przed timeoutem gateway.
   uint64 expires_at_ms = 5;
+  bool stash_changes = 6;
+  string expected_checkout = 7;
+  string workspace_repo = 8;
 }
 
 message GitRef {
@@ -2257,6 +2261,8 @@ message ThreadGitRequest {
   string thread_id = 1;
   string cwd = 2;
   uint64 expires_at_ms = 3;
+  // Fresh checkout identity verified by the gateway before reserving its threads.
+  string expected_checkout = 4;
 }
 
 // Dirty index/worktree paths plus untracked files; net lines versus HEAD, ignored files excluded.

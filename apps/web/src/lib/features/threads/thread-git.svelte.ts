@@ -15,6 +15,19 @@ export function useThreadGit(thread: () => ui.Thread, available: () => boolean) 
   let mutation = 0;
   let queued = false;
 
+  const refreshKey = $derived.by(() => {
+    const current = thread();
+
+    return [
+      current.id,
+      current.status,
+      current.worktree?.branch,
+      current.worktree?.detachedCommit,
+      current.checkoutHead?.branch,
+      current.checkoutHead?.detachedCommit,
+    ].join("\0");
+  });
+
   async function reload() {
     if (!available() || pulling) return;
 
@@ -51,13 +64,7 @@ export function useThreadGit(thread: () => ui.Thread, available: () => boolean) 
   }
 
   $effect(() => {
-    const current = thread();
-    void current.id;
-    void current.status;
-    void current.worktree?.branch;
-    void current.worktree?.detachedCommit;
-    void current.checkoutHead?.branch;
-    void current.checkoutHead?.detachedCommit;
+    void refreshKey;
 
     const timer = active && available() ? setTimeout(() => untrack(() => void reload()), 150) : undefined;
 

@@ -45,8 +45,8 @@ export class BranchCommands {
   async pullThreadOrigin(kind: Extract<Command["kind"], { case: "pullThreadOrigin" }>): Promise<CommandOutput> {
     try {
       return await boundedGit(kind.value.expiresAtMs, () =>
-        this.#checkout(kind.value, () =>
-          pullOrigin(kind.value, () =>
+        this.#checkout(kind.value, (root) =>
+          pullOrigin({ ...kind.value, cwd: root }, () =>
             this.#statuses.read(canonicalCheckoutRoot(kind.value.cwd), kind.value.expiresAtMs),
           ),
         ),
@@ -58,16 +58,17 @@ export class BranchCommands {
   }
 
   async #switch(request: SwitchThreadBranch): Promise<CommandOutput> {
-    return this.#checkout(request, async () => ({ switchedHead: await switchBranch(request) }));
+    return this.#checkout(request, (root) => switchBranch({ ...request, cwd: root }));
   }
 
   async #checkout(
-    request: Pick<ThreadGitRequest, "threadId" | "cwd">,
-    run: () => Promise<CommandOutput>,
+    request: Pick<ThreadGitRequest, "threadId" | "cwd"> &
+      Partial<Pick<SwitchThreadBranch, "expectedCheckout" | "workspaceRepo">>,
+    run: (root: string) => Promise<CommandOutput>,
   ): Promise<CommandOutput> {
     const { state } = this.ctx;
     this.ctx.ops.checkCwd(request.cwd);
-    const known = state.cwds.get(request.threadId);
+    const known = request.threadId ? state.cwds.get(request.threadId) : undefined;
 
     if (known && realpathSync(known) !== realpathSync(request.cwd))
       throw new CommandError("INVALID_CHECKOUT", "This thread uses another directory. Refresh the thread.", true);
@@ -76,11 +77,24 @@ export class BranchCommands {
 
     if (!root) throw new CommandError("NOT_A_REPOSITORY", "This directory is not a git checkout.", true);
 
+    if (request.expectedCheckout && request.expectedCheckout !== root)
+      throw new CommandError("INVALID_CHECKOUT", "The working directory changed. Refresh and try again.", true);
+
+    this.ctx.ops.checkCwd(request.cwd);
+
     if (state.switchingPaths.has(root))
       throw new CommandError("CHECKOUT_BUSY", "A Git operation is in progress. Wait for it to finish.", true);
     state.switchingPaths.add(root);
 
     try {
+      if (request.workspaceRepo) {
+        const discovered = await state.worktreeDiscovery.list(request.workspaceRepo, true);
+        const selected = discovered.worktrees.find((tree) => tree.path === root);
+
+        if (!selected || selected.unavailableReason || selected.locked || selected.prunable || selected.missing)
+          throw new CommandError("INVALID_CHECKOUT", "Worktree unavailable. Refresh and choose a worktree.", true);
+      }
+
       const paths = new Set(matchingCheckoutPaths(root, [...state.cwds.values()]));
       const ids = new Set([...state.cwds].flatMap(([id, cwd]) => (paths.has(cwd) ? [id] : [])));
 
@@ -97,11 +111,13 @@ export class BranchCommands {
         throw new CommandError("CHECKOUT_BUSY", "A thread is using this directory. Wait for its turn to finish.", true);
 
       await this.#statuses.settled(root);
-      const result = await run();
-      await state.heads.check(request.threadId);
+      const result = await run(root);
+
+      for (const id of ids) await state.heads.check(id);
 
       return result;
     } finally {
+      state.worktreeDiscovery.clear();
       state.switchingPaths.delete(root);
     }
   }

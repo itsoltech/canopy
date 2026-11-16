@@ -25,6 +25,7 @@ export const PEER_LONG_CALL_TIMEOUTS = new Map([
   ["SwitchThreadBranch", 150_000],
   ["GetThreadGitStatus", 35_000],
   ["PullThreadOrigin", 150_000],
+  ["SwitchWorkspaceBranch", 150_000],
   ["AddProject", 61 * 60_000],
   ["CreateThread", 120_000],
   ["ListWorktrees", 120_000],

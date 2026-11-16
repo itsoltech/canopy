@@ -43,6 +43,8 @@ interface WorkerListRow {
     cliImport?: boolean;
     branchSwitch?: boolean;
     gitStatus?: boolean;
+    branchStash?: boolean;
+    workspaceBranchSwitch?: boolean;
     desktopBundled?: boolean;
     claudeLivePermissions?: boolean;
   };
@@ -81,6 +83,8 @@ function listedWorker(r: WorkerListRow, online: ReadonlySet<string>) {
     cliImport: r.capabilities?.cliImport === true,
     branchSwitch: r.capabilities?.branchSwitch === true,
     gitStatus: r.capabilities?.gitStatus === true,
+    branchStash: r.capabilities?.branchStash === true,
+    workspaceBranchSwitch: r.capabilities?.workspaceBranchSwitch === true,
     desktopBundled: r.capabilities?.desktopBundled === true,
     claudeLivePermissions: r.capabilities?.claudeLivePermissions === true,
     configVersion: r.config_version ? BigInt(r.config_version) : 0n,
@@ -139,6 +143,8 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
           cliImport: hello.capabilities.includes("cli_import_v1"),
           branchSwitch: hello.capabilities.includes("git_branch_switch_v1"),
           gitStatus: hello.capabilities.includes("git_status_v1"),
+          branchStash: hello.capabilities.includes("git_branch_stash_v1"),
+          workspaceBranchSwitch: hello.capabilities.includes("workspace_branch_switch_v1"),
           diagnosticsV1: hello.capabilities.includes("diagnostics_v1"),
           workerDiagnosticsV1: hello.capabilities.includes("worker_diagnostics_v1"),
           // The desktop app's own local-mode worker: it updates with the app (docs/updates.md).
@@ -189,6 +195,7 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
                          'cloneProgress',w.capabilities->'cloneProgress',
                          'cliImport',w.capabilities->'cliImport','branchSwitch',w.capabilities->'branchSwitch',
                          'gitStatus',w.capabilities->'gitStatus',
+                         'branchStash',w.capabilities->'branchStash','workspaceBranchSwitch',w.capabilities->'workspaceBranchSwitch',
                          'desktopBundled',w.capabilities->'desktopBundled',
                          'claudeLivePermissions',w.capabilities->'claudeLivePermissions') AS capabilities, w.last_seen_at, w.revoked_at,
                        coalesce(c.profile_names,'{}'::jsonb) AS profile_names,

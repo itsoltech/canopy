@@ -9,13 +9,13 @@ export async function threadBranches(threadId: string) {
   );
 }
 
-export async function switchThreadBranch(threadId: string, branch: GitRef) {
+export async function switchThreadBranch(threadId: string, branch: GitRef, stashChanges = false) {
   return decode(
     ui.SwitchThreadBranchResponseSchema,
     await requestJson(
       "POST",
       `/api/threads/${threadId}/branches`,
-      { branch: branch.name, remote: branch.remote },
+      { branch: branch.name, remote: branch.remote, stashChanges },
       135_000,
     ),
   );

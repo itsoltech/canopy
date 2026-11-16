@@ -5,8 +5,11 @@ Kopiowanie workspace'u na nowy worker tworzy samodzielny checkout także ze
 wybór obejmuje tylko ignorowane pliki lokalne bez zależności i wyniku builda. Ograniczenia Git:
 [workspace-copy.md](workspace-copy.md).
 
-Status: **etapy 1–3 zaimplementowane** (2026-11-17). Status lokalnych zmian i pull origin
-w web/desktop są zaimplementowane. Etap 1: ustawienia (Creation, Branches,
+Status: **etapy 1–3 zaimplementowane** (2026-11-17), w tym status lokalnych zmian i pull origin
+w web/desktop, przełączanie gałęzi z kompozytora oraz przywracanie lokalnych zmian
+po potwierdzeniu stash & pop.
+Opis dotyczy kodu; dostępność nightly/beta/stable wynika z promocji wydań ([release.md](release.md)).
+Etap 1: ustawienia (Creation, Branches,
 domyślny tryb), operacje git na workerze (refy, tworzenie worktree z bazy, start z remote, nazwy gałęzi
 z semantycznym prefiksem), pickery w kompozytorze nowego wątku i wyświetlanie worktree wątku. Etap 2:
 sprzątanie według polityk, podgląd skutków, status i akcje pojedynczego worktree (pierwotny etap 3),
@@ -68,7 +71,9 @@ wątku rejestruje go z trwałym `external = true` (migracja `0092_external_workt
 `branch_source = fixed` i pustą bazą. Kolejne wątki używają tego samego rekordu. Odłączony HEAD
 może mieć pustą gałąź; bieżące zmiany HEAD płyną zwykłym mechanizmem `git_heads`.
 Canopy nigdy nie przejmuje własności takiego katalogu: nie usuwa, nie przenosi ani nie zmienia
-nazwy katalogu lub gałęzi. Cleanup go pomija, ręczne Remove jest odrzucane w gatewayu,
+nazwy katalogu lub gałęzi. Jawny wybór innej, istniejącej gałęzi przez użytkownika jest dozwolony
+na tych samych zasadach bezpieczeństwa co dla checkoutu projektu. Cleanup go pomija,
+ręczne Remove jest odrzucane w gatewayu,
 a trigger bazy blokuje zmianę pochodzenia, ścieżki i rezerwację usunięcia. Ustawienia pokazują
 go tylko do odczytu (z kopiowaniem ścieżki).
 
@@ -186,11 +191,28 @@ Szczegółowy ahead/behind pozostaje w „Manage worktree”; panel odczytuje lo
   Worker rozstrzyga aliasy ścieżek przez metadane `.git`, pomijając zagnieżdżone repozytoria.
   Aktywna/kolejkowana tura, interakcja, zadanie w tle lub otwarty cel blokują operację;
   worker dodatkowo rezerwuje katalog przed nową turą. UI wyłącza wybór w czasie pracy.
-- Świeży status musi być czysty (także pliki untracked); bez auto-stash i force. Git odmawia, gdy gałąź
-  jest już wybrana w innym worktree. Komenda nie trafia do outboxa; deadline 90 s obejmuje kolejkę
-  process-governor i procesy git, przed timeoutem gatewaya 120 s. Opóźniona dostawa jest odrzucana.
-  Gdy odczyt pickera wykryje zmiany, UI przygasza wartość i blokuje wybór z powodem pod wierszem.
-  Wyzwalacz pozostaje dostępny do ponownego odczytu po uporządkowaniu drzewa; worker zawsze sprawdza świeży status.
+- Worker zawsze sprawdza świeży status, również pliki untracked. Bez potwierdzenia `stash_changes`
+  odrzuca brudny checkout. Web/desktop zamiast blokowania wyboru pokazuje „Switch branch?”:
+  po potwierdzeniu zachowuje zmiany w stashu (także nowe pliki), przełącza gałąź i przywraca zmiany
+  z zachowaniem indeksu. Anulowanie pozostawia pliki i gałąź bez zmian. Mobile nadal wymaga czystego
+  checkoutu. Nie używamy force. Git odmawia, gdy gałąź jest już wybrana w innym worktree.
+- Gdy przywrócenie zmian po przełączeniu wywoła konflikt, gałąź pozostaje przełączona, stash zostaje
+  zachowany, a odpowiedź `detail` ostrzega o konieczności rozwiązania konfliktów w terminalu.
+  Nieudane przełączenie próbuje przywrócić zmiany na poprzedniej gałęzi; błąd odzyskiwania zachowuje stash.
+  Operacja zapisuje własny obiekt w formacie Git stash pod prywatnym refem
+  `refs/canopy/branch-switch/<uuid>` i przywraca wyłącznie jego commit, bez zdejmowania obcego stasha.
+  Sukces usuwa prywatny ref. Błąd przywracania zachowuje go i próbuje dodać zwykły wpis do listy stash;
+  szczegóły w UI podają ref oraz komendę odzyskiwania.
+  Komenda nie trafia do outboxa; deadline 90 s obejmuje kolejkę process-governor i procesy git,
+  przed timeoutem gatewaya 120 s. Opóźniona dostawa jest odrzucana.
+- Stash wymaga capability workera `git_branch_stash_v1`, a na linked home `remote_branch_stash_v1`.
+  Czyste przełączanie istniejącego wątku zachowuje zgodność z `git_branch_switch_v1`.
+- Nierozwiązane konflikty, zmienione submoduły i wpisy intent-to-add (`git add -N`) blokują
+  operację przed zmianą plików. Wpisy intent-to-add trzeba najpierw dodać w pełni albo wycofać z indeksu.
+  Rezerwacja usuwania worktree i przełączanie gałęzi wykluczają się w gatewayu i na workerze.
+- Gdy hook `post-checkout` zgłosi błąd lub przekroczy czas już po zmianie HEAD, worker sprawdza
+  rzeczywistą gałąź poza wygasłym deadline. Zmieniony HEAD wraca jako sukces z ostrzeżeniem,
+  więc gateway zachowuje aktualną gałąź, komunikat i notatkę dla agenta.
 - Po potwierdzeniu gateway zapisuje HEAD i komunikat „Branch switched to X by you” dla wątków checkoutu.
   Notatka trafia do wejścia następnej tury, także wznowionej sesji harnessu, i jest zużywana atomowo
   z zapisem komendy tury. Wejście `! shell` zachowuje ją przed wynikiem polecenia; jeśli polecenie
@@ -429,10 +451,20 @@ Pod polem wiadomości, obok pickera maszyny: **workspace picker** (pill z ikoną
 Obok **ref picker** („Search refs…”): gałąź domyślna oznaczona „default”, bieżąca „current”.
 
 - **New worktree:** ref to baza nowej gałęzi (domyślnie gałąź domyślna).
-- **Current checkout:** tylko podgląd bieżącej gałęzi, bez przełączania. Przełączanie gałęzi checkoutu
-  z kompozytora jest celowo niedostępne: inne wątki mogą pracować w tym katalogu, a `git switch`
-  zmieniłby im pliki w trakcie tury.
-- **Previous worktree:** gałąź worktree, tylko podgląd.
+- **Current checkout:** picker przełącza istniejącą lokalną albo znaną zdalną gałąź checkoutu projektu.
+- **Previous worktree:** picker przełącza gałąź wybranego worktree, również odkrytego poza Canopy.
+  Odczyt i operacja dotyczą tego katalogu, a nie checkoutu projektu.
+
+`ListWorkspaceBranches` i `SwitchWorkspaceBranch` przyjmują id workspace'u oraz opcjonalne id worktree,
+bez ścieżki od klienta. Gateway sprawdza właściciela, workspace oraz aktualną dostępność worktree;
+dla odkrytego wpisu ponawia discovery. Samo przełączenie nie rejestruje zewnętrznego worktree.
+Gateway i worker blokują zmianę podczas pracy któregokolwiek wątku w tym checkoutcie, jak w podsumowaniu.
+Bez zmian lokalnych wybór przełącza gałąź od razu. Zmiany lokalne wymagają dialogu stash & pop opisanego
+wyżej; przyjęcie nowego wątku w kompozytorze czeka na wynik przełączania.
+Worker wymaga `workspace_branch_switch_v1`, a linked home `remote_workspace_branch_switch_v1`.
+Starsze wersje pokazują powód aktualizacji. Lokalizacja wątku pozostaje niezmienna.
+Po sukcesie picker od razu pokazuje nową gałąź, a istniejące wątki checkoutu dostają aktualizację HEAD
+oraz komunikat i notatkę dla następnej tury agenta.
 
 Picker pokazuje się tylko dla workera online z capability `worktrees` i workspace'u w repo git. Domyślny
 tryb pochodzi z efektywnych ustawień (projekt × komputer).

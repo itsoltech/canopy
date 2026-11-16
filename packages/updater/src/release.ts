@@ -212,20 +212,24 @@ export class ReleaseSource {
         })
       : releaseCatalog;
   }
-  async resolve(channel: string, accept?: (manifest: ReleaseManifest) => boolean): Promise<ReleaseManifest> {
+  async resolve(
+    channel: string,
+    accept?: (manifest: ReleaseManifest) => boolean,
+    refresh = false,
+  ): Promise<ReleaseManifest> {
     channel = normalizeChannel(channel);
 
     if (!validChannel(channel)) throw new Error("Use stable, beta, nightly, vX, vX.Y or vX.Y.Z");
 
     if (/^v\d+\.\d+\.\d+$/.test(channel)) {
-      const manifest = await this.#exact(channel.slice(1), true);
+      const manifest = await this.#exact(channel.slice(1), true, refresh);
 
       if (accept && !accept(manifest)) throw new Error("No compatible release for this channel");
 
       return manifest;
     }
 
-    const candidates = (await this.catalog.releases()).filter((release) => {
+    const candidates = (await this.catalog.releases(refresh)).filter((release) => {
       const version = release.tag_name.replace(/^v/, "");
       const match = SEMVER.exec(version);
 
@@ -250,14 +254,14 @@ export class ReleaseSource {
 
     throw new Error(accept ? "No compatible release for this channel" : "No release for this channel");
   }
-  async #exact(version: string, stableOnly: boolean): Promise<ReleaseManifest> {
+  async #exact(version: string, stableOnly: boolean, refresh = false): Promise<ReleaseManifest> {
     let release: CatalogRelease;
 
     try {
-      release = await this.catalog.tag(`v${version}`);
+      release = await this.catalog.tag(`v${version}`, refresh);
     } catch (error) {
       if (!(error instanceof ReleaseHttpError) || error.status !== 404) throw error;
-      release = await this.catalog.tag(version);
+      release = await this.catalog.tag(version, refresh);
     }
 
     if (release.draft || (stableOnly && release.prerelease)) throw new Error("No release for this channel");

@@ -33,6 +33,7 @@ interface Options {
     channel: DesktopChannel,
     allowDowngrade: boolean,
     signal: AbortSignal,
+    refresh: boolean,
   ): Promise<boolean | { available: boolean; releases: DesktopReleaseNote[]; publishing: string | undefined }>;
   changed(): void;
   checking?(): void;
@@ -350,7 +351,7 @@ export class UpdateController {
     this.options.checking?.();
 
     const prepared = await attempt.wait("prepare", () =>
-      this.options.prepare(this.state.channel, allowDowngrade, attempt.signal),
+      this.options.prepare(this.state.channel, allowDowngrade, attempt.signal, !automatic),
     );
 
     if (automatic && !this.automaticEnabled) {

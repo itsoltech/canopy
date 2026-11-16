@@ -21,14 +21,16 @@ export function branchCheckoutPaths(worker: string) {
 }
 
 /** Held through the worker acknowledgement, in the same transaction as notices and the new HEAD. */
-export function lockBranchCheckout(owner: string, target: ThreadRow, paths: readonly string[]) {
+export type BranchCheckout = Pick<ThreadRow, "worker_id" | "worktree_id" | "cwd"> & { id?: string };
+
+export function lockBranchCheckout(owner: string, target: BranchCheckout, paths: readonly string[]) {
   return Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
 
     // Same order as queue/lifecycle admission. Lock all threads of this checkout, including subdirectories.
     const rows = yield* sql<ThreadRow>`SELECT * FROM threads
       WHERE worker_id=${target.worker_id}::uuid AND (
-        id=${target.id}::uuid OR
+        id=${target.id ?? null}::uuid OR
         worktree_id=${target.worktree_id ?? null}::uuid OR
         cwd=ANY(${paths}::text[])
       ) ORDER BY id FOR UPDATE`;
@@ -36,11 +38,12 @@ export function lockBranchCheckout(owner: string, target: ThreadRow, paths: read
     const current = rows.find((row) => row.id === target.id);
 
     if (
-      !current ||
-      current.cwd !== target.cwd ||
-      current.deleted_at ||
-      current.archived_at ||
-      current.worktree_id !== target.worktree_id
+      target.id &&
+      (!current ||
+        current.cwd !== target.cwd ||
+        current.deleted_at ||
+        current.archived_at ||
+        current.worktree_id !== target.worktree_id)
     )
       return yield* Effect.fail(new Invalid("The working directory changed. Refresh the thread."));
 
@@ -94,7 +97,7 @@ export function branchSwitchNotices(ids: readonly string[], branch: string, orig
 
     const rows = yield* sql<{ id: string; last_seq: bigint }>`UPDATE threads SET last_seq=last_seq+1,
       settings=jsonb_set(settings, '{branchNote}', ${JSON.stringify(note)}::jsonb)
-      WHERE id=ANY(${ids}::uuid[]) RETURNING id, last_seq`;
+      WHERE id=ANY(${ids}::uuid[]) AND deleted_at IS NULL RETURNING id, last_seq`;
 
     const stored = [];
 
@@ -119,5 +122,35 @@ export function branchSwitchNotices(ids: readonly string[], branch: string, orig
     }
 
     return stored;
+  });
+}
+
+/** Persist a composer switch even when this checkout has no thread yet. */
+export function saveWorkspaceBranch(owner: string, workspace: string, worktree: string, branch: string) {
+  return Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+
+    if (worktree) {
+      yield* sql`UPDATE worktrees SET branch=${branch}, detached_commit=''
+        WHERE id=${worktree}::uuid AND owner_user_id=${owner}::uuid AND workspace_id=${workspace}::uuid
+        AND removed_at IS NULL`;
+    } else {
+      yield* sql`INSERT INTO checkout_heads (workspace_id,branch,detached_commit)
+        VALUES (${workspace}::uuid,${branch},'') ON CONFLICT (workspace_id) DO UPDATE
+        SET branch=EXCLUDED.branch,detached_commit='',updated_at=now()`;
+    }
+  });
+}
+
+/** Queue and cleanup take thread locks before this availability fence. */
+export function lockBranchWorktree(owner: string, id: string, cwd: string) {
+  return Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+
+    const rows = yield* sql<{ path: string; removal_token: string | null }>`SELECT path,removal_token FROM worktrees
+      WHERE id=${id}::uuid AND owner_user_id=${owner}::uuid AND removed_at IS NULL FOR UPDATE`;
+
+    if (!rows[0] || rows[0].path !== cwd || rows[0].removal_token)
+      return yield* Effect.fail(new Invalid("Worktree unavailable. Refresh and choose a worktree."));
   });
 }

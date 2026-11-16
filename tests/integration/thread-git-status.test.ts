@@ -335,6 +335,38 @@ process.exit(result.exitCode);
     expect(git(thread.cwd, "rev-parse", "HEAD")).toBe(before);
   });
 
+  test("pull rejects a stale checkout identity and a worktree reserved for removal", async () => {
+    const thread = await f.tree();
+    const before = git(thread.cwd, "rev-parse", "HEAD");
+
+    const stale = await f.command({
+      commandId: Bun.randomUUIDv7(),
+      kind: {
+        case: "pullThreadOrigin",
+        value: {
+          threadId: thread.id,
+          cwd: thread.cwd,
+          expectedCheckout: f.repo,
+          expiresAtMs: BigInt(Date.now() + 25_000),
+        },
+      },
+    });
+
+    expect(stale).toMatchObject({ ok: false, errorCode: "INVALID_CHECKOUT" });
+    await f.sql(
+      (sql) =>
+        sql`UPDATE worktrees SET removal_token=${Bun.randomUUIDv7()}::uuid WHERE id=${thread.worktree!.id}::uuid`,
+    );
+
+    try {
+      expect(await failure(f.gw.api.pullThreadOrigin({ threadId: thread.id }))).toContain("Worktree unavailable");
+    } finally {
+      await f.sql((sql) => sql`UPDATE worktrees SET removal_token=NULL WHERE id=${thread.worktree!.id}::uuid`);
+    }
+
+    expect(git(thread.cwd, "rev-parse", "HEAD")).toBe(before);
+  });
+
   test("shares one complete status scan across concurrent threads, subdirectories and checkout aliases", async () => {
     const thread = await f.tree();
     const alias = join(dir, `alias-${thread.id}`);

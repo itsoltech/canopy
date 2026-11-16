@@ -78,11 +78,14 @@ export class ReleaseCatalog {
     this.indexUrl = options.indexUrl ?? (options.baseUrl ? false : RELEASE_INDEX_URL);
   }
 
-  private async index(): Promise<readonly CatalogRelease[] | undefined> {
-    if (!this.indexUrl || (this.options.now ?? Date.now)() < this.unavailableUntil) return undefined;
+  private async index(refresh = false): Promise<readonly CatalogRelease[] | undefined> {
+    if (!this.indexUrl || (!refresh && (this.options.now ?? Date.now)() < this.unavailableUntil)) return undefined;
 
     try {
-      return parseReleaseIndex(await this.http.text(this.indexUrl));
+      const releases = parseReleaseIndex(await this.http.text(this.indexUrl, refresh));
+      this.unavailableUntil = 0;
+
+      return releases;
     } catch {
       this.unavailableUntil = (this.options.now ?? Date.now)() + RELEASE_CACHE_MS;
 
@@ -90,14 +93,14 @@ export class ReleaseCatalog {
     }
   }
 
-  async releases(): Promise<readonly CatalogRelease[]> {
-    const index = await this.index();
+  async releases(refresh = false): Promise<readonly CatalogRelease[]> {
+    const index = await this.index(refresh);
 
     if (index) return index;
     const all: CatalogRelease[] = [];
 
     for (let page = 1; page <= 100; page++) {
-      const text = await this.http.text(`${this.baseUrl}/releases?per_page=100&page=${page}`);
+      const text = await this.http.text(`${this.baseUrl}/releases?per_page=100&page=${page}`, refresh);
       const batch = Schema.decodeUnknownSync(Schema.Array(ApiRelease))(JSON.parse(text));
       all.push(...batch.map(parseApiRelease));
 
@@ -107,8 +110,8 @@ export class ReleaseCatalog {
     throw new Error("Release list exceeds pagination limit");
   }
 
-  async tag(tag: string): Promise<CatalogRelease> {
-    const index = await this.index();
+  async tag(tag: string, refresh = false): Promise<CatalogRelease> {
+    const index = await this.index(refresh);
 
     if (index) {
       const release = index.find((item) => item.tag_name.replace(/^v/, "") === tag.replace(/^v/, ""));
@@ -118,7 +121,7 @@ export class ReleaseCatalog {
       return release;
     }
 
-    const text = await this.http.text(`${this.baseUrl}/releases/tags/${encodeURIComponent(tag)}`);
+    const text = await this.http.text(`${this.baseUrl}/releases/tags/${encodeURIComponent(tag)}`, refresh);
 
     return parseApiRelease(Schema.decodeUnknownSync(ApiRelease)(JSON.parse(text)));
   }
