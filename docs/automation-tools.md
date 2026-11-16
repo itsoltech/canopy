@@ -5,7 +5,12 @@ wątku zaimplementowane**. Browser MCP pozostaje w sesji wątku i działa headle
 watch zachowuje się po aktualizacji statusu tego samego workera, a nowy odbiorca
 aktywnej grupy dostaje ostatnią klatkę. Zmiana uprawnień bieżącej tury Claude
 aktualizuje także autoryzację automatyzacji.
+Automatyczny mini Preview zachowuje wybór celu i minimizację per wątek w sesji
+klienta, także po nawigacji i ponownym zamontowaniu strony.
+Zwijanie i rozwijanie mini Preview używa tego samego przycisku ikonowego z chevronem,
+tooltipem i dostępną nazwą; nagłówek zachowuje układ w obu stanach.
 Interaktywny Preview dopasowuje cały obraz do szerokości i wysokości panelu.
+Pola wymiarów viewportu nie mają przycisków +/−; pasek zawija kontrolki w wąskim panelu.
 Gotowość Desktop wymaga uprawnienia Screen Recording tylko na macOS;
 linuksowy stan `unknown` nie blokuje zainstalowanego narzędzia.
 Ten opis dotyczy stanu kodu i nie oznacza, że funkcja jest już w wydanym buildzie.
@@ -200,6 +205,12 @@ cały viewport pozostawał widoczny, z miejscem na uchwyty zmiany rozmiaru.
 krawędzi. Skalowanie obrazu nie zmienia viewportu przeglądarki; współrzędne
 sterowania i uchwyty odnoszą się do widocznego obrazu po przeskalowaniu.
 
+Pola `Viewport width` i `Viewport height` pozwalają wpisać wymiary bez przycisków
++/−. Klawiaturowe strzałki nadal zmieniają wartość o jeden. `Apply` zachowuje
+jawną zmianę viewportu i dotychczasowy zakres 1–8192 px. Przy mniejszej szerokości
+komunikat o sterowaniu i kontrolki przechodzą do kolejnego wiersza zamiast znikać
+poza krawędzią panelu; oba pola i `Apply` pozostają dostępne.
+
 | Widok | Obraz i wybór celu | Sterowanie i ograniczenia |
 |---|---|---|
 | Browser | Natywny WebSocket `agent-browser` dla sesji Chrome wątku; przekazuje listę kart i pozwala wybrać aktywną kartę w pasku Preview. | Pointer, przyciski, kółko, klawisze i tekst przez natywny strumień; nawigacja oraz przełączanie kart przez CLI. Preview nie zmienia viewportu przy zmianie szerokości panelu; pola `Width` i `Height` oraz uchwyty krawędzi wysyłają jawne `Resize`, a ich wartości są niezależne od rozmiaru panelu. Zamknięcie Preview zwalnia jego WebSocket i utworzony przez niego stream, zachowując sesję agenta. |
@@ -253,7 +264,7 @@ bezpieczny cel; nie niesie surowych argumentów, URL-i, tekstu wejściowego,
 ścieżek ani sesji wybranej przez klienta.
 Wszyscy dostawcy korzystają z tej samej ścieżki. Aktywność jest przejściowa:
 nie trafia do transkryptu, snapshotu, journala, lustra ani replayu i nie jest
-odtwarzana przy nowej stronie, przeładowaniu ani catch-upie historii.
+odtwarzana z historii przy nowej stronie, przeładowaniu ani catch-upie.
 
 Browser zawsze pokazuje aktywną kartę wspólnej sesji wątku. Dla Device bridge
 rozpoznaje jawną platformę i UDID/serial, a dla Desktop — jawne, znane selektory
@@ -272,9 +283,22 @@ działający stream; aktualizacja statusu tego samego workera także go zachowuj
 Nowy odbiorca aktywnej grupy Preview od razu dostaje jej ostatnią klatkę, bez
 czekania na zmianę obrazu. Grupa trzyma tylko jedną ograniczoną klatkę w pamięci;
 zmiana celu, utrata celu Desktop/Device i zamknięcie grupy ją usuwają.
-Minimizacja jest stanem bieżącego wątku na zamontowanej stronie:
-kolejne aktywności nie otwierają ponownie mini Preview; zmiana wątku resetuje wybór
-i minimizację. Sam sygnał nigdy nie przejmuje fokusu.
+Klient pamięta ostatni wybór wynikający z zaobserwowanej, zatwierdzonej aktywności
+i minimizację osobno dla maksymalnie 32 ostatnio odwiedzanych wątków. Powrót do
+wątku przywraca te metadane także po ponownym zamontowaniu strony lub wymianie
+obiektu stanu transkryptu; kolejne aktywności nie cofają minimizacji. Aktywność
+obecna przy pierwszej obserwacji jest nadal sygnałem odebranym na żywo, nie
+odtworzeniem historii. Cache nie przechowuje klatek ani nie trafia do storage;
+przeładowanie klienta, usunięcie jego kopii wątku lub zmiana zakresu dostępu
+usuwa odpowiednie wpisy. Zmiana przypisanego workera, archiwizacja i usunięcie
+wątku również odrzucają wybór. Przywrócenie celu nie omija bieżącego grantu,
+gotowości narzędzia ani autoryzacji gatewaya; watch wznawia się z nową klatką.
+Sam sygnał nigdy nie przejmuje fokusu.
+
+Nagłówek mini Preview ma stałe miejsca na zwijanie/rozwijanie oraz `Open in sidebar`.
+Ten sam przycisk pokazuje chevron w dół przy rozwiniętym podglądzie i w górę przy
+zwiniętym. Tooltip i dostępna nazwa to odpowiednio `Minimize preview` i `Restore preview`;
+`aria-expanded` odzwierciedla stan obrazu. Przełączenie zachowuje fokus na przycisku.
 
 `Open in sidebar` przekazuje ten sam wątek, narzędzie, bezpieczny cel i sesję wątku
 do większego, interaktywnego Preview, przenosi fokus na jego pasek narzędzi i

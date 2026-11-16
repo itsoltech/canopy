@@ -85,7 +85,7 @@
   import WorkspaceContent from "#lib/features/workspace/WorkspaceContent.svelte";
   import WorkspaceSidePanel from "#lib/features/workspace/WorkspaceSidePanel.svelte";
   import AgentPreviewMini from "#lib/features/preview/AgentPreviewMini.svelte";
-  import { AutomaticPreview, type PreviewSelection } from "#lib/features/preview/automatic-preview.svelte.ts";
+  import { AutomaticPreview } from "#lib/features/preview/automatic-preview.svelte.ts";
   import ThreadSummary from "#lib/features/threads/summary/ThreadSummary.svelte";
   import { SummaryLayout } from "#lib/features/threads/summary/summary-layout.svelte.ts";
   import WorkspaceFrame from "#lib/features/workspace/WorkspaceFrame.svelte";
@@ -112,7 +112,6 @@
 
   const view = $derived(memory.view);
   const automaticPreview = new AutomaticPreview(() => view);
-  let sidebarSelection = $state<PreviewSelection>();
 
   $effect(() => {
     const id = threadId;
@@ -316,8 +315,6 @@
   // A ?pr= link opens that pull request in a tab beside the thread.
   const selectedPr = $derived(page.url.searchParams.get("pr") ?? "");
 
-  let panelSheet = $state(false);
-
   // The chat column centres on the window between the sidebar and the docked summary (layout.css
   // `data-chat-placement`); the summary docks only where the column keeps its minimum (summary-layout.svelte.ts).
   const summary = new SummaryLayout(workspaceState);
@@ -330,16 +327,14 @@
   let worktreeDialog = $state(false);
 
   function manageWorktree() {
-    panelSheet = false;
+    if (!workspaceState.wide) workspaceState.panelOpen = false;
     worktreeDialog = true;
   }
 
-  const toggleFiles = () => workspaceState.showPanel("files", () => (panelSheet = true));
-  const togglePreview = () => workspaceState.showPanel("preview", () => (panelSheet = true));
+  const toggleFiles = () => workspaceState.showPanel("files");
+  const togglePreview = () => workspaceState.showPanel("preview");
 
-  const previewOpen = $derived(
-    workspaceState.panelMode === "preview" && (workspaceState.wide ? workspaceState.filesOpen : panelSheet),
-  );
+  const previewOpen = $derived(workspaceState.panelMode === "preview" && workspaceState.panelOpen);
 
   const miniEligible = $derived(
     Boolean(
@@ -350,16 +345,10 @@
     ),
   );
 
-  $effect(() => {
-    void threadId;
-    sidebarSelection = undefined;
-  });
-
   const canBranch = $derived(!away && Boolean(tree && thread && thread.status !== "archived"));
 
   const openSide = () => {
     if (!tree) return;
-    panelSheet = false;
     void goto(`/threads/${encodeURIComponent(tree.main.id)}/new-side-thread`);
   };
 
@@ -375,7 +364,7 @@
   const canSchedule = $derived(Boolean(thread && thread.status !== "archived" && thread.status !== "failed"));
 
   const openSchedule = () => {
-    panelSheet = false;
+    if (!workspaceState.wide) workspaceState.panelOpen = false;
     scheduling = true;
   };
 
@@ -394,7 +383,7 @@
   const shownGoal = $derived(showsGoal(view.goal, dismissedGoals) ? view.goal : undefined);
 
   const setGoalLater = () => {
-    panelSheet = false;
+    if (!workspaceState.wide) workspaceState.panelOpen = false;
     goalDialog = true;
   };
 
@@ -405,7 +394,7 @@
   );
 
   const openOutput = (id: string) => {
-    panelSheet = false;
+    if (!workspaceState.wide) workspaceState.panelOpen = false;
     const task = allBackgroundTasks.find((entry) => entry.id === id);
     workspaceState.view.openModule({
       module: "tasks",
@@ -822,11 +811,9 @@
       state={workspaceState}
       {threadId}
       {worker}
-      selection={sidebarSelection}
       offline={away ?? ""}
       root={(thread?.worktree?.path || thread?.cwd || "").split(/[\\/]/).filter(Boolean).at(-1) ?? ""}
       {width}
-      bind:sheet={panelSheet}
     />
   {/snippet}
 </WorkspaceFrame>
@@ -849,8 +836,10 @@
       onminimize={() => (automaticPreview.minimized = !automaticPreview.minimized)}
       onexpand={(target) => {
         if (!automaticPreview.selection) return;
-        sidebarSelection = { ...automaticPreview.selection, target: target ?? automaticPreview.selection.target };
-        workspaceState.openPreview(() => (panelSheet = true));
+        workspaceState.openPreview({
+          ...automaticPreview.selection,
+          target: target ?? automaticPreview.selection.target,
+        });
       }}
     />
   {/if}

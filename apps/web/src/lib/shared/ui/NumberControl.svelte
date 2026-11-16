@@ -6,7 +6,11 @@
   import StepperButtons from "./StepperButtons.svelte";
 
   /** Internal renderer for Input type=number. Text editing stays native; steppers are ours. */
-  type Props = Omit<HTMLInputAttributes, "class" | "type"> & { class?: ClassValue; compact?: boolean };
+  type Props = Omit<HTMLInputAttributes, "class" | "type"> & {
+    class?: ClassValue;
+    compact?: boolean;
+    steppers?: boolean;
+  };
 
   let {
     value = $bindable(),
@@ -14,6 +18,7 @@
     max,
     step = 1,
     compact = false,
+    steppers = true,
     class: className,
     id: explicitId,
     disabled,
@@ -127,11 +132,15 @@
       } else if (event.key === "Enter") commit();
     }}
   />
-  <StepperButtons
-    {label}
-    decrease={() => move(-1)}
-    increase={() => move(1)}
-    decreaseDisabled={Boolean(disabled || readonly || (lower !== undefined && parsed !== undefined && parsed <= lower))}
-    increaseDisabled={Boolean(disabled || readonly || (upper !== undefined && parsed !== undefined && parsed >= upper))}
-  />
+  {#if steppers}<StepperButtons
+      {label}
+      decrease={() => move(-1)}
+      increase={() => move(1)}
+      decreaseDisabled={Boolean(
+        disabled || readonly || (lower !== undefined && parsed !== undefined && parsed <= lower),
+      )}
+      increaseDisabled={Boolean(
+        disabled || readonly || (upper !== undefined && parsed !== undefined && parsed >= upper),
+      )}
+    />{/if}
 </div>

@@ -251,7 +251,7 @@
 </script>
 
 <div class={["relative flex min-h-0 min-w-0 flex-1 flex-col", className]}>
-  <div class="flex min-h-8 shrink-0 items-center gap-2 overflow-hidden text-xs text-muted">
+  <div class="flex min-h-8 shrink-0 flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted">
     {#if focused}
       <span class="inline-flex shrink-0 items-center gap-1.5 text-brand-700 dark:text-brand-300">
         <StatusDot tone="sky" pulse />

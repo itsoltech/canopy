@@ -179,33 +179,29 @@
   aria-label={`${name} preview`}
   class="density-chrome pointer-events-auto flex max-h-[45dvh] w-80 max-w-full flex-col overflow-hidden rounded-xl bg-surface text-ink shadow-sm ring-1 ring-divider dark:shadow-none"
 >
-  {#if minimized}
-    <div class="flex min-h-10 items-center gap-2 px-2 py-1">
-      <span class="flex min-w-0 flex-1 items-center gap-2 pl-1 text-sm/5 font-medium">
-        <Icon name={icon} />
-        <span class="truncate">{name}</span>
-      </span>
-      <Button size="sm" variant="ghost" data-preview-toggle onclick={() => void toggle()}>Restore preview</Button>
+  <div
+    class="flex h-10 shrink-0 items-center gap-2 border-b border-divider pr-1.5 pl-3 sm:h-9"
+    class:border-transparent={minimized}
+  >
+    <Icon name={icon} />
+    <span class="shrink-0 text-sm/5 font-medium">{name}</span>
+    <div class="min-w-0 flex-1 text-sm/5 text-muted sm:text-xs/5">
+      {#if !minimized}<TruncatedText text={caption} />{/if}
+    </div>
+    <div class="flex shrink-0 items-center gap-1">
+      <IconButton
+        size="sm"
+        icon="chevron-down"
+        iconClass={minimized ? "rotate-180" : undefined}
+        label={minimized ? "Restore preview" : "Minimize preview"}
+        aria-expanded={!minimized}
+        data-preview-toggle
+        onclick={() => void toggle()}
+      />
       <IconButton size="sm" icon="arrow-top-right-on-square" label="Open in sidebar" onclick={expand} />
     </div>
-  {:else}
-    <div class="flex h-10 shrink-0 items-center gap-2 border-b border-divider pr-1.5 pl-3 sm:h-9">
-      <Icon name={icon} />
-      <span class="shrink-0 text-sm/5 font-medium">{name}</span>
-      <div class="min-w-0 flex-1 text-sm/5 text-muted sm:text-xs/5">
-        <TruncatedText text={caption} />
-      </div>
-      <div class="flex shrink-0 items-center gap-1">
-        <IconButton
-          size="sm"
-          icon="chevron-down"
-          label="Minimize preview"
-          data-preview-toggle
-          onclick={() => void toggle()}
-        />
-        <IconButton size="sm" icon="arrow-top-right-on-square" label="Open in sidebar" onclick={expand} />
-      </div>
-    </div>
+  </div>
+  {#if !minimized}
     <div class="relative aspect-2/1 max-h-40 min-h-0 overflow-hidden bg-panel">
       {#if frameUrl && watching && !failed}
         <img src={frameUrl} alt={`Live ${name} preview`} draggable="false" class="size-full object-contain" />

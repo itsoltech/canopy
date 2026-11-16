@@ -51,39 +51,45 @@
   }
 </script>
 
-<div class="flex h-8 shrink-0 items-center gap-1 text-xs text-muted">
+<div class="flex max-w-full min-w-0 flex-wrap items-center gap-2 text-xs text-muted">
   <span class="shrink-0 font-medium">Viewport</span>
-  <label class="flex min-w-0 items-center gap-1">
-    <span aria-hidden="true">W</span>
-    <Input
-      type="number"
-      min={1}
-      max={8192}
-      step={1}
-      aria-label="Viewport width"
-      class="w-36"
-      compact
-      bind:value={widthDraft}
-      oninput={() => (dirty = true)}
-      disabled={!enabled}
-    />
-  </label>
-  <span class="text-xs text-muted">×</span>
-  <label class="flex min-w-0 items-center gap-1">
-    <span aria-hidden="true">H</span>
-    <Input
-      type="number"
-      min={1}
-      max={8192}
-      step={1}
-      aria-label="Viewport height"
-      class="w-36"
-      compact
-      bind:value={heightDraft}
-      oninput={() => (dirty = true)}
-      disabled={!enabled}
-    />
-  </label>
+  <div class="flex max-w-48 min-w-40 flex-1 items-center gap-1">
+    <label class="flex min-w-0 flex-1 items-center gap-1">
+      <span aria-hidden="true">W</span>
+      <Input
+        type="number"
+        min={1}
+        max={8192}
+        step={1}
+        aria-label="Viewport width"
+        name="viewport-width"
+        class="min-w-0 flex-1"
+        compact
+        steppers={false}
+        bind:value={widthDraft}
+        oninput={() => (dirty = true)}
+        disabled={!enabled}
+      />
+    </label>
+    <span class="text-xs text-muted">×</span>
+    <label class="flex min-w-0 flex-1 items-center gap-1">
+      <span aria-hidden="true">H</span>
+      <Input
+        type="number"
+        min={1}
+        max={8192}
+        step={1}
+        aria-label="Viewport height"
+        name="viewport-height"
+        class="min-w-0 flex-1"
+        compact
+        steppers={false}
+        bind:value={heightDraft}
+        oninput={() => (dirty = true)}
+        disabled={!enabled}
+      />
+    </label>
+  </div>
   <Button
     type="button"
     size="sm"

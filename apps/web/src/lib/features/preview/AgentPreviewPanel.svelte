@@ -20,18 +20,22 @@
     worker,
     active,
     selection,
+    onselectionfocus,
+    tool = $bindable(AgentTool.BROWSER),
+    target = $bindable<AgentPreviewTarget | undefined>(),
     offline = "",
   }: {
     threadId: string;
     worker?: ui.Worker;
     active: boolean;
     selection?: PreviewSelection;
+    onselectionfocus?: () => void;
+    tool?: AgentTool;
+    target?: AgentPreviewTarget;
     offline?: string;
   } = $props();
 
   const session = new PreviewSession();
-  let tool = $state(AgentTool.BROWSER);
-  let target = $state<AgentPreviewTarget>();
   let foreground = $state(false);
   let visible = $state(false);
   let connected = $state(false);
@@ -56,13 +60,6 @@
   const live = $derived(["ready", "frame"].includes(session.state));
   const failed = $derived(["error", "closed"].includes(session.state));
 
-  // A mini preview hands its scope over once; later tool calls preserve the user's sidebar selection.
-  $effect(() => {
-    if (!selection) return;
-    tool = selection.tool;
-    target = selection.target;
-  });
-
   $effect(() => {
     const requested = selection;
     const element = root;
@@ -70,7 +67,10 @@
     if (!requested || !active || !element || requested === focusedSelection) return;
     focusedSelection = requested;
     void tick().then(() => {
-      if (element.isConnected && untrack(() => active)) element.querySelector("button")?.focus({ preventScroll: true });
+      if (element.isConnected && untrack(() => active)) {
+        element.querySelector("button")?.focus({ preventScroll: true });
+        onselectionfocus?.();
+      }
     });
   });
 

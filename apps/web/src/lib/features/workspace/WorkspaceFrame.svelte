@@ -7,7 +7,7 @@
 
   /**
    * The thread area and shared Files/Preview panel. The grid eases the panel's column open and shut
-   * (motion.css `t-panel-column`); changing threads keeps the selected panel and its geometry.
+   * (motion.css `t-panel-column`); changing threads restores each thread’s panel while keeping shared geometry.
    */
   let {
     state: workspace,

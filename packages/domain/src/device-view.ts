@@ -18,7 +18,6 @@ const savedView = Schema.Struct({
   threadPanelCollapsed: Schema.optionalKey(Schema.Boolean),
   sidebarWidth: Schema.optionalKey(Schema.Number),
   pullRequestWidth: Schema.optionalKey(Schema.Number),
-  filesPanelOpen: Schema.optionalKey(Schema.Boolean),
   filesPanelWidth: Schema.optionalKey(Schema.Number),
   projectIds: Schema.optionalKey(Schema.Array(Schema.String)),
   groupByProject: Schema.optionalKey(Schema.Boolean),
@@ -51,7 +50,6 @@ export interface DeviceViewValues extends DeviceSidebarValues {
   threadPanelCollapsed: boolean;
   sidebarWidth: number;
   pullRequestWidth: number;
-  filesPanelOpen: boolean;
   filesPanelWidth: number;
 }
 
@@ -68,7 +66,6 @@ export const deviceViewDefaults: DeviceViewValues = {
   threadPanelCollapsed: false,
   sidebarWidth: 0,
   pullRequestWidth: 0,
-  filesPanelOpen: false,
   filesPanelWidth: FILES_PANEL_WIDTH.default,
   projectIds: [],
   groupByProject: false,

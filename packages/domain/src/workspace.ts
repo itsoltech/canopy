@@ -1,4 +1,5 @@
 import { fileLocation } from "./file-references.ts";
+import { AgentTool } from "@canopy/contracts";
 import { restoreWorkspace, workspaceMetadata } from "./workspace-storage.ts";
 import {
   WorkspaceFile,
@@ -22,9 +23,20 @@ export type { WorkspaceEntry, WorkspaceTab } from "./workspace-modules.ts";
 export const WORKSPACE_TAB_LIMIT = 12;
 const DRAFT_BYTES = 4 * 1024 * 1024;
 
+export interface WorkspacePanel {
+  open: boolean;
+  mode: "files" | "preview";
+  tool: AgentTool;
+}
+
 /** One thread's tab model. Thread is implicit and always first; focus never follows storage events. */
 export class Workspace {
   tabs: WorkspaceEntry[] = [];
+  panel: WorkspacePanel = {
+    open: false,
+    mode: "files",
+    tool: AgentTool.BROWSER,
+  };
   active = "thread";
   error = "";
   #recent: string[] = [];
