@@ -4,8 +4,9 @@ Status: **zaimplementowane; układ v3**, kompaktowa typografia zakładek, diagra
 `Rendered`, bezpieczny HTML i lokalne obrazy w Markdown w web/desktop,
 cytowanie zaznaczeń z plików, przeciąganie plików do wiadomości
 i interaktywny Preview automatyzacji w panelu web/desktop oraz automatyczny mini Preview
-pod podsumowaniem wątku
-(2026-11-15; stos #640–#648, potem #710, #711, #737, #740, #787 i #823).
+pod podsumowaniem wątku, przywracanie mini Preview oraz osobnego stanu prawego panelu
+po powrocie do wątku, kompaktowe pola wymiarów Preview bez +/−
+(2026-11-16; stos #640–#648, potem #710, #711, #737, #740, #787 i #823).
 Opis dotyczy kodu; dostępność nightly/beta/stable określają [wydania](release.md).
 W web/desktop zakładki dzielą rząd z sygnetem projektu, a **tytuł wątku jest pierwszą,
 niezamykalną kartą** (bez osobnego tytułu i etykiety `Thread`, #787). Mobile pokazuje
@@ -293,11 +294,12 @@ Zatwierdzone rzeczywiste wywołanie lokalnego MCP wysyła do bieżącego obserwa
 wątku przejściową, typowaną aktywność. Mini Preview pojawia się pod kartą albo
 pigułką podsumowania, śledzi najnowsze narzędzie i bezpieczny cel, działa tylko do
 odczytu z limitem 4 klatek na sekundę i nie zmienia viewportu. Czeka na przeglądarkę
-agenta, bez uruchamiania jej ani automatycznej nawigacji. Nowa strona,
-przeładowanie oraz catch-up historii nie odtwarzają starych aktywności. Minimizacja
-pozostaje skuteczna przez życie zamontowanej strony bieżącego wątku, także po
-kolejnych wywołaniach; zmiana wątku resetuje wybór i minimizację. Sygnał nie
-przejmuje fokusu, a kolejne aktywności dla tego samego zakresu zachowują stream.
+agenta, bez uruchamiania jej ani automatycznej nawigacji. Przeładowanie klienta
+oraz catch-up historii nie odtwarzają starych aktywności. Minimizacja pozostaje
+skuteczna w sesji klienta, także po kolejnych wywołaniach. Powrót do wątku
+przywraca wybór i minimizację z ograniczonej pamięci sesji; nie odtwarza historii
+ani poprzedniej klatki. Sygnał nie przejmuje fokusu, a kolejne aktywności dla tego
+samego zakresu zachowują stream.
 Rozpoznawanie celu i granice sesji opisuje
 [automation-tools.md](automation-tools.md#automatyczny-mini-preview).
 
@@ -305,11 +307,14 @@ Rozpoznawanie celu i granice sesji opisuje
 
 Prawy panel ma wspólny przełącznik **Files / Preview**. Files zachowuje drzewo,
 nazwę katalogu i akcje `Reload files`/opcje; wybrany plik otwiera kartę głównej
-treści. Otwarcie panelu i szerokość Files (256–480 px, domyślnie 288 px)
-pozostają wspólnym wyborem urządzenia (`filesPanelOpen`, `filesPanelWidth`).
-Tryb panelu i szerokość Preview (320–1100 px, domyślnie 520 px, ograniczona
-dostępnym miejscem) pozostają w pamięci zamontowanej strony, również przy
-zmianie wątku. Nowa strona zaczyna od Files. Wybór Preview nie zmienia kolejności
+treści. Otwarcie panelu, tryb Files/Preview i narzędzie Browser/Desktop/Device są zapisywane
+osobno dla każdego wątku w lokalnych metadanych workspace’u, w zakresie klienta
+i gatewaya (do 30 ostatnich wątków). Powrót do wątku oraz przeładowanie strony
+przywracają ten wybór; nowy wątek zaczyna od zamkniętego Files. Dotyczy to również
+arkusza na wąskim ekranie. Szerokość Files (256–480 px, domyślnie 288 px) pozostaje
+wspólnym wyborem urządzenia (`filesPanelWidth`). Szerokość Preview (320–1100 px,
+domyślnie 520 px, ograniczona dostępnym miejscem) pozostaje w pamięci
+zamontowanej strony. Wybór Preview nie zmienia kolejności
 kart, podglądu pliku ani niezapisanych edycji; drzewo Files zachowuje montaż
 i scroll. Uchwyt zmienia szerokość, a na wąskim ekranie ta sama zawartość
 otwiera arkusz na cały ekran. Panel ma wspólną akcję `Close side panel`.
@@ -318,12 +323,15 @@ Preview wybiera **Browser / Desktop / Device**, a kompaktowy pasek pokazuje
 cel, adres i nawigację właściwe dla narzędzia oraz dopasowanie/pełny ekran.
 Browser pokazuje karty sesji wątku i pozwala przełączyć aktywną kartę; zachowuje ustawiony przez agenta viewport
 przy zmianie szerokości panelu i udostępnia pasek z polami szerokości oraz wysokości
-oraz uchwyty krawędzi do jawnej zmiany viewportu;
+oraz uchwyty krawędzi do jawnej zmiany viewportu.
+Oba pola są kompaktowe, bez przycisków +/−, a pasek zawija się w wąskim panelu,
+zachowując dostęp do obu wartości oraz `Apply`.
 Desktop i Device wybierają cele z metadanych backendu, bez wpisywania surowych
 identyfikatorów. Kliknięcie obrazu aktywuje klawiaturę; IME i wklejany tekst
 trafiają do celu, Escape przenosi fokus na obraz, a utrata fokusu okna lub pola
-zwalnia klawisze i wskaźnik. Wybór narzędzia/celu przetrwa przełączenie na Files,
-lecz zmiana wątku go resetuje. Preview może działać obok karty pliku lub PR.
+zwalnia klawisze i wskaźnik. Wybór narzędzia/celu przetrwa przełączenie na Files
+i powrót z innego wątku. Cel pozostaje wyłącznie w pamięci workspace’u danego wątku;
+klatki nie są zachowywane. Preview może działać obok karty pliku lub PR.
 Współrzędne myszy i gestów liczymy względem obrazu, z pominięciem pustych marginesów.
 
 Przycisk `Open in sidebar` przekazuje ten sam wątek, narzędzie, bezpieczny cel i
@@ -884,8 +892,8 @@ Nie dodajemy biblioteki animacji ani osobnej skali czasów.
 Panel Files/Preview i karta podsumowania animują się według §2 („Ruch”). Kolumna wątku
 zmienia szerokość płynnie razem z kolumną panelu, a treść panelu ma stałą szerokość
 i tylko przenika, więc nie przeskakuje ani nie zasłania rozmowy. Szerokość
-i otwarcie Files są wspólne dla urządzenia; Preview zachowuje szerokość w pamięci
-strony. Zmiana wątku nie wymusza innego układu panelu.
+Files jest wspólna dla urządzenia; Preview zachowuje szerokość w pamięci
+strony. Zmiana wątku przywraca jego własny stan otwarcia i aktywny moduł panelu.
 Przy reduced motion wszystkie te przejścia są natychmiastowe. Resize nie uruchamia
 sekwencji przejść.
 

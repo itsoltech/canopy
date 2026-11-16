@@ -1,4 +1,5 @@
-import { objectsOf, parseObject, str } from "./json.ts";
+import { AgentTool } from "@canopy/contracts";
+import { objectOf, objectsOf, parseObject, str } from "./json.ts";
 import { workspaceModule } from "./workspace-modules.ts";
 import { WORKSPACE_TAB_LIMIT, type WorkspaceStore } from "./workspace.ts";
 
@@ -12,8 +13,14 @@ export function restoreWorkspace(store: WorkspaceStore, raw: string | null): voi
     const id = str(saved["threadId"]);
 
     if (!id || id.length > 1024) continue;
-    // Older layouts also stored a per-thread panel (sidebar, panelCollapsed, panelWidth); Files is device-wide now.
     const view = store.view(id);
+    const panel = objectOf(saved["panel"]);
+    view.panel = {
+      open: panel["open"] === true,
+      mode: panel["mode"] === "preview" ? "preview" : "files",
+      tool:
+        panel["tool"] === AgentTool.DESKTOP || panel["tool"] === AgentTool.DEVICE ? panel["tool"] : AgentTool.BROWSER,
+    };
 
     for (const tab of objectsOf(saved["tabs"]).slice(0, WORKSPACE_TAB_LIMIT - 1)) {
       const module = workspaceModule(str(tab["module"]));
@@ -43,6 +50,7 @@ export function restoreWorkspace(store: WorkspaceStore, raw: string | null): voi
 export function workspaceMetadata(store: WorkspaceStore): string {
   const views = [...store.views.values()].slice(-30).map((view) => ({
     threadId: view.threadId,
+    panel: view.panel,
     active: view.tabs.findIndex((tab) => tab.id === view.active) + 1,
     tabs: view.tabs.map((tab) =>
       tab.kind === "module"

@@ -1,4 +1,6 @@
 import { untrack } from "svelte";
+import type { AgentPreviewTarget, AgentTool } from "@canopy/contracts";
+import type { PreviewSelection } from "#lib/features/preview/automatic-preview.svelte.ts";
 import type { Attachment } from "svelte/attachments";
 import { FILES_PANEL_WIDTH } from "@canopy/domain/device-view";
 import { useShell } from "#lib/features/navigation/shell.ts";
@@ -8,13 +10,21 @@ import { fileTab, tabBusy, tabDirty } from "@canopy/domain/workspace-modules";
 import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
 import { provideWorkspace, workspaceStore, workspaceVersion } from "./workspace.svelte.ts";
 
+class PreviewChoice {
+  workerId = "";
+  target = $state<AgentPreviewTarget>();
+  selection = $state<PreviewSelection>();
+}
+
+// Scoped to workspace lifetime: clearing the client scope also releases its private targets.
+const previewChoices = new WeakMap<Workspace, PreviewChoice>();
+
 export class ThreadWorkspace {
   /** Width of the thread area and Files together, where the sidebar is going (`measure`). */
   width = $state(0);
   rem = $state(16);
   /** Files width while its edge is dragged. */
   panelDraft = $state<number>();
-  panelMode = $state<"files" | "preview">("files");
   previewWidth = $state(520);
   closing = $state<WorkspaceTab[]>([]);
   #closingView: Workspace | undefined;
@@ -27,7 +37,10 @@ export class ThreadWorkspace {
     $effect(() => {
       const id = threadId();
       const view = untrack(() => workspaceStore.view(id));
-      untrack(() => workspaceStore.touch(view));
+      untrack(() => {
+        workspaceStore.touch(view);
+        this.panelDraft = undefined;
+      });
 
       return () => view.currentFile?.document.cancel();
     });
@@ -37,6 +50,39 @@ export class ThreadWorkspace {
     void workspaceVersion();
 
     return workspaceStore.view(this.threadId());
+  }
+
+  get panelOpen(): boolean {
+    return this.view.panel.open;
+  }
+  set panelOpen(open: boolean) {
+    this.view.panel.open = open;
+    workspaceStore.notify(true);
+  }
+  get panelMode() {
+    return this.view.panel.mode;
+  }
+  set panelMode(mode: "files" | "preview") {
+    this.view.panel.mode = mode;
+    workspaceStore.notify(true);
+  }
+  get previewTool(): AgentTool {
+    return this.view.panel.tool;
+  }
+  set previewTool(tool: AgentTool) {
+    this.view.panel.tool = tool;
+    workspaceStore.notify(true);
+  }
+  get previewChoice(): PreviewChoice {
+    const view = this.view;
+    let choice = previewChoices.get(view);
+
+    if (!choice) {
+      choice = new PreviewChoice();
+      previewChoices.set(view, choice);
+    }
+
+    return choice;
   }
 
   get current() {
@@ -62,7 +108,7 @@ export class ThreadWorkspace {
 
   /** Files shows as the right column (wide screens only). */
   get filesOpen(): boolean {
-    return this.wide && devicePreferences.view.filesPanelOpen;
+    return this.wide && this.panelOpen;
   }
 
   get panelMax(): number {
@@ -93,21 +139,19 @@ export class ThreadWorkspace {
     this.panelDraft = undefined;
   }
 
-  showPanel(mode: "files" | "preview", sheet: () => void): void {
+  showPanel(mode: "files" | "preview"): void {
     const same = this.panelMode === mode;
-    this.panelMode = mode;
+    this.view.panel = { ...this.view.panel, mode, open: same ? !this.panelOpen : true };
     this.panelDraft = undefined;
-
-    if (this.wide) devicePreferences.setView({ filesPanelOpen: same ? !this.filesOpen : true });
-    else sheet();
+    workspaceStore.notify(true);
   }
 
-  openPreview(sheet: () => void): void {
-    this.panelMode = "preview";
+  openPreview(selection: PreviewSelection): void {
+    this.previewChoice.selection = selection;
+    this.previewChoice.target = selection.target;
+    this.view.panel = { open: true, mode: "preview", tool: selection.tool };
     this.panelDraft = undefined;
-
-    if (this.wide) devicePreferences.setView({ filesPanelOpen: true });
-    else sheet();
+    workspaceStore.notify(true);
   }
 
   /** The sidebar's `--sidebar-width`, for the chat column that follows it (layout.css `data-chat-placement`). */
@@ -146,12 +190,6 @@ export class ThreadWorkspace {
   /** The floating thread summary is open or collapsed to its pill: one choice on this device. */
   toggleSummary(): void {
     devicePreferences.setView({ threadPanelCollapsed: !devicePreferences.view.threadPanelCollapsed });
-  }
-
-  /** Files is the right column on wide screens (one choice on this device) and a sheet on narrow ones. */
-  toggleFiles(sheet: () => void): void {
-    if (this.wide) devicePreferences.setView({ filesPanelOpen: !devicePreferences.view.filesPanelOpen });
-    else sheet();
   }
 
   private closeTabs(ids: string[]): void {

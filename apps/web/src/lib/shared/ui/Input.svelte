@@ -24,6 +24,8 @@
     bare?: boolean;
     choice?: boolean;
     compact?: boolean;
+    /** Numeric inputs can omit the pointer steppers while retaining keyboard stepping. */
+    steppers?: boolean;
   };
 
   let {
@@ -32,6 +34,7 @@
     bare = false,
     choice = false,
     compact = false,
+    steppers = true,
     type = "text",
     ...rest
   }: Props = $props();
@@ -41,7 +44,7 @@
 </script>
 
 {#if type === "number"}
-  <NumberControl {...rest} bind:value class={className} {compact} />
+  <NumberControl {...rest} bind:value class={className} {compact} {steppers} />
 {:else if type === "datetime-local" || type === "date" || type === "time"}
   <DateTimeControl {...rest} type={type as DateTimeKind} bind:value class={className} />
 {:else if choice}
