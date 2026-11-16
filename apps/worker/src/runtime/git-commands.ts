@@ -19,12 +19,11 @@ import { workspaceOrigin } from "../git/origin.ts";
 import { revealInFileManager } from "./reveal.ts";
 import { initRepository } from "../git/project-sources.ts";
 import { GitPrReader } from "../git/pr-context.ts";
-import { WorktreeDiscovery, withKnownPaths } from "../git/discovery.ts";
+import { withKnownPaths } from "../git/discovery.ts";
 
 /** Git worktrees (docs/worktrees.md): refs of a workspace, new worktrees and their branch names. */
 export class GitCommands {
   readonly #creating = new Map<string, Promise<void>>();
-  readonly #discovery = new WorktreeDiscovery();
   readonly #prContext = new GitPrReader();
   constructor(readonly ctx: HostContext) {}
 
@@ -58,22 +57,24 @@ export class GitCommands {
     this.ctx.ops.checkCwd(kind.value.repoPath);
 
     if (kind.value.branchesOnly)
-      return gitStep(async () => {
-        const root = await repoRoot(kind.value.repoPath);
+      return gitStep(() =>
+        freshGit(async () => {
+          const root = await repoRoot(kind.value.repoPath);
 
-        return {
-          gitRefs: kind.value.worktreesOnly
-            ? {
-                isRepo: Boolean(root),
-                repoRoot: root ?? "",
-                sameCheckoutPaths: root ? matchingCheckoutPaths(root, kind.value.knownPaths) : [],
-              }
-            : await listGitRefs(kind.value.repoPath),
-        };
-      });
+          return {
+            gitRefs: kind.value.worktreesOnly
+              ? {
+                  isRepo: Boolean(root),
+                  repoRoot: root ?? "",
+                  sameCheckoutPaths: root ? matchingCheckoutPaths(root, kind.value.knownPaths) : [],
+                }
+              : await listGitRefs(kind.value.repoPath),
+          };
+        }),
+      );
 
     return gitStep(async () => {
-      const discovery = await this.#discovery
+      const discovery = await this.ctx.state.worktreeDiscovery
         .list(kind.value.repoPath, kind.value.freshWorktrees)
         .catch(() => undefined);
 
@@ -115,7 +116,7 @@ export class GitCommands {
       try {
         return { worktree: await next };
       } finally {
-        this.#discovery.clear();
+        this.ctx.state.worktreeDiscovery.clear();
 
         if (this.#creating.get(key) === settled) this.#creating.delete(key);
       }
@@ -126,7 +127,7 @@ export class GitCommands {
     try {
       return { worktree: await gitStep(() => freshGit(() => renameWorktreeBranch(this.managedRoots, kind.value))) };
     } finally {
-      this.#discovery.clear();
+      this.ctx.state.worktreeDiscovery.clear();
     }
   }
 
@@ -166,6 +167,9 @@ export class GitCommands {
       if (await recoverRemoval(receipt, kind.value)) return { worktreeBranchDeleted: false };
       const path = realpathSync(kind.value.target?.path ?? "");
 
+      if (this.ctx.state.switchingPaths.has(path))
+        throw new GitError("WORKTREE_BUSY", "A branch switch is in progress. Wait for it to finish.");
+
       if (this.ctx.state.removingPaths.has(path)) throw new GitError("WORKTREE_BUSY", "cleanup already in progress");
       this.ctx.state.removingPaths.add(path);
 
@@ -182,6 +186,7 @@ export class GitCommands {
 
           if (
             state.admitting ||
+            state.switchingPaths.has(path) ||
             tasks.some((t) => ids.has(t.threadId)) ||
             turns.some((t) => ids.has(t.threadId)) ||
             [...state.interactions.values()].some(({ request }) => ids.has(request.threadId)) ||
@@ -196,7 +201,7 @@ export class GitCommands {
           worktreeBranchDeleted: await freshGit(() => removeWorktree(this.managedRoots, kind.value, idle, receipt)),
         };
       } finally {
-        this.#discovery.clear();
+        this.ctx.state.worktreeDiscovery.clear();
         this.ctx.state.removingPaths.delete(path);
       }
     });

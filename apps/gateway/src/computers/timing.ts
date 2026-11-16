@@ -23,6 +23,7 @@ export const PEER_WATCH_LEGACY_PROBE_MS = 30_000;
 export const PEER_LONG_CALL_TIMEOUTS = new Map([
   ["ReadThreadFile", 35_000],
   ["SwitchThreadBranch", 150_000],
+  ["SwitchWorkspaceBranch", 150_000],
   ["AddProject", 61 * 60_000],
   ["CreateThread", 120_000],
   ["ListWorktrees", 120_000],

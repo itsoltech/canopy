@@ -360,6 +360,7 @@ export class WorkerHost {
         ...(output.generatedText !== undefined && { generatedText: output.generatedText }),
         ...(output.gitRefs && { gitRefs: output.gitRefs }),
         ...(output.switchedHead && { switchedHead: output.switchedHead }),
+        ...(output.branchSwitchWarning && { branchSwitchWarning: output.branchSwitchWarning }),
         ...(output.gitPrContext && { gitPrContext: output.gitPrContext }),
         ...(output.workspaceOrigin !== undefined && { workspaceOrigin: output.workspaceOrigin }),
         ...(output.workspaceCloneUrl !== undefined && { workspaceCloneUrl: output.workspaceCloneUrl }),

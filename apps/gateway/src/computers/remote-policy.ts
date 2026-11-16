@@ -196,6 +196,8 @@ export const SERVED = new Set([
   "SearchFiles",
   "ListGitRefs",
   "ListThreadBranches",
+  "ListWorkspaceBranches",
+  "SwitchWorkspaceBranch",
   "SwitchThreadBranch",
   "ListWorktrees",
   "CleanupWorktrees",

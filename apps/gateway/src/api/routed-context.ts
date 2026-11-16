@@ -68,6 +68,7 @@ export const READS = new Set([
   "SearchFiles",
   "ListGitRefs",
   "ListThreadBranches",
+  "ListWorkspaceBranches",
   "ListWorktrees",
   "ListBots",
   "ListBotApprovalRules",

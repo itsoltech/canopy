@@ -127,7 +127,19 @@ export class WorkspaceDraft {
     this.#picks = { ...this.#own(), workspaceId: this.#loaded, baseRef: ref };
   }
 
-  /** The branch the thread shows next to the ref picker (read-only unless a new worktree). */
+  /** Apply the confirmed HEAD immediately, even if refreshing discovery subsequently fails. */
+  acceptBranch(refs: GitRefs, worktreeId: string): void {
+    if (!worktreeId && this.refs) this.refs = { ...this.refs, refs };
+    const choice = this.choice;
+
+    if (choice.kind === "existing" && choice.worktree.id === worktreeId)
+      this.choose({
+        kind: "existing",
+        worktree: { ...choice.worktree, branch: refs.currentBranch, detachedCommit: "" },
+      });
+  }
+
+  /** The selected checkout's current branch, or the base of a new worktree. */
   get branch(): string {
     const choice = this.choice;
 
