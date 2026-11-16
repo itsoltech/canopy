@@ -30,8 +30,8 @@
     class?: ClassValue;
   } = $props();
 
-  const readOnly = $derived(linked?.readOnly ?? "");
-  const online = $derived(worker.online && !readOnly);
+  const away = $derived(linked?.away ?? false);
+  const online = $derived(worker.online && !away);
   const route = $derived(online ? workerRoute(worker) : "");
 
   // Height of the summary's content: the "…" menu (outside <summary>, so it does not toggle it) centres on that row.
@@ -41,7 +41,7 @@
 <SettingsCard class={["relative", className]}>
   <Disclosure align="center" summaryClass="min-h-18 p-4 pr-14 sm:px-5 sm:pr-16">
     {#snippet summary()}
-      <div class={["flex items-center gap-3", readOnly && "opacity-60"]} bind:clientHeight={summaryHeight}>
+      <div class={["flex items-center gap-3", away && "opacity-60"]} bind:clientHeight={summaryHeight}>
         <div class="grid size-10 shrink-0 place-items-center rounded-xl bg-zinc-950/5 text-zinc-500 dark:bg-white/5">
           <Icon name="computer-desktop" />
         </div>
