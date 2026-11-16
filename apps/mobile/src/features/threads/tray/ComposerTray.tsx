@@ -7,7 +7,7 @@ import { useColors } from "../../../ui/theme";
 /** The composer box's corner radius: the tray's sides meet its straight top edge. */
 const INSET = 16;
 
-/** FloatingComposer's padding above the box, which the tray covers to reach the box's top edge. */
+/** Cancel FloatingComposer's top padding without adding empty space below the last tray header. */
 export const TRAY_OVERLAP = 8;
 
 /**
@@ -28,7 +28,6 @@ export function ComposerTray({ children }: { children: ReactNode }) {
         minHeight: 0,
         marginHorizontal: INSET,
         marginBottom: -TRAY_OVERLAP,
-        paddingBottom: TRAY_OVERLAP,
         backgroundColor: c.surface,
         borderTopLeftRadius: 16,
         borderTopRightRadius: 16,
