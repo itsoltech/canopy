@@ -1,7 +1,8 @@
-import { app, dialog, Notification, powerMonitor, type MenuItemConstructorOptions } from "electron";
-import { checkAppUpdateInstall, createAppUpdater } from "./app-updater.ts";
-import { installAppUpdate } from "./update-install.ts";
+import { app, dialog, Notification, powerMonitor, shell, type MenuItemConstructorOptions } from "electron";
+import { appUpdateInstaller, checkAppUpdateInstall, createAppUpdater } from "./app-updater.ts";
+import { installAppUpdate, WindowsUpdateAdminError } from "./update-install.ts";
 import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { desktopIdentity, type DesktopChannel } from "./identity.ts";
 import { DesktopUpdateFeed } from "./update-feed.ts";
@@ -150,11 +151,36 @@ export class DesktopUpdates {
     try {
       if (await this.prepareRestart()) this.restartPrepared();
     } catch (error) {
+      if (error instanceof WindowsUpdateAdminError) {
+        await this.showManualUpdate();
+
+        return;
+      }
+
       dialog.showErrorBox(
         "Update needs attention",
         error instanceof Error ? error.message : "Could not prepare the app update. Retry on this computer.",
       );
     }
+  }
+  private async showManualUpdate() {
+    const { response } = await dialog.showMessageBox({
+      type: "info",
+      title: "Update manually",
+      message: "This installation needs administrator approval.",
+      detail:
+        "1. Choose Show installer to find the downloaded file.\n2. Close Canopy.\n3. Right-click the file and choose “Run as administrator”.\n4. After updating, open Canopy without administrator rights.",
+      buttons: ["Cancel", "Show installer"],
+      defaultId: 1,
+      cancelId: 0,
+      noLink: true,
+    });
+
+    if (response !== 1) return;
+    const installer = appUpdateInstaller(this.stagedUpdater);
+
+    if (installer && existsSync(installer)) shell.showItemInFolder(installer);
+    else dialog.showErrorBox("Installer is unavailable", "Check for updates to download the installer again.");
   }
   async prepareRestart() {
     return (await this.control.prepareInstall()) ? this.status() : undefined;

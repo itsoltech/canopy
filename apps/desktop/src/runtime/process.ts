@@ -10,14 +10,26 @@ export function stopController(child: ChildProcess | undefined) {
   else child?.kill("SIGTERM");
 }
 
-export async function until(check: () => Promise<boolean>, timeout = 60_000, alive: () => boolean = () => true) {
+export async function until(
+  check: () => Promise<boolean>,
+  timeout = 60_000,
+  alive: () => boolean = () => true,
+  failure: () => Error | undefined = () => undefined,
+) {
   const end = Date.now() + timeout;
 
   while (Date.now() < end && alive()) {
+    const error = failure();
+
+    if (error) throw error;
+
     if (await check().catch(() => false)) return;
     await delay(150);
   }
 
+  const error = failure();
+
+  if (error) throw error;
   throw new Error("Service did not become ready; see the desktop logs");
 }
 

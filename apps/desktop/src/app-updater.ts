@@ -101,6 +101,9 @@ class StagedNsisUpdater extends NsisUpdater {
 
     if (directory) this.downloadedUpdateHelper = new DownloadedUpdateHelper(directory);
   }
+  get manualInstaller() {
+    return this.installerPath;
+  }
   checkInstall() {
     checkWindowsUpdateInstall(
       resolve(process.execPath, ".."),
@@ -122,6 +125,11 @@ class StagedNsisUpdater extends NsisUpdater {
 
 export function checkAppUpdateInstall(updater: AppUpdater) {
   if (updater instanceof StagedNsisUpdater) updater.checkInstall();
+}
+
+/** Only main can reveal the verified download; the renderer never supplies a path. */
+export function appUpdateInstaller(updater: AppUpdater) {
+  return updater instanceof StagedNsisUpdater ? updater.manualInstaller : null;
 }
 
 class StagedAppImageUpdater extends AppImageUpdater {
