@@ -2,6 +2,7 @@
 
 Status: opis działającego kodu na `dev` (2026-11-16); „What's new” sortuje notatki
 metodami dostępnymi w Hermesie bez `Array.prototype.toSorted`.
+Zasobnik nad kompozytorem przylega do jego ramki bez pustego pasa pod ostatnim nagłówkiem.
 Sidebar ma zwijane grupy projektów i worktree, zwarte wiersze oraz jeden wybór „Group by”.
 Wyszukiwanie ustawień współdzieli z web/desktop dopasowanie słów niezależne od
 kolejności i interpunkcji oraz słowa kluczowe sprzątania w Threads i Worktrees.
@@ -1423,7 +1424,9 @@ otwarciu wątku; podział wynika z zapisanego itemu `context_compaction`.
 **Zasobnik nad kompozytorem** (`features/threads/tray`, web: `ComposerTop`) to jeden stos paneli
 na powierzchni kompozytora: zaokrąglone tylko górne rogi, wcięcie 16 dp (promień rogu pola),
 więc boki dochodzą do prostej górnej krawędzi pola, a jego obramowanie zamyka stos. Kolejność jak
-w web: cel, subagenci, kolejka, a najbliżej pola to, co czeka na odpowiedź. Każdy panel ma
+w web: cel, subagenci, kolejka, a najbliżej pola to, co czeka na odpowiedź. Ujemny dolny margines
+zasobnika kompensuje 8 dp górnego paddingu kompozytora; nie dodajemy dolnego paddingu,
+więc ostatni nagłówek dochodzi bezpośrednio do ramki pola. Każdy panel ma
 nagłówek `TrayHeader` (40 dp, cel dotyku 48 dp, tekst 14, ikona 16, chevron 12, padding poziomy 10 dp) i linię nad sobą;
 obramowanie stosu przykrywa pierwszą. Bez paneli zasobnika nie ma; nie ma go też przy historii
 importu (bez pola). W układzie zostają tylko nagłówki; dotknięcie subagentów lub kolejki otwiera
