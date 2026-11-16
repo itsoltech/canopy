@@ -327,7 +327,8 @@ async function ingestReceived(
       body.case === "threadReady" ||
       body.case === "turnStarted" ||
       body.case === "turnFinished" ||
-      body.case === "activity"
+      body.case === "activity" ||
+      (body.case === "usageUpdated" && Boolean(body.value.contextUsage))
     )
       touched.add(stored.threadId);
 

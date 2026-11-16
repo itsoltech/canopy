@@ -1,7 +1,8 @@
 # Transkrypt: zapis wszystkiego, co dzieje się w wątku
 
 Status (2026-11-16): log zdarzeń, projekcja itemów i bloby obrazów są zaimplementowane,
-w tym bezstratne wyniesienie obrazów wyników trybu kodu Codexa z `raw_json`.
+w tym bezstratne wyniesienie obrazów wyników trybu kodu Codexa z `raw_json`
+oraz trwały, oddzielny od rozliczeń pomiar bieżącego kontekstu głównej sesji.
 Plany retencji oznaczono osobno poniżej; dostępność wydań opisuje [release.md](release.md).
 
 Wymaganie: frontend pokazuje **wszystko**: wiadomości, rozumowanie, każde narzędzie z wejściem i pełnym wynikiem, zmiany plików, plany, subagentów, zadania w tle, zgody, wywołania innych agentów i zdarzenia systemowe. Także to, co dzieje się **między turami**.
@@ -71,9 +72,65 @@ Strumieniowanie: `item_started` → `item_delta` (`text`, `summary`, `output`) �
 | `image` | blok `image` | `imageView`, `imageGeneration` |
 | `provider_item` | każdy inny typ wiadomości z treścią | `hookPrompt`, `enteredReviewMode`, `sleep`, ... |
 | `notice` | `api_retry`, `rate_limit`, hooki, `permission_denied`, `notification` | `error`, `turn/moderationMetadata`, `thread/status/changed` |
-| `usage_updated` | `result.usage`, `thinking_tokens` | `thread/tokenUsage/updated` |
+| `usage_updated` | `assistant.message.usage`, usage ze `stream_event`, limit z `result.modelUsage` | `thread/tokenUsage/updated`: rozliczenia z `total`, kontekst z `last` |
 
 Mapowanie sprawdzamy na przypiętych wersjach adapterów. Nowy typ dostawcy bez mapowania nie jest błędem: trafia do `thread_events` z `raw`, a jeśli ma treść, także jako `provider_item`.
+
+### Bieżące okno kontekstu
+
+`UsageUpdated.context_usage` oraz `ui.Thread.context_usage` mają wspólny typ
+`ContextUsage`: opcjonalne `used_tokens` i `limit_tokens`. To najnowszy pomiar
+głównej sesji zgłoszony przez harness, niezależny od rozliczeń `Usage` i historii
+tur. Brak pola oznacza niewiadomą, a `used_tokens = 0` jest poprawnym pomiarem.
+UI może pokazać procent dopiero przy znanym zużyciu i dodatnim limicie. Nie
+sumuje tur, nie dodaje cache drugi raz, nie wyprowadza limitu z nazwy modelu
+ani katalogu modeli.
+
+Źródła i znaczenie pól:
+
+- **Codex 0.164.0:** `thread/tokenUsage/updated.tokenUsage.last.totalTokens`
+  opisuje ostatnie wywołanie modelu (input wraz z output); `total` jest
+  skumulowanym rozliczeniem sesji i pozostaje w dotychczasowym `Usage`.
+  `modelContextWindow` to limit zgłoszony przez harness, bez lokalnego fallbacku.
+  `cachedInputTokens` jest częścią input i nie powiększa `last.totalTokens`.
+  Źródła: [przypięty kontrakt ThreadTokenUsage](../packages/codex-protocol/src/gen/v2/ThreadTokenUsage.ts),
+  [TokenUsageBreakdown](../packages/codex-protocol/src/gen/v2/TokenUsageBreakdown.ts)
+  i [nagranie kilku wywołań w jednej turze](../apps/worker/src/providers/codex/fixtures/tools-turn.jsonl).
+- **Claude Agent SDK 0.3.316:** wyłącznie główne wiadomości (`parent_tool_use_id`
+  pusty), bez syntetycznych odpowiedzi i komunikatów błędów. Zużycie jednej
+  odpowiedzi API to `input_tokens + cache_creation_input_tokens +
+  cache_read_input_tokens + output_tokens`; początek strumienia i `assistant`
+  dają usage odpowiedzi, a `message_delta.usage` zastępuje końcowy licznik output,
+  także gdy blok `assistant` przyszedł wcześniej. Nie dodajemy kolejnych bloków
+  tej samej wiadomości. Limit pochodzi z `result.modelUsage[model].contextWindow`
+  dla dokładnego modelu ostatniej głównej odpowiedzi; inny model/subagent nie
+  dostarcza zastępczego limitu. Przed pierwszym takim raportem limit jest nieznany.
+  `result.usage` sumuje wywołania głównej pętli w turze, a tokeny w `modelUsage`
+  obejmują wiele wywołań i subagentów; żaden z tych agregatów nie mierzy kontekstu.
+  Źródła: [typy i komentarze przypiętego SDK](https://unpkg.com/@anthropic-ai/claude-agent-sdk@0.3.316/sdk.d.ts)
+  (`SDKAssistantMessage`, `SDKPartialAssistantMessage`, `SDKResultMessage`, `ModelUsage`)
+  oraz [nagranie kolejnych odpowiedzi](../apps/worker/src/providers/claude/fixtures/tools-turn.jsonl).
+- **Grok ACP:** `session/update` z `usage_update` dostarcza bieżące `used`
+  i pojemność `size`, niezależnie od kosztu `cost`. Oba pola trafiają do
+  `ContextUsage`; zerowy albo niepoprawny limit pozostaje nieznany.
+  Źródła: [schemat ACP](https://agentclientprotocol.com/protocol/schema),
+  [typ SessionUpdate](../packages/grok-acp/src/types.ts)
+  i [adapter](../apps/worker/src/providers/grok/mapping.ts).
+
+Każdy raport zastępuje poprzedni w całości; mniejszy pomiar po kompaktowaniu
+jest poprawny. Puste `context_usage` unieważnia poprzedni pomiar po granicy
+kompaktowania Claude lub zdarzeniu kompaktowania Codexa, aż dostawca zgłosi
+następny. Claude `conversation_reset` (m.in. `/clear`) również unieważnia pomiar.
+Udany rewind/restore unieważnia pomiar poprzedniej sesji. Fork nie
+kopiuje zużycia źródła. To ostatnia obserwacja dostawcy, bez lokalnego szacowania
+nowo wpisanego promptu, wyników narzędzi ani liczby tokenów między raportami.
+
+Gateway zapisuje `threads.context_usage` w transakcji przyjęcia zdarzenia,
+a następnie publikuje nowy `Thread` do obserwatorów, overview i checkpointów.
+Reconnect i nowy proces gatewaya czytają ten sam pomiar; paginacja historii
+nie ma wpływu. Starsze zdarzenie `usage_updated` bez nowego pola nie zmienia
+pomiaru. Migracja nie zgaduje wartości na podstawie dawnych agregatów.
+Pola proto są addytywne, bez zmiany `WORKER_LINK_PROTOCOL`.
 
 ## 5. Zapis po stronie gateway
 

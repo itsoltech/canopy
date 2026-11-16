@@ -205,7 +205,12 @@ export class CodexEventMapper {
 
         const mapped = mapItem(item, completed);
 
-        return [event(turnId, { case: completed ? "itemCompleted" : "itemStarted", value: { item: mapped } })];
+        return [
+          event(turnId, { case: completed ? "itemCompleted" : "itemStarted", value: { item: mapped } }),
+          ...(completed && item.type === "contextCompaction"
+            ? [event(turnId, { case: "usageUpdated", value: { contextUsage: {} } })]
+            : []),
+        ];
       }
 
       case "item/agentMessage/delta":
@@ -279,6 +284,9 @@ export class CodexEventMapper {
         ];
       }
 
+      case "thread/compacted":
+        return [event(notification.params.turnId, { case: "usageUpdated", value: { contextUsage: {} } })];
+
       case "thread/tokenUsage/updated": {
         const { turnId, tokenUsage } = notification.params;
         this.#usage.set(turnId, tokenUsage.total);
@@ -288,6 +296,13 @@ export class CodexEventMapper {
             case: "usageUpdated",
             value: {
               usage: { ...usageOf(tokenUsage.total), contextWindowTokens: BigInt(tokenUsage.modelContextWindow ?? 0) },
+              contextUsage: {
+                usedTokens: BigInt(tokenUsage.last.totalTokens),
+                ...(tokenUsage.modelContextWindow != null &&
+                  tokenUsage.modelContextWindow > 0 && {
+                    limitTokens: BigInt(tokenUsage.modelContextWindow),
+                  }),
+              },
             },
           }),
         ];

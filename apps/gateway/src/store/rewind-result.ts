@@ -67,7 +67,8 @@ export const completeRewind = (sql: SqlClient.SqlClient, commandId: string, resu
       });
 
       yield* insertEvent(sql, row.thread_id, seq, event, "gateway");
-      yield* sql`UPDATE threads SET provider_thread_id=CASE WHEN ${ok} THEN ${native ?? null} ELSE provider_thread_id END,
+      yield* sql`UPDATE threads SET context_usage=CASE WHEN ${ok} THEN NULL ELSE context_usage END,
+        provider_thread_id=CASE WHEN ${ok} THEN ${native ?? null} ELSE provider_thread_id END,
       title_context=CASE WHEN ${ok && !restore} THEN '' ELSE title_context END,
       title_revision=title_revision+CASE WHEN ${ok && !restore} THEN 1 ELSE 0 END,
       rewind_pending_id=NULL,last_seq=${seq},status=CASE WHEN ${ok} THEN 'idle' ELSE status END

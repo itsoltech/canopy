@@ -1,6 +1,7 @@
 # API dla UI i architektura frontendu
 
 Status (2026-11-16): web/desktop — zmiana uprawnień bieżącej tury Claude działa bez restartu;
+opcjonalny wskaźnik kontekstu composera ma tryby Off / Circle / Text / Bar w Appearance;
 przełączanie wątków zachowuje status połączenia,
 a zapowiedziana aktualizacja gatewaya pokazuje w wątku spokojny komunikat bez akcji odzyskiwania,
 a wygaszany kompozytor zachowuje własny szkic bez odczytu nieaktywnego derived.
@@ -65,6 +66,24 @@ treść propozycji i aktualność ostatniej zakończonej własnej tury. Stare, o
 cofnięte oraz niezakończone źródła są odrzucane. Dzięki temu przeładowanie strony,
 opóźniony klient i równoczesny wybór na dwóch urządzeniach nie przywracają starych akcji.
 Opis przekazywania możliwości harnessom: [worker-config.md](worker-config.md).
+
+## Wskaźnik kontekstu composera
+
+Appearance → Interface → Context display steruje wszystkimi composerami istniejących
+wątków web/desktop na urządzeniu. Domyślne Off ukrywa wskaźnik; Circle pokazuje
+pierścień zajętości, Text liczbę użytych tokenów i limit, Bar pasek z procentem.
+Preferencja używa istniejącego magazynu urządzenia, reaguje na zmiany w innych kartach
+i ma reset pola oraz strony Appearance. Wyszukiwarka ustawień znajduje ją przez
+`context`, `window` i `tokens`.
+
+Źródłem jest `Thread.context_usage` — osobny, trwały pomiar bieżącego kontekstu
+przekazany przez harness, z aktualizacją przez `UsageUpdated.context_usage`.
+Nie jest nim suma tokenów wątku ani tury. Brak użycia lub dodatniego limitu ukrywa
+wskaźnik, zachowując stały slot, aby nadejście danych nie przesuwało kontrolek.
+Hover, fokus klawiatury i dotknięcie otwierają szczegóły z dokładnymi liczbami
+oraz informacją, że jest to ostatni raport providera bez bieżącego szkicu.
+Warianty wizualne mają pełną etykietę dostępną dla czytników ekranu.
+Odczyt po kompaktowaniu i cofnięciu rozmowy: [transcript.md](transcript.md).
 
 ## Limity kont providerów
 

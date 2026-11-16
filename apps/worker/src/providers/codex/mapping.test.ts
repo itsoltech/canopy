@@ -92,6 +92,41 @@ describe("Codex event mapping on a recorded turn with tools", () => {
     expect(finished?.body.case === "turnFinished" && finished.body.value.usage?.inputTokens).toBe(24055n);
   });
 
+  test("context uses the last API call independently of cumulative session accounting", () => {
+    const usage = events.flatMap((e) => (e.body.case === "usageUpdated" ? [e.body.value] : []));
+    expect(usage.map((u) => u.contextUsage?.usedTokens)).toEqual([12013n, 12111n]);
+    expect(usage.at(-1)?.contextUsage?.limitTokens).toBe(258400n);
+    expect(usage.at(-1)?.usage?.inputTokens).toBe(24055n);
+  });
+
+  test("compaction clears old usage; the next report can lower it without inventing a limit", () => {
+    const sample = notifications.find((notification) => notification.method === "thread/tokenUsage/updated")!;
+
+    const { events: observed } = replay([
+      ...notifications,
+      { method: "thread/compacted", params: { threadId: "t", turnId: codexTurnId } },
+      {
+        ...sample,
+        params: {
+          ...sample.params,
+          tokenUsage: {
+            ...sample.params.tokenUsage,
+            last: { ...sample.params.tokenUsage.last, totalTokens: 0 },
+            modelContextWindow: null,
+          },
+        },
+      },
+    ]);
+
+    const contexts = observed.flatMap((event) =>
+      event.body.case === "usageUpdated" ? [event.body.value.contextUsage] : [],
+    );
+
+    expect(contexts.at(-2)?.usedTokens).toBeUndefined();
+    expect(contexts.at(-1)?.usedTokens).toBe(0n);
+    expect(contexts.at(-1)?.limitTokens).toBeUndefined();
+  });
+
   test("thread activity: running, then idle", () => {
     const statuses = events.flatMap((e) => (e.body.case === "activity" ? [e.body.value.status] : []));
     expect(statuses).toEqual([ThreadStatus.RUNNING, ThreadStatus.IDLE]);

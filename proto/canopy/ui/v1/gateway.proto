@@ -793,6 +793,9 @@ message Thread {
   google.protobuf.Timestamp last_reply_at = 1051;
   // Absent inherits project/user settings; explicit false disables automatic archival.
   optional bool auto_archive_on_merge = 1060;
+  // Latest main-session context observation from the harness; absent until reported.
+  // Independent of turn/session token accounting; unknown fields remain absent.
+  canopy.worker.v1.ContextUsage context_usage = 1070;
 }
 
 message ReorderThreadRequest {

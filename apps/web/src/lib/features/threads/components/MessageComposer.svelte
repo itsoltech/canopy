@@ -40,6 +40,8 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import UsageWarning from "#lib/features/providers/UsageWarning.svelte";
   import { useThreadDirectory } from "../thread-directory.ts";
+  import ContextIndicator from "./ContextIndicator.svelte";
+  import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
 
   /**
    * Message box of a thread. Each send carries an idempotency key, so a retried send never runs
@@ -433,6 +435,9 @@
           <PillText class="flex-1 text-right">{providerLabel(thread.provider)}</PillText>
         {/if}
       </fieldset>
+    {/snippet}
+    {#snippet context()}
+      <ContextIndicator mode={devicePreferences.values.contextDisplay} usage={thread.contextUsage} />
     {/snippet}
     {#snippet meta()}
       <ComposerContextRow>

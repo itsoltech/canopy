@@ -88,6 +88,7 @@
     primary = "steer",
     onalternate,
     controls,
+    context,
     drafts,
     meta,
     draft,
@@ -127,6 +128,7 @@
     /** Queueing on: steer the message (Mod+Enter, the button's menu). */
     onalternate?: (() => void) | undefined;
     controls?: Snippet;
+    context?: Snippet;
     drafts?: Snippet;
     meta?: Snippet;
     draft?: AttachmentDraft | undefined;
@@ -458,6 +460,7 @@
             warning={Boolean(draft?.notice || shellBlocker)}
           />
         {/if}
+        {@render context?.()}
         {@render controls?.()}
       </div>
     </ComposerFold>

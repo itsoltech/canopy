@@ -87,6 +87,13 @@ function applyEvent(previous: ui.ThreadSnapshot, change: ui.ThreadEventUpdate): 
   if (!event || seq <= previous.lastSeq) return previous;
   const body = event.body;
 
+  if (body.case === "usageUpdated" && body.value.contextUsage)
+    return {
+      ...previous,
+      lastSeq: seq,
+      thread: previous.thread ? { ...previous.thread, contextUsage: body.value.contextUsage } : undefined,
+    };
+
   if (body.case === "turnStarted" || body.case === "turnFinished" || body.case === "turnPermissionsChanged")
     return { ...previous, lastSeq: seq, turns: applyTurnEvent(previous.turns, event) };
 
