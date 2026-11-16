@@ -7,8 +7,12 @@ import { computerName } from "@canopy/domain/computer-presence";
 import type { SelectOption } from "#lib/shared/ui/listbox.ts";
 import { workerChoices } from "@canopy/domain/worker-choices";
 
-/** A worker of another computer in Settings → Workers: live when its home answers, its record otherwise. */
-export type LinkedWorker = { worker: ui.Worker; record: ui.WorkerRecord; readOnly: string };
+/**
+ * A worker of another computer in Settings → Workers: live when its home answers, its record otherwise.
+ * `readOnly` says why it cannot be changed here; `away` only that its home does not answer now, so an online
+ * worker of a computer that does not share configuration still shows as connected.
+ */
+export type LinkedWorker = { worker: ui.Worker; record: ui.WorkerRecord; readOnly: string; away: boolean };
 
 export type WorkerComputer = { nodeId: string; name: string; readOnly: string; workers: LinkedWorker[] };
 
@@ -137,8 +141,9 @@ export class WorkerRecords {
   linked(record: ui.WorkerRecord): LinkedWorker {
     const live = this.overview.worker(record.workerId);
     const readOnly = record.readOnlyReason;
+    const away = !live || Boolean(awayReason(this.overview.computer(record.nodeId)));
 
-    return { worker: live ?? recordedWorker(record), record, readOnly };
+    return { worker: live ?? recordedWorker(record), record, readOnly, away };
   }
 
   /** Other computers in name order, each with its workers. */

@@ -31,11 +31,11 @@ export interface WorkerPresence {
   readonly tone: Tone;
 }
 
-/** Revoked, connected, or not (a read-only linked worker counts as away). */
+/** Revoked, connected, or not (a linked worker whose computer does not answer counts as away). */
 export function workerPresence(worker: ui.Worker, linked?: LinkedWorker): WorkerPresence {
   if (worker.revokedAt || linked?.record.revoked) return { label: "Revoked", tone: "rose" };
 
-  return worker.online && !linked?.readOnly
+  return worker.online && !linked?.away
     ? { label: "Connected", tone: "emerald" }
     : { label: "Disconnected", tone: "neutral" };
 }

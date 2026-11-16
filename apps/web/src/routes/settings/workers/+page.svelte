@@ -33,7 +33,7 @@
   const total = $derived(overview.ownWorkers.length + linked.length);
 
   const online = $derived(
-    overview.ownWorkers.filter((w) => w.online).length + linked.filter((l) => l.worker.online && !l.readOnly).length,
+    overview.ownWorkers.filter((w) => w.online).length + linked.filter((l) => l.worker.online && !l.away).length,
   );
 
   // Workers of a linked computer outside the configuration group are managed only on their home.
