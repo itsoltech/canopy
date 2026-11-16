@@ -113,6 +113,17 @@ export const icons = {
   "arrow-path": ["M20 11A8.1 8.1 0 0 0 4.5 9M4 5v4h4m-4 4a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"],
   // arrow-down
   "arrow-down": ["M12 5v14m6-6l-6 6m-6-6l6 6"],
+  // arrows-minimize
+  "arrows-pointing-in": [
+    "M5 9h4V5",
+    "M3 3l6 6",
+    "M5 15h4v4",
+    "M3 21l6-6",
+    "M19 9h-4V5",
+    "M15 9l6-6",
+    "M19 15h-4v4",
+    "M15 15l6 6",
+  ],
   "arrows-pointing-out": [
     "M4 8V4h4",
     "M4 4l5 5",

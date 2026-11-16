@@ -24,6 +24,9 @@
     tool = $bindable(AgentTool.BROWSER),
     target = $bindable<AgentPreviewTarget | undefined>(),
     offline = "",
+    fit = $bindable<"fit" | "actual">("fit"),
+    location = "sidebar",
+    onmove,
   }: {
     threadId: string;
     worker?: ui.Worker;
@@ -33,6 +36,9 @@
     tool?: AgentTool;
     target?: AgentPreviewTarget;
     offline?: string;
+    fit?: "fit" | "actual";
+    location?: "sidebar" | "tab";
+    onmove?: (target?: AgentPreviewTarget) => void;
   } = $props();
 
   const session = new PreviewSession();
@@ -40,7 +46,6 @@
   let visible = $state(false);
   let connected = $state(false);
   let root = $state<HTMLDivElement>();
-  let fit = $state<"fit" | "actual">("fit");
   let retry = $state(0);
   let expanded = $state(false);
   let focusAddress = $state<(() => void) | undefined>();
@@ -120,6 +125,14 @@
     } else target = value;
   }
 
+  async function move(): Promise<void> {
+    const selected = session.targets.find((entry) => entry.id === session.targetId) ?? target;
+
+    if (document.fullscreenElement === root) await document.exitFullscreen();
+    expanded = false;
+    onmove?.(selected);
+  }
+
   async function fullscreen(): Promise<void> {
     if (!root) return;
 
@@ -174,14 +187,22 @@
     </div>
     <IconButton
       size="sm"
-      icon="arrows-pointing-out"
+      icon={fit === "fit" ? "arrows-pointing-out" : "arrows-pointing-in"}
       label={fit === "fit" ? "Show actual size" : "Fit to panel"}
       disabled={!live}
       onclick={() => (fit = fit === "fit" ? "actual" : "fit")}
     />
+    {#if onmove}
+      <IconButton
+        size="sm"
+        icon={location === "sidebar" ? "square-2-stack" : "view-columns"}
+        label={location === "sidebar" ? "Open in tab" : "Open in sidebar"}
+        onclick={() => void move().catch(() => {})}
+      />
+    {/if}
     <IconButton
       size="sm"
-      icon="arrow-top-right-on-square"
+      icon={expanded ? "arrows-pointing-in" : "arrow-top-right-on-square"}
       label={expanded ? "Exit fullscreen" : "Expand preview"}
       onclick={() => void fullscreen().catch(() => {})}
     />

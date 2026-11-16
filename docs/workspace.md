@@ -1,6 +1,7 @@
 # Zakładki wątku i panel Files/Preview
 
-Status: **zaimplementowane; układ v3**, kompaktowa typografia zakładek, diagramy Mermaid w trybie
+Status (2026-11-17): **zaimplementowane; układ v3**, karta Preview w web/desktop
+i różne ikony skali 1:1 oraz dopasowania, kompaktowa typografia zakładek, diagramy Mermaid w trybie
 `Rendered`, bezpieczny HTML i lokalne obrazy w Markdown w web/desktop,
 cytowanie zaznaczeń z plików, przeciąganie plików do wiadomości
 i interaktywny Preview automatyzacji w panelu web/desktop oraz automatyczny mini Preview
@@ -237,7 +238,7 @@ Te gesty dotyczą web/desktop, bez rozszerzenia natywnego klienta mobile.
 Lewy sidebar nadal służy projektom, wątkom i botom. Zakładki w nagłówku wybierają
 **główną treść**. Podsumowanie wątku jest **osobnym elementem obszaru wątku**, nie
 częścią prawego panelu. Prawy panel przełącza **Files** i **Preview**;
-Preview nie jest kartą pliku ani modułem pełnej karty.
+Preview można przenieść do pełnej karty głównego obszaru w web/desktop.
 
 | Treść | Miejsce |
 | --- | --- |
@@ -248,7 +249,7 @@ Preview nie jest kartą pliku ani modułem pełnej karty.
 | Connectory: konta z dostępnością i `Manage` | Podsumowanie |
 | Sekrety, fork, lineage, subagenci, `New side thread` | Podsumowanie |
 | Drzewo katalogu | Panel `Files`; wybrany plik otwiera osobną zakładkę |
-| Przeglądarka, okno desktopowe lub urządzenie workera | `Preview` w tym samym prawym panelu; bezpośrednie sterowanie w sesji wątku |
+| Przeglądarka, okno desktopowe lub urządzenie workera | `Preview` w prawym panelu lub pełnej karcie web/desktop; bezpośrednie sterowanie w sesji wątku |
 | Cel, kolejka, prośby o zgodę i sekret | Obecny zasobnik rozmowy |
 
 Moduły `Pull requests`, `Tasks` i `Connectors` w panelu zostały usunięte: ich
@@ -333,6 +334,15 @@ otwiera arkusz na cały ekran. Panel ma wspólną akcję `Close side panel`.
 
 Preview wybiera **Browser / Desktop / Device**, a kompaktowy pasek pokazuje
 cel, adres i nawigację właściwe dla narzędzia oraz dopasowanie/pełny ekran.
+Przycisk skali pokazuje strzałki na zewnątrz dla `Show actual size`, a do środka
+dla `Fit to panel`; ikona pełnego ekranu również wskazuje akcję powrotu.
+`Open in tab` otwiera jedną kartę **Preview** na wątek i zamyka panel boczny.
+`Open in sidebar` wraca do rozmowy i otwiera Preview w panelu. Narzędzie, cel
+i tryb dopasowania są wspólne dla obu miejsc; zmiana miejsca nie zmienia viewportu
+ani sesji automatyzacji. Karta korzysta ze zwykłego zamykania, przełącznika i skrótów
+workspace’u. Jej obecność i wybór są lokalnymi metadanymi urządzenia; cel oraz skala
+pozostają tylko w pamięci. Ponowne wybranie karty ukrywa boczny Preview, a Files
+może działać obok niej. Natywny mobile zachowuje ręczny arkusz Preview.
 Browser pokazuje karty sesji wątku i pozwala przełączyć aktywną kartę; zachowuje ustawiony przez agenta viewport
 przy zmianie szerokości panelu i udostępnia pasek z polami szerokości oraz wysokości
 oraz uchwyty krawędzi do jawnej zmiany viewportu.
@@ -348,7 +358,7 @@ Współrzędne myszy i gestów liczymy względem obrazu, z pominięciem pustych 
 
 Przycisk `Open in sidebar` przekazuje ten sam wątek, narzędzie, bezpieczny cel i
 sesję wątku do większego interaktywnego Preview i ustawia fokus na jego pasku
-narzędzi. Mini Preview zatrzymuje się, gdy sidebar Preview jest widoczny; po jego
+narzędzi. Mini Preview zatrzymuje się, gdy Preview jest widoczny w panelu lub karcie; po jego
 zamknięciu wraca, chyba że wcześniej został zminimalizowany. Ukrycie, offline,
 odebranie grantu, archiwizacja wątku albo utrata właściwego połączenia zatrzymują
 watch mini Preview i usuwają jego klatkę.
@@ -521,7 +531,7 @@ pokazuje ikonę stanu (open, draft, merged, closed) z kropką checków, a karta 
 znak typu pliku (#806); stan jest też w tooltipie i dostępnej nazwie.
 
 Granice web: `ThreadWorkspace`, `WorkspaceTabs`, `WorkspaceFrame` (siatka z kolumną
-Files/Preview), `WorkspaceSidePanel`, `ThreadSummary` (karta i pigułka, `SummaryLayout`)
+Files/Preview), `WorkspaceSidePanel`, `WorkspacePreview` (wspólny podgląd panelu i karty), `ThreadSummary` (karta i pigułka, `SummaryLayout`)
 z treścią `ThreadPanel`; w Files: `WorkspaceTree`, `WorkspaceFile` i adapter
 edytora. Reużywamy `PanelRow`, `Popover`, `Dialog`, `DropdownMenu`,
 `ResizeHandle`, wirtualizatora i tokenów kodu. Mobile ma analogiczne hosty z

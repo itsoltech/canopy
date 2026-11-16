@@ -12,6 +12,7 @@ import { provideWorkspace, workspaceStore, workspaceVersion } from "./workspace.
 
 class PreviewChoice {
   workerId = "";
+  fit = $state<"fit" | "actual">("fit");
   target = $state<AgentPreviewTarget>();
   selection = $state<PreviewSelection>();
 }
@@ -85,6 +86,10 @@ export class ThreadWorkspace {
     return choice;
   }
 
+  get previewTabActive(): boolean {
+    return this.current?.kind === "module" && this.current.module === "preview";
+  }
+
   get current() {
     return this.view.current;
   }
@@ -108,7 +113,7 @@ export class ThreadWorkspace {
 
   /** Files shows as the right column (wide screens only). */
   get filesOpen(): boolean {
-    return this.wide && this.panelOpen;
+    return this.wide && this.panelOpen && !(this.panelMode === "preview" && this.previewTabActive);
   }
 
   get panelMax(): number {
@@ -140,13 +145,28 @@ export class ThreadWorkspace {
   }
 
   showPanel(mode: "files" | "preview"): void {
+    if (mode === "preview" && this.previewTabActive) {
+      this.view.select("thread");
+      this.panelOpen = true;
+      this.panelMode = mode;
+
+      return;
+    }
+
     const same = this.panelMode === mode;
     this.view.panel = { ...this.view.panel, mode, open: same ? !this.panelOpen : true };
     this.panelDraft = undefined;
     workspaceStore.notify(true);
   }
 
+  openPreviewTab(): void {
+    this.view.openModule({ module: "preview", resource: "" });
+
+    if (this.previewTabActive) this.panelOpen = false;
+  }
+
   openPreview(selection: PreviewSelection): void {
+    if (this.previewTabActive) this.view.select("thread");
     this.previewChoice.selection = selection;
     this.previewChoice.target = selection.target;
     this.view.panel = { open: true, mode: "preview", tool: selection.tool };
