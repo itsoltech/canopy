@@ -180,7 +180,8 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
                          'worktreesRoot',w.capabilities->'worktreesRoot','projectSources',w.capabilities->'projectSources',
                          'workspaceCopy',w.capabilities->'workspaceCopy',
                          'cloneProgress',w.capabilities->'cloneProgress',
-                         'cliImport',w.capabilities->'cliImport','branchSwitch',w.capabilities->'branchSwitch') AS capabilities, w.last_seen_at, w.revoked_at,
+                         'cliImport',w.capabilities->'cliImport','branchSwitch',w.capabilities->'branchSwitch',
+                         'desktopBundled',w.capabilities->'desktopBundled') AS capabilities, w.last_seen_at, w.revoked_at,
                        coalesce(c.profile_names,'{}'::jsonb) AS profile_names,
                        c.version AS config_version, c.applied_version, c.apply_report
                   FROM workers w LEFT JOIN worker_configs c ON c.worker_id = w.id

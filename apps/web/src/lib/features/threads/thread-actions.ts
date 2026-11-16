@@ -32,6 +32,8 @@ export function threadActions(
   linkedComputers = false,
   /** The thread's folder is on the computer showing it (onThisComputer): only then can it open there. */
   local = false,
+  /** The OS of the thread's worker (`process.platform`): it names the file manager. */
+  os = "",
 ): ThreadAction[] {
   if (thread.deletedAt) return [];
   const archived = thread.status === "archived";
@@ -56,7 +58,7 @@ export function threadActions(
     },
     // This computer's file manager opens the thread's directory (worktree or checkout).
     ...(local && thread.cwd
-      ? [{ id: "reveal" as const, label: "Open folder", icon: "folder" as const, group: 2 }]
+      ? [{ id: "reveal" as const, label: openFolderLabel(os), icon: "folder" as const, group: 2 }]
       : []),
     { id: "filter", label: `Filter by ${projectName}`, icon: "bars-3", group: 2 },
     { id: "settings", label: "Project settings", icon: "cog-6-tooth", group: 2 },
@@ -75,6 +77,9 @@ export function threadActions(
 
   return readOnly ? actions.map((action) => ({ ...action, disabled: true })) : actions;
 }
+
+/** The file manager by the name people know it by where it has one: Finder on macOS. */
+export const openFolderLabel = (os: string): string => (os === "darwin" ? "Open in Finder" : "Open folder");
 
 /**
  * The thread's folder and files are on the computer showing it: the desktop app runs its own gateway (local

@@ -67,6 +67,11 @@ describe.skipIf(!dockerAvailable)("the desktop app's bundled gateway and worker 
 
     expect(bulkUpdateSteps(snapshot).map((s) => [s.kind, s.workerId])).toEqual([["worker", external]]);
 
+    // The overview marks the app's own worker: only its threads' folders and files open on this computer.
+    const workers = (await gateway.api.getOverview({})).workers;
+    expect(workers.find((w) => w.id === gateway.workerId)?.desktopBundled).toBe(true);
+    expect(workers.find((w) => w.id === external)?.desktopBundled).toBe(false);
+
     // The app's own setting chooses its channel; the bundled gateway refuses its own.
     expect(await failure(gateway.api.manageUpdates({ action: "channel", channel: "stable" }))).toContain(
       "updates with the Canopy app",

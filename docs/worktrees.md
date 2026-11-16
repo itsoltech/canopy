@@ -270,7 +270,7 @@ oknem, poza przechwytywaniem `runProcess`: jego `windowsHide` uruchamiał Explor
 Explorer kończy się kodem 1 także po otwarciu folderu, więc na Windows błędem jest tylko nieudany start;
 gdzie indziej decyduje kod wyjścia openera.
 
-**Open folder** (menu kontekstowe wątku i ikona przy „Directory”/„Worktree” w szczegółach wątku)
+**Open folder** (na macOS **Open in Finder**; menu kontekstowe wątku i ikona przy „Directory”/„Worktree” w szczegółach wątku)
 otwiera tak samo katalog wątku: `RevealThreadDirectory` sprawdza właściciela i aktywny wątek, a gateway
 wysyła nietrwałą komendę `RevealPath` (capability `reveal_path`) z `threads.cwd`; worker wymaga
 bezwzględnego, istniejącego katalogu. Starszy worker dostaje prośbę o aktualizację, offline — o połączenie.
