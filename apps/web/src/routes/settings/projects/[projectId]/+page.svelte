@@ -12,6 +12,7 @@
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
   import ProjectAvatar from "#lib/shared/ui/ProjectAvatar.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
+  import ProjectArchive from "#lib/features/projects/ProjectArchive.svelte";
   import type { PageProps } from "./$types";
 
   const route = useSettingsRoute<PageProps["form"]>();
@@ -20,6 +21,13 @@
 
   const projectId = $derived(route.params.projectId ?? "");
   const project = $derived(overview.project(projectId));
+
+  // Main threads that archive with the project (side threads go with their parent).
+  const threads = $derived(
+    [...overview.threads.values()].filter(
+      (t) => t.projectId === projectId && !t.parentThreadId && t.status !== "archived" && !t.deletedAt,
+    ).length,
+  );
 </script>
 
 <svelte:head><title>{project?.name ?? "Project"} · Settings · {applicationName}</title></svelte:head>
@@ -63,4 +71,10 @@
     {#key project.id}<ProjectWorktreeDefaults projectId={project.id} />{/key}
   {/if}
   <AutoArchiveSettings projectId={project.id} />
+
+  {#if !project.nodeId && project.kind === "project"}
+    <SettingsGroup>
+      <ProjectArchive {project} {threads} />
+    </SettingsGroup>
+  {/if}
 {/if}
