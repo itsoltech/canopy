@@ -3,18 +3,14 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import SearchField from "#lib/shared/ui/SearchField.svelte";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
-  import { settingsGroups } from "./sections.ts";
+  import { matchesSettingsSection, settingsGroups } from "./sections.ts";
   import { useSettingsSections } from "./settings-sections.svelte.ts";
 
   /** Settings sections by group with a search filter; narrow screens use `SettingsSectionMenu`. */
   const sections = useSettingsSections();
   let query = $state("");
 
-  const visible = $derived(
-    sections.all.filter(
-      (s) => !query.trim() || `${s.label} ${s.keywords}`.toLowerCase().includes(query.trim().toLowerCase()),
-    ),
-  );
+  const visible = $derived(sections.all.filter((section) => matchesSettingsSection(section, query)));
 
   const itemClass =
     "flex min-h-(--settings-target) items-center gap-2 rounded-lg whitespace-nowrap px-2.5 py-1 text-base/5 text-zinc-600 hover:bg-zinc-950/5 hover:text-zinc-950 focus-ring aria-[current=page]:bg-zinc-950/5 aria-[current=page]:text-zinc-950 sm:text-sm/5 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white dark:aria-[current=page]:bg-white/8 dark:aria-[current=page]:text-white";

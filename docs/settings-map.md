@@ -1,7 +1,8 @@
 # Mapa ustawień Canopy
 
 Status (2026-11-16): mapa zaimplementowanych ustawień, w tym wspólnego wyboru
-grupowania sidebara w web/desktop i mobile oraz opcjonalnej retencji archiwum wątków;
+grupowania sidebara w web/desktop i mobile, opcjonalnej retencji archiwum wątków
+oraz wspólnego dopasowania słów w wyszukiwaniu ustawień;
 dostępność kanałów według [release.md](release.md).
 
 ## Nawigacja
@@ -10,6 +11,15 @@ General: **General → Appearance → Keybindings → Threads → Text generatio
 Code: **Projects → Worktrees → Diffs → Agent environment**.
 Connections: **Providers → Connectors → Proxies → Workers → Network access → Devices → Linked computers → Desktop → App updates**.
 Ostatnie dwie strony tylko w desktopie, Linked computers według capability gatewaya.
+
+Wyszukiwarka sekcji w web/desktop i mobile dopasowuje każde słowo zapytania
+do nazwy lub słów kluczowych, niezależnie od kolejności, wielkości liter,
+interpunkcji i nadmiarowych spacji. Indeks obejmuje nazwy opcji Threads i Worktrees
+oraz synonimy sprzątania: `cleanup` i `clean up` wskazują obie strony,
+`auto delete` retencję w Threads i automatyczne usuwanie worktree,
+a `merged branches` sprzątanie w Worktrees.
+Te same słowa kluczowe są dostępne w palecie poleceń web/desktop;
+paleta zachowuje własny algorytm dopasowania rozmytego.
 
 **General → Diagnostics**: karty wszystkich komputerów, metryki RPC i RTT, findings
 oraz osobne granty odczytu przez relay; [diagnostics.md](diagnostics.md).

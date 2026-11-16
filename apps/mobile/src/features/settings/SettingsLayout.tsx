@@ -6,7 +6,7 @@ import { ScreenFrame, usePaneInsets } from "../../ui/ScreenFrame";
 import { ScreenScroll } from "../../ui/ScreenScroll";
 import { KeyboardViewport } from "../../ui/KeyboardViewport";
 import { CANOPY_VERSION } from "../../version";
-import { settingsGroups, settingsSections, type SettingsSection } from "@canopy/ui/settings";
+import { matchesSettingsSection, settingsGroups, settingsSections, type SettingsSection } from "@canopy/ui/settings";
 import { useLayout } from "../../state/layout";
 import { useSession } from "../../state/session";
 import { IconButton, Notice } from "../../ui/components";
@@ -53,9 +53,7 @@ export function SettingsLayout({
   }, [client]);
 
   const sections = settingsSections.filter(
-    (s) =>
-      (linked || s.href !== "/settings/computers") &&
-      `${s.label} ${s.keywords}`.toLowerCase().includes(query.trim().toLowerCase()),
+    (s) => (linked || s.href !== "/settings/computers") && matchesSettingsSection(s, query),
   );
 
   return (
