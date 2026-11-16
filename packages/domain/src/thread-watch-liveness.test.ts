@@ -22,6 +22,18 @@ test("transport losses do not exhaust the scoped repair budget or hide determini
   expect(new ThreadWatchRecovery().failed({ code: 7, transport: true }).action).toBe("stop");
 });
 
+test("an untyped gateway watch failure keeps retrying as a transient stream error", () => {
+  const recovery = new ThreadWatchRecovery();
+
+  for (let attempt = 0; attempt < 5; attempt++)
+    expect(recovery.failed({ code: 2, reason: "watch_failed" })).toEqual({
+      action: "resume",
+      reason: "stream_unavailable",
+    });
+
+  expect(new ThreadWatchRecovery().failed({ code: 2, reason: "decode_error" }).action).toBe("reset");
+});
+
 test("head lag repairs only a stalled applied cursor, backs off, reloads and never gives up", () => {
   const guard = new ThreadWatchLiveness();
   const applied = cursor(1n);

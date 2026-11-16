@@ -493,6 +493,8 @@ awaria zatrzymuje watch. Zwykłe zerwanie transportu (natywne `EventSource.onerr
 na mobile nieskopowane `Unavailable`/`DeadlineExceeded`) nie zużywa tego budżetu:
 połączenie ponawia się z backoffem do 30 s. Błąd zgłoszony przez gateway dla wątku
 oraz przedwczesny koniec strumienia nadal zużywają budżet napraw.
+Nieokreślony błąd strumienia bez kategorii danych jest traktowany jak chwilowa
+utrata połączenia i ponawiany z backoffem; nie wymaga ręcznego odświeżenia strony.
 Krótki sukces ani rosnący seq nie zerują budżetu prób
 i backoffu: potrzebne jest 10 s stabilnego live. Niedostępny dom emituje
 `sync_status.reason=computer_unreachable`; zmiana obecności kończy oczekiwanie,
