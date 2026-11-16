@@ -1,5 +1,6 @@
 import { LATEST_PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from "@modelcontextprotocol/sdk/types.js";
 import { AutomationStdio, type LocalAutomationServer } from "./stdio.ts";
+import { bindBrowserCall } from "./browser-policy.ts";
 import {
   abortable,
   Cancellation,
@@ -30,6 +31,7 @@ export interface LocalAutomationMcp {
 
 interface Endpoint {
   name: string;
+  browserSession: string | undefined;
   token: string;
   stdio: AutomationStdio;
   pending: Map<RpcId, AbortController>;
@@ -44,6 +46,7 @@ export function createLocalAutomationMcp(options: LocalAutomationMcpOptions): Lo
       throw new Error("Invalid or duplicate local automation server name");
     endpoints.set(`/mcp/${descriptor.name}`, {
       name: descriptor.name,
+      browserSession: descriptor.env?.AGENT_BROWSER_SESSION,
       token: crypto.randomUUID(),
       stdio: new AutomationStdio(descriptor, options.env),
       pending: new Map(),
@@ -151,18 +154,22 @@ async function handle(
     const params = ToolCall.safeParse(rpc.params);
 
     if (!params.success) return failure(rpc.id, -32602, "Invalid tool arguments");
+    let effective: ReturnType<typeof bindBrowserCall>;
 
     try {
-      await abortable(
-        authorize(endpoint.name, params.data.name, JSON.stringify(params.data.arguments), signal),
-        signal,
-      );
+      effective = bindBrowserCall(params.data, endpoint.browserSession);
+    } catch (error) {
+      return failure(rpc.id, -32602, error instanceof Error ? error.message : "Invalid browser arguments");
+    }
+
+    try {
+      await abortable(authorize(endpoint.name, effective.name, JSON.stringify(effective.arguments), signal), signal);
       signal.throwIfAborted();
     } catch {
       return failure(rpc.id, -32001, signal.aborted ? "Local automation request cancelled" : "Local automation denied");
     }
 
-    const result = await endpoint.stdio.call(params.data, signal);
+    const result = await endpoint.stdio.call(effective, signal);
 
     return result ? reply(rpc.id, result) : failure(rpc.id, -32601, "Unknown tool");
   } catch {

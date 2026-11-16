@@ -1,8 +1,9 @@
 # Narzędzia automatyzacji agentów
 
-Status (2026-11-15): **narzędzia, interaktywny Preview i automatyczny mini Preview
-wątku zaimplementowane**, z zachowaniem watch po aktualizacji statusu tego samego
-workera i ostatnią klatką dla nowego odbiorcy aktywnej grupy.
+Status (2026-11-16): **narzędzia, interaktywny Preview i automatyczny mini Preview
+wątku zaimplementowane**. Browser MCP pozostaje w sesji wątku i działa headless;
+watch zachowuje się po aktualizacji statusu tego samego workera, a nowy odbiorca
+aktywnej grupy dostaje ostatnią klatkę.
 Ten opis dotyczy stanu kodu i nie oznacza, że funkcja jest już w wydanym buildzie.
 Dostępność nightly/beta/stable wynika ze zwykłej promocji wydań
 ([release.md](release.md)).
@@ -136,6 +137,17 @@ więc klucze modelu i klucze proxy nie są przekazywane do `agent-browser`,
 `agent-desktop` ani `agent-device`. Stderr procesu nie jest przekazywany do
 modelu.
 
+Browser MCP jest przypięty do sesji wyprowadzonej z id wątku. Bridge odrzuca
+nadpisanie `session`, `namespace` lub headed przez agenta, a do każdego
+wywołania, które może uruchomić przeglądarkę, dodaje jawne `--headed false`;
+`open` i `doctor` używają odpowiednio `headed: false`. Dzięki temu lokalna
+konfiguracja `agent-browser` nie otwiera zwykłego okna na pulpicie użytkownika,
+a aktywność agenta pozostaje widoczna w Preview tego samego wątku.
+Katalog MCP i błędy wywołań wyjaśniają agentowi, że jest to stałe ograniczenie,
+którego nie należy obchodzić przez shell/CLI, CDP, inną przeglądarkę ani kolejne
+próby nadpisania. Karty współdzielą stan logowania; jeśli zadanie wymaga sesji
+różnych użytkowników, agent ma wyjaśnić ograniczenie użytkownikowi.
+
 Sąsiedni MCP na loopbackie nie jest publicznym listenerem workera. Endpoint,
 bearer, liczba żądań, czas oczekiwania, katalog narzędzi i rozmiary odpowiedzi
 mają limity; narzędzie nie może zmienić komendy ani środowiska procesu.
@@ -175,7 +187,8 @@ nadal działa niezależnie
 
 Samo otwarcie Browser Preview nie uruchamia przeglądarki ani nie nawiguje.
 Bez działającej przeglądarki sesji podgląd czeka na agenta; użytkownik może ją
-uruchomić jawną nawigacją przez pole adresu interaktywnego panelu.
+uruchomić jawną nawigacją przez pole adresu interaktywnego panelu. Ta nawigacja
+oraz jednorazowe `RunAgentTool.open` także uruchamiają Browser headless.
 
 Sterowanie wskaźnikiem Desktop wymaga globalnych współrzędnych wybranego okna.
 Backend zgłasza brak geometrii zamiast wykonywać kliknięcie w innym miejscu.

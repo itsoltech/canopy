@@ -19,11 +19,17 @@ export function automationActivity(
   const session = input["session"];
 
   if (session != null && session !== "" && session !== request.threadId) return undefined;
-  // Browser extraArgs may override --session/--namespace. The preview cannot
-  // reproduce arbitrary CLI globals, so it follows only the proven default.
+  // Browser extraArgs may override --session/--namespace. The worker bridge adds
+  // this harmless headless pair to keep the browser out of the user's desktop;
+  // it does not change the preview's thread-scoped session.
   const extra = input["extraArgs"];
 
-  if (tool === AgentTool.BROWSER && extra != null && (!isJsonArray(extra) || extra.length)) return undefined;
+  if (
+    tool === AgentTool.BROWSER &&
+    extra != null &&
+    (!isJsonArray(extra) || (extra.length && !(extra.length === 2 && extra[0] === "--headed" && extra[1] === "false")))
+  )
+    return undefined;
 
   const activity = create(ui.ThreadAutomationActivitySchema, {
     id: request.callId,

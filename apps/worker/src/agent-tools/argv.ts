@@ -53,7 +53,13 @@ export function validateAgentToolCommand(command: RunAgentTool): void {
 
 function browserArgs(command: RunAgentTool, screenshotPath: string): string[] {
   const { operation, target, value } = command;
-  const prefix = ["--json", ...agentToolScopeArgs(command.tool, command), operation];
+
+  const prefix = [
+    "--json",
+    ...agentToolScopeArgs(command.tool, command),
+    ...(operation === "open" ? ["--headed", "false"] : []),
+    operation,
+  ];
 
   if (operation === "screenshot") return [...prefix, screenshotPath];
 

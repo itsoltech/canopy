@@ -118,6 +118,10 @@ test("CLI-specific operations preserve text literally and use correct desktop/de
   const literal = "--session=attacker --config /tmp/payload $(touch never)\nsecond line";
 
   const cases = [
+    {
+      command: request(browser, "open", "https://example.test"),
+      args: ["--json", "--headed", "false", "open", "https://example.test"],
+    },
     { command: request(browser, "fill", "@e2", literal), args: ["--json", "fill", "@e2", "--", literal] },
     { command: request(browser, "type", "#field", literal), args: ["--json", "type", "#field", "--", literal] },
     { command: request(desktop, "type", "@s123:e2", literal), args: ["type", "--", "@s123:e2", literal] },
