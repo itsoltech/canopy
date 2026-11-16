@@ -1,11 +1,12 @@
 # API dla UI i architektura frontendu
 
-Status (2026-11-15): web/desktop — bezpieczny HTML we wspólnym rendererze Markdown,
+Status (2026-11-16): web/desktop — bezpieczny HTML we wspólnym rendererze Markdown,
 lokalne obrazy w podglądzie plików, interaktywny Preview wątku i automatyczny mini
 Preview pod podsumowaniem, opcjonalna retencja archiwum oraz poprawione narożniki,
 typografia i ikony stosu paneli nad composerem są zaimplementowane.
 Na `dev` zwijanie composera steruje wyłącznie skończonymi przejściami CSS.
 Settings → Devices grupuje revokowane urządzenia w domyślnie zwiniętej sekcji.
+Komunikaty w osi czasu używają skali wierszy pracy; szczegóły techniczne są o stopień mniejsze.
 BFF materializuje overview, indeks wątków i ustawienia ze wspólnego strumienia gRPC,
 aktualizuje wczytane odczyty oraz dogrzewa ogony historii bez cyklicznych HTTP renderera.
 Opis dotyczy kodu, nie wdrożenia; dostępność kanałów według [release.md](release.md).
