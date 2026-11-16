@@ -9,7 +9,7 @@ import { Icon } from "../../ui/Icon";
 import { useColors, useTypography } from "../../ui/theme";
 import { StatusIcon } from "./StatusIcon";
 import { ActivityHeader } from "./ActivityHeader";
-import { CommentComposer } from "./CommentComposer";
+import { ReviewThreadReply } from "./ReviewThreadReply";
 import { CommentActions } from "./CommentActions";
 import { prCommentCitation } from "@canopy/domain";
 import { ThreadResolution } from "./ThreadResolution";
@@ -139,7 +139,7 @@ export function ReviewThread({
           onPress={() => void more()}
         />
       )}
-      <CommentComposer key={`${snapshot.accountId}:${thread.id}`} snapshot={snapshot} resourceId={thread.id} />
+      <ReviewThreadReply key={`${snapshot.accountId}:${thread.id}`} snapshot={snapshot} resourceId={thread.id} />
       <ThreadResolution key={`${snapshot.accountId}:${thread.id}:resolve`} snapshot={snapshot} thread={data} />
     </View>
   );

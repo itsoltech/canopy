@@ -139,6 +139,7 @@
         <div class="min-w-0 flex-1 pt-1.5">
           {#if row.kind === "thread"}<ReviewThread {id} {snapshot} thread={row.thread} />{:else}<TimelineEvent
               items={row.items}
+              threads={row.threads}
               {snapshot}
             />{/if}
         </div>

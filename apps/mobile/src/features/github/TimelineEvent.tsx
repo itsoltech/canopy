@@ -9,13 +9,16 @@ import { ActivityHeader } from "./ActivityHeader";
 import { CommentActions } from "./CommentActions";
 import { CitationActions } from "./CitationActions";
 import { prCommentCitation } from "@canopy/domain";
+import { ReviewThread } from "./ReviewThread";
 
 export function TimelineEvent({
   items,
   snapshot,
+  threads = [],
 }: {
   items: github.PullRequestTimelineItem[];
   snapshot: github.PullRequestSnapshot;
+  threads?: github.PullRequestReviewThread[];
 }) {
   const c = useColors();
   const type = useTypography();
@@ -62,6 +65,8 @@ export function TimelineEvent({
           {look.label}
           {entry.body ? ` · ${entry.body}` : ""}
         </Text>
+      ) : first?.content.case === "review" && !entry.body.trim() ? (
+        <Text style={[type.meta, { color: c.muted }]}>{look.label}</Text>
       ) : (
         <View style={{ padding: 12, borderWidth: 1, borderColor: c.line, backgroundColor: c.inset, borderRadius: 8 }}>
           <Markdown text={entry.body} pullRequestId={snapshot.summary?.ref?.id ?? ""} contentId={entry.id} />
@@ -77,6 +82,14 @@ export function TimelineEvent({
           )}
         </View>
       )}
+      {threads.map((thread) => (
+        <ReviewThread
+          key={`${snapshot.accountId}:${thread.id}`}
+          id={snapshot.summary?.ref?.id ?? ""}
+          snapshot={snapshot}
+          thread={thread}
+        />
+      ))}
     </View>
   );
 }

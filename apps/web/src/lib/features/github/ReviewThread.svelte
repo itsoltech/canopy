@@ -6,6 +6,7 @@
   import type { ClassValue } from "svelte/elements";
   import Markdown from "./GitHubMarkdown.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
+  import MiddleTruncatedText from "#lib/shared/ui/MiddleTruncatedText.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import * as api from "./api.ts";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
@@ -15,6 +16,8 @@
   import CommentActions from "./CommentActions.svelte";
   import ThreadResolution from "./ThreadResolution.svelte";
   import { anchorLabel } from "@canopy/domain/github-review";
+  import ReviewThreadContext from "./ReviewThreadContext.svelte";
+  import { commentDrafts } from "./comment-drafts.ts";
   import CitationRegion from "./CitationRegion.svelte";
   import { prCommentCitation } from "@canopy/domain";
 
@@ -30,6 +33,8 @@
     class?: ClassValue;
   } = $props();
 
+  const saved = untrack(() => commentDrafts.read(commentDrafts.key(snapshot, thread.id, ""), ""));
+  let replying = $state(Boolean(saved.body || saved.receipt));
   let visible = $state(3);
   let current = $state<github.PullRequestReviewThread>();
   let history = $state<github.PullRequestReviewThread[]>([]);
@@ -110,11 +115,19 @@
     className,
   ]}
 >
-  <div class="flex min-w-0 items-center gap-2 text-sm/5 sm:text-xs/5">
+  <div class="flex min-w-0 flex-wrap items-center gap-2 text-sm/5 sm:text-xs/5">
     <Icon name="code-bracket" />
-    <p class="min-w-0 flex-1 truncate font-mono" title={`${data.path} · ${anchorLabel(data)}`}>
-      {data.path} · {anchorLabel(data)}
-    </p>
+    <a
+      href={safeHref(comments[0]?.url ?? "")}
+      target="_blank"
+      rel="noreferrer"
+      class="flex min-w-0 flex-1 items-center font-mono hover:underline"
+      title={`${data.path} · ${anchorLabel(data)}`}
+      ><MiddleTruncatedText text={data.path} hint={false} class="flex-1" /></a
+    >
+    <span class="order-last w-full shrink-0 pl-6 text-zinc-500 sm:order-none sm:w-auto sm:pl-0 dark:text-zinc-400"
+      >{anchorLabel(data)}</span
+    >
     <span {@attach tooltip(data.resolved ? "Resolved" : "Unresolved")}
       ><Icon
         name={data.resolved ? "check-circle" : "chat-bubble-left"}
@@ -123,6 +136,7 @@
     >
     {#if data.outdated}<span {@attach tooltip("Outdated")}><Icon name="clock" label="Outdated" /></span>{/if}
   </div>
+  <ReviewThreadContext thread={{ ...data, comments }} />
   {#each comments.slice(0, visible) as comment, index (comment.id)}<CitationRegion
       quote={prCommentCitation(snapshot, comment, "review_comment", data)}
       ><div
@@ -150,14 +164,21 @@
       </div></CitationRegion
     >{/each}
   {#if error}<p role="alert">{error}</p>{/if}
-  <div class="flex gap-2">
-    {#if visible < comments.length || data.repliesCursor}<Button
-        variant="ghost"
-        size="sm"
-        disabled={busy}
-        onclick={more}>{busy ? "Loading replies…" : "Show more replies"}</Button
-      >{/if}
+  {#if visible < comments.length || data.repliesCursor}<div class="flex gap-2">
+      {#if visible < comments.length || data.repliesCursor}<Button
+          variant="ghost"
+          size="sm"
+          disabled={busy}
+          onclick={more}>{busy ? "Loading replies…" : "Show more replies"}</Button
+        >{/if}
+    </div>{/if}
+  <div class="flex flex-wrap items-start gap-2">
+    <Button size="sm" variant="ghost" aria-expanded={replying} onclick={() => (replying = !replying)}>Reply</Button>
+    {#key `${snapshot.accountId}:${thread.id}:resolve`}<ThreadResolution {snapshot} thread={data} />{/key}
   </div>
-  {#key `${snapshot.accountId}:${thread.id}`}<CommentComposer {snapshot} resourceId={thread.id} />{/key}
-  {#key `${snapshot.accountId}:${thread.id}:resolve`}<ThreadResolution {snapshot} thread={data} />{/key}
+  {#if replying}{#key `${snapshot.accountId}:${thread.id}`}<CommentComposer
+        {snapshot}
+        resourceId={thread.id}
+        ondone={() => (replying = false)}
+      />{/key}{/if}
 </div>

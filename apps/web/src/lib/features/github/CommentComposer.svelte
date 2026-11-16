@@ -91,7 +91,7 @@
   </div>
   <MarkdownEditor
     name="comment"
-    label={resourceId ? "Reply or edit comment" : "Comment"}
+    label={commentKind ? "Edit comment" : resourceId ? "Reply" : "Comment"}
     placeholder="Write a comment in Markdown…"
     bind:value={body}
     disabled={busy || uncertain}
