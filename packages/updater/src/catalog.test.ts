@@ -159,9 +159,77 @@ test("403 and 429 pause every repository on the API origin until reset; retries 
         { retryAt: 3_600_000 },
       );
     expect(calls).toBe(1);
+    await expect(http.text(`${RELEASE_API_URL}/releases`, true)).rejects.toBeInstanceOf(ReleaseRateLimit);
+    expect(calls).toBe(1);
     now = 3_600_000;
     expect(await http.text(`${RELEASE_API_URL}/releases`)).toBe(index);
     expect(calls).toBe(2);
+  }
+});
+
+test("manual refresh revalidates cached metadata immediately, shares pending reads and accepts 304", async () => {
+  const requests: Headers[] = [];
+  const response = Promise.withResolvers<Response>();
+
+  const http = new ReleaseHttp({
+    fetch: async (_url, init) => {
+      requests.push(new Headers(init?.headers));
+
+      return requests.length === 1 ? new Response(index, { headers: { etag: '"one"' } }) : response.promise;
+    },
+  });
+
+  await http.text(RELEASE_INDEX_URL);
+  await http.text(RELEASE_INDEX_URL);
+  expect(requests).toHaveLength(1);
+  const reads = [http.text(RELEASE_INDEX_URL, true), http.text(RELEASE_INDEX_URL, true), http.text(RELEASE_INDEX_URL)];
+  expect(requests).toHaveLength(2);
+  expect(requests[1]?.get("if-none-match")).toBe('"one"');
+  expect(requests[1]?.get("cache-control")).toBe("no-cache");
+  response.resolve(new Response(null, { status: 304 }));
+  expect(await Promise.all(reads)).toEqual([index, index, index]);
+  expect(await http.text(RELEASE_INDEX_URL)).toBe(index);
+  expect(requests).toHaveLength(2);
+});
+
+test("manual refresh retries a recovered index immediately and refreshes every fallback API page", async () => {
+  for (const recovered of [false, true]) {
+    let ready = false;
+    const urls: string[] = [];
+
+    const catalog = new ReleaseCatalog({
+      http: new ReleaseHttp({
+        fetch: async (input) => {
+          const url = String(input);
+          urls.push(url);
+
+          if (url === RELEASE_INDEX_URL)
+            return ready && recovered ? new Response(index) : new Response(null, { status: 503 });
+
+          const page = new URL(url).searchParams.get("page");
+
+          return Response.json(ready && page === "1" ? Array.from({ length: 100 }, () => release) : []);
+        },
+      }),
+    });
+
+    expect(await catalog.releases()).toEqual([]);
+    ready = true;
+    expect(await catalog.releases()).toEqual([]);
+    expect(urls).toHaveLength(2);
+    expect(await catalog.releases(true)).toHaveLength(recovered ? 1 : 100);
+    expect(urls.slice(2)).toEqual(
+      recovered
+        ? [RELEASE_INDEX_URL]
+        : [
+            RELEASE_INDEX_URL,
+            `${RELEASE_API_URL}/releases?per_page=100&page=1`,
+            `${RELEASE_API_URL}/releases?per_page=100&page=2`,
+          ],
+    );
+    const calls = urls.length;
+    expect(await catalog.releases()).toHaveLength(recovered ? 1 : 100);
+    expect(urls).toHaveLength(calls);
   }
 });
 

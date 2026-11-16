@@ -71,7 +71,7 @@ export class ReleaseHttp {
   private readonly limited = new Map<string, number>();
   constructor(readonly options: ReleaseHttpOptions = {}) {}
 
-  async text(url: string): Promise<string> {
+  async text(url: string, refresh = false): Promise<string> {
     const target = secureReleaseUrl(url, this.options.allowHttpForTests);
     const scope = this.options.cacheScope ? await this.options.cacheScope(url) : "public";
     const key = `${scope}:${url}`;
@@ -80,7 +80,7 @@ export class ReleaseHttp {
 
     if (entry?.pending) return entry.pending;
 
-    if (entry && now < entry.until) {
+    if (!refresh && entry && now < entry.until) {
       if (entry.error) return Promise.reject(entry.error);
 
       if (entry.text !== undefined) return Promise.resolve(entry.text);
@@ -92,7 +92,7 @@ export class ReleaseHttp {
     entry ??= { until: 0 };
     this.entries.set(key, entry);
     const current = entry;
-    current.pending = this.read(target, current, scope)
+    current.pending = this.read(target, current, scope, refresh)
       .catch((error: Error) => {
         current.error = error;
         current.until = (this.options.now ?? Date.now)() + (error instanceof ReleaseRateLimit ? 0 : 60_000);
@@ -105,7 +105,7 @@ export class ReleaseHttp {
     return current.pending;
   }
 
-  private async read(target: URL, entry: Entry, scope: string): Promise<string> {
+  private async read(target: URL, entry: Entry, scope: string, refresh: boolean): Promise<string> {
     for (let redirects = 0; redirects < 6; redirects++) {
       const retryAt = this.limited.get(`${scope}:${target.origin}`) ?? 0;
 
@@ -113,6 +113,8 @@ export class ReleaseHttp {
       const headers = new Headers({ accept: "application/json", "user-agent": "Canopy-Updates" });
 
       if (entry.etag) headers.set("if-none-match", entry.etag);
+
+      if (refresh) headers.set("cache-control", "no-cache");
 
       const fetcher: NonNullable<ReleaseHttpOptions["fetch"]> = this.options.fetch ?? fetch;
 

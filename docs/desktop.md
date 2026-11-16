@@ -1,6 +1,7 @@
 # Canopy Desktop
 
-Status: opis zaimplementowanego runtime (2026-11-16), w tym wykrywania pojedynczego procesu przez instalator Windows,
+Status: opis zaimplementowanego runtime (2026-11-17), w tym pomijania cache przy ręcznym
+sprawdzaniu aktualizacji i wykrywania pojedynczego procesu przez instalator Windows,
 ręcznego odzyskiwania aktualizacji Windows
 i odmowy startu lokalnej bazy z uprawnieniami administratora, sesji dostępu do lokalnego BFF,
 podglądu bieżącej zajętości plików Canopy w Diagnostics oraz własnego HTML w rozmowie
@@ -1190,6 +1191,11 @@ Resolver wybiera najwyższą wersję SemVer ze statycznego indeksu
 `https://itsoltech.github.io/canopy/releases/v1.json`, bez draftów, z feedem platformy
 i końcowym `manifest.json`. Wspólny klient metadanych ma cache 15 min, ETag i deduplikację;
 sprawdzenie z połączonego komputera korzysta z tego samego klienta co lokalne.
+Ręczne **Check now** w popoverze i ustawieniach, **Check for updates** w App updates,
+zmiana kanału i zdalne zlecenie sprawdzenia omijają TTL cache oraz przerwę po awarii
+indeksu. Wymagają walidacji przez sieć (`Cache-Control: no-cache`, z zachowaniem ETag
+i obsługi `304`), a wynik uaktualnia wspólny cache. Timer nadal korzysta z cache.
+Ręczna akcja dołącza do już trwającego sprawdzania lub pobierania.
 Tylko awaria indeksu uruchamia fallback do REST API, z backoffem według nagłówków
 limitu. UI pokazuje „Checks paused” i czas następnej próby, bez „Failed”.
 Gotowy instalator zachowuje możliwość restartu. Szczegóły: [updates.md](updates.md#release-i-mirror).

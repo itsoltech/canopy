@@ -185,13 +185,13 @@ export class GatewayUpdates {
     this.#state = state;
     this.options.changed?.();
   }
-  check(): Promise<void> {
+  check(refresh = false): Promise<void> {
     if (!this.#checking) queueMicrotask(() => this.options.changed?.());
 
     return (this.#checking ??= (async () => {
       try {
         clearTimeout(this.#retryTimer);
-        this.#available = await this.source.resolve(this.#channel);
+        this.#available = await this.source.resolve(this.#channel, undefined, refresh);
         this.#checkError = "";
 
         if (this.#ahead(this.#available.version))
@@ -274,8 +274,8 @@ export class GatewayUpdates {
       await this.options.persistence.setChannel(channel);
       this.#channel = channel;
       this.#available = undefined;
-      await this.check();
-    } else if (request.action === "check") await this.check();
+      await this.check(true);
+    } else if (request.action === "check") await this.check(true);
     else if (request.action === "gateway") {
       if (this.kind !== "binary") throw new ConnectError(managedInstructions(this.kind), Code.FailedPrecondition);
 

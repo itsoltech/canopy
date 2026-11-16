@@ -20,5 +20,5 @@ async function checkGateway(core: GatewayCore, release: FoundRelease) {
 
   if (channel !== release.channel || !versionAhead(release.version, availableVersion || gatewayVersion)) return;
   nudged.set(core, release.version);
-  await core.updates.check();
+  await core.updates.check(true);
 }
