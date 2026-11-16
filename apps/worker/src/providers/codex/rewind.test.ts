@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { join } from "node:path";
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { create } from "@bufbuild/protobuf";
 import {
   AgentToolResultSchema,
@@ -111,7 +111,7 @@ test("Codex prefix replacement excludes superseded turns after a runtime restart
   }
 });
 
-test("Codex refuses a stale session after asynchronous turn settings, before turn_started", async () => {
+test("Codex cancels admission after asynchronous turn settings before a queued rewind", async () => {
   const root = tempDir("canopy-codex-rewind-admission-");
   const events: ThreadEvent[] = [];
   const profile = resolveProfiles([{ id: "native", kind: "native", providers: ["codex"] }])[0]!.resolved!;
@@ -136,6 +136,7 @@ test("Codex refuses a stale session after asynchronous turn settings, before tur
 
   try {
     spec.providerThreadId = await worker.runPromise(CodexThreads.use((threads) => threads.create(spec)));
+    const original = spec.providerThreadId;
 
     const starting = worker.runPromise(
       CodexThreads.use((threads) =>
@@ -155,13 +156,19 @@ test("Codex refuses a stale session after asynchronous turn settings, before tur
     expect(events.some((event) => event.turnId === turnId)).toBe(false);
     allowed = false;
 
-    const replacement = await worker.runPromise(
+    const rewinding = worker.runPromise(
       CodexThreads.use((threads) => threads.rewind(create(RewindThreadSchema, { thread: spec, empty: true }))),
     );
 
-    spec.providerThreadId = replacement.providerThreadId ?? "";
+    // Rewind shares the admission lock: settings must settle before it can replace the session.
     writeFileSync(join(root, "release"), "");
-    expect(await starting).toBe("");
+    const [started, replacement] = await Promise.all([starting, rewinding]);
+
+    expect(started).toBe("");
+    expect(readFileSync(join(root, `${original}.json`), "utf8")).toBe("[]");
+    spec.providerThreadId = replacement.providerThreadId ?? "";
+    expect(spec.providerThreadId).not.toBe("");
+    expect(spec.providerThreadId).not.toBe(original);
     const next = Bun.randomUUIDv7();
     await worker.runPromise(
       CodexThreads.use((threads) => threads.startTurn(spec, next, create(UserInputSchema, { text: "EDITED" }))),

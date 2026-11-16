@@ -44,7 +44,7 @@ for await (const line of createInterface({ input: process.stdin })) {
       if (gate) {
         writeFileSync(join(gate, "entered"), "");
 
-        // Keep reading requests: rewind can replace the entry while turn settings are pending.
+        // Keep reading requests while the test holds asynchronous turn settings at this gate.
         const watcher = watch(gate, () => {
           if (!existsSync(join(gate, "release"))) return;
           watcher.close();
