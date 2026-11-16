@@ -26,11 +26,15 @@ export function restoreWorkspace(store: WorkspaceStore, raw: string | null): voi
       const module = workspaceModule(str(tab["module"]));
 
       if (module) {
-        view.openModule({
-          module: module.id,
-          resource: str(tab["resource"]).slice(0, 1024),
-          label: str(tab["label"]).slice(0, 256),
-        });
+        view.openModule(
+          module.id === "preview"
+            ? { module: module.id, resource: "" }
+            : {
+                module: module.id,
+                resource: str(tab["resource"]).slice(0, 1024),
+                label: str(tab["label"]).slice(0, 256),
+              },
+        );
         continue;
       }
 
@@ -54,7 +58,9 @@ export function workspaceMetadata(store: WorkspaceStore): string {
     active: view.tabs.findIndex((tab) => tab.id === view.active) + 1,
     tabs: view.tabs.map((tab) =>
       tab.kind === "module"
-        ? { module: tab.module, resource: tab.resource, label: tab.label?.slice(0, 256) }
+        ? tab.module === "preview"
+          ? { module: tab.module, resource: "" }
+          : { module: tab.module, resource: tab.resource, label: tab.label?.slice(0, 256) }
         : { threadId: tab.document.target.threadId, path: tab.document.path, itemId: tab.document.target.itemId ?? "" },
     ),
   }));

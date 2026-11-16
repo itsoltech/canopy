@@ -82,6 +82,7 @@
   import { ThreadWorkspace } from "#lib/features/workspace/thread-workspace.svelte.ts";
   import WorkspaceTabs from "#lib/features/workspace/WorkspaceTabs.svelte";
   import WorkspaceFilesToggle from "#lib/features/workspace/WorkspaceFilesToggle.svelte";
+  import WorkspacePreview from "#lib/features/workspace/WorkspacePreview.svelte";
   import WorkspaceContent from "#lib/features/workspace/WorkspaceContent.svelte";
   import WorkspaceSidePanel from "#lib/features/workspace/WorkspaceSidePanel.svelte";
   import AgentPreviewMini from "#lib/features/preview/AgentPreviewMini.svelte";
@@ -334,7 +335,9 @@
   const toggleFiles = () => workspaceState.showPanel("files");
   const togglePreview = () => workspaceState.showPanel("preview");
 
-  const previewOpen = $derived(workspaceState.panelMode === "preview" && workspaceState.panelOpen);
+  const previewOpen = $derived(
+    (workspaceState.panelMode === "preview" && workspaceState.panelOpen) || workspaceState.previewTabActive,
+  );
 
   const miniEligible = $derived(
     Boolean(
@@ -867,7 +870,9 @@
 {/snippet}
 
 {#snippet renderModule(target: WorkspaceModuleTarget)}
-  {#if target.module === "pull-requests" && target.resource}
+  {#if target.module === "preview"}
+    <WorkspacePreview state={workspaceState} {worker} offline={away ?? ""} location="tab" active />
+  {:else if target.module === "pull-requests" && target.resource}
     <PullRequestPanel id={target.resource} {threadId} onclose={() => workspaceState.view.select("thread")} />
   {:else if target.module === "tasks" && target.resource}
     {@const task = allBackgroundTasks.find((entry) => entry.id === target.resource)}

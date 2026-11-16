@@ -1,7 +1,8 @@
 # Narzędzia automatyzacji agentów
 
-Status (2026-11-16): **narzędzia, interaktywny Preview z podglądem zmiany viewportu,
-automatyczny mini Preview wątku oraz sprzątanie sesji przy archiwizacji zaimplementowane**.
+Status (2026-11-17): **narzędzia, interaktywny Preview z podglądem zmiany viewportu,
+automatyczny mini Preview wątku, pełna karta Preview w web/desktop, ikony obu stanów skali
+oraz sprzątanie sesji przy archiwizacji zaimplementowane**.
 Natywny mobile ma ręczny arkusz Preview Browser/Desktop/Device z wyborem celu,
 dotykiem, nawigacją i wpisywaniem tekstu przez Connect z przypiętym TLS.
 Browser MCP pozostaje w sesji wątku i działa headless;
@@ -240,8 +241,10 @@ Browser ma adres oraz `Back`/`Forward`/`Reload page`. Użytkownik działa bezpo�
 na obrazie myszą, klawiaturą i gestami. Kliknięcie przejmuje fokus klawiatury,
 tekst obsługuje IME i wklejanie, a Escape zwalnia sterowanie i przenosi fokus
 na obraz. Zmiana rozmiaru, dopasowanie i pełny ekran nie tworzą kolejnej sesji;
-na wąskim ekranie panel otwiera arkusz na cały ekran. Zakładka podglądu pliku
-nadal działa niezależnie
+na wąskim ekranie panel otwiera arkusz na cały ekran. `Open in tab` przenosi Preview
+do głównego obszaru wątku, a `Open in sidebar` przywraca panel. Oba widoki dzielą
+narzędzie, cel i tryb skali; tylko widoczny widok utrzymuje transmisję.
+Zakładka podglądu pliku nadal działa niezależnie
 ([workspace.md](workspace.md#panel-filespreview)).
 
 Tryb `Fit to panel` zachowuje proporcje obrazu i dopasowuje go do obu wymiarów
@@ -249,8 +252,9 @@ dostępnego obszaru, bez powiększania ponad rozmiar klatki. Zmiana szerokości
 sidebara, wysokości okna lub wejście na pełny ekran przelicza skalę tak, aby
 cały viewport pozostawał widoczny, z miejscem na uchwyty zmiany rozmiaru.
 `Show actual size` pokazuje klatkę w skali 1:1 i pozwala przewijać ją od każdej
-krawędzi. Skalowanie obrazu nie zmienia viewportu przeglądarki; współrzędne
-sterowania i uchwyty odnoszą się do widocznego obrazu po przeskalowaniu.
+krawędzi. Ikona skali zmienia się ze strzałek na zewnątrz na strzałki do środka,
+a przycisk pełnego ekranu pokazuje inną ikonę po rozwinięciu. Skalowanie obrazu nie
+zmienia viewportu przeglądarki; współrzędne sterowania i uchwyty odnoszą się do widocznego obrazu po przeskalowaniu.
 
 Uchwyty zmiany viewportu to cienkie kreski poza obrazem, z większym przezroczystym
 obszarem chwytania. Podczas przeciągania dowolnej krawędzi obraz zachowuje rozmiar,

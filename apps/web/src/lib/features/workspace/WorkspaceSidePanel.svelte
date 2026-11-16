@@ -1,12 +1,11 @@
 <script lang="ts">
-  import { untrack } from "svelte";
   import type { ui } from "@canopy/contracts";
   import type { ThreadWorkspace } from "./thread-workspace.svelte.ts";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import SegmentedChoice from "#lib/shared/ui/SegmentedChoice.svelte";
   import WorkspaceFiles from "./WorkspaceFiles.svelte";
-  import AgentPreviewPanel from "#lib/features/preview/AgentPreviewPanel.svelte";
+  import WorkspacePreview from "./WorkspacePreview.svelte";
 
   let {
     state: workspace,
@@ -25,7 +24,11 @@
   } = $props();
 
   const open = $derived(workspace.filesOpen);
-  const sheet = $derived(!workspace.wide && workspace.panelOpen);
+
+  const sheet = $derived(
+    !workspace.wide && workspace.panelOpen && !(workspace.panelMode === "preview" && workspace.previewTabActive),
+  );
+
   let used = $state(false);
   let filesUsed = $state(false);
   let previewUsed = $state(false);
@@ -35,21 +38,6 @@
     used = false;
     filesUsed = false;
     previewUsed = false;
-  });
-
-  $effect.pre(() => {
-    const choice = workspace.previewChoice;
-    const workerId = worker?.id;
-
-    if (!workerId) return;
-    untrack(() => {
-      if (choice.workerId && choice.workerId !== workerId) {
-        choice.target = undefined;
-        choice.selection = undefined;
-      }
-
-      choice.workerId = workerId;
-    });
   });
 
   $effect(() => {
@@ -95,16 +83,15 @@
         class:hidden={workspace.panelMode !== "preview"}
         inert={workspace.panelMode !== "preview"}
       >
-        {#if previewUsed}{#key `${threadId}:${worker?.id ?? ""}`}<AgentPreviewPanel
-              {threadId}
-              {worker}
-              selection={workspace.previewChoice.selection}
-              onselectionfocus={() => (workspace.previewChoice.selection = undefined)}
-              bind:tool={workspace.previewTool}
-              bind:target={workspace.previewChoice.target}
-              {offline}
-              active={active && workspace.panelMode === "preview"}
-            />{/key}{/if}
+        {#if previewUsed}
+          <WorkspacePreview
+            state={workspace}
+            {worker}
+            {offline}
+            location="sidebar"
+            active={active && workspace.panelMode === "preview" && !workspace.previewTabActive}
+          />
+        {/if}
       </div>
     </div>
   </div>
