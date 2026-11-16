@@ -97,7 +97,7 @@ CLI (do 8, także zepsute symlinki; bez bitu wykonywania są pomijane) w tej kol
 10. Homebrew: `$HOMEBREW_PREFIX/bin`, `/opt/homebrew/bin` (Apple Silicon), `/usr/local/bin` (Intel),
     `/home/linuxbrew/.linuxbrew/bin`, `~/.linuxbrew/bin`.
 
-Windows (bez zmian w zachowaniu, tylko `<cli>.exe`): `PATH`, `%APPDATA%\npm`, `%VOLTA_HOME%\bin`,
+Windows (`<cli>.exe`, npm-owe `<cli>.cmd` i `<cli>.bat`): `PATH`, `%APPDATA%\npm`, `%VOLTA_HOME%\bin`,
 `%LOCALAPPDATA%\Volta\bin`, `~/scoop/shims`, Bun, `%PNPM_HOME%`, `~/.local/bin`.
 
 **Wybór:** kandydaci są sprawdzani po kolei przez `<plik> --version` (governor: ≤2 naraz, cache 60 s; ten sam klucz

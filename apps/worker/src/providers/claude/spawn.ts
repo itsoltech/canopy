@@ -1,13 +1,15 @@
 import { spawn } from "node:child_process";
 import type { SpawnOptions, SpawnedProcess } from "@anthropic-ai/claude-agent-sdk";
-import { governNodeSpawn, killProcessTree } from "@canopy/process-governor";
+import { governNodeSpawn, killProcessTree, windowsCommand } from "@canopy/process-governor";
 
 /** SDK launch hook accounts for sessions, catalog lookups and text generation alike. */
 export function spawnClaude(options: SpawnOptions): SpawnedProcess {
   options.signal.throwIfAborted();
 
+  const command = windowsCommand([options.command, ...options.args], options.env);
+
   const child = governNodeSpawn("harness", () =>
-    spawn(options.command, options.args, {
+    spawn(command[0]!, command.slice(1), {
       cwd: options.cwd,
       env: options.env,
       stdio: ["pipe", "pipe", "pipe"],

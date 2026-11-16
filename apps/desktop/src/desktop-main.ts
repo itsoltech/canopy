@@ -36,6 +36,8 @@ import { acceptRemoteUpdate, remoteAppUpdate, registerUpdateIpc } from "./update
 import { desktopHistory, registerHistoryIpc } from "./history-ipc.ts";
 import { registerFontsIpc } from "./fonts-ipc.ts";
 import { startupFailure } from "./startup-error.ts";
+import { sendWindowMessage, sendWindowsMessage } from "./window-message.ts";
+import { registerSecondInstance, relaunchAfterQuit } from "./relaunch.ts";
 
 const identity = desktopIdentity();
 
@@ -108,8 +110,7 @@ const quitGuard = new QuitGuard(
     quit: () => app.quit(),
     log: quitLog,
     emit: (state) => {
-      for (const target of [window, settingsWindow])
-        if (target && !target.isDestroyed()) target.webContents.send("canopy:quit-guard", state);
+      sendWindowsMessage([window, settingsWindow], (contents) => contents.send("canopy:quit-guard", state));
     },
   },
   process.platform,
@@ -137,11 +138,8 @@ function broadcast() {
 
   if (remoteUpdate && !remoteUpdate.active) void remoteUpdate.publish().catch(() => {});
 
-  for (const target of [window, settingsWindow])
-    if (target && !target.isDestroyed()) target.webContents.send("canopy:status", status);
-
-  for (const target of [window, settingsWindow])
-    if (target && !target.isDestroyed()) target.webContents.send("canopy:updates", updates.status());
+  sendWindowsMessage([window, settingsWindow], (contents) => contents.send("canopy:status", status));
+  sendWindowsMessage([window, settingsWindow], (contents) => contents.send("canopy:updates", updates.status()));
 
   updateDesktopMenus({
     status,
@@ -249,27 +247,25 @@ function enrollment(link: string) {
   openSettings();
   const target = settingsWindow ?? window;
 
-  if (target && enrollmentReady.has(target.webContents.id)) {
+  sendWindowMessage(target, (contents) => {
+    if (!enrollmentReady.has(contents.id)) return;
     pendingLink = undefined;
-    target.webContents.send("canopy:enrollment", parsed.enrollment);
-  }
+    contents.send("canopy:enrollment", parsed.enrollment);
+  });
 }
 
-app.on("second-instance", (_event, argv) => {
-  const link = argv.find((arg) => arg.startsWith(`${identity.scheme}://`));
-
-  if (link) enrollment(link);
-  else showMain();
-});
+registerSecondInstance(
+  identity.scheme,
+  () => quitting,
+  (link) => (link ? enrollment(link) : showMain()),
+);
 
 app.on("open-url", (event, url) => {
   event.preventDefault();
   enrollment(url);
 });
 
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
-});
+app.on("window-all-closed", () => process.platform !== "darwin" && app.quit());
 
 app.on("activate", showMain);
 
@@ -297,7 +293,10 @@ app.on("before-quit", (event) => {
     stopped = true;
 
     if (installingUpdate) updates.install();
-    else app.quit();
+    else {
+      relaunchAfterQuit();
+      app.quit();
+    }
   };
 
   // EOF makes the guardian stop owned process groups even if Electron subsequently crashes.
@@ -398,8 +397,7 @@ function registerIpc() {
     quitGuard.cancel();
     quitGuard.mode = value;
 
-    for (const target of [window, settingsWindow])
-      if (target && !target.isDestroyed()) target.webContents.send("canopy:quit-shortcut", value);
+    sendWindowsMessage([window, settingsWindow], (contents) => contents.send("canopy:quit-shortcut", value));
 
     return value;
   });

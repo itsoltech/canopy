@@ -134,23 +134,27 @@ const MAX_LOCATIONS = 8;
 
 /** The files named like the command in those directories, broken symlinks included. */
 export function locate(ctx: LocationContext, command: string): Location[] {
-  const exe = ctx.platform === "win32" ? `${command}.exe` : command;
+  const names = ctx.platform === "win32" ? [`${command}.exe`, `${command}.cmd`, `${command}.bat`] : [command];
   const found: Location[] = [];
 
   for (const dir of searchDirectories(ctx, command)) {
-    const path = join(dir, exe);
+    for (const name of names) {
+      const path = join(dir, name);
 
-    try {
-      const link = lstatSync(path);
+      try {
+        const link = lstatSync(path);
 
-      if (link.isDirectory()) continue;
-      const broken = link.isSymbolicLink() && !existsSync(path);
+        if (link.isDirectory()) continue;
+        const broken = link.isSymbolicLink() && !existsSync(path);
 
-      // A file without an execute bit is not a CLI (a stray copy, a README).
-      if (!broken && ctx.platform !== "win32" && (statSync(path).mode & 0o111) === 0) continue;
-      found.push({ path, broken });
-    } catch {
-      continue;
+        // A file without an execute bit is not a CLI (a stray copy, a README).
+        if (!broken && ctx.platform !== "win32" && (statSync(path).mode & 0o111) === 0) continue;
+        found.push({ path, broken });
+      } catch {
+        continue;
+      }
+
+      if (found.length >= MAX_LOCATIONS) break;
     }
 
     if (found.length >= MAX_LOCATIONS) break;

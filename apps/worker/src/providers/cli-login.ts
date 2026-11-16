@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { stripVTControlCharacters } from "node:util";
 import { randomUUID } from "node:crypto";
-import { governNodeSpawn, killProcessTree } from "@canopy/process-governor";
+import { governNodeSpawn, killProcessTree, windowsCommand } from "@canopy/process-governor";
 
 export interface CliLogin {
   verificationUrl: string;
@@ -22,8 +22,13 @@ export async function startCliLogin(options: {
 }): Promise<CliLogin> {
   options.signal.throwIfAborted();
 
+  const command = windowsCommand(
+    [options.executable, ...(options.harness === "claude" ? ["auth", "login"] : ["login", "--device-auth"])],
+    options.env,
+  );
+
   const child = governNodeSpawn("probe", () =>
-    spawn(options.executable, options.harness === "claude" ? ["auth", "login"] : ["login", "--device-auth"], {
+    spawn(command[0]!, command.slice(1), {
       env: { ...options.env, BROWSER: "false" },
       cwd: options.cwd,
       stdio: ["pipe", "pipe", "pipe"],
