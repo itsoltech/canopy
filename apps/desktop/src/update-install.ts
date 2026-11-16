@@ -6,9 +6,15 @@ import type { AppUpdater } from "electron-updater";
 import { desktopIdentity } from "./identity.ts";
 
 export const WINDOWS_UPDATE_ADMIN_MESSAGE =
-  "This installation needs administrator approval to update. Install Canopy for your user account to enable unattended updates.";
+  "Canopy cannot update this installation automatically. Close Canopy, run the downloaded installer as administrator, then open Canopy without administrator rights.";
 
 export class UpdateInstallError extends Error {}
+
+export class WindowsUpdateAdminError extends UpdateInstallError {
+  constructor() {
+    super(WINDOWS_UPDATE_ADMIN_MESSAGE);
+  }
+}
 
 function machineInstallation() {
   // Match electron-builder 26.18.0's default NSIS registry identity, shared by all channels.
@@ -27,11 +33,11 @@ export function checkWindowsUpdateInstall(
   machineInstall: () => { status: number | null; error?: Error } = machineInstallation,
   writable = () => rmdirSync(mkdtempSync(join(directory, ".canopy-update-"))),
 ) {
-  if (adminRequired) throw new UpdateInstallError(WINDOWS_UPDATE_ADMIN_MESSAGE);
+  if (adminRequired) throw new WindowsUpdateAdminError();
   const result = machineInstall();
 
   // Assisted NSIS elevates silent updates whenever its machine-wide InstallLocation exists.
-  if (result.status === 0) throw new UpdateInstallError(WINDOWS_UPDATE_ADMIN_MESSAGE);
+  if (result.status === 0) throw new WindowsUpdateAdminError();
 
   if (result.error || result.status !== 1)
     throw new UpdateInstallError("Could not check installation permissions. Retry the update on this computer.");
@@ -39,7 +45,7 @@ export function checkWindowsUpdateInstall(
   try {
     writable();
   } catch {
-    throw new UpdateInstallError(WINDOWS_UPDATE_ADMIN_MESSAGE);
+    throw new WindowsUpdateAdminError();
   }
 }
 

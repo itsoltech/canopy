@@ -1,6 +1,7 @@
 # Canopy Desktop
 
-Status: opis zaimplementowanego runtime (2026-11-16), w tym sesji dostępu do lokalnego BFF,
+Status: opis zaimplementowanego runtime (2026-11-16), w tym ręcznego odzyskiwania aktualizacji Windows
+i odmowy startu lokalnej bazy z uprawnieniami administratora, sesji dostępu do lokalnego BFF,
 podglądu bieżącej zajętości plików Canopy w Diagnostics oraz własnego HTML w rozmowie
 z odizolowanego renderera offscreen.
 Dostępność w nightly/beta/stable określają [zasady wydań](release.md) i GitHub Releases.
@@ -336,6 +337,10 @@ Kontroler odczytuje zapisany tryb z `desktop.json` przed otwarciem pierwszego ok
 Skonfigurowana aplikacja ładuje `/desktop` jako ekran startu: logo Canopy, krótki
 status połączenia ze zdalnym hostem lub startu usług lokalnych, a przy pobieraniu
 PostgreSQL pasek postępu. Błędy udostępniają „Try again” i „Open desktop settings”.
+Jeśli PostgreSQL zgłosi odmowę pracy z uprawnieniami administratora, ekran od razu
+wyjaśnia przyczynę i poleca zamknąć Canopy oraz otworzyć je bez „Run as administrator”.
+Komunikat wynika z odpowiedzi procesu bazy, nie z samego braku gotowości SQL;
+pozostałe przyczyny nie są przypisywane uprawnieniom administratora.
 Niepoprawny plik konfiguracji również prowadzi do odzyskiwania, zamiast do pierwszego uruchomienia.
 Formularz wyboru trybu pojawia się tylko bez konfiguracji albo po jawnym otwarciu
 wyboru trybu (`/desktop?settings=1`). Ekran zawiera wyłącznie wybór local/remote
@@ -1092,9 +1097,17 @@ Metadane paczki per-user nie wystarczają więc do wykrycia tego przypadku.
 Przed restartem sprawdzamy także maszynowy wpis NSIS w 64-bitowym rejestrze oraz
 możliwość utworzenia i usunięcia katalogu w katalogu aplikacji. Wykrycie potrzeby
 administratora blokuje instalację: lokalny komunikat oraz zdalny wynik `failed`
-zalecają instalację dla bieżącego użytkownika. Usługi nadal działają; nie zostawiamy
+polecają zamknąć Canopy, uruchomić pobrany instalator jako administrator,
+a potem otworzyć aplikację bez uprawnień administratora. Usługi nadal działają; nie zostawiamy
 ukrytego instalatora oczekującego na zgodę. Aktualizację takiej instalacji wykonaj
 ręcznie z uprawnieniami administratora albo zastąp ją instalacją dla bieżącego użytkownika.
+Lokalny Restart to update otwiera wtedy natywny dialog „Update manually” z instrukcją
+krok po kroku oraz „Show installer”. Przycisk zaznacza już pobrany, zaakceptowany
+instalator w Eksploratorze; użytkownik zamyka Canopy, uruchamia ten plik przez
+„Run as administrator” i po aktualizacji otwiera aplikację bez podniesionych uprawnień.
+Nie musi wyszukiwać wydania ani ponownie pobierać pliku. Anulowanie dialogu zachowuje
+działającą aplikację. Main wybiera plik z gotowego updatera, bez ścieżki z renderera.
+Zdalna aktualizacja nadal kończy się `failed`, bez otwierania lokalnego dialogu.
 
 NSIS `CHECK_APP_RUNNING` daje procesom czas na wyjście przy `--updated`, potem
 próbuje je zamknąć; w silent ewentualne pytania mają domyślne odpowiedzi.

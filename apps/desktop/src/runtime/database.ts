@@ -3,7 +3,8 @@ import { join } from "node:path";
 import { SQL } from "bun";
 import { spawn, spawnSync } from "node:child_process";
 import { freePort } from "./config.ts";
-import { Supervisor, until } from "./process.ts";
+import { Supervisor } from "./process.ts";
+import { databaseReady } from "./database-ready.ts";
 
 /** Foreground postgres: the supervisor owns its PID, never a daemon launched by pg_ctl. */
 export async function startDatabase(options: {
@@ -48,8 +49,9 @@ export async function startDatabase(options: {
   await stopOrphan(data, binary("pg_ctl"), env);
   const port = await freePort();
   const base = `postgres://canopy:${encodeURIComponent(password)}@127.0.0.1:${port}`;
+
   // PostgreSQL checks stale postmaster.pid and replays WAL itself. Never delete a live lock.
-  supervisor.start({
+  const { child } = supervisor.start({
     name: "postgres",
     command: binary("postgres"),
     args: [
@@ -81,7 +83,8 @@ export async function startDatabase(options: {
         }),
     }),
   });
-  await until(async () => {
+
+  await databaseReady(child, async () => {
     const sql = new SQL(`${base}/postgres`, { max: 1, connectionTimeout: 1 });
 
     try {
