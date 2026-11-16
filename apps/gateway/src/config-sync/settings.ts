@@ -57,6 +57,7 @@ export function settingsValues(stored: SettingsJson, self: string, nodes: readon
       "general.confirmDelete": null,
       "cliUpdates.intervalMinutes": null,
       "threadDefaults.useLastAgent": null,
+      "threadDefaults.autoArchiveOnMerge": null,
     }),
   };
 

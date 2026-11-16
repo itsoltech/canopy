@@ -11,6 +11,8 @@ const Body = Schema.Struct({
   model: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(200))),
   effort: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(40))),
   title: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(200))),
+  autoArchiveOnMerge: Schema.optionalKey(Schema.Boolean),
+  resetAutoArchiveOnMerge: Schema.optionalKey(Schema.Boolean),
   // Enum key; missing = unchanged.
   permissionMode: Schema.optionalKey(Schema.Literals(["ASK", "ACCEPT_EDITS", "READ_ONLY", "FULL_AUTO", "FULL_ACCESS"])),
 });

@@ -163,6 +163,29 @@ async function initialQuotes(core: GatewayCore, request: ui.CreateThreadRequest)
   return quotes;
 }
 
+/** Automatic archival uses the same locks, cascade, cleanup and broadcasts as the user's action. */
+export async function coreArchiveThread(
+  hostContext: GatewayCore,
+  threadId: string,
+  archived: boolean,
+  reason: "user" | "merge" = "user",
+): Promise<void> {
+  const { ids, commands } = await coreRun(hostContext, (s) =>
+    s.setThreadArchived(hostContext[coreState].options.userId, threadId, archived, reason),
+  );
+
+  for (const entry of commands) void coreDeliver(hostContext, entry.workerId, entry.command);
+
+  for (const id of ids) {
+    await coreBroadcastThread(hostContext, id);
+
+    for (const schedule of await hostContext.listSchedules(
+      create(ui.ListSchedulesRequestSchema, { threadId: id, includeFinished: true }),
+    ))
+      coreAnnounceSchedule(hostContext, schedule);
+  }
+}
+
 export interface CoreThreadsMethods {
   reorderThread(request: ui.ReorderThreadRequest): Promise<ui.Thread>;
   listThreads(projectId: string, includeArchived?: boolean, sidebarOnly?: boolean): Promise<ui.Thread[]>;
@@ -234,20 +257,7 @@ export const coreThreadsMethods: CoreThreadsMethods = {
   },
 
   async setThreadArchived(this: GatewayCore, threadId: string, archived: boolean): Promise<ui.Thread> {
-    const { ids, commands } = await coreRun(this, (s) =>
-      s.setThreadArchived(this[coreState].options.userId, threadId, archived),
-    );
-
-    for (const entry of commands) void coreDeliver(this, entry.workerId, entry.command);
-
-    for (const id of ids) {
-      await coreBroadcastThread(this, id);
-
-      for (const schedule of await this.listSchedules(
-        create(ui.ListSchedulesRequestSchema, { threadId: id, includeFinished: true }),
-      ))
-        coreAnnounceSchedule(this, schedule);
-    }
+    await coreArchiveThread(this, threadId, archived);
 
     return this.getThread(threadId);
   },

@@ -6,6 +6,7 @@ cytowanie zaznaczeń z plików, przeciąganie plików do wiadomości
 i interaktywny Preview automatyzacji w panelu web/desktop oraz automatyczny mini Preview
 pod podsumowaniem wątku, przywracanie mini Preview oraz osobnego stanu prawego panelu
 po powrocie do wątku, kompaktowe pola wymiarów Preview bez +/−
+oraz kompaktowy przełącznik automatycznej archiwizacji po merge z ikoną informacji w podsumowaniu
 (2026-11-16; stos #640–#648, potem #710, #711, #737, #740, #787 i #823).
 Opis dotyczy kodu; dostępność nightly/beta/stable określają [wydania](release.md).
 W web/desktop zakładki dzielą rząd z sygnetem projektu, a **tytuł wątku jest pierwszą,
@@ -23,6 +24,15 @@ Cel: czytać i edytować pliki obok kontekstu wątku bez wielokrotnego otwierani
 Priorytet: otwarcie wątku, pisanie i streaming nie płacą za nieotwarte moduły.
 Zakładki dotyczą **jednego wątku**, nie całej aplikacji ani wielu wątków naraz.
 Nie zmieniamy znaczenia workspace'u: nadal jest katalogiem projektu na workerze.
+
+Sekcja **Pull requests** w podsumowaniu web/desktop zawiera **Auto-archive after merge**.
+Przełącznik nadpisuje ustawienie tylko dla bieżącego wątku. Do pierwszej ręcznej zmiany
+dziedziczy ono wartość projektu lub konta. W podsumowaniu nie ma przycisku resetu.
+Jeden zwarty wiersz używa `Switch size="sm"`;
+ikona informacji udostępnia opis działania i źródło ustawienia po najechaniu,
+fokusie klawiatury lub dotknięciu na ekranie dotykowym. Pole pozostaje dostępne
+przed podpięciem pierwszego PR, a w archiwum i przy niedostępnym komputerze jest
+nieaktywne. Warunki archiwizacji i ustawienia nadrzędne opisuje [threads.md](threads.md#automatyczna-archiwizacja-po-merge).
 
 Punkty oparcia: [architektura](architecture.md), [UI API](ui-api.md#pliki-wątku),
 [protokół plików](protocol.md#folder-i-pliki-wątku), [pull requests](github.md),

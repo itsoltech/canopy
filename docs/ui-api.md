@@ -13,6 +13,7 @@ Bezpieczny HTML we wspólnym rendererze Markdown,
 lokalne obrazy w podglądzie plików, interaktywny Preview wątku i automatyczny mini
 Preview pod podsumowaniem, opcjonalna retencja archiwum oraz poprawione narożniki,
 typografia i ikony stosu paneli nad composerem są zaimplementowane.
+Automatyczna archiwizacja po merge ma ustawienie konta, nadpisanie projektu i przełącznik w podsumowaniu wątku.
 Web/desktop i mobile informują o trwałym usuwaniu historii 31 dni po ręcznym Delete,
 z zachowaniem plików workspace i krótkim Undo.
 Na `dev` zwijanie composera steruje wyłącznie skończonymi przejściami CSS.
@@ -28,6 +29,20 @@ Sekcja Working uwzględnia ponownie pracujące wątki i ignoruje wyniki zakończ
 BFF materializuje overview, indeks wątków i ustawienia ze wspólnego strumienia gRPC,
 aktualizuje wczytane odczyty oraz dogrzewa ogony historii bez cyklicznych HTTP renderera.
 Opis dotyczy kodu, nie wdrożenia; dostępność kanałów według [release.md](release.md).
+
+## Archiwizacja po merge
+
+`ThreadDefaults.auto_archive_on_merge` jest opcjonalnym booleanem: brak w ustawieniach
+konta oznacza wyłączenie, a brak w ustawieniach projektu — dziedziczenie z konta.
+Ustawienia korzystają z istniejących wersjonowanych zapisów `UpdateUserSettings`
+i `UpdateProjectSettings` oraz zmian overview.
+`Thread.auto_archive_on_merge` to niezależne, opcjonalne nadpisanie wątku.
+`UpdateThread.auto_archive_on_merge` zapisuje je, a `reset_auto_archive_on_merge`
+usuwa nadpisanie; jednoczesne podanie obu jest odrzucane. BFF przekazuje oba pola
+przez istniejący endpoint ustawień wątku. Klient pokazuje wartość efektywną w kolejności
+wątek → projekt → konto → wyłączone; nie zapisuje rozstrzygniętej wartości przy tworzeniu.
+Powód `Thread.archived_by = merge` identyfikuje automatyczną archiwizację.
+Warunki po stronie gatewaya: [github.md](github.md), interfejs: [threads.md](threads.md#automatyczna-archiwizacja-po-merge).
 
 ## Proponowane odpowiedzi
 

@@ -220,6 +220,9 @@ const messageActions: Omit<CoreMessagesMethods, "sendMessage"> = {
 
     if (thread.owner_user_id !== this[coreState].options.userId || thread.archived_at)
       throw new InvalidError("thread not found");
+
+    if (request.resetAutoArchiveOnMerge && request.autoArchiveOnMerge !== undefined)
+      throw new InvalidError("Choose an override or reset automatic archiving, not both.");
     const title = request.title?.trim();
 
     if (title !== undefined && (!title || title.length > 200 || /[\r\n\p{Cc}]/u.test(title)))
@@ -244,11 +247,15 @@ const messageActions: Omit<CoreMessagesMethods, "sendMessage"> = {
     if (title !== undefined) await coreRun(this, (s) => s.renameThread(thread.id, title));
 
     const row = await coreRun(this, (s) =>
-      s.updateThreadSettings(request.threadId, {
-        ...(request.model !== undefined && { model: request.model }),
-        ...((request.effort !== undefined || effort !== current) && { effort }),
-        ...(permissionMode && { permissionMode }),
-      }),
+      s.updateThreadSettings(
+        request.threadId,
+        {
+          ...(request.model !== undefined && { model: request.model }),
+          ...((request.effort !== undefined || effort !== current) && { effort }),
+          ...(permissionMode && { permissionMode }),
+        },
+        request.resetAutoArchiveOnMerge ? null : request.autoArchiveOnMerge,
+      ),
     );
 
     await coreBroadcastThread(this, row.id);

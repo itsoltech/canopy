@@ -8,6 +8,7 @@ import { githubCache } from "./store-cache.ts";
 import { githubPullRequests } from "./store-pull-requests.ts";
 import { githubDetectionStore } from "./store-detection.ts";
 import { githubUpdateStore } from "./update-account.ts";
+import { githubMergeArchiveStore } from "./store-merge-archive.ts";
 import { githubPollingStore } from "./store-polling.ts";
 import { githubMutationsStore } from "./store-mutations.ts";
 import { githubRepositoryAccess } from "./store-repository-access.ts";
@@ -70,6 +71,7 @@ export function githubStore(sql: SqlClient.SqlClient, key: Buffer) {
     ...githubMutationsStore(sql),
     ...githubUpdateStore(sql),
     ...githubPollingStore(sql),
+    ...githubMergeArchiveStore(sql),
     owned,
     open,
     audit,

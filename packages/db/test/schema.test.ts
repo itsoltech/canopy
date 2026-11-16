@@ -170,6 +170,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "156_storage_cleanup",
       "157_deleted_thread_retention",
       "158_thread_cleanup_retention",
+      "159_thread_merge_archive",
     ]);
   }, 60_000);
 

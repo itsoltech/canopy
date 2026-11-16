@@ -1,6 +1,7 @@
+import { createCoreGitHub } from "./core-github.ts";
 import { CliImports } from "../imports/index.ts";
 import { WorkspaceCopyJobs } from "../workspace-copy/jobs.ts";
-import { GitHubAccounts } from "../github/service.ts";
+import type { GitHubAccounts } from "../github/service.ts";
 import { GitHubDetection } from "../github/detection.ts";
 import { Diagnostics } from "../diagnostics/service.ts";
 import { create } from "@bufbuild/protobuf";
@@ -92,9 +93,6 @@ export {
   type CoreServices,
   type GatewayCoreOptions,
 } from "./core-context.ts";
-
-const createCoreGitHub = (core: GatewayCore, options: GatewayCoreOptions) =>
-  new GitHubAccounts(options.runtime, options.userId, options.github, (ids) => core.threadsChanged(ids));
 
 export class GatewayCore {
   readonly diagnostics: Diagnostics;

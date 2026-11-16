@@ -66,7 +66,14 @@ export async function sendMessage(
 /** The thread's default model, effort and permission mode: unset = unchanged, "" = the profile's default. */
 export async function updateThread(
   threadId: string,
-  change: { model?: string; effort?: string; permissionMode?: PermissionModeKey; title?: string },
+  change: {
+    model?: string;
+    effort?: string;
+    permissionMode?: PermissionModeKey;
+    title?: string;
+    autoArchiveOnMerge?: boolean;
+    resetAutoArchiveOnMerge?: boolean;
+  },
 ): Promise<ui.Thread | undefined> {
   return decode(ui.UpdateThreadResponseSchema, await post(`${threadPath(threadId)}/settings`, change)).thread;
 }

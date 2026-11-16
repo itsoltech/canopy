@@ -1,6 +1,8 @@
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { Invalid, NotFound } from "./store.ts";
+import { configLock } from "../config-sync/persistence.ts";
+import { mergeArchiveAllowed, mergeArchiveIdle } from "./thread-merge-archive.ts";
 import { stopThreadResources, type Dispatch } from "./thread-cleanup.ts";
 
 interface Owned {
@@ -9,6 +11,7 @@ interface Owned {
   deleted_at: Date | null;
   deletion_batch_id: string | null;
   archived_at: Date | null;
+  archived_by: string | null;
   moved_to: string | null;
   purged_at: Date | null;
 }
@@ -16,7 +19,7 @@ interface Owned {
 const owned = (sql: SqlClient.SqlClient, userId: string, threadId: string, deleted = false) =>
   Effect.gen(function* () {
     const row =
-      (yield* sql<Owned>`SELECT id, parent_thread_id, deleted_at, deletion_batch_id, archived_at, moved_to, purged_at FROM threads
+      (yield* sql<Owned>`SELECT id, parent_thread_id, deleted_at, deletion_batch_id, archived_at, archived_by, moved_to, purged_at FROM threads
     WHERE id = ${threadId}::uuid AND owner_user_id = ${userId}::uuid FOR UPDATE`)[0];
 
     if (!row || (!deleted && row.deleted_at)) return yield* Effect.fail(new NotFound("thread not found"));
@@ -39,10 +42,14 @@ export function threadLifecycle(sql: SqlClient.SqlClient, dispatch: Dispatch) {
         ON CONFLICT (user_id, thread_id) DO UPDATE SET seen_seq = EXCLUDED.seen_seq, marked_unread = EXCLUDED.marked_unread, seen_at = now()`;
         }),
       ),
-    setThreadArchived: (userId: string, threadId: string, archived: boolean) =>
+    setThreadArchived: (userId: string, threadId: string, archived: boolean, reason: "user" | "merge" = "user") =>
       sql.withTransaction(
         Effect.gen(function* () {
+          if (reason === "merge") yield* configLock(sql, userId);
           const row = yield* owned(sql, userId, threadId);
+
+          if (reason === "merge" && !(yield* mergeArchiveAllowed(sql, userId, threadId)).length)
+            return { ids: [], commands: [] };
 
           if (Boolean(row.archived_at) === archived) return { ids: [threadId], commands: [] };
 
@@ -63,14 +70,22 @@ export function threadLifecycle(sql: SqlClient.SqlClient, dispatch: Dispatch) {
         ORDER BY id FOR UPDATE`;
 
           const ids = [threadId, ...children.map((child) => child.id)];
+
+          if (reason === "merge" && !(yield* mergeArchiveIdle(sql, ids))) return { ids: [], commands: [] };
           const commands = archived ? yield* stopThreadResources(sql, dispatch, ids) : [];
           yield* sql`UPDATE threads SET status = CASE WHEN ${archived} THEN 'archived'
           WHEN EXISTS (SELECT 1 FROM turns u WHERE u.thread_id = threads.id AND u.status = 'running') THEN 'running'
           WHEN runtime = 'worker' AND provider_thread_id IS NULL THEN CASE WHEN status_detail IS NULL THEN 'creating' ELSE 'failed' END ELSE 'idle' END,
         archived_at = CASE WHEN ${archived} THEN coalesce(archived_at, now()) ELSE NULL END,
-        archived_by = CASE WHEN ${archived} THEN CASE WHEN id = ${threadId}::uuid THEN 'user' ELSE 'cascade' END ELSE NULL END,
+        auto_archive_on_merge = CASE WHEN ${!archived && row.archived_by === "merge"} THEN false ELSE auto_archive_on_merge END,
+        archived_by = CASE WHEN ${archived} THEN CASE WHEN id = ${threadId}::uuid THEN ${reason} ELSE 'cascade' END ELSE NULL END,
         archived_by_thread_id = CASE WHEN ${archived} AND id <> ${threadId}::uuid THEN ${threadId}::uuid ELSE NULL END
         WHERE id = ANY(${ids}::uuid[])`;
+
+          if (reason === "merge")
+            yield* sql`INSERT INTO audit_log (id,actor_user_id,action,target_type,target_id,details)
+              VALUES (${Bun.randomUUIDv7()}::uuid,${userId}::uuid,'thread.auto_archive_on_merge','thread',${threadId}::uuid,
+                '{"source":"system","reason":"all linked pull requests merged"}'::jsonb)`;
 
           return { ids, commands };
         }),

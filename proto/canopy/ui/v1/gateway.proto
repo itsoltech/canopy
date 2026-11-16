@@ -754,7 +754,7 @@ message Thread {
   // Jak skończyła się ostatnia zakończona tura (completed | failed | interrupted); pusty przed pierwszą.
   string last_turn_status = 210;
   google.protobuf.Timestamp archived_at = 270;
-  // user | agent | cascade (z głównym wątkiem); pusty dla archiwizacji sprzed migracji 0026.
+  // user | agent | merge (system) | cascade (z głównym wątkiem); pusty dla archiwizacji sprzed migracji 0026.
   string archived_by = 271;
   string archived_by_thread_id = 272;
   string archived_by_thread_title = 273;
@@ -791,6 +791,8 @@ message Thread {
   string sidebar_order_key = 1050;
   // Latest completed agent message; absent before the first reply.
   google.protobuf.Timestamp last_reply_at = 1051;
+  // Absent inherits project/user settings; explicit false disables automatic archival.
+  optional bool auto_archive_on_merge = 1060;
 }
 
 message ReorderThreadRequest {
@@ -1884,6 +1886,8 @@ message ThreadDefaults {
   // the agent unless true explicitly requests the latest user choices.
   // Project false with no provider explicitly selects any available agent.
   optional bool use_last_agent = 8;
+  // User: absent = false. Project: absent inherits the user policy.
+  optional bool auto_archive_on_merge = 9;
 }
 
 message ProviderModel {
@@ -2092,6 +2096,9 @@ message UpdateThreadRequest {
   // Domyślny tryb uprawnień wątku (tury bez nadpisania). Nieustawione albo UNSPECIFIED = bez zmian.
   optional canopy.worker.v1.PermissionMode permission_mode = 90;
   optional string title = 200;
+  optional bool auto_archive_on_merge = 1060;
+  // Restores inheritance; cannot be combined with auto_archive_on_merge.
+  bool reset_auto_archive_on_merge = 1061;
 }
 
 message RegenerateTitleRequest {

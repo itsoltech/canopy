@@ -13,6 +13,7 @@
     label,
     description,
     name,
+    size = "md",
     disabled = false,
     onchange,
     class: className,
@@ -21,6 +22,8 @@
     label: string;
     description?: string;
     name: string;
+    /** Compact visual for dense rows; the touch target stays at least 48 px. */
+    size?: "sm" | "md";
     disabled?: boolean;
     onchange?: (checked: boolean) => void;
     class?: ClassValue;
@@ -29,7 +32,8 @@
   let input: HTMLInputElement;
 
   // Overlays (docs/ui-scale.md): 36 × 20 px on touch screens, 28 × 16 px from `sm`.
-  const width = useDensity() === "overlay" ? "w-9 sm:w-7" : "w-11 sm:w-9";
+  const density = useDensity();
+  const width = $derived(size === "sm" ? "w-8 sm:w-7" : density === "overlay" ? "w-9 sm:w-7" : "w-11 sm:w-9");
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->

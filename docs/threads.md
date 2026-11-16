@@ -1,6 +1,7 @@
 # Projekty, wątki i wątki boczne
 
-Status (2026-11-16): zaimplementowane, w tym zamykanie zasobów przy archiwizacji,
+Status (2026-11-16): zaimplementowane, w tym automatyczna archiwizacja po merge PR-ów
+z nadpisaniami projektu i wątku, zamykanie zasobów przy archiwizacji,
 opcjonalna retencja archiwum, grupowanie
 pracujących drzew z nieprzeczytanymi wynikami wcześniejszych tur lub zakończonych subagentów
 oraz wyróżnienie nieotwartych wątków ze szkicem w sidebarze web/desktop.
@@ -227,6 +228,28 @@ Archiwum zachowuje czytelną oś czasu. Zamiast kompozytora pokazuje ikonę, cza
 (użytkownik, agent albo archiwizacja razem z rodzicem), „Unarchive” i odnośnik do rodzica subagenta.
 Przywrócenie płynnie przywraca kompozytor. Starsze archiwum pokazuje tylko znane informacje.
 Gateway odrzuca wiadomości do archiwum.
+
+### Automatyczna archiwizacja po merge
+
+Settings → Threads → **Pull requests → Auto-archive after merge** ustawia domyślne
+zachowanie konta; początkowo jest wyłączone. Settings → Projects → wybrany projekt
+udostępnia **Use my default (on/off)**, **On** i **Off**. W web/desktop sekcja
+Pull requests w podsumowaniu wątku ma kompaktowy przełącznik i ikonę informacji.
+Podpowiedź wskazuje, czy wartość pochodzi z konta, projektu czy samego wątku.
+Zmiany obejmują istniejące i nowe wątki; jawne nadpisanie ma pierwszeństwo przed
+późniejszą zmianą ustawienia nadrzędnego. Wątek dziedziczy ustawienie do pierwszej
+ręcznej zmiany przełącznika; podsumowanie nie udostępnia przycisku resetu.
+
+Gateway archiwizuje dopiero po potwierdzeniu merge **wszystkich** podpiętych PR-ów.
+Samo zamknięcie PR bez merge ani brak PR-ów nie wystarczają. Archiwizacja czeka,
+aż wątek i jego aktywne wątki boczne skończą pracę, i działa bez otwartego klienta.
+Podsumowanie archiwum pokazuje **Auto-archived after pull requests merged**;
+wątki boczne zachowują zwykłe oznaczenie archiwizacji razem z rodzicem.
+Ręczne **Unarchive** wyłącza automat dla przywróconego wątku oraz przywróconych
+wraz z nim wątków bocznych, aby nie trafiły od razu ponownie do archiwum.
+Można go ponownie włączyć w podsumowaniu. Nie usuwa to plików workspace'u.
+Szczegóły odczytu stanu PR i warunków ponowienia:
+[github.md](github.md).
 
 ### Automatyczne usuwanie archiwum
 

@@ -31,6 +31,7 @@ export function effectiveThreadDefaults(
         ? project.permissionMode
         : defaults.permissionMode,
     subagentPermissionMode: defaults.subagentPermissionMode,
+    autoArchiveOnMerge: project?.autoArchiveOnMerge ?? defaults.autoArchiveOnMerge ?? false,
   });
 }
 

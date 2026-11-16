@@ -20,6 +20,7 @@
   import { useThreadPanel } from "../thread-panel.svelte.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { awayReason } from "#lib/features/computers/computers.ts";
+  import ThreadAutoArchive from "./ThreadAutoArchive.svelte";
 
   const capabilities = useGatewayCapabilities();
 
@@ -103,11 +104,10 @@
   {#if thread.permissionModeNote}<p class="px-3 py-2 text-sm text-pretty text-zinc-600 sm:text-xs dark:text-zinc-400">
       {thread.permissionModeNote}
     </p>{/if}
-  {#if capabilities?.supports("/pull-requests") !== false}<ThreadPullRequests {thread} />{:else}<p
-      class="px-3 py-2 text-sm text-zinc-500"
-    >
-      Update Canopy on your gateway to link pull requests
-    </p>{/if}
+  {#if capabilities?.supports("/pull-requests") !== false}<div>
+      <ThreadPullRequests {thread} />
+      {#key thread.id}<ThreadAutoArchive {thread} disabled={stale} class="mx-1.5 mb-1" />{/key}
+    </div>{:else}<p class="px-3 py-2 text-sm text-zinc-500">Update Canopy on your gateway to link pull requests</p>{/if}
 
   {#if onbackground}<BackgroundTasksSection
       tasks={backgroundTasks}

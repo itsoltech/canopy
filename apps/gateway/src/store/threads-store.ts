@@ -48,6 +48,7 @@ export interface ThreadStore {
   updateThreadSettings(
     threadId: string,
     settings: { model?: string; effort?: string; permissionMode?: string },
+    autoArchiveOnMerge?: boolean | null,
   ): Fx<ThreadRow>;
   renameThread(threadId: string, title: string): Fx<ThreadRow>;
   beginTitle(threadId: string, automatic: boolean, context?: string, provisional?: string): Fx<ThreadRow | undefined>;
@@ -209,9 +210,9 @@ export function threadStore(sql: SqlClient.SqlClient): Omit<ThreadStore, "create
         Effect.asVoid,
       ),
 
-    updateThreadSettings: (threadId, settings) =>
+    updateThreadSettings: (threadId, settings, autoArchiveOnMerge) =>
       sql`
-              UPDATE threads SET settings = settings || ${JSON.stringify({ ...settings, ...(settings.permissionMode && { permissionModeNote: "" }) })}::jsonb WHERE id = ${threadId}::uuid AND archived_at IS NULL`.pipe(
+              UPDATE threads SET auto_archive_on_merge = CASE WHEN ${autoArchiveOnMerge !== undefined} THEN ${autoArchiveOnMerge ?? null}::boolean ELSE auto_archive_on_merge END, settings = settings || ${JSON.stringify({ ...settings, ...(settings.permissionMode && { permissionModeNote: "" }) })}::jsonb WHERE id = ${threadId}::uuid AND archived_at IS NULL`.pipe(
         Effect.andThen(store.thread(threadId)),
       ),
 

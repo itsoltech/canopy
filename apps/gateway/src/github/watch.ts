@@ -11,6 +11,7 @@ interface Producer {
   panels: number;
   /** Agent CI watches (core/pr-check-watches.ts) hold the producer like a visible panel. */
   agents: boolean;
+  autoArchive: boolean;
   nextSlow: number;
   nextFast: number;
   index: number;
@@ -35,6 +36,7 @@ const newProducer = (): Producer => ({
   viewers: 0,
   panels: 0,
   agents: false,
+  autoArchive: false,
   nextSlow: 0,
   nextFast: Infinity,
   index: 0,
@@ -53,8 +55,9 @@ const mergeFollowUpActive = (prs: GitHubPullRequests, p: Producer) => p.mergeFol
 /** The sweep and streams share the same deadlines and single flight; there is no second header poller. */
 export async function pollVisiblePullRequests(prs: GitHubPullRequests) {
   for (const [id, p] of producers.get(prs) ?? []) {
-    if (!p.viewers && !p.panels && !p.agents && !mergeFollowUpActive(prs, p)) continue;
-    await poll(prs, id, p);
+    if (!p.viewers && !p.panels && !p.agents && !p.autoArchive && !mergeFollowUpActive(prs, p)) continue;
+    // One unavailable repository must not prevent maintenance of the remaining threads.
+    await poll(prs, id, p).catch(() => undefined);
   }
 }
 
@@ -78,7 +81,7 @@ const producerOf = (prs: GitHubPullRequests, id: string) => {
 
 /** Drops a producer nobody holds any more after the shared 5 minute grace. */
 const idle = (prs: GitHubPullRequests, id: string, p: Producer) => {
-  if (p.viewers || p.panels || p.agents || mergeFollowUpActive(prs, p)) return;
+  if (p.viewers || p.panels || p.agents || p.autoArchive || mergeFollowUpActive(prs, p)) return;
   p.controller?.abort();
   clearTimeout(p.mergeFollowUpTimer);
   clearTimeout(p.cleanup);
@@ -159,6 +162,32 @@ export async function pollAgentWatches(prs: GitHubPullRequests, ids: ReadonlySet
   return updates;
 }
 
+/** The durable archive policy holds the same producers as visible panels and agent watches. */
+export async function pollMergeArchivePullRequests(prs: GitHubPullRequests, ids: ReadonlyMap<string, boolean>) {
+  for (const [id, p] of producers.get(prs) ?? [])
+    if (p.autoArchive && !ids.has(id)) {
+      p.autoArchive = false;
+      idle(prs, id, p);
+    }
+
+  for (const [id, refresh] of ids) {
+    const { p } = producerOf(prs, id);
+    clearTimeout(p.cleanup);
+    p.autoArchive = true;
+
+    try {
+      if (refresh) {
+        const pr = await prs.accounts.run((s) => s.prOwned(prs.accounts.owner, id));
+        await prs.load(pr.repository_name, pr.number, true, true);
+      }
+
+      await poll(prs, id, p);
+    } catch {
+      // One denied repository cannot block the owner's remaining threads.
+    }
+  }
+}
+
 async function probe(scope: ReadScope, p: Producer, target: ProbeTarget, signal: AbortSignal, force = false) {
   signal.throwIfAborted();
   const result = await readProbe(scope, target, signal, force);
@@ -211,6 +240,8 @@ async function poll(prs: GitHubPullRequests, id: string, p: Producer) {
     signal.throwIfAborted();
     let scope = await watchScope(prs, id);
     const now = prs.accounts.http.now();
+
+    if (p.autoArchive && p.nextSlow === Infinity && scope.snapshot.summary?.state === "closed") p.nextSlow = 0;
     const mergeFollowUp = mergeFollowUpActive(prs, p);
     const previous = p.update?.snapshot;
 
@@ -235,7 +266,10 @@ async function poll(prs: GitHubPullRequests, id: string, p: Producer) {
     if (!p.update || changedSnapshot)
       publish(p, scope.snapshot, changedSnapshot ? ["timeline", "reviews", "checks", "files", "commits"] : []);
 
-    if (terminalSnapshot(scope.snapshot)) {
+    const terminal = () =>
+      terminalSnapshot(scope.snapshot) && !(p.autoArchive && scope.snapshot.summary?.state === "closed");
+
+    if (terminal()) {
       p.nextSlow = p.nextFast = Infinity;
       p.mergeFollowUpUntil = 0;
       p.nextMergeFollowUp = Infinity;
@@ -256,7 +290,9 @@ async function poll(prs: GitHubPullRequests, id: string, p: Producer) {
         ? p.targets.filter((target) => target.kind === "metadata")
         : []
       : initial
-        ? [...p.targets]
+        ? p.autoArchive && scope.snapshot.summary?.state === "closed"
+          ? p.targets.filter((target) => target.kind === "metadata")
+          : [...p.targets]
         : now >= p.nextFast
           ? p.targets.filter((target) => p.signals.get(targetKey(target))?.running)
           : [];
@@ -267,7 +303,10 @@ async function poll(prs: GitHubPullRequests, id: string, p: Producer) {
       if (metadata && !targets.includes(metadata)) targets.push(metadata);
 
       const slow = p.targets.filter(
-        (target) => target.kind !== "metadata" && !p.signals.get(targetKey(target))?.running,
+        (target) =>
+          target.kind !== "metadata" &&
+          !p.signals.get(targetKey(target))?.running &&
+          !(p.autoArchive && scope.snapshot.summary?.state === "closed"),
       );
 
       const target = slow[p.index++ % slow.length];
@@ -324,7 +363,7 @@ async function poll(prs: GitHubPullRequests, id: string, p: Producer) {
     const running = [...p.signals.values()].filter((value) => value.running);
     p.nextFast = running.length ? Math.max(now + jitter(15_000), ...running.map((value) => value.expires)) : Infinity;
 
-    if (terminalSnapshot(scope.snapshot)) p.nextSlow = p.nextFast = Infinity;
+    if (terminal()) p.nextSlow = p.nextFast = Infinity;
   })().finally(() => {
     p.flight = undefined;
   });

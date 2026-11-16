@@ -1,8 +1,8 @@
 # Konto GitHub i pull requesty
 
 Status: **v1 wdrożone** (2026-11-16): konta GitHub App i jawny fallback PAT, powiązania PR,
-pełny odczyt, komentarze i review, lifecycle, metadane, sterowanie GitHub Actions
-oraz postęp checków i kroków workflow. Zaimplementowane jest też jawne lokalne
+pełny odczyt, komentarze i review, lifecycle, metadane, automatyczna archiwizacja wątków
+po merge, sterowanie GitHub Actions oraz postęp checków i kroków workflow. Zaimplementowane jest też jawne lokalne
 linkowanie PR przez agenta (`link_pull_request`) jako fallback automatycznej detekcji.
 Podstawowy zakres jest dostępny w web/desktop/mobile. Dodatkowe oznaczenia checków
 w kartach PR i sidebarze oraz podgląd PR w hover card opisane w §7 dotyczą interfejsu web.
@@ -718,6 +718,45 @@ lokalny link jest transakcyjny i zachowuje tombstone. Brak odpowiedzi bez takieg
 nie wywołuje drugiego create. Wszystkie akcje lifecycle wymagają potwierdzenia ważnego 60 s,
 związanego z klientem, kontem, pełnym head/base SHA i parametrami. Enqueue, update branch
 i enable auto-merge pokazują przyjęcie zlecenia, a ich wynik odświeża zwykły odczyt GitHub.
+
+### Automatyczna archiwizacja po merge
+
+Status (2026-11-16): zaimplementowana w gatewayu; dostępność w wydaniach wynika
+z promocji nightly/beta/stable ([release.md](release.md)). Polityka
+`ThreadDefaults.auto_archive_on_merge` użytkownika jest domyślnie wyłączona.
+Opcjonalna wartość projektu nadpisuje ustawienie użytkownika, a opcjonalne
+`Thread.auto_archive_on_merge` nadpisuje projekt i użytkownika. Brak oznacza
+bieżące dziedziczenie, także dla już istniejących wątków; `false` jest jawnym
+wyłączeniem. `UpdateThread.reset_auto_archive_on_merge` usuwa nadpisanie i nie
+może wystąpić razem z jawną wartością.
+
+Istniejący minutowy sweep GitHub odkrywa kandydatów z bazy i utrzymuje wspólne
+producery odczytów PR, także bez otwartego klienta i po restarcie gatewaya.
+Współdzieli terminy, walidatory, single-flight i budżety z panelem PR oraz watchami
+agenta. Zamknięty bez merge PR nadal ma wolny odczyt metadanych, aby zauważyć
+ponowne otwarcie i późniejsze scalenie; samo zamknięcie nigdy nie archiwizuje.
+Co najmniej jeden aktywny link musi istnieć i **wszystkie** aktywne linki muszą
+mieć potwierdzone `merged`. Unlink usuwa PR z warunku. Dowodem jest ostatni
+kompletny, udany odczyt przypisany do nadal wybranego i połączonego konta;
+merge jest nieodwracalny, więc wygaśnięcie cache lub rotacja tokenu nie unieważnia
+tego dowodu. Dla kont GitHub App repozytorium musi nadal należeć do aktualnego
+katalogu niezawieszonej instalacji; jawny PAT zachowuje własną ścieżkę dostępu.
+Brak podsumowania, inne konto, odłączenie, odebranie repozytorium, zawieszenie
+instalacji albo zapisany błąd odczytu blokują archiwizację. Dane i decyzje zawsze
+pozostają w zakresie właściciela.
+
+Transakcja ponownie sprawdza politykę i linki pod blokadą wątku oraz ustawień.
+Archiwizacja używa istniejącego lifecycle i jego kaskady na bezpośrednie wątki
+boczne. Odkłada ją do kolejnego sweepu, jeśli którykolwiek objęty wątek tworzy
+sesję, ma turę running/queued, zadanie w tle, oczekującą interakcję lub wejście,
+aktywny/proponowany cel albo rewind. Nie przerywa pracy i nie usuwa historii ani
+plików workera. Po odłożeniu warunki są wyliczane od nowa z trwałego stanu.
+
+Główny obiekt decyzji dostaje `archived_by=merge`, dzieci `cascade`, a audyt
+`thread.auto_archive_on_merge` wskazuje źródło systemowe i powód. Odtworzenie
+wątku z `archived_by=merge` ustawia `auto_archive_on_merge=false` także dla
+przywracanych dzieci jego kaskady. Wątek pozostaje dostępny do dalszej pracy;
+użytkownik może później ponownie włączyć automatyzację albo przywrócić dziedziczenie.
 
 ## 6. Proto i API UI
 
