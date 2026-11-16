@@ -5,6 +5,16 @@ import { REMOTE_THREADS, THREAD_MIRROR } from "./computers.ts";
 export const DEPARTURE_WINDOW_MS = 5 * 60_000;
 export const RESTART_PRESENCE = "restart_presence";
 
+/** A gateway has announced an update or restart and is still within its reconnect window. */
+export function plannedGatewayDeparture(value: ui.GatewayDeparture | undefined, now = Date.now()): boolean {
+  return (
+    !!value &&
+    ["updating", "restarting"].includes(value.state) &&
+    Number(value.startedAtMs) <= now &&
+    now < Number(value.startedAtMs) + Math.min(value.windowMs, DEPARTURE_WINDOW_MS)
+  );
+}
+
 export const pairingRequiredReason = (name: string) => `${name}'s identity changed. Pair again to trust it.`;
 
 export const announcedDeparture = (status: string) =>
