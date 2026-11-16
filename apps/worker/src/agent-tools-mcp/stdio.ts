@@ -8,12 +8,14 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import type { z } from "zod";
 import { abortable, MAX_BYTES, requestDeadline, STDIO_TIMEOUT_MS, type ToolCall } from "./protocol.ts";
-import { browserCatalog } from "./browser-policy.ts";
+import { automationCatalog } from "./policy.ts";
+import type { AutomationScope } from "./session-policy.ts";
 
 export interface LocalAutomationServer {
   name: string;
   command: string;
   args: readonly string[];
+  readonly scope?: AutomationScope;
   readonly env?: Readonly<{ AGENT_BROWSER_SESSION?: string; AGENT_DEVICE_SESSION?: string }>;
 }
 
@@ -38,10 +40,10 @@ export class AutomationStdio {
   private connected: Promise<void> | undefined;
   private catalog: Promise<{ tools: Tool[] }> | undefined;
   private closing: Promise<void> | undefined;
-  private readonly browserSession: string | undefined;
+  private readonly scope: AutomationScope | undefined;
 
   constructor(server: LocalAutomationServer, env: Record<string, string>) {
-    this.browserSession = server.env?.AGENT_BROWSER_SESSION;
+    this.scope = server.scope;
     // The SDK merges its default environment even with an explicit env. Mask omitted values.
     const isolatedEnv = Object.fromEntries(DEFAULT_INHERITED_ENV_VARS.map((key) => [key, ""]));
     Object.assign(isolatedEnv, env);
@@ -117,7 +119,7 @@ export class AutomationStdio {
         tools.push(...result.tools);
         cursor = result.nextCursor;
 
-        if (!cursor) return { tools: browserCatalog(tools, this.browserSession) };
+        if (!cursor) return { tools: automationCatalog(tools, this.scope) };
       }
 
       throw new Error("Local automation catalog has too many pages");

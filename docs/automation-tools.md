@@ -3,7 +3,12 @@
 Status (2026-11-16): **narzędzia, interaktywny Preview i automatyczny mini Preview
 wątku oraz sprzątanie sesji przy archiwizacji zaimplementowane**.
 Browser MCP pozostaje w sesji wątku i działa headless;
-watch zachowuje się po aktualizacji statusu tego samego workera, a nowy odbiorca
+Browser, Desktop i Device mają wspólną kontrolę sesji wątku przed autoryzacją,
+obejmującą także sesje w krokach batch. Desktop nie udostępnia tworzenia obcej
+sesji, globalnego GC sesji ani wykonania na gościu sandbox poza zakresem Preview.
+Domyślny cel podglądu podąża za oknem aktywnym lub urządzeniem sesji, a jawny
+wybór użytkownika pozostaje przypięty. Subskrypcja zachowuje się po aktualizacji
+statusu tego samego workera, a nowy odbiorca
 aktywnej grupy dostaje ostatnią klatkę. Zmiana uprawnień bieżącej tury Claude
 aktualizuje także autoryzację automatyzacji.
 Automatyczny mini Preview zachowuje wybór celu i minimizację per wątek w sesji
@@ -135,14 +140,33 @@ Claude, Codex i Grok korzystają z tego samego mechanizmu workera:
    kieruje autoryzację do gatewaya, a dopiero potem przekazuje call przez stdio.
 
 Sesja MCP jest wyprowadzana z `threadId` i pozostaje prywatna dla tego wątku.
-Zamyka się razem z sesją harnessu albo przy zmianie katalogu narzędzi. Dla
+Wszystkie trzy descriptory niosą ten sam workerowy zakres `scope` (narzędzie
+i znormalizowana sesja wątku), niezależny od env procesu. Wspólna polityka
+bridge'a sprawdza `session` przed autoryzacją każdego wywołania, odrzuca obcą
+sesję i podaje agentowi jednakową instrukcję, by pominął ten argument. Katalog
+ogranicza pole `session` do sesji wątku tylko tam, gdzie upstream je obsługuje.
+Zamknięcie sesji harnessu lub zmiana katalogu narzędzi zamyka bridge. Dla
 `agent-browser` i `agent-desktop` worker przekazuje sesję jako `--session`.
 Browser MCP nie przekazuje jednak tej wartości swoim kolejnym child calls, więc
 worker dodaje także opcjonalne `AGENT_BROWSER_SESSION` w descriptor env.
 Desktop przekazuje startupowe `--session` przez `forwarded_globals` i nie wymaga
-dodatkowego env. `agent-device mcp` otrzymuje argument `mcp` i nie dostaje
-`--session`; worker przekazuje mu identyfikator wyłącznie w descriptor env jako
-`AGENT_DEVICE_SESSION`. Bridge obsługuje dokładnie te dwa opcjonalne klucze,
+dodatkowego env. Jego MCP nie obsługuje pola `session` w zwykłych wywołaniach,
+więc bridge nie dodaje go do argumentów upstream. Przypina jednak `session`
+każdego wpisu w `desktop_batch.commands_json` i `id` operacji `session end`,
+także w batch. Nie udostępnia `session start`, które zawsze tworzy nowe ID,
+globalnego `session gc` ani `sandbox exec`, które pomija startupowe flagi
+i działa na gościu niewidocznym w Preview hosta. Bezpośrednie wywołania tych
+operacji i ich odpowiedniki batch są odrzucane przed autoryzacją.
+`agent-device mcp` otrzymuje argument `mcp` i nie dostaje
+`--session`; worker przekazuje mu identyfikator w descriptor env jako
+`AGENT_DEVICE_SESSION`. Bridge dodatkowo przypina `session` w argumentach każdego
+wywołania Browser/Device MCP, w tym w `input` kroków Device `batch`.
+Sam domyślny env nie wystarcza: jawna nazwa sesji mogłaby odłączyć automatyzację
+od Preview, które zawsze używa sesji wątku.
+Device nie udostępnia `test`, także w batch: runner suite tworzy osobne sesje
+każdej próby, niezależnie od przypiętego `session`. Skrypty można wykonywać przez
+`replay` osobno, w sesji tego samego wątku; katalog i błędy wskazują tę drogę.
+Bridge obsługuje dokładnie te dwa opcjonalne klucze env,
 usuwa ich ambient/base wartości i kopiuje tylko wartości z descriptora. Zmienne
 sesji dotyczą wyłącznie odpowiedniego procesu. UUID-y wątku pozostają bez zmian.
 Inna bezpieczna wartość długości do 64 znaków także pozostaje bez zmian;
@@ -178,6 +202,8 @@ wywołania, które może uruchomić przeglądarkę, dodaje jawne `--headed false
 `open` i `doctor` używają odpowiednio `headed: false`. Dzięki temu lokalna
 konfiguracja `agent-browser` nie otwiera zwykłego okna na pulpicie użytkownika,
 a aktywność agenta pozostaje widoczna w Preview tego samego wątku.
+`close` zamyka wyłącznie sesję bieżącego wątku; `all: true` i `--all` w
+`extraArgs` są odrzucane, aby nie zamknąć przeglądarek innych wątków.
 Katalog MCP i błędy wywołań wyjaśniają agentowi, że jest to stałe ograniczenie,
 którego nie należy obchodzić przez shell/CLI, CDP, inną przeglądarkę ani kolejne
 próby nadpisania. Karty współdzielą stan logowania; jeśli zadanie wymaga sesji
@@ -231,8 +257,8 @@ poza krawędzią panelu; oba pola i `Apply` pozostają dostępne.
 | Widok | Obraz i wybór celu | Sterowanie i ograniczenia |
 |---|---|---|
 | Browser | Natywny WebSocket `agent-browser` dla sesji Chrome wątku; przekazuje listę kart i pozwala wybrać aktywną kartę w pasku Preview. | Pointer, przyciski, kółko, klawisze i tekst przez natywny strumień; nawigacja oraz przełączanie kart przez CLI. Preview nie zmienia viewportu przy zmianie szerokości panelu; pola `Width` i `Height` oraz uchwyty krawędzi wysyłają jawne `Resize`, a ich wartości są niezależne od rozmiaru panelu. Zamknięcie Preview zwalnia jego WebSocket i utworzony przez niego stream, zachowując sesję agenta. |
-| Desktop | Współdzielona, anulowalna pętla zrzutów; lista okien z domyślnym aktywnym oknem i stabilnym wyborem celu. | Kliknięcie i przeciągnięcie są atomowymi operacjami po puszczeniu przycisku; drag obsługuje tylko przycisk główny. Backend nie utrzymuje wciśniętej myszy ani klawisza. Klawisze używają `press`, tekst — świeżego refa aktywnego pola accessibility i `type`, bez schowka systemowego. |
-| Device | Współdzielona, anulowalna pętla zrzutów; domyślnie urządzenie sesji wątku albo jedyne zgodne z platformą. | Tap i swipe głównym wskaźnikiem po puszczeniu, kierunkowy scroll oraz `type`. Enter/Back/Home działają według możliwości backendu; edycję klawiaturą Android opisano niżej. Skróty z modyfikatorami zwracają jawny błąd. |
+| Desktop | Współdzielona, anulowalna pętla zrzutów; domyślny cel podąża za aktywnym oknem. Jawny wybór okna pozostaje przypięty; filtr aplikacji może wybrać jej jedyne dostępne okno także bez fokusu. | Kliknięcie i przeciągnięcie są atomowymi operacjami po puszczeniu przycisku; drag obsługuje tylko przycisk główny. Backend nie utrzymuje wciśniętej myszy ani klawisza. Klawisze używają `press`, tekst — świeżego refa aktywnego pola accessibility i `type`, bez schowka systemowego. |
+| Device | Współdzielona, anulowalna pętla zrzutów; domyślny cel podąża za urządzeniem sesji wątku albo jedynym zgodnym z platformą. Jawny wybór urządzenia pozostaje przypięty; alias `apple` dopasowuje iOS i macOS. | Tap i swipe głównym wskaźnikiem po puszczeniu, kierunkowy scroll oraz `type`. Enter/Back/Home działają według możliwości backendu; edycję klawiaturą Android opisano niżej. Skróty z modyfikatorami zwracają jawny błąd. |
 
 Samo otwarcie Browser Preview nie uruchamia przeglądarki ani nie nawiguje.
 Bez działającej przeglądarki sesji podgląd czeka na agenta; użytkownik może ją

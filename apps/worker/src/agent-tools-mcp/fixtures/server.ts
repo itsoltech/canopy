@@ -18,6 +18,20 @@ if (process.env["CANOPY_MCP_STUBBORN"] === "1") {
   setInterval(() => {}, 1_000);
 } else input.on("close", () => process.exit(0));
 
+function desktopTools() {
+  return ["snapshot", "screenshot", "click", "batch", "session_start", "session_end", "session_gc", "sandbox_exec"].map(
+    (toolName) => ({
+      name: `desktop_${toolName}`,
+      description: `${name} ${toolName}`,
+      inputSchema: {
+        type: "object",
+        additionalProperties: false,
+        properties: toolName === "session_end" ? { id: { type: "string" } } : {},
+      },
+    }),
+  );
+}
+
 input.on("line", (line) => {
   const rpc = RpcRequest.parse(JSON.parse(line));
 
@@ -44,21 +58,57 @@ input.on("line", (line) => {
   }
 
   if (rpc.method === "tools/list") {
+    if (process.env["CANOPY_MCP_DESKTOP_POLICY"] === "1") {
+      send({ tools: desktopTools() });
+
+      return;
+    }
+
+    if (process.env["CANOPY_MCP_DEVICE_POLICY"] === "1") {
+      send({
+        tools: [
+          "devices",
+          "boot",
+          "apps",
+          "open",
+          "snapshot",
+          "screenshot",
+          "close",
+          "batch",
+          "session",
+          "test",
+          "replay",
+        ].map((toolName) => ({
+          name: toolName,
+          description: `${name} ${toolName}`,
+          inputSchema: { type: "object", properties: { session: { type: "string" } } },
+        })),
+      });
+
+      return;
+    }
+
     if (process.env["CANOPY_MCP_BROWSER_POLICY"] === "1") {
       send({
-        tools: ["agent_browser_open", "agent_browser_snapshot", "agent_browser_tab_new", "agent_browser_doctor"].map(
-          (toolName) => ({
-            name: toolName,
-            description: `${name} ${toolName}`,
-            inputSchema: {
-              type: "object",
-              properties:
-                toolName === "agent_browser_open" || toolName === "agent_browser_doctor"
-                  ? { session: { type: "string" }, headed: { type: "boolean" } }
+        tools: [
+          "agent_browser_open",
+          "agent_browser_snapshot",
+          "agent_browser_tab_new",
+          "agent_browser_doctor",
+          "agent_browser_close",
+        ].map((toolName) => ({
+          name: toolName,
+          description: `${name} ${toolName}`,
+          inputSchema: {
+            type: "object",
+            properties:
+              toolName === "agent_browser_open" || toolName === "agent_browser_doctor"
+                ? { session: { type: "string" }, headed: { type: "boolean" } }
+                : toolName === "agent_browser_close"
+                  ? { session: { type: "string" }, all: { type: "boolean" } }
                   : { session: { type: "string" } },
-            },
-          }),
-        ),
+          },
+        })),
       });
 
       return;

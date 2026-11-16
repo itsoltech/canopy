@@ -39,10 +39,12 @@ const windows = z
 
 export class DesktopCatalog {
   readonly #runtime: PreviewRuntime;
+  readonly #windowId: string;
   #window: z.infer<typeof windows>[number] | undefined;
 
   constructor(runtime: PreviewRuntime) {
     this.#runtime = runtime;
+    this.#windowId = runtime.scope.windowId;
   }
 
   get selected(): boolean {
@@ -54,13 +56,14 @@ export class DesktopCatalog {
     const scope = this.#runtime.scope;
     const candidates = found.filter((window) => window.accessible && (!scope.app || window.app_name === scope.app));
 
-    const selected = scope.windowId
-      ? candidates.find((window) => window.id === scope.windowId)
-      : candidates.find((window) => window.is_focused);
+    const selected = this.#windowId
+      ? candidates.find((window) => window.id === this.#windowId)
+      : (candidates.find((window) => window.is_focused) ??
+        (scope.app && candidates.length === 1 ? candidates[0] : undefined));
 
     this.#window = selected;
 
-    if (selected) scope.windowId = selected.id;
+    scope.windowId = selected?.id ?? this.#windowId;
 
     return {
       targetId: selected?.id ?? "",
@@ -109,21 +112,29 @@ const sessionsSchema = z.object({
   sessions: z.array(z.object({ name: z.string(), id: z.string(), platform: z.string() })).max(2048),
 });
 
+// Runtime selectors resolve commands, while the original selectors retain the viewer's choice.
+const deviceScopes = new WeakMap<PreviewRuntime, { platform: string; deviceId: string }>();
+
+function matchesPlatform(platform: string, selected: string): boolean {
+  return !selected || platform === selected || (selected === "apple" && ["ios", "macos"].includes(platform));
+}
+
 export async function deviceCatalog(runtime: PreviewRuntime) {
+  const scope = deviceScopes.get(runtime) ?? { platform: runtime.scope.platform, deviceId: runtime.scope.deviceId };
+  deviceScopes.set(runtime, scope);
   const sessions = sessionsSchema.parse(await runtime.command(["session", "list"])).sessions;
   const devices = devicesSchema.parse(await runtime.command(["devices"])).devices;
   const active = sessions.find((session) => session.name === runtime.scope.session);
-  const matching = devices.filter((device) => !runtime.scope.platform || device.platform === runtime.scope.platform);
+  const matching = devices.filter((device) => matchesPlatform(device.platform, scope.platform));
 
-  const selected = runtime.scope.deviceId
-    ? matching.find((device) => device.id === runtime.scope.deviceId)
-    : (matching.find((device) => device.id === active?.id) ?? (matching.length === 1 ? matching[0] : undefined));
+  const selected = scope.deviceId
+    ? matching.find((device) => device.id === scope.deviceId)
+    : (matching.find((device) => device.id === active?.id && device.platform === active?.platform) ??
+      (matching.length === 1 ? matching[0] : undefined));
 
-  if (selected) {
-    runtime.scope.platform = selected.platform;
-    runtime.scope.deviceId = selected.id;
-    runtime.selectDeviceName(selected.name);
-  }
+  runtime.scope.platform = selected?.platform ?? scope.platform;
+  runtime.scope.deviceId = selected?.id ?? scope.deviceId;
+  runtime.selectDeviceName(selected?.name ?? "");
 
   return {
     selected: Boolean(selected),

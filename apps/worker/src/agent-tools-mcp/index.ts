@@ -1,6 +1,7 @@
 import { LATEST_PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from "@modelcontextprotocol/sdk/types.js";
 import { AutomationStdio, type LocalAutomationServer } from "./stdio.ts";
-import { bindBrowserCall } from "./browser-policy.ts";
+import { bindAutomationCall } from "./policy.ts";
+import type { AutomationScope } from "./session-policy.ts";
 import {
   abortable,
   Cancellation,
@@ -31,7 +32,7 @@ export interface LocalAutomationMcp {
 
 interface Endpoint {
   name: string;
-  browserSession: string | undefined;
+  scope: AutomationScope | undefined;
   token: string;
   stdio: AutomationStdio;
   pending: Map<RpcId, AbortController>;
@@ -46,7 +47,7 @@ export function createLocalAutomationMcp(options: LocalAutomationMcpOptions): Lo
       throw new Error("Invalid or duplicate local automation server name");
     endpoints.set(`/mcp/${descriptor.name}`, {
       name: descriptor.name,
-      browserSession: descriptor.env?.AGENT_BROWSER_SESSION,
+      scope: descriptor.scope,
       token: crypto.randomUUID(),
       stdio: new AutomationStdio(descriptor, options.env),
       pending: new Map(),
@@ -154,12 +155,12 @@ async function handle(
     const params = ToolCall.safeParse(rpc.params);
 
     if (!params.success) return failure(rpc.id, -32602, "Invalid tool arguments");
-    let effective: ReturnType<typeof bindBrowserCall>;
+    let effective: ReturnType<typeof bindAutomationCall>;
 
     try {
-      effective = bindBrowserCall(params.data, endpoint.browserSession);
+      effective = bindAutomationCall(params.data, endpoint.scope);
     } catch (error) {
-      return failure(rpc.id, -32602, error instanceof Error ? error.message : "Invalid browser arguments");
+      return failure(rpc.id, -32602, error instanceof Error ? error.message : "Invalid automation arguments");
     }
 
     try {
