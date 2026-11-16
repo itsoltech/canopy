@@ -1,7 +1,8 @@
 # Zwijanie pracy na osi wątku
 
-Status: opis zaimplementowanego kodu web/desktop/mobile (2026-11-15), w tym
-kompaktowania kontekstu jako widocznej granicy segmentów pracy. Dostępność
+Status: opis zaimplementowanego kodu web/desktop/mobile (2026-11-16), w tym
+kompaktowania kontekstu jako widocznej granicy segmentów pracy i odstępów wokół
+wiadomości postępu w web/desktop. Dostępność
 w wydaniach zależy od kanału.
 
 Wejście tury zawsze poprzedza jej pracę. Gateway zapisuje tekst i wiąże załączniki
@@ -21,6 +22,12 @@ Każda tura od startu ma fold „Working for …”: czas aktualizowany co sekun
 Po zakończeniu ten sam nagłówek zmienia się w „Worked for …”, z czasem i licznikami pracy. Ręczny wybór ma pierwszeństwo do kolejnej granicy: oznaczonej odpowiedzi albo końca segmentu/tury. Rozwinięcie podczas pracy nie blokuje „Collapse” na końcu; rozwinięcie po końcu pozostaje otwarte, także po późnych itemach. Wybór zapisuje stan segmentu i `first_seq` oznaczonej odpowiedzi, więc pominięcie aktualizacji podczas reconnectu nie przedłuża go. Zmiana preferencji obejmuje foldy bez ważnego ręcznego wyboru, w tym odziedziczoną historię forka. Preferencje dotyczą wspólnej osi wątków głównych, bocznych i forków; nie zmieniają rozmów botów. Web i mobile trzymają wybory w pamięci osi, poza wirtualnymi wierszami; ponowne otwarcie strony ani reload nie zapisują rozwinięcia pracy na dysku.
 
 Wewnątrz foldu kolejne narzędzia tworzą grupy, np. „Read 1 file and ran 5 commands”. Wiadomości postępu, rozumowanie i komunikaty rozdzielają grupy; steery oraz itemy `context_compaction` rozdzielają całe segmenty pracy. Kompaktowanie jest trwałą granicą: jego wiersz zostaje w chronologicznym miejscu poza poprzednim foldem, a dalsza praca dostaje nowy fold, nawet gdy tura nadal działa. Wielokrotne granice bez pracy pomiędzy stoją razem przed kolejnym foldem. Także pojedyncza grupa od początku ma własny nagłówek i stosuje „Tool calls”: nie jest spłaszczana. Dodanie drugiej grupy zachowuje nagłówek, klucz i stan pierwszej, bez przenoszenia jej itemów. Ręczne rozwinięcie lub zwinięcie ma pierwszeństwo przed preferencją i przetrwa późniejsze itemy, koniec tury, zamknięcie całej sekcji oraz wirtualizację. Po końcu grupa bez ręcznego wyboru zachowuje ostatni stan z pracy; historia niewidziana na żywo startuje zwinięta. Zmiana „Tool calls” obejmuje grupy trwających tur bez ręcznego wyboru. Pamięć grup jest lokalna dla osi wątku, bez zapisu na dysk; web i mobile współdzielą regułę `WorkGroupChoices`.
+
+W web/desktop wiadomości postępu wewnątrz rozwiniętej pracy mają dodatkowe
+8 px (`py-2`, skalowane z interfejsem) nad i pod tekstem, także w odziedziczonej
+historii forka. Oddziela to prozę od zwiniętych i rozwiniętych grup narzędzi.
+Wiersze narzędzi wewnątrz grup zachowują kompaktowe odstępy, a pionowa linia
+pracy pozostaje ciągła.
 
 Rozwinięcie grupy pokazuje nagłówki itemów. Każdy item startuje zamknięty: również działające i nieudane komendy, MCP, agent-bus, obrazy, podagenci, zadania w tle i checklisty. Błąd, kod wyjścia i dostępne liczby +/− pozostają w nagłówku; wynik, diff i karty szczegółów pojawiają się po rozwinięciu. Stan itemów zachowuje istniejące `UiMemory`; stan foldów i grup trzyma `WorkFolds` na stronie wątku.
 
