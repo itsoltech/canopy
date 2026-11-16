@@ -168,7 +168,11 @@ describe("communication: the tree, and any thread of the same owner like a human
   test("messages preserve hops across trees well beyond the former limit", () => {
     for (const callerHops of [7, 8, 100]) {
       for (const notify of [undefined, true, false]) {
-        const message: AgentBusCall = { tool: "send_message", args: { thread_id: "x", prompt: "hi", notify } };
+        const message: AgentBusCall = {
+          tool: "send_message",
+          args: { thread_id: "x", prompt: "hi", ...(notify !== undefined && { notify }) },
+        };
+
         expect(authorizeBusCall(message, facts(root, { callerHops }))).toEqual({
           allowed: true,
           hops: callerHops + 1,
