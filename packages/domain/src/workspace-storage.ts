@@ -26,11 +26,15 @@ export function restoreWorkspace(store: WorkspaceStore, raw: string | null): voi
       const module = workspaceModule(str(tab["module"]));
 
       if (module) {
-        view.openModule({
-          module: module.id,
-          resource: module.id === "preview" ? "" : str(tab["resource"]).slice(0, 1024),
-          label: module.id === "preview" ? undefined : str(tab["label"]).slice(0, 256),
-        });
+        view.openModule(
+          module.id === "preview"
+            ? { module: module.id, resource: "" }
+            : {
+                module: module.id,
+                resource: str(tab["resource"]).slice(0, 1024),
+                label: str(tab["label"]).slice(0, 256),
+              },
+        );
         continue;
       }
 
