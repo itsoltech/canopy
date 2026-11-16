@@ -329,6 +329,42 @@ test("native browser input shares a stream, maps CSS coordinates, paces frames a
   }
 });
 
+test("browser preview lists tabs and switches the selected tab through agent-browser", async () => {
+  const f = fixture(true);
+  const preview = browserPreview(f.context);
+
+  try {
+    await preview.start();
+    await until(() => f.updates.some((update) => update.targets?.length === 1));
+    f.send(
+      JSON.stringify({
+        type: "tabs",
+        tabs: [
+          { tabId: "t7", title: "Fixture", url: "https://fixture.invalid/", active: true },
+          { tabId: "t8", title: "Second tab", url: "https://second.invalid/", active: false },
+        ],
+      }),
+    );
+    await until(() => f.updates.some((update) => update.targets?.length === 2));
+
+    await preview.input([input("tab", { text: "t8" })], "one");
+    expect(f.calls().at(-1)).toEqual(["tab", "t8"]);
+    f.send(
+      JSON.stringify({
+        type: "tabs",
+        tabs: [
+          { tabId: "t7", title: "Fixture", url: "https://fixture.invalid/", active: false },
+          { tabId: "t8", title: "Second tab", url: "https://second.invalid/", active: true },
+        ],
+      }),
+    );
+    await until(() => f.updates.some((update) => update.targetId === "t8"));
+  } finally {
+    await preview.close();
+    f.server.stop(true);
+  }
+});
+
 test("browser pointer geometry uses the page viewport when configured stream height includes window chrome", async () => {
   const f = fixture(true, true, { width: 512, height: 253 });
   const preview = browserPreview(f.context);

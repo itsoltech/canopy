@@ -5,6 +5,8 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
   import type { ClassValue } from "svelte/elements";
+  import ViewportControls from "./ViewportControls.svelte";
+  import ViewportResizeHandles from "./ViewportResizeHandles.svelte";
 
   let {
     event,
@@ -12,7 +14,7 @@
     enabled = true,
     emptyText = "Waiting for the first live frame…",
     notice = "",
-    resize = false,
+    browser = false,
     onaddress,
     fit = $bindable("fit"),
     oninput,
@@ -23,7 +25,7 @@
     enabled?: boolean;
     emptyText?: string;
     notice?: string;
-    resize?: boolean;
+    browser?: boolean;
     onaddress?: () => void;
     fit?: "fit" | "actual";
     oninput: (input: AgentPreviewInput) => void;
@@ -33,16 +35,16 @@
   let canvas = $state<HTMLCanvasElement>();
   let surface = $state<HTMLDivElement>();
   let keyboard = $state<HTMLTextAreaElement>();
+  let viewport = $state<HTMLDivElement>();
   let focused = $state(false);
   let currentUrl: string | undefined;
-  let resizeObserver: ResizeObserver | undefined;
   const pressed = new Map<string, string>();
-  let lastSize = "";
-  let resizeTimer: ReturnType<typeof setTimeout> | undefined;
   let composing = false;
 
   const frameWidth = $derived(event?.width || 0);
   const frameHeight = $derived(event?.height || 0);
+  const viewportWidth = $derived(event?.viewportWidth || frameWidth);
+  const viewportHeight = $derived(event?.viewportHeight || frameHeight);
 
   $effect(() => {
     const frame = event;
@@ -88,32 +90,8 @@
     };
   });
 
-  $effect(() => {
-    if (!surface || !enabled || !resize || !previewId) return;
-    resizeObserver?.disconnect();
-    resizeObserver = new ResizeObserver(([entry]) => {
-      const width = Math.round(entry?.contentRect.width ?? 0);
-      const height = Math.round(entry?.contentRect.height ?? 0);
-      const size = `${width}x${height}`;
-
-      if (!width || !height || size === lastSize) return;
-      lastSize = size;
-      clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(() => send("resize", { width, height }), 150);
-    });
-    resizeObserver.observe(surface);
-
-    return () => {
-      resizeObserver?.disconnect();
-      resizeObserver = undefined;
-      clearTimeout(resizeTimer);
-      lastSize = "";
-    };
-  });
-
   onDestroy(() => {
     releaseKeys();
-    resizeObserver?.disconnect();
 
     if (currentUrl) URL.revokeObjectURL(currentUrl);
   });
@@ -134,6 +112,10 @@
   function send(kind: string, values: MessageInitShape<typeof AgentPreviewInputSchema> = {}): void {
     if (!enabled || !previewId) return;
     oninput(create(AgentPreviewInputSchema, { kind, ...values }));
+  }
+
+  function sendResize(width: number, height: number): void {
+    send("resize", { width, height });
   }
 
   function modifiers(event: KeyboardEvent | PointerEvent | WheelEvent): number {
@@ -187,14 +169,14 @@
       return;
     }
 
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "r" && resize) {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "r" && browser) {
       event.preventDefault();
       send("reload");
 
       return;
     }
 
-    if (event.altKey && ["ArrowLeft", "ArrowRight"].includes(event.key) && resize) {
+    if (event.altKey && ["ArrowLeft", "ArrowRight"].includes(event.key) && browser) {
       event.preventDefault();
       send(event.key === "ArrowLeft" ? "back" : "forward");
 
@@ -262,7 +244,7 @@
 </script>
 
 <div class={["relative flex min-h-0 min-w-0 flex-1 flex-col", className]}>
-  <div class="flex h-5 shrink-0 items-center gap-2 overflow-hidden text-xs text-muted">
+  <div class="flex min-h-8 shrink-0 items-center gap-2 overflow-hidden text-xs text-muted">
     {#if focused}
       <span class="inline-flex shrink-0 items-center gap-1.5 text-brand-700 dark:text-brand-300">
         <StatusDot tone="sky" pulse />
@@ -273,6 +255,9 @@
         ><Icon name="hand-raised" class="size-3.5" />{enabled ? "Click the screen to control it" : "Preview only"}</span
       >
     {/if}
+    {#if browser}
+      <ViewportControls {enabled} width={viewportWidth} height={viewportHeight} onresize={sendResize} />
+    {/if}
     <span class="min-w-0 flex-1 truncate text-right" title={notice} role="status">{notice}</span>
   </div>
   <div
@@ -282,31 +267,41 @@
       focused ? "border-brand-500/70 ring-2 ring-brand-500/20" : "border-divider",
     ]}
   >
-    <canvas
-      bind:this={canvas}
-      class={[
-        "block rounded-sm bg-white shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:bg-zinc-900",
-        fit === "fit" && "max-h-full max-w-full object-contain",
-      ]}
-      style:aspect-ratio={frameWidth && frameHeight ? `${frameWidth} / ${frameHeight}` : undefined}
-      aria-label="Live screen preview"
-      role="button"
-      tabindex={enabled ? 0 : -1}
-      onkeydown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          focusSurface();
-        }
-      }}
-      onpointerdown={pointerdown}
-      onpointermove={pointermove}
-      onpointerup={pointerup}
-      onpointercancel={() => send("release")}
-      oncontextmenu={(event) => {
-        if (focused) event.preventDefault();
-      }}
-      onwheel={wheel}
-    ></canvas>
+    <div bind:this={viewport} class={["relative h-fit w-fit shrink-0", fit === "fit" && "max-h-full max-w-full"]}>
+      <canvas
+        bind:this={canvas}
+        class={[
+          "block rounded-sm bg-white shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:bg-zinc-900",
+          fit === "fit" && "max-h-full max-w-full object-contain",
+        ]}
+        style:aspect-ratio={frameWidth && frameHeight ? `${frameWidth} / ${frameHeight}` : undefined}
+        aria-label="Live screen preview"
+        role="button"
+        tabindex={enabled ? 0 : -1}
+        onkeydown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            focusSurface();
+          }
+        }}
+        onpointerdown={pointerdown}
+        onpointermove={pointermove}
+        onpointerup={pointerup}
+        onpointercancel={() => send("release")}
+        oncontextmenu={(event) => {
+          if (focused) event.preventDefault();
+        }}
+        onwheel={wheel}
+      ></canvas>
+      <ViewportResizeHandles
+        {browser}
+        {enabled}
+        width={viewportWidth}
+        height={viewportHeight}
+        {viewport}
+        onresize={sendResize}
+      />
+    </div>
     <textarea
       bind:this={keyboard}
       class="pointer-events-none absolute bottom-0 left-0 size-px resize-none overflow-hidden border-0 p-0 opacity-0"

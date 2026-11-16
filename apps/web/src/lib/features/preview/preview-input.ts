@@ -41,10 +41,10 @@ export class PreviewInputQueue {
       return;
     }
 
-    if (input.kind === "pointer-move") {
+    if (input.kind === "pointer-move" || input.kind === "resize") {
       const last = this.#queue.at(-1);
 
-      if (last?.kind === "pointer-move") {
+      if (last?.kind === input.kind) {
         this.#queue[this.#queue.length - 1] = input;
         this.#schedule();
 
@@ -53,10 +53,10 @@ export class PreviewInputQueue {
     }
 
     if (this.#queue.length >= MAX_PENDING) {
-      const move = this.#queue.findIndex((entry) => entry.kind === "pointer-move");
+      const move = this.#queue.findIndex((entry) => entry.kind === "pointer-move" || entry.kind === "resize");
 
       if (move >= 0) this.#queue.splice(move, 1);
-      else if (input.kind === "pointer-move") return;
+      else if (input.kind === "pointer-move" || input.kind === "resize") return;
       else {
         this.dispose();
         this.overflow();

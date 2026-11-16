@@ -79,6 +79,22 @@
     <IconButton size="sm" icon="chevron-left" label="Back" disabled={!enabled} onclick={() => send("back")} />
     <IconButton size="sm" icon="chevron-right" label="Forward" disabled={!enabled} onclick={() => send("forward")} />
     <IconButton size="sm" icon="arrow-path" label="Reload page" disabled={!enabled} onclick={() => send("reload")} />
+    {#if targets.length > 1}
+      <div class="max-w-56 min-w-32 shrink-0 [&_[role=combobox]]:w-full">
+        <Select
+          inline="muted"
+          aria-label="Browser tab"
+          value={targetId}
+          placeholder="Choose a tab"
+          disabled={!enabled}
+          options={targets.map((target) => ({ value: target.id, label: target.label }))}
+          onchange={(id) => {
+            const target = targets.find((entry) => entry.id === id);
+            if (target) onselect(target);
+          }}
+        />
+      </div>
+    {/if}
     <form
       class="min-w-0 flex-1"
       onsubmit={(event) => {

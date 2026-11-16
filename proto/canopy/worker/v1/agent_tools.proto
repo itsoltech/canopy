@@ -108,7 +108,7 @@ message AgentPreviewAck {
 
 message AgentPreviewInput {
   // pointer-move | pointer-down | pointer-up | wheel | key-down | key-up |
-  // text | navigate | back | forward | reload | home | release | resize
+  // text | navigate | back | forward | reload | home | release | resize | tab
   string kind = 1;
   // Coordinates are normalized to the rendered frame, excluding letterboxing.
   double x = 2;

@@ -6,13 +6,14 @@
   import StepperButtons from "./StepperButtons.svelte";
 
   /** Internal renderer for Input type=number. Text editing stays native; steppers are ours. */
-  type Props = Omit<HTMLInputAttributes, "class" | "type"> & { class?: ClassValue };
+  type Props = Omit<HTMLInputAttributes, "class" | "type"> & { class?: ClassValue; compact?: boolean };
 
   let {
     value = $bindable(),
     min,
     max,
     step = 1,
+    compact = false,
     class: className,
     id: explicitId,
     disabled,
@@ -83,7 +84,7 @@
   });
 </script>
 
-<div class={["ui-number-control flex min-w-0 items-center gap-2", className]}>
+<div class={["ui-number-control flex min-w-0 items-center gap-2", compact && "gap-1", className]}>
   <input
     {...rest}
     bind:this={input}
@@ -98,7 +99,11 @@
     aria-valuenow={parsed}
     aria-describedby={rest["aria-describedby"] ?? field?.describedBy}
     aria-invalid={invalid || rest["aria-invalid"] || field?.invalid || undefined}
-    class={[controlClasses, "ui-control min-w-0 flex-1 tabular-nums pointer-coarse:min-h-12"]}
+    class={[
+      controlClasses,
+      compact && "!rounded-md !px-2 !py-0.5 !text-xs/5 sm:!py-0.5 sm:!text-xs/5",
+      "ui-control min-w-0 flex-1 tabular-nums pointer-coarse:min-h-12",
+    ]}
     bind:value={raw}
     oninput={(event) => {
       const next = parseNumber(event.currentTarget.value);

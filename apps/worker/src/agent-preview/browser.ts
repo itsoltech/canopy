@@ -48,7 +48,7 @@ class BrowserPreview implements PreviewBackend {
   async start(): Promise<void> {
     const context = this.#context;
 
-    if (context.runtime.scope.target) throw new Error("Browser previews follow the active tab");
+    if (context.runtime.scope.target) throw new Error("Browser previews use the session tabs");
     context.signal.throwIfAborted();
     context.emit({ state: "connecting", mode: "stream" });
     this.#lease = await acquireBrowserStream(context.runtime);
@@ -237,6 +237,7 @@ class BrowserPreview implements PreviewBackend {
         case "forward":
         case "reload":
         case "resize":
+        case "tab":
           await this.#command(input);
           break;
         default:
@@ -322,6 +323,14 @@ class BrowserPreview implements PreviewBackend {
       if (url !== "about:blank" && !["http:", "https:"].includes(new URL(url).protocol))
         throw new Error("Choose an HTTP or HTTPS preview URL");
       await runtime.command(["open", url, "--headed", "false"]);
+    } else if (input.kind === "tab") {
+      const tabId = z.string().min(1).max(128).parse(input.text);
+      const target = this.#metadata.targets?.find((entry) => entry.id === tabId);
+
+      if (!target) throw new Error("Choose an open browser tab");
+
+      if (target.id === this.#metadata.targetId) return;
+      await runtime.command(["tab", tabId]);
     } else await runtime.command([input.kind]);
   }
 

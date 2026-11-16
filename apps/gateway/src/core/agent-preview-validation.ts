@@ -26,6 +26,7 @@ const INPUTS = new Set([
   "home",
   "release",
   "resize",
+  "tab",
 ]);
 
 const STATES = new Set(["connecting", "ready", "frame", "error", "closed"]);

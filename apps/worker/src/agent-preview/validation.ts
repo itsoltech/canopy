@@ -23,6 +23,7 @@ const INPUT_KINDS = new Set([
   "home",
   "release",
   "resize",
+  "tab",
 ]);
 
 export function previewScope(start: StartAgentPreview) {

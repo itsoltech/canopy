@@ -450,7 +450,7 @@ export const AgentPreviewAckSchema: GenMessage<AgentPreviewAck> = /*@__PURE__*/
 export type AgentPreviewInput = Message<"canopy.worker.v1.AgentPreviewInput"> & {
   /**
    * pointer-move | pointer-down | pointer-up | wheel | key-down | key-up |
-   * text | navigate | back | forward | reload | home | release | resize
+   * text | navigate | back | forward | reload | home | release | resize | tab
    *
    * @generated from field: string kind = 1;
    */
