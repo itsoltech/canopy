@@ -22,8 +22,9 @@ export interface OutboxStore {
     command: MessageInitShape<typeof CommandSchema>;
     ttlSeconds: number;
   }): Fx<Command>;
-  /** Ordered keyset page, at most 2048 commands / about 512 KiB. Rewind admission stays fenced until ACK, so its intent never expires. */
+  /** Ordered keyset page, at most 2048 commands / about 512 KiB. Rewind and unload intents never expire before ACK. */
   pendingCommands(workerId: string, afterId?: string): Fx<PendingCommand[]>;
+  commandDispatchable(commandId: string): Fx<boolean>;
   commandDone(commandId: string, ok: boolean, result: JsonValue): Fx<void>;
   retryTurnStart(commandId: string, result: JsonValue): Fx<Command | undefined>;
   /** Recheck lifecycle after a retry delay or reconnect, before handing a start to the worker. */
@@ -32,13 +33,23 @@ export interface OutboxStore {
 
 export function outboxStore(sql: SqlClient.SqlClient): OutboxStore {
   return {
+    commandDispatchable: (commandId) =>
+      sql`SELECT id FROM worker_commands
+      WHERE id = ${commandId}::uuid AND status IN ('pending', 'delivered')
+        AND (expires_at > now() OR kind IN ('rewindThread', 'unloadThread'))`.pipe(
+        Effect.map((rows) => rows.length > 0),
+      ),
     retryTurnStart: (commandId, result) => retryTurnStart(sql, commandId, result),
     turnStartDispatchable: (commandId) =>
       sql`
       SELECT c.id FROM worker_commands c JOIN turns u ON u.id = c.turn_id JOIN threads t ON t.id = c.thread_id
       WHERE c.id = ${commandId}::uuid AND c.status IN ('pending', 'delivered') AND c.expires_at > now()
         AND u.status IN ('queued', 'running') AND u.rewind_id IS NULL AND t.rewind_pending_id IS NULL
-        AND t.archived_at IS NULL AND t.deleted_at IS NULL`.pipe(Effect.map((rows) => rows.length > 0)),
+        AND t.archived_at IS NULL AND t.deleted_at IS NULL
+        AND NOT EXISTS (SELECT 1 FROM worker_commands cleanup WHERE cleanup.thread_id = t.id
+          AND cleanup.kind = 'unloadThread' AND cleanup.status IN ('pending', 'delivered'))`.pipe(
+        Effect.map((rows) => rows.length > 0),
+      ),
     enqueueCommand: ({ workerId, threadId, turnId, command, ttlSeconds }) =>
       Effect.gen(function* () {
         const message = create(CommandSchema, { ...command });
@@ -58,7 +69,7 @@ export function outboxStore(sql: SqlClient.SqlClient): OutboxStore {
         WITH candidates AS MATERIALIZED (
           SELECT id, payload, created_at, expires_at FROM worker_commands
           WHERE worker_id = ${workerId}::uuid AND status IN ('pending', 'delivered')
-            AND (expires_at > now() OR kind='rewindThread')
+            AND (expires_at > now() OR kind IN ('rewindThread', 'unloadThread'))
           ${afterId ? sql`AND (created_at, id) > (SELECT created_at, id FROM worker_commands WHERE id = ${afterId}::uuid AND worker_id = ${workerId}::uuid)` : sql``}
           ORDER BY created_at, id LIMIT 2048
         ), budget AS (

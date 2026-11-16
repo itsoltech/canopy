@@ -17,6 +17,7 @@ import { claudeRewind } from "./rewind.ts";
 import { ClaudeUsage } from "./usage.ts";
 import type { RewindThread, ThreadRewindResultSchema } from "@canopy/contracts";
 import type { MessageInitShape } from "@bufbuild/protobuf";
+import { threadLifecycle } from "../thread-lifecycle.ts";
 import { livePermissions, type PermissionUpdateError } from "./live-permissions.ts";
 
 export { ClaudeThreadError, type ClaudeThreadsOptions, type ClaudeInstanceRuntime } from "./thread-types.ts";
@@ -71,6 +72,8 @@ export class ClaudeThreads extends Context.Service<
     steer(threadId: string, turnId: string, inputId: string, input: UserInput): Effect.Effect<void, SteerError>;
     /** Whether a turn of this thread runs in this process. */
     running(threadId: string): boolean;
+    /** Releases this thread's process and MCP resources, retaining its durable history. */
+    unload(threadId: string): Effect.Effect<void, ClaudeThreadError>;
     /** Stops a background task (Claude stopTask). */
     stopTask(threadId: string, taskId: string): Effect.Effect<void, ClaudeThreadError>;
     /** Background tasks still running, per platform thread. */
@@ -128,11 +131,53 @@ const make = (options: ClaudeThreadsOptions) =>
     const turns = sessionTurns(ctx, output.record);
     const sessions = claudeSessions(ctx, runtime, (session) => consumeSession(ctx, session, output, turns));
 
+    const lifecycle = threadLifecycle(
+      (threadId) => new ClaudeThreadError({ threadId, operation: "unload", message: "The thread is being unloaded" }),
+    );
+
+    const creation = threadCreation(ctx, runtime);
+    const start = threadStart(ctx, sessions, turns, output.record);
+    const rewind = claudeRewind(ctx, runtime);
+
+    const stop = (threadId: string) => {
+      const session = ctx.sessions.get(threadId);
+
+      if (!session) return;
+      session.closing = true;
+
+      if (session.closeTimer) clearTimeout(session.closeTimer);
+
+      for (const taskId of session.mapper.backgroundTasks) session.mapper.markStopping(taskId);
+      session.input.close();
+      session.abort.abort();
+    };
+
     return ClaudeThreads.of({
       readUsage: () => Effect.promise(() => ctx.usage.read(ctx.sessions.values().next().value?.query)),
-      rewind: claudeRewind(ctx, runtime),
-      ...threadCreation(ctx, runtime),
-      ...threadStart(ctx, sessions, turns, output.record),
+      rewind: (request) => lifecycle.run(request.thread?.threadId ?? "", () => rewind(request)),
+      create: (spec, fork) => lifecycle.run(spec.threadId, () => creation.create(spec, fork)),
+      startTurn: (spec, turnId, input, settings) =>
+        lifecycle.run(spec.threadId, (current) =>
+          start.startTurn(spec, turnId, input, {
+            model: settings?.model ?? "",
+            effort: settings?.effort ?? "",
+            ...settings,
+            canSubmit: () => current() && settings?.canSubmit?.() !== false,
+          }),
+        ),
+      unload: (threadId) =>
+        lifecycle.unload(
+          threadId,
+          Effect.tryPromise({
+            try: async () => {
+              const session = ctx.sessions.get(threadId);
+              stop(threadId);
+              await session?.done;
+            },
+            catch: (cause) => new ClaudeThreadError({ threadId, operation: "unload", message: String(cause) }),
+          }),
+          () => stop(threadId),
+        ),
       ...threadControls(ctx),
       updateTurnPermissions: livePermissions(ctx),
       hasActiveTurns: () => output.recording() || [...ctx.sessions.values()].some((session) => !!session.turn),

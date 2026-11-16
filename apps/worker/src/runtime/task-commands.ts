@@ -1,5 +1,5 @@
 import { Provider, type Command } from "@canopy/contracts";
-import { Context } from "effect";
+import { Context, Effect } from "effect";
 import { ClaudeThreads } from "../providers/claude/threads.ts";
 import { CodexThreads } from "../providers/codex/threads.ts";
 
@@ -12,18 +12,27 @@ export class TaskCommands {
     const { thread: spec, directive, objective, nativeTokenBudget } = kind.value;
 
     if (!spec) throw new CommandError("INVALID_COMMAND", "thread spec missing", true);
+    await this.ctx.ops.prepareThread(spec.threadId);
     this.ctx.ops.checkCwd(spec.cwd);
 
     // Claude goals are /goal turns in the input stream (docs/goals.md); the gateway queues them as turns.
     if (spec.provider === Provider.CLAUDE)
       throw new CommandError("UNSUPPORTED", "Claude goals are set with /goal turns", true);
-    await this.ctx.ops.runCodex(
-      spec.provider,
-      (threads) => threads.setGoal(spec, directive, objective, nativeTokenBudget),
-      this.ctx.ops.codexGroupOf(spec.providerProfileId),
-    );
 
-    return {};
+    return this.ctx.state.turnAdmissions.start(spec.threadId, async (current) => {
+      await this.ctx.ops.runCodex(
+        spec.provider,
+        (threads) =>
+          current() &&
+          !this.ctx.state.closedThreads.has(spec.threadId) &&
+          !this.ctx.state.unloadingThreads.has(spec.threadId)
+            ? threads.setGoal(spec, directive, objective, nativeTokenBudget)
+            : Effect.void,
+        this.ctx.ops.codexGroupOf(spec.providerProfileId),
+      );
+
+      return {};
+    });
   }
 
   async stopTask(kind: Extract<Command["kind"], { case: "stopTask" }>): Promise<CommandOutput> {
@@ -51,10 +60,8 @@ export class TaskCommands {
   }
 
   async unloadThread(kind: Extract<Command["kind"], { case: "unloadThread" }>): Promise<CommandOutput> {
-    this.ctx.state.heads.untrack(kind.value.threadId);
+    await this.ctx.ops.releaseThread(kind.value.threadId);
 
-    for (const handle of this.ctx.state.grok.values()) await handle.runtime.unload(kind.value.threadId);
-
-    return {}; // nothing to free yet: Codex threads share their group's app-server process, Claude turns end with their query
+    return {};
   }
 }

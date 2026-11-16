@@ -9,12 +9,14 @@ import {
 } from "@canopy/contracts";
 
 interface ImportTurn {
+  readonly threadId: string;
   readonly items: Map<string, { candidate: boolean; tail: string; done: boolean }>;
   readonly controller: AbortController;
   pending?: Promise<void>;
   held: ThreadEvent[];
   ready?: boolean;
   flush?: () => void;
+  cancelTimer?: () => void;
 }
 
 /** Hold the terminal journal boundary while copies commit, never another thread's text stream. */
@@ -27,6 +29,7 @@ export class MarkdownImageImports {
 
     if (event.body.case === "turnStarted")
       this.#turns.set(key, {
+        threadId: event.threadId,
         items: new Map(),
         controller: new AbortController(),
         held: [],
@@ -84,6 +87,7 @@ export class MarkdownImageImports {
 
         const callId = `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
         const timer = setTimeout(() => turn.controller.abort(), 65_000).unref();
+        turn.cancelTimer = () => clearTimeout(timer);
 
         try {
           await call(
@@ -99,6 +103,7 @@ export class MarkdownImageImports {
           );
         } finally {
           clearTimeout(timer);
+          delete turn.cancelTimer;
         }
       })
       .catch(() => {});
@@ -160,6 +165,20 @@ export class MarkdownImageImports {
   }
 
   close() {
-    for (const turn of this.#turns.values()) turn.controller.abort();
+    for (const turn of this.#turns.values()) {
+      turn.cancelTimer?.();
+      turn.controller.abort();
+    }
+  }
+
+  closeThread(threadId: string) {
+    for (const [key, turn] of this.#turns) {
+      if (turn.threadId !== threadId) continue;
+      turn.cancelTimer?.();
+      turn.controller.abort();
+      turn.ready = true;
+      turn.flush?.();
+      this.#turns.delete(key);
+    }
   }
 }

@@ -20,12 +20,14 @@ interface Subscription {
   request: ThreadFilesWatch;
   checkout?: CheckoutFiles;
   cancellation: AbortController;
+  pending: Promise<void>;
 }
 
 /** No journal, outbox, disk polling, content or persistent replay. */
 export class ThreadFilesWatcher {
   #checkouts = new Map<string, CheckoutFiles>();
   #subscriptions = new Map<string, Subscription>();
+  #opening = new Set<Subscription>();
   #epoch = 0;
 
   async watch(request: ThreadFilesWatch, send: (update: ThreadFilesUpdate) => void) {
@@ -61,8 +63,10 @@ export class ThreadFilesWatcher {
     for (const path of request.directories) watchPath(path);
 
     for (const path of request.files) watchPath(path, true);
-    const entry: Subscription = { request, cancellation: new AbortController() };
+    const finished = Promise.withResolvers<void>();
+    const entry: Subscription = { request, cancellation: new AbortController(), pending: finished.promise };
     this.#subscriptions.set(request.subscriptionId, entry);
+    this.#opening.add(entry);
     const epoch = this.#epoch;
 
     try {
@@ -90,6 +94,8 @@ export class ThreadFilesWatcher {
       throw cause;
     } finally {
       this.#trim();
+      this.#opening.delete(entry);
+      finished.resolve();
     }
   }
 
@@ -99,6 +105,25 @@ export class ThreadFilesWatcher {
         checkout.close();
         this.#checkouts.delete(key);
       }
+  }
+
+  async closeThread(threadId: string) {
+    const pending: Promise<void>[] = [];
+
+    for (const entry of new Set([...this.#subscriptions.values(), ...this.#opening])) {
+      if (entry.request.threadId !== threadId) continue;
+      pending.push(entry.pending);
+      entry.cancellation.abort();
+
+      if (this.#subscriptions.get(entry.request.subscriptionId) === entry) {
+        entry.checkout?.remove(entry.request.subscriptionId);
+        this.#subscriptions.delete(entry.request.subscriptionId);
+      }
+    }
+
+    this.#trim();
+    await Promise.all(pending);
+    this.#trim();
   }
 
   close() {

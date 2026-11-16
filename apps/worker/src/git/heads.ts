@@ -72,34 +72,38 @@ export class HeadTracker {
 
     if (pending) return pending;
 
-    const run = (async () => {
-      const dir = await gitDirOf(cwd);
+    const run = Promise.resolve()
+      .then(async () => {
+        const dir = await gitDirOf(cwd);
 
-      if (!dir || this.#closed || this.#threads.has(threadId)) return;
-      this.#threads.set(threadId, dir);
-      const known = this.#checkouts.get(dir);
+        if (!dir || this.#closed || this.#threads.has(threadId) || this.#resolving.get(threadId) !== run) return;
+        this.#threads.set(threadId, dir);
+        const known = this.#checkouts.get(dir);
 
-      if (known) {
-        known.threads.add(threadId);
-        this.#report(known);
+        if (known) {
+          known.threads.add(threadId);
+          this.#report(known);
 
-        return;
-      }
+          return;
+        }
 
-      const checkout: Checkout = { gitDir: dir, threads: new Set([threadId]), retries: 0 };
-      this.#checkouts.set(dir, checkout);
+        const checkout: Checkout = { gitDir: dir, threads: new Set([threadId]), retries: 0 };
+        this.#checkouts.set(dir, checkout);
 
-      try {
-        checkout.watcher = watch(dir, { persistent: false }, (_event, name) => {
-          if (!name || name === "HEAD") this.#schedule(checkout);
-        });
-        checkout.watcher.on("error", () => checkout.watcher?.close());
-      } catch {
-        // No watch (limits, file system): turn ends still read HEAD.
-      }
+        try {
+          checkout.watcher = watch(dir, { persistent: false }, (_event, name) => {
+            if (!name || name === "HEAD") this.#schedule(checkout);
+          });
+          checkout.watcher.on("error", () => checkout.watcher?.close());
+        } catch {
+          // No watch (limits, file system): turn ends still read HEAD.
+        }
 
-      await this.#read(checkout, true);
-    })().finally(() => this.#resolving.delete(threadId));
+        await this.#read(checkout, true);
+      })
+      .finally(() => {
+        if (this.#resolving.get(threadId) === run) this.#resolving.delete(threadId);
+      });
 
     this.#resolving.set(threadId, run);
 
@@ -115,6 +119,7 @@ export class HeadTracker {
   }
 
   untrack(threadId: string): void {
+    this.#resolving.delete(threadId);
     const dir = this.#threads.get(threadId);
 
     if (!dir) return;
@@ -157,7 +162,7 @@ export class HeadTracker {
   async #read(checkout: Checkout, always: boolean): Promise<void> {
     const head = await readHeadFile(checkout.gitDir);
 
-    if (this.#closed) return;
+    if (this.#closed || this.#checkouts.get(checkout.gitDir) !== checkout) return;
 
     if (!head) {
       if (checkout.retries++ < RETRIES) this.#schedule(checkout, RETRY_MS);

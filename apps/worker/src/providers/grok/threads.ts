@@ -1,5 +1,7 @@
 import { workerDiagnostics } from "../../diagnostics/worker.ts";
-import { Schema } from "effect";
+import { Effect, Schema } from "effect";
+import { threadLifecycle } from "../thread-lifecycle.ts";
+import { TurnAdmissionCancelled } from "../turn-input.ts";
 import { classifyFailure, safeFailureDetail, type JsonValue } from "@canopy/domain";
 import { GrokClient, type SessionResult } from "@canopy/grok-acp";
 import {
@@ -67,6 +69,8 @@ interface Entry {
 /** Worker registry with the same lifecycle operations as ClaudeThreads/CodexThreads; one ACP process per thread. */
 export class GrokThreads {
   readonly #entries = new Map<string, Entry>();
+  readonly #preparing = new Map<string, () => Promise<void>>();
+  readonly #lifecycle = threadLifecycle((threadId) => new Error(`Thread ${threadId} is being unloaded`));
   constructor(readonly options: Options) {}
   running(threadId: string): boolean {
     return !!this.#entries.get(threadId)?.turnId;
@@ -77,11 +81,22 @@ export class GrokThreads {
     await this.options.record(spec.threadId, {
       body: { case: "threadReady", value: { providerThreadId: entry.session.sessionId } },
     });
-    this.#idle(spec.threadId, entry);
+
+    if (this.#entries.get(spec.threadId) === entry) this.#idle(spec.threadId, entry);
 
     return entry.session.sessionId;
   }
-  async #open(spec: ThreadSpec, settings?: TurnSettings): Promise<Entry> {
+  #open(spec: ThreadSpec, settings?: TurnSettings): Promise<Entry> {
+    return Effect.runPromise(
+      this.#lifecycle.run(spec.threadId, (current) =>
+        Effect.tryPromise({
+          try: () => this.#openSession(spec, settings, current),
+          catch: (error) => (error instanceof Error ? error : new Error(String(error))),
+        }),
+      ),
+    );
+  }
+  async #openSession(spec: ThreadSpec, settings: TurnSettings | undefined, current: () => boolean): Promise<Entry> {
     const profile = this.options.profile(spec.providerProfileId);
 
     if (!profile) throw new Error("Grok provider instance unavailable");
@@ -170,6 +185,7 @@ export class GrokThreads {
           requestPermission: (request, signal) => grokPermission(spec, entry, request, signal, this.options.interact),
         },
       });
+      this.#preparing.set(spec.threadId, dispose);
       const info = await client.initialize();
 
       if ((bus || automation) && !info.agentCapabilities?.mcpCapabilities?.http)
@@ -202,6 +218,8 @@ export class GrokThreads {
         toolUses: new Map(),
         approvals: new Set(),
       };
+
+      if (!current() || settings?.canSubmit?.() === false) throw new TurnAdmissionCancelled();
       this.#entries.set(spec.threadId, entry);
 
       return entry;
@@ -217,9 +235,13 @@ export class GrokThreads {
       if (cleanupError) throw new AggregateError([error, cleanupError], "Grok session setup and cleanup failed");
 
       throw error;
+    } finally {
+      this.#preparing.delete(spec.threadId);
     }
   }
   async startTurn(spec: ThreadSpec, turnId: string, input: UserInput, settings?: TurnSettings): Promise<void> {
+    if (settings?.canSubmit?.() === false) return;
+
     // The outbox replays StartTurn after a reconnect while the original prompt may still await an interaction.
     if (this.#entries.get(spec.threadId)?.turnId === turnId) return;
     workerDiagnostics.turns.begin(spec.threadId, turnId, "grok");
@@ -230,6 +252,12 @@ export class GrokThreads {
     });
 
     await settings?.connectorsReady?.();
+
+    if (this.#entries.get(spec.threadId) !== entry || settings?.canSubmit?.() === false) {
+      workerDiagnostics.turns.finish(spec.threadId, turnId, true);
+
+      return;
+    }
 
     entry.turnId = turnId;
     entry.interrupted = false;
@@ -260,6 +288,9 @@ export class GrokThreads {
         settings?.connectorNote ? { ...input, text: `${input.text}\n\n${settings.connectorNote}` } : input,
         entry.client.capabilities?.agentCapabilities?.promptCapabilities?.image === true,
       );
+
+      if (this.#entries.get(spec.threadId) !== entry || settings?.canSubmit?.() === false)
+        throw new TurnAdmissionCancelled();
 
       for await (const event of entry.client.prompt(entry.session.sessionId, prompt)) {
         if (event.type === "update") {
@@ -294,7 +325,8 @@ export class GrokThreads {
         ? "interrupted by the user"
         : safeFailureDetail(error instanceof Error ? error.message : "Grok CLI failed");
       errorCode = entry.interrupted ? "" : classifyFailure(reason);
-      this.#entries.delete(spec.threadId);
+
+      if (this.#entries.get(spec.threadId) === entry) this.#entries.delete(spec.threadId);
       await entry.dispose();
     } finally {
       for (const init of mapper.finish(
@@ -327,19 +359,36 @@ export class GrokThreads {
     await entry.client.cancel(entry.session.sessionId);
   }
   async unload(threadId: string): Promise<void> {
-    const entry = this.#entries.get(threadId);
-    this.#entries.delete(threadId);
-    await entry?.dispose();
+    await Effect.runPromise(
+      this.#lifecycle.unload(
+        threadId,
+        Effect.tryPromise({
+          try: async () => {
+            const entry = this.#entries.get(threadId);
+            this.#entries.delete(threadId);
+
+            if (entry) entry.interrupted = true;
+            await entry?.dispose();
+          },
+          catch: (error) => (error instanceof Error ? error : new Error(String(error))),
+        }),
+        () => {
+          void this.#preparing
+            .get(threadId)?.()
+            .catch(() => {});
+        },
+      ),
+    );
   }
   #idle(threadId: string, entry: Entry): void {
     clearTimeout(entry.idleTimer);
     entry.idleTimer = setTimeout(() => {
-      if (!entry.turnId) void this.unload(threadId);
+      if (this.#entries.get(threadId) === entry && !entry.turnId) void this.unload(threadId);
     }, this.options.idleUnloadMs ?? 900_000);
     entry.idleTimer.unref();
   }
   async close(): Promise<void> {
-    await Promise.all([...this.#entries.keys()].map((id) => this.unload(id)));
+    await Promise.all([...new Set([...this.#entries.keys(), ...this.#preparing.keys()])].map((id) => this.unload(id)));
   }
   async listModels(profileId: string): Promise<{ models: ModelInit[] }> {
     const profile = this.options.profile(profileId);

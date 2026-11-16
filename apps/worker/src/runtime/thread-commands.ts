@@ -18,6 +18,18 @@ const TURN_NOT_RUNNING = "TURN_NOT_RUNNING";
 export class ThreadCommands {
   constructor(readonly ctx: HostContext) {}
   async createThread(kind: Extract<Command["kind"], { case: "createThread" }>): Promise<CommandOutput> {
+    const threadId = kind.value.thread?.threadId ?? "";
+    await this.ctx.ops.prepareThread(threadId);
+
+    return this.ctx.state.turnAdmissions.start(threadId, async (current) => {
+      if (!current() || this.ctx.state.closedThreads.has(threadId) || this.ctx.state.unloadingThreads.has(threadId))
+        return {};
+
+      return this.#createThread(kind);
+    });
+  }
+
+  async #createThread(kind: Extract<Command["kind"], { case: "createThread" }>): Promise<CommandOutput> {
     const spec = kind.value.thread;
 
     if (!spec) throw new CommandError("INVALID_COMMAND", "thread spec missing", true);
@@ -62,6 +74,7 @@ export class ThreadCommands {
 
   async startTurn(kind: Extract<Command["kind"], { case: "startTurn" }>, commandId: string): Promise<CommandOutput> {
     const threadId = kind.value.thread?.threadId ?? "";
+    await this.ctx.ops.prepareThread(threadId);
 
     if (this.ctx.state.rewindingThreads.has(threadId)) return {};
 
@@ -152,6 +165,7 @@ export class ThreadCommands {
     const canSubmit = () =>
       current() &&
       !this.ctx.state.closedThreads.has(spec.threadId) &&
+      !this.ctx.state.unloadingThreads.has(spec.threadId) &&
       !this.ctx.state.rewindingThreads.has(spec.threadId) &&
       !this.ctx.state.closing &&
       !this.ctx.state.shuttingDown &&

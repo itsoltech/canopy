@@ -1,36 +1,66 @@
 import type { HighlightWindow } from "@canopy/syntax/window";
 import type { HighlightReply, HighlightTask } from "./highlight-protocol.ts";
 
+interface QueuedHighlight {
+  threadId: string;
+  task?: Omit<HighlightTask, "id">;
+  reject: (cause: Error) => void;
+}
+
 /** One lazy CPU executor, four waiting tasks; no parser work on the WorkerLink event loop. */
 export class HighlightPool {
   #worker: Worker | undefined;
   #serial: Promise<void> = Promise.resolve();
-  #pending = 0;
   #id = 0;
   #reject: ((cause: Error) => void) | undefined;
-  #generation = 0;
+  #tasks = new Set<QueuedHighlight>();
+  #threads = new Set<string>();
+  #activeThread: string | undefined;
 
   run(task: Omit<HighlightTask, "id">): Promise<HighlightWindow> {
-    if (this.#pending >= 5) return Promise.reject(new Error("Highlighting is busy. The file remains readable."));
-    const generation = this.#generation;
-    this.#pending++;
+    if (this.#tasks.size >= 5) return Promise.reject(new Error("Highlighting is busy. The file remains readable."));
+    const result = Promise.withResolvers<HighlightWindow>();
+    const queued: QueuedHighlight = { threadId: task.threadId, task, reject: result.reject };
+    this.#tasks.add(queued);
+    this.#threads.add(task.threadId);
 
-    const result = this.#serial.then(() => {
-      if (generation !== this.#generation) throw new Error("Highlighting was cancelled.");
+    this.#serial = this.#serial.then(async () => {
+      const next = queued.task;
+      delete queued.task;
 
-      return this.#execute({ ...task, id: ++this.#id });
+      if (!next) return;
+      this.#activeThread = next.threadId;
+
+      try {
+        result.resolve(await this.#execute({ ...next, id: ++this.#id }));
+      } catch (cause) {
+        result.reject(cause);
+      }
     });
 
-    this.#serial = result.then(
-      () => undefined,
-      () => undefined,
-    );
+    return result.promise.finally(() => this.#tasks.delete(queued));
+  }
 
-    return result.finally(() => this.#pending--);
+  closeThread(threadId: string) {
+    for (const queued of this.#tasks) {
+      if (queued.threadId !== threadId) continue;
+      delete queued.task;
+      queued.reject(new Error("Highlighting was cancelled."));
+      this.#tasks.delete(queued);
+    }
+
+    if (this.#activeThread === threadId) this.#reject?.(new Error("Highlighting was cancelled."));
+    this.#threads.delete(threadId);
+
+    if (this.#threads.size) this.#worker?.postMessage({ closeThread: threadId });
+    else {
+      this.#worker?.terminate();
+      this.#worker = undefined;
+    }
   }
 
   close() {
-    this.#generation++;
+    for (const threadId of this.#threads) this.closeThread(threadId);
     this.#reject?.(new Error("Highlighting was cancelled."));
     this.#reject = undefined;
     this.#worker?.terminate();
@@ -48,6 +78,7 @@ export class HighlightPool {
         worker.onmessage = null;
         worker.onerror = null;
         this.#reject = undefined;
+        this.#activeThread = undefined;
 
         if (error) {
           worker.terminate();

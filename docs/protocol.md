@@ -453,7 +453,13 @@ Zasady:
   identyfikatory. Po rejestracji połączenia gateway ponawia snapshot z ochroną
   przed nadpisaniem nowszej zmiany starym odczytem. Worker stosuje Welcome przed
   konfiguracją i blokuje nowe `StartTurn` oraz natywną pobudkę Claude w zamkniętym
-  wątku. Zadania w tle działają dalej. Nie wymaga to zmiany wersji protokołu:
+  wątku. Zamyka też jego zasoby wykonawcze. Trwałe `UnloadThread` kończy się
+  sukcesem dopiero po zatrzymaniu procesów, sesji i podglądów oraz zwolnieniu
+  uchwytów; `THREAD_CLEANUP_PENDING` oznacza ponowienie tego samego polecenia.
+  Oczekujące sprzątanie nie wygasa i blokuje nowe starty oraz purge historii,
+  także po szybkim przywróceniu. Przywrócenie nie odtwarza zasobów; dopiero
+  kolejna wiadomość może ponownie załadować sesję z zachowaną historią.
+  Nie wymaga to zmiany wersji protokołu:
   stary worker korzysta z ochrony ingestu gatewaya, a nowy worker ze starym
   gatewayem korzysta z trwałego wstrzymania journali po drainie ingestu.
 - Kompaktowanie delt po `item_completed` to decyzja retencji, nie protokołu ([transcript.md](transcript.md#7-retencja)).

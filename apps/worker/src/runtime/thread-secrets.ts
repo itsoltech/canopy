@@ -133,6 +133,9 @@ export function secretEventRedactor(): (threadId: string, event: ThreadEventInit
 /** Private materializations, never inside the workspace or the provider's environment. */
 export class ThreadSecretFiles {
   readonly root: string;
+  // A process can still emit a value after its file expires or its thread closes.
+  readonly #redactions = new Set<string>();
+  readonly #closed = new Set<string>();
   readonly #entries = new Map<
     string,
     { revision: number; file: string; timer?: ReturnType<typeof setTimeout>; value: string }
@@ -164,7 +167,7 @@ export class ThreadSecretFiles {
     return dir;
   }
   redactionValues(): string[] {
-    return [...this.#entries.values()].flatMap((e) => (e.value ? [e.value] : []));
+    return [...this.#redactions];
   }
   apply(delivery: ThreadSecretDelivery): ThreadSecretReceipt {
     const receipt = create(ThreadSecretReceiptSchema, {
@@ -179,8 +182,13 @@ export class ThreadSecretFiles {
       const previous = this.#entries.get(key);
 
       if (previous && previous.revision > delivery.revision) return receipt;
-      const file = join(this.threadDir(delivery.threadId), delivery.requestId);
       const expires = delivery.expiresAt ? timestampDate(delivery.expiresAt).getTime() : 0;
+
+      if (this.#closed.has(delivery.threadId) && !delivery.remove && expires > Date.now()) return receipt;
+      const directory = join(this.root, delivery.threadId);
+
+      if (existsSync(directory)) this.threadDir(delivery.threadId);
+      const file = join(directory, delivery.requestId);
 
       if (delivery.remove || expires <= Date.now()) {
         if (previous?.timer) clearTimeout(previous.timer);
@@ -256,6 +264,8 @@ export class ThreadSecretFiles {
       };
 
       entry.timer.unref();
+
+      if (delivery.value) this.#redactions.add(delivery.value);
       this.#entries.set(key, entry);
       receipt.applied = true;
       receipt.file = file;
@@ -265,11 +275,31 @@ export class ThreadSecretFiles {
 
     return receipt;
   }
+  closeThread(threadId: string): void {
+    if (!UUID.test(threadId)) throw new Error("invalid thread secret owner");
+    this.#closed.add(threadId);
+
+    for (const [key, entry] of this.#entries) {
+      if (!key.startsWith(`${threadId}/`)) continue;
+
+      if (entry.timer) clearTimeout(entry.timer);
+      delete entry.timer;
+      entry.value = "";
+    }
+
+    rmSync(join(this.root, threadId), { recursive: true, force: true });
+  }
+  openThread(threadId: string): void {
+    if (!UUID.test(threadId)) throw new Error("invalid thread secret owner");
+    this.#closed.delete(threadId);
+  }
   close(): void {
     activeStores.delete(this);
 
     for (const entry of this.#entries.values()) if (entry.timer) clearTimeout(entry.timer);
     this.#entries.clear();
+    this.#redactions.clear();
+    this.#closed.clear();
 
     for (const name of readdirSync(this.root)) rmSync(join(this.root, name), { recursive: true, force: true });
   }

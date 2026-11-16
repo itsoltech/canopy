@@ -13,9 +13,9 @@ import { serverRequestHandler } from "./dynamic-tools.ts";
 import { threadEvents, threadExit } from "./thread-events.ts";
 import { threadCatalog, threadTurnSettings } from "./thread-catalog.ts";
 import { threadSessions } from "./thread-sessions.ts";
-import { threadTurns, threadGoals } from "./thread-turns.ts";
 import { codexConnectorMcp } from "./connector-mcp.ts";
 import { codexUsage } from "../usage-limits.ts";
+import { codexThreadCommands } from "./thread-commands.ts";
 import type { RewindThread } from "@canopy/contracts";
 
 export { CodexThreadError, type CodexThreadsOptions, type InteractionInit } from "./thread-types.ts";
@@ -70,6 +70,8 @@ export class CodexThreads extends Context.Service<
       objective: string,
       tokenBudget: bigint,
     ): Effect.Effect<void, CodexThreadError>;
+    /** Releases this thread's native work and MCP resources, retaining its durable history. */
+    unload(threadId: string): Effect.Effect<void, CodexThreadError>;
     /** Terminates a background process (task id = Codex process id). */
     stopTask(threadId: string, taskId: string): Effect.Effect<void, CodexThreadError>;
     /** Background processes still running, per platform thread. */
@@ -202,12 +204,9 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
               }),
           ),
         ),
-      create: sessions.create,
-      rewind: sessions.rewind,
-      ...threadTurns(ctx, sessions.ensureLoaded, turnSettings, sessions.reconfigure),
+      ...codexThreadCommands(ctx, sessions, turnSettings),
       listModels: catalog.listModels,
       listMentionCatalog: catalog.listMentionCatalog,
-      ...threadGoals(ctx, sessions.ensureLoaded),
       backgroundTasks: () =>
         new Map(
           [...ctx.byPlatform.values()].flatMap((entry) =>

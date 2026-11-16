@@ -39,6 +39,7 @@ export interface BusHost {
   fallbackSteer(steerId: string): Promise<void>;
   interaction(interaction: ui.Interaction): Promise<void>;
   interrupt(threadId: string): Promise<void>;
+  redeliver(workerId: string): Promise<void>;
   answer(by: { threadId: string }, request: ui.AnswerInteractionRequest): Promise<ui.Interaction>;
   broadcastThread(threadId: string): Promise<void>;
   /** Publish committed consumption of queued inputs and unentered steers to every live client. */

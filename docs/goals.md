@@ -2,7 +2,9 @@
 
 Grok ACP nie ma w tym adapterze mapowania natywnych goals. Gateway odrzuca operacje celów dla Groka, UI ukrywa kontrolki. Zwykłe tury, kolejka i platformowe harmonogramy pozostają dostępne. [Szczegóły](grok-adapter.md).
 
-Status: **zaimplementowane** (2026-11-01):
+Status: **zaimplementowane** (2026-11-16), w tym pauza przy archiwizacji bez
+automatycznego wznowienia po przywróceniu wątku:
+
 - worker: Codex `thread/goal/*` (`apps/worker/src/providers/codex`), Claude `/goal` (`apps/worker/src/providers/claude`),
 - gateway: stan celu z raportów harnessu (`apps/gateway/src/store/goals.ts`, w transakcji ingestu), `SetGoal` w UI API,
 - domena: mapowanie statusów (`packages/domain/src/goals`),
@@ -93,6 +95,10 @@ sequenceDiagram
 ## 6. Trwałość
 
 - Cel w platformie żyje w PostgreSQL (`goals`, `native_state` = ostatni raport harnessu).
+- Archiwizacja wstrzymuje aktywny cel, unieważnia oczekujące komendy celu i
+  zatrzymuje sesję harnessu; Codex przed zwolnieniem sesji dostaje natywną pauzę.
+  Przywrócenie ani kolejna zwykła wiadomość nie wysyłają wznowienia celu.
+  Spóźniona odpowiedź na unieważnioną komendę nie cofa pauzy.
 - Komenda `SetGoal` idzie przez outbox jak każda inna i niesie `ThreadSpec`, więc worker po restarcie najpierw wznawia wątek Codexa (`thread/resume`), a potem ustawia cel.
 - Gateway nie wysyła celu ponownie po restarcie workera. Codex trzyma cel w stanie wątku; czy przetrwa restart app-servera, nie sprawdzono. Cel Claude ginie z procesem (patrz wyżej).
 - Wątek Codexa bez żadnej tury nie ma rolloutu: `SetGoal` po restarcie workera zaczyna dla niego nowy wątek Codexa (zamiast błędu `thread/resume: no rollout found`), [codex-adapter.md](codex-adapter.md#runtime-wątków).

@@ -74,6 +74,7 @@ export function createCoreBus(core: GatewayCore): AgentBus {
     importImageReply: (source, caller, itemId) => importImageReply(core, source, caller, itemId),
     renderVisual: (source, caller, args) => publishThreadVisual(core, source, caller, args),
     interrupt: (threadId) => core.interrupt(threadId),
+    redeliver: (workerId) => coreRedeliver(core, workerId),
     answer: (by, request) => coreAnswer(core, by, request),
     broadcastThread: (threadId) => coreBroadcastThread(core, threadId),
     inputsChanged: async (threadId) => {

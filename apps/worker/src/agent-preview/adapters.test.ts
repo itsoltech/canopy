@@ -81,8 +81,7 @@ test("shared screenshot viewers capture once, gate on exact ACK, and stopThread 
       () => f.calls().filter((call) => call.command === "screenshot" && call.event === "start").length === 3,
     );
     const stoppedAt = Date.now();
-    manager.stopThread("thread");
-    await manager.close();
+    await manager.stopThread("thread");
     expect(Date.now() - stoppedAt).toBeLessThan(1500);
     expect(existsSync(path)).toBe(false);
     expect(events.filter((update) => update.state === "closed")).toHaveLength(2);

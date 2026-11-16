@@ -1,6 +1,6 @@
 # Wykonanie wątku: tury, praca w tle, subagenci, interakcje
 
-Status: **częściowo zaimplementowane** (2026-11-15). Tury, interakcje, steer, widoczna granica `context_compaction` i **praca w tle** (sekcja 4: procesy Codexa, background Bash Claude, zatrzymanie z UI, notatki dla agenta o każdym końcu zadania, narzędzia agenta) działają. Subagenci pierwszoplanowi, `BackgroundItem` (Ctrl+B) i limity zasobów (sekcja 7) jeszcze nie.
+Status: **częściowo zaimplementowane** (2026-11-16). Tury, interakcje, steer, widoczna granica `context_compaction` i **praca w tle** (sekcja 4: procesy Codexa, background Bash Claude, zatrzymanie z UI, notatki dla agenta o każdym końcu zadania, narzędzia agenta) działają. Archiwizacja zamyka zasoby wątku, a przywrócenie nie wznawia zatrzymanej pracy. Subagenci pierwszoplanowi, `BackgroundItem` (Ctrl+B) i limity zasobów (sekcja 7) jeszcze nie.
 
 Powiązane: [threads.md](threads.md), [transcript.md](transcript.md), [durability.md](durability.md).
 
@@ -137,12 +137,14 @@ Zaimplementowane (2026-11-02). Codex nigdy nie budzi się sam, a Claude tylko po
 - **Restart przed wysłaniem:** `tick` odzyskuje również zapisane tury notatek bez `StartTurn` oraz oczekujące steery notatek. Używa istniejącego `turn_id` lub `steer_id`; idempotencja outboxa i journalu chroni przed ponownym wejściem notatki do harnessu. Nie trzeba czekać na kolejną wiadomość użytkownika.
 - **Zatrzymanie przez użytkownika:** bez tury pobudki (użytkownik wie, co zrobił). Notatka trafia do tury w toku, a bez niej do następnej tury, która się zacznie (steer zaraz po jej starcie). Zatrzymanie przez agenta (`stop_background_task`) nie daje notatki wcale: agent wie.
 - **Claude bez podwójnych tur:** zadanie Claude, które skończyło się samo (`completed`, `failed` z błędem), czeka `graceMs` (15 s) od końca. Jeśli w tym czasie trwała albo zaczęła się tura wątku (Claude opisuje zadanie w turze, która trwała, albo zaczyna własną turę `provider`), notatka ma status `harness` i nic nie jest wysyłane. Inaczej (np. proces Claude Code się skończył) platforma dostarcza notatkę sama.
-- **Wątek zarchiwizowany:** działająca tura jest przerywana, ale zadania w tle mogą
-  działać dalej, tak jak po zwykłym przerwaniu tury. Ich zakończenie zapisuje stan
+- **Wątek zarchiwizowany:** działająca tura i zadania w tle są zatrzymywane;
+  worker zamyka proces/sesję wątku oraz jego bridge MCP, podglądy i sesje
+  automatyzacji. Wspólne runtime'y innych wątków pozostają dostępne. Koniec zapisuje stan
   zadania i notatkę `cancelled` w jednej transakcji; nie tworzy tury ani steera.
   Worker po informacji o archiwizacji blokuje także natywną pobudkę Claude,
-  zapisując nieturową informację `continuation_suppressed`. Przywrócenie wątku
-  pokazuje wynik zadania, ale nie uruchamia zaległej kontynuacji. Starszy worker
+  zapisując nieturową informację `continuation_suppressed`, jeśli taka pobudka
+  zdążyła dotrzeć. Przywrócenie wątku pokazuje wynik zadania i pozwala wysłać nową
+  wiadomość, ale nie uruchamia zaległej kontynuacji ani zatrzymanej pracy. Starszy worker
   może dosłać próbę takiej tury: gateway izoluje ją bez rozłączania połączenia.
   Dla usuniętego wątku gateway zapisuje tylko kursor i potwierdza odrzucenie
   zdarzeń, bez zachowania treści ani przywracania wątku.

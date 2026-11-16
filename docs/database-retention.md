@@ -4,7 +4,8 @@ Status (2026-11-16): zaimplementowane sprzątanie techniczne i opcjonalne trwał
 usuwanie historii zarchiwizowanych wątków i 31-dniowe okno odtworzenia ręcznie
 usuniętych wątków, bezstratna kompakcja transkryptu, ograniczanie dziennika
 replikacji i GC nieużywanych uploadów; replikacja notice obejmuje wyłącznie
-zdarzenia tego rodzaju.
+zdarzenia tego rodzaju. Purge czeka na potwierdzenie zamknięcia zasobów workera,
+również gdy termin polecenia sprzątania już minął.
 Dostępność nightly/beta/stable według
 [release.md](release.md).
 
@@ -84,6 +85,10 @@ Po 31 dniach od ręcznego Delete pozostała projekcja `background_task` w stanie
 aktualizacji projekcji, więc taki znacznik mógłby pozostać na zawsze. Pozostałe
 blokady pracy i zależności nadal obowiązują. Sprzątanie plików workera sprawdza
 osobno rzeczywisty stan procesów i nie usuwa plików w trakcie ich używania.
+
+Migracja `0158_thread_cleanup_retention` chroni również oczekujące
+`unloadThread` niezależnie od `expires_at`. Archiwizacja offline nie może
+przejść do purge przed potwierdzeniem sprzątania zasobów przez worker.
 
 Migracja `0150_thread_retention` dodaje `threads.purged_at` (nieodwracalny start)
 i `purge_completed_at` (koniec). Zapis `deleted_at` publikuje zwykłe usunięcie do

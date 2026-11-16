@@ -1,5 +1,5 @@
 import { type JsonValue } from "@bufbuild/protobuf";
-import { ui } from "@canopy/contracts";
+import { ui, type Command } from "@canopy/contracts";
 import { agentKey, fuzzyRank, SUBAGENT_REPORTING_RULES, type AgentBusArgs, type SpawnTarget } from "@canopy/domain";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
@@ -18,6 +18,8 @@ import {
   type TurnInput,
 } from "./agent-bus-types.ts";
 import { insertCall, node, queueTurn, summary, thread } from "./agent-bus-queries.ts";
+import { stopThreadResources } from "./thread-cleanup.ts";
+import { outboxStore } from "./outbox.ts";
 import { subagentPermission } from "./automated-permissions.ts";
 
 export interface BusThreadStore {
@@ -69,7 +71,7 @@ export interface BusThreadStore {
   /** The thread could not be created: its queued turns fail (so callers waiting on them hear back). */
   failQueuedTurns(threadId: string, reason: string): Fx<ReadonlyArray<string>>;
   /** Archives a thread, cancels its queued turns, its schedules and pending notifications about it. */
-  close(threadId: string, callerId?: string): Fx<void>;
+  close(threadId: string, callerId?: string): Fx<{ workerId: string; command: Command }[]>;
 }
 
 const spawn = (
@@ -340,13 +342,13 @@ export function busThreadStore(sql: SqlClient.SqlClient): BusThreadStore {
     close: (threadId, callerId) =>
       sql.withTransaction(
         Effect.gen(function* () {
-          yield* sql`UPDATE threads SET status = 'archived', archived_at = now(), archived_by = 'agent', archived_by_thread_id = ${callerId ?? null}::uuid
-                WHERE id = ${threadId}::uuid AND archived_at IS NULL AND deleted_at IS NULL`;
-          yield* sql`UPDATE turns SET status = 'cancelled', completed_at = now() WHERE thread_id = ${threadId}::uuid AND status = 'queued'`;
-          yield* sql`UPDATE agent_bus_calls SET notify_status = 'cancelled' WHERE target_thread_id = ${threadId}::uuid AND notify_status = 'pending'`;
-          yield* sql`
-                UPDATE schedules SET status = 'cancelled', next_run_at = NULL, lease_owner = NULL, lease_until = NULL, updated_at = now()
-                 WHERE thread_id = ${threadId}::uuid AND status IN ('active', 'paused')`;
+          yield* sql`SELECT id FROM threads WHERE id = ${threadId}::uuid FOR UPDATE`;
+          const commands = yield* stopThreadResources(sql, outboxStore(sql).enqueueCommand, [threadId]);
+          yield* sql`UPDATE threads SET status = 'archived', archived_at = coalesce(archived_at, now()),
+            archived_by = 'agent', archived_by_thread_id = ${callerId ?? null}::uuid
+            WHERE id = ${threadId}::uuid AND archived_at IS NULL AND deleted_at IS NULL`;
+
+          return commands;
         }),
       ),
   };

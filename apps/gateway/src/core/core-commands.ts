@@ -38,7 +38,8 @@ export async function coreRedeliver(hostContext: GatewayCore, workerId: string):
           page
             .slice(offset, offset + 64)
             .map((pending) =>
-              pending.command.kind.case === "rewindThread" || pending.expiresAt.getTime() > Date.now()
+              ["rewindThread", "unloadThread"].includes(pending.command.kind.case ?? "") ||
+              pending.expiresAt.getTime() > Date.now()
                 ? coreDeliver(hostContext, workerId, pending.command)
                 : undefined,
             ),
@@ -122,6 +123,9 @@ async function deliverCommand(
 
   if (!connection?.isOpen || !command.kind.case) return;
 
+  if (lifecycleCommand(command) && !(await coreRun(hostContext, (s) => s.commandDispatchable(command.commandId))))
+    return;
+
   if (
     command.kind.case === "startTurn" &&
     !(await coreRun(hostContext, (s) => s.turnStartDispatchable(command.commandId)))
@@ -194,8 +198,17 @@ async function deliverCommand(
             command.commandId,
           );
   } catch {
-    return; // disconnected or timed out: stays in the outbox, redelivered on reconnect (the worker deduplicates)
+    // A slow cleanup must keep retrying while online, or a reopen would wait for a reconnect to progress.
+    return command.kind.case === "unloadThread" && connection.isOpen ? command : undefined;
   }
+
+  // A lifecycle transition can supersede inputs while their worker ACK is in flight.
+  if (lifecycleCommand(command) && !(await coreRun(hostContext, (s) => s.commandDispatchable(command.commandId))))
+    return;
+
+  // Cleanup failures are transient; the worker must not cache this result as a final ACK.
+  if (!result.ok && command.kind.case === "unloadThread" && result.errorCode === "THREAD_CLEANUP_PENDING")
+    return command;
 
   // Older workers remember this rejection as a final command result. A fresh command id is necessary;
   // the turn id stays the same so notes and every platform source keep their durable delivery identity.
@@ -203,6 +216,7 @@ async function deliverCommand(
     !result.ok &&
     command.kind.case === "startTurn" &&
     (result.errorCode === "TURN_ALREADY_RUNNING" ||
+      result.errorCode === "THREAD_CLEANUP_PENDING" ||
       (["THREAD_ERROR", "HARNESS_ERROR"].includes(result.errorCode) &&
         /^(?:a turn of this thread is already running|Grok turn already running)$/i.test(result.errorMessage)))
   ) {
@@ -246,11 +260,23 @@ async function deliverCommand(
     return;
   }
 
+  if (result.ok && command.kind.case === "unloadThread")
+    await resumeAfterUnload(hostContext, command.kind.value.threadId);
+
   if (result.ok) return;
 
   await commandFailed(hostContext, workerId, command, result);
 
   return undefined;
+}
+
+function lifecycleCommand(command: Command): boolean {
+  return ["createThread", "startTurn", "steerTurn", "setGoal", "unloadThread"].includes(command.kind.case ?? "");
+}
+
+async function resumeAfterUnload(core: GatewayCore, threadId: string): Promise<void> {
+  await core.secrets.syncThread(threadId);
+  await core.pump(threadId);
 }
 
 async function prepareThreadTools(core: GatewayCore, workerId: string, command: Command): Promise<void> {

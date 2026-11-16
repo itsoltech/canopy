@@ -32,6 +32,7 @@ export class PreviewGroup {
   readonly #abort = new AbortController();
   readonly #ready: Promise<PreviewBackend>;
   #backend: PreviewBackend | undefined;
+  #starting: Promise<void> | undefined;
   #metadata: PreviewUpdate = { state: "connecting" };
   #frame: PreviewUpdate | undefined;
   #closed: Promise<void> | undefined;
@@ -84,7 +85,8 @@ export class PreviewGroup {
 
     const backend = scope.tool === AgentTool.BROWSER ? browserPreview(context) : screenshotPreview(context);
     this.#backend = backend;
-    await cancellable(backend.start(), signal);
+    this.#starting = backend.start();
+    await cancellable(this.#starting, signal);
 
     return backend;
   }
@@ -115,6 +117,9 @@ export class PreviewGroup {
 
   async #finish(): Promise<void> {
     await Promise.allSettled([this.#ready, this.input.close()]);
+    // Abort rejects the admission promise before a CLI acquiring a browser stream has finished.
+    // Wait for that acquisition/release too, before native session cleanup can run.
+    await this.#starting?.catch(() => undefined);
     await this.#backend?.close().catch(() => undefined);
   }
 }

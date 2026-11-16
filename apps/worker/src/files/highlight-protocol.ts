@@ -2,6 +2,7 @@ import type { HighlightWindow } from "@canopy/syntax/window";
 
 export interface HighlightTask {
   id: number;
+  threadId: string;
   key: string;
   path: string;
   source: string;
@@ -9,7 +10,7 @@ export interface HighlightTask {
   count: number;
 }
 
-export type HighlightCommand = { prepare: HighlightTask } | { run: number };
+export type HighlightCommand = { prepare: HighlightTask } | { run: number } | { closeThread: string };
 
 export type HighlightReply =
   | { id: number; ready: true }

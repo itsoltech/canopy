@@ -84,12 +84,13 @@ function fixture(enabled: boolean, connected = true, viewport = { width: 512, he
   const cli = executable(
     join(root, "browser-cli"),
     `
-import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 if (process.argv.includes("doctor")) { console.log(JSON.stringify({ success: true, checks: [{ id: "launch.elapsed", status: "pass", message: "Ready" }] })); process.exit(0); }
 const args = process.argv.slice(2).slice(5);
 appendFileSync(${JSON.stringify(log)}, JSON.stringify(args) + "\\n");
 const path = ${JSON.stringify(state)};
 const state = JSON.parse(readFileSync(path, "utf8"));
+if (args[1] === "disable" && state.releaseDisable) while (!existsSync(state.releaseDisable)) await new Promise(resolve => setTimeout(resolve, 5));
 if (args[0] === "open") { state.connected = true; state.url = args[1]; }
 if (args[1] === "enable") state.enabled = true;
 if (args[1] === "disable") state.enabled = false;
@@ -161,6 +162,13 @@ console.log(JSON.stringify({ success: true, data }));
       const current = JSON.parse(readFileSync(state, "utf8"));
       writeFileSync(state, JSON.stringify({ ...current, openAfterStatus: url }));
     },
+    holdDisable: () => {
+      const gate = join(root, "release-disable");
+      const current = JSON.parse(readFileSync(state, "utf8"));
+      writeFileSync(state, JSON.stringify({ ...current, releaseDisable: gate }));
+
+      return () => writeFileSync(gate, "");
+    },
     currentUrl: (): string => JSON.parse(readFileSync(state, "utf8")).url ?? "",
     calls: (): string[][] =>
       readFileSync(log, "utf8")
@@ -172,6 +180,47 @@ console.log(JSON.stringify({ success: true, data }));
 
 const input = (kind: string, init: Parameters<typeof create<typeof AgentPreviewInputSchema>>[1] = {}) =>
   create(AgentPreviewInputSchema, { ...init, kind });
+
+test("stopThread waits for an already removed browser watch to release its native stream", async () => {
+  const f = fixture(false);
+  const manager = new AgentPreviews({ tools: f.tools, send: () => {} });
+  const release = f.holdDisable();
+
+  try {
+    manager.accept(
+      create(AgentPreviewCommandSchema, {
+        kind: {
+          case: "start",
+          value: { previewId: "closing", threadId: "thread", scope: { tool: AgentTool.BROWSER } },
+        },
+      }),
+    );
+    await until(() => f.sockets.size === 1);
+    manager.accept(
+      create(AgentPreviewCommandSchema, {
+        kind: { case: "stop", value: { previewId: "closing" } },
+      }),
+    );
+    await until(() => f.calls().some((args) => args[1] === "disable"));
+    let stopped = false;
+
+    const closing = manager.stopThread("thread").then(() => {
+      stopped = true;
+    });
+
+    await manager.stopThread("other");
+    expect(stopped).toBe(false);
+    release();
+    await closing;
+    expect(stopped).toBe(true);
+    await until(() => f.sockets.size === 0);
+    expect(f.calls().filter((args) => args[1] === "disable")).toHaveLength(1);
+  } finally {
+    release();
+    await manager.close();
+    f.server.stop(true);
+  }
+});
 
 test("browser group replays one bounded frame to late viewers without a repaint and clears it on tab change and close", async () => {
   const f = fixture(true);

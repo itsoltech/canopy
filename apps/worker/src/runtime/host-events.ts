@@ -106,6 +106,10 @@ export class HostEvents {
   }
 
   callTool(call: AgentToolCall, signal?: AbortSignal): Promise<AgentToolResult> {
+    if (this.ctx.state.closedThreads.has(call.threadId) || this.ctx.state.unloadingThreads.has(call.threadId))
+      return Promise.resolve(
+        create(AgentToolResultSchema, { callId: call.callId, isError: true, content: "Thread closed" }),
+      );
     const refusal = gatewayToolRefusal(call, this.ctx.state.link?.welcome);
 
     if (refusal) return Promise.resolve(refusal);

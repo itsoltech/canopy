@@ -119,7 +119,9 @@ export class ClaudeRuntimes {
       profile: (id) => (profile.id === (id || "native") ? profile : undefined),
       publish: (event) => this.ctx.ops.publish(event),
       allowProviderTurn: (threadId) =>
-        !this.ctx.state.closedThreads.has(threadId) && !this.ctx.state.rewindingThreads.has(threadId),
+        !this.ctx.state.closedThreads.has(threadId) &&
+        !this.ctx.state.unloadingThreads.has(threadId) &&
+        !this.ctx.state.rewindingThreads.has(threadId),
       onActivitySettled: () => {
         if (this.ctx.state.staleRuntimes.has(`claude/${profile.id}`))
           void this.ctx.ops.reconcileRuntimes().catch(() => {});
