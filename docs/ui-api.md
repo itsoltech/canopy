@@ -20,6 +20,7 @@ Web/desktop i mobile pokazują ikony projektów oraz wcięcia i linie hierarchii
 Ustawienie „Group by” wybiera brak grup, projekty albo projekty z podgrupami worktree.
 Zwija grupy projektów i opcjonalne podgrupy worktree; karty pod projektem
 nie powtarzają jego nazwy ani logo, a jedyny wbudowany lokalny worker nie zajmuje miejsca w metadanych.
+Nazwa Canopy w nagłówku sidebara ma wysokość linii 20 px, co zbliża podpis kanału do nazwy.
 Komunikaty w osi czasu używają skali wierszy pracy; szczegóły techniczne są o stopień mniejsze.
 Sekcja Working uwzględnia ponownie pracujące wątki i ignoruje wyniki zakończonych subagentów.
 BFF materializuje overview, indeks wątków i ustawienia ze wspólnego strumienia gRPC,
