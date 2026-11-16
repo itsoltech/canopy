@@ -8,6 +8,7 @@ oraz wyróżnienie nieotwartych wątków ze szkicem w sidebarze web/desktop.
 Web/desktop i mobile mają zwarte karty w grupach projektów, zwijanie projektów i opcjonalne
 podgrupy worktree, z ikonami projektów i wcięciami prowadzącymi do wątków.
 Ustawienie „Group by” łączy wybór obu poziomów w jednym polu.
+W grupowaniu „Project & worktree” hover pokazuje samo menu „…”, z archiwizacją w jego środku.
 Stan zwinięcia jest zapisany lokalnie dla urządzenia i gatewaya.
 Ręczne Delete uruchamia trwałe usuwanie historii po 31 dniach.
 Opis dotyczy kodu; dostępność nightly/beta/stable określają [wydania](release.md).
@@ -221,6 +222,7 @@ W kompaktowym archiwum „Unarchive” zajmuje zarezerwowane miejsce obok menu �
 respektuje te same potwierdzenia i ograniczenia dostępności co menu, a po powodzeniu oddaje
 fokus następnemu wierszowi (ostatni — poprzedniemu; pusta lista — wyszukiwaniu).
 Na ekranach bez hovera i z grubym wskaźnikiem skrót jest ukryty; menu pozostaje dostępne.
+W grupowaniu „Project & worktree” skrót „Archive” jest ukryty, aby nie nachodził na menu „…”.
 Archiwizacja z menu i skrótu oferuje toast „Thread archived” z „Undo” przez sześć sekund.
 Cofnięcie przywraca wątek i jego kaskadę przez istniejące API, bez wznawiania pracy.
 

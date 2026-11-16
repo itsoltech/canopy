@@ -141,6 +141,7 @@
   {thread}
   {current}
   quickArchive
+  {groupedWorktree}
   {inlineProvider}
   dense={groupedProject}
   needsAttention={needsYou(thread) || subagentsNeedingInput.length > 0}
