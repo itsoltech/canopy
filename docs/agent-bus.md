@@ -1,7 +1,9 @@
 # Szyna agentów: delegowanie, interakcje, harmonogram
 
 Status (2026-11-16): doprecyzowania między rodzicem i pracującym subagentem domyślnie
-dołączają do bieżącej tury, z jednym raportem jej wyniku na odbiorcę. Zaimplementowane
+dołączają do bieżącej tury, z jednym raportem jej wyniku na odbiorcę. Wspólna reguła
+komunikacji wymaga konkretnego działania odbiorcy przed końcem zadania i wyklucza
+rutynowe raporty postępu. Zaimplementowane
 dziedziczenie efektywnego trybu tury rodzica, także zmiany podczas tury Claude i szerszego
 nadpisania z kompozytora, oraz jawne linkowanie PR narzędziem `link_pull_request`;
 dostępność nightly/beta/stable według
@@ -184,7 +186,37 @@ Regresje: `tests/integration/pr-check-watches.test.ts` (fixture GitHub, skryptow
 
 Każdy subagent to prawdziwy wątek platformy: widoczny w drzewie i na osi czasu rodzica, sterowalny przez użytkownika, z pełnym transkryptem. Opisy narzędzi mówią modelowi, że `spawn_thread` jest narzędziem do delegowania (nie ma `spawn_agent` ani `Task`).
 
-Opisy `spawn_thread`, `send_message`, `wait_threads`, instrukcje systemowe dziecka oraz notatka zadania mówią krótko: końcowa wiadomość jest wynikiem przekazywanym rodzicowi automatycznie (domyślne `notify`). Dziecko używa `send_message` z `notify: false` do rodzica tylko do informacji wymagających działania w trakcie zadania; pytania kieruje przez `ask_user`. Nie wysyła osobno końcowego przekazania wyników. Brak raportu zwrotnego po wiadomości roboczej zapobiega uruchamianiu dziecka samą odpowiedzią rodzica.
+Końcowa odpowiedź subagenta jest wynikiem przekazywanym rodzicowi automatycznie
+(domyślne `notify`). Subagent domyślnie pracuje bez wiadomości do rodzica aż do tej
+odpowiedzi. `send_message`, instrukcje workera, specyfikacja dziecka i notatka zadania
+korzystają z jednej reguły `SUBAGENT_REPORTING_RULES`
+(`packages/domain/src/agent-bus/communication.ts`):
+
+- Wiadomość w trakcie zadania jest dopuszczalna, gdy oczekiwanie do końca zadania
+  zablokowałoby innego agenta lub spowodowało jego błędne działanie: blokada poza
+  zakresem subagenta, zmiana interfejsu potrzebna przy trwającej integracji albo
+  korekta informacji wpływająca na bieżącą pracę.
+- Nadawca musi wskazać konkretne działanie odbiorcy potrzebne **przed zakończeniem
+  zadania**. Bez takiego działania informacja czeka na odpowiedź końcową.
+  Wiadomość zaczyna się od działania, potem podaje nowe ustalenie i powód pilności;
+  powiązane ustalenia trafiają razem.
+- Raporty postępu, pozytywne wyniki testów/lintu/typechecku, „gotowe”, „jeszcze
+  sprawdzam”, powtórzenie znanego błędu i ponowne potwierdzenie uzgodnionego API
+  nie uzasadniają wiadomości. Błąd trafia wcześniej tylko z diagnozą i działaniem
+  potrzebnym od odbiorcy; np. nowa usterka poza zakresem subagenta wymagająca
+  poprawki przez rodzica. Zmiana API z `void` na `Promise<void>` wymaga wiadomości,
+  gdy rodzic już integruje wywołania i musi dodać `await`.
+- Subagent używa `notify: false` do rodzica; pytania i decyzje wymagające odpowiedzi
+  kieruje przez `ask_user`. Nie wysyła osobno końcowego przekazania wyników.
+  Jawne żądanie aktualizacji przez użytkownika lub rodzica jest wyjątkiem.
+
+Rodzic przekazuje kompletne zadanie ze znanymi interfejsami i zakresem własności
+na początku, bez żądania rutynowych raportów postępu i ponawiania sprawdzeń w trakcie.
+Brak raportu zwrotnego po wiadomości roboczej zapobiega uruchamianiu dziecka samą
+odpowiedzią rodzica. Reguła dotyczy treści i decyzji modelu, nie jest limitem liczby
+wiadomości ani filtrem po stronie gatewaya. Testy adapterów sprawdzają dostarczenie
+jej do rzeczywistych żądań harnessów po utworzeniu, zimnym wznowieniu i forku;
+inferencja jest skryptowana i nie mierzy przestrzegania reguły przez model.
 
 Instrukcje workera, również dla wznowionych sesji ze starym katalogiem narzędzi,
 kierują doprecyzowania do `delivery: "steer"`, a `queue` rezerwują dla osobnego zadania.

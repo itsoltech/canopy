@@ -5,6 +5,7 @@ import { PR_CHECK_TOOLS } from "./pr-checks.ts";
 import { isEntityId } from "../computers.ts";
 import { IMAGE_TOOLS } from "./images.ts";
 import { RequestSecret } from "./secrets.ts";
+import { SUBAGENT_REPORTING_RULES } from "./communication.ts";
 import { RENDER_VISUAL_MAX_ARGUMENTS, renderVisualProblem, renderHtmlProblem, VISUAL_TOOLS } from "./visuals.ts";
 import { HTML_DOCUMENT_BYTES, htmlBytes } from "../visuals/html-source.ts";
 
@@ -287,9 +288,9 @@ export const AGENT_BUS_TOOLS = {
       "Send a message to another thread's agent, as the user would: a subagent you spawned, your parent, a sibling, or any other thread " +
       "of the user (find it with list_threads scope all, or one the user mentioned). queue runs it as the target's next turn, steer joins " +
       "its running turn. A running parent/ancestor or subagent defaults to steer; a waiting recipient receives it in wait_threads. " +
-      "Clarifications belong in the running turn; reserve queue for a separate task. Your final message is reported to your parent automatically: " +
-      "message it with notify: false only for updates it must act on mid-task. Do not send acknowledgments or requests to finalize work already reported. Use ask_user for questions. " +
-      "The target sees your thread as sender; with notify you get its reply when that turn ends.",
+      "Clarifications belong in the running turn; reserve queue for a separate task. Do not send acknowledgments or requests to finalize work already reported. " +
+      "The target sees your thread as sender; with notify you get its reply when that turn ends.\n\n" +
+      SUBAGENT_REPORTING_RULES,
     args: SendMessage,
     mutates: true,
   }),

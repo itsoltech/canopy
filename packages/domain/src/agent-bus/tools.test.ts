@@ -47,6 +47,9 @@ describe("agent bus tool specs", () => {
     expect(wait.properties["until"]).toMatchObject({ enum: ["any", "all"] });
     const spawn = specs.find((s) => s.name === "spawn_thread")!.inputSchema;
     expect(spawn["properties"]).not.toHaveProperty("permission_mode");
+    const send = specs.find((s) => s.name === "send_message")!;
+    expect(send.description).toContain("identify the concrete action the recipient must take before you finish");
+    expect(send.description).toContain("Do not send progress reports");
   });
 });
 

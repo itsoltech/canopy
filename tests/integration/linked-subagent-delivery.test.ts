@@ -128,7 +128,7 @@ describe.skipIf(!dockerAvailable)("linked parent-child messages", () => {
     }
 
     expect(b.gateway.worker.created.find((spec) => spec.threadId === pair.child)?.instructions).toContain(
-      "Your final message is reported to your parent automatically",
+      "identify the concrete action the recipient must take before you finish",
     );
   });
 
