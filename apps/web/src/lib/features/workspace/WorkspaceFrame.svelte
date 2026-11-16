@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { untrack, type Snippet } from "svelte";
+  import { tick, untrack, type Snippet } from "svelte";
   import type { ThreadWorkspace } from "./thread-workspace.svelte.ts";
   import ResizeHandle from "#lib/shared/ui/ResizeHandle.svelte";
   import { workspaceFileDrag, type WorkspaceFileDrag } from "./file-drag.ts";
@@ -7,7 +7,7 @@
 
   /**
    * The thread area and shared Files/Preview panel. The grid eases the panel's column open and shut
-   * (motion.css `t-panel-column`); changing threads restores each thread’s panel while keeping shared geometry.
+   * (motion.css `t-panel-column`); changing threads restores each thread’s panel instantly.
    */
   let {
     state: workspace,
@@ -21,6 +21,17 @@
   let pending = $state<WorkspaceFileDrag[]>([]);
   let root = $state<HTMLDivElement>();
   let visibility = $state(0);
+  let motionThread = $state("");
+
+  $effect.pre(() => {
+    const id = workspace.threadId();
+    void tick().then(() => {
+      if (!root || workspace.threadId() !== id) return;
+      // Commit the restored column, panel and sheet styles before re-enabling their transitions.
+      void root.offsetWidth;
+      motionThread = id;
+    });
+  });
 
   $effect(() => {
     if (!root || pending.length === 0) return;
@@ -83,6 +94,7 @@
   class:grid={workspace.wide}
   style:grid-template-columns={workspace.wide ? `minmax(0,1fr) ${open ? size : 0}px` : undefined}
   data-collapsed={!open || undefined}
+  data-panel-restoring={motionThread !== workspace.threadId() || undefined}
   data-window-side-panel={open ? "shown" : undefined}
 >
   <span class="pointer-events-none invisible absolute w-[1rem]" bind:clientWidth={workspace.rem}></span>

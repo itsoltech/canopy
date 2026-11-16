@@ -5,7 +5,7 @@ Status: **zaimplementowane; układ v3**, kompaktowa typografia zakładek, diagra
 cytowanie zaznaczeń z plików, przeciąganie plików do wiadomości
 i interaktywny Preview automatyzacji w panelu web/desktop oraz automatyczny mini Preview
 pod podsumowaniem wątku, przywracanie mini Preview oraz osobnego stanu prawego panelu
-po powrocie do wątku, kompaktowe pola wymiarów Preview bez +/−
+po powrocie do wątku bez animacji panelu, kompaktowe pola wymiarów Preview bez +/−
 oraz kompaktowy przełącznik automatycznej archiwizacji po merge z ikoną informacji w podsumowaniu
 (2026-11-16; stos #640–#648, potem #710, #711, #737, #740, #787 i #823).
 Opis dotyczy kodu; dostępność nightly/beta/stable określają [wydania](release.md).
@@ -374,6 +374,9 @@ zapisywane w stanie workspace'u ani transkrypcie. Szczegóły backendów i grant
   Kolumna wątku płynnie zmienia szerokość. Treść panelu ma stałą szerokość przy
   lewej krawędzi kolumny i tylko przenika (`t-panel`); zamykana kolumna ją przycina,
   więc nigdy nie zasłania rozmowy. Przeciąganie uchwytu wyłącza przejście.
+  Animacje otwierania, zamykania i zmiany szerokości działają tylko w obrębie
+  tego samego wątku. Zmiana wątku odtwarza kolumnę, przezroczystość panelu
+  i arkusz na wąskim ekranie natychmiast, także w trakcie trwającego przejścia.
 - Podsumowanie: karta rośnie z rogu pigułki (`t-summary`: przezroczystość i skala
   od `--scale-large`, `--duration-fast`) i wraca szybciej (`--duration-quick`);
   pigułka przenika w przeciwną stronę. Obie warstwy zostają zamontowane.

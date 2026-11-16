@@ -375,6 +375,13 @@
   opacity: 0;
   transition-duration: var(--duration-medium);
 }
+/* Restoring another thread's panel is navigation, including the sheet on narrow screens. */
+.t-panel-column[data-panel-restoring],
+[data-panel-restoring] .t-panel,
+[data-panel-restoring] .t-modal,
+[data-panel-restoring] .t-modal::backdrop {
+  transition: none;
+}
 
 /* --- Thread summary (popover pattern 03, kept mounted): the card grows from its pill's corner on --duration-fast
  * and shrinks back on --duration-quick; the pill fades out under the card and back in. Hidden layers keep their
