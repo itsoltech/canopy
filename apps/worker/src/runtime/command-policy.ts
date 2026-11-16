@@ -23,6 +23,8 @@ export const NOT_REMEMBERED: ReadonlySet<Command["kind"]["case"]> = new Set([
   "workspaceCopy",
   "botFile",
   "switchThreadBranch",
+  "getThreadGitStatus",
+  "pullThreadOrigin",
   "listGitRefs",
   "createWorktree",
   "renameWorktreeBranch",

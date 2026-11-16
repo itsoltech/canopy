@@ -1,12 +1,17 @@
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { REVEAL_PATH_CAPABILITY } from "@canopy/domain/release/protocol";
+import { GIT_STATUS_CAPABILITY, REVEAL_PATH_CAPABILITY } from "@canopy/domain/release/protocol";
 import type { GatewayCore } from "../core/core.ts";
 import { coreRun } from "../core/core-broadcast.ts";
 import { coreState, InvalidError } from "../core/core-context.ts";
 import { coreWorkerQuery } from "../core/core-mentions.ts";
 import { coreUiThread } from "../core/core-titles.ts";
-import { branchSwitchReason, listCheckoutBranches, switchCheckoutBranch } from "./branch-checkout.ts";
+import {
+  branchSwitchReason,
+  listCheckoutBranches,
+  switchCheckoutBranch,
+  pullCheckoutOrigin,
+} from "./branch-checkout.ts";
 
 export class ThreadBranches {
   constructor(readonly core: GatewayCore) {}
@@ -41,6 +46,46 @@ export class ThreadBranches {
     if (!connection.hello.capabilities.includes(REVEAL_PATH_CAPABILITY))
       throw new InvalidError("Update this computer to open folders from Canopy.");
     await coreWorkerQuery(this.core, thread.worker_id, { case: "revealPath", value: { path: thread.cwd } }, 20_000);
+  }
+
+  #gitReason(workerId: string) {
+    const connection = this.core.link.connections.get(workerId);
+
+    if (!connection?.isOpen) return "This computer is offline. Reconnect it to use Git actions.";
+
+    if (!connection.hello.capabilities.includes(GIT_STATUS_CAPABILITY))
+      return "Update this computer to read changes and pull from origin.";
+
+    return undefined;
+  }
+
+  async status(request: ui.ThreadBranchesRequest): Promise<ui.ThreadGitStatusResponse> {
+    const thread = await this.#thread(request.threadId);
+    const detail = this.#gitReason(thread.worker_id);
+
+    if (detail) return create(ui.ThreadGitStatusResponseSchema, { detail });
+
+    const result = await coreWorkerQuery(
+      this.core,
+      thread.worker_id,
+      {
+        case: "getThreadGitStatus",
+        value: { threadId: thread.id, cwd: thread.cwd, expiresAtMs: BigInt(Date.now() + 25_000) },
+      },
+      30_000,
+    );
+
+    return create(ui.ThreadGitStatusResponseSchema, { supported: true, status: result.threadGitStatus });
+  }
+
+  async pull(request: ui.ThreadBranchesRequest): Promise<ui.ThreadGitStatusResponse> {
+    const thread = await this.#thread(request.threadId);
+    const detail = this.#gitReason(thread.worker_id);
+
+    if (detail) throw new InvalidError(detail);
+    const result = await pullCheckoutOrigin(this.core, thread);
+
+    return create(ui.ThreadGitStatusResponseSchema, { supported: true, status: result.threadGitStatus });
   }
 
   async switch(request: ui.SwitchThreadBranchRequest): Promise<ui.SwitchThreadBranchResponse> {

@@ -5,8 +5,9 @@ Kopiowanie workspace'u na nowy worker tworzy samodzielny checkout także ze
 wybór obejmuje tylko ignorowane pliki lokalne bez zależności i wyniku builda. Ograniczenia Git:
 [workspace-copy.md](workspace-copy.md).
 
-Status: **etapy 1–3 zaimplementowane** (2026-11-17), w tym przełączanie gałęzi
-z kompozytora web/desktop i przywracanie lokalnych zmian po potwierdzeniu stash & pop.
+Status: **etapy 1–3 zaimplementowane** (2026-11-17), w tym status lokalnych zmian i pull origin
+w web/desktop, przełączanie gałęzi z kompozytora oraz przywracanie lokalnych zmian
+po potwierdzeniu stash & pop.
 Opis dotyczy kodu; dostępność nightly/beta/stable wynika z promocji wydań ([release.md](release.md)).
 Etap 1: ustawienia (Creation, Branches,
 domyślny tryb), operacje git na workerze (refy, tworzenie worktree z bazy, start z remote, nazwy gałęzi
@@ -178,7 +179,7 @@ Odłączony HEAD pokazuje „Detached at ‹commit›”. Worktree i Branch maj�
 etykiety i wartości. Wysokość wynika z treści; picker nie ma tła w spoczynku, a hover i fokus
 podświetlają cały wiersz. Chevron jest wyrównany do pierwszej linii wartości i ma stałe miejsce.
 Wyłączony wybór zachowuje ten sam układ, przygaszoną wartość i powód w tooltipie web lub pod wierszem mobile.
-Szczegółowy ahead/behind pozostaje w „Manage worktree”; panel nie uruchamia cyklicznych skanów statusu.
+Szczegółowy ahead/behind pozostaje w „Manage worktree”; panel odczytuje lokalne zmiany na żądanie, bez cyklicznych skanów statusu.
 
 - `ListThreadBranches` i `SwitchThreadBranch` są owner-scoped na gatewayu, trasowane do domu wątku.
   Worker wymaga `git_branch_switch_v1`, dom linked computers wymaga `remote_branch_switch_v1`.
@@ -217,6 +218,57 @@ Szczegółowy ahead/behind pozostaje w „Manage worktree”; panel nie uruchami
   z zapisem komendy tury. Wejście `! shell` zachowuje ją przed wynikiem polecenia; jeśli polecenie
   zakończy się przed startem agenta błędem lub przerwaniem, notatka wraca do następnego wejścia.
   Zmiany płyną istniejącymi strumieniami i lustrem komputerów.
+
+### Status zmian i pull z origin
+
+Web/desktop pokazuje pod gałęzią zwięzły status **Local changes** i grupę przycisków
+**Git actions** z **Pull**. Grupa przyjmuje kolejne akcje bez zmiany układu.
+W panelu nie ma długich opisów. Cel pulla,
+powody blokady i szczegóły błędów trafiają do tooltipów dostępnych przez hover,
+fokus klawiatury i długie przytrzymanie na dotyku.
+
+`GetThreadGitStatus(ThreadBranchesRequest)` i `PullThreadOrigin(ThreadBranchesRequest)`
+są owner-scoped i trasowane do domu wątku. Klient podaje tylko id wątku;
+gateway rozstrzyga worker i cwd. Worker wymaga `git_status_v1`, a dom połączonego
+komputera `remote_git_status_v1`. `Worker.git_status` pozwala wyłączyć akcje
+na starszej wersji z instrukcją aktualizacji w podpowiedzi. Zmiany protokołu są
+addytywne, bez zmiany `WORKER_LINK_PROTOCOL`.
+
+Odczyt obejmuje nowe (w tym untracked), zmodyfikowane, usunięte, przemianowane
+i skonfliktowane pliki, unikalną liczbę plików oraz bilans linii względem HEAD.
+Zmiany indeksu i drzewa roboczego nie są liczone dwukrotnie. Pliki ignorowane
+są pomijane; binarne mają licznik zamiast linii. Repozytorium bez pierwszego commitu
+nadal pokazuje nowe pliki. Format NUL zachowuje nietypowe nazwy i pary rename.
+Odczyt linii ma limity: 1 MiB na nowy plik, 8 MiB łącznie; zbyt duże pliki
+lub niepełne odczyty dają `lines_complete = false`. Maksimum to 2000 zmienionych
+plików, z ograniczeniem czasu i wyjścia procesów git. Symlinki nowych plików są
+liczone jako ich treść, bez odczytu celu. Panel odczytuje przy otwarciu, zmianie HEAD,
+przejściu stanu tury i ręcznym Refresh; nie skanuje w tle ani cyklicznie.
+Renderer scala zdarzenia przez 150 ms i współdzieli odczyty jednego wątku.
+Worker współdzieli jeden pełny skan według kanonicznego checkoutu, również dla
+różnych wątków, aliasów i podkatalogów. Nie zachowuje zakończonego snapshotu;
+ponowne odświeżenie czyta bieżący stan. Maksymalnie 32 checkouty mogą mieć odczyt
+w toku; kolejne dostają back-pressure. Wszystkie procesy tych skanów przechodzą
+przez istniejący process-governor: najwyżej 4 procesy Git na worker, z ograniczoną
+kolejką i deadlinem. Mutacja checkoutu czeka na trwający skan i blokuje nowe
+odczyty do zakończenia operacji.
+
+Pull używa upstreamu skonfigurowanego na origin, a bez niego bieżącej gałęzi o tej
+samej nazwie. Nie używa bazy utworzenia worktree jako celu. Fetch pobiera dokładny
+ref z origin do unikalnego tymczasowego refa, bez współdzielonego `FETCH_HEAD`.
+Po zapisaniu dokładnego commitu ref jest usuwany, a merge aktualizuje checkout
+tylko przez `--ff-only`, bez rebase,
+auto-stash, uruchamiania hooków, rekurencji submodułów ani nadpisywania ignorowanych
+plików. Czystość drzewa i cel są sprawdzane ponownie po fetch. Brak origin lub
+zdalnej gałęzi, odłączony HEAD, pierwszy commit i rozbieżna historia dają błąd lub
+powód blokady; Canopy nie wymusza aktualizacji.
+
+Gateway używa tej samej blokady przyjęcia pracy checkoutu co przełączanie gałęzi,
+a worker rezerwuje checkout przed nową turą. Aktywne lub oczekujące tury,
+interakcje, zadania w tle i otwarte cele blokują mutację. Polecenie jest nietrwałe,
+nie trafia do outboxa i ma deadline obejmujący oczekiwanie na procesy git. Po wyniku
+HEAD i status są odświeżone, a współdzielące checkout wątki otrzymują notatkę do
+wejścia następnej tury o pobraniu zmian przez użytkownika.
 
 ## Protokół workera
 

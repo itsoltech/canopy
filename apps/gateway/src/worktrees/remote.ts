@@ -3,9 +3,20 @@ import { ui } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Match } from "effect";
 import { linkedMessage } from "../computers/remote-policy.ts";
-import { REMOTE_BRANCH_SWITCH, REMOTE_BRANCH_STASH, REMOTE_WORKSPACE_BRANCH_SWITCH } from "@canopy/domain/computers";
+import {
+  REMOTE_BRANCH_SWITCH,
+  REMOTE_BRANCH_STASH,
+  REMOTE_WORKSPACE_BRANCH_SWITCH,
+  REMOTE_GIT_STATUS,
+} from "@canopy/domain/computers";
 
 export function refuseRemoteBranchSwitch(method: DescMethod, capabilities: readonly string[], request: Message): void {
+  if (["GetThreadGitStatus", "PullThreadOrigin"].includes(method.name) && !capabilities.includes(REMOTE_GIT_STATUS))
+    throw new ConnectError(
+      "Update the thread's home computer to read changes and pull from origin.",
+      Code.FailedPrecondition,
+    );
+
   if (
     ["ListWorkspaceBranches", "SwitchWorkspaceBranch"].includes(method.name) &&
     !capabilities.includes(REMOTE_WORKSPACE_BRANCH_SWITCH)

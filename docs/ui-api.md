@@ -1,7 +1,9 @@
 # API dla UI i architektura frontendu
 
-Status (2026-11-17): web/desktop — kompozytor przełącza gałęzie checkoutu i wybranego worktree;
-lokalne zmiany wymagają potwierdzenia stash & pop, także w podsumowaniu wątku.
+Status (2026-11-17): podsumowanie wątku web/desktop pokazuje lokalne zmiany Git
+i pozwala pobrać origin przez bezpieczny fast-forward;
+kompozytor przełącza gałęzie checkoutu i wybranego worktree.
+Lokalne zmiany przy przełączaniu wymagają potwierdzenia stash & pop, także w podsumowaniu wątku.
 Web/desktop — zmiana uprawnień bieżącej tury Claude działa bez restartu;
 opcjonalny wskaźnik kontekstu composera ma tryby Off / Circle / Text / Bar w Appearance,
 a pickery modelu i wysiłku dopasowują się do dostępnej szerokości;
@@ -2949,3 +2951,19 @@ od odczytu daje konflikt z akcją „Discard and reload”. **Delete file** potw
 sprawdzeniem hasha; **Open in default app** woła `POST …/files/open`. Edycja jest wyłączona dla plików
 obciętych i większych niż 400 KB (limit body BFF 512 KB); dla binarnych przycisk jest ukryty.
 Zapis, ponowny odczyt i usunięcie korzystają już z rozstrzygniętej ścieżki. Granice dostępu: [protocol.md](protocol.md#folder-i-pliki-wątku).
+
+## Status Git i pull wątku
+
+`GetThreadGitStatus` i `PullThreadOrigin` przyjmują wyłącznie `thread_id`. Gateway
+rozstrzyga właściciela, dom i katalog wątku. BFF udostępnia je jako GET / POST
+`/api/threads/:id/git`, bez cache odpowiedzi. Wynik `ThreadGitStatusResponse`
+łączy capability i powód niedostępności z typowanym podsumowaniem plików i linii.
+Odczyt ma deadline 35 s, pull 130 s; worker kończy operację przed deadline gatewaya.
+UI nie wysyła ścieżek ani nazw refów do tych akcji. Panel czyta przy otwarciu,
+zmianie HEAD i zmianie stanu tury oraz na ręczne odświeżenie, bez pollingu.
+Renderer scala zdarzenia przez 150 ms. Wspólny QueryCache łączy równoczesne odczyty
+jednego wątku, bez używania starego snapshotu po zakończeniu tury. Kolejne zdarzenie
+podczas odczytu oznacza najwyżej jeden odczyt po jego zakończeniu, bez nakładania.
+Mutacja zapisuje nowy wynik do tego samego cache. Worker dodatkowo współdzieli odczyt całego checkoutu
+między różnymi wątkami i oknami. Szczegóły:
+[worktrees.md](worktrees.md#status-zmian-i-pull-z-origin).

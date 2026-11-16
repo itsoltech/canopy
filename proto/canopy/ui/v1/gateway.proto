@@ -343,6 +343,9 @@ service GatewayService {
   rpc ListWorkspaceBranches(WorkspaceBranchesRequest) returns (ListGitRefsResponse);
   rpc SwitchWorkspaceBranch(SwitchWorkspaceBranchRequest) returns (SwitchWorkspaceBranchResponse);
   rpc ListThreadBranches(ThreadBranchesRequest) returns (ListGitRefsResponse);
+  // git_status_v1 worker and remote_git_status_v1 home; explicit, bounded reads and safe fast-forward.
+  rpc GetThreadGitStatus(ThreadBranchesRequest) returns (ThreadGitStatusResponse);
+  rpc PullThreadOrigin(ThreadBranchesRequest) returns (ThreadGitStatusResponse);
   rpc SwitchThreadBranch(SwitchThreadBranchRequest) returns (SwitchThreadBranchResponse);
   // Otwiera katalog wątku menedżerem plików na komputerze workera (capability reveal_path).
   rpc RevealThreadDirectory(ThreadBranchesRequest) returns (google.protobuf.Empty);
@@ -640,6 +643,7 @@ message Worker {
   bool cli_import = 807;
   // Bieżący checkout można bezpiecznie przełączyć (git_branch_switch_v1).
   bool branch_switch = 808;
+  bool git_status = 863;
   bool branch_stash = 871;
   bool workspace_branch_switch = 872;
   optional uint32 cli_update_check_minutes = 900; // nadpisanie; brak = konto
@@ -3232,4 +3236,10 @@ message WorkerRecordWorktreeSettings {
   // Pusty = zakres workera bez projektu.
   string project_id = 1;
   WorktreeSettings settings = 2;
+}
+
+message ThreadGitStatusResponse {
+  bool supported = 1;
+  string detail = 2;
+  canopy.worker.v1.ThreadGitStatus status = 3;
 }

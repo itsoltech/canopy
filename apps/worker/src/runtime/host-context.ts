@@ -29,7 +29,7 @@ export interface HostHooks {
 export type HostOperations = HostHooks &
   Pick<ThreadResources, "releaseThread" | "prepareThread"> &
   Pick<RewindCommands, "rewindThread"> &
-  Pick<BranchCommands, "switchThreadBranch"> &
+  Pick<BranchCommands, "switchThreadBranch" | "getThreadGitStatus" | "pullThreadOrigin"> &
   Pick<HostCatalog, "homes" | "probe" | "publishCatalog" | "listModels"> &
   Pick<HostFiles, "checkCwd" | "listDirectory" | "ensureAttachments" | "fetchBlob" | "viewImage"> &
   Pick<
@@ -105,6 +105,8 @@ export class HostContext {
       rewindThread: rewinds.rewindThread.bind(rewinds),
       ...hooks,
       switchThreadBranch: branches.switchThreadBranch.bind(branches),
+      getThreadGitStatus: branches.getThreadGitStatus.bind(branches),
+      pullThreadOrigin: branches.pullThreadOrigin.bind(branches),
       homes: catalog.homes.bind(catalog),
       probe: catalog.probe.bind(catalog),
       publishCatalog: catalog.publishCatalog.bind(catalog),

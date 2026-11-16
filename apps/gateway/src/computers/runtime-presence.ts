@@ -32,6 +32,7 @@ import {
   REMOTE_THREAD_PANEL,
   REMOTE_THREADS,
   REMOTE_BRANCH_SWITCH,
+  REMOTE_GIT_STATUS,
   REMOTE_BRANCH_STASH,
   REMOTE_WORKSPACE_BRANCH_SWITCH,
   THREAD_MIRROR,
@@ -126,7 +127,9 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
         ...(this.moves ? [MOVE_ITEMS] : []),
         ...(this.options.updates ? [REMOTE_APP_UPDATE] : []),
         // Keep the original protocol-1 capabilities first; older peers ignore the overflow field.
-        ...(this.options.serve ? [REMOTE_THREAD_PANEL, REMOTE_BRANCH_STASH, REMOTE_WORKSPACE_BRANCH_SWITCH] : []),
+        ...(this.options.serve
+          ? [REMOTE_THREAD_PANEL, REMOTE_BRANCH_STASH, REMOTE_WORKSPACE_BRANCH_SWITCH, REMOTE_GIT_STATUS]
+          : []),
         ...(this.options.serve ? ["thread_files_watch_v1"] : []),
         ...(this.options.core?.diagnostics.collector.enabled ? ["diagnostics_v1"] : []),
         ...(this.options.core?.diagnostics.logs.enabled ? [DIAGNOSTICS_LOGS] : []),

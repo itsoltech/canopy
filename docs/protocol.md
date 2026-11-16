@@ -1,5 +1,18 @@
 # Protokół gateway ↔ worker
 
+## Status zmian i pull wątku
+
+Status (2026-11-17): zaimplementowane; dostępność nightly/beta/stable wynika
+z promocji wydań. Capability `git_status_v1` dodaje nietrwałe komendy
+`GetThreadGitStatus` i `PullThreadOrigin`, obie z `ThreadGitRequest` (id, cwd,
+deadline). Wynik `CommandResult.thread_git_status` zawiera liczniki plików i linii,
+kompletność odczytu oraz cel i powód blokady pulla. Polecenia nie trafiają do outboxa;
+pull używa blokad admission checkoutu i workerowej rezerwacji, tak jak zmiana gałęzi.
+Origin aktualizuje checkout wyłącznie przez fast-forward, po sprawdzeniu czystego
+statusu przed i po fetch. Starszy worker nie dostaje nowych komend;
+`WORKER_LINK_PROTOCOL` pozostaje bez zmian. Szczegóły i limity:
+[worktrees.md](worktrees.md#status-zmian-i-pull-z-origin).
+
 ## Przełączanie gałęzi i lokalne zmiany
 
 Status (2026-11-17): zaimplementowane; dostępność nightly/beta/stable wynika z promocji wydań

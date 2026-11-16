@@ -5,6 +5,7 @@ import {
   GIT_BRANCH_STASH_CAPABILITY,
   WORKSPACE_BRANCH_SWITCH_CAPABILITY,
 } from "@canopy/domain/release/protocol";
+import type { CommandInit } from "../worker-link/index.ts";
 import type { GatewayCore } from "../core/core.ts";
 import { coreRun, coreBroadcastThread } from "../core/core-broadcast.ts";
 import { coreState, InvalidError } from "../core/core-context.ts";
@@ -45,15 +46,66 @@ export async function listCheckoutBranches(core: GatewayCore, worker: string, cw
   return create(ui.ListGitRefsResponseSchema, { supported: Boolean(result.gitRefs?.isRepo), refs: result.gitRefs });
 }
 
+type CheckoutTarget = BranchCheckout & { worker_id: string; cwd: string; workspaceRepo?: string };
+
+type WorkspaceSelection = { id: string; worktreeId: string };
+
 export async function switchCheckoutBranch(
   core: GatewayCore,
-  target: BranchCheckout & { worker_id: string; cwd: string; workspaceRepo?: string },
+  target: CheckoutTarget,
   request: Pick<ui.SwitchThreadBranchRequest, "branch" | "remote" | "stashChanges">,
-  workspace?: { id: string; worktreeId: string },
+  workspace?: WorkspaceSelection,
 ) {
   const reason = branchSwitchReason(core, target.worker_id, request.stashChanges, Boolean(workspace));
 
   if (reason) throw new InvalidError(reason);
+
+  const result = await changeCheckout(
+    core,
+    target,
+    (root) => ({
+      case: "switchThreadBranch",
+      value: {
+        threadId: target.id ?? "",
+        cwd: target.cwd,
+        branch: request.branch,
+        remote: request.remote,
+        stashChanges: request.stashChanges,
+        expiresAtMs: BigInt(Date.now() + 90_000),
+        expectedCheckout: root,
+        workspaceRepo: target.workspaceRepo ?? "",
+      },
+    }),
+    workspace ? { workspace } : {},
+  );
+
+  return result.branchSwitchWarning;
+}
+
+export function pullCheckoutOrigin(core: GatewayCore, target: CheckoutTarget) {
+  return changeCheckout(
+    core,
+    target,
+    (root) => ({
+      case: "pullThreadOrigin",
+      value: {
+        threadId: target.id ?? "",
+        cwd: target.cwd,
+        expiresAtMs: BigInt(Date.now() + 90_000),
+        expectedCheckout: root,
+      },
+    }),
+    { pull: true },
+  );
+}
+
+/** Both mutations retain the same checkout/thread/removal locks until acknowledgement and notices. */
+async function changeCheckout(
+  core: GatewayCore,
+  target: CheckoutTarget,
+  command: (root: string) => CommandInit,
+  options: { workspace?: WorkspaceSelection; pull?: boolean },
+) {
   const actions = core[coreState].actions;
   const knownPaths = await actions.run(branchCheckoutPaths(target.worker_id));
 
@@ -79,36 +131,29 @@ export async function switchCheckoutBranch(
     if (target.worktree_id)
       await actions.run(lockBranchWorktree(core[coreState].options.userId, target.worktree_id, target.cwd));
 
-    const result = await coreWorkerQuery(
-      core,
-      target.worker_id,
-      {
-        case: "switchThreadBranch",
-        value: {
-          threadId: target.id ?? "",
-          cwd: target.cwd,
-          branch: request.branch,
-          remote: request.remote,
-          stashChanges: request.stashChanges,
-          expiresAtMs: BigInt(Date.now() + 90_000),
-          expectedCheckout: root,
-          workspaceRepo: target.workspaceRepo ?? "",
-        },
-      },
-      120_000,
-    );
+    const result = await coreWorkerQuery(core, target.worker_id, command(root), 120_000);
 
     const head = result.switchedHead;
 
     if (!head?.branch) throw new InvalidError("Could not read the current branch. Refresh and try again.");
     await coreRun(core, (s) => s.saveGitHead(target.worker_id, ids, head));
 
-    if (workspace)
+    if (options.workspace)
       await actions.run(
-        saveWorkspaceBranch(core[coreState].options.userId, workspace.id, workspace.worktreeId, head.branch),
+        saveWorkspaceBranch(
+          core[coreState].options.userId,
+          options.workspace.id,
+          options.workspace.worktreeId,
+          head.branch,
+        ),
       );
 
-    return { events: await actions.run(branchSwitchNotices(ids, head.branch)), detail: result.branchSwitchWarning };
+    return {
+      events: await actions.run(
+        branchSwitchNotices(ids, head.branch, options.pull ? result.threadGitStatus?.pullBranch : undefined),
+      ),
+      result,
+    };
   });
 
   for (const event of stored.events) {
@@ -120,5 +165,5 @@ export async function switchCheckoutBranch(
     await coreBroadcastThread(core, event.threadId);
   }
 
-  return stored.detail;
+  return stored.result;
 }

@@ -30,7 +30,7 @@ export class HostFiles {
       throw new CommandError("WORKTREE_BUSY", "worktree cleanup is in progress", false);
 
     if ([...this.ctx.state.switchingPaths].some((path) => isWithin(path, real)))
-      throw new CommandError("CHECKOUT_BUSY", "A branch switch is in progress. Wait for it to finish.", false);
+      throw new CommandError("CHECKOUT_BUSY", "A Git operation is in progress. Wait for it to finish.", false);
   }
 
   listDirectory(path: string) {

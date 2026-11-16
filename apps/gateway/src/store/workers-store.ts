@@ -42,6 +42,7 @@ interface WorkerListRow {
     workspaceCopy?: boolean;
     cliImport?: boolean;
     branchSwitch?: boolean;
+    gitStatus?: boolean;
     branchStash?: boolean;
     workspaceBranchSwitch?: boolean;
     desktopBundled?: boolean;
@@ -81,6 +82,7 @@ function listedWorker(r: WorkerListRow, online: ReadonlySet<string>) {
     workspaceCopy: r.capabilities?.workspaceCopy === true,
     cliImport: r.capabilities?.cliImport === true,
     branchSwitch: r.capabilities?.branchSwitch === true,
+    gitStatus: r.capabilities?.gitStatus === true,
     branchStash: r.capabilities?.branchStash === true,
     workspaceBranchSwitch: r.capabilities?.workspaceBranchSwitch === true,
     desktopBundled: r.capabilities?.desktopBundled === true,
@@ -140,6 +142,7 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
           // Threads, settings and libraries of the device's CLIs (docs/import.md).
           cliImport: hello.capabilities.includes("cli_import_v1"),
           branchSwitch: hello.capabilities.includes("git_branch_switch_v1"),
+          gitStatus: hello.capabilities.includes("git_status_v1"),
           branchStash: hello.capabilities.includes("git_branch_stash_v1"),
           workspaceBranchSwitch: hello.capabilities.includes("workspace_branch_switch_v1"),
           diagnosticsV1: hello.capabilities.includes("diagnostics_v1"),
@@ -191,6 +194,7 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
                          'workspaceCopy',w.capabilities->'workspaceCopy',
                          'cloneProgress',w.capabilities->'cloneProgress',
                          'cliImport',w.capabilities->'cliImport','branchSwitch',w.capabilities->'branchSwitch',
+                         'gitStatus',w.capabilities->'gitStatus',
                          'branchStash',w.capabilities->'branchStash','workspaceBranchSwitch',w.capabilities->'workspaceBranchSwitch',
                          'desktopBundled',w.capabilities->'desktopBundled',
                          'claudeLivePermissions',w.capabilities->'claudeLivePermissions') AS capabilities, w.last_seen_at, w.revoked_at,

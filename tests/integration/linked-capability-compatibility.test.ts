@@ -3,7 +3,13 @@ import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { computerLink as link } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
-import { CONFIG_SYNC, MOVE_ITEMS, REMOTE_APP_UPDATE, REMOTE_THREAD_PANEL } from "@canopy/domain/computers";
+import {
+  CONFIG_SYNC,
+  MOVE_ITEMS,
+  REMOTE_APP_UPDATE,
+  REMOTE_GIT_STATUS,
+  REMOTE_THREAD_PANEL,
+} from "@canopy/domain/computers";
 import { AsyncChannel } from "@canopy/transport";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { startComputerLinks } from "../../apps/gateway/src/computers/start.ts";
@@ -113,6 +119,7 @@ describe.skipIf(!dockerAvailable)("production desktop capability compatibility",
     const paired = await client.pair({ secret: raw.slice(64), hello });
     expect(paired.hello!.capabilities).toHaveLength(32);
     expect(paired.hello!.additionalCapabilities).toContain(REMOTE_THREAD_PANEL);
+    expect(paired.hello!.additionalCapabilities).toContain(REMOTE_GIT_STATUS);
     const frames = new AsyncChannel<link.LinkFrame>();
     frames.push(create(link.LinkFrameSchema, { body: { case: "hello", value: hello } }));
     const abort = new AbortController();
@@ -168,6 +175,7 @@ describe.skipIf(!dockerAvailable)("production desktop capability compatibility",
       expect(peer.capabilities).toContain(MOVE_ITEMS);
       expect(peer.capabilities).toContain(REMOTE_APP_UPDATE);
       expect(peer.capabilities).not.toContain(REMOTE_THREAD_PANEL);
+      expect(peer.capabilities).not.toContain(REMOTE_GIT_STATUS);
     }
   }, 60_000);
 });

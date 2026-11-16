@@ -1,14 +1,18 @@
 import { realpathSync } from "node:fs";
-import type { Command, SwitchThreadBranch } from "@canopy/contracts";
+import type { Command, SwitchThreadBranch, ThreadGitRequest } from "@canopy/contracts";
 import { Journal } from "../journal/index.ts";
 import { repoRoot } from "../git/refs.ts";
-import { matchingCheckoutPaths } from "../git/checkout-paths.ts";
+import { canonicalCheckoutRoot, matchingCheckoutPaths } from "../git/checkout-paths.ts";
 import { boundedGit, GitError } from "../git/git.ts";
+import { pullOrigin } from "../git/pull-origin.ts";
+import { GitStatusReader } from "../git/status-reader.ts";
 import { switchBranch } from "../git/switch-branch.ts";
 import { CommandError, type CommandOutput } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
 
 export class BranchCommands {
+  readonly #statuses = new GitStatusReader();
+
   constructor(readonly ctx: HostContext) {}
 
   async switchThreadBranch(kind: Extract<Command["kind"], { case: "switchThreadBranch" }>): Promise<CommandOutput> {
@@ -20,7 +24,48 @@ export class BranchCommands {
     }
   }
 
+  async getThreadGitStatus(kind: Extract<Command["kind"], { case: "getThreadGitStatus" }>): Promise<CommandOutput> {
+    this.ctx.ops.checkCwd(kind.value.cwd);
+
+    try {
+      const root = canonicalCheckoutRoot(kind.value.cwd);
+
+      if (this.ctx.state.switchingPaths.has(root))
+        throw new CommandError("CHECKOUT_BUSY", "A Git operation is in progress. Wait for it to finish.", true);
+
+      return await boundedGit(kind.value.expiresAtMs, async () => ({
+        threadGitStatus: await this.#statuses.read(root, kind.value.expiresAtMs),
+      }));
+    } catch (error) {
+      if (error instanceof GitError) throw new CommandError(error.code, error.message, true);
+      throw error;
+    }
+  }
+
+  async pullThreadOrigin(kind: Extract<Command["kind"], { case: "pullThreadOrigin" }>): Promise<CommandOutput> {
+    try {
+      return await boundedGit(kind.value.expiresAtMs, () =>
+        this.#checkout(kind.value, (root) =>
+          pullOrigin({ ...kind.value, cwd: root }, () =>
+            this.#statuses.read(canonicalCheckoutRoot(kind.value.cwd), kind.value.expiresAtMs),
+          ),
+        ),
+      );
+    } catch (error) {
+      if (error instanceof GitError) throw new CommandError(error.code, error.message, true);
+      throw error;
+    }
+  }
+
   async #switch(request: SwitchThreadBranch): Promise<CommandOutput> {
+    return this.#checkout(request, (root) => switchBranch({ ...request, cwd: root }));
+  }
+
+  async #checkout(
+    request: Pick<ThreadGitRequest, "threadId" | "cwd"> &
+      Partial<Pick<SwitchThreadBranch, "expectedCheckout" | "workspaceRepo">>,
+    run: (root: string) => Promise<CommandOutput>,
+  ): Promise<CommandOutput> {
     const { state } = this.ctx;
     this.ctx.ops.checkCwd(request.cwd);
     const known = request.threadId ? state.cwds.get(request.threadId) : undefined;
@@ -38,7 +83,7 @@ export class BranchCommands {
     this.ctx.ops.checkCwd(request.cwd);
 
     if (state.switchingPaths.has(root))
-      throw new CommandError("CHECKOUT_BUSY", "A branch switch is in progress. Wait for it to finish.", true);
+      throw new CommandError("CHECKOUT_BUSY", "A Git operation is in progress. Wait for it to finish.", true);
     state.switchingPaths.add(root);
 
     try {
@@ -65,7 +110,8 @@ export class BranchCommands {
       )
         throw new CommandError("CHECKOUT_BUSY", "A thread is using this directory. Wait for its turn to finish.", true);
 
-      const result = await switchBranch({ ...request, cwd: root });
+      await this.#statuses.settled(root);
+      const result = await run(root);
 
       for (const id of ids) await state.heads.check(id);
 

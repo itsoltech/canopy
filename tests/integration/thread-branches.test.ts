@@ -220,6 +220,8 @@ describe.skipIf(!dockerAvailable)("thread branch selection over the worker link"
     );
 
     expect(await failure(f.gw.api.listThreadBranches({ threadId: foreign.id }))).toContain("unavailable");
+    expect(await failure(f.gw.api.getThreadGitStatus({ threadId: foreign.id }))).toContain("unavailable");
+    expect(await failure(f.gw.api.pullThreadOrigin({ threadId: foreign.id }))).toContain("unavailable");
     expect(await failure(f.gw.api.switchThreadBranch({ threadId: foreign.id, branch: "main" }))).toContain(
       "unavailable",
     );
