@@ -8,6 +8,8 @@ export interface FixtureState {
   version?: string;
   ready?: boolean;
   denied?: boolean;
+  screenRecording?: "granted" | "not_required" | "denied" | "unknown";
+  platform?: string;
   emptySurfaces?: boolean;
   invalidJson?: boolean;
   failOperation?: boolean;
@@ -76,7 +78,7 @@ if (args[0] === "doctor" || args[0] === "status") {
   const ready = state.ready !== false;
   const fail = state.failure ?? "Runtime is missing";
   const result = name === "agent-browser" ? { success: ready, checks: [{ id: ready ? "launch.elapsed" : "chrome.installed", status: ready ? "pass" : "fail", message: ready ? "Ready" : fail }] }
-    : name === "agent-desktop" ? { ok: true, data: { platform: "linux", supported_surfaces: state.emptySurfaces ? [] : ["window"], permissions: { accessibility: {state: state.denied ? "denied" : "granted"}, screen_recording: {state: "not_required"} } } }
+    : name === "agent-desktop" ? { ok: true, data: { platform: state.platform ?? "linux", supported_surfaces: state.emptySurfaces ? [] : ["window"], permissions: { accessibility: {state: state.denied ? "denied" : "granted"}, screen_recording: {state: state.screenRecording ?? "not_required"} } } }
     : { success: true, data: { status: ready ? "pass" : "fail", checks: [{id: "device", status: ready ? "pass" : "fail", summary: ready ? "Device found" : fail}] } };
   console.log(JSON.stringify(result)); process.exit(ready ? 0 : 1);
 }

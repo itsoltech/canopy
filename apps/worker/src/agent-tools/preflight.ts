@@ -57,7 +57,9 @@ function desktopReady(stdout: string, platform: NodeJS.Platform): ToolReadiness 
   if (!allowed(permissions.accessibility.state))
     return { ready: false, detail: "Grant Accessibility permission and run the worker in your graphical session" };
 
-  if (!allowed(permissions.screen_recording.state))
+  // Screen Recording is a macOS TCC permission. Linux and Windows may report
+  // the field as unknown because those platforms do not have this permission.
+  if (platform === "darwin" && !allowed(permissions.screen_recording.state))
     return { ready: false, detail: "Grant Screen Recording permission for desktop screenshots" };
 
   return { ready: true, detail: "ready" };
