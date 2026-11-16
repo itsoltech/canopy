@@ -203,6 +203,8 @@ for (const [name, provider, modelId] of [
           expect(instructions).toContain("[Create the PR](canopy:reply)");
           expect(instructions.includes(spec.instructions)).toBe(true);
           expect(instructions).toContain("Do all work already authorized");
+          expect(instructions).toContain('delivery: \\"steer\\"');
+          expect(instructions).toContain("finish without another user-facing message");
 
           if (phase === "RESUMED") expect(request).toContain("FIXTURE_REPLY_FIRST");
         }

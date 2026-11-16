@@ -37,8 +37,8 @@ export interface BusThreadStore {
     placement?: ui.CreateThreadRequest;
   }): Fx<{ thread: ThreadRow; turn: TurnRow; result: JsonValue }>;
   /**
-   * A running ancestor defaults to steer; an active wait receives the message through its result. Explicit
-   * queue and other targets queue a turn. Unentered inputs can be consumed by a result read.
+   * Running ancestors and descendants default to steer; an active wait receives the message through its result.
+   * Explicit queue and other targets queue a turn. Unentered inputs can be consumed by a result read.
    */
   send(input: {
     source: CallSource;
@@ -119,7 +119,7 @@ const spawn = (
       const input: TurnInput = {
         note:
           `[canopy] Task from the thread "${caller.title}" (thread_id: ${caller.id}). ` +
-          "Your final message is reported to that thread automatically. Use send_message to your parent only for updates it must act on mid-task; use ask_user for questions.",
+          "Your final message is reported to that thread automatically. Use send_message with notify: false to your parent only for updates it must act on mid-task; use ask_user for questions.",
         message: args.prompt,
       };
 
@@ -162,13 +162,15 @@ const send = (sql: SqlClient.SqlClient, { source, caller, args, hops }: Paramete
       const target = yield* thread(sql, args.thread_id);
       const outside = target.root_thread_id !== caller.root_thread_id;
       const ancestor = node(caller).ancestorIds.includes(target.id);
+      const descendant = node(target).ancestorIds.includes(caller.id);
 
       const running = (yield* sql<{ id: string }>`SELECT id FROM turns
         WHERE thread_id = ${target.id}::uuid AND status = 'running' LIMIT 1`)[0];
 
       const waiting = running && (yield* waitingForMessage(sql, target.id, running.id, caller.id));
 
-      const steer = running && !waiting && (args.delivery === "steer" || (ancestor && args.delivery !== "queue"));
+      const steer =
+        running && !waiting && (args.delivery === "steer" || ((ancestor || descendant) && args.delivery !== "queue"));
 
       const input: TurnInput = {
         note:

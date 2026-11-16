@@ -128,7 +128,7 @@ export const SendMessage = Schema.Struct({
   delivery: Schema.optionalKey(
     Schema.Literals(["queue", "steer"]).annotate({
       description:
-        "Defaults to steer for a running parent/ancestor, otherwise queue. queue explicitly waits for the next turn; steer joins the running turn, with queue fallback. A waiting recipient receives it through wait_threads.",
+        "Defaults to steer for a running parent/ancestor or subagent, otherwise queue. Use steer for clarifications to ongoing work; queue explicitly requests a separate next turn. A steer that cannot join falls back to queue. A waiting recipient receives it through wait_threads.",
     }),
   ),
   notify: Schema.optionalKey(Notify),
@@ -286,8 +286,9 @@ export const AGENT_BUS_TOOLS = {
     description:
       "Send a message to another thread's agent, as the user would: a subagent you spawned, your parent, a sibling, or any other thread " +
       "of the user (find it with list_threads scope all, or one the user mentioned). queue runs it as the target's next turn, steer joins " +
-      "its running turn. A running parent/ancestor defaults to steer; a waiting recipient receives it in wait_threads. " +
-      "Your final message is reported to your parent automatically: message it only for updates it must act on mid-task. Use ask_user for questions. " +
+      "its running turn. A running parent/ancestor or subagent defaults to steer; a waiting recipient receives it in wait_threads. " +
+      "Clarifications belong in the running turn; reserve queue for a separate task. Your final message is reported to your parent automatically: " +
+      "message it with notify: false only for updates it must act on mid-task. Do not send acknowledgments or requests to finalize work already reported. Use ask_user for questions. " +
       "The target sees your thread as sender; with notify you get its reply when that turn ends.",
     args: SendMessage,
     mutates: true,

@@ -1,8 +1,10 @@
 # Szyna agentów: delegowanie, interakcje, harmonogram
 
-Status (2026-11-16): zaimplementowane dziedziczenie efektywnego trybu tury rodzica,
-także zmiany podczas tury Claude i szerszego nadpisania z kompozytora, oraz jawne linkowanie PR przez agenta
-narzędziem `link_pull_request`; dostępność nightly/beta/stable według
+Status (2026-11-16): doprecyzowania między rodzicem i pracującym subagentem domyślnie
+dołączają do bieżącej tury, z jednym raportem jej wyniku na odbiorcę. Zaimplementowane
+dziedziczenie efektywnego trybu tury rodzica, także zmiany podczas tury Claude i szerszego
+nadpisania z kompozytora, oraz jawne linkowanie PR narzędziem `link_pull_request`;
+dostępność nightly/beta/stable według
 [release.md](release.md).
 
 Grok CLI ma ten sam zestaw narzędzi przez lokalny HTTP MCP przekazany w ACP `session/new` / `session/load`. Gateway nadal wykonuje i autoryzuje wywołania; instancję wybiera się jako `grok/<id>`, także w `spawn_thread` z Claude/Codex i w przeciwnym kierunku. [Adapter i ograniczenia](grok-adapter.md).
@@ -28,7 +30,7 @@ Zestaw narzędzi szyny wątku Codexa jest ustalany przy `thread/start`. Wątki u
 |---|---|
 | `spawn_thread` (z `fork`, `notify`, `interactions`), `send_message`, `wait_threads`, `get_thread`, `read_thread`, `list_threads`, `interrupt_thread`, `close_thread`, `list_interactions`, `answer_interaction` | działa |
 | `list_agents`, `spawn_thread.provider` | działa: subagent na dowolnej instancji dostawcy workera (Claude ↔ Codex), z modelem i wysiłkiem z jej katalogu ([Subagenci dowolnego dostawcy](#subagenci-dowolnego-dostawcy)). Katalogu ról agentów nadal nie ma: pole `agent` zniknęło ze schematu (`instructions` daje rolę) |
-| `send_message` / `get_thread` / `read_thread` do dowolnego wątku właściciela | działa: także poza drzewem (inny projekt, inny worker); `list_threads` `scope: all` szuka po tytule. Domyślnie wiadomość do pracującego rodzica/przodka jest steerem; pozostałe trafiają do kolejki ([Wiadomości między dowolnymi wątkami](#wiadomości-między-dowolnymi-wątkami)) |
+| `send_message` / `get_thread` / `read_thread` do dowolnego wątku właściciela | działa: także poza drzewem (inny projekt, inny worker); `list_threads` `scope: all` szuka po tytule. Domyślnie wiadomość do pracującego rodzica/przodka lub potomka jest steerem; pozostałe trafiają do kolejki ([Wiadomości między dowolnymi wątkami](#wiadomości-między-dowolnymi-wątkami)) |
 | `send_message.delivery = steer` | działa: gdy cel ma turę w toku, wiadomość (z notatką o nadawcy) trafia do niej (`turn_steers`, `SteerTurn`; Codex `turn/steer`, Claude strumień wejścia). Wynik narzędzia: `delivery: "steer"` i `turn_id` tury w toku. Powiadomienie przychodzi, gdy skończy się tura, do której wiadomość weszła (wywołanie wskazuje ją dopiero po wejściu). Nie weszła (tura skończyła się wcześniej, odmowa dostawcy): następna tura `agent_bus` z tym samym wywołaniem i `hops`, powiadomienie po niej. Bez tury w toku: kolejka (`delivery: "queue"`) |
 | `list_background_tasks`, `get_background_task`, `stop_background_task` | działa (2026-11-02): zadania w tle wątku, sekcja „Zadania w tle” niżej |
 | `link_pull_request`, `watch_pr_checks`, `list_pr_watches`, `cancel_pr_watch` | działa (2026-11-15): ręczne linkowanie PR oraz checki CI podlinkowanych PR, sekcja „Checki CI” niżej |
@@ -182,7 +184,13 @@ Regresje: `tests/integration/pr-check-watches.test.ts` (fixture GitHub, skryptow
 
 Każdy subagent to prawdziwy wątek platformy: widoczny w drzewie i na osi czasu rodzica, sterowalny przez użytkownika, z pełnym transkryptem. Opisy narzędzi mówią modelowi, że `spawn_thread` jest narzędziem do delegowania (nie ma `spawn_agent` ani `Task`).
 
-Opisy `spawn_thread`, `send_message`, `wait_threads`, instrukcje systemowe dziecka oraz notatka zadania mówią krótko: końcowa wiadomość jest wynikiem przekazywanym rodzicowi automatycznie (domyślne `notify`). Dziecko używa `send_message` do rodzica tylko do informacji wymagających działania w trakcie zadania; pytania kieruje przez `ask_user`. Nie wysyła osobno końcowego przekazania wyników.
+Opisy `spawn_thread`, `send_message`, `wait_threads`, instrukcje systemowe dziecka oraz notatka zadania mówią krótko: końcowa wiadomość jest wynikiem przekazywanym rodzicowi automatycznie (domyślne `notify`). Dziecko używa `send_message` z `notify: false` do rodzica tylko do informacji wymagających działania w trakcie zadania; pytania kieruje przez `ask_user`. Nie wysyła osobno końcowego przekazania wyników. Brak raportu zwrotnego po wiadomości roboczej zapobiega uruchamianiu dziecka samą odpowiedzią rodzica.
+
+Instrukcje workera, również dla wznowionych sesji ze starym katalogiem narzędzi,
+kierują doprecyzowania do `delivery: "steer"`, a `queue` rezerwują dla osobnego zadania.
+Agent nie wysyła potwierdzeń ani prośby o ponowne zakończenie już zaraportowanej pracy.
+Raport bez nowych ustaleń lub działań kończy obsługiwać bez następnej wiadomości do
+użytkownika. To wskazówki dla modelu; platforma nadal dostarcza wyniki odrębnych tur.
 
 `spawn_thread` domyślnie dziedziczy katalog i worktree rodzica, również gdy zakres projektu × workera
 domyślnie tworzy nowe worktree. `workspace_mode` pozwala wybrać `inherit_parent`, `checkout`,
@@ -263,8 +271,8 @@ Na żywo: `tests/integration/platform-subagents.live.test.ts` — Codex (`gpt-6.
 
 ### Asynchroniczność
 
-- `send_message` bez `delivery`: do rodzica/przodka z trwającą turą — steer; do bezczynnego przodka, rodzeństwa, potomka lub innego drzewa — kolejka. Jawne `delivery: "queue"` zachowuje kolejkę; jawne `"steer"` próbuje wejść do aktywnej tury niezależnie od relacji. Odmowa albo koniec tury zachowuje istniejący fallback kolejki.
-- Gdy odbiorca jest w `wait_threads` na nadawcę, wiadomość wraca przez wynik oczekiwania, bez dodatkowego steera. Do czasu odbioru jest trwałą turą oczekującą za trwającą turą rodzica. Przerwane lub wygasłe oczekiwanie pozostawia ją w kolejce do zwykłego dostarczenia.
+- `send_message` bez `delivery`: do rodzica/przodka lub potomka z trwającą turą — steer; do bezczynnego celu, rodzeństwa lub innego drzewa — kolejka. Jawne `delivery: "queue"` zachowuje kolejkę; jawne `"steer"` próbuje wejść do aktywnej tury niezależnie od relacji. Odmowa albo koniec tury zachowuje istniejący fallback kolejki. Doprecyzowanie nie jest tracone, jeśli nie zdąży wejść do tury.
+- Gdy lokalny odbiorca jest w `wait_threads` na nadawcę, wiadomość wraca przez wynik oczekiwania, bez dodatkowego steera. Do czasu odbioru jest trwałą turą oczekującą za trwającą turą rodzica. Przerwane lub wygasłe oczekiwanie pozostawia ją w kolejce do zwykłego dostarczenia. Oczekiwanie na dziecko połączonego komputera odpytuje jego podsumowanie i nie odbiera wiadomości tą ścieżką ([połączone komputery](linked-computers.md)).
 - Raport zakończenia także pozostaje `pending`, gdy rodzic ma aktywne oczekiwanie na ten wątek. Oczekiwanie odbiera go przez podsumowanie; po wygaśnięciu lub przerwaniu oczekiwania zwykłe dostarczenie wznawia `sweep`.
 - `spawn_thread` i `send_message` nie blokują. Wynik przychodzi jako **powiadomienie** (`notify`, domyślnie włączone): po zakończeniu wskazanej tury docelowej gateway wstrzykuje raport do trwającej tury wywołującego jako steer platformy z oznaczeniem nadawcy (wątku docelowego). Korzysta ze ścieżki `SteerTurn` i fallbacku notatek platformy opisanej w [execution.md](execution.md#pobudka-agent-dowiaduje-się-o-każdym-końcu-zadania). Bez trwającej tury albo gdy steer nie wejdzie (odmowa dostawcy, tura skończyła się wcześniej), powstaje tura `trigger = agent_bus`. Raport zawiera status i ostatnią wiadomość **tej tury docelowej**, a nie późniejszej tury tego wątku. Przeskoki pozostają takie same: `hops` wywołania + 1 (zarówno steer, jak i jego fallback).
 - `wait_threads` jest dla orkiestracji synchronicznej i jest **ograniczone w czasie oraz ponawialne**. Claude SDK ma twardy limit czasu wywołania narzędzia MCP, a limit narzędzi dynamicznych Codexa nie jest udokumentowany. Zwraca wcześniej, gdy wątek czeka na odpowiedź rodzica albo wysłał do wywołującego wiadomość. `messages` zawiera `call_id`, `thread_id` nadawcy, jego `turn_id`, `text` i `sent_at`; `done` nadal mówi o zakończeniu pracy według `any`/`all`, więc sam komunikat może dać `done: false`. Reguła wiadomości działa dla każdego oczekiwanego wątku drzewa, również rodzeństwa.
@@ -507,7 +515,7 @@ sequenceDiagram
 - **Restart w trakcie `wait_threads`:** niezakończone czekanie nie zużywa raportu. Po wznowieniu agent ponawia odczyt albo dostaje powiadomienie, jeśli nie odebrał wcześniej wyniku.
 - **Wiadomości w oczekiwaniu:** rozpoczęte `wait_threads` ma trwały rekord `requested` z argumentami i czasem początku; `send_message` sprawdza także trwającą turę i termin oczekiwania. Dopiero zapis wyniku kończy oczekiwanie i zużywa zwrócone wiadomości. Restart nie traci wiadomości ani nie wskrzesza już odebranych wejść.
 
-Regresje: `tests/integration/agent-bus-notify.test.ts` (skryptowany worker, wynik podczas `ask_user`, odczyty, fallback i nowa instancja gateway na tej samej bazie), `apps/gateway/src/store/notification-observation.test.ts` (reguły odczytów), `apps/web/src/lib/features/threads/queue/queue.test.ts` (kolejka bez powiadomień) oraz opt-in `agent-bus-notify.live.test.ts` (Codex przez CLIProxyAPI: `spawn_thread` z `notify` → `wait_threads` → `close_thread`, jedna tura rodzica).
+Regresje: `tests/integration/agent-bus-notify.test.ts` (skryptowany worker, dwa domyślne doprecyzowania do tej samej tury dziecka i jeden raport do pracującego albo bezczynnego rodzica, wynik podczas `ask_user`, odczyty, fallback i nowa instancja gateway na tej samej bazie), `apps/gateway/src/store/notification-observation.test.ts` (reguły odczytów), `apps/web/src/lib/features/threads/queue/queue.test.ts` (kolejka bez powiadomień) oraz opt-in `agent-bus-notify.live.test.ts` (Codex przez CLIProxyAPI: `spawn_thread` z `notify` → `wait_threads` → `close_thread`, jedna tura rodzica).
 
 ## 9. Udostępnienie narzędzi dostawcom
 

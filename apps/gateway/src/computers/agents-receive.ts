@@ -51,7 +51,14 @@ export async function agentsDeliverAtHome(
   )
     return { delivered: false };
   const input = text(args, "text");
-  const key = `${call.operation}:${nodeRef(node)}:${call.callId}:${text(args, "event")}`;
+  const event = text(args, "event");
+  // Spawn and steered follow-ups can observe the same turn. The recipient's durable message
+  // receipt must identify that turn rather than the individual call, including after a restart.
+  const reportKey = call.operation === "report" && ref.actor_kind === "thread" && ref.target_kind === "thread";
+
+  const key = reportKey
+    ? `report:${nodeRef(node)}:thread:${event}`
+    : `${call.operation}:${nodeRef(node)}:${call.callId}:${event}`;
 
   const displayText =
     call.operation === "report" && ref.target_kind === "thread"

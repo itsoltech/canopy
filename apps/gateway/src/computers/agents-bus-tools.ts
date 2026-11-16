@@ -193,7 +193,7 @@ export const agentsBusToolsMethods: AgentsBusToolsMethods = {
         target: splitId(call.args.thread_id).id,
         target_kind: call.args.target_kind ?? "thread",
         prompt: call.args.prompt,
-        delivery: call.args.delivery ?? "queue",
+        delivery: call.args.delivery ?? (await linkedThreadDelivery(this, caller, node, call.args)),
         notify: call.args.notify ?? true,
       });
 
@@ -276,6 +276,31 @@ export const agentsBusToolsMethods: AgentsBusToolsMethods = {
     return result;
   },
 };
+
+async function linkedThreadDelivery(
+  host: LinkedAgents,
+  caller: ThreadRow,
+  node: string,
+  args: Extract<AgentBusCall, { tool: "send_message" }>["args"],
+): Promise<"queue" | "steer"> {
+  if (args.target_kind === "bot") return "queue";
+
+  if (
+    caller.remote_parent_kind === "thread" &&
+    !caller.remote_parent_detached &&
+    caller.remote_parent_ref === qualifyId(splitId(args.thread_id).id, node)
+  )
+    return "steer";
+
+  const children = await host.query(
+    `SELECT call_id FROM computer_agent_calls WHERE owner_user_id=$1::uuid AND peer_node_id=$2
+      AND direction='outgoing' AND actor_id=$3::uuid AND actor_kind='thread'
+      AND target_id=$4::uuid AND target_kind='thread' AND parent_link AND NOT detached LIMIT 1`,
+    [host.owner, node, caller.id, splitId(args.thread_id).id],
+  );
+
+  return children.length ? "steer" : "queue";
+}
 
 function linkedSpawnPermission(
   host: LinkedAgents,

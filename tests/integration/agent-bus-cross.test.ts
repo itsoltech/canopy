@@ -299,7 +299,7 @@ describe.skipIf(!dockerAvailable)("agent bus across providers and trees (gateway
     expect(children[0]?.n).toBe(0);
   }, 30_000);
 
-  test("steer into a child on the other provider (Codex -> Claude and Claude -> Codex); the sender's card follows the turn", async () => {
+  test("default clarifications steer into a child on the other provider; the sender's card follows the turn", async () => {
     for (const [leadProvider, childProvider] of [
       [Provider.CODEX, "claude"],
       [Provider.CLAUDE, "codex"],
@@ -326,7 +326,7 @@ describe.skipIf(!dockerAvailable)("agent bus across providers and trees (gateway
         await studio.callTool({
           threadId: lead.id,
           tool: "send_message",
-          args: { thread_id: childId, prompt: "Also add tests", delivery: "steer", notify: false },
+          args: { thread_id: childId, prompt: "Also add tests", notify: false },
         }),
       );
 
