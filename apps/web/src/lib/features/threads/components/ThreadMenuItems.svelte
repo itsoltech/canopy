@@ -29,6 +29,7 @@
       Boolean(away),
       capabilities?.linkedComputers ?? false,
       onThisComputer(thread, actions.overview.worker(thread.workerId), capabilities?.ownGateway ?? false),
+      actions.overview.worker(thread.workerId)?.os,
     ).filter((item) => !omit.includes(item.id) && !(item.id === "open" && browser && window.canopyDesktop)),
   );
 </script>

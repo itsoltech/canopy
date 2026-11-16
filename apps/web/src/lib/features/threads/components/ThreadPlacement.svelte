@@ -10,7 +10,7 @@
   import { copyText } from "#lib/shared/clipboard.ts";
   import { toast } from "#lib/shared/ui/toast.svelte.ts";
   import { revealThreadDirectory } from "../api.ts";
-  import { onThisComputer } from "../thread-actions.ts";
+  import { onThisComputer, openFolderLabel } from "../thread-actions.ts";
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
   import TruncatedText from "#lib/shared/ui/TruncatedText.svelte";
@@ -74,7 +74,8 @@
         <Icon name="ellipsis-horizontal" class="shrink-0" />
       </button>{/snippet}
     <MenuItem icon="copy" onselect={() => void copyText(thread.cwd)}>Copy path</MenuItem>
-    {#if local}<MenuItem icon="folder-open" disabled={revealing} onselect={() => void reveal()}>Open folder</MenuItem
+    {#if local}<MenuItem icon="folder-open" disabled={revealing} onselect={() => void reveal()}
+        >{openFolderLabel(worker?.os ?? "")}</MenuItem
       >{/if}
     {#if thread.worktree}<MenuItem icon="cog-6-tooth" onselect={onworktree}>Manage worktree</MenuItem>{/if}
   </DropdownMenu>
