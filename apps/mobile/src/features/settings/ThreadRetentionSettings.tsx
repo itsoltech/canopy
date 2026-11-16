@@ -95,6 +95,9 @@ export function ThreadRetentionSettings({ settings }: { settings: ReturnType<typ
           </View>
         }
       >
+        <Text style={[type.meta, { color: c.muted }]}>
+          Canopy permanently deletes history 31 days after you delete a thread.
+        </Text>
         <Text style={[type.meta, { color: c.muted }]}>Workspace files stay unchanged.</Text>
         <Text style={[type.meta, { color: c.muted }]}>Deletion waits while forks still need a thread’s history.</Text>
         <Text accessibilityLiveRegion="polite" style={[type.meta, { minHeight: 20, color: c.danger }]}>

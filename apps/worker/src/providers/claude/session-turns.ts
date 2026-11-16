@@ -39,12 +39,19 @@ export function sessionTurns(ctx: ClaudeThreadContext, record: ReturnType<typeof
 
   /** An idle process ends unless background tasks run; after tasks it waits a little for a turn Claude starts. */
   const closeWhenIdle = (session: Session) => {
-    if (session.turn || session.closing || session.mapper.backgroundTasks.length > 0 || session.closeTimer) return;
+    if (
+      session.admitting ||
+      session.turn ||
+      session.closing ||
+      session.mapper.backgroundTasks.length > 0 ||
+      session.closeTimer
+    )
+      return;
 
     const close = () => {
       session.closeTimer = undefined;
 
-      if (session.turn || session.mapper.backgroundTasks.length > 0) return;
+      if (session.admitting || session.turn || session.mapper.backgroundTasks.length > 0) return;
       session.closing = true;
       session.input.close();
     };

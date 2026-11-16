@@ -13,12 +13,13 @@ export type RangeThreadHead = PublicationFailureRow & {
   id: string;
   epoch: string | null;
   head: string | null;
+  floor: string | null;
   version: string | null;
 };
 
 export function rangeThreadHeads(store: RangeSourceStore) {
   return store.query<RangeThreadHead>(
-    `SELECT t.id,c.epoch,c.head_seq::text AS head,c.change_version::text AS version,
+    `SELECT t.id,c.epoch,c.head_seq::text AS head,c.replay_floor_seq::text AS floor,c.change_version::text AS version,
       f.signature AS failure_signature,f.payload AS failure_payload,f.attempts AS failure_attempts,
       f.retry_at::text AS failure_next,f.failed_at::text AS failure_at
     FROM threads t LEFT JOIN thread_replication_clock c ON c.thread_id=t.id

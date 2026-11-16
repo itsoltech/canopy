@@ -22,40 +22,43 @@ const lockContent = (sql: SqlClient.SqlClient, id: string) =>
 const eligible = (sql: SqlClient.SqlClient, owner: string, id: string, days: number) =>
   sql<{ id: string }>`SELECT t.id FROM threads t
     WHERE t.id=${id}::uuid AND t.owner_user_id=${owner}::uuid AND t.purged_at IS NULL
-      AND t.deleted_at IS NULL AND t.archived_at<=now()-make_interval(days=>${days})
+      AND ((t.deleted_at IS NULL AND ${days}>0 AND t.archived_at<=now()-make_interval(days=>${days}))
+        OR t.deleted_at<=now()-interval '31 days')
       AND t.moved_to IS NULL AND t.rewind_pending_id IS NULL
       AND thread_retention_ready(t.id)`;
 
-const fenceArchivedThread = (sql: SqlClient.SqlClient, owner: string) =>
+const fenceExpiredThread = (sql: SqlClient.SqlClient, owner: string) =>
   sql
     .withTransaction(
       Effect.gen(function* () {
-        // SHARE, not KEY SHARE: disabling retention must serialize with qualification.
+        // SHARE, not KEY SHARE: disabling archive retention must serialize with qualification.
         const locked = yield* sql`SELECT user_id FROM user_settings WHERE user_id=${owner}::uuid FOR SHARE SKIP LOCKED`;
 
-        if (!locked.length) return [];
+        if (!locked.length && (yield* sql`SELECT 1 FROM user_settings WHERE user_id=${owner}::uuid`).length) return [];
 
         const settings = (yield* sql<{ days: number }>`SELECT CASE
       WHEN settings#>>'{threadRetention,archivedThreadDays}' ~ '^[0-9]{1,5}$'
         THEN (settings#>>'{threadRetention,archivedThreadDays}')::int ELSE 0 END AS days
       FROM user_settings WHERE user_id=${owner}::uuid`)[0];
 
-        if (!settings || settings.days < 1 || settings.days > 36500) return [];
+        const days = settings && settings.days >= 1 && settings.days <= 36500 ? settings.days : 0;
 
         const candidates = yield* sql<{ id: string }>`SELECT t.id FROM threads t
-      WHERE t.owner_user_id=${owner}::uuid AND t.purged_at IS NULL AND t.deleted_at IS NULL
-        AND t.archived_at<=now()-make_interval(days=>${settings.days})
+      WHERE t.owner_user_id=${owner}::uuid AND t.purged_at IS NULL
+        AND ((t.deleted_at IS NULL AND ${days}>0 AND t.archived_at<=now()-make_interval(days=>${days}))
+          OR t.deleted_at<=now()-interval '31 days')
         AND t.moved_to IS NULL AND t.rewind_pending_id IS NULL
         AND thread_retention_ready(t.id)
-      ORDER BY t.archived_at,t.id LIMIT 256 FOR UPDATE OF t SKIP LOCKED`;
+      ORDER BY coalesce(t.deleted_at,t.archived_at),t.id LIMIT 256 FOR UPDATE OF t SKIP LOCKED`;
 
         for (const candidate of candidates) {
           yield* lockContent(sql, candidate.id);
 
           // Read again after acquiring the execution row; dependency changes may have committed meanwhile.
-          if (!(yield* eligible(sql, owner, candidate.id, settings.days)).length) continue;
+          if (!(yield* eligible(sql, owner, candidate.id, days)).length) continue;
 
-          yield* sql`UPDATE threads SET purged_at=now(),deleted_at=now(),deletion_batch_id=id,
+          yield* sql`UPDATE threads SET purged_at=now(),deleted_at=coalesce(deleted_at,now()),
+        deletion_batch_id=coalesce(deletion_batch_id,id),
         title_requested=false,title_revision=title_revision+1,title='',title_context='',settings='{}'::jsonb,
         status_detail=NULL,newest_pull_request=NULL,schedule_name=''
         WHERE id=${candidate.id}::uuid`;
@@ -87,9 +90,9 @@ const prunePendingThread = (sql: SqlClient.SqlClient, owner: string) =>
     .pipe(Effect.catchTag("ThreadContentBusy", () => Effect.succeed(0)));
 
 /** Qualification is reversible until this transaction commits. Started purges finish after an opt-out. */
-export const pruneArchivedThreads = (sql: SqlClient.SqlClient, owner: string) =>
+export const pruneExpiredThreads = (sql: SqlClient.SqlClient, owner: string) =>
   Effect.gen(function* () {
-    const ids = yield* fenceArchivedThread(sql, owner);
+    const ids = yield* fenceExpiredThread(sql, owner);
 
     const touched = yield* prunePendingThread(sql, owner);
 

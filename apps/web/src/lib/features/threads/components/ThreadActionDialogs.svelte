@@ -85,7 +85,8 @@
       <p class="text-base/6 text-pretty text-zinc-600 sm:text-sm/6 dark:text-zinc-400">
         This deletes “{actions.dialog.thread.title}”{sideCount
           ? ` and ${sideCount} side ${sideCount === 1 ? "thread" : "threads"}`
-          : ""}. Running turns stop and their schedules are cancelled. You can undo this for a few seconds.
+          : ""}. Running turns stop. Canopy cancels their schedules. Canopy permanently deletes their history after 31
+        days. Workspace files stay unchanged. You can undo this for a few seconds.
       </p>
       <div class="flex justify-end gap-2">
         <Button data-autofocus onclick={() => (actions.dialog = undefined)}>Cancel</Button>

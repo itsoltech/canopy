@@ -1,6 +1,6 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import type { FunctionCallOutputBody, v2 } from "@canopy/codex-protocol";
-import { ItemStatus, type ItemSchema } from "@canopy/contracts";
+import { ItemStatus, type BlobRef, type ItemSchema } from "@canopy/contracts";
 import { isAgentBusTool, isPlatformServer, VIEW_IMAGE_TOOL, type JsonObject } from "@canopy/domain";
 import { decodeJson, decodeJsonObject, isString, jsonObject, jsonString } from "../json.ts";
 
@@ -130,7 +130,7 @@ export function mapItem(item: CodexItem, completed: boolean): ItemInit {
 
 export function providerToolCall(
   callId: string,
-  call: { name: string; inputJson: string; outputs: string[] },
+  call: { name: string; inputJson: string; outputs: string[]; images?: BlobRef[] },
   completed: boolean,
 ): ItemInit {
   return {
@@ -138,7 +138,7 @@ export function providerToolCall(
     status: completed ? ItemStatus.COMPLETED : ItemStatus.IN_PROGRESS,
     content: {
       case: "toolCall",
-      value: { name: call.name, inputJson: call.inputJson, output: call.outputs.join("\n") },
+      value: { name: call.name, inputJson: call.inputJson, output: call.outputs.join("\n"), images: call.images ?? [] },
     },
   };
 }

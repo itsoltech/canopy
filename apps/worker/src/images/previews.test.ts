@@ -1,12 +1,15 @@
 import { expect, test } from "bun:test";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, utimesSync } from "node:fs";
 import { join } from "node:path";
 import { tempDirs } from "@canopy/testing";
 import { ItemStatus } from "@canopy/contracts";
+import { ManagedRuntime } from "effect";
 import type { SessionUpdate } from "@canopy/grok-acp";
 import { PreviewStore, inlineImages } from "./index.ts";
 import { GrokEventMapper } from "../providers/grok/mapping.ts";
+import { Journal } from "../journal/index.ts";
+import { WorkerHost } from "../runtime/host.ts";
 
 const temporary = tempDirs();
 const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
@@ -135,4 +138,52 @@ test("Grok malformed MCP image content leaves the completed tool usable and exis
 
   for (const raw of rawEvents)
     expect(inlineImages(JSON.stringify(raw), "capture")).toEqual([{ mimeType: "image/png", base64: png }]);
+});
+
+test("startup retains old blobs referenced by unacked or held journal events and prunes them after ACK", async () => {
+  const root = temporary("canopy-preview-pending-retention-");
+  const store = new PreviewStore(root);
+  const ref = store.put(Buffer.from(png, "base64"), "image/png");
+  const orphan = store.put(Buffer.from("unreferenced"), "image/png");
+  const old = new Date(Date.now() - 8 * 24 * 3600_000);
+  const path = join(root, "previews", ref.sha256!);
+  const orphanPath = join(root, "previews", orphan.sha256!);
+  utimesSync(path, old, old);
+  utimesSync(orphanPath, old, old);
+  const runtime = ManagedRuntime.make(Journal.layer(join(root, "journal.db")));
+
+  try {
+    const event = await runtime.runPromise(
+      Journal.use((journal) =>
+        journal.append("thread", {
+          body: {
+            case: "itemCompleted",
+            value: {
+              item: {
+                itemId: "cell",
+                content: { case: "toolCall", value: { name: "exec", images: [ref] } },
+              },
+            },
+          },
+        }),
+      ),
+    );
+
+    await runtime.runPromise(Journal.use((journal) => journal.holdPending()));
+    const host = new WorkerHost({ runtime, dataDir: root, clientVersion: "test" });
+
+    try {
+      expect(existsSync(path)).toBe(true);
+      await host.recover();
+      expect(existsSync(path)).toBe(true);
+      expect(existsSync(orphanPath)).toBe(false);
+      await runtime.runPromise(Journal.use((journal) => journal.ack(event.threadId, event.journalSeq)));
+      await host.recover();
+      expect(existsSync(path)).toBe(false);
+    } finally {
+      await host.close();
+    }
+  } finally {
+    await runtime.dispose();
+  }
 });

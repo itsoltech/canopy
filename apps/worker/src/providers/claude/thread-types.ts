@@ -94,6 +94,8 @@ export interface Session {
   readonly busCalls: Map<string, string[]>;
   /** Turn in progress (the platform's or one Claude started itself). */
   turn: SessionTurn | undefined;
+  /** Startup/control messages may arrive before StartTurn has submitted its input. */
+  admitting: boolean;
   /** Model and effort the process runs with (a later turn may switch the model). */
   model: string;
   /** Permission mode the process runs with; canUseTool reads autoAllow per request (a later turn may switch it). */

@@ -86,6 +86,7 @@
       {/snippet}
     </SettingsRow>
     <div {id} class="grid gap-1 px-4 pb-4 text-sm/5 text-zinc-500 dark:text-zinc-400">
+      <p>Canopy permanently deletes history 31 days after you delete a thread.</p>
       <p>Workspace files stay unchanged.</p>
       <p>Deletion waits while forks still need a thread’s history.</p>
       <p class="min-h-5" role="status">{!valid ? "Enter a whole number from 1 to 36500 days, then save." : ""}</p>

@@ -164,6 +164,11 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "150_thread_retention",
       "151_turn_thread_permission_mode",
       "152_agent_link_pull_request",
+      "153_thread_notice_replication",
+      "154_thread_replication_retention",
+      "155_transcript_raw_payload_refs",
+      "156_storage_cleanup",
+      "157_deleted_thread_retention",
     ]);
   }, 60_000);
 

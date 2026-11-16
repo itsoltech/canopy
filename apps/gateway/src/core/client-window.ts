@@ -9,6 +9,58 @@ import type { RangeSourceStore } from "../computers/range-source.ts";
 import { prepareRangeClock } from "../computers/range-clock.ts";
 import { clientWindowKeys } from "./client-window-keys.ts";
 import { appendClientWindow } from "../computers/range-window-records.ts";
+import { contentHash, leaseRangeRecords, retainCurrentContent } from "../computers/range-leases.ts";
+
+/** Validate the cached checkpoint and renew issued hashes under the same fence
+ * as fresh publications. The cache does not shorten a client's content lease.
+ */
+export async function renewClientWindow(store: RangeSourceStore, snapshot: ui.ThreadSnapshot) {
+  const cursor = snapshot.syncCursor;
+
+  if (!cursor) return false;
+
+  return store.runtime.runPromise(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+
+      return yield* sql.withTransaction(
+        Effect.gen(function* () {
+          const clock = yield* prepareRangeClock(sql, store, cursor.threadId);
+
+          if (clock.epoch !== cursor.epoch || BigInt(clock.head_seq) !== cursor.appliedSeq) return false;
+
+          const records = snapshot.items.map((item) =>
+            create(ui.ThreadSyncRecordSchema, {
+              value: { case: "item", value: item },
+            }),
+          );
+
+          const leased = yield* leaseRangeRecords(
+            sql,
+            cursor.threadId,
+            cursor.epoch,
+            cursor.appliedSeq,
+            cursor.appliedSeq,
+            records,
+            crypto.randomUUID(),
+            "snapshot",
+          );
+
+          const expected = new Set(
+            snapshot.items.flatMap((item) => {
+              const record = create(ui.ThreadSyncRecordSchema, { value: { case: "item", value: item } });
+              const hash = contentHash(record);
+
+              return hash ? [hash] : [];
+            }),
+          ).size;
+
+          return leased === expected;
+        }),
+      );
+    }),
+  );
+}
 
 /** The window and sequence checkpoint share the source commit barrier. */
 export async function readClientWindow(store: RangeSourceStore, input: ui.WatchThreadRequest) {
@@ -61,6 +113,17 @@ export async function readClientWindow(store: RangeSourceStore, input: ui.WatchT
               }
 
               appendClientWindow(snapshot, records, page.turnIds, sizes);
+              yield* retainCurrentContent(sql, input.threadId, records);
+              yield* leaseRangeRecords(
+                sql,
+                input.threadId,
+                clock.epoch,
+                BigInt(clock.head_seq),
+                BigInt(clock.head_seq),
+                records,
+                crypto.randomUUID(),
+                "snapshot",
+              );
               snapshot.lastSeq = snapshot.thread?.lastSeq ?? 0n;
               yield* sql`UPDATE thread_replication_clock SET checkpoint_seq=head_seq WHERE thread_id=${input.threadId}::uuid`;
 

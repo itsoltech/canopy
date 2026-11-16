@@ -5,7 +5,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import type { SqlClient } from "effect/sql";
 import type { RangeKey } from "./range-projection.ts";
 
-export type RangeHead = { epoch: string; seq: bigint };
+export type RangeHead = { epoch: string; seq: bigint; floor?: bigint };
 
 export type RangeRow = RangeKey & { payload: Uint8Array | null };
 
@@ -24,6 +24,7 @@ export function rangeRows(
     SELECT j.seq,j.kind,j.entity_id,j.payload FROM thread_replication_journal j
       JOIN threads t ON t.id=j.thread_id JOIN thread_replication_clock c ON c.thread_id=t.id
     WHERE j.thread_id=${thread}::uuid AND j.epoch=${epoch}::uuid AND c.epoch=j.epoch AND c.head_seq>=${end}
+      AND c.replay_floor_seq<=${applied}
       AND t.owner_user_id=${owner}::uuid AND t.deleted_at IS NULL
       AND j.seq>${applied} AND j.seq<=${end} ORDER BY j.seq LIMIT 64
   ), sized AS (

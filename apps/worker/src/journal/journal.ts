@@ -20,6 +20,8 @@ import { commandTracking } from "./commands.ts";
 import { secretEventRedactor } from "../runtime/thread-secrets.ts";
 import { journalStatistics, type JournalStatistics } from "./statistics.ts";
 import { workerDiagnostics } from "../diagnostics/worker.ts";
+import { storageCleanup, type StorageCleanupGrant } from "./storage-cleanup.ts";
+export type { StorageCleanupGrant } from "./storage-cleanup.ts";
 
 /**
  * Local durable outbox of the worker (docs/durability.md, 3.1).
@@ -138,6 +140,10 @@ export class Journal extends Context.Service<
     noteHarness(threadId: string, turnId: string, harness: TurnHarness): Effect.Effect<void, JournalError>;
     /** The platform asked to interrupt the turn (kept until its end). */
     noteInterrupt(threadId: string, turnId: string): Effect.Effect<void, JournalError>;
+    grantStorageCleanup(grant: StorageCleanupGrant): Effect.Effect<void, JournalError>;
+    hasStorageCleanup(threadId: string): Effect.Effect<boolean, JournalError>;
+    pendingStorageCleanup(): Effect.Effect<ReadonlyArray<StorageCleanupGrant>, JournalError>;
+    completeStorageCleanup(threadId: string): Effect.Effect<void, JournalError>;
   }
 >()("canopy/worker/Journal") {
   /** Journal backed by a SQLite file (created if missing). Closed when the scope ends. */
@@ -374,6 +380,7 @@ function makeJournal(db: Database, diagnostics: boolean): Journal["Service"] {
     openTurns: turns.openTurns,
     noteInterrupt: turns.noteInterrupt,
     noteHarness: turns.noteHarness,
+    ...storageCleanup(db, attempt),
   });
 }
 

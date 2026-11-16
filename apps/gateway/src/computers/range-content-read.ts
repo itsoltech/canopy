@@ -18,11 +18,14 @@ export function readRangeContent(runtime: CoreRuntime, owner: string, request: u
         Effect.gen(function* () {
           const sql = yield* SqlClient.SqlClient;
 
-          const row = (yield* sql<{ data: Uint8Array; size: string }>`SELECT
+          const row = (yield* sql<{ data: Uint8Array; size: string }>`WITH renewed AS (
+            UPDATE thread_replication_content c SET last_referenced_at=now() FROM threads t
+            WHERE c.thread_id=${request.threadId}::uuid AND c.sha256=${request.sha256}
+              AND t.id=c.thread_id AND t.owner_user_id=${owner}::uuid AND t.deleted_at IS NULL
+            RETURNING c.data
+          ) SELECT
       substring(c.data FROM ${Number(request.offset) + 1}::integer FOR ${length}::integer) AS data,
-      octet_length(c.data)::text AS size FROM thread_replication_content c JOIN threads t ON t.id=c.thread_id
-      WHERE c.thread_id=${request.threadId}::uuid AND c.sha256=${request.sha256}
-        AND t.owner_user_id=${owner}::uuid AND t.deleted_at IS NULL`)[0];
+      octet_length(c.data)::text AS size FROM renewed c`)[0];
 
           if (!row) return yield* Effect.fail(new ConnectError("Thread content not found", Code.NotFound));
 

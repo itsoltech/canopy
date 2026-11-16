@@ -1,6 +1,6 @@
 # Adapter Claude (Agent SDK)
 
-Status: **działa** (2026-11-15):
+Status: **działa** (2026-11-16):
 - runtime wątków: `ClaudeThreads` w `apps/worker/src/providers/claude/threads.ts`,
 - mapowanie wiadomości SDK na zdarzenia transkryptu: `ClaudeEventMapper` w `mapping.ts`, z testami na nagranych strumieniach (`fixtures/*.jsonl`),
 - tryby uprawnień: `permissions.ts`,
@@ -26,6 +26,14 @@ stdio. Gateway sprawdza grant i bieżącą turę przed każdym callem
 | steer | wiadomość w strumieniu wejścia tury z `priority: "next"` i `uuid = input_id` |
 | `provider_turn_ref` | uuid ostatniego wpisu tury w transkrypcie Claude (punkt forka, `upToMessageId`); też dla tur nieudanych i przerwanych |
 | przerwanie | `query.interrupt()`, po 10 s bez odpowiedzi `abort` |
+
+Przy starcie i wznowieniu procesu, także pierwszej tury forka, adapter utrzymuje
+sesję otwartą przez inicjalizację SDK i ładowanie MCP aż do przyjęcia wejścia.
+Wiadomość statusu otrzymana przed wejściem nie oznacza końca bezczynnej sesji.
+Anulowanie albo błąd przygotowania zwalnia tę blokadę; proces bez tury i zadań
+kończy się normalnie. Test `providers/claude/startup-admission.test.ts` odtwarza
+tę kolejność z prawdziwym SDK i skryptowanym CLI, także dla anulowania.
+To opis implementacji; dostępność zależy od kanału wydania ([release.md](release.md)).
 
 - **Fork od tury** ([threads.md](threads.md#fork-od-tury-fork-from-here)): `forkSession(źródło, { upToMessageId: provider_turn_ref tury })` kopiuje transkrypt do ostatniego wpisu tej tury włącznie i daje nową sesję; późniejsze tury źródła zostają poza nią. Bez `after_provider_turn_ref` przy podanej turze worker odmawia (`FORK_POINT_UNKNOWN`) zamiast kopiować całą sesję. Test bez modelu: `providers/claude/fork.test.ts` (trzy tury, fork od drugiej); na żywo: `fork-from-turn.live.test.ts`.
 - **`thread_ready` bez wywołania modelu:** id sesji wybiera platforma, a fork kopiuje transkrypt (`forkSession`) bez modelu. Tak jak w Codexie wątek jest gotowy od razu.

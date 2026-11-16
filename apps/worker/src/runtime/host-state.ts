@@ -182,7 +182,6 @@ export class HostState {
     this.files = new AttachmentFiles(options.dataDir);
     this.imageExports = new ThreadImageExports(this.files.root);
     this.previews = new PreviewStore(options.dataDir);
-    this.previews.prune();
     this.imports = new WorkerImport({
       dataDir: options.dataDir,
       homes: () => ({

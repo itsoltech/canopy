@@ -1,12 +1,14 @@
 # Transkrypt: zapis wszystkiego, co dzieje się w wątku
 
-Status: **projekt**, kontrakt i schemat zaimplementowane (`ThreadEvent` w proto, `thread_events` / `thread_items` / `blobs` w `0001_init.sql`, reducer w `packages/domain`).
+Status (2026-11-16): log zdarzeń, projekcja itemów i bloby obrazów są zaimplementowane,
+w tym bezstratne wyniesienie obrazów wyników trybu kodu Codexa z `raw_json`.
+Plany retencji oznaczono osobno poniżej; dostępność wydań opisuje [release.md](release.md).
 
 Wymaganie: frontend pokazuje **wszystko**: wiadomości, rozumowanie, każde narzędzie z wejściem i pełnym wynikiem, zmiany plików, plany, subagentów, zadania w tle, zgody, wywołania innych agentów i zdarzenia systemowe. Także to, co dzieje się **między turami**.
 
 ## 1. Zasady
 
-1. **Trwałe przyjęcie przed ACK.** Zdarzenia dostawcy trafiają do `thread_events`, także bez mapowania. `raw` zachowuje JSON po zastąpieniu NUL i niesparowanych surogatów znakiem U+FFFD. Inny błąd danych SQLSTATE `22xxx` zapisuje oryginalny protobuf w `worker_event_quarantine` oraz ostrzeżenie w historii, atomowo z kursorem journalu; odrzucone zdarzenie nie wykonuje projekcji. [Reguły trwałości](durability.md#31-dziennik-lokalny).
+1. **Trwałe przyjęcie przed ACK.** Zdarzenia dostawcy trafiają do `thread_events`, także bez mapowania. `raw` zachowuje JSON po zastąpieniu NUL i niesparowanych surogatów znakiem U+FFFD; dokładne bajty obrazów wyników trybu kodu Codexa mogą zostać zastąpione referencją do blobu dopiero po ich zapisaniu i wzbogaceniu itemu (poniżej). Inny błąd danych SQLSTATE `22xxx` zapisuje oryginalny protobuf w `worker_event_quarantine` oraz ostrzeżenie w historii, atomowo z kursorem journalu; odrzucone zdarzenie nie wykonuje projekcji. [Reguły trwałości](durability.md#31-dziennik-lokalny).
 2. **Treść dostawcy nie jest przycinana.** Treść większa niż limit wiadomości trafia do `blobs` (adresowane sha256) i jest wskazywana przez `BlobRef`. Wyjątek dla jawnych komend powłoki właściciela: worker przechwytuje ograniczony początek i koniec outputu, z oznaczeniem pominiętego środka (poniżej).
 3. **Jedna oś czasu na wątek.** `seq` nadaje gateway przy zapisie. Zdarzenia workera i platformy (wejście użytkownika, decyzje o zgodach, szyna agentów, komunikaty) mają jedną, wspólną kolejność.
 4. **Zdarzenia poza turą są pełnoprawne.** `turn_id` jest pusty, gdy zdarzenie nie należy do tury.
@@ -84,11 +86,44 @@ W jednej transakcji per paczka zdarzeń wątku:
 5. aktualizacja `threads.last_seq`, `turns` (status, `first_seq` / `last_seq`, `provider_turn_ref`),
 6. po commicie: `EventAck(journal_seq)` do workera i `NOTIFY` dla subskrybentów UI.
 
+Sąsiadujące `item_delta` tego samego itemu, pola i tury pozostają osobnymi wierszami
+dziennika, ale w jednej transakcji reduktor ładuje projekcję raz i zapisuje ją raz.
+Granica przed innym itemem, zdarzeniem kończącym lub zmianą tury opróżnia partię.
+Snapshot widzi tylko stan przed albo po transakcji, więc reconnect i restart mogą
+odtworzyć każdy delta z `payload`; `first_seq` pozostaje sekwencją pierwszego zapisu
+itemu, a `last_seq` ostatnią deltą, która faktycznie zmieniła projekcję.
+
 Bloby: worker wysyła `BlobChunk` przed zdarzeniem, które je wskazuje. Gateway sprawdza sha256 i zapisuje blob przed przyjęciem zdarzenia. Zdarzenie wskazujące brakujący blob jest odrzucane i zostaje w dzienniku workera do ponowienia.
 
 ### Obrazy
 
 Każdy obraz, który widział model, ma podgląd na osi czasu: `Image.blob` (`view_image`, natywne odczyty, wygenerowane) albo `ToolCall.images` (obrazy w wynikach narzędzi). Worker robi podgląd przed zapisem zdarzenia i wysyła go jako `BlobChunk` przed zdarzeniem ([protocol.md](protocol.md#załączniki)); gateway wiąże blob z wątkiem (`thread_blobs`), a UI czyta go przez `GetThreadBlob` (właściciel, wątek z tego samego drzewa).
+
+**Wyniki trybu kodu Codexa.** `rawResponseItem/completed` z
+`custom_tool_call_output` albo wynikiem `wait` (`function_call_output`) wskazuje
+item przez `call_id`, niezależnie od własnego `id` wyniku. Obrazy z
+`output[].input_image.image_url` są zapisywane jako dokładne bajty PNG/JPEG/WebP/GIF
+do 8 MiB (limit istniejącego transportu blobów), bez ponownego kodowania.
+Worker najpierw zapisuje i synchronizuje plik, dodaje `ToolCall.images`, a dopiero
+potem czysta transformacja skraca `raw_json`, przed dopisaniem zdarzenia do journalu.
+`image_url` przyjmuje obiekt
+`{canopyBlob: {sha256, sizeBytes, mimeType}, dataUrlPrefix}`; `sizeBytes` jest
+dziesiętnym stringiem jak w JSON `BlobRef`. Prefiks URI i bajty blobu pozwalają
+odtworzyć pierwotne URI base64. Typ bloku, jego pozycja, `detail`, identyfikatory,
+metadane dostawcy i wszystkie pozostałe pola pozostają w JSON. Treść tekstowa,
+audio, szyfrowane i nierozpoznane bloki nie są usuwane ani skracane.
+
+Transformacja wymaga zgodności hasha, rozmiaru i typu z referencją itemu; nie
+powiększa `raw_json`. Niepoprawne, niekanoniczne base64, zewnętrzne URL-e,
+nieobsługiwane typy, obrazy ponad limit oraz błąd dekodowania lub zapisu pozostawiają
+obraz inline. Kilka wyników tej samej komórki zachowuje pełny dotychczasowy tekst
+i zebrane referencje obrazów. Oryginalny rollout harnessu pozostaje bez zmian;
+optymalizacja obejmuje nowe zdarzenia, bez przepisywania zapisanej historii.
+
+Pliki blobów starsze niż siedem dni są sprzątane przy starcie dopiero po odczycie
+journalu. Referencje zdarzeń czekających na ACK, także ze wstrzymaną dostawą,
+chronią pliki przed usunięciem. Po ACK gateway posiada blob związany z wątkiem;
+lokalna kopia może zostać usunięta przy następnym sprzątaniu.
 
 ### Wynik komendy właściciela
 
@@ -119,6 +154,16 @@ i niesparowane surogaty przez U+FFFD. Nie usuwa spacji Unicode ani zakończeń l
 
 ## 7. Retencja
 
-- MVP: bez kompaktowania. Delty zostają w `thread_events`.
-- Później: delty danego itemu można usunąć, gdy `item_completed` ma pełną treść. Dotyczy to tylko typów, dla których to sprawdzono.
+- `thread_events` nie są usuwane ani zmieniane sekwencyjnie: zachowują payloady,
+  granice forków, notice, kwarantannę i kursory ACK.
+- Po godzinie od zapisu, gdy wątek nie ma aktywnej tury ani otwartego itemu,
+  maintenance skanuje najwyżej 256 zdarzeń pod blokadą wątku. Dla znanych
+  `item_started`, `item_delta` i `item_completed` zastępuje tylko długie teksty,
+  które są dokładną kopią tekstu w tym samym payloadzie, wartością `null` i ścieżką
+  w `raw_payload_refs`. `thread_event_raw(raw,payload,raw_payload_refs)` odtwarza
+  pełny JSON dostawcy; metadane, identyfikatory i nieznane pola pozostają dostępne.
+- Zdarzenia z obrazami, notice i bez mapowania zachowują pełny `raw`. Wiersze po
+  purge nie są kompaktowane; kursor `thread_transcript_compaction` omija już
+  sprawdzone stare wiersze i nie pozwala, by nieredukowalny obraz blokował późniejszy
+  tekst.
 - Bloby można przenosić do magazynu obiektów (`storage_url`) bez zmiany odwołań.

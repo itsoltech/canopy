@@ -24,6 +24,7 @@ import { timestampDate, timestampNow } from "@bufbuild/protobuf/wkt";
 import { Effect, Option, Schema } from "effect";
 import { SqlClient } from "effect/sql";
 import { applyGoalState } from "./goals.ts";
+import { compactEventRaw } from "./transcript-raw.ts";
 
 /** A worker's steer_dropped notice names the dropped steer as input_id. */
 const decodeSteerDropped = Schema.decodeUnknownOption(Schema.Struct({ input_id: Schema.optional(Schema.String) }));
@@ -137,6 +138,29 @@ export const applyItem = (sql: SqlClient.SqlClient, threadId: string, seq: bigin
       yield* sql`INSERT INTO thread_blobs (thread_id, sha256) VALUES (${threadId}::uuid, ${sha256}) ON CONFLICT DO NOTHING`;
     }
   });
+
+/** Adjacent deltas share one item, field and turn; reduction is the same ordered append. */
+export const applyItemDeltaRun = (
+  sql: SqlClient.SqlClient,
+  threadId: string,
+  seq: bigint,
+  events: readonly ThreadEvent[],
+) => {
+  const first = events[0];
+  const last = events.at(-1);
+
+  if (!first || !last || last.body.case !== "itemDelta") return Effect.void;
+  const chunk = events.map((event) => (event.body.case === "itemDelta" ? event.body.value.chunk : "")).join("");
+
+  const event = create(ThreadEventSchema, {
+    ...last,
+    rawJson: "",
+    ...(first.occurredAt && { occurredAt: first.occurredAt }),
+    body: { case: "itemDelta", value: { ...last.body.value, chunk } },
+  });
+
+  return applyItem(sql, threadId, seq, event);
+};
 
 /**
  * A background task ended: the note its agent gets (core/background-notes.ts delivers it). Stopped by the user:
@@ -291,11 +315,14 @@ export const insertEvent = (
 ) => {
   const payload = toJson(ThreadEventSchema, create(ThreadEventSchema, { ...event, rawJson: "" }));
 
+  const compact = origin === "worker" ? compactEventRaw(eventKind(event), payload, event.rawJson) : undefined;
+
   return sql`
-    INSERT INTO thread_events (thread_id, seq, event_id, origin, turn_id, kind, item_id, payload, raw, occurred_at)
+    INSERT INTO thread_events (thread_id, seq, event_id, origin, turn_id, kind, item_id, payload, raw, raw_payload_refs, occurred_at)
     VALUES (${threadId}::uuid, ${seq}, ${event.eventId}::uuid, ${origin}, ${event.turnId || null}::uuid, ${eventKind(event)},
             ${eventItemId(event.body) ?? null}, ${JSON.stringify(payload)}::jsonb,
-            ${event.rawJson ? event.rawJson : null}::jsonb,
+            thread_event_compact_raw(${event.rawJson ? event.rawJson : null}::jsonb,${compact?.refs ?? null}::jsonb),
+            ${compact?.refs ?? null}::jsonb,
             ${event.occurredAt ? new Date(Number(event.occurredAt.seconds) * 1000 + event.occurredAt.nanos / 1e6) : new Date()})
   `;
 };

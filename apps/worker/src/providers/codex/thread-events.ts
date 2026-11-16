@@ -61,34 +61,46 @@ export function threadEvents(ctx: CodexThreadContext) {
       if (notification.method === "turn/completed") entry.finishedTurns.add(notification.params.turn.id);
       const notifications = [...(yield* fromRollout(entry, notification)), notification];
 
-      const inits = notifications.flatMap((n) => entry.mapper.map(n));
+      const batches = [];
 
-      // Where Codex records this turn: read to settle it if its end never arrives (worker restart, crash).
-      if (notification.method === "turn/started" && entry.rolloutPath) {
-        const codexTurn = notification.params.turn.id;
-        const turnId = entry.codexToPlatform.get(codexTurn);
+      // Enrich and journal each notification before mapping the next: a cell can emit several outputs.
+      for (const next of notifications) {
+        const inits = entry.mapper.map(next).map((init) => withUserMentions(init, entry.mentions));
 
-        if (turnId) {
-          yield* journal
-            .noteHarness(entry.platformId, turnId, {
-              harness: "codex",
-              transcript: entry.rolloutPath,
-              sessionId: entry.codexId,
-              offset: 0,
-              providerTurn: codexTurn,
-            })
-            .pipe(Effect.ignore);
+        // Mapping turn/started establishes its platform id before we record the recovery source.
+        if (next.method === "turn/started" && entry.rolloutPath) {
+          const codexTurn = next.params.turn.id;
+          const turnId = entry.codexToPlatform.get(codexTurn);
+
+          if (turnId) {
+            yield* journal
+              .noteHarness(entry.platformId, turnId, {
+                harness: "codex",
+                transcript: entry.rolloutPath,
+                sessionId: entry.codexId,
+                offset: 0,
+                providerTurn: codexTurn,
+              })
+              .pipe(Effect.ignore);
+          }
         }
+
+        batches.push(
+          yield* Effect.forEach(inits, (init) =>
+            (options.enrich ? Effect.promise(() => options.enrich!(init)) : Effect.succeed(init)).pipe(
+              Effect.flatMap((enriched) => journal.append(entry.platformId, enriched)),
+              Effect.tap((event) =>
+                Effect.sync(() => {
+                  if (event.body.case === "itemCompleted") entry.mapper.rememberImages(event.body.value.item);
+                  options.publish(event);
+                }),
+              ),
+            ),
+          ),
+        );
       }
 
-      return yield* Effect.forEach(
-        inits.map((init) => withUserMentions(init, entry.mentions)),
-        (init) =>
-          (options.enrich ? Effect.promise(() => options.enrich!(init)) : Effect.succeed(init)).pipe(
-            Effect.flatMap((enriched) => journal.append(entry.platformId, enriched)),
-            Effect.tap((event) => Effect.sync(() => options.publish(event))),
-          ),
-      );
+      return batches.flat();
     });
 
   // A provider wake-up may precede the notification for a requested turn. Only the RPC response

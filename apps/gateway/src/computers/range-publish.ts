@@ -108,7 +108,9 @@ export class ThreadRangePublisher {
               cursor,
               0n,
               subscription,
-              thread.epoch && thread.head !== null ? { epoch: thread.epoch, seq: BigInt(thread.head) } : undefined,
+              thread.epoch && thread.head !== null
+                ? { epoch: thread.epoch, seq: BigInt(thread.head), floor: BigInt(thread.floor ?? "0") }
+                : undefined,
             );
 
             if (thread.failure_payload) {

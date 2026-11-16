@@ -14,6 +14,24 @@ Status: **projekt, w części zaimplementowany** (2026-11-01). Wymaganie: zatrzy
 
 Powiązane: [architecture.md](architecture.md), [protocol.md](protocol.md), [data-model.md](data-model.md).
 
+## 1.1 Oczyszczanie lokalnego magazynu po trwałym usunięciu
+
+Gateway wysyła przez addytywną wiadomość `thread_storage_cleanup` wyłącznie identyfikator
+wątku po zakończeniu autorytatywnego, trwałego purge. Zakres zawiera dostawcę, profil
+i dokładne identyfikatory sesji; nie zawiera ścieżek. Worker zapisuje grant w swoim
+journalu SQLite, a po restarcie ponawia go aż do bezpiecznego zakończenia.
+
+Worker przyjmuje grant dopiero po zastosowaniu konfiguracji i zapisuje wyliczony lokalny
+dom zarządzany. Grant czeka, gdy trwa tura, zadanie, interakcja, wejście shell, rekoncyliacja
+journala albo proces dostawcy. Przed usunięciem worker zatrzymuje bezczynne runtime'y,
+sprawdza stan ponownie i odracza operację, jeśli pojawiły się nowe zdarzenia.
+
+Usuwane są tylko katalog załączników danego UUID oraz pliki sesji znalezione po dokładnym
+identyfikatorze w zarządzanym domu workera. Globalne domy CLI, projekty, worktrees i scratch
+pozostają poza zakresem. Istniejący manifest kopii importu oraz bieżący root importu blokują
+usunięcie odpowiadającej sesji; błąd odczytu manifestu także blokuje operację. Zmiana lub brak
+konfiguracji nie jest domyślnym domem i nie daje zgody na kasowanie.
+
 ## 1. Zasady
 
 1. **Crash-only.** Poprawność nie zależy od graceful shutdown. SIGKILL, OOM albo zanik zasilania nie mogą zgubić stanu, który system już potwierdził. Graceful shutdown tylko skraca przerwę i pozwala uniknąć przerwanych tur.

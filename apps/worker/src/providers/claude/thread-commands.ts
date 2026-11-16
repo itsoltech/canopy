@@ -120,7 +120,11 @@ export function threadStart(
               if (error instanceof TurnAdmissionCancelled) return;
               throw error;
             }
-          } else {
+          }
+
+          session.admitting = true;
+
+          try {
             // A process kept alive by background tasks: the turn's model and mode apply from now on.
             if (model && model !== session.model) {
               await session.query.setModel(model);
@@ -128,11 +132,23 @@ export function threadStart(
             }
 
             if (mode !== session.mode) await switchMode(session, mode);
+            await session.refreshConnectors(spec);
+            await settings?.connectorsReady?.();
+            await submitClaudeTurn(
+              ctx,
+              session,
+              turnId,
+              input,
+              model,
+              canSubmit,
+              turns,
+              record,
+              settings?.connectorNote,
+            );
+          } finally {
+            session.admitting = false;
+            turns.closeWhenIdle(session);
           }
-
-          await session.refreshConnectors(spec);
-          await settings?.connectorsReady?.();
-          await submitClaudeTurn(ctx, session, turnId, input, model, canSubmit, turns, record, settings?.connectorNote);
         },
         catch: fail(spec.threadId, "turn"),
       }).pipe(

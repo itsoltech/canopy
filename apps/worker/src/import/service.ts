@@ -1,6 +1,6 @@
-import { existsSync, realpathSync, statSync } from "node:fs";
+import { existsSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { ImportScanSchema, type ImportRootSchema, type ImportScan } from "@canopy/contracts";
 import type { AppliedConfig } from "../config/remote.ts";
@@ -61,6 +61,42 @@ export class WorkerImport {
   /** Manifest of a native copy: what an import wrote into a private home (docs/import.md, "Kontynuacja"). */
   copyManifest(agentCli: string, profileId: string, sessionId: string): string {
     return join(this.#dataDir, "import", "copies", `${agentCli}-${profileId || "native"}-${sessionId}.json`);
+  }
+
+  /** An existing manifest owns the private copy until the user explicitly removes that import. */
+  hasCopyManifest(agentCli: string, sessionId: string): boolean {
+    try {
+      return readdirSync(join(this.#dataDir, "import", "copies")).some(
+        (name) => name.startsWith(`${agentCli}-`) && name.endsWith(`-${sessionId}.json`),
+      );
+    } catch (error) {
+      if (error instanceof Error && "code" in error && error.code === "ENOENT") return false;
+      throw error;
+    }
+  }
+
+  /** A source root intersecting a managed home blocks cleanup before a copy manifest exists. */
+  hasImportRootIntersection(agentCli: AgentCli, path: string): boolean {
+    try {
+      const config = this.#config();
+
+      if (!config) return true;
+
+      const roots = [
+        this.#homes()[agentCli],
+        ...config.profiles.flatMap((profile) =>
+          (profile.config.providers ?? ["claude", "codex"]).includes(agentCli) && profile.config.runtime?.homePath
+            ? [profile.config.runtime.homePath]
+            : [],
+        ),
+      ];
+
+      return roots.some(
+        (root) => intersects(resolve(path), resolve(root)) || intersects(cleanupRoot(path), cleanupRoot(root)),
+      );
+    } catch {
+      return true;
+    }
   }
 
   get key(): Buffer {
@@ -204,6 +240,28 @@ export class WorkerImport {
     }
 
     return create(ImportScanSchema, { roots: listed, threads, truncated, skipped, library });
+  }
+}
+
+function intersects(first: string, second: string): boolean {
+  if (!isAbsolute(first) || !isAbsolute(second)) return true;
+  const left = relative(first, second);
+  const right = relative(second, first);
+
+  return (
+    left === "" ||
+    right === "" ||
+    (!left.startsWith(`..${sep}`) && left !== "..") ||
+    (!right.startsWith(`..${sep}`) && right !== "..")
+  );
+}
+
+function cleanupRoot(path: string): string {
+  try {
+    return realpathSync(path);
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return resolve(path);
+    throw error;
   }
 }
 

@@ -1,7 +1,7 @@
 import { type ThreadEvent } from "@canopy/contracts";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
-import { ENDED, applySideEffects, applySteer, insertEvent, resolveTurn } from "./ingest-events.ts";
+import { ENDED, applyItemDeltaRun, applySideEffects, applySteer, insertEvent, resolveTurn } from "./ingest-events.ts";
 import { settleThread, stuckThread } from "./ingest-settle.ts";
 import { applyShellInput } from "./shell-input.ts";
 import { storageEvent } from "./event-text.ts";
@@ -102,6 +102,16 @@ export const ingestThread = (
 
       const stored: StoredEvent[] = [];
 
+      let deltaRun:
+        | { itemId: string; field: number; turnId: string; lastSeq: bigint; events: ThreadEvent[] }
+        | undefined;
+
+      const flushDeltaRun = Effect.gen(function* () {
+        if (!deltaRun) return;
+        yield* applyItemDeltaRun(sql, threadId, deltaRun.lastSeq, deltaRun.events);
+        deltaRun = undefined;
+      });
+
       const superseded = new Set(
         (yield* sql<{ id: string }>`SELECT id FROM turns
         WHERE thread_id=${threadId}::uuid AND rewind_id IS NOT NULL`).map((row) => row.id),
@@ -112,20 +122,7 @@ export const ingestThread = (
         known.add(incoming.eventId);
         const seq = ++last;
 
-        const content =
-          incoming.body.case === "itemStarted" || incoming.body.case === "itemCompleted"
-            ? incoming.body.value.item?.content
-            : undefined;
-
-        const gatewayGallery =
-          origin === "worker" &&
-          ((content?.case === "agentMessage" &&
-            (content.value.images.length > 0 || Boolean(content.value.imageError))) ||
-            ((incoming.body.case === "itemStarted" || incoming.body.case === "itemCompleted") &&
-              incoming.body.value.item?.content.case === "imageGallery") ||
-            ((incoming.body.case === "itemStarted" || incoming.body.case === "itemCompleted") &&
-              incoming.body.value.item?.itemId.startsWith("gallery-")) ||
-            (incoming.body.case === "itemDelta" && incoming.body.value.itemId.startsWith("gallery-")));
+        const gatewayGallery = origin === "worker" && galleryEvent(incoming);
 
         const rejection =
           gatewayGallery || gatewayOwnedItem(incoming)
@@ -149,10 +146,34 @@ export const ingestThread = (
 
         yield* insertEvent(sql, threadId, seq, event, rejection ? "gateway" : origin);
 
-        if (!suppressed) {
-          yield* applySideEffects(sql, threadId, seq, event);
-          yield* applySteer(sql, threadId, seq, event);
+        const delta = !suppressed && event.body.case === "itemDelta" ? event.body.value : undefined;
+
+        if (delta?.itemId) {
+          if (
+            !deltaRun ||
+            deltaRun.itemId !== delta.itemId ||
+            deltaRun.field !== delta.field ||
+            deltaRun.turnId !== event.turnId
+          ) {
+            yield* flushDeltaRun;
+            deltaRun = {
+              itemId: delta.itemId,
+              field: delta.field,
+              turnId: event.turnId,
+              lastSeq: seq,
+              events: [event],
+            };
+          } else {
+            deltaRun.lastSeq = seq;
+            deltaRun.events.push(event);
+          }
+        } else {
+          yield* flushDeltaRun;
+
+          if (!suppressed) yield* applySideEffects(sql, threadId, seq, event);
         }
+
+        if (!suppressed) yield* applySteer(sql, threadId, seq, event);
 
         if (!suppressed && event.body.case === "shellInputPrepared")
           yield* applyShellInput(sql, threadId, event.body.value);
@@ -160,6 +181,8 @@ export const ingestThread = (
 
         if (rejection) outcomes.push({ threadId, kind: "quarantined", reason: rejection.reason, count: 1 });
       }
+
+      yield* flushDeltaRun;
 
       yield* sql`UPDATE threads SET last_seq = ${last} WHERE id = ${threadId}::uuid`;
       const ack = yield* acknowledgeEvents(sql, workerId, journalId, threadId, events);
@@ -336,3 +359,18 @@ const isolateDataErrors = (
       return { ack, stored, outcomes };
     }),
   );
+
+/** Gateway-owned image galleries cannot be created or amended by worker transcript events. */
+function galleryEvent(event: ThreadEvent): boolean {
+  if (event.body.case === "itemDelta") return event.body.value.itemId.startsWith("gallery-");
+
+  if (event.body.case !== "itemStarted" && event.body.case !== "itemCompleted") return false;
+  const item = event.body.value.item;
+  const content = item?.content;
+
+  return Boolean(
+    (content?.case === "agentMessage" && (content.value.images.length > 0 || content.value.imageError)) ||
+    content?.case === "imageGallery" ||
+    item?.itemId.startsWith("gallery-"),
+  );
+}

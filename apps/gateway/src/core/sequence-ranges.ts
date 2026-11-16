@@ -14,6 +14,7 @@ type Readers = {
   unsubscribe: () => void;
   window: SequenceWindow;
   pending: Map<string, Promise<ui.ThreadSyncBatch>>;
+  generation: string;
 };
 
 const active = new WeakMap<GatewayCore, Map<string, Readers>>();
@@ -32,6 +33,7 @@ export function sequenceRanges(core: GatewayCore, store: RangeSourceStore, threa
       unsubscribe: () => {},
       window: new SequenceWindow(store),
       pending: new Map(),
+      generation: crypto.randomUUID(),
     };
 
     created.unsubscribe = core.hub.observeThread(thread, () => {
@@ -60,7 +62,7 @@ export function sequenceRanges(core: GatewayCore, store: RangeSourceStore, threa
         const version = readers.version;
         const head = readers.headVersion === version ? readers.head : undefined;
 
-        reading = readThreadRange(store, cursor, through, "", head)
+        reading = readThreadRange(store, cursor, through, readers.generation, head)
           .then((batch) => {
             if (!readers.head || readers.head.epoch !== batch.epoch || readers.head.seq < batch.headSeq)
               readers.head = { epoch: batch.epoch, seq: batch.headSeq };

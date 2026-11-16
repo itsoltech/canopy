@@ -33,6 +33,9 @@ export async function serveLink(
         case "agentPreview":
           host.previews.accept(message.payload.value);
           break;
+        case "threadStorageCleanup":
+          host.storage.accept(message.payload.value);
+          break;
         case "threadLifecycle":
           host.applyThreadLifecycle(message.payload.value);
           break;

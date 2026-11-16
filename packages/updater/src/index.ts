@@ -6,4 +6,6 @@ export * from "./idle.ts";
 
 export * from "./mirror.ts";
 
+export * from "./retention.ts";
+
 export * from "./service.ts";

@@ -1,5 +1,9 @@
 # Połączone komputery
 
+Status: opis zaimplementowanej synchronizacji (2026-11-16), w tym retencji
+dziennika źródłowego i dzierżaw treści (migracja 0154). Dostępność w kanałach
+nightly, beta i stable wynika z [wydań](release.md), nie z daty tego opisu.
+
 ## Dom szkiców
 
 Szkice należą do gatewaya, z którym sparowano klienta (dom właściciela dla szkiców),
@@ -59,7 +63,9 @@ Lokalne dane domu pozostają dostępne. Start tej samej bazy przez lokalny deskt
 ponownie uruchamia zwykły protokół linkowania; stan `inactive` nie odwołuje zaufania.
 W dalszym opisie „gateway” oznacza lokalny gateway aplikacji desktopowej.
 
-Status: **wszystkie etapy (1–8) zaimplementowane** (2026-11-03). Etap 1: tożsamość, parowanie, przypięty mTLS,
+Status: **wszystkie etapy (1–8) zaimplementowane** (2026-11-16), w tym filtrowanie
+źródłowych notice w migracji 0153. Dostępność nightly/beta/stable według
+[release.md](release.md). Etap 1: tożsamość, parowanie, przypięty mTLS,
 wersjonowanie, obecność i Settings → Linked computers. Etap 2: zsumowany overview i zdalne wątki
 (lista, odczyt na żywo, pisanie, steer, kolejka, przerwanie, zgody i tworzenie wątku na workerze
 partnera, trasowane do domu). Etap 3: trwałe lustra wątków do odczytu offline, kursor i pełna
@@ -952,6 +958,17 @@ danych wykonawczych. Wspólny transakcyjny advisory lock porządkuje także zmia
 wielu właścicieli. Dzięki temu licznik nie odwraca kolejności blokad tury i wątku.
 Dziennik zawiera identyfikatory, nigdy wiersze sekretów ani payloady komend.
 
+Od migracji `0153_thread_notice_replication` trigger transkryptu jest kolejkowany
+wyłącznie przy insercie `kind='notice'`, aktualizacji z poprzednim lub nowym
+`kind='notice'` oraz usunięciu notice. Warunek jest sprawdzany przed odroczeniem,
+więc delty tekstu i pozostałe zdarzenia nie zajmują blokady dziennika ani nie
+tworzą nieistniejących encji notice. Itemy i tury unieważniają własne projekcje;
+ingest przesuwa nagłówek przez `threads.last_seq`. Ta sama reguła obowiązuje
+przy unieważnianiu potomków forka. Usunięcie prawdziwego notice zachowuje
+tombstone pod jego seq, a czyszczenie treści wątku z `purged_at` nadal pomija
+te unieważnienia. Istniejące opublikowane rekordy, epoki i kursory pozostają
+bez zmian, żeby zachować ciągłość replay.
+
 Subskrypcja odczytuje zmiany co 250 ms i scala wielokrotne unieważnienia tego samego wątku.
 Zmiana źródła forka unieważnia też jego potomków, którzy pokazują odziedziczone itemy i tury.
 Publikuje pełny `ThreadSnapshot` przy pierwszej synchronizacji, a przy wspólnej capability
@@ -1181,9 +1198,35 @@ turę, item, notice, interakcję, cel, steer i dostarczenie szyny. Nie kopiuje t
 wykonawczych, lease'ów, sekretów ani poświadczeń. Początkowy stan istniejących
 wątków jest zamieniany na ponumerowane rekordy pojedynczych encji podczas migracji;
 nie powstaje zbiorczy snapshot. Nowe mutacje i rekordy dziennika są atomowe.
-Dziennik wymagany do naprawy zakresu nie podlega retencji 10 000 rewizji starego
-`computer_thread_changes`. Odbiorca utrwala encje osobno, z indeksami dla okien
-historii; nie przepisuje całego protobufu wątku po każdej partii.
+Niezapieczętowane wpisy zatrzymują granicę; dziennik zakresów domu zachowuje ostatnie 10 000 rekordów bieżącej epoki oraz
+godzinny okres ochronny dla świeżych wpisów. Pruning usuwa wyłącznie ciągły,
+stary prefiks, po najwyżej 256 wierszy. Źródłowe encje pozostają w bazie, a
+odbudowa odczytuje ich aktualną projekcję. Aktywna subskrypcja ma dzierżawę od swojego seq, więc wolny klient nie
+traci następnego rekordu. Po wygaśnięciu starego kursora dom zaczyna nową epokę
+i uruchamia istniejący bootstrap samych identyfikatorów encji, zamiast zwracać `DataLoss`
+za prawidłową utratę replayu. Odbiorca stosuje tę epokę jak pełną odbudowę i
+zachowuje poprzednią widoczną generację do zatwierdzenia nowej. Nadal obowiązują
+partie do 64 rekordów / 64 KiB; nie powstaje pełny protobuf historii w pamięci.
+Aktywny bootstrap lub wpisy młodsze niż godzina mogą czasowo przekroczyć 10 000.
+Klient UI z wygasłym kursorem otrzymuje zwykłe ograniczone okno z pagingiem,
+bez odbudowy całego lustra.
+
+Odbiorca utrwala encje osobno, z indeksami dla okien historii; nie przepisuje
+całego protobufu wątku po każdej partii. Dzierżawy generacji snapshotów oraz
+content-addressed treści są owner-scoped i wygasają po godzinie. Bieżąca treść
+każdej encji ma jeden dodatkowy wskaźnik, więc odebrany offline snapshot nadal
+może pobrać aktualny duży wynik po wygaśnięciu lease'u partii; poprzednie wersje
+treści są sprzątane po wygaśnięciu wszystkich lease'ów.
+
+Wskaźnik bieżącej encji jest unieważniany atomowo przy zmianie źródła, a nowa
+projekcja zapisuje nowy hash. Odtwarzanie starej zapieczętowanej partii nie
+przywraca poprzedniego wskaźnika. Ponowne wydanie okna z cache odnawia lease;
+brak któregokolwiek hasha powoduje świeżą projekcję zamiast wydania martwego
+odnośnika. Odczyt porcjowany treści również odnawia godzinę ochrony.
+Stare epoki i wygasłe lease'y są usuwane w ograniczonych partiach. Usunięcie
+wątku po retencji usuwa też generacje, lease'y i wskaźniki bieżących encji.
+Testy: `tests/integration/thread-replication-retention.test.ts` (retencja sufiksu,
+pending rows, owner scoping, snapshoty z cache, restart i błędy prawdziwej luki).
 
 **Partia i postęp.** Subskrybent przekazuje swoją epokę i trwały seq. Dom wysyła
 wyłącznie rekordy o większym seq, maksymalnie 64 rekordy i 64 KiB zakodowanej

@@ -1,7 +1,23 @@
 # Model danych (PostgreSQL)
 
-Status (2026-11-15): zaimplementowany model, w tym migracja `0151_turn_thread_permission_mode`;
+Status (2026-11-16): zaimplementowany model, w tym migracja `0153_thread_notice_replication`;
 dostępność nightly/beta/stable według [release.md](release.md).
+
+Migracja `0155_transcript_raw_payload_refs` dodaje `thread_events.raw_payload_refs`
+oraz kursor `thread_transcript_compaction`. Maintenance może zastąpić wyłącznie
+dokładne, długie duplikaty tekstów w znanym itemie ścieżkami do niezmienionego
+`payload`; `thread_event_raw(raw,payload,raw_payload_refs)` rekonstruuje pełne
+zdarzenie dostawcy. Nie są usuwane wiersze, payloady, seq ani raw zdarzeń z obrazami,
+notice i bez mapowania. Kursor jest usuwany kaskadowo z purge wątku.
+
+Migracja `0153_thread_notice_replication` ogranicza odroczone triggery
+`thread_events` do insertu notice, aktualizacji starego lub nowego notice oraz
+usunięcia notice. Pozostałe zdarzenia transkryptu nie dopisują pozornych encji
+`notice:<seq>` do dziennika replikacji. Zmiany itemów i tur nadal mają własne
+triggery, a ingest aktualizuje nagłówek przez `threads.last_seq`. Zachowane są
+unieważnienia overview, zależności forków i pomijanie usuwania treści już
+oznaczonej przez `purged_at`. Migracja nie przepisuje opublikowanych rekordów,
+epok ani kursorów; wcześniejsze wpisy pozostają poprawnym zakresem do replay.
 
 Migracja `0151_turn_thread_permission_mode` zapisuje w `turns.thread_permission_mode`
 domyślny tryb uprawnień wątku z chwili wysłania tury do workera. Oddziela go od

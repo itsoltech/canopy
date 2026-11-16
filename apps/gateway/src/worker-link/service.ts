@@ -103,6 +103,7 @@ export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
           workerDiagnosticsV1: workerMetricsSupported(options, hello),
           threadVisualsV1: true,
           threadHtmlV1: true,
+          threadStorageCleanupV1: true,
         },
       }),
     );

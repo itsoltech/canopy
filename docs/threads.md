@@ -3,6 +3,7 @@
 Status (2026-11-16): zaimplementowane, w tym opcjonalna retencja archiwum, grupowanie
 pracujących drzew z nieprzeczytanymi wynikami wcześniejszych tur lub zakończonych subagentów
 oraz wyróżnienie nieotwartych wątków ze szkicem w sidebarze web/desktop.
+Ręczne Delete uruchamia trwałe usuwanie historii po 31 dniach.
 Opis dotyczy kodu; dostępność nightly/beta/stable określają [wydania](release.md).
 
 Niewysłane szkice synchronizują się automatycznie, są przechowywane przez 30 dni i widoczne wyłącznie na urządzeniach właściciela.
@@ -231,14 +232,22 @@ archiwizacja/usunięcie zwija wiersz; menu i grupy respektują wspólne tokeny o
 Wspólny `SidebarThreadChildren` utrzymuje ten sam układ dzieci w obu listach; kompaktowy
 `SidebarArchivedThread` korzysta ze wspólnego `SidebarThreadLink`, więc obsługa menu pozostaje jedna.
 
-Usunięcie jest miękkie (`deleted_at`): ukrywa wątek także w wyszukiwaniu, wzmiankach i `list_threads`.
+Ręczne usunięcie początkowo jest miękkie (`deleted_at`): ukrywa wątek także w wyszukiwaniu, wzmiankach i `list_threads`.
 Razem z rodzicem usuwa dzieci, przerywa ich tury, anuluje harmonogramy i kolejkę. Potwierdzenie podaje
 liczbę dzieci. „Undo” działa przez sześć sekund, przywraca tę partię, zachowuje wcześniejsze archiwum
-i nie wznawia pracy. Nie ma interfejsu trwałego usuwania. Kontrakt: [ui-api.md](ui-api.md#pasek-boczny-i-cykl-życia-wątku).
+i nie wznawia pracy. Nie ma listy usuniętych wątków ani interfejsu ich późniejszego przywracania.
+Po 31 dniach od `deleted_at` gateway kwalifikuje historię do trwałego usunięcia,
+niezależnie od ustawienia automatycznej retencji archiwum. Nadal obowiązują ochrony
+forków, zachowanych dzieci i niedokończonej pracy opisane wyżej. Po trwałym usunięciu
+historii `RestoreThread` jej nie odtwarza. Pliki workspace pozostają bez zmian.
+Potwierdzenia Delete w web/desktop i mobile podają termin 31 dni, zachowanie plików
+oraz krótkie okno Undo. Settings → Threads → Archived threads informuje również
+o stałym terminie dla ręcznego Delete; nie dodaje osobnego ustawienia.
+Kontrakt: [ui-api.md](ui-api.md#pasek-boczny-i-cykl-życia-wątku).
 Archiwizacja i usunięcie anulują również oczekujące dostarczenie odpowiedzi `ask_user` oraz notatek
 zadań w tle. Przywrócenie nie odtwarza tych powiadomień jako nowych tur.
 
-Status: **projekt**, schemat zaimplementowany (`packages/db/src/migrations/0001_init.sql`, testy na PostgreSQL w `packages/db/test`).
+Status: **zaimplementowane**; schemat w `packages/db/src/migrations`, testy na PostgreSQL w `packages/db/test`.
 
 Powiązane: [data-model.md](data-model.md), [protocol.md](protocol.md), [durability.md](durability.md).
 
