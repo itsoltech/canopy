@@ -5,6 +5,7 @@ wątku zaimplementowane**. Browser MCP pozostaje w sesji wątku i działa headle
 watch zachowuje się po aktualizacji statusu tego samego workera, a nowy odbiorca
 aktywnej grupy dostaje ostatnią klatkę. Zmiana uprawnień bieżącej tury Claude
 aktualizuje także autoryzację automatyzacji.
+Interaktywny Preview dopasowuje cały obraz do szerokości i wysokości panelu.
 Gotowość Desktop wymaga uprawnienia Screen Recording tylko na macOS;
 linuksowy stan `unknown` nie blokuje zainstalowanego narzędzia.
 Ten opis dotyczy stanu kodu i nie oznacza, że funkcja jest już w wydanym buildzie.
@@ -190,6 +191,14 @@ na obraz. Zmiana rozmiaru, dopasowanie i pełny ekran nie tworzą kolejnej sesji
 na wąskim ekranie panel otwiera arkusz na cały ekran. Zakładka podglądu pliku
 nadal działa niezależnie
 ([workspace.md](workspace.md#panel-filespreview)).
+
+Tryb `Fit to panel` zachowuje proporcje obrazu i dopasowuje go do obu wymiarów
+dostępnego obszaru, bez powiększania ponad rozmiar klatki. Zmiana szerokości
+sidebara, wysokości okna lub wejście na pełny ekran przelicza skalę tak, aby
+cały viewport pozostawał widoczny, z miejscem na uchwyty zmiany rozmiaru.
+`Show actual size` pokazuje klatkę w skali 1:1 i pozwala przewijać ją od każdej
+krawędzi. Skalowanie obrazu nie zmienia viewportu przeglądarki; współrzędne
+sterowania i uchwyty odnoszą się do widocznego obrazu po przeskalowaniu.
 
 | Widok | Obraz i wybór celu | Sterowanie i ograniczenia |
 |---|---|---|

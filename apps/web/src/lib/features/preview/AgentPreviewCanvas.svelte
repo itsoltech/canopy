@@ -34,6 +34,7 @@
 
   let canvas = $state<HTMLCanvasElement>();
   let surface = $state<HTMLDivElement>();
+  let surfaceBounds = $state<DOMRectReadOnly>();
   let keyboard = $state<HTMLTextAreaElement>();
   let viewport = $state<HTMLDivElement>();
   let focused = $state(false);
@@ -45,6 +46,12 @@
   const frameHeight = $derived(event?.height || 0);
   const viewportWidth = $derived(event?.viewportWidth || frameWidth);
   const viewportHeight = $derived(event?.viewportHeight || frameHeight);
+
+  const scale = $derived(
+    fit === "fit" && surfaceBounds && frameWidth && frameHeight
+      ? Math.min(1, surfaceBounds.width / frameWidth, surfaceBounds.height / frameHeight)
+      : 1,
+  );
 
   $effect(() => {
     const frame = event;
@@ -262,19 +269,21 @@
   </div>
   <div
     bind:this={surface}
+    bind:contentRect={surfaceBounds}
     class={[
-      "relative mt-2 flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-auto rounded-lg border bg-panel p-1 outline-none",
+      "relative mt-2 flex min-h-0 min-w-0 flex-1 overflow-auto rounded-lg border bg-panel p-2 outline-none",
       focused ? "border-brand-500/70 ring-2 ring-brand-500/20" : "border-divider",
     ]}
   >
-    <div bind:this={viewport} class={["relative h-fit w-fit shrink-0", fit === "fit" && "max-h-full max-w-full"]}>
+    <div
+      bind:this={viewport}
+      class="relative m-auto shrink-0"
+      style:width={frameWidth ? `${frameWidth * scale}px` : undefined}
+      style:height={frameHeight ? `${frameHeight * scale}px` : undefined}
+    >
       <canvas
         bind:this={canvas}
-        class={[
-          "block rounded-sm bg-white shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:bg-zinc-900",
-          fit === "fit" && "max-h-full max-w-full object-contain",
-        ]}
-        style:aspect-ratio={frameWidth && frameHeight ? `${frameWidth} / ${frameHeight}` : undefined}
+        class="block size-full rounded-sm bg-white shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:bg-zinc-900"
         aria-label="Live screen preview"
         role="button"
         tabindex={enabled ? 0 : -1}
