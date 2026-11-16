@@ -18,6 +18,8 @@ import { gather } from "../api/routed-overview.ts";
 import { PEER_READ_TIMEOUT_MS } from "./timing.ts";
 import { refuseRemoteAutomation } from "../worktrees/remote.ts";
 import { permissionModeOf } from "../store/ui-mappers.ts";
+import { coreState } from "../core/core-context.ts";
+import { withTurnPermissionMutation } from "../core/turn-permission-state.ts";
 
 export interface AgentsBusToolsMethods {
   extend(call: AgentBusCall, caller: ThreadRow, result: JsonValue): Promise<JsonValue>;
@@ -154,33 +156,35 @@ export const agentsBusToolsMethods: AgentsBusToolsMethods = {
         call.args.provider ?? `${caller.provider}/${caller.provider_profile_id || "native"}`
       ).split(/[/:]/);
 
-      const access = await linkedSpawnPermission(this, request, caller, call.args.permission_mode);
+      return withTurnPermissionMutation(this.core[coreState].options.runtime, caller.id, async () => {
+        const access = await linkedSpawnPermission(this, request, caller, call.args.permission_mode);
 
-      return this.send(node, "spawn", actor, request.callId, {
-        request: toJson(
-          ui.CreateThreadRequestSchema,
-          create(ui.CreateThreadRequestSchema, {
-            workspaceId: splitId(call.args.workspace_id!).id,
-            projectId: call.args.project_id ? splitId(call.args.project_id).id : "",
-            title: call.args.title,
-            initialMessage: call.args.prompt,
-            provider: Match.value(provider).pipe(
-              Match.when("claude", () => Provider.CLAUDE),
-              Match.when("grok", () => Provider.GROK),
-              Match.orElse(() => Provider.CODEX),
-            ),
-            providerProfileId: instance,
-            model: call.args.model ?? "",
-            effort: call.args.effort ?? "",
-            clientRequestId: request.callId,
-            workspaceMode: ui.WorkspaceMode.CHECKOUT,
-            permissionMode: permissionModeOf(access.permissionMode),
-          }),
-        ),
-        instructions: call.args.instructions ?? "",
-        permission_mode_note: access.permissionModeNote,
-        interactions: call.args.interactions ?? "parent",
-        notify: call.args.notify ?? true,
+        return this.send(node, "spawn", actor, request.callId, {
+          request: toJson(
+            ui.CreateThreadRequestSchema,
+            create(ui.CreateThreadRequestSchema, {
+              workspaceId: splitId(call.args.workspace_id!).id,
+              projectId: call.args.project_id ? splitId(call.args.project_id).id : "",
+              title: call.args.title,
+              initialMessage: call.args.prompt,
+              provider: Match.value(provider).pipe(
+                Match.when("claude", () => Provider.CLAUDE),
+                Match.when("grok", () => Provider.GROK),
+                Match.orElse(() => Provider.CODEX),
+              ),
+              providerProfileId: instance,
+              model: call.args.model ?? "",
+              effort: call.args.effort ?? "",
+              clientRequestId: request.callId,
+              workspaceMode: ui.WorkspaceMode.CHECKOUT,
+              permissionMode: permissionModeOf(access.permissionMode),
+            }),
+          ),
+          instructions: call.args.instructions ?? "",
+          permission_mode_note: access.permissionModeNote,
+          interactions: call.args.interactions ?? "parent",
+          notify: call.args.notify ?? true,
+        });
       });
     }
 

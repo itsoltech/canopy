@@ -25,6 +25,8 @@ import { syncWorkerThreadLifecycle } from "./worker-thread-lifecycle.ts";
 import { coreTurnLogin } from "./turn-logins.ts";
 import { offerWorkerStorage, completeWorkerStorage } from "./worker-storage.ts";
 import { authorizeLocalAutomation } from "./automation-permissions.ts";
+import { allowFullAccessPermission, settleTurnPermissions } from "./live-turn-permissions.ts";
+import { permissionsChanged } from "./turn-permission-state.ts";
 
 export function createCoreWorkerLink(core: GatewayCore) {
   return createWorkerLink({
@@ -150,6 +152,7 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
           if (thread.worker_id !== workerId) break;
           const interaction = await coreRun(hostContext, (s) => s.recordInteraction(request));
           await corePublishInteraction(hostContext, interaction);
+          await allowFullAccessPermission(hostContext, interaction);
           // Re-sent after a reconnect and already answered: answer again from the database.
           const answered = await coreRun(hostContext, (s) => s.interactionAnswer(interaction.requestId));
 
@@ -287,6 +290,13 @@ async function ingestReceived(
       create(ui.ThreadUpdateSchema, { change: { case: "event", value: { seq: stored.seq, event: stored.event } } }),
     );
     const body = stored.event.body;
+
+    if (body.case === "turnPermissionsChanged") {
+      permissionsChanged(hostContext[coreState].options.runtime);
+      await coreBroadcastTurn(hostContext, stored.threadId, stored.event.turnId);
+      await settleTurnPermissions(hostContext, stored.threadId, stored.event.turnId);
+      touched.add(stored.threadId);
+    }
 
     if (
       body.case === "threadReady" ||

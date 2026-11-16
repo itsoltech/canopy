@@ -6,6 +6,7 @@ import { reconcileTurn, type EndCause } from "../reconcile.ts";
 import type { ClaudeThreadContext, Session } from "./thread-types.ts";
 import type { sessionOutput } from "./session-output.ts";
 import type { sessionTurns } from "./session-turns.ts";
+import { pendingSessionMode } from "./mode-switch.ts";
 
 export function sessionCompletion(
   ctx: ClaudeThreadContext,
@@ -19,10 +20,14 @@ export function sessionCompletion(
   /** Ends the current turn: free the thread before the gateway hears it is over (it may start the next one). */
   const endTurn = async () => {
     const turn = session.turn;
-    session.turn = undefined;
 
     if (!turn) return;
+    // Keep the old identity pinned until SDK controls and their journal event settle.
+    const switching = pendingSessionMode(session);
+
+    if (switching) await switching.catch(() => {});
     turn.ended = true;
+    session.turn = undefined;
     await dropSteers(session, turn);
   };
 

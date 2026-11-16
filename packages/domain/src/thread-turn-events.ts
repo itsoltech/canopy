@@ -39,6 +39,9 @@ export function applyTurnEvent(turns: ui.Turn[], event: ThreadEvent): ui.Turn[] 
     ];
   }
 
+  if (body.case === "turnPermissionsChanged")
+    return turn ? turns.with(index, { ...turn, permissionMode: body.value.permissionMode }) : turns;
+
   if (body.case !== "turnFinished" || turn?.status !== "running") return turns;
   const finished = body.value;
   const status = outcomes.get(finished.outcome);

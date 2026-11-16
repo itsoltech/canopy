@@ -59,9 +59,12 @@ export async function busExecute(
     case "spawn_thread": {
       const placement = await hostContext[busState].host.prepareWorkspace?.(caller, call.args);
 
-      const { thread, turn, result } = await store((s) =>
-        s.spawn({ source, caller, args: call.args, target, hops, ...(placement && { placement }) }),
-      );
+      const spawn = () =>
+        store((s) => s.spawn({ source, caller, args: call.args, target, hops, ...(placement && { placement }) }));
+
+      const { thread, turn, result } = hostContext[busState].host.permissionMutation
+        ? await hostContext[busState].host.permissionMutation(source.threadId, spawn)
+        : await spawn();
 
       await hostContext[busState].host.startThread(thread);
 

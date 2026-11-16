@@ -2,8 +2,9 @@
 
 Projekt i wdrożenie: 2026-11-02. Zakres: konta zdalnych serwerów MCP,
 OAuth w gateway, dostęp wybranych workerów i botów oraz jeden kanał wykonania.
-Status (2026-11-15): panel web/desktop jest odświeżany reaktywnie w pamięci BFF
-i dostarczany przez SSE; dostępność kanałów według [release.md](release.md).
+Status (2026-11-16): panel web/desktop jest odświeżany reaktywnie w pamięci BFF
+i dostarczany przez SSE; autoryzacja uwzględnia zmiany uprawnień bieżącej tury Claude.
+Dostępność kanałów według [release.md](release.md).
 
 ## Decyzje
 
@@ -225,6 +226,10 @@ nie nadaje dodatkowych uprawnień do kont.
 Wątki: `READ_ONLY` odmawia zapisów, `ASK` i `ACCEPT_EDITS` wymagają istniejącej
 interakcji permission dla narzędzi innych niż tylko odczyt, `FULL_AUTO` i `FULL_ACCESS` przepuszczają.
 Zgoda nie zastępuje grantu; grant jest ponownie sprawdzany tuż przed wykonaniem.
+Zmiana uprawnień bieżącej tury Claude wstrzymuje autoryzację do utrwalenia
+zastosowanego trybu. Oczekująca zgoda nie omija późniejszego `READ_ONLY` ani końca
+tury; gateway ponownie sprawdza bieżącą turę i tryb przed wykonaniem.
+Szczegóły: [protocol.md](protocol.md#modele-effort-i-steer).
 Ponowienie call ID po reconnect nie wykonuje ponownie operacji. Nieznany wynik
 po awarii nie powoduje automatycznego powtórzenia zapisu.
 

@@ -18,6 +18,8 @@ import { AGENT_WORKER_ID } from "./agent-tools-validation.ts";
 import type { WorkerConnection } from "../worker-link/index.ts";
 import type { GatewayCore } from "./core.ts";
 import { automationActivity } from "./automation-activity.ts";
+import { readTurnPermissions } from "./turn-permission-state.ts";
+import { allowFullAccessPermission } from "./live-turn-permissions.ts";
 
 const Arguments = Schema.fromJsonString(
   Schema.Struct({ tool: Schema.Number, name: Schema.String, arguments: Schema.String }),
@@ -62,6 +64,12 @@ function ensureLive(core: GatewayCore, lease: Authorization): void {
 }
 
 async function active(core: GatewayCore, request: AgentToolCall, lease: Authorization) {
+  return readTurnPermissions(core[coreState].options.runtime, request.threadId, request.turnId, () =>
+    activeMode(core, request, lease),
+  );
+}
+
+async function activeMode(core: GatewayCore, request: AgentToolCall, lease: Authorization) {
   ensureLive(core, lease);
   const thread = await coreRun(core, (store) => store.thread(request.threadId));
   const turn = await coreRun(core, (store) => store.runningTurn(request.threadId));
@@ -127,11 +135,13 @@ async function execute(core: GatewayCore, request: AgentToolCall, lease: Authori
 
       ensureLive(core, lease);
       await corePublishInteraction(core, interaction);
+      await allowFullAccessPermission(core, interaction, true);
       await core.bus.onInteraction(interaction);
 
       for (;;) {
         await active(core, request, lease);
         await core.agentTools.authorize(workerId, args.tool);
+        await allowFullAccessPermission(core, interaction, true);
         const answer = await coreRun(core, (store) => store.interactionAnswer(interaction.requestId));
 
         if (answer) {

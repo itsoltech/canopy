@@ -6,6 +6,7 @@ const QUERIES: ReadonlySet<Command["kind"]["case"]> = new Set(["listMentionCatal
 /** Never redelivered from an outbox (sent directly): not remembered either. */
 export const NOT_REMEMBERED: ReadonlySet<Command["kind"]["case"]> = new Set([
   ...QUERIES,
+  "updateTurnPermissions",
   "installCli",
   "installAgentTool",
   "probeAgentTools",

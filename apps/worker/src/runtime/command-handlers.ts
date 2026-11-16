@@ -16,6 +16,7 @@ import { ThreadDirectories } from "../files/thread-directory.ts";
 import { ThreadHighlights } from "../files/thread-highlight.ts";
 import { ThreadFilesWatcher } from "../files/thread-watch.ts";
 import { agentToolsCommand } from "./agent-tools-commands.ts";
+import { updateTurnPermissions } from "./permission-commands.ts";
 
 export class CommandHandlers {
   readonly #logins: ProviderLogins;
@@ -157,6 +158,8 @@ export class CommandHandlers {
         return this.ctx.ops.startTurn(kind, command.commandId);
       case "steerTurn":
         return this.ctx.ops.steerTurn(kind, command.commandId);
+      case "updateTurnPermissions":
+        return updateTurnPermissions(this.ctx, kind.value);
       case "listModels":
         return this.ctx.ops.listModelsCommand(kind);
       case "generateText":

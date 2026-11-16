@@ -1,4 +1,4 @@
-import type { ForkSpec, ThreadSpec, UserInput } from "@canopy/contracts";
+import type { ForkSpec, PermissionMode, ThreadSpec, UserInput } from "@canopy/contracts";
 import { Context, Effect, Layer } from "effect";
 import { Journal } from "../../journal/index.ts";
 import type { ModelInit } from "../models.ts";
@@ -17,6 +17,7 @@ import { claudeRewind } from "./rewind.ts";
 import { ClaudeUsage } from "./usage.ts";
 import type { RewindThread, ThreadRewindResultSchema } from "@canopy/contracts";
 import type { MessageInitShape } from "@bufbuild/protobuf";
+import { livePermissions, type PermissionUpdateError } from "./live-permissions.ts";
 
 export { ClaudeThreadError, type ClaudeThreadsOptions, type ClaudeInstanceRuntime } from "./thread-types.ts";
 
@@ -60,6 +61,12 @@ export class ClaudeThreads extends Context.Service<
       settings?: TurnSettings,
     ): Effect.Effect<void, ClaudeThreadError>;
     interrupt(threadId: string, turnId: string): Effect.Effect<void, ClaudeThreadError>;
+    updateTurnPermissions(
+      threadId: string,
+      turnId: string,
+      mode: PermissionMode,
+      canUpdate?: () => boolean,
+    ): Effect.Effect<void, PermissionUpdateError>;
     /** Adds input to the running turn (the input stream); idempotent by inputId. */
     steer(threadId: string, turnId: string, inputId: string, input: UserInput): Effect.Effect<void, SteerError>;
     /** Whether a turn of this thread runs in this process. */
@@ -127,6 +134,7 @@ const make = (options: ClaudeThreadsOptions) =>
       ...threadCreation(ctx, runtime),
       ...threadStart(ctx, sessions, turns, output.record),
       ...threadControls(ctx),
+      updateTurnPermissions: livePermissions(ctx),
       hasActiveTurns: () => output.recording() || [...ctx.sessions.values()].some((session) => !!session.turn),
       ...threadCatalog(ctx, runtime),
     });

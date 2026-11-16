@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { InteractionKind, type ui } from "@canopy/contracts";
-  import { tick, type Snippet } from "svelte";
+  import { InteractionKind, ui } from "@canopy/contracts";
+  import { tick, untrack, type Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import Button from "#lib/shared/ui/Button.svelte";
   import type { ComposerActivity } from "./composer-compaction.ts";
@@ -8,13 +8,20 @@
   import MessageComposer from "./MessageComposer.svelte";
   import QuestionForm from "./interactions/QuestionForm.svelte";
   import { QuestionSession } from "./interactions/question-session.svelte.ts";
+  import { create } from "@bufbuild/protobuf";
+  import { webDrafts } from "#lib/features/drafts/local.svelte.ts";
+  import { limitsOf } from "#lib/features/attachments/draft.svelte.ts";
+  import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
+  import { ComposerPermissionsState } from "./composer-permissions.svelte.ts";
+  import ComposerPermissions from "./ComposerPermissions.svelte";
   import type { ComposerConnection } from "@canopy/domain/composer-connection";
 
   let {
     thread,
     worker,
     running,
-    runningTurnId,
+    runningTurn,
+    onturn,
     connection,
     disabled = false,
     note,
@@ -32,7 +39,8 @@
     thread: ui.Thread;
     worker: ui.Worker | undefined;
     running: boolean;
-    runningTurnId?: string | undefined;
+    runningTurn?: ui.Turn | undefined;
+    onturn?: (turn: ui.Turn) => void;
     connection?: ComposerConnection | undefined;
     disabled?: boolean;
     note?: string | undefined;
@@ -47,6 +55,25 @@
     onexpand?: (activity?: ComposerActivity) => void;
     onfocuschange?: (focused: boolean) => void;
   } = $props();
+
+  const settings = useSettings();
+
+  // Keep the outgoing composer's draft alive while its keyed feed transitions out.
+  let saved = $state.raw(
+    untrack(() =>
+      webDrafts.get(create(ui.ComposerDraftTargetSchema, { threadId: thread.id }), () =>
+        limitsOf(settings?.attachmentLimits),
+      ),
+    ),
+  );
+
+  $effect.pre(() => {
+    saved = webDrafts.get(create(ui.ComposerDraftTargetSchema, { threadId: thread.id }), () =>
+      limitsOf(settings?.attachmentLimits),
+    );
+  });
+
+  const permissions = new ComposerPermissionsState(() => ({ thread, worker, running, runningTurn, saved, onturn }));
 
   const pending = $derived(questions.filter((q) => q.kind === InteractionKind.QUESTION && q.status === "pending"));
   const active = $derived(pending.find((q) => !q.asynchronous) ?? pending[0]);
@@ -81,6 +108,8 @@
   const folded = $derived(compact && active?.asynchronous !== false);
   let root = $state<HTMLDivElement>();
 </script>
+
+{#snippet permissionControl()}<ComposerPermissions state={permissions} {disabled} />{/snippet}
 
 <div
   bind:this={root}
@@ -117,9 +146,10 @@
   {#if approval && !answering}
     <div
       data-feed-edge
-      class="relative flex items-center justify-between gap-2 rounded-2xl bg-surface p-2 text-sm/5 text-zinc-500 dark:text-zinc-400"
+      class="relative flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-surface p-2 text-sm/5 text-zinc-500 dark:text-zinc-400"
     >
-      <p>Approval needed</p>
+      <p class="mr-auto">Approval needed</p>
+      <ComposerPermissions state={permissions} {disabled} />
       <Button
         size="sm"
         variant="ghost"
@@ -137,7 +167,9 @@
       {thread}
       {worker}
       {running}
-      {runningTurnId}
+      bind:saved
+      runningTurnId={runningTurn?.id}
+      permissions={permissionControl}
       {connection}
       {disabled}
       {note}

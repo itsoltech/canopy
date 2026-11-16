@@ -2,6 +2,7 @@ import { clone, create, fromJson, toJson, type JsonValue } from "@bufbuild/proto
 import {
   ItemSchema,
   ItemStatus,
+  PermissionMode,
   ThreadEventSchema,
   ThreadStatus,
   TurnEndSource,
@@ -233,6 +234,27 @@ export const applySideEffects = (sql: SqlClient.SqlClient, threadId: string, seq
            WHERE id = ${threadId}::uuid AND status NOT IN ('archived', 'creating')
              AND NOT EXISTS (SELECT 1 FROM turns r WHERE r.thread_id = ${threadId}::uuid AND r.status = 'running' AND r.id <> ${event.turnId || null}::uuid)
         `;
+
+        return;
+      }
+
+      case "turnPermissionsChanged": {
+        const mode = body.value.permissionMode;
+
+        if (
+          ![
+            PermissionMode.ASK,
+            PermissionMode.ACCEPT_EDITS,
+            PermissionMode.READ_ONLY,
+            PermissionMode.FULL_AUTO,
+            PermissionMode.FULL_ACCESS,
+          ].includes(mode)
+        )
+          return;
+        // The worker journals successful live changes before acknowledging the command. Replay must retain
+        // the actual applied mode even when this turn has ended; it must never update a newer turn.
+        yield* sql`UPDATE turns SET permission_mode = ${PermissionMode[mode]}
+          WHERE id = ${event.turnId || null}::uuid AND thread_id = ${threadId}::uuid`;
 
         return;
       }

@@ -435,6 +435,8 @@ message Command {
     SetGoal set_goal = 18;
     // Additive capability thread_rewind_v1. A replacement session preserves the original.
     RewindThread rewind_thread = 19;
+    // Transient, capability claude_live_permissions_v1; exact running turn only.
+    UpdateTurnPermissions update_turn_permissions = 20;
     // Modele, effort i steer (sekcja na końcu pliku).
     ListModels list_models = 40;
     // Globalne instancje dostawców (sekcja na końcu pliku).
@@ -662,6 +664,13 @@ message FetchBlob {
   // bot_images_v1: uses the durable bot harness assignment instead of a thread.
   string bot_id = 4;
   string bot_turn_id = 5;
+}
+
+// Applies permission settings to the exact running Claude turn.
+message UpdateTurnPermissions {
+  string thread_id = 1;
+  string turn_id = 2;
+  PermissionMode permission_mode = 3;
 }
 
 // Przerywa tylko turę. Zadania w tle działają dalej (zatrzymuje je StopTask).
@@ -1047,11 +1056,17 @@ message ThreadEvent {
     Notice notice = 18;
     GoalState goal_state = 19;
     ShellInputPrepared shell_input_prepared = 20;
+    // Applied live settings, journaled before the command result so reconnects retain the actual mode.
+    TurnPermissionsChanged turn_permissions_changed = 21;
   }
 
   // Oryginalne zdarzenie dostawcy (JSON). Zawsze ustawione dla zdarzeń dostawcy;
   // gdy body jest puste, zdarzenie nie ma jeszcze mapowania, ale zostaje zapisane.
   string raw_json = 30;
+}
+
+message TurnPermissionsChanged {
+  PermissionMode permission_mode = 1;
 }
 
 message EventAck {

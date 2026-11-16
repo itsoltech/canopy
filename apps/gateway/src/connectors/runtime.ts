@@ -29,6 +29,8 @@ import { beginOAuth } from "./sign-in.ts";
 import { connectorPermission, failed, handleConnectorCall } from "./calls.ts";
 import { worktreeMerged } from "./merged-pr.ts";
 import { connectorTestError, ConnectorTestFailure } from "./test-error.ts";
+import { checkConnectorTurn } from "./turn-permissions.ts";
+import { withTurnPermissionMutation } from "../core/turn-permission-state.ts";
 
 /** Catalog input schemas are stored as the JSON text of the object the MCP server sent. */
 const inputSchema = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.JsonObject));
@@ -382,25 +384,46 @@ export class ConnectorsRuntime {
       throw new ConnectorFailure("The connector tool now requires approval. Ask the user before retrying.");
 
     if (source.threadId) await this.#permission(source, callId, tool, args, signal);
-    const current = await this.run((s) => s.authorize(source));
-    const connection = await this.#connection(source.userId, source.accountId);
 
-    if (BigInt(current.revision) !== BigInt(connection.row.revision))
-      throw new ConnectorFailure("Connector changed; try again");
-    const claimed = await this.run((s) => s.claimExecution(callId, source, tool.remoteName, fingerprint));
+    const dispatch = async () => {
+      if (source.threadId) await checkConnectorTurn(this.options.runtime, source, tool.readOnly);
+      const current = await this.run((s) => s.authorize(source));
+      const connection = await this.#connection(source.userId, source.accountId);
 
-    if (!claimed) throw new ConnectorFailure("Connector call already started; outcome unknown. Do not repeat writes.");
+      if (BigInt(current.revision) !== BigInt(connection.row.revision))
+        throw new ConnectorFailure("Connector changed; try again");
+      const claimed = await this.run((s) => s.claimExecution(callId, source, tool.remoteName, fingerprint));
+
+      if (!claimed)
+        throw new ConnectorFailure("Connector call already started; outcome unknown. Do not repeat writes.");
+
+      if (source.threadId) await checkConnectorTurn(this.options.runtime, source, tool.readOnly);
+
+      return {
+        completion: mcpCall(
+          connection.server,
+          {
+            name: tool.name,
+            description: tool.description,
+            parameters: {},
+            source: "mcp",
+            remoteName: tool.remoteName,
+          },
+          args,
+          signal,
+        ),
+        credentials: connection.value,
+      };
+    };
+
+    const started = source.threadId
+      ? await withTurnPermissionMutation(this.options.runtime, source.threadId, dispatch)
+      : await dispatch();
+
     let result: JsonValue;
 
     try {
-      const output = await mcpCall(
-        connection.server,
-        { name: tool.name, description: tool.description, parameters: {}, source: "mcp", remoteName: tool.remoteName },
-        args,
-        signal,
-      );
-
-      result = JSON.parse(redactConnector(JSON.stringify(output), connection.value));
+      result = JSON.parse(redactConnector(JSON.stringify(await started.completion), started.credentials));
     } catch {
       result = {
         isError: true,

@@ -783,7 +783,12 @@
                         {thread}
                         {worker}
                         running={view.running}
-                        runningTurnId={view.ownTurns.find((turn) => turn.status === "running")?.id}
+                        runningTurn={view.ownTurns.find((turn) => turn.status === "running")}
+                        onturn={(turn) => {
+                          const current = view.ownTurns.find((entry) => entry.id === turn.id);
+
+                          if (current) view.upsertTurn({ ...current, permissionMode: turn.permissionMode });
+                        }}
                         connection={view.composerConnection}
                         disabled={closed ||
                           !view.loaded ||
