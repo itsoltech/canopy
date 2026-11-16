@@ -22,6 +22,15 @@ describe.skipIf(!dockerAvailable)("deleted thread recovery window", () => {
       })
     ).thread!;
 
+    if (message) {
+      const completed = await eventually(
+        () => query("SELECT id FROM turns WHERE thread_id=$1::uuid AND status='completed' LIMIT 1", [thread.id]),
+        (turns) => turns.length === 1,
+      );
+
+      expect(completed).toHaveLength(1);
+    }
+
     await eventually(
       () => gateway.api.getThread({ threadId: thread.id }),
       (row) => row.thread?.status === "idle",
