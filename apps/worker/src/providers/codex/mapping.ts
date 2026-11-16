@@ -8,7 +8,15 @@ export { codexErrorCode } from "./status-mapping.ts";
 
 import { timestampNow } from "@bufbuild/protobuf/wkt";
 import type { FunctionCallOutputBody, ResponseItem, ServerNotification, v2 } from "@canopy/codex-protocol";
-import { BackgroundTaskKind, ItemDeltaField, ItemStatus, NoticeLevel, TurnOrigin } from "@canopy/contracts";
+import {
+  BackgroundTaskKind,
+  ItemDeltaField,
+  ItemStatus,
+  NoticeLevel,
+  TurnOrigin,
+  type BlobRef,
+  type Item,
+} from "@canopy/contracts";
 import { decodeJson, isString, jsonObject } from "../json.ts";
 import type { ThreadEventInit } from "../../journal/index.ts";
 
@@ -69,7 +77,10 @@ export class CodexEventMapper {
   /** In-progress command items with a process, by item id. */
   readonly #commands = new Map<string, RunningCommand>();
   /** Code-mode cells and waits by call id: they become tool_call items (docs/codex-adapter.md, "Code mode"). */
-  readonly #calls = new Map<string, { codexTurnId: string; name: string; inputJson: string; outputs: string[] }>();
+  readonly #calls = new Map<
+    string,
+    { codexTurnId: string; name: string; inputJson: string; outputs: string[]; images?: BlobRef[] }
+  >();
   /** Shell calls by call id, kept until the turn ends: then those Codex reported no item for get one. */
   readonly #shellCalls = new Map<
     string,
@@ -82,6 +93,14 @@ export class CodexEventMapper {
 
   constructor(ctx: MapperContext) {
     this.#ctx = ctx;
+  }
+
+  /** Enrichment runs after mapping: retain its image refs across notify() and later cell outputs. */
+  rememberImages(item: Item | undefined): void {
+    if (!item || item.content.case !== "toolCall") return;
+    const call = this.#calls.get(item.itemId);
+
+    if (call) call.images = item.content.value.images;
   }
 
   /** Background processes still running (task id = Codex process id). */

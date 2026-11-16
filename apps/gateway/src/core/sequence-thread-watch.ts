@@ -82,14 +82,21 @@ async function* sequenceView(
     throw new ConnectError("Thread cursor identity mismatch", Code.InvalidArgument);
 
   const clock = (
-    await store.query<{ epoch: string; head: string }>(
-      `SELECT c.epoch,c.head_seq::text AS head FROM thread_replication_clock c
+    await store.query<{ epoch: string; head: string; floor: string }>(
+      `SELECT c.epoch,c.head_seq::text AS head,c.replay_floor_seq::text AS floor FROM thread_replication_clock c
     JOIN threads t ON t.id=c.thread_id WHERE c.thread_id=$1::uuid AND t.owner_user_id=$2::uuid AND t.deleted_at IS NULL`,
       [input.threadId, owner],
     )
   )[0];
 
-  if (!cursor || !clock || cursor.epoch !== clock.epoch || cursor.appliedSeq > BigInt(clock.head) || paging) {
+  if (
+    !cursor ||
+    !clock ||
+    cursor.epoch !== clock.epoch ||
+    cursor.appliedSeq > BigInt(clock.head) ||
+    cursor.appliedSeq < BigInt(clock.floor) ||
+    paging
+  ) {
     const snapshot = await ranges.window(input);
     cursor = snapshot.syncCursor!;
     yield create(ui.ThreadUpdateSchema, { change: { case: "snapshot", value: snapshot } });

@@ -1,7 +1,10 @@
 import { createHash } from "node:crypto";
 import {
+  closeSync,
   existsSync,
+  fsyncSync,
   mkdirSync,
+  openSync,
   readdirSync,
   readFileSync,
   renameSync,
@@ -19,6 +22,7 @@ import sharp from "sharp";
 import type { ThreadEventInit } from "../journal/index.ts";
 import { forTranscript, MAX_SOURCE_BYTES } from "./normalize.ts";
 import { readLimited } from "./view-image.ts";
+import { codexOutputImages } from "./codex-output.ts";
 
 /**
  * What the agent looked at, for the transcript (docs/transcript.md, "Obrazy"): every image a model saw becomes a
@@ -53,11 +57,21 @@ export class PreviewStore {
     mkdirSync(this.#dir, { recursive: true, mode: 0o700 });
   }
 
-  /** Removes old previews; returns how many. */
-  prune(now = Date.now()): number {
+  /** Removes old previews only after pending journal refs have been loaded. */
+  prune(pending: readonly ThreadEvent[], now = Date.now()): number {
     let removed = 0;
 
+    const retained = new Set(
+      pending.flatMap((event) => {
+        const body = event.body;
+        const item = body.case === "itemStarted" || body.case === "itemCompleted" ? body.value.item : undefined;
+
+        return item ? previewRefs(item).map((ref) => ref.sha256) : [];
+      }),
+    );
+
     for (const name of readdirSync(this.#dir)) {
+      if (retained.has(name)) continue;
       const path = join(this.#dir, name);
 
       try {
@@ -79,8 +93,27 @@ export class PreviewStore {
 
     if (!existsSync(path)) {
       const tmp = `${path}.${process.pid}.tmp`;
-      writeFileSync(tmp, data, { mode: 0o600 });
+      const fd = openSync(tmp, "w", 0o600);
+
+      try {
+        writeFileSync(fd, data);
+        fsyncSync(fd);
+      } finally {
+        closeSync(fd);
+      }
+
       renameSync(tmp, path);
+
+      // POSIX persists the directory entry separately; Windows does not support opening a directory for fsync.
+      if (process.platform !== "win32") {
+        const directory = openSync(this.#dir, "r");
+
+        try {
+          fsyncSync(directory);
+        } finally {
+          closeSync(directory);
+        }
+      }
     }
 
     return { sha256, sizeBytes: BigInt(data.length), mimeType };
@@ -136,6 +169,9 @@ export class PreviewStore {
     const body = init.body;
 
     if (body?.case !== "itemCompleted" || !body.value.item) return init;
+    const codex = await codexOutputImages(init, (data, mimeType) => this.put(data, mimeType));
+
+    if (codex) return codex;
     const kind = body.value.item.content?.case;
 
     if (kind !== "image" && kind !== "toolCall") return init;
@@ -221,6 +257,7 @@ interface InlineImage {
  * - Claude: tool_result blocks (tool_use_id = item id) with image blocks `{source: {type: "base64", media_type, data}}`,
  * - Codex dynamic tools (view_image): `contentItems: [{type: "inputImage", imageUrl: "data:...;base64,..."}]`,
  * - Codex MCP tools: `result.content: [{type: "image", data, mimeType}]`,
+ * - Codex code mode: `call_id` with `output: [{type: "input_image", image_url: "data:...;base64,..."}]`,
  * - Grok ACP tool updates: wrapped `content` blocks or MCP `rawOutput`, scoped by `toolCallId`.
  */
 export function inlineImages(rawJson: string, itemId: string): InlineImage[] {
@@ -250,8 +287,9 @@ export function inlineImages(rawJson: string, itemId: string): InlineImage[] {
       append({ mimeType: String(source["media_type"] ?? "image/png"), base64: source["data"] });
     } else if (b["type"] === "image" && isString(b["data"])) {
       append({ mimeType: String(b["mimeType"] ?? "image/png"), base64: b["data"] });
-    } else if (b["type"] === "inputImage" && isString(b["imageUrl"])) {
-      const match = /^data:([^;,]+);base64,(.*)$/s.exec(b["imageUrl"]);
+    } else if (b["type"] === "inputImage" || b["type"] === "input_image") {
+      const url = b["type"] === "inputImage" ? b["imageUrl"] : b["image_url"];
+      const match = isString(url) ? /^data:([^;,]+);base64,(.*)$/s.exec(url) : undefined;
 
       if (match) append({ mimeType: match[1]!, base64: match[2]! });
     }
@@ -304,14 +342,17 @@ export function inlineImages(rawJson: string, itemId: string): InlineImage[] {
     return out;
   }
 
-  // Codex: item/completed.
+  // Codex: app-server items and code-mode response items from the rollout.
   const item = jsonObject(jsonObject(r["params"])?.["item"]);
+  const codexItemId = r["method"] === "rawResponseItem/completed" ? item?.["call_id"] : item?.["id"];
 
-  if (item && item["id"] === itemId) {
+  if (item && codexItemId === itemId) {
     if (Array.isArray(item["contentItems"])) for (const c of item["contentItems"]) fromBlock(c);
     const result = jsonObject(item["result"]);
 
     if (Array.isArray(result?.["content"])) for (const c of result["content"]) fromBlock(c);
+
+    if (Array.isArray(item["output"])) for (const c of item["output"]) fromBlock(c);
   }
 
   return out;

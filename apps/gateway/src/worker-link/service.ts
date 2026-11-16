@@ -94,18 +94,7 @@ export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
     }
 
     const outbound = new AsyncChannel<GatewayMessage>();
-    outbound.push(
-      gatewayMessage({
-        case: "welcome",
-        value: {
-          ...(await options.welcome(workerId, hello)),
-          diagnosticsV1: (options.diagnosticsEnabled?.() ?? true) && hello.capabilities.includes("diagnostics_v1"),
-          workerDiagnosticsV1: workerMetricsSupported(options, hello),
-          threadVisualsV1: true,
-          threadHtmlV1: true,
-        },
-      }),
-    );
+    outbound.push(gatewayMessage({ case: "welcome", value: await welcomeMessage(options, workerId, hello) }));
     const config = await options.config?.(workerId);
 
     if (config && BigInt(config.version ?? 0) !== hello.configVersion) {
@@ -203,6 +192,17 @@ export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
       await Promise.all(open.map((connection) => connection.closed));
       await Promise.all(sessions);
     },
+  };
+}
+
+async function welcomeMessage(options: WorkerLinkOptions, workerId: string, hello: Hello) {
+  return {
+    ...(await options.welcome(workerId, hello)),
+    diagnosticsV1: (options.diagnosticsEnabled?.() ?? true) && hello.capabilities.includes("diagnostics_v1"),
+    workerDiagnosticsV1: workerMetricsSupported(options, hello),
+    threadVisualsV1: true,
+    threadHtmlV1: true,
+    threadStorageCleanupV1: true,
   };
 }
 

@@ -11,7 +11,7 @@ Starsze gatewaye pomijają nowe pole; numer protokołu pozostaje bez zmian.
 
 Harness Grok: `Provider.PROVIDER_GROK = 3`, `WorkerConfig.grok = 640`; używa istniejących komend, eventów, profili native/CLIProxyAPI, zgód i `AgentToolCall`. ACP pozostaje prywatnym protokołem worker ↔ CLI w `packages/grok-acp`; nie rozszerza kontraktu przeglądarki o JSON-RPC. [Adapter Grok](grok-adapter.md).
 
-Status (2026-11-15): kanał, handshake, nietrwały interaktywny podgląd wątku i
+Status (2026-11-16): kanał, handshake, nietrwały interaktywny podgląd wątku i
 automatyczny mini podgląd po zatwierdzonych wywołaniach oraz przypisanie uploadu
 podglądu do wątku przed zdarzeniem są zaimplementowane
 (`apps/gateway/src/worker-link`, `apps/worker/src/gateway-link`);
@@ -844,6 +844,24 @@ Szczegóły: [etap 4](agent-environment.md#marketplace-i-pluginy--protokół-eta
 
 - HTTP/2 ma flow control na poziomie strumienia. Dodatkowo worker ogranicza liczbę niepotwierdzonych zdarzeń (np. 1000). Po przekroczeniu buforuje tylko w dzienniku.
 - Duże treści (output komendy, diff, obraz) nie są przycinane. Worker wysyła je jako `BlobChunk` (sha256), a zdarzenie wskazuje blob przez `BlobRef` ([transcript.md](transcript.md#5-zapis-po-stronie-gateway)). Zaimplementowane dla podglądów obrazów ([Załączniki](#załączniki)); output i diff są na razie inline.
+
+### Oczyszczanie sesji workera po purge
+
+Status (2026-11-16): zaimplementowane; dostępność według [release.md](release.md).
+
+Capability `thread_storage_cleanup_v1` oznacza addytywną obsługę wiadomości
+`GatewayMessage.thread_storage_cleanup = 844`. Gateway wysyła do połączonego workera
+partię do 128 dokładnych zakresów po zakończeniu trwałego purge. Zakres ma UUID wątku,
+dostawcę, profil i listę identyfikatorów sesji; nie przenosi ścieżek ani decyzji o wieku.
+Worker odpowiada tym samym `request_id` dopiero po zatrzymaniu bezczynnych runtime'ów,
+sprawdzeniu journala i usunięciu lokalnych plików, a przy częściowej gotowości zachowuje
+wszystkie ukończone identyfikatory do końcowej odpowiedzi.
+
+Grant jest trwały lokalnie i nie upoważnia do usuwania podczas aktywnej pracy, oczekujących
+zdarzeń ani rekoncyliacji. Worker usuwa wyłącznie zarządzany katalog załączników wątku i
+pliki sesji z własnego domu. Globalne sesje, projekty, worktrees, scratch i zewnętrzne domy
+pozostają nietknięte. Manifesty kopii importu i nakładające się katalogi źródłowe importu blokują
+usunięcie, aby opóźniony purge nie zniszczył później użytej sesji.
 
 Lokalne i zdalne watchy współdzielą `threadWatchRevision`: jeden koordynator
 na runtime i właściciela grupuje odczyty rewizji, zachowując interwał każdego watcha.

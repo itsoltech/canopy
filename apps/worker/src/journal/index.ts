@@ -6,4 +6,5 @@ export {
   type ThreadCursor,
   type ThreadEventInit,
   type TurnHarness,
+  type StorageCleanupGrant,
 } from "./journal.ts";

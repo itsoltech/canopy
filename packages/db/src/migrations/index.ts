@@ -49,6 +49,11 @@ import proxyAccountPlans from "./0149_proxy_account_plans.sql" with { type: "tex
 import threadRetention from "./0150_thread_retention.sql" with { type: "text" };
 import turnThreadPermissionMode from "./0151_turn_thread_permission_mode.sql" with { type: "text" };
 import agentLinkPullRequest from "./0152_agent_link_pull_request.sql" with { type: "text" };
+import threadNoticeReplication from "./0153_thread_notice_replication.sql" with { type: "text" };
+import threadReplicationRetention from "./0154_thread_replication_retention.sql" with { type: "text" };
+import transcriptRawPayloadRefs from "./0155_transcript_raw_payload_refs.sql" with { type: "text" };
+import storageCleanup from "./0156_storage_cleanup.sql" with { type: "text" };
+import deletedThreadRetention from "./0157_deleted_thread_retention.sql" with { type: "text" };
 import botViewDelta from "./0091_bot_view_delta.sql" with { type: "text" };
 import workerConfig from "./0002_worker_config.sql" with { type: "text" };
 import gatewayRuntime from "./0003_gateway_runtime.sql" with { type: "text" };
@@ -318,6 +323,11 @@ export const migrations = Migrator.fromRecord({
   "0150_thread_retention": sqlFile(threadRetention),
   "0151_turn_thread_permission_mode": sqlFile(turnThreadPermissionMode),
   "0152_agent_link_pull_request": sqlFile(agentLinkPullRequest),
+  "0153_thread_notice_replication": sqlFile(threadNoticeReplication),
+  "0154_thread_replication_retention": sqlFile(threadReplicationRetention),
+  "0155_transcript_raw_payload_refs": sqlFile(transcriptRawPayloadRefs),
+  "0156_storage_cleanup": sqlFile(storageCleanup),
+  "0157_deleted_thread_retention": sqlFile(deletedThreadRetention),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

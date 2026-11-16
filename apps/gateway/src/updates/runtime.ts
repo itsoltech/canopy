@@ -12,7 +12,6 @@ import {
   readUpdateRecord,
   ReleaseSource,
   releaseAsset,
-  stageBinaryUpdate,
   validChannel,
   whenIdle,
   SUPERVISOR_HANDOVER_EXIT_CODE,
@@ -26,6 +25,7 @@ import { GatewayReleaseMirror, UpdateCache } from "./cache.ts";
 import { updateBusyState, versionAhead } from "./versions.ts";
 import { ReleaseRateLimit } from "@canopy/domain/release/http";
 import { workerUpdateSnapshot } from "./worker-snapshot.ts";
+import { gatewayUpdateMayBeStaged, stageGatewayRelease } from "./stage.ts";
 
 export interface GatewayUpdatesOptions {
   persistence: Pick<
@@ -89,6 +89,7 @@ export class GatewayUpdates {
     this.#channel = normalizeChannel(options.channel ?? "stable");
     this.source = new ReleaseSource(options.source);
     this.#cache = new UpdateCache(options.cacheDir, options.log);
+    this.#cache.retain(this.version);
     this.service = new GatewayUpdateService({
       version: this.version,
       authenticate: options.authenticate,
@@ -116,6 +117,8 @@ export class GatewayUpdates {
       const record = await readUpdateRecord(this.options.binaryPath);
 
       if (record) {
+        this.#cache.retain(record.previousVersion);
+        this.#cache.retain(record.version);
         this.#setState(record.state);
         this.#reason = record.reason;
         await this.options.recovered?.(
@@ -126,6 +129,7 @@ export class GatewayUpdates {
       }
     }
 
+    await this.#cache.startRetention(this.source.options);
     await this.options.recovered?.(this.#state, this.#reason);
     this.#ready = true;
 
@@ -293,7 +297,8 @@ export class GatewayUpdates {
       this.#setState("waiting_idle");
       this.#reason = "Waiting for active turns to finish";
       await this.options.departure?.("updating", manifest.version);
-      void this.#updateGateway(manifest, request).catch((cause: unknown) => {
+      const release = this.#cache.retain(manifest.version);
+      void this.#updateGateway(manifest, request, release).catch((cause: unknown) => {
         this.#setState("failed");
         this.#reason = cause instanceof Error ? cause.message : "Gateway update failed";
         void this.options.recovered?.("failed", this.#reason).catch(() => {
@@ -320,55 +325,47 @@ export class GatewayUpdates {
 
     return this.snapshot();
   }
-  async #updateGateway(manifest: ReleaseManifest, request: ui.ManageUpdatesRequest): Promise<void> {
-    await whenIdle({
-      idle: () => this.options.idle?.() ?? true,
-      drain: (value) => {
-        this.#draining = value;
-        this.options.drain?.(value);
-      },
-      force: request.force,
-      signal: this.#stopping.signal,
-      waiting: async () => {},
-      apply: async () => {
-        this.#setState("downloading");
-        this.#reason = "Downloading and verifying the gateway release";
-        const mirror = new GatewayReleaseMirror(this.#cache, manifest.version, this.source);
-        await mirror.remember(manifest);
+  async #updateGateway(
+    manifest: ReleaseManifest,
+    request: ui.ManageUpdatesRequest,
+    release: () => void,
+  ): Promise<void> {
+    let staged = false;
 
-        // Retain artifacts for known private workers before nightly assets can expire.
-        const platforms = new Map(
-          (await this.options.persistence.workers())
-            .filter((w) => w.status.installKind === "binary")
-            .map((w) => [`${w.os}/${w.arch}`, w]),
-        );
-
-        for (const worker of platforms.values()) {
-          if (manifest.assets.some((a) => a.app === "worker" && a.os === worker.os && a.arch === worker.arch))
-            await mirror.artifact(worker.os, worker.arch);
-        }
-
-        await stageBinaryUpdate({
-          binaryPath: this.options.binaryPath ?? process.execPath,
-          currentVersion: this.version,
-          version: manifest.version,
-          commandId: crypto.randomUUID(),
-          asset: releaseAsset(
+    try {
+      await whenIdle({
+        idle: () => this.options.idle?.() ?? true,
+        drain: (value) => {
+          this.#draining = value;
+          this.options.drain?.(value);
+        },
+        force: request.force,
+        signal: this.#stopping.signal,
+        waiting: async () => {},
+        apply: async () => {
+          this.#setState("downloading");
+          this.#reason = "Downloading and verifying the gateway release";
+          await stageGatewayRelease({
+            cache: this.#cache,
             manifest,
-            "gateway",
-            process.platform === "win32" ? "windows" : process.platform,
-            process.arch,
-          ),
-          source: this.source.options,
-          allowDowngrade: request.allowDowngrade,
-        });
-        this.#setState("restarting");
-        this.#reason = "Restarting gateway; this page will reconnect";
-        await this.options.departure?.("restarting", manifest.version);
-        await Bun.sleep(500);
-        await this.options.restart!();
-      },
-    });
+            source: this.source,
+            workers: await this.options.persistence.workers(),
+            binaryPath: this.options.binaryPath ?? process.execPath,
+            currentVersion: this.version,
+            allowDowngrade: request.allowDowngrade,
+          });
+          staged = true;
+          this.#setState("restarting");
+          this.#reason = "Restarting gateway; this page will reconnect";
+          await this.options.departure?.("restarting", manifest.version);
+          await Bun.sleep(500);
+          await this.options.restart!();
+        },
+      });
+    } finally {
+      if (!staged && !(await gatewayUpdateMayBeStaged(this.options.binaryPath ?? process.execPath, manifest.version)))
+        release();
+    }
   }
   #onHello(workerId: string, hello: update.CheckRequest): Promise<update.UpdateCommand | undefined> {
     if (!this.#ready) return Promise.resolve(undefined);

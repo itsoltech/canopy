@@ -4,6 +4,7 @@ import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import type { ComputerStore } from "./store.ts";
 import { StoredThreadFields } from "./stored-thread-fields.ts";
+import { contentHash } from "./range-leases.ts";
 
 /** Called under the source barrier when legacy_ready is false. Converts moved history entity by entity. */
 export function prepareRangeLegacy(sql: SqlClient.SqlClient, store: Pick<ComputerStore, "query">, thread: string) {
@@ -54,9 +55,10 @@ export function prepareRangeLegacy(sql: SqlClient.SqlClient, store: Pick<Compute
 
         if (entity.value.case === "turn") turnId = entity.value.value.id;
 
-        yield* sql`INSERT INTO thread_replication_seed_entities(thread_id,kind,entity_id,payload,turn_id,position)
-          VALUES(${thread}::uuid,${kind},${entity.id},${toBinary(ui.ThreadSyncRecordSchema, record)},${turnId},${entity.position})
-          ON CONFLICT(thread_id,kind,entity_id) DO UPDATE SET payload=excluded.payload,turn_id=excluded.turn_id,position=excluded.position`;
+        yield* sql`INSERT INTO thread_replication_seed_entities(thread_id,kind,entity_id,payload,turn_id,position,content_sha256,content_indexed)
+          VALUES(${thread}::uuid,${kind},${entity.id},${toBinary(ui.ThreadSyncRecordSchema, record)},${turnId},${entity.position},${contentHash(record) ?? null},true)
+          ON CONFLICT(thread_id,kind,entity_id) DO UPDATE SET payload=excluded.payload,turn_id=excluded.turn_id,
+            position=excluded.position,content_sha256=excluded.content_sha256,content_indexed=true`;
         yield* sql`SELECT thread_replication_enqueue(${thread}::uuid,${kind},${entity.id})`;
       }
     }

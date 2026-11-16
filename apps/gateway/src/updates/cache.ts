@@ -3,13 +3,19 @@ import { rmSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { Code, ConnectError } from "@connectrpc/connect";
-import { ReleaseMirror, type ReleaseSource } from "@canopy/updater";
+import { pruneReleaseCache, ReleaseMirror, type ReleaseSource, type ReleaseSourceOptions } from "@canopy/updater";
 
 /** One cache selection for every mirrored version; temporary storage is private to this process. */
 export class UpdateCache {
   directory: string;
   #ready: Promise<void> | undefined;
   #temporary: string | undefined;
+  #protected = new Map<string, number>();
+  #retention: ReleaseSourceOptions | undefined;
+  #active = 0;
+  #pruning: Promise<void> | undefined;
+  #closed = false;
+  #warned = false;
   constructor(
     directory = process.env["CANOPY_UPDATE_CACHE_DIR"] ||
       join(process.env["XDG_CACHE_HOME"] || join(homedir(), ".cache"), "canopy", "releases"),
@@ -46,7 +52,61 @@ export class UpdateCache {
     this.log(`Update cache ${this.directory} is not writable; using temporary cache ${this.#temporary}`);
     this.directory = this.#temporary;
   }
+  /** Pin the whole release, including platforms not downloaded yet. */
+  retain(version: string): () => void {
+    this.#protected.set(version, (this.#protected.get(version) ?? 0) + 1);
+    let retained = true;
+
+    return () => {
+      if (!retained) return;
+      retained = false;
+      const count = (this.#protected.get(version) ?? 1) - 1;
+
+      if (count) this.#protected.set(version, count);
+      else this.#protected.delete(version);
+      void this.prune();
+    };
+  }
+  startRetention(options: ReleaseSourceOptions): Promise<void> {
+    this.#retention = options;
+
+    return this.prune();
+  }
+  /** Exclude pruning during manifest writes and artifact preparation. Streams rely on the runtime's current-version pin. */
+  async use<A>(run: () => Promise<A>): Promise<A> {
+    while (this.#pruning) await this.#pruning;
+    this.#active++;
+
+    try {
+      return await run();
+    } finally {
+      this.#active--;
+      void this.prune();
+    }
+  }
+  /** A new mirror operation waits for cleanup; cleanup never overlaps a mirror operation. */
+  prune(): Promise<void> {
+    if (this.#pruning) return this.#pruning;
+
+    if (!this.#retention || this.#active || this.#closed) return Promise.resolve();
+    this.#pruning = (async () => {
+      try {
+        await this.prepare();
+        await pruneReleaseCache(this.directory, new Set(this.#protected.keys()), this.#retention);
+        this.#warned = false;
+      } catch {
+        if (!this.#warned) this.log("Could not finish pruning the update cache; updates can continue");
+        this.#warned = true;
+      } finally {
+        this.#pruning = undefined;
+      }
+    })();
+
+    return this.#pruning;
+  }
   close(): void {
+    this.#closed = true;
+
     if (this.#temporary) rmSync(this.#temporary, { recursive: true, force: true });
   }
 }
@@ -89,7 +149,7 @@ export class GatewayReleaseMirror extends ReleaseMirror {
     await this.cache.prepare();
 
     try {
-      return await run();
+      return await this.cache.use(run);
     } catch (cause) {
       if (cause instanceof ConnectError) throw cause;
       throw new ConnectError(

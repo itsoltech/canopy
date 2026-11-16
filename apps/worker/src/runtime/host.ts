@@ -13,7 +13,6 @@ import {
 import { applyWorkerConfig, type AppliedConfig, prepareSystemProbe } from "../config/remote.ts";
 import type { GatewayLink } from "../gateway-link/index.ts";
 import { Journal } from "../journal/index.ts";
-import { reconcileTurn, WORKER_RESTARTED } from "../providers/reconcile.ts";
 import { CliTools } from "../cli-tools/index.ts";
 import { systemCliProbe } from "../cli-tools/discovery.ts";
 import { installKind } from "@canopy/updater";
@@ -30,11 +29,13 @@ import {
 import { HostState } from "./host-state.ts";
 import { HostContext } from "./host-context.ts";
 import { HeadTracker } from "../git/heads.ts";
-import { recoverShellInputs } from "./shell-input.ts";
+import { recoverWorker } from "./recovery.ts";
 import { UpdateCheckTimer } from "@canopy/domain/update-checks";
 import { WorkspaceCopies } from "../workspace-copy/index.ts";
 import { AgentTools, AgentToolRefused } from "../agent-tools/index.ts";
+import { WorkerStorageCleanup } from "./storage-cleanup.ts";
 import { HostPreviews } from "./host-previews.ts";
+import { NOT_REMEMBERED } from "./command-policy.ts";
 
 export type { WorkerHostOptions } from "./host-types.ts";
 /**
@@ -62,54 +63,9 @@ export type { WorkerHostOptions } from "./host-types.ts";
  *   to the gateway (BlobChunk) right before the event that shows it.
  */
 
-/** Read-only queries: answered again on redelivery instead of being remembered in the journal. */
-const QUERIES: ReadonlySet<Command["kind"]["case"]> = new Set(["listMentionCatalog", "searchFiles", "generateText"]);
-
-/** Never redelivered from an outbox (sent directly): not remembered either. */
-const NOT_REMEMBERED: ReadonlySet<Command["kind"]["case"]> = new Set([
-  ...QUERIES,
-  "installCli",
-  "installAgentTool",
-  "probeAgentTools",
-  "runAgentTool",
-  "getProviderAccounts",
-  "startLogin",
-  "completeLogin",
-  "logoutProvider",
-  "readWorkspaceOrigin",
-  "readGitPrContext",
-  "initRepository",
-  "cloneRepository",
-  "cancelCloneRepository",
-  "workspaceCopy",
-  "botFile",
-  "switchThreadBranch",
-  "listGitRefs",
-  "createWorktree",
-  "renameWorktreeBranch",
-  "scanWorktrees",
-  "revealWorktree",
-  "revealPath",
-  // Explicit owner actions on one file: answered once, never redelivered.
-  "readFile",
-  "listThreadDirectory",
-  "getThreadFileHighlight",
-  "watchThreadFiles",
-  "exportThreadImage",
-  "openFile",
-  "writeFile",
-  "deleteFile",
-  "scanImportSources",
-  "readImportPage",
-  "readImportLibraryItem",
-  // A secret header's value: never written to the journal or remembered for a retry.
-  "readImportSecret",
-  "adoptImportedSession",
-  "removeImportedCopy",
-]);
-
 export class WorkerHost {
   readonly previews: HostPreviews;
+  readonly storage: WorkerStorageCleanup;
   readonly #copies: WorkspaceCopies;
   readonly #cliChecks: UpdateCheckTimer;
   readonly #commands = new Map<string, Promise<CommandResultInit | undefined>>();
@@ -138,6 +94,7 @@ export class WorkerHost {
       applyConfig: (message) => this.applyConfig(message),
       sendPreviews: (link, event) => this.sendPreviews(link, event),
     });
+    this.storage = new WorkerStorageCleanup(this.#ctx);
     this.secrets = state.secrets;
     state.heads = new HeadTracker((heads) => this.#ctx.ops.send({ case: "gitHeads", value: { heads } }));
     this.environment = new WorkerAgentEnvironment({
@@ -200,6 +157,7 @@ export class WorkerHost {
     if (link.welcome.threadLifecycle) this.applyThreadLifecycle(link.welcome.threadLifecycle);
     this.previews.attach(link);
     this.#ctx.state.link = link;
+    this.storage.start();
 
     for (const report of this.#ctx.state.usage.values())
       if (report.configVersion === this.#ctx.state.config?.version)
@@ -274,7 +232,11 @@ export class WorkerHost {
     return this.#ctx.state.markdownImages.canSend(event);
   }
 
-  async applyConfig(message: WorkerConfig): Promise<ConfigAppliedInit> {
+  applyConfig(message: WorkerConfig): Promise<ConfigAppliedInit> {
+    return this.storage.use(() => this.#applyConfig(message));
+  }
+
+  async #applyConfig(message: WorkerConfig): Promise<ConfigAppliedInit> {
     const probe = this.#ctx.state.options.probe ?? (await prepareSystemProbe(message));
     const result = applyWorkerConfig(message, probe, this.#ctx.ops.homes());
 
@@ -318,7 +280,11 @@ export class WorkerHost {
     const pending = this.#commands.get(command.commandId);
 
     if (pending) return pending;
-    const result = this.#handleCommand(command).finally(() => this.#commands.delete(command.commandId));
+
+    const result = this.storage
+      .use(() => this.#handleCommand(command))
+      .finally(() => this.#commands.delete(command.commandId));
+
     this.#commands.set(command.commandId, result);
 
     return result;
@@ -332,6 +298,14 @@ export class WorkerHost {
     if (known) return known;
 
     if (this.#ctx.state.shuttingDown) return undefined;
+
+    if (await this.storage.rejects(command))
+      return {
+        commandId: command.commandId,
+        ok: false,
+        errorCode: "THREAD_PURGED",
+        errorMessage: "Thread permanently purged",
+      };
 
     // Leave new work unacknowledged in the durable gateway outbox until the update completes/restarts.
     const admission = ["startTurn", "createThread", "generateText", "setGoal", "runBotTurn", "rewindThread"].includes(
@@ -427,6 +401,7 @@ export class WorkerHost {
   }
 
   async close(): Promise<void> {
+    await this.storage.stop();
     await this.previews.close();
     await this.#ctx.ops.closeDirectories();
     this.#ctx.state.markdownImages.close();
@@ -500,22 +475,7 @@ export class WorkerHost {
    * Their ends go through the journal like any event.
    */
   async recover(): Promise<{ turns: number; tasks: number; fromTranscript: number }> {
-    await recoverShellInputs(this.#ctx);
-    const open = await this.#ctx.state.options.runtime.runPromise(Journal.use((j) => j.openTurns()));
-    let fromTranscript = 0;
-
-    for (const turn of open) {
-      const { events, record } = await this.#ctx.state.options.runtime.runPromise(
-        reconcileTurn(turn, WORKER_RESTARTED),
-      );
-
-      if (record) fromTranscript++;
-
-      for (const event of events) this.#ctx.ops.sendEvent(event);
-    }
-
-    // A graceful stop closed its tasks (worker_shutdown); whatever is still open died without a record: a crash.
-    return { turns: open.length, tasks: await this.#ctx.ops.closeOrphans(() => true, "worker_lost"), fromTranscript };
+    return recoverWorker(this.#ctx);
   }
 
   /** Turns this process runs now (Hello.running_turns). */

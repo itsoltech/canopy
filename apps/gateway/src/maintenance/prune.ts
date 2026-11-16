@@ -4,11 +4,14 @@ import { pruneGitHubCache } from "../github/prune-cache.ts";
 import { pruneDiagnostics } from "./diagnostics.ts";
 import { queryFamily } from "../diagnostics/query-context.ts";
 import { pruneComposerDrafts } from "../drafts/query.ts";
-import { pruneArchivedThreads } from "./thread-retention.ts";
+import { pruneStorage } from "./storage.ts";
+import { pruneExpiredThreads } from "./thread-retention.ts";
+import { compactTranscript } from "./transcript.ts";
+import { pruneThreadReplication } from "./thread-replication.ts";
 
 const BATCH = 256;
 
-/** History is removed only after the owner's explicit archive-retention policy fences its identity. */
+/** Large history is removed after archive expiry or the deleted thread's recovery window. */
 export const pruneDatabase = (owner: string, threadsChanged?: (ids: readonly string[]) => Promise<void>) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
@@ -24,9 +27,11 @@ export const pruneDatabase = (owner: string, threadsChanged?: (ids: readonly str
 
         if (!claimed.length) return { touched: 0, ids: [] };
         let touched = 0;
-        const threads = yield* pruneArchivedThreads(sql, owner);
+        const threads = yield* pruneExpiredThreads(sql, owner);
         touched += threads.touched;
+        touched += yield* compactTranscript(sql, owner);
         touched += yield* pruneComposerDrafts(sql, owner);
+        touched += yield* pruneStorage(sql, owner);
         touched += yield* pruneGitHubCache(sql, owner);
 
         touched += (yield* sql`DELETE FROM github_device_auth WHERE id IN (
@@ -58,6 +63,9 @@ export const pruneDatabase = (owner: string, threadsChanged?: (ids: readonly str
         touched += (yield* sql`DELETE FROM agent_skill_source_previews WHERE id IN (
       SELECT id FROM agent_skill_source_previews WHERE owner_user_id=${owner}::uuid AND expires_at<now()
       ORDER BY expires_at LIMIT ${BATCH} FOR UPDATE SKIP LOCKED) RETURNING id`).length;
+        // This takes the journal advisory fence only after all unrelated
+        // maintenance has finished, so ingest never waits for those scans.
+        touched += yield* pruneThreadReplication(sql, owner);
         yield* sql`UPDATE database_maintenance SET next_run_at=now()+make_interval(secs=>${touched ? 1 : 60})
       WHERE owner_user_id=${owner}::uuid`;
 

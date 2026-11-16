@@ -65,6 +65,7 @@ message WorkerMessage {
     ConfigApplied config_applied = 17;
     // Załączniki (docs/protocol.md#załączniki): worker pobiera bajty załącznika tury.
     FetchBlob fetch_blob = 18;
+    ThreadStorageCleanupReply thread_storage_cleanup = 844;
     // Modele, effort i steer (sekcja na końcu pliku).
     ModelCatalog model_catalog = 40;
     ThreadSecretReceipt thread_secret_receipt = 500;
@@ -105,6 +106,7 @@ message GatewayMessage {
     BlobChunk blob_chunk = 17;
     // Only sent to workers advertising thread_lifecycle_v1. Replaced on every reconnect.
     ThreadLifecycle thread_lifecycle = 18;
+    ThreadStorageCleanupRequest thread_storage_cleanup = 844;
     // Poufne: wyłącznie transport TLS, nigdy journal/outbox/logi.
     ThreadSecretDelivery thread_secret_delivery = 500;
     // Only sent to workers advertising "network_route_migration".
@@ -257,6 +259,8 @@ message Welcome {
   // answers the tool itself with an update message instead of forwarding it.
   bool thread_visuals_v1 = 7;
   bool thread_html_v1 = 8;
+  // The gateway can authorize exact local scopes after permanent purge.
+  bool thread_storage_cleanup_v1 = 9;
 }
 
 message ThreadLifecycle {
@@ -264,6 +268,22 @@ message ThreadLifecycle {
   repeated string opened_thread_ids = 2;
   // Full snapshot, including an empty one; otherwise an incremental update.
   bool replace = 3;
+}
+
+// No paths cross this boundary. Unknown, moved, soft-deleted and foreign threads are never approved.
+message ThreadStorageCleanupRequest {
+  string request_id = 1;
+  repeated ThreadStorageCleanupScope scopes = 2; // at most 128, gateway-authorized
+}
+message ThreadStorageCleanupScope {
+  string thread_id = 1;
+  Provider provider = 2;
+  repeated string provider_thread_ids = 3;
+  string provider_profile_id = 4;
+}
+message ThreadStorageCleanupReply {
+  string request_id = 1;
+  repeated string completed_thread_ids = 2;
 }
 
 // ---------- Konfiguracja zdalna (docs/worker-config.md) ----------

@@ -17,8 +17,8 @@ export function prepareRangeClock(sql: SqlClient.SqlClient, store: RangeSourceSt
     // immutable FK anchor under the source lock, preserving deletion cascades.
     yield* sql`SELECT pg_advisory_xact_lock(hashtextextended('canopy.thread_ranges:' || ${thread},0))`;
 
-    const clock = (yield* sql<{ epoch: string; head_seq: string; legacy_ready: boolean }>`
-      SELECT epoch,head_seq::text,legacy_ready FROM thread_replication_clock
+    const clock = (yield* sql<{ epoch: string; head_seq: string; replay_floor_seq: string; legacy_ready: boolean }>`
+      SELECT epoch,head_seq::text,replay_floor_seq::text,legacy_ready FROM thread_replication_clock
       WHERE thread_id=${thread}::uuid FOR UPDATE`)[0];
 
     if (clock?.legacy_ready) return clock;
@@ -33,7 +33,11 @@ export function prepareRangeClock(sql: SqlClient.SqlClient, store: RangeSourceSt
 
     if (!clock) yield* sql`SELECT thread_replication_seed(${thread}::uuid)`;
 
-    return (yield* sql<{ epoch: string; head_seq: string }>`SELECT epoch,head_seq::text FROM thread_replication_clock
+    return (yield* sql<{
+      epoch: string;
+      head_seq: string;
+      replay_floor_seq: string;
+    }>`SELECT epoch,head_seq::text,replay_floor_seq::text FROM thread_replication_clock
       WHERE thread_id=${thread}::uuid FOR UPDATE`)[0]!;
   });
 }

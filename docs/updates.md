@@ -1,5 +1,9 @@
 # Aktualizacje Canopy
 
+Status: opis zaimplementowanego kodu (2026-11-16), w tym retencji dyskowego mirrora
+workerów gatewaya. Dostępność zmian w nightly, beta i stable wynika z promocji
+opisanych w [release.md](release.md), a konkretne wersje podają GitHub Releases.
+
 Nazwa widoczna i ikona desktopu oznaczają kanał **zainstalowanego buildu**:
 `Canopy (Nightly)`, `Canopy (Beta)` albo `Canopy`. Wybór kanału aktualizacji sam
 ich nie zmienia; nowa tożsamość pojawia się po instalacji i restarcie. Wszystkie
@@ -759,10 +763,37 @@ Gateway przechowuje manifest własnej wersji oraz binarki workerów w cache
 adresowanym SHA-256. Równoległe żądania współdzielą pobieranie; każde ponowne
 użycie pliku sprawdza jego hash. Przed własną aktualizacją zapisuje wybrany
 manifest oraz pobiera assety platform znanych workerów binarnych, aby przesunięcie
-retencja starszych nightly nie odebrała im aktualizacji. Cache zachowaj między restartami.
+retencji starszych nightly nie odebrało im aktualizacji. Cache zachowaj między restartami.
 Workery preferują `FetchArtifact`, więc nie potrzebują dostępu do internetu.
 Przy zimnym cache gateway musi mieć dostęp do release; awaria mirrora kończy
 próbę czytelnym błędem i pozostawia bieżącą binarkę.
+
+Gateway sprząta ten cache przy starcie i po operacjach mirrora. Zachowuje do trzech
+wydań według czasu zapisu manifestu, zawsze chroniąc uruchomioną wersję oraz obie
+wersje z trwałego rekordu `.update.json` (poprzednią do rollbacku i cel aktualizacji).
+Wybrany cel jest dodatkowo chroniony od rozpoczęcia próby aktualizacji; po udanej
+wymianie binarki ochrona trwa do zamknięcia procesu. Nieudana próba zwalnia tę
+ochronę dopiero po wykluczeniu oczekującej wymiany w trwałym rekordzie; nieczytelny
+rekord zachowuje ochronę. Chronione wydania mogą przekroczyć limit trzech.
+
+Usuwane są wyłącznie stare, kompletne `manifest-<wersja>.json` i zwykłe pliki
+SHA-256 nieużywane przez manifesty zachowanych workerów. Współdzielone hashe zostają.
+Sprzątanie i operacje mirrora wzajemnie się wykluczają, więc nie kasuje plików
+w trakcie pobierania lub weryfikacji. Strumienie `FetchArtifact` i instalatora
+czytają chronioną wersję uruchomionego gatewaya, także po zakończeniu operacji mirrora.
+Pliki częściowe `.part`, tymczasowe, symlinki, katalogi i inne nazwy pozostają nietknięte.
+
+Brak pliku manifestu oznacza brak kompletnego wpisu danej wersji w cache, więc
+nie blokuje sprzątania pozostałych wydań i nie zajmuje miejsca w limicie. Dotyczy
+to także nieopublikowanych buildów development i wersji rollbacku nigdy wcześniej
+niezapisanych w tym mirrorze. Mirror zapisuje manifest przed artefaktami; brak wpisu
+nie zapewniał obsługi tej wersji offline. Sprzątanie nie pobiera brakujących manifestów
+z sieci. Istniejący, lecz błędny manifest cache wstrzymuje sprzątanie przed usuwaniem;
+błąd odczytu/usunięcia daje ostrzeżenie, bez przerwania aktualizacji. Limit dotyczy
+liczby wydań, nie bajtów; liczba platform i chronione wydania mogą zwiększyć zajętość.
+Nie obejmuje pozostałości częściowych pobrań po awarii. Koordynacja działa w jednym
+procesie gatewaya: osobne procesy muszą mieć osobne katalogi cache. Nie sprząta
+executable ani jego `.bak`, `.next` lub rekordu aktualizacji obok binarki.
 
 ## Wymiana, restart i rollback
 

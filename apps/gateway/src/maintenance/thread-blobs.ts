@@ -32,7 +32,9 @@ export const pruneThreadBlobs = (sql: SqlClient.SqlClient, threadId: string) =>
       // Preserve its bytes and make that draft's copy independent of the removed turn.
       yield* sql`UPDATE attachments a SET thread_id=NULL,turn_id=NULL WHERE thread_id=${threadId}::uuid
         AND id=ANY(${attachments.map((row) => row.id)}::uuid[])
-        AND EXISTS(SELECT 1 FROM composer_draft_attachments d WHERE d.attachment_id=a.id)`;
+        AND (EXISTS(SELECT 1 FROM composer_draft_attachments d WHERE d.attachment_id=a.id)
+          OR EXISTS(SELECT 1 FROM bot_composer_drafts d WHERE d.owner_user_id=a.owner_user_id
+            AND (d.attachment_ids IS NULL OR a.id=ANY(d.attachment_ids))))`;
       yield* sql`DELETE FROM attachments WHERE thread_id=${threadId}::uuid AND id=ANY(${attachments.map((row) => row.id)}::uuid[])`;
     }
 

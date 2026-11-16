@@ -104,7 +104,7 @@ export function useThreadActions(thread: ui.Thread) {
     if (action === "delete" && general?.confirmDelete !== false) {
       confirm({
         title: "Delete thread?",
-        description: `This deletes “${thread.title || "Untitled thread"}” and its side threads. Running turns stop and schedules are cancelled. You can undo this for a few seconds.`,
+        description: `This deletes “${thread.title || "Untitled thread"}” and its side threads. Running turns stop. Canopy cancels their schedules. Canopy permanently deletes their history after 31 days. Workspace files stay unchanged. You can undo this for a few seconds.`,
         confirm: "Delete thread",
         action: () => void execute(action),
       });

@@ -23,6 +23,7 @@ import { sqlErrorCode } from "../store/event-quarantine.ts";
 import { WorkerIngestQueue } from "./worker-ingest-queue.ts";
 import { syncWorkerThreadLifecycle } from "./worker-thread-lifecycle.ts";
 import { coreTurnLogin } from "./turn-logins.ts";
+import { offerWorkerStorage, completeWorkerStorage } from "./worker-storage.ts";
 import { authorizeLocalAutomation } from "./automation-permissions.ts";
 
 export function createCoreWorkerLink(core: GatewayCore) {
@@ -57,6 +58,7 @@ async function workerConnected(hostContext: GatewayCore, connection: WorkerConne
   // Re-read after registration to close the Welcome/config handshake's lifecycle race.
   await syncWorkerThreadLifecycle(hostContext, connection);
   offerWorkerRoutes(hostContext, connection);
+  await offerWorkerStorage(hostContext, connection);
   await hostContext.environment
     .connected(workerId, connection.hello)
     .catch((cause: unknown) =>
@@ -184,11 +186,15 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
 
         case "heartbeat":
           await coreRun(hostContext, (s) => s.workerSeen(workerId));
+          await offerWorkerStorage(hostContext, connection);
           offerWorkerRoutes(hostContext, connection);
           break;
         case "blobChunk":
           // Before the event that points to it (same stream, handled in order).
           await coreReceiveBlob(hostContext, connection, message.payload.value);
+          break;
+        case "threadStorageCleanup":
+          completeWorkerStorage(connection, message.payload.value);
           break;
         case "fetchBlob":
           void coreSendBlob(hostContext, connection, message.payload.value);

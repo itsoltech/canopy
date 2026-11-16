@@ -116,6 +116,7 @@ export function claudeSessions(
       abort,
       busCalls,
       turn: undefined,
+      admitting: true,
       model,
       mode,
       autoAllow: permissions.autoAllow,

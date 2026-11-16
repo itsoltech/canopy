@@ -6,6 +6,10 @@ uruchamiają osobną usługę web. Ten dokument opisuje kod na `dev`; poniższe 
 pobierania domyślnie wybierają stable. Wersje i kanały: [release.md](release.md). Wszystko pochodzi z
 `ghcr.io/itsoltech/canopy-*` albo z GitHub Releases `itsoltech/canopy`.
 
+Status (2026-11-16): kod na `dev` zawiera operacyjne CLI `storage inspect` i jawny
+reclaim offline przez `VACUUM FULL`. Dostępność w nightly/beta/stable wynika
+z wersji binarki; CLI nie uruchamia migracji ani usług aplikacji.
+
 Gateway uruchomiony jako serwer (Docker lub samodzielna binarka) ma rolę `server`.
 **Linked computers jest dostępne wyłącznie między aplikacjami Canopy Desktop w trybie
 lokalnym**; łączenie serwerów nie jest wspierane. Serwer nie uruchamia linkowania,
@@ -597,6 +601,64 @@ desktopu nie używają tego przekazania. W Compose pozostaje `restart: unless-st
 do zwykłych awarii; nowy kod kontenera wchodzi przez `docker compose pull` i
 odtworzenie kontenera, także pod tini. Przekazanie binarki nie zależy od `restart:`
 i nie służy do aktualizacji obrazu.
+
+## Inspekcja i fizyczne odzyskiwanie miejsca PostgreSQL
+
+Retencja usuwa zbędne dane logiczne. Zwykły autovacuum udostępnia zwolnione strony
+do ponownego użycia w PostgreSQL, lecz zazwyczaj nie zmniejsza plików na dysku.
+`VACUUM FULL` przepisuje tabelę i jej indeksy, zwraca wolne miejsce systemowi plików
+i wymaga blokady wyłącznej. Nie wybiera ani nie usuwa historii użytkownika.
+Reguły retencji opisuje [database-retention.md](database-retention.md).
+
+Przy załadowanym przez operatora `CANOPY_DATABASE_URL`:
+
+```sh
+canopy-gateway storage inspect
+canopy-gateway storage --help
+```
+
+`inspect` otwiera pojedyncze połączenie tylko do odczytu. JSON zawiera
+`databaseBytes` i relacje schematu `public`, posortowane malejąco według `totalBytes`:
+`heapBytes` (główny fork tabeli), `toastBytes` (TOAST z jego indeksami), `indexBytes`
+(indeksy tabeli), `totalBytes` oraz szacunki `liveTuplesEstimate`/`deadTuplesEstimate`.
+Liczby są ciągami dziesiętnymi, żeby zachować precyzję bigint. Rozmiar całkowity
+obejmuje też pomocnicze forki tabeli; rozmiar bazy zawiera katalogi i inne obiekty,
+ale nie WAL, backupy ani pliki workerów. Szacunki statystyk nie są pomiarem bloatu
+ani gwarancją liczby bajtów do odzyskania. Pole `reclaimable` oznacza obecność tabeli
+na stałej liście CLI. Wynik nie zawiera treści rekordów ani adresu połączenia.
+
+Fizyczny reclaim wykonuj dopiero po zakończeniu logicznego sprzątania:
+
+1. Zaplanuj okno niedostępności, sprawdzony backup i wolne miejsce na tymczasową
+   kopię przepisywanej relacji, indeksy i przyrost WAL. Zachowaj klucz szyfrowania
+   wraz z backupem. `VACUUM FULL` nie zastępuje retencji ani backupu.
+2. Zatrzymaj wszystkie gatewaye używające tej bazy, automatyczne restarty,
+   migratory i inne klienty. Zablokuj nowe połączenia aplikacji na czas całej
+   operacji, pozostawiając dostęp operatorowi. Nie zatrzymuj PostgreSQL.
+3. W osobnym procesie gatewaya, z tym samym środowiskiem DB, wskaż wyłącznie
+   relacje wymagające przepisania:
+
+   ```sh
+   canopy-gateway storage reclaim --offline --table thread_events --table thread_replication_journal
+   canopy-gateway storage inspect
+   ```
+
+4. Po kontroli wyniku przywróć dostęp i uruchom gateway. W Compose zatrzymaj
+   usługę gateway i użyj jednorazowego kontenera tej samej wersji i środowiska;
+   `docker compose exec gateway` nie zadziała po zatrzymaniu tej usługi.
+
+CLI wymaga PostgreSQL 17, jawnego `--offline` i co najmniej jednego `--table`;
+`storage --help` drukuje pełną listę dozwolonych tabel. Nie ma trybu „wszystkie”.
+Przed pierwszą zmianą sprawdza obecność tabel oraz uprawnienie `MAINTAIN` (właściciel
+tabeli też je ma). Odmawia przy każdej innej sesji tej bazy, także bezczynnej;
+nikogo nie rozłącza. To kontrola stanu, nie blokada nowych połączeń — wyłączenie
+ich dopływu należy do operatora, również za poolerem.
+
+Kontrole i każde `VACUUM (FULL, ANALYZE)` używają tego samego połączenia, poza
+transakcją, z `lock_timeout=2s`; inne sesje sprawdzane są ponownie przed każdą
+tabelą. Sam rewrite nie ma krótkiego limitu czasu. Każda tabela jest osobną operacją:
+awaria kolejnej nie cofa poprzednich, a przerwanie wymaga inspekcji przed ponowieniem.
+CLI nie wykonuje automatycznych prób ani reclaimu podczas startu gatewaya.
 
 ## Aktualizacja
 

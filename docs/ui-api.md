@@ -7,6 +7,8 @@ Bezpieczny HTML we wspólnym rendererze Markdown,
 lokalne obrazy w podglądzie plików, interaktywny Preview wątku i automatyczny mini
 Preview pod podsumowaniem, opcjonalna retencja archiwum oraz poprawione narożniki,
 typografia i ikony stosu paneli nad composerem są zaimplementowane.
+Web/desktop i mobile informują o trwałym usuwaniu historii 31 dni po ręcznym Delete,
+z zachowaniem plików workspace i krótkim Undo.
 Na `dev` zwijanie composera steruje wyłącznie skończonymi przejściami CSS.
 Settings → Devices grupuje revokowane urządzenia w domyślnie zwiniętej sekcji.
 Sidebar wyróżnia nieotwarte wątki ze szkicem fioletowym tłem i obrysem.
@@ -1124,6 +1126,11 @@ Migracja `0026_sidebar_threads` dodaje metadane cyklu życia i znacznik nieprzec
 i rozwinięcie sekcji korzystają z JSON ustawień, bez osobnej tabeli.
 BFF: `POST /api/threads/:id/lifecycle`, `action`: `archive`, `unarchive`, `delete`, `restore`, `read`,
 `unread`. UI potwierdza usunięcie i oferuje toast „Undo” przez sześć sekund.
+Potwierdzenia web/desktop i mobile informują o trwałym usunięciu historii po 31 dniach
+od Delete oraz zachowaniu plików workspace. Nie udostępniają listy usuniętych wątków
+ani późniejszego przywracania. Po 31 dniach gateway kwalifikuje historię do trwałego
+usunięcia z ochroną forków, zachowanych dzieci i niedokończonej pracy; po jej usunięciu
+`RestoreThread` odrzuca próbę odtworzenia.
 
 `UserSettings.thread_retention` i `UpdateUserSettingsRequest.thread_retention`
 (pole **902**) zawierają `ThreadRetentionSettings.archived_thread_days` (**1**).
@@ -1135,7 +1142,10 @@ ustawienie w Settings → Threads → Archived threads, z jawnym zapisem, aby ed
 liczby nie uruchomiła przypadkowo krótszej retencji.
 Po rozpoczęciu retencji wątek otrzymuje `deleted_at`, więc klienci używają zwykłej
 aktualizacji cyklu życia. `RestoreThread` odrzuca trwale usunięty wątek.
-To osobny kontrakt od odwracalnego ręcznego Delete; [database-retention.md](database-retention.md).
+Ręczne Delete ma niezależny, stały termin 31 dni od `deleted_at`, także gdy
+`archived_thread_days=0`. Settings → Threads → Archived threads podaje tę zasadę
+jako informację, bez nowej kontrolki; opcja archiwum steruje tylko terminem od
+`archived_at`. Szczegóły trwałego usuwania: [database-retention.md](database-retention.md).
 
 `UpdateThread.title` umożliwia rename (`title_source=user`), a `RegenerateTitle` zleca asynchroniczną generację. Globalne ustawienia `textGeneration`, źródła tytułu i aktualizacje live opisuje [thread-titles.md](thread-titles.md).
 

@@ -1,6 +1,7 @@
 # Adapter Codex (app-server)
 
-Status (2026-11-15): runtime wątków i lokalny MCP są zaimplementowane;
+Status (2026-11-16): runtime wątków, lokalny MCP oraz bezstratny zapis obrazów
+wyników trybu kodu poza `raw_json` są zaimplementowane;
 ograniczenia i dalsze prace opisano poniżej. Dostępność wydań według [release.md](release.md).
 
 Gotowe:
@@ -102,6 +103,12 @@ do app-servera. Nie odtwarza to połączenia upstream ani konkretnego urządzeni
 - `view_image` platformy: narzędzie dynamiczne `canopy` › `view_image` ([agent-bus.md](agent-bus.md#view_image)); item `dynamicToolCall` z tą przestrzenią nazw → item `image` (`source = view_image`), podgląd z `contentItems[].inputImage`.
 - Wbudowane `view_image` Codexa → item `imageView` → `image` (`source = native`), podgląd z pliku (`path`). Wygenerowane obrazy (`imageGeneration`, `savedPath`) → `source = generated`.
 - Obrazy w wynikach narzędzi MCP (`result.content[].type = image`) → `ToolCall.images`.
+- Tryb kodu: `custom_tool_call_output` i wynik `wait` (`function_call_output`)
+  z `output[].input_image.image_url` → `ToolCall.images`, powiązanie przez `call_id`.
+  Dokładne bajty PNG/JPEG/WebP/GIF do 8 MiB trafiają do blobu przed journalem;
+  dopiero po wzbogaceniu itemu `raw_json` zastępuje inline URI obiektem
+  `{canopyBlob: {sha256, sizeBytes, mimeType}, dataUrlPrefix}`. Szczegóły audytu,
+  fallbacku i ochrony plików przed sprzątaniem: [transcript.md](transcript.md#obrazy).
 - Obrazy umieszczone w tekście wiadomości: tekst dzieli się za znacznikiem `[Attachment N: nazwa]`, a tam idzie `localImage {path}` (`codex/input.ts`, [protocol.md](protocol.md#załączniki-w-tekście)). Echo `userMessage` dostaje z powrotem tekst wysłany.
 
 ## Wzmianki
@@ -132,6 +139,20 @@ do app-servera. Nie odtwarza to połączenia upstream ani konkretnego urządzeni
 - komórka `exec` → item `tool_call` (`name = exec`, `input_json = {"code": ...}`, wynik ze wszystkich `custom_tool_call_output`). Startuje przed zagnieżdżonymi komendami, a jej wynik zawiera każdą komendę, także nieudaną, z `exit_code`. `wait` → `tool_call` z kolejną porcją wyniku,
 - `exec_command` / `shell_command` / `shell`, dla których do końca tury nie przyszedł item Codexa o tym samym id (`call_id`), → `command_execution` z komendą, kodem wyjścia i outputem z wyniku wywołania. Rozstrzygane dopiero na końcu tury, bo rollout bywa przeczytany przed powiadomieniem o itemie tego samego wywołania,
 - pozostałe elementy rolloutu (wiadomości, rozumowanie, narzędzia z itemami) nie dają zdarzeń, bo pokrywają je itemy app-servera.
+
+Powiadomienia z jednego odczytu rolloutu są mapowane, wzbogacane i zapisywane
+kolejno. Mapper zapamiętuje referencje obrazów po zapisie do journalu, więc
+późniejszy wynik tekstowy tej samej komórki nie usuwa obrazów z jej projekcji.
+Sam mapper zachowuje oryginalny `raw_json`; skracanie jest osobnym, czystym krokiem
+po ekstrakcji obrazów. Pozostałe dane surowe i cały tekst wyniku pozostają bez zmian.
+
+`images.test.ts` uruchamia skryptowany app-server i prawdziwy odczyt rolloutu:
+kilka wyników w jednej paczce, `exec` i `wait`, obraz ponad 4 MiB, deduplikacja,
+odtworzenie oryginalnego JSON i obrazów po restarcie journalu oraz upload per wątek.
+`images/codex-output.test.ts` sprawdza zachowanie nieznanych i nieobrazowych pól,
+brakujące referencje, niepoprawne dane, limit transportu i błąd zapisu.
+`images/previews.test.ts` obejmuje też ochronę starych plików przez pending/held
+journal i ich sprzątanie po ACK. To syntetyczne sekwencje adaptera, bez inferencji.
 
 Ograniczenie: w trybie kodu nieudana komenda jest widoczna w wyniku komórki `exec`, a nie jako osobny `command_execution`. Skrypt jest dowolnym JS, więc nie da się go wiarygodnie rozłożyć na komendy. Osobny item dla każdej komendy wymaga naprawy w Codexie (patrz niżej).
 
