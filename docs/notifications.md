@@ -1,5 +1,9 @@
 # Powiadomienia wątków i botów
 
+Status (2026-11-16): zaimplementowane; powiadomienia wątków web/desktop obejmują
+tylko wątki główne i wątki boczne użytkownika. Opis dotyczy kodu; dostępność
+nightly/beta/stable określają [wydania](release.md).
+
 Web i desktop pokazują alerty systemowe o wątkach i botach, tylko gdy otwarte jest
 okno Canopy. Push na telefon jest poza tym zakresem ([mobile.md](mobile.md)).
 Kod: `apps/web/src/lib/features/notifications`, `apps/desktop/src/notifications.ts`,
@@ -51,6 +55,10 @@ z zapisanej rozmowy.
 - **Wątki** idą na żywo z `WatchOverview`. Snapshot, reconnect i `computer_snapshot`
   ustalają stan bazowy. Alarmuje tylko przejście już widocznego wątku: nowe żądanie
   do człowieka (także drugie z kolei) albo nowy wynik tury.
+  Powiadamiają wątki główne oraz wątki boczne utworzone przez użytkownika.
+  Subagenci (`Thread.spawned_by_agent = true`) nie generują toastów, alertów
+  systemowych ani dźwięku — także przy błędzie, zatrzymaniu lub pytaniu skierowanym
+  do człowieka. Ich wyniki i oczekujące interakcje pozostają widoczne w wątku rodzica.
 - **Boty** idą ze wspólnej listy botów (odświeżanej co 5 s i po `bots-changed`).
   Pierwsza lista jest bazą. Alarmuje nowa karta (późniejsza niż znana) albo wiadomość
   o wyższym `seq` od bota do użytkownika. Zdarzenia starsze niż 10 min to historia,
@@ -123,3 +131,5 @@ boty też go nie mają. Preferencje „powiedz mi tylko gdy…” bot trzyma w i
   właściciela, brak karty po odpowiedzi.
 - Ręcznie w Chromium: dwie karty, ta sama origin, alerty wątku i bota, oglądanie,
   przeładowanie. Linux: natywny alert przez D-Bus z nazwą i ikoną, kliknięcie.
+  Koniec tury wątku głównego i bocznego użytkownika powiadamia; koniec tury,
+  błąd, zatrzymanie i pytanie subagenta nie dają toastu, alertu systemowego ani dźwięku.

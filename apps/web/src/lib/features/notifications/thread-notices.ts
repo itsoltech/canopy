@@ -15,10 +15,10 @@ const results = { completed: "completed", failed: "failed", interrupted: "stoppe
 /**
  * Snapshots/reconnects establish a baseline; only live transitions of already visible threads alert.
  * A result alerts once, when its turn ends: a new turn starting next to an unseen result does not.
- * A turn the user stopped does not alert.
+ * Agent-created subagents and turns the user stopped do not alert.
  */
 export function notificationEvent(before: ui.Thread | undefined, next: ui.Thread): ThreadEvent | undefined {
-  if (!before || next.deletedAt || next.status === "archived") return;
+  if (!before || next.spawnedByAgent || next.deletedAt || next.status === "archived") return;
 
   if (needsYou(next) && (!needsYou(before) || next.pendingInteractions > before.pendingInteractions))
     return next.noticeInteractionKind === "permission" ? "approval" : "answer";
