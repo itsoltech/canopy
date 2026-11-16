@@ -4,6 +4,8 @@ Status (2026-11-16): web/desktop — zmiana uprawnień bieżącej tury Claude dz
 przełączanie wątków zachowuje status połączenia,
 a zapowiedziana aktualizacja gatewaya pokazuje w wątku spokojny komunikat bez akcji odzyskiwania,
 a wygaszany kompozytor zachowuje własny szkic bez odczytu nieaktywnego derived.
+Usuwanie wierszy osi czasu łączy natychmiastowe wyjścia z animowanym zwijaniem pracy
+bez pozostawiania dostarczonego steera jako wiersza oczekującego w DOM.
 Formularze instancji Claude rozdzielają źródło logowania, prywatny stan i konfigurację użytkownika.
 Zakres workera pokazuje też efektywne katalogi z jego ostatniego raportu.
 Tekst jest streamowany wyłącznie pełnymi liniami, z kursorem inline.
@@ -1716,6 +1718,16 @@ tura skończy się bez niego, gateway publikuje `status = queued`, `queued_turn_
 i `reason`, nawet bez osobnej odmowy workera. Istniejący panel kolejki pokazuje
 powód, a po starcie wiadomość jest wejściem własnej tury. Nie pozostaje wiersz
 „Accepted, joins at the agent's next step” przy zakończonej turze.
+
+`VirtualRow` pobiera stan i geometrię wyjścia synchronicznie, a konfigurację przejścia
+zwraca przez odroczoną funkcję. Svelte rejestruje dzięki temu całą grupę usuwanych
+wierszy, zanim zakończy wyjścia o czasie zero. Bez tego jednoczesne zwinięcie pracy
+i usunięcie dostarczonego steera mogło pozostawić oba elementy w DOM mimo poprawnego
+stanu klienta; natychmiastowe wyjście nadal kończy się przed kolejnym malowaniem,
+także przy ograniczonym ruchu.
+Zniszczenie usuniętych wierszy przerywa również pobieranie leniwej treści;
+pozostawiony nieaktywny wiersz mógł odczytywać jej propsy po otrzymaniu fragmentu
+i generować ostrzeżenia Svelte `derived_inert`.
 
 Wiadomości czekające za turą w toku (tury `queued`) użytkownik układa. Kolejność kolejki to `Turn.ordinal` (gateway startuje najniższą). Operacje działają tylko na turach `queued`, których gateway jeszcze nie wystartował (jego `StartTurn` nie jest w outboxie); taka tura, albo tura, która już wyszła z kolejki, daje `FailedPrecondition` z powodem („this message already started running”, „this message is no longer in the queue”). Każda zmiana idzie do wszystkich klientów jako `ThreadUpdate.turn`.
 
