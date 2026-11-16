@@ -28,6 +28,8 @@ interface TreeProps {
   workers: ui.Worker[];
   archived?: boolean;
   reorder?: boolean;
+  groupedProject?: boolean;
+  groupedWorktree?: boolean;
 }
 
 const openTree = (current: ui.Thread | undefined) => current && (isSide(current) ? current.parentThreadId : current.id);
@@ -40,6 +42,8 @@ const sameTree = (a: TreeProps, b: TreeProps) =>
   a.thread === b.thread &&
   a.archived === b.archived &&
   a.reorder === b.reorder &&
+  a.groupedProject === b.groupedProject &&
+  a.groupedWorktree === b.groupedWorktree &&
   sameItems(a.sideThreads, b.sideThreads) &&
   a.sideThreads.every((side) => Boolean(a.rootIds?.has(side.id)) === Boolean(b.rootIds?.has(side.id))) &&
   (openTree(a.current) === a.thread.id) === (openTree(b.current) === b.thread.id) &&
@@ -58,6 +62,8 @@ function SidebarThreadTree({
   workers,
   archived = false,
   reorder = false,
+  groupedProject = false,
+  groupedWorktree = false,
 }: TreeProps) {
   const { sides, subagentsNeedingInput } = sidebarChildren(sideThreads, rootIds);
   const type = useSidebarTypography();
@@ -76,6 +82,8 @@ function SidebarThreadTree({
           worker={workers.find((w) => w.id === thread.workerId)}
           subagentsNeedingInput={archived ? [] : subagentsNeedingInput}
           reorder={reorder}
+          groupedProject={groupedProject}
+          groupedWorktree={groupedWorktree}
         />
       </ThreadArchiveSwipe>
       {hasSides && (

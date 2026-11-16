@@ -17,10 +17,12 @@
   import { decode } from "#lib/shared/wire.ts";
   import { whenIdle } from "#lib/shared/idle.ts";
   import { sidebarEntries } from "@canopy/domain/sidebar-entries";
+  import { visibleSidebarEntries } from "@canopy/domain/sidebar-groups";
   import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
   import { SidebarOrder, provideSidebarOrder } from "./sidebar-order.svelte.ts";
   import { sidebarDrag } from "./sidebar-drag.ts";
   import SidebarOrderFeedback from "./SidebarOrderFeedback.svelte";
+  import SidebarGroupHeading from "./SidebarGroupHeading.svelte";
 
   let {
     currentThreadId,
@@ -82,7 +84,13 @@
   );
 
   let workingOpen = $state(false);
-  const entries = $derived(sidebarEntries(filtered, settings.sidebar, overview.projectChoices, workingOpen));
+
+  const grouping = $derived({ groupByWorktree: devicePreferences.view.groupByWorktree });
+  const entries = $derived(sidebarEntries(filtered, settings.sidebar, overview.projectChoices, workingOpen, grouping));
+
+  const visible = $derived(
+    visibleSidebarEntries(entries, devicePreferences.view.collapsedSidebarGroups, Boolean(query.trim())),
+  );
 
   const ordering = provideSidebarOrder(
     new SidebarOrder(
@@ -95,6 +103,7 @@
           settings.sidebar,
           overview.projectChoices,
           workingOpen,
+          grouping,
         ),
     ),
   );
@@ -107,7 +116,7 @@
   let order: string[] = [];
 
   const keys = $derived.by(() => {
-    const next = entries.map((entry) => entry.key);
+    const next = visible.map((entry) => entry.key);
 
     if (next.length !== order.length || next.some((key, at) => key !== order[at])) order = next;
 
@@ -150,7 +159,7 @@
   const shown = $derived(filled ? keys : keys.slice(0, limit));
 </script>
 
-<div class={["flex min-h-full flex-col", className]}>
+<div class={["flex min-h-full min-w-0 flex-col", className]}>
   <SidebarOrderFeedback {ordering} />
   {#if filtered.roots.length === 0}
     <div class="sidebar-row-padding grid justify-items-start gap-2 py-2">
@@ -165,12 +174,14 @@
         >{/if}
     </div>
   {:else}
-    <ul role="list" class="grid gap-0.5" aria-label="Thread inbox" {@attach drag}>
+    <ul role="list" class="grid min-w-0 grid-cols-1 gap-0.5" aria-label="Thread inbox" {@attach drag}>
       {#each shown as key, index (key)}
         {@const entry = rows.get(key)}
         <li
-          class={entry?.thread && "sidebar-entry"}
+          class={["min-w-0", entry?.thread && "sidebar-entry"]}
+          data-depth={entry?.depth}
           data-thread-id={entry?.thread?.id}
+          data-grouped-project={entry?.groupedProject || undefined}
           animate:reorder
           in:rise={{ delay: stagger(index), instant: !filled }}
           out:expand
@@ -183,6 +194,8 @@
                 subagentsNeedingInput={entry.subagentsNeedingInput}
                 project={entry.project}
                 worker={entry.worker}
+                groupedProject={entry.groupedProject}
+                groupedWorktree={entry.depth === 2}
                 sides={entry.open ? 0 : sides.active.length}
                 current={thread.id === currentThreadId}
               />
@@ -190,6 +203,7 @@
             {#if entry.open && (sides.active.length || sides.previous.length)}
               <SidebarThreadChildren {sides} title={thread.title} {currentThreadId} class="mt-0.5 mb-1 ml-5" />
             {/if}
+          {:else if entry?.groupKind}<SidebarGroupHeading {entry} searching={Boolean(query.trim())} />
           {:else if entry?.working}<Button
               size="sm"
               variant="ghost"

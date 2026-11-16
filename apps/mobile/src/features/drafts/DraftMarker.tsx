@@ -4,8 +4,9 @@ import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { styles, useColors } from "../../ui/theme";
+import { Icon } from "../../ui/Icon";
 
-export function DraftMarker({ threadId }: { threadId: string }) {
+export function DraftMarker({ threadId, compact = false }: { threadId: string; compact?: boolean }) {
   const c = useColors();
   const { drafts, client } = useSession();
   const [remote, setRemote] = useState(false);
@@ -31,6 +32,8 @@ export function DraftMarker({ threadId }: { threadId: string }) {
 
   const local = useSyncExternalStore(subscribe, () => Boolean(drafts?.local.get(target)));
   const present = local || remote;
+
+  if (compact) return present ? <Icon name="pencil-square" size={16} color={c.muted} label="Draft" /> : null;
 
   return (
     <Text

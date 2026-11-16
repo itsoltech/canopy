@@ -22,6 +22,8 @@ const savedView = Schema.Struct({
   filesPanelWidth: Schema.optionalKey(Schema.Number),
   projectIds: Schema.optionalKey(Schema.Array(Schema.String)),
   groupByProject: Schema.optionalKey(Schema.Boolean),
+  groupByWorktree: Schema.optionalKey(Schema.Boolean),
+  collapsedSidebarGroups: Schema.optionalKey(Schema.Array(Schema.String)),
   projectOrder: Schema.optionalKey(Schema.Literals([0, 1, 2])),
   workingSection: Schema.optionalKey(Schema.Boolean),
   threadSortMode: Schema.optionalKey(Schema.Literals(["activity", "created", "custom"])),
@@ -36,6 +38,8 @@ export type DeviceSidebarValues = Pick<
 >;
 
 export interface DeviceViewValues extends DeviceSidebarValues {
+  groupByWorktree: boolean;
+  collapsedSidebarGroups: readonly string[];
   threadScroll: readonly SavedThreadScroll[];
   threadSortMode: ThreadSortMode;
   lastSeenAppVersion: string;
@@ -52,6 +56,8 @@ export interface DeviceViewValues extends DeviceSidebarValues {
 }
 
 export const deviceViewDefaults: DeviceViewValues = {
+  groupByWorktree: false,
+  collapsedSidebarGroups: [],
   threadScroll: [],
   threadSortMode: "activity",
   lastSeenAppVersion: "",

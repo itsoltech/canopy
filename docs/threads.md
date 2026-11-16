@@ -3,6 +3,10 @@
 Status (2026-11-16): zaimplementowane, w tym opcjonalna retencja archiwum, grupowanie
 pracujących drzew z nieprzeczytanymi wynikami wcześniejszych tur lub zakończonych subagentów
 oraz wyróżnienie nieotwartych wątków ze szkicem w sidebarze web/desktop.
+Web/desktop i mobile mają zwarte karty w grupach projektów, zwijanie projektów i opcjonalne
+podgrupy worktree, z ikonami projektów i wcięciami prowadzącymi do wątków.
+Ustawienie „Group by” łączy wybór obu poziomów w jednym polu.
+Stan zwinięcia jest zapisany lokalnie dla urządzenia i gatewaya.
 Ręczne Delete uruchamia trwałe usuwanie historii po 31 dniach.
 Opis dotyczy kodu; dostępność nightly/beta/stable określają [wydania](release.md).
 
@@ -82,7 +86,7 @@ workera; po utworzeniu wątku katalog i wyszukiwanie plików używają jego dok�
 
 ## Wiersz wątku
 
-Wiersz w sidebarze ma trzy linie o stałej wysokości: projekt ze statusem, tytuł oraz linię meta
+Domyślny wiersz w sidebarze ma trzy linie o stałej wysokości: projekt ze statusem, tytuł oraz linię meta
 (komputer, miejsce, gałąź, znaczniki i znak dostawcy). Web/desktop i mobile liczą miejsce i gałąź tą samą
 funkcją (`threadRowPlace`, `packages/domain/src/git-heads.ts`):
 
@@ -116,6 +120,47 @@ funkcją (`threadRowPlace`, `packages/domain/src/git-heads.ts`):
   Nieaktualne dane pozostają widoczne podczas odświeżania; brak odpowiedzi daje Retry.
 - Komputer i katalog zajmują najwyżej 2/5 linii, gałąź resztę. Status w pierwszej linii i slot znaku
   dostawcy mają stały rozmiar, więc zmiana stanu niczego nie przesuwa.
+
+Web/desktop pod nagłówkiem projektu pomija jego nazwę i logo w kartach. Zostają dwie
+linie: tytuł ze statusem oraz metadane ze znakiem dostawcy. Ikona projektu pozostaje
+w nagłówku. Wcięcia i pionowe linie pokazują hierarchię projekt → worktree → wątki;
+bez podziału worktree wątki są wcięte bezpośrednio pod projektem. Zwykły wątek nie
+ma ikony chmurki. Praca jest opisana statusem po prawej bez spinnera przy linii.
+Oczekiwanie i zadania w tle zachowują swoje oznaczenia przy linii bez przesuwania tytułu.
+Przy podziale worktree karta pomija też katalog i gałąź, które określa nagłówek.
+Dla jedynego lokalnego workera tytuł, status i dostawca mieszczą się w jednej linii
+(34 / 28 px). Oznaczenia celu, pull requestów, szkicu, harmonogramu i wątków bocznych
+są w tej samej linii po prawej, za statusem i przy dostawcy; nie tworzą pustego wiersza pod tytułem.
+Pinned, Needs attention i Working zachowują nazwę projektu, bo ich nagłówki go nie
+identyfikują. Gdy jedynym niezrewokowanym workerem jest lokalny worker wbudowany
+w desktop i nie ma połączonych komputerów, wiersz pomija nazwę i ikonę komputera.
+Inne konfiguracje, także pojedynczy worker serwera, nadal pokazują tę informację.
+
+Settings → General → Sidebar udostępnia jedno pole „Group by”: „None”, „Project”
+lub „Project & worktree”. „None” wyłącza grupowanie, „Project” zostawia tylko nagłówki
+projektów, a „Project & worktree” dodaje podgrupy katalogów. Wybór zapisuje oba
+istniejące ustawienia lokalne jednocześnie; wcześniejsze preferencje są odczytywane
+bez migracji. Reset przywraca „None”. „Project order” jest nieaktywne przy „None”.
+Podgrupy obejmują katalogi w obrębie projektu:
+worktree identyfikuje jego ścieżka na konkretnym workerze i komputerze, checkout —
+katalog workspace'u (fallback do cwd przy braku danych). Podkatalogi tego samego
+checkoutu pozostają razem. Etykieta pokazuje bieżącą gałąź lub odłączony commit, a bez HEAD —
+nazwę katalogu. Pełna ścieżka pozostaje w podpowiedzi nagłówka. Zmiana gałęzi nie
+zmienia tożsamości ani zapamiętanego zwinięcia grupy. Różne katalogi z taką samą
+gałęzią i identyczne ścieżki na różnych komputerach pozostają osobnymi grupami.
+
+Nagłówki projektów i worktree są przyciskami z liczbą wątków i `aria-expanded`.
+Każdą grupę można zwinąć; lokalny zapis przechowuje oba poziomy niezależnie.
+Wyszukiwanie tymczasowo rozwija grupy wyników bez zmiany zapisanego stanu.
+Podział worktree zachowuje wybraną kolejność wątków wewnątrz katalogu, a grupy
+katalogów pojawiają się według pierwszego wątku. Ręczne przesuwanie nie przekracza
+nagłówków worktree, zgodnie z dotychczasowymi granicami sekcji.
+
+Mobile korzysta z tych samych grup i zapisu stanów rozwinięcia. „Group by” w Settings
+ma te same trzy wartości; aktualizacja zachowuje dotychczasowy wybór projektu.
+Natywne nagłówki i karty mają minimum 48 dp dla dotyku. W lokalnym wariancie worktree
+wiersz mieści tytuł, status oraz oznaczenia po prawej bez dodatkowej pustej linii.
+Szczegóły: [mobile.md](mobile.md).
 
 ## Filtr, menu i archiwum
 

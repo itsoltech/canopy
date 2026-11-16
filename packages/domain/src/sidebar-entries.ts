@@ -1,12 +1,19 @@
 import { ui } from "@canopy/contracts";
 import type { ProjectChoice } from "./projects.ts";
 import { isCalm, needsYou, treeActivity, unseenResult } from "./thread-activity.ts";
+import { projectSidebarEntries, type SidebarGrouping } from "./sidebar-groups.ts";
 
 export interface SidebarEntry {
   key: string;
   thread?: ui.Thread;
   heading?: string;
   working?: boolean;
+  groupedProject?: boolean;
+  depth?: 1 | 2;
+  projectId?: string | undefined;
+  groupKind?: "project" | "worktree";
+  groupTitle?: string;
+  count?: number;
 }
 
 /** Subagent results stay inside the thread; an ongoing turn takes precedence over its earlier results. */
@@ -19,6 +26,7 @@ export function sidebarEntries(
   settings: ui.SidebarSettings,
   projects: readonly ProjectChoice[],
   workingOpen: boolean,
+  grouping: SidebarGrouping = {},
 ): SidebarEntry[] {
   const entries: SidebarEntry[] = [];
   const tree = (t: ui.Thread) => [t, ...(filtered.sides.get(t.id) ?? []).filter((c) => c.status !== "archived")];
@@ -64,7 +72,16 @@ export function sidebarEntries(
           : Number(treeActivity(b.threads.flatMap(tree)) - treeActivity(a.threads.flatMap(tree))),
     );
 
-    for (const group of groups) add(group.project?.name ?? "Project", group.id, group.threads);
+    for (const group of groups)
+      entries.push(
+        ...projectSidebarEntries(
+          group.id,
+          group.project?.name ?? "Project",
+          group.threads,
+          grouping,
+          group.project?.workspaces,
+        ),
+      );
   } else add("Threads", "threads", normal);
 
   if (working.length) {

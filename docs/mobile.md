@@ -2,6 +2,7 @@
 
 Status: opis działającego kodu na `dev` (2026-11-16); „What's new” sortuje notatki
 metodami dostępnymi w Hermesie bez `Array.prototype.toSorted`.
+Sidebar ma zwijane grupy projektów i worktree, zwarte wiersze oraz jeden wybór „Group by”.
 Domyślne wybory nowego wątku
 i filtr ulubionych modeli oraz opcjonalna retencja archiwum są zgodne z web.
 Przesuwanie obrazów wyklucza podwójne stuknięcie do powiększania.
@@ -1630,6 +1631,26 @@ szerokość wiersza. Etykieta dostępności zawiera pełną nazwę, stan i kod w
 dotknięcie wiersza otwiera pełny wynik. To zmiana wyłącznie JS.
 Snapshot strony zachowuje także itemy zadań w tle spoza okna załadowanych tur.
 „Show full output” korzysta ze wspólnego `TextViewer`, także dla wyniku zapisanego jako blob.
+
+Settings → General → Sidebar ma jedno pole „Group by”: „None”, „Project”
+i „Project & worktree”. Wybór zapisuje oba istniejące pola preferencji lokalnych
+atomowo; reset przywraca „None”. Dotychczasowe `groupByProject=true` z brakującym
+polem worktree nadal oznacza „Project”. „Project order” jest nieaktywne dla „None”.
+Nagłówki projektów mają znaki z inicjałami, a podgrupy pokazują gałąź lub nazwę katalogu
+oraz liczbę wątków. Oba poziomy można zwinąć niezależnie; zapis należy do telefonu
+i parowania. Wyszukiwanie odsłania grupy wyników bez zmiany zapamiętanego zwinięcia.
+Wcięcia po 20 dp i pionowe linie pokazują projekt → worktree → wątki.
+
+Karty pod projektem nie powtarzają jego nazwy ani znaku. Pod worktree pomijają też
+katalog i gałąź. Nazwa i ikona workera znikają wyłącznie dla jedynego niezrewokowanego
+lokalnego workera wbudowanego w desktop, bez połączonych komputerów; status offline
+tego nie zmienia. Worker serwera lub dodatkowy worker nadal jest widoczny.
+W wariancie worktree z ukrytym workerem tytuł, status, oznaczenia i dostawca zajmują
+jeden wiersz z minimalnym celem dotykowym 48 dp. Flagi, pull requesty i szkice stoją
+po prawej za statusem. Brak ikony chmurki i spinnera pracy; status tekstowy pozostaje,
+a oczekiwanie i zadania w tle zachowują oznaczenia. Pinned, Needs attention, Working
+i archiwum zachowują pełną tożsamość projektu. Kolejność Custom pozostaje wewnątrz
+sekcji i worktree, poza przeniesieniem do Pinned.
 
 Sidebar korzysta z tych samych reguł co web w `@canopy/domain/sidebar-threads`,
 `sidebar-entries`, `thread-tree` i `thread-activity`: subagenci nie mają osobnych głównych

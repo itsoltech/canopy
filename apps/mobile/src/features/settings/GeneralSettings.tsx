@@ -16,8 +16,13 @@ export function GeneralSettings() {
   const c = useColors();
   const sidebar = settings.sidebar;
   const disabled = !device.viewLoaded;
+  const groupBy = !sidebar?.groupByProject ? "none" : device.view.groupByWorktree ? "project-worktree" : "project";
 
   const saveSidebar = settings.updateSidebar;
+
+  function setGrouping(value: string) {
+    device.setView({ groupByProject: value !== "none", groupByWorktree: value === "project-worktree" });
+  }
 
   return (
     <View style={{ gap: 24 }}>
@@ -58,18 +63,23 @@ export function GeneralSettings() {
         />
       </SettingsGroup>
       <SettingsGroup title="Sidebar" description="This device">
-        <SettingToggle
-          title="Group by project"
-          description="Group sidebar threads under project headings."
-          value={sidebar?.groupByProject ?? false}
+        <SettingChoice
+          title="Group by"
+          description="Choose how threads are grouped in the sidebar."
+          value={groupBy}
+          options={[
+            { value: "none", label: "None" },
+            { value: "project", label: "Project" },
+            { value: "project-worktree", label: "Project & worktree" },
+          ]}
           disabled={disabled}
-          onChange={(groupByProject) => saveSidebar({ groupByProject })}
+          onChange={setGrouping}
           accessory={
             <ResetSetting
-              label="Reset group by project"
-              changed={!!sidebar?.groupByProject}
+              label="Reset group by"
+              changed={groupBy !== "none"}
               disabled={disabled}
-              onReset={() => saveSidebar({ groupByProject: false })}
+              onReset={() => setGrouping("none")}
             />
           }
         />

@@ -57,6 +57,7 @@
     "./sidebar-threads": "./src/sidebar-threads.ts",
     "./thread-order": "./src/thread-order.ts",
     "./sidebar-entries": "./src/sidebar-entries.ts",
+    "./sidebar-groups": "./src/sidebar-groups.ts",
     "./sidebar-rows": "./src/sidebar-rows.ts",
     "./same-items": "./src/same-items.ts",
     "./archived-threads": "./src/archived-threads.ts",

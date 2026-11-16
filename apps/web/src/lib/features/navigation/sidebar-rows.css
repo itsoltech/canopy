@@ -38,9 +38,17 @@
   overflow-clip-margin: 0.25rem;
 }
 
+.sidebar-entry[data-grouped-project] {
+  contain-intrinsic-size: auto 3.5rem;
+}
+
 @media (width >= 40rem) {
   .sidebar-entry {
     contain-intrinsic-size: auto 4.875rem;
+  }
+
+  .sidebar-entry[data-grouped-project] {
+    contain-intrinsic-size: auto 3rem;
   }
 }
 
@@ -164,4 +172,45 @@
   pointer-events: none;
   border-radius: 1px;
   background: var(--color-brand-500);
+}
+
+/* A shared guide follows project children; the inner guide follows each worktree. */
+[aria-label="Thread inbox"] > [data-depth] {
+  position: relative;
+  padding-inline-start: 1.25rem;
+}
+
+[aria-label="Thread inbox"] > [data-depth="2"] {
+  padding-inline-start: 2.5rem;
+}
+
+[aria-label="Thread inbox"] > [data-depth]::before,
+[aria-label="Thread inbox"] > [data-depth="2"]::after {
+  content: "";
+  position: absolute;
+  inset-block: -0.0625rem;
+  inset-inline-start: 0.625rem;
+  width: 1px;
+  background: var(--color-divider);
+  pointer-events: none;
+}
+
+[aria-label="Thread inbox"] > [data-depth="2"]::after {
+  inset-inline-start: 1.875rem;
+}
+
+/* Activity lives in the guide gutter so titles stay aligned when the state changes. */
+.sidebar-group-activity {
+  position: absolute;
+  inset-inline-start: -1.75rem;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+}
+
+.sidebar-group-heading [data-project-mark] {
+  width: 1.25rem;
+  height: 1.25rem;
+  font-size: var(--type-sidebar-mark);
 }

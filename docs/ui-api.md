@@ -16,6 +16,10 @@ z zachowaniem plików workspace i krótkim Undo.
 Na `dev` zwijanie composera steruje wyłącznie skończonymi przejściami CSS.
 Settings → Devices grupuje revokowane urządzenia w domyślnie zwiniętej sekcji.
 Sidebar wyróżnia nieotwarte wątki ze szkicem fioletowym tłem i obrysem.
+Web/desktop i mobile pokazują ikony projektów oraz wcięcia i linie hierarchii projekt → worktree → wątki.
+Ustawienie „Group by” wybiera brak grup, projekty albo projekty z podgrupami worktree.
+Zwija grupy projektów i opcjonalne podgrupy worktree; karty pod projektem
+nie powtarzają jego nazwy ani logo, a jedyny wbudowany lokalny worker nie zajmuje miejsca w metadanych.
 Komunikaty w osi czasu używają skali wierszy pracy; szczegóły techniczne są o stopień mniejsze.
 Sekcja Working uwzględnia ponownie pracujące wątki i ignoruje wyniki zakończonych subagentów.
 BFF materializuje overview, indeks wątków i ustawienia ze wspólnego strumienia gRPC,
@@ -1080,6 +1084,11 @@ ich nie eksportuje ani nie stosuje. `archived` nie steruje listą.
 `UpdateUserSettings.sidebar` nadal zastępuje sekcję z kontrolą `expected_version`;
 nowe klienty zachowują stare pola przy zapisie przypięć, a `WatchOverview.user_settings`
 dostarcza zmiany przypięć innym urządzeniom.
+Web/desktop i mobile zapisują w tym samym zakresie `groupByWorktree` (domyślnie false)
+i `collapsedSidebarGroups` (domyślnie puste). Dodatkowy podział działa tylko przy
+grupowaniu projektów, bez zmian proto ani zapisu konta. Nagłówki projektów i katalogów
+tworzą granice ręcznego porządku; wyszukiwanie omija zapisane zwinięcia.
+Szczegóły kart i identyfikacji grup: [threads.md](threads.md#wiersz-wątku).
 Wyszukiwanie i przypięcia respektują filtr. Przypięte wątki boczne użytkownika są samodzielnie dostępne w „Pinned”.
 Subagenci (`Thread.spawned_by_agent`, mapowane z `threads.origin = agent`) nie mają wierszy w sidebarze,
 także w „Working”, „Pinned” i archiwum. Nadal należą do indeksu: pytanie lub zgoda skierowana do

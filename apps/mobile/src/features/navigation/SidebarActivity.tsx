@@ -15,19 +15,22 @@ export function SidebarActivity({
   away = false,
   size = threadRowMarks.slot,
   idle,
+  groupedProject = false,
 }: {
   thread: ui.Thread;
   project?: ui.Project;
   away?: boolean;
   size?: number;
   idle?: ReactNode;
+  groupedProject?: boolean;
 }) {
   const c = useColors();
   const state = workState(thread);
+  const visible = away || !groupedProject || state === "needs" || state === "asks" || state === "background";
 
   return (
     <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
-      {away ? (
+      {!visible ? null : away ? (
         <Icon name="link" size={threadRowMarks.icon} color={c.faint} />
       ) : state === "starting" || state === "running" ? (
         <WorkingSpinner color={c.working.indicator} />
