@@ -7,8 +7,9 @@ import { eventually } from "./support/gateway.ts";
 
 describe.skipIf(!dockerAvailable)("bot harness failures through worker gRPC", () => {
   let f: HarnessBots;
+  const logs: string[] = [];
   beforeAll(async () => {
-    f = await harnessBots();
+    f = await harnessBots({ log: (message) => logs.push(message) });
   }, 30_000);
   afterAll(async () => {
     await f?.close();
@@ -26,9 +27,20 @@ describe.skipIf(!dockerAvailable)("bot harness failures through worker gRPC", ()
         ["exit", "process_exit"],
       ] as const) {
         const bot = await f.add(provider);
+        const gatewayStart = logs.length;
+        const workerStart = f.logs.length;
         const sent = await f.send(bot.id, `FAIL:${prompt}`);
         const result = await f.settled(bot.id);
         expect(result.messages.at(-1)).toMatchObject({ failed: true, errorCode, errorSource: "harness" });
+        const expected = `bots: turn failed source harness class ${errorCode}`;
+        expect(logs.slice(gatewayStart)).toContain(expected);
+        expect(f.logs.slice(workerStart)).toContain(expected);
+
+        const failures = [...logs.slice(gatewayStart), ...f.logs.slice(workerStart)].filter((line) =>
+          line.startsWith("bots: turn failed"),
+        );
+
+        expect(failures.every((line) => line === expected)).toBe(true);
         const row = await f.gw.core.bots.run((s) => s.harnessTurn(sent.turnId));
         expect(row?.error_class).toBe(errorCode);
         expect(row?.error_code).toBe(

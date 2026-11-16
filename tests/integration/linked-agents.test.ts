@@ -455,7 +455,7 @@ describe.skipIf(!dockerAvailable)("linked bots and agent bus: two independent ho
     modelB = async (i) => reply(`B: ${input(i)}`);
   }, 20000);
 
-  test("bots can message each other simultaneously without holding cross-computer SQL locks", async () => {
+  test("bots can message simultaneously beyond 100 hops without holding cross-computer SQL locks", async () => {
     const barrier = Promise.withResolvers<void>();
     let arrived = 0;
 
@@ -481,14 +481,24 @@ describe.skipIf(!dockerAvailable)("linked bots and agent bus: two independent ho
     modelA = (i) => answer(i, q(botB));
     modelB = (i) => answer(i, qualifyId(botA, aNode));
     await Promise.all([
-      a.api.sendBotMessage({ botId: botA, text: "simultaneous exchange", clientRequestId: id() }),
-      b.api.sendBotMessage({ botId: botB, text: "simultaneous exchange", clientRequestId: id() }),
+      a.core.bots.run((s) => s.enqueue(a.userId, botA, "simultaneous exchange", id(), { hops: 100 })),
+      b.core.bots.run((s) => s.enqueue(b.userId, botB, "simultaneous exchange", id(), { hops: 100 })),
     ]);
 
     for (const [gw, bot] of [
       [a, botA],
       [b, botB],
     ] as const) {
+      expect(
+        await eventually(
+          () =>
+            gw.core.linkedAgents.query<{ hops: number }>(
+              "SELECT hops FROM bot_turns WHERE bot_id=$1::uuid AND hops IN (101,102) ORDER BY hops",
+              [bot],
+            ),
+          (rows) => rows.some((row) => row.hops === 102),
+        ),
+      ).toEqual([{ hops: 101 }, { hops: 102 }]);
       expect(
         await eventually(
           async () =>

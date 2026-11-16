@@ -243,7 +243,7 @@ const deliver = (
       const note = backgroundTaskNote(tasks, { tools: thread.runtime === "worker" });
       const input = JSON.stringify({ text: note, note, message: "" });
       const ids = ready.map((n) => n.item_id);
-      const hops = Math.min(16, Math.max(...ready.map((n) => n.hops)));
+      const hops = Math.max(...ready.map((n) => n.hops));
 
       if (running) {
         const steerId = Bun.randomUUIDv7();

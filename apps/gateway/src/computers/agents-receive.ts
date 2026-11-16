@@ -2,6 +2,8 @@ import { create, fromJsonString, toJson, type JsonValue } from "@bufbuild/protob
 
 import { computerLink as link, ui } from "@canopy/contracts";
 
+import { DEFAULT_BUS_LIMITS } from "@canopy/domain";
+
 import { nodeRef, qualifyId } from "@canopy/domain/computers";
 
 import { Schema } from "effect";
@@ -14,6 +16,14 @@ import { fail, record, text, uuid, type Arguments, type Reference } from "./agen
 import type { LinkedAgents } from "./agents.ts";
 import { receivedAgentSender } from "./agents-senders.ts";
 import { threadNotice } from "../bots/thread-notice.ts";
+
+/** Linked work reserves one step for its reply; deliveries may use the final step. */
+export function requireLinkedChainCapacity(hops: number, reserveReply: boolean) {
+  if (hops > DEFAULT_BUS_LIMITS.maxHops - (reserveReply ? 1 : 0))
+    fail(
+      `This automated conversation reached its limit (${DEFAULT_BUS_LIMITS.maxHops} steps). Send a new message to continue.`,
+    );
+}
 
 export async function agentsDeliverAtHome(
   hostContext: LinkedAgents,
@@ -38,7 +48,7 @@ export async function agentsDeliverAtHome(
   if (!ref || ref.actor_id !== call.actorId || ref.actor_kind !== call.actorKind)
     return fail("Cross-computer reference is detached or missing");
 
-  if (call.hops > 8) return fail("Agent chain limit reached");
+  requireLinkedChainCapacity(call.hops, false);
 
   if (
     ref.source_routine_id &&
@@ -141,8 +151,10 @@ export interface AgentsReceiveMethods {
 
 export const agentsReceiveMethods: AgentsReceiveMethods = {
   async receive(this: LinkedAgents, node: string, call: link.LinkedAgentCall): Promise<JsonValue> {
-    if (!uuid(call.callId) || !uuid(call.actorId) || !["thread", "bot"].includes(call.actorKind) || call.hops > 8)
+    if (!uuid(call.callId) || !uuid(call.actorId) || !["thread", "bot"].includes(call.actorKind))
       return fail("Invalid linked actor");
+
+    requireLinkedChainCapacity(call.hops, false);
 
     if (!this.core.computers || !(await this.core.computers.store.computer(node)))
       return fail("That computer is no longer linked");
@@ -300,7 +312,7 @@ async function receiveLinkedTurn(
   call: link.LinkedAgentCall,
   args: Arguments,
 ): Promise<JsonValue> {
-  if (call.hops > 7) return fail("Agent-to-agent chain limit reached (8 hops without human input)");
+  requireLinkedChainCapacity(call.hops, true);
 
   return hostContext.scope.transaction(async () => {
     // Peer lock serializes acceptance with unlink; idempotency covers lost responses.

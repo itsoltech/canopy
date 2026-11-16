@@ -78,6 +78,12 @@ describe.skipIf(!dockerAvailable)("CI check watches (gateway + scripted worker +
 
       expect(started.isError).toBe(false);
       const watchId = String(json(started)["watch_id"]);
+      await gw.runtime.runPromise(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          yield* sql`UPDATE pr_check_watches SET hops = 100 WHERE id = ${watchId}::uuid`;
+        }),
+      );
 
       expect(json(started)).toMatchObject({
         pull_request: "itsoltech/canopy#42",
@@ -99,6 +105,7 @@ describe.skipIf(!dockerAvailable)("CI check watches (gateway + scripted worker +
       await pollUntil(gw, fixture, async () => (await turns(gw, thread)).some((t) => t.trigger === "pr_checks"));
       const [failed] = await noteTurns(gw, thread, 1);
 
+      expect(failed?.hops).toBe(100);
       expect(failed?.text).toContain(
         "[canopy] CI checks of pull request itsoltech/canopy#42 (head aaaaaaa): 1 failed.",
       );

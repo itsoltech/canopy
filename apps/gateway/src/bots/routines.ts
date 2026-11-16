@@ -248,7 +248,7 @@ export function routineStore(sql: SqlClient.SqlClient, hooks: Hooks) {
 
         const hops = yield* Effect.try({
           try: () => nextHop(turn.hops),
-          catch: () => new Invalid("Bot hop limit reached; a new user message is required"),
+          catch: (error) => (error instanceof Invalid ? error : new Invalid("Invalid message counter.")),
         });
 
         const r =

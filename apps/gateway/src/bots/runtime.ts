@@ -269,18 +269,18 @@ export class BotsRuntime {
             ? error
             : undefined;
 
-        // The stored reason is shown in the chat; the log names the kind of failure (never URLs, keys or payloads).
-        if (!abort.signal.aborted)
-          this.#options.log?.(
-            `bots: turn failed (${known ? known.message : error instanceof Error ? error.name : "unknown error"})`,
-          );
+        const errorCode = classifyFailure(known?.message ?? "", error instanceof ProviderFailure ? error.code : "");
+        const errorSource = error instanceof ProviderFailure ? error.source : "platform";
+
+        // The stored reason is shown in the chat; logs contain only closed diagnostic categories.
+        if (!abort.signal.aborted) this.#options.log?.(`bots: turn failed source ${errorSource} class ${errorCode}`);
         await this.run((s) =>
           s.finish(
             turn,
             abort.signal.aborted ? "interrupted" : "failed",
             known ? safeFailureDetail(known.message) : "Bot could not finish this turn",
-            classifyFailure(known?.message ?? "", error instanceof ProviderFailure ? error.code : ""),
-            error instanceof ProviderFailure ? error.source : "platform",
+            errorCode,
+            errorSource,
           ),
         ).catch(() => undefined);
       }

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { approvalPrompt, needsApproval, nextHop, PLATFORM_TOOLS, statusPhrase } from "./policy.ts";
+import { approvalPrompt, needsApproval, nextHop, nextReplyHop, PLATFORM_TOOLS, statusPhrase } from "./policy.ts";
+import { DEFAULT_BUS_LIMITS } from "@canopy/domain";
 import { remoteUrl } from "./store.ts";
 
 describe("bot capability policy", () => {
@@ -78,11 +79,17 @@ describe("bot capability policy", () => {
       ),
     ).toBe("Starting a thread in CRM");
   });
-  test("the agent-bus hop budget cannot reset through bots", () => {
+  test("message counters keep increasing beyond the former conversation limit", () => {
     expect(nextHop(0)).toBe(1);
     expect(nextHop(7)).toBe(8);
 
-    for (const hops of [8, 9, -1, NaN, 0.5]) expect(() => nextHop(hops)).toThrow();
+    expect(nextHop(8)).toBe(9);
+    expect(nextHop(100)).toBe(101);
+    expect(nextReplyHop(DEFAULT_BUS_LIMITS.maxHops - 2)).toBe(DEFAULT_BUS_LIMITS.maxHops);
+    expect(() => nextReplyHop(DEFAULT_BUS_LIMITS.maxHops - 1)).toThrow("Send a new message to continue.");
+    expect(() => nextHop(DEFAULT_BUS_LIMITS.maxHops)).toThrow("Send a new message to continue.");
+
+    for (const hops of [-1, NaN, 0.5]) expect(() => nextHop(hops)).toThrow();
   });
   test("approval cards identify the destination and proposed change without raw JSON or credentials", () => {
     const prompt = approvalPrompt(

@@ -239,7 +239,7 @@ async function watch(
       pullRequestId: pr.id,
       callId: source.callId,
       notifyOn,
-      hops: Math.min(16, hops),
+      hops,
       expiresAt,
       headSha: head,
       seen: verdict.seen,

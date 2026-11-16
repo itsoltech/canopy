@@ -248,7 +248,7 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, exchange
     ]);
   });
 
-  test("bot exchanges enqueue a target reply and a follow-up, preserving the hop limit", async () => {
+  test("bot exchanges enqueue a target reply and a follow-up beyond eight messages", async () => {
     const a = await add("A");
     const b = await add("B");
     suite.model = async (i) =>
@@ -272,7 +272,7 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, exchange
     expect((await suite.current.bots.exchange(exchangeId)).some((m) => m.text === "B says hello")).toBe(true);
     await suite.current.bots.run((s) => s.enqueue(suite.gw.userId, a.id, "automated", Bun.randomUUIDv7(), { hops: 7 }));
     expect((await settled(a.id)).working).toBe(false);
-    expect((await read(b.id)).messages.filter((m) => m.text.includes("hello B"))).toHaveLength(1);
+    expect((await read(b.id)).messages.filter((m) => m.text.includes("hello B"))).toHaveLength(2);
   }, 20_000);
 
   test("durable one-shot wakeups deliver once and cancellation prevents a turn", async () => {

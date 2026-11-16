@@ -175,8 +175,11 @@ describe.skipIf(!dockerAvailable)("agent bus report delivery", () => {
     }
   });
 
-  test("without wait, the report joins the running turn with its sender and unchanged target/hops", async () => {
+  test("a report in a long conversation joins the running turn with its sender and full hop count", async () => {
     const pair = await start();
+    // Seed an admitted task from a long chain, preserving its call and turn provenance.
+    await query("UPDATE agent_bus_calls SET hops = 101 WHERE id = $1::uuid", pair.callId);
+    await query("UPDATE turns SET hops = 101 WHERE id = $1::uuid", pair.childTurn);
     gw.worker.finish(pair.childId, pair.childTurn, "answer from child");
 
     const [steer] = await eventually(
@@ -184,7 +187,7 @@ describe.skipIf(!dockerAvailable)("agent bus report delivery", () => {
       (rows) => rows[0]?.status === "delivered",
     );
 
-    expect(steer?.hops).toBe(2);
+    expect(steer?.hops).toBe(102);
     expect(gw.worker.started.get(steer!.id)?.authorAgentId).toBe(pair.childId);
     const view = await snapshot(pair.parentId);
     expect(view.steers[0]).toMatchObject({

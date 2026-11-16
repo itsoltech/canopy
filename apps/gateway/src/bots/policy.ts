@@ -5,6 +5,7 @@ import type { bots } from "@canopy/contracts";
 import { BOT_FILE_TOOLS } from "./tools/workspace.ts";
 import { areaTool, areaTools } from "./tools/index.ts";
 import { alwaysAsk } from "./approval-rules.ts";
+import { Invalid } from "../store/errors.ts";
 
 export function botPlatformTools(config: bots.BotConfiguration, turn: BotTurn): ToolSpec[] {
   if (turn.handoff_configuration) return [];
@@ -44,10 +45,19 @@ export function needsApproval(tool: ToolSpec, policy: string, args: JsonObject =
 }
 
 export function nextHop(hops: number): number {
-  if (!Number.isInteger(hops) || hops < 0 || hops >= DEFAULT_BUS_LIMITS.maxHops)
-    throw new Error("Bot hop limit reached; a new user message is required");
+  if (!Number.isInteger(hops) || hops < 0) throw new Invalid("Invalid message counter.");
+
+  if (hops >= DEFAULT_BUS_LIMITS.maxHops)
+    throw new Invalid(
+      `This automated conversation reached its limit (${DEFAULT_BUS_LIMITS.maxHops} steps). Send a new message to continue.`,
+    );
 
   return hops + 1;
+}
+
+/** Sending an automated message reserves a hop for the response as well. */
+export function nextReplyHop(hops: number): number {
+  return nextHop(nextHop(hops));
 }
 
 /** Reviewable cards show the destination and proposed content as prose, never a tool-call JSON block. */

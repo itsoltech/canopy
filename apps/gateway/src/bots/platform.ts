@@ -7,7 +7,7 @@ import type { GatewayCore, GatewayCoreOptions } from "../core/core.ts";
 import { GatewayStore, Invalid, NotFound } from "../store/store.ts";
 import { platformError } from "./errors.ts";
 import { BotStore } from "./store.ts";
-import { approvalPrompt, statusPhrase } from "./policy.ts";
+import { approvalPrompt, nextReplyHop, statusPhrase } from "./policy.ts";
 import { forwardingApproval, forwardingIds, localForwardTarget } from "../core/bot-files.ts";
 import type { BotTurn, StoredCall, ToolSpec } from "./types.ts";
 import { areaTool } from "./tools/index.ts";
@@ -90,6 +90,9 @@ export async function prepareBotTool(
   turn: BotTurn,
   call: StoredCall,
 ): Promise<{ prompt?: string } | undefined> {
+  if (call.tool.source === "platform" && ["start_thread", "send_message", "send_bot_message"].includes(call.tool.name))
+    nextReplyHop(turn.hops);
+
   if (call.tool.source === "platform" && ["start_thread", "send_message"].includes(call.tool.name)) {
     validate(call.tool.parameters, call.arguments);
 

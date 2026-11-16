@@ -1,7 +1,13 @@
 # Model danych (PostgreSQL)
 
-Status (2026-11-16): zaimplementowany model, w tym migracja `0153_thread_notice_replication`;
+Status (2026-11-16): zaimplementowany model, w tym migracje `0153_thread_notice_replication` i `0160_agent_hop_policy`;
 dostępność nightly/beta/stable według [release.md](release.md).
+
+Migracja `0160_agent_hop_policy` rozszerza wszystkie 12 kolumn `hops` do
+`integer` i usuwa sztywne górne granice 8/16. Zachowuje dolne granice,
+nullowalność, wartości domyślne i reguły pochodzenia/autora tur. Wspólny limit
+256 kroków egzekwuje runtime; baza może przechować również przekroczony licznik
+notatki, która czeka na kolejną turę zamiast samodzielnie budzić wątek.
 
 Migracja `0155_transcript_raw_payload_refs` dodaje `thread_events.raw_payload_refs`
 oraz kursor `thread_transcript_compaction`. Maintenance może zastąpić wyłącznie
@@ -455,7 +461,7 @@ erDiagram
         text status "queued | running | completed | interrupted | failed | cancelled"
         text trigger "user | agent_bus | schedule | interaction | goal | provider | recovery"
         uuid goal_id "cel, nad którym pracuje tura"
-        smallint hops "przeskoki agent-agent"
+        integer hops "przeskoki agent-agent"
         uuid resumes_turn_id "recovery"
         text client_request_id
         jsonb input

@@ -1,6 +1,7 @@
 # Połączone komputery
 
-Status: opis zaimplementowanej synchronizacji (2026-11-16), w tym domyślnego
+Status: opis zaimplementowanej synchronizacji (2026-11-16), w tym wspólnego
+limitu 256 kroków automatycznej rozmowy i domyślnego
 steera między rodzicem a dzieckiem oraz deduplikacji raportów jednej tury,
 retencji dziennika źródłowego i dzierżaw treści (migracja 0154). Dostępność w kanałach
 nightly, beta i stable wynika z [wydań](release.md), nie z daty tego opisu.
@@ -1742,7 +1743,7 @@ przez dom dziecka. Wątki mogą sterować tylko własnymi zdalnymi dziećmi; odp
 zachowuje wymaganie jego lokalnej zgody. Człowiek może zawsze odpowiedzieć w UI domu.
 
 Zakończenie wskazanej tury wysyła raport do źródła; bot↔bot ma też `exchange_id` i czytelny podgląd
-wymiany. Każdy przeskok zwiększa `hops`; operacja rezerwuje miejsce na raport w limicie 8.
+wymiany. Każdy przeskok zwiększa `hops`; operacja rezerwuje miejsce na raport w limicie 256.
 Raport wątek → wątek używa w domu odbiorcy trwałego potwierdzenia wiadomości
 o kluczu obejmującym partnera i zakończoną turę; potwierdzenie jest przypisane
 do wątku odbiorcy. `spawn` oraz kolejne wiadomości przyjęte jako steer do tej
@@ -1984,7 +1985,7 @@ Spawn i wiadomości na P2 zapisują W jako źródło, z rodzicem `uuid~W16`; P1 
 ani własnego wątku. Dziecko i polityka bota pozostają w domu. P2 może zwrócić przez tę samą zgodę
 **wyłącznie** `CallAgentBus` z operacją `question`/`report`; W weryfikuje istniejący call id,
 aktora i cel regułami etapu 5. Wpis `origin` nie bierze udziału w agregacji rzeczy ani
-rozwiązywaniu id dla zwykłych akcji. Limit 8 przeskoków agentów i limit jednego pośrednika
+rozwiązywaniu id dla zwykłych akcji. Limit 256 przeskoków agentów i limit jednego pośrednika
 to odrębne ograniczenia. P2 nie może przez informacyjny wpis W listować ani sterować jego rzeczami.
 
 Subskrypcje `WatchThreadMirror` i `WatchBotMirror` przechodzą do P2 przez P1. W zapisuje je pod

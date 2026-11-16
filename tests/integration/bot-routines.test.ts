@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
-import type { JsonObject } from "@canopy/domain";
+import { DEFAULT_BUS_LIMITS, type JsonObject } from "@canopy/domain";
 import { create } from "@bufbuild/protobuf";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { bots, Provider, ProviderProfileKind } from "@canopy/contracts";
@@ -518,13 +518,13 @@ describe.skipIf(!dockerAvailable)("bot routines: durable scheduling and hidden t
     const other = await add();
 
     const turnId = await core.bots.run((s) =>
-      s.enqueue(gw.userId, other, "Exhausted chain", Bun.randomUUIDv7(), { hops: 8 }),
+      s.enqueue(gw.userId, other, "Exhausted chain", Bun.randomUUIDv7(), { hops: DEFAULT_BUS_LIMITS.maxHops }),
     );
 
     await core.bots.tick();
     await idle(other);
     expect(
       JSON.stringify(await query("SELECT c.result FROM bot_tool_calls c WHERE c.turn_id = $1", [turnId])),
-    ).toContain("hop limit");
+    ).toContain("Send a new message to continue.");
   }, 30_000);
 });

@@ -1,6 +1,6 @@
 # Diagnostyka wydajności
 
-Status: **v1 wdrożone**: metryki RPC, procesu, DB, workerów i klientów,
+Status (2026-11-16): **v1 wdrożone**: metryki RPC, procesu, DB, workerów i klientów,
 trwałe agregaty, findings, raport, zbieranie logów i czasowy tracing.
 Settings → Diagnostics jest dostępne w web/desktop/mobile i pokazuje lokalny
 komputer oraz znane połączone komputery, ich gatewaye, workery i łącza.
@@ -927,6 +927,19 @@ przez Storage Access Framework. Po zapisie pokazuje nazwę pliku i katalogu;
 **Open folder** pojawia się, jeśli system obsługuje otwarcie URI katalogu.
 Natywny share sheet Androida pozostaje możliwym rozszerzeniem przy następnym
 wydaniu wymagającym nowego buildu natywnego.
+
+Na `dev` eksport rozpoznaje też błędy botów. `bot_turn_failed` zachowuje
+wyłącznie `failureSource` (`provider`, `harness`, `platform`) i zamkniętą klasę
+`failureClass`. Starszy komunikat błędu bez tych pól daje tylko rodzaj zdarzenia,
+bez odtwarzania klasy z prozy. `bot_tool_finished` zachowuje `toolSource`,
+`operation` (`start_thread`, `send_message`, `send_bot_message`, `other`) oraz
+`outcome` (`completed`, `failed`, `discarded`, `changes_requested`, `expired`,
+`interrupted`). Wynik oznacza zatwierdzony wynik narzędzia, a nie zakończenie
+pracy docelowego agenta. Źródłem wyników narzędzi jest wyłącznie gateway.
+Rozpoznawane są również stałe zdarzenia błędu tick/wake kolejki, rozliczenia tury
+i journala harnessu. Koordynator niezależnie waliduje zamknięty format i źródło;
+nieznane wartości i dodatkowe pola pozostają pominięte. Archiwum starej wersji
+nie odzyskuje rekordów pominiętych przy jego tworzeniu.
 
 Eksport wykorzystuje zamknięte szablony zdarzeń. Nie kopiuje swobodnych
 komunikatów, parametrów SQL, stacków ani nieznanych JSON-ów; manifest podaje

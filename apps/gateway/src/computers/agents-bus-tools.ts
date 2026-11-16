@@ -14,6 +14,7 @@ import { AgentBusStore, type ThreadRow } from "../store/index.ts";
 
 import { fail, record, text, type Actor, type Arguments, type Reference } from "./agents-context.ts";
 import type { LinkedAgents } from "./agents.ts";
+import { requireLinkedChainCapacity } from "./agents-receive.ts";
 import { gather } from "../api/routed-overview.ts";
 import { PEER_READ_TIMEOUT_MS } from "./timing.ts";
 import { refuseRemoteAutomation } from "../worktrees/remote.ts";
@@ -117,7 +118,8 @@ export const agentsBusToolsMethods: AgentsBusToolsMethods = {
     if (facts.caller.archived) return fail("This thread is archived");
     const actor: Actor = { id: caller.id, kind: "thread", hops: facts.callerHops + 1, name: caller.title };
 
-    if (actor.hops > 7) return fail("Agent-to-agent chain limit reached (8 hops without human input)");
+    requireLinkedChainCapacity(actor.hops, true);
+
     const node = await this.peer(ref);
     await this.sameHome(node, args);
 

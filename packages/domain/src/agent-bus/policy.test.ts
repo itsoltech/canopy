@@ -165,25 +165,37 @@ describe("communication: the tree, and any thread of the same owner like a human
     ).toContain("not found");
   });
 
-  test("hops apply across trees: a message to another tree carries the chain on", () => {
-    const limit = DEFAULT_BUS_LIMITS.maxHops;
-    expect(authorizeBusCall(send("x"), facts(root, { callerHops: 3 }))).toEqual({ allowed: true, hops: 4 });
-    expect(reason(send("x"), facts(root, { callerHops: limit - 1 }))).toContain("chain limit");
-    expect(
-      reason(
-        { tool: "send_message", args: { thread_id: "x", prompt: "p", notify: false } },
-        facts(root, { callerHops: limit }),
-      ),
-    ).toContain("chain limit");
+  test("messages preserve hops across trees well beyond the former limit", () => {
+    for (const callerHops of [7, 8, 100]) {
+      for (const notify of [undefined, true, false]) {
+        const message: AgentBusCall = {
+          tool: "send_message",
+          args: { thread_id: "x", prompt: "hi", ...(notify !== undefined && { notify }) },
+        };
+
+        expect(authorizeBusCall(message, facts(root, { callerHops }))).toEqual({
+          allowed: true,
+          hops: callerHops + 1,
+        });
+      }
+    }
   });
 
-  test("hops stop agent ping-pong without human input", () => {
+  test("siblings can keep messaging after many agent turns", () => {
+    expect(authorizeBusCall(send("b"), facts(a, { callerHops: 100 }))).toEqual({ allowed: true, hops: 101 });
+  });
+
+  test("the runaway guard reserves a report hop and allows a final quiet message", () => {
     const limit = DEFAULT_BUS_LIMITS.maxHops;
     const quiet: AgentBusCall = { tool: "send_message", args: { thread_id: "b", prompt: "again", notify: false } };
     expect(authorizeBusCall(quiet, facts(a, { callerHops: limit - 1 }))).toEqual({ allowed: true, hops: limit });
-    expect(reason(quiet, facts(a, { callerHops: limit }))).toContain("chain limit");
-    // With notify, the reply turn back to the caller needs one more hop.
-    expect(reason(send("b"), facts(a, { callerHops: limit - 1 }))).toContain("chain limit");
+    const refusal = `This automated conversation reached its limit (${limit} steps). Send a new message to continue.`;
+    expect(reason(quiet, facts(a, { callerHops: limit }))).toBe(refusal);
+    expect(reason(send("b"), facts(a, { callerHops: limit - 1 }))).toBe(refusal);
+    expect(authorizeBusCall(send("b"), facts(a, { callerHops: limit - 2 }))).toEqual({
+      allowed: true,
+      hops: limit - 1,
+    });
   });
 
   test("archived threads cannot be messaged", () => {
@@ -266,13 +278,14 @@ describe("schedules", () => {
     );
   });
 
-  test("per-thread schedule limit and hops", () => {
+  test("per-thread schedule limit remains and long chains can schedule", () => {
     expect(
       reason(wakeup({ delay_seconds: 600 }), facts(a, { targetSchedules: DEFAULT_BUS_LIMITS.maxSchedulesPerThread })),
     ).toContain("schedule limit");
-    expect(reason(wakeup({ delay_seconds: 600 }), facts(a, { callerHops: DEFAULT_BUS_LIMITS.maxHops }))).toContain(
-      "chain limit",
-    );
+    expect(authorizeBusCall(wakeup({ delay_seconds: 600 }), facts(a, { callerHops: 100 }))).toEqual({
+      allowed: true,
+      hops: 101,
+    });
   });
 
   test("cancel: own schedules and those of my side threads", () => {

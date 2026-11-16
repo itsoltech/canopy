@@ -235,7 +235,7 @@ export class PrCheckWatches {
   }
 
   async #note(w: PrCheckWatchRow, progress: WatchProgress, body: PrChecksNote, end: string | undefined) {
-    const hops = Math.min(16, w.hops + progress.headChanges);
+    const hops = w.hops + progress.headChanges;
     const wake = hops <= DEFAULT_BUS_LIMITS.maxHops;
     await this.run((s) => s.note(w.id, progress, { body, wake, hops, ...(end && { end }) }));
     await this.deliver(w.thread_id);

@@ -171,6 +171,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "157_deleted_thread_retention",
       "158_thread_cleanup_retention",
       "159_thread_merge_archive",
+      "160_agent_hop_policy",
     ]);
   }, 60_000);
 
@@ -280,7 +281,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       expect(await failure(insertCall, [id(), main, turn, "send_message", 1, true, "steering"])).toContain(
         "agent_bus_calls_notify",
       );
-      expect(await failure(insertCall, [id(), main, turn, "send_message", 17, false, null])).toContain(
+      expect(await failure(insertCall, [id(), main, turn, "send_message", 0, false, null])).toContain(
         "agent_bus_calls_hops_check",
       );
       // Goals are the harness's own: the bus has no goal tools (0011).

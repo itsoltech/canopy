@@ -5,7 +5,7 @@ import type { JsonValue } from "@canopy/domain";
 import { qualifyId, splitId } from "@canopy/domain/computers";
 import { Schema } from "effect";
 import { configComputer, pairConfig, type ConfigComputer } from "./support/config-sync.ts";
-import { eventually } from "./support/gateway.ts";
+import { eventually, failure } from "./support/gateway.ts";
 
 const result = (reply: AgentToolResult) => {
   expect(reply.isError).toBe(false);
@@ -34,7 +34,7 @@ describe.skipIf(!dockerAvailable)("linked parent-child messages", () => {
   const tool = (home: ConfigComputer, thread: string, turn: string, args: JsonValue, callId = crypto.randomUUID()) =>
     home.gateway.worker.callTool({ threadId: thread, turnId: turn, tool: "send_message", args, callId });
 
-  const start = async (notify = false) => {
+  const start = async (notify = false, hops = 0) => {
     a.gateway.worker.holdTurns = true;
     b.gateway.worker.holdTurns = true;
 
@@ -54,6 +54,12 @@ describe.skipIf(!dockerAvailable)("linked parent-child messages", () => {
     );
 
     const spawnId = crypto.randomUUID();
+
+    if (hops)
+      await a.store.query("UPDATE turns SET trigger='background_task',author_user_id=NULL,hops=$2 WHERE id=$1::uuid", [
+        running!.id,
+        hops,
+      ]);
 
     const spawned = result(
       await a.gateway.worker.callTool({
@@ -204,8 +210,9 @@ describe.skipIf(!dockerAvailable)("linked parent-child messages", () => {
     }
   });
 
-  test("spawn and follow-up reports admit one result, including retries after recipient restart", async () => {
-    const pair = await start(true);
+  test("long chains preserve hops and deduplicate spawn and follow-up reports after recipient restart", async () => {
+    const pair = await start(true, 100);
+    expect(await b.store.query("SELECT hops FROM turns WHERE id=$1::uuid", [pair.childTurn])).toEqual([{ hops: 101 }]);
     const followups = [crypto.randomUUID(), crypto.randomUUID()];
 
     for (const callId of followups) {
@@ -243,9 +250,13 @@ describe.skipIf(!dockerAvailable)("linked parent-child messages", () => {
     ).toHaveLength(3);
 
     const reports = () =>
-      a.store.query("SELECT id FROM turns WHERE thread_id=$1::uuid AND input->>'sourceKind'='report'", [pair.parent]);
+      a.store.query<{ id: string; hops: number }>(
+        "SELECT id,hops FROM turns WHERE thread_id=$1::uuid AND input->>'sourceKind'='report'",
+        [pair.parent],
+      );
 
     expect(await reports()).toHaveLength(1);
+    expect((await reports())[0]?.hops).toBe(102);
     await a.restart();
     await ready();
     await Promise.all(
@@ -253,7 +264,7 @@ describe.skipIf(!dockerAvailable)("linked parent-child messages", () => {
         b.gateway.core.linkedAgents.call(
           a.node,
           "report",
-          { id: pair.parent, kind: "thread", hops: 2, name: "" },
+          { id: pair.parent, kind: "thread", hops: 102, name: "" },
           callId,
           {
             event: pair.childTurn,
@@ -273,4 +284,68 @@ describe.skipIf(!dockerAvailable)("linked parent-child messages", () => {
       ),
     ).toHaveLength(1);
   }, 45000);
+
+  test("the 256-step guard reserves the final linked reply and rejects further automated work", async () => {
+    const pair = await start();
+    const limit = "This automated conversation reached its limit (256 steps). Send a new message to continue.";
+    await a.store.query("UPDATE turns SET trigger='background_task',author_user_id=NULL,hops=255 WHERE id=$1::uuid", [
+      pair.parentTurn,
+    ]);
+
+    const blocked = await tool(a, pair.parent, pair.parentTurn, {
+      thread_id: qualifyId(pair.child, b.node),
+      prompt: "must not start",
+      delivery: "queue",
+      notify: false,
+    });
+
+    expect(blocked.isError).toBe(true);
+    expect(blocked.content).toContain(limit);
+    expect(
+      await failure(
+        a.gateway.core.linkedAgents.call(
+          b.node,
+          "send",
+          { id: pair.parent, kind: "thread", hops: 256, name: "" },
+          crypto.randomUUID(),
+          { target: pair.child, prompt: "must not arrive", delivery: "queue" },
+        ),
+      ),
+    ).toContain(limit);
+    expect(await turns(b, pair.child)).toHaveLength(1);
+
+    const report = {
+      event: crypto.randomUUID(),
+      title: "Linked child",
+      status: "completed",
+      message: "final reply",
+      text: "[canopy] completed\nfinal reply",
+    };
+
+    expect(
+      await b.gateway.core.linkedAgents.call(
+        a.node,
+        "report",
+        { id: pair.parent, kind: "thread", hops: 256, name: "" },
+        pair.spawnId,
+        report,
+      ),
+    ).toEqual({ delivered: true });
+    expect(
+      await a.store.query("SELECT hops FROM turns WHERE thread_id=$1::uuid AND input->>'sourceKind'='report'", [
+        pair.parent,
+      ]),
+    ).toEqual([{ hops: 256 }]);
+    expect(
+      await failure(
+        b.gateway.core.linkedAgents.call(
+          a.node,
+          "report",
+          { id: pair.parent, kind: "thread", hops: 257, name: "" },
+          pair.spawnId,
+          { ...report, event: crypto.randomUUID() },
+        ),
+      ),
+    ).toContain(limit);
+  });
 });

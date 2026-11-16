@@ -1,4 +1,4 @@
-import { Effect, Schema } from "effect";
+import { Effect, Option, Schema } from "effect";
 import { SqlClient } from "effect/sql";
 import { splitId } from "@canopy/domain/computers";
 import { formatSize, type JsonObject } from "@canopy/domain";
@@ -10,7 +10,10 @@ import type { AttachmentRow } from "../store/attachments.ts";
 import type { BotTurn, StoredCall } from "../bots/types.ts";
 
 export function forwardingIds(args: JsonObject): readonly string[] {
-  return Schema.decodeUnknownSync(Schema.Array(Schema.String.check(Schema.isUUID())))(args["attachment_ids"] ?? []);
+  return Option.getOrThrowWith(
+    Schema.decodeUnknownOption(Schema.Array(Schema.String.check(Schema.isUUID())))(args["attachment_ids"] ?? []),
+    () => new Invalid("Invalid attachment ids. Use list_attachments to choose files from this conversation."),
+  );
 }
 
 /** Both listing and forwarding resolve sent files in this owner's bot conversation only. */

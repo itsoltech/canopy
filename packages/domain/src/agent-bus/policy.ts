@@ -16,7 +16,7 @@ import { agentBusToolsFor, SPAWN_PERMISSION_MODES, type AgentBusCall, type Spawn
  * - A side thread never gets broader permissions than the thread that spawned it.
  * - Every turn started through the bus (messages, notifications, agent-created schedules)
  *   carries hops = hops of the causing turn + 1; human input and provider wake-ups start at 0.
- *   This stops agent ping-pong without a human, across trees too.
+ *   A generous chain limit stops runaway agent loops, including across trees.
  */
 
 export interface ThreadNode {
@@ -60,7 +60,7 @@ export const DEFAULT_BUS_LIMITS: BusLimits = {
   maxDepth: 1, // main thread + one level of side threads; matches threads_max_depth
   maxChildrenPerThread: 8,
   maxActiveThreadsPerTree: 16,
-  maxHops: 8,
+  maxHops: 256,
   maxSchedulesPerThread: 10,
   maxRecurringDays: 30,
   minCronMinutes: 5,
@@ -219,12 +219,12 @@ export function authorizeBusCall(
 
 type CallOf<K extends AgentBusCall["tool"]> = Extract<AgentBusCall, { readonly tool: K }>;
 
-/** Hops of the turn the call starts, or a denial when the chain (and, by default, the notification back) exceeds the limit. */
+/** Reserve a notification hop too, so admitted work can always report its result. */
 function hopsDecision(facts: BusFacts, limits: BusLimits, notify: boolean | undefined): BusDecision {
   const nextHops = facts.callerHops + 1;
 
   return nextHops > limits.maxHops || ((notify ?? true) && nextHops + 1 > limits.maxHops)
-    ? deny(`agent-to-agent chain limit reached (${limits.maxHops} hops without human input)`)
+    ? deny(`This automated conversation reached its limit (${limits.maxHops} steps). Send a new message to continue.`)
     : { allowed: true, hops: nextHops };
 }
 

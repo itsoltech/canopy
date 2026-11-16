@@ -53,6 +53,7 @@ import threadNoticeReplication from "./0153_thread_notice_replication.sql" with 
 import threadReplicationRetention from "./0154_thread_replication_retention.sql" with { type: "text" };
 import transcriptRawPayloadRefs from "./0155_transcript_raw_payload_refs.sql" with { type: "text" };
 import storageCleanup from "./0156_storage_cleanup.sql" with { type: "text" };
+import agentHopPolicy from "./0160_agent_hop_policy.sql" with { type: "text" };
 import threadMergeArchive from "./0159_thread_merge_archive.sql" with { type: "text" };
 import threadCleanupRetention from "./0158_thread_cleanup_retention.sql" with { type: "text" };
 import deletedThreadRetention from "./0157_deleted_thread_retention.sql" with { type: "text" };
@@ -332,6 +333,7 @@ export const migrations = Migrator.fromRecord({
   "0157_deleted_thread_retention": sqlFile(deletedThreadRetention),
   "0158_thread_cleanup_retention": sqlFile(threadCleanupRetention),
   "0159_thread_merge_archive": sqlFile(threadMergeArchive),
+  "0160_agent_hop_policy": sqlFile(agentHopPolicy),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */
