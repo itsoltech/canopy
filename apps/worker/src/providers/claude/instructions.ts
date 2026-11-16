@@ -1,4 +1,4 @@
-import type { Options } from "@anthropic-ai/claude-agent-sdk";
+import type { Settings } from "@anthropic-ai/claude-agent-sdk";
 import { realpathSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { readEnvironmentBlock } from "@canopy/domain/agent-environment";
@@ -12,9 +12,9 @@ export async function claudeInstructionSettings(
   scratch: boolean,
   home: string,
   env: Env,
-): Promise<NonNullable<Options["settings"]>> {
+): Promise<Settings> {
   const root = realpathSync((scratch ? undefined : await repoRoot(cwd)) ?? cwd);
-  const excludes = [literalPath(join(home, "CLAUDE.md"))];
+  const excludes = [literalPath(join(home, "CLAUDE.md")), `${literalPath(join(home, "rules"))}/**`];
   const deviceHome = env["HOME"] || env["USERPROFILE"];
 
   if (deviceHome) excludes.push(`${literalPath(join(deviceHome, ".claude"))}/**`);

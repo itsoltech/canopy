@@ -4,6 +4,7 @@ import type { JsonValue } from "@canopy/domain";
 import { Match, Predicate } from "effect";
 import { isJsonObject } from "../bots/json.ts";
 import type { ProxyOptions } from "./proxy-records.ts";
+import { userConfigurationJson, type StoredUserConfiguration } from "./instance-user-configuration.ts";
 
 /**
  * Global provider instances, the pure part (docs/worker-config.md, section 9): what a worker gets is the
@@ -23,6 +24,7 @@ export type StoredEnvVar = {
 };
 
 export interface StoredRuntime {
+  userConfiguration?: StoredUserConfiguration;
   binaryPath?: string;
   homePath?: string;
   shadowHomePath?: string;
@@ -32,6 +34,7 @@ export interface StoredRuntime {
 
 /** Per-worker overrides; an absent field means the global definition. */
 export interface StoredOverrides {
+  userConfiguration?: StoredUserConfiguration;
   binaryPath?: string;
   homePath?: string;
   shadowHomePath?: string;
@@ -78,6 +81,7 @@ export interface AssignmentRow {
 
 /** A profile of WorkerConfig.profiles as stored (protobuf JSON, secrets as references, defaults omitted). */
 export type StoredProfile = {
+  userConfiguration?: JsonValue;
   proxyCodex?: ProxyOptions;
   id: string;
   kind: "PROVIDER_PROFILE_KIND_NATIVE" | "PROVIDER_PROFILE_KIND_CLIPROXYAPI";
@@ -190,6 +194,10 @@ export function effectiveProfile(instance: InstanceRow, assignment: AssignmentRo
   if (launchArgs.length > 0) profile.launchArgs = [...launchArgs];
 
   if (runtime.ownLogin) profile.ownLogin = true;
+
+  const userConfiguration = o.userConfiguration ?? runtime.userConfiguration;
+
+  if (userConfiguration) profile.userConfiguration = userConfigurationJson(userConfiguration);
 
   return profile;
 }

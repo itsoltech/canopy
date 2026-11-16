@@ -44,6 +44,7 @@ function environment(ctx: HostContext, config: AppliedConfig, resolved: Resolved
       ownLogin: runtime.ownLogin ?? false,
       linkDeviceLogin: config.claude.linkDeviceLogin,
       deviceClaudeHome: runtime.homePath || ctx.state.deviceHomes.claude,
+      protectedDeviceHome: ctx.state.deviceHomes.claude,
       ...(!runtime.homePath && { deviceSecureStorage: ctx.state.deviceHomes.claudeSecureStorage }),
     });
 
@@ -61,6 +62,7 @@ function environment(ctx: HostContext, config: AppliedConfig, resolved: Resolved
       ownLogin: runtime.ownLogin ?? false,
       linkDeviceLogin: config.codex.linkDeviceLogin,
       deviceCodexHome: runtime.homePath || ctx.state.deviceHomes.codex,
+      protectedDeviceHome: ctx.state.deviceHomes.codex,
     });
 
     configDir = home.path;

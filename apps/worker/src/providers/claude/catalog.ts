@@ -18,10 +18,10 @@ type EntryInit = MentionEntryInit;
  * - built-in rows that make no sense in a platform thread are left out: terminal and session controls the platform
  *   owns (model, effort, clear, rename, ...), and the native subagent and scheduling features the platform replaces
  *   (unless the worker turns those on); "/goal" is the platform's own command (goals are tracked by the gateway),
- * - the only explicitly loaded local plugin is Canopy's managed skills; device plugins stay isolated.
+ * - explicit plugins include Canopy-managed bundles and the selected user skill snapshot; other device plugins stay isolated.
  *
- * The device owner's own skills (~/.claude/skills) are not visible: Claude runs with an isolated CLAUDE_CONFIG_DIR
- * and without user settings. Project skills in the repository are.
+ * Selected user skills are exposed through the private `canopy-user` snapshot; unselected device skills and plugins
+ * are not visible. Project skills in the repository remain available.
  */
 
 /** Built-in commands that control the terminal, the session or settings the platform owns. */
@@ -65,7 +65,7 @@ export interface SkillOnDisk {
 }
 
 /** Skill folders Claude Code would load for this folder: project ones (nearest first), then the config dir's. */
-export function claudeSkillsOnDisk(cwd: string, configDir: string): Map<string, SkillOnDisk> {
+export function claudeSkillsOnDisk(cwd: string, configDir: string, userSource?: string): Map<string, SkillOnDisk> {
   const skills = new Map<string, SkillOnDisk>();
 
   const add = (dir: string, source: SkillOnDisk["source"], namespace = "") => {
@@ -94,6 +94,8 @@ export function claudeSkillsOnDisk(cwd: string, configDir: string): Map<string, 
 
   add(join(configDir, "skills"), "user");
   add(join(configDir, "canopy-environment", "skills"), "user", "canopy-environment");
+
+  if (userSource) add(join(userSource, "skills"), "user", "canopy-user");
 
   return skills;
 }
@@ -170,6 +172,6 @@ export function claudeCatalogEntries(
 }
 
 export const CLAUDE_CATALOG_NOTES = [
-  "plugins: only Canopy-managed skills are loaded explicitly; device plugins stay isolated",
-  "skills: the device owner's own skills (~/.claude/skills) are not loaded in platform threads; project skills are",
+  "plugins: Canopy-managed plugins and selected user skills load explicitly; other device plugins stay isolated",
+  "skills: project skills remain available; selected user skills use the canopy-user namespace",
 ];

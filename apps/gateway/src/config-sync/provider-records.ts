@@ -28,6 +28,7 @@ const INSTANCE_FIELDS = new Set([
   "accentColor",
   "launchArgs",
   "ownLogin",
+  "userConfiguration",
   "allWorkers",
   "favorites",
   "hidden",

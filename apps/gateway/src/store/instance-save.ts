@@ -1,4 +1,5 @@
 import { ProviderProfileKind } from "@canopy/contracts";
+import { normalizeUserConfiguration, userConfigurationProblem } from "./instance-user-configuration.ts";
 import { configTransaction } from "../config-sync/provider-records.ts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
@@ -110,7 +111,7 @@ export function instanceSave(
 
           if (accent && !ACCENT.test(accent)) return yield* Effect.fail(new Invalid("the accent color is #rrggbb"));
           const env = yield* envFrom(userId, kind, request.env, existing?.env ?? []);
-          const runtime = request.runtime ? yield* runtimeFrom(request.runtime) : { ...existing?.runtime };
+          const runtime = request.runtime ? yield* runtimeFrom(harness, request.runtime) : { ...existing?.runtime };
 
           // Own login also selects the session home. Keep it dormant while using a proxy.
           if (kind === "endpoint" && existing?.runtime.ownLogin) runtime.ownLogin = true;
@@ -231,7 +232,7 @@ export function instanceMutations(
           const row = yield* lockInstance(harness, request.id);
           yield* core.get(harness, row.id, userId);
 
-          if (!(yield* workers()).some((w) => w.id === request.workerId))
+          if (!(yield* workers(userId)).some((w) => w.id === request.workerId))
             return yield* Effect.fail(new NotFound(`worker ${request.workerId} not found`));
 
           const current = (yield* sql<AssignmentRow>`
@@ -267,6 +268,7 @@ export function instanceMutations(
               checkPath("home path", input.homePath) ??
               checkPath("shadow home path", input.shadowHomePath) ??
               checkArgs(input.launchArgs) ??
+              (input.userConfiguration && userConfigurationProblem(harness, input.userConfiguration)) ??
               (input.baseUrl !== undefined && row.kind === "endpoint" ? checkBaseUrl(input.baseUrl) : undefined);
 
             if (problem) return yield* Effect.fail(new Invalid(problem));
@@ -280,6 +282,8 @@ export function instanceMutations(
             if (input.shadowHomePath !== undefined) next.shadowHomePath = input.shadowHomePath.trim();
 
             if (input.launchArgsSet) next.launchArgs = [...input.launchArgs];
+
+            if (input.userConfiguration) next.userConfiguration = normalizeUserConfiguration(input.userConfiguration);
 
             if (env.length > 0) next.env = env;
 

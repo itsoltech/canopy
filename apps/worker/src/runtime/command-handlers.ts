@@ -2,7 +2,7 @@ import type { Command } from "@canopy/contracts";
 import { CliRefused } from "../cli-tools/index.ts";
 
 import { CommandError, type CommandOutput } from "./host-types.ts";
-import { adoptImportedSession, removeImportedCopy } from "../import/adopt.ts";
+import { importedCopyCommand } from "./import-commands.ts";
 import { readImportLibraryItem } from "../import/library-read.ts";
 import { readImportSecret } from "../import/library-secret.ts";
 import { readImportPage } from "../import/pages.ts";
@@ -117,14 +117,8 @@ export class CommandHandlers {
 
     if (kind.case === "readImportPage") return { importPage: readImportPage(this.ctx.state.imports, kind.value) };
 
-    if (kind.case === "adoptImportedSession")
-      return { importedSessionId: adoptImportedSession(this.ctx.state.imports, this.ctx.state, kind.value) };
-
-    if (kind.case === "removeImportedCopy") {
-      removeImportedCopy(this.ctx.state.imports, this.ctx.state, kind.value);
-
-      return {};
-    }
+    if (kind.case === "adoptImportedSession" || kind.case === "removeImportedCopy")
+      return importedCopyCommand(this.ctx, kind);
 
     if (kind.case === "installCli") {
       try {

@@ -27,7 +27,7 @@ const SESSION = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 export interface ImportHomesForProfiles {
   /** The private homes of an instance's harnesses ("" = native). */
-  claudeHome(profileId: string): string;
+  claudeHome(profileId: string, sessionId?: string): string;
   codexHome(profileId: string): string;
   /** Grok: the durable sessions root every process of the instance links as GROK_HOME/sessions. */
   grokSessions(profileId: string): string;
@@ -64,7 +64,7 @@ function adoptClaude(service: WorkerImport, homes: ImportHomesForProfiles, comma
   if (!SESSION.test(sessionId)) throw new CommandError("IMPORT_SOURCE", "the session id is not valid", false);
 
   const copy = new PrivateCopy(
-    homes.claudeHome(command.profileId),
+    homes.claudeHome(command.profileId, sessionId),
     service.copyManifest("claude", command.profileId, sessionId),
   );
 
@@ -122,8 +122,8 @@ function adoptCodex(service: WorkerImport, homes: ImportHomesForProfiles, comman
 }
 
 /** The private home each CLI's copies live in. */
-const HOMES = new Map<string, (homes: ImportHomesForProfiles, profileId: string) => string>([
-  ["claude", (homes, profileId) => homes.claudeHome(profileId)],
+const HOMES = new Map<string, (homes: ImportHomesForProfiles, profileId: string, sessionId: string) => string>([
+  ["claude", (homes, profileId, sessionId) => homes.claudeHome(profileId, sessionId)],
   ["codex", (homes, profileId) => homes.codexHome(profileId)],
   ["grok", (homes, profileId) => homes.grokSessions(profileId)],
 ]);
@@ -223,8 +223,8 @@ export function removeImportedCopy(
   command: RemoveImportedCopy,
 ): void {
   if (!SESSION.test(command.sessionId)) return;
-  // The home the worker expects now, never one a manifest names.
-  const home = HOMES.get(command.agentCli)?.(homes, command.profileId);
+  // The worker's recorded copy destination, never a path supplied by the manifest.
+  const home = HOMES.get(command.agentCli)?.(homes, command.profileId, command.sessionId);
 
   if (home) removeCopy(service.copyManifest(command.agentCli, command.profileId, command.sessionId), home);
 }

@@ -7,6 +7,8 @@ import { withDeadline } from "../deadline.ts";
 
 import { ClaudeThreadError, fail, type ClaudeThreadContext } from "./thread-types.ts";
 import type { claudeRuntime } from "./session-runtime.ts";
+import { claudeQueryConfiguration } from "./query-configuration.ts";
+import { ProviderConfigurationMode } from "@canopy/contracts";
 
 export function threadCatalog(ctx: ClaudeThreadContext, runtime: ReturnType<typeof claudeRuntime>) {
   const { options, resolvedModels, modelEfforts } = ctx;
@@ -25,35 +27,47 @@ export function threadCatalog(ctx: ClaudeThreadContext, runtime: ReturnType<type
       // Started like a turn's process (folder, config dir, setting sources), so it lists what a turn would have.
       const prompt = new AsyncChannel<SDKUserMessage>();
       const abort = new AbortController();
+      const instance = runtimeOf(profile);
+
+      const inheritedSkills =
+        instance.userConfiguration?.skills &&
+        (instance.userConfiguration.mode === ProviderConfigurationMode.LOCAL ||
+          instance.userConfiguration.mode === ProviderConfigurationMode.SHARED)
+          ? instance.sourceHome
+          : undefined;
 
       const commands = yield* Effect.tryPromise({
         try: async () => {
-          const q = query({
-            prompt,
-            options: {
-              cwd,
-              ...queryRuntime(profile, runtimeOf(profile)),
-              persistSession: false,
-              strictMcpConfig: true,
-              mcpServers: {},
-              abortController: abort,
-            },
+          const configuration = await claudeQueryConfiguration(instance, cwd, false, options.baseEnv, {
+            cwd,
+            ...queryRuntime(profile, instance),
+            persistSession: false,
+            strictMcpConfig: true,
+            mcpServers: {},
+            abortController: abort,
           });
 
           try {
+            const q = query({ prompt, options: configuration.options });
+
             return await withDeadline(q.supportedCommands(), 30_000, () => {
               throw new Error("Claude Code did not list its commands within 30 s");
             });
           } finally {
             prompt.close();
             abort.abort();
+            await configuration.close();
           }
         },
         catch: fail("", "commands"),
       });
 
       return {
-        entries: claudeCatalogEntries(commands, claudeSkillsOnDisk(cwd, runtimeOf(profile).home), options.nativeTools),
+        entries: claudeCatalogEntries(
+          commands,
+          claudeSkillsOnDisk(cwd, instance.platformHome ?? instance.home, inheritedSkills),
+          options.nativeTools,
+        ),
         notes: [...CLAUDE_CATALOG_NOTES],
       };
     }),
@@ -75,7 +89,7 @@ export function threadCatalog(ctx: ClaudeThreadContext, runtime: ReturnType<type
           const q = query({
             prompt,
             options: {
-              cwd: runtimeOf(profile).home,
+              cwd: runtimeOf(profile).platformHome ?? runtimeOf(profile).home,
               ...queryRuntime(profile, runtimeOf(profile)),
               settingSources: [],
               persistSession: false,

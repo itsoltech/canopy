@@ -4,6 +4,7 @@ import { envListProblems, type ProfileKind } from "@canopy/domain";
 import { providerKeyOf, type ProviderKey } from "#lib/features/threads/providers.ts";
 import { requestJson } from "#lib/shared/http.ts";
 import { harnessName } from "@canopy/domain/provider-instances";
+import { configurationDraftOf, configurationInput, type UserConfigurationDraft } from "./user-configuration.ts";
 
 export {
   harnessName,
@@ -168,6 +169,7 @@ export interface InstanceDraft {
   shadowHomePath: string;
   launchArgs: string;
   ownLogin: boolean;
+  userConfiguration: UserConfigurationDraft;
   /** New instances: where they run. */
   allWorkers: boolean;
   workerIds: string[];
@@ -188,6 +190,7 @@ export function newDraft(harness: Provider, workerIds: string[]): InstanceDraft 
     shadowHomePath: "",
     launchArgs: "",
     ownLogin: false,
+    userConfiguration: configurationDraftOf(),
     allWorkers: workerIds.length === 0,
     workerIds,
   };
@@ -208,6 +211,7 @@ export function draftOf(instance: ui.ProviderInstance): InstanceDraft {
     shadowHomePath: instance.runtime?.shadowHomePath ?? "",
     launchArgs: joinArgs(instance.runtime?.launchArgs ?? []),
     ownLogin: instance.runtime?.ownLogin ?? false,
+    userConfiguration: configurationDraftOf(instance.runtime?.userConfiguration),
     allWorkers: instance.allWorkers,
     workerIds: instance.workers.filter((w) => w.enabled).map((w) => w.workerId),
   };
@@ -284,6 +288,7 @@ export function saveRequest(
       shadowHomePath: draft.shadowHomePath.trim(),
       launchArgs: splitArgs(draft.launchArgs),
       ownLogin: draft.ownLogin,
+      userConfiguration: draft.harness === Provider.CLAUDE ? configurationInput(draft.userConfiguration) : undefined,
     },
     accentColor: draft.accentColor,
     expectedRevision: options.expectedRevision,
@@ -295,6 +300,7 @@ export function saveRequest(
 
 /** A field of the worker's overrides: unset follows the definition. */
 export interface OverrideDraft {
+  userConfiguration: UserConfigurationDraft | undefined;
   proxyId: string;
   binaryPath: string | undefined;
   homePath: string | undefined;
@@ -308,6 +314,7 @@ export function overrideDraftOf(on: ui.InstanceOnWorker | undefined): OverrideDr
 
   return {
     proxyId: o?.proxyId ?? "",
+    userConfiguration: o?.userConfiguration ? configurationDraftOf(o.userConfiguration) : undefined,
     binaryPath: o?.binaryPath,
     homePath: o?.homePath,
     shadowHomePath: o?.shadowHomePath,
@@ -328,6 +335,10 @@ export function overrideRequest(
     id: instance.id,
     workerId,
     overrides: {
+      userConfiguration:
+        instance.harness === Provider.CLAUDE && draft.userConfiguration
+          ? configurationInput(draft.userConfiguration)
+          : undefined,
       ...(draft.binaryPath !== undefined && { binaryPath: draft.binaryPath }),
       ...(draft.homePath !== undefined && { homePath: draft.homePath }),
       ...(draft.shadowHomePath !== undefined && { shadowHomePath: draft.shadowHomePath }),

@@ -1,5 +1,9 @@
 # Konfiguracja workerów
 
+Aktualizacja (2026-11-16): polityka konfiguracji użytkownika Claude i oddzielny
+wybór katalogów logowania, konfiguracji, sesji oraz prywatnych plików platformy
+są zaimplementowane w kodzie. Dostępność nightly/beta/stable wynika z promocji wydań.
+
 Status kont per instancja i worker (CLI, cache, prywatność):
 [provider-accounts.md](provider-accounts.md). Ochrona przed lawiną procesów:
 [process-governor.md](process-governor.md).
@@ -47,7 +51,7 @@ i granty egzekwuje gateway. Ustawienia shella i sandboxa dotyczą osobno wątkó
 kodujących, a `never` Codexa nie jest opcją bota. Zasady: [bots.md](bots.md)
 i [bots-harness.md](bots-harness.md#narzędzia-i-granica-bezpieczeństwa).
 
-Status: **zaimplementowana**:
+Status: **zaimplementowana** (2026-11-16; obejmuje ochronę źródłowego katalogu CLI przed przygotowaniem go jako shadow home):
 - kontrakt: `WorkerConfig`, `ConfigApplied`, `Hello.config_version`,
 - worker: `apps/worker/src/config` (konfiguracja lokalna i zastosowanie zdalnej),
 - gateway: `WorkerLinkOptions.config`, `WorkerLink.pushConfig`,
@@ -482,7 +486,7 @@ Status: **zaimplementowane** (migracja `0018_global_providers`; gateway `store/i
 | `kind`: `native` (logowanie harnessu) albo `endpoint` (zapisane proxy) | `proxy_id`: inne proxy lub `NULL` (wybór instancji) |
 | `proxy_id`; `base_url`, `api_key` jako projekcja zgodności | `overrides.binaryPath`, `homePath`, `shadowHomePath`, `launchArgs` (ścieżki zależne od systemu) |
 | `env` (jawne i sekrety) | `overrides.env`: dodane albo zastąpione po nazwie (bez wielkości liter) |
-| `runtime`: `binaryPath`, `homePath`, `shadowHomePath`, `launchArgs`, `ownLogin` | |
+| `runtime`: `binaryPath`, `homePath`, `shadowHomePath`, `launchArgs`, `ownLogin`, `userConfiguration` | `overrides.userConfiguration`: cała polityka zamiast globalnej; brak = dziedziczenie |
 | `favorites` (kolejność), `hidden_models`, `shown_models`, `custom_models` | |
 | `all_workers` (także workery zarejestrowane później), `built_in`, `revision` | |
 
@@ -525,11 +529,62 @@ Pickery (nowy wątek i wątek) pokazują dla wybranego workera tylko instancje `
 - **Środowisko uruchomienia instancji** (`hasOwnRuntime`): własny plik wykonywalny, `home_path` (katalog CLI właściciela urządzenia, z którego dowiązywane jest logowanie), `shadow_home_path` (izolowany katalog harnessu; dotąd zawsze `<data_dir>/codex-home` / `claude-home`), argumenty uruchomienia, `own_login`. Instancja z `home_path` albo `own_login` bez `shadow_home_path` dostaje własny katalog `<data_dir>/homes/<harness>-<id>` (dwa logowania nie dzielą katalogu).
   - Codex: każda instancja ma własny `codex app-server`: `<binary> app-server … <launch_args>`, `CODEX_HOME` = jej katalog. Wątki instancji z własnym katalogiem żyją w nim (jawna zmiana katalogu instancji z wątkami = ich sesje zostają w starym).
   - Claude: per zapytanie `pathToClaudeCodeExecutable`, `CLAUDE_CONFIG_DIR` w `env` i `extraArgs` (z `--flag wartość`); pomocnicze funkcje SDK (`forkSession`, `getSessionMessages`) czytają katalog z procesu, więc wywołania idą po kolei z ustawionym `CLAUDE_CONFIG_DIR` katalogu instancji.
+- **Ochrona loginu Claude/Codex:** prywatny shadow home nie może wskazywać katalogu źródła logowania ani rzeczywistego domu CLI urządzenia, także przez dowiązania, przy własnym źródle loginu, wyłączonym logowaniu urządzenia lub własnym loginie. Błąd systemu plików wyłącza tylko daną instancję. Przygotowanie runtime'u sprawdza ścieżki ponownie; istniejący własny plik loginu nie jest usuwany ani zastępowany. Tryb współdzielonych sesji Claude wybiera osobny katalog sesji i nigdy nie przekazuje go do przygotowania prywatnego home.
+  Niestandardowe źródło logowania nie wyłącza ochrony rzeczywistego domu CLI urządzenia.
+  Błąd kanonizacji ścieżki oznacza niedostępność sprawdzanej instancji i nie przerywa
+  zastosowania konfiguracji pozostałych instancji. Hardlink loginu jest zarządzany
+  tylko wtedy, gdy jego urządzenie i i-węzeł odpowiadają znanemu plikowi logowania
+  urządzenia; sam licznik dowiązań nie wystarcza. Hardlink do innego pliku pozostaje
+  chroniony jak własny login.
 - **Raport per instancja** (`ConfigApplied.profiles`): `version` (wersja jej pliku wykonywalnego albo dostawcy), `auth` i `authenticated`: endpoint — „endpoint key”; native — login w katalogu (Codex `auth.json`: „ChatGPT” albo „OpenAI API key”, czytany tylko kształt; Claude `.credentials.json`: „Claude account”; na macOS Claude trzyma login w pęku kluczy: nieznane), albo klucz w zmiennych (`ANTHROPIC_API_KEY` itd.). Native bez logowania, brak CLI albo plik wykonywalny, który się nie uruchamia, robią instancję niedostępną z powodem (`not signed in`, `no Codex login on this device`, `… not found or not runnable`) — bez wpisu w `issues`.
 - `InstanceOnWorker.kind` to rodzaj połączenia z tego raportu, także dla wbudowanej instancji `native`
   używającej proxy. Pełny status trafia również do `Worker.provider_instances.status` w overview,
   więc połączone komputery pokazują raport domu z jego nadpisaniami i czasem sprawdzenia.
 - **`ProbeProviders`** (UI: Refresh): worker stosuje bieżącą konfigurację jeszcze raz (sprawdza wersje i logowania), wysyła `ConfigApplied` z tą samą wersją i katalog modeli, potem odpowiada. Capability `probe_providers`.
+
+### Konfiguracja użytkownika Claude
+
+`ProviderProfileConfig.user_configuration` określa tryb i niezależne wybory
+instrukcji, skilli oraz hooków. Brak wiadomości i `UNSPECIFIED` zachowują izolację.
+Gateway zapisuje pełną politykę w `runtime.userConfiguration`; obecne nadpisanie
+workera zastępuje ją w całości, również wartościami `false`. Codex i Grok
+odrzucają tryby inne niż izolowany jako błąd jednej instancji.
+
+Worker ogłasza `claude_user_configuration_v1`. Bez tej capability gateway
+wyłącza w przesyłanej konfiguracji tylko aktywne profile `LOCAL`/`SHARED`,
+a ich raport pokazuje komunikat o wymaganej aktualizacji workera. Zapisana
+polityka i pozostałe profile nie zmieniają się; po aktualizacji workera
+negocjacja ponownie wysyła właściwą konfigurację.
+
+| Tryb | Konfiguracja | Nowe sesje | Pliki zarządzane przez Canopy |
+|---|---|---|---|
+| `ISOLATED` | Dotychczasowa izolowana konfiguracja | Prywatny home | Prywatny home |
+| `LOCAL` | Oczyszczone preferencje ze źródła użytkownika | Prywatny home | Prywatny home |
+| `SHARED` | Te same oczyszczone preferencje i opcje co `LOCAL` | Katalog źródłowy użytkownika | Prywatny home |
+
+`source_path` jest niezależne od `home_path` źródła logowania. Puste oznacza
+dom CLI Claude uchwycony przy starcie workera. Ścieżki bezwzględne, `~`, `~/…`
+i `~\…` są obsługiwane; worker rozwija tyldę względem własnego katalogu domowego.
+Gateway zachowuje zapis literalny. Ścieżki względne oraz `~innyużytkownik` są odrzucane.
+Katalog źródłowy zostaje lokalny przy synchronizacji definicji między komputerami.
+
+`LOCAL` i `SHARED` nie włączają natywnego źródła ustawień `user`: SDK nadal
+czyta źródła `project` i `local`, a Canopy przekazuje dozwolone preferencje
+z wybranego źródła. Własne MCP, środowisko, logowanie i uprawnienia użytkownika
+nie nadpisują konfiguracji Canopy. Instrukcje, skille i hooki są osobnymi
+opcjami. Szczegóły oczyszczania i pierwszeństwa: [claude-adapter.md](claude-adapter.md).
+
+Tryb `SHARED` zmienia rzeczywisty `CLAUDE_CONFIG_DIR` sesji; katalog źródłowy
+nie jest przygotowywany ani czyszczony jak prywatny home. Prywatny katalog
+platformy nadal obsługuje zarządzane dodatki i przygotowanie logowania.
+`CLAUDE_SECURESTORAGE_CONFIG_DIR` wybiera login niezależnie: źródło logowania
+urządzenia lub prywatny home dla `own_login`. Zmiana konfiguracji nie zmienia konta.
+Istniejące wątki i importy zachowują utrwalony katalog sesji; brak takiego katalogu
+nie powoduje odtworzenia pustego magazynu historii.
+
+`ConfigApplied.profiles` raportuje efektywne `login_home_path`,
+`configuration_home_path`, `session_home_path` i `private_home_path`.
+Ścieżki są danymi właściciela; raport nie zawiera zawartości ustawień ani loginu.
 
 ### Środowisko agentów
 

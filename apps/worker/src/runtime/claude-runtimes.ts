@@ -1,9 +1,12 @@
-import { BackgroundTaskKind, Provider } from "@canopy/contracts";
+import { BackgroundTaskKind, Provider, ProviderConfigurationMode } from "@canopy/contracts";
 import { Context, Effect, Exit, Layer, Scope } from "effect";
-import { instanceShadowHome } from "../config/remote.ts";
 import { prepareClaudeHome } from "../providers/claude/home.ts";
+import type { ProviderHome } from "../providers/home.ts";
+import { claudeConfigurationHomes, claudeConfigurationHomeProblem } from "../providers/claude/configuration-homes.ts";
 import { claudeExtraArgs, ClaudeThreads } from "../providers/claude/threads.ts";
 import { claudeConfiguredEffort, readClaudeUserSettings } from "../providers/default-effort.ts";
+import { Journal } from "../journal/index.ts";
+import { requireClaudeSessionHome } from "../providers/claude/session-home.ts";
 import type { ResolvedProfile } from "../providers/profiles.ts";
 import type { AppliedConfig } from "../config/remote.ts";
 
@@ -39,19 +42,48 @@ export class ClaudeRuntimes {
   ): Promise<void> {
     if (!config) return;
     const runtime = profile.runtime;
-    const shadow = instanceShadowHome(this.ctx.state.options.dataDir, "claude", profile.id, runtime);
 
-    const home = prepareClaudeHome({
-      dataDir: this.ctx.state.options.dataDir,
-      ...(shadow && { path: shadow }),
-      ...(runtime.ownLogin && { ownLogin: true }),
-      linkDeviceLogin: config.claude.linkDeviceLogin,
-      deviceClaudeHome: runtime.homePath || this.ctx.state.deviceHomes.claude,
-      ...(!runtime.homePath && { deviceSecureStorage: this.ctx.state.deviceHomes.claudeSecureStorage }),
-    });
+    const selected = claudeConfigurationHomes(
+      this.ctx.state.options.dataDir,
+      profile.id,
+      runtime,
+      this.ctx.state.deviceHomes.claude,
+    );
+
+    const loginSource = runtime.homePath || this.ctx.state.deviceHomes.claude;
+    const problem = claudeConfigurationHomeProblem(selected, loginSource, this.ctx.state.deviceHomes.claude);
+
+    if (problem) throw new CommandError("PROVIDER_UNAVAILABLE", problem, false);
+
+    const retained = await this.ctx.state.options.runtime.runPromise(
+      Journal.use((journal) => journal.isClaudeSessionHomeBound(selected.platformHome)),
+    );
+
+    if (retained) requireClaudeSessionHome(selected.platformHome);
+
+    const home: ProviderHome & { readonly secureStorageDir: string } = retained
+      ? {
+          path: selected.platformHome,
+          login: runtime.ownLogin ? "own" : config.claude.linkDeviceLogin ? "linked" : "none",
+          secureStorageDir:
+            !runtime.ownLogin && config.claude.linkDeviceLogin
+              ? runtime.homePath
+                ? loginSource
+                : (this.ctx.state.deviceHomes.claudeSecureStorage ?? loginSource)
+              : selected.platformHome,
+        }
+      : prepareClaudeHome({
+          dataDir: this.ctx.state.options.dataDir,
+          path: selected.platformHome,
+          ...(runtime.ownLogin && { ownLogin: true }),
+          linkDeviceLogin: config.claude.linkDeviceLogin,
+          deviceClaudeHome: loginSource,
+          protectedDeviceHome: this.ctx.state.deviceHomes.claude,
+          ...(!runtime.homePath && { deviceSecureStorage: this.ctx.state.deviceHomes.claudeSecureStorage }),
+        });
 
     if (home.problem) this.ctx.ops.log(`claude home: ${home.problem}`);
-    this.ctx.state.claudeHomes.set(profile.id, home.path);
+    this.ctx.state.claudeHomes.set(profile.id, selected.home);
     const executable = runtime.executablePath || config.claude.executable;
 
     const usage = usageReporter(
@@ -65,17 +97,25 @@ export class ClaudeRuntimes {
 
     const layer = ClaudeThreads.layer({
       onUsage: usage.report,
-      home: home.path,
+      home: selected.home,
       ...(executable && { executable }),
       runtimeOf: () => ({
-        home: home.path,
+        ...selected,
         ...(executable && { executable }),
         extraArgs: claudeExtraArgs(runtime.launchArgs ?? []),
       }),
       nativeTools: config.nativeTools,
       baseEnv: { ...process.env, CLAUDE_SECURESTORAGE_CONFIG_DIR: home.secureStorageDir },
       configuredEffort: (names) =>
-        claudeConfiguredEffort(readClaudeUserSettings(this.ctx.state.deviceHomes.claude), process.env, names),
+        claudeConfiguredEffort(
+          readClaudeUserSettings(
+            selected.userConfiguration.mode === ProviderConfigurationMode.ISOLATED
+              ? this.ctx.state.deviceHomes.claude
+              : selected.sourceHome,
+          ),
+          process.env,
+          names,
+        ),
       profile: (id) => (profile.id === (id || "native") ? profile : undefined),
       publish: (event) => this.ctx.ops.publish(event),
       allowProviderTurn: (threadId) =>

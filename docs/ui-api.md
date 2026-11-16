@@ -4,6 +4,8 @@ Status (2026-11-16): web/desktop — zmiana uprawnień bieżącej tury Claude dz
 przełączanie wątków zachowuje status połączenia,
 a zapowiedziana aktualizacja gatewaya pokazuje w wątku spokojny komunikat bez akcji odzyskiwania,
 a wygaszany kompozytor zachowuje własny szkic bez odczytu nieaktywnego derived.
+Formularze instancji Claude rozdzielają źródło logowania, prywatny stan i konfigurację użytkownika.
+Zakres workera pokazuje też efektywne katalogi z jego ostatniego raportu.
 Tekst jest streamowany wyłącznie pełnymi liniami, z kursorem inline.
 Bezpieczny HTML we wspólnym rendererze Markdown,
 lokalne obrazy w podglądzie plików, interaktywny Preview wątku i automatyczny mini
@@ -2119,6 +2121,33 @@ Trasy:
 - `/threads/[id]`: klientowy `+page.ts` pobiera `GetThread` przez BFF (404 dla nieznanego); SSE daje snapshot i dalsze zmiany. Panel kontekstu pokazuje drzewo, cele i zadania. „New side thread” prowadzi do `/threads/[id]/new-side-thread`: kompozytor z modelem, wysiłkiem, uprawnieniami i domyślnie włączonym dziedziczeniem historii; kontekst miejsca jest tylko do odczytu. Akcja `?/createSideThread` na tej stronie pobiera rodzica przez `GetThread`, bierze z niego projekt, workspace, dostawcę i instancję oraz wywołuje wspólne `CreateThread`. [Szczegóły przepływu](threads.md#nowy-wątek-boczny-w-webie). `/settings/appearance` i `/settings/threads` edytują wygląd i domyślne nowych wątków; `/settings/schedules` pokazuje wszystkie harmonogramy, także zakończone, i pozwala je tworzyć, wstrzymywać, wznawiać i anulować.
 - `/settings/projects` i `/settings/projects/[id]`: projekty, powiązania z workerami i katalogami (`?/createWorkspace`, `?/updateWorkspace`, `?/removeWorkspace`), domyślne wątków projektu i lista wątków. Stare `/projects/[id]` przekierowuje tutaj. `/settings/workers` i `/settings/workers/[id]` pokazują maszyny i linki do ich dostawców.
 - `/settings/providers`: klientowy `+page.ts` pobiera instancje i pełne katalogi modeli; strona działa też w nakładce. Zakres All workers / worker, status i wersja CLI instancji, definicja (id, kolor, połączenie, runtime i zmienne), nadpisania workera, modele (filtry, ukrywanie, ulubione, własne id i tagi), logowanie, usuwanie. „Add” prowadzi przez Provider → Identity → Config (`pageSlide`). Na telefonie lista i szczegóły są osobnymi panelami.
+
+  Claude ma wspólne `UserConfigurationFields` w tworzeniu, definicji i nadpisaniach workera.
+  `Isolated` zachowuje dotychczasową izolację; `Use local configuration` korzysta z lokalnych
+  ustawień i preferencji, zachowując prywatny stan rozmów. `Share a directory` współdzieli
+  pliki sesji z terminalowym Claude Code w katalogu źródłowym. Oba tryby mają osobne przełączniki
+  globalnych instrukcji, osobistych skills i hooks; hooks pozostają domyślnie wyłączone.
+  Preferencje przechodzą przez kontrolowaną nakładkę: lokalne ustawienia nie zastępują
+  uwierzytelnienia, uprawnień ani narzędzi MCP Canopy. Formularz przypomina o kontroli
+  uprawnień i podłączonych narzędzi. Worker nie przygotowuje ani nie sprząta katalogu
+  współdzielonego. Źródło konfiguracji jest niezależne od
+  `Login source` (`home_path`) oraz `Private state directory` (`shadow_home_path`). Puste
+  `source_path` oznacza wykryty katalog konfiguracji Claude workera; `~/…` rozwija worker
+  względem swojego katalogu użytkownika. Wybór lokalnej albo
+  współdzielonej konfiguracji rozpoczyna od instrukcji i skills włączonych, hooks wyłączonych;
+  stary brak konfiguracji oznacza `Isolated` i wszystkie trzy opcje wyłączone.
+  `InstanceRuntime.user_configuration` ustala definicję; obecne
+  `InstanceOverrides[Input].user_configuration` zastępuje cały obiekt, a brak dziedziczy
+  definicję (jawna opcja `Inherit definition`). Zapisy i odczyty zachowują tę obecność,
+  także dla zdalnego workera z `inherited_runtime`. Pozostali dostawcy nie pokazują tych pól.
+  `ReportedRuntimePaths` pokazuje tylko niepuste efektywne ścieżki zgłoszone przez workera
+  w `ProviderProfile`: `login_home_path` (logowanie), `configuration_home_path` (konfiguracja),
+  `session_home_path` (domyślny magazyn nowych sesji) i `private_home_path` (prywatny stan).
+  Gateway przenosi te pola do owner-scoped `InstanceOnWorker`, także w statusie zdalnego
+  workera; nie wylicza ich z definicji ani nadpisań. Wartości są tylko do odczytu,
+  z zaznaczaniem i kopiowaniem; starszy worker bez pól nie pokazuje pustej sekcji.
+  Informacja pod ścieżkami wyjaśnia, że istniejące wątki mogą zachować wcześniejszy
+  katalog historii przypięty na workerze.
 - `/settings/proxies`: połączenia owner-scoped, szyfrowany sekret (Set / Replace), mapowania harnessów i Test connection. Instancje wybierają `proxy_id`; Move to a proxy przenosi zapisane zmienne bez ujawniania sekretu. RPC i endpointy BFF: [proxies.md](proxies.md#api-i-weryfikacja).
 - `/bots` pokazuje zapowiedź bez sztucznych danych; `/bots/[id]` daje 404. `/dev/bots` to galeria komponentów, a `/dev/long-thread` to syntetyczna długa historia; obie trasy działają wyłącznie w development, chronione `import.meta.env.DEV`.
 

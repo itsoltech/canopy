@@ -15,9 +15,12 @@ import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
 import { AdoptImportedSessionSchema, RemoveImportedCopySchema, type ImportSnapshot } from "@canopy/contracts";
 import { tempDirs } from "@canopy/testing";
+import { Effect } from "effect";
+import { Journal } from "../journal/index.ts";
 import { adoptImportedSession, removeImportedCopy } from "./adopt.ts";
 import { installFixtureHome } from "./fixtures/install.ts";
 import { WorkerImport } from "./service.ts";
+import { durableImportHomes } from "./session-homes.ts";
 
 /**
  * Security of native copies (docs/import.md, "Kontynuacja"): writes never go through a link, a copy is masked, and
@@ -82,6 +85,49 @@ test("a copy is masked: a secret in the session does not reach the private home"
   expect(copy.split("\n")[0]).toBe(
     readFileSync(join(home, ".claude", "projects", projectDir, session), "utf8").split("\n")[0],
   );
+});
+
+test("a retried import and Undo retain the recorded destination across profile changes and restarts", async () => {
+  const { root, privateHome, projectDir, summary, service } = await setup();
+  const changed = join(root, "changed-home");
+  let current = privateHome;
+  const homes = { claudeHome: () => current, codexHome: () => current, grokSessions: () => current };
+
+  const reopen = <A>(run: (journal: Journal["Service"]) => A) =>
+    Effect.runPromise(
+      Journal.use((journal) => Effect.sync(() => run(journal))).pipe(
+        Effect.provide(Journal.layer(join(root, "journal.db"))),
+      ),
+    );
+
+  const adopt = () =>
+    reopen((journal) =>
+      adoptImportedSession(
+        service,
+        durableImportHomes(journal, homes, true),
+        create(AdoptImportedSessionSchema, { sourceKey: summary.sourceKey, snapshot: summary.snapshot }),
+      ),
+    );
+
+  const sessionId = await adopt();
+  const copied = join(privateHome, "projects", projectDir, `${sessionId}.jsonl`);
+  const before = readFileSync(copied, "utf8");
+  const other = join(changed, "projects", projectDir, `${sessionId}.jsonl`);
+  mkdirSync(join(changed, "projects", projectDir), { recursive: true });
+  writeFileSync(other, "keep this other history");
+  current = changed;
+  expect(await adopt()).toBe(sessionId);
+  expect(readFileSync(copied, "utf8")).toBe(before);
+  expect(readFileSync(other, "utf8")).toBe("keep this other history");
+  await reopen((journal) =>
+    removeImportedCopy(
+      service,
+      durableImportHomes(journal, homes, false),
+      create(RemoveImportedCopySchema, { agentCli: "claude", sessionId }),
+    ),
+  );
+  expect(existsSync(copied)).toBe(false);
+  expect(readFileSync(other, "utf8")).toBe("keep this other history");
 });
 
 test("links in the private home are never written through: a linked directory or a planted file at the target", async () => {

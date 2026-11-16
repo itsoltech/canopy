@@ -44,6 +44,7 @@ const ITEM_LABELS = new Map(
     accentColor: "Color",
     launchArgs: "Launch arguments",
     ownLogin: "Own login",
+    userConfiguration: "User configuration",
     allWorkers: "All workers",
     favorites: "Favorite models",
     hidden: "Hidden models",

@@ -17,6 +17,7 @@ import { retryContext } from "./retry-context.ts";
 import { connectorCatalog } from "./connector-catalog.ts";
 import { heldDelivery } from "./held-delivery.ts";
 import { commandTracking } from "./commands.ts";
+import { claudeSessionTracking } from "./claude-session-homes.ts";
 import { secretEventRedactor } from "../runtime/thread-secrets.ts";
 import { journalStatistics, type JournalStatistics } from "./statistics.ts";
 import { workerDiagnostics } from "../diagnostics/worker.ts";
@@ -93,6 +94,14 @@ export class Journal extends Context.Service<
   Journal,
   {
     readonly journalId: string;
+    claudeSessionHome: ReturnType<typeof claudeSessionTracking>["claudeSessionHome"];
+    isClaudeSessionHomeBound: ReturnType<typeof claudeSessionTracking>["isClaudeSessionHomeBound"];
+    bindClaudeSessionHome: ReturnType<typeof claudeSessionTracking>["bindClaudeSessionHome"];
+    hasClaudeSessionHistory: ReturnType<typeof claudeSessionTracking>["hasClaudeSessionHistory"];
+    hasStartedClaudeThread: ReturnType<typeof claudeSessionTracking>["hasStartedClaudeThread"];
+    rememberClaudeSession: ReturnType<typeof claudeSessionTracking>["rememberClaudeSession"];
+    claudeImportedSessionHome: ReturnType<typeof claudeSessionTracking>["claudeImportedSessionHome"];
+    bindClaudeImportedSessionHome: ReturnType<typeof claudeSessionTracking>["bindClaudeImportedSessionHome"];
     rememberRequest: ReturnType<typeof retryContext>["rememberRequest"];
     forgetRequest: ReturnType<typeof retryContext>["forgetRequest"];
     recoveryInstructions: ReturnType<typeof retryContext>["recoveryInstructions"];
@@ -273,6 +282,7 @@ function makeJournal(db: Database, diagnostics: boolean): Journal["Service"] {
   const { trackBackground, selectBackground } = backgroundTracking(db);
 
   const turns = turnTracking(db, attempt);
+  const homes = claudeSessionTracking(db, attempt);
 
   const appendTx = db.transaction((threadId: string, event: ThreadEventInit) => {
     const seq = BigInt(nextSeq.get({ thread: threadId })!.last_seq);
@@ -344,6 +354,7 @@ function makeJournal(db: Database, diagnostics: boolean): Journal["Service"] {
   const admit = botAdmission(db, appendTx);
 
   return Journal.of({
+    ...homes,
     ...commandTracking(db, attempt),
     hasStartedTurn: turns.hasStartedTurn,
     wasInterrupted: turns.wasInterrupted,
@@ -380,7 +391,14 @@ function makeJournal(db: Database, diagnostics: boolean): Journal["Service"] {
     ),
     openTurns: turns.openTurns,
     noteInterrupt: turns.noteInterrupt,
-    noteHarness: turns.noteHarness,
+    noteHarness: (threadId, turnId, harness) =>
+      turns
+        .noteHarness(threadId, turnId, harness)
+        .pipe(
+          Effect.tap(() =>
+            harness.harness === "claude" ? homes.rememberClaudeSession(threadId, harness.sessionId) : Effect.void,
+          ),
+        ),
     ...storageCleanup(db, attempt),
   });
 }

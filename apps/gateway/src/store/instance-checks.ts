@@ -1,6 +1,7 @@
 import { create, fromJson, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { ConfigAppliedSchema, Provider, ProviderProfileKind, ui, type ConfigApplied } from "@canopy/contracts";
+import { userConfigurationMessage } from "./instance-user-configuration.ts";
 import { Effect } from "effect";
 import { type SqlError } from "effect/sql";
 import {
@@ -121,6 +122,7 @@ export const toUi = (
     apiKeySet: isRef(row.api_key),
     env: envSettings(row.env ?? []),
     runtime: {
+      userConfiguration: userConfigurationMessage(row.runtime?.userConfiguration),
       binaryPath: row.runtime?.binaryPath ?? "",
       homePath: row.runtime?.homePath ?? "",
       shadowHomePath: row.runtime?.shadowHomePath ?? "",
@@ -152,6 +154,7 @@ export const toUi = (
         enabled: enabledOn(row, assignment),
         explicit: assignment?.enabled !== null && assignment?.enabled !== undefined,
         overrides: {
+          userConfiguration: userConfigurationMessage(o.userConfiguration),
           ...(o.binaryPath !== undefined && { binaryPath: o.binaryPath }),
           ...(o.homePath !== undefined && { homePath: o.homePath }),
           ...(o.shadowHomePath !== undefined && { shadowHomePath: o.shadowHomePath }),
@@ -172,6 +175,10 @@ export const toUi = (
         version: reported?.version ?? "",
         auth: reported?.auth ?? "",
         authenticated: reported?.authenticated ?? false,
+        loginHomePath: reported?.loginHomePath ?? "",
+        configurationHomePath: reported?.configurationHomePath ?? "",
+        sessionHomePath: reported?.sessionHomePath ?? "",
+        privateHomePath: reported?.privateHomePath ?? "",
         ...(reported && { kind: reported.kind }),
         threadCount: Number(ofInstance.find((u) => u.worker_id === w.id)?.count ?? 0),
         ...(w.applied_at && { checkedAt: timestampFromDate(new Date(w.applied_at)) }),

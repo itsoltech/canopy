@@ -5,6 +5,7 @@ import { isRef, type InstanceRow, type StoredEnvVar } from "../store/instance-co
 import { ACCENT, MAX_MODELS, checkArgs, checkBaseUrl } from "../store/instance-checks.ts";
 import { proxyOptions, proxyRoot, type ProxyOptions, type ProxyRow } from "../store/proxy-records.ts";
 import type { Fields } from "./persistence.ts";
+import { normalizeUserConfiguration, userConfigurationProblem } from "../store/instance-user-configuration.ts";
 
 /**
  * Shared fields of provider instances and proxies (docs/linked-computers.md, "Inwentarz"). CLI paths and homes
@@ -23,6 +24,10 @@ export type SecretRefs = Map<string, string>;
 const strings = Schema.decodeUnknownSync(Schema.Array(Schema.String));
 const envSecret = Schema.is(Schema.Struct({ secret: Schema.String }));
 const envPlain = Schema.is(Schema.Struct({ value: Schema.String }));
+
+const userConfigurationPolicy = Schema.decodeUnknownSync(
+  Schema.Struct({ mode: Schema.Number, instructions: Schema.Boolean, skills: Schema.Boolean, hooks: Schema.Boolean }),
+);
 
 const codexOptions = Schema.decodeUnknownSync(
   Schema.Struct({
@@ -77,6 +82,17 @@ export function instanceValues(row: InstanceRow, proxy: string) {
     ["accentColor", row.accent_color],
     ["launchArgs", [...(runtime.launchArgs ?? [])]],
     ["ownLogin", runtime.ownLogin === true],
+    [
+      "userConfiguration",
+      runtime.userConfiguration
+        ? {
+            mode: runtime.userConfiguration.mode,
+            instructions: runtime.userConfiguration.instructions,
+            skills: runtime.userConfiguration.skills,
+            hooks: runtime.userConfiguration.hooks,
+          }
+        : null,
+    ],
     ["allWorkers", row.all_workers],
     ["favorites", [...row.favorites]],
     ["hidden", [...row.hidden_models]],
@@ -123,7 +139,7 @@ export const valuesOf = (fields: Fields): Values =>
   Object.fromEntries(Object.entries(fields).map(([name, field]) => [name, field.value]));
 
 /** The domain columns of a received instance, validated like a local save. Undefined: not applicable here. */
-export function instanceColumns(values: Values, current: InstanceRow | undefined) {
+export function instanceColumns(values: Values, current: InstanceRow | undefined, harness: string) {
   try {
     const label = values["label"] === undefined ? (current?.label ?? "") : String(values["label"]);
     const kind = values["kind"] ?? current?.kind ?? "native";
@@ -132,6 +148,18 @@ export function instanceColumns(values: Values, current: InstanceRow | undefined
 
     const launchArgs =
       values["launchArgs"] === undefined ? (current?.runtime.launchArgs ?? []) : strings(values["launchArgs"]);
+
+    const policy = values["userConfiguration"];
+
+    const userConfiguration =
+      policy === undefined
+        ? current?.runtime.userConfiguration
+        : policy === null
+          ? undefined
+          : normalizeUserConfiguration({
+              ...userConfigurationPolicy(policy),
+              sourcePath: current?.runtime.userConfiguration?.sourcePath ?? "",
+            });
 
     const models = ["favorites", "hidden", "shown", "custom"].map((name) =>
       values[name] === undefined ? undefined : [...strings(values[name])],
@@ -143,6 +171,7 @@ export function instanceColumns(values: Values, current: InstanceRow | undefined
       (!label.trim() && !current?.built_in) ||
       (accent && !ACCENT.test(accent)) ||
       checkArgs(launchArgs) ||
+      (userConfiguration && userConfigurationProblem(harness, userConfiguration)) ||
       (kind === "endpoint" && !values["proxy"] && checkBaseUrl(baseUrl)) ||
       models.some(
         (list) => list && (list.length > MAX_MODELS || list.some((m) => !m || m.length > 200 || /\s/.test(m))),
@@ -178,6 +207,7 @@ export function instanceColumns(values: Values, current: InstanceRow | undefined
       accent,
       baseUrl: kind === "endpoint" ? baseUrl.trim() : "",
       launchArgs: [...launchArgs],
+      userConfiguration,
       ownLogin: values["ownLogin"] === undefined ? current?.runtime.ownLogin === true : values["ownLogin"] === true,
       allWorkers: values["allWorkers"] === undefined ? (current?.all_workers ?? true) : values["allWorkers"] === true,
       models,

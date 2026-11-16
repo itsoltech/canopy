@@ -14,7 +14,7 @@ import { AsyncChannel } from "@canopy/transport";
 import { Schema } from "effect";
 import { Journal, type ThreadEventInit } from "../../journal/index.ts";
 import type { NativeToolPolicy } from "../native-tools.ts";
-import type { Env, ResolvedProfile } from "../profiles.ts";
+import type { Env, ProfileUserConfiguration, ResolvedProfile } from "../profiles.ts";
 import type { ViewImageResult } from "../../images/index.ts";
 import { ClaudeEventMapper } from "./mapping.ts";
 import type { AutoAllow } from "./permissions.ts";
@@ -54,7 +54,7 @@ export interface ClaudeThreadsOptions {
    * An instance's own runtime (global provider instances, docs/worker-config.md, section 9): its Claude config dir,
    * executable and Claude Code flags. Absent = the runtime's home and executable.
    */
-  runtimeOf?(profile: ResolvedProfile): ClaudeInstanceRuntime | undefined;
+  runtimeOf?(profile: ResolvedProfile, spec?: ThreadSpec): ClaudeInstanceRuntime | undefined;
   publish(event: ThreadEvent): void;
   /** Archived/deleted threads keep their tasks, but cannot start native completion turns. */
   allowProviderTurn?(threadId: string): boolean;
@@ -75,6 +75,10 @@ export interface ClaudeThreadsOptions {
 
 export interface ClaudeInstanceRuntime {
   readonly home: string;
+  readonly sourceHome?: string;
+  readonly userConfiguration?: ProfileUserConfiguration;
+  /** Private platform home, retained as the lookup location of sessions predating durable bindings. */
+  readonly platformHome?: string;
   readonly executable?: string;
   /** Claude Code flags (`--flag value` / `--flag`). */
   readonly extraArgs?: Record<string, string | null>;

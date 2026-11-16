@@ -10,7 +10,7 @@ Lease z tokenem blokuje zapis starego wykonawcy; platformowe efekty i wyniki są
 atomowe. MCP przerwane awarią wraca jako `interrupted`, bez ponowienia.
 Szczegóły implementacji i testów: [bots.md](bots.md#3-wykonanie-i-odtwarzanie).
 
-Status: **projekt, w części zaimplementowany** (2026-11-01). Wymaganie: zatrzymanie lub aktualizacja dowolnego procesu nie gubi stanu i nie kończy się błędem widocznym dla użytkownika. Wyjątkiem jest tura agenta przerwana twardym zabiciem procesu (patrz [macierz awarii](#9-macierz-awarii)).
+Status: **w części zaimplementowany** (2026-11-16), w tym trwałe przypisanie domu sesji Claude i ochrona jego historii podczas purge; pozostałe plany oznaczono w sekcjach. Wymaganie: zatrzymanie lub aktualizacja dowolnego procesu nie gubi stanu i nie kończy się błędem widocznym dla użytkownika. Wyjątkiem jest tura agenta przerwana twardym zabiciem procesu (patrz [macierz awarii](#9-macierz-awarii)).
 
 Powiązane: [architecture.md](architecture.md), [protocol.md](protocol.md), [data-model.md](data-model.md).
 
@@ -21,8 +21,11 @@ wątku po zakończeniu autorytatywnego, trwałego purge. Zakres zawiera dostawc�
 i dokładne identyfikatory sesji; nie zawiera ścieżek. Worker zapisuje grant w swoim
 journalu SQLite, a po restarcie ponawia go aż do bezpiecznego zakończenia.
 
-Worker przyjmuje grant dopiero po zastosowaniu konfiguracji i zapisuje wyliczony lokalny
-dom zarządzany. Grant czeka, gdy trwa tura, zadanie, interakcja, wejście shell, rekoncyliacja
+Worker zapisuje lokalnie wyliczony dom, a wykonanie grantu czeka na zastosowanie konfiguracji.
+Dla Claude źródłem ścieżki jest trwałe przypisanie wątku lub kopii importu w journalu,
+także po usunięciu profilu. Przed wykonaniem worker ponownie porównuje zapisany grant
+z tymi przypisaniami; sprzeczne albo nieznane ścieżki pozwalają usunąć tylko załączniki.
+Grant czeka, gdy trwa tura, zadanie, interakcja, wejście shell, rekoncyliacja
 journala albo proces dostawcy. Przed usunięciem worker zatrzymuje bezczynne runtime'y,
 sprawdza stan ponownie i odracza operację, jeśli pojawiły się nowe zdarzenia.
 
@@ -31,6 +34,14 @@ identyfikatorze w zarządzanym domu workera. Globalne domy CLI, projekty, worktr
 pozostają poza zakresem. Istniejący manifest kopii importu oraz bieżący root importu blokują
 usunięcie odpowiadającej sesji; błąd odczytu manifestu także blokuje operację. Zmiana lub brak
 konfiguracji nie jest domyślnym domem i nie daje zgody na kasowanie.
+
+Przypisania Claude przechowują ścieżkę, ale nie dowód własności ani tożsamość katalogu.
+Dlatego purge zachowuje natywne pliki Claude również wtedy, gdy ich dom ma nazwę typową
+dla prywatnego magazynu: wcześniej mógł być źródłem współdzielonym. Zmiana trybu lub
+`sourcePath` i restart nie znoszą tej ochrony. Bieżące źródła importu obejmują także
+`userConfiguration.sourcePath`. Ochrona natywnej historii nie zatrzymuje usunięcia
+załączników ani zakończenia grantu; trwały tombstone nadal blokuje wznowienie i fork
+usuniętego wątku.
 
 ## 1. Zasady
 
@@ -118,6 +129,27 @@ Tura przerwana restartem nadal podlega rekoncyliacji i polityce sekcji 3.4.
 - **Claude:** nowy wątek startuje z `sessionId = thread_id` platformy (identyfikator znany przed pierwszym zdarzeniem); fork przez `forkSession` daje nowy identyfikator. `persistSession: true`. Wznowienie przez `resume: provider_thread_id`.
 - **Codex:** `thread.id` trafia do dziennika i do gateway (`thread_ready`) zaraz po `thread/start` / `thread/fork`, przed pierwszą turą. Wznowienie przez `thread/resume`.
 - Dziennik i rejestr wątków są aktualizowane, zanim zdarzenie wyjdzie do gateway.
+
+**Claude — dom historii (zaimplementowane):** lokalny journal zapisuje pierwsze
+przypisanie `(thread_id, home)` w `claude_session_homes`. Wiersze nie znikają wraz
+z turą ani ACK. Nowa konfiguracja instancji wybiera dom nowych wątków, ale resume,
+fork i rewind istniejących korzystają z przypisania, także po restarcie workera.
+Fork odczytuje dom źródła bez zapisu do jego przypisania, a nowy wątek otrzymuje
+ten sam dom. `claude_session_history` zachowuje identyfikatory sesji, które mają
+historię lub rozpoczętą turę: brak ich transkryptu nie uruchamia pustej sesji.
+Osobny stan jawnie pustej sesji pozwala po restarcie rozpocząć historię po pustym
+cofnięciu; receipty `started_turns` chronią wcześniejsze używane sesje bez tego wpisu.
+Brak przypisanego katalogu wymaga przywrócenia plików, bez automatycznego
+utworzenia innego domu. Otwarte tury starszego journala uzupełniają przypisania
+z `turn_harness` przy otwarciu bazy. Import zapisuje osobno katalog docelowy
+kopii `(profile_id, session_id)` przed jej publikacją, więc restart lub zmiana
+konfiguracji między kopią a pierwszą turą zachowują miejsce historii i Undo.
+Opis dotyczy implementacji; dostępność w nightly/beta/stable wynika z
+[promocji wydań](release.md).
+
+Pierwsze przypisanie nieużywanego wątku tworzy nowy katalog przed zapisem domu
+w journalu. Późniejsze uruchomienie wymaga istniejącego katalogu przypisania;
+nie odtwarza usuniętego domu jako pustego katalogu.
 
 ### 3.3 Zatrzymanie łagodne (drain): SIGTERM, aktualizacja
 

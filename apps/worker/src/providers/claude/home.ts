@@ -18,6 +18,7 @@ export interface ClaudeHomeOptions {
   readonly linkDeviceLogin: boolean;
   /** Device owner's Claude config dir: $CLAUDE_CONFIG_DIR of the worker process, else ~/.claude. */
   readonly deviceClaudeHome?: string;
+  readonly protectedDeviceHome?: string;
   /** Empty selects the default, unhashed keychain service; a path selects a config-scoped service. */
   readonly deviceSecureStorage?: string;
 }
@@ -34,6 +35,7 @@ export function prepareClaudeHome(options: ClaudeHomeOptions): ProviderHome & { 
     path,
     loginFile: ".credentials.json",
     deviceHome,
+    protectedDeviceHome: options.protectedDeviceHome ?? deviceClaudeHome(process.env),
     // Secure storage selects the actual file too, not only macOS Keychain. Never copy a refresh token.
     linkDeviceLogin: false,
     ...(options.ownLogin && { ownLogin: true }),

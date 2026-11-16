@@ -1,5 +1,7 @@
 # Import z CLI agentów
 
+Status: zaimplementowane (2026-11-16), w tym trwałe zapamiętanie domu kopii Claude i ochrona źródeł konfiguracji przed purge.
+
 Settings → Code → **Import** przenosi do Canopy wątki, które użytkownik prowadził wcześniej w Claude Code,
 Codexie i Groku, tak żeby mógł je czytać i kontynuować. Wybór źródeł działa w webie, desktopie
 i na sparowanym telefonie; pliki zawsze czyta worker komputera (sekcja „Wejścia i telefon”).
@@ -22,18 +24,18 @@ Stos C (etap 9): wejścia do importu i aplikacja mobilna, opisane w „Wejścia 
 
 ## Domy CLI i izolacja
 
-Wątki Canopy zachowują prawdziwe `HOME`, `USERPROFILE` i XDG, ale każde CLI działa z prywatnym katalogiem
+Wątki Canopy zachowują prawdziwe `HOME`, `USERPROFILE` i XDG. Domyślnie każde CLI działa z prywatnym katalogiem
 konfiguracji: `CLAUDE_CONFIG_DIR=<data_dir>/claude-home`, `CODEX_HOME=<data_dir>/codex-home`, `GROK_HOME`
 procesu z `sessions/` w `<data_dir>/grok/<instancja>/sessions` ([claude-adapter.md](claude-adapter.md#izolacja),
 [codex-adapter.md](codex-adapter.md#izolacja-od-konfiguracji-właściciela-urządzenia), [grok-adapter.md](grok-adapter.md#endpointy-i-izolacja)).
-Boty podmieniają także `HOME`. Dlatego CLI uruchomione przez Canopy nie widzi sesji z `~/.claude`, `~/.codex`
+Boty podmieniają także `HOME`. W trybie izolowanym CLI uruchomione przez Canopy nie widzi sesji z `~/.claude`, `~/.codex`
 i `~/.grok`.
 
-Decyzja: Canopy **zostaje przy prywatnych domach**. Import czyta katalogi użytkownika wyłącznie do odczytu
-i kopiuje to, co potrzebne do wznowienia, do prywatnego domu instancji (etapy 3–5). Ani Canopy, ani CLI nie
-dopisują wtedy do tego samego pliku, ustawienia, hooki i MCP użytkownika nie trafiają do wątków platformy,
-a boty zostają odizolowane. Kopia może się rozjechać z CLI: lista pokazuje wtedy *Has new turns* albo
-pozwala zaimportować wątek ponownie jako nowy.
+Domyślnie Canopy używa prywatnych domów. Opcjonalny tryb lokalny dziedziczy wybrane, oczyszczone ustawienia,
+ale kopiuje sesje do prywatnego katalogu. Tryb współdzielony wskazuje katalog użytkownika jako magazyn nowych sesji;
+istniejące wątki zachowują swój trwale przypięty katalog. Import nadal czyta źródło wyłącznie do odczytu i zapisuje
+kopie do wybranego magazynu. Import do katalogu zawierającego oryginalną sesję odmawia nadpisania plików CLI.
+Ustawienia, hooki i MCP są kontrolowane osobno według polityki konfiguracji, a boty pozostają odizolowane.
 
 ## Formaty
 
@@ -117,6 +119,12 @@ i nie jest to subagent; inaczej `history`.
   co u CLI>/<sesja>.jsonl`, razem z katalogiem `<sesja>/` (subagenci, wyniki narzędzi; tylko pliki i katalogi
   w domu CLI, bez dowiązań). Dom instancji wybiera dostawca i id profilu razem (to samo id może mieć instancja
   innego dostawcy).
+  - **Trwały katalog kopii Claude.** Worker zapisuje dom docelowy w journalu pod
+    `(profile_id, session_id)` przed kopiowaniem. Ponowienie, dopisanie i Undo
+    używają tego samego domu po zmianie konfiguracji instancji i restarcie workera.
+    Pierwsze uruchomienie wątku przejmuje ten dom jako trwałe przypisanie sesji;
+    nie wybiera katalogu według nowszej konfiguracji. Niedostępność przypisanego domu lub
+    transkryptu kończy wznowienie błędem zamiast rozpoczęcia pustej historii.
   - **Maskowanie kopii.** Kopia przechodzi przez to samo maskowanie co oś czasu: każda linia JSONL i każdy plik
     JSON wartość po wartości (linia bez sekretu zostaje bajt w bajt), inne pliki tekstowe jako tekst, binarne
     i większe niż 64 MiB zostają pominięte. Model po wznowieniu nie widzi sekretu zamaskowanego w historii.
@@ -156,7 +164,7 @@ i nie jest to subagent; inaczej `history`.
   z plikiem CLI: zostaje *Imported*; zapis przebiegu sprawdza to ponownie przy zablokowanym wątku. Wzrost
   porównuje rozmiar pliku historii ze skanu (snapshot) z `bytes_done`, nie łączny rozmiar sesji.
 - **Remove.** Undo usuwa kopie wątków bez tur z Canopy (`RemoveImportedCopy`, najlepsza próba: worker offline
-  zachowuje je w prywatnym domu). Punktem wyjścia jest dom prywatny, którego worker oczekuje teraz (nigdy ścieżka
+  zachowuje je w prywatnym domu). Punktem wyjścia jest zapisany przez workera dom kopii Claude, a dla pozostałych CLI bieżący dom instancji (nigdy ścieżka
   z manifestu): musi to być ten sam katalog co przy kopii (tożsamość), a usuwane są tylko pliki i puste katalogi
   osiągalne przez prawdziwe katalogi, z zapisaną tożsamością; tuż przed `unlink` plik jest otwierany bez
   podążania za dowiązaniem i sprawdzany ponownie. Podmieniony dom, dowiązanie po drodze albo cudzy plik zostają.
@@ -562,10 +570,14 @@ Migracja `0093_cli_imports`:
 - **Właściciel.** Skan i lista tylko dla workera, którego `owner_user_id` to bieżący użytkownik; współdzielony
   worker (bez właściciela) jest odrzucany.
 - **Ścieżki.** Gateway nie wysyła ścieżek. Korzenie wyznacza worker: domy CLI urządzenia
-  (`CLAUDE_CONFIG_DIR` / `~/.claude`, `CODEX_HOME` / `~/.codex`, `GROK_HOME` / `~/.grok`) i `home_path` instancji,
+  (`CLAUDE_CONFIG_DIR` / `~/.claude`, `CODEX_HOME` / `~/.codex`, `GROK_HOME` / `~/.grok`), `home_path` instancji
+  i `userConfiguration.sourcePath` Claude (z rozwinięciem `~` na workerze),
   po realpath i bez duplikatów. Wątek wskazuje `source_key`: id korzenia, ścieżka względna i HMAC kluczem
   `<data_dir>/import/key` (0600), który nie opuszcza workera. Przy każdym odczycie worker sprawdza podpis,
   korzeń, brak `..` i dowiązań symbolicznych na drodze oraz rodzaj wpisu (plik albo katalog).
+  Te same korzenie chronią natywne sesje przed purge jeszcze przed powstaniem manifestu kopii.
+  Niepoprawny korzeń blokuje kasowanie natywnej historii, ale nie skan pozostałych źródeł;
+  lista oznacza go jako niedostępny.
 - **Każdy odczyt w korzeniu.** Dotyczy też plików pomocniczych (katalogi projektów i sesji, `summary.json`,
   indeksy): żaden katalog pod korzeniem ani sam plik nie może być dowiązaniem, a plik musi być zwykłym plikiem
   (FIFO czy urządzenie pod znaną nazwą jest odrzucane przed otwarciem); plik otwiera się z `O_NOFOLLOW | O_NONBLOCK`,

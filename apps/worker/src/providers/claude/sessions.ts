@@ -11,7 +11,7 @@ import type { ClaudeThreadContext, Session } from "./thread-types.ts";
 import type { claudeRuntime } from "./session-runtime.ts";
 import { sessionPermissions } from "./session-permissions.ts";
 import { fileSize } from "./session-io.ts";
-import { claudeInstructionSettings, managedClaudeInstructions } from "./instructions.ts";
+import { claudeQueryConfiguration } from "./query-configuration.ts";
 import { claudeConnectorRefresh } from "./connector-mcp.ts";
 import { TurnAdmissionCancelled } from "../turn-input.ts";
 import { threadInstructions } from "../thread-instructions.ts";
@@ -24,7 +24,7 @@ export function claudeSessions(
   consume: (session: Session) => Promise<void>,
 ) {
   const { options, sessions } = ctx;
-  const { runtimeOf, queryRuntime, sessionExists } = runtime;
+  const { sessionRuntime, homes, queryRuntime, sessionExists } = runtime;
   const canUseTool = sessionPermissions(options);
 
   const open = async (
@@ -39,8 +39,8 @@ export function claudeSessions(
 
     if (!profile) throw new Error(`provider profile "${spec.providerProfileId || "native"}" is not available`);
     const sessionId = spec.providerThreadId || spec.threadId;
-    const runtime = runtimeOf(profile);
-    const resume = await sessionExists(sessionId, spec.cwd, runtime.home);
+    const runtime = await sessionRuntime(profile, spec);
+    const resume = await homes.resume(spec, runtime.home, sessionExists);
     const permissions = claudePermissions(mode);
     const input = new AsyncChannel<SDKUserMessage>();
     const abort = new AbortController();
@@ -51,16 +51,27 @@ export function claudeSessions(
     const attachments = options.attachmentsDir?.(spec.threadId);
     const secrets = options.secretsDir?.(spec.threadId);
 
-    const instructions = [
-      managedClaudeInstructions(runtime.home),
-      threadInstructions(spec.instructions),
-      !resume && recoveryContext,
-    ]
+    const configuration = await claudeQueryConfiguration(
+      runtime,
+      spec.cwd,
+      spec.scratch,
+      options.baseEnv,
+      queryRuntime(profile, runtime),
+    );
+
+    const instructions = [configuration.instructions, threadInstructions(spec.instructions), !resume && recoveryContext]
       .filter(Boolean)
       .join("\n\n");
 
-    const settings = await claudeInstructionSettings(spec.cwd, spec.scratch, runtime.home, options.baseEnv);
     const mcp = claudeSessionMcp(options, spec, turnId, busCalls);
+
+    const close = async () => {
+      try {
+        await mcp.close();
+      } finally {
+        await configuration.close();
+      }
+    };
 
     const queryOptions: Options = {
       cwd: spec.cwd,
@@ -70,8 +81,7 @@ export function claudeSessions(
       }),
       ...(model && { model }),
       ...(effort && { effort }),
-      ...queryRuntime(profile, runtime),
-      settings,
+      ...configuration.options,
       ...(resume ? { resume: sessionId } : { sessionId }),
       includePartialMessages: true,
       enableFileCheckpointing: true,
@@ -96,11 +106,11 @@ export function claudeSessions(
     };
 
     if (!canSubmit()) {
-      await mcp.close();
+      await close();
       throw new TurnAdmissionCancelled();
     }
 
-    const q = await openQuery(input, queryOptions, mcp.close);
+    const q = await openQuery(input, queryOptions, close);
     const refreshConnectors = claudeConnectorRefresh(q, spec.connectorTools, mcp.servers, mcp.key);
     const transcript = transcriptPath(runtime.home, sessionId);
     session = {
@@ -131,7 +141,7 @@ export function claudeSessions(
       closeTimer: undefined,
       done: Promise.resolve(),
     };
-    session.done = consume(session).finally(mcp.close);
+    session.done = consume(session).finally(close);
     sessions.set(spec.threadId, session);
 
     return session;

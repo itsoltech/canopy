@@ -6,6 +6,7 @@ import { Effect } from "effect";
 import { fail, type ClaudeThreadContext } from "./thread-types.ts";
 import type { claudeRuntime } from "./session-runtime.ts";
 import { rewindClaudeFiles } from "./rewind-files.ts";
+import { claudeQueryConfiguration } from "./query-configuration.ts";
 
 export function claudeRewind(ctx: ClaudeThreadContext, runtime: ReturnType<typeof claudeRuntime>) {
   return Effect.fn("ClaudeThreads.rewind")(function* (request: RewindThread) {
@@ -15,11 +16,11 @@ export function claudeRewind(ctx: ClaudeThreadContext, runtime: ReturnType<typeo
     const profile = ctx.options.profile(spec.providerProfileId);
 
     if (!profile) throw new Error("provider instance unavailable");
-    const instance = runtime.runtimeOf(profile);
 
     return yield* Effect.tryPromise({
       catch: fail(spec.threadId, "rewind"),
       try: async (): Promise<MessageInitShape<typeof ThreadRewindResultSchema>> => {
+        const instance = await runtime.sessionRuntime(profile, spec);
         const session = ctx.sessions.get(spec.threadId);
 
         if (session?.turn && !request.preview) throw new Error("Stop the running turn before editing.");
@@ -35,10 +36,18 @@ export function claudeRewind(ctx: ClaudeThreadContext, runtime: ReturnType<typeo
         let files: MessageInitShape<typeof ThreadRewindResultSchema> = {};
 
         if (request.checkpointId && (request.preview || request.restoreFiles)) {
-          const result = await rewindClaudeFiles(request, {
+          const configuration = await claudeQueryConfiguration(instance, spec.cwd, spec.scratch, ctx.options.baseEnv, {
             ...runtime.queryRuntime(profile, instance),
             cwd: spec.cwd,
           });
+
+          const result = await (async () => {
+            try {
+              return await rewindClaudeFiles(request, configuration.options);
+            } finally {
+              await configuration.close();
+            }
+          })();
 
           files = {
             filesAvailable: result.canRewind,
@@ -62,7 +71,12 @@ export function claudeRewind(ctx: ClaudeThreadContext, runtime: ReturnType<typeo
           return { providerThreadId: request.restoreProviderThreadId };
         }
 
-        if (request.empty) return { ...files, providerThreadId: Bun.randomUUIDv7() };
+        if (request.empty) {
+          const sessionId = Bun.randomUUIDv7();
+          await Effect.runPromise(ctx.journal.rememberClaudeSession(spec.threadId, sessionId, true));
+
+          return { ...files, providerThreadId: sessionId };
+        }
 
         if (!request.afterProviderTurnRef || !request.sourceProviderThreadId)
           throw new Error("The rewind point is unavailable. Choose an earlier message.");
@@ -73,6 +87,8 @@ export function claudeRewind(ctx: ClaudeThreadContext, runtime: ReturnType<typeo
             upToMessageId: request.afterProviderTurnRef,
           }),
         );
+
+        await Effect.runPromise(ctx.journal.rememberClaudeSession(spec.threadId, fork.sessionId));
 
         return { ...files, providerThreadId: fork.sessionId };
       },

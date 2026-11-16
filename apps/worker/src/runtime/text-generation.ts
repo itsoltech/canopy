@@ -62,6 +62,7 @@ export class TextGeneration {
               ownLogin: runtime.ownLogin ?? false,
               linkDeviceLogin: config.claude.linkDeviceLogin,
               deviceClaudeHome: runtime.homePath || this.ctx.state.deviceHomes.claude,
+              protectedDeviceHome: this.ctx.state.deviceHomes.claude,
               ...(!runtime.homePath && { deviceSecureStorage: this.ctx.state.deviceHomes.claudeSecureStorage }),
             })
           : undefined;

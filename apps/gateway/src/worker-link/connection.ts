@@ -2,6 +2,7 @@ import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import {
   CommandSchema,
+  WorkerConfigSchema,
   type CommandResult,
   type CloneProgress,
   type GatewayMessage,
@@ -16,6 +17,7 @@ import { gatewayMessage, type GatewayPayloadInit } from "./messages.ts";
 import type { RpcObservation } from "../diagnostics/collector.ts";
 import { LogPullClient } from "../diagnostics/log-pull.ts";
 import { TraceWorkerClient } from "../diagnostics/trace-worker.ts";
+import { WorkerConfigurationCompatibility } from "./configuration-compatibility.ts";
 
 type KindInit = NonNullable<MessageInitShape<typeof CommandSchema>["kind"]>;
 
@@ -54,6 +56,7 @@ export class WorkerConnection {
   readonly #outbound: AsyncChannel<GatewayMessage>;
   readonly #inbound = new AsyncChannel<WorkerMessage>();
   readonly #pending = new Map<string, PendingCommand>();
+  readonly #configuration: WorkerConfigurationCompatibility;
   #markClosed!: () => void;
 
   constructor(
@@ -64,6 +67,7 @@ export class WorkerConnection {
   ) {
     this.workerId = workerId;
     this.hello = hello;
+    this.#configuration = new WorkerConfigurationCompatibility(hello.capabilities);
     this.networkRouteStatus = hello.networkRouteStatus;
     this.tracing = new TraceWorkerClient((command) => this.send({ case: "diagnosticsTraceCommand", value: command }));
     this.logSource = new LogPullClient(crypto.randomUUID(), (command) =>
@@ -82,6 +86,10 @@ export class WorkerConnection {
     if (!this.#outbound.push(gatewayMessage(payload))) {
       throw new ConnectError(`worker ${this.workerId} is offline`, Code.Unavailable);
     }
+  }
+
+  sendConfig(config: MessageInitShape<typeof WorkerConfigSchema>): void {
+    this.send({ case: "config", value: this.#configuration.prepare(config) });
   }
 
   /** Sends a command, preserving its durable outbox id on retries. Concurrent retries share the acknowledgement. */
@@ -125,6 +133,15 @@ export class WorkerConnection {
 
   /** @internal Called by the service for every inbound message. */
   deliver(message: WorkerMessage): void {
+    if (message.payload.case === "configApplied") {
+      this.#inbound.push({
+        ...message,
+        payload: { case: "configApplied", value: this.#configuration.report(message.payload.value) },
+      });
+
+      return;
+    }
+
     if (message.payload.case === "agentPreview") {
       this.previewWatches.get(message.payload.value.previewId)?.(message.payload.value);
 

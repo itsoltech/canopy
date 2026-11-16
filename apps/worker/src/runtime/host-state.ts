@@ -14,6 +14,7 @@ import {
 import { instanceShadowHome, type AppliedConfig } from "../config/remote.ts";
 import type { GatewayLink } from "../gateway-link/index.ts";
 import { deviceClaudeHome } from "../providers/claude/home.ts";
+import { claudeConfigurationHomes } from "../providers/claude/configuration-homes.ts";
 import { ClaudeThreads } from "../providers/claude/threads.ts";
 import { deviceCodexHome } from "../providers/codex/home.ts";
 import { CodexThreads } from "../providers/codex/threads.ts";
@@ -127,17 +128,14 @@ export class HostState {
     );
   }
 
-  /** The private Claude home of an instance ("" = native), also before its runtime started (docs/import.md). */
+  /** Selected Claude session home, including shared storage, before its runtime starts (docs/import.md). */
   claudeHome(profileId: string): string {
     const id = profileId || "native";
-    const known = this.claudeHomes.get(id);
 
-    if (known) return known;
-
-    return (
-      instanceShadowHome(this.options.dataDir, "claude", id, this.#runtimeOf(id, "claude")) ??
-      join(this.options.dataDir, "claude-home")
-    );
+    // Imports use the newest applied configuration while a previous runtime drains. Existing threads use their
+    // durable journal binding through the Claude session runtime, so this resolver must not retain the old snapshot.
+    return claudeConfigurationHomes(this.options.dataDir, id, this.#runtimeOf(id, "claude"), this.deviceHomes.claude)
+      .home;
   }
 
   /** The instance's runtime settings for this harness (an id may name instances of other harnesses, too). */
