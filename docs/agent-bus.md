@@ -1,6 +1,8 @@
 # Szyna agentów: delegowanie, interakcje, harmonogram
 
-Status (2026-11-16): `close_thread` korzysta ze wspólnego sprzątania zasobów
+Status (2026-11-16): na `dev` wspólny limit automatycznego łańcucha wynosi 256
+kroków, z jawnym komunikatem o możliwości kontynuacji po wiadomości użytkownika;
+`close_thread` korzysta ze wspólnego sprzątania zasobów
 archiwizowanego wątku; doprecyzowania między rodzicem i pracującym subagentem domyślnie
 dołączają do bieżącej tury, z jednym raportem jej wyniku na odbiorcę. Wspólna reguła
 komunikacji wymaga konkretnego działania odbiorcy przed końcem zadania i wyklucza
@@ -174,7 +176,7 @@ tabele `pr_check_watches` i `pr_check_notes` (migracja `0148`).
 - **Linkowanie.** `link_pull_request` przyjmuje URL albo `owner/repo#n` i tworzy lokalne powiązanie; nie zapisuje nic w GitHub. Repozytorium bazowe lub źródłowe PR musi pasować do `git_origin` workspace’u albo remotes `origin`, `upstream`, push lub upstream z ostatniego zapisanego kontekstu Git wątku. Obsługuje więc również PR z forka do upstreamu, bez wymagania zgodnego head ref/SHA. Brak wykrytego repo, obcy PR i zarchiwizowany wątek kończą się odmową. Narzędzie nie odwraca tombstone’u po wcześniejszym unlinku wykonanym przez użytkownika — wtedy użytkownik używa panelu Pull requests. Lokalny link nie zwiększa `hops` ani nie uruchamia nowej tury.
 - **Zakres watcha.** `watch_pr_checks` działa tylko na PR podlinkowanych do wątku (ręcznie, przez `link_pull_request` albo automatycznie z wyniku `gh pr create`; świeży PR narzędzie czeka do 10 s). Odczyt kontem GitHub przypisanym do repozytorium w domu wątku ([github.md §10](github.md#10-powiązania-z-istniejącymi-funkcjami)); brak konta lub dostępu to błąd narzędzia z podpowiedzią dla użytkownika. Linkowanie i watch działają również na PR poza pierwszą stroną listy wątku. Najwyżej 10 aktywnych watchy na wątek; nowy watch tego samego PR zastępuje poprzedni (`replaced`).
 - **Kiedy notatka.** `failure`: każdy nowo nieudany check (`failure`, `timed_out`, `cancelled`, `action_required`, `startup_failure`, `error`). `complete`: raz, gdy wszystkie checki bieżącego commita się zakończą (ponownie po re-runie). `each`: każdy check, który doszedł do stanu końcowego. Kilka zdarzeń jednego odczytu to jedna notatka; `complete` wymienia nieudane checki. Checki już zakończone przy wywołaniu są w wyniku narzędzia, nie w notatce.
-- **Nowe commity.** Watch idzie za head SHA PR: nowy commit zeruje oceniony stan i oznacza notatkę „new commit”. Każdy śledzony commit dodaje przeskok (`hops` watcha = tura wywołująca + 1, plus liczba commitów), więc pętla „napraw, wypchnij, znów fail” bez człowieka przestaje budzić wątek na limicie 8; powyżej limitu notatka czeka na następną turę.
+- **Nowe commity.** Watch idzie za head SHA PR: nowy commit zeruje oceniony stan i oznacza notatkę „new commit”. Każdy śledzony commit dodaje przeskok (`hops` watcha = tura wywołująca + 1, plus liczba commitów), więc pętla „napraw, wypchnij, znów fail” bez człowieka przestaje budzić wątek na limicie 256; powyżej limitu notatka czeka na następną turę.
 - **Koniec.** Z notatką: wszystkie checki przeszły (`passed`; przy samym `failure` bez notatki), PR scalony lub zamknięty, `timeout`, brak checków commita przez 10 min (`no_checks`), utrata dostępu (`access`), odłączenie PR od wątku (`unlinked`). Bez notatki: `cancel_pr_watch`, zastąpienie, archiwum lub usunięcie wątku. Porażka nie kończy watcha: czeka na poprawkę do końca czasu.
 - **Treść.** Repozytorium, numer, krótki SHA, liczniki, wymienione checki (nazwa, stan, dostawca, `run_id`, URL; do 20), czy watch trwa i jak go zatrzymać, a przy porażce `gh run view <run_id> --log-failed`. Nazwy checków są oznaczone jako dane z GitHub, nie polecenia. Bez logów i outputu checków.
 - **Dostarczenie** jak notatki o zadaniach w tle ([execution.md](execution.md#pobudka-agent-dowiaduje-się-o-każdym-końcu-zadania)): steer platformy do tury w toku (`turn_steers.background_note`), a bez niej tura `trigger = pr_checks`. Steer, który nie wszedł, oddaje notatki do ponownego dostarczenia; restart gatewaya wznawia notatki i niewysłane tury z bazy. Wejście tury i steera niesie notatki (`sourceKind: pr_checks`, `prChecks`), więc oś czasu (`Turn.pr_checks`, `Steer.pr_checks`) nie łączy innych tabel.
@@ -493,8 +495,12 @@ Czysta funkcja `authorizeBusCall` (`packages/domain`), wywoływana przez gateway
 - **Czekać** (`wait_threads`) można na każdy inny wątek drzewa: dzieci, rodzica, rodzeństwo.
 - **Pisać i czytać** (`send_message`, `get_thread`, `read_thread`) można do każdego wątku tego samego właściciela, także spoza drzewa ([Wiadomości między dowolnymi wątkami](#wiadomości-między-dowolnymi-wątkami)). Wątki innych właścicieli są nieodróżnialne od nieistniejących.
 - **Sterowanie** (przerwanie, zamknięcie, odpowiadanie na interakcje, harmonogramy innych) tylko nad potomkami.
-- **Limity** (domyślne, konfigurowalne): 8 wątków bocznych na wątek główny, 16 aktywnych wątków w drzewie, 10 harmonogramów na wątek, 8 przeskoków.
-- **Licznik przeskoków (`hops`):** tura z wejścia człowieka albo pobudki dostawcy ma 0. Tura uruchomiona przez szynę, powiadomienie, pytanie do rodzica albo harmonogram agenta ma `hops` przyczyny + 1. Limit zatrzymuje pętle agentów bez udziału człowieka.
+- **Limity** (domyślne, konfigurowalne): 8 wątków bocznych na wątek główny, 16 aktywnych wątków w drzewie, 10 harmonogramów na wątek, 256 przeskoków.
+- **Licznik przeskoków (`hops`):** tura z wejścia człowieka albo pobudki dostawcy ma 0. Tura uruchomiona przez szynę, powiadomienie, pytanie do rodzica albo harmonogram agenta ma `hops` przyczyny + 1. Limit 256 kroków zatrzymuje długie pętle agentów bez udziału człowieka;
+  nie ogranicza liczby wiadomości użytkownika. Wiadomość z powiadomieniem
+  rezerwuje krok na odpowiedź, więc pełna wymiana zwykle zużywa dwa kroki.
+  Metadane zachowują pełny licznik bez dawnego przycinania do 16;
+  ograniczenia schematu zastępuje migracja `0160_agent_hop_policy`.
 - **Fork** wymaga tego samego dostawcy i instancji. Dziedziczy historię do ostatniej zakończonej tury.
 - Zawsze w imieniu właściciela projektu.
 

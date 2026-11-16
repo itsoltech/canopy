@@ -181,7 +181,7 @@ export const noteBackgroundEnd = (sql: SqlClient.SqlClient, threadId: string, it
     yield* sql`
       INSERT INTO background_task_notes (thread_id, item_id, wake, harness_wakes, ended_at, hops, status, reason)
       SELECT ${threadId}::uuid, ${itemId}, ${!stoppedByUser(task.stopReason)} AND coalesce(u.hops, 0) + 1 <= ${DEFAULT_BUS_LIMITS.maxHops},
-             ${natural} AND t.provider = 'claude', ${endedAt}, least(coalesce(u.hops, 0) + 1, 16),
+             ${natural} AND t.provider = 'claude', ${endedAt}, coalesce(u.hops, 0) + 1,
              CASE WHEN t.archived_at IS NOT NULL OR t.deleted_at IS NOT NULL OR t.rewind_pending_id IS NOT NULL OR u.rewind_id IS NOT NULL THEN 'cancelled' ELSE 'waiting' END,
              CASE WHEN t.archived_at IS NOT NULL OR t.deleted_at IS NOT NULL OR t.rewind_pending_id IS NOT NULL OR u.rewind_id IS NOT NULL THEN 'the thread is closed or rewinding' END
         FROM threads t JOIN thread_items i ON i.thread_id = t.id AND i.item_id = ${itemId} LEFT JOIN turns u ON u.id = i.turn_id

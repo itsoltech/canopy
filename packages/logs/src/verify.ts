@@ -1,4 +1,5 @@
 import { LOG_LIMITS, type LogSource } from "./limits.ts";
+import { verifiedBotRecord } from "./bot-events.ts";
 
 const record =
   /^\{"at":\d{1,16},"source":"(desktop|gateway|worker|postgres|web|initdb)","event":"(?:process_started|process_stopped|process_restarting|migration_applied|link_changed|health_check|diagnostics_saved|startup_recovery|postgres_status|worker_events_not_stored|worker_events_dropped|worker_events_quarantined|worker_events_deferred)","legacy":(?:true|false)\}\n$/;
@@ -26,7 +27,9 @@ export async function* verifiedLogChunks(input: AsyncIterable<Uint8Array>, sourc
       }
 
       if (index < bytes.length) {
-        if (!dropping && record.exec(pending.toString("utf8"))?.[1] === source) {
+        const line = pending.toString("utf8");
+
+        if (!dropping && (record.exec(line)?.[1] === source || verifiedBotRecord(line, source))) {
           if (used + pending.length > output.length) {
             yield output.subarray(0, used);
             output = Buffer.alloc(LOG_LIMITS.chunk);

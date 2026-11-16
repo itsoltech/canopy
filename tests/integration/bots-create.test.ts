@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { JsonObject } from "@canopy/domain";
+import { DEFAULT_BUS_LIMITS, type JsonObject } from "@canopy/domain";
 import { create, toJson } from "@bufbuild/protobuf";
 import { bots, ProfileModelsSchema, Provider, ProviderProfileKind } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
@@ -312,7 +312,7 @@ describe.skipIf(!dockerAvailable)("create_bot through the durable gateway loop",
     expect(child[0]!.configuration).toMatchObject({ model: "gpt-parent", approvalPolicy: "full_auto" });
   }, 20_000);
 
-  test("a created bot is reachable through send_bot_message, and creation obeys the automated hop limit", async () => {
+  test("a created bot is reachable and creation continues beyond eight messages", async () => {
     const parent = await add("Messaging creator");
     propose({ name: "Reachable child", instructions: "Always answer CHILD_REPLY." });
     await send(parent.id);
@@ -338,12 +338,24 @@ describe.skipIf(!dockerAvailable)("create_bot through the durable gateway loop",
     expect(contacted.messages[0]?.exchangeId).not.toBe("");
     await settled(parent.id);
     await core.bots.stop();
-    propose({ name: "Hop overflow" });
+    propose({ name: "Continued creation" });
     const turnId = await send(parent.id);
     await query("UPDATE bot_turns SET hops = 8 WHERE id = $1::uuid", [turnId]);
     core.bots.start();
-    expect((await settled(parent.id)).messages.at(-1)?.text).toContain("error");
-    expect((await core.bots.list()).some((b) => b.configuration?.name === "Hop overflow")).toBe(false);
+    await answer((await waiting(parent.id)).approvals.find((a) => a.status === "pending")!.id, true);
+    expect((await settled(parent.id)).messages.at(-1)?.text).not.toContain("error");
+    expect((await core.bots.list()).some((b) => b.configuration?.name === "Continued creation")).toBe(true);
+    await core.bots.stop();
+    propose({ name: "Exhausted creation" });
+
+    const exhaustedTurn = await core.bots.run((s) =>
+      s.enqueue(gw.userId, parent.id, "Create another bot", Bun.randomUUIDv7(), { hops: DEFAULT_BUS_LIMITS.maxHops }),
+    );
+
+    core.bots.start();
+    expect((await settled(parent.id)).messages.at(-1)?.text).toContain("Send a new message to continue.");
+    expect(await query("SELECT id FROM bot_approvals WHERE turn_id=$1::uuid", [exhaustedTurn])).toHaveLength(0);
+    expect((await core.bots.list()).some((b) => b.configuration?.name === "Exhausted creation")).toBe(false);
   }, 20_000);
 
   test("the owner cap serializes concurrent RPC/tool creation and idempotent retries still succeed at the cap", async () => {

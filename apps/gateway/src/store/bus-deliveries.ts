@@ -36,7 +36,7 @@ export interface BusDeliveryStore {
   deliverNotification(callId: string, input: TurnInput): Fx<{ turn?: TurnRow; steerId?: string } | undefined>;
   /**
    * A side thread with interaction_route = parent asks: queue a turn in the parent (trigger = interaction)
-   * unless one exists already or the agent chain is too long (then the user answers in the UI).
+   * unless one exists already or the automated chain reached its limit (then the user answers in the UI).
    */
   forwardInteraction(input: {
     requestId: string;
@@ -101,7 +101,7 @@ const deliverNotification = (sql: SqlClient.SqlClient, callId: string, input: Tu
         return undefined;
       }
 
-      const hops = Math.min((call.hops ?? 0) + 1, 16);
+      const hops = (call.hops ?? 0) + 1;
 
       if (running && caller.worker_id) {
         const steerId = Bun.randomUUIDv7();
@@ -254,7 +254,7 @@ export function busDeliveryStore(sql: SqlClient.SqlClient): BusDeliveryStore {
           if (!asking.parent_thread_id) return undefined;
           const hops = (row.hops ?? 0) + 1;
 
-          if (hops > maxHops) return undefined; // agent chain too long: the user answers in the UI
+          if (hops > maxHops) return undefined; // The user can still answer in the UI.
 
           const turn = yield* queueTurn(sql, {
             threadId: asking.parent_thread_id,

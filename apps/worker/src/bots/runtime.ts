@@ -162,13 +162,18 @@ export class BotTurns {
     const usage = this.ctx.state.usageObservers.get(`${input.provider}/${profile.id}`);
 
     const record = async (event: ThreadEventInit) => {
+      const safeEvent = botFailureEvent(usage?.failure(event) ?? event);
+
       const saved = await this.ctx.state.options.runtime.runPromise(
-        Journal.use((j) =>
-          j.append(input.botId, { ...botFailureEvent(usage?.failure(event) ?? event), turnId: input.turnId }),
-        ),
+        Journal.use((j) => j.append(input.botId, { ...safeEvent, turnId: input.turnId })),
       );
 
       this.ctx.ops.publish(saved);
+
+      if (safeEvent.body?.case === "turnFinished" && safeEvent.body.value.outcome === TurnOutcome.FAILED)
+        this.ctx.ops.log(
+          `bots: turn failed source harness class ${classifyFailure("", safeEvent.body.value.errorClass)}`,
+        );
     };
 
     const bus = grokBus({

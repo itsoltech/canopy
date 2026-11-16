@@ -1,5 +1,9 @@
 # Boty
 
+Status (2026-11-16): na `dev` limit automatycznej wymiany wynosi 256 kroków;
+walidacja budżetu przed zgodą i diagnostyka wyników narzędzi są zaimplementowane.
+Dostępność nightly/beta/stable według [release.md](release.md).
+
 ## Bezczynna kolejka
 
 Pętla gatewaya najpierw sprawdza jednym odczytem pracę właściciela. Gdy nie ma
@@ -949,9 +953,13 @@ pojawiają się linie `Messaged ‹Bot›` i `Message from ‹Bot›`. `exchange
 `ReadBotExchange` umożliwia ich odczyt właścicielowi. Nie powstaje druga rozmowa
 użytkownika z tym samym botem.
 
-`hops` korzysta z limitu szyny agentów: **8**, wejście człowieka zaczyna od 0,
+`hops` korzysta ze wspólnego limitu szyny agentów: **256**, wejście człowieka zaczyna od 0,
 wiadomość automatyczna zwiększa licznik. Operacja wymagająca odpowiedzi rezerwuje też
-przeskok na powrót. Przekroczenie budżetu nie uruchamia docelowego bota ani wątku.
+przeskok na powrót. Budżet jest sprawdzany przed kartą zgody; przekroczenie nie uruchamia docelowego
+bota ani wątku. Model dostaje jawny komunikat o limicie i nowej wiadomości
+użytkownika, która pozwala kontynuować. Zwykłe wiadomości użytkownika nie mają
+limitu liczby; jedna pełna wymiana bot → wątek → bot zużywa dwa kroki.
+Niepoprawne identyfikatory załączników również dają czytelny błąd walidacji przed zgodą.
 Zakończenie wskazanej tury workera tworzy follow-up bota przez trwały watch; działa
 także wtedy, gdy zakończenie nastąpiło podczas przerwy gateway.
 
@@ -1114,6 +1122,13 @@ gdzie wskazuje miejsce wykonywania akcji.
   Szczegóły nie zawierają endpointów, stderr ani sekretów; surowe komunikaty błędów
   modeli nie są zapisywane w gatewayu.
   Lista boczna pokazuje „Couldn't reply”.
+  Logi gatewaya i workera zapisują klasę/źródło błędu tury, a gateway również
+  wynik zakończonej próby narzędzia: sukces, błąd, odmowę, edycję, wygaśnięcie
+  lub przerwanie. Log wyniku powstaje po odczycie zatwierdzonego wyniku, więc
+  błąd dispatchu po commicie nie zmienia sukcesu w porażkę. Zapisane wywołanie
+  odtworzone po reconnect nie tworzy kolejnego logu wykonania. Bez treści,
+  argumentów, identyfikatorów i nazw connectorów; bezpieczne kategorie zachowuje
+  [eksport diagnostyki](diagnostics.md).
 - **Composer** (`BotComposer`): jedna zaokrąglona „pigułka”: „+” (**Attach files**),
   wspólny `MentionEditor` z Threads zamiast textarea.
   Markdown na żywo: pogrubienie, kursywa, kod inline i bloki kodu; wklejanie jako czysty tekst.

@@ -243,11 +243,27 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
     expect(mainTurns[before]?.text).toContain("finished a turn: completed");
   });
 
-  test("a side thread's permission prompt goes to the parent agent, which answers it", async () => {
+  test("a side thread's permission prompt in a long chain reaches the parent agent, which answers it", async () => {
     const sideId = (await query<{ id: string }>("SELECT id FROM threads WHERE title = 'Reviewer'"))[0]!.id;
     const requestId = Bun.randomUUIDv7();
+    gw.worker.holdTurns = true;
+    await gw.worker.callTool({
+      threadId: mainId,
+      tool: "send_message",
+      args: { thread_id: sideId, prompt: "Ask before proceeding", notify: false },
+    });
+
+    const source = (
+      await eventually(
+        () => turns(sideId),
+        (t) => t.at(-1)?.status === "running",
+      )
+    ).at(-1)!;
+
+    await query("UPDATE turns SET hops = 100 WHERE id = $1::uuid", source.id);
     gw.worker.ask({
       requestId,
+      turnId: source.id,
       threadId: sideId,
       kind: InteractionKind.PERMISSION,
       toolName: "shell",
@@ -257,14 +273,20 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
     // The parent is woken with the question (trigger = interaction)...
     const forwarded = await eventually(
       () =>
-        query<{ text: string; hops: number }>(
-          "SELECT input->>'text' AS text, hops FROM turns WHERE interaction_request_id = $1::uuid",
+        query<{ id: string; text: string; hops: number }>(
+          "SELECT id, input->>'text' AS text, hops FROM turns WHERE interaction_request_id = $1::uuid",
           requestId,
         ),
       (rows) => rows.length === 1,
     );
 
     expect(forwarded[0]?.text).toContain(`request_id: ${requestId}`);
+    expect(forwarded[0]?.hops).toBe(101);
+
+    await eventually(
+      () => turns(mainId),
+      (t) => t.at(-1)?.status === "running",
+    );
 
     // ...and answers through the bus; the worker gets the decision.
     const answered = await gw.worker.callTool({
@@ -286,6 +308,13 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
     );
 
     expect(row[0]).toEqual({ answered_by_thread_id: mainId, answered_by: null });
+    gw.worker.holdTurns = false;
+    gw.worker.finish(sideId, source.id);
+    gw.worker.finish(mainId, forwarded[0]!.id);
+    await eventually(
+      () => turns(mainId),
+      (t) => t.at(-1)?.status === "completed",
+    );
   });
 
   test("a user-created side thread keeps its questions for the user", async () => {

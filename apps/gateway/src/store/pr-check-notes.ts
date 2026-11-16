@@ -64,7 +64,7 @@ export const deliverCheckNotes = (sql: SqlClient.SqlClient, threadId: string) =>
       const note = prChecksNoteText(bodies);
       const input = JSON.stringify({ text: note, note, message: "", sourceKind: "pr_checks", prChecks: bodies });
       const ids = ready.map((n) => n.id);
-      const hops = Math.min(16, Math.max(...ready.map((n) => n.hops)));
+      const hops = Math.max(...ready.map((n) => n.hops));
 
       if (running) {
         const steerId = Bun.randomUUIDv7();

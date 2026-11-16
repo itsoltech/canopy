@@ -2,7 +2,7 @@ import { create, toBinary, toJson } from "@bufbuild/protobuf";
 import { bots, MentionKind, MentionSchema, type Mention, type ui } from "@canopy/contracts";
 import { ConnectorFailure } from "../connectors/store.ts";
 import { connectorType } from "../connectors/catalog.ts";
-import { checkMentions, mentionPlaceholder, type AttachmentLimits } from "@canopy/domain";
+import { checkMentions, DEFAULT_BUS_LIMITS, mentionPlaceholder, type AttachmentLimits } from "@canopy/domain";
 import { botImages, storedBotImage } from "./attachments.ts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
@@ -199,7 +199,7 @@ export function botQueue(sql: SqlClient.SqlClient, access: BotAccess) {
             ? (yield* sql<BotTurn>`SELECT t.* FROM bot_tool_calls c JOIN bot_turns t ON t.id = c.turn_id WHERE c.id = ${turn.exchange_id}::uuid`)[0]
             : undefined;
 
-          if (target[0] && turn.hops < 8 && (yield* originEnabled(source)))
+          if (target[0] && turn.hops < DEFAULT_BUS_LIMITS.maxHops && (yield* originEnabled(source)))
             yield* enqueue(
               bot.owner_user_id,
               turn.reply_to_bot_id,

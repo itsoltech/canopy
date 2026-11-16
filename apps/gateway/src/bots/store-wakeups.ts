@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { Invalid, NotFound } from "../store/store.ts";
-import { nextHop } from "./policy.ts";
+import { nextHop, nextReplyHop } from "./policy.ts";
 import { originOf } from "./routines.ts";
 import type { BotTurn, StoredCall } from "./types.ts";
 import { requiredString, type WakeupRow } from "./store-views.ts";
@@ -16,7 +16,7 @@ export function botWakeups(sql: SqlClient.SqlClient, core: BotCore) {
     watchThread: (turn: BotTurn, call: StoredCall, threadId: string, turnId: string) =>
       Effect.gen(function* () {
         const hop = nextHop(turn.hops);
-        const replyHop = nextHop(hop);
+        const replyHop = nextReplyHop(turn.hops);
         yield* sql`UPDATE turns SET trigger = 'bot', author_user_id = NULL, bot_call_id = ${call.id}::uuid, hops = ${hop} WHERE id = ${turnId}::uuid AND status = 'queued'`;
         yield* sql`INSERT INTO bot_thread_watches(call_id, bot_id, target_thread_id, target_turn_id, hops)
         VALUES (${call.id}::uuid, ${turn.bot_id}::uuid, ${threadId}::uuid, ${turnId}::uuid, ${replyHop}) ON CONFLICT(call_id) DO NOTHING`;
@@ -24,7 +24,7 @@ export function botWakeups(sql: SqlClient.SqlClient, core: BotCore) {
     watchSteer: (turn: BotTurn, call: StoredCall, threadId: string, steerId: string) =>
       Effect.gen(function* () {
         const hops = nextHop(turn.hops);
-        const replyHops = nextHop(hops);
+        const replyHops = nextReplyHop(turn.hops);
         yield* sql`UPDATE turn_steers SET bot_call_id = ${call.id}::uuid, author_user_id = NULL, hops = ${hops} WHERE id = ${steerId}::uuid`;
         yield* sql`INSERT INTO bot_thread_watches(call_id, bot_id, target_thread_id, target_steer_id, hops)
         VALUES (${call.id}::uuid, ${turn.bot_id}::uuid, ${threadId}::uuid, ${steerId}::uuid, ${replyHops}) ON CONFLICT(call_id) DO NOTHING`;

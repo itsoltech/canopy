@@ -455,7 +455,7 @@ describe.skipIf(!dockerAvailable)("agent bus across providers and trees (gateway
   test("hops carry across trees; control and waiting stay with descendants; reads reach any thread of the owner", async () => {
     const a = await mainThread("Tree A", Provider.CODEX);
     const b = await mainThread("Tree B", Provider.CODEX, { projectId: laptopProject, workspaceId: laptopWorkspace });
-    // A's turn runs at the end of a long agent chain: a message from another agent, its hops raised to 7.
+    // Simulate a long conversation that has already exceeded the old eight-step limit.
     await gw.worker.callTool({
       threadId: b.id,
       tool: "send_message",
@@ -469,34 +469,32 @@ describe.skipIf(!dockerAvailable)("agent bus across providers and trees (gateway
       )
     )[1];
 
-    await query("UPDATE turns SET hops = 7 WHERE id = $1::uuid", aTurn!.id);
+    await query("UPDATE turns SET hops = 100 WHERE id = $1::uuid", aTurn!.id);
 
-    const limited = await studio.callTool({
+    const notified = await studio.callTool({
       threadId: a.id,
       turnId: aTurn!.id,
       tool: "send_message",
       args: { thread_id: b.id, prompt: "ping" },
     });
 
-    expect(limited.content).toContain("chain limit");
-
-    const quiet = await studio.callTool({
-      threadId: a.id,
-      turnId: aTurn!.id,
-      tool: "send_message",
-      args: { thread_id: b.id, prompt: "ping", notify: false },
-    });
-
-    expect(quiet.isError).toBe(false);
+    expect(notified.isError).toBe(false);
 
     const bTurns = await eventually(
       () => turns(b.id),
       (t) => t.length === 2 && t[1]?.status === "completed",
     );
 
-    expect(bTurns[1]?.hops).toBe(8);
+    expect(bTurns[1]?.hops).toBe(101);
 
-    // B's agent cannot answer back: the chain is at its limit.
+    const reported = await eventually(
+      () => turns(a.id),
+      (t) => t.length === 3 && t[2]?.status === "completed",
+    );
+
+    expect(reported[2]).toMatchObject({ trigger: "agent_bus", hops: 102 });
+
+    // The recipient can answer back in the same conversation.
     const back = await gw.worker.callTool({
       threadId: b.id,
       turnId: bTurns[1]!.id,
@@ -504,7 +502,14 @@ describe.skipIf(!dockerAvailable)("agent bus across providers and trees (gateway
       args: { thread_id: a.id, prompt: "pong", notify: false },
     });
 
-    expect(back.content).toContain("chain limit");
+    expect(back.isError).toBe(false);
+
+    const replied = await eventually(
+      () => turns(a.id),
+      (t) => t.length === 4 && t[3]?.status === "completed",
+    );
+
+    expect(replied[3]?.hops).toBe(102);
 
     // A worker speaks only for its own threads: the studio cannot send as B (on the laptop).
     const spoofed = await studio.callTool({
@@ -538,6 +543,72 @@ describe.skipIf(!dockerAvailable)("agent bus across providers and trees (gateway
     };
 
     expect(read.entries.length).toBeGreaterThan(0);
+  }, 30_000);
+
+  test("a runaway conversation stops at 256 steps and resumes after human input", async () => {
+    const a = await mainThread("Loop A", Provider.CODEX);
+    const b = await mainThread("Loop B", Provider.CODEX);
+    await studio.callTool({
+      threadId: b.id,
+      tool: "send_message",
+      args: { thread_id: a.id, prompt: "start automatic chain", notify: false },
+    });
+
+    const source = (await settled(a.id)).at(-1)!;
+    await query("UPDATE turns SET hops = 255 WHERE id = $1::uuid", source.id);
+
+    const reserved = await studio.callTool({
+      threadId: a.id,
+      turnId: source!.id,
+      tool: "send_message",
+      args: { thread_id: b.id, prompt: "needs report" },
+    });
+
+    expect([reserved.isError, reserved.content]).toEqual([
+      true,
+      "This automated conversation reached its limit (256 steps). Send a new message to continue.",
+    ]);
+
+    const final = await studio.callTool({
+      threadId: a.id,
+      turnId: source!.id,
+      tool: "send_message",
+      args: { thread_id: b.id, prompt: "last automatic step", notify: false },
+    });
+
+    expect(final.isError).toBe(false);
+
+    const chain = await eventually(
+      () => turns(b.id),
+      (t) => t.length === 2 && t[1]?.status === "completed",
+    );
+
+    expect(chain[1]?.hops).toBe(256);
+
+    const stopped = await studio.callTool({
+      threadId: b.id,
+      turnId: chain[1]!.id,
+      tool: "send_message",
+      args: { thread_id: a.id, prompt: "loop", notify: false },
+    });
+
+    expect([stopped.isError, stopped.content]).toEqual([true, reserved.content]);
+
+    const human = (await gw.api.sendMessage({ threadId: b.id, text: "continue", clientRequestId: "loop-resume" }))
+      .turn!;
+
+    await settled(b.id);
+
+    const resumed = await studio.callTool({
+      threadId: b.id,
+      turnId: human.id,
+      tool: "send_message",
+      args: { thread_id: a.id, prompt: "resumed", notify: false },
+    });
+
+    expect(resumed.isError).toBe(false);
+    const resumedTurns = await settled(a.id);
+    expect(resumedTurns.at(-1)?.hops).toBe(1);
   }, 30_000);
 
   test("another owner's threads are invisible to every tool", async () => {

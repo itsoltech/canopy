@@ -12,6 +12,7 @@ import { BotStore } from "../bots/store.ts";
 
 import { fail, isToolArguments, record, text, type Actor, type Arguments } from "./agents-context.ts";
 import type { LinkedAgents } from "./agents.ts";
+import { requireLinkedChainCapacity } from "./agents-receive.ts";
 import { gather } from "../api/routed-overview.ts";
 import { PEER_READ_TIMEOUT_MS } from "./timing.ts";
 import { botThreadPermission } from "../bots/thread-permission.ts";
@@ -70,7 +71,7 @@ export const agentsBotToolsMethods: AgentsBotToolsMethods = {
       ...(turn.routine_id && { routineId: turn.routine_id, routineTitle: turn.routine_title }),
     };
 
-    if (actor.hops > 7) return fail("Agent-to-agent chain limit reached (8 hops without human input)");
+    requireLinkedChainCapacity(actor.hops, true);
 
     const action = async (run: () => Promise<JsonValue>) => {
       // Remote effects cannot share a local SQL transaction: two bots messaging each

@@ -232,7 +232,7 @@ export function botConfig(sql: SqlClient.SqlClient, access: BotAccess) {
   const creationHop = (hops: number) =>
     Effect.try({
       try: () => nextHop(hops),
-      catch: () => new Invalid("Bot hop limit reached; a new user message is required"),
+      catch: (error) => (error instanceof Invalid ? error : new Invalid("Invalid message counter.")),
     });
 
   return { catalogs, validate, save, creationHop };

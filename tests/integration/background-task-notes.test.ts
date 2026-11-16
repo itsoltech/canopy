@@ -21,6 +21,7 @@ import {
   ui,
 } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
+import { DEFAULT_BUS_LIMITS } from "@canopy/domain";
 import { SqlClient } from "effect/sql";
 import { Effect } from "effect";
 import { eventually, startTestGateway, watchUntil, type ScriptedWorker, type TestGateway } from "./support/gateway.ts";
@@ -525,40 +526,51 @@ describe.skipIf(!dockerAvailable)("background task notes (gateway)", () => {
     }
   }, 30_000);
 
-  test("hop limit: a task started by a turn at the limit does not wake the thread", async () => {
-    const threadId = await newThread();
-    const worker = gw.worker;
-    const turnId = await startTask(worker, threadId, "bg:exec-7", "107");
-    await gw.runtime.runPromise(
-      Effect.gen(function* () {
-        const sql = yield* SqlClient.SqlClient;
-        // As if an agent chain had started it (the constraint lets agent_bus turns carry hops).
-        yield* sql`UPDATE turns SET trigger = 'agent_bus', agent_call_id = NULL, hops = 8 WHERE id = ${turnId}::uuid`.pipe(
-          Effect.ignore,
-        );
-      }),
-    );
+  for (const startingHops of [100, DEFAULT_BUS_LIMITS.maxHops]) {
+    test(`background completion at ${startingHops} steps respects the conversation limit`, async () => {
+      const threadId = await newThread();
+      const worker = gw.worker;
+      const turnId = await startTask(worker, threadId, "bg:exec-7", "107");
+      await gw.runtime.runPromise(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          yield* sql`UPDATE turns SET trigger = 'background_task', author_user_id = NULL, hops = ${startingHops} WHERE id = ${turnId}::uuid`;
+        }),
+      );
+      worker.emit(threadId, "", {
+        case: "itemCompleted",
+        value: { item: ended("bg:exec-7", "107", ItemStatus.COMPLETED, { exitCode: 0 }) },
+      });
 
-    const hops = await gw.runtime.runPromise(
-      Effect.gen(function* () {
-        const sql = yield* SqlClient.SqlClient;
+      const note = await eventually(
+        () =>
+          gw.runtime.runPromise(
+            Effect.gen(function* () {
+              const sql = yield* SqlClient.SqlClient;
 
-        return (yield* sql<{ hops: number }>`SELECT hops FROM turns WHERE id = ${turnId}::uuid`)[0]?.hops;
-      }),
-    );
+              return (yield* sql<{
+                hops: number;
+                wake: boolean;
+              }>`SELECT hops, wake FROM background_task_notes WHERE thread_id = ${threadId}::uuid AND item_id = 'bg:exec-7'`)[0];
+            }),
+          ),
+        (row) => row !== undefined,
+      );
 
-    worker.emit(threadId, "", {
-      case: "itemCompleted",
-      value: { item: ended("bg:exec-7", "107", ItemStatus.COMPLETED, { exitCode: 0 }) },
-    });
-    await eventually(
-      () => gw.api.getThread({ threadId }),
-      (r) => r.thread?.backgroundTasks === 0,
-    );
-    await gw.core.backgroundTasks.tick();
-    await Bun.sleep(200);
-    expect(await noteTurns(threadId)).toHaveLength(hops === 8 ? 0 : 1);
-  }, 30_000);
+      expect(note).toEqual({ hops: startingHops + 1, wake: startingHops < DEFAULT_BUS_LIMITS.maxHops });
+      await gw.core.backgroundTasks.tick();
+
+      const allTurns = await eventually(
+        () => noteTurns(threadId),
+        (rows) => startingHops === DEFAULT_BUS_LIMITS.maxHops || rows.length === 2,
+      );
+
+      // The original turn was changed to background_task to model an existing automated chain.
+      expect(allTurns).toHaveLength(startingHops === DEFAULT_BUS_LIMITS.maxHops ? 1 : 2);
+
+      if (startingHops < DEFAULT_BUS_LIMITS.maxHops) expect(allTurns.at(-1)?.hops).toBe(startingHops + 1);
+    }, 30_000);
+  }
 
   test("tools: list and get report status, reason in words, times and output; stop asks the worker and brings no note", async () => {
     const threadId = await newThread();
