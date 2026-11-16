@@ -1,7 +1,8 @@
 # Skala typografii i gęstości UI
 
 Status (2026-11-16): opis zaimplementowanej skali web/desktop, w tym dwuliniowych
-kart sidebara, ich jednoliniowego wariantu w worktree, ikon projektów oraz wcięć i linii hierarchii. Dostępność kanałów: [release.md](release.md).
+kart sidebara, ich jednoliniowego wariantu w worktree, ikon projektów, wcięć i linii hierarchii
+oraz kompaktowego wariantu przełącznika. Dostępność kanałów: [release.md](release.md).
 
 Jedna skala dla całego web UI. Każdy fragment interfejsu należy do jednego **kontekstu**; kontekst
 wyznacza rozmiar tekstu, wysokość wierszy, odstępy, ikony i kontrolki. Nie ustawiamy rozmiarów
@@ -53,6 +54,7 @@ i sidebarze.
 | `IconButton` `sm` | 32 / 28 (`p-2` / `p-1.5`) | 32 / 28 (`p-2` / 7 px), ikona 16 / 14 |
 | Checkbox, radio | 20 / 16, odstęp do etykiety 12, wiersz ≥ 48 przy dotyku | 18 / 14, odstęp 8; wysokość wiersza daje wiersz listy (≥ 40) |
 | Switch | 44 × 24 / 36 × 20 | 36 × 20 / 28 × 16 |
+| Switch `sm` (jawny wariant dla zwartych wierszy) | 32 × 18 / 28 × 16 | jak standard; cel dotykowy nadal 48 px |
 | Pole wyszukiwania (`SearchField`) | 40 / 36 | 36 / 28, tekst 16 / 13 |
 | Pole tekstowe (`Input`) | 40 / 36 | 40 / 28, `px-2.5` |
 | Wyszukiwarka pickera (`Combobox inline`) | — | 40 / 32 |

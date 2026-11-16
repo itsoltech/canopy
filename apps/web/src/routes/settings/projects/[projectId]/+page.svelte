@@ -7,6 +7,7 @@
   import ThreadDefaultsFields from "#lib/features/settings/ThreadDefaultsFields.svelte";
   import ProjectWorkers from "#lib/features/workspaces/ProjectWorkers.svelte";
   import ProjectWorktreeDefaults from "#lib/features/worktrees/ProjectWorktreeDefaults.svelte";
+  import AutoArchiveSettings from "#lib/features/settings/AutoArchiveSettings.svelte";
   import ConfigNotices from "#lib/features/computers/ConfigNotices.svelte";
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
   import ProjectAvatar from "#lib/shared/ui/ProjectAvatar.svelte";
@@ -61,4 +62,5 @@
   {#if !project.nodeId}
     {#key project.id}<ProjectWorktreeDefaults projectId={project.id} />{/key}
   {/if}
+  <AutoArchiveSettings projectId={project.id} />
 {/if}

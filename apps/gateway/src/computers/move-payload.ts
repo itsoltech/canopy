@@ -39,6 +39,7 @@ export const ThreadRowSchema = Schema.Struct({
   cwd: Schema.NullOr(Schema.String),
   created_at: Schema.String,
   archived_at: Schema.NullOr(Schema.String),
+  auto_archive_on_merge: Schema.optionalKey(Schema.NullOr(Schema.Boolean)),
   runtime: Schema.String,
   project_id: Schema.String,
   remote_parent_ref: Schema.NullOr(Schema.String),

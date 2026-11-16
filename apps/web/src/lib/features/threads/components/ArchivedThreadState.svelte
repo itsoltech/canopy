@@ -40,8 +40,8 @@
     <div class="min-w-0 flex-1">
       <h2 class="font-medium text-balance text-zinc-800 dark:text-zinc-200">This thread is archived</h2>
       <p class="pt-1 text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-        {#if thread.archivedBy === "user"}Archived by you{:else if thread.archivedBy === "agent"}Archived by the agent
-          in “{thread.archivedByThreadTitle ||
+        {#if thread.archivedBy === "merge"}Auto-archived after pull requests merged{:else if thread.archivedBy === "user"}Archived
+          by you{:else if thread.archivedBy === "agent"}Archived by the agent in “{thread.archivedByThreadTitle ||
             parent?.title ||
             "the parent thread"}”{:else if thread.archivedBy === "cascade"}Archived with “{thread.archivedByThreadTitle ||
             parent?.title ||

@@ -13,6 +13,7 @@
   import FollowUpSettings from "#lib/features/settings/FollowUpSettings.svelte";
   import SubagentPermissionSettings from "#lib/features/settings/SubagentPermissionSettings.svelte";
   import ThreadRetentionSettings from "#lib/features/settings/ThreadRetentionSettings.svelte";
+  import AutoArchiveSettings from "#lib/features/settings/AutoArchiveSettings.svelte";
 
   const overview = useOverview();
   const settings = useSettings();
@@ -25,6 +26,7 @@
 <WorkFoldSettings />
 <FollowUpSettings />
 <SubagentPermissionSettings />
+<AutoArchiveSettings />
 <ThreadRetentionSettings />
 
 <SettingsGroup
@@ -39,6 +41,7 @@
         settings.updateThreadDefaults(
           create(ui.ThreadDefaultsSchema, {
             subagentPermissionMode: settings.threadDefaults.subagentPermissionMode,
+            autoArchiveOnMerge: settings.threadDefaults.autoArchiveOnMerge,
           }),
         )}>Restore defaults</Button
     >

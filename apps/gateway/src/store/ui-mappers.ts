@@ -124,6 +124,7 @@ export function toUiThread(row: ThreadRow): ui.Thread {
         ...(row.archived_at_key && { nanos: Number(row.archived_at_key.slice(20, 26)) * 1000 }),
       },
     }),
+    autoArchiveOnMerge: row.auto_archive_on_merge ?? undefined,
     archivedBy: row.archived_by ?? "",
     archivedByThreadId: row.archived_by_thread_id ?? "",
     archivedByThreadTitle: row.archived_by_thread_title ?? "",
