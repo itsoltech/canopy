@@ -244,6 +244,59 @@ describe.skipIf(!dockerAvailable)("agent bus child messages", () => {
     expect(await turns(pair.parentId)).toHaveLength(1);
   });
 
+  for (const mode of ["explicit queue", "refused steer"] as const) {
+    test(`parent follow-up preserves the next child turn for ${mode}`, async () => {
+      const pair = await start();
+      const id = Bun.randomUUIDv7();
+      gw.worker.steerMode = mode === "refused steer" ? "not_running" : "accept";
+
+      try {
+        const result = json(
+          await call(
+            pair.parentId,
+            pair.parentTurn,
+            "send_message",
+            {
+              thread_id: pair.childId,
+              prompt: "A separate task",
+              notify: false,
+              ...(mode === "explicit queue" && { delivery: "queue" }),
+            },
+            id,
+          ),
+        );
+
+        const queued = await eventually(
+          () => turns(pair.childId),
+          (rows) => rows.length === 2 && rows[1]?.status === "queued",
+        );
+
+        expect(queued[0]?.id).toBe(pair.childTurn);
+        expect(queued[1]?.input.text).toContain("A separate task");
+
+        if (mode === "explicit queue") {
+          expect(result.turn_id).toBe(queued[1]?.id);
+          expect(await steers(id)).toHaveLength(0);
+        } else {
+          expect(result).toMatchObject({ delivery: "steer", turn_id: pair.childTurn });
+          expect((await steers(id))[0]?.status).toBe("queued");
+        }
+
+        await finish(pair);
+        await gw.core.sweep();
+
+        const completed = await eventually(
+          () => turns(pair.childId),
+          (rows) => rows.every((row) => row.status === "completed"),
+        );
+
+        expect(completed).toHaveLength(2);
+      } finally {
+        gw.worker.steerMode = "accept";
+      }
+    });
+  }
+
   test("idle parent receives a queued turn with the actual send time", async () => {
     const pair = await start();
     gw.worker.finish(pair.parentId, pair.parentTurn);

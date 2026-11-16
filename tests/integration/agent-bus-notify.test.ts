@@ -203,6 +203,65 @@ describe.skipIf(!dockerAvailable)("agent bus report delivery", () => {
     expect(await steers(pair.callId)).toHaveLength(1);
   });
 
+  for (const parentState of ["running", "idle"] as const) {
+    test(`default clarifications join one child turn and report once to a ${parentState} parent`, async () => {
+      const pair = await start();
+      const followups: string[] = [];
+
+      for (const prompt of ["Normal startup works", "Finish the diagnosis with this clarification"]) {
+        const callId = Bun.randomUUIDv7();
+        followups.push(callId);
+
+        const result = json(
+          await gw.worker.callTool({
+            callId,
+            threadId: pair.parentId,
+            turnId: pair.parentTurn,
+            tool: "send_message",
+            args: { thread_id: pair.childId, prompt },
+          }),
+        );
+
+        expect(result).toMatchObject({ delivery: "steer", turn_id: pair.childTurn });
+
+        const [steer] = await eventually(
+          () =>
+            query<{ id: string; status: string }>(
+              "SELECT id,status FROM turn_steers WHERE agent_call_id=$1::uuid",
+              callId,
+            ),
+          (rows) => rows[0]?.status === "delivered",
+        );
+
+        expect(gw.worker.started.get(steer!.id)?.text).toContain(prompt);
+      }
+
+      expect(await turns(pair.childId)).toHaveLength(1);
+
+      if (parentState === "idle") await finishParent(pair);
+      gw.worker.finish(pair.childId, pair.childTurn, "One complete diagnosis");
+      const ids = [pair.callId, ...followups];
+
+      const reports = await eventually(
+        () =>
+          query<{ notify_status: string; target_turn_id: string }>(
+            "SELECT notify_status,target_turn_id FROM agent_bus_calls WHERE id=ANY($1::uuid[])",
+            ids,
+          ),
+        (rows) => rows.every((row) => ["delivered", "superseded"].includes(row.notify_status)),
+      );
+
+      expect(reports.filter((row) => row.notify_status === "delivered")).toHaveLength(1);
+      expect(reports.filter((row) => row.notify_status === "superseded")).toHaveLength(2);
+      expect(reports.every((row) => row.target_turn_id === pair.childTurn)).toBe(true);
+
+      if (parentState === "running") await finishParent(pair);
+      await gw.core.sweep();
+      expect(await turns(pair.childId)).toHaveLength(1);
+      expect(await turns(pair.parentId)).toHaveLength(parentState === "running" ? 1 : 2);
+    });
+  }
+
   test("an idle caller gets exactly one agent_bus report turn", async () => {
     const pair = await start();
     await finishParent(pair);

@@ -189,8 +189,9 @@ export function threadStore(sql: SqlClient.SqlClient): Omit<ThreadStore, "create
             : undefined,
           row.settings.instructions,
           row.settings.handoff,
-          row.origin === "agent" && (row.depth > 0 || row.remote_parent_ref)
-            ? "Your final message is reported to your parent automatically. Use send_message to your parent only for updates it must act on mid-task; use ask_user for questions."
+          (row.origin === "agent" && row.depth > 0) ||
+          (row.remote_parent_ref && row.remote_parent_kind === "thread" && !row.remote_parent_detached)
+            ? "Your final message is reported to your parent automatically. Use send_message with notify: false to your parent only for updates it must act on mid-task; use ask_user for questions."
             : undefined,
         ]
           .filter(Boolean)

@@ -1,7 +1,8 @@
 # Połączone komputery
 
-Status: opis zaimplementowanej synchronizacji (2026-11-16), w tym retencji
-dziennika źródłowego i dzierżaw treści (migracja 0154). Dostępność w kanałach
+Status: opis zaimplementowanej synchronizacji (2026-11-16), w tym domyślnego
+steera między rodzicem a dzieckiem oraz deduplikacji raportów jednej tury,
+retencji dziennika źródłowego i dzierżaw treści (migracja 0154). Dostępność w kanałach
 nightly, beta i stable wynika z [wydań](release.md), nie z daty tego opisu.
 
 ## Dom szkiców
@@ -1701,6 +1702,19 @@ aktora, cel, turę/steer, wynik i stan raportu; uuid wywołania deduplikuje przy
 Tury przez łącze mają `trigger=linked_agent`, `linked_call_id` i dodatnie `hops`; fallback steera
 zachowuje to pochodzenie i aktualizuje obserwowaną turę.
 
+Pominięte `send_message.delivery` dla wątków próbuje wejść do bieżącej tury
+rodzica lub dziecka, gdy relacja jest nadal dołączona. Kierunek dziecko → rodzic
+sprawdza `remote_parent_ref` rodzaju `thread` i brak odłączenia; rodzic → dziecko
+sprawdza własne wychodzące odwołanie `parent_link` do wątku na tym partnerze.
+Jawne `queue` zostaje kolejką. Boty, wątki niezwiązane i odłączone relacje
+zachowują domyślną kolejkę. Bez aktywnej tury albo po odmowie steera wiadomość
+przechodzi istniejącą ścieżką następnej tury.
+
+Zdalne `wait_threads` odpytuje podsumowania i stan pytań. Nie odbiera ani nie
+zużywa jawnych wiadomości w wyniku oczekiwania, jak lokalny `wait_threads`;
+zdalna wiadomość nadal korzysta ze steera albo kolejki. Ta zmiana domyślnego
+dostarczenia nie rozszerza semantyki zdalnego oczekiwania.
+
 `LinkedAgentCall.sender` przenosi snapshot nadawcy (`AgentSender`): tytuł wątku albo nazwę,
 kształt i kolor bota oraz dostawcę/model. Dom odbiorcy kwalifikuje id nadawcy według
 uwierzytelnionego partnera i zapisuje snapshot w `input.sender`, obok `note` i `message`.
@@ -1729,6 +1743,13 @@ zachowuje wymaganie jego lokalnej zgody. Człowiek może zawsze odpowiedzieć w 
 
 Zakończenie wskazanej tury wysyła raport do źródła; bot↔bot ma też `exchange_id` i czytelny podgląd
 wymiany. Każdy przeskok zwiększa `hops`; operacja rezerwuje miejsce na raport w limicie 8.
+Raport wątek → wątek używa w domu odbiorcy trwałego potwierdzenia wiadomości
+o kluczu obejmującym partnera i zakończoną turę; potwierdzenie jest przypisane
+do wątku odbiorcy. `spawn` oraz kolejne wiadomości przyjęte jako steer do tej
+samej tury mogą mieć osobne raporty transportowe, ale tworzą jedno wejście
+z wynikiem dla tego odbiorcy. Zapis potwierdzenia i wejścia jest transakcyjny;
+ponowienie i restart domu odbiorcy nie odtwarzają wyniku. Inna tura lub inny
+wątek odbiorcy zachowuje osobny raport. Raporty botów pozostają per wywołanie.
 Raport niesie też tytuł i status wątku. Rozmowa bota zapisuje krótki event
 `“‹title›” on ‹computer› finished`, tak jak lokalne powiadomienie o zakończeniu,
 bez id ani koperty platformy. `bot_turns.input` zachowuje pełny raport i wynik dla
@@ -1758,6 +1779,9 @@ i zwolnienie limitu dzieci po zamknięciu zdalnego wątku,
 odmowę mieszania domów, podwyższenia permissions i forka, fallback steera, odczyt po restarcie
 offline, natychmiastową odmowę bez późniejszego wykonania, porzucenie raportu offline, starszego
 partnera i odłączenie relacji przy Unlink. Migracja 0051 jest w oczekiwanej liście schematu.
+`tests/integration/linked-subagent-delivery.test.ts` sprawdza domyślny steer w obu
+kierunkach, jawną kolejkę, bezczynny cel, niezwiązane i odłączone relacje oraz
+jeden wynik po `spawn` i steerach, także przy ponowieniu po restarcie odbiorcy.
 Brak testów UI; wygląd i blokady sprawdzamy ręcznie na własnych stosach.
 
 ## Konkretny protokół etapu 6
