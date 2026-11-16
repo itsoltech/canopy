@@ -339,6 +339,8 @@ message PullRequestTimelineEntry {
   string avatar_url = 11;
   // Bounded review context for citations, captured while reading the PR panel.
   string diff_hunk = 12;
+  // GraphQL review node ID for an inline comment, including replies.
+  string review_id = 13;
 }
 message PullRequestTimelineItem {
   oneof content {

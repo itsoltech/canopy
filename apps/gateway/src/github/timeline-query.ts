@@ -25,6 +25,7 @@ const event = Schema.Struct({
   __typename: Schema.String,
   id: Schema.optional(Schema.String),
   createdAt: Schema.optional(Schema.String),
+  submittedAt: Schema.optional(Schema.NullOr(Schema.String)),
   body: Schema.optional(Schema.NullOr(Schema.String)),
   url: Schema.optional(Schema.String),
   state: Schema.optional(Schema.String),
@@ -72,7 +73,7 @@ export const TIMELINE_QUERY =
 rateLimit{cost remaining resetAt} repository(owner:$owner,name:$name){pullRequest(number:$number){id
 timelineItems(first:$first,last:$last,before:$before,after:$after){pageInfo{hasNextPage hasPreviousPage startCursor endCursor}
 nodes{__typename ... on IssueComment{id author{login} body url createdAt viewerCanUpdate viewerCanDelete}
-... on PullRequestReview{id author{login} body url createdAt state}
+... on PullRequestReview{id author{login} body url createdAt submittedAt state}
 ... on PullRequestCommit{commit{oid messageHeadline committedDate url author{name user{login}}}}
 ${eventFields}}}}}}`.replaceAll("{login}", `{${actorFields}}`);
 
@@ -87,6 +88,8 @@ function item(value: typeof event.Type, index: number, scope: ReadScope) {
         ? "review"
         : "event";
 
+  const createdAt = kind === "review" ? (value.submittedAt ?? value.createdAt) : (value.createdAt ?? c?.committedDate);
+
   const entry = create(github.PullRequestTimelineEntrySchema, {
     id: value.id ?? c?.oid ?? `${scope.position}:${index}:${value.__typename}`,
     author: actorLogin(value.author ?? value.actor ?? c?.author?.user ?? null, c?.author?.name ?? "GitHub"),
@@ -98,10 +101,7 @@ function item(value: typeof event.Type, index: number, scope: ReadScope) {
     url: value.url ?? c?.url ?? `https://github.com/${scope.pr.repository_name}/pull/${scope.pr.number}`,
     state: value.state?.toLowerCase() ?? "",
     sha: c?.oid ?? "",
-    createdAt:
-      value.createdAt || c?.committedDate
-        ? timestampFromDate(new Date(value.createdAt ?? c!.committedDate))
-        : undefined,
+    createdAt: createdAt ? timestampFromDate(new Date(createdAt)) : undefined,
   });
 
   return create(github.PullRequestTimelineItemSchema, { content: { case: kind, value: entry } });

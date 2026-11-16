@@ -1,6 +1,6 @@
 # Konto GitHub i pull requesty
 
-Status: **v1 wdrożone** (2026-11-15): konta GitHub App i jawny fallback PAT, powiązania PR,
+Status: **v1 wdrożone** (2026-11-16): konta GitHub App i jawny fallback PAT, powiązania PR,
 pełny odczyt, komentarze i review, lifecycle, metadane, sterowanie GitHub Actions
 oraz postęp checków i kroków workflow. Zaimplementowane jest też jawne lokalne
 linkowanie PR przez agenta (`link_pull_request`) jako fallback automatycznej detekcji.
@@ -8,7 +8,8 @@ Podstawowy zakres jest dostępny w web/desktop/mobile. Dodatkowe oznaczenia chec
 w kartach PR i sidebarze oraz podgląd PR w hover card opisane w §7 dotyczą interfejsu web.
 Web/desktop renderuje bezpieczny HTML w Markdown (2026-11-15); na `dev` obsługiwany jest
 też parametr wersji `u` w adresach awatarów GitHub oraz reaktywny cache list PR
-w pamięci BFF. Dostępność według
+w pamięci BFF. Timeline web/desktop/mobile łączy review z komentarzami inline po identyfikatorach GitHub
+i pomija puste karty podsumowań; web/desktop pokazuje fragment kodu przy komentarzu. Dostępność według
 promocji kanałów w [release.md](release.md).
 Tokeny użytkownika pozostają w domu wątku; integracja produktu nie nadaje agentom
 praw do mutacji GitHub. `link_pull_request` zmienia tylko lokalne powiązanie z wątkiem,
@@ -1009,6 +1010,17 @@ Szczegóły geometrii i lifecycle: [UI API](ui-api.md#moduły-workspaceu-wątku)
    zdarzenia i czas względny (pełna data w tooltipie). Kolejne commity tego samego autora
    tworzą grupę z krótkimi SHA. Dyskusje są wplecione w oś z kontekstem plik:linia,
    wciętymi odpowiedziami i stopniowym doczytywaniem; komentarze używają kart Markdown.
+   Komentarz rozpoczynający dyskusję zawiera identyfikator review z GitHub, więc
+   załadowane dyskusje trafiają pod właściwe review, również gdy bot publikuje wiele
+   review w odstępie kilku sekund. Dyskusja bez załadowanego review pozostaje osobnym
+   wpisem. Czas review pochodzi z `submittedAt` (fallback: `createdAt`). Puste podsumowanie
+   nie tworzy karty Markdown; w web/desktop review `COMMENTED` zawierające tylko dyskusje
+   pokazuje same karty plików. Approve/Request changes nadal mają jawny status.
+   W web/desktop ścieżka komentarza jest permalinkiem, zakres linii ma osobne miejsce,
+   a fragment kodu z numerami linii korzysta z zapisanego diff hunk i oryginalnych
+   współrzędnych; brak fragmentu w odpowiedzi API nie tworzy pustej sekcji.
+   Web/desktop i mobile rozwijają formularz odpowiedzi przyciskiem Reply,
+   zachowując szkic oraz stan niepotwierdzonej publikacji przy ponownym otwarciu.
 5. **Code.** Lista/drzewo plików, +/−, Viewed, filtr commitu, Stacked/Side by side, wrap,
    widoczność whitespace i drzewo. Są to rozszerzenia `DiffLines`/`diff-layout.ts` i mobilnego
    `DiffContent`, nie nowy parser. Whitespace jest przełącznikiem prezentacji znaków;

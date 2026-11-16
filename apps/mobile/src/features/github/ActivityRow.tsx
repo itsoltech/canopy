@@ -28,7 +28,7 @@ export function ActivityRow({
         {row.kind === "thread" ? (
           <ReviewThread id={id} snapshot={snapshot} thread={row.thread} />
         ) : (
-          <TimelineEvent snapshot={snapshot} items={row.items} />
+          <TimelineEvent snapshot={snapshot} items={row.items} threads={row.threads} />
         )}
       </View>
     </View>

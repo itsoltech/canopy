@@ -10,7 +10,7 @@ export const activityFilters = [
 ];
 
 export type Activity =
-  | { kind: "event"; key: string; items: github.PullRequestTimelineItem[] }
+  | { kind: "event"; key: string; items: github.PullRequestTimelineItem[]; threads: github.PullRequestReviewThread[] }
   | { kind: "thread"; key: string; thread: github.PullRequestReviewThread };
 
 const hiddenTimelineEvents = new Set(["MentionedEvent", "SubscribedEvent", "UnsubscribedEvent"]);
@@ -26,24 +26,44 @@ export function visibleTimelineItem(item: github.PullRequestTimelineItem): boole
   );
 }
 
-/** Merge the independently paged review feed, then group adjacent commits by their author. */
+/** Attach threads to loaded reviews by their root comment, then group adjacent commits by author. */
 export function pullRequestActivity(
   items: readonly github.PullRequestTimelineItem[],
   threads: readonly github.PullRequestReviewThread[],
   oldest: boolean,
 ): Activity[] {
+  const reviews = new Map<string, github.PullRequestReviewThread[]>();
+
+  for (const item of items) {
+    if (item.content.case === "review" && item.content.value.id) reviews.set(item.content.value.id, []);
+  }
+
+  const standalone: github.PullRequestReviewThread[] = [];
+
+  for (const thread of threads) {
+    const review = reviews.get(thread.comments[0]?.reviewId ?? "");
+
+    if (review) review.push(thread);
+    else standalone.push(thread);
+  }
+
   const rows = [
     ...items.flatMap((item, index) =>
       visibleTimelineItem(item)
         ? [
             {
               time: item.content.value?.createdAt?.seconds ?? 0n,
-              row: { kind: "event", key: item.content.value?.id ?? `event:${index}`, items: [item] } satisfies Activity,
+              row: {
+                kind: "event",
+                key: item.content.value?.id ?? `event:${index}`,
+                items: [item],
+                threads: item.content.case === "review" ? (reviews.get(item.content.value.id) ?? []) : [],
+              } satisfies Activity,
             },
           ]
         : [],
     ),
-    ...threads.map((thread) => ({
+    ...standalone.map((thread) => ({
       time: thread.comments[0]?.createdAt?.seconds ?? 0n,
       row: { kind: "thread", key: `thread:${thread.id}`, thread } satisfies Activity,
     })),

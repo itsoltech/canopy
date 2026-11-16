@@ -15,6 +15,7 @@ const comment = Schema.Struct({
   createdAt: Schema.String,
   author: actor,
   originalCommit: Schema.NullOr(Schema.Struct({ oid: Schema.String })),
+  pullRequestReview: Schema.optional(Schema.NullOr(Schema.Struct({ id: Schema.String }))),
   viewerCanUpdate: Schema.optional(Schema.Boolean),
   viewerCanDelete: Schema.optional(Schema.Boolean),
   viewerDidAuthor: Schema.optional(Schema.Boolean),
@@ -60,7 +61,7 @@ const envelope = Schema.Struct({
 
 const fields = `id path line isResolved isOutdated diffSide startLine startDiffSide originalLine originalStartLine
 viewerCanResolve viewerCanUnresolve pullRequest{id}
-comments(first:50,after:$reply){pageInfo{hasNextPage endCursor} nodes{id body diffHunk url createdAt author{${actorFields}} originalCommit{oid} state viewerDidAuthor viewerCanUpdate viewerCanDelete}}`;
+comments(first:50,after:$reply){pageInfo{hasNextPage endCursor} nodes{id body diffHunk url createdAt author{${actorFields}} originalCommit{oid} pullRequestReview{id} state viewerDidAuthor viewerCanUpdate viewerCanDelete}}`;
 
 export const REVIEW_THREADS_QUERY = `query CanopyReviewThreads($owner:String!,$name:String!,$number:Int!,$after:String,$reply:String){
 rateLimit{cost remaining resetAt} repository(owner:$owner,name:$name){pullRequest(number:$number){id
@@ -109,6 +110,7 @@ export async function reviewThreads(scope: ReadScope) {
             sha: n.comments.nodes[0]?.originalCommit?.oid ?? "",
             comments: n.comments.nodes.map((c) => ({
               id: c.id,
+              reviewId: c.pullRequestReview?.id ?? "",
               author: actorLogin(c.author),
               avatarUrl: c.author?.avatarUrl ?? "",
               body: c.body,
