@@ -10,6 +10,7 @@ import { managedPrefix } from "./paths.ts";
 import { agentToolSpec } from "./specs.ts";
 import { runAgentToolOperation } from "./operations.ts";
 import { executable, fixture } from "./fixtures.test-support.ts";
+import { agentToolSession } from "./scope.ts";
 
 const request = (tool: AgentTool, operation: string, target = "", value = "", platform = "") =>
   create(RunAgentToolSchema, { tool, operation, target, value, platform });
@@ -249,7 +250,7 @@ test("screenshots are size-checked, decoded and normalized as PNG before returni
   await expect(runAgentToolOperation(request(browser, "screenshot"), f.path(browser), f.env)).rejects.toThrow();
 });
 
-test("MCP descriptors retain their public shape and isolate deterministic per-thread sessions", async () => {
+test("MCP descriptors bind all automation tools to deterministic per-thread sessions", async () => {
   const f = fixture();
 
   const manager = new AgentTools({
@@ -280,6 +281,14 @@ test("MCP descriptors retain their public shape and isolate deterministic per-th
   expect(first[0]?.env?.AGENT_BROWSER_SESSION).toBe(first[0]?.args[1]);
   expect(Object.keys(first[0]?.env ?? {})).toEqual(["AGENT_BROWSER_SESSION"]);
   expect(manager.localMcpServers([desktop], "thread/one")[0]?.env).toBeUndefined();
+
+  for (const tool of [browser, desktop, device]) {
+    expect(manager.localMcpServers([tool], "thread/one --config=other")[0]?.scope).toEqual({
+      tool,
+      session: agentToolSession("thread/one --config=other"),
+    });
+    expect(manager.localMcpServers([tool], "thread/two")[0]?.scope?.session).not.toBe(first[0]?.args[1]);
+  }
 });
 
 test("explicit sessions and selectors map to supported CLI arguments and UI/MCP use the same session", async () => {

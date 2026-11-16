@@ -21,6 +21,7 @@ import { agentToolSession } from "./scope.ts";
 import { AgentToolDiscoveryCache } from "./cache.ts";
 import { AgentToolLifecycle } from "./lifecycle.ts";
 import { closeAgentToolSession } from "./cleanup.ts";
+import type { LocalAutomationServer } from "../agent-tools-mcp/stdio.ts";
 
 type ReportInit = MessageInitShape<typeof AgentToolsReportSchema>;
 
@@ -43,12 +44,7 @@ export interface AgentToolsOptions {
   progress(progress: ProgressInit): void | Promise<void>;
 }
 
-export interface LocalAgentToolMcpServer {
-  readonly name: string;
-  readonly command: string;
-  readonly args: readonly string[];
-  readonly env?: Readonly<{ AGENT_BROWSER_SESSION?: string; AGENT_DEVICE_SESSION?: string }>;
-}
+export type LocalAgentToolMcpServer = LocalAutomationServer;
 
 export const localMcpName = (tool: AgentTool): string => `agent_${AgentTool[tool].toLowerCase()}`;
 
@@ -135,6 +131,7 @@ export class AgentTools {
                 name: localMcpName(tool),
                 command,
                 args,
+                ...(session && { scope: { tool, session } }),
                 ...(session &&
                   tool !== AgentTool.DESKTOP && {
                     env:

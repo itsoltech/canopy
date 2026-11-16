@@ -5,6 +5,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { tempDirs } from "@canopy/testing";
 import { z } from "zod";
+import { AgentTool } from "@canopy/contracts";
 import { createLocalAutomationMcp } from "./index.ts";
 
 const temporary = tempDirs();
@@ -24,6 +25,7 @@ function fixture() {
         command: process.execPath,
         args: [join(import.meta.dir, "fixtures/server.ts"), path],
         env: { AGENT_BROWSER_SESSION: session },
+        scope: { tool: AgentTool.BROWSER, session },
       },
     ],
     env: { CANOPY_MCP_BROWSER_POLICY: "1" },
@@ -51,6 +53,10 @@ test("browser MCP rejects foreign sessions and headed overrides before authorizi
     { extraArgs: ["--headed"] },
     { extraArgs: ["--headed=true"] },
     { extraArgs: "--headed" },
+    { all: true },
+    { all: "false" },
+    { extraArgs: ["--all"] },
+    { extraArgs: ["--all=true"] },
   ];
 
   try {
@@ -62,7 +68,7 @@ test("browser MCP rejects foreign sessions and headed overrides before authorizi
           jsonrpc: "2.0",
           id: 1,
           method: "tools/call",
-          params: { name: "agent_browser_open", arguments: args },
+          params: { name: "all" in args ? "agent_browser_close" : "agent_browser_open", arguments: args },
         }),
       });
 
@@ -93,6 +99,9 @@ test("browser MCP catalog and SDK calls share the pinned session and explicit he
       if (tool.name === "agent_browser_open" || tool.name === "agent_browser_doctor")
         expect(tool.inputSchema.properties?.["headed"]).toMatchObject({ enum: [false], default: false });
       else expect(tool.inputSchema.properties?.["headed"]).toBeUndefined();
+
+      if (tool.name === "agent_browser_close")
+        expect(tool.inputSchema.properties?.["all"]).toMatchObject({ enum: [false], default: false });
     }
 
     const calls = [
@@ -101,6 +110,7 @@ test("browser MCP catalog and SDK calls share the pinned session and explicit he
       { name: "agent_browser_tab_new", arguments: { session, namespace: "" } },
       { name: "agent_browser_doctor", arguments: { session: "", headed: false } },
       { name: "agent_browser_snapshot", arguments: { extraArgs: ["--debug"] } },
+      { name: "agent_browser_close", arguments: { all: false } },
     ];
 
     const expected = [
@@ -109,6 +119,7 @@ test("browser MCP catalog and SDK calls share the pinned session and explicit he
       { session, namespace: "", extraArgs: ["--headed", "false"] },
       { session, headed: false },
       { extraArgs: ["--debug", "--headed", "false"], session },
+      { all: false, session, extraArgs: ["--headed", "false"] },
     ];
 
     for (const [index, call] of calls.entries()) {

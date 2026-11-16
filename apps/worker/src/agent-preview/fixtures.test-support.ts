@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { create } from "@bufbuild/protobuf";
+import { clone, create } from "@bufbuild/protobuf";
 import { AgentTool, RunAgentToolSchema } from "@canopy/contracts";
 import sharp from "sharp";
 import { executable, fixture } from "../agent-tools/fixtures.test-support.ts";
@@ -99,7 +99,7 @@ record("end");
       {
         executable: f.path(tool),
         env: toolEnvironment(f.env),
-        scope: create(RunAgentToolSchema, scope),
+        scope: clone(RunAgentToolSchema, scope),
         redact: (text: string) => text,
       },
       signal,

@@ -124,6 +124,51 @@ test("desktop inputs pin a window, map original logical bounds and use atomic ge
   );
 });
 
+test("desktop defaults follow focus while explicit windows and apps retain their scope", async () => {
+  const f = await previewFixture();
+
+  const windows = [
+    {
+      id: "editor",
+      title: "Document",
+      app_name: "Editor",
+      is_focused: true,
+      bounds: { x: 0, y: 0, width: 1200, height: 600 },
+    },
+    {
+      id: "terminal",
+      title: "Shell",
+      app_name: "Terminal",
+      is_focused: false,
+      bounds: { x: 1200, y: 0, width: 800, height: 600 },
+    },
+  ];
+
+  f.update({ windows });
+  const runtime = f.runtime();
+  const following = new DesktopCatalog(runtime);
+  const pinnedRuntime = f.runtime();
+  pinnedRuntime.scope.windowId = "editor";
+  const pinned = new DesktopCatalog(pinnedRuntime);
+  const appRuntime = f.runtime();
+  appRuntime.scope.app = "Editor";
+  const app = new DesktopCatalog(appRuntime);
+  expect((await following.refresh()).targetId).toBe("editor");
+  expect((await pinned.refresh()).targetId).toBe("editor");
+  expect((await app.refresh()).targetId).toBe("editor");
+
+  f.update({ windows: windows.map((window) => ({ ...window, is_focused: window.id === "terminal" })) });
+  expect((await following.refresh()).targetId).toBe("terminal");
+  expect(following.point(0, 0)).toEqual({ x: 1200, y: 0 });
+  expect(following.scopeArgs()).toEqual(["--window-id", "terminal"]);
+  expect((await pinned.refresh()).targetId).toBe("editor");
+  expect((await app.refresh()).targetId).toBe("editor");
+
+  f.update({ windows: windows.filter((window) => window.id === "terminal") });
+  expect((await pinned.refresh()).targetId).toBe("");
+  expect((await app.refresh()).targetId).toBe("");
+});
+
 test("device catalog keeps selection usable without an active session and maps taps/swipes against logical dimensions", async () => {
   const f = await previewFixture(AgentTool.DEVICE);
   f.update({
@@ -141,12 +186,13 @@ test("device catalog keeps selection usable without an active session and maps t
   expect(catalog.selected).toBe(false);
   expect(catalog.targets).toHaveLength(2);
   expect(catalog.targetId).toBe("");
-  runtime.scope.deviceId = "emulator-5556";
-  runtime.scope.platform = "android";
-  const selected = await deviceCatalog(runtime);
+  const selectedRuntime = f.runtime();
+  selectedRuntime.scope.deviceId = "emulator-5556";
+  selectedRuntime.scope.platform = "android";
+  const selected = await deviceCatalog(selectedRuntime);
   expect(selected.targetId).toBe("android:emulator-5556");
   expect(selected.targets.find((target) => target.active)?.id).toBe(selected.targetId);
-  const controls = new DeviceInput(runtime);
+  const controls = new DeviceInput(selectedRuntime);
   controls.width = 400;
   controls.height = 800;
   await controls.input(event("pointer-down", { x: 0.5, y: 0.5 }), "a");
@@ -165,6 +211,79 @@ test("device catalog keeps selection usable without an active session and maps t
       .find((call) => call.command === "type")
       ?.args.slice(-2),
   ).toEqual(["--", "--literal"]);
+});
+
+test("device defaults follow session changes without losing explicit device or platform selection", async () => {
+  const f = await previewFixture(AgentTool.DEVICE);
+
+  const devices = [
+    { id: "emulator-5554", name: "One", platform: "android" },
+    { id: "emulator-5556", name: "Two", platform: "android" },
+    { id: "sim-1", name: "iPhone", platform: "ios" },
+  ];
+
+  const select = (id: string, platform: string) => f.update({ sessions: [{ name: "thread", id, platform }] });
+  f.update({ devices });
+  const following = f.runtime();
+  const filtered = f.runtime();
+  filtered.scope.platform = "android";
+  const pinned = f.runtime();
+  pinned.scope.platform = "android";
+  pinned.scope.deviceId = "emulator-5554";
+
+  for (const runtime of [following, filtered, pinned])
+    expect((await deviceCatalog(runtime)).targetId).toBe("android:emulator-5554");
+
+  select("emulator-5556", "android");
+  expect((await deviceCatalog(following)).targetId).toBe("android:emulator-5556");
+  expect((await deviceCatalog(filtered)).targetId).toBe("android:emulator-5556");
+  expect((await deviceCatalog(pinned)).targetId).toBe("android:emulator-5554");
+  await following.command(["home"]);
+  expect(f.calls().find((call) => call.command === "home")?.args).toContain("emulator-5556");
+
+  select("sim-1", "ios");
+  expect((await deviceCatalog(following)).targetId).toBe("ios:sim-1");
+  expect((await deviceCatalog(filtered)).targetId).toBe("");
+  expect((await deviceCatalog(pinned)).targetId).toBe("android:emulator-5554");
+  f.update({ devices: devices.filter((device) => device.id !== "emulator-5554") });
+  expect((await deviceCatalog(pinned)).targetId).toBe("");
+});
+
+test("Apple device selection accepts public iOS and macOS platforms and preserves narrower filters", async () => {
+  const f = await previewFixture(AgentTool.DEVICE);
+  f.update({
+    devices: [
+      { id: "sim-1", name: "iPhone", platform: "ios" },
+      { id: "mac-1", name: "Mac", platform: "macos" },
+    ],
+    sessions: [{ name: "thread", id: "sim-1", platform: "ios" }],
+  });
+  const apple = f.runtime();
+  apple.scope.platform = "apple";
+  const pinned = f.runtime();
+  pinned.scope.platform = "apple";
+  pinned.scope.deviceId = "sim-1";
+  const ios = f.runtime();
+  ios.scope.platform = "ios";
+  ios.scope.deviceId = "mac-1";
+  expect((await deviceCatalog(apple)).targetId).toBe("ios:sim-1");
+  expect((await deviceCatalog(pinned)).targetId).toBe("ios:sim-1");
+  expect((await deviceCatalog(ios)).targetId).toBe("");
+
+  f.update({ sessions: [{ name: "thread", id: "mac-1", platform: "macos" }] });
+  expect((await deviceCatalog(apple)).targetId).toBe("macos:mac-1");
+  expect((await deviceCatalog(pinned)).targetId).toBe("ios:sim-1");
+  await apple.command(["home"]);
+  expect(f.calls().find((call) => call.command === "home")?.args).toEqual([
+    "--json",
+    "--session",
+    "thread",
+    "--platform",
+    "macos",
+    "--udid",
+    "mac-1",
+    "home",
+  ]);
 });
 
 test("catalog-only screenshot backend emits selectable targets and never captures or accepts input without selection", async () => {
