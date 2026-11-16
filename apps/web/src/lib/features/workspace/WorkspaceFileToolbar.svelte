@@ -20,6 +20,7 @@
    */
   let {
     document,
+    local,
     preview,
     markdown,
     rendered = $bindable(false),
@@ -32,6 +33,8 @@
     notice,
   }: {
     document: WorkspaceFile;
+    /** The file is on the computer showing it (onThisComputer): its default app can open it here. */
+    local: boolean;
     preview: boolean;
     markdown: boolean;
     rendered?: boolean;
@@ -109,7 +112,7 @@
     {#if state.text !== undefined}<MenuItem icon="document-duplicate" onselect={() => void copyText(state.text ?? "")}
         >Copy text</MenuItem
       >{/if}
-    {#if document.target.local}<MenuItem
+    {#if local}<MenuItem
         icon="arrow-top-right-on-square"
         onselect={() => void openInApp({ ...document.target, path: document.path, local: true })}
         >Open in default app</MenuItem

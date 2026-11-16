@@ -29,6 +29,8 @@
   import FileCitations from "./FileCitations.svelte";
   import type { FileNotice } from "./file-notice.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
+  import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
+  import { onThisComputer } from "#lib/features/threads/thread-actions.ts";
 
   let {
     document,
@@ -69,6 +71,10 @@
   const overview = useOverview();
   const thread = $derived(overview.threads.get(document.target.threadId));
   const worker = $derived(thread ? overview.worker(thread.workerId) : undefined);
+  const capabilities = useGatewayCapabilities();
+
+  // From the thread, not the target: the Files panel and restored tabs open files without that flag.
+  const local = $derived(thread ? onThisComputer(thread, worker, capabilities?.ownGateway ?? false) : false);
 
   $effect(() => {
     document.availability(
@@ -249,6 +255,7 @@
 <div class="flex min-h-0 flex-1 flex-col" onkeydowncapture={keydown}>
   <WorkspaceFileToolbar
     {document}
+    {local}
     {preview}
     {markdown}
     bind:rendered
@@ -364,7 +371,7 @@
           {name}
           loading={viewer.loading}
           {rendered}
-          local={Boolean(document.target.local)}
+          {local}
           position={viewer.position}
         />
       {/if}
