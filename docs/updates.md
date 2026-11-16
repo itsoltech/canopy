@@ -1,7 +1,8 @@
 # Aktualizacje Canopy
 
-Status: opis zaimplementowanego kodu (2026-11-16), w tym wykrywania pojedynczego
-procesu przez instalator Windows i retencji dyskowego mirrora workerów gatewaya.
+Status: opis zaimplementowanego kodu (2026-11-17), w tym pomijania cache metadanych
+przy ręcznym sprawdzaniu aktualizacji, wykrywania pojedynczego procesu przez
+instalator Windows i retencji dyskowego mirrora workerów gatewaya.
 Dostępność zmian w nightly, beta i stable wynika z promocji
 opisanych w [release.md](release.md), a konkretne wersje podają GitHub Releases.
 
@@ -228,6 +229,10 @@ Brak notatek wydania (także pusty wynik lub niedostępne źródło) ukrywa
 Proces main, gateway i web BFF czytają statyczny indeks wydań z CDN GitHub Pages,
 bez tokena i bez limitu REST API. Każdy proces współdzieli cache 15 min oraz trwające
 żądania między oknami, kartami i sprawdzeniami z połączonych komputerów.
+Ręczne **Check now** w popoverze i ustawieniach oraz **Check for updates**
+w Settings → App updates pomijają ten cache i odświeżają metadane w sieci;
+dotyczy to także sprawdzeń aplikacji zleconych z innego komputera i zmiany kanału.
+Timery nadal korzystają z cache, a trwające żądania i pobierania pozostają współdzielone.
 Notatki obejmują `(wersja zainstalowana, wersja pobierana]`, zgodnie
 z wybranym kanałem, w malejącej kolejności SemVer. Istniejący renderer Markdown
 nie wstrzykuje HTML, ogranicza schematy linków i nie ładuje obrazów. Retencja
@@ -464,8 +469,8 @@ własnego timera.
 **Wspólne wykrycie wydania.** Gdy gateway albo jedna aplikacja zgłosi nowszą wersję
 (`available_version`/`updater_version` powyżej uruchomionej), gateway prosi pozostałe
 aplikacje na tym samym kanale, które jej jeszcze nie znają, o sprawdzenie własnego feedu,
-raz na wydanie i aplikację; samodzielny gateway na tym samym kanale sprawdza się raz
-(cache indeksu wydań może to opóźnić do 15 min). Gateway przekazuje wyłącznie sygnał,
+raz na wydanie i aplikację; samodzielny gateway na tym samym kanale sprawdza się raz.
+Te sprawdzenia pomijają cache metadanych. Gateway przekazuje wyłącznie sygnał,
 nie listę wydań ani wersję: każda aplikacja nadal sama weryfikuje podpisany feed swojej
 platformy, a paczka platformy może pojawić się później niż release. Po tym jednym
 sprawdzeniu Update all obejmuje wszystkie aplikacje naraz.
@@ -694,6 +699,11 @@ Brak kanału lub dokładnego tagu w poprawnym indeksie nie wywołuje API.
 Jawny mirror `baseUrl` zachowuje układ API; może wskazać własne `indexUrl`.
 Cache metadanych trwa 15 min; po jego wygaśnięciu klient wysyła `If-None-Match`,
 a `304` zachowuje poprzednią treść. Równoległe żądania tego samego URL-a są scalane.
+Ręczne sprawdzenia i sygnał wykrycia nowego wydania omijają TTL udanych odpowiedzi,
+cache błędów oraz przerwę po awarii indeksu. Wysyłają `Cache-Control: no-cache`,
+zachowując `If-None-Match`: serwer może potwierdzić aktualność odpowiedzi przez `304`.
+Jeśli indeks nadal nie działa, odświeżane są wszystkie odczytywane strony API.
+Udana próba aktualizuje wspólny cache dla kolejnych automatycznych sprawdzeń.
 Manifest konkretnego, niezmiennego wydania ma cache w resolverze; błędy nie zostają w nim.
 
 `403` z `x-ratelimit-remaining: 0` lub `retry-after`, a także `429`, zatrzymuje

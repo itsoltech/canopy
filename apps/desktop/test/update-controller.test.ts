@@ -10,8 +10,10 @@ import { join } from "node:path";
 import { create, toJsonString } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { writeFileSync } from "node:fs";
-import { ReleaseRateLimit } from "@canopy/domain/release/http";
+import { ReleaseHttp, ReleaseRateLimit } from "@canopy/domain/release/http";
 import { computerUpdate } from "@canopy/domain/release/computer-update";
+import { ReleaseCatalog } from "@canopy/domain/release/catalog";
+import { DesktopUpdateFeed } from "../src/update-feed.ts";
 import { appPhase, computerAction } from "../../mobile/src/features/updates/model.ts";
 
 class Clock implements CheckClock {
@@ -78,7 +80,7 @@ class FakeUpdater extends EventEmitter implements Updater {
 function fixture() {
   const clock = new Clock();
   const updaters = [new FakeUpdater()];
-  let prepare: (signal: AbortSignal) => Promise<boolean> = async () => true;
+  let prepare: (signal: AbortSignal, refresh: boolean) => Promise<boolean> = async () => true;
 
   const controller = new UpdateController(updaters[0]!, {
     version: "0.3.0-nightly.1",
@@ -92,7 +94,7 @@ function fixture() {
 
       return updater;
     },
-    prepare: (_channel, _downgrade, signal) => prepare(signal),
+    prepare: (_channel, _downgrade, signal, refresh) => prepare(signal, refresh),
     save() {},
     confirmDowngrade: async () => true,
     changed() {},
@@ -110,6 +112,63 @@ function fixture() {
     },
   };
 }
+
+test("manual and remote checks discover newly published desktop builds before the automatic cache expires", async () => {
+  const { controller, prepare, updaters } = fixture();
+  let published = false;
+  let calls = 0;
+  const updater = updaters[0]!;
+  let publishedVersion = updater.version;
+
+  const catalog = new ReleaseCatalog({
+    http: new ReleaseHttp({
+      fetch: async () => {
+        calls++;
+
+        return Response.json({
+          schema: 1,
+          releases: published
+            ? [
+                {
+                  tag_name: `v${publishedVersion}`,
+                  draft: false,
+                  prerelease: true,
+                  published_at: "2026-11-17T00:00:00Z",
+                  body: "New build",
+                  assets: [
+                    "manifest.json",
+                    "nightly.yml",
+                    "nightly-mac.yml",
+                    "nightly-linux.yml",
+                    "nightly-linux-arm64.yml",
+                  ].map((name) => ({
+                    name,
+                    browser_download_url: `https://example.com/${publishedVersion}/${name}`,
+                  })),
+                },
+              ]
+            : [],
+        });
+      },
+    }),
+  });
+
+  const feed = new DesktopUpdateFeed(() => "0.3.0-nightly.1", catalog);
+  prepare(async (signal, refresh) => !!(await feed.resolve("nightly", false, signal, refresh)).release);
+
+  expect((await controller.checkAutomatically()).phase).toBe("idle");
+  published = true;
+  expect((await controller.checkAutomatically()).phase).toBe("idle");
+  expect(calls).toBe(1);
+  expect(await controller.check()).toMatchObject({ phase: "downloaded", stagedVersion: updater.version });
+  expect(calls).toBe(2);
+  publishedVersion = "0.3.0-nightly.3";
+  expect((await controller.checkAutomatically()).stagedVersion).toBe("0.3.0-nightly.2");
+  expect(calls).toBe(2);
+  updater.version = publishedVersion;
+  expect(await controller.checkRemote()).toMatchObject({ phase: "downloaded", stagedVersion: updater.version });
+  expect(calls).toBe(3);
+});
 
 test("remote, manual and automatic checks share a running check and report its actual progress", async () => {
   const { controller, prepare, updaters } = fixture();

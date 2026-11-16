@@ -2,6 +2,9 @@ import { afterEach, expect, test } from "bun:test";
 import { mkdtemp, open, readdir, rename, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { create } from "@bufbuild/protobuf";
+import { ui } from "@canopy/contracts";
+import { RELEASE_INDEX_URL } from "@canopy/domain/release/catalog";
 import { readUpdateRecord, type ReleaseManifest, type UpdateRecord } from "@canopy/updater";
 import { GatewayUpdates } from "./runtime.ts";
 import { gatewayUpdateMayBeStaged } from "./stage.ts";
@@ -60,12 +63,91 @@ test("a persisted latest setting is rewritten as stable and remains stable for l
     expect(stored).toBe("stable");
     expect((await updates.snapshot()).channel).toBe("stable");
     // The gateway accepts old clients without retaining the obsolete setting.
-    const { create } = await import("@bufbuild/protobuf");
-    const { ui } = await import("@canopy/contracts");
     expect(
       (await updates.manage(create(ui.ManageUpdatesRequestSchema, { action: "channel", channel: "latest" }))).channel,
     ).toBe("stable");
     expect(stored).toBe("stable");
+  } finally {
+    updates.close();
+  }
+});
+
+test.each(["check", "channel"])("manual %s discovers a release inside the automatic cache TTL", async (action) => {
+  let published = "1.0.0";
+  let indexCalls = 0;
+  const manifests: string[] = [];
+
+  const updates = new GatewayUpdates({
+    kind: "source",
+    version: "1.0.0",
+    cacheDir: await cacheDirectory(),
+    authenticate: async () => undefined,
+    persistence: {
+      admin: async () => true,
+      channel: async () => "stable",
+      setChannel: async () => {},
+      workers: async () => [],
+      hello: async () => {},
+      saveCommand: async () => {},
+      report: async () => {},
+    },
+    source: {
+      now: () => 0,
+      fetch: async (input) => {
+        const url = String(input);
+
+        if (url === RELEASE_INDEX_URL) {
+          indexCalls++;
+
+          return Response.json({
+            schema: 1,
+            releases: [
+              {
+                tag_name: `v${published}`,
+                draft: false,
+                prerelease: false,
+                published_at: "2026-11-10T09:00:00Z",
+                body: "Release notes",
+                assets: [
+                  { name: "manifest.json", browser_download_url: `https://example.com/${published}/manifest.json` },
+                ],
+              },
+            ],
+          });
+        }
+
+        manifests.push(url);
+
+        return Response.json({
+          schema: 1,
+          version: published,
+          channel: "stable",
+          commit: "abcdef0",
+          published_at: "2026-11-10T09:00:00Z",
+          protocol: { worker_link: 1, update: 1 },
+          assets: [],
+        } satisfies ReleaseManifest);
+      },
+    },
+  });
+
+  try {
+    await updates.start();
+    await updates.check();
+    expect((await updates.snapshot()).gatewayUpdateAvailable).toBe(false);
+    published = "1.0.1";
+    await updates.check();
+    expect((await updates.snapshot()).availableVersion).toBe("1.0.0");
+    expect(indexCalls).toBe(1);
+    const snapshot = await updates.manage(create(ui.ManageUpdatesRequestSchema, { action, channel: "stable" }));
+    expect(snapshot.checkError).toBe("");
+    expect(snapshot.availableVersion).toBe("1.0.1");
+    expect(snapshot.gatewayUpdateAvailable).toBe(true);
+    expect(indexCalls).toBe(2);
+    await updates.check();
+    expect((await updates.snapshot()).availableVersion).toBe("1.0.1");
+    expect(indexCalls).toBe(2);
+    expect(manifests).toEqual(["https://example.com/1.0.0/manifest.json", "https://example.com/1.0.1/manifest.json"]);
   } finally {
     updates.close();
   }
@@ -106,6 +188,7 @@ test("gateway and linked checks reuse API backoff and expose a scheduled check w
     await updates.start();
     await updates.check();
     await Promise.all(Array.from({ length: 10 }, () => updates.check()));
+    await updates.manage(create(ui.ManageUpdatesRequestSchema, { action: "check" }));
     const snapshot = await updates.snapshot();
     expect(snapshot.gatewayState).toBe("idle");
     expect(snapshot.checkError).toStartWith("GitHub is limiting update checks from this network. Next check at ");
