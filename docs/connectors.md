@@ -4,6 +4,10 @@ Projekt i wdrożenie: 2026-11-02. Zakres: konta zdalnych serwerów MCP,
 OAuth w gateway, dostęp wybranych workerów i botów oraz jeden kanał wykonania.
 Status (2026-11-16): panel web/desktop jest odświeżany reaktywnie w pamięci BFF
 i dostarczany przez SSE; autoryzacja uwzględnia zmiany uprawnień bieżącej tury Claude.
+Panel natywnego mobile rozróżnia dostęp workera i katalog bieżącej tury:
+Available, Available next turn, Access removed, Unavailable oraz Error.
+Zachowuje podłączone konto po odebraniu grantu do czasu aktualizacji katalogu;
+szczegóły błędu sesji rozwija się przez Show details.
 Dostępność kanałów według [release.md](release.md).
 
 ## Decyzje

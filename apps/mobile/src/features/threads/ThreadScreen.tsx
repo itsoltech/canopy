@@ -198,7 +198,7 @@ export function ThreadScreen({ id }: { id: string }) {
   }, [workspace]);
   const composer = useThreadComposer(state);
 
-  const [sheet, setSheet] = useState<"goal" | "side" | "files" | null>(null);
+  const [sheet, setSheet] = useState<"goal" | "side" | "files" | "preview" | null>(null);
   const params = useLocalSearchParams<{ draftSideThread?: string }>();
   useEffect(() => {
     if (params.draftSideThread === "1") {
@@ -239,6 +239,10 @@ export function ThreadScreen({ id }: { id: string }) {
                 setSheet("files");
               }}
               onSideThread={() => setSheet("side")}
+              onPreview={() => {
+                setDetails(false);
+                setSheet("preview");
+              }}
               onGoal={
                 thread && takesGoals(thread) && (!snapshot?.goal || isFinishedGoal(snapshot.goal.status))
                   ? () => setSheet("goal")

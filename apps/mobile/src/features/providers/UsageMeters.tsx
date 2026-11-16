@@ -1,15 +1,22 @@
 import { Text, View } from "react-native";
 import type { ProviderUsageSnapshot } from "@canopy/contracts";
-import { activeUsageWindows, usageBillingNotice, usageReset, usageWindowName } from "@canopy/domain/provider-usage";
-import { usageTone } from "@canopy/domain/sidebar-usage";
-import { styles, useColors } from "../../ui/theme";
-import { usageColor } from "../navigation/usage-color";
+import { activeUsageWindows, usageBillingNotice } from "@canopy/domain/provider-usage";
+import { useColors } from "../../ui/theme";
+import { UsageMeter } from "./UsageMeter";
+import { useUsageTypography } from "./usage-typography";
 
-const percent = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
-
-/** Plan limit windows (web: UsageMeters): name, % left, time to reset and a 4 dp meter; nothing without data. */
-export function UsageMeters({ usage, now }: { usage: ProviderUsageSnapshot | undefined; now: number }) {
+/** Plan windows and billing notices; settings can add the steady-use reference. */
+export function UsageMeters({
+  usage,
+  now,
+  showPace = false,
+}: {
+  usage: ProviderUsageSnapshot | undefined;
+  now: number;
+  showPace?: boolean;
+}) {
   const c = useColors();
+  const type = useUsageTypography();
   const windows = activeUsageWindows(usage, now);
   const billing = usageBillingNotice(usage, now);
 
@@ -17,46 +24,11 @@ export function UsageMeters({ usage, now }: { usage: ProviderUsageSnapshot | und
 
   return (
     <View style={{ gap: 8, minWidth: 0 }}>
-      {windows.map((window) => {
-        const name = usageWindowName(window.key, window.windowMinutes);
-
-        return (
-          <View key={`${window.key}:${window.windowMinutes}`} style={{ gap: 4 }}>
-            <View style={[styles.row, { flexWrap: "wrap", justifyContent: "space-between", rowGap: 2 }]}>
-              <Text style={[styles.overlayMeta, { color: c.soft, fontVariant: ["tabular-nums"] }]}>
-                {name}
-                {window.usedPercent !== undefined
-                  ? ` · ${percent.format(100 - window.usedPercent)}% left`
-                  : window.reached
-                    ? " · limit reached"
-                    : ""}
-              </Text>
-              <Text style={[styles.overlayMeta, { color: c.muted, fontVariant: ["tabular-nums"] }]}>
-                {usageReset(window, true, now)}
-              </Text>
-            </View>
-            {window.usedPercent !== undefined ? (
-              <View
-                accessibilityRole="progressbar"
-                accessibilityLabel={`${name} limit left`}
-                accessibilityValue={{ min: 0, max: 100, now: Math.round(100 - window.usedPercent) }}
-                style={{ height: 4, borderRadius: 2, overflow: "hidden", backgroundColor: c.ring }}
-              >
-                <View
-                  style={{
-                    height: 4,
-                    width: `${Math.max(0, Math.min(100, 100 - window.usedPercent))}%`,
-                    borderRadius: 2,
-                    backgroundColor: usageColor(usageTone(window.reached ? 100 : window.usedPercent), c),
-                  }}
-                />
-              </View>
-            ) : null}
-          </View>
-        );
-      })}
+      {windows.map((window) => (
+        <UsageMeter key={`${window.key}:${window.windowMinutes}`} window={window} now={now} showPace={showPace} />
+      ))}
       {billing ? (
-        <Text accessibilityLiveRegion="polite" style={[styles.overlayMeta, { color: c.warning }]}>
+        <Text accessibilityLiveRegion="polite" style={[type.meta, { color: c.warning }]}>
           {billing}
         </Text>
       ) : null}

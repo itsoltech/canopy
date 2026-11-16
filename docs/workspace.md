@@ -6,12 +6,14 @@ cytowanie zaznaczeń z plików, przeciąganie plików do wiadomości
 i interaktywny Preview automatyzacji w panelu web/desktop oraz automatyczny mini Preview
 pod podsumowaniem wątku, przywracanie mini Preview oraz osobnego stanu prawego panelu
 po powrocie do wątku bez animacji panelu, kompaktowe pola wymiarów Preview bez +/−
-oraz kompaktowy przełącznik automatycznej archiwizacji po merge z ikoną informacji w podsumowaniu
+oraz kompaktowy przełącznik automatycznej archiwizacji po merge z ikoną informacji w podsumowaniu,
+wyrównany nagłówek natywnego mobile i ręczny arkusz Preview Browser/Desktop/Device
 (2026-11-16; stos #640–#648, potem #710, #711, #737, #740, #787 i #823).
 Opis dotyczy kodu; dostępność nightly/beta/stable określają [wydania](release.md).
 W web/desktop zakładki dzielą rząd z sygnetem projektu, a **tytuł wątku jest pierwszą,
-niezamykalną kartą** (bez osobnego tytułu i etykiety `Thread`, #787). Mobile pokazuje
-tę kartę w przełączniku jako `Thread`. W tym dokumencie `Thread` oznacza tę pierwszą
+niezamykalną kartą** (bez osobnego tytułu i etykiety `Thread`, #787). Mobile używa tego samego
+tytułu w aktywnej karcie i przełączniku; na telefonie pokazuje aktywną kartę,
+a od 600 dp dostępnego nagłówka także kartę rozmowy obok pliku. W tym dokumencie `Thread` oznacza tę pierwszą
 kartę rozmowy, niezależnie od jej etykiety. Podsumowanie wątku jest
 **osobnym elementem**: pływającą kartą o stałej szerokości w prawym górnym rogu
 obszaru wątku, niezależną od prawego panelu. Prawy panel web/desktop łączy

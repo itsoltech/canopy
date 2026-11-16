@@ -2,6 +2,8 @@
 
 Status (2026-11-16): **narzędzia, interaktywny Preview z podglądem zmiany viewportu,
 automatyczny mini Preview wątku oraz sprzątanie sesji przy archiwizacji zaimplementowane**.
+Natywny mobile ma ręczny arkusz Preview Browser/Desktop/Device z wyborem celu,
+dotykiem, nawigacją i wpisywaniem tekstu przez Connect z przypiętym TLS.
 Browser MCP pozostaje w sesji wątku i działa headless;
 Browser, Desktop i Device mają wspólną kontrolę sesji wątku przed autoryzacją,
 obejmującą także sesje w krokach batch. Desktop nie udostępnia tworzenia obcej
@@ -306,6 +308,13 @@ zmiana wątku, tło klienta, utrata dostępu, odebranie grantu albo zerwanie ł�
 anulują pracę i zwalniają wejście. Sesja jest przypięta do konkretnego
 WorkerLink i nie jest odtwarzana po jego wymianie. Limity klatek, ACK,
 dzierżawy i partii wejścia: [protocol.md](protocol.md#interaktywny-podgląd-wątku).
+
+Natywny mobile otwiera ręcznie arkusz `Preview` z nagłówka wątku. Odbiera maks.
+5 klatek/s bez trwałego zapisu, wybiera cel i wysyła tap/drag, scroll, tekst oraz
+nawigację przez ten sam gateway. Zmiana zakresu, zamknięcie i tło aplikacji
+anulują subskrypcję oraz zwalniają wejście. Kontrolki dostosowują się do małej
+wysokości i klawiatury. Mobile nie ma automatycznego mini Preview ani zmiany
+wymiarów viewportu; szczegóły: [mobile.md](mobile.md#podgląd-automatyzacji-i-limity-kont).
 
 ## Automatyczny mini Preview
 

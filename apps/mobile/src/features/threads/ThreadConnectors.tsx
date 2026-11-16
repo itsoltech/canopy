@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Text, View } from "react-native";
 import type { ui } from "@canopy/contracts";
-import { Button, Sheet } from "../../ui/components";
-import { Switch } from "../../ui/Switch";
-import { styles, useColors } from "../../ui/theme";
-import { openSettingsSection } from "../settings/navigation";
+import { Button } from "../../ui/Button";
+import { font, styles, useColors, useTypography } from "../../ui/theme";
+import { ThreadConnectorAccess } from "./ThreadConnectorAccess";
+import { ThreadConnectorRow } from "./ThreadConnectorRow";
 import type { useThreadPanel } from "./use-thread-panel";
 
 export function ThreadConnectors({
@@ -19,80 +19,52 @@ export function ThreadConnectors({
   homeName: string;
 }) {
   const c = useColors();
+  const type = useTypography();
   const [managing, setManaging] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const accounts = panel.data?.connectors.filter((account) => account.granted) ?? [];
+  const accounts = panel.data?.connectors.filter((account) => account.granted || account.sessionAttached) ?? [];
 
-  async function change(account: ui.ThreadConnector, granted: boolean) {
-    setBusy(true);
-    setError("");
-
-    try {
-      await panel.grant(account, granted);
-    } catch {
-      setError("Could not change access. Reload and try again.");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const status = panel.error
+    ? "Could not load connector access. Check the connection, then retry."
+    : !panel.data
+      ? "Loading connections…"
+      : panel.data.unavailable
+        ? "Connect to load connector access."
+        : "";
 
   return (
-    <View style={{ gap: 8 }}>
-      <Text style={[styles.label, { color: c.text }]}>Connectors</Text>
-      {accounts.map((account) => (
-        <Text key={account.accountId} numberOfLines={2} style={[styles.body, { color: c.text }]}>
-          {account.connectorName} · {account.accountLabel} ·{" "}
-          {account.status === "connected" ? "Connected" : "Reconnect required"}
-        </Text>
-      ))}
-      {!accounts.length && (
-        <Text style={[styles.meta, { color: c.muted }]}>
-          {panel.data?.unavailable
-            ? "Connect to load connector access."
-            : panel.data
-              ? "No connectors"
-              : "Loading connections…"}
-        </Text>
-      )}
-      <Button title="Manage connector access" disabled={disabled || !panel.data} onPress={() => setManaging(true)} />
-      <Sheet title="Manage connector access" visible={managing} onClose={() => setManaging(false)}>
-        <Text style={[styles.meta, { color: c.muted }]}>Changes apply to every thread on this worker.</Text>
-        {!!error && (
-          <Text accessibilityRole="alert" style={[styles.meta, { color: c.danger }]}>
-            {error}
+    <View style={{ gap: 4, minWidth: 0 }}>
+      <View style={[styles.row, { justifyContent: "space-between", minHeight: 44 }]}>
+        <View style={[styles.row, { flex: 1, minWidth: 0 }]}>
+          <Text accessibilityRole="header" style={[type.meta, { fontFamily: font.medium, color: c.muted }]}>
+            Connectors
           </Text>
-        )}
-        {panel.data?.connectors.map((account) => (
-          <View key={account.accountId} style={[styles.row, { justifyContent: "space-between" }]}>
-            <View style={{ flex: 1, gap: 4 }}>
-              <Text numberOfLines={2} style={[styles.body, { color: c.text }]}>
-                {account.connectorName} · {account.accountLabel}
-              </Text>
-              {account.allWorkers && (
-                <Text style={[styles.meta, { color: c.muted }]}>All workers · Manage on {homeName}</Text>
-              )}
-            </View>
-            <Switch
-              label={`Allow ${account.connectorName} · ${account.accountLabel}`}
-              value={account.granted}
-              disabled={disabled || busy || account.allWorkers || thread.status === "archived"}
-              onChange={(granted) => void change(account, granted)}
-            />
-          </View>
-        ))}
-        {thread.nodeId ? (
-          <Text style={[styles.meta, { color: c.muted }]}>Manage accounts on {homeName}</Text>
-        ) : (
-          <Button
-            title="Manage accounts"
-            onPress={() => {
-              setManaging(false);
-              openSettingsSection("connectors");
-            }}
-          />
-        )}
-      </Sheet>
+          {!status && !accounts.length ? <Text style={[type.meta, { color: c.muted }]}>None</Text> : null}
+        </View>
+        <Button
+          title="Manage"
+          label="Manage connector access"
+          variant="text"
+          size="sm"
+          disabled={disabled || !panel.data}
+          onPress={() => setManaging(true)}
+        />
+      </View>
+      {status ? (
+        <Text accessibilityLiveRegion="polite" style={[type.meta, { color: c.muted }]}>
+          {status}
+        </Text>
+      ) : null}
+      {panel.error ? (
+        <Button title="Retry" variant="text" size="sm" onPress={() => void panel.reload().catch(() => {})} />
+      ) : null}
+      {accounts.map((account) => (
+        <ThreadConnectorRow key={account.accountId} account={account} />
+      ))}
+      <ThreadConnectorAccess
+        {...{ thread, panel, disabled, homeName }}
+        visible={managing}
+        onClose={() => setManaging(false)}
+      />
     </View>
   );
 }

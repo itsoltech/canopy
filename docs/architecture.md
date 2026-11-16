@@ -1,8 +1,9 @@
 # Canopy — architektura
 
-Status: opis zaimplementowanego kodu (2026-11-15): gateway, workery, web BFF,
+Status: opis zaimplementowanego kodu (2026-11-16): gateway, workery, web BFF,
 Canopy Desktop (tryb lokalny, zdalny, sesja dostępu do BFF i połączone komputery),
-interaktywny i automatyczny mini podgląd automatyzacji w wątku oraz aplikacja mobilna.
+interaktywny i automatyczny mini podgląd automatyzacji w wątku oraz aplikacja mobilna
+z ręcznym Preview Browser/Desktop/Device.
 BFF materializuje stan odczytu ze wspólnego gRPC overview
 i współdzieli go między oknami; dogrzewanie historii odbywa się w BFF.
 Logowanie użytkowników nie istnieje; otwarte decyzje są w §11. Ten dokument opisuje
@@ -117,8 +118,9 @@ i karty utrwalone), pełnego PR oraz wyniku zadania w tle. Podsumowanie wątku
 to pływająca karta w rogu obszaru rozmowy (pigułka, popover albo arkusz),
 a prawy panel web/desktop łączy drzewo Files z interaktywnym Preview
 (Browser/Desktop/Device), a podsumowanie może mieć pod sobą automatyczny mini
-podgląd; natywny mobile ma przełącznik kart i arkusze
-`Thread details` oraz `Files`. Metadane kart są stanem urządzenia,
+podgląd; natywny mobile ma tytuł jako kartę rozmowy, przełącznik kart i arkusze
+`Thread details`, `Files` oraz ręczny `Preview` Browser/Desktop/Device, przesyłany
+bezpośrednio przez Connect i przypięty TLS. Metadane kart są stanem urządzenia,
 bez synchronizacji między klientami. Treści plików i ich niezapisane edycje
 pozostają w ograniczonych cache pamięci, niezależnie od dogrzewania transkryptów.
 Gateway wyprowadza zakres plików z właściciela i wątku. Drzewo jest leniwe,

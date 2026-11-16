@@ -1,7 +1,8 @@
 # Projekty, wątki i wątki boczne
 
 Status (2026-11-16): zaimplementowane, w tym automatyczna archiwizacja po merge PR-ów
-z nadpisaniami projektu i wątku, zamykanie zasobów przy archiwizacji,
+z nadpisaniami projektu i wątku (przełącznik w szczegółach także na mobile),
+zamykanie zasobów przy archiwizacji,
 opcjonalna retencja archiwum, grupowanie
 pracujących drzew z nieprzeczytanymi wynikami wcześniejszych tur lub zakończonych subagentów
 oraz wyróżnienie nieotwartych wątków ze szkicem w sidebarze web/desktop.
@@ -238,6 +239,8 @@ zachowanie konta; początkowo jest wyłączone. Settings → Projects → wybran
 udostępnia **Use my default (on/off)**, **On** i **Off**. W web/desktop sekcja
 Pull requests w podsumowaniu wątku ma kompaktowy przełącznik i ikonę informacji.
 Podpowiedź wskazuje, czy wartość pochodzi z konta, projektu czy samego wątku.
+Natywny mobile ma ten sam przełącznik pod PR-ami w Thread details, ze źródłem
+ustawienia w opisie; zapis jest nieaktywny offline, przy nieświeżym panelu i w archiwum.
 Zmiany obejmują istniejące i nowe wątki; jawne nadpisanie ma pierwszeństwo przed
 późniejszą zmianą ustawienia nadrzędnego. Wątek dziedziczy ustawienie do pierwszej
 ręcznej zmiany przełącznika; podsumowanie nie udostępnia przycisku resetu.
