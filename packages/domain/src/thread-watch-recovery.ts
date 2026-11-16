@@ -78,7 +78,13 @@ export class ThreadWatchRecovery {
 
     if (failure.computer) return { action: "resume", reason: "computer_unreachable" };
 
-    if (failure.transport && [4, 14].includes(failure.code) && !failure.reason)
+    // A raw exception from the gateway watch path is serialized as Unknown/watch_failed.
+    // It is still a stream failure, not evidence that the cursor or its records are corrupt.
+    // Keep retrying so a transient server-side race can recover without a page reload.
+    if (
+      (failure.transport && [4, 14].includes(failure.code) && !failure.reason) ||
+      (failure.code === 2 && failure.reason === "watch_failed")
+    )
       return { action: "resume", reason: "stream_unavailable" };
 
     this.#failures++;
