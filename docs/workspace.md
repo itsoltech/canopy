@@ -316,7 +316,9 @@ otwiera arkusz na cały ekran. Panel ma wspólną akcję `Close side panel`.
 
 Preview wybiera **Browser / Desktop / Device**, a kompaktowy pasek pokazuje
 cel, adres i nawigację właściwe dla narzędzia oraz dopasowanie/pełny ekran.
-Browser śledzi aktywną kartę sesji wątku i dopasowuje viewport do obszaru obrazu;
+Browser pokazuje karty sesji wątku i pozwala przełączyć aktywną kartę; zachowuje ustawiony przez agenta viewport
+przy zmianie szerokości panelu i udostępnia pasek z polami szerokości oraz wysokości
+oraz uchwyty krawędzi do jawnej zmiany viewportu;
 Desktop i Device wybierają cele z metadanych backendu, bez wpisywania surowych
 identyfikatorów. Kliknięcie obrazu aktywuje klawiaturę; IME i wklejany tekst
 trafiają do celu, Escape przenosi fokus na obraz, a utrata fokusu okna lub pola

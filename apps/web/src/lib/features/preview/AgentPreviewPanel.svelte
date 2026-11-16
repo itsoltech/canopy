@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick, untrack } from "svelte";
-  import { AgentTool, type AgentPreviewTarget, type ui } from "@canopy/contracts";
+  import { create } from "@bufbuild/protobuf";
+  import { AgentPreviewInputSchema, AgentTool, type AgentPreviewTarget, type ui } from "@canopy/contracts";
   import Select from "#lib/shared/ui/Select.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -113,6 +114,12 @@
     target = undefined;
   }
 
+  function chooseTarget(value: AgentPreviewTarget): void {
+    if (tool === AgentTool.BROWSER) {
+      session.input(create(AgentPreviewInputSchema, { kind: "tab", text: value.id }));
+    } else target = value;
+  }
+
   async function fullscreen(): Promise<void> {
     if (!root) return;
 
@@ -184,10 +191,10 @@
       {tool}
       url={session.url}
       targets={session.targets}
-      targetId={target?.id || session.targetId}
+      targetId={tool === AgentTool.BROWSER ? session.targetId : target?.id || session.targetId}
       enabled={live}
       oninput={(input) => session.input(input)}
-      onselect={(value) => (target = value)}
+      onselect={chooseTarget}
       bind:focusAddress
     />
     {#if failed}
@@ -211,7 +218,7 @@
           emptyText={session.detail || "Waiting for the first live frame…"}
           notice={session.frame ? session.notice : ""}
           bind:fit
-          resize={tool === AgentTool.BROWSER}
+          browser={tool === AgentTool.BROWSER}
           onaddress={tool === AgentTool.BROWSER ? focusAddress : undefined}
           oninput={(input) => session.input(input)}
         />

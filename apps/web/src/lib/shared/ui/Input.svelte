@@ -23,15 +23,25 @@
     value?: HTMLInputAttributes["value"];
     bare?: boolean;
     choice?: boolean;
+    compact?: boolean;
   };
 
-  let { class: className, value = $bindable(), bare = false, choice = false, type = "text", ...rest }: Props = $props();
+  let {
+    class: className,
+    value = $bindable(),
+    bare = false,
+    choice = false,
+    compact = false,
+    type = "text",
+    ...rest
+  }: Props = $props();
+
   const field = useField();
   const overlay = useDensity() === "overlay";
 </script>
 
 {#if type === "number"}
-  <NumberControl {...rest} bind:value class={className} />
+  <NumberControl {...rest} bind:value class={className} {compact} />
 {:else if type === "datetime-local" || type === "date" || type === "time"}
   <DateTimeControl {...rest} type={type as DateTimeKind} bind:value class={className} />
 {:else if choice}

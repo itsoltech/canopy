@@ -202,7 +202,10 @@ Prawy panel web/desktop łączy Files (drzewo otwierające karty plików) i Prev
 (Browser/Desktop/Device). Otwarcie i szerokość Files są stanem urządzenia;
 tryb panelu i szerokość Preview — stanem pamięci strony. Na wąskim ekranie
 panel otwiera arkusz. Podgląd automatyzacji jest oddzielony od zastępowalnej
-karty pliku i nie zmienia jej stanu. Natywny mobile
+karty pliku i nie zmienia jej stanu. Browser pokazuje karty sesji i pozwala
+przełączyć aktywną kartę z paska Preview. Zachowuje ustawiony viewport przy
+zmianie szerokości panelu; jego szerokość i wysokość zmienia się wyłącznie przez
+jawne pola lub uchwyty w pasku Preview. Natywny mobile
 zachowuje arkusze Thread details i Files. Układ, fokus i cykl życia Preview:
 [workspace.md](workspace.md#panel-filespreview).
 
