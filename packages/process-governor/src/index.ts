@@ -2,8 +2,11 @@ import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { processGovernor, type ProcessKind, type ProcessPolicy } from "./governor.ts";
 import type { ChildProcess } from "node:child_process";
+import { windowsCommand } from "./windows-command.ts";
 
 export * from "./governor.ts";
+
+export { windowsCommand } from "./windows-command.ts";
 
 export function governBunSpawn<T extends { exited: Promise<number> }>(kind: ProcessKind, start: () => T): T {
   const release = processGovernor.reserve(kind);
@@ -110,7 +113,9 @@ function capture(input: ProcessInput): Promise<ProcessResult> {
       /* Observers cannot prevent execution. */
     }
 
-    const child = spawn(input.argv[0]!, input.argv.slice(1), {
+    const argv = windowsCommand(input.argv, input.env ?? process.env);
+
+    const child = spawn(argv[0]!, argv.slice(1), {
       cwd: input.cwd,
       env: input.env ?? process.env,
       detached: process.platform !== "win32",

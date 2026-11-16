@@ -380,6 +380,12 @@ nie powodują jego zabicia; własny reconnect przywraca łącze. PostgreSQL rów
 jest restartowany na podstawie operacji aplikacyjnych. Restart po wyjściu procesu ma
 backoff 1–30 sekund i budżet 8 prób; kod 78 workera nie jest ponawiany.
 
+Opóźnione zdarzenie statusu lub IPC podczas zamykania może trafić na okno, którego `WebContents`
+został już zniszczony. Dostarczanie do okien sprawdza oba poziomy życia i ignoruje wyłącznie
+ten wyścig, żeby zamykanie nie kończyło głównego procesu wyjątkiem Electrona.
+Uruchomienie drugiej instancji w trakcie zamykania jest zapamiętywane i powoduje relaunch po
+zakończeniu sprzątania, zamiast ginąć w blokadzie jednej instancji.
+
 Zamykanie: worker → gateway → PostgreSQL, a web w kontrolerze zamyka listener i połączenia
 od razu, równolegle. POSIX używa własnych grup procesów
 (Postgres dostaje SIGINT, czyli fast shutdown); Windows zamyka stdin sidecarów
