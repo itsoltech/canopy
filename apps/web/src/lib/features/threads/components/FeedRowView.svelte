@@ -207,7 +207,15 @@
         <div class={[activitySurface, "activity-group-row px-2 pb-1"]} data-end={row.group === "end" || undefined}>
           <TimelineRowView row={row.row} />
         </div>
-      {:else}<TimelineRowView row={row.row} />{/if}
+      {:else}
+        <div
+          class={row.row.kind === "item" && row.row.node.entry.item.content.case === "agentMessage"
+            ? "py-2"
+            : undefined}
+        >
+          <TimelineRowView row={row.row} />
+        </div>
+      {/if}
     </div>
   {:else}
     <TimelineRowView row={row.row} />
