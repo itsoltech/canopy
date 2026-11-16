@@ -9,6 +9,7 @@ Preview pod podsumowaniem, opcjonalna retencja archiwum oraz poprawione narożni
 typografia i ikony stosu paneli nad composerem są zaimplementowane.
 Na `dev` zwijanie composera steruje wyłącznie skończonymi przejściami CSS.
 Settings → Devices grupuje revokowane urządzenia w domyślnie zwiniętej sekcji.
+Sidebar wyróżnia nieotwarte wątki ze szkicem fioletowym tłem i obrysem.
 Komunikaty w osi czasu używają skali wierszy pracy; szczegóły techniczne są o stopień mniejsze.
 Sekcja Working uwzględnia ponownie pracujące wątki i ignoruje wyniki zakończonych subagentów.
 BFF materializuje overview, indeks wątków i ustawienia ze wspólnego strumienia gRPC,
@@ -59,7 +60,10 @@ i `QuoteDrafts`; osobny magazyn `permission-drafts` zastępuje wspólny stan szk
 Gotowe pliki odtwarzają się po ID bez uploadu. Niedokończony upload po restarcie
 ma błąd z instrukcją ponownego dodania pliku. Usunięcie treści i wszystkich plików
 usuwa szkic; udane wysłanie czyści go. Znacznik `Draft` w sidebarze ma stałą rezerwę
-szerokości. `apply(draft, replace)` przyjmuje przejęty szkic gatewaya.
+szerokości. Nieotwarty wątek ze szkicem lokalnym albo z innego urządzenia ma fioletowe
+tło i obrys; oczekująca interakcja zachowuje pierwszeństwo. Obserwacja lokalna dotyczy
+klucza danego wątku, bez dodatkowych odczytów sieciowych.
+`apply(draft, replace)` przyjmuje przejęty szkic gatewaya.
 
 Lokalne `WebComposerDraft.snapshot()` / `restore(snapshot)` zachowują tekst, wzmianki,
 cytaty, gotowe pliki i jawne wybory niezależnie od handoffu. Pozwala to zachować

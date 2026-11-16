@@ -4,6 +4,7 @@
   import { tick, type Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import { needsYou } from "#lib/features/threads/activity.ts";
+  import { threadDraftPresence } from "#lib/features/drafts/presence.svelte.ts";
   import { lingeringResult } from "#lib/features/threads/result.svelte.ts";
   import ThreadHoverCard from "#lib/features/threads/ThreadHoverCard.svelte";
   import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
@@ -21,8 +22,9 @@
   /**
    * The link of a thread row in the sidebar (main and side threads): opens the thread, previews it on hover,
    * or focus (ThreadHoverCard); right click, long press and Menu/Shift+F10 open its actions. What wants you stands out:
-   * amber tint when it needs you, `data-result` while a finished turn waits to be seen. Working rows
-   * keep normal text contrast and use their activity mark and status instead of a background.
+   * amber tint when it needs you, violet for a draft outside the open thread, `data-result` while a
+   * finished turn waits to be seen. Working alone keeps normal text contrast and uses the activity
+   * mark and status instead of a background.
    * The open thread keeps its selected background on hover. Layout and padding come from `class`.
    */
   let {
@@ -44,6 +46,7 @@
   } = $props();
 
   const result = lingeringResult(() => thread);
+  const draft = threadDraftPresence(() => thread.id);
   const overview = useOverview();
   const actions = useThreadActions();
   const away = $derived(thread.nodeId ? awayReason(overview.computer(thread.nodeId)) : undefined);
@@ -133,12 +136,14 @@
             aria-current={current ? "page" : undefined}
             data-result={result.current}
             data-unread={thread.markedUnread || undefined}
+            data-draft={(!current && !away && !needsAttention && draft.current) || undefined}
             class={[
               "sidebar-row group focus-ring [-webkit-touch-callout:none]",
               !away &&
                 needsAttention &&
                 "bg-amber-500/6 inset-ring inset-ring-amber-500/20 dark:bg-amber-400/6 dark:inset-ring-amber-400/15",
               "aria-[current=page]:bg-zinc-950/6 dark:aria-[current=page]:bg-white/8",
+              "data-draft:bg-violet-500/6 data-draft:inset-ring data-draft:inset-ring-violet-500/20 dark:data-draft:bg-violet-400/6 dark:data-draft:inset-ring-violet-400/15",
               !current && "hover:bg-zinc-950/4 dark:hover:bg-white/4",
               className,
               thread.status === "archived" && !compact && "opacity-60",
@@ -146,6 +151,7 @@
             ]}
           >
             {@render children()}
+            {#if compact && draft.current}<span class="sr-only">Draft</span>{/if}
             {#if away}<span class="sr-only">Read-only. {away}</span>{/if}
             {#if thread.markedUnread}<span class="sr-only">Unread</span><span
                 class="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-brand-500"

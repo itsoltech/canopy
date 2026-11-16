@@ -1,7 +1,8 @@
 # Projekty, wątki i wątki boczne
 
-Status (2026-11-16): zaimplementowane, w tym opcjonalna retencja archiwum i grupowanie
-pracujących drzew z nieprzeczytanymi wynikami wcześniejszych tur lub zakończonych subagentów.
+Status (2026-11-16): zaimplementowane, w tym opcjonalna retencja archiwum, grupowanie
+pracujących drzew z nieprzeczytanymi wynikami wcześniejszych tur lub zakończonych subagentów
+oraz wyróżnienie nieotwartych wątków ze szkicem w sidebarze web/desktop.
 Opis dotyczy kodu; dostępność nightly/beta/stable określają [wydania](release.md).
 
 Niewysłane szkice synchronizują się automatycznie, są przechowywane przez 30 dni i widoczne wyłącznie na urządzeniach właściciela.
@@ -129,6 +130,12 @@ już pracuje ponownie. Wyniki subagentów pozostają wewnątrz wątku i nie zmie
 Pytanie skierowane do użytkownika w dowolnym aktywnym dziecku nadal wyłącza całe drzewo
 z „Working”, podobnie jak nieprzeczytany wynik niepracującego wątku głównego lub bocznego
 utworzonego przez użytkownika. Samo zadanie w tle nie przesłania takiego wyniku.
+
+Nieotwarty wątek ze szkicem (lokalnym lub z innego urządzenia) ma delikatne fioletowe
+tło i obrys, także podczas najechania. Zapis, wysłanie lub usunięcie szkicu aktualizuje
+wyróżnienie bez odświeżania. Otwarty wątek zachowuje zwykłe zaznaczenie; bursztynowe
+wyróżnienie oczekującej interakcji ma pierwszeństwo. Wątki niedostępnego komputera
+zachowują przygaszony wygląd. Znacznik `Draft` w głównym wierszu nadal zajmuje stały slot.
 
 Przycisk obok „Search threads” otwiera wyszukiwanie projektów i wybór wielu projektów.
 Filtr oraz przypięcia są wspólne dla urządzeń, zapisane w gateway.
