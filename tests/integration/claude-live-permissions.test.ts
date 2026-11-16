@@ -45,6 +45,7 @@ describe.skipIf(!dockerAvailable)("Claude live permissions through the real SDK"
       );
       const before = processOf(thread.providerThreadId);
       expect(before).toHaveLength(1);
+      await watch.until((s) => s.turns.some((item) => item.id === turn.id && item.status === "running"));
 
       const changed = await f.gw.api.updateTurnPermissions({
         threadId: thread.id,

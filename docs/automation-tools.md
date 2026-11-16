@@ -5,6 +5,8 @@ wątku zaimplementowane**. Browser MCP pozostaje w sesji wątku i działa headle
 watch zachowuje się po aktualizacji statusu tego samego workera, a nowy odbiorca
 aktywnej grupy dostaje ostatnią klatkę. Zmiana uprawnień bieżącej tury Claude
 aktualizuje także autoryzację automatyzacji.
+Gotowość Desktop wymaga uprawnienia Screen Recording tylko na macOS;
+linuksowy stan `unknown` nie blokuje zainstalowanego narzędzia.
 Ten opis dotyczy stanu kodu i nie oznacza, że funkcja jest już w wydanym buildzie.
 Dostępność nightly/beta/stable wynika ze zwykłej promocji wydań
 ([release.md](release.md)).
@@ -62,8 +64,10 @@ runtime'u:
 
 - `agent-browser doctor --offline --json` musi potwierdzić udane uruchomienie
   przeglądarki;
-- `agent-desktop status` musi potwierdzić właściwy system, sesję graficzną,
-  Accessibility oraz Screen Recording (albo stan `not_required`);
+- `agent-desktop status` musi potwierdzić właściwy system, sesję graficzną
+  i Accessibility. Na macOS musi także potwierdzić Screen Recording (albo stan
+  `not_required`); na Linuksie i Windows pole może mieć stan `unknown`, ponieważ
+  te systemy nie mają tego uprawnienia TCC;
 - `agent-device doctor --json` musi potwierdzić urządzenie dla wybranej
   platformy. Sprawdzane są także zależności zgłaszane przez doctor, na przykład
   Xcode, ADB, emulator albo symulator, gdy dana platforma ich wymaga.

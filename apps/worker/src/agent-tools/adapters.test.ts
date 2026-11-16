@@ -76,6 +76,33 @@ test("runtime loss, missing permissions and absent devices defeat version and ol
   expect((await discoverAgentTool(agentToolSpec(desktop), { which: f.which, env: f.env })).ready).toBe(false);
 });
 
+test("desktop readiness ignores macOS screen recording state on Linux", async () => {
+  const f = fixture();
+  f.state(desktop, { screenRecording: "unknown" });
+
+  const found = await discoverAgentTool(agentToolSpec(desktop), {
+    which: f.which,
+    env: f.env,
+    platform: "linux",
+  });
+
+  expect(found.ready).toBe(true);
+});
+
+test("desktop readiness still requires screen recording on macOS", async () => {
+  const f = fixture();
+  f.state(desktop, { platform: "macos", screenRecording: "unknown" });
+
+  const found = await discoverAgentTool(agentToolSpec(desktop), {
+    which: f.which,
+    env: f.env,
+    platform: "darwin",
+  });
+
+  expect(found.ready).toBe(false);
+  expect(found.detail).toBe("Grant Screen Recording permission for desktop screenshots");
+});
+
 test("unsupported versions, platforms and malformed runtime responses never report ready", async () => {
   const f = fixture();
   f.state(browser, { version: "0.1.0" });
