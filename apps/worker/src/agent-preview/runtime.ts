@@ -96,7 +96,7 @@ export class PreviewRuntime {
   #prefix(args: readonly string[]): string[] {
     const { tool, session, platform, deviceId } = this.scope;
 
-    if (tool === AgentTool.BROWSER) return ["--json", "--session", session];
+    if (tool === AgentTool.BROWSER) return ["--json", "--session", session, "--headed", "false"];
 
     if (tool === AgentTool.DESKTOP) return ["--session", session, "--headed"];
 

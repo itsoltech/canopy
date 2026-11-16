@@ -86,7 +86,7 @@ function fixture(enabled: boolean, connected = true, viewport = { width: 512, he
     `
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 if (process.argv.includes("doctor")) { console.log(JSON.stringify({ success: true, checks: [{ id: "launch.elapsed", status: "pass", message: "Ready" }] })); process.exit(0); }
-const args = process.argv.slice(2).slice(3);
+const args = process.argv.slice(2).slice(5);
 appendFileSync(${JSON.stringify(log)}, JSON.stringify(args) + "\\n");
 const path = ${JSON.stringify(state)};
 const state = JSON.parse(readFileSync(path, "utf8"));
@@ -441,7 +441,7 @@ test("disconnected browser previews allow explicit navigation and leave external
     expect(f.currentUrl()).toBe(url);
     expect(f.calls()).toEqual([
       ["stream", "status"],
-      ["open", url],
+      ["open", url, "--headed", "false"],
     ]);
     f.send(JSON.stringify({ type: "frame", seq: 1, data: "AAAA", metadata: { deviceWidth: 8193, deviceHeight: 1 } }));
     await until(() => f.updates.some((update) => update.state === "error"));

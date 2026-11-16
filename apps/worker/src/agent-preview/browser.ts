@@ -321,7 +321,7 @@ class BrowserPreview implements PreviewBackend {
 
       if (url !== "about:blank" && !["http:", "https:"].includes(new URL(url).protocol))
         throw new Error("Choose an HTTP or HTTPS preview URL");
-      await runtime.command(["open", url]);
+      await runtime.command(["open", url, "--headed", "false"]);
     } else await runtime.command([input.kind]);
   }
 

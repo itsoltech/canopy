@@ -44,6 +44,26 @@ input.on("line", (line) => {
   }
 
   if (rpc.method === "tools/list") {
+    if (process.env["CANOPY_MCP_BROWSER_POLICY"] === "1") {
+      send({
+        tools: ["agent_browser_open", "agent_browser_snapshot", "agent_browser_tab_new", "agent_browser_doctor"].map(
+          (toolName) => ({
+            name: toolName,
+            description: `${name} ${toolName}`,
+            inputSchema: {
+              type: "object",
+              properties:
+                toolName === "agent_browser_open" || toolName === "agent_browser_doctor"
+                  ? { session: { type: "string" }, headed: { type: "boolean" } }
+                  : { session: { type: "string" } },
+            },
+          }),
+        ),
+      });
+
+      return;
+    }
+
     send({
       tools: ["image", "echo", "wait", "oversized"].map((toolName) => ({
         name: toolName,

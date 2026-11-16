@@ -262,6 +262,8 @@ describe.skipIf(!dockerAvailable)("ephemeral approved automation activity over W
         { session: "other-thread" },
         { extraArgs: ["--session=other-thread"] },
         { extraArgs: ["--headed"] },
+        { extraArgs: ["--headed", "true"] },
+        { extraArgs: ["--headed", "false", "--session", "other-thread"] },
         { session: { nested: "unproven" } },
       ])
         expect((await authorize(gateway, auto, AgentTool.BROWSER, "browser_snapshot", input)).isError).toBe(false);
@@ -279,7 +281,7 @@ describe.skipIf(!dockerAvailable)("ephemeral approved automation activity over W
         (
           await authorize(gateway, auto, AgentTool.BROWSER, "browser_snapshot", {
             session: auto.threadId,
-            extraArgs: [],
+            extraArgs: ["--headed", "false"],
           })
         ).isError,
       ).toBe(false);
