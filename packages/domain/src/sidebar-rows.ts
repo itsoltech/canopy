@@ -11,6 +11,11 @@ export interface SidebarRow {
   readonly thread?: ui.Thread | undefined;
   readonly heading?: string | undefined;
   readonly working?: boolean | undefined;
+  readonly groupedProject?: boolean | undefined;
+  readonly depth?: 1 | 2 | undefined;
+  readonly groupKind?: "project" | "worktree" | undefined;
+  readonly groupTitle?: string | undefined;
+  readonly count?: number | undefined;
   readonly project?: ui.Project | undefined;
   readonly worker?: ui.Worker | undefined;
   readonly sides: Sides;
@@ -24,6 +29,11 @@ export const sameSidebarRow = (a: SidebarRow, b: SidebarRow): boolean =>
   a.thread === b.thread &&
   a.heading === b.heading &&
   a.working === b.working &&
+  a.groupedProject === b.groupedProject &&
+  a.depth === b.depth &&
+  a.groupKind === b.groupKind &&
+  a.groupTitle === b.groupTitle &&
+  a.count === b.count &&
   a.project === b.project &&
   a.worker === b.worker &&
   a.open === b.open &&
@@ -54,7 +64,16 @@ export function sidebarRows(
       thread,
       heading: entry.heading,
       working: entry.working,
-      project: thread && lookup.project(thread.projectId),
+      groupedProject: entry.groupedProject,
+      depth: entry.depth,
+      groupKind: entry.groupKind,
+      groupTitle: entry.groupTitle,
+      count: entry.count,
+      project: thread
+        ? lookup.project(thread.projectId)
+        : entry.projectId
+          ? lookup.project(entry.projectId)
+          : undefined,
       worker: thread && lookup.worker(thread.workerId),
       sides,
       subagentsNeedingInput,

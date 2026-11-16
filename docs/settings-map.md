@@ -1,7 +1,8 @@
 # Mapa ustawień Canopy
 
-Status (2026-11-15): mapa zaimplementowanych ustawień, w tym opcjonalnej retencji
-archiwum wątków; dostępność kanałów według [release.md](release.md).
+Status (2026-11-16): mapa zaimplementowanych ustawień, w tym wspólnego wyboru
+grupowania sidebara w web/desktop i mobile oraz opcjonalnej retencji archiwum wątków;
+dostępność kanałów według [release.md](release.md).
 
 ## Nawigacja
 
@@ -39,7 +40,7 @@ bez zmian. Opcja wyboru bez działania jest wyłączona z opisem „Soon”.
 | General / Notifications | Bot notifications | urządzenie | Off | Alert systemowy o wiadomości bota do użytkownika, karcie zgody lub pytaniu; nazwa bota i krótki podgląd; te same zasady zgody, fokusu, dźwięku i duplikatów co dla wątków |
 | General / Notifications | In-app notifications | urządzenie | On | Toast o innym wątku lub rozmowie bota przy fokusie aplikacji |
 | Sidebar | Project filter | urządzenie/gateway | All projects | Filtr listy aktywnej i archiwum, niezależny od pozostałych urządzeń |
-| General / Sidebar | Group by project | urządzenie/gateway | Off | Nagłówki projektów w aktywnym sidebarze, z zachowaniem przypięć i priorytetu pytań |
+| General / Sidebar | Group by | urządzenie/gateway | None | None / Project / Project & worktree; zwijane nagłówki z ikonami projektów i liczbą wątków w web/desktop oraz mobile. Zachowuje przypięcia i priorytet pytań; reset wyłącza oba poziomy |
 | General / Sidebar | Project order | urządzenie/gateway | Latest activity | Kolejność grup według aktywności, nazwy lub utworzenia projektu; bez obietnicy ostatniej wiadomości użytkownika, której indeks nie udostępnia |
 | General / Sidebar | Working section | urządzenie/gateway | Off | Osobna zwijana sekcja pracujących wątków/drzew; pytania i nowe wyniki wracają do głównej listy |
 | General / Confirmations | Confirm unpin / archive / delete | konto | Off / Off / On | Dialog przed odpowiednią akcją wątku we wszystkich menu i komendach |
@@ -98,6 +99,7 @@ projektów, poświadczeń, zaproszeń ani zasobów. Domyślne „brak” oznacza
 | App updates | Installed version; channel; check frequency; check now; download/restart status; release notes; Linked computers (version, target, channel, status, Check now, Update) | urządzenie/store: kanał builda, 6 h; partnerzy: tylko odczyt | Wyłącznie aktualizacje powłoki i runtime; kanał i częstotliwość połączonego komputera zmienia się na nim samym |
 
 Stan widoku jest lokalny dla urządzenia i gatewaya: filtr projektów, grupowanie,
+zwinięcie projektów i worktree,
 kolejność grup, sekcja Working, rozwinięcie archiwum wątków i botów,
 zwinięcie sidebara i panelu szczegółów wątku oraz szerokość sidebara i panelu PR.
 Wspólny `@canopy/domain/device-view` definiuje typowane pola, wartości domyślne,

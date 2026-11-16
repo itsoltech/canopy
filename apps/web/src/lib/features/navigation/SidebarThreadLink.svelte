@@ -33,6 +33,8 @@
     needsAttention = needsYou(thread),
     compact = false,
     quickArchive = false,
+    inlineProvider = false,
+    dense = false,
     class: className,
     children,
   }: {
@@ -41,6 +43,8 @@
     needsAttention?: boolean;
     compact?: boolean;
     quickArchive?: boolean;
+    inlineProvider?: boolean;
+    dense?: boolean;
     class?: ClassValue;
     children: Snippet;
   } = $props();
@@ -165,8 +169,11 @@
       <span
         {...via === "button" ? anchorOnly(menu) : {}}
         class={[
-          "sidebar-swap-action absolute right-[calc(var(--sidebar-row-padding)-(--spacing(1.5)))] flex rounded-lg bg-white shadow-xs ring-1 ring-zinc-950/10 dark:bg-zinc-800 dark:shadow-none dark:ring-white/10 pointer-coarse:hidden",
-          compact ? "top-1.5 sm:top-1" : "top-2",
+          "sidebar-swap-action absolute flex rounded-lg bg-white shadow-xs ring-1 ring-zinc-950/10 dark:bg-zinc-800 dark:shadow-none dark:ring-white/10 pointer-coarse:hidden",
+          inlineProvider
+            ? "top-0.5 right-[calc(var(--sidebar-row-padding)+1.5rem)] sm:top-0"
+            : "right-[calc(var(--sidebar-row-padding)-(--spacing(1.5)))]",
+          !inlineProvider && (compact || dense ? "top-1.5 sm:top-1" : "top-2"),
         ]}
       >
         <IconButton
@@ -193,9 +200,13 @@
           disabled={Boolean(away || thread.deletedAt)}
           loading={archiving}
           onclick={(event) => void archive(event)}
-          class={compact
-            ? "inset-y-0 right-11 my-auto"
-            : "right-(--sidebar-row-padding) bottom-[0.6875rem] sm:bottom-2.5"}
+          class={inlineProvider
+            ? "top-[0.5625rem] right-(--sidebar-row-padding) sm:top-1.5"
+            : compact
+              ? "inset-y-0 right-11 my-auto"
+              : dense
+                ? "right-(--sidebar-row-padding) bottom-[0.5625rem] sm:bottom-1.5"
+                : "right-(--sidebar-row-padding) bottom-[0.6875rem] sm:bottom-2.5"}
         />
       {/if}
     </div>

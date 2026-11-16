@@ -1,5 +1,8 @@
 # Skala typografii i gęstości UI
 
+Status (2026-11-16): opis zaimplementowanej skali web/desktop, w tym dwuliniowych
+kart sidebara, ich jednoliniowego wariantu w worktree, ikon projektów oraz wcięć i linii hierarchii. Dostępność kanałów: [release.md](release.md).
+
 Jedna skala dla całego web UI. Każdy fragment interfejsu należy do jednego **kontekstu**; kontekst
 wyznacza rozmiar tekstu, wysokość wierszy, odstępy, ikony i kontrolki. Nie ustawiamy rozmiarów
 pojedynczo na ekranach: komponenty kitu (`apps/web/src/lib/shared/ui`) czytają kontekst same.
@@ -19,6 +22,21 @@ Appearance → Interface size skaluje je razem z korzeniem.
 | ↳ wiersz kontekstu composera | pickery pod edytorem | 12 / 12 (linia 16) | — | — | 40 / 32, odstęp 4 | 12 |
 | Nakładki | popovery, menu, dropdowny, pickery, comboboxy, select, hover cardy, paleta poleceń | 15 / 13 (linia 24 / 20) | 13 / 11,5 (linia 20 / 16) | 13 / 11,5, medium | 40 / 28 (44 przy dotyku), `px-2`, odstęp 8 | 16 / 14 |
 | Tooltipy i podpisy | tooltipy, skróty (`Kbd`), kompaktowe badge | 12 / 12 (linia 16) | — | — | — | — |
+
+Karta wątku pod nagłówkiem projektu pomija linię projektu i zachowuje skalę chrome:
+tytuł ze statusem oraz metadane. Rezerwa wysokości przy pomijaniu renderowania
+niewidocznych kart wynosi 56 px na telefonie i 48 px na desktopie. Nagłówki grup
+mają 36 / 32 px, licznik po prawej i ucinanie długich nazw w jednej linii.
+
+W grupowaniu projektów nagłówek zachowuje znak projektu. Każdy poziom hierarchii
+(projekt → worktree → wątki) dodaje wcięcie 1,25 rem i pionową linię prowadzącą.
+Oczekiwanie i zadania w tle mają oznaczenia przy linii bez przesuwania tytułu;
+praca jest opisana statusem po prawej bez spinnera.
+Bezczynne wątki nie mają zastępczej ikony. Karty pod worktree z jedynym lokalnym
+workerem mają jedną linię (34 / 28 px). Dodatkowe oznaczenia, w tym cel i pull requesty,
+stoją po prawej za statusem, obok dostawcy, w tym samym wierszu.
+Wewnętrzny padding pionowy kart w grupie projektu wynosi 6 / 4 px.
+Dostawca pozostaje po prawej przy statusie (slot 72 px), a menu i archiwizacja mają osobne sloty.
 
 Skróty klawiszowe (`Kbd`) mają 11 px w każdym kontekście. Pola, w które się pisze, mają na
 telefonie zawsze 16 px (iOS powiększa stronę przy fokusie mniejszego pola), także w nakładkach
@@ -213,6 +231,9 @@ natywne działanie przeglądarki na zaznaczalnych obszarach.
   i otwarte menu utrzymują ten sam stan. Ograniczenie ruchu wyłącza przejścia.
 - Mobile stosuje lokalnie kolejny stopień: tytuł 16 dp (linia 24), podpis 14 dp
   (linia 20), wiek i licznik bota 13 dp (linia 18), padding 8 dp i odstęp linii 2 dp.
+  Zwarte karty pod projektem pomijają jego tożsamość; lokalny wiersz pod worktree
+  mieści tytuł, status i oznaczenia po prawej w jednej linii, z minimum 48 dp dla dotyku.
+  Nagłówki grup także mają minimum 48 dp, a każdy poziom dodaje wcięcie i linię co 20 dp.
   Typografia uwzględnia font i Interface size urządzenia. Znak projektu ma 20 dp,
   ikony 16 dp, avatar bota 44 dp; cele dotykowe pozostają minimum 48 dp.
   Natywne pole wyszukiwania (16 dp), zakładki i picker projektów (14 dp) już używały

@@ -1,6 +1,9 @@
 import { useState, type ReactNode } from "react";
 import { FlatList, Pressable, Text } from "react-native";
 import { ui } from "@canopy/contracts";
+import { visibleSidebarEntries } from "@canopy/domain/sidebar-groups";
+import { useDevicePreferences } from "../settings/device-preferences";
+import { SidebarGroupHeading, SidebarNesting } from "./SidebarGroupHeading";
 import { sidebarEntries } from "@canopy/domain/sidebar-entries";
 import { styles, useColors } from "../../ui/theme";
 import { useContentPadding } from "../../ui/ScreenFrame";
@@ -35,20 +38,23 @@ export function SettingsThreadList({
   const { rise } = useMotion();
   const [workingOpen, setWorkingOpen] = useState(false);
   const { filtered, settings, choices } = navigation;
-  const entries = sidebarEntries(filtered, settings, choices, workingOpen);
-  const natural = sidebarEntries({ ...filtered, pins: new Set<string>() }, settings, choices, workingOpen);
+  const { view } = useDevicePreferences();
+  const grouping = { groupByWorktree: view.groupByWorktree };
+  const entries = sidebarEntries(filtered, settings, choices, workingOpen, grouping);
+  const natural = sidebarEntries({ ...filtered, pins: new Set<string>() }, settings, choices, workingOpen, grouping);
+  const visible = visibleSidebarEntries(entries, view.collapsedSidebarGroups, Boolean(navigation.query.trim()));
   const order = useSidebarOrder(entries, natural, settings);
   const custom = navigation.sortMode === "custom";
 
   const drag = useSidebarDrag(
-    dragItems(entries, natural, settings.pinnedThreadIds),
+    dragItems(visible, natural, settings.pinnedThreadIds),
     settings.groupByProject,
     custom,
     order,
   );
 
   const archive = useArchivedThreads(navigation);
-  const active = entries.map((entry) => ({ ...entry, section: "active" as const }));
+  const active = visible.map((entry) => ({ ...entry, section: "active" as const }));
 
   const archived = archive.visible
     ? [
@@ -108,10 +114,12 @@ export function SettingsThreadList({
                   // Every entry that leaves (an archived row, the archived section at 0, the empty state) fades out while
                   // the cells below glide up (`SidebarOrderCell`), so archiving never jumps the list.
                   <Animated.View entering={arrival(item.key)} exiting={rise.exiting}>
-                    <SidebarListEntryView
-                      {...{ item, navigation, archive, rootIds, projects, workers, empty, workingOpen }}
-                      onWorking={() => setWorkingOpen(!workingOpen)}
-                    />
+                    <SidebarNesting depth={item.depth}>
+                      <SidebarListEntryView
+                        {...{ item, navigation, archive, rootIds, projects, workers, empty, workingOpen }}
+                        onWorking={() => setWorkingOpen(!workingOpen)}
+                      />
+                    </SidebarNesting>
                   </Animated.View>
                 )}
               />
@@ -170,12 +178,23 @@ function SidebarListEntryView({
     return (
       <SidebarThreadTreeRow
         thread={item.thread}
+        groupedProject={item.groupedProject}
+        groupedWorktree={item.depth === 2}
         sideThreads={filtered.sides.get(item.thread.id) ?? []}
         rootIds={rootIds}
         current={current}
         projects={projects}
         workers={workers}
         reorder={navigation.sortMode === "custom" && !item.thread.nodeId}
+      />
+    );
+
+  if (item.groupKind)
+    return (
+      <SidebarGroupHeading
+        entry={item}
+        project={projects.find((project) => project.id === item.projectId)}
+        searching={Boolean(navigation.query.trim())}
       />
     );
 

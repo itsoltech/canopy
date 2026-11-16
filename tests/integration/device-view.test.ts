@@ -81,6 +81,8 @@ describe("device view persistence for clients of the same owner", () => {
       sidebarCollapsed: false,
       sidebarWidth: 0,
       pullRequestWidth: 960,
+      groupByWorktree: true,
+      collapsedSidebarGroups: ["heading:project:project-a", "heading:worktree:directory-a"],
     });
     a.initialize(legacy);
     expect(a.values).toMatchObject({
@@ -88,6 +90,8 @@ describe("device view persistence for clients of the same owner", () => {
       archivedBotsExpanded: true,
       sidebarWidth: 0,
       pullRequestWidth: 960,
+      groupByWorktree: true,
+      collapsedSidebarGroups: ["heading:project:project-a", "heading:worktree:directory-a"],
     });
     expect(b.values).toMatchObject({
       archivedThreadsExpanded: true,
@@ -95,6 +99,8 @@ describe("device view persistence for clients of the same owner", () => {
       sidebarCollapsed: true,
       sidebarWidth: 320,
       pullRequestWidth: 0,
+      groupByWorktree: false,
+      collapsedSidebarGroups: [],
     });
     const reopened = aStorage.open();
     reopened.initialize(legacy);

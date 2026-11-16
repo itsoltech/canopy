@@ -18,6 +18,14 @@
   const settings = useSettings();
   let desktopSettings = $state<{ resetDefaults(): Promise<void> }>();
 
+  const groupBy = $derived(
+    !settings.sidebar.groupByProject ? "none" : device.view.groupByWorktree ? "project-worktree" : "project",
+  );
+
+  function setGrouping(value: string) {
+    device.setView({ groupByProject: value !== "none", groupByWorktree: value === "project-worktree" });
+  }
+
   async function restoreDeviceDefaults() {
     device.reset(generalDeviceKeys);
     await desktopSettings?.resetDefaults();
@@ -56,17 +64,23 @@
   <NotificationSettings />
   <SettingsGroup title="Sidebar" description="This device">
     <PreferenceRow
-      title="Group by project"
-      description="Group sidebar threads under project headings."
-      changed={settings.sidebar.groupByProject}
-      onreset={() => settings.updateSidebar({ groupByProject: false })}
+      title="Group by"
+      description="Choose how threads are grouped in the sidebar."
+      changed={groupBy !== "none"}
+      onreset={() => setGrouping("none")}
     >
-      {#snippet control()}<Switch
-          name="groupByProject"
-          label="Group by project"
-          checked={settings.sidebar.groupByProject}
-          onchange={(groupByProject) => settings.updateSidebar({ groupByProject })}
-        />{/snippet}
+      {#snippet control()}<div class="w-48">
+          <Select
+            aria-label="Group by"
+            value={groupBy}
+            options={[
+              { value: "none", label: "None" },
+              { value: "project", label: "Project" },
+              { value: "project-worktree", label: "Project & worktree" },
+            ]}
+            onchange={setGrouping}
+          />
+        </div>{/snippet}
     </PreferenceRow>
     <PreferenceRow
       title="Project order"
