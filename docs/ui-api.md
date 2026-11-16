@@ -1029,6 +1029,9 @@ archiwizuje projekt, workspace'y i wątki przez istniejący lifecycle oraz anulu
 harmonogramy projektu, zachowując historię i pliki workerów. Scratch jest wykluczony.
 `OverviewUpdate.project` z `Project.archived_at` (pole **480**) usuwa projekt z indeksu.
 Obie operacje są dostępne również botom z tą samą walidacją; archiwizacja wymaga zgody.
+Właściciel archiwizuje projekt w Settings → Projects → projekt, sekcja **Archive** („Archive project…”,
+potwierdzenie „Archive project?” z liczbą głównych wątków; BFF `POST /api/projects/:projectId/archive`).
+Akcja jest tylko przy zwykłym projekcie tego komputera: nie przy scratch ani projekcie połączonego komputera.
 
 Sekcja Bots korzysta z tego samego `GatewayService` i uwierzytelnienia BFF. Osobny
 kontrakt `bots.proto` opisuje CRUD botów, rozmowy i ich stream, zgody oraz zdalne MCP.
