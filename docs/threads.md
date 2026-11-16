@@ -1,6 +1,7 @@
 # Projekty, wątki i wątki boczne
 
-Status (2026-11-15): zaimplementowane, w tym opcjonalna retencja archiwum.
+Status (2026-11-16): zaimplementowane, w tym opcjonalna retencja archiwum i grupowanie
+pracujących drzew z nieprzeczytanymi wynikami wcześniejszych tur lub zakończonych subagentów.
 Opis dotyczy kodu; dostępność nightly/beta/stable określają [wydania](release.md).
 
 Niewysłane szkice synchronizują się automatycznie, są przechowywane przez 30 dni i widoczne wyłącznie na urządzeniach właściciela.
@@ -120,6 +121,14 @@ Tło zaznaczenia w sidebarze wskazuje wyłącznie otwarty wątek, także podczas
 Pracę oznaczają pierścień i etykieta „Working” z czasem; sam stan pracy nie dodaje tła ani
 nie przygasza tekstu. Hover niezaznaczonego wiersza jest słabszy od zaznaczenia, a fokus
 klawiatury ma osobny obrys. Te same reguły obowiązują dla wątków głównych i bocznych.
+
+Opcjonalna sekcja „Working” w web/desktop i mobile grupuje nieprzypięte drzewa z pracującą
+lub startującą turą, pytaniem do rodzica-agenta albo samymi zadaniami w tle. Licznik obejmuje
+wiersze drzew w tej sekcji. Nieprzeczytany wynik wcześniejszej tury nie wyłącza wątku, który
+już pracuje ponownie. Wyniki subagentów pozostają wewnątrz wątku i nie zmieniają sekcji rodzica.
+Pytanie skierowane do użytkownika w dowolnym aktywnym dziecku nadal wyłącza całe drzewo
+z „Working”, podobnie jak nieprzeczytany wynik niepracującego wątku głównego lub bocznego
+utworzonego przez użytkownika. Samo zadanie w tle nie przesłania takiego wyniku.
 
 Przycisk obok „Search threads” otwiera wyszukiwanie projektów i wybór wielu projektów.
 Filtr oraz przypięcia są wspólne dla urządzeń, zapisane w gateway.

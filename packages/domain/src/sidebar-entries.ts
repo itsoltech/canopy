@@ -1,6 +1,6 @@
 import { ui } from "@canopy/contracts";
 import type { ProjectChoice } from "./projects.ts";
-import { isCalm, needsYou, treeActivity } from "./thread-activity.ts";
+import { isCalm, needsYou, treeActivity, unseenResult } from "./thread-activity.ts";
 
 export interface SidebarEntry {
   key: string;
@@ -9,7 +9,11 @@ export interface SidebarEntry {
   working?: boolean;
 }
 
-/** Sections are disjoint. A question or unseen result in any child keeps the whole tree out of Working. */
+/** Subagent results stay inside the thread; an ongoing turn takes precedence over its earlier results. */
+const needsAttention = (thread: ui.Thread) =>
+  needsYou(thread) || (!thread.spawnedByAgent && !isCalm(thread) && unseenResult(thread) !== undefined);
+
+/** Sections are disjoint. User input and visible results keep the whole tree out of Working. */
 export function sidebarEntries(
   filtered: { roots: ui.Thread[]; sides: Map<string, ui.Thread[]>; pins: Set<string> },
   settings: ui.SidebarSettings,
@@ -22,12 +26,12 @@ export function sidebarEntries(
   const rest = filtered.roots.filter((t) => !filtered.pins.has(t.id));
 
   const working = settings.workingSection
-    ? rest.filter((t) => tree(t).some(isCalm) && !tree(t).some((c) => needsYou(c) || c.unseenResult))
+    ? rest.filter((t) => tree(t).some(isCalm) && !tree(t).some(needsAttention))
     : [];
 
   const workingIds = new Set(working.map((t) => t.id));
   const active = rest.filter((t) => !workingIds.has(t.id));
-  const attention = active.filter((t) => tree(t).some((c) => needsYou(c) || c.unseenResult));
+  const attention = active.filter((t) => tree(t).some(needsAttention));
   const attentionIds = new Set(attention.map((t) => t.id));
   const normal = settings.groupByProject ? active.filter((t) => !attentionIds.has(t.id)) : active;
 

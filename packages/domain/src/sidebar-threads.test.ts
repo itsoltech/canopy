@@ -129,14 +129,52 @@ describe("shared sidebar trees", () => {
     expect(entries.map((e) => e.heading ?? e.thread?.id)).toEqual([
       "Pinned",
       "pinned",
-      "Needs attention",
-      "result-parent",
       "Canopy",
+      "result-parent",
       "old-parent",
       "Working (1)",
       "working",
     ]);
     expect(sidebarEntries(filtered, prefs, projects, false).filter((e) => e.thread?.id === "working")).toEqual([]);
+  });
+
+  test("working trees ignore earlier turn results and finished subagents, but keep visible results and questions", () => {
+    const rows = [
+      thread("running", { status: "running", unseenResult: "completed" }),
+      thread("starting", { turnStarting: true, unseenResult: "failed" }),
+      thread("parent", { status: "running" }),
+      thread("completed-agent", { parentThreadId: "parent", spawnedByAgent: true, unseenResult: "completed" }),
+      thread("failed-agent", { parentThreadId: "parent", spawnedByAgent: true, unseenResult: "failed" }),
+      thread("side-parent", { status: "running" }),
+      thread("side", { parentThreadId: "side-parent", unseenResult: "completed" }),
+      thread("question-parent", { status: "running" }),
+      thread("question", { parentThreadId: "question-parent", spawnedByAgent: true, status: "waiting_input" }),
+      thread("background", { backgroundTasks: 1 }),
+      thread("background-result", { backgroundTasks: 1, unseenResult: "completed" }),
+    ];
+
+    const prefs = settings({ workingSection: true, groupByProject: true });
+    const filtered = sidebarThreads(rows, prefs, "", projectName);
+    const entries = sidebarEntries(filtered, prefs, [], true);
+
+    expect(entries.map((e) => e.heading ?? e.thread?.id)).toEqual([
+      "Needs attention",
+      "side-parent",
+      "question-parent",
+      "background-result",
+      "Working (4)",
+      "starting",
+      "running",
+      "parent",
+      "background",
+    ]);
+    expect(sidebarEntries(filtered, prefs, [], false).map((e) => e.heading ?? e.thread?.id)).toEqual([
+      "Needs attention",
+      "side-parent",
+      "question-parent",
+      "background-result",
+      "Working (4)",
+    ]);
   });
 
   test("archived current threads respect filters and active parents; archived sides stay in Previous agents", () => {
