@@ -15,6 +15,19 @@ const entry = (pr: number, type: NoteEntry["type"] = "feat"): NoteEntry => ({
 const release = (version: string, entries: readonly NoteEntry[]) => ({ version, date: "2026-11-13", entries });
 const index = (releases: NotesIndex["releases"]): NotesIndex => ({ schema: 1, releases, truncated: [] });
 
+function withoutToSorted<T>(run: () => T): T {
+  const descriptor = Object.getOwnPropertyDescriptor(Array.prototype, "toSorted");
+
+  if (!descriptor) return run();
+  Reflect.deleteProperty(Array.prototype, "toSorted");
+
+  try {
+    return run();
+  } finally {
+    Object.defineProperty(Array.prototype, "toSorted", descriptor);
+  }
+}
+
 test("device-local history survives restart and dismissal, keeps the actual range, and resets on downgrade", () => {
   let saved = "";
   const history = new AppUpdateHistory((raw) => (saved = raw));
@@ -82,6 +95,19 @@ test("promotion bodies exclude previously delivered PRs across nightly, beta and
   expect(aggregateNotes(notes, "0.1.0", "0.2.0-beta.2").entries.map((e) => e.pr)).toEqual([1, 2, 3]);
   expect(aggregateNotes(notes, "0.2.0-beta.1", "0.2.0-nightly.3").entries.map((e) => e.pr)).toEqual([4]);
   expect(recentNotes(notes, "0.2.0-beta.2").map((r) => r.version)).toEqual(["0.2.0-beta.2", "0.2.0-beta.1"]);
+});
+
+test("release note ordering preserves immutable data without Array.prototype.toSorted", () => {
+  const notes = index(
+    Object.freeze([release("0.3.0-nightly.41", [entry(41)]), release("0.3.0-nightly.42", [entry(42)])]),
+  );
+
+  const result = withoutToSorted(() => ({
+    recent: recentNotes(notes, "0.3.0-nightly.42").map((item) => item.version),
+    range: aggregateNotes(notes, "0.3.0-nightly.41", "0.3.0-nightly.42").entries.map((item) => item.pr),
+  }));
+
+  expect(result).toEqual({ recent: ["0.3.0-nightly.42", "0.3.0-nightly.41"], range: [42] });
 });
 
 test("unknown versions, first installs, repeated launches and downgrades do not open full history", () => {

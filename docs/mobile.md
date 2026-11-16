@@ -1,6 +1,8 @@
 # Canopy na iOS i Android
 
-Status: opis działającego kodu na `dev` (2026-11-15); domyślne wybory nowego wątku
+Status: opis działającego kodu na `dev` (2026-11-16); „What's new” sortuje notatki
+metodami dostępnymi w Hermesie bez `Array.prototype.toSorted`.
+Domyślne wybory nowego wątku
 i filtr ulubionych modeli oraz opcjonalna retencja archiwum są zgodne z web.
 Przesuwanie obrazów wyklucza podwójne stuknięcie do powiększania.
 Galerie agenta czekają na koniec swojej tury,
@@ -97,6 +99,9 @@ dla instalacji i pozostaje po zmianie parowania. Settings → App updates i Upda
 otwierają ten sam arkusz. Notatki oraz podgląd notatek dostępnego OTA czytają
 wyłącznie statyczny JSON Pages, bez API GitHuba. Implementacja jest wyłącznie JS,
 bez nowych modułów, konfiguracji natywnej lub wejść fingerprintu; [updates.md](updates.md#whats-new-po-aktualizacji).
+Agregacja zakresu i lista ostatnich wydań sortują nowe tablice przez `sort`,
+zachowując kolejność źródłowego indeksu. Nie wymagają `Array.prototype.toSorted`,
+którego nie obsługuje Hermes dołączony do bieżącego runtime'u mobilnego.
 
 Natywna nazwa oraz ikony zależą od kanału: `Canopy (Nightly)`, `Canopy (Beta)` albo
 `Canopy` (stable). `app.config.ts` wybiera kanał z `CANOPY_CHANNEL`, następnie profilu

@@ -85,6 +85,6 @@ export function recentNotes(index: NotesIndex, current: string): readonly Versio
 
   return index.releases
     .filter((release) => releaseChannel(release.version) === channel && compare(release.version, current) <= 0)
-    .toSorted((a, b) => compare(b.version, a.version))
+    .sort((a, b) => compare(b.version, a.version))
     .slice(0, 10);
 }
