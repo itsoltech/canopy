@@ -1,13 +1,11 @@
 <script lang="ts">
   import { create } from "@bufbuild/protobuf";
   import { ui } from "@canopy/contracts";
-  import { webDrafts } from "#lib/features/drafts/local.svelte.ts";
   import DraftPersistence from "#lib/features/drafts/DraftPersistence.svelte";
   import DraftActions from "#lib/features/drafts/DraftActions.svelte";
   import DraftMoveNotice from "#lib/features/drafts/DraftMoveNotice.svelte";
   import PendingDraft from "#lib/features/drafts/PendingDraft.svelte";
   import type { ClassValue } from "svelte/elements";
-  import { limitsOf } from "#lib/features/attachments/draft.svelte.ts";
   import { trimValue } from "#lib/features/mentions/editor.ts";
   import { toWire, useQuoteDrafts } from "#lib/features/quotes/quote-drafts.svelte.ts";
   import { draftOf } from "#lib/features/quotes/quote.ts";
@@ -24,13 +22,13 @@
   import Alert from "#lib/shared/ui/Alert.svelte";
   import PillText from "#lib/shared/ui/PillText.svelte";
   import { interruptThread, sendMessage, type Delivery } from "../api.ts";
-  import { permissionKey, providerLabel, type PermissionModeKey } from "../labels.ts";
+  import { permissionKey, providerLabel } from "../labels.ts";
   import ComposerBox from "./ComposerBox.svelte";
   import { contextDraft } from "#lib/features/github/context-draft.svelte.ts";
-  import { tick, untrack } from "svelte";
+  import { tick, untrack, type Snippet } from "svelte";
   import { page } from "$app/state";
   import type { ComposerActivity } from "./composer-compaction.ts";
-  import PermissionPicker from "./PermissionPicker.svelte";
+  import type { WebComposerDraft } from "#lib/features/drafts/state.svelte.ts";
   import ComposerContextRow from "./ComposerContextRow.svelte";
   import AccountConfigNotices from "#lib/features/computers/AccountConfigNotices.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
@@ -50,8 +48,7 @@
    * queued turn or the steer) so the page shows it before the stream does.
    * Pills: the model and reasoning effort for the next messages (same provider and profile as the
    * thread), restored from the last user turn and sent with each message as an override for its turn.
-   * Under the box: where the thread runs (hover for the worker) and the next turn's permission mode.
-   * A running turn and a steer into it keep the mode the turn started with.
+   * Under the box: where the thread runs (hover for the worker) and its permission control.
    * Attachments (paperclip, drop, paste): badges in the text, uploaded as they are added, sent with the message at
    * their places. Files reach the worker before the message enters a turn, including when steered.
    * Mentions ("/", "$", "@", "#"; docs/ui-api.md "Wzmianki") come from the thread's worker and folder; "/goal" is
@@ -61,6 +58,8 @@
    */
   let {
     thread,
+    saved = $bindable(),
+    permissions,
     worker,
     running,
     runningTurnId,
@@ -75,6 +74,8 @@
     class: className,
   }: {
     thread: ui.Thread;
+    saved: WebComposerDraft;
+    permissions: Snippet;
     worker: ui.Worker | undefined;
     running: boolean;
     runningTurnId?: string | undefined;
@@ -95,23 +96,6 @@
 
   const settings = useSettings();
   const directory = useThreadDirectory();
-
-  // The keyed feed keeps the outgoing composer alive while its rows transition out. A derived cache lookup would
-  // become inert at that point, while the outgoing draft persistence still reads it. Keep the selected draft in raw
-  // state and switch it before the next render when the thread or draft store changes.
-  let saved = $state.raw(
-    untrack(() =>
-      webDrafts.get(create(ui.ComposerDraftTargetSchema, { threadId: thread.id }), () =>
-        limitsOf(settings?.attachmentLimits),
-      ),
-    ),
-  );
-
-  $effect.pre(() => {
-    saved = webDrafts.get(create(ui.ComposerDraftTargetSchema, { threadId: thread.id }), () =>
-      limitsOf(settings?.attachmentLimits),
-    );
-  });
 
   const mine = $derived(saved.choices);
 
@@ -142,10 +126,6 @@
 
   function pickEffort(next: string | undefined) {
     saved.choices = { ...mine, effort: next ?? "" };
-  }
-
-  function pickMode(next: PermissionModeKey) {
-    saved.choices = { ...mine, permissionMode: PermissionMode[next] };
   }
 
   let box = $state<ComposerBox>();
@@ -476,7 +456,7 @@
         {/snippet}
         {#snippet permissionControl()}
           <fieldset disabled={disabled || sending} class="contents">
-            <PermissionPicker value={mode} onselect={(next) => void pickMode(next)} />
+            {@render permissions()}
           </fieldset>
         {/snippet}
       </ComposerContextRow>

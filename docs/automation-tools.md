@@ -3,7 +3,8 @@
 Status (2026-11-16): **narzędzia, interaktywny Preview i automatyczny mini Preview
 wątku zaimplementowane**. Browser MCP pozostaje w sesji wątku i działa headless;
 watch zachowuje się po aktualizacji statusu tego samego workera, a nowy odbiorca
-aktywnej grupy dostaje ostatnią klatkę.
+aktywnej grupy dostaje ostatnią klatkę. Zmiana uprawnień bieżącej tury Claude
+aktualizuje także autoryzację automatyzacji.
 Ten opis dotyczy stanu kodu i nie oznacza, że funkcja jest już w wydanym buildzie.
 Dostępność nightly/beta/stable wynika ze zwykłej promocji wydań
 ([release.md](release.md)).
@@ -103,6 +104,13 @@ turę i jej `turn_id`, stan archiwizacji/cofania, aktualny grant oraz wygaśnię
 Odpowiedź odmowna wraca do modelu jako błąd i nie jest ponawiana automatycznie.
 `FULL_AUTO` i `FULL_ACCESS` nie omijają przełącznika workera ani kontroli
 właściciela, tury i wygaśnięcia.
+
+Podczas `UpdateTurnPermissions` bieżącej tury Claude autoryzacja czeka na
+potwierdzenie i trwały zapis zastosowanego trybu. Przejście na `FULL_ACCESS`
+rozstrzyga oczekujące zgody automatyzacji tej tury, nadal sprawdzając aktualny
+grant, właściciela i żywe łącze. `FULL_AUTO` również zwalnia taką zgodę przez
+bridge po ponownym sprawdzeniu trybu i grantu. Nie rozstrzyga pytań ani formularzy.
+Szczegóły i ograniczenia pozostałych harnessów: [protocol.md](protocol.md#modele-effort-i-steer).
 
 ## Wspólny bridge MCP na workerze
 

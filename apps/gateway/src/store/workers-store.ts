@@ -5,6 +5,7 @@ import { ConfigAppliedSchema, Provider, ui, type Hello } from "@canopy/contracts
 import { Effect } from "effect";
 import {
   CLONE_PROGRESS_CAPABILITY,
+  CLAUDE_LIVE_PERMISSIONS_CAPABILITY,
   WORKSPACE_COPY_CAPABILITY,
   workerLinkCompatible,
 } from "@canopy/domain/release/protocol";
@@ -42,6 +43,7 @@ interface WorkerListRow {
     cliImport?: boolean;
     branchSwitch?: boolean;
     desktopBundled?: boolean;
+    claudeLivePermissions?: boolean;
   };
   last_seen_at: Date | null;
   revoked_at: Date | null;
@@ -78,6 +80,7 @@ function listedWorker(r: WorkerListRow, online: ReadonlySet<string>) {
     cliImport: r.capabilities?.cliImport === true,
     branchSwitch: r.capabilities?.branchSwitch === true,
     desktopBundled: r.capabilities?.desktopBundled === true,
+    claudeLivePermissions: r.capabilities?.claudeLivePermissions === true,
     configVersion: r.config_version ? BigInt(r.config_version) : 0n,
     appliedVersion: r.applied_version ? BigInt(r.applied_version) : 0n,
     configIssues: report?.issues ?? [],
@@ -138,6 +141,7 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
           // The desktop app's own local-mode worker: it updates with the app (docs/updates.md).
           desktopBundled: hello.capabilities.includes("desktop_bundled"),
           fullAccess: hello.capabilities.includes("full_access"),
+          claudeLivePermissions: hello.capabilities.includes(CLAUDE_LIVE_PERMISSIONS_CAPABILITY),
         });
 
         yield* sql`
@@ -181,7 +185,8 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
                          'workspaceCopy',w.capabilities->'workspaceCopy',
                          'cloneProgress',w.capabilities->'cloneProgress',
                          'cliImport',w.capabilities->'cliImport','branchSwitch',w.capabilities->'branchSwitch',
-                         'desktopBundled',w.capabilities->'desktopBundled') AS capabilities, w.last_seen_at, w.revoked_at,
+                         'desktopBundled',w.capabilities->'desktopBundled',
+                         'claudeLivePermissions',w.capabilities->'claudeLivePermissions') AS capabilities, w.last_seen_at, w.revoked_at,
                        coalesce(c.profile_names,'{}'::jsonb) AS profile_names,
                        c.version AS config_version, c.applied_version, c.apply_report
                   FROM workers w LEFT JOIN worker_configs c ON c.worker_id = w.id

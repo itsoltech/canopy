@@ -284,6 +284,8 @@ service GatewayService {
   rpc ListModels(ListModelsRequest) returns (ListModelsResponse);
   // Domyślny model i wysiłek wątku (kolejne tury bez nadpisania w wiadomości).
   rpc UpdateThread(UpdateThreadRequest) returns (UpdateThreadResponse);
+  // Owner-only live permissions; leaves thread defaults unchanged.
+  rpc UpdateTurnPermissions(UpdateTurnPermissionsRequest) returns (UpdateTurnPermissionsResponse);
   // Changes one thread's manual position; bounds are owned, active threads.
   rpc ReorderThread(ReorderThreadRequest) returns (GetThreadResponse);
   rpc RegenerateTitle(RegenerateTitleRequest) returns (RegenerateTitleResponse);
@@ -628,6 +630,8 @@ message Worker {
   // Wbudowany worker aplikacji desktop w trybie lokalnym (capability desktop_bundled): działa na komputerze,
   // na którym działa gateway; tylko wtedy desktop otwiera jego foldery i pliki w systemie.
   bool desktop_bundled = 861;
+  // Live permission and sandbox updates on running Claude turns.
+  bool claude_live_permissions = 862;
   // Domyślny folder nowych worktree zgłoszony przez workera (Hello.worktrees_root); pusty = brak worktrees.
   string worktrees_root = 806;
   // Worker importuje dane CLI (capability "cli_import_v1", docs/import.md).
@@ -2095,6 +2099,16 @@ message RegenerateTitleRequest {
 }
 // Zlecenie przyjęte; nowy tytuł przychodzi przez WatchThread / WatchOverview.
 message RegenerateTitleResponse {}
+
+message UpdateTurnPermissionsRequest {
+  string thread_id = 1;
+  string turn_id = 2;
+  canopy.worker.v1.PermissionMode permission_mode = 3;
+}
+
+message UpdateTurnPermissionsResponse {
+  Turn turn = 1;
+}
 
 message UpdateThreadResponse {
   Thread thread = 1;

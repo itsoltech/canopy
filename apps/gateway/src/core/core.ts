@@ -82,6 +82,7 @@ import { coreWorkLoopMethods, type CoreWorkLoopMethods } from "./core-work-loop.
 import { coreWorktreesMethods, type CoreWorktreesMethods } from "../worktrees/core-worktrees.ts";
 import { coreWorktreeLifecycleMethods, type CoreWorktreeLifecycleMethods } from "../worktrees/core-lifecycle.ts";
 import { WorktreeCleanupSchedule } from "../worktrees/cleanup-schedule.ts";
+import { allowFullAccessPermission, updateTurnPermissions } from "./live-turn-permissions.ts";
 
 export {
   describeError,
@@ -147,6 +148,10 @@ export class GatewayCore {
   declare searchThreads: CoreMentionsMethods["searchThreads"];
   declare sendMessage: CoreMessagesMethods["sendMessage"];
   declare updateThread: CoreMessagesMethods["updateThread"];
+  updateTurnPermissions(request: ui.UpdateTurnPermissionsRequest): Promise<ui.Turn> {
+    return updateTurnPermissions(this, request);
+  }
+
   declare interrupt: CoreMessagesMethods["interrupt"];
   declare regenerateTitle: CoreTitlesMethods["regenerateTitle"];
   declare listModels: CoreModelsMethods["listModels"];
@@ -298,7 +303,8 @@ export class GatewayCore {
     this.connectors = new ConnectorsRuntime({
       runtime: options.runtime,
       userId: options.userId,
-      interaction: (interaction) => corePublishInteraction(this, interaction),
+      interaction: (interaction) =>
+        corePublishInteraction(this, interaction).then(() => allowFullAccessPermission(this, interaction)),
     });
     this.github = createCoreGitHub(this, options);
     this.bots = createCoreBots(this, options);

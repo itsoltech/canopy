@@ -27,6 +27,7 @@ export interface BusHost {
   linked?(request: AgentToolCall, call: AgentBusCall, caller: ThreadRow): Promise<JsonValue | undefined>;
   extend?(call: AgentBusCall, caller: ThreadRow, result: JsonValue): Promise<JsonValue>;
   run<A, E>(effect: Effect.Effect<A, E, GatewayStore | AgentBusStore>): Promise<A>;
+  permissionMutation?<A>(threadId: string, perform: () => Promise<A>): Promise<A>;
   /** Sends CreateThread for a new thread (with its fork point) and announces it. */
   startThread(row: ThreadRow): Promise<void>;
   prepareWorkspace?(caller: ThreadRow, args: AgentBusArgs["spawn_thread"]): Promise<ui.CreateThreadRequest>;

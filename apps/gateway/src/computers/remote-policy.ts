@@ -163,6 +163,7 @@ export const SERVED = new Set([
   "AnswerThreadSecret",
   "RevokeThreadSecret",
   "UpdateThread",
+  "UpdateTurnPermissions",
   "RegenerateTitle",
   "SetGoal",
   "StopBackgroundTask",

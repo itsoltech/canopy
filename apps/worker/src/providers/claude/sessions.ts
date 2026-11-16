@@ -16,6 +16,7 @@ import { claudeConnectorRefresh } from "./connector-mcp.ts";
 import { TurnAdmissionCancelled } from "../turn-input.ts";
 import { threadInstructions } from "../thread-instructions.ts";
 import { claudeSessionMcp } from "./session-mcp.ts";
+import { invalidateSessionPermissions } from "./live-permissions.ts";
 
 export function claudeSessions(
   ctx: ClaudeThreadContext,
@@ -136,7 +137,8 @@ export function claudeSessions(
     return session;
   };
 
-  const switchMode = (session: Session, mode: PermissionMode) => switchSessionMode(session, mode);
+  const switchMode = (session: Session, mode: PermissionMode) =>
+    switchSessionMode(session, mode, { invalidate: () => invalidateSessionPermissions(session) });
 
   return { open, switchMode };
 }

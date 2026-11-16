@@ -16,6 +16,7 @@ import { connectorType } from "./catalog.ts";
 import { ConnectorFailure, type ConnectorStore, type ExecutionSource } from "./store.ts";
 import { redactConnector } from "./oauth.ts";
 import { allowThreadConnector } from "../bots/thread-connector-rules.ts";
+import { checkConnectorTurn, connectorTurn } from "./turn-permissions.ts";
 
 /** MCP tool results report failure in-band. */
 export const failed = (result: JsonValue) => isJsonObject(result) && Boolean(result["isError"]);
@@ -39,19 +40,7 @@ export async function connectorPermission(
   args: JsonObject,
   signal: AbortSignal,
 ): Promise<void> {
-  const facts = await context.runtime.runPromise(
-    GatewayStore.use((s) =>
-      Effect.gen(function* () {
-        const thread = yield* s.thread(source.threadId!);
-        const turn = yield* s.runningTurn(thread.id);
-
-        if (!turn || source.turnId !== turn.id)
-          return yield* Effect.fail(new ConnectorFailure("Connector call requires the active turn"));
-
-        return { mode: turn.permission_mode || thread.settings.permissionMode || "ASK", turnId: turn.id };
-      }),
-    ),
-  );
+  const facts = await connectorTurn(context.runtime, source);
 
   if (tool.readOnly) return;
 
@@ -100,6 +89,7 @@ export async function connectorPermission(
     if (answer) {
       if (!answer.answer.allow || answer.answer.cancelled)
         throw new ConnectorFailure("The user declined this connector action. Do not retry it.");
+      await checkConnectorTurn(context.runtime, source, tool.readOnly);
 
       return;
     }

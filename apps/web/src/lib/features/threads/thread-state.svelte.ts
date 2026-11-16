@@ -369,6 +369,12 @@ export class ThreadState {
         this.#started(event.turnId, body.value, event.occurredAt);
 
         return;
+      case "turnPermissionsChanged":
+        this.turns = this.turns.map((turn) =>
+          turn.id === event.turnId && !turn.inherited ? { ...turn, permissionMode: body.value.permissionMode } : turn,
+        );
+
+        return;
       case "turnFinished":
         this.#finished(event.turnId, body.value, event.occurredAt);
 

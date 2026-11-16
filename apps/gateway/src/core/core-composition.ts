@@ -30,6 +30,7 @@ import { linkedBotThreadApprovals } from "../computers/bot-thread-approvals.ts";
 import { publishThreadImages } from "./image-publication.ts";
 import { importImageReply } from "./image-markdown.ts";
 import { releaseFound } from "../updates/found.ts";
+import { withTurnPermissionMutation } from "./turn-permission-state.ts";
 
 export function createCoreBots(core: GatewayCore, options: GatewayCoreOptions): BotsRuntime {
   return new BotsRuntime({
@@ -57,6 +58,8 @@ export function createCoreBus(core: GatewayCore): AgentBus {
     linked: (request, call, caller) => core.linkedAgents.tool(request, call, caller),
     extend: (call, caller, result) => core.linkedAgents.extend(call, caller, result),
     run: (effect) => core[coreState].options.runtime.runPromise(effect),
+    permissionMutation: (threadId, perform) =>
+      withTurnPermissionMutation(core[coreState].options.runtime, threadId, perform),
     startThread: (row) => coreStartThread(core, row),
     prepareWorkspace: async (caller, args) => (await prepareSpawnWorkspace(core, caller, args)).request,
     nameWorkspace: (thread, prompt) => nameAutomationBranch(core, thread, prompt),

@@ -1,6 +1,6 @@
 # Adapter Claude (Agent SDK)
 
-Status: **działa** (2026-11-16):
+Status: **działa** (2026-11-16), w tym zmiana uprawnień i sandboxa podczas bieżącej tury:
 - runtime wątków: `ClaudeThreads` w `apps/worker/src/providers/claude/threads.ts`,
 - mapowanie wiadomości SDK na zdarzenia transkryptu: `ClaudeEventMapper` w `mapping.ts`, z testami na nagranych strumieniach (`fixtures/*.jsonl`),
 - tryby uprawnień: `permissions.ts`,
@@ -91,6 +91,8 @@ Pełne wiadomości nigdy nie giną: bez mapowania trafiają do dziennika jako `r
 - Tryb tury (`StartTurn.permission_mode`): nowy proces startuje z nim; proces trzymany przez zadania w tle przełącza się przed turą (`setPermissionMode`, sandbox przez `applyFlagSettings`, wyłączenie jako `{ enabled: false }`, automatyczna zgoda `canUseTool` czytana przy każdym pytaniu). Szczegóły: [protocol.md](protocol.md#modele-effort-i-steer).
 - `FULL_AUTO` nigdy nie oznacza `bypassPermissions`. `FULL_ACCESS` też nie: `bypassPermissions` (z `allowDangerouslySkipPermissions`) pomija `canUseTool`, a wtedy `AskUserQuestion` nie trafiłoby do platformy. Automatyczna zgoda w `canUseTool` przepuszcza wszystko poza pytaniami; w `FULL_AUTO` na Windows także poza komendami shella, które biegną tam bez izolacji. Na Linux i macOS komenda, która trafia do `canUseTool`, i tak biegnie w sandboxie: `autoAllowBashIfSandboxed` zatwierdza większość objętych komend, ale nie wszystkie (np. `cd x && rm y`), więc pytanie o shell dawałoby tam zbędne pytania.
 - Przełączenie trybu procesu trzymanego przez zadania w tle (`mode-switch.ts`): na czas zmiany automatyczna zgoda jest wyłączona; `FULL_AUTO` ↔ `FULL_ACCESS` włącza albo wyłącza sandbox przez `applyFlagSettings`.
+- Bieżąca tura: jawne `UpdateTurnPermissions` właściciela, z capability `claude_live_permissions_v1`, stosuje te same ustawienia bez restartu procesu. Komenda wskazuje dokładne `thread_id` i `turn_id`; worker szereguje zmiany i nie przenosi ich na nowszą turę. Koniec tury czeka na zakończenie trwającej zmiany. Po sukcesie worker zapisuje `turn_permissions_changed` w journalu przed wynikiem komendy; gateway utrwala tryb tury również po ponownym połączeniu. Błąd częściowej zmiany zatrzymuje sesję zamiast pozostawiać ją z niepotwierdzonym sandboxem. Domyślne wątku pozostają osobnym ustawieniem.
+- Przejście na `FULL_ACCESS` rozstrzyga oczekujące zgody `PERMISSION` tej tury; pytania i formularze pozostają do odpowiedzi. Inne zmiany nie zatwierdzają wcześniej przechwyconych natywnych operacji: komenda oczekująca na zgodę mogła powstać jeszcze bez sandboxa. Przyznana automatyzacja przez bridge ponownie sprawdza tryb, więc jej zgody zwalnia także `FULL_AUTO` ([automation-tools.md](automation-tools.md#grant-workera-i-uprawnienia-tury)). Nowy tryb dotyczy kolejnych operacji, nie cofa skutków komend już uruchomionych.
 - `AskUserQuestion` zawsze trafia do platformy jako pytanie (`QUESTION`), odpowiedź wraca jako `answers`.
 - Różnica względem Codexa: w `READ_ONLY` Codex może uruchamiać komendy w sandboxie tylko do odczytu, Claude nie uruchamia shella.
 

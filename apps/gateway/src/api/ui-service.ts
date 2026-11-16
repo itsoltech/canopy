@@ -28,6 +28,7 @@ import { diagnosticsLogHandlers } from "./ui-diagnostics-logs.ts";
 import { composerDraftHandlers } from "./ui-composer-drafts.ts";
 import { agentToolsHandlers } from "./ui-agent-tools.ts";
 import { withDraftDelivery } from "../drafts/delivery.ts";
+import { liveTurnPermissionHandlers } from "./ui-live-permissions.ts";
 
 export { toConnectError } from "./ui-errors.ts";
 
@@ -81,6 +82,7 @@ export function uiHandlers(core: GatewayCore): UiHandlers {
     ...computersHandlers(core),
     ...workersHandlers(core),
     ...threadsHandlers(core),
+    ...liveTurnPermissionHandlers(core),
     ...mobileHandlers(core),
     ...networkHandlers(core),
     ...connectorsHandlers(core),

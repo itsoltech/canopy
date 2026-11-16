@@ -1,4 +1,5 @@
 import {
+  CLAUDE_LIVE_PERMISSIONS_CAPABILITY,
   STEER_ATTACHMENTS_CAPABILITY,
   THREAD_VISUALS_CAPABILITY,
   THREAD_HTML_CAPABILITY,
@@ -26,6 +27,7 @@ export function workerCapabilities(options: { localWorker: boolean; fullAccess: 
     "thread_lifecycle_v1",
     "thread_storage_cleanup_v1",
     "thread_rewind_v1",
+    CLAUDE_LIVE_PERMISSIONS_CAPABILITY,
     "attachments",
     STEER_ATTACHMENTS_CAPABILITY,
     "probe_providers",

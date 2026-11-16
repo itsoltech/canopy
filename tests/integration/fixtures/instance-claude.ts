@@ -10,6 +10,7 @@ import { botFailure, botTool, claudeBotConfig } from "./bot-probe.ts";
 import { archivedBackground } from "./instance-background.ts";
 import { sdkInventory } from "./instance-mcp.ts";
 import { claudeLimits } from "./provider-usage.ts";
+import { sdkPermissions } from "./instance-permissions.ts";
 
 if (process.argv.includes("--version")) {
   console.log("Claude Code 2.1.316");
@@ -30,6 +31,7 @@ mkdirSync(folder, { recursive: true });
 const transcript = join(folder, `${session}.jsonl`);
 const send = (message: JsonObject) => process.stdout.write(JSON.stringify(message) + "\n");
 const inventory = sdkInventory(send);
+const permissions = sdkPermissions(session, send);
 let configured = Promise.resolve();
 
 recordProbe("claude", resume ? "resume" : "spawn", session);
@@ -89,6 +91,7 @@ async function turn(text: string): Promise<void> {
     stream({ type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "Partial reply" } });
   }
 
+  await permissions.turn(text);
   await releaseProbe(text);
   const failure = process.env["BOT_TRACE"] ? botFailure(text) : undefined;
 
@@ -213,6 +216,8 @@ for await (const line of createInterface({ input: process.stdin })) {
   const message = JSON.parse(line);
 
   if (message.type === "control_request") {
+    permissions.control(message.request);
+
     if (message.request.subtype === "mcp_message") {
       send({
         type: "control_response",
@@ -248,7 +253,8 @@ for await (const line of createInterface({ input: process.stdin })) {
       });
     })();
   } else if (message.type === "control_response") {
-    inventory.response(message.response.request_id, message.response.response ?? {});
+    if (!permissions.response(message.response.request_id, message.response.response ?? {}))
+      inventory.response(message.response.request_id, message.response.response ?? {});
   } else if (message.type === "user") {
     if (message.uuid)
       send({ type: "command_lifecycle", command_uuid: message.uuid, state: "started", session_id: session });

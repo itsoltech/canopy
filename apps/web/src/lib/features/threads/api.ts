@@ -71,6 +71,22 @@ export async function updateThread(
   return decode(ui.UpdateThreadResponseSchema, await post(`${threadPath(threadId)}/settings`, change)).thread;
 }
 
+/** Applies to the expected running turn; the response arrives after the worker acknowledges it. */
+export async function updateTurnPermissions(
+  threadId: string,
+  turnId: string,
+  permissionMode: PermissionModeKey,
+): Promise<ui.Turn> {
+  const response = decode(
+    ui.UpdateTurnPermissionsResponseSchema,
+    await post(`${threadPath(threadId)}/permissions`, { turnId, permissionMode }),
+  );
+
+  if (!response.turn) throw new Error("Could not confirm the permission change.");
+
+  return response.turn;
+}
+
 /** Shared by panel, palette and the future sidebar context menu. The title arrives on the live streams. */
 export async function regenerateTitle(threadId: string): Promise<void> {
   await post(`${threadPath(threadId)}/regenerate-title`, {});

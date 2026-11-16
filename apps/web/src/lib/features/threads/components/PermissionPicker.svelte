@@ -18,12 +18,18 @@
     value,
     onselect,
     fullAccess = true,
+    disabled = false,
+    nextTurn = false,
+    explanation,
     class: className,
   }: {
     value: PermissionModeKey;
     onselect: (mode: PermissionModeKey) => void;
     /** false: Full access is not offered (schedules: nobody watches those runs start). */
     fullAccess?: boolean;
+    disabled?: boolean;
+    nextTurn?: boolean;
+    explanation?: string | undefined;
     class?: ClassValue;
   } = $props();
 
@@ -34,6 +40,8 @@
   let confirming = $state<() => void>();
 
   function pick(mode: PermissionModeKey) {
+    if (disabled) return;
+
     if (isFullAccess(mode) && mode !== value) confirming = () => onselect(mode);
     else onselect(mode);
   }
@@ -43,6 +51,7 @@
   {#snippet trigger(props)}
     <PillButton
       {...props}
+      {disabled}
       class={[
         "shrink-0 pl-1.5",
         tone === "amber" &&
@@ -51,7 +60,9 @@
           "text-rose-700 hover:text-rose-800 aria-expanded:text-rose-800 dark:text-rose-400 dark:hover:text-rose-300 dark:aria-expanded:text-rose-300",
         className,
       ]}
-      aria-label="Permissions: {permissionLabel(value)}"
+      aria-label={nextTurn
+        ? `Next turn permissions: ${permissionLabel(value)}`
+        : `Permissions: ${permissionLabel(value)}`}
       title={tone === "rose"
         ? "Full access: runs commands and edits without asking, with no sandbox"
         : tone === "amber"
@@ -59,11 +70,17 @@
           : `Permissions: ${permissionLabel(value)}`}
     >
       <Icon name={look.icon} class={["size-3.5", tone !== "neutral" && look.iconClass]} />
-      <span class="max-sm:sr-only @max-[34rem]/context:sr-only">{permissionLabel(value)}</span>
+      {#if nextTurn}
+        <span>Next turn: {permissionLabel(value)}</span>
+      {:else}
+        <span class="max-sm:sr-only @max-[34rem]/context:sr-only">{permissionLabel(value)}</span>
+      {/if}
     </PillButton>
   {/snippet}
+  {#if explanation}<p class="px-2 py-1.5 text-sm/5 text-muted sm:text-xs/4">{explanation}</p>{/if}
   {#each modes as option (option.value)}
     <MenuCheckItem
+      {disabled}
       checked={option.value === value}
       description={option.description}
       onselect={() => pick(option.value)}

@@ -1,7 +1,7 @@
 # Szyna agentów: delegowanie, interakcje, harmonogram
 
-Status (2026-11-15): zaimplementowane dziedziczenie efektywnego trybu tury rodzica,
-także szerszego nadpisania z kompozytora, oraz jawne linkowanie PR przez agenta
+Status (2026-11-16): zaimplementowane dziedziczenie efektywnego trybu tury rodzica,
+także zmiany podczas tury Claude i szerszego nadpisania z kompozytora, oraz jawne linkowanie PR przez agenta
 narzędziem `link_pull_request`; dostępność nightly/beta/stable według
 [release.md](release.md).
 
@@ -209,6 +209,12 @@ Reguły (`authorizeBusCall` i gateway):
 - uprawnienia: `read_only` < `ask` < `accept_edits` < `full_auto` < `full_access`. Model nie wybiera trybu. Settings → Threads → Subagents: **Same as parent** (domyślnie) albo stały tryb, zapisany w `user_settings.settings.threadDefaults.subagentPermissionMode`. Gateway w transakcji blokuje i ponownie odczytuje rodzica, rozstrzyga uprawnienia i zapisuje je w ustawieniach dziecka. Obowiązuje tryb tury wywołującej (potem tury w toku, potem wątku), także szersze nadpisanie z kompozytora: tura Full auto w wątku z domyślnym Ask first tworzy dziecko Full auto. Gateway zapisuje domyślny tryb z chwili wysłania tury w `turns.thread_permission_mode`; jeżeli bieżący domyślny tryb rodzica różni się od tego snapshotu, ogranicza nowe dzieci do węższego z niego i trybu tury. Stały wybór nie przekracza tego sufitu. Podniesienie domyślnego trybu nie podnosi uprawnień już działającej tury ani istniejących dzieci. Tury rozpoczęte przed dodaniem snapshotu zachowują dotychczasowy, bardziej restrykcyjny sufit do ich końca. Full access dziedziczy się na workerze z capability `full_access`; bez niej gateway ogranicza go do Full auto. Powód ograniczenia jest w `Thread.permission_mode_note`, widocznym w szczegółach web/mobile. Dawne `permission_mode` pozostaje tylko w dekoderze zgodności: może zawęzić wybór właściciela, próba eskalacji ponad rodzica jest odrzucana. Rodzic musi należeć do tego samego właściciela, także przy odtwarzaniu wywołania,
 - dostawca, model i wysiłek: patrz [Subagenci dowolnego dostawcy](#subagenci-dowolnego-dostawcy); fork zachowuje dostawcę i instancję,
 - rola (`instructions`) dopisuje się do instrukcji wywołującego.
+
+`spawn_thread` czeka na zakończenie zmiany uprawnień bieżącej tury rodzica,
+zanim rozstrzygnie i zapisze tryb dziecka. Gateway szereguje te operacje przed
+uzyskaniem blokad bazy; dotyczy to także tworzenia wątku przez połączony komputer.
+Zmiana trybu rodzica nie modyfikuje istniejących dzieci.
+Szczegóły: [protocol.md](protocol.md#modele-effort-i-steer).
 
 UI: wywołanie `spawn_thread` na osi czasu rodzica ma kartę subagenta (`SubagentCard`) z żywym statusem, dostawcą (znak Claude/Codex) i modelem, wysiłkiem, uprawnieniami i początkiem ostatniej wiadomości dziecka (`Thread.last_message`); wątek dziecka pokazuje, kto go uruchomił (`SubagentOrigin`).
 

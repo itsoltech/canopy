@@ -87,7 +87,7 @@ function applyEvent(previous: ui.ThreadSnapshot, change: ui.ThreadEventUpdate): 
   if (!event || seq <= previous.lastSeq) return previous;
   const body = event.body;
 
-  if (body.case === "turnStarted" || body.case === "turnFinished")
+  if (body.case === "turnStarted" || body.case === "turnFinished" || body.case === "turnPermissionsChanged")
     return { ...previous, lastSeq: seq, turns: applyTurnEvent(previous.turns, event) };
 
   if (body.case === "notice")
