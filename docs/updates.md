@@ -1,7 +1,8 @@
 # Aktualizacje Canopy
 
-Status: opis zaimplementowanego kodu (2026-11-16), w tym retencji dyskowego mirrora
-workerów gatewaya. Dostępność zmian w nightly, beta i stable wynika z promocji
+Status: opis zaimplementowanego kodu (2026-11-16), w tym wykrywania pojedynczego
+procesu przez instalator Windows i retencji dyskowego mirrora workerów gatewaya.
+Dostępność zmian w nightly, beta i stable wynika z promocji
 opisanych w [release.md](release.md), a konkretne wersje podają GitHub Releases.
 
 Nazwa widoczna i ikona desktopu oznaczają kanał **zainstalowanego buildu**:
@@ -425,6 +426,11 @@ korzystają z tego samego cichego instalatora NSIS: bez kreatora i kliknięć u�
 z automatycznym ponownym uruchomieniem Canopy oraz usług. Instalacja dla bieżącego
 użytkownika zachowuje wybrany wcześniej katalog i nie wymaga UAC. Pierwsza instalacja
 nadal używa kreatora z wyborem katalogu.
+Nowe instalatory mają poprawione zliczanie procesów w Windows PowerShell 5.1:
+wykrywają również dokładnie jeden proces pozostały w katalogu aplikacji. To usuwa
+błąd sprawdzania, który mógł prowadzić do nieudanej wymiany starych plików z kodem 2;
+sam kod nie potwierdza przyczyny konkretnej awarii. Szczegóły patcha i Windows smoke:
+[desktop.md](desktop.md#automatyczne-aktualizacje-desktopu).
 
 Instalacje dla wszystkich użytkowników (np. w Program Files) mogą wymagać zgody
 administratora nawet przy `/S`. Przed zatrzymaniem usług desktop odrzuca aktualizację,
