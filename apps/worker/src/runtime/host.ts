@@ -35,6 +35,7 @@ import { WorkspaceCopies } from "../workspace-copy/index.ts";
 import { AgentTools, AgentToolRefused } from "../agent-tools/index.ts";
 import { WorkerStorageCleanup } from "./storage-cleanup.ts";
 import { HostPreviews } from "./host-previews.ts";
+import { NOT_REMEMBERED } from "./command-policy.ts";
 
 export type { WorkerHostOptions } from "./host-types.ts";
 /**
@@ -61,52 +62,6 @@ export type { WorkerHostOptions } from "./host-types.ts";
  * - Images (docs/agent-bus.md, "view_image"): view_image runs here; every image a model saw gets a preview, sent
  *   to the gateway (BlobChunk) right before the event that shows it.
  */
-
-/** Read-only queries: answered again on redelivery instead of being remembered in the journal. */
-const QUERIES: ReadonlySet<Command["kind"]["case"]> = new Set(["listMentionCatalog", "searchFiles", "generateText"]);
-
-/** Never redelivered from an outbox (sent directly): not remembered either. */
-const NOT_REMEMBERED: ReadonlySet<Command["kind"]["case"]> = new Set([
-  ...QUERIES,
-  "installCli",
-  "installAgentTool",
-  "probeAgentTools",
-  "runAgentTool",
-  "getProviderAccounts",
-  "startLogin",
-  "completeLogin",
-  "logoutProvider",
-  "readWorkspaceOrigin",
-  "readGitPrContext",
-  "initRepository",
-  "cloneRepository",
-  "cancelCloneRepository",
-  "workspaceCopy",
-  "botFile",
-  "switchThreadBranch",
-  "listGitRefs",
-  "createWorktree",
-  "renameWorktreeBranch",
-  "scanWorktrees",
-  "revealWorktree",
-  "revealPath",
-  // Explicit owner actions on one file: answered once, never redelivered.
-  "readFile",
-  "listThreadDirectory",
-  "getThreadFileHighlight",
-  "watchThreadFiles",
-  "exportThreadImage",
-  "openFile",
-  "writeFile",
-  "deleteFile",
-  "scanImportSources",
-  "readImportPage",
-  "readImportLibraryItem",
-  // A secret header's value: never written to the journal or remembered for a retry.
-  "readImportSecret",
-  "adoptImportedSession",
-  "removeImportedCopy",
-]);
 
 export class WorkerHost {
   readonly previews: HostPreviews;
@@ -325,9 +280,11 @@ export class WorkerHost {
     const pending = this.#commands.get(command.commandId);
 
     if (pending) return pending;
+
     const result = this.storage
       .use(() => this.#handleCommand(command))
       .finally(() => this.#commands.delete(command.commandId));
+
     this.#commands.set(command.commandId, result);
 
     return result;
@@ -341,8 +298,14 @@ export class WorkerHost {
     if (known) return known;
 
     if (this.#ctx.state.shuttingDown) return undefined;
+
     if (await this.storage.rejects(command))
-      return { commandId: command.commandId, ok: false, errorCode: "THREAD_PURGED", errorMessage: "Thread permanently purged" };
+      return {
+        commandId: command.commandId,
+        ok: false,
+        errorCode: "THREAD_PURGED",
+        errorMessage: "Thread permanently purged",
+      };
 
     // Leave new work unacknowledged in the durable gateway outbox until the update completes/restarts.
     const admission = ["startTurn", "createThread", "generateText", "setGoal", "runBotTurn", "rewindThread"].includes(

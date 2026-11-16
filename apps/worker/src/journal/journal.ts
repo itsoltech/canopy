@@ -21,6 +21,7 @@ import { secretEventRedactor } from "../runtime/thread-secrets.ts";
 import { journalStatistics, type JournalStatistics } from "./statistics.ts";
 import { workerDiagnostics } from "../diagnostics/worker.ts";
 import { storageCleanup, type StorageCleanupGrant } from "./storage-cleanup.ts";
+
 export type { StorageCleanupGrant } from "./storage-cleanup.ts";
 
 /**

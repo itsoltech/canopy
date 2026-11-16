@@ -13,6 +13,7 @@ export const pruneStorage = (sql: SqlClient.SqlClient, owner: string) =>
       WHERE owner_user_id=${owner}::uuid AND attachment_ids IS NULL AND attachment_index_retry_at<=now() ORDER BY attachment_index_retry_at,bot_id LIMIT ${BATCH} FOR UPDATE SKIP LOCKED`;
 
     let indexed = 0;
+
     for (const draft of drafts) {
       const decoded = yield* Effect.try(() => fromBinary(bots.BotComposerDraftSchema, draft.payload)).pipe(
         Effect.catch(() => Effect.succeed(undefined)),
@@ -23,6 +24,7 @@ export const pruneStorage = (sql: SqlClient.SqlClient, owner: string) =>
         yield* sql`UPDATE bot_composer_drafts SET attachment_index_retry_at=now()+interval '1 day' WHERE bot_id=${draft.bot_id}::uuid`;
         continue;
       }
+
       indexed++;
       yield* sql`UPDATE bot_composer_drafts SET attachment_ids=${decoded.attachments.map((a) => a.id)}::uuid[]
         WHERE bot_id=${draft.bot_id}::uuid`;
