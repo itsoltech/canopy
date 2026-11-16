@@ -267,77 +267,80 @@
     {/if}
     <span class="min-w-0 flex-1 truncate text-right" title={notice} role="status">{notice}</span>
   </div>
-  <div
-    bind:this={surface}
-    bind:contentRect={surfaceBounds}
-    class={[
-      "relative mt-2 flex min-h-0 min-w-0 flex-1 overflow-auto rounded-lg border bg-panel p-2 outline-none",
-      focused ? "border-brand-500/70 ring-2 ring-brand-500/20" : "border-divider",
-    ]}
-  >
+  <div class="relative mt-2 min-h-0 min-w-0 flex-1">
     <div
-      bind:this={viewport}
-      class="relative m-auto shrink-0"
-      style:width={frameWidth ? `${frameWidth * scale}px` : undefined}
-      style:height={frameHeight ? `${frameHeight * scale}px` : undefined}
+      bind:this={surface}
+      bind:contentRect={surfaceBounds}
+      class={[
+        "absolute inset-0 flex overflow-auto rounded-lg border bg-panel p-3 outline-none",
+        focused ? "border-brand-500/70 ring-2 ring-brand-500/20" : "border-divider",
+      ]}
     >
-      <canvas
-        bind:this={canvas}
-        class="block size-full rounded-sm bg-white shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:bg-zinc-900"
-        aria-label="Live screen preview"
-        role="button"
-        tabindex={enabled ? 0 : -1}
-        onkeydown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            focusSurface();
-          }
-        }}
-        onpointerdown={pointerdown}
-        onpointermove={pointermove}
-        onpointerup={pointerup}
-        onpointercancel={() => send("release")}
-        oncontextmenu={(event) => {
-          if (focused) event.preventDefault();
-        }}
-        onwheel={wheel}
-      ></canvas>
-      <ViewportResizeHandles
-        {browser}
-        {enabled}
-        width={viewportWidth}
-        height={viewportHeight}
-        {viewport}
-        onresize={sendResize}
-      />
-    </div>
-    <textarea
-      bind:this={keyboard}
-      class="pointer-events-none absolute bottom-0 left-0 size-px resize-none overflow-hidden border-0 p-0 opacity-0"
-      aria-label="Control preview keyboard"
-      tabindex="-1"
-      autocomplete="off"
-      autocapitalize="off"
-      spellcheck="false"
-      onfocus={() => (focused = true)}
-      onblur={() => {
-        releaseKeys();
-        focused = false;
-        send("release");
-      }}
-      onkeydown={keydown}
-      onkeyup={keyup}
-      oninput={inputText}
-      oncompositionstart={() => (composing = true)}
-      oncompositionend={() => {
-        composing = false;
-        inputText();
-      }}
-      onpaste={(event) => event.stopPropagation()}></textarea>
-    {#if !event?.data.length}<div
-        class="pointer-events-none absolute inset-0 grid place-items-center px-6 text-center text-sm/5 text-muted"
+      <div
+        bind:this={viewport}
+        class="relative m-auto shrink-0"
+        style:width={frameWidth ? `${frameWidth * scale}px` : undefined}
+        style:height={frameHeight ? `${frameHeight * scale}px` : undefined}
       >
-        {emptyText}
-      </div>{/if}
+        <canvas
+          bind:this={canvas}
+          class="block size-full rounded-sm bg-white shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:bg-zinc-900"
+          aria-label="Live screen preview"
+          role="button"
+          tabindex={enabled ? 0 : -1}
+          onkeydown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              focusSurface();
+            }
+          }}
+          onpointerdown={pointerdown}
+          onpointermove={pointermove}
+          onpointerup={pointerup}
+          onpointercancel={() => send("release")}
+          oncontextmenu={(event) => {
+            if (focused) event.preventDefault();
+          }}
+          onwheel={wheel}
+        ></canvas>
+      </div>
+      <textarea
+        bind:this={keyboard}
+        class="pointer-events-none absolute bottom-0 left-0 size-px resize-none overflow-hidden border-0 p-0 opacity-0"
+        aria-label="Control preview keyboard"
+        tabindex="-1"
+        autocomplete="off"
+        autocapitalize="off"
+        spellcheck="false"
+        onfocus={() => (focused = true)}
+        onblur={() => {
+          releaseKeys();
+          focused = false;
+          send("release");
+        }}
+        onkeydown={keydown}
+        onkeyup={keyup}
+        oninput={inputText}
+        oncompositionstart={() => (composing = true)}
+        oncompositionend={() => {
+          composing = false;
+          inputText();
+        }}
+        onpaste={(event) => event.stopPropagation()}></textarea>
+      {#if !event?.data.length}<div
+          class="pointer-events-none absolute inset-0 grid place-items-center px-6 text-center text-sm/5 text-muted"
+        >
+          {emptyText}
+        </div>{/if}
+    </div>
+    <ViewportResizeHandles
+      {browser}
+      {enabled}
+      width={viewportWidth}
+      height={viewportHeight}
+      {viewport}
+      {surface}
+      onresize={sendResize}
+    />
   </div>
 </div>

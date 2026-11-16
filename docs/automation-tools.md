@@ -1,7 +1,7 @@
 # Narzędzia automatyzacji agentów
 
-Status (2026-11-16): **narzędzia, interaktywny Preview i automatyczny mini Preview
-wątku oraz sprzątanie sesji przy archiwizacji zaimplementowane**.
+Status (2026-11-16): **narzędzia, interaktywny Preview z podglądem zmiany viewportu,
+automatyczny mini Preview wątku oraz sprzątanie sesji przy archiwizacji zaimplementowane**.
 Browser MCP pozostaje w sesji wątku i działa headless;
 Browser, Desktop i Device mają wspólną kontrolę sesji wątku przed autoryzacją,
 obejmującą także sesje w krokach batch. Desktop nie udostępnia tworzenia obcej
@@ -17,6 +17,8 @@ Zwijanie i rozwijanie mini Preview używa tego samego przycisku ikonowego z chev
 tooltipem i dostępną nazwą; nagłówek zachowuje układ w obu stanach.
 Interaktywny Preview dopasowuje cały obraz do szerokości i wysokości panelu.
 Pola wymiarów viewportu nie mają przycisków +/−; pasek zawija kontrolki w wąskim panelu.
+Uchwyty viewportu leżą poza obrazem; przeciąganie pokazuje lokalną ramkę,
+a zmianę rozmiaru wysyła dopiero puszczenie wskaźnika.
 Gotowość Desktop wymaga uprawnienia Screen Recording tylko na macOS;
 linuksowy stan `unknown` nie blokuje zainstalowanego narzędzia.
 Ten opis dotyczy stanu kodu i nie oznacza, że funkcja jest już w wydanym buildzie.
@@ -247,6 +249,14 @@ cały viewport pozostawał widoczny, z miejscem na uchwyty zmiany rozmiaru.
 `Show actual size` pokazuje klatkę w skali 1:1 i pozwala przewijać ją od każdej
 krawędzi. Skalowanie obrazu nie zmienia viewportu przeglądarki; współrzędne
 sterowania i uchwyty odnoszą się do widocznego obrazu po przeskalowaniu.
+
+Uchwyty zmiany viewportu to cienkie kreski poza obrazem, z większym przezroczystym
+obszarem chwytania. Podczas przeciągania dowolnej krawędzi obraz zachowuje rozmiar,
+a lokalna ramka pokazuje docelowy prostokąt i wymiary w stałej skali z początku gestu.
+Dotyczy to zarówno zmniejszania, jak i powiększania. Dopiero puszczenie wskaźnika
+wysyła jedno `Resize`, jeśli rozmiar się zmienił. Escape, utrata fokusu okna,
+anulowanie gestu lub utrata przechwycenia wskaźnika odrzucają podgląd bez wysyłania
+zmiany. Strzałki na uchwycie nadal zmieniają rozmiar od razu (16 px, z Shift 64 px).
 
 Pola `Viewport width` i `Viewport height` pozwalają wpisać wymiary bez przycisków
 +/−. Klawiaturowe strzałki nadal zmieniają wartość o jeden. `Apply` zachowuje
