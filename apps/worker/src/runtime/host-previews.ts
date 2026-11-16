@@ -7,6 +7,7 @@ import type { GatewayLink } from "../gateway-link/index.ts";
 export class HostPreviews {
   #manager: AgentPreviews | undefined;
   #link: GatewayLink | undefined;
+  readonly #closing = new Map<AgentPreviews, Promise<void>>();
 
   constructor(
     readonly tools: AgentTools,
@@ -14,7 +15,7 @@ export class HostPreviews {
   ) {}
 
   attach(link: GatewayLink): void {
-    void this.#manager?.close();
+    if (this.#manager) this.#retire(this.#manager);
     this.#link = link;
     this.#manager = new AgentPreviews({
       tools: this.tools,
@@ -45,16 +46,32 @@ export class HostPreviews {
 
     for (const id of state.closedThreadIds) {
       closed.add(id);
-      this.#manager?.stopThread(id);
+      void this.#manager?.stopThread(id);
     }
 
     for (const id of state.openedThreadIds) closed.delete(id);
+  }
+
+  async stopThread(threadId: string): Promise<void> {
+    const managers = new Set(this.#closing.keys());
+
+    if (this.#manager) managers.add(this.#manager);
+    await Promise.all([...managers].map((manager) => manager.stopThread(threadId)));
+  }
+
+  #retire(manager: AgentPreviews): void {
+    if (this.#closing.has(manager)) return;
+    const pending = manager.close();
+    this.#closing.set(manager, pending);
+    void pending.finally(() => this.#closing.delete(manager)).catch(() => {});
   }
 
   async close(): Promise<void> {
     const manager = this.#manager;
     this.#manager = undefined;
     this.#link = undefined;
-    await manager?.close();
+
+    if (manager) this.#retire(manager);
+    await Promise.allSettled(this.#closing.values());
   }
 }

@@ -34,8 +34,36 @@ export class CommandHandlers {
     return this.#directories.close();
   }
 
+  async closeThreadResources(threadId: string): Promise<void> {
+    this.#highlights.closeThread(threadId);
+    await Promise.all([this.#filesWatcher.closeThread(threadId), this.#directories.closeThread(threadId)]);
+  }
+
+  #checkFileThread(kind: Command["kind"]): void {
+    if (
+      (kind.case === "listThreadDirectory" && !kind.value.release) ||
+      kind.case === "getThreadFileHighlight" ||
+      (kind.case === "watchThreadFiles" && !kind.value.release)
+    ) {
+      if (this.ctx.state.closedThreads.has(kind.value.threadId))
+        throw new CommandError(
+          "THREAD_CLOSED",
+          "This thread is archived or deleted. Unarchive or restore it to continue.",
+          true,
+        );
+
+      if (this.ctx.state.unloadingThreads.has(kind.value.threadId))
+        throw new CommandError(
+          "THREAD_CLEANUP_PENDING",
+          "This thread is still closing. Wait a moment, then try again.",
+          false,
+        );
+    }
+  }
+
   async execute(command: Command): Promise<CommandOutput> {
     const kind = command.kind;
+    this.#checkFileThread(kind);
 
     if (kind.case === "exportThreadImage")
       return {
@@ -133,6 +161,8 @@ export class CommandHandlers {
     if (kind.case === "installAgentTool" || kind.case === "probeAgentTools" || kind.case === "runAgentTool")
       return agentToolsCommand(this.ctx, kind);
 
+    if (kind.case === "unloadThread") return this.ctx.ops.unloadThread(kind);
+
     const config = this.ctx.state.config;
 
     if (!config) throw new CommandError("WORKER_NOT_CONFIGURED", "the worker has no configuration yet", false);
@@ -180,8 +210,6 @@ export class CommandHandlers {
         return this.ctx.ops.setGoal(kind);
       case "stopTask":
         return this.ctx.ops.stopTask(kind);
-      case "unloadThread":
-        return this.ctx.ops.unloadThread(kind);
       default:
         throw new CommandError("UNIMPLEMENTED", `${kind.case ?? "empty"} is not supported by this worker yet`, true);
     }

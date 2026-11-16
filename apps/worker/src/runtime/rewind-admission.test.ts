@@ -22,6 +22,7 @@ import { resolveProfiles } from "../providers/profiles.ts";
 import { HostState } from "./host-state.ts";
 import { HostContext } from "./host-context.ts";
 import { inputRecords } from "../../../../tests/integration/fixtures/instance-probe.ts";
+import { AgentTools } from "../agent-tools/index.ts";
 
 const until = (ready: () => boolean) =>
   Effect.runPromise(
@@ -37,6 +38,7 @@ for (const provider of [Provider.CLAUDE, Provider.CODEX]) {
     mkdirSync(home);
     const runtime = ManagedRuntime.make(Journal.layer(join(root, "journal.db")));
     const state = new HostState({ runtime, dataDir: root, clientVersion: "test" });
+    state.agentTools = new AgentTools({ dataDir: root, send: () => {}, progress: () => {} });
     state.heads = new HeadTracker(() => {});
     const ctx = new HostContext(state, { applyConfig: async () => ({}), sendPreviews: () => {} });
     const events: ThreadEvent[] = [];

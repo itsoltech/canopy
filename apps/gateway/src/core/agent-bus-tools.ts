@@ -109,13 +109,17 @@ export async function busExecute(
       await hostContext[busState].host.interrupt(call.args.thread_id);
 
       return { thread_id: call.args.thread_id, interrupted: true };
-    case "close_thread":
+    case "close_thread": {
       await store((s) => s.supersedeNotifications(caller.id, call.args.thread_id));
-      await store((s) => s.close(call.args.thread_id, caller.id));
-      await hostContext[busState].host.interrupt(call.args.thread_id);
+      const commands = await store((s) => s.close(call.args.thread_id, caller.id));
+
+      for (const worker of new Set(commands.map((entry) => entry.workerId)))
+        await hostContext[busState].host.redeliver(worker);
       await hostContext[busState].host.broadcastThread(call.args.thread_id);
 
       return { thread_id: call.args.thread_id, closed: true };
+    }
+
     case "list_interactions":
       return { interactions: [...(await store((s) => s.parentInteractions(caller.id)))] };
     case "answer_interaction": {

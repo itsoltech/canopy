@@ -11,12 +11,19 @@ import { automationMcp } from "../local-automation.ts";
 export function codexConnectorMcp(ctx: CodexThreadContext) {
   const bridges = new Map<string, PlatformMcp>();
   const automation = new Map<string, { key: string; bridge: ReturnType<typeof automationMcp> }>();
-  const closing = new Set<Promise<void>>();
+  const closing = new Map<string, Set<Promise<void>>>();
 
-  const retire = (bridge: ReturnType<typeof automationMcp>) => {
+  const retire = (threadId: string, bridge: ReturnType<typeof automationMcp>) => {
     if (!bridge) return;
-    const pending = bridge.close().finally(() => closing.delete(pending));
-    closing.add(pending);
+    let retired = closing.get(threadId);
+
+    if (!retired) {
+      retired = new Set();
+      closing.set(threadId, retired);
+    }
+
+    const pending = bridge.close().finally(() => retired.delete(pending));
+    retired.add(pending);
     // Session teardown awaits these promises; handle rejections immediately during catalog replacement.
     void pending.catch(() => {});
   };
@@ -55,7 +62,7 @@ export function codexConnectorMcp(ctx: CodexThreadContext) {
     let local = automation.get(spec.threadId);
 
     if (!local || local.key !== key) {
-      retire(local?.bridge);
+      retire(spec.threadId, local?.bridge);
       local = {
         key,
         bridge: automationMcp(ctx.options, spec, () => {
@@ -90,9 +97,21 @@ export function codexConnectorMcp(ctx: CodexThreadContext) {
 
   return {
     config,
+    unload: async (threadId: string) => {
+      const bridge = bridges.get(threadId);
+      const local = automation.get(threadId);
+      bridges.delete(threadId);
+      automation.delete(threadId);
+      bridge?.close();
+      await Promise.all([...(closing.get(threadId) ?? []), local?.bridge?.close()]);
+      closing.delete(threadId);
+    },
     close: async () => {
       for (const bridge of bridges.values()) bridge.close();
-      await Promise.all([...closing, ...[...automation.values()].map((local) => local.bridge?.close())]);
+      await Promise.all([
+        ...[...closing.values()].flatMap((retired) => [...retired]),
+        ...[...automation.values()].map((local) => local.bridge?.close()),
+      ]);
       automation.clear();
       bridges.clear();
     },

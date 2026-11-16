@@ -1,6 +1,7 @@
 # Projekty, wątki i wątki boczne
 
-Status (2026-11-16): zaimplementowane, w tym opcjonalna retencja archiwum, grupowanie
+Status (2026-11-16): zaimplementowane, w tym zamykanie zasobów przy archiwizacji,
+opcjonalna retencja archiwum, grupowanie
 pracujących drzew z nieprzeczytanymi wynikami wcześniejszych tur lub zakończonych subagentów
 oraz wyróżnienie nieotwartych wątków ze szkicem w sidebarze web/desktop.
 Web/desktop i mobile mają zwarte karty w grupach projektów, zwijanie projektów i opcjonalne
@@ -253,11 +254,24 @@ sprzątanie. Gateway sprawdza warunki ponownie pod blokadą, więc równoczesne
 przywrócenie albo wyłączenie retencji nie powoduje usunięcia na podstawie starego
 odczytu. Szczegóły partii i ochrony danych: [database-retention.md](database-retention.md).
 
-Archiwizacja przerywa turę, lecz pozostawia zadania w tle do zakończenia lub
-ręcznego zatrzymania. Wynik zadania nadal zapisuje się w archiwum; ani notatka
-platformy, ani natywna pobudka harnessu nie zaczynają nowej tury. Przywrócenie
-wątku pokazuje wynik bez automatycznego wznawiania kontynuacji. Szczegóły:
+Archiwizacja przerywa turę i zatrzymuje zadania w tle, sesję harnessu, lokalne
+sesje automatyzacji oraz podglądy, obserwatory i otwarte uchwyty plików. Wygasza
+sekrety wątku i oczekujące zgody, anuluje harmonogramy i obserwowanie CI, a aktywny
+cel wstrzymuje. Polecenie sprzątania pozostaje w trwałym outboxie do potwierdzenia
+workera, również po archiwizacji offline. Retencja czeka na to potwierdzenie.
+Wyniki zatrzymania nadal zapisują się w archiwum; ani notatka platformy, ani
+natywna pobudka harnessu nie zaczynają nowej tury.
+
+Przywrócenie odblokowuje kolejną wiadomość i zachowuje historię rozmowy. Nie
+wznawia zatrzymanych procesów, harmonogramów, podglądów ani automatyzacji; cel
+pozostaje wstrzymany. Nowa wiadomość czeka na zakończenie starego sprzątania,
+a sesje harnessu i narzędzi są tworzone ponownie dopiero, gdy są potrzebne. Szczegóły:
 [execution.md](execution.md#pobudka-agent-dowiaduje-się-o-każdym-końcu-zadania).
+
+Jeżeli wątek zarchiwizowano offline jeszcze przed utworzeniem sesji dostawcy,
+samo przywrócenie i powrót workera również niczego nie uruchamiają. Dopiero
+nowe wejście użytkownika odtwarza utworzenie sesji z zachowanym punktem forka,
+instrukcjami i katalogiem; wiadomość czeka na jej gotowość.
 
 Główny wątek i jego boczne archiwizują się razem. Gateway w jednej transakcji oznacza aktywne
 boczne jako `archived_by=cascade`, przerywa działające tury i anuluje kolejkę, harmonogramy oraz

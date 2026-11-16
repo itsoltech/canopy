@@ -93,6 +93,7 @@ export class WorkerHost {
     this.#ctx = new HostContext(state, {
       applyConfig: (message) => this.applyConfig(message),
       sendPreviews: (link, event) => this.sendPreviews(link, event),
+      stopThreadPreviews: (threadId) => this.previews.stopThread(threadId),
     });
     this.storage = new WorkerStorageCleanup(this.#ctx);
     this.secrets = state.secrets;
@@ -128,7 +129,10 @@ export class WorkerHost {
       send: (report) => this.#ctx.ops.send({ case: "agentToolsReport", value: report }),
       progress: (progress) => this.#ctx.ops.send({ case: "agentToolProgress", value: progress }),
     });
-    this.previews = new HostPreviews(this.#ctx.state.agentTools, (id) => this.threadClosed(id));
+    this.previews = new HostPreviews(
+      this.#ctx.state.agentTools,
+      (id) => this.threadClosed(id) || this.#ctx.state.unloadingThreads.has(id),
+    );
   }
   setUpdateDraining(value: boolean): void {
     this.#ctx.state.updateDraining = value;
@@ -182,7 +186,16 @@ export class WorkerHost {
   }
 
   applyThreadLifecycle(state: ThreadLifecycle): void {
+    const opened = new Set(state.openedThreadIds);
+
+    if (state.replace)
+      for (const id of this.#ctx.state.closedThreads) if (!state.closedThreadIds.includes(id)) opened.add(id);
     this.previews.lifecycle(state, this.#ctx.state.closedThreads);
+
+    for (const id of state.closedThreadIds)
+      void this.#ctx.ops.releaseThread(id).catch(() => this.#ctx.ops.log("Thread resource cleanup will retry"));
+
+    for (const id of opened) void this.#ctx.ops.prepareThread(id).catch(() => {});
   }
 
   detach(link: GatewayLink): void {
@@ -402,6 +415,7 @@ export class WorkerHost {
 
   async close(): Promise<void> {
     await this.storage.stop();
+    await Promise.allSettled(this.#ctx.state.threadCleanup.values());
     await this.previews.close();
     await this.#ctx.ops.closeDirectories();
     this.#ctx.state.markdownImages.close();

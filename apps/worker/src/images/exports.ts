@@ -149,7 +149,7 @@ export class ThreadImageExports {
         data: entry.snapshot.data.subarray(offset, offset + IMAGE_REPLY_LIMITS.chunkBytes),
       };
     } catch (error) {
-      this.release(request.exportId);
+      if (this.#exports.get(request.exportId) === entry) this.release(request.exportId);
       throw error;
     }
   }
@@ -166,5 +166,10 @@ export class ThreadImageExports {
 
   close(threadId?: string): void {
     for (const [id, entry] of this.#exports) if (!threadId || entry.threadId === threadId) this.release(id);
+  }
+
+  closeThread(threadId: string): void {
+    this.close(threadId);
+    this.#scopes.delete(threadId);
   }
 }

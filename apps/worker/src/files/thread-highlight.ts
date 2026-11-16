@@ -13,6 +13,10 @@ export class ThreadHighlights {
     this.#pool.close();
   }
 
+  closeThread(threadId: string) {
+    this.#pool.closeThread(threadId);
+  }
+
   async read(request: GetThreadFileHighlight) {
     const { path, workspace, sha256, draft } = request;
 
@@ -50,7 +54,14 @@ export class ThreadHighlights {
       .digest("hex");
 
     const result = create(ThreadFileHighlightSchema, {
-      ...(await this.#pool.run({ key, path, source, start: request.startLine, count: request.lineCount })),
+      ...(await this.#pool.run({
+        threadId: request.threadId,
+        key,
+        path,
+        source,
+        start: request.startLine,
+        count: request.lineCount,
+      })),
       sha256,
       draftRevision: draft === undefined ? "" : request.draftRevision,
     });

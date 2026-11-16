@@ -27,6 +27,12 @@ export interface CodexMethods {
   "thread/resume": { params: v2.ThreadResumeParams; result: v2.ThreadResumeResponse };
   "thread/inject_items": { params: v2.ThreadInjectItemsParams; result: v2.ThreadInjectItemsResponse };
   "thread/fork": { params: v2.ThreadForkParams; result: v2.ThreadForkResponse };
+  "thread/archive": { params: v2.ThreadArchiveParams; result: v2.ThreadArchiveResponse };
+  "thread/unarchive": { params: v2.ThreadUnarchiveParams; result: v2.ThreadUnarchiveResponse };
+  "thread/backgroundTerminals/clean": {
+    params: v2.ThreadBackgroundTerminalsCleanParams;
+    result: v2.ThreadBackgroundTerminalsCleanResponse;
+  };
   "thread/unsubscribe": { params: v2.ThreadUnsubscribeParams; result: v2.ThreadUnsubscribeResponse };
   "turn/start": { params: v2.TurnStartParams; result: v2.TurnStartResponse };
   "turn/steer": { params: v2.TurnSteerParams; result: v2.TurnSteerResponse };

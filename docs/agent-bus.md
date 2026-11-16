@@ -1,6 +1,7 @@
 # Szyna agentów: delegowanie, interakcje, harmonogram
 
-Status (2026-11-16): doprecyzowania między rodzicem i pracującym subagentem domyślnie
+Status (2026-11-16): `close_thread` korzysta ze wspólnego sprzątania zasobów
+archiwizowanego wątku; doprecyzowania między rodzicem i pracującym subagentem domyślnie
 dołączają do bieżącej tury, z jednym raportem jej wyniku na odbiorcę. Wspólna reguła
 komunikacji wymaga konkretnego działania odbiorcy przed końcem zadania i wyklucza
 rutynowe raporty postępu. Zaimplementowane

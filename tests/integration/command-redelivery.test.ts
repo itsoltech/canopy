@@ -124,12 +124,12 @@ describe.skipIf(!dockerAvailable)("bounded durable command redelivery", () => {
   test("a command expiring behind an ACK batch is not sent from the prefetched page", async () => {
     const replies: (() => void)[] = [];
     let holding = true;
-    const before = gateway.worker.commands.filter((command) => command.case === "unloadThread").length;
-    gateway.worker.handlers.set("unloadThread", (_, reply) => {
+    const before = gateway.worker.commands.filter((command) => command.case === "interruptTurn").length;
+    gateway.worker.handlers.set("interruptTurn", (_, reply) => {
       if (holding) replies.push(() => reply(true));
       else reply(true);
     });
-    const saved = await seedCommands(66);
+    const saved = await seedCommands(66, "interruptTurn");
     const expiring = saved.toSorted().at(-2)!;
     await gateway.core.linkedAgents.query(
       "UPDATE worker_commands SET expires_at=now()+interval '1 second' WHERE id=$1::uuid",
@@ -158,7 +158,7 @@ describe.skipIf(!dockerAvailable)("bounded durable command redelivery", () => {
 
         return rows[0]?.count === 65;
       });
-      expect(gateway.worker.commands.filter((command) => command.case === "unloadThread").length - before).toBe(65);
+      expect(gateway.worker.commands.filter((command) => command.case === "interruptTurn").length - before).toBe(65);
 
       const rows = await gateway.core.linkedAgents.query<{ status: string }>(
         "SELECT status FROM worker_commands WHERE id=$1::uuid",
@@ -170,23 +170,26 @@ describe.skipIf(!dockerAvailable)("bounded durable command redelivery", () => {
       holding = false;
 
       for (const reply of replies) reply();
-      gateway.worker.handlers.delete("unloadThread");
+      gateway.worker.handlers.delete("interruptTurn");
     }
   });
 
-  async function seedCommands(count: number) {
+  async function seedCommands(count: number, kind: "unloadThread" | "interruptTurn" = "unloadThread") {
     const payload = toBinary(
       CommandSchema,
       create(CommandSchema, {
-        kind: { case: "unloadThread", value: { threadId: Bun.randomUUIDv7() } },
+        kind:
+          kind === "interruptTurn"
+            ? { case: kind, value: { threadId: Bun.randomUUIDv7(), turnId: Bun.randomUUIDv7() } }
+            : { case: kind, value: { threadId: Bun.randomUUIDv7() } },
       }),
     );
 
     const inserted = await gateway.core.linkedAgents.query<{ id: string }>(
       `INSERT INTO worker_commands(id,worker_id,kind,payload,expires_at,created_at)
-       SELECT gen_random_uuid(),$1::uuid,'unloadThread',$2::bytea,now()+interval '1 hour','2026-01-01'
+       SELECT gen_random_uuid(),$1::uuid,$4::text,$2::bytea,now()+interval '1 hour','2026-01-01'
        FROM generate_series(1,$3::int) RETURNING id::text`,
-      [gateway.workerId, payload, count],
+      [gateway.workerId, payload, count, kind],
     );
 
     return inserted.map((row) => row.id);

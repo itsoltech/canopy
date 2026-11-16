@@ -19,6 +19,8 @@ import { agentToolOperationArgs, validateAgentToolCommand } from "./argv.ts";
 import { installAgentTool } from "./install.ts";
 import { agentToolSession } from "./scope.ts";
 import { AgentToolDiscoveryCache } from "./cache.ts";
+import { AgentToolLifecycle } from "./lifecycle.ts";
+import { closeAgentToolSession } from "./cleanup.ts";
 
 type ReportInit = MessageInitShape<typeof AgentToolsReportSchema>;
 
@@ -64,6 +66,7 @@ export class AgentTools {
   readonly #status = new Map<AgentTool, AgentToolInstallStatus>();
   readonly #installing = new Map<AgentTool, Promise<void>>();
   readonly #cache = new AgentToolDiscoveryCache();
+  readonly #lifecycle = new AgentToolLifecycle();
   #last: ReportInit | undefined;
 
   constructor(options: AgentToolsOptions) {
@@ -102,6 +105,7 @@ export class AgentTools {
 
   /** Ready local MCP servers for a gateway-approved ThreadSpec snapshot. */
   localMcpServers(tools: readonly AgentTool[], threadId?: string): LocalAgentToolMcpServer[] {
+    if (threadId && this.#lifecycle.isClosed(threadId)) return [];
     const env = toolEnvironment(this.#probeOptions().env ?? process.env);
 
     const available = new Map(
@@ -234,7 +238,26 @@ export class AgentTools {
     await deliver(() => this.report().then(() => undefined));
   }
 
+  /** Archive/unload fences admission immediately and drains native operations before closing their sessions. */
+  fenceThread(threadId: string): void {
+    this.#lifecycle.fence(threadId);
+  }
+
+  closeThread(threadId: string): Promise<void> {
+    return this.#lifecycle.close(threadId, () =>
+      closeAgentToolSession(agentToolSession(threadId), this.#probeOptions()),
+    );
+  }
+
+  async threadOpened(threadId: string): Promise<void> {
+    await this.#lifecycle.open(threadId);
+  }
+
   async run(command: RunAgentTool): Promise<Awaited<ReturnType<typeof runAgentToolOperation>>> {
+    return this.#lifecycle.run(command.session, () => this.#run(command));
+  }
+
+  async #run(command: RunAgentTool): Promise<Awaited<ReturnType<typeof runAgentToolOperation>>> {
     const spec = agentToolSpec(command.tool);
     agentToolOperationArgs(command, "screenshot.png");
 
@@ -245,6 +268,7 @@ export class AgentTools {
     if (!found.installed) throw new AgentToolRefused("AGENT_TOOL_NOT_INSTALLED", `${spec.label} is not installed`);
 
     if (!found.ready) throw new AgentToolRefused("AGENT_TOOL_NOT_READY", found.detail);
+    this.#lifecycle.assertOpen(command.session);
 
     try {
       return await runAgentToolOperation(command, found.path, this.#probeOptions().env ?? process.env);
@@ -256,6 +280,10 @@ export class AgentTools {
 
   /** Preview backends resolve once, then retain this pinned runtime until their lease ends. */
   async resolvePreviewScope(scope: RunAgentTool) {
+    return this.#lifecycle.run(scope.session, () => this.#resolvePreviewScope(scope));
+  }
+
+  async #resolvePreviewScope(scope: RunAgentTool) {
     validateAgentToolCommand(scope);
     const spec = agentToolSpec(scope.tool);
 
@@ -275,6 +303,7 @@ export class AgentTools {
       !(scope.tool === AgentTool.DEVICE && found.installed && found.version === spec.version && supported)
     )
       throw new AgentToolRefused("AGENT_TOOL_NOT_READY", found.detail);
+    this.#lifecycle.assertOpen(scope.session);
     const source = this.#probeOptions().env ?? process.env;
     const { secrets } = installEnv(source);
 

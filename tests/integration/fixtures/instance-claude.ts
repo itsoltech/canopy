@@ -54,6 +54,19 @@ async function turn(text: string): Promise<void> {
   });
 
   if (text.includes("BACKGROUND_ARCHIVE_TEST")) {
+    appendFileSync(
+      transcript,
+      JSON.stringify({
+        type: "user",
+        uuid: crypto.randomUUID(),
+        sessionId: session,
+        cwd: process.cwd(),
+        timestamp: new Date().toISOString(),
+        parentUuid: null,
+        isSidechain: false,
+        message: { role: "user", content: text },
+      }) + "\n",
+    );
     await archivedBackground(session, send);
 
     return;

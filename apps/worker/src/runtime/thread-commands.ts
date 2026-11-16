@@ -18,6 +18,18 @@ const TURN_NOT_RUNNING = "TURN_NOT_RUNNING";
 export class ThreadCommands {
   constructor(readonly ctx: HostContext) {}
   async createThread(kind: Extract<Command["kind"], { case: "createThread" }>): Promise<CommandOutput> {
+    const threadId = kind.value.thread?.threadId ?? "";
+    await this.ctx.ops.prepareThread(threadId);
+
+    return this.ctx.state.turnAdmissions.start(threadId, async (current) => {
+      if (!current() || this.ctx.state.closedThreads.has(threadId) || this.ctx.state.unloadingThreads.has(threadId))
+        return {};
+
+      return this.#createThread(kind);
+    });
+  }
+
+  async #createThread(kind: Extract<Command["kind"], { case: "createThread" }>): Promise<CommandOutput> {
     const spec = kind.value.thread;
 
     if (!spec) throw new CommandError("INVALID_COMMAND", "thread spec missing", true);
@@ -63,6 +75,10 @@ export class ThreadCommands {
   async startTurn(kind: Extract<Command["kind"], { case: "startTurn" }>, commandId: string): Promise<CommandOutput> {
     const threadId = kind.value.thread?.threadId ?? "";
 
+    // Durable receipts must also acknowledge replays while the thread remains archived.
+    if (kind.value.thread && kind.value.input && (await this.#recordedTurn(threadId, kind.value.turnId))) return {};
+    await this.ctx.ops.prepareThread(threadId);
+
     if (this.ctx.state.rewindingThreads.has(threadId)) return {};
 
     return this.ctx.state.turnAdmissions.start(threadId, async (current) => {
@@ -100,11 +116,7 @@ export class ThreadCommands {
 
     // A crash can land between turn_started and remembering CommandResult. Do not admit that turn again,
     // even after its events were ACKed or the gateway replaced a previously rejected command id.
-    if (await this.ctx.state.options.runtime.runPromise(Journal.use((j) => j.hasStartedTurn(spec.threadId, turnId))))
-      return {};
-
-    if (await this.ctx.state.options.runtime.runPromise(Journal.use((j) => j.wasInterrupted(spec.threadId, turnId))))
-      return {};
+    if (await this.#recordedTurn(spec.threadId, turnId)) return {};
 
     if (this.ctx.state.closedThreads.has(spec.threadId) || this.ctx.state.rewindingThreads.has(spec.threadId))
       throw new CommandError("THREAD_CLOSED", "the thread is archived or deleted", true);
@@ -152,6 +164,7 @@ export class ThreadCommands {
     const canSubmit = () =>
       current() &&
       !this.ctx.state.closedThreads.has(spec.threadId) &&
+      !this.ctx.state.unloadingThreads.has(spec.threadId) &&
       !this.ctx.state.rewindingThreads.has(spec.threadId) &&
       !this.ctx.state.closing &&
       !this.ctx.state.shuttingDown &&
@@ -200,6 +213,16 @@ export class ThreadCommands {
     }
 
     return {};
+  }
+
+  #recordedTurn(threadId: string, turnId: string): Promise<boolean> {
+    return this.ctx.state.options.runtime.runPromise(
+      Journal.use((journal) =>
+        Effect.gen(function* () {
+          return (yield* journal.hasStartedTurn(threadId, turnId)) || (yield* journal.wasInterrupted(threadId, turnId));
+        }),
+      ),
+    );
   }
 
   async steerTurn(kind: Extract<Command["kind"], { case: "steerTurn" }>, commandId: string): Promise<CommandOutput> {

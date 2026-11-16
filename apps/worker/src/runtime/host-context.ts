@@ -18,13 +18,16 @@ import { CloneCommands } from "./clone-commands.ts";
 import { BranchCommands } from "./branch-commands.ts";
 import { RewindCommands } from "./rewind-commands.ts";
 import { BotTurns } from "../bots/runtime.ts";
+import { ThreadResources } from "./thread-resources.ts";
 
 export interface HostHooks {
   applyConfig(message: WorkerConfig): Promise<ConfigAppliedInit>;
   sendPreviews(link: GatewayLink, event: ThreadEvent): void;
+  stopThreadPreviews?(threadId: string): Promise<void>;
 }
 
 export type HostOperations = HostHooks &
+  Pick<ThreadResources, "releaseThread" | "prepareThread"> &
   Pick<RewindCommands, "rewindThread"> &
   Pick<BranchCommands, "switchThreadBranch"> &
   Pick<HostCatalog, "homes" | "probe" | "publishCatalog" | "listModels"> &
@@ -71,7 +74,7 @@ export type HostOperations = HostHooks &
     | "removeWorktree"
     | "revealWorktree"
   > &
-  Pick<CommandHandlers, "execute" | "closeDirectories">;
+  Pick<CommandHandlers, "execute" | "closeDirectories" | "closeThreadResources">;
 
 export class HostContext {
   readonly ops: HostOperations;
@@ -91,11 +94,14 @@ export class HostContext {
     const generation = new TextGeneration(this);
     const bots = new BotTurns(this);
     const commands = new CommandHandlers(this);
+    const resources = new ThreadResources(this);
     const gitCommands = new GitCommands(this);
     const clones = new CloneCommands(this);
     const branches = new BranchCommands(this);
     const rewinds = new RewindCommands(this);
     this.ops = {
+      releaseThread: resources.releaseThread.bind(resources),
+      prepareThread: resources.prepareThread.bind(resources),
       rewindThread: rewinds.rewindThread.bind(rewinds),
       ...hooks,
       switchThreadBranch: branches.switchThreadBranch.bind(branches),
@@ -151,6 +157,7 @@ export class HostContext {
       closeBots: bots.closeBots.bind(bots),
       execute: commands.execute.bind(commands),
       closeDirectories: commands.closeDirectories.bind(commands),
+      closeThreadResources: commands.closeThreadResources.bind(commands),
       listGitRefs: gitCommands.listGitRefs.bind(gitCommands),
       readWorkspaceOrigin: gitCommands.readWorkspaceOrigin.bind(gitCommands),
       readGitPrContext: gitCommands.readGitPrContext.bind(gitCommands),

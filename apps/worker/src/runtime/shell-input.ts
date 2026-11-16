@@ -22,6 +22,7 @@ export async function prepareShellInput(
   startTurn: boolean,
 ): Promise<UserInput> {
   if (input.shellCommand === undefined) return input;
+  const current = ctx.state.turnAdmissions.current(threadId);
 
   if (!input.shellCommand.trim() || !input.shellInputId || !input.authorUserId || input.authorAgentId)
     throw new CommandError("INVALID_SHELL_INPUT", "Shell commands need an owner and a nonempty command.", true);
@@ -43,6 +44,14 @@ export async function prepareShellInput(
     : (input.shellResult ?? (await runtime.runPromise(Journal.use((j) => j.shellInput(input.shellInputId)))));
 
   if (!result) {
+    if (
+      !current() ||
+      ctx.state.closedThreads.has(threadId) ||
+      ctx.state.unloadingThreads.has(threadId) ||
+      ctx.state.closing ||
+      ctx.state.shuttingDown
+    )
+      throw new CommandError("SHELL_INTERRUPTED", SHELL_STOPPED_REASON, true);
     const controller = new AbortController();
     const pending = executeShell(ctx, { threadId, turnId, input, commandId, startTurn, cwd }, controller);
     ctx.state.shellRuns.set(input.shellInputId, { threadId, turnId, startTurn, controller, pending });

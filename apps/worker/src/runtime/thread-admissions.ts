@@ -1,14 +1,20 @@
 import { CommandError } from "./host-types.ts";
 
-/** A rewind invalidates queued starts immediately and drains preparation before replacing the session. */
+/** Archive and rewind invalidate queued work immediately and drain preparation before releasing a session. */
 export class ThreadAdmissions {
   readonly #tails = new Map<string, Promise<void>>();
   readonly #generations = new Map<string, number>();
 
-  async start<A>(threadId: string, run: (current: () => boolean) => Promise<A>): Promise<A> {
+  current(threadId: string): () => boolean {
     const generation = this.#generations.get(threadId) ?? 0;
+
+    return () => (this.#generations.get(threadId) ?? 0) === generation;
+  }
+
+  async start<A>(threadId: string, run: (current: () => boolean) => Promise<A>): Promise<A> {
+    const current = this.current(threadId);
     const previous = this.#tails.get(threadId) ?? Promise.resolve();
-    const next = previous.then(() => run(() => (this.#generations.get(threadId) ?? 0) === generation));
+    const next = previous.then(() => run(current));
 
     const settled = next.then(
       () => {},

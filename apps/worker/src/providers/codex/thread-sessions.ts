@@ -71,8 +71,7 @@ export function threadSessions(ctx: CodexThreadContext) {
   const { options, codex, byPlatform } = ctx;
   const loading = Semaphore.makeUnsafe(1);
 
-  const register = (platformId: string, codexId: string, rolloutPath: string | null) =>
-    registerThread(ctx, platformId, codexId, rolloutPath);
+  const register = registerThread.bind(undefined, ctx);
 
   const threadParams = (spec: ThreadSpec) => paramsOf(ctx, spec);
 
@@ -94,6 +93,10 @@ export function threadSessions(ctx: CodexThreadContext) {
           message: "thread was never created on Codex",
         });
       }
+
+      // Archive shuts down the native session and moves its rollout. Restore its original path
+      // before imported-session repair or cold resume; this does not load a native session.
+      yield* codex.request("thread/unarchive", { threadId: spec.providerThreadId }).pipe(Effect.ignore);
 
       const params = yield* Effect.try({
         try: () => threadParams(spec),

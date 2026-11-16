@@ -1,7 +1,8 @@
 # Narzędzia automatyzacji agentów
 
 Status (2026-11-16): **narzędzia, interaktywny Preview i automatyczny mini Preview
-wątku zaimplementowane**. Browser MCP pozostaje w sesji wątku i działa headless;
+wątku oraz sprzątanie sesji przy archiwizacji zaimplementowane**.
+Browser MCP pozostaje w sesji wątku i działa headless;
 watch zachowuje się po aktualizacji statusu tego samego workera, a nowy odbiorca
 aktywnej grupy dostaje ostatnią klatkę. Zmiana uprawnień bieżącej tury Claude
 aktualizuje także autoryzację automatyzacji.
@@ -148,6 +149,22 @@ Inna bezpieczna wartość długości do 64 znaków także pozostaje bez zmian;
 niebezpieczna albo dłuższa wartość staje się `canopy-` oraz pierwszymi 32
 znakami hex SHA-256 oryginału. Ta sama funkcja normalizacji obowiązuje w panelu
 i MCP.
+
+Archiwizacja zamyka bridge MCP i podglądy przed zwolnieniem sesji narzędzi.
+Worker blokuje nowe wywołania, czeka na operacje w toku i wykonuje sprzątanie
+wyłącznie dla deterministycznej sesji wątku: Browser zamyka przeglądarkę,
+Desktop wyłącza jej cursor overlay, a Device zamyka sesję i należące do niej
+helpery oraz zarządzaną przeglądarkę. Desktop nie dostaje trwałego `session end`,
+więc ten sam wątek może ponownie korzystać z automatyzacji po przywróceniu.
+Wspólny daemon Device oraz aplikacje i sesje innych wątków pozostają dostępne.
+Historia i artefakty na dysku są zachowane. Sprawdzenia istniejących sesji nie
+uruchamiają nieużywanego daemona; brak obsługiwanej binarki albo błąd zamykania
+ograniczają możliwość zwolnienia zasobów natywnych. Błąd wykonanej operacji
+sprzątania pozostawia trwałe polecenie do ponowienia.
+
+Przywrócenie wątku odblokowuje wywołania, ale nie uruchamia żadnej binarki,
+podglądu ani zatrzymanego zadania. Kolejne rzeczywiste wywołanie tworzy potrzebne
+zasoby od nowa; sesja przeglądarki nie odtwarza automatycznie zamkniętych kart.
 
 Środowisko procesu narzędzia jest czyszczone przez `toolEnvironment`, a Node
 jest dodawany do `PATH`: `CANOPY_*` oraz rozpoznane zmienne sekretów są usuwane,

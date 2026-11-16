@@ -28,6 +28,7 @@ import type { GatewayCore } from "./core.ts";
 import { corePublishInteraction } from "./core-interactions.ts";
 import { corePublishSteer, coreQueueSteer, coreSteers } from "./core-messages.ts";
 import { coreProfileModels } from "./core-models.ts";
+import { recoverThreadCreation } from "./thread-creation-recovery.ts";
 import { storedShellResult } from "../store/shell-input.ts";
 import { takeBranchNote } from "../store/thread-branches.ts";
 import { coreBroadcastThread, coreBroadcastTurn, coreLog, coreRun } from "./core-broadcast.ts";
@@ -118,6 +119,12 @@ export async function corePumpQueued(hostContext: GatewayCore, threadId: string)
   const state = await coreRun(hostContext, (s) => s.thread(threadId, true));
 
   if (state.deleted_at || state.archived_at || state.rewind_pending_id) return;
+
+  if (!state.provider_thread_id) {
+    await recoverThreadCreation(hostContext, threadId);
+
+    return;
+  }
 
   // Steers that never joined their turn run next (in order, before anything queued after them).
   for (const steerId of await coreSteers(hostContext, (s) => s.dropped(threadId)))

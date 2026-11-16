@@ -21,7 +21,7 @@ export class AgentPreviews {
   readonly #options: AgentPreviewsOptions;
   readonly #watches = new Map<string, Entry>();
   readonly #groups = new Map<string, PreviewGroup>();
-  readonly #closing = new Set<Promise<void>>();
+  readonly #closing = new Map<Promise<void>, string>();
   #closed = false;
 
   constructor(options: AgentPreviewsOptions) {
@@ -111,20 +111,23 @@ export class AgentPreviews {
     const closing = entry.group.remove(id);
 
     if (!entry.group.watches.size) this.#groups.delete(entry.key);
-    this.#closing.add(closing);
+    this.#closing.set(closing, entry.watch.threadId);
     void closing.finally(() => this.#closing.delete(closing)).catch(() => undefined);
   }
 
-  stopThread(threadId: string): void {
+  async stopThread(threadId: string): Promise<void> {
     for (const [id, entry] of this.#watches) {
       if (entry.watch.threadId === threadId) this.#stop(id);
     }
+
+    // Include watches already removed by stop/error/lease expiry while their backend is still closing.
+    await Promise.allSettled([...this.#closing].flatMap(([pending, id]) => (id === threadId ? [pending] : [])));
   }
 
   async close(): Promise<void> {
     this.#closed = true;
 
     for (const id of this.#watches.keys()) this.#stop(id);
-    await Promise.allSettled(this.#closing);
+    await Promise.allSettled(this.#closing.keys());
   }
 }

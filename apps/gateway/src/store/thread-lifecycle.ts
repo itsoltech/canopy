@@ -1,19 +1,7 @@
-import type { Command, CommandSchema } from "@canopy/contracts";
-import type { MessageInitShape } from "@bufbuild/protobuf";
 import { Effect } from "effect";
-import type { SqlClient, SqlError } from "effect/sql";
+import type { SqlClient } from "effect/sql";
 import { Invalid, NotFound } from "./store.ts";
-import { closeCheckWatches } from "./pr-check-notes.ts";
-
-type Fx<A> = Effect.Effect<A, SqlError.SqlError | Invalid | NotFound>;
-
-type Dispatch = (input: {
-  workerId: string;
-  threadId: string;
-  turnId: string;
-  command: MessageInitShape<typeof CommandSchema>;
-  ttlSeconds: number;
-}) => Fx<Command>;
+import { stopThreadResources, type Dispatch } from "./thread-cleanup.ts";
 
 interface Owned {
   id: string;
@@ -41,47 +29,6 @@ const owned = (sql: SqlClient.SqlClient, userId: string, threadId: string, delet
 /** All lifecycle transitions lock the same thread rows as the turn queue. Interrupts go into the durable
  * outbox before a thread is hidden, including an offline worker. Restoring never restarts work. */
 export function threadLifecycle(sql: SqlClient.SqlClient, dispatch: Dispatch) {
-  const stop = (ids: string[]) =>
-    Effect.gen(function* () {
-      const turns = yield* sql<{ id: string; thread_id: string; worker_id: string | null }>`
-      SELECT u.id, u.thread_id, t.worker_id FROM turns u JOIN threads t ON t.id = u.thread_id
-      WHERE t.id = ANY(${ids}::uuid[]) AND (u.status = 'running' OR
-        (u.status = 'queued' AND EXISTS (SELECT 1 FROM worker_commands c WHERE c.turn_id = u.id
-          AND c.kind = 'startTurn' AND c.status IN ('pending', 'delivered', 'completed'))))
-      ORDER BY u.thread_id, u.ordinal DESC`;
-
-      const commands: { workerId: string; command: Command }[] = [];
-
-      for (const turn of turns)
-        if (turn.worker_id)
-          commands.push({
-            workerId: turn.worker_id,
-            command: yield* dispatch({
-              workerId: turn.worker_id,
-              threadId: turn.thread_id,
-              turnId: turn.id,
-              ttlSeconds: 86400,
-              command: { kind: { case: "interruptTurn", value: { threadId: turn.thread_id, turnId: turn.id } } },
-            }),
-          });
-      yield* sql`UPDATE turns SET status = 'cancelled', completed_at = now() WHERE thread_id = ANY(${ids}::uuid[]) AND status = 'queued'`;
-      yield* sql`UPDATE turn_steers SET status = 'dropped', reason = 'thread closed', updated_at = now()
-      WHERE thread_id = ANY(${ids}::uuid[]) AND status IN ('pending', 'accepted')`;
-      yield* sql`UPDATE schedules SET status = 'cancelled', next_run_at = NULL, lease_owner = NULL, lease_until = NULL, updated_at = now()
-      WHERE thread_id = ANY(${ids}::uuid[]) AND status IN ('active', 'paused')`;
-      yield* sql`UPDATE agent_bus_calls SET notify_status = 'cancelled'
-      WHERE (source_thread_id = ANY(${ids}::uuid[]) OR target_thread_id = ANY(${ids}::uuid[])) AND notify_status = 'pending'`;
-      yield* sql`UPDATE interaction_requests SET status = 'expired', answered_at = now()
-      WHERE thread_id = ANY(${ids}::uuid[]) AND status = 'pending'`;
-      yield* sql`UPDATE interaction_requests SET answer_delivery = 'cancelled'
-      WHERE thread_id = ANY(${ids}::uuid[]) AND answer_delivery IN ('pending', 'consumed')`;
-      yield* sql`UPDATE background_task_notes SET status = 'cancelled', steer_id = NULL, reason = 'thread closed', updated_at = now()
-      WHERE thread_id = ANY(${ids}::uuid[]) AND status IN ('waiting', 'steering')`;
-      yield* closeCheckWatches(sql, ids);
-
-      return commands;
-    });
-
   return {
     setThreadRead: (userId: string, threadId: string, unread: boolean) =>
       sql.withTransaction(
@@ -116,7 +63,7 @@ export function threadLifecycle(sql: SqlClient.SqlClient, dispatch: Dispatch) {
         ORDER BY id FOR UPDATE`;
 
           const ids = [threadId, ...children.map((child) => child.id)];
-          const commands = archived ? yield* stop(ids) : [];
+          const commands = archived ? yield* stopThreadResources(sql, dispatch, ids) : [];
           yield* sql`UPDATE threads SET status = CASE WHEN ${archived} THEN 'archived'
           WHEN EXISTS (SELECT 1 FROM turns u WHERE u.thread_id = threads.id AND u.status = 'running') THEN 'running'
           WHEN runtime = 'worker' AND provider_thread_id IS NULL THEN CASE WHEN status_detail IS NULL THEN 'creating' ELSE 'failed' END ELSE 'idle' END,
@@ -139,7 +86,7 @@ export function threadLifecycle(sql: SqlClient.SqlClient, dispatch: Dispatch) {
         AND owner_user_id = ${userId}::uuid AND deleted_at IS NULL ORDER BY id FOR UPDATE`;
 
           const ids = rows.map((r) => r.id);
-          const commands = yield* stop(ids);
+          const commands = yield* stopThreadResources(sql, dispatch, ids);
           // Late deleted-thread events are acknowledged without projection, so finish its turns here.
           yield* sql`UPDATE turns SET status='interrupted', interrupt_source='system',
             interrupt_reason='thread deleted', completed_at=now()

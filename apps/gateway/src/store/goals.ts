@@ -227,7 +227,8 @@ export class GoalStore extends Context.Service<
               yield* sql`
                 UPDATE goals SET status = ${status}, error = ${error}, error_at = now(), updated_at = now(),
                                  finished_at = CASE WHEN ${status} IN ('achieved', 'cancelled') THEN coalesce(finished_at, now()) ELSE NULL END
-                 WHERE id = ${goalId}::uuid`;
+                 WHERE id = ${goalId}::uuid
+                   AND (status <> 'paused' OR last_reason IS DISTINCT FROM 'thread closed')`;
 
               return yield* goal(goalId);
             }),

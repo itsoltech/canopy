@@ -453,7 +453,13 @@ Zasady:
   identyfikatory. Po rejestracji połączenia gateway ponawia snapshot z ochroną
   przed nadpisaniem nowszej zmiany starym odczytem. Worker stosuje Welcome przed
   konfiguracją i blokuje nowe `StartTurn` oraz natywną pobudkę Claude w zamkniętym
-  wątku. Zadania w tle działają dalej. Nie wymaga to zmiany wersji protokołu:
+  wątku. Zamyka też jego zasoby wykonawcze. Trwałe `UnloadThread` kończy się
+  sukcesem dopiero po zatrzymaniu procesów, sesji i podglądów oraz zwolnieniu
+  uchwytów; `THREAD_CLEANUP_PENDING` oznacza ponowienie tego samego polecenia.
+  Oczekujące sprzątanie nie wygasa i blokuje nowe starty oraz purge historii,
+  także po szybkim przywróceniu. Przywrócenie nie odtwarza zasobów; dopiero
+  kolejna wiadomość może ponownie załadować sesję z zachowaną historią.
+  Nie wymaga to zmiany wersji protokołu:
   stary worker korzysta z ochrony ingestu gatewaya, a nowy worker ze starym
   gatewayem korzysta z trwałego wstrzymania journali po drainie ingestu.
 - Kompaktowanie delt po `item_completed` to decyzja retencji, nie protokołu ([transcript.md](transcript.md#7-retencja)).
@@ -473,7 +479,7 @@ Oryginalna sesja zostaje do undo; żadne pliki nie są cofane bez `restore_files
 | `CreateThread` | Walidacja absolutnego, istniejącego katalogu `cwd` i profilu dostawcy. Nowy wątek u dostawcy albo fork (`ForkSpec`: Claude `forkSession`, Codex `thread/fork`). | `CommandResult` + `thread_ready` (`provider_thread_id`) |
 | `StartTurn` | Nowa tura. Wątek jest wznawiany w razie potrzeby (Claude `resume`, Codex `thread/resume`) na podstawie pełnego `ThreadSpec`. Idempotentne po `turn_id`. | `CommandResult` + zdarzenia tury |
 | `InterruptTurn` | Przerwanie tury (Claude `interrupt()`, Codex `turn/interrupt`). Zadania w tle działają dalej. | `CommandResult` + `turn_finished` (interrupted); `TURN_NOT_RUNNING`, gdy ten proces tury nie prowadzi (gateway kończy ją u siebie) |
-| `UnloadThread` | Zwolnienie procesu dostawcy, tylko gdy wątek nie jest zajęty (brak tury, zadań w tle i interakcji). Historia zostaje. | `CommandResult` |
+| `UnloadThread` | Zatrzymanie pracy wątku i zwolnienie jego procesów, sesji, podglądów oraz uchwytów. Historia zostaje; przywrócenie samo nie uruchamia zasobów. | `CommandResult` po zakończeniu sprzątania |
 | `SteerTurn` | Dołączenie wejścia do tury w toku (Claude strumień wejścia, Codex `turn/steer`). Idempotentne po `input_id`. | `CommandResult` (`STEER_NOT_RUNNING` / `STEER_REJECTED`) + item `user_message` z `client_id = input_id` |
 | `ListModels` | Lista modeli od nowa (bez pamięci podręcznej workera), opcjonalnie jednego dostawcy i profilu. | `CommandResult.models` |
 | `StopTask` | Zatrzymanie zadania w tle lub subagenta w tle (Claude `stopTask`, Codex zakończenie procesu / `closeAgent`). | `CommandResult` + item `interrupted` |
@@ -481,6 +487,7 @@ Oryginalna sesja zostaje do undo; żadne pliki nie są cofane bez `restore_files
 | `ListDirectory` | Listowanie dowolnego dostępnego katalogu absolutnego (wybór workspace); pusta ścieżka = home workera. | `CommandResult.entries` + `directory_path` |
 
 - Każda komenda ma `command_id`. Worker pamięta ostatnio przetworzone ID i nie wykonuje ich drugi raz.
+- Ponowione `StartTurn` dla tury zapisanej w dzienniku jako rozpoczęta lub przerwana dostaje pomyślny ACK bez uruchamiania zasobów, również po restarcie workera i dla nadal zamkniętego wątku.
 - `StartTurn` czeka per wątek za jego działającą turą; do rzeczywistego startu pozostaje bez ACK w trwałym outboxie gatewaya. Odmowa `TURN_ALREADY_RUNNING` oraz dokładny komunikat starszego workera `THREAD_ERROR: a turn of this thread is already running` powodują wewnętrzne ponowienie z nowym `command_id` i tym samym `turn_id`, bez nieudanej tury w UI. Nie zmienia to proto ani `WORKER_LINK_PROTOCOL`.
 - `InterruptTurn` dla tury, której worker nie prowadzi (np. zginęła z poprzednim procesem): `TURN_NOT_RUNNING`; gateway kończy turę jako `interrupted` („the turn was no longer running on the worker”) i uruchamia kolejną z kolejki.
 - `thread_ready.replaces_provider_thread_id`: worker zaczął nowy wątek dostawcy zamiast wznowienia (Codex: wątek bez żadnej tury nie ma rolloutu). Gateway podmienia `provider_thread_id` tylko wtedy, gdy zapisany jest ten zastępowany i żadna tura wątku jeszcze nie wystartowała (trigger `threads_before_update`).

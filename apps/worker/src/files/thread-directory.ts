@@ -15,6 +15,7 @@ import { VerifiedDirectory, type DirectoryHandle } from "./directory-handle.ts";
 type Target = Awaited<ReturnType<typeof directoryPath>>;
 
 interface Session {
+  threadId: string;
   key: string;
   target: Target;
   iterator: DirectoryHandle;
@@ -26,17 +27,40 @@ interface Session {
   closed: boolean;
 }
 
+interface Listing {
+  threadId: string;
+  cancelled: boolean;
+  pending?: Promise<void>;
+}
+
 /** Eight bounded native directory iterators; no recursive manifest, journal or replay. */
 export class ThreadDirectories {
   #sessions = new Map<string, Session>();
   #live = new Set<Session>();
   #opening = 0;
-  #epoch = 0;
+  #listings = new Set<Listing>();
 
   async list(request: ListThreadDirectory) {
+    const listing: Listing = { threadId: request.threadId, cancelled: false };
+    this.#listings.add(listing);
+    const result = this.#list(request, listing);
+    listing.pending = result.then(
+      () => {},
+      () => {},
+    );
+
+    try {
+      return await result;
+    } finally {
+      this.#listings.delete(listing);
+    }
+  }
+
+  async #list(request: ListThreadDirectory, listing: Listing) {
     const started = performance.now();
-    const epoch = this.#epoch;
     const target = await directoryPath(request.workspace, request.directory);
+
+    if (listing.cancelled) return create(ThreadDirectoryPageSchema, { error: Failure.CURSOR_EXPIRED });
 
     const key = directoryIdentity(
       JSON.stringify([
@@ -73,9 +97,15 @@ export class ThreadDirectories {
       clearTimeout(session.timer);
     }
 
-    const cursor = session ?? (await this.#open(key, target));
+    const cursor = session ?? (await this.#open(key, target, listing));
 
     try {
+      if (listing.cancelled) {
+        await this.#close(cursor);
+
+        return create(ThreadDirectoryPageSchema, { error: Failure.CURSOR_EXPIRED });
+      }
+
       const git = await directoryGit(target.root);
 
       const page = create(ThreadDirectoryPageSchema, {
@@ -91,7 +121,7 @@ export class ThreadDirectories {
       page.gitStatusReason = git.reason;
 
       if (
-        epoch !== this.#epoch ||
+        listing.cancelled ||
         cursor.closed ||
         (await cursor.iterator.revision()) !== target.revision ||
         (await directoryRevision(target.path)) !== target.revision
@@ -104,7 +134,12 @@ export class ThreadDirectories {
       // Re-resolve the boundary after enumeration, before any names leave the worker.
       const current = await directoryPath(request.workspace, request.directory);
 
-      if (current.rootIdentity !== target.rootIdentity || current.path !== target.path) {
+      if (
+        listing.cancelled ||
+        cursor.closed ||
+        current.rootIdentity !== target.rootIdentity ||
+        current.path !== target.path
+      ) {
         await this.#close(cursor);
 
         return create(ThreadDirectoryPageSchema, { error: Failure.ROOT_CHANGED });
@@ -129,7 +164,7 @@ export class ThreadDirectories {
     }
   }
 
-  async #open(key: string, target: Target): Promise<Session> {
+  async #open(key: string, target: Target, listing: Listing): Promise<Session> {
     if (this.#live.size + this.#opening >= 8)
       throw new CommandError(
         "DIRECTORY_BUSY",
@@ -142,6 +177,7 @@ export class ThreadDirectories {
       const iterator = await VerifiedDirectory.open(target);
 
       const session: Session = {
+        threadId: listing.threadId,
         key,
         target,
         iterator,
@@ -153,8 +189,12 @@ export class ThreadDirectories {
       };
 
       clearTimeout(session.timer);
-      this.#sessions.set(session.token, session);
-      this.#live.add(session);
+
+      if (listing.cancelled) await this.#close(session);
+      else {
+        this.#sessions.set(session.token, session);
+        this.#live.add(session);
+      }
 
       return session;
     } finally {
@@ -246,7 +286,18 @@ export class ThreadDirectories {
   }
 
   async close() {
-    this.#epoch++;
+    for (const listing of this.#listings) listing.cancelled = true;
     await Promise.all([...this.#live].map((session) => this.#close(session)));
+    await Promise.all([...this.#listings].map((listing) => listing.pending));
+  }
+
+  async closeThread(threadId: string) {
+    const listings = [...this.#listings].filter((listing) => listing.threadId === threadId);
+
+    for (const listing of listings) listing.cancelled = true;
+    await Promise.all(
+      [...this.#live].flatMap((session) => (session.threadId === threadId ? [this.#close(session)] : [])),
+    );
+    await Promise.all(listings.map((listing) => listing.pending));
   }
 }

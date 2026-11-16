@@ -3,7 +3,7 @@ import type { HighlightCommand, HighlightReply, HighlightTask } from "./highligh
 
 declare const self: Worker;
 
-const sessions = new Map<string, { value: WindowHighlighter; bytes: number; touched: number }>();
+const sessions = new Map<string, { threadId: string; value: WindowHighlighter; bytes: number; touched: number }>();
 let active: { task: HighlightTask; value: WindowHighlighter } | undefined;
 
 function trim() {
@@ -24,6 +24,12 @@ timer.unref();
 const reply = (value: HighlightReply) => self.postMessage(value);
 
 self.onmessage = async (event: MessageEvent<HighlightCommand>) => {
+  if ("closeThread" in event.data) {
+    for (const [key, session] of sessions) if (session.threadId === event.data.closeThread) sessions.delete(key);
+
+    return;
+  }
+
   if ("run" in event.data) {
     const current = active;
 
@@ -49,7 +55,12 @@ self.onmessage = async (event: MessageEvent<HighlightCommand>) => {
     if (!session) {
       const value = new WindowHighlighter(task.path, task.source);
       await value.ready();
-      session = { value, bytes: new TextEncoder().encode(task.source).length, touched: Date.now() };
+      session = {
+        threadId: task.threadId,
+        value,
+        bytes: new TextEncoder().encode(task.source).length,
+        touched: Date.now(),
+      };
     }
 
     session.touched = Date.now();
