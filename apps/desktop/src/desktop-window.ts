@@ -10,6 +10,7 @@ import { allowedFontAccess, allowedPermission } from "./window-permissions.ts";
 import { attachContextMenu } from "./context-menu.ts";
 import { browserLink } from "./context-menu-template.ts";
 import { attachWorkspaceClose } from "./workspace-close.ts";
+import { windowContents } from "./window-message.ts";
 
 interface WindowOptions {
   appRoutes: AppRoutes;
@@ -39,7 +40,7 @@ export function isTrustedDesktopEvent(
     !frame ||
     event.sender.isDestroyed() ||
     frame !== event.sender.mainFrame ||
-    !windows.map((target) => target?.webContents).includes(event.sender)
+    !windows.some((target) => windowContents(target) === event.sender)
   )
     return false;
 
@@ -113,7 +114,7 @@ export function createDesktopWindow(options: WindowOptions) {
   });
   const contentId = target.webContents.id;
   target.webContents.on("did-start-navigation", (_event, _url, isInPlace, isMainFrame) => {
-    if (isMainFrame && !isInPlace) options.enrollmentReady.delete(target.webContents.id);
+    if (isMainFrame && !isInPlace) options.enrollmentReady.delete(contentId);
   });
   target.on("closed", () => options.enrollmentReady.delete(contentId));
   target.webContents.setWindowOpenHandler(({ url }) => {

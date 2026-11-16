@@ -10,6 +10,7 @@ import { ui } from "@canopy/contracts";
 import { materializeSettings, settingsValues } from "../../apps/gateway/src/config-sync/settings.ts";
 import { emptyRecord } from "../../apps/gateway/src/config-sync/persistence.ts";
 import { wireItem } from "../../apps/gateway/src/config-sync/merge.ts";
+import { gatewayPreferencesScope } from "../../apps/web/src/lib/server/client-preferences.ts";
 
 function deviceStorage() {
   const records = new Map<string, string>();
@@ -31,6 +32,35 @@ function deviceStorage() {
 }
 
 describe("device view persistence for clients of the same owner", () => {
+  test("local desktop sidebar preferences survive a gateway restart on another port", () => {
+    const storage = deviceStorage();
+    const beforeScope = gatewayPreferencesScope("http://127.0.0.1:31001", "local");
+    const before = storage.open(beforeScope);
+    const legacy = { groupByProject: true, projectOrder: ui.ProjectOrder.NAME, workingSection: true };
+    before.initialize(legacy);
+    before.set({
+      groupByProject: false,
+      groupByWorktree: false,
+      projectOrder: ui.ProjectOrder.CREATED,
+      workingSection: false,
+    });
+
+    const afterScope = gatewayPreferencesScope("http://127.0.0.1:31002", "local");
+    const after = storage.open(afterScope);
+    after.initialize(legacy);
+    expect(afterScope).toBe(beforeScope);
+    expect(after.values).toEqual(before.values);
+
+    const remoteScope = gatewayPreferencesScope("https://gateway.invalid", { fingerprint: "gateway-a" });
+    expect(gatewayPreferencesScope("https://other-route.invalid", { fingerprint: "gateway-a" })).toBe(remoteScope);
+    expect(gatewayPreferencesScope("https://gateway.invalid", { fingerprint: "gateway-b" })).not.toBe(remoteScope);
+    expect(remoteScope).not.toBe(beforeScope);
+    expect(storage.open(remoteScope).values.projectOrder).toBe(ui.ProjectOrder.ACTIVITY);
+    expect(gatewayPreferencesScope("https://server-a.invalid")).not.toBe(
+      gatewayPreferencesScope("https://server-b.invalid"),
+    );
+  });
+
   test("filters migrate once per gateway and device while account pins still follow the owner", () => {
     const legacy = create(ui.UserSettingsSchema, {
       sidebar: {

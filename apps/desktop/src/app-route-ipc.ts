@@ -1,9 +1,11 @@
 import { ipcMain, type BrowserWindow, type IpcMainInvokeEvent } from "electron";
 import type { AppRoutes } from "./app-routes.ts";
+import { windowContents } from "./window-message.ts";
 
 export function trackAppRoutes(target: BrowserWindow, routes: AppRoutes): BrowserWindow {
-  target.webContents.on("did-start-navigation", (_event, _url, inPlace, mainFrame) => {
-    if (mainFrame && !inPlace) routes.loading(target.webContents);
+  const contents = target.webContents;
+  contents.on("did-start-navigation", (_event, _url, inPlace, mainFrame) => {
+    if (mainFrame && !inPlace) routes.loading(contents);
   });
 
   return target;
@@ -29,7 +31,7 @@ export function registerAppRouteIpc(
   ipcMain.handle("canopy:routes-ready", (event) => {
     authorize(event);
 
-    if (event.sender === mainWindow()?.webContents && new URL(event.sender.getURL()).pathname !== "/desktop")
+    if (event.sender === windowContents(mainWindow()) && new URL(event.sender.getURL()).pathname !== "/desktop")
       routes.ready(event.sender);
   });
 }

@@ -3,7 +3,8 @@
 Status: opis zaimplementowanego runtime (2026-11-16), w tym ręcznego odzyskiwania aktualizacji Windows
 i odmowy startu lokalnej bazy z uprawnieniami administratora, sesji dostępu do lokalnego BFF,
 podglądu bieżącej zajętości plików Canopy w Diagnostics oraz własnego HTML w rozmowie
-z odizolowanego renderera offscreen.
+z odizolowanego renderera offscreen, bezpiecznego zamykania po zniszczeniu głównego okna
+oraz stałego zakresu preferencji urządzenia po restarcie lokalnego gatewaya.
 Dostępność w nightly/beta/stable określają [zasady wydań](release.md) i GitHub Releases.
 
 Implementacja: `apps/desktop`. Cele wydania na każdym kanale: **Linux x64,
@@ -91,6 +92,9 @@ Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji
    Port web jest wybierany raz i zapisywany w `web-port` w katalogu runtime, bo origin
    `http://127.0.0.1:<port>` wyznacza localStorage z preferencjami urządzenia. Zajęty
    zapisany port zastępuje nowy, również zapisany.
+   Zakres preferencji lokalnego desktopu nie zależy od losowego portu gRPC gatewaya:
+   ponowny start zachowuje m.in. grupowanie sidebara. Tryb zdalny nadal rozdziela
+   preferencje według tożsamości sparowanego gatewaya.
    Settings → Network access otwiera jeden listener TLS dla telefonów, połączonych komputerów i workerów
    na wszystkich interfejsach, z portem wybieranym i zapisywanym w bazie. Parowanie
    przypina certyfikat komputera; zmiany sieci odświeżają ogłaszane adresy.
@@ -388,6 +392,12 @@ backoff 1–30 sekund i budżet 8 prób; kod 78 workera nie jest ponawiany.
 Opóźnione zdarzenie statusu lub IPC podczas zamykania może trafić na okno, którego `WebContents`
 został już zniszczony. Dostarczanie do okien sprawdza oba poziomy życia i ignoruje wyłącznie
 ten wyścig, żeby zamykanie nie kończyło głównego procesu wyjątkiem Electrona.
+Odczyt `WebContents` dla autoryzacji IPC, nagłówków sesji i unieważnienia sesji
+pomija zniszczone okna, zanim dotknie natywnego gettera.
+Zamknięcie ostatniego okna na Windows/Linux może więc
+dokończyć Quit i zatrzymać usługi; martwe okno nie blokuje też żądań drugiego okna.
+Callbacki nawigacji zachowują wcześniej przechwycony obiekt lub id, zamiast odczytywać
+go ponownie ze zniszczonego okna.
 Uruchomienie drugiej instancji w trakcie zamykania jest zapamiętywane i powoduje relaunch po
 zakończeniu sprzątania, zamiast ginąć w blokadzie jednej instancji.
 

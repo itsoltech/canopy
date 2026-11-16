@@ -1,5 +1,4 @@
 import { createClient, type Client } from "@connectrpc/connect";
-import { createHash } from "node:crypto";
 import { createGrpcTransport } from "@connectrpc/connect-node";
 import { error, fail, isActionFailure, isHttpError, type ActionFailure } from "@sveltejs/kit";
 import { ui } from "@canopy/contracts";
@@ -16,6 +15,7 @@ import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import { WEB_VERSION_HEADER } from "@canopy/domain/release/web-version";
 import { compareVersions } from "@canopy/updater/release";
 import { bffTarget, onBffTargetChange } from "@canopy/domain/bff-target";
+import { gatewayPreferencesScope } from "./client-preferences.ts";
 
 interface Connection {
   generation: number;
@@ -71,9 +71,10 @@ function current(): Connection {
 export function clientPreferencesScope(): string {
   const { desktop, url } = current();
 
-  return createHash("sha256")
-    .update(desktop?.preferencesIdentity ?? url)
-    .digest("hex");
+  return gatewayPreferencesScope(
+    url,
+    desktop ? { fingerprint: desktop.preferencesIdentity } : bffTarget() ? "local" : undefined,
+  );
 }
 
 export async function gatewayCompatibility(): Promise<GatewayCompatibility> {
