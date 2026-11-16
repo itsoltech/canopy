@@ -52,7 +52,7 @@
   }
 </script>
 
-<div class={["grid size-9 shrink-0 place-items-center sm:size-8", className]}>
+<div class={["grid h-9 w-14 shrink-0 place-items-center sm:h-8 sm:w-13", className]}>
   {#if glance.length || usageProxies.length}
     <div role="group" aria-label="Provider usage" onpointerenter={hover} onpointerleave={leave}>
       <Popover
@@ -69,7 +69,7 @@
             {...props}
             type="button"
             aria-label={label}
-            class="grid size-9 place-items-center rounded-lg focus-ring hover:bg-zinc-950/5 sm:size-8 dark:hover:bg-white/5"
+            class="grid h-9 w-14 place-items-center rounded-lg focus-ring hover:bg-zinc-950/5 sm:h-8 sm:w-13 dark:hover:bg-white/5"
             onclick={() => {
               open = !pinned;
               pinned = open;

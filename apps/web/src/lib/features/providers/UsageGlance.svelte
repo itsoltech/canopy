@@ -5,7 +5,7 @@
   let { glance, class: className }: { glance: readonly UsageGlance[]; class?: ClassValue } = $props();
 </script>
 
-<span aria-hidden="true" class={["grid w-5 gap-1", className]}>
+<span aria-hidden="true" class={["grid w-10 gap-1", className]}>
   {#each glance as item (item.provider)}
     <span class="relative h-1 overflow-hidden rounded-full bg-zinc-950/10 dark:bg-white/10">
       <span

@@ -1,5 +1,8 @@
 # Status kont dostawców
 
+Status: opis zaimplementowanego kodu (2026-11-16), w tym szerszego wskaźnika
+limitów w sidebarze web/desktop. Dostępność w wydaniach: [release.md](release.md).
+
 Konta proxy mają osobny ręczny wybór planu w Settings → Proxies → Accounts (web i mobile).
 Wybór wygrywa z wykrywaniem i zasila ważoną pojemność; **Automatic** go usuwa.
 Claude Team liczy się jako ×5 według deklaracji użytkownika z 2026-11-15,
@@ -236,7 +239,9 @@ rodzaj okna i reset w kodzie `usage_limit:<window>:<unix-seconds>`; późniejszy
 raport konta nie zmienia historycznej karty. Szczegóły są w „Show details”.
 
 Dolny pasek sidebara web/desktop i mobile rezerwuje stały slot na kompaktowy
-wskaźnik użycia. Każdy dostawca z danymi ma jeden pasek: wykorzystanie najbardziej
+wskaźnik użycia. W web/desktop paski mają szerokość 2,5 rem (40 px przy domyślnej
+skali), a przycisk i rezerwowany slot mieszczą je z poziomym paddingiem bez zmiany
+wysokości. Każdy dostawca z danymi ma jeden pasek: wykorzystanie najbardziej
 ograniczającego okna z wiersza popovera. Poniżej 70% jest neutralny,
 od 70% ostrzegawczy, a od 90% alarmowy. Potwierdzone dodatkowe użycie ma fioletowy
 pasek z przerwą. Dostępność kredytów sama nie oznacza ich używania.
