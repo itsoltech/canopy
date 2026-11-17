@@ -1,7 +1,8 @@
 # Canopy na iOS i Android
 
 Status: opis zaimplementowanego kodu (2026-11-17); kompozytory i ustawienia botów
-pokazują zwarte menu Speed z ikonami szybkości zgodnie z katalogiem modeli danego konta. iOS utrzymuje najnowsze wiadomości
+pokazują zwarte menu Speed z ikonami szybkości i wspólnym glifem podwójnego pioruna dla Ultrafast,
+zgodnie z katalogiem modeli danego konta. iOS utrzymuje najnowsze wiadomości
 nad kompozytorem po nadejściu kolejnych tur, a „Show latest” ma okrągły stan naciśnięcia.
 Korekta przewijania chroni przed rekurencyjnym `scrollTo` podczas zmian insetów klawiatury na iOS.
 Wydania beta pomijają buildy iOS i wysyłkę do TestFlight, zachowując zgodne OTA.
@@ -84,7 +85,7 @@ w konfiguracji bota. Gdy konto przestaje udostępniać wybraną szybkość,
 kontrolka pozostaje dostępna dla skonfigurowanego wątku lub bota: oferuje
 `Default` i `Standard`, bez niedostępnych trybów, aby umożliwić powrót
 do zwykłej szybkości. Tryby przyspieszone mają jedną błyskawicę, a `ultrafast`
-dwie; `Standard` i zwykłe ustawienie domyślne mają neutralny zegar. Ikony mają
+jeden glif SVG podwójnego pioruna; `Standard` i zwykłe ustawienie domyślne mają neutralny zegar. Ikony mają
 stały slot, a tekst i etykieta dostępności zachowują nazwę szybkości. Wyzwalacz
 pokazuje również efektywną szybkość odziedziczoną z wątku przy wyborze `Default`.
 

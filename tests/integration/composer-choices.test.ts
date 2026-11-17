@@ -1,6 +1,14 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
-import { PermissionMode, Provider, ui } from "@canopy/contracts";
+import {
+  ModelInfoSchema,
+  PermissionMode,
+  ProfileModelsSchema,
+  Provider,
+  ServiceTierSchema,
+  ui,
+} from "@canopy/contracts";
+import { SERVICE_TIERS_CAPABILITY } from "@canopy/domain/release/protocol";
 import { dockerAvailable } from "@canopy/db/testing";
 import { composerChoices } from "@canopy/domain/composer-choices";
 import { latestThreadChoices } from "@canopy/domain/new-thread-choices";
@@ -16,7 +24,7 @@ describe.skipIf(!dockerAvailable)("durable composer choices", () => {
   let workspaceId: string;
 
   beforeAll(async () => {
-    gw = await startTestGateway();
+    gw = await startTestGateway({ worker: { hello: { capabilities: [SERVICE_TIERS_CAPABILITY] } } });
     projectId = (await gw.api.createProject({ name: "Composer choices" })).project!.id;
     workspaceId = (await gw.api.createWorkspace({ projectId, workerId: gw.workerId, rootPath: "/repo/composer" }))
       .workspace!.id;
@@ -59,13 +67,17 @@ describe.skipIf(!dockerAvailable)("durable composer choices", () => {
   }
 
   test("last user choices survive a fresh gateway and a history window of newer provider turns", async () => {
-    gw.worker.models = gw.worker.models.map((profile) => ({
-      ...profile,
-      models: profile.models?.map((model) => ({
-        ...model,
-        serviceTiers: [{ id: "fast", name: "Fast", description: "Faster execution" }],
-      })),
-    }));
+    gw.worker.models = gw.worker.models.map((profile) => {
+      const catalog = create(ProfileModelsSchema, profile);
+      catalog.models = catalog.models.map((model) =>
+        create(ModelInfoSchema, {
+          ...model,
+          serviceTiers: [create(ServiceTierSchema, { id: "fast", name: "Fast", description: "Faster execution" })],
+        }),
+      );
+
+      return catalog;
+    });
     await gw.api.listModels({ refresh: true });
     const thread = await createThread("Remember my turn");
     expect(thread.lastUserTurnChoices).toBeUndefined();
@@ -80,10 +92,12 @@ describe.skipIf(!dockerAvailable)("durable composer choices", () => {
       clientRequestId: crypto.randomUUID(),
     });
 
-    await eventually(
+    const completed = await eventually(
       () => snapshot(gw.core, thread.id),
-      (s) => s.turns.some((t) => t.id === sent.turn!.id && t.status === "completed"),
+      (s) => s.turns.some((t) => t.id === sent.turn!.id && ["completed", "failed", "interrupted"].includes(t.status)),
     );
+
+    expect(completed.turns.find((turn) => turn.id === sent.turn!.id)?.status).toBe("completed");
     // A long provider continuation fills the history page without replacing the user's choices.
     await gw.runtime.runPromise(
       Effect.gen(function* () {
@@ -240,7 +254,7 @@ describe.skipIf(!dockerAvailable)("durable composer choices", () => {
   test("both clients resolve available choices with explicit picks before the last turn and thread defaults", async () => {
     const thread = await createThread("Available choices");
     const models = (await gw.api.listModels({})).workers[0]!.profiles[0]!.models;
-    const options = models.map((m) => ({ ...m, model: m.id }));
+    const options = models.map((m) => ({ ...m, model: m.id, serviceTiers: m.serviceTiers.map((tier) => tier.id) }));
     expect(composerChoices(thread, options)).toMatchObject({ option: { model: "gpt-5.5" }, effort: "low" });
 
     const saved = create(ui.ThreadSchema, {

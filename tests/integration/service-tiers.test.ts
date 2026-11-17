@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { Provider, ui } from "@canopy/contracts";
+import { create } from "@bufbuild/protobuf";
+import { ModelInfoSchema, ProfileModelsSchema, Provider, ServiceTierSchema, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { SERVICE_TIERS_CAPABILITY } from "@canopy/domain/release/protocol";
 import { GatewayCore } from "@canopy/gateway/core";
@@ -17,17 +18,21 @@ describe.skipIf(!dockerAvailable)("execution speed durability and worker dispatc
     projectId = (await gw.api.createProject({ name: "Execution speed" })).project!.id;
     workspaceId = (await gw.api.createWorkspace({ projectId, workerId: gw.workerId, rootPath: "/repo/speed" }))
       .workspace!.id;
-    gw.worker.models = gw.worker.models.map((profile) => ({
-      ...profile,
-      models: profile.models?.map((model) => ({
-        ...model,
-        serviceTiers: [
-          { id: "fast", name: "Fast", description: "Fast execution" },
-          { id: "priority", name: "Priority", description: "Priority execution" },
-          { id: "ultrafast", name: "Ultrafast", description: "Ultrafast execution" },
-        ],
-      })),
-    }));
+    gw.worker.models = gw.worker.models.map((profile) => {
+      const catalog = create(ProfileModelsSchema, profile);
+      catalog.models = catalog.models.map((model) =>
+        create(ModelInfoSchema, {
+          ...model,
+          serviceTiers: [
+            create(ServiceTierSchema, { id: "fast", name: "Fast", description: "Fast execution" }),
+            create(ServiceTierSchema, { id: "priority", name: "Priority", description: "Priority execution" }),
+            create(ServiceTierSchema, { id: "ultrafast", name: "Ultrafast", description: "Ultrafast execution" }),
+          ],
+        }),
+      );
+
+      return catalog;
+    });
     await gw.api.listModels({ refresh: true });
   }, 60_000);
 
@@ -183,10 +188,12 @@ describe.skipIf(!dockerAvailable)("execution speed durability and worker dispatc
     ).thread!;
 
     expect(side.serviceTier).toBe("fast");
-    gw.worker.models = gw.worker.models.map((profile) => ({
-      ...profile,
-      models: [...(profile.models ?? []), { id: "standard-only", serviceTiers: [] }],
-    }));
+    gw.worker.models = gw.worker.models.map((profile) => {
+      const catalog = create(ProfileModelsSchema, profile);
+      catalog.models = [...catalog.models, create(ModelInfoSchema, { id: "standard-only" })];
+
+      return catalog;
+    });
     await gw.api.listModels({ refresh: true });
 
     const standardChild = (

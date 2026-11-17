@@ -17,24 +17,13 @@ export function speedLabel(choice: ModelChoice | undefined, value: string, inher
     : choice?.serviceTierOptions.find((option) => option.id === tier)?.name || "Default";
 }
 
-/** Every mode keeps the same icon slot, including the two overlapping bolts. */
+/** Every mode keeps the same icon slot, including the compound double-bolt glyph. */
 export function SpeedIcon({ value }: { value: string }) {
   const accelerated = Boolean(value && value !== "default");
 
   return (
     <View style={{ width: 24, height: 16, flexShrink: 0, alignItems: "center", justifyContent: "center" }}>
-      {value === "ultrafast" ? (
-        <>
-          <View style={{ position: "absolute", left: 1 }}>
-            <Icon name="bolt" size={14} />
-          </View>
-          <View style={{ position: "absolute", right: 1 }}>
-            <Icon name="bolt" size={14} />
-          </View>
-        </>
-      ) : (
-        <Icon name={accelerated ? "bolt" : "clock"} size={14} />
-      )}
+      <Icon name={value === "ultrafast" ? "bolt-double" : accelerated ? "bolt" : "clock"} size={14} />
     </View>
   );
 }

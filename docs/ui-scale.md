@@ -64,7 +64,9 @@ oraz wtedy, gdy zapisany wybór wymaga możliwości powrotu do Standard.
 Poniżej 22 rem kontenera grupy pomija strzałkę, a poniżej 18 rem zachowuje samą
 ikonę z pełną nazwą w aria-label. Menu używa skali nakładek i ogranicza szerokość
 do viewportu; nie przesuwa przycisku wysyłki. Opcje są jednoliniowe, bez opisów.
-Fast ma jeden piorun, Ultrafast dwa, a Standard neutralną ikonę zegara.
+Fast ma jeden piorun, Ultrafast pojedynczą ikonę podwójnego pioruna,
+a Standard neutralną ikonę zegara. Podwójny piorun jest wspólnym glifem SVG,
+zamiast dwóch osobnych ikon ułożonych obok siebie.
 Ikona zajmuje stały slot również na zamkniętym przycisku; przy Default odpowiada
 odziedziczonej prędkości. Nazwy pozostają widoczne w menu.
 

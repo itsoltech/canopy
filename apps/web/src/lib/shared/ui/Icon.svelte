@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
   import { useDensity } from "./density.ts";
-  import { icons, iconStyle, type IconName } from "./icons.ts";
+  import { icons, iconStyle, filledIcons, type IconName } from "./icons.ts";
 
   /**
    * Family-independent SVG from the shared map. Decorative by default; pass `label` for standalone meaning.
@@ -36,12 +36,13 @@
   );
 
   const paths = $derived(icons[name]);
+  const filled = $derived(filledIcons.has(name));
 </script>
 
 <svg
   viewBox={iconStyle.viewBox}
   fill="none"
-  stroke="currentColor"
+  stroke={filled ? "none" : "currentColor"}
   stroke-width={iconStyle.strokeWidth}
   stroke-linecap="round"
   stroke-linejoin="round"
@@ -51,6 +52,6 @@
   aria-label={label}
 >
   {#each paths as d (d)}
-    <path {d} fill="none" />
+    <path {d} fill={filled ? "currentColor" : "none"} fill-rule="evenodd" />
   {/each}
 </svg>
