@@ -8,7 +8,8 @@ wybór obejmuje tylko ignorowane pliki lokalne bez zależności i wyniku builda.
 Status: **etapy 1–3 zaimplementowane** (2026-11-17), w tym sprzątanie zamkniętych worktree
 z odrzucaniem lokalnych plików, pomijanie plików ignorowanych przez Git, status lokalnych zmian i pull origin
 w web/desktop, przełączanie gałęzi z kompozytora oraz przywracanie lokalnych zmian
-po potwierdzeniu stash & pop.
+po potwierdzeniu stash & pop oraz osobny limit tworzenia worktree dla dużych repozytoriów,
+także na Windows.
 Opis dotyczy kodu; dostępność nightly/beta/stable wynika z promocji wydań ([release.md](release.md)).
 Etap 1: ustawienia (Creation, Branches,
 domyślny tryb), operacje git na workerze (refy, tworzenie worktree z bazy, start z remote, nazwy gałęzi
@@ -41,6 +42,12 @@ Zasady podziału odpowiedzialności:
   rekordy worktree wątków. Rozstrzyga ustawienia i wysyła je w parametrach komend, więc worker offline
   dostaje aktualne ustawienia przy następnej komendzie po połączeniu (nic nie jest kopiowane na worker).
 - **Przeglądarka** nigdy nie uruchamia gita; widzi wyniki przez BFF.
+
+Tworzenie checkoutu (`git worktree add --quiet`) ma osobny limit 60 s, zamiast limitu
+15 s używanego do krótkich operacji Git. Tryb cichy pomija komunikaty postępu,
+zachowując błędy. Opcjonalny fetch nadal ma limit 20 s; gateway czeka na utworzenie
+worktree do 90 s. Pozwala to wypisać pliki dużego repozytorium także na wolniejszym
+dysku na Windows bez przerywania operacji po 15 s.
 
 ## Model danych
 
@@ -593,7 +600,8 @@ Kontrolki opcji automatyzacji w UI mogą zostać dodane osobno; edytor harmonogr
 ## Weryfikacja (etap 1)
 
 - `tests/integration/worktrees.test.ts`: gateway + PostgreSQL + prawdziwy `WorkerHost` i repo
-  tymczasowe (bare origin + klon): refy, worktree z lokalnej i zdalnej bazy, nazwy gałęzi (w tym
+  tymczasowe (bare origin + klon): refy, worktree z lokalnej i zdalnej bazy, checkout trwający ponad 15 s
+  z późniejszym uruchomieniem wątku, nazwy gałęzi (w tym
   semantyczny prefiks przez zaślepkę `GenerateText`), konfinacja ścieżek, owner scoping, ustawienia
   w czterech zakresach ze źródłem dziedziczenia i konfliktem wersji, wątki boczne, ponowne użycie,
   wzmianki plików pierwszej wiadomości rozstrzygane względem nowego, użytego ponownie i odziedziczonego worktree,

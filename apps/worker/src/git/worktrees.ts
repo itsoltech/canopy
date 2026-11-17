@@ -10,6 +10,9 @@ export type WorktreeInfoInit = MessageInitShape<typeof WorktreeInfoSchema>;
 /** Attempts at a free branch name (`name-2`, `name-3`, ...) or a free random folder. */
 const MAX_SUFFIX = 50;
 
+/** Slow checkouts need more time than metadata reads; leave room for a fetch in the gateway's 90 s wait. */
+const WORKTREE_ADD_TIMEOUT_MS = 60_000;
+
 /** Lower-case letters and digits without i, l, o and u: 32 symbols, so every byte maps without bias. */
 const FOLDER_ALPHABET = "0123456789abcdefghjkmnpqrstvwxyz";
 const FOLDER_LENGTH = 6;
@@ -156,7 +159,12 @@ export async function createWorktree(managedRoot: string, request: CreateWorktre
 
   if (!isWithin(root, path)) throw new GitError("PATH_OUTSIDE_ROOT", "the worktree path is outside its root");
   // The commit (not the ref name) is the start point: nothing from the request reaches git as an option.
-  await gitOk(repo, ["worktree", "add", "--no-track", "-b", branch, "--", path, commit], "WORKTREE_FAILED");
+  await gitOk(
+    repo,
+    ["worktree", "add", "--quiet", "--no-track", "-b", branch, "--", path, commit],
+    "WORKTREE_FAILED",
+    WORKTREE_ADD_TIMEOUT_MS,
+  );
 
   if (!isWithin(root, realpathSync(path)))
     throw new GitError("PATH_OUTSIDE_ROOT", "the worktree path is outside its root");

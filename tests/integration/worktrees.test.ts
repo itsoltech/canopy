@@ -247,6 +247,26 @@ describe.skipIf(!dockerAvailable)("git worktrees through the worker link", () =>
     expect([checkout.cwd, checkout.worktree]).toEqual([repo, undefined]);
   });
 
+  test("a checkout slower than the metadata timeout still creates a usable thread", async () => {
+    const hooks = join(dir, "slow-checkout-hooks");
+    mkdirSync(hooks);
+    // A real Git hook models a slow checkout without a large repository or mocked process timers.
+    writeFileSync(join(hooks, "post-checkout"), "#!/bin/sh\nsleep 16\n", { mode: 0o755 });
+    sh(repo, "config", "core.hooksPath", hooks);
+
+    try {
+      const thread = await newWorktreeThread("Slow worktree checkout", "main");
+      expect(thread.worktree?.path).toBe(thread.cwd);
+      expect(readFileSync(join(thread.cwd, "README.md"), "utf8")).toBe("hello");
+      expect(sh(thread.cwd, "rev-parse", "HEAD")).toBe(localMain);
+      expect(sh(repo, "symbolic-ref", "--short", "HEAD")).toBe("main");
+      await idle(thread.id);
+      expect(readFileSync(join(thread.cwd, "worker-started.txt"), "utf8")).toBe(thread.cwd);
+    } finally {
+      sh(repo, "config", "--unset", "core.hooksPath");
+    }
+  }, 30_000);
+
   test("first-message file mentions use the new, reused or inherited worktree directory", async () => {
     const initialMessage = "@README.md";
 
