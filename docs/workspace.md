@@ -11,7 +11,8 @@ i interaktywny Preview automatyzacji w panelu web/desktop oraz automatyczny mini
 pod podsumowaniem wątku, przywracanie mini Preview oraz osobnego stanu prawego panelu
 po powrocie do wątku bez animacji panelu, kompaktowe pola wymiarów Preview bez +/−
 oraz kompaktowy przełącznik automatycznej archiwizacji po merge z ikoną informacji w podsumowaniu,
-lokalne zmiany Git i grupa przycisków Git z akcją Pull pod gałęzią,
+lokalne zmiany Git zapamiętywane przy zmianie wątku i odświeżane w tle
+oraz ikonowa akcja Pull obok odświeżania w nagłówku Local changes,
 wyrównany nagłówek natywnego mobile z jednolitym tłem chrome safe area,
 odstępem nad aktywną kartą i strzałką powrotu, zamykanie kart plików i modułów
 bezpośrednio z mobilnej listy Switch tab oraz ręczny pełnoekranowy Preview Browser/Desktop/Device
@@ -368,6 +369,11 @@ oraz bilans dodanych i usuniętych linii. Zliczanie obejmuje indeks, drzewo robo
 i pliki untracked, pomija ignorowane. Pliki binarne mają osobny licznik;
 niepełny odczyt linii jest oznaczony. Panel czyta status przy otwarciu, zmianie
 HEAD i przejściu stanu tury; **Refresh local changes** odświeża go ręcznie.
+Powrót do wątku i ponowne otwarcie podsumowania od razu pokazują ostatni wynik
+ze współdzielonego cache zapytań w pamięci karty (do 48 nieobserwowanych wpisów
+łącznie). Automatyczny odczyt działa w tle bez spinnera i zastępowania danych
+komunikatem ładowania; błąd odświeżenia zachowuje wynik i trafia do podpowiedzi.
+Pierwszy odczyt bez cache oraz ręczne odświeżenie nadal pokazują wskaźnik pracy.
 Ukryty lub zwinięty panel nie skanuje repozytorium cyklicznie.
 
 **Pull from origin** pobiera gałąź śledzoną na origin, a bez takiej konfiguracji
@@ -375,7 +381,10 @@ bieżącą gałąź o tej samej nazwie. Aktualizuje checkout wyłącznie przez f
 bez rebase ani automatycznego stash. Niezacommitowane zmiany, odłączony HEAD,
 brak origin oraz aktywna praca w checkoutcie blokują akcję z powodem w podpowiedzi.
 Ostateczne sprawdzenie odbywa się na gatewayu i workerze, niezależnie od stanu UI.
-Pull jest kompaktowym przyciskiem w grupie **Git actions**. Pełny cel i powody blokady
+Pull jest ikonowym przyciskiem obok odświeżania w nagłówku **Local changes**,
+w grupie **Git actions**, bez osobnego wiersza pod licznikami. Obie ikony mają stałe
+miejsca również przed odczytem i przy braku repozytorium; Pull pozostaje wtedy nieaktywny.
+Pełny cel i powody blokady
 są w tooltipie (fokus klawiatury lub długie przytrzymanie na dotyku), bez opisów
 pod przyciskiem. Błąd daje krótki status **Pull failed** / **Refresh failed**,
 a szczegóły są w podpowiedzi. Starszy worker lub komputer domowy pokazuje

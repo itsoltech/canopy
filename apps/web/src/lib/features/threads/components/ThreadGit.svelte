@@ -8,8 +8,6 @@
   import { observeActivity } from "#lib/shared/activity.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
-  import Button from "#lib/shared/ui/Button.svelte";
-  import ButtonGroup from "#lib/shared/ui/ButtonGroup.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import { useThreadGit } from "../thread-git.svelte.ts";
   import { pullBusyReason } from "../git-status.ts";
@@ -50,11 +48,18 @@
   );
 
   const pullDisabled = $derived(
-    Boolean(disabledReason) || git.loading || git.pulling || !git.data?.supported || Boolean(git.error),
+    Boolean(disabledReason) ||
+      git.loading ||
+      git.pulling ||
+      !git.data?.supported ||
+      !status?.isRepo ||
+      Boolean(git.error),
   );
 
+  const pullLabel = $derived(status?.pullBranch ? `Pull from origin/${status.pullBranch}` : "Pull from origin");
+
   const pullHint = $derived(
-    git.error || disabledReason || (status?.pullBranch ? `Pull from origin/${status.pullBranch}` : "Pull from origin"),
+    git.error || disabledReason || (!status?.isRepo && "Open a Git checkout to pull changes.") || pullLabel,
   );
 
   const statusHint = $derived(unavailable || git.error || git.data?.detail);
@@ -84,18 +89,32 @@
   >
     <Icon name="document-text" class="shrink-0" />
     <span class="min-w-0 flex-1">Local changes</span>
-    <IconButton
-      icon="arrow-path"
-      label="Refresh local changes"
-      size="sm"
-      loading={git.loading}
-      aria-disabled={Boolean(unavailable) || git.pulling}
-      tooltipText={statusHint || "Refresh local changes"}
-      class="aria-disabled:opacity-50"
-      onclick={() => {
-        if (!unavailable && !git.pulling) void git.reload();
-      }}
-    />
+    <div role="group" aria-label="Git actions" class="flex shrink-0 items-center gap-1">
+      <IconButton
+        icon="arrow-down-tray"
+        label={pullLabel}
+        size="sm"
+        loading={git.pulling}
+        aria-disabled={pullDisabled}
+        tooltipText={pullHint}
+        class="aria-disabled:opacity-50"
+        onclick={() => {
+          if (!pullDisabled) void git.pull();
+        }}
+      />
+      <IconButton
+        icon="arrow-path"
+        label="Refresh local changes"
+        size="sm"
+        loading={git.refreshing}
+        aria-disabled={Boolean(unavailable) || git.pulling}
+        tooltipText={statusHint || "Refresh local changes"}
+        class="aria-disabled:opacity-50"
+        onclick={() => {
+          if (!unavailable && !git.pulling) void git.reload();
+        }}
+      />
+    </div>
   </div>
   <div
     role="status"
@@ -103,7 +122,10 @@
     {@attach tooltip(statusHint)}
   >
     {#if unavailable}<p>Unavailable</p>
-    {:else if git.error}<p role="alert" class="text-red-600 dark:text-red-400">
+    {:else if git.error && (git.failureAction === "pull" || !git.data)}<p
+        role="alert"
+        class="text-red-600 dark:text-red-400"
+      >
         {git.failureAction === "pull" ? "Pull failed" : "Refresh failed"}
       </p>
     {:else if status?.isRepo}
@@ -131,28 +153,8 @@
         </div>
         {#if !status.linesComplete}<p {@attach tooltip("Line counts are partial.")}>Partial line counts</p>{/if}
       {:else}<p>No uncommitted changes</p>{/if}
-    {:else if git.loading}<p>Checking local changes…</p>
+    {:else if git.loading && !git.data}<p>Checking local changes…</p>
     {:else if git.data?.detail}<p>Unavailable</p>
     {:else if git.data}<p>No Git checkout</p>{/if}
   </div>
-  {#if status?.isRepo}
-    <div class="pt-1 pr-2 pb-1 pl-8">
-      <div class="w-fit max-w-full" {@attach tooltip(pullHint)}>
-        <ButtonGroup label="Git actions">
-          <Button
-            variant="ghost"
-            size="sm"
-            icon="arrow-down-tray"
-            loading={git.pulling}
-            aria-label="Pull from origin"
-            aria-disabled={pullDisabled}
-            class="aria-disabled:opacity-50"
-            onclick={() => {
-              if (!pullDisabled) void git.pull();
-            }}>Pull</Button
-          >
-        </ButtonGroup>
-      </div>
-    </div>
-  {/if}
 </div>
