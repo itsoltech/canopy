@@ -1,6 +1,9 @@
 # Canopy na iOS i Android
 
-Status: opis działającego kodu na `dev` (2026-11-16); „What's new” sortuje notatki
+Status: opis działającego kodu na `dev` (2026-11-17); safe area nad wątkiem ma tło
+chrome nagłówka, karta ma górny odstęp, a powrót do listy używa strzałki.
+Switch tab pozwala zamykać karty plików i podglądów bezpośrednio z listy.
+„What's new” sortuje notatki
 metodami dostępnymi w Hermesie bez `Array.prototype.toSorted`.
 Zasobnik nad kompozytorem przylega do jego ramki bez pustego pasa pod ostatnim nagłówkiem.
 Sidebar ma zwijane grupy projektów i worktree, zwarte wiersze oraz jeden wybór „Group by”.
@@ -168,11 +171,21 @@ limitu również bez liczby użytego procentu.
 W otwartym wątku pliki zajmują lokalne zakładki obok rozmowy. Nagłówek ma jedno
 tło chrome, sygnet projektu i aktywną kartę z arkuszem Switch tab. Kartą rozmowy
 jest tytuł wątku, także na liście kart; nie dublujemy go etykietą `Thread`.
-Aktywna karta łączy się kolorem z obszarem treści. Telefon pokazuje aktywną kartę,
+Safe area nad nagłówkiem dzieli jego tło chrome, także przy notchu i po obrocie.
+Pas kart ma 4 dp górnego paddingu ponad celami dotykowymi 48 dp, odsłaniając
+zaokrąglenia aktywnej karty; jej dolna krawędź nadal łączy się z treścią bez szczeliny.
+Na telefonie `Back to threads` ma ikonę strzałki w lewo i wraca do listy;
+hamburger pozostaje przełącznikiem sidebara w szerokim układzie.
+Telefon pokazuje aktywną kartę,
 a od 600 dp rzeczywistej szerokości nagłówka obok otwartego pliku widać również
 kartę rozmowy. Długie tytuły i ścieżki mają ellipsis oraz pełne dostępne nazwy;
 wskaźnik niezapisanej zmiany ma zarezerwowane miejsce. Akcje mają cele 48 dp.
 Arkusz obsługuje Keep tab, Move up/down i zamykanie z potwierdzeniem szkicu.
+Każda karta pliku lub modułu ma osobny przycisk `Close tab` (×) w wierszu
+Switch tab. Zamykanie nie wybiera karty ani nie zamyka listy; usunięcie aktywnej
+przywraca ostatnio używaną kartę. Niezapisany plik otwiera potwierdzenie zapisu,
+odrzucenia zmian lub dalszej edycji nad listą. Podczas zapisu zamknięcie jest
+nieaktywne. Karta rozmowy pozostaje stała, bez przycisku zamknięcia.
 Jeden czysty preview można zastąpić kolejnym plikiem; Edit utrwala go przed edycją.
 Android Back wraca do `Thread` bez zamykania karty. Rozmowa i composer zachowują
 stan podczas czytania pliku. Metadane maks. 12 kart na wątek / 30 wątków / 256 KiB

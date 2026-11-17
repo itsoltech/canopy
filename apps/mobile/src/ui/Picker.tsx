@@ -32,6 +32,8 @@ export interface PickerOption<T> {
   keywords?: string;
   /** Permission scopes must remain fully visible before the owner chooses one. */
   wrapLabel?: boolean;
+  /** Independent control beside the option; tapping it does not select or close the picker. */
+  accessory?: ReactNode;
 }
 
 export interface PickerSection<T> {
@@ -187,61 +189,66 @@ function PickerRow<T>({
   const touchTarget = useMinimumTouchTarget();
 
   return (
-    <Pressable
-      accessibilityRole={checkable || "menuitem"}
-      accessibilityState={{ selected, checked: checkable ? selected : undefined, disabled: option.disabled }}
-      accessibilityLabel={[option.label, option.suffix, option.badge, option.description].filter(Boolean).join(", ")}
-      disabled={option.disabled}
-      onPress={onPress}
-      style={({ pressed }) => ({
-        // Web: a listbox option. Touch rows stay 44 dp; the check, not a fill, marks the choice.
-        minHeight: touchTarget,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 8,
-        paddingHorizontal: 8,
-        paddingVertical: 8,
-        borderRadius: 8,
-        backgroundColor: pressed ? c.pressed : "transparent",
-        opacity: option.disabled || option.muted ? 0.4 : 1,
-      })}
-    >
-      {option.online !== undefined ? (
-        <StatusDot tone={option.online ? "emerald" : "neutral"} />
-      ) : (
-        (option.leading ?? (option.icon ? <Icon name={option.icon} color={tone ?? c.icon} /> : null))
-      )}
-      <View style={{ flex: 1, gap: 2 }}>
-        <View style={[styles.row, { gap: 6 }]}>
-          <Text
-            numberOfLines={option.wrapLabel ? undefined : 1}
-            style={[
-              styles.overlay,
-              { color: tone ?? c.strong, flexShrink: 1 },
-              option.fontFamily ? { fontFamily: option.fontFamily } : undefined,
-            ]}
-          >
-            {option.label}
-          </Text>
-          {option.suffix && (
-            <Text numberOfLines={1} style={[styles.overlayMeta, { color: c.muted, flexShrink: 1 }]}>
-              · {option.suffix}
+    <View style={{ flexDirection: "row", alignItems: "center" }}>
+      <Pressable
+        accessibilityRole={checkable || "menuitem"}
+        accessibilityState={{ selected, checked: checkable ? selected : undefined, disabled: option.disabled }}
+        accessibilityLabel={[option.label, option.suffix, option.badge, option.description].filter(Boolean).join(", ")}
+        disabled={option.disabled}
+        onPress={onPress}
+        style={({ pressed }) => ({
+          // Web: a listbox option. Touch rows stay 44 dp; the check, not a fill, marks the choice.
+          minHeight: touchTarget,
+          flex: 1,
+          minWidth: 0,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 8,
+          paddingHorizontal: 8,
+          paddingVertical: 8,
+          borderRadius: 8,
+          backgroundColor: pressed ? c.pressed : "transparent",
+          opacity: option.disabled || option.muted ? 0.4 : 1,
+        })}
+      >
+        {option.online !== undefined ? (
+          <StatusDot tone={option.online ? "emerald" : "neutral"} />
+        ) : (
+          (option.leading ?? (option.icon ? <Icon name={option.icon} color={tone ?? c.icon} /> : null))
+        )}
+        <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+          <View style={[styles.row, { gap: 6 }]}>
+            <Text
+              numberOfLines={option.wrapLabel ? undefined : 1}
+              style={[
+                styles.overlay,
+                { color: tone ?? c.strong, flexShrink: 1 },
+                option.fontFamily ? { fontFamily: option.fontFamily } : undefined,
+              ]}
+            >
+              {option.label}
             </Text>
-          )}
-          {option.badge ? (
-            <Text numberOfLines={1} style={[styles.caption, { color: tone ?? c.faint, flexShrink: 0 }]}>
-              {option.badge}
+            {option.suffix && (
+              <Text numberOfLines={1} style={[styles.overlayMeta, { color: c.muted, flexShrink: 1 }]}>
+                · {option.suffix}
+              </Text>
+            )}
+            {option.badge ? (
+              <Text numberOfLines={1} style={[styles.caption, { color: tone ?? c.faint, flexShrink: 0 }]}>
+                {option.badge}
+              </Text>
+            ) : null}
+          </View>
+          {option.description ? (
+            <Text numberOfLines={2} style={[styles.overlayMeta, { color: c.muted }]}>
+              {option.description}
             </Text>
           ) : null}
         </View>
-        {option.description ? (
-          <Text numberOfLines={2} style={[styles.overlayMeta, { color: c.muted }]}>
-            {option.description}
-          </Text>
-        ) : null}
-      </View>
-      {checkable && <View style={{ width: 16 }}>{selected && <Icon name="check" color={c.accent} />}</View>}
-    </Pressable>
+        {checkable && <View style={{ width: 16 }}>{selected && <Icon name="check" color={c.accent} />}</View>}
+      </Pressable>
+      {option.accessory}
+    </View>
   );
 }
 
