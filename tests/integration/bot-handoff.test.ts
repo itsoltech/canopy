@@ -161,7 +161,7 @@ describe.skipIf(!dockerAvailable)("bot model handoff: durable hidden configurati
     expect(seen[1]?.configuration).toMatchObject({ provider: Provider.GROK, model: "model-b" });
     expect(seen[1]?.instructions).toContain("Handoff from your previous model (model-a)");
     expect(seen[1]?.instructions).toContain("Next: review the release");
-    expect(seen[1]?.instructions).toContain('provider instance "Source GROK"');
+    expect(seen[1]?.instructions).toContain('Provider instance "Source GROK"');
     expect(seen[1]?.instructions).toContain("model id model-b");
     expect(seen[1]?.instructions).toContain("Earlier messages may have been written by other models");
   });
